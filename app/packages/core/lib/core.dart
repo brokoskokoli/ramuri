@@ -17,6 +17,12 @@ export 'ports/key_store.dart';
 export 'ports/location.dart';
 export 'ports/recording_service.dart';
 export 'ports/storage.dart';
+export 'src/preprocessing/geo.dart';
+export 'src/preprocessing/latest_value_index.dart';
+export 'src/preprocessing/measurement.dart';
+export 'src/preprocessing/position_processor.dart';
+export 'src/preprocessing/preprocessing_parameters.dart';
+export 'src/preprocessing/run_preprocessor.dart';
 
 /// Name des Pakets, nur damit das Paket auflösbar und testbar ist.
 const String corePackageName = 'core';
