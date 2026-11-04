@@ -39,6 +39,8 @@ def gap(work):
         rcv={int(kv(e[2])['seq']):e[0] for e in ev if e[1]=='R005RCV'}
         dbseq=[r[0] for r in R]
         # Epochenzeit je Zeile aus trecv plus Versatz (Median), damit fehlende Logzeilen am Ende die Phase nicht verfaelschen
+        if not R or not any(r[0] in rcv for r in R):
+            rec=dict(run=run,rows=len(R),valid=False,why='keine Zeile, auch nicht in der Referenzphase: Standortweg lieferte nichts'); out.append(rec); print(json.dumps(rec)); continue
         off=sorted(rcv[r[0]]-r[4]/1e9 for r in R if r[0] in rcv)[len([r for r in R if r[0] in rcv])//2]
         rcv={r[0]:r[4]/1e9+off for r in R}|rcv
         def phase(a,b):
@@ -68,7 +70,7 @@ def gap(work):
             try: susp_ok=int(af['success'])-int(b4['success']); susp_fail=int(af['fail'])-int(b4['fail'])
             except ValueError: pass
         states=[json.loads(l.split('\t',1)[1]) for l in open(o+'state.tsv') if '{' in l]
-        deep=sum(1 for s in states if s['deep']=='IDLE')/max(1,len(states))
+        deep=(sum(1 for s in states if s['deep']=='IDLE')/len(states)) if states else None
         lhb=[(y['t']-x['t']) for x,y in zip(hb_idle,hb_idle[1:])]
         if hb_idle: lhb=[hb_idle[0]['t']-p['idle_start']]+lhb+[p['end']-hb_idle[-1]['t']]  # Rand zaehlt mit, sonst bleibt ein Einfrieren bis Phasenende unsichtbar
         else: lhb=[dur]
@@ -81,13 +83,29 @@ def gap(work):
         rec=dict(run=run,integ=integ.split('\t')[-1],rows=len(R),idle_rows=len(idle),idle_s=round(dur),
           rate=round(len(idle)/dur,3),coverage=round(cov,4),gap_p50=round(pct(di,50),2),gap_p99=round(pct(di,99),2),gap_max=round(max(di),1) if di else None,
           n_gt2=sum(x>2 for x in di),n_gt5=sum(x>5 for x in di),n_gt30=sum(x>30 for x in di),poschg_p99=round(pct(dch,99),2) if dch else None,poschg_max=round(max(dch),1) if dch else None,poschg_gt5=sum(x>5 for x in dch),base_p99=round(pct(db,99),2),base_max=round(max(db),2) if db else None,
-          hb_n=len(hb_idle),hb_max=round(max(lhb),1) if lhb else None,locked=round(locked,2),inter=inter,appIdle=round(idl,2),deepIDLE=round(deep,2),susp_ok=susp_ok,susp_fail=susp_fail,hb_gt5=sum(x>5 for x in lhb),
+          hb_n=len(hb_idle),hb_max=round(max(lhb),1) if lhb else None,locked=round(locked,2),inter=inter,appIdle=round(idl,2),deepIDLE=round(deep,2) if states else None,susp_ok=susp_ok,susp_fail=susp_fail,hb_gt5=sum(x>5 for x in lhb),
           errs=sum(1 for e in ev if e[1]=='R005ERR'),ack_p50_us=round(pct(acks,50)) if acks else None,ack_p99_us=round(pct(acks,99)) if acks else None,load=round(st.mean(s['load'] for s in states),1) if states else None)
         if 'post_end' in p:  # natuerlicher Suspend: Nachphase, kommen wieder Standorte?
             po=[r for r in R if p['end']<=rcv[r[0]]<=p['post_end']]
             rec['post_rows']=len(po); rec['post_s']=round(p['post_end']-p['end'])
             hb_all=[h['t'] for h in hb]; rec['hb_maxgap_all']=round(max((b-a for a,b in zip(hb_all,hb_all[1:])),default=0),1)
             alld=[(y[4]-x[4])/1e9 for x,y in zip(R,R[1:])]; rec['db_maxgap_all']=round(max(alld,default=0),1)
+        # Gueltigkeit: Host lief, Sperre und Idle belegt, Einspeisung lief bis zum Ende, R005START da, Referenz lieferte (ausser Kontrollen ohne Bezug)
+        names=[e[1] for e in ev]; host=json.load(open(o+'meta.json')).get('host','own')
+        svc=('R005SVC' in names) if host=='own' else (any(e[1]=='R005ENGINE' and 'ffgt' in e[2] for e in ev) if host=='ffgt' else 'R005SVC' not in names)
+        it=sorted(v[1] for v in inj.values()); igap=max((b-a for a,b in zip(it,it[1:])),default=0)
+        act=open(o+'activity.txt',errors='replace').read() if os.path.exists(o+'activity.txt') else ''
+        why=[]
+        if 'R005START' not in names: why.append('kein R005START')
+        if not svc: why.append('Host nicht belegt')
+        if rec['errs']: why.append('R005ERR')
+        if locked<0.99: why.append('nicht gesperrt')
+        if idl<0.99 and not 'stopctl' in run: why.append('nicht idle')
+        if inter: why.append('interaktiv')
+        if len(base)<50: why.append('Referenz %d Zeilen'%len(base))
+        if not it or it[-1]<p['end']-5: why.append('Einspeisung endet vor Phasenende')
+        if igap>5 and 'pausectl' not in run: why.append('Einspeisung setzt aus %.1fs'%igap)
+        rec.update(valid=not why,why=why,inj_n=len(it),inj_gap_max=round(igap,1),base_rows=len(base),base_rate=round(len(base)/max(1,p['locked_start']-min(rcv.values())),3),fgs='isForeground' in act or 'foregroundServices=true' in act)
         out.append(rec); print(json.dumps(rec))
     json.dump(out,open(work+'/gap/summary.json','w'),indent=1)
 def kill(work):

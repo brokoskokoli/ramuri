@@ -119,6 +119,30 @@ def fresh():
 def dump_db(dbdir,plain=False):
     out=subprocess.run(['dart','run','--resident=false' if False else 'bin/dump.dart',f'{dbdir}/x.db']+(['--plain'] if plain else []),cwd=os.environ['R005_WALTEST'],capture_output=True,text=True,timeout=120)
     return out.stdout,out.stderr
+# ---- Langlauf: Ressourcen im Zeitverlauf (nur lesend, adb root ist aktiv)
+class Sampler(threading.Thread):
+    def __init__(s,o,run,every):
+        super().__init__(daemon=True); s.f=open(o+'/resources.tsv','w'); s.m=open(o+'/meminfo.txt','w'); s.run_=run; s.every=every; s.stop_=False
+        s.f.write('t\tpid\trss_kb\tpss_kb\tpss_anon_kb\tpss_file_kb\tdb_b\twal_b\tshm_b\tload1\tqemu_self_pct\tqemu_other_pct\tqemu_other\n'); s.f.flush()
+    def run(s):
+        d=f'/data/user/0/{PKG}/no_backup/r005-{s.run_}.db'; n=0
+        while not s.stop_:
+            t=time.time()
+            o=ash(f'P=$(pidof {PKG}); echo PID=$P; grep -E "^(Rss|Pss|Pss_Anon|Pss_File):" /proc/$P/smaps_rollup; stat -c "F%n=%s" {d} {d}-wal {d}-shm',timeout=20)
+            g=lambda k:(re.search(rf'^{k}:\s+(\d+)',o,re.M) or [0,''])[1]
+            f=lambda e:(re.search(rf'^F\S*\.db{e}=(\d+)',o,re.M) or [0,''])[1]
+            pid=(re.search(r'PID=(\S*)',o) or [0,''])[1]
+            ps=sh('ps','-axo','pcpu=,command=',timeout=10); me=emu_pid(); self_=other=0.0; names=[]
+            for l in ps.splitlines():
+                m=re.match(r'\s*([\d.,]+)\s+(\S*qemu-system\S*).*-avd (\S+)',l)
+                if m:
+                    c=float(m[1].replace(',','.'))
+                    if m[3].startswith('running_app_r005'): self_+=c
+                    else: other+=c; names.append(m[3])
+            s.f.write(f"{t:.1f}\t{pid}\t{g('Rss')}\t{g('Pss')}\t{g('Pss_Anon')}\t{g('Pss_File')}\t{f('')}\t{f('-wal')}\t{f('-shm')}\t{os.getloadavg()[0]:.2f}\t{self_:.0f}\t{other:.0f}\t{','.join(names)}\n"); s.f.flush()
+            if n%20==0:
+                s.m.write(f'=== {t:.1f}\n'+ash(f'dumpsys meminfo {PKG}',timeout=30)); s.m.flush()
+            n+=1; time.sleep(max(0,s.every-(time.time()-t)))
 # ---- Gap
 def trial_gap(a,run,base=60):
     o=f'{WORK}/gap/{run}'
@@ -130,6 +154,8 @@ def trial_gap(a,run,base=60):
     lc=Logcat(o+'/logcat.txt'); inj=Injector(o+'/inject.tsv',a.seed,pause=(base+a.pause_at,base+a.pause_at+a.pause_len) if a.pause_len else None); inj.start()
     time.sleep(3)
     log(start_app(o+'/logcat.txt',cmd='start',host=a.host,run=run,tx=a.tx,sync=a.sync,wake=a.wake,steps=True).strip()[-60:])
+    smp=None
+    if a.sample: smp=Sampler(o,run,a.sample); smp.start()
     st=open(o+'/state.tsv','w'); phase=[]; elog0=os.path.getsize(f'{WORK}/emulator-api{a.api}.log')
     if a.force_at:  # Probe: erzwungener Suspend (umgeht die Wake-Lock-Zaehlung, kein Beleg zum Wake Lock), bei laufender Einspeisung
         threading.Timer(base+a.force_at,lambda:(st.write(f'{time.time():.1f}\tFORCE mem\n'),st.flush(),ash('echo mem > /sys/power/state',timeout=40),st.write(f'{time.time():.1f}\tFORCE zurueck\n'),st.flush())).start()
@@ -154,10 +180,11 @@ def trial_gap(a,run,base=60):
     while time.time()-t0<base+a.dur:
         if a.quiet:  # keine adb-Abfragen, die das System wach halten koennten
             time.sleep(min(15,base+a.dur-(time.time()-t0))); continue
-        time.sleep(15); snap=state_snapshot(); st.write(f'{time.time():.1f}\t'+json.dumps(snap)+'\n'); st.flush(); n+=1
+        time.sleep(a.poll); snap=state_snapshot(); st.write(f'{time.time():.1f}\t'+json.dumps(snap)+'\n'); st.flush(); n+=1
         if a.idle and snap['deep']!='IDLE':
             st.write(f'{time.time():.1f}\tREIDLE\n'); ash('dumpsys deviceidle force-idle')
     phase.append(('end',time.time()))
+    if smp: smp.stop_=True; smp.join(40)
     json.dump(dict(phase=phase,t0=t0),open(o+'/phases.json','w'))
     up=ash('echo up',timeout=8).strip()=='up'; st.write(f'{time.time():.1f}\tADB_ANTWORTET {up}\n'); st.flush(); log('adb antwortet',up)
     if (a.natural or a.force_at) and not up:
@@ -250,7 +277,7 @@ def main():
     ap.add_argument('--idle',type=int,default=1); ap.add_argument('--tx',type=int,default=1); ap.add_argument('--sync',default='FULL')
     ap.add_argument('--dur',type=int,default=600); ap.add_argument('--rep',type=int,default=1); ap.add_argument('--seed',type=int,default=42); ap.add_argument('--kind',default='proc')
     ap.add_argument('--minrun',type=float,default=20); ap.add_argument('--maxrun',type=float,default=40); ap.add_argument('--pause-at',type=int,default=0); ap.add_argument('--pause-len',type=int,default=0); ap.add_argument('--stop-at',type=int,default=0); ap.add_argument('--stop-len',type=int,default=0)
-    ap.add_argument('--natural',type=int,default=0); ap.add_argument('--force-at',type=int,default=0); ap.add_argument('--post',type=int,default=30); ap.add_argument('--quiet',type=int,default=0); ap.add_argument('--n',type=int,default=300); ap.add_argument('--tag',default='')
+    ap.add_argument('--natural',type=int,default=0); ap.add_argument('--force-at',type=int,default=0); ap.add_argument('--post',type=int,default=30); ap.add_argument('--quiet',type=int,default=0); ap.add_argument('--n',type=int,default=300); ap.add_argument('--tag',default=''); ap.add_argument('--poll',type=int,default=15); ap.add_argument('--sample',type=int,default=0)
     a=ap.parse_args(); a.wake=bool(a.wake); a.idle=bool(a.idle)
     os.makedirs(WORK,exist_ok=True)
     if a.cmd=='boot':
