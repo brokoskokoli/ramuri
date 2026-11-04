@@ -17,6 +17,6 @@ jobs:
         if: hashFiles('app/pubspec.yaml') != ''
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version-file: app/pubspec.yaml
           cache: true
       - run: sh tool/gate.sh

@@ -1,0 +1,20 @@
+name: adapters
+description: Umsetzungen der Ports von core für Android (Flutter).
+publish_to: none
+version: 0.0.1
+resolution: workspace
+
+environment:
+  sdk: ^3.13.5
+  flutter: 3.47.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  core:
+    path: ../core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

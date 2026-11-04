@@ -17,3 +17,5 @@ local.properties
 research/data/
 research/input/*
 !research/input/README.md
+# Generierte Lokalisierung (flutter pub get erzeugt sie aus den ARB-Dateien)
+app/lib/l10n/app_localizations*.dart

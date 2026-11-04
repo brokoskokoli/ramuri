@@ -4,7 +4,7 @@
 2. Diff lesen: Logik, Fehlerwege, Rennen, Grenzfälle, fail-closed bei Sicherheitslogik.
 3. Tests: Decken sie die Kriterien ab? Mutationstests an 3–10 kritischen Stellen.
 4. Datenschutz und Secrets: keine Inhalte in Logs/Exporten, keine Keys, keine privaten Daten im (öffentlichen) Repo.
-5. Konsistenz: Spezifikation, ADRs, `docs/ARCHITECTURE.md`, Abhängigkeitsregeln, Dateigrößen.
+5. Konsistenz: Spezifikation, ADRs, `docs/architecture/overview.md`, Abhängigkeitsregeln, Dateigrößen.
 6. Identität aller Commits.
 7. Urteil: FREIGABE oder NACHBESSERN; Befunde Blocker/Muss/Soll mit Datei:Zeile und Fix.
 

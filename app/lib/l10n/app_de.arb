@@ -1,0 +1,11 @@
+{
+  "@@locale": "de",
+  "appTitle": "Lauf-App",
+  "@appTitle": {
+    "description": "Titel der App"
+  },
+  "homeWelcome": "Willkommen bei der Lauf-App",
+  "@homeWelcome": {
+    "description": "Text auf dem Startbildschirm"
+  }
+}
