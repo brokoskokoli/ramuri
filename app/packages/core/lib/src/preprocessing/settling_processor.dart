@@ -50,11 +50,15 @@ class SettlingProcessor {
   final List<DateTime> _triggers = [];
 
   /// Abweichung der 2-min-Mittel beim letzten auswertbaren Segment über der
-  /// Schwelle. Nicht auswertbare Zeitpunkte lassen den Zustand unverändert.
+  /// Schwelle. Nicht auswertbare Zeitpunkte lassen den Zustand unverändert;
+  /// eine Lücke setzt ihn zurück (über die Lücke ist nichts gemessen).
   bool _above = false;
 
   void add(MotionSegment s) {
-    if (s.isGap) return;
+    if (s.isGap) {
+      _above = false;
+      return;
+    }
     final v = speedMetersPerSecond(s.meters, s.seconds);
     if (v == null || v < parameters.standstillBelow) return;
     _legs.add(_Leg(s.start, s.end, s.meters));

@@ -121,8 +121,8 @@ class HeartRateProcessor {
 
   /// Alle Werte, die PAR-007 und PAR-008 bestanden haben (auch als Ausreißer
   /// verworfene), im Fenster von PAR-009. So übernimmt der Median ein Plateau
-  /// nach gut der halben Fensterlänge, noch bevor die Änderungsrate es
-  /// freigibt.
+  /// nach gut der halben Fensterlänge; je nach Sprunghöhe gibt zuerst die
+  /// Änderungsrate oder zuerst der Median frei.
   final Queue<_Point> _window = Queue();
   _Point? _lastAccepted;
   DateTime? _lastTime;

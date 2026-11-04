@@ -3,6 +3,7 @@ import 'package:test/test.dart';
 
 import 'hr_support.dart';
 import 'motion_support.dart';
+import 'settling_flank_test.dart' as flank;
 import 'support.dart';
 
 List<(DateTime, DateTime)> spans(RunPreprocessing r) => [
@@ -112,9 +113,15 @@ void main() {
       // (t-2min,t] = 3 + 0,5 x/120 mit x s nach 600; Abweichung >= 0,25 erst
       // bei x = 60 (t=660). Danach wächst sie weiter, bleibt darüber: ein
       // Auslösen, [660, 840].
-      final r = feed(track([(600, 3), (60, 3.5), (60, 4), (60, 4.5), (60, 5)]))
-          .result(at: at(840));
-      expect(spans(r), [(t0, min(3)), (at(660), at(840))]);
+      // Exakte 1-s-Segmente: die Grenze 0,25 hängt nicht an der Rundung.
+      final p = flank.exactRun([
+        (600, 3),
+        (60, 3.5),
+        (60, 4),
+        (60, 4.5),
+        (60, 5),
+      ]);
+      expect(flank.spans(p), [(t0, min(3)), (at(660), at(840))]);
     });
 
     test('Pulswerte werden nicht verschoben', () {

@@ -114,6 +114,14 @@ void main() {
       expect(ascentOf([100, 97, 100]), 3);
     });
 
+    test('resume ohne Pause verwirft Fenster und Referenz nicht', () {
+      final proc = AltitudeProcessor(const PreprocessingParameters.v2())
+        ..add(alt(0, 100))
+        ..resume()
+        ..add(alt(40, 200));
+      expect(proc.result(at: at(40)).ascentMeters, 100);
+    });
+
     test('Rauschen unter 3 m ergibt 0, nicht null', () {
       expect(ascentOf([100, 102, 99, 101.5, 98.5, 102]), 0);
     });

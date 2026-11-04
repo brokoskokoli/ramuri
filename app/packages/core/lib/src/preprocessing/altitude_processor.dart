@@ -96,6 +96,7 @@ class AltitudeProcessor {
   }
 
   void resume() {
+    if (!_paused) return;
     _paused = false;
     _window.clear();
     _reference = null;

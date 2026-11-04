@@ -28,6 +28,15 @@ SettlingProcessor exactRun(List<(int, double)> legs) {
   return p;
 }
 
+/// [seconds] 1-s-Segmente ab Sekunde [from] mit [speed] m/s.
+void addSeconds(SettlingProcessor p, int from, int seconds, double speed) {
+  for (var s = from; s < from + seconds; s++) {
+    p.add(
+      MotionSegment(start: at(s), end: at(s + 1), meters: speed, isGap: false),
+    );
+  }
+}
+
 void main() {
   group('PAR-011 Flanke', () {
     test('echter Tempowechsel löst genau einmal aus', () {
@@ -129,6 +138,35 @@ void main() {
         );
       }
       expect(spans(p), [(t0, at(180)), (at(536), at(716))]);
+    });
+    test('Lücke setzt den Zustand zurück: Sprung danach löst aus', () {
+      // 3 -> 3,5 bei 600 (Auslösen 660), Lücke 700..850, danach 5 m/s. Beim
+      // ersten Segment (Ende 851): recent 5, before (611,731] = 3,5, also
+      // Abweichung 1,5 und über die Lücke unbekannt, was vorher war: [851, 1031].
+      final p = exactRun([(600, 3), (100, 3.5)]);
+      p.add(
+        MotionSegment(start: at(700), end: at(850), meters: 0, isGap: true),
+      );
+      addSeconds(p, 850, 150, 5);
+      expect(spans(p), [
+        (t0, at(180)),
+        (at(660), at(840)),
+        (at(851), at(1031)),
+      ]);
+    });
+
+    test('nicht auswertbarer Zeitpunkt lässt den Zustand unverändert', () {
+      // Über-Zustand ab 660 (3,5 gegen 3). Danach Stand 700..1000, dann 1 s
+      // mit 3 und 4 m/s: bis 1120 fehlt das frühere Fenster (nicht
+      // auswertbar). Bei 1121 ist es 3 gegen 4, die Abweichung war aber nie
+      // darunter: kein neues Auslösen.
+      final p = exactRun([(600, 3), (100, 3.5)]);
+      p.add(
+        MotionSegment(start: at(700), end: at(1000), meters: 0, isGap: false),
+      );
+      addSeconds(p, 1000, 1, 3);
+      addSeconds(p, 1001, 140, 4);
+      expect(spans(p), [(t0, at(180)), (at(660), at(840))]);
     });
   });
 }
