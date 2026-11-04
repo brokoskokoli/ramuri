@@ -1,51 +1,75 @@
 #!/bin/bash
-# Fuehrt R005 aus. Alle Parameter: ./run.sh --help (gleichlautend zur README).
+# Fuehrt R005 aus. Alle Schritte und Parameter: ./run.sh --help (gleichlautend zur README).
 set -euo pipefail
 cd "$(dirname "$0")"
 source src/emu-env.sh
-usage() { cat <<HELP
-Usage: ./run.sh <schritt> [--api N] [--rep N] [--dur S]
+usage() { cat <<'HELP'
+Usage: ./run.sh <schritt> [Parameter]
 Schritte:
-  licenses   Lizenzbaum (Dart, Gradle, native) nach work/R005/licenses
-  wal-host   Verschluesseltes WAL am Rechner, mit Kontrollen, nach work/R005/wal-host
-  emu-start  Eigenen Emulator (emulator-5600) fuer --api starten und einrichten
-  emu-stop   Eigenen Emulator beenden
-  gap        Matrix Sperre plus force-idle: own, ffgt, je mit und ohne Wake Lock, dazu Negativkontrolle none und bekannte Luecke
-  kill       Kill-Matrix: proc und emu, tx 1, 5, 30, FULL und NORMAL
-  swipe      Wischen aus den letzten Apps, own und ffgt
-  wal        Verschluesseltes WAL im Emulator, mit Positivkontrolle
-  bench      Schreibkosten FULL gegen NORMAL, tx 1, 5, 30
-  report     Auswertung aller vorhandenen Laeufe (stdout)
-Parameter:
-  --api N   API-Stufe des Emulators, 31 oder 36 (Standard: 36)
-  --rep N   Wiederholungen je Zelle (Standard: gap 2, kill 10, swipe 2)
-  --dur S   Dauer der Sperr- und Idle-Phase in Sekunden bei gap (Standard: 600)
-Laeufe mit .done werden uebersprungen. Ausgaben: \$RESEARCH_DATA/work/R005/
+| `licenses` | Lizenzbaum (Dart, Gradle) nach `work/R005/licenses` |
+| `wal-host` | Verschluesseltes WAL am Rechner, mit Kontrollen, FAQ-Fall, Schluesselwechsel, nach `work/R005/wal-host` |
+| `emu-start` | Eigenen Emulator (`emulator-5600`) fuer `--api` starten und einrichten |
+| `emu-stop` | Eigenen Emulator beenden |
+| `gap` | Luecken-Lauf bei Sperre und force-idle nach `work/R005/gap` |
+| `kill` | Kill-Lauf nach `work/R005/kill` |
+| `swipe` | Wischen aus den letzten Apps nach `work/R005/swipe` |
+| `wal` | Verschluesseltes WAL im Emulator, mit Positivkontrolle, nach `work/R005/wal-device` |
+| `bench` | Schreibkosten FULL gegen NORMAL, tx 1, 5, 30, nach `work/R005/bench` |
+| `phase-a` | Kontrollen und Proben auf API 36 (`src/phaseA.sh`), etwa 35 min |
+| `matrix` | Lange Matrix (`src/matrix.sh`), API 36 und 31, etwa 5,5 h, fortsetzbar |
+| `long` | Langlauf 60 min (`src/long.sh`), Dauer ueber `R005_LONG_DUR` in Sekunden |
+| `rerun` | Wiederholungen API 31 und Abstandsprobe API 36 (`src/rerun.sh`), etwa 35 min |
+| `report` | Alle Auswertungen und Tabellen aus den Rohdaten nach `work/R005/report` |
+Parameter fuer gap, kill, swipe, wal, bench, emu-start:
+| `--api N` | 36 | API-Stufe des Emulators, 31 oder 36 |
+| `--host own\|ffgt\|none` | own | Host, siehe README |
+| `--wake 0\|1` | 0 | eigener Partial Wake Lock |
+| `--tx N` | 1 | Zeilen je Transaktion |
+| `--sync FULL\|NORMAL` | FULL | `PRAGMA synchronous` |
+| `--dur S` | 600 | Dauer der Sperr- und Idle-Phase bei gap, Laufdauer bei swipe und wal |
+| `--rep N` | 1 | Wiederholungen je Zelle |
+| `--seed N` | 42 | Seed der Spur bei gap (Wiederholung r: Seed + r) |
+| `--kind proc\|emu\|sigkill` | proc | Art des Kills |
+| `--minrun S` | 20 | Kill: kuerzeste Laufzeit davor |
+| `--maxrun S` | 40 | Kill: laengste Laufzeit davor (bei tx 30: 35 und 65 verwenden) |
+| `--natural 0\|1` | 0 | gap: `emulator_wake_lock` loesen (Eingriff in den Emulator) |
+| `--force-at S` | 0 | gap: nach S Sekunden Suspend erzwingen, 0 = nie |
+| `--pause-at S` | 0 | gap: Einspeisung ab S Sekunden der Phase aussetzen |
+| `--pause-len S` | 0 | gap: Laenge der Pause, 0 = keine |
+| `--stop-at S` | 0 | gap: Prozess ab S Sekunden der Phase per SIGSTOP anhalten |
+| `--stop-len S` | 0 | gap: Laenge des Anhaltens, 0 = keins |
+| `--inj-every S` | 1 | gap: Einspeisung alle S Sekunden |
+| `--idle 0\|1` | 1 | gap: force-idle setzen |
+| `--post S` | 30 | gap mit natural: Nachphase |
+| `--quiet 0\|1` | 0 | gap: keine Abfragen per adb in der Phase |
+| `--poll S` | 15 | gap: Abstand der Zustandsabfragen |
+| `--sample S` | 0 | gap: Abstand der Ressourcenproben, 0 = keine |
+| `--n N` | 300 | bench: Transaktionen je Zelle |
+| `--tag _x` | leer | Zusatz im Laufnamen |
+Laeufe mit .done werden uebersprungen. Ausgaben: $RESEARCH_DATA/work/R005/ . Andere Ablage: RESEARCH_DATA=<ordner> ./run.sh ...
 HELP
 }
 STEP="${1:-}"; [ -n "$STEP" ] || { usage >&2; exit 2; }; shift || true
-API=36; REP=""; DUR=600
-while [ $# -gt 0 ]; do case "$1" in
-  --api) API="$2"; shift 2;; --rep) REP="$2"; shift 2;; --dur) DUR="$2"; shift 2;;
-  --help) usage; exit 0;; *) echo "Unbekannter Parameter: $1" >&2; usage >&2; exit 2;; esac; done
-H="python3 src/harness.py"
+case " $* " in *" --help "*) usage; exit 0;; esac
 [ "$STEP" = "--help" ] && { usage; exit 0; }
-mkdir -p "$R005_WORK"; (git rev-parse --short HEAD; flutter --version | head -1; uname -m; sysctl -n hw.ncpu) > "$R005_WORK/run.info" 2>/dev/null || true
+H="python3 src/harness.py"; [ -f "$R005_APK" ] || { echo "APK fehlt: erst ./init.sh" >&2; exit 2; }
+[ "$STEP" = phase-a ] || export R005_EMU_EXTRA=-show-kernel   # Phase A lief ohne -show-kernel, alles Weitere mit
+mkdir -p "$R005_WORK"; (git rev-parse --short HEAD; flutter --version | head -1; uname -m; sysctl -n hw.ncpu; "$HOME/Library/Android/sdk/emulator/emulator" -version | head -1) > "$R005_WORK/run.info" 2>/dev/null || true
 case "$STEP" in
   licenses) mkdir -p "$R005_WORK/licenses"; python3 src/licenses.py src/proto "$R005_WORK/licenses";;
-  wal-host) mkdir -p "$R005_WORK/wal-host"; (cd src/waltest; dart run bin/waltest.dart "$R005_WORK/wal-host/$(date +%Y%m%d-%H%M%S)");;
-  emu-start) $H boot --api "$API";;
+  wal-host) mkdir -p "$R005_WORK/wal-host"; d="$R005_WORK/wal-host/$(date +%Y%m%d-%H%M%S)"; (cd src/waltest; dart run bin/waltest.dart "$d") | tee "$d.log";;
+  emu-start) $H boot "$@";;
   emu-stop)  $H kill-emu;;
-  gap)
-    for host in own ffgt; do for w in 0 1; do $H gap --api "$API" --host $host --wake $w --dur "$DUR" --rep "${REP:-2}"; done; done
-    $H gap --api "$API" --host none --wake 0 --dur "$DUR" --rep 1
-    $H gap --api "$API" --host own --wake 0 --dur 120 --rep 1 --tag _pausectl --pause-at 30 --pause-len 30;;
-  kill)
-    for kind in proc emu; do for sync in FULL NORMAL; do for tx in 1 5 30; do
-      $H kill --api "$API" --kind $kind --tx $tx --sync $sync --rep "${REP:-10}"; done; done; done;;
-  swipe) for host in own ffgt; do $H swipe --api "$API" --host $host --tx 1 --dur 60 --rep "${REP:-2}"; done;;
-  wal)   $H wal --api "$API" --dur 120;;
-  bench) $H bench --api "$API" --n 300;;
-  report) for k in gap kill swipe wal bench; do echo "== $k"; python3 src/analyze.py $k "$R005_WORK"; done;;
+  gap|kill|swipe|wal|bench) $H "$STEP" "$@";;
+  phase-a) src/phaseA.sh;;
+  matrix) src/matrix.sh;;
+  long) src/long.sh;;
+  rerun) src/rerun.sh;;
+  report)
+    r="$R005_WORK/report"; mkdir -p "$r"
+    for k in gap kill swipe wal bench; do python3 src/analyze.py $k "$R005_WORK" > "$r/analyze-$k.out"; done
+    python3 src/longrun.py "$R005_WORK/gap/a36_own_w1_i1_3600s_natlong_r0" > "$r/longrun.out"
+    python3 src/abstand.py "$R005_WORK"/gap/a36_own_w0_i1_240s_abst_*_r0 "$R005_WORK"/gap/a36_own_w0_i1_600s_r0 "$R005_WORK"/gap/a31_own_w0_i1_600s_r0 > "$r/abstand.out"
+    python3 src/tables.py "$R005_WORK" | tee "$r/tables.md";;
   *) usage >&2; exit 2;;
 esac

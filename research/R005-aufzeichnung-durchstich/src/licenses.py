@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Lizenzbaum des Prototyps: Dart (flutter pub deps --json + LICENSE im Pub-Cache), Gradle (POM-Lizenzen), native .so der APK.
-Aufruf: licenses.py <proto-dir> <out-dir> . Schreibt licenses.tsv, native.tsv; druckt Zusammenfassung und alle Treffer, die nicht klar permissiv sind."""
+Aufruf: licenses.py <proto-dir> <out-dir> . Schreibt licenses.tsv und gradle-*.txt; druckt Zusammenfassung und alle Treffer, die nicht klar permissiv sind."""
 import json,os,re,subprocess,sys,glob,zipfile,urllib.request,xml.etree.ElementTree as ET
 proto,out=sys.argv[1:3]
 PUB=os.path.expanduser(os.environ.get('PUB_CACHE','~/.pub-cache'))
