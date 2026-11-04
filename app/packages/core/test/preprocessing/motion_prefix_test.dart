@@ -41,7 +41,9 @@ void main() {
       // Zwischenabfragen (auch später) ändern nichts.
       live.result(at: t.add(const Duration(seconds: 7)));
       final full = RunPreprocessor(start: t0);
-      events.take(i + 1).forEach((e) => applyTo(full, e));
+      for (final e in events.take(i + 1)) {
+        applyTo(full, e);
+      }
       expect(
         motionFingerprint(live.result(at: t)),
         motionFingerprint(full.result(at: t)),
@@ -52,7 +54,9 @@ void main() {
 
   test('der Lauf berührt Pause, Fortsetzen, Lücke und Median', () {
     final r = RunPreprocessor(start: t0);
-    events.forEach((e) => applyTo(r, e));
+    for (final e in events) {
+      applyTo(r, e);
+    }
     final m = r.result(at: at(83)).movement;
     expect(m.movingIntervals.length, greaterThanOrEqualTo(3));
     expect(m.movingTime, lessThan(m.totalTime));
@@ -69,7 +73,9 @@ void main() {
         .join(',');
     final before = dump();
     final r = RunPreprocessor(start: t0);
-    events.forEach((e) => applyTo(r, e));
+    for (final e in events) {
+      applyTo(r, e);
+    }
     final res = r.result(at: at(83));
     expect(dump(), before);
     expect(() => res.pace.medianSeries.clear(), throwsUnsupportedError);
