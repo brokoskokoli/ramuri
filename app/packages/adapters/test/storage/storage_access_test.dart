@@ -35,13 +35,6 @@ void main() {
               opened.add(s);
               return s;
             },
-            deleteRun: (id) async {
-              final s = opened.last as EncryptedStorageSession;
-              await s.database.customStatement(
-                'DELETE FROM runs WHERE id = ?',
-                [id],
-              );
-            },
           ),
         );
       });

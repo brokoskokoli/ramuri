@@ -29,9 +29,10 @@ class FakeStorage implements Storage {
   /// Inhalt der "Datei"; bleibt über Sitzungen erhalten.
   final FakeStorageData data = FakeStorageData();
 
-  /// Entspricht `DELETE FROM runs WHERE id = ?`: Kaskade über alles unter dem
-  /// Lauf. Der Port hat dafür noch keine Methode (WP02 Teil C legt sie an).
-  void deleteRun(int runId) => data.deleteRun(runId);
+  /// Simuliert einen nicht durchgelaufenen Checkpoint: Gelöscht wird, danach
+  /// meldet das Löschen [StorageFailure.deletedNotErased].
+  bool checkpointIncomplete = false;
+
   int openSessions = 0;
 
   @override
@@ -58,19 +59,20 @@ class FakeStorage implements Storage {
 }
 
 class _FakeSession implements StorageSession {
-  _FakeSession(this._owner, FakeStorageData d)
-    : runs = FakeRunStore(d),
-      markers = FakeRunMarkerStore(d),
-      rawData = FakeRawDataStore(d),
-      preprocessing = FakePreprocessingStore(d),
-      sections = FakeRatedSectionStore(d),
-      values = FakeComputedValueStore(d),
-      profile = FakeProfileStore(d),
-      settings = FakeSettingsStore(d),
-      devices = FakeKnownDeviceStore(d),
-      consents = FakeConsentStore(d);
+  _FakeSession(this._owner, this._data)
+    : runs = FakeRunStore(_data),
+      markers = FakeRunMarkerStore(_data),
+      rawData = FakeRawDataStore(_data),
+      preprocessing = FakePreprocessingStore(_data),
+      sections = FakeRatedSectionStore(_data),
+      values = FakeComputedValueStore(_data),
+      profile = FakeProfileStore(_data),
+      settings = FakeSettingsStore(_data),
+      devices = FakeKnownDeviceStore(_data),
+      consents = FakeConsentStore(_data);
 
   final FakeStorage _owner;
+  final FakeStorageData _data;
   bool _closed = false;
 
   @override
@@ -93,6 +95,31 @@ class _FakeSession implements StorageSession {
   final KnownDeviceStore devices;
   @override
   final ConsentStore consents;
+
+  @override
+  Future<void> deleteRun(int runId) async {
+    _open();
+    _data.requireRun(runId);
+    _data.deleteRun(runId);
+    _afterDelete();
+  }
+
+  @override
+  Future<void> deleteAll() async {
+    _open();
+    _data.deleteAll();
+    _afterDelete();
+  }
+
+  void _open() {
+    if (_closed) throw const StorageException(StorageFailure.failed);
+  }
+
+  void _afterDelete() {
+    if (_owner.checkpointIncomplete) {
+      throw const StorageException(StorageFailure.deletedNotErased);
+    }
+  }
 
   @override
   Future<void> close() async {

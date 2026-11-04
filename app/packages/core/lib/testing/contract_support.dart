@@ -48,14 +48,10 @@ class StorageContractCase {
 
 /// Zugang des Aufrufers zu einer frischen Speicherdatei.
 class StorageContractHarness {
-  StorageContractHarness({required this.open, required this.deleteRun});
+  StorageContractHarness({required this.open});
 
   /// Öffnet die Datei (mit demselben Schlüssel); mehrmals aufrufbar.
   final Future<StorageSession> Function() open;
-
-  /// Entspricht `DELETE FROM runs WHERE id = ?` (Kaskade). Der Port hat noch
-  /// keine Löschmethode, das legt WP02 Teil C an.
-  final Future<void> Function(int runId) deleteRun;
 }
 
 final DateTime t0 = DateTime.utc(2030, 1, 1, 12);

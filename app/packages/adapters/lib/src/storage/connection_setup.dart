@@ -87,6 +87,17 @@ class ConnectionSetup {
       throw const ConnectionSetupFailure(StorageFailure.encryptionNotActive);
     }
     db.execute("PRAGMA hexkey = '$hexKey'");
+    configure(db);
+    // Erst nach dem ersten Zugriff existiert der Kopf der Datei.
+    if (!fileProbe(path)) {
+      throw const ConnectionSetupFailure(StorageFailure.encryptionNotActive);
+    }
+  }
+
+  /// Die PRAGMAs nach dem Schlüssel. Eigene Methode, damit Tests die
+  /// Löschprüfung (Marke weg) an einer Klartext-Datenbank mit genau diesen
+  /// Einstellungen fahren können (WP02 Teil C, Falle 2).
+  static void configure(raw.Database db) {
     _expect(
       db,
       'journal_mode',
@@ -97,10 +108,6 @@ class ConnectionSetup {
     _expect(db, 'secure_delete', 1, set: 'ON');
     _expect(db, 'foreign_keys', 1, set: 'ON');
     _expect(db, 'temp_store', tempStoreMemoryValue, set: 'MEMORY');
-    // Erst nach dem ersten Zugriff existiert der Kopf der Datei.
-    if (!fileProbe(path)) {
-      throw const ConnectionSetupFailure(StorageFailure.encryptionNotActive);
-    }
   }
 
   static void _expect(

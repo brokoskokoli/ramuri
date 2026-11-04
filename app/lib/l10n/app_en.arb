@@ -1,5 +1,16 @@
 {
   "@@locale": "en",
   "appTitle": "Running App",
-  "homeWelcome": "Welcome to the running app"
+  "homeWelcome": "Welcome to the running app",
+  "deleteRunTitle": "Delete run?",
+  "deleteRunBody": "The run is permanently deleted from the app's storage together with all its measurements, sections and calculated values. Daily values that include this run are deleted as well and calculated again later. This cannot be undone.",
+  "deleteAllTitle": "Delete all data?",
+  "deleteAllBody": "All runs, measurements, calculated values, the profile, settings, known devices and consents are permanently deleted from the app's storage. This cannot be undone.",
+  "deleteSharedHint": "Anything that has already been shared, for example with Strava, stays there and is not deleted here.",
+  "deleteCancel": "Cancel",
+  "deleteRunConfirm": "Delete run",
+  "deleteAllConfirm": "Delete everything",
+  "deleteDone": "Deleted.",
+  "deleteNotErased": "Deleted, but cleaning up the storage file is not finished yet.",
+  "deleteFailed": "Deleting failed. Nothing was deleted."
 }

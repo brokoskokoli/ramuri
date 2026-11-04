@@ -35,9 +35,24 @@ class FakeStorageData {
     }
   }
 
-  /// Kaskade wie `ON DELETE CASCADE`: alles unter dem Lauf. Tageswerte,
-  /// Einstellungen und Profil bleiben.
+  /// Kaskade wie `ON DELETE CASCADE`: alles unter dem Lauf. Dazu Tageswerte,
+  /// deren Datenzeitraum den Lauf überlappt oder unbekannt ist (Einstellungen
+  /// und Profil bleiben). Der Lauf muss existieren.
   void deleteRun(int runId) {
+    final run = runs[runId]!;
+    final start = run.startedAt.microsecondsSinceEpoch;
+    // Ohne Ende (aktiv oder pausiert) reicht der Lauf unbegrenzt weit.
+    final end = run.endedAt?.microsecondsSinceEpoch;
+    for (final owner in values.keys.toList()) {
+      if (owner.day == null) continue;
+      final pairs = values[owner]!;
+      pairs.removeWhere(
+        (_, p) =>
+            _overlaps(p.original, start, end) ||
+            _overlaps(p.current, start, end),
+      );
+    }
+    values.removeWhere((o, pairs) => o.day != null && pairs.isEmpty);
     runs.remove(runId);
     laps.remove(runId);
     gaps.remove(runId);
@@ -45,5 +60,33 @@ class FakeStorageData {
     preprocessing.remove(runId);
     sections.remove(runId);
     values.remove(ValueOwner.run(runId));
+  }
+
+  static bool _overlaps(ComputedValue v, int runStart, int? runEnd) {
+    final from = (v.dataFrom ?? v.dataTo)?.microsecondsSinceEpoch;
+    final to = (v.dataTo ?? v.dataFrom)?.microsecondsSinceEpoch;
+    // Unbekannter Zeitraum: sicher löschen, WP09 berechnet neu.
+    if (from == null || to == null) return true;
+    return from <= (runEnd ?? to) && to >= runStart;
+  }
+
+  /// Alles, auch die Zähler (wie `sqlite_sequence` in der Datenbank).
+  void deleteAll() {
+    nextRunId = 1;
+    nextGapId = 1;
+    for (final c in RawChannel.values) {
+      nextRawId[c] = 1;
+    }
+    runs.clear();
+    laps.clear();
+    gaps.clear();
+    raw.clear();
+    preprocessing.clear();
+    sections.clear();
+    values.clear();
+    profile = const ProfileRecord();
+    settings.clear();
+    devices.clear();
+    consents.clear();
   }
 }

@@ -7,5 +7,49 @@
   "homeWelcome": "Willkommen bei der Lauf-App",
   "@homeWelcome": {
     "description": "Text auf dem Startbildschirm"
+  },
+  "deleteRunTitle": "Lauf löschen?",
+  "@deleteRunTitle": {
+    "description": "Titel des Bestätigungsdialogs: ein Lauf"
+  },
+  "deleteRunBody": "Der Lauf wird mit allen Messwerten, Abschnitten und berechneten Werten dauerhaft aus dem Speicher der App gelöscht. Tageswerte, die diesen Lauf einbeziehen, werden ebenfalls gelöscht und später neu berechnet. Das lässt sich nicht rückgängig machen.",
+  "@deleteRunBody": {
+    "description": "Text des Dialogs: ein Lauf"
+  },
+  "deleteAllTitle": "Alle Daten löschen?",
+  "@deleteAllTitle": {
+    "description": "Titel des Bestätigungsdialogs: alles"
+  },
+  "deleteAllBody": "Alle Läufe, Messwerte, berechneten Werte, das Profil, die Einstellungen, bekannte Geräte und Einwilligungen werden dauerhaft aus dem Speicher der App gelöscht. Das lässt sich nicht rückgängig machen.",
+  "@deleteAllBody": {
+    "description": "Text des Dialogs: alles"
+  },
+  "deleteSharedHint": "Was bereits weitergegeben wurde, etwa bei Strava, bleibt dort bestehen und wird hier nicht gelöscht.",
+  "@deleteSharedHint": {
+    "description": "Hinweis nach OQ-0025: Daten bei Dritten bleiben dort"
+  },
+  "deleteCancel": "Abbrechen",
+  "@deleteCancel": {
+    "description": "Schaltfläche: nichts löschen"
+  },
+  "deleteRunConfirm": "Lauf löschen",
+  "@deleteRunConfirm": {
+    "description": "Schaltfläche: den Lauf löschen"
+  },
+  "deleteAllConfirm": "Alles löschen",
+  "@deleteAllConfirm": {
+    "description": "Schaltfläche: alles löschen"
+  },
+  "deleteDone": "Gelöscht.",
+  "@deleteDone": {
+    "description": "Rückmeldung nach dem Löschen"
+  },
+  "deleteNotErased": "Gelöscht, aber die Bereinigung der Speicherdatei ist noch nicht abgeschlossen.",
+  "@deleteNotErased": {
+    "description": "Rückmeldung: Daten gelöscht, Checkpoint nicht durchgelaufen"
+  },
+  "deleteFailed": "Das Löschen ist fehlgeschlagen. Es wurde nichts gelöscht.",
+  "@deleteFailed": {
+    "description": "Rückmeldung bei einem Fehler"
   }
 }

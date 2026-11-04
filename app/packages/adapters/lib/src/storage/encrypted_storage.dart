@@ -12,6 +12,7 @@ import 'package:drift/native.dart';
 
 import 'app_database.dart';
 import 'connection_setup.dart';
+import 'delete_access.dart';
 import 'derived_access.dart';
 import 'raw_access.dart';
 import 'run_access.dart';
@@ -34,6 +35,7 @@ class EncryptedStorageSession implements StorageSession {
       consents = DriftConsentStore(database);
 
   final AppDatabase database;
+  late final DriftDeletion _deletion = DriftDeletion(database);
 
   @override
   final RunStore runs;
@@ -55,6 +57,12 @@ class EncryptedStorageSession implements StorageSession {
   final KnownDeviceStore devices;
   @override
   final ConsentStore consents;
+
+  @override
+  Future<void> deleteRun(int runId) => _deletion.deleteRun(runId);
+
+  @override
+  Future<void> deleteAll() => _deletion.deleteAll();
 
   @override
   Future<void> close() => database.close();

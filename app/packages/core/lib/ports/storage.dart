@@ -27,6 +27,12 @@ enum StorageFailure {
   /// Zugriff: sonstiger Fehler (Ein-/Ausgabe, Zustand). Die Datenbank selbst
   /// gilt nicht als unlesbar; der Dialog aus OQ-0062 gehört nur zu [unreadable].
   failed,
+
+  /// Löschen: Die Daten sind gelöscht (Transaktion abgeschlossen, `secure_delete`
+  /// war an), aber die Prüfung der Schreibvorgänge (WAL-Checkpoint) ist nicht
+  /// durchgelaufen, etwa weil ein Leser die Datei hielt. Das Löschen bleibt
+  /// gültig; die Marke könnte noch in der Journal-Datei stehen. Kein Erfolg.
+  deletedNotErased,
 }
 
 /// Fehler des Speichers. Trägt absichtlich nie Inhalte (Statement, Parameter,
@@ -42,7 +48,8 @@ class StorageException implements Exception {
 
 /// Offene Verbindung zum Speicher mit schmalen Zugriffen je Bereich. Jede
 /// Methode wirft nur [StorageException]. Die Rohdaten kennen keine Ändern- und
-/// keine Löschen-Methode (ADR-0004 Punkt 1); Löschen kommt mit WP02 Teil C.
+/// keine Löschen-Methode (ADR-0004 Punkt 1); gelöscht wird nur mit dem Lauf
+/// ([deleteRun]) oder komplett ([deleteAll]).
 abstract interface class StorageSession {
   RunStore get runs;
   RunMarkerStore get markers;
@@ -54,6 +61,19 @@ abstract interface class StorageSession {
   SettingsStore get settings;
   KnownDeviceStore get devices;
   ConsentStore get consents;
+
+  /// Löscht den Lauf mit allem darunter (Rohdaten, Runden, Lücken,
+  /// Vorverarbeitung, Abschnitte, Werte) und alle Tageswerte, deren
+  /// Datenzeitraum den Lauf überlappt oder unbekannt ist (WP09 berechnet sie
+  /// neu). Eine Transaktion, danach WAL-Checkpoint (TRUNCATE). Unbekannter
+  /// Lauf: [StorageFailure.notFound]. Lief der Checkpoint nicht durch:
+  /// [StorageFailure.deletedNotErased], das Löschen gilt trotzdem.
+  Future<void> deleteRun(int runId);
+
+  /// Löscht alle Nutzdaten (Läufe, Werte, Profil, Einstellungen, Geräte,
+  /// Einwilligungen). Der Schlüssel liegt nicht im Speicher und bleibt.
+  /// Sonst wie [deleteRun].
+  Future<void> deleteAll();
 
   Future<void> close();
 }
