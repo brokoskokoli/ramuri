@@ -373,8 +373,8 @@
             "name": "latitude_deg",
             "getter_name": "latitudeDeg",
             "moor_type": "double",
-            "nullable": false,
-            "customConstraints": "NOT NULL",
+            "nullable": true,
+            "customConstraints": "",
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
@@ -383,8 +383,8 @@
             "name": "longitude_deg",
             "getter_name": "longitudeDeg",
             "moor_type": "double",
-            "nullable": false,
-            "customConstraints": "NOT NULL",
+            "nullable": true,
+            "customConstraints": "",
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
@@ -402,7 +402,9 @@
         ],
         "is_virtual": false,
         "without_rowid": false,
-        "constraints": []
+        "constraints": [
+          "CHECK(state = 'unavailable' OR(latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL))"
+        ]
       }
     },
     {
@@ -483,8 +485,8 @@
             "name": "bpm",
             "getter_name": "bpm",
             "moor_type": "int",
-            "nullable": false,
-            "customConstraints": "NOT NULL",
+            "nullable": true,
+            "customConstraints": "",
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
@@ -502,7 +504,9 @@
         ],
         "is_virtual": false,
         "without_rowid": false,
-        "constraints": []
+        "constraints": [
+          "CHECK(state = 'unavailable' OR bpm IS NOT NULL)"
+        ]
       }
     },
     {
@@ -583,8 +587,8 @@
             "name": "altitude_m",
             "getter_name": "altitudeM",
             "moor_type": "double",
-            "nullable": false,
-            "customConstraints": "NOT NULL",
+            "nullable": true,
+            "customConstraints": "",
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
@@ -602,7 +606,9 @@
         ],
         "is_virtual": false,
         "without_rowid": false,
-        "constraints": []
+        "constraints": [
+          "CHECK(state = 'unavailable' OR altitude_m IS NOT NULL)"
+        ]
       }
     },
     {
@@ -683,8 +689,8 @@
             "name": "step_count",
             "getter_name": "stepCount",
             "moor_type": "int",
-            "nullable": false,
-            "customConstraints": "NOT NULL",
+            "nullable": true,
+            "customConstraints": "",
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
@@ -692,7 +698,9 @@
         ],
         "is_virtual": false,
         "without_rowid": false,
-        "constraints": []
+        "constraints": [
+          "CHECK(state = 'unavailable' OR step_count IS NOT NULL)"
+        ]
       }
     },
     {
@@ -2078,7 +2086,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"raw_positions\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"latitude_deg\" REAL NOT NULL, \"longitude_deg\" REAL NOT NULL, \"accuracy_m\" REAL);"
+          "sql": "CREATE TABLE IF NOT EXISTS \"raw_positions\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"latitude_deg\" REAL, \"longitude_deg\" REAL, \"accuracy_m\" REAL, CHECK(state = 'unavailable' OR(latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL)));"
         }
       ]
     },
@@ -2087,7 +2095,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"raw_heart_rates\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"bpm\" INTEGER NOT NULL, \"contact\" TEXT NOT NULL CHECK (contact IN ('good', 'poor', 'unsupported')));"
+          "sql": "CREATE TABLE IF NOT EXISTS \"raw_heart_rates\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"bpm\" INTEGER, \"contact\" TEXT NOT NULL CHECK (contact IN ('good', 'poor', 'unsupported')), CHECK(state = 'unavailable' OR bpm IS NOT NULL));"
         }
       ]
     },
@@ -2096,7 +2104,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"raw_altitudes\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"altitude_m\" REAL NOT NULL, \"vertical_accuracy_m\" REAL);"
+          "sql": "CREATE TABLE IF NOT EXISTS \"raw_altitudes\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"altitude_m\" REAL, \"vertical_accuracy_m\" REAL, CHECK(state = 'unavailable' OR altitude_m IS NOT NULL));"
         }
       ]
     },
@@ -2105,7 +2113,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"raw_steps\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"step_count\" INTEGER NOT NULL);"
+          "sql": "CREATE TABLE IF NOT EXISTS \"raw_steps\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"step_count\" INTEGER, CHECK(state = 'unavailable' OR step_count IS NOT NULL));"
         }
       ]
     },

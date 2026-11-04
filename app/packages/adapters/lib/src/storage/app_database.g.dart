@@ -1276,10 +1276,10 @@ class RawPositions extends Table with TableInfo<RawPositions, RawPosition> {
   late final GeneratedColumn<double> latitudeDeg = GeneratedColumn<double>(
     'latitude_deg',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    requiredDuringInsert: false,
+    $customConstraints: '',
   );
   static const VerificationMeta _longitudeDegMeta = const VerificationMeta(
     'longitudeDeg',
@@ -1287,10 +1287,10 @@ class RawPositions extends Table with TableInfo<RawPositions, RawPosition> {
   late final GeneratedColumn<double> longitudeDeg = GeneratedColumn<double>(
     'longitude_deg',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    requiredDuringInsert: false,
+    $customConstraints: '',
   );
   static const VerificationMeta _accuracyMMeta = const VerificationMeta(
     'accuracyM',
@@ -1369,8 +1369,6 @@ class RawPositions extends Table with TableInfo<RawPositions, RawPosition> {
           _latitudeDegMeta,
         ),
       );
-    } else if (isInserting) {
-      context.missing(_latitudeDegMeta);
     }
     if (data.containsKey('longitude_deg')) {
       context.handle(
@@ -1380,8 +1378,6 @@ class RawPositions extends Table with TableInfo<RawPositions, RawPosition> {
           _longitudeDegMeta,
         ),
       );
-    } else if (isInserting) {
-      context.missing(_longitudeDegMeta);
     }
     if (data.containsKey('accuracy_m')) {
       context.handle(
@@ -1421,11 +1417,11 @@ class RawPositions extends Table with TableInfo<RawPositions, RawPosition> {
       latitudeDeg: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}latitude_deg'],
-      )!,
+      ),
       longitudeDeg: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}longitude_deg'],
-      )!,
+      ),
       accuracyM: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}accuracy_m'],
@@ -1439,6 +1435,10 @@ class RawPositions extends Table with TableInfo<RawPositions, RawPosition> {
   }
 
   @override
+  List<String> get customConstraints => const [
+    'CHECK(state = \'unavailable\' OR(latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL))',
+  ];
+  @override
   bool get dontWriteConstraints => true;
 }
 
@@ -1448,8 +1448,8 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
   final int timeUs;
   final String source;
   final String state;
-  final double latitudeDeg;
-  final double longitudeDeg;
+  final double? latitudeDeg;
+  final double? longitudeDeg;
   final double? accuracyM;
   const RawPosition({
     required this.id,
@@ -1457,8 +1457,8 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
     required this.timeUs,
     required this.source,
     required this.state,
-    required this.latitudeDeg,
-    required this.longitudeDeg,
+    this.latitudeDeg,
+    this.longitudeDeg,
     this.accuracyM,
   });
   @override
@@ -1469,8 +1469,12 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
     map['time_us'] = Variable<int>(timeUs);
     map['source'] = Variable<String>(source);
     map['state'] = Variable<String>(state);
-    map['latitude_deg'] = Variable<double>(latitudeDeg);
-    map['longitude_deg'] = Variable<double>(longitudeDeg);
+    if (!nullToAbsent || latitudeDeg != null) {
+      map['latitude_deg'] = Variable<double>(latitudeDeg);
+    }
+    if (!nullToAbsent || longitudeDeg != null) {
+      map['longitude_deg'] = Variable<double>(longitudeDeg);
+    }
     if (!nullToAbsent || accuracyM != null) {
       map['accuracy_m'] = Variable<double>(accuracyM);
     }
@@ -1484,8 +1488,12 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
       timeUs: Value(timeUs),
       source: Value(source),
       state: Value(state),
-      latitudeDeg: Value(latitudeDeg),
-      longitudeDeg: Value(longitudeDeg),
+      latitudeDeg: latitudeDeg == null && nullToAbsent
+          ? const Value.absent()
+          : Value(latitudeDeg),
+      longitudeDeg: longitudeDeg == null && nullToAbsent
+          ? const Value.absent()
+          : Value(longitudeDeg),
       accuracyM: accuracyM == null && nullToAbsent
           ? const Value.absent()
           : Value(accuracyM),
@@ -1503,8 +1511,8 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
       timeUs: serializer.fromJson<int>(json['time_us']),
       source: serializer.fromJson<String>(json['source']),
       state: serializer.fromJson<String>(json['state']),
-      latitudeDeg: serializer.fromJson<double>(json['latitude_deg']),
-      longitudeDeg: serializer.fromJson<double>(json['longitude_deg']),
+      latitudeDeg: serializer.fromJson<double?>(json['latitude_deg']),
+      longitudeDeg: serializer.fromJson<double?>(json['longitude_deg']),
       accuracyM: serializer.fromJson<double?>(json['accuracy_m']),
     );
   }
@@ -1517,8 +1525,8 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
       'time_us': serializer.toJson<int>(timeUs),
       'source': serializer.toJson<String>(source),
       'state': serializer.toJson<String>(state),
-      'latitude_deg': serializer.toJson<double>(latitudeDeg),
-      'longitude_deg': serializer.toJson<double>(longitudeDeg),
+      'latitude_deg': serializer.toJson<double?>(latitudeDeg),
+      'longitude_deg': serializer.toJson<double?>(longitudeDeg),
       'accuracy_m': serializer.toJson<double?>(accuracyM),
     };
   }
@@ -1529,8 +1537,8 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
     int? timeUs,
     String? source,
     String? state,
-    double? latitudeDeg,
-    double? longitudeDeg,
+    Value<double?> latitudeDeg = const Value.absent(),
+    Value<double?> longitudeDeg = const Value.absent(),
     Value<double?> accuracyM = const Value.absent(),
   }) => RawPosition(
     id: id ?? this.id,
@@ -1538,8 +1546,8 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
     timeUs: timeUs ?? this.timeUs,
     source: source ?? this.source,
     state: state ?? this.state,
-    latitudeDeg: latitudeDeg ?? this.latitudeDeg,
-    longitudeDeg: longitudeDeg ?? this.longitudeDeg,
+    latitudeDeg: latitudeDeg.present ? latitudeDeg.value : this.latitudeDeg,
+    longitudeDeg: longitudeDeg.present ? longitudeDeg.value : this.longitudeDeg,
     accuracyM: accuracyM.present ? accuracyM.value : this.accuracyM,
   );
   RawPosition copyWithCompanion(RawPositionsCompanion data) {
@@ -1605,8 +1613,8 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
   final Value<int> timeUs;
   final Value<String> source;
   final Value<String> state;
-  final Value<double> latitudeDeg;
-  final Value<double> longitudeDeg;
+  final Value<double?> latitudeDeg;
+  final Value<double?> longitudeDeg;
   final Value<double?> accuracyM;
   const RawPositionsCompanion({
     this.id = const Value.absent(),
@@ -1624,15 +1632,13 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
     required int timeUs,
     required String source,
     required String state,
-    required double latitudeDeg,
-    required double longitudeDeg,
+    this.latitudeDeg = const Value.absent(),
+    this.longitudeDeg = const Value.absent(),
     this.accuracyM = const Value.absent(),
   }) : runId = Value(runId),
        timeUs = Value(timeUs),
        source = Value(source),
-       state = Value(state),
-       latitudeDeg = Value(latitudeDeg),
-       longitudeDeg = Value(longitudeDeg);
+       state = Value(state);
   static Insertable<RawPosition> custom({
     Expression<int>? id,
     Expression<int>? runId,
@@ -1661,8 +1667,8 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
     Value<int>? timeUs,
     Value<String>? source,
     Value<String>? state,
-    Value<double>? latitudeDeg,
-    Value<double>? longitudeDeg,
+    Value<double?>? latitudeDeg,
+    Value<double?>? longitudeDeg,
     Value<double?>? accuracyM,
   }) {
     return RawPositionsCompanion(
@@ -1778,10 +1784,10 @@ class RawHeartRates extends Table with TableInfo<RawHeartRates, RawHeartRate> {
   late final GeneratedColumn<int> bpm = GeneratedColumn<int>(
     'bpm',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    requiredDuringInsert: false,
+    $customConstraints: '',
   );
   static const VerificationMeta _contactMeta = const VerificationMeta(
     'contact',
@@ -1857,8 +1863,6 @@ class RawHeartRates extends Table with TableInfo<RawHeartRates, RawHeartRate> {
         _bpmMeta,
         bpm.isAcceptableOrUnknown(data['bpm']!, _bpmMeta),
       );
-    } else if (isInserting) {
-      context.missing(_bpmMeta);
     }
     if (data.containsKey('contact')) {
       context.handle(
@@ -1900,7 +1904,7 @@ class RawHeartRates extends Table with TableInfo<RawHeartRates, RawHeartRate> {
       bpm: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}bpm'],
-      )!,
+      ),
       contact: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}contact'],
@@ -1914,6 +1918,10 @@ class RawHeartRates extends Table with TableInfo<RawHeartRates, RawHeartRate> {
   }
 
   @override
+  List<String> get customConstraints => const [
+    'CHECK(state = \'unavailable\' OR bpm IS NOT NULL)',
+  ];
+  @override
   bool get dontWriteConstraints => true;
 }
 
@@ -1923,7 +1931,7 @@ class RawHeartRate extends DataClass implements Insertable<RawHeartRate> {
   final int timeUs;
   final String source;
   final String state;
-  final int bpm;
+  final int? bpm;
   final String contact;
   const RawHeartRate({
     required this.id,
@@ -1931,7 +1939,7 @@ class RawHeartRate extends DataClass implements Insertable<RawHeartRate> {
     required this.timeUs,
     required this.source,
     required this.state,
-    required this.bpm,
+    this.bpm,
     required this.contact,
   });
   @override
@@ -1942,7 +1950,9 @@ class RawHeartRate extends DataClass implements Insertable<RawHeartRate> {
     map['time_us'] = Variable<int>(timeUs);
     map['source'] = Variable<String>(source);
     map['state'] = Variable<String>(state);
-    map['bpm'] = Variable<int>(bpm);
+    if (!nullToAbsent || bpm != null) {
+      map['bpm'] = Variable<int>(bpm);
+    }
     map['contact'] = Variable<String>(contact);
     return map;
   }
@@ -1954,7 +1964,7 @@ class RawHeartRate extends DataClass implements Insertable<RawHeartRate> {
       timeUs: Value(timeUs),
       source: Value(source),
       state: Value(state),
-      bpm: Value(bpm),
+      bpm: bpm == null && nullToAbsent ? const Value.absent() : Value(bpm),
       contact: Value(contact),
     );
   }
@@ -1970,7 +1980,7 @@ class RawHeartRate extends DataClass implements Insertable<RawHeartRate> {
       timeUs: serializer.fromJson<int>(json['time_us']),
       source: serializer.fromJson<String>(json['source']),
       state: serializer.fromJson<String>(json['state']),
-      bpm: serializer.fromJson<int>(json['bpm']),
+      bpm: serializer.fromJson<int?>(json['bpm']),
       contact: serializer.fromJson<String>(json['contact']),
     );
   }
@@ -1983,7 +1993,7 @@ class RawHeartRate extends DataClass implements Insertable<RawHeartRate> {
       'time_us': serializer.toJson<int>(timeUs),
       'source': serializer.toJson<String>(source),
       'state': serializer.toJson<String>(state),
-      'bpm': serializer.toJson<int>(bpm),
+      'bpm': serializer.toJson<int?>(bpm),
       'contact': serializer.toJson<String>(contact),
     };
   }
@@ -1994,7 +2004,7 @@ class RawHeartRate extends DataClass implements Insertable<RawHeartRate> {
     int? timeUs,
     String? source,
     String? state,
-    int? bpm,
+    Value<int?> bpm = const Value.absent(),
     String? contact,
   }) => RawHeartRate(
     id: id ?? this.id,
@@ -2002,7 +2012,7 @@ class RawHeartRate extends DataClass implements Insertable<RawHeartRate> {
     timeUs: timeUs ?? this.timeUs,
     source: source ?? this.source,
     state: state ?? this.state,
-    bpm: bpm ?? this.bpm,
+    bpm: bpm.present ? bpm.value : this.bpm,
     contact: contact ?? this.contact,
   );
   RawHeartRate copyWithCompanion(RawHeartRatesCompanion data) {
@@ -2053,7 +2063,7 @@ class RawHeartRatesCompanion extends UpdateCompanion<RawHeartRate> {
   final Value<int> timeUs;
   final Value<String> source;
   final Value<String> state;
-  final Value<int> bpm;
+  final Value<int?> bpm;
   final Value<String> contact;
   const RawHeartRatesCompanion({
     this.id = const Value.absent(),
@@ -2070,13 +2080,12 @@ class RawHeartRatesCompanion extends UpdateCompanion<RawHeartRate> {
     required int timeUs,
     required String source,
     required String state,
-    required int bpm,
+    this.bpm = const Value.absent(),
     required String contact,
   }) : runId = Value(runId),
        timeUs = Value(timeUs),
        source = Value(source),
        state = Value(state),
-       bpm = Value(bpm),
        contact = Value(contact);
   static Insertable<RawHeartRate> custom({
     Expression<int>? id,
@@ -2104,7 +2113,7 @@ class RawHeartRatesCompanion extends UpdateCompanion<RawHeartRate> {
     Value<int>? timeUs,
     Value<String>? source,
     Value<String>? state,
-    Value<int>? bpm,
+    Value<int?>? bpm,
     Value<String>? contact,
   }) {
     return RawHeartRatesCompanion(
@@ -2217,10 +2226,10 @@ class RawAltitudes extends Table with TableInfo<RawAltitudes, RawAltitude> {
   late final GeneratedColumn<double> altitudeM = GeneratedColumn<double>(
     'altitude_m',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    requiredDuringInsert: false,
+    $customConstraints: '',
   );
   static const VerificationMeta _verticalAccuracyMMeta = const VerificationMeta(
     'verticalAccuracyM',
@@ -2296,8 +2305,6 @@ class RawAltitudes extends Table with TableInfo<RawAltitudes, RawAltitude> {
         _altitudeMMeta,
         altitudeM.isAcceptableOrUnknown(data['altitude_m']!, _altitudeMMeta),
       );
-    } else if (isInserting) {
-      context.missing(_altitudeMMeta);
     }
     if (data.containsKey('vertical_accuracy_m')) {
       context.handle(
@@ -2340,7 +2347,7 @@ class RawAltitudes extends Table with TableInfo<RawAltitudes, RawAltitude> {
       altitudeM: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}altitude_m'],
-      )!,
+      ),
       verticalAccuracyM: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}vertical_accuracy_m'],
@@ -2354,6 +2361,10 @@ class RawAltitudes extends Table with TableInfo<RawAltitudes, RawAltitude> {
   }
 
   @override
+  List<String> get customConstraints => const [
+    'CHECK(state = \'unavailable\' OR altitude_m IS NOT NULL)',
+  ];
+  @override
   bool get dontWriteConstraints => true;
 }
 
@@ -2363,7 +2374,7 @@ class RawAltitude extends DataClass implements Insertable<RawAltitude> {
   final int timeUs;
   final String source;
   final String state;
-  final double altitudeM;
+  final double? altitudeM;
   final double? verticalAccuracyM;
   const RawAltitude({
     required this.id,
@@ -2371,7 +2382,7 @@ class RawAltitude extends DataClass implements Insertable<RawAltitude> {
     required this.timeUs,
     required this.source,
     required this.state,
-    required this.altitudeM,
+    this.altitudeM,
     this.verticalAccuracyM,
   });
   @override
@@ -2382,7 +2393,9 @@ class RawAltitude extends DataClass implements Insertable<RawAltitude> {
     map['time_us'] = Variable<int>(timeUs);
     map['source'] = Variable<String>(source);
     map['state'] = Variable<String>(state);
-    map['altitude_m'] = Variable<double>(altitudeM);
+    if (!nullToAbsent || altitudeM != null) {
+      map['altitude_m'] = Variable<double>(altitudeM);
+    }
     if (!nullToAbsent || verticalAccuracyM != null) {
       map['vertical_accuracy_m'] = Variable<double>(verticalAccuracyM);
     }
@@ -2396,7 +2409,9 @@ class RawAltitude extends DataClass implements Insertable<RawAltitude> {
       timeUs: Value(timeUs),
       source: Value(source),
       state: Value(state),
-      altitudeM: Value(altitudeM),
+      altitudeM: altitudeM == null && nullToAbsent
+          ? const Value.absent()
+          : Value(altitudeM),
       verticalAccuracyM: verticalAccuracyM == null && nullToAbsent
           ? const Value.absent()
           : Value(verticalAccuracyM),
@@ -2414,7 +2429,7 @@ class RawAltitude extends DataClass implements Insertable<RawAltitude> {
       timeUs: serializer.fromJson<int>(json['time_us']),
       source: serializer.fromJson<String>(json['source']),
       state: serializer.fromJson<String>(json['state']),
-      altitudeM: serializer.fromJson<double>(json['altitude_m']),
+      altitudeM: serializer.fromJson<double?>(json['altitude_m']),
       verticalAccuracyM: serializer.fromJson<double?>(
         json['vertical_accuracy_m'],
       ),
@@ -2429,7 +2444,7 @@ class RawAltitude extends DataClass implements Insertable<RawAltitude> {
       'time_us': serializer.toJson<int>(timeUs),
       'source': serializer.toJson<String>(source),
       'state': serializer.toJson<String>(state),
-      'altitude_m': serializer.toJson<double>(altitudeM),
+      'altitude_m': serializer.toJson<double?>(altitudeM),
       'vertical_accuracy_m': serializer.toJson<double?>(verticalAccuracyM),
     };
   }
@@ -2440,7 +2455,7 @@ class RawAltitude extends DataClass implements Insertable<RawAltitude> {
     int? timeUs,
     String? source,
     String? state,
-    double? altitudeM,
+    Value<double?> altitudeM = const Value.absent(),
     Value<double?> verticalAccuracyM = const Value.absent(),
   }) => RawAltitude(
     id: id ?? this.id,
@@ -2448,7 +2463,7 @@ class RawAltitude extends DataClass implements Insertable<RawAltitude> {
     timeUs: timeUs ?? this.timeUs,
     source: source ?? this.source,
     state: state ?? this.state,
-    altitudeM: altitudeM ?? this.altitudeM,
+    altitudeM: altitudeM.present ? altitudeM.value : this.altitudeM,
     verticalAccuracyM: verticalAccuracyM.present
         ? verticalAccuracyM.value
         : this.verticalAccuracyM,
@@ -2510,7 +2525,7 @@ class RawAltitudesCompanion extends UpdateCompanion<RawAltitude> {
   final Value<int> timeUs;
   final Value<String> source;
   final Value<String> state;
-  final Value<double> altitudeM;
+  final Value<double?> altitudeM;
   final Value<double?> verticalAccuracyM;
   const RawAltitudesCompanion({
     this.id = const Value.absent(),
@@ -2527,13 +2542,12 @@ class RawAltitudesCompanion extends UpdateCompanion<RawAltitude> {
     required int timeUs,
     required String source,
     required String state,
-    required double altitudeM,
+    this.altitudeM = const Value.absent(),
     this.verticalAccuracyM = const Value.absent(),
   }) : runId = Value(runId),
        timeUs = Value(timeUs),
        source = Value(source),
-       state = Value(state),
-       altitudeM = Value(altitudeM);
+       state = Value(state);
   static Insertable<RawAltitude> custom({
     Expression<int>? id,
     Expression<int>? runId,
@@ -2560,7 +2574,7 @@ class RawAltitudesCompanion extends UpdateCompanion<RawAltitude> {
     Value<int>? timeUs,
     Value<String>? source,
     Value<String>? state,
-    Value<double>? altitudeM,
+    Value<double?>? altitudeM,
     Value<double?>? verticalAccuracyM,
   }) {
     return RawAltitudesCompanion(
@@ -2673,10 +2687,10 @@ class RawSteps extends Table with TableInfo<RawSteps, RawStep> {
   late final GeneratedColumn<int> stepCount = GeneratedColumn<int>(
     'step_count',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    requiredDuringInsert: false,
+    $customConstraints: '',
   );
   @override
   List<GeneratedColumn> get $columns => [
@@ -2739,8 +2753,6 @@ class RawSteps extends Table with TableInfo<RawSteps, RawStep> {
         _stepCountMeta,
         stepCount.isAcceptableOrUnknown(data['step_count']!, _stepCountMeta),
       );
-    } else if (isInserting) {
-      context.missing(_stepCountMeta);
     }
     return context;
   }
@@ -2774,7 +2786,7 @@ class RawSteps extends Table with TableInfo<RawSteps, RawStep> {
       stepCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}step_count'],
-      )!,
+      ),
     );
   }
 
@@ -2783,6 +2795,10 @@ class RawSteps extends Table with TableInfo<RawSteps, RawStep> {
     return RawSteps(attachedDatabase, alias);
   }
 
+  @override
+  List<String> get customConstraints => const [
+    'CHECK(state = \'unavailable\' OR step_count IS NOT NULL)',
+  ];
   @override
   bool get dontWriteConstraints => true;
 }
@@ -2793,14 +2809,14 @@ class RawStep extends DataClass implements Insertable<RawStep> {
   final int timeUs;
   final String source;
   final String state;
-  final int stepCount;
+  final int? stepCount;
   const RawStep({
     required this.id,
     required this.runId,
     required this.timeUs,
     required this.source,
     required this.state,
-    required this.stepCount,
+    this.stepCount,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2810,7 +2826,9 @@ class RawStep extends DataClass implements Insertable<RawStep> {
     map['time_us'] = Variable<int>(timeUs);
     map['source'] = Variable<String>(source);
     map['state'] = Variable<String>(state);
-    map['step_count'] = Variable<int>(stepCount);
+    if (!nullToAbsent || stepCount != null) {
+      map['step_count'] = Variable<int>(stepCount);
+    }
     return map;
   }
 
@@ -2821,7 +2839,9 @@ class RawStep extends DataClass implements Insertable<RawStep> {
       timeUs: Value(timeUs),
       source: Value(source),
       state: Value(state),
-      stepCount: Value(stepCount),
+      stepCount: stepCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(stepCount),
     );
   }
 
@@ -2836,7 +2856,7 @@ class RawStep extends DataClass implements Insertable<RawStep> {
       timeUs: serializer.fromJson<int>(json['time_us']),
       source: serializer.fromJson<String>(json['source']),
       state: serializer.fromJson<String>(json['state']),
-      stepCount: serializer.fromJson<int>(json['step_count']),
+      stepCount: serializer.fromJson<int?>(json['step_count']),
     );
   }
   @override
@@ -2848,7 +2868,7 @@ class RawStep extends DataClass implements Insertable<RawStep> {
       'time_us': serializer.toJson<int>(timeUs),
       'source': serializer.toJson<String>(source),
       'state': serializer.toJson<String>(state),
-      'step_count': serializer.toJson<int>(stepCount),
+      'step_count': serializer.toJson<int?>(stepCount),
     };
   }
 
@@ -2858,14 +2878,14 @@ class RawStep extends DataClass implements Insertable<RawStep> {
     int? timeUs,
     String? source,
     String? state,
-    int? stepCount,
+    Value<int?> stepCount = const Value.absent(),
   }) => RawStep(
     id: id ?? this.id,
     runId: runId ?? this.runId,
     timeUs: timeUs ?? this.timeUs,
     source: source ?? this.source,
     state: state ?? this.state,
-    stepCount: stepCount ?? this.stepCount,
+    stepCount: stepCount.present ? stepCount.value : this.stepCount,
   );
   RawStep copyWithCompanion(RawStepsCompanion data) {
     return RawStep(
@@ -2911,7 +2931,7 @@ class RawStepsCompanion extends UpdateCompanion<RawStep> {
   final Value<int> timeUs;
   final Value<String> source;
   final Value<String> state;
-  final Value<int> stepCount;
+  final Value<int?> stepCount;
   const RawStepsCompanion({
     this.id = const Value.absent(),
     this.runId = const Value.absent(),
@@ -2926,12 +2946,11 @@ class RawStepsCompanion extends UpdateCompanion<RawStep> {
     required int timeUs,
     required String source,
     required String state,
-    required int stepCount,
+    this.stepCount = const Value.absent(),
   }) : runId = Value(runId),
        timeUs = Value(timeUs),
        source = Value(source),
-       state = Value(state),
-       stepCount = Value(stepCount);
+       state = Value(state);
   static Insertable<RawStep> custom({
     Expression<int>? id,
     Expression<int>? runId,
@@ -2956,7 +2975,7 @@ class RawStepsCompanion extends UpdateCompanion<RawStep> {
     Value<int>? timeUs,
     Value<String>? source,
     Value<String>? state,
-    Value<int>? stepCount,
+    Value<int?>? stepCount,
   }) {
     return RawStepsCompanion(
       id: id ?? this.id,
@@ -10462,8 +10481,8 @@ typedef $RawPositionsCreateCompanionBuilder = RawPositionsCompanion Function({
   required int timeUs,
   required String source,
   required String state,
-  required double latitudeDeg,
-  required double longitudeDeg,
+  Value<double?> latitudeDeg,
+  Value<double?> longitudeDeg,
   Value<double?> accuracyM,
 });
 typedef $RawPositionsUpdateCompanionBuilder = RawPositionsCompanion Function({
@@ -10472,8 +10491,8 @@ typedef $RawPositionsUpdateCompanionBuilder = RawPositionsCompanion Function({
   Value<int> timeUs,
   Value<String> source,
   Value<String> state,
-  Value<double> latitudeDeg,
-  Value<double> longitudeDeg,
+  Value<double?> latitudeDeg,
+  Value<double?> longitudeDeg,
   Value<double?> accuracyM,
 });
 
@@ -10726,8 +10745,8 @@ class $RawPositionsTableManager
                 Value<int> timeUs = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 Value<String> state = const Value.absent(),
-                Value<double> latitudeDeg = const Value.absent(),
-                Value<double> longitudeDeg = const Value.absent(),
+                Value<double?> latitudeDeg = const Value.absent(),
+                Value<double?> longitudeDeg = const Value.absent(),
                 Value<double?> accuracyM = const Value.absent(),
               }) => RawPositionsCompanion(
                 id: id,
@@ -10746,8 +10765,8 @@ class $RawPositionsTableManager
                 required int timeUs,
                 required String source,
                 required String state,
-                required double latitudeDeg,
-                required double longitudeDeg,
+                Value<double?> latitudeDeg = const Value.absent(),
+                Value<double?> longitudeDeg = const Value.absent(),
                 Value<double?> accuracyM = const Value.absent(),
               }) => RawPositionsCompanion.insert(
                 id: id,
@@ -10831,7 +10850,7 @@ typedef $RawHeartRatesCreateCompanionBuilder = RawHeartRatesCompanion Function({
   required int timeUs,
   required String source,
   required String state,
-  required int bpm,
+  Value<int?> bpm,
   required String contact,
 });
 typedef $RawHeartRatesUpdateCompanionBuilder = RawHeartRatesCompanion Function({
@@ -10840,7 +10859,7 @@ typedef $RawHeartRatesUpdateCompanionBuilder = RawHeartRatesCompanion Function({
   Value<int> timeUs,
   Value<String> source,
   Value<String> state,
-  Value<int> bpm,
+  Value<int?> bpm,
   Value<String> contact,
 });
 
@@ -11076,7 +11095,7 @@ class $RawHeartRatesTableManager
                 Value<int> timeUs = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 Value<String> state = const Value.absent(),
-                Value<int> bpm = const Value.absent(),
+                Value<int?> bpm = const Value.absent(),
                 Value<String> contact = const Value.absent(),
               }) => RawHeartRatesCompanion(
                 id: id,
@@ -11094,7 +11113,7 @@ class $RawHeartRatesTableManager
                 required int timeUs,
                 required String source,
                 required String state,
-                required int bpm,
+                Value<int?> bpm = const Value.absent(),
                 required String contact,
               }) => RawHeartRatesCompanion.insert(
                 id: id,
@@ -11177,7 +11196,7 @@ typedef $RawAltitudesCreateCompanionBuilder = RawAltitudesCompanion Function({
   required int timeUs,
   required String source,
   required String state,
-  required double altitudeM,
+  Value<double?> altitudeM,
   Value<double?> verticalAccuracyM,
 });
 typedef $RawAltitudesUpdateCompanionBuilder = RawAltitudesCompanion Function({
@@ -11186,7 +11205,7 @@ typedef $RawAltitudesUpdateCompanionBuilder = RawAltitudesCompanion Function({
   Value<int> timeUs,
   Value<String> source,
   Value<String> state,
-  Value<double> altitudeM,
+  Value<double?> altitudeM,
   Value<double?> verticalAccuracyM,
 });
 
@@ -11424,7 +11443,7 @@ class $RawAltitudesTableManager
                 Value<int> timeUs = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 Value<String> state = const Value.absent(),
-                Value<double> altitudeM = const Value.absent(),
+                Value<double?> altitudeM = const Value.absent(),
                 Value<double?> verticalAccuracyM = const Value.absent(),
               }) => RawAltitudesCompanion(
                 id: id,
@@ -11442,7 +11461,7 @@ class $RawAltitudesTableManager
                 required int timeUs,
                 required String source,
                 required String state,
-                required double altitudeM,
+                Value<double?> altitudeM = const Value.absent(),
                 Value<double?> verticalAccuracyM = const Value.absent(),
               }) => RawAltitudesCompanion.insert(
                 id: id,
@@ -11525,7 +11544,7 @@ typedef $RawStepsCreateCompanionBuilder = RawStepsCompanion Function({
   required int timeUs,
   required String source,
   required String state,
-  required int stepCount,
+  Value<int?> stepCount,
 });
 typedef $RawStepsUpdateCompanionBuilder = RawStepsCompanion Function({
   Value<int> id,
@@ -11533,7 +11552,7 @@ typedef $RawStepsUpdateCompanionBuilder = RawStepsCompanion Function({
   Value<int> timeUs,
   Value<String> source,
   Value<String> state,
-  Value<int> stepCount,
+  Value<int?> stepCount,
 });
 
 final class $RawStepsReferences
@@ -11752,7 +11771,7 @@ class $RawStepsTableManager
                 Value<int> timeUs = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 Value<String> state = const Value.absent(),
-                Value<int> stepCount = const Value.absent(),
+                Value<int?> stepCount = const Value.absent(),
               }) => RawStepsCompanion(
                 id: id,
                 runId: runId,
@@ -11768,7 +11787,7 @@ class $RawStepsTableManager
                 required int timeUs,
                 required String source,
                 required String state,
-                required int stepCount,
+                Value<int?> stepCount = const Value.absent(),
               }) => RawStepsCompanion.insert(
                 id: id,
                 runId: runId,

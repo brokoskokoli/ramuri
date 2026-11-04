@@ -287,6 +287,45 @@ void main() {
     });
   });
 
+  group('Rohdaten: Zustand unavailable ohne Wert (FR-0057)', () {
+    // Je Tabelle: Spalten bis einschließlich Zustand, Wertspalten, Beispielwerte.
+    const tables = <String, (String, String, String)>{
+      'raw_positions': (
+        'latitude_deg, longitude_deg',
+        '52.0, 13.0',
+        'NULL, NULL',
+      ),
+      'raw_heart_rates': ('bpm, contact', "140, 'good'", "NULL, 'unsupported'"),
+      'raw_altitudes': ('altitude_m', '35.5', 'NULL'),
+      'raw_steps': ('step_count', '12', 'NULL'),
+    };
+    for (final e in tables.entries) {
+      Future<void> insert(AppDatabase db, String state, String values) => _exec(
+        db,
+        'INSERT INTO ${e.key} (run_id, time_us, source, state, ${e.value.$1}) '
+        "VALUES (1, 1, 'q', '$state', $values)",
+      );
+      test(
+        '${e.key}: unavailable ohne Wert geht, present ohne Wert scheitert',
+        () async {
+          final db = await openDb();
+          addTearDown(db.close);
+          await _insertRun(db, 1);
+          await insert(db, 'present', e.value.$2);
+          await insert(db, 'unavailable', e.value.$3);
+          expect(await _count(db, e.key, 1), 2);
+          for (final state in ['present', 'estimated', 'discarded']) {
+            await _expectAborted(
+              insert(db, state, e.value.$3),
+              'CHECK constraint failed',
+            );
+          }
+          expect(await _count(db, e.key, 1), 2);
+        },
+      );
+    }
+  });
+
   group('Berechnete Werte: original und current', () {
     Future<void> insertValue(
       AppDatabase db, {

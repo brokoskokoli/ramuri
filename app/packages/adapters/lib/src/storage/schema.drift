@@ -44,9 +44,11 @@ CREATE INDEX run_gaps_run_time ON run_gaps (run_id, start_us);
 CREATE INDEX laps_run_time ON laps (run_id, marked_at_us);
 
 -- ------------------------------------------------- Rohdaten (nur anhängen)
--- Je Wert Zeitstempel, Quellgerät (FR-0020) und Zustand (FR-0057). `source`
--- ist Text und kein Fremdschlüssel: Rohdaten bleiben, auch wenn ein Gerät
--- vergessen wird. Zustände wie MeasurementState in core.
+-- Je Wert Zeitstempel, Quellgerät (FR-0020) und Zustand (FR-0057). Die
+-- Wertspalten sind nur im Zustand `unavailable` leer (fehlende Angaben sind
+-- NULL, nie 0; CHECK je Tabelle). `source` ist Text und kein Fremdschlüssel:
+-- Rohdaten bleiben, auch wenn ein Gerät vergessen wird. Zustände wie
+-- MeasurementState in core.
 CREATE TABLE raw_positions (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
@@ -54,9 +56,11 @@ CREATE TABLE raw_positions (
   source TEXT NOT NULL,
   state TEXT NOT NULL
     CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')),
-  latitude_deg REAL NOT NULL,
-  longitude_deg REAL NOT NULL,
-  accuracy_m REAL
+  latitude_deg REAL,
+  longitude_deg REAL,
+  accuracy_m REAL,
+  CHECK (state = 'unavailable'
+    OR (latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL))
 );
 
 CREATE TABLE raw_heart_rates (
@@ -66,8 +70,9 @@ CREATE TABLE raw_heart_rates (
   source TEXT NOT NULL,
   state TEXT NOT NULL
     CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')),
-  bpm INTEGER NOT NULL,
-  contact TEXT NOT NULL CHECK (contact IN ('good', 'poor', 'unsupported'))
+  bpm INTEGER,
+  contact TEXT NOT NULL CHECK (contact IN ('good', 'poor', 'unsupported')),
+  CHECK (state = 'unavailable' OR bpm IS NOT NULL)
 );
 
 CREATE TABLE raw_altitudes (
@@ -77,8 +82,9 @@ CREATE TABLE raw_altitudes (
   source TEXT NOT NULL,
   state TEXT NOT NULL
     CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')),
-  altitude_m REAL NOT NULL,
-  vertical_accuracy_m REAL
+  altitude_m REAL,
+  vertical_accuracy_m REAL,
+  CHECK (state = 'unavailable' OR altitude_m IS NOT NULL)
 );
 
 CREATE TABLE raw_steps (
@@ -88,7 +94,8 @@ CREATE TABLE raw_steps (
   source TEXT NOT NULL,
   state TEXT NOT NULL
     CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')),
-  step_count INTEGER NOT NULL
+  step_count INTEGER,
+  CHECK (state = 'unavailable' OR step_count IS NOT NULL)
 );
 
 CREATE INDEX raw_positions_run_time ON raw_positions (run_id, time_us);

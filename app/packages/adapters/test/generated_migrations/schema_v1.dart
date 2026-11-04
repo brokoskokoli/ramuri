@@ -309,18 +309,18 @@ class RawPositions extends Table with TableInfo {
   late final GeneratedColumn<double> latitudeDeg = GeneratedColumn<double>(
     'latitude_deg',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    requiredDuringInsert: false,
+    $customConstraints: '',
   );
   late final GeneratedColumn<double> longitudeDeg = GeneratedColumn<double>(
     'longitude_deg',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    requiredDuringInsert: false,
+    $customConstraints: '',
   );
   late final GeneratedColumn<double> accuracyM = GeneratedColumn<double>(
     'accuracy_m',
@@ -358,6 +358,10 @@ class RawPositions extends Table with TableInfo {
     return RawPositions(attachedDatabase, alias);
   }
 
+  @override
+  List<String> get customConstraints => const [
+    'CHECK(state = \'unavailable\' OR(latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL))',
+  ];
   @override
   bool get dontWriteConstraints => true;
 }
@@ -411,10 +415,10 @@ class RawHeartRates extends Table with TableInfo {
   late final GeneratedColumn<int> bpm = GeneratedColumn<int>(
     'bpm',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    requiredDuringInsert: false,
+    $customConstraints: '',
   );
   late final GeneratedColumn<String> contact = GeneratedColumn<String>(
     'contact',
@@ -452,6 +456,10 @@ class RawHeartRates extends Table with TableInfo {
     return RawHeartRates(attachedDatabase, alias);
   }
 
+  @override
+  List<String> get customConstraints => const [
+    'CHECK(state = \'unavailable\' OR bpm IS NOT NULL)',
+  ];
   @override
   bool get dontWriteConstraints => true;
 }
@@ -505,10 +513,10 @@ class RawAltitudes extends Table with TableInfo {
   late final GeneratedColumn<double> altitudeM = GeneratedColumn<double>(
     'altitude_m',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    requiredDuringInsert: false,
+    $customConstraints: '',
   );
   late final GeneratedColumn<double> verticalAccuracyM =
       GeneratedColumn<double>(
@@ -546,6 +554,10 @@ class RawAltitudes extends Table with TableInfo {
     return RawAltitudes(attachedDatabase, alias);
   }
 
+  @override
+  List<String> get customConstraints => const [
+    'CHECK(state = \'unavailable\' OR altitude_m IS NOT NULL)',
+  ];
   @override
   bool get dontWriteConstraints => true;
 }
@@ -599,10 +611,10 @@ class RawSteps extends Table with TableInfo {
   late final GeneratedColumn<int> stepCount = GeneratedColumn<int>(
     'step_count',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    requiredDuringInsert: false,
+    $customConstraints: '',
   );
   @override
   List<GeneratedColumn> get $columns => [
@@ -630,6 +642,10 @@ class RawSteps extends Table with TableInfo {
     return RawSteps(attachedDatabase, alias);
   }
 
+  @override
+  List<String> get customConstraints => const [
+    'CHECK(state = \'unavailable\' OR step_count IS NOT NULL)',
+  ];
   @override
   bool get dontWriteConstraints => true;
 }
