@@ -72,9 +72,21 @@
   "@notOpenableKeyStoreError": {
     "description": "Grund: Fehler der Schlüsselablage"
   },
-  "notOpenableUnreadable": "Die gespeicherten Daten lassen sich mit dem vorhandenen Schlüssel nicht lesen. Mögliche Gründe: Die Datei ist beschädigt, der Schlüssel passt nicht, oder die Daten stammen von einer neueren Version der App. Im letzten Fall ist es besser, die neuere Version wieder zu installieren, statt neu zu beginnen.",
+  "notOpenableUnreadable": "Die gespeicherten Daten lassen sich mit dem vorhandenen Schlüssel nicht lesen. Mögliche Gründe: Die Datei ist beschädigt oder der Schlüssel passt nicht.",
   "@notOpenableUnreadable": {
-    "description": "Grund: Datei unlesbar, falscher Schlüssel oder neuere Version"
+    "description": "Grund: Datei unlesbar oder falscher Schlüssel"
+  },
+  "notOpenableFileCheckError": "Der Zustand der gespeicherten Daten konnte nicht geprüft werden. Es wurde nichts verändert. Bitte erneut versuchen.",
+  "@notOpenableFileCheckError": {
+    "description": "Grund: Prüfung der Datei selbst gescheitert (kein Neubeginn)"
+  },
+  "notOpenableNewerVersion": "Die gespeicherten Daten stammen von einer neueren Version der App und lassen sich mit dieser Version nicht öffnen. Die Daten sind in Ordnung und wurden nicht verändert. Bitte die neuere Version der App wieder installieren. Neu beginnen ist hier nicht vorgesehen.",
+  "@notOpenableNewerVersion": {
+    "description": "Grund: Datei mit höherer Schemaversion (Herabstufen), kein Neubeginn"
+  },
+  "notOpenableMigrationFailed": "Die gespeicherten Daten konnten nicht auf die Form dieser App-Version umgestellt werden. Die Daten sind in Ordnung und wurden nicht verändert. Bitte erneut versuchen oder die App aktualisieren. Neu beginnen ist hier nicht vorgesehen.",
+  "@notOpenableMigrationFailed": {
+    "description": "Grund: Migration gescheitert (Fehler der App), kein Neubeginn"
   },
   "notOpenableLocationError": "Der Speicherort der Daten konnte nicht bestimmt werden. Es wurde nichts verändert.",
   "@notOpenableLocationError": {

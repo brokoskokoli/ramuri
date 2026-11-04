@@ -16,6 +16,15 @@ enum StorageFailure {
   /// Schlüssel passt nicht oder Datei ist unlesbar (OQ-0062).
   unreadable,
 
+  /// Öffnen: Die Datei hat eine höhere Schemaversion als diese App kennt
+  /// (Herabstufen). Die Datei ist gesund; ein Neubeginn wäre falsch, die neuere
+  /// App-Version wird gebraucht.
+  newerVersion,
+
+  /// Öffnen: Die Migration auf die aktuelle Version ist gescheitert (Fehler
+  /// der App, nicht der Datei). Kein Neubeginn.
+  migrationFailed,
+
   /// Zugriff: Der Lauf oder der Eintrag existiert nicht.
   notFound,
 

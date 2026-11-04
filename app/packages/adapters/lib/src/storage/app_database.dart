@@ -1,4 +1,7 @@
+import 'package:core/core.dart' show StorageFailure;
 import 'package:drift/drift.dart';
+
+import 'connection_setup.dart' show ConnectionSetupFailure;
 
 part 'app_database.g.dart';
 
@@ -28,14 +31,21 @@ class AppDatabase extends _$AppDatabase {
       // darf eine ältere App nicht öffnen. Fehlt ein Schritt, öffnet die
       // Datenbank ebenfalls nicht (fail-closed).
       if (to < from) {
-        throw StateError('schema downgrade $from -> $to is not supported');
+        throw const ConnectionSetupFailure(StorageFailure.newerVersion);
       }
-      for (var v = from; v < to; v++) {
-        final step = migrationSteps[v];
-        if (step == null) {
-          throw StateError('missing migration step $v -> ${v + 1}');
+      try {
+        for (var v = from; v < to; v++) {
+          final step = migrationSteps[v];
+          if (step == null) {
+            throw const ConnectionSetupFailure(StorageFailure.migrationFailed);
+          }
+          await step(m);
         }
-        await step(m);
+      } catch (_) {
+        // Jeder Fehler eines Schritts ist ein Migrationsfehler, ohne Ursache:
+        // Sie könnte Statement und Parameter tragen. Die Ausnahme verlässt den
+        // Hintergrund-Isolate nur als Text; die Kennung bleibt erkennbar.
+        throw const ConnectionSetupFailure(StorageFailure.migrationFailed);
       }
     },
   );

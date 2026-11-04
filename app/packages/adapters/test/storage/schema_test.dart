@@ -651,7 +651,13 @@ void main() {
         );
         await expectLater(
           storage.open(testKey()),
-          throwsA(isA<StorageException>()),
+          throwsA(
+            isA<StorageException>().having(
+              (e) => e.failure,
+              'failure',
+              StorageFailure.migrationFailed,
+            ),
+          ),
         );
         final v1 = await openDb();
         addTearDown(v1.close);
@@ -673,8 +679,35 @@ void main() {
       );
       await (await storage.open(testKey())).close();
       // Datei ist jetzt Version 2, die App kennt nur 1.
-      await expectLater(openDb(), throwsA(isA<StorageException>()));
+      await expectLater(
+        EncryptedStorage(path).open(testKey()),
+        throwsA(
+          isA<StorageException>().having(
+            (e) => e.failure,
+            'failure',
+            StorageFailure.newerVersion,
+          ),
+        ),
+      );
     });
+
+    test(
+      'Schritt wirft mit Inhalt im Text: migrationFailed, Text ohne Inhalt',
+      () async {
+        await (await openDb()).close();
+        final storage = EncryptedStorage(
+          path,
+          databaseBuilder: (e) => _FailingStepV2(e),
+        );
+        try {
+          await storage.open(testKey());
+          fail('hätte scheitern müssen');
+        } on StorageException catch (e) {
+          expect(e.failure, StorageFailure.migrationFailed);
+          expect(e.toString(), isNot(contains(marker)));
+        }
+      },
+    );
   });
 }
 
@@ -702,4 +735,20 @@ class _NoStepV2 extends AppDatabase {
 
   @override
   int get schemaVersion => 2;
+}
+
+class _FailingStepV2 extends AppDatabase {
+  _FailingStepV2(super.e);
+
+  @override
+  int get schemaVersion => 2;
+
+  @override
+  Map<int, MigrationStep> get migrationSteps => {
+    1: (Migrator m) async {
+      await m.database.customStatement(
+        "INSERT INTO no_such_table VALUES ('$marker')",
+      );
+    },
+  };
 }

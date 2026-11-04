@@ -62,12 +62,117 @@ void main() {
     w.keys.failWith = 'defekt';
     final c = w.controller();
     await c.start();
+    final s = c.state as StorageNotOpenableState;
+    expect(s.cause, StorageNotOpenableCause.keyStoreError);
     expect(
-      (c.state as StorageNotOpenableState).cause,
-      StorageNotOpenableCause.keyStoreError,
+      s.canReset,
+      isFalse,
+      reason: 'erst nach einem gescheiterten Versuch',
     );
     expect(w.log, isEmpty);
     expect(w.files.present, isTrue);
+  });
+
+  group('Schlüsselablage-Fehler und Neubeginn (S7)', () {
+    test(
+      'Neubeginn erst, nachdem "Erneut versuchen" einmal gescheitert ist',
+      () async {
+        final w = World();
+        await w.seed(fileKey: k0, storedKey: k0);
+        w.keys.failWith = 'defekt';
+        final c = w.controller();
+        await c.start();
+        await c.resetStorage(); // beim ersten Fehler: nichts
+        expect(w.files.deleteCalls, 0);
+        expect((c.state as StorageNotOpenableState).canReset, isFalse);
+        await c.start(); // Erneut versuchen, scheitert wieder
+        final again = c.state as StorageNotOpenableState;
+        expect(again.cause, StorageNotOpenableCause.keyStoreError);
+        expect(again.canReset, isTrue);
+        expect(w.files.deleteCalls, 0);
+      },
+    );
+
+    test('gelingt der zweite Versuch, ist nichts gelöscht', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.keys.failWith = 'defekt';
+      final c = w.controller();
+      await c.start();
+      w.keys.failWith = null;
+      await c.start();
+      expect(c.state, isA<StorageReady>());
+      expect(w.files.deleteCalls, 0);
+    });
+
+    test(
+      'ein früherer Fehler zählt nicht nach einem Erfolg dazwischen',
+      () async {
+        final w = World();
+        await w.seed(fileKey: k0, storedKey: k0);
+        w.keys.failWith = 'defekt';
+        final c = w.controller();
+        await c.start();
+        w.keys.failWith = null;
+        w.inner.openFailure = StorageFailure.unreadable;
+        await c.start(); // anderer Fehler: Kette unterbrochen
+        w.inner.openFailure = null;
+        w.keys.failWith = 'defekt';
+        await c.start();
+        expect((c.state as StorageNotOpenableState).canReset, isFalse);
+      },
+    );
+
+    test(
+      'Fehler der Dateiprüfung: eigener Zustand, nur Erneut versuchen',
+      () async {
+        final w = World();
+        await w.seed(fileKey: k0, storedKey: k0);
+        w.files.failExist = true;
+        final c = w.controller();
+        await c.start();
+        var s = c.state as StorageNotOpenableState;
+        expect(s.cause, StorageNotOpenableCause.fileCheckError);
+        expect(s.canReset, isFalse);
+        await c.start();
+        s = c.state as StorageNotOpenableState;
+        expect(s.cause, StorageNotOpenableCause.fileCheckError);
+        expect(s.canReset, isFalse, reason: 'auch nach wiederholtem Fehler');
+        await c.resetStorage();
+        expect(w.files.deleteCalls, 0);
+        expect(w.log, isEmpty);
+      },
+    );
+  });
+
+  group('Neuere Version und Migrationsfehler (S9)', () {
+    for (final (failure, cause) in [
+      (StorageFailure.newerVersion, StorageNotOpenableCause.newerVersion),
+      (StorageFailure.migrationFailed, StorageNotOpenableCause.migrationFailed),
+    ]) {
+      test(
+        '$failure: eigener Zustand, kein Neubeginn, Datei unberührt',
+        () async {
+          final w = World();
+          await w.seed(fileKey: k0, storedKey: k0);
+          w.inner.openFailure = failure;
+          final c = w.controller();
+          await c.start();
+          final s = c.state as StorageNotOpenableState;
+          expect(s.cause, cause);
+          expect(s.canReset, isFalse);
+          await c.resetStorage();
+          expect(identical(c.state, s), isTrue);
+          expect(w.files.deleteCalls, 0);
+          expect(w.files.present, isTrue);
+          expect(w.log, isEmpty);
+          // Erneut versuchen öffnet, sobald die neuere App da ist.
+          w.inner.openFailure = null;
+          await c.start();
+          expect(c.state, isA<StorageReady>());
+        },
+      );
+    }
   });
 
   test('falscher Schlüssel und beschädigte Datei: nicht lesbar', () async {

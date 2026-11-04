@@ -80,14 +80,6 @@ void main() {
           (w) => w.seed(fileKey: k0, storedKey: k1),
           'mit dem vorhandenen Schlüssel nicht lesen',
         ),
-        (
-          'Schlüsselablage-Fehler',
-          (w) async {
-            await w.seed(fileKey: k0, storedKey: k0);
-            w.keys.failWith = 'defekt';
-          },
-          'Schlüsselablage des Geräts antwortet nicht',
-        ),
       ]) {
     testWidgets('nicht zu öffnen: $name', (tester) async {
       final w = World();
@@ -168,6 +160,61 @@ void main() {
     expect(find.text('Daten lassen sich nicht öffnen'), findsOneWidget);
     expect(sameBytes(w.keys.store[storageKeyName], k1), isTrue);
   });
+
+  testWidgets(
+    'Schlüsselablage-Fehler: Neubeginn erst nach gescheitertem erneutem Versuch',
+    (tester) async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.keys.failWith = 'defekt';
+      await pumpApp(tester, w.controller());
+      expect(
+        find.textContaining('Schlüsselablage des Geräts antwortet nicht'),
+        findsOneWidget,
+      );
+      expect(find.text('Erneut versuchen'), findsOneWidget);
+      expect(find.text('Neu beginnen'), findsNothing);
+      await tester.tap(find.text('Erneut versuchen'));
+      await tester.pumpAndSettle();
+      expect(find.text('Neu beginnen'), findsOneWidget);
+      expect(w.files.deleteCalls, 0);
+      expect(w.log, isEmpty);
+    },
+  );
+
+  for (final (name, prepare, text) in <(String, void Function(World), String)>[
+    (
+      'neuere Version',
+      (w) => w.inner.openFailure = StorageFailure.newerVersion,
+      'stammen von einer neueren Version der App',
+    ),
+    (
+      'Migration gescheitert',
+      (w) => w.inner.openFailure = StorageFailure.migrationFailed,
+      'nicht auf die Form dieser App-Version umgestellt',
+    ),
+    (
+      'Dateiprüfung gescheitert',
+      (w) => w.files.failExist = true,
+      'Zustand der gespeicherten Daten konnte nicht geprüft',
+    ),
+  ]) {
+    testWidgets('$name: eigener Text, nur Erneut versuchen, kein Neubeginn', (
+      tester,
+    ) async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      prepare(w);
+      await pumpApp(tester, w.controller());
+      expect(find.textContaining(text), findsOneWidget);
+      expect(find.text('Erneut versuchen'), findsOneWidget);
+      expect(find.text('Neu beginnen'), findsNothing);
+      expect(find.byType(OutlinedButton), findsNothing);
+      expect(find.textContaining('löscht die bisherigen Daten'), findsNothing);
+      expect(w.files.deleteCalls, 0);
+      expect(w.log, isEmpty);
+    });
+  }
 
   testWidgets('Verschlüsselung nicht aktiv: eigene Meldung, kein Neubeginn', (
     tester,

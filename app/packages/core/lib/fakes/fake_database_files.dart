@@ -10,11 +10,17 @@ class FakeDatabaseFiles implements DatabaseFiles {
   /// Simuliert eine Datei, die sich nicht löschen lässt.
   bool failDelete = false;
 
+  /// Simuliert eine Dateiprüfung, die selbst scheitert.
+  bool failExist = false;
+
   /// Aufrufe von [deleteAll].
   int deleteCalls = 0;
 
   @override
-  Future<bool> exist() async => present;
+  Future<bool> exist() async {
+    if (failExist) throw StateError('Prüfung nicht möglich');
+    return present;
+  }
 
   @override
   Future<void> deleteAll() async {

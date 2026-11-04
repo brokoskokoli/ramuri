@@ -97,6 +97,12 @@ class NotOpenableScreen extends StatelessWidget {
               StorageNotOpenableCause.keyStoreError =>
                 l10n.notOpenableKeyStoreError,
               StorageNotOpenableCause.unreadable => l10n.notOpenableUnreadable,
+              StorageNotOpenableCause.newerVersion =>
+                l10n.notOpenableNewerVersion,
+              StorageNotOpenableCause.migrationFailed =>
+                l10n.notOpenableMigrationFailed,
+              StorageNotOpenableCause.fileCheckError =>
+                l10n.notOpenableFileCheckError,
               StorageNotOpenableCause.locationError =>
                 l10n.notOpenableLocationError,
             }),

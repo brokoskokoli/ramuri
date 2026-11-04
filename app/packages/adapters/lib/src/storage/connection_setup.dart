@@ -19,8 +19,9 @@ const List<int> plainSqliteHeader = [
   0x6f, 0x72, 0x6d, 0x61, 0x74, 0x20, 0x33, 0x00,
 ];
 
-/// Zeigt an, dass die Verbindung nicht sicher eingerichtet werden konnte. Wird
-/// im Hintergrund-Isolate geworfen; die Ursache bleibt absichtlich ohne Inhalt.
+/// Zeigt an, dass die Verbindung nicht sicher eingerichtet oder die Datenbank
+/// nicht geöffnet werden konnte (Einrichtung, Herabstufen, Migration). Wird im
+/// Hintergrund-Isolate geworfen; die Ursache bleibt absichtlich ohne Inhalt.
 class ConnectionSetupFailure implements Exception {
   const ConnectionSetupFailure(this.failure);
 

@@ -20,8 +20,20 @@ enum StorageNotOpenableCause {
   /// Die Schlüsselablage lässt sich nicht lesen oder beschreiben.
   keyStoreError,
 
-  /// Falscher Schlüssel, beschädigte Datei oder Datei einer neueren Version.
+  /// Falscher Schlüssel oder beschädigte Datei.
   unreadable,
+
+  /// Die Datei hat eine neuere Schemaversion als diese App (Herabstufen). Die
+  /// Datei ist gesund: nur "Erneut versuchen", kein Neubeginn.
+  newerVersion,
+
+  /// Die Migration auf die Version dieser App ist gescheitert (Fehler der App
+  /// bei gesunder Datei): nur "Erneut versuchen", kein Neubeginn.
+  migrationFailed,
+
+  /// Die Prüfung, ob Dateien da sind, ist selbst gescheitert. Das sagt nichts
+  /// über den Schlüsselspeicher oder die Datei: nur "Erneut versuchen".
+  fileCheckError,
 
   /// Der Speicherort der Datei ließ sich nicht bestimmen. Es gibt nichts zu
   /// löschen; angeboten wird nur "Erneut versuchen".
@@ -59,6 +71,7 @@ final class StorageNotOpenableState extends StorageStartState {
     this.cause, {
     this.resetProblem,
     this.busy = false,
+    this.retryFailed = false,
   });
 
   final StorageNotOpenableCause cause;
@@ -69,8 +82,35 @@ final class StorageNotOpenableState extends StorageStartState {
   /// Ein Neubeginn läuft.
   final bool busy;
 
-  /// Neubeginn wird nur angeboten, wo es eine Datei zum Ersetzen gibt.
-  bool get canReset => cause != StorageNotOpenableCause.locationError;
+  /// Bei [StorageNotOpenableCause.keyStoreError]: "Erneut versuchen" ist
+  /// schon einmal gescheitert. Ein vorübergehender Fehler der Schlüsselablage
+  /// (etwa gesperrtes Gerät) darf nicht sofort zum Neubeginn führen.
+  final bool retryFailed;
+
+  /// Neubeginn wird nur angeboten, wo es eine Datei zum Ersetzen gibt und die
+  /// Datei als Ursache gilt oder der Schlüssel dauerhaft unbrauchbar scheint.
+  /// Nie bei gesunder Datei (neuere Version, Migration) und nie, wenn die
+  /// Dateiprüfung selbst scheiterte.
+  bool get canReset => switch (cause) {
+    StorageNotOpenableCause.keyMissing ||
+    StorageNotOpenableCause.keyMalformed ||
+    StorageNotOpenableCause.unreadable => true,
+    StorageNotOpenableCause.keyStoreError => retryFailed,
+    StorageNotOpenableCause.newerVersion ||
+    StorageNotOpenableCause.migrationFailed ||
+    StorageNotOpenableCause.fileCheckError ||
+    StorageNotOpenableCause.locationError => false,
+  };
+
+  StorageNotOpenableState _with({
+    StorageResetProblem? resetProblem,
+    bool busy = false,
+  }) => StorageNotOpenableState(
+    cause,
+    resetProblem: resetProblem,
+    busy: busy,
+    retryFailed: retryFailed,
+  );
 }
 
 /// Die Verschlüsselung ist zur Laufzeit nicht aktiv. Die Datei ist nicht
@@ -97,6 +137,9 @@ class StorageStartController extends ChangeNotifier {
 
   bool _running = false;
 
+  /// Der vorige Ladevorgang endete mit einem Fehler der Schlüsselablage.
+  bool _keyStoreFailed = false;
+
   void _set(StorageStartState s) {
     _state = s;
     notifyListeners();
@@ -117,6 +160,8 @@ class StorageStartController extends ChangeNotifier {
   }
 
   Future<void> _load() async {
+    final keyStoreFailedBefore = _keyStoreFailed;
+    _keyStoreFailed = false;
     final StorageWiring wiring;
     try {
       wiring = await wire();
@@ -127,18 +172,36 @@ class StorageStartController extends ChangeNotifier {
       return;
     }
     final StorageStart decision;
+    var fileCheckFailed = false;
     try {
       decision = await StorageKeyService(
         keyStore: keyStore,
-        databaseFilesExist: wiring.files.exist,
+        databaseFilesExist: () async {
+          try {
+            return await wiring.files.exist();
+          } catch (_) {
+            fileCheckFailed = true;
+            rethrow;
+          }
+        },
         generateKey: generateKey,
       ).decide();
     } catch (_) {
-      // Auch Fehler der Dateiprüfung und der Schlüsselerzeugung: nichts wurde
-      // angelegt oder gelöscht, und es wird nie still neu angelegt.
-      _set(
-        const StorageNotOpenableState(StorageNotOpenableCause.keyStoreError),
-      );
+      // Nichts wurde angelegt oder gelöscht, und es wird nie still neu angelegt.
+      if (fileCheckFailed) {
+        // Der Fehler gehört nicht dem Schlüsselspeicher.
+        _set(
+          const StorageNotOpenableState(StorageNotOpenableCause.fileCheckError),
+        );
+      } else {
+        _keyStoreFailed = true;
+        _set(
+          StorageNotOpenableState(
+            StorageNotOpenableCause.keyStoreError,
+            retryFailed: keyStoreFailedBefore,
+          ),
+        );
+      }
       return;
     }
     final Uint8List key;
@@ -159,11 +222,16 @@ class StorageStartController extends ChangeNotifier {
     try {
       _set(StorageReady(await wiring.storage.open(key)));
     } on StorageException catch (e) {
-      _set(
-        e.failure == StorageFailure.encryptionNotActive
-            ? const StorageEncryptionInactive()
-            : const StorageNotOpenableState(StorageNotOpenableCause.unreadable),
-      );
+      _set(switch (e.failure) {
+        StorageFailure.encryptionNotActive => const StorageEncryptionInactive(),
+        StorageFailure.newerVersion => const StorageNotOpenableState(
+          StorageNotOpenableCause.newerVersion,
+        ),
+        StorageFailure.migrationFailed => const StorageNotOpenableState(
+          StorageNotOpenableCause.migrationFailed,
+        ),
+        _ => const StorageNotOpenableState(StorageNotOpenableCause.unreadable),
+      });
     } catch (_) {
       _set(const StorageNotOpenableState(StorageNotOpenableCause.unreadable));
     }
@@ -185,7 +253,7 @@ class StorageStartController extends ChangeNotifier {
     }
     _running = true;
     try {
-      _set(StorageNotOpenableState(current.cause, busy: true));
+      _set(current._with(busy: true));
       final StorageWiring wiring;
       try {
         wiring = await wire();
@@ -194,23 +262,13 @@ class StorageStartController extends ChangeNotifier {
           throw StateError('Datei nach dem Löschen noch da');
         }
       } catch (_) {
-        _set(
-          StorageNotOpenableState(
-            current.cause,
-            resetProblem: StorageResetProblem.filesNotDeleted,
-          ),
-        );
+        _set(current._with(resetProblem: StorageResetProblem.filesNotDeleted));
         return;
       }
       try {
         await keyStore.delete(storageKeyName);
       } catch (_) {
-        _set(
-          StorageNotOpenableState(
-            current.cause,
-            resetProblem: StorageResetProblem.keyNotReplaced,
-          ),
-        );
+        _set(current._with(resetProblem: StorageResetProblem.keyNotReplaced));
         return;
       }
       _set(const StorageLoading());

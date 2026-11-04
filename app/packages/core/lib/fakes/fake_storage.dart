@@ -24,6 +24,9 @@ class FakeStorage implements Storage {
   /// Simuliert eine beschädigte Datei.
   bool corrupted = false;
 
+  /// Wenn gesetzt, scheitert das Öffnen mit dieser Art (etwa `newerVersion`).
+  StorageFailure? openFailure;
+
   Uint8List? _fileKey;
 
   /// Inhalt der "Datei"; bleibt über Sitzungen erhalten.
@@ -40,6 +43,8 @@ class FakeStorage implements Storage {
     if (!encryptionActive) {
       throw const StorageException(StorageFailure.encryptionNotActive);
     }
+    final failure = openFailure;
+    if (failure != null) throw StorageException(failure);
     final fileKey = _fileKey;
     if (corrupted || (fileKey != null && !_same(fileKey, key))) {
       throw const StorageException(StorageFailure.unreadable);
