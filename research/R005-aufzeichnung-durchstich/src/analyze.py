@@ -25,6 +25,18 @@ def inject(path):
     for l in open(path):
         i,a,b,la,lo=l.split('\t'); d[(la,lo.strip())]=(int(i),float(a))
     return d
+def snap_of(work,run):
+    # Zustand beim Beginn der Idle-Phase und isForeground: aus den Treiber-Logs (matrix.log usw.), weil natural w0 im Schlaf keine Herzschlaege mehr nach logcat liefert
+    for f in sorted(glob.glob(work+'/*.log')):
+        L=open(f,errors='replace').read().split('\n')
+        for i,l in enumerate(L):
+            if l.endswith('fertig '+run) or l.endswith('fertig '+run+' mit SIGKILL'):
+                snap=None; fg=None
+                for k in range(i,max(0,i-40),-1):
+                    if fg is None and 'isForeground=' in L[k]: fg=L[k].count('isForeground=true')>0
+                    if " {'deep'" in L[k]: snap=L[k]; break
+                return snap,fg
+    return None,None
 def gap(work):
     out=[]
     for o in sorted(glob.glob(work+'/gap/*/')):
@@ -99,13 +111,20 @@ def gap(work):
         if 'R005START' not in names: why.append('kein R005START')
         if not svc: why.append('Host nicht belegt')
         if rec['errs']: why.append('R005ERR')
-        if locked<0.99: why.append('nicht gesperrt')
-        if idl<0.99 and not 'stopctl' in run: why.append('nicht idle')
+        snap,fg=snap_of(work,run); pm=open(o+'kernel-pm.txt',errors='replace').read() if os.path.exists(o+'kernel-pm.txt') else None
+        rec['susp_entries']=pm.count('suspend entry') if pm is not None else None; rec['sigkill_end']=pm is not None
+        rec['hb_share']=round(len(hb_idle)/max(1,dur),3)
+        if len(hb_idle)>=0.5*dur:
+            if locked<0.99: why.append('nicht gesperrt')
+            if idl<0.99 and not 'stopctl' in run: why.append('nicht idle')
+        else:  # keine Herzschlaege im Log (Schlaf, adb offline oder eingefroren): Zustand aus dem Snapshot zu Beginn der Idle-Phase
+            if not snap or "'deep': 'IDLE'" not in snap or 'isKeyguardShowing=true' not in snap: why.append('Zustand zu Beginn nicht belegt')
+            rec['state_from']='snapshot'
         if inter: why.append('interaktiv')
         if len(base)<50: why.append('Referenz %d Zeilen'%len(base))
         if not it or it[-1]<p['end']-5: why.append('Einspeisung endet vor Phasenende')
         if igap>5 and 'pausectl' not in run: why.append('Einspeisung setzt aus %.1fs'%igap)
-        rec.update(valid=not why,why=why,inj_n=len(it),inj_gap_max=round(igap,1),base_rows=len(base),base_rate=round(len(base)/max(1,p['locked_start']-min(rcv.values())),3),fgs='isForeground' in act or 'foregroundServices=true' in act)
+        rec.update(valid=not why,why=why,inj_n=len(it),inj_gap_max=round(igap,1),base_rows=len(base),base_rate=round(len(base)/max(1,p['locked_start']-min(rcv.values())),3),fgs=fg)
         out.append(rec); print(json.dumps(rec))
     json.dump(out,open(work+'/gap/summary.json','w'),indent=1)
 def kill(work):
@@ -115,12 +134,16 @@ def kill(work):
         m=json.load(open(o+'meta.json')); ev=parse_log(o+'logcat.txt')
         R=rows(o+'rows.tsv'); integ=open(o+'rows.tsv').readline().strip().split('\t')[-1]
         db=set(r[0] for r in R); mx=max(db) if db else 0
-        ack=[int(kv(e[2])['seq']) for e in ev if e[1]=='R005ACK']; rcv=[int(kv(e[2])['seq']) for e in ev if e[1]=='R005RCV']
+        tk=m['tkill']; post=sum(1 for e in ev if e[1]=='R005RCV' and e[0]>tk+1)  # Zeilen nach dem Kill: Prozess lebt noch (ffgt: Neustart)
+        ack=[int(kv(e[2])['seq']) for e in ev if e[1]=='R005ACK' and e[0]<=tk+1]; rcv=[int(kv(e[2])['seq']) for e in ev if e[1]=='R005RCV' and e[0]<=tk+1]
+        ok=(m.get('boot_s') is not None and post==0) if m['kind']!='proc' else (m.get('pid_after_kill')!=m['pid'] and (post==0 or m.get('host')=='ffgt'))
+        pa=str(m.get('pid_after_kill') or '')
+        if not ok: print('UNGUELTIG (Kill wirkungslos):',os.path.basename(o[:-1]),m.get('pid'),pa,post); continue
         la,lr=max(ack,default=0),max(rcv,default=0)
         acked=set(range(1,la+1)); lost_acked=len(acked-db)
         holes=len(set(range(1,mx+1))-db)
         ver=[kv(e[2]) for e in parse_log(o+'logcat2.txt') if e[1]=='R005VERIFY']
-        rec=dict(run=os.path.basename(o[:-1]),api=os.path.basename(o[:-1])[:3],host=m.get('host','own'),kind=m['kind'],tx=m['tx'],sync=m['sync'],last_ack=la,last_rcv=lr,db_rows=len(db),db_max=mx,lost_acked=lost_acked,rcv_not_db=lr-mx,db_beyond_ack=mx-la,holes=holes,integ=integ,dev=ver[0] if ver else None,wal=m['pull'].get('-wal'))
+        rec=dict(run=os.path.basename(o[:-1]),via=m.get('kill_via','run-as' if m['kind']=='proc' else 'host'),post_kill_rcv=post,restart_pid=pa,wait=round(m['wait'],1),api=os.path.basename(o[:-1])[:3],host=m.get('host','own'),kind=m['kind'],tx=m['tx'],sync=m['sync'],last_ack=la,last_rcv=lr,db_rows=len(db),db_max=mx,lost_acked=lost_acked,rcv_not_db=lr-mx,db_beyond_ack=mx-la,holes=holes,integ=integ,dev=ver[0] if ver else None,wal=m['pull'].get('-wal'))
         out.append(rec); print(json.dumps(rec))
     cells={}
     for r in out: cells.setdefault((r['kind'],r['api'],r['host'],r['tx'],r['sync']),[]).append(r)

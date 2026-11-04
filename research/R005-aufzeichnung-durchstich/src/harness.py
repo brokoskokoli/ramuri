@@ -79,14 +79,14 @@ def start_app(lc_path,**kw):
     raise RuntimeError('App startet nicht')
 # ---- Eingabe: synthetische Spur mit festem Seed, geo fix 1 Hz
 class Injector(threading.Thread):
-    def __init__(s,path,seed,pause=None):
-        super().__init__(daemon=True); s.f=open(path,'w'); s.rng=random.Random(seed); s.stop_=False; s.pause=pause; s.lat=48.0+s.rng.random()/10; s.lon=11.0+s.rng.random()/10
+    def __init__(s,path,seed,pause=None,every=1):
+        super().__init__(daemon=True); s.every=every; s.f=open(path,'w'); s.rng=random.Random(seed); s.stop_=False; s.pause=pause; s.lat=48.0+s.rng.random()/10; s.lon=11.0+s.rng.random()/10
     def run(s):
         t=time.monotonic(); i=0; t0=t; h=s.rng.random()*6.28
         while not s.stop_:
             h+=s.rng.gauss(0,0.2); s.lat+=2.7e-5*math.cos(h); s.lon+=4e-5*math.sin(h)
             el=time.monotonic()-t0
-            if not (s.pause and s.pause[0]<=el<s.pause[1]):
+            if i%s.every==0 and not (s.pause and s.pause[0]<=el<s.pause[1]):
                 a=time.time(); adb('emu','geo','fix','%.6f'%s.lon,'%.6f'%s.lat,timeout=5); b=time.time()
                 s.f.write(f'{i}\t{a:.3f}\t{b:.3f}\t{s.lat:.6f}\t{s.lon:.6f}\n'); s.f.flush()
             i+=1; t+=1.0; d=t-time.monotonic()
@@ -151,7 +151,7 @@ def trial_gap(a,run,base=60):
     os.makedirs(o); json.dump(vars(a)|{'run':run},open(o+'/meta.json','w'),default=str)
     root(); fresh(); ash('dumpsys deviceidle unforce'); ash('dumpsys battery reset'); unlock()
     ash('dumpsys battery unplug'); s0=susp()
-    lc=Logcat(o+'/logcat.txt'); inj=Injector(o+'/inject.tsv',a.seed,pause=(base+a.pause_at,base+a.pause_at+a.pause_len) if a.pause_len else None); inj.start()
+    lc=Logcat(o+'/logcat.txt'); inj=Injector(o+'/inject.tsv',a.seed,pause=(base+a.pause_at,base+a.pause_at+a.pause_len) if a.pause_len else None,every=a.inj_every); inj.start()
     time.sleep(3)
     log(start_app(o+'/logcat.txt',cmd='start',host=a.host,run=run,tx=a.tx,sync=a.sync,wake=a.wake,steps=True).strip()[-60:])
     smp=None
@@ -168,6 +168,7 @@ def trial_gap(a,run,base=60):
     if a.idle: log('force-idle:',ash('dumpsys deviceidle force-idle').strip()[:80])
     phase.append(('idle_start',time.time())); snap=state_snapshot(); log(snap)
     open(o+'/holders-start.txt','w').write(snap['holders'])
+    if not a.quiet: open(o+'/location.txt','w').write(ash('dumpsys location',timeout=30))  # angeforderte Rate, Filter, Provider
     if a.natural:
         # Goldfish haelt den Kernel-Wake-Lock emulator_wake_lock, der Autosuspend verhindert. Loesen: alles Weitere macht system_suspend selbst,
         # die Wake-Lock-Zaehlung bleibt in Kraft. Weckung: RTC-Alarm zum Phasenende; ein Waechter im Geraet setzt dann die Sperre wieder (adb ist waehrend des Schlafs offline).
@@ -196,6 +197,7 @@ def trial_gap(a,run,base=60):
         log(pull(run,o+'/live')); log(pull(run,o+'/afterstop')); rm_runs(); ash('dumpsys battery reset')
         json.dump(dict(before=s0,after=dict(success='',fail='',note='nach Neustart nicht lesbar, siehe kernel-pm.txt')),open(o+'/suspend.json','w'))
         open(o+'/.done','w').write('ok'); log('fertig',run,'mit SIGKILL'); return
+    if '_abst' in run: open(o+'/hal-log.txt','w').write(ash('getprop ro.build.fingerprint; ls /vendor/bin/hw | grep -i gnss; logcat -d -v epoch | grep -iE "onGnss|gnss.*ranchu|goldfish.*gnss"',timeout=120))  # Probe Abstaende: Rohereignisse im GNSS-HAL
     s1=susp(); json.dump(dict(before=s0,after=s1),open(o+'/suspend.json','w')); log('suspend',s0.get('success'),'->',s1.get('success'),'fail',s1.get('fail'),s1.get('autosuspend'))
     open(o+'/dmesg-pm.txt','w').write(ash('dmesg | grep -E "PM: |Freezing|Restarting|wakeup|Wakeup|wake"',timeout=30)); open(o+'/suspend_control.txt','w').write(ash('dumpsys suspend_control_internal',timeout=30)); open(o+'/holders-end.txt','w').write(holders())
     if a.natural: ash('echo emulator_wake_lock > /sys/power/wake_lock')
@@ -213,18 +215,26 @@ def trial_kill(a,run,kind):
     if os.path.exists(o+'/.done'): log('schon da',run); return
     if os.path.exists(o): shutil.rmtree(o)
     os.makedirs(o)
+    if kind=='proc': root()  # run-as-Kill wirkte auf API 31 nicht; root vor dem logcat, adb root bricht es sonst ab
     fresh(); unlock(); time.sleep(1)
     rng=random.Random(run)
     lc=Logcat(o+'/logcat.txt'); inj=Injector(o+'/inject.tsv',rng.randint(0,1<<30)); inj.start(); time.sleep(2)
     start_app(o+'/logcat.txt',cmd='start',host=a.host,run=run,tx=a.tx,sync=a.sync,wake=False)
     wait=rng.uniform(a.minrun,a.maxrun); time.sleep(wait)
-    t=time.time(); pid=pidof(); kp=None
-    if kind=='proc': ash(f'run-as {PKG} sh -c "kill -9 {pid}"')
+    t=time.time(); pid=pidof(); kp=None; kill_out=None
+    if kind=='proc':
+        # Gueltigkeit: der PID muss danach weg sein (ffgt: neuer PID durch Neustart des Dienstes). Sonst bricht der Lauf ab, ohne .done.
+        assert pid and ' ' not in pid,f'PID vor dem Kill ungueltig: {pid!r}'
+        kill_out=ash(f'kill -9 {pid} 2>&1; echo rc=$?').strip()
+        for _ in range(20):
+            if pidof()!=pid: break
+            time.sleep(0.1)
+        else: raise RuntimeError(f'Kill wirkungslos, PID {pid} lebt: {kill_out}')
     elif kind=='emu':
         inj.stop_=True; kp=emu_pid(); adb('emu','kill',timeout=10)
     elif kind=='sigkill':  # haertere Kontrolle: qemu ohne jede Abschaltlogik
         inj.stop_=True; kp=emu_pid(); os.kill(kp,signal.SIGKILL)
-    meta=dict(run=run,host=a.host,kind=kind,tx=a.tx,sync=a.sync,wait=wait,tkill=t,pid=pid)
+    meta=dict(run=run,host=a.host,kind=kind,tx=a.tx,sync=a.sync,wait=wait,tkill=t,pid=pid,kill_via='root' if kind=='proc' else 'host',kill_out=kill_out)
     inj.stop_=True
     time.sleep(2); inj.join(3)
     bootS=None
@@ -277,7 +287,7 @@ def main():
     ap.add_argument('--idle',type=int,default=1); ap.add_argument('--tx',type=int,default=1); ap.add_argument('--sync',default='FULL')
     ap.add_argument('--dur',type=int,default=600); ap.add_argument('--rep',type=int,default=1); ap.add_argument('--seed',type=int,default=42); ap.add_argument('--kind',default='proc')
     ap.add_argument('--minrun',type=float,default=20); ap.add_argument('--maxrun',type=float,default=40); ap.add_argument('--pause-at',type=int,default=0); ap.add_argument('--pause-len',type=int,default=0); ap.add_argument('--stop-at',type=int,default=0); ap.add_argument('--stop-len',type=int,default=0)
-    ap.add_argument('--natural',type=int,default=0); ap.add_argument('--force-at',type=int,default=0); ap.add_argument('--post',type=int,default=30); ap.add_argument('--quiet',type=int,default=0); ap.add_argument('--n',type=int,default=300); ap.add_argument('--tag',default=''); ap.add_argument('--poll',type=int,default=15); ap.add_argument('--sample',type=int,default=0)
+    ap.add_argument('--natural',type=int,default=0); ap.add_argument('--force-at',type=int,default=0); ap.add_argument('--post',type=int,default=30); ap.add_argument('--quiet',type=int,default=0); ap.add_argument('--n',type=int,default=300); ap.add_argument('--tag',default=''); ap.add_argument('--poll',type=int,default=15); ap.add_argument('--sample',type=int,default=0); ap.add_argument('--inj-every',type=int,default=1)
     a=ap.parse_args(); a.wake=bool(a.wake); a.idle=bool(a.idle)
     os.makedirs(WORK,exist_ok=True)
     if a.cmd=='boot':
