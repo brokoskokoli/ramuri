@@ -93,6 +93,23 @@ void main() {
       },
     );
 
+    test('Neubeginn scheitert beim Löschen: Schaltfläche bleibt (retryFailed bleibt)', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.keys.failWith = 'defekt';
+      final c = w.controller();
+      await c.start();
+      await c.start();
+      expect((c.state as StorageNotOpenableState).canReset, isTrue);
+      w.files.failDelete = true;
+      await c.resetStorage();
+      final s = c.state as StorageNotOpenableState;
+      expect(s.resetProblem, StorageResetProblem.filesNotDeleted);
+      expect(s.cause, StorageNotOpenableCause.keyStoreError);
+      expect(s.canReset, isTrue, reason: 'erneut bestätigen und versuchen');
+      expect(w.files.present, isTrue);
+    });
+
     test('gelingt der zweite Versuch, ist nichts gelöscht', () async {
       final w = World();
       await w.seed(fileKey: k0, storedKey: k0);
@@ -149,6 +166,10 @@ void main() {
     for (final (failure, cause) in [
       (StorageFailure.newerVersion, StorageNotOpenableCause.newerVersion),
       (StorageFailure.migrationFailed, StorageNotOpenableCause.migrationFailed),
+      (
+        StorageFailure.configurationFailed,
+        StorageNotOpenableCause.configurationFailed,
+      ),
     ]) {
       test(
         '$failure: eigener Zustand, kein Neubeginn, Datei unberührt',

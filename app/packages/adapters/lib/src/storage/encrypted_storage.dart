@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:drift/drift.dart' show QueryExecutor;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 // Nur hier erreichbar: Der Fehler aus dem Hintergrund-Isolate trägt die
 // SqliteException als remoteCause. Die Bibliothek markiert das als
 // experimentell; ein Test (Zugriffstests) fängt eine Änderung ab.
@@ -75,10 +76,43 @@ class EncryptedStorageSession implements StorageSession {
 /// Schlüssel falsch, entsteht eine [StorageException] ohne Inhalte.
 class EncryptedStorage implements Storage {
   EncryptedStorage(
+    String path, {
+    LibraryCipherProbe libraryProbe = defaultLibraryCipherProbe,
+    FileEncryptedProbe fileProbe = defaultFileEncryptedProbe,
+    AppDatabase Function(QueryExecutor) databaseBuilder = AppDatabase.new,
+  }) : this._(
+         path,
+         libraryProbe: libraryProbe,
+         fileProbe: fileProbe,
+         databaseBuilder: databaseBuilder,
+       );
+
+  /// Nur für Tests: dazu `isolateSetup` und `logStatements`. Die Analyse
+  /// meldet jede Nutzung außerhalb von Tests (`invalid_use_of_visible_for_
+  /// testing_member`), sodass `logStatements: true` nie unbemerkt in die
+  /// App gelangt.
+  @visibleForTesting
+  EncryptedStorage.forTest(
+    String path, {
+    LibraryCipherProbe libraryProbe = defaultLibraryCipherProbe,
+    FileEncryptedProbe fileProbe = defaultFileEncryptedProbe,
+    AppDatabase Function(QueryExecutor) databaseBuilder = AppDatabase.new,
+    FutureOr<void> Function()? isolateSetup,
+    bool logStatements = false,
+  }) : this._(
+         path,
+         libraryProbe: libraryProbe,
+         fileProbe: fileProbe,
+         databaseBuilder: databaseBuilder,
+         isolateSetup: isolateSetup,
+         logStatements: logStatements,
+       );
+
+  EncryptedStorage._(
     this.path, {
-    this.libraryProbe = defaultLibraryCipherProbe,
-    this.fileProbe = defaultFileEncryptedProbe,
-    this.databaseBuilder = AppDatabase.new,
+    required this.libraryProbe,
+    required this.fileProbe,
+    required this.databaseBuilder,
     this.isolateSetup,
     this.logStatements = false,
   });

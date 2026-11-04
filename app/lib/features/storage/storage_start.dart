@@ -31,6 +31,11 @@ enum StorageNotOpenableCause {
   /// bei gesunder Datei): nur "Erneut versuchen", kein Neubeginn.
   migrationFailed,
 
+  /// Die Einrichtung der Verbindung (PRAGMAs wie WAL) hat nicht den verlangten
+  /// Wert geliefert: Fehler der Umgebung bei gesunder Datei, nur "Erneut
+  /// versuchen".
+  configurationFailed,
+
   /// Die Prüfung, ob Dateien da sind, ist selbst gescheitert. Das sagt nichts
   /// über den Schlüsselspeicher oder die Datei: nur "Erneut versuchen".
   fileCheckError,
@@ -98,6 +103,7 @@ final class StorageNotOpenableState extends StorageStartState {
     StorageNotOpenableCause.keyStoreError => retryFailed,
     StorageNotOpenableCause.newerVersion ||
     StorageNotOpenableCause.migrationFailed ||
+    StorageNotOpenableCause.configurationFailed ||
     StorageNotOpenableCause.fileCheckError ||
     StorageNotOpenableCause.locationError => false,
   };
@@ -229,6 +235,9 @@ class StorageStartController extends ChangeNotifier {
         ),
         StorageFailure.migrationFailed => const StorageNotOpenableState(
           StorageNotOpenableCause.migrationFailed,
+        ),
+        StorageFailure.configurationFailed => const StorageNotOpenableState(
+          StorageNotOpenableCause.configurationFailed,
         ),
         _ => const StorageNotOpenableState(StorageNotOpenableCause.unreadable),
       });

@@ -194,6 +194,11 @@ void main() {
       'nicht auf die Form dieser App-Version umgestellt',
     ),
     (
+      'Einrichtung abweichend',
+      (w) => w.inner.openFailure = StorageFailure.configurationFailed,
+      'nicht sicher einrichten',
+    ),
+    (
       'Dateiprüfung gescheitert',
       (w) => w.files.failExist = true,
       'Zustand der gespeicherten Daten konnte nicht geprüft',

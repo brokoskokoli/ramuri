@@ -21,6 +21,7 @@
   "notOpenableUnreadable": "The stored data cannot be read with the existing key. Possible reasons: the file is damaged or the key does not match.",
   "notOpenableFileCheckError": "The state of the stored data could not be checked. Nothing was changed. Please try again.",
   "notOpenableNewerVersion": "The stored data comes from a newer version of the app and cannot be opened with this version. The data is intact and was not changed. Please install the newer version of the app again. Starting over is not offered here.",
+  "notOpenableConfigurationFailed": "The database could not be set up safely on this device. The data is intact and was not changed. Please try again. Starting over is not offered here.",
   "notOpenableMigrationFailed": "The stored data could not be converted to the form this app version needs. The data is intact and was not changed. Please try again or update the app. Starting over is not offered here.",
   "notOpenableLocationError": "The storage location of the data could not be determined. Nothing was changed.",
   "notOpenableResetHint": "\"Start over\" permanently deletes the existing data and creates an empty database. The app asks once more before doing so.",

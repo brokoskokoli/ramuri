@@ -34,13 +34,19 @@ class AppDatabase extends _$AppDatabase {
         throw const ConnectionSetupFailure(StorageFailure.newerVersion);
       }
       try {
-        for (var v = from; v < to; v++) {
-          final step = migrationSteps[v];
-          if (step == null) {
-            throw const ConnectionSetupFailure(StorageFailure.migrationFailed);
+        // Alle Schritte in einer Transaktion: Scheitert einer, bleibt nichts
+        // von den früheren zurück, und "Erneut versuchen" startet sauber.
+        await transaction(() async {
+          for (var v = from; v < to; v++) {
+            final step = migrationSteps[v];
+            if (step == null) {
+              throw const ConnectionSetupFailure(
+                StorageFailure.migrationFailed,
+              );
+            }
+            await step(m);
           }
-          await step(m);
-        }
+        });
       } catch (_) {
         // Jeder Fehler eines Schritts ist ein Migrationsfehler, ohne Ursache:
         // Sie könnte Statement und Parameter tragen. Die Ausnahme verlässt den

@@ -25,6 +25,11 @@ enum StorageFailure {
   /// der App, nicht der Datei). Kein Neubeginn.
   migrationFailed,
 
+  /// Öffnen: Ein PRAGMA der Einrichtung (WAL, Synchronisation, `secure_delete`
+  /// u. a.) hat nicht den verlangten Wert, etwa auf einem Dateisystem ohne WAL.
+  /// Fehler der Umgebung, nicht der Datei: kein Neubeginn.
+  configurationFailed,
+
   /// Zugriff: Der Lauf oder der Eintrag existiert nicht.
   notFound,
 

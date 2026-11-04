@@ -84,6 +84,10 @@
   "@notOpenableNewerVersion": {
     "description": "Grund: Datei mit höherer Schemaversion (Herabstufen), kein Neubeginn"
   },
+  "notOpenableConfigurationFailed": "Die Datenbank ließ sich auf diesem Gerät nicht sicher einrichten. Die Daten sind in Ordnung und wurden nicht verändert. Bitte erneut versuchen. Neu beginnen ist hier nicht vorgesehen.",
+  "@notOpenableConfigurationFailed": {
+    "description": "Grund: PRAGMA-Einrichtung der Verbindung weicht ab (Umgebung), kein Neubeginn"
+  },
   "notOpenableMigrationFailed": "Die gespeicherten Daten konnten nicht auf die Form dieser App-Version umgestellt werden. Die Daten sind in Ordnung und wurden nicht verändert. Bitte erneut versuchen oder die App aktualisieren. Neu beginnen ist hier nicht vorgesehen.",
   "@notOpenableMigrationFailed": {
     "description": "Grund: Migration gescheitert (Fehler der App), kein Neubeginn"

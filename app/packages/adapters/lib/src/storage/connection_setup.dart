@@ -127,7 +127,9 @@ class ConnectionSetup {
     db.execute('PRAGMA $pragma = $set');
     final rows = db.select('PRAGMA $pragma');
     if (rows.isEmpty || rows.first.values.first != expected) {
-      throw const ConnectionSetupFailure(StorageFailure.unreadable);
+      // Die Datei ist hier nicht schuld (sie ist schon entschlüsselt): kein
+      // Neubeginn anbieten.
+      throw const ConnectionSetupFailure(StorageFailure.configurationFailed);
     }
   }
 }

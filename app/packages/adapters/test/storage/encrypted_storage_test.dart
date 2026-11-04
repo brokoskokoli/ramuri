@@ -229,7 +229,7 @@ void main() {
       final logs = IsolateLogs();
       addTearDown(logs.close);
 
-      final s = await EncryptedStorage(
+      final s = await EncryptedStorage.forTest(
         path,
         isolateSetup: logs.setup,
       ).open(testKey()) as EncryptedStorageSession;
@@ -283,12 +283,29 @@ void main() {
       await (await openNew()).close();
       final wrong = testKey(5);
       try {
-        await EncryptedStorage(path, isolateSetup: logs.setup).open(wrong);
+        await EncryptedStorage.forTest(
+          path,
+          isolateSetup: logs.setup,
+        ).open(wrong);
         fail('hätte scheitern müssen');
       } on StorageException catch (e) {
         expect(e.toString(), isNot(contains(hexOfKey(wrong))));
       }
       expect(await logs.text(), isNot(contains(hexOfKey(wrong))));
     });
+  });
+
+  test('PRAGMA liefert anderen Wert (kein WAL): configurationFailed, kein unreadable', () {
+    // In-Memory kennt kein WAL: journal_mode bleibt "memory".
+    final db = raw.sqlite3.openInMemory();
+    addTearDown(db.close);
+    Object? error;
+    try {
+      ConnectionSetup.configure(db);
+    } catch (e) {
+      error = e;
+    }
+    expect(error, isNotNull);
+    expect(storageFailureOf(error!), StorageFailure.configurationFailed);
   });
 }

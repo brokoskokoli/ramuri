@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:adapters/adapters.dart' hide RawSteps;
 import 'package:core/core.dart';
+import 'package:core/testing/contract_samples.dart' as cs;
 import 'package:core/testing/storage_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -48,7 +49,7 @@ void main() {
     });
 
     Future<EncryptedStorageSession> open({bool logStatements = false}) async =>
-        await EncryptedStorage(
+        await EncryptedStorage.forTest(
           path,
           isolateSetup: isolate.setup,
           logStatements: logStatements,
@@ -121,7 +122,7 @@ void main() {
         for (final logging in [true, false]) {
           final logs = IsolateLogs();
           addTearDown(logs.close);
-          final s = await EncryptedStorage(
+          final s = await EncryptedStorage.forTest(
             path,
             isolateSetup: logs.setup,
             logStatements: logging,
@@ -171,6 +172,32 @@ void main() {
       },
     );
   });
+
+  test(
+    'unbekannter open-Wert einer GPS-Lücke: failed, nie "geschlossen"',
+    () async {
+      final s = await EncryptedStorage(path).open(testKey());
+      addTearDown(s.close);
+      final id = (await s.runs.create(startedAt: t0Marker)).id;
+      await s.sections.replace(id, [cs.sampleSection(0)]);
+      final db = (s as EncryptedStorageSession).database;
+      for (final bad in ['[[1,2,2]]', '[[1,2,null]]', '[[1,2,-1]]']) {
+        await db.customStatement("UPDATE rated_sections SET gps_gaps = '$bad'");
+        try {
+          await s.sections.read(id);
+          fail('$bad hätte scheitern müssen');
+        } on StorageException catch (e) {
+          expect(e.failure, StorageFailure.failed, reason: bad);
+          expect(e.toString(), isNot(contains('gps_gaps')));
+        }
+      }
+      await db.customStatement(
+        "UPDATE rated_sections SET gps_gaps = '[[1,2,0],[3,4,1]]'",
+      );
+      final gaps = (await s.sections.read(id)).single.quality.gpsGaps;
+      expect(gaps.map((g) => g.open), [false, true]);
+    },
+  );
 
   group('Rohdaten über die Zugriffsschicht', () {
     test('Der Port bietet nur Anhängen und Lesen; die Trigger sperren den Rest zusätzlich', () async {

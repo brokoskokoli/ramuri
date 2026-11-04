@@ -78,7 +78,10 @@ class Env {
       keyStore: keys,
       generateKey: () => keyOf(n++),
       wire: () async => StorageWiring(
-        storage: EncryptedStorage(path, isolateSetup: isolateLogs.setup),
+        storage: EncryptedStorage.forTest(
+          path,
+          isolateSetup: isolateLogs.setup,
+        ),
         files: FileDatabaseFiles(path),
       ),
     );
@@ -227,7 +230,7 @@ void main() {
       final texts = <String>[...out, c.state.toString()];
       var isolateText = '';
       try {
-        await EncryptedStorage(
+        await EncryptedStorage.forTest(
           env.path,
           isolateSetup: env.isolateLogs.setup,
         ).open(k1);
@@ -241,7 +244,7 @@ void main() {
       File('${env.path}-wal').copySync('$copy-wal');
       final control = IsolateLogs();
       addTearDown(control.close);
-      final s = await EncryptedStorage(
+      final s = await EncryptedStorage.forTest(
         copy,
         isolateSetup: control.setup,
         logStatements: true,

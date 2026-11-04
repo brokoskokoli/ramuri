@@ -708,6 +708,59 @@ void main() {
         }
       },
     );
+
+    test('Schritt 2 von 2 scheitert: Schritt 1 ist zurückgerollt, Version 1, '
+        'Erneut versuchen läuft sauber', () async {
+      await (await openDb()).close();
+      final failing = EncryptedStorage(
+        path,
+        databaseBuilder: (e) => _TwoStepsSecondFails(e),
+      );
+      await expectLater(
+        failing.open(testKey()),
+        throwsA(
+          isA<StorageException>().having(
+            (e) => e.failure,
+            'failure',
+            StorageFailure.migrationFailed,
+          ),
+        ),
+      );
+      final v1 = await openDb();
+      final columns = await v1
+          .customSelect("SELECT name FROM pragma_table_info('settings')")
+          .get();
+      expect(
+        columns.map((r) => r.data['name']),
+        isNot(contains('note')),
+        reason: 'Schritt 1 muss mit zurückgerollt sein',
+      );
+      expect(
+        (await v1.customSelect('PRAGMA user_version').get())
+            .single
+            .data
+            .values
+            .single,
+        1,
+      );
+      await v1.close();
+      // Erneut versuchen mit einem funktionierenden Schritt 1.
+      final retry = EncryptedStorage(
+        path,
+        databaseBuilder: (e) => _SyntheticV2(e, onStep: () {}),
+      );
+      final v2 =
+          (await retry.open(testKey()) as EncryptedStorageSession).database;
+      addTearDown(v2.close);
+      expect(
+        (await v2.customSelect('PRAGMA user_version').get())
+            .single
+            .data
+            .values
+            .single,
+        2,
+      );
+    });
   });
 }
 
@@ -748,6 +801,28 @@ class _FailingStepV2 extends AppDatabase {
     1: (Migrator m) async {
       await m.database.customStatement(
         "INSERT INTO no_such_table VALUES ('$marker')",
+      );
+    },
+  };
+}
+
+/// Version 3 mit zwei Schritten: Schritt 1 gelingt, Schritt 2 wirft.
+class _TwoStepsSecondFails extends AppDatabase {
+  _TwoStepsSecondFails(super.e);
+
+  @override
+  int get schemaVersion => 3;
+
+  @override
+  Map<int, MigrationStep> get migrationSteps => {
+    1: (Migrator m) async {
+      await m.database.customStatement(
+        'ALTER TABLE settings ADD COLUMN note TEXT',
+      );
+    },
+    2: (Migrator m) async {
+      await m.database.customStatement(
+        "INSERT INTO no_such_table VALUES ('x')",
       );
     },
   };

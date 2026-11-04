@@ -218,7 +218,13 @@ List<PositionGap> _gapsOf(String json) => [
     PositionGap(
       start: timeOf((g as List)[0] as int),
       end: timeOf(g[1] as int),
-      open: g[2] == 1,
+      // Nur 0 und 1 sind gültig; alles andere ist ein Fehler des Speichers
+      // (fail-closed), nie "geschlossen". Text ohne Inhalt.
+      open: switch (g[2]) {
+        0 => false,
+        1 => true,
+        _ => throw const FormatException('gps_gaps: open'),
+      },
     ),
 ];
 
