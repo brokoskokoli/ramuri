@@ -87,22 +87,20 @@ void main() {
     );
   });
 
-  test(
-    'bekannte Grenze, siehe OQ-0020: Rauschen im Stand gilt als Bewegung',
-    () {
-      // Läufer steht. Gemeldet wird alle Sekunde abwechselnd +3 m und -3 m um
-      // den wahren Ort (acc 5 m): jeder Schritt 6 m in 1 s, unter PAR-003.
-      final pts = [for (var s = 0; s <= 60; s++) pos(s, s.isEven ? 3 : -3)];
-      final r = feed(pts).result(at: at(60));
-      // Festgehalten: das Spec-Verhalten, keine Wunschvorstellung.
-      expect(r.position.distanceMeters, closeTo(60 * 6, 0.01));
-      expect(r.movement.autoPauseState, AutoPauseState.moving);
-      expect(r.movement.movingTime, r.movement.totalTime);
-      expect(r.pace.liveSpeed, closeTo(6, 1e-6));
-      expect(
-        (r.pace.livePace as PaceValue).secondsPerKm,
-        closeTo(1000 / 6, 1e-6),
-      );
-    },
-  );
+  test('offene Frage OQ-0068: Rauschen im Stand gilt derzeit als Bewegung', () {
+    // Läufer steht. Gemeldet wird alle Sekunde abwechselnd +3 m und -3 m um
+    // den wahren Ort (acc 5 m): jeder Schritt 6 m in 1 s, unter PAR-003.
+    final pts = [for (var s = 0; s <= 60; s++) pos(s, s.isEven ? 3 : -3)];
+    final r = feed(pts).result(at: at(60));
+    // Festgehalten: wörtliche Spec, nicht gewolltes Verhalten. OQ-0068 ist offen,
+    // R007 klärt sie; ändert sich die Regel, ändert sich dieser Test.
+    expect(r.position.distanceMeters, closeTo(60 * 6, 0.01));
+    expect(r.movement.autoPauseState, AutoPauseState.moving);
+    expect(r.movement.movingTime, r.movement.totalTime);
+    expect(r.pace.liveSpeed, closeTo(6, 1e-6));
+    expect(
+      (r.pace.livePace as PaceValue).secondsPerKm,
+      closeTo(1000 / 6, 1e-6),
+    );
+  });
 }
