@@ -86,7 +86,14 @@ class ConnectionSetup {
     if (!libraryProbe(db)) {
       throw const ConnectionSetupFailure(StorageFailure.encryptionNotActive);
     }
-    db.execute("PRAGMA hexkey = '$hexKey'");
+    try {
+      db.execute("PRAGMA hexkey = '$hexKey'");
+    } catch (_) {
+      // Die Ausnahme trägt das Statement und damit den Schlüssel über die
+      // Isolate-Grenze; darum keine Ursache. Ein Schlüssel, den sqlite3mc
+      // nicht annimmt, ist ein Fehler der Einrichtung, nicht der Datei.
+      throw const ConnectionSetupFailure(StorageFailure.encryptionNotActive);
+    }
     configure(db);
     // Erst nach dem ersten Zugriff existiert der Kopf der Datei.
     if (!fileProbe(path)) {

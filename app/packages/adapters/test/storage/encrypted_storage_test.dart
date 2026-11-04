@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
-import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as raw;
 
@@ -226,12 +226,13 @@ void main() {
 
   group('Fehlertexte (Falle 4)', () {
     test('fehlschlagendes Insert: Rohfehler trägt die Marke, die Übersetzung nicht', () async {
-      final logs = <String>[];
-      final old = driftRuntimeOptions.debugPrint;
-      driftRuntimeOptions.debugPrint = logs.add;
-      addTearDown(() => driftRuntimeOptions.debugPrint = old);
+      final logs = IsolateLogs();
+      addTearDown(logs.close);
 
-      final s = await openNew();
+      final s = await EncryptedStorage(
+        path,
+        isolateSetup: logs.setup,
+      ).open(testKey()) as EncryptedStorageSession;
       await s.database.customStatement(
         "INSERT INTO storage_meta VALUES ('d','x')",
       );
@@ -249,24 +250,45 @@ void main() {
       final translated = translateStorageError(raw1!);
       expect(translated.failure, StorageFailure.rejected);
       expect(translated.toString(), isNot(contains(marker)));
-      expect(logs.join(), isNot(contains(marker)));
+      expect(await logs.text(), isNot(contains(marker)));
       await s.close();
     });
 
+    test('ungültiger hexKey: Fehler über den Isolate ohne Schlüssel im Text, Art encryptionNotActive', () async {
+      // Kein gültiger Hexwert; der Text trägt eine Kennung, die nirgends
+      // auftauchen darf.
+      const badKey = 'ZZKEYMARKE-0123456789';
+      final executor = NativeDatabase.createInBackground(
+        File(path),
+        setup: const ConnectionSetup(path: '', hexKey: badKey).apply,
+      );
+      final db = AppDatabase(executor);
+      Object? thrown;
+      try {
+        await db.customSelect('SELECT 1').get();
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown, isNotNull, reason: 'Öffnen hätte scheitern müssen');
+      expect(thrown.toString(), isNot(contains(badKey)));
+      expect(storageFailureOf(thrown!), StorageFailure.encryptionNotActive);
+      try {
+        await db.close();
+      } catch (_) {}
+    });
+
     test('Öffnen mit falschem Schlüssel: kein Schlüssel, keine Marke in Text und Logs', () async {
-      final logs = <String>[];
-      final old = driftRuntimeOptions.debugPrint;
-      driftRuntimeOptions.debugPrint = logs.add;
-      addTearDown(() => driftRuntimeOptions.debugPrint = old);
+      final logs = IsolateLogs();
+      addTearDown(logs.close);
       await (await openNew()).close();
       final wrong = testKey(5);
       try {
-        await EncryptedStorage(path).open(wrong);
+        await EncryptedStorage(path, isolateSetup: logs.setup).open(wrong);
         fail('hätte scheitern müssen');
       } on StorageException catch (e) {
         expect(e.toString(), isNot(contains(hexOfKey(wrong))));
       }
-      expect(logs.join(), isNot(contains(hexOfKey(wrong))));
+      expect(await logs.text(), isNot(contains(hexOfKey(wrong))));
     });
   });
 }

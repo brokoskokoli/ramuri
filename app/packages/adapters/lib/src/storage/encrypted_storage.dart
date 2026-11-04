@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -78,6 +79,8 @@ class EncryptedStorage implements Storage {
     this.libraryProbe = defaultLibraryCipherProbe,
     this.fileProbe = defaultFileEncryptedProbe,
     this.databaseBuilder = AppDatabase.new,
+    this.isolateSetup,
+    this.logStatements = false,
   });
 
   final String path;
@@ -85,6 +88,14 @@ class EncryptedStorage implements Storage {
   /// Nur für Tests austauschbar (Fehlweg "Verschlüsselung nicht aktiv").
   final LibraryCipherProbe libraryProbe;
   final FileEncryptedProbe fileProbe;
+
+  /// Nur für Tests: läuft im Hintergrund-Isolate vor dem Öffnen (etwa um dessen
+  /// Log-Ausgabe umzuleiten, denn `driftRuntimeOptions` gilt je Isolate).
+  final FutureOr<void> Function()? isolateSetup;
+
+  /// Nur für Tests (Positivkontrolle des Log-Tests). Produktiv immer `false`:
+  /// Die Statements tragen Parameter, also Daten.
+  final bool logStatements;
 
   /// Nur für Tests austauschbar (Migrationstest mit synthetischem Schritt).
   final AppDatabase Function(QueryExecutor) databaseBuilder;
@@ -105,8 +116,9 @@ class EncryptedStorage implements Storage {
     );
     final executor = NativeDatabase.createInBackground(
       File(path),
-      logStatements: false,
+      logStatements: logStatements,
       setup: setup.apply,
+      isolateSetup: isolateSetup,
     );
     final db = databaseBuilder(executor);
     try {
@@ -127,7 +139,8 @@ class EncryptedStorage implements Storage {
 /// Ordnet einen Fehler beim Öffnen einer [StorageFailure] zu, nur anhand der
 /// Art. `SqliteException` und `DriftRemoteException` tragen im Text Statement
 /// und Parameter (Daten, ggf. Schlüssel); darum wird nie der Text
-/// weitergegeben (Falle 4).
+/// weitergegeben (Falle 4). Die Textprüfung gilt nur hier: Beim Öffnen stehen
+/// keine Nutzdaten im Text.
 StorageFailure storageFailureOf(Object e) =>
     _setupFailureOf(e) ?? StorageFailure.unreadable;
 
@@ -151,11 +164,12 @@ bool _isConstraintViolation(Object e) {
 /// Übersetzt jeden Fehler der Zugriffsschicht an der Grenze in eine
 /// [StorageException] ohne Inhalte und ohne angehängte Ursache. Abgelehnte
 /// Eingaben (Beschränkung, Trigger) sind `rejected`, alles andere `failed`;
-/// `unreadable` bleibt dem Öffnen vorbehalten (Dialog OQ-0062).
+/// `unreadable` bleibt dem Öffnen vorbehalten (Dialog OQ-0062). Die Kennung der
+/// Einrichtung ([ConnectionSetupFailure]) wird hier nie aus dem Text gelesen:
+/// Nach dem Öffnen steht im Text der Parameter, also Nutzdaten, die die Art
+/// fälschen könnten.
 StorageException translateStorageError(Object e) {
   if (e is StorageException) return e;
-  final setup = _setupFailureOf(e);
-  if (setup != null) return StorageException(setup);
   if (_isConstraintViolation(e)) {
     return const StorageException(StorageFailure.rejected);
   }

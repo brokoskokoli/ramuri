@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:adapters/adapters.dart' hide RawSteps;
 import 'package:core/core.dart';
 import 'package:core/testing/storage_contract.dart';
-import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
@@ -42,16 +41,18 @@ void main() {
   });
 
   group('Fehlerwege (Falle 4): Ausnahme und Log ohne Marke', () {
-    late List<String> logs;
+    late IsolateLogs isolate;
     setUp(() {
-      logs = [];
-      final old = driftRuntimeOptions.debugPrint;
-      driftRuntimeOptions.debugPrint = logs.add;
-      addTearDown(() => driftRuntimeOptions.debugPrint = old);
+      isolate = IsolateLogs();
+      addTearDown(isolate.close);
     });
 
-    Future<EncryptedStorageSession> open() async =>
-        await EncryptedStorage(path).open(testKey()) as EncryptedStorageSession;
+    Future<EncryptedStorageSession> open({bool logStatements = false}) async =>
+        await EncryptedStorage(
+          path,
+          isolateSetup: isolate.setup,
+          logStatements: logStatements,
+        ).open(testKey()) as EncryptedStorageSession;
 
     Future<StorageException> catchStorage(Future<Object?> Function() f) async {
       try {
@@ -87,10 +88,61 @@ void main() {
       final e = await catchStorage(() => s.rawData.append(id, markerBatch()));
       expect(e.failure, StorageFailure.rejected);
       expect(e.toString(), isNot(contains(marker)));
-      expect(logs.join(), isNot(contains(marker)));
+      expect(await isolate.text(), isNot(contains(marker)));
       expect((await s.rawData.read(id)).steps, isEmpty);
       await s.close();
     });
+
+    test(
+      'Inhalt mit Kennung der Einrichtung fälscht die Fehlerart nicht',
+      () async {
+        final s = await open();
+        final id = (await s.runs.create(startedAt: t0Marker)).id;
+        await s.database.customStatement(
+          "CREATE TRIGGER fail_steps BEFORE INSERT ON raw_steps BEGIN SELECT RAISE(ABORT, 'x'); END",
+        );
+        const forged = 'ConnectionSetupFailure:encryptionNotActive';
+        final e = await catchStorage(
+          () => s.rawData.append(
+            id,
+            RawBatch(
+              steps: [RawSteps(time: t0Marker, source: forged, count: 1)],
+            ),
+          ),
+        );
+        expect(e.failure, StorageFailure.rejected);
+        await s.close();
+      },
+    );
+
+    test(
+      'Positivkontrolle des Log-Tests: Logging an zeigt die Marke, aus nicht',
+      () async {
+        for (final logging in [true, false]) {
+          final logs = IsolateLogs();
+          addTearDown(logs.close);
+          final s = await EncryptedStorage(
+            path,
+            isolateSetup: logs.setup,
+            logStatements: logging,
+          ).open(testKey(logging ? 1 : 2)) as EncryptedStorageSession;
+          final id = (await s.runs.create(startedAt: t0Marker)).id;
+          await s.rawData.append(id, markerBatch());
+          await s.close();
+          final text = await logs.text();
+          expect(
+            text.contains(marker),
+            logging,
+            reason: 'Isolate-Log bei logStatements=$logging',
+          );
+          // andere Datei je Durchlauf
+          File(path).deleteSync();
+          for (final x in ['-wal', '-shm']) {
+            if (File('$path$x').existsSync()) File('$path$x').deleteSync();
+          }
+        }
+      },
+    );
 
     test('Insert scheitert sonst (Tabelle fehlt): Art failed, Text und Logs ohne Marke', () async {
       final s = await open();
@@ -100,7 +152,7 @@ void main() {
       expect(e.failure, StorageFailure.failed);
       expect(e.toString(), isNot(contains(marker)));
       expect(e.toString(), isNot(contains('raw_steps')));
-      expect(logs.join(), isNot(contains(marker)));
+      expect(await isolate.text(), isNot(contains(marker)));
       await s.close();
     });
 
@@ -114,7 +166,7 @@ void main() {
         );
         expect(e.failure, StorageFailure.failed);
         expect(e.toString(), isNot(contains(marker)));
-        expect(logs.join(), isNot(contains(marker)));
+        expect(await isolate.text(), isNot(contains(marker)));
         await s.close();
       },
     );

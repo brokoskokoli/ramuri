@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,12 +39,37 @@ class Snapshot {
   }
 }
 
+/// Log-Ausgabe des Hintergrund-Isolate von drift. `captureLogs` sieht sie nicht
+/// (`debugPrint` und Zone gelten nur im Test-Isolate); `setup` ist als
+/// `isolateSetup` zu übergeben und leitet sie auf einen Port um.
+class IsolateLogs {
+  IsolateLogs() {
+    _port.listen((m) => _lines.add(m as String));
+  }
+
+  final _port = ReceivePort();
+  final _lines = <String>[];
+
+  FutureOr<void> Function() get setup => _redirect(_port.sendPort);
+
+  Future<String> text() async {
+    await pumpEventQueue();
+    return _lines.join('\n');
+  }
+
+  void close() => _port.close();
+}
+
+FutureOr<void> Function() _redirect(SendPort port) =>
+    () => driftRuntimeOptions.debugPrint = (String s) => port.send(s);
+
 class Env {
   Env(this.dir, this.path, this.snapshot);
   final Directory dir;
   final String path;
   final Snapshot snapshot;
   final FakeKeyStore keys = FakeKeyStore();
+  final IsolateLogs isolateLogs = IsolateLogs();
 
   StorageStartController controller({int seed = 100}) {
     var n = seed;
@@ -50,7 +77,7 @@ class Env {
       keyStore: keys,
       generateKey: () => keyOf(n++),
       wire: () async => StorageWiring(
-        storage: EncryptedStorage(path),
+        storage: EncryptedStorage(path, isolateSetup: isolateLogs.setup),
         files: FileDatabaseFiles(path),
       ),
     );
@@ -74,6 +101,7 @@ Future<Env> makeEnv({Uint8List? storedKey}) async {
   File('$src-wal').copySync('$path-wal');
   await session.close();
   final env = Env(dir, path, Snapshot(path));
+  addTearDown(env.isolateLogs.close);
   if (storedKey != null) await env.keys.write(storageKeyName, storedKey);
   return env;
 }
@@ -158,8 +186,12 @@ void main() {
       });
       // Fehlertexte der Zugriffsschicht beim Öffnen mit falschem Schlüssel.
       final texts = <String>[...out, c.state.toString()];
+      var isolateText = '';
       try {
-        await EncryptedStorage(env.path).open(k1);
+        await EncryptedStorage(
+          env.path,
+          isolateSetup: env.isolateLogs.setup,
+        ).open(k1);
       } on StorageException catch (e) {
         texts.add(e.toString());
       }
@@ -168,9 +200,21 @@ void main() {
       final copy = '${env.dir.path}/copy.db';
       File(env.path).copySync(copy);
       File('${env.path}-wal').copySync('$copy-wal');
-      final s = await EncryptedStorage(copy).open(keyOf(1));
+      final control = IsolateLogs();
+      addTearDown(control.close);
+      final s = await EncryptedStorage(
+        copy,
+        isolateSetup: control.setup,
+        logStatements: true,
+      ).open(keyOf(1));
       expect(await s.settings.get('m'), marker);
+      await s.settings.set('m2', marker, at: DateTime.utc(2030));
       await s.close();
+      // Positivkontrolle: Das Isolate-Log ist sichtbar und enthält bei
+      // eingeschaltetem Loggen die Marke.
+      expect(await control.text(), contains(marker), reason: 'Isolate blind');
+      isolateText = await env.isolateLogs.text();
+      texts.add(isolateText);
       final probe = await captureLogs(() async {
         // ignore: avoid_print
         print(marker);
