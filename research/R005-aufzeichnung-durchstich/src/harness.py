@@ -130,7 +130,7 @@ def trial_gap(a,run,base=60):
     lc=Logcat(o+'/logcat.txt'); inj=Injector(o+'/inject.tsv',a.seed,pause=(base+a.pause_at,base+a.pause_at+a.pause_len) if a.pause_len else None); inj.start()
     time.sleep(3)
     log(start_app(o+'/logcat.txt',cmd='start',host=a.host,run=run,tx=a.tx,sync=a.sync,wake=a.wake,steps=True).strip()[-60:])
-    st=open(o+'/state.tsv','w'); phase=[]
+    st=open(o+'/state.tsv','w'); phase=[]; elog0=os.path.getsize(f'{WORK}/emulator-api{a.api}.log')
     if a.force_at:  # Probe: erzwungener Suspend (umgeht die Wake-Lock-Zaehlung, kein Beleg zum Wake Lock), bei laufender Einspeisung
         threading.Timer(base+a.force_at,lambda:(st.write(f'{time.time():.1f}\tFORCE mem\n'),st.flush(),ash('echo mem > /sys/power/state',timeout=40),st.write(f'{time.time():.1f}\tFORCE zurueck\n'),st.flush())).start()
     if a.stop_len:  # Kontrolle: Prozess echt anhalten (SIGSTOP), sonst nichts geaendert
@@ -148,7 +148,6 @@ def trial_gap(a,run,base=60):
         N=int(base+a.dur-(time.time()-t0))
         # Weckung von aussen geht nicht (Konsolen-Ereignisse, Netzteil und RTC-wakealarm brachten das Geraet in den Proben nicht zurueck).
         # Laeufe ohne Wake Lock enden deshalb mit SIGKILL des Emulators; die mit FULL gesicherten Zeilen werden danach gelesen, der Schlaf steht im Kernel-Log (R005_EMU_EXTRA=-show-kernel).
-        elog0=os.path.getsize(f'{WORK}/emulator-api{a.api}.log')
         st.write(f'{time.time():.1f}\tWAKE_UNLOCK emulator_wake_lock N={N}\n'); st.flush()
         ash('echo emulator_wake_lock > /sys/power/wake_unlock',timeout=5)
     n=0
@@ -161,7 +160,7 @@ def trial_gap(a,run,base=60):
     phase.append(('end',time.time()))
     json.dump(dict(phase=phase,t0=t0),open(o+'/phases.json','w'))
     up=ash('echo up',timeout=8).strip()=='up'; st.write(f'{time.time():.1f}\tADB_ANTWORTET {up}\n'); st.flush(); log('adb antwortet',up)
-    if a.natural and not up:
+    if (a.natural or a.force_at) and not up:
         inj.stop_=True; inj.join(5); lc.stop(); kp=emu_pid(); elog=f'{WORK}/emulator-api{a.api}.log'
         st.write(f'{time.time():.1f}\tSIGKILL Emulator\n'); st.flush(); os.kill(kp,signal.SIGKILL); time.sleep(2)
         with open(elog,errors='replace') as f:
@@ -178,6 +177,7 @@ def trial_gap(a,run,base=60):
     log(pull(run,o+'/live'))
     fresh(); log(pull(run,o+'/afterstop'))
     inj.stop_=True; inj.join(5); lc.stop()
+    if a.force_at: open(o+'/logcat.txt','w').write(adb('logcat','-d','-v','epoch','flutter:I','R005:I','ActivityManager:I','DeviceIdleController:I','*:S',timeout=60))  # adb logcat bricht beim Suspend ab, der Puffer im Geraet hat alles
     ash('dumpsys deviceidle unforce'); ash('dumpsys battery reset'); rm_runs()
     open(o+'/.done','w').write('ok'); log('fertig',run)
 # ---- Kill

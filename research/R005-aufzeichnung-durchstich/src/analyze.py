@@ -82,7 +82,7 @@ def gap(work):
           rate=round(len(idle)/dur,3),coverage=round(cov,4),gap_p50=round(pct(di,50),2),gap_p99=round(pct(di,99),2),gap_max=round(max(di),1) if di else None,
           n_gt2=sum(x>2 for x in di),n_gt5=sum(x>5 for x in di),n_gt30=sum(x>30 for x in di),poschg_p99=round(pct(dch,99),2) if dch else None,poschg_max=round(max(dch),1) if dch else None,poschg_gt5=sum(x>5 for x in dch),base_p99=round(pct(db,99),2),base_max=round(max(db),2) if db else None,
           hb_n=len(hb_idle),hb_max=round(max(lhb),1) if lhb else None,locked=round(locked,2),inter=inter,appIdle=round(idl,2),deepIDLE=round(deep,2),susp_ok=susp_ok,susp_fail=susp_fail,hb_gt5=sum(x>5 for x in lhb),
-          errs=sum(1 for e in ev if e[1]=='R005ERR'),ack_p50_us=round(pct(acks,50)),ack_p99_us=round(pct(acks,99)),load=round(st.mean(s['load'] for s in states),1) if states else None)
+          errs=sum(1 for e in ev if e[1]=='R005ERR'),ack_p50_us=round(pct(acks,50)) if acks else None,ack_p99_us=round(pct(acks,99)) if acks else None,load=round(st.mean(s['load'] for s in states),1) if states else None)
         if 'post_end' in p:  # natuerlicher Suspend: Nachphase, kommen wieder Standorte?
             po=[r for r in R if p['end']<=rcv[r[0]]<=p['post_end']]
             rec['post_rows']=len(po); rec['post_s']=round(p['post_end']-p['end'])

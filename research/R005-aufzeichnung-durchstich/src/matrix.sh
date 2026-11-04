@@ -36,6 +36,7 @@ $H swipe --api 31 --host own --tx 1 --dur 60 --rep 1
 $H swipe --api 31 --host ffgt --tx 1 --dur 60 --rep 1
 for h in own ffgt; do $H gap --api 31 --host $h --wake 0 --dur 600; done
 $H gap --api 31 --host none --wake 0 --dur 300
+$H gap --api 31 --host own --wake 0 --dur 120 --tag _forced --force-at 30 --quiet 1
 $H gap --api 31 --host own --wake 0 --dur 180 --tag _nat --natural 1 --quiet 1
 $H gap --api 31 --host own --wake 1 --dur 180 --tag _nat --natural 1 --quiet 1
 $H gap --api 31 --host ffgt --wake 1 --dur 180 --tag _nat --natural 1 --quiet 1
