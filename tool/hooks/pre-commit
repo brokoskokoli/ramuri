@@ -1,0 +1,10 @@
+#!/bin/sh
+# Identität und Datenschutz vor jedem Commit. Das volle Gate läuft in CI.
+ALLOWED_NAME="brokoskokoli"; ALLOWED_EMAIL="16724498+brokoskokoli@users.noreply.github.com"
+for ident in "$(git var GIT_AUTHOR_IDENT)" "$(git var GIT_COMMITTER_IDENT)"; do
+  n=$(echo "$ident" | sed 's/ <.*//'); e=$(echo "$ident" | sed 's/.*<\(.*\)>.*/\1/')
+  if [ "$n" != "$ALLOWED_NAME" ] || [ "$e" != "$ALLOWED_EMAIL" ]; then
+    echo "pre-commit: Identität '$n <$e>' nicht erlaubt." >&2; exit 1
+  fi
+done
+exec sh tool/check_private.sh --staged

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Einziger Trailer: Co-Authored-By mit Claude-Modell. Keine Sitzungs-Links, keine fremden Adressen, keine verbotenen Begriffe.
+msg="$1"; terms="$HOME/.config/running-app/forbidden-terms"
+if [ -f "$terms" ] && grep -v '^$' "$terms" | grep -qiEf - "$msg"; then echo "commit-msg: verbotener Begriff" >&2; exit 1; fi
+bad=$(grep -oE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]+' "$msg" | grep -vE '^(16724498\+brokoskokoli@users\.noreply\.github\.com|noreply@anthropic\.com)$' || true)
+if [ -n "$bad" ]; then echo "commit-msg: nicht erlaubte Adresse: $bad" >&2; exit 1; fi
+re='^Co-Authored-By: Claude (Opus|Sonnet|Haiku|Fable)( [0-9]+(\.[0-9]+)*)?( \([0-9A-Za-z ]+\))? <noreply@anthropic\.com>$'
+if grep -i '^Co-Authored-By:' "$msg" | grep -qvE "$re"; then echo "commit-msg: Co-Authored-By nur als 'Claude <Modell> <noreply@anthropic.com>'" >&2; exit 1; fi
+if grep -qiE '^Claude-Session:|claude\.ai/code/session' "$msg"; then echo "commit-msg: keine Claude-Session-Zeile" >&2; exit 1; fi
+exit 0

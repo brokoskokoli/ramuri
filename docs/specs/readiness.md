@@ -1,0 +1,195 @@
+---
+id: FEAT-011
+title: Erholungszustand und Training Readiness
+status: Approved
+owner: TBD
+source_refs: [SRC-001]
+related_requirements: [FR-0105, FR-0106, FR-0107, FR-0108, FR-0109, FR-0110, FR-0111, FR-0112, FR-0113, FR-0114, FR-0115, FR-0116, FR-0117, FR-0118]
+---
+
+# Erholungszustand und Training Readiness
+
+## Ziel
+Die App schätzt den aktuellen Trainingsbereitschaftszustand in zwei Stufen ein: einer Basis-Einschätzung ohne Fitnessuhr und einer erweiterten mit Gesundheitsdaten.
+
+## Nicht im Scope
+- Medizinische Diagnosen (FR-0118)
+- Energiereserve: siehe [energy-reserve.md](energy-reserve.md), zurückgestellt auf Phase 4 (DEC-0060)
+
+## Funktionale Anforderungen
+
+### FR-0105 — Zwei Stufen der Einschätzung
+- **Status:** Approved | **Phase:** 2 (Basis), 3 (erweitert)
+- **Quelle:** SRC-001 §11, Z. 650–652
+- **Verwandt:** FR-0106, FR-0108
+
+Die App soll den aktuellen Trainingsbereitschaftszustand einschätzen können. Dabei werden zwei Stufen unterschieden.
+
+**Akzeptanzkriterien:**
+- [ ] Die Anzeige macht erkennbar, welche Stufe gerade vorliegt.
+
+### FR-0106 — Basis-Erholungseinschätzung ohne Fitnessuhr
+- **Status:** Approved | **Phase:** 2
+- **Quelle:** SRC-001 §11.1, Z. 656–668
+- **Verwandt:** CON-0004, OQ-0029, OQ-0057
+
+Auch ohne Fitnessuhr sind verfügbar: kurzfristige und langfristige Trainingsbelastung, Tage seit dem letzten Training, subjektive Anstrengung vorheriger Trainings und optional selbst eingegebenes Wohlbefinden. Daraus kann die App Hinweise zur Trainingssteuerung ableiten.
+
+Beispiel: „Deine Trainingsbelastung lag in den letzten sieben Tagen deutlich über deinem bisherigen Niveau. Für heute wird ein lockerer Lauf empfohlen.“
+
+**Akzeptanzkriterien:**
+- [ ] Ohne Wearable und ohne Gesundheitsdaten kann ein Hinweis erzeugt werden, sofern die Trainingsdaten dafür ausreichen. Auslöser und Texte folgen PAR-174 bis PAR-183.
+
+### FR-0107 — Kein Anspruch auf vollständige Bestimmung
+- **Status:** Approved | **Phase:** 2
+- **Quelle:** SRC-001 §11.1, Z. 670
+
+Es wird nicht behauptet, dass daraus der tatsächliche körperliche Erholungszustand vollständig bestimmbar sei.
+
+**Akzeptanzkriterien:**
+- [ ] Hinweise der Basisstufe formulieren keinen festgestellten Erholungszustand.
+- [ ] Die Basisstufe gibt nur Texthinweise und zeigt keine Zustände (OQ-0029).
+
+### FR-0108 — Faktoren der erweiterten Training Readiness
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-001 §11.2, Z. 674–681
+- **Verwandt:** FR-0022, SEC-0001
+
+Wenn zusätzliche Gesundheitsdaten vorhanden sind, kann die App weitere Faktoren verwenden: nächtliche HRV, Ruheherzfrequenz, Schlafdauer, Schlafqualität (soweit verfügbar), Trainingsbelastung und subjektives Wohlbefinden.
+
+**Akzeptanzkriterien:**
+- [ ] Nur freigegebene Datenquellen fließen ein (SEC-0002).
+
+### FR-0109 — Wert von 0 bis 100 mit Einordnung
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-001 §11.2, Z. 683
+- **Verwandt:** OQ-0006, OQ-0059
+
+Der erweiterte Zustand wird mit einem Wert zwischen 0 und 100 und einer erklärenden Einordnung dargestellt.
+
+**Akzeptanzkriterien:**
+- [ ] Ein angezeigter Wert liegt zwischen 0 und 100 und erscheint immer mit Einordnung.
+- [ ] Eine Zahl erscheint nur mit HRV der letzten Nacht, einem rollenden Mittel nach PAR-161 und Schlaf sowie einer Referenz aus mindestens 14 gültigen Messungen in 28 Tagen; sonst eine eingeschränkte Einschätzung ohne Zahl (OQ-0006).
+
+### FR-0110 — Vorläufige Gewichtung
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-001 §11.2, Z. 685–695
+- **Verwandt:** NFR-0002, NFR-0003, NFR-0004, OQ-0020, OQ-0029, OQ-0057, OQ-0059
+
+Beispielhafte Faktoren. Diese Gewichtungen sind Produktannahmen für einen später zu validierenden Algorithmus, keine wissenschaftlich gesicherten Koeffizienten.
+
+| Faktor | Vorläufige Gewichtung |
+|---|---:|
+| HRV-Abweichung vom persönlichen Normalbereich | 25 % |
+| Ruhepuls-Abweichung | 20 % |
+| Schlaf | 30 % |
+| Trainingsbelastung | 15 % |
+| Subjektives Befinden | 10 % |
+
+**Akzeptanzkriterien:**
+- [ ] Die Gewichte sind Teil des versionierten Modells (NFR-0001).
+- [ ] Teilskalen und Gesamtwert folgen PAR-163 bis PAR-170; die Wirkung auf den Plan folgt PAR-173.
+- [ ] Die App stellt sie nicht als wissenschaftlich gesichert dar.
+- [ ] Für die Wirkung auf den Plan zählt nur der Wert am Tag der intensiven Einheit (PAR-173).
+
+### FR-0111 — Fehlende Faktoren gelten nicht als normal
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-001 §11.2, Z. 697; §25 Nr. 11, Z. 1406
+- **Verwandt:** ACC-11, OQ-0029, OQ-0059
+
+Fehlende Faktoren werden nicht automatisch als „normal“ bewertet. Die App zeigt gegebenenfalls nur eine eingeschränkte Einschätzung.
+
+**Akzeptanzkriterien:**
+- [ ] Fehlt ein Faktor, ist die Einschätzung als eingeschränkt erkennbar (ACC-11).
+- [ ] Fehlende optionale Faktoren werden herausgerechnet und ausgewiesen (OQ-0029). Fehlt der Belastungsfaktor, gilt die Obergrenze aus PAR-170.
+
+### FR-0112 — Persönlicher Referenzzeitraum
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-001 §11.3, Z. 701–703
+- **Verwandt:** ACC-11, OQ-0006
+
+Bei HRV und Ruhepuls sind individuelle Veränderungen aussagekräftiger als ein Vergleich mit pauschalen Bevölkerungswerten. Deshalb verwendet die App einen persönlichen Referenzzeitraum, beispielsweise 28 Tage mit ausreichenden gültigen Messungen.
+
+**Akzeptanzkriterien:**
+- [ ] Die Bewertung nutzt persönliche Referenzwerte und keine Bevölkerungswerte (ACC-11).
+
+### FR-0113 — Robuste Abweichungsbewertung
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-001 §11.3, Z. 705–711
+- **Verwandt:** OQ-0059
+
+Eine robuste Abweichungsbewertung kann auf Median und Median Absolute Deviation basieren: `z = (x − Median(X)) / (1,4826 · MAD(X))`. Für HRV kann eine logarithmische Transformation vor der Berechnung sinnvoll sein. Bei HRV und Ruhepuls ist `x` das rollende Mittel aus `k` gültigen Werten der letzten 7 Nächte und `X` die Reihe der Tageswerte. Im Nenner steht dann `1,4826 · MAD(X) / √k` (PAR-161, PAR-162).
+
+**Akzeptanzkriterien:**
+- [ ] Testfall (abgeleitet): X = {48, 50, 52}, x = 50 ergibt z = 0.
+- [ ] Testfall (abgeleitet): X = {48, 50, 52}, k = 4, x = 51 ergibt z = 0,67.
+
+### FR-0114 — Keine künstlich präzise Abweichung
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-001 §11.3, Z. 713
+- **Verwandt:** OQ-0006
+
+Bei nicht ausreichender Streuung oder Datenmenge darf keine künstlich präzise standardisierte Abweichung erzeugt werden.
+
+**Akzeptanzkriterien:**
+- [ ] Bei MAD = 0 oder zu wenigen Messungen entsteht kein z-Wert.
+
+### FR-0115 — Messmethoden nur konsistent vergleichen
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-001 §11.3, Z. 715–717
+- **Verwandt:** OQ-0059
+
+Messungen sollen nur dann direkt verglichen werden, wenn Messmethode und Messbedingungen ausreichend konsistent sind. Insbesondere RMSSD und SDNN dürfen nicht als identische HRV-Werte behandelt werden.
+
+**Akzeptanzkriterien:**
+- [ ] RMSSD- und SDNN-Werte gehen nicht in dieselbe Referenzreihe ein.
+- [ ] Jede Reihe stammt aus genau einer Quell-App; mehrere Quell-Apps werden nicht gemischt (PAR-160, PAR-189).
+
+### FR-0116 — Mögliche Zustände
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-001 §11.4, Z. 721–727
+- **Verwandt:** OQ-0029, OQ-0058, OQ-0059
+
+Mögliche Zustände: Gut erholt, Normal belastbar, Erhöhte Belastung, Erholung empfohlen, Unzureichende Daten.
+
+**Akzeptanzkriterien:**
+- [ ] Ohne Zahl gilt PAR-171: eingeschränkte Einschätzung, wenn Schlaf der letzten Nacht vorliegt, sonst „Unzureichende Daten“.
+- [ ] 75–100 gut erholt, 50–74 normal belastbar, 25–49 erhöhte Belastung, 0–24 Erholung empfohlen; vorläufig und versioniert (OQ-0029).
+- [ ] Für die Bremsung des Plans zählt der Zustand am Tag der intensiven Einheit; er wird nicht vorgezogen oder übertragen (PAR-173, OQ-0058).
+
+### FR-0117 — Wichtigste Ursachen erklären
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-001 §11.4, Z. 729–733
+- **Verwandt:** FR-0181, OQ-0059
+
+Die App erklärt die wichtigsten Ursachen einer Bewertung.
+
+Beispiel: „Deine nächtliche HRV liegt unter deinem üblichen Bereich. Gleichzeitig ist dein Ruhepuls erhöht. Deshalb wird heute ein weniger intensives Training vorgeschlagen.“
+
+**Akzeptanzkriterien:**
+- [ ] Jede Bewertung nennt die Faktoren, die sie am stärksten beeinflusst haben.
+- [ ] Liegt nur der Schlaf unter seinem Bezug, nennt die Erklärung die kurze Schlafdauer als Grund (PAR-172).
+
+### FR-0118 — Keine medizinische Diagnose
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-001 §11.4, Z. 735
+- **Verwandt:** OQ-0026
+
+Die App stellt daraus keine medizinische Diagnose.
+
+**Akzeptanzkriterien:**
+- [ ] Texte der App stellen keine medizinische Diagnose.
+
+## Offene Fragen
+<!-- BEGIN OQ -->
+- [OQ-0006](../migration/open-questions.md#oq-0006--mindestdatenqualität-für-einen-numerischen-readiness-wert) (entschieden): Mindestdatenqualität für einen numerischen Readiness-Wert
+- [OQ-0020](../migration/open-questions.md#oq-0020--wie-und-wann-werden-modelle-validiert) (entschieden): Wie und wann werden Modelle validiert?
+- [OQ-0026](../migration/open-questions.md#oq-0026--warnsignale-medizinische-hinweise-und-einordnung-als-medizinprodukt) (entschieden): Warnsignale, medizinische Hinweise und Einordnung als Medizinprodukt
+- [OQ-0029](../migration/open-questions.md#oq-0029--berechnung-der-readiness-zustände) (entschieden): Berechnung der Readiness-Zustände
+- [OQ-0057](../migration/open-questions.md#oq-0057--fehlende-regeln-für-phase-2-und-3) (entschieden): Fehlende Regeln für Phase 2 und 3
+- [OQ-0058](../migration/open-questions.md#oq-0058--entscheidungen-aus-der-prüfung-von-phase-2-und-3) (entschieden): Entscheidungen aus der Prüfung von Phase 2 und 3
+- [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
+<!-- END OQ -->
+
+## Quellen
+- SRC-001: §11, Z. 648–735; §25 Nr. 11

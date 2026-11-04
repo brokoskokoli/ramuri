@@ -1,0 +1,19 @@
+.DS_Store
+.env*
+*.keystore
+*.jks
+key.properties
+google-services.json
+__pycache__/
+# Flutter
+.dart_tool/
+build/
+coverage/
+.flutter-plugins*
+*.iml
+.idea/
+local.properties
+# Research: Daten und private Eingaben nur lokal
+research/data/
+research/input/*
+!research/input/README.md

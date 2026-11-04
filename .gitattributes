@@ -1,0 +1,3 @@
+# Zusammenführen: generierte Spec-Abschnitte erzeugt tool/merge_wp.sh neu.
+docs/requirements.md linguist-generated=true
+docs/migration/traceability.md linguist-generated=true
