@@ -73,7 +73,7 @@ class PositionResult {
   final List<RawPosition> acceptedPoints;
 
   /// Summe der plausiblen Distanzen (FR-0049), einschließlich der überbrückten.
-  final double distanceMeters;
+  final double? distanceMeters;
 
   /// Teil von [distanceMeters], der über Aussetzer ≤ PAR-004 geschätzt ist.
   final double bridgedDistanceMeters;
@@ -118,6 +118,7 @@ class PositionProcessor {
   /// Ende der manuellen Pause: neuer Abschnitt ohne Anker. Pausenzeit ist keine
   /// GPS-Lücke.
   void resume(DateTime time) {
+    if (!_paused) return;
     _paused = false;
     _sectionStart = time;
   }
@@ -152,6 +153,9 @@ class PositionProcessor {
     if (_paused ||
         p.state == MeasurementState.unavailable ||
         p.state == MeasurementState.discarded) {
+      // Ein Aussetzer des Sensors überbrückt die Strecke wie ein verworfener
+      // Punkt; in der Pause gibt es keine Strecke.
+      if (!_paused) _discardedSinceAnchor++;
       return ProcessedPosition(input: p, state: MeasurementState.unavailable);
     }
 
@@ -182,14 +186,15 @@ class PositionProcessor {
     _sectionStart = null;
     _discardedSinceAnchor = 0;
     _accepted.add(p);
-    _index.add(p.time, p);
-    return ProcessedPosition(
+    final r = ProcessedPosition(
       input: p,
       state: bridged || p.state == MeasurementState.estimated
           ? MeasurementState.estimated
           : MeasurementState.present,
       countedDistanceMeters: counted,
     );
+    _index.add(p.time, p, r.state);
+    return r;
   }
 
   double _distanceBetween(RawPosition a, RawPosition b) =>
@@ -236,7 +241,7 @@ class PositionProcessor {
       parameterVersion: parameters.parameterVersion,
       positions: _positions,
       acceptedPoints: _accepted,
-      distanceMeters: _distance,
+      distanceMeters: _accepted.isEmpty ? null : _distance,
       bridgedDistanceMeters: _bridged,
       gaps: gaps,
     );

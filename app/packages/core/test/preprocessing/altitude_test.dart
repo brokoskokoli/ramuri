@@ -50,7 +50,10 @@ void main() {
     });
 
     test('abweichender Parameter wirkt', () {
-      const p = PreprocessingParameters(altitudeMaxVerticalAccuracyMeters: 4);
+      const p = PreprocessingParameters(
+        parameterVersion: 2,
+        altitudeMaxVerticalAccuracyMeters: 4,
+      );
       final r = runAlt([alt(0, 100, va: 5)], p: p);
       expect(r.processed.single.reason, DiscardReason.verticalAccuracy);
       expect(r.ascentMeters, isNull);
@@ -130,7 +133,10 @@ void main() {
     });
 
     test('abweichende Schwelle wirkt', () {
-      const p = PreprocessingParameters(ascentThresholdMeters: 1);
+      const p = PreprocessingParameters(
+        parameterVersion: 2,
+        ascentThresholdMeters: 1,
+      );
       final r = runAlt([alt(0, 100), alt(40, 101)], p: p);
       expect(r.ascentMeters, 1);
     });

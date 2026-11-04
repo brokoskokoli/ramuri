@@ -4,7 +4,7 @@
 /// Argument, so sind abweichende Werte testbar.
 class PreprocessingParameters {
   const PreprocessingParameters({
-    this.parameterVersion = 2,
+    required this.parameterVersion,
     this.positionMaxAccuracyMeters = 25,
     this.hardJumpMaxSpeed = 12.5,
     this.softJumpSpeed = 8,
@@ -32,8 +32,9 @@ class PreprocessingParameters {
     this.resumeMinDuration = const Duration(seconds: 3),
   });
 
-  /// Die Startwerte aus Version 2 von docs/model-parameters.md.
-  const PreprocessingParameters.v2() : this();
+  /// Die Startwerte aus Version 2 von docs/model-parameters.md. Nur hier ist
+  /// die Version fest; jeder andere Parametersatz nennt seine Version selbst.
+  const PreprocessingParameters.v2() : this(parameterVersion: 2);
 
   /// Version des Parametersatzes (ADR-0004 P.3).
   final int parameterVersion;

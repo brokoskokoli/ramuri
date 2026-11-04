@@ -23,7 +23,10 @@ void main() {
       expect(r.positions.single.reason, DiscardReason.accuracy);
     });
     test('abweichender Parameter wirkt (Schwelle 10)', () {
-      const p = PreprocessingParameters(positionMaxAccuracyMeters: 10);
+      const p = PreprocessingParameters(
+        parameterVersion: 2,
+        positionMaxAccuracyMeters: 10,
+      );
       expect(run([pos(0, 0, acc: 10)], p: p).acceptedPoints, hasLength(1));
       expect(run([pos(0, 0, acc: 10.1)], p: p).acceptedPoints, isEmpty);
     });
@@ -43,16 +46,19 @@ void main() {
       final a = pos(0, 0, acc: 25), b = pos(1, 13, acc: 25);
       final v = dist(a, b) / 1;
       expect(
-        run([
-          a,
-          b,
-        ], p: PreprocessingParameters(hardJumpMaxSpeed: v)).acceptedPoints,
+        run(
+          [a, b],
+          p: PreprocessingParameters(parameterVersion: 2, hardJumpMaxSpeed: v),
+        ).acceptedPoints,
         hasLength(2),
       );
       expect(
         run(
           [a, b],
-          p: PreprocessingParameters(hardJumpMaxSpeed: v - 1e-6),
+          p: PreprocessingParameters(
+            parameterVersion: 2,
+            hardJumpMaxSpeed: v - 1e-6,
+          ),
         ).positions[1].reason,
         DiscardReason.hardJump,
       );
@@ -94,16 +100,19 @@ void main() {
           final a = pos(0, 0, acc: 1), b = pos(1, 9, acc: 1);
           final v = dist(a, b);
           expect(
-            run([
-              a,
-              b,
-            ], p: PreprocessingParameters(softJumpSpeed: v)).acceptedPoints,
+            run(
+              [a, b],
+              p: PreprocessingParameters(parameterVersion: 2, softJumpSpeed: v),
+            ).acceptedPoints,
             hasLength(2),
           );
           expect(
             run(
               [a, b],
-              p: PreprocessingParameters(softJumpSpeed: v - 1e-6),
+              p: PreprocessingParameters(
+                parameterVersion: 2,
+                softJumpSpeed: v - 1e-6,
+              ),
             ).positions[1].reason,
             DiscardReason.softJump,
           );

@@ -128,7 +128,13 @@ class MovementTimeProcessor {
 
   /// Stand zum Zeitpunkt [at] (nicht vor der letzten Eingabe).
   MovementResult result({required DateTime at}) {
-    final intervals = [..._intervals];
+    // Auf [at] gekappt: Bewegungszeit ist nie größer als die Gesamtzeit,
+    // auch bei einer Abfrage vor bereits geschlossenen Intervallen.
+    final intervals = [
+      for (final i in _intervals)
+        if (i.start.isBefore(at))
+          TimeSpan(start: i.start, end: i.end.isAfter(at) ? at : i.end),
+    ];
     final open = _openStart;
     if (open != null && at.isAfter(open)) {
       intervals.add(TimeSpan(start: open, end: at));

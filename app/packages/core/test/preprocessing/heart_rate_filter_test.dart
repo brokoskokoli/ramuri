@@ -18,7 +18,11 @@ void main() {
     });
 
     test('abweichende Grenzen im Parametersatz wirken', () {
-      const p = PreprocessingParameters(heartRateMin: 50, heartRateMax: 200);
+      const p = PreprocessingParameters(
+        parameterVersion: 2,
+        heartRateMin: 50,
+        heartRateMax: 200,
+      );
       expect(one(49, p), 'discarded/implausibleHeartRate');
       expect(one(50, p), 'present/null');
       expect(one(200, p), 'present/null');
@@ -101,9 +105,11 @@ void main() {
       final v = verdicts(r);
       expect(v[30], 'discarded/heartRateOutlier');
       expect(v.last, 'present/null');
-      // Der Median kippt mit dem 16. Wert; ab dort bleibt alles akzeptiert.
+      // 100 -> 170: Die Rate 70/s gegen den letzten akzeptierten Wert (bei
+      // 29 s) fällt 14 s später, bei 43 s, auf 5 bpm/s (nicht darüber) und
+      // gibt frei; der Median kippt erst bei 45 s.
       final firstOk = v.indexOf('present/null', 30);
-      expect(firstOk, inInclusiveRange(40, 50));
+      expect(firstOk, 43);
       expect(v.skip(firstOk), everyElement('present/null'));
     });
 
@@ -117,7 +123,10 @@ void main() {
       // Rate-Grenze 0 isoliert die Fensterfrage: 130 bei 30 s gegen {100, 160,
       // 160, 130} (Median 145, Abweichung 15) bleibt; eine Mikrosekunde später
       // fällt der 100er heraus (Median 160, Abweichung 30) und 130 fällt.
-      const p = PreprocessingParameters(heartRateOutlierRate: 0);
+      const p = PreprocessingParameters(
+        parameterVersion: 2,
+        heartRateOutlierRate: 0,
+      );
       final head = [hr(0, 100), hr(1, 160), hr(2, 160)];
       expect(
         verdicts(runHr([...head, hr(30, 130)], p: p)).last,

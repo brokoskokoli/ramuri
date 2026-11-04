@@ -120,7 +120,9 @@ class HeartRateProcessor {
   final LatestValueIndex<RawHeartRate> _index = LatestValueIndex();
 
   /// Alle Werte, die PAR-007 und PAR-008 bestanden haben (auch als Ausreißer
-  /// verworfene, sonst sperrt ein Plateau sich selbst), im Fenster von PAR-009.
+  /// verworfene), im Fenster von PAR-009. So übernimmt der Median ein Plateau
+  /// nach gut der halben Fensterlänge, noch bevor die Änderungsrate es
+  /// freigibt.
   final Queue<_Point> _window = Queue();
   _Point? _lastAccepted;
   DateTime? _lastTime;
@@ -145,6 +147,7 @@ class HeartRateProcessor {
 
   /// Ende der manuellen Pause. Pausenzeit ist keine Lücke.
   void resume(DateTime time) {
+    if (!_paused) return;
     _paused = false;
     _sectionStart = time;
   }
@@ -193,7 +196,7 @@ class HeartRateProcessor {
     _lastAccepted = _Point(h.time, h.bpm);
     _sectionStart = null;
     _accepted.add(h);
-    _index.add(h.time, h);
+    _index.add(h.time, h, h.state);
     _sum += h.bpm;
     _max = _max == null || h.bpm > _max! ? h.bpm : _max;
     _medians.add(
@@ -212,14 +215,20 @@ class HeartRateProcessor {
   /// über der Grenze. Der Wert geht in jedem Fall ins Fenster ein.
   bool _isOutlier(RawHeartRate h) {
     final from = h.time.subtract(parameters.heartRateOutlierWindow);
-    while (_window.isNotEmpty && _window.first.time.isBefore(from)) {
-      _window.removeFirst();
-    }
+    // Die Reihenfolge der Ankunft ist nicht die der Zeit (ein verworfener Wert
+    // kann in der Zukunft liegen): alte Werte überall entfernen, spätere
+    // Werte zählen für diesen Median nicht.
+    _window.removeWhere((p) => p.time.isBefore(from));
     _window.addLast(_Point(h.time, h.bpm));
     final anchor = _lastAccepted;
     if (anchor == null) return false;
     final deviation =
-        (h.bpm - _median([for (final p in _window) p.bpm.toDouble()])).abs();
+        (h.bpm -
+                _median([
+                  for (final p in _window)
+                    if (!p.time.isAfter(h.time)) p.bpm.toDouble(),
+                ]))
+            .abs();
     final seconds = h.time.difference(anchor.time).inMicroseconds / 1e6;
     final rate = (h.bpm - anchor.bpm).abs() / seconds;
     return deviation > parameters.heartRateOutlierDeviation &&

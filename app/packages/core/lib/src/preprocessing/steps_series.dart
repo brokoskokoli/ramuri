@@ -68,7 +68,7 @@ class StepsSeries {
       );
       if (usable) {
         _lastTime = s.time;
-        _index.add(s.time, s);
+        _index.add(s.time, s, s.state);
       }
     }
     _processed.add(r);

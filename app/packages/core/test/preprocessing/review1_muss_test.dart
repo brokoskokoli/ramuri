@@ -78,6 +78,7 @@ void main() {
       heartRate: runHr(v, until: to),
       position: run([pos(0, 0)]),
       settlingIntervals: const [],
+      parameters: const PreprocessingParameters.v2(),
     );
 
     test('jeder zweite Wert poor: Regel verletzt', () {
@@ -121,7 +122,7 @@ void main() {
         p.add(pos(3, 3));
         expect(a.state, MeasurementState.discarded);
         expect(b.state, MeasurementState.discarded);
-        expect(p.result(at: at(3)).distanceMeters.isFinite, isTrue);
+        expect(p.result(at: at(3)).distanceMeters!.isFinite, isTrue);
         expect(p.result(at: at(3)).distanceMeters, closeTo(3, 0.01));
       },
     );

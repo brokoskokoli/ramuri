@@ -144,7 +144,7 @@ class AltitudeProcessor {
 
   void _accept(RawAltitude a) {
     _accepted.add(a);
-    _index.add(a.time, a);
+    _index.add(a.time, a, a.state);
     if (a.verticalAccuracyMeters == null) _withoutAccuracy++;
     _window.addLast(a);
     final from = a.time.subtract(parameters.altitudeMedianWindow);

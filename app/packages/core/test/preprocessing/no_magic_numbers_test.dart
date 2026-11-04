@@ -2,18 +2,31 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-/// Rechengrößen und Einheiten, die außerhalb von preprocessing_parameters.dart
-/// stehen dürfen. Jede Schwelle aus PAR-001..015 gehört in die Parameterklasse.
-const allowed = <String, String>{
+/// Rechengrößen, die überall stehen dürfen. Jede Schwelle aus PAR-001..015
+/// gehört in die Parameterklasse.
+const common = <String, String>{
   '0': 'Rechengröße (Start, Vergleich)',
   '0.0': 'Rechengröße (Summenstart)',
   '1': 'Rechengröße (Index, Zähler, Methodenversion)',
   '2': 'Rechengröße (Median, Halbieren, Fensterverdopplung, Haversine)',
-  '1e6': 'Einheit: Mikrosekunden je Sekunde',
-  '1000': 'Einheit: Meter je Kilometer',
-  '180': 'Einheit: Grad zu Bogenmaß',
-  '6371008.8': 'Erdradius (benannte Konstante in geo.dart)',
 };
+
+/// Einheiten und Konstanten, nur in den genannten Dateien erlaubt.
+const perFile = <String, Set<String>>{
+  '1e6': {
+    'heart_rate_processor.dart',
+    'motion_segments.dart',
+    'pace_processor.dart',
+    'position_processor.dart',
+    'settling_processor.dart',
+  }, // Mikrosekunden je Sekunde
+  '1000': {'pace.dart'}, // Meter je Kilometer
+  '180': {'geo.dart'}, // Grad zu Bogenmaß
+  '6371008.8': {'geo.dart'}, // Erdradius (benannte Konstante)
+};
+
+bool isAllowed(String file, String literal) =>
+    common.containsKey(literal) || (perFile[literal]?.contains(file) ?? false);
 
 /// Zahlliterale einer Dart-Quelle ohne Kommentare und Zeichenketten.
 Iterable<String> literals(String source) sync* {
@@ -44,7 +57,7 @@ void main() {
     for (final f in files) {
       for (final lit in literals(f.readAsStringSync())) {
         hits.putIfAbsent(lit, () => {}).add(f.uri.pathSegments.last);
-        if (!allowed.containsKey(lit)) {
+        if (!isAllowed(f.uri.pathSegments.last, lit)) {
           unknown.add('${f.path}: $lit');
         }
       }
@@ -53,7 +66,7 @@ void main() {
     for (final e in hits.entries) {
       // ignore: avoid_print
       print(
-        '${e.key.padRight(10)} ${(allowed[e.key] ?? 'NICHT ERLAUBT')}'
+        '${e.key.padRight(10)} ${(common[e.key] ?? 'Einheit/Konstante')}'
         '  [${(e.value.toList()..sort()).join(', ')}]',
       );
     }
@@ -63,6 +76,14 @@ void main() {
       reason: 'Schwellen gehören in PreprocessingParameters',
     );
     expect(hits['6371008.8'], {'geo.dart'});
+  });
+
+  test('Einheiten gelten nur in ihrer Datei', () {
+    expect(isAllowed('pace.dart', '1000'), isTrue);
+    expect(isAllowed('settling_processor.dart', '1000'), isFalse);
+    expect(isAllowed('settling_processor.dart', '180'), isFalse);
+    expect(isAllowed('geo.dart', '180'), isTrue);
+    expect(isAllowed('section_quality.dart', '1e6'), isFalse);
   });
 
   test('der Scanner findet eine eingeschleuste Schwelle', () {

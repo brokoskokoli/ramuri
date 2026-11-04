@@ -2,8 +2,12 @@ import 'measurement.dart';
 
 /// Ergebnis einer Zuordnung über Zeitstempel (FR-0046).
 class Lookup<T> {
-  const Lookup.present(T this.value, Duration this.age)
-    : state = MeasurementState.present;
+  /// [state] ist der Zustand des Werts (`present` oder `estimated`).
+  const Lookup.present(
+    T this.value,
+    Duration this.age, {
+    this.state = MeasurementState.present,
+  });
   const Lookup.unavailable({this.age})
     : state = MeasurementState.unavailable,
       value = null;
@@ -20,16 +24,22 @@ class Lookup<T> {
 class LatestValueIndex<T> {
   final List<DateTime> _times = [];
   final List<T> _values = [];
+  final List<MeasurementState> _states = [];
 
   int get length => _times.length;
 
   /// Zeiten müssen streng aufsteigend sein (das sichern die Filter zu).
-  void add(DateTime time, T value) {
+  void add(
+    DateTime time,
+    T value, [
+    MeasurementState state = MeasurementState.present,
+  ]) {
     if (_times.isNotEmpty && !time.isAfter(_times.last)) {
       throw ArgumentError.value(time, 'time', 'nicht aufsteigend');
     }
     _times.add(time);
     _values.add(value);
+    _states.add(state);
   }
 
   /// Letzter Wert mit Zeit `<= t`. Ist er älter als [maxAge] (strikt), gilt
@@ -48,6 +58,6 @@ class LatestValueIndex<T> {
     if (lo == 0) return const Lookup.unavailable();
     final age = t.difference(_times[lo - 1]);
     if (maxAge != null && age > maxAge) return Lookup.unavailable(age: age);
-    return Lookup.present(_values[lo - 1], age);
+    return Lookup.present(_values[lo - 1], age, state: _states[lo - 1]);
   }
 }

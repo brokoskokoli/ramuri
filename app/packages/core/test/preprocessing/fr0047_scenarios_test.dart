@@ -164,7 +164,13 @@ void main() {
       // zählt 30 m. Strecke 30 + 15 + 30 = 75. Zeit läuft weiter (FR-0194):
       // Bewegungszeit = Gesamtzeit = 40 s.
       final pts = [...track(0, 10), ...track(25, 30, base: 75), pos(40, 120)];
-      final res = play(RunPreprocessor(start: t0), pts, 40);
+      final run = RunPreprocessor(start: t0);
+      beat(0, 40, 150).forEach(run.addHeartRate);
+      final res = play(run, pts, 40);
+      // FR-0194: Der Puls läuft in der GPS-Lücke weiter, keine Pulslücke.
+      expect(res.heartRate.acceptedValues, hasLength(41));
+      expect(res.heartRate.gaps, isEmpty);
+      expect(run.heartRateAt(at(15)).state, MeasurementState.present);
       expect(res.position.gaps, hasLength(1));
       expect(res.position.gaps.single.start, at(10));
       expect(res.position.gaps.single.end, at(25));
@@ -227,7 +233,10 @@ void main() {
 
     final a = run(outliers: true);
     final b = run(outliers: false);
-    expect(a.position.distanceMeters, closeTo(b.position.distanceMeters, 1e-9));
+    expect(
+      a.position.distanceMeters,
+      closeTo(b.position.distanceMeters!, 1e-9),
+    );
     expect(a.pace.medianSpeed, b.pace.medianSpeed);
     expect(a.movement.movingTime, b.movement.movingTime);
     expect(a.heartRate.averageBpm, b.heartRate.averageBpm);

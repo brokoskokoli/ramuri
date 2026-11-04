@@ -49,7 +49,10 @@ void main() {
       },
     );
     test('abweichender Parameter (5 s) wirkt', () {
-      const p = PreprocessingParameters(gapMaxDuration: Duration(seconds: 5));
+      const p = PreprocessingParameters(
+        parameterVersion: 2,
+        gapMaxDuration: Duration(seconds: 5),
+      );
       expect(run([pos(0, 0), pos(5, 5)], p: p).gaps, isEmpty);
       expect(run([pos(0, 0), pos(5.1, 5)], p: p).gaps, hasLength(1));
     });
@@ -202,7 +205,9 @@ void main() {
           ..add(pos(4, 5, acc: 90))
           ..add(pos(5, 4));
         final l = proc.positionAt(at(8));
-        expect(l.state, MeasurementState.present);
+        // Punkt 5 folgt auf einen verworfenen: Strecke überbrückt (FR-0057).
+        expect(l.state, MeasurementState.estimated);
+        expect(proc.positionAt(at(3)).state, MeasurementState.present);
         expect(l.value!.time, at(5));
         expect(l.age, const Duration(seconds: 3));
         expect(proc.positionAt(at(5)).age, Duration.zero);

@@ -42,7 +42,10 @@ void main() {
 
     test('nach erkannter Pause 3 min ab dem Wiederbeginn der Bewegung', () {
       // Tempowechsel ausgeschaltet, damit nur das Pausenende wirkt.
-      const p = PreprocessingParameters(settlingPaceChange: 100);
+      const p = PreprocessingParameters(
+        parameterVersion: 2,
+        settlingPaceChange: 100,
+      );
       final run = feed(track([(300, 3), (60, 0), (300, 3)]), p: p);
       final r = run.result(at: at(660));
       expect(r.movement.resumedAt, hasLength(1));

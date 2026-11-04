@@ -60,6 +60,7 @@ class RunPreprocessor {
   final AltitudeProcessor _altitude;
   final StepsSeries _steps;
   final SegmentBuilder _segments;
+  bool _paused = false;
 
   ProcessedPosition addPosition(RawPosition p) {
     final r = _position.add(p);
@@ -82,6 +83,8 @@ class RunPreprocessor {
 
   /// Manuelle Pause (Ereignis).
   void pause(DateTime time) {
+    if (_paused) return;
+    _paused = true;
     _position.pause(time);
     _heartRate.pause(time);
     _segments.reset();
@@ -91,6 +94,8 @@ class RunPreprocessor {
   }
 
   void resume(DateTime time) {
+    if (!_paused) return;
+    _paused = false;
     _position.resume(time);
     _heartRate.resume(time);
     _segments.reset();

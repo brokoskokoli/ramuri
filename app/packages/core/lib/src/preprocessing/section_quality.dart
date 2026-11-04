@@ -11,7 +11,9 @@ const int sectionQualityMethodVersion = 1;
 /// Qualität der Daten eines Abschnitts (FR-0048). Beschreibt nur; ob ein
 /// Abschnitt taugt, entscheidet die Abschnittsauswahl (WP09).
 class SectionQuality {
-  SectionQuality._({
+  /// Öffentlich, damit eine gespeicherte Bewertung wieder geladen werden kann
+  /// (FR-0048, FR-0058).
+  SectionQuality({
     required this.parameterVersion,
     required this.from,
     required this.to,
@@ -28,15 +30,25 @@ class SectionQuality {
        gpsGaps = List.unmodifiable(gpsGaps);
 
   /// Bewertet `[from, to]` aus den Ergebnissen der Prozessoren. Reine
-  /// Funktion; ändert die Eingaben nicht.
+  /// Funktion; ändert die Eingaben nicht. Die Version stammt aus den Eingaben;
+  /// weichen Position oder Parametersatz ab, wird ein [ArgumentError] geworfen.
   factory SectionQuality.assess({
     required DateTime from,
     required DateTime to,
     required HeartRateResult heartRate,
     required PositionResult position,
     required List<TimeSpan> settlingIntervals,
-    PreprocessingParameters parameters = const PreprocessingParameters.v2(),
+    required PreprocessingParameters parameters,
   }) {
+    final version = heartRate.parameterVersion;
+    if (position.parameterVersion != version ||
+        parameters.parameterVersion != version) {
+      throw ArgumentError(
+        'Parameterversionen weichen ab: Puls $version, '
+        'Position ${position.parameterVersion}, '
+        'Parametersatz ${parameters.parameterVersion}',
+      );
+    }
     if (!to.isAfter(from)) {
       throw ArgumentError.value(to, 'to', 'muss nach from liegen');
     }
@@ -63,7 +75,8 @@ class SectionQuality {
     final span = to.difference(from).inMicroseconds;
     final received = [
       for (final p in heartRate.processed)
-        if (inside(p.input.time)) p.input.time,
+        if (p.reason != DiscardReason.nonMonotonicTime && inside(p.input.time))
+          p.input.time,
     ];
     final missing = _missing(gaps, times, received);
 
@@ -74,16 +87,16 @@ class SectionQuality {
       if (b.isAfter(a)) overlap += b.difference(a);
     }
 
-    return SectionQuality._(
-      parameterVersion: parameters.parameterVersion,
+    return SectionQuality(
+      parameterVersion: version,
       from: from,
       to: to,
-      heartRateCounts: count([
-        for (final p in heartRate.processed) (p.input.time, p.state),
-      ]),
-      positionCounts: count([
-        for (final p in position.positions) (p.input.time, p.state),
-      ]),
+      heartRateCounts: Map.unmodifiable(
+        count([for (final p in heartRate.processed) (p.input.time, p.state)]),
+      ),
+      positionCounts: Map.unmodifiable(
+        count([for (final p in position.positions) (p.input.time, p.state)]),
+      ),
       missingHeartRateShare: missing.inMicroseconds / span,
       longestHeartRateGap: longest,
       meetsHeartRateGapRule:
