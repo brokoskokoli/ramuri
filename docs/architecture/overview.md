@@ -52,13 +52,13 @@ Einen eigenen Server und ein Konto gibt es nicht (ADR-0001).
 
 Bisher entschieden: [ADR-0001](adr/ADR-0001-nur-lokale-datenhaltung.md). Weiterer Bedarf besteht mindestens für:
 
-| Entscheidung | Abhängig von |
-|---|---|
-| Android-Technologie, Mindestversion und Option für iOS | CON-0001, OQ-0035 |
-| Speicherung und Verschlüsselung auf dem Gerät | SEC-0009, SEC-0010 |
-| Austauschbare Algorithmen, Aufbewahrung von Rohdaten und Versionierung der Modelle | NFR-0001, NFR-0005, OQ-0043 |
-| Aufzeichnung im Hintergrund und Wiederanlauf | FR-0034, OQ-0021 |
-| Anbindung von Bluetooth-Sensoren | FR-0008, OQ-0018 |
-| Anbindung von Health Connect | FR-0200, OQ-0047 |
+| Entscheidung | Abhängig von | Entwurf (Status `Proposed`) |
+|---|---|---|
+| Android-Technologie, Mindestversion und Option für iOS | CON-0001, OQ-0035 | [ADR-0002](adr/ADR-0002-flutter-mindestversion-projektaufbau.md) |
+| Speicherung und Verschlüsselung auf dem Gerät | SEC-0009, SEC-0010 | [ADR-0003](adr/ADR-0003-speicherung-und-verschluesselung.md) |
+| Austauschbare Algorithmen, Aufbewahrung von Rohdaten und Versionierung der Modelle | NFR-0001, NFR-0005, OQ-0043 | [ADR-0004](adr/ADR-0004-algorithmen-rohdaten-versionierung.md) |
+| Aufzeichnung im Hintergrund und Wiederanlauf | FR-0034, OQ-0021 | [ADR-0005](adr/ADR-0005-aufzeichnung-hintergrund-wiederanlauf.md) |
+| Anbindung von Bluetooth-Sensoren | FR-0008, OQ-0018 | [ADR-0006](adr/ADR-0006-bluetooth-sensoren.md) |
+| Anbindung von Health Connect | FR-0200, OQ-0047 | [ADR-0007](adr/ADR-0007-health-connect.md) |
 
 Eine Datei `deployment.md` entfällt, weil es nach ADR-0001 keinen Serverbetrieb gibt.
