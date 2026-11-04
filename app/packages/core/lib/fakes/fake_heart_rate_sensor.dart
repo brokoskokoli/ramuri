@@ -24,7 +24,11 @@ class FakeHeartRateSensor implements HeartRateSensor {
     late final StreamController<HeartRateEvent> c;
     c = StreamController<HeartRateEvent>(
       onListen: () => c.add(HeartRateConnected(deviceId)),
-      onCancel: () => _connections.remove(deviceId),
+      // Nur die eigene Verbindung entfernen: ein Neuverbinden im
+      // Disconnected-Ereignis hat sie schon ersetzt.
+      onCancel: () {
+        if (identical(_connections[deviceId], c)) _connections.remove(deviceId);
+      },
     );
     _connections[deviceId] = c;
     return c.stream;

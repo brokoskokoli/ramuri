@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -15,6 +16,14 @@ void main() {
       expect(c.now(), t0.add(const Duration(minutes: 5)));
       c.set(t0);
       expect(c.now(), t0);
+    });
+
+    test('set und Start normalisieren auf UTC', () {
+      final local = DateTime(2030, 1, 1, 12);
+      expect(FakeClock(local).now().isUtc, isTrue);
+      final c = FakeClock(t0)..set(local);
+      expect(c.now().isUtc, isTrue);
+      expect(c.now(), local.toUtc());
     });
   });
 
@@ -73,6 +82,25 @@ void main() {
       },
     );
 
+    test('Neuverbinden im Disconnected-Ereignis bleibt verbunden', () async {
+      final s = FakeHeartRateSensor();
+      final events = <HeartRateEvent>[];
+      late StreamSubscription<HeartRateEvent> second;
+      s.connect('A').listen((e) {
+        if (e is HeartRateDisconnected) {
+          second = s.connect('A').listen(events.add);
+        }
+      });
+      await s.drop('A');
+      await Future<void>.delayed(Duration.zero);
+      expect(s.connectedIds, {'A'}, reason: 'neue Verbindung bleibt erhalten');
+      s.emitReading('A', t0, 80);
+      await Future<void>.delayed(Duration.zero);
+      expect(events.whereType<HeartRateReading>().single.beatsPerMinute, 80);
+      await second.cancel();
+      expect(s.connectedIds, isEmpty);
+    });
+
     test('Suche meldet entdeckte Geräte', () async {
       final s = FakeHeartRateSensor();
       final found = <HeartRateDevice>[];
@@ -126,8 +154,12 @@ void main() {
     test('Beenden durch die Plattform ist sichtbar', () async {
       final s = FakeRecordingService();
       await s.start(withConnectedDevice: false);
+      final states = <RecordingServiceState>[];
+      s.states.listen(states.add);
       s.killByPlatform();
+      await Future<void>.delayed(Duration.zero);
       expect(await s.isRunning(), isFalse);
+      expect(states, [RecordingServiceState.stopped]);
     });
   });
 
@@ -150,6 +182,23 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('beschädigte Datei ist nicht lesbar', () async {
+      final s = FakeStorage();
+      await (await s.open(k1)).close();
+      s.corrupted = true;
+      await expectLater(
+        s.open(k1),
+        throwsA(
+          isA<StorageException>().having(
+            (e) => e.failure,
+            'failure',
+            StorageFailure.unreadable,
+          ),
+        ),
+      );
+      expect(s.openSessions, 0);
     });
 
     test('ohne aktive Verschlüsselung wird nicht geöffnet', () async {
@@ -188,6 +237,9 @@ void main() {
       await s.write('k', v);
       v[0] = 99;
       expect(await s.read('k'), [1, 2], reason: 'Kopie, nicht Verweis');
+      final r = (await s.read('k'))!;
+      r[0] = 77;
+      expect(await s.read('k'), [1, 2], reason: 'Lesen liefert eine Kopie');
       await s.delete('k');
       expect(await s.read('k'), isNull);
     });
@@ -199,6 +251,7 @@ void main() {
         s.write('k', Uint8List(1)),
         throwsA(isA<KeyStoreException>()),
       );
+      await expectLater(s.delete('k'), throwsA(isA<KeyStoreException>()));
     });
   });
 
