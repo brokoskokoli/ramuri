@@ -12,7 +12,7 @@ Laufaufzeichnung und grundlegende Fitnessanalyse. 12 Pakete, höchstens 2 Sitzun
 | 4 | [WP06](WP06-lauf-aufzeichnen.md) ‖ [WP09](WP09-vo2max-effizienz-neuberechnung.md) | WP06: WP02 bis WP05. WP09: WP02 bis WP05 | – |
 | 5 | [WP07](WP07-pulssensoren.md) ‖ [WP10](WP10-zusammenfassung-historie-statistik.md) | WP07: WP06. WP10: WP06, WP09 | – |
 | 6 | [WP08](WP08-hintergrund-und-wiederanlauf.md) ‖ [WP11](WP11-dateiexport-und-teilen.md) | WP08: WP06, WP07. WP11: WP06 | WP08: **wartet auf R005**. WP11: Punkt FIT auf L1 |
-| 7 | [WP12](WP12-archiv-und-reimport.md), danach Abschlussprüfung | WP11, WP02 | WP12: **wartet auf ADR-0008** |
+| 7 | [WP12](WP12-archiv-und-reimport.md), danach Abschlussprüfung | WP11, WP02 | WP12: ADR-0008 ist freigegeben |
 
 Ist R005 bei Welle 6 nicht fertig, läuft WP11 allein weiter und danach WP12, sobald ADR-0008 freigegeben ist. Ist ADR-0008 früher freigegeben, kann WP12 direkt nach WP11 starten. Nichts außer WP08 hängt an R005, nichts außer WP12 an ADR-0008. Sofort startbar ist nur WP01.
 
