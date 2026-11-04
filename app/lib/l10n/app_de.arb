@@ -51,5 +51,81 @@
   "deleteFailed": "Das Löschen ist fehlgeschlagen. Es wurde nichts gelöscht.",
   "@deleteFailed": {
     "description": "Rückmeldung bei einem Fehler"
+  },
+  "storageLoading": "Daten werden geöffnet …",
+  "@storageLoading": {
+    "description": "Meldung beim Öffnen der Datenbank"
+  },
+  "notOpenableTitle": "Daten lassen sich nicht öffnen",
+  "@notOpenableTitle": {
+    "description": "Titel: Datenbank nicht zu öffnen"
+  },
+  "notOpenableKeyMissing": "Der Schlüssel, der die gespeicherten Daten auf diesem Gerät schützt, fehlt. Ohne ihn sind die Daten nicht lesbar. Das kann nach einer Wiederherstellung des Geräts oder dem Zurücksetzen der Schlüsselablage passieren. Die Daten selbst wurden nicht verändert.",
+  "@notOpenableKeyMissing": {
+    "description": "Grund: Schlüssel fehlt"
+  },
+  "notOpenableKeyMalformed": "Der abgelegte Schlüssel ist beschädigt und lässt sich nicht verwenden. Die gespeicherten Daten sind dadurch nicht lesbar, wurden aber nicht verändert.",
+  "@notOpenableKeyMalformed": {
+    "description": "Grund: Schlüssel unbrauchbar"
+  },
+  "notOpenableKeyStoreError": "Die Schlüsselablage des Geräts antwortet nicht richtig. Die gespeicherten Daten wurden nicht verändert. Oft hilft ein erneuter Versuch, etwa nach dem Entsperren des Geräts.",
+  "@notOpenableKeyStoreError": {
+    "description": "Grund: Fehler der Schlüsselablage"
+  },
+  "notOpenableUnreadable": "Die gespeicherten Daten lassen sich mit dem vorhandenen Schlüssel nicht lesen. Mögliche Gründe: Die Datei ist beschädigt, der Schlüssel passt nicht, oder die Daten stammen von einer neueren Version der App. Im letzten Fall ist es besser, die neuere Version wieder zu installieren, statt neu zu beginnen.",
+  "@notOpenableUnreadable": {
+    "description": "Grund: Datei unlesbar, falscher Schlüssel oder neuere Version"
+  },
+  "notOpenableLocationError": "Der Speicherort der Daten konnte nicht bestimmt werden. Es wurde nichts verändert.",
+  "@notOpenableLocationError": {
+    "description": "Grund: Pfad nicht ermittelbar"
+  },
+  "notOpenableResetHint": "„Neu beginnen“ löscht die bisherigen Daten endgültig und legt eine leere Datenbank an. Vorher fragt die App noch einmal nach.",
+  "@notOpenableResetHint": {
+    "description": "Hinweis zum Neubeginn"
+  },
+  "notOpenableRetry": "Erneut versuchen",
+  "@notOpenableRetry": {
+    "description": "Schaltfläche: erneut versuchen"
+  },
+  "notOpenableReset": "Neu beginnen",
+  "@notOpenableReset": {
+    "description": "Schaltfläche: Neubeginn"
+  },
+  "resetProblemFiles": "Die alte Datei konnte nicht vollständig gelöscht werden. Es wurde kein neuer Schlüssel angelegt. Bitte erneut versuchen.",
+  "@resetProblemFiles": {
+    "description": "Fehler beim Neubeginn: Löschen"
+  },
+  "resetProblemKey": "Die alte Datei ist gelöscht, aber der Schlüssel konnte nicht erneuert werden. Bitte erneut versuchen.",
+  "@resetProblemKey": {
+    "description": "Fehler beim Neubeginn: Schlüssel"
+  },
+  "resetConfirmTitle": "Neu beginnen?",
+  "@resetConfirmTitle": {
+    "description": "Titel der Bestätigung des Neubeginns"
+  },
+  "resetConfirmBody": "Die vorhandene Datenbank wird endgültig gelöscht: alle Läufe, Messwerte, berechneten Werte, das Profil und die Einstellungen gehen unwiederbringlich verloren. Danach beginnt die App mit einer leeren Datenbank und einem neuen Schlüssel. Das lässt sich nicht rückgängig machen.",
+  "@resetConfirmBody": {
+    "description": "Text der Bestätigung des Neubeginns, Hinweis auf Datenverlust"
+  },
+  "resetConfirmAction": "Endgültig löschen und neu beginnen",
+  "@resetConfirmAction": {
+    "description": "Schaltfläche: Neubeginn bestätigen"
+  },
+  "inactiveTitle": "Verschlüsselung nicht aktiv",
+  "@inactiveTitle": {
+    "description": "Titel: Verschlüsselung nicht aktiv"
+  },
+  "inactiveBody": "Die App kann die Daten auf diesem Gerät gerade nicht verschlüsseln und öffnet sie deshalb nicht. Die gespeicherten Daten wurden nicht verändert und bleiben geschützt. Bitte installiere die aktuelle Version der App neu oder melde das Problem; ein Neubeginn ist dafür nicht nötig.",
+  "@inactiveBody": {
+    "description": "Text: Verschlüsselung nicht aktiv"
+  },
+  "dataTitle": "Daten",
+  "@dataTitle": {
+    "description": "Titel des Bildschirms und der Schaltfläche Daten"
+  },
+  "dataBody": "Hier verwaltest du die in der App gespeicherten Daten.",
+  "@dataBody": {
+    "description": "Text des Bildschirms Daten"
   }
 }

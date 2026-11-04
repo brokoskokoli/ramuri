@@ -12,6 +12,7 @@ import 'package:drift/native.dart';
 
 import 'app_database.dart';
 import 'connection_setup.dart';
+import 'database_files.dart';
 import 'delete_access.dart';
 import 'derived_access.dart';
 import 'raw_access.dart';
@@ -88,13 +89,8 @@ class EncryptedStorage implements Storage {
   /// Nur für Tests austauschbar (Migrationstest mit synthetischem Schritt).
   final AppDatabase Function(QueryExecutor) databaseBuilder;
 
-  /// `true`, wenn `db`, `-wal` oder `-shm` existiert (Falle 6).
-  Future<bool> filesExist() async {
-    for (final suffix in const ['', '-wal', '-shm']) {
-      if (await File('$path$suffix').exists()) return true;
-    }
-    return false;
-  }
+  /// `true`, wenn `db`, `-wal`, `-shm` oder `-journal` existiert (Falle 6).
+  Future<bool> filesExist() => FileDatabaseFiles(path).exist();
 
   @override
   Future<StorageSession> open(Uint8List key) async {
