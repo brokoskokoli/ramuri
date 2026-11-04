@@ -124,6 +124,18 @@ void main() {
       expect(flank.spans(p), [(t0, min(3)), (at(660), at(840))]);
     });
 
+    test('eine GPS-Lücke im Lauf erreicht die Einschwingzeit', () {
+      // Bis 700 s Punkte, Lücke bis 850 s, dann 5 m/s. Bei 851 s: recent nur
+      // dieses Segment (5), before (611,731] alle 3,5, Abweichung 1,5. Die Lücke
+      // hat die Flanke zurückgesetzt, also Auslösen bei 851 s, Ende 851 + 180.
+      // Nur das letzte Intervall: Das Auslösen um 660 s hinge an der Rundung.
+      final r = feed([
+        ...track([(600, 3), (100, 3.5)]),
+        ...track([(150, 5)], from: 850, north: 2150),
+      ]).result(at: at(1000));
+      expect(spans(r).last, (at(851), at(1031)));
+    });
+
     test('Pulswerte werden nicht verschoben', () {
       final values = beat(0, 200, 120);
       final run = RunPreprocessor(start: t0);
