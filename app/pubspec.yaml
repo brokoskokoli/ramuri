@@ -96,3 +96,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# ADR-0003 Punkt 1: SQLite3MultipleCiphers statt der Standard-SQLite-Bibliothek.
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc
