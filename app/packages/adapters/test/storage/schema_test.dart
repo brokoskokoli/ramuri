@@ -43,8 +43,8 @@ const _rowFor = <String, String>{
       'parameter_version, assessed_at_us, heart_rate_present, heart_rate_estimated, '
       'heart_rate_unavailable, heart_rate_discarded, position_present, position_estimated, '
       'position_unavailable, position_discarded, missing_heart_rate_share, '
-      'longest_heart_rate_gap_s, meets_heart_rate_gap_rule, settling_overlap_s, settling_share) '
-      "VALUES (?, 1, 9, 'section-quality', 1, 2, 99, 1, 0, 0, 0, 1, 0, 0, 0, 0.0, 0.0, 1, 0.0, 0.0)",
+      'longest_heart_rate_gap_s, meets_heart_rate_gap_rule, settling_overlap_s, settling_share, gps_gaps) '
+      "VALUES (?, 1, 9, 'section-quality', 1, 2, 99, 1, 0, 0, 0, 1, 0, 0, 0, 0.0, 0.0, 1, 0.0, 0.0, '[]')",
   'computed_values':
       "INSERT INTO computed_values (run_id, value_key, role, value_real, unit, computed_at_us, "
       "measurement_count, sources, method, method_version, parameter_version, quality) "

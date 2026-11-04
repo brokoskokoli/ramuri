@@ -101,7 +101,10 @@ RatedSection sampleSection(int fromSeconds) => RatedSection(
     meetsHeartRateGapRule: true,
     settlingOverlap: const Duration(seconds: 3),
     settlingShare: 0.05,
-    gpsGaps: [PositionGap(start: at(1), end: at(2), open: false)],
+    gpsGaps: [
+      PositionGap(start: at(1), end: at(2), open: false),
+      PositionGap(start: at(5, 7), end: at(9), open: true),
+    ],
   ),
 );
 

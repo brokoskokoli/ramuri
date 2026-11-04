@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:core/core.dart';
 import 'package:drift/drift.dart' show OrderingTerm, Value;
 
@@ -163,6 +165,9 @@ class DriftRatedSectionStore implements RatedSectionStore {
       meetsHeartRateGapRule: q.meetsHeartRateGapRule,
       settlingOverlapS: secondsOf(q.settlingOverlap),
       settlingShare: q.settlingShare,
+      gpsGaps: jsonEncode([
+        for (final g in q.gpsGaps) [usOf(g.start), usOf(g.end), g.open ? 1 : 0],
+      ]),
     );
   }
 
@@ -201,12 +206,20 @@ class DriftRatedSectionStore implements RatedSectionStore {
             meetsHeartRateGapRule: r.meetsHeartRateGapRule,
             settlingOverlap: durationOf(r.settlingOverlapS),
             settlingShare: r.settlingShare,
-            // Nicht gespeichert (siehe RatedSection).
-            gpsGaps: const [],
+            gpsGaps: _gapsOf(r.gpsGaps),
           ),
         ),
     ];
   });
 }
+
+List<PositionGap> _gapsOf(String json) => [
+  for (final g in jsonDecode(json) as List)
+    PositionGap(
+      start: timeOf((g as List)[0] as int),
+      end: timeOf(g[1] as int),
+      open: g[2] == 1,
+    ),
+];
 
 Value<T> _v<T>(T x) => Value<T>(x);

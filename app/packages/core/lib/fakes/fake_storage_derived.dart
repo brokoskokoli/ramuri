@@ -1,6 +1,7 @@
 import '../ports/storage.dart';
 import '../ports/storage_derived.dart';
 import '../ports/storage_values.dart';
+import '../src/preprocessing/position_processor.dart' show PositionGap;
 import '../src/preprocessing/section_quality.dart';
 import 'fake_storage_data.dart';
 
@@ -73,7 +74,7 @@ class FakeRatedSectionStore implements RatedSectionStore {
       for (final s in sections)
         RatedSection(
           assessedAt: _utc(s.assessedAt),
-          quality: _withoutGaps(s.quality),
+          quality: _normalized(s.quality),
         ),
     ];
   }
@@ -83,8 +84,8 @@ class FakeRatedSectionStore implements RatedSectionStore {
       [...?_d.sections[runId]]
         ..sort((a, b) => a.quality.from.compareTo(b.quality.from));
 
-  /// Wie im Adapter: Die GPS-Lücken werden nicht gespeichert.
-  static SectionQuality _withoutGaps(SectionQuality q) => SectionQuality(
+  /// Wie im Adapter: Zeiten auf UTC (Mikrosekunden), Lücken mit Ende und open.
+  static SectionQuality _normalized(SectionQuality q) => SectionQuality(
     parameterVersion: q.parameterVersion,
     from: _utc(q.from),
     to: _utc(q.to),
@@ -95,7 +96,10 @@ class FakeRatedSectionStore implements RatedSectionStore {
     meetsHeartRateGapRule: q.meetsHeartRateGapRule,
     settlingOverlap: q.settlingOverlap,
     settlingShare: q.settlingShare,
-    gpsGaps: const [],
+    gpsGaps: [
+      for (final g in q.gpsGaps)
+        PositionGap(start: _utc(g.start), end: _utc(g.end), open: g.open),
+    ],
   );
 }
 

@@ -4826,6 +4826,17 @@ class RatedSections extends Table with TableInfo<RatedSections, RatedSection> {
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL',
   );
+  static const VerificationMeta _gpsGapsMeta = const VerificationMeta(
+    'gpsGaps',
+  );
+  late final GeneratedColumn<String> gpsGaps = GeneratedColumn<String>(
+    'gps_gaps',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (json_valid(gps_gaps))',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4849,6 +4860,7 @@ class RatedSections extends Table with TableInfo<RatedSections, RatedSection> {
     meetsHeartRateGapRule,
     settlingOverlapS,
     settlingShare,
+    gpsGaps,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5073,6 +5085,14 @@ class RatedSections extends Table with TableInfo<RatedSections, RatedSection> {
     } else if (isInserting) {
       context.missing(_settlingShareMeta);
     }
+    if (data.containsKey('gps_gaps')) {
+      context.handle(
+        _gpsGapsMeta,
+        gpsGaps.isAcceptableOrUnknown(data['gps_gaps']!, _gpsGapsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_gpsGapsMeta);
+    }
     return context;
   }
 
@@ -5166,6 +5186,10 @@ class RatedSections extends Table with TableInfo<RatedSections, RatedSection> {
         DriftSqlType.double,
         data['${effectivePrefix}settling_share'],
       )!,
+      gpsGaps: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}gps_gaps'],
+      )!,
     );
   }
 
@@ -5200,6 +5224,9 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
   final bool meetsHeartRateGapRule;
   final double settlingOverlapS;
   final double settlingShare;
+
+  /// JSON-Liste der GPS-Lücken [[start_us, end_us, offen 0/1], ...] (FR-0048).
+  final String gpsGaps;
   const RatedSection({
     required this.id,
     required this.runId,
@@ -5222,6 +5249,7 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
     required this.meetsHeartRateGapRule,
     required this.settlingOverlapS,
     required this.settlingShare,
+    required this.gpsGaps,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5247,6 +5275,7 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
     map['meets_heart_rate_gap_rule'] = Variable<bool>(meetsHeartRateGapRule);
     map['settling_overlap_s'] = Variable<double>(settlingOverlapS);
     map['settling_share'] = Variable<double>(settlingShare);
+    map['gps_gaps'] = Variable<String>(gpsGaps);
     return map;
   }
 
@@ -5273,6 +5302,7 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
       meetsHeartRateGapRule: Value(meetsHeartRateGapRule),
       settlingOverlapS: Value(settlingOverlapS),
       settlingShare: Value(settlingShare),
+      gpsGaps: Value(gpsGaps),
     );
   }
 
@@ -5317,6 +5347,7 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
       ),
       settlingOverlapS: serializer.fromJson<double>(json['settling_overlap_s']),
       settlingShare: serializer.fromJson<double>(json['settling_share']),
+      gpsGaps: serializer.fromJson<String>(json['gps_gaps']),
     );
   }
   @override
@@ -5350,6 +5381,7 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
       ),
       'settling_overlap_s': serializer.toJson<double>(settlingOverlapS),
       'settling_share': serializer.toJson<double>(settlingShare),
+      'gps_gaps': serializer.toJson<String>(gpsGaps),
     };
   }
 
@@ -5375,6 +5407,7 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
     bool? meetsHeartRateGapRule,
     double? settlingOverlapS,
     double? settlingShare,
+    String? gpsGaps,
   }) => RatedSection(
     id: id ?? this.id,
     runId: runId ?? this.runId,
@@ -5397,6 +5430,7 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
     meetsHeartRateGapRule: meetsHeartRateGapRule ?? this.meetsHeartRateGapRule,
     settlingOverlapS: settlingOverlapS ?? this.settlingOverlapS,
     settlingShare: settlingShare ?? this.settlingShare,
+    gpsGaps: gpsGaps ?? this.gpsGaps,
   );
   RatedSection copyWithCompanion(RatedSectionsCompanion data) {
     return RatedSection(
@@ -5453,6 +5487,7 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
       settlingShare: data.settlingShare.present
           ? data.settlingShare.value
           : this.settlingShare,
+      gpsGaps: data.gpsGaps.present ? data.gpsGaps.value : this.gpsGaps,
     );
   }
 
@@ -5479,7 +5514,8 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
           ..write('longestHeartRateGapS: $longestHeartRateGapS, ')
           ..write('meetsHeartRateGapRule: $meetsHeartRateGapRule, ')
           ..write('settlingOverlapS: $settlingOverlapS, ')
-          ..write('settlingShare: $settlingShare')
+          ..write('settlingShare: $settlingShare, ')
+          ..write('gpsGaps: $gpsGaps')
           ..write(')'))
         .toString();
   }
@@ -5507,6 +5543,7 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
     meetsHeartRateGapRule,
     settlingOverlapS,
     settlingShare,
+    gpsGaps,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -5532,7 +5569,8 @@ class RatedSection extends DataClass implements Insertable<RatedSection> {
           other.longestHeartRateGapS == this.longestHeartRateGapS &&
           other.meetsHeartRateGapRule == this.meetsHeartRateGapRule &&
           other.settlingOverlapS == this.settlingOverlapS &&
-          other.settlingShare == this.settlingShare);
+          other.settlingShare == this.settlingShare &&
+          other.gpsGaps == this.gpsGaps);
 }
 
 class RatedSectionsCompanion extends UpdateCompanion<RatedSection> {
@@ -5557,6 +5595,7 @@ class RatedSectionsCompanion extends UpdateCompanion<RatedSection> {
   final Value<bool> meetsHeartRateGapRule;
   final Value<double> settlingOverlapS;
   final Value<double> settlingShare;
+  final Value<String> gpsGaps;
   const RatedSectionsCompanion({
     this.id = const Value.absent(),
     this.runId = const Value.absent(),
@@ -5579,6 +5618,7 @@ class RatedSectionsCompanion extends UpdateCompanion<RatedSection> {
     this.meetsHeartRateGapRule = const Value.absent(),
     this.settlingOverlapS = const Value.absent(),
     this.settlingShare = const Value.absent(),
+    this.gpsGaps = const Value.absent(),
   });
   RatedSectionsCompanion.insert({
     this.id = const Value.absent(),
@@ -5602,6 +5642,7 @@ class RatedSectionsCompanion extends UpdateCompanion<RatedSection> {
     required bool meetsHeartRateGapRule,
     required double settlingOverlapS,
     required double settlingShare,
+    required String gpsGaps,
   }) : runId = Value(runId),
        startUs = Value(startUs),
        endUs = Value(endUs),
@@ -5621,7 +5662,8 @@ class RatedSectionsCompanion extends UpdateCompanion<RatedSection> {
        longestHeartRateGapS = Value(longestHeartRateGapS),
        meetsHeartRateGapRule = Value(meetsHeartRateGapRule),
        settlingOverlapS = Value(settlingOverlapS),
-       settlingShare = Value(settlingShare);
+       settlingShare = Value(settlingShare),
+       gpsGaps = Value(gpsGaps);
   static Insertable<RatedSection> custom({
     Expression<int>? id,
     Expression<int>? runId,
@@ -5644,6 +5686,7 @@ class RatedSectionsCompanion extends UpdateCompanion<RatedSection> {
     Expression<bool>? meetsHeartRateGapRule,
     Expression<double>? settlingOverlapS,
     Expression<double>? settlingShare,
+    Expression<String>? gpsGaps,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -5674,6 +5717,7 @@ class RatedSectionsCompanion extends UpdateCompanion<RatedSection> {
         'meets_heart_rate_gap_rule': meetsHeartRateGapRule,
       if (settlingOverlapS != null) 'settling_overlap_s': settlingOverlapS,
       if (settlingShare != null) 'settling_share': settlingShare,
+      if (gpsGaps != null) 'gps_gaps': gpsGaps,
     });
   }
 
@@ -5699,6 +5743,7 @@ class RatedSectionsCompanion extends UpdateCompanion<RatedSection> {
     Value<bool>? meetsHeartRateGapRule,
     Value<double>? settlingOverlapS,
     Value<double>? settlingShare,
+    Value<String>? gpsGaps,
   }) {
     return RatedSectionsCompanion(
       id: id ?? this.id,
@@ -5724,6 +5769,7 @@ class RatedSectionsCompanion extends UpdateCompanion<RatedSection> {
           meetsHeartRateGapRule ?? this.meetsHeartRateGapRule,
       settlingOverlapS: settlingOverlapS ?? this.settlingOverlapS,
       settlingShare: settlingShare ?? this.settlingShare,
+      gpsGaps: gpsGaps ?? this.gpsGaps,
     );
   }
 
@@ -5799,6 +5845,9 @@ class RatedSectionsCompanion extends UpdateCompanion<RatedSection> {
     if (settlingShare.present) {
       map['settling_share'] = Variable<double>(settlingShare.value);
     }
+    if (gpsGaps.present) {
+      map['gps_gaps'] = Variable<String>(gpsGaps.value);
+    }
     return map;
   }
 
@@ -5825,7 +5874,8 @@ class RatedSectionsCompanion extends UpdateCompanion<RatedSection> {
           ..write('longestHeartRateGapS: $longestHeartRateGapS, ')
           ..write('meetsHeartRateGapRule: $meetsHeartRateGapRule, ')
           ..write('settlingOverlapS: $settlingOverlapS, ')
-          ..write('settlingShare: $settlingShare')
+          ..write('settlingShare: $settlingShare, ')
+          ..write('gpsGaps: $gpsGaps')
           ..write(')'))
         .toString();
   }
@@ -13031,6 +13081,7 @@ typedef $RatedSectionsCreateCompanionBuilder = RatedSectionsCompanion Function({
   required bool meetsHeartRateGapRule,
   required double settlingOverlapS,
   required double settlingShare,
+  required String gpsGaps,
 });
 typedef $RatedSectionsUpdateCompanionBuilder = RatedSectionsCompanion Function({
   Value<int> id,
@@ -13054,6 +13105,7 @@ typedef $RatedSectionsUpdateCompanionBuilder = RatedSectionsCompanion Function({
   Value<bool> meetsHeartRateGapRule,
   Value<double> settlingOverlapS,
   Value<double> settlingShare,
+  Value<String> gpsGaps,
 });
 
 final class $RatedSectionsReferences
@@ -13184,6 +13236,11 @@ class $RatedSectionsFilterComposer
 
   ColumnFilters<double> get settlingShare => $composableBuilder(
     column: $table.settlingShare,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get gpsGaps => $composableBuilder(
+    column: $table.gpsGaps,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13320,6 +13377,11 @@ class $RatedSectionsOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get gpsGaps => $composableBuilder(
+    column: $table.gpsGaps,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $RunsOrderingComposer get runId {
     final $RunsOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -13445,6 +13507,9 @@ class $RatedSectionsAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get gpsGaps =>
+      $composableBuilder(column: $table.gpsGaps, builder: (column) => column);
+
   $RunsAnnotationComposer get runId {
     final $RunsAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -13518,6 +13583,7 @@ class $RatedSectionsTableManager
                 Value<bool> meetsHeartRateGapRule = const Value.absent(),
                 Value<double> settlingOverlapS = const Value.absent(),
                 Value<double> settlingShare = const Value.absent(),
+                Value<String> gpsGaps = const Value.absent(),
               }) => RatedSectionsCompanion(
                 id: id,
                 runId: runId,
@@ -13540,6 +13606,7 @@ class $RatedSectionsTableManager
                 meetsHeartRateGapRule: meetsHeartRateGapRule,
                 settlingOverlapS: settlingOverlapS,
                 settlingShare: settlingShare,
+                gpsGaps: gpsGaps,
               ),
           createCompanionCallback:
               ({
@@ -13564,6 +13631,7 @@ class $RatedSectionsTableManager
                 required bool meetsHeartRateGapRule,
                 required double settlingOverlapS,
                 required double settlingShare,
+                required String gpsGaps,
               }) => RatedSectionsCompanion.insert(
                 id: id,
                 runId: runId,
@@ -13586,6 +13654,7 @@ class $RatedSectionsTableManager
                 meetsHeartRateGapRule: meetsHeartRateGapRule,
                 settlingOverlapS: settlingOverlapS,
                 settlingShare: settlingShare,
+                gpsGaps: gpsGaps,
               ),
           withReferenceMapper: (p0) => p0
               .map(

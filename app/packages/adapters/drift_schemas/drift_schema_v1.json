@@ -1489,6 +1489,16 @@
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
+          },
+          {
+            "name": "gps_gaps",
+            "getter_name": "gpsGaps",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (json_valid(gps_gaps))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
           }
         ],
         "is_virtual": false,
@@ -2275,7 +2285,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"rated_sections\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"start_us\" INTEGER NOT NULL, \"end_us\" INTEGER NOT NULL, \"method\" TEXT NOT NULL, \"method_version\" INTEGER NOT NULL, \"parameter_version\" INTEGER NOT NULL, \"assessed_at_us\" INTEGER NOT NULL, \"heart_rate_present\" INTEGER NOT NULL, \"heart_rate_estimated\" INTEGER NOT NULL, \"heart_rate_unavailable\" INTEGER NOT NULL, \"heart_rate_discarded\" INTEGER NOT NULL, \"position_present\" INTEGER NOT NULL, \"position_estimated\" INTEGER NOT NULL, \"position_unavailable\" INTEGER NOT NULL, \"position_discarded\" INTEGER NOT NULL, \"missing_heart_rate_share\" REAL NOT NULL, \"longest_heart_rate_gap_s\" REAL NOT NULL, \"meets_heart_rate_gap_rule\" INTEGER NOT NULL CHECK (meets_heart_rate_gap_rule IN (0, 1)), \"settling_overlap_s\" REAL NOT NULL, \"settling_share\" REAL NOT NULL);"
+          "sql": "CREATE TABLE IF NOT EXISTS \"rated_sections\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"start_us\" INTEGER NOT NULL, \"end_us\" INTEGER NOT NULL, \"method\" TEXT NOT NULL, \"method_version\" INTEGER NOT NULL, \"parameter_version\" INTEGER NOT NULL, \"assessed_at_us\" INTEGER NOT NULL, \"heart_rate_present\" INTEGER NOT NULL, \"heart_rate_estimated\" INTEGER NOT NULL, \"heart_rate_unavailable\" INTEGER NOT NULL, \"heart_rate_discarded\" INTEGER NOT NULL, \"position_present\" INTEGER NOT NULL, \"position_estimated\" INTEGER NOT NULL, \"position_unavailable\" INTEGER NOT NULL, \"position_discarded\" INTEGER NOT NULL, \"missing_heart_rate_share\" REAL NOT NULL, \"longest_heart_rate_gap_s\" REAL NOT NULL, \"meets_heart_rate_gap_rule\" INTEGER NOT NULL CHECK (meets_heart_rate_gap_rule IN (0, 1)), \"settling_overlap_s\" REAL NOT NULL, \"settling_share\" REAL NOT NULL, \"gps_gaps\" TEXT NOT NULL CHECK (json_valid(gps_gaps)));"
         }
       ]
     },

@@ -8,7 +8,7 @@ final derivedContractCases = <StorageContractCase>[
     _preprocessing,
   ),
   const StorageContractCase(
-    'Abschnitte: ersetzen, GPS-Lücken nicht gespeichert',
+    'Abschnitte: ersetzen, GPS-Lücken mit Ende und open',
     _sections,
   ),
 ];
@@ -72,7 +72,7 @@ String _section(RatedSection x) {
   final q = x.quality;
   return '${us(x.assessedAt)}|${q.method}|${q.methodVersion}|${q.parameterVersion}|${us(q.from)}|${us(q.to)}'
       '|hr=${MeasurementState.values.map((m) => q.heartRateCounts[m])}|pos=${MeasurementState.values.map((m) => q.positionCounts[m])}'
-      '|${q.missingHeartRateShare}|${q.longestHeartRateGap.inMicroseconds}|${q.meetsHeartRateGapRule}|${q.settlingOverlap.inMicroseconds}|${q.settlingShare}|gaps=${q.gpsGaps.length}';
+      '|${q.missingHeartRateShare}|${q.longestHeartRateGap.inMicroseconds}|${q.meetsHeartRateGapRule}|${q.settlingOverlap.inMicroseconds}|${q.settlingShare}|gaps=${q.gpsGaps.map((g) => '${us(g.start)}-${us(g.end)}-${g.open}')}';
 }
 
 Future<void> _sections(StorageContractHarness h) async {
@@ -83,8 +83,8 @@ Future<void> _sections(StorageContractHarness h) async {
   expectEq(read.length, 2, 'zwei Abschnitte');
   expectEq(
     _section(read.first),
-    _section(sampleSection(0)).replaceFirst('gaps=1', 'gaps=0'),
-    'Inhalt, nach Beginn sortiert, GPS-Lücken leer',
+    _section(sampleSection(0)),
+    'Inhalt, nach Beginn sortiert, GPS-Lücken mit Ende',
   );
   await s.sections.replace(r, [sampleSection(120)]);
   expectEq((await s.sections.read(r)).map((x) => us(x.quality.from)), [

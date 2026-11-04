@@ -84,9 +84,8 @@ abstract interface class PreprocessingStore {
   Future<StoredPreprocessing?> read(int runId);
 }
 
-/// Bewerteter Abschnitt (FR-0048). Von-bis steht in [quality]. Nicht
-/// gespeichert und beim Lesen leer ist [SectionQuality.gpsGaps]; die Lücken
-/// stehen in den Spans der Vorverarbeitung.
+/// Bewerteter Abschnitt (FR-0048). Von-bis steht in [quality]; auch die
+/// GPS-Lücken ([SectionQuality.gpsGaps], mit Ende und `open`) werden gespeichert.
 class RatedSection {
   const RatedSection({required this.assessedAt, required this.quality});
 

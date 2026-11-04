@@ -1135,6 +1135,14 @@ class RatedSections extends Table with TableInfo {
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL',
   );
+  late final GeneratedColumn<String> gpsGaps = GeneratedColumn<String>(
+    'gps_gaps',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (json_valid(gps_gaps))',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1158,6 +1166,7 @@ class RatedSections extends Table with TableInfo {
     meetsHeartRateGapRule,
     settlingOverlapS,
     settlingShare,
+    gpsGaps,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;

@@ -205,7 +205,9 @@ CREATE TABLE rated_sections (
   longest_heart_rate_gap_s REAL NOT NULL,
   meets_heart_rate_gap_rule BOOLEAN NOT NULL CHECK (meets_heart_rate_gap_rule IN (0, 1)),
   settling_overlap_s REAL NOT NULL,
-  settling_share REAL NOT NULL
+  settling_share REAL NOT NULL,
+  -- JSON-Liste der GPS-Lücken [[start_us, end_us, offen 0/1], ...] (FR-0048).
+  gps_gaps TEXT NOT NULL CHECK (json_valid(gps_gaps))
 );
 CREATE INDEX rated_sections_run_time ON rated_sections (run_id, start_us);
 
