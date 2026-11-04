@@ -68,7 +68,7 @@
   "@notOpenableKeyMalformed": {
     "description": "Grund: Schlüssel unbrauchbar"
   },
-  "notOpenableKeyStoreError": "Die Schlüsselablage des Geräts antwortet nicht richtig. Die gespeicherten Daten wurden nicht verändert. Oft hilft ein erneuter Versuch, etwa nach dem Entsperren des Geräts.",
+  "notOpenableKeyStoreError": "Die Schlüsselablage des Geräts antwortet nicht richtig. Die gespeicherten Daten wurden nicht verändert. Oft hilft ein erneuter Versuch, etwa nach dem Entsperren des Geräts. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
   "@notOpenableKeyStoreError": {
     "description": "Grund: Fehler der Schlüsselablage"
   },
@@ -76,19 +76,19 @@
   "@notOpenableUnreadable": {
     "description": "Grund: Datei unlesbar oder falscher Schlüssel"
   },
-  "notOpenableFileCheckError": "Der Zustand der gespeicherten Daten konnte nicht geprüft werden. Es wurde nichts verändert. Bitte erneut versuchen.",
+  "notOpenableFileCheckError": "Der Zustand der gespeicherten Daten konnte nicht geprüft werden. Es wurde nichts verändert. Bitte erneut versuchen. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
   "@notOpenableFileCheckError": {
     "description": "Grund: Prüfung der Datei selbst gescheitert (kein Neubeginn)"
   },
-  "notOpenableNewerVersion": "Die gespeicherten Daten stammen von einer neueren Version der App und lassen sich mit dieser Version nicht öffnen. Die Daten sind in Ordnung und wurden nicht verändert. Bitte die neuere Version der App wieder installieren. Neu beginnen ist hier nicht vorgesehen.",
+  "notOpenableNewerVersion": "Die gespeicherten Daten stammen von einer neueren Version der App und lassen sich mit dieser Version nicht öffnen. Die Daten sind vermutlich in Ordnung und wurden nicht verändert. Am besten die neuere Version der App wieder installieren. Erst wenn auch ein erneuter Versuch scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
   "@notOpenableNewerVersion": {
     "description": "Grund: Datei mit höherer Schemaversion (Herabstufen), kein Neubeginn"
   },
-  "notOpenableConfigurationFailed": "Die Datenbank ließ sich auf diesem Gerät nicht sicher einrichten. Die Daten sind in Ordnung und wurden nicht verändert. Bitte erneut versuchen. Neu beginnen ist hier nicht vorgesehen.",
+  "notOpenableConfigurationFailed": "Die Datenbank ließ sich auf diesem Gerät nicht sicher einrichten. Die Daten wurden nicht verändert. Bitte erneut versuchen, etwa nach einem App-Update. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
   "@notOpenableConfigurationFailed": {
     "description": "Grund: PRAGMA-Einrichtung der Verbindung weicht ab (Umgebung), kein Neubeginn"
   },
-  "notOpenableMigrationFailed": "Die gespeicherten Daten konnten nicht auf die Form dieser App-Version umgestellt werden. Die Daten sind in Ordnung und wurden nicht verändert. Bitte erneut versuchen oder die App aktualisieren. Neu beginnen ist hier nicht vorgesehen.",
+  "notOpenableMigrationFailed": "Die gespeicherten Daten konnten nicht auf die Form dieser App-Version umgestellt werden. Die Daten wurden nicht verändert. Bitte erneut versuchen oder zuerst die App aktualisieren. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
   "@notOpenableMigrationFailed": {
     "description": "Grund: Migration gescheitert (Fehler der App), kein Neubeginn"
   },

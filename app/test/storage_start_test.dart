@@ -140,29 +140,24 @@ void main() {
       },
     );
 
-    test(
-      'Fehler der Dateiprüfung: eigener Zustand, nur Erneut versuchen',
-      () async {
-        final w = World();
-        await w.seed(fileKey: k0, storedKey: k0);
-        w.files.failExist = true;
-        final c = w.controller();
-        await c.start();
-        var s = c.state as StorageNotOpenableState;
-        expect(s.cause, StorageNotOpenableCause.fileCheckError);
-        expect(s.canReset, isFalse);
-        await c.start();
-        s = c.state as StorageNotOpenableState;
-        expect(s.cause, StorageNotOpenableCause.fileCheckError);
-        expect(s.canReset, isFalse, reason: 'auch nach wiederholtem Fehler');
-        await c.resetStorage();
-        expect(w.files.deleteCalls, 0);
-        expect(w.log, isEmpty);
-      },
-    );
+    test('Fehler der Dateiprüfung: eigener Zustand, Neubeginn erst nach Fehlversuch', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.files.failExist = true;
+      final c = w.controller();
+      await c.start();
+      var s = c.state as StorageNotOpenableState;
+      expect(s.cause, StorageNotOpenableCause.fileCheckError);
+      expect(s.canReset, isFalse);
+      await c.start();
+      s = c.state as StorageNotOpenableState;
+      expect(s.cause, StorageNotOpenableCause.fileCheckError);
+      expect(s.canReset, isTrue, reason: 'nach gescheitertem Versuch');
+      expect(w.files.deleteCalls, 0, reason: 'bis zur Bestätigung unberührt');
+    });
   });
 
-  group('Neuere Version und Migrationsfehler (S9)', () {
+  group('Neuere Version, Migration, Einrichtung (S9)', () {
     for (final (failure, cause) in [
       (StorageFailure.newerVersion, StorageNotOpenableCause.newerVersion),
       (StorageFailure.migrationFailed, StorageNotOpenableCause.migrationFailed),
@@ -172,7 +167,7 @@ void main() {
       ),
     ]) {
       test(
-        '$failure: eigener Zustand, kein Neubeginn, Datei unberührt',
+        '$failure: eigener Zustand, Neubeginn erst nach Fehlversuch, Datei unberührt',
         () async {
           final w = World();
           await w.seed(fileKey: k0, storedKey: k0);
@@ -184,6 +179,8 @@ void main() {
           expect(s.canReset, isFalse);
           await c.resetStorage();
           expect(identical(c.state, s), isTrue);
+          await c.start(); // Erneut versuchen scheitert wieder
+          expect((c.state as StorageNotOpenableState).canReset, isTrue);
           expect(w.files.deleteCalls, 0);
           expect(w.files.present, isTrue);
           expect(w.log, isEmpty);
@@ -194,6 +191,78 @@ void main() {
         },
       );
     }
+  });
+
+  group('zentrale Regel canResetFor (OQ-0062)', () {
+    // (Fehlerart, Neubeginn sofort, Neubeginn nach Fehlversuch)
+    const table = <(StorageNotOpenableCause, bool, bool)>[
+      (StorageNotOpenableCause.keyMissing, true, true),
+      (StorageNotOpenableCause.keyMalformed, true, true),
+      (StorageNotOpenableCause.unreadable, true, true),
+      (StorageNotOpenableCause.keyStoreError, false, true),
+      (StorageNotOpenableCause.newerVersion, false, true),
+      (StorageNotOpenableCause.migrationFailed, false, true),
+      (StorageNotOpenableCause.configurationFailed, false, true),
+      (StorageNotOpenableCause.fileCheckError, false, true),
+      (StorageNotOpenableCause.locationError, false, false),
+    ];
+
+    test('Tabelle deckt alle Fehlerarten ab', () {
+      expect(
+        table.map((r) => r.$1).toSet(),
+        StorageNotOpenableCause.values.toSet(),
+      );
+    });
+
+    for (final (cause, first, afterRetry) in table) {
+      test('$cause: sofort $first, nach Fehlversuch $afterRetry', () {
+        expect(canResetFor(cause, retryFailed: false), first);
+        expect(canResetFor(cause, retryFailed: true), afterRetry);
+        expect(StorageNotOpenableState(cause).canReset, first);
+        expect(
+          StorageNotOpenableState(cause, retryFailed: true).canReset,
+          afterRetry,
+        );
+      });
+    }
+
+    test('Verschlüsselung nicht aktiv: nie Neubeginn', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.inner.encryptionActive = false;
+      final c = w.controller();
+      await c.start();
+      await c.start();
+      expect(c.state, isA<StorageEncryptionInactive>());
+      await c.resetStorage();
+      expect(w.files.deleteCalls, 0);
+    });
+
+    test('Zähler zählt nur gleiche Fehlerart in Folge', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      final c = w.controller();
+      w.inner.openFailure = StorageFailure.newerVersion;
+      await c.start();
+      w.inner.openFailure = StorageFailure.migrationFailed;
+      await c.start();
+      expect((c.state as StorageNotOpenableState).canReset, isFalse);
+      await c.start();
+      expect((c.state as StorageNotOpenableState).canReset, isTrue);
+    });
+
+    test('Neubeginn nach Fehlversuch löscht und öffnet leer', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.inner.openFailure = StorageFailure.newerVersion;
+      final c = w.controller();
+      await c.start();
+      await c.start();
+      w.inner.openFailure = null;
+      await c.resetStorage();
+      expect(w.files.deleteCalls, 1);
+      expect(c.state, isA<StorageReady>());
+    });
   });
 
   test('falscher Schlüssel und beschädigte Datei: nicht lesbar', () async {

@@ -204,22 +204,59 @@ void main() {
       'Zustand der gespeicherten Daten konnte nicht geprüft',
     ),
   ]) {
-    testWidgets('$name: eigener Text, nur Erneut versuchen, kein Neubeginn', (
-      tester,
-    ) async {
-      final w = World();
-      await w.seed(fileKey: k0, storedKey: k0);
-      prepare(w);
-      await pumpApp(tester, w.controller());
-      expect(find.textContaining(text), findsOneWidget);
-      expect(find.text('Erneut versuchen'), findsOneWidget);
-      expect(find.text('Neu beginnen'), findsNothing);
-      expect(find.byType(OutlinedButton), findsNothing);
-      expect(find.textContaining('löscht die bisherigen Daten'), findsNothing);
-      expect(w.files.deleteCalls, 0);
-      expect(w.log, isEmpty);
-    });
+    testWidgets(
+      '$name: Ursache im Text, Neubeginn erst nach Fehlversuch und nur mit Bestätigung',
+      (tester) async {
+        final w = World();
+        await w.seed(fileKey: k0, storedKey: k0);
+        prepare(w);
+        await pumpApp(tester, w.controller());
+        expect(find.textContaining(text), findsOneWidget);
+        expect(
+          find.textContaining('löscht alle Daten endgültig'),
+          findsOneWidget,
+        );
+        expect(find.text('Neu beginnen'), findsNothing);
+        expect(find.byType(OutlinedButton), findsNothing);
+        await tester.tap(find.text('Erneut versuchen'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining(text), findsOneWidget);
+        expect(find.text('Neu beginnen'), findsOneWidget);
+        expect(
+          find.textContaining('löscht die bisherigen Daten'),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Neu beginnen'));
+        await tester.pumpAndSettle();
+        expect(find.text('Neu beginnen?'), findsOneWidget);
+        expect(find.textContaining('endgültig gelöscht'), findsOneWidget);
+        expect(w.files.deleteCalls, 0, reason: 'bis zur Bestätigung unberührt');
+        await tester.tap(find.text('Abbrechen'));
+        await tester.pumpAndSettle();
+        expect(w.files.deleteCalls, 0);
+        expect(w.files.present, isTrue);
+        expect(w.log, isEmpty);
+      },
+    );
   }
+
+  testWidgets('neuere Version: Bestätigung löscht und beginnt neu', (
+    tester,
+  ) async {
+    final w = World();
+    await w.seed(fileKey: k0, storedKey: k0);
+    w.inner.openFailure = StorageFailure.newerVersion;
+    await pumpApp(tester, w.controller());
+    await tester.tap(find.text('Erneut versuchen'));
+    await tester.pumpAndSettle();
+    w.inner.openFailure = null;
+    await tester.tap(find.text('Neu beginnen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Endgültig löschen und neu beginnen'));
+    await tester.pumpAndSettle();
+    expect(w.files.deleteCalls, 1);
+    expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+  });
 
   testWidgets('Verschlüsselung nicht aktiv: eigene Meldung, kein Neubeginn', (
     tester,

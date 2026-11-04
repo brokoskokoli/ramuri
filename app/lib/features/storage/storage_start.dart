@@ -23,27 +23,46 @@ enum StorageNotOpenableCause {
   /// Falscher Schlüssel oder beschädigte Datei.
   unreadable,
 
-  /// Die Datei hat eine neuere Schemaversion als diese App (Herabstufen). Die
-  /// Datei ist gesund: nur "Erneut versuchen", kein Neubeginn.
+  /// Die Datei hat eine neuere Schemaversion als diese App (Herabstufen).
   newerVersion,
 
-  /// Die Migration auf die Version dieser App ist gescheitert (Fehler der App
-  /// bei gesunder Datei): nur "Erneut versuchen", kein Neubeginn.
+  /// Die Migration auf die Version dieser App ist gescheitert.
   migrationFailed,
 
   /// Die Einrichtung der Verbindung (PRAGMAs wie WAL) hat nicht den verlangten
-  /// Wert geliefert: Fehler der Umgebung bei gesunder Datei, nur "Erneut
-  /// versuchen".
+  /// Wert geliefert.
   configurationFailed,
 
   /// Die Prüfung, ob Dateien da sind, ist selbst gescheitert. Das sagt nichts
-  /// über den Schlüsselspeicher oder die Datei: nur "Erneut versuchen".
+  /// über den Schlüsselspeicher oder die Datei.
   fileCheckError,
 
   /// Der Speicherort der Datei ließ sich nicht bestimmen. Es gibt nichts zu
-  /// löschen; angeboten wird nur "Erneut versuchen".
+  /// löschen, also nie Neubeginn.
   locationError,
 }
+
+/// Die zentrale Regel für den Neubeginn (OQ-0062, Entscheidung des
+/// Maintainers): Neubeginn nur, wo es eine Datei zum Ersetzen gibt.
+/// - Schlüssel fehlt oder unbrauchbar, Datei unlesbar: sofort.
+/// - Alle anderen Fälle, in denen sich die Datei nicht öffnen lässt: erst nach
+///   einem gescheiterten "Erneut versuchen" ([retryFailed], gezählt wie bei
+///   der Schlüsselablage; nach einem App-Neustart wieder 0). Der Neubeginn
+///   braucht stets die ausdrückliche Bestätigung mit Hinweis auf den
+///   Datenverlust, bis dahin bleiben die Dateien unberührt.
+/// - Speicherort unbekannt: nie (nichts zu löschen).
+bool canResetFor(StorageNotOpenableCause cause, {required bool retryFailed}) =>
+    switch (cause) {
+      StorageNotOpenableCause.keyMissing ||
+      StorageNotOpenableCause.keyMalformed ||
+      StorageNotOpenableCause.unreadable => true,
+      StorageNotOpenableCause.keyStoreError ||
+      StorageNotOpenableCause.newerVersion ||
+      StorageNotOpenableCause.migrationFailed ||
+      StorageNotOpenableCause.configurationFailed ||
+      StorageNotOpenableCause.fileCheckError => retryFailed,
+      StorageNotOpenableCause.locationError => false,
+    };
 
 /// Was beim Neubeginn schiefging (die Oberfläche zeigt es an).
 enum StorageResetProblem {
@@ -87,26 +106,13 @@ final class StorageNotOpenableState extends StorageStartState {
   /// Ein Neubeginn läuft.
   final bool busy;
 
-  /// Bei [StorageNotOpenableCause.keyStoreError]: "Erneut versuchen" ist
-  /// schon einmal gescheitert. Ein vorübergehender Fehler der Schlüsselablage
-  /// (etwa gesperrtes Gerät) darf nicht sofort zum Neubeginn führen.
+  /// "Erneut versuchen" ist mit derselben Fehlerart schon einmal gescheitert.
+  /// Ein vorübergehender Fehler (etwa gesperrtes Gerät) darf nicht sofort zum
+  /// Neubeginn führen.
   final bool retryFailed;
 
-  /// Neubeginn wird nur angeboten, wo es eine Datei zum Ersetzen gibt und die
-  /// Datei als Ursache gilt oder der Schlüssel dauerhaft unbrauchbar scheint.
-  /// Nie bei gesunder Datei (neuere Version, Migration) und nie, wenn die
-  /// Dateiprüfung selbst scheiterte.
-  bool get canReset => switch (cause) {
-    StorageNotOpenableCause.keyMissing ||
-    StorageNotOpenableCause.keyMalformed ||
-    StorageNotOpenableCause.unreadable => true,
-    StorageNotOpenableCause.keyStoreError => retryFailed,
-    StorageNotOpenableCause.newerVersion ||
-    StorageNotOpenableCause.migrationFailed ||
-    StorageNotOpenableCause.configurationFailed ||
-    StorageNotOpenableCause.fileCheckError ||
-    StorageNotOpenableCause.locationError => false,
-  };
+  /// Siehe [canResetFor].
+  bool get canReset => canResetFor(cause, retryFailed: retryFailed);
 
   StorageNotOpenableState _with({
     StorageResetProblem? resetProblem,
@@ -143,8 +149,9 @@ class StorageStartController extends ChangeNotifier {
 
   bool _running = false;
 
-  /// Der vorige Ladevorgang endete mit einem Fehler der Schlüsselablage.
-  bool _keyStoreFailed = false;
+  /// Fehlerart des vorigen Ladevorgangs (null: er war erfolgreich oder es gab
+  /// ihn nicht). Gleiche Art zweimal hintereinander ergibt `retryFailed`.
+  StorageNotOpenableCause? _lastCause;
 
   void _set(StorageStartState s) {
     _state = s;
@@ -166,15 +173,18 @@ class StorageStartController extends ChangeNotifier {
   }
 
   Future<void> _load() async {
-    final keyStoreFailedBefore = _keyStoreFailed;
-    _keyStoreFailed = false;
+    final before = _lastCause;
+    _lastCause = null;
+    void fail(StorageNotOpenableCause cause) {
+      _lastCause = cause;
+      _set(StorageNotOpenableState(cause, retryFailed: cause == before));
+    }
+
     final StorageWiring wiring;
     try {
       wiring = await wire();
     } catch (_) {
-      _set(
-        const StorageNotOpenableState(StorageNotOpenableCause.locationError),
-      );
+      fail(StorageNotOpenableCause.locationError);
       return;
     }
     final StorageStart decision;
@@ -196,31 +206,21 @@ class StorageStartController extends ChangeNotifier {
       // Nichts wurde angelegt oder gelöscht, und es wird nie still neu angelegt.
       if (fileCheckFailed) {
         // Der Fehler gehört nicht dem Schlüsselspeicher.
-        _set(
-          const StorageNotOpenableState(StorageNotOpenableCause.fileCheckError),
-        );
+        fail(StorageNotOpenableCause.fileCheckError);
       } else {
-        _keyStoreFailed = true;
-        _set(
-          StorageNotOpenableState(
-            StorageNotOpenableCause.keyStoreError,
-            retryFailed: keyStoreFailedBefore,
-          ),
-        );
+        fail(StorageNotOpenableCause.keyStoreError);
       }
       return;
     }
     final Uint8List key;
     switch (decision) {
       case StorageNotOpenable(:final reason):
-        _set(
-          StorageNotOpenableState(switch (reason) {
-            StorageNotOpenableReason.keyMissing =>
-              StorageNotOpenableCause.keyMissing,
-            StorageNotOpenableReason.keyMalformed =>
-              StorageNotOpenableCause.keyMalformed,
-          }),
-        );
+        fail(switch (reason) {
+          StorageNotOpenableReason.keyMissing =>
+            StorageNotOpenableCause.keyMissing,
+          StorageNotOpenableReason.keyMalformed =>
+            StorageNotOpenableCause.keyMalformed,
+        });
         return;
       case OpenExistingStorage(key: final k) || CreateNewStorage(key: final k):
         key = k;
@@ -228,21 +228,20 @@ class StorageStartController extends ChangeNotifier {
     try {
       _set(StorageReady(await wiring.storage.open(key)));
     } on StorageException catch (e) {
-      _set(switch (e.failure) {
-        StorageFailure.encryptionNotActive => const StorageEncryptionInactive(),
-        StorageFailure.newerVersion => const StorageNotOpenableState(
-          StorageNotOpenableCause.newerVersion,
-        ),
-        StorageFailure.migrationFailed => const StorageNotOpenableState(
-          StorageNotOpenableCause.migrationFailed,
-        ),
-        StorageFailure.configurationFailed => const StorageNotOpenableState(
-          StorageNotOpenableCause.configurationFailed,
-        ),
-        _ => const StorageNotOpenableState(StorageNotOpenableCause.unreadable),
-      });
+      switch (e.failure) {
+        case StorageFailure.encryptionNotActive:
+          _set(const StorageEncryptionInactive());
+        case StorageFailure.newerVersion:
+          fail(StorageNotOpenableCause.newerVersion);
+        case StorageFailure.migrationFailed:
+          fail(StorageNotOpenableCause.migrationFailed);
+        case StorageFailure.configurationFailed:
+          fail(StorageNotOpenableCause.configurationFailed);
+        default:
+          fail(StorageNotOpenableCause.unreadable);
+      }
     } catch (_) {
-      _set(const StorageNotOpenableState(StorageNotOpenableCause.unreadable));
+      fail(StorageNotOpenableCause.unreadable);
     }
   }
 
@@ -280,6 +279,7 @@ class StorageStartController extends ChangeNotifier {
         _set(current._with(resetProblem: StorageResetProblem.keyNotReplaced));
         return;
       }
+      _lastCause = null;
       _set(const StorageLoading());
       await _load();
     } finally {
