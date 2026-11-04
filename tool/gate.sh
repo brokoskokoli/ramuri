@@ -28,16 +28,19 @@ app_changed() {
   return 1
 }
 
+# Verzeichnisse, die Format und Analyse prüfen (im Paketverzeichnis aufrufen): lib, test und, falls vorhanden, integration_test.
+pkg_dirs() { dirs="lib test"; [ -d integration_test ] && dirs="$dirs integration_test"; return 0; }
 pkg_format() {
   ( cd "$1" || exit 1
     [ -d lib ] || { echo "lib/ fehlt in $1"; exit 1; }
     [ -d test ] || { echo "test/ fehlt in $1"; exit 1; }
-    dirs="lib test"; [ -d integration_test ] && dirs="$dirs integration_test"
+    pkg_dirs
     dart format --output=none --set-exit-if-changed $dirs )
 }
 pkg_analyze() {
   ( cd "$1" || exit 1
-    if is_flutter .; then flutter analyze lib test; else dart analyze --fatal-infos; fi )
+    pkg_dirs
+    if is_flutter .; then flutter analyze $dirs; else dart analyze --fatal-infos; fi )
 }
 pkg_test() {
   ( cd "$1" || exit 1
@@ -78,7 +81,7 @@ PY
 
 # core bleibt frei von Flutter. Der Pub-Workspace teilt eine package_config, ein Flutter-Import löst sich dort
 # sonst still auf. Darum: (1) Abhängigkeits-Walk, (2) core wird in ein Temp-Verzeichnis außerhalb des Workspace
-# kopiert, dort aufgelöst (nur eigene Abhängigkeiten) und mit allen Bibliotheken aus lib/ und test/ kompiliert.
+# kopiert, dort aufgelöst (nur eigene Abhängigkeiten) und mit allen Bibliotheken (alle .dart-Dateien außer .dart_tool und build) kompiliert.
 # Ein Import von flutter, dart:ui, sky_engine oder adapters scheitert dort an der Auflösung, unabhängig von Lints.
 core_flutterfrei() {
   core=app/packages/core
@@ -107,22 +110,28 @@ if bad:
 PY
   rm -f "$deps"
   tmp=$(mktemp -d) || return 1
+  root=$(pwd)
   ( # kein set -e: es wäre wegen des || unten wirkungslos, darum prüft jeder Befehl selbst
-    tar -C app/packages --exclude .dart_tool --exclude build -cf - core | tar -C "$tmp" -xf - || exit 1
+    tar -C app/packages --exclude core/.dart_tool --exclude core/build -cf - core | tar -C "$tmp" -xf - || exit 1
     cd "$tmp/core" || exit 1
     grep -Eq '^resolution:[[:space:]]*workspace[[:space:]]*$' pubspec.yaml || { echo "core/pubspec.yaml: 'resolution: workspace' fehlt"; exit 1; }
     grep -Ev '^resolution:[[:space:]]*workspace[[:space:]]*$' pubspec.yaml > pubspec.tmp && mv pubspec.tmp pubspec.yaml || exit 1
+    cp "$root/app/pubspec.lock" pubspec.lock || exit 1   # dieselben Versionen wie im Workspace-Lock, nicht die des lokalen Caches
     dart pub get --offline || exit 1
     python3 - <<'PY'
 import os, re
 def strip(t): return re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", t, flags=re.S))
 files = {}
-for root in ("lib", "test"):
-    for d, _, fs in os.walk(root):
-        for f in sorted(fs):
-            if f.endswith(".dart"):
-                path = os.path.join(d, f).replace(os.sep, "/")
-                files[path] = strip(open(path, encoding="utf-8").read())
+for d, dn, fs in os.walk("."):
+    if d == ".": dn[:] = [x for x in dn if x not in (".dart_tool", "build")]
+    for f in sorted(fs):
+        if f.endswith(".dart") and not (d == "." and f == "gate_entry.dart"):
+            path = os.path.relpath(os.path.join(d, f)).replace(os.sep, "/")
+            files[path] = strip(open(path, encoding="utf-8").read())
+# Bedingte Importe/Exporte (dart.library.*) sind in core verboten: Analyzer und Kompilat prüfen den Zweig nicht,
+# im App-Build wäre er aktiv. Kommentare sind vorher entfernt.
+cond = [p for p, t in sorted(files.items()) if re.search(r"^\s*(?:import|export)\b[^;]*\bif\s*\(\s*dart\.library\.", t, re.M)]
+if cond: raise SystemExit("bedingter Import/Export (if (dart.library.…)) in core verboten: " + ", ".join(cond))
 # Eine Datei mit "part of" wird nur ausgelassen, wenn eine andere Datei sie per "part" einbindet.
 # Sonst zählt sie als Bibliothek und scheitert beim Kompilieren (fail-closed).
 included = set()
@@ -131,8 +140,8 @@ for path, text in files.items():
         included.add(os.path.normpath(os.path.join(os.path.dirname(path), m.group(1))).replace(os.sep, "/"))
 imports, n = [], 0
 for path, text in sorted(files.items()):
-    if re.search(r"^\s*part\s+of\b", text, re.M) and path in included: continue
-    uri = "package:core/" + path[4:] if path.startswith("lib/") else path
+    if re.match(r"\s*part\s+of\b", text) and path in included: continue   # "part of" muss die erste Direktive sein
+    uri = "package:core/" + path[4:] if path.startswith("lib/") else path   # übrige Pfade (bin/, test/, ...) relativ zu gate_entry.dart
     imports.append("import '%s' as l%d;" % (uri, n)); n += 1
 if n == 0: raise SystemExit("keine Dart-Dateien in core gefunden")
 open("gate_entry.dart", "w").write("\n".join(imports) + "\nvoid main() {}\n")

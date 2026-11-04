@@ -30,7 +30,7 @@ Gate (Spec-Prüfung, private Daten, Flutter-Version, Lockfile, `core` flutterfre
 
 ```sh
 sh tool/gate.sh            # alles
-sh tool/gate.sh --changed  # Flutter nur auslassen, wenn app/ gegenüber main unverändert ist
+sh tool/gate.sh --changed  # Flutter nur auslassen, wenn app/ und tool/gate.sh gegenüber main unverändert sind
 ```
 
 Weitere Befehle ergänzt du erst, wenn sie funktionieren.
