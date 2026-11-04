@@ -46,6 +46,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   # Nur für Tests der echten Dateien (Isolate-Log, Klartextdatei); Versionen
   # wie in adapters (ADR-0003).
   drift: 2.35.3
