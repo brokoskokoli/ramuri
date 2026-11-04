@@ -50,7 +50,7 @@ Einen eigenen Server und ein Konto gibt es nicht (ADR-0001).
 
 ## Benötigte Architekturentscheidungen
 
-Bisher entschieden: [ADR-0001](adr/ADR-0001-nur-lokale-datenhaltung.md). Am 2026-11-04 hat der Maintainer ADR-0002 bis ADR-0007 freigegeben; der Schutz des Archivs (SEC-0011) folgt als ADR-0008. Weiterer Bedarf besteht mindestens für:
+Bisher entschieden: [ADR-0001](adr/ADR-0001-nur-lokale-datenhaltung.md). Am 2026-11-04 hat der Maintainer ADR-0002 bis ADR-0007 freigegeben; der Schutz des Archivs (SEC-0011) liegt als ADR-0008 mit Status `Proposed` vor. Weiterer Bedarf besteht mindestens für:
 
 | Entscheidung | Abhängig von | Entwurf (Status `Proposed`) |
 |---|---|---|
@@ -60,5 +60,6 @@ Bisher entschieden: [ADR-0001](adr/ADR-0001-nur-lokale-datenhaltung.md). Am 2026
 | Aufzeichnung im Hintergrund und Wiederanlauf | FR-0034, OQ-0021 | [ADR-0005](adr/ADR-0005-aufzeichnung-hintergrund-wiederanlauf.md) |
 | Anbindung von Bluetooth-Sensoren | FR-0008, OQ-0018 | [ADR-0006](adr/ADR-0006-bluetooth-sensoren.md) |
 | Anbindung von Health Connect | FR-0200, OQ-0047 | [ADR-0007](adr/ADR-0007-health-connect.md) |
+| Verschlüsselung des passwortgeschützten Archivs | SEC-0011, FR-0192, FR-0198 | [ADR-0008](adr/ADR-0008-verschluesselung-des-archivs.md) |
 
 Eine Datei `deployment.md` entfällt, weil es nach ADR-0001 keinen Serverbetrieb gibt.
