@@ -98,19 +98,20 @@ void main() {
     test('nur mit zwei vollständigen Fenstern: erst ab 4 min', () {
       // Sprung nach 100 s. Früher wäre das frühere Fenster noch unvollständig.
       final r = feed(track([(100, 2), (200, 4)])).result(at: at(300));
-      expect(spans(r), [(t0, min(3)), (min(4), at(300 + 180))]);
+      // Einmaliges Auslösen bei 240 s (erste Auswertung, vorher darunter):
+      // recent 4, before (2*100+4*20)/120 = 2,67. Die Abweichung bleibt
+      // darüber, die Flanke löst nicht erneut aus: [240, 420].
+      expect(spans(r), [(t0, min(3)), (min(4), at(240 + 180))]);
     });
 
-    test('jedes Auslösen verlängert: Zeiträume verschmelzen', () {
-      // Anhaltend steigendes Tempo löst mehrfach aus.
+    test('stetig steigendes Tempo löst nur an der Flanke aus', () {
+      // 600 s mit 3, danach je 60 s mit 3,5 / 4 / 4,5 / 5 m/s. Mittel
+      // (t-2min,t] = 3 + 0,5 x/120 mit x s nach 600; Abweichung >= 0,25 erst
+      // bei x = 60 (t=660). Danach wächst sie weiter, bleibt darüber: ein
+      // Auslösen, [660, 840].
       final r = feed(track([(600, 3), (60, 3.5), (60, 4), (60, 4.5), (60, 5)]))
           .result(at: at(840));
-      final tail = spans(r).skip(1).toList();
-      expect(tail, hasLength(1));
-      expect(
-        tail.single.$2.difference(tail.single.$1),
-        greaterThan(const Duration(minutes: 3)),
-      );
+      expect(spans(r), [(t0, min(3)), (at(660), at(840))]);
     });
 
     test('Pulswerte werden nicht verschoben', () {

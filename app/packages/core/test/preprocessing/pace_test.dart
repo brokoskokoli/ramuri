@@ -119,5 +119,21 @@ void main() {
       final r = feed(p).result(at: at(21)).pace;
       expect(r.medianSpeed, closeTo(4, 1e-6));
     });
+
+    test('in der erkannten Pause zeigt die Live-Anzeige Stillstand', () {
+      // 3 m/s bis 600, Stillstand ab 600, erkannte Pause bei 610. Bei 612
+      // liegt das Fenster [592,612] bei 8 s * 3 m/s + 12 s * 0 = 24 m / 20 s
+      // = 1,2 m/s, also über 0,5: ohne den Zustand ein Wert. Bei 609
+      // (Zustand noch moving) liegt [589,609] bei 11 s * 3 / 20 s = 1,65.
+      final r = feed(track([(600, 3), (12, 0)]));
+      expect(
+        r.result(at: at(612)).movement.autoPauseState,
+        AutoPauseState.standstillPause,
+      );
+      expect(r.result(at: at(612)).pace.livePace, isA<PaceStandstill>());
+      final early = feed(track([(600, 3), (9, 0)])).result(at: at(609));
+      expect(early.movement.autoPauseState, AutoPauseState.moving);
+      expect(speedOf(early.pace.livePace), closeTo(1.65, 1e-6));
+    });
   });
 }

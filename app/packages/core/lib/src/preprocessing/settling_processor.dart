@@ -1,5 +1,6 @@
 import 'motion_segments.dart';
 import 'movement_time_processor.dart';
+import 'pace.dart';
 import 'preprocessing_parameters.dart';
 
 /// Kennung und Version der Einschwingzeit (ADR-0004 P.3).
@@ -31,9 +32,11 @@ class _Leg {
 
 /// Einschwingzeit der Herzfrequenz (PAR-011): [PreprocessingParameters
 /// .settlingDuration] ab Start, ab jedem Ende einer Pause (manuell wie
-/// erkannt) und ab jedem Zeitpunkt, an dem das Tempo-Mittel der letzten 2 min
-/// um mindestens 0,25 m/s vom vorherigen 2-min-Mittel abweicht. Jedes
-/// Auslösen verlängert die Zeit.
+/// erkannt) und ab der Flanke eines Tempowechsels: Das Tempo-Mittel der
+/// letzten 2 min weicht um mindestens 0,25 m/s vom vorherigen 2-min-Mittel ab,
+/// vorher lag die Abweichung darunter. Solange sie darüber bleibt, löst nichts
+/// erneut aus. Segmente unter der Stillstandsschwelle (PAR-014) gehen nicht
+/// ins Mittel ein.
 ///
 /// Schrittform: [add] je Segment; die Pausenenden kommen mit [result].
 class SettlingProcessor {
@@ -46,20 +49,28 @@ class SettlingProcessor {
   final List<_Leg> _legs = [];
   final List<DateTime> _triggers = [];
 
+  /// Abweichung der 2-min-Mittel beim letzten auswertbaren Segment über der
+  /// Schwelle. Nicht auswertbare Zeitpunkte lassen den Zustand unverändert.
+  bool _above = false;
+
   void add(MotionSegment s) {
     if (s.isGap) return;
+    final v = speedMetersPerSecond(s.meters, s.seconds);
+    if (v == null || v < parameters.standstillBelow) return;
     _legs.add(_Leg(s.start, s.end, s.meters));
     final now = s.end;
     final w = parameters.settlingPaceWindow;
     final recent = _mean(now.subtract(w), now);
     final before = _mean(now.subtract(w * 2), now.subtract(w));
-    // Beide Fenster müssen vollständig sein: Daten reichen bis zum Beginn des
-    // früheren Fensters zurück und jedes Fenster hat zählende Zeit.
+    // Vollständig heißt nur am Laufanfang: Die Daten reichen bis zum Beginn
+    // des früheren Fensters zurück. Danach genügt zählende Zeit in jedem
+    // Fenster; nach einer Lücke wird also auch gegen ein kurzes Fenster
+    // verglichen (mehr Ausschluss, nicht weniger).
     if (recent == null || before == null) return;
     if (_legs.first.start.isAfter(now.subtract(w * 2))) return;
-    if ((recent - before).abs() >= parameters.settlingPaceChange) {
-      _triggers.add(now);
-    }
+    final above = (recent - before).abs() >= parameters.settlingPaceChange;
+    if (above && !_above) _triggers.add(now);
+    _above = above;
   }
 
   /// Strecke / Zeit der Segmente mit Ende in `(from, to]`.

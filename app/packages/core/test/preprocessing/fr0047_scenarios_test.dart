@@ -110,8 +110,8 @@ void main() {
     // 3 m/s bis s=300 (900 m), danach 4,1 m/s (bis 360), Punkt 301 bei 904,1. Start: [0,180].
     // Tempowechsel: x s nach 300 ist Mittel(t-2min,t] = 3 + 1,1*x/120, das
     // frühere Fenster 3. Differenz 1,1*x/120 >= 0,25 erstmals bei x=28
-    // (27: 0,2475). Auslösen von s=328 bis 360, jedes verlängert: Ende
-    // 360+180 = 540. Intervalle: [0,180] und [328,540].
+    // (27: 0,2475). Die Abweichung bleibt danach darüber (Flanke, einmaliges
+    // Auslösen bei 328): Ende 328+180 = 508. Intervalle: [0,180], [328,508].
     final r = RunPreprocessor(start: t0);
     final pts = [...track(0, 300), ...track(301, 360, v: 4.1, base: 904.1)];
     beat(0, 360, 150).forEach(r.addHeartRate);
@@ -119,7 +119,7 @@ void main() {
     final iv = res.settling.intervals;
     expect(
       [for (final i in iv) (i.start, i.end)],
-      [(at(0), at(180)), (at(328), at(540))],
+      [(at(0), at(180)), (at(328), at(508))],
     );
     expect(res.heartRate.acceptedValues, hasLength(361));
     expect(res.heartRate.averageBpm, 150);

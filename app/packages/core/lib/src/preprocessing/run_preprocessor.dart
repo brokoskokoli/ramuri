@@ -116,7 +116,10 @@ class RunPreprocessor {
     return RunPreprocessing(
       parameters: parameters,
       position: _position.result(at: at),
-      pace: _pace.result(at: at),
+      pace: _pace.result(
+        at: at,
+        inAutoPause: movement.autoPauseState == AutoPauseState.standstillPause,
+      ),
       movement: movement,
       heartRate: _heartRate.result(at: at),
       settling: _settling.result(restarts: movement.resumedAt),

@@ -80,7 +80,9 @@ class PaceProcessor {
     return n.isOdd ? values[n ~/ 2] : (values[n ~/ 2 - 1] + values[n ~/ 2]) / 2;
   }
 
-  PaceResult result({required DateTime at}) {
+  /// [inAutoPause]: Zustand erkannte Pause; die Live-Anzeige ist dann
+  /// `PaceStandstill`, auch wenn das Fenstermittel noch darüber liegt.
+  PaceResult result({required DateTime at, bool inAutoPause = false}) {
     // Nur Segmente, die ganz im Fenster [at-20 s, at] liegen.
     final from = at.subtract(parameters.liveSmoothingWindow);
     var meters = 0.0;
@@ -100,7 +102,9 @@ class PaceProcessor {
     return PaceResult(
       parameterVersion: parameters.parameterVersion,
       liveSpeed: live,
-      livePace: paceDisplay(live, parameters),
+      livePace: inAutoPause
+          ? const PaceStandstill()
+          : paceDisplay(live, parameters),
       liveCountedTime: counted,
       medianSpeed: median,
       medianPace: paceDisplay(median, parameters),
