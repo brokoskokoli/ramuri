@@ -15,6 +15,7 @@ Wartet nicht auf R005: Den Bau von `universal_ble` mit Target 36 belegt dieses P
 6. **Test-Sensor:** Fake-Gerät nur im Debug-Build, um Oberfläche und Lauf im Emulator ohne Funk zu prüfen. Es darf nicht im Release-Build landen.
 
 ## Umsetzung
+- Aus WP03: `HeartRateReading` hat noch kein Kontaktbit, das PAR-008 braucht. Aus WP01: Die Form des Ereignisstroms ist in ADR-0006 nicht festgelegt.
 - **Teile für die Coder-Aufträge:** Teil A: Punkte 1 und 2 / Teil B: Punkte 3 und 6 / Teil C: Punkt 4 / Teil D: Punkt 5, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Lizenz der neuen Abhängigkeiten im Baum prüfen (GPL-3.0, ADR-0006). Baut das Plugin nicht mit den Versionen aus ADR-0002: Rückfallweg aus ADR-0006 und melden.
 - `connectedDevice` im Dienst und Sensorbetrieb bei gesperrtem Bildschirm gehören zu WP08.

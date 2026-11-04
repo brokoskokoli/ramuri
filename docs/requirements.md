@@ -60,7 +60,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0049 | Strecke aus plausiblen Positionsdistanzen | functional | Approved | 1 | [data-quality](specs/data-quality.md#fr-0049--strecke-aus-plausiblen-positionsdistanzen) | — |
 | FR-0050 | Geschwindigkeit und Pace | functional | Approved | 1 | [data-quality](specs/data-quality.md#fr-0050--geschwindigkeit-und-pace) | OQ-0037 |
 | FR-0051 | Geglättete Tempoanzeige | functional | Approved | 1 | [data-quality](specs/data-quality.md#fr-0051--geglättete-tempoanzeige) | OQ-0019 |
-| FR-0052 | Bewegungszeit und Gesamtzeit getrennt | functional | Approved | 1 | [data-quality](specs/data-quality.md#fr-0052--bewegungszeit-und-gesamtzeit-getrennt) | OQ-0068 |
+| FR-0052 | Bewegungszeit und Gesamtzeit getrennt | functional | Approved | 1 | [data-quality](specs/data-quality.md#fr-0052--bewegungszeit-und-gesamtzeit-getrennt) | OQ-0068, OQ-0069 |
 | FR-0053 | Metadaten jedes fortgeschrittenen Fitnesswerts | functional | Approved | 1* | [data-quality](specs/data-quality.md#fr-0053--metadaten-jedes-fortgeschrittenen-fitnesswerts) | CON-0005, CON-0009, NFR-0001, OQ-0019, OQ-0040, OQ-0059 |
 | FR-0054 | Qualitätsstufen sind keine Genauigkeitsangaben | functional | Approved | 1* | [data-quality](specs/data-quality.md#fr-0054--qualitätsstufen-sind-keine-genauigkeitsangaben) | NFR-0003 |
 | FR-0055 | Funktionen je Datenverfügbarkeitsstufe | functional | Approved | 1* | [data-quality](specs/data-quality.md#fr-0055--funktionen-je-datenverfügbarkeitsstufe) | CON-0004, CON-0007, OQ-0012, OQ-0034 |

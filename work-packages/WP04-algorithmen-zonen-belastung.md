@@ -19,6 +19,7 @@ Bezug: NFR-0001, NFR-0002, NFR-0005, FR-0053, FR-0060, FR-0062, FR-0063, FR-0091
 - Parallel: läuft mit WP05. WP04 berührt nur `app/packages/core/lib/src/fitness/`; WP05 berührt `app/lib/features/profile`, `app/lib/features/settings`, `core` nur unter `src/profile/` und `src/consent/`. Der Teil Zoneneditor in WP05 wartet auf den Merge von WP04.
 
 ## Abnahmekriterien
+- [ ] Parametersatz auf Version 3 gehoben (`PreprocessingParameters.v2` in `core`, K6); Code und `docs/model-parameters.md` melden dieselbe Version.
 - [ ] Referenzwerte aus `docs/quality/testing.md` für relative Auslastung und TRIMP als feste Tests je Variante.
 - [ ] FR-0060: Fehlt Ruhepuls oder HFmax, ist `r` nicht verfügbar und nicht 0; HFmax ≤ HFRuhe nach PAR-018, kleine Reserve nach PAR-019.
 - [ ] FR-0062: Testfälle der Spec einschließlich exakter Grenze und Werte oberhalb der obersten Zone mit Hinweis (OQ-0014). FR-0063: Zeit unter Zone 1 steht gesondert.

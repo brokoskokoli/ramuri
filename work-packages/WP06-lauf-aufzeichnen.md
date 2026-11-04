@@ -15,6 +15,7 @@ Wartet nicht auf R005: Dieses Paket zeichnet nur mit sichtbarer App auf. Hinterg
 6. **GPS-Verlust:** Zeit und Puls laufen weiter, Lücke markiert, Strecke nicht geschätzt (FR-0194, PAR-004).
 
 ## Umsetzung
+- Aus WP03: `LocationSample` hat noch keine Vertikalgenauigkeit, die PAR-013 braucht. Die erkannte Pause bleibt von `pause()` getrennt, sonst endet die Fortsetzungserkennung. Aus WP01: Der Uhr-Port kennt nur UTC ohne monotone Zeit (FR-0194).
 - **Teile für die Coder-Aufträge:** Teil A: Punkt 1 mit Uhr-Fake / Teil B: Punkte 2 und 3 / Teil C: Punkte 4 und 6 / Teil D: Punkt 5, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Schrittfrequenz und Herzfrequenz erscheinen als „nicht verfügbar“, solange keine Quelle liefert. Zone nach OQ-0012.
 - Nach dem Beenden: einfache Abschlussansicht und Speicherung; die Zusammenfassung baut WP10. Der Bezug „in der Historie vorhanden“ (FR-0028) wird hier am Speicherzugriff, in WP10 an der Oberfläche geprüft.

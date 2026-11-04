@@ -4,7 +4,7 @@ Einzige Stelle für den Stand der Meilensteine und Arbeitspakete. Gepflegt vom O
 
 Status: `geplant` · `in Arbeit` · `Review` · `wartet` (Grund in „Offen“) · `gemergt` (Commit) · `verworfen`
 
-Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 gemergt, WP03 und R005 laufen.
+Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP02 und R005 laufen.
 
 ## Meilensteine
 
@@ -20,8 +20,9 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | Paket | Titel | Status | Offen |
 | --- | --- | --- | --- |
 | WP01 | Projektgerüst und Gate | gemergt (be066c1) | Gate nur auf macOS gelaufen, Linux-CI ungeprüft; Rückfallsprache Englisch kommt mit WP05 |
-| WP03 | Vorverarbeitung und Bewegungswerte | in Arbeit | – |
-| WP02, WP04 bis WP07, WP09 bis WP12 | siehe [M1-PLAN.md](M1-PLAN.md) | geplant | Annahmen aus WP01 prüfen: WP02 Speicher-Port hat nur open/close; WP06 Uhr nur UTC ohne monotone Zeit (FR-0194), Schrittfrequenz in Schritten pro Minute; WP07 Form des Herzfrequenz-Ereignisstroms nicht in ADR-0006 festgelegt; `AppDependencies` ist noch leer |
+| WP02 | Verschlüsselte Speicherung und Löschen | in Arbeit | Speicher-Port hat bisher nur open/close |
+| WP03 | Vorverarbeitung und Bewegungswerte | gemergt (b29c386) | Nur synthetische Läufe, Gate nur auf macOS; OQ-0068, OQ-0069 offen; Parameterversion 3 im Code kommt mit WP04 |
+| WP04 bis WP07, WP09 bis WP12 | siehe [M1-PLAN.md](M1-PLAN.md) | geplant | Annahmen aus WP01 und WP03 in den Paketen vermerkt; WP06 Uhr nur UTC ohne monotone Zeit (FR-0194), Schrittfrequenz in Schritten pro Minute; WP07 Form des Herzfrequenz-Ereignisstroms nicht in ADR-0006 festgelegt; `AppDependencies` ist noch leer |
 | WP08 | Hintergrund und Wiederanlauf | wartet | R005 |
 
 ## Offen außerhalb der Pakete
