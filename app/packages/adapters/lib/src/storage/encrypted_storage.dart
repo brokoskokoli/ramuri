@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
+import 'package:drift/drift.dart' show QueryExecutor;
 import 'package:drift/native.dart';
 
 import 'app_database.dart';
@@ -25,6 +26,7 @@ class EncryptedStorage implements Storage {
     this.path, {
     this.libraryProbe = defaultLibraryCipherProbe,
     this.fileProbe = defaultFileEncryptedProbe,
+    this.databaseBuilder = AppDatabase.new,
   });
 
   final String path;
@@ -32,6 +34,9 @@ class EncryptedStorage implements Storage {
   /// Nur für Tests austauschbar (Fehlweg "Verschlüsselung nicht aktiv").
   final LibraryCipherProbe libraryProbe;
   final FileEncryptedProbe fileProbe;
+
+  /// Nur für Tests austauschbar (Migrationstest mit synthetischem Schritt).
+  final AppDatabase Function(QueryExecutor) databaseBuilder;
 
   /// `true`, wenn `db`, `-wal` oder `-shm` existiert (Falle 6).
   Future<bool> filesExist() async {
@@ -57,7 +62,7 @@ class EncryptedStorage implements Storage {
       logStatements: false,
       setup: setup.apply,
     );
-    final db = AppDatabase(executor);
+    final db = databaseBuilder(executor);
     try {
       // Sofort öffnen, nicht erst beim ersten Zugriff.
       await db.customSelect('SELECT 1').get();
