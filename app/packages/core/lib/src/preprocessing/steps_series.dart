@@ -42,6 +42,11 @@ class StepsSeries {
   final List<ProcessedSteps> _processed = [];
   final LatestValueIndex<RawSteps> _index = LatestValueIndex();
   DateTime? _lastTime;
+  bool _paused = false;
+
+  /// Manuelle Pause: Werte sind `unavailable` (FR-0047, FR-0057).
+  void pause() => _paused = true;
+  void resume() => _paused = false;
 
   ProcessedSteps add(RawSteps s) {
     final last = _lastTime;
@@ -53,15 +58,18 @@ class StepsSeries {
         reason: DiscardReason.nonMonotonicTime,
       );
     } else {
-      _lastTime = s.time;
       final usable =
+          !_paused &&
           s.state != MeasurementState.unavailable &&
           s.state != MeasurementState.discarded;
       r = ProcessedSteps(
         input: s,
         state: usable ? s.state : MeasurementState.unavailable,
       );
-      if (usable) _index.add(s.time, s);
+      if (usable) {
+        _lastTime = s.time;
+        _index.add(s.time, s);
+      }
     }
     _processed.add(r);
     return r;

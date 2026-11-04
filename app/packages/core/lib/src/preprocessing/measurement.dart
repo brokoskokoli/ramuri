@@ -11,6 +11,9 @@ enum DiscardReason {
   noContact,
   heartRateOutlier,
   verticalAccuracy,
+
+  /// Nicht endliche Koordinate oder Höhe.
+  invalidValue,
 }
 
 /// Hautkontakt des Pulssensors.

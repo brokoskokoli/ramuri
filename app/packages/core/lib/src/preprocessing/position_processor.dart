@@ -148,7 +148,6 @@ class PositionProcessor {
         reason: DiscardReason.nonMonotonicTime,
       );
     }
-    _lastTime = p.time;
 
     if (_paused ||
         p.state == MeasurementState.unavailable ||
@@ -166,6 +165,7 @@ class PositionProcessor {
       );
     }
 
+    _lastTime = p.time;
     final anchor = _anchor;
     var counted = 0.0;
     var bridged = false;
@@ -196,8 +196,13 @@ class PositionProcessor {
       haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude);
 
   DiscardReason? _discardReason(RawPosition p) {
+    if (!p.latitude.isFinite || !p.longitude.isFinite) {
+      return DiscardReason.invalidValue;
+    }
     final acc = p.accuracyMeters;
-    if (acc == null || acc > parameters.positionMaxAccuracyMeters) {
+    if (acc == null ||
+        acc < 0 ||
+        !(acc <= parameters.positionMaxAccuracyMeters)) {
       return DiscardReason.accuracy;
     }
     final anchor = _anchor;

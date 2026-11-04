@@ -86,6 +86,20 @@ class AltitudeProcessor {
   double? _reference;
   double? _ascent;
   int _withoutAccuracy = 0;
+  bool _paused = false;
+
+  /// Manuelle Pause: Werte sind `unavailable`, kein Aufstieg über die Pause.
+  /// Fenster und Referenz beginnen beim Fortsetzen neu, der bisherige
+  /// Aufstieg bleibt.
+  void pause() {
+    _paused = true;
+  }
+
+  void resume() {
+    _paused = false;
+    _window.clear();
+    _reference = null;
+  }
 
   ProcessedAltitude add(RawAltitude a) {
     final last = _lastTime;
@@ -97,19 +111,23 @@ class AltitudeProcessor {
         DiscardReason.nonMonotonicTime,
       );
     } else {
-      _lastTime = a.time;
       final accuracy = a.verticalAccuracyMeters;
-      if (a.state == MeasurementState.unavailable ||
+      if (_paused ||
+          a.state == MeasurementState.unavailable ||
           a.state == MeasurementState.discarded) {
         r = _verdict(a, MeasurementState.unavailable);
+      } else if (!a.meters.isFinite) {
+        r = _verdict(a, MeasurementState.discarded, DiscardReason.invalidValue);
       } else if (accuracy != null &&
-          accuracy > parameters.altitudeMaxVerticalAccuracyMeters) {
+          (accuracy < 0 ||
+              !(accuracy <= parameters.altitudeMaxVerticalAccuracyMeters))) {
         r = _verdict(
           a,
           MeasurementState.discarded,
           DiscardReason.verticalAccuracy,
         );
       } else {
+        _lastTime = a.time;
         r = _verdict(a, a.state);
         _accept(a);
       }
@@ -143,7 +161,7 @@ class AltitudeProcessor {
     final ref = _reference;
     if (ref == null) {
       _reference = m;
-      _ascent = 0;
+      _ascent ??= 0;
     } else if (m - ref >= parameters.ascentThresholdMeters) {
       _ascent = _ascent! + (m - ref);
       _reference = m;

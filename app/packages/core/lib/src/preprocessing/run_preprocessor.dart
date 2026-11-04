@@ -86,6 +86,8 @@ class RunPreprocessor {
     _heartRate.pause(time);
     _segments.reset();
     _movement.pause(time);
+    _altitude.pause();
+    _steps.pause();
   }
 
   void resume(DateTime time) {
@@ -93,6 +95,8 @@ class RunPreprocessor {
     _heartRate.resume(time);
     _segments.reset();
     _movement.resume(time);
+    _altitude.resume();
+    _steps.resume();
   }
 
   /// Zuordnung über Zeitstempel (FR-0046).

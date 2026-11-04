@@ -168,7 +168,6 @@ class HeartRateProcessor {
     if (last != null && !h.time.isAfter(last)) {
       return drop(DiscardReason.nonMonotonicTime);
     }
-    _lastTime = h.time;
 
     if (_paused ||
         h.state == MeasurementState.unavailable ||
@@ -190,6 +189,7 @@ class HeartRateProcessor {
         h.time.difference(from) > parameters.heartRateMaxSingleGap) {
       _gaps.add(HeartRateGap(start: from, end: h.time, open: false));
     }
+    _lastTime = h.time;
     _lastAccepted = _Point(h.time, h.bpm);
     _sectionStart = null;
     _accepted.add(h);

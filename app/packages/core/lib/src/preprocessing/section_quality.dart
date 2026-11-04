@@ -61,7 +61,11 @@ class SectionQuality {
         ? to.difference(from)
         : gaps.reduce((a, b) => a > b ? a : b);
     final span = to.difference(from).inMicroseconds;
-    final missing = _missing(gaps, times);
+    final received = [
+      for (final p in heartRate.processed)
+        if (inside(p.input.time)) p.input.time,
+    ];
+    final missing = _missing(gaps, times, received);
 
     var overlap = Duration.zero;
     for (final s in settlingIntervals) {
@@ -108,14 +112,25 @@ class SectionQuality {
     ];
   }
 
-  /// Fehlende Zeit: Σ max(0, Δt − Median-Takt) über die Abstände. Der Takt ist
-  /// der Median der Abstände zwischen den Werten selbst (ohne Ränder). Ohne
-  /// mindestens zwei Werte ist kein Takt bekannt: dann fehlt die ganze Zeit.
-  static Duration _missing(List<Duration> gaps, List<DateTime> times) {
-    if (times.length < 2) {
+  /// Fehlende Zeit: Σ max(0, Δt − Median-Takt) über die Abstände der
+  /// akzeptierten Werte. Der Takt ist der Median der Abstände zwischen allen
+  /// eingegangenen Werten im Abschnitt, auch verworfenen ([received]), damit
+  /// verworfene Werte den Takt nicht senken. Ohne mindestens zwei akzeptierte
+  /// oder zwei eingegangene Werte ist kein Takt bekannt: dann fehlt die ganze
+  /// Zeit.
+  static Duration _missing(
+    List<Duration> gaps,
+    List<DateTime> times,
+    List<DateTime> received,
+  ) {
+    if (times.length < 2 || received.length < 2) {
       return gaps.fold(Duration.zero, (a, b) => a + b);
     }
-    final inner = gaps.sublist(1, gaps.length - 1).map((d) => d.inMicroseconds);
+    final all = [...received]..sort();
+    final inner = [
+      for (var i = 1; i < all.length; i++)
+        all[i].difference(all[i - 1]).inMicroseconds,
+    ];
     final sorted = [...inner]..sort();
     final n = sorted.length;
     final beat = n.isOdd
