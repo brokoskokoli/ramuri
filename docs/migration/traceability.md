@@ -213,8 +213,8 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-001 | §20.2, Z. 1221 | Verbindung trennen | FR-0191 | [export-sync.md](../specs/export-sync.md) | 2 AK | Übernommen |
 | SRC-001 | §20.3, Z. 1229–1231 | Gesamtexport der Nutzerdaten | FR-0192 | [export-sync.md](../specs/export-sync.md) | 3 AK, ACC-15 | Übernommen |
 | SRC-001 | §25 Nr. 15, Z. 1410 | Gesamtexport der Nutzerdaten | FR-0192 | [export-sync.md](../specs/export-sync.md) | 3 AK, ACC-15 | Übernommen |
-| SRC-001 | §6.1, Z. 234 | Laufende Sicherung und Wiederaufnahme | FR-0193 | [run-recording.md](../specs/run-recording.md) | 2 AK | Übernommen |
-| SRC-003 | (OQ-0021) | Laufende Sicherung und Wiederaufnahme | FR-0193 | [run-recording.md](../specs/run-recording.md) | 2 AK | Übernommen |
+| SRC-001 | §6.1, Z. 234 | Laufende Sicherung und Wiederaufnahme | FR-0193 | [run-recording.md](../specs/run-recording.md) | 4 AK | Übernommen |
+| SRC-003 | (OQ-0021, OQ-0061) | Laufende Sicherung und Wiederaufnahme | FR-0193 | [run-recording.md](../specs/run-recording.md) | 4 AK | Übernommen |
 | SRC-001 | §6.1, Z. 234 | Verhalten bei GPS-Verlust | FR-0194 | [run-recording.md](../specs/run-recording.md) | 2 AK | Übernommen |
 | SRC-003 | (OQ-0021) | Verhalten bei GPS-Verlust | FR-0194 | [run-recording.md](../specs/run-recording.md) | 2 AK | Übernommen |
 | SRC-003 | (OQ-0021) | Start nur mit Standortberechtigung | FR-0195 | [run-recording.md](../specs/run-recording.md) | 1 AK | Übernommen |
@@ -248,8 +248,8 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-001 | §21, Z. 1242 | Berechnungen ohne zwingende externe Übertragung | SEC-0006 | [security.md](../quality/security.md) | 1 AK | Übernommen |
 | SRC-001 | §21, Z. 1243 | Berechtigungen widerrufen | SEC-0007 | [security.md](../quality/security.md) | 2 AK | Übernommen |
 | SRC-001 | §21, Z. 1244 | Keine Übertragung an Dritte ohne Einwilligung | SEC-0008 | [security.md](../quality/security.md) | 1 AK | Übernommen |
-| SRC-001 | §21, Z. 1235 | Verschlüsselte Speicherung | SEC-0009 | [security.md](../quality/security.md) | 2 AK | Übernommen |
-| SRC-003 | (OQ-0024) | Verschlüsselte Speicherung | SEC-0009 | [security.md](../quality/security.md) | 2 AK | Übernommen |
+| SRC-001 | §21, Z. 1235 | Verschlüsselte Speicherung | SEC-0009 | [security.md](../quality/security.md) | 3 AK | Übernommen |
+| SRC-003 | (OQ-0024, OQ-0062) | Verschlüsselte Speicherung | SEC-0009 | [security.md](../quality/security.md) | 3 AK | Übernommen |
 | SRC-003 | (OQ-0024) | System-Backups immer aus | SEC-0010 | [security.md](../quality/security.md) | 1 AK | Übernommen |
 | SRC-003 | (OQ-0050) | Verschlüsseltes Archiv | SEC-0011 | [security.md](../quality/security.md) | 2 AK | Übernommen |
 | SRC-001 | Kopf, Z. 4 | Zielplattformen | CON-0001 | [product.md](../product.md) | TBD | Übernommen |

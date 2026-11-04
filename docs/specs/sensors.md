@@ -131,7 +131,7 @@ Verbindungsabbrüche werden erkannt.
 ### FR-0018 — Datenquelle während des Trainings wechseln
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §3.2, Z. 93
-- **Verwandt:** FR-0019, FR-0020, OQ-0018
+- **Verwandt:** FR-0019, FR-0020, OQ-0018, OQ-0064
 
 Der Nutzer kann während eines Trainings die Datenquelle wechseln.
 
@@ -180,6 +180,7 @@ Falls vorhanden, können zusätzlich RR-Intervalle, Herzfrequenzvariabilität (H
 - [OQ-0013](../migration/open-questions.md#oq-0013--was-bedeutet-laufleistung) (entschieden): Was bedeutet „Laufleistung“?
 - [OQ-0017](../migration/open-questions.md#oq-0017--verbindlichkeit-der-phasen-und-fehlende-zuordnungen) (entschieden): Verbindlichkeit der Phasen und fehlende Zuordnungen
 - [OQ-0018](../migration/open-questions.md#oq-0018--regel-für-die-priorisierung-von-herzfrequenzquellen) (entschieden): Regel für die Priorisierung von Herzfrequenzquellen
+- [OQ-0064](../migration/open-questions.md#oq-0064--technische-vorgaben-der-aufzeichnung) (non-blocking): Technische Vorgaben der Aufzeichnung
 <!-- END OQ -->
 
 ## Quellen

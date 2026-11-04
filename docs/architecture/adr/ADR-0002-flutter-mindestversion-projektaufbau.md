@@ -1,6 +1,6 @@
 # ADR-0002 — Flutter, Android-Mindestversion und Projektaufbau
 
-- **Status:** Proposed
+- **Status:** Accepted (Maintainer, 2026-11-04)
 - **Datum:** 2026-11-04
 - **Quellen:** Entscheidung des Maintainers vom 2026-11-04 (Flutter, siehe PROJECT.md); SRC-003 (OQ-0035)
 - **Betroffene Anforderungen:** CON-0001, CON-0002, NFR-0006, FR-0200, OQ-0035
@@ -8,7 +8,7 @@
 ## Kontext
 Zielplattform ist Android, später optional iOS (CON-0001). Flutter ist vom Maintainer gesetzt und steht hier nicht zur Wahl. Offen sind Mindestversion (OQ-0035), Aufbau von `app/` und wie iOS offen bleibt. Die Agenten testen vorerst nur im Emulator, jede unterstützte Android-Generation kostet also Verzweigungen, die niemand im Feld prüft.
 
-## Entscheidung (Vorschlag)
+## Entscheidung
 **Gesetzt (Maintainer):** Flutter, aktuell stable 3.47.9 mit Dart 3.13.7 [1].
 
 **1. Versionen:** `minSdk` 31 (Android 12), `targetSdk` 36, `compileSdk` mindestens 36.

@@ -35,7 +35,7 @@ Die Quelle spricht allgemein von Läufern und nennt ausdrücklich auch Einsteige
 ### CON-0001 — Zielplattformen
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 Kopf, Z. 4
-- **Verwandt:** OQ-0035
+- **Verwandt:** OQ-0035, OQ-0063
 
 Zielplattform ist Android, später optional iOS.
 
@@ -198,6 +198,9 @@ Die Tabelle fasst Entscheidungen aus der Quelle und vom Maintainer (SRC-003) zus
 | DEC-0059 | **Aufgehoben durch DEC-0061, soweit Planregeln; RPE-Wörter und Hinweis auf den 5-km-Test bleiben.** Gezielte Prüfung nach R004: Planungsregeln und Regeln für Phase 2 und 3 als Version 3 eingefroren, Modellparameter bleiben Version 2. Die erlaubte Verbesserung insgesamt aus PAR-083 sinkt über 12 Wochen nie unter den Wert bei 12 Wochen, der Hinweis auf den 5-km-Test folgt PAR-117; beides Empfehlungen ohne ausdrückliche Präferenz, änderbar. Das 5-km-Zeitziel bleibt ab 3 × 30 min bei 33 Wochen, die RPE-Wörter sind bestätigt (Maintainer, SRC-003) | PAR-083, PAR-084, PAR-105, PAR-117, PAR-143, FR-0129, FR-0154 | Entschieden (OQ-0059); Validierung OQ-0020 |
 | DEC-0060 | Energiereserve von Phase 3 auf Phase 4 verschoben, um den Umfang zu verringern. Ihre Regeln bleiben als Startwerte erhalten, die Anforderungen sind bis zur Freigabe von Phase 4 `Draft` (Maintainer, SRC-003) | FR-0119 bis FR-0127, PAR-091 bis PAR-099, PAR-151 bis PAR-154 | Entschieden |
 | DEC-0061 | Einfacher Trainingsplan statt präziser Kurven: Ziel, Stand, Lauftage und Regler; +10, +7 oder +5 % je Woche nach Wochenzeit; jede 4. Woche leichter; alle 2 Wochen Nachfrage; von selbst nur nach unten; alles änderbar. Hebt die Planregeln aus DEC-0057, DEC-0058 und DEC-0059 auf (Maintainer, SRC-003) | PAR-192 bis PAR-206, FR-0148, FR-0154, FR-0156 | Entschieden (OQ-0060); Startwerte zum Testen, Validierung OQ-0020 |
+| DEC-0062 | Wiederaufnahme: fortsetzen mit markierter Lücke oder als beendet speichern, ohne Frist (Maintainer, SRC-003) | FR-0193 | Entschieden (OQ-0061) |
+| DEC-0063 | Schlüsselverlust: erklären, Neubeginn und Reimport anbieten, alte Datei erst nach Bestätigung löschen (Maintainer, SRC-003) | SEC-0009 | Entschieden (OQ-0062) |
+| DEC-0064 | Vertriebsweg vorerst offen; technische Play-Vorgaben werden eingehalten (Maintainer, SRC-003) | ADR-0002 | Entschieden (OQ-0063) |
 
 ## Phasen
 

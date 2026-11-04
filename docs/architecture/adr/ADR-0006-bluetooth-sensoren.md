@@ -1,6 +1,6 @@
 # ADR-0006 — Anbindung von Bluetooth-Sensoren
 
-- **Status:** Proposed
+- **Status:** Accepted (Maintainer, 2026-11-04)
 - **Datum:** 2026-11-04
 - **Quellen:** SRC-003 (OQ-0018, OQ-0037)
 - **Betroffene Anforderungen:** FR-0007, FR-0008, FR-0011, FR-0012, FR-0013, FR-0014, FR-0015, FR-0016, FR-0017, FR-0018, FR-0019, FR-0020, FR-0036, ACC-02, ACC-03, CON-0003, OQ-0018
@@ -8,7 +8,7 @@
 ## Kontext
 Phase 1 verlangt kompatible Bluetooth-Pulssensoren ohne herstellerspezifische Einrichtung (FR-0007, FR-0008, CON-0003). Das bevorzugte Gerät hat Vorrang, gewechselt wird manuell oder nach einem Abbruch, mit Herkunft je Zeitabschnitt (OQ-0018), ohne automatischen Rückwechsel im Lauf (OQ-0037). Die Projektlizenz ist GPL-3.0.
 
-## Entscheidung (Vorschlag)
+## Entscheidung
 **1. Standardprofil:** Bluetooth LE mit Heart Rate Service `0x180D`, Benachrichtigung auf Heart Rate Measurement `0x2A37`, optional Battery Service `0x180F` mit Battery Level `0x2A19` für FR-0016 [1][2]. Die Suche filtert auf `0x180D` (FR-0008, FR-0011). RR-Intervalle bleiben ungenutzt (FR-0021 ist Phase 4).
 
 **2. Plugin:** `universal_ble` 3.2.0 (BSD-3-Clause, Stand 2026-10-30, Navideck) hinter dem Port aus ADR-0002 [3][4]. Keine zusätzliche native Laufzeitabhängigkeit, dokumentiert Benachrichtigungen, `autoConnect` und den Betrieb ohne Activity bei vorab erteilten Rechten.

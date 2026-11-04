@@ -183,14 +183,16 @@ Diese Eingaben können bei der künftigen Trainingsplanung berücksichtigt werde
 
 ### FR-0193 — Laufende Sicherung und Wiederaufnahme
 - **Status:** Approved | **Phase:** 1
-- **Quelle:** SRC-001 §6.1, Z. 234; SRC-003 (OQ-0021)
-- **Verwandt:** FR-0034, FR-0036, OQ-0021
+- **Quelle:** SRC-001 §6.1, Z. 234; SRC-003 (OQ-0021, OQ-0061)
+- **Verwandt:** FR-0034, FR-0036, OQ-0021, OQ-0061
 
-Die App sichert die Aufzeichnung laufend. Nach einem Abbruch, etwa durch Absturz, Neustart oder leeren Akku, bietet sie die Wiederaufnahme an.
+Die App sichert die Aufzeichnung laufend. Nach einem Abbruch, etwa durch Absturz, Neustart oder leeren Akku, bietet sie die Wiederaufnahme an. Der Nutzer wählt beim nächsten Start: denselben Lauf fortsetzen oder ihn als beendeten Lauf speichern. Eine Frist gibt es nicht.
 
 **Akzeptanzkriterien:**
 - [ ] Nach einem erzwungenen App-Abbruch sind die bis dahin gesicherten Daten vorhanden.
 - [ ] Beim nächsten Start wird die Wiederaufnahme des Laufs angeboten.
+- [ ] Beim Fortsetzen wird die Lücke markiert und die Strecke für sie nicht geschätzt.
+- [ ] Beim Speichern entsteht ein beendeter Lauf aus den gesicherten Daten.
 
 ### FR-0194 — Verhalten bei GPS-Verlust
 - **Status:** Approved | **Phase:** 1
@@ -206,7 +208,7 @@ Bei GPS-Verlust laufen Zeit und Puls weiter. Die Lücke wird markiert, und die S
 ### FR-0195 — Start nur mit Standortberechtigung
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-003 (OQ-0021)
-- **Verwandt:** OQ-0021
+- **Verwandt:** OQ-0021, OQ-0064
 
 Ohne Standortberechtigung startet kein GPS-Lauf. Läufe ohne GPS gibt es in Phase 1 nicht; ein Laufbandmodus folgt in Phase 2 (FR-0196).
 
@@ -250,6 +252,8 @@ In Phase 2 gibt es einen Laufbandmodus, in dem der Nutzer die aktuelle Geschwind
 - [OQ-0044](../migration/open-questions.md#oq-0044--inhalte-akustischer-hinweise) (entschieden): Inhalte akustischer Hinweise
 - [OQ-0052](../migration/open-questions.md#oq-0052--quelle-der-schrittfrequenz-in-phase-1) (entschieden): Quelle der Schrittfrequenz in Phase 1
 - [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
+- [OQ-0061](../migration/open-questions.md#oq-0061--bedeutung-der-wiederaufnahme) (entschieden): Bedeutung der Wiederaufnahme
+- [OQ-0064](../migration/open-questions.md#oq-0064--technische-vorgaben-der-aufzeichnung) (non-blocking): Technische Vorgaben der Aufzeichnung
 <!-- END OQ -->
 
 ## Quellen

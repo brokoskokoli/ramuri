@@ -502,3 +502,36 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Auswirkung:** blocking — war Phase 2, bis die Regeln eingetragen sind.
 - **Status:** Resolved
 - **Entscheidung:** 2026-11-04, SRC-003: Alle bisherigen Entscheidungen dazu, wie viel Prozent wann gesteigert wird, und die Sonderregeln zum Trainingsplan sind annulliert, einschließlich der entsprechenden Teile von OQ-0028 und OQ-0059 und von DEC-0058 und DEC-0059. Es gelten einfache, ungeprüfte Regeln zum Testen (PAR-192 bis PAR-206). Der Nutzer wählt Ziel, heutigen Stand, Lauftage und mit einem Regler die Wochenzeit, und kann alles später ändern. Harte Einheit: einfacher Schalter, an bei Zeitzielen, sonst aus. Zeitziele gibt es in einfacher Form. Zu knappes Datum: Hinweis mit passendem Datum, der Nutzer entscheidet, der Plan steigert nicht schneller. Von selbst passt die App nur nach unten an, mehr nur nach „zu leicht“ oder einer Einstellung. Die App fragt alle 2 Wochen nach. Die konkreten Prozentwerte sind ein Vorschlag vom Reißbrett und im Feldtest änderbar. Ziel: [planning-rules.md](../planning-rules.md), [phase-2-3-rules.md](../phase-2-3-rules.md), je Version 4, DEC-0061.
+
+### OQ-0061 — Bedeutung der Wiederaufnahme
+- **Frage:** Was geschieht nach einem Abbruch mit der Lücke und dem Teillauf?
+- **Auslöser/Quellen:** ADR-0005, FR-0193; Maintainer, 2026-11-04, SRC-003.
+- **Betroffene Anforderungen:** FR-0193
+- **Auswirkung:** blocking — war Phase 1, Aufzeichnung.
+- **Status:** Resolved
+- **Entscheidung:** Beim nächsten Start wählt der Nutzer: denselben Lauf fortsetzen, die Lücke wird markiert und die Strecke nicht geschätzt, oder ihn als beendeten Lauf speichern. Es gibt keine Frist. 2026-11-04, SRC-003. Ziel: FR-0193, DEC-0062.
+
+### OQ-0062 — Verlust des Datenbankschlüssels
+- **Frage:** Was tut die App, wenn sich die verschlüsselte Datenbank nicht mehr öffnen lässt?
+- **Auslöser/Quellen:** ADR-0003, SEC-0009; Maintainer, 2026-11-04, SRC-003.
+- **Betroffene Anforderungen:** SEC-0009
+- **Auswirkung:** blocking — war Phase 1, Speicherung.
+- **Status:** Resolved
+- **Entscheidung:** Die App erklärt das Problem und bietet einen Neubeginn mit leerer Datenbank und den Reimport aus dem Archiv an. Die alte Datei wird erst nach ausdrücklicher Bestätigung gelöscht. 2026-11-04, SRC-003. Ziel: SEC-0009, DEC-0063.
+
+### OQ-0063 — Vertriebsweg
+- **Frage:** Über welchen Weg wird die App vertrieben?
+- **Auslöser/Quellen:** ADR-0002, ADR-0007; Maintainer, 2026-11-04, SRC-003.
+- **Betroffene Anforderungen:** CON-0001
+- **Auswirkung:** non-blocking, weil vorerst kein Vertrieb vorgesehen ist.
+- **Status:** Resolved
+- **Entscheidung:** Vorerst offen, frühestens vor dem ersten Release zu entscheiden. Die technischen Vorgaben von Google Play werden eingehalten (zum Beispiel Target 36, Dienst-Typen), ohne Store-Eintrag und Erklärungen. 2026-11-04, SRC-003. Ziel: ADR-0002, DEC-0064.
+
+### OQ-0064 — Technische Vorgaben der Aufzeichnung
+- **Frage:** Wie oft wird GPS abgefragt? Reicht ungefährer Standort für den Laufstart (FR-0195)? Darf sich derselbe Pulssensor nach einem Abbruch neu verbinden, obwohl OQ-0037 keinen automatischen Rückwechsel vorsieht?
+- **Auslöser/Quellen:** ADR-0005, ADR-0006; dem Maintainer am 2026-11-04 als Vorschlag genannt, kein Widerspruch.
+- **Betroffene Anforderungen:** FR-0018, FR-0195
+- **Auswirkung:** non-blocking, weil bis zu Feldtests der Vorschlag gilt.
+- **Optionen (Vorschläge):** GPS einmal je Sekunde. Der Laufstart verlangt genauen Standort. Derselbe Sensor verbindet sich neu; das Rückwechselverbot gilt nur für den Wechsel auf ein anderes Gerät.
+- **Status:** Open
+- **Entscheidung:** —

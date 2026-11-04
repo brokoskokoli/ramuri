@@ -92,13 +92,14 @@ Externe Daten dürfen nicht ohne Einwilligung an Dritte übertragen werden.
 
 ### SEC-0009 — Verschlüsselte Speicherung
 - **Status:** Approved | **Phase:** 1
-- **Quelle:** SRC-001 §21, Z. 1235; SRC-003 (OQ-0024)
-- **Verwandt:** FR-0185, OQ-0024
+- **Quelle:** SRC-001 §21, Z. 1235; SRC-003 (OQ-0024, OQ-0062)
+- **Verwandt:** FR-0185, OQ-0024, OQ-0062
 
-Datenbank und Zugangsdaten werden auf dem Gerät verschlüsselt gespeichert.
+Datenbank und Zugangsdaten werden auf dem Gerät verschlüsselt gespeichert. Lässt sich die Datenbank nicht mehr öffnen, erklärt die App das Problem und bietet einen Neubeginn mit leerer Datenbank und den Reimport aus dem Archiv an; die alte Datei wird erst nach ausdrücklicher Bestätigung gelöscht.
 
 **Akzeptanzkriterien:**
 - [ ] Die Datenbankdatei ist ohne Schlüssel nicht lesbar.
+- [ ] Ohne gültigen Schlüssel bleibt die alte Datei erhalten, bis der Nutzer das Löschen bestätigt.
 - [ ] Zugangsdaten externer Dienste liegen nicht im Klartext vor.
 
 ### SEC-0010 — System-Backups immer aus

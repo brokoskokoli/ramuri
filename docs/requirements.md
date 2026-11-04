@@ -26,7 +26,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0015 | Aktuelle Herzfrequenz anzeigen | functional | Approved | 1 | [sensors](specs/sensors.md#fr-0015--aktuelle-herzfrequenz-anzeigen) | — |
 | FR-0016 | Batteriestand anzeigen, sofern bereitgestellt | functional | Approved | 1 | [sensors](specs/sensors.md#fr-0016--batteriestand-anzeigen-sofern-bereitgestellt) | — |
 | FR-0017 | Verbindungsabbrüche erkennen | functional | Approved | 1 | [sensors](specs/sensors.md#fr-0017--verbindungsabbrüche-erkennen) | FR-0036, FR-0056, ACC-03 |
-| FR-0018 | Datenquelle während des Trainings wechseln | functional | Approved | 1 | [sensors](specs/sensors.md#fr-0018--datenquelle-während-des-trainings-wechseln) | FR-0019, FR-0020, OQ-0018 |
+| FR-0018 | Datenquelle während des Trainings wechseln | functional | Approved | 1 | [sensors](specs/sensors.md#fr-0018--datenquelle-während-des-trainings-wechseln) | FR-0019, FR-0020, OQ-0018, OQ-0064 |
 | FR-0019 | Eindeutige Priorisierung ohne Vermischung | functional | Approved | 1 | [sensors](specs/sensors.md#fr-0019--eindeutige-priorisierung-ohne-vermischung) | FR-0014, OQ-0018 |
 | FR-0020 | Herkunft der Messwerte dokumentieren | functional | Approved | 1 | [sensors](specs/sensors.md#fr-0020--herkunft-der-messwerte-dokumentieren) | SEC-0005 |
 | FR-0021 | Erweiterte Sensordaten aufzeichnen | functional | Draft | 4 | [sensors](specs/sensors.md#fr-0021--erweiterte-sensordaten-aufzeichnen) | OQ-0013 |
@@ -201,9 +201,9 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0190 | Doppelte Uploads vermeiden | functional | Draft | Zurückgestellt (OQ-0049) | [export-sync](specs/export-sync.md#fr-0190--doppelte-uploads-vermeiden) | OQ-0032, OQ-0049 |
 | FR-0191 | Verbindung trennen | functional | Draft | Zurückgestellt (OQ-0049) | [export-sync](specs/export-sync.md#fr-0191--verbindung-trennen) | SEC-0007, OQ-0025, OQ-0049 |
 | FR-0192 | Gesamtexport der Nutzerdaten | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0192--gesamtexport-der-nutzerdaten) | SEC-0004, CON-0008, ACC-15, OQ-0041, OQ-0032, SEC-0011, OQ-0050 |
-| FR-0193 | Laufende Sicherung und Wiederaufnahme | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0193--laufende-sicherung-und-wiederaufnahme) | FR-0034, FR-0036, OQ-0021 |
+| FR-0193 | Laufende Sicherung und Wiederaufnahme | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0193--laufende-sicherung-und-wiederaufnahme) | FR-0034, FR-0036, OQ-0021, OQ-0061 |
 | FR-0194 | Verhalten bei GPS-Verlust | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0194--verhalten-bei-gps-verlust) | FR-0049, FR-0057, OQ-0021 |
-| FR-0195 | Start nur mit Standortberechtigung | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0195--start-nur-mit-standortberechtigung) | OQ-0021 |
+| FR-0195 | Start nur mit Standortberechtigung | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0195--start-nur-mit-standortberechtigung) | OQ-0021, OQ-0064 |
 | FR-0196 | Laufbandmodus | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0196--laufbandmodus) | FR-0195, OQ-0042 |
 | FR-0197 | Belastungsprofil wählen | functional | Approved | 2 | [training-load](specs/training-load.md#fr-0197--belastungsprofil-wählen) | FR-0097, NFR-0005, OQ-0043, OQ-0045, OQ-0053 |
 | FR-0198 | Reimport des Gesamtexports | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0198--reimport-des-gesamtexports) | FR-0192, OQ-0032 |
@@ -226,10 +226,10 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | SEC-0006 | Berechnungen ohne zwingende externe Übertragung | non-functional | Approved | 1 | [security](quality/security.md#sec-0006--berechnungen-ohne-zwingende-externe-übertragung) | CON-0008, OQ-0017, OQ-0023 |
 | SEC-0007 | Berechtigungen widerrufen | non-functional | Approved | 1 | [security](quality/security.md#sec-0007--berechtigungen-widerrufen) | FR-0191, OQ-0017, OQ-0025 |
 | SEC-0008 | Keine Übertragung an Dritte ohne Einwilligung | non-functional | Approved | 1 | [security](quality/security.md#sec-0008--keine-übertragung-an-dritte-ohne-einwilligung) | FR-0185, FR-0186, FR-0187, OQ-0017, OQ-0025 |
-| SEC-0009 | Verschlüsselte Speicherung | non-functional | Approved | 1 | [security](quality/security.md#sec-0009--verschlüsselte-speicherung) | FR-0185, OQ-0024 |
+| SEC-0009 | Verschlüsselte Speicherung | non-functional | Approved | 1 | [security](quality/security.md#sec-0009--verschlüsselte-speicherung) | FR-0185, OQ-0024, OQ-0062 |
 | SEC-0010 | System-Backups immer aus | non-functional | Approved | 1 | [security](quality/security.md#sec-0010--system-backups-immer-aus) | SEC-0008, FR-0192, OQ-0024, OQ-0056 |
 | SEC-0011 | Verschlüsseltes Archiv | non-functional | Approved | 1 | [security](quality/security.md#sec-0011--verschlüsseltes-archiv) | SEC-0009, FR-0192, FR-0198, OQ-0050 |
-| CON-0001 | Zielplattformen | constraint | Approved | 1 | [product](product.md#con-0001--zielplattformen) | OQ-0035 |
+| CON-0001 | Zielplattformen | constraint | Approved | 1 | [product](product.md#con-0001--zielplattformen) | OQ-0035, OQ-0063 |
 | CON-0002 | Technik ist nicht Gegenstand der Quelle | constraint | Approved | 1 | [product](product.md#con-0002--technik-ist-nicht-gegenstand-der-quelle) | OQ-0023 |
 | CON-0003 | Geräteunabhängigkeit | constraint | Approved | 1 | [product](product.md#con-0003--geräteunabhängigkeit) | FR-0007, FR-0010 |
 | CON-0004 | Funktionalität ohne Wearable | constraint | Approved | 1 | [product](product.md#con-0004--funktionalität-ohne-wearable) | FR-0035, FR-0155, ACC-01 |

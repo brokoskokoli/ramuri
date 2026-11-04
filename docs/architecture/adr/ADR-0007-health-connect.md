@@ -1,6 +1,6 @@
 # ADR-0007 — Anbindung von Health Connect
 
-- **Status:** Proposed
+- **Status:** Accepted (Maintainer, 2026-11-04)
 - **Datum:** 2026-11-04
 - **Quellen:** SRC-003 (OQ-0033, OQ-0047)
 - **Betroffene Anforderungen:** FR-0022, FR-0023, FR-0024, FR-0108, FR-0115, FR-0200, SEC-0001, SEC-0002, SEC-0005, SEC-0007, CON-0007, OQ-0047
@@ -8,7 +8,7 @@
 ## Kontext
 Phase 3 importiert nur über Health Connect (OQ-0047), jede Datenart lässt sich getrennt freigeben und widerrufen (FR-0200), ohne ausgeliefertes Secret. Grundfunktionen hängen nicht daran (CON-0007). Jede Reihe stammt aus genau einer Quell-App (FR-0115, PAR-189), die Herkunft muss also am Datensatz erhalten bleiben. Phase 3 startet erst nach dem Go des Maintainers; vorher wird hier nichts gebaut.
 
-## Entscheidung (Vorschlag)
+## Entscheidung
 **1. Eigener dünner Adapter:** Kotlin auf `androidx.health.connect:connect-client` 1.1.0 (stabil, Apache-2.0) [1][2], typisiert angebunden über `pigeon` 29.1.0 (BSD-3-Clause) [3], hinter dem Port aus ADR-0002. Vor Phase 3 sind Version und Bedingungen neu abzurufen (Validierungsbedarf in [planning-rules.md](../../planning-rules.md)).
 
 **2. Nur Lesen, nur was FR-0023 nennt:**

@@ -1,6 +1,6 @@
 # ADR-0004 — Austauschbare Algorithmen, Rohdaten und Versionierung der Modelle
 
-- **Status:** Proposed
+- **Status:** Accepted (Maintainer, 2026-11-04)
 - **Datum:** 2026-11-04
 - **Quellen:** SRC-003 (OQ-0031, OQ-0043, OQ-0045, OQ-0053)
 - **Betroffene Anforderungen:** NFR-0001, NFR-0002, NFR-0005, FR-0006, FR-0020, FR-0053, FR-0057, FR-0058, FR-0075, FR-0097, FR-0192, FR-0197, SEC-0004, OQ-0031, OQ-0043
@@ -8,7 +8,7 @@
 ## Kontext
 Alle Algorithmen sind austauschbar, wählbar ist nur das Belastungsmodell (OQ-0043). Eine zweite Variante darf Aufzeichnung und Rohdaten nicht berühren (NFR-0005). Rohdaten bleiben, solange der Lauf existiert, und ursprüngliche Werte bleiben neben neu berechneten erhalten (OQ-0031, FR-0058). Beim Wechsel des Belastungsmodells wird nach Bestätigung alles neu gerechnet, sodass ein Verlauf nur ein Modell nutzt (OQ-0045).
 
-## Entscheidung (Vorschlag)
+## Entscheidung
 **1. Drei getrennte Datenebenen:**
 - **Rohdaten:** Nur anhängen, nie ändern. Je Wert Zeitstempel, Quellgerät und Zustand (FR-0020, FR-0057). Gelöscht wird nur mit dem Lauf (SEC-0004).
 - **Vorverarbeitung:** Abgeleitet und jederzeit neu berechenbar; Rohdaten bleiben dabei unberührt (FR-0045).

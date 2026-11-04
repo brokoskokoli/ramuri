@@ -1,6 +1,6 @@
 # ADR-0005 — Aufzeichnung im Hintergrund und Wiederanlauf
 
-- **Status:** Proposed
+- **Status:** Accepted (Maintainer, 2026-11-04); Punkt 3 (eine Engine) vorläufig bis zum Ergebnis von R005
 - **Datum:** 2026-11-04
 - **Quellen:** SRC-003 (OQ-0021, OQ-0052)
 - **Betroffene Anforderungen:** FR-0034, FR-0035, FR-0036, FR-0193, FR-0194, FR-0195, FR-0202, ACC-01, ACC-03, OQ-0021
@@ -8,7 +8,7 @@
 ## Kontext
 Ein Lauf muss bei ausgeschaltetem Bildschirm durchgehend weiterlaufen (FR-0034). Nach Absturz, Neustart oder leerem Akku bietet die App beim nächsten Start die Wiederaufnahme an (FR-0193). Ohne Standortberechtigung startet kein GPS-Lauf (FR-0195), ohne Sensor oder Schrittberechtigung läuft die Aufzeichnung normal (FR-0035, FR-0202).
 
-## Entscheidung (Vorschlag)
+## Entscheidung
 **1. Foreground Service, gestartet aus der sichtbaren App.** Standort ist eine While-in-Use-Berechtigung; ein solcher Dienst lässt sich aus dem Hintergrund nicht anlegen [1]. Ein laufender Dienst gilt als Vordergrund-Standortzugriff, deshalb entfällt `ACCESS_BACKGROUND_LOCATION` samt Play-Richtlinie dazu [2].
 
 **2. Diensttypen:** Im Manifest `location|connectedDevice`, an `startForeground()` immer `location` und `connectedDevice` nur bei erteiltem `BLUETOOTH_CONNECT`. Typen lassen sich später ergänzen, fehlt die Voraussetzung, gibt es eine `SecurityException` [3][4]. Androids eigenes Beispiel ist ein Lauf-Tracker mit `location` [4]. Der Typ `health` ist für Fitness-Tracker beschrieben, setzt aber etwa `ACTIVITY_RECOGNITION` voraus [3], die laut FR-0202 fehlen darf; er entfällt, sofern R005 keinen Bedarf zeigt. `POST_NOTIFICATIONS` ist für den Start nicht nötig, die App fragt danach, läuft aber auch ohne [5].

@@ -20,7 +20,7 @@ Diese Datei sagt den globalen Skills und Agenten (`project-supervisor`, `wp-supe
 | Architekturentscheidungen | `docs/architecture/adr/` | Project Supervisor | `AGENTS.md` |
 | Rollen-Briefings | `docs/agents/` | Project Supervisor | – |
 | Arbeitspakete und Umsetzungsstand | `work-packages/` (`STATUS.md`, `REVIEW.md`, `WPnn-<slug>.md`, `M<n>-PLAN.md`) | Project Supervisor, WP-Supervisor | `work-packages/README.md` |
-| Research | `research/` (ein Ordner `Rnnn-<slug>/` je Analyse; R001 bis R004 liegen als Berichte in `docs/migration/research-reviews/`, nächste freie Nummer R005) | Research Supervisor, Researcher | `research/CLAUDE.md` |
+| Research | `research/` (ein Ordner `Rnnn-<slug>/` je Analyse; R001 bis R004 liegen als Berichte in `docs/migration/research-reviews/`, nächste freie Nummer laut `research/README.md`) | Research Supervisor, Researcher | `research/CLAUDE.md` |
 | Research-Daten | `research/data/` im Haupt-Checkout, nicht in Git | Researcher | `research/CLAUDE.md` |
 | Nicht wiederherstellbare Eingaben | `research/input/<sammlung>/` im Haupt-Checkout, nicht in Git | Maintainer legt ab | `research/CLAUDE.md` |
 | Werkzeuge, Git-Hooks | `tool/` (`core.hooksPath=tool/hooks`) | Project Supervisor | `docs/agents/common.md` |

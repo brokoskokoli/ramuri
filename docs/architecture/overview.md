@@ -50,7 +50,7 @@ Einen eigenen Server und ein Konto gibt es nicht (ADR-0001).
 
 ## Benötigte Architekturentscheidungen
 
-Bisher entschieden: [ADR-0001](adr/ADR-0001-nur-lokale-datenhaltung.md). Weiterer Bedarf besteht mindestens für:
+Bisher entschieden: [ADR-0001](adr/ADR-0001-nur-lokale-datenhaltung.md). Am 2026-11-04 hat der Maintainer ADR-0002 bis ADR-0007 freigegeben; der Schutz des Archivs (SEC-0011) folgt als ADR-0008. Weiterer Bedarf besteht mindestens für:
 
 | Entscheidung | Abhängig von | Entwurf (Status `Proposed`) |
 |---|---|---|

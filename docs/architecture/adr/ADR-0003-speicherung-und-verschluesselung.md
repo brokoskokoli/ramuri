@@ -1,6 +1,6 @@
 # ADR-0003 — Speicherung und Verschlüsselung auf dem Gerät
 
-- **Status:** Proposed
+- **Status:** Accepted (Maintainer, 2026-11-04)
 - **Datum:** 2026-11-04
 - **Quellen:** SRC-003 (OQ-0024, OQ-0056)
 - **Betroffene Anforderungen:** SEC-0004, SEC-0009, SEC-0010, FR-0193, OQ-0024, OQ-0056, ADR-0001
@@ -8,7 +8,7 @@
 ## Kontext
 Die Datenbankdatei muss ohne Schlüssel unlesbar sein (SEC-0009), ein System-Backup darf keine App-Daten enthalten (SEC-0010), und gelöschte Daten müssen wirklich entfernt sein (SEC-0004). Die Aufzeichnung schreibt bei ausgeschaltetem und gesperrtem Bildschirm weiter (FR-0034).
 
-## Entscheidung (Vorschlag)
+## Entscheidung
 **1. Datenbank:** `drift` 2.35.3 (MIT, Stand 2026-10-23) auf `sqlite3` 3.8.0 (MIT, Stand 2026-10-23) mit `hooks: user_defines: sqlite3: source: sqlite3mc` [1][2]. Das baut SQLite3MultipleCiphers (MIT) ein, Standardverfahren ChaCha20-Poly1305 mit Authentifizierung je Seite [3][4]. SQLite selbst ist Public Domain [5]. Die Binärdateien kommen aus den Releases von `sqlite3` und werden per SHA-256 geprüft [2]. Beim Öffnen prüft die App zur Laufzeit, dass die Verschlüsselung aktiv ist, wie drift es empfiehlt [1]; ohne sie öffnet sie die Datei nicht.
 
 **2. Schlüssel:** Ein zufälliger Datenbankschlüssel je Installation, abgelegt mit `flutter_secure_storage` 11.2.0 (BSD-3-Clause, Stand 2026-09-16). Das Plugin schützt ihn über einen Schlüssel im Android Keystore und nutzt Tink (Apache-2.0) [6][7][8]. Kein Passwort des Nutzers und keine Bindung an Biometrie oder entsperrtes Gerät, weil die Aufzeichnung sonst bei gesperrtem Bildschirm an den Schlüssel gebunden wäre. Der Schlüssel wird zum Laufstart gelesen und bleibt im Prozess.
