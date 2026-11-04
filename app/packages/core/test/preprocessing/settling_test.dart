@@ -64,6 +64,32 @@ void main() {
       expect(change(3.249), [(t0, min(3))]);
     });
 
+    // Segmente mit exakt darstellbaren Metern: die Grenze 0,25 selbst.
+    List<(DateTime, DateTime)> exact(double second) {
+      final p = SettlingProcessor(
+        const PreprocessingParameters.v2(),
+        start: t0,
+      );
+      for (var s = 1; s <= 800; s++) {
+        p.add(
+          MotionSegment(
+            start: at(s - 1),
+            end: at(s),
+            meters: s <= 600 ? 3.0 : second,
+            isGap: false,
+          ),
+        );
+      }
+      return [
+        for (final i in p.result(restarts: []).intervals) (i.start, i.end),
+      ];
+    }
+
+    test('Tempowechsel genau 0,25 löst aus, knapp darunter nicht', () {
+      expect(exact(3.25), [(t0, min(3)), (at(720), at(900))]);
+      expect(exact(3.2499), [(t0, min(3))]);
+    });
+
     test('Tempowechsel nach unten zählt ebenso', () {
       expect(change(2.749), [(t0, min(3)), (at(720), at(900))]);
       expect(change(2.751), [(t0, min(3))]);
