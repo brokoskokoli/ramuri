@@ -61,11 +61,20 @@ class DriftDeletion {
   /// `PRAGMA wal_checkpoint(TRUNCATE)` liefert (busy, log, checkpointed).
   /// `busy = 1` heißt: nicht fertig (ein Leser hielt die Datei). Das Löschen
   /// bleibt gültig, wird aber nicht als Erfolg gemeldet.
+  ///
+  /// Die Transaktion ist hier schon abgeschlossen: Auch eine Ausnahme des
+  /// Checkpoints (etwa Ein-/Ausgabefehler) ändert daran nichts. Sie darf nicht
+  /// als gewöhnlicher Fehler ("nichts wurde gelöscht") durchgehen.
   Future<void> _checkpoint() async {
-    final rows = await _db
-        .customSelect('PRAGMA wal_checkpoint(TRUNCATE)')
-        .get();
-    final busy = rows.isEmpty ? 1 : rows.first.data.values.first;
+    final Object? busy;
+    try {
+      final rows = await _db
+          .customSelect('PRAGMA wal_checkpoint(TRUNCATE)')
+          .get();
+      busy = rows.isEmpty ? 1 : rows.first.data.values.first;
+    } catch (_) {
+      throw const StorageException(StorageFailure.deletedNotErased);
+    }
     if (busy != 0) {
       throw const StorageException(StorageFailure.deletedNotErased);
     }

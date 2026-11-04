@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:adapters/adapters.dart' hide RawSteps, ComputedValue;
 import 'package:core/core.dart';
 import 'package:core/testing/contract_samples.dart' as cs;
+import 'package:drift/drift.dart'
+    show QueryRow, ResultSetImplementation, Selectable, Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as raw;
@@ -227,6 +229,58 @@ void main() {
     await s.close();
   });
 
+  test('Tageswert-Paar: beide Zeilen weg, keine verwaiste Zeile in computed_values', () async {
+    final (s, a, _) = await setup();
+    const day = ValueOwner.day('2030-01-08');
+    await s.values.createOriginals(day, [dayValue('PAAR', 0, 99)]);
+    await s.values.swapCurrent(day, [dayValue('PAAR', 150, 160)]);
+    Future<int> rows(String d) async =>
+        (await s.database
+                .customSelect(
+                  'SELECT count(*) c FROM computed_values WHERE day = ?',
+                  variables: [Variable<String>(d)],
+                )
+                .getSingle())
+            .read<int>('c');
+    // Positivkontrolle: original und current liegen als zwei Zeilen vor.
+    expect(await rows('2030-01-08'), 2);
+    await s.deleteRun(a);
+    // `read` liefert nur vollständige Paare und sähe eine verwaiste Zeile
+    // nicht; darum werden die Zeilen gezählt.
+    expect(await rows('2030-01-08'), 0);
+    expect(await rows('2030-01-01'), 0, reason: 'überlappender Tageswert');
+    expect(await rows('2030-01-02'), 2, reason: 'nicht überlappend bleibt');
+    await s.close();
+  });
+
+  test(
+    'Checkpoint wirft nach erfolgtem Commit: deletedNotErased, nicht failed',
+    () async {
+      final seed = openPlain(path);
+      final a = (await seed.runs.create(startedAt: at(0))).id;
+      await fill(seed, a, marker);
+      await seed.close();
+      final s = EncryptedStorageSession(
+        _CheckpointFails(
+          NativeDatabase(File(path), setup: ConnectionSetup.configure),
+        ),
+      );
+      await expectLater(
+        s.deleteRun(a),
+        throwsA(
+          isA<StorageException>().having(
+            (e) => e.failure,
+            'failure',
+            StorageFailure.deletedNotErased,
+          ),
+        ),
+      );
+      // Das Löschen gilt: Die Transaktion war schon abgeschlossen.
+      expect(await s.runs.get(a), isNull);
+      await s.close();
+    },
+  );
+
   test(
     'Verschlüsselte Sitzung: Löschen läuft und leert die Datenbank',
     () async {
@@ -243,4 +297,24 @@ void main() {
       await s.close();
     },
   );
+}
+
+/// Datenbank, deren WAL-Checkpoint mit einer gewöhnlichen Ausnahme scheitert
+/// (Ein-/Ausgabefehler), nachdem die Löschtransaktion abgeschlossen ist.
+class _CheckpointFails extends AppDatabase {
+  _CheckpointFails(super.e);
+
+  @override
+  Selectable<QueryRow> customSelect(
+    String query, {
+    List<Variable> variables = const [],
+    Set<ResultSetImplementation> readsFrom = const {},
+  }) {
+    if (query.contains('wal_checkpoint')) throw StateError('E/A-Fehler');
+    return super.customSelect(
+      query,
+      variables: variables,
+      readsFrom: readsFrom,
+    );
+  }
 }
