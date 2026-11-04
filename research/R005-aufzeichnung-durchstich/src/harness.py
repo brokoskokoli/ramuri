@@ -110,6 +110,10 @@ def trial_gap(a,run,base=60):
     time.sleep(3)
     log(am_start(cmd='start',host=a.host,run=run,tx=a.tx,sync=a.sync,wake=a.wake,steps=True).strip()[-60:])
     st=open(o+'/state.tsv','w'); phase=[]
+    if a.stop_len:  # Kontrolle: Prozess echt anhalten (SIGSTOP), sonst nichts geaendert
+        P=pidof()
+        threading.Timer(base+a.stop_at,lambda:(ash(f'run-as {PKG} sh -c "kill -STOP {P}"'),st.write(f'{time.time():.1f}\tSIGSTOP {P}\n'))).start()
+        threading.Timer(base+a.stop_at+a.stop_len,lambda:(ash(f'run-as {PKG} sh -c "kill -CONT {P}"'),st.write(f'{time.time():.1f}\tSIGCONT {P}\n'))).start()
     t0=time.time(); time.sleep(base); phase.append(('locked_start',time.time()))
     ash('input keyevent 3'); time.sleep(1); ash('input keyevent 223'); time.sleep(3)
     if a.idle: log('force-idle:',ash('dumpsys deviceidle force-idle').strip()[:80])
@@ -193,7 +197,7 @@ def main():
     ap.add_argument('--api',type=int,default=36); ap.add_argument('--host',default='own'); ap.add_argument('--wake',type=int,default=0)
     ap.add_argument('--idle',type=int,default=1); ap.add_argument('--tx',type=int,default=1); ap.add_argument('--sync',default='FULL')
     ap.add_argument('--dur',type=int,default=600); ap.add_argument('--rep',type=int,default=1); ap.add_argument('--seed',type=int,default=42); ap.add_argument('--kind',default='proc')
-    ap.add_argument('--minrun',type=float,default=20); ap.add_argument('--maxrun',type=float,default=40); ap.add_argument('--pause-at',type=int,default=0); ap.add_argument('--pause-len',type=int,default=0)
+    ap.add_argument('--minrun',type=float,default=20); ap.add_argument('--maxrun',type=float,default=40); ap.add_argument('--pause-at',type=int,default=0); ap.add_argument('--pause-len',type=int,default=0); ap.add_argument('--stop-at',type=int,default=0); ap.add_argument('--stop-len',type=int,default=0)
     ap.add_argument('--n',type=int,default=300); ap.add_argument('--tag',default='')
     a=ap.parse_args(); a.wake=bool(a.wake); a.idle=bool(a.idle)
     os.makedirs(WORK,exist_ok=True)

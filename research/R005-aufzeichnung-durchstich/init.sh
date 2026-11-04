@@ -1,34 +1,33 @@
 #!/bin/bash
-# Stellt alles her, was diese Analyse in research/data/ braucht. Idempotent: Vorhandenes wird nicht neu geladen.
-# Usage: ./init.sh [--help]
+# Stellt her, was R005 braucht. Idempotent: Vorhandenes wird nicht neu geladen. Usage: ./init.sh [--help]
 set -euo pipefail
 cd "$(dirname "$0")"
-source "$(git rev-parse --show-toplevel)/research/_shared/paths.sh"
-ID="$(basename "$PWD")"; ID="${ID%%-*}"
-
-if [ "${1:-}" = "--help" ]; then
-  cat <<HELP
-Lädt bzw. erzeugt für $ID:
-  <Modell X>   -> \$RESEARCH_MODELS/<name>/     (~<GB>)
-  <Datensatz>  -> \$RESEARCH_DATASETS/<name>/   (~<GB>)
-Prüft die benötigten Sammlungen in research/input/ (ändert dort nichts).
-Vorher nachsehen, was schon da ist: research/DATA.md, research/data/INDEX.md.
+source src/emu-env.sh
+if [ "${1:-}" = "--help" ]; then cat <<HELP
+Stellt fuer R005 her:
+  System-Images android-31 und android-36 (google_apis;arm64-v8a)  -> Android SDK, zusammen etwa 6 GB, nur falls sie fehlen
+  AVDs running_app_r005_api31 und running_app_r005_api36            -> ~/.android/avd, nur falls sie fehlen
+  APK des Prototyps (Profil-Build, minSdk 31, target 36)            -> src/proto/build/
+  Abhaengigkeiten von src/waltest                                   -> Pub-Cache
+Voraussetzungen: Flutter 3.47.7, Android SDK unter ~/Library/Android/sdk. JDK nur per Umgebung
+(Standard: JBR aus Android Studio, ueberschreibbar mit R005_JAVA_HOME); keine globale Aenderung.
+Ablage der Rohdaten: research/data/work/R005/.
 HELP
-  exit 0
-fi
-
-mkdir -p "$RESEARCH_MODELS" "$RESEARCH_DATASETS" "$(research_work "$ID")"
-
-# Beispiel für einen geteilten, idempotenten Download mit Prüfsumme:
-# fetch() { local url="$1" dest="$2" sha="$3"
-#   [ -f "$dest.done" ] && return 0
-#   mkdir -p "$(dirname "$dest")"; curl -fL "$url" -o "$dest.part"
-#   echo "$sha  $dest.part" | shasum -a 256 -c - && mv "$dest.part" "$dest" && touch "$dest.done"; }
-# fetch "<url>" "$RESEARCH_MODELS/<name>/<datei>" "<sha256>"
-# research_register "models/<name>" "$ID" "<Modell X>, Version <…>"   # Eintrag in data/INDEX.md
-
-# Pflicht-Eingaben prüfen:
-# input="$(research_input <sammlung>)"
-# [ -n "$(ls "$input"/*.wav 2>/dev/null)" ] || { echo "Fehlt: WAV-Dateien in $input (siehe research/input/README.md)" >&2; exit 1; }
-
-echo "$ID initialisiert (Daten: $RESEARCH_DATA)"
+exit 0; fi
+SDK="$HOME/Library/Android/sdk"; mkdir -p "$R005_WORK"
+for api in 31 36; do
+  img="system-images;android-$api;google_apis;arm64-v8a"
+  [ -d "$SDK/system-images/android-$api/google_apis/arm64-v8a" ] || yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" "$img"
+  avd="running_app_r005_api$api"
+  if [ ! -d "$HOME/.android/avd/$avd.avd" ]; then
+    echo no | "$SDK/cmdline-tools/latest/bin/avdmanager" create avd -n "$avd" -k "$img" -d pixel_6
+    cfg="$HOME/.android/avd/$avd.avd/config.ini"
+    for kv in hw.ramSize=3072 hw.gps=yes hw.cpu.ncore=4 disk.dataPartition.size=4G; do
+      grep -v "^${kv%%=*}=" "$cfg" > "$cfg.tmp"; mv "$cfg.tmp" "$cfg"; echo "$kv" >> "$cfg"
+    done
+  fi
+done
+(cd src/proto && flutter pub get >/dev/null && flutter build apk --profile --target-platform android-arm64)
+(cd src/waltest && dart pub get >/dev/null)
+research_register "work/R005" R005 "Rohdaten R005 (Logs, DB-Kopien, nur synthetisch)"
+echo "R005 initialisiert (Daten: $RESEARCH_DATA)"

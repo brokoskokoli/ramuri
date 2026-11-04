@@ -38,14 +38,25 @@ def gap(work):
         # Zeitbasis: Abstaende der Fix-Zeitstempel in der DB (elapsedRealtimeNanos), Phase ueber RCV-Logzeit
         rcv={int(kv(e[2])['seq']):e[0] for e in ev if e[1]=='R005RCV'}
         dbseq=[r[0] for r in R]
+        # Epochenzeit je Zeile aus trecv plus Versatz (Median), damit fehlende Logzeilen am Ende die Phase nicht verfaelschen
+        off=sorted(rcv[r[0]]-r[4]/1e9 for r in R if r[0] in rcv)[len([r for r in R if r[0] in rcv])//2]
+        rcv={r[0]:r[4]/1e9+off for r in R}|rcv
         def phase(a,b):
-            sel=[r for r in R if a<=rcv.get(r[0],0)<=b]
-            d=[(y[3]-x[3])/1e9 for x,y in zip(sel,sel[1:])]
+            sel=[r for r in R if a<=rcv[r[0]]<=b]
+            d=[(y[4]-x[4])/1e9 for x,y in zip(sel,sel[1:])]  # trecv: Eingang im Adapter (elapsedRealtimeNanos); tfix ist im Emulator nicht verlaesslich (Epoche statt Elapsed)
             return sel,d
         base,db=phase(0,p['locked_start']); idle,di=phase(p['idle_start'],p['end'])
         dur=p['end']-p['idle_start']
+        # Rand: Zeit von Phasenbeginn bis zum ersten und vom letzten Punkt bis Phasenende zaehlt mit (Logzeit), sonst blieben Ausfaelle am Rand unsichtbar
+        if idle:
+            di=[rcv[idle[0][0]]-p['idle_start']]+di+[p['end']-rcv[idle[-1][0]]]
+        else: di=[dur]
         inj=inject(o+'inject.tsv')
-        ids=[inj[('%.6f'%r[1],'%.6f'%r[2])][0] for r in idle if ('%.6f'%r[1],'%.6f'%r[2]) in inj]
+        il=[(k[0],k[1],v[0]) for k,v in inj.items()]; il=[(float(a),float(b),c) for a,b,c in il]
+        ids=[]
+        for r in idle:  # NMEA rundet; naechste eingespeiste Position, Schrittweite der Spur ~3e-5 Grad
+            best=min(il,key=lambda q:(q[0]-r[1])**2+(q[1]-r[2])**2)
+            if abs(best[0]-r[1])<1.2e-5 and abs(best[1]-r[2])<1.2e-5: ids.append(best[2])
         injn=[v for v in inj.values() if p['idle_start']+3<=v[1]<=p['end']-3]
         got=set(ids); cov=(sum(1 for v in injn if v[0] in got)/len(injn)) if injn else float('nan')
         locked=sum(1 for h in hb_idle if h.get('locked')=='true')/max(1,len(hb_idle)); inter=sum(1 for h in hb_idle if h.get('inter')=='true')
@@ -57,9 +68,14 @@ def gap(work):
         deep=sum(1 for s in states if s['deep']=='IDLE')/max(1,len(states))
         lhb=[(y['t']-x['t']) for x,y in zip(hb_idle,hb_idle[1:])]
         acks=[int(kv(e[2])['us']) for e in ev if e[1]=='R005ACK']
+        # Positionswechsel: der Emulator wiederholt die letzte Position je Sekunde, also zaehlt auch der Abstand der Wechsel
+        chg=[rcv[idle[0][0]]] if idle else []
+        for x,y in zip(idle,idle[1:]):
+            if (x[1],x[2])!=(y[1],y[2]): chg.append(rcv[y[0]])
+        dch=[b-a for a,b in zip(chg,chg[1:])]
         rec=dict(run=run,integ=integ.split('\t')[-1],rows=len(R),idle_rows=len(idle),idle_s=round(dur),
           rate=round(len(idle)/dur,3),coverage=round(cov,4),gap_p50=round(pct(di,50),2),gap_p99=round(pct(di,99),2),gap_max=round(max(di),1) if di else None,
-          n_gt2=sum(x>2 for x in di),n_gt5=sum(x>5 for x in di),n_gt30=sum(x>30 for x in di),base_p99=round(pct(db,99),2),base_max=round(max(db),2) if db else None,
+          n_gt2=sum(x>2 for x in di),n_gt5=sum(x>5 for x in di),n_gt30=sum(x>30 for x in di),poschg_p99=round(pct(dch,99),2) if dch else None,poschg_max=round(max(dch),1) if dch else None,poschg_gt5=sum(x>5 for x in dch),base_p99=round(pct(db,99),2),base_max=round(max(db),2) if db else None,
           hb_n=len(hb_idle),hb_max=round(max(lhb),1) if lhb else None,locked=round(locked,2),inter=inter,appIdle=round(idl,2),deepIDLE=round(deep,2),suspend_s=susp,
           errs=sum(1 for e in ev if e[1]=='R005ERR'),ack_p50_us=round(pct(acks,50)),ack_p99_us=round(pct(acks,99)),load=round(st.mean(s['load'] for s in states),1) if states else None)
         out.append(rec); print(json.dumps(rec))
