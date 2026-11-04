@@ -90,23 +90,31 @@ class NotOpenableScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(switch (state.cause) {
-              StorageNotOpenableCause.keyMissing => l10n.notOpenableKeyMissing,
-              StorageNotOpenableCause.keyMalformed =>
-                l10n.notOpenableKeyMalformed,
-              StorageNotOpenableCause.keyStoreError =>
-                l10n.notOpenableKeyStoreError,
-              StorageNotOpenableCause.unreadable => l10n.notOpenableUnreadable,
-              StorageNotOpenableCause.newerVersion =>
-                l10n.notOpenableNewerVersion,
-              StorageNotOpenableCause.migrationFailed =>
-                l10n.notOpenableMigrationFailed,
-              StorageNotOpenableCause.configurationFailed =>
-                l10n.notOpenableConfigurationFailed,
-              StorageNotOpenableCause.fileCheckError =>
-                l10n.notOpenableFileCheckError,
-              StorageNotOpenableCause.locationError =>
-                l10n.notOpenableLocationError,
+            Text(switch (state.dataLoss) {
+              StorageDataLoss.deleted => l10n.notOpenableDataDeleted,
+              StorageDataLoss.partial => l10n.notOpenableDataPartial,
+              StorageDataLoss.none => switch (state.cause) {
+                StorageNotOpenableCause.keyMissing =>
+                  l10n.notOpenableKeyMissing,
+                StorageNotOpenableCause.keyMalformed =>
+                  l10n.notOpenableKeyMalformed,
+                StorageNotOpenableCause.keyStoreError =>
+                  l10n.notOpenableKeyStoreError,
+                StorageNotOpenableCause.unreadable =>
+                  l10n.notOpenableUnreadable,
+                StorageNotOpenableCause.newerVersion =>
+                  l10n.notOpenableNewerVersion,
+                StorageNotOpenableCause.migrationFailed =>
+                  l10n.notOpenableMigrationFailed,
+                StorageNotOpenableCause.configurationFailed =>
+                  l10n.notOpenableConfigurationFailed,
+                StorageNotOpenableCause.fileCheckError =>
+                  l10n.notOpenableFileCheckError,
+                StorageNotOpenableCause.locationError =>
+                  l10n.notOpenableLocationError,
+                StorageNotOpenableCause.openFailed =>
+                  l10n.notOpenableOpenFailed,
+              },
             }),
             if (problem != null) ...[
               const SizedBox(height: 16),
@@ -115,7 +123,8 @@ class NotOpenableScreen extends StatelessWidget {
                 StorageResetProblem.keyNotReplaced => l10n.resetProblemKey,
               }, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
-            if (state.canReset) ...[
+            if (state.canReset &&
+                state.dataLoss != StorageDataLoss.deleted) ...[
               const SizedBox(height: 16),
               Text(l10n.notOpenableResetHint),
             ],

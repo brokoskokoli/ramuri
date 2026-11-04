@@ -203,6 +203,7 @@ void main() {
       (StorageNotOpenableCause.newerVersion, false, true),
       (StorageNotOpenableCause.migrationFailed, false, true),
       (StorageNotOpenableCause.configurationFailed, false, true),
+      (StorageNotOpenableCause.openFailed, false, true),
       (StorageNotOpenableCause.fileCheckError, false, true),
       (StorageNotOpenableCause.locationError, false, false),
     ];
@@ -251,6 +252,39 @@ void main() {
       expect((c.state as StorageNotOpenableState).canReset, isTrue);
     });
 
+    test('Verschlüsselung dazwischen setzt den Zähler zurück (M1)', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.inner.openFailure = StorageFailure.newerVersion;
+      final c = w.controller();
+      await c.start(); // Fehler A
+      w.inner.openFailure = null;
+      w.inner.encryptionActive = false;
+      await c.start(); // Verschlüsselung nicht aktiv
+      expect(c.state, isA<StorageEncryptionInactive>());
+      w.inner.encryptionActive = true;
+      w.inner.openFailure = StorageFailure.newerVersion;
+      await c.start(); // wieder A: zählt als erster Fehler
+      expect((c.state as StorageNotOpenableState).canReset, isFalse);
+    });
+
+    test('Neubeginn gelingt beim Löschen, Öffnen scheitert mit derselben Art: '
+        'Zähler beginnt neu (M2)', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.inner.openFailure = StorageFailure.newerVersion;
+      final c = w.controller();
+      await c.start();
+      await c.start();
+      expect((c.state as StorageNotOpenableState).canReset, isTrue);
+      w.openFailureAfterDelete = StorageFailure.newerVersion;
+      await c.resetStorage();
+      expect(w.files.deleteCalls, 1);
+      final s = c.state as StorageNotOpenableState;
+      expect(s.cause, StorageNotOpenableCause.newerVersion);
+      expect(s.canReset, isFalse, reason: 'neue Lage, neuer Fehlversuch nötig');
+    });
+
     test('Neubeginn nach Fehlversuch löscht und öffnet leer', () async {
       final w = World();
       await w.seed(fileKey: k0, storedKey: k0);
@@ -262,6 +296,91 @@ void main() {
       await c.resetStorage();
       expect(w.files.deleteCalls, 1);
       expect(c.state, isA<StorageReady>());
+    });
+  });
+
+  group(
+    'sonstiger Fehler beim Öffnen: openFailed, kein sofortiger Neubeginn',
+    () {
+      test('StorageFailure.openFailed', () async {
+        final w = World();
+        await w.seed(fileKey: k0, storedKey: k0);
+        w.inner.openFailure = StorageFailure.openFailed;
+        final c = w.controller();
+        await c.start();
+        final s = c.state as StorageNotOpenableState;
+        expect(s.cause, StorageNotOpenableCause.openFailed);
+        expect(s.canReset, isFalse);
+        await c.start();
+        expect((c.state as StorageNotOpenableState).canReset, isTrue);
+      });
+
+      test(
+        'unbekannte Ausnahme und unerwartete Art: openFailed, nie unreadable',
+        () async {
+          for (final failure in [StorageFailure.failed, null]) {
+            final w = World();
+            await w.seed(fileKey: k0, storedKey: k0);
+            final c = StorageStartController(
+              keyStore: w.keys,
+              generateKey: () => k0,
+              wire: () async => StorageWiring(
+                storage: _ThrowingStorage(failure),
+                files: w.files,
+              ),
+            );
+            await c.start();
+            final s = c.state as StorageNotOpenableState;
+            expect(
+              s.cause,
+              StorageNotOpenableCause.openFailed,
+              reason: '$failure',
+            );
+            expect(s.canReset, isFalse);
+          }
+        },
+      );
+    },
+  );
+
+  group('Datenverlust-Merker (dataLoss)', () {
+    test('Neubeginn: Löschen gelungen, Schlüssel nicht erneuert: deleted, '
+        'bleibt auch nach Erneut-Versuch', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.keys.failWith = 'defekt';
+      final c = w.controller();
+      await c.start();
+      await c.start();
+      await c.resetStorage();
+      var s = c.state as StorageNotOpenableState;
+      expect(s.resetProblem, StorageResetProblem.keyNotReplaced);
+      expect(s.dataLoss, StorageDataLoss.deleted);
+      await c.start();
+      s = c.state as StorageNotOpenableState;
+      expect(s.cause, StorageNotOpenableCause.keyStoreError);
+      expect(s.dataLoss, StorageDataLoss.deleted);
+      w.keys.failWith = null;
+      await c.start();
+      expect(c.state, isA<StorageReady>());
+    });
+
+    test('Löschen unvollständig: partial; ohne Löschversuch: none', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.keys.failWith = 'defekt';
+      final c = w.controller();
+      await c.start();
+      expect(
+        (c.state as StorageNotOpenableState).dataLoss,
+        StorageDataLoss.none,
+      );
+      await c.start();
+      w.files.stubborn = true;
+      await c.resetStorage();
+      final s = c.state as StorageNotOpenableState;
+      expect(s.resetProblem, StorageResetProblem.filesNotDeleted);
+      expect(s.dataLoss, StorageDataLoss.partial);
     });
   });
 
@@ -473,4 +592,17 @@ void main() {
       expect(w.log, ['Dateien löschen']);
     });
   });
+}
+
+/// Wirft beim Öffnen [failure] oder, bei null, eine fremde Ausnahme.
+class _ThrowingStorage implements Storage {
+  _ThrowingStorage(this.failure);
+  final StorageFailure? failure;
+
+  @override
+  Future<StorageSession> open(Uint8List key) async {
+    final f = failure;
+    if (f == null) throw StateError('fremd');
+    throw StorageException(f);
+  }
 }

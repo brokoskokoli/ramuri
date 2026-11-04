@@ -20,8 +20,12 @@ enum StorageNotOpenableCause {
   /// Die Schlüsselablage lässt sich nicht lesen oder beschreiben.
   keyStoreError,
 
-  /// Falscher Schlüssel oder beschädigte Datei.
+  /// Falscher Schlüssel oder beschädigte Datei (SQLite NOTADB oder CORRUPT).
   unreadable,
+
+  /// Sonstiger Fehler beim Öffnen (E/A, Rechte, Sperre, voller Speicher). Die
+  /// Datei kann gesund sein: Neubeginn erst nach einem Fehlversuch.
+  openFailed,
 
   /// Die Datei hat eine neuere Schemaversion als diese App (Herabstufen).
   newerVersion,
@@ -60,9 +64,23 @@ bool canResetFor(StorageNotOpenableCause cause, {required bool retryFailed}) =>
       StorageNotOpenableCause.newerVersion ||
       StorageNotOpenableCause.migrationFailed ||
       StorageNotOpenableCause.configurationFailed ||
+      StorageNotOpenableCause.openFailed ||
       StorageNotOpenableCause.fileCheckError => retryFailed,
       StorageNotOpenableCause.locationError => false,
     };
+
+/// Was ein Neubeginn schon an den alten Daten verändert hat. Ab dem Aufruf von
+/// `deleteAll` stimmt "die Daten wurden nicht verändert" nicht mehr.
+enum StorageDataLoss {
+  /// Es wurde nichts gelöscht.
+  none,
+
+  /// Das Löschen lief, die Prüfung danach hat noch Dateien gefunden.
+  partial,
+
+  /// Alle Dateien sind weg; nur der Schlüssel konnte nicht erneuert werden.
+  deleted,
+}
 
 /// Was beim Neubeginn schiefging (die Oberfläche zeigt es an).
 enum StorageResetProblem {
@@ -96,6 +114,7 @@ final class StorageNotOpenableState extends StorageStartState {
     this.resetProblem,
     this.busy = false,
     this.retryFailed = false,
+    this.dataLoss = StorageDataLoss.none,
   });
 
   final StorageNotOpenableCause cause;
@@ -111,6 +130,10 @@ final class StorageNotOpenableState extends StorageStartState {
   /// Neubeginn führen.
   final bool retryFailed;
 
+  /// Was der Neubeginn schon gelöscht hat. Ist es nicht `none`, zeigt die
+  /// Oberfläche statt der Ursache den wahren Zustand (nicht "unverändert").
+  final StorageDataLoss dataLoss;
+
   /// Siehe [canResetFor].
   bool get canReset => canResetFor(cause, retryFailed: retryFailed);
 
@@ -122,6 +145,7 @@ final class StorageNotOpenableState extends StorageStartState {
     resetProblem: resetProblem,
     busy: busy,
     retryFailed: retryFailed,
+    dataLoss: dataLoss,
   );
 }
 
@@ -153,6 +177,9 @@ class StorageStartController extends ChangeNotifier {
   /// ihn nicht). Gleiche Art zweimal hintereinander ergibt `retryFailed`.
   StorageNotOpenableCause? _lastCause;
 
+  /// Ab dem Löschen im Neubeginn bis zum erfolgreichen Öffnen.
+  StorageDataLoss _dataLoss = StorageDataLoss.none;
+
   void _set(StorageStartState s) {
     _state = s;
     notifyListeners();
@@ -177,7 +204,13 @@ class StorageStartController extends ChangeNotifier {
     _lastCause = null;
     void fail(StorageNotOpenableCause cause) {
       _lastCause = cause;
-      _set(StorageNotOpenableState(cause, retryFailed: cause == before));
+      _set(
+        StorageNotOpenableState(
+          cause,
+          retryFailed: cause == before,
+          dataLoss: _dataLoss,
+        ),
+      );
     }
 
     final StorageWiring wiring;
@@ -226,7 +259,9 @@ class StorageStartController extends ChangeNotifier {
         key = k;
     }
     try {
-      _set(StorageReady(await wiring.storage.open(key)));
+      final session = await wiring.storage.open(key);
+      _dataLoss = StorageDataLoss.none;
+      _set(StorageReady(session));
     } on StorageException catch (e) {
       switch (e.failure) {
         case StorageFailure.encryptionNotActive:
@@ -237,13 +272,26 @@ class StorageStartController extends ChangeNotifier {
           fail(StorageNotOpenableCause.migrationFailed);
         case StorageFailure.configurationFailed:
           fail(StorageNotOpenableCause.configurationFailed);
-        default:
+        case StorageFailure.unreadable:
           fail(StorageNotOpenableCause.unreadable);
+        default:
+          // Alles andere kann eine gesunde Datei sein: kein sofortiger Neubeginn.
+          fail(StorageNotOpenableCause.openFailed);
       }
     } catch (_) {
-      fail(StorageNotOpenableCause.unreadable);
+      fail(StorageNotOpenableCause.openFailed);
     }
   }
+
+  StorageNotOpenableState _stateWith(
+    StorageNotOpenableState s, {
+    required StorageResetProblem resetProblem,
+  }) => StorageNotOpenableState(
+    s.cause,
+    resetProblem: resetProblem,
+    retryFailed: s.retryFailed,
+    dataLoss: _dataLoss,
+  );
 
   /// Neubeginn mit leerer Datenbank. Nur aus "nicht zu öffnen" und nur, nachdem
   /// der Nutzer ausdrücklich bestätigt hat (das stellt die Oberfläche sicher).
@@ -265,18 +313,33 @@ class StorageStartController extends ChangeNotifier {
       final StorageWiring wiring;
       try {
         wiring = await wire();
+      } catch (_) {
+        _set(current._with(resetProblem: StorageResetProblem.filesNotDeleted));
+        return;
+      }
+      // Ab hier können Daten verloren sein, auch wenn das Löschen scheitert.
+      _dataLoss = StorageDataLoss.partial;
+      try {
         await wiring.files.deleteAll();
         if (await wiring.files.exist()) {
           throw StateError('Datei nach dem Löschen noch da');
         }
       } catch (_) {
-        _set(current._with(resetProblem: StorageResetProblem.filesNotDeleted));
+        _set(
+          _stateWith(
+            current,
+            resetProblem: StorageResetProblem.filesNotDeleted,
+          ),
+        );
         return;
       }
+      _dataLoss = StorageDataLoss.deleted;
       try {
         await keyStore.delete(storageKeyName);
       } catch (_) {
-        _set(current._with(resetProblem: StorageResetProblem.keyNotReplaced));
+        _set(
+          _stateWith(current, resetProblem: StorageResetProblem.keyNotReplaced),
+        );
         return;
       }
       _lastCause = null;

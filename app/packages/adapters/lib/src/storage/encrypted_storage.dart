@@ -171,12 +171,29 @@ class EncryptedStorage implements Storage {
 }
 
 /// Ordnet einen Fehler beim Öffnen einer [StorageFailure] zu, nur anhand der
-/// Art. `SqliteException` und `DriftRemoteException` tragen im Text Statement
+/// Art. `unreadable` (sofortiger Neubeginn) gilt nur für SQLITE_NOTADB (26,
+/// falscher Schlüssel oder keine Datenbank) und SQLITE_CORRUPT (11); jeder
+/// andere Fehler (E/A, Rechte, Sperre, voller Speicher) ist `openFailed`,
+/// denn die Datei kann gesund sein. `SqliteException` und `DriftRemoteException` tragen im Text Statement
 /// und Parameter (Daten, ggf. Schlüssel); darum wird nie der Text
 /// weitergegeben (Falle 4). Die Textprüfung gilt nur hier: Beim Öffnen stehen
 /// keine Nutzdaten im Text.
 StorageFailure storageFailureOf(Object e) =>
-    _setupFailureOf(e) ?? StorageFailure.unreadable;
+    _setupFailureOf(e) ??
+    (_isUnreadableFile(e)
+        ? StorageFailure.unreadable
+        : StorageFailure.openFailed);
+
+/// Gemessen (WP02 fix4): Falscher Schlüssel, Datei aus Müll, abgeschnittene
+/// Datei und beschädigte erste Seite kommen über den Hintergrund-Isolate als
+/// `DriftRemoteException` mit `remoteCause` SqliteException Code 26 an; ein
+/// Verzeichnis statt Datei als Code 14 (CANTOPEN).
+bool _isUnreadableFile(Object e) {
+  final cause = e is DriftRemoteException ? e.remoteCause : e;
+  if (cause is! SqliteException) return false;
+  final code = cause.extendedResultCode & 0xff;
+  return code == 26 || code == 11;
+}
 
 StorageFailure? _setupFailureOf(Object e) {
   if (e is ConnectionSetupFailure) return e.failure;

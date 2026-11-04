@@ -70,31 +70,43 @@
   },
   "notOpenableKeyStoreError": "Die Schlüsselablage des Geräts antwortet nicht richtig. Die gespeicherten Daten wurden nicht verändert. Oft hilft ein erneuter Versuch, etwa nach dem Entsperren des Geräts. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
   "@notOpenableKeyStoreError": {
-    "description": "Grund: Fehler der Schlüsselablage"
+    "description": "Grund: Fehler der Schlüsselablage; Neubeginn erst nach einem Fehlversuch (canResetFor)"
   },
   "notOpenableUnreadable": "Die gespeicherten Daten lassen sich mit dem vorhandenen Schlüssel nicht lesen. Mögliche Gründe: Die Datei ist beschädigt oder der Schlüssel passt nicht.",
   "@notOpenableUnreadable": {
-    "description": "Grund: Datei unlesbar oder falscher Schlüssel"
+    "description": "Grund: Datei unlesbar oder falscher Schlüssel (SQLite NOTADB/CORRUPT); Neubeginn sofort (canResetFor)"
   },
   "notOpenableFileCheckError": "Der Zustand der gespeicherten Daten konnte nicht geprüft werden. Es wurde nichts verändert. Bitte erneut versuchen. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
   "@notOpenableFileCheckError": {
-    "description": "Grund: Prüfung der Datei selbst gescheitert (kein Neubeginn)"
+    "description": "Grund: Prüfung der Datei selbst gescheitert; Neubeginn erst nach einem Fehlversuch (canResetFor)"
   },
   "notOpenableNewerVersion": "Die gespeicherten Daten stammen von einer neueren Version der App und lassen sich mit dieser Version nicht öffnen. Die Daten sind vermutlich in Ordnung und wurden nicht verändert. Am besten die neuere Version der App wieder installieren. Erst wenn auch ein erneuter Versuch scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
   "@notOpenableNewerVersion": {
-    "description": "Grund: Datei mit höherer Schemaversion (Herabstufen), kein Neubeginn"
+    "description": "Grund: Datei mit höherer Schemaversion (Herabstufen); Neubeginn erst nach einem Fehlversuch (canResetFor)"
   },
   "notOpenableConfigurationFailed": "Die Datenbank ließ sich auf diesem Gerät nicht sicher einrichten. Die Daten wurden nicht verändert. Bitte erneut versuchen, etwa nach einem App-Update. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
   "@notOpenableConfigurationFailed": {
-    "description": "Grund: PRAGMA-Einrichtung der Verbindung weicht ab (Umgebung), kein Neubeginn"
+    "description": "Grund: PRAGMA-Einrichtung der Verbindung weicht ab (Umgebung); Neubeginn erst nach einem Fehlversuch (canResetFor)"
   },
   "notOpenableMigrationFailed": "Die gespeicherten Daten konnten nicht auf die Form dieser App-Version umgestellt werden. Die Daten wurden nicht verändert. Bitte erneut versuchen oder zuerst die App aktualisieren. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
   "@notOpenableMigrationFailed": {
-    "description": "Grund: Migration gescheitert (Fehler der App), kein Neubeginn"
+    "description": "Grund: Migration gescheitert (Fehler der App); Neubeginn erst nach einem Fehlversuch (canResetFor)"
   },
   "notOpenableLocationError": "Der Speicherort der Daten konnte nicht bestimmt werden. Es wurde nichts verändert.",
   "@notOpenableLocationError": {
-    "description": "Grund: Pfad nicht ermittelbar"
+    "description": "Grund: Pfad nicht ermittelbar; nie Neubeginn (canResetFor)"
+  },
+  "notOpenableOpenFailed": "Die gespeicherten Daten ließen sich nicht öffnen, etwa wegen eines Lese- oder Schreibfehlers, fehlenden Speicherplatzes oder einer Sperre. Die Daten wurden nicht verändert und sind vermutlich in Ordnung. Bitte erneut versuchen. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
+  "@notOpenableOpenFailed": {
+    "description": "Grund: sonstiger Fehler beim Öffnen; Neubeginn erst nach einem Fehlversuch (canResetFor)"
+  },
+  "notOpenableDataDeleted": "Die alten Daten sind gelöscht. Der Schlüssel konnte nicht erneuert werden, die neue Datenbank ist noch nicht angelegt. Bitte erneut versuchen.",
+  "@notOpenableDataDeleted": {
+    "description": "Nach einem Neubeginn: Dateien gelöscht, Schlüssel oder Öffnen danach gescheitert (ersetzt die Ursache)"
+  },
+  "notOpenableDataPartial": "Beim Neubeginn wurde versucht, die alten Daten zu löschen. Sie sind möglicherweise nur teilweise gelöscht. Es wurde kein neuer Schlüssel angelegt. Bitte erneut versuchen.",
+  "@notOpenableDataPartial": {
+    "description": "Nach einem Neubeginn: Löschen nicht vollständig bestätigt (ersetzt die Ursache)"
   },
   "notOpenableResetHint": "„Neu beginnen“ löscht die bisherigen Daten endgültig und legt eine leere Datenbank an. Vorher fragt die App noch einmal nach.",
   "@notOpenableResetHint": {

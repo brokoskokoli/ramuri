@@ -31,6 +31,9 @@ class World {
   late final WorldStorage storage;
   FakeStorage inner = FakeStorage();
 
+  /// Fehler beim Öffnen der neuen Datei nach dem Löschen (Neubeginn).
+  StorageFailure? openFailureAfterDelete;
+
   /// Schlüssel der alten Datei, solange sie liegt.
   Uint8List? oldFileKey;
 
@@ -99,7 +102,8 @@ class WorldFiles extends FakeDatabaseFiles {
     await w.step('Dateien löschen');
     if (stubborn) return;
     await super.deleteAll();
-    w.inner = FakeStorage(encryptionActive: w.inner.encryptionActive);
+    w.inner = FakeStorage(encryptionActive: w.inner.encryptionActive)
+      ..openFailure = w.openFailureAfterDelete;
     w.oldFileKey = null;
     w.check();
   }

@@ -46,6 +46,12 @@ class AppDatabase extends _$AppDatabase {
             }
             await step(m);
           }
+          // Die Version gehört in dieselbe Transaktion: drift schreibt sie
+          // erst nach beforeOpen (drift 2.35.3 engines.dart), also nach dem
+          // Commit. Ein Abbruch dazwischen würde die Schritte wiederholen
+          // (etwa doppelte Spalte) und die Datei dauerhaft "migrationFailed"
+          // machen. `to` ist eine Ganzzahl der App, kein Nutzerwert.
+          await customStatement('PRAGMA user_version = $to');
         });
       } catch (_) {
         // Jeder Fehler eines Schritts ist ein Migrationsfehler, ohne Ursache:

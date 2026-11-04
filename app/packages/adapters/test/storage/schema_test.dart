@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
-import 'package:drift/drift.dart' show Migrator;
+import 'package:drift/drift.dart' show MigrationStrategy, Migrator;
 import 'package:drift_dev/api/migrations_native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -761,13 +761,43 @@ void main() {
         2,
       );
     });
+
+    test('Version steht schon im Commit der Migration, vor beforeOpen '
+        '(Zeitfenster zwischen Commit und drifts Versionsschreiben)', () async {
+      await (await openDb()).close();
+      final observed = <Object?>[];
+      final storage = EncryptedStorage(
+        path,
+        databaseBuilder: (e) =>
+            _SyntheticV2(e, onStep: () {}, onBeforeOpenVersion: observed.add),
+      );
+      await (await storage.open(testKey())).close();
+      expect(observed, [2]);
+    });
   });
 }
 
 /// Test-Datenbank "Version 2" mit einem Schritt, der nur im Test existiert.
 class _SyntheticV2 extends AppDatabase {
-  _SyntheticV2(super.e, {required this.onStep});
+  _SyntheticV2(super.e, {required this.onStep, this.onBeforeOpenVersion});
   final void Function() onStep;
+
+  /// Meldet `user_version`, wie sie in `beforeOpen` steht: nach der Migration,
+  /// aber bevor drift die Version selbst schreibt.
+  final void Function(Object?)? onBeforeOpenVersion;
+
+  @override
+  MigrationStrategy get migration {
+    final base = super.migration;
+    return MigrationStrategy(
+      onCreate: base.onCreate,
+      onUpgrade: base.onUpgrade,
+      beforeOpen: (details) async {
+        final rows = await customSelect('PRAGMA user_version').get();
+        onBeforeOpenVersion?.call(rows.single.data.values.single);
+      },
+    );
+  }
 
   @override
   int get schemaVersion => 2;

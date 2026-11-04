@@ -258,6 +258,32 @@ void main() {
     expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
   });
 
+  testWidgets('Neubeginn: Datei gelöscht, Schlüssel nicht erneuert: Text sagt '
+      'die Wahrheit, auch nach Erneut-Versuch', (tester) async {
+    final w = World();
+    await w.seed(fileKey: k0, storedKey: k0);
+    w.keys.failWith = 'defekt';
+    await pumpApp(tester, w.controller());
+    expect(find.textContaining('nicht verändert'), findsOneWidget);
+    await tester.tap(find.text('Erneut versuchen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Neu beginnen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Endgültig löschen und neu beginnen'));
+    await tester.pumpAndSettle();
+    expect(w.files.present, isFalse);
+    void expectTruth() {
+      expect(find.textContaining('alten Daten sind gelöscht'), findsWidgets);
+      expect(find.textContaining('nicht verändert'), findsNothing);
+      expect(find.textContaining('löscht die bisherigen Daten'), findsNothing);
+    }
+
+    expectTruth();
+    await tester.tap(find.text('Erneut versuchen'));
+    await tester.pumpAndSettle();
+    expectTruth();
+  });
+
   testWidgets('Verschlüsselung nicht aktiv: eigene Meldung, kein Neubeginn', (
     tester,
   ) async {

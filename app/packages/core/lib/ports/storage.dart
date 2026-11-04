@@ -13,21 +13,30 @@ enum StorageFailure {
   /// Verschlüsselung ist nicht aktiv; die Datei wird nicht geöffnet (ADR-0003).
   encryptionNotActive,
 
-  /// Schlüssel passt nicht oder Datei ist unlesbar (OQ-0062).
+  /// Schlüssel passt nicht oder Datei ist unlesbar (OQ-0062): SQLite meldet
+  /// NOTADB (26) oder CORRUPT (11). Nur dann bietet die App sofort den
+  /// Neubeginn an (siehe `canResetFor` in der App).
   unreadable,
 
+  /// Öffnen: sonstiger Fehler (E/A, Rechte, Sperre, voller Speicher). Die Datei
+  /// kann gesund sein; Neubeginn erst nach einem gescheiterten Erneut-Versuch.
+  openFailed,
+
   /// Öffnen: Die Datei hat eine höhere Schemaversion als diese App kennt
-  /// (Herabstufen). Die Datei ist gesund; ein Neubeginn wäre falsch, die neuere
-  /// App-Version wird gebraucht.
+  /// (Herabstufen). Die Datei ist vermutlich gesund; die neuere App-Version wird
+  /// gebraucht. Neubeginn nur als letzter Ausweg nach einem gescheiterten
+  /// Erneut-Versuch.
   newerVersion,
 
   /// Öffnen: Die Migration auf die aktuelle Version ist gescheitert (Fehler
-  /// der App, nicht der Datei). Kein Neubeginn.
+  /// der App, nicht der Datei). Neubeginn nur als letzter Ausweg nach einem
+  /// gescheiterten Erneut-Versuch.
   migrationFailed,
 
   /// Öffnen: Ein PRAGMA der Einrichtung (WAL, Synchronisation, `secure_delete`
   /// u. a.) hat nicht den verlangten Wert, etwa auf einem Dateisystem ohne WAL.
-  /// Fehler der Umgebung, nicht der Datei: kein Neubeginn.
+  /// Fehler der Umgebung, nicht der Datei: Neubeginn nur als letzter Ausweg nach
+  /// einem gescheiterten Erneut-Versuch.
   configurationFailed,
 
   /// Zugriff: Der Lauf oder der Eintrag existiert nicht.
