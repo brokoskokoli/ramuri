@@ -261,7 +261,7 @@ In Phase 2 gibt es einen Laufbandmodus, in dem der Nutzer die aktuelle Geschwind
 - [OQ-0061](../migration/open-questions.md#oq-0061--bedeutung-der-wiederaufnahme) (entschieden): Bedeutung der Wiederaufnahme
 - [OQ-0064](../migration/open-questions.md#oq-0064--technische-vorgaben-der-aufzeichnung) (non-blocking): Technische Vorgaben der Aufzeichnung
 - [OQ-0065](../migration/open-questions.md#oq-0065--lücken-aus-dem-plan-für-phase-1) (entschieden): Lücken aus dem Plan für Phase 1
-- [OQ-0068](../migration/open-questions.md#oq-0068--gps-rauschen-im-stand) (non-blocking;): GPS-Rauschen im Stand
+- [OQ-0068](../migration/open-questions.md#oq-0068--gps-rauschen-im-stand) (non-blocking): GPS-Rauschen im Stand
 <!-- END OQ -->
 
 ## Quellen
