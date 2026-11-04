@@ -2,6 +2,7 @@
 """R005-Mess-Harness: steuert genau einen eigenen Emulator (Serial emulator-5600), zeichnet logcat auf dem Rechner mit.
 Unterbefehle siehe --help. Ausgaben unter $RESEARCH_DATA/work/R005/<art>/<lauf>/ . Fremde Emulatoren werden nie angefasst."""
 import argparse,json,math,os,random,re,shutil,signal,subprocess,sys,threading,time
+from walhdr import wal_info
 SDK=os.path.expanduser('~/Library/Android/sdk'); ADB=SDK+'/platform-tools/adb'; EMU=SDK+'/emulator/emulator'
 S='emulator-5600'; PORT=5600; PKG='org.runningapp.r005.r005_proto'; ACT=PKG+'/.MainActivity'; PIN='1234'
 WORK=os.environ['R005_WORK']; APK=os.environ['R005_APK']
@@ -114,6 +115,10 @@ def pull(run,dst,prefix='r005'):
         sizes[suf or 'db']=os.path.getsize(f'{dst}/x.db{suf}')
     return sizes
 def rm_runs(): ash(f'run-as {PKG} sh -c "rm -f no_backup/*.db no_backup/*.db-wal no_backup/*.db-shm"')
+def clean_before():
+    # Vor jedem Lauf (Review R005, Befund 2): DB eines abgebrochenen Vorversuchs mit gleichem Laufnamen wuerde sonst als Ergebnis gezogen.
+    rm_runs(); left=ash(f'run-as {PKG} sh -c "ls no_backup/ 2>/dev/null"')
+    if '.db' in left: raise RuntimeError(f'alte DB liegt noch da: {left}')
 def fresh():
     ash(f'am force-stop {PKG}'); time.sleep(1)
 def dump_db(dbdir,plain=False):
@@ -149,7 +154,7 @@ def trial_gap(a,run,base=60):
     if os.path.exists(o+'/.done'): log('schon da',run); return
     if os.path.exists(o): shutil.rmtree(o)
     os.makedirs(o); json.dump(vars(a)|{'run':run},open(o+'/meta.json','w'),default=str)
-    root(); fresh(); ash('dumpsys deviceidle unforce'); ash('dumpsys battery reset'); unlock()
+    root(); fresh(); clean_before(); ash('dumpsys deviceidle unforce'); ash('dumpsys battery reset'); unlock()
     ash('dumpsys battery unplug'); s0=susp()
     lc=Logcat(o+'/logcat.txt'); inj=Injector(o+'/inject.tsv',a.seed,pause=(base+a.pause_at,base+a.pause_at+a.pause_len) if a.pause_len else None,every=a.inj_every); inj.start()
     time.sleep(3)
@@ -216,10 +221,11 @@ def trial_kill(a,run,kind):
     if os.path.exists(o): shutil.rmtree(o)
     os.makedirs(o)
     if kind=='proc': root()  # run-as-Kill wirkte auf API 31 nicht; root vor dem logcat, adb root bricht es sonst ab
-    fresh(); unlock(); time.sleep(1)
+    fresh(); clean_before(); unlock(); time.sleep(1)
     rng=random.Random(run)
     lc=Logcat(o+'/logcat.txt'); inj=Injector(o+'/inject.tsv',rng.randint(0,1<<30)); inj.start(); time.sleep(2)
-    start_app(o+'/logcat.txt',cmd='start',host=a.host,run=run,tx=a.tx,sync=a.sync,wake=False)
+    ck=dict(autock=a.autock) if a.autock is not None else {}  # Checkpoint-Serie: kleiner wal_autocheckpoint, sonst Standard 1000
+    start_app(o+'/logcat.txt',cmd='start',host=a.host,run=run,tx=a.tx,sync=a.sync,wake=False,**ck)
     wait=rng.uniform(a.minrun,a.maxrun); time.sleep(wait)
     t=time.time(); pid=pidof(); kp=None; kill_out=None
     if kind=='proc':
@@ -234,7 +240,7 @@ def trial_kill(a,run,kind):
         inj.stop_=True; kp=emu_pid(); adb('emu','kill',timeout=10)
     elif kind=='sigkill':  # haertere Kontrolle: qemu ohne jede Abschaltlogik
         inj.stop_=True; kp=emu_pid(); os.kill(kp,signal.SIGKILL)
-    meta=dict(run=run,host=a.host,kind=kind,tx=a.tx,sync=a.sync,wait=wait,tkill=t,pid=pid,kill_via='root' if kind=='proc' else 'host',kill_out=kill_out)
+    meta=dict(run=run,host=a.host,kind=kind,tx=a.tx,sync=a.sync,wait=wait,tkill=t,pid=pid,kill_via='root' if kind=='proc' else 'host',kill_out=kill_out,autock=a.autock)
     inj.stop_=True
     time.sleep(2); inj.join(3)
     bootS=None
@@ -246,7 +252,8 @@ def trial_kill(a,run,kind):
     else:
         lc.stop()
     meta['boot_s']=bootS; meta['pid_after_kill']=pidof()
-    meta['pull']=pull(run,o+'/after'); so,se=dump_db(o+'/after'); open(o+'/rows.tsv','w').write(so); meta['dump_err']=se[:300]
+    meta['pull']=pull(run,o+'/after'); meta['wal_info']=wal_info(o+'/after/x.db-wal')  # vor dem Oeffnen: dump_db checkpointet die Kopie
+    so,se=dump_db(o+'/after'); open(o+'/rows.tsv','w').write(so); meta['dump_err']=se[:300]
     lc2=Logcat(o+'/logcat2.txt'); am_start(cmd='verify',run=run); time.sleep(5); lc2.stop(); fresh(); rm_runs()
     json.dump(meta,open(o+'/meta.json','w')); open(o+'/.done','w').write('ok'); log('fertig',run,'wait %.1f'%wait,meta['pull'])
 # ---- WAL im Geraet
@@ -254,7 +261,7 @@ def trial_wal(a,run,enc):
     o=f'{WORK}/wal-device/{run}'
     if os.path.exists(o+'/.done'): log('schon da',run); return
     if os.path.exists(o): shutil.rmtree(o)
-    os.makedirs(o); fresh(); unlock(); lc=Logcat(o+'/logcat.txt'); inj=Injector(o+'/inject.tsv',a.seed); inj.start(); time.sleep(2)
+    os.makedirs(o); fresh(); clean_before(); unlock(); lc=Logcat(o+'/logcat.txt'); inj=Injector(o+'/inject.tsv',a.seed); inj.start(); time.sleep(2)
     start_app(o+'/logcat.txt',cmd='start',host='own',run=run,tx=1,sync='FULL',wake=False,enc=enc,autock=0)
     time.sleep(a.dur)
     log(pull(run,o+'/vor-checkpoint')); inj.stop_=True; time.sleep(2); fresh(); lc.stop(); rm_runs()
@@ -263,7 +270,7 @@ def swipe_trial(a,run):
     o=f'{WORK}/swipe/{run}'
     if os.path.exists(o+'/.done'): log('schon da',run); return
     if os.path.exists(o): shutil.rmtree(o)
-    os.makedirs(o); fresh(); ash('dumpsys battery reset'); unlock(); lc=Logcat(o+'/logcat.txt'); inj=Injector(o+'/inject.tsv',a.seed); inj.start(); time.sleep(2)
+    os.makedirs(o); fresh(); clean_before(); ash('dumpsys battery reset'); unlock(); lc=Logcat(o+'/logcat.txt'); inj=Injector(o+'/inject.tsv',a.seed); inj.start(); time.sleep(2)
     start_app(o+'/logcat.txt',cmd='start',host=a.host,run=run,tx=a.tx,sync=a.sync,wake=False)
     time.sleep(a.dur)
     size=re.search(r'(\d+)x(\d+)',ash('wm size')); W,H=int(size[1]),int(size[2])
@@ -287,7 +294,7 @@ def main():
     ap.add_argument('--idle',type=int,default=1); ap.add_argument('--tx',type=int,default=1); ap.add_argument('--sync',default='FULL')
     ap.add_argument('--dur',type=int,default=600); ap.add_argument('--rep',type=int,default=1); ap.add_argument('--seed',type=int,default=42); ap.add_argument('--kind',default='proc')
     ap.add_argument('--minrun',type=float,default=20); ap.add_argument('--maxrun',type=float,default=40); ap.add_argument('--pause-at',type=int,default=0); ap.add_argument('--pause-len',type=int,default=0); ap.add_argument('--stop-at',type=int,default=0); ap.add_argument('--stop-len',type=int,default=0)
-    ap.add_argument('--natural',type=int,default=0); ap.add_argument('--force-at',type=int,default=0); ap.add_argument('--post',type=int,default=30); ap.add_argument('--quiet',type=int,default=0); ap.add_argument('--n',type=int,default=300); ap.add_argument('--tag',default=''); ap.add_argument('--poll',type=int,default=15); ap.add_argument('--sample',type=int,default=0); ap.add_argument('--inj-every',type=int,default=1)
+    ap.add_argument('--natural',type=int,default=0); ap.add_argument('--force-at',type=int,default=0); ap.add_argument('--post',type=int,default=30); ap.add_argument('--quiet',type=int,default=0); ap.add_argument('--n',type=int,default=300); ap.add_argument('--tag',default=''); ap.add_argument('--poll',type=int,default=15); ap.add_argument('--sample',type=int,default=0); ap.add_argument('--inj-every',type=int,default=1); ap.add_argument('--autock',type=int,default=None)
     a=ap.parse_args(); a.wake=bool(a.wake); a.idle=bool(a.idle)
     os.makedirs(WORK,exist_ok=True)
     if a.cmd=='boot':
@@ -304,9 +311,10 @@ def main():
         except OSError: pass
         log('Emulator gestoppt')
     elif a.cmd=='gap':
+        seed0=a.seed
         for r in range(a.rep):
             run=f'a{a.api}_{a.host}_w{int(a.wake)}_i{int(a.idle)}_{a.dur}s{a.tag}_r{r}'
-            a.seed=42+r; trial_gap(a,run)
+            a.seed=seed0+r; trial_gap(a,run)
     elif a.cmd=='kill':
         for r in range(a.rep):
             trial_kill(a,f'a{a.api}_{a.kind}'+('' if a.host=='own' else '_'+a.host)+f'_tx{a.tx}_{a.sync}{a.tag}_r{r}',a.kind)
@@ -316,7 +324,7 @@ def main():
         for r in range(a.rep): swipe_trial(a,f'a{a.api}_{a.host}{a.tag}_r{r}')
     elif a.cmd=='bench':
         run=f'a{a.api}{a.tag}'; o=f'{WORK}/bench/{run}'
-        os.makedirs(o,exist_ok=True); fresh(); unlock(); lc=Logcat(o+'/logcat.txt'); am_start(cmd='bench',run=run,n=a.n)
+        os.makedirs(o,exist_ok=True); fresh(); clean_before(); unlock(); lc=Logcat(o+'/logcat.txt'); am_start(cmd='bench',run=run,n=a.n)
         t0=time.time()
         while time.time()-t0<3600 and f'R005BENCHDONE' not in open(o+'/logcat.txt').read(): time.sleep(5)
         lc.stop(); fresh(); rm_runs(); open(o+'/.done','w').write('ok'); log('bench fertig %.0fs'%(time.time()-t0))

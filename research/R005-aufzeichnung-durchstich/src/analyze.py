@@ -1,6 +1,21 @@
 #!/usr/bin/env python3
 """Auswertung R005. Aufruf: analyze.py gap|kill|bench|wal|swipe <work-dir> . Messdefinition siehe README."""
 import glob,json,os,re,statistics as st,sys,subprocess
+from walhdr import wal_info
+def log_check(path,R,ev,tmax=None):
+    # Gueltigkeit gegen veraltete DB (Review R005, Befund 2): Log und DB muessen denselben Lauf zeigen. Liefert Gruende, leer heisst bestanden.
+    why=[]; ev=[e for e in ev if tmax is None or e[0]<=tmax]
+    if not any(e[1]=='R005ACK' for e in ev): why.append('kein R005ACK')
+    sq=0
+    for l in open(path,errors='replace'):
+        if 'SqliteException' in l:
+            m=re.match(r'\s*(\d+\.\d+)\s',l)
+            if tmax is None or (m and float(m[1])<=tmax): sq+=1
+    if sq: why.append('SqliteException %d'%sq)
+    log={int(kv(e[2])['seq']):int(kv(e[2])['trecv']) for e in ev if e[1]=='R005RCV' and 'trecv' in kv(e[2])}
+    common=[r for r in R if r[0] in log]; off=sum(log[r[0]]!=r[4] for r in common)
+    if off: why.append('trecv DB ungleich Log in %d von %d'%(off,len(common)))
+    return why
 def pct(xs,p):
     if not xs: return float('nan')
     xs=sorted(xs); return xs[min(len(xs)-1,int(p/100*len(xs)))]
@@ -92,7 +107,7 @@ def gap(work):
         for x,y in zip(idle,idle[1:]):
             if (x[1],x[2])!=(y[1],y[2]): chg.append(rcv[y[0]])
         dch=[b-a for a,b in zip(chg,chg[1:])]
-        rec=dict(run=run,integ=integ.split('\t')[-1],rows=len(R),idle_rows=len(idle),idle_s=round(dur),
+        rec=dict(run=run,hb_edge=round(p['end']-hb_idle[-1]['t'],1) if hb_idle else None,integ=integ.split('\t')[-1],rows=len(R),idle_rows=len(idle),idle_s=round(dur),
           rate=round(len(idle)/dur,3),coverage=round(cov,4),gap_p50=round(pct(di,50),2),gap_p99=round(pct(di,99),2),gap_max=round(max(di),1) if di else None,
           n_gt2=sum(x>2 for x in di),n_gt5=sum(x>5 for x in di),n_gt30=sum(x>30 for x in di),poschg_p99=round(pct(dch,99),2) if dch else None,poschg_max=round(max(dch),1) if dch else None,poschg_gt5=sum(x>5 for x in dch),base_p99=round(pct(db,99),2),base_max=round(max(db),2) if db else None,
           hb_n=len(hb_idle),hb_max=round(max(lhb),1) if lhb else None,locked=round(locked,2),inter=inter,appIdle=round(idl,2),deepIDLE=round(deep,2) if states else None,susp_ok=susp_ok,susp_fail=susp_fail,hb_gt5=sum(x>5 for x in lhb),
@@ -111,6 +126,7 @@ def gap(work):
         if 'R005START' not in names: why.append('kein R005START')
         if not svc: why.append('Host nicht belegt')
         if rec['errs']: why.append('R005ERR')
+        why+=log_check(o+'logcat.txt',R,ev)
         snap,fg=snap_of(work,run); pm=open(o+'kernel-pm.txt',errors='replace').read() if os.path.exists(o+'kernel-pm.txt') else None
         rec['susp_entries']=pm.count('suspend entry') if pm is not None else None; rec['sigkill_end']=pm is not None
         rec['hb_share']=round(len(hb_idle)/max(1,dur),3)
@@ -138,15 +154,20 @@ def kill(work):
         ack=[int(kv(e[2])['seq']) for e in ev if e[1]=='R005ACK' and e[0]<=tk+1]; rcv=[int(kv(e[2])['seq']) for e in ev if e[1]=='R005RCV' and e[0]<=tk+1]
         ok=(m.get('boot_s') is not None and post==0) if m['kind']!='proc' else (m.get('pid_after_kill')!=m['pid'] and (post==0 or m.get('host')=='ffgt'))
         pa=str(m.get('pid_after_kill') or '')
-        if not ok: print('UNGUELTIG (Kill wirkungslos):',os.path.basename(o[:-1]),m.get('pid'),pa,post); continue
+        why=[] if ok else ['Kill-Wirkung nicht belegt']
+        why+=log_check(o+'logcat.txt',R,ev,tk+1)  # nur bis zum Kill: ffgt schreibt nach dem Neustart mit neuer Nummerierung
+        autock=m.get('autock'); dbb=m['pull'].get('db')
+        if autock is not None and dbb<=4096: why.append('Hauptdatei %d Byte, kein Checkpoint belegt'%dbb)
         la,lr=max(ack,default=0),max(rcv,default=0)
         acked=set(range(1,la+1)); lost_acked=len(acked-db)
         holes=len(set(range(1,mx+1))-db)
         ver=[kv(e[2]) for e in parse_log(o+'logcat2.txt') if e[1]=='R005VERIFY']
-        rec=dict(run=os.path.basename(o[:-1]),via=m.get('kill_via','run-as' if m['kind']=='proc' else 'host'),post_kill_rcv=post,restart_pid=pa,wait=round(m['wait'],1),api=os.path.basename(o[:-1])[:3],host=m.get('host','own'),kind=m['kind'],tx=m['tx'],sync=m['sync'],last_ack=la,last_rcv=lr,db_rows=len(db),db_max=mx,lost_acked=lost_acked,rcv_not_db=lr-mx,db_beyond_ack=mx-la,holes=holes,integ=integ,dev=ver[0] if ver else None,wal=m['pull'].get('-wal'))
+        rec=dict(run=os.path.basename(o[:-1]),via=m.get('kill_via','run-as' if m['kind']=='proc' else 'host'),post_kill_rcv=post,restart_pid=pa,wait=round(m['wait'],1),api=os.path.basename(o[:-1])[:3],host=m.get('host','own'),kind=m['kind'],tx=m['tx'],sync=m['sync'],last_ack=la,last_rcv=lr,db_rows=len(db),db_max=mx,lost_acked=lost_acked,rcv_not_db=lr-mx,db_beyond_ack=mx-la,holes=holes,integ=integ,dev=ver[0] if ver else None,wal=m['pull'].get('-wal'),autock=autock,db_bytes=dbb,wal_info=m.get('wal_info'),valid=not why,why=why)
         out.append(rec); print(json.dumps(rec))
+        if why: print('UNGUELTIG:',rec['run'],why,'lost_acked',lost_acked)
     cells={}
-    for r in out: cells.setdefault((r['kind'],r['api'],r['host'],r['tx'],r['sync']),[]).append(r)
+    for r in out:
+      if r['valid'] and r['autock'] is None: cells.setdefault((r['kind'],r['api'],r['host'],r['tx'],r['sync']),[]).append(r)
     print('kind api host tx sync n | lost_acked sum/runs-with-loss/max | rcv_not_db mean min max | db_beyond_ack max | integ-not-ok | dev-mismatch')
     tab=[]
     for k,v in sorted(cells.items()):
@@ -154,6 +175,11 @@ def kill(work):
         bad=sum(x['integ']!='ok' for x in v); dv=sum(1 for x in v if not x['dev'] or int(x['dev']['max'] if x['dev']['max']!='null' else 0)!=x['db_max'])
         row=(*k,len(v),sum(L),sum(l>0 for l in L),max(L),round(st.mean(Q),1),min(Q),max(Q),max(x['db_beyond_ack'] for x in v),bad,dv); tab.append(row); print(*row)
     json.dump(dict(rows=out,cells=tab),open(work+'/kill/summary.json','w'),indent=1)
+def ckgate(work,run):
+    # Vorpruefung der Checkpoint-Serie: Abbruch nach dem ersten Lauf, wenn der Zustand gar nicht erreicht wird, statt 1 h zu messen
+    o=f'{work}/kill/{run}/'; m=json.load(open(o+'meta.json')); wi=m.get('wal_info') or {}
+    print(run,'Hauptdatei',m['pull'].get('db'),'WAL',wi)
+    sys.exit(0 if m['pull'].get('db',0)>4096 else 1)
 def bench(work):
     for o in sorted(glob.glob(work+'/bench/*/')):
         d={}
@@ -179,11 +205,11 @@ def wal(work):
             for x in pg: h[x]+=1
             e=len(pg)/256 or 1; chi=sum((c-e)**2/e for c in h)
             print(run,f,'size',len(b),'frames',(len(b)-32)//4120 if f.endswith('wal') else '-','marker',mk,'lat_bytes',lats,'sqliteHeader',hd,'chi2',round(chi))
-        print(run,'acks',len(ack),'db:',dbl[0][2][:110] if dbl else None)
+        print(run,'acks',len(ack),'wal_info',wal_info(d+'x.db-wal'),'db:',dbl[0][2][:110] if dbl else None)  # Frame-Koepfe bleiben Klartext
 def swipe(work):
     for o in sorted(glob.glob(work+'/swipe/*/')):
         if not os.path.exists(o+'.done'): continue
         m=json.load(open(o+'meta.json')); R=rows(o+'rows.tsv'); ev=parse_log(o+'logcat.txt')
         d=[(y[4]-x[4])/1e9 for x,y in zip(R,R[1:])]
         print(os.path.basename(o[:-1]),'rows',len(R),'pid',m['pid0'],m['pid1'],'recents',m['recents_before'],m['recents_after'],'gap_max',round(max(d),2) if d else None,'n_gt5',sum(x>5 for x in d),'svc',re.findall(r'isForeground=\w+',m['svc']),[e[2][:40] for e in ev if e[1]=='R005SVC'])
-{'gap':gap,'kill':kill,'bench':bench,'wal':wal,'swipe':swipe}[sys.argv[1]](sys.argv[2])
+{'gap':gap,'kill':kill,'bench':bench,'wal':wal,'swipe':swipe,'ckgate':lambda w:ckgate(w,sys.argv[3])}[sys.argv[1]](sys.argv[2])

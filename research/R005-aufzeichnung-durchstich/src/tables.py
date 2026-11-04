@@ -18,14 +18,19 @@ def host(r): return r['run'].split('_')[1]
 def wake(r): return r['run'].split('_')[2]
 def natural(r): return '_nat' in r['run']
 base=[r for r in S if not any(c in r['run'] for c in CTRL)]
+print('Ungueltige Laeufe (gap):',[(r['run'],r.get('why')) for r in S if not r.get('valid')],'\n')  # die Abstandsprobe setzt die Einspeisung absichtlich aus
+base=[r for r in base if r.get('valid')]
+def pmax(c):
+    v=[r.get('poschg_max') for r in c if r.get('poschg_max') is not None]
+    return '%.1f'%max(v) if v else '–'
 print('## Tabelle 1: Standardbedingung (emulator_wake_lock gehalten, kein Suspend), gesperrt, force-idle, ohne eigenen Wake Lock\n')
 rows=[]
 for a in ('a36','a31'):
   for h in ('own','ffgt'):
     c=[r for r in base if api(r)==a and host(r)==h and not natural(r)]
     if not c: continue
-    rows.append((a[1:],h,len(c),sum(r['idle_s'] for r in c),sum(r['idle_rows'] for r in c),rng([r['rate'] for r in c],'%.3f'),rng([r['coverage'] for r in c]),rng([r['gap_p99'] for r in c]),'%.1f'%max(r['gap_max'] for r in c),sum(r['n_gt2'] for r in c),sum(r['n_gt5'] for r in c),sum(r['n_gt30'] for r in c),'%.1f'%max(r['hb_max'] for r in c),rng([r['ack_p50_us']/1e3 for r in c],'%.1f'),'%.1f'%(max(r['ack_p99_us'] for r in c)/1e3),'%d (gelesen in %d von %d)'%(sum(int(r['susp_ok'] or 0) for r in c),sum(r['susp_ok'] is not None for r in c),len(c))))
-table('API Host Läufe Idle-s Zeilen Rate/s Abdeckung p99-Abstand-s max-Abstand-s >2s >5s >30s Herzschlag-max-s Commit-p50-ms Commit-p99-ms Suspend-Erfolge'.split(),rows)
+    rows.append((a[1:],h,len(c),sum(r['idle_s'] for r in c),sum(r['idle_rows'] for r in c),rng([r['rate'] for r in c],'%.3f'),rng([r['coverage'] for r in c]),rng([r['gap_p99'] for r in c]),'%.1f'%max(r['gap_max'] for r in c),pmax(c),sum(r['n_gt2'] for r in c),sum(r['n_gt5'] for r in c),sum(r['n_gt30'] for r in c),'%.1f'%max(r['hb_max'] for r in c),rng([r['ack_p50_us']/1e3 for r in c],'%.1f'),'%.1f'%(max(r['ack_p99_us'] for r in c)/1e3),'%d (gelesen in %d von %d)'%(sum(int(r['susp_ok'] or 0) for r in c),sum(r['susp_ok'] is not None for r in c),len(c))))
+table('API Host Läufe Idle-s Zeilen Rate/s Abdeckung p99-Abstand-s max-Abstand-s max-Positionswechsel-s >2s >5s >30s Herzschlag-max-s Commit-p50-ms Commit-p99-ms Suspend-Erfolge'.split(),rows)
 print('## Tabelle 2: Bedingung natural (emulator_wake_lock geloest), gesperrt, force-idle\n')
 rows=[]
 for a in ('a36','a31'):
@@ -33,8 +38,8 @@ for a in ('a36','a31'):
     for w in ('w1','w0'):
       c=[r for r in base if api(r)==a and host(r)==h and wake(r)==w and natural(r)]
       if not c: continue
-      rows.append((a[1:],h,'ja' if w=='w1' else 'nein',len(c),sum(r['idle_s'] for r in c),sum(r['idle_rows'] for r in c),rng([r['rate'] for r in c],'%.3f'),rng([r['coverage'] for r in c]),'%.1f'%max(r['gap_max'] for r in c),'%d/%d'%(sum(r['n_gt5']>0 for r in c),len(c)),sum(r['n_gt5'] for r in c),'%d'%sum(int(r['susp_ok'] or 0) for r in c) if w=='w1' else '–',rng([r.get('susp_entries') for r in c],'%d') if w=='w0' else '–'))
-table('API Host Wake-Lock Läufe Idle-s Zeilen Rate/s Abdeckung max-Abstand-s Läufe-mit->5s Summe->5s Suspend-Erfolge suspend-entry-je-Lauf'.split(),rows)
+      rows.append((a[1:],h,'ja' if w=='w1' else 'nein',len(c),sum(r['idle_s'] for r in c),sum(r['idle_rows'] for r in c),rng([r['rate'] for r in c],'%.3f'),rng([r['coverage'] for r in c]),'%.1f'%max(r['gap_max'] for r in c),pmax(c),'%d/%d'%(sum(r['n_gt5']>0 for r in c),len(c)),sum(r['n_gt5'] for r in c),'%d'%sum(int(r['susp_ok'] or 0) for r in c) if w=='w1' else '–',rng([r.get('susp_entries') for r in c],'%d') if w=='w0' else '–'))
+table('API Host Wake-Lock Läufe Idle-s Zeilen Rate/s Abdeckung max-Abstand-s max-Positionswechsel-s Läufe-mit->5s Summe->5s Suspend-Erfolge suspend-entry-je-Lauf'.split(),rows)
 print('Einzelne Laeufe natural (Zeilen in der Idle-Phase von Idle-s):')
 for r in base:
     if natural(r): print(' ',r['run'],r['idle_rows'],'/',r['idle_s'],'max',r['gap_max'],'entries',r.get('susp_entries'),'succ',r.get('susp_ok'))
@@ -42,8 +47,9 @@ print('\n## Tabelle 3: Kontrollen (je Einzellauf)\n')
 rows=[]
 for r in S:
     if any(c in r['run'] for c in ('pausectl','stopctl','none','forced')):
-        rows.append((r['run'],r['idle_rows'],r['idle_s'],r['coverage'],r['gap_max'],r['poschg_max'],r['n_gt5'],r['hb_max'],r['susp_ok']))
+        rows.append((r['run'],r['idle_rows'],r['idle_s'],r['coverage'],r['gap_max'],r['poschg_max'],r['n_gt5'],(str(r['hb_max'])+'*') if 'forced' in r['run'] and r['hb_max']==r.get('hb_edge') else r['hb_max'],r['susp_ok']))
 table('Lauf Zeilen Idle-s Abdeckung max-Abstand-s max-Positionswechsel-s >5s Herzschlag-max-s Suspend-Erfolge'.split(),rows)
+print('* Rand durch den Abbruch von logcat beim Suspend, kein gemessener Herzschlag-Abstand.\n')
 print('## Tabelle 4: Probe Abstaende API 36, GNSS-HAL gegen Datenbank\n')
 rows=[]
 for tag,name in (('noinj','ohne Einspeisung im Idle'),('inj10','alle 10 s'),('inj1','jede Sekunde')):
@@ -60,8 +66,9 @@ for tag,name in (('noinj','ohne Einspeisung im Idle'),('inj10','alle 10 s'),('in
     d=[y-x for x,y in zip(I,I[1:])]
     dt=[t-acc[bisect.bisect_right(acc,t)-1] for t in drop if a<=t<=b and bisect.bisect_right(acc,t)>0]; dt.sort()
     hit=sum(any(x<q<y for q in drop) for x,y in lg)
-    rows.append((name,sum(n==311 for t,n in L),len(drop),len(acc),db,len(I),'%.1f %%'%(100*len(lg)/len(d)),'%.2f'%max(d),'%d/%d'%(hit,len(lg)),'%.3f'%dt[len(dt)//2]))
-table('Einspeisung HAL-Eingang(311) HAL-verworfen(321) HAL-weiter(333) DB-Zeilen Idle-Zeilen Anteil->1,1s max-s lange-Abstände-mit-Verwerfung Median-Abstand-Verworfener-zum-letzten-Fix-s'.split(),rows)
+    kz=[(x,y) for x,y in zip(I,I[1:]) if y-x<=1.1]; khit=sum(any(x<q<y for q in drop) for x,y in kz)  # Vergleichswert: bei 1 s Einspeisung enthalten auch kurze Abstaende Verwerfungen
+    rows.append((name,sum(n==311 for t,n in L),len(drop),len(acc),db,len(I),'%.1f %%'%(100*len(lg)/len(d)),'%.2f'%max(d),'%d/%d'%(hit,len(lg)),'%d/%d'%(khit,len(kz)),'%.3f'%dt[len(dt)//2]))
+table('Einspeisung HAL-Eingang(311) HAL-verworfen(321) HAL-weiter(333) DB-Zeilen Idle-Zeilen Anteil->1,1s max-s lange-Abstände-mit-Verwerfung kurze-Abstände-mit-Verwerfung Median-Abstand-Verworfener-zum-letzten-Fix-s'.split(),rows)
 print('Histogramm der Abstaende in der Idle-Phase, 0,1-s-Klassen (Klasse:Anzahl):')
 for tag in ('noinj','inj10','inj1'):
     o=f'{W}/gap/a36_own_w0_i1_240s_abst_{tag}_r0'; ph=dict(json.load(open(o+'/phases.json'))['phase']); I=[]
@@ -69,7 +76,9 @@ for tag in ('noinj','inj10','inj1'):
         m=re.search(r'^\s*(\d+\.\d+).*R005RCV ',l)
         if m and ph['idle_start']<=float(m[1])<=ph['end']: I.append(float(m[1]))
     print(' ',tag,sorted(collections.Counter(round(y-x,1) for x,y in zip(I,I[1:])).items()))
-K=json.load(open(W+'/kill/summary.json'))['rows']
+ALL=json.load(open(W+'/kill/summary.json'))['rows']
+K=[r for r in ALL if r['valid'] and r.get('autock') is None]  # Tabelle 5 ohne Checkpoint-Serie
+print('Ungueltige Laeufe (kill):',[(r['run'],r['why']) for r in ALL if not r['valid']],'\n')
 print('\n## Tabelle 5: Kill\n')
 cells=collections.defaultdict(list)
 for r in K: cells[(r['api'],r['kind'],r['host'],r['sync'],r['tx'])].append(r)
@@ -82,6 +91,32 @@ for ap in ('a36','a31'):
     for kinds,name in ((('sigkill','emu'),'sigkill+emu'),(('proc',),'proc')):
         v=[r for r in K if r['api']==ap and r['sync']=='FULL' and r['kind'] in kinds]; n=len(v); l=sum(r['lost_acked']>0 for r in v)
         print(f'FULL {ap} {name}: {l}/{n} Laeufe mit Verlust, Obergrenze 95 %% bei 0 Treffern {100*(1-0.05**(1/n)):.0f} %%'%() if n else '')
+print()
+print('Grenzen je empfohlener Zelle (FULL, tx 1, harter Kill sigkill oder emu), einseitig 95 %:')
+def bound(v): return f'n={len(v)} Verluste={sum(r["lost_acked"]>0 for r in v)} Grenze={100*(1-0.05**(1/len(v))):.0f} %' if v else 'n=0'
+hard=[r for r in K if r['sync']=='FULL' and r['kind'] in ('sigkill','emu')]
+print(' alle harten Kills:',bound(hard),'| proc:',bound([r for r in K if r['sync']=='FULL' and r['kind']=='proc']))
+c1=[r for r in hard if r['tx']==1]
+print(' 36 own:',bound([r for r in c1 if r['api']=='a36' and r['host']=='own']))
+print(' 36 own+ffgt:',bound([r for r in c1 if r['api']=='a36']))
+print(' 31 own:',bound([r for r in c1 if r['api']=='a31' and r['host']=='own']))
+print(' 36 emu allein:',bound([r for r in c1 if r['api']=='a36' and r['kind']=='emu']))
+print()
+print('## Tabelle 8: Checkpoint-Serie (sigkill, kleiner wal_autocheckpoint)\n')
+CK=[r for r in ALL if r.get('autock') is not None]
+rows=[]
+for ap in ('a36','a31'):
+  for sy in ('FULL','NORMAL'):
+    v=[r for r in CK if r['api']==ap and r['sync']==sy]
+    if not v: continue
+    g=[r for r in v if r['valid']]; u=[r for r in v if not r['valid']]; wi=[(r.get('wal_info') or {}) for r in g]
+    L=[r['lost_acked'] for r in g]; Q=[r['rcv_not_db'] for r in g]
+    rows.append((ap[1:],sy,sorted({r['autock'] for r in v}),len(g),'%d/%d'%(sum(l>0 for l in L),len(g)),max(L,default=0),sum(L),rng(Q,'%d'),sum(r['holes'] for r in g),sum(r['integ']!='ok' for r in g),rng([r['db_bytes'] for r in g],'%d'),rng([w.get('ckpt_seq') for w in wi],'%d'),rng([w.get('frames_cur') for w in wi],'%d'),rng([w.get('frames_old') for w in wi],'%d'),len(u),sum(r['lost_acked'] for r in u)))
+if rows: table('API Sync autock n-gültig Läufe-mit-Verlust max-lost_acked Summe rcv_not_db Löcher integrity-nicht-ok Hauptdatei-Byte WAL-ckpt_seq WAL-Frames-aktuell WAL-Frames-alt ungültig Verlust-in-ungültigen'.split(),rows)
+else: print('Serie noch nicht gelaufen.\n')
+for r in CK:
+    if not r['valid']: print('UNGUELTIG',r['run'],r['why'],'lost_acked',r['lost_acked'])
+# Ein Verlust in einem wegen der Hauptdatei ungueltigen Lauf ist kein Ausschluss, sondern ein Befund: eine geschrumpfte Hauptdatei waere gerade der gesuchte Schaden.
 print()
 print('## Tabelle 6: Wischen\n')
 rows=[]
@@ -96,6 +131,7 @@ def norm(s):
     if 'Apache' in s: return 'Apache-2.0'
     if 'BSD-3' in s: return 'BSD-3-Clause'
     if 'MIT' in s: return 'MIT'
+    if 'MPL' in s: return 'MPL-2.0'
     return s.split(' <')[0]
 for r in L: c[(r['oekosystem'],norm(r['lizenz']))]+=1
 table('Ökosystem Lizenz Einträge'.split(),[(a,b,n) for (a,b),n in sorted(c.items())])

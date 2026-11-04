@@ -4,4 +4,4 @@ Regeln in [CLAUDE.md](CLAUDE.md). R001 bis R004 stammen aus der Konzeption und l
 
 | Nr. | Titel | Für | Ergebnis |
 | --- | --- | --- | --- |
-| R005 | Durchstich der Aufzeichnung | ADR-0005, ADR-0003, ADR-0006 | abgeschlossen: Punkt 3 trägt im Emulator, Empfehlung `own`, tx 1 mit `FULL`, Partial Wake Lock; kein Beleg für Geräte ([RESULTS](R005-aufzeichnung-durchstich/RESULTS.md)) |
+| R005 | Durchstich der Aufzeichnung | ADR-0005, ADR-0003, ADR-0006 | läuft (Checkpoint-Serie steht aus): Punkt 3 trägt im Emulator, Empfehlung `own`, tx 1 mit `FULL`, Kill nur vor dem ersten Checkpoint belegt; Partial Wake Lock als Entscheidung des Maintainers; kein Beleg für Geräte ([RESULTS](R005-aufzeichnung-durchstich/RESULTS.md)) |

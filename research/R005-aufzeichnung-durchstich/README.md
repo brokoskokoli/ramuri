@@ -1,6 +1,6 @@
 # R005 – Durchstich der Aufzeichnung
 
-**Status:** abgeschlossen, Ergebnis in [RESULTS.md](RESULTS.md) · **Auftraggeber:** Project Supervisor (ADR-0005, ADR-0003) · **Datum:** 2026-11-04
+**Status:** läuft (Nachbesserung nach Review Runde 1, Checkpoint-Serie steht aus), Ergebnis in [RESULTS.md](RESULTS.md) · **Auftraggeber:** Project Supervisor (ADR-0005, ADR-0003) · **Datum:** 2026-11-04
 
 ## Frage
 Trägt ADR-0005 Punkt 3 (ein FlutterEngine im Application-Objekt, dünner Kotlin-Foreground-Service, Logik in Dart) eine lückenlose Aufzeichnung bei gesperrtem Bildschirm? Daran hängen ADR-0005 Punkt 3 und Wake Lock, ADR-0003 Punkt 5 (WAL, Transaktionsgröße), ADR-0006 (Plugin) und die Pakete der Aufzeichnung in M1. Ergebnis ist eine Empfehlung für Host und Transaktionsgröße, **keine Produktgrenzwerte**.
@@ -52,9 +52,17 @@ Probe `_abst_noinj`, `_abst_inj10`, `_abst_inj1` (je 240 s): ohne Einspeisung, a
 Ein Lauf, 60 min, API 36, `own`, Wake Lock, tx 1, `FULL`, natural; Zustand alle 60 s, Ressourcen alle 30 s (`resources.tsv`), Auswertung `src/longrun.py`.
 
 ### Kill
-Commit-Bestätigung außerhalb der DB: Nach dem `await` der Transaktion schreibt die App `R005ACK seq=…` nach logcat, der Rechner schreibt mit (Bestätigungen in Flug gehen höchstens verloren und machen die Prüfung nur strenger). Danach wird der Prozess bzw. der Emulator getötet, nach einer zufälligen Laufzeit von 20 bis 40 s. Die DB wird gezogen und auf dem Rechner geöffnet; zusätzlich öffnet sie die App auf dem Gerät (`R005VERIFY`). Zählgrößen: `lost_acked` = bestätigte Sequenznummern, die in der DB fehlen (muss bei `FULL` 0 sein); `rcv_not_db` = zuletzt empfangene minus höchste gesicherte Nummer (der Preis der Transaktionsgröße); `holes`; `integrity_check`.
+Commit-Bestätigung außerhalb der DB: Nach dem `await` der Transaktion schreibt die App `R005ACK seq=…` nach logcat, der Rechner schreibt mit. Bestätigungen in Flug können verloren gehen; sie verkleinern die geprüfte Menge, machen die Prüfung also schwächer (hier gering: Das bestätigte Ende lag in allen harten tx-1-Läufen mit `FULL` höchstens 1,1 s vor dem Kill). Danach wird der Prozess bzw. der Emulator getötet, nach einer zufälligen Laufzeit von 20 bis 40 s. Die DB wird gezogen und auf dem Rechner geöffnet; zusätzlich öffnet sie die App auf dem Gerät (`R005VERIFY`). Zählgrößen: `lost_acked` = bestätigte Sequenznummern, die in der DB fehlen (muss bei `FULL` 0 sein); `rcv_not_db` = zuletzt empfangene minus höchste gesicherte Nummer (der Preis der Transaktionsgröße); `holes`; `integrity_check`.
 
-Emulator läuft immer mit `-no-snapshot-save -no-snapshot-load`. `NORMAL` ist die Kontrolle: Zeigt sie keinen Verlust, belegt der Aufbau auch für `FULL` nichts. Arten: `proc` (`kill -9`; API 36 per `run-as`, API 31 per root, weil `run-as` dort nicht wirkte, jeweils mit Prüfung, dass der PID weg ist), `emu` (`adb emu kill`), `sigkill` (SIGKILL auf den eigenen qemu-Prozess; zeigt den Verlust des Gast-Pagecaches, der Rechner läuft weiter, also kein Stromausfall). Gültig ist ein Lauf nur mit neuem oder fehlendem PID und ohne `R005RCV` nach dem Kill (Ausnahme `ffgt`-Neustart).
+Emulator läuft immer mit `-no-snapshot-save -no-snapshot-load`. `NORMAL` ist die Kontrolle: Zeigt sie keinen Verlust, belegt der Aufbau auch für `FULL` nichts. Arten: `proc` (`kill -9`; die API-36-Läufe in RESULTS per `run-as`, die API-31-Läufe per root, weil `run-as` dort nicht wirkte, jeweils mit Prüfung, dass der PID weg ist. Der heutige Harness tötet immer per root, eine Wiederholung auf API 36 misst an dieser Stelle also anders), `emu` (`adb emu kill`), `sigkill` (SIGKILL auf den eigenen qemu-Prozess; zeigt den Verlust des Gast-Pagecaches, der Rechner läuft weiter, also kein Stromausfall). Gültig ist ein Lauf nur mit neuem oder fehlendem PID und ohne `R005RCV` nach dem Kill (Ausnahme `ffgt`-Neustart), und wenn der Abgleich unten besteht. Abweichung vom Auftrag: `adb emu kill` ist nur für tx 1 auf API 36 gemessen, `sigkill` ersetzt es je Transaktionsgröße; Begründung in RESULTS, „Kill“.
+
+### Gültigkeit: Log gegen DB (gap und kill)
+Jeder Lauf braucht mindestens ein `R005ACK`, darf kein `SqliteException` enthalten (bei kill nur bis zum Kill gezählt, `ffgt` nummeriert nach dem Neustart neu), und `trecv` muss für jede gemeinsame Sequenznummer in DB und Log gleich sein. Das erkennt eine DB aus einem abgebrochenen Vorversuch mit gleichem Laufnamen. Deshalb löscht der Harness außerdem vor jedem Lauf die DBs des Prototyps und bricht ab, wenn eine liegen bleibt. `tables.py` zählt nur gültige Läufe und nennt die übrigen oben in der Ausgabe.
+
+### Kill nach dem ersten Checkpoint
+Die 115 Läufe aus Tabelle 5 treffen nur Hauptdateien von 4096 Byte, weil der Standard `wal_autocheckpoint = 1000` bei tx 1 erst nach etwa 18 min greift. `./run.sh checkpoint` (`src/checkpoint.sh`) stellt den Zustand danach her: `sigkill`, tx 1, `own`, `wal_autocheckpoint` 10 (Parameter `--autock`), Kill nach 25 bis 45 s, also nach mindestens zwei Checkpoints. Je API 36 und 31 7 × `FULL` und 3 × `NORMAL` als Kontrolle, 20 Läufe, Laufnamen `a<api>_sigkill_tx1_<sync>_ck10_r<n>`. Der jeweils erste Lauf ist die Vorprüfung: Zeigt er keinen Checkpoint, bricht die Serie ab, denn dass `autock` im Gerät wirkt, ist bisher nicht belegt (die WAL-Läufe mit `autock` 0 blieben unter 1000 Frames).
+
+**Gültigkeit:** Hauptdatei über 4096 Byte, Kill-Wirkung belegt, Log gegen DB wie oben. **Ausschluss ist kein Freispruch:** Die Hauptdatei wird nach dem Kill gemessen, eine geschrumpfte Datei wäre gerade der gesuchte Schaden. `tables.py` weist ungültige Läufe deshalb samt ihrem `lost_acked` aus. Zusätzlich liest der Harness vor dem ersten Öffnen die Klartext-Köpfe des WAL (`src/walhdr.py`, Kontrolle an einer SQLite-Datei): `ckpt_seq` über 0 heißt, das WAL wurde wiederverwendet; `frames_old` sind liegen gebliebene Frames der Vorgeneration. **Grenzen:** 10 statt 1000 Frames je Checkpoint ändern dessen Größe und Häufigkeit, nicht die Art des Zustands; ein Treffer mitten im Checkpoint wird weder gesucht noch ausgeschlossen. `NORMAL` hat hier auch eine andere Erwartung als in Tabelle 5, denn der Checkpoint synchronisiert das WAL: Verlust höchstens seit dem letzten Checkpoint.
 
 ### Verschlüsseltes WAL
 Auf dem Rechner (`src/waltest`, gleiche Paketversion) und im Emulator. Bekannter Marker und bekannter Double, `wal_autocheckpoint = 0`, Kopie von Datei und WAL vor dem Checkpoint, Suche nach den Bytes, Byteverteilung der Seiteninhalte (χ², 255 Freiheitsgrade). Positivkontrolle unverschlüsselt. Beleg, dass das WAL Inhalt hatte: Die Kopie ohne WAL hat keine Tabelle, mit WAL alle Zeilen. Jede Öffnung auf frischer Kopie, denn das Schließen der letzten Verbindung checkpointet.
@@ -72,7 +80,7 @@ Auf dem Rechner (`src/waltest`, gleiche Paketversion) und im Emulator. Bekannter
 Keine Sammlung aus `input/`.
 
 ## Ausführung
-**Voraussetzungen:** macOS auf Apple Silicon, Flutter 3.47.7, Android SDK unter `~/Library/Android/sdk`, JDK über `R005_JAVA_HOME` (Standard: JBR aus Android Studio), etwa 8 GB frei. Gemessen wird nur auf dem eigenen Emulator `emulator-5600`, fremde Emulatoren bleiben unberührt. Gesamtdauer aller Läufe etwa 8 h 40 min; lokal, kein Rechenserver, weil der Emulator hier läuft.
+**Voraussetzungen:** macOS auf Apple Silicon, Flutter 3.47.7, Android SDK unter `~/Library/Android/sdk`, JDK über `R005_JAVA_HOME` (Standard: JBR aus Android Studio), etwa 8 GB frei. `init.sh` holt die aktuelle Image-Revision, gemessen wurden Revision 7 (API 36) und 11 (API 31); sie sind nicht festgestellt, eine Wiederholung kann also auf einem anderen Image laufen. Gemessen wird nur auf dem eigenen Emulator `emulator-5600`, fremde Emulatoren bleiben unberührt. Gesamtdauer aller Läufe etwa 8 h 40 min, dazu `vorlaeufe` und `checkpoint`; lokal, kein Rechenserver, weil der Emulator hier läuft.
 
 ```bash
 ./init.sh                 # Images, AVDs, APK, Pub-Abhaengigkeiten; ./init.sh --help
@@ -83,6 +91,8 @@ Keine Sammlung aus `input/`.
 ./run.sh matrix           # etwa 5,5 h, fortsetzbar ueber .done
 ./run.sh long             # 60 min
 ./run.sh rerun            # etwa 35 min
+./run.sh vorlaeufe        # etwa 25 min, Laeufe aus der Anfangsphase
+./run.sh checkpoint       # etwa 50 min, steht aus
 ./run.sh report           # Tabellen und Auswertungen nach work/R005/report, etwa 40 s
 ```
 
@@ -111,6 +121,8 @@ RESEARCH_DATA=/tmp/r005-probe ./run.sh emu-stop
 | `matrix` | Lange Matrix (`src/matrix.sh`), API 36 und 31, etwa 5,5 h, fortsetzbar |
 | `long` | Langlauf 60 min (`src/long.sh`), Dauer ueber `R005_LONG_DUR` in Sekunden |
 | `rerun` | Wiederholungen API 31 und Abstandsprobe API 36 (`src/rerun.sh`), etwa 35 min |
+| `vorlaeufe` | Einzelne fruehere Laeufe, die in keinem anderen Skript stehen (`src/vorlaeufe.sh`), etwa 25 min |
+| `checkpoint` | Kill-Serie nach dem ersten Checkpoint (`src/checkpoint.sh`): 20 `sigkill`-Laeufe, `wal_autocheckpoint` 10, API 36 und 31, FULL und NORMAL, unter 1 h, fortsetzbar |
 | `report` | Alle Auswertungen und Tabellen aus den Rohdaten nach `work/R005/report` |
 
 Parameter für `gap`, `kill`, `swipe`, `wal`, `bench`, `emu-start`:
@@ -140,7 +152,8 @@ Parameter für `gap`, `kill`, `swipe`, `wal`, `bench`, `emu-start`:
 | `--quiet 0\|1` | 0 | gap: keine Abfragen per adb in der Phase |
 | `--poll S` | 15 | gap: Abstand der Zustandsabfragen |
 | `--sample S` | 0 | gap: Abstand der Ressourcenproben, 0 = keine |
+| `--autock N` | ungesetzt | kill: `wal_autocheckpoint` setzen, ungesetzt = SQLite-Standard 1000 |
 | `--n N` | 300 | bench: Transaktionen je Zelle |
 | `--tag _x` | leer | Zusatz im Laufnamen |
 
-Läufe mit `.done` werden übersprungen. Ausgaben: `$RESEARCH_DATA/work/R005/<art>/<lauf>/`, Laufname aus API, Host, Wake Lock, Dauer und Tag. Fehlgeschlagene Läufe sind nach `invalid/` verschoben und in RESULTS erklärt. Die Vorläufe aus einem Hilfsskript sind in RESULTS mit Befehl genannt.
+Läufe mit `.done` werden übersprungen. Ausgaben: `$RESEARCH_DATA/work/R005/<art>/<lauf>/`, Laufname aus API, Host, Wake Lock, Dauer und Tag. Fehlgeschlagene Läufe sind nach `invalid/` verschoben und in RESULTS erklärt. Die Vorläufe stehen in `src/vorlaeufe.sh`.

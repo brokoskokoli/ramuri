@@ -19,6 +19,8 @@ Schritte:
 | `matrix` | Lange Matrix (`src/matrix.sh`), API 36 und 31, etwa 5,5 h, fortsetzbar |
 | `long` | Langlauf 60 min (`src/long.sh`), Dauer ueber `R005_LONG_DUR` in Sekunden |
 | `rerun` | Wiederholungen API 31 und Abstandsprobe API 36 (`src/rerun.sh`), etwa 35 min |
+| `vorlaeufe` | Einzelne fruehere Laeufe, die in keinem anderen Skript stehen (`src/vorlaeufe.sh`), etwa 25 min |
+| `checkpoint` | Kill-Serie nach dem ersten Checkpoint (`src/checkpoint.sh`): 20 `sigkill`-Laeufe, `wal_autocheckpoint` 10, API 36 und 31, FULL und NORMAL, unter 1 h, fortsetzbar |
 | `report` | Alle Auswertungen und Tabellen aus den Rohdaten nach `work/R005/report` |
 Parameter fuer gap, kill, swipe, wal, bench, emu-start:
 | `--api N` | 36 | API-Stufe des Emulators, 31 oder 36 |
@@ -44,6 +46,7 @@ Parameter fuer gap, kill, swipe, wal, bench, emu-start:
 | `--quiet 0\|1` | 0 | gap: keine Abfragen per adb in der Phase |
 | `--poll S` | 15 | gap: Abstand der Zustandsabfragen |
 | `--sample S` | 0 | gap: Abstand der Ressourcenproben, 0 = keine |
+| `--autock N` | ungesetzt | kill: `wal_autocheckpoint` setzen, ungesetzt = SQLite-Standard 1000 |
 | `--n N` | 300 | bench: Transaktionen je Zelle |
 | `--tag _x` | leer | Zusatz im Laufnamen |
 Laeufe mit .done werden uebersprungen. Ausgaben: $RESEARCH_DATA/work/R005/ . Andere Ablage: RESEARCH_DATA=<ordner> ./run.sh ...
@@ -53,7 +56,7 @@ STEP="${1:-}"; [ -n "$STEP" ] || { usage >&2; exit 2; }; shift || true
 case " $* " in *" --help "*) usage; exit 0;; esac
 [ "$STEP" = "--help" ] && { usage; exit 0; }
 H="python3 src/harness.py"; [ -f "$R005_APK" ] || { echo "APK fehlt: erst ./init.sh" >&2; exit 2; }
-[ "$STEP" = phase-a ] || export R005_EMU_EXTRA=-show-kernel   # Phase A lief ohne -show-kernel, alles Weitere mit
+case "$STEP" in phase-a|vorlaeufe) ;; *) export R005_EMU_EXTRA=-show-kernel;; esac   # Phase A und die Vorlaeufe auf API 31 liefen ohne -show-kernel, alles Weitere mit
 mkdir -p "$R005_WORK"; (git rev-parse --short HEAD; flutter --version | head -1; uname -m; sysctl -n hw.ncpu; "$HOME/Library/Android/sdk/emulator/emulator" -version | head -1) > "$R005_WORK/run.info" 2>/dev/null || true
 case "$STEP" in
   licenses) mkdir -p "$R005_WORK/licenses"; python3 src/licenses.py src/proto "$R005_WORK/licenses";;
@@ -65,11 +68,13 @@ case "$STEP" in
   matrix) src/matrix.sh;;
   long) src/long.sh;;
   rerun) src/rerun.sh;;
+  vorlaeufe) src/vorlaeufe.sh;;
+  checkpoint) src/checkpoint.sh;;
   report)
     r="$R005_WORK/report"; mkdir -p "$r"
     for k in gap kill swipe wal bench; do python3 src/analyze.py $k "$R005_WORK" > "$r/analyze-$k.out"; done
     python3 src/longrun.py "$R005_WORK/gap/a36_own_w1_i1_3600s_natlong_r0" > "$r/longrun.out"
-    python3 src/abstand.py "$R005_WORK"/gap/a36_own_w0_i1_240s_abst_*_r0 "$R005_WORK"/gap/a36_own_w0_i1_600s_r0 "$R005_WORK"/gap/a31_own_w0_i1_600s_r0 > "$r/abstand.out"
+    python3 src/abstand.py "$R005_WORK"/gap/a36_own_w0_i1_240s_abst_*_r0 "$R005_WORK"/gap/a36_own_w0_i1_600s_r0 "$R005_WORK"/gap/a31_own_w0_i1_600s_r0 "$R005_WORK"/gap/a36_none_w0_i1_600s_r0 "$R005_WORK"/gap/a36_none_w0_i1_120s_ctl_r0 > "$r/abstand.out"
     python3 src/tables.py "$R005_WORK" | tee "$r/tables.md";;
   *) usage >&2; exit 2;;
 esac
