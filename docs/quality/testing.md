@@ -49,4 +49,12 @@ Die Migration hat diese Beispiele nachgerechnet; sie stimmen mit der Quelle übe
 
 ## CI-Gates
 
-TBD: Es gibt noch keinen Code und keine Pipeline. Aktuell existiert nur die Dokumentationsprüfung aus [AGENTS.md](../../AGENTS.md).
+Maßgeblich ist `tool/gate.sh` (lokal und in `.github/workflows/gate.yml`; die Pipeline läuft erst mit einem Remote). Das Gate prüft:
+
+- Spezifikation (`spec_tool.py build`/`check`, generierte Abschnitte aktuell) und private Daten.
+- Flutter-Version: die laufende Version muss exakt `environment.flutter` aus `app/pubspec.yaml` entsprechen (leere oder unlesbare Vorgabe ist rot). CI liest sie per `flutter-version-file` aus derselben Datei.
+- `core flutterfrei`: kein Import von `package:flutter*` oder `dart:ui` in `app/packages/core` und keine direkte oder transitive Abhängigkeit von Flutter oder `adapters`. Nötig, weil sich im Pub-Workspace ein Flutter-Import in `core` sonst still auflöst; zusätzlich greift `depend_on_referenced_packages` in der Analyse.
+- Je Paket (`app` und jedes Verzeichnis unter `app/packages/`, neue Pakete werden automatisch erfasst): Format, Analyse (`dart analyze --fatal-infos` in Dart-Paketen, `flutter analyze` in Flutter-Paketen) und Tests (`dart test` bzw. `flutter test`). Ein fehlendes `lib/` oder `test/` ist rot.
+- `--changed` lässt Flutter nur aus, wenn `app/` gegenüber `main` unverändert ist (getrackt und ungetrackt); ohne `main` oder bei Zweifel läuft die Prüfung.
+
+Noch offen: Integrations- und Geräte-Tests (E2E) laufen nicht im Gate.

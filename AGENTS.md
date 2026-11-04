@@ -1,6 +1,6 @@
 # Anweisungen für Agenten
 
-Stand: Spezifikation fertig, Umsetzung beginnt; der aktuelle Stand steht in [work-packages/STATUS.md](work-packages/STATUS.md). Arbeitsorte, Rollen und Branches stehen in [PROJECT.md](PROJECT.md). Das Repository wird öffentlich und ist schon jetzt so zu behandeln. Umsetzbar sind nur Anforderungen mit Status `Approved` (siehe Register). Das sind derzeit die Phasen 1 bis 3, in dieser Reihenfolge. Phase 4 und die Strava-Direktanbindung sind nicht freigegeben.
+Stand: Spezifikation fertig, Umsetzung läuft (M1, Projektgerüst und Gate stehen); der aktuelle Stand steht in [work-packages/STATUS.md](work-packages/STATUS.md). Arbeitsorte, Rollen und Branches stehen in [PROJECT.md](PROJECT.md). Das Repository wird öffentlich und ist schon jetzt so zu behandeln. Umsetzbar sind nur Anforderungen mit Status `Approved` (siehe Register). Das sind derzeit die Phasen 1 bis 3, in dieser Reihenfolge. Phase 4 und die Strava-Direktanbindung sind nicht freigegeben.
 
 **Rangfolge bei Widersprüchen:** Entscheidungen des Maintainers (`open-questions.md`, DEC in `product.md`) vor den Specs und Parameterdokumenten, diese vor dem Ursprungskonzept in `sources/`.
 
@@ -26,11 +26,11 @@ python3 docs/migration/tools/spec_tool.py build
 python3 docs/migration/tools/spec_tool.py check
 ```
 
-Gate (Spec-Prüfung, private Daten, ab `app/` auch Flutter), volle Fassung in CI:
+Gate (Spec-Prüfung, private Daten, Flutter-Version, `core` flutterfrei, je Paket in `app/` und `app/packages/*` Format, Analyse und Tests), volle Fassung in CI. Details: [docs/quality/testing.md](docs/quality/testing.md#ci-gates).
 
 ```sh
 sh tool/gate.sh            # alles
-sh tool/gate.sh --changed  # Flutter nur, wenn app/ geändert ist
+sh tool/gate.sh --changed  # Flutter nur auslassen, wenn app/ gegenüber main unverändert ist
 ```
 
 Weitere Befehle ergänzt du erst, wenn sie funktionieren.
