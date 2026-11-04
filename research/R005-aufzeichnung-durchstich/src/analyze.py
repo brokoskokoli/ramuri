@@ -61,12 +61,17 @@ def gap(work):
         got=set(ids); cov=(sum(1 for v in injn if v[0] in got)/len(injn)) if injn else float('nan')
         locked=sum(1 for h in hb_idle if h.get('locked')=='true')/max(1,len(hb_idle)); inter=sum(1 for h in hb_idle if h.get('inter')=='true')
         idl=sum(1 for h in hb_idle if h.get('idle')=='true')/max(1,len(hb_idle))
-        susp=None
-        if len(hb_idle)>1:
-            a,b=hb_idle[0],hb_idle[-1]; susp=(int(b['el'])-int(a['el'])-(int(b['up'])-int(a['up'])))/1000
+        # Schlaf-Beleg: Kernelzaehler vor/nach dem Lauf und dmesg. el-up taugt auf diesem Kernel nicht (bleibt auch bei belegtem Suspend 0).
+        susp_ok=susp_fail=None; holdw=None
+        if os.path.exists(o+'suspend.json'):
+            sj=json.load(open(o+'suspend.json')); b4,af=sj['before'],sj['after']
+            try: susp_ok=int(af['success'])-int(b4['success']); susp_fail=int(af['fail'])-int(b4['fail'])
+            except ValueError: pass
         states=[json.loads(l.split('\t',1)[1]) for l in open(o+'state.tsv') if '{' in l]
         deep=sum(1 for s in states if s['deep']=='IDLE')/max(1,len(states))
         lhb=[(y['t']-x['t']) for x,y in zip(hb_idle,hb_idle[1:])]
+        if hb_idle: lhb=[hb_idle[0]['t']-p['idle_start']]+lhb+[p['end']-hb_idle[-1]['t']]  # Rand zaehlt mit, sonst bleibt ein Einfrieren bis Phasenende unsichtbar
+        else: lhb=[dur]
         acks=[int(kv(e[2])['us']) for e in ev if e[1]=='R005ACK']
         # Positionswechsel: der Emulator wiederholt die letzte Position je Sekunde, also zaehlt auch der Abstand der Wechsel
         chg=[rcv[idle[0][0]]] if idle else []
@@ -76,8 +81,13 @@ def gap(work):
         rec=dict(run=run,integ=integ.split('\t')[-1],rows=len(R),idle_rows=len(idle),idle_s=round(dur),
           rate=round(len(idle)/dur,3),coverage=round(cov,4),gap_p50=round(pct(di,50),2),gap_p99=round(pct(di,99),2),gap_max=round(max(di),1) if di else None,
           n_gt2=sum(x>2 for x in di),n_gt5=sum(x>5 for x in di),n_gt30=sum(x>30 for x in di),poschg_p99=round(pct(dch,99),2) if dch else None,poschg_max=round(max(dch),1) if dch else None,poschg_gt5=sum(x>5 for x in dch),base_p99=round(pct(db,99),2),base_max=round(max(db),2) if db else None,
-          hb_n=len(hb_idle),hb_max=round(max(lhb),1) if lhb else None,locked=round(locked,2),inter=inter,appIdle=round(idl,2),deepIDLE=round(deep,2),suspend_s=susp,
+          hb_n=len(hb_idle),hb_max=round(max(lhb),1) if lhb else None,locked=round(locked,2),inter=inter,appIdle=round(idl,2),deepIDLE=round(deep,2),susp_ok=susp_ok,susp_fail=susp_fail,hb_gt5=sum(x>5 for x in lhb),
           errs=sum(1 for e in ev if e[1]=='R005ERR'),ack_p50_us=round(pct(acks,50)),ack_p99_us=round(pct(acks,99)),load=round(st.mean(s['load'] for s in states),1) if states else None)
+        if 'post_end' in p:  # natuerlicher Suspend: Nachphase, kommen wieder Standorte?
+            po=[r for r in R if p['end']<=rcv[r[0]]<=p['post_end']]
+            rec['post_rows']=len(po); rec['post_s']=round(p['post_end']-p['end'])
+            hb_all=[h['t'] for h in hb]; rec['hb_maxgap_all']=round(max((b-a for a,b in zip(hb_all,hb_all[1:])),default=0),1)
+            alld=[(y[4]-x[4])/1e9 for x,y in zip(R,R[1:])]; rec['db_maxgap_all']=round(max(alld,default=0),1)
         out.append(rec); print(json.dumps(rec))
     json.dump(out,open(work+'/gap/summary.json','w'),indent=1)
 def kill(work):
@@ -92,11 +102,11 @@ def kill(work):
         acked=set(range(1,la+1)); lost_acked=len(acked-db)
         holes=len(set(range(1,mx+1))-db)
         ver=[kv(e[2]) for e in parse_log(o+'logcat2.txt') if e[1]=='R005VERIFY']
-        rec=dict(run=os.path.basename(o[:-1]),kind=m['kind'],tx=m['tx'],sync=m['sync'],last_ack=la,last_rcv=lr,db_rows=len(db),db_max=mx,lost_acked=lost_acked,rcv_not_db=lr-mx,db_beyond_ack=mx-la,holes=holes,integ=integ,dev=ver[0] if ver else None,wal=m['pull'].get('-wal'))
+        rec=dict(run=os.path.basename(o[:-1]),api=os.path.basename(o[:-1])[:3],host=m.get('host','own'),kind=m['kind'],tx=m['tx'],sync=m['sync'],last_ack=la,last_rcv=lr,db_rows=len(db),db_max=mx,lost_acked=lost_acked,rcv_not_db=lr-mx,db_beyond_ack=mx-la,holes=holes,integ=integ,dev=ver[0] if ver else None,wal=m['pull'].get('-wal'))
         out.append(rec); print(json.dumps(rec))
     cells={}
-    for r in out: cells.setdefault((r['kind'],r['tx'],r['sync']),[]).append(r)
-    print('kind tx sync n | lost_acked sum/runs-with-loss/max | rcv_not_db mean min max | db_beyond_ack max | integ-not-ok | dev-mismatch')
+    for r in out: cells.setdefault((r['kind'],r['api'],r['host'],r['tx'],r['sync']),[]).append(r)
+    print('kind api host tx sync n | lost_acked sum/runs-with-loss/max | rcv_not_db mean min max | db_beyond_ack max | integ-not-ok | dev-mismatch')
     tab=[]
     for k,v in sorted(cells.items()):
         L=[x['lost_acked'] for x in v]; Q=[x['rcv_not_db'] for x in v]
@@ -133,6 +143,6 @@ def swipe(work):
     for o in sorted(glob.glob(work+'/swipe/*/')):
         if not os.path.exists(o+'.done'): continue
         m=json.load(open(o+'meta.json')); R=rows(o+'rows.tsv'); ev=parse_log(o+'logcat.txt')
-        d=[(y[3]-x[3])/1e9 for x,y in zip(R,R[1:])]
+        d=[(y[4]-x[4])/1e9 for x,y in zip(R,R[1:])]
         print(os.path.basename(o[:-1]),'rows',len(R),'pid',m['pid0'],m['pid1'],'recents',m['recents_before'],m['recents_after'],'gap_max',round(max(d),2) if d else None,'n_gt5',sum(x>5 for x in d),'svc',re.findall(r'isForeground=\w+',m['svc']),[e[2][:40] for e in ev if e[1]=='R005SVC'])
 {'gap':gap,'kill':kill,'bench':bench,'wal':wal,'swipe':swipe}[sys.argv[1]](sys.argv[2])
