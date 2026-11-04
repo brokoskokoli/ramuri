@@ -31,6 +31,8 @@ Alle Laufeinheiten werden in einer Trainingshistorie dargestellt, mit Strecke, D
 
 Jeder Lauf verfügt über eine Detailansicht mit GPS-Route, Zeitverlauf und Messwertdiagrammen.
 
+**Festlegung (OQ-0065):** Die Route wird ohne Kartenmaterial gezeichnet.
+
 **Akzeptanzkriterien:**
 - [ ] Die Detailansicht zeigt GPS-Route, Zeitverlauf und Messwertdiagramme.
 
@@ -46,7 +48,7 @@ Im Diagramm sollen beispielsweise Pace und Herzfrequenz zeitlich miteinander ver
 ### FR-0043 — Statistische Kennzahlen
 - **Status:** Approved | **Phase:** 1 (je Kennzahl abhängig von der liefernden Funktion)
 - **Quelle:** SRC-001 §5.2, Z. 203–212
-- **Verwandt:** FR-0055, OQ-0039
+- **Verwandt:** FR-0055, OQ-0039, OQ-0065
 
 Die Statistik umfasst diese Bereiche.
 
@@ -62,6 +64,8 @@ Die Statistik umfasst diese Bereiche.
 | Erholung | Training Readiness und optional Energiereserve |
 
 In der Oberfläche heißt die langfristige Trainingsbelastung „langfristiges Belastungsniveau“ (OQ-0039). Kennzahlen anderer Phasen (etwa ATL/CTL, Prognosen, Readiness) erscheinen erst, wenn die liefernde Funktion verfügbar ist.
+
+**Festlegung (OQ-0065):** Persönliche Bestzeiten werden bis zu ihrer Definition nicht angezeigt.
 
 **Akzeptanzkriterien:**
 - [ ] Jede Kennzahl ist entweder berechnet oder als nicht verfügbar erkennbar (FR-0057).
@@ -79,6 +83,7 @@ Die App soll Statistiken nach einzelnen Läufen, Kalenderwochen, Monaten und fre
 ## Offene Fragen
 <!-- BEGIN OQ -->
 - [OQ-0039](../migration/open-questions.md#oq-0039--benennung-von-ctl-in-statistik-und-erklärungen) (entschieden): Benennung von CTL in Statistik und Erklärungen
+- [OQ-0065](../migration/open-questions.md#oq-0065--lücken-aus-dem-plan-für-phase-1) (entschieden): Lücken aus dem Plan für Phase 1
 <!-- END OQ -->
 
 ## Quellen

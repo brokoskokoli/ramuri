@@ -535,3 +535,19 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Optionen (Vorschläge):** GPS einmal je Sekunde. Der Laufstart verlangt genauen Standort. Derselbe Sensor verbindet sich neu; das Rückwechselverbot gilt nur für den Wechsel auf ein anderes Gerät.
 - **Status:** Open
 - **Entscheidung:** —
+
+### OQ-0065 — Lücken aus dem Plan für Phase 1
+- **Frage:** Wie werden die in `work-packages/M1-PLAN.md` gefundenen kleinen Lücken L2 bis L6, L11 und L12 gefüllt?
+- **Auslöser/Quellen:** Plan für M1; Maintainer, 2026-11-04, SRC-003.
+- **Betroffene Anforderungen:** FR-0002, FR-0029, FR-0037, FR-0043, FR-0193
+- **Auswirkung:** blocking — war Phase 1, einzelne Punkte von WP05, WP06, WP08 und WP10.
+- **Status:** Resolved
+- **Entscheidung:** 2026-11-04, SRC-003: Lauferfahrung und Selbsteinschätzung sind bis Phase 2 zurückgestellt; Alter, Gewicht und Größe verlangen nur positive Zahlen. Persönliche Bestzeiten werden bis zu ihrer Definition nicht angezeigt. Die Einordnung vergleicht die Pace. Die Ausfallzeit nach einem Abbruch zählt zur Gesamtzeit, nicht zur Bewegungszeit. Die Route wird in Phase 1 ohne Kartenmaterial gezeichnet. Zonen sind lückenlos und aufsteigend, alte Läufe behalten ihre Zonenzeiten. Die Autopause ist standardmäßig aus. Ziel: DEC-0065.
+
+### OQ-0066 — Weg zum FIT-Export
+- **Frage:** Wie werden FIT-Dateien erzeugt, wenn die GPL-Verträglichkeit des Garmin-SDK ungeprüft ist?
+- **Auslöser/Quellen:** Plan für M1 (L1); Maintainer, 2026-11-04, SRC-003.
+- **Betroffene Anforderungen:** FR-0182
+- **Auswirkung:** blocking — war Phase 1, WP11.
+- **Status:** Resolved
+- **Entscheidung:** Eigener Kodierer ohne Garmin-Code, nach dem öffentlichen Dateiformat. Ob die Formatbeschreibung frei nutzbar ist, gehört zur rechtlichen Prüfung (OQ-0048). 2026-11-04, SRC-003. Ziel: FR-0182, DEC-0066.

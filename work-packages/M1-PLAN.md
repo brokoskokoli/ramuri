@@ -203,3 +203,5 @@ Nur gemeldet, nichts davon ist hier entschieden. „Blockiert“ nennt, was ohne
 | CON-0008 | Datenhoheit | 1 | WP11 |
 | CON-0009 | Kennzeichnung von Unsicherheit | 1 | WP10 |
 | CON-0010 | Unabhängigkeit von externen Plattformen | 1 | WP11 |
+
+**Stand der Lücken (2026-11-04):** L1 durch OQ-0066, L2 bis L6, L11 und L12 durch OQ-0065, L10 durch ADR-0008, L15 durch Festschreiben von Flutter 3.47.7 entschieden (ADR-0002). Noch offen: L8 (R006), L9 (Vorschlag aus WP11). Die Vorschläge zu L7, L13, L14, L16 und L17 gelten.

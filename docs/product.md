@@ -201,6 +201,8 @@ Die Tabelle fasst Entscheidungen aus der Quelle und vom Maintainer (SRC-003) zus
 | DEC-0062 | Wiederaufnahme: fortsetzen mit markierter Lücke oder als beendet speichern, ohne Frist (Maintainer, SRC-003) | FR-0193 | Entschieden (OQ-0061) |
 | DEC-0063 | Schlüsselverlust: erklären, Neubeginn und Reimport anbieten, alte Datei erst nach Bestätigung löschen (Maintainer, SRC-003) | SEC-0009 | Entschieden (OQ-0062) |
 | DEC-0064 | Vertriebsweg vorerst offen; technische Play-Vorgaben werden eingehalten (Maintainer, SRC-003) | ADR-0002 | Entschieden (OQ-0063) |
+| DEC-0065 | Kleine Lücken für Phase 1 nach Empfehlung gefüllt, im Einzelnen in OQ-0065 (Maintainer, SRC-003) | FR-0002, FR-0029, FR-0037, FR-0041, FR-0043, FR-0061, FR-0193 | Entschieden (OQ-0065) |
+| DEC-0066 | FIT-Export über eigenen Kodierer ohne Garmin-Code (Maintainer, SRC-003) | FR-0182 | Entschieden (OQ-0066) |
 
 ## Phasen
 

@@ -1,6 +1,6 @@
 # ADR-0008 — Verschlüsselung des passwortgeschützten Archivs
 
-- **Status:** Proposed
+- **Status:** Accepted (Maintainer, 2026-11-04)
 - **Datum:** 2026-11-04
 - **Quellen:** SRC-003 (OQ-0032, OQ-0050)
 - **Betroffene Anforderungen:** SEC-0009, SEC-0011, FR-0192, FR-0198, CON-0008, OQ-0032, OQ-0050, ADR-0001, ADR-0003, ADR-0004
@@ -9,8 +9,6 @@
 Der Gesamtexport ist immer mit einem Passwort des Nutzers verschlüsselt und ohne Passwort nicht lesbar (SEC-0011). Der Reimport prüft die Datei, eine beschädigte oder falsche Datei ändert keine Daten (FR-0198). Das Archiv enthält alle Rohdaten (FR-0192), wächst also mit den Läufen ohne bekannte Obergrenze (ADR-0004). Die Datei verlässt das Gerät und kann offline angegriffen werden, ihr Schutz hängt also am Passwort und an der Schlüsselableitung. Das Projekt steht unter GPL-3.0, das Gate läuft lokal.
 
 ## Entscheidung
-Alle Zahlen sind Vorschläge und werden erst mit der Freigabe verbindlich.
-
 **1. Verschlüsselung:** ChaCha20-Poly1305 (RFC 8439) in Stücken nach dem STREAM-Aufbau von age v1 [1]: Stücke von 64 KiB, die Nonce besteht aus einem 11-Byte-Zähler und einem Byte, das nur beim letzten Stück 1 ist. So fallen Veränderung, Vertauschen und Abschneiden auf; endet die Datei ohne gültiges letztes Stück, ist das ein Fehler [1]. Der Dateikopf geht in jedes Stück als zusätzlich authentifizierte Daten ein. Eine eigene Unterschlüssel-Ableitung entfällt, weil das zufällige Salz je Archiv den Schlüssel einmalig macht. ADR-0003 nutzt für die Datenbank dasselbe Verfahren.
 
 **2. Schlüsselableitung:** Argon2id (RFC 9106) mit 64 MiB, 3 Durchläufen, Parallelität 1, 16 Byte Salz je Archiv und 32 Byte Schlüssel. RFC 9106 nennt 64 MiB und 3 Durchläufe als Vorgabe für knappen Speicher, dort aber mit 4 Spuren [2]; die Parallelität 1 ist eine eigene Wahl für eine feste, einfache Last. Die Werte liegen über den Mindestwerten von OWASP (etwa 46 MiB mit 1 Durchlauf oder 12 MiB mit 3 Durchläufen, jeweils Parallelität 1) [3]. Sie laufen in einem eigenen Isolate, damit die Oberfläche nicht stockt.
@@ -23,7 +21,8 @@ Alle Zahlen sind Vorschläge und werden erst mit der Freigabe verbindlich.
 
 **6. Inhalt:** Datenbankschlüssel, Zugangsdaten und Einwilligungen sind nie enthalten (SEC-0011). Aufbau und Inhalt unter der Verschlüsselung legt das Paket als Vertrag in `docs/contracts/` an (OQ-0032, [Verträge](../../contracts/README.md)).
 
-## Vom Maintainer zu entscheiden
+## Entscheidungen des Maintainers (2026-11-04)
+Jeweils die Empfehlung gilt: `cryptography`, mindestens 15 Zeichen ohne Klassenregeln, neueres Archiv wird ohne Datenänderung abgelehnt. Die Abwägung:
 - **A. Paket:** `cryptography` (empfohlen, siehe Punkt 4) oder `sodium`/libsodium (siehe Alternativen). Letzteres heißt: vollständiges Xcode auf dem Entwicklungsrechner oder Kryptografie-Tests nur im Emulator, dafür kein eigener Rahmen.
 - **B. Mindestlänge des Passworts:** Die Spec nennt keine. NIST verlangt für ein Passwort als alleinigen Faktor mindestens 15 Zeichen und verbietet Zeichenklassen-Regeln [7]. Empfehlung: 15 Zeichen ohne Klassenregeln, weil die Datei offline angreifbar ist und kein zweiter Faktor existiert. Die dort geforderte Sperrliste häufiger Passwörter [7] schlage ich wegen des Pflegeaufwands nicht vor.
 - **C. Neueres Archiv in älterer App:** ADR-0004 lässt das offen. Empfehlung: ablehnen, ohne Daten zu ändern.

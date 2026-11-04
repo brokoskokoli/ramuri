@@ -34,6 +34,8 @@ Die Herzfrequenzreserve bildet eine Grundlage für die individualisierte Belastu
 
 Die App bietet fünf konfigurierbare Trainingszonen.
 
+**Festlegung (OQ-0065):** Zonen sind lückenlos und aufsteigend. Alte Läufe behalten ihre Zonenzeiten.
+
 **Akzeptanzkriterien:**
 - [ ] Der Nutzer kann die fünf Zonen anpassen; neue Berechnungen verwenden die angepasste Einteilung.
 

@@ -33,7 +33,7 @@ Beim ersten Start richtet der Nutzer ein persönliches Profil ein.
 ### FR-0002 — Profildatenfelder
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §2.1, Z. 37–47
-- **Verwandt:** FR-0001, OQ-0010, OQ-0013, OQ-0038
+- **Verwandt:** FR-0001, OQ-0010, OQ-0013, OQ-0038, OQ-0065
 
 Das Profil umfasst die folgenden Felder.
 
@@ -50,6 +50,8 @@ Das Profil umfasst die folgenden Felder.
 | Verfügbare Trainingstage | Trainingskalender | Für Trainingspläne |
 | Übliche Trainingsdauer | Trainingsplanung | Optional |
 | Koeffizienten des Banister-Modells (männlich, weiblich) | Nur für das Belastungsprofil Banister (OQ-0053) | Optional, ab Phase 2 |
+
+**Festlegung (OQ-0065):** Lauferfahrung und Selbsteinschätzung sind bis Phase 2 zurückgestellt. Alter, Gewicht und Größe verlangen nur positive Zahlen.
 
 **Akzeptanzkriterien:**
 - [ ] Alle als „Optional“ markierten Felder können leer bleiben, ohne dass die Grundfunktionen gesperrt werden.
@@ -109,6 +111,7 @@ Die Näherung besitzt eine erhebliche individuelle Streuung. Der Nutzer kann den
 - [OQ-0013](../migration/open-questions.md#oq-0013--was-bedeutet-laufleistung) (entschieden): Was bedeutet „Laufleistung“?
 - [OQ-0031](../migration/open-questions.md#oq-0031--ablauf-der-neuberechnung-historischer-werte) (entschieden): Ablauf der Neuberechnung historischer Werte
 - [OQ-0038](../migration/open-questions.md#oq-0038--doppelte-eingaben-in-profil-und-ziel) (entschieden): Doppelte Eingaben in Profil und Ziel
+- [OQ-0065](../migration/open-questions.md#oq-0065--lücken-aus-dem-plan-für-phase-1) (entschieden): Lücken aus dem Plan für Phase 1
 <!-- END OQ -->
 
 ## Quellen

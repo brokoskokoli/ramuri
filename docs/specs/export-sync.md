@@ -17,9 +17,11 @@ Aufgezeichnete Läufe und Fitnessdaten bleiben unabhängig von externen Plattfor
 ### FR-0182 — Dateiexport als GPX, TCX und FIT
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §20.1, Z. 1191–1197; §25 Nr. 13, Z. 1408
-- **Verwandt:** CON-0010, ACC-13, OQ-0032
+- **Verwandt:** CON-0010, ACC-13, OQ-0032, OQ-0066
 
 Die App soll aufgezeichnete Laufeinheiten in den standardisierten Formaten GPX, TCX und FIT exportieren können.
+
+**Festlegung (OQ-0066):** FIT entsteht über einen eigenen Kodierer ohne Garmin-Code.
 
 **Akzeptanzkriterien:**
 - [ ] Ein GPS-Lauf lässt sich ohne Strava in jedem der drei Formate exportieren (ACC-13). Laufbandläufe: siehe FR-0196.
@@ -167,6 +169,7 @@ Der Nutzer kann die Exportdatei eines Laufs über das Teilen-Menü des Systems w
 - [OQ-0041](../migration/open-questions.md#oq-0041--phasen-der-noch-nicht-zugeordneten-anforderungen) (entschieden): Phasen der noch nicht zugeordneten Anforderungen
 - [OQ-0049](../migration/open-questions.md#oq-0049--strava-ohne-server-und-ausgeliefertes-secret) (entschieden): Strava ohne Server und ausgeliefertes Secret
 - [OQ-0050](../migration/open-questions.md#oq-0050--schutz-des-gesamtexports-und-regeln-für-den-reimport) (entschieden): Schutz des Gesamtexports und Regeln für den Reimport
+- [OQ-0066](../migration/open-questions.md#oq-0066--weg-zum-fit-export) (entschieden): Weg zum FIT-Export
 <!-- END OQ -->
 
 ## Quellen

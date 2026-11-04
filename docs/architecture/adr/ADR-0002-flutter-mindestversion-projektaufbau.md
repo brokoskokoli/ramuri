@@ -9,7 +9,7 @@
 Zielplattform ist Android, später optional iOS (CON-0001). Flutter ist vom Maintainer gesetzt und steht hier nicht zur Wahl. Offen sind Mindestversion (OQ-0035), Aufbau von `app/` und wie iOS offen bleibt. Die Agenten testen vorerst nur im Emulator, jede unterstützte Android-Generation kostet also Verzweigungen, die niemand im Feld prüft.
 
 ## Entscheidung
-**Gesetzt (Maintainer):** Flutter, aktuell stable 3.47.9 mit Dart 3.13.7 [1].
+**Gesetzt (Maintainer):** Flutter, festgeschrieben auf 3.47.7 mit Dart 3.13.5, die lokal installierte Fassung. Das globale Flutter nutzen auch andere Projekte des Maintainers; die neuere stable 3.47.9 [1] wird bewusst nicht installiert (Nachtrag 2026-11-04).
 
 **1. Versionen:** `minSdk` 31 (Android 12), `targetSdk` 36, `compileSdk` mindestens 36.
 

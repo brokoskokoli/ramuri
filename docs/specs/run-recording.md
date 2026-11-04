@@ -71,9 +71,11 @@ Der Nutzer kann ein Training starten, pausieren, fortsetzen und beenden.
 ### FR-0029 — Automatisches Pausieren
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §4.2, Z. 158
-- **Verwandt:** OQ-0037
+- **Verwandt:** OQ-0037, OQ-0065
 
 Optional pausiert die App das Training automatisch.
+
+**Festlegung (OQ-0065):** Die Autopause ist standardmäßig aus.
 
 **Akzeptanzkriterien:**
 - [ ] Nach rund 10 s ohne Bewegung pausiert die Aufzeichnung, wenn die Funktion eingeschaltet ist (OQ-0037; Schwellen: PAR-014, PAR-015).
@@ -149,9 +151,11 @@ Ein Verbindungsabbruch führt nicht zum Verlust des übrigen Laufs.
 ### FR-0037 — Zusammenfassung nach dem Lauf
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §4.3, Z. 168–180
-- **Verwandt:** FR-0052, FR-0092, OQ-0037
+- **Verwandt:** FR-0052, FR-0092, OQ-0037, OQ-0065
 
 Nach dem Lauf erscheint eine Zusammenfassung mit: Strecke, Bewegungszeit und Gesamtzeit, Durchschnitts- und Bestpace, Durchschnitts- und Maximalpuls, Herzfrequenzzonen, Höhenprofil, GPS-Karte, Rundenzeiten, Trainingsbelastung, Einordnung gegenüber vorherigen Einheiten und optional aktualisierter VO₂max-Schätzung.
+
+**Festlegung (OQ-0065):** Die Einordnung vergleicht die Pace. Die Route wird ohne Kartenmaterial gezeichnet.
 
 **Akzeptanzkriterien:**
 - [ ] Die Zusammenfassung erscheint nach dem Beenden.
@@ -184,9 +188,11 @@ Diese Eingaben können bei der künftigen Trainingsplanung berücksichtigt werde
 ### FR-0193 — Laufende Sicherung und Wiederaufnahme
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §6.1, Z. 234; SRC-003 (OQ-0021, OQ-0061)
-- **Verwandt:** FR-0034, FR-0036, OQ-0021, OQ-0061
+- **Verwandt:** FR-0034, FR-0036, OQ-0021, OQ-0061, OQ-0065
 
 Die App sichert die Aufzeichnung laufend. Nach einem Abbruch, etwa durch Absturz, Neustart oder leeren Akku, bietet sie die Wiederaufnahme an. Der Nutzer wählt beim nächsten Start: denselben Lauf fortsetzen oder ihn als beendeten Lauf speichern. Eine Frist gibt es nicht.
+
+**Festlegung (OQ-0065):** Die Ausfallzeit zählt zur Gesamtzeit, nicht zur Bewegungszeit.
 
 **Akzeptanzkriterien:**
 - [ ] Nach einem erzwungenen App-Abbruch sind die bis dahin gesicherten Daten vorhanden.
@@ -254,6 +260,7 @@ In Phase 2 gibt es einen Laufbandmodus, in dem der Nutzer die aktuelle Geschwind
 - [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
 - [OQ-0061](../migration/open-questions.md#oq-0061--bedeutung-der-wiederaufnahme) (entschieden): Bedeutung der Wiederaufnahme
 - [OQ-0064](../migration/open-questions.md#oq-0064--technische-vorgaben-der-aufzeichnung) (non-blocking): Technische Vorgaben der Aufzeichnung
+- [OQ-0065](../migration/open-questions.md#oq-0065--lücken-aus-dem-plan-für-phase-1) (entschieden): Lücken aus dem Plan für Phase 1
 <!-- END OQ -->
 
 ## Quellen

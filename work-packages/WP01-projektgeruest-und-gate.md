@@ -5,13 +5,13 @@
 Bezug: CON-0001, CON-0002; ADR-0002 (Versionen, Aufbau, Ports, iOS, Konsequenzen zum Gate), ADR-0004 Punkt 2. Keine Abhängigkeit von R005 oder ADR-0008.
 
 ## Inhalt
-1. **Flutter-Version:** Exakt die Version aus ADR-0002 festlegen, als `environment.flutter` in `app/pubspec.yaml`. Der lokale Stand weicht ab (siehe `M1-PLAN.md`, L15) und wird zuerst angeglichen; andernfalls melden und nicht still eine andere Version pinnen.
+1. **Flutter-Version:** Exakt die Version aus ADR-0002 (3.47.7) festlegen, als `environment.flutter` in `app/pubspec.yaml`. Das globale Flutter nicht aktualisieren, es gehört auch anderen Projekten.
 2. **App und Workspace:** `flutter create --platforms=android` in `app/`, Pub-Workspace mit `app/packages/core` (reines Dart) und `app/packages/adapters`. minSdk, targetSdk und compileSdk nach ADR-0002 Punkt 1.
 3. **Ports und Fakes in `core`:** Standort, Herzfrequenzsensor, Schrittfrequenz, Aufzeichnungsdienst, Speicher, Schlüsselablage, Health Connect (nur Verfügbarkeitsabfrage und Fake, keine Android-Umsetzung vor Phase 3) und Uhr. Nur die Schnittstellen, die spätere Pakete ausbauen.
 4. **Gate:** `tool/gate.sh` prüft zusätzlich `app/packages/*`: Format und Analyse je Paket, `dart test` in `core`, `flutter test` in `adapters` und `app`. `--changed` beachtet weiter ganz `app/`. Ein Schritt vergleicht die laufende Flutter-Version mit `environment.flutter`.
 5. **CI-Datei:** `.github/workflows/gate.yml` liest die Version aus `app/pubspec.yaml` (`flutter-version-file`) statt `channel: stable`. Sie greift erst mit einem Remote und wird deshalb nur durchgesehen, nicht ausgeführt.
 6. **Gerüst für spätere Pakete:** Lokalisierung mit `flutter gen-l10n` und je einer ARB-Datei für Deutsch und Englisch, Einstieg und Zusammenbau der Abhängigkeiten in `app/lib`, Ordner je Funktion unter `app/lib/features/`.
-7. **Testumgebung:** AVDs mit Google-Images für API 31 und API 36 (ADR-0002) anlegen oder den Weg dorthin dokumentieren; bisher liegt lokal nur API 35.
+7. **Testumgebung:** AVDs mit Google-Images für API 31 und API 36 (ADR-0002) unter eigenem Namen `running_app_api31` und `running_app_api36` anlegen; AVDs anderer Projekte nicht anfassen.
 
 ## Umsetzung
 - **Teile für die Coder-Aufträge:** Teil A: Punkte 1 und 2 / Teil B: Punkt 3 mit Fakes und Tests / Teil C: Punkte 4 und 5 / Teil D: Punkte 6 und 7, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.

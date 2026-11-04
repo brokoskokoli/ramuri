@@ -10,7 +10,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | ID | Titel | Kategorie | Status | Phase | Detail | Verwandt |
 |---|---|---|---|---|---|---|
 | FR-0001 | Profil beim ersten Start einrichten | functional | Approved | 1 | [profile](specs/profile.md#fr-0001--profil-beim-ersten-start-einrichten) | FR-0002, OQ-0010 |
-| FR-0002 | Profildatenfelder | functional | Approved | 1 | [profile](specs/profile.md#fr-0002--profildatenfelder) | FR-0001, OQ-0010, OQ-0013, OQ-0038 |
+| FR-0002 | Profildatenfelder | functional | Approved | 1 | [profile](specs/profile.md#fr-0002--profildatenfelder) | FR-0001, OQ-0010, OQ-0013, OQ-0038, OQ-0065 |
 | FR-0003 | Gemessene maximale Herzfrequenz hat Vorrang | functional | Approved | 1 | [profile](specs/profile.md#fr-0003--gemessene-maximale-herzfrequenz-hat-vorrang) | FR-0004 |
 | FR-0004 | Altersbasierte Näherung der maximalen Herzfrequenz | functional | Approved | 1 | [profile](specs/profile.md#fr-0004--altersbasierte-näherung-der-maximalen-herzfrequenz) | FR-0003, FR-0005, OQ-0012 |
 | FR-0005 | Hinweis auf Streuung und Korrektur der Näherung | functional | Approved | 1 | [profile](specs/profile.md#fr-0005--hinweis-auf-streuung-und-korrektur-der-näherung) | FR-0004 |
@@ -37,7 +37,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0026 | Pflichtanzeigen während des Trainings | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0026--pflichtanzeigen-während-des-trainings) | FR-0051, FR-0056, OQ-0012 |
 | FR-0027 | Optionale Anzeigen während des Trainings | functional | Approved | 1 (Rundenzeiten, Höhenmeter, Schrittfrequenz), 2 (Soll-/Ist-Vergleich, Belastungsbereich) | [run-recording](specs/run-recording.md#fr-0027--optionale-anzeigen-während-des-trainings) | OQ-0041 |
 | FR-0028 | Training starten, pausieren, fortsetzen, beenden | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0028--training-starten-pausieren-fortsetzen-beenden) | FR-0052 |
-| FR-0029 | Automatisches Pausieren | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0029--automatisches-pausieren) | OQ-0037 |
+| FR-0029 | Automatisches Pausieren | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0029--automatisches-pausieren) | OQ-0037, OQ-0065 |
 | FR-0030 | Manuelle Rundenmarkierung | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0030--manuelle-rundenmarkierung) | — |
 | FR-0031 | Akustische Trainingshinweise | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0031--akustische-trainingshinweise) | OQ-0044 |
 | FR-0032 | Warnung bei Überschreitung des Herzfrequenzbereichs | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0032--warnung-bei-überschreitung-des-herzfrequenzbereichs) | — |
@@ -45,13 +45,13 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0034 | Aufzeichnung bei ausgeschaltetem Bildschirm | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0034--aufzeichnung-bei-ausgeschaltetem-bildschirm) | OQ-0021 |
 | FR-0035 | Aufzeichnung ohne Pulssensor | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0035--aufzeichnung-ohne-pulssensor) | CON-0004, ACC-01, OQ-0021 |
 | FR-0036 | Verbindungsabbruch verliert den übrigen Lauf nicht | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0036--verbindungsabbruch-verliert-den-übrigen-lauf-nicht) | FR-0017, ACC-03 |
-| FR-0037 | Zusammenfassung nach dem Lauf | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0037--zusammenfassung-nach-dem-lauf) | FR-0052, FR-0092, OQ-0037 |
+| FR-0037 | Zusammenfassung nach dem Lauf | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0037--zusammenfassung-nach-dem-lauf) | FR-0052, FR-0092, OQ-0037, OQ-0065 |
 | FR-0038 | Subjektive Angaben erfassen | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0038--subjektive-angaben-erfassen) | FR-0095, OQ-0059 |
 | FR-0039 | Subjektive Angaben in der Planung berücksichtigen | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0039--subjektive-angaben-in-der-planung-berücksichtigen) | FR-0148, FR-0157 |
 | FR-0040 | Trainingshistorie | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0040--trainingshistorie) | ACC-04 |
 | FR-0041 | Detailansicht eines Laufs | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0041--detailansicht-eines-laufs) | — |
 | FR-0042 | Pace und Herzfrequenz zeitlich vergleichen | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0042--pace-und-herzfrequenz-zeitlich-vergleichen) | — |
-| FR-0043 | Statistische Kennzahlen | functional | Approved | 1 (je Kennzahl abhängig von der liefernden Funktion) | [history-statistics](specs/history-statistics.md#fr-0043--statistische-kennzahlen) | FR-0055, OQ-0039 |
+| FR-0043 | Statistische Kennzahlen | functional | Approved | 1 (je Kennzahl abhängig von der liefernden Funktion) | [history-statistics](specs/history-statistics.md#fr-0043--statistische-kennzahlen) | FR-0055, OQ-0039, OQ-0065 |
 | FR-0044 | Auswertungszeiträume | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0044--auswertungszeiträume) | — |
 | FR-0045 | Keine Fitnessberechnung auf ungefilterten Daten | functional | Approved | 1* | [data-quality](specs/data-quality.md#fr-0045--keine-fitnessberechnung-auf-ungefilterten-daten) | — |
 | FR-0046 | Synchronisation über Zeitstempel | functional | Approved | 1* | [data-quality](specs/data-quality.md#fr-0046--synchronisation-über-zeitstempel) | — |
@@ -190,7 +190,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0179 | Bedeutung erklären | functional | Approved | 2 | [explanations](specs/explanations.md#fr-0179--bedeutung-erklären) | CON-0005 |
 | FR-0180 | Erklärungsarten | functional | Approved | 2 | [explanations](specs/explanations.md#fr-0180--erklärungsarten) | FR-0170, OQ-0011, OQ-0039 |
 | FR-0181 | Erklärungen beruhen auf tatsächlichen Daten | functional | Approved | 2 | [explanations](specs/explanations.md#fr-0181--erklärungen-beruhen-auf-tatsächlichen-daten) | FR-0059 |
-| FR-0182 | Dateiexport als GPX, TCX und FIT | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0182--dateiexport-als-gpx-tcx-und-fit) | CON-0010, ACC-13, OQ-0032 |
+| FR-0182 | Dateiexport als GPX, TCX und FIT | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0182--dateiexport-als-gpx-tcx-und-fit) | CON-0010, ACC-13, OQ-0032, OQ-0066 |
 | FR-0183 | Exportinhalte | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0183--exportinhalte) | — |
 | FR-0184 | Zusatzmetriken separat exportierbar | functional | Approved | 2 | [export-sync](specs/export-sync.md#fr-0184--zusatzmetriken-separat-exportierbar) | OQ-0032 |
 | FR-0185 | Strava-Konto einmalig verknüpfen | functional | Draft | Zurückgestellt (OQ-0049) | [export-sync](specs/export-sync.md#fr-0185--strava-konto-einmalig-verknüpfen) | SEC-0003, SEC-0008, OQ-0024, OQ-0049 |
@@ -201,7 +201,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0190 | Doppelte Uploads vermeiden | functional | Draft | Zurückgestellt (OQ-0049) | [export-sync](specs/export-sync.md#fr-0190--doppelte-uploads-vermeiden) | OQ-0032, OQ-0049 |
 | FR-0191 | Verbindung trennen | functional | Draft | Zurückgestellt (OQ-0049) | [export-sync](specs/export-sync.md#fr-0191--verbindung-trennen) | SEC-0007, OQ-0025, OQ-0049 |
 | FR-0192 | Gesamtexport der Nutzerdaten | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0192--gesamtexport-der-nutzerdaten) | SEC-0004, CON-0008, ACC-15, OQ-0041, OQ-0032, SEC-0011, OQ-0050 |
-| FR-0193 | Laufende Sicherung und Wiederaufnahme | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0193--laufende-sicherung-und-wiederaufnahme) | FR-0034, FR-0036, OQ-0021, OQ-0061 |
+| FR-0193 | Laufende Sicherung und Wiederaufnahme | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0193--laufende-sicherung-und-wiederaufnahme) | FR-0034, FR-0036, OQ-0021, OQ-0061, OQ-0065 |
 | FR-0194 | Verhalten bei GPS-Verlust | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0194--verhalten-bei-gps-verlust) | FR-0049, FR-0057, OQ-0021 |
 | FR-0195 | Start nur mit Standortberechtigung | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0195--start-nur-mit-standortberechtigung) | OQ-0021, OQ-0064 |
 | FR-0196 | Laufbandmodus | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0196--laufbandmodus) | FR-0195, OQ-0042 |

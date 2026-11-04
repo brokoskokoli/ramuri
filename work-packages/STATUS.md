@@ -4,16 +4,24 @@ Einzige Stelle für den Stand der Meilensteine und Arbeitspakete. Gepflegt vom O
 
 Status: `geplant` · `in Arbeit` · `Review` · `wartet` (Grund in „Offen“) · `gemergt` (Commit) · `verworfen`
 
-Stand: 2026-11-04, ADR-0002 bis ADR-0007 freigegeben, Plan für M1 liegt vor, R005 wartet auf den Start seiner Sitzung.
+Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 startet, R005 wartet auf den Start seiner Sitzung.
 
 ## Meilensteine
 
 | Meilenstein | Inhalt | Status |
 | --- | --- | --- |
-| M0 ADRs | Architekturentscheidungen; ADR-0002 bis ADR-0007 freigegeben, ADR-0008 (Archiv) als Entwurf | in Arbeit |
+| M0 ADRs | Architekturentscheidungen; ADR-0002 bis ADR-0008 freigegeben | erledigt |
 | M1 Phase 1 | Laufaufzeichnung und grundlegende Fitnessanalyse | Plan: [M1-PLAN.md](M1-PLAN.md), WP01 bis WP12 geplant |
 | M2 Phase 2 | Adaptiver Trainingscoach | wartet auf Go des Maintainers |
 | M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | wartet auf Go des Maintainers |
+
+## M1 im Detail
+
+| Paket | Titel | Status | Offen |
+| --- | --- | --- | --- |
+| WP01 | Projektgerüst und Gate | in Arbeit | – |
+| WP02 bis WP07, WP09 bis WP12 | siehe [M1-PLAN.md](M1-PLAN.md) | geplant | – |
+| WP08 | Hintergrund und Wiederanlauf | wartet | R005 |
 
 ## Offen außerhalb der Pakete
 
