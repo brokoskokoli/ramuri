@@ -1,3 +1,4 @@
+import 'heart_rate_processor.dart';
 import 'latest_value_index.dart';
 import 'measurement.dart';
 import 'motion_segments.dart';
@@ -5,20 +6,28 @@ import 'movement_time_processor.dart';
 import 'pace_processor.dart';
 import 'position_processor.dart';
 import 'preprocessing_parameters.dart';
+import 'section_quality.dart';
+import 'settling_processor.dart';
 
 /// Gesamtergebnis der Vorverarbeitung; wächst mit den Kanälen.
 class RunPreprocessing {
   const RunPreprocessing({
-    required this.parameterVersion,
+    required this.parameters,
     required this.position,
     required this.pace,
     required this.movement,
+    required this.heartRate,
+    required this.settling,
   });
 
-  final int parameterVersion;
+  /// Parametersatz, mit dem gerechnet wurde.
+  final PreprocessingParameters parameters;
+  int get parameterVersion => parameters.parameterVersion;
   final PositionResult position;
   final PaceResult pace;
   final MovementResult movement;
+  final HeartRateResult heartRate;
+  final SettlingResult settling;
 }
 
 /// Fasst die Kanalprozessoren zusammen. Keine Uhr: Zeiten kommen von außen.
@@ -29,6 +38,8 @@ class RunPreprocessor {
   }) : _position = PositionProcessor(parameters, sectionStart: start),
        _pace = PaceProcessor(parameters),
        _movement = MovementTimeProcessor(parameters, start: start),
+       _heartRate = HeartRateProcessor(parameters, sectionStart: start),
+       _settling = SettlingProcessor(parameters, start: start),
        _segments = SegmentBuilder(parameters.gapMaxDuration);
 
   final DateTime start;
@@ -36,6 +47,8 @@ class RunPreprocessor {
   final PositionProcessor _position;
   final PaceProcessor _pace;
   final MovementTimeProcessor _movement;
+  final HeartRateProcessor _heartRate;
+  final SettlingProcessor _settling;
   final SegmentBuilder _segments;
 
   ProcessedPosition addPosition(RawPosition p) {
@@ -45,20 +58,25 @@ class RunPreprocessor {
       if (segment != null) {
         _pace.add(segment);
         _movement.add(segment);
+        _settling.add(segment);
       }
     }
     return r;
   }
 
+  ProcessedHeartRate addHeartRate(RawHeartRate h) => _heartRate.add(h);
+
   /// Manuelle Pause (Ereignis).
   void pause(DateTime time) {
     _position.pause(time);
+    _heartRate.pause(time);
     _segments.reset();
     _movement.pause(time);
   }
 
   void resume(DateTime time) {
     _position.resume(time);
+    _heartRate.resume(time);
     _segments.reset();
     _movement.resume(time);
   }
@@ -66,10 +84,31 @@ class RunPreprocessor {
   /// Zuordnung über Zeitstempel (FR-0046).
   Lookup<RawPosition> positionAt(DateTime t) => _position.positionAt(t);
 
-  RunPreprocessing result({required DateTime at}) => RunPreprocessing(
-    parameterVersion: parameters.parameterVersion,
-    position: _position.result(at: at),
-    pace: _pace.result(at: at),
-    movement: _movement.result(at: at),
-  );
+  /// Letzter akzeptierter Puls `<= t`, `unavailable` über der Einzellücke.
+  Lookup<RawHeartRate> heartRateAt(DateTime t) => _heartRate.heartRateAt(t);
+
+  RunPreprocessing result({required DateTime at}) {
+    final movement = _movement.result(at: at);
+    return RunPreprocessing(
+      parameters: parameters,
+      position: _position.result(at: at),
+      pace: _pace.result(at: at),
+      movement: movement,
+      heartRate: _heartRate.result(at: at),
+      settling: _settling.result(restarts: movement.resumedAt),
+    );
+  }
+}
+
+extension RunPreprocessingQuality on RunPreprocessing {
+  /// Qualität des Abschnitts `[from, to]` (FR-0048).
+  SectionQuality assessSection(DateTime from, DateTime to) =>
+      SectionQuality.assess(
+        from: from,
+        to: to,
+        heartRate: heartRate,
+        position: position,
+        settlingIntervals: settling.intervals,
+        parameters: parameters,
+      );
 }

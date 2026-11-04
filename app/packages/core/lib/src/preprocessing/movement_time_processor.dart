@@ -24,7 +24,9 @@ class MovementResult {
     required List<TimeSpan> movingIntervals,
     required this.autoPauseState,
     required this.manuallyPaused,
-  }) : movingIntervals = List.unmodifiable(movingIntervals);
+    required List<DateTime> resumedAt,
+  }) : movingIntervals = List.unmodifiable(movingIntervals),
+       resumedAt = List.unmodifiable(resumedAt);
 
   String get method => movementMethod;
   int get methodVersion => movementMethodVersion;
@@ -36,6 +38,10 @@ class MovementResult {
   final List<TimeSpan> movingIntervals;
   final AutoPauseState autoPauseState;
   final bool manuallyPaused;
+
+  /// Zeitpunkte, an denen nach einer Pause (manuell oder erkannt) wieder
+  /// Bewegung beginnt; Grundlage der Einschwingzeit (PAR-011).
+  final List<DateTime> resumedAt;
 }
 
 /// Bewegungszeit mit Hysterese (PAR-014) und Haltedauern (PAR-015).
@@ -50,6 +56,7 @@ class MovementTimeProcessor {
   final DateTime start;
 
   final List<TimeSpan> _intervals = [];
+  final List<DateTime> _resumes = [];
 
   /// Beginn der laufenden Bewegungsphase, `null` in Pause (auto oder manuell).
   DateTime? _openStart;
@@ -89,6 +96,7 @@ class MovementTimeProcessor {
     } else {
       _state = AutoPauseState.moving;
       _openStart = switchAt;
+      _resumes.add(switchAt);
     }
   }
 
@@ -115,6 +123,7 @@ class MovementTimeProcessor {
     _state = AutoPauseState.moving;
     _candidate = null;
     _openStart = time;
+    _resumes.add(time);
   }
 
   /// Stand zum Zeitpunkt [at] (nicht vor der letzten Eingabe).
@@ -136,6 +145,7 @@ class MovementTimeProcessor {
       movingIntervals: intervals,
       autoPauseState: _state,
       manuallyPaused: _manual,
+      resumedAt: _resumes,
     );
   }
 }
