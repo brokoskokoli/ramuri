@@ -551,3 +551,20 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Auswirkung:** blocking — war Phase 1, WP11.
 - **Status:** Resolved
 - **Entscheidung:** Eigener Kodierer ohne Garmin-Code, nach dem öffentlichen Dateiformat. Ob die Formatbeschreibung frei nutzbar ist, gehört zur rechtlichen Prüfung (OQ-0048). 2026-11-04, SRC-003. Ziel: FR-0182, DEC-0066.
+
+### OQ-0067 — Rückfallsprache
+- **Frage:** Welche Sprache zeigt die App bei einer Gerätesprache außer Deutsch und Englisch?
+- **Auslöser/Quellen:** WP01, im Emulator mit Französisch geprüft; Maintainer, 2026-11-04, SRC-003.
+- **Betroffene Anforderungen:** NFR-0006
+- **Auswirkung:** non-blocking; Umsetzung in WP05.
+- **Status:** Resolved
+- **Entscheidung:** Englisch. 2026-11-04, SRC-003. Ziel: NFR-0006, DEC-0067.
+
+### OQ-0068 — GPS-Rauschen im Stand
+- **Frage:** Wie stark verfälscht GPS-Rauschen im Stand Strecke und Bewegungszeit, wenn die Geschwindigkeit aus Δs/Δt stammt? Braucht es eine Mindestdistanz, eine Glättung oder `Location.getSpeed()`?
+- **Auslöser/Quellen:** WP03: Synthetischer Worst Case mit ±3 m abwechselnd bei 1 Hz über 60 s ergibt 360 m zusätzliche Strecke, der Zustand bleibt `moving`, PAR-014 und PAR-015 lösen nie aus. Echtes Rauschen ist autokorreliert und meist kleiner; der reale Effekt ist unbelegt (Validierungsbedarf in `docs/model-parameters.md`, OQ-0020).
+- **Betroffene Anforderungen:** FR-0029, FR-0052
+- **Auswirkung:** non-blocking; bis zur Antwort gilt die Spec wörtlich. Betrifft auch TRIMP über die Bewegungszeit.
+- **Optionen:** Literaturauftrag R007 vor WP06; sonst Klärung im Feldtest.
+- **Status:** Open
+- **Entscheidung:** —

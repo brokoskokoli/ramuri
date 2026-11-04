@@ -238,7 +238,7 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-001 | §11.2, Z. 695 | Validierung vor Genauigkeitsaussagen | NFR-0004 | [non-functional.md](../quality/non-functional.md) | 2 AK | Übernommen |
 | SRC-001 | §12.4, Z. 791 | Validierung vor Genauigkeitsaussagen | NFR-0004 | [non-functional.md](../quality/non-functional.md) | 2 AK | Übernommen |
 | SRC-003 | (Maintainer 2026-11-03) | Austauschbare Algorithmen | NFR-0005 | [non-functional.md](../quality/non-functional.md) | 3 AK | Übernommen |
-| SRC-003 | (OQ-0035) | Sprachen und Einheiten | NFR-0006 | [non-functional.md](../quality/non-functional.md) | 2 AK | Übernommen |
+| SRC-003 | (OQ-0035) | Sprachen und Einheiten | NFR-0006 | [non-functional.md](../quality/non-functional.md) | 3 AK | Übernommen |
 | SRC-001 | §21, Z. 1235–1237 | Gesundheitsdaten nur mit ausdrücklicher Zustimmung | SEC-0001 | [security.md](../quality/security.md) | 2 AK | Übernommen |
 | SRC-001 | §21, Z. 1238 | Datenquellen getrennt freigeben | SEC-0002 | [security.md](../quality/security.md) | 1 AK | Übernommen |
 | SRC-001 | §21, Z. 1239 | Externe Synchronisierung ist optional | SEC-0003 | [security.md](../quality/security.md) | 1 AK | Übernommen |

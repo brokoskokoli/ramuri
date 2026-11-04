@@ -2,14 +2,14 @@
 
 **Zuordnung:** M1.
 
-Bezug: FR-0001 bis FR-0005, FR-0061, NFR-0006, SEC-0001, SEC-0002, SEC-0007, SEC-0008, CON-0007; PAR-016 bis PAR-019; OQ-0010, OQ-0012, OQ-0013, OQ-0025, OQ-0035, OQ-0038; ADR-0002, ADR-0004.
+Bezug: FR-0001 bis FR-0005, FR-0061, NFR-0006, SEC-0001, SEC-0002, SEC-0007, SEC-0008, CON-0007; PAR-016 bis PAR-019; OQ-0010, OQ-0012, OQ-0013, OQ-0025, OQ-0035, OQ-0038, OQ-0067; ADR-0002, ADR-0004.
 
 ## Inhalt
 1. **Ersteinrichtung:** Beim ersten Start angeboten und überspringbar; danach ist ein Lauf möglich (FR-0001, OQ-0010).
 2. **Profil:** Felder aus FR-0002 außer den Banister-Koeffizienten (ab Phase 2), alle leer lassbar; Plausibilität und Verhalten nach PAR-016 bis PAR-019.
 3. **HFmax:** Eingabe hat Vorrang (FR-0003), sonst Näherung nach FR-0004, gekennzeichnet als Schätzung und jederzeit änderbar (FR-0005). Ohne Alter und HFmax Bitte um Eingabe.
 4. **Zoneneditor:** Der Nutzer passt die fünf Zonen an (FR-0061); neue Berechnungen verwenden die Einteilung. Nutzt das Zonenmodell aus WP04.
-5. **Sprachen und Einheiten:** Alle Texte Deutsch und Englisch, Wahl Kilometer oder Meilen als reine Anzeige (NFR-0006); ein gemeinsamer Formatierer für alle Pakete.
+5. **Sprachen und Einheiten:** Alle Texte Deutsch und Englisch, Wahl Kilometer oder Meilen als reine Anzeige (NFR-0006); ein gemeinsamer Formatierer für alle Pakete. Bei jeder anderen Gerätesprache gilt Englisch (OQ-0067); bisher fällt die App auf Deutsch zurück, siehe `app/lib/app.dart`.
 6. **Freigaben:** Einwilligung je Quelle mit Zustand in `core`, Prüfung vor jedem Zugriff auf eine freigabepflichtige Quelle, getrennter Widerruf (SEC-0001, SEC-0002, SEC-0007). Phase 1 hat keine solche Quelle (siehe `M1-PLAN.md`, L7), deshalb nur die Logik mit Fake-Quelle und keine Oberfläche dafür.
 7. **Android-Berechtigungen:** Einstellungsseite mit dem Stand von Standort, Bluetooth und Schritterkennung und dem Weg in die Systemeinstellungen zum Widerruf (SEC-0007). Einträge erscheinen mit den jeweiligen Paketen.
 8. **Keine Übertragung (SEC-0008):** Das Release-Manifest fordert kein `INTERNET`. Fügt ein Plugin die Berechtigung hinzu, ist das zu melden und nicht still zu akzeptieren.
@@ -28,7 +28,7 @@ Bezug: FR-0001 bis FR-0005, FR-0061, NFR-0006, SEC-0001, SEC-0002, SEC-0007, SEC
 - [ ] FR-0003, FR-0004: Testfall aus der Spec; mit Messwert und Alter gilt der Messwert; Näherung ist gekennzeichnet (CON-0009) und nicht als individuell genau dargestellt.
 - [ ] PAR-016, PAR-017: Eingaben knapp außerhalb abgelehnt, im Hinweisbereich gespeichert mit Hinweis. PAR-018: Konflikt-Eingabe nicht gespeichert. PAR-019: gespeichert, abhängige Werte nicht verfügbar.
 - [ ] FR-0061: Angepasste Zonen wirken auf neue Berechnungen (Test mit Zonenmodell aus WP04).
-- [ ] NFR-0006: Der Test aus WP01 schlägt bei fehlendem Schlüssel fehl; Meilen ändern gespeicherte Rohdaten nicht (Test vor und nach der Umstellung).
+- [ ] NFR-0006: Gerätesprache Französisch zeigt Englisch (Widget-Test und E2E). Der Test aus WP01 schlägt bei fehlendem Schlüssel fehl; Meilen ändern gespeicherte Rohdaten nicht (Test vor und nach der Umstellung).
 - [ ] SEC-0001, SEC-0002: Ohne Einwilligung liefert die Fake-Quelle keine Daten; Freigabe von Quelle A gibt B nicht frei. SEC-0007: Nach dem Widerruf keine neuen Daten, und es wird nach dem Löschen importierter Daten gefragt. Mutationsbeleg an der Prüfung (fail-closed).
 - [ ] CON-0007: Ohne jede Freigabe bleiben Profil und Grundfunktionen nutzbar.
 - [ ] SEC-0008: Die Berechtigungsliste des Release-APK enthält kein `INTERNET` (Prüfung mit `aapt`/`apkanalyzer` belegt).

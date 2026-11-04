@@ -37,7 +37,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0026 | Pflichtanzeigen während des Trainings | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0026--pflichtanzeigen-während-des-trainings) | FR-0051, FR-0056, OQ-0012 |
 | FR-0027 | Optionale Anzeigen während des Trainings | functional | Approved | 1 (Rundenzeiten, Höhenmeter, Schrittfrequenz), 2 (Soll-/Ist-Vergleich, Belastungsbereich) | [run-recording](specs/run-recording.md#fr-0027--optionale-anzeigen-während-des-trainings) | OQ-0041 |
 | FR-0028 | Training starten, pausieren, fortsetzen, beenden | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0028--training-starten-pausieren-fortsetzen-beenden) | FR-0052 |
-| FR-0029 | Automatisches Pausieren | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0029--automatisches-pausieren) | OQ-0037, OQ-0065 |
+| FR-0029 | Automatisches Pausieren | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0029--automatisches-pausieren) | OQ-0037, OQ-0065, OQ-0068 |
 | FR-0030 | Manuelle Rundenmarkierung | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0030--manuelle-rundenmarkierung) | — |
 | FR-0031 | Akustische Trainingshinweise | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0031--akustische-trainingshinweise) | OQ-0044 |
 | FR-0032 | Warnung bei Überschreitung des Herzfrequenzbereichs | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0032--warnung-bei-überschreitung-des-herzfrequenzbereichs) | — |
@@ -60,7 +60,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0049 | Strecke aus plausiblen Positionsdistanzen | functional | Approved | 1 | [data-quality](specs/data-quality.md#fr-0049--strecke-aus-plausiblen-positionsdistanzen) | — |
 | FR-0050 | Geschwindigkeit und Pace | functional | Approved | 1 | [data-quality](specs/data-quality.md#fr-0050--geschwindigkeit-und-pace) | OQ-0037 |
 | FR-0051 | Geglättete Tempoanzeige | functional | Approved | 1 | [data-quality](specs/data-quality.md#fr-0051--geglättete-tempoanzeige) | OQ-0019 |
-| FR-0052 | Bewegungszeit und Gesamtzeit getrennt | functional | Approved | 1 | [data-quality](specs/data-quality.md#fr-0052--bewegungszeit-und-gesamtzeit-getrennt) | — |
+| FR-0052 | Bewegungszeit und Gesamtzeit getrennt | functional | Approved | 1 | [data-quality](specs/data-quality.md#fr-0052--bewegungszeit-und-gesamtzeit-getrennt) | OQ-0068 |
 | FR-0053 | Metadaten jedes fortgeschrittenen Fitnesswerts | functional | Approved | 1* | [data-quality](specs/data-quality.md#fr-0053--metadaten-jedes-fortgeschrittenen-fitnesswerts) | CON-0005, CON-0009, NFR-0001, OQ-0019, OQ-0040, OQ-0059 |
 | FR-0054 | Qualitätsstufen sind keine Genauigkeitsangaben | functional | Approved | 1* | [data-quality](specs/data-quality.md#fr-0054--qualitätsstufen-sind-keine-genauigkeitsangaben) | NFR-0003 |
 | FR-0055 | Funktionen je Datenverfügbarkeitsstufe | functional | Approved | 1* | [data-quality](specs/data-quality.md#fr-0055--funktionen-je-datenverfügbarkeitsstufe) | CON-0004, CON-0007, OQ-0012, OQ-0034 |
@@ -217,7 +217,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | NFR-0003 | Heuristiken nicht als validiert darstellen | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0003--heuristiken-nicht-als-validiert-darstellen) | FR-0054 |
 | NFR-0004 | Validierung vor Genauigkeitsaussagen | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0004--validierung-vor-genauigkeitsaussagen) | FR-0072, FR-0110, FR-0124, OQ-0020 |
 | NFR-0005 | Austauschbare Algorithmen | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0005--austauschbare-algorithmen) | NFR-0001, NFR-0002, FR-0197, OQ-0043 |
-| NFR-0006 | Sprachen und Einheiten | non-functional | Approved | 1 | [non-functional](quality/non-functional.md#nfr-0006--sprachen-und-einheiten) | CON-0001, FR-0031, OQ-0035 |
+| NFR-0006 | Sprachen und Einheiten | non-functional | Approved | 1 | [non-functional](quality/non-functional.md#nfr-0006--sprachen-und-einheiten) | CON-0001, FR-0031, OQ-0035, OQ-0067 |
 | SEC-0001 | Gesundheitsdaten nur mit ausdrücklicher Zustimmung | non-functional | Approved | 1 | [security](quality/security.md#sec-0001--gesundheitsdaten-nur-mit-ausdrücklicher-zustimmung) | FR-0022, OQ-0017, OQ-0025, OQ-0048 |
 | SEC-0002 | Datenquellen getrennt freigeben | non-functional | Approved | 1 | [security](quality/security.md#sec-0002--datenquellen-getrennt-freigeben) | OQ-0017 |
 | SEC-0003 | Externe Synchronisierung ist optional | non-functional | Approved | 1 | [security](quality/security.md#sec-0003--externe-synchronisierung-ist-optional) | CON-0010, FR-0187, OQ-0017 |

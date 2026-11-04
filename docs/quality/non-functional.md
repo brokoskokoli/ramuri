@@ -65,12 +65,13 @@ Alle verwendeten Algorithmen sind austauschbar. `1*`: Die Funktion zur Auswahl k
 ### NFR-0006 — Sprachen und Einheiten
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-003 (OQ-0035)
-- **Verwandt:** CON-0001, FR-0031, OQ-0035
+- **Verwandt:** CON-0001, FR-0031, OQ-0035, OQ-0067
 
-Die App ist auf Deutsch und Englisch verfügbar. Strecken werden in Kilometern und optional in Meilen angezeigt.
+Die App ist auf Deutsch und Englisch verfügbar. Bei jeder anderen Gerätesprache zeigt sie Englisch (OQ-0067). Strecken werden in Kilometern und optional in Meilen angezeigt.
 
 **Akzeptanzkriterien:**
 - [ ] Alle Texte der App liegen auf Deutsch und Englisch vor.
+- [ ] Bei einer anderen Gerätesprache erscheint die App auf Englisch.
 - [ ] Der Nutzer kann Kilometer oder Meilen wählen; die gespeicherten Rohdaten ändern sich dadurch nicht.
 
 ## Noch nicht festgelegt

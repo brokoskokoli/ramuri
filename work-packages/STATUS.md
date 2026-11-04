@@ -19,7 +19,7 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 
 | Paket | Titel | Status | Offen |
 | --- | --- | --- | --- |
-| WP01 | Projektgerüst und Gate | gemergt (be066c1) | K2 bis K5 und Rückfallsprache warten auf den Maintainer; Gate nur auf macOS gelaufen, Linux-CI ungeprüft |
+| WP01 | Projektgerüst und Gate | gemergt (be066c1) | Gate nur auf macOS gelaufen, Linux-CI ungeprüft; Rückfallsprache Englisch kommt mit WP05 |
 | WP03 | Vorverarbeitung und Bewegungswerte | in Arbeit | – |
 | WP02, WP04 bis WP07, WP09 bis WP12 | siehe [M1-PLAN.md](M1-PLAN.md) | geplant | Annahmen aus WP01 prüfen: WP02 Speicher-Port hat nur open/close; WP06 Uhr nur UTC ohne monotone Zeit (FR-0194), Schrittfrequenz in Schritten pro Minute; WP07 Form des Herzfrequenz-Ereignisstroms nicht in ADR-0006 festgelegt; `AppDependencies` ist noch leer |
 | WP08 | Hintergrund und Wiederanlauf | wartet | R005 |
@@ -34,3 +34,4 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | Nr. | Titel | Für | Status | Offen |
 | --- | --- | --- | --- | --- |
 | R005 | Durchstich der Aufzeichnung | ADR-0005 Punkt 3, ADR-0003 (verschlüsseltes WAL), Lizenzbaum, WP08 | in Arbeit | – |
+| R007 | GPS-Rauschen im Stand (Literatur, `getSpeed`) | OQ-0068, FR-0029, FR-0052, vor WP06 | geplant | startet, sobald ein Platz frei ist |

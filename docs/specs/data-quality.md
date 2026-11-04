@@ -89,6 +89,7 @@ Für kurzfristige Tempoanzeigen werden geeignete gleitende Zeit- oder Distanzfen
 ### FR-0052 — Bewegungszeit und Gesamtzeit getrennt
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §6.2, Z. 257
+- **Verwandt:** OQ-0068
 
 Die Bewegungszeit wird von der gesamten verstrichenen Zeit getrennt.
 
@@ -192,6 +193,7 @@ Der Nutzer kann nachvollziehen, warum ein Fitnesswert berechnet oder nicht berec
 - [OQ-0037](../migration/open-questions.md#oq-0037--details-von-aufzeichnung-und-zusammenfassung) (entschieden): Details von Aufzeichnung und Zusammenfassung
 - [OQ-0040](../migration/open-questions.md#oq-0040--was-ist-ein-fortgeschrittener-fitnesswert) (entschieden): Was ist ein „fortgeschrittener Fitnesswert“?
 - [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
+- [OQ-0068](../migration/open-questions.md#oq-0068--gps-rauschen-im-stand) (non-blocking;): GPS-Rauschen im Stand
 <!-- END OQ -->
 
 ## Quellen

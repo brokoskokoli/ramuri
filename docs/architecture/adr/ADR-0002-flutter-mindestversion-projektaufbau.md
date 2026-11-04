@@ -37,7 +37,7 @@ Ports mindestens für Standort, Herzfrequenzsensor, Schrittfrequenz, Aufzeichnun
 - **Ein Paket mit Importregel statt Workspace:** Einfacher, aber die Flutter-Freiheit der Fachlogik hinge an einer Lint-Regel statt am Paketgraph.
 - **Mehrere feine Pakete je Baustein:** Mehraufwand ohne Nutzen, solange ein Coder-Team alles pflegt.
 
-**Nachtrag 2026-11-04 (K2, wartet auf Bestätigung):** Die Aussage in Punkt 2, ein Flutter-Import scheitere am Auflösen, gilt im Pub-Workspace nicht, weil alle Pakete eine `package_config` teilen. Die Flutter-Freiheit sichert stattdessen der Gate-Schritt „core flutterfrei“ (`docs/quality/testing.md`). Der Aufbau bleibt unverändert.
+**Nachtrag 2026-11-04 (K2, bestätigt):** Die Aussage in Punkt 2, ein Flutter-Import scheitere am Auflösen, gilt im Pub-Workspace nicht, weil alle Pakete eine `package_config` teilen. Die Flutter-Freiheit sichert stattdessen der Gate-Schritt „core flutterfrei“ (`docs/quality/testing.md`). Der Aufbau bleibt unverändert.
 
 ## Konsequenzen
 - Rund 12,6 % der aktiven Geräte fallen weg. Die Zahl stammt aus einer Drittquelle (Statcounter über apilevels.com) und sagt nichts über Läufer.
