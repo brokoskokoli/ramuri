@@ -39,7 +39,8 @@ class PositionGap {
     required this.open,
   });
 
-  /// Zeit des letzten akzeptierten Punkts.
+  /// Zeit des letzten akzeptierten Punkts, vor dem ersten Punkt der Beginn des
+  /// Abschnitts (Start bzw. Fortsetzen).
   final DateTime start;
 
   /// Zeit des nächsten akzeptierten Punkts bzw. der Stand der Abfrage.
@@ -83,7 +84,11 @@ class PositionResult {
 ///
 /// Schrittform: Die Gesamtrechnung ist der Fold über [add].
 class PositionProcessor {
-  PositionProcessor(this.parameters);
+  /// [sectionStart] ist der Beginn des ersten Abschnitts (Bezugspunkt der
+  /// Lückenprüfung, kein Anker für Distanz oder Sprungfilter).
+  PositionProcessor(this.parameters, {DateTime? sectionStart})
+    // ignore: prefer_initializing_formals
+    : _sectionStart = sectionStart;
 
   final PreprocessingParameters parameters;
 
@@ -97,6 +102,7 @@ class PositionProcessor {
   double _distance = 0;
   double _bridged = 0;
   bool _paused = false;
+  DateTime? _sectionStart;
 
   /// Beginn einer manuellen Pause: Der Abschnitt endet, keine Distanz über die
   /// Pause. Eine bis hierhin offene Lücke wird geschlossen.
@@ -105,6 +111,7 @@ class PositionProcessor {
     _closeGapIfLong(time);
     _paused = true;
     _anchor = null;
+    _sectionStart = null;
     _discardedSinceAnchor = 0;
   }
 
@@ -112,14 +119,19 @@ class PositionProcessor {
   /// GPS-Lücke.
   void resume(DateTime time) {
     _paused = false;
+    _sectionStart = time;
   }
 
   void _closeGapIfLong(DateTime end) {
-    final a = _anchor;
-    if (a != null && end.difference(a.time) > parameters.gapMaxDuration) {
-      _gaps.add(PositionGap(start: a.time, end: end, open: false));
+    final from = _gapReference;
+    if (from != null && end.difference(from) > parameters.gapMaxDuration) {
+      _gaps.add(PositionGap(start: from, end: end, open: false));
     }
   }
+
+  /// Bezugspunkt der Lückenprüfung: letzter akzeptierter Punkt, vor dem ersten
+  /// Punkt eines Abschnitts dessen Beginn.
+  DateTime? get _gapReference => _anchor?.time ?? _sectionStart;
 
   ProcessedPosition add(RawPosition p) {
     final ProcessedPosition r = _classify(p);
@@ -157,17 +169,17 @@ class PositionProcessor {
     final anchor = _anchor;
     var counted = 0.0;
     var bridged = false;
-    if (anchor != null) {
-      if (p.time.difference(anchor.time) > parameters.gapMaxDuration) {
-        _gaps.add(PositionGap(start: anchor.time, end: p.time, open: false));
-      } else {
-        counted = _distanceBetween(anchor, p);
-        bridged = _discardedSinceAnchor > 0;
-        _distance += counted;
-        if (bridged) _bridged += counted;
-      }
+    final from = _gapReference;
+    if (from != null && p.time.difference(from) > parameters.gapMaxDuration) {
+      _gaps.add(PositionGap(start: from, end: p.time, open: false));
+    } else if (anchor != null) {
+      counted = _distanceBetween(anchor, p);
+      bridged = _discardedSinceAnchor > 0;
+      _distance += counted;
+      if (bridged) _bridged += counted;
     }
     _anchor = p;
+    _sectionStart = null;
     _discardedSinceAnchor = 0;
     _accepted.add(p);
     _index.add(p.time, p);
@@ -209,11 +221,11 @@ class PositionProcessor {
   /// Stand zum Zeitpunkt [at]. Ändert den Zustand nicht.
   PositionResult result({required DateTime at}) {
     final gaps = [..._gaps];
-    final a = _anchor;
+    final from = _gapReference;
     if (!_paused &&
-        a != null &&
-        at.difference(a.time) > parameters.gapMaxDuration) {
-      gaps.add(PositionGap(start: a.time, end: at, open: true));
+        from != null &&
+        at.difference(from) > parameters.gapMaxDuration) {
+      gaps.add(PositionGap(start: from, end: at, open: true));
     }
     return PositionResult(
       parameterVersion: parameters.parameterVersion,

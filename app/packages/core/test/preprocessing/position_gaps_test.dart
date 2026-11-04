@@ -55,6 +55,64 @@ void main() {
     });
   });
 
+  group('PAR-004 Lücke ab Abschnittsbeginn', () {
+    test('erster Fix genau 10 s nach Start: keine Lücke', () {
+      final proc = processor(const PreprocessingParameters.v2(), at(0))
+        ..add(pos(10, 0));
+      expect(proc.result(at: at(10)).gaps, isEmpty);
+    });
+    test('erster Fix knapp über 10 s nach Start: Lücke ab Start', () {
+      final proc = processor(const PreprocessingParameters.v2(), at(0))
+        ..add(pos(10.001, 0));
+      final r = proc.result(at: at(10.001));
+      expect(r.gaps, hasLength(1));
+      expect(r.gaps.single.start, at(0));
+      expect(r.gaps.single.end, at(10.001));
+      expect(r.gaps.single.open, isFalse);
+      expect(r.distanceMeters, 0);
+      expect(r.acceptedPoints, hasLength(1));
+    });
+    test('erster Fix nach Fortsetzen: 10 s keine, knapp mehr Lücke', () {
+      PositionProcessor build(num fixSec) =>
+          processor(const PreprocessingParameters.v2(), at(0))
+            ..add(pos(1, 0))
+            ..pause(at(2))
+            ..resume(at(100))
+            ..add(pos(fixSec, 5));
+      expect(build(110).result(at: at(110)).gaps, isEmpty);
+      final g = build(110.001).result(at: at(111)).gaps.single;
+      expect(g.start, at(100));
+      expect(g.end, at(110.001));
+      expect(g.open, isFalse);
+    });
+    test('gar kein Fix: offene Lücke ab Start erst nach mehr als 10 s', () {
+      final proc = processor(const PreprocessingParameters.v2(), at(0));
+      expect(proc.result(at: at(10)).gaps, isEmpty);
+      final g = proc.result(at: at(10.5)).gaps.single;
+      expect(g.open, isTrue);
+      expect(g.start, at(0));
+      expect(g.end, at(10.5));
+    });
+    test('Pause während der Lücke schließt sie, Pausenzeit zählt nicht', () {
+      final proc = processor(const PreprocessingParameters.v2(), at(0))
+        ..pause(at(15));
+      final r = proc.result(at: at(500));
+      expect(r.gaps, hasLength(1));
+      expect(r.gaps.single.end, at(15));
+      expect(r.gaps.single.open, isFalse);
+    });
+    test('Pause nach höchstens 10 s ohne Fix: keine Lücke', () {
+      final proc = processor(const PreprocessingParameters.v2(), at(0))
+        ..pause(at(10));
+      expect(proc.result(at: at(500)).gaps, isEmpty);
+    });
+    test('Startbezug ist kein Anker: erster Fix wird nicht gefiltert', () {
+      final proc = processor(const PreprocessingParameters.v2(), at(0))
+        ..add(pos(1, 5000));
+      expect(proc.result(at: at(1)).acceptedPoints, hasLength(1));
+    });
+  });
+
   group('Überbrückung', () {
     test(
       'Aussetzer <= 10 s mit verworfenem Punkt: gerade Distanz, geschätzt',

@@ -19,7 +19,7 @@ class RunPreprocessor {
   RunPreprocessor({
     required this.start,
     this.parameters = const PreprocessingParameters.v2(),
-  }) : _position = PositionProcessor(parameters);
+  }) : _position = PositionProcessor(parameters, sectionStart: start);
 
   final DateTime start;
   final PreprocessingParameters parameters;

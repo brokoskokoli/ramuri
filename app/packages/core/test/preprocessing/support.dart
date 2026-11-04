@@ -30,7 +30,8 @@ double dist(RawPosition a, RawPosition b) =>
 
 PositionProcessor processor([
   PreprocessingParameters p = const PreprocessingParameters.v2(),
-]) => PositionProcessor(p);
+  DateTime? sectionStart,
+]) => PositionProcessor(p, sectionStart: sectionStart);
 
 PositionResult run(
   List<RawPosition> points, {
