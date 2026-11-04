@@ -1,0 +1,34 @@
+name: r005_proto
+description: "R005 Prototyp: Durchstich der Aufzeichnung (kein App-Code)."
+publish_to: 'none'
+version: 0.1.0+1
+environment:
+  sdk: ^3.13.5
+  flutter: 3.47.7
+dependencies:
+  flutter:
+    sdk: flutter
+  # ADR-0003
+  drift: 2.35.3
+  sqlite3: 3.8.0
+  flutter_secure_storage: 11.2.0
+  # ADR-0006 (nur Bau und Lizenz, kein Laufzeittest in R005)
+  universal_ble: 3.2.0
+  # ADR-0008
+  cryptography: 2.9.0
+  # ADR-0005 Rueckfallweg, Vergleichshost
+  flutter_foreground_task: 11.0.3
+  # eigener Standort-Adapter und Host
+  r005_host:
+    path: ../r005_host
+dev_dependencies:
+  # ADR-0003 (Codegen fuer drift), ADR-0007 (Phase 3, nur Lizenz)
+  drift_dev: ^2.35.0
+  build_runner: ^2.4.0
+  pigeon: 29.1.0
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc
+flutter:
+  uses-material-design: false
