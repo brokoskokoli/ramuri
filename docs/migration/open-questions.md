@@ -573,7 +573,7 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Frage:** Wie soll die Einschwingzeit bei Stop-and-Go wirken (20 s Lauf, 9 s Stand im Wechsel lösen nie aus) und bei einem Tempowechsel in einer GPS-Lücke über 240 s (wird nicht erkannt)? Braucht PAR-010 einen Soll-Takt (ein echter 10-s-Sensor besteht die Regel)? Braucht es eine Obergrenze für Zeitstempel in der Zukunft (ein solcher Wert sperrt den Kanal)?
 - **Auslöser/Quellen:** WP03, Review; PAR-010, PAR-011.
 - **Betroffene Anforderungen:** FR-0052
-- **Auswirkung:** non-blocking, bis zur Antwort gilt das in WP03 umgesetzte Verhalten.
+- **Auswirkung:** non-blocking, bis zu Feldtests gilt das in WP03 umgesetzte Verhalten (Maintainer, 2026-11-04, SRC-003).
 - **Optionen:** So lassen, bis Feldtests zeigen, ob es vorkommt; eine neue Zahl wäre eine neue Parameterversion.
 - **Status:** Open
 - **Entscheidung:** —
