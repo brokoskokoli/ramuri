@@ -3,16 +3,58 @@ import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:drift/drift.dart' show QueryExecutor;
+// Nur hier erreichbar: Der Fehler aus dem Hintergrund-Isolate trägt die
+// SqliteException als remoteCause. Die Bibliothek markiert das als
+// experimentell; ein Test (Zugriffstests) fängt eine Änderung ab.
+// ignore: experimental_member_use
+import 'package:drift/remote.dart' show DriftRemoteException;
 import 'package:drift/native.dart';
 
 import 'app_database.dart';
 import 'connection_setup.dart';
+import 'derived_access.dart';
+import 'raw_access.dart';
+import 'run_access.dart';
+import 'settings_access.dart';
+import 'value_access.dart';
 
-/// Offene, verschlüsselte Datenbank. Teil B hängt hier die Zugriffe ein.
+/// Offene, verschlüsselte Datenbank mit den Zugriffen des Ports. Jeder
+/// Zugriff läuft über `guarded` und damit über [translateStorageError].
 class EncryptedStorageSession implements StorageSession {
-  EncryptedStorageSession(this.database);
+  EncryptedStorageSession(this.database)
+    : runs = DriftRunStore(database),
+      markers = DriftRunMarkerStore(database),
+      rawData = DriftRawDataStore(database),
+      preprocessing = DriftPreprocessingStore(database),
+      sections = DriftRatedSectionStore(database),
+      values = DriftComputedValueStore(database),
+      profile = DriftProfileStore(database),
+      settings = DriftSettingsStore(database),
+      devices = DriftKnownDeviceStore(database),
+      consents = DriftConsentStore(database);
 
   final AppDatabase database;
+
+  @override
+  final RunStore runs;
+  @override
+  final RunMarkerStore markers;
+  @override
+  final RawDataStore rawData;
+  @override
+  final PreprocessingStore preprocessing;
+  @override
+  final RatedSectionStore sections;
+  @override
+  final ComputedValueStore values;
+  @override
+  final ProfileStore profile;
+  @override
+  final SettingsStore settings;
+  @override
+  final KnownDeviceStore devices;
+  @override
+  final ConsentStore consents;
 
   @override
   Future<void> close() => database.close();
@@ -78,20 +120,40 @@ class EncryptedStorage implements Storage {
   }
 }
 
-/// Ordnet einen Fehler aus drift oder sqlite3 einer [StorageFailure] zu, nur
-/// anhand der Art. `SqliteException` und `DriftRemoteException` tragen im Text
-/// Statement und Parameter (Daten, ggf. Schlüssel); darum wird nie der Text
+/// Ordnet einen Fehler beim Öffnen einer [StorageFailure] zu, nur anhand der
+/// Art. `SqliteException` und `DriftRemoteException` tragen im Text Statement
+/// und Parameter (Daten, ggf. Schlüssel); darum wird nie der Text
 /// weitergegeben (Falle 4).
-StorageFailure storageFailureOf(Object e) {
+StorageFailure storageFailureOf(Object e) =>
+    _setupFailureOf(e) ?? StorageFailure.unreadable;
+
+StorageFailure? _setupFailureOf(Object e) {
   if (e is ConnectionSetupFailure) return e.failure;
   final text = e.toString();
   for (final f in StorageFailure.values) {
     if (text.contains('ConnectionSetupFailure:${f.name}')) return f;
   }
-  return StorageFailure.unreadable;
+  return null;
+}
+
+/// SQLITE_CONSTRAINT (19) und seine Unterarten (Trigger, Prüfregel,
+/// Eindeutigkeit, Fremdschlüssel). Aus dem Hintergrund-Isolate kommt die
+/// SqliteException als `remoteCause` der DriftRemoteException an.
+bool _isConstraintViolation(Object e) {
+  final cause = e is DriftRemoteException ? e.remoteCause : e;
+  return cause is SqliteException && (cause.extendedResultCode & 0xff) == 19;
 }
 
 /// Übersetzt jeden Fehler der Zugriffsschicht an der Grenze in eine
-/// [StorageException] ohne Inhalte und ohne angehängte Ursache.
-StorageException translateStorageError(Object e) =>
-    e is StorageException ? e : StorageException(storageFailureOf(e));
+/// [StorageException] ohne Inhalte und ohne angehängte Ursache. Abgelehnte
+/// Eingaben (Beschränkung, Trigger) sind `rejected`, alles andere `failed`;
+/// `unreadable` bleibt dem Öffnen vorbehalten (Dialog OQ-0062).
+StorageException translateStorageError(Object e) {
+  if (e is StorageException) return e;
+  final setup = _setupFailureOf(e);
+  if (setup != null) return StorageException(setup);
+  if (_isConstraintViolation(e)) {
+    return const StorageException(StorageFailure.rejected);
+  }
+  return const StorageException(StorageFailure.failed);
+}

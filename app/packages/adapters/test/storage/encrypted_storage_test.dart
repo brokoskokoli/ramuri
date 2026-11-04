@@ -247,7 +247,7 @@ void main() {
       // Beleg: so kommt der Fehler aus dem Hintergrund-Isolate an.
       expect(raw1.toString(), contains(marker));
       final translated = translateStorageError(raw1!);
-      expect(translated.failure, StorageFailure.unreadable);
+      expect(translated.failure, StorageFailure.rejected);
       expect(translated.toString(), isNot(contains(marker)));
       expect(logs.join(), isNot(contains(marker)));
       await s.close();
