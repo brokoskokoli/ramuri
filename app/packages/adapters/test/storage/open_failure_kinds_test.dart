@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 import 'support.dart';
 
@@ -75,4 +76,30 @@ void main() {
       expect(storageFailureOf(StateError('x')), StorageFailure.openFailed);
     },
   );
+
+  test('storageFailureOf: SQLite-Code 11 (CORRUPT) und seine Unterarten sind '
+      'unreadable, Code 10 (IOERR) und 13 (FULL) sind openFailed', () {
+    expect(
+      storageFailureOf(SqliteException(extendedResultCode: 11, message: 'x')),
+      StorageFailure.unreadable,
+    );
+    expect(
+      storageFailureOf(
+        SqliteException(extendedResultCode: 267, message: 'x'),
+      ), // CORRUPT_INDEX
+      StorageFailure.unreadable,
+    );
+    expect(
+      storageFailureOf(SqliteException(extendedResultCode: 26, message: 'x')),
+      StorageFailure.unreadable,
+    );
+    expect(
+      storageFailureOf(SqliteException(extendedResultCode: 10, message: 'x')),
+      StorageFailure.openFailed,
+    );
+    expect(
+      storageFailureOf(SqliteException(extendedResultCode: 13, message: 'x')),
+      StorageFailure.openFailed,
+    );
+  });
 }

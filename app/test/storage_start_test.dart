@@ -358,7 +358,7 @@ void main() {
       expect(s.dataLoss, StorageDataLoss.deleted);
       await c.start();
       s = c.state as StorageNotOpenableState;
-      expect(s.cause, StorageNotOpenableCause.keyStoreError);
+      expect(s.resetProblem, StorageResetProblem.keyNotReplaced);
       expect(s.dataLoss, StorageDataLoss.deleted);
       w.keys.failWith = null;
       await c.start();
@@ -381,6 +381,86 @@ void main() {
       final s = c.state as StorageNotOpenableState;
       expect(s.resetProblem, StorageResetProblem.filesNotDeleted);
       expect(s.dataLoss, StorageDataLoss.partial);
+    });
+
+    test('Löschen wirft: partial, der Merker steigt vor deleteAll', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k1);
+      final c = w.controller();
+      await c.start();
+      w.files.failDelete = true;
+      await c.resetStorage();
+      final s = c.state as StorageNotOpenableState;
+      expect(s.resetProblem, StorageResetProblem.filesNotDeleted);
+      expect(s.dataLoss, StorageDataLoss.partial);
+    });
+
+    test('Merker fällt nie: deleted bleibt deleted, auch wenn das nächste '
+        'Löschen scheitert', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k1);
+      w.openFailureAfterDelete = StorageFailure.unreadable;
+      final c = w.controller();
+      await c.start();
+      await c.resetStorage();
+      var s = c.state as StorageNotOpenableState;
+      expect(s.dataLoss, StorageDataLoss.deleted);
+      expect(s.canReset, isTrue);
+      w.files.failDelete = true;
+      await c.resetStorage();
+      s = c.state as StorageNotOpenableState;
+      expect(s.resetProblem, StorageResetProblem.filesNotDeleted);
+      expect(s.dataLoss, StorageDataLoss.deleted);
+    });
+
+    test('Neubeginn gelungen, nur Öffnen scheitert: deleted ohne '
+        'Schlüsselproblem', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k1);
+      w.openFailureAfterDelete = StorageFailure.openFailed;
+      final c = w.controller();
+      await c.start();
+      await c.resetStorage();
+      final s = c.state as StorageNotOpenableState;
+      expect(s.dataLoss, StorageDataLoss.deleted);
+      expect(s.resetProblem, isNull);
+      expect(w.keys.store[storageKeyName], isNotNull, reason: 'Schlüssel neu');
+    });
+
+    test('partial, dann Erneut versuchen: setzt den Neubeginn fort, öffnet '
+        'nie die Reste der alten Daten', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k1);
+      final c = w.controller();
+      await c.start();
+      w.files.failDelete = true;
+      await c.resetStorage();
+      expect(w.files.deleteCalls, 1);
+      w.files.failDelete = false;
+      await c.start();
+      expect(w.files.deleteCalls, 2, reason: 'löscht weiter, statt zu öffnen');
+      expect(w.oldFileKey, isNull, reason: 'alte Datei ist weg');
+      expect(c.state, isA<StorageReady>());
+      expect(sameBytes(w.keys.store[storageKeyName], k1), isFalse);
+      expect(w.violations, isEmpty);
+    });
+
+    test('partial mit Resten: Erneut versuchen löscht, auch wenn die Reste '
+        'sich lesen ließen (stubborn)', () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.keys.failWith = 'defekt';
+      final c = w.controller();
+      await c.start();
+      await c.start();
+      w.files.stubborn = true;
+      await c.resetStorage();
+      w.files.stubborn = false;
+      w.keys.failWith = null;
+      await c.start();
+      expect(w.files.deleteCalls, 1);
+      expect(w.oldFileKey, isNull);
+      expect(c.state, isA<StorageReady>());
     });
   });
 

@@ -100,11 +100,11 @@
   "@notOpenableOpenFailed": {
     "description": "Grund: sonstiger Fehler beim Öffnen; Neubeginn erst nach einem Fehlversuch (canResetFor)"
   },
-  "notOpenableDataDeleted": "Die alten Daten sind gelöscht. Der Schlüssel konnte nicht erneuert werden, die neue Datenbank ist noch nicht angelegt. Bitte erneut versuchen.",
+  "notOpenableDataDeleted": "Die alten Daten sind gelöscht. Die neue Datenbank ist noch nicht einsatzbereit. Bitte den Neubeginn fortsetzen.",
   "@notOpenableDataDeleted": {
     "description": "Nach einem Neubeginn: Dateien gelöscht, Schlüssel oder Öffnen danach gescheitert (ersetzt die Ursache)"
   },
-  "notOpenableDataPartial": "Beim Neubeginn wurde versucht, die alten Daten zu löschen. Sie sind möglicherweise nur teilweise gelöscht. Es wurde kein neuer Schlüssel angelegt. Bitte erneut versuchen.",
+  "notOpenableDataPartial": "Beim Neubeginn wurde versucht, die alten Daten zu löschen. Sie sind möglicherweise nur teilweise gelöscht. Es wurde kein neuer Schlüssel angelegt. Bitte den Neubeginn fortsetzen.",
   "@notOpenableDataPartial": {
     "description": "Nach einem Neubeginn: Löschen nicht vollständig bestätigt (ersetzt die Ursache)"
   },
@@ -115,6 +115,10 @@
   "notOpenableRetry": "Erneut versuchen",
   "@notOpenableRetry": {
     "description": "Schaltfläche: erneut versuchen"
+  },
+  "notOpenableResume": "Neubeginn fortsetzen",
+  "@notOpenableResume": {
+    "description": "Schaltfläche: bestätigten Neubeginn fortsetzen (nach teilweisem oder vollständigem Löschen)"
   },
   "notOpenableReset": "Neu beginnen",
   "@notOpenableReset": {

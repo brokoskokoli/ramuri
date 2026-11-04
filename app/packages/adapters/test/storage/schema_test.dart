@@ -762,17 +762,42 @@ void main() {
       );
     });
 
-    test('Version steht schon im Commit der Migration, vor beforeOpen '
-        '(Zeitfenster zwischen Commit und drifts Versionsschreiben)', () async {
+    test(
+      'Version steht in beforeOpen schon auf 2, also vor drifts eigenem '
+      'Versionsschreiben (Reihenfolge PRAGMA/COMMIT: siehe nächster Test)',
+      () async {
+        await (await openDb()).close();
+        final observed = <Object?>[];
+        final storage = EncryptedStorage(
+          path,
+          databaseBuilder: (e) =>
+              _SyntheticV2(e, onStep: () {}, onBeforeOpenVersion: observed.add),
+        );
+        await (await storage.open(testKey())).close();
+        expect(observed, [2]);
+      },
+    );
+
+    test('PRAGMA user_version steht vor dem COMMIT der Migration', () async {
       await (await openDb()).close();
-      final observed = <Object?>[];
-      final storage = EncryptedStorage(
+      final logs = IsolateLogs();
+      addTearDown(logs.close);
+      final storage = EncryptedStorage.forTest(
         path,
-        databaseBuilder: (e) =>
-            _SyntheticV2(e, onStep: () {}, onBeforeOpenVersion: observed.add),
+        isolateSetup: logs.setup,
+        logStatements: true,
+        databaseBuilder: (e) => _SyntheticV2(e, onStep: () {}),
       );
       await (await storage.open(testKey())).close();
-      expect(observed, [2]);
+      final lines = (await logs.text()).split('\n');
+      final step = lines.indexWhere((l) => l.contains('ADD COLUMN note'));
+      final pragma = lines.indexWhere(
+        (l) => l.contains('PRAGMA user_version = 2'),
+      );
+      final commit = lines.indexWhere((l) => l.contains('COMMIT'), step);
+      expect(step, isNonNegative, reason: '$lines');
+      expect(pragma, greaterThan(step), reason: '$lines');
+      expect(commit, greaterThan(pragma), reason: '$lines');
     });
   });
 }

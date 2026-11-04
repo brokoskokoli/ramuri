@@ -78,7 +78,8 @@ enum StorageDataLoss {
   /// Das Löschen lief, die Prüfung danach hat noch Dateien gefunden.
   partial,
 
-  /// Alle Dateien sind weg; nur der Schlüssel konnte nicht erneuert werden.
+  /// Alle Dateien sind weg; der Schlüssel oder das Öffnen der neuen
+  /// Datenbank ist danach gescheitert.
   deleted,
 }
 
@@ -188,10 +189,21 @@ class StorageStartController extends ChangeNotifier {
   /// Lädt: Schlüssel und Dateien prüfen, dann öffnen. Auch für "Erneut
   /// versuchen". Läuft schon ein Vorgang oder ist der Speicher bereit, tut es
   /// nichts.
+  ///
+  /// Hat ein Neubeginn schon Daten verändert ([StorageDataLoss] nicht `none`),
+  /// setzt es den Neubeginn fort, statt Reste der alten Daten zu öffnen: Ein
+  /// bestätigter Neubeginn wird im laufenden Prozess nicht vergessen. Nach
+  /// einem App-Neustart gilt wieder die normale Entscheidung.
   Future<void> start() async {
     if (_running || _state is StorageReady) return;
+    final current = _state;
     _running = true;
     try {
+      if (current is StorageNotOpenableState &&
+          _dataLoss != StorageDataLoss.none) {
+        await _reset(current);
+        return;
+      }
       _set(const StorageLoading());
       await _load();
     } finally {
@@ -309,44 +321,48 @@ class StorageStartController extends ChangeNotifier {
     }
     _running = true;
     try {
-      _set(current._with(busy: true));
-      final StorageWiring wiring;
-      try {
-        wiring = await wire();
-      } catch (_) {
-        _set(current._with(resetProblem: StorageResetProblem.filesNotDeleted));
-        return;
-      }
-      // Ab hier können Daten verloren sein, auch wenn das Löschen scheitert.
-      _dataLoss = StorageDataLoss.partial;
-      try {
-        await wiring.files.deleteAll();
-        if (await wiring.files.exist()) {
-          throw StateError('Datei nach dem Löschen noch da');
-        }
-      } catch (_) {
-        _set(
-          _stateWith(
-            current,
-            resetProblem: StorageResetProblem.filesNotDeleted,
-          ),
-        );
-        return;
-      }
-      _dataLoss = StorageDataLoss.deleted;
-      try {
-        await keyStore.delete(storageKeyName);
-      } catch (_) {
-        _set(
-          _stateWith(current, resetProblem: StorageResetProblem.keyNotReplaced),
-        );
-        return;
-      }
-      _lastCause = null;
-      _set(const StorageLoading());
-      await _load();
+      await _reset(current);
     } finally {
       _running = false;
     }
+  }
+
+  Future<void> _reset(StorageNotOpenableState current) async {
+    _set(current._with(busy: true));
+    final StorageWiring wiring;
+    try {
+      wiring = await wire();
+    } catch (_) {
+      _set(current._with(resetProblem: StorageResetProblem.filesNotDeleted));
+      return;
+    }
+    // Ab hier können Daten verloren sein, auch wenn das Löschen scheitert.
+    // Der Merker steigt nur: nach `deleted` fällt er nicht auf `partial`.
+    if (_dataLoss == StorageDataLoss.none) {
+      _dataLoss = StorageDataLoss.partial;
+    }
+    try {
+      await wiring.files.deleteAll();
+      if (await wiring.files.exist()) {
+        throw StateError('Datei nach dem Löschen noch da');
+      }
+    } catch (_) {
+      _set(
+        _stateWith(current, resetProblem: StorageResetProblem.filesNotDeleted),
+      );
+      return;
+    }
+    _dataLoss = StorageDataLoss.deleted;
+    try {
+      await keyStore.delete(storageKeyName);
+    } catch (_) {
+      _set(
+        _stateWith(current, resetProblem: StorageResetProblem.keyNotReplaced),
+      );
+      return;
+    }
+    _lastCause = null;
+    _set(const StorageLoading());
+    await _load();
   }
 }

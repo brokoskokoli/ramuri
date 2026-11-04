@@ -279,10 +279,60 @@ void main() {
     }
 
     expectTruth();
-    await tester.tap(find.text('Erneut versuchen'));
+    expect(find.text('Erneut versuchen'), findsNothing);
+    await tester.tap(find.text('Neubeginn fortsetzen'));
     await tester.pumpAndSettle();
     expectTruth();
   });
+
+  testWidgets('Neubeginn: Datei gelöscht, nur das Öffnen scheitert: Text '
+      'nennt keine falsche Ursache (Schlüssel)', (tester) async {
+    final w = World();
+    await w.seed(fileKey: k0, storedKey: k1);
+    w.openFailureAfterDelete = StorageFailure.openFailed;
+    await pumpApp(tester, w.controller());
+    await tester.tap(find.text('Neu beginnen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Endgültig löschen und neu beginnen'));
+    await tester.pumpAndSettle();
+    expect(w.files.present, isFalse);
+    expect(find.textContaining('alten Daten sind gelöscht'), findsOneWidget);
+    expect(find.textContaining('Schlüssel'), findsNothing);
+    expect(find.textContaining('nicht verändert'), findsNothing);
+    expect(find.text('Neubeginn fortsetzen'), findsOneWidget);
+    // Der Fehler im Öffnen ist vorübergehend: Fortsetzen führt zum leeren Start.
+    w.openFailureAfterDelete = null;
+    await tester.tap(find.text('Neubeginn fortsetzen'));
+    await tester.pumpAndSettle();
+    expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Neubeginn: Löschen unvollständig: Text für partial, Schaltfläche '
+    '"Neubeginn fortsetzen", Fortsetzen löscht weiter',
+    (tester) async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k1);
+      w.files.failDelete = true;
+      await pumpApp(tester, w.controller());
+      await tester.tap(find.text('Neu beginnen'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Endgültig löschen und neu beginnen'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('möglicherweise nur teilweise'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('nicht verändert'), findsNothing);
+      expect(find.text('Erneut versuchen'), findsNothing);
+      w.files.failDelete = false;
+      await tester.tap(find.text('Neubeginn fortsetzen'));
+      await tester.pumpAndSettle();
+      expect(w.files.deleteCalls, 2);
+      expect(w.oldFileKey, isNull);
+      expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+    },
+  );
 
   testWidgets('Verschlüsselung nicht aktiv: eigene Meldung, kein Neubeginn', (
     tester,

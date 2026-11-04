@@ -134,7 +134,11 @@ class NotOpenableScreen extends StatelessWidget {
             else ...[
               FilledButton(
                 onPressed: onRetry,
-                child: Text(l10n.notOpenableRetry),
+                child: Text(
+                  state.dataLoss == StorageDataLoss.none
+                      ? l10n.notOpenableRetry
+                      : l10n.notOpenableResume,
+                ),
               ),
               if (state.canReset) ...[
                 const SizedBox(height: 12),
