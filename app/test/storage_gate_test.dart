@@ -156,7 +156,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Endgültig löschen und neu beginnen'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('nicht vollständig gelöscht'), findsOneWidget);
+    expect(find.textContaining('möglicherweise nur teilweise'), findsOneWidget);
     expect(find.text('Daten lassen sich nicht öffnen'), findsOneWidget);
     expect(sameBytes(w.keys.store[storageKeyName], k1), isTrue);
   });
@@ -333,6 +333,185 @@ void main() {
       expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
     },
   );
+
+  // Ab dataLoss != none gibt es je Stufe genau einen Text, unabhängig von
+  // Ursache und Fehler des Neubeginns; nichts über Schlüssel, Dateien oder
+  // "nicht verändert".
+  const partialText = 'möglicherweise nur teilweise gelöscht';
+  const deletedText = 'Die alten Daten sind gelöscht';
+  const inactiveNote = 'ohne aktive Verschlüsselung nicht';
+  Future<void> confirmReset(WidgetTester tester) async {
+    await tester.tap(find.text('Neu beginnen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Endgültig löschen und neu beginnen'));
+    await tester.pumpAndSettle();
+  }
+
+  for (final (name, setup, stage, inactive)
+      in <(String, Future<World> Function(WidgetTester), String, bool)>[
+        (
+          'partial, falscher Schlüssel, Löschen scheitert',
+          (t) async {
+            final w = World();
+            await w.seed(fileKey: k0, storedKey: k1);
+            w.files.failDelete = true;
+            await pumpApp(t, w.controller());
+            await confirmReset(t);
+            return w;
+          },
+          partialText,
+          false,
+        ),
+        (
+          'partial, Schlüssel fehlt, Löschen scheitert',
+          (t) async {
+            final w = World();
+            await w.seed(fileKey: k0);
+            w.files.failDelete = true;
+            await pumpApp(t, w.controller());
+            await confirmReset(t);
+            return w;
+          },
+          partialText,
+          false,
+        ),
+        (
+          'deleted, Schlüsselablage scheitert',
+          (t) async {
+            final w = World();
+            await w.seed(fileKey: k0, storedKey: k0);
+            w.keys.failWith = 'defekt';
+            await pumpApp(t, w.controller());
+            await t.tap(find.text('Erneut versuchen'));
+            await t.pumpAndSettle();
+            await confirmReset(t);
+            return w;
+          },
+          deletedText,
+          false,
+        ),
+        (
+          'deleted, nur Öffnen scheitert',
+          (t) async {
+            final w = World();
+            await w.seed(fileKey: k0, storedKey: k1);
+            w.openFailureAfterDelete = StorageFailure.openFailed;
+            await pumpApp(t, w.controller());
+            await confirmReset(t);
+            return w;
+          },
+          deletedText,
+          false,
+        ),
+        (
+          'deleted, Fortsetzen: Löschen scheitert erneut',
+          (t) async {
+            final w = World();
+            await w.seed(fileKey: k0, storedKey: k1);
+            w.openFailureAfterDelete = StorageFailure.openFailed;
+            await pumpApp(t, w.controller());
+            await confirmReset(t);
+            w.files.failDelete = true;
+            await t.tap(find.text('Neubeginn fortsetzen'));
+            await t.pumpAndSettle();
+            return w;
+          },
+          deletedText,
+          false,
+        ),
+        (
+          'deleted, Verschlüsselung nicht aktiv',
+          (t) async {
+            final w = World();
+            await w.seed(fileKey: k0, storedKey: k1);
+            w.openFailureAfterDelete = StorageFailure.encryptionNotActive;
+            await pumpApp(t, w.controller());
+            await confirmReset(t);
+            return w;
+          },
+          deletedText,
+          true,
+        ),
+      ]) {
+    testWidgets('Neubeginn unvollständig: ein Text je Stufe: $name', (
+      tester,
+    ) async {
+      final w = await setup(tester);
+      expect(find.textContaining(stage), findsOneWidget);
+      expect(
+        find.textContaining('bestätigte Neubeginn wurde begonnen'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(inactiveNote),
+        inactive ? findsOneWidget : findsNothing,
+      );
+      for (final bad in [
+        'nicht verändert',
+        'kein neuer',
+        'Schlüssel',
+        'alte Datei',
+        'Nichts wurde',
+        'Bitte erneut versuchen',
+        'löscht die bisherigen Daten',
+      ]) {
+        expect(find.textContaining(bad), findsNothing, reason: bad);
+      }
+      expect(find.text('Neubeginn fortsetzen'), findsOneWidget);
+      expect(find.text('Erneut versuchen'), findsNothing);
+      expect(find.text('Neu beginnen'), findsNothing);
+      expect(find.text('Willkommen bei der Lauf-App'), findsNothing);
+      if (inactive) {
+        // Fortsetzen löscht nichts Neues und öffnet nie unverschlüsselt.
+        final deletes = w.files.deleteCalls;
+        await tester.tap(find.text('Neubeginn fortsetzen'));
+        await tester.pumpAndSettle();
+        expect(w.files.deleteCalls, deletes);
+        expect(find.text('Willkommen bei der Lauf-App'), findsNothing);
+        expect(find.textContaining(deletedText), findsOneWidget);
+      }
+    });
+  }
+
+  testWidgets(
+    'Neubeginn startet nicht (Ort nicht bestimmbar): nichts gelöscht, '
+    'Schaltfläche "Erneut versuchen"',
+    (tester) async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k1);
+      var calls = 0;
+      final c = StorageStartController(
+        keyStore: w.keys,
+        generateKey: () => keyOf(100),
+        wire: () async {
+          if (++calls > 1) throw StateError('Ort');
+          return StorageWiring(storage: w.storage, files: w.files);
+        },
+      );
+      await pumpApp(tester, c);
+      await confirmReset(tester);
+      expect(find.textContaining('Es wurde nichts gelöscht'), findsOneWidget);
+      expect(find.text('Erneut versuchen'), findsOneWidget);
+      expect(find.text('Neubeginn fortsetzen'), findsNothing);
+      expect(w.files.deleteCalls, 0);
+    },
+  );
+
+  testWidgets('englisch: Neubeginn unvollständig, ein Text je Stufe', (
+    tester,
+  ) async {
+    final w = World();
+    await w.seed(fileKey: k0, storedKey: k1);
+    w.files.failDelete = true;
+    await pumpApp(tester, w.controller(), locale: const Locale('en'));
+    await tester.tap(find.text('Start over'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete permanently and start over'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('only partly deleted'), findsOneWidget);
+    expect(find.textContaining('No new key'), findsNothing);
+    expect(find.text('Continue starting over'), findsOneWidget);
+  });
 
   testWidgets('Verschlüsselung nicht aktiv: eigene Meldung, kein Neubeginn', (
     tester,

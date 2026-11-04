@@ -41,7 +41,8 @@ class _StorageGateState extends State<StorageGate> {
         onRetry: widget.controller.start,
         onReset: widget.controller.resetStorage,
       ),
-      StorageEncryptionInactive() => EncryptionInactiveScreen(
+      StorageEncryptionInactive(:final dataLoss) => EncryptionInactiveScreen(
+        dataLoss: dataLoss,
         onRetry: widget.controller.start,
       ),
     },
@@ -116,15 +117,17 @@ class NotOpenableScreen extends StatelessWidget {
                   l10n.notOpenableOpenFailed,
               },
             }),
-            if (problem != null) ...[
+            // Ein Fehler des Neubeginns nennt nur etwas, wenn noch nichts
+            // gelöscht ist (der Start scheiterte vor dem Löschen). Danach sagt
+            // der eine Text je Stufe alles Nötige.
+            if (problem != null && state.dataLoss == StorageDataLoss.none) ...[
               const SizedBox(height: 16),
-              Text(switch (problem) {
-                StorageResetProblem.filesNotDeleted => l10n.resetProblemFiles,
-                StorageResetProblem.keyNotReplaced => l10n.resetProblemKey,
-              }, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                l10n.resetProblemStart,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             ],
-            if (state.canReset &&
-                state.dataLoss != StorageDataLoss.deleted) ...[
+            if (state.canReset && state.dataLoss == StorageDataLoss.none) ...[
               const SizedBox(height: 16),
               Text(l10n.notOpenableResetHint),
             ],
@@ -140,7 +143,7 @@ class NotOpenableScreen extends StatelessWidget {
                       : l10n.notOpenableResume,
                 ),
               ),
-              if (state.canReset) ...[
+              if (state.canReset && state.dataLoss == StorageDataLoss.none) ...[
                 const SizedBox(height: 12),
                 OutlinedButton(
                   onPressed: () async {
@@ -192,9 +195,17 @@ class ResetConfirmDialog extends StatelessWidget {
 /// Bildschirm "Verschlüsselung nicht aktiv": nur Erklärung und erneuter
 /// Versuch, kein Neubeginn und kein Weg zu den Inhalten.
 class EncryptionInactiveScreen extends StatelessWidget {
-  const EncryptionInactiveScreen({super.key, required this.onRetry});
+  const EncryptionInactiveScreen({
+    super.key,
+    required this.onRetry,
+    this.dataLoss = StorageDataLoss.none,
+  });
 
   final VoidCallback onRetry;
+
+  /// Hat ein bestätigter Neubeginn schon Daten gelöscht, sagt der Bildschirm
+  /// das und nicht "nicht verändert".
+  final StorageDataLoss dataLoss;
 
   @override
   Widget build(BuildContext context) {
@@ -205,11 +216,24 @@ class EncryptionInactiveScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(l10n.inactiveBody),
+            if (dataLoss == StorageDataLoss.none)
+              Text(l10n.inactiveBody)
+            else ...[
+              Text(switch (dataLoss) {
+                StorageDataLoss.partial => l10n.notOpenableDataPartial,
+                _ => l10n.notOpenableDataDeleted,
+              }),
+              const SizedBox(height: 16),
+              Text(l10n.inactiveDataLossNote),
+            ],
             const SizedBox(height: 24),
             FilledButton(
               onPressed: onRetry,
-              child: Text(l10n.notOpenableRetry),
+              child: Text(
+                dataLoss == StorageDataLoss.none
+                    ? l10n.notOpenableRetry
+                    : l10n.notOpenableResume,
+              ),
             ),
           ],
         ),

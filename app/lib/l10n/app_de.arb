@@ -100,11 +100,11 @@
   "@notOpenableOpenFailed": {
     "description": "Grund: sonstiger Fehler beim Öffnen; Neubeginn erst nach einem Fehlversuch (canResetFor)"
   },
-  "notOpenableDataDeleted": "Die alten Daten sind gelöscht. Die neue Datenbank ist noch nicht einsatzbereit. Bitte den Neubeginn fortsetzen.",
+  "notOpenableDataDeleted": "Der bestätigte Neubeginn wurde begonnen, aber nicht abgeschlossen. Die alten Daten sind gelöscht. Bitte den Neubeginn fortsetzen.",
   "@notOpenableDataDeleted": {
     "description": "Nach einem Neubeginn: Dateien gelöscht, Schlüssel oder Öffnen danach gescheitert (ersetzt die Ursache)"
   },
-  "notOpenableDataPartial": "Beim Neubeginn wurde versucht, die alten Daten zu löschen. Sie sind möglicherweise nur teilweise gelöscht. Es wurde kein neuer Schlüssel angelegt. Bitte den Neubeginn fortsetzen.",
+  "notOpenableDataPartial": "Der bestätigte Neubeginn wurde begonnen, aber nicht abgeschlossen. Die alten Daten sind möglicherweise nur teilweise gelöscht. Bitte den Neubeginn fortsetzen.",
   "@notOpenableDataPartial": {
     "description": "Nach einem Neubeginn: Löschen nicht vollständig bestätigt (ersetzt die Ursache)"
   },
@@ -124,13 +124,9 @@
   "@notOpenableReset": {
     "description": "Schaltfläche: Neubeginn"
   },
-  "resetProblemFiles": "Die alte Datei konnte nicht vollständig gelöscht werden. Es wurde kein neuer Schlüssel angelegt. Bitte erneut versuchen.",
-  "@resetProblemFiles": {
-    "description": "Fehler beim Neubeginn: Löschen"
-  },
-  "resetProblemKey": "Die alte Datei ist gelöscht, aber der Schlüssel konnte nicht erneuert werden. Bitte erneut versuchen.",
-  "@resetProblemKey": {
-    "description": "Fehler beim Neubeginn: Schlüssel"
+  "resetProblemStart": "Der Neubeginn konnte nicht gestartet werden. Es wurde nichts gelöscht. Bitte erneut versuchen.",
+  "@resetProblemStart": {
+    "description": "Fehler beim Neubeginn, bevor etwas gelöscht wurde"
   },
   "resetConfirmTitle": "Neu beginnen?",
   "@resetConfirmTitle": {
@@ -151,6 +147,10 @@
   "inactiveBody": "Die App kann die Daten auf diesem Gerät gerade nicht verschlüsseln und öffnet sie deshalb nicht. Die gespeicherten Daten wurden nicht verändert und bleiben geschützt. Bitte installiere die aktuelle Version der App neu oder melde das Problem; ein Neubeginn ist dafür nicht nötig.",
   "@inactiveBody": {
     "description": "Text: Verschlüsselung nicht aktiv"
+  },
+  "inactiveDataLossNote": "Die App öffnet ohne aktive Verschlüsselung nicht. Das Fortsetzen löscht nichts Neues und öffnet nichts unverschlüsselt.",
+  "@inactiveDataLossNote": {
+    "description": "Zusatz zum Text nach einem Neubeginn, wenn die Verschlüsselung nicht aktiv ist"
   },
   "dataTitle": "Daten",
   "@dataTitle": {

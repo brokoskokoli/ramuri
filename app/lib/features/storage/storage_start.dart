@@ -153,7 +153,10 @@ final class StorageNotOpenableState extends StorageStartState {
 /// Die Verschlüsselung ist zur Laufzeit nicht aktiv. Die Datei ist nicht
 /// schuld: kein Neubeginn, nichts wird verändert.
 final class StorageEncryptionInactive extends StorageStartState {
-  const StorageEncryptionInactive();
+  const StorageEncryptionInactive({this.dataLoss = StorageDataLoss.none});
+
+  /// Was ein bestätigter Neubeginn davor schon gelöscht hat.
+  final StorageDataLoss dataLoss;
 }
 
 /// Zustandsautomat des App-Starts: laden, dann bereit, nicht zu öffnen oder
@@ -277,7 +280,7 @@ class StorageStartController extends ChangeNotifier {
     } on StorageException catch (e) {
       switch (e.failure) {
         case StorageFailure.encryptionNotActive:
-          _set(const StorageEncryptionInactive());
+          _set(StorageEncryptionInactive(dataLoss: _dataLoss));
         case StorageFailure.newerVersion:
           fail(StorageNotOpenableCause.newerVersion);
         case StorageFailure.migrationFailed:
