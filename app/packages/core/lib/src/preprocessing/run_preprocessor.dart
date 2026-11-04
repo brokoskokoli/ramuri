@@ -1,3 +1,4 @@
+import 'altitude_processor.dart';
 import 'heart_rate_processor.dart';
 import 'latest_value_index.dart';
 import 'measurement.dart';
@@ -8,6 +9,7 @@ import 'position_processor.dart';
 import 'preprocessing_parameters.dart';
 import 'section_quality.dart';
 import 'settling_processor.dart';
+import 'steps_series.dart';
 
 /// Gesamtergebnis der Vorverarbeitung; wächst mit den Kanälen.
 class RunPreprocessing {
@@ -18,6 +20,8 @@ class RunPreprocessing {
     required this.movement,
     required this.heartRate,
     required this.settling,
+    required this.altitude,
+    required this.steps,
   });
 
   /// Parametersatz, mit dem gerechnet wurde.
@@ -28,6 +32,8 @@ class RunPreprocessing {
   final MovementResult movement;
   final HeartRateResult heartRate;
   final SettlingResult settling;
+  final AltitudeResult altitude;
+  final StepsResult steps;
 }
 
 /// Fasst die Kanalprozessoren zusammen. Keine Uhr: Zeiten kommen von außen.
@@ -40,6 +46,8 @@ class RunPreprocessor {
        _movement = MovementTimeProcessor(parameters, start: start),
        _heartRate = HeartRateProcessor(parameters, sectionStart: start),
        _settling = SettlingProcessor(parameters, start: start),
+       _altitude = AltitudeProcessor(parameters),
+       _steps = StepsSeries(parameterVersion: parameters.parameterVersion),
        _segments = SegmentBuilder(parameters.gapMaxDuration);
 
   final DateTime start;
@@ -49,6 +57,8 @@ class RunPreprocessor {
   final MovementTimeProcessor _movement;
   final HeartRateProcessor _heartRate;
   final SettlingProcessor _settling;
+  final AltitudeProcessor _altitude;
+  final StepsSeries _steps;
   final SegmentBuilder _segments;
 
   ProcessedPosition addPosition(RawPosition p) {
@@ -65,6 +75,10 @@ class RunPreprocessor {
   }
 
   ProcessedHeartRate addHeartRate(RawHeartRate h) => _heartRate.add(h);
+
+  ProcessedAltitude addAltitude(RawAltitude a) => _altitude.add(a);
+
+  ProcessedSteps addSteps(RawSteps s) => _steps.add(s);
 
   /// Manuelle Pause (Ereignis).
   void pause(DateTime time) {
@@ -87,6 +101,12 @@ class RunPreprocessor {
   /// Letzter akzeptierter Puls `<= t`, `unavailable` über der Einzellücke.
   Lookup<RawHeartRate> heartRateAt(DateTime t) => _heartRate.heartRateAt(t);
 
+  /// Letzte akzeptierte Höhe `<= t`, nur mit Alter (keine Grenze).
+  Lookup<RawAltitude> altitudeAt(DateTime t) => _altitude.altitudeAt(t);
+
+  /// Letzter Schrittwert `<= t`, nur mit Alter (keine Grenze).
+  Lookup<RawSteps> stepsAt(DateTime t) => _steps.stepsAt(t);
+
   RunPreprocessing result({required DateTime at}) {
     final movement = _movement.result(at: at);
     return RunPreprocessing(
@@ -96,6 +116,8 @@ class RunPreprocessor {
       movement: movement,
       heartRate: _heartRate.result(at: at),
       settling: _settling.result(restarts: movement.resumedAt),
+      altitude: _altitude.result(at: at),
+      steps: _steps.result(),
     );
   }
 }
