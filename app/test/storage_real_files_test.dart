@@ -9,6 +9,7 @@ import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqlite3/sqlite3.dart' show sqlite3;
 import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/features/storage/storage_start.dart';
@@ -99,6 +100,9 @@ Future<Env> makeEnv({Uint8List? storedKey}) async {
   final path = '${dir.path}/$databaseFileName';
   File(src).copySync(path);
   File('$src-wal').copySync('$path-wal');
+  // Wie nach einem Absturz liegt auch die -shm-Datei daneben.
+  expect(File('$src-shm').existsSync(), isTrue, reason: '-shm fehlt');
+  File('$src-shm').copySync('$path-shm');
   await session.close();
   final env = Env(dir, path, Snapshot(path));
   addTearDown(env.isolateLogs.close);
@@ -142,6 +146,41 @@ void main() {
     await s.close();
     expect(env.snapshot.wal, isNotNull);
     expect(env.snapshot.wal!.length, greaterThan(0));
+  });
+
+  test('Absturzbild hat Haupt-, WAL- und -shm-Datei', () async {
+    final env = await makeEnv();
+    expect(File(env.path).existsSync(), isTrue);
+    expect(File('${env.path}-wal').lengthSync(), greaterThan(0));
+    expect(File('${env.path}-shm').existsSync(), isTrue);
+  });
+
+  test('vorhandene Klartextdatei: öffnet nicht, Bytes unverändert', () async {
+    final dir = Directory.systemTemp.createTempSync('wp02d_plain_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final path = '${dir.path}/$databaseFileName';
+    final plain = sqlite3.open(path);
+    plain.execute('PRAGMA journal_mode = DELETE');
+    plain.execute('CREATE TABLE t (v TEXT)');
+    plain.execute("INSERT INTO t VALUES ('$marker')");
+    plain.close();
+    final before = File(path).readAsBytesSync();
+    expect(
+      String.fromCharCodes(before.take(15)),
+      'SQLite format 3',
+      reason: 'Vorbereitung: wirklich Klartext',
+    );
+    await expectLater(
+      EncryptedStorage(path).open(keyOf(1)),
+      throwsA(
+        isA<StorageException>().having(
+          (e) => e.failure,
+          'failure',
+          StorageFailure.unreadable,
+        ),
+      ),
+    );
+    expect(File(path).readAsBytesSync(), before);
   });
 
   test(

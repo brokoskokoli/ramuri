@@ -186,7 +186,7 @@ packages:
     source: hosted
     version: "3.1.14"
   drift:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: drift
       sha256: "3179e7323b36d1852b42997b92ac72e8abcb61b1d58cfa8c6da9b540ab02a540"
@@ -707,7 +707,7 @@ packages:
     source: hosted
     version: "1.10.2"
   sqlite3:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: sqlite3
       sha256: "5340531ad17f386ae444873f643f281060b6238cc702edeee6b1e90bc4c6874e"
