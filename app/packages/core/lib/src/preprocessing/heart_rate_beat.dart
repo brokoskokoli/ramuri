@@ -12,7 +12,11 @@ List<DateTime> receivedHeartRateTimes(HeartRateResult heartRate) => [
 /// Median-Takt in Mikrosekunden: Median der Abstände zwischen den
 /// [received] eingegangenen Werten (PAR-010, Abschnittsqualität und
 /// Pulsabdeckung rechnen damit gleich). `null` ohne mindestens zwei Werte:
-/// dann ist kein Takt bekannt.
+/// dann ist kein Takt bekannt. Bei gerader Anzahl Abstände gilt der untere
+/// Median, nicht das Mittel der beiden mittleren: Das Mittel läge zwischen
+/// zwei Abständen (bei gleich vielen Abständen von 1 s und 2 s bei 1,5 s) und
+/// würde jede Lücke als lückenlos werten. So bleibt der Takt ein tatsächlich
+/// vorkommender Abstand.
 int? medianBeatMicros(List<DateTime> received) {
   if (received.length < 2) return null;
   final all = [...received]..sort();
@@ -21,9 +25,7 @@ int? medianBeatMicros(List<DateTime> received) {
       all[i].difference(all[i - 1]).inMicroseconds,
   ]..sort();
   final n = inner.length;
-  return n.isOdd
-      ? inner[n ~/ 2]
-      : ((inner[n ~/ 2 - 1] + inner[n ~/ 2]) / 2).round();
+  return n.isOdd ? inner[n ~/ 2] : inner[n ~/ 2 - 1];
 }
 
 /// Gemeinsame Regel für Abstände zwischen Werten (Pulsabdeckung, TRIMP,

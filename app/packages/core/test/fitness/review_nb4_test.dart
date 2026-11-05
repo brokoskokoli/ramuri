@@ -89,12 +89,12 @@ void main() {
       );
     });
 
-    test('M3: gerade Anzahl Abstände mittelt die beiden mittleren', () {
+    test('M3: gerade Anzahl Abstände nimmt den unteren Median', () {
       final times = [
         for (final s in [0, 1, 3, 6, 10]) fitAt(s),
       ];
-      // Abstände 1, 2, 3, 4 s: Median 2,5 s.
-      expect(medianBeatMicros(times), 2500000);
+      // Abstände 1, 2, 3, 4 s: unterer Median 2 s (ein vorkommender Abstand).
+      expect(medianBeatMicros(times), 2000000);
     });
 
     test('M4: Rückgriff endet am Spannenende, nicht am nächsten Wert', () {
@@ -117,6 +117,43 @@ void main() {
       expect(t.coveredMicros, lessThanOrEqualTo(t.movingMicros));
       expect(t.coveredMicros, 1000000);
     });
+  });
+
+  group('Befund 2 (Review 3): Takt ist ein vorkommender Abstand', () {
+    // Jeder 3. Wert fehlt im 1-Hz-Raster: Abstände 1 s und 2 s im Wechsel.
+    double coverage(int lastSecond) {
+      final hr = fitHeartRate([
+        for (var s = 0; s <= lastSecond; s++)
+          if (s % 3 != 2) fitHr(s, 150),
+      ]);
+      final t = heartRateTimeByBpm(
+        heartRate: hr,
+        movement: moving(0, lastSecond),
+        p: p,
+      );
+      return t.coveredMicros / t.movingMicros;
+    }
+
+    test('gleich viele Abstände 1 s und 2 s (gerade Zahl): Takt 1 s', () {
+      final hr = fitHeartRate([
+        for (var s = 0; s <= 30; s++)
+          if (s % 3 != 2) fitHr(s, 150),
+      ]);
+      expect(
+        medianBeatMicros(receivedHeartRateTimes(hr)),
+        const Duration(seconds: 1).inMicroseconds,
+      );
+      // Je 3 s fehlt 1 s (Lücke 2 s minus Takt 1 s): 20 von 30 s.
+      expect(coverage(30), closeTo(20 / 30, 1e-9));
+    });
+
+    test(
+      'ein Wert mehr (ungerade Zahl): gleiche Wertung, nicht vollständig',
+      () {
+        // 10 Lücken zu je 1 s fehlend in 31 s.
+        expect(coverage(31), closeTo(21 / 31, 1e-9));
+      },
+    );
   });
 
   group('Befund 1: gemeinsame Regel round(Δt / Takt) <= 1', () {

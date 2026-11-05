@@ -14,4 +14,4 @@ Jedes Berechnungsverfahren der App ist genau einer Kategorie aus NFR-0002 zugeor
 | Einschwingzeit | `settling` v1 | B | Eigene Regel ohne Quelle (PAR-011). | WP03 |
 | Höhenfilter | `altitude-filter` v1 | B | Eigene Schwellen (PAR-012, PAR-013). | WP03 |
 | Schrittreihe | `steps-series` v1 | B | Eigene Aufbereitung der Rohwerte. | WP03 |
-| Abschnittsqualität | `section-quality` v1 | B | „Qualitätsbewertung“ ist in NFR-0002 Kategorie B (FR-0048). | WP03 |
+| Abschnittsqualität | `section-quality` v2 | B | „Qualitätsbewertung“ ist in NFR-0002 Kategorie B (FR-0048). | WP03 |

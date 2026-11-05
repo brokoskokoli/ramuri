@@ -348,6 +348,27 @@ void main() {
       }
     });
 
+    test('WP03-Zeilen tragen die Version der Konstanten im Code', () {
+      final code = <String, int>{
+        positionMethod: positionMethodVersion,
+        paceMethod: paceMethodVersion,
+        movementMethod: movementMethodVersion,
+        heartRateMethod: heartRateMethodVersion,
+        settlingMethod: settlingMethodVersion,
+        altitudeMethod: altitudeMethodVersion,
+        stepsMethod: stepsMethodVersion,
+        sectionQualityMethod: sectionQualityMethodVersion,
+      };
+      final wp03 = {
+        for (final e in rows.entries.where((e) => e.value.$3 == 'WP03'))
+          e.key: e.value.$1,
+      };
+      expect(wp03.keys.toSet(), code.keys.toSet());
+      for (final e in code.entries) {
+        expect(wp03[e.key], e.value, reason: e.key);
+      }
+    });
+
     test('jede Zeile von WP04 ist registriert', () {
       final registered = {
         for (final v in AlgorithmRegistry.standard().allVariants) v.method,
