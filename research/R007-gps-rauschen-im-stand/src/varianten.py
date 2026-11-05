@@ -119,6 +119,20 @@ def v8():
         z = [a for a, b in o if b == 0]
         print(f' Stufen ab 10 s, {lab}: n={len(o)}, Δs/Δt>=0,5 {100 * sum(a >= .5 for a, _ in o) / len(o):.1f} %, getSpeed>=0,5 {100 * sum(b >= .5 for _, b in o) / len(o):.1f} %, getSpeed exakt 0 {100 * len(z) / len(o):.1f} %, davon Δs/Δt>=0,5 {100 * sum(a >= .5 for a in z) / len(z):.1f} %')
 
+    # Abschnitt 2 von RESULTS: Schritte des Pools wie in analyse.py (120 s Einlauf übersprungen, dt bis 2 s).
+    for lab, ss in (('alle', full), ('ohne bewegte', rest)):
+        pool, _ = S.stitch(ss, keep, MIX)
+        rs = [r for r in pool if r[0] - pool[0][0] >= int(BURN) * 1000]
+        v = [(dist(a, b), (b[0] - a[0]) / 1000) for a, b in zip(rs, rs[1:]) if (b[0] - a[0]) / 1000 <= 2]
+        w = [d / t for d, t in v]
+        print(f' Pool Mischung {MIX}, {lab}: Punkte {len(rs)}, Δs/Δt P50 {q(w, .5):.2f}, P90 {q(w, .9):.2f}, P99 {q(w, .99):.2f} m/s, unter 0,5 m/s {100 * sum(x < .5 for x in w) / len(w):.1f} %, {60 * sum(d for d, _ in v) / sum(t for _, t in v):.1f} m/min')
+    n = []
+    for start, rows, name in sacc:
+        use = [r for r in rows if keep(r, rows, start) and r[3] <= 25]
+        if len(use) >= 5 and st.median(r[4] for r in use) >= MOVED_FROM:
+            n.append(name)
+    print(f' Filter Tempo-Genauigkeit über 0: {len(n)} Sitzungen mit Chip-Tempo im Median ab {MOVED_FROM:g} m/s, davon {sum(x in names for x in n)} dieselben; nicht nachgerechnet, nur gezählt')
+
     mixes = [MIX, 1, 2, 3, 4]
     alle = [sim('alle_v8', f'v8_alle_mix{i}', full, 'first', 10, i, mits=MITS_V8) for i in mixes]
     ohne = [sim('ohne_bewegte', f'v8_ohne_mix{i}', rest, 'first', 10, i, mits=MITS_V8) for i in mixes]
