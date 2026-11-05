@@ -1,6 +1,6 @@
 # R007 – GPS-Rauschen im Stand
 
-**Status:** abgeschlossen, Nachbesserung nach Review Runde 2 · **Auftraggeber:** Project Supervisor (OQ-0068, vor WP06) · **Datum:** 2026-11-05
+**Status:** abgeschlossen, Review FREIGABE in Runde 3 · **Auftraggeber:** Project Supervisor (OQ-0068, vor WP06) · **Datum:** 2026-11-05
 
 ## Frage
 Wie stark verfälscht GPS-Rauschen im Stand auf Android-Smartphones Strecke und Bewegungszeit, wenn die Geschwindigkeit aus Δs/Δt bei 1 Hz stammt, und welches Gegenmittel ist belegt: Mindestdistanz, Glättung oder `Location.getSpeed()`? Daran hängen OQ-0068 und die Frage, ob PAR-002 bis -004, -014, -015 vor WP06 eine neue Parameterversion brauchen.
