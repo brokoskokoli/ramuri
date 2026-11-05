@@ -62,4 +62,6 @@ Bisher entschieden: [ADR-0001](adr/ADR-0001-nur-lokale-datenhaltung.md). Am 2026
 | Anbindung von Health Connect | FR-0200, OQ-0047 | [ADR-0007](adr/ADR-0007-health-connect.md) |
 | Verschlüsselung des passwortgeschützten Archivs | SEC-0011, FR-0192, FR-0198 | [ADR-0008](adr/ADR-0008-verschluesselung-des-archivs.md) |
 
+Die Einordnung der Berechnungsverfahren in die Kategorien aus NFR-0002 steht in [algorithm-categories.md](algorithm-categories.md).
+
 Eine Datei `deployment.md` entfällt, weil es nach ADR-0001 keinen Serverbetrieb gibt.

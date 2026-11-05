@@ -40,7 +40,7 @@ class RunPreprocessing {
 class RunPreprocessor {
   RunPreprocessor({
     required this.start,
-    this.parameters = const PreprocessingParameters.v2(),
+    this.parameters = const PreprocessingParameters.v3(),
   }) : _position = PositionProcessor(parameters, sectionStart: start),
        _pace = PaceProcessor(parameters),
        _movement = MovementTimeProcessor(parameters, start: start),

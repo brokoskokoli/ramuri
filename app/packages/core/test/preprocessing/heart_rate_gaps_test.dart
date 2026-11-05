@@ -43,14 +43,14 @@ void main() {
     });
 
     test('Zuordnung über Zeitstempel: zu alter Wert ist nicht verfügbar', () {
-      final proc = HeartRateProcessor(const PreprocessingParameters.v2());
+      final proc = HeartRateProcessor(const PreprocessingParameters.v3());
       proc.add(hr(0, 100));
       expect(proc.heartRateAt(at(10)).state, MeasurementState.present);
       expect(proc.heartRateAt(at(10.5)).state, MeasurementState.unavailable);
     });
 
     test('Pausenzeit ist keine Lücke, Werte in der Pause zählen nicht', () {
-      final proc = HeartRateProcessor(const PreprocessingParameters.v2());
+      final proc = HeartRateProcessor(const PreprocessingParameters.v3());
       proc.add(hr(0, 100));
       proc.pause(at(5));
       expect(proc.add(hr(6, 100)).state, MeasurementState.unavailable);
@@ -101,11 +101,11 @@ void main() {
 
     test('nach jedem Präfix gleicht result dem Neuaufbau', () {
       final values = mixed();
-      final live = HeartRateProcessor(const PreprocessingParameters.v2());
+      final live = HeartRateProcessor(const PreprocessingParameters.v3());
       for (var i = 0; i < values.length; i++) {
         live.add(values[i]);
         final now = values[i].time;
-        final whole = HeartRateProcessor(const PreprocessingParameters.v2());
+        final whole = HeartRateProcessor(const PreprocessingParameters.v3());
         values.take(i + 1).forEach(whole.add);
         expect(
           hrFingerprint(live.result(at: now)),
@@ -129,7 +129,7 @@ void main() {
       final r = runHr([hr(0, 100)]);
       expect(
         [r.method, r.methodVersion, r.parameterVersion],
-        ['heart-rate-filter', 1, 2],
+        ['heart-rate-filter', 1, 3],
       );
     });
   });

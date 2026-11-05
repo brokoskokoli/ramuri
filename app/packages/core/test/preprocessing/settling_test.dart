@@ -18,7 +18,7 @@ void main() {
       final r = feed(track([(600, 3)])).result(at: at(600));
       expect(spans(r), [(t0, min(3))]);
       expect(r.settling.method, 'settling');
-      expect(r.settling.parameterVersion, 2);
+      expect(r.settling.parameterVersion, 3);
     });
 
     test('nach manueller Pause 3 min ab Fortsetzen', () {
@@ -44,7 +44,7 @@ void main() {
     test('nach erkannter Pause 3 min ab dem Wiederbeginn der Bewegung', () {
       // Tempowechsel ausgeschaltet, damit nur das Pausenende wirkt.
       const p = PreprocessingParameters(
-        parameterVersion: 2,
+        parameterVersion: 3,
         settlingPaceChange: 100,
       );
       final run = feed(track([(300, 3), (60, 0), (300, 3)]), p: p);
@@ -71,7 +71,7 @@ void main() {
     // Segmente mit exakt darstellbaren Metern: die Grenze 0,25 selbst.
     List<(DateTime, DateTime)> exact(double second) {
       final p = SettlingProcessor(
-        const PreprocessingParameters.v2(),
+        const PreprocessingParameters.v3(),
         start: t0,
       );
       for (var s = 1; s <= 800; s++) {

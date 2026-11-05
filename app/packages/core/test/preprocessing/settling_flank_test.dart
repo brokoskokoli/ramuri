@@ -10,7 +10,7 @@ List<(DateTime, DateTime)> spans(SettlingProcessor p) => [
 
 /// Je (Dauer s, Tempo m/s) 1-s-Segmente ab Sekunde 0; Meter exakt darstellbar.
 SettlingProcessor exactRun(List<(int, double)> legs) {
-  final p = SettlingProcessor(const PreprocessingParameters.v2(), start: t0);
+  final p = SettlingProcessor(const PreprocessingParameters.v3(), start: t0);
   var s = 0;
   for (final (duration, speed) in legs) {
     for (var i = 0; i < duration; i++) {
@@ -116,7 +116,7 @@ void main() {
       // Auslösen. Bis 539 bleibt das frühere Fenster gefüllt, danach leer
       // (nicht auswertbar); ab 656 ist es 3,3: Abweichung 0. Ein Auslösen.
       final p = SettlingProcessor(
-        const PreprocessingParameters.v2(),
+        const PreprocessingParameters.v3(),
         start: t0,
       );
       for (var s = 1; s <= 300; s++) {

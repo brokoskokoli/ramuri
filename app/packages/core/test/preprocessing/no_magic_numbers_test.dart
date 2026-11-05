@@ -43,15 +43,27 @@ Iterable<String> literals(String source) sync* {
 }
 
 void main() {
-  test('numerische Literale in lib/src/preprocessing außerhalb der '
-      'Parameterklasse sind nur Rechengrößen, Einheiten, Erdradius', () {
-    final files = Directory('lib/src/preprocessing')
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.dart'))
-        .where((f) => !f.path.endsWith('preprocessing_parameters.dart'))
-        .toList();
+  test('numerische Literale in lib/src/preprocessing und lib/src/fitness '
+      'außerhalb der Parameterklassen sind nur Rechengrößen, Einheiten, '
+      'Erdradius', () {
+    final files = [
+      for (final dir in ['lib/src/preprocessing', 'lib/src/fitness'])
+        ...Directory(dir)
+            .listSync()
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.dart'))
+            .where(
+              (f) =>
+                  !f.path.endsWith('preprocessing_parameters.dart') &&
+                  !f.path.endsWith('fitness_parameters.dart'),
+            ),
+    ];
     expect(files.length, greaterThan(10));
+    expect(
+      files.where((f) => f.path.contains('src/fitness/')),
+      isNotEmpty,
+      reason: 'src/fitness muss mitgeprüft werden',
+    );
     final hits = <String, Set<String>>{};
     final unknown = <String>[];
     for (final f in files) {

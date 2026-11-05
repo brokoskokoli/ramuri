@@ -18,7 +18,7 @@ SectionQuality assess(
   heartRate: runHr(values, until: to),
   position: position ?? noPosition,
   settlingIntervals: settling,
-  parameters: const PreprocessingParameters.v2(),
+  parameters: const PreprocessingParameters.v3(),
 );
 
 /// 0..[to] im Sekundentakt ohne die Sekunden in [skip].
@@ -203,7 +203,7 @@ void main() {
       final q = assess(beat(0, 10, 100), 0, 10);
       expect(
         [q.method, q.methodVersion, q.parameterVersion],
-        ['section-quality', 1, 2],
+        ['section-quality', 2, 3],
       );
     });
   });

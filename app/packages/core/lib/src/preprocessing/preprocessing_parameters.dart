@@ -1,4 +1,8 @@
-/// Alle Schwellen der Vorverarbeitung (docs/model-parameters.md, Version 2).
+/// Aktuelle Version des Parametersatzes (docs/model-parameters.md). Einzige
+/// Versionsquelle; auch die Fitness-Parameter melden diese Version.
+const int currentParameterVersion = 3;
+
+/// Alle Schwellen der Vorverarbeitung (docs/model-parameters.md, Version 3).
 ///
 /// Keine Schwelle steht außerhalb dieser Klasse. Prozessoren bekommen sie als
 /// Argument, so sind abweichende Werte testbar.
@@ -32,9 +36,10 @@ class PreprocessingParameters {
     this.resumeMinDuration = const Duration(seconds: 3),
   });
 
-  /// Die Startwerte aus Version 2 von docs/model-parameters.md. Nur hier ist
+  /// Die Startwerte aus Version 3 von docs/model-parameters.md. Nur hier ist
   /// die Version fest; jeder andere Parametersatz nennt seine Version selbst.
-  const PreprocessingParameters.v2() : this(parameterVersion: 2);
+  const PreprocessingParameters.v3()
+    : this(parameterVersion: currentParameterVersion);
 
   /// Version des Parametersatzes (ADR-0004 P.3).
   final int parameterVersion;

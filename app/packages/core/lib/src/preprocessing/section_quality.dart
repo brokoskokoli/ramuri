@@ -1,3 +1,4 @@
+import 'heart_rate_beat.dart';
 import 'heart_rate_processor.dart';
 import 'measurement.dart';
 import 'movement_time_processor.dart';
@@ -6,7 +7,7 @@ import 'preprocessing_parameters.dart';
 
 /// Kennung und Version der Abschnittsqualität (ADR-0004 P.3).
 const String sectionQualityMethod = 'section-quality';
-const int sectionQualityMethodVersion = 1;
+const int sectionQualityMethodVersion = 2;
 
 /// Qualität der Daten eines Abschnitts (FR-0048). Beschreibt nur; ob ein
 /// Abschnitt taugt, entscheidet die Abschnittsauswahl (WP09).
@@ -125,8 +126,9 @@ class SectionQuality {
     ];
   }
 
-  /// Fehlende Zeit: Σ max(0, Δt − Median-Takt) über die Abstände der
-  /// akzeptierten Werte. Der Takt ist der Median der Abstände zwischen allen
+  /// Fehlende Zeit: Σ über die Abstände der akzeptierten Werte, je Abstand
+  /// 0, wenn nur ein Wert zu erwarten war (`round(Δt / Takt) <= 1`, siehe
+  /// [beatCoversGap]), sonst Δt − Median-Takt. Der Takt ist der Median der Abstände zwischen allen
   /// eingegangenen Werten im Abschnitt, auch verworfenen ([received]), damit
   /// verworfene Werte den Takt nicht senken. Ohne mindestens zwei akzeptierte
   /// oder zwei eingegangene Werte ist kein Takt bekannt: dann fehlt die ganze
@@ -139,19 +141,10 @@ class SectionQuality {
     if (times.length < 2 || received.length < 2) {
       return gaps.fold(Duration.zero, (a, b) => a + b);
     }
-    final all = [...received]..sort();
-    final inner = [
-      for (var i = 1; i < all.length; i++)
-        all[i].difference(all[i - 1]).inMicroseconds,
-    ];
-    final sorted = [...inner]..sort();
-    final n = sorted.length;
-    final beat = n.isOdd
-        ? sorted[n ~/ 2]
-        : ((sorted[n ~/ 2 - 1] + sorted[n ~/ 2]) / 2).round();
+    final beat = medianBeatMicros(received)!;
     var micros = 0;
     for (final g in gaps) {
-      if (g.inMicroseconds > beat) micros += g.inMicroseconds - beat;
+      micros += missingMicrosInGap(g.inMicroseconds, beat);
     }
     return Duration(microseconds: micros);
   }
