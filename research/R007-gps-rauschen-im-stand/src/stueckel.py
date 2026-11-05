@@ -41,13 +41,13 @@ def keep_after(axis, cut_s):
     return lambda r, rows, start: r[0] - start >= cut_s * 1000
 
 
-def stitch(sessions, keep, mix_seed, resample=False):
+def stitch(sessions, keep, mix_seed, resample=False, spans=None):
     """Hängt die Inkremente aneinander. Die Reihenfolge hängt nur an mix_seed.
 
     An der Naht entsteht kein Punkt und kein Zeitschritt: Das erste Stück beginnt mit seinem ersten Punkt,
     jedes weitere setzt mit seinem ersten Inkrement am letzten Punkt fort. Nicht steigende Zeiten
     (Dubletten in den Rohdaten) werden übersprungen. resample=True zieht die Sitzungen mit Zurücklegen.
-    Rückgabe: Zeilen, Zahl der genutzten Sitzungen.
+    Rückgabe: Zeilen, Zahl der genutzten Sitzungen. spans (Liste) sammelt je Sitzung (Name, erster Index, Ende) im Ergebnis.
     """
     rnd = random.Random(mix_seed)
     ss = list(sessions)
@@ -58,11 +58,12 @@ def stitch(sessions, keep, mix_seed, resample=False):
     la, lo, t = 48.0, 11.0, 0
     out = []
     used = 0
-    for start, rows, _ in ss:
+    for start, rows, name in ss:
         use = [r for r in rows if keep(r, rows, start) and r[3] <= 25]
         if len(use) < 5:
             continue
         used += 1
+        first = len(out)
         if not out:
             t += 1000
             out.append((t, la, lo, use[0][3], use[0][4], use[0][5]))
@@ -74,6 +75,8 @@ def stitch(sessions, keep, mix_seed, resample=False):
             lo += (b[2] - a[2]) * c / math.cos(math.radians(48.0))
             t += b[0] - a[0]
             out.append((t, la, lo, b[3], b[4], b[5]))
+        if spans is not None:
+            spans.append((name, first, len(out)))
     return out, used
 
 

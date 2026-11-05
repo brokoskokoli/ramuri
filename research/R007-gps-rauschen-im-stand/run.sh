@@ -4,12 +4,12 @@ set -euo pipefail
 cd "$(dirname "$0")"
 source "$(git rev-parse --show-toplevel)/research/_shared/paths.sh"
 ID=R007
-SEED=42; MIX=42; VARIANTS=20; RUNS=200; SPEED=3; TOTAL=1800; STOP=60; STOPS=3; BURN=120; BELOW=0.5; FROM=0.8; TAG=""
+SEED=42; MIX=42; VARIANTS=20; RUNS=200; SPEED=3; TOTAL=1800; STOP=60; STOPS=3; BURN=120; BELOW=0.5; FROM=0.8; TAG=""; ONLY_V8=""
 usage() { cat <<HELP
-Usage: ./run.sh [--seed N] [--mix-seed N] [--variants N] [--runs N] [--run-speed V] [--total-s N] [--stop-s N] [--stops N] [--burn-in-s N] [--standstill-below V] [--movement-from V] [--tag T]
+Usage: ./run.sh [--seed N] [--mix-seed N] [--variants N] [--runs N] [--run-speed V] [--total-s N] [--stop-s N] [--stops N] [--burn-in-s N] [--standstill-below V] [--movement-from V] [--tag T] [--only-v8 LAUF]
   --seed N       Zufallsstartwert (Standard: $SEED)
   --mix-seed N   Reihenfolge der gestückelten Sitzungen im Hauptlauf (Standard: $MIX)
-  --variants N   Mischungen und Stichproben für die Spannen in varianten.txt, 0 = keine (Standard: $VARIANTS)
+  --variants N   Mischungen für die Spannen in varianten.txt, doppelt so viele Stichproben, 0 = keine (Standard: $VARIANTS)
   --runs N       simulierte Läufe je Quelle (Standard: $RUNS)
   --run-speed V  Lauftempo in m/s (Standard: $SPEED)
   --total-s N    Laufdauer in s (Standard: $TOTAL)
@@ -19,6 +19,7 @@ Usage: ./run.sh [--seed N] [--mix-seed N] [--variants N] [--runs N] [--run-speed
   --standstill-below V  PAR-014 untere Schwelle zum Vergleich (Standard: $BELOW)
   --movement-from V     PAR-014 obere Schwelle zum Vergleich (Standard: $FROM)
   --tag T        Zusatz im Namen des Laufordners (Standard: leer)
+  --only-v8 LAUF nur die Spanne ohne bewegte Sitzungen (V8) in neuem Laufordner, geprüft gegen den Hauptlauf LAUF unter work/R007/ (Standard: leer = alles)
 HELP
 }
 while [ $# -gt 0 ]; do
@@ -35,6 +36,7 @@ while [ $# -gt 0 ]; do
     --standstill-below) BELOW="$2"; shift 2 ;;
     --movement-from) FROM="$2"; shift 2 ;;
     --tag) TAG="-$2"; shift 2 ;;
+    --only-v8) ONLY_V8="$2"; shift 2 ;;
     --help) usage; exit 0 ;;
     *) echo "Unbekannter Parameter: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -49,6 +51,14 @@ python3 -I -c "
 import json,pathlib,sys
 r=pathlib.Path(sys.argv[1]).resolve()
 print(json.dumps({'configVersion':2,'packages':[{'name':'core','rootUri':r.as_uri(),'packageUri':'lib/','languageVersion':'3.10'}]}))" "$ROOT/app/packages/core" > "$OUT/package_config.json"
+if [ -n "$ONLY_V8" ]; then
+  REF="$(research_work "$ID")/$ONLY_V8"
+  [ -f "$REF/norm/ncount_stueckel__1.tsv" ] || { echo "Hauptlauf fehlt: $REF" >&2; exit 1; }
+  nice -n 10 dart compile exe --packages="$OUT/package_config.json" src/harness.dart -o "$OUT/harness" | tail -1
+  nice -n 10 python3 -I src/varianten.py "$RESEARCH_DATASETS" "$OUT" "$SEED" "$MIX" "$VARIANTS" "$RUNS" "$SPEED" "$TOTAL" "$STOP" "$STOPS" "$BURN" "$REF" | tee "$OUT/varianten.txt"
+  echo "Fertig: $OUT"
+  exit 0
+fi
 nice -n 10 python3 -I src/normalize.py "$RESEARCH_DATASETS" "$OUT" "$SEED" "$MIX"
 nice -n 10 dart compile exe --packages="$OUT/package_config.json" src/harness.dart -o "$OUT/harness" | tail -1
 nice -n 10 "$OUT/harness" --norm "$OUT/norm" --out "$OUT" --seed "$SEED" --runs "$RUNS" --run-speed "$SPEED" --total-s "$TOTAL" --stop-s "$STOP" --stops "$STOPS" --burn-in-s "$BURN" --standstill-below "$BELOW" --movement-from "$FROM" > "$OUT/harness.log"

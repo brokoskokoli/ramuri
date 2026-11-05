@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """Spannen um den gestückelten Wert, alle durch den echten RunPreprocessor (Harness des Laufs).
 
-Mischungen, Ziehungen, Stichprobe der Sitzungen, Einlauf-Schnitte, GPS-Filter, Parameter. Dazu die
-Einlauf-Rechnung ohne Simulation (ersetzt das frühere einlauf_check.py).
+Mischungen, Ziehungen, Stichprobe der Sitzungen, Einlauf-Schnitte, GPS-Filter, Parameter, ohne bewegte
+Sitzungen (V8). Dazu die Einlauf-Rechnung ohne Simulation (ersetzt das frühere einlauf_check.py).
 Ausgabe: <lauf>/varianten.txt (Bildschirm), <lauf>/varianten.csv, Einzelläufe unter <lauf>/var/.
+Mit einem 12. Argument (Ordner eines Hauptlaufs) läuft nur V8, geprüft gegen Pool und Zeilen dieses Laufs.
 """
-import csv, math, os, random, statistics as st, subprocess, sys
+import bisect, csv, math, os, random, statistics as st, subprocess, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import stueckel as S
 
 D, OUT, SEED, MIX, N = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5])
 RUNS, SPEED, TOTAL, STOP, STOPS, BURN = sys.argv[6:12]
+REF = sys.argv[12] if len(sys.argv) > 12 else None
 RUN_M = float(SPEED) * (int(TOTAL) - int(STOP) * int(STOPS))
 LIMIT = RUN_M * 0.01
 TOR = 'getspeed_gate_0.5'
 MITS_ALL = ['keins', TOR, 'getspeed_integral', 'mindist_5_nurstrecke', 'mindist_8_nurstrecke', 'mittel_10s', 'mittel_20s']
 MITS = ['keins', TOR]
+MITS_V8 = ['keins', TOR, 'getspeed_integral', 'mindist_5_nurstrecke', 'mindist_8_nurstrecke']
+MOVED_FROM = 2.0  # m/s, Chip-Tempo im Median je Sitzung; nachträglich gewählt (Review Runde 2), siehe RESULTS
 
 
 def q(v, p):
@@ -53,6 +57,7 @@ def sim(group, tag, sessions, axis, cut, mix, draw=None, resample=False, burn=No
         me = [float(r['moving_excess_s']) for r in rs]
         x = dict(group=group, tag=tag, mitigation=m, sessions=used, points=len(pool), med_m=q(h, .5), pct=100 * q(h, .5) / RUN_M,
                  mean_m=st.mean(h), p10=q(h, .1), p90=q(h, .9), err_med=q(e, .5), err_p10=q(e, .1), err_p90=q(e, .9), err_mean=st.mean(e),
+                 err_over=100 * sum(x > LIMIT for x in e) / len(e),
                  u_med=q(u, .5), u_mean=st.mean(u), mz=q(me, .5))
         res[m] = x
         rows_csv.append(x)
@@ -68,11 +73,125 @@ def fmt(t, unit=' %', dec=2):
     return f'{t[1]:.{dec}f} (min {t[0]:.{dec}f}, max {t[2]:.{dec}f}){unit}'
 
 
+def dist(a, b):
+    la = math.radians((a[1] + b[1]) / 2)
+    return 6371000 * math.hypot(math.radians(b[1] - a[1]), math.radians(b[2] - a[2]) * math.cos(la))
+
+
+def v8():
+    """Spanne ohne Sitzungen, die sich laut Chip bewegen. Hauptzahl und Pool bleiben, das ist nur eine Spanne."""
+    print(f'\n# V8 Ohne Sitzungen mit Chip-Tempo im Median ab {MOVED_FROM:g} m/s (Teil ab 10 s), je 5 Mischungen, gleicher Ziehungs-Seed {SEED}, je {RUNS} Läufe')
+    keep = S.keep_after('first', 10)
+    info = []
+    for sess in full:
+        start, rows, name = sess
+        use = [r for r in rows if keep(r, rows, start) and r[3] <= 25]
+        if len(use) < 5:
+            info.append((0.0, 0.0, 0.0, 0.0, sess))
+            continue
+        info.append((sum(dist(a, b) for a, b in zip(use, use[1:])), dist(use[0], use[-1]), (use[-1][0] - use[0][0]) / 1000, st.median(r[4] for r in use), sess))
+    moved = [i for i in info if i[3] >= MOVED_FROM]
+    names = {i[4][2] for i in moved}
+    rest = [s for s in full if s[2] not in names]
+    tot = sum(i[0] for i in info)
+    print(f' Sitzungen {len(full)}, davon bewegt {len(moved)}, übrig {len(rest)}; Weg ab 10 s gesamt {tot:.0f} m, Anteil der bewegten {100 * sum(i[0] for i in moved) / tot:.1f} %')
+    print(' Die 10 Sitzungen mit dem längsten Weg: Weg, netto, Dauer, Chip-Tempo Median, Name nur bei den bewegten')
+    for i in sorted(info, key=lambda x: -x[0])[:10]:
+        print(f'  {i[0]:.1f} m, {i[1]:.1f} m, {i[2]:.0f} s, {i[3]:.2f} m/s {i[4][2] if i[4][2] in names else ""}')
+    for lo in (0.5, 1.0):
+        x = [i for i in info if i[3] >= lo]
+        print(f' Zum Vergleich der Schwelle: Chip-Tempo im Median ab {lo:g} m/s: {len(x)} Sitzungen, {100 * sum(i[0] for i in x) / tot:.1f} % des Wegs')
+
+    # Abschnitt 4 von RESULTS: Stufen ab 10 s wie in analyse.py (dt bis 10 s, Genauigkeit bis 25 m).
+    def stufen(ss):
+        o = []
+        for _, rows, _n in ss:
+            for a, b in zip(rows, rows[1:]):
+                dt = (b[0] - a[0]) / 1000
+                if dt <= 0 or dt > 10 or a[3] > 25 or b[3] > 25 or a[0] - rows[0][0] < 10000:
+                    continue
+                c = math.radians(a[1])
+                k = 6371000 * math.pi / 180
+                o.append((math.hypot((b[1] - a[1]) * k, (b[2] - a[2]) * k * math.cos(c)) / dt, b[4]))
+        return o
+    for lab, ss in (('alle', full), ('ohne bewegte', rest)):
+        o = stufen(ss)
+        z = [a for a, b in o if b == 0]
+        print(f' Stufen ab 10 s, {lab}: n={len(o)}, Δs/Δt>=0,5 {100 * sum(a >= .5 for a, _ in o) / len(o):.1f} %, getSpeed>=0,5 {100 * sum(b >= .5 for _, b in o) / len(o):.1f} %, getSpeed exakt 0 {100 * len(z) / len(o):.1f} %, davon Δs/Δt>=0,5 {100 * sum(a >= .5 for a in z) / len(z):.1f} %')
+
+    mixes = [MIX, 1, 2, 3, 4]
+    alle = [sim('alle_v8', f'v8_alle_mix{i}', full, 'first', 10, i, mits=MITS_V8) for i in mixes]
+    ohne = [sim('ohne_bewegte', f'v8_ohne_mix{i}', rest, 'first', 10, i, mits=MITS_V8) for i in mixes]
+    print(f' Sitzungen, Punkte: alle {alle[0]["keins"]["sessions"]}, {alle[0]["keins"]["points"]}; ohne {ohne[0]["keins"]["sessions"]}, {ohne[0]["keins"]["points"]}')
+    print(' Gegenmittel: Streckenfehler Median in m (Anteil an der Laufstrecke) | P90 in m | Mittel in m | Läufe über der Grenze in % | Stopps ohne Pause Mittel | Mehrzeit in s; je min bis max über 5 Mischungen, erster Wert Mischung', MIX)
+    for lab, rs in (('alle', alle), ('ohne', ohne)):
+        for m in MITS_V8:
+            def sp(key, dec=1):
+                v = [r[m][key] for r in rs]
+                return f'{v[0]:.{dec}f} ({min(v):.{dec}f} bis {max(v):.{dec}f})'
+            pct = [100 * r[m]['err_med'] / RUN_M for r in rs]
+            print(f'  {lab} {m}: {sp("err_med")} ({min(pct):.2f} bis {max(pct):.2f} %) | {sp("err_p90")} | {sp("err_mean")} | {sp("err_over")} | {sp("u_mean", 2)} | {sp("mz")}')
+    for lab, rs in (('alle', alle), ('ohne', ohne)):
+        v = [r['keins']['pct'] for r in rs]
+        print(f' Scheinstrecke keins, {lab}: {v[0]:.2f} ({min(v):.2f} bis {max(v):.2f}) %, Median der Stopps ohne Pause je Lauf höchstens {max(r["keins"]["u_med"] for r in rs):.0f}')
+
+    # Herkunft des Rands: Welche Stopps treffen die bewegten Sitzungen? Fenster in Punkten des Pools, wie im Harness.
+    print(' Herkunft, alle 183, je Mischung: Stopps gesamt; keins über 50 m; davon Fenster berührt bewegte Sitzung; Fenster berührt bewegte: Anzahl, Median m; Fenster berührt nicht: Median m, P99 m, Maximum m')
+    print(' Dazu Tor und Integral: Läufe über der Grenze; davon mit mindestens einem Fenster auf einer bewegten Sitzung')
+    big = []
+    for mix in mixes:
+        spans = []
+        pool, _ = S.stitch(full, keep, mix, spans=spans)
+        ts = [r[0] for r in pool]
+        idx = [(a, b) for n, a, b in spans if n in names]
+
+        def touches(w):
+            end = bisect.bisect_right(ts, ts[w] + int(STOP) * 1000) - 1
+            return any(w + 1 < b and end >= a for a, b in idx)
+        rows = [r for r in csv.DictReader(open(f'{OUT}/var/v8_alle_mix{mix}/stops.csv'))]
+        k = [r for r in rows if r['mitigation'] == 'keins']
+        hit = [float(r['sham_m']) for r in k if touches(int(r['win']))]
+        no = [float(r['sham_m']) for r in k if not touches(int(r['win']))]
+        over = [r for r in k if float(r['sham_m']) > 50]
+        print(f'  Mischung {mix}: {len(k)}; {len(over)} ({100 * len(over) / len(k):.1f} %); {sum(touches(int(r["win"])) for r in over)}; {len(hit)}, {st.median(hit):.1f} m; {st.median(no):.1f} m, {q(no, .99):.1f} m, {max(no):.1f} m')
+        for m in (TOR, 'getspeed_integral'):
+            e = {r['run']: float(r['dist_err_m']) for r in csv.DictReader(open(f'{OUT}/var/v8_alle_mix{mix}/runs.csv')) if r['mitigation'] == m}
+            tr = {r['run'] for r in k if touches(int(r['win']))}
+            o = [a for a, x in e.items() if x > LIMIT]
+            print(f'    {m}: {len(o)} von {len(e)}; {sum(a in tr for a in o)}')
+        # Einzelschritte der großen Fenster
+        for r in k:
+            if float(r['sham_m']) > 130:
+                w = int(r['win'])
+                end = bisect.bisect_right(ts, ts[w] + int(STOP) * 1000) - 1
+                st_ = [(dist(pool[i - 1], pool[i]), (pool[i][0] - pool[i - 1][0]) / 1000) for i in range(w + 1, end + 1)]
+                v = sorted((d / t for d, t in st_), reverse=True)
+                big.append((float(r['sham_m']), v[:3], sum(d for d, t in st_ if d / t > 5), touches(w)))
+    if big:
+        print(f' Fenster über 130 m (5 Mischungen): {len(big)}; drei größte Schritte zwischen {min(b[1][2] for b in big):.1f} und {max(b[1][0] for b in big):.1f} m/s; Weg aus Schritten über 5 m/s mindestens {min(b[2] for b in big):.1f} m; berühren bewegte Sitzung: {sum(b[3] for b in big)}')
+    ov = []
+    for mix in mixes:
+        k = [float(r['sham_m']) for r in csv.DictReader(open(f'{OUT}/var/v8_ohne_mix{mix}/stops.csv')) if r['mitigation'] == 'keins']
+        ov.append((100 * sum(x > 50 for x in k) / len(k), max(k)))
+    print(f' Ohne bewegte, keins: Stopps über 50 m {min(o[0] for o in ov):.1f} bis {max(o[0] for o in ov):.1f} %, größter Stopp {min(o[1] for o in ov):.1f} bis {max(o[1] for o in ov):.1f} m')
+
+
 # Kontrolle: Variante mit dem Seed des Hauptlaufs muss bytegleich zum Pool des Hauptlaufs sein.
 main_rs = sim('haupt', 'haupt', full, 'first', 10, MIX, mits=MITS_ALL)
-assert open(f'{OUT}/var/haupt/norm/ncount_stueckel__1.tsv').read() == open(f'{OUT}/norm/ncount_stueckel__1.tsv').read(), 'Pool weicht ab'
+assert open(f'{OUT}/var/haupt/norm/ncount_stueckel__1.tsv').read() == open(f'{REF or OUT}/norm/ncount_stueckel__1.tsv').read(), 'Pool weicht ab'
 print('Kontrolle: Pool der Variante mit Mischungs-Seed', MIX, 'ist bytegleich zum Hauptlauf;', main_rs['keins']['sessions'], 'Sitzungen,', main_rs['keins']['points'], 'Punkte,',
       round(main_rs['keins']['points'] / main_rs['keins']['sessions'], 1), 'Punkte je Sitzung')
+if REF:
+    assert open(f'{OUT}/var/haupt/runs.csv').read() == open(f'{REF}/var/haupt/runs.csv').read(), 'Zeilen weichen vom Hauptlauf ab'
+    print(f'Kontrolle: runs.csv von Mischung {MIX} ist bytegleich zu {os.path.basename(REF)}/var/haupt/runs.csv')
+
+v8()
+if REF:
+    with open(f'{OUT}/varianten.csv', 'w') as f:
+        w = csv.DictWriter(f, fieldnames=list(rows_csv[0].keys()))
+        w.writeheader()
+        w.writerows(rows_csv)
+    sys.exit(0)
 
 print(f'\n# V1 Mischungen: Hauptdefinition (volle Sekunde, ab 10 s nach erster GPS-Zeile), {N} Mischungen, gleiche Ziehung (Seed {SEED}), je {RUNS} Läufe')
 mix_rs = [sim('mischung', f'mix{i}', full, 'first', 10, i, mits=MITS_ALL) for i in range(1, N + 1)]
@@ -131,11 +250,6 @@ for name, par in (('heute', ()), ('PAR-014 0,7 und 0,8', ('--standstill-below', 
 
 # Einlauf ohne Simulation: Raten in m/min, bewusst ohne Umrechnung in Prozent (das wäre kein Wert der Regel).
 print('\n# V7 Einlauf ohne Simulation (Raten m/min, kein Wert der Regel). Schritt zählt zu seinem Startpunkt, dt bis 10 s, Genauigkeit bis 25 m')
-
-
-def dist(a, b):
-    la = math.radians((a[1] + b[1]) / 2)
-    return 6371000 * math.hypot(math.radians(b[1] - a[1]), math.radians(b[2] - a[2]) * math.cos(la))
 
 
 def segs(rows):
