@@ -175,10 +175,63 @@ void main() {
       expect(v.movingMicros, 20 * sec);
     });
 
-    test('ohne Puls: Zeiten 0, abgedeckt 0', () {
-      final v = run(moving: [span(0, 10)], hrs: []);
-      expect(v.coveredMicros, 0);
-      expect(v.zoneMicros, everyElement(0));
+    void expectUnavailable(
+      FitnessResult<ReserveZoneTimes> res,
+      UnavailableReason reason,
+    ) {
+      expect(res, isA<FitnessUnavailable<ReserveZoneTimes>>());
+      final u = res as FitnessUnavailable<ReserveZoneTimes>;
+      expect(u.reason, reason);
+      expect(u.method, 'reserve-zones');
+      expect(u.methodVersion, zones.methodVersion);
+      expect(u.parameterVersion, p.parameterVersion);
+    }
+
+    FitnessResult<ReserveZoneTimes> raw({
+      required List<TimeSpan> moving,
+      required List<RawHeartRate> hrs,
+      List<HeartRateGap> gaps = const [],
+    }) => zones.timeInZones(
+      basis: basis,
+      movingIntervals: moving,
+      acceptedValues: hrs,
+      gaps: gaps,
+      p: p,
+    );
+
+    test('ohne Puls: nicht verfügbar (noHeartRate), nicht 0', () {
+      expectUnavailable(
+        raw(moving: [span(0, 10)], hrs: []),
+        UnavailableReason.noHeartRate,
+      );
+    });
+
+    test('Puls nur in Lücke: nicht verfügbar (noHeartRate)', () {
+      expectUnavailable(
+        raw(moving: [span(0, 10)], hrs: [hr(0, 138)], gaps: [gap(0, 10)]),
+        UnavailableReason.noHeartRate,
+      );
+    });
+
+    test('ohne Bewegungszeit: nicht verfügbar (noMovingTime)', () {
+      expectUnavailable(
+        raw(moving: [], hrs: [hr(0, 138)]),
+        UnavailableReason.noMovingTime,
+      );
+      expectUnavailable(
+        raw(moving: [], hrs: []),
+        UnavailableReason.noMovingTime,
+      );
+    });
+
+    test('Teilabdeckung bleibt verfügbar', () {
+      final v = run(
+        moving: [span(0, 100)],
+        hrs: [hr(0, 138)],
+        gaps: [gap(10, 100)],
+      );
+      expect(v.coveredMicros, 10 * sec);
+      expect(v.movingMicros, 100 * sec);
     });
 
     test('Basis-Fehler liefern nicht verfügbar', () {

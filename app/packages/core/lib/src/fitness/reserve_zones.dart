@@ -115,6 +115,21 @@ class ReserveZones extends AlgorithmVariant {
       acceptedValues: acceptedValues,
       gaps: gaps,
     );
+    // Fehlendes ist nie 0 (FR-0056, OQ-0012).
+    final missing = time.movingMicros == 0
+        ? UnavailableReason.noMovingTime
+        : time.coveredMicros == 0
+        ? UnavailableReason.noHeartRate
+        : null;
+    if (missing != null) {
+      return FitnessUnavailable(
+        reason: missing,
+        method: method,
+        methodVersion: methodVersion,
+        parameterVersion: p.parameterVersion,
+        maxIsEstimated: basis.maxIsEstimated,
+      );
+    }
     final zones = List<int>.filled(p.reserveZoneCount, 0);
     var below = 0;
     var hint = false;
