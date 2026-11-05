@@ -1,6 +1,6 @@
 # R005 – Durchstich der Aufzeichnung
 
-**Status:** abgeschlossen (beide Checkpoint-Serien ausgewertet, Research-Review Runde 3 steht aus), Ergebnis in [RESULTS.md](RESULTS.md) · **Auftraggeber:** Project Supervisor (ADR-0005, ADR-0003) · **Datum:** 2026-11-04
+**Status:** abgeschlossen, Review FREIGABE in Runde 3 (beide Checkpoint-Serien ausgewertet), Ergebnis in [RESULTS.md](RESULTS.md) · **Auftraggeber:** Project Supervisor (ADR-0005, ADR-0003) · **Datum:** 2026-11-04
 
 ## Frage
 Trägt ADR-0005 Punkt 3 (ein FlutterEngine im Application-Objekt, dünner Kotlin-Foreground-Service, Logik in Dart) eine lückenlose Aufzeichnung bei gesperrtem Bildschirm? Daran hängen ADR-0005 Punkt 3 und Wake Lock, ADR-0003 Punkt 5 (WAL, Transaktionsgröße), ADR-0006 (Plugin) und die Pakete der Aufzeichnung in M1. Ergebnis ist eine Empfehlung für Host und Transaktionsgröße, **keine Produktgrenzwerte**.
