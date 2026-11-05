@@ -1,6 +1,6 @@
 # R007 – GPS-Rauschen im Stand
 
-**Status:** abgeschlossen, Nachbesserung nach Review Runde 1 · **Auftraggeber:** Project Supervisor (OQ-0068, vor WP06) · **Datum:** 2026-11-05
+**Status:** abgeschlossen, Nachbesserung nach Review Runde 2 · **Auftraggeber:** Project Supervisor (OQ-0068, vor WP06) · **Datum:** 2026-11-05
 
 ## Frage
 Wie stark verfälscht GPS-Rauschen im Stand auf Android-Smartphones Strecke und Bewegungszeit, wenn die Geschwindigkeit aus Δs/Δt bei 1 Hz stammt, und welches Gegenmittel ist belegt: Mindestdistanz, Glättung oder `Location.getSpeed()`? Daran hängen OQ-0068 und die Frage, ob PAR-002 bis -004, -014, -015 vor WP06 eine neue Parameterversion brauchen.
@@ -20,7 +20,7 @@ Quellen der Vorrecherche stehen in [RESULTS.md](RESULTS.md).
 5. **Schaden der Gegenmittel an echter Bewegung:** echte Standinkremente plus Vorschub mit 0,6 bis 3 m/s (falsche Pausen, Streckenverhältnis), dazu eine echte Geh-, Rad- und Busspur.
 6. **Feldnaher Vergleich (übertragen):** Die 30-s-Sitzungen sind zu kurz für einen Stopp. Für `ncount_stueckel` werden ihre Teile ab 10 s nach der ersten GPS-Zeile in zufälliger Reihenfolge aneinandergehängt (`src/stueckel.py`, Seed `--mix-seed`, getrennt vom Seed der Ziehung). An der Naht entsteht kein Punkt und kein Zeitschritt. Jede Sitzung trägt rund 13 Schritte bei, ein 60-s-Fenster überspannt also rund fünf Sitzungen. Dazu natürliche Stopps aus der Geh- und Busspur.
 7. **Vergleich und Kalibrierung:** ±3-m-Worst-Case und ein AR(1)-Raster (σ 1 bis 8 m, ρ 0,8 bis 0,995 je Sekunde). Beides ist Synthetik und in den Ergebnissen als übertragen gekennzeichnet.
-8. **Spannen um den gestückelten Wert (`src/varianten.py`, `varianten.txt`):** alle durch denselben Harness. Mischungen der Sitzungen (Unsicherheit durch die Anordnung), Ziehungen der Fenster, Sitzungen mit Zurücklegen (Unsicherheit durch die Auswahl der Sitzungen), Einlauf-Schnitte (10, 15, 20 s nach erster GPS-Zeile, 20, 25 s nach `StartTime`), GPS-Filter „Tempo-Genauigkeit über 0“ statt „volle Sekunde“. Die Schnitte dokumentieren die Spanne, sie sind keine Suche nach einem besseren Schnitt. Dazu die Einlauf-Raten ohne Simulation.
+8. **Spannen um den gestückelten Wert (`src/varianten.py`, `varianten.txt`):** alle durch denselben Harness. Mischungen der Sitzungen (Unsicherheit durch die Anordnung), Ziehungen der Fenster, Sitzungen mit Zurücklegen (Unsicherheit durch die Auswahl der Sitzungen), Einlauf-Schnitte (10, 15, 20 s nach erster GPS-Zeile, 20, 25 s nach `StartTime`), GPS-Filter „Tempo-Genauigkeit über 0“ statt „volle Sekunde“. Die Schnitte dokumentieren die Spanne, sie sind keine Suche nach einem besseren Schnitt. Spanne ohne die Sitzungen mit Chip-Tempo im Median ab 2 m/s (V8, zwei Sitzungen, die sich laut Chip und Position bewegen; nachträglich gefunden, die Hauptzahl und der Pool bleiben). Dazu die Einlauf-Raten ohne Simulation.
 9. **Parameter:** Vergleich anderer Werte von PAR-002, -003, -004, -014 und -015 auf dem Pool des Hauptlaufs, ohne den App-Code zu ändern (Teil von `varianten.py`, einzeln über `--standstill-below` und `--movement-from` auch für alle Quellen).
 
 **Kontrolle (Handrechnung):** Ohne Rauschen 4860 m = 1620 s · 3 m/s. Bewegungszeit 1641 s = 1800 − 3 · (60 − 10 + 3), weil die Pause 10 s nach Stoppbeginn einsetzt und das Fortsetzen 3 s braucht. ±3 m ergibt 360 m je Stopp und 1800 s Bewegungszeit, wie im Test von WP03. Der Harness schreibt die Kontrolle nach `control.txt`.
@@ -40,7 +40,7 @@ Katalog: [research/DATA.md](../DATA.md). Keine Sammlung aus `input/`, keine priv
 Genutzt, aber nicht nachgeladen: nichts aus anderen Analysen. Verworfen: Google GSDC und der Kaggle-Datensatz (Konto, fahrend), Zenodo 8340005 (670 MB, über der Download-Grenze, nicht geöffnet).
 
 ## Ausführung
-Voraussetzungen: Dart 3.13.5 (Flutter-SDK des Projekts), Python 3 ohne Zusatzpakete, 4 GB Platte. Rechenzeit etwa 15 min auf einem Kern (`nice`), davon rund 5 min für die Spannen (`--variants 0` lässt sie weg). `app/` wird nur gelesen.
+Voraussetzungen: Dart 3.13.5 (Flutter-SDK des Projekts), Python 3 ohne Zusatzpakete, 4 GB Platte. Rechenzeit etwa 15 min auf einem Kern (`nice`), davon rund 5 min für die Spannen (`--variants 0` lässt sie weg), `--only-v8` rund 1 min. `app/` wird nur gelesen.
 
 ```bash
 ./init.sh            # lädt und entpackt nach research/data/datasets/ (idempotent)
@@ -61,7 +61,10 @@ Voraussetzungen: Dart 3.13.5 (Flutter-SDK des Projekts), Python 3 ohne Zusatzpak
 | `--standstill-below V` | `0.5` | PAR-014 untere Schwelle, nur zum Vergleich |
 | `--movement-from V` | `0.8` | PAR-014 obere Schwelle, nur zum Vergleich |
 | `--tag T` | leer | Zusatz im Namen des Laufordners |
+| `--only-v8 LAUF` | leer = alles | nur die Spanne ohne bewegte Sitzungen (V8) in neuem Laufordner, geprüft gegen den Hauptlauf LAUF unter `work/R007/` |
 
 Beispiel: `./run.sh --seed 42 --runs 200 --run-speed 3 --total-s 1800 --stop-s 60 --stops 3 --burn-in-s 120`
 
-Ausgaben: `research/data/work/R007/<zeit><tag>/`: `report.txt` (alle Tabellen), `varianten.txt` und `varianten.csv` (Spannen, Parameter, Einlauf), `runs.csv`, `stops.csv`, `slow.csv`, `traces.csv`, `control.txt`, `control_mitigations.csv`, `run.info`, `norm/`, `var/` (Einzelläufe der Spannen). Ergebnis in [RESULTS.md](RESULTS.md).
+Nur V8: `./run.sh --seed 42 --runs 200 --run-speed 3 --total-s 1800 --stop-s 60 --stops 3 --burn-in-s 120 --tag r2-v8 --only-v8 20261105-165321-r1`
+
+Ausgaben: `research/data/work/R007/<zeit><tag>/`: `report.txt` (alle Tabellen), `varianten.txt` und `varianten.csv` (Spannen, Parameter, Einlauf), `runs.csv`, `stops.csv`, `slow.csv`, `traces.csv`, `control.txt`, `control_mitigations.csv`, `run.info`, `norm/`, `var/` (Einzelläufe der Spannen). Mit `--only-v8` nur `varianten.txt`, `varianten.csv`, `harness`, `run.info` und `var/`. Ergebnis in [RESULTS.md](RESULTS.md).
