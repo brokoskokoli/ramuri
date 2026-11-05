@@ -1,6 +1,6 @@
 # R005 – Durchstich der Aufzeichnung
 
-**Status:** läuft (Nachbesserung nach Review Runde 1, Checkpoint-Serie steht aus), Ergebnis in [RESULTS.md](RESULTS.md) · **Auftraggeber:** Project Supervisor (ADR-0005, ADR-0003) · **Datum:** 2026-11-04
+**Status:** abgeschlossen (Checkpoint-Serie gelaufen, Research-Review Runde 2 steht aus), Ergebnis in [RESULTS.md](RESULTS.md) · **Auftraggeber:** Project Supervisor (ADR-0005, ADR-0003) · **Datum:** 2026-11-04
 
 ## Frage
 Trägt ADR-0005 Punkt 3 (ein FlutterEngine im Application-Objekt, dünner Kotlin-Foreground-Service, Logik in Dart) eine lückenlose Aufzeichnung bei gesperrtem Bildschirm? Daran hängen ADR-0005 Punkt 3 und Wake Lock, ADR-0003 Punkt 5 (WAL, Transaktionsgröße), ADR-0006 (Plugin) und die Pakete der Aufzeichnung in M1. Ergebnis ist eine Empfehlung für Host und Transaktionsgröße, **keine Produktgrenzwerte**.
@@ -74,7 +74,7 @@ Auf dem Rechner (`src/waltest`, gleiche Paketversion) und im Emulator. Bekannter
 | Was | Wo | Herkunft / Lizenz | Größe | Wiederherstellbar |
 | --- | --- | --- | --- | --- |
 | Synthetische GPS-Spuren | `research/data/work/R005/*/*/inject.tsv` | selbst erzeugt, fester Seed | klein | ja, `./run.sh` |
-| Rohdaten der Läufe, Auswertung | `research/data/work/R005/`, siehe [DATA.md](../DATA.md) | Prototyp, nur synthetisch | etwa 140 MB | ja, `./run.sh` |
+| Rohdaten der Läufe, Auswertung | `research/data/work/R005/`, siehe [DATA.md](../DATA.md) | Prototyp, nur synthetisch | etwa 145 MB | ja, `./run.sh` |
 | System-Images `android-31`, `android-36` (`google_apis;arm64-v8a`) | Android SDK, nicht `research/data/` | Google, Android-SDK-Lizenz | etwa 6 GB | ja, `./init.sh` |
 
 Keine Sammlung aus `input/`.
@@ -92,7 +92,7 @@ Keine Sammlung aus `input/`.
 ./run.sh long             # 60 min
 ./run.sh rerun            # etwa 35 min
 ./run.sh vorlaeufe        # etwa 25 min, Laeufe aus der Anfangsphase
-./run.sh checkpoint       # etwa 50 min, steht aus
+./run.sh checkpoint       # etwa 45 min (gemessen 41 min)
 ./run.sh report           # Tabellen und Auswertungen nach work/R005/report, etwa 40 s
 ```
 
