@@ -1,4 +1,5 @@
 import 'algorithm_variant.dart';
+import 'edwards_trimp.dart';
 import 'heart_rate_reserve.dart';
 import 'reserve_zones.dart';
 
@@ -13,7 +14,8 @@ class AlgorithmRegistry {
   /// Standardbestückung. Spätere Pakete tragen ihre Varianten hier ein.
   factory AlgorithmRegistry.standard() => AlgorithmRegistry()
     ..register(heartRateReserveFamily, const HeartRateReserve())
-    ..register(reserveZonesFamily, const ReserveZones());
+    ..register(reserveZonesFamily, const ReserveZones())
+    ..register(loadModelFamily, const EdwardsTrimp());
 
   final Map<String, _Entry> _families = {};
 

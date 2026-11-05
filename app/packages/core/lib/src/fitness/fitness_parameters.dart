@@ -22,6 +22,9 @@ class FitnessParameters {
   const FitnessParameters.v3()
     : this(parameterVersion: currentParameterVersion);
 
+  /// Prozent je Ganzes; Umrechnung der ganzzahligen Abdeckung.
+  static const percent = 100;
+
   /// Version des Parametersatzes (ADR-0004 P.3).
   final int parameterVersion;
 

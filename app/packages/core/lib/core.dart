@@ -19,6 +19,7 @@ export 'ports/recording_service.dart';
 export 'ports/storage.dart';
 export 'src/fitness/algorithm_registry.dart';
 export 'src/fitness/algorithm_variant.dart';
+export 'src/fitness/edwards_trimp.dart';
 export 'src/fitness/fitness_parameters.dart';
 export 'src/fitness/fitness_result.dart';
 export 'src/fitness/heart_rate_basis.dart';
