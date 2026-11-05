@@ -582,7 +582,7 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Frage:** Trägt das Abdeckungsmaß aus K10 echte Sensoren? Synthetisch unterschätzt es bei wechselndem Takt und Datenbündeln (73 % und 10 %, nicht bewertet, obwohl nichts fehlt) und überschätzt bei viel Ausfall mit Schwankung (40 % Ausfall, ±250 ms: 66 % statt 59,7 %). Überwiegen Abstände von zwei Takten, wird der längere Abstand zum Takt, und ein Ausfall jedes dritten Werts bleibt unerkannt.
 - **Auslöser/Quellen:** WP04, Review; K10, K11, OQ-0051. Die Zeitstempel-Schwankung echter Sensoren ist nicht gemessen.
 - **Betroffene Anforderungen:** FR-0092
-- **Auswirkung:** non-blocking, bis zur Antwort gilt K10. Ein Lauf kann fälschlich unbewertet bleiben oder als vollständig gelten.
+- **Auswirkung:** non-blocking, bis zu Feldtests gilt K10 (Maintainer, 2026-11-05, SRC-003). Ein Lauf kann fälschlich unbewertet bleiben oder als vollständig gelten.
 - **Optionen:** Prüfung mit echten Sensoren im Feldtest; bis dahin so lassen.
 - **Status:** Open
 - **Entscheidung:** —

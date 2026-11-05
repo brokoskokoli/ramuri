@@ -13,6 +13,7 @@ Bezug: FR-0006, FR-0058, FR-0066, FR-0068 bis FR-0071, FR-0073 bis FR-0080, FR-0
 6. **Neuberechnung:** Dienst nach ADR-0004 Punkt 5: Angebot nach einer Änderung (FR-0006), Start erst nach Bestätigung, Zwischenstand und Tausch in einer Transaktion, ursprüngliche Werte bleiben (FR-0058, OQ-0031). Dialog in den Einstellungen.
 
 ## Umsetzung
+- Aus WP04 (K11): Die Verfahren aus WP03 tragen ihre Kategorie nur in `docs/architecture/algorithm-categories.md`. Dieses Paket zieht sie im Code nach (ADR-0004 Punkt 3). Die Stufenvergabe PAR-036 bis PAR-043 liegt hier, WP04 liefert nur das Modell.
 - **Teile für die Coder-Aufträge:** Teil A: Punkt 1 / Teil B: Punkte 2 und 3 / Teil C: Punkt 4 / Teil D: Punkte 5 und 6, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Startwerte kommen aus dem Parametersatz mit Version (FR-0075); FR-0075 gilt als erfüllt, wenn kein Grenzwert außerhalb des Satzes steht.
 - Berechnungen ohne Netzwerk (SEC-0006). Keine Zeitabhängigkeit außer über die Uhr-Schnittstelle.
