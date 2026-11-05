@@ -48,7 +48,11 @@ class _FakeZones extends ReserveZoneModel {
     int bpm,
     FitnessParameters p,
   ) => FitnessAvailable(
-    value: const BelowReserveZone1(aboveHint: false),
+    value: const BelowReserveZone1(
+      aboveHint: false,
+      reserveMethod: 'fake-reserve',
+      reserveMethodVersion: 7,
+    ),
     method: method,
     methodVersion: methodVersion,
     parameterVersion: p.parameterVersion,

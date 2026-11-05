@@ -8,6 +8,12 @@ import 'reserve_zones.dart';
 /// Die App baut die Registry zusammen; [AlgorithmRegistry.standard] liefert
 /// die Standardbestückung des Pakets. Eine Wahl durch den Nutzer gibt es noch
 /// nicht (FR-0197, Phase 2).
+///
+/// [setActive] wählt nur, was die App danach abfragt. Auf Varianten, die schon
+/// aus anderen zusammengesetzt sind (etwa `ReserveZones` mit ihrer Reserve),
+/// wirkt es nicht: Die App baut sie mit der aktiven Variante zusammen.
+/// Welche Reserve ein Zonenergebnis nutzte, steht im Ergebnis
+/// (`reserveMethod`, `reserveMethodVersion`).
 class AlgorithmRegistry {
   AlgorithmRegistry();
 

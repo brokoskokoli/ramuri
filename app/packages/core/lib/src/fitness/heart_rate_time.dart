@@ -57,14 +57,19 @@ void requireSameParameterVersion({
   }
 }
 
-typedef _Hold = ({int start, int end, int bpm});
+/// [open]: kein Wert schließt sich innerhalb von 1,5 Takten an; der Halt darf
+/// dann bis zum Spannenende reichen (derselbe Abstand wie [beatCoversGap]).
+typedef _Hold = ({int start, int end, int bpm, bool open});
 
 /// Zeit je Puls. Abgedeckt ist die Bewegungszeit minus Lücken (> PAR-010);
-/// darin gilt jeder akzeptierte Wert ab seiner Zeit höchstens einen
-/// Median-Takt lang, bis zum nächsten Wert; der Rest fehlt (dasselbe Maß wie
-/// die fehlende Zeit in `SectionQuality`, PAR-010). Beginnt eine abgedeckte
-/// Spanne (Laufanfang, nach Pause oder Lücke) ohne gehaltenen Wert, zählt der
-/// nächste Wert rückwirkend, wenn er höchstens einen Takt entfernt ist. Ist
+/// darin gilt jeder akzeptierte Wert ab seiner Zeit bis zum nächsten Wert,
+/// wenn nach [beatCoversGap] nur dieser eine zu erwarten war (Abstand unter
+/// 1,5 Median-Takten, so bleibt Zeitstempel-Jitter folgenlos); sonst einen
+/// Takt lang, der Rest fehlt (dasselbe Maß wie die fehlende Zeit in
+/// `SectionQuality`, PAR-010). Dieselbe Regel gilt am Rand: Beginnt eine
+/// abgedeckte Spanne (Laufanfang, nach Pause oder Lücke) ohne gehaltenen
+/// Wert, zählt der nächste rückwirkend, und der letzte Wert hält bis zum
+/// Spannenende, wenn dieser Abstand nach [beatCoversGap] lückenlos ist. Ist
 /// kein Takt bekannt (weniger als zwei akzeptierte oder eingegangene Werte),
 /// ist nichts abgedeckt. Bei gleicher Zeit gilt der spätere Wert. Wirft
 /// [ArgumentError] bei abweichender Parameterversion.
@@ -119,16 +124,21 @@ HeartRateTime heartRateTimeByBpm({
   final times = [
     for (final i in order) accepted[i].time.microsecondsSinceEpoch,
   ];
-  // Haltezeit je Wert: bis zum nächsten Wert, höchstens ein Takt. Bei gleicher
-  // Zeit bleibt für den früheren Eintrag eine leere Spanne.
+  // Haltezeit je Wert: bis zum nächsten Wert, wenn beatCoversGap gilt, sonst
+  // ein Takt. Bei gleicher Zeit bleibt für den früheren Eintrag eine leere
+  // Spanne.
   final holds = <_Hold>[];
   for (var k = 0; k < order.length; k++) {
-    final limit = times[k] + beat;
-    final end = k + 1 < times.length && times[k + 1] < limit
-        ? times[k + 1]
-        : limit;
+    final joined =
+        k + 1 < times.length && beatCoversGap(times[k + 1] - times[k], beat);
+    final end = joined ? times[k + 1] : times[k] + beat;
     if (end > times[k]) {
-      holds.add((start: times[k], end: end, bpm: accepted[order[k]].bpm));
+      holds.add((
+        start: times[k],
+        end: end,
+        bpm: accepted[order[k]].bpm,
+        open: !joined,
+      ));
     }
   }
 
@@ -148,13 +158,20 @@ HeartRateTime heartRateTimeByBpm({
     // Kein gehaltener Wert am Spannenanfang: der nächste zählt rückwirkend.
     if (h < holds.length &&
         holds[h].start > c.start &&
-        holds[h].start - c.start <= beat) {
+        beatCoversGap(holds[h].start - c.start, beat)) {
       final to = holds[h].start < c.end ? holds[h].start : c.end;
       add(holds[h].bpm, c.start, to);
     }
     for (var i = h; i < holds.length && holds[i].start < c.end; i++) {
       final from = holds[i].start > c.start ? holds[i].start : c.start;
-      final to = holds[i].end < c.end ? holds[i].end : c.end;
+      var to = holds[i].end < c.end ? holds[i].end : c.end;
+      // Letzter Wert vor dem Spannenende: hält bis dorthin, wenn nur er
+      // zu erwarten war.
+      if (holds[i].open &&
+          holds[i].end < c.end &&
+          beatCoversGap(c.end - holds[i].start, beat)) {
+        to = c.end;
+      }
       add(holds[i].bpm, from, to);
     }
   }

@@ -179,13 +179,13 @@ void main() {
     expect(r.method, 'edwards-trimp');
   });
 
-  test('Puls nur in Lücken: ohne Puls, nicht 0', () {
+  test('Puls nur in Lücken: nichts abgedeckt, nicht 0', () {
     final r = run(
       moving: [span(0, 60)],
       hrs: fitDense(0, 59, 150),
       gaps: [gap(0, 60)],
     );
-    expect(reason(r), UnavailableReason.noHeartRate);
+    expect(reason(r), UnavailableReason.insufficientCoverage);
   });
 
   test('ohne Bewegungszeit: noMovingTime, keine Division durch 0', () {

@@ -203,7 +203,7 @@ void main() {
       final q = assess(beat(0, 10, 100), 0, 10);
       expect(
         [q.method, q.methodVersion, q.parameterVersion],
-        ['section-quality', 1, 3],
+        ['section-quality', 2, 3],
       );
     });
   });

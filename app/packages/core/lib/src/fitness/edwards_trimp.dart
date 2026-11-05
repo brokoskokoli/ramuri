@@ -133,7 +133,15 @@ class EdwardsTrimp extends LoadModel {
       p: p,
     );
     if (time.movingMicros == 0) return no(UnavailableReason.noMovingTime);
-    if (time.coveredMicros == 0) return no(UnavailableReason.noHeartRate);
+    if (time.coveredMicros == 0) {
+      // Werte da, aber kein Takt oder keine Bewegungszeit damit abgedeckt:
+      // zu wenig Abdeckung, nicht „kein Puls“.
+      return no(
+        heartRate.acceptedValues.isEmpty
+            ? UnavailableReason.noHeartRate
+            : UnavailableReason.insufficientCoverage,
+      );
+    }
     if (time.coveredMicros * FitnessParameters.percent <
         time.movingMicros * p.minCoveragePercent) {
       return no(UnavailableReason.insufficientCoverage);

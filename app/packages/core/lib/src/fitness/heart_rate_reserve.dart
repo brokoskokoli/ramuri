@@ -53,6 +53,17 @@ class HeartRateReserve extends HeartRateReserveModel {
     int bpm,
     FitnessParameters p,
   ) {
+    // Ein Puls <= 0 ist kein Messwert (FR-0056); der Vorverarbeiter filtert
+    // ihn, ein direkter Aufruf (etwa Live-Zone) nicht.
+    if (bpm <= 0) {
+      return FitnessUnavailable(
+        reason: UnavailableReason.noHeartRate,
+        method: method,
+        methodVersion: methodVersion,
+        parameterVersion: p.parameterVersion,
+        maxIsEstimated: basis.maxIsEstimated,
+      );
+    }
     final reason = check(basis, p);
     if (reason != null) {
       return FitnessUnavailable(

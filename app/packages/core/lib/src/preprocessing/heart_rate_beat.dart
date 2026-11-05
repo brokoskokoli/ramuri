@@ -25,3 +25,19 @@ int? medianBeatMicros(List<DateTime> received) {
       ? inner[n ~/ 2]
       : ((inner[n ~/ 2 - 1] + inner[n ~/ 2]) / 2).round();
 }
+
+/// Gemeinsame Regel für Abstände zwischen Werten (Pulsabdeckung, TRIMP,
+/// Zonenzeit und `SectionQuality`): Ein Abstand von [delta] Mikrosekunden bei
+/// Median-Takt [beat] gilt als lückenlos, wenn nach ganzen Takten nur ein
+/// Wert zu erwarten war, `round(delta / beat) <= 1`. Zeitstempel-Jitter
+/// macht daraus keine Lücke; fehlt mindestens ein Wert (ab 1,5 Takten),
+/// gilt die Regel nicht. Ohne Takt (`beat <= 0`) deckt nichts.
+bool beatCoversGap(int delta, int beat) =>
+    beat > 0 && (delta / beat).round() <= 1;
+
+/// Fehlende Zeit eines Abstands [delta]: 0 nach [beatCoversGap], sonst
+/// `delta - beat` (nie negativ).
+int missingMicrosInGap(int delta, int beat) {
+  if (beatCoversGap(delta, beat)) return 0;
+  return delta > beat ? delta - beat : 0;
+}

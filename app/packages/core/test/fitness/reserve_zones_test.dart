@@ -6,8 +6,8 @@ import 'fitness_support.dart';
 const p = FitnessParameters.v3();
 const zones = ReserveZones(reserve: HeartRateReserve());
 
-/// Plausible Basis mit Spanne 10000, damit `r` in Schritten von 1e-4
-/// einstellbar ist: `r = (bpm - 100) / 10000`.
+/// Künstliche Basis (kein echter Puls: HFmax 10100) mit Spanne 10000, damit
+/// `r` in Schritten von 1e-4 einstellbar ist: `r = (bpm - 100) / 10000`.
 const scaled = HeartRateBasis(maxBpm: 10100, restingBpm: 100);
 
 ReserveZonePlacement placeR(double r, [FitnessParameters params = p]) {
@@ -36,7 +36,8 @@ void main() {
   test('FR-0063: unter 50 % gesondert, nicht Zone 1', () {
     expect(placeR(0.4999), isA<BelowReserveZone1>());
     expect(placeR(0), isA<BelowReserveZone1>());
-    expect(placeR(-0.3), isA<BelowReserveZone1>());
+    // Puls 1 bpm: r negativ, aber ein Messwert (Puls <= 0 ist keiner).
+    expect(placeR(-0.0099), isA<BelowReserveZone1>());
     expect(placeR(0.5), isA<InReserveZone>());
   });
 
@@ -223,14 +224,14 @@ void main() {
       );
     });
 
-    test('Puls nur in Lücke: nicht verfügbar (noHeartRate)', () {
+    test('Puls nur in Lücke: nicht verfügbar (insufficientCoverage)', () {
       expectUnavailable(
         raw(
           moving: [span(0, 10)],
           hrs: fitDense(0, 9, 138),
           gaps: [gap(0, 10)],
         ),
-        UnavailableReason.noHeartRate,
+        UnavailableReason.insufficientCoverage,
       );
     });
 
