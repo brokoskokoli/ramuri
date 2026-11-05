@@ -167,7 +167,7 @@ def v8():
         hit = [float(r['sham_m']) for r in k if touches(int(r['win']))]
         no = [float(r['sham_m']) for r in k if not touches(int(r['win']))]
         over = [r for r in k if float(r['sham_m']) > 50]
-        print(f'  Mischung {mix}: {len(k)}; {len(over)} ({100 * len(over) / len(k):.1f} %); {sum(touches(int(r["win"])) for r in over)}; {len(hit)}, {st.median(hit):.1f} m; {st.median(no):.1f} m, {q(no, .99):.1f} m, {max(no):.1f} m')
+        print(f'  Mischung {mix}: {len(k)}; {len(over)} ({100 * len(over) / len(k):.1f} %); {sum(touches(int(r["win"])) for r in over)}; {len(hit)}, {st.median(hit) if hit else float('nan'):.1f} m; {st.median(no):.1f} m, {q(no, .99):.1f} m, {max(no):.1f} m')
         for m in (TOR, 'getspeed_integral'):
             e = {r['run']: float(r['dist_err_m']) for r in csv.DictReader(open(f'{OUT}/var/v8_alle_mix{mix}/runs.csv')) if r['mitigation'] == m}
             tr = {r['run'] for r in k if touches(int(r['win']))}
