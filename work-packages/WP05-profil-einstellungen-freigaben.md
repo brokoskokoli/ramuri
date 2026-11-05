@@ -15,6 +15,7 @@ Bezug: FR-0001 bis FR-0005, FR-0061, NFR-0006, SEC-0001, SEC-0002, SEC-0007, SEC
 8. **Keine Übertragung (SEC-0008):** Das Release-Manifest fordert kein `INTERNET`. Fügt ein Plugin die Berechtigung hinzu, ist das zu melden und nicht still zu akzeptieren.
 
 ## Umsetzung
+- Aus WP04: Der Zoneneditor baut auf `ReserveZones`, `zoneFor` und `validateBounds`.
 - **Teile für die Coder-Aufträge:** Teil A: Punkte 2 und 3 in `core` und Speicherzugriff / Teil B: Punkte 1 und 5 mit Oberfläche / Teil C: Punkte 6 bis 8 / Teil D: Punkt 4 nach dem Merge von WP04, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Keine Pakete außerhalb des Flutter-SDKs; Berechtigungsstand über eigenen Plattformaufruf hinter einem Port.
 - Offene Punkte aus L3 und L11 (`M1-PLAN.md`) werden gemeldet und nicht im Code entschieden: Felder ohne Werteliste bleiben bis zur Antwort des Maintainers offen; das Paket ist in diesem Punkt nicht fertig.

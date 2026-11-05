@@ -38,7 +38,7 @@ Einstieg in die Spezifikation der Adaptive Running & Fitness App. Der Status jed
 - Architektur: [Überblick](architecture/overview.md), [Fachliches Datenmodell](architecture/data-model.md), [ADR-0001: Nur lokale Datenhaltung](architecture/adr/ADR-0001-nur-lokale-datenhaltung.md)
 - Verträge: [Schnittstellen](contracts/README.md)
 - Qualität: [Tests und Abnahme](quality/testing.md), [Sicherheit und Datenschutz](quality/security.md), [Nichtfunktionales](quality/non-functional.md)
-- [Modellparameter (Startwerte, Version 2)](model-parameters.md)
+- [Modellparameter (Startwerte, Version 3)](model-parameters.md)
 - [Planungsregeln und Startwerte, Version 4](planning-rules.md)
 - [Regeln für Phase 2 und 3, Version 4](phase-2-3-rules.md)
 - [Referenzen](references.md)

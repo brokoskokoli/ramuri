@@ -28,7 +28,7 @@ Die App soll erfassen, wie belastend einzelne Trainingseinheiten sind und wie si
 ### FR-0092 — Edwards-TRIMP als erste Variante
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §10.1, Z. 546–548, 552–576
-- **Verwandt:** FR-0093, NFR-0002, OQ-0002, OQ-0014, OQ-0051
+- **Verwandt:** FR-0093, NFR-0002, OQ-0002, OQ-0014, OQ-0051, OQ-0070
 
 Als erste Variante wird der Edwards-TRIMP verwendet. Die Zeit in fünf Herzfrequenzzonen wird unterschiedlich gewichtet: `TRIMP = Σ t[i] · i`, mit t[i] in Minuten. Die Einheit ist ein relativer Trainingsbelastungspunkt.
 
@@ -220,6 +220,7 @@ Der Nutzer kann in Phase 2 sein Belastungsprofil auswählen, nach dem gerechnet 
 - [OQ-0054](../migration/open-questions.md#oq-0054--atl-und-ctl-an-tagen-mit-unbewerteter-einheit) (entschieden): ATL und CTL an Tagen mit unbewerteter Einheit
 - [OQ-0058](../migration/open-questions.md#oq-0058--entscheidungen-aus-der-prüfung-von-phase-2-und-3) (entschieden): Entscheidungen aus der Prüfung von Phase 2 und 3
 - [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
+- [OQ-0070](../migration/open-questions.md#oq-0070--pulsabdeckung-bei-unregelmäßigem-takt) (non-blocking): Pulsabdeckung bei unregelmäßigem Takt
 <!-- END OQ -->
 
 ## Quellen

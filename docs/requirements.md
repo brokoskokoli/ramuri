@@ -100,7 +100,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0089 | Herzfrequenzdrift | functional | Draft | 4 | [aerobic-efficiency](specs/aerobic-efficiency.md#fr-0089--herzfrequenzdrift) | — |
 | FR-0090 | Drift nur bei geeigneten Läufen und vorsichtig deuten | functional | Draft | 4 | [aerobic-efficiency](specs/aerobic-efficiency.md#fr-0090--drift-nur-bei-geeigneten-läufen-und-vorsichtig-deuten) | OQ-0019 |
 | FR-0091 | Belastung erfassen | functional | Approved | 1 | [training-load](specs/training-load.md#fr-0091--belastung-erfassen) | — |
-| FR-0092 | Edwards-TRIMP als erste Variante | functional | Approved | 1 | [training-load](specs/training-load.md#fr-0092--edwards-trimp-als-erste-variante) | FR-0093, NFR-0002, OQ-0002, OQ-0014, OQ-0051 |
+| FR-0092 | Edwards-TRIMP als erste Variante | functional | Approved | 1 | [training-load](specs/training-load.md#fr-0092--edwards-trimp-als-erste-variante) | FR-0093, NFR-0002, OQ-0002, OQ-0014, OQ-0051, OQ-0070 |
 | FR-0093 | TRIMP-Zonen beziehen sich auf die maximale Herzfrequenz | functional | Approved | 1 | [training-load](specs/training-load.md#fr-0093--trimp-zonen-beziehen-sich-auf-die-maximale-herzfrequenz) | FR-0062, OQ-0059 |
 | FR-0094 | TRIMP nicht als Maß für Ermüdung darstellen | functional | Approved | 1 | [training-load](specs/training-load.md#fr-0094--trimp-nicht-als-maß-für-ermüdung-darstellen) | — |
 | FR-0095 | Subjektive Trainingsbelastung (sRPE) | functional | Approved | 2 | [training-load](specs/training-load.md#fr-0095--subjektive-trainingsbelastung-srpe) | FR-0038, OQ-0015 |
