@@ -49,7 +49,7 @@ Ports mindestens für Standort, Herzfrequenzsensor, Schrittfrequenz, Aufzeichnun
 Verhalten auf Herstellergeräten unter Android 12 bis 16. Geprüft wird nur auf Images von Google, sinnvoll an beiden Rändern (API 31 und 36).
 
 ## Offene Punkte
-Build und Lizenzbaum sind für den Prototyp aus R005 belegt, ohne Rechtsprüfung. Die Lizenzprüfung ist zu wiederholen, sobald die Abhängigkeiten in `app/` stehen (WP12 bzw. Abschlussprüfung). Der Vertriebsweg ist nicht festgelegt und bestimmt, ob die Play-Vorgaben überhaupt gelten.
+Build und Lizenzbaum sind für den Prototyp aus R005 belegt, ohne Rechtsprüfung. Die Lizenzprüfung ist zu wiederholen, sobald die Abhängigkeiten in `app/` stehen (Abschlussprüfung in `work-packages/M1-PLAN.md`). Der Vertriebsweg ist nicht festgelegt und bestimmt, ob die Play-Vorgaben überhaupt gelten.
 
 ## Belege (Abruf 2026-11-04)
 [1] https://storage.googleapis.com/flutter_infra_release/releases/releases_macos.json ·
