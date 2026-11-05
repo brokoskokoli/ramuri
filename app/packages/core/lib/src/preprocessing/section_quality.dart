@@ -1,3 +1,4 @@
+import 'heart_rate_beat.dart';
 import 'heart_rate_processor.dart';
 import 'measurement.dart';
 import 'movement_time_processor.dart';
@@ -139,16 +140,7 @@ class SectionQuality {
     if (times.length < 2 || received.length < 2) {
       return gaps.fold(Duration.zero, (a, b) => a + b);
     }
-    final all = [...received]..sort();
-    final inner = [
-      for (var i = 1; i < all.length; i++)
-        all[i].difference(all[i - 1]).inMicroseconds,
-    ];
-    final sorted = [...inner]..sort();
-    final n = sorted.length;
-    final beat = n.isOdd
-        ? sorted[n ~/ 2]
-        : ((sorted[n ~/ 2 - 1] + sorted[n ~/ 2]) / 2).round();
+    final beat = medianBeatMicros(received)!;
     var micros = 0;
     for (final g in gaps) {
       if (g.inMicroseconds > beat) micros += g.inMicroseconds - beat;

@@ -1,6 +1,8 @@
 import 'package:core/core.dart';
 import 'package:test/test.dart';
 
+import 'fitness_support.dart';
+
 const p = FitnessParameters.v3();
 const trimp = EdwardsTrimp();
 const sec = 1000000;
@@ -9,8 +11,6 @@ final t0 = DateTime.utc(2026, 1, 1, 10);
 DateTime at(int s) => t0.add(Duration(seconds: s));
 DateTime atMicros(int us) => t0.add(Duration(microseconds: us));
 TimeSpan span(int a, int b) => TimeSpan(start: at(a), end: at(b));
-RawHeartRate hr(int s, int bpm) =>
-    RawHeartRate(time: at(s), source: 'x', bpm: bpm);
 HeartRateGap gap(int a, int b) =>
     HeartRateGap(start: at(a), end: at(b), open: false);
 
@@ -22,9 +22,8 @@ FitnessResult<TrimpResult> run({
   FitnessParameters params = p,
 }) => trimp.compute(
   basis: basis,
-  movingIntervals: moving,
-  acceptedValues: hrs,
-  gaps: gaps,
+  heartRate: fitHeartRate(hrs, gaps: gaps),
+  movement: fitMovement(moving),
   p: params,
 );
 
@@ -38,7 +37,7 @@ UnavailableReason reason(FitnessResult<TrimpResult> r) =>
 FitnessResult<TrimpResult> minuteAt(int bpm, int max) => run(
   basis: HeartRateBasis(maxBpm: max),
   moving: [span(0, 60)],
-  hrs: [hr(0, bpm)],
+  hrs: fitDense(0, 59, bpm),
 );
 
 void main() {
@@ -47,7 +46,11 @@ void main() {
     // (170). 10*1 + 30*2 + 10*4 = 10 + 60 + 40 = 110.
     final r = run(
       moving: [span(0, 3000)],
-      hrs: [hr(0, 110), hr(600, 130), hr(2400, 170)],
+      hrs: [
+        ...fitDense(0, 599, 110),
+        ...fitDense(600, 2399, 130),
+        ...fitDense(2400, 2999, 170),
+      ],
     );
     final v = value(r);
     expect(v.points, 110);
@@ -57,7 +60,7 @@ void main() {
   });
 
   test('Ergebnis nennt Methode, Version, Kategorie, Parameterversion', () {
-    final r = run(moving: [span(0, 60)], hrs: [hr(0, 150)]);
+    final r = run(moving: [span(0, 60)], hrs: fitDense(0, 59, 150));
     expect(r.method, 'edwards-trimp');
     expect(r.methodVersion, 1);
     expect(r.parameterVersion, 3);
@@ -122,7 +125,11 @@ void main() {
   test('OQ-0015: Bewegungszeit zählt, nicht die Gesamtzeit', () {
     // 0..60 und 120..180 in Bewegung, dazwischen 60 s Pause. 150/200 = 75 %
     // ist Gewicht 3: 2 min * 3 = 6 (Gesamtzeit gäbe 9).
-    final r = run(moving: [span(0, 60), span(120, 180)], hrs: [hr(0, 150)]);
+    final r = run(
+      moving: [span(0, 60), span(120, 180)],
+      hrs: [...fitDense(0, 59, 150), ...fitDense(120, 179, 150)],
+      gaps: [gap(60, 120)],
+    );
     expect(value(r).points, 6);
     expect(value(r).movingMicros, 120 * sec);
     expect(value(r).incomplete, isFalse);
@@ -132,7 +139,7 @@ void main() {
     // Lücke [0, g]: abgedeckt ist 100 s minus g, Puls 150 (Gewicht 3).
     FitnessResult<TrimpResult> withCovered(int coveredMicros) => run(
       moving: [span(0, 100)],
-      hrs: [hr(0, 150)],
+      hrs: fitDense(0, 99, 150),
       gaps: [
         HeartRateGap(
           start: at(0),
@@ -173,17 +180,21 @@ void main() {
   });
 
   test('Puls nur in Lücken: ohne Puls, nicht 0', () {
-    final r = run(moving: [span(0, 60)], hrs: [hr(0, 150)], gaps: [gap(0, 60)]);
+    final r = run(
+      moving: [span(0, 60)],
+      hrs: fitDense(0, 59, 150),
+      gaps: [gap(0, 60)],
+    );
     expect(reason(r), UnavailableReason.noHeartRate);
   });
 
   test('ohne Bewegungszeit: noMovingTime, keine Division durch 0', () {
     expect(
-      reason(run(moving: [], hrs: [hr(0, 150)])),
+      reason(run(moving: [], hrs: fitDense(0, 59, 150))),
       UnavailableReason.noMovingTime,
     );
     expect(
-      reason(run(moving: [span(5, 5)], hrs: [hr(0, 150)])),
+      reason(run(moving: [span(5, 5)], hrs: fitDense(0, 59, 150))),
       UnavailableReason.noMovingTime,
     );
     expect(reason(run(moving: [], hrs: [])), UnavailableReason.noMovingTime);
@@ -194,7 +205,7 @@ void main() {
       run(
         basis: b,
         moving: [span(0, 600)],
-        hrs: [hr(0, 130), hr(300, 170)],
+        hrs: [...fitDense(0, 299, 130), ...fitDense(300, 599, 170)],
         params: params,
       ),
     ).points;
@@ -230,7 +241,7 @@ void main() {
         final r = run(
           basis: HeartRateBasis(maxBpm: 200, restingBpm: rest),
           moving: [span(0, 600)],
-          hrs: [hr(0, 150)],
+          hrs: fitDense(0, 599, 150),
         );
         expect(reason(r), UnavailableReason.maxNotAboveResting);
       }
@@ -239,7 +250,7 @@ void main() {
         run(
           basis: const HeartRateBasis(maxBpm: 200, restingBpm: 199),
           moving: [span(0, 600)],
-          hrs: [hr(0, 150)],
+          hrs: fitDense(0, 599, 150),
         ),
         isA<FitnessAvailable<TrimpResult>>(),
       );
@@ -248,7 +259,7 @@ void main() {
 
   test('fehlende HFmax: nicht verfügbar, auch mit Ruhepuls', () {
     for (final b in const [HeartRateBasis(), HeartRateBasis(restingBpm: 50)]) {
-      final r = run(basis: b, moving: [span(0, 60)], hrs: [hr(0, 150)]);
+      final r = run(basis: b, moving: [span(0, 60)], hrs: fitDense(0, 59, 150));
       expect(reason(r), UnavailableReason.missingMaxHeartRate);
     }
   });
@@ -256,7 +267,11 @@ void main() {
   test('geschätzte HFmax wird weitergegeben, auch bei nicht verfügbar', () {
     const b = HeartRateBasis(maxBpm: 200, maxIsEstimated: true);
     expect(
-      run(basis: b, moving: [span(0, 60)], hrs: [hr(0, 150)]).maxIsEstimated,
+      run(
+        basis: b,
+        moving: [span(0, 60)],
+        hrs: fitDense(0, 59, 150),
+      ).maxIsEstimated,
       isTrue,
     );
     expect(run(basis: b, moving: [], hrs: []).maxIsEstimated, isTrue);

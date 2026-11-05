@@ -1,6 +1,8 @@
 import 'package:core/core.dart';
 import 'package:test/test.dart';
 
+import 'fitness_support.dart';
+
 const p = FitnessParameters.v3();
 const zones = ReserveZones();
 
@@ -116,8 +118,6 @@ void main() {
     final t0 = DateTime.utc(2026, 1, 1, 10);
     DateTime at(int s) => t0.add(Duration(seconds: s));
     TimeSpan span(int a, int b) => TimeSpan(start: at(a), end: at(b));
-    RawHeartRate hr(int s, int bpm) =>
-        RawHeartRate(time: at(s), source: 'x', bpm: bpm);
     HeartRateGap gap(int a, int b) =>
         HeartRateGap(start: at(a), end: at(b), open: false);
     const basis = HeartRateBasis(maxBpm: 190, restingBpm: 60);
@@ -128,9 +128,8 @@ void main() {
       List<HeartRateGap> gaps = const [],
     }) => (zones.timeInZones(
       basis: basis,
-      movingIntervals: moving,
-      acceptedValues: hrs,
-      gaps: gaps,
+      heartRate: fitHeartRate(hrs, gaps: gaps),
+      movement: fitMovement(moving),
       p: p,
     ) as FitnessAvailable<ReserveZoneTimes>).value;
     const sec = 1000000;
@@ -138,7 +137,11 @@ void main() {
     test('Zeit unter Zone 1 getrennt, Zonen in Mikrosekunden', () {
       final v = run(
         moving: [span(0, 30)],
-        hrs: [hr(0, 100), hr(10, 138), hr(20, 190)],
+        hrs: [
+          ...fitDense(0, 9, 100),
+          ...fitDense(10, 19, 138),
+          ...fitDense(20, 29, 190),
+        ],
       );
       expect(v.belowZone1Micros, 10 * sec);
       expect(v.zoneMicros, [0, 10 * sec, 0, 0, 10 * sec]);
@@ -148,8 +151,11 @@ void main() {
     });
 
     test('Puls über 100 % löst den Hinweis aus, genau 100 % nicht', () {
-      expect(run(moving: [span(0, 10)], hrs: [hr(0, 190)]).aboveHint, isFalse);
-      final v = run(moving: [span(0, 10)], hrs: [hr(0, 191)]);
+      expect(
+        run(moving: [span(0, 10)], hrs: fitDense(0, 9, 190)).aboveHint,
+        isFalse,
+      );
+      final v = run(moving: [span(0, 10)], hrs: fitDense(0, 9, 191));
       expect(v.aboveHint, isTrue);
       expect(v.zoneMicros[4], 10 * sec);
     });
@@ -157,7 +163,7 @@ void main() {
     test('Lücke wird nicht in eine Zone gezählt', () {
       final v = run(
         moving: [span(0, 100)],
-        hrs: [hr(0, 138)],
+        hrs: [...fitDense(0, 19, 138), ...fitDense(70, 99, 138)],
         gaps: [gap(20, 70)],
       );
       expect(v.zoneMicros[1], 50 * sec);
@@ -168,7 +174,8 @@ void main() {
     test('Pause (kein Bewegungsintervall) zählt nicht', () {
       final v = run(
         moving: [span(0, 10), span(50, 60)],
-        hrs: [hr(0, 138), hr(30, 190)],
+        hrs: [...fitDense(0, 9, 138), ...fitDense(50, 59, 190)],
+        gaps: [gap(10, 50)],
       );
       expect(v.zoneMicros[1], 10 * sec);
       expect(v.zoneMicros[4], 10 * sec);
@@ -193,9 +200,8 @@ void main() {
       List<HeartRateGap> gaps = const [],
     }) => zones.timeInZones(
       basis: basis,
-      movingIntervals: moving,
-      acceptedValues: hrs,
-      gaps: gaps,
+      heartRate: fitHeartRate(hrs, gaps: gaps),
+      movement: fitMovement(moving),
       p: p,
     );
 
@@ -208,14 +214,18 @@ void main() {
 
     test('Puls nur in Lücke: nicht verfügbar (noHeartRate)', () {
       expectUnavailable(
-        raw(moving: [span(0, 10)], hrs: [hr(0, 138)], gaps: [gap(0, 10)]),
+        raw(
+          moving: [span(0, 10)],
+          hrs: fitDense(0, 9, 138),
+          gaps: [gap(0, 10)],
+        ),
         UnavailableReason.noHeartRate,
       );
     });
 
     test('ohne Bewegungszeit: nicht verfügbar (noMovingTime)', () {
       expectUnavailable(
-        raw(moving: [], hrs: [hr(0, 138)]),
+        raw(moving: [], hrs: fitDense(0, 9, 138)),
         UnavailableReason.noMovingTime,
       );
       expectUnavailable(
@@ -227,7 +237,7 @@ void main() {
     test('Teilabdeckung bleibt verfügbar', () {
       final v = run(
         moving: [span(0, 100)],
-        hrs: [hr(0, 138)],
+        hrs: fitDense(0, 9, 138),
         gaps: [gap(10, 100)],
       );
       expect(v.coveredMicros, 10 * sec);
@@ -255,9 +265,8 @@ void main() {
       ]) {
         final res = zones.timeInZones(
           basis: b,
-          movingIntervals: [span(0, 10)],
-          acceptedValues: [hr(0, 100)],
-          gaps: const [],
+          heartRate: fitHeartRate(fitDense(0, 9, 100)),
+          movement: fitMovement([span(0, 10)]),
           p: p,
         );
         expect((res as FitnessUnavailable).reason, reason);

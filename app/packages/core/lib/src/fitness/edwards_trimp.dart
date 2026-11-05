@@ -1,5 +1,4 @@
 import '../preprocessing/heart_rate_processor.dart';
-import '../preprocessing/measurement.dart';
 import '../preprocessing/movement_time_processor.dart';
 import 'algorithm_variant.dart';
 import 'fitness_parameters.dart';
@@ -44,9 +43,8 @@ abstract class LoadModel extends AlgorithmVariant {
 
   FitnessResult<TrimpResult> compute({
     required HeartRateBasis basis,
-    required List<TimeSpan> movingIntervals,
-    required List<RawHeartRate> acceptedValues,
-    required List<HeartRateGap> gaps,
+    required HeartRateResult heartRate,
+    required MovementResult movement,
     required FitnessParameters p,
   });
 }
@@ -81,11 +79,11 @@ class EdwardsTrimp extends LoadModel {
   @override
   FitnessResult<TrimpResult> compute({
     required HeartRateBasis basis,
-    required List<TimeSpan> movingIntervals,
-    required List<RawHeartRate> acceptedValues,
-    required List<HeartRateGap> gaps,
+    required HeartRateResult heartRate,
+    required MovementResult movement,
     required FitnessParameters p,
   }) {
+    requireSameParameterVersion(heartRate: heartRate, movement: movement, p: p);
     FitnessUnavailable<TrimpResult> no(UnavailableReason reason) =>
         FitnessUnavailable(
           reason: reason,
@@ -102,9 +100,9 @@ class EdwardsTrimp extends LoadModel {
       return no(UnavailableReason.maxNotAboveResting);
     }
     final time = heartRateTimeByBpm(
-      movingIntervals: movingIntervals,
-      acceptedValues: acceptedValues,
-      gaps: gaps,
+      heartRate: heartRate,
+      movement: movement,
+      p: p,
     );
     if (time.movingMicros == 0) return no(UnavailableReason.noMovingTime);
     if (time.coveredMicros == 0) return no(UnavailableReason.noHeartRate);

@@ -28,6 +28,7 @@ export 'src/fitness/heart_rate_time.dart';
 export 'src/fitness/reserve_zones.dart';
 export 'src/preprocessing/altitude_processor.dart';
 export 'src/preprocessing/geo.dart';
+export 'src/preprocessing/heart_rate_beat.dart';
 export 'src/preprocessing/heart_rate_processor.dart';
 export 'src/preprocessing/latest_value_index.dart';
 export 'src/preprocessing/measurement.dart';

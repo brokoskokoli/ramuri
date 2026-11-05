@@ -1,5 +1,4 @@
 import '../preprocessing/heart_rate_processor.dart';
-import '../preprocessing/measurement.dart';
 import '../preprocessing/movement_time_processor.dart';
 import 'algorithm_variant.dart';
 import 'fitness_parameters.dart';
@@ -94,11 +93,11 @@ class ReserveZones extends AlgorithmVariant {
   /// Zeit je Zone über die Bewegungszeit mit gehaltenem Puls.
   FitnessResult<ReserveZoneTimes> timeInZones({
     required HeartRateBasis basis,
-    required List<TimeSpan> movingIntervals,
-    required List<RawHeartRate> acceptedValues,
-    required List<HeartRateGap> gaps,
+    required HeartRateResult heartRate,
+    required MovementResult movement,
     required FitnessParameters p,
   }) {
+    requireSameParameterVersion(heartRate: heartRate, movement: movement, p: p);
     validateBounds(p);
     final reason = reserve.check(basis, p);
     if (reason != null) {
@@ -111,9 +110,9 @@ class ReserveZones extends AlgorithmVariant {
       );
     }
     final time = heartRateTimeByBpm(
-      movingIntervals: movingIntervals,
-      acceptedValues: acceptedValues,
-      gaps: gaps,
+      heartRate: heartRate,
+      movement: movement,
+      p: p,
     );
     // Fehlendes ist nie 0 (FR-0056, OQ-0012).
     final missing = time.movingMicros == 0

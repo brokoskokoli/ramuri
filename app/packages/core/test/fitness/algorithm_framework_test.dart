@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:test/test.dart';
 
 import '../preprocessing/support.dart';
+import 'fitness_support.dart';
 
 /// Nur im Test: ein weiteres Belastungsmodell, ohne dass sich Aufzeichnung
 /// oder Rohdatenschema ändern (NFR-0005).
@@ -19,9 +20,8 @@ class FakeLoad extends LoadModel {
   @override
   FitnessResult<TrimpResult> compute({
     required HeartRateBasis basis,
-    required List<TimeSpan> movingIntervals,
-    required List<RawHeartRate> acceptedValues,
-    required List<HeartRateGap> gaps,
+    required HeartRateResult heartRate,
+    required MovementResult movement,
     required FitnessParameters p,
   }) => FitnessAvailable(
     value: TrimpResult(
@@ -49,9 +49,8 @@ void main() {
         .active(loadModelFamily)
         .compute(
           basis: const HeartRateBasis(maxBpm: 200),
-          movingIntervals: x.movement.movingIntervals,
-          acceptedValues: x.heartRate.acceptedValues,
-          gaps: x.heartRate.gaps,
+          heartRate: x.heartRate,
+          movement: x.movement,
           p: const FitnessParameters.v3(),
         );
 
@@ -121,8 +120,8 @@ void main() {
     'jedes Ergebnis nennt die erzeugende Variante (verfügbar und nicht)',
     () {
       const p = FitnessParameters.v3();
-      final span = TimeSpan(start: at(0), end: at(60));
-      final hr = [RawHeartRate(time: at(0), source: 'x', bpm: 150)];
+      final hr = fitHeartRate(fitDense(0, 59, 150));
+      final mv = fitMovement([fitSpan(0, 60)]);
       const full = HeartRateBasis(maxBpm: 200, restingBpm: 50);
       const none = HeartRateBasis();
       final reg = AlgorithmRegistry.standard();
@@ -133,24 +132,12 @@ void main() {
         final z = reg.active(reserveZonesFamily);
         results.add((
           z,
-          z.timeInZones(
-            basis: b,
-            movingIntervals: [span],
-            acceptedValues: hr,
-            gaps: const [],
-            p: p,
-          ),
+          z.timeInZones(basis: b, heartRate: hr, movement: mv, p: p),
         ));
         final l = reg.active(loadModelFamily);
         results.add((
           l,
-          l.compute(
-            basis: b,
-            movingIntervals: [span],
-            acceptedValues: hr,
-            gaps: const [],
-            p: p,
-          ),
+          l.compute(basis: b, heartRate: hr, movement: mv, p: p),
         ));
       }
       expect(

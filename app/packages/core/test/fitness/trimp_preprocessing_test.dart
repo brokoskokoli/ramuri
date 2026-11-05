@@ -25,9 +25,8 @@ RunPreprocessing record(int hrFrom, int hrTo) {
 
 FitnessResult<TrimpResult> compute(RunPreprocessing x) => trimp.compute(
   basis: basis,
-  movingIntervals: x.movement.movingIntervals,
-  acceptedValues: x.heartRate.acceptedValues,
-  gaps: x.heartRate.gaps,
+  heartRate: x.heartRate,
+  movement: x.movement,
   p: p,
 );
 
