@@ -37,7 +37,7 @@ Katalog: [research/DATA.md](../DATA.md). Keine Sammlung aus `input/`, keine priv
 | 454 Sitzungen, 285 Modelle | `zenodo-20092798/` | Parmar et al. 2026, Zenodo 20092798, CC BY 4.0 | 11 MB | Je 30 s Stand ohne Kontrolle der Bedingungen, FIX-Zeilen. Keine Provider-Spalte. **Annahme:** Nur Zeilen auf der vollen Sekunde gelten als GPS. Das ist nicht beweisbar, der Filter verwirft auch Zeilen mit Tempo-Genauigkeit über 0, die dem Takt nach eher GPS sind (Zahlen und Gegenrechnung in [RESULTS.md](RESULTS.md)). 335 Sitzungen haben Zeilen auf der vollen Sekunde |
 | GNSSLogger Gehen, Rad, Bus | `zenodo-14712684/` | Medina und Lohan 2025, Zenodo 14712684, CC BY 4.0 | 141 MB | Je eine Spur, Xiaomi und andere, NMEA-RMC mit 1 Hz und Chip-Tempo. Ohne Genauigkeit (gesetzt: 5 m), ohne Referenz. Natürliche Stopps: Abschnitte ab 60 s mit Chip-Tempo 0 |
 
-Genutzt, aber nicht nachgeladen: nichts aus anderen Analysen. Verworfen: Google GSDC und der Kaggle-Datensatz (Konto, fahrend), Zenodo 8340005 (670 MB, über der Download-Grenze, kein klarer Standteil).
+Genutzt, aber nicht nachgeladen: nichts aus anderen Analysen. Verworfen: Google GSDC und der Kaggle-Datensatz (Konto, fahrend), Zenodo 8340005 (670 MB, über der Download-Grenze, nicht geöffnet).
 
 ## Ausführung
 Voraussetzungen: Dart 3.13.5 (Flutter-SDK des Projekts), Python 3 ohne Zusatzpakete, 4 GB Platte. Rechenzeit etwa 15 min auf einem Kern (`nice`), davon rund 5 min für die Spannen (`--variants 0` lässt sie weg). `app/` wird nur gelesen.
