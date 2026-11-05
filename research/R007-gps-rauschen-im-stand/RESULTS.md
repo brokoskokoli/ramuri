@@ -1,12 +1,12 @@
 # R007 – Ergebnis
 
 ## Kurzfassung
-Der ±3-m-Worst-Case aus WP03 (22 % Scheinstrecke, keine Pause) kommt in keinem echten Datensatz vor. Auf Dach und Stativ mit freier Sicht löst jeder Stopp eine Pause aus, die Scheinstrecke liegt bei höchstens 0,43 % der Laufstrecke. In den einzigen feldnahen Daten, die es offen gibt, liegt sie knapp über der Grenze des Maintainers: 1,31 % (95-%-Intervall 1,17 bis 1,46 %) aus 183 Stand-Sitzungen unter unbekannten Bedingungen, stückweise zusammengesetzt, und 1,19 % aus einem einzigen natürlichen Stopp. Die Stoppregel greift nirgends in echten Daten: im Median 0 von 3 Stopps ohne Pause, im Mittel höchstens 0,38. Die Bewegungszeit steigt um 0 bis 3,4 %.
+Der ±3-m-Worst-Case aus WP03 (22 % Scheinstrecke, keine Pause) kommt in keinem echten Datensatz vor. Auf Dach und Stativ mit freier Sicht löst jeder Stopp eine Pause aus, die Scheinstrecke liegt bei höchstens 0,43 % der Laufstrecke. In den einzigen feldnahen Daten, die es offen gibt, liegt sie knapp über der Grenze des Maintainers: 1,31 % (95-%-Intervall 1,17 bis 1,46 %) aus 183 Stand-Sitzungen unter unbekannten Bedingungen, stückweise zusammengesetzt, und 1,19 % aus einem einzigen natürlichen Stopp. Die Stoppregel greift nirgends in echten Daten: im Median 0 von 3 Stopps ohne Pause, im Mittel höchstens 0,38. Die Bewegungszeit steigt um 0 bis 3,4 %. Einschränkung: Der Schnitt bei 10 s entfernt den Einlauf vermutlich nicht vollständig, die feldnahen 1,31 % sind daher vermutlich überhöht und die Grenze könnte darunter fallen (grobe Nachrechnung, nicht nachgemessen, siehe Bewertung und Zweifel).
 
 **Empfehlung:**
 1. **PAR-002, -003, -004, -014, -015 bleiben, keine neue Version wegen dieser Werte.** Keiner dieser Werte ändert die Scheinstrecke (Schwellenraster unten: 1,31 % bei jeder Schwelle), und die Stoppregel löst nicht aus.
-2. **Bis zum Feldtest so lassen, sofern der Maintainer die übertragenen 1,2 bis 1,3 % nicht als Auslöser wertet.** Das ist die offene Entscheidung (siehe Offene Punkte). Wertet er sie als Auslöser, ist ein Tor über `getSpeed` bei 0,5 m/s das belegte Gegenmittel: ein neuer Parameter und damit eine neue Version.
-3. **Unabhängig davon speichert WP06 `getSpeed` und, falls vorhanden, die Tempo-Genauigkeit je Punkt.** Der Port `LocationSample` hat das Feld schon, `RawPosition` nicht. Rohdaten lassen sich nicht nachholen, und nur damit lässt sich das Tor im Feldtest ohne neue Aufnahmen prüfen.
+2. **Bis zum Feldtest so lassen: Entscheidung des Maintainers vom 2026-11-05.** Lösen die übertragenen Werte über 1 % etwas aus? „Nein, bis Feldtest lassen.“ Die Parameter bleiben. Ein Tor über `getSpeed` bei 0,5 m/s bleibt das belegte Gegenmittel, ist aber nur noch eine spätere Option: ein neuer Parameter und damit eine neue Version, falls der Feldtest es verlangt.
+3. **WP06 speichert `getSpeed` und, falls vorhanden, die Tempo-Genauigkeit je Punkt.** Der Port `LocationSample` hat das Feld schon, `RawPosition` nicht. Rohdaten lassen sich nicht nachholen, und nur damit ist das Tor später ohne neue Aufnahmen prüfbar.
 
 Mindestdistanz mit Haltepunkt und Glättung empfehle ich nicht (Abschnitt Gegenmittel).
 
@@ -18,6 +18,7 @@ Die Zahlen der Entscheidungsregel (mehr als 1 von 3 Stopps, 1 % Scheinstrecke, L
 - **Ausgabe:** `research/data/work/R007/20261105-153842-v3/report.txt` (nicht in Git).
 - **Schwellenraster:** Harness desselben Standes direkt auf der Quelle `ncount_stueckel`, je 200 Läufe mit `--standstill-below` und `--movement-from`. Über alle Quellen wiederholbar mit `./run.sh --standstill-below 1.0 --movement-from 1.2`.
 - **Kontrollen:** ohne Rauschen genau 4860 m und 1641 s, wie von Hand gerechnet. ±3 m genau 360 m je Stopp und 1800 s Bewegungszeit, wie im Test von WP03.
+- **Einlauf-Nachrechnung (keine Simulation):** `python3 -I src/einlauf_check.py <Haupt-Checkout>/research/data/work/R007/20261105-153842-v3/norm` aus dem Analyseordner, Python 3.15. Liest nur `norm/ncount__*.tsv` desselben Laufs, Ergebnis siehe Bewertung und Zweifel.
 - **Wiederholbarkeit:** `./run.sh --seed 42 --runs 5` lieferte für die ersten 5 Läufe von `oneplus_nord2t` dieselben Zeilen wie der Hauptlauf. Ein zweites `./init.sh` lädt nichts neu.
 
 ## Ergebnisse
@@ -35,7 +36,7 @@ Die Zahlen der Entscheidungsregel (mehr als 1 von 3 Stopps, 1 % Scheinstrecke, L
 | übertragen, ein Stopp | Busspur, 139 s Chip-Tempo 0 | Pause nach 21 s | 2,8 m je 60 s (1,7 bis 6,9) | 0,17 % bei 3 Stopps | – |
 | **Synthetik, Vergleich** | ±3 m im Wechsel | 3 (3,00) | 1080 m | 22,22 % | 159 s (9,7 %) |
 
-Je Zeile 200 Läufe, außer den beiden natürlichen Stopps. Ausgelöst wird damit nur die Streckenklausel und nur in den übertragenen Zeilen. Bei 2,5 m/s statt 3 m/s sinkt die Grenze auf 40,5 m: Samsung S6 dann 0,51 %, gestückelt 1,58 % (gerechnet).
+Je Zeile 200 Läufe, außer den beiden natürlichen Stopps. Ausgelöst wäre damit nur die Streckenklausel und nur in den übertragenen Zeilen; auf Entscheidung des Maintainers folgt daraus bis zum Feldtest nichts. Bei 2,5 m/s statt 3 m/s sinkt die Grenze auf 40,5 m: Samsung S6 dann 0,51 %, gestückelt 1,58 % (gerechnet).
 
 **Warum „übertragen“:** Die 454 Sitzungen dauern nur 30 s, also kein ganzer Stopp. 335 haben GPS-Zeilen, 183 mindestens 20. Sie beginnen beim Start der Aufzeichnung. In den ersten 10 s beträgt die Rate im Median 71,8 m/min, ab Sekunde 10 nur noch 21,2 m/min (95-%-Intervall über Sitzungen 19,0 bis 23,6). Für die Simulation zählt nur der Teil ab Sekunde 10; ein 60-s-Fenster überspannt rund drei Sitzungen. Ob dieser Teil einem Stopp entspricht, ist nicht belegt: Himmel, Haltung und Ort fehlen, auch Innenräume sind möglich.
 
@@ -104,6 +105,7 @@ Der Mehr-Bewegungszeit-Anteil ist auf dem Dach 0 %, gestückelt 3,4 %, im Worst 
 
 ## Bewertung und Zweifel
 - **Auffällig: Die Daten widersprechen sich um den Faktor 3 und mehr.** Dach: bis 7 m/min. Feldnah: 21 m/min. Das ist der wichtigste Befund. Die Regel fällt je nach Datensatz anders aus. Die beiden Enden sind vermutlich bester und schlechter Fall, ein echter Stopp an der Ampel fehlt in den offenen Daten.
+- **Der Schnitt bei 10 s entfernt den Einlauf vermutlich nicht vollständig.** Rate im Median je Sitzung, 183 Sitzungen: 0–5 s 115,8; 5–10 s 43,0; 10–15 s 26,2 (n=182); 15–20 s 19,5; 20–25 s 15,3 (n=173); 25–30 s 13,3 m/min (n=64). Median je Sitzung ab 10 s 21,8 m/min → 1,35 %, ab 15 s 18,9 → 1,17 %, ab 20 s 15,2 m/min (n=100) → 0,94 %. Die feldnahen 1,31 % sind daher vermutlich überhöht, die Grenze könnte darunter fallen. Das ist eine grobe Nachrechnung des Supervisors, keine Simulation: Die Sitzungen ab 20 s sind eine Auswahl (mindestens 4 s auswertbare Schritte ab Sekunde 20), kein Vergleich innerhalb derselben Sitzungen, und die Werte sind ohne PAR-Filter gerechnet. Auch der natürliche Stopp (1,19 %) liegt am Aufnahmebeginn. Nicht nachgemessen auf Entscheidung des Maintainers (2026-11-05); die Zahlen der Simulation bleiben. Wiederholen: `python3 -I src/einlauf_check.py <laufordner>/norm`. Zwei Hinweise zum Lesen der Ausgabe: Die 21,8 m/min stehen neben 21,2 in Ergebnis 1, weil das Skript einen Schritt seinem Endpunkt zuordnet und die Auswertung seinem Startpunkt (mit `a[0]` statt `b[0]` in Zeile 16 ergibt auch das Skript 21,2). Die Spalte `pooled` und das Mittel je Sitzung steigen ab 20 s wieder, weil einzelne große Sprünge hier ungefiltert bleiben; die Aussage stützt sich nur auf die Mediane.
 - **Die Dachdaten sind ein Bestfall.** Freie Sicht, kein Körper, keine Bewegung. Das Halten der Position kann davon abhängen, dass das Handy wirklich stillliegt. Auf einem Läufer, der atmet und das Handy am Arm hat, könnte es ausbleiben. Das ist Vermutung und hier nicht prüfbar.
 - **Der Übergang fehlt.** Gezogen wird aus dem Stand, kein Chip kommt in der Simulation aus 3 m/s. Filter im Chip könnten nach dem Stoppen nachlaufen; das verschiebt die Pause um einige Sekunden. Der Laufteil ist rauschfrei, mit Rauschen träfen Mindestdistanz und Glättung anders. Das Tor sieht im Lauf nur das ideale Tempo.
 - **S3 mini und Y zählen nicht.** Ihre eingefrorenen Positionen sind laut Studie vermutlich ein Effekt des Loggers [3]. Sie stehen darum getrennt, und die Aussage „kontrolliert höchstens 0,43 %“ stützt sich nicht auf sie.
@@ -116,7 +118,9 @@ Der Mehr-Bewegungszeit-Anteil ist auf dem Dach 0 %, gestückelt 3,4 %, im Worst 
 - **Gegenprobe zur Vermutung aus OQ-0068:** „Echtes Rauschen ist autokorreliert und meist kleiner“ bestätigt sich in beiden Datenarten.
 
 ## Offene Punkte und Folgeanalysen
-- **Entscheidung des Maintainers:** Zählen die übertragenen 1,2 bis 1,3 % als „über 1 %“? Die Regel nennt die Datenbasis nicht. Wenn ja: neuer Parameter Tor `getSpeed` 0,5 m/s, neue Version vor WP06. Wenn nein: so lassen bis Feldtest.
+- **Entschieden (Maintainer, 2026-11-05):** Lösen die übertragenen Werte über 1 % etwas aus? „Nein, bis Feldtest lassen.“ Die Parameter bleiben, keine neue Version vor WP06. WP06 speichert `getSpeed` je Punkt, ein Tor ist später ohne neue Aufnahmen prüfbar.
+- **Entschieden (Maintainer, 2026-11-05):** Der Einlauf-Verdacht wird nur als Zweifel notiert, es wird nicht nachgemessen, die Zahlen der Simulation bleiben.
+- **Spätere Option:** neuer Parameter Tor `getSpeed` 0,5 m/s mit neuer Version, falls der Feldtest es verlangt.
 - **Vorschläge fürs Konzept, nicht umgesetzt:**
   - OQ-0068: Antwort gemäß Kurzfassung, im Feldtest zu bestätigen.
   - WP06: `getSpeed` samt `hasSpeed`-Fall und Tempo-Genauigkeit über `LocationSample` hinaus bis in die gespeicherten Rohpunkte tragen; `RawPosition` hat das Feld heute nicht.

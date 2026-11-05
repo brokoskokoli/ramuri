@@ -62,3 +62,11 @@ Voraussetzungen: Dart 3.13.5 (Flutter-SDK des Projekts), Python 3 ohne Zusatzpak
 Beispiel: `./run.sh --seed 42 --runs 200 --run-speed 3 --total-s 1800 --stop-s 60 --stops 3 --burn-in-s 120`
 
 Ausgaben: `research/data/work/R007/<zeit><tag>/`: `report.txt` (alle Tabellen), `runs.csv`, `stops.csv`, `slow.csv`, `traces.csv`, `control.txt`, `run.info`, `norm/`. Ergebnis in [RESULTS.md](RESULTS.md).
+
+Einlauf-Nachrechnung (grob, keine Simulation, liest nur die normierten Spuren eines fertigen Laufs, Ausgabe auf den Bildschirm):
+
+```bash
+python3 -I src/einlauf_check.py <laufordner>/norm
+```
+
+Beispiel für den Hauptlauf, `research/data/` liegt im Haupt-Checkout: `python3 -I src/einlauf_check.py <Haupt-Checkout>/research/data/work/R007/20261105-153842-v3/norm`. Einordnung der Zahlen in [RESULTS.md](RESULTS.md), Bewertung und Zweifel.
