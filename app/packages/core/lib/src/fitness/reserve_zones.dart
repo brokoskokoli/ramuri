@@ -7,15 +7,25 @@ import 'heart_rate_basis.dart';
 import 'heart_rate_reserve.dart';
 import 'heart_rate_time.dart';
 
-/// Einordnung eines `r`. [zone] ist 1-basiert, `null` heißt unter Zone 1
+/// Einordnung eines `r`: in einer Zone oder ausdrücklich unter Zone 1
 /// (FR-0063).
-class ReserveZonePlacement {
-  const ReserveZonePlacement({required this.zone, required this.aboveHint});
-  final int? zone;
+sealed class ReserveZonePlacement {
+  const ReserveZonePlacement({required this.aboveHint});
 
   /// `r` liegt über 100 % (FR-0062, OQ-0014): HFmax zu niedrig oder
   /// Messfehler.
   final bool aboveHint;
+}
+
+/// `r` liegt in einer Zone; [zone] ist 1-basiert.
+final class InReserveZone extends ReserveZonePlacement {
+  const InReserveZone({required this.zone, required super.aboveHint});
+  final int zone;
+}
+
+/// `r` liegt unter der Untergrenze von Zone 1 (FR-0063).
+final class BelowReserveZone1 extends ReserveZonePlacement {
+  const BelowReserveZone1({required super.aboveHint});
 }
 
 /// Zeit je Reservezone in Mikrosekunden.
@@ -42,14 +52,33 @@ class ReserveZoneTimes {
   final bool aboveHint;
 }
 
+/// Familie Reservezonen (FR-0061): Zone zu einem Puls und Zeit je Zone.
+abstract class ReserveZoneModel extends AlgorithmVariant {
+  const ReserveZoneModel();
+
+  /// Zone eines Pulses, mit Kennung der Variante.
+  FitnessResult<ReserveZonePlacement> zoneFor(
+    HeartRateBasis basis,
+    int bpm,
+    FitnessParameters p,
+  );
+
+  FitnessResult<ReserveZoneTimes> timeInZones({
+    required HeartRateBasis basis,
+    required HeartRateResult heartRate,
+    required MovementResult movement,
+    required FitnessParameters p,
+  });
+}
+
 /// Reservezonen (FR-0061, FR-0062), Kategorie B: Grenzen kommen aus dem
-/// Parametersatz.
-class ReserveZones extends AlgorithmVariant {
-  const ReserveZones({this.reserve = const HeartRateReserve()});
+/// Parametersatz, `r` aus der übergebenen [reserve].
+class ReserveZones extends ReserveZoneModel {
+  const ReserveZones({required this.reserve});
 
   static const methodId = 'reserve-zones';
 
-  final HeartRateReserve reserve;
+  final HeartRateReserveModel reserve;
 
   @override
   String get method => methodId;
@@ -77,20 +106,48 @@ class ReserveZones extends AlgorithmVariant {
 
   /// Zone zu einem `r`: Untergrenze inklusiv, Obergrenze exklusiv; über der
   /// obersten Grenze bleibt es Zone [FitnessParameters.reserveZoneCount].
-  ReserveZonePlacement place(double r, FitnessParameters p) {
-    validateBounds(p);
+  ReserveZonePlacement _place(double r, FitnessParameters p) {
     final hint = r > p.hintAboveShare;
     if (r < p.reserveZoneBounds.first) {
-      return ReserveZonePlacement(zone: null, aboveHint: hint);
+      return BelowReserveZone1(aboveHint: hint);
     }
     var zone = 1;
     for (var i = 1; i < p.reserveZoneCount; i++) {
       if (r >= p.reserveZoneBounds[i]) zone = i + 1;
     }
-    return ReserveZonePlacement(zone: zone, aboveHint: hint);
+    return InReserveZone(zone: zone, aboveHint: hint);
+  }
+
+  @override
+  FitnessResult<ReserveZonePlacement> zoneFor(
+    HeartRateBasis basis,
+    int bpm,
+    FitnessParameters p,
+  ) {
+    validateBounds(p);
+    final r = reserve.relativeLoad(basis, bpm, p);
+    switch (r) {
+      case FitnessUnavailable():
+        return FitnessUnavailable(
+          reason: r.reason,
+          method: method,
+          methodVersion: methodVersion,
+          parameterVersion: p.parameterVersion,
+          maxIsEstimated: basis.maxIsEstimated,
+        );
+      case FitnessAvailable():
+        return FitnessAvailable(
+          value: _place(r.value, p),
+          method: method,
+          methodVersion: methodVersion,
+          parameterVersion: p.parameterVersion,
+          maxIsEstimated: basis.maxIsEstimated,
+        );
+    }
   }
 
   /// Zeit je Zone über die Bewegungszeit mit gehaltenem Puls.
+  @override
   FitnessResult<ReserveZoneTimes> timeInZones({
     required HeartRateBasis basis,
     required HeartRateResult heartRate,
@@ -133,15 +190,15 @@ class ReserveZones extends AlgorithmVariant {
     var below = 0;
     var hint = false;
     for (final e in time.microsByBpm.entries) {
-      final r =
-          (e.key - basis.restingBpm!) / (basis.maxBpm! - basis.restingBpm!);
-      final placed = place(r, p);
+      final r = reserve.relativeLoad(basis, e.key, p);
+      // check() oben ist durch, die Reserve ist hier definiert.
+      final placed = _place((r as FitnessAvailable<double>).value, p);
       hint = hint || placed.aboveHint;
-      final z = placed.zone;
-      if (z == null) {
-        below += e.value;
-      } else {
-        zones[z - 1] += e.value;
+      switch (placed) {
+        case BelowReserveZone1():
+          below += e.value;
+        case InReserveZone(:final zone):
+          zones[zone - 1] += e.value;
       }
     }
     return FitnessAvailable(
@@ -160,4 +217,4 @@ class ReserveZones extends AlgorithmVariant {
   }
 }
 
-const reserveZonesFamily = AlgorithmFamily<ReserveZones>('reserve-zones');
+const reserveZonesFamily = AlgorithmFamily<ReserveZoneModel>('reserve-zones');

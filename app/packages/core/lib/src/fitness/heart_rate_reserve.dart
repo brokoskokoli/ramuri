@@ -3,8 +3,23 @@ import 'fitness_parameters.dart';
 import 'fitness_result.dart';
 import 'heart_rate_basis.dart';
 
+/// Familie Herzfrequenzreserve (FR-0060): `r` aus Basis und Puls. Andere
+/// Verfahren kommen als weitere Varianten (NFR-0005).
+abstract class HeartRateReserveModel extends AlgorithmVariant {
+  const HeartRateReserveModel();
+
+  /// `null`, wenn `r` definiert ist, sonst der Grund.
+  UnavailableReason? check(HeartRateBasis basis, FitnessParameters p);
+
+  FitnessResult<double> relativeLoad(
+    HeartRateBasis basis,
+    int bpm,
+    FitnessParameters p,
+  );
+}
+
 /// Herzfrequenzreserve und relative Auslastung `r` (FR-0060), Kategorie A.
-class HeartRateReserve extends AlgorithmVariant {
+class HeartRateReserve extends HeartRateReserveModel {
   const HeartRateReserve();
 
   static const methodId = 'heart-rate-reserve';
@@ -18,9 +33,10 @@ class HeartRateReserve extends AlgorithmVariant {
 
   /// Prüft die Basis in der Reihenfolge fehlender Wert, PAR-018, PAR-019.
   /// `null`, wenn `r` definiert ist.
+  @override
   UnavailableReason? check(HeartRateBasis basis, FitnessParameters p) {
-    final max = basis.maxBpm;
-    final rest = basis.restingBpm;
+    final max = basis.usableMaxBpm;
+    final rest = basis.usableRestingBpm;
     if (max == null) return UnavailableReason.missingMaxHeartRate;
     if (rest == null) return UnavailableReason.missingRestingHeartRate;
     if (max <= rest) return UnavailableReason.maxNotAboveResting;
@@ -31,6 +47,7 @@ class HeartRateReserve extends AlgorithmVariant {
   }
 
   /// `r = (hf - HFRuhe) / (HFmax - HFRuhe)`, eine Division, nicht geklemmt.
+  @override
   FitnessResult<double> relativeLoad(
     HeartRateBasis basis,
     int bpm,
@@ -47,7 +64,9 @@ class HeartRateReserve extends AlgorithmVariant {
       );
     }
     return FitnessAvailable(
-      value: (bpm - basis.restingBpm!) / (basis.maxBpm! - basis.restingBpm!),
+      value:
+          (bpm - basis.usableRestingBpm!) /
+          (basis.usableMaxBpm! - basis.usableRestingBpm!),
       method: method,
       methodVersion: methodVersion,
       parameterVersion: p.parameterVersion,
@@ -56,6 +75,6 @@ class HeartRateReserve extends AlgorithmVariant {
   }
 }
 
-const heartRateReserveFamily = AlgorithmFamily<HeartRateReserve>(
+const heartRateReserveFamily = AlgorithmFamily<HeartRateReserveModel>(
   'heart-rate-reserve',
 );

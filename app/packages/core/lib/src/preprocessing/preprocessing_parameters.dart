@@ -38,7 +38,8 @@ class PreprocessingParameters {
 
   /// Die Startwerte aus Version 3 von docs/model-parameters.md. Nur hier ist
   /// die Version fest; jeder andere Parametersatz nennt seine Version selbst.
-  const PreprocessingParameters.v3() : this(parameterVersion: 3);
+  const PreprocessingParameters.v3()
+    : this(parameterVersion: currentParameterVersion);
 
   /// Version des Parametersatzes (ADR-0004 P.3).
   final int parameterVersion;

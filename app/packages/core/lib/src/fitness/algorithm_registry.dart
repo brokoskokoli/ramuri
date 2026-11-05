@@ -14,7 +14,10 @@ class AlgorithmRegistry {
   /// Standardbestückung. Spätere Pakete tragen ihre Varianten hier ein.
   factory AlgorithmRegistry.standard() => AlgorithmRegistry()
     ..register(heartRateReserveFamily, const HeartRateReserve())
-    ..register(reserveZonesFamily, const ReserveZones())
+    ..register(
+      reserveZonesFamily,
+      const ReserveZones(reserve: HeartRateReserve()),
+    )
     ..register(loadModelFamily, const EdwardsTrimp());
 
   final Map<String, _Entry> _families = {};

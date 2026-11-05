@@ -37,7 +37,8 @@ class TrimpResult {
 }
 
 /// Familie Belastungsmodell (FR-0091): reine Funktion aus Eingabe und
-/// Parametersatz. Andere Modelle (z. B. sRPE) kommen als weitere Varianten.
+/// Parametersatz. Weitere Modelle kommen als weitere Varianten; ein Modell
+/// mit anderer Eingabe (etwa subjektive Anstrengung) klärt Phase 2.
 abstract class LoadModel extends AlgorithmVariant {
   const LoadModel();
 
@@ -76,6 +77,32 @@ class EdwardsTrimp extends LoadModel {
     return weight;
   }
 
+  /// [ArgumentError] bei unterschiedlich langen, nicht endlichen, negativen
+  /// oder nicht streng aufsteigenden TRIMP-Grenzen oder bei Gewichten, die
+  /// nicht zu den Grenzen passen.
+  static void validateBounds(FitnessParameters p) {
+    final b = p.trimpZoneLowerBounds;
+    if (b.isEmpty || p.trimpWeights.length != b.length) {
+      throw ArgumentError.value(
+        p.trimpWeights,
+        'trimpWeights',
+        'Anzahl passt nicht zu den Grenzen',
+      );
+    }
+    for (var i = 0; i < b.length; i++) {
+      if (!b[i].isFinite || b[i] < 0) {
+        throw ArgumentError.value(b[i], 'trimpZoneLowerBounds', 'ungültig');
+      }
+      if (i > 0 && b[i] <= b[i - 1]) {
+        throw ArgumentError.value(
+          b,
+          'trimpZoneLowerBounds',
+          'nicht aufsteigend',
+        );
+      }
+    }
+  }
+
   @override
   FitnessResult<TrimpResult> compute({
     required HeartRateBasis basis,
@@ -84,6 +111,7 @@ class EdwardsTrimp extends LoadModel {
     required FitnessParameters p,
   }) {
     requireSameParameterVersion(heartRate: heartRate, movement: movement, p: p);
+    validateBounds(p);
     FitnessUnavailable<TrimpResult> no(UnavailableReason reason) =>
         FitnessUnavailable(
           reason: reason,
@@ -93,8 +121,8 @@ class EdwardsTrimp extends LoadModel {
           maxIsEstimated: basis.maxIsEstimated,
         );
 
-    final max = basis.maxBpm;
-    final rest = basis.restingBpm;
+    final max = basis.usableMaxBpm;
+    final rest = basis.usableRestingBpm;
     if (max == null) return no(UnavailableReason.missingMaxHeartRate);
     if (rest != null && max <= rest) {
       return no(UnavailableReason.maxNotAboveResting);

@@ -4,9 +4,21 @@ import 'package:test/test.dart';
 import 'fitness_support.dart';
 
 const p = FitnessParameters.v3();
-const zones = ReserveZones();
+const zones = ReserveZones(reserve: HeartRateReserve());
 
-int? zoneOf(double r) => zones.place(r, p).zone;
+/// Plausible Basis mit Spanne 10000, damit `r` in Schritten von 1e-4
+/// einstellbar ist: `r = (bpm - 100) / 10000`.
+const scaled = HeartRateBasis(maxBpm: 10100, restingBpm: 100);
+
+ReserveZonePlacement placeR(double r, [FitnessParameters params = p]) {
+  final res = zones.zoneFor(scaled, 100 + (r * 10000).round(), params);
+  return (res as FitnessAvailable<ReserveZonePlacement>).value;
+}
+
+/// Zonennummer, `null` bei unter Zone 1.
+int? zoneNo(ReserveZonePlacement x) => x is InReserveZone ? x.zone : null;
+
+int? zoneOf(double r) => zoneNo(placeR(r));
 
 void main() {
   test(
@@ -22,22 +34,23 @@ void main() {
   );
 
   test('FR-0063: unter 50 % gesondert, nicht Zone 1', () {
-    expect(zoneOf(0.4999), isNull);
-    expect(zoneOf(0), isNull);
-    expect(zoneOf(-0.3), isNull);
+    expect(placeR(0.4999), isA<BelowReserveZone1>());
+    expect(placeR(0), isA<BelowReserveZone1>());
+    expect(placeR(-0.3), isA<BelowReserveZone1>());
+    expect(placeR(0.5), isA<InReserveZone>());
   });
 
   test(
     'genau 100 % liegt in Zone 5 ohne Hinweis, knapp darüber mit Hinweis',
     () {
-      final at = zones.place(1.0, p);
-      expect(at.zone, 5);
+      final at = placeR(1.0);
+      expect(zoneNo(at), 5);
       expect(at.aboveHint, isFalse);
-      final above = zones.place(1.0000001, p);
-      expect(above.zone, 5);
+      final above = placeR(1.0001);
+      expect(zoneNo(above), 5);
       expect(above.aboveHint, isTrue);
-      expect(zones.place(1.4, p).zone, 5);
-      expect(zones.place(0.99, p).aboveHint, isFalse);
+      expect(zoneNo(placeR(1.4)), 5);
+      expect(placeR(0.99).aboveHint, isFalse);
     },
   );
 
@@ -50,28 +63,26 @@ void main() {
           if (span * k % 10 != 0) continue;
           final hf = rest + span * k ~/ 10;
           final basis = HeartRateBasis(maxBpm: max, restingBpm: rest);
-          final res = const HeartRateReserve().relativeLoad(
+          final at = (zones.zoneFor(
             basis,
             hf,
             p,
-          ) as FitnessAvailable<double>;
-          final at = zones.place(res.value, p);
+          ) as FitnessAvailable<ReserveZonePlacement>).value;
           final expectedZone = k >= 10 ? 5 : k - 4;
-          expect(at.zone, expectedZone, reason: '$max/$rest/$hf k=$k');
+          expect(zoneNo(at), expectedZone, reason: '$max/$rest/$hf k=$k');
           expect(at.aboveHint, isFalse, reason: '$max/$rest/$hf');
-          final below = const HeartRateReserve().relativeLoad(
+          final below = (zones.zoneFor(
             basis,
             hf - 1,
             p,
-          ) as FitnessAvailable<double>;
-          final zb = zones.place(below.value, p).zone;
-          if (k < 10) expect(zb, k == 5 ? isNull : k - 5);
-          final over = const HeartRateReserve().relativeLoad(
+          ) as FitnessAvailable<ReserveZonePlacement>).value;
+          if (k < 10) expect(zoneNo(below), k == 5 ? isNull : k - 5);
+          final over = (zones.zoneFor(
             basis,
             hf + 1,
             p,
-          ) as FitnessAvailable<double>;
-          if (k == 10) expect(zones.place(over.value, p).aboveHint, isTrue);
+          ) as FitnessAvailable<ReserveZonePlacement>).value;
+          if (k == 10) expect(over.aboveHint, isTrue);
           checked++;
         }
       }
@@ -96,7 +107,7 @@ void main() {
         [0.5, 0.6, 0.7, 0.8, 0.9, double.infinity],
       ]) {
         expect(
-          () => zones.place(0.7, withBounds(b)),
+          () => zones.zoneFor(scaled, 7100, withBounds(b)),
           throwsArgumentError,
           reason: '$b',
         );
@@ -105,11 +116,11 @@ void main() {
 
     test('eigene gültige Grenzen gelten', () {
       final custom = withBounds([0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-      expect(zones.place(0.45, custom).zone, 1);
-      expect(zones.place(0.39, custom).zone, isNull);
+      expect(zoneNo(placeR(0.45, custom)), 1);
+      expect(placeR(0.39, custom), isA<BelowReserveZone1>());
       // Hinweis hängt an 100 %, nicht an der obersten Grenze.
-      final top = zones.place(0.95, custom);
-      expect(top.zone, 5);
+      final top = placeR(0.95, custom);
+      expect(zoneNo(top), 5);
       expect(top.aboveHint, isFalse);
     });
   });

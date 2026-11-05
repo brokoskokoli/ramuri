@@ -1,6 +1,6 @@
 # Verfahrenskategorien
 
-Jedes Berechnungsverfahren der App ist genau einer Kategorie aus NFR-0002 zugeordnet (A etabliert, B Heuristik, C individuell kalibriert). Im Code steht die Kategorie an der Variante (`AlgorithmVariant.category`, [ADR-0004](adr/ADR-0004-algorithmen-rohdaten-versionierung.md)); die Registry der Standardbestückung liefert `AlgorithmRegistry.standard()`. Neue Verfahren tragen sich hier ein.
+Jedes Berechnungsverfahren der App ist genau einer Kategorie aus NFR-0002 zugeordnet (A etabliert, B Heuristik, C individuell kalibriert). Im Code steht die Kategorie an der Variante (`AlgorithmVariant.category`, [ADR-0004](adr/ADR-0004-algorithmen-rohdaten-versionierung.md)) nur für die Verfahren aus WP04; sie laufen über die Registry der Standardbestückung `AlgorithmRegistry.standard()`, ein Test gleicht sie mit dieser Tabelle ab. Die Verfahren aus WP03 haben die Kategorie nur in dieser Tabelle, im Code gibt es für sie keine Variante. Neue Verfahren tragen sich hier ein.
 
 | Verfahren | Kennung | Kategorie | Begründung | Paket |
 |---|---|---|---|---|
