@@ -274,8 +274,10 @@ class RunOut {
   final int endMs;
 }
 
+PreprocessingParameters params = const PreprocessingParameters.v3();
+
 RunOut feed(Iterable<Fix> fixes, Mitigation m, int endMs, {int startMs = 0}) {
-  final r = RunPreprocessor(start: t0.add(Duration(milliseconds: startMs)));
+  final r = RunPreprocessor(start: t0.add(Duration(milliseconds: startMs)), parameters: params);
   for (final f in fixes) {
     final g = m.apply(f);
     r.addPosition(raw(g.ms, g.lat, g.lon, g.acc));
@@ -310,6 +312,12 @@ void main(List<String> a) {
   final stopS = int.parse(opt('stop-s', '60'));
   final nStops = int.parse(opt('stops', '3'));
   final burnIn = int.parse(opt('burn-in-s', '120'));
+  final below = double.parse(opt('standstill-below', '0.5'));
+  final from = double.parse(opt('movement-from', '0.8'));
+  if (below != 0.5 || from != 0.8) {
+    // Nur zum Vergleich; Version 999 ist keine echte Parameterversion.
+    params = PreprocessingParameters(parameterVersion: 999, standstillBelow: below, movementFrom: from);
+  }
   final rnd = math.Random(seed);
   final all = load(norm);
   Directory(out).createSync(recursive: true);

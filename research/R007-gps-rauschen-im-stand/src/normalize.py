@@ -91,7 +91,7 @@ for f in sorted(glob.glob(f'{root}/2_Data with inclination/*/gnss_log*.txt')):
     write('oneplus_nord2t_neigung', os.path.basename(os.path.dirname(f)), gnsslogger_fixes(f))
 
 # 3) 454 Sitzungen à 30 s: nur Zeilen mit ganzer Sekunde (GPS, siehe README).
-hwmap = {}
+nc_sessions = []
 for f in sorted(glob.glob(f'{D}/zenodo-20092798/x/nCount GNSS Data/*.txt')):
     hw = 'unbekannt'
     rows = []
@@ -104,6 +104,29 @@ for f in sorted(glob.glob(f'{D}/zenodo-20092798/x/nCount GNSS Data/*.txt')):
                 rows.append((int(p[1]), float(p[2]), float(p[3]), float(p[5]), float(p[6]), float(p[9])))
     sid = re.search(r'gnss_(\d+)', f).group(1)
     write('ncount', f'{hw}-{sid}', rows)
+    if len(rows) >= 20:
+        nc_sessions.append(rows)
+
+# 3b) Gestückelter Stand: je Sitzung nur der Teil ab 10 s, Inkremente aneinandergehängt.
+# Ein 60-s-Fenster überspannt so rund drei Sitzungen desselben Pools. Übertragen, keine Messung am Stück.
+rnd0 = random.Random(SEED)
+rnd0.shuffle(nc_sessions)
+MPD0 = R * math.pi / 180
+la0, lo0, t0 = 48.0, 11.0, 0
+out = []
+for rows in nc_sessions:
+    use = [r for r in rows if r[0] - rows[0][0] >= 10000 and r[3] <= 25]
+    if len(use) < 5:
+        continue
+    t0 += 1000
+    out.append((t0, la0, lo0, use[0][3], use[0][4], use[0][5]))
+    for a, b in zip(use, use[1:]):
+        c = math.cos(math.radians(a[1]))
+        la0 += b[1] - a[1]
+        lo0 += (b[2] - a[2]) * c / math.cos(math.radians(48.0))
+        t0 += b[0] - a[0]
+        out.append((t0, la0, lo0, b[3], b[4], b[5]))
+write('ncount_stueckel', '1', out)
 
 # 4) Gehen, Rad, Bus: NMEA-RMC der GNSSLogger-Spuren (Chip, 1 Hz, Tempo in Knoten).
 def rmc(path):

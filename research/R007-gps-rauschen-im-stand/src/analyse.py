@@ -164,3 +164,101 @@ n = sum(len(r) for _, r in ncs)
 sp = [x[4] for _, r in ncs for x in r]
 sa = [x[5] for _, r in ncs for x in r]
 print(f' Zeilen {n}: speed=0 {100 * sum(x == 0 for x in sp) / n:.1f}%, speedAcc=0 {100 * sum(x == 0 for x in sa) / n:.1f}%, speed>=0.5 {100 * sum(x >= .5 for x in sp) / n:.1f}%, speed>=0.8 {100 * sum(x >= .8 for x in sp) / n:.1f}%')
+
+# E) ncount im Detail: Einlauf gegen späteren Teil der 30 s
+print('\n# E ncount: Rate früh gegen spät, nach Genauigkeit und Sprüngen (nur Sitzungen mit mindestens 20 GPS-Zeilen)')
+k = R * math.pi / 180
+def seg(rows):
+    out = []
+    for a, b in zip(rows, rows[1:]):
+        dt = (b[0] - a[0]) / 1000
+        if dt <= 0 or dt > 10 or a[3] > 25 or b[3] > 25:
+            continue
+        out.append((math.hypot((b[1] - a[1]) * k, (b[2] - a[2]) * k * math.cos(math.radians(a[1]))), dt, b[4], (a[0] - rows[0][0]) / 1000))
+    return out
+sess = [(n, r, seg(r)) for n, r in sessions.get('ncount', []) if len(r) >= 20]
+print(' Sitzungen', len(sess))
+def rate(x):
+    t = sum(s[1] for s in x)
+    return 60 * sum(s[0] for s in x) / t if t else float('nan')
+early = [rate([s for s in g if s[3] < 10]) for _, _, g in sess]
+late = [rate([s for s in g if s[3] >= 10]) for _, _, g in sess]
+for name, v in (('erste 10 s', early), ('ab 10 s', late)):
+    v = [x for x in v if x == x]
+    print(f' {name}: m/min med={q(v, .5):.1f} p25={q(v, .25):.1f} p75={q(v, .75):.1f} p90={q(v, .9):.1f}, >16.2: {100 * sum(x > 16.2 for x in v) / len(v):.1f}% (n={len(v)})')
+med_step = [st.median(s[0] / s[1] for s in g) for _, _, g in sess if g]
+print(f' Median je Sitzung der Stufen in m/s: med={q(med_step, .5):.2f} p25={q(med_step, .25):.2f} p75={q(med_step, .75):.2f} p90={q(med_step, .9):.2f}')
+# Ohne einzelne Sprünge: Rate aus der Summe der Schritte bis 5 m/s
+clean = [rate([s for s in g if s[0] / s[1] <= 5 and s[3] >= 10]) for _, _, g in sess]
+clean = [x for x in clean if x == x]
+print(f' ab 10 s ohne Stufen über 5 m/s: med={q(clean, .5):.1f} p75={q(clean, .75):.1f} p90={q(clean, .9):.1f}, >16.2: {100 * sum(x > 16.2 for x in clean) / len(clean):.1f}%')
+# Pause möglich ab 10 s: 10 Stufen unter 0,5 m/s hintereinander
+def has_run(g):
+    n = 0
+    for s in g:
+        n = n + s[1] if s[0] / s[1] < 0.5 else 0
+        if n >= 10:
+            return True
+    return False
+print(f' Sitzungen mit mindestens einem 10-s-Lauf unter 0,5 m/s: {100 * sum(has_run(g) for _, _, g in sess) / len(sess):.1f}%')
+acc_med = [(st.median(x[3] for x in r), rate(g)) for _, r, g in sess if g]
+for lo, hi in ((0, 3), (3, 5), (5, 10), (10, 1000)):
+    v = [b for a, b in acc_med if lo <= a < hi]
+    if v:
+        print(f' Median-Genauigkeit {lo}-{hi} m: n={len(v)} m/min med={q(v, .5):.1f} p90={q(v, .9):.1f}')
+# Tempo gegen Stufe
+both = [(s[0] / s[1], s[2]) for _, _, g in sess for s in g if s[2] is not None]
+print(f' Stufen n={len(both)}: Δs/Δt>=0,5: {100 * sum(a >= .5 for a, _ in both) / len(both):.1f}%, getSpeed>=0,5: {100 * sum(b >= .5 for _, b in both) / len(both):.1f}%, beide: {100 * sum(a >= .5 and b >= .5 for a, b in both) / len(both):.1f}%')
+print(f' Anteil getSpeed exakt 0: {100 * sum(b == 0 for _, b in both) / len(both):.1f}%; davon Δs/Δt>=0,5: {100 * sum(a >= .5 and b == 0 for a, b in both) / max(1, sum(b == 0 for _, b in both)):.1f}%')
+
+# F) Natürliche Stopps: bestes und schlechtestes 60-s-Fenster, Nettoversatz
+print('\n# F Natürliche Stopps')
+for src in ('stopreal_walk', 'stopreal_bus'):
+    for n, r in sessions.get(src, []):
+        s = seg(r)
+        roll = [sum(x[0] for x in s[i:i + 60]) for i in range(0, max(1, len(s) - 59))]
+        net = math.hypot((r[-1][1] - r[0][1]) * k, (r[-1][2] - r[0][2]) * k * math.cos(math.radians(r[0][1])))
+        print(f' {src} {n}: Dauer {len(r)} s, Weg {sum(x[0] for x in s):.1f} m, netto {net:.1f} m, 60-s-Fenster min={min(roll):.1f} med={st.median(roll):.1f} max={max(roll):.1f} m, Grenze je Stopp {LIMIT / STOPS:.1f}')
+
+# G) Gehspur: Pausen in der Gehspur gegen Chip-Tempo
+print('\n# G Gehspur: Abschnitte ab 10 s mit Δs/Δt unter 0,5 m/s und ihr Chip-Tempo')
+for n, r in sessions.get('walk_walk', []):
+    s = seg(r)
+    i = 0
+    while i < len(s):
+        if s[i][0] / s[i][1] >= .5:
+            i += 1
+            continue
+        j = i
+        while j < len(s) and s[j][0] / s[j][1] < .5:
+            j += 1
+        if j - i >= 10:
+            sp = [x[2] for x in s[i:j]]
+            print(f'  t={s[i][3]:.0f} s, Dauer {j - i} s, Chip-Tempo Mittel {st.mean(sp):.2f} max {max(sp):.2f} m/s, Weg {sum(x[0] for x in s[i:j]):.1f} m')
+        i = j
+    # Umgekehrt: Chip-Tempo durchgehend 0 ab 15 s, und löst Δs/Δt dort aus?
+    i = 0
+    while i < len(s):
+        if s[i][2] != 0:
+            i += 1
+            continue
+        j = i
+        while j < len(s) and s[j][2] == 0:
+            j += 1
+        if j - i >= 15:
+            print(f'  Chip 0: t={s[i][3]:.0f} s, Dauer {j - i} s, 10-s-Lauf unter 0,5 m/s: {has_run(s[i:j])}, Weg {sum(x[0] for x in s[i:j]):.1f} m')
+        i = j
+    sp = [x[2] for x in s]
+    d = [x[0] / x[1] for x in s]
+    print(f'  Gesamt: Chip-Tempo Median {st.median(sp):.2f}, Stufe Median {st.median(d):.2f}, |Stufe-Tempo| Median {st.median(abs(a - b) for a, b in zip(d, sp)):.3f}, p90 {q([abs(a - b) for a, b in zip(d, sp)], .9):.3f} m/s')
+
+# H) Lücken in den Stand-Sitzungen (die Fensterwahl schließt sie aus)
+print('\n# H PAR-001, PAR-002, PAR-003, PAR-004 in ganzen Stand-Sitzungen (keins)')
+agg = collections.defaultdict(lambda: [0, 0, 0, 0, 0, 0.0])
+for r in tr:
+    if r['mitigation'] != 'keins' or r['source'].startswith('synth'):
+        continue
+    a = agg[r['source']]
+    a[0] += int(r['n']); a[1] += int(r['disc_acc']); a[2] += int(r['disc_hard']); a[3] += int(r['disc_soft']); a[4] += int(r['gaps']); a[5] += float(r['dur_s'])
+for s, a in sorted(agg.items()):
+    print(f' {s}: Punkte {a[0]}, Stunden {a[5] / 3600:.1f}, acc {a[1]}, hart {a[2]}, weich {a[3]}, Lücken {a[4]}')
