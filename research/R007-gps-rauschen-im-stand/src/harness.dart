@@ -132,6 +132,9 @@ class SpeedIntegrate extends Mitigation {
   }
 }
 
+/// Nur diese Gegenmittel rechnen (--mitigations), leer = alle.
+Set<String> onlyMitigations = {};
+
 List<Mitigation> mitigations(bool withSpeed) => [
   NoFilter(),
   MinDistance(3),
@@ -147,7 +150,7 @@ List<Mitigation> mitigations(bool withSpeed) => [
   MovingAverage(10),
   MovingAverage(20),
   if (withSpeed) ...[SpeedGate(0.3), SpeedGate(0.5), SpeedIntegrate()],
-];
+].where((m) => onlyMitigations.isEmpty || onlyMitigations.contains(m.name)).toList();
 
 double? parse(String s) => s.isEmpty ? null : double.parse(s);
 
@@ -314,9 +317,24 @@ void main(List<String> a) {
   final burnIn = int.parse(opt('burn-in-s', '120'));
   final below = double.parse(opt('standstill-below', '0.5'));
   final from = double.parse(opt('movement-from', '0.8'));
-  if (below != 0.5 || from != 0.8) {
+  // Weitere Parameter nur zum Vergleich (varianten.py), 1e9 schaltet PAR-002 oder -003 ab.
+  final hardJump = double.parse(opt('hard-jump', '12.5'));
+  final softJump = double.parse(opt('soft-jump', '8'));
+  final gapS = int.parse(opt('gap-s', '10'));
+  final standstillS = int.parse(opt('standstill-s', '10'));
+  final simOnly = a.contains('--sim-only'); // ohne Spurmodus und langsame Bewegung
+  if (opt('mitigations', '').isNotEmpty) onlyMitigations = opt('mitigations', '').split(';').toSet();
+  if (below != 0.5 || from != 0.8 || hardJump != 12.5 || softJump != 8 || gapS != 10 || standstillS != 10) {
     // Nur zum Vergleich; Version 999 ist keine echte Parameterversion.
-    params = PreprocessingParameters(parameterVersion: 999, standstillBelow: below, movementFrom: from);
+    params = PreprocessingParameters(
+      parameterVersion: 999,
+      standstillBelow: below,
+      movementFrom: from,
+      hardJumpMaxSpeed: hardJump,
+      softJumpSpeed: softJump,
+      gapMaxDuration: Duration(seconds: gapS),
+      standstillMinDuration: Duration(seconds: standstillS),
+    );
   }
   final rnd = math.Random(seed);
   final all = load(norm);
@@ -325,7 +343,7 @@ void main(List<String> a) {
   final stopsCsv = File('$out/stops.csv').openWrite()
     ..writeln('source,mitigation,run,stop,session,win,paused,pause_delay_s,resumes,sham_m,sham_in_pause_m,disc_acc,disc_hard,disc_soft');
   final runsCsv = File('$out/runs.csv').openWrite()
-    ..writeln('source,mitigation,run,unpaused,sham_stop_m,dist_m,dist_err_m,moving_s,moving_excess_s,gaps');
+    ..writeln('source,mitigation,run,unpaused,sham_stop_m,dist_m,dist_err_m,dist_err_base_m,post_stop_m,rest_m,moving_s,moving_excess_s,gaps');
   final slowCsv = File('$out/slow.csv').openWrite()
     ..writeln('source,mitigation,v,rep,dist_ratio,moving_share,false_pauses');
   final traceCsv = File('$out/traces.csv').openWrite()
@@ -333,7 +351,7 @@ void main(List<String> a) {
 
   // Kontrolle: rauschfreier Lauf, Handrechnung siehe README.
   final ctrlB = build(totalS, stopS, List.filled(nStops, null), speed);
-  final ctrlFix = ctrlB.steps.map((s) => Fix(s.ms, s.lat, s.lon, s.acc, s.speed));
+  final ctrlFix = [for (final s in ctrlB.steps) Fix(s.ms, s.lat, s.lon, s.acc, s.speed)];
   final ctrl = feed(ctrlFix, NoFilter(), ctrlB.steps.last.ms);
   final ctrlDist = ctrl.res.position.distanceMeters!;
   final ctrlMoving = ctrl.res.movement.movingTime.inMilliseconds / 1000;
@@ -342,6 +360,19 @@ void main(List<String> a) {
     'total_s=${ctrl.res.movement.totalTime.inSeconds}\n',
   );
   stdout.writeln('Kontrolle: dist=$ctrlDist moving=$ctrlMoving');
+  // Jedes Gegenmittel bekommt seine eigene rauschfreie Kontrolle: Es kann die Strecke auch ohne jedes
+  // Rauschen ändern (Mittel endet (w-1)/2·v hinter dem letzten Punkt, Mindestdistanz je nach Phase).
+  final ctrlOwn = <String, double>{};
+  final ctrlMit = File('$out/control_mitigations.csv').openWrite()..writeln('mitigation,dist_m,rand_m,moving_s,moving_excess_s');
+  for (final m in mitigations(true)) {
+    final o = feed(ctrlFix, m, ctrlB.steps.last.ms);
+    final mv = m is MinDistance && m.distanceOnly ? ctrl.res.movement : o.res.movement;
+    final d = o.res.position.distanceMeters!;
+    ctrlOwn[m.name] = d;
+    final mvS = mv.movingTime.inMilliseconds / 1000;
+    ctrlMit.writeln('${m.name},${f3(d)},${f3(d - ctrlDist)},${f3(mvS)},${f3(mvS - ctrlMoving)}');
+  }
+  ctrlMit.close();
 
   final bySource = <String, List<Session>>{};
   for (final s in all) {
@@ -353,7 +384,7 @@ void main(List<String> a) {
     final sessions = bySource[source]!;
     // Spurmodus: jede Sitzung als Ganzes, ohne Lauf drumherum.
     final hasSpeedAll = sessions.every((s) => s.fixes.every((f) => f.speed != null));
-    for (final s in sessions) {
+    for (final s in simOnly ? const <Session>[] : sessions) {
       if (s.fixes.length < 20) continue;
       final startMs = s.fixes.first.ms;
       final shifted = s.fixes.map((f) => Fix(f.ms - startMs, f.lat, f.lon, f.acc, f.speed)).toList();
@@ -437,12 +468,25 @@ void main(List<String> a) {
         }
         final dist = o.res.position.distanceMeters!;
         final moving = mv.movingTime.inMilliseconds / 1000;
+        // Zerlegung: was der Laufteil gegenüber speed je Sekunde mehr zählt, in den 25 s nach Stopps und sonst.
+        var postStop = 0.0, rest = 0.0;
+        for (final p in o.res.position.positions) {
+          final x = msOf(p.input.time);
+          if (x == 0 || b.stops.any((st) => x > st.$1 && x <= st.$2)) continue;
+          final extra = p.countedDistanceMeters - speed;
+          if (b.stops.any((st) => x > st.$2 && x <= st.$2 + 25000)) {
+            postStop += extra;
+          } else {
+            rest += extra;
+          }
+        }
         runsCsv.writeln(
-          '$source,${m.name},$run,$unpaused,${f3(shamTotal)},${f3(dist)},${f3(dist - ctrlDist)},${f3(moving)},${f3(moving - ctrlMoving)},${o.res.position.gaps.length}',
+          '$source,${m.name},$run,$unpaused,${f3(shamTotal)},${f3(dist)},${f3(dist - ctrlOwn[m.name]!)},${f3(dist - ctrlDist)},${f3(postStop)},${f3(rest)},${f3(moving)},${f3(moving - ctrlMoving)},${o.res.position.gaps.length}',
         );
       }
     }
 
+    if (simOnly) continue;
     // Langsame echte Bewegung mit echtem Rauschen: falsche Pausen je Gegenmittel.
     // getSpeed fehlt hier bewusst: dessen Verhalten im Gehen zeigen nur die Gehspuren.
     final poolLong = <(Session, int)>[];

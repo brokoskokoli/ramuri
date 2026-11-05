@@ -211,6 +211,9 @@ both = [(s[0] / s[1], s[2]) for _, _, g in sess for s in g if s[2] is not None]
 print(f' Stufen n={len(both)}: Δs/Δt>=0,5: {100 * sum(a >= .5 for a, _ in both) / len(both):.1f}%, getSpeed>=0,5: {100 * sum(b >= .5 for _, b in both) / len(both):.1f}%, beide: {100 * sum(a >= .5 and b >= .5 for a, b in both) / len(both):.1f}%')
 print(f' Anteil getSpeed exakt 0: {100 * sum(b == 0 for _, b in both) / len(both):.1f}%; davon Δs/Δt>=0,5: {100 * sum(a >= .5 and b == 0 for a, b in both) / max(1, sum(b == 0 for _, b in both)):.1f}%')
 
+both10 = [(s[0] / s[1], s[2]) for _, _, g in sess for s in g if s[2] is not None and s[3] >= 10]
+print(f' ab 10 s: Stufen n={len(both10)}: Δs/Δt>=0,5: {100 * sum(a >= .5 for a, _ in both10) / len(both10):.1f}%, getSpeed>=0,5: {100 * sum(b >= .5 for _, b in both10) / len(both10):.1f}%; getSpeed exakt 0: {100 * sum(b == 0 for _, b in both10) / len(both10):.1f}%; davon Δs/Δt>=0,5: {100 * sum(a >= .5 and b == 0 for a, b in both10) / max(1, sum(b == 0 for _, b in both10)):.1f}%')
+
 # F) Natürliche Stopps: bestes und schlechtestes 60-s-Fenster, Nettoversatz
 print('\n# F Natürliche Stopps')
 for src in ('stopreal_walk', 'stopreal_bus'):
@@ -264,11 +267,12 @@ for s, a in sorted(agg.items()):
     print(f' {s}: Punkte {a[0]}, Stunden {a[5] / 3600:.1f}, acc {a[1]}, hart {a[2]}, weich {a[3]}, Lücken {a[4]}')
 
 # I) Belastbarkeit: Sitzungs-Bootstrap der Stand-Rate ab 10 s (ncount) und je Chipfamilie
-print('\n# I ncount ab 10 s: Bootstrap über Sitzungen, Rate in m/min, 3 Stopps à 60 s gegen die Grenze')
+print('\n# I ncount ab 10 s: Bootstrap über Sitzungen, nur die Stand-Rate in m/min (Median je Sitzung)')
 vals = [(n.split('-')[0][:3], x) for (n, _, g), x in zip(sess, late) if x == x]
 all_v = [x for _, x in vals]
 boot = sorted(q([rnd.choice(all_v) for _ in all_v], .5) for _ in range(2000))
-print(f' Median {q(all_v, .5):.1f} m/min, 95-%-Intervall {boot[50]:.1f} bis {boot[1949]:.1f}, entspricht {100 * 3 * STOP / 60 * q(all_v, .5) / RUN_M:.2f} % ({100 * 3 * STOP / 60 * boot[50] / RUN_M:.2f} bis {100 * 3 * STOP / 60 * boot[1949] / RUN_M:.2f} %)')
+# Bewusst ohne Umrechnung in Prozent: Das ist die Stand-Rate, nicht die Scheinstrecke der Regel (die steht in B, die Spanne in varianten.txt).
+print(f' Median {q(all_v, .5):.1f} m/min, 95-%-Intervall {boot[50]:.1f} bis {boot[1949]:.1f}')
 by = collections.defaultdict(list)
 for h, x in vals:
     by[h].append(x)
@@ -283,3 +287,15 @@ for m in ('keins', 'getspeed_gate_0.5', 'getspeed_gate_0.3', 'getspeed_integral'
         e = [float(r['dist_err_m']) for r in rs]
         mv = [float(r['moving_excess_s']) for r in rs]
         print(f" {m}: Schein p10={q(s, .1):.1f} med={q(s, .5):.1f} p90={q(s, .9):.1f}; Streckenfehler med={q(e, .5):.1f} ({100 * q(e, .5) / RUN_M:.2f} %); Mehrzeit med={q(mv, .5):.0f} s")
+
+# K) Streckenfehler je Gegenmittel gegen seine eigene rauschfreie Kontrolle
+print('\n# K Streckenfehler gegen eigene Kontrolle, je Lauf (m). rand = eigene Kontrolle minus Kontrolle ohne Gegenmittel. mz_ideal = Mehrzeit auf rauschfreien Daten')
+own = {r['mitigation']: r for r in csv.DictReader(open(f'{OUT}/control_mitigations.csv'))}
+print('quelle mittel rand mz_ideal schein_med err_med err_p10 err_p90 err_mean alt_gegen_ungefiltert_med ueber_grenze_% err-schein_med err-schein_mean post25_med rest_med unpaused_mean mehrzeit_med')
+for (src, m), rs in sorted(runs.items()):
+    if src.startswith('synth_ar1'):
+        continue
+    e = [float(r['dist_err_m']) for r in rs]
+    h = [float(r['sham_stop_m']) for r in rs]
+    d = [a - b for a, b in zip(e, h)]
+    print(src, m, f"{float(own[m]['rand_m']):.1f} {float(own[m]['moving_excess_s']):.0f} {q(h, .5):.1f} {q(e, .5):.1f} {q(e, .1):.1f} {q(e, .9):.1f} {st.mean(e):.1f} {q([float(r['dist_err_base_m']) for r in rs], .5):.1f} {100 * sum(x > LIMIT for x in e) / len(e):.1f} {q(d, .5):.1f} {st.mean(d):.1f} {q([float(r['post_stop_m']) for r in rs], .5):.1f} {q([float(r['rest_m']) for r in rs], .5):.1f} {st.mean(float(r['unpaused']) for r in rs):.2f} {q([float(r['moving_excess_s']) for r in rs], .5):.0f}")
