@@ -17,6 +17,9 @@ List<DateTime> receivedHeartRateTimes(HeartRateResult heartRate) => [
 /// zwei Abständen (bei gleich vielen Abständen von 1 s und 2 s bei 1,5 s) und
 /// würde jede Lücke als lückenlos werten. So bleibt der Takt ein tatsächlich
 /// vorkommender Abstand.
+///
+/// Bekannte Grenze: Überwiegen Abstände von zwei Takten, wird der längere
+/// Abstand zum Takt und der Ausfall ist nicht erkennbar.
 int? medianBeatMicros(List<DateTime> received) {
   if (received.length < 2) return null;
   final all = [...received]..sort();

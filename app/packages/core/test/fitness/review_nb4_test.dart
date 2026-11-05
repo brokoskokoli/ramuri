@@ -121,39 +121,58 @@ void main() {
 
   group('Befund 2 (Review 3): Takt ist ein vorkommender Abstand', () {
     // Jeder 3. Wert fehlt im 1-Hz-Raster: Abstände 1 s und 2 s im Wechsel.
+    HeartRateResult gapped(int lastSecond) => fitHeartRate([
+      for (var s = 0; s <= lastSecond; s++)
+        if (s % 3 != 2) fitHr(s, 150),
+    ]);
+
     double coverage(int lastSecond) {
-      final hr = fitHeartRate([
-        for (var s = 0; s <= lastSecond; s++)
-          if (s % 3 != 2) fitHr(s, 150),
-      ]);
       final t = heartRateTimeByBpm(
-        heartRate: hr,
+        heartRate: gapped(lastSecond),
         movement: moving(0, lastSecond),
         p: p,
       );
       return t.coveredMicros / t.movingMicros;
     }
 
-    test('gleich viele Abstände 1 s und 2 s (gerade Zahl): Takt 1 s', () {
-      final hr = fitHeartRate([
-        for (var s = 0; s <= 30; s++)
-          if (s % 3 != 2) fitHr(s, 150),
-      ]);
-      expect(
-        medianBeatMicros(receivedHeartRateTimes(hr)),
-        const Duration(seconds: 1).inMicroseconds,
-      );
-      // Je 3 s fehlt 1 s (Lücke 2 s minus Takt 1 s): 20 von 30 s.
-      expect(coverage(30), closeTo(20 / 30, 1e-9));
-    });
+    FitnessResult<TrimpResult> load(int lastSecond) => trimp.compute(
+      basis: basis,
+      heartRate: gapped(lastSecond),
+      movement: moving(0, lastSecond),
+      p: p,
+    );
 
     test(
-      'ein Wert mehr (ungerade Zahl): gleiche Wertung, nicht vollständig',
+      'je 3. Wert fehlt, 30 s (gerade Abstandszahl): Takt 1 s, 2/3 Abdeckung, '
+      'TRIMP nicht bewertet',
       () {
-        // 10 Lücken zu je 1 s fehlend in 31 s.
-        expect(coverage(31), closeTo(21 / 31, 1e-9));
+        expect(
+          medianBeatMicros(receivedHeartRateTimes(gapped(30))),
+          const Duration(seconds: 1).inMicroseconds,
+        );
+        // Je 3 s fehlt 1 s (Lücke 2 s minus Takt 1 s): 20 von 30 s.
+        expect(coverage(30), closeTo(20 / 30, 1e-9));
+        // 2/3 liegt unter der Mindestabdeckung von 80 Prozent.
+        final r = load(30);
+        expect(r, isA<FitnessUnavailable<TrimpResult>>());
+        expect(
+          (r as FitnessUnavailable).reason,
+          UnavailableReason.insufficientCoverage,
+        );
       },
     );
+
+    test('je 3. Wert fehlt, 31 s (ungerade Abstandszahl): gleiche Wertung, '
+        '21/31 Abdeckung, TRIMP nicht bewertet', () {
+      // 10 Lücken zu je 1 s fehlend in 31 s.
+      expect(coverage(31), closeTo(21 / 31, 1e-9));
+      final r = load(31);
+      expect(r, isA<FitnessUnavailable<TrimpResult>>());
+      expect(
+        (r as FitnessUnavailable).reason,
+        UnavailableReason.insufficientCoverage,
+      );
+    });
   });
 
   group('Befund 1: gemeinsame Regel round(Δt / Takt) <= 1', () {
@@ -336,6 +355,20 @@ void main() {
         (r as FitnessUnavailable).reason,
         UnavailableReason.missingRestingHeartRate,
       );
+    });
+  });
+
+  group('Median-Takt', () {
+    test('bekannte Grenze: überwiegen Abstände von zwei Takten, gilt der '
+        'längere Abstand als Takt, der Ausfall bleibt unerkannt', () {
+      // Vier Abstände zu 2 s, einer zu 1 s: Takt 2 s, obwohl das Gerät
+      // eigentlich jede Sekunde sendet und jeder zweite Wert fehlt.
+      final times = [
+        for (final s in [0, 2, 4, 6, 8, 9]) fitAt(s),
+      ];
+      expect(medianBeatMicros(times), 2000000);
+      expect(beatCoversGap(2000000, 2000000), isTrue);
+      expect(missingMicrosInGap(2000000, 2000000), 0);
     });
   });
 }
