@@ -262,3 +262,24 @@ for r in tr:
     a[0] += int(r['n']); a[1] += int(r['disc_acc']); a[2] += int(r['disc_hard']); a[3] += int(r['disc_soft']); a[4] += int(r['gaps']); a[5] += float(r['dur_s'])
 for s, a in sorted(agg.items()):
     print(f' {s}: Punkte {a[0]}, Stunden {a[5] / 3600:.1f}, acc {a[1]}, hart {a[2]}, weich {a[3]}, Lücken {a[4]}')
+
+# I) Belastbarkeit: Sitzungs-Bootstrap der Stand-Rate ab 10 s (ncount) und je Chipfamilie
+print('\n# I ncount ab 10 s: Bootstrap über Sitzungen, Rate in m/min, 3 Stopps à 60 s gegen die Grenze')
+vals = [(n.split('-')[0][:3], x) for (n, _, g), x in zip(sess, late) if x == x]
+all_v = [x for _, x in vals]
+boot = sorted(q([rnd.choice(all_v) for _ in all_v], .5) for _ in range(2000))
+print(f' Median {q(all_v, .5):.1f} m/min, 95-%-Intervall {boot[50]:.1f} bis {boot[1949]:.1f}, entspricht {100 * 3 * STOP / 60 * q(all_v, .5) / RUN_M:.2f} % ({100 * 3 * STOP / 60 * boot[50] / RUN_M:.2f} bis {100 * 3 * STOP / 60 * boot[1949] / RUN_M:.2f} %)')
+by = collections.defaultdict(list)
+for h, x in vals:
+    by[h].append(x)
+for h, v in sorted(by.items(), key=lambda kv: -len(kv[1])):
+    if len(v) >= 5:
+        print(f' {h}: n={len(v)} med={q(v, .5):.1f} p25={q(v, .25):.1f} p75={q(v, .75):.1f}')
+print('\n# J Gestückelt und natürliche Stopps: Spannweite der Läufe')
+for m in ('keins', 'getspeed_gate_0.5', 'getspeed_gate_0.3', 'getspeed_integral', 'mindist_5_nurstrecke', 'mindist_8_nurstrecke', 'mittel_10s', 'mittel_20s'):
+    rs = runs.get(('ncount_stueckel', m), [])
+    if rs:
+        s = [float(r['sham_stop_m']) for r in rs]
+        e = [float(r['dist_err_m']) for r in rs]
+        mv = [float(r['moving_excess_s']) for r in rs]
+        print(f" {m}: Schein p10={q(s, .1):.1f} med={q(s, .5):.1f} p90={q(s, .9):.1f}; Streckenfehler med={q(e, .5):.1f} ({100 * q(e, .5) / RUN_M:.2f} %); Mehrzeit med={q(mv, .5):.0f} s")
