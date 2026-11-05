@@ -77,6 +77,7 @@ case "$STEP" in
     for k in gap kill swipe wal bench; do python3 src/analyze.py $k "$R005_WORK" > "$r/analyze-$k.out"; done
     python3 src/longrun.py "$R005_WORK/gap/a36_own_w1_i1_3600s_natlong_r0" > "$r/longrun.out"
     python3 src/abstand.py "$R005_WORK"/gap/a36_own_w0_i1_240s_abst_*_r0 "$R005_WORK"/gap/a36_own_w0_i1_600s_r0 "$R005_WORK"/gap/a31_own_w0_i1_600s_r0 "$R005_WORK"/gap/a36_none_w0_i1_600s_r0 "$R005_WORK"/gap/a36_none_w0_i1_120s_ctl_r0 > "$r/abstand.out"
+    python3 src/zeilen_je_seite.py "$R005_WORK" > "$r/zeilen_je_seite.out"
     python3 src/tables.py "$R005_WORK" | tee "$r/tables.md";;
   *) usage >&2; exit 2;;
 esac

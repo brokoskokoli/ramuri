@@ -180,12 +180,15 @@ def main_only(src,plain=False):
     first=full[:leaves[0][1]]; res.update(oldest_leaf=leaves[0][0],oldest_leaf_rows=leaves[0][1],rows_main_only=len(only),seq_main_only=[int(x.split('\t')[0]) for x in only])
     if leaves[0][0] in P: res['why']='aelteste Blattseite %d steht im WAL'%leaves[0][0]; return res
     if main is None: res['why']='Hauptdatei allein nicht lesbar'; return res
-    ms=set(main); miss=sum(x not in ms for x in first)
+    ms=set(main); miss=sum(x not in ms for x in first); res['only_missing']=sum(x not in ms for x in only); res['main_max']=max((int(x.split('\t')[0]) for x in main),default=0)
     if miss: res['why']='%d von %d Zeilen der aeltesten Blattseite fehlen oder weichen ab in der Hauptdatei allein'%(miss,len(first)); return res
+    if res['only_missing']: res['why']='%d von %d Zeilen ausserhalb der WAL-Seiten fehlen oder weichen ab in der Hauptdatei allein'%(res['only_missing'],len(only)); return res
     res['shown']=True; return res
 def main_only_cached(o):
     p=o+'main_only.json'
-    if os.path.exists(p): return json.load(open(p))
+    if os.path.exists(p):
+        r=json.load(open(p))
+        if 'main_max' in r: return r  # sonst: aeltere Fassung ohne Pruefung aller Zeilen, neu rechnen
     r=main_only(o+'before-open'); json.dump(r,open(p,'w')); return r
 def kill(work):
     out=[]
@@ -214,9 +217,11 @@ def kill(work):
         rec['tag']=(re.search(r'_(ck\d+\w*)_r\d+$',rec['run']) or [None,None])[1]
         if mo is not None:
             ackt={int(kv(e[2])['seq']):e[0] for e in ev if e[1]=='R005ACK'}; n0=mo.get('oldest_leaf_rows') or 0
-            # Alter der aeltesten Blattseite beim Kill: fruehestens ist sie mit dem Commit der letzten Zeile dieser Seite im WAL, spaetestens 10 Frames danach zurueckgeschrieben
-            age=[round(tk-ackt[x],1) if x in ackt else None for x in (n0+autock,n0)]
-            rec.update(main_only=mo,rows_main_only=mo.get('rows_main_only'),lost_main_only=sum(1 for s in acked-db if s<=n0),oldest_leaf_age_min=age[0],oldest_leaf_age_max=age[1])
+            # Alter der aeltesten Blattseite beim Kill: sie entsteht mit der Teilung, also im Commit der Zeile n0+1 (Kontrolle an wal-device, Seitenfolge), und ist spaetestens 10 Commits danach zurueckgeschrieben
+            age=[round(tk-ackt[x],1) if x in ackt else None for x in (n0+1+autock,n0+1)]
+            # Juengste Zeile, die die Hauptdatei allein liefert: deren Commit ist die untere Schranke fuer den letzten abgeschlossenen Checkpoint. Gemessen, nicht geschaetzt.
+            nm=mo.get('main_max') or 0
+            rec.update(main_only=mo,rows_main_only=mo.get('rows_main_only'),lost_main_only=sum(1 for s in acked-db if s<=n0),lost_in_main=sum(1 for s in acked-db if s<=nm),oldest_leaf_age_min=age[0],oldest_leaf_age_max=age[1],main_newest_seq=nm,main_newest_age=round(tk-ackt[nm],1) if nm in ackt else None,ack_before_kill=round(tk-ackt[la],2) if la in ackt else None)
         out.append(rec); print(json.dumps(rec))
         if why: print('UNGUELTIG:',rec['run'],why,'lost_acked',lost_acked)
     cells={}
