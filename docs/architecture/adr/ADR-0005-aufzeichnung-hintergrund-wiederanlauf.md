@@ -1,6 +1,6 @@
 # ADR-0005 — Aufzeichnung im Hintergrund und Wiederanlauf
 
-- **Status:** Accepted (Maintainer, 2026-11-04); Punkt 3 (eine Engine) vorläufig bis zum Ergebnis von R005
+- **Status:** Accepted (Maintainer, 2026-11-04); Punkt 3 (eine Engine) nach R005 im Emulator bestätigt, FR-0034 im Feld offen
 - **Datum:** 2026-11-04
 - **Quellen:** SRC-003 (OQ-0021, OQ-0052)
 - **Betroffene Anforderungen:** FR-0034, FR-0035, FR-0036, FR-0193, FR-0194, FR-0195, FR-0202, ACC-01, ACC-03, OQ-0021
@@ -28,9 +28,15 @@ Ein Lauf muss bei ausgeschaltetem Bildschirm durchgehend weiterlaufen (FR-0034).
 - **`WorkManager`:** Für kontinuierliche Aufzeichnung nicht gedacht.
 - **Companion Device Service:** Hilft nur bei Sensoren, Läufe ohne Sensor sind Pflicht (FR-0035).
 
+**Nachtrag nach R005 (K9):**
+- **Punkt 3:** Trägt im Emulator (API 31 und 36): kein Abstand über 5 s bei Sperre und `force-idle`, solange das System wach ist. Die Stichproben sind klein, auf API 36 lief ein einziger 60-Minuten-Lauf.
+- **Punkt 5:** Startwert ist eine Zeile je Transaktion mit `synchronous = FULL`, keine Produktvorgabe; nächster Schritt bei Energie- oder Schreiblast wäre 5 Zeilen. Der Messauftrag zu `adb emu kill` je Transaktionsgröße ist durch `sigkill` ersetzt, Begründung in R005.
+- **Punkt 2:** Ob der Typ `health` nötig wird, bleibt offen: Der Schrittsensor fehlt auf beiden Images, die Prüfung gehört in den Feldtest.
+- **Rückfallweg:** `flutter_foreground_task` verhindert mit `allowAutoRestart: false` den Neustart nicht (`START_STICKY`, Alarm in `onTaskRemoved`). Ohne Patch oder Prüfung mit `stopWithTask` verletzt er Punkt 6.
+
 ## Konsequenzen
 - Eigener Kotlin-Code wird nötig und braucht später für iOS ein Gegenstück.
-- Ob der Dienst bei gesperrtem Bildschirm ohne Partial Wake Lock genügt, ist unbelegt und Teil von R005. Wake Locks kosten laut Google deutlich Akku [11].
+- Der Dienst hält für die Dauer des Laufs einen Partial Wake Lock. Das ist eine Entscheidung des Maintainers vom 2026-11-04 und nicht durch Messung belegt: Verlorene Laufdaten kommen nicht wieder, Mehrverbrauch und Android Vitals werden in Kauf genommen. Googles Dokumentation spricht eher dagegen und Wake Locks kosten deutlich Akku [11]. Zeigt der Feldtest den Lock als überflüssig, entfällt er (R005, Abschnitt „Wake Lock“).
 - Wiederaufnahme erfordert, dass der Nutzer die App öffnet. Bis dahin entsteht eine Lücke.
 - `synchronous = FULL` schreibt häufig auf den Speicher, was die Kosten erhöht.
 

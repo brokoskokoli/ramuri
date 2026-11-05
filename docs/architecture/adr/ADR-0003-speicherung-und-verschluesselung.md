@@ -20,7 +20,7 @@ Die Datenbankdatei muss ohne Schlüssel unlesbar sein (SEC-0009), ein System-Bac
 
 **4. Löschen:** `PRAGMA secure_delete = ON`, damit gelöschte Inhalte überschrieben werden [10]; nach dem Löschen ein WAL-Checkpoint.
 
-**5. Haltbarkeit:** WAL mit `synchronous = FULL`, denn nur so überstehen bestätigte Transaktionen einen Stromausfall [10]. Die Kosten misst R005 (ADR-0005).
+**5. Haltbarkeit:** WAL mit `synchronous = FULL`, denn nur so überstehen bestätigte Transaktionen einen Stromausfall [10]. Die Kosten sind klein (R005: Commit p50 unter 7 ms bei 1 Punkt je Sekunde, nur relativ gültig).
 
 ## Erwogene Alternativen
 - **`sqlcipher_flutter_libs`:** Eingestellt (0.7.0+eol), drift verweist auf den Weg über `sqlite3` 3.x [1][11]. SQLCipher bindet auf Android zudem OpenSSL ein [2].
@@ -28,6 +28,12 @@ Die Datenbankdatei muss ohne Schlüssel unlesbar sein (SEC-0009), ein System-Bac
 - **Nur die Geräteverschlüsselung von Android:** Erfüllt das Akzeptanzkriterium von SEC-0009 nicht, weil die Datei für das entsperrte System lesbar bleibt.
 - **Eigener Keystore-Code statt Plugin:** Weniger Abhängigkeiten, aber selbst gepflegte Kryptografie. Bleibt Rückfallweg hinter dem Port.
 - **Schlüssel per Biometrie schützen:** Weder verlangt noch mit der Aufzeichnung bei gesperrtem Gerät vereinbar. App-Sperre bleibt ein Vorschlag in [security.md](../../quality/security.md).
+
+**Nachtrag nach R005 (K9):**
+- **WAL:** Im Stand sqlite3mc 2.6.1 und SQLite 3.54.0 nachweislich verschlüsselt (Rechner, API 31, API 36); Frame-Köpfe bleiben Klartext.
+- **Punkt 5:** `FULL` verlor im Emulator keine bestätigte Zeile (41 harte Kills vor dem ersten Checkpoint, je 14 `sigkill` bei wiederverwendetem WAL und mit Zeilen nur in der Hauptdatei), die Kontrolle `NORMAL` verlor. `adb emu kill` und `sigkill` nähern sich dem Stromausfall nur an. Kill mitten im Checkpoint und Checkpoints von 1000 Frames sind nicht gemessen.
+- **Warnung:** Seitengrößenwechsel nur außerhalb von WAL; die FAQ-Prozedur hinterlässt sonst eine Klartextdatei. Die Laufzeitprüfung aus Punkt 1 ist daher auch nach Wartungsschritten nötig.
+- **Offen:** Das WAL kann bei Manipulation still abgeschnitten werden; die Authentifizierung je Seite fängt verworfene WAL-Enden nicht ab. Die Bewertung steht aus.
 
 ## Konsequenzen
 - Geht der Schlüssel verloren (Keystore-Fehler, Gerätewechsel), sind lokale Daten unwiederbringlich; es bleibt nur das Archiv (ADR-0001). Das Verhalten dabei legt die Spec nicht fest.
@@ -39,7 +45,7 @@ Die Datenbankdatei muss ohne Schlüssel unlesbar sein (SEC-0009), ein System-Bac
 Hardwaregebundener Keystore, echter Stromausfall (`adb emu kill` ist nur eine Näherung), Übertragungswerkzeuge der Hersteller und physische Reste gelöschter Daten im Flash. Prüfbar sind System-Backup und -Restore mit den Testwerkzeugen von Android [9], die unlesbare Datei und das Öffnen ohne Schlüssel.
 
 ## Offene Punkte
-Für Verschlüsselung im WAL-Modus nennt SQLite3MultipleCiphers eigene Implementierungen und Korrekturen im Changelog [12], eine geschlossene Aussage zum aktuellen Stand fand ich nicht: Nachweis in R005. Auch `<cross-platform-transfer>` (ab Android 16 QPR2) verlangt iOS-Kennungen [9]; dass ohne diesen Abschnitt nichts übertragen wird, ist unbelegt.
+Für Verschlüsselung im WAL-Modus nennt SQLite3MultipleCiphers eigene Implementierungen und Korrekturen im Changelog [12], eine geschlossene Aussage dazu fand ich nicht; R005 belegt es durch Messung, siehe Nachtrag. Auch `<cross-platform-transfer>` (ab Android 16 QPR2) verlangt iOS-Kennungen [9]; dass ohne diesen Abschnitt nichts übertragen wird, ist unbelegt.
 
 ## Belege (Abruf 2026-11-04)
 [1] https://drift.simonbinder.eu/platforms/encryption/ ·

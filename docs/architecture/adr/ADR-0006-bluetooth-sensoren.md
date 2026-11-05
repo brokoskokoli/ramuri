@@ -26,9 +26,11 @@ Phase 1 verlangt kompatible Bluetooth-Pulssensoren ohne herstellerspezifische Ei
 - **Eigener GATT-Code in Kotlin:** Volle Kontrolle, aber Fehlerquelle und Pflege; nur als letzter Ausweg.
 - **Companion Device Manager:** Laut Android eingeschränkte Filter und keine zufälligen MAC-Adressen [6], und der Dienst wird für GPS ohnehin gebraucht.
 
+**Nachtrag nach R005 (K9):** `universal_ble` zieht `bluez` und `dbus` (MPL-2.0) nach, beim Vertrieb gelten die Pflichten aus der MPL. Einschätzung ohne Rechtsprüfung (OQ-0048).
+
 ## Konsequenzen
 - CON-0003 gilt für das Standardprofil. Geräte ohne `0x180D` bleiben außen vor; FR-0009 und FR-0010 sind Phase 4.
-- `universal_ble` hat einen kleinen Anbieter und baut mit `compileSdkVersion 34`; der Bau mit Target 36 ist noch unbelegt (R005). Der Port begrenzt die Kosten eines Wechsels.
+- `universal_ble` hat einen kleinen Anbieter und baut mit `compileSdkVersion 34`; der Bau mit Target 36 ist im Prototyp belegt (R005: AGP 9.1.0, compileSdk 36), die Laufzeit nicht (R006). Der Port begrenzt die Kosten eines Wechsels.
 - Nutzt ein Sensor wechselnde Adressen (bei Pulssensoren unbelegt), veraltet die Kennung des bekannten Geräts (FR-0013); dann hilft eine neue Suche.
 
 ## Im Emulator nicht belegbar

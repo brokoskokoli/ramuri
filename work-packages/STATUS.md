@@ -4,7 +4,7 @@ Einzige Stelle für den Stand der Meilensteine und Arbeitspakete. Gepflegt vom O
 
 Status: `geplant` · `in Arbeit` · `Review` · `wartet` (Grund in „Offen“) · `gemergt` (Commit) · `verworfen`
 
-Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP02 und R005 laufen.
+Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, R005 abgeschlossen, WP02 und WP04 laufen.
 
 ## Meilensteine
 
@@ -22,8 +22,9 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP01 | Projektgerüst und Gate | gemergt (be066c1) | Gate nur auf macOS gelaufen, Linux-CI ungeprüft; Rückfallsprache Englisch kommt mit WP05 |
 | WP02 | Verschlüsselte Speicherung und Löschen | in Arbeit | Speicher-Port hat bisher nur open/close |
 | WP03 | Vorverarbeitung und Bewegungswerte | gemergt (b29c386) | Nur synthetische Läufe, Gate nur auf macOS; OQ-0068, OQ-0069 offen; Parameterversion 3 im Code kommt mit WP04 |
-| WP04 bis WP07, WP09 bis WP12 | siehe [M1-PLAN.md](M1-PLAN.md) | geplant | Annahmen aus WP01 und WP03 in den Paketen vermerkt; WP06 Uhr nur UTC ohne monotone Zeit (FR-0194), Schrittfrequenz in Schritten pro Minute; WP07 Form des Herzfrequenz-Ereignisstroms nicht in ADR-0006 festgelegt; `AppDependencies` ist noch leer |
-| WP08 | Hintergrund und Wiederanlauf | wartet | R005 |
+| WP05 bis WP07, WP09 bis WP12 | siehe [M1-PLAN.md](M1-PLAN.md) | geplant | Annahmen aus WP01 und WP03 in den Paketen vermerkt; WP06 Uhr nur UTC ohne monotone Zeit (FR-0194), Schrittfrequenz in Schritten pro Minute; WP07 Form des Herzfrequenz-Ereignisstroms nicht in ADR-0006 festgelegt; `AppDependencies` ist noch leer |
+| WP04 | Algorithmen-Rahmen, Herzfrequenzzonen und TRIMP | in Arbeit | Parameterversion 3 im Code |
+| WP08 | Hintergrund und Wiederanlauf | geplant | R005 liegt vor; wartet auf WP06, WP07 |
 
 ## Offen außerhalb der Pakete
 
@@ -34,5 +35,5 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 
 | Nr. | Titel | Für | Status | Offen |
 | --- | --- | --- | --- | --- |
-| R005 | Durchstich der Aufzeichnung | ADR-0005 Punkt 3, ADR-0003 (verschlüsseltes WAL), Lizenzbaum, WP08 | in Arbeit | – |
+| R005 | Durchstich der Aufzeichnung | ADR-0005 Punkt 3, ADR-0003 (verschlüsseltes WAL), Lizenzbaum, WP08 | abgeschlossen (1aa053a) | Feldthemen: Hersteller-Energiesparen, Akku, Stromausfall, echtes Schlafverhalten, FR-0034, Schrittsensor |
 | R007 | GPS-Rauschen im Stand (Literatur, `getSpeed`) | OQ-0068, FR-0029, FR-0052, vor WP06 | geplant | startet, sobald ein Platz frei ist |

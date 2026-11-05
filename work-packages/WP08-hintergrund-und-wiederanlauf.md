@@ -4,7 +4,7 @@
 
 Bezug: FR-0034, FR-0193, FR-0202; ADR-0005, ADR-0003 Punkt 5; OQ-0021, OQ-0052, OQ-0061.
 
-Vor dem Start legt der Project Supervisor das Ergebnis von R005 hier ein (Host, Wake Lock, WAL, Transaktionsgröße, Schrittsensor unter Typ `location`). Fällt ADR-0005 Punkt 3 durch, gilt der dort genannte Rückfallweg und dieses Paket wird angepasst.
+Ergebnis von R005 (`research/R005-aufzeichnung-durchstich/RESULTS.md`): Host eigener Dienst mit einer Engine, Partial Wake Lock für die Laufdauer (Entscheidung des Maintainers), eine Zeile je Transaktion mit `synchronous = FULL`, WAL verschlüsselt, keine Änderung an WP02 nötig. Der Schrittsensor unter Typ `location` bleibt offen, er fehlt auf beiden Images.
 
 ## Inhalt
 1. **Dienst:** Foreground Service aus der sichtbaren App, Diensttypen nach ADR-0005 Punkt 2, Benachrichtigung, Engine und dünner Kotlin-Code nach dem Ergebnis von R005. Die Sitzung aus WP06 läuft unverändert darin.
@@ -14,6 +14,7 @@ Vor dem Start legt der Project Supervisor das Ergebnis von R005 hier ein (Host, 
 5. **Schrittfrequenz (FR-0202):** Schrittsensor des Telefons in Kotlin hinter dem Port, eigene Berechtigung, ohne sie „nicht verfügbar“ und normale Aufzeichnung. Füllt die Anzeige aus WP06.
 
 ## Umsetzung
+- Testhinweise aus R005: `emulator_wake_lock` hält den Emulator wach, ein Vergleich mit und ohne Lock braucht den Eingriff per root; `geo fix` weckt nicht aus dem Suspend; Kill auf API 31 per root; Abstände bis 2 s auf API 36 bei Anfrage 1 s zählen nicht als Lücke.
 - **Teile für die Coder-Aufträge:** Teil A: Punkte 1 und 2 / Teil B: Punkt 4 / Teil C: Punkte 3 und 5, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Offen und nicht im Code zu entscheiden (`M1-PLAN.md`, L6): wie die Zeit der Lücke nach einem Abbruch in Gesamt- und Bewegungszeit eingeht. Fortsetzen ohne Standortberechtigung: FR-0195 gilt, der Nutzer kann speichern.
 - Kein `BOOT_COMPLETED`, keine Hintergrund-Standortberechtigung.
