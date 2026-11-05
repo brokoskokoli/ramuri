@@ -1,6 +1,6 @@
 # R007 – GPS-Rauschen im Stand
 
-**Status:** läuft · **Auftraggeber:** Project Supervisor (OQ-0068, vor WP06) · **Datum:** 2026-11-05
+**Status:** abgeschlossen, Review steht aus · **Auftraggeber:** Project Supervisor (OQ-0068, vor WP06) · **Datum:** 2026-11-05
 
 ## Frage
 Wie stark verfälscht GPS-Rauschen im Stand auf Android-Smartphones Strecke und Bewegungszeit, wenn die Geschwindigkeit aus Δs/Δt bei 1 Hz stammt, und welches Gegenmittel ist belegt: Mindestdistanz, Glättung oder `Location.getSpeed()`? Daran hängen OQ-0068 und die Frage, ob PAR-002 bis -004, -014, -015 vor WP06 eine neue Parameterversion brauchen.
@@ -18,7 +18,9 @@ Quellen der Vorrecherche stehen in [RESULTS.md](RESULTS.md).
 3. **Kennzahlen je Lauf:** Stopps ohne Pause (kein Bewegungsintervall deckt den Stopp ganz ab, also keine Pause bis zum Stoppende), Scheinstrecke (Summe `countedDistanceMeters` in den Stopps), Mehr-Bewegungszeit gegenüber der rauschfreien Kontrolle. Dazu verworfene Punkte nach Grund und Anteil der Scheinstrecke, der in die erkannte Pause fällt.
 4. **Gegenmittel nur im Analysecode,** als kausaler Filter vor dem Preprocessor: Mindestdistanz (3, 5, 8, 10 m und max(3 m, Genauigkeit), jeweils mit Haltepunkt und als Variante `_nurstrecke`, bei der die Bewegungszeit aus den Rohpunkten kommt), gleitendes Mittel (5, 10, 20 s), Tor über `getSpeed` (0,3 und 0,5 m/s), Strecke als Integral über `getSpeed`.
 5. **Schaden der Gegenmittel an echter Bewegung:** echte Standinkremente plus Vorschub mit 0,6 bis 3 m/s (falsche Pausen, Streckenverhältnis), dazu eine echte Geh-, Rad- und Busspur.
-6. **Vergleich und Kalibrierung:** ±3-m-Worst-Case und ein AR(1)-Raster (σ 1 bis 8 m, ρ 0,8 bis 0,995 je Sekunde). Beides ist Synthetik und in den Ergebnissen als übertragen gekennzeichnet.
+6. **Feldnaher Vergleich (übertragen):** Die 30-s-Sitzungen sind zu kurz für einen Stopp. Für `ncount_stueckel` werden ihre Teile ab Sekunde 10 mit festem Seed aneinandergehängt; ein 60-s-Fenster überspannt rund drei Sitzungen. Dazu natürliche Stopps aus der Geh- und Busspur.
+7. **Vergleich und Kalibrierung:** ±3-m-Worst-Case und ein AR(1)-Raster (σ 1 bis 8 m, ρ 0,8 bis 0,995 je Sekunde). Beides ist Synthetik und in den Ergebnissen als übertragen gekennzeichnet.
+8. **Schwellen:** Vergleich anderer Werte von PAR-014 über `--standstill-below` und `--movement-from`, ohne den App-Code zu ändern.
 
 **Kontrolle (Handrechnung):** Ohne Rauschen 4860 m = 1620 s · 3 m/s. Bewegungszeit 1641 s = 1800 − 3 · (60 − 10 + 3), weil die Pause 10 s nach Stoppbeginn einsetzt und das Fortsetzen 3 s braucht. ±3 m ergibt 360 m je Stopp und 1800 s Bewegungszeit, wie im Test von WP03. Der Harness schreibt die Kontrolle nach `control.txt`.
 
