@@ -1,0 +1,61 @@
+import 'algorithm_variant.dart';
+import 'fitness_parameters.dart';
+import 'fitness_result.dart';
+import 'heart_rate_basis.dart';
+
+/// Herzfrequenzreserve und relative Auslastung `r` (FR-0060), Kategorie A.
+class HeartRateReserve extends AlgorithmVariant {
+  const HeartRateReserve();
+
+  static const methodId = 'heart-rate-reserve';
+
+  @override
+  String get method => methodId;
+  @override
+  int get methodVersion => 1;
+  @override
+  AlgorithmCategory get category => AlgorithmCategory.established;
+
+  /// Prüft die Basis in der Reihenfolge fehlender Wert, PAR-018, PAR-019.
+  /// `null`, wenn `r` definiert ist.
+  UnavailableReason? check(HeartRateBasis basis, FitnessParameters p) {
+    final max = basis.maxBpm;
+    final rest = basis.restingBpm;
+    if (max == null) return UnavailableReason.missingMaxHeartRate;
+    if (rest == null) return UnavailableReason.missingRestingHeartRate;
+    if (max <= rest) return UnavailableReason.maxNotAboveResting;
+    if (max - rest < p.minHeartRateReserveBpm) {
+      return UnavailableReason.reserveTooSmall;
+    }
+    return null;
+  }
+
+  /// `r = (hf - HFRuhe) / (HFmax - HFRuhe)`, eine Division, nicht geklemmt.
+  FitnessResult<double> relativeLoad(
+    HeartRateBasis basis,
+    int bpm,
+    FitnessParameters p,
+  ) {
+    final reason = check(basis, p);
+    if (reason != null) {
+      return FitnessUnavailable(
+        reason: reason,
+        method: method,
+        methodVersion: methodVersion,
+        parameterVersion: p.parameterVersion,
+        maxIsEstimated: basis.maxIsEstimated,
+      );
+    }
+    return FitnessAvailable(
+      value: (bpm - basis.restingBpm!) / (basis.maxBpm! - basis.restingBpm!),
+      method: method,
+      methodVersion: methodVersion,
+      parameterVersion: p.parameterVersion,
+      maxIsEstimated: basis.maxIsEstimated,
+    );
+  }
+}
+
+const heartRateReserveFamily = AlgorithmFamily<HeartRateReserve>(
+  'heart-rate-reserve',
+);

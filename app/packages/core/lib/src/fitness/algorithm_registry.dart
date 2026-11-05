@@ -1,4 +1,6 @@
 import 'algorithm_variant.dart';
+import 'heart_rate_reserve.dart';
+import 'reserve_zones.dart';
 
 /// Familie -> registrierte Varianten und aktive Variante (NFR-0005).
 ///
@@ -9,7 +11,9 @@ class AlgorithmRegistry {
   AlgorithmRegistry();
 
   /// Standardbestückung. Spätere Pakete tragen ihre Varianten hier ein.
-  factory AlgorithmRegistry.standard() => AlgorithmRegistry();
+  factory AlgorithmRegistry.standard() => AlgorithmRegistry()
+    ..register(heartRateReserveFamily, const HeartRateReserve())
+    ..register(reserveZonesFamily, const ReserveZones());
 
   final Map<String, _Entry> _families = {};
 

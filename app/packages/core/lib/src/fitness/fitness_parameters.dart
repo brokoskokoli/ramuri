@@ -9,6 +9,7 @@ class FitnessParameters {
   const FitnessParameters({
     required this.parameterVersion,
     this.minHeartRateReserveBpm = 50,
+    this.reserveZoneCount = 5,
     this.reserveZoneBounds = const [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
     this.trimpZoneLowerBounds = const [0.5, 0.6, 0.7, 0.8, 0.9],
     this.trimpWeights = const [1, 2, 3, 4, 5],
@@ -27,6 +28,9 @@ class FitnessParameters {
   /// PAR-019: kleinste Herzfrequenzreserve (bpm); genau dieser Wert zählt
   /// noch als verfügbar.
   final int minHeartRateReserveBpm;
+
+  /// FR-0061: Anzahl der Reservezonen; Grenzen haben einen Eintrag mehr.
+  final int reserveZoneCount;
 
   /// FR-0062: Standardgrenzen der Reservezonen als Anteil der Reserve,
   /// aufsteigend; die erste ist die Untergrenze von Zone 1.
