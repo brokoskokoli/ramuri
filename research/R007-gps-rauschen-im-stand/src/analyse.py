@@ -104,7 +104,7 @@ for (src, m), rs in sorted(runs.items()):
     ss = stops[(src, m)]
     pu = sum(r['paused'] == '0' for r in ss) / len(ss)
     ip = sum(float(r['sham_in_pause_m']) for r in ss) / max(1e-9, sum(float(r['sham_m']) for r in ss))
-    res = sum(int(r['resumes']) for r in ss) / len(ss)
+    res = sum(int(float(r['resumes'])) for r in ss) / len(ss)
     fl = []
     if st.median(u) > 1:
         fl.append('STOPPS')

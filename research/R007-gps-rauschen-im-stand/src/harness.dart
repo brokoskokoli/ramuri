@@ -49,12 +49,15 @@ double distM(double aLat, double aLon, double bLat, double bLon) =>
 /// Mindestdistanz: Anker bleibt, bis der Abstand D erreicht. Der Punkt behält
 /// seine Zeit, sonst entstünde eine PAR-004-Lücke.
 class MinDistance extends Mitigation {
-  MinDistance(this.d, {this.useAcc = false});
+  MinDistance(this.d, {this.useAcc = false, this.distanceOnly = false});
   final double d;
   final bool useAcc;
+
+  /// Filtert nur die Strecke; die Bewegungszeit rechnet auf den Rohpunkten.
+  final bool distanceOnly;
   Fix? anchor;
   @override
-  String get name => useAcc ? 'mindist_max(${d.toInt()},acc)' : 'mindist_${d.toInt()}';
+  String get name => 'mindist_${useAcc ? 'max${d.toInt()}acc' : '${d.toInt()}'}${distanceOnly ? '_nurstrecke' : ''}';
   @override
   Fix apply(Fix f) {
     if (f.acc > 25) return f; // wird im Prozessor verworfen, kein Anker
@@ -136,6 +139,10 @@ List<Mitigation> mitigations(bool withSpeed) => [
   MinDistance(8),
   MinDistance(10),
   MinDistance(3, useAcc: true),
+  MinDistance(3, distanceOnly: true),
+  MinDistance(5, distanceOnly: true),
+  MinDistance(8, distanceOnly: true),
+  MinDistance(3, useAcc: true, distanceOnly: true),
   MovingAverage(5),
   MovingAverage(10),
   MovingAverage(20),
@@ -349,11 +356,12 @@ void main(List<String> a) {
       }
       for (final m in mitigations(hasSpeedAll)) {
         final o = feed(shifted, m, shifted.last.ms);
+        final mt = m is MinDistance && m.distanceOnly ? feed(shifted, NoFilter(), shifted.last.ms).res.movement : o.res.movement;
         final d = discards(o.res.position.positions);
         traceCsv.writeln(
           '$source,${s.name},${m.name},${shifted.last.ms / 1000},${shifted.length},${f3(o.res.position.distanceMeters ?? 0)},'
-          '${f3(integral)},${f3(o.res.movement.movingTime.inMilliseconds / 1000)},'
-          '${o.res.movement.resumedAt.length + (o.res.movement.autoPauseState == AutoPauseState.standstillPause ? 1 : 0)},'
+          '${f3(integral)},${f3(mt.movingTime.inMilliseconds / 1000)},'
+          '${mt.resumedAt.length + (mt.autoPauseState == AutoPauseState.standstillPause ? 1 : 0)},'
           '${d['accuracy']!.toInt()},${d['hardJump']!.toInt()},${d['softJump']!.toInt()},${o.res.position.gaps.length}',
         );
       }
@@ -378,7 +386,8 @@ void main(List<String> a) {
       final end = b.steps.last.ms;
       for (final m in mitigations(hasSpeed)) {
         final o = feed(fixes, m, end);
-        final mv = o.res.movement;
+        // Variante nur Strecke: Bewegungszeit aus dem ungefilterten Lauf.
+        final mv = m is MinDistance && m.distanceOnly ? feed(fixes, NoFilter(), end).res.movement : o.res.movement;
         final ivs = mv.movingIntervals;
         var unpaused = 0;
         var shamTotal = 0.0;
@@ -451,7 +460,7 @@ void main(List<String> a) {
         }
         for (final m in mitigations(false)) {
           final o = feed(fx, m, fx.last.ms);
-          final mv = o.res.movement;
+          final mv = m is MinDistance && m.distanceOnly ? feed(fx, NoFilter(), fx.last.ms).res.movement : o.res.movement;
           final total = mv.totalTime.inMilliseconds / 1000;
           final pauses = mv.resumedAt.length + (mv.autoPauseState == AutoPauseState.standstillPause ? 1 : 0);
           slowCsv.writeln(
