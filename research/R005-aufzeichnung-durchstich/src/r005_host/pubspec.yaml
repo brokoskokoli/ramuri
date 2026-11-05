@@ -1,0 +1,16 @@
+name: r005_host
+description: "R005: Standort-Adapter, eigener Foreground-Service und Hilfsfunktionen."
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: ^3.13.5
+  flutter: 3.47.7
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: org.runningapp.r005.r005_host
+        pluginClass: R005HostPlugin

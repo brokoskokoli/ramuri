@@ -1,0 +1,10 @@
+name: r005_waltest
+publish_to: none
+environment:
+  sdk: ^3.13.5
+dependencies:
+  sqlite3: 3.8.0
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc
