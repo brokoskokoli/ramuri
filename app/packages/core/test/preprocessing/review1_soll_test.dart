@@ -14,7 +14,7 @@ void main() {
         ..add(pos(2, 6));
       expect(pos3.positionAt(at(2)).state, MeasurementState.estimated);
       expect(pos3.positionAt(at(0)).state, MeasurementState.present);
-      final h = HeartRateProcessor(const PreprocessingParameters.v2())
+      final h = HeartRateProcessor(const PreprocessingParameters.v3())
         ..add(hr(0, 100))
         ..add(hr(1, 101, state: MeasurementState.estimated));
       expect(h.heartRateAt(at(1)).state, MeasurementState.estimated);
@@ -57,12 +57,12 @@ void main() {
 
   group('Befund 10: Prozessoren allein', () {
     test('resume ohne Pause lässt die Lücke ab Start stehen', () {
-      final p = processor(const PreprocessingParameters.v2(), t0)
+      final p = processor(const PreprocessingParameters.v3(), t0)
         ..resume(at(25))
         ..add(pos(30, 0));
       expect(p.result(at: at(30)).gaps.single.start, t0);
       final h = HeartRateProcessor(
-        const PreprocessingParameters.v2(),
+        const PreprocessingParameters.v3(),
         sectionStart: t0,
       )..resume(at(25));
       h.add(hr(30, 100));
@@ -117,19 +117,19 @@ void main() {
   });
 
   group('Befund 13/14: Versionen, öffentlicher Konstruktor', () {
-    const v3 = PreprocessingParameters(
-      parameterVersion: 3,
+    const v4 = PreprocessingParameters(
+      parameterVersion: 4,
       hardJumpMaxSpeed: 99,
     );
 
     test('abweichender Parametersatz trägt seine Version', () {
-      final r = RunPreprocessor(start: t0, parameters: v3)
+      final r = RunPreprocessor(start: t0, parameters: v4)
         ..addPosition(pos(0, 0));
       final res = r.result(at: at(1));
-      expect(res.parameterVersion, 3);
-      expect(res.position.parameterVersion, 3);
-      expect(res.settling.parameterVersion, 3);
-      expect(const PreprocessingParameters.v2().parameterVersion, 2);
+      expect(res.parameterVersion, 4);
+      expect(res.position.parameterVersion, 4);
+      expect(res.settling.parameterVersion, 4);
+      expect(const PreprocessingParameters.v3().parameterVersion, 3);
     });
 
     SectionQuality q(
@@ -146,13 +146,13 @@ void main() {
     );
 
     test('assess übernimmt die Version, wirft bei Abweichung', () {
-      final h3 = runHr(beat(0, 10, 100), p: v3);
-      final p3 = run([pos(0, 0)], p: v3);
-      expect(q(h3, p3, v3).parameterVersion, 3);
-      final p2 = run([pos(0, 0)]);
-      expect(() => q(h3, p2, v3), throwsArgumentError);
+      final h4 = runHr(beat(0, 10, 100), p: v4);
+      final p4 = run([pos(0, 0)], p: v4);
+      expect(q(h4, p4, v4).parameterVersion, 4);
+      final p3 = run([pos(0, 0)]);
+      expect(() => q(h4, p3, v4), throwsArgumentError);
       expect(
-        () => q(h3, p3, const PreprocessingParameters.v2()),
+        () => q(h4, p4, const PreprocessingParameters.v3()),
         throwsArgumentError,
       );
     });
@@ -161,7 +161,7 @@ void main() {
       final a = q(
         runHr(beat(0, 10, 100)),
         run([pos(0, 0)]),
-        const PreprocessingParameters.v2(),
+        const PreprocessingParameters.v3(),
       );
       final b = SectionQuality(
         parameterVersion: a.parameterVersion,
@@ -204,7 +204,7 @@ void main() {
         heartRate: runHr(values),
         position: run([pos(0, 0)]),
         settlingIntervals: const [],
-        parameters: const PreprocessingParameters.v2(),
+        parameters: const PreprocessingParameters.v3(),
       );
       expect(qual.missingHeartRateShare, 0);
       expect(qual.meetsHeartRateGapRule, isTrue);

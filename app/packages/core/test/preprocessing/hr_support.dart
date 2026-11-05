@@ -22,7 +22,7 @@ List<RawHeartRate> beat(int from, int to, int bpm) => [
 
 HeartRateResult runHr(
   List<RawHeartRate> values, {
-  PreprocessingParameters p = const PreprocessingParameters.v2(),
+  PreprocessingParameters p = const PreprocessingParameters.v3(),
   num until = 0,
   DateTime? sectionStart,
 }) {

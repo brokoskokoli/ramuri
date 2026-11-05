@@ -29,7 +29,7 @@ List<RawPosition> track(
 
 RunPreprocessor feed(
   List<RawPosition> points, {
-  PreprocessingParameters p = const PreprocessingParameters.v2(),
+  PreprocessingParameters p = const PreprocessingParameters.v3(),
 }) {
   final r = RunPreprocessor(start: t0, parameters: p);
   points.forEach(r.addPosition);

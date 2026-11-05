@@ -6,7 +6,7 @@ import 'support.dart';
 
 AltitudeResult runAlt(
   List<RawAltitude> v, {
-  PreprocessingParameters p = const PreprocessingParameters.v2(),
+  PreprocessingParameters p = const PreprocessingParameters.v3(),
   num? until,
 }) {
   final proc = AltitudeProcessor(p);
@@ -46,12 +46,12 @@ void main() {
       expect(r.acceptedValues, hasLength(2));
       expect(r.withoutVerticalAccuracy, 1);
       expect(r.method, 'altitude-filter');
-      expect(r.parameterVersion, 2);
+      expect(r.parameterVersion, 3);
     });
 
     test('abweichender Parameter wirkt', () {
       const p = PreprocessingParameters(
-        parameterVersion: 2,
+        parameterVersion: 3,
         altitudeMaxVerticalAccuracyMeters: 4,
       );
       final r = runAlt([alt(0, 100, va: 5)], p: p);
@@ -115,7 +115,7 @@ void main() {
     });
 
     test('resume ohne Pause verwirft Fenster und Referenz nicht', () {
-      final proc = AltitudeProcessor(const PreprocessingParameters.v2())
+      final proc = AltitudeProcessor(const PreprocessingParameters.v3())
         ..add(alt(0, 100))
         ..resume()
         ..add(alt(40, 200));
@@ -128,7 +128,7 @@ void main() {
 
     test('keine Höhenwerte ergibt null, auch wenn alle verworfen sind', () {
       expect(
-        AltitudeProcessor(const PreprocessingParameters.v2())
+        AltitudeProcessor(const PreprocessingParameters.v3())
             .result(at: at(0))
             .ascentMeters,
         isNull,
@@ -142,7 +142,7 @@ void main() {
 
     test('abweichende Schwelle wirkt', () {
       const p = PreprocessingParameters(
-        parameterVersion: 2,
+        parameterVersion: 3,
         ascentThresholdMeters: 1,
       );
       final r = runAlt([alt(0, 100), alt(40, 101)], p: p);
@@ -162,7 +162,7 @@ void main() {
       alt(140, 104),
     ];
     final copy = [...input];
-    final live = AltitudeProcessor(const PreprocessingParameters.v2());
+    final live = AltitudeProcessor(const PreprocessingParameters.v3());
     for (var i = 0; i < input.length; i++) {
       live.add(input[i]);
       final when = input[i].time.difference(t0).inSeconds + 3;
@@ -179,7 +179,7 @@ void main() {
   });
 
   test('altitudeAt: letzter Wert <= t mit Alter, ohne Altersgrenze', () {
-    final proc = AltitudeProcessor(const PreprocessingParameters.v2())
+    final proc = AltitudeProcessor(const PreprocessingParameters.v3())
       ..add(alt(0, 100))
       ..add(alt(5, 101, va: 99));
     final l = proc.altitudeAt(at(1000));
