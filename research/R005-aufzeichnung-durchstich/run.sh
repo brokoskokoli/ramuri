@@ -21,6 +21,7 @@ Schritte:
 | `rerun` | Wiederholungen API 31 und Abstandsprobe API 36 (`src/rerun.sh`), etwa 35 min |
 | `vorlaeufe` | Einzelne fruehere Laeufe, die in keinem anderen Skript stehen (`src/vorlaeufe.sh`), etwa 25 min |
 | `checkpoint` | Kill-Serie nach dem ersten Checkpoint (`src/checkpoint.sh`): 20 `sigkill`-Laeufe, `wal_autocheckpoint` 10, API 36 und 31, FULL und NORMAL, unter 1 h, fortsetzbar |
+| `checkpoint2` | Zweite Kill-Serie (`src/checkpoint2.sh`): 20 `sigkill`-Laeufe, `wal_autocheckpoint` 10, Kill nach 90 bis 180 s, API 36 und 31, FULL und NORMAL, Zustand je Lauf belegt, etwa 75 min, fortsetzbar |
 | `report` | Alle Auswertungen und Tabellen aus den Rohdaten nach `work/R005/report` |
 Parameter fuer gap, kill, swipe, wal, bench, emu-start:
 | `--api N` | 36 | API-Stufe des Emulators, 31 oder 36 |
@@ -70,6 +71,7 @@ case "$STEP" in
   rerun) src/rerun.sh;;
   vorlaeufe) src/vorlaeufe.sh;;
   checkpoint) src/checkpoint.sh;;
+  checkpoint2) src/checkpoint2.sh;;
   report)
     r="$R005_WORK/report"; mkdir -p "$r"
     for k in gap kill swipe wal bench; do python3 src/analyze.py $k "$R005_WORK" > "$r/analyze-$k.out"; done

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Auswertung R005. Aufruf: analyze.py gap|kill|bench|wal|swipe <work-dir> . Messdefinition siehe README."""
 import glob,json,os,re,statistics as st,sys,subprocess
-from walhdr import wal_info
+import shutil,tempfile
+from walhdr import wal_info,wal_frames
 def log_check(path,R,ev,tmax=None):
     # Gueltigkeit gegen veraltete DB (Review R005, Befund 2): Log und DB muessen denselben Lauf zeigen. Liefert Gruende, leer heisst bestanden.
     why=[]; ev=[e for e in ev if tmax is None or e[0]<=tmax]
@@ -143,6 +144,49 @@ def gap(work):
         rec.update(valid=not why,why=why,inj_n=len(it),inj_gap_max=round(igap,1),base_rows=len(base),base_rate=round(len(base)/max(1,p['locked_start']-min(rcv.values())),3),fgs=fg)
         out.append(rec); print(json.dumps(rec))
     json.dump(out,open(work+'/gap/summary.json','w'),indent=1)
+def pagestat(d,plain=False):
+    # dbstat ueber eine frische Kopie: (Blattseiten in Schluesselreihenfolge [(seite,zellen)], Zeilenzahl). None, wenn die Datei sich nicht lesen laesst.
+    r=subprocess.run(['dart','run','bin/pagestat.dart',d+'/x.db']+(['--plain'] if plain else []),cwd=os.environ['R005_WALTEST'],capture_output=True,text=True,timeout=120)
+    L=[l.split('\t') for l in r.stdout.splitlines() if '\t' in l]
+    if r.returncode or not any(x[0]=='#rows' for x in L): return None,None,(r.stderr or r.stdout)[-200:]
+    return [(int(x[0]),int(x[3])) for x in L if x[0]!='#rows' and x[2]=='leaf'],[int(y) for y in next(x for x in L if x[0]=='#rows')[1:2]][0],''
+def dump_seqs(d,plain=False):
+    r=subprocess.run(['dart','run','bin/dump.dart',d+'/x.db']+(['--plain'] if plain else []),cwd=os.environ['R005_WALTEST'],capture_output=True,text=True,timeout=120)
+    return [l for l in r.stdout.splitlines() if l and not l.startswith('#')] if r.returncode==0 else None
+def main_only(src,plain=False):
+    """Belegt je Lauf den gemeinten Zustand (Review Runde 2, Befund 1) an der Kopie VOR dem ersten Oeffnen:
+    Seiten = Klartext-Seitennummern der gueltigen aktuellen WAL-Frames. Eine Blattseite der Tabelle ausserhalb dieser Seiten liest SQLite aus der Hauptdatei.
+    shown nur, wenn (1) die Blattseite mit den aeltesten Zeilen nicht unter den WAL-Seiten ist und (2) die Hauptdatei ALLEIN, ohne WAL gelesen, genau diese Zeilen gleich liefert.
+    Jede Oeffnung auf frischer Kopie, das Schliessen checkpointet."""
+    F=wal_frames(src+'/x.db-wal'); P=set(F['pages']); res=dict(wal_pages=F['pages'],wal_frames_valid=len(F['frames']),wal_tail=F['tail'],wal_salt_only=F['salt_only'],db_bytes=os.path.getsize(src+'/x.db'),shown=False,why='')
+    with tempfile.TemporaryDirectory() as t:
+        shutil.copy2(src+'/x.db',t+'/x.db')
+        if os.path.exists(src+'/x.db-wal'): shutil.copy2(src+'/x.db-wal',t+'/x.db-wal')
+        leaves,n,err=pagestat(t,plain)
+        if leaves is None: res['why']='volle Sicht nicht lesbar: '+err; return res
+        for f in ('x.db','x.db-wal','x.db-shm'):
+            if os.path.exists(f'{t}/{f}'): os.remove(f'{t}/{f}')
+        shutil.copy2(src+'/x.db',t+'/x.db'); shutil.copy2(src+'/x.db-wal',t+'/x.db-wal') if os.path.exists(src+'/x.db-wal') else None
+        full=dump_seqs(t,plain)
+        for f in ('x.db','x.db-wal','x.db-shm'):
+            if os.path.exists(f'{t}/{f}'): os.remove(f'{t}/{f}')
+        shutil.copy2(src+'/x.db',t+'/x.db'); main=dump_seqs(t,plain)
+    res.update(leaves=leaves,rows=n,rows_main_file_alone=len(main) if main is not None else None)
+    if not leaves or full is None: res['why']='keine Blattseite oder Zeilen nicht lesbar'; return res
+    i=0; only=[]
+    for pg,c in leaves:  # Zeilen in Schluesselreihenfolge den Blattseiten zuordnen
+        if pg not in P: only+=full[i:i+c]
+        i+=c
+    first=full[:leaves[0][1]]; res.update(oldest_leaf=leaves[0][0],oldest_leaf_rows=leaves[0][1],rows_main_only=len(only),seq_main_only=[int(x.split('\t')[0]) for x in only])
+    if leaves[0][0] in P: res['why']='aelteste Blattseite %d steht im WAL'%leaves[0][0]; return res
+    if main is None: res['why']='Hauptdatei allein nicht lesbar'; return res
+    ms=set(main); miss=sum(x not in ms for x in first)
+    if miss: res['why']='%d von %d Zeilen der aeltesten Blattseite fehlen oder weichen ab in der Hauptdatei allein'%(miss,len(first)); return res
+    res['shown']=True; return res
+def main_only_cached(o):
+    p=o+'main_only.json'
+    if os.path.exists(p): return json.load(open(p))
+    r=main_only(o+'before-open'); json.dump(r,open(p,'w')); return r
 def kill(work):
     out=[]
     for o in sorted(glob.glob(work+'/kill/*/')):
@@ -158,11 +202,21 @@ def kill(work):
         why+=log_check(o+'logcat.txt',R,ev,tk+1)  # nur bis zum Kill: ffgt schreibt nach dem Neustart mit neuer Nummerierung
         autock=m.get('autock'); dbb=m['pull'].get('db')
         if autock is not None and dbb<=4096: why.append('Hauptdatei %d Byte, kein Checkpoint belegt'%dbb)
+        mo=main_only_cached(o) if os.path.isdir(o+'before-open') else None  # nur zweite Serie (_ck10b): Zustand direkt belegt
+        if mo is not None:
+            if dbb<=8192: why.append('Hauptdatei %d Byte, keine Blattseite ausser der Wurzel'%dbb)
+            if not mo['shown']: why.append('Zeilen nur in der Hauptdatei nicht belegt: '+mo['why'])
         la,lr=max(ack,default=0),max(rcv,default=0)
         acked=set(range(1,la+1)); lost_acked=len(acked-db)
         holes=len(set(range(1,mx+1))-db)
         ver=[kv(e[2]) for e in parse_log(o+'logcat2.txt') if e[1]=='R005VERIFY']
         rec=dict(run=os.path.basename(o[:-1]),via=m.get('kill_via','run-as' if m['kind']=='proc' else 'host'),post_kill_rcv=post,restart_pid=pa,wait=round(m['wait'],1),api=os.path.basename(o[:-1])[:3],host=m.get('host','own'),kind=m['kind'],tx=m['tx'],sync=m['sync'],last_ack=la,last_rcv=lr,db_rows=len(db),db_max=mx,lost_acked=lost_acked,rcv_not_db=lr-mx,db_beyond_ack=mx-la,holes=holes,integ=integ,dev=ver[0] if ver else None,wal=m['pull'].get('-wal'),autock=autock,db_bytes=dbb,wal_info=m.get('wal_info'),valid=not why,why=why)
+        rec['tag']=(re.search(r'_(ck\d+\w*)_r\d+$',rec['run']) or [None,None])[1]
+        if mo is not None:
+            ackt={int(kv(e[2])['seq']):e[0] for e in ev if e[1]=='R005ACK'}; n0=mo.get('oldest_leaf_rows') or 0
+            # Alter der aeltesten Blattseite beim Kill: fruehestens ist sie mit dem Commit der letzten Zeile dieser Seite im WAL, spaetestens 10 Frames danach zurueckgeschrieben
+            age=[round(tk-ackt[x],1) if x in ackt else None for x in (n0+autock,n0)]
+            rec.update(main_only=mo,rows_main_only=mo.get('rows_main_only'),lost_main_only=sum(1 for s in acked-db if s<=n0),oldest_leaf_age_min=age[0],oldest_leaf_age_max=age[1])
         out.append(rec); print(json.dumps(rec))
         if why: print('UNGUELTIG:',rec['run'],why,'lost_acked',lost_acked)
     cells={}
@@ -176,9 +230,13 @@ def kill(work):
         row=(*k,len(v),sum(L),sum(l>0 for l in L),max(L),round(st.mean(Q),1),min(Q),max(Q),max(x['db_beyond_ack'] for x in v),bad,dv); tab.append(row); print(*row)
     json.dump(dict(rows=out,cells=tab),open(work+'/kill/summary.json','w'),indent=1)
 def ckgate(work,run):
-    # Vorpruefung der Checkpoint-Serie: Abbruch nach dem ersten Lauf, wenn der Zustand gar nicht erreicht wird, statt 1 h zu messen
+    # Vorpruefung einer Checkpoint-Serie: Abbruch nach dem ersten Lauf, wenn der Zustand nicht erreicht wird, statt 1 h zu messen.
+    # Mit before-open (zweite Serie): direkt belegt, siehe main_only. Sonst nur Groesse der Hauptdatei (erste Serie).
     o=f'{work}/kill/{run}/'; m=json.load(open(o+'meta.json')); wi=m.get('wal_info') or {}
     print(run,'Hauptdatei',m['pull'].get('db'),'WAL',wi)
+    if os.path.isdir(o+'before-open'):
+        mo=main_only_cached(o); print({k:mo.get(k) for k in ('shown','why','wal_pages','wal_frames_valid','wal_tail','leaves','rows','rows_main_file_alone','oldest_leaf','rows_main_only')})
+        sys.exit(0 if mo['shown'] and m['pull'].get('db',0)>8192 else 1)
     sys.exit(0 if m['pull'].get('db',0)>4096 else 1)
 def bench(work):
     for o in sorted(glob.glob(work+'/bench/*/')):
@@ -212,4 +270,4 @@ def swipe(work):
         m=json.load(open(o+'meta.json')); R=rows(o+'rows.tsv'); ev=parse_log(o+'logcat.txt')
         d=[(y[4]-x[4])/1e9 for x,y in zip(R,R[1:])]
         print(os.path.basename(o[:-1]),'rows',len(R),'pid',m['pid0'],m['pid1'],'recents',m['recents_before'],m['recents_after'],'gap_max',round(max(d),2) if d else None,'n_gt5',sum(x>5 for x in d),'svc',re.findall(r'isForeground=\w+',m['svc']),[e[2][:40] for e in ev if e[1]=='R005SVC'])
-{'gap':gap,'kill':kill,'bench':bench,'wal':wal,'swipe':swipe,'ckgate':lambda w:ckgate(w,sys.argv[3])}[sys.argv[1]](sys.argv[2])
+{'mainonly':lambda w:print(json.dumps(main_only(w,'--plain' in sys.argv))),'gap':gap,'kill':kill,'bench':bench,'wal':wal,'swipe':swipe,'ckgate':lambda w:ckgate(w,sys.argv[3])}[sys.argv[1]](sys.argv[2])

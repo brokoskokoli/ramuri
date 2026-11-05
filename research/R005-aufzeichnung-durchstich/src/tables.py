@@ -105,17 +105,34 @@ print()
 print('## Tabelle 8: Checkpoint-Serie (sigkill, kleiner wal_autocheckpoint)\n')
 CK=[r for r in ALL if r.get('autock') is not None]
 rows=[]
-for ap in ('a36','a31'):
+for tag in sorted({r.get('tag') or 'ck10' for r in CK}):
+ for ap in ('a36','a31'):
   for sy in ('FULL','NORMAL'):
-    v=[r for r in CK if r['api']==ap and r['sync']==sy]
+    v=[r for r in CK if (r.get('tag') or 'ck10')==tag and r['api']==ap and r['sync']==sy]
     if not v: continue
     g=[r for r in v if r['valid']]; u=[r for r in v if not r['valid']]; wi=[(r.get('wal_info') or {}) for r in g]
     L=[r['lost_acked'] for r in g]; Q=[r['rcv_not_db'] for r in g]
-    rows.append((ap[1:],sy,sorted({r['autock'] for r in v}),len(g),'%d/%d'%(sum(l>0 for l in L),len(g)),max(L,default=0),sum(L),rng(Q,'%d'),sum(r['holes'] for r in g),sum(r['integ']!='ok' for r in g),rng([r['db_bytes'] for r in g],'%d'),rng([w.get('ckpt_seq') for w in wi],'%d'),rng([w.get('frames_cur') for w in wi],'%d'),rng([w.get('frames_old') for w in wi],'%d'),len(u),sum(r['lost_acked'] for r in u)))
-if rows: table('API Sync autock n-gültig Läufe-mit-Verlust max-lost_acked Summe rcv_not_db Löcher integrity-nicht-ok Hauptdatei-Byte WAL-ckpt_seq WAL-Frames-aktuell WAL-Frames-alt ungültig Verlust-in-ungültigen'.split(),rows)
+    rows.append((tag,ap[1:],sy,sorted({r['autock'] for r in v}),len(g),'%d/%d'%(sum(l>0 for l in L),len(g)),max(L,default=0),sum(L),rng(Q,'%d'),sum(r['holes'] for r in g),sum(r['integ']!='ok' for r in g),rng([r['db_bytes'] for r in g],'%d'),rng([w.get('ckpt_seq') for w in wi],'%d'),rng([w.get('frames_cur') for w in wi],'%d'),rng([w.get('frames_old') for w in wi],'%d'),len(u),sum(r['lost_acked'] for r in u)))
+if rows: table('Serie API Sync autock n-gültig Läufe-mit-Verlust max-lost_acked Summe rcv_not_db Löcher integrity-nicht-ok Hauptdatei-Byte WAL-ckpt_seq WAL-Frames-aktuell WAL-Frames-alt ungültig Verlust-in-ungültigen'.split(),rows)
 else: print('Serie noch nicht gelaufen.\n')
 for r in CK:
     if not r['valid']: print('UNGUELTIG',r['run'],r['why'],'lost_acked',r['lost_acked'])
+print()
+CB=[r for r in CK if 'main_only' in r]
+if CB:
+    print('## Tabelle 8b: Zustand je Lauf der zweiten Serie, direkt belegt (Kopie vor dem Oeffnen, siehe analyze.py main_only)\n')
+    rows=[]
+    for ap in ('a36','a31'):
+      for sy in ('FULL','NORMAL'):
+        v=[r for r in CB if r['api']==ap and r['sync']==sy]
+        if not v: continue
+        g=[r for r in v if r['valid']]; u=[r for r in v if not r['valid']]; mo=[r['main_only'] for r in g]; L=[r['lost_acked'] for r in g]; n=len(g)
+        rows.append((ap[1:],sy,len(v),n,len(u),sum(r['lost_acked'] for r in u),rng([r['wait'] for r in g],'%.0f'),rng([r['db_max'] for r in g],'%d'),rng([m.get('rows_main_only') for m in mo],'%d'),sum(m.get('rows_main_only') or 0 for m in mo),rng([m.get('oldest_leaf_rows') for m in mo],'%d'),sum(r['lost_main_only'] for r in g),'%d/%d'%(sum(l>0 for l in L),n),max(L,default=0),rng([m.get('wal_frames_valid') for m in mo],'%d'),rng([r['oldest_leaf_age_min'] for r in g],'%.0f'),rng([r['oldest_leaf_age_max'] for r in g],'%.0f'),'%.0f %%'%(100*(1-0.05**(1/n))) if n and not sum(l>0 for l in L) else '–'))
+    table('API Sync Läufe gezählt ausgeschlossen Verlust-in-ausgeschlossenen Kill-nach-s Zeilen-DB Zeilen-nur-Hauptdatei Summe-nur-Hauptdatei Zeilen-älteste-Blattseite Verlust-unter-den-Zeilen-der-ältesten-Blattseite Läufe-mit-Verlust max-lost_acked gültige-WAL-Frames Alter-älteste-Blattseite-min-s Alter-max-s Grenze-einseitig-95'.split(),rows)
+    print('Je Lauf:')
+    for r in CB:
+        m=r['main_only']; print(' ',r['run'],'gezählt' if r['valid'] else 'AUSGESCHLOSSEN',r['why'] if not r['valid'] else '','WAL-Seiten',m.get('wal_pages'),'Frames',m.get('wal_frames_valid'),'Rest',m.get('wal_tail'),'Blätter',m.get('leaves'),'nur-Hauptdatei',m.get('rows_main_only'),'Hauptdatei-allein',m.get('rows_main_file_alone'),'lost_acked',r['lost_acked'],'rcv_not_db',r['rcv_not_db'])
+    print()
 # Ein Verlust in einem wegen der Hauptdatei ungueltigen Lauf ist kein Ausschluss, sondern ein Befund: eine geschrumpfte Hauptdatei waere gerade der gesuchte Schaden.
 print()
 print('## Tabelle 6: Wischen\n')

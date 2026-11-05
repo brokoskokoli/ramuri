@@ -253,6 +253,9 @@ def trial_kill(a,run,kind):
         lc.stop()
     meta['boot_s']=bootS; meta['pid_after_kill']=pidof()
     meta['pull']=pull(run,o+'/after'); meta['wal_info']=wal_info(o+'/after/x.db-wal')  # vor dem Oeffnen: dump_db checkpointet die Kopie
+    if a.autock is not None:  # Stand vor dem ersten Oeffnen behalten (Review Runde 2, Befund 1), Grundlage von analyze.py main_only
+        os.makedirs(o+'/before-open')
+        for f in ('x.db','x.db-wal'): shutil.copy2(f'{o}/after/{f}',f'{o}/before-open/{f}')
     so,se=dump_db(o+'/after'); open(o+'/rows.tsv','w').write(so); meta['dump_err']=se[:300]
     lc2=Logcat(o+'/logcat2.txt'); am_start(cmd='verify',run=run); time.sleep(5); lc2.stop(); fresh(); rm_runs()
     json.dump(meta,open(o+'/meta.json','w')); open(o+'/.done','w').write('ok'); log('fertig',run,'wait %.1f'%wait,meta['pull'])

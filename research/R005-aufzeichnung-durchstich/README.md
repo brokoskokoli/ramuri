@@ -64,6 +64,18 @@ Die 115 Läufe aus Tabelle 5 treffen nur Hauptdateien von 4096 Byte, weil der St
 
 **Gültigkeit:** Hauptdatei über 4096 Byte, Kill-Wirkung belegt, Log gegen DB wie oben. **Ausschluss ist kein Freispruch:** Die Hauptdatei wird nach dem Kill gemessen, eine geschrumpfte Datei wäre gerade der gesuchte Schaden. `tables.py` weist ungültige Läufe deshalb samt ihrem `lost_acked` aus. Zusätzlich liest der Harness vor dem ersten Öffnen die Klartext-Köpfe des WAL (`src/walhdr.py`, Kontrolle an einer SQLite-Datei): `ckpt_seq` über 0 heißt, das WAL wurde wiederverwendet; `frames_old` sind liegen gebliebene Frames der Vorgeneration. **Grenzen:** 10 statt 1000 Frames je Checkpoint ändern dessen Größe und Häufigkeit, nicht die Art des Zustands; ein Treffer mitten im Checkpoint wird weder gesucht noch ausgeschlossen. `NORMAL` hat hier auch eine andere Erwartung als in Tabelle 5, denn der Checkpoint synchronisiert das WAL: Verlust höchstens seit dem letzten Checkpoint.
 
+### Zweite Kill-Serie: Zeilen nur in der Hauptdatei
+Die erste Serie endet bei höchstens 41 Zeilen. Bis zur ersten Seitenteilung (Zeile 54) schreibt jeder Commit die ganze Tabellenseite als einen Frame, also lagen dort bei `FULL` nie Zeilen nur in der Hauptdatei (Review Runde 2, Befund 1). `./run.sh checkpoint2` (`src/checkpoint2.sh`) tötet deshalb erst nach 90 bis 180 s, Laufnamen `a<api>_sigkill_tx1_<sync>_ck10b_r<n>`. Sonst wie die erste Serie: `sigkill`, tx 1, `own`, `--autock 10`, je API 7 × `FULL`, 3 × `NORMAL`.
+
+**Gültigkeit, direkt belegt je Lauf (`analyze.py`, `main_only`):** Der Harness behält die Kopie von Hauptdatei und WAL vor dem ersten Öffnen (`before-open/`). Daraus:
+1. Seitennummern der gültigen aktuellen WAL-Frames, Klartext im Frame-Kopf: Salt gleich Kopf, Prüfsummenkette stimmt, nur bis zum letzten Commit-Frame, wie die Wiederherstellung von SQLite (`src/walhdr.py`, `wal_frames`).
+2. Blattseiten der Tabelle `fix` samt Zellenzahl über `dbstat` an einer frischen Kopie (`src/waltest/bin/pagestat.dart`).
+3. Gezählt wird ein Lauf nur, wenn die Blattseite mit den ältesten Zeilen unter keiner WAL-Seite steht, die Hauptdatei über 8192 Byte groß ist und die Hauptdatei **allein, ohne WAL** gelesen genau diese Zeilen unverändert liefert.
+
+Ausgeschlossene Läufe stehen mit ihrem Verlust in Tabelle 8b, Ausschluss ist kein Freispruch. Kontrollen der Prüfung: am Gerät gezogenes verschlüsseltes WAL mit `autock` 0 ergibt „nicht belegt“, ebenso eine Klartext-Datei mit `autock` 0; eine Klartext-Datei mit `autock` 10 ergibt „belegt“; dieselbe Datei mit genullter Seite 3 in der Hauptdatei ergibt „nicht belegt“. Vorprüfung je API: Der erste Lauf muss den Zustand zeigen, sonst bricht die Serie mit Exit 3 ab.
+
+**Erwartung, vor der Messung festgelegt:** `FULL` kein Verlust. `NORMAL`: Verlust nur unter den Commits seit dem letzten Checkpoint, also höchstens etwa 10 Zeilen, keine Zeile der ältesten Blattseite. **Grenze der Kontrolle:** `NORMAL` trennt nur die Synchronisation beim Commit. Beim Rückschreiben in die Hauptdatei synchronisieren `NORMAL` und `FULL` gleich, dafür gibt es keine Kontrolle. Das Rückschreiben der ältesten Blattseite liegt beim Kill außerdem mindestens etwa 20 s zurück. Die Serie schließt deshalb nicht aus, dass der Gastkern die Seite ohnehin schon geschrieben hatte (Frist in `checkpoint2-vm.txt`, Alter je Lauf in Tabelle 8b). Weiter ungeprüft: Checkpoints von 1000 Frames, Kill mitten im Checkpoint.
+
 ### Verschlüsseltes WAL
 Auf dem Rechner (`src/waltest`, gleiche Paketversion) und im Emulator. Bekannter Marker und bekannter Double, `wal_autocheckpoint = 0`, Kopie von Datei und WAL vor dem Checkpoint, Suche nach den Bytes, Byteverteilung der Seiteninhalte (χ², 255 Freiheitsgrade). Positivkontrolle unverschlüsselt. Beleg, dass das WAL Inhalt hatte: Die Kopie ohne WAL hat keine Tabelle, mit WAL alle Zeilen. Jede Öffnung auf frischer Kopie, denn das Schließen der letzten Verbindung checkpointet.
 
@@ -93,6 +105,7 @@ Keine Sammlung aus `input/`.
 ./run.sh rerun            # etwa 35 min
 ./run.sh vorlaeufe        # etwa 25 min, Laeufe aus der Anfangsphase
 ./run.sh checkpoint       # etwa 45 min (gemessen 41 min)
+./run.sh checkpoint2      # etwa 75 min, zweite Serie, Zustand je Lauf belegt
 ./run.sh report           # Tabellen und Auswertungen nach work/R005/report, etwa 40 s
 ```
 
@@ -123,6 +136,7 @@ RESEARCH_DATA=/tmp/r005-probe ./run.sh emu-stop
 | `rerun` | Wiederholungen API 31 und Abstandsprobe API 36 (`src/rerun.sh`), etwa 35 min |
 | `vorlaeufe` | Einzelne fruehere Laeufe, die in keinem anderen Skript stehen (`src/vorlaeufe.sh`), etwa 25 min |
 | `checkpoint` | Kill-Serie nach dem ersten Checkpoint (`src/checkpoint.sh`): 20 `sigkill`-Laeufe, `wal_autocheckpoint` 10, API 36 und 31, FULL und NORMAL, unter 1 h, fortsetzbar |
+| `checkpoint2` | Zweite Kill-Serie (`src/checkpoint2.sh`): 20 `sigkill`-Laeufe, `wal_autocheckpoint` 10, Kill nach 90 bis 180 s, API 36 und 31, FULL und NORMAL, Zustand je Lauf belegt, etwa 75 min, fortsetzbar |
 | `report` | Alle Auswertungen und Tabellen aus den Rohdaten nach `work/R005/report` |
 
 Parameter für `gap`, `kill`, `swipe`, `wal`, `bench`, `emu-start`:
