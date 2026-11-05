@@ -564,10 +564,9 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Frage:** Wie stark verfälscht GPS-Rauschen im Stand Strecke und Bewegungszeit, wenn die Geschwindigkeit aus Δs/Δt stammt? Braucht es eine Mindestdistanz, eine Glättung oder `Location.getSpeed()`?
 - **Auslöser/Quellen:** WP03: Synthetischer Worst Case mit ±3 m abwechselnd bei 1 Hz über 60 s ergibt 360 m zusätzliche Strecke, der Zustand bleibt `moving`, PAR-014 und PAR-015 lösen nie aus. Echtes Rauschen ist autokorreliert und meist kleiner; der reale Effekt ist unbelegt (Validierungsbedarf in `docs/model-parameters.md`, OQ-0020).
 - **Betroffene Anforderungen:** FR-0029, FR-0052
-- **Auswirkung:** non-blocking, bis zur Antwort gilt die Spec wörtlich. Betrifft auch TRIMP über die Bewegungszeit.
-- **Optionen:** Literaturauftrag R007 vor WP06; sonst Klärung im Feldtest.
-- **Status:** Open
-- **Entscheidung:** —
+- **Auswirkung:** non-blocking — betrifft auch TRIMP über die Bewegungszeit.
+- **Status:** Resolved
+- **Entscheidung:** Bis zum Feldtest bleibt es bei der Spec, PAR-002 bis PAR-004, PAR-014 und PAR-015 bleiben unverändert. Laut R007 kommt der Worst Case in echten Daten nicht vor (Dach und Stativ bis 0,43 % Scheinstrecke; feldnah, nur übertragen, 1,41 %). Ein Gegenmittel ist nicht belegt; der Feldtest prüft `getSpeed` als Tor und als Integral. 2026-11-05, SRC-003. Ziel: FR-0029, FR-0052, DEC-0068.
 
 ### OQ-0069 — Grenzfälle des Tempowechsels und der Pulslücken
 - **Frage:** Wie soll die Einschwingzeit bei Stop-and-Go wirken (20 s Lauf, 9 s Stand im Wechsel lösen nie aus) und bei einem Tempowechsel in einer GPS-Lücke über 240 s (wird nicht erkannt)? Braucht PAR-010 einen Soll-Takt (ein echter 10-s-Sensor besteht die Regel)? Braucht es eine Obergrenze für Zeitstempel in der Zukunft (ein solcher Wert sperrt den Kanal)?
@@ -584,5 +583,14 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Betroffene Anforderungen:** FR-0092
 - **Auswirkung:** non-blocking, bis zu Feldtests gilt K10 (Maintainer, 2026-11-05, SRC-003). Ein Lauf kann fälschlich unbewertet bleiben oder als vollständig gelten.
 - **Optionen:** Prüfung mit echten Sensoren im Feldtest; bis dahin so lassen.
+- **Status:** Open
+- **Entscheidung:** —
+
+### OQ-0071 — Strecke während der erkannten Pause
+- **Frage:** Soll Strecke während einer erkannten Pause ruhen? Das ändert das Verfahren, nicht einen Parameter, und brächte laut Rechnung in R007 rund 0,9 % weniger Scheinstrecke, wirkt aber nur, wenn die Pause auch auslöst.
+- **Auslöser/Quellen:** R007, `research/R007-gps-rauschen-im-stand/RESULTS.md`.
+- **Betroffene Anforderungen:** FR-0029
+- **Auswirkung:** non-blocking, bis zur Antwort zählt die Strecke wie in WP03 umgesetzt.
+- **Optionen:** Mit dem Feldtest entscheiden, zusammen mit `getSpeed`.
 - **Status:** Open
 - **Entscheidung:** —

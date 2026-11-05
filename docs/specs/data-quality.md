@@ -193,7 +193,7 @@ Der Nutzer kann nachvollziehen, warum ein Fitnesswert berechnet oder nicht berec
 - [OQ-0037](../migration/open-questions.md#oq-0037--details-von-aufzeichnung-und-zusammenfassung) (entschieden): Details von Aufzeichnung und Zusammenfassung
 - [OQ-0040](../migration/open-questions.md#oq-0040--was-ist-ein-fortgeschrittener-fitnesswert) (entschieden): Was ist ein „fortgeschrittener Fitnesswert“?
 - [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
-- [OQ-0068](../migration/open-questions.md#oq-0068--gps-rauschen-im-stand) (non-blocking): GPS-Rauschen im Stand
+- [OQ-0068](../migration/open-questions.md#oq-0068--gps-rauschen-im-stand) (entschieden): GPS-Rauschen im Stand
 - [OQ-0069](../migration/open-questions.md#oq-0069--grenzfälle-des-tempowechsels-und-der-pulslücken) (non-blocking): Grenzfälle des Tempowechsels und der Pulslücken
 <!-- END OQ -->
 

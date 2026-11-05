@@ -204,6 +204,7 @@ Die Tabelle fasst Entscheidungen aus der Quelle und vom Maintainer (SRC-003) zus
 | DEC-0065 | Kleine Lücken für Phase 1 nach Empfehlung gefüllt, im Einzelnen in OQ-0065 (Maintainer, SRC-003) | FR-0002, FR-0029, FR-0037, FR-0041, FR-0043, FR-0061, FR-0193 | Entschieden (OQ-0065) |
 | DEC-0066 | FIT-Export über eigenen Kodierer ohne Garmin-Code (Maintainer, SRC-003) | FR-0182 | Entschieden (OQ-0066) |
 | DEC-0067 | Rückfallsprache Englisch bei jeder anderen Gerätesprache (Maintainer, SRC-003) | NFR-0006 | Entschieden (OQ-0067) |
+| DEC-0068 | GPS-Rauschen im Stand: Parameter bleiben bis zum Feldtest, auch bei übertragenen Werten über 1 % (Maintainer, SRC-003) | FR-0029, FR-0052 | Entschieden (OQ-0068) |
 
 ## Phasen
 

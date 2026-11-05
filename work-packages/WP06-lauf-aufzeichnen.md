@@ -15,6 +15,7 @@ Wartet nicht auf R005: Dieses Paket zeichnet nur mit sichtbarer App auf. Hinterg
 6. **GPS-Verlust:** Zeit und Puls laufen weiter, Lücke markiert, Strecke nicht geschätzt (FR-0194, PAR-004).
 
 ## Umsetzung
+- Aus R007: Den Kommentar in `motion_prefix_test.dart` anpassen: Der Test hält eine obere Schranke fest, OQ-0068 ist bis zum Feldtest entschieden.
 - Aus WP03: `LocationSample` hat noch keine Vertikalgenauigkeit, die PAR-013 braucht. Die erkannte Pause bleibt von `pause()` getrennt, sonst endet die Fortsetzungserkennung. Aus WP01: Der Uhr-Port kennt nur UTC ohne monotone Zeit (FR-0194).
 - **Teile für die Coder-Aufträge:** Teil A: Punkt 1 mit Uhr-Fake / Teil B: Punkte 2 und 3 / Teil C: Punkte 4 und 6 / Teil D: Punkt 5, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Schrittfrequenz und Herzfrequenz erscheinen als „nicht verfügbar“, solange keine Quelle liefert. Zone nach OQ-0012.
@@ -24,6 +25,7 @@ Wartet nicht auf R005: Dieses Paket zeichnet nur mit sichtbarer App auf. Hinterg
 - Parallel: läuft mit WP09. WP09 berührt `core/lib/src/fitness/vo2max`, `core/lib/src/fitness/efficiency`, `core/lib/src/recalculation`, `app/lib/features/settings` (Dialog). Gemeinsam nur ARB-Dateien und der Zusammenbau in `app/lib`; wer später mergt, gleicht ab.
 
 ## Abnahmekriterien
+- [ ] K12: `getSpeed`, Fall ohne Wert und Tempo-Genauigkeit landen je Punkt in `RawPosition` und im Speicher; fehlend bleibt fehlend, nie 0. Keine Auswertung in diesem Paket.
 - [ ] FR-0028: Alle Zustandswechsel und ungültigen Übergänge getestet (etwa Pause vor Start, zweites Beenden). Pausenzeit zählt zur Gesamt-, nicht zur Bewegungszeit. Der beendete Lauf ist über den Speicherzugriff vorhanden.
 - [ ] FR-0029: Mit eingeschalteter Funktion pausiert die Aufzeichnung nach PAR-014, PAR-015 und setzt nach PAR-015 fort; ausgeschaltet nicht. Negativfall: Eine GPS-Lücke löst keine Autopause aus (PAR-004).
 - [ ] FR-0030: Eine Runde ist mit Zeit gespeichert; Runde bei pausiertem Lauf nach Testfall definiert oder gemeldet.

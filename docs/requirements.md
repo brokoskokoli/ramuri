@@ -37,7 +37,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0026 | Pflichtanzeigen während des Trainings | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0026--pflichtanzeigen-während-des-trainings) | FR-0051, FR-0056, OQ-0012 |
 | FR-0027 | Optionale Anzeigen während des Trainings | functional | Approved | 1 (Rundenzeiten, Höhenmeter, Schrittfrequenz), 2 (Soll-/Ist-Vergleich, Belastungsbereich) | [run-recording](specs/run-recording.md#fr-0027--optionale-anzeigen-während-des-trainings) | OQ-0041 |
 | FR-0028 | Training starten, pausieren, fortsetzen, beenden | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0028--training-starten-pausieren-fortsetzen-beenden) | FR-0052 |
-| FR-0029 | Automatisches Pausieren | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0029--automatisches-pausieren) | OQ-0037, OQ-0065, OQ-0068 |
+| FR-0029 | Automatisches Pausieren | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0029--automatisches-pausieren) | OQ-0037, OQ-0065, OQ-0068, OQ-0071 |
 | FR-0030 | Manuelle Rundenmarkierung | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0030--manuelle-rundenmarkierung) | — |
 | FR-0031 | Akustische Trainingshinweise | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0031--akustische-trainingshinweise) | OQ-0044 |
 | FR-0032 | Warnung bei Überschreitung des Herzfrequenzbereichs | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0032--warnung-bei-überschreitung-des-herzfrequenzbereichs) | — |

@@ -4,7 +4,7 @@ Einzige Stelle für den Stand der Meilensteine und Arbeitspakete. Gepflegt vom O
 
 Status: `geplant` · `in Arbeit` · `Review` · `wartet` (Grund in „Offen“) · `gemergt` (Commit) · `verworfen`
 
-Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP01, WP03, WP04 und R005 abgeschlossen, WP02 und R007 laufen.
+Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP01, WP03, WP04, R005 und R007 abgeschlossen, WP02 läuft.
 
 ## Meilensteine
 
@@ -36,4 +36,4 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | Nr. | Titel | Für | Status | Offen |
 | --- | --- | --- | --- | --- |
 | R005 | Durchstich der Aufzeichnung | ADR-0005 Punkt 3, ADR-0003 (verschlüsseltes WAL), Lizenzbaum, WP08 | abgeschlossen (1aa053a) | Feldthemen: Hersteller-Energiesparen, Akku, Stromausfall, echtes Schlafverhalten, FR-0034, Schrittsensor |
-| R007 | GPS-Rauschen im Stand (Literatur, `getSpeed`) | OQ-0068, FR-0029, FR-0052, vor WP06 | in Arbeit | – |
+| R007 | GPS-Rauschen im Stand (Literatur, `getSpeed`) | OQ-0068, FR-0029, FR-0052, vor WP06 | abgeschlossen (3e04586) | Feldtest mit protokollierten Stopps; OQ-0071 |
