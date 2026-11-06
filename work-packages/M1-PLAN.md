@@ -66,7 +66,7 @@ Nur gemeldet, nichts davon ist hier entschieden. „Blockiert“ nennt, was ohne
 
 | Nr. | Punkt | Paket | Blockiert | Vorschlag |
 |---|---|---|---|---|
-| L1 | **FIT:** FR-0182 verlangt FIT, aber kein Paket und keine ADR legen den Weg fest. Das Garmin-SDK steht unter einer eigenen Lizenz (Verbreitung, Kündigungsrecht; Volltext war nicht abrufbar), die GPL-Verträglichkeit ist ungeprüft (OQ-0048). Formatversionen sind offen (OQ-0032) | WP11 | FIT-Teil | Eigener Kodierer ohne Garmin-Code; Maintainer bestätigt das oder entscheidet anders |
+| L1 | **FIT:** FR-0182 verlangt FIT, aber kein Paket und keine ADR legen den Weg fest. Das Garmin-SDK steht unter einer eigenen Lizenz (Verbreitung, Kündigungsrecht; Volltext war nicht abrufbar), die GPL-Verträglichkeit ist ungeprüft (OQ-0048). Formatversionen sind offen (OQ-0032) | WP11 | FIT-Teil | Entschieden 2026-11-06: eigener Kodierer ohne Garmin-Code; Rechtsfrage zum Protokoll bleibt in OQ-0048 |
 | L2 | **Karte:** FR-0037 nennt „GPS-Karte“, FR-0041 „GPS-Route“. Kein Kartenmaterial ist festgelegt; Kacheln aus dem Netz gäben den Standort an Dritte (SEC-0008) und bräuchten `INTERNET` | WP10 | nichts, solange die gezeichnete Route genügt | Gezeichnete Route ohne Netz für Phase 1 |
 | L3 | **Profilfelder:** Für „Fitness-/Lauferfahrung“ und die Selbsteinschätzung in FR-0002 fehlt eine Werteliste; PAR-192 kennt keine Trainingsstufen mehr. Für Alter, Gewicht und Größe gibt es keine Plausibilitätsgrenzen | WP05 | diese Felder | Zwei Felder bis Phase 2 zurückstellen; bei den übrigen nur positive Zahlen |
 | L4 | **Persönliche Bestzeiten** (FR-0043): keine Definition, keine liefernde Anforderung | WP10 | diese Kennzahl | Bis zur Definition nicht anzeigen |

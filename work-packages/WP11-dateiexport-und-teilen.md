@@ -7,12 +7,12 @@ Bezug: FR-0182, FR-0183, FR-0201, SEC-0003, CON-0008, CON-0010, ACC-13, ACC-14; 
 ## Inhalt
 1. **Abbildung:** Gespeicherter Lauf auf die Inhalte aus FR-0183, je Format nur, was es abbildet. Fehlender Puls erscheint nicht als 0. Exportiert werden gemessene Rohwerte mit ihrem Zeitstempel, Abbildung und Formatversionen stehen als Vertrag in `docs/contracts/`.
 2. **GPX und TCX:** Eigene Erzeugung in `core`, ohne Paket.
-3. **FIT:** Eigener kleiner Kodierer in `core` mit Prüfsummen, ohne Garmin-Code. Wartet in diesem Punkt auf die Entscheidung L1 (`M1-PLAN.md`); GPX und TCX laufen unabhängig davon.
+3. **FIT:** Eigener kleiner Kodierer in `core` mit Prüfsummen, ohne Garmin-Code. Entscheidung L1 des Maintainers (2026-11-06): eigener Kodierer, kein Garmin-Code.
 4. **Teilen und Ablegen:** Teilen-Menü über eigenen Plattformaufruf mit `ACTION_SEND` und `FileProvider` (FR-0201), Speichern über das System-Dokumentenziel, hinter einem Port, den WP12 weiterverwendet. Temporäre Dateien liegen außerhalb der Backups und werden aufgeräumt.
 5. **Oberfläche:** Export aus dem Lauf-Detail, Formatwahl, Fehlermeldung.
 
 ## Umsetzung
-- Aus WP10: Zonenzeiten und `trimp_run` sind Laufwerte in `computed_values` (K26). Zonenwerte sind nicht aus den Rohdaten rekonstruierbar, weil die Zonengrenzen nicht gespeichert sind. Export führt alle Laufwerte mit (`zone_*`, `trimp_run`, `original` und `current`, mit `unavailable_reason` und Basis), reicht unbekannte `value_key`s durch und nimmt nicht „genau ein Laufwert“ an. Gelöschte Pulssensoren haben nur ihre Kennung.
+- Aus WP10: Berechnete Laufwerte (Zonenzeiten, `trimp_run`, VO₂max) gehören nicht in GPX, TCX oder FIT (siehe Abnahmekriterium „keine berechneten Eigenwerte“); sie führt erst das Archiv aus WP12 mit. Gelöschte Pulssensoren haben nur ihre Kennung, Namen über `KnownDeviceStore`.
 - **Teile für die Coder-Aufträge:** Teil A: Punkte 1 und 2 / Teil B: Punkt 3 / Teil C: Punkte 4 und 5, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Formatversionen sind ein Vorschlag des Pakets (OQ-0032), Kennzeichnung `Vorschläge`. Schemas nicht ohne Lizenzprüfung ins Repository kopieren.
 - Keine Netzwerkberechtigung, keine Strava-Anbindung (OQ-0049). Der Nutzer entscheidet über das Teilen.
