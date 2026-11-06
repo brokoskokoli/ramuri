@@ -88,11 +88,13 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 8),
           OutlinedButton(
             key: const Key('settings_sensors'),
-            onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute(
-                builder: (_) => SensorsScreen(manager: sensors),
-              ),
-            ),
+            onPressed: busy
+                ? null
+                : () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => SensorsScreen(manager: sensors),
+                    ),
+                  ),
             child: Text(l10n.settingsSensors),
           ),
           const SizedBox(height: 8),
