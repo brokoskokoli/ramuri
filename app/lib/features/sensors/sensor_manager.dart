@@ -270,8 +270,10 @@ class SensorManager extends ChangeNotifier {
 
   /// Verbindet alle bekannten, nicht verbundenen Geräte, aber nur, wenn die
   /// Bluetooth-Rechte schon erteilt sind und Bluetooth an ist (Auftrag Teil E,
-  /// beim Öffnen des Lauf-Bildschirms). Fragt nie nach Rechten, zeigt nie einen
-  /// Hinweis und wirft nie: ohne Rechte oder mit Bluetooth aus passiert nichts.
+  /// beim Öffnen des Lauf-Bildschirms). Fragt nie nach Rechten, setzt bei
+  /// einem gescheiterten Erstversuch keinen Hinweis (auch einen bestehenden
+  /// löscht es nicht) und wirft nie: ohne Rechte oder mit Bluetooth aus
+  /// passiert nichts. Gerätewahl und Verlust nach einer Verbindung wie sonst.
   /// Die Neuverbinden-Regeln gelten danach wie bei manuellem Verbinden.
   Future<void> connectKnown() async {
     if (_autoConnecting || _disposed || _known.isEmpty) return;
@@ -287,7 +289,9 @@ class SensorManager extends ChangeNotifier {
         final c = _conns[k.deviceId];
         if (c != null && c.state != SensorLinkState.idle) continue;
         if (_disposed) return;
-        await connect(k.deviceId, name: k.displayName);
+        // Währenddessen vergessen (Löschen): nicht wieder anlegen.
+        if (!_known.any((x) => x.deviceId == k.deviceId)) continue;
+        await _connect(k.deviceId, name: k.displayName, silent: true);
       }
     } catch (_) {
       // Stilles Verbinden: Fehler zeigt höchstens die Verwaltung.
@@ -308,14 +312,18 @@ class SensorManager extends ChangeNotifier {
   }
 
   /// Merkt das Gerät als bekannt (FR-0013) und verbindet es.
-  Future<void> connect(String id, {String? name}) async {
+  Future<void> connect(String id, {String? name}) =>
+      _connect(id, name: name, silent: false);
+
+  Future<void> _connect(String id, {String? name, required bool silent}) async {
     final existing = _conns[id];
     if (existing != null && existing.state != SensorLinkState.idle) return;
-    _problem = null;
+    if (!silent) _problem = null;
     // Vor dem ersten await als verbindend markieren: ein Doppeltipp startet
     // keinen zweiten Versuch.
     final c = existing ?? (_conns[id] = _Conn());
     c.state = SensorLinkState.connecting;
+    c.silent = silent;
     _notify();
     try {
       if (!await _ensurePermissions()) {
@@ -435,8 +443,10 @@ class SensorManager extends ChangeNotifier {
         ..wanted = false
         ..state = SensorLinkState.idle
         ..sub = null;
-      _problem = SensorProblem.connectFailed;
-      unawaited(_refineConnectProblem());
+      if (!c.silent) {
+        _problem = SensorProblem.connectFailed;
+        unawaited(_refineConnectProblem());
+      }
     }
     _notify();
   }
@@ -523,6 +533,9 @@ class _Conn {
   SensorLinkState state = SensorLinkState.idle;
   bool wanted = false;
   bool everConnected = false;
+
+  /// Automatischer Versuch (Teil E): ein Scheitern setzt keinen Hinweis.
+  bool silent = false;
   int? bpm;
   int? battery;
   StreamSubscription<HeartRateEvent>? sub;

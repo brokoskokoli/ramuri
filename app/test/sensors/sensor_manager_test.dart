@@ -51,6 +51,38 @@ class _GatedStore implements KnownDeviceStore {
   Future<void> setPreferred(String? deviceId) => inner.setPreferred(deviceId);
 }
 
+/// Gerätespeicher, der ein Gerät nach dem Löschen nicht mehr listet und die
+/// `upsert`-Aufrufe zählt; `upsert` von [gatedId] wartet auf das Signal.
+class _ForgetfulStore implements KnownDeviceStore {
+  _ForgetfulStore(this.inner, this.gatedId, this.gate);
+
+  final KnownDeviceStore inner;
+  final String gatedId;
+  final Future<void> gate;
+  final hidden = <String>{};
+  final upserts = <String>[];
+
+  @override
+  Future<List<KnownDevice>> list() async => [
+    for (final k in await inner.list())
+      if (!hidden.contains(k.deviceId)) k,
+  ];
+
+  @override
+  Future<void> upsert(
+    String deviceId, {
+    String? displayName,
+    required DateTime at,
+  }) async {
+    upserts.add(deviceId);
+    if (deviceId == gatedId) await gate;
+    return inner.upsert(deviceId, displayName: displayName, at: at);
+  }
+
+  @override
+  Future<void> setPreferred(String? deviceId) => inner.setPreferred(deviceId);
+}
+
 Stream<HeartRateEvent> _failing() => Stream.error(StateError('timeout'));
 
 class _Rig {
@@ -59,6 +91,7 @@ class _Rig {
     FakeStorage? storage,
     Future<bool> Function()? bluetoothAvailable,
     Future<void> Function()? requestPermissions,
+    this.bluetoothGranted,
   }) : sensor = sensor ?? FakeHeartRateSensor(),
        storage = storage ?? FakeStorage() {
     manager = SensorManager(
@@ -66,11 +99,13 @@ class _Rig {
       clock: clock,
       reconnectDelay: const Duration(seconds: 5),
       bluetoothAvailable: bluetoothAvailable,
+      bluetoothGranted: bluetoothGranted,
       requestPermissions:
           requestPermissions ?? () async => permissionRequests++,
     );
   }
 
+  final Future<bool> Function()? bluetoothGranted;
   final FakeHeartRateSensor sensor;
   final FakeStorage storage;
   final clock = FakeClock(DateTime.utc(2026, 6, 1));
@@ -450,5 +485,105 @@ void main() {
     expect(r.manager.foundEntries.single.name, 'Gurt X');
     expect(r.manager.knownEntries, isEmpty);
     r.manager.stopScan();
+  });
+
+  group('connectKnown: Rechte nur lesen, still, ohne Wiederanlegen', () {
+    Future<_Rig> knownRig(
+      WidgetTester t, {
+      Future<bool> Function()? granted,
+      FakeHeartRateSensor? sensor,
+    }) async {
+      final storage = FakeStorage();
+      final a = _Rig(storage: storage);
+      await a.open();
+      await a.connect(t, 'g1', name: 'Gurt 1');
+      a.manager.dispose();
+      final r = _Rig(
+        storage: storage,
+        sensor: sensor,
+        bluetoothGranted: granted,
+      );
+      await r.open();
+      return r;
+    }
+
+    testWidgets('ohne Lesefunktion (null) bei vorhandener Rechteabfrage: '
+        'kein Verbinden, keine Abfrage', (t) async {
+      final r = await knownRig(t);
+      await r.manager.connectKnown();
+      await t.pump();
+      expect(r.sensor.connectedIds, isEmpty);
+      expect(r.permissionRequests, 0);
+      expect(r.manager.problem, isNull);
+    });
+
+    testWidgets('Lesefunktion wirft: kein Verbinden, keine Abfrage', (t) async {
+      final r = await knownRig(t, granted: () async => throw StateError('x'));
+      await r.manager.connectKnown();
+      await t.pump();
+      expect(r.sensor.connectedIds, isEmpty);
+      expect(r.permissionRequests, 0);
+      expect(r.manager.problem, isNull);
+    });
+
+    testWidgets('Lesefunktion meldet nicht erteilt: nichts', (t) async {
+      final r = await knownRig(t, granted: () async => false);
+      await r.manager.connectKnown();
+      await t.pump();
+      expect(r.sensor.connectedIds, isEmpty);
+      expect(r.permissionRequests, 0);
+    });
+
+    testWidgets('erteilt: verbindet, ohne Rechteabfrage', (t) async {
+      final r = await knownRig(t, granted: () async => true);
+      await r.manager.connectKnown();
+      await t.pump();
+      expect(r.sensor.connectedIds, {'g1'});
+      expect(r.permissionRequests, 0);
+    });
+
+    testWidgets('gescheiterter Erstversuch setzt keinen Hinweis, '
+        'manuelles Verbinden schon', (t) async {
+      final sensor = _ScriptedSensor();
+      sensor.plans['g1'] = [_failing, _failing];
+      final r = await knownRig(t, granted: () async => true, sensor: sensor);
+      await r.manager.connectKnown();
+      await t.pump();
+      expect(sensor.connects, 1);
+      expect(r.manager.knownEntries.single.state, SensorLinkState.idle);
+      expect(r.manager.problem, isNull);
+
+      await r.connect(t, 'g1');
+      await t.pump();
+      expect(r.manager.problem, SensorProblem.connectFailed);
+    });
+
+    testWidgets('währenddessen vergessenes Gerät wird nicht wieder angelegt', (
+      t,
+    ) async {
+      final storage = FakeStorage();
+      final a = _Rig(storage: storage);
+      await a.open();
+      await a.connect(t, 'g1', name: 'Gurt 1');
+      await a.connect(t, 'g2', name: 'Gurt 2');
+      a.manager.dispose();
+
+      final r = _Rig(storage: storage, bluetoothGranted: () async => true);
+      await r.open();
+      final gate = Completer<void>();
+      final store = _ForgetfulStore(r.store, 'g1', gate.future);
+      await r.manager.attachStore(store);
+      expect(r.manager.knownEntries.map((e) => e.id), ['g1', 'g2']);
+
+      final done = r.manager.connectKnown();
+      await t.pump();
+      // g1 wartet im Speicher; jetzt wird g2 gelöscht.
+      store.hidden.add('g2');
+      gate.complete();
+      await done;
+      await t.pump();
+      expect(store.upserts, ['g1'], reason: 'g2 nicht wieder angelegt');
+      expect(r.sensor.connectedIds, {'g1'});
+    });
   });
 }
