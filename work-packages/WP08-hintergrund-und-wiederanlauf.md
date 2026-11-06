@@ -14,6 +14,7 @@ Ergebnis von R005 (`research/R005-aufzeichnung-durchstich/RESULTS.md`): Host eig
 5. **Schrittfrequenz (FR-0202):** Schrittsensor des Telefons in Kotlin hinter dem Port, eigene Berechtigung, ohne sie „nicht verfügbar“ und normale Aufzeichnung. Füllt die Anzeige aus WP06.
 
 ## Umsetzung
+- Aus WP07: Sensorbetrieb unter dem Dienst und bei gesperrtem Bildschirm sowie `connectedDevice` fehlen. `SensorManager` hält die Verbindungen app-weit, je Lauf gibt es einen eigenen `HeartRateSourceSelector` (`RunHeartRate`: `lock` beim Start, `close` am Ende bzw. bei `dispose`). Neuverbinden löst der Host mit einem neuen `connect` aus, der Adapter beendet den Strom bei Verlust.
 - Aus WP09: Jedes `finished` muss `endedUtcOffset` mitgeben (`RunRecorder.finish` tut es); das gilt auch, wenn WP08 einen verwaisten Lauf beendet.
 - Aus WP06: Ohne monotone Zeit erzeugen Uhrsprünge falsche Lücken und verlängern Zeiten. Ein Lauf, der nach Prozessende `active` bleibt, muss aufgeräumt werden (E2E: Entzug der Standortberechtigung beendet den Prozess). Rohpunkte in manueller Pause liegen gespeichert in deren Lücke.
 - Aus WP02: `runs.unfinished()` enthält auch pausierte Läufe. WAL und `synchronous = FULL` stehen als Konstante in `connection_setup.dart`.

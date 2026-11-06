@@ -217,6 +217,13 @@ release_ohne_internet() {
   if echo "$perms" | grep -q 'android.permission.INTERNET'; then
     echo "Release-APK fordert android.permission.INTERNET (SEC-0008)"; return 1
   fi
+  # WP07: Der Test-Sensor gehört nur in den Debug-Einstieg. Sein Marker darf in keiner Datei des Release-APK stehen.
+  marker=$(sed -n "s/^const String testSensorMarker = '\(.*\)';$/\1/p" app/lib/debug/debug_test_sensor.dart)
+  [ -n "$marker" ] || { echo "testSensorMarker in app/lib/debug/debug_test_sensor.dart nicht gefunden"; return 1; }
+  if unzip -p "$apk" | LC_ALL=C grep -a -q -F "$marker"; then
+    echo "Release-APK enthält den Test-Sensor ($marker)"; return 1
+  fi
+  echo "Test-Sensor nicht im Release-APK"
 }
 
 if [ -f app/pubspec.yaml ]; then
@@ -234,7 +241,7 @@ if [ -f app/pubspec.yaml ]; then
       step "$p test" pkg_test "$p"
     done
     step "drift schema" drift_aktuell
-    step "release ohne INTERNET" release_ohne_internet
+    step "release ohne INTERNET und Test-Sensor" release_ohne_internet
     step "lock unverändert" lock_unveraendert
   fi
 fi
