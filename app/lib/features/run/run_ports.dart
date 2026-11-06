@@ -12,6 +12,7 @@ class RunPorts {
     this.heartRateRun,
     this.connectSensors,
     this.recordingService,
+    this.requestNotifications,
   });
 
   /// Standortberechtigung und GPS-Schalter (FR-0195).
@@ -36,6 +37,11 @@ class RunPorts {
   /// Foreground Service der Aufzeichnung (ADR-0005 Punkt 2, WP08). `null`
   /// ohne Dienst (Tests): Der Lauf läuft dann nur, solange die App sichtbar ist.
   final RecordingServicePort? recordingService;
+
+  /// Fragt vor dem Laufstart nach POST_NOTIFICATIONS (ADR-0005 Punkt 2). Die
+  /// Antwort ist egal: Ohne die Berechtigung läuft der Dienst, nur die
+  /// Benachrichtigung ist unsichtbar. `null` ohne Plattform (Tests).
+  final Future<void> Function()? requestNotifications;
 }
 
 /// Der Dienst, der den Prozess für die Dauer eines Laufs am Leben hält.

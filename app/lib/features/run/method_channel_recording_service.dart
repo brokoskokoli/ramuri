@@ -26,3 +26,10 @@ class MethodChannelRecordingService implements RecordingServicePort {
   Future<bool> isRunning() async =>
       await _channel.invokeMethod<bool>('isRunning') ?? false;
 }
+
+/// Fragt POST_NOTIFICATIONS über den Berechtigungskanal (`MainActivity.kt`,
+/// ADR-0005 Punkt 2). Liefert, ob erteilt; Ablehnung ist kein Fehler.
+Future<bool> requestNotificationPermission([MethodChannel? channel]) async {
+  final c = channel ?? const MethodChannel('running_app/permissions');
+  return await c.invokeMethod<String>('requestNotifications') == 'granted';
+}

@@ -22,20 +22,19 @@ class RecordingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val lc = lifecycle ?: RecordingLifecycle(PowerLock(this)) { type ->
-            startForeground(NOTIFICATION_ID, notification(), type)
-        }.also { lifecycle = it }
-        val outcome = lc.start()
+        val lc = lifecycle ?: RecordingLifecycle(
+            PowerLock(this),
+            { stopSelf() },
+            { type -> startForeground(NOTIFICATION_ID, notification(), type) },
+        ).also { lifecycle = it }
+        val outcome = lc.onStartCommand(RecordingServiceState.takeStopRequest())
         outcome.onSuccess { RecordingServiceState.started() }
-        outcome.onFailure {
-            RecordingServiceState.failed(it)
-            stopSelf()
-        }
-        return START_NOT_STICKY
+        outcome.onFailure { RecordingServiceState.failed(it) }
+        return RecordingLifecycle.START_MODE
     }
 
     override fun onDestroy() {
-        lifecycle?.stop()
+        lifecycle?.onDestroy()
         lifecycle = null
         RecordingServiceState.stopped()
         super.onDestroy()

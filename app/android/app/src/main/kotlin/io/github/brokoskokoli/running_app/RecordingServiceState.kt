@@ -23,9 +23,15 @@ object RecordingServiceState {
     private var pending: MutableList<MethodChannel.Result> = mutableListOf()
     private val handler = Handler(Looper.getMainLooper())
     private var appContext: Context? = null
+    /**
+     * Stopp-Wunsch vor dem Vordergrund. Der Dienst wird nach `startForegroundService`
+     * nie von außen beendet, bevor er `startForeground` erreicht hat (Absturz des
+     * Prozesses); er liest den Wunsch in `onStartCommand` und beendet sich danach.
+     */
+    private var stopRequested = false
     private val timeout = Runnable {
         // Ein später doch gestarteter Dienst bliebe sonst ohne Dart-Gegenstück laufen.
-        appContext?.stopService(Intent(appContext, RecordingService::class.java))
+        stopRequested = true
         failed(IllegalStateException("start_timeout"))
     }
 
@@ -36,7 +42,7 @@ object RecordingServiceState {
                 "isRunning" -> result.success(running)
                 "start" -> start(context, result)
                 "stop" -> {
-                    context.stopService(Intent(context, RecordingService::class.java))
+                    stop(context)
                     result.success(null)
                 }
                 else -> result.notImplemented()
@@ -52,12 +58,30 @@ object RecordingServiceState {
         val first = pending.isEmpty()
         pending.add(result)
         if (!first) return
+        stopRequested = false
         try {
             context.startForegroundService(Intent(context, RecordingService::class.java))
             handler.postDelayed(timeout, START_TIMEOUT_MS)
         } catch (e: RuntimeException) {
             failed(e)
         }
+    }
+
+    private fun stop(context: Context) {
+        if (pending.isNotEmpty()) {
+            // Dienst noch nicht im Vordergrund: nicht beenden, sondern vormerken.
+            stopRequested = true
+            failed(IllegalStateException("start_cancelled"))
+        } else if (running) {
+            context.stopService(Intent(context, RecordingService::class.java))
+        }
+    }
+
+    /** Liest und löscht den Stopp-Wunsch (aufgerufen in `onStartCommand`). */
+    fun takeStopRequest(): Boolean {
+        val r = stopRequested
+        stopRequested = false
+        return r
     }
 
     fun started() {

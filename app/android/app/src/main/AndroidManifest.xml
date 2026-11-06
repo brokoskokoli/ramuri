@@ -13,8 +13,8 @@
         tools:targetApi="s"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <!-- ADR-0005 Punkt 2: Foreground Service der Aufzeichnung. Keine Hintergrund-Standortberechtigung,
-         kein BOOT_COMPLETED. POST_NOTIFICATIONS wird nie verlangt; ohne sie läuft der Dienst
-         und nur die Benachrichtigung ist nicht sichtbar. Der Wake Lock gilt nur für die Laufdauer. -->
+         kein BOOT_COMPLETED. POST_NOTIFICATIONS fragt die App vor dem Laufstart; ohne sie
+         (abgelehnt) läuft der Dienst, nur die Benachrichtigung ist nicht sichtbar. Der Wake Lock gilt nur für die Laufdauer. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>

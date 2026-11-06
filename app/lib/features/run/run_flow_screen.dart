@@ -112,6 +112,8 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       });
       return;
     }
+    await _askNotifications();
+    if (!mounted || gen != _generation) return;
     final controller = RunController(
       clock: widget.clock,
       storage: widget.session,
@@ -130,6 +132,15 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       _checking = false;
     });
     await controller.start();
+  }
+
+  /// ADR-0005 Punkt 2: fragen, aber nie blockieren (Ablehnung, Fehler, Abbruch).
+  Future<void> _askNotifications() async {
+    try {
+      await widget.ports.requestNotifications?.call();
+    } catch (_) {
+      // Ohne Berechtigung läuft der Dienst, nur die Benachrichtigung fehlt.
+    }
   }
 
   Future<void> _retryStart() async {

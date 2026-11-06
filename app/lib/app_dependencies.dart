@@ -85,6 +85,7 @@ class AppDependencies {
         heartRateRun: sensors.beginRun,
         connectSensors: sensors.connectKnown,
         recordingService: MethodChannelRecordingService(),
+        requestNotifications: requestNotificationPermission,
       ),
       storageStart: StorageStartController(
         keyStore: SecureKeyStore(),
@@ -152,6 +153,9 @@ class _NoRunPorts implements RunPorts {
 
   @override
   RecordingServicePort? get recordingService => null;
+
+  @override
+  Future<void> Function()? get requestNotifications => null;
 }
 
 class _DeniedAccess implements LocationAccessPort {

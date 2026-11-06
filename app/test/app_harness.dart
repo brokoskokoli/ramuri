@@ -37,6 +37,9 @@ class Device {
   /// Dienst der Aufzeichnung (WP08); `null` wie ohne Dienst.
   FakeRecordingServicePort? recordingService;
 
+  /// Abfrage von POST_NOTIFICATIONS vor dem Laufstart (WP08); `null` wie ohne Plattform.
+  Future<void> Function()? requestNotifications;
+
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
   /// [heartRate]; [lastRun] ist die Pulsquelle des jüngsten Laufs.
   bool runViaSensors = false;
@@ -102,6 +105,7 @@ class Device {
                 : null,
             connectSensors: sensors.connectKnown,
             recordingService: recordingService,
+            requestNotifications: requestNotifications,
           ),
         ),
       ),

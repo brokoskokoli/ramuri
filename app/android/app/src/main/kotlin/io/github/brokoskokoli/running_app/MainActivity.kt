@@ -21,6 +21,8 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler(null)
         pendingLocation?.error("detached", null, null)
         pendingLocation = null
+        pendingNotifications?.error("detached", null, null)
+        pendingNotifications = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
@@ -46,6 +48,8 @@ class MainActivity : FlutterActivity() {
                     // FR-0195: genauer Standort vor dem Lauf (OQ-0064).
                     "locationAccess" -> result.success(locationAccess())
                     "requestLocation" -> requestLocation(result)
+                    // ADR-0005 Punkt 2: Die App fragt, läuft aber auch ohne; Antwort blockiert nichts.
+                    "requestNotifications" -> requestNotifications(result)
                     "gpsEnabled" -> result.success(
                         (getSystemService(LOCATION_SERVICE) as LocationManager)
                             .isProviderEnabled(LocationManager.GPS_PROVIDER),
@@ -64,6 +68,24 @@ class MainActivity : FlutterActivity() {
     }
 
     private var pendingLocation: MethodChannel.Result? = null
+    private var pendingNotifications: MethodChannel.Result? = null
+
+    private fun notificationsGranted(): Boolean =
+        Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    private fun requestNotifications(result: MethodChannel.Result) {
+        if (notificationsGranted()) {
+            result.success("granted")
+            return
+        }
+        if (pendingNotifications != null) {
+            result.error("busy", null, null)
+            return
+        }
+        pendingNotifications = result
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_REQUEST)
+    }
 
     /** "precise" nur mit ACCESS_FINE_LOCATION; nur COARSE ist "approximate". */
     private fun locationAccess(): String = when {
@@ -95,6 +117,10 @@ class MainActivity : FlutterActivity() {
             pendingLocation?.success(locationAccess())
             pendingLocation = null
         }
+        if (requestCode == NOTIFICATION_REQUEST) {
+            pendingNotifications?.success(if (notificationsGranted()) "granted" else "denied")
+            pendingNotifications = null
+        }
     }
 
     /** Schlüssel der Berechtigungen, die das Manifest der App anfordert (Dart: MethodChannelPermissionStatus.keys). */
@@ -119,5 +145,6 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val LOCATION_REQUEST = 6001
+        const val NOTIFICATION_REQUEST = 6002
     }
 }

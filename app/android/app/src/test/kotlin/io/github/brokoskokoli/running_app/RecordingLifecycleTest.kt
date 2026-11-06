@@ -82,4 +82,52 @@ class RecordingLifecycleTest {
         lc.start()
         assertEquals(1, lock.acquired)
     }
+
+    @Test fun neverRestartsAfterKill() {
+        assertEquals(android.app.Service.START_NOT_STICKY, RecordingLifecycle.START_MODE)
+    }
+
+    @Test fun onDestroyReleasesLock() {
+        val lock = FakeLock()
+        val lc = RecordingLifecycle(lock) {}
+        lc.start()
+        lc.onDestroy()
+        assertFalse(lock.isHeld)
+        assertFalse(lc.running)
+    }
+
+    private fun events(lock: FakeLock, log: MutableList<String>, fgThrows: Boolean = false) =
+        RecordingLifecycle(
+            lock,
+            { log.add("stopSelf:held=${lock.isHeld}") },
+            { if (fgThrows) throw SecurityException("x"); log.add("foreground") },
+        )
+
+    @Test fun normalStartKeepsServiceAndLock() {
+        val log = mutableListOf<String>()
+        val lock = FakeLock()
+        val r = events(lock, log).onStartCommand(stopRequested = false)
+        assertTrue(r.isSuccess)
+        assertEquals(listOf("foreground"), log)
+        assertTrue(lock.isHeld)
+    }
+
+    @Test fun stopRequestedDuringStartEntersForegroundBeforeStopSelf() {
+        val log = mutableListOf<String>()
+        val lock = FakeLock()
+        val r = events(lock, log).onStartCommand(stopRequested = true)
+        assertEquals("start_cancelled", r.exceptionOrNull()?.message)
+        assertEquals(listOf("foreground", "stopSelf:held=false"), log)
+        assertFalse(lock.isHeld)
+    }
+
+    @Test fun foregroundFailureStopsSelfWithoutLock() {
+        val log = mutableListOf<String>()
+        val lock = FakeLock()
+        val lc = events(lock, log, fgThrows = true)
+        val r = lc.onStartCommand(stopRequested = false)
+        assertTrue(r.exceptionOrNull() is SecurityException)
+        assertEquals(listOf("stopSelf:held=false"), log)
+        assertFalse(lc.running)
+    }
 }

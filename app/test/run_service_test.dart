@@ -202,6 +202,36 @@ void main() {
     });
   });
 
+  group('Quelltext des Dienstes (ADR-0005 Punkt 6, Wake Lock)', () {
+    const dir =
+        'android/app/src/main/kotlin/io/github/brokoskokoli/running_app';
+    final service = File('$dir/RecordingService.kt').readAsStringSync();
+    final lifecycle = File('$dir/RecordingLifecycle.kt').readAsStringSync();
+    final state = File('$dir/RecordingServiceState.kt').readAsStringSync();
+
+    test('START_NOT_STICKY, kein onTaskRemoved', () {
+      expect(service, contains('return RecordingLifecycle.START_MODE'));
+      expect(
+        lifecycle,
+        contains('const val START_MODE: Int = Service.START_NOT_STICKY'),
+      );
+      expect(service + lifecycle, isNot(contains('START_STICKY')));
+      expect(service, isNot(contains('onTaskRemoved')));
+    });
+
+    test('onDestroy gibt den Lock frei', () {
+      expect(service, contains('lifecycle?.onDestroy()'));
+      expect(lifecycle, matches(RegExp(r'fun onDestroy\(\) = stop\(\)')));
+    });
+
+    test('kein stopService vor dem Vordergrund', () {
+      // Nur bei laufendem Dienst; Timeout und Stopp im Start werden vorgemerkt.
+      expect(RegExp('stopService').allMatches(state), hasLength(1));
+      expect(state, contains('else if (running)'));
+      expect(service, contains('takeStopRequest()'));
+    });
+  });
+
   group('Manifest (ADR-0005 Punkt 2 und 6)', () {
     final manifest = File('android/app/src/main/AndroidManifest.xml')
         .readAsStringSync()
