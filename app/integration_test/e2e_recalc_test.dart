@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/system_clock.dart';
 
 const _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
@@ -144,6 +145,13 @@ Future<String> _dump(String label) async {
   return text;
 }
 
+/// Originalwerte (Basis, Qualitaet) und Rohdaten-Zeilen ohne die aktuellen Werte.
+String _originals(String d) => d
+    .split('\n')
+    .where((l) => l.contains(' orig=') || l.startsWith('raw '))
+    .map((l) => l.replaceFirst(RegExp(r' cur=.*'), ''))
+    .join('\n');
+
 String _vals(String d) => d
     .split('\n')
     .where((l) => !l.startsWith('profile') && !l.startsWith('pending'))
@@ -171,9 +179,13 @@ Future<void> _changeMax(WidgetTester tester, String v) async {
   log(
     'CM banner=${find.byKey(const Key('profile_banner')).evaluate().length} note=${find.byKey(const Key('profile_saved_note')).evaluate().length} snack=${find.byType(SnackBar).evaluate().length}',
   );
-  log(
-    'CM snackbar_text=${tester.widgetList<SnackBar>(find.byType(SnackBar)).map((s) => (s.content as Text).data!.replaceAll('\\n', ' / ')).join()}',
-  );
+  final l10n = AppLocalizations.of(tester.element(find.byType(Scaffold).last));
+  final snackbarText = tester
+      .widgetList<SnackBar>(find.byType(SnackBar))
+      .map((s) => (s.content as Text).data!)
+      .join();
+  log('CM snackbar_text=${snackbarText.replaceAll('\n', ' / ')}');
+  expect(snackbarText, '${l10n.profileSaved}\n${l10n.recalcOffered}');
   await tester.tap(find.byType(BackButton));
   await tester.pumpAndSettle();
 }
@@ -249,6 +261,10 @@ void main() {
     expect(s3, isNot(s3a));
     expect(s3, contains('cur='));
     expect(s3.contains('cur=') && s3.contains('@175'), isTrue);
+    // Originale (Basis 190, Qualitaet) und Rohdaten bleiben wie im Ausgangszustand.
+    expect(_originals(s3), _originals(base));
+    expect(_originals(s3), contains('@190/'));
+    expect(_originals(s3), isNot(contains('@175')));
 
     // Szenario 4: Basis erneut aendern, nicht beantworten, App neu starten
     await tester.tap(find.byType(BackButton));
@@ -258,6 +274,9 @@ void main() {
     await _openSettings(tester);
     expect(find.byKey(const Key('recalc_dialog')), findsOneWidget);
     log('S4 card_after_restart=${_texts(tester, 'recalc_dialog')}');
-    await tester.runAsync(() => _dump('S4'));
+    final s4 = await tester.runAsync(() => _dump('S4')) as String;
+    expect(s4, contains('pending='));
+    expect(s4, isNot(contains('pending=\n')));
+    expect(_originals(s4), _originals(base));
   }, timeout: const Timeout(Duration(minutes: 10)));
 }
