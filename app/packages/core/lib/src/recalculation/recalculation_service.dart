@@ -37,10 +37,20 @@ class RecalculationOffer {
 
 /// Ergebnis einer bestätigten Neuberechnung.
 class RecalculationResult {
-  const RecalculationResult({required this.runCount, required this.dayCount});
+  const RecalculationResult({
+    required this.runCount,
+    required this.dayCount,
+    this.offerCleared = true,
+  });
 
   final int runCount;
   final int dayCount;
+
+  /// `false`: Die Werte sind getauscht, aber das Angebot konnte danach nicht
+  /// als erledigt gespeichert werden (Speicherfehler). Die Neuberechnung
+  /// gilt; das Angebot kann bestehen bleiben, ein erneutes Bestätigen rechnet
+  /// aus den Rohdaten dieselben Werte (nur `computedAt` ändert sich).
+  final bool offerCleared;
 }
 
 /// Neuberechnung nach einer Änderung der Basis (ADR-0004 Punkt 5, FR-0006,
@@ -136,7 +146,9 @@ class RecalculationService {
   /// [StateError]. Rechnet zuerst alles (Fehler dabei ändern nichts) und
   /// tauscht dann in einer Transaktion. Erst nach Erfolg gilt das Angebot als
   /// erledigt, und zwar nur die Ursachen, die beim Start offen waren; ein
-  /// währenddessen neu gekommenes Angebot bleibt.
+  /// währenddessen neu gekommenes Angebot bleibt. Scheitert nur das Erledigen
+  /// nach dem Tausch, wirft [confirm] nicht; das Ergebnis trägt dann
+  /// `offerCleared: false`.
   Future<RecalculationResult> confirm(RecalculationOffer offer) async {
     final started = await _pendingCauses();
     if (started.isEmpty) {
@@ -148,17 +160,25 @@ class RecalculationService {
       ...snapshot.runValues,
       ...snapshot.dayValues,
     });
-    // Nur erledigen, was beim Start offen war und währenddessen nicht erneut
-    // angeboten wurde; ein neues Angebot (etwa nach einer Profiländerung
-    // zwischen Zwischenstand und Tausch) bleibt stehen.
-    final done = {
-      for (final c in started)
-        if (_offerSeq[c] == seqAtStart[c]) c,
-    };
-    await _setPending((await _pendingCauses()).difference(done));
+    // Ab hier ist getauscht: ein Fehler beim Erledigen des Angebots darf nicht
+    // als gescheiterte Neuberechnung gemeldet werden.
+    var cleared = true;
+    try {
+      // Nur erledigen, was beim Start offen war und währenddessen nicht erneut
+      // angeboten wurde; ein neues Angebot (etwa nach einer Profiländerung
+      // zwischen Zwischenstand und Tausch) bleibt stehen.
+      final done = {
+        for (final c in started)
+          if (_offerSeq[c] == seqAtStart[c]) c,
+      };
+      await _setPending((await _pendingCauses()).difference(done));
+    } on Object {
+      cleared = false;
+    }
     return RecalculationResult(
       runCount: snapshot.runValues.length,
       dayCount: snapshot.dayValues.length,
+      offerCleared: cleared,
     );
   }
 

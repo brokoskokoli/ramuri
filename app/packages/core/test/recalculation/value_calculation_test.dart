@@ -182,6 +182,42 @@ void main() {
     expect(v.original.quality, ValueQuality.undeterminable);
   });
 
+  test(
+    'Merker: Fehler beim Neuanlegen lässt ihn stehen, Nachholen entfernt ihn',
+    () async {
+      final w = await RecalcWorld.create();
+      final ids = await w.seedFourRunsCalculated();
+      const key = ValueCalculationService.refreshPendingKey;
+      // Ohne Merker passiert nichts (auch kein Schreiben).
+      final values = FailingValues(w.session.values)
+        ..failSwapAll = false
+        ..failWriteAll = true;
+      final faulty = FaultySession(
+        w.session,
+        rawData: w.session.rawData,
+        values: values,
+      );
+      await w.calc(over: faulty).completePendingRefresh();
+      expect(values.writeAlls, 0);
+
+      await w.calc().markRefreshPending(ids.last);
+      expect(await w.session.settings.get(key), startsWith('${ids.last}@'));
+      await w.session.deleteRun(ids.last);
+      await expectLater(
+        w.calc(over: faulty).completePendingRefresh(),
+        throwsA(isA<StorageException>()),
+      );
+      expect(await w.session.settings.get(key), isNotEmpty);
+
+      await w.calc().completePendingRefresh();
+      expect(await w.session.settings.get(key), isEmpty);
+      expect(
+        await w.session.values.read(const ValueOwner.day('2030-02-20')),
+        isNotEmpty,
+      );
+    },
+  );
+
   test('nach dem Löschen: Tageswerte neu, Laufwerte unverändert', () async {
     final w = await RecalcWorld.create();
     final ids = await w.seedFourRunsCalculated();

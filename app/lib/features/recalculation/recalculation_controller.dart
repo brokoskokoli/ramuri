@@ -13,7 +13,7 @@ enum RecalculationPhase { idle, running, done, failed, declineFailed }
 /// Fehlermeldungen tragen keine Gesundheitsdaten: der Fehler selbst wird
 /// nicht angezeigt, nur [RecalculationPhase.failed].
 class RecalculationController extends ChangeNotifier {
-  RecalculationController(this.service) {
+  RecalculationController(this.service, {this.onStart}) {
     _sub = service.offers.listen((o) {
       _offer = o;
       if (_phase != RecalculationPhase.running) {
@@ -24,6 +24,11 @@ class RecalculationController extends ChangeNotifier {
   }
 
   final RecalculationService service;
+
+  /// Läuft einmal zu Beginn von [start], vor allem anderen (etwa das Nachholen
+  /// der Tageswerte nach einem Löschen). Fehler werden verschluckt.
+  final Future<void> Function()? onStart;
+  Future<void>? _starting;
   late final StreamSubscription<RecalculationOffer> _sub;
 
   RecalculationOffer? _offer;
@@ -42,7 +47,14 @@ class RecalculationController extends ChangeNotifier {
   /// Beim App-Start: offenes Angebot lesen und prüfen, ob sich die Version
   /// der Berechnung geändert hat. Ein Fehler lässt kein Angebot erscheinen
   /// und ändert nichts.
-  Future<void> start() async {
+  Future<void> start() => _starting ??= _start();
+
+  Future<void> _start() async {
+    try {
+      await onStart?.call();
+    } on Object {
+      // Die Werte fehlen weiter; der Merker bleibt, beim nächsten Start erneut.
+    }
     try {
       await service.checkVersions();
       final pending = await service.pendingOffer();
@@ -71,6 +83,8 @@ class RecalculationController extends ChangeNotifier {
     _result = null;
     notifyListeners();
     try {
+      // Nicht parallel zum Nachholen aus dem Start.
+      await _starting;
       _result = await service.confirm(offer);
     } on Object {
       // Der alte Stand bleibt ganz (Tausch in einer Transaktion), das Angebot

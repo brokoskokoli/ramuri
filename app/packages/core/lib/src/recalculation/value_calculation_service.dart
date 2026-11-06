@@ -158,6 +158,33 @@ class ValueCalculationService {
     );
   }
 
+  /// Einstellungsschlüssel des Merkers „Tageswerte nach dem Löschen neu
+  /// anlegen“ (nur Lauf-ID und Zeitpunkt, keine Gesundheitsdaten).
+  static const String refreshPendingKey = 'values.refreshPending';
+
+  /// Setzt den Merker vor dem Löschen von Lauf [runId]. Scheitert das, wirft
+  /// es; dann wurde noch nichts gelöscht.
+  Future<void> markRefreshPending(int runId) => session.settings.set(
+    refreshPendingKey,
+    '$runId@${clock.now().toUtc().toIso8601String()}',
+    at: clock.now(),
+  );
+
+  /// Entfernt den Merker (ohne ihn zu prüfen).
+  Future<void> clearRefreshPending() =>
+      session.settings.set(refreshPendingKey, '', at: clock.now());
+
+  /// Steht ein Merker, werden die Tageswerte neu angelegt
+  /// ([refreshAfterDelete]); nach Erfolg wird der Merker entfernt, bei einem
+  /// Fehler bleibt er stehen und der Fehler wird weitergegeben. Nicht
+  /// parallel zu einer Neuberechnung aufrufen (eine Dienstinstanz).
+  Future<void> completePendingRefresh() async {
+    final mark = await session.settings.get(refreshPendingKey);
+    if (mark == null || mark.isEmpty) return;
+    await refreshAfterDelete();
+    await clearRefreshPending();
+  }
+
   /// Nach dem Löschen eines Laufs: Langzeit- und Tageswerte aller Tage mit
   /// einem Lauf, der einen Laufwert hat, neu rechnen (die Speicherschicht hat
   /// überlappende Tageswerte gelöscht). Laufwerte bleiben unverändert
@@ -166,6 +193,10 @@ class ValueCalculationService {
   /// unbekannt, bleibt die Effizienz unverändert (siehe Klasse). Fehlende
   /// Tageswerte werden neu angelegt, vorhandene im `current` getauscht, alle in
   /// EINER Transaktion. Tage ohne Lauf mit Laufwert bekommen nichts.
+  ///
+  /// Wird das Neuanlegen unterbrochen, fehlen Tageswerte ohne Grund. Darum
+  /// setzt der Aufrufer vor dem Löschen [markRefreshPending]; [completePendingRefresh]
+  /// legt die Werte neu an (auch beim nächsten Start) und entfernt den Merker.
   Future<void> refreshAfterDelete() async {
     final now = clock.now();
     final runs = await _finishedRuns();

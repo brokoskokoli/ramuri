@@ -36,37 +36,60 @@ Future<DeletionResult> runDeletion(Future<void> Function() action) async {
 
 /// Löscht den Lauf [runId] und legt danach die Tageswerte der verbleibenden
 /// Lauftage neu an (FR-0058: die Speicherschicht löscht überlappende
-/// Tageswerte). Ein Fehler beim Neuanlegen macht das Löschen nicht rückgängig
-/// und wird nicht angezeigt (keine Gesundheitsdaten in Meldungen); die Werte
-/// fehlen dann, bis sie neu berechnet werden.
+/// Tageswerte). Vor dem Löschen steht ein Merker in den Einstellungen (nur
+/// Lauf-ID und Zeitpunkt); er wird nach erfolgreichem Neuanlegen entfernt. Ein
+/// Fehler beim Neuanlegen macht das Löschen nicht rückgängig und wird nicht
+/// angezeigt (keine Gesundheitsdaten in Meldungen); der Merker bleibt, und
+/// [completePendingValueRefresh] holt das Neuanlegen beim nächsten Start nach.
+/// Scheitert schon der Merker, wird nichts gelöscht (Wurf).
 Future<void> deleteRunAndRefresh(
   StorageSession session,
   Clock clock,
   int runId,
 ) async {
+  final calc = ValueCalculationService(session: session, clock: clock);
+  await calc.markRefreshPending(runId);
+
   Future<void> refresh() async {
     try {
-      await ValueCalculationService(
-        session: session,
-        clock: clock,
-      ).refreshAfterDelete();
+      await calc.completePendingRefresh();
     } on Object {
-      // Siehe oben: Löschen gilt, Tageswerte fehlen vorerst.
+      // Siehe oben: Löschen gilt, Merker bleibt, Nachholen beim Start.
     }
   }
 
   try {
     await session.deleteRun(runId);
   } on StorageException catch (e) {
-    // Gelöscht, nur der Checkpoint scheiterte: Tageswerte trotzdem anlegen.
-    if (e.failure == StorageFailure.deletedNotErased) await refresh();
+    if (e.failure == StorageFailure.deletedNotErased) {
+      // Gelöscht, nur der Checkpoint scheiterte: Tageswerte trotzdem anlegen.
+      await refresh();
+    } else {
+      // Nichts gelöscht: der Merker wird nicht gebraucht.
+      try {
+        await calc.clearRefreshPending();
+      } on Object {
+        // Ein stehengebliebener Merker kostet nur ein überflüssiges Neuanlegen.
+      }
+    }
     rethrow;
   }
   await refresh();
 }
 
+/// Holt ein unterbrochenes Neuanlegen der Tageswerte nach einem Löschen nach
+/// (beim App-Start, vor einer Neuberechnung; nicht parallel zu ihr). Ohne
+/// Merker passiert nichts. Fehler werden weitergegeben; der Merker bleibt.
+Future<void> completePendingValueRefresh(StorageSession session, Clock clock) =>
+    ValueCalculationService(
+      session: session,
+      clock: clock,
+    ).completePendingRefresh();
+
 /// Fragt nach und löscht den Lauf [runId]. Für WP10 (Eintrag in der Lauf-Liste).
-/// Zeigt danach eine kurze Rückmeldung, soweit der Kontext noch steht.
+/// Erwartet die [clock], weil nach dem Löschen die Tageswerte der übrigen
+/// Lauftage neu angelegt werden ([deleteRunAndRefresh]). Zeigt danach eine
+/// kurze Rückmeldung, soweit der Kontext noch steht.
 Future<DeletionResult> confirmAndDeleteRun(
   BuildContext context,
   StorageSession session,

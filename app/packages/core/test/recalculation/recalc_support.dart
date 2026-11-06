@@ -294,3 +294,64 @@ class FailingValues implements ComputedValueStore {
   @override
   Future<List<ValuePair>> read(ValueOwner owner) => inner.read(owner);
 }
+
+/// Reicht alles durch und merkt sich, dass ein Sammel-Tausch gelang.
+class SwapSignalValues implements ComputedValueStore {
+  SwapSignalValues(this.inner);
+  final ComputedValueStore inner;
+  bool swapped = false;
+
+  @override
+  Future<void> createOriginals(ValueOwner owner, List<ComputedValue> values) =>
+      inner.createOriginals(owner, values);
+  @override
+  Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values) =>
+      inner.swapCurrent(owner, values);
+  @override
+  Future<void> swapCurrentAll(
+    Map<ValueOwner, List<ComputedValue>> changes,
+  ) async {
+    await inner.swapCurrentAll(changes);
+    swapped = true;
+  }
+
+  @override
+  Future<void> writeAll({
+    Map<ValueOwner, List<ComputedValue>> create = const {},
+    Map<ValueOwner, List<ComputedValue>> swap = const {},
+  }) => inner.writeAll(create: create, swap: swap);
+  @override
+  Future<List<ValuePair>> read(ValueOwner owner) => inner.read(owner);
+}
+
+/// Wie [FaultySession], aber Schreiben in die Einstellungen scheitert, solange
+/// [failSettingsWhen] wahr ist.
+class SettingsFailingSession extends FaultySession {
+  SettingsFailingSession(
+    super.inner, {
+    required super.rawData,
+    required super.values,
+    required this.failSettingsWhen,
+  });
+
+  final bool Function() failSettingsWhen;
+
+  @override
+  SettingsStore get settings =>
+      _FailingSettings(inner.settings, failSettingsWhen);
+}
+
+class _FailingSettings implements SettingsStore {
+  _FailingSettings(this.inner, this.failWhen);
+  final SettingsStore inner;
+  final bool Function() failWhen;
+  @override
+  Future<String?> get(String key) => inner.get(key);
+  @override
+  Future<Map<String, String>> all() => inner.all();
+  @override
+  Future<void> set(String key, String value, {required DateTime at}) {
+    if (failWhen()) throw const StorageException(StorageFailure.failed);
+    return inner.set(key, value, at: at);
+  }
+}

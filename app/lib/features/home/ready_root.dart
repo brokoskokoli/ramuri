@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../recalculation/recalculation_controller.dart';
+import '../storage/deletion.dart';
 import '../settings/app_settings.dart';
 import '../setup/setup_screen.dart';
 import 'home_screen.dart';
@@ -43,7 +44,10 @@ class _ReadyRootState extends State<ReadyRoot> {
         clock: widget.clock,
       ),
     );
-    _recalculation = RecalculationController(_recalculationService);
+    _recalculation = RecalculationController(
+      _recalculationService,
+      onStart: () => completePendingValueRefresh(widget.session, widget.clock),
+    );
     _recalculation.start();
     _loadSettings();
   }

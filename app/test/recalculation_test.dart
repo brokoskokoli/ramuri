@@ -18,6 +18,8 @@ class _Gate {
   bool failSettings = false;
   bool failGet = false;
   bool failGetAfterSet = false;
+  bool failSettingsAfterSwap = false;
+  bool deletedNotErased = false;
   int swaps = 0;
 }
 
@@ -64,7 +66,7 @@ class _GatedSettings implements SettingsStore {
   Future<Map<String, String>> all() => inner.all();
   @override
   Future<void> set(String key, String value, {required DateTime at}) {
-    if (gate.failSettings) {
+    if (gate.failSettings || (gate.failSettingsAfterSwap && gate.swaps > 0)) {
       throw const StorageException(StorageFailure.failed);
     }
     final done = inner.set(key, value, at: at);
@@ -98,7 +100,13 @@ class _GatedSession implements StorageSession {
   @override
   ConsentStore get consents => inner.consents;
   @override
-  Future<void> deleteRun(int runId) => inner.deleteRun(runId);
+  Future<void> deleteRun(int runId) async {
+    await inner.deleteRun(runId);
+    if (gate.deletedNotErased) {
+      throw const StorageException(StorageFailure.deletedNotErased);
+    }
+  }
+
   @override
   Future<void> deleteAll() => inner.deleteAll();
   @override
@@ -490,6 +498,105 @@ void main() {
   });
 
   testWidgets(
+    'Gelöscht, nur der Checkpoint scheiterte: Wurf und Tageswerte wieder da',
+    (tester) async {
+      final gate = _Gate();
+      final d = await _start(
+        tester,
+        gate: gate,
+        starts: [
+          DateTime.utc(2026, 5, 10, 8),
+          DateTime.utc(2026, 5, 17, 8),
+          DateTime.utc(2026, 5, 17, 15),
+        ],
+      );
+      final s = d.session;
+      final runs = [...await s.runs.list()]
+        ..sort((a, b) => a.id.compareTo(b.id));
+      final day = dayOfRun(runs.last);
+      gate.deletedNotErased = true;
+      await expectLater(
+        deleteRunAndRefresh(s, d.clock, runs[1].id),
+        throwsA(
+          isA<StorageException>().having(
+            (e) => e.failure,
+            'failure',
+            StorageFailure.deletedNotErased,
+          ),
+        ),
+      );
+      expect(await s.runs.get(runs[1].id), isNull);
+      expect(await s.values.read(ValueOwner.day(day)), isNotEmpty);
+      expect(
+        await s.settings.get(ValueCalculationService.refreshPendingKey),
+        anyOf(isNull, isEmpty),
+      );
+    },
+  );
+
+  testWidgets(
+    'Neuanlegen scheitert: Merker bleibt, nach dem Neustart sind die Werte da',
+    (tester) async {
+      final gate = _Gate();
+      final d = await _start(
+        tester,
+        gate: gate,
+        starts: [
+          DateTime.utc(2026, 5, 10, 8),
+          DateTime.utc(2026, 5, 17, 8),
+          DateTime.utc(2026, 5, 17, 15),
+        ],
+      );
+      final s = d.session;
+      final runs = [...await s.runs.list()]
+        ..sort((a, b) => a.id.compareTo(b.id));
+      final day = dayOfRun(runs.last);
+      gate.fail = true;
+      await deleteRunAndRefresh(s, d.clock, runs[1].id);
+      expect(await s.values.read(ValueOwner.day(day)), isEmpty);
+      final mark = await s.settings.get(
+        ValueCalculationService.refreshPendingKey,
+      );
+      expect(mark, startsWith('${runs[1].id}@'));
+
+      gate.fail = false;
+      await d.stop(tester);
+      await d.start(tester, const Locale('de'));
+      await tester.pumpAndSettle();
+      expect(await d.session.values.read(ValueOwner.day(day)), isNotEmpty);
+      expect(
+        await d.session.settings.get(ValueCalculationService.refreshPendingKey),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets('Löschen mit gelungenem Neuanlegen entfernt den Merker', (
+    tester,
+  ) async {
+    final d = await _start(tester);
+    final s = d.session;
+    await deleteRunAndRefresh(s, d.clock, (await s.runs.list()).first.id);
+    expect(
+      await s.settings.get(ValueCalculationService.refreshPendingKey),
+      anyOf(isNull, isEmpty),
+    );
+  });
+
+  testWidgets('Merker nicht setzbar: nichts wird gelöscht', (tester) async {
+    final gate = _Gate();
+    final d = await _start(tester, gate: gate);
+    final s = d.session;
+    final id = (await s.runs.list()).first.id;
+    gate.failSettings = true;
+    await expectLater(
+      deleteRunAndRefresh(s, d.clock, id),
+      throwsA(isA<StorageException>()),
+    );
+    expect(await s.runs.get(id), isNotNull);
+  });
+
+  testWidgets(
     'Tausch und Speichern gelungen, Lesen des Angebots scheitert: erledigt',
     (tester) async {
       final gate = _Gate();
@@ -501,6 +608,20 @@ void main() {
       expect(find.textContaining('Neuberechnet: 2 Läufe'), findsOneWidget);
       expect(find.textContaining('fehlgeschlagen'), findsNothing);
       expect(find.byKey(const Key('recalc_confirm')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Tausch gelungen, Angebot nicht erledigt gespeichert: erledigt, nicht fehlgeschlagen',
+    (tester) async {
+      final gate = _Gate();
+      await _start(tester, gate: gate);
+      await _changeMaxAndOpenSettings(tester);
+      gate.failSettingsAfterSwap = true;
+      await tester.tap(find.byKey(const Key('recalc_confirm')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Neuberechnet: 2 Läufe'), findsOneWidget);
+      expect(find.textContaining('fehlgeschlagen'), findsNothing);
     },
   );
 

@@ -185,6 +185,29 @@ void main() {
     expect(await s.pendingOffer(), isNotNull);
   });
 
+  test(
+    'Fehler nach dem Tausch: erledigt gemeldet, Angebot nicht gelöscht',
+    () async {
+      final s0 = w.recalc();
+      await offerAfterChange(s0);
+      final before = await w.dump();
+      final values = SwapSignalValues(w.session.values);
+      final faulty = SettingsFailingSession(
+        w.session,
+        rawData: w.session.rawData,
+        values: values,
+        failSettingsWhen: () => values.swapped,
+      );
+      final s = w.recalc(over: faulty);
+      final result = await s.confirm((await s.pendingOffer())!);
+      expect(values.swapped, isTrue);
+      expect(result.offerCleared, isFalse);
+      expect(result.runCount, greaterThan(0));
+      expect(await w.dump(), isNot(before));
+      expect(await w.recalc().pendingOffer(), isNotNull);
+    },
+  );
+
   test('Versionsänderung der Methode oder Parameter bietet an', () async {
     final s = w.recalc();
     expect(await s.checkVersions(), isNull);
