@@ -594,3 +594,12 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Optionen:** Mit dem Feldtest entscheiden, zusammen mit `getSpeed`.
 - **Status:** Open
 - **Entscheidung:** —
+
+### OQ-0072 — Prüfung auf echten Geräten für die Speicherung
+- **Frage:** Hält die Speicherung auf echten Geräten, was der Emulator zeigt: Hardware-Keystore, Kosten von `kdf_iter` 64007 beim Öffnen, echter Stromausfall, Übertragung durch Google-Cloud und Herstellerwerkzeuge, `<cross-platform-transfer>`?
+- **Auslöser/Quellen:** WP02, E2E nur im Emulator.
+- **Betroffene Anforderungen:** SEC-0009
+- **Auswirkung:** non-blocking, Prüfung im Feldtest beim Maintainer.
+- **Optionen:** Feldtest auf mindestens einem Gerät mit Hardware-Keystore.
+- **Status:** Open
+- **Entscheidung:** —

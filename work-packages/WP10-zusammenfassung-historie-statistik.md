@@ -13,6 +13,7 @@ Bezug: FR-0037, FR-0040 bis FR-0044, FR-0054, FR-0055, FR-0059, FR-0064, FR-0067
 6. **Sprachregeln:** Keine Genauigkeits- oder Validierungsaussage (FR-0054, FR-0072, NFR-0003, NFR-0004), Zonen nicht als Schwellen (FR-0064), TRIMP nicht als Ermüdung (FR-0094), Schätzungen erkennbar (CON-0009). Gilt für alle Texte der ARB-Dateien, auch aus früheren Paketen.
 
 ## Umsetzung
+- Aus WP02: Die Liste liest heute je Lauf einzeln (N+1), das ist für die Historie zu prüfen. `confirmAndDeleteRun` wird am Listeneintrag eingehängt.
 - **Teile für die Coder-Aufträge:** Teil A: Punkt 3 in `core` und die Berechnungen zu Punkt 1 / Teil B: Punkte 1 und 2 / Teil C: Punkte 3 und 4 mit Oberfläche / Teil D: Punkte 5 und 6, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Karte: `M1-PLAN.md`, L2. Ohne Entscheidung des Maintainers gibt es nur die gezeichnete Route, kein Laden von Kartenkacheln (SEC-0008).
 - Offen: L4 (persönliche Bestzeiten), L5 (Vergleichsgröße der Einordnung). Sie werden gemeldet und nicht im Code entschieden; die betroffenen Punkte erscheinen bis zur Antwort als nicht verfügbar.

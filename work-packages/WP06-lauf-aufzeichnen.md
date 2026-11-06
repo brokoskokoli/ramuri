@@ -15,6 +15,7 @@ Wartet nicht auf R005: Dieses Paket zeichnet nur mit sichtbarer App auf. Hinterg
 6. **GPS-Verlust:** Zeit und Puls laufen weiter, Lücke markiert, Strecke nicht geschätzt (FR-0194, PAR-004).
 
 ## Umsetzung
+- Aus WP02: Die Transaktionsgröße ist ein `RawBatch` (R005: eine Zeile je Transaktion). `append` prüft nicht, ob der Lauf aktiv ist; das muss der Aufrufer sicherstellen. Laufzustände `active`, `paused`, `finished`, Zeit in Mikrosekunden UTC. Rohwerte sind nullable mit `RawUnavailable` (FR-0057).
 - Aus R007: Den Kommentar in `motion_prefix_test.dart` anpassen: Der Test hält eine obere Schranke fest, OQ-0068 ist bis zum Feldtest entschieden.
 - Aus WP03: `LocationSample` hat noch keine Vertikalgenauigkeit, die PAR-013 braucht. Die erkannte Pause bleibt von `pause()` getrennt, sonst endet die Fortsetzungserkennung. Aus WP01: Der Uhr-Port kennt nur UTC ohne monotone Zeit (FR-0194).
 - **Teile für die Coder-Aufträge:** Teil A: Punkt 1 mit Uhr-Fake / Teil B: Punkte 2 und 3 / Teil C: Punkte 4 und 6 / Teil D: Punkt 5, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.

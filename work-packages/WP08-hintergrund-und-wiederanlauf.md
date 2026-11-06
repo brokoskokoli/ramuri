@@ -14,6 +14,7 @@ Ergebnis von R005 (`research/R005-aufzeichnung-durchstich/RESULTS.md`): Host eig
 5. **Schrittfrequenz (FR-0202):** Schrittsensor des Telefons in Kotlin hinter dem Port, eigene Berechtigung, ohne sie „nicht verfügbar“ und normale Aufzeichnung. Füllt die Anzeige aus WP06.
 
 ## Umsetzung
+- Aus WP02: `runs.unfinished()` enthält auch pausierte Läufe. WAL und `synchronous = FULL` stehen als Konstante in `connection_setup.dart`.
 - Testhinweise aus R005: `emulator_wake_lock` hält den Emulator wach, ein Vergleich mit und ohne Lock braucht den Eingriff per root; `geo fix` weckt nicht aus dem Suspend; Kill auf API 31 per root; Abstände bis 2 s auf API 36 bei Anfrage 1 s zählen nicht als Lücke.
 - **Teile für die Coder-Aufträge:** Teil A: Punkte 1 und 2 / Teil B: Punkt 4 / Teil C: Punkte 3 und 5, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Offen und nicht im Code zu entscheiden (`M1-PLAN.md`, L6): wie die Zeit der Lücke nach einem Abbruch in Gesamt- und Bewegungszeit eingeht. Fortsetzen ohne Standortberechtigung: FR-0195 gilt, der Nutzer kann speichern.

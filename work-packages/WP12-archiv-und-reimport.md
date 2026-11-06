@@ -14,6 +14,7 @@ Alle Einzelheiten zu Verfahren und Paket stehen in ADR-0008. Ändert die Freigab
 5. **Einbindung SEC-0009:** Der Dialog aus WP02 bietet nun auch den Reimport an.
 
 ## Umsetzung
+- Aus WP02: Im Daten-Bildschirm ist Platz für den Reimport vorgesehen (nur Kommentar).
 - **Teile für die Coder-Aufträge:** Teil A: Punkte 1 und 2 / Teil B: Punkt 3 / Teil C: Punkt 4 / Teil D: Punkt 5 und Oberfläche, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Vollständigen Lizenzbaum prüfen und im Abschluss nennen (ADR-0008, Offene Punkte). Die Mutationstests sind hier Pflicht (Sicherheitslogik).
 - Nicht dazu: Erinnerung an die Sicherung (OQ-0056: „kann“), automatischer Export, Cloud.

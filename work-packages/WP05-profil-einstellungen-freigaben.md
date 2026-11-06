@@ -15,6 +15,7 @@ Bezug: FR-0001 bis FR-0005, FR-0061, NFR-0006, SEC-0001, SEC-0002, SEC-0007, SEC
 8. **Keine Übertragung (SEC-0008):** Das Release-Manifest fordert kein `INTERNET`. Fügt ein Plugin die Berechtigung hinzu, ist das zu melden und nicht still zu akzeptieren.
 
 ## Umsetzung
+- Aus WP02: Profil und Einstellungen über die Ports `storage_profile` und `storage_settings`; das Schema speichert das Geburtsjahr statt des Alters und die Zonen in den Einstellungen. Plausibilität nach PAR-016 und PAR-017 liegt hier. Der Daten-Bildschirm sitzt vorläufig auf der Startseite und darf umziehen. Zusätzlich: Gate-Schritt, der `.g.dart` und `schema.drift` gegeneinander prüft (`drift_dev`), weil beide sonst unbemerkt auseinanderlaufen.
 - Aus WP04: Der Zoneneditor baut auf `ReserveZones`, `zoneFor` und `validateBounds`.
 - **Teile für die Coder-Aufträge:** Teil A: Punkte 2 und 3 in `core` und Speicherzugriff / Teil B: Punkte 1 und 5 mit Oberfläche / Teil C: Punkte 6 bis 8 / Teil D: Punkt 4 nach dem Merge von WP04, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Keine Pakete außerhalb des Flutter-SDKs; Berechtigungsstand über eigenen Plattformaufruf hinter einem Port.

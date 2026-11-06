@@ -159,7 +159,11 @@ for a in "${actions[@]:-}"; do
   case "$kind" in
     worktree) git worktree remove "$what" && echo "cleanup_wt: Worktree $what entfernt" || { echo "cleanup_wt: Worktree $what nicht entfernbar" >&2; rc=1; } ;;
     branch) git branch -D "$what" >/dev/null && echo "cleanup_wt: Branch $what entfernt" || { echo "cleanup_wt: Branch $what nicht löschbar" >&2; rc=1; } ;;
-    file) rm -f -- "$what" && echo "cleanup_wt: $what entfernt" ;;
+    file) if command -v trash >/dev/null 2>&1; then
+            trash "$what" && echo "cleanup_wt: $what in den Papierkorb" || { echo "cleanup_wt: $what nicht entfernbar" >&2; rc=1; }
+          else
+            echo "cleanup_wt: trash fehlt, $what bleibt liegen" >&2; rc=1
+          fi ;;
     remote) git push "$REMOTE" --delete "$what" "--force-with-lease=refs/heads/$what:$remote_tip" >/dev/null 2>&1 && echo "cleanup_wt: $REMOTE/$what entfernt" || { echo "cleanup_wt: $REMOTE/$what nicht löschbar" >&2; rc=1; } ;;
   esac
 done

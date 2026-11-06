@@ -226,7 +226,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | SEC-0006 | Berechnungen ohne zwingende externe Übertragung | non-functional | Approved | 1 | [security](quality/security.md#sec-0006--berechnungen-ohne-zwingende-externe-übertragung) | CON-0008, OQ-0017, OQ-0023 |
 | SEC-0007 | Berechtigungen widerrufen | non-functional | Approved | 1 | [security](quality/security.md#sec-0007--berechtigungen-widerrufen) | FR-0191, OQ-0017, OQ-0025 |
 | SEC-0008 | Keine Übertragung an Dritte ohne Einwilligung | non-functional | Approved | 1 | [security](quality/security.md#sec-0008--keine-übertragung-an-dritte-ohne-einwilligung) | FR-0185, FR-0186, FR-0187, OQ-0017, OQ-0025 |
-| SEC-0009 | Verschlüsselte Speicherung | non-functional | Approved | 1 | [security](quality/security.md#sec-0009--verschlüsselte-speicherung) | FR-0185, OQ-0024, OQ-0062 |
+| SEC-0009 | Verschlüsselte Speicherung | non-functional | Approved | 1 | [security](quality/security.md#sec-0009--verschlüsselte-speicherung) | FR-0185, OQ-0024, OQ-0062, OQ-0072 |
 | SEC-0010 | System-Backups immer aus | non-functional | Approved | 1 | [security](quality/security.md#sec-0010--system-backups-immer-aus) | SEC-0008, FR-0192, OQ-0024, OQ-0056 |
 | SEC-0011 | Verschlüsseltes Archiv | non-functional | Approved | 1 | [security](quality/security.md#sec-0011--verschlüsseltes-archiv) | SEC-0009, FR-0192, FR-0198, OQ-0050 |
 | CON-0001 | Zielplattformen | constraint | Approved | 1 | [product](product.md#con-0001--zielplattformen) | OQ-0035, OQ-0063 |
