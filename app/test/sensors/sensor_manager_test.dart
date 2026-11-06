@@ -99,7 +99,37 @@ class _ManualSensor extends FakeHeartRateSensor {
 
   void up(String id) => _ctrls[id]!.add(HeartRateConnected(id));
   void fail(String id) => _ctrls[id]!.addError(StateError('timeout'));
+
+  /// Der Strom endet ohne Verbindung (Abbruch ohne Fehler).
+  void end(String id) => unawaited(_ctrls[id]!.close());
+
+  /// Verbindungsabbruch eines verbundenen Geräts.
+  void lose(String id) =>
+      _ctrls[id]!.add(HeartRateDisconnected(id, lost: true));
   bool hasListener(String id) => _ctrls[id]?.hasListener ?? false;
+}
+
+/// Speicher, dessen `upsert` für [failId] wirft.
+class _ThrowingStore implements KnownDeviceStore {
+  _ThrowingStore(this.inner, this.failId);
+  final KnownDeviceStore inner;
+  final String failId;
+
+  @override
+  Future<List<KnownDevice>> list() => inner.list();
+
+  @override
+  Future<void> setPreferred(String? deviceId) => inner.setPreferred(deviceId);
+
+  @override
+  Future<void> upsert(
+    String deviceId, {
+    String? displayName,
+    required DateTime at,
+  }) {
+    if (deviceId == failId) throw StateError('Speicherfehler');
+    return inner.upsert(deviceId, displayName: displayName, at: at);
+  }
 }
 
 Stream<HeartRateEvent> _failing() => Stream.error(StateError('timeout'));
@@ -186,6 +216,33 @@ void main() {
     expect(b.manager.selector.preferredId, 'g1');
     await b.manager.setPreferred(null);
     expect(b.manager.selector.preferredId, isNull);
+  });
+
+  testWidgets('Bevorzugung nach dem Verbinden: bevorzugtes wird Quelle, im '
+      'Lauf nicht mehr (E2E-Befund)', (t) async {
+    final r = _Rig();
+    await r.open();
+    await r.connect(t, 'g1', name: 'Gurt 1');
+    await r.connect(t, 'g2', name: 'Gurt 2');
+    expect(r.manager.selector.activeId, 'g1');
+    await r.manager.setPreferred('g2');
+    expect(
+      r.manager.selector.activeId,
+      'g2',
+      reason: 'vor dem Lauf gewinnt es',
+    );
+    // Lauf startet: Quelle g2; spätere Änderung wechselt sie nicht.
+    final run = r.manager.beginRun();
+    expect(run.activeId, 'g2');
+    await r.manager.setPreferred('g1');
+    expect(run.activeId, 'g2');
+    expect(run.switches, isEmpty);
+    // Nach manueller Wahl im Lauf bleibt sie auch bei neuer Bevorzugung.
+    expect(run.select('g1'), isTrue);
+    await r.manager.setPreferred('g2');
+    expect(run.activeId, 'g1');
+    run.close();
+    r.manager.dispose();
   });
 
   testWidgets('Puls nur bei Verbindung, nach Trennen keine Werte', (t) async {
@@ -750,15 +807,93 @@ void main() {
       final s = _ManualSensor();
       final r = await rig(t, s);
       final run = r.manager.beginRun();
-      final done = r.manager.connectKnown();
+      var finished = false;
+      unawaited(r.manager.connectKnown().whenComplete(() => finished = true));
       await t.pump();
       expect(s.order, ['g2']);
+      expect(finished, isFalse);
       run.close();
       expect(r.manager.openRuns, 0);
       r.manager.dispose();
-      await done;
+      await t.pump();
+      expect(finished, isTrue, reason: 'dispose gibt das Warten frei');
       expect(s.order, ['g2'], reason: 'nach dispose nichts mehr gestartet');
       expect(t.takeException(), isNull);
+    });
+
+    testWidgets('bewusst getrenntes bevorzugtes beendet das Warten', (t) async {
+      final s = _ManualSensor();
+      final r = await rig(t, s);
+      unawaited(r.manager.connectKnown());
+      await t.pump();
+      expect(s.order, ['g2']);
+      r.manager.disconnect('g2');
+      await t.pump();
+      expect(s.order, ['g2', 'g1']);
+      r.manager.dispose();
+    });
+
+    testWidgets('Strom des bevorzugten endet ohne Verbindung: Warten endet', (
+      t,
+    ) async {
+      final s = _ManualSensor();
+      final r = await rig(t, s);
+      unawaited(r.manager.connectKnown());
+      await t.pump();
+      expect(s.order, ['g2']);
+      s.end('g2');
+      await t.pump();
+      expect(s.order, ['g2', 'g1']);
+      r.manager.dispose();
+    });
+
+    testWidgets(
+      'bevorzugtes verbindet schon (von Hand): übrige warten darauf',
+      (t) async {
+        final s = _ManualSensor();
+        final r = await rig(t, s);
+        await r.manager.connect('g2', name: 'Gurt 2');
+        await t.pump();
+        expect(s.order, ['g2']);
+        unawaited(r.manager.connectKnown());
+        await t.pump();
+        expect(s.order, ['g2'], reason: 'g1 wartet auf den laufenden Versuch');
+        s.up('g2');
+        await t.pump();
+        expect(s.order, ['g2', 'g1']);
+        r.manager.dispose();
+      },
+    );
+
+    testWidgets('bevorzugtes im Neuverbinden nach Abbruch: übrige sofort', (
+      t,
+    ) async {
+      final s = _ManualSensor();
+      final r = await rig(t, s);
+      await r.manager.connect('g2', name: 'Gurt 2');
+      s.up('g2');
+      await t.pump();
+      s.lose('g2');
+      await t.pump();
+      expect(r.manager.isRecovering, isTrue);
+      final done = r.manager.connectKnown();
+      await t.pump();
+      expect(s.order, ['g2', 'g1'], reason: 'kein Warten auf den Zyklus');
+      await done;
+      r.manager.dispose();
+    });
+
+    testWidgets('werfendes bevorzugtes Gerät stoppt die übrigen nicht', (
+      t,
+    ) async {
+      final s = _ManualSensor();
+      final r = await rig(t, s);
+      await r.manager.attachStore(_ThrowingStore(r.store, 'g2'));
+      unawaited(r.manager.connectKnown());
+      await t.pump();
+      expect(s.order, ['g1'], reason: 'g2 scheitert vor dem Verbinden');
+      expect(t.takeException(), isNull);
+      r.manager.dispose();
     });
   });
 }

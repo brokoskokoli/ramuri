@@ -205,7 +205,7 @@ class SensorManager extends ChangeNotifier {
     for (final k in list) {
       if (k.isPreferred) pref = k.deviceId;
     }
-    selector.preferredId = pref;
+    selector.setPreferred(pref, clock.now());
     _notify();
   }
 
@@ -298,12 +298,26 @@ class SensorManager extends ChangeNotifier {
         ...all.where((k) => !k.isPreferred),
       ]) {
         final c = _conns[k.deviceId];
-        if (c != null && c.state != SensorLinkState.idle) continue;
+        if (c != null && c.state != SensorLinkState.idle) {
+          // Das bevorzugte Gerät verbindet gerade (z. B. kurz vorher von Hand):
+          // dessen Versuch abwarten. Ist es schon verbunden oder im
+          // Neuverbinden nach einem Abbruch (Zyklus ohne Ende), warten die
+          // übrigen nicht.
+          if (k.isPreferred && c.state == SensorLinkState.connecting) {
+            await _awaitAttempt(k.deviceId);
+          }
+          continue;
+        }
         if (_disposed) return;
         // Währenddessen vergessen (Löschen): nicht wieder anlegen.
         if (!_known.any((x) => x.deviceId == k.deviceId)) continue;
-        await _connect(k.deviceId, name: k.displayName, silent: true);
-        if (k.isPreferred) await _awaitAttempt(k.deviceId);
+        // Je Gerät abgesichert: ein werfendes Gerät stoppt die übrigen nicht.
+        try {
+          await _connect(k.deviceId, name: k.displayName, silent: true);
+          if (k.isPreferred) await _awaitAttempt(k.deviceId);
+        } catch (_) {
+          // Stilles Verbinden: Fehler zeigt höchstens die Verwaltung.
+        }
       }
     } catch (_) {
       // Stilles Verbinden: Fehler zeigt höchstens die Verwaltung.

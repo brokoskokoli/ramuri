@@ -65,8 +65,20 @@ class HeartRateSourceSegment {
 class HeartRateSourceSelector {
   HeartRateSourceSelector({this.preferredId});
 
-  /// Bevorzugtes Gerät. Ändern wechselt die laufende Quelle nicht.
+  /// Bevorzugtes Gerät. Dieses Feld zu ändern wechselt die Quelle nicht;
+  /// [setPreferred] tut es vor dem Laufstart.
   String? preferredId;
+
+  /// Setzt das bevorzugte Gerät. Vor [lock] und [select] übernimmt ein
+  /// bereits verbundenes bevorzugtes Gerät die Quelle (FR-0019, DEC-0020);
+  /// danach bleibt die aktive Quelle (kein automatischer Rückwechsel).
+  void setPreferred(String? id, DateTime at) {
+    preferredId = id;
+    if (_closed || _locked || id == null || id == _active) return;
+    if (_connected.contains(id)) {
+      _activate(id, at, SourceSwitchReason.preferred);
+    }
+  }
 
   String? _active;
   String? _lastActive;

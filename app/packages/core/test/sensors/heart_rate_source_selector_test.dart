@@ -191,6 +191,27 @@ void main() {
     expect(sel.switches, isEmpty);
   });
 
+  test('setPreferred vor dem Laufstart: verbundenes bevorzugtes übernimmt', () {
+    f.connect('a', 0);
+    f.connect('b', 1);
+    sel.setPreferred('b', at(2));
+    expect(sel.activeId, 'b');
+    expect(sel.switches.single.reason, SourceSwitchReason.preferred);
+    sel.setPreferred('zz', at(3)); // nicht verbunden: keine Änderung
+    expect(sel.activeId, 'b');
+    sel.setPreferred(null, at(4));
+    expect(sel.activeId, 'b');
+  });
+
+  test('setPreferred nach lock oder select: Quelle bleibt', () {
+    f.connect('a', 0);
+    f.connect('b', 1);
+    sel.lock(at(2));
+    sel.setPreferred('b', at(3));
+    expect(sel.activeId, 'a');
+    expect(sel.switches, isEmpty);
+  });
+
   test('OQ-0064: dasselbe Gerät nach Abbruch ist kein Quellwechsel', () {
     f.connect('pref', 0);
     f.reading('pref', 1, 120);
