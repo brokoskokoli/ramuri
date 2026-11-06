@@ -132,6 +132,48 @@ void main() {
     expect(d.pace[1].first.seconds - d.pace[0].last.seconds, greaterThan(30));
   });
 
+  test(
+    'Sägezahn-Puls 170..176: Median-Reihe, Anlauf am Anfang, kein Ausdünnen',
+    () {
+      // E2E-Befund WP10: senkrechte Linien am linken Rand, Achse bis 173 statt
+      // 176. Ursache ist nicht das Ausdünnen (1201 Punkte < 2000) und keine
+      // falsche x-Zuordnung, sondern der Median des nachlaufenden Fensters
+      // (heartRate.medianSeries): erste Werte aus wachsendem Fenster, danach
+      // konstant 173.
+      final pre = RunPreprocessor(
+        start: _start,
+        parameters: const PreprocessingParameters.v4(),
+      );
+      for (var i = 0; i <= 1200; i++) {
+        pre.addHeartRate(
+          RawHeartRate(
+            time: _start.add(Duration(seconds: i)),
+            source: 'strap',
+            bpm: 170 + i % 7,
+            contact: SensorContact.good,
+          ),
+        );
+      }
+      final d = _detail(
+        pre.result(at: _start.add(const Duration(seconds: 1200))),
+        1200,
+      );
+      final p = d.heartRate.single;
+      expect(p, hasLength(1201));
+      expect(p.first.seconds, 0);
+      expect(p.last.seconds, 1200);
+      for (var i = 1; i < p.length; i++) {
+        expect(p[i].seconds, p[i - 1].seconds + 1); // x je Sekunde, ohne Sprung
+      }
+      final values = p.map((e) => e.value);
+      expect(values.reduce(math.min), 170);
+      expect(values.reduce(math.max), 173); // nicht 176: Median, nicht Rohwert
+      expect(p.skip(10).every((e) => e.value >= 172 && e.value <= 173), isTrue);
+      expect(p.first.value, 170); // Anlauf: erster Wert aus dem Fenster
+      expect(p[6].value, 173);
+    },
+  );
+
   test('Ausdünnen behält die einzelne Spitze (Min/Max je Abschnitt)', () {
     const n = 3000;
     // Spitze und Tal (je 25 s), breit genug für den Median (30 s), aber

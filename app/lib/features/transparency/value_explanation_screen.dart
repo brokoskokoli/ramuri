@@ -189,7 +189,8 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
     final from = value.dataFrom;
     final to = value.dataTo;
     final out = <Widget>[];
-    if (estimate) {
+    final missing = value.value == null;
+    if (estimate && !missing) {
       out.add(
         Text(
           l10n.explEstimateBadge,
@@ -231,7 +232,7 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
     }
 
     // 1 Daten
-    out.add(Heading(l10n.explQ1));
+    out.add(Heading(missing ? l10n.explQ1None : l10n.explQ1));
     out.addAll(_sources(l10n, data, key: 'expl_a1_sources'));
     out.addAll(_gapNote(l10n, data));
     if (widget.runId != null) {
@@ -249,7 +250,9 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
     out.add(Heading(l10n.explQ2));
     out.add(
       Text(
-        from != null && to != null
+        missing
+            ? l10n.explAgeAttempt(date(value.computedAt))
+            : from != null && to != null
             ? l10n.explAge(date(from), date(to), date(value.computedAt))
             : l10n.explAgeNoRange(date(value.computedAt)),
         key: const Key('expl_a2'),
@@ -315,6 +318,7 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
     out.add(Heading(l10n.explQ6));
     out.add(
       Text(switch (kind) {
+        _ when missing => l10n.explKindNone,
         _Kind.vo2Run => l10n.explKindVo2Run,
         _Kind.vo2LongTerm => l10n.explKindVo2LongTerm,
         _Kind.efficiency => l10n.explKindEfficiency,

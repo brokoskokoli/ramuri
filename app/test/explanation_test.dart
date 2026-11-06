@@ -21,8 +21,9 @@ Future<Device> seeded(
   int? bpm = 150,
   String? deviceName,
   bool knownDevice = true,
+  String locale = 'de',
 }) async {
-  final d = await started(tester);
+  final d = await started(tester, locale: locale);
   if (profile != null) await d.session.profile.save(profile);
   if (knownDevice) {
     await d.session.devices.upsert(
@@ -198,6 +199,64 @@ void main() {
       expect(find.byKey(const Key('expl_source_1_strap')), findsNothing);
       expect(key('expl_profile_hint'), findsNothing);
     });
+
+    for (final loc in ['de', 'en']) {
+      testWidgets(
+        'nicht berechneter Wert ($loc): Grund, keine Berechnungsbehauptung',
+        (tester) async {
+          final d = await seeded(
+            tester,
+            bpm: null,
+            knownDevice: false,
+            locale: loc,
+          );
+          final id = await firstRunId(d);
+          final stored = (await d.session.values.read(ValueOwner.run(id)))
+              .firstWhere((p) => p.current.key == trimpRunValueKey)
+              .current;
+          expect(stored.value, isNull);
+          expect(stored.unavailableReason, isNotNull);
+          await openRunDetail(d, tester, id);
+          await explainFromStats(tester, 'sum_explain_trimp');
+          expect(key('expl_reason'), findsOneWidget);
+          final all = bodyText(tester);
+          final de = loc == 'de';
+          for (final claim
+              in de
+                  ? [
+                      'Berechnet am',
+                      'Berechnet aus den gemessenen',
+                      'berechnet wurde',
+                    ]
+                  : [
+                      'Calculated on',
+                      'Calculated from the measured',
+                      'was calculated from',
+                    ]) {
+            expect(all, isNot(contains(claim)), reason: claim);
+          }
+          expect(
+            text('expl_a2'),
+            startsWith(
+              de ? 'Berechnungsversuch am ' : 'Calculation attempted on ',
+            ),
+          );
+          expect(
+            text('expl_a6'),
+            startsWith(
+              de ? 'Es wurde kein Wert berechnet' : 'No value was calculated',
+            ),
+          );
+          expect(key('expl_estimate'), findsNothing);
+          expect(
+            find.text(
+              de ? 'Welche Daten lagen vor?' : 'Which data was available?',
+            ),
+            findsOneWidget,
+          );
+        },
+      );
+    }
 
     testWidgets('Wert nicht gespeichert: Hinweis statt Erfindung', (
       tester,

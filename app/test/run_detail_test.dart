@@ -325,6 +325,65 @@ void main() {
       expect(key('chart_clipped'), findsNothing);
     });
 
+    for (final scale in [1.0, 2.0]) {
+      testWidgets('Achsentexte überlappen sich nicht (Schrift ${scale}x)', (
+        tester,
+      ) async {
+        final hr = ChartLayer(
+          name: 'Puls',
+          parts: [
+            [
+              for (var i = 0; i < 200; i++)
+                DetailPoint(i.toDouble(), 150 + i % 20),
+            ],
+          ],
+          color: Colors.red,
+          format: (v) => '${v!.round()} bpm',
+          inverted: false,
+          robust: true,
+        );
+        for (final layers in [
+          [paceLayer(outliers: false)],
+          [hr],
+          [paceLayer(outliers: false), hr],
+        ]) {
+          await tester.pumpWidget(
+            host(
+              RunSeriesChart(
+                layers: layers,
+                totalSeconds: 1200,
+                pauses: const [],
+              ),
+              scale: scale,
+            ),
+          );
+          final painter =
+              tester.widget<CustomPaint>(key('chart_paint')).painter!
+                  as SeriesChartPainter;
+          final size = tester.getSize(key('chart_paint'));
+          final rects = painter.axisTextRects(size);
+          expect(rects.length, layers.length * 2 + 2);
+          for (var i = 0; i < rects.length; i++) {
+            expect(
+              (Offset.zero & size)
+                      .inflate(0.01)
+                      .contains(rects[i].rect.bottomRight) &&
+                  (Offset.zero & size).contains(rects[i].rect.topLeft),
+              isTrue,
+              reason: '${rects[i].text} liegt außerhalb',
+            );
+            for (var j = i + 1; j < rects.length; j++) {
+              expect(
+                rects[i].rect.overlaps(rects[j].rect),
+                isFalse,
+                reason: '${rects[i].text} überlappt ${rects[j].text}',
+              );
+            }
+          }
+        }
+      });
+    }
+
     testWidgets('Beschriftung folgt der Schriftgröße', (tester) async {
       Future<SeriesChartPainter> painter(double scale) async {
         await tester.pumpWidget(

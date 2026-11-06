@@ -230,8 +230,9 @@ class RunSeriesChart extends StatelessWidget {
     final label = [base, ...notes].join(' ');
     final scaler = MediaQuery.textScalerOf(context);
     final fontSize = theme.textTheme.bodySmall?.fontSize ?? 12;
-    // Die Beschriftung wächst mit der Schrift, die Zeichenfläche bleibt gleich.
-    final height = 180 + 2 * 1.4 * (scaler.scale(fontSize) - fontSize);
+    // Drei Textzeilen (oben, Kleinstwerte, Zeit) wachsen mit der Schrift, die
+    // Zeichenfläche bleibt gleich.
+    final height = 180 + 1.5 * (3 * scaler.scale(fontSize) - 2 * fontSize);
     final style = (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
       color: theme.colorScheme.onSurface,
     );
@@ -305,8 +306,7 @@ class SeriesChartPainter extends CustomPainter {
   final TextScaler textScaler;
   final String Function(double seconds) clock;
 
-  void _text(
-    Canvas canvas,
+  ({TextPainter painter, Offset offset}) _label(
     String text,
     Offset at, {
     Color? color,
@@ -328,14 +328,84 @@ class SeriesChartPainter extends CustomPainter {
       TextAlign.center => at.dx - tp.width / 2,
       _ => at.dx,
     };
-    tp.paint(canvas, Offset(dx, at.dy));
+    return (painter: tp, offset: Offset(dx, at.dy));
   }
 
-  double get labelHeight => textScaler.scale(textStyle.fontSize ?? 12) * 1.4;
+  /// Alle Achsentexte mit ihrer Lage: oben Größtwert, unter dem Plot in einer
+  /// Zeile die Kleinstwerte und darunter in einer eigenen Zeile die Zeit.
+  List<({String text, TextPainter painter, Offset offset, Color? color})>
+  _axisTexts(Size size) {
+    final plot = plotRect(size);
+    final span = totalSeconds <= 0 ? 1.0 : totalSeconds;
+    final yMinRow = plot.bottom + 2;
+    final xRow = plot.bottom + labelHeight + 2;
+    final out =
+        <({String text, TextPainter painter, Offset offset, Color? color})>[];
+    void add(
+      String text,
+      Offset at, {
+      Color? color,
+      TextAlign? align,
+      double? w,
+    }) {
+      final l = _label(
+        text,
+        at,
+        color: color,
+        align: align ?? TextAlign.left,
+        maxWidth: w ?? 80,
+      );
+      out.add((text: text, painter: l.painter, offset: l.offset, color: color));
+    }
 
-  /// Zeichenfläche ohne die Achsenbeschriftung oben und unten.
+    add(clock(0), Offset(plot.left, xRow));
+    add(clock(span), Offset(plot.right, xRow), align: TextAlign.right);
+    // Beim Vergleich je Linie in ihrer Farbe (links die erste, rechts die
+    // zweite), sonst links.
+    for (var i = 0; i < layers.length; i++) {
+      final layer = layers[i];
+      final r = layer.range;
+      final top = layer.inverted ? r.lo : r.hi;
+      final bottom = layer.inverted ? r.hi : r.lo;
+      final right = i == 1;
+      final x = right ? plot.right - 2 : plot.left + 2;
+      final align = right ? TextAlign.right : TextAlign.left;
+      final color = layers.length > 1 ? layer.color : null;
+      add(
+        layer.format(top),
+        Offset(x, plot.top - labelHeight),
+        color: color,
+        align: align,
+        w: plot.width / 2,
+      );
+      add(
+        layer.format(bottom),
+        Offset(x, yMinRow),
+        color: color,
+        align: align,
+        w: plot.width / 2,
+      );
+    }
+    return out;
+  }
+
+  /// Rechtecke aller Achsentexte (für Prüfungen auf Überlappung).
+  List<({String text, Rect rect})> axisTextRects(Size size) => [
+    for (final t in _axisTexts(size))
+      (text: t.text, rect: t.offset & t.painter.size),
+  ];
+
+  double get labelHeight => textScaler.scale(textStyle.fontSize ?? 12) * 1.5;
+
+  /// Zeichenfläche ohne die Achsenbeschriftung oben und unten (unten zwei
+  /// Zeilen: Kleinstwerte, Zeit).
   Rect plotRect(Size size) {
-    return Rect.fromLTRB(0, labelHeight, size.width, size.height - labelHeight);
+    return Rect.fromLTRB(
+      0,
+      labelHeight,
+      size.width,
+      size.height - 2 * labelHeight,
+    );
   }
 
   /// Die gezeichneten Linien je Reihe: ein Pfad je zusammenhängendem Teil mit
@@ -399,14 +469,6 @@ class SeriesChartPainter extends CustomPainter {
         Paint()..color = pauseColor,
       );
     }
-    _text(canvas, clock(0), Offset(plot.left, plot.bottom + 2));
-    _text(
-      canvas,
-      clock(span),
-      Offset(plot.right, plot.bottom + 2),
-      align: TextAlign.right,
-    );
-
     canvas.save();
     canvas.clipRect(plot.inflate(1));
     for (final line in _lines(plot)) {
@@ -426,33 +488,8 @@ class SeriesChartPainter extends CustomPainter {
     }
     canvas.restore();
 
-    // Achsenbeschriftung: beim Vergleich je Linie in ihrer Farbe (links die
-    // erste, rechts die zweite), sonst links.
-    for (var i = 0; i < layers.length; i++) {
-      final layer = layers[i];
-      final r = layer.range;
-      final top = layer.inverted ? r.lo : r.hi;
-      final bottom = layer.inverted ? r.hi : r.lo;
-      final right = i == 1;
-      final x = right ? plot.right - 2 : plot.left + 2;
-      final align = right ? TextAlign.right : TextAlign.left;
-      final color = layers.length > 1 ? layer.color : null;
-      _text(
-        canvas,
-        layer.format(top),
-        Offset(x, plot.top - labelHeight),
-        color: color,
-        align: align,
-        maxWidth: plot.width / 2,
-      );
-      _text(
-        canvas,
-        layer.format(bottom),
-        Offset(x, plot.bottom + 2),
-        color: color,
-        align: align,
-        maxWidth: plot.width / 2 - 40,
-      );
+    for (final t in _axisTexts(size)) {
+      t.painter.paint(canvas, t.offset);
     }
   }
 
