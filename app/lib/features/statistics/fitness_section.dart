@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../transparency/value_explanation_screen.dart';
 import 'statistics_screen.dart' show ExplainValue;
 import 'statistics_view.dart';
 
@@ -64,22 +65,24 @@ class FitnessSection extends StatelessWidget {
     String estimate(double v) => l10n.sumVo2maxValue(number(v));
     String dateOf(String day) => material.formatMediumDate(_date(day));
 
-    Widget explain(String id, String valueKey) => Align(
-      alignment: AlignmentDirectional.centerEnd,
-      child: TextButton(
-        key: Key(id),
-        onPressed: () {
-          final handler = onExplain;
-          if (handler != null) {
-            handler(context, valueKey);
-          } else {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(l10n.statExplainSoon)));
-          }
-        },
-        child: Text(l10n.statExplain),
-      ),
-    );
+    Widget explain(String id, String valueKey, {int? runId, String? day}) =>
+        ExplainButton(
+          id: id,
+          onPressed: () {
+            final handler = onExplain;
+            if (handler != null) {
+              handler(context, valueKey, runId: runId, day: day);
+            } else {
+              showValueExplanation(
+                context,
+                session,
+                valueKey: valueKey,
+                runId: runId,
+                day: day,
+              );
+            }
+          },
+        );
 
     String valueOrReason(ComputedValue v, String Function(double) format) =>
         v.value != null
@@ -127,7 +130,12 @@ class FitnessSection extends StatelessWidget {
           ),
         StatRow(id: 'stat_vo2_run', label: l10n.statVo2Run, value: runText),
         if (inPeriod != null) _ZeroWeightHint(session, inPeriod.runId),
-        explain('stat_explain_vo2_run', vo2maxRunValueKey),
+        if (inPeriod != null)
+          explain(
+            'stat_explain_vo2_run',
+            vo2maxRunValueKey,
+            runId: inPeriod.runId,
+          ),
         StatRow(
           id: 'stat_vo2_current',
           label: l10n.statVo2Current,
@@ -138,7 +146,8 @@ class FitnessSection extends StatelessWidget {
                   valueOrReason(longTerm, estimate),
                 ),
         ),
-        explain('stat_explain_vo2_current', vo2maxLongTermValueKey),
+        if (day != null)
+          explain('stat_explain_vo2_current', vo2maxLongTermValueKey, day: day),
         Semantics(
           container: true,
           label: l10n.statVo2Trend,
@@ -181,7 +190,12 @@ class FitnessSection extends StatelessWidget {
                 ),
         ),
         Text(l10n.statEfficiencyNote, key: const Key('stat_efficiency_note')),
-        explain('stat_explain_efficiency', aerobicEfficiencyValueKey),
+        if (day != null)
+          explain(
+            'stat_explain_efficiency',
+            aerobicEfficiencyValueKey,
+            day: day,
+          ),
       ],
     );
   }

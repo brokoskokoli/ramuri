@@ -349,11 +349,8 @@ void main() {
         expect(key(id), findsOneWidget);
       }
       await tester.tap(key('stat_explain_vo2_current'));
-      await tester.pump();
-      expect(
-        find.text('Die Erklärung steht in einer späteren Version bereit.'),
-        findsOneWidget,
-      );
+      await tester.pumpAndSettle();
+      expect(key('expl_body'), findsOneWidget);
     });
 
     testWidgets('keine persönlichen Bestzeiten, keine späteren Kennzahlen', (

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
+import '../transparency/value_explanation_screen.dart';
 import 'run_charts.dart';
 
 /// Wo die reine Rechnung der Zusammenfassung läuft: in der App in einem eigenen
@@ -101,6 +102,8 @@ class _RunSummaryBodyState extends State<RunSummaryBody> {
           summary: loaded.summary,
           detail: loaded.detail,
           formatter: widget.formatter,
+          session: widget.session,
+          runId: widget.runId,
         );
       },
     );
@@ -118,11 +121,15 @@ class _SummaryContent extends StatelessWidget {
     required this.summary,
     required this.detail,
     required this.formatter,
+    required this.session,
+    required this.runId,
   });
 
   final RunSummary summary;
   final RunDetailData detail;
   final UnitFormatter formatter;
+  final StorageSession session;
+  final int runId;
 
   String _unavailable(AppLocalizations l10n, UnavailableReason reason) =>
       switch (reason) {
@@ -189,6 +196,24 @@ class _SummaryContent extends StatelessWidget {
             ],
           ),
         );
+
+    Widget explain(
+      String id,
+      String valueKey, {
+      RunClassification? c,
+      String? label,
+    }) => ExplainButton(
+      id: id,
+      label: label,
+      onPressed: () => showValueExplanation(
+        context,
+        session,
+        valueKey: valueKey,
+        runId: runId,
+        classification: c,
+        formatter: formatter,
+      ),
+    );
 
     final zoneTimes = f.zoneTimes;
     return Column(
@@ -272,7 +297,7 @@ class _SummaryContent extends StatelessWidget {
                 Text(l10n.sumBelowZone1(formatClock(f.belowZone1Time))),
             ],
           ),
-        const SizedBox(height: 8),
+        explain('sum_explain_zones', zoneTimeValueKey(1)),
         row(
           'sum_trimp',
           l10n.sumTrimp,
@@ -286,13 +311,25 @@ class _SummaryContent extends StatelessWidget {
                     ? l10n.sumTrimpPartial(f.trimpPoints!.round().toString())
                     : l10n.sumTrimpValue(f.trimpPoints!.round().toString())),
         ),
+        explain('sum_explain_trimp', trimpRunValueKey),
         row('sum_class', l10n.sumClassification, _classification(l10n)),
+        explain(
+          'sum_explain_class',
+          classificationKey,
+          c: summary.classification,
+        ),
         row(
           'sum_vo2max',
           l10n.sumVo2max,
           vo2?.value == null
               ? l10n.sumVo2maxNone
               : l10n.sumVo2maxValue(_number(vo2!.value!.toStringAsFixed(1))),
+        ),
+        explain('sum_explain_vo2max', vo2maxRunValueKey),
+        explain(
+          'sum_explain_sources',
+          runSourcesKey,
+          label: l10n.explSourcesButton,
         ),
         const SizedBox(height: 8),
         RunDetailCharts(

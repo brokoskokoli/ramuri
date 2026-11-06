@@ -7,9 +7,14 @@ import '../summary/run_summary_body.dart' show summaryOffload;
 import 'fitness_section.dart';
 import 'statistics_view.dart';
 
-/// Tippziel der Erklärung eines Werts (Transparenz, Teil D). [valueKey] ist
-/// der Schlüssel des gespeicherten Werts (`ComputedValue.key`).
-typedef ExplainValue = void Function(BuildContext context, String valueKey);
+/// Tippziel der Erklärung eines Werts. [valueKey] ist der Schlüssel des
+/// gespeicherten Werts (`ComputedValue.key`), [runId] oder [day] sein Besitzer.
+typedef ExplainValue = void Function(
+  BuildContext context,
+  String valueKey, {
+  int? runId,
+  String? day,
+});
 
 /// Statistik (FR-0043, FR-0044): Kennzahlen für eine Woche, einen Monat, einen
 /// frei gewählten Zeitraum oder einen einzelnen Lauf, dazu die Fitnessanzeige
@@ -31,7 +36,8 @@ class StatisticsScreen extends StatefulWidget {
   /// Heutiger Kalendertag `JJJJ-MM-TT`; sonst der Ortstag der Uhr. Für Tests.
   final String? today;
 
-  /// Einstieg zur Erklärung eines Werts; ohne ihn erscheint ein Hinweis.
+  /// Einstieg zur Erklärung eines Werts; ohne ihn öffnet sich die Erklärung
+  /// aus den gespeicherten Angaben ([showValueExplanation]).
   final ExplainValue? onExplain;
 
   @override
