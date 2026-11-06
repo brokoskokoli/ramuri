@@ -149,11 +149,7 @@ class FakeComputedValueStore implements ComputedValueStore {
     sections: List.unmodifiable(v.sections.map(_normSection)),
   );
 
-  @override
-  Future<void> createOriginals(
-    ValueOwner owner,
-    List<ComputedValue> values,
-  ) async {
+  void _checkCreate(ValueOwner owner, List<ComputedValue> values) {
     _checkOwner(owner);
     _noDuplicates(values);
     final existing = _d.values[owner];
@@ -161,6 +157,9 @@ class FakeComputedValueStore implements ComputedValueStore {
       throw const StorageException(StorageFailure.rejected);
     }
     requireStorableValues(values);
+  }
+
+  void _create(ValueOwner owner, List<ComputedValue> values) {
     final target = _d.values.putIfAbsent(owner, () => {});
     for (final v in values) {
       final n = _norm(v);
@@ -169,24 +168,48 @@ class FakeComputedValueStore implements ComputedValueStore {
   }
 
   @override
+  Future<void> createOriginals(
+    ValueOwner owner,
+    List<ComputedValue> values,
+  ) async {
+    _checkCreate(owner, values);
+    _create(owner, values);
+  }
+
+  @override
   Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values) =>
       swapCurrentAll({owner: values});
 
   @override
-  Future<void> swapCurrentAll(
-    Map<ValueOwner, List<ComputedValue>> changes,
-  ) async {
-    // Erst alles prüfen, dann schreiben: bei einem Fehler ändert sich nichts.
-    for (final e in changes.entries) {
-      _checkOwner(e.key);
-      _noDuplicates(e.value);
-      final target = _d.values[e.key] ?? const <String, ValuePair>{};
-      if (e.value.any((v) => !target.containsKey(v.key))) {
-        throw const StorageException(StorageFailure.notFound);
-      }
-      requireStorableValues(e.value);
+  Future<void> swapCurrentAll(Map<ValueOwner, List<ComputedValue>> changes) =>
+      writeAll(swap: changes);
+
+  void _checkSwap(ValueOwner owner, List<ComputedValue> values) {
+    _checkOwner(owner);
+    _noDuplicates(values);
+    final target = _d.values[owner] ?? const <String, ValuePair>{};
+    if (values.any((v) => !target.containsKey(v.key))) {
+      throw const StorageException(StorageFailure.notFound);
     }
-    for (final e in changes.entries) {
+    requireStorableValues(values);
+  }
+
+  @override
+  Future<void> writeAll({
+    Map<ValueOwner, List<ComputedValue>> create = const {},
+    Map<ValueOwner, List<ComputedValue>> swap = const {},
+  }) async {
+    // Erst alles prüfen, dann schreiben: bei einem Fehler ändert sich nichts.
+    for (final e in swap.entries) {
+      _checkSwap(e.key, e.value);
+    }
+    for (final e in create.entries) {
+      _checkCreate(e.key, e.value);
+    }
+    for (final e in create.entries) {
+      _create(e.key, e.value);
+    }
+    for (final e in swap.entries) {
       final target = _d.values[e.key]!;
       for (final v in e.value) {
         target[v.key] = ValuePair(

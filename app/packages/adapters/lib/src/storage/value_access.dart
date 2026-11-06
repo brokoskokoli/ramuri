@@ -87,31 +87,29 @@ class DriftComputedValueStore implements ComputedValueStore {
   }
 
   @override
-  Future<void> createOriginals(
-    ValueOwner owner,
-    List<ComputedValue> values,
-  ) => guarded(
-    () => _db.transaction(() async {
-      await _checkOwner(owner);
-      _noDuplicates(values);
-      final keys = {for (final r in await _rows(owner)) r.valueKey};
-      if (values.any((v) => keys.contains(v.key))) {
-        throw const StorageException(StorageFailure.rejected);
+  Future<void> createOriginals(ValueOwner owner, List<ComputedValue> values) =>
+      guarded(() => _db.transaction(() => _createIn(owner, values)));
+
+  Future<void> _createIn(ValueOwner owner, List<ComputedValue> values) async {
+    await _checkOwner(owner);
+    _noDuplicates(values);
+    final keys = {for (final r in await _rows(owner)) r.valueKey};
+    if (values.any((v) => keys.contains(v.key))) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    requireStorableValues(values);
+    // Je Wert: original, dessen Abschnitte, dann current samt Abschnitten.
+    // Die Reihenfolge ist Teil des Schutzes der Original-Abschnitte (Trigger
+    // value_sections_original_no_late_insert).
+    for (final v in values) {
+      for (final role in _Role.values) {
+        final id = await _db
+            .into(_db.computedValues)
+            .insert(_insert(owner, v, role));
+        await _insertSections(id, v.sections);
       }
-      requireStorableValues(values);
-      // Je Wert: original, dessen Abschnitte, dann current samt Abschnitten.
-      // Die Reihenfolge ist Teil des Schutzes der Original-Abschnitte (Trigger
-      // value_sections_original_no_late_insert).
-      for (final v in values) {
-        for (final role in _Role.values) {
-          final id = await _db
-              .into(_db.computedValues)
-              .insert(_insert(owner, v, role));
-          await _insertSections(id, v.sections);
-        }
-      }
-    }),
-  );
+    }
+  }
 
   @override
   Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values) =>
@@ -119,13 +117,23 @@ class DriftComputedValueStore implements ComputedValueStore {
 
   @override
   Future<void> swapCurrentAll(Map<ValueOwner, List<ComputedValue>> changes) =>
-      guarded(
-        () => _db.transaction(() async {
-          for (final e in changes.entries) {
-            await _swapIn(e.key, e.value);
-          }
-        }),
-      );
+      writeAll(swap: changes);
+
+  @override
+  Future<void> writeAll({
+    Map<ValueOwner, List<ComputedValue>> create = const {},
+    Map<ValueOwner, List<ComputedValue>> swap = const {},
+  }) => guarded(
+    () => _db.transaction(() async {
+      // Tauschen vor Anlegen: ein Schlüssel in beiden ist so `notFound`.
+      for (final e in swap.entries) {
+        await _swapIn(e.key, e.value);
+      }
+      for (final e in create.entries) {
+        await _createIn(e.key, e.value);
+      }
+    }),
+  );
 
   Future<void> _swapIn(ValueOwner owner, List<ComputedValue> values) async {
     await _checkOwner(owner);

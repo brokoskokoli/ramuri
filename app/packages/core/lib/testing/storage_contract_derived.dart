@@ -36,6 +36,10 @@ final valueContractCases = <StorageContractCase>[
     'Werte: Tausch über mehrere Besitzer ganz oder gar nicht',
     _swapAll,
   ),
+  const StorageContractCase(
+    'Werte: Anlegen und Tauschen über mehrere Besitzer in einer Transaktion',
+    _writeAll,
+  ),
 ];
 
 String _describe(StoredPreprocessing p) {
@@ -567,5 +571,64 @@ Future<void> _swapAll(StorageContractHarness h) async {
     sampleValueSections().length,
     'Original-Abschnitte bleiben',
   );
+  await s.close();
+}
+
+Future<void> _writeAll(StorageContractHarness h) async {
+  final s = await h.open();
+  final r1 = ValueOwner.run((await s.runs.create(startedAt: at(0))).id);
+  final r2 = ValueOwner.run((await s.runs.create(startedAt: at(0))).id);
+  const d = ValueOwner.day('2030-01-01');
+  await s.values.createOriginals(d, [sampleValue('a', 1)]);
+  Future<String> state() async => [
+    for (final o in [r1, r2, d]) (await s.values.read(o)).map(describePair),
+  ].join(';');
+  final before = await state();
+  // Der Tausch scheitert (Original fehlt): auch das Anlegen gilt nicht.
+  await expectFails(
+    () => s.values.writeAll(
+      create: {
+        r1: [sampleValue('a', 5)],
+        r2: [sampleValue('a', 6)],
+      },
+      swap: {
+        d: [sampleValue('fehlt', 7)],
+      },
+    ),
+    StorageFailure.notFound,
+    'Tausch scheitert',
+  );
+  expectEq(await state(), before, 'nichts angelegt');
+  // Das Anlegen scheitert (Wert existiert): auch der Tausch gilt nicht.
+  await s.values.createOriginals(r2, [sampleValue('a', 6)]);
+  final mid = await state();
+  await expectFails(
+    () => s.values.writeAll(
+      create: {
+        r1: [sampleValue('a', 5)],
+        r2: [sampleValue('a', 9)],
+      },
+      swap: {
+        d: [sampleValue('a', 7)],
+      },
+    ),
+    StorageFailure.rejected,
+    'Anlegen scheitert',
+  );
+  expectEq(await state(), mid, 'nichts getauscht, nichts angelegt');
+  await s.values.writeAll(
+    create: {
+      r1: [sampleValue('a', 5, sections: sampleValueSections())],
+    },
+    swap: {
+      d: [sampleValue('a', 7)],
+    },
+  );
+  final p1 = (await s.values.read(r1)).single;
+  expectEq(p1.original.value, 5.0, 'angelegt: original');
+  expectEq(p1.current.value, 5.0, 'angelegt: current');
+  final p = (await s.values.read(d)).single;
+  expectEq(p.original.value, 1.0, 'original bleibt');
+  expectEq(p.current.value, 7.0, 'current getauscht');
   await s.close();
 }

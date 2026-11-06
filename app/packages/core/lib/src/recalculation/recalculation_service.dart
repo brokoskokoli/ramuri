@@ -72,6 +72,10 @@ class RecalculationService {
   final ValueCalculationService _calc;
   final _controller = StreamController<RecalculationOffer>.broadcast();
 
+  /// Wie oft eine Ursache angeboten wurde; zeigt, ob während einer laufenden
+  /// Bestätigung ein neues Angebot dazukam.
+  final _offerSeq = <RecalculationCause, int>{};
+
   /// Ereignis „Neuberechnung angeboten“.
   Stream<RecalculationOffer> get offers => _controller.stream;
 
@@ -123,17 +127,27 @@ class RecalculationService {
   /// Startet die Neuberechnung. Nur mit einem offenen Angebot; sonst
   /// [StateError]. Rechnet zuerst alles (Fehler dabei ändern nichts) und
   /// tauscht dann in einer Transaktion. Erst nach Erfolg gilt das Angebot als
-  /// erledigt.
+  /// erledigt, und zwar nur die Ursachen, die beim Start offen waren; ein
+  /// währenddessen neu gekommenes Angebot bleibt.
   Future<RecalculationResult> confirm(RecalculationOffer offer) async {
-    if ((await _pendingCauses()).isEmpty) {
+    final started = await _pendingCauses();
+    if (started.isEmpty) {
       throw StateError('Es ist keine Neuberechnung angeboten.');
     }
+    final seqAtStart = Map.of(_offerSeq);
     final snapshot = await _calc.buildSnapshot();
     await session.values.swapCurrentAll({
       ...snapshot.runValues,
       ...snapshot.dayValues,
     });
-    await _setPending(const {});
+    // Nur erledigen, was beim Start offen war und währenddessen nicht erneut
+    // angeboten wurde; ein neues Angebot (etwa nach einer Profiländerung
+    // zwischen Zwischenstand und Tausch) bleibt stehen.
+    final done = {
+      for (final c in started)
+        if (_offerSeq[c] == seqAtStart[c]) c,
+    };
+    await _setPending((await _pendingCauses()).difference(done));
     return RecalculationResult(
       runCount: snapshot.runValues.length,
       dayCount: snapshot.dayValues.length,
@@ -146,6 +160,7 @@ class RecalculationService {
   Future<RecalculationOffer?> _offer(RecalculationCause cause) async {
     final runs = await _affectedRuns();
     if (runs.isEmpty) return null;
+    _offerSeq[cause] = (_offerSeq[cause] ?? 0) + 1;
     final causes = {...await _pendingCauses(), cause};
     await _setPending(causes);
     final offer = RecalculationOffer(causes: causes, runIds: runs);

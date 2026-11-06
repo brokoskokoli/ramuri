@@ -58,6 +58,7 @@ class RecalcWorld {
     double speed = 3.0,
     int bpm = 150,
     String source = 'strap',
+    Duration? utcOffset,
   }) async {
     final run = await session.runs.create(startedAt: start);
     final seconds = minutes * 60;
@@ -97,7 +98,12 @@ class RecalcWorld {
       RawBatch(positions: positions, heartRates: hrs, altitudes: alts),
     );
     final end = start.add(Duration(seconds: seconds));
-    await session.runs.setState(run.id, RunState.finished, endedAt: end);
+    await session.runs.setState(
+      run.id,
+      RunState.finished,
+      endedAt: end,
+      endedUtcOffset: utcOffset,
+    );
     clock.set(end.add(const Duration(minutes: 1)));
     return run.id;
   }
@@ -138,9 +144,27 @@ class RecalcWorld {
 
   Future<Set<String>> _days() async => {
     for (final r in await session.runs.list())
-      if (r.endedAt != null) isoDay(r.endedAt!),
+      if (r.endedAt != null) dayOfRun(r),
     isoDay(recalcNow),
+    isoDay(clock.now()),
   };
+
+  /// Alle Tage von [from] bis [to] (UTC-Tage, einschließlich), die Werte haben.
+  Future<Map<String, List<ValuePair>>> daysWithValues(
+    String from,
+    String to,
+  ) async {
+    final out = <String, List<ValuePair>>{};
+    for (
+      var d = DateTime.parse('${from}T00:00:00Z');
+      isoDay(d).compareTo(to) <= 0;
+      d = d.add(const Duration(days: 1))
+    ) {
+      final v = await session.values.read(ValueOwner.day(isoDay(d)));
+      if (v.isNotEmpty) out[isoDay(d)] = v;
+    }
+    return out;
+  }
 
   Future<List<ValuePair>> allPairs() async => [
     for (final r in await session.runs.list())
@@ -210,6 +234,27 @@ class FailingRawData implements RawDataStore {
   }
 }
 
+/// Rohdaten, die beim ersten Lesen einen Rückruf ausführen (Rennen).
+class HookedRawData implements RawDataStore {
+  HookedRawData(this.inner, this.onFirstRead);
+
+  final RawDataStore inner;
+  final Future<void> Function() onFirstRead;
+  bool _fired = false;
+
+  @override
+  Future<void> append(int runId, RawBatch batch) => inner.append(runId, batch);
+
+  @override
+  Future<StoredRawData> read(int runId) async {
+    if (!_fired) {
+      _fired = true;
+      await onFirstRead();
+    }
+    return inner.read(runId);
+  }
+}
+
 /// Werte, bei denen der Sammel-Tausch scheitert; zählt die Einzel-Tausche.
 class FailingValues implements ComputedValueStore {
   FailingValues(this.inner);
@@ -217,6 +262,8 @@ class FailingValues implements ComputedValueStore {
   final ComputedValueStore inner;
   int singleSwaps = 0;
   bool failSwapAll = true;
+  bool failWriteAll = false;
+  int writeAlls = 0;
 
   @override
   Future<void> createOriginals(ValueOwner owner, List<ComputedValue> values) =>
@@ -232,6 +279,16 @@ class FailingValues implements ComputedValueStore {
   Future<void> swapCurrentAll(Map<ValueOwner, List<ComputedValue>> changes) {
     if (failSwapAll) throw const StorageException(StorageFailure.failed);
     return inner.swapCurrentAll(changes);
+  }
+
+  @override
+  Future<void> writeAll({
+    Map<ValueOwner, List<ComputedValue>> create = const {},
+    Map<ValueOwner, List<ComputedValue>> swap = const {},
+  }) {
+    writeAlls++;
+    if (failWriteAll) throw const StorageException(StorageFailure.failed);
+    return inner.writeAll(create: create, swap: swap);
   }
 
   @override

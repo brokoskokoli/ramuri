@@ -25,12 +25,16 @@ class RunAnalysis {
     required this.run,
     required this.selection,
     required this.estimate,
+    required this.basis,
     required Set<String> sources,
   }) : sources = Set.unmodifiable(sources);
 
   final StoredRun run;
   final SectionSelection selection;
   final Vo2maxRunEstimate estimate;
+
+  /// Herzfrequenzbasis, mit der gerechnet wurde.
+  final HeartRateBasis basis;
 
   /// Quellgeräte und -quellen der Rohdaten des Laufs (FR-0053).
   final Set<String> sources;
@@ -47,9 +51,25 @@ class RunAnalysis {
       value: estimate.result,
       computedAt: computedAt,
       sections: sections,
+      heartRateBasis: snapshotOf(basis),
     );
   }
 }
+
+/// Ob ein Wert mit diesem Schlüssel eine Herzfrequenzbasis braucht (Laufwert
+/// und aerobe Effizienz; der Langzeitwert rechnet aus Laufwerten). Das folgt
+/// aus dem Schlüssel, nie daraus, ob `heartRateBasis` gesetzt ist: ein Wert,
+/// der eine Basis braucht und `null` trägt, hat eine unbekannte Basis.
+bool needsHeartRateBasis(String valueKey) =>
+    valueKey == vo2maxRunValueKey || valueKey == aerobicEfficiencyValueKey;
+
+/// Die Basis, wie sie am Wert gespeichert wird (OQ-0065): nur verwendbare
+/// Zahlen (größer 0), fehlende bleiben `null`.
+HeartRateBasis snapshotOf(HeartRateBasis b) => HeartRateBasis(
+  maxBpm: b.usableMaxBpm,
+  restingBpm: b.usableRestingBpm,
+  maxIsEstimated: b.maxIsEstimated,
+);
 
 /// Die EINE Stelle, die bewertete Abschnitte in die Speicherform wandelt
 /// (FR-0073): alle Abschnitte der Auswahl in Zeitreihenfolge. Mit Schätzung des
@@ -196,6 +216,7 @@ class RunAnalyzer {
       run: run,
       selection: selection,
       estimate: estimate,
+      basis: basis,
       sources: sources,
     );
   }

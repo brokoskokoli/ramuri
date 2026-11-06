@@ -97,7 +97,12 @@ class ValueSection {
   final double? gpsMedianAccuracyMeters;
 
   /// PAR-033: Gewicht im gewichteten Median (Minuten bis 10 × GPS-Faktor ×
-  /// Spätfaktor); 0 bei abgelehntem Abschnitt.
+  /// Spätfaktor). 0 bei einem abgelehnten Abschnitt und bei einem verwendbaren
+  /// Abschnitt, der nicht einging, weil der Wert nicht bestimmbar ist (Grund in
+  /// [ComputedValue.unavailableReason]). Verworfene Abschnitte (unplausibel,
+  /// unvollständig, Gewicht null) behalten ihr PAR-033-Gewicht: es ist nur
+  /// dann ein Beitrag zum Wert, wenn [discard] `null` ist und [estimate]
+  /// gesetzt.
   final double weight;
 
   /// PAR-024: Spätfaktor.
@@ -109,8 +114,10 @@ class ValueSection {
   /// ([SectionCaveat]).
   final List<String> reasons;
 
-  /// Grund, warum die Schätzung nicht einging; `null` = ging ein oder
-  /// Abschnitt abgelehnt (dann steht der Grund in [reasons]).
+  /// Grund, warum die Schätzung nicht einging; `null` = ging ein, Abschnitt
+  /// abgelehnt (dann steht der Grund in [reasons]) oder Wert nicht bestimmbar
+  /// (Grund in [ComputedValue.unavailableReason]). Ob ein Abschnitt einging,
+  /// zeigt nur [estimate] zusammen mit [weight] größer 0.
   final EstimateDiscard? discard;
 
   /// FR-0069: Sauerstoffbedarf (ml/kg/min); `null`, wenn nicht bestimmbar.
@@ -210,6 +217,18 @@ abstract interface class ComputedValueStore {
   /// `rejected`) für irgendeinen Besitzer machen alles rückgängig; `original`
   /// bleibt überall.
   Future<void> swapCurrentAll(Map<ValueOwner, List<ComputedValue>> changes);
+
+  /// Legt neue Werte an ([create], wie [createOriginals]) und tauscht
+  /// vorhandene ([swap], wie [swapCurrentAll]), für beliebig viele Besitzer in
+  /// EINER Transaktion (Berechnung nach einem Lauf: Laufwert und Tageswerte
+  /// gelten ganz oder gar nicht). Jeder Fehler der Einzelregeln macht alles
+  /// rückgängig. Derselbe Schlüssel bei demselben Besitzer in [create] und
+  /// [swap] ist `rejected` bzw. `notFound`, weil ein Wert nicht zugleich fehlen
+  /// und vorhanden sein kann.
+  Future<void> writeAll({
+    Map<ValueOwner, List<ComputedValue>> create = const {},
+    Map<ValueOwner, List<ComputedValue>> swap = const {},
+  });
 
   /// Alle Werte des Besitzers, nach Schlüssel sortiert.
   Future<List<ValuePair>> read(ValueOwner owner);
