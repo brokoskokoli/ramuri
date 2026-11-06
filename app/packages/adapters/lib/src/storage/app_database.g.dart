@@ -260,8 +260,25 @@ class Runs extends Table with TableInfo<Runs, Run> {
     requiredDuringInsert: false,
     $customConstraints: '',
   );
+  static const VerificationMeta _endedUtcOffsetSMeta = const VerificationMeta(
+    'endedUtcOffsetS',
+  );
+  late final GeneratedColumn<int> endedUtcOffsetS = GeneratedColumn<int>(
+    'ended_utc_offset_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800)',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, state, startedAtUs, endedAtUs];
+  List<GeneratedColumn> get $columns => [
+    id,
+    state,
+    startedAtUs,
+    endedAtUs,
+    endedUtcOffsetS,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -302,6 +319,15 @@ class Runs extends Table with TableInfo<Runs, Run> {
         endedAtUs.isAcceptableOrUnknown(data['ended_at_us']!, _endedAtUsMeta),
       );
     }
+    if (data.containsKey('ended_utc_offset_s')) {
+      context.handle(
+        _endedUtcOffsetSMeta,
+        endedUtcOffsetS.isAcceptableOrUnknown(
+          data['ended_utc_offset_s']!,
+          _endedUtcOffsetSMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -327,6 +353,10 @@ class Runs extends Table with TableInfo<Runs, Run> {
         DriftSqlType.int,
         data['${effectivePrefix}ended_at_us'],
       ),
+      endedUtcOffsetS: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ended_utc_offset_s'],
+      ),
     );
   }
 
@@ -346,11 +376,18 @@ class Run extends DataClass implements Insertable<Run> {
 
   /// NULL, solange der Lauf nicht beendet ist.
   final int? endedAtUs;
+
+  /// Seit Version 2 (WP09 D2a): UTC-Versatz der Ortszeit zum Laufende in
+  /// Sekunden (Zeitzone zum Laufzeitpunkt; Tageswerte hängen am lokalen
+  /// Kalendertag des Laufendes). NULL = unbekannt: Läufe aus Version 1, oder
+  /// der Aufrufer hat ihn nicht genannt; nur bei beendetem Lauf (Trigger).
+  final int? endedUtcOffsetS;
   const Run({
     required this.id,
     required this.state,
     required this.startedAtUs,
     this.endedAtUs,
+    this.endedUtcOffsetS,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -360,6 +397,9 @@ class Run extends DataClass implements Insertable<Run> {
     map['started_at_us'] = Variable<int>(startedAtUs);
     if (!nullToAbsent || endedAtUs != null) {
       map['ended_at_us'] = Variable<int>(endedAtUs);
+    }
+    if (!nullToAbsent || endedUtcOffsetS != null) {
+      map['ended_utc_offset_s'] = Variable<int>(endedUtcOffsetS);
     }
     return map;
   }
@@ -372,6 +412,9 @@ class Run extends DataClass implements Insertable<Run> {
       endedAtUs: endedAtUs == null && nullToAbsent
           ? const Value.absent()
           : Value(endedAtUs),
+      endedUtcOffsetS: endedUtcOffsetS == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endedUtcOffsetS),
     );
   }
 
@@ -385,6 +428,7 @@ class Run extends DataClass implements Insertable<Run> {
       state: serializer.fromJson<String>(json['state']),
       startedAtUs: serializer.fromJson<int>(json['started_at_us']),
       endedAtUs: serializer.fromJson<int?>(json['ended_at_us']),
+      endedUtcOffsetS: serializer.fromJson<int?>(json['ended_utc_offset_s']),
     );
   }
   @override
@@ -395,6 +439,7 @@ class Run extends DataClass implements Insertable<Run> {
       'state': serializer.toJson<String>(state),
       'started_at_us': serializer.toJson<int>(startedAtUs),
       'ended_at_us': serializer.toJson<int?>(endedAtUs),
+      'ended_utc_offset_s': serializer.toJson<int?>(endedUtcOffsetS),
     };
   }
 
@@ -403,11 +448,15 @@ class Run extends DataClass implements Insertable<Run> {
     String? state,
     int? startedAtUs,
     Value<int?> endedAtUs = const Value.absent(),
+    Value<int?> endedUtcOffsetS = const Value.absent(),
   }) => Run(
     id: id ?? this.id,
     state: state ?? this.state,
     startedAtUs: startedAtUs ?? this.startedAtUs,
     endedAtUs: endedAtUs.present ? endedAtUs.value : this.endedAtUs,
+    endedUtcOffsetS: endedUtcOffsetS.present
+        ? endedUtcOffsetS.value
+        : this.endedUtcOffsetS,
   );
   Run copyWithCompanion(RunsCompanion data) {
     return Run(
@@ -417,6 +466,9 @@ class Run extends DataClass implements Insertable<Run> {
           ? data.startedAtUs.value
           : this.startedAtUs,
       endedAtUs: data.endedAtUs.present ? data.endedAtUs.value : this.endedAtUs,
+      endedUtcOffsetS: data.endedUtcOffsetS.present
+          ? data.endedUtcOffsetS.value
+          : this.endedUtcOffsetS,
     );
   }
 
@@ -426,13 +478,15 @@ class Run extends DataClass implements Insertable<Run> {
           ..write('id: $id, ')
           ..write('state: $state, ')
           ..write('startedAtUs: $startedAtUs, ')
-          ..write('endedAtUs: $endedAtUs')
+          ..write('endedAtUs: $endedAtUs, ')
+          ..write('endedUtcOffsetS: $endedUtcOffsetS')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, state, startedAtUs, endedAtUs);
+  int get hashCode =>
+      Object.hash(id, state, startedAtUs, endedAtUs, endedUtcOffsetS);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -440,7 +494,8 @@ class Run extends DataClass implements Insertable<Run> {
           other.id == this.id &&
           other.state == this.state &&
           other.startedAtUs == this.startedAtUs &&
-          other.endedAtUs == this.endedAtUs);
+          other.endedAtUs == this.endedAtUs &&
+          other.endedUtcOffsetS == this.endedUtcOffsetS);
 }
 
 class RunsCompanion extends UpdateCompanion<Run> {
@@ -448,17 +503,20 @@ class RunsCompanion extends UpdateCompanion<Run> {
   final Value<String> state;
   final Value<int> startedAtUs;
   final Value<int?> endedAtUs;
+  final Value<int?> endedUtcOffsetS;
   const RunsCompanion({
     this.id = const Value.absent(),
     this.state = const Value.absent(),
     this.startedAtUs = const Value.absent(),
     this.endedAtUs = const Value.absent(),
+    this.endedUtcOffsetS = const Value.absent(),
   });
   RunsCompanion.insert({
     this.id = const Value.absent(),
     required String state,
     required int startedAtUs,
     this.endedAtUs = const Value.absent(),
+    this.endedUtcOffsetS = const Value.absent(),
   }) : state = Value(state),
        startedAtUs = Value(startedAtUs);
   static Insertable<Run> custom({
@@ -466,12 +524,14 @@ class RunsCompanion extends UpdateCompanion<Run> {
     Expression<String>? state,
     Expression<int>? startedAtUs,
     Expression<int>? endedAtUs,
+    Expression<int>? endedUtcOffsetS,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (state != null) 'state': state,
       if (startedAtUs != null) 'started_at_us': startedAtUs,
       if (endedAtUs != null) 'ended_at_us': endedAtUs,
+      if (endedUtcOffsetS != null) 'ended_utc_offset_s': endedUtcOffsetS,
     });
   }
 
@@ -480,12 +540,14 @@ class RunsCompanion extends UpdateCompanion<Run> {
     Value<String>? state,
     Value<int>? startedAtUs,
     Value<int?>? endedAtUs,
+    Value<int?>? endedUtcOffsetS,
   }) {
     return RunsCompanion(
       id: id ?? this.id,
       state: state ?? this.state,
       startedAtUs: startedAtUs ?? this.startedAtUs,
       endedAtUs: endedAtUs ?? this.endedAtUs,
+      endedUtcOffsetS: endedUtcOffsetS ?? this.endedUtcOffsetS,
     );
   }
 
@@ -504,6 +566,9 @@ class RunsCompanion extends UpdateCompanion<Run> {
     if (endedAtUs.present) {
       map['ended_at_us'] = Variable<int>(endedAtUs.value);
     }
+    if (endedUtcOffsetS.present) {
+      map['ended_utc_offset_s'] = Variable<int>(endedUtcOffsetS.value);
+    }
     return map;
   }
 
@@ -513,7 +578,8 @@ class RunsCompanion extends UpdateCompanion<Run> {
           ..write('id: $id, ')
           ..write('state: $state, ')
           ..write('startedAtUs: $startedAtUs, ')
-          ..write('endedAtUs: $endedAtUs')
+          ..write('endedAtUs: $endedAtUs, ')
+          ..write('endedUtcOffsetS: $endedUtcOffsetS')
           ..write(')'))
         .toString();
   }
@@ -6064,6 +6130,39 @@ class ComputedValues extends Table
         requiredDuringInsert: false,
         $customConstraints: '',
       );
+  static const VerificationMeta _hrMaxBpmMeta = const VerificationMeta(
+    'hrMaxBpm',
+  );
+  late final GeneratedColumn<int> hrMaxBpm = GeneratedColumn<int>(
+    'hr_max_bpm',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (hr_max_bpm > 0)',
+  );
+  static const VerificationMeta _hrRestBpmMeta = const VerificationMeta(
+    'hrRestBpm',
+  );
+  late final GeneratedColumn<int> hrRestBpm = GeneratedColumn<int>(
+    'hr_rest_bpm',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (hr_rest_bpm > 0)',
+  );
+  static const VerificationMeta _hrMaxIsEstimatedMeta = const VerificationMeta(
+    'hrMaxIsEstimated',
+  );
+  late final GeneratedColumn<bool> hrMaxIsEstimated = GeneratedColumn<bool>(
+    'hr_max_is_estimated',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (hr_max_is_estimated IN (0, 1))',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -6083,6 +6182,9 @@ class ComputedValues extends Table
     parameterVersion,
     quality,
     unavailableReason,
+    hrMaxBpm,
+    hrRestBpm,
+    hrMaxIsEstimated,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6233,6 +6335,27 @@ class ComputedValues extends Table
         ),
       );
     }
+    if (data.containsKey('hr_max_bpm')) {
+      context.handle(
+        _hrMaxBpmMeta,
+        hrMaxBpm.isAcceptableOrUnknown(data['hr_max_bpm']!, _hrMaxBpmMeta),
+      );
+    }
+    if (data.containsKey('hr_rest_bpm')) {
+      context.handle(
+        _hrRestBpmMeta,
+        hrRestBpm.isAcceptableOrUnknown(data['hr_rest_bpm']!, _hrRestBpmMeta),
+      );
+    }
+    if (data.containsKey('hr_max_is_estimated')) {
+      context.handle(
+        _hrMaxIsEstimatedMeta,
+        hrMaxIsEstimated.isAcceptableOrUnknown(
+          data['hr_max_is_estimated']!,
+          _hrMaxIsEstimatedMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -6310,6 +6433,18 @@ class ComputedValues extends Table
         DriftSqlType.string,
         data['${effectivePrefix}unavailable_reason'],
       ),
+      hrMaxBpm: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}hr_max_bpm'],
+      ),
+      hrRestBpm: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}hr_rest_bpm'],
+      ),
+      hrMaxIsEstimated: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}hr_max_is_estimated'],
+      ),
     );
   }
 
@@ -6353,6 +6488,18 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
   /// als stabiler Code (Name von UnavailableReason im Core). Ein Code, den eine
   /// spätere App nicht kennt, ist beim Lesen ein Datenfehler.
   final String? unavailableReason;
+
+  /// Seit Version 2 (WP09 D2a, OQ-0065): Schnappschuss der Herzfrequenzbasis,
+  /// mit der der Wert gerechnet wurde, damit spätere Neuberechnungen alte Werte
+  /// mit derselben Basis rechnen. hr_max_is_estimated ist der Anzeiger: NULL =
+  /// kein Schnappschuss (Wert braucht keine Basis, oder Zeile aus Version 1:
+  /// Basis unbekannt); sonst gilt der Schnappschuss, und hr_max_bpm bzw.
+  /// hr_rest_bpm sind NULL, wenn die Basis diesen Wert nicht kannte. Bei
+  /// hr_max_bpm / hr_rest_bpm ohne Anzeiger bricht der Trigger
+  /// computed_values_basis_* ab.
+  final int? hrMaxBpm;
+  final int? hrRestBpm;
+  final bool? hrMaxIsEstimated;
   const ComputedValue({
     required this.id,
     this.runId,
@@ -6371,6 +6518,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     required this.parameterVersion,
     required this.quality,
     this.unavailableReason,
+    this.hrMaxBpm,
+    this.hrRestBpm,
+    this.hrMaxIsEstimated,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6404,6 +6554,15 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     if (!nullToAbsent || unavailableReason != null) {
       map['unavailable_reason'] = Variable<String>(unavailableReason);
     }
+    if (!nullToAbsent || hrMaxBpm != null) {
+      map['hr_max_bpm'] = Variable<int>(hrMaxBpm);
+    }
+    if (!nullToAbsent || hrRestBpm != null) {
+      map['hr_rest_bpm'] = Variable<int>(hrRestBpm);
+    }
+    if (!nullToAbsent || hrMaxIsEstimated != null) {
+      map['hr_max_is_estimated'] = Variable<bool>(hrMaxIsEstimated);
+    }
     return map;
   }
 
@@ -6436,6 +6595,15 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       unavailableReason: unavailableReason == null && nullToAbsent
           ? const Value.absent()
           : Value(unavailableReason),
+      hrMaxBpm: hrMaxBpm == null && nullToAbsent
+          ? const Value.absent()
+          : Value(hrMaxBpm),
+      hrRestBpm: hrRestBpm == null && nullToAbsent
+          ? const Value.absent()
+          : Value(hrRestBpm),
+      hrMaxIsEstimated: hrMaxIsEstimated == null && nullToAbsent
+          ? const Value.absent()
+          : Value(hrMaxIsEstimated),
     );
   }
 
@@ -6464,6 +6632,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       unavailableReason: serializer.fromJson<String?>(
         json['unavailable_reason'],
       ),
+      hrMaxBpm: serializer.fromJson<int?>(json['hr_max_bpm']),
+      hrRestBpm: serializer.fromJson<int?>(json['hr_rest_bpm']),
+      hrMaxIsEstimated: serializer.fromJson<bool?>(json['hr_max_is_estimated']),
     );
   }
   @override
@@ -6487,6 +6658,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       'parameter_version': serializer.toJson<int>(parameterVersion),
       'quality': serializer.toJson<String>(quality),
       'unavailable_reason': serializer.toJson<String?>(unavailableReason),
+      'hr_max_bpm': serializer.toJson<int?>(hrMaxBpm),
+      'hr_rest_bpm': serializer.toJson<int?>(hrRestBpm),
+      'hr_max_is_estimated': serializer.toJson<bool?>(hrMaxIsEstimated),
     };
   }
 
@@ -6508,6 +6682,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     int? parameterVersion,
     String? quality,
     Value<String?> unavailableReason = const Value.absent(),
+    Value<int?> hrMaxBpm = const Value.absent(),
+    Value<int?> hrRestBpm = const Value.absent(),
+    Value<bool?> hrMaxIsEstimated = const Value.absent(),
   }) => ComputedValue(
     id: id ?? this.id,
     runId: runId.present ? runId.value : this.runId,
@@ -6528,6 +6705,11 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     unavailableReason: unavailableReason.present
         ? unavailableReason.value
         : this.unavailableReason,
+    hrMaxBpm: hrMaxBpm.present ? hrMaxBpm.value : this.hrMaxBpm,
+    hrRestBpm: hrRestBpm.present ? hrRestBpm.value : this.hrRestBpm,
+    hrMaxIsEstimated: hrMaxIsEstimated.present
+        ? hrMaxIsEstimated.value
+        : this.hrMaxIsEstimated,
   );
   ComputedValue copyWithCompanion(ComputedValuesCompanion data) {
     return ComputedValue(
@@ -6560,6 +6742,11 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       unavailableReason: data.unavailableReason.present
           ? data.unavailableReason.value
           : this.unavailableReason,
+      hrMaxBpm: data.hrMaxBpm.present ? data.hrMaxBpm.value : this.hrMaxBpm,
+      hrRestBpm: data.hrRestBpm.present ? data.hrRestBpm.value : this.hrRestBpm,
+      hrMaxIsEstimated: data.hrMaxIsEstimated.present
+          ? data.hrMaxIsEstimated.value
+          : this.hrMaxIsEstimated,
     );
   }
 
@@ -6582,7 +6769,10 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           ..write('methodVersion: $methodVersion, ')
           ..write('parameterVersion: $parameterVersion, ')
           ..write('quality: $quality, ')
-          ..write('unavailableReason: $unavailableReason')
+          ..write('unavailableReason: $unavailableReason, ')
+          ..write('hrMaxBpm: $hrMaxBpm, ')
+          ..write('hrRestBpm: $hrRestBpm, ')
+          ..write('hrMaxIsEstimated: $hrMaxIsEstimated')
           ..write(')'))
         .toString();
   }
@@ -6606,6 +6796,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     parameterVersion,
     quality,
     unavailableReason,
+    hrMaxBpm,
+    hrRestBpm,
+    hrMaxIsEstimated,
   );
   @override
   bool operator ==(Object other) =>
@@ -6627,7 +6820,10 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           other.methodVersion == this.methodVersion &&
           other.parameterVersion == this.parameterVersion &&
           other.quality == this.quality &&
-          other.unavailableReason == this.unavailableReason);
+          other.unavailableReason == this.unavailableReason &&
+          other.hrMaxBpm == this.hrMaxBpm &&
+          other.hrRestBpm == this.hrRestBpm &&
+          other.hrMaxIsEstimated == this.hrMaxIsEstimated);
 }
 
 class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
@@ -6648,6 +6844,9 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
   final Value<int> parameterVersion;
   final Value<String> quality;
   final Value<String?> unavailableReason;
+  final Value<int?> hrMaxBpm;
+  final Value<int?> hrRestBpm;
+  final Value<bool?> hrMaxIsEstimated;
   const ComputedValuesCompanion({
     this.id = const Value.absent(),
     this.runId = const Value.absent(),
@@ -6666,6 +6865,9 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     this.parameterVersion = const Value.absent(),
     this.quality = const Value.absent(),
     this.unavailableReason = const Value.absent(),
+    this.hrMaxBpm = const Value.absent(),
+    this.hrRestBpm = const Value.absent(),
+    this.hrMaxIsEstimated = const Value.absent(),
   });
   ComputedValuesCompanion.insert({
     this.id = const Value.absent(),
@@ -6685,6 +6887,9 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     required int parameterVersion,
     required String quality,
     this.unavailableReason = const Value.absent(),
+    this.hrMaxBpm = const Value.absent(),
+    this.hrRestBpm = const Value.absent(),
+    this.hrMaxIsEstimated = const Value.absent(),
   }) : valueKey = Value(valueKey),
        role = Value(role),
        unit = Value(unit),
@@ -6713,6 +6918,9 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     Expression<int>? parameterVersion,
     Expression<String>? quality,
     Expression<String>? unavailableReason,
+    Expression<int>? hrMaxBpm,
+    Expression<int>? hrRestBpm,
+    Expression<bool>? hrMaxIsEstimated,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -6732,6 +6940,9 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
       if (parameterVersion != null) 'parameter_version': parameterVersion,
       if (quality != null) 'quality': quality,
       if (unavailableReason != null) 'unavailable_reason': unavailableReason,
+      if (hrMaxBpm != null) 'hr_max_bpm': hrMaxBpm,
+      if (hrRestBpm != null) 'hr_rest_bpm': hrRestBpm,
+      if (hrMaxIsEstimated != null) 'hr_max_is_estimated': hrMaxIsEstimated,
     });
   }
 
@@ -6753,6 +6964,9 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     Value<int>? parameterVersion,
     Value<String>? quality,
     Value<String?>? unavailableReason,
+    Value<int?>? hrMaxBpm,
+    Value<int?>? hrRestBpm,
+    Value<bool?>? hrMaxIsEstimated,
   }) {
     return ComputedValuesCompanion(
       id: id ?? this.id,
@@ -6772,6 +6986,9 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
       parameterVersion: parameterVersion ?? this.parameterVersion,
       quality: quality ?? this.quality,
       unavailableReason: unavailableReason ?? this.unavailableReason,
+      hrMaxBpm: hrMaxBpm ?? this.hrMaxBpm,
+      hrRestBpm: hrRestBpm ?? this.hrRestBpm,
+      hrMaxIsEstimated: hrMaxIsEstimated ?? this.hrMaxIsEstimated,
     );
   }
 
@@ -6829,6 +7046,15 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     if (unavailableReason.present) {
       map['unavailable_reason'] = Variable<String>(unavailableReason.value);
     }
+    if (hrMaxBpm.present) {
+      map['hr_max_bpm'] = Variable<int>(hrMaxBpm.value);
+    }
+    if (hrRestBpm.present) {
+      map['hr_rest_bpm'] = Variable<int>(hrRestBpm.value);
+    }
+    if (hrMaxIsEstimated.present) {
+      map['hr_max_is_estimated'] = Variable<bool>(hrMaxIsEstimated.value);
+    }
     return map;
   }
 
@@ -6851,7 +7077,10 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
           ..write('methodVersion: $methodVersion, ')
           ..write('parameterVersion: $parameterVersion, ')
           ..write('quality: $quality, ')
-          ..write('unavailableReason: $unavailableReason')
+          ..write('unavailableReason: $unavailableReason, ')
+          ..write('hrMaxBpm: $hrMaxBpm, ')
+          ..write('hrRestBpm: $hrRestBpm, ')
+          ..write('hrMaxIsEstimated: $hrMaxIsEstimated')
           ..write(')'))
         .toString();
   }
@@ -9144,6 +9373,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final StorageMeta storageMeta = StorageMeta(this);
   late final Runs runs = Runs(this);
+  late final Trigger runsOffsetInsert = Trigger(
+    'CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, \'offset without end\');END',
+    'runs_offset_insert',
+  );
+  late final Trigger runsOffsetUpdate = Trigger(
+    'CREATE TRIGGER runs_offset_update BEFORE UPDATE ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, \'offset without end\');END',
+    'runs_offset_update',
+  );
   late final Laps laps = Laps(this);
   late final RunGaps runGaps = RunGaps(this);
   late final Index runGapsRunTime = Index(
@@ -9247,6 +9484,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, \'value and unavailable_reason are exclusive\');END',
     'computed_values_reason_update',
   );
+  late final Trigger computedValuesBasisInsert = Trigger(
+    'CREATE TRIGGER computed_values_basis_insert BEFORE INSERT ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, \'basis values without snapshot flag\');END',
+    'computed_values_basis_insert',
+  );
+  late final Trigger computedValuesBasisUpdate = Trigger(
+    'CREATE TRIGGER computed_values_basis_update BEFORE UPDATE ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, \'basis values without snapshot flag\');END',
+    'computed_values_basis_update',
+  );
   late final ValueSections valueSections = ValueSections(this);
   late final Trigger valueSectionsOriginalImmutable = Trigger(
     'CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections WHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = \'original\' OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = \'original\' BEGIN SELECT RAISE (ABORT, \'original value sections are immutable\');END',
@@ -9271,6 +9516,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     storageMeta,
     runs,
+    runsOffsetInsert,
+    runsOffsetUpdate,
     laps,
     runGaps,
     runGapsRunTime,
@@ -9304,6 +9551,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     computedValuesOriginalImmutable,
     computedValuesReasonInsert,
     computedValuesReasonUpdate,
+    computedValuesBasisInsert,
+    computedValuesBasisUpdate,
     valueSections,
     valueSectionsOriginalImmutable,
     valueSectionsOriginalNoLateInsert,
@@ -9315,6 +9564,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.insert,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'runs',
@@ -9447,6 +9710,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('computed_values', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.insert,
+      ),
+      result: [],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -9642,12 +9919,14 @@ typedef $RunsCreateCompanionBuilder = RunsCompanion Function({
   required String state,
   required int startedAtUs,
   Value<int?> endedAtUs,
+  Value<int?> endedUtcOffsetS,
 });
 typedef $RunsUpdateCompanionBuilder = RunsCompanion Function({
   Value<int> id,
   Value<String> state,
   Value<int> startedAtUs,
   Value<int?> endedAtUs,
+  Value<int?> endedUtcOffsetS,
 });
 
 final class $RunsReferences extends BaseReferences<_$AppDatabase, Runs, Run> {
@@ -9889,6 +10168,11 @@ class $RunsFilterComposer extends Composer<_$AppDatabase, Runs> {
 
   ColumnFilters<int> get endedAtUs => $composableBuilder(
     column: $table.endedAtUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endedUtcOffsetS => $composableBuilder(
+    column: $table.endedUtcOffsetS,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10195,6 +10479,11 @@ class $RunsOrderingComposer extends Composer<_$AppDatabase, Runs> {
     column: $table.endedAtUs,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get endedUtcOffsetS => $composableBuilder(
+    column: $table.endedUtcOffsetS,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
@@ -10218,6 +10507,11 @@ class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
 
   GeneratedColumn<int> get endedAtUs =>
       $composableBuilder(column: $table.endedAtUs, builder: (column) => column);
+
+  GeneratedColumn<int> get endedUtcOffsetS => $composableBuilder(
+    column: $table.endedUtcOffsetS,
+    builder: (column) => column,
+  );
 
   Expression<T> lapsRefs<T extends Object>(
     Expression<T> Function($LapsAnnotationComposer a) f,
@@ -10539,11 +10833,13 @@ class $RunsTableManager
                 Value<String> state = const Value.absent(),
                 Value<int> startedAtUs = const Value.absent(),
                 Value<int?> endedAtUs = const Value.absent(),
+                Value<int?> endedUtcOffsetS = const Value.absent(),
               }) => RunsCompanion(
                 id: id,
                 state: state,
                 startedAtUs: startedAtUs,
                 endedAtUs: endedAtUs,
+                endedUtcOffsetS: endedUtcOffsetS,
               ),
           createCompanionCallback:
               ({
@@ -10551,11 +10847,13 @@ class $RunsTableManager
                 required String state,
                 required int startedAtUs,
                 Value<int?> endedAtUs = const Value.absent(),
+                Value<int?> endedUtcOffsetS = const Value.absent(),
               }) => RunsCompanion.insert(
                 id: id,
                 state: state,
                 startedAtUs: startedAtUs,
                 endedAtUs: endedAtUs,
+                endedUtcOffsetS: endedUtcOffsetS,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -14636,6 +14934,9 @@ typedef $ComputedValuesCreateCompanionBuilder =
       required int parameterVersion,
       required String quality,
       Value<String?> unavailableReason,
+      Value<int?> hrMaxBpm,
+      Value<int?> hrRestBpm,
+      Value<bool?> hrMaxIsEstimated,
     });
 typedef $ComputedValuesUpdateCompanionBuilder =
     ComputedValuesCompanion Function({
@@ -14656,6 +14957,9 @@ typedef $ComputedValuesUpdateCompanionBuilder =
       Value<int> parameterVersion,
       Value<String> quality,
       Value<String?> unavailableReason,
+      Value<int?> hrMaxBpm,
+      Value<int?> hrRestBpm,
+      Value<bool?> hrMaxIsEstimated,
     });
 
 final class $ComputedValuesReferences
@@ -14784,6 +15088,21 @@ class $ComputedValuesFilterComposer
 
   ColumnFilters<String> get unavailableReason => $composableBuilder(
     column: $table.unavailableReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get hrMaxBpm => $composableBuilder(
+    column: $table.hrMaxBpm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get hrRestBpm => $composableBuilder(
+    column: $table.hrRestBpm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hrMaxIsEstimated => $composableBuilder(
+    column: $table.hrMaxIsEstimated,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14925,6 +15244,21 @@ class $ComputedValuesOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get hrMaxBpm => $composableBuilder(
+    column: $table.hrMaxBpm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get hrRestBpm => $composableBuilder(
+    column: $table.hrRestBpm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hrMaxIsEstimated => $composableBuilder(
+    column: $table.hrMaxIsEstimated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $RunsOrderingComposer get runId {
     final $RunsOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -15015,6 +15349,17 @@ class $ComputedValuesAnnotationComposer
 
   GeneratedColumn<String> get unavailableReason => $composableBuilder(
     column: $table.unavailableReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get hrMaxBpm =>
+      $composableBuilder(column: $table.hrMaxBpm, builder: (column) => column);
+
+  GeneratedColumn<int> get hrRestBpm =>
+      $composableBuilder(column: $table.hrRestBpm, builder: (column) => column);
+
+  GeneratedColumn<bool> get hrMaxIsEstimated => $composableBuilder(
+    column: $table.hrMaxIsEstimated,
     builder: (column) => column,
   );
 
@@ -15112,6 +15457,9 @@ class $ComputedValuesTableManager
                 Value<int> parameterVersion = const Value.absent(),
                 Value<String> quality = const Value.absent(),
                 Value<String?> unavailableReason = const Value.absent(),
+                Value<int?> hrMaxBpm = const Value.absent(),
+                Value<int?> hrRestBpm = const Value.absent(),
+                Value<bool?> hrMaxIsEstimated = const Value.absent(),
               }) => ComputedValuesCompanion(
                 id: id,
                 runId: runId,
@@ -15130,6 +15478,9 @@ class $ComputedValuesTableManager
                 parameterVersion: parameterVersion,
                 quality: quality,
                 unavailableReason: unavailableReason,
+                hrMaxBpm: hrMaxBpm,
+                hrRestBpm: hrRestBpm,
+                hrMaxIsEstimated: hrMaxIsEstimated,
               ),
           createCompanionCallback:
               ({
@@ -15150,6 +15501,9 @@ class $ComputedValuesTableManager
                 required int parameterVersion,
                 required String quality,
                 Value<String?> unavailableReason = const Value.absent(),
+                Value<int?> hrMaxBpm = const Value.absent(),
+                Value<int?> hrRestBpm = const Value.absent(),
+                Value<bool?> hrMaxIsEstimated = const Value.absent(),
               }) => ComputedValuesCompanion.insert(
                 id: id,
                 runId: runId,
@@ -15168,6 +15522,9 @@ class $ComputedValuesTableManager
                 parameterVersion: parameterVersion,
                 quality: quality,
                 unavailableReason: unavailableReason,
+                hrMaxBpm: hrMaxBpm,
+                hrRestBpm: hrRestBpm,
+                hrMaxIsEstimated: hrMaxIsEstimated,
               ),
           withReferenceMapper: (p0) => p0
               .map(

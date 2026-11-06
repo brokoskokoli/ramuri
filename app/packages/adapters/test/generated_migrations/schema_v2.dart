@@ -87,8 +87,22 @@ class Runs extends Table with TableInfo {
     requiredDuringInsert: false,
     $customConstraints: '',
   );
+  late final GeneratedColumn<int> endedUtcOffsetS = GeneratedColumn<int>(
+    'ended_utc_offset_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800)',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, state, startedAtUs, endedAtUs];
+  List<GeneratedColumn> get $columns => [
+    id,
+    state,
+    startedAtUs,
+    endedAtUs,
+    endedUtcOffsetS,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1332,6 +1346,30 @@ class ComputedValues extends Table with TableInfo {
         requiredDuringInsert: false,
         $customConstraints: '',
       );
+  late final GeneratedColumn<int> hrMaxBpm = GeneratedColumn<int>(
+    'hr_max_bpm',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (hr_max_bpm > 0)',
+  );
+  late final GeneratedColumn<int> hrRestBpm = GeneratedColumn<int>(
+    'hr_rest_bpm',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (hr_rest_bpm > 0)',
+  );
+  late final GeneratedColumn<int> hrMaxIsEstimated = GeneratedColumn<int>(
+    'hr_max_is_estimated',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (hr_max_is_estimated IN (0, 1))',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1351,6 +1389,9 @@ class ComputedValues extends Table with TableInfo {
     parameterVersion,
     quality,
     unavailableReason,
+    hrMaxBpm,
+    hrRestBpm,
+    hrMaxIsEstimated,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1829,6 +1870,14 @@ class DatabaseAtV2 extends GeneratedDatabase {
   DatabaseAtV2(QueryExecutor e) : super(e);
   late final StorageMeta storageMeta = StorageMeta(this);
   late final Runs runs = Runs(this);
+  late final Trigger runsOffsetInsert = Trigger(
+    'CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, \'offset without end\');END',
+    'runs_offset_insert',
+  );
+  late final Trigger runsOffsetUpdate = Trigger(
+    'CREATE TRIGGER runs_offset_update BEFORE UPDATE ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, \'offset without end\');END',
+    'runs_offset_update',
+  );
   late final Laps laps = Laps(this);
   late final RunGaps runGaps = RunGaps(this);
   late final Index runGapsRunTime = Index(
@@ -1932,6 +1981,14 @@ class DatabaseAtV2 extends GeneratedDatabase {
     'CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, \'value and unavailable_reason are exclusive\');END',
     'computed_values_reason_update',
   );
+  late final Trigger computedValuesBasisInsert = Trigger(
+    'CREATE TRIGGER computed_values_basis_insert BEFORE INSERT ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, \'basis values without snapshot flag\');END',
+    'computed_values_basis_insert',
+  );
+  late final Trigger computedValuesBasisUpdate = Trigger(
+    'CREATE TRIGGER computed_values_basis_update BEFORE UPDATE ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, \'basis values without snapshot flag\');END',
+    'computed_values_basis_update',
+  );
   late final ValueSections valueSections = ValueSections(this);
   late final Trigger valueSectionsOriginalImmutable = Trigger(
     'CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections WHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = \'original\' OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = \'original\' BEGIN SELECT RAISE (ABORT, \'original value sections are immutable\');END',
@@ -1956,6 +2013,8 @@ class DatabaseAtV2 extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     storageMeta,
     runs,
+    runsOffsetInsert,
+    runsOffsetUpdate,
     laps,
     runGaps,
     runGapsRunTime,
@@ -1989,6 +2048,8 @@ class DatabaseAtV2 extends GeneratedDatabase {
     computedValuesOriginalImmutable,
     computedValuesReasonInsert,
     computedValuesReasonUpdate,
+    computedValuesBasisInsert,
+    computedValuesBasisUpdate,
     valueSections,
     valueSectionsOriginalImmutable,
     valueSectionsOriginalNoLateInsert,
@@ -2000,6 +2061,20 @@ class DatabaseAtV2 extends GeneratedDatabase {
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.insert,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'runs',
@@ -2132,6 +2207,20 @@ class DatabaseAtV2 extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('computed_values', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.insert,
+      ),
+      result: [],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(

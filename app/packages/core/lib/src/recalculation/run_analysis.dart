@@ -79,12 +79,14 @@ ComputedValue toComputedValue({
   required AdvancedFitnessValue<double> value,
   required DateTime computedAt,
   List<ValueSection> sections = const [],
+  HeartRateBasis? heartRateBasis,
 }) {
   final m = value.metadata;
   return ComputedValue(
     key: key,
     value: value.value,
     unavailableReason: value.reason,
+    heartRateBasis: heartRateBasis,
     unit: unit,
     computedAt: computedAt,
     dataFrom: m.dataFrom,

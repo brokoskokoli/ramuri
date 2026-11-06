@@ -115,12 +115,14 @@ ComputedValue sampleValue(
   ValueQuality quality = ValueQuality.good,
   List<ValueSection> sections = const [],
   UnavailableReason? reason,
+  HeartRateBasis? basis,
 
   /// Nur für Fehlerfälle: kein Grund, obwohl der Wert fehlt.
   bool withoutReason = false,
 }) => ComputedValue(
   key: key,
   value: value,
+  heartRateBasis: basis,
   unavailableReason:
       reason ??
       (value == null && !withoutReason
@@ -177,10 +179,10 @@ String describeSection(ValueSection s) =>
 
 String describeRun(StoredRun? r) => r == null
     ? 'null'
-    : '${r.id}|${r.state.name}|${us(r.startedAt)}|${us(r.endedAt)}';
+    : '${r.id}|${r.state.name}|${us(r.startedAt)}|${us(r.endedAt)}|${r.endedUtcOffset?.inSeconds}';
 
 String describeValue(ComputedValue v) =>
-    '${v.key}|${v.value}|${v.unavailableReason?.name}|${v.unit}|${us(v.computedAt)}|${us(v.dataFrom)}|${us(v.dataTo)}|${v.measurementCount}|${v.sources}|${v.method}|${v.methodVersion}|${v.parameterVersion}|${v.quality.name}|sections=${v.sections.map(describeSection).toList()}';
+    '${v.key}|${v.value}|${v.unavailableReason?.name}|basis=${v.heartRateBasis == null ? null : '${v.heartRateBasis!.maxBpm}/${v.heartRateBasis!.restingBpm}/${v.heartRateBasis!.maxIsEstimated}'}|${v.unit}|${us(v.computedAt)}|${us(v.dataFrom)}|${us(v.dataTo)}|${v.measurementCount}|${v.sources}|${v.method}|${v.methodVersion}|${v.parameterVersion}|${v.quality.name}|sections=${v.sections.map(describeSection).toList()}';
 
 String describePair(ValuePair p) =>
     'O(${describeValue(p.original)}) C(${describeValue(p.current)})';

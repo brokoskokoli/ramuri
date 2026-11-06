@@ -27,6 +27,10 @@ final valueContractCases = <StorageContractCase>[
     'Werte: ungültige Zahlen und fehlender Grund werden abgelehnt',
     _valueInvalidNumbers,
   ),
+  const StorageContractCase(
+    'Werte: Herzfrequenzbasis als Schnappschuss',
+    _valueBasis,
+  ),
   const StorageContractCase('Werte: Tageswerte', _dayValues),
   const StorageContractCase(
     'Werte: Tausch über mehrere Besitzer ganz oder gar nicht',
@@ -388,6 +392,95 @@ Future<void> _valueInvalidNumbers(StorageContractHarness h) async {
     () => s.values.swapCurrent(o, [sampleValue('missing', double.nan)]),
     StorageFailure.notFound,
     'unbekannter Schlüssel vor ungültiger Zahl',
+  );
+  await s.close();
+}
+
+Future<void> _valueBasis(StorageContractHarness h) async {
+  final s = await h.open();
+  final r = (await s.runs.create(startedAt: at(0))).id;
+  final o = ValueOwner.run(r);
+  const first = HeartRateBasis(maxBpm: 190, restingBpm: 55);
+  const second = HeartRateBasis(maxBpm: 185, maxIsEstimated: true);
+  await s.values.createOriginals(o, [
+    sampleValue('a', 1, basis: first),
+    sampleValue('b', 2, basis: second),
+    // Snapshot "Basis kannte nichts" ist etwas anderes als kein Snapshot.
+    sampleValue('c', 3, basis: const HeartRateBasis()),
+    sampleValue('d', 4),
+  ]);
+  String of(ComputedValue v) => describeValue(v).split('|sections').first;
+  var read = {for (final p in await s.values.read(o)) p.original.key: p};
+  expectEq(read['a']!.original.heartRateBasis?.maxBpm, 190, 'HFmax gelesen');
+  expectEq(read['a']!.original.heartRateBasis?.restingBpm, 55, 'HFRuhe');
+  expectEq(
+    read['a']!.original.heartRateBasis?.maxIsEstimated,
+    false,
+    'Näherung aus',
+  );
+  expectEq(read['b']!.original.heartRateBasis?.restingBpm, null, 'HFRuhe null');
+  expectEq(
+    read['b']!.original.heartRateBasis?.maxIsEstimated,
+    true,
+    'Näherung an',
+  );
+  expectTrue(
+    read['c']!.original.heartRateBasis != null &&
+        read['c']!.original.heartRateBasis!.maxBpm == null,
+    'leerer Schnappschuss bleibt ein Schnappschuss',
+  );
+  expectEq(read['d']!.original.heartRateBasis, null, 'ohne Schnappschuss');
+  expectEq(
+    of(read['a']!.current),
+    of(read['a']!.original),
+    'current beginnt mit derselben Basis',
+  );
+  // Tausch: current bekommt die Basis des neuen Werts, original behält seine.
+  await s.values.swapCurrent(o, [
+    sampleValue('a', 5, basis: second),
+    sampleValue('b', 6),
+  ]);
+  read = {for (final p in await s.values.read(o)) p.original.key: p};
+  expectEq(read['a']!.current.heartRateBasis?.maxBpm, 185, 'current a neu');
+  expectEq(read['a']!.current.heartRateBasis?.restingBpm, null, 'HFRuhe neu');
+  expectEq(
+    read['a']!.current.heartRateBasis?.maxIsEstimated,
+    true,
+    'Näherung neu',
+  );
+  expectEq(
+    read['a']!.original.heartRateBasis?.maxBpm,
+    190,
+    'original a bleibt',
+  );
+  expectEq(read['b']!.current.heartRateBasis, null, 'current b ohne');
+  expectEq(
+    read['b']!.original.heartRateBasis?.maxBpm,
+    185,
+    'original b bleibt',
+  );
+  // Ungültige Basis wird abgelehnt, nichts geschrieben.
+  final before = (await s.values.read(o)).map(describePair).join(';');
+  for (final (name, bad) in [
+    ('HFmax 0', const HeartRateBasis(maxBpm: 0)),
+    ('HFmax negativ', const HeartRateBasis(maxBpm: -1)),
+    ('HFRuhe 0', const HeartRateBasis(restingBpm: 0)),
+  ]) {
+    await expectFails(
+      () => s.values.swapCurrent(o, [sampleValue('a', 1, basis: bad)]),
+      StorageFailure.rejected,
+      'Tausch: $name',
+    );
+    await expectFails(
+      () => s.values.createOriginals(o, [sampleValue('neu', 1, basis: bad)]),
+      StorageFailure.rejected,
+      'Anlegen: $name',
+    );
+  }
+  expectEq(
+    (await s.values.read(o)).map(describePair).join(';'),
+    before,
+    'nichts geschrieben',
   );
   await s.close();
 }

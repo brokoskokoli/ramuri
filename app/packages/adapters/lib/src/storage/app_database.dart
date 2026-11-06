@@ -23,7 +23,7 @@ class AppDatabase extends _$AppDatabase {
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests überschreiben das mit
   /// synthetischen Schritten.
   Map<int, MigrationStep> get migrationSteps => {
-    // 1 -> 2: neue Tabelle samt Triggern, Grund-Spalte an computed_values.
+    // 1 -> 2: neue Tabelle samt Triggern, Grund-, Basis- und Versatzspalten.
     1: (Migrator m) async {
       await m.create(valueSections);
       await m.create(valueSectionsOriginalImmutable);
@@ -40,6 +40,16 @@ class AppDatabase extends _$AppDatabase {
       await m.create(computedValuesOriginalImmutable);
       await m.create(computedValuesReasonInsert);
       await m.create(computedValuesReasonUpdate);
+      // D2a: Basis-Schnappschuss (alte Zeilen: unbekannt = NULL) und UTC-Versatz
+      // des Laufendes (alte Läufe: unbekannt = NULL).
+      await m.addColumn(computedValues, computedValues.hrMaxBpm);
+      await m.addColumn(computedValues, computedValues.hrRestBpm);
+      await m.addColumn(computedValues, computedValues.hrMaxIsEstimated);
+      await m.create(computedValuesBasisInsert);
+      await m.create(computedValuesBasisUpdate);
+      await m.addColumn(runs, runs.endedUtcOffsetS);
+      await m.create(runsOffsetInsert);
+      await m.create(runsOffsetUpdate);
     },
   };
 

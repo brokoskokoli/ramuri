@@ -47,9 +47,23 @@ class _V1 extends AppDatabase {
       await customStatement('DROP TABLE value_sections');
       await customStatement('DROP TRIGGER computed_values_reason_insert');
       await customStatement('DROP TRIGGER computed_values_reason_update');
-      await customStatement(
-        'ALTER TABLE computed_values DROP COLUMN unavailable_reason',
-      );
+      for (final t in [
+        'computed_values_basis_insert',
+        'computed_values_basis_update',
+        'runs_offset_insert',
+        'runs_offset_update',
+      ]) {
+        await customStatement('DROP TRIGGER $t');
+      }
+      for (final c in [
+        'unavailable_reason',
+        'hr_max_bpm',
+        'hr_rest_bpm',
+        'hr_max_is_estimated',
+      ]) {
+        await customStatement('ALTER TABLE computed_values DROP COLUMN $c');
+      }
+      await customStatement('ALTER TABLE runs DROP COLUMN ended_utc_offset_s');
     },
   );
 }
@@ -483,6 +497,74 @@ void main() {
     );
   });
 
+  group('Basis-Schnappschuss und UTC-Versatz (D2a)', () {
+    test('Trigger und Prüfungen auf SQL-Ebene', () async {
+      final s = await open();
+      addTearDown(s.close);
+      final r = (await s.runs.create(startedAt: _at(0))).id;
+      Future<Object?> insert(String key, String cols, String vals) => failure(
+        s.database.customStatement(
+          'INSERT INTO computed_values (run_id, value_key, role, value_real, '
+          'unit, computed_at_us, measurement_count, sources, method, '
+          'method_version, parameter_version, quality$cols) VALUES ($r, '
+          "'$key', 'current', 1, 'u', 1, 0, '[]', 'm', 1, 1, 'good'$vals)",
+        ),
+      );
+      const flagCols = ', hr_max_bpm, hr_rest_bpm, hr_max_is_estimated';
+      // Werte ohne Anzeiger: Trigger.
+      expect(
+        (await insert('a', ', hr_max_bpm', ', 190')).toString(),
+        contains('snapshot flag'),
+      );
+      expect(
+        (await insert('b', ', hr_rest_bpm', ', 50')).toString(),
+        contains('snapshot flag'),
+      );
+      // Ungültige Werte: CHECK.
+      expect((await insert('c', flagCols, ', 0, 50, 0')), isNotNull);
+      expect((await insert('d', flagCols, ', 190, -1, 0')), isNotNull);
+      expect((await insert('e', flagCols, ', 190, 50, 2')), isNotNull);
+      // Gültig: voller Schnappschuss, nur Anzeiger, kein Schnappschuss.
+      expect(await insert('f', flagCols, ', 190, 50, 1'), isNull);
+      expect(await insert('g', ', hr_max_is_estimated', ', 0'), isNull);
+      expect(await insert('h', '', ''), isNull);
+    });
+
+    test('UTC-Versatz: Bereich und nur mit Ende', () async {
+      final s = await open();
+      addTearDown(s.close);
+      final r = (await s.runs.create(startedAt: _at(0))).id;
+      expect(
+        (await failure(
+          s.database.customStatement(
+            'UPDATE runs SET ended_utc_offset_s = 3600 WHERE id = $r',
+          ),
+        )).toString(),
+        contains('offset without end'),
+      );
+      await s.runs.setState(r, RunState.finished, endedAt: _at(5));
+      expect(
+        await failure(
+          s.database.customStatement(
+            'UPDATE runs SET ended_utc_offset_s = 64801 WHERE id = $r',
+          ),
+        ),
+        isNotNull,
+      );
+      expect(
+        await failure(
+          s.database.customStatement(
+            'UPDATE runs SET ended_utc_offset_s = -64800 WHERE id = $r',
+          ),
+        ),
+        isNull,
+      );
+      // Wiederaufnahme über den Store löscht Versatz und Ende zusammen.
+      await s.runs.setState(r, RunState.active);
+      expect((await s.runs.get(r))!.endedUtcOffset, isNull);
+    });
+  });
+
   group('Migration 1 -> 2 auf befüllter v1-Datenbank', () {
     test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
       final v1 = await open((e) => _V1(e));
@@ -501,7 +583,11 @@ void main() {
         isNot(contains('value_sections_original_immutable')),
       );
       final r = (await v1.runs.create(startedAt: _at(0))).id;
-      await v1.runs.setState(r, RunState.finished, endedAt: _at(100));
+      // Der Store der aktuellen App kennt die v1-Spalten nicht: per SQL beenden.
+      await v1.database.customStatement(
+        "UPDATE runs SET state = 'finished', ended_at_us = ? WHERE id = ?",
+        [_at(100).microsecondsSinceEpoch, r],
+      );
       final o = ValueOwner.run(r);
       await _seedV1(v1.database, runId: r, v: cs.sampleValue('vo2max', 48.5));
       // Ein alter Wert ohne Zahl (v1 verlangte dafür keinen Grund).
@@ -559,6 +645,13 @@ void main() {
         UnavailableReason.insufficientData,
       );
       expect(p.original.unavailableReason, isNull);
+      // D2a: alte Zeilen haben keinen Basis-Schnappschuss, alte Läufe keinen
+      // UTC-Versatz (beides unbekannt, nicht 0).
+      for (final x in [...both.map((b) => b.original), p.current]) {
+        expect(x.heartRateBasis, isNull);
+      }
+      expect((await s.runs.get(r))!.endedUtcOffset, isNull);
+      expect((await s.runs.get(r))!.endedAt, _at(100));
       // Die Regel gilt auf der migrierten Datei (Trigger vorhanden).
       expect(
         (await failure(
@@ -572,8 +665,39 @@ void main() {
 
       // Neue Funktion auf der migrierten Datei, samt Triggern.
       await s.values.swapCurrent(o, [
-        cs.sampleValue('vo2max', 50, sections: cs.sampleValueSections()),
+        cs.sampleValue(
+          'vo2max',
+          50,
+          sections: cs.sampleValueSections(),
+          basis: const HeartRateBasis(maxBpm: 188, restingBpm: 50),
+        ),
       ]);
+      expect((await s.values.read(o)).last.current.heartRateBasis?.maxBpm, 188);
+      expect((await s.values.read(o)).last.original.heartRateBasis, isNull);
+      await s.runs.setState(
+        r,
+        RunState.finished,
+        endedAt: _at(101),
+        endedUtcOffset: const Duration(hours: 1),
+      );
+      expect((await s.runs.get(r))!.endedUtcOffset, const Duration(hours: 1));
+      expect(
+        (await failure(
+          s.database.customStatement(
+            'UPDATE computed_values SET hr_max_is_estimated = NULL '
+            "WHERE role = 'current' AND value_key = 'vo2max'",
+          ),
+        )).toString(),
+        contains('snapshot flag'),
+      );
+      expect(
+        (await failure(
+          s.database.customStatement(
+            'UPDATE runs SET ended_at_us = NULL WHERE id = $r',
+          ),
+        )).toString(),
+        contains('offset without end'),
+      );
       expect((await s.values.read(o)).last.current.sections, hasLength(3));
       expect((await s.values.read(o)).last.original.sections, isEmpty);
       final orig =

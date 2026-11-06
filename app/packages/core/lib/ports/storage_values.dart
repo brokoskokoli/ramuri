@@ -1,4 +1,5 @@
 import '../src/fitness/fitness_result.dart' show UnavailableReason;
+import '../src/fitness/heart_rate_basis.dart';
 import '../src/fitness/vo2max_estimator.dart';
 import 'storage.dart' show StorageException, StorageFailure;
 import '../src/fitness/vo2max_section_types.dart';
@@ -136,9 +137,19 @@ class ComputedValue {
     this.dataTo,
     this.sections = const [],
     this.unavailableReason,
+    this.heartRateBasis,
   });
 
   final String key;
+
+  /// Herzfrequenzbasis, mit der der Wert gerechnet wurde (OQ-0065): HFmax,
+  /// HFRuhe und ob HFmax eine Schätzung ist, unverändert und nie neu gelesen.
+  /// Eine Neuberechnung rechnet den Wert mit genau dieser Basis, nie mit einer
+  /// abgelehnten neuen. `null` = kein Schnappschuss: der Wert braucht keine
+  /// Basis, oder die Zeile stammt aus Schema 1 (Basis unbekannt). Ein Wert in
+  /// [heartRateBasis] ist `null`, wenn die Basis ihn nicht kannte; vorhandene
+  /// Werte sind größer 0 ([HeartRateBasis.usableMaxBpm]).
+  final HeartRateBasis? heartRateBasis;
 
   /// `null` genau dann, wenn [unavailableReason] gesetzt ist (FR-0068: ein
   /// fehlender Wert nennt immer den Grund).
@@ -209,12 +220,19 @@ abstract interface class ComputedValueStore {
 /// `rejected` bei: nicht endlichem Wert, Wert ohne Grund oder Grund bei Wert
 /// (`value == null` genau mit [ComputedValue.unavailableReason]), Abschnitt mit
 /// Ende vor Anfang, negativem oder nicht endlichem Gewicht, Spätfaktor oder
-/// GPS-Genauigkeit und nicht endlichem Sauerstoffbedarf oder Schätzwert.
+/// GPS-Genauigkeit, nicht endlichem Sauerstoffbedarf oder Schätzwert und einer
+/// Herzfrequenzbasis mit HFmax oder HFRuhe kleiner oder gleich 0.
 void requireStorableValues(List<ComputedValue> values) {
   bool bad(double? x) => x != null && !x.isFinite;
   bool negative(double? x) => x != null && x < 0;
   for (final v in values) {
     if (bad(v.value) || (v.value == null) == (v.unavailableReason == null)) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    final b = v.heartRateBasis;
+    if (b != null &&
+        ((b.maxBpm != null && b.maxBpm! <= 0) ||
+            (b.restingBpm != null && b.restingBpm! <= 0))) {
       throw const StorageException(StorageFailure.rejected);
     }
     for (final s in v.sections) {

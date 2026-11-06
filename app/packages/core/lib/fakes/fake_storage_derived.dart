@@ -135,6 +135,7 @@ class FakeComputedValueStore implements ComputedValueStore {
     key: v.key,
     value: v.value,
     unavailableReason: v.unavailableReason,
+    heartRateBasis: v.heartRateBasis,
     unit: v.unit,
     computedAt: _utc(v.computedAt),
     measurementCount: v.measurementCount,

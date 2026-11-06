@@ -17,8 +17,21 @@ CREATE TABLE runs (
   state TEXT NOT NULL CHECK (state IN ('active', 'paused', 'finished')),
   started_at_us INTEGER NOT NULL,
   -- NULL, solange der Lauf nicht beendet ist.
-  ended_at_us INTEGER
+  ended_at_us INTEGER,
+  -- Seit Version 2 (WP09 D2a): UTC-Versatz der Ortszeit zum Laufende in
+  -- Sekunden (Zeitzone zum Laufzeitpunkt; Tageswerte hängen am lokalen
+  -- Kalendertag des Laufendes). NULL = unbekannt: Läufe aus Version 1, oder
+  -- der Aufrufer hat ihn nicht genannt; nur bei beendetem Lauf (Trigger).
+  ended_utc_offset_s INTEGER CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800)
 );
+
+CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs
+WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL
+BEGIN SELECT RAISE(ABORT, 'offset without end'); END;
+
+CREATE TRIGGER runs_offset_update BEFORE UPDATE ON runs
+WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL
+BEGIN SELECT RAISE(ABORT, 'offset without end'); END;
 
 -- Runden (FR-0030). Rundenzeit wie von der Aufzeichnung ermittelt (Sekunden).
 CREATE TABLE laps (
@@ -240,6 +253,17 @@ CREATE TABLE computed_values (
   -- als stabiler Code (Name von UnavailableReason im Core). Ein Code, den eine
   -- spätere App nicht kennt, ist beim Lesen ein Datenfehler.
   unavailable_reason TEXT,
+  -- Seit Version 2 (WP09 D2a, OQ-0065): Schnappschuss der Herzfrequenzbasis,
+  -- mit der der Wert gerechnet wurde, damit spätere Neuberechnungen alte Werte
+  -- mit derselben Basis rechnen. hr_max_is_estimated ist der Anzeiger: NULL =
+  -- kein Schnappschuss (Wert braucht keine Basis, oder Zeile aus Version 1:
+  -- Basis unbekannt); sonst gilt der Schnappschuss, und hr_max_bpm bzw.
+  -- hr_rest_bpm sind NULL, wenn die Basis diesen Wert nicht kannte. Bei
+  -- hr_max_bpm / hr_rest_bpm ohne Anzeiger bricht der Trigger
+  -- computed_values_basis_* ab.
+  hr_max_bpm INTEGER CHECK (hr_max_bpm > 0),
+  hr_rest_bpm INTEGER CHECK (hr_rest_bpm > 0),
+  hr_max_is_estimated BOOLEAN CHECK (hr_max_is_estimated IN (0, 1)),
   CHECK ((run_id IS NULL) <> (day IS NULL))
 );
 CREATE UNIQUE INDEX computed_values_run_unique
@@ -262,6 +286,16 @@ BEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;
 CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values
 WHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)
 BEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;
+
+CREATE TRIGGER computed_values_basis_insert BEFORE INSERT ON computed_values
+WHEN NEW.hr_max_is_estimated IS NULL
+  AND (NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)
+BEGIN SELECT RAISE(ABORT, 'basis values without snapshot flag'); END;
+
+CREATE TRIGGER computed_values_basis_update BEFORE UPDATE ON computed_values
+WHEN NEW.hr_max_is_estimated IS NULL
+  AND (NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)
+BEGIN SELECT RAISE(ABORT, 'basis values without snapshot flag'); END;
 
 -- ------------------------------------------ Bewertete Abschnitte je Wert
 -- Seit Version 2 (WP09 D1, FR-0073). Je Zeile von computed_values (original

@@ -1,3 +1,5 @@
+import 'storage.dart' show StorageException, StorageFailure;
+
 /// Zustand eines Laufs. `paused` und `finished` sind aus FR-0028 und FR-0193
 /// abgeleitet (ADR-0005 nennt nur `active`).
 enum RunState { active, paused, finished }
@@ -8,6 +10,7 @@ class StoredRun {
     required this.state,
     required this.startedAt,
     this.endedAt,
+    this.endedUtcOffset,
   });
 
   final int id;
@@ -16,6 +19,12 @@ class StoredRun {
 
   /// Nur bei [RunState.finished] gesetzt.
   final DateTime? endedAt;
+
+  /// UTC-Versatz der Ortszeit zum Laufende (Zeitzone zum Laufzeitpunkt; der
+  /// lokale Kalendertag des Laufendes ist `endedAt + endedUtcOffset`). `null` =
+  /// unbekannt (Läufe aus Schema 1, oder beim Beenden nicht genannt). Nur bei
+  /// [RunState.finished].
+  final Duration? endedUtcOffset;
 }
 
 /// Läufe anlegen, Zustand ändern, lesen.
@@ -25,8 +34,16 @@ abstract interface class RunStore {
 
   /// Ändert den Zustand. [endedAt] ist genau bei `finished` Pflicht und sonst
   /// verboten (`rejected`); ein unbekannter Lauf ist `notFound`. Die Reihenfolge
-  /// der Übergänge prüft WP06, nicht der Speicher.
-  Future<void> setState(int runId, RunState state, {DateTime? endedAt});
+  /// der Übergänge prüft WP06, nicht der Speicher. [endedUtcOffset] (UTC-Versatz
+  /// der Ortszeit zum Laufende) ist optional und nur zusammen mit [endedAt]
+  /// erlaubt; ganze Sekunden, höchstens 18 Stunden, sonst `rejected`. Ohne
+  /// Angabe bleibt er unbekannt (`null`).
+  Future<void> setState(
+    int runId,
+    RunState state, {
+    DateTime? endedAt,
+    Duration? endedUtcOffset,
+  });
 
   /// `null` für einen unbekannten Lauf.
   Future<StoredRun?> get(int runId);
@@ -87,4 +104,23 @@ abstract interface class RunMarkerStore {
 
   /// Nach Beginn sortiert.
   Future<List<StoredGap>> gaps(int runId);
+}
+
+/// Prüft Zustand, Ende und UTC-Versatz vor dem Speichern (Adapter und Fake
+/// rufen dieselbe Regel). `rejected`, wenn das Ende nicht genau bei `finished`
+/// steht, der Versatz ohne Ende genannt wird, nicht aus ganzen Sekunden besteht
+/// oder 18 Stunden überschreitet.
+void requireRunEnd(
+  RunState state,
+  DateTime? endedAt,
+  Duration? endedUtcOffset,
+) {
+  final bad =
+      (state == RunState.finished) != (endedAt != null) ||
+      (endedUtcOffset != null &&
+          (endedAt == null ||
+              endedUtcOffset.inMicroseconds % Duration.microsecondsPerSecond !=
+                  0 ||
+              endedUtcOffset.abs() > const Duration(hours: 18)));
+  if (bad) throw const StorageException(StorageFailure.rejected);
 }

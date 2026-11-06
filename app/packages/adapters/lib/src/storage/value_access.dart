@@ -47,6 +47,9 @@ class DriftComputedValueStore implements ComputedValueStore {
     role: role.name,
     valueReal: Value(v.value),
     unavailableReason: Value(v.unavailableReason?.name),
+    hrMaxBpm: Value(v.heartRateBasis?.maxBpm),
+    hrRestBpm: Value(v.heartRateBasis?.restingBpm),
+    hrMaxIsEstimated: Value(v.heartRateBasis?.maxIsEstimated),
     unit: v.unit,
     computedAtUs: usOf(v.computedAt),
     dataFromUs: Value(usOfOrNull(v.dataFrom)),
@@ -152,6 +155,9 @@ class DriftComputedValueStore implements ComputedValueStore {
             d.ComputedValuesCompanion(
               valueReal: Value(v.value),
               unavailableReason: Value(v.unavailableReason?.name),
+              hrMaxBpm: Value(v.heartRateBasis?.maxBpm),
+              hrRestBpm: Value(v.heartRateBasis?.restingBpm),
+              hrMaxIsEstimated: Value(v.heartRateBasis?.maxIsEstimated),
               unit: Value(v.unit),
               computedAtUs: Value(usOf(v.computedAt)),
               dataFromUs: Value(usOfOrNull(v.dataFrom)),
@@ -220,6 +226,13 @@ class DriftComputedValueStore implements ComputedValueStore {
                 UnavailableReason.values,
                 r.unavailableReason!,
                 (v) => v.name,
+              ),
+        heartRateBasis: r.hrMaxIsEstimated == null
+            ? null
+            : HeartRateBasis(
+                maxBpm: r.hrMaxBpm,
+                restingBpm: r.hrRestBpm,
+                maxIsEstimated: r.hrMaxIsEstimated!,
               ),
         unit: r.unit,
         computedAt: timeOf(r.computedAtUs),

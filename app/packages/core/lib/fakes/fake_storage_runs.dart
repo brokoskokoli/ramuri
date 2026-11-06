@@ -22,10 +22,13 @@ class FakeRunStore implements RunStore {
   }
 
   @override
-  Future<void> setState(int runId, RunState state, {DateTime? endedAt}) async {
-    if ((state == RunState.finished) != (endedAt != null)) {
-      throw const StorageException(StorageFailure.rejected);
-    }
+  Future<void> setState(
+    int runId,
+    RunState state, {
+    DateTime? endedAt,
+    Duration? endedUtcOffset,
+  }) async {
+    requireRunEnd(state, endedAt, endedUtcOffset);
     _d.requireRun(runId);
     final old = _d.runs[runId]!;
     _d.runs[runId] = StoredRun(
@@ -33,6 +36,7 @@ class FakeRunStore implements RunStore {
       state: state,
       startedAt: old.startedAt,
       endedAt: endedAt == null ? null : _utc(endedAt),
+      endedUtcOffset: endedUtcOffset,
     );
   }
 
