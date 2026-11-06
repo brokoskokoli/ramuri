@@ -450,5 +450,73 @@
   "permissionsOpenSettings": "Systemeinstellungen öffnen",
   "@permissionsOpenSettings": {
     "description": "Schaltfläche"
+  },
+  "settingsZones": "Herzfrequenzzonen",
+  "@settingsZones": {
+    "description": "Schaltfläche zum Zoneneditor"
+  },
+  "zonesTitle": "Herzfrequenzzonen",
+  "@zonesTitle": {
+    "description": "Titel des Zoneneditors"
+  },
+  "zonesNote": "Die Zonen sind eine einstellbare Näherung als Anteil der Herzfrequenzreserve. Sie sind keine gemessenen Schwellen und ersetzen keine individuell bestimmten ventilatorischen oder Laktatschwellen. Zone 1 beginnt bei der ersten Grenze; darunter wird gesondert ausgewiesen. Geänderte Grenzen gelten für neue Berechnungen; bereits berechnete Läufe behalten ihre Zonenzeiten.",
+  "@zonesNote": {
+    "description": "FR-0061, FR-0064, OQ-0065"
+  },
+  "zonesLowerField": "Zone {zone} ab (% der Reserve)",
+  "@zonesLowerField": {
+    "description": "Untergrenze einer Zone",
+    "placeholders": {
+      "zone": {
+        "type": "int"
+      }
+    }
+  },
+  "zonesUpperField": "Zone 5 bis (% der Reserve)",
+  "@zonesUpperField": {
+    "description": "Obergrenze der obersten Zone"
+  },
+  "zonesSave": "Speichern",
+  "@zonesSave": {
+    "description": "Schaltfläche"
+  },
+  "zonesReset": "Auf Standard zurücksetzen",
+  "@zonesReset": {
+    "description": "Schaltfläche"
+  },
+  "zonesSaved": "Zonen gespeichert.",
+  "@zonesSaved": {
+    "description": "Rückmeldung"
+  },
+  "zonesResetDone": "Standardzonen wiederhergestellt.",
+  "@zonesResetDone": {
+    "description": "Rückmeldung"
+  },
+  "zonesNotNumber": "Grenze {index}: bitte eine ganze Zahl eingeben. Nicht gespeichert.",
+  "@zonesNotNumber": {
+    "description": "Eingabe keine Zahl",
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "zonesOutOfRange": "Grenze {index}: nur 0 bis 100 % möglich. Nicht gespeichert.",
+  "@zonesOutOfRange": {
+    "description": "außerhalb",
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "zonesNotAscending": "Grenze {index} muss größer sein als die Grenze davor; die Zonen müssen lückenlos aufsteigen. Nicht gespeichert.",
+  "@zonesNotAscending": {
+    "description": "nicht aufsteigend",
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
   }
 }

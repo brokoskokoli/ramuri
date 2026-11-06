@@ -5,6 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../storage/data_screen.dart';
 import 'app_settings.dart';
 import 'permissions_screen.dart';
+import 'zones_screen.dart';
 
 /// Einstellungen: Einheit für Strecken (reine Anzeige) und der Zugang zu den
 /// gespeicherten Daten.
@@ -58,6 +59,14 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             child: Text(l10n.settingsPermissions),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            key: const Key('settings_zones'),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(builder: (_) => const ZonesScreen()),
+            ),
+            child: Text(l10n.settingsZones),
           ),
           const SizedBox(height: 8),
           OutlinedButton(

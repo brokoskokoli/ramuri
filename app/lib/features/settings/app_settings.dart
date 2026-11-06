@@ -52,6 +52,16 @@ class AppSettings extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Gespeicherte Zonengrenzen in Prozent der Herzfrequenzreserve (FR-0061).
+  Future<List<int>> loadZoneBounds() => ReserveZoneSettings.load(_store);
+
+  /// Speichert gültige Grenzen; sonst [ZoneBoundsException], nichts geändert.
+  Future<void> saveZoneBounds(List<int> percents) =>
+      ReserveZoneSettings.save(_store, percents, at: _clock.now());
+
+  Future<void> resetZoneBounds() =>
+      ReserveZoneSettings.reset(_store, at: _clock.now());
+
   Future<void> markSetupDone() async {
     await _store.set(SettingKeys.setupDone, '1', at: _clock.now());
     _setupDone = true;

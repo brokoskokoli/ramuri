@@ -62,6 +62,7 @@ export 'src/profile/profile_parameters.dart';
 export 'src/profile/profile_service.dart';
 export 'src/profile/profile_validation.dart';
 export 'src/settings/display_settings.dart';
+export 'src/settings/reserve_zone_settings.dart';
 export 'src/storage/storage_key_service.dart';
 
 /// Name des Pakets, nur damit das Paket auflösbar und testbar ist.

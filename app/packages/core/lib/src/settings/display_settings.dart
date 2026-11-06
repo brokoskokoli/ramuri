@@ -37,4 +37,8 @@ abstract final class SettingKeys {
   /// `1`, sobald die Ersteinrichtung abgeschlossen oder übersprungen wurde
   /// (FR-0001); danach wird sie nicht mehr angeboten.
   static const String setupDone = 'setup.done';
+
+  /// Grenzen der fünf Reservezonen in ganzen Prozent, kommagetrennt
+  /// (FR-0061), zum Beispiel `50,60,70,80,90,100`.
+  static const String reserveZoneBounds = 'zones.reserve_bounds';
 }
