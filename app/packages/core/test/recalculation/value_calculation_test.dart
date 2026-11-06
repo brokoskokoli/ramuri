@@ -167,69 +167,67 @@ void main() {
     expect(await w.session.values.read(ValueOwner.run(id)), isEmpty);
   });
 
-  test(
-    'Punkte in der manuellen Pause (gespeichert) zählen nicht zum Laufwert',
-    () async {
-      final start = DateTime.utc(2030, 2, 25, 8);
-      final pauseStart = start.add(const Duration(minutes: 10));
-      final pauseEnd = start.add(const Duration(minutes: 20));
-      // Gleicher Lauf, einmal mit plausiblen Punkten in der Pause (wie sie die
-      // Aufzeichnung als Rohwerte speichert), einmal ohne.
-      Future<ComputedValue> valueOf({required bool junkInPause}) async {
-        final w = await RecalcWorld.create();
-        final run = await w.session.runs.create(startedAt: start);
-        final positions = <RawPosition>[];
-        final hrs = <RawHeartRate>[];
-        const perDegree = earthRadiusMeters * 3.141592653589793 / 180;
-        for (var s = 0; s <= 1800; s++) {
-          final t = start.add(Duration(seconds: s));
-          final paused = !t.isBefore(pauseStart) && t.isBefore(pauseEnd);
-          if (paused && !junkInPause) continue;
-          positions.add(
-            RawPosition(
-              time: t,
-              source: 'gps',
-              latitude: 10 + s * 3.0 / perDegree,
-              longitude: 20,
-              accuracyMeters: 5,
-            ),
+  for (final kind in [RunGapKind.manualPause, RunGapKind.interruption]) {
+    test(
+      'Punkte in der Lücke ${kind.name} (gespeichert) zählen nicht zum Laufwert',
+      () async {
+        final start = DateTime.utc(2030, 2, 25, 8);
+        final pauseStart = start.add(const Duration(minutes: 10));
+        final pauseEnd = start.add(const Duration(minutes: 20));
+        // Gleicher Lauf, einmal mit plausiblen Punkten in der Pause (wie sie die
+        // Aufzeichnung als Rohwerte speichert), einmal ohne.
+        Future<ComputedValue> valueOf({required bool junkInPause}) async {
+          final w = await RecalcWorld.create();
+          final run = await w.session.runs.create(startedAt: start);
+          final positions = <RawPosition>[];
+          final hrs = <RawHeartRate>[];
+          const perDegree = earthRadiusMeters * 3.141592653589793 / 180;
+          for (var s = 0; s <= 1800; s++) {
+            final t = start.add(Duration(seconds: s));
+            final paused = !t.isBefore(pauseStart) && t.isBefore(pauseEnd);
+            if (paused && !junkInPause) continue;
+            positions.add(
+              RawPosition(
+                time: t,
+                source: 'gps',
+                latitude: 10 + s * 3.0 / perDegree,
+                longitude: 20,
+                accuracyMeters: 5,
+              ),
+            );
+            hrs.add(
+              RawHeartRate(
+                time: t,
+                source: 'strap',
+                bpm: paused ? 170 : 150,
+                contact: SensorContact.good,
+              ),
+            );
+          }
+          await w.session.rawData.append(
+            run.id,
+            RawBatch(positions: positions, heartRates: hrs),
           );
-          hrs.add(
-            RawHeartRate(
-              time: t,
-              source: 'strap',
-              bpm: paused ? 170 : 150,
-              contact: SensorContact.good,
-            ),
+          final gap = await w.session.markers.openGap(run.id, kind, pauseStart);
+          await w.session.markers.closeGap(gap, pauseEnd);
+          await w.session.runs.setState(
+            run.id,
+            RunState.finished,
+            endedAt: start.add(const Duration(seconds: 1800)),
           );
+          return (await w.calc().calculateAfterRun(run.id)).runValue;
         }
-        await w.session.rawData.append(
-          run.id,
-          RawBatch(positions: positions, heartRates: hrs),
-        );
-        final gap = await w.session.markers.openGap(
-          run.id,
-          RunGapKind.manualPause,
-          pauseStart,
-        );
-        await w.session.markers.closeGap(gap, pauseEnd);
-        await w.session.runs.setState(
-          run.id,
-          RunState.finished,
-          endedAt: start.add(const Duration(seconds: 1800)),
-        );
-        return (await w.calc().calculateAfterRun(run.id)).runValue;
-      }
 
-      final clean = await valueOf(junkInPause: false);
-      final withJunk = await valueOf(junkInPause: true);
-      expect(clean.quality, isNot(ValueQuality.undeterminable));
-      // Plausible Punkte (Spur geht weiter, Puls 170): ohne Pause im Replay
-      // würde ein Abschnitt mit Puls 170 dazukommen (Wert 51,1 statt 55,5).
-      expect(withJunk.value, closeTo(clean.value!, 1e-6));
-      expect(withJunk.sections.length, clean.sections.length);
-    },
-  );
+        final clean = await valueOf(junkInPause: false);
+        final withJunk = await valueOf(junkInPause: true);
+        expect(clean.quality, isNot(ValueQuality.undeterminable));
+        // Plausible Punkte (Spur geht weiter, Puls 170): ohne Pause im Replay
+        // würde ein Abschnitt mit Puls 170 dazukommen (Wert 51,1 statt 55,5).
+        expect(withJunk.value, closeTo(clean.value!, 1e-6));
+        expect(withJunk.sections.length, clean.sections.length);
+      },
+    );
+  }
 
   test('Merker der Berechnung nach dem Lauf: Fehler lässt Lauf und Merker stehen, Nachholen rechnet', () async {
     final w = await RecalcWorld.create();

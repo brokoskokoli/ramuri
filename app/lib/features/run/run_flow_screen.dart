@@ -21,6 +21,7 @@ class RunFlowScreen extends StatefulWidget {
     required this.permissions,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
+    this.resumeRunId,
   });
 
   final StorageSession session;
@@ -28,6 +29,9 @@ class RunFlowScreen extends StatefulWidget {
   final RunPorts ports;
   final PermissionStatusPort permissions;
   final Duration tickEvery;
+
+  /// Setzt diesen unterbrochenen Lauf fort (FR-0193); das Start-Gate gilt.
+  final int? resumeRunId;
 
   /// Siehe [RunController.serialize].
   final Future<void> Function(Future<void> Function() action)? serialize;
@@ -115,6 +119,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       heartRate: widget.ports.heartRate,
       sensors: widget.ports.heartRateRun?.call(),
       service: widget.ports.recordingService,
+      resumeRunId: widget.resumeRunId,
       tickEvery: widget.tickEvery,
       serialize: widget.serialize,
     );

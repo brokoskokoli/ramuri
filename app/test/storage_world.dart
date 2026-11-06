@@ -70,7 +70,13 @@ class World {
   /// Datei mit Inhalt unter [fileKey]; abgelegt wird [storedKey] (oder keiner).
   Future<void> seed({required Uint8List fileKey, Uint8List? storedKey}) async {
     final s = await inner.open(fileKey);
-    await s.runs.create(startedAt: DateTime.utc(2030));
+    // Beendet: ein unfertiger Lauf würde das Wiederaufnahme-Angebot öffnen.
+    final run = await s.runs.create(startedAt: DateTime.utc(2030));
+    await s.runs.setState(
+      run.id,
+      RunState.finished,
+      endedAt: DateTime.utc(2030, 1, 1, 1),
+    );
     await s.settings.set('k', 'v', at: DateTime.utc(2030));
     files.present = true;
     oldFileKey = fileKey;

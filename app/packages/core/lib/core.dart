@@ -77,6 +77,7 @@ export 'src/settings/display_settings.dart';
 export 'src/settings/reserve_zone_settings.dart';
 export 'src/recording/recording_session.dart';
 export 'src/recording/run_recorder.dart';
+export 'src/recording/run_recovery.dart';
 export 'src/recording/start_gate.dart';
 export 'src/storage/storage_key_service.dart';
 

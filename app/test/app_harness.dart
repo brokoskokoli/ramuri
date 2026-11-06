@@ -34,6 +34,9 @@ class Device {
   Duration reconnectDelay = const Duration(seconds: 5);
   late SensorManager sensors;
 
+  /// Dienst der Aufzeichnung (WP08); `null` wie ohne Dienst.
+  FakeRecordingServicePort? recordingService;
+
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
   /// [heartRate]; [lastRun] ist die Pulsquelle des jüngsten Laufs.
   bool runViaSensors = false;
@@ -98,6 +101,7 @@ class Device {
                 ? () => lastRun = sensors.beginRun()
                 : null,
             connectSensors: sensors.connectKnown,
+            recordingService: recordingService,
           ),
         ),
       ),

@@ -6,6 +6,7 @@ import '../recalculation/recalculation_controller.dart';
 import '../storage/deletion.dart';
 import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
+import '../run/run_flow_screen.dart';
 import '../run/run_ports.dart';
 import '../setup/setup_screen.dart';
 import 'home_screen.dart';
@@ -36,6 +37,7 @@ class _ReadyRootState extends State<ReadyRoot> {
   late Future<AppSettings> _settings;
   late final RecalculationService _recalculationService;
   late final RecalculationController _recalculation;
+  late final RunRecovery _recovery;
 
   @override
   void initState() {
@@ -59,7 +61,100 @@ class _ReadyRootState extends State<ReadyRoot> {
     widget.sensors
         .attachStore(widget.session.devices)
         .catchError((Object _) {});
+    _recovery = RunRecovery(
+      clock: widget.clock,
+      runs: widget.session.runs,
+      rawData: widget.session.rawData,
+      markers: widget.session.markers,
+    );
     _loadSettings();
+    // Einmal je Start nach der Storage-Freigabe (FR-0193).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
+  }
+
+  /// Bietet einen unterbrochenen Lauf an, solange es einen gibt und kein
+  /// Dienst läuft; ohne Frist und ohne Neustart von selbst. Wer abbricht
+  /// (Dialog lässt sich nicht wegwischen), sieht das Angebot beim nächsten
+  /// Start wieder.
+  Future<void> _offerRecovery() async {
+    while (mounted) {
+      final StoredRun? run;
+      try {
+        final service = widget.runPorts.recordingService;
+        run = await _recovery.pending(
+          serviceRunning: service != null && await service.isRunning(),
+        );
+        // Erst die Einrichtung abwarten: der Dialog gehört über die Startseite.
+        await _settings;
+      } on Object {
+        return;
+      }
+      if (run == null || !mounted) return;
+      final resume = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          final l10n = AppLocalizations.of(context);
+          return AlertDialog(
+            key: const Key('recover_dialog'),
+            title: Text(l10n.recoverTitle),
+            content: Text(l10n.recoverBody),
+            actions: [
+              TextButton(
+                key: const Key('recover_save'),
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(l10n.recoverSave),
+              ),
+              FilledButton(
+                key: const Key('recover_resume'),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(l10n.recoverResume),
+              ),
+            ],
+          );
+        },
+      );
+      if (!mounted || resume == null) return;
+      if (resume) {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => RunFlowScreen(
+              session: widget.session,
+              clock: widget.clock,
+              ports: widget.runPorts,
+              permissions: widget.permissions,
+              serialize: _recalculation.exclusive,
+              resumeRunId: run!.id,
+            ),
+          ),
+        );
+        // Ob der Nutzer den Lauf beendet hat oder nicht: nicht erneut fragen.
+        return;
+      }
+      if (!await _saveRecovered(run.id)) return;
+    }
+  }
+
+  Future<bool> _saveRecovered(int runId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final failed = AppLocalizations.of(context).recoverSaveFailed;
+    try {
+      final saved = await _recovery.saveFinished(runId);
+      if (saved != null) {
+        // Die Werte des Laufs wie nach einem normalen Ende (FR-0006); ein
+        // Fehler hier holt der nächste Start nach.
+        await _recalculation.exclusive(() async {
+          await ValueCalculationService(
+            session: widget.session,
+            clock: widget.clock,
+          ).calculateAfterRunTracked(runId);
+        });
+      }
+      return true;
+    } on Object {
+      messenger.showSnackBar(SnackBar(content: Text(failed)));
+      return false;
+    }
   }
 
   @override

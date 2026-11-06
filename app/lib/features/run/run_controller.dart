@@ -34,6 +34,7 @@ class RunController extends ChangeNotifier {
     this.heartRate,
     this.sensors,
     this.service,
+    this.resumeRunId,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
     RunRecorder? recorder,
@@ -60,6 +61,10 @@ class RunController extends ChangeNotifier {
 
   /// Dienst, der den Prozess während des Laufs hält (WP08); `null` ohne Dienst.
   final RecordingServicePort? service;
+
+  /// Ist gesetzt, setzt [start] diesen unterbrochenen Lauf fort (FR-0193),
+  /// statt einen neuen anzulegen.
+  final int? resumeRunId;
 
   /// Reiht Schreiben von Werten hinter den Start und andere Neuberechnungen
   /// ein (siehe `RecalculationController.exclusive`); `null` = sofort.
@@ -168,7 +173,14 @@ class RunController extends ChangeNotifier {
       }
       _recorder.setAutoPause(_autoPause);
       try {
-        await _recorder.start();
+        final resume = resumeRunId;
+        final r = resume == null
+            ? await _recorder.start()
+            : await _recorder.restore(resume);
+        if (r == CommandResult.rejected) {
+          _startFailed = true;
+          return;
+        }
       } on Object {
         _startFailed = true;
         return;

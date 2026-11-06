@@ -239,7 +239,12 @@ class RunAnalyzer {
     void add(DateTime at, int rank, void Function() apply) =>
         events.add((at: at, rank: rank, apply: apply));
     for (final g in gaps) {
-      if (g.kind != RunGapKind.manualPause) continue;
+      // Die Unterbrechung (FR-0193) wirkt wie eine Pause: kein Segment über
+      // sie, ihre Zeit nicht in der Bewegungszeit.
+      if (g.kind != RunGapKind.manualPause &&
+          g.kind != RunGapKind.interruption) {
+        continue;
+      }
       add(g.start, 2, () => pre.pause(g.start));
       final resume = g.end ?? end;
       add(resume, 0, () => pre.resume(resume));
