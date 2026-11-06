@@ -31,6 +31,27 @@ void main() {
       expect(v.issues, isEmpty);
     });
 
+    test('Geburtsjahr: Alter muss positiv sein (Stichtagsjahr 2026)', () {
+      for (final y in [2026, 2027, 3000]) {
+        final v = check(ProfileRecord(birthYear: y));
+        expect(v.canSave, isFalse, reason: '$y');
+        expect(v.issues.single.field, ProfileField.birthYear);
+        expect(v.issues.single.code, ProfileIssueCode.notPositive);
+        expect(v.issues.single.severity, ProfileIssueSeverity.rejected);
+      }
+      expect(check(const ProfileRecord(birthYear: 2025)).issues, isEmpty);
+    });
+
+    test('Geburtsjahr 2026/2027 wird nicht gespeichert, 2025 schon', () async {
+      final svc = await service();
+      final bad = await svc.save(const ProfileRecord(birthYear: 2026));
+      expect(bad.saved, isFalse);
+      expect((await svc.load()).birthYear, isNull);
+      final ok = await svc.save(const ProfileRecord(birthYear: 2025));
+      expect(ok.saved, isTrue);
+      expect((await svc.load()).birthYear, 2025);
+    });
+
     test(
       'Geburtsjahr, Gewicht, Größe: 0 und negativ abgelehnt, knapp > 0 ok',
       () {
@@ -115,13 +136,19 @@ void main() {
 
     test('Ohne bekanntes Alter kein Abweichungshinweis', () {
       expect(check(const ProfileRecord(maxHeartRateBpm: 230)).issues, isEmpty);
-      // Geburtsjahr in der Zukunft ergibt kein Alter.
-      expect(
-        check(const ProfileRecord(birthYear: 2027, maxHeartRateBpm: 230))
-            .issues,
-        isEmpty,
-      );
     });
+
+    test(
+      'Gespeicherte HFmax 0 mit Alter: Näherung, geschätzt (nicht entered)',
+      () {
+        final r = resolve(
+          const ProfileRecord(birthYear: birth40, maxHeartRateBpm: 0),
+        );
+        expect(r.maxSource, MaxHeartRateSource.estimated);
+        expect(r.basis.maxBpm, 180);
+        expect(r.askForMaxInput, isFalse);
+      },
+    );
   });
 
   group('PAR-017 Ruhepuls', () {

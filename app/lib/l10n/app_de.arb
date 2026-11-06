@@ -386,5 +386,21 @@
   "settingsSaveFailed": "Die Einstellung konnte nicht gespeichert werden.",
   "@settingsSaveFailed": {
     "description": "Fehler"
+  },
+  "unitKilometers": "km",
+  "@unitKilometers": {
+    "description": "Kürzel Kilometer"
+  },
+  "unitMiles": "mi",
+  "@unitMiles": {
+    "description": "Kürzel Meilen"
+  },
+  "unitPacePerKilometer": "min/km",
+  "@unitPacePerKilometer": {
+    "description": "Kürzel Pace je Kilometer"
+  },
+  "unitPacePerMile": "min/mi",
+  "@unitPacePerMile": {
+    "description": "Kürzel Pace je Meile"
   }
 }

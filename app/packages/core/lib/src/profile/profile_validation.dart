@@ -101,7 +101,11 @@ ProfileValidation validateProfileInput(
   const rejected = ProfileIssueSeverity.rejected;
   const hint = ProfileIssueSeverity.hint;
 
-  if (!_positive(p.birthYear)) {
+  // Das Geburtsjahr wird statt des Alters gespeichert; „Alter nur positiv“
+  // (OQ-0065) heißt: Geburtsjahr vor dem Stichtagsjahr.
+  final birthYear = p.birthYear;
+  if (!_positive(birthYear) ||
+      (birthYear != null && ageFromBirthYear(birthYear, currentYear) == null)) {
     add(ProfileField.birthYear, ProfileIssueCode.notPositive, rejected);
   }
   if (!_positive(p.bodyWeightKg)) {

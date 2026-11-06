@@ -19,10 +19,22 @@ class ReadyRoot extends StatefulWidget {
 }
 
 class _ReadyRootState extends State<ReadyRoot> {
-  late final Future<AppSettings> _settings = AppSettings.load(
-    widget.session.settings,
-    widget.clock,
-  );
+  late final Future<AppSettings> _settings;
+
+  @override
+  void initState() {
+    super.initState();
+    // Der Halter im Scope über dem Navigator bekommt die Einstellungen, bevor
+    // diese Seite sie zeigt; so sehen auch per Navigator.push geöffnete Seiten
+    // sie.
+    final holder = AppSettingsScope.holderOf(context);
+    _settings = AppSettings.load(widget.session.settings, widget.clock).then((
+      s,
+    ) {
+      holder.attach(s);
+      return s;
+    });
+  }
 
   Future<void> _finishSetup(AppSettings settings) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -46,18 +58,15 @@ class _ReadyRootState extends State<ReadyRoot> {
       if (settings == null) {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
-      return AppSettingsScope(
-        settings: settings,
-        child: ListenableBuilder(
-          listenable: settings,
-          builder: (context, _) => settings.setupDone
-              ? HomeScreen(session: widget.session, clock: widget.clock)
-              : SetupScreen(
-                  session: widget.session,
-                  clock: widget.clock,
-                  onFinished: () => _finishSetup(settings),
-                ),
-        ),
+      return ListenableBuilder(
+        listenable: settings,
+        builder: (context, _) => settings.setupDone
+            ? HomeScreen(session: widget.session, clock: widget.clock)
+            : SetupScreen(
+                session: widget.session,
+                clock: widget.clock,
+                onFinished: () => _finishSetup(settings),
+              ),
       );
     },
   );

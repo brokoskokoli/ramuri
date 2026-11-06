@@ -55,6 +55,23 @@ void main() {
     expect(find.byKey(const Key('hr_estimated_note')), findsNothing);
   });
 
+  testWidgets('Geburtsjahr ab Stichtagsjahr wird abgelehnt (OQ-0065)', (
+    tester,
+  ) async {
+    final d = await openProfile(tester, const Locale('en'));
+    for (final y in ['2026', '2027']) {
+      await enter(tester, 'profile_birthYear', y);
+      await save(tester);
+      expect(find.text('The value must be a positive number.'), findsOneWidget);
+      expect(find.text('Profile saved.'), findsNothing);
+      expect((await d.session.profile.read()).birthYear, isNull);
+    }
+    await enter(tester, 'profile_birthYear', '2025');
+    await save(tester);
+    expect(find.text('Profile saved.'), findsOneWidget);
+    expect((await d.session.profile.read()).birthYear, 2025);
+  });
+
   testWidgets('HFmax knapp außerhalb wird abgelehnt (PAR-016)', (tester) async {
     final d = await openProfile(tester, const Locale('en'));
     await enter(tester, 'profile_max', '231');

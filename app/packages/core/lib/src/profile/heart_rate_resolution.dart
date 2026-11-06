@@ -1,6 +1,7 @@
 import '../../ports/storage_profile.dart';
 import '../fitness/fitness_parameters.dart';
 import '../fitness/fitness_result.dart';
+import '../fitness/edwards_trimp.dart';
 import '../fitness/heart_rate_basis.dart';
 import '../fitness/heart_rate_reserve.dart';
 import 'profile_validation.dart';
@@ -90,14 +91,7 @@ ResolvedHeartRate resolveHeartRate(
   );
 
   final reason = const HeartRateReserve().check(basis, fitness);
-  final usableMax = basis.usableMaxBpm;
-  final usableRest = basis.usableRestingBpm;
-  UnavailableReason? trimp;
-  if (usableMax == null) {
-    trimp = UnavailableReason.missingMaxHeartRate;
-  } else if (usableRest != null && usableMax <= usableRest) {
-    trimp = UnavailableReason.maxNotAboveResting;
-  }
+  final trimp = EdwardsTrimp.basisUnavailableReason(basis);
   final conflict =
       reason == UnavailableReason.maxNotAboveResting &&
       !(source == MaxHeartRateSource.entered && profileRest != null);

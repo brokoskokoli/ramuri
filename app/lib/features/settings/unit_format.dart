@@ -4,7 +4,12 @@ import 'package:core/core.dart';
 /// Meter beziehungsweise Sekunden je Kilometer; umgerechnet wird nur für die
 /// Anzeige.
 class UnitFormatter {
-  const UnitFormatter({required this.unit, required this.languageCode});
+  const UnitFormatter({
+    required this.unit,
+    required this.languageCode,
+    required this.distanceLabel,
+    required this.paceLabel,
+  });
 
   final DistanceUnit unit;
 
@@ -15,9 +20,11 @@ class UnitFormatter {
 
   String get _decimalSeparator => languageCode == 'de' ? ',' : '.';
 
-  String get distanceLabel => unit == DistanceUnit.miles ? 'mi' : 'km';
+  /// Kürzel der Streckeneinheit (aus der Übersetzung), etwa `km`.
+  final String distanceLabel;
 
-  String get paceLabel => unit == DistanceUnit.miles ? 'min/mi' : 'min/km';
+  /// Kürzel der Paceeinheit (aus der Übersetzung), etwa `min/km`.
+  final String paceLabel;
 
   /// Strecke aus Metern, zwei Nachkommastellen, etwa `5,23 km`.
   String distance(double? meters) {

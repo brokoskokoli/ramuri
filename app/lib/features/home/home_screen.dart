@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../profile/profile_screen.dart';
-import '../settings/app_settings.dart';
 import '../settings/settings_screen.dart';
 
 /// Startbildschirm. Gebaut wird er erst, wenn der Speicher bereit ist
@@ -37,18 +36,20 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 8),
             OutlinedButton(
               key: const Key('home_profile'),
-              onPressed: () => AppSettingsScope.push<void>(
-                context,
-                (_) => ProfileScreen(session: session, clock: clock),
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => ProfileScreen(session: session, clock: clock),
+                ),
               ),
               child: Text(l10n.homeProfile),
             ),
             const SizedBox(height: 8),
             OutlinedButton(
               key: const Key('home_settings'),
-              onPressed: () => AppSettingsScope.push<void>(
-                context,
-                (_) => SettingsScreen(session: session),
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => SettingsScreen(session: session),
+                ),
               ),
               child: Text(l10n.homeSettings),
             ),

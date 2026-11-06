@@ -86,5 +86,9 @@
   "settingsUnitKm": "Kilometers",
   "settingsUnitMi": "Miles",
   "settingsUnitNote": "This only affects the display. Stored data is not changed.",
-  "settingsSaveFailed": "The setting could not be saved."
+  "settingsSaveFailed": "The setting could not be saved.",
+  "unitKilometers": "km",
+  "unitMiles": "mi",
+  "unitPacePerKilometer": "min/km",
+  "unitPacePerMile": "min/mi"
 }

@@ -2,7 +2,9 @@ import 'package:core/core.dart';
 import 'package:core/testing/contract_samples.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/settings/app_settings.dart';
 import 'package:running_app/features/settings/unit_format.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 
 import 'app_harness.dart';
 
@@ -35,6 +37,22 @@ Future<String> snapshot(StorageSession s) async {
     '${p.trainingDaysMask} ${p.usualTrainingMinutes}',
   );
   return b.toString();
+}
+
+/// Seite, die per normalem Navigator.push geöffnet wird und die Einheit liest.
+class _ProbePage extends StatelessWidget {
+  const _ProbePage();
+
+  @override
+  Widget build(BuildContext context) {
+    final f = AppSettingsScope.formatterOf(context);
+    return Scaffold(
+      body: Text(
+        'probe ${f.distance(5000)} ${f.pace(330)} '
+        '${AppLocalizations.of(context).unitMiles}',
+      ),
+    );
+  }
 }
 
 void main() {
@@ -88,12 +106,55 @@ void main() {
     expect(button.selected, {DistanceUnit.miles});
   });
 
+  testWidgets('Seite per normalem Navigator.push sieht Einheit und Kürzel', (
+    tester,
+  ) async {
+    final d = Device();
+    await d.start(tester, const Locale('de'));
+    await d.skipSetup(tester);
+    await tester.tap(find.byKey(const Key('home_settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Meilen'));
+    await tester.pumpAndSettle();
+
+    final nav = tester.state<NavigatorState>(find.byType(Navigator).first);
+    nav.push(MaterialPageRoute<void>(builder: (_) => const _ProbePage()));
+    await tester.pumpAndSettle();
+    expect(find.text('probe 3,11 mi 8:51 min/mi mi'), findsOneWidget);
+  });
+
   group('UnitFormatter', () {
-    const km = UnitFormatter(unit: DistanceUnit.kilometers, languageCode: 'en');
-    const mi = UnitFormatter(unit: DistanceUnit.miles, languageCode: 'en');
+    const km = UnitFormatter(
+      unit: DistanceUnit.kilometers,
+      languageCode: 'en',
+      distanceLabel: 'km',
+      paceLabel: 'min/km',
+    );
+    const mi = UnitFormatter(
+      unit: DistanceUnit.miles,
+      languageCode: 'en',
+      distanceLabel: 'mi',
+      paceLabel: 'min/mi',
+    );
     const kmDe = UnitFormatter(
       unit: DistanceUnit.kilometers,
       languageCode: 'de',
+      distanceLabel: 'km',
+      paceLabel: 'min/km',
+    );
+
+    test(
+      'Kürzel kommen von außen (Übersetzung), nicht aus dem Formatierer',
+      () {
+        const x = UnitFormatter(
+          unit: DistanceUnit.kilometers,
+          languageCode: 'en',
+          distanceLabel: 'XD',
+          paceLabel: 'XP',
+        );
+        expect(x.distance(1000), '1.00 XD');
+        expect(x.pace(330), '5:30 XP');
+      },
     );
 
     test('Strecke aus Metern', () {
