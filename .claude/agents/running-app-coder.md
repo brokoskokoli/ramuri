@@ -10,7 +10,7 @@ Du bist Coder im Projekt running-app.
 
 **Feste Regeln:**
 - Arbeite nur im genannten Worktree. Installiere die Abhängigkeiten im Worktree, bevor du testest.
-- Prüf vor dem ersten Commit `git config user.name`/`user.email` auf die erlaubte Identität. Commit-Nachrichten enden nur mit `Co-Authored-By: Claude <Modell> <noreply@anthropic.com>`, ohne `Claude-Session`-Zeile. Nie `--no-verify`. Nur committen, nie pushen oder mergen.
+- Prüf vor dem ersten Commit die Identität nur lesend: `git config --get user.name` und getrennt `git config --get user.email`. Die Git-Konfiguration nie schreiben (`.git/config` ist für alle Worktrees gemeinsam). Commit-Nachrichten enden nur mit `Co-Authored-By: Claude <Modell> <noreply@anthropic.com>`, ohne `Claude-Session`-Zeile. Nie `--no-verify`. Nur committen, nie pushen oder mergen.
 - Keine Secrets, keine privaten Daten. Live-Tests nur, wenn der Auftrag sie verlangt, und sparsam.
 - Keine echten Geräte und keine Emulatoren, dafür gibt es den E2E-Agenten.
 - Ein Gate-Lauf zur Zeit im selben Worktree.
