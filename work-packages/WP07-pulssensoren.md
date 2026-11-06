@@ -21,7 +21,7 @@ Wartet nicht auf R005: Den Bau von `universal_ble` mit Target 36 belegt dieses P
 - **Teile für die Coder-Aufträge:** Teil A: Punkte 1 und 2 / Teil B: Punkte 3 und 6 / Teil C: Punkt 4 / Teil D: Punkt 5, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Lizenz der neuen Abhängigkeiten im Baum prüfen (GPL-3.0, ADR-0006). Baut das Plugin nicht mit den Versionen aus ADR-0002: Rückfallweg aus ADR-0006 und melden.
 - `connectedDevice` im Dienst und Sensorbetrieb bei gesperrtem Bildschirm gehören zu WP08.
-- Research R006 (virtueller Sensor, ADR-0006) ist nicht beauftragt. Dieses Paket setzt ihn nicht voraus; wird er beauftragt und ist fertig, kommt sein Testaufbau hier oder in WP08 dazu.
+- Research R006 (virtueller Sensor, ADR-0006) wird nicht beauftragt (Maintainer, 2026-11-06). Der echte BLE-Weg bleibt dem Feldtest, im Emulator prüft der Test-Sensor.
 - Nicht dazu: FR-0009, FR-0010, FR-0021 (Phase 4).
 - Parallel: läuft mit WP10. Beide lesen den Lauf; WP10 arbeitet in `app/lib/features/history`, `summary`, `statistics`. Gemeinsam nur die ARB-Dateien und der Zusammenbau in `app/lib`. WP07 ändert `app/android/.../AndroidManifest.xml`, WP10 nicht.
 
