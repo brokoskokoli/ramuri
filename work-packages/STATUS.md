@@ -4,7 +4,7 @@ Einzige Stelle für den Stand der Meilensteine und Arbeitspakete. Gepflegt vom O
 
 Status: `geplant` · `in Arbeit` · `Review` · `wartet` (Grund in „Offen“) · `gemergt` (Commit) · `verworfen`
 
-Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP01 bis WP06 und WP09, R005 und R007 abgeschlossen, WP07 läuft.
+Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP01 bis WP06 und WP09, R005 und R007 abgeschlossen, WP07 und WP10 laufen.
 
 ## Meilensteine
 
@@ -26,7 +26,8 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP09 | VO₂max, aerobe Effizienz und Neuberechnung | gemergt (5ee87cf) | Modellwerte nur synthetisch (NFR-0004, OQ-0020); E2E nur API 31 und Englisch; Test für `utcOffsetAt` greift nur in Zeitzonen mit Sommerzeit (Gate setzt kein TZ); Dauer von Neuberechnung und Nachholen auf schwachen Geräten ungemessen (ADR-0004); dauerhaft scheiternder Lauf wird bei jedem Start ohne Anzeige erneut versucht; OQ-0073 |
 | WP03 | Vorverarbeitung und Bewegungswerte | gemergt (b29c386) | Nur synthetische Läufe, Gate nur auf macOS; OQ-0068, OQ-0069 offen |
 | WP07 | Pulssensoren | in Arbeit | ohne R006 (Maintainer, 2026-11-06); Form des Herzfrequenz-Ereignisstroms nicht in ADR-0006 festgelegt |
-| WP10 bis WP12 | siehe [M1-PLAN.md](M1-PLAN.md) | geplant | Annahmen aus den Vorpaketen in den Paketen vermerkt; `AppDependencies` ist noch leer |
+| WP10 | Zusammenfassung, Historie, Statistik und Transparenz | in Arbeit | L2, L4, L5 offen (Paket) |
+| WP11, WP12 | siehe [M1-PLAN.md](M1-PLAN.md) | geplant | Annahmen aus den Vorpaketen in den Paketen vermerkt; `AppDependencies` ist noch leer |
 | WP04 | Algorithmen-Rahmen, Herzfrequenzzonen und TRIMP | gemergt (9a3d5a1) | Nur synthetische Pulswerte; OQ-0070; Modellgüte ungeprüft (NFR-0004); Stufenvergabe bei WP09 |
 | WP08 | Hintergrund und Wiederanlauf | geplant | R005 liegt vor; wartet auf WP06, WP07 |
 
