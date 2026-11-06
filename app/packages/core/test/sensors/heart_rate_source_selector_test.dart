@@ -30,6 +30,7 @@ void main() {
 
   test('FR-0019: zwei aktive Quellen, nur eine speist, keine Vermischung', () {
     f.connect('other', 0);
+    sel.lock(at(1)); // Lauf läuft
     f.connect('pref', 1); // bevorzugt, aber 'other' ist schon Quelle
     for (var s = 2; s < 6; s++) {
       f.reading('other', s, 100 + s);
@@ -39,17 +40,100 @@ void main() {
     expect(f.out.map((r) => r.beatsPerMinute), [102, 103, 104, 105]);
   });
 
-  test('Vorrang: sind beide schon verbunden, wird das bevorzugte gewählt', () {
-    // Beide kommen im selben Moment ohne aktive Quelle: Vorrang entscheidet,
-    // nicht die Reihenfolge. Hier über Abbruch der ersten Quelle.
-    f.connect('a', 0);
-    f.connect('other', 1);
+  test(
+    'Vorrang beim Abbruch: das bevorzugte folgt, nicht das länger verbundene',
+    () {
+      // Ersatz nach Abbruch: Vorrang entscheidet, nicht die Reihenfolge.
+      f.connect('a', 0);
+      sel.lock(at(0));
+      f.connect('other', 1);
+      f.connect('pref', 2);
+      expect(sel.activeId, 'a');
+      f.drop('a', 3);
+      expect(sel.activeId, 'pref'); // nicht 'other', obwohl länger verbunden
+      expect(sel.switches.single.reason, SourceSwitchReason.lost);
+    },
+  );
+
+  test('Vorrang vor dem Start: bevorzugtes übernimmt, sobald verbunden', () {
+    f.connect('other', 0);
+    f.reading('other', 1, 100);
     f.connect('pref', 2);
-    expect(sel.activeId, 'a');
-    f.drop('a', 3);
-    expect(sel.activeId, 'pref'); // nicht 'other', obwohl länger verbunden
-    expect(sel.switches.single.reason, SourceSwitchReason.lost);
+    expect(sel.activeId, 'pref');
+    expect(sel.switches.single.reason, SourceSwitchReason.preferred);
+    expect(sel.switches.single.at, at(2));
+    f.reading('other', 3, 101);
+    f.reading('pref', 3, 150);
+    expect(f.out.map((r) => r.deviceId), ['other', 'pref']);
+    expect(sel.sourceAt(at(1)), 'other');
+    expect(sel.sourceAt(at(2)), 'pref');
   });
+
+  test('Vorrang vor dem Start: nicht nach manueller Wahl', () {
+    f.connect('other', 0);
+    f.connect('x', 1);
+    sel.select('x', at(2));
+    f.connect('pref', 3);
+    expect(sel.activeId, 'x');
+  });
+
+  test('Ab lock kein Rückwechsel zum später verbundenen bevorzugten', () {
+    f.connect('other', 0);
+    sel.lock(at(1));
+    f.connect('pref', 2);
+    expect(sel.activeId, 'other');
+    expect(sel.switches, isEmpty);
+  });
+
+  test(
+    'Trennen eines Zweitgeräts ändert Quelle, Abschnitte und Wechsel nicht',
+    () {
+      f.connect('pref', 0);
+      f.connect('other', 1);
+      f.reading('pref', 2, 120);
+      f.drop('other', 3);
+      f.reading('pref', 4, 121);
+      expect(sel.activeId, 'pref');
+      expect(sel.segments, hasLength(1));
+      expect(sel.segments.single.end, isNull);
+      expect(sel.switches, isEmpty);
+      expect(sel.connectedIds, {'pref'});
+      expect(f.out.map((r) => r.beatsPerMinute), [120, 121]);
+    },
+  );
+
+  test('close friert ein: keine Werte, keine Abschnitte, keine Wechsel', () {
+    f.connect('a', 0);
+    f.connect('b', 1);
+    sel.lock(at(1));
+    f.reading('a', 2, 100);
+    sel.close(at(5));
+    f.reading('a', 6, 101);
+    f.drop('a', 7); // würde sonst auf 'b' wechseln
+    f.connect('c', 8);
+    f.drop('b', 9);
+    expect(sel.select('c', at(10)), isFalse);
+    expect(sel.activeId, isNull);
+    expect(sel.segments, hasLength(1));
+    expect(sel.segments.single.end, at(5));
+    expect(sel.switches, isEmpty);
+    expect(f.out.map((r) => r.beatsPerMinute), [100]);
+  });
+
+  test(
+    'bewusstes Trennen der aktiven Quelle: Grund disconnected, nicht lost',
+    () {
+      f.connect('a', 0);
+      f.connect('b', 1);
+      sel.lock(at(1));
+      f.drop('a', 2, lost: false);
+      expect(sel.activeId, 'b');
+      expect(sel.switches.single.reason, SourceSwitchReason.disconnected);
+      f.drop('b', 3); // Abbruch bleibt lost
+      f.connect('c', 4);
+      expect(sel.switches.last.reason, SourceSwitchReason.lost);
+    },
+  );
 
   test('ohne bevorzugtes Gerät: am längsten verbundenes', () {
     sel = HeartRateSourceSelector();
@@ -63,6 +147,7 @@ void main() {
 
   test('FR-0018: kein Rückwechsel, wenn das bevorzugte Gerät zurückkommt', () {
     f.connect('pref', 0);
+    sel.lock(at(0));
     f.connect('other', 1);
     f.reading('pref', 2, 120);
     f.drop('pref', 3); // Abbruch -> Wechsel auf 'other'
@@ -186,6 +271,7 @@ void main() {
         if (r != null) out.add(r);
       }
 
+      sel.lock(at(0));
       final subs = [
         fake.connect('pref').listen(pump),
         fake.connect('other').listen(pump),

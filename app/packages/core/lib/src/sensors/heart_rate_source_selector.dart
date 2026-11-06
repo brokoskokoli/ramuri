@@ -7,6 +7,12 @@ enum SourceSwitchReason {
 
   /// Die bisherige Quelle brach ab oder wurde getrennt (FR-0017, FR-0018).
   lost,
+
+  /// Der Nutzer trennte die aktive Quelle bewusst; kein Abbruch (FR-0012).
+  disconnected,
+
+  /// Vor dem Start des Laufs verband sich das bevorzugte Gerät (FR-0019).
+  preferred,
 }
 
 /// Ein Wechsel der Quelle. [from] ist die zuletzt aktive Quelle, auch wenn
@@ -43,6 +49,10 @@ class HeartRateSourceSegment {
 /// (FR-0017 bis FR-0020, OQ-0018, OQ-0037, OQ-0064).
 ///
 /// Regeln:
+/// - Vorrang vor dem Lauf-Start: Bis [lock] (Laufbeginn) oder einem manuellen
+///   [select] übernimmt das bevorzugte Gerät, sobald es verbunden ist. Ab
+///   [lock] gilt der Vorrang nur noch ohne Quelle (kein automatischer
+///   Rückwechsel).
 /// - Hat keine Quelle, wird das bevorzugte Gerät gewählt, wenn es verbunden
 ///   ist, sonst das am längsten verbundene.
 /// - Eine aktive Quelle bleibt, bis der Nutzer wechselt ([select]) oder sie
@@ -60,6 +70,9 @@ class HeartRateSourceSelector {
 
   String? _active;
   String? _lastActive;
+  bool _locked = false;
+  bool _closed = false;
+  SourceSwitchReason _gapReason = SourceSwitchReason.lost;
 
   /// Verbundene Geräte in der Reihenfolge des Verbindens.
   final List<String> _connected = [];
@@ -96,9 +109,11 @@ class HeartRateSourceSelector {
       case HeartRateConnected():
         _onConnected(e.deviceId, at);
       case HeartRateDisconnected():
-        _onDisconnected(e.deviceId, at);
+        _onDisconnected(e.deviceId, at, lost: e.lost);
       case HeartRateBattery():
-        if (_connected.contains(e.deviceId)) _battery[e.deviceId] = e.percent;
+        if (!_closed && _connected.contains(e.deviceId)) {
+          _battery[e.deviceId] = e.percent;
+        }
       case HeartRateReading():
         if (e.deviceId == _active) return e;
     }
@@ -108,29 +123,46 @@ class HeartRateSourceSelector {
   /// Der Nutzer wählt [deviceId] als Quelle. Nur ein verbundenes Gerät ist
   /// möglich; sonst `false`.
   bool select(String deviceId, DateTime at) {
-    if (!_connected.contains(deviceId)) return false;
+    if (_closed || !_connected.contains(deviceId)) return false;
+    _locked = true;
     if (deviceId != _active) _activate(deviceId, at, SourceSwitchReason.manual);
     return true;
   }
 
-  /// Beendet den offenen Abschnitt (Ende des Laufs).
-  void close(DateTime at) => _closeSegment(at);
+  /// Laufbeginn: ab hier gibt es keinen automatischen Wechsel zum
+  /// bevorzugten Gerät mehr (FR-0018). Vor dem Start gewählte Quelle bleibt.
+  void lock(DateTime at) => _locked = true;
 
-  void _onConnected(String id, DateTime at) {
-    if (_connected.contains(id)) return;
-    _connected.add(id);
-    if (_active == null) _activate(_pick(), at, SourceSwitchReason.lost);
-  }
-
-  void _onDisconnected(String id, DateTime at) {
-    if (!_connected.remove(id)) return;
-    _battery.remove(id);
-    if (id != _active) return;
+  /// Beendet den offenen Abschnitt (Ende des Laufs). Danach friert der Stand
+  /// ein: keine Werte, keine neuen Abschnitte oder Wechsel.
+  void close(DateTime at) {
+    if (_closed) return;
     _closeSegment(at);
     _active = null;
-    if (_connected.isNotEmpty) {
-      _activate(_pick(), at, SourceSwitchReason.lost);
+    _closed = true;
+  }
+
+  void _onConnected(String id, DateTime at) {
+    if (_closed || _connected.contains(id)) return;
+    _connected.add(id);
+    if (_active == null) {
+      _activate(_pick(), at, _gapReason);
+    } else if (!_locked && id == preferredId) {
+      _activate(id, at, SourceSwitchReason.preferred);
     }
+  }
+
+  void _onDisconnected(String id, DateTime at, {required bool lost}) {
+    if (_closed || !_connected.remove(id)) return;
+    _battery.remove(id);
+    if (id != _active) return;
+    final reason = lost
+        ? SourceSwitchReason.lost
+        : SourceSwitchReason.disconnected;
+    _closeSegment(at);
+    _active = null;
+    _gapReason = reason;
+    if (_connected.isNotEmpty) _activate(_pick(), at, reason);
   }
 
   /// Bevorzugtes verbundenes Gerät, sonst das am längsten verbundene.

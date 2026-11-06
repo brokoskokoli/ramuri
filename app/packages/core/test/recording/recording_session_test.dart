@@ -339,6 +339,20 @@ void main() {
     });
   });
 
+  test('PAR-008 live: Puls ohne Hautkontakt wird nicht übernommen', () {
+    final r = Rig()..s.start();
+    r.move(2, 3);
+    r.s.addHeartRate(
+      HeartRateReading('d', r.clock.now(), 140, contact: SensorContact.poor),
+    );
+    expect(r.s.snapshot().heartRateBpm, isNull);
+    r.clock.advance(const Duration(seconds: 1));
+    r.s.addHeartRate(
+      HeartRateReading('d', r.clock.now(), 142, contact: SensorContact.good),
+    );
+    expect(r.s.snapshot().heartRateBpm, 142);
+  });
+
   test('observe: Stand und Vorverarbeitung aus einem Aufbau (Soll 4)', () {
     final clock = _CountingClock(FakeClock(t0));
     final s = RecordingSession(clock: clock)..start();
