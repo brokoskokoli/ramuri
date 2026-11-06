@@ -62,6 +62,9 @@ class RunPreprocessor {
   final SegmentBuilder _segments;
   bool _paused = false;
 
+  /// Erkannte Pause (getrennt von `pause`), billig je Punkt abfragbar.
+  AutoPauseState get autoPauseState => _movement.autoPauseState;
+
   ProcessedPosition addPosition(RawPosition p) {
     final r = _position.add(p);
     if (r.accepted) {

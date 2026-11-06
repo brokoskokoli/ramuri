@@ -1,0 +1,401 @@
+import 'package:core/core.dart';
+import 'package:test/test.dart';
+
+final DateTime t0 = DateTime.utc(2030, 1, 1, 12);
+
+LocationSample fix(num sec, num north, {double? alt}) => LocationSample(
+  time: t0.add(Duration(milliseconds: (sec * 1000).round())),
+  // Erfundener Nullpunkt; 1 Grad Breite ~ 111195 m.
+  latitude: 10 + north / 111195,
+  longitude: 20,
+  accuracyMeters: 5,
+  altitudeMeters: alt,
+);
+
+class Rig {
+  Rig({bool autoPause = false}) : clock = FakeClock(t0) {
+    s = RecordingSession(clock: clock, autoPause: autoPause);
+  }
+  final FakeClock clock;
+  late final RecordingSession s;
+  double north = 0;
+
+  /// Läuft [seconds] mit [speed] m/s, ein Punkt je Sekunde; die Uhr folgt.
+  void move(int seconds, double speed) {
+    for (var i = 0; i < seconds; i++) {
+      clock.advance(const Duration(seconds: 1));
+      north += speed;
+      s.addPosition(fix(clock.now().difference(t0).inSeconds, north));
+    }
+  }
+
+  void wait(int seconds) => clock.advance(Duration(seconds: seconds));
+}
+
+void main() {
+  group('Übergänge (FR-0028)', () {
+    test('Standardwerte: idle, Autopause aus', () {
+      final r = Rig();
+      expect(r.s.phase, RecordingPhase.idle);
+      expect(r.s.autoPauseEnabled, isFalse);
+      final snap = r.s.snapshot();
+      expect(snap.totalTime, isNull);
+      expect(snap.distanceMeters, isNull);
+    });
+
+    test('Gültiger Ablauf start, pause, resume, finish', () {
+      final r = Rig();
+      expect(r.s.start(), CommandResult.ok);
+      expect(r.s.phase, RecordingPhase.running);
+      expect(r.s.pause(), CommandResult.ok);
+      expect(r.s.phase, RecordingPhase.paused);
+      expect(r.s.resume(), CommandResult.ok);
+      expect(r.s.phase, RecordingPhase.running);
+      expect(r.s.finish(), CommandResult.ok);
+      expect(r.s.phase, RecordingPhase.finished);
+      expect(r.s.events.map((e) => e.kind), [
+        RecordingEventKind.started,
+        RecordingEventKind.manualPaused,
+        RecordingEventKind.resumed,
+        RecordingEventKind.finished,
+      ]);
+    });
+
+    test('Ungültig vor dem Start: pause, resume, lap, finish', () {
+      final r = Rig();
+      expect(r.s.pause(), CommandResult.rejected);
+      expect(r.s.resume(), CommandResult.rejected);
+      expect(r.s.lap(), CommandResult.rejected);
+      expect(r.s.finish(), CommandResult.rejected);
+      expect(r.s.phase, RecordingPhase.idle);
+      expect(r.s.events, isEmpty);
+    });
+
+    test('Ungültig: zweites Start, doppeltes Pause, Resume ohne Pause', () {
+      final r = Rig()..s.start();
+      expect(r.s.start(), CommandResult.rejected);
+      expect(r.s.resume(), CommandResult.rejected);
+      r.s.pause();
+      expect(r.s.pause(), CommandResult.rejected);
+      expect(r.s.start(), CommandResult.rejected);
+      expect(r.s.events.length, 2);
+    });
+
+    test('Zweites Beenden ändert nichts; nach dem Ende alles abgelehnt', () {
+      final r = Rig()..s.start();
+      r.wait(30);
+      expect(r.s.finish(), CommandResult.ok);
+      final total = r.s.snapshot().totalTime;
+      r.wait(100);
+      expect(r.s.finish(), CommandResult.rejected);
+      expect(r.s.pause(), CommandResult.rejected);
+      expect(r.s.resume(), CommandResult.rejected);
+      expect(r.s.lap(), CommandResult.rejected);
+      expect(r.s.start(), CommandResult.rejected);
+      expect(r.s.snapshot().totalTime, total);
+      expect(r.s.snapshot().endedAt, t0.add(const Duration(seconds: 30)));
+      expect(
+        r.s.events.where((e) => e.kind == RecordingEventKind.finished),
+        hasLength(1),
+      );
+    });
+
+    test('Beenden aus der Pause: Pause bis zum Ende zählt zur Gesamtzeit', () {
+      final r = Rig()..s.start();
+      r.move(20, 3);
+      r.s.pause();
+      r.wait(40);
+      r.s.finish();
+      final snap = r.s.snapshot();
+      expect(snap.totalTime, const Duration(seconds: 60));
+      expect(snap.movingTime, const Duration(seconds: 20));
+      expect(snap.gaps.single.kind, RunGapKind.manualPause);
+      expect(snap.gaps.single.end, snap.endedAt);
+    });
+  });
+
+  group('Gesamt- und Bewegungszeit', () {
+    test('Pausenzeit zählt nur zur Gesamtzeit', () {
+      final r = Rig()..s.start();
+      r.move(30, 3);
+      r.s.pause();
+      r.wait(60);
+      r.s.resume();
+      r.move(30, 3);
+      final snap = r.s.snapshot();
+      expect(snap.totalTime, const Duration(seconds: 120));
+      expect(snap.movingTime, const Duration(seconds: 60));
+    });
+
+    test(
+      'Stillstand ab 10 s zählt nicht zur Bewegungszeit, auch ohne Autopause',
+      () {
+        final r = Rig()..s.start();
+        r.move(30, 3);
+        r.move(30, 0);
+        r.move(30, 3);
+        final snap = r.s.snapshot();
+        expect(r.s.autoPauseEnabled, isFalse);
+        expect(snap.phase, RecordingPhase.running);
+        expect(snap.totalTime, const Duration(seconds: 90));
+        // 30 + ~10 s Haltedauer bis zur Erkennung + 3 s Fortsetzen: Rest ist Pause.
+        expect(snap.movingTime! < const Duration(seconds: 80), isTrue);
+        expect(snap.movingTime! > const Duration(seconds: 55), isTrue);
+      },
+    );
+  });
+
+  group('Autopause (FR-0029)', () {
+    test('An: pausiert nach 10 s Stillstand, setzt nach 3 s Bewegung fort', () {
+      final r = Rig(autoPause: true)..s.start();
+      r.move(20, 3);
+      r.move(9, 0);
+      expect(r.s.phase, RecordingPhase.running, reason: 'unter 10 s');
+      r.move(3, 0);
+      expect(r.s.phase, RecordingPhase.autoPaused);
+      r.move(2, 3);
+      expect(r.s.phase, RecordingPhase.autoPaused, reason: 'unter 3 s');
+      r.move(3, 3);
+      expect(r.s.phase, RecordingPhase.running);
+      expect(
+        r.s.events
+            .map((e) => e.kind)
+            .where(
+              (k) =>
+                  k == RecordingEventKind.autoPauseStarted ||
+                  k == RecordingEventKind.autoPauseEnded,
+            ),
+        [
+          RecordingEventKind.autoPauseStarted,
+          RecordingEventKind.autoPauseEnded,
+        ],
+      );
+    });
+
+    test('Aus (Standard): derselbe Stillstand pausiert nicht', () {
+      final r = Rig()..s.start();
+      r.move(20, 3);
+      r.move(60, 0);
+      expect(r.s.phase, RecordingPhase.running);
+      expect(r.s.snapshot().standstillDetected, isTrue);
+      expect(
+        r.s.events.any((e) => e.kind == RecordingEventKind.autoPauseStarted),
+        isFalse,
+      );
+    });
+
+    test('Einschalten und Ausschalten mitten in der erkannten Pause', () {
+      final r = Rig()..s.start();
+      r.move(20, 3);
+      r.move(20, 0);
+      r.s.setAutoPause(true);
+      expect(r.s.phase, RecordingPhase.autoPaused);
+      r.s.setAutoPause(false);
+      expect(r.s.phase, RecordingPhase.running);
+    });
+
+    test('Manuelle Pause in der erkannten Pause; Resume geht nach running', () {
+      final r = Rig(autoPause: true)..s.start();
+      r.move(20, 3);
+      r.move(20, 0);
+      expect(r.s.phase, RecordingPhase.autoPaused);
+      expect(r.s.pause(), CommandResult.ok);
+      expect(r.s.phase, RecordingPhase.paused);
+      expect(r.s.resume(), CommandResult.ok);
+      expect(r.s.phase, RecordingPhase.running);
+      // Bewegung nach dem Fortsetzen wird wieder erkannt (Stand-Erkennung lebt).
+      r.move(10, 3);
+      r.move(20, 0);
+      expect(r.s.phase, RecordingPhase.autoPaused);
+    });
+
+    test('GPS-Lücke im Stand löst keine Autopause aus (PAR-004)', () {
+      final r = Rig(autoPause: true)..s.start();
+      r.move(20, 3);
+      r.wait(60); // keine Punkte
+      r.s.tick();
+      expect(r.s.phase, RecordingPhase.running);
+      expect(r.s.snapshot().positionLost, isTrue);
+      // Danach ein einzelner Punkt am selben Ort: Lücke, kein Stillstand-Segment.
+      r.s.addPosition(fix(r.clock.now().difference(t0).inSeconds, r.north));
+      expect(r.s.phase, RecordingPhase.running);
+      expect(r.s.snapshot().standstillDetected, isFalse);
+    });
+
+    test(
+      'Verworfener Punkt in der Lücke: Lücke bleibt offen, keine Autopause',
+      () {
+        final r = Rig(autoPause: true)..s.start();
+        r.move(20, 3);
+        r.wait(40);
+        r.s.addPosition(fix(60, r.north + 500)); // Sprung, wird verworfen
+        expect(r.s.snapshot().positionLost, isTrue);
+        expect(r.s.phase, RecordingPhase.running);
+      },
+    );
+
+    test('Stillstand vor der Lücke wird nicht durch die Lücke ausgelöst', () {
+      final r = Rig(autoPause: true)..s.start();
+      r.move(20, 3);
+      r.move(5, 0); // Kandidat läuft, 5 s von 10
+      r.wait(30);
+      r.s.addPosition(fix(r.clock.now().difference(t0).inSeconds, r.north));
+      expect(r.s.phase, RecordingPhase.running);
+    });
+  });
+
+  group('Runden (FR-0030)', () {
+    test('Rundenzeit gesamt und in Bewegung, Index ab 1', () {
+      final r = Rig()..s.start();
+      r.move(30, 3);
+      r.s.lap();
+      r.move(20, 3);
+      r.s.pause();
+      r.wait(15);
+      r.s.resume();
+      r.move(5, 3);
+      r.s.lap();
+      final laps = r.s.snapshot().laps;
+      expect(laps.map((l) => l.index), [1, 2]);
+      expect(laps[0].lapTime, const Duration(seconds: 30));
+      expect(laps[1].lapTime, const Duration(seconds: 40));
+      expect(laps[1].movingTime, const Duration(seconds: 25));
+      expect(laps[1].toStored().lapTime, const Duration(seconds: 40));
+    });
+
+    test('Runde bei manueller Pause wird abgelehnt (Entscheidung)', () {
+      final r = Rig()..s.start();
+      r.move(10, 3);
+      r.s.pause();
+      expect(r.s.lap(), CommandResult.rejected);
+      expect(r.s.snapshot().laps, isEmpty);
+    });
+
+    test('Runde in der erkannten Pause ist erlaubt', () {
+      final r = Rig(autoPause: true)..s.start();
+      r.move(20, 3);
+      r.move(20, 0);
+      expect(r.s.phase, RecordingPhase.autoPaused);
+      expect(r.s.lap(), CommandResult.ok);
+    });
+  });
+
+  group('Rennen Stopp gegen Eingänge', () {
+    test('Punkte und Puls nach dem Beenden werden verworfen', () {
+      final r = Rig()..s.start();
+      r.move(20, 3);
+      r.s.addHeartRate(HeartRateReading('d', r.clock.now(), 140));
+      r.s.finish();
+      final before = r.s.snapshot();
+      r.wait(1);
+      final late = r.s.addPosition(fix(21, r.north + 3));
+      final lateHr = r.s.addHeartRate(
+        HeartRateReading('d', r.clock.now(), 150),
+      );
+      expect(late, Intake.ignoredFinished);
+      expect(lateHr, Intake.ignoredFinished);
+      final after = r.s.snapshot();
+      expect(after.distanceMeters, before.distanceMeters);
+      expect(after.totalTime, before.totalTime);
+      expect(r.s.preprocessing()!.position.positions, hasLength(20));
+    });
+
+    test('Eingänge vor Start und in der Pause werden ignoriert', () {
+      final r = Rig();
+      expect(r.s.addPosition(fix(1, 0)), Intake.ignoredNotActive);
+      r.s.start();
+      r.move(5, 3);
+      r.s.pause();
+      expect(r.s.addPosition(fix(10, 99)), Intake.ignoredNotActive);
+      r.s.resume();
+      expect(r.s.preprocessing()!.position.positions, hasLength(5));
+    });
+
+    test('Nachgelieferter Altwert vor Start bzw. Fortsetzen ist veraltet', () {
+      final r = Rig();
+      r.wait(100);
+      r.s.start();
+      expect(r.s.addPosition(fix(50, 0)), Intake.ignoredStale);
+      r.move(5, 3);
+      r.s.pause();
+      r.wait(20);
+      r.s.resume();
+      expect(r.s.addPosition(fix(110, 0)), Intake.ignoredStale);
+    });
+  });
+
+  group('GPS-Lücke (FR-0194, PAR-004)', () {
+    test(
+      'Zeit und Puls laufen weiter, Lücke markiert, Strecke unverändert',
+      () {
+        final r = Rig()..s.start();
+        r.move(20, 3);
+        final dist = r.s.snapshot().distanceMeters!;
+        for (var i = 0; i < 30; i++) {
+          r.wait(1);
+          r.s.addHeartRate(HeartRateReading('d', r.clock.now(), 140));
+          r.s.tick();
+        }
+        var snap = r.s.snapshot();
+        expect(snap.positionLost, isTrue);
+        expect(snap.totalTime, const Duration(seconds: 50));
+        expect(snap.movingTime, const Duration(seconds: 50));
+        expect(snap.heartRateBpm, 140);
+        expect(snap.distanceMeters, dist);
+        final gap = snap.gaps.single;
+        expect(gap.kind, RunGapKind.positionLoss);
+        expect(gap.start, t0.add(const Duration(seconds: 20)));
+        expect(gap.end, isNull);
+
+        // Rückkehr: Lücke geschlossen, Strecke über die Lücke nicht geschätzt.
+        r.north += 100;
+        r.s.addPosition(fix(51, r.north));
+        snap = r.s.snapshot();
+        expect(snap.positionLost, isFalse);
+        expect(snap.gaps.single.end, t0.add(const Duration(seconds: 51)));
+        expect(snap.distanceMeters, dist);
+      },
+    );
+
+    test('Exakt 10 s sind noch keine Lücke, darüber ja', () {
+      final r = Rig()..s.start();
+      r.move(5, 3);
+      r.wait(10);
+      r.s.tick();
+      expect(r.s.snapshot().positionLost, isFalse);
+      r.wait(1);
+      r.s.tick();
+      expect(r.s.snapshot().positionLost, isTrue);
+    });
+
+    test('Pausenzeit ist keine GPS-Lücke', () {
+      final r = Rig()..s.start();
+      r.move(5, 3);
+      r.s.pause();
+      r.wait(120);
+      r.s.resume();
+      r.s.tick();
+      expect(r.s.snapshot().positionLost, isFalse);
+      expect(
+        r.s.snapshot().gaps.where((g) => g.kind == RunGapKind.positionLoss),
+        isEmpty,
+      );
+    });
+
+    test('Ohne Puls bleibt der Wert null, nie 0', () {
+      final r = Rig()..s.start();
+      r.move(5, 3);
+      expect(r.s.snapshot().heartRateBpm, isNull);
+      r.s.addHeartRate(HeartRateReading('d', r.clock.now(), 140));
+      r.wait(30);
+      expect(r.s.snapshot().heartRateBpm, isNull, reason: 'älter als 10 s');
+    });
+  });
+
+  test('Höhe wird weitergereicht, fehlende Höhe nicht als 0', () {
+    final r = Rig()..s.start();
+    r.clock.advance(const Duration(seconds: 1));
+    r.s.addPosition(fix(1, 0));
+    expect(r.s.preprocessing()!.altitude.ascentMeters, isNull);
+  });
+}
