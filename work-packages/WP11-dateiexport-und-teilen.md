@@ -12,6 +12,7 @@ Bezug: FR-0182, FR-0183, FR-0201, SEC-0003, CON-0008, CON-0010, ACC-13, ACC-14; 
 5. **Oberfläche:** Export aus dem Lauf-Detail, Formatwahl, Fehlermeldung.
 
 ## Umsetzung
+- Aus WP10 (vorläufig, bis zum Merge): Zonenzeiten und `trimp_run` sind Laufwerte in `computed_values` (Entscheidung des Maintainers) und nicht aus den Rohdaten rekonstruierbar.
 - **Teile für die Coder-Aufträge:** Teil A: Punkte 1 und 2 / Teil B: Punkt 3 / Teil C: Punkte 4 und 5, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.
 - Formatversionen sind ein Vorschlag des Pakets (OQ-0032), Kennzeichnung `Vorschläge`. Schemas nicht ohne Lizenzprüfung ins Repository kopieren.
 - Keine Netzwerkberechtigung, keine Strava-Anbindung (OQ-0049). Der Nutzer entscheidet über das Teilen.
