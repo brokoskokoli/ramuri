@@ -72,6 +72,7 @@ void main() {
       await walk(d, tester, 5);
       expect(text('run_sensor_status'), contains('Kein Sensor verbunden'));
       expect(text('run_hr'), 'nicht verfügbar');
+      expect(key('run_sensor_loss'), findsNothing);
       expect(d.sensorPermissionRequests, 0);
       expect(d.sensorFake.connectedIds, isEmpty);
       final raw = await finishAndRead(d, tester);
@@ -90,6 +91,7 @@ void main() {
       expect(text('run_sensor_status'), 'Sensor verbunden');
       expect(text('run_sensor_source'), 'Quelle: Gurt h1');
       expect(key('run_sensor_select_h1'), findsNothing);
+      expect(key('run_sensor_loss'), findsNothing);
       final raw = await finishAndRead(d, tester);
       expect(raw.heartRates.map((r) => r.value.source).toSet(), {'h1'});
       expect(raw.heartRates.map((r) => r.value.bpm).toSet(), {150});
@@ -240,6 +242,142 @@ void main() {
       expect(d.sensors.selector.activeId, 'h1');
       expect(d.sensors.connectedIds, {'h1'});
       await d.stop(tester);
+    });
+
+    testWidgets(
+      'Bewusst getrennte Quelle: Status getrennt, kein Abbruch-Hinweis',
+      (tester) async {
+        final d = Device();
+        await openRun(d, tester, ids: ['h1']);
+        await walk(d, tester, 3, bpm: {'h1': 150});
+        d.sensors.disconnect('h1');
+        await tester.pump();
+        expect(text('run_sensor_status'), startsWith('Sensor getrennt'));
+        expect(key('run_sensor_loss'), findsNothing);
+        await walk(d, tester, 12, from: 3);
+        expect(d.sensors.connectedIds, isEmpty, reason: 'kein Neuverbinden');
+        expect(text('run_sensor_status'), startsWith('Sensor getrennt'));
+        expect(text('run_hr'), 'nicht verfügbar');
+        expect(d.lastRun!.segments.single.end, isNotNull);
+        await d.stop(tester);
+      },
+    );
+
+    testWidgets('Abbruch eines nicht aktiven Geräts: kein Abbruch-Hinweis', (
+      tester,
+    ) async {
+      final d = Device();
+      await openRun(d, tester, ids: ['h1', 'h2']);
+      await walk(d, tester, 3, bpm: {'h1': 150});
+      await d.sensorFake.drop('h2');
+      await tester.pump();
+      expect(key('run_sensor_loss'), findsNothing);
+      expect(text('run_sensor_source'), 'Quelle: Gurt h1');
+      expect(text('run_sensor_status'), 'Sensor verbunden');
+      expect(d.lastRun!.lossSeen, isFalse);
+      await d.stop(tester);
+    });
+
+    testWidgets('Fallback nach Abbruch nimmt das bevorzugte Gerät', (
+      tester,
+    ) async {
+      final d = Device();
+      d.runViaSensors = true;
+      await d.start(tester, const Locale('de'));
+      await d.skipSetup(tester);
+      for (final id in ['h1', 'h2', 'h3']) {
+        await d.sensors.connect(id, name: 'Gurt $id');
+        await tester.pump();
+      }
+      await d.sensors.setPreferred('h3');
+      await tester.pump();
+      // Vor dem Lauf von Hand h1 wählen: aktiv h1, bevorzugt h3, h2 dazwischen.
+      expect(d.sensors.selector.select('h1', d.clock.now()), isTrue);
+      await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      expect(d.lastRun!.activeId, 'h1');
+      await d.sensorFake.drop('h1');
+      await tester.pump();
+      expect(text('run_sensor_source'), 'Quelle: Gurt h3');
+      await d.stop(tester);
+    });
+
+    testWidgets('Pause: Pulswerte der Pause werden verworfen', (tester) async {
+      final d = Device();
+      await openRun(d, tester, ids: ['h1']);
+      await walk(d, tester, 3, bpm: {'h1': 150});
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      await walk(d, tester, 3, from: 3, bpm: {'h1': 111});
+      await tester.tap(key('run_resume'));
+      await tester.pump();
+      await walk(d, tester, 3, from: 6, bpm: {'h1': 152});
+      expect(text('run_hr'), '152 bpm');
+      final raw = await finishAndRead(d, tester);
+      final bpms = raw.heartRates.map((r) => r.value.bpm).toSet();
+      expect(bpms, {150, 152}, reason: 'kein Wert aus der Pause');
+      await d.stop(tester);
+    });
+
+    testWidgets(
+      'Offene Läufe: nach Lauf-Ende keiner, auch nicht beim Verlassen',
+      (tester) async {
+        final d = Device();
+        await openRun(d, tester, ids: ['h1']);
+        expect(d.sensors.openRuns, 1);
+        await walk(d, tester, 3, bpm: {'h1': 150});
+        await finishAndRead(d, tester);
+        expect(d.sensors.openRuns, 0);
+        await d.stop(tester);
+
+        // Laufbildschirm mitten im Lauf verlassen (Widget verschwindet).
+        final e = Device();
+        await openRun(e, tester, ids: ['h1']);
+        await walk(e, tester, 3, bpm: {'h1': 150});
+        final run = e.lastRun!;
+        expect(e.sensors.openRuns, 1);
+        await tester.pumpWidget(const SizedBox());
+        expect(e.sensors.openRuns, 0);
+        expect(run.segments.single.end, isNotNull);
+        e.sensors.dispose();
+        await e.session.close();
+      },
+    );
+
+    testWidgets('Dienst beendet: offene Läufe werden geschlossen', (
+      tester,
+    ) async {
+      final d = Device();
+      await openRun(d, tester, ids: ['h1']);
+      final run = d.lastRun!;
+      expect(run.segments.single.end, isNull);
+      // Der Dienst endet, der Laufbildschirm steht noch.
+      d.sensors.dispose();
+      expect(run.segments.single.end, isNotNull);
+      expect(d.sensors.openRuns, 0);
+      await tester.pumpWidget(const SizedBox());
+      await d.session.close();
+    });
+
+    testWidgets('Vor dem Lauf neu verbindendes Gerät wird Quelle des Laufs', (
+      tester,
+    ) async {
+      final e = Device();
+      e.runViaSensors = true;
+      await e.start(tester, const Locale('de'));
+      await e.skipSetup(tester);
+      await e.sensors.connect('h1', name: 'Gurt h1');
+      await tester.pump();
+      await e.sensorFake.drop('h1');
+      await tester.pump();
+      await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      expect(text('run_sensor_status'), contains('verbindet neu'));
+      await tester.pump(const Duration(seconds: 5));
+      await walk(e, tester, 3, bpm: {'h1': 150});
+      expect(text('run_sensor_source'), 'Quelle: Gurt h1');
+      expect(text('run_hr'), '150 bpm');
+      await e.stop(tester);
     });
 
     testWidgets('Sensor im Lauf ohne Name und ohne Adresse in der Anzeige', (

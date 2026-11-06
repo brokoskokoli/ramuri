@@ -2,7 +2,10 @@ import '../preprocessing/measurement.dart';
 
 /// Ein zusammenhängender Abschnitt eines Laufs mit demselben Quellgerät der
 /// Pulswerte (FR-0020). [start] und [end] sind Zeit des ersten und letzten
-/// Werts des Abschnitts.
+/// Werts des Abschnitts. Ein Abschnitt überspannt Lücken: Zeit ohne Werte
+/// (Abbruch und Neuverbinden desselben Geräts, Einzellücken) liegt innerhalb
+/// von [start] bis [end] (FR-0056). Aus [end] - [start] darf deshalb keine
+/// Dauer „mit Puls“ abgeleitet werden; dafür zählen nur die Werte.
 class HeartRateSourceSection {
   const HeartRateSourceSection({
     required this.deviceId,

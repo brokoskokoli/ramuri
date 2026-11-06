@@ -70,6 +70,9 @@ class RunHeartRate extends ChangeNotifier {
       if (_selector.connectedIds.contains(e.id)) e,
   ];
 
+  /// Bewusst manager-weit (WP07-Review D, Befund 6): Ein Gerät, das schon vor
+  /// dem Lauf verbunden war und noch neu verbindet, wird bei Erfolg Quelle
+  /// dieses Laufs; „verbindet neu“ ist dann wahr, auch ohne Abschnitt.
   RunSensorStatus get status {
     if (_selector.activeId != null) return RunSensorStatus.connected;
     if (_manager.isRecovering) return RunSensorStatus.reconnecting;

@@ -124,6 +124,10 @@ class SensorManager extends ChangeNotifier {
     return run;
   }
 
+  /// Anzahl der noch offenen Läufe (nur für Tests: Leck in `_runs`).
+  @visibleForTesting
+  int get openRuns => _runs.length;
+
   /// Vom Lauf beim Schließen aufgerufen.
   void endRun(RunHeartRate run) => _runs.remove(run);
 
