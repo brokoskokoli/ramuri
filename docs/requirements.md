@@ -94,7 +94,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0083 | Messmethoden getrennt kennzeichnen | functional | Draft | 4 | [vo2max](specs/vo2max.md#fr-0083--messmethoden-getrennt-kennzeichnen) | FR-0024, OQ-0041 |
 | FR-0084 | Kennzahl für aerobe Laufeffizienz | functional | Approved | 1 | [aerobic-efficiency](specs/aerobic-efficiency.md#fr-0084--kennzahl-für-aerobe-laufeffizienz) | OQ-0036 |
 | FR-0085 | Referenzgeschwindigkeit | functional | Approved | 1 | [aerobic-efficiency](specs/aerobic-efficiency.md#fr-0085--referenzgeschwindigkeit) | OQ-0036 |
-| FR-0086 | Vergleichbare Bedingungen | functional | Approved | 1 | [aerobic-efficiency](specs/aerobic-efficiency.md#fr-0086--vergleichbare-bedingungen) | OQ-0036 |
+| FR-0086 | Vergleichbare Bedingungen | functional | Approved | 1 | [aerobic-efficiency](specs/aerobic-efficiency.md#fr-0086--vergleichbare-bedingungen) | OQ-0036, OQ-0073 |
 | FR-0087 | Veränderung der aeroben Effizienz | functional | Approved | 1 | [aerobic-efficiency](specs/aerobic-efficiency.md#fr-0087--veränderung-der-aeroben-effizienz) | OQ-0036 |
 | FR-0088 | Abgrenzung zur VO2max | functional | Approved | 1 | [aerobic-efficiency](specs/aerobic-efficiency.md#fr-0088--abgrenzung-zur-vo2max) | — |
 | FR-0089 | Herzfrequenzdrift | functional | Draft | 4 | [aerobic-efficiency](specs/aerobic-efficiency.md#fr-0089--herzfrequenzdrift) | — |

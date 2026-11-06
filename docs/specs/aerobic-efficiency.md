@@ -38,7 +38,7 @@ Die App sammelt geeignete Abschnitte in einem definierten Belastungsbereich, bei
 ### FR-0086 — Vergleichbare Bedingungen
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §9.1, Z. 496–501
-- **Verwandt:** OQ-0036
+- **Verwandt:** OQ-0036, OQ-0073
 
 Die Auswertung erfolgt bevorzugt unter vergleichbaren Bedingungen: ähnlicher Herzfrequenzbereich, gleichmäßiges Tempo, vergleichbare Steigung, ausreichende Messqualität.
 
@@ -89,6 +89,7 @@ Der Wert wird nur für geeignete, ausreichend lange, weitgehend gleichmäßige L
 <!-- BEGIN OQ -->
 - [OQ-0019](../migration/open-questions.md#oq-0019--startwerte-der-modellparameter-und-qualitätsregeln) (entschieden): Startwerte der Modellparameter und Qualitätsregeln
 - [OQ-0036](../migration/open-questions.md#oq-0036--parameter-der-aeroben-effizienz) (entschieden): Parameter der aeroben Effizienz
+- [OQ-0073](../migration/open-questions.md#oq-0073--aerobe-effizienz-ohne-höhe) (non-blocking): Aerobe Effizienz ohne Höhe
 <!-- END OQ -->
 
 ## Quellen

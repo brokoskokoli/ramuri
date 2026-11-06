@@ -603,3 +603,12 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Optionen:** Feldtest auf mindestens einem Gerät mit Hardware-Keystore.
 - **Status:** Open
 - **Entscheidung:** —
+
+### OQ-0073 — Aerobe Effizienz ohne Höhe
+- **Frage:** Soll ein Abschnitt ohne Höhe oder Vertikalgenauigkeit die Stufe der aeroben Effizienz begrenzen, wie „vorläufig“ bei der VO₂max? Heute zählt er mit Steigung 0 ohne Begrenzung; mit Begrenzung wäre die Steigungsregel ohne Höhe wirkungslos.
+- **Auslöser/Quellen:** WP09, Teil C.
+- **Betroffene Anforderungen:** FR-0086
+- **Auswirkung:** non-blocking, bis zur Antwort gilt der Wortlaut (Entscheidung des Maintainers vom 2026-11-06).
+- **Optionen:** Wortlaut behalten; Stufe auf „vorläufig“ begrenzen; Abschnitt ausschließen.
+- **Status:** Open
+- **Entscheidung:** —
