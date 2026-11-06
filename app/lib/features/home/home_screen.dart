@@ -8,6 +8,7 @@ import '../recalculation/recalculation_controller.dart';
 import '../run/run_flow_screen.dart';
 import '../run/run_ports.dart';
 import '../settings/settings_screen.dart';
+import '../statistics/statistics_screen.dart';
 
 /// Startbildschirm. Gebaut wird er erst, wenn der Speicher bereit ist
 /// ([session] ist die offene Sitzung) und die Ersteinrichtung erledigt oder
@@ -69,6 +70,17 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               child: Text(l10n.homeHistory),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              key: const Key('home_statistics'),
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      StatisticsScreen(session: session, clock: clock),
+                ),
+              ),
+              child: Text(l10n.homeStatistics),
             ),
             const SizedBox(height: 8),
             OutlinedButton(

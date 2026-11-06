@@ -350,6 +350,46 @@ void main() {
         expect(byId[good]!.distanceMeters, closeTo(900, 5));
       },
     );
+
+    test(
+      'Durchschnittspuls der Zeitraumstatistik: nach Bewegungszeit gewichtet, '
+      'Lauf ohne Puls geht nicht ein',
+      () async {
+        final w = await RecalcWorld.create();
+        final a = await w.seedRun(
+          DateTime.utc(2030, 1, 1, 8),
+          minutes: 10,
+          bpm: 120,
+        );
+        final b = await w.seedRun(
+          DateTime.utc(2030, 1, 2, 8),
+          minutes: 30,
+          bpm: 160,
+        );
+        final none = await w.seedRun(
+          DateTime.utc(2030, 1, 3, 8),
+          minutes: 10,
+          heartRateShare: -1,
+        );
+        final list = await RunOverviewService(
+          session: w.session,
+          clock: w.clock,
+        ).load();
+        expect(
+          list.firstWhere((o) => o.run.id == none).averageHeartRateBpm,
+          isNull,
+        );
+        final stats = computePeriodStatistics(
+          StatisticsPeriod.custom(from: '2030-01-01', to: '2030-01-03'),
+          [for (final o in list) o.toFigures()],
+        );
+        // 10 min mit 120 und 30 min mit 160 bpm: (10*120 + 30*160) / 40 = 150.
+        expect(stats.heartRateAverageBpm.value, closeTo(150, 0.5));
+        expect(stats.heartRateAverageBpm.runsWithValue, 2);
+        expect(stats.heartRateAverageBpm.runsTotal, 3);
+        expect({a, b}, hasLength(2));
+      },
+    );
   });
 }
 

@@ -87,8 +87,20 @@ class RunOverview {
   /// Dieselbe Rechnung wie [RunFigures.averagePaceSecondsPerKm].
   double? get averagePaceSecondsPerKm => toFigures().averagePaceSecondsPerKm;
 
+  /// Gewicht des Durchschnittspulses im Mittel über mehrere Läufe. Die
+  /// Kurzfassung trägt die Zahl der akzeptierten Pulswerte nicht; als Näherung
+  /// gilt die Bewegungszeit in Sekunden (Pulswerte kommen etwa im Sekundentakt).
+  /// Ohne Durchschnittspuls 0 (der Lauf geht nicht ein). Ob die Anzahl
+  /// gespeichert werden soll, entscheidet der Maintainer.
+  int get _heartRateWeight {
+    if (averageHeartRateBpm == null) return 0;
+    final seconds = (movingTime ?? totalTime)?.inSeconds ?? 0;
+    return seconds > 0 ? seconds : 1;
+  }
+
   /// Für Vergleich ([classifyRun]) und Zeitraumstatistik; ohne Teile, die die
-  /// Kurzfassung nicht trägt (Bestpace, Runden, Pulsanzahl). Zonen und TRIMP
+  /// Kurzfassung nicht trägt (Bestpace, Runden). Die Pulsanzahl ist eine
+  /// Näherung ([_heartRateWeight]). Zonen und TRIMP
   /// kommen aus den gespeicherten Werten ([load]).
   RunFigures toFigures() => RunFigures(
     runId: run.id,
@@ -100,6 +112,7 @@ class RunOverview {
     paceTime: paceTime,
     heartRateAverageBpm: averageHeartRateBpm,
     heartRateMaxBpm: maxHeartRateBpm,
+    heartRateSampleCount: _heartRateWeight,
     zoneTimes: load.zoneTimes,
     belowZone1Time: load.belowZone1Time,
     trimpPoints: load.trimpPoints,
