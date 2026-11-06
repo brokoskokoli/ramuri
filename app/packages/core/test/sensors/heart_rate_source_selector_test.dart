@@ -212,6 +212,28 @@ void main() {
     expect(sel.switches, isEmpty);
   });
 
+  test('setPreferred nach close: kein neuer Abschnitt, activeId null', () {
+    f.connect('a', 0);
+    f.connect('b', 1);
+    sel.close(at(2));
+    final n = sel.segments.length;
+    sel.setPreferred('b', at(3));
+    expect(sel.segments.length, n);
+    expect(sel.activeId, isNull);
+    expect(sel.switches, isEmpty);
+  });
+
+  test('setPreferred auf die aktive Quelle teilt den Abschnitt nicht', () {
+    f.connect('a', 0);
+    f.connect('b', 1);
+    expect(sel.activeId, 'a');
+    final n = sel.segments.length;
+    sel.setPreferred('a', at(2));
+    expect(sel.segments.length, n);
+    expect(sel.activeId, 'a');
+    expect(sel.switches, isEmpty);
+  });
+
   test('OQ-0064: dasselbe Gerät nach Abbruch ist kein Quellwechsel', () {
     f.connect('pref', 0);
     f.reading('pref', 1, 120);
