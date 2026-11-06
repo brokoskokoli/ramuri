@@ -23,6 +23,23 @@ enum UnavailableReason {
 
   /// Zu wenige Daten für eine Aussage (Stufe „nicht bestimmbar“).
   insufficientData,
+
+  /// Kein gültiger Abschnitt im Lauf (PAR-037, FR-0073).
+  noValidSection,
+
+  /// Alle Abschnittsschätzungen liegen außerhalb des plausiblen Bereichs
+  /// (PAR-032).
+  allEstimatesImplausible,
+
+  /// Die Schätzungen der Abschnitte streuen zu stark (PAR-037, FR-0077).
+  spreadTooHigh,
+
+  /// Das aktuelle 4-Wochen-Fenster erreicht die Mindestmenge nicht
+  /// (PAR-046).
+  currentWindowTooSmall,
+
+  /// Das Vergleichsfenster erreicht die Mindestmenge nicht (PAR-046).
+  referenceWindowTooSmall,
 }
 
 /// Berechneter Wert oder „nicht verfügbar“ mit Grund; beides nennt die

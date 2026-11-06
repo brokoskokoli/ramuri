@@ -1,9 +1,13 @@
+import '../algorithm_category.dart';
 import 'latest_value_index.dart';
 import 'measurement.dart';
 
 /// Kennung und Version der Schrittreihe (ADR-0004 P.3).
 const String stepsMethod = 'steps-series';
 const int stepsMethodVersion = 1;
+
+/// Kategorie des Verfahrens (NFR-0002, docs/architecture/algorithm-categories.md): B.
+const AlgorithmCategory stepsCategory = AlgorithmCategory.heuristic;
 
 class ProcessedSteps {
   const ProcessedSteps({required this.input, required this.state, this.reason});

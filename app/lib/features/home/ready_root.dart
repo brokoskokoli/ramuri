@@ -2,6 +2,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../recalculation/recalculation_controller.dart';
+import '../storage/deletion.dart';
 import '../settings/app_settings.dart';
 import '../run/run_ports.dart';
 import '../setup/setup_screen.dart';
@@ -29,11 +31,35 @@ class ReadyRoot extends StatefulWidget {
 
 class _ReadyRootState extends State<ReadyRoot> {
   late Future<AppSettings> _settings;
+  late final RecalculationService _recalculationService;
+  late final RecalculationController _recalculation;
 
   @override
   void initState() {
     super.initState();
+    // Dienste für die Neuberechnung (FR-0006): eine Instanz je Sitzung; beim
+    // Start wird ein offenes Angebot gelesen.
+    _recalculationService = RecalculationService(
+      session: widget.session,
+      clock: widget.clock,
+      calculation: ValueCalculationService(
+        session: widget.session,
+        clock: widget.clock,
+      ),
+    );
+    _recalculation = RecalculationController(
+      _recalculationService,
+      onStart: () => completePendingValueRefresh(widget.session, widget.clock),
+    );
+    _recalculation.start();
     _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    _recalculation.dispose();
+    _recalculationService.dispose();
+    super.dispose();
   }
 
   void _loadSettings() {
@@ -92,6 +118,7 @@ class _ReadyRootState extends State<ReadyRoot> {
                 session: widget.session,
                 clock: widget.clock,
                 permissions: widget.permissions,
+                recalculation: _recalculation,
                 runPorts: widget.runPorts,
               )
             : SetupScreen(

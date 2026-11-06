@@ -145,9 +145,17 @@ class RunRecorder {
     if (r == CommandResult.rejected) return r;
     _processEvents();
     final endedAt = _session.snapshot().endedAt!;
+    // Lokaler Versatz am Laufende (für den lokalen Kalendertag der Tageswerte),
+    // über die Uhr, in ganzen Sekunden.
+    final offset = Duration(seconds: _clock.utcOffsetAt(endedAt).inSeconds);
     await _write(() async {
       await _flush();
-      await _runs.setState(_runId!, RunState.finished, endedAt: endedAt);
+      await _runs.setState(
+        _runId!,
+        RunState.finished,
+        endedAt: endedAt,
+        endedUtcOffset: offset,
+      );
     });
     return r;
   }

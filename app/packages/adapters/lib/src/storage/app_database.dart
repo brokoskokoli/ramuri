@@ -8,17 +8,18 @@ part 'app_database.g.dart';
 /// Ein Migrationsschritt von Version `n` auf `n + 1`.
 typedef MigrationStep = Future<void> Function(Migrator m);
 
-/// Die Tabellen stehen in `schema.drift` (Schema Phase 1, Version 1).
+/// Die Tabellen stehen in `schema.drift` (Schema Phase 1, ab Version 3 mit value_sections).
 @DriftDatabase(include: {'schema.drift'})
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   /// Version 1: Phase 1 (WP02 Teil B). Version 2: Tempo, Tempo- und
-  /// Vertikalgenauigkeit je Rohposition (WP06 Teil C, K12). Jede spätere Änderung erhöht die
+  /// Vertikalgenauigkeit je Rohposition (WP06 Teil C, K12). Version 3: value_sections
+  /// und Grund-, Basis- und Versatzspalten (WP09 D1/D2a). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -28,6 +29,34 @@ class AppDatabase extends _$AppDatabase {
       await m.addColumn(rawPositions, rawPositions.speedMps);
       await m.addColumn(rawPositions, rawPositions.speedAccuracyMps);
       await m.addColumn(rawPositions, rawPositions.verticalAccuracyM);
+    },
+    // 2 -> 3 (WP09): neue Tabelle samt Triggern, Grund-, Basis- und Versatzspalten.
+    2: (Migrator m) async {
+      await m.create(valueSections);
+      await m.create(valueSectionsOriginalImmutable);
+      await m.create(valueSectionsOriginalNoLateInsert);
+      await m.addColumn(computedValues, computedValues.unavailableReason);
+      // Alte Zeilen ohne Wert hatten keinen Grund; sie bekommen den
+      // allgemeinen (insufficientData), damit die Regel für alle Zeilen gilt.
+      // Das Original ist per Trigger unveränderlich: nur hierfür ausnehmen.
+      await m.drop(computedValuesOriginalImmutable);
+      await customStatement(
+        "UPDATE computed_values SET unavailable_reason = 'insufficientData' "
+        'WHERE value_real IS NULL',
+      );
+      await m.create(computedValuesOriginalImmutable);
+      await m.create(computedValuesReasonInsert);
+      await m.create(computedValuesReasonUpdate);
+      // D2a: Basis-Schnappschuss (alte Zeilen: unbekannt = NULL) und UTC-Versatz
+      // des Laufendes (alte Läufe: unbekannt = NULL).
+      await m.addColumn(computedValues, computedValues.hrMaxBpm);
+      await m.addColumn(computedValues, computedValues.hrRestBpm);
+      await m.addColumn(computedValues, computedValues.hrMaxIsEstimated);
+      await m.create(computedValuesBasisInsert);
+      await m.create(computedValuesBasisUpdate);
+      await m.addColumn(runs, runs.endedUtcOffsetS);
+      await m.create(runsOffsetInsert);
+      await m.create(runsOffsetUpdate);
     },
   };
 

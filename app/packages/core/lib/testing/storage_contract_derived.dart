@@ -19,7 +19,27 @@ final valueContractCases = <StorageContractCase>[
     _values,
   ),
   const StorageContractCase('Werte: Fehler ändern nichts', _valueFailures),
+  const StorageContractCase(
+    'Werte: ungültiger Abschnitt ändert nichts',
+    _valueSectionFailures,
+  ),
+  const StorageContractCase(
+    'Werte: ungültige Zahlen und fehlender Grund werden abgelehnt',
+    _valueInvalidNumbers,
+  ),
+  const StorageContractCase(
+    'Werte: Herzfrequenzbasis als Schnappschuss',
+    _valueBasis,
+  ),
   const StorageContractCase('Werte: Tageswerte', _dayValues),
+  const StorageContractCase(
+    'Werte: Tausch über mehrere Besitzer ganz oder gar nicht',
+    _swapAll,
+  ),
+  const StorageContractCase(
+    'Werte: Anlegen und Tauschen über mehrere Besitzer in einer Transaktion',
+    _writeAll,
+  ),
 ];
 
 String _describe(StoredPreprocessing p) {
@@ -105,8 +125,18 @@ Future<void> _values(StorageContractHarness h) async {
   final r = (await s.runs.create(startedAt: at(0))).id;
   final o = ValueOwner.run(r);
   await s.values.createOriginals(o, [
-    sampleValue('vo2max', 48.5, quality: ValueQuality.sufficient),
-    sampleValue('efficiency', null, quality: ValueQuality.undeterminable),
+    sampleValue(
+      'vo2max',
+      48.5,
+      quality: ValueQuality.sufficient,
+      sections: sampleValueSections(),
+    ),
+    sampleValue(
+      'efficiency',
+      null,
+      quality: ValueQuality.undeterminable,
+      reason: UnavailableReason.noValidSection,
+    ),
   ]);
   var read = await s.values.read(o);
   expectEq(read.map((p) => p.original.key), [
@@ -115,26 +145,54 @@ Future<void> _values(StorageContractHarness h) async {
   ], 'nach Schlüssel sortiert');
   expectEq(
     describePair(read[1]),
-    'O(${describeValue(sampleValue('vo2max', 48.5, quality: ValueQuality.sufficient))}) C(${describeValue(sampleValue('vo2max', 48.5, quality: ValueQuality.sufficient))})',
+    'O(${describeValue(sampleValue('vo2max', 48.5, quality: ValueQuality.sufficient, sections: sampleValueSections()))}) C(${describeValue(sampleValue('vo2max', 48.5, quality: ValueQuality.sufficient, sections: sampleValueSections()))})',
     'current beginnt als Kopie',
   );
   expectEq(read[0].original.value, null, 'undeterminable ohne Wert');
+  expectEq(
+    read[0].original.unavailableReason,
+    UnavailableReason.noValidSection,
+    'fehlender Wert mit Grund',
+  );
+  expectEq(
+    read[0].current.unavailableReason,
+    UnavailableReason.noValidSection,
+    'current beginnt mit demselben Grund',
+  );
+  expectEq(read[1].original.unavailableReason, null, 'Wert ohne Grund');
 
   await s.values.swapCurrent(o, [
-    sampleValue('vo2max', 50.25, method: 2, quality: ValueQuality.good),
+    sampleValue(
+      'vo2max',
+      50.25,
+      method: 2,
+      quality: ValueQuality.good,
+      sections: sampleValueSections(7).sublist(0, 2),
+    ),
   ]);
   read = await s.values.read(o);
   expectEq(
     describeValue(read[1].original),
     describeValue(
-      sampleValue('vo2max', 48.5, quality: ValueQuality.sufficient),
+      sampleValue(
+        'vo2max',
+        48.5,
+        quality: ValueQuality.sufficient,
+        sections: sampleValueSections(),
+      ),
     ),
     'original bleibt',
   );
   expectEq(
     describeValue(read[1].current),
     describeValue(
-      sampleValue('vo2max', 50.25, method: 2, quality: ValueQuality.good),
+      sampleValue(
+        'vo2max',
+        50.25,
+        method: 2,
+        quality: ValueQuality.good,
+        sections: sampleValueSections(7).sublist(0, 2),
+      ),
     ),
     'current getauscht',
   );
@@ -144,6 +202,9 @@ Future<void> _values(StorageContractHarness h) async {
     'anderer Wert unberührt',
   );
   expectEq(read[0].current.value, null, 'efficiency current unverändert null');
+  expectEq(read[1].original.sections.length, 3, 'original behält 3 Abschnitte');
+  expectEq(read[1].current.sections.length, 2, 'current hat neue Abschnitte');
+  expectEq(read[0].original.sections.length, 0, 'Wert ohne Abschnitte');
   await s.close();
 }
 
@@ -206,6 +267,228 @@ Future<void> _valueFailures(StorageContractHarness h) async {
   await s.close();
 }
 
+Future<void> _valueSectionFailures(StorageContractHarness h) async {
+  final s = await h.open();
+  final r = (await s.runs.create(startedAt: at(0))).id;
+  final o = ValueOwner.run(r);
+  ValueSection bad() => ValueSection(
+    start: at(50),
+    end: at(10),
+    weight: 1,
+    lateFactor: 1,
+    status: SectionStatus.eligible,
+  );
+  // Der erste Wert ist gültig und wäre vor dem Fehler schon geschrieben.
+  await expectFails(
+    () => s.values.createOriginals(o, [
+      sampleValue('a', 1, sections: sampleValueSections()),
+      sampleValue('b', 2, sections: [bad()]),
+    ]),
+    StorageFailure.rejected,
+    'ungültiger Abschnitt',
+  );
+  expectEq((await s.values.read(o)).length, 0, 'nichts geschrieben');
+  await s.values.createOriginals(o, [
+    sampleValue('a', 1, sections: sampleValueSections()),
+    sampleValue('b', 2, sections: sampleValueSections(1)),
+  ]);
+  final before = (await s.values.read(o)).map(describePair).join(';');
+  await expectFails(
+    () => s.values.swapCurrent(o, [
+      sampleValue('a', 5, sections: sampleValueSections(3)),
+      sampleValue('b', 6, sections: [bad()]),
+    ]),
+    StorageFailure.rejected,
+    'ungültiger Abschnitt beim Tausch',
+  );
+  expectEq(
+    (await s.values.read(o)).map(describePair).join(';'),
+    before,
+    'Tausch ganz oder gar nicht, auch die Abschnitte',
+  );
+  await s.close();
+}
+
+/// Alle Fälle, die `requireStorableValues` ablehnt (Adapter und Fake gleich).
+List<(String, ComputedValue)> _invalidValues() {
+  ValueSection section({
+    double weight = 1,
+    double lateFactor = 1,
+    double? gps,
+    double? demand,
+    double? estimate,
+  }) => ValueSection(
+    start: at(1),
+    end: at(2),
+    weight: weight,
+    lateFactor: lateFactor,
+    status: SectionStatus.eligible,
+    gpsMedianAccuracyMeters: gps,
+    oxygenDemand: demand,
+    estimate: estimate,
+  );
+  const nan = double.nan;
+  const inf = double.infinity;
+  ComputedValue withSection(ValueSection s) =>
+      sampleValue('v', 1, sections: [s]);
+  return [
+    ('Wert NaN', sampleValue('v', nan)),
+    ('Wert unendlich', sampleValue('v', inf)),
+    ('Wert fehlt ohne Grund', sampleValue('v', null, withoutReason: true)),
+    (
+      'Grund trotz Wert',
+      sampleValue('v', 1, reason: UnavailableReason.noValidSection),
+    ),
+    ('Gewicht NaN', withSection(section(weight: nan))),
+    ('Gewicht unendlich', withSection(section(weight: inf))),
+    ('Spätfaktor negativ', withSection(section(lateFactor: -0.1))),
+    ('Spätfaktor NaN', withSection(section(lateFactor: nan))),
+    ('GPS-Genauigkeit negativ', withSection(section(gps: -1))),
+    ('GPS-Genauigkeit NaN', withSection(section(gps: nan))),
+    ('Schätzwert NaN', withSection(section(estimate: nan))),
+    ('Schätzwert unendlich', withSection(section(estimate: -inf))),
+    ('Sauerstoffbedarf NaN', withSection(section(demand: nan))),
+  ];
+}
+
+Future<void> _valueInvalidNumbers(StorageContractHarness h) async {
+  final s = await h.open();
+  final r = (await s.runs.create(startedAt: at(0))).id;
+  final o = ValueOwner.run(r);
+  await s.values.createOriginals(o, [
+    sampleValue('v', 3, sections: sampleValueSections()),
+  ]);
+  final before = (await s.values.read(o)).map(describePair).join(';');
+  for (final (name, bad) in _invalidValues()) {
+    await expectFails(
+      () => s.values.swapCurrent(o, [bad]),
+      StorageFailure.rejected,
+      'Tausch: $name',
+    );
+    await expectFails(
+      () => s.values.createOriginals(o, [
+        ComputedValue(
+          key: 'neu',
+          value: bad.value,
+          unavailableReason: bad.unavailableReason,
+          unit: bad.unit,
+          computedAt: bad.computedAt,
+          measurementCount: bad.measurementCount,
+          sources: bad.sources,
+          method: bad.method,
+          methodVersion: bad.methodVersion,
+          parameterVersion: bad.parameterVersion,
+          quality: bad.quality,
+          sections: bad.sections,
+        ),
+      ]),
+      StorageFailure.rejected,
+      'Anlegen: $name',
+    );
+  }
+  expectEq(
+    (await s.values.read(o)).map(describePair).join(';'),
+    before,
+    'nichts geschrieben',
+  );
+  // Gleiche Fehlerreihenfolge: erst Existenz, dann Gültigkeit.
+  await expectFails(
+    () => s.values.swapCurrent(o, [sampleValue('missing', double.nan)]),
+    StorageFailure.notFound,
+    'unbekannter Schlüssel vor ungültiger Zahl',
+  );
+  await s.close();
+}
+
+Future<void> _valueBasis(StorageContractHarness h) async {
+  final s = await h.open();
+  final r = (await s.runs.create(startedAt: at(0))).id;
+  final o = ValueOwner.run(r);
+  const first = HeartRateBasis(maxBpm: 190, restingBpm: 55);
+  const second = HeartRateBasis(maxBpm: 185, maxIsEstimated: true);
+  await s.values.createOriginals(o, [
+    sampleValue('a', 1, basis: first),
+    sampleValue('b', 2, basis: second),
+    // Snapshot "Basis kannte nichts" ist etwas anderes als kein Snapshot.
+    sampleValue('c', 3, basis: const HeartRateBasis()),
+    sampleValue('d', 4),
+  ]);
+  String of(ComputedValue v) => describeValue(v).split('|sections').first;
+  var read = {for (final p in await s.values.read(o)) p.original.key: p};
+  expectEq(read['a']!.original.heartRateBasis?.maxBpm, 190, 'HFmax gelesen');
+  expectEq(read['a']!.original.heartRateBasis?.restingBpm, 55, 'HFRuhe');
+  expectEq(
+    read['a']!.original.heartRateBasis?.maxIsEstimated,
+    false,
+    'Näherung aus',
+  );
+  expectEq(read['b']!.original.heartRateBasis?.restingBpm, null, 'HFRuhe null');
+  expectEq(
+    read['b']!.original.heartRateBasis?.maxIsEstimated,
+    true,
+    'Näherung an',
+  );
+  expectTrue(
+    read['c']!.original.heartRateBasis != null &&
+        read['c']!.original.heartRateBasis!.maxBpm == null,
+    'leerer Schnappschuss bleibt ein Schnappschuss',
+  );
+  expectEq(read['d']!.original.heartRateBasis, null, 'ohne Schnappschuss');
+  expectEq(
+    of(read['a']!.current),
+    of(read['a']!.original),
+    'current beginnt mit derselben Basis',
+  );
+  // Tausch: current bekommt die Basis des neuen Werts, original behält seine.
+  await s.values.swapCurrent(o, [
+    sampleValue('a', 5, basis: second),
+    sampleValue('b', 6),
+  ]);
+  read = {for (final p in await s.values.read(o)) p.original.key: p};
+  expectEq(read['a']!.current.heartRateBasis?.maxBpm, 185, 'current a neu');
+  expectEq(read['a']!.current.heartRateBasis?.restingBpm, null, 'HFRuhe neu');
+  expectEq(
+    read['a']!.current.heartRateBasis?.maxIsEstimated,
+    true,
+    'Näherung neu',
+  );
+  expectEq(
+    read['a']!.original.heartRateBasis?.maxBpm,
+    190,
+    'original a bleibt',
+  );
+  expectEq(read['b']!.current.heartRateBasis, null, 'current b ohne');
+  expectEq(
+    read['b']!.original.heartRateBasis?.maxBpm,
+    185,
+    'original b bleibt',
+  );
+  // Ungültige Basis wird abgelehnt, nichts geschrieben.
+  final before = (await s.values.read(o)).map(describePair).join(';');
+  for (final (name, bad) in [
+    ('HFmax 0', const HeartRateBasis(maxBpm: 0)),
+    ('HFmax negativ', const HeartRateBasis(maxBpm: -1)),
+    ('HFRuhe 0', const HeartRateBasis(restingBpm: 0)),
+  ]) {
+    await expectFails(
+      () => s.values.swapCurrent(o, [sampleValue('a', 1, basis: bad)]),
+      StorageFailure.rejected,
+      'Tausch: $name',
+    );
+    await expectFails(
+      () => s.values.createOriginals(o, [sampleValue('neu', 1, basis: bad)]),
+      StorageFailure.rejected,
+      'Anlegen: $name',
+    );
+  }
+  expectEq(
+    (await s.values.read(o)).map(describePair).join(';'),
+    before,
+    'nichts geschrieben',
+  );
+  await s.close();
+}
+
 Future<void> _dayValues(StorageContractHarness h) async {
   final s = await h.open();
   final r = (await s.runs.create(startedAt: at(0))).id;
@@ -240,5 +523,112 @@ Future<void> _dayValues(StorageContractHarness h) async {
     StorageFailure.rejected,
     'Tagesoriginal existiert',
   );
+  await s.close();
+}
+
+Future<void> _swapAll(StorageContractHarness h) async {
+  final s = await h.open();
+  final r1 = ValueOwner.run((await s.runs.create(startedAt: at(0))).id);
+  final r2 = ValueOwner.run((await s.runs.create(startedAt: at(0))).id);
+  const d = ValueOwner.day('2030-01-01');
+  for (final o in [r1, r2, d]) {
+    await s.values.createOriginals(o, [
+      sampleValue('a', 1, sections: sampleValueSections()),
+    ]);
+  }
+  // Ein Besitzer ohne Original macht den ganzen Tausch rückgängig.
+  final before = [
+    for (final o in [r1, r2, d]) (await s.values.read(o)).map(describePair),
+  ].join(';');
+  await expectFails(
+    () => s.values.swapCurrentAll({
+      r1: [sampleValue('a', 5, sections: sampleValueSections(3))],
+      r2: [sampleValue('a', 6)],
+      d: [sampleValue('fehlt', 7)],
+    }),
+    StorageFailure.notFound,
+    'Original fehlt bei einem Besitzer',
+  );
+  expectEq(
+    [
+      for (final o in [r1, r2, d]) (await s.values.read(o)).map(describePair),
+    ].join(';'),
+    before,
+    'nichts geändert',
+  );
+  await s.values.swapCurrentAll({
+    r1: [sampleValue('a', 5, sections: sampleValueSections(3))],
+    r2: [sampleValue('a', 6)],
+    d: [sampleValue('a', 7)],
+  });
+  for (final (o, v) in [(r1, 5.0), (r2, 6.0), (d, 7.0)]) {
+    final p = (await s.values.read(o)).single;
+    expectEq(p.current.value, v, 'current getauscht');
+    expectEq(p.original.value, 1.0, 'original bleibt');
+  }
+  expectEq(
+    (await s.values.read(r1)).single.original.sections.length,
+    sampleValueSections().length,
+    'Original-Abschnitte bleiben',
+  );
+  await s.close();
+}
+
+Future<void> _writeAll(StorageContractHarness h) async {
+  final s = await h.open();
+  final r1 = ValueOwner.run((await s.runs.create(startedAt: at(0))).id);
+  final r2 = ValueOwner.run((await s.runs.create(startedAt: at(0))).id);
+  const d = ValueOwner.day('2030-01-01');
+  await s.values.createOriginals(d, [sampleValue('a', 1)]);
+  Future<String> state() async => [
+    for (final o in [r1, r2, d]) (await s.values.read(o)).map(describePair),
+  ].join(';');
+  final before = await state();
+  // Der Tausch scheitert (Original fehlt): auch das Anlegen gilt nicht.
+  await expectFails(
+    () => s.values.writeAll(
+      create: {
+        r1: [sampleValue('a', 5)],
+        r2: [sampleValue('a', 6)],
+      },
+      swap: {
+        d: [sampleValue('fehlt', 7)],
+      },
+    ),
+    StorageFailure.notFound,
+    'Tausch scheitert',
+  );
+  expectEq(await state(), before, 'nichts angelegt');
+  // Das Anlegen scheitert (Wert existiert): auch der Tausch gilt nicht.
+  await s.values.createOriginals(r2, [sampleValue('a', 6)]);
+  final mid = await state();
+  await expectFails(
+    () => s.values.writeAll(
+      create: {
+        r1: [sampleValue('a', 5)],
+        r2: [sampleValue('a', 9)],
+      },
+      swap: {
+        d: [sampleValue('a', 7)],
+      },
+    ),
+    StorageFailure.rejected,
+    'Anlegen scheitert',
+  );
+  expectEq(await state(), mid, 'nichts getauscht, nichts angelegt');
+  await s.values.writeAll(
+    create: {
+      r1: [sampleValue('a', 5, sections: sampleValueSections())],
+    },
+    swap: {
+      d: [sampleValue('a', 7)],
+    },
+  );
+  final p1 = (await s.values.read(r1)).single;
+  expectEq(p1.original.value, 5.0, 'angelegt: original');
+  expectEq(p1.current.value, 5.0, 'angelegt: current');
+  final p = (await s.values.read(d)).single;
+  expectEq(p.original.value, 1.0, 'original bleibt');
+  expectEq(p.current.value, 7.0, 'current getauscht');
   await s.close();
 }

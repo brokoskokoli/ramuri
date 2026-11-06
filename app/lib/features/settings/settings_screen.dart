@@ -2,6 +2,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../recalculation/recalculation_card.dart';
+import '../recalculation/recalculation_controller.dart';
 import '../storage/data_screen.dart';
 import 'app_settings.dart';
 import 'permissions_screen.dart';
@@ -14,13 +16,26 @@ class SettingsScreen extends StatelessWidget {
     super.key,
     required this.session,
     required this.permissions,
+    required this.recalculation,
   });
 
   final StorageSession session;
   final PermissionStatusPort permissions;
+  final RecalculationController recalculation;
 
   @override
   Widget build(BuildContext context) {
+    // Während der Neuberechnung bleibt die Seite stehen (Sperre).
+    return ListenableBuilder(
+      listenable: recalculation,
+      builder: (context, _) {
+        final busy = recalculation.busy;
+        return PopScope(canPop: !busy, child: _body(context, busy));
+      },
+    );
+  }
+
+  Widget _body(BuildContext context, bool busy) {
     final l10n = AppLocalizations.of(context);
     final settings = AppSettingsScope.of(context);
     return Scaffold(
@@ -28,6 +43,7 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          RecalculationCard(controller: recalculation),
           Text(
             l10n.settingsUnits,
             style: Theme.of(context).textTheme.titleMedium,
@@ -46,33 +62,45 @@ class SettingsScreen extends StatelessWidget {
               ),
             ],
             selected: {settings.distanceUnit},
-            onSelectionChanged: (s) => _change(context, settings, s.first),
+            onSelectionChanged: busy
+                ? null
+                : (s) => _change(context, settings, s.first),
           ),
           const SizedBox(height: 8),
           Text(l10n.settingsUnitNote),
           const SizedBox(height: 24),
           OutlinedButton(
             key: const Key('settings_permissions'),
-            onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute(
-                builder: (_) => PermissionsScreen(permissions: permissions),
-              ),
-            ),
+            onPressed: busy
+                ? null
+                : () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          PermissionsScreen(permissions: permissions),
+                    ),
+                  ),
             child: Text(l10n.settingsPermissions),
           ),
           const SizedBox(height: 8),
           OutlinedButton(
             key: const Key('settings_zones'),
-            onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute(builder: (_) => const ZonesScreen()),
-            ),
+            onPressed: busy
+                ? null
+                : () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(builder: (_) => const ZonesScreen()),
+                  ),
             child: Text(l10n.settingsZones),
           ),
           const SizedBox(height: 8),
           OutlinedButton(
-            onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute(builder: (_) => DataScreen(session: session)),
-            ),
+            key: const Key('settings_data'),
+            onPressed: busy
+                ? null
+                : () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => DataScreen(session: session),
+                    ),
+                  ),
             child: Text(l10n.dataTitle),
           ),
         ],

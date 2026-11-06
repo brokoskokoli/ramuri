@@ -46,6 +46,10 @@ class DriftComputedValueStore implements ComputedValueStore {
     valueKey: v.key,
     role: role.name,
     valueReal: Value(v.value),
+    unavailableReason: Value(v.unavailableReason?.name),
+    hrMaxBpm: Value(v.heartRateBasis?.maxBpm),
+    hrRestBpm: Value(v.heartRateBasis?.restingBpm),
+    hrMaxIsEstimated: Value(v.heartRateBasis?.maxIsEstimated),
     unit: v.unit,
     computedAtUs: usOf(v.computedAt),
     dataFromUs: Value(usOfOrNull(v.dataFrom)),
@@ -58,74 +62,186 @@ class DriftComputedValueStore implements ComputedValueStore {
     quality: v.quality.name,
   );
 
+  Future<void> _insertSections(int valueId, List<ValueSection> sections) async {
+    for (var i = 0; i < sections.length; i++) {
+      final s = sections[i];
+      await _db
+          .into(_db.valueSections)
+          .insert(
+            d.ValueSectionsCompanion.insert(
+              computedValueId: valueId,
+              position: i,
+              startUs: usOf(s.start),
+              endUs: usOf(s.end),
+              gpsMedianAccuracyM: Value(s.gpsMedianAccuracyMeters),
+              weight: s.weight,
+              lateFactor: s.lateFactor,
+              status: s.status.name,
+              discard: Value(s.discard?.name),
+              reasons: jsonEncode(s.reasons),
+              oxygenDemand: Value(s.oxygenDemand),
+              estimate: Value(s.estimate),
+            ),
+          );
+    }
+  }
+
   @override
   Future<void> createOriginals(ValueOwner owner, List<ComputedValue> values) =>
-      guarded(
-        () => _db.transaction(() async {
-          await _checkOwner(owner);
-          _noDuplicates(values);
-          final keys = {for (final r in await _rows(owner)) r.valueKey};
-          if (values.any((v) => keys.contains(v.key))) {
-            throw const StorageException(StorageFailure.rejected);
-          }
-          await _db.batch((b) {
-            for (final v in values) {
-              b.insert(_db.computedValues, _insert(owner, v, _Role.original));
-              b.insert(_db.computedValues, _insert(owner, v, _Role.current));
-            }
-          });
-        }),
-      );
+      guarded(() => _db.transaction(() => _createIn(owner, values)));
+
+  Future<void> _createIn(ValueOwner owner, List<ComputedValue> values) async {
+    await _checkOwner(owner);
+    _noDuplicates(values);
+    final keys = {for (final r in await _rows(owner)) r.valueKey};
+    if (values.any((v) => keys.contains(v.key))) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    requireStorableValues(values);
+    // Je Wert: original, dessen Abschnitte, dann current samt Abschnitten.
+    // Die Reihenfolge ist Teil des Schutzes der Original-Abschnitte (Trigger
+    // value_sections_original_no_late_insert).
+    for (final v in values) {
+      for (final role in _Role.values) {
+        final id = await _db
+            .into(_db.computedValues)
+            .insert(_insert(owner, v, role));
+        await _insertSections(id, v.sections);
+      }
+    }
+  }
 
   @override
   Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values) =>
-      guarded(
-        () => _db.transaction(() async {
-          await _checkOwner(owner);
-          _noDuplicates(values);
-          final keys = {
-            for (final r in await _rows(owner))
-              if (r.role == _Role.original.name) r.valueKey,
-          };
-          if (values.any((v) => !keys.contains(v.key))) {
-            throw const StorageException(StorageFailure.notFound);
-          }
-          for (final v in values) {
-            await (_db.update(_db.computedValues)..where(
-                  (t) =>
-                      (owner.runId != null
-                          ? t.runId.equals(owner.runId!)
-                          : t.day.equals(owner.day!)) &
-                      t.valueKey.equals(v.key) &
-                      t.role.equals(_Role.current.name),
-                ))
-                .write(
-                  d.ComputedValuesCompanion(
-                    valueReal: Value(v.value),
-                    unit: Value(v.unit),
-                    computedAtUs: Value(usOf(v.computedAt)),
-                    dataFromUs: Value(usOfOrNull(v.dataFrom)),
-                    dataToUs: Value(usOfOrNull(v.dataTo)),
-                    measurementCount: Value(v.measurementCount),
-                    sources: Value(jsonEncode(v.sources)),
-                    method: Value(v.method),
-                    methodVersion: Value(v.methodVersion),
-                    parameterVersion: Value(v.parameterVersion),
-                    quality: Value(v.quality.name),
-                  ),
-                );
-          }
-        }),
-      );
+      swapCurrentAll({owner: values});
+
+  @override
+  Future<void> swapCurrentAll(Map<ValueOwner, List<ComputedValue>> changes) =>
+      writeAll(swap: changes);
+
+  @override
+  Future<void> writeAll({
+    Map<ValueOwner, List<ComputedValue>> create = const {},
+    Map<ValueOwner, List<ComputedValue>> swap = const {},
+  }) => guarded(
+    () => _db.transaction(() async {
+      // Tauschen vor Anlegen: ein Schlüssel in beiden ist so `notFound`.
+      for (final e in swap.entries) {
+        await _swapIn(e.key, e.value);
+      }
+      for (final e in create.entries) {
+        await _createIn(e.key, e.value);
+      }
+    }),
+  );
+
+  Future<void> _swapIn(ValueOwner owner, List<ComputedValue> values) async {
+    await _checkOwner(owner);
+    _noDuplicates(values);
+    final keys = {
+      for (final r in await _rows(owner))
+        if (r.role == _Role.original.name) r.valueKey,
+    };
+    if (values.any((v) => !keys.contains(v.key))) {
+      throw const StorageException(StorageFailure.notFound);
+    }
+    requireStorableValues(values);
+    final currentIds = {
+      for (final r in await _rows(owner))
+        if (r.role == _Role.current.name) r.valueKey: r.id,
+    };
+    for (final v in values) {
+      await (_db.update(_db.computedValues)..where(
+            (t) =>
+                (owner.runId != null
+                    ? t.runId.equals(owner.runId!)
+                    : t.day.equals(owner.day!)) &
+                t.valueKey.equals(v.key) &
+                t.role.equals(_Role.current.name),
+          ))
+          .write(
+            d.ComputedValuesCompanion(
+              valueReal: Value(v.value),
+              unavailableReason: Value(v.unavailableReason?.name),
+              hrMaxBpm: Value(v.heartRateBasis?.maxBpm),
+              hrRestBpm: Value(v.heartRateBasis?.restingBpm),
+              hrMaxIsEstimated: Value(v.heartRateBasis?.maxIsEstimated),
+              unit: Value(v.unit),
+              computedAtUs: Value(usOf(v.computedAt)),
+              dataFromUs: Value(usOfOrNull(v.dataFrom)),
+              dataToUs: Value(usOfOrNull(v.dataTo)),
+              measurementCount: Value(v.measurementCount),
+              sources: Value(jsonEncode(v.sources)),
+              method: Value(v.method),
+              methodVersion: Value(v.methodVersion),
+              parameterVersion: Value(v.parameterVersion),
+              quality: Value(v.quality.name),
+            ),
+          );
+      // Abschnitte des current ersetzen; die des original bleiben.
+      final id = currentIds[v.key]!;
+      await (_db.delete(
+        _db.valueSections,
+      )..where((t) => t.computedValueId.equals(id))).go();
+      await _insertSections(id, v.sections);
+    }
+  }
 
   @override
   Future<List<ValuePair>> read(ValueOwner owner) => guarded(() async {
     final original = <String, ComputedValue>{};
     final current = <String, ComputedValue>{};
-    for (final r in await _rows(owner)) {
+    final rows = await _rows(owner);
+    final sections = <int, List<ValueSection>>{};
+    if (rows.isNotEmpty) {
+      final found =
+          await (_db.select(_db.valueSections)
+                ..where((t) => t.computedValueId.isIn(rows.map((r) => r.id)))
+                ..orderBy([
+                  (t) => OrderingTerm.asc(t.computedValueId),
+                  (t) => OrderingTerm.asc(t.position),
+                ]))
+              .get();
+      for (final x in found) {
+        (sections[x.computedValueId] ??= []).add(
+          ValueSection(
+            start: timeOf(x.startUs),
+            end: timeOf(x.endUs),
+            weight: x.weight,
+            lateFactor: x.lateFactor,
+            status: enumOf(SectionStatus.values, x.status, (v) => v.name),
+            reasons: [
+              for (final e in jsonDecode(x.reasons) as List) e as String,
+            ],
+            gpsMedianAccuracyMeters: x.gpsMedianAccuracyM,
+            discard: x.discard == null
+                ? null
+                : enumOf(EstimateDiscard.values, x.discard!, (v) => v.name),
+            oxygenDemand: x.oxygenDemand,
+            estimate: x.estimate,
+          ),
+        );
+      }
+    }
+    for (final r in rows) {
       final v = ComputedValue(
+        sections: sections[r.id] ?? const [],
         key: r.valueKey,
         value: r.valueReal,
+        unavailableReason: r.unavailableReason == null
+            ? null
+            : enumOf(
+                UnavailableReason.values,
+                r.unavailableReason!,
+                (v) => v.name,
+              ),
+        heartRateBasis: r.hrMaxIsEstimated == null
+            ? null
+            : HeartRateBasis(
+                maxBpm: r.hrMaxBpm,
+                restingBpm: r.hrRestBpm,
+                maxIsEstimated: r.hrMaxIsEstimated!,
+              ),
         unit: r.unit,
         computedAt: timeOf(r.computedAtUs),
         dataFrom: timeOfOrNull(r.dataFromUs),

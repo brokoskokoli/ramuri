@@ -30,6 +30,7 @@ class RunController extends ChangeNotifier {
     required this.location,
     this.heartRate,
     this.tickEvery = const Duration(seconds: 1),
+    this.serialize,
     RunRecorder? recorder,
   }) : _recorder =
            recorder ??
@@ -47,7 +48,13 @@ class RunController extends ChangeNotifier {
   final LocationSource location;
   final Stream<HeartRateReading> Function()? heartRate;
   final Duration tickEvery;
+
+  /// Reiht Schreiben von Werten hinter den Start und andere Neuberechnungen
+  /// ein (siehe `RecalculationController.exclusive`); `null` = sofort.
+  final Future<void> Function(Future<void> Function() action)? serialize;
   final RunRecorder _recorder;
+  bool _calculationFailed = false;
+  Future<void>? _calculation;
 
   Timer? _timer;
   StreamSubscription<LocationSample>? _locationSub;
@@ -79,6 +86,14 @@ class RunController extends ChangeNotifier {
 
   /// Von der Pulsquelle kam in diesem Lauf schon ein Wert.
   bool get heartRateSourceSeen => _heartRateSeen;
+
+  /// Die Werte des beendeten Laufs konnten nicht berechnet werden. Der Lauf
+  /// ist gespeichert; die Berechnung wird beim nächsten Start nachgeholt.
+  /// Trägt keine Gesundheitsdaten.
+  bool get calculationFailed => _calculationFailed;
+
+  /// Läuft die Berechnung nach dem Ende noch (für Tests und Abschluss).
+  Future<void>? get calculation => _calculation;
 
   /// Art des letzten Speicherfehlers (nie Inhalte), `null` ohne Fehler.
   StorageFailure? get writeFailure => _recorder.lastWriteFailure;
@@ -190,7 +205,38 @@ class RunController extends ChangeNotifier {
 
   Future<void> finish() async {
     await _command(_recorder.finish);
-    if (phase == RecordingPhase.finished) _stopInputs();
+    if (phase == RecordingPhase.finished) {
+      _stopInputs();
+      final id = _recorder.runId;
+      if (id != null && _calculation == null) {
+        _calculation = _calculate(id);
+        await _calculation;
+      }
+    }
+  }
+
+  /// Berechnet nach erfolgreichem Ende die Werte des Laufs. Scheitert das, ist
+  /// der Lauf trotzdem gespeichert ([calculationFailed], Merker für später).
+  Future<void> _calculate(int runId) async {
+    Future<void> run() async {
+      // Nach dem tatsächlichen Zustand im Speicher entscheiden, nicht nach
+      // einem früheren Schreibfehler im Lauf: ist der Lauf nicht als beendet
+      // gespeichert, gibt es nichts zu berechnen.
+      final stored = await storage.runs.get(runId);
+      if (stored == null || stored.state != RunState.finished) return;
+      await ValueCalculationService(
+        session: storage,
+        clock: clock,
+      ).calculateAfterRunTracked(runId);
+    }
+
+    try {
+      final s = serialize;
+      await (s == null ? run() : s(run));
+    } on Object {
+      _calculationFailed = true;
+    }
+    _update();
   }
 
   Future<void> _command(Future<CommandResult> Function() run) async {

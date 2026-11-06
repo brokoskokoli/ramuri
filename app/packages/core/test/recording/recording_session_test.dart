@@ -23,6 +23,9 @@ class _CountingClock implements Clock {
     reads++;
     return inner.now();
   }
+
+  @override
+  Duration utcOffsetAt(DateTime at) => inner.utcOffsetAt(at);
 }
 
 class Rig {

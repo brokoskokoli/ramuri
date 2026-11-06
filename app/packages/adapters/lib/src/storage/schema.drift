@@ -1,4 +1,4 @@
--- Schema Phase 1 (Version 1). Zeiten: Mikrosekunden seit Epoch (UTC), Spalten
+-- Schema Phase 1 (Version 1; Version 2 ergänzt Rohwerte des Standortgebers, Version 3 value_sections). Zeiten: Mikrosekunden seit Epoch (UTC), Spalten
 -- `*_us`. Einheiten SI: Meter `_m`, Sekunden `_s`, Grad `_deg`, Schläge je
 -- Minute `_bpm`, Kilogramm `_kg`. Alles unter `runs` hängt per ON DELETE CASCADE
 -- am Lauf (SEC-0004). Fremdschlüssel gelten nur bei `PRAGMA foreign_keys=ON`
@@ -17,8 +17,21 @@ CREATE TABLE runs (
   state TEXT NOT NULL CHECK (state IN ('active', 'paused', 'finished')),
   started_at_us INTEGER NOT NULL,
   -- NULL, solange der Lauf nicht beendet ist.
-  ended_at_us INTEGER
+  ended_at_us INTEGER,
+  -- Seit Version 3 (WP09 D2a): UTC-Versatz der Ortszeit zum Laufende in
+  -- Sekunden (Zeitzone zum Laufzeitpunkt; Tageswerte hängen am lokalen
+  -- Kalendertag des Laufendes). NULL = unbekannt: Läufe aus Version 1, oder
+  -- der Aufrufer hat ihn nicht genannt; nur bei beendetem Lauf (Trigger).
+  ended_utc_offset_s INTEGER CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800)
 );
+
+CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs
+WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL
+BEGIN SELECT RAISE(ABORT, 'offset without end'); END;
+
+CREATE TRIGGER runs_offset_update BEFORE UPDATE ON runs
+WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL
+BEGIN SELECT RAISE(ABORT, 'offset without end'); END;
 
 -- Runden (FR-0030). Rundenzeit wie von der Aufzeichnung ermittelt (Sekunden).
 CREATE TABLE laps (
@@ -226,7 +239,8 @@ CREATE TABLE computed_values (
   day TEXT,
   value_key TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('original', 'current')),
-  -- NULL bei Qualitätsstufe 'undeterminable'.
+  -- NULL genau dann, wenn unavailable_reason gesetzt ist (Qualitätsstufe
+  -- 'undeterminable'; Trigger computed_values_reason_*).
   value_real REAL,
   unit TEXT NOT NULL,
   computed_at_us INTEGER NOT NULL,
@@ -240,6 +254,21 @@ CREATE TABLE computed_values (
   parameter_version INTEGER NOT NULL,
   quality TEXT NOT NULL CHECK (quality IN
     ('provisional', 'sufficient', 'good', 'undeterminable')),
+  -- Seit Version 3 (WP09 D1): Grund, warum der Wert fehlt (FR-0068, PAR-037),
+  -- als stabiler Code (Name von UnavailableReason im Core). Ein Code, den eine
+  -- spätere App nicht kennt, ist beim Lesen ein Datenfehler.
+  unavailable_reason TEXT,
+  -- Seit Version 3 (WP09 D2a, OQ-0065): Schnappschuss der Herzfrequenzbasis,
+  -- mit der der Wert gerechnet wurde, damit spätere Neuberechnungen alte Werte
+  -- mit derselben Basis rechnen. hr_max_is_estimated ist der Anzeiger: NULL =
+  -- kein Schnappschuss (Wert braucht keine Basis, oder Zeile aus Version 1:
+  -- Basis unbekannt); sonst gilt der Schnappschuss, und hr_max_bpm bzw.
+  -- hr_rest_bpm sind NULL, wenn die Basis diesen Wert nicht kannte. Bei
+  -- hr_max_bpm / hr_rest_bpm ohne Anzeiger bricht der Trigger
+  -- computed_values_basis_* ab.
+  hr_max_bpm INTEGER CHECK (hr_max_bpm > 0),
+  hr_rest_bpm INTEGER CHECK (hr_rest_bpm > 0),
+  hr_max_is_estimated BOOLEAN CHECK (hr_max_is_estimated IN (0, 1)),
   CHECK ((run_id IS NULL) <> (day IS NULL))
 );
 CREATE UNIQUE INDEX computed_values_run_unique
@@ -251,6 +280,70 @@ CREATE UNIQUE INDEX computed_values_day_unique
 CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values
 WHEN OLD.role = 'original' OR NEW.role = 'original'
 BEGIN SELECT RAISE(ABORT, 'original value is immutable'); END;
+
+-- Kein fehlender Wert ohne Grund und kein Grund bei vorhandenem Wert (FR-0068).
+-- Als Trigger statt CHECK, damit die Migration 2 -> 3 dasselbe Schema ergibt
+-- wie das Anlegen (ADD COLUMN kann keine Regel über zwei Spalten ergänzen).
+CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values
+WHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)
+BEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;
+
+CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values
+WHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)
+BEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;
+
+CREATE TRIGGER computed_values_basis_insert BEFORE INSERT ON computed_values
+WHEN NEW.hr_max_is_estimated IS NULL
+  AND (NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)
+BEGIN SELECT RAISE(ABORT, 'basis values without snapshot flag'); END;
+
+CREATE TRIGGER computed_values_basis_update BEFORE UPDATE ON computed_values
+WHEN NEW.hr_max_is_estimated IS NULL
+  AND (NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)
+BEGIN SELECT RAISE(ABORT, 'basis values without snapshot flag'); END;
+
+-- ------------------------------------------ Bewertete Abschnitte je Wert
+-- Seit Version 3 (WP09 D1, FR-0073). Je Zeile von computed_values (original
+-- und current getrennt) die bewerteten Abschnitte des Laufs: Zeitraum, GPS-
+-- Median, Gewicht (PAR-033), Spätfaktor (PAR-024), Status, Gründe (JSON-Liste
+-- der verletzten Regeln und Einschränkungen) und Schätzwert je Abschnitt.
+-- Die Abschnitte eines `original` sind wie dieses unveränderlich.
+CREATE TABLE value_sections (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  computed_value_id INTEGER NOT NULL REFERENCES computed_values (id) ON DELETE CASCADE,
+  position INTEGER NOT NULL CHECK (position >= 0),
+  start_us INTEGER NOT NULL,
+  end_us INTEGER NOT NULL CHECK (end_us >= start_us),
+  -- NULL, wenn keine Genauigkeit gemeldet wurde.
+  gps_median_accuracy_m REAL CHECK (gps_median_accuracy_m >= 0),
+  weight REAL NOT NULL CHECK (weight >= 0),
+  late_factor REAL NOT NULL CHECK (late_factor >= 0),
+  status TEXT NOT NULL CHECK (status IN ('eligible', 'provisional', 'rejected')),
+  discard TEXT CHECK (discard IN ('implausible', 'incomplete', 'zeroWeight')),
+  reasons TEXT NOT NULL CHECK (json_valid(reasons)),
+  oxygen_demand REAL,
+  estimate REAL,
+  UNIQUE (computed_value_id, position)
+) AS ValueSectionRow;
+
+-- UPDATE: bei Abschnitten eines `original` immer abbrechen (auch Umhängen).
+CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections
+WHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = 'original'
+  OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original'
+BEGIN SELECT RAISE(ABORT, 'original value sections are immutable'); END;
+
+-- INSERT bei einem `original` nur direkt nach dessen Anlegen: Die Zeile des
+-- Werts muss die zuletzt vergebene sein (der Adapter legt Original, dessen
+-- Abschnitte, dann current an). Später kommt kein Abschnitt hinzu.
+-- Annahme: MAX(id) ist die zuletzt angelegte Zeile von computed_values, weil
+-- die ids per AUTOINCREMENT nur wachsen (nie neu vergeben werden) und original
+-- und current eines Werts nur zusammen gelöscht werden. Es gibt keinen DELETE-
+-- Trigger, wie bei computed_values selbst: Gelöscht wird nur über den Adapter
+-- (deleteRun, deleteAll, Tausch über die ids der current-Zeilen).
+CREATE TRIGGER value_sections_original_no_late_insert BEFORE INSERT ON value_sections
+WHEN (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original'
+  AND NEW.computed_value_id <> (SELECT MAX(id) FROM computed_values)
+BEGIN SELECT RAISE(ABORT, 'original value sections are immutable'); END;
 
 -- -------------------------------------------- Profil und Einstellungen
 -- Eine Zeile (id = 1). Alle Felder optional (FR-0002). Positive Zahlen für

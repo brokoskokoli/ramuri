@@ -18,6 +18,7 @@ class RunFlowScreen extends StatefulWidget {
     required this.ports,
     required this.permissions,
     this.tickEvery = const Duration(seconds: 1),
+    this.serialize,
   });
 
   final StorageSession session;
@@ -25,6 +26,9 @@ class RunFlowScreen extends StatefulWidget {
   final RunPorts ports;
   final PermissionStatusPort permissions;
   final Duration tickEvery;
+
+  /// Siehe [RunController.serialize].
+  final Future<void> Function(Future<void> Function() action)? serialize;
 
   @override
   State<RunFlowScreen> createState() => _RunFlowScreenState();
@@ -98,6 +102,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       location: widget.ports.location,
       heartRate: widget.ports.heartRate,
       tickEvery: widget.tickEvery,
+      serialize: widget.serialize,
     );
     setState(() {
       _controller = controller;

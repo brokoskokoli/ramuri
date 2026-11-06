@@ -6,4 +6,10 @@ class SystemClock implements Clock {
 
   @override
   DateTime now() => DateTime.now().toUtc();
+
+  @override
+  Duration utcOffsetAt(DateTime at) {
+    final o = at.toUtc().toLocal().timeZoneOffset;
+    return Duration(seconds: o.inSeconds);
+  }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../profile/profile_screen.dart';
+import '../recalculation/recalculation_controller.dart';
 import '../run/run_flow_screen.dart';
 import '../run/run_ports.dart';
 import '../settings/settings_screen.dart';
@@ -16,6 +17,7 @@ class HomeScreen extends StatelessWidget {
     required this.session,
     required this.clock,
     required this.permissions,
+    required this.recalculation,
     required this.runPorts,
   });
 
@@ -23,6 +25,7 @@ class HomeScreen extends StatelessWidget {
   final PermissionStatusPort permissions;
   final RunPorts runPorts;
   final Clock clock;
+  final RecalculationController recalculation;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +49,7 @@ class HomeScreen extends StatelessWidget {
                     clock: clock,
                     ports: runPorts,
                     permissions: permissions,
+                    serialize: recalculation.exclusive,
                   ),
                 ),
               ),
@@ -56,7 +60,11 @@ class HomeScreen extends StatelessWidget {
               key: const Key('home_profile'),
               onPressed: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(
-                  builder: (_) => ProfileScreen(session: session, clock: clock),
+                  builder: (_) => ProfileScreen(
+                    session: session,
+                    clock: clock,
+                    recalculation: recalculation,
+                  ),
                 ),
               ),
               child: Text(l10n.homeProfile),
@@ -69,6 +77,7 @@ class HomeScreen extends StatelessWidget {
                   builder: (_) => SettingsScreen(
                     session: session,
                     permissions: permissions,
+                    recalculation: recalculation,
                   ),
                 ),
               ),

@@ -369,6 +369,34 @@ void main() {
       }
     });
 
+    test(
+      'WP03-Zeilen und Abschnittsauswahl tragen die Kategorie des Codes',
+      () {
+        final code = <String, AlgorithmCategory>{
+          positionMethod: positionCategory,
+          paceMethod: paceCategory,
+          movementMethod: movementCategory,
+          heartRateMethod: heartRateCategory,
+          settlingMethod: settlingCategory,
+          altitudeMethod: altitudeCategory,
+          stepsMethod: stepsCategory,
+          sectionQualityMethod: sectionQualityCategory,
+          vo2maxSectionSelectionMethod: vo2maxSectionSelectionCategory,
+        };
+        final doc = {
+          for (final e in rows.entries.where(
+            (e) =>
+                e.value.$3 == 'WP03' || e.key == vo2maxSectionSelectionMethod,
+          ))
+            e.key: e.value.$2,
+        };
+        expect(doc.keys.toSet(), code.keys.toSet());
+        for (final e in code.entries) {
+          expect(doc[e.key], letter(e.value), reason: e.key);
+        }
+      },
+    );
+
     test('jede Zeile von WP04 ist registriert', () {
       final registered = {
         for (final v in AlgorithmRegistry.standard().allVariants) v.method,
