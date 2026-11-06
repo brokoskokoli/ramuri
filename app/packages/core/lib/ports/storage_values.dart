@@ -152,6 +152,13 @@ abstract interface class ComputedValueStore {
   /// `notFound` und nichts ändert sich; doppelte Schlüssel `rejected`.
   Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values);
 
+  /// Tauscht `current` samt Abschnitten für mehrere Besitzer in EINER
+  /// Transaktion (Neuberechnung, ADR-0004 Punkt 5): Entweder gilt der ganze
+  /// neue Stand oder der alte. Fehler wie bei [swapCurrent] (`notFound`,
+  /// `rejected`) für irgendeinen Besitzer machen alles rückgängig; `original`
+  /// bleibt überall.
+  Future<void> swapCurrentAll(Map<ValueOwner, List<ComputedValue>> changes);
+
   /// Alle Werte des Besitzers, nach Schlüssel sortiert.
   Future<List<ValuePair>> read(ValueOwner owner);
 }

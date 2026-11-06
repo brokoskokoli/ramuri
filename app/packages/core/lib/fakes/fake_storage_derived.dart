@@ -181,19 +181,31 @@ class FakeComputedValueStore implements ComputedValueStore {
   }
 
   @override
-  Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values) async {
-    _checkOwner(owner);
-    _noDuplicates(values);
-    _validate(values);
-    final target = _d.values[owner] ?? const <String, ValuePair>{};
-    if (values.any((v) => !target.containsKey(v.key))) {
-      throw const StorageException(StorageFailure.notFound);
+  Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values) =>
+      swapCurrentAll({owner: values});
+
+  @override
+  Future<void> swapCurrentAll(
+    Map<ValueOwner, List<ComputedValue>> changes,
+  ) async {
+    // Erst alles prüfen, dann schreiben: bei einem Fehler ändert sich nichts.
+    for (final e in changes.entries) {
+      _checkOwner(e.key);
+      _noDuplicates(e.value);
+      _validate(e.value);
+      final target = _d.values[e.key] ?? const <String, ValuePair>{};
+      if (e.value.any((v) => !target.containsKey(v.key))) {
+        throw const StorageException(StorageFailure.notFound);
+      }
     }
-    for (final v in values) {
-      _d.values[owner]![v.key] = ValuePair(
-        original: target[v.key]!.original,
-        current: _norm(v),
-      );
+    for (final e in changes.entries) {
+      final target = _d.values[e.key]!;
+      for (final v in e.value) {
+        target[v.key] = ValuePair(
+          original: target[v.key]!.original,
+          current: _norm(v),
+        );
+      }
     }
   }
 

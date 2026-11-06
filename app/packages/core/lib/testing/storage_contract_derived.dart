@@ -24,6 +24,10 @@ final valueContractCases = <StorageContractCase>[
     _valueSectionFailures,
   ),
   const StorageContractCase('Werte: Tageswerte', _dayValues),
+  const StorageContractCase(
+    'Werte: Tausch über mehrere Besitzer ganz oder gar nicht',
+    _swapAll,
+  ),
 ];
 
 String _describe(StoredPreprocessing p) {
@@ -109,7 +113,12 @@ Future<void> _values(StorageContractHarness h) async {
   final r = (await s.runs.create(startedAt: at(0))).id;
   final o = ValueOwner.run(r);
   await s.values.createOriginals(o, [
-    sampleValue('vo2max', 48.5, quality: ValueQuality.sufficient, sections: sampleValueSections()),
+    sampleValue(
+      'vo2max',
+      48.5,
+      quality: ValueQuality.sufficient,
+      sections: sampleValueSections(),
+    ),
     sampleValue('efficiency', null, quality: ValueQuality.undeterminable),
   ]);
   var read = await s.values.read(o);
@@ -125,20 +134,37 @@ Future<void> _values(StorageContractHarness h) async {
   expectEq(read[0].original.value, null, 'undeterminable ohne Wert');
 
   await s.values.swapCurrent(o, [
-    sampleValue('vo2max', 50.25, method: 2, quality: ValueQuality.good, sections: sampleValueSections(7).sublist(0, 2)),
+    sampleValue(
+      'vo2max',
+      50.25,
+      method: 2,
+      quality: ValueQuality.good,
+      sections: sampleValueSections(7).sublist(0, 2),
+    ),
   ]);
   read = await s.values.read(o);
   expectEq(
     describeValue(read[1].original),
     describeValue(
-      sampleValue('vo2max', 48.5, quality: ValueQuality.sufficient, sections: sampleValueSections()),
+      sampleValue(
+        'vo2max',
+        48.5,
+        quality: ValueQuality.sufficient,
+        sections: sampleValueSections(),
+      ),
     ),
     'original bleibt',
   );
   expectEq(
     describeValue(read[1].current),
     describeValue(
-      sampleValue('vo2max', 50.25, method: 2, quality: ValueQuality.good, sections: sampleValueSections(7).sublist(0, 2)),
+      sampleValue(
+        'vo2max',
+        50.25,
+        method: 2,
+        quality: ValueQuality.good,
+        sections: sampleValueSections(7).sublist(0, 2),
+      ),
     ),
     'current getauscht',
   );
@@ -288,6 +314,54 @@ Future<void> _dayValues(StorageContractHarness h) async {
     () => s.values.createOriginals(d1, [sampleValue('atl', 1)]),
     StorageFailure.rejected,
     'Tagesoriginal existiert',
+  );
+  await s.close();
+}
+
+Future<void> _swapAll(StorageContractHarness h) async {
+  final s = await h.open();
+  final r1 = ValueOwner.run((await s.runs.create(startedAt: at(0))).id);
+  final r2 = ValueOwner.run((await s.runs.create(startedAt: at(0))).id);
+  const d = ValueOwner.day('2030-01-01');
+  for (final o in [r1, r2, d]) {
+    await s.values.createOriginals(o, [
+      sampleValue('a', 1, sections: sampleValueSections()),
+    ]);
+  }
+  // Ein Besitzer ohne Original macht den ganzen Tausch rückgängig.
+  final before = [
+    for (final o in [r1, r2, d]) (await s.values.read(o)).map(describePair),
+  ].join(';');
+  await expectFails(
+    () => s.values.swapCurrentAll({
+      r1: [sampleValue('a', 5, sections: sampleValueSections(3))],
+      r2: [sampleValue('a', 6)],
+      d: [sampleValue('fehlt', 7)],
+    }),
+    StorageFailure.notFound,
+    'Original fehlt bei einem Besitzer',
+  );
+  expectEq(
+    [
+      for (final o in [r1, r2, d]) (await s.values.read(o)).map(describePair),
+    ].join(';'),
+    before,
+    'nichts geändert',
+  );
+  await s.values.swapCurrentAll({
+    r1: [sampleValue('a', 5, sections: sampleValueSections(3))],
+    r2: [sampleValue('a', 6)],
+    d: [sampleValue('a', 7)],
+  });
+  for (final (o, v) in [(r1, 5.0), (r2, 6.0), (d, 7.0)]) {
+    final p = (await s.values.read(o)).single;
+    expectEq(p.current.value, v, 'current getauscht');
+    expectEq(p.original.value, 1.0, 'original bleibt');
+  }
+  expectEq(
+    (await s.values.read(r1)).single.original.sections.length,
+    sampleValueSections().length,
+    'Original-Abschnitte bleiben',
   );
   await s.close();
 }
