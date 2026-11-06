@@ -80,6 +80,41 @@ void main() {
       expect(cadenceText(tester), 'noch keine Daten');
     });
 
+    testWidgets(
+      'laufende Werte bleiben frisch (Verfall zählt ab dem letzten)',
+      (tester) async {
+        final cadence = FakeCadenceSensor();
+        final d = Device()..cadence = cadence;
+        await openRun(d, tester);
+        for (var i = 0; i < 4; i++) {
+          await walk(d, tester, 5);
+          cadence.emit(d.clock.now(), 150.0 + i);
+          await tester.pump();
+          await tester.pump();
+        }
+        // 20 s seit dem ersten Wert, aber der letzte ist frisch.
+        expect(cadenceText(tester), '153 spm');
+      },
+    );
+
+    testWidgets('nach Fehler im Strom: spätere Werte kommen nicht mehr an', (
+      tester,
+    ) async {
+      final cadence = FakeCadenceSensor();
+      final d = Device()..cadence = cadence;
+      await openRun(d, tester);
+      cadence.emit(d.clock.now(), 160);
+      await tester.pump();
+      cadence.fail();
+      await tester.pump();
+      await tester.pump();
+      expect(cadenceText(tester), 'nicht verfügbar');
+      cadence.emit(d.clock.now(), 170);
+      await tester.pump();
+      await tester.pump();
+      expect(cadenceText(tester), 'nicht verfügbar');
+    });
+
     for (final ends in <String, Future<void> Function(FakeCadenceSensor)>{
       'Fehler': (c) async => c.fail(),
       'Ende': (c) => c.end(),
@@ -163,6 +198,34 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(cadence.listening, isFalse);
     });
+
+    test(
+      'Fehler im Strom: Abo wird beendet, spätere Werte zählen nicht',
+      () async {
+        final clock = FakeClock(DateTime.utc(2030, 3, 1, 10));
+        final session = await FakeStorage().open(Uint8List(32));
+        final cadence = FakeCadenceSensor();
+        final c = RunController(
+          clock: clock,
+          storage: session,
+          location: FakeLocationSource(),
+          cadence: cadence,
+          tickEvery: const Duration(hours: 1),
+        );
+        addTearDown(c.dispose);
+        await c.start();
+        await Future<void>.delayed(Duration.zero);
+        cadence.emit(clock.now(), 160);
+        await Future<void>.delayed(Duration.zero);
+        expect(c.cadenceStepsPerMinute, 160);
+        cadence.fail();
+        await Future<void>.delayed(Duration.zero);
+        expect(c.cadenceAvailability, CadenceAvailability.noSensor);
+        cadence.emit(clock.now(), 170);
+        await Future<void>.delayed(Duration.zero);
+        expect(c.cadenceStepsPerMinute, isNull);
+      },
+    );
   });
 
   test('Quelltext: Berechtigung im Manifest, Typ health fehlt', () {

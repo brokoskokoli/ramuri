@@ -16,4 +16,17 @@ class StepSensorTest {
     @Test fun sensorWithPermissionIsAvailable() {
         assertEquals("available", StepSensor.decide(hasSensor = true, permissionGranted = true))
     }
+
+    @Test fun stepEventUsesSensorClockForElapsedAndAgeForWallTime() {
+        // Ereignis vor 2 s (Sensorzeit 10_000 s), Wanduhr 1_000_000 ms.
+        val e = StepSensor.stepEvent(wallMs = 1_000_000L, nowNs = 12_000_000_000_000L, eventNs = 10_000_000_000_000L)
+        assertEquals(10_000_000L, e["elapsedMs"])
+        assertEquals(1_000_000L - 2_000_000L, e["timeMs"])
+    }
+
+    @Test fun elapsedDoesNotDependOnWallClock() {
+        val a = StepSensor.stepEvent(wallMs = 5L, nowNs = 3_000_000_000L, eventNs = 3_000_000_000L)
+        val b = StepSensor.stepEvent(wallMs = 999_999L, nowNs = 3_000_000_000L, eventNs = 3_000_000_000L)
+        assertEquals(a["elapsedMs"], b["elapsedMs"])
+    }
 }

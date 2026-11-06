@@ -273,8 +273,7 @@ RunPreprocessing replayRunPreprocessing({
   for (final g in gaps) {
     // Die Unterbrechung (FR-0193) wirkt wie eine Pause: kein Segment über
     // sie, ihre Zeit nicht in der Bewegungszeit.
-    if (g.kind != RunGapKind.manualPause &&
-        g.kind != RunGapKind.interruption) {
+    if (g.kind != RunGapKind.manualPause && g.kind != RunGapKind.interruption) {
       continue;
     }
     add(g.start, 2, () => pre.pause(g.start));

@@ -341,11 +341,32 @@ void main() {
       expect(service + lifecycle + state, isNot(contains('HEALTH')));
     });
 
+    test('Verdrahtung: Standortrecht und Timeout gehen an den Controller', () {
+      // Die Entscheidungen testet die JVM; hier nur, dass State sie genau so ruft.
+      expect(state, contains('Runnable { controller.onTimeout() }'));
+      expect(
+        RegExp(
+          r'"start" -> controller\.start\(\s*result,\s*'
+          r'context\.checkSelfPermission\(Manifest\.permission\.ACCESS_FINE_LOCATION\) ==\s*'
+          r'PackageManager\.PERMISSION_GRANTED,\s*\)',
+        ).hasMatch(state),
+        isTrue,
+      );
+    });
+
     test('kein stopService vor dem Vordergrund', () {
       // Nur bei laufendem Dienst (Entscheidung per JVM-Test des Controllers).
       final controller = File('$dir/RecordingServiceController.kt')
           .readAsStringSync();
-      expect(RegExp('stopService').allMatches(state + controller), isNotEmpty);
+      // Genau ein Aufruf je Datei: im State die Wirkung, im Controller die Entscheidung.
+      int count(String text, String what) => what.allMatches(text).length;
+      expect(
+        count(state, 'stopService'),
+        2,
+        reason: 'override und c.stopService',
+      );
+      expect(count(state, 'c.stopService('), 1);
+      expect(count(controller, 'fx.stopService()'), 1);
       expect(controller, contains('else if (running)'));
       expect(service, contains('takeStopRequest()'));
     });

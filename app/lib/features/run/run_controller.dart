@@ -297,6 +297,8 @@ class RunController extends ChangeNotifier {
   /// jetzt „nicht verfügbar“ statt eines Werts, der nur verfällt.
   void _cadenceEnded() {
     if (_disposed || _timer == null) return;
+    // Der Strom ist nicht endgültig beendet, wenn der Port nach einem Fehler weiterliefert.
+    unawaited(_cadenceSub?.cancel());
     _cadenceSub = null;
     _cadence = null;
     _cadenceAvailability = CadenceAvailability.noSensor;

@@ -33,6 +33,16 @@ object StepSensor {
         else -> "available"
     }
 
+    /**
+     * Nachricht an Dart für einen Schritt. elapsedMs: Monotonuhr (Zeitbasis des Sensors,
+     * elapsedRealtimeNanos), für Abstände. timeMs: Wanduhr abzüglich Alter des Ereignisses,
+     * nur zur Anzeige; sie kann umgestellt werden.
+     */
+    fun stepEvent(wallMs: Long, nowNs: Long, eventNs: Long): Map<String, Long> = mapOf(
+        "timeMs" to wallMs - (nowNs - eventNs) / 1_000_000L,
+        "elapsedMs" to eventNs / 1_000_000L,
+    )
+
     fun availability(context: Context): String = decide(
         hasSensor = context.getSystemService(SensorManager::class.java)
             ?.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) != null,
@@ -65,13 +75,11 @@ object StepSensor {
             val sensor = manager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
             val l = object : SensorEventListener {
                 override fun onSensorChanged(event: SensorEvent) {
-                    val ageMs = (SystemClock.elapsedRealtimeNanos() - event.timestamp) / 1_000_000L
-                    // elapsedMs: Monotonuhr (Zeitbasis des Sensors), für Abstände.
-                    // timeMs: Wanduhr, nur zur Anzeige; sie kann umgestellt werden.
                     events.success(
-                        mapOf(
-                            "timeMs" to System.currentTimeMillis() - ageMs,
-                            "elapsedMs" to event.timestamp / 1_000_000L,
+                        stepEvent(
+                            wallMs = System.currentTimeMillis(),
+                            nowNs = SystemClock.elapsedRealtimeNanos(),
+                            eventNs = event.timestamp,
                         ),
                     )
                 }
