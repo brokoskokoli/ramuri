@@ -40,6 +40,9 @@ class DriftPreprocessingStore implements PreprocessingStore {
               averageBpm: _v(s.averageBpm),
               maxBpm: _v(s.maxBpm),
               medianBpm: _v(s.medianBpm),
+              bestPaceSPerKm: _v(s.bestPaceSecondsPerKm),
+              lapCount: _v(s.lapCount),
+              heartRateTimeS: _v(secondsOfOrNull(s.heartRateTime)),
             ),
           );
       await _db.batch((b) {
@@ -68,6 +71,45 @@ class DriftPreprocessingStore implements PreprocessingStore {
   );
 
   @override
+  Future<Map<int, StoredPreprocessing>> readOverviews() => guarded(() async {
+    // Zwei Abfragen für alle Läufe, keine je Lauf.
+    final results = await _db.select(_db.preprocessingResults).get();
+    final spans =
+        await (_db.select(_db.preprocessedSpans)
+              ..where(
+                (t) => t.kind.isIn([
+                  snake(PreprocessedSpanKind.moving.name),
+                  snake(PreprocessedSpanKind.positionGap.name),
+                ]),
+              )
+              ..orderBy([(t) => OrderingTerm.asc(t.startUs)]))
+            .get();
+    final byRun = <int, List<PreprocessedSpan>>{};
+    for (final p in spans) {
+      byRun
+          .putIfAbsent(p.runId, () => [])
+          .add(
+            PreprocessedSpan(
+              kind: enumOf(
+                PreprocessedSpanKind.values,
+                p.kind,
+                (v) => snake(v.name),
+              ),
+              start: timeOf(p.startUs),
+              end: p.endUs == null ? null : timeOf(p.endUs!),
+            ),
+          );
+    }
+    return {
+      for (final r in results)
+        r.runId: StoredPreprocessing(
+          summary: _summaryOf(r),
+          spans: [...?byRun[r.runId]]..sort(comparePreprocessedSpans),
+        ),
+    };
+  });
+
+  @override
   Future<StoredPreprocessing?> read(int runId) => guarded(() async {
     final r = await (_db.select(
       _db.preprocessingResults,
@@ -80,19 +122,7 @@ class DriftPreprocessingStore implements PreprocessingStore {
       _db.preprocessedSpans,
     )..where((t) => t.runId.equals(runId))).get();
     return StoredPreprocessing(
-      summary: PreprocessingSummary(
-        method: r.method,
-        methodVersion: r.methodVersion,
-        parameterVersion: r.parameterVersion,
-        computedAt: timeOf(r.computedAtUs),
-        totalTime: durationOfOrNull(r.totalTimeS),
-        movingTime: durationOfOrNull(r.movingTimeS),
-        distanceMeters: r.distanceM,
-        bridgedDistanceMeters: r.bridgedDistanceM,
-        averageBpm: r.averageBpm,
-        maxBpm: r.maxBpm,
-        medianBpm: r.medianBpm,
-      ),
+      summary: _summaryOf(r),
       samples: [
         for (final p in samples)
           PreprocessedSample(
@@ -229,3 +259,21 @@ List<PositionGap> _gapsOf(String json) => [
 ];
 
 Value<T> _v<T>(T x) => Value<T>(x);
+
+PreprocessingSummary _summaryOf(d.PreprocessingResult r) =>
+    PreprocessingSummary(
+      method: r.method,
+      methodVersion: r.methodVersion,
+      parameterVersion: r.parameterVersion,
+      computedAt: timeOf(r.computedAtUs),
+      totalTime: durationOfOrNull(r.totalTimeS),
+      movingTime: durationOfOrNull(r.movingTimeS),
+      distanceMeters: r.distanceM,
+      bridgedDistanceMeters: r.bridgedDistanceM,
+      averageBpm: r.averageBpm,
+      maxBpm: r.maxBpm,
+      medianBpm: r.medianBpm,
+      bestPaceSecondsPerKm: r.bestPaceSPerKm,
+      lapCount: r.lapCount,
+      heartRateTime: durationOfOrNull(r.heartRateTimeS),
+    );

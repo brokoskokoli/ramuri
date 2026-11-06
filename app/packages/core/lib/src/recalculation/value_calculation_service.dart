@@ -7,8 +7,11 @@ import '../fitness/fitness_parameters.dart';
 import '../fitness/heart_rate_basis.dart';
 import '../fitness/vo2max_long_term.dart';
 import '../preprocessing/preprocessing_parameters.dart';
+import '../statistics/run_overview.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
+import '../settings/reserve_zone_settings.dart';
 import 'run_analysis.dart';
+import 'run_load_values.dart';
 
 /// Die Werte, die nach einem Lauf entstehen.
 class RunCalculationResult {
@@ -53,7 +56,8 @@ String dayOfRun(StoredRun run) =>
     isoDay(run.endedAt!.toUtc().add(run.endedUtcOffset ?? Duration.zero));
 
 /// Rechnet VO₂max-Laufwert, Langzeitwert und aerobe Effizienz aus den
-/// gespeicherten Rohdaten (FR-0066 bis FR-0087) und speichert sie als
+/// gespeicherten Rohdaten (FR-0066 bis FR-0087), dazu die Laufwerte für Zonen
+/// und TRIMP ([buildRunLoadValues]), und speichert sie als
 /// `original` und `current` mit den Angaben aus FR-0053, den bewerteten
 /// Abschnitten (FR-0073) und der verwendeten Herzfrequenzbasis (OQ-0065).
 /// Netzwerkfrei (SEC-0006), Zeit nur über [Clock].
@@ -143,9 +147,35 @@ class ValueCalculationService {
     );
     final plan = _DayPlan();
     await plan.add(session, day, values.all);
+    // Zonenzeiten und TRIMP mit den Zonengrenzen und der Basis zum Laufende;
+    // Zonenzeiten werden nie neu gerechnet (L11), TRIMP nur bei geänderter
+    // Basis im current (FR-0006).
+    final bounds = (await ReserveZoneSettings.loadParameters(session.settings))
+        .reserveZoneBounds;
+    final loadValues = buildRunLoadValues(
+      run: run,
+      pre: analysis.preprocessing,
+      basis: profile,
+      fitness: fitness.copyWith(reserveZoneBounds: bounds),
+      sources: analysis.sources,
+      computedAt: now,
+    );
+    // Kurzfassung für Historie und Vergleich (vor den Werten: scheitert sie,
+    // ist nichts geschrieben und ein neuer Versuch möglich).
+    final pre = analysis.preprocessing;
+    if (pre != null) {
+      await session.preprocessing.replace(
+        runId,
+        overviewOf(
+          pre,
+          computedAt: now,
+          lapCount: (await session.markers.laps(runId)).length,
+        ),
+      );
+    }
     await session.values.writeAll(
       create: {
-        ValueOwner.run(runId): [runValue],
+        ValueOwner.run(runId): [runValue, ...loadValues],
         ...plan.create,
       },
       swap: plan.swap,
@@ -325,9 +355,13 @@ class ValueCalculationService {
     final runOwners = <ValueOwner, List<ComputedValue>>{};
     for (final r in runs) {
       if (await _runValue(r.id) == null) continue;
-      final value = (await analysisOf(r, profile)).vo2maxValue(now);
+      final analysis = await analysisOf(r, profile);
+      final value = analysis.vo2maxValue(now);
       runValues[r.id] = value;
-      runOwners[ValueOwner.run(r.id)] = [value];
+      runOwners[ValueOwner.run(r.id)] = [
+        value,
+        ...await _trimpSwap(r, analysis, profile, now),
+      ];
     }
     final dayOwners = <ValueOwner, List<ComputedValue>>{};
     final days = <String>{for (final r in runs) dayOfRun(r)};
@@ -351,6 +385,32 @@ class ValueCalculationService {
       if (swappable.isNotEmpty) dayOwners[ValueOwner.day(day)] = swappable;
     }
     return ValueSnapshot(runValues: runOwners, dayValues: dayOwners);
+  }
+
+  /// TRIMP des Laufs mit der neuen Basis, wenn der Lauf schon einen gespeicherten
+  /// TRIMP hat (FR-0006, OQ-0031: TRIMP hängt an HFmax; `original` bleibt).
+  /// Zonenzeiten werden nie neu gerechnet (L11), ein Lauf ohne gespeicherten
+  /// TRIMP (vor dieser Entscheidung) bekommt keinen.
+  Future<List<ComputedValue>> _trimpSwap(
+    StoredRun r,
+    RunAnalysis analysis,
+    HeartRateBasis profile,
+    DateTime now,
+  ) async {
+    final stored = (await session.values.read(ValueOwner.run(r.id)))
+        .any((p) => p.original.key == trimpRunValueKey);
+    if (!stored) return const [];
+    return [
+      for (final v in buildRunLoadValues(
+        run: r,
+        pre: analysis.preprocessing,
+        basis: profile,
+        fitness: fitness,
+        sources: analysis.sources,
+        computedAt: now,
+      ))
+        if (v.key == trimpRunValueKey) v,
+    ];
   }
 
   /// Zeitpunkt, für den der Tageswert des lokalen Tages [day] gilt: Ende des

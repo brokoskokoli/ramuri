@@ -135,7 +135,7 @@ void main() {
       clock.advance(const Duration(seconds: 30)); // keine Punkte mehr
       final s = session.snapshot();
       expect(s.movingTime, const Duration(seconds: 60), reason: 'läuft weiter');
-      expect(s.positionLossTime, const Duration(seconds: 30));
+      expect(s.positionLossMovingTime, const Duration(seconds: 30));
       final km = s.distanceMeters! / 1000;
       // Nur die 30 s mit Strecke gelten: rund 345 s/km statt rund 690 s/km.
       expect(averagePaceSecondsPerKm(s)!, closeTo(30 / km, 0.001));
@@ -166,7 +166,7 @@ void main() {
     final before = session.snapshot();
     clock.advance(const Duration(seconds: 40)); // Lücke im Stand
     final s = session.snapshot();
-    expect(s.positionLossTime, greaterThan(Duration.zero));
+    expect(s.positionLost, isTrue);
     expect(s.positionLossMovingTime, Duration.zero);
     expect(s.movingTime, before.movingTime);
     final km = s.distanceMeters! / 1000;
@@ -342,7 +342,7 @@ void main() {
       expect(text('run_pace'), 'noch keine Daten');
       expect(text('run_avg_pace'), 'noch keine Daten');
       expect(text('run_gps'), contains('Suche'));
-      expect(text('run_sensors'), contains('keine Quelle'));
+      expect(text('run_sensor_status'), contains('Kein Sensor verbunden'));
       expect(find.textContaining(RegExp(r'\b0 bpm')), findsNothing);
       expect(find.text('Noch keine Runde markiert'), findsOneWidget);
       expect(text('run_time'), '0:00');
@@ -371,7 +371,7 @@ void main() {
       expect(text('run_avg_pace'), matches(RegExp(r'^5:\d\d min/km$')));
       expect(text('run_hr'), '150 bpm');
       expect(text('run_zone'), 'Zone 2');
-      expect(text('run_sensors'), contains('Quelle aktiv'));
+      expect(text('run_sensor_status'), 'Sensor verbunden');
       expect(text('run_gps'), 'Signal ok');
       expect(text('run_ascent'), matches(RegExp(r'^\d+ m$')));
       expect(text('run_cadence'), 'nicht verfügbar');

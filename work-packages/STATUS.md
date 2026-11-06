@@ -4,7 +4,7 @@ Einzige Stelle für den Stand der Meilensteine und Arbeitspakete. Gepflegt vom O
 
 Status: `geplant` · `in Arbeit` · `Review` · `wartet` (Grund in „Offen“) · `gemergt` (Commit) · `verworfen`
 
-Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP01 bis WP07 und WP09, R005 und R007 abgeschlossen, WP08 und WP10 laufen.
+Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP01 bis WP07, WP09 und WP10, R005 und R007 abgeschlossen, WP08 läuft.
 
 ## Meilensteine
 
@@ -26,7 +26,7 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP09 | VO₂max, aerobe Effizienz und Neuberechnung | gemergt (5ee87cf) | Modellwerte nur synthetisch (NFR-0004, OQ-0020); E2E nur API 31 und Englisch; Test für `utcOffsetAt` greift nur in Zeitzonen mit Sommerzeit (Gate setzt kein TZ); Dauer von Neuberechnung und Nachholen auf schwachen Geräten ungemessen (ADR-0004); dauerhaft scheiternder Lauf wird bei jedem Start ohne Anzeige erneut versucht; OQ-0073 |
 | WP03 | Vorverarbeitung und Bewegungswerte | gemergt (b29c386) | Nur synthetische Läufe, Gate nur auf macOS; OQ-0068, OQ-0069 offen |
 | WP07 | Pulssensoren | gemergt (0a90750) | Echter BLE-Weg ungeprüft (ohne R006): Funkabbrüche, Timeouts, Scan bei Bluetooth aus, Adressen in Plugin-Logs, langsamer Gurt; ACC-02, Gerätekategorien FR-0007, wechselnde Adressen; bewusst getrennte Geräte verbinden beim nächsten Öffnen des Lauf-Bildschirms wieder (kein „Gerät vergessen“); nach Abbruch bis rund 10 s letzter Puls sichtbar (PAR-010) |
-| WP10 | Zusammenfassung, Historie, Statistik und Transparenz | in Arbeit | L2, L4, L5 offen (Paket) |
+| WP10 | Zusammenfassung, Historie, Statistik und Transparenz | gemergt (30cf5b1) | Laufzeiten nur auf VM und Emulator (4-h-Lauf etwa 1 s), Gerät ungemessen; Meilen nur synthetisch; Deutsch und Diagrammlücken nur per Widget-Test; Screenreader liest den Glättungshinweis im Pulsdiagramm doppelt, Pace-Reihe ohne Hinweis (Soll); `PaceProcessor` kopiert Segmente je Snapshot; `RunPorts.heartRate` entfernen (aus WP07); E2E-Vorlagen in `handoff/e2e-vorlagen/` |
 | WP11, WP12 | siehe [M1-PLAN.md](M1-PLAN.md) | geplant | Annahmen aus den Vorpaketen in den Paketen vermerkt; `AppDependencies` ist noch leer |
 | WP04 | Algorithmen-Rahmen, Herzfrequenzzonen und TRIMP | gemergt (9a3d5a1) | Nur synthetische Pulswerte; OQ-0070; Modellgüte ungeprüft (NFR-0004); Stufenvergabe bei WP09 |
 | WP08 | Hintergrund und Wiederanlauf | in Arbeit | – |

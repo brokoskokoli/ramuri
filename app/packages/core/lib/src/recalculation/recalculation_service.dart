@@ -5,9 +5,11 @@ import '../../ports/storage.dart';
 import '../../ports/storage_profile.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
+import '../fitness/edwards_trimp.dart';
 import '../fitness/vo2max_estimator.dart';
 import '../profile/heart_rate_resolution.dart';
 import 'run_analysis.dart';
+import 'run_load_values.dart';
 import 'value_calculation_service.dart';
 
 /// Warum eine Neuberechnung angeboten wird (FR-0006, FR-0058).
@@ -65,7 +67,11 @@ class RecalculationResult {
 /// 3. [decline] verwirft das Angebot und ändert keine Werte (alte Läufe
 ///    ändern sich nie still, OQ-0065).
 ///
-/// Zonenzeiten werden nicht gespeichert; es gibt nichts neu zu rechnen.
+/// Zonenzeiten und TRIMP sind Laufwerte, die nach dem Lauf einmal gespeichert
+/// werden ([buildRunLoadValues]). Die Zonenzeiten fasst die Neuberechnung nie
+/// an (L11, FR-0061, OQ-0065). TRIMP hängt an HFmax: Er wird bei einer Änderung
+/// der Basis wie der VO₂max-Laufwert im `current` neu gerechnet (nur für Läufe
+/// mit gespeichertem TRIMP; `original` bleibt).
 class RecalculationService {
   RecalculationService({
     required this.session,
@@ -125,16 +131,25 @@ class RecalculationService {
   }
 
   /// Prüft, ob gespeicherte Laufwerte mit einer anderen Parameter- oder
-  /// Methodenversion gerechnet sind als die App sie jetzt verwendet.
+  /// Methodenversion gerechnet sind als die App sie jetzt verwendet: VO2max
+  /// und TRIMP (die Basis ändert sich mit dem Profil, das Ergebnis mit der
+  /// Methode). Zonenzeiten gehören bewusst nicht dazu: sie werden nie neu
+  /// gerechnet (L11), das Angebot käme nach jeder Bestätigung wieder.
   Future<RecalculationOffer?> checkVersions() async {
     const estimator = AcsmReserveVo2maxEstimator();
+    const trimp = EdwardsTrimp();
     for (final r in await session.runs.list()) {
       for (final p in await session.values.read(ValueOwner.run(r.id))) {
-        if (p.original.key != vo2maxRunValueKey) continue;
         final c = p.current;
+        final (method, version) = switch (p.original.key) {
+          vo2maxRunValueKey => (estimator.method, estimator.methodVersion),
+          trimpRunValueKey => (trimp.method, trimp.methodVersion),
+          _ => (null, 0),
+        };
+        if (method == null) continue;
         if (c.parameterVersion != _calc.fitness.parameterVersion ||
-            c.method != estimator.method ||
-            c.methodVersion != estimator.methodVersion) {
+            c.method != method ||
+            c.methodVersion != version) {
           return _offer(RecalculationCause.algorithmVersion);
         }
       }

@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/run/method_channel_recording_service.dart';
 import 'package:running_app/features/run/run_controller.dart';
 import 'package:running_app/features/run/run_ports.dart';
+import 'package:running_app/features/sensors/run_heart_rate.dart';
+import 'package:running_app/features/sensors/sensor_manager.dart';
 
 final _t0 = DateTime.utc(2030, 3, 1, 10);
 
@@ -40,6 +42,16 @@ RunController _controller(
   service: w.service,
   tickEvery: const Duration(hours: 1),
 );
+
+/// Pulsquelle eines Laufs aus der Sensorverwaltung, Gerät 's' verbunden.
+RunHeartRate _hrRun(FakeClock clock) {
+  final run = SensorManager(
+    sensor: FakeHeartRateSensor(),
+    clock: clock,
+  ).beginRun();
+  run.handle(const HeartRateConnected('s'));
+  return run;
+}
 
 void main() {
   group('RunController und Dienst (WP08)', () {
@@ -230,21 +242,20 @@ void main() {
   group('Sensor im Lauf (WP08 C, ADR-0006 Punkt 4)', () {
     test('erster Pulswert zieht den Diensttyp nach, nur einmal', () async {
       final w = await _world();
-      final hr = StreamController<HeartRateReading>();
+      final hr = _hrRun(w.clock);
       final c = RunController(
         clock: w.clock,
         storage: w.session,
         location: w.location,
         service: w.service,
-        heartRate: () => hr.stream,
+        sensors: hr,
         tickEvery: const Duration(hours: 1),
       );
       addTearDown(c.dispose);
-      addTearDown(hr.close);
       await c.start();
       expect(w.service.updateTypeCalls, 0);
-      hr.add(HeartRateReading('s', w.clock.now(), 120));
-      hr.add(HeartRateReading('s', w.clock.now(), 121));
+      hr.handle(HeartRateReading('s', w.clock.now(), 120));
+      hr.handle(HeartRateReading('s', w.clock.now(), 121));
       await Future<void>.delayed(Duration.zero);
       expect(w.service.updateTypeCalls, 1);
     });
@@ -252,19 +263,18 @@ void main() {
     test('Fehler beim Nachziehen stört den Lauf nicht', () async {
       final w = await _world();
       final service = _ThrowingUpdate();
-      final hr = StreamController<HeartRateReading>();
+      final hr = _hrRun(w.clock);
       final c = RunController(
         clock: w.clock,
         storage: w.session,
         location: w.location,
         service: service,
-        heartRate: () => hr.stream,
+        sensors: hr,
         tickEvery: const Duration(hours: 1),
       );
       addTearDown(c.dispose);
-      addTearDown(hr.close);
       await c.start();
-      hr.add(HeartRateReading('s', w.clock.now(), 120));
+      hr.handle(HeartRateReading('s', w.clock.now(), 120));
       await Future<void>.delayed(Duration.zero);
       expect(c.phase, RecordingPhase.running);
       expect(c.heartRateSourceSeen, isTrue);

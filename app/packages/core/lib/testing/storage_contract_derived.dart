@@ -44,7 +44,7 @@ final valueContractCases = <StorageContractCase>[
 
 String _describe(StoredPreprocessing p) {
   final s = p.summary;
-  return '${s.method}|${s.methodVersion}|${s.parameterVersion}|${us(s.computedAt)}|${s.totalTime?.inMicroseconds}|${s.movingTime?.inMicroseconds}|${s.distanceMeters}|${s.bridgedDistanceMeters}|${s.averageBpm}|${s.maxBpm}|${s.medianBpm}'
+  return '${s.method}|${s.methodVersion}|${s.parameterVersion}|${us(s.computedAt)}|${s.totalTime?.inMicroseconds}|${s.movingTime?.inMicroseconds}|${s.distanceMeters}|${s.bridgedDistanceMeters}|${s.averageBpm}|${s.maxBpm}|${s.medianBpm}|${s.bestPaceSecondsPerKm}|${s.lapCount}|${s.heartRateTime?.inMicroseconds}'
       ' samples=${p.samples.map((x) => '${x.channel.name}/${x.rawId}/${us(x.time)}/${x.state.name}/${x.discardReason?.name}')}'
       ' spans=${p.spans.map((x) => '${x.kind.name}/${us(x.start)}/${us(x.end)}')}';
 }
@@ -59,7 +59,7 @@ Future<void> _preprocessing(StorageContractHarness h) async {
   final first = await s.preprocessing.read(r);
   expectEq(
     _describe(first!),
-    'preprocessing|1|2|${us(at(60, 5))}|61500000|60000000|1000.5|null|null|170|null'
+    'preprocessing|1|2|${us(at(60, 5))}|61500000|60000000|1000.5|null|null|170|null|312.5|3|58500000'
         ' samples=(position/1/${us(at(1))}/present/null, position/2/${us(at(2))}/discarded/hardJump)'
         ' spans=(moving/${us(at(5))}/null/null, settling/${us(at(1))}/${us(at(5))})',
     'gelesen: sortiert, fehlende Werte null',
@@ -70,6 +70,35 @@ Future<void> _preprocessing(StorageContractHarness h) async {
   );
   final replaced = await s.preprocessing.read(r);
   expectEq(replaced!.summary.methodVersion, 3, 'ersetzt');
+  expectEq(
+    '${replaced.summary.bestPaceSecondsPerKm}|${replaced.summary.lapCount}|${replaced.summary.heartRateTime}',
+    '312.5|3|0:00:58.500000',
+    'ersetzt: Bestpace, Runden, Zeit mit Puls',
+  );
+  // Nicht bestimmbar bleibt null, wird nie zu 0 (Spalten nullbar).
+  final bare = samplePreprocessing(3).summary;
+  await s.preprocessing.replace(
+    r,
+    StoredPreprocessing(
+      summary: PreprocessingSummary(
+        method: bare.method,
+        methodVersion: bare.methodVersion,
+        parameterVersion: bare.parameterVersion,
+        computedAt: bare.computedAt,
+      ),
+    ),
+  );
+  final nulls = (await s.preprocessing.read(r))!.summary;
+  expectEq(
+    '${nulls.bestPaceSecondsPerKm}|${nulls.lapCount}|${nulls.heartRateTime}',
+    'null|null|null',
+    'ohne Bestpace, Runden, Zeit mit Puls: null statt 0',
+  );
+  expectEq(
+    '${(await s.preprocessing.readOverviews())[r]!.summary.lapCount}',
+    'null',
+    'Kurzfassung: Runden null statt 0',
+  );
   expectEq(
     '${replaced.samples.length}/${replaced.spans.length}',
     '0/0',
@@ -85,7 +114,58 @@ Future<void> _preprocessing(StorageContractHarness h) async {
     StorageFailure.notFound,
     'unbekannter Lauf',
   );
+  await _overviews(s, r, other);
   await s.close();
+}
+
+/// Gebündelte Kurzfassung aller Läufe (Historie): nur `moving` und
+/// `positionGap`, keine Samples, mit der Zusammenfassung des Laufs.
+Future<void> _overviews(StorageSession s, int r, int other) async {
+  await s.preprocessing.replace(
+    r,
+    StoredPreprocessing(
+      summary: samplePreprocessing(4).summary,
+      samples: samplePreprocessing().samples,
+      spans: [
+        PreprocessedSpan(
+          kind: PreprocessedSpanKind.settling,
+          start: at(1),
+          end: at(5),
+        ),
+        PreprocessedSpan(
+          kind: PreprocessedSpanKind.positionGap,
+          start: at(30),
+          end: at(40),
+        ),
+        PreprocessedSpan(
+          kind: PreprocessedSpanKind.moving,
+          start: at(5),
+          end: at(60),
+        ),
+      ],
+    ),
+  );
+  final third = (await s.runs.create(startedAt: at(0))).id;
+  final all = await s.preprocessing.readOverviews();
+  expectEq(all.length, 2, 'nur Läufe mit Vorverarbeitung (nicht $third)');
+  final o = all[r]!;
+  expectEq(o.summary.methodVersion, 4, 'Zusammenfassung des Laufs');
+  expectEq(o.summary.distanceMeters, 1000.5, 'Strecke');
+  expectEq(
+    '${o.summary.bestPaceSecondsPerKm}|${o.summary.lapCount}|${o.summary.heartRateTime?.inMicroseconds}',
+    '312.5|3|58500000',
+    'Kurzfassung: Bestpace, Runden, Zeit mit Puls',
+  );
+  expectEq(o.samples.length, 0, 'keine Samples');
+  expectEq(
+    o.spans.map((x) => '${x.kind.name}/${us(x.start)}/${us(x.end)}').toList(),
+    [
+      'moving/${us(at(5))}/${us(at(60))}',
+      'positionGap/${us(at(30))}/${us(at(40))}',
+    ],
+    'nur moving und positionGap, sortiert',
+  );
+  expectEq(all[other]!.summary.methodVersion, 7, 'anderer Lauf');
 }
 
 String _section(RatedSection x) {
@@ -205,6 +285,63 @@ Future<void> _values(StorageContractHarness h) async {
   expectEq(read[1].original.sections.length, 3, 'original behält 3 Abschnitte');
   expectEq(read[1].current.sections.length, 2, 'current hat neue Abschnitte');
   expectEq(read[0].original.sections.length, 0, 'Wert ohne Abschnitte');
+
+  // Gebündelte Abfrage: das current der verlangten Schlüssel aller Läufe, ohne
+  // Tageswerte und ohne Abschnitte.
+  final other = (await s.runs.create(startedAt: at(1))).id;
+  await s.values.createOriginals(ValueOwner.run(other), [
+    sampleValue('vo2max', 40),
+  ]);
+  await s.values.createOriginals(const ValueOwner.day('2030-01-02'), [
+    sampleValue('vo2max', 1),
+  ]);
+  final bulk = await s.values.readRunValues({'vo2max', 'nichts'});
+  expectEq(bulk.keys.toSet(), {r, other}, 'alle Läufe mit dem Schlüssel');
+  expectEq(bulk[r]!.keys.toList(), ['vo2max'], 'nur verlangte Schlüssel');
+  expectEq(bulk[r]!['vo2max']!.value, 50.25, 'das current, nicht das original');
+  expectEq(bulk[other]!['vo2max']!.value, 40.0, 'anderer Lauf');
+  expectEq(bulk[r]!['vo2max']!.sections.length, 0, 'ohne Abschnitte');
+  expectEq(
+    bulk[r]!['vo2max']!.quality,
+    ValueQuality.good,
+    'Qualität des current',
+  );
+  expectEq(
+    (await s.values.readRunValues({})).length,
+    0,
+    'keine Schlüssel, keine Antwort',
+  );
+  // Dasselbe für Tageswerte: nach Tag, nur das current der verlangten
+  // Schlüssel, ohne Laufwerte und ohne Abschnitte.
+  await s.values.createOriginals(const ValueOwner.day('2030-01-09'), [
+    sampleValue('vo2max', 7),
+    sampleValue('anderer', 8),
+  ]);
+  await s.values.swapCurrent(const ValueOwner.day('2030-01-09'), [
+    sampleValue('vo2max', 7.5),
+  ]);
+  final days = await s.values.readDayValues({'vo2max', 'nichts'});
+  expectEq(days.keys.toList()..sort(), [
+    '2030-01-02',
+    '2030-01-09',
+  ], 'alle Tage mit dem Schlüssel');
+  expectEq(days['2030-01-02']!['vo2max']!.value, 1.0, 'Wert des Tages');
+  expectEq(
+    days['2030-01-09']!['vo2max']!.value,
+    7.5,
+    'current, nicht original',
+  );
+  expectEq(days['2030-01-09']!.keys.toList(), ['vo2max'], 'nur verlangte');
+  expectEq(
+    days['2030-01-09']!['vo2max']!.sections.length,
+    0,
+    'ohne Abschnitte',
+  );
+  expectEq(
+    (await s.values.readDayValues({})).length,
+    0,
+    'keine Schlüssel, keine Antwort (Tage)',
+  );
   await s.close();
 }
 

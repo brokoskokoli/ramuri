@@ -15,11 +15,12 @@ class AppDatabase extends _$AppDatabase {
 
   /// Version 1: Phase 1 (WP02 Teil B). Version 2: Tempo, Tempo- und
   /// Vertikalgenauigkeit je Rohposition (WP06 Teil C, K12). Version 3: value_sections
-  /// und Grund-, Basis- und Versatzspalten (WP09 D1/D2a). Jede spätere Änderung erhöht die
+  /// und Grund-, Basis- und Versatzspalten (WP09 D1/D2a). Version 4: Bestpace, Rundenzahl und Zeit mit Puls in
+  /// `preprocessing_results` (WP10). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -57,6 +58,20 @@ class AppDatabase extends _$AppDatabase {
       await m.addColumn(runs, runs.endedUtcOffsetS);
       await m.create(runsOffsetInsert);
       await m.create(runsOffsetUpdate);
+    },
+    // 3 -> 4 (WP10): Bestpace, Rundenzahl und Zeit mit Puls in der Kurzfassung.
+    // Alte Zeilen bekommen NULL (nicht bekannt, nie 0); sie tragen noch die
+    // alte methodVersion und werden beim Lesen neu gerechnet.
+    3: (Migrator m) async {
+      await m.addColumn(
+        preprocessingResults,
+        preprocessingResults.bestPaceSPerKm,
+      );
+      await m.addColumn(preprocessingResults, preprocessingResults.lapCount);
+      await m.addColumn(
+        preprocessingResults,
+        preprocessingResults.heartRateTimeS,
+      );
     },
   };
 

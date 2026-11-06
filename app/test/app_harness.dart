@@ -46,8 +46,13 @@ class Device {
   /// Abfrage von ACTIVITY_RECOGNITION vor dem Laufstart; `null` wie ohne Plattform.
   Future<void> Function()? requestActivityRecognition;
 
+  /// Wo die Wiedergabe rechnet. Ein Isolate läuft nicht in der Test-Uhr
+  /// (pumpAndSettle), darum standardmäßig inline; Tests setzen einen Fake.
+  Offload offload = inlineOffload;
+
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
-  /// [heartRate]; [lastRun] ist die Pulsquelle des jüngsten Laufs.
+  /// [heartRate] (Gerät 'hr1', ohne Verwaltung); [lastRun] ist die Pulsquelle
+  /// des jüngsten Laufs.
   bool runViaSensors = false;
   RunHeartRate? lastRun;
 
@@ -96,19 +101,28 @@ class Device {
           storageStart: controller,
           sensors: sensors,
           clock: clock,
+          offload: offload,
           permissions: permissions,
           runPorts: RunPorts(
             access: locationAccessOverride ?? locationAccess,
             location: location,
-            heartRate: runViaSensors
-                ? null
-                : () => heartRate
-                      .connect('hr1')
-                      .where((e) => e is HeartRateReading)
-                      .cast<HeartRateReading>(),
-            heartRateRun: runViaSensors
-                ? () => lastRun = sensors.beginRun()
-                : null,
+            heartRateRun: () {
+              final run = sensors.beginRun();
+              if (!runViaSensors) {
+                // Einfacher Puls ohne Sensorverwaltung: das Gerät 'hr1' des
+                // Fakes speist die Pulsquelle dieses Laufs direkt; verbunden
+                // gilt es erst mit dem ersten Wert.
+                var connected = false;
+                final sub = heartRate.connect('hr1').listen((e) {
+                  if (e is! HeartRateReading) return;
+                  if (!connected) run.handle(HeartRateConnected(e.deviceId));
+                  connected = true;
+                  run.handle(e);
+                });
+                addTearDown(sub.cancel);
+              }
+              return lastRun = run;
+            },
             connectSensors: sensors.connectKnown,
             recordingService: recordingService,
             requestNotifications: requestNotifications,
