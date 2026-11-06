@@ -54,6 +54,31 @@ void main() {
       expect(c.phase, RecordingPhase.running);
     });
 
+    test('Fortsetzen eines inzwischen beendeten Laufs: abgelehnt, kein Dienst, '
+        'startFailed', () async {
+      final w = await _world();
+      final run = await w.session.runs.create(startedAt: _t0);
+      await w.session.runs.setState(
+        run.id,
+        RunState.finished,
+        endedAt: _t0.add(const Duration(minutes: 1)),
+      );
+      final c = RunController(
+        clock: w.clock,
+        storage: w.session,
+        location: w.location,
+        service: w.service,
+        tickEvery: const Duration(hours: 1),
+        resumeRunId: run.id,
+      );
+      addTearDown(c.dispose);
+      await c.start();
+      expect(c.startFailed, isTrue);
+      expect(w.service.startCalls, 0);
+      expect(w.service.running, isFalse);
+      expect(w.location.hasListeners, isFalse);
+    });
+
     test('Ende stoppt den Dienst', () async {
       final w = await _world();
       final c = _controller(w);
@@ -222,6 +247,18 @@ void main() {
     test('onDestroy gibt den Lock frei', () {
       expect(service, contains('lifecycle?.onDestroy()'));
       expect(lifecycle, matches(RegExp(r'fun onDestroy\(\) = stop\(\)')));
+    });
+
+    test('Standortrecht wird vor startForegroundService geprüft', () {
+      final check = state.indexOf('RecordingLifecycle.mayStart(');
+      final start = state.indexOf('startForegroundService(');
+      expect(check, isNonNegative);
+      expect(start, greaterThan(check));
+      expect(state, contains('Manifest.permission.ACCESS_FINE_LOCATION'));
+      // Bei Ablehnung: Fehler start_failed und zurück, ohne Dienst.
+      final denied = state.substring(check, start);
+      expect(denied, contains('"start_failed"'));
+      expect(denied, contains('return'));
     });
 
     test('kein stopService vor dem Vordergrund', () {

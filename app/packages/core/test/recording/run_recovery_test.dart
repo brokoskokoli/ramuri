@@ -57,7 +57,87 @@ class World {
   }
 }
 
+/// Puls, Höhe und Schritte nach dem letzten GPS-Punkt (GPS weg, Sensoren
+/// laufen weiter), dann Abbruch. Letzter Zeitpunkt: Sekunde 50.
+Future<int> crashedWithSensorsAfterGps(World w) async {
+  final r = w.recorder();
+  await r.start();
+  for (var s = 1; s <= 30; s++) {
+    w.feed(r, s, 3.0 * s);
+  }
+  w.clock.set(t0.add(const Duration(seconds: 50)));
+  r.addHeartRate(
+    HeartRateReading('hr', t0.add(const Duration(seconds: 50)), 140),
+  );
+  await r.flush();
+  return r.runId!;
+}
+
 void main() {
+  group('Letzter Zeitpunkt (Puls nach dem letzten GPS-Punkt)', () {
+    test('Speichern: Endzeit ist der letzte Pulswert', () async {
+      final w = await World.open();
+      final id = await crashedWithSensorsAfterGps(w);
+      final saved = await w.recovery().saveFinished(id);
+      expect(saved!.endedAt, t0.add(const Duration(seconds: 50)));
+    });
+
+    test('Fortsetzen: Lücke beginnt am letzten Pulswert', () async {
+      final w = await World.open();
+      final id = await crashedWithSensorsAfterGps(w);
+      w.clock.set(t0.add(const Duration(seconds: 300)));
+      expect(await w.recorder().restore(id), CommandResult.ok);
+      final g = (await w.session.markers.gaps(id))
+          .singleWhere((g) => g.kind == RunGapKind.interruption);
+      expect(g.start, t0.add(const Duration(seconds: 50)));
+    });
+  });
+
+  group('Runden über die Wiederaufnahme', () {
+    test('Index zählt weiter, Rundenzeit ab der letzten Marke, Bewegungszeit '
+        'ohne Ausfall', () async {
+      final w = await World.open();
+      final r1 = w.recorder();
+      await r1.start();
+      for (var s = 1; s <= 30; s++) {
+        w.feed(r1, s, 3.0 * s);
+        if (s == 20) await r1.lap();
+      }
+      await r1.flush();
+      final id = r1.runId!;
+      // 10 Minuten Ausfall.
+      w.clock.set(t0.add(const Duration(seconds: 630)));
+      final r2 = w.recorder();
+      await r2.restore(id);
+      expect(r2.snapshot().laps.map((l) => l.index), [1]);
+      for (var s = 631; s <= 640; s++) {
+        w.feed(r2, s, 3000 + 3.0 * (s - 631));
+      }
+      await r2.lap();
+      final laps = r2.snapshot().laps;
+      expect(laps.map((l) => l.index), [1, 2]);
+      expect(laps[1].lapTime, const Duration(seconds: 620));
+      // Bewegt: Sekunden 20 bis 30 und 631 bis 640, nicht die 600 s Ausfall.
+      expect(laps[1].movingTime, lessThan(const Duration(seconds: 30)));
+      expect(laps[1].movingTime, greaterThan(const Duration(seconds: 10)));
+      final stored = await w.session.markers.laps(id);
+      expect(stored.map((l) => l.index), [1, 2]);
+    });
+  });
+
+  group('Doppelstart', () {
+    test('zwei gleichzeitige restore: einer ok, eine Lücke', () async {
+      final w = await World.open();
+      final (id, _) = await w.crashedRun();
+      w.clock.set(t0.add(const Duration(seconds: 630)));
+      final r = w.recorder();
+      final both = await Future.wait([r.restore(id), r.restore(id)]);
+      expect(both, unorderedEquals([CommandResult.ok, CommandResult.rejected]));
+      final gaps = await w.session.markers.gaps(id);
+      expect(gaps.where((g) => g.kind == RunGapKind.interruption).length, 1);
+    });
+  });
+
   group('Erkennung', () {
     test(
       'ohne unfertigen Lauf kein Angebot, auch nicht nach normalem Ende',

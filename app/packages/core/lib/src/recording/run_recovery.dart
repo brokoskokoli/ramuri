@@ -75,6 +75,18 @@ class RunRecovery {
     return open.isEmpty ? null : open.first;
   }
 
+  /// Ob die Uhr vor dem letzten gespeicherten Zeitpunkt des Laufs steht (Uhr
+  /// zurückgestellt): Beim Fortsetzen zählen Punkte erst, wenn sie aufholt.
+  Future<bool> clockBehind(StoredRun run) async {
+    final last = lastRecordedTime(
+      run,
+      await _raw.read(run.id),
+      await _markers.gaps(run.id),
+      await _markers.laps(run.id),
+    );
+    return _clock.now().isBefore(last);
+  }
+
   /// Speichert den Lauf als beendet: Endzeit ist der letzte gespeicherte
   /// Zeitpunkt (nicht jetzt: die Zeit danach ist nicht belegt), mit dem
   /// UTC-Versatz zu diesem Zeitpunkt; offene Lücken werden dort geschlossen.

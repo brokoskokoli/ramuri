@@ -1,7 +1,9 @@
 package io.github.brokoskokoli.running_app
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import io.flutter.plugin.common.BinaryMessenger
@@ -53,6 +55,16 @@ object RecordingServiceState {
     private fun start(context: Context, result: MethodChannel.Result) {
         if (running) {
             result.success(null)
+            return
+        }
+        // Vor startForegroundService: danach lässt sich ein Scheitern von
+        // startForeground nicht mehr abfangen (siehe RecordingLifecycle.mayStart).
+        val allowed = RecordingLifecycle.mayStart(
+            context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED,
+        )
+        if (allowed.isFailure) {
+            result.error("start_failed", allowed.exceptionOrNull()?.javaClass?.simpleName, null)
             return
         }
         val first = pending.isEmpty()

@@ -19,6 +19,13 @@ class RecordingLifecycleTest {
         }
     }
 
+    @Test fun withoutFineLocationServiceMayNotStart() {
+        val denied = RecordingLifecycle.mayStart(false)
+        assertTrue(denied.isFailure)
+        assertTrue(denied.exceptionOrNull() is SecurityException)
+        assertTrue(RecordingLifecycle.mayStart(true).isSuccess)
+    }
+
     @Test fun startTypeIsLocationOnly() {
         assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION, RecordingLifecycle.startType())
     }

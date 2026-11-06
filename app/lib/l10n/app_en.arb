@@ -177,6 +177,7 @@
   "runServiceFailed": "Background operation could not start. Recording only continues while the app is visible and the screen stays on.",
   "recoverTitle": "Interrupted run",
   "recoverBody": "A run was not finished, for example because the app was closed. You can resume it or save it as recorded up to the last point. The time in between is marked as a gap and its distance is not estimated.",
+  "recoverClockBehind": "The device clock is behind the last saved point. When resuming, new points count only once the clock has caught up.",
   "recoverResume": "Resume",
   "recoverSave": "Save as finished",
   "recoverSaveFailed": "The run could not be saved.",

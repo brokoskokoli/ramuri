@@ -82,6 +82,16 @@ class RecordingLifecycle(
     }
 
     companion object {
+        /**
+         * Darf der Dienst gestartet werden? Ohne Standortrecht wirft `startForeground`
+         * mit Typ `location` eine SecurityException, und weil `startForegroundService`
+         * dann schon gelaufen ist, kann das System den Prozess beenden. Deshalb wird
+         * vor `startForegroundService` geprüft und sonst gar nicht gestartet.
+         */
+        fun mayStart(fineLocationGranted: Boolean): Result<Unit> =
+            if (fineLocationGranted) Result.success(Unit)
+            else Result.failure(SecurityException("location_denied"))
+
         /** ADR-0005 Punkt 6: kein Neustart durch das System. */
         const val START_MODE: Int = Service.START_NOT_STICKY
 

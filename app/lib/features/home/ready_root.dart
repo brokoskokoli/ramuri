@@ -73,9 +73,9 @@ class _ReadyRootState extends State<ReadyRoot> {
   }
 
   /// Bietet einen unterbrochenen Lauf an, solange es einen gibt und kein
-  /// Dienst läuft; ohne Frist und ohne Neustart von selbst. Wer abbricht
-  /// (Dialog lässt sich nicht wegwischen), sieht das Angebot beim nächsten
-  /// Start wieder.
+  /// Dienst läuft; ohne Frist und ohne Neustart von selbst. Das Angebot kehrt
+  /// wieder, bis der Lauf beendet ist (auch nach Rückkehr aus dem Lauf oder
+  /// nach einem Fehler beim Speichern).
   Future<void> _offerRecovery() async {
     while (mounted) {
       final StoredRun? run;
@@ -90,6 +90,13 @@ class _ReadyRootState extends State<ReadyRoot> {
         return;
       }
       if (run == null || !mounted) return;
+      var clockBehind = false;
+      try {
+        clockBehind = await _recovery.clockBehind(run);
+      } on Object {
+        // Der Hinweis ist nur eine Zugabe; ohne ihn bleibt der Dialog gleich.
+      }
+      if (!mounted) return;
       final resume = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -98,7 +105,11 @@ class _ReadyRootState extends State<ReadyRoot> {
           return AlertDialog(
             key: const Key('recover_dialog'),
             title: Text(l10n.recoverTitle),
-            content: Text(l10n.recoverBody),
+            content: Text(
+              clockBehind
+                  ? '${l10n.recoverBody}\n\n${l10n.recoverClockBehind}'
+                  : l10n.recoverBody,
+            ),
             actions: [
               TextButton(
                 key: const Key('recover_save'),
@@ -128,10 +139,14 @@ class _ReadyRootState extends State<ReadyRoot> {
             ),
           ),
         );
-        // Ob der Nutzer den Lauf beendet hat oder nicht: nicht erneut fragen.
-        return;
+        // Zurück aus dem Lauf-Bildschirm: Wurde der Lauf beendet oder läuft
+        // der Dienst, bietet `pending` nichts mehr an; blieb er offen (etwa
+        // Fortsetzen ohne Standortrecht, FR-0195), kommt das Angebot wieder.
+        continue;
       }
-      if (!await _saveRecovered(run.id)) return;
+      // Scheitert das Speichern, wird erneut angeboten: Der Nutzer muss
+      // speichern können, ohne dass der Prozess endet.
+      await _saveRecovered(run.id);
     }
   }
 
