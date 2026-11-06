@@ -26,7 +26,9 @@ class PaceResult {
     required this.medianSpeed,
     required this.medianPace,
     required List<SpeedSample> medianSeries,
-  }) : medianSeries = List.unmodifiable(medianSeries);
+    required List<MotionSegment> segments,
+  }) : medianSeries = List.unmodifiable(medianSeries),
+       segments = List.unmodifiable(segments);
 
   String get method => paceMethod;
   int get methodVersion => paceMethodVersion;
@@ -45,6 +47,11 @@ class PaceResult {
 
   /// PAR-006: Median je akzeptiertem Punkt (nachlaufendes Fenster).
   final List<SpeedSample> medianSeries;
+
+  /// Zählende Segmente (ohne Lücken) in Zeitreihenfolge. Zwischen zwei
+  /// Segmenten, die nicht aneinander anschließen, liegt eine Lücke oder eine
+  /// manuelle Pause. Grundlage der Bestpace (FR-0037).
+  final List<MotionSegment> segments;
 }
 
 /// Live-Tempo (PAR-005) und 30-s-Median (PAR-006) über akzeptierte Segmente.
@@ -113,6 +120,7 @@ class PaceProcessor {
       medianSpeed: median,
       medianPace: paceDisplay(median, parameters),
       medianSeries: _medians,
+      segments: _segments,
     );
   }
 }

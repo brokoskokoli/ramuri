@@ -163,7 +163,12 @@ CREATE TABLE preprocessing_results (
   bridged_distance_m REAL,
   average_bpm REAL,
   max_bpm INTEGER,
-  median_bpm REAL
+  median_bpm REAL,
+  -- Kurzfassung (run-overview, ab Schema 4): Bestpace, Rundenzahl und
+  -- Bewegungszeit mit Puls; NULL = nicht verfügbar bzw. nicht bekannt.
+  best_pace_s_per_km REAL,
+  lap_count INTEGER,
+  heart_rate_time_s REAL
 );
 
 -- Je Rohwert das Ergebnis des Filters: Zustand und Verwerfungsgrund.

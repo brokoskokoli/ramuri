@@ -3402,6 +3402,39 @@ class PreprocessingResults extends Table
     requiredDuringInsert: false,
     $customConstraints: '',
   );
+  static const VerificationMeta _bestPaceSPerKmMeta = const VerificationMeta(
+    'bestPaceSPerKm',
+  );
+  late final GeneratedColumn<double> bestPaceSPerKm = GeneratedColumn<double>(
+    'best_pace_s_per_km',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _lapCountMeta = const VerificationMeta(
+    'lapCount',
+  );
+  late final GeneratedColumn<int> lapCount = GeneratedColumn<int>(
+    'lap_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _heartRateTimeSMeta = const VerificationMeta(
+    'heartRateTimeS',
+  );
+  late final GeneratedColumn<double> heartRateTimeS = GeneratedColumn<double>(
+    'heart_rate_time_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3417,6 +3450,9 @@ class PreprocessingResults extends Table
     averageBpm,
     maxBpm,
     medianBpm,
+    bestPaceSPerKm,
+    lapCount,
+    heartRateTimeS,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3533,6 +3569,30 @@ class PreprocessingResults extends Table
         medianBpm.isAcceptableOrUnknown(data['median_bpm']!, _medianBpmMeta),
       );
     }
+    if (data.containsKey('best_pace_s_per_km')) {
+      context.handle(
+        _bestPaceSPerKmMeta,
+        bestPaceSPerKm.isAcceptableOrUnknown(
+          data['best_pace_s_per_km']!,
+          _bestPaceSPerKmMeta,
+        ),
+      );
+    }
+    if (data.containsKey('lap_count')) {
+      context.handle(
+        _lapCountMeta,
+        lapCount.isAcceptableOrUnknown(data['lap_count']!, _lapCountMeta),
+      );
+    }
+    if (data.containsKey('heart_rate_time_s')) {
+      context.handle(
+        _heartRateTimeSMeta,
+        heartRateTimeS.isAcceptableOrUnknown(
+          data['heart_rate_time_s']!,
+          _heartRateTimeSMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3594,6 +3654,18 @@ class PreprocessingResults extends Table
         DriftSqlType.double,
         data['${effectivePrefix}median_bpm'],
       ),
+      bestPaceSPerKm: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}best_pace_s_per_km'],
+      ),
+      lapCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}lap_count'],
+      ),
+      heartRateTimeS: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}heart_rate_time_s'],
+      ),
     );
   }
 
@@ -3623,6 +3695,12 @@ class PreprocessingResult extends DataClass
   final double? averageBpm;
   final int? maxBpm;
   final double? medianBpm;
+
+  /// Kurzfassung (run-overview, ab Schema 4): Bestpace, Rundenzahl und
+  /// Bewegungszeit mit Puls; NULL = nicht verfügbar bzw. nicht bekannt.
+  final double? bestPaceSPerKm;
+  final int? lapCount;
+  final double? heartRateTimeS;
   const PreprocessingResult({
     required this.id,
     required this.runId,
@@ -3637,6 +3715,9 @@ class PreprocessingResult extends DataClass
     this.averageBpm,
     this.maxBpm,
     this.medianBpm,
+    this.bestPaceSPerKm,
+    this.lapCount,
+    this.heartRateTimeS,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3667,6 +3748,15 @@ class PreprocessingResult extends DataClass
     }
     if (!nullToAbsent || medianBpm != null) {
       map['median_bpm'] = Variable<double>(medianBpm);
+    }
+    if (!nullToAbsent || bestPaceSPerKm != null) {
+      map['best_pace_s_per_km'] = Variable<double>(bestPaceSPerKm);
+    }
+    if (!nullToAbsent || lapCount != null) {
+      map['lap_count'] = Variable<int>(lapCount);
+    }
+    if (!nullToAbsent || heartRateTimeS != null) {
+      map['heart_rate_time_s'] = Variable<double>(heartRateTimeS);
     }
     return map;
   }
@@ -3700,6 +3790,15 @@ class PreprocessingResult extends DataClass
       medianBpm: medianBpm == null && nullToAbsent
           ? const Value.absent()
           : Value(medianBpm),
+      bestPaceSPerKm: bestPaceSPerKm == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bestPaceSPerKm),
+      lapCount: lapCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lapCount),
+      heartRateTimeS: heartRateTimeS == null && nullToAbsent
+          ? const Value.absent()
+          : Value(heartRateTimeS),
     );
   }
 
@@ -3724,6 +3823,9 @@ class PreprocessingResult extends DataClass
       averageBpm: serializer.fromJson<double?>(json['average_bpm']),
       maxBpm: serializer.fromJson<int?>(json['max_bpm']),
       medianBpm: serializer.fromJson<double?>(json['median_bpm']),
+      bestPaceSPerKm: serializer.fromJson<double?>(json['best_pace_s_per_km']),
+      lapCount: serializer.fromJson<int?>(json['lap_count']),
+      heartRateTimeS: serializer.fromJson<double?>(json['heart_rate_time_s']),
     );
   }
   @override
@@ -3743,6 +3845,9 @@ class PreprocessingResult extends DataClass
       'average_bpm': serializer.toJson<double?>(averageBpm),
       'max_bpm': serializer.toJson<int?>(maxBpm),
       'median_bpm': serializer.toJson<double?>(medianBpm),
+      'best_pace_s_per_km': serializer.toJson<double?>(bestPaceSPerKm),
+      'lap_count': serializer.toJson<int?>(lapCount),
+      'heart_rate_time_s': serializer.toJson<double?>(heartRateTimeS),
     };
   }
 
@@ -3760,6 +3865,9 @@ class PreprocessingResult extends DataClass
     Value<double?> averageBpm = const Value.absent(),
     Value<int?> maxBpm = const Value.absent(),
     Value<double?> medianBpm = const Value.absent(),
+    Value<double?> bestPaceSPerKm = const Value.absent(),
+    Value<int?> lapCount = const Value.absent(),
+    Value<double?> heartRateTimeS = const Value.absent(),
   }) => PreprocessingResult(
     id: id ?? this.id,
     runId: runId ?? this.runId,
@@ -3776,6 +3884,13 @@ class PreprocessingResult extends DataClass
     averageBpm: averageBpm.present ? averageBpm.value : this.averageBpm,
     maxBpm: maxBpm.present ? maxBpm.value : this.maxBpm,
     medianBpm: medianBpm.present ? medianBpm.value : this.medianBpm,
+    bestPaceSPerKm: bestPaceSPerKm.present
+        ? bestPaceSPerKm.value
+        : this.bestPaceSPerKm,
+    lapCount: lapCount.present ? lapCount.value : this.lapCount,
+    heartRateTimeS: heartRateTimeS.present
+        ? heartRateTimeS.value
+        : this.heartRateTimeS,
   );
   PreprocessingResult copyWithCompanion(PreprocessingResultsCompanion data) {
     return PreprocessingResult(
@@ -3806,6 +3921,13 @@ class PreprocessingResult extends DataClass
           : this.averageBpm,
       maxBpm: data.maxBpm.present ? data.maxBpm.value : this.maxBpm,
       medianBpm: data.medianBpm.present ? data.medianBpm.value : this.medianBpm,
+      bestPaceSPerKm: data.bestPaceSPerKm.present
+          ? data.bestPaceSPerKm.value
+          : this.bestPaceSPerKm,
+      lapCount: data.lapCount.present ? data.lapCount.value : this.lapCount,
+      heartRateTimeS: data.heartRateTimeS.present
+          ? data.heartRateTimeS.value
+          : this.heartRateTimeS,
     );
   }
 
@@ -3824,7 +3946,10 @@ class PreprocessingResult extends DataClass
           ..write('bridgedDistanceM: $bridgedDistanceM, ')
           ..write('averageBpm: $averageBpm, ')
           ..write('maxBpm: $maxBpm, ')
-          ..write('medianBpm: $medianBpm')
+          ..write('medianBpm: $medianBpm, ')
+          ..write('bestPaceSPerKm: $bestPaceSPerKm, ')
+          ..write('lapCount: $lapCount, ')
+          ..write('heartRateTimeS: $heartRateTimeS')
           ..write(')'))
         .toString();
   }
@@ -3844,6 +3969,9 @@ class PreprocessingResult extends DataClass
     averageBpm,
     maxBpm,
     medianBpm,
+    bestPaceSPerKm,
+    lapCount,
+    heartRateTimeS,
   );
   @override
   bool operator ==(Object other) =>
@@ -3861,7 +3989,10 @@ class PreprocessingResult extends DataClass
           other.bridgedDistanceM == this.bridgedDistanceM &&
           other.averageBpm == this.averageBpm &&
           other.maxBpm == this.maxBpm &&
-          other.medianBpm == this.medianBpm);
+          other.medianBpm == this.medianBpm &&
+          other.bestPaceSPerKm == this.bestPaceSPerKm &&
+          other.lapCount == this.lapCount &&
+          other.heartRateTimeS == this.heartRateTimeS);
 }
 
 class PreprocessingResultsCompanion
@@ -3879,6 +4010,9 @@ class PreprocessingResultsCompanion
   final Value<double?> averageBpm;
   final Value<int?> maxBpm;
   final Value<double?> medianBpm;
+  final Value<double?> bestPaceSPerKm;
+  final Value<int?> lapCount;
+  final Value<double?> heartRateTimeS;
   const PreprocessingResultsCompanion({
     this.id = const Value.absent(),
     this.runId = const Value.absent(),
@@ -3893,6 +4027,9 @@ class PreprocessingResultsCompanion
     this.averageBpm = const Value.absent(),
     this.maxBpm = const Value.absent(),
     this.medianBpm = const Value.absent(),
+    this.bestPaceSPerKm = const Value.absent(),
+    this.lapCount = const Value.absent(),
+    this.heartRateTimeS = const Value.absent(),
   });
   PreprocessingResultsCompanion.insert({
     this.id = const Value.absent(),
@@ -3908,6 +4045,9 @@ class PreprocessingResultsCompanion
     this.averageBpm = const Value.absent(),
     this.maxBpm = const Value.absent(),
     this.medianBpm = const Value.absent(),
+    this.bestPaceSPerKm = const Value.absent(),
+    this.lapCount = const Value.absent(),
+    this.heartRateTimeS = const Value.absent(),
   }) : runId = Value(runId),
        method = Value(method),
        methodVersion = Value(methodVersion),
@@ -3927,6 +4067,9 @@ class PreprocessingResultsCompanion
     Expression<double>? averageBpm,
     Expression<int>? maxBpm,
     Expression<double>? medianBpm,
+    Expression<double>? bestPaceSPerKm,
+    Expression<int>? lapCount,
+    Expression<double>? heartRateTimeS,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3942,6 +4085,9 @@ class PreprocessingResultsCompanion
       if (averageBpm != null) 'average_bpm': averageBpm,
       if (maxBpm != null) 'max_bpm': maxBpm,
       if (medianBpm != null) 'median_bpm': medianBpm,
+      if (bestPaceSPerKm != null) 'best_pace_s_per_km': bestPaceSPerKm,
+      if (lapCount != null) 'lap_count': lapCount,
+      if (heartRateTimeS != null) 'heart_rate_time_s': heartRateTimeS,
     });
   }
 
@@ -3959,6 +4105,9 @@ class PreprocessingResultsCompanion
     Value<double?>? averageBpm,
     Value<int?>? maxBpm,
     Value<double?>? medianBpm,
+    Value<double?>? bestPaceSPerKm,
+    Value<int?>? lapCount,
+    Value<double?>? heartRateTimeS,
   }) {
     return PreprocessingResultsCompanion(
       id: id ?? this.id,
@@ -3974,6 +4123,9 @@ class PreprocessingResultsCompanion
       averageBpm: averageBpm ?? this.averageBpm,
       maxBpm: maxBpm ?? this.maxBpm,
       medianBpm: medianBpm ?? this.medianBpm,
+      bestPaceSPerKm: bestPaceSPerKm ?? this.bestPaceSPerKm,
+      lapCount: lapCount ?? this.lapCount,
+      heartRateTimeS: heartRateTimeS ?? this.heartRateTimeS,
     );
   }
 
@@ -4019,6 +4171,15 @@ class PreprocessingResultsCompanion
     if (medianBpm.present) {
       map['median_bpm'] = Variable<double>(medianBpm.value);
     }
+    if (bestPaceSPerKm.present) {
+      map['best_pace_s_per_km'] = Variable<double>(bestPaceSPerKm.value);
+    }
+    if (lapCount.present) {
+      map['lap_count'] = Variable<int>(lapCount.value);
+    }
+    if (heartRateTimeS.present) {
+      map['heart_rate_time_s'] = Variable<double>(heartRateTimeS.value);
+    }
     return map;
   }
 
@@ -4037,7 +4198,10 @@ class PreprocessingResultsCompanion
           ..write('bridgedDistanceM: $bridgedDistanceM, ')
           ..write('averageBpm: $averageBpm, ')
           ..write('maxBpm: $maxBpm, ')
-          ..write('medianBpm: $medianBpm')
+          ..write('medianBpm: $medianBpm, ')
+          ..write('bestPaceSPerKm: $bestPaceSPerKm, ')
+          ..write('lapCount: $lapCount, ')
+          ..write('heartRateTimeS: $heartRateTimeS')
           ..write(')'))
         .toString();
   }
@@ -13348,6 +13512,9 @@ typedef $PreprocessingResultsCreateCompanionBuilder =
       Value<double?> averageBpm,
       Value<int?> maxBpm,
       Value<double?> medianBpm,
+      Value<double?> bestPaceSPerKm,
+      Value<int?> lapCount,
+      Value<double?> heartRateTimeS,
     });
 typedef $PreprocessingResultsUpdateCompanionBuilder =
     PreprocessingResultsCompanion Function({
@@ -13364,6 +13531,9 @@ typedef $PreprocessingResultsUpdateCompanionBuilder =
       Value<double?> averageBpm,
       Value<int?> maxBpm,
       Value<double?> medianBpm,
+      Value<double?> bestPaceSPerKm,
+      Value<int?> lapCount,
+      Value<double?> heartRateTimeS,
     });
 
 final class $PreprocessingResultsReferences
@@ -13466,6 +13636,21 @@ class $PreprocessingResultsFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<double> get bestPaceSPerKm => $composableBuilder(
+    column: $table.bestPaceSPerKm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lapCount => $composableBuilder(
+    column: $table.lapCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get heartRateTimeS => $composableBuilder(
+    column: $table.heartRateTimeS,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $RunsFilterComposer get runId {
     final $RunsFilterComposer composer = $composerBuilder(
       composer: this,
@@ -13559,6 +13744,21 @@ class $PreprocessingResultsOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get bestPaceSPerKm => $composableBuilder(
+    column: $table.bestPaceSPerKm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lapCount => $composableBuilder(
+    column: $table.lapCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get heartRateTimeS => $composableBuilder(
+    column: $table.heartRateTimeS,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $RunsOrderingComposer get runId {
     final $RunsOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -13642,6 +13842,19 @@ class $PreprocessingResultsAnnotationComposer
   GeneratedColumn<double> get medianBpm =>
       $composableBuilder(column: $table.medianBpm, builder: (column) => column);
 
+  GeneratedColumn<double> get bestPaceSPerKm => $composableBuilder(
+    column: $table.bestPaceSPerKm,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lapCount =>
+      $composableBuilder(column: $table.lapCount, builder: (column) => column);
+
+  GeneratedColumn<double> get heartRateTimeS => $composableBuilder(
+    column: $table.heartRateTimeS,
+    builder: (column) => column,
+  );
+
   $RunsAnnotationComposer get runId {
     final $RunsAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -13709,6 +13922,9 @@ class $PreprocessingResultsTableManager
                 Value<double?> averageBpm = const Value.absent(),
                 Value<int?> maxBpm = const Value.absent(),
                 Value<double?> medianBpm = const Value.absent(),
+                Value<double?> bestPaceSPerKm = const Value.absent(),
+                Value<int?> lapCount = const Value.absent(),
+                Value<double?> heartRateTimeS = const Value.absent(),
               }) => PreprocessingResultsCompanion(
                 id: id,
                 runId: runId,
@@ -13723,6 +13939,9 @@ class $PreprocessingResultsTableManager
                 averageBpm: averageBpm,
                 maxBpm: maxBpm,
                 medianBpm: medianBpm,
+                bestPaceSPerKm: bestPaceSPerKm,
+                lapCount: lapCount,
+                heartRateTimeS: heartRateTimeS,
               ),
           createCompanionCallback:
               ({
@@ -13739,6 +13958,9 @@ class $PreprocessingResultsTableManager
                 Value<double?> averageBpm = const Value.absent(),
                 Value<int?> maxBpm = const Value.absent(),
                 Value<double?> medianBpm = const Value.absent(),
+                Value<double?> bestPaceSPerKm = const Value.absent(),
+                Value<int?> lapCount = const Value.absent(),
+                Value<double?> heartRateTimeS = const Value.absent(),
               }) => PreprocessingResultsCompanion.insert(
                 id: id,
                 runId: runId,
@@ -13753,6 +13975,9 @@ class $PreprocessingResultsTableManager
                 averageBpm: averageBpm,
                 maxBpm: maxBpm,
                 medianBpm: medianBpm,
+                bestPaceSPerKm: bestPaceSPerKm,
+                lapCount: lapCount,
+                heartRateTimeS: heartRateTimeS,
               ),
           withReferenceMapper: (p0) => p0
               .map(

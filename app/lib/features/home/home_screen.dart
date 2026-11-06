@@ -2,12 +2,14 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../history/history_screen.dart';
 import '../profile/profile_screen.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/run_flow_screen.dart';
 import '../run/run_ports.dart';
 import '../sensors/sensor_manager.dart';
 import '../settings/settings_screen.dart';
+import '../statistics/statistics_screen.dart';
 
 /// Startbildschirm. Gebaut wird er erst, wenn der Speicher bereit ist
 /// ([session] ist die offene Sitzung) und die Ersteinrichtung erledigt oder
@@ -57,6 +59,31 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               child: Text(l10n.homeStartRun),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              key: const Key('home_history'),
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => HistoryScreen(
+                    session: session,
+                    clock: clock,
+                    recalculation: recalculation,
+                  ),
+                ),
+              ),
+              child: Text(l10n.homeHistory),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              key: const Key('home_statistics'),
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      StatisticsScreen(session: session, clock: clock),
+                ),
+              ),
+              child: Text(l10n.homeStatistics),
             ),
             const SizedBox(height: 8),
             OutlinedButton(

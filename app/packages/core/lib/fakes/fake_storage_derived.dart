@@ -29,6 +29,9 @@ class FakePreprocessingStore implements PreprocessingStore {
         averageBpm: s.averageBpm,
         maxBpm: s.maxBpm,
         medianBpm: s.medianBpm,
+        bestPaceSecondsPerKm: s.bestPaceSecondsPerKm,
+        lapCount: s.lapCount,
+        heartRateTime: s.heartRateTime,
       ),
       samples:
           [
@@ -61,6 +64,20 @@ class FakePreprocessingStore implements PreprocessingStore {
 
   @override
   Future<StoredPreprocessing?> read(int runId) async => _d.preprocessing[runId];
+
+  @override
+  Future<Map<int, StoredPreprocessing>> readOverviews() async => {
+    for (final e in _d.preprocessing.entries)
+      e.key: StoredPreprocessing(
+        summary: e.value.summary,
+        spans: [
+          for (final s in e.value.spans)
+            if (s.kind == PreprocessedSpanKind.moving ||
+                s.kind == PreprocessedSpanKind.positionGap)
+              s,
+        ]..sort(comparePreprocessedSpans),
+      ),
+  };
 }
 
 class FakeRatedSectionStore implements RatedSectionStore {
@@ -224,4 +241,51 @@ class FakeComputedValueStore implements ComputedValueStore {
   Future<List<ValuePair>> read(ValueOwner owner) async =>
       (_d.values[owner]?.values.toList() ?? <ValuePair>[])
         ..sort((a, b) => a.original.key.compareTo(b.original.key));
+
+  static ComputedValue _withoutSections(ComputedValue v) => ComputedValue(
+    key: v.key,
+    value: v.value,
+    unavailableReason: v.unavailableReason,
+    heartRateBasis: v.heartRateBasis,
+    unit: v.unit,
+    computedAt: v.computedAt,
+    dataFrom: v.dataFrom,
+    dataTo: v.dataTo,
+    measurementCount: v.measurementCount,
+    sources: v.sources,
+    method: v.method,
+    methodVersion: v.methodVersion,
+    parameterVersion: v.parameterVersion,
+    quality: v.quality,
+  );
+
+  @override
+  Future<Map<int, Map<String, ComputedValue>>> readRunValues(
+    Set<String> keys,
+  ) async => {
+    for (final e in _d.values.entries)
+      if (e.key.runId != null)
+        if ({
+              for (final p in e.value.values)
+                if (keys.contains(p.current.key))
+                  p.current.key: _withoutSections(p.current),
+            }
+            case final found when found.isNotEmpty)
+          e.key.runId!: found,
+  };
+
+  @override
+  Future<Map<String, Map<String, ComputedValue>>> readDayValues(
+    Set<String> keys,
+  ) async => {
+    for (final e in _d.values.entries)
+      if (e.key.day != null)
+        if ({
+              for (final p in e.value.values)
+                if (keys.contains(p.current.key))
+                  p.current.key: _withoutSections(p.current),
+            }
+            case final found when found.isNotEmpty)
+          e.key.day!: found,
+  };
 }

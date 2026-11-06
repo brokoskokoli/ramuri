@@ -27,6 +27,7 @@ class RunAnalysis {
     required this.estimate,
     required this.basis,
     required Set<String> sources,
+    this.preprocessing,
   }) : sources = Set.unmodifiable(sources);
 
   final StoredRun run;
@@ -38,6 +39,10 @@ class RunAnalysis {
 
   /// Quellgeräte und -quellen der Rohdaten des Laufs (FR-0053).
   final Set<String> sources;
+
+  /// Vorverarbeitung, aus der die Auswahl kam; `null` bei einem Lauf ohne
+  /// Dauer.
+  final RunPreprocessing? preprocessing;
 
   DateTime get endedAt => run.endedAt!;
 
@@ -191,6 +196,7 @@ class RunAnalyzer {
       for (final r in raw.steps) r.value.source,
     };
     final SectionSelection selection;
+    RunPreprocessing? replayed;
     if (!end.isAfter(run.startedAt)) {
       // Lauf ohne Dauer: nichts auszuwählen, der Schätzer meldet den Grund.
       selection = SectionSelection(
@@ -200,7 +206,14 @@ class RunAnalyzer {
         excluded: const [],
       );
     } else {
-      final pre = _replay(run, end, raw, gaps);
+      final pre = replayRunPreprocessing(
+        run: run,
+        end: end,
+        raw: raw,
+        gaps: gaps,
+        parameters: preprocessing,
+      );
+      replayed = pre;
       selection = Vo2maxSectionSelector(parameters: fitness)
           .select(run: pre, basis: basis, runStart: run.startedAt, until: end);
     }
@@ -219,54 +232,72 @@ class RunAnalyzer {
       estimate: estimate,
       basis: basis,
       sources: sources,
+      preprocessing: replayed,
     );
   }
+}
 
-  /// Spielt die Rohdaten in zeitlicher Reihenfolge durch die Vorverarbeitung,
-  /// samt manueller Pausen. Bei gleicher Zeit: erst Fortsetzen, dann Messwerte,
-  /// dann Pausieren.
-  RunPreprocessing _replay(
+/// [replayRunPreprocessing] als Auftrag für einen anderen Isolate (alles
+/// Argumente sind reine Daten).
+RunPreprocessing replayJob(
+  ({
     StoredRun run,
     DateTime end,
     StoredRawData raw,
     List<StoredGap> gaps,
-  ) {
-    final pre = RunPreprocessor(
-      start: run.startedAt,
-      parameters: preprocessing,
-    );
-    final events = <({DateTime at, int rank, void Function() apply})>[];
-    void add(DateTime at, int rank, void Function() apply) =>
-        events.add((at: at, rank: rank, apply: apply));
-    for (final g in gaps) {
-      if (g.kind != RunGapKind.manualPause) continue;
-      add(g.start, 2, () => pre.pause(g.start));
-      final resume = g.end ?? end;
-      add(resume, 0, () => pre.resume(resume));
-    }
-    for (final r in raw.positions) {
-      add(r.value.time, 1, () => pre.addPosition(r.value));
-    }
-    for (final r in raw.heartRates) {
-      add(r.value.time, 1, () => pre.addHeartRate(r.value));
-    }
-    for (final r in raw.altitudes) {
-      add(r.value.time, 1, () => pre.addAltitude(r.value));
-    }
-    for (final r in raw.steps) {
-      add(r.value.time, 1, () => pre.addSteps(r.value));
-    }
-    // Dart-Sortierung ist nicht stabil: Reihenfolge der Einfügung als Schlüssel.
-    final indexed = [for (var i = 0; i < events.length; i++) (i, events[i])]
-      ..sort((a, b) {
-        final c = a.$2.at.compareTo(b.$2.at);
-        if (c != 0) return c;
-        final r = a.$2.rank.compareTo(b.$2.rank);
-        return r != 0 ? r : a.$1.compareTo(b.$1);
-      });
-    for (final e in indexed) {
-      e.$2.apply();
-    }
-    return pre.result(at: end);
+    PreprocessingParameters parameters,
+  })
+  a,
+) => replayRunPreprocessing(
+  run: a.run,
+  end: a.end,
+  raw: a.raw,
+  gaps: a.gaps,
+  parameters: a.parameters,
+);
+
+/// Spielt die Rohdaten in zeitlicher Reihenfolge durch die Vorverarbeitung,
+/// samt manueller Pausen. Bei gleicher Zeit: erst Fortsetzen, dann Messwerte,
+/// dann Pausieren.
+RunPreprocessing replayRunPreprocessing({
+  required StoredRun run,
+  required DateTime end,
+  required StoredRawData raw,
+  required List<StoredGap> gaps,
+  required PreprocessingParameters parameters,
+}) {
+  final pre = RunPreprocessor(start: run.startedAt, parameters: parameters);
+  final events = <({DateTime at, int rank, void Function() apply})>[];
+  void add(DateTime at, int rank, void Function() apply) =>
+      events.add((at: at, rank: rank, apply: apply));
+  for (final g in gaps) {
+    if (g.kind != RunGapKind.manualPause) continue;
+    add(g.start, 2, () => pre.pause(g.start));
+    final resume = g.end ?? end;
+    add(resume, 0, () => pre.resume(resume));
   }
+  for (final r in raw.positions) {
+    add(r.value.time, 1, () => pre.addPosition(r.value));
+  }
+  for (final r in raw.heartRates) {
+    add(r.value.time, 1, () => pre.addHeartRate(r.value));
+  }
+  for (final r in raw.altitudes) {
+    add(r.value.time, 1, () => pre.addAltitude(r.value));
+  }
+  for (final r in raw.steps) {
+    add(r.value.time, 1, () => pre.addSteps(r.value));
+  }
+  // Dart-Sortierung ist nicht stabil: Reihenfolge der Einfügung als Schlüssel.
+  final indexed = [for (var i = 0; i < events.length; i++) (i, events[i])]
+    ..sort((a, b) {
+      final c = a.$2.at.compareTo(b.$2.at);
+      if (c != 0) return c;
+      final r = a.$2.rank.compareTo(b.$2.rank);
+      return r != 0 ? r : a.$1.compareTo(b.$1);
+    });
+  for (final e in indexed) {
+    e.$2.apply();
+  }
+  return pre.result(at: end);
 }

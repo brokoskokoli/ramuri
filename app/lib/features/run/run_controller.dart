@@ -30,7 +30,6 @@ class RunController extends ChangeNotifier {
     required this.clock,
     required this.storage,
     required this.location,
-    this.heartRate,
     this.sensors,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
@@ -49,10 +48,9 @@ class RunController extends ChangeNotifier {
   final Clock clock;
   final StorageSession storage;
   final LocationSource location;
-  final Stream<HeartRateReading> Function()? heartRate;
 
   /// Pulsquelle dieses Laufs aus der Sensorverwaltung; sie wird mit dem Ende
-  /// des Laufs geschlossen. Hat Vorrang vor [heartRate].
+  /// des Laufs geschlossen. Ohne Quelle `null`.
   final RunHeartRate? sensors;
   final Duration tickEvery;
 
@@ -61,6 +59,7 @@ class RunController extends ChangeNotifier {
   final Future<void> Function(Future<void> Function() action)? serialize;
   final RunRecorder _recorder;
   bool _calculationFailed = false;
+  bool _calculationSettled = false;
   Future<void>? _calculation;
 
   Timer? _timer;
@@ -98,6 +97,13 @@ class RunController extends ChangeNotifier {
   /// ist gespeichert; die Berechnung wird beim nächsten Start nachgeholt.
   /// Trägt keine Gesundheitsdaten.
   bool get calculationFailed => _calculationFailed;
+
+  /// Id des angelegten Laufs, `null` vor dem Start.
+  int? get runId => _recorder.runId;
+
+  /// Das Beenden ist durch, einschließlich der Berechnung der Werte (auch wenn
+  /// sie scheiterte): Die Zusammenfassung kann gelesen werden.
+  bool get calculationSettled => _calculationSettled;
 
   /// Läuft die Berechnung nach dem Ende noch (für Tests und Abschluss).
   Future<void>? get calculation => _calculation;
@@ -172,7 +178,7 @@ class RunController extends ChangeNotifier {
           _update();
         },
       );
-      final hrStream = sensors?.readings ?? heartRate?.call();
+      final hrStream = sensors?.readings;
       if (hrStream != null) {
         _heartSub = hrStream.listen((r) {
           _heartRateSeen = true;
@@ -219,6 +225,8 @@ class RunController extends ChangeNotifier {
         _calculation = _calculate(id);
         await _calculation;
       }
+      _calculationSettled = true;
+      _update();
     }
   }
 
