@@ -56,16 +56,16 @@ class AppDependencies {
         heartRateSensor ??
         BleHeartRateSensor(const UniversalBleLink(), const SystemClock());
     final sensors = SensorManager(
-        sensor: sensor,
-        clock: const SystemClock(),
-        // Nur der echte Adapter braucht Bluetooth-Rechte; sie werden erst
-        // beim Einrichten eines Sensors angefragt.
-        requestPermissions: sensor is BleHeartRateSensor
-            ? sensor.requestPermissions
-            : null,
-        bluetoothAvailable: sensor is BleHeartRateSensor
-            ? sensor.isBluetoothOn
-            : null,
+      sensor: sensor,
+      clock: const SystemClock(),
+      // Nur der echte Adapter braucht Bluetooth-Rechte; sie werden erst
+      // beim Einrichten eines Sensors angefragt.
+      requestPermissions: sensor is BleHeartRateSensor
+          ? sensor.requestPermissions
+          : null,
+      bluetoothAvailable: sensor is BleHeartRateSensor
+          ? sensor.isBluetoothOn
+          : null,
     );
     return AppDependencies(
       heartRateSensor: sensor,

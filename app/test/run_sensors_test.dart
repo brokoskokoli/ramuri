@@ -198,7 +198,11 @@ void main() {
         expect(text('run_sensor_status'), 'Sensor verbunden');
         expect(text('run_hr'), '152 bpm');
         final raw = await finishAndRead(d, tester);
-        expect(raw.positions.length, 20, reason: 'GPS vor, in und nach Abbruch');
+        expect(
+          raw.positions.length,
+          20,
+          reason: 'GPS vor, in und nach Abbruch',
+        );
         final bpms = raw.heartRates.map((r) => r.value.bpm);
         expect(bpms.where((b) => b <= 0), isEmpty, reason: 'keine Nullwerte');
         expect(bpms.toSet(), {150, 152}, reason: 'Puls vor und nach Abbruch');
@@ -207,7 +211,11 @@ void main() {
         final sections = heartRateSourceSections(
           raw.heartRates.map((r) => r.value),
         );
-        expect(sections, hasLength(1), reason: 'dasselbe Gerät, ein Quellgerät');
+        expect(
+          sections,
+          hasLength(1),
+          reason: 'dasselbe Gerät, ein Quellgerät',
+        );
         expect(sections.single.deviceId, 'h1');
         await d.stop(tester);
       },
