@@ -15,6 +15,7 @@ class AppDependencies {
     this.clock = const SystemClock(),
     PermissionStatusPort? permissions,
     RunPorts? runPorts,
+    this.heartRateSensor,
   }) : permissions = permissions ?? const _NoPermissionStatus(),
        runPorts = runPorts ?? const _NoRunPorts();
 
@@ -27,30 +28,41 @@ class AppDependencies {
   /// Standortberechtigung, Standortquelle und Pulsquelle des Laufs.
   final RunPorts runPorts;
 
+  /// Pulssensoren (Suche und Verbindung). `null` in Tests ohne Sensor; die
+  /// Sensorverwaltung kommt mit WP07 Teil C.
+  final HeartRateSensor? heartRateSensor;
+
   /// App-Start der Speicherung: Schlüssel, Datei, Öffnen.
   final StorageStartController storageStart;
 
   /// Verdrahtung für den Produktivbetrieb. Der Pfad (`getNoBackupFilesDir()`)
   /// wird erst beim Start aufgelöst.
-  factory AppDependencies.create() => AppDependencies(
-    permissions: MethodChannelPermissionStatus(),
-    runPorts: RunPorts(
-      access: MethodChannelLocationAccess(),
-      location: MethodChannelLocationSource(),
-      // Pulssensoren kommen mit WP07; bis dahin „nicht verfügbar“.
-    ),
-    storageStart: StorageStartController(
-      keyStore: SecureKeyStore(),
-      generateKey: generateStorageKey,
-      wire: () async {
-        final path = await databasePath();
-        return StorageWiring(
-          storage: EncryptedStorage(path),
-          files: FileDatabaseFiles(path),
-        );
-      },
-    ),
-  );
+  ///
+  /// [heartRateSensor]: Vorgabe ist der Bluetooth-Adapter. Nur der Debug-
+  /// Einstiegspunkt (`main_debug.dart`) setzt hier den Test-Sensor ein.
+  factory AppDependencies.create({HeartRateSensor? heartRateSensor}) =>
+      AppDependencies(
+        heartRateSensor:
+            heartRateSensor ??
+            BleHeartRateSensor(const UniversalBleLink(), const SystemClock()),
+        permissions: MethodChannelPermissionStatus(),
+        runPorts: RunPorts(
+          access: MethodChannelLocationAccess(),
+          location: MethodChannelLocationSource(),
+          // Die Pulsquelle des Laufs verdrahtet WP07 Teil C/D.
+        ),
+        storageStart: StorageStartController(
+          keyStore: SecureKeyStore(),
+          generateKey: generateStorageKey,
+          wire: () async {
+            final path = await databasePath();
+            return StorageWiring(
+              storage: EncryptedStorage(path),
+              files: FileDatabaseFiles(path),
+            );
+          },
+        ),
+      );
 }
 
 /// Vorgabe ohne Plattform: Der Stand ist unbekannt (Tests, die ihn nicht
