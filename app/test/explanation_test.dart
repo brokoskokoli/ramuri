@@ -200,9 +200,18 @@ void main() {
       expect(key('expl_profile_hint'), findsNothing);
     });
 
-    for (final loc in ['de', 'en']) {
+    // TRIMP ist nie eine Schätzung, VO2max schon: erst dort zeigt sich, dass
+    // ein fehlender Wert kein Schätzungs-Badge bekommt.
+    for (final (loc, valueKey, button) in [
+      for (final l in ['de', 'en'])
+        for (final v in [
+          (trimpRunValueKey, 'sum_explain_trimp'),
+          (vo2maxRunValueKey, 'sum_explain_vo2max'),
+        ])
+          (l, v.$1, v.$2),
+    ]) {
       testWidgets(
-        'nicht berechneter Wert ($loc): Grund, keine Berechnungsbehauptung',
+        'nicht berechneter Wert ($loc, $button): Grund, keine Berechnungsbehauptung',
         (tester) async {
           final d = await seeded(
             tester,
@@ -212,12 +221,12 @@ void main() {
           );
           final id = await firstRunId(d);
           final stored = (await d.session.values.read(ValueOwner.run(id)))
-              .firstWhere((p) => p.current.key == trimpRunValueKey)
+              .firstWhere((p) => p.current.key == valueKey)
               .current;
           expect(stored.value, isNull);
           expect(stored.unavailableReason, isNotNull);
           await openRunDetail(d, tester, id);
-          await explainFromStats(tester, 'sum_explain_trimp');
+          await explainFromStats(tester, button);
           expect(key('expl_reason'), findsOneWidget);
           final all = bodyText(tester);
           final de = loc == 'de';

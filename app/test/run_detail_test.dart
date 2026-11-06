@@ -144,6 +144,20 @@ void main() {
     expect(chart('detail_compare').layers, hasLength(2));
     expect(chartPaths('detail_compare'), hasLength(2));
     expect(key('detail_hr_none'), findsNothing);
+    // Der Puls ist als geglättet gekennzeichnet (sichtbar und in der Semantik).
+    expect(text('detail_hr_note'), 'Puls geglättet (Median über 30 s)');
+    expect(text('detail_compare_note'), 'Puls geglättet (Median über 30 s)');
+    expect(key('detail_pace_note'), findsNothing);
+    final semantics = tester.ensureSemantics();
+    expect(
+      tester.getSemantics(key('detail_hr')).label,
+      contains('Puls geglättet (Median über 30 s).'),
+    );
+    expect(
+      tester.getSemantics(key('detail_pace')).label,
+      isNot(contains('geglättet')),
+    );
+    semantics.dispose();
     // Alter Lauf ohne gespeicherte Zonen/TRIMP.
     expect(
       text('sum_zones_unavailable'),
@@ -325,10 +339,19 @@ void main() {
       expect(key('chart_clipped'), findsNothing);
     });
 
-    for (final scale in [1.0, 2.0]) {
-      testWidgets('Achsentexte überlappen sich nicht (Schrift ${scale}x)', (
-        tester,
-      ) async {
+    for (final (scale, width) in [
+      (1.0, null),
+      (2.0, null),
+      (1.0, 360.0),
+      (2.0, 360.0),
+    ]) {
+      testWidgets('Achsentexte überlappen sich nicht (Schrift ${scale}x, '
+          'Breite ${width ?? 'Standard'})', (tester) async {
+        if (width != null) {
+          tester.view.physicalSize = Size(width, 800);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+        }
         final hr = ChartLayer(
           name: 'Puls',
           parts: [
@@ -361,6 +384,7 @@ void main() {
               tester.widget<CustomPaint>(key('chart_paint')).painter!
                   as SeriesChartPainter;
           final size = tester.getSize(key('chart_paint'));
+          if (width != null) expect(size.width, lessThanOrEqualTo(width));
           final rects = painter.axisTextRects(size);
           expect(rects.length, layers.length * 2 + 2);
           for (var i = 0; i < rects.length; i++) {

@@ -35,11 +35,13 @@ class RunDetailCharts extends StatelessWidget {
       inverted: true,
       robust: true,
     );
+    final smoothed = l10n.detHrSmoothed(data.heartRateSmoothing.inSeconds);
     final hr = ChartLayer(
       name: l10n.detHeartRateName,
       parts: data.heartRate,
       color: scheme.error,
       format: (v) => l10n.runBpm(v!.round()),
+      note: smoothed,
     );
     final altitude = ChartLayer(
       name: l10n.detAltitudeName,
@@ -122,11 +124,27 @@ class RunDetailCharts extends StatelessWidget {
     if (layers.any((l) => l.parts.every((p) => p.isEmpty))) {
       return Text(none, key: noneKey);
     }
-    return RunSeriesChart(
+    final chart = RunSeriesChart(
       key: key,
       layers: layers,
       totalSeconds: data.totalSeconds,
       pauses: data.pauses,
+    );
+    final notes = [
+      for (final l in layers)
+        if (l.note != null) l.note!,
+    ];
+    if (notes.isEmpty) return chart;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        chart,
+        Text(
+          notes.join(' '),
+          key: Key('${(key as ValueKey<String>).value}_note'),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
     );
   }
 }
@@ -140,6 +158,7 @@ class ChartLayer {
     required this.format,
     this.inverted = false,
     this.robust = false,
+    this.note,
   });
 
   final String name;
@@ -153,6 +172,9 @@ class ChartLayer {
   /// Achse nach dem 2.- bis 98.-Perzentil, Ausreißer werden am Rand
   /// abgeschnitten (langsames Gehen soll die Pace-Achse nicht stauchen).
   final bool robust;
+
+  /// Kurzer Hinweis zur Reihe, sichtbar unter dem Diagramm und in der Semantik.
+  final String? note;
 
   Iterable<double> get values sync* {
     for (final p in parts) {
@@ -227,7 +249,12 @@ class RunSeriesChart extends StatelessWidget {
     } else {
       base = l10n.detCompareSemantics(layers[0].name, layers[1].name, parts);
     }
-    final label = [base, ...notes].join(' ');
+    final label = [
+      base,
+      ...notes,
+      for (final l in layers)
+        if (l.note != null) '${l.note}.',
+    ].join(' ');
     final scaler = MediaQuery.textScalerOf(context);
     final fontSize = theme.textTheme.bodySmall?.fontSize ?? 12;
     // Drei Textzeilen (oben, Kleinstwerte, Zeit) wachsen mit der Schrift, die

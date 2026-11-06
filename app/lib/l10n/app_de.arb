@@ -754,6 +754,8 @@
   "detPaceName": "Pace",
   "detHeartRateName": "Puls",
   "detAltitudeName": "Höhe",
+  "detHrSmoothed": "Puls geglättet (Median über {seconds} s)",
+  "@detHrSmoothed": {"description": "WP10 Fin", "placeholders": {"seconds": {"type": "int"}}},
   "detGapNote": "Unterbrechungen (Lücke im Signal oder Pause) bleiben in den Zeichnungen offen.",
   "detClipped": "{name}: Ausreißer am Rand abgeschnitten (die Achse zeigt den Kernbereich).",
   "@detClipped": {"description": "WP10 B2", "placeholders": {"name": {"type": "String"}}},

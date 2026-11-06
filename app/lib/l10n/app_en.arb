@@ -251,6 +251,8 @@
   "detPaceName": "Pace",
   "detHeartRateName": "Heart rate",
   "detAltitudeName": "Elevation",
+  "detHrSmoothed": "Heart rate smoothed (median over {seconds} s)",
+  "@detHrSmoothed": {"description": "WP10 Fin", "placeholders": {"seconds": {"type": "int"}}},
   "detGapNote": "Interruptions (signal gap or pause) stay open in the drawings.",
   "detClipped": "{name}: outliers cut off at the edge (the axis shows the core range).",
   "@detClipped": {"description": "WP10 B2", "placeholders": {"name": {"type": "String"}}},

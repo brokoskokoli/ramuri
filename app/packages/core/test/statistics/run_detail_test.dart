@@ -19,11 +19,9 @@ RunPreprocessing _run(
   (int, int)? noHeartRate,
   (int, int)? still,
   bool heartRate = true,
+  PreprocessingParameters parameters = const PreprocessingParameters.v4(),
 }) {
-  final pre = RunPreprocessor(
-    start: _start,
-    parameters: const PreprocessingParameters.v4(),
-  );
+  final pre = RunPreprocessor(start: _start, parameters: parameters);
   for (var i = 0; i <= seconds; i++) {
     final t = _start.add(Duration(seconds: i));
     if (pause != null && i == pause.$1) pre.pause(t);
@@ -89,6 +87,24 @@ RunDetailData _detail(
 );
 
 void main() {
+  test('Pulsreihe nennt das Glättungsfenster aus den Parametern (PAR-006)', () {
+    expect(
+      _detail(_run(60), 60).heartRateSmoothing,
+      const Duration(seconds: 30),
+    );
+    final d = _detail(
+      _run(
+        60,
+        parameters: const PreprocessingParameters(
+          parameterVersion: currentParameterVersion,
+          selectionMedianWindow: Duration(seconds: 45),
+        ),
+      ),
+      60,
+    );
+    expect(d.heartRateSmoothing, const Duration(seconds: 45));
+  });
+
   test('Lauf ohne Lücke: je Reihe ein zusammenhängender Teil', () {
     final d = _detail(_run(300), 300);
     expect(d.route, hasLength(1));

@@ -25,6 +25,7 @@ class RunDetailData {
     required this.route,
     required this.pace,
     required this.heartRate,
+    required this.heartRateSmoothing,
     required this.altitude,
     required this.totalSeconds,
     required this.pauses,
@@ -38,6 +39,9 @@ class RunDetailData {
 
   /// Puls in bpm (geglättet, nur akzeptierte Werte).
   final List<List<DetailPoint>> heartRate;
+
+  /// Länge des nachlaufenden Median-Fensters der Pulsreihe (PAR-006).
+  final Duration heartRateSmoothing;
 
   /// Geglättete Höhe in Metern.
   final List<List<DetailPoint>> altitude;
@@ -113,6 +117,7 @@ RunDetailData buildRunDetail(
       ], heartBreaks),
       maxPoints,
     ),
+    heartRateSmoothing: pre.parameters.selectionMedianWindow,
     altitude: _thin(
       _split<DetailPoint>([
         for (final s in pre.altitude.smoothed)
