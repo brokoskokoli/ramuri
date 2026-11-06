@@ -59,6 +59,11 @@ CREATE TABLE raw_positions (
   latitude_deg REAL,
   longitude_deg REAL,
   accuracy_m REAL,
+  -- Ab Version 2 (WP06 C, K12): Rohwerte des Standortgebers, NULL = nicht
+  -- geliefert (nie 0). Zeilen aus Version 1 haben NULL.
+  speed_mps REAL,
+  speed_accuracy_mps REAL,
+  vertical_accuracy_m REAL,
   CHECK (state = 'unavailable'
     OR (latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL))
 );

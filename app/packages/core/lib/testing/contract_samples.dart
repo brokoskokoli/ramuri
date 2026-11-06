@@ -10,6 +10,9 @@ RawBatch sampleBatch() => RawBatch(
       latitude: 52.5,
       longitude: 13.25,
       accuracyMeters: 4.5,
+      speedMetersPerSecond: 3.25,
+      speedAccuracyMetersPerSecond: 0.5,
+      verticalAccuracyMeters: 2.5,
     ),
     RawPosition(
       time: at(1),

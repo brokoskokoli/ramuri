@@ -13,15 +13,23 @@ typedef MigrationStep = Future<void> Function(Migrator m);
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
-  /// Phase 1 ist Version 1 (WP02 Teil B). Jede spätere Änderung erhöht die
+  /// Version 1: Phase 1 (WP02 Teil B). Version 2: Tempo, Tempo- und
+  /// Vertikalgenauigkeit je Rohposition (WP06 Teil C, K12). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
-  /// Schritt `n` überführt Version `n` in `n + 1`. Es gibt noch keinen. Tests
-  /// überschreiben das mit einem synthetischen Schritt.
-  Map<int, MigrationStep> get migrationSteps => const {};
+  /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
+  /// nächste Version einen synthetischen Schritt an.
+  Map<int, MigrationStep> get migrationSteps => {
+    1: (m) async {
+      // Bestehende Zeilen bekommen NULL (nicht geliefert), nie 0.
+      await m.addColumn(rawPositions, rawPositions.speedMps);
+      await m.addColumn(rawPositions, rawPositions.speedAccuracyMps);
+      await m.addColumn(rawPositions, rawPositions.verticalAccuracyM);
+    },
+  };
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
