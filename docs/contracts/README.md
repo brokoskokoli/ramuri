@@ -4,7 +4,7 @@
 
 | Schnittstelle | Festgelegt in der Quelle | Noch offen | Anforderungen |
 |---|---|---|---|
-| Dateiexport GPX, TCX, FIT | Die drei Formate; Inhalte je nach Format (Z. 1193–1205) | Formatversionen, Abbildung der Felder (OQ-0032) | FR-0182, FR-0183 |
+| Dateiexport GPX, TCX, FIT | Die drei Formate; Inhalte je nach Format (Z. 1193–1205) | Vertrag (Vorschläge, OQ-0032): [file-export.md](file-export.md); FIT-Abbildung folgt | FR-0182, FR-0183 |
 | Export von Zusatzmetriken | Separat exportierbar (Z. 1207) | Format (OQ-0032) | FR-0184 |
 | Gesamtexport | Umfang: Historie, Einstellungen, berechnete Werte (Z. 1231); dokumentiertes Archiv mit Rohdaten und Reimport (OQ-0032) | Aufbau des Archivs: bei der Umsetzung als Vertrag anzulegen | FR-0192, FR-0198 |
 | Bluetooth-Herzfrequenzgeräte | Standardisierte Geräte; die Quelle verweist auf den Heart Rate Service (Z. 76, 1438) | Profilversion; Felder für RR-Intervalle und Batterie | FR-0008, FR-0016, FR-0021 |
