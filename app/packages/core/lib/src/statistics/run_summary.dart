@@ -9,6 +9,7 @@ import '../recalculation/run_analysis.dart';
 import '../recalculation/run_load_values.dart';
 import 'best_pace.dart';
 import 'classification.dart';
+import 'offload.dart';
 import 'run_figures.dart';
 import 'run_overview.dart';
 import 'statistics_parameters.dart';
@@ -65,12 +66,17 @@ class RunSummaryService {
     required this.clock,
     this.preprocessing = const PreprocessingParameters.v4(),
     this.statistics = const StatisticsParameters(),
+    this.offload = inlineOffload,
   });
 
   final StorageSession session;
   final Clock clock;
   final PreprocessingParameters preprocessing;
   final StatisticsParameters statistics;
+
+  /// Wo die reine Wiedergabe der Rohdaten rechnet (in der App ein eigener
+  /// Isolate); Lesen und Speichern bleiben im aufrufenden Isolate.
+  final Offload offload;
 
   /// `null` für einen unbekannten oder nicht beendeten Lauf. Wirft
   /// [StorageException] bei Lesefehlern.
@@ -83,13 +89,13 @@ class RunSummaryService {
     final raw = await session.rawData.read(runId);
     final gaps = await session.markers.gaps(runId);
     final laps = await session.markers.laps(runId);
-    final pre = replayRunPreprocessing(
+    final pre = await offload(replayJob, (
       run: run,
       end: end,
       raw: raw,
       gaps: gaps,
       parameters: preprocessing,
-    );
+    ));
     final values = await session.values.read(ValueOwner.run(runId));
     final load = StoredRunLoad.fromValues({
       for (final v in values)

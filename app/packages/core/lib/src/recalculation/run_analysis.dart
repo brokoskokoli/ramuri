@@ -237,6 +237,25 @@ class RunAnalyzer {
   }
 }
 
+/// [replayRunPreprocessing] als Auftrag für einen anderen Isolate (alles
+/// Argumente sind reine Daten).
+RunPreprocessing replayJob(
+  ({
+    StoredRun run,
+    DateTime end,
+    StoredRawData raw,
+    List<StoredGap> gaps,
+    PreprocessingParameters parameters,
+  })
+  a,
+) => replayRunPreprocessing(
+  run: a.run,
+  end: a.end,
+  raw: a.raw,
+  gaps: a.gaps,
+  parameters: a.parameters,
+);
+
 /// Spielt die Rohdaten in zeitlicher Reihenfolge durch die Vorverarbeitung,
 /// samt manueller Pausen. Bei gleicher Zeit: erst Fortsetzen, dann Messwerte,
 /// dann Pausieren.

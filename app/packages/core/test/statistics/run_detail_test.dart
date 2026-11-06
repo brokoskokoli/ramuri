@@ -1,3 +1,6 @@
+import 'dart:isolate';
+import 'dart:math' as math;
+
 import 'package:core/core.dart';
 import 'package:test/test.dart';
 
@@ -13,6 +16,8 @@ RunPreprocessing _run(
   int seconds, {
   (int, int)? noPosition,
   (int, int)? pause,
+  (int, int)? noHeartRate,
+  (int, int)? still,
   bool heartRate = true,
 }) {
   final pre = RunPreprocessor(
@@ -25,13 +30,22 @@ RunPreprocessing _run(
     if (pause != null && i == pause.$2) pre.resume(t);
     final paused = pause != null && i >= pause.$1 && i < pause.$2;
     if (paused) continue;
+    // Im Stillstand bleibt die Position stehen, das Signal läuft weiter.
+    var metres = i * 3.0;
+    if (still != null) {
+      if (i >= still.$2) {
+        metres = (i - (still.$2 - still.$1)) * 3.0;
+      } else if (i >= still.$1) {
+        metres = still.$1 * 3.0;
+      }
+    }
     final lost = noPosition != null && i >= noPosition.$1 && i < noPosition.$2;
     if (!lost) {
       pre.addPosition(
         RawPosition(
           time: t,
           source: 'gps',
-          latitude: 10 + i * 3 / _mPerDeg,
+          latitude: 10 + metres / _mPerDeg,
           longitude: 20,
           accuracyMeters: 5,
         ),
@@ -45,7 +59,9 @@ RunPreprocessing _run(
         ),
       );
     }
-    if (heartRate) {
+    final noHr =
+        noHeartRate != null && i >= noHeartRate.$1 && i < noHeartRate.$2;
+    if (heartRate && !noHr) {
       pre.addHeartRate(
         RawHeartRate(
           time: t,
@@ -92,6 +108,75 @@ void main() {
     // Der Sprung zwischen den Teilen ist nicht Teil einer Linie.
     expect(d.route[0].last.latitude, lessThan(d.route[1].first.latitude));
     expect(d.route[0].length + d.route[1].length, greaterThan(200));
+  });
+
+  test('Pulslücke trennt nur den Puls; Position läuft durch', () {
+    final d = _detail(_run(300, noHeartRate: (100, 160)), 300);
+    expect(d.heartRate, hasLength(2));
+    expect(d.route, hasLength(1));
+    expect(d.pace, hasLength(1));
+    expect(d.altitude, hasLength(1));
+    // Zwischen den Teilen liegt die Lücke, keine Linie über sie hinweg.
+    expect(
+      d.heartRate[1].first.seconds - d.heartRate[0].last.seconds,
+      greaterThanOrEqualTo(60),
+    );
+  });
+
+  test('Stillstand unterbricht die Pace-Linie, Route läuft durch', () {
+    final d = _detail(_run(300, still: (100, 160)), 300);
+    expect(d.pace, hasLength(2));
+    expect(d.route, hasLength(1));
+    expect(d.heartRate, hasLength(1));
+    // Im Stillstand gibt es keinen Pace-Punkt.
+    expect(d.pace[1].first.seconds - d.pace[0].last.seconds, greaterThan(30));
+  });
+
+  test('Ausdünnen behält die einzelne Spitze (Min/Max je Abschnitt)', () {
+    const n = 3000;
+    // Spitze und Tal (je 25 s), breit genug für den Median (30 s), aber
+    // schmaler als der Abstand der Stützpunkte beim Ausdünnen.
+    int bpm(int i) => i >= 1000 && i < 1025
+        ? 162
+        : (i >= 2000 && i < 2025 ? 122 : 140 + i % 3);
+    final spiked = RunPreprocessor(
+      start: _start,
+      parameters: const PreprocessingParameters.v4(),
+    );
+    for (var i = 0; i <= n; i++) {
+      spiked.addHeartRate(
+        RawHeartRate(
+          time: _start.add(Duration(seconds: i)),
+          source: 'strap',
+          bpm: bpm(i),
+          contact: SensorContact.good,
+        ),
+      );
+    }
+    final full = _detail(
+      spiked.result(at: _start.add(const Duration(seconds: n))),
+      n,
+      maxPoints: 100000,
+    );
+    final thin = _detail(
+      spiked.result(at: _start.add(const Duration(seconds: n))),
+      n,
+      maxPoints: 40,
+    );
+    double hi(RunDetailData d) =>
+        d.heartRate.expand((x) => x).map((x) => x.value).reduce(math.max);
+    double lo(RunDetailData d) =>
+        d.heartRate.expand((x) => x).map((x) => x.value).reduce(math.min);
+    final points = thin.heartRate.fold<int>(0, (a, x) => a + x.length);
+    expect(points, lessThanOrEqualTo(40));
+    expect(
+      points,
+      lessThan(full.heartRate.fold<int>(0, (a, x) => a + x.length)),
+    );
+    expect(hi(thin), hi(full));
+    expect(lo(thin), lo(full));
+    expect(hi(full), greaterThan(155));
+    expect(lo(full), lessThan(130));
   });
 
   test('Manuelle Pause trennt alle Reihen', () {
@@ -220,6 +305,81 @@ void main() {
       );
       expect(d.route, hasLength(2));
       expect(d.heartRate.fold<int>(0, (a, p) => a + p.length), lessThan(2010));
+    },
+  );
+
+  test('isolateOffload rechnet wirklich in einem anderen Isolate', () async {
+    String? name(int _) => Isolate.current.debugName;
+    expect(await inlineOffload(name, 0), Isolate.current.debugName);
+    expect(await isolateOffload(name, 0), isNot(Isolate.current.debugName));
+  });
+
+  test(
+    'Rechnung im eigenen Isolate: Daten sind sendbar, Ergebnis gleich',
+    () async {
+      final w = await RecalcWorld.create();
+      final run = await w.session.runs.create(startedAt: _start);
+      const n = 600;
+      await w.session.rawData.append(
+        run.id,
+        RawBatch(
+          positions: [
+            for (var i = 0; i <= n; i++)
+              if (i < 200 || i > 260)
+                RawPosition(
+                  time: _start.add(Duration(seconds: i)),
+                  source: 'gps',
+                  latitude: 10 + i * 3 / _mPerDeg,
+                  longitude: 20,
+                  accuracyMeters: 5,
+                ),
+          ],
+          heartRates: [
+            for (var i = 0; i <= n; i++)
+              RawHeartRate(
+                time: _start.add(Duration(seconds: i)),
+                source: 'strap',
+                bpm: 150,
+                contact: SensorContact.good,
+              ),
+          ],
+        ),
+      );
+      await w.session.runs.setState(
+        run.id,
+        RunState.finished,
+        endedAt: _start.add(const Duration(seconds: n)),
+      );
+      Future<(RunSummary, RunDetailData)> build(Offload offload) async {
+        final summary = (await RunSummaryService(
+          session: w.session,
+          clock: w.clock,
+          offload: offload,
+        ).load(run.id))!;
+        final detail = await offload(buildRunDetailJob, (
+          pre: summary.preprocessing,
+          start: summary.run.startedAt,
+          end: summary.run.endedAt!,
+          pauses: summary.manualPauses,
+        ));
+        return (summary, detail);
+      }
+
+      final (inlineSummary, inlineDetail) = await build(inlineOffload);
+      final (isoSummary, isoDetail) = await build(isolateOffload);
+      expect(isoDetail.route, hasLength(2));
+      expect(
+        [for (final p in isoDetail.route) p.length],
+        [for (final p in inlineDetail.route) p.length],
+      );
+      expect(
+        isoSummary.preprocessing.position.acceptedPoints.length,
+        inlineSummary.preprocessing.position.acceptedPoints.length,
+      );
+      expect(
+        isoSummary.figures.distanceMeters,
+        inlineSummary.figures.distanceMeters,
+      );
     },
   );
 }

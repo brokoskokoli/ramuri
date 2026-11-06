@@ -162,6 +162,17 @@ class ChartLayer {
     }
   }
 
+  /// Echter Kleinst- und Größtwert der Reihe (nicht der Achse).
+  double get minValue => values.reduce(math.min);
+  double get maxValue => values.reduce(math.max);
+
+  /// Ob die Achse Werte abschneidet (nur bei [robust]): Diese Werte werden am
+  /// Rand gezeichnet, nicht an ihrer Stelle.
+  bool get clipped {
+    final r = range;
+    return minValue < r.lo - 1e-9 || maxValue > r.hi + 1e-9;
+  }
+
   /// Wertebereich der Achse.
   ({double lo, double hi}) get range {
     final all = values.toList()..sort();
@@ -199,19 +210,28 @@ class RunSeriesChart extends StatelessWidget {
       0,
       (n, l) => math.max(n, l.parts.where((p) => p.isNotEmpty).length),
     );
-    final String label;
+    final notes = [
+      for (final l in layers)
+        if (l.clipped) l10n.detClipped(l.name),
+    ];
+    final String base;
     if (layers.length == 1) {
+      // Echter Kleinst- und Größtwert, auch wenn die Achse Ausreißer abschneidet.
       final layer = layers.single;
-      final r = layer.range;
-      label = l10n.detChartSemantics(
+      base = l10n.detChartSemantics(
         layer.name,
-        layer.format(r.lo),
-        layer.format(r.hi),
+        layer.format(layer.minValue),
+        layer.format(layer.maxValue),
         parts,
       );
     } else {
-      label = l10n.detCompareSemantics(layers[0].name, layers[1].name, parts);
+      base = l10n.detCompareSemantics(layers[0].name, layers[1].name, parts);
     }
+    final label = [base, ...notes].join(' ');
+    final scaler = MediaQuery.textScalerOf(context);
+    final fontSize = theme.textTheme.bodySmall?.fontSize ?? 12;
+    // Die Beschriftung wächst mit der Schrift, die Zeichenfläche bleibt gleich.
+    final height = 180 + 2 * 1.4 * (scaler.scale(fontSize) - fontSize);
     final style = (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
       color: theme.colorScheme.onSurface,
     );
@@ -237,7 +257,7 @@ class RunSeriesChart extends StatelessWidget {
               ],
             ),
           SizedBox(
-            height: 180,
+            height: height,
             width: double.infinity,
             child: CustomPaint(
               key: const Key('chart_paint'),
@@ -250,10 +270,13 @@ class RunSeriesChart extends StatelessWidget {
                   alpha: 0.4,
                 ),
                 textStyle: style,
+                textScaler: scaler,
                 clock: (s) => formatClock(Duration(seconds: s.round())),
               ),
             ),
           ),
+          for (final n in notes)
+            Text(n, key: const Key('chart_clipped'), style: style),
         ],
       ),
     );
@@ -270,6 +293,7 @@ class SeriesChartPainter extends CustomPainter {
     required this.pauseColor,
     required this.textStyle,
     required this.clock,
+    this.textScaler = TextScaler.noScaling,
   });
 
   final List<ChartLayer> layers;
@@ -278,6 +302,7 @@ class SeriesChartPainter extends CustomPainter {
   final Color axisColor;
   final Color pauseColor;
   final TextStyle textStyle;
+  final TextScaler textScaler;
   final String Function(double seconds) clock;
 
   void _text(
@@ -294,6 +319,7 @@ class SeriesChartPainter extends CustomPainter {
         style: color == null ? textStyle : textStyle.copyWith(color: color),
       ),
       textDirection: TextDirection.ltr,
+      textScaler: textScaler,
       textAlign: align,
       maxLines: 1,
     )..layout(maxWidth: maxWidth);
@@ -305,8 +331,10 @@ class SeriesChartPainter extends CustomPainter {
     tp.paint(canvas, Offset(dx, at.dy));
   }
 
-  Rect _plot(Size size) {
-    final labelHeight = (textStyle.fontSize ?? 12) * 1.4;
+  double get labelHeight => textScaler.scale(textStyle.fontSize ?? 12) * 1.4;
+
+  /// Zeichenfläche ohne die Achsenbeschriftung oben und unten.
+  Rect plotRect(Size size) {
     return Rect.fromLTRB(0, labelHeight, size.width, size.height - labelHeight);
   }
 
@@ -351,13 +379,12 @@ class SeriesChartPainter extends CustomPainter {
 
   /// Gezeichnete Pfade (für Prüfungen).
   List<Path> linePaths(Size size) => [
-    for (final l in _lines(_plot(size))) ...l.paths,
+    for (final l in _lines(plotRect(size))) ...l.paths,
   ];
 
   @override
   void paint(Canvas canvas, Size size) {
-    final labelHeight = (textStyle.fontSize ?? 12) * 1.4;
-    final plot = _plot(size);
+    final plot = plotRect(size);
     final axis = Paint()
       ..color = axisColor
       ..strokeWidth = 1;
@@ -434,6 +461,7 @@ class SeriesChartPainter extends CustomPainter {
       old.layers != layers ||
       old.totalSeconds != totalSeconds ||
       old.pauses != pauses ||
+      old.textScaler != textScaler ||
       old.axisColor != axisColor;
 }
 
@@ -453,15 +481,47 @@ class RunRouteView extends StatelessWidget {
       startColor: scheme.tertiary,
       endColor: scheme.error,
     );
-    return Semantics(
-      container: true,
-      label: l10n.detRouteSemantics(painter.pathCount),
-      excludeSemantics: true,
-      child: SizedBox(
-        height: 240,
-        width: double.infinity,
-        child: CustomPaint(key: const Key('route_paint'), painter: painter),
-      ),
+    Widget legend(Key key, Color color, String text) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(text, key: key, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          container: true,
+          label: l10n.detRouteSemantics(painter.pathCount),
+          excludeSemantics: true,
+          child: SizedBox(
+            height: 240,
+            width: double.infinity,
+            child: CustomPaint(key: const Key('route_paint'), painter: painter),
+          ),
+        ),
+        Wrap(
+          spacing: 16,
+          children: [
+            legend(
+              const Key('route_legend_start'),
+              scheme.tertiary,
+              l10n.detRouteStart,
+            ),
+            legend(
+              const Key('route_legend_end'),
+              scheme.error,
+              l10n.detRouteEnd,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

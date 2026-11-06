@@ -1,7 +1,9 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:running_app/features/summary/run_charts.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show key, openHistory, started, text;
@@ -18,6 +20,7 @@ Future<int> seedDetailRun(
   bool heartRate = true,
   (int, int)? noPosition,
   (int, int)? pause,
+  (int, int)? noHeartRate,
 }) async {
   final run = await s.runs.create(startedAt: start);
   bool inside((int, int)? r, int i) => r != null && i >= r.$1 && i < r.$2;
@@ -48,7 +51,7 @@ Future<int> seedDetailRun(
       heartRates: [
         if (heartRate)
           for (var i = 0; i <= seconds; i++)
-            if (!inside(pause, i))
+            if (!inside(pause, i) && !inside(noHeartRate, i))
               RawHeartRate(
                 time: start.add(Duration(seconds: i)),
                 source: 'strap',
@@ -176,6 +179,178 @@ void main() {
     expect(key('run_gaps'), findsOneWidget);
   });
 
+  testWidgets('Pulslücke: nur der Puls ist getrennt, Route und Pace nicht', (
+    tester,
+  ) async {
+    final d = await started(tester);
+    await openDetail(
+      tester,
+      d,
+      () => seedDetailRun(
+        d.session,
+        DateTime.utc(2030, 1, 1, 8),
+        noHeartRate: (200, 260),
+      ),
+    );
+    expect(chartPaths('detail_hr'), hasLength(2));
+    expect(routePaths(), hasLength(1));
+    expect(chartPaths('detail_pace'), hasLength(1));
+    expect(chartPaths('detail_altitude'), hasLength(1));
+    // Vergleich: Pace (1 Pfad) und Puls (2 Pfade).
+    expect(chartPaths('detail_compare'), hasLength(3));
+    // Die Lücke im Puls ist nicht überbrückt: keine Linie zwischen 200 und 260 s.
+    final c = chart('detail_hr');
+    final layer = c.layers.single;
+    expect(layer.parts, hasLength(2));
+    expect(
+      layer.parts[1].first.seconds - layer.parts[0].last.seconds,
+      greaterThanOrEqualTo(60),
+    );
+  });
+
+  testWidgets('Löschen im Detail: Checkpoint scheitert, Lauf ist trotzdem weg', (
+    tester,
+  ) async {
+    final d = await started(tester);
+    final id = await openDetail(
+      tester,
+      d,
+      () => seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8)),
+    );
+    d.storage.checkpointIncomplete = true;
+    await tester.tap(key('detail_delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lauf löschen').last);
+    await tester.pumpAndSettle();
+    // Gelöscht, nur nicht gelöscht-gesichert: Detail schließt, Liste lädt neu.
+    expect(key('detail_delete'), findsNothing);
+    expect(key('history_run_$id'), findsNothing);
+    expect(await d.session.runs.get(id), isNull);
+    expect(find.textContaining('noch nicht abgeschlossen'), findsOneWidget);
+  });
+
+  testWidgets('Route: Legende Start/Ende als Text', (tester) async {
+    final d = await started(tester);
+    await openDetail(
+      tester,
+      d,
+      () => seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8)),
+    );
+    expect(text('route_legend_start'), 'Start');
+    expect(text('route_legend_end'), 'Ende');
+  });
+
+  group('Diagrammachse', () {
+    Widget host(Widget child, {double scale = 1}) => MaterialApp(
+      locale: const Locale('de'),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+        child: Scaffold(body: SingleChildScrollView(child: child)),
+      ),
+    );
+
+    ChartLayer paceLayer({required bool outliers}) => ChartLayer(
+      name: 'Pace',
+      parts: [
+        [
+          for (var i = 0; i < 200; i++)
+            DetailPoint(i.toDouble(), 280 + (i % 41).toDouble()),
+          if (outliers) ...[
+            const DetailPoint(200, 900),
+            const DetailPoint(201, 950),
+          ],
+        ],
+      ],
+      color: Colors.blue,
+      format: (v) => '${v!.round()}',
+      inverted: true,
+      robust: true,
+    );
+
+    testWidgets(
+      'Ausreißer: Beschreibung nennt echte Werte, Abschneiden steht da',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          host(
+            RunSeriesChart(
+              layers: [paceLayer(outliers: true)],
+              totalSeconds: 202,
+              pauses: const [],
+            ),
+          ),
+        );
+        final layer = paceLayer(outliers: true);
+        // Die Achse schneidet ab, die Beschreibung nennt den echten Größtwert.
+        expect(layer.range.hi, lessThan(900));
+        expect(layer.clipped, isTrue);
+        expect(
+          find.bySemanticsLabel(
+            RegExp(r'^Pace\. Kleinster Wert 280, größter Wert 950\.'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel(
+            RegExp(r'Pace: Ausreißer am Rand abgeschnitten'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          text('chart_clipped'),
+          'Pace: Ausreißer am Rand abgeschnitten (die Achse zeigt den Kernbereich).',
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('ohne Ausreißer: kein Hinweis', (tester) async {
+      await tester.pumpWidget(
+        host(
+          RunSeriesChart(
+            layers: [paceLayer(outliers: false)],
+            totalSeconds: 202,
+            pauses: const [],
+          ),
+        ),
+      );
+      expect(paceLayer(outliers: false).clipped, isFalse);
+      expect(key('chart_clipped'), findsNothing);
+    });
+
+    testWidgets('Beschriftung folgt der Schriftgröße', (tester) async {
+      Future<SeriesChartPainter> painter(double scale) async {
+        await tester.pumpWidget(
+          host(
+            RunSeriesChart(
+              layers: [paceLayer(outliers: false)],
+              totalSeconds: 202,
+              pauses: const [],
+            ),
+            scale: scale,
+          ),
+        );
+        return tester.widget<CustomPaint>(key('chart_paint')).painter!
+            as SeriesChartPainter;
+      }
+
+      final normal = await painter(1);
+      final normalPlot = normal.plotRect(const Size(300, 200));
+      final big = await painter(2);
+      final bigPlot = big.plotRect(const Size(300, 200));
+      expect(big.textScaler.scale(10), 20);
+      expect(bigPlot.top, closeTo(normalPlot.top * 2, 0.01));
+      expect(bigPlot.height, lessThan(normalPlot.height));
+    });
+  });
+
   testWidgets('Manuelle Pause: alle Reihen getrennt', (tester) async {
     final d = await started(tester);
     await openDetail(
@@ -285,7 +460,7 @@ void main() {
     );
     expect(
       find.bySemanticsLabel(
-        'Route, ohne Karte gezeichnet. 2 zusammenhängende Abschnitte; Lücken sind nicht verbunden.',
+        'Route, ohne Karte gezeichnet. 2 zusammenhängende Abschnitte; Lücken sind nicht verbunden. Start und Ende sind markiert.',
       ),
       findsOneWidget,
     );

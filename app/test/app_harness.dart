@@ -7,6 +7,8 @@ import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/features/run/run_ports.dart';
 import 'package:running_app/features/storage/storage_start.dart';
+import 'package:running_app/features/summary/run_summary_body.dart'
+    show summaryOffload;
 
 /// "Gerät" für App-Tests: Speicher und Schlüsselablage bleiben über mehrere
 /// App-Starts erhalten, wie auf dem Telefon.
@@ -31,6 +33,8 @@ class Device {
   /// Startet die App mit der Gerätesprache [locale] (neuer Prozess auf
   /// demselben Speicher).
   Future<void> start(WidgetTester tester, Locale locale) async {
+    // Ein Isolate läuft nicht in der Test-Uhr (pumpAndSettle).
+    summaryOffload = inlineOffload;
     // Hoher Bildschirm, damit das ganze Formular ohne Scrollen sichtbar ist.
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;

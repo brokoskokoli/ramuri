@@ -56,9 +56,18 @@ class RunDetailData {
   int get routeSegmentCount => route.where((p) => p.length >= 2).length;
 }
 
+/// [buildRunDetail] als Auftrag für einen anderen Isolate.
+RunDetailData buildRunDetailJob(
+  ({RunPreprocessing pre, DateTime start, DateTime end, List<TimeSpan> pauses})
+  a,
+) => buildRunDetail(a.pre, start: a.start, end: a.end, pauses: a.pauses);
+
 /// Baut die Zeichendaten. [pauses] sind die manuellen Pausen des Laufs.
-/// Übersteigt eine Reihe [maxPoints] Punkte, wird sie je Teil ausgedünnt (erster
-/// und letzter Punkt jedes Teils bleiben, Teile werden nie verbunden).
+/// Übersteigt eine Reihe [maxPoints] Punkte, wird sie je Teil ausgedünnt: erster
+/// und letzter Punkt jedes Teils bleiben, Teile werden nie verbunden, und aus
+/// jedem Abschnitt bleiben der kleinste und der größte Wert erhalten (kurze
+/// Spitzen gehen nicht verloren; Kleinst- und Größtwert der Reihe bleiben
+/// exakt).
 RunDetailData buildRunDetail(
   RunPreprocessing pre, {
   required DateTime start,
@@ -204,15 +213,34 @@ int _budget(int partLength, int total, int maxPoints) {
   return share < 2 ? 2 : share;
 }
 
+/// Min/Max-Ausdünnung eines Teils: erster und letzter Punkt, dazwischen je
+/// Abschnitt der kleinste und der größte Wert, in Zeitreihenfolge.
+List<DetailPoint> _thinPart(List<DetailPoint> p, int budget) {
+  if (p.length <= budget || p.length <= 2) return p;
+  final buckets = (budget - 2) ~/ 2;
+  final keep = <int>{0, p.length - 1};
+  final inner = p.length - 2;
+  for (var b = 0; b < buckets; b++) {
+    final from = 1 + (b * inner / buckets).floor();
+    final to = 1 + ((b + 1) * inner / buckets).floor();
+    if (to <= from) continue;
+    var lo = from, hi = from;
+    for (var i = from + 1; i < to; i++) {
+      if (p[i].value < p[lo].value) lo = i;
+      if (p[i].value > p[hi].value) hi = i;
+    }
+    keep
+      ..add(lo)
+      ..add(hi);
+  }
+  return [for (final i in keep.toList()..sort()) p[i]];
+}
+
 List<List<DetailPoint>> _thin(List<List<DetailPoint>> parts, int maxPoints) {
   final total = parts.fold<int>(0, (n, p) => n + p.length);
   return [
     for (final p in parts)
-      if (p.isNotEmpty)
-        [
-          for (final i in _keep(p.length, _budget(p.length, total, maxPoints)))
-            p[i],
-        ],
+      if (p.isNotEmpty) _thinPart(p, _budget(p.length, total, maxPoints)),
   ];
 }
 

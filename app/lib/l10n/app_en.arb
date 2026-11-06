@@ -238,7 +238,7 @@
   "sumLoadNotStored": "not available (not stored for this run)",
   "detTitle": "Run",
   "detRouteNone": "not available (no positions recorded)",
-  "detRouteSemantics": "Route, drawn without a map. {parts} connected sections; gaps are not joined.",
+  "detRouteSemantics": "Route, drawn without a map. {parts} connected sections; gaps are not joined. Start and end are marked.",
   "@detRouteSemantics": {"description": "WP10 B2", "placeholders": {"parts": {"type": "int"}}},
   "detPaceChart": "Pace over time",
   "detHeartRateChart": "Heart rate over time",
@@ -255,5 +255,9 @@
   "detHeartRateName": "Heart rate",
   "detAltitudeName": "Elevation",
   "detGapNote": "Interruptions (signal gap or pause) stay open in the drawings.",
+  "detClipped": "{name}: outliers cut off at the edge (the axis shows the core range).",
+  "@detClipped": {"description": "WP10 B2", "placeholders": {"name": {"type": "String"}}},
+  "detRouteStart": "Start",
+  "detRouteEnd": "End",
   "detLoadFailed": "This run could not be read."
 }

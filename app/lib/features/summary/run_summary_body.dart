@@ -6,6 +6,12 @@ import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
 import 'run_charts.dart';
 
+/// Wo die reine Rechnung der Zusammenfassung läuft: in der App in einem eigenen
+/// Isolate, damit die Oberfläche bei langen Läufen nicht einfriert (Lesen und
+/// Speichern bleiben im Haupt-Isolate). Tests stellen [inlineOffload] ein, weil
+/// ein Isolate in der Test-Uhr nicht abläuft.
+Offload summaryOffload = isolateOffload;
+
 /// Zeit für die Anzeige; fehlt sie, „nicht verfügbar“ (nie „–“ oder 0).
 String clockText(AppLocalizations l10n, Duration? d) =>
     d == null ? l10n.runUnavailable : formatClock(d);
@@ -43,17 +49,18 @@ class _RunSummaryBodyState extends State<RunSummaryBody> {
       final summary = await RunSummaryService(
         session: widget.session,
         clock: widget.clock,
+        offload: summaryOffload,
       ).load(widget.runId);
       if (summary == null) return null;
       // Einmal gebaut, nicht bei jedem Neuzeichnen.
       return _Loaded(
         summary,
-        buildRunDetail(
-          summary.preprocessing,
+        await summaryOffload(buildRunDetailJob, (
+          pre: summary.preprocessing,
           start: summary.run.startedAt,
           end: summary.run.endedAt!,
           pauses: summary.manualPauses,
-        ),
+        )),
       );
     } on Object {
       // Keine Gesundheitsdaten in Meldungen; die Ansicht fällt zurück.

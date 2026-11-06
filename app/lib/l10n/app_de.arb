@@ -744,7 +744,7 @@
   "sumLoadNotStored": "nicht verfügbar (für diesen Lauf nicht gespeichert)",
   "detTitle": "Lauf",
   "detRouteNone": "nicht verfügbar (keine Positionen aufgezeichnet)",
-  "detRouteSemantics": "Route, ohne Karte gezeichnet. {parts} zusammenhängende Abschnitte; Lücken sind nicht verbunden.",
+  "detRouteSemantics": "Route, ohne Karte gezeichnet. {parts} zusammenhängende Abschnitte; Lücken sind nicht verbunden. Start und Ende sind markiert.",
   "@detRouteSemantics": {"description": "WP10 B2", "placeholders": {"parts": {"type": "int"}}},
   "detPaceChart": "Pace im Zeitverlauf",
   "detHeartRateChart": "Puls im Zeitverlauf",
@@ -761,5 +761,9 @@
   "detHeartRateName": "Puls",
   "detAltitudeName": "Höhe",
   "detGapNote": "Unterbrechungen (Lücke im Signal oder Pause) bleiben in den Zeichnungen offen.",
+  "detClipped": "{name}: Ausreißer am Rand abgeschnitten (die Achse zeigt den Kernbereich).",
+  "@detClipped": {"description": "WP10 B2", "placeholders": {"name": {"type": "String"}}},
+  "detRouteStart": "Start",
+  "detRouteEnd": "Ende",
   "detLoadFailed": "Dieser Lauf konnte nicht gelesen werden."
 }

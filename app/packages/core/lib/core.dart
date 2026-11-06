@@ -79,6 +79,7 @@ export 'src/recording/run_recorder.dart';
 export 'src/recording/start_gate.dart';
 export 'src/statistics/best_pace.dart';
 export 'src/statistics/classification.dart';
+export 'src/statistics/offload.dart';
 export 'src/statistics/period.dart';
 export 'src/statistics/period_statistics.dart';
 export 'src/statistics/run_detail.dart';
