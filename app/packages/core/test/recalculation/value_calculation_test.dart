@@ -297,6 +297,33 @@ void main() {
     expect(await w.dump(), before);
   });
 
+  test(
+    'Nachholen: Lauf, dessen Werte nicht lesbar sind, bleibt gemerkt',
+    () async {
+      final w = await RecalcWorld.create();
+      final id = await w.seedRun(DateTime.utc(2030, 2, 25, 8));
+      await w.calc().calculateAfterRun(id);
+      const key = ValueCalculationService.calculationPendingKey;
+      await w.session.settings.set(key, '$id', at: w.clock.now());
+      final values = FailingValues(w.session.values)
+        ..failSwapAll = false
+        ..failRead = true;
+      final faulty = FaultySession(
+        w.session,
+        rawData: w.session.rawData,
+        values: values,
+      );
+      await expectLater(
+        w.calc(over: faulty).completePendingCalculations(),
+        throwsA(isA<StorageException>()),
+      );
+      expect(await w.session.settings.get(key), '$id');
+
+      await w.calc().completePendingCalculations();
+      expect(await w.session.settings.get(key), '');
+    },
+  );
+
   test('Lauf mit Pause und ohne Dauer', () async {
     final w = await RecalcWorld.create();
     final run = await w.session.runs.create(

@@ -99,7 +99,8 @@ Future<void> _deleteRunAndRefresh(
 
 /// Holt ein unterbrochenes Neuanlegen der Tageswerte nach einem Löschen nach
 /// (beim App-Start, vor einer Neuberechnung; nicht parallel zu ihr), ebenso eine
-/// unterbrochene Berechnung nach einem Lauf. Ohne Merker passiert nichts.
+/// unterbrochene Berechnung nach einem Lauf; Letzteres auch ohne Merker für jeden
+/// beendeten Lauf ohne Laufwert ([ValueCalculationService.completePendingCalculations]).
 /// Fehler werden weitergegeben; der Merker bleibt.
 Future<void> completePendingValueRefresh(
   StorageSession session,

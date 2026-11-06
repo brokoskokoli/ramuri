@@ -209,25 +209,29 @@ class ValueCalculationService {
   /// bestimmbar“ mit Grund), ein beendeter Lauf ohne Laufwert ist also offen,
   /// auch wenn der Merker fehlt (Schreibfehler im Lauf, App-Ende vor dem
   /// Merken). Gemerkte, gelöschte Läufe und Läufe mit Laufwert werden nur
-  /// ausgetragen. Der erste Fehler wird nach den übrigen Läufen weitergegeben;
+  /// ausgetragen; ein Lauf, dessen Werte nicht gelesen werden konnten, bleibt
+  /// gemerkt. Der erste Fehler wird nach den übrigen Läufen weitergegeben;
   /// die betroffenen Einträge bleiben.
   Future<void> completePendingCalculations() async {
     Object? failure;
     final marked = await _pendingCalculations();
     final open = <int>{};
+    final unread = <int>{};
     for (final r in await _finishedRuns()) {
       try {
         if ((await session.values.read(ValueOwner.run(r.id))).isEmpty) {
           open.add(r.id);
         }
       } on Object catch (e) {
+        // Nicht gelesen: weder rechnen noch austragen, der Merker bleibt.
+        unread.add(r.id);
         failure ??= e;
       }
     }
     for (final id in ({...marked, ...open}).toList()..sort()) {
       try {
         if (open.contains(id)) await calculateAfterRun(id);
-        if (marked.contains(id)) await _unmark(id);
+        if (marked.contains(id) && !unread.contains(id)) await _unmark(id);
       } on Object catch (e) {
         failure ??= e;
       }

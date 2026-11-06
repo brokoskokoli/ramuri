@@ -263,6 +263,7 @@ class FailingValues implements ComputedValueStore {
   int singleSwaps = 0;
   bool failSwapAll = true;
   bool failWriteAll = false;
+  bool failRead = false;
   int writeAlls = 0;
 
   @override
@@ -292,7 +293,10 @@ class FailingValues implements ComputedValueStore {
   }
 
   @override
-  Future<List<ValuePair>> read(ValueOwner owner) => inner.read(owner);
+  Future<List<ValuePair>> read(ValueOwner owner) {
+    if (failRead) throw const StorageException(StorageFailure.failed);
+    return inner.read(owner);
+  }
 }
 
 /// Reicht alles durch und merkt sich, dass ein Sammel-Tausch gelang.

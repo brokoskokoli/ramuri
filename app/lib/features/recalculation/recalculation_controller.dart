@@ -14,13 +14,16 @@ enum RecalculationPhase { idle, running, done, failed, declineFailed }
 /// nicht angezeigt, nur [RecalculationPhase.failed].
 class RecalculationController extends ChangeNotifier {
   RecalculationController(this.service, {this.onStart}) {
-    _sub = service.offers.listen((o) {
-      _offer = o;
-      if (_phase != RecalculationPhase.running) {
-        _phase = RecalculationPhase.idle;
-      }
-      notifyListeners();
-    });
+    _sub = service.offers.listen(_onOffer);
+  }
+
+  void _onOffer(RecalculationOffer o) {
+    if (_disposed) return;
+    _offer = o;
+    if (_phase != RecalculationPhase.running) {
+      _phase = RecalculationPhase.idle;
+    }
+    notifyListeners();
   }
 
   final RecalculationService service;
@@ -81,10 +84,13 @@ class RecalculationController extends ChangeNotifier {
   }
 
   /// Nach dem Speichern des Profils. Fehler hier verhindern nichts am
-  /// Speichern selbst.
+  /// Speichern selbst. Das Angebot steht nach dem Rückkehr sofort in [offer]:
+  /// der Strom [RecalculationService.offers] liefert asynchron und käme für
+  /// die Rückmeldung der Seite zu spät.
   Future<void> profileChanged(ProfileRecord before, ProfileRecord after) async {
     try {
-      await service.profileChanged(before: before, after: after);
+      final offer = await service.profileChanged(before: before, after: after);
+      if (offer != null) _onOffer(offer);
     } on Object {
       // Das Profil ist gespeichert; ein Angebot gibt es dann eben nicht.
     }

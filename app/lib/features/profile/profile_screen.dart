@@ -6,7 +6,7 @@ import '../recalculation/recalculation_controller.dart';
 import 'profile_form.dart';
 
 /// Profilseite (FR-0002 bis FR-0005).
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
     required this.session,
@@ -17,6 +17,28 @@ class ProfileScreen extends StatelessWidget {
   final StorageSession session;
   final Clock clock;
   final RecalculationController recalculation;
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  ScaffoldMessengerState? _messenger;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _messenger = ScaffoldMessenger.of(context);
+  }
+
+  @override
+  void dispose() {
+    // Der ScaffoldMessenger gehört der App, nicht der Seite: Die Rückmeldung
+    // bliebe sonst über die Seite hinaus stehen und verdeckte beim nächsten
+    // Besuch den Speichern-Knopf.
+    _messenger?.clearSnackBars();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,17 +52,17 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 16),
           ProfileForm(
             service: _NotifyingProfileService(
-              session.profile,
-              clock,
-              recalculation,
+              widget.session.profile,
+              widget.clock,
+              widget.recalculation,
             ),
-            clock: clock,
+            clock: widget.clock,
             onSaved: (_) {
               final messenger = ScaffoldMessenger.of(context);
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                    recalculation.offer == null
+                    widget.recalculation.offer == null
                         ? l10n.profileSaved
                         : '${l10n.profileSaved}\n${l10n.recalcOffered}',
                   ),

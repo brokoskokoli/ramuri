@@ -254,6 +254,28 @@ void main() {
     },
   );
 
+  testWidgets('Snackbar nach dem Speichern weist auf die Neuberechnung hin, '
+      'verschwindet mit der Seite', (tester) async {
+    await _start(tester, locale: const Locale('en'));
+    await tester.tap(find.byKey(const Key('home_profile')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('profile_max')), '180');
+    await tester.tap(find.byKey(const Key('profile_save')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      find.text(
+        'Profile saved.\nA recalculation is possible. You can find it in settings.',
+      ),
+      findsOneWidget,
+    );
+    // Beim Verlassen der Seite darf nichts stehen bleiben und den
+    // Speichern-Knopf beim nächsten Besuch verdecken.
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Profile saved.'), findsNothing);
+  });
+
   testWidgets('Profiländerung ohne Einfluss auf die Basis bietet nichts an', (
     tester,
   ) async {
