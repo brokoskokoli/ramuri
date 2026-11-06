@@ -52,6 +52,10 @@ export 'src/preprocessing/run_preprocessor.dart';
 export 'src/preprocessing/section_quality.dart';
 export 'src/preprocessing/settling_processor.dart';
 export 'src/preprocessing/steps_series.dart';
+export 'src/profile/heart_rate_resolution.dart';
+export 'src/profile/profile_parameters.dart';
+export 'src/profile/profile_service.dart';
+export 'src/profile/profile_validation.dart';
 export 'src/storage/storage_key_service.dart';
 
 /// Name des Pakets, nur damit das Paket auflösbar und testbar ist.
