@@ -203,7 +203,7 @@ void main() {
     expect(sel.activeId, 'b');
   });
 
-  test('setPreferred nach lock oder select: Quelle bleibt', () {
+  test('setPreferred nach lock: Quelle bleibt', () {
     f.connect('a', 0);
     f.connect('b', 1);
     sel.lock(at(2));
