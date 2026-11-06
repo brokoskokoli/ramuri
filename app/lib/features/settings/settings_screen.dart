@@ -1,0 +1,72 @@
+import 'package:core/core.dart';
+import 'package:flutter/material.dart';
+
+import '../../l10n/app_localizations.dart';
+import '../storage/data_screen.dart';
+import 'app_settings.dart';
+
+/// Einstellungen: Einheit für Strecken (reine Anzeige) und der Zugang zu den
+/// gespeicherten Daten.
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key, required this.session});
+
+  final StorageSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final settings = AppSettingsScope.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.settingsTitle)),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            l10n.settingsUnits,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<DistanceUnit>(
+            key: const Key('settings_unit'),
+            segments: [
+              ButtonSegment(
+                value: DistanceUnit.kilometers,
+                label: Text(l10n.settingsUnitKm),
+              ),
+              ButtonSegment(
+                value: DistanceUnit.miles,
+                label: Text(l10n.settingsUnitMi),
+              ),
+            ],
+            selected: {settings.distanceUnit},
+            onSelectionChanged: (s) => _change(context, settings, s.first),
+          ),
+          const SizedBox(height: 8),
+          Text(l10n.settingsUnitNote),
+          const SizedBox(height: 24),
+          OutlinedButton(
+            onPressed: () => AppSettingsScope.push<void>(
+              context,
+              (_) => DataScreen(session: session),
+            ),
+            child: Text(l10n.dataTitle),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _change(
+    BuildContext context,
+    AppSettings settings,
+    DistanceUnit unit,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final failed = AppLocalizations.of(context).settingsSaveFailed;
+    try {
+      await settings.setDistanceUnit(unit);
+    } on StorageException {
+      messenger.showSnackBar(SnackBar(content: Text(failed)));
+    }
+  }
+}

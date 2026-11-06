@@ -1,36 +1,48 @@
-import 'dart:typed_data';
-
-import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:running_app/app.dart';
-import 'package:running_app/app_dependencies.dart';
-import 'package:running_app/features/storage/storage_start.dart';
 
-Future<void> _pump(WidgetTester tester, Locale locale) async {
-  tester.platformDispatcher.localesTestValue = [locale];
-  addTearDown(tester.platformDispatcher.clearLocalesTestValue);
-  final controller = StorageStartController(
-    keyStore: FakeKeyStore(),
-    generateKey: () => Uint8List.fromList(List.filled(32, 7)),
-    wire: () async =>
-        StorageWiring(storage: FakeStorage(), files: FakeDatabaseFiles()),
-  );
-  await tester.pumpWidget(
-    RunningApp(dependencies: AppDependencies(storageStart: controller)),
-  );
-  await tester.pumpAndSettle();
-}
+import 'app_harness.dart';
 
 void main() {
   testWidgets('Startbildschirm auf Deutsch', (tester) async {
-    await _pump(tester, const Locale('de'));
+    final d = Device();
+    await d.start(tester, const Locale('de'));
+    await d.skipSetup(tester);
     expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
   });
 
   testWidgets('Startbildschirm auf Englisch', (tester) async {
-    await _pump(tester, const Locale('en'));
+    final d = Device();
+    await d.start(tester, const Locale('en'));
+    await d.skipSetup(tester);
     expect(find.text('Welcome to the running app'), findsOneWidget);
     expect(find.text('Willkommen bei der Lauf-App'), findsNothing);
+  });
+
+  // NFR-0006, OQ-0067: jede andere Gerätesprache zeigt Englisch.
+  for (final locale in const [
+    Locale('fr'),
+    Locale('es', 'ES'),
+    Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
+  ]) {
+    testWidgets('Gerätesprache $locale zeigt Englisch', (tester) async {
+      final d = Device();
+      await d.start(tester, locale);
+      // Ersteinrichtung auf Englisch
+      expect(find.text('Welcome'), findsOneWidget);
+      expect(find.text('Skip'), findsOneWidget);
+      expect(find.text('Überspringen'), findsNothing);
+      await d.skipSetup(tester);
+      expect(find.text('Welcome to the running app'), findsOneWidget);
+      expect(find.text('Start run'), findsOneWidget);
+      expect(find.text('Willkommen bei der Lauf-App'), findsNothing);
+    });
+  }
+
+  testWidgets('Deutsch mit Region bleibt Deutsch', (tester) async {
+    final d = Device();
+    await d.start(tester, const Locale('de', 'AT'));
+    await d.skipSetup(tester);
+    expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
   });
 }

@@ -159,5 +159,232 @@
   "dataBody": "Hier verwaltest du die in der App gespeicherten Daten.",
   "@dataBody": {
     "description": "Text des Bildschirms Daten"
+  },
+  "homeStartRun": "Lauf starten",
+  "@homeStartRun": {
+    "description": "Schaltfläche Lauf starten (Startseite)"
+  },
+  "homeStartRunSoon": "Die Aufzeichnung folgt mit einem späteren Arbeitspaket.",
+  "@homeStartRunSoon": {
+    "description": "Platzhaltermeldung, solange es keine Aufzeichnung gibt"
+  },
+  "homeProfile": "Profil",
+  "@homeProfile": {
+    "description": "Schaltfläche Profil"
+  },
+  "homeSettings": "Einstellungen",
+  "@homeSettings": {
+    "description": "Schaltfläche Einstellungen"
+  },
+  "setupTitle": "Willkommen",
+  "@setupTitle": {
+    "description": "Titel der Ersteinrichtung"
+  },
+  "setupIntro": "Du kannst hier ein paar Angaben zu dir machen. Alles ist freiwillig, und du kannst jederzeit loslegen und das Profil später ergänzen.",
+  "@setupIntro": {
+    "description": "Einleitung der Ersteinrichtung (FR-0001, OQ-0010)"
+  },
+  "setupSkip": "Überspringen",
+  "@setupSkip": {
+    "description": "Einrichtung überspringen"
+  },
+  "setupContinue": "Weiter",
+  "@setupContinue": {
+    "description": "Weiter nach der Einrichtung"
+  },
+  "profileTitle": "Profil",
+  "@profileTitle": {
+    "description": "Titel der Profilseite"
+  },
+  "profileIntro": "Alle Angaben sind freiwillig. Leere Felder sperren keine Funktion.",
+  "@profileIntro": {
+    "description": "Hinweis auf der Profilseite (FR-0002)"
+  },
+  "profileSave": "Speichern",
+  "@profileSave": {
+    "description": "Profil speichern"
+  },
+  "profileSaved": "Profil gespeichert.",
+  "@profileSaved": {
+    "description": "Rückmeldung nach dem Speichern"
+  },
+  "profileSaveFailed": "Das Profil konnte nicht gespeichert werden.",
+  "@profileSaveFailed": {
+    "description": "Fehler beim Speichern"
+  },
+  "profileCheckInput": "Bitte die markierten Angaben prüfen. Es wurde nichts gespeichert.",
+  "@profileCheckInput": {
+    "description": "Meldung bei abgelehnter Eingabe"
+  },
+  "profileBirthYear": "Geburtsjahr",
+  "@profileBirthYear": {
+    "description": "Feld"
+  },
+  "profileWeight": "Körpergewicht (kg)",
+  "@profileWeight": {
+    "description": "Feld"
+  },
+  "profileHeight": "Körpergröße (cm)",
+  "@profileHeight": {
+    "description": "Feld"
+  },
+  "profileRestingHr": "Ruhepuls (bpm)",
+  "@profileRestingHr": {
+    "description": "Feld"
+  },
+  "profileMaxHr": "Maximale Herzfrequenz (bpm)",
+  "@profileMaxHr": {
+    "description": "Feld"
+  },
+  "profileWeeklyMinutes": "Laufminuten pro Woche",
+  "@profileWeeklyMinutes": {
+    "description": "Feld"
+  },
+  "profileTrainingDays": "Trainingstage",
+  "@profileTrainingDays": {
+    "description": "Feld"
+  },
+  "profileUsualMinutes": "Übliche Trainingsdauer (Minuten)",
+  "@profileUsualMinutes": {
+    "description": "Feld"
+  },
+  "weekdayMon": "Mo",
+  "@weekdayMon": {
+    "description": "Kurzname Wochentag"
+  },
+  "weekdayTue": "Di",
+  "@weekdayTue": {
+    "description": "Kurzname Wochentag"
+  },
+  "weekdayWed": "Mi",
+  "@weekdayWed": {
+    "description": "Kurzname Wochentag"
+  },
+  "weekdayThu": "Do",
+  "@weekdayThu": {
+    "description": "Kurzname Wochentag"
+  },
+  "weekdayFri": "Fr",
+  "@weekdayFri": {
+    "description": "Kurzname Wochentag"
+  },
+  "weekdaySat": "Sa",
+  "@weekdaySat": {
+    "description": "Kurzname Wochentag"
+  },
+  "weekdaySun": "So",
+  "@weekdaySun": {
+    "description": "Kurzname Wochentag"
+  },
+  "profileNotANumber": "Keine gültige Zahl.",
+  "@profileNotANumber": {
+    "description": "Eingabe nicht lesbar"
+  },
+  "profileNotPositive": "Der Wert muss eine positive Zahl sein.",
+  "@profileNotPositive": {
+    "description": "OQ-0065"
+  },
+  "profileMaxHrOutOfRange": "Maximale Herzfrequenz außerhalb von {min} bis {max} bpm. Nicht gespeichert.",
+  "@profileMaxHrOutOfRange": {
+    "description": "PAR-016, abgelehnt",
+    "placeholders": {
+      "min": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "profileMaxHrDeviates": "Der Wert weicht um mehr als {tolerance} bpm von der Altersnäherung ab. Gespeichert; bitte prüfen.",
+  "@profileMaxHrDeviates": {
+    "description": "PAR-016, Hinweis",
+    "placeholders": {
+      "tolerance": {
+        "type": "int"
+      }
+    }
+  },
+  "profileRestHrOutOfRange": "Ruhepuls außerhalb von {min} bis {max} bpm. Nicht gespeichert.",
+  "@profileRestHrOutOfRange": {
+    "description": "PAR-017, abgelehnt",
+    "placeholders": {
+      "min": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "profileRestHrUnusual": "Ruhepuls unter {low} oder über {high} bpm ist ungewöhnlich. Gespeichert; bitte prüfen.",
+  "@profileRestHrUnusual": {
+    "description": "PAR-017, Hinweis",
+    "placeholders": {
+      "low": {
+        "type": "int"
+      },
+      "high": {
+        "type": "int"
+      }
+    }
+  },
+  "profileMaxNotAboveResting": "Die maximale Herzfrequenz muss größer sein als der Ruhepuls. Nicht gespeichert.",
+  "@profileMaxNotAboveResting": {
+    "description": "PAR-018, abgelehnt"
+  },
+  "hrEntered": "Maximale Herzfrequenz: {bpm} bpm (eingegeben)",
+  "@hrEntered": {
+    "description": "FR-0003",
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
+  "hrEstimated": "Maximale Herzfrequenz: etwa {bpm} bpm (Schätzung)",
+  "@hrEstimated": {
+    "description": "FR-0004, CON-0009",
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
+  "hrEstimatedNote": "Das ist eine Näherung aus dem Alter, kein gemessener Wert, und kann individuell stark abweichen. Trage deinen eigenen Wert ein, sobald du ihn kennst; das geht jederzeit.",
+  "@hrEstimatedNote": {
+    "description": "FR-0005"
+  },
+  "hrMissing": "Bitte Geburtsjahr oder maximale Herzfrequenz eingeben, damit Herzfrequenz-Werte berechnet werden können.",
+  "@hrMissing": {
+    "description": "OQ-0012"
+  },
+  "hrDependentUnavailable": "Mit diesen Angaben sind Zonen und davon abhängige Werte nicht verfügbar.",
+  "@hrDependentUnavailable": {
+    "description": "PAR-018, PAR-019"
+  },
+  "settingsTitle": "Einstellungen",
+  "@settingsTitle": {
+    "description": "Titel der Einstellungen"
+  },
+  "settingsUnits": "Einheit für Strecken",
+  "@settingsUnits": {
+    "description": "Abschnitt"
+  },
+  "settingsUnitKm": "Kilometer",
+  "@settingsUnitKm": {
+    "description": "Option"
+  },
+  "settingsUnitMi": "Meilen",
+  "@settingsUnitMi": {
+    "description": "Option"
+  },
+  "settingsUnitNote": "Das betrifft nur die Anzeige. Gespeicherte Daten bleiben unverändert.",
+  "@settingsUnitNote": {
+    "description": "NFR-0006"
+  },
+  "settingsSaveFailed": "Die Einstellung konnte nicht gespeichert werden.",
+  "@settingsSaveFailed": {
+    "description": "Fehler"
   }
 }
