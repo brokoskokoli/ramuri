@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/features/run/run_ports.dart';
+import 'package:running_app/features/sensors/run_heart_rate.dart';
 import 'package:running_app/features/sensors/sensor_manager.dart';
 import 'package:running_app/features/storage/storage_start.dart';
 
@@ -29,6 +30,11 @@ class Device {
   Object? sensorPermissionError;
   Duration reconnectDelay = const Duration(seconds: 5);
   late SensorManager sensors;
+
+  /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
+  /// [heartRate]; [lastRun] ist die Pulsquelle des jüngsten Laufs.
+  bool runViaSensors = false;
+  RunHeartRate? lastRun;
 
   /// Ersatz für [locationAccess] (etwa mit Fehlern); sonst [locationAccess].
   LocationAccessPort? locationAccessOverride;
@@ -75,10 +81,15 @@ class Device {
           runPorts: RunPorts(
             access: locationAccessOverride ?? locationAccess,
             location: location,
-            heartRate: () => heartRate
-                .connect('hr1')
-                .where((e) => e is HeartRateReading)
-                .cast<HeartRateReading>(),
+            heartRate: runViaSensors
+                ? null
+                : () => heartRate
+                      .connect('hr1')
+                      .where((e) => e is HeartRateReading)
+                      .cast<HeartRateReading>(),
+            heartRateRun: runViaSensors
+                ? () => lastRun = sensors.beginRun()
+                : null,
           ),
         ),
       ),

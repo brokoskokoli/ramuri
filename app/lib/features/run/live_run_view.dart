@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../sensors/run_heart_rate.dart';
 import '../settings/unit_format.dart';
 import 'run_controller.dart';
 
@@ -188,13 +189,16 @@ class LiveRunView extends StatelessWidget {
         ),
         _Metric('run_zone', l10n.runZone, zoneText),
         _Metric('run_gps', l10n.runGps, gpsText),
-        _Metric(
-          'run_sensors',
-          l10n.runSensors,
-          bpm != null
-              ? l10n.runHeartRateSourceActive
-              : l10n.runHeartRateSourceNone,
-        ),
+        if (controller.sensors case final run?)
+          _SensorPanel(run: run)
+        else
+          _Metric(
+            'run_sensors',
+            l10n.runSensors,
+            bpm != null
+                ? l10n.runHeartRateSourceActive
+                : l10n.runHeartRateSourceNone,
+          ),
       ],
       if (gapCount > 0)
         _Metric('run_gaps', l10n.runGps, l10n.runGpsGaps(gapCount)),
@@ -275,6 +279,60 @@ class LiveRunView extends StatelessWidget {
       ),
     );
     if (ok == true) await controller.finish();
+  }
+}
+
+/// Sensorstatus, aktive Quelle und Wechsel der Quelle im Lauf (FR-0017,
+/// FR-0018). Zeigt nie eine Geräteadresse; ohne Namen „Pulssensor“.
+class _SensorPanel extends StatelessWidget {
+  const _SensorPanel({required this.run});
+
+  final RunHeartRate run;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return ListenableBuilder(
+      listenable: run,
+      builder: (context, _) {
+        final active = run.activeEntry;
+        final status = switch (run.status) {
+          RunSensorStatus.none => l10n.runSensorNone,
+          RunSensorStatus.connected => l10n.runSensorConnected,
+          RunSensorStatus.reconnecting => l10n.runSensorReconnecting,
+          RunSensorStatus.lost => l10n.runSensorLost,
+        };
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Metric('run_sensor_status', l10n.runSensors, status),
+            if (active != null)
+              Text(
+                l10n.runSensorSource(active.name ?? l10n.sensorsUnnamed),
+                key: const Key('run_sensor_source'),
+              ),
+            if (run.lossSeen)
+              Text(
+                l10n.runSensorLossNote,
+                key: const Key('run_sensor_loss'),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            for (final d in run.devices)
+              if (d.id != run.activeId)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    key: Key('run_sensor_select_${d.id}'),
+                    onPressed: () => run.select(d.id),
+                    child: Text(
+                      l10n.runSensorSwitchTo(d.name ?? l10n.sensorsUnnamed),
+                    ),
+                  ),
+                ),
+          ],
+        );
+      },
+    );
   }
 }
 

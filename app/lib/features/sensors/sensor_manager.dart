@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
+import 'run_heart_rate.dart';
+
 /// Zustand der Verbindung zu einem Gerät.
 enum SensorLinkState {
   /// Nicht verbunden (bewusst getrennt oder noch nie verbunden).
@@ -92,9 +94,12 @@ class SensorManager extends ChangeNotifier {
   /// solches gemeldet (FR-0035).
   final Future<bool> Function()? bluetoothAvailable;
 
-  /// Wählt die Quelle für die Aufzeichnung. Beim Laufbeginn `lock`, am Ende
-  /// `close` (Teil D); die Verwaltung speist sie mit allen Ereignissen.
+  /// App-weite Quellenwahl außerhalb eines Laufs (Anzeige in der Verwaltung,
+  /// Bevorzugung). Sie wird nie gesperrt oder geschlossen. Jeder Lauf bekommt
+  /// über [beginRun] einen eigenen Selector.
   final HeartRateSourceSelector selector = HeartRateSourceSelector();
+
+  final _runs = <RunHeartRate>[];
 
   KnownDeviceStore? _store;
   List<KnownDevice> _known = const [];
@@ -109,6 +114,24 @@ class SensorManager extends ChangeNotifier {
 
   /// Werte der aktiven Quelle (nur dieses eine Gerät, FR-0019).
   Stream<HeartRateReading> get activeReadings => _readings.stream;
+
+  /// Beginnt die Pulsquelle eines Laufs (WP07 Teil D): eigener, sofort
+  /// gesperrter Selector aus den jetzt verbundenen Geräten. Er fasst den Sensor
+  /// nicht an und fragt keine Rechte ab. [RunHeartRate.close] beendet ihn.
+  RunHeartRate beginRun() {
+    final run = RunHeartRate.start(this);
+    _runs.add(run);
+    return run;
+  }
+
+  /// Vom Lauf beim Schließen aufgerufen.
+  void endRun(RunHeartRate run) => _runs.remove(run);
+
+  /// Ein gewolltes Gerät verbindet gerade neu oder wartet auf den nächsten
+  /// Versuch (nach Abbruch, FR-0017).
+  bool get isRecovering => _conns.values.any(
+    (c) => c.wanted && c.state == SensorLinkState.reconnecting,
+  );
 
   bool get scanning => _scanning;
   SensorProblem? get problem => _problem;
@@ -318,7 +341,14 @@ class SensorManager extends ChangeNotifier {
   void _feed(HeartRateEvent e) {
     final r = selector.handle(e, clock.now());
     if (r != null && !_readings.isClosed) _readings.add(r);
+    _feedRuns(e);
     _notify();
+  }
+
+  void _feedRuns(HeartRateEvent e) {
+    for (final run in List.of(_runs)) {
+      run.handle(e);
+    }
   }
 
   /// Verbindung verloren (Strom meldete es oder endete ohne Abschluss).
@@ -333,7 +363,9 @@ class SensorManager extends ChangeNotifier {
       return;
     }
     if (wasLive && !alreadyReported) {
-      selector.handle(HeartRateDisconnected(id, lost: true), clock.now());
+      final lost = HeartRateDisconnected(id, lost: true);
+      selector.handle(lost, clock.now());
+      _feedRuns(lost);
     }
     c.state = SensorLinkState.reconnecting;
     c.timer?.cancel();
@@ -427,6 +459,9 @@ class SensorManager extends ChangeNotifier {
       c.wanted = false;
       c.timer?.cancel();
       c.sub?.cancel();
+    }
+    for (final run in List.of(_runs)) {
+      run.close();
     }
     _readings.close();
     super.dispose();

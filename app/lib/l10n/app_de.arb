@@ -679,5 +679,28 @@
   },
   "sensorsProblemPermission": "Ohne die Bluetooth-Berechtigung kann die App keine Sensoren suchen oder verbinden. Erlaube sie in den Systemeinstellungen der App. Läufe ohne Sensor funktionieren weiterhin.",
   "sensorsProblemBluetooth": "Bluetooth ist nicht verfügbar. Schalte Bluetooth ein und prüfe die Berechtigung in den Systemeinstellungen. Läufe ohne Sensor funktionieren weiterhin.",
-  "sensorsProblemConnect": "Das Gerät konnte nicht verbunden werden. Prüfe, ob es in der Nähe und eingeschaltet ist."
+  "sensorsProblemConnect": "Das Gerät konnte nicht verbunden werden. Prüfe, ob es in der Nähe und eingeschaltet ist.",
+  "runSensorNone": "Kein Sensor verbunden. Der Lauf wird ohne Puls aufgezeichnet.",
+  "runSensorConnected": "Sensor verbunden",
+  "runSensorReconnecting": "Sensor abgebrochen, die App verbindet neu. Ohne Quelle gibt es keine Pulswerte.",
+  "runSensorLost": "Sensor getrennt. Ohne Quelle gibt es keine Pulswerte.",
+  "runSensorSource": "Quelle: {name}",
+  "@runSensorSource": {
+    "description": "Name der aktiven Pulsquelle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "runSensorLossNote": "Die Pulsquelle ist in diesem Lauf abgebrochen.",
+  "runSensorSwitchTo": "Quelle wechseln zu {name}",
+  "@runSensorSwitchTo": {
+    "description": "Wechsel der Pulsquelle auf ein anderes verbundenes Gerät",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

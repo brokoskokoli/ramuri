@@ -217,5 +217,28 @@
   },
   "sensorsProblemPermission": "Without the Bluetooth permission the app cannot search for or connect sensors. Allow it in the app's system settings. Runs without a sensor still work.",
   "sensorsProblemBluetooth": "Bluetooth is not available. Turn Bluetooth on and check the permission in the system settings. Runs without a sensor still work.",
-  "sensorsProblemConnect": "The device could not be connected. Check that it is nearby and switched on."
+  "sensorsProblemConnect": "The device could not be connected. Check that it is nearby and switched on.",
+  "runSensorNone": "No sensor connected. The run is recorded without heart rate.",
+  "runSensorConnected": "Sensor connected",
+  "runSensorReconnecting": "Sensor dropped, the app is reconnecting. Without a source there are no heart rate values.",
+  "runSensorLost": "Sensor disconnected. Without a source there are no heart rate values.",
+  "runSensorSource": "Source: {name}",
+  "@runSensorSource": {
+    "description": "Name of the active heart rate source",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "runSensorLossNote": "The heart rate source dropped during this run.",
+  "runSensorSwitchTo": "Switch source to {name}",
+  "@runSensorSwitchTo": {
+    "description": "Switch the heart rate source to another connected device",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

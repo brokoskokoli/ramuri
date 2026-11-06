@@ -2,6 +2,7 @@ import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
 
 import 'features/run/run_ports.dart';
+import 'features/sensors/run_heart_rate.dart';
 import 'features/sensors/sensor_manager.dart';
 import 'features/storage/storage_start.dart';
 import 'system_clock.dart';
@@ -54,9 +55,7 @@ class AppDependencies {
     final sensor =
         heartRateSensor ??
         BleHeartRateSensor(const UniversalBleLink(), const SystemClock());
-    return AppDependencies(
-      heartRateSensor: sensor,
-      sensors: SensorManager(
+    final sensors = SensorManager(
         sensor: sensor,
         clock: const SystemClock(),
         // Nur der echte Adapter braucht Bluetooth-Rechte; sie werden erst
@@ -67,12 +66,15 @@ class AppDependencies {
         bluetoothAvailable: sensor is BleHeartRateSensor
             ? sensor.isBluetoothOn
             : null,
-      ),
+    );
+    return AppDependencies(
+      heartRateSensor: sensor,
+      sensors: sensors,
       permissions: MethodChannelPermissionStatus(),
       runPorts: RunPorts(
         access: MethodChannelLocationAccess(),
         location: MethodChannelLocationSource(),
-        // Die Pulsquelle des Laufs verdrahtet WP07 Teil C/D.
+        heartRateRun: sensors.beginRun,
       ),
       storageStart: StorageStartController(
         keyStore: SecureKeyStore(),
@@ -131,6 +133,9 @@ class _NoRunPorts implements RunPorts {
 
   @override
   Stream<HeartRateReading> Function()? get heartRate => null;
+
+  @override
+  RunHeartRate Function()? get heartRateRun => null;
 }
 
 class _DeniedAccess implements LocationAccessPort {

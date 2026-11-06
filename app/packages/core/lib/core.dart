@@ -65,6 +65,7 @@ export 'src/profile/profile_service.dart';
 export 'src/profile/profile_validation.dart';
 export 'src/sensors/heart_rate_parser.dart';
 export 'src/sensors/heart_rate_source_selector.dart';
+export 'src/sensors/heart_rate_sources.dart';
 export 'src/settings/display_settings.dart';
 export 'src/settings/reserve_zone_settings.dart';
 export 'src/recording/recording_session.dart';

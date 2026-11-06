@@ -97,6 +97,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       storage: widget.session,
       location: widget.ports.location,
       heartRate: widget.ports.heartRate,
+      sensors: widget.ports.heartRateRun?.call(),
       tickEvery: widget.tickEvery,
     );
     setState(() {
