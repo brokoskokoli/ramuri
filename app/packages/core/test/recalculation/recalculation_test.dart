@@ -299,5 +299,22 @@ void main() {
         expect(await w.recalc().checkVersions(), isNull);
       },
     );
+
+    test('TRIMP veraltet: nach der Bestätigung kein neues Angebot', () async {
+      await alter(trimpRunValueKey, methodVersion: 99);
+      final before = await w.session.values.read(ValueOwner.run(ids.first));
+      final original = before
+          .firstWhere((p) => p.original.key == trimpRunValueKey)
+          .original;
+      final offer = await w.recalc().checkVersions();
+      expect(offer, isNotNull);
+      await w.recalc().confirm(offer!);
+      expect(await w.recalc().checkVersions(), isNull);
+      final after = await w.session.values.read(ValueOwner.run(ids.first));
+      final pair = after.firstWhere((p) => p.original.key == trimpRunValueKey);
+      expect(pair.original.methodVersion, original.methodVersion);
+      expect(pair.original.value, original.value);
+      expect(pair.current.methodVersion, original.methodVersion);
+    });
   });
 }

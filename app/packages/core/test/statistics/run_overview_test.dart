@@ -266,6 +266,32 @@ void main() {
       expect(jobs, hasLength(2));
     });
 
+    test('Wirft der Offload für einen Lauf: Lesefehler, Rest normal', () async {
+      final w = await RecalcWorld.create();
+      await w.seedRun(DateTime.utc(2030, 2, 1, 8), minutes: 5);
+      await w.seedRun(DateTime.utc(2030, 2, 2, 8), minutes: 5);
+      var calls = 0;
+      Future<R> failing<A, R>(R Function(A) job, A argument) {
+        calls++;
+        if (calls == 1) throw StateError('Isolate kaputt');
+        return inlineOffload(job, argument);
+      }
+
+      final all = await RunOverviewService(
+        session: w.session,
+        clock: w.clock,
+        offload: failing,
+      ).load();
+      expect(all, hasLength(2));
+      final bad = all.singleWhere((o) => o.readFailed);
+      expect(
+        all.singleWhere((o) => !o.readFailed).distanceMeters,
+        greaterThan(800),
+      );
+      // Nichts gespeichert für den fehlerhaften Lauf.
+      expect(await w.session.preprocessing.read(bad.run.id), isNull);
+    });
+
     test(
       'Lauf ohne gespeicherte Kurzfassung wird neu gerechnet und gespeichert',
       () async {

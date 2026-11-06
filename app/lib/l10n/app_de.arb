@@ -659,8 +659,6 @@
       }
     }
   },
-  "runHeartRateSourceActive": "Puls: Quelle aktiv",
-  "runHeartRateSourceNone": "Puls: keine Quelle",
   "runLapRow": "Runde {index}: {time}",
   "@runLapRow": {
     "description": "WP06 D",

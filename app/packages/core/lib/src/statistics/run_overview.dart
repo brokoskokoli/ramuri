@@ -238,8 +238,9 @@ class RunOverviewService {
         gaps: await session.markers.gaps(run.id),
         parameters: parameters,
       ));
-    } on StorageException {
-      // Ein Lauf, der nicht lesbar ist, lässt die Historie nicht scheitern.
+    } on Object {
+      // Ein Lauf, der nicht lesbar oder nicht wiederzugeben ist (auch Fehler
+      // aus dem Isolate), lässt die Historie nicht scheitern.
       return RunOverview(run: run, readFailed: true, load: load);
     }
     final stored = overviewOf(pre, computedAt: clock.now(), lapCount: lapCount);
