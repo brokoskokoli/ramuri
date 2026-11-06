@@ -324,8 +324,9 @@ class RecordingSession {
     _checkLoss(now);
     final r = pre.addPosition(raw);
     if (r.accepted) {
-      _closeLoss(now);
-      _gapRef = now;
+      // Messzeit, wie die Punkte: die Lücke endet am schließenden Punkt.
+      _closeLoss(time);
+      _gapRef = time;
     }
     final alt = s.altitudeMeters;
     if (alt != null && alt.isFinite) {

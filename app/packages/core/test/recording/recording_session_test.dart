@@ -539,6 +539,38 @@ void main() {
       },
     );
 
+    test(
+      'Lücke in Messzeit: Anfang und Ende sind die Zeiten der Randpunkte',
+      () {
+        final r = Rig()..s.start();
+        r.move(10, 3);
+        // Letzter Punkt vor der Lücke: Empfang bei 11 s, Alter 1 s -> Messzeit 10 s.
+        r.wait(1);
+        r.north += 3;
+        r.s.addPosition(fix(11, r.north, ageMs: 1000));
+        final before = r.s.lastPointTime!;
+        expect(before, t0.add(const Duration(seconds: 10)));
+        for (var i = 0; i < 30; i++) {
+          r.wait(1);
+          r.s.tick();
+        }
+        expect(r.s.snapshot().positionLost, isTrue);
+        expect(r.s.snapshot().gaps.single.start, before);
+        // Schließender Punkt: Empfang bei 42 s, Alter 2,5 s -> Messzeit 39,5 s.
+        r.wait(1);
+        r.north += 100;
+        expect(
+          r.s.addPosition(fix(42, r.north, ageMs: 2500)),
+          Intake.processed,
+        );
+        final gap = r.s.snapshot().gaps.single;
+        expect(gap.end, r.s.lastPointTime);
+        expect(gap.end, t0.add(const Duration(milliseconds: 39500)));
+        expect(gap.end!.isAfter(gap.start), isTrue);
+        expect(r.s.snapshot().positionLost, isFalse);
+      },
+    );
+
     test('Exakt 10 s sind noch keine Lücke, darüber ja', () {
       final r = Rig()..s.start();
       r.move(5, 3);
