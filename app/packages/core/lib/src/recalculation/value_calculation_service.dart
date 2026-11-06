@@ -77,8 +77,8 @@ class ValueCalculationService {
   ValueCalculationService({
     required this.session,
     required this.clock,
-    this.fitness = const FitnessParameters.v3(),
-    this.preprocessing = const PreprocessingParameters.v3(),
+    this.fitness = const FitnessParameters.v4(),
+    this.preprocessing = const PreprocessingParameters.v4(),
     this.longTerm = const SmoothedVo2maxLongTerm(),
     this.efficiency = const MedianAerobicEfficiency(),
   });

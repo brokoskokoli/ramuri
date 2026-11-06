@@ -7,7 +7,7 @@ import '../../l10n/app_localizations.dart';
 String profileIssueText(
   AppLocalizations l10n,
   ProfileIssue issue, {
-  ProfileParameters params = const ProfileParameters.v3(),
+  ProfileParameters params = const ProfileParameters.v4(),
 }) => switch (issue.code) {
   ProfileIssueCode.notPositive => l10n.profileNotPositive,
   ProfileIssueCode.maxHrOutOfRange => l10n.profileMaxHrOutOfRange(

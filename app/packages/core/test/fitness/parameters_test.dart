@@ -10,13 +10,13 @@ void main() {
     expect(m, isNotNull, reason: 'Statuszeile mit "Version N" fehlt');
     final docVersion = int.parse(m!.group(1)!);
     expect(currentParameterVersion, docVersion);
-    expect(const PreprocessingParameters.v3().parameterVersion, docVersion);
-    expect(const FitnessParameters.v3().parameterVersion, docVersion);
-    expect(docVersion, 3);
+    expect(const PreprocessingParameters.v4().parameterVersion, docVersion);
+    expect(const FitnessParameters.v4().parameterVersion, docVersion);
+    expect(docVersion, 4);
   });
 
   test('Startwerte aus FR-0062, FR-0092, PAR-019, OQ-0051', () {
-    const p = FitnessParameters.v3();
+    const p = FitnessParameters.v4();
     expect(p.minHeartRateReserveBpm, 50);
     expect(p.reserveZoneBounds, [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]);
     expect(p.trimpZoneLowerBounds, [0.5, 0.6, 0.7, 0.8, 0.9]);

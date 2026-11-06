@@ -11,7 +11,7 @@ import '../preprocessing/support.dart';
 // 90 Punkte), fester Seed.
 
 const trimp = EdwardsTrimp();
-const p = FitnessParameters.v3();
+const p = FitnessParameters.v4();
 const basis = HeartRateBasis(maxBpm: 200, restingBpm: 50);
 const until = 1800;
 

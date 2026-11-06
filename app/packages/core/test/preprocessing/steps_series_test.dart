@@ -21,6 +21,6 @@ void main() {
     expect(res.processed, hasLength(3));
     expect(res.acceptedValues.map((s) => s.count), [20, 45]);
     expect(res.method, 'steps-series');
-    expect(res.parameterVersion, 3);
+    expect(res.parameterVersion, currentParameterVersion);
   });
 }

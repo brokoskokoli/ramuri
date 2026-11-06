@@ -106,7 +106,7 @@ SectionSelection selectSections(
   SelScenario sc, {
   Duration? runStartOffset,
   HeartRateBasis basis = selBasis,
-  FitnessParameters parameters = const FitnessParameters.v3(),
+  FitnessParameters parameters = const FitnessParameters.v4(),
 }) => Vo2maxSectionSelector(parameters: parameters).select(
   run: buildRun(sc),
   basis: basis,

@@ -2,7 +2,7 @@ import 'package:core/core.dart';
 import 'package:test/test.dart';
 
 const _lt = SmoothedVo2maxLongTerm();
-const _p = FitnessParameters.v3();
+const _p = FitnessParameters.v4();
 final _now = DateTime.utc(2030, 6, 1, 12);
 
 /// Lauf, der zu [end] endete.
@@ -19,7 +19,7 @@ AdvancedFitnessValue<double> runAt(
     dataSources: const {'gps'},
     method: 'vo2max-acsm-hrr',
     methodVersion: 1,
-    parameterVersion: 3,
+    parameterVersion: currentParameterVersion,
     tier: tier,
   ),
   value: tier == QualityTier.notDeterminable ? null : value,

@@ -24,7 +24,7 @@ void main() {
     });
     test('abweichender Parameter wirkt (Schwelle 10)', () {
       const p = PreprocessingParameters(
-        parameterVersion: 3,
+        parameterVersion: currentParameterVersion,
         positionMaxAccuracyMeters: 10,
       );
       expect(run([pos(0, 0, acc: 10)], p: p).acceptedPoints, hasLength(1));
@@ -48,7 +48,10 @@ void main() {
       expect(
         run(
           [a, b],
-          p: PreprocessingParameters(parameterVersion: 3, hardJumpMaxSpeed: v),
+          p: PreprocessingParameters(
+            parameterVersion: currentParameterVersion,
+            hardJumpMaxSpeed: v,
+          ),
         ).acceptedPoints,
         hasLength(2),
       );
@@ -56,7 +59,7 @@ void main() {
         run(
           [a, b],
           p: PreprocessingParameters(
-            parameterVersion: 3,
+            parameterVersion: currentParameterVersion,
             hardJumpMaxSpeed: v - 1e-6,
           ),
         ).positions[1].reason,
@@ -102,7 +105,10 @@ void main() {
           expect(
             run(
               [a, b],
-              p: PreprocessingParameters(parameterVersion: 3, softJumpSpeed: v),
+              p: PreprocessingParameters(
+                parameterVersion: currentParameterVersion,
+                softJumpSpeed: v,
+              ),
             ).acceptedPoints,
             hasLength(2),
           );
@@ -110,7 +116,7 @@ void main() {
             run(
               [a, b],
               p: PreprocessingParameters(
-                parameterVersion: 3,
+                parameterVersion: currentParameterVersion,
                 softJumpSpeed: v - 1e-6,
               ),
             ).positions[1].reason,
@@ -163,7 +169,7 @@ void main() {
       final r = run([pos(0, 0)]);
       expect(r.method, isNotEmpty);
       expect(r.methodVersion, 1);
-      expect(r.parameterVersion, 3);
+      expect(r.parameterVersion, currentParameterVersion);
     });
   });
 }

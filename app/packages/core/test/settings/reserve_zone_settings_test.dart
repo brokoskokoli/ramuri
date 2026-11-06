@@ -23,7 +23,7 @@ void main() {
   test('Standard ohne Eintrag = Werte aus FR-0062', () async {
     expect(await ReserveZoneSettings.load(store), [50, 60, 70, 80, 90, 100]);
     final p = await ReserveZoneSettings.loadParameters(store);
-    expect(p.reserveZoneBounds, const FitnessParameters.v3().reserveZoneBounds);
+    expect(p.reserveZoneBounds, const FitnessParameters.v4().reserveZoneBounds);
   });
 
   test(
@@ -56,7 +56,7 @@ void main() {
     () async {
       await ReserveZoneSettings.save(store, [40, 50, 60, 70, 80, 100], at: at);
       final p = await ReserveZoneSettings.loadParameters(store);
-      const base = FitnessParameters.v3();
+      const base = FitnessParameters.v4();
       expect(p.reserveZoneBounds, [0.4, 0.5, 0.6, 0.7, 0.8, 1.0]);
       expect(p.parameterVersion, base.parameterVersion);
       expect(p.trimpWeights, base.trimpWeights);

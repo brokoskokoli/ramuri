@@ -144,7 +144,7 @@ class RecordingSnapshot {
 class RecordingSession {
   RecordingSession({
     required Clock clock,
-    this.parameters = const PreprocessingParameters.v3(),
+    this.parameters = const PreprocessingParameters.v4(),
     bool autoPause = false,
     this.positionSource = 'gps',
   }) : _clock = clock,

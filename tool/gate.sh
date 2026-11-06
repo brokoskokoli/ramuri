@@ -1,6 +1,7 @@
 #!/bin/sh
 # Gate: tool/gate.sh [--changed]. Spec-Prüfung, Datenschutz und, sobald app/ existiert, Flutter.
-# --changed lässt Flutter nur aus, wenn app/ und tool/gate.sh (getrackt, ungetrackt, committet) gegenüber main unverändert ist.
+# --changed lässt Flutter nur aus, wenn app/, tool/gate.sh und die von Tests gelesenen Dokumente (getrackt, ungetrackt,
+# committet) gegenüber main unverändert sind; auf main gegenüber dem Stand vor dem letzten Commit.
 # Im Zweifel (kein main, Fehler beim Vergleich) wird geprüft statt ausgelassen.
 cd "$(git rev-parse --show-toplevel)" || exit 1
 fail=0
@@ -19,12 +20,26 @@ step "privat" sh tool/check_private.sh
 # --- Flutter und Dart: je Paket (app und app/packages/*) ---
 is_flutter() { grep -Eq '^[[:space:]]+sdk:[[:space:]]*flutter[[:space:]]*$' "$1/pubspec.yaml"; }
 
-# Gibt 0 zurück, wenn app/ oder tool/gate.sh gegenüber main verändert sein könnte (oder unklar ist).
+# Pfade, die Flutter betreffen: app/, tool/gate.sh und Dokumente, die Tests lesen (z. B. docs/model-parameters.md).
+watched_paths() {
+  echo app tool/gate.sh
+  grep -rhoE "docs/[A-Za-z0-9_./-]+\.md" app --include='*_test.dart' 2>/dev/null | sort -u
+}
+
+# Gibt 0 zurück, wenn die überwachten Pfade gegenüber main verändert sein könnten (oder unklar ist).
+# Auf main selbst ist die Basis der erste Elternteil von HEAD, also der Stand vor dem letzten Commit.
 app_changed() {
-  base=$(git merge-base HEAD main 2>/dev/null) || return 0
+  if [ "$(git symbolic-ref -q --short HEAD)" = main ]; then
+    base=$(git rev-parse -q --verify HEAD^1) || return 0
+  else
+    base=$(git merge-base HEAD main 2>/dev/null) || return 0
+  fi
   [ -n "$base" ] || return 0
-  git diff --quiet "$base" -- app tool/gate.sh || return 0   # committet, gestaged, ungestaged (Fehler => 1 => geändert)
-  [ -z "$(git ls-files -o --exclude-standard -- app tool/gate.sh)" ] || return 0   # ungetrackte Dateien
+  paths=$(watched_paths)
+  # shellcheck disable=SC2086
+  git diff --quiet "$base" -- $paths || return 0   # committet, gestaged, ungestaged (Fehler => 1 => geändert)
+  # shellcheck disable=SC2086
+  [ -z "$(git ls-files -o --exclude-standard -- $paths)" ] || return 0   # ungetrackte Dateien
   return 1
 }
 
@@ -206,7 +221,7 @@ release_ohne_internet() {
 
 if [ -f app/pubspec.yaml ]; then
   if [ "${1:-}" = --changed ] && ! app_changed; then
-    echo "SKIP  flutter (app/ und tool/gate.sh gegenüber main unverändert)"
+    echo "SKIP  flutter (app/, tool/gate.sh und von Tests gelesene Dokumente unverändert)"
   else
     step "flutter version" flutter_version
     lock_before=$(lock_hash)

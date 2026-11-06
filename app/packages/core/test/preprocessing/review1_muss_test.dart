@@ -78,7 +78,7 @@ void main() {
       heartRate: runHr(v, until: to),
       position: run([pos(0, 0)]),
       settlingIntervals: const [],
-      parameters: const PreprocessingParameters.v3(),
+      parameters: const PreprocessingParameters.v4(),
     );
 
     test('jeder zweite Wert poor: Regel verletzt', () {
@@ -115,7 +115,7 @@ void main() {
     test(
       'Position: Breite/Länge NaN/inf werden verworfen, Strecke bleibt endlich',
       () {
-        final p = PositionProcessor(const PreprocessingParameters.v3());
+        final p = PositionProcessor(const PreprocessingParameters.v4());
         p.add(pos(0, 0));
         final a = p.add(posAt(1, nan, 20, 5));
         final b = p.add(posAt(2, 10, inf, 5));
@@ -128,7 +128,7 @@ void main() {
     );
 
     test('Position: Genauigkeit NaN, negativ, inf wird verworfen', () {
-      final p = PositionProcessor(const PreprocessingParameters.v3());
+      final p = PositionProcessor(const PreprocessingParameters.v4());
       final r = [
         for (final (i, acc) in [nan, -1.0, inf].indexed)
           p.add(pos(i, 0, acc: acc)),
@@ -141,7 +141,7 @@ void main() {
     test(
       'Höhe: NaN/inf verworfen, Vertikalgenauigkeit NaN/negativ verworfen',
       () {
-        final p = AltitudeProcessor(const PreprocessingParameters.v3());
+        final p = AltitudeProcessor(const PreprocessingParameters.v4());
         final a = p.add(alt(0, nan));
         final b = p.add(alt(1, inf));
         final c = p.add(alt(2, 100, va: nan));
@@ -159,7 +159,7 @@ void main() {
 
   group('Befund 4: verworfener Wert sperrt den Kanal nicht', () {
     test('Position: Punkt +1 h mit Genauigkeit 99 m', () {
-      final p = PositionProcessor(const PreprocessingParameters.v3());
+      final p = PositionProcessor(const PreprocessingParameters.v4());
       p.add(pos(0, 0));
       p.add(pos(3600, 0, acc: 99));
       for (var s = 1; s <= 5; s++) {
@@ -171,7 +171,7 @@ void main() {
     });
 
     test('Puls: 250 bpm bei +1 h', () {
-      final p = HeartRateProcessor(const PreprocessingParameters.v3());
+      final p = HeartRateProcessor(const PreprocessingParameters.v4());
       p.add(hr(0, 100));
       p.add(hr(3600, 250));
       for (var s = 1; s <= 5; s++) {
@@ -181,7 +181,7 @@ void main() {
     });
 
     test('Höhe: Wert +1 h mit Vertikalgenauigkeit 99 m', () {
-      final p = AltitudeProcessor(const PreprocessingParameters.v3());
+      final p = AltitudeProcessor(const PreprocessingParameters.v4());
       p.add(alt(0, 100));
       p.add(alt(3600, 100, va: 99));
       final r = p.add(alt(40, 110));
@@ -189,7 +189,7 @@ void main() {
     });
 
     test('Schritte: unavailable-Wert in der Zukunft sperrt nicht', () {
-      final s = StepsSeries(parameterVersion: 3);
+      final s = StepsSeries(parameterVersion: currentParameterVersion);
       s.add(st(0, 1));
       s.add(
         RawSteps(
@@ -205,7 +205,7 @@ void main() {
 
   group('Befund 5: genaue Schwellen PAR-014', () {
     MovementTimeProcessor mtp() =>
-        MovementTimeProcessor(const PreprocessingParameters.v3(), start: t0);
+        MovementTimeProcessor(const PreprocessingParameters.v4(), start: t0);
     void feedSeg(MovementTimeProcessor m, int from, int to, double meters) {
       for (var s = from; s < to; s++) {
         m.add(
@@ -238,7 +238,7 @@ void main() {
 
     test('paceDisplay(0.5) ergibt einen Wert', () {
       expect(
-        paceDisplay(0.5, const PreprocessingParameters.v3()),
+        paceDisplay(0.5, const PreprocessingParameters.v4()),
         isA<PaceValue>(),
       );
     });
@@ -247,7 +247,7 @@ void main() {
   group('Befund 6: Lücken im 2-min-Mittel (PAR-011)', () {
     test('Lücke im Fenster bei gleichem Tempo löst nicht aus', () {
       final p = SettlingProcessor(
-        const PreprocessingParameters.v3(),
+        const PreprocessingParameters.v4(),
         start: t0,
       );
       for (var s = 1; s <= 800; s++) {

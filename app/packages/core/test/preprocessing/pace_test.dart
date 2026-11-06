@@ -5,7 +5,7 @@ import 'motion_support.dart';
 import 'support.dart';
 
 void main() {
-  const params = PreprocessingParameters.v3();
+  const params = PreprocessingParameters.v4();
 
   group('Tempo und Pace (FR-0050, OQ-0037)', () {
     test('4 m/s sind 250 s/km', () {
