@@ -1,3 +1,5 @@
+import '../src/preprocessing/measurement.dart' show SensorContact;
+
 /// Ein gefundener Herzfrequenzsensor.
 class HeartRateDevice {
   const HeartRateDevice({required this.id, this.name});
@@ -19,10 +21,18 @@ class HeartRateConnected extends HeartRateEvent {
 }
 
 class HeartRateReading extends HeartRateEvent {
-  const HeartRateReading(super.deviceId, this.time, this.beatsPerMinute);
+  const HeartRateReading(
+    super.deviceId,
+    this.time,
+    this.beatsPerMinute, {
+    this.contact = SensorContact.unsupported,
+  });
 
   final DateTime time;
   final int beatsPerMinute;
+
+  /// Hautkontakt laut Statusbit von 0x2A37 (PAR-008).
+  final SensorContact contact;
 }
 
 /// Akkustand in Prozent (optional, FR-0016).

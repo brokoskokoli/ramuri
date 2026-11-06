@@ -1,5 +1,7 @@
 import 'package:core/core.dart';
 
+import '../sensors/run_heart_rate.dart';
+
 /// Was die Aufzeichnung von außen braucht (Ports, ADR-0005). Produktiv sind
 /// es die Adapter, in Tests die Fakes aus `core`.
 class RunPorts {
@@ -7,6 +9,8 @@ class RunPorts {
     required this.access,
     required this.location,
     this.heartRate,
+    this.heartRateRun,
+    this.connectSensors,
   });
 
   /// Standortberechtigung und GPS-Schalter (FR-0195).
@@ -15,8 +19,16 @@ class RunPorts {
   /// Standortpunkte des Laufs.
   final LocationSource location;
 
-  /// Pulswerte, sofern eine Quelle verbunden ist. Ohne Quelle `null`; die
-  /// Oberfläche zeigt dann „nicht verfügbar“. Die Sensorverwaltung kommt mit
-  /// WP07.
+  /// Einfache Pulsquelle ohne Verwaltung (Tests). Ohne Quelle `null`; die
+  /// Oberfläche zeigt dann „nicht verfügbar“. Hat [heartRateRun] Vorrang.
   final Stream<HeartRateReading> Function()? heartRate;
+
+  /// Pulsquelle eines Laufs aus der Sensorverwaltung: wird beim Start des
+  /// Laufs aufgerufen (ein Selector je Lauf, WP07 Teil D). `null` ohne
+  /// Sensorverwaltung.
+  final RunHeartRate Function()? heartRateRun;
+
+  /// Verbindet beim Öffnen des Lauf-Bildschirms die bekannten Pulssensoren,
+  /// falls die Rechte schon erteilt sind (WP07 Teil E). Fragt nie nach Rechten.
+  final Future<void> Function()? connectSensors;
 }

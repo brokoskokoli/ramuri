@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/features/run/run_ports.dart';
+import 'package:running_app/features/sensors/run_heart_rate.dart';
+import 'package:running_app/features/sensors/sensor_manager.dart';
 import 'package:running_app/features/storage/storage_start.dart';
 import 'package:running_app/features/summary/run_summary_body.dart'
     show summaryOffload;
@@ -20,6 +22,24 @@ class Device {
   final FakeLocationAccess locationAccess = FakeLocationAccess();
   final FakeLocationSource location = FakeLocationSource();
   final FakeHeartRateSensor heartRate = FakeHeartRateSensor();
+
+  /// Pulssensor der Sensorverwaltung (getrennt von [heartRate] des Laufs).
+  final FakeHeartRateSensor sensorFake = FakeHeartRateSensor();
+
+  /// Wie oft die Bluetooth-Rechte angefragt wurden; [sensorPermissionError]
+  /// simuliert eine Ablehnung.
+  int sensorPermissionRequests = 0;
+  Object? sensorPermissionError;
+
+  /// Bluetooth-Schalter für [SensorManager.bluetoothAvailable]; `null`: unbekannt.
+  bool? bluetoothOn;
+  Duration reconnectDelay = const Duration(seconds: 5);
+  late SensorManager sensors;
+
+  /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
+  /// [heartRate]; [lastRun] ist die Pulsquelle des jüngsten Laufs.
+  bool runViaSensors = false;
+  RunHeartRate? lastRun;
 
   /// Ersatz für [locationAccess] (etwa mit Fehlern); sonst [locationAccess].
   LocationAccessPort? locationAccessOverride;
@@ -49,19 +69,39 @@ class Device {
         files: FakeDatabaseFiles(),
       ),
     );
+    sensors = SensorManager(
+      sensor: sensorFake,
+      clock: clock,
+      reconnectDelay: reconnectDelay,
+      bluetoothGranted: () async =>
+          permissions.states[AppPermission.bluetooth] ==
+          PermissionState.granted,
+      bluetoothAvailable: bluetoothOn == null ? null : () async => bluetoothOn!,
+      requestPermissions: () async {
+        sensorPermissionRequests++;
+        if (sensorPermissionError != null) throw sensorPermissionError!;
+      },
+    );
     await tester.pumpWidget(
       RunningApp(
         dependencies: AppDependencies(
           storageStart: controller,
+          sensors: sensors,
           clock: clock,
           permissions: permissions,
           runPorts: RunPorts(
             access: locationAccessOverride ?? locationAccess,
             location: location,
-            heartRate: () => heartRate
-                .connect('hr1')
-                .where((e) => e is HeartRateReading)
-                .cast<HeartRateReading>(),
+            heartRate: runViaSensors
+                ? null
+                : () => heartRate
+                      .connect('hr1')
+                      .where((e) => e is HeartRateReading)
+                      .cast<HeartRateReading>(),
+            heartRateRun: runViaSensors
+                ? () => lastRun = sensors.beginRun()
+                : null,
+            connectSensors: sensors.connectKnown,
           ),
         ),
       ),
@@ -72,6 +112,8 @@ class Device {
   /// Beendet die App (Sitzung zu), damit ein zweiter Start möglich ist.
   Future<void> stop(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox());
+    // Der Prozess endet: Verbindungen der Sensorverwaltung fallen mit.
+    sensors.dispose();
     await session.close();
   }
 

@@ -13,6 +13,7 @@ Bezug: FR-0037, FR-0040 bis FR-0044, FR-0054, FR-0055, FR-0059, FR-0064, FR-0067
 6. **Sprachregeln:** Keine Genauigkeits- oder Validierungsaussage (FR-0054, FR-0072, NFR-0003, NFR-0004), Zonen nicht als Schwellen (FR-0064), TRIMP nicht als Ermüdung (FR-0094), Schätzungen erkennbar (CON-0009). Gilt für alle Texte der ARB-Dateien, auch aus früheren Paketen.
 
 ## Umsetzung
+- Aus WP07: Gespeichert ist nur die Geräte-ID in `raw_heart_rates.source`; Namen über `KnownDeviceStore`, gelöschte Geräte haben keinen Namen. `heartRateSourceSections`/`-Devices` in `core`; Abschnitte überspannen Lücken, daraus keine Dauer mit Puls ableiten. `RunPorts.heartRate` nach dem Merge von WP10 entfernen (nur noch Tests).
 - Aus WP09: `confirmAndDeleteRun` bekommt `clock` und `serialize` (`RecalculationController.exclusive`). Anzeigen: `calculationFailed`, Text für `EstimateDiscard.zeroWeight`, Werte als Schätzung kennzeichnen. Zonenzeiten werden nicht gespeichert. Tageswerte hängen am lokalen Kalendertag des Laufendes (K21).
 - Aus WP06: Neuberechnung aus Rohdaten mit `RunPreprocessor`, Punkte in Lücken der manuellen Pause ausschließen, Rohzeiten in Uhrbasis. Die Abschlussansicht zeigt noch keinen Puls. Das Sammeln per Snapshot bei sehr langen Läufen messen.
 - Aus WP05: Zonenzeiten wie in WP09 mit den am Ergebnis festgehaltenen Grenzen. Formatierer `UnitFormatter` über `formatterOf(context)`; die Anzeige in Meilen ist mit echter Strecke noch ungeprüft. Zonennamen fehlen im Zoneneditor.

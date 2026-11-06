@@ -1,6 +1,6 @@
 # WP08 – Hintergrundbetrieb und Wiederanlauf (`app/android`, `app/packages/adapters`, `app/packages/core/lib/src/recording`, `app/lib/features/run`)
 
-**Zuordnung:** M1. **Wartet auf R005.**
+**Zuordnung:** M1. R005 liegt vor.
 
 Bezug: FR-0034, FR-0193, FR-0202; ADR-0005, ADR-0003 Punkt 5; OQ-0021, OQ-0052, OQ-0061.
 
@@ -14,6 +14,7 @@ Ergebnis von R005 (`research/R005-aufzeichnung-durchstich/RESULTS.md`): Host eig
 5. **Schrittfrequenz (FR-0202):** Schrittsensor des Telefons in Kotlin hinter dem Port, eigene Berechtigung, ohne sie „nicht verfügbar“ und normale Aufzeichnung. Füllt die Anzeige aus WP06.
 
 ## Umsetzung
+- Aus WP07: Sensorbetrieb unter dem Dienst und bei gesperrtem Bildschirm sowie `connectedDevice` fehlen. `SensorManager` hält die Verbindungen app-weit, je Lauf gibt es einen eigenen `HeartRateSourceSelector` (`RunHeartRate`: `lock` beim Start, `close` am Ende bzw. bei `dispose`). Neuverbinden löst der Host mit einem neuen `connect` aus, der Adapter beendet den Strom bei Verlust. Uncommittete E2E-Tests aus WP07 als Vorlage liegen unter `../running-app-wt/handoff/e2e-vorlagen/`.
 - Aus WP09: Jedes `finished` muss `endedUtcOffset` mitgeben (`RunRecorder.finish` tut es); das gilt auch, wenn WP08 einen verwaisten Lauf beendet.
 - Aus WP06: Ohne monotone Zeit erzeugen Uhrsprünge falsche Lücken und verlängern Zeiten. Ein Lauf, der nach Prozessende `active` bleibt, muss aufgeräumt werden (E2E: Entzug der Standortberechtigung beendet den Prozess). Rohpunkte in manueller Pause liegen gespeichert in deren Lücke.
 - Aus WP02: `runs.unfinished()` enthält auch pausierte Läufe. WAL und `synchronous = FULL` stehen als Konstante in `connection_setup.dart`.

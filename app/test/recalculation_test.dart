@@ -414,9 +414,16 @@ void main() {
       // "Alles löschen").
       for (final k in [
         'settings_permissions',
+        'settings_sensors',
         'settings_zones',
         'settings_data',
       ]) {
+        // Die Liste baut nur Sichtbares: erst hinscrollen.
+        await tester.scrollUntilVisible(
+          find.byKey(Key(k)),
+          100,
+          scrollable: find.byType(Scrollable).first,
+        );
         expect(
           tester.widget<OutlinedButton>(find.byKey(Key(k))).onPressed,
           isNull,

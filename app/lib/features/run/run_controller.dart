@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
+import '../sensors/run_heart_rate.dart';
+
 /// Einordnung der Herzfrequenzzone für die Anzeige (FR-0026, OQ-0012).
 enum LiveZoneKind { zone, belowZone1, noHeartRate, noBasis }
 
@@ -29,6 +31,7 @@ class RunController extends ChangeNotifier {
     required this.storage,
     required this.location,
     this.heartRate,
+    this.sensors,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
     RunRecorder? recorder,
@@ -47,6 +50,10 @@ class RunController extends ChangeNotifier {
   final StorageSession storage;
   final LocationSource location;
   final Stream<HeartRateReading> Function()? heartRate;
+
+  /// Pulsquelle dieses Laufs aus der Sensorverwaltung; sie wird mit dem Ende
+  /// des Laufs geschlossen. Hat Vorrang vor [heartRate].
+  final RunHeartRate? sensors;
   final Duration tickEvery;
 
   /// Reiht Schreiben von Werten hinter den Start und andere Neuberechnungen
@@ -173,9 +180,9 @@ class RunController extends ChangeNotifier {
           _update();
         },
       );
-      final hr = heartRate;
-      if (hr != null) {
-        _heartSub = hr().listen((r) {
+      final hrStream = sensors?.readings ?? heartRate?.call();
+      if (hrStream != null) {
+        _heartSub = hrStream.listen((r) {
           _heartRateSeen = true;
           _recorder.addHeartRate(r);
         }, onError: (Object _) {});
@@ -266,6 +273,7 @@ class RunController extends ChangeNotifier {
     _locationSub = null;
     unawaited(_heartSub?.cancel());
     _heartSub = null;
+    sensors?.close();
   }
 
   void _update() {
