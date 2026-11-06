@@ -701,6 +701,8 @@
   "histLoadFailed": "Der Verlauf konnte nicht gelesen werden.",
   "histRowTime": "Dauer {time}",
   "@histRowTime": {"description": "WP10 B1", "placeholders": {"time": {"type": "String"}}},
+  "histRowReadFailed": "Die Daten dieses Laufs konnten nicht gelesen werden.",
+  "histRowTimeNone": "Dauer: nicht verfügbar",
   "histRowHeartRate": "Ø Puls {bpm} bpm",
   "@histRowHeartRate": {"description": "WP10 B1", "placeholders": {"bpm": {"type": "int"}}},
   "histRowNoHeartRate": "Puls: nicht verfügbar",

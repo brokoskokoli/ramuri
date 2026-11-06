@@ -149,7 +149,9 @@ class _RunTile extends StatelessWidget {
             key: Key('history_distance_$id'),
           ),
           Text(
-            l10n.histRowTime(formatClock(overview.totalTime)),
+            overview.totalTime == null
+                ? l10n.histRowTimeNone
+                : l10n.histRowTime(formatClock(overview.totalTime)),
             key: Key('history_time_$id'),
           ),
           Text(
@@ -157,6 +159,8 @@ class _RunTile extends StatelessWidget {
             '${pace == null ? l10n.runUnavailable : formatter.pace(pace)}',
             key: Key('history_pace_$id'),
           ),
+          if (overview.readFailed)
+            Text(l10n.histRowReadFailed, key: Key('history_failed_$id')),
           Text(
             bpm == null
                 ? l10n.histRowNoHeartRate

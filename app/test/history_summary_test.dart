@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -56,7 +57,12 @@ Future<int> seedRun(
 }
 
 /// Ein Punkt je Sekunde geradeaus nach Norden mit rund 3 m/s, dazu Puls 150.
-Future<void> walk(Device d, WidgetTester tester, int seconds) async {
+Future<void> walk(
+  Device d,
+  WidgetTester tester,
+  int seconds, {
+  bool heartRate = true,
+}) async {
   for (var i = 0; i < seconds; i++) {
     d.clock.advance(const Duration(seconds: 1));
     d.location.emit(
@@ -65,18 +71,25 @@ Future<void> walk(Device d, WidgetTester tester, int seconds) async {
         latitude: 50 + i * 0.000027,
         longitude: 8,
         accuracyMeters: 5,
+        altitudeMeters: 100,
+        verticalAccuracyMeters: 3,
       ),
     );
-    d.heartRate.emitReading('hr1', d.clock.now(), 150);
+    if (heartRate) d.heartRate.emitReading('hr1', d.clock.now(), 150);
     await tester.pump(const Duration(seconds: 1));
   }
 }
 
 /// Startet einen Lauf, geht [seconds] und beendet ihn.
-Future<void> runAndFinish(Device d, WidgetTester tester, int seconds) async {
+Future<void> runAndFinish(
+  Device d,
+  WidgetTester tester,
+  int seconds, {
+  bool heartRate = true,
+}) async {
   await tester.tap(key('home_start_run'));
   await tester.pumpAndSettle();
-  await walk(d, tester, seconds);
+  await walk(d, tester, seconds, heartRate: heartRate);
   await tester.tap(key('run_finish'));
   await tester.pumpAndSettle();
   await tester.tap(key('run_finish_confirm'));
@@ -138,6 +151,61 @@ class _ReadFailStorage implements Storage {
       session = _ReadFailSession(await inner.open(key));
 }
 
+/// Hält das Schreiben des Merkers „Werte nach dem Lauf noch berechnen“ fest,
+/// bis [release] kommt: die Berechnung nach dem Lauf steht dann mittendrin.
+class _HoldSession extends _ReadFailSession {
+  _HoldSession(super.s);
+  final reached = Completer<void>();
+  final release = Completer<void>();
+  @override
+  SettingsStore get settings => _HoldSettings(s.settings, this);
+}
+
+class _HoldSettings implements SettingsStore {
+  _HoldSettings(this.inner, this.owner);
+  final SettingsStore inner;
+  final _HoldSession owner;
+  @override
+  Future<String?> get(String key) => inner.get(key);
+  @override
+  Future<Map<String, String>> all() => inner.all();
+  @override
+  Future<void> set(String key, String value, {required DateTime at}) async {
+    if (key == ValueCalculationService.calculationPendingKey &&
+        !owner.reached.isCompleted) {
+      owner.reached.complete();
+      await owner.release.future;
+    }
+    await inner.set(key, value, at: at);
+  }
+}
+
+class _HoldStorage implements Storage {
+  _HoldStorage(this.inner);
+  final Storage inner;
+  late _HoldSession session;
+  @override
+  Future<StorageSession> open(Uint8List key) async =>
+      session = _HoldSession(await inner.open(key));
+}
+
+/// Läuft [seconds] und tippt „Beenden“; die Berechnung danach hält an
+/// ([session.reached]) und läuft erst mit [session.release] weiter.
+Future<void> _runAndFinishHeld(
+  Device d,
+  WidgetTester tester,
+  _HoldSession session,
+  int seconds,
+) async {
+  await tester.tap(key('home_start_run'));
+  await tester.pumpAndSettle();
+  await walk(d, tester, seconds);
+  await tester.tap(key('run_finish'));
+  await tester.pump();
+  await tester.tap(key('run_finish_confirm'));
+  await session.reached.future;
+}
+
 Future<void> openHistory(Device d, WidgetTester tester) async {
   await tester.tap(key('home_history'));
   await tester.pumpAndSettle();
@@ -191,6 +259,55 @@ void main() {
         tester.getTopLeft(key('history_run_$b')).dy,
         lessThan(tester.getTopLeft(key('history_run_$a')).dy),
       );
+    });
+
+    testWidgets('Lauf ohne Dauer: nicht verfügbar statt Strich', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      final a = await seedRun(
+        d.session,
+        DateTime.utc(2030, 1, 1, 8),
+        minutes: 0,
+        bpm: null,
+      );
+      await openHistory(d, tester);
+      expect(text('history_time_$a'), 'Dauer: nicht verfügbar');
+      expect(find.text('–'), findsNothing);
+    });
+
+    testWidgets('Lesefehler eines Laufs: Historie bleibt, Lauf mit Hinweis', (
+      tester,
+    ) async {
+      final d = Device();
+      final storage = _ReadFailStorage(d.storage);
+      d.storageOverride = storage;
+      await d.start(tester, const Locale('de'));
+      await d.skipSetup(tester);
+      final a = await seedRun(d.session, DateTime.utc(2030, 1, 1, 8));
+      final b = await seedRun(d.session, DateTime.utc(2030, 1, 2, 8));
+      storage.session.raw.fail = true;
+      await openHistory(d, tester);
+      expect(key('history_error'), findsNothing);
+      expect(key('history_run_$a'), findsOneWidget);
+      expect(key('history_run_$b'), findsOneWidget);
+      expect(
+        find.text('Die Daten dieses Laufs konnten nicht gelesen werden.'),
+        findsNWidgets(2),
+      );
+    });
+
+    testWidgets('große Schrift (2,0): keine Überläufe', (tester) async {
+      final d = await started(tester);
+      await seedRun(d.session, DateTime.utc(2030, 1, 1, 8));
+      await seedRun(d.session, DateTime.utc(2030, 1, 2, 8), bpm: null);
+      tester.view.physicalSize = const Size(411, 914);
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await openHistory(d, tester);
+      expect(key('history_list'), findsOneWidget);
+      expect(find.textContaining('Ø Pace'), findsWidgets);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('Meilen über den gemeinsamen Formatierer', (tester) async {
@@ -290,6 +407,60 @@ void main() {
         expect(key('sum_elevation_later'), findsOneWidget);
       },
     );
+
+    testWidgets('ohne Pulssensor: Puls, Zonen, Belastung nicht verfügbar', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      await runAndFinish(d, tester, 120, heartRate: false);
+      expect(text('sum_avg_hr'), 'nicht verfügbar (kein Puls)');
+      expect(text('sum_max_hr'), 'nicht verfügbar (kein Puls)');
+      expect(text('sum_zones_unavailable'), contains('nicht verfügbar'));
+      expect(text('sum_trimp'), contains('nicht verfügbar'));
+      expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
+      expect(text('run_distance'), isNot(contains('nicht')));
+    });
+
+    testWidgets('große Schrift (2,0): Zusammenfassung ohne Überlauf', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      tester.view.physicalSize = const Size(411, 914);
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await runAndFinish(d, tester, 120);
+      expect(key('sum_avg_hr'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Zusammenfassung erst nach der Berechnung: Laden, dann VO2max', (
+      tester,
+    ) async {
+      final d = Device();
+      final storage = _HoldStorage(d.storage);
+      d.storageOverride = storage;
+      await d.start(tester, const Locale('de'));
+      await d.skipSetup(tester);
+      await d.session.profile.save(
+        const ProfileRecord(maxHeartRateBpm: 190, restingHeartRateBpm: 60),
+      );
+      await _runAndFinishHeld(d, tester, storage.session, 1800);
+      // Während der Berechnung: Ladeanzeige, noch keine Zusammenfassung.
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(key('sum_loading'), findsOneWidget);
+      expect(key('sum_avg_hr'), findsNothing);
+      storage.session.release.complete();
+      await tester.pumpAndSettle();
+      expect(key('sum_loading'), findsNothing);
+      // Der Laufwert liegt vor und steht als Schätzung in der Zusammenfassung.
+      expect(
+        text('sum_vo2max'),
+        matches(RegExp(r'^\d+,\d ml/kg/min \(Schätzung\)$')),
+      );
+      expect(text('sum_avg_hr'), '150 bpm');
+    });
 
     testWidgets('erster Lauf, kürzer als der Bestpace-Kilometer', (
       tester,

@@ -5,6 +5,10 @@ import '../../l10n/app_localizations.dart';
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
 
+/// Zeit für die Anzeige; fehlt sie, „nicht verfügbar“ (nie „–“ oder 0).
+String clockText(AppLocalizations l10n, Duration? d) =>
+    d == null ? l10n.runUnavailable : formatClock(d);
+
 /// Zusammenfassung eines beendeten Laufs (FR-0037). Liest und rechnet beim
 /// Öffnen aus den gespeicherten Rohdaten ([RunSummaryService]). Fehlendes steht
 /// als „nicht verfügbar“, nie als 0. Route und Diagramme folgen in WP10 B2
@@ -157,7 +161,12 @@ class _SummaryContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        row('run_time', l10n.sumTotalTime, formatClock(f.totalTime), big: true),
+        row(
+          'run_time',
+          l10n.sumTotalTime,
+          clockText(l10n, f.totalTime),
+          big: true,
+        ),
         row(
           'run_distance',
           l10n.runDistance,
@@ -166,7 +175,11 @@ class _SummaryContent extends StatelessWidget {
               : formatter.distance(f.distanceMeters),
           big: true,
         ),
-        row('run_moving_time', l10n.runMovingTime, formatClock(f.movingTime)),
+        row(
+          'run_moving_time',
+          l10n.runMovingTime,
+          clockText(l10n, f.movingTime),
+        ),
         row(
           'run_avg_pace',
           l10n.runAvgPace,

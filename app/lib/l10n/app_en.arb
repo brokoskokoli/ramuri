@@ -195,6 +195,8 @@
   "histLoadFailed": "The history could not be read.",
   "histRowTime": "Duration {time}",
   "@histRowTime": {"description": "WP10 B1", "placeholders": {"time": {"type": "String"}}},
+  "histRowReadFailed": "The data of this run could not be read.",
+  "histRowTimeNone": "Duration: not available",
   "histRowHeartRate": "Avg. heart rate {bpm} bpm",
   "@histRowHeartRate": {"description": "WP10 B1", "placeholders": {"bpm": {"type": "int"}}},
   "histRowNoHeartRate": "Heart rate: not available",

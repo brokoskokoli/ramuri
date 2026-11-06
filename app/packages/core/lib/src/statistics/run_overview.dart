@@ -2,6 +2,7 @@ import '../../ports/clock.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_derived.dart';
 import '../../ports/storage_runs.dart';
+import '../preprocessing/gap_moving_time.dart' show overlapDuration;
 import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
@@ -60,9 +61,13 @@ class RunOverview {
     this.paceTime,
     this.averageHeartRateBpm,
     this.maxHeartRateBpm,
+    this.readFailed = false,
   });
 
   final StoredRun run;
+
+  /// Die Rohdaten des Laufs ließen sich nicht lesen; alle Kennzahlen fehlen.
+  final bool readFailed;
   final double? distanceMeters;
   final Duration? movingTime;
   final Duration? totalTime;
@@ -102,7 +107,7 @@ class RunOverview {
     final moving = s.movingTime;
     Duration? paceTime;
     if (moving != null) {
-      final loss = _overlap(
+      final loss = overlapDuration(
         spans(PreprocessedSpanKind.moving),
         spans(PreprocessedSpanKind.positionGap),
       );
@@ -119,18 +124,6 @@ class RunOverview {
       maxHeartRateBpm: s.maxBpm,
     );
   }
-}
-
-Duration _overlap(List<TimeSpan> a, List<TimeSpan> b) {
-  var sum = Duration.zero;
-  for (final m in a) {
-    for (final g in b) {
-      final from = m.start.isAfter(g.start) ? m.start : g.start;
-      final to = m.end.isBefore(g.end) ? m.end : g.end;
-      if (to.isAfter(from)) sum += to.difference(from);
-    }
-  }
-  return sum;
 }
 
 /// Liefert die Läufe für die Historie mit ihren Kennzahlen. Gelesen wird in
@@ -160,8 +153,7 @@ class RunOverviewService {
     final result = <RunOverview>[];
     for (final run in runs) {
       final s = stored[run.id];
-      if (s != null &&
-          s.summary.parameterVersion == parameters.parameterVersion) {
+      if (s != null && _isCurrent(s.summary)) {
         result.add(RunOverview.fromStored(run, s));
       } else {
         result.add(await _recompute(run));
@@ -170,16 +162,28 @@ class RunOverviewService {
     return result;
   }
 
+  /// Gespeichert in dem Format und mit den Parametern, die wir lesen können.
+  bool _isCurrent(PreprocessingSummary s) =>
+      s.method == runOverviewMethod &&
+      s.methodVersion == runOverviewMethodVersion &&
+      s.parameterVersion == parameters.parameterVersion;
+
   Future<RunOverview> _recompute(StoredRun run) async {
     final end = run.endedAt!;
     if (!end.isAfter(run.startedAt)) return RunOverview(run: run);
-    final pre = replayRunPreprocessing(
-      run: run,
-      end: end,
-      raw: await session.rawData.read(run.id),
-      gaps: await session.markers.gaps(run.id),
-      parameters: parameters,
-    );
+    final RunPreprocessing pre;
+    try {
+      pre = replayRunPreprocessing(
+        run: run,
+        end: end,
+        raw: await session.rawData.read(run.id),
+        gaps: await session.markers.gaps(run.id),
+        parameters: parameters,
+      );
+    } on StorageException {
+      // Ein Lauf, der nicht lesbar ist, lässt die Historie nicht scheitern.
+      return RunOverview(run: run, readFailed: true);
+    }
     final stored = overviewOf(pre, computedAt: clock.now());
     try {
       await session.preprocessing.replace(run.id, stored);

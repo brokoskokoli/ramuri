@@ -7,10 +7,18 @@ import 'run_preprocessor.dart';
 /// Die eine Rechnung für Live-Stand und Historie: Die Lücken sind die der
 /// Positionsverarbeitung (Punktzeit, PAR-004, K18), dieselben, die die Strecke
 /// nicht zählen. Eine offene Lücke zählt bis zum Ende des Ergebnisses.
-Duration movingTimeInPositionGaps(RunPreprocessing r) {
+Duration movingTimeInPositionGaps(RunPreprocessing r) => overlapDuration(
+  r.movement.movingIntervals,
+  [for (final g in r.position.gaps) TimeSpan(start: g.start, end: g.end)],
+);
+
+/// Summe der Überlappungen jeder Spanne aus [a] mit jeder aus [b]. Die eine
+/// Rechnung für Live/Historie ([movingTimeInPositionGaps]) und die gespeicherte
+/// Kurzfassung (Spannen `moving` und `positionGap`).
+Duration overlapDuration(Iterable<TimeSpan> a, Iterable<TimeSpan> b) {
   var sum = Duration.zero;
-  for (final TimeSpan m in r.movement.movingIntervals) {
-    for (final g in r.position.gaps) {
+  for (final m in a) {
+    for (final g in b) {
       final from = m.start.isAfter(g.start) ? m.start : g.start;
       final to = m.end.isBefore(g.end) ? m.end : g.end;
       if (to.isAfter(from)) sum += to.difference(from);

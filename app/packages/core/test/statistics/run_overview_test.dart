@@ -11,6 +11,7 @@ class _Counting implements StorageSession {
   int runGets = 0;
   int overviewReads = 0;
   int singleReads = 0;
+  final Set<int> failRaw = {};
 
   @override
   RawDataStore get rawData => _Raw(s.rawData, this);
@@ -49,6 +50,9 @@ class _Raw implements RawDataStore {
   @override
   Future<StoredRawData> read(int runId) {
     c.rawReads++;
+    if (c.failRaw.contains(runId)) {
+      return Future.error(const StorageException(StorageFailure.failed));
+    }
     return i.read(runId);
   }
 }
@@ -260,5 +264,72 @@ void main() {
         isEmpty,
       );
     });
+
+    for (final (name, mutate)
+        in <(String, PreprocessingSummary Function(PreprocessingSummary))>[
+          ('andere Parameterversion', (s) => _with(s, parameterVersion: 1)),
+          ('andere Kurzfassungs-Methode', (s) => _with(s, method: 'anders')),
+          ('andere Methodenversion', (s) => _with(s, methodVersion: 99)),
+        ]) {
+      test('veraltete kurzfassung ($name) wird neu gerechnet', () async {
+        final w = await RecalcWorld.create();
+        final id = await w.seedRun(DateTime.utc(2030, 2, 1, 8), minutes: 5);
+        await w.calc().calculateAfterRun(id);
+        final good = (await w.session.preprocessing.read(id))!;
+        await w.session.preprocessing.replace(
+          id,
+          StoredPreprocessing(summary: mutate(good.summary), spans: good.spans),
+        );
+        final c = _Counting(w.session);
+        final list = await RunOverviewService(
+          session: c,
+          clock: w.clock,
+        ).load();
+        expect(c.rawReads, 1);
+        expect(list.single.distanceMeters, closeTo(900, 5));
+        final stored = (await w.session.preprocessing.read(id))!.summary;
+        expect(stored.method, runOverviewMethod);
+        expect(stored.methodVersion, runOverviewMethodVersion);
+        expect(stored.parameterVersion, good.summary.parameterVersion);
+      });
+    }
+
+    test(
+      'Lesefehler eines Laufs: nur dieser fehlt, die Historie bleibt',
+      () async {
+        final w = await RecalcWorld.create();
+        final bad = await w.seedRun(DateTime.utc(2030, 2, 1, 8), minutes: 5);
+        final good = await w.seedRun(DateTime.utc(2030, 2, 2, 8), minutes: 5);
+        final c = _Counting(w.session)..failRaw.add(bad);
+        final list = await RunOverviewService(
+          session: c,
+          clock: w.clock,
+        ).load();
+        expect(list, hasLength(2));
+        final byId = {for (final o in list) o.run.id: o};
+        expect(byId[bad]!.readFailed, isTrue);
+        expect(byId[bad]!.distanceMeters, isNull);
+        expect(byId[good]!.readFailed, isFalse);
+        expect(byId[good]!.distanceMeters, closeTo(900, 5));
+      },
+    );
   });
 }
+
+PreprocessingSummary _with(
+  PreprocessingSummary s, {
+  String? method,
+  int? methodVersion,
+  int? parameterVersion,
+}) => PreprocessingSummary(
+  method: method ?? s.method,
+  methodVersion: methodVersion ?? s.methodVersion,
+  parameterVersion: parameterVersion ?? s.parameterVersion,
+  computedAt: s.computedAt,
+  totalTime: s.totalTime,
+  movingTime: s.movingTime,
+  distanceMeters: s.distanceMeters,
+  bridgedDistanceMeters: s.bridgedDistanceMeters,
+  averageBpm: s.averageBpm,
+  maxBpm: s.maxBpm,
+);
