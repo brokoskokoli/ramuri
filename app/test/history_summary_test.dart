@@ -402,9 +402,9 @@ void main() {
         // VO₂max: kein Wert, nie 0; falls einer da wäre, als Schätzung.
         expect(text('sum_vo2max'), 'nicht verfügbar');
         expect(find.text('VO₂max (Schätzung)'), findsOneWidget);
-        // Route und Höhenprofil: Platzhalter (WP10 B2).
-        expect(key('sum_route_later'), findsOneWidget);
-        expect(key('sum_elevation_later'), findsOneWidget);
+        // Route und Diagramme sind gezeichnet (WP10 B2).
+        expect(key('run_detail_charts'), findsOneWidget);
+        expect(key('route_paint'), findsOneWidget);
       },
     );
 

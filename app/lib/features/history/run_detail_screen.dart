@@ -1,0 +1,71 @@
+import 'package:core/core.dart';
+import 'package:flutter/material.dart';
+
+import '../../l10n/app_localizations.dart';
+import '../recalculation/recalculation_controller.dart';
+import '../settings/app_settings.dart';
+import '../storage/deletion.dart';
+import '../summary/run_summary_body.dart';
+
+/// Detailansicht eines Laufs (FR-0041, FR-0042): dieselben Kennzahlen wie die
+/// Zusammenfassung nach dem Lauf, dazu gezeichnete Route, Zeitverlauf und
+/// Diagramme ([RunSummaryBody]). Löschen ist auch hier möglich; nach dem
+/// Löschen schließt die Ansicht mit `true`.
+class RunDetailScreen extends StatelessWidget {
+  const RunDetailScreen({
+    super.key,
+    required this.session,
+    required this.clock,
+    required this.recalculation,
+    required this.runId,
+  });
+
+  final StorageSession session;
+  final Clock clock;
+  final RecalculationController recalculation;
+  final int runId;
+
+  Future<void> _delete(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    final result = await confirmAndDeleteRun(
+      context,
+      session,
+      clock,
+      runId,
+      serialize: recalculation.exclusive,
+    );
+    if (result == DeletionResult.deleted ||
+        result == DeletionResult.deletedNotErased) {
+      navigator.pop(true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.detTitle),
+        actions: [
+          IconButton(
+            key: const Key('detail_delete'),
+            tooltip: l10n.histDeleteRun,
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () => _delete(context),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: RunSummaryBody(
+          key: ValueKey(runId),
+          session: session,
+          clock: clock,
+          runId: runId,
+          formatter: AppSettingsScope.formatterOf(context),
+          fallback: () => [Text(l10n.detLoadFailed)],
+        ),
+      ),
+    );
+  }
+}

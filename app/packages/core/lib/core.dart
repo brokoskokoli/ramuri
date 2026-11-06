@@ -81,6 +81,7 @@ export 'src/statistics/best_pace.dart';
 export 'src/statistics/classification.dart';
 export 'src/statistics/period.dart';
 export 'src/statistics/period_statistics.dart';
+export 'src/statistics/run_detail.dart';
 export 'src/statistics/run_figures.dart';
 export 'src/statistics/run_overview.dart';
 export 'src/statistics/run_summary.dart';

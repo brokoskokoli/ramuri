@@ -2,6 +2,7 @@ import '../../ports/clock.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
+import '../preprocessing/movement_time_processor.dart' show TimeSpan;
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
 import '../recalculation/run_analysis.dart';
@@ -24,6 +25,7 @@ class RunSummary {
     required this.bestPace,
     required this.classification,
     required this.vo2max,
+    this.manualPauses = const [],
   });
 
   final StoredRun run;
@@ -43,6 +45,9 @@ class RunSummary {
   /// Gespeicherter Laufwert der VO₂max-Schätzung (WP09), `null`, wenn (noch)
   /// keiner vorliegt. Trägt bei „nicht bestimmbar“ den Grund.
   final ComputedValue? vo2max;
+
+  /// Manuelle Pausen des Laufs (für die Zeichnung der Lücken).
+  final List<TimeSpan> manualPauses;
 
   /// Anstieg in Metern; `null` ohne Höhendaten.
   double? get ascentMeters => preprocessing.altitude.ascentMeters;
@@ -118,6 +123,11 @@ class RunSummaryService {
       bestPace: bestPace(pre.pace.segments, parameters: statistics),
       classification: classifyRun(figures, others, parameters: statistics),
       vo2max: vo2,
+      manualPauses: [
+        for (final g in gaps)
+          if (g.kind == RunGapKind.manualPause)
+            TimeSpan(start: g.start, end: g.end ?? end),
+      ],
     );
   }
 }

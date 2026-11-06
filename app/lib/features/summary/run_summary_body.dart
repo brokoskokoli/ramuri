@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
+import 'run_charts.dart';
 
 /// Zeit für die Anzeige; fehlt sie, „nicht verfügbar“ (nie „–“ oder 0).
 String clockText(AppLocalizations l10n, Duration? d) =>
@@ -11,8 +12,8 @@ String clockText(AppLocalizations l10n, Duration? d) =>
 
 /// Zusammenfassung eines beendeten Laufs (FR-0037). Liest und rechnet beim
 /// Öffnen aus den gespeicherten Rohdaten ([RunSummaryService]). Fehlendes steht
-/// als „nicht verfügbar“, nie als 0. Route und Diagramme folgen in WP10 B2
-/// (Platzhalter). Scheitert das Lesen oder fehlt der Lauf im Speicher, zeigt
+/// als „nicht verfügbar“, nie als 0. Route und Diagramme zeichnet
+/// [RunDetailCharts]. Scheitert das Lesen oder fehlt der Lauf im Speicher, zeigt
 /// [fallback] die Werte der Aufzeichnung.
 class RunSummaryBody extends StatefulWidget {
   const RunSummaryBody({
@@ -35,14 +36,25 @@ class RunSummaryBody extends StatefulWidget {
 }
 
 class _RunSummaryBodyState extends State<RunSummaryBody> {
-  late final Future<RunSummary?> _future = _load();
+  late final Future<_Loaded?> _future = _load();
 
-  Future<RunSummary?> _load() async {
+  Future<_Loaded?> _load() async {
     try {
-      return await RunSummaryService(
+      final summary = await RunSummaryService(
         session: widget.session,
         clock: widget.clock,
       ).load(widget.runId);
+      if (summary == null) return null;
+      // Einmal gebaut, nicht bei jedem Neuzeichnen.
+      return _Loaded(
+        summary,
+        buildRunDetail(
+          summary.preprocessing,
+          start: summary.run.startedAt,
+          end: summary.run.endedAt!,
+          pauses: summary.manualPauses,
+        ),
+      );
     } on Object {
       // Keine Gesundheitsdaten in Meldungen; die Ansicht fällt zurück.
       return null;
@@ -52,7 +64,7 @@ class _RunSummaryBodyState extends State<RunSummaryBody> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return FutureBuilder<RunSummary?>(
+    return FutureBuilder<_Loaded?>(
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
@@ -67,8 +79,8 @@ class _RunSummaryBodyState extends State<RunSummaryBody> {
             ),
           );
         }
-        final summary = snapshot.data;
-        if (summary == null) {
+        final loaded = snapshot.data;
+        if (loaded == null) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -78,16 +90,31 @@ class _RunSummaryBodyState extends State<RunSummaryBody> {
             ],
           );
         }
-        return _SummaryContent(summary: summary, formatter: widget.formatter);
+        return _SummaryContent(
+          summary: loaded.summary,
+          detail: loaded.detail,
+          formatter: widget.formatter,
+        );
       },
     );
   }
 }
 
+class _Loaded {
+  _Loaded(this.summary, this.detail);
+  final RunSummary summary;
+  final RunDetailData detail;
+}
+
 class _SummaryContent extends StatelessWidget {
-  const _SummaryContent({required this.summary, required this.formatter});
+  const _SummaryContent({
+    required this.summary,
+    required this.detail,
+    required this.formatter,
+  });
 
   final RunSummary summary;
+  final RunDetailData detail;
   final UnitFormatter formatter;
 
   String _unavailable(AppLocalizations l10n, UnavailableReason reason) =>
@@ -261,11 +288,11 @@ class _SummaryContent extends StatelessWidget {
               : l10n.sumVo2maxValue(_number(vo2!.value!.toStringAsFixed(1))),
         ),
         const SizedBox(height: 8),
-        Text(l10n.sumRoute, style: theme.titleSmall),
-        Text(l10n.sumLater, key: const Key('sum_route_later')),
-        const SizedBox(height: 8),
-        Text(l10n.sumElevation, style: theme.titleSmall),
-        Text(l10n.sumLater, key: const Key('sum_elevation_later')),
+        RunDetailCharts(
+          key: const Key('run_detail_charts'),
+          data: detail,
+          formatter: formatter,
+        ),
         const SizedBox(height: 8),
         Column(
           key: const Key('run_laps'),

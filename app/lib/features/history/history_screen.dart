@@ -7,6 +7,7 @@ import '../run/live_run_view.dart' show formatClock;
 import '../settings/app_settings.dart';
 import '../settings/unit_format.dart';
 import '../storage/deletion.dart';
+import 'run_detail_screen.dart';
 
 /// Trainingshistorie (FR-0040, ACC-04): jeder beendete Lauf mit Strecke,
 /// Dauer, Pace und, soweit vorhanden, Puls. Fehlendes steht als „nicht
@@ -56,6 +57,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  Future<void> _open(int runId) async {
+    final deleted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => RunDetailScreen(
+          session: widget.session,
+          clock: widget.clock,
+          recalculation: widget.recalculation,
+          runId: runId,
+        ),
+      ),
+    );
+    if (mounted && deleted == true) _reload();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -96,6 +111,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               overview: runs[i],
               formatter: formatter,
               onDelete: _delete,
+              onOpen: _open,
             ),
           );
         },
@@ -109,11 +125,13 @@ class _RunTile extends StatelessWidget {
     required this.overview,
     required this.formatter,
     required this.onDelete,
+    required this.onOpen,
   });
 
   final RunOverview overview;
   final UnitFormatter formatter;
   final Future<void> Function(int runId) onDelete;
+  final Future<void> Function(int runId) onOpen;
 
   /// Beginn in der Ortszeit zum Laufende (Versatz des Laufs), sonst in der
   /// Ortszeit des Geräts.
@@ -170,6 +188,7 @@ class _RunTile extends StatelessWidget {
         ],
       ),
       isThreeLine: true,
+      onTap: () => onOpen(id),
       trailing: IconButton(
         key: Key('history_delete_$id'),
         tooltip: l10n.histDeleteRun,
