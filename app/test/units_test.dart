@@ -129,18 +129,21 @@ void main() {
       languageCode: 'en',
       distanceLabel: 'km',
       paceLabel: 'min/km',
+      elevationLabel: 'm',
     );
     const mi = UnitFormatter(
       unit: DistanceUnit.miles,
       languageCode: 'en',
       distanceLabel: 'mi',
       paceLabel: 'min/mi',
+      elevationLabel: 'ft',
     );
     const kmDe = UnitFormatter(
       unit: DistanceUnit.kilometers,
       languageCode: 'de',
       distanceLabel: 'km',
       paceLabel: 'min/km',
+      elevationLabel: 'm',
     );
 
     test(
@@ -151,11 +154,18 @@ void main() {
           languageCode: 'en',
           distanceLabel: 'XD',
           paceLabel: 'XP',
+          elevationLabel: 'XE',
         );
         expect(x.distance(1000), '1.00 XD');
         expect(x.pace(330), '5:30 XP');
       },
     );
+
+    test('Höhe: Meter bei km, Fuß bei Meilen (nur Anzeige)', () {
+      expect(km.elevation(120), '120 m');
+      expect(mi.elevation(100), '328 ft');
+      expect(mi.elevation(null), UnitFormatter.noValue);
+    });
 
     test('Strecke aus Metern', () {
       expect(km.distance(5230), '5.23 km');

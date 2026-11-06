@@ -153,17 +153,22 @@ class RunRecorder {
   }
 
   /// Nimmt einen Standortpunkt an. Gespeichert wird, was die Sitzung annimmt
-  /// (auch in der erkannten Pause); in der manuellen Pause und nach dem Ende
-  /// nichts. Fehlende Werte bleiben `null`; nicht endliche Werte werden zu
+  /// (auch in der erkannten und in der manuellen Pause, dort ohne Einfluss auf
+  /// die Auswertung; die Lücke `manualPause` kennzeichnet sie); vor dem Start
+  /// und nach dem Ende nichts. Die Zeit ist die ausgerichtete Uhrzeit. Fehlende Werte bleiben `null`; nicht endliche Werte werden zu
   /// `null`, ein nicht endlicher Ort wird nicht gespeichert.
   Intake addPosition(LocationSample s) {
     final intake = _session.addPosition(s);
     _processEvents();
-    if (intake != Intake.processed) return intake;
+    if (intake != Intake.processed && intake != Intake.recordedWhilePaused) {
+      return intake;
+    }
+    // Gleiche Zeitbasis wie Lauf, Lücken und Runden (Uhr), nicht rohe GPS-Zeit.
+    final time = _session.toRunTime(s.time);
     if (s.latitude.isFinite && s.longitude.isFinite) {
       _positions.add(
         RawPosition(
-          time: s.time,
+          time: time,
           source: _source,
           latitude: s.latitude,
           longitude: s.longitude,
@@ -178,7 +183,7 @@ class RunRecorder {
     if (alt != null && alt.isFinite) {
       _altitudes.add(
         RawAltitude(
-          time: s.time,
+          time: time,
           source: _source,
           meters: alt,
           verticalAccuracyMeters: _finite(s.verticalAccuracyMeters),

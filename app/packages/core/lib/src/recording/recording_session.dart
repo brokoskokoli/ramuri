@@ -22,8 +22,14 @@ enum Intake {
   /// An die Vorverarbeitung gegeben (sie kann ihn noch verwerfen).
   processed,
 
-  /// Lauf nicht gestartet oder nicht aktiv (Pause), nichts geschah.
+  /// Lauf nicht gestartet, nichts geschah.
   ignoredNotActive,
+
+  /// Manuelle Pause: der Punkt zählt nicht zu Strecke, Bewegungszeit, Tempo
+  /// und Runden und erreicht die Vorverarbeitung nicht; er soll aber als
+  /// Rohwert gespeichert werden (sein Zustand ergibt sich aus der Lücke
+  /// `manualPause`, die seine Zeit umfasst).
+  recordedWhilePaused,
 
   /// Lauf beendet: der Wert wird verworfen (auch bei Rennen mit dem Stopp).
   ignoredFinished,
@@ -289,6 +295,15 @@ class RecordingSession {
     final now = _clock.now();
     final offset = _gpsOffset ?? now.difference(s.time);
     final time = s.time.add(offset);
+    if (_phase == RecordingPhase.paused) {
+      final pausedAt = _gaps.last.start;
+      if (time.isBefore(pausedAt)) return Intake.ignoredStale;
+      if (time.difference(now) > _maxForwardJump) {
+        return Intake.ignoredImplausibleTime;
+      }
+      _gpsOffset = offset;
+      return Intake.recordedWhilePaused;
+    }
     final gate = _gate(time);
     if (gate != null) return gate;
     // Ein Zukunftspunkt würde jeden Folgepunkt als nicht monoton sperren.
@@ -327,6 +342,11 @@ class RecordingSession {
     _syncAutoPause(time);
     return Intake.processed;
   }
+
+  /// Legt eine GPS-Zeit in die Uhrbasis des Laufs (Zeit von Start, Pausen,
+  /// Lücken, Runden). Vor dem ersten angenommenen Punkt unverändert.
+  DateTime toRunTime(DateTime gpsTime) =>
+      _gpsOffset == null ? gpsTime : gpsTime.add(_gpsOffset!);
 
   Intake addHeartRate(HeartRateReading r) {
     final gate = _gate(r.time);

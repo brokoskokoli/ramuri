@@ -311,13 +311,13 @@ void main() {
       expect(r.s.preprocessing()!.position.positions, hasLength(20));
     });
 
-    test('Eingänge vor Start und in der Pause werden ignoriert', () {
+    test('Eingänge vor Start ignoriert, in der Pause nur gespeichert, nie verarbeitet', () {
       final r = Rig();
       expect(r.s.addPosition(fix(0, 0)), Intake.ignoredNotActive);
       r.s.start();
       r.move(5, 3);
       r.s.pause();
-      expect(r.s.addPosition(fix(10, 99)), Intake.ignoredNotActive);
+      expect(r.s.addPosition(fix(10, 99)), Intake.recordedWhilePaused);
       r.s.resume();
       expect(r.s.preprocessing()!.position.positions, hasLength(5));
     });

@@ -120,11 +120,12 @@ class Rig {
     bool autoPause = false,
     int batchRows = rawBatchRows,
     bool flakyMarkers = false,
+    Duration clockOffset = Duration.zero,
   }) async {
     final session = await FakeStorage().open(Uint8List(32));
     final flaky = flakyMarkers ? FlakyMarkers(session.markers) : null;
     final probe = Probe(session.rawData, session.runs);
-    final clock = FakeClock(t0);
+    final clock = FakeClock(t0.add(clockOffset));
     final rec = RunRecorder(
       clock: clock,
       runs: probe,
@@ -375,25 +376,113 @@ void main() {
   });
 
   group('Pause', () {
+    test('manuelle Pause: Zustand und Lücke', () async {
+      final r = await Rig.make();
+      await r.recorder.start();
+      await r.move(3, 3);
+      await r.recorder.pause();
+      expect((await r.session.runs.get(r.id))!.state, RunState.paused);
+      r.clock.advance(const Duration(seconds: 10));
+      await r.recorder.resume();
+      expect((await r.session.runs.get(r.id))!.state, RunState.active);
+      final g = (await r.gaps()).single;
+      expect(g.kind, RunGapKind.manualPause);
+      expect(g.start, t0.add(const Duration(seconds: 3)));
+      expect(g.end, t0.add(const Duration(seconds: 13)));
+      expect((await r.raw()).positions, hasLength(3));
+    });
+
+    test('Pausenpunkte werden gespeichert (Nachbesserung 2), liegen in der '
+        'Pausenlücke und zählen nicht zu Strecke, Zeit, Runden', () async {
+      final r = await Rig.make();
+      await r.recorder.start();
+      await r.move(3, 3);
+      final before = r.recorder.snapshot();
+      await r.recorder.pause();
+      for (var i = 4; i <= 8; i++) {
+        r.clock.advance(const Duration(seconds: 1));
+        expect(
+          r.recorder.addPosition(fix(i, 9.0 + (i - 3) * 50)),
+          Intake.recordedWhilePaused,
+        );
+      }
+      await r.recorder.flush();
+      final after = r.recorder.snapshot();
+      expect(after.distanceMeters, before.distanceMeters);
+      expect(after.movingTime, before.movingTime);
+      expect(r.recorder.preprocessing()!.position.positions, hasLength(3));
+      await r.recorder.resume();
+      await r.recorder.finish();
+      final raw = (await r.raw()).positions;
+      expect(raw, hasLength(8));
+      final gap = (await r.gaps()).single;
+      expect(gap.kind, RunGapKind.manualPause);
+      final inPause = raw
+          .map((p) => p.value.time)
+          .where((t) => t.isAfter(gap.start) && !t.isAfter(gap.end!));
+      expect(inPause, hasLength(5));
+      expect(raw.every((p) => p.value.state == MeasurementState.present), true);
+    });
+
     test(
-      'manuelle Pause: Zustand und Lücke, Punkte darin nicht gespeichert',
+      'Pausenpunkt vor Pausenbeginn (Altwert) wird nicht gespeichert',
       () async {
         final r = await Rig.make();
         await r.recorder.start();
         await r.move(3, 3);
+        r.clock.advance(const Duration(seconds: 2));
         await r.recorder.pause();
-        expect((await r.session.runs.get(r.id))!.state, RunState.paused);
-        expect(r.recorder.addPosition(fix(4, 12)), Intake.ignoredNotActive);
-        r.clock.advance(const Duration(seconds: 10));
-        await r.recorder.resume();
-        expect((await r.session.runs.get(r.id))!.state, RunState.active);
-        final g = (await r.gaps()).single;
-        expect(g.kind, RunGapKind.manualPause);
-        expect(g.start, t0.add(const Duration(seconds: 3)));
-        expect(g.end, t0.add(const Duration(seconds: 13)));
+        expect(r.recorder.addPosition(fix(4, 12)), Intake.ignoredStale);
+        await r.recorder.flush();
         expect((await r.raw()).positions, hasLength(3));
       },
     );
+
+    for (final offset in [
+      const Duration(seconds: 60),
+      const Duration(seconds: -60),
+    ]) {
+      test('Uhrversatz $offset: Rohzeiten in Uhrbasis, innerhalb des Laufs und '
+          'passend zu Lücken', () async {
+        final r = await Rig.make(clockOffset: offset);
+        // Punkte tragen GPS-Zeit t0 + sec, die Uhr geht um [offset] anders.
+        var sec = 0;
+        double north = 0;
+        void gps(int n) {
+          for (var k = 0; k < n; k++) {
+            r.clock.advance(const Duration(seconds: 1));
+            sec++;
+            north += 3;
+            r.recorder.addPosition(fix(sec, north));
+          }
+        }
+
+        await r.recorder.start();
+        gps(5);
+        await r.recorder.pause();
+        gps(1); // Pausenpunkt
+        r.clock.advance(const Duration(seconds: 2));
+        sec += 2; // GPS-Zeit geht mit der Uhr
+        await r.recorder.resume();
+        gps(3);
+        await r.recorder.finish();
+        final run = (await r.session.runs.get(r.id))!;
+        final raw = (await r.raw()).positions.map((p) => p.value.time).toList();
+        expect(raw, hasLength(9));
+        for (final t in raw) {
+          expect(t.isBefore(run.startedAt), isFalse, reason: '$t');
+          expect(t.isAfter(run.endedAt!), isFalse, reason: '$t');
+        }
+        final gap = (await r.gaps()).single;
+        expect(gap.start, run.startedAt.add(const Duration(seconds: 5)));
+        // Der Pausenpunkt liegt in der Pausenlücke.
+        final paused = raw.where(
+          (t) => t.isAfter(gap.start) && !t.isAfter(gap.end!),
+        );
+        expect(paused, hasLength(1));
+        expect(raw.first, run.startedAt.add(const Duration(seconds: 1)));
+      });
+    }
 
     test('Ende aus der Pause schließt die Pausenlücke', () async {
       final r = await Rig.make();

@@ -407,6 +407,14 @@
   "@unitMiles": {
     "description": "Kürzel Meilen"
   },
+  "unitMeters": "m",
+  "@unitMeters": {
+    "description": "Kürzel Meter (Höhe)"
+  },
+  "unitFeet": "ft",
+  "@unitFeet": {
+    "description": "Kürzel Fuß (Höhe, Meilenmodus)"
+  },
   "unitPacePerKilometer": "min/km",
   "@unitPacePerKilometer": {
     "description": "Kürzel Pace je Kilometer"
@@ -600,15 +608,6 @@
   },
   "runHeartRateSourceActive": "Puls: Quelle aktiv",
   "runHeartRateSourceNone": "Puls: keine Quelle",
-  "runAscentValue": "{meters} m",
-  "@runAscentValue": {
-    "description": "WP06 D",
-    "placeholders": {
-      "meters": {
-        "type": "String"
-      }
-    }
-  },
   "runLapRow": "Runde {index}: {time}",
   "@runLapRow": {
     "description": "WP06 D",

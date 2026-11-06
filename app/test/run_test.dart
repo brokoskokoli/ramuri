@@ -380,6 +380,30 @@ void main() {
       expect(text('run_pace'), matches(RegExp(r'^\d+:\d\d min/mi$')));
     });
 
+    testWidgets('Meilenmodus: Höhenmeter in Fuß', (tester) async {
+      final d = Device();
+      await d.start(tester, const Locale('en'));
+      await d.skipSetup(tester);
+      await d.session.settings.set(
+        SettingKeys.distanceUnit,
+        'mi',
+        at: d.clock.now(),
+      );
+      await tester.tap(key('home_settings'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Miles'));
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await walk(d, tester, 61, altitude: true);
+      // 60 Schritte zu je 0,5 m Anstieg: höchstens 30 m = 98 ft.
+      expect(text('run_ascent'), matches(RegExp(r'^\d+ ft$')));
+      final ft = int.parse(text('run_ascent').split(' ').first);
+      expect(ft, inInclusiveRange(60, 100));
+    });
+
     testWidgets('Stand: Pace als Strich (OQ-0037)', (tester) async {
       final d = Device();
       await openRun(d, tester);

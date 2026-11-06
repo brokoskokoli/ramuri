@@ -22,6 +22,15 @@ enum DistanceUnit {
     miles => meters / metersPerMile,
   };
 
+  /// Meter je internationalem Fuß (exakt).
+  static const double metersPerFoot = 0.3048;
+
+  /// Höhe in der Anzeigeeinheit: Meter bei km, Fuß bei Meilen.
+  double elevationFromMeters(double meters) => switch (this) {
+    kilometers => meters,
+    miles => meters / metersPerFoot,
+  };
+
   /// Pace in Sekunden je Anzeigeeinheit aus Sekunden je Kilometer.
   double paceFromSecondsPerKm(double secondsPerKm) => switch (this) {
     kilometers => secondsPerKm,

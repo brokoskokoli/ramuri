@@ -199,7 +199,7 @@ class LiveRunView extends StatelessWidget {
       _Metric(
         'run_ascent',
         l10n.runAscent,
-        ascent == null ? na : l10n.runAscentValue(ascent.round().toString()),
+        ascent == null ? na : formatter.elevation(ascent),
       ),
       // Quelle (Schrittsensor) kommt mit WP08; bis dahin nie ein Wert.
       _Metric('run_cadence', l10n.runCadence, na),
