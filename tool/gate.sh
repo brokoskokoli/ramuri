@@ -202,6 +202,14 @@ drift_aktuell() {
   return $rc
 }
 
+# Kotlin-JVM-Tests der Android-Schicht (WP08). JDK 27 scheitert an jlink, daher das JBR von Android Studio;
+# KOTLIN_TEST_JAVA_HOME überschreibt den Pfad. Fail-closed: fehlt das JDK, ist der Schritt rot.
+kotlin_tests() {
+  jh=${KOTLIN_TEST_JAVA_HOME:-/Applications/Android Studio.app/Contents/jbr/Contents/Home}
+  [ -x "$jh/bin/java" ] || { echo "JDK für die Kotlin-Tests fehlt: $jh (KOTLIN_TEST_JAVA_HOME setzen)"; return 1; }
+  ( cd app/android && JAVA_HOME="$jh" ./gradlew -q :app:testDebugUnitTest )
+}
+
 # SEC-0008: Das Release-APK fordert kein INTERNET. Geprüft am gebauten APK (aapt), nicht am Quell-Manifest, weil Plugins
 # per Manifest-Merge Berechtigungen hinzufügen können. Fail-closed: fehlt aapt oder die Ausgabe, ist der Schritt rot.
 release_ohne_internet() {
@@ -217,6 +225,12 @@ release_ohne_internet() {
   if echo "$perms" | grep -q 'android.permission.INTERNET'; then
     echo "Release-APK fordert android.permission.INTERNET (SEC-0008)"; return 1
   fi
+  # WP08: keine Hintergrund-Standortberechtigung und kein Start nach dem Booten (ADR-0005).
+  for verboten in android.permission.ACCESS_BACKGROUND_LOCATION android.permission.RECEIVE_BOOT_COMPLETED; do
+    if echo "$perms" | grep -q "$verboten"; then
+      echo "Release-APK fordert $verboten (ADR-0005)"; return 1
+    fi
+  done
   # WP07: Der Test-Sensor gehört nur in den Debug-Einstieg. Sein Marker darf in keiner Datei des Release-APK stehen.
   marker=$(sed -n "s/^const String testSensorMarker = '\(.*\)';$/\1/p" app/lib/debug/debug_test_sensor.dart)
   [ -n "$marker" ] || { echo "testSensorMarker in app/lib/debug/debug_test_sensor.dart nicht gefunden"; return 1; }
@@ -241,7 +255,8 @@ if [ -f app/pubspec.yaml ]; then
       step "$p test" pkg_test "$p"
     done
     step "drift schema" drift_aktuell
-    step "release ohne INTERNET und Test-Sensor" release_ohne_internet
+    step "kotlin test" kotlin_tests
+    step "release ohne verbotene Rechte und Test-Sensor" release_ohne_internet
     step "lock unverändert" lock_unveraendert
   fi
 fi
