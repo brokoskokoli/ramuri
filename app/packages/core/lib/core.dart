@@ -75,6 +75,12 @@ export 'src/settings/reserve_zone_settings.dart';
 export 'src/recording/recording_session.dart';
 export 'src/recording/run_recorder.dart';
 export 'src/recording/start_gate.dart';
+export 'src/statistics/best_pace.dart';
+export 'src/statistics/classification.dart';
+export 'src/statistics/period.dart';
+export 'src/statistics/period_statistics.dart';
+export 'src/statistics/run_figures.dart';
+export 'src/statistics/statistics_parameters.dart';
 export 'src/storage/storage_key_service.dart';
 
 /// Name des Pakets, nur damit das Paket auflösbar und testbar ist.
