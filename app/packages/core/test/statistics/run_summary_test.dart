@@ -29,8 +29,8 @@ void main() {
       expect(s.figures.movingTime, const Duration(minutes: 20));
       expect(s.figures.heartRateAverageBpm, 150);
       expect(s.bestPace.secondsPerKm, closeTo(1000 / 3, 1));
-      expect(s.zones, isA<FitnessAvailable<ReserveZoneTimes>>());
-      expect(s.trimp, isA<FitnessAvailable<TrimpResult>>());
+      expect(s.load.zoneTimes, isNotNull);
+      expect(s.load.trimpPoints, isNotNull);
       expect(s.classification.comparedRuns, 3);
       expect(s.classification.relation, PaceRelation.faster);
       expect(s.vo2max, isNotNull);
@@ -63,12 +63,14 @@ void main() {
     test('ohne Profil: Zonen und TRIMP nicht verfügbar mit Grund', () async {
       final w = await RecalcWorld.create(profile: const ProfileRecord());
       final id = await w.seedRun(DateTime.utc(2030, 1, 10, 8), minutes: 5);
+      await w.calc().calculateAfterRun(id);
       final s = (await RunSummaryService(
         session: w.session,
         clock: w.clock,
       ).load(id))!;
-      expect(s.zones, isA<FitnessUnavailable<ReserveZoneTimes>>());
-      expect(s.trimp, isA<FitnessUnavailable<TrimpResult>>());
+      expect(s.load.zoneTimes, isNull);
+      expect(s.load.zonesReason, UnavailableReason.missingMaxHeartRate);
+      expect(s.load.trimpReason, UnavailableReason.missingMaxHeartRate);
       expect(s.figures.trimpPoints, isNull);
       expect(s.figures.heartRateAverageBpm, 150, reason: 'Puls bleibt da');
     });

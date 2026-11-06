@@ -297,6 +297,12 @@ class FailingValues implements ComputedValueStore {
     if (failRead) throw const StorageException(StorageFailure.failed);
     return inner.read(owner);
   }
+
+  @override
+  Future<Map<int, Map<String, ComputedValue>>> readRunValues(Set<String> keys) {
+    if (failRead) throw const StorageException(StorageFailure.failed);
+    return inner.readRunValues(keys);
+  }
 }
 
 /// Reicht alles durch und merkt sich, dass ein Sammel-Tausch gelang.
@@ -326,6 +332,10 @@ class SwapSignalValues implements ComputedValueStore {
   }) => inner.writeAll(create: create, swap: swap);
   @override
   Future<List<ValuePair>> read(ValueOwner owner) => inner.read(owner);
+  @override
+  Future<Map<int, Map<String, ComputedValue>>> readRunValues(
+    Set<String> keys,
+  ) => inner.readRunValues(keys);
 }
 
 /// Wie [FaultySession], aber Schreiben in die Einstellungen scheitert, solange
@@ -359,3 +369,13 @@ class _FailingSettings implements SettingsStore {
     return inner.set(key, value, at: at);
   }
 }
+
+/// Die VO2max-Laufwerte (genau einer oder keiner) eines Laufs; die Zonen- und
+/// TRIMP-Werte (`runLoadValueKeys`) zählen hier nicht.
+Future<List<ValuePair>> runVo2Pairs(StorageSession s, int runId) async => [
+  for (final p in await s.values.read(ValueOwner.run(runId)))
+    if (p.original.key == vo2maxRunValueKey) p,
+];
+
+Future<ValuePair> runVo2(StorageSession s, int runId) async =>
+    (await runVo2Pairs(s, runId)).single;

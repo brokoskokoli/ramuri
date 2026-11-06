@@ -131,8 +131,7 @@ class _SummaryContent extends StatelessWidget {
     final theme = Theme.of(context).textTheme;
     final avgHr = f.heartRateAverageBpm;
     final maxHr = f.heartRateMaxBpm;
-    final zones = summary.zones;
-    final trimp = summary.trimp;
+    final load = summary.load;
     final vo2 = summary.vo2max;
     final best = summary.bestPace;
 
@@ -221,9 +220,11 @@ class _SummaryContent extends StatelessWidget {
         Text(l10n.sumZones, style: theme.titleSmall),
         if (zoneTimes == null)
           Text(
-            zones is FitnessUnavailable<ReserveZoneTimes>
-                ? _unavailable(l10n, zones.reason)
-                : l10n.runUnavailable,
+            load.zonesReason != null
+                ? _unavailable(l10n, load.zonesReason!)
+                : (load.zonesStored
+                      ? l10n.runUnavailable
+                      : l10n.sumLoadNotStored),
             key: const Key('sum_zones_unavailable'),
           )
         else
@@ -242,9 +243,11 @@ class _SummaryContent extends StatelessWidget {
           'sum_trimp',
           l10n.sumTrimp,
           f.trimpPoints == null
-              ? (trimp is FitnessUnavailable<TrimpResult>
-                    ? _unavailable(l10n, trimp.reason)
-                    : l10n.runUnavailable)
+              ? (load.trimpReason != null
+                    ? _unavailable(l10n, load.trimpReason!)
+                    : (load.trimpStored
+                          ? l10n.runUnavailable
+                          : l10n.sumLoadNotStored))
               : (f.trimpIncomplete
                     ? l10n.sumTrimpPartial(f.trimpPoints!.round().toString())
                     : l10n.sumTrimpValue(f.trimpPoints!.round().toString())),

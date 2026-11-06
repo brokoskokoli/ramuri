@@ -251,6 +251,32 @@ Future<void> _values(StorageContractHarness h) async {
   expectEq(read[1].original.sections.length, 3, 'original behält 3 Abschnitte');
   expectEq(read[1].current.sections.length, 2, 'current hat neue Abschnitte');
   expectEq(read[0].original.sections.length, 0, 'Wert ohne Abschnitte');
+
+  // Gebündelte Abfrage: das current der verlangten Schlüssel aller Läufe, ohne
+  // Tageswerte und ohne Abschnitte.
+  final other = (await s.runs.create(startedAt: at(1))).id;
+  await s.values.createOriginals(ValueOwner.run(other), [
+    sampleValue('vo2max', 40),
+  ]);
+  await s.values.createOriginals(const ValueOwner.day('2030-01-02'), [
+    sampleValue('vo2max', 1),
+  ]);
+  final bulk = await s.values.readRunValues({'vo2max', 'nichts'});
+  expectEq(bulk.keys.toSet(), {r, other}, 'alle Läufe mit dem Schlüssel');
+  expectEq(bulk[r]!.keys.toList(), ['vo2max'], 'nur verlangte Schlüssel');
+  expectEq(bulk[r]!['vo2max']!.value, 50.25, 'das current, nicht das original');
+  expectEq(bulk[other]!['vo2max']!.value, 40.0, 'anderer Lauf');
+  expectEq(bulk[r]!['vo2max']!.sections.length, 0, 'ohne Abschnitte');
+  expectEq(
+    bulk[r]!['vo2max']!.quality,
+    ValueQuality.good,
+    'Qualität des current',
+  );
+  expectEq(
+    (await s.values.readRunValues({})).length,
+    0,
+    'keine Schlüssel, keine Antwort',
+  );
   await s.close();
 }
 

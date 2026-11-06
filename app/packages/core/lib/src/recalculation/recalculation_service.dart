@@ -65,7 +65,10 @@ class RecalculationResult {
 /// 3. [decline] verwirft das Angebot und ändert keine Werte (alte Läufe
 ///    ändern sich nie still, OQ-0065).
 ///
-/// Zonenzeiten werden nicht gespeichert; es gibt nichts neu zu rechnen.
+/// Zonenzeiten und TRIMP sind Laufwerte, die nach dem Lauf einmal gespeichert
+/// werden ([buildRunLoadValues]). Die Neuberechnung fasst sie nie an (L11): Sie
+/// tauscht nur VO₂max-Laufwerte und Tageswerte; alte Läufe behalten ihre
+/// Zonenzeiten (FR-0061, OQ-0065).
 class RecalculationService {
   RecalculationService({
     required this.session,

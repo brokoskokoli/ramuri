@@ -234,6 +234,11 @@ abstract interface class ComputedValueStore {
 
   /// Alle Werte des Besitzers, nach Schlüssel sortiert.
   Future<List<ValuePair>> read(ValueOwner owner);
+
+  /// Das `current` der Laufwerte mit den Schlüsseln [keys], für ALLE Läufe in
+  /// einer Abfrage (Historie, Statistik: kein Zugriff je Lauf). Läufe ohne
+  /// einen dieser Werte fehlen in der Antwort, ohne Abschnitte.
+  Future<Map<int, Map<String, ComputedValue>>> readRunValues(Set<String> keys);
 }
 
 /// Prüft Werte vor dem Speichern; Adapter und Fake rufen dieselbe Regel (die

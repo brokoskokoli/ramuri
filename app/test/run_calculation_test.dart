@@ -191,7 +191,10 @@ void main() {
       // 22:35 UTC + 2 h = 00:35 des Folgetags (lokaler Kalendertag).
       expect(dayOfRun(run), '2030-03-02');
       expect(c.calculationFailed, isFalse);
-      expect(await w.session.values.read(ValueOwner.run(run.id)), hasLength(1));
+      expect(
+        await w.session.values.read(ValueOwner.run(run.id)),
+        hasLength(1 + runLoadValueKeys.length),
+      );
       expect(
         await w.session.values.read(const ValueOwner.day('2030-03-02')),
         isNotEmpty,
@@ -228,7 +231,10 @@ void main() {
 
       // Beim nächsten Start.
       await completePendingValueRefresh(w.session, w.clock);
-      expect(await w.session.values.read(ValueOwner.run(run.id)), hasLength(1));
+      expect(
+        await w.session.values.read(ValueOwner.run(run.id)),
+        hasLength(1 + runLoadValueKeys.length),
+      );
       expect(
         await w.session.settings.get(
           ValueCalculationService.calculationPendingKey,
@@ -286,7 +292,10 @@ void main() {
       gate.complete();
       await started;
       await done;
-      expect(await w.session.values.read(ValueOwner.run(run.id)), hasLength(1));
+      expect(
+        await w.session.values.read(ValueOwner.run(run.id)),
+        hasLength(1 + runLoadValueKeys.length),
+      );
     },
   );
 
@@ -310,7 +319,10 @@ void main() {
       final run = (await w.session.runs.list()).single;
       expect(run.state, RunState.finished);
       expect(c.calculationFailed, isFalse);
-      expect(await w.session.values.read(ValueOwner.run(run.id)), hasLength(1));
+      expect(
+        await w.session.values.read(ValueOwner.run(run.id)),
+        hasLength(1 + runLoadValueKeys.length),
+      );
     },
   );
 
@@ -344,7 +356,10 @@ void main() {
 
       // Neustart: Nachholen findet den beendeten Lauf ohne Laufwert.
       await completePendingValueRefresh(w.session, w.clock);
-      expect(await w.session.values.read(ValueOwner.run(run.id)), hasLength(1));
+      expect(
+        await w.session.values.read(ValueOwner.run(run.id)),
+        hasLength(1 + runLoadValueKeys.length),
+      );
     },
   );
 
@@ -429,6 +444,9 @@ void main() {
     final run = (await w.session.runs.list()).reduce(
       (a, b) => a.id > b.id ? a : b,
     );
-    expect(await w.session.values.read(ValueOwner.run(run.id)), hasLength(1));
+    expect(
+      await w.session.values.read(ValueOwner.run(run.id)),
+      hasLength(1 + runLoadValueKeys.length),
+    );
   });
 }

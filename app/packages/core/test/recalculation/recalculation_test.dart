@@ -80,10 +80,7 @@ void main() {
   test('Bestätigen: original, current und ursprüngliche Qualität abrufbar, Rohdaten unverändert', () async {
     final s = w.recalc();
     final offer = await offerAfterChange(s);
-    final before = {
-      for (final id in ids)
-        id: (await w.session.values.read(ValueOwner.run(id))).single,
-    };
+    final before = {for (final id in ids) id: (await runVo2(w.session, id))};
     final dayBefore = await w.session.values.read(
       const ValueOwner.day('2030-02-25'),
     );
@@ -97,7 +94,7 @@ void main() {
     expect(result.dayCount, greaterThan(0));
 
     for (final id in ids) {
-      final p = (await w.session.values.read(ValueOwner.run(id))).single;
+      final p = (await runVo2(w.session, id));
       final b = before[id]!;
       // original unverändert, samt Qualität und Abschnitten.
       expect(p.original.value, b.original.value);

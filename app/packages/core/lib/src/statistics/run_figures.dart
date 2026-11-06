@@ -1,7 +1,6 @@
 import '../../ports/storage_runs.dart';
-import '../fitness/edwards_trimp.dart';
-import '../fitness/reserve_zones.dart';
 import '../preprocessing/run_preprocessor.dart';
+import '../recalculation/run_load_values.dart';
 import '../recalculation/value_calculation_service.dart' show dayOfRun;
 import '../preprocessing/gap_moving_time.dart';
 import 'best_pace.dart';
@@ -72,15 +71,15 @@ class RunFigures {
   }
 
   /// Aus einem beendeten Lauf und seiner Vorverarbeitung (Wiedergabe der
-  /// Rohdaten, `replayRunPreprocessing`). [trimp] und [zones] sind die
-  /// berechneten Ergebnisse oder `null`, wenn nicht verfügbar. Wirft
+  /// Rohdaten, `replayRunPreprocessing`). Zonen und TRIMP kommen aus den am
+  /// Lauf gespeicherten Werten [load], nie aus dem aktuellen Profil; ohne sie
+  /// fehlen sie (`null`). Wirft
   /// [ArgumentError], wenn der Lauf nicht beendet ist.
   factory RunFigures.fromRun({
     required StoredRun run,
     required RunPreprocessing preprocessing,
     required List<StoredLap> laps,
-    TrimpResult? trimp,
-    ReserveZoneTimes? zones,
+    StoredRunLoad load = StoredRunLoad.none,
     StatisticsParameters parameters = const StatisticsParameters(),
   }) {
     final end = run.endedAt;
@@ -108,14 +107,10 @@ class RunFigures {
       heartRateAverageBpm: hr.averageBpm,
       heartRateSampleCount: hr.acceptedValues.length,
       heartRateMaxBpm: hr.maxBpm,
-      trimpPoints: trimp?.points,
-      trimpIncomplete: trimp?.incomplete ?? false,
-      zoneTimes: zones == null
-          ? null
-          : [for (final m in zones.zoneMicros) Duration(microseconds: m)],
-      belowZone1Time: zones == null
-          ? null
-          : Duration(microseconds: zones.belowZone1Micros),
+      trimpPoints: load.trimpPoints,
+      trimpIncomplete: load.trimpIncomplete,
+      zoneTimes: load.zoneTimes,
+      belowZone1Time: load.belowZone1Time,
     );
   }
 }

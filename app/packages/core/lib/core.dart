@@ -70,6 +70,7 @@ export 'src/profile/profile_service.dart';
 export 'src/profile/profile_validation.dart';
 export 'src/recalculation/recalculation_service.dart';
 export 'src/recalculation/run_analysis.dart';
+export 'src/recalculation/run_load_values.dart';
 export 'src/recalculation/value_calculation_service.dart';
 export 'src/settings/display_settings.dart';
 export 'src/settings/reserve_zone_settings.dart';

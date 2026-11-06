@@ -741,5 +741,6 @@
   "sumVo2max": "VO₂max (Schätzung)",
   "sumVo2maxValue": "{value} ml/kg/min (Schätzung)",
   "@sumVo2maxValue": {"description": "WP10 B1", "placeholders": {"value": {"type": "String"}}},
-  "sumVo2maxNone": "nicht verfügbar"
+  "sumVo2maxNone": "nicht verfügbar",
+  "sumLoadNotStored": "nicht verfügbar (für diesen Lauf nicht gespeichert)"
 }

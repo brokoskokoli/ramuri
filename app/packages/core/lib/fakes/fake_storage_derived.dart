@@ -238,4 +238,36 @@ class FakeComputedValueStore implements ComputedValueStore {
   Future<List<ValuePair>> read(ValueOwner owner) async =>
       (_d.values[owner]?.values.toList() ?? <ValuePair>[])
         ..sort((a, b) => a.original.key.compareTo(b.original.key));
+
+  static ComputedValue _withoutSections(ComputedValue v) => ComputedValue(
+    key: v.key,
+    value: v.value,
+    unavailableReason: v.unavailableReason,
+    heartRateBasis: v.heartRateBasis,
+    unit: v.unit,
+    computedAt: v.computedAt,
+    dataFrom: v.dataFrom,
+    dataTo: v.dataTo,
+    measurementCount: v.measurementCount,
+    sources: v.sources,
+    method: v.method,
+    methodVersion: v.methodVersion,
+    parameterVersion: v.parameterVersion,
+    quality: v.quality,
+  );
+
+  @override
+  Future<Map<int, Map<String, ComputedValue>>> readRunValues(
+    Set<String> keys,
+  ) async => {
+    for (final e in _d.values.entries)
+      if (e.key.runId != null)
+        if ({
+              for (final p in e.value.values)
+                if (keys.contains(p.current.key))
+                  p.current.key: _withoutSections(p.current),
+            }
+            case final found when found.isNotEmpty)
+          e.key.runId!: found,
+  };
 }

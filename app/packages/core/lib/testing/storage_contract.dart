@@ -63,6 +63,9 @@ Future<void> _cascade(StorageContractHarness h) async {
   expectTrue(await s.preprocessing.read(a) == null, 'Vorverarbeitung weg');
   expectEq((await s.sections.read(a)).length, 0, 'Abschnitte weg');
   expectEq((await s.values.read(ValueOwner.run(a))).length, 0, 'Werte weg');
+  final bulk = await s.values.readRunValues({'v'});
+  expectTrue(!bulk.containsKey(a), 'Werte weg (gebündelte Abfrage)');
+  expectTrue(bulk.containsKey(b), 'Werte des anderen bleiben (gebündelt)');
 
   expectEq(
     (await s.markers.laps(b)).length,

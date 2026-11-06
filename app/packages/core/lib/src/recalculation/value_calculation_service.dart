@@ -9,7 +9,9 @@ import '../fitness/vo2max_long_term.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../statistics/run_overview.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
+import '../settings/reserve_zone_settings.dart';
 import 'run_analysis.dart';
+import 'run_load_values.dart';
 
 /// Die Werte, die nach einem Lauf entstehen.
 class RunCalculationResult {
@@ -54,7 +56,8 @@ String dayOfRun(StoredRun run) =>
     isoDay(run.endedAt!.toUtc().add(run.endedUtcOffset ?? Duration.zero));
 
 /// Rechnet VO₂max-Laufwert, Langzeitwert und aerobe Effizienz aus den
-/// gespeicherten Rohdaten (FR-0066 bis FR-0087) und speichert sie als
+/// gespeicherten Rohdaten (FR-0066 bis FR-0087), dazu die Laufwerte für Zonen
+/// und TRIMP ([buildRunLoadValues]), und speichert sie als
 /// `original` und `current` mit den Angaben aus FR-0053, den bewerteten
 /// Abschnitten (FR-0073) und der verwendeten Herzfrequenzbasis (OQ-0065).
 /// Netzwerkfrei (SEC-0006), Zeit nur über [Clock].
@@ -144,6 +147,18 @@ class ValueCalculationService {
     );
     final plan = _DayPlan();
     await plan.add(session, day, values.all);
+    // Zonenzeiten und TRIMP mit den Zonengrenzen und der Basis zum Laufende;
+    // sie werden nie neu gerechnet (L11).
+    final bounds = (await ReserveZoneSettings.loadParameters(session.settings))
+        .reserveZoneBounds;
+    final loadValues = buildRunLoadValues(
+      run: run,
+      pre: analysis.preprocessing,
+      basis: profile,
+      fitness: fitness.copyWith(reserveZoneBounds: bounds),
+      sources: analysis.sources,
+      computedAt: now,
+    );
     // Kurzfassung für Historie und Vergleich (vor den Werten: scheitert sie,
     // ist nichts geschrieben und ein neuer Versuch möglich).
     final pre = analysis.preprocessing;
@@ -155,7 +170,7 @@ class ValueCalculationService {
     }
     await session.values.writeAll(
       create: {
-        ValueOwner.run(runId): [runValue],
+        ValueOwner.run(runId): [runValue, ...loadValues],
         ...plan.create,
       },
       swap: plan.swap,

@@ -13,7 +13,7 @@ void main() {
       final id = await w.seedRun(DateTime.utc(2030, 2, 25, 8));
       final res = await w.calc().calculateAfterRun(id);
 
-      final pair = (await w.session.values.read(ValueOwner.run(id))).single;
+      final pair = (await runVo2(w.session, id));
       expect(pair.original.key, vo2maxRunValueKey);
       // ACSM: 0,2 * 180 m/min + 3,5 = 39,5; r = (150 - 60) / 130 = 0,692;
       // 3,5 + 36 / 0,692 = 55,5 ml/kg/min.
@@ -43,7 +43,7 @@ void main() {
       // Puls zu niedrig: r unter 0,55 -> alle Abschnitte abgelehnt.
       final id = await w.seedRun(DateTime.utc(2030, 2, 25, 8), bpm: 100);
       await w.calc().calculateAfterRun(id);
-      final pair = (await w.session.values.read(ValueOwner.run(id))).single;
+      final pair = (await runVo2(w.session, id));
       expect(pair.original.quality, ValueQuality.undeterminable);
       expect(pair.original.value, isNull);
       // FR-0068, PAR-037: nicht bestimmbar wird mit Grund gespeichert.
@@ -66,7 +66,7 @@ void main() {
     );
     final id = await w.seedRun(DateTime.utc(2030, 2, 25, 8));
     await w.calc().calculateAfterRun(id);
-    final v = (await w.session.values.read(ValueOwner.run(id))).single.original;
+    final v = (await runVo2(w.session, id)).original;
     expect(v.quality, ValueQuality.provisional);
     // r = (150 - 60) / (180 - 60) = 0,75 -> 3,5 + 36 / 0,75 = 51,5.
     expect(v.value, closeTo(51.5, 0.1));
@@ -90,8 +90,7 @@ void main() {
         UnavailableReason.missingMaxHeartRate,
       );
       expect(res.longTerm.unavailableReason, isNotNull);
-      final stored = (await w.session.values.read(ValueOwner.run(first)))
-          .single;
+      final stored = (await runVo2(w.session, first));
       expect(
         stored.original.unavailableReason,
         UnavailableReason.missingMaxHeartRate,
@@ -119,6 +118,7 @@ void main() {
       vo2maxRunValueKey,
       vo2maxLongTermValueKey,
       aerobicEfficiencyValueKey,
+      ...runLoadValueKeys,
     });
     for (final p in pairs) {
       for (final v in [p.original, p.current]) {
@@ -251,10 +251,10 @@ void main() {
 
     await w.calc().completePendingCalculations();
     expect(await w.session.settings.get(key), '');
-    expect(await w.session.values.read(ValueOwner.run(id)), hasLength(1));
+    expect(await runVo2Pairs(w.session, id), hasLength(1));
     // Nochmal: nichts mehr zu tun, kein zweiter Laufwert.
     await w.calc().completePendingCalculations();
-    expect(await w.session.values.read(ValueOwner.run(id)), hasLength(1));
+    expect(await runVo2Pairs(w.session, id), hasLength(1));
 
     // Erfolg trägt den Lauf wieder aus.
     final id2 = await w.seedRun(DateTime.utc(2030, 2, 26, 8));
@@ -272,7 +272,7 @@ void main() {
       expect(await w.session.values.read(ValueOwner.run(id)), isEmpty);
 
       await w.calc().completePendingCalculations();
-      expect(await w.session.values.read(ValueOwner.run(id)), hasLength(1));
+      expect(await runVo2Pairs(w.session, id), hasLength(1));
       expect(await w.session.settings.get(key), isNull);
     },
   );
@@ -335,7 +335,7 @@ void main() {
       endedAt: DateTime.utc(2030, 2, 25),
     );
     await w.calc().calculateAfterRun(run.id);
-    final v = (await w.session.values.read(ValueOwner.run(run.id))).single;
+    final v = (await runVo2(w.session, run.id));
     expect(v.original.quality, ValueQuality.undeterminable);
   });
 
@@ -379,14 +379,13 @@ void main() {
     final w = await RecalcWorld.create();
     final ids = await w.seedFourRunsCalculated();
     final keepBefore = [
-      for (final id in ids.take(3))
-        (await w.session.values.read(ValueOwner.run(id))).single,
+      for (final id in ids.take(3)) (await runVo2(w.session, id)),
     ];
     await w.session.deleteRun(ids.last);
     await w.calc().refreshAfterDelete();
 
     for (var i = 0; i < 3; i++) {
-      final p = (await w.session.values.read(ValueOwner.run(ids[i]))).single;
+      final p = (await runVo2(w.session, ids[i]));
       expect(p.current.value, keepBefore[i].current.value);
       expect(p.current.computedAt, keepBefore[i].current.computedAt);
     }

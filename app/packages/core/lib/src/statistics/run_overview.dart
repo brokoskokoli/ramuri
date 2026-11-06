@@ -7,6 +7,7 @@ import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
 import '../recalculation/run_analysis.dart';
+import '../recalculation/run_load_values.dart';
 import '../recalculation/value_calculation_service.dart' show dayOfRun;
 import 'run_figures.dart';
 
@@ -62,9 +63,14 @@ class RunOverview {
     this.averageHeartRateBpm,
     this.maxHeartRateBpm,
     this.readFailed = false,
+    this.load = StoredRunLoad.none,
   });
 
   final StoredRun run;
+
+  /// Zonenzeiten und TRIMP, wie am Lauf gespeichert (nicht mit dem aktuellen
+  /// Profil gerechnet).
+  final StoredRunLoad load;
 
   /// Die Rohdaten des Laufs ließen sich nicht lesen; alle Kennzahlen fehlen.
   final bool readFailed;
@@ -81,8 +87,9 @@ class RunOverview {
   /// Dieselbe Rechnung wie [RunFigures.averagePaceSecondsPerKm].
   double? get averagePaceSecondsPerKm => toFigures().averagePaceSecondsPerKm;
 
-  /// Für den Vergleich ([classifyRun]); ohne Teile, die die Kurzfassung nicht
-  /// trägt (Bestpace, Zonen, TRIMP).
+  /// Für Vergleich ([classifyRun]) und Zeitraumstatistik; ohne Teile, die die
+  /// Kurzfassung nicht trägt (Bestpace, Runden, Pulsanzahl). Zonen und TRIMP
+  /// kommen aus den gespeicherten Werten ([load]).
   RunFigures toFigures() => RunFigures(
     runId: run.id,
     endedAt: run.endedAt!,
@@ -93,11 +100,19 @@ class RunOverview {
     paceTime: paceTime,
     heartRateAverageBpm: averageHeartRateBpm,
     heartRateMaxBpm: maxHeartRateBpm,
+    zoneTimes: load.zoneTimes,
+    belowZone1Time: load.belowZone1Time,
+    trimpPoints: load.trimpPoints,
+    trimpIncomplete: load.trimpIncomplete,
   );
 
   /// Aus der gespeicherten Kurzfassung. Die Zeit in Positionslücken ist die
   /// Überlappung der Spannen (K20, wie `movingTimeInPositionGaps`).
-  factory RunOverview.fromStored(StoredRun run, StoredPreprocessing stored) {
+  factory RunOverview.fromStored(
+    StoredRun run,
+    StoredPreprocessing stored, {
+    StoredRunLoad load = StoredRunLoad.none,
+  }) {
     final s = stored.summary;
     List<TimeSpan> spans(PreprocessedSpanKind kind) => [
       for (final p in stored.spans)
@@ -122,12 +137,14 @@ class RunOverview {
       paceTime: paceTime,
       averageHeartRateBpm: s.averageBpm,
       maxHeartRateBpm: s.maxBpm,
+      load: load,
     );
   }
 }
 
 /// Liefert die Läufe für die Historie mit ihren Kennzahlen. Gelesen wird in
-/// einer Abfrage für alle Läufe (`runs.list`, `preprocessing.readOverviews`),
+/// einer Abfrage für alle Läufe (`runs.list`, `preprocessing.readOverviews`,
+/// `values.readRunValues`),
 /// nicht je Lauf. Nur für Läufe ohne gespeicherte Kurzfassung (Berechnung nach
 /// dem Lauf fehlgeschlagen, ältere Parameterversion) werden die Rohdaten
 /// gelesen, neu gerechnet und die Kurzfassung gespeichert.
@@ -150,13 +167,16 @@ class RunOverviewService {
         if (r.state == RunState.finished && r.endedAt != null) r,
     ];
     final stored = await session.preprocessing.readOverviews();
+    // Zonenzeiten und TRIMP: eine Abfrage für alle Läufe.
+    final loads = await session.values.readRunValues(runLoadValueKeys);
     final result = <RunOverview>[];
     for (final run in runs) {
       final s = stored[run.id];
+      final load = StoredRunLoad.fromValues(loads[run.id] ?? const {});
       if (s != null && _isCurrent(s.summary)) {
-        result.add(RunOverview.fromStored(run, s));
+        result.add(RunOverview.fromStored(run, s, load: load));
       } else {
-        result.add(await _recompute(run));
+        result.add(await _recompute(run, load));
       }
     }
     return result;
@@ -168,9 +188,9 @@ class RunOverviewService {
       s.methodVersion == runOverviewMethodVersion &&
       s.parameterVersion == parameters.parameterVersion;
 
-  Future<RunOverview> _recompute(StoredRun run) async {
+  Future<RunOverview> _recompute(StoredRun run, StoredRunLoad load) async {
     final end = run.endedAt!;
-    if (!end.isAfter(run.startedAt)) return RunOverview(run: run);
+    if (!end.isAfter(run.startedAt)) return RunOverview(run: run, load: load);
     final RunPreprocessing pre;
     try {
       pre = replayRunPreprocessing(
@@ -182,7 +202,7 @@ class RunOverviewService {
       );
     } on StorageException {
       // Ein Lauf, der nicht lesbar ist, lässt die Historie nicht scheitern.
-      return RunOverview(run: run, readFailed: true);
+      return RunOverview(run: run, readFailed: true, load: load);
     }
     final stored = overviewOf(pre, computedAt: clock.now());
     try {
@@ -190,6 +210,6 @@ class RunOverviewService {
     } on StorageException {
       // Nur das Merken scheitert; die Anzeige gilt.
     }
-    return RunOverview.fromStored(run, stored);
+    return RunOverview.fromStored(run, stored, load: load);
   }
 }

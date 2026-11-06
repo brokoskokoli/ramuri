@@ -187,6 +187,56 @@ class DriftComputedValueStore implements ComputedValueStore {
     }
   }
 
+  static ComputedValue _valueOf(
+    d.ComputedValue r,
+    List<ValueSection> sections,
+  ) => ComputedValue(
+    sections: sections,
+    key: r.valueKey,
+    value: r.valueReal,
+    unavailableReason: r.unavailableReason == null
+        ? null
+        : enumOf(UnavailableReason.values, r.unavailableReason!, (v) => v.name),
+    heartRateBasis: r.hrMaxIsEstimated == null
+        ? null
+        : HeartRateBasis(
+            maxBpm: r.hrMaxBpm,
+            restingBpm: r.hrRestBpm,
+            maxIsEstimated: r.hrMaxIsEstimated!,
+          ),
+    unit: r.unit,
+    computedAt: timeOf(r.computedAtUs),
+    dataFrom: timeOfOrNull(r.dataFromUs),
+    dataTo: timeOfOrNull(r.dataToUs),
+    measurementCount: r.measurementCount,
+    sources: [for (final s in jsonDecode(r.sources) as List) s as String],
+    method: r.method,
+    methodVersion: r.methodVersion,
+    parameterVersion: r.parameterVersion,
+    quality: enumOf(ValueQuality.values, r.quality, (v) => v.name),
+  );
+
+  @override
+  Future<Map<int, Map<String, ComputedValue>>> readRunValues(
+    Set<String> keys,
+  ) => guarded(() async {
+    if (keys.isEmpty) return {};
+    // Eine Abfrage für alle Läufe; die Werte tragen keine Abschnitte.
+    final rows =
+        await (_db.select(_db.computedValues)..where(
+              (t) =>
+                  t.runId.isNotNull() &
+                  t.role.equals(_Role.current.name) &
+                  t.valueKey.isIn(keys),
+            ))
+            .get();
+    final out = <int, Map<String, ComputedValue>>{};
+    for (final r in rows) {
+      (out[r.runId!] ??= {})[r.valueKey] = _valueOf(r, const []);
+    }
+    return out;
+  });
+
   @override
   Future<List<ValuePair>> read(ValueOwner owner) => guarded(() async {
     final original = <String, ComputedValue>{};
@@ -224,35 +274,7 @@ class DriftComputedValueStore implements ComputedValueStore {
       }
     }
     for (final r in rows) {
-      final v = ComputedValue(
-        sections: sections[r.id] ?? const [],
-        key: r.valueKey,
-        value: r.valueReal,
-        unavailableReason: r.unavailableReason == null
-            ? null
-            : enumOf(
-                UnavailableReason.values,
-                r.unavailableReason!,
-                (v) => v.name,
-              ),
-        heartRateBasis: r.hrMaxIsEstimated == null
-            ? null
-            : HeartRateBasis(
-                maxBpm: r.hrMaxBpm,
-                restingBpm: r.hrRestBpm,
-                maxIsEstimated: r.hrMaxIsEstimated!,
-              ),
-        unit: r.unit,
-        computedAt: timeOf(r.computedAtUs),
-        dataFrom: timeOfOrNull(r.dataFromUs),
-        dataTo: timeOfOrNull(r.dataToUs),
-        measurementCount: r.measurementCount,
-        sources: [for (final s in jsonDecode(r.sources) as List) s as String],
-        method: r.method,
-        methodVersion: r.methodVersion,
-        parameterVersion: r.parameterVersion,
-        quality: enumOf(ValueQuality.values, r.quality, (v) => v.name),
-      );
+      final v = _valueOf(r, sections[r.id] ?? const []);
       (r.role == _Role.original.name ? original : current)[r.valueKey] = v;
     }
     return [

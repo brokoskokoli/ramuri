@@ -2,15 +2,10 @@ import '../../ports/clock.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
-import '../fitness/edwards_trimp.dart';
-import '../fitness/fitness_result.dart';
-import '../fitness/heart_rate_reserve.dart';
-import '../fitness/reserve_zones.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
-import '../profile/heart_rate_resolution.dart';
 import '../recalculation/run_analysis.dart';
-import '../settings/reserve_zone_settings.dart';
+import '../recalculation/run_load_values.dart';
 import 'best_pace.dart';
 import 'classification.dart';
 import 'run_figures.dart';
@@ -25,8 +20,7 @@ class RunSummary {
     required this.figures,
     required this.preprocessing,
     required this.laps,
-    required this.trimp,
-    required this.zones,
+    required this.load,
     required this.bestPace,
     required this.classification,
     required this.vo2max,
@@ -39,8 +33,10 @@ class RunSummary {
   final RunFigures figures;
   final RunPreprocessing preprocessing;
   final List<StoredLap> laps;
-  final FitnessResult<TrimpResult> trimp;
-  final FitnessResult<ReserveZoneTimes> zones;
+
+  /// Zonenzeiten und TRIMP, wie am Lauf gespeichert (Entscheidung 2026-11-06),
+  /// nie mit dem aktuellen Profil neu gerechnet.
+  final StoredRunLoad load;
   final BestPace bestPace;
   final RunClassification classification;
 
@@ -56,7 +52,8 @@ class RunSummary {
 }
 
 /// Liest und rechnet alles für die Zusammenfassung eines beendeten Laufs aus
-/// den Rohdaten (ADR-0004 Punkt 1). Zonenzeiten werden nicht gespeichert (WP09).
+/// den Rohdaten (ADR-0004 Punkt 1); Zonenzeiten und TRIMP kommen aus den am
+/// Lauf gespeicherten Werten.
 class RunSummaryService {
   RunSummaryService({
     required this.session,
@@ -88,30 +85,16 @@ class RunSummaryService {
       gaps: gaps,
       parameters: preprocessing,
     );
-    final fitness = await ReserveZoneSettings.loadParameters(session.settings);
-    final basis = resolveHeartRate(
-      await session.profile.read(),
-      currentYear: clock.now().year,
-      fitness: fitness,
-    ).basis;
-    final trimp = const EdwardsTrimp().compute(
-      basis: basis,
-      heartRate: pre.heartRate,
-      movement: pre.movement,
-      p: fitness,
-    );
-    final zones = const ReserveZones(reserve: HeartRateReserve()).timeInZones(
-      basis: basis,
-      heartRate: pre.heartRate,
-      movement: pre.movement,
-      p: fitness,
-    );
+    final values = await session.values.read(ValueOwner.run(runId));
+    final load = StoredRunLoad.fromValues({
+      for (final v in values)
+        if (runLoadValueKeys.contains(v.current.key)) v.current.key: v.current,
+    });
     final figures = RunFigures.fromRun(
       run: run,
       preprocessing: pre,
       laps: laps,
-      trimp: trimp is FitnessAvailable<TrimpResult> ? trimp.value : null,
-      zones: zones is FitnessAvailable<ReserveZoneTimes> ? zones.value : null,
+      load: load,
       parameters: statistics,
     );
     final others = [
@@ -122,7 +105,6 @@ class RunSummaryService {
       ).load())
         if (o.run.id != runId) o.toFigures(),
     ];
-    final values = await session.values.read(ValueOwner.run(runId));
     ComputedValue? vo2;
     for (final v in values) {
       if (v.current.key == vo2maxRunValueKey) vo2 = v.current;
@@ -132,8 +114,7 @@ class RunSummaryService {
       figures: figures,
       preprocessing: pre,
       laps: laps,
-      trimp: trimp,
-      zones: zones,
+      load: load,
       bestPace: bestPace(pre.pace.segments, parameters: statistics),
       classification: classifyRun(figures, others, parameters: statistics),
       vo2max: vo2,

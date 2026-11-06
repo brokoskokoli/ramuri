@@ -147,7 +147,7 @@ void main() {
       expect(await w.dump(), before);
       // Wiederholung gelingt: Laufwert und Tageswerte sind da.
       await w.calc().calculateAfterRun(second);
-      expect(await w.session.values.read(ValueOwner.run(second)), hasLength(1));
+      expect(await runVo2Pairs(w.session, second), hasLength(1));
       expect(
         await w.session.values.read(const ValueOwner.day('2030-02-25')),
         hasLength(2),
@@ -174,7 +174,7 @@ void main() {
         expect(await w.dump(), before);
         values.failWriteAll = false;
         await w.calc(over: faulty).calculateAfterRun(id);
-        expect(await w.session.values.read(ValueOwner.run(id)), hasLength(1));
+        expect(await runVo2Pairs(w.session, id), hasLength(1));
         expect(
           await w.session.values.read(const ValueOwner.day('2030-02-25')),
           hasLength(2),
@@ -194,7 +194,7 @@ void main() {
         final b = v.heartRateBasis!;
         expect((b.maxBpm, b.restingBpm, b.maxIsEstimated), (180, 60, true));
       }
-      final stored = (await w.session.values.read(ValueOwner.run(id))).single;
+      final stored = (await runVo2(w.session, id));
       expect(stored.original.heartRateBasis!.maxBpm, 180);
       // Der Langzeitwert braucht keine Basis.
       expect(res.longTerm.heartRateBasis, isNull);
@@ -237,8 +237,7 @@ void main() {
       expect(eff.quality, isNot(ValueQuality.undeterminable));
       expect(eff.heartRateBasis!.maxBpm, 190);
       // Laufwerte bleiben ganz unverändert.
-      final run = (await w.session.values.read(ValueOwner.run(ids.last)))
-          .single;
+      final run = (await runVo2(w.session, ids.last));
       expect(run.current.heartRateBasis!.maxBpm, 190);
     });
 

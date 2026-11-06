@@ -11,6 +11,8 @@ class _Counting implements StorageSession {
   int runGets = 0;
   int overviewReads = 0;
   int singleReads = 0;
+  int valueReads = 0;
+  int valueBulkReads = 0;
   final Set<int> failRaw = {};
 
   @override
@@ -24,7 +26,7 @@ class _Counting implements StorageSession {
   @override
   RatedSectionStore get sections => s.sections;
   @override
-  ComputedValueStore get values => s.values;
+  ComputedValueStore get values => _Vals(s.values, this);
   @override
   ProfileStore get profile => s.profile;
   @override
@@ -39,6 +41,37 @@ class _Counting implements StorageSession {
   Future<void> deleteAll() => s.deleteAll();
   @override
   Future<void> close() => s.close();
+}
+
+class _Vals implements ComputedValueStore {
+  _Vals(this.i, this.c);
+  final ComputedValueStore i;
+  final _Counting c;
+  @override
+  Future<void> createOriginals(ValueOwner o, List<ComputedValue> v) =>
+      i.createOriginals(o, v);
+  @override
+  Future<void> swapCurrent(ValueOwner o, List<ComputedValue> v) =>
+      i.swapCurrent(o, v);
+  @override
+  Future<void> swapCurrentAll(Map<ValueOwner, List<ComputedValue>> c) =>
+      i.swapCurrentAll(c);
+  @override
+  Future<void> writeAll({
+    Map<ValueOwner, List<ComputedValue>> create = const {},
+    Map<ValueOwner, List<ComputedValue>> swap = const {},
+  }) => i.writeAll(create: create, swap: swap);
+  @override
+  Future<List<ValuePair>> read(ValueOwner o) {
+    c.valueReads++;
+    return i.read(o);
+  }
+
+  @override
+  Future<Map<int, Map<String, ComputedValue>>> readRunValues(Set<String> keys) {
+    c.valueBulkReads++;
+    return i.readRunValues(keys);
+  }
 }
 
 class _Raw implements RawDataStore {
@@ -134,7 +167,11 @@ void main() {
         expect(c.rawReads, 0, reason: 'nichts wird neu gerechnet');
         expect(c.runGets, 0);
         expect(c.singleReads, 0);
+        expect(c.valueBulkReads, 1, reason: 'Zonen und TRIMP gebündelt');
+        expect(c.valueReads, 0, reason: 'kein Lesen der Werte je Lauf');
         for (final o in list) {
+          expect(o.load.zoneTimes, isNotNull);
+          expect(o.load.trimpPoints, isNotNull);
           expect(o.distanceMeters, isNotNull);
           expect(o.averagePaceSecondsPerKm, isNotNull);
           expect(o.averageHeartRateBpm, 150);
