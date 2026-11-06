@@ -332,9 +332,9 @@ class RecordingSession {
       _gapRef = time;
     }
     final alt = s.altitudeMeters;
-    // Höhe nur zu einer angenommenen Position: verworfene Sprungpunkte liegen
-    // an einem anderen Ort.
-    if (r.accepted && alt != null && alt.isFinite) {
+    // Unbedingt weitergeben: ob die Höhe zählt, entscheidet RunPreprocessor
+    // (gleiche Regel wie bei der Neuberechnung aus den Rohdaten).
+    if (alt != null && alt.isFinite) {
       pre.addAltitude(
         RawAltitude(
           time: time,

@@ -628,6 +628,58 @@ void main() {
       expect(r.s.preprocessing()!.altitude.ascentMeters, 0);
     });
 
+    test('Neuberechnung aus Rohdaten = live, in jeder Reihenfolge', () {
+      // (Sekunde, Nord, Höhe): falscher Anker, Re-Anker, danach Anstieg.
+      final all = <(int, double, double)>[
+        (1, 500000, 0),
+        for (var i = 0; i < 4; i++) (2 + i, 3.0 * i, 495),
+        for (var i = 0; i < 40; i++) (6 + i, 9 + 3.0 * i, 495 + 0.5 * (i + 1)),
+      ];
+      // Kurz (nur falscher Anker, Anstieg 0) und lang (danach echter Anstieg).
+      for (final n in [5, all.length]) {
+        final data = all.take(n).toList();
+        final r = Rig()..s.start();
+        for (final d in data) {
+          at(r, d.$1, d.$2, alt: d.$3);
+        }
+        final live = r.s.preprocessing()!.altitude;
+        expect(live.ascentMeters, n == 5 ? 0 : greaterThan(10));
+
+        for (final altitudeFirst in [false, true]) {
+          final pre = RunPreprocessor(start: t0);
+          for (final d in data) {
+            final f = fix(d.$1, d.$2, alt: d.$3);
+            void pos() => pre.addPosition(
+              RawPosition(
+                time: f.time,
+                source: 'gps',
+                latitude: f.latitude,
+                longitude: f.longitude,
+                accuracyMeters: f.accuracyMeters,
+              ),
+            );
+            void alt() => pre.addAltitude(
+              RawAltitude(time: f.time, source: 'gps', meters: d.$3),
+            );
+            if (altitudeFirst) {
+              alt();
+              pos();
+            } else {
+              pos();
+              alt();
+            }
+          }
+          final re = pre.result(at: r.clock.now()).altitude;
+          expect(
+            re.ascentMeters,
+            live.ascentMeters,
+            reason: 'first=$altitudeFirst',
+          );
+          expect(re.acceptedValues.length, live.acceptedValues.length);
+        }
+      }
+    });
+
     test('Höhe nach dem Re-Anker zählt wieder normal', () {
       final r = Rig()..s.start();
       at(r, 1, 500000, alt: 0);
