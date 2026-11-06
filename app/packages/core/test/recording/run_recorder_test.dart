@@ -139,11 +139,12 @@ class Rig {
     int batchRows = rawBatchRows,
     bool flakyMarkers = false,
     Duration clockOffset = Duration.zero,
+    Duration utcOffset = Duration.zero,
   }) async {
     final session = await FakeStorage().open(Uint8List(32));
     final flaky = flakyMarkers ? FlakyMarkers(session.markers) : null;
     final probe = Probe(session.rawData, session.runs);
-    final clock = FakeClock(t0.add(clockOffset));
+    final clock = FakeClock(t0.add(clockOffset), utcOffset: utcOffset);
     final rec = RunRecorder(
       clock: clock,
       runs: probe,
@@ -177,6 +178,35 @@ class Rig {
 }
 
 void main() {
+  test(
+    'Ende speichert den lokalen UTC-Versatz der Uhr in ganzen Sekunden',
+    () async {
+      final r = await Rig.make(
+        utcOffset: const Duration(hours: 2, minutes: 30),
+      );
+      await r.recorder.start();
+      await r.move(5, 3);
+      // Der Versatz gilt am Ende, nicht am Start (Sommerzeitwechsel im Lauf).
+      r.clock.utcOffset = const Duration(hours: 1, minutes: -45, seconds: 7);
+      expect(await r.recorder.finish(), CommandResult.ok);
+      final done = (await r.session.runs.get(r.id))!;
+      expect(
+        done.endedUtcOffset,
+        const Duration(hours: 1, minutes: -45, seconds: 7),
+      );
+      // Ein Versatz mit Bruchteilen wird auf ganze Sekunden gekürzt.
+      final r2 = await Rig.make(
+        utcOffset: const Duration(hours: -3, milliseconds: -400),
+      );
+      await r2.recorder.start();
+      await r2.recorder.finish();
+      expect(
+        (await r2.session.runs.get(r2.id))!.endedUtcOffset,
+        const Duration(hours: -3),
+      );
+    },
+  );
+
   group('Freier Lauf ohne Plan und Sensor (FR-0025, FR-0035, CON-0004)', () {
     test(
       'Start, Punkte, Runde, Ende: vollständig und lesbar (FR-0028)',

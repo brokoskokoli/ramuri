@@ -158,6 +158,73 @@ class ValueCalculationService {
     );
   }
 
+  /// Einstellungsschlüssel des Merkers „Werte nach dem Lauf noch berechnen“:
+  /// kommagetrennte Lauf-IDs (keine Gesundheitsdaten).
+  static const String calculationPendingKey = 'values.calculationPending';
+
+  Future<Set<int>> _pendingCalculations() async {
+    final raw = await session.settings.get(calculationPendingKey) ?? '';
+    return {
+      for (final p in raw.split(','))
+        if (int.tryParse(p) != null) int.parse(p),
+    };
+  }
+
+  Future<void> _setPendingCalculations(Set<int> ids) => session.settings.set(
+    calculationPendingKey,
+    (ids.toList()..sort()).join(','),
+    at: clock.now(),
+  );
+
+  /// Berechnet die Werte des gerade beendeten Laufs [runId] ([calculateAfterRun])
+  /// und merkt ihn vorher als offen. Gelingt die Berechnung, wird er
+  /// ausgetragen; sonst wird der Fehler weitergegeben, der Lauf bleibt
+  /// gespeichert und [completePendingCalculations] (App-Start) holt die
+  /// Berechnung nach. Scheitert schon das Merken, wird trotzdem gerechnet.
+  Future<RunCalculationResult> calculateAfterRunTracked(int runId) async {
+    var marked = true;
+    try {
+      await _setPendingCalculations({...await _pendingCalculations(), runId});
+    } on Object {
+      marked = false;
+    }
+    final result = await calculateAfterRun(runId);
+    if (marked) await _unmark(runId);
+    return result;
+  }
+
+  Future<void> _unmark(int runId) async {
+    try {
+      await _setPendingCalculations(
+        (await _pendingCalculations())..remove(runId),
+      );
+    } on Object {
+      // Ein stehengebliebener Eintrag wird beim nächsten Start erkannt
+      // (Lauf hat dann Werte) und entfernt.
+    }
+  }
+
+  /// Rechnet alle gemerkten Läufe nach. Gelöschte Läufe und Läufe, die schon
+  /// Werte haben, werden nur ausgetragen. Der erste Fehler wird nach den
+  /// übrigen Läufen weitergegeben; die betroffenen Einträge bleiben.
+  Future<void> completePendingCalculations() async {
+    Object? failure;
+    for (final id in (await _pendingCalculations()).toList()..sort()) {
+      try {
+        final run = await session.runs.get(id);
+        final done =
+            run == null ||
+            run.state != RunState.finished ||
+            (await session.values.read(ValueOwner.run(id))).isNotEmpty;
+        if (!done) await calculateAfterRun(id);
+        await _unmark(id);
+      } on Object catch (e) {
+        failure ??= e;
+      }
+    }
+    if (failure != null) throw failure;
+  }
+
   /// Einstellungsschlüssel des Merkers „Tageswerte nach dem Löschen neu
   /// anlegen“ (nur Lauf-ID und Zeitpunkt, keine Gesundheitsdaten).
   static const String refreshPendingKey = 'values.refreshPending';

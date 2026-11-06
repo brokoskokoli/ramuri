@@ -49,6 +49,7 @@ class HomeScreen extends StatelessWidget {
                     clock: clock,
                     ports: runPorts,
                     permissions: permissions,
+                    serialize: recalculation.exclusive,
                   ),
                 ),
               ),

@@ -29,6 +29,7 @@ class RecalculationController extends ChangeNotifier {
   /// der Tageswerte nach einem Löschen). Fehler werden verschluckt.
   final Future<void> Function()? onStart;
   Future<void>? _starting;
+  Future<void> _queue = Future<void>.value();
   late final StreamSubscription<RecalculationOffer> _sub;
 
   RecalculationOffer? _offer;
@@ -66,6 +67,19 @@ class RecalculationController extends ChangeNotifier {
     }
   }
 
+  /// Führt [action] erst aus, wenn der Start (Nachholen beim Start) und alle
+  /// vorher eingereihten Aktionen fertig sind, und nie parallel zu ihnen. Wer
+  /// Werte schreibt (Berechnung nach dem Lauf, [confirm]), geht hier durch.
+  /// Ein Fehler der Aktion geht an den Aufrufer, die Reihe läuft weiter.
+  Future<T> exclusive<T>(Future<T> Function() action) {
+    final result = _queue.then((_) async {
+      await _starting;
+      return action();
+    });
+    _queue = result.then((_) {}, onError: (Object _) {});
+    return result;
+  }
+
   /// Nach dem Speichern des Profils. Fehler hier verhindern nichts am
   /// Speichern selbst.
   Future<void> profileChanged(ProfileRecord before, ProfileRecord after) async {
@@ -83,9 +97,9 @@ class RecalculationController extends ChangeNotifier {
     _result = null;
     notifyListeners();
     try {
-      // Nicht parallel zum Nachholen aus dem Start.
-      await _starting;
-      _result = await service.confirm(offer);
+      // Nicht parallel zum Nachholen aus dem Start und zur Berechnung nach
+      // einem Lauf.
+      _result = await exclusive(() => service.confirm(offer));
     } on Object {
       // Der alte Stand bleibt ganz (Tausch in einer Transaktion), das Angebot
       // bleibt für einen neuen Versuch.

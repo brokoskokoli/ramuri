@@ -78,13 +78,29 @@ Future<void> deleteRunAndRefresh(
 }
 
 /// Holt ein unterbrochenes Neuanlegen der Tageswerte nach einem Löschen nach
-/// (beim App-Start, vor einer Neuberechnung; nicht parallel zu ihr). Ohne
-/// Merker passiert nichts. Fehler werden weitergegeben; der Merker bleibt.
-Future<void> completePendingValueRefresh(StorageSession session, Clock clock) =>
-    ValueCalculationService(
-      session: session,
-      clock: clock,
-    ).completePendingRefresh();
+/// (beim App-Start, vor einer Neuberechnung; nicht parallel zu ihr), ebenso eine
+/// unterbrochene Berechnung nach einem Lauf. Ohne Merker passiert nichts.
+/// Fehler werden weitergegeben; der Merker bleibt.
+Future<void> completePendingValueRefresh(
+  StorageSession session,
+  Clock clock,
+) async {
+  final calc = ValueCalculationService(session: session, clock: clock);
+  // Beide Nachholer laufen, auch wenn der erste scheitert; der erste Fehler
+  // wird weitergegeben.
+  Object? failure;
+  for (final step in [
+    calc.completePendingRefresh,
+    calc.completePendingCalculations,
+  ]) {
+    try {
+      await step();
+    } on Object catch (e) {
+      failure ??= e;
+    }
+  }
+  if (failure != null) throw failure;
+}
 
 /// Fragt nach und löscht den Lauf [runId]. Für WP10 (Eintrag in der Lauf-Liste).
 /// Erwartet die [clock], weil nach dem Löschen die Tageswerte der übrigen
