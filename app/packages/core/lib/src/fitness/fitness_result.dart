@@ -33,6 +33,13 @@ enum UnavailableReason {
 
   /// Die Schätzungen der Abschnitte streuen zu stark (PAR-037, FR-0077).
   spreadTooHigh,
+
+  /// Das aktuelle 4-Wochen-Fenster erreicht die Mindestmenge nicht
+  /// (PAR-046).
+  currentWindowTooSmall,
+
+  /// Das Vergleichsfenster erreicht die Mindestmenge nicht (PAR-046).
+  referenceWindowTooSmall,
 }
 
 /// Berechneter Wert oder „nicht verfügbar“ mit Grund; beides nennt die

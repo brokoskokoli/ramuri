@@ -18,3 +18,4 @@ Jedes Berechnungsverfahren der App ist genau einer Kategorie aus NFR-0002 zugeor
 | VO₂max-Abschnittsauswahl | `vo2max-section-selection` v1 | B | Alle Grenzen (PAR-020 bis PAR-031) sind Heuristik ohne Quelle; die Auswahl ist eine Qualitätsbewertung (NFR-0002, FR-0048). | WP09 |
 | VO₂max-Schätzer | `vo2max-acsm-hrr` v1 | B | ACSM-Laufformel und Hochrechnung über die Reserve sind etabliert (FR-0069, FR-0071), Plausibilität, Gewichtung, gewichteter Median und Stufen sind eigene Wahl (PAR-032, PAR-033, PAR-036 bis PAR-040). | WP09 |
 | VO₂max-Langzeitwert | `vo2max-long-term-ema` v1 | B | Exponentielle Glättung ist etabliert, α, Neustart und Stufen sind eigene Wahl (PAR-034, PAR-035, PAR-041 bis PAR-043). | WP09 |
+| Aerobe Effizienz | `aerobic-efficiency-median` v1 | B | Der Median ist etabliert, Belastungsbereich, Steigungsgrenze, Mindestmengen und Stufen sind eigene Wahl (OQ-0036, PAR-044 bis PAR-047). | WP09 |

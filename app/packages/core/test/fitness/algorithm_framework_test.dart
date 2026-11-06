@@ -109,6 +109,7 @@ void main() {
         'edwards-trimp',
         'vo2max-acsm-hrr',
         'vo2max-long-term-ema',
+        'aerobic-efficiency-median',
       });
       for (final v in all) {
         expect(v.method.trim(), isNotEmpty);

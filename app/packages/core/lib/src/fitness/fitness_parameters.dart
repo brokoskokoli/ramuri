@@ -18,6 +18,7 @@ class FitnessParameters {
     this.fullCoveragePercent = 100,
     this.sectionSelection = const SectionSelectionParameters(),
     this.vo2max = const Vo2maxParameters(),
+    this.aerobicEfficiency = const AerobicEfficiencyParameters(),
   });
 
   /// Die Startwerte aus Version 3 von docs/model-parameters.md.
@@ -29,6 +30,7 @@ class FitnessParameters {
     List<double>? reserveZoneBounds,
     SectionSelectionParameters? sectionSelection,
     Vo2maxParameters? vo2max,
+    AerobicEfficiencyParameters? aerobicEfficiency,
   }) => FitnessParameters(
     parameterVersion: parameterVersion,
     minHeartRateReserveBpm: minHeartRateReserveBpm,
@@ -41,6 +43,7 @@ class FitnessParameters {
     fullCoveragePercent: fullCoveragePercent,
     sectionSelection: sectionSelection ?? this.sectionSelection,
     vo2max: vo2max ?? this.vo2max,
+    aerobicEfficiency: aerobicEfficiency ?? this.aerobicEfficiency,
   );
 
   /// Prozent je Ganzes; Umrechnung der ganzzahligen Abdeckung.
@@ -84,6 +87,9 @@ class FitnessParameters {
   /// FR-0069, FR-0071, PAR-032, PAR-033, PAR-036 bis PAR-040: Schätzer und
   /// Laufstufe der VO₂max.
   final Vo2maxParameters vo2max;
+
+  /// OQ-0036, PAR-044 bis PAR-047: aerobe Effizienz.
+  final AerobicEfficiencyParameters aerobicEfficiency;
 }
 
 /// Grenzen der Abschnittsauswahl (FR-0073, FR-0074, FR-0075;
@@ -317,4 +323,63 @@ class Vo2maxParameters {
 
   /// PAR-043: davon mindestens so viele „gut“.
   final int longTermGoodMinGoodRuns;
+}
+
+/// Grenzen der aeroben Effizienz (FR-0085 bis FR-0087, OQ-0036;
+/// docs/model-parameters.md PAR-044 bis PAR-047, Version 3). Die Regeln
+/// PAR-010, PAR-011, PAR-020 bis PAR-023, PAR-025 und der Ausschluss ab
+/// PAR-024 kommen aus [SectionSelectionParameters]; hier stehen nur die
+/// Werte, die von der VO₂max abweichen oder neu sind.
+///
+/// Jede Grenze ist inklusiv („höchstens“, „mindestens“, „zwischen“).
+class AerobicEfficiencyParameters {
+  const AerobicEfficiencyParameters({
+    this.loadMin = 0.65,
+    this.loadMax = 0.75,
+    this.gradientMaxAbs = 0.02,
+    this.windowLength = const Duration(days: 28),
+    this.minSections = 3,
+    this.minRuns = 2,
+    this.minDuration = const Duration(minutes: 30),
+    this.sufficientMinSections = 6,
+    this.sufficientMinRuns = 3,
+    this.goodMinSections = 10,
+    this.goodMinRuns = 4,
+    this.maxGradientDifference = 0.01,
+  });
+
+  /// OQ-0036: kleinstes mittleres `r` eines Abschnitts (65 %).
+  final double loadMin;
+
+  /// OQ-0036: größtes mittleres `r` eines Abschnitts (75 %).
+  final double loadMax;
+
+  /// PAR-045: größter Betrag der Nettosteigung (Anteil, 0,02 = 2 %). Unter
+  /// der Höhengrenze aus PAR-027 gilt sie bereits als 0.
+  final double gradientMaxAbs;
+
+  /// OQ-0036: Länge eines Fensters (4 Wochen). Das aktuelle reicht bis
+  /// „jetzt“, das Vergleichsfenster liegt davor.
+  final Duration windowLength;
+
+  /// PAR-046: Abschnitte je Fenster mindestens.
+  final int minSections;
+
+  /// PAR-046: Läufe je Fenster mindestens.
+  final int minRuns;
+
+  /// PAR-046: Summe der Abschnittsdauern je Fenster mindestens.
+  final Duration minDuration;
+
+  /// PAR-047: Abschnitte und Läufe für „ausreichend“ (schwächeres Fenster).
+  final int sufficientMinSections;
+  final int sufficientMinRuns;
+
+  /// PAR-047: Abschnitte und Läufe für „gut“ (schwächeres Fenster).
+  final int goodMinSections;
+  final int goodMinRuns;
+
+  /// PAR-047: Unterschied der mittleren Steigungen (Anteil, 0,01 = 1
+  /// Prozentpunkt), über dem höchstens „vorläufig“ gilt.
+  final double maxGradientDifference;
 }
