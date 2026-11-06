@@ -227,8 +227,9 @@ class _ProfileFormState extends State<ProfileForm> {
                   errorMessage,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
-          helperText: rejected ? null : issue,
-          helperMaxLines: 3,
+          // Hinweis wie der Fehler als Widget ohne Zeilengrenze: "Bitte prüfen."
+          // am Ende darf bei großer Schrift nicht fehlen.
+          helper: rejected || issue == null ? null : Text(issue),
         ),
       ),
     );

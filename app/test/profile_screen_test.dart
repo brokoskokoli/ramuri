@@ -217,4 +217,40 @@ void main() {
       });
     }
   }
+
+  for (final locale in const [Locale('de'), Locale('en')]) {
+    for (final scale in const [1.0, 2.0]) {
+      testWidgets('Hinweistext bei 411x914, ${locale.languageCode}, '
+          'Textskalierung $scale nicht abgeschnitten', (tester) async {
+        await openProfile(tester, locale);
+        tester.view.physicalSize = const Size(411, 914);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await tester.pumpAndSettle();
+        // Stichtag 2026: Alter 40 = 180 bpm, 120 weicht weit ab (Hinweis).
+        await enter(tester, 'profile_birthYear', '1986');
+        await enter(tester, 'profile_max', '120');
+        for (var i = 0; i < 4; i++) {
+          await tester.dragFrom(const Offset(5, 450), const Offset(0, -10000));
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.byKey(const Key('profile_save')));
+        await tester.pumpAndSettle();
+        await tester.dragFrom(const Offset(5, 450), const Offset(0, 10000));
+        await tester.pumpAndSettle();
+        await tester.dragFrom(const Offset(5, 450), const Offset(0, -300));
+        await tester.pumpAndSettle();
+        final text = locale.languageCode == 'de'
+            ? 'Bitte prüfen.'
+            : 'Please check.';
+        final finder = find.textContaining(text);
+        expect(finder, findsOneWidget);
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(of: finder, matching: find.byType(RichText)).first,
+        );
+        expect(paragraph.didExceedMaxLines, isFalse);
+      });
+    }
+  }
 }

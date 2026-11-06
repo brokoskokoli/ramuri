@@ -12,6 +12,7 @@ class _Flaky implements Storage {
   final Storage inner;
   bool failSettings = false;
   bool failProfile = false;
+  bool failProfileSave = false;
 
   @override
   Future<StorageSession> open(Uint8List key) async =>
@@ -81,7 +82,12 @@ class _Profile implements ProfileStore {
   }
 
   @override
-  Future<void> save(ProfileRecord profile) => _s.save(profile);
+  Future<void> save(ProfileRecord profile) async {
+    if (_o.failProfileSave) {
+      throw const StorageException(StorageFailure.failed);
+    }
+    return _s.save(profile);
+  }
 }
 
 void main() {
@@ -152,6 +158,29 @@ void main() {
     await tester.tap(find.byKey(const Key('profile_load_retry')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('profile_save')), findsOneWidget);
+  });
+
+  testWidgets('Speichern scheitert nach Speichern mit Hinweisen: '
+      '"Gespeichert" verschwindet, nur die Fehlermeldung', (tester) async {
+    final d = Device();
+    final flaky = _Flaky(d.storage);
+    d.storageOverride = flaky;
+    await d.start(tester, const Locale('en'));
+    await d.skipSetup(tester);
+    await tester.tap(find.byKey(const Key('home_profile')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('profile_resting')), '35');
+    await tester.tap(find.byKey(const Key('profile_save')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('profile_saved_note')), findsOneWidget);
+    expect(find.text('Saved. Please check the notes.'), findsOneWidget);
+
+    flaky.failProfileSave = true;
+    await tester.tap(find.byKey(const Key('profile_save')));
+    await tester.pumpAndSettle();
+    expect(find.text('The profile could not be saved.'), findsOneWidget);
+    expect(find.byKey(const Key('profile_saved_note')), findsNothing);
+    expect(find.textContaining('Saved'), findsNothing);
   });
 
   testWidgets('keine Trainingstage gewählt: gespeichert als "keine Angabe" '
