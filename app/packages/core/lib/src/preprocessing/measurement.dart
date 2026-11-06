@@ -43,12 +43,22 @@ class RawPosition extends RawSample {
     required this.latitude,
     required this.longitude,
     this.accuracyMeters,
+    this.speedMetersPerSecond,
+    this.speedAccuracyMetersPerSecond,
+    this.verticalAccuracyMeters,
     super.state,
   });
 
   final double latitude;
   final double longitude;
+
+  /// Horizontalgenauigkeit. Alle Genauigkeiten und das Tempo sind `null`, wenn
+  /// die Quelle sie nicht liefert (nie 0). Die Vorverarbeitung wertet
+  /// Tempo und Tempo-Genauigkeit nicht aus (K12: nur festhalten).
   final double? accuracyMeters;
+  final double? speedMetersPerSecond;
+  final double? speedAccuracyMetersPerSecond;
+  final double? verticalAccuracyMeters;
 }
 
 class RawHeartRate extends RawSample {

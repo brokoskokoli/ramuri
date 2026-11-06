@@ -398,4 +398,31 @@ void main() {
     r.s.addPosition(fix(1, 0));
     expect(r.s.preprocessing()!.altitude.ascentMeters, isNull);
   });
+
+  group('Genauigkeiten aus dem Standortpunkt (K12 Adapter-Teil)', () {
+    test('Vertikalgenauigkeit erreicht die Höhenfilterung (PAR-013)', () {
+      final r = Rig()..s.start();
+      r.wait(1);
+      r.s.addPosition(
+        LocationSample(
+          time: t0.add(const Duration(seconds: 1)),
+          latitude: 10,
+          longitude: 20,
+          accuracyMeters: 5,
+          altitudeMeters: 100,
+          verticalAccuracyMeters: 50,
+        ),
+      );
+      final alt = r.s.preprocessing()!.altitude;
+      expect(alt.processed.single.state, MeasurementState.discarded);
+      expect(alt.processed.single.reason, DiscardReason.verticalAccuracy);
+    });
+
+    test('Ohne Vertikalgenauigkeit wird die Höhe angenommen', () {
+      final r = Rig()..s.start();
+      r.wait(1);
+      r.s.addPosition(fix(1, 0, alt: 100));
+      expect(r.s.preprocessing()!.altitude.acceptedValues, hasLength(1));
+    });
+  });
 }

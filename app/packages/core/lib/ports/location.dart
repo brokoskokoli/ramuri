@@ -7,6 +7,8 @@ class LocationSample {
     this.accuracyMeters,
     this.altitudeMeters,
     this.speedMetersPerSecond,
+    this.speedAccuracyMetersPerSecond,
+    this.verticalAccuracyMeters,
   });
 
   final DateTime time;
@@ -17,6 +19,22 @@ class LocationSample {
   final double? accuracyMeters;
   final double? altitudeMeters;
   final double? speedMetersPerSecond;
+  final double? speedAccuracyMetersPerSecond;
+  final double? verticalAccuracyMeters;
+}
+
+/// Grund eines Ausfalls der Standortquelle.
+enum LocationFailureReason { permissionDenied, providerDisabled, other }
+
+/// Fehler im Strom von [LocationSource.samples]. Der Strom läuft danach weiter,
+/// sobald die Quelle wieder liefert (etwa nach erneutem Einschalten von GPS).
+class LocationSourceFailure implements Exception {
+  const LocationSourceFailure(this.reason);
+
+  final LocationFailureReason reason;
+
+  @override
+  String toString() => 'LocationSourceFailure(${reason.name})';
 }
 
 /// Port: Standort. Die Quelle liefert Punkte, solange jemand zuhört.

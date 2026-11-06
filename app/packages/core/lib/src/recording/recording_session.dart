@@ -272,6 +272,9 @@ class RecordingSession {
       latitude: s.latitude,
       longitude: s.longitude,
       accuracyMeters: s.accuracyMeters,
+      speedMetersPerSecond: s.speedMetersPerSecond,
+      speedAccuracyMetersPerSecond: s.speedAccuracyMetersPerSecond,
+      verticalAccuracyMeters: s.verticalAccuracyMeters,
     );
     _checkLoss(s.time);
     final r = pre.addPosition(raw);
@@ -282,7 +285,12 @@ class RecordingSession {
     final alt = s.altitudeMeters;
     if (alt != null && alt.isFinite) {
       pre.addAltitude(
-        RawAltitude(time: s.time, source: positionSource, meters: alt),
+        RawAltitude(
+          time: s.time,
+          source: positionSource,
+          meters: alt,
+          verticalAccuracyMeters: s.verticalAccuracyMeters,
+        ),
       );
     }
     _syncAutoPause(s.time);

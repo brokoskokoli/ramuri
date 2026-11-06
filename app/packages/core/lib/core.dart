@@ -7,6 +7,7 @@ export 'fakes/fake_consented_source.dart';
 export 'fakes/fake_health_connect.dart';
 export 'fakes/fake_heart_rate_sensor.dart';
 export 'fakes/fake_key_store.dart';
+export 'fakes/fake_location_access.dart';
 export 'fakes/fake_location_source.dart';
 export 'fakes/fake_permission_status.dart';
 export 'fakes/fake_recording_service.dart';
@@ -19,6 +20,7 @@ export 'ports/health_connect.dart';
 export 'ports/heart_rate_sensor.dart';
 export 'ports/key_store.dart';
 export 'ports/location.dart';
+export 'ports/location_access.dart';
 export 'ports/permission_status.dart';
 export 'ports/recording_service.dart';
 export 'ports/database_files.dart';
@@ -64,6 +66,7 @@ export 'src/profile/profile_validation.dart';
 export 'src/settings/display_settings.dart';
 export 'src/settings/reserve_zone_settings.dart';
 export 'src/recording/recording_session.dart';
+export 'src/recording/start_gate.dart';
 export 'src/storage/storage_key_service.dart';
 
 /// Name des Pakets, nur damit das Paket auflösbar und testbar ist.
