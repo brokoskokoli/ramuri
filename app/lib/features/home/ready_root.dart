@@ -27,6 +27,7 @@ class ReadyRoot extends StatefulWidget {
 
 class _ReadyRootState extends State<ReadyRoot> {
   late Future<AppSettings> _settings;
+  late final RecalculationService _recalculationService;
   late final RecalculationController _recalculation;
 
   @override
@@ -34,16 +35,15 @@ class _ReadyRootState extends State<ReadyRoot> {
     super.initState();
     // Dienste für die Neuberechnung (FR-0006): eine Instanz je Sitzung; beim
     // Start wird ein offenes Angebot gelesen.
-    _recalculation = RecalculationController(
-      RecalculationService(
+    _recalculationService = RecalculationService(
+      session: widget.session,
+      clock: widget.clock,
+      calculation: ValueCalculationService(
         session: widget.session,
         clock: widget.clock,
-        calculation: ValueCalculationService(
-          session: widget.session,
-          clock: widget.clock,
-        ),
       ),
     );
+    _recalculation = RecalculationController(_recalculationService);
     _recalculation.start();
     _loadSettings();
   }
@@ -51,6 +51,7 @@ class _ReadyRootState extends State<ReadyRoot> {
   @override
   void dispose() {
     _recalculation.dispose();
+    _recalculationService.dispose();
     super.dispose();
   }
 

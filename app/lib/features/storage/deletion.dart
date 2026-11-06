@@ -34,16 +34,48 @@ Future<DeletionResult> runDeletion(Future<void> Function() action) async {
   }
 }
 
+/// Löscht den Lauf [runId] und legt danach die Tageswerte der verbleibenden
+/// Lauftage neu an (FR-0058: die Speicherschicht löscht überlappende
+/// Tageswerte). Ein Fehler beim Neuanlegen macht das Löschen nicht rückgängig
+/// und wird nicht angezeigt (keine Gesundheitsdaten in Meldungen); die Werte
+/// fehlen dann, bis sie neu berechnet werden.
+Future<void> deleteRunAndRefresh(
+  StorageSession session,
+  Clock clock,
+  int runId,
+) async {
+  Future<void> refresh() async {
+    try {
+      await ValueCalculationService(
+        session: session,
+        clock: clock,
+      ).refreshAfterDelete();
+    } on Object {
+      // Siehe oben: Löschen gilt, Tageswerte fehlen vorerst.
+    }
+  }
+
+  try {
+    await session.deleteRun(runId);
+  } on StorageException catch (e) {
+    // Gelöscht, nur der Checkpoint scheiterte: Tageswerte trotzdem anlegen.
+    if (e.failure == StorageFailure.deletedNotErased) await refresh();
+    rethrow;
+  }
+  await refresh();
+}
+
 /// Fragt nach und löscht den Lauf [runId]. Für WP10 (Eintrag in der Lauf-Liste).
 /// Zeigt danach eine kurze Rückmeldung, soweit der Kontext noch steht.
 Future<DeletionResult> confirmAndDeleteRun(
   BuildContext context,
   StorageSession session,
+  Clock clock,
   int runId,
 ) => _confirmAndDelete(
   context,
   all: false,
-  action: () => session.deleteRun(runId),
+  action: () => deleteRunAndRefresh(session, clock, runId),
 );
 
 /// Fragt nach und löscht alle Daten der App ("Alles löschen").

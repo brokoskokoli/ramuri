@@ -28,6 +28,7 @@ class RecalculationCard extends StatelessWidget {
       final String? status = switch (phase) {
         RecalculationPhase.running => l10n.recalcRunning,
         RecalculationPhase.failed => l10n.recalcFailed,
+        RecalculationPhase.declineFailed => l10n.recalcDeclineFailed,
         RecalculationPhase.done => l10n.recalcDone(
           controller.result?.runCount ?? 0,
         ),

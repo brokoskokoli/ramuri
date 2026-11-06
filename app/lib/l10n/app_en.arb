@@ -116,6 +116,7 @@
   "recalcDecline": "Not now",
   "recalcRunning": "Recalculating the values. Please wait.",
   "recalcFailed": "The recalculation failed. The existing values are unchanged.",
+  "recalcDeclineFailed": "Declining could not be saved. Nothing was changed; you can try again.",
   "recalcOffered": "A recalculation is possible. You can find it in settings.",
   "recalcDone": "Recalculated: {count} runs. The original values are kept.",
   "zonesTitle": "Heart rate zones",

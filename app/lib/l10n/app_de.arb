@@ -503,6 +503,10 @@
   "@recalcFailed": {
     "description": "Fehlermeldung ohne Gesundheitsdaten"
   },
+  "recalcDeclineFailed": "Das Ablehnen konnte nicht gespeichert werden. Es wurde nichts geändert; du kannst es noch einmal versuchen.",
+  "@recalcDeclineFailed": {
+    "description": "Fehlermeldung, wenn das Ablehnen nicht gespeichert wurde"
+  },
   "recalcOffered": "Eine Neuberechnung ist möglich. Du findest sie in den Einstellungen.",
   "@recalcOffered": {
     "description": "Hinweis nach dem Speichern des Profils"

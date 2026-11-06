@@ -4,7 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
 /// Phase der Neuberechnung aus Sicht der Oberfläche.
-enum RecalculationPhase { idle, running, done, failed }
+enum RecalculationPhase { idle, running, done, failed, declineFailed }
 
 /// Hält das Angebot einer Neuberechnung und den Ablauf für die Oberfläche
 /// (FR-0006, FR-0058, OQ-0031, OQ-0053). Alles Rechnen und Speichern liegt im
@@ -72,13 +72,21 @@ class RecalculationController extends ChangeNotifier {
     notifyListeners();
     try {
       _result = await service.confirm(offer);
-      _offer = await service.pendingOffer();
-      _phase = RecalculationPhase.done;
     } on Object {
       // Der alte Stand bleibt ganz (Tausch in einer Transaktion), das Angebot
       // bleibt für einen neuen Versuch.
       _phase = RecalculationPhase.failed;
+      if (!_disposed) notifyListeners();
+      return;
     }
+    // Getauscht ist getauscht: scheitert nur das Lesen eines weiteren Angebots,
+    // gilt die Neuberechnung als erledigt und es wird kein Angebot gezeigt.
+    try {
+      _offer = await service.pendingOffer();
+    } on Object {
+      _offer = null;
+    }
+    _phase = RecalculationPhase.done;
     if (!_disposed) notifyListeners();
   }
 
@@ -90,7 +98,8 @@ class RecalculationController extends ChangeNotifier {
       _offer = null;
       _phase = RecalculationPhase.idle;
     } on Object {
-      _phase = RecalculationPhase.failed;
+      // Nichts geändert; das Angebot bleibt, eigene Meldung (kein Rechenfehler).
+      _phase = RecalculationPhase.declineFailed;
     }
     if (!_disposed) notifyListeners();
   }

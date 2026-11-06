@@ -25,68 +25,85 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final settings = AppSettingsScope.of(context);
     // Während der Neuberechnung bleibt die Seite stehen (Sperre).
     return ListenableBuilder(
       listenable: recalculation,
-      builder: (context, child) =>
-          PopScope(canPop: !recalculation.busy, child: child!),
-      child: Scaffold(
-        appBar: AppBar(title: Text(l10n.settingsTitle)),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            RecalculationCard(controller: recalculation),
-            Text(
-              l10n.settingsUnits,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            SegmentedButton<DistanceUnit>(
-              key: const Key('settings_unit'),
-              segments: [
-                ButtonSegment(
-                  value: DistanceUnit.kilometers,
-                  label: Text(l10n.settingsUnitKm),
-                ),
-                ButtonSegment(
-                  value: DistanceUnit.miles,
-                  label: Text(l10n.settingsUnitMi),
-                ),
-              ],
-              selected: {settings.distanceUnit},
-              onSelectionChanged: (s) => _change(context, settings, s.first),
-            ),
-            const SizedBox(height: 8),
-            Text(l10n.settingsUnitNote),
-            const SizedBox(height: 24),
-            OutlinedButton(
-              key: const Key('settings_permissions'),
-              onPressed: () => Navigator.of(context).push<void>(
-                MaterialPageRoute(
-                  builder: (_) => PermissionsScreen(permissions: permissions),
-                ),
+      builder: (context, _) {
+        final busy = recalculation.busy;
+        return PopScope(canPop: !busy, child: _body(context, busy));
+      },
+    );
+  }
+
+  Widget _body(BuildContext context, bool busy) {
+    final l10n = AppLocalizations.of(context);
+    final settings = AppSettingsScope.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.settingsTitle)),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          RecalculationCard(controller: recalculation),
+          Text(
+            l10n.settingsUnits,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<DistanceUnit>(
+            key: const Key('settings_unit'),
+            segments: [
+              ButtonSegment(
+                value: DistanceUnit.kilometers,
+                label: Text(l10n.settingsUnitKm),
               ),
-              child: Text(l10n.settingsPermissions),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              key: const Key('settings_zones'),
-              onPressed: () => Navigator.of(context).push<void>(
-                MaterialPageRoute(builder: (_) => const ZonesScreen()),
+              ButtonSegment(
+                value: DistanceUnit.miles,
+                label: Text(l10n.settingsUnitMi),
               ),
-              child: Text(l10n.settingsZones),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: () => Navigator.of(context).push<void>(
-                MaterialPageRoute(builder: (_) => DataScreen(session: session)),
-              ),
-              child: Text(l10n.dataTitle),
-            ),
-          ],
-        ),
+            ],
+            selected: {settings.distanceUnit},
+            onSelectionChanged: busy
+                ? null
+                : (s) => _change(context, settings, s.first),
+          ),
+          const SizedBox(height: 8),
+          Text(l10n.settingsUnitNote),
+          const SizedBox(height: 24),
+          OutlinedButton(
+            key: const Key('settings_permissions'),
+            onPressed: busy
+                ? null
+                : () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          PermissionsScreen(permissions: permissions),
+                    ),
+                  ),
+            child: Text(l10n.settingsPermissions),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            key: const Key('settings_zones'),
+            onPressed: busy
+                ? null
+                : () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(builder: (_) => const ZonesScreen()),
+                  ),
+            child: Text(l10n.settingsZones),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            key: const Key('settings_data'),
+            onPressed: busy
+                ? null
+                : () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => DataScreen(session: session),
+                    ),
+                  ),
+            child: Text(l10n.dataTitle),
+          ),
+        ],
       ),
     );
   }

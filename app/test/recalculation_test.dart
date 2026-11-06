@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/storage/deletion.dart';
 
 import 'app_harness.dart';
 
@@ -14,6 +15,9 @@ const _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
 class _Gate {
   bool fail = false;
   Completer<void>? hold;
+  bool failSettings = false;
+  bool failGet = false;
+  bool failGetAfterSet = false;
   int swaps = 0;
 }
 
@@ -46,6 +50,29 @@ class _GatedValues implements ComputedValueStore {
   }
 }
 
+class _GatedSettings implements SettingsStore {
+  _GatedSettings(this.inner, this.gate);
+  final SettingsStore inner;
+  final _Gate gate;
+  @override
+  Future<String?> get(String key) {
+    if (gate.failGet) throw const StorageException(StorageFailure.failed);
+    return inner.get(key);
+  }
+
+  @override
+  Future<Map<String, String>> all() => inner.all();
+  @override
+  Future<void> set(String key, String value, {required DateTime at}) {
+    if (gate.failSettings) {
+      throw const StorageException(StorageFailure.failed);
+    }
+    final done = inner.set(key, value, at: at);
+    if (gate.failGetAfterSet) done.then((_) => gate.failGet = true);
+    return done;
+  }
+}
+
 class _GatedSession implements StorageSession {
   _GatedSession(this.inner, this.gate);
   final StorageSession inner;
@@ -65,7 +92,7 @@ class _GatedSession implements StorageSession {
   @override
   ProfileStore get profile => inner.profile;
   @override
-  SettingsStore get settings => inner.settings;
+  late final SettingsStore settings = _GatedSettings(inner.settings, gate);
   @override
   KnownDeviceStore get devices => inner.devices;
   @override
@@ -89,16 +116,15 @@ class _GatedStorage implements Storage {
 
 /// Synthetischer Zustand vor dem App-Start: Profil HFmax 190 / Ruhe 60 und
 /// zwei beendete, berechnete Läufe (30 min, 3 m/s, 150 bpm).
-Future<void> _seed(Device d) async {
+Future<void> _seed(Device d, {List<DateTime>? starts}) async {
   final s = await d.storage.open(_key);
   await s.profile.save(
     const ProfileRecord(maxHeartRateBpm: 190, restingHeartRateBpm: 60),
   );
   final calc = ValueCalculationService(session: s, clock: d.clock);
-  for (final start in [
-    DateTime.utc(2026, 5, 10, 8),
-    DateTime.utc(2026, 5, 17, 8),
-  ]) {
+  for (final start
+      in starts ??
+          [DateTime.utc(2026, 5, 10, 8), DateTime.utc(2026, 5, 17, 8)]) {
     final run = await s.runs.create(startedAt: start);
     final positions = <RawPosition>[];
     final hrs = <RawHeartRate>[];
@@ -181,9 +207,10 @@ Future<Device> _start(
   WidgetTester tester, {
   Locale locale = const Locale('de'),
   _Gate? gate,
+  List<DateTime>? starts,
 }) async {
   final d = Device();
-  await _seed(d);
+  await _seed(d, starts: starts);
   if (gate != null) d.storageOverride = _GatedStorage(d.storage, gate);
   await d.start(tester, locale);
   await d.skipSetup(tester);
@@ -312,8 +339,15 @@ void main() {
       final gate = _Gate()..hold = Completer<void>();
       await _start(tester, gate: gate, locale: const Locale('en'));
       await _changeMaxAndOpenSettings(tester);
+      tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(411, 914);
+      addTearDown(tester.view.reset);
       await tester.pumpAndSettle();
+      // Wirklich 411x914 logische Pixel, nicht nur physische.
+      expect(
+        tester.view.physicalSize / tester.view.devicePixelRatio,
+        const Size(411, 914),
+      );
       expect(tester.takeException(), isNull);
 
       await tester.tap(find.byKey(const Key('recalc_confirm')));
@@ -337,12 +371,154 @@ void main() {
       await tester.tap(find.byType(BackButton));
       await tester.pump();
       expect(find.byKey(const Key('recalc_dialog')), findsOneWidget);
+      // Alle Knöpfe der Einstellungen sind gesperrt, auch "Daten" (und damit
+      // "Alles löschen").
+      for (final k in [
+        'settings_permissions',
+        'settings_zones',
+        'settings_data',
+      ]) {
+        expect(
+          tester.widget<OutlinedButton>(find.byKey(Key(k))).onPressed,
+          isNull,
+          reason: k,
+        );
+      }
+      expect(
+        tester
+            .widget<SegmentedButton<DistanceUnit>>(
+              find.byKey(const Key('settings_unit')),
+            )
+            .onSelectionChanged,
+        isNull,
+      );
+      await tester.tap(find.byKey(const Key('settings_data')));
+      await tester.pump();
+      expect(find.text('Alles löschen'), findsNothing);
       expect(tester.takeException(), isNull);
 
       gate.hold!.complete();
       await tester.pumpAndSettle();
       expect(find.textContaining('Recalculated: 2 runs'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      // Danach sind die Knöpfe wieder frei.
+      expect(
+        tester
+            .widget<OutlinedButton>(find.byKey(const Key('settings_data')))
+            .onPressed,
+        isNotNull,
+      );
     },
   );
+
+  testWidgets('Abgelehntes Profil löst kein Angebot aus', (tester) async {
+    final d = await _start(tester);
+    await tester.tap(find.byKey(const Key('home_profile')));
+    await tester.pumpAndSettle();
+    // HFmax 400 liegt außerhalb von PAR-016 und wird abgelehnt.
+    await tester.enterText(find.byKey(const Key('profile_max')), '400');
+    await tester.tap(find.byKey(const Key('profile_save')));
+    await tester.pumpAndSettle();
+    expect((await d.session.profile.read()).maxHeartRateBpm, 190);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('home_settings')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('recalc_dialog')), findsNothing);
+    expect(
+      d.session.settings.get(RecalculationService.pendingKey),
+      completion(anyOf(isNull, isEmpty)),
+    );
+  });
+
+  testWidgets(
+    'Löschen eines Laufs legt die Tageswerte der übrigen Lauftage neu an',
+    (tester) async {
+      final d = await _start(
+        tester,
+        starts: [
+          DateTime.utc(2026, 5, 10, 8),
+          DateTime.utc(2026, 5, 17, 8),
+          DateTime.utc(2026, 5, 17, 15),
+        ],
+      );
+      final s = d.session;
+      final runs = [...await s.runs.list()]
+        ..sort((a, b) => a.id.compareTo(b.id));
+      final dayOfRemaining = dayOfRun(runs.last);
+      final doomed = runs[1].id;
+      final keep = runs.last.id;
+      expect(dayOfRun(runs[1]), dayOfRemaining);
+      Future<String> originals() async => [
+        for (final o in [ValueOwner.run(runs.first.id), ValueOwner.run(keep)])
+          for (final p in await s.values.read(o)) '${p.original.value}',
+      ].join(',');
+      final originalsBefore = await originals();
+      final rawBefore = (await s.rawData.read(keep)).positions.length;
+      final rawFirstBefore = (await s.rawData.read(runs.first.id))
+          .positions
+          .length;
+      expect(await s.values.read(ValueOwner.day(dayOfRemaining)), isNotEmpty);
+
+      await deleteRunAndRefresh(s, d.clock, doomed);
+
+      expect(await s.runs.get(doomed), isNull);
+      expect(
+        await s.values.read(ValueOwner.day(dayOfRemaining)),
+        isNotEmpty,
+        reason: 'Tageswerte des verbliebenen Laufs fehlen',
+      );
+      expect(await originals(), originalsBefore);
+      expect((await s.rawData.read(keep)).positions.length, rawBefore);
+      expect(
+        (await s.rawData.read(runs.first.id)).positions.length,
+        rawFirstBefore,
+      );
+    },
+  );
+
+  testWidgets('Fehler beim Neuanlegen nach dem Löschen: Lauf weg, kein Wurf', (
+    tester,
+  ) async {
+    final gate = _Gate();
+    final d = await _start(tester, gate: gate);
+    final s = d.session;
+    final id = (await s.runs.list()).first.id;
+    gate.fail = true;
+    await deleteRunAndRefresh(s, d.clock, id);
+    expect(await s.runs.get(id), isNull);
+  });
+
+  testWidgets(
+    'Tausch und Speichern gelungen, Lesen des Angebots scheitert: erledigt',
+    (tester) async {
+      final gate = _Gate();
+      await _start(tester, gate: gate);
+      await _changeMaxAndOpenSettings(tester);
+      gate.failGetAfterSet = true;
+      await tester.tap(find.byKey(const Key('recalc_confirm')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Neuberechnet: 2 Läufe'), findsOneWidget);
+      expect(find.textContaining('fehlgeschlagen'), findsNothing);
+      expect(find.byKey(const Key('recalc_confirm')), findsNothing);
+    },
+  );
+
+  testWidgets('Ablehnen scheitert: eigene Meldung, Angebot bleibt', (
+    tester,
+  ) async {
+    final gate = _Gate();
+    await _start(tester, gate: gate);
+    await _changeMaxAndOpenSettings(tester);
+    gate.failSettings = true;
+    await tester.tap(find.byKey(const Key('recalc_decline')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Ablehnen konnte nicht'), findsOneWidget);
+    expect(
+      find.textContaining('Neuberechnung ist fehlgeschlagen'),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('recalc_confirm')), findsOneWidget);
+    expect(find.text('Neu berechnen'), findsWidgets);
+  });
 }
