@@ -1,7 +1,7 @@
 import '../preprocessing/preprocessing_parameters.dart';
 
 /// Schwellen der Fitness- und Belastungsverfahren (docs/model-parameters.md,
-/// Version 3, PAR-018, PAR-019, FR-0062, FR-0092, OQ-0014, OQ-0051).
+/// Version 4, PAR-018, PAR-019, FR-0062, FR-0092, OQ-0014, OQ-0051).
 ///
 /// Keine dieser Zahlen steht außerhalb dieser Klasse. Verfahren bekommen den
 /// Satz als Argument; seine Version ist [currentParameterVersion].
@@ -21,8 +21,8 @@ class FitnessParameters {
     this.aerobicEfficiency = const AerobicEfficiencyParameters(),
   });
 
-  /// Die Startwerte aus Version 3 von docs/model-parameters.md.
-  const FitnessParameters.v3()
+  /// Die Startwerte aus Version 4 von docs/model-parameters.md.
+  const FitnessParameters.v4()
     : this(parameterVersion: currentParameterVersion);
 
   /// Kopie mit ersetzten Zonengrenzen; alles andere bleibt wie in diesem Satz.
@@ -93,7 +93,7 @@ class FitnessParameters {
 }
 
 /// Grenzen der Abschnittsauswahl (FR-0073, FR-0074, FR-0075;
-/// docs/model-parameters.md PAR-020 bis PAR-031, Version 3). PAR-006, PAR-010,
+/// docs/model-parameters.md PAR-020 bis PAR-031, Version 4). PAR-006, PAR-010,
 /// PAR-011 und PAR-025-Lücke (PAR-004) stehen in [PreprocessingParameters].
 ///
 /// Jede Grenze ist inklusiv („höchstens“, „mindestens“, „zwischen“), außer
@@ -189,7 +189,7 @@ class SectionSelectionParameters {
 }
 
 /// Konstanten und Grenzen des VO₂max-Schätzers (FR-0069, FR-0071,
-/// docs/model-parameters.md PAR-032, PAR-033, PAR-036 bis PAR-040, Version 3).
+/// docs/model-parameters.md PAR-032, PAR-033, PAR-036 bis PAR-040, Version 4).
 class Vo2maxParameters {
   const Vo2maxParameters({
     this.restingOxygen = 3.5,
@@ -326,7 +326,7 @@ class Vo2maxParameters {
 }
 
 /// Grenzen der aeroben Effizienz (FR-0085 bis FR-0087, OQ-0036;
-/// docs/model-parameters.md PAR-044 bis PAR-047, Version 3). Die Regeln
+/// docs/model-parameters.md PAR-044 bis PAR-047, Version 4). Die Regeln
 /// PAR-010, PAR-011, PAR-020 bis PAR-023, PAR-025 und der Ausschluss ab
 /// PAR-024 kommen aus [SectionSelectionParameters]; hier stehen nur die
 /// Werte, die von der VO₂max abweichen oder neu sind.

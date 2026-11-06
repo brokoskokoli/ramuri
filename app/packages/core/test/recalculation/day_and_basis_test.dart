@@ -260,7 +260,7 @@ void main() {
             sources: const ['gps'],
             method: const AcsmReserveVo2maxEstimator().method,
             methodVersion: const AcsmReserveVo2maxEstimator().methodVersion,
-            parameterVersion: const FitnessParameters.v3().parameterVersion,
+            parameterVersion: const FitnessParameters.v4().parameterVersion,
             quality: ValueQuality.sufficient,
           ),
         ]);
@@ -277,7 +277,7 @@ void main() {
           sources: const ['strap'],
           method: aerobicEfficiencyMethod,
           methodVersion: aerobicEfficiencyMethodVersion,
-          parameterVersion: 3,
+          parameterVersion: currentParameterVersion,
           quality: ValueQuality.sufficient,
         );
         final later = await w.seedRun(DateTime.utc(2030, 2, 25, 8));

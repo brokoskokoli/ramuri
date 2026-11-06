@@ -10,7 +10,7 @@ FitnessValueMetadata meta(QualityTier t, {DateTime? to}) =>
       dataSources: {'gps', 'heart-rate'},
       method: 'm',
       methodVersion: 1,
-      parameterVersion: 3,
+      parameterVersion: currentParameterVersion,
       tier: t,
     );
 
@@ -20,19 +20,19 @@ void main() {
       value: 0.5,
       method: 'm',
       methodVersion: 1,
-      parameterVersion: 3,
+      parameterVersion: currentParameterVersion,
       maxIsEstimated: true,
     );
     const u = FitnessUnavailable<double>(
       reason: UnavailableReason.reserveTooSmall,
       method: 'm',
       methodVersion: 1,
-      parameterVersion: 3,
+      parameterVersion: currentParameterVersion,
     );
     for (final FitnessResult<double> r in [a, u]) {
       expect(r.method, 'm');
       expect(r.methodVersion, 1);
-      expect(r.parameterVersion, 3);
+      expect(r.parameterVersion, currentParameterVersion);
     }
     expect(a.maxIsEstimated, isTrue);
     expect(u.maxIsEstimated, isFalse);

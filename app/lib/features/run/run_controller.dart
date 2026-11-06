@@ -69,7 +69,7 @@ class RunController extends ChangeNotifier {
   bool _locationError = false;
   bool _heartRateSeen = false;
   ResolvedHeartRate? _basis;
-  FitnessParameters _fitness = const FitnessParameters.v3();
+  FitnessParameters _fitness = const FitnessParameters.v4();
 
   RecordingSnapshot get snapshot => _snapshot;
   RunPreprocessing? get preprocessing => _pre;
@@ -138,7 +138,7 @@ class RunController extends ChangeNotifier {
       try {
         _fitness = await ReserveZoneSettings.loadParameters(storage.settings);
       } on Object {
-        _fitness = const FitnessParameters.v3();
+        _fitness = const FitnessParameters.v4();
       }
       try {
         _basis = resolveHeartRate(

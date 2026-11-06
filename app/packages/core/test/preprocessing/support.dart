@@ -29,13 +29,13 @@ double dist(RawPosition a, RawPosition b) =>
     haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude);
 
 PositionProcessor processor([
-  PreprocessingParameters p = const PreprocessingParameters.v3(),
+  PreprocessingParameters p = const PreprocessingParameters.v4(),
   DateTime? sectionStart,
 ]) => PositionProcessor(p, sectionStart: sectionStart);
 
 PositionResult run(
   List<RawPosition> points, {
-  PreprocessingParameters p = const PreprocessingParameters.v3(),
+  PreprocessingParameters p = const PreprocessingParameters.v4(),
   num? until,
 }) {
   final proc = PositionProcessor(p);

@@ -3,7 +3,7 @@ import 'package:test/test.dart';
 
 import '../fitness/section_support.dart';
 
-const _p = FitnessParameters.v3();
+const _p = FitnessParameters.v4();
 const _estimator = AcsmReserveVo2maxEstimator();
 
 Vo2maxRunEstimate _estimate(

@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 import 'section_support.dart';
 
 const _est = AcsmReserveVo2maxEstimator();
-const _p = FitnessParameters.v3();
+const _p = FitnessParameters.v4();
 final _t0 = DateTime.utc(2030, 1, 1, 12);
 final _end = _t0.add(const Duration(hours: 1));
 
@@ -44,7 +44,7 @@ SectionSelection selOf(
   List<EvaluatedSection> s, [
   HeartRateBasis basis = selBasis,
 ]) => SectionSelection(
-  parameterVersion: 3,
+  parameterVersion: currentParameterVersion,
   basis: basis,
   sections: s,
   excluded: const [],
@@ -188,7 +188,7 @@ void main() {
         expect(r.tier, QualityTier.notDeterminable);
         expect(r.result.value, isNull);
         expect(r.result.reason, c.$2);
-        expect(r.result.metadata.parameterVersion, 3);
+        expect(r.result.metadata.parameterVersion, currentParameterVersion);
       });
     }
 

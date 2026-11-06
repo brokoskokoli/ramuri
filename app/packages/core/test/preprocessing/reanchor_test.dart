@@ -4,8 +4,8 @@ import 'package:test/test.dart';
 import 'motion_support.dart';
 import 'support.dart';
 
-/// Neu ankern bei Positionssprüngen (Vorschlag, Bezug PAR-002/PAR-003/PAR-004,
-/// `reanchorCount` = 3; nicht in docs/model-parameters.md).
+/// Neu ankern bei Positionssprüngen (PAR-207, Bezug PAR-002/PAR-003/PAR-004,
+/// `reanchorCount` = 3).
 void main() {
   group('Neu ankern nach aufeinanderfolgenden Sprungverwürfen', () {
     test('falscher erster Punkt weit weg: nach 3 Punkten wird gezählt, '
@@ -55,7 +55,10 @@ void main() {
     });
 
     test('ohne Re-Anker (Anzahl 99) würde der Anker hängen bleiben', () {
-      const p = PreprocessingParameters(parameterVersion: 3, reanchorCount: 99);
+      const p = PreprocessingParameters(
+        parameterVersion: currentParameterVersion,
+        reanchorCount: 99,
+      );
       final r = run([pos(0, 500), pos(5, 0), pos(10, 15), pos(15, 30)], p: p);
       expect(r.acceptedPoints, hasLength(1));
     });

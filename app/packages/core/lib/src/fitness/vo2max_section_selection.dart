@@ -27,7 +27,7 @@ export 'vo2max_section_types.dart';
 /// Reine Funktion der Eingaben; keine Uhr, kein Netzwerk.
 class Vo2maxSectionSelector {
   const Vo2maxSectionSelector({
-    this.parameters = const FitnessParameters.v3(),
+    this.parameters = const FitnessParameters.v4(),
     this.reserve = const HeartRateReserve(),
   });
 

@@ -17,7 +17,7 @@ class ProfileSaveResult {
 /// Alle Felder dürfen leer sein; ein leeres Profil sperrt nichts.
 class ProfileService {
   ProfileService(this._store, this._clock, {ProfileParameters? parameters})
-    : _params = parameters ?? const ProfileParameters.v3();
+    : _params = parameters ?? const ProfileParameters.v4();
 
   final ProfileStore _store;
   final Clock _clock;

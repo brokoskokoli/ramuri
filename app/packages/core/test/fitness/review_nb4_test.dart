@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 
 import 'fitness_support.dart';
 
-const p = FitnessParameters.v3();
+const p = FitnessParameters.v4();
 const zones = ReserveZones(reserve: HeartRateReserve());
 const trimp = EdwardsTrimp();
 const basis = HeartRateBasis(maxBpm: 200, restingBpm: 50);
@@ -61,7 +61,7 @@ void main() {
   group('Befund 2 (Review 2): überlebende Mutanten', () {
     test('M1: nicht monotone Werte senken den Takt nicht', () {
       final hr = HeartRateResult(
-        parameterVersion: 3,
+        parameterVersion: currentParameterVersion,
         processed: [
           for (var s = 0; s <= 100; s += 5)
             ProcessedHeartRate(

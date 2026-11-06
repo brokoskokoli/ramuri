@@ -5,7 +5,7 @@ import '../preprocessing/support.dart';
 
 const trimp = EdwardsTrimp();
 const zones = ReserveZones(reserve: HeartRateReserve());
-const p = FitnessParameters.v3();
+const p = FitnessParameters.v4();
 const basis = HeartRateBasis(maxBpm: 200, restingBpm: 50);
 
 /// 3 m/s Position im 1-Hz-Raster von 0 bis [until], Puls zu den Sekunden, für
@@ -14,7 +14,7 @@ RunPreprocessing record({
   required int until,
   required int? Function(int s) bpmAt,
   (int, int)? pause,
-  PreprocessingParameters params = const PreprocessingParameters.v3(),
+  PreprocessingParameters params = const PreprocessingParameters.v4(),
 }) {
   final r = RunPreprocessor(start: t0, parameters: params);
   for (var s = 0; s <= until; s++) {
@@ -159,13 +159,13 @@ void main() {
     });
   });
 
-  group('Parameterversion 4 (Befund 2)', () {
-    const v4 = PreprocessingParameters(parameterVersion: 4);
+  group('Fremde Parameterversion (Befund 2)', () {
+    const v4 = PreprocessingParameters(parameterVersion: 9);
     final x = record(until: 60, bpmAt: (s) => 150, params: v4);
 
-    test('TRIMP und Zonen: Eingaben der Version 4 gegen Satz 3 -> Fehler', () {
-      expect(x.heartRate.parameterVersion, 4);
-      expect(x.movement.parameterVersion, 4);
+    test('TRIMP und Zonen: Eingaben fremder Version gegen den aktuellen Satz -> Fehler', () {
+      expect(x.heartRate.parameterVersion, 9);
+      expect(x.movement.parameterVersion, 9);
       expect(() => load(x), throwsArgumentError);
       expect(
         () => zones.timeInZones(
@@ -178,18 +178,15 @@ void main() {
       );
     });
 
-    test(
-      'mit passendem Parametersatz 4 läuft es, Ergebnis nennt Version 4',
-      () {
-        final p4 = FitnessParameters(parameterVersion: 4);
-        final r = trimp.compute(
-          basis: basis,
-          heartRate: x.heartRate,
-          movement: x.movement,
-          p: p4,
-        );
-        expect(r.parameterVersion, 4);
-      },
-    );
+    test('mit passendem fremdem Parametersatz läuft es, Ergebnis nennt dessen Version', () {
+      final p4 = FitnessParameters(parameterVersion: 9);
+      final r = trimp.compute(
+        basis: basis,
+        heartRate: x.heartRate,
+        movement: x.movement,
+        p: p4,
+      );
+      expect(r.parameterVersion, 9);
+    });
   });
 }

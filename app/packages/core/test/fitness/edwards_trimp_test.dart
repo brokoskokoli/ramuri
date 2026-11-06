@@ -3,7 +3,7 @@ import 'package:test/test.dart';
 
 import 'fitness_support.dart';
 
-const p = FitnessParameters.v3();
+const p = FitnessParameters.v4();
 const trimp = EdwardsTrimp();
 const sec = 1000000;
 
@@ -63,7 +63,7 @@ void main() {
     final r = run(moving: [span(0, 60)], hrs: fitDense(0, 59, 150));
     expect(r.method, 'edwards-trimp');
     expect(r.methodVersion, 1);
-    expect(r.parameterVersion, 3);
+    expect(r.parameterVersion, currentParameterVersion);
     expect(trimp.category, AlgorithmCategory.established);
   });
 
@@ -220,7 +220,7 @@ void main() {
 
     test('andere Reservezonen ändern den TRIMP nicht', () {
       final other = FitnessParameters(
-        parameterVersion: 3,
+        parameterVersion: currentParameterVersion,
         reserveZoneBounds: const [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
         minHeartRateReserveBpm: 80,
       );

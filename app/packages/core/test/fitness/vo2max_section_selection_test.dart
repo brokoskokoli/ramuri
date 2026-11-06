@@ -517,7 +517,7 @@ void main() {
         final r = selectSections(steady(600), parameters: strict);
         expectOnly(r, SectionRule.intensityLow);
         expect(
-          const FitnessParameters.v3()
+          const FitnessParameters.v4()
               .copyWith(sectionSelection: const SectionSelectionParameters())
               .sectionSelection
               .intensityMax,

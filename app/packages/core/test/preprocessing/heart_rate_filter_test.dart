@@ -7,7 +7,7 @@ void main() {
   group('PAR-007 absolute Plausibilität', () {
     // Je Wert eigener Lauf, damit PAR-009 (Sprung) nicht mitspielt.
     String one(int bpm, [PreprocessingParameters? p]) => verdicts(
-      runHr([hr(0, bpm)], p: p ?? const PreprocessingParameters.v3()),
+      runHr([hr(0, bpm)], p: p ?? const PreprocessingParameters.v4()),
     ).single;
 
     test('30 und 240 gelten, 29 und 241 nicht', () {
@@ -19,7 +19,7 @@ void main() {
 
     test('abweichende Grenzen im Parametersatz wirken', () {
       const p = PreprocessingParameters(
-        parameterVersion: 3,
+        parameterVersion: currentParameterVersion,
         heartRateMin: 50,
         heartRateMax: 200,
       );
@@ -124,7 +124,7 @@ void main() {
       // 160, 130} (Median 145, Abweichung 15) bleibt; eine Mikrosekunde später
       // fällt der 100er heraus (Median 160, Abweichung 30) und 130 fällt.
       const p = PreprocessingParameters(
-        parameterVersion: 3,
+        parameterVersion: currentParameterVersion,
         heartRateOutlierRate: 0,
       );
       final head = [hr(0, 100), hr(1, 160), hr(2, 160)];
