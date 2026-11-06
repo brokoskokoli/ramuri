@@ -85,7 +85,53 @@ Future<void> _preprocessing(StorageContractHarness h) async {
     StorageFailure.notFound,
     'unbekannter Lauf',
   );
+  await _overviews(s, r, other);
   await s.close();
+}
+
+/// Gebündelte Kurzfassung aller Läufe (Historie): nur `moving` und
+/// `positionGap`, keine Samples, mit der Zusammenfassung des Laufs.
+Future<void> _overviews(StorageSession s, int r, int other) async {
+  await s.preprocessing.replace(
+    r,
+    StoredPreprocessing(
+      summary: samplePreprocessing(4).summary,
+      samples: samplePreprocessing().samples,
+      spans: [
+        PreprocessedSpan(
+          kind: PreprocessedSpanKind.settling,
+          start: at(1),
+          end: at(5),
+        ),
+        PreprocessedSpan(
+          kind: PreprocessedSpanKind.positionGap,
+          start: at(30),
+          end: at(40),
+        ),
+        PreprocessedSpan(
+          kind: PreprocessedSpanKind.moving,
+          start: at(5),
+          end: at(60),
+        ),
+      ],
+    ),
+  );
+  final third = (await s.runs.create(startedAt: at(0))).id;
+  final all = await s.preprocessing.readOverviews();
+  expectEq(all.length, 2, 'nur Läufe mit Vorverarbeitung (nicht $third)');
+  final o = all[r]!;
+  expectEq(o.summary.methodVersion, 4, 'Zusammenfassung des Laufs');
+  expectEq(o.summary.distanceMeters, 1000.5, 'Strecke');
+  expectEq(o.samples.length, 0, 'keine Samples');
+  expectEq(
+    o.spans.map((x) => '${x.kind.name}/${us(x.start)}/${us(x.end)}').toList(),
+    [
+      'moving/${us(at(5))}/${us(at(60))}',
+      'positionGap/${us(at(30))}/${us(at(40))}',
+    ],
+    'nur moving und positionGap, sortiert',
+  );
+  expectEq(all[other]!.summary.methodVersion, 7, 'anderer Lauf');
 }
 
 String _section(RatedSection x) {

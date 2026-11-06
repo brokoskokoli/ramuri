@@ -54,6 +54,7 @@ class RunController extends ChangeNotifier {
   final Future<void> Function(Future<void> Function() action)? serialize;
   final RunRecorder _recorder;
   bool _calculationFailed = false;
+  bool _calculationSettled = false;
   Future<void>? _calculation;
 
   Timer? _timer;
@@ -91,6 +92,13 @@ class RunController extends ChangeNotifier {
   /// ist gespeichert; die Berechnung wird beim nächsten Start nachgeholt.
   /// Trägt keine Gesundheitsdaten.
   bool get calculationFailed => _calculationFailed;
+
+  /// Id des angelegten Laufs, `null` vor dem Start.
+  int? get runId => _recorder.runId;
+
+  /// Das Beenden ist durch, einschließlich der Berechnung der Werte (auch wenn
+  /// sie scheiterte): Die Zusammenfassung kann gelesen werden.
+  bool get calculationSettled => _calculationSettled;
 
   /// Läuft die Berechnung nach dem Ende noch (für Tests und Abschluss).
   Future<void>? get calculation => _calculation;
@@ -212,6 +220,8 @@ class RunController extends ChangeNotifier {
         _calculation = _calculate(id);
         await _calculation;
       }
+      _calculationSettled = true;
+      _update();
     }
   }
 

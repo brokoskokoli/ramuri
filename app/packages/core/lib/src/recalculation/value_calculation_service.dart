@@ -7,6 +7,7 @@ import '../fitness/fitness_parameters.dart';
 import '../fitness/heart_rate_basis.dart';
 import '../fitness/vo2max_long_term.dart';
 import '../preprocessing/preprocessing_parameters.dart';
+import '../statistics/run_overview.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
 import 'run_analysis.dart';
 
@@ -143,6 +144,15 @@ class ValueCalculationService {
     );
     final plan = _DayPlan();
     await plan.add(session, day, values.all);
+    // Kurzfassung für Historie und Vergleich (vor den Werten: scheitert sie,
+    // ist nichts geschrieben und ein neuer Versuch möglich).
+    final pre = analysis.preprocessing;
+    if (pre != null) {
+      await session.preprocessing.replace(
+        runId,
+        overviewOf(pre, computedAt: now),
+      );
+    }
     await session.values.writeAll(
       create: {
         ValueOwner.run(runId): [runValue],

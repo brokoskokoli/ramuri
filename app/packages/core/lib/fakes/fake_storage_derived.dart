@@ -61,6 +61,20 @@ class FakePreprocessingStore implements PreprocessingStore {
 
   @override
   Future<StoredPreprocessing?> read(int runId) async => _d.preprocessing[runId];
+
+  @override
+  Future<Map<int, StoredPreprocessing>> readOverviews() async => {
+    for (final e in _d.preprocessing.entries)
+      e.key: StoredPreprocessing(
+        summary: e.value.summary,
+        spans: [
+          for (final s in e.value.spans)
+            if (s.kind == PreprocessedSpanKind.moving ||
+                s.kind == PreprocessedSpanKind.positionGap)
+              s,
+        ]..sort(comparePreprocessedSpans),
+      ),
+  };
 }
 
 class FakeRatedSectionStore implements RatedSectionStore {

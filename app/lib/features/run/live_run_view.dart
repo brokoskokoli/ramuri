@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../settings/unit_format.dart';
+import '../summary/run_summary_body.dart';
 import 'run_controller.dart';
 
 /// Zeit als `h:mm:ss`, unter einer Stunde `m:ss`; `null` ergibt „–“.
@@ -37,10 +38,15 @@ class LiveRunView extends StatelessWidget {
     super.key,
     required this.controller,
     required this.formatter,
+    this.clock,
   });
 
   final RunController controller;
   final UnitFormatter formatter;
+
+  /// Uhr für die Zusammenfassung nach dem Lauf; ohne sie zeigt die
+  /// Abschlussansicht nur die Werte der Aufzeichnung.
+  final Clock? clock;
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +70,7 @@ class LiveRunView extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   children: [
                     ..._banners(context, l10n, finished),
-                    ..._metrics(l10n, finished),
+                    ..._body(l10n, finished),
                     if (!finished) _autoPauseSwitch(l10n),
                   ],
                 ),
@@ -87,6 +93,34 @@ class LiveRunView extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Nach dem Ende die Zusammenfassung (FR-0037), sobald die Berechnung durch
+  /// ist; sonst (und bei Fehlern beim Lesen) die Werte der Aufzeichnung.
+  List<Widget> _body(AppLocalizations l10n, bool finished) {
+    final id = controller.runId;
+    final clock = this.clock;
+    if (!finished || id == null || clock == null) {
+      return _metrics(l10n, finished);
+    }
+    if (!controller.calculationSettled) {
+      return [
+        const SizedBox(height: 24),
+        const Center(child: CircularProgressIndicator()),
+        const SizedBox(height: 12),
+        Center(child: Text(l10n.sumLoading, key: const Key('sum_loading'))),
+      ];
+    }
+    return [
+      RunSummaryBody(
+        key: ValueKey(id),
+        session: controller.storage,
+        clock: clock,
+        runId: id,
+        formatter: formatter,
+        fallback: () => _metrics(l10n, finished),
+      ),
+    ];
   }
 
   List<Widget> _banners(

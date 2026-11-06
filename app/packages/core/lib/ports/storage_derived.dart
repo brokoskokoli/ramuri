@@ -82,6 +82,12 @@ abstract interface class PreprocessingStore {
 
   /// `null`, wenn für den Lauf nichts gespeichert ist.
   Future<StoredPreprocessing?> read(int runId);
+
+  /// Die Kurzfassung ALLER Läufe mit gespeicherter Vorverarbeitung in einer
+  /// Abfrage (Historie, Statistik; kein Zugriff je Lauf): Summary und nur die
+  /// Spannen `moving` und `positionGap`, ohne Messwert-Zeilen
+  /// ([StoredPreprocessing.samples] ist leer). Schlüssel ist die Lauf-ID.
+  Future<Map<int, StoredPreprocessing>> readOverviews();
 }
 
 /// Bewerteter Abschnitt (FR-0048). Von-bis steht in [quality]; auch die

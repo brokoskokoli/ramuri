@@ -9,7 +9,7 @@ import 'run_ports.dart';
 
 /// Ablauf „Lauf starten“: Startprüfung (FR-0195), Live-Bildschirm
 /// (FR-0026, FR-0027, FR-0028 bis FR-0030) und einfache Abschlussansicht.
-/// Die Zusammenfassung baut WP10.
+/// Die Zusammenfassung zeigt `RunSummaryBody` (WP10).
 class RunFlowScreen extends StatefulWidget {
   const RunFlowScreen({
     super.key,
@@ -149,6 +149,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
         return LiveRunView(
           controller: controller,
           formatter: AppSettingsScope.formatterOf(context),
+          clock: widget.clock,
         );
       },
     );

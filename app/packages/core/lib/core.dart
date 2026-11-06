@@ -80,6 +80,8 @@ export 'src/statistics/classification.dart';
 export 'src/statistics/period.dart';
 export 'src/statistics/period_statistics.dart';
 export 'src/statistics/run_figures.dart';
+export 'src/statistics/run_overview.dart';
+export 'src/statistics/run_summary.dart';
 export 'src/statistics/statistics_parameters.dart';
 export 'src/storage/storage_key_service.dart';
 

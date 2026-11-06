@@ -27,6 +27,7 @@ class RunAnalysis {
     required this.estimate,
     required this.basis,
     required Set<String> sources,
+    this.preprocessing,
   }) : sources = Set.unmodifiable(sources);
 
   final StoredRun run;
@@ -38,6 +39,10 @@ class RunAnalysis {
 
   /// Quellgeräte und -quellen der Rohdaten des Laufs (FR-0053).
   final Set<String> sources;
+
+  /// Vorverarbeitung, aus der die Auswahl kam; `null` bei einem Lauf ohne
+  /// Dauer.
+  final RunPreprocessing? preprocessing;
 
   DateTime get endedAt => run.endedAt!;
 
@@ -191,6 +196,7 @@ class RunAnalyzer {
       for (final r in raw.steps) r.value.source,
     };
     final SectionSelection selection;
+    RunPreprocessing? replayed;
     if (!end.isAfter(run.startedAt)) {
       // Lauf ohne Dauer: nichts auszuwählen, der Schätzer meldet den Grund.
       selection = SectionSelection(
@@ -207,6 +213,7 @@ class RunAnalyzer {
         gaps: gaps,
         parameters: preprocessing,
       );
+      replayed = pre;
       selection = Vo2maxSectionSelector(parameters: fitness)
           .select(run: pre, basis: basis, runStart: run.startedAt, until: end);
     }
@@ -225,6 +232,7 @@ class RunAnalyzer {
       estimate: estimate,
       basis: basis,
       sources: sources,
+      preprocessing: replayed,
     );
   }
 }
