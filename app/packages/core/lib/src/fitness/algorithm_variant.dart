@@ -1,14 +1,6 @@
-/// Kategorie eines Verfahrens nach NFR-0002.
-enum AlgorithmCategory {
-  /// A: etabliertes Verfahren.
-  established,
+import '../algorithm_category.dart';
 
-  /// B: Heuristik.
-  heuristic,
-
-  /// C: kalibriertes Verfahren.
-  calibrated,
-}
+export '../algorithm_category.dart';
 
 /// Kennung eines Verfahrens (NFR-0001, ADR-0004 P.3). Je Algorithmenfamilie
 /// erbt ein Interface davon und gibt die Berechnung als reine Funktion aus

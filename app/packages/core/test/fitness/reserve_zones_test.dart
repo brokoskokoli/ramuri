@@ -3,7 +3,7 @@ import 'package:test/test.dart';
 
 import 'fitness_support.dart';
 
-const p = FitnessParameters.v3();
+const p = FitnessParameters.v4();
 const zones = ReserveZones(reserve: HeartRateReserve());
 
 /// Künstliche Basis (kein echter Puls: HFmax 10100) mit Spanne 10000, damit

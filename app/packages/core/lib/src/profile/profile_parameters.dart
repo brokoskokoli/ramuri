@@ -1,6 +1,6 @@
 import '../preprocessing/preprocessing_parameters.dart';
 
-/// Grenzen der Profileingaben (docs/model-parameters.md, Version 3, PAR-016,
+/// Grenzen der Profileingaben (docs/model-parameters.md, Version 4, PAR-016,
 /// PAR-017) und Konstanten der Näherung (FR-0004).
 ///
 /// Keine dieser Zahlen steht außerhalb dieser Klasse. Die Mindestreserve
@@ -17,8 +17,8 @@ class ProfileParameters {
     this.restHrHintAboveBpm = 110,
   });
 
-  /// Die Startwerte aus Version 3 von docs/model-parameters.md.
-  const ProfileParameters.v3()
+  /// Die Startwerte aus Version 4 von docs/model-parameters.md.
+  const ProfileParameters.v4()
     : this(parameterVersion: currentParameterVersion);
 
   final int parameterVersion;

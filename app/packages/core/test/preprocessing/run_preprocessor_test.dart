@@ -21,9 +21,9 @@ RunPreprocessor apply(List<Step> steps) {
 }
 
 void main() {
-  test('Parametersatz v3 trägt alle Startwerte PAR-001..015', () {
-    const v = PreprocessingParameters.v3();
-    expect(v.parameterVersion, 3);
+  test('Parametersatz v4 trägt alle Startwerte PAR-001..015 und PAR-207', () {
+    const v = PreprocessingParameters.v4();
+    expect(v.parameterVersion, currentParameterVersion);
     expect(v.positionMaxAccuracyMeters, 25);
     expect(v.hardJumpMaxSpeed, 12.5);
     expect(v.softJumpSpeed, 8);
@@ -72,8 +72,8 @@ void main() {
   test('RunPreprocessor meldet Versionen und ordnet über Zeitstempel zu', () {
     final r = apply([p(pos(0, 0)), p(pos(1, 1))]);
     final res = r.result(at: at(1));
-    expect(res.parameterVersion, 3);
-    expect(res.position.parameterVersion, 3);
+    expect(res.parameterVersion, currentParameterVersion);
+    expect(res.position.parameterVersion, currentParameterVersion);
     expect(r.positionAt(at(3)).age, const Duration(seconds: 2));
   });
 

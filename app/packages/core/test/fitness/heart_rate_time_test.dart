@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 import 'fitness_support.dart';
 
 const sec = 1000000;
-const p = FitnessParameters.v3();
+const p = FitnessParameters.v4();
 
 HeartRateTime run(
   List<TimeSpan> m,
@@ -199,7 +199,7 @@ void main() {
     test('Puls oder Bewegungszeit mit anderer Version: ArgumentError', () {
       expect(
         () => heartRateTimeByBpm(
-          heartRate: fitHeartRate(h, version: 4),
+          heartRate: fitHeartRate(h, version: 9),
           movement: fitMovement(m),
           p: p,
         ),
@@ -208,7 +208,7 @@ void main() {
       expect(
         () => heartRateTimeByBpm(
           heartRate: fitHeartRate(h),
-          movement: fitMovement(m, version: 4),
+          movement: fitMovement(m, version: 9),
           p: p,
         ),
         throwsArgumentError,

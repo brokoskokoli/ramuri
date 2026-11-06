@@ -26,14 +26,26 @@ class DriftDeletion {
       // Paare (Tag, Schlüssel), von denen eine Zeile den Lauf überlappt oder
       // keinen bekannten Datenzeitraum hat. WP09 berechnet sie neu. Vor dem
       // Löschen des Laufs, weil sie seine Grenzen brauchen.
+      // Die Werte der Tageswerte-Auswahl und des Laufs samt ihrer Abschnitte
+      // (value_sections) werden ausdrücklich gelöscht, zuerst die Abschnitte;
+      // die Fremdschlüssel-Kaskade ist nur der zweite Boden.
+      const dayPairs =
+          'SELECT day, value_key FROM computed_values '
+          'WHERE day IS NOT NULL AND ('
+          '(data_from_us IS NULL AND data_to_us IS NULL) OR '
+          '(COALESCE(data_from_us, data_to_us) <= ? '
+          'AND COALESCE(data_to_us, data_from_us) >= ?))';
+      final bounds = [run.endedAtUs ?? _unboundedEndUs, run.startedAtUs];
       await _db.customStatement(
-        'DELETE FROM computed_values WHERE day IS NOT NULL '
-        'AND (day, value_key) IN (SELECT day, value_key FROM computed_values '
-        'WHERE day IS NOT NULL AND ('
-        '(data_from_us IS NULL AND data_to_us IS NULL) OR '
-        '(COALESCE(data_from_us, data_to_us) <= ? '
-        'AND COALESCE(data_to_us, data_from_us) >= ?)))',
-        [run.endedAtUs ?? _unboundedEndUs, run.startedAtUs],
+        'DELETE FROM value_sections WHERE computed_value_id IN ('
+        'SELECT id FROM computed_values WHERE run_id = ? OR '
+        '(day IS NOT NULL AND (day, value_key) IN ($dayPairs)))',
+        [runId, ...bounds],
+      );
+      await _db.customStatement(
+        'DELETE FROM computed_values WHERE run_id = ? OR '
+        '(day IS NOT NULL AND (day, value_key) IN ($dayPairs))',
+        [runId, ...bounds],
       );
       // Kaskade über die Fremdschlüssel (foreign_keys=ON je Verbindung).
       await (_db.delete(_db.runs)..where((t) => t.id.equals(runId))).go();
@@ -49,6 +61,8 @@ class DriftDeletion {
       // Zuerst die Läufe: Die Kaskade räumt die Rohdaten ab, die sich sonst
       // nicht direkt löschen lassen (Trigger).
       await _db.delete(_db.runs).go();
+      // Die Schleife löscht jede Tabelle ausdrücklich, auch value_sections
+      // (ohne Verlass auf die Kaskade; ein Test mit foreign_keys=OFF belegt es).
       for (final t in _db.allTables) {
         await _db.customStatement('DELETE FROM "${t.actualTableName}"');
       }

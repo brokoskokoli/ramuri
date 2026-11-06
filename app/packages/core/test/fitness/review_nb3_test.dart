@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 import 'fitness_support.dart';
 
-const p = FitnessParameters.v3();
+const p = FitnessParameters.v4();
 const zones = ReserveZones(reserve: HeartRateReserve());
 const trimp = EdwardsTrimp();
 
@@ -78,16 +78,16 @@ UnavailableReason? reasonOf(FitnessResult<Object?> r) =>
     r is FitnessUnavailable ? r.reason : null;
 
 void main() {
-  test('Befund 3: v3() nimmt currentParameterVersion, kein Literal', () {
+  test('Befund 3: v4() nimmt currentParameterVersion, kein Literal', () {
     final src = File('lib/src/preprocessing/preprocessing_parameters.dart')
         .readAsStringSync();
     final lines = src.split('\n');
-    final at = lines.indexWhere((l) => l.contains('.v3()'));
+    final at = lines.indexWhere((l) => l.contains('.v4()'));
     final line = '${lines[at]} ${lines[at + 1]}';
     expect(line, contains('currentParameterVersion'));
     expect(line, isNot(matches(RegExp(r'parameterVersion:\s*\d'))));
     expect(
-      const PreprocessingParameters.v3().parameterVersion,
+      const PreprocessingParameters.v4().parameterVersion,
       currentParameterVersion,
     );
   });
@@ -368,6 +368,34 @@ void main() {
         expect(wp03[e.key], e.value, reason: e.key);
       }
     });
+
+    test(
+      'WP03-Zeilen und Abschnittsauswahl tragen die Kategorie des Codes',
+      () {
+        final code = <String, AlgorithmCategory>{
+          positionMethod: positionCategory,
+          paceMethod: paceCategory,
+          movementMethod: movementCategory,
+          heartRateMethod: heartRateCategory,
+          settlingMethod: settlingCategory,
+          altitudeMethod: altitudeCategory,
+          stepsMethod: stepsCategory,
+          sectionQualityMethod: sectionQualityCategory,
+          vo2maxSectionSelectionMethod: vo2maxSectionSelectionCategory,
+        };
+        final doc = {
+          for (final e in rows.entries.where(
+            (e) =>
+                e.value.$3 == 'WP03' || e.key == vo2maxSectionSelectionMethod,
+          ))
+            e.key: e.value.$2,
+        };
+        expect(doc.keys.toSet(), code.keys.toSet());
+        for (final e in code.entries) {
+          expect(doc[e.key], letter(e.value), reason: e.key);
+        }
+      },
+    );
 
     test('jede Zeile von WP04 ist registriert', () {
       final registered = {

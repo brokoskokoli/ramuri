@@ -163,7 +163,9 @@ void main() {
     await s.markers.openGap(a, RunGapKind.interruption, at(2));
     await s.preprocessing.replace(a, cs.samplePreprocessing());
     await s.sections.replace(a, [cs.sampleSection(0)]);
-    await s.values.createOriginals(ValueOwner.run(a), [cs.sampleValue('v', 1)]);
+    await s.values.createOriginals(ValueOwner.run(a), [
+      cs.sampleValue('v', 1, sections: cs.sampleValueSections()),
+    ]);
     await s.profile.save(const ProfileRecord(birthYear: 1990));
     await s.settings.set('k', 'v', at: at(0));
     await s.devices.upsert('dev', displayName: 'x', at: at(0));
@@ -187,7 +189,7 @@ void main() {
               .read<int>('c');
       if (n > 0) filled++;
     }
-    expect(filled, greaterThanOrEqualTo(12));
+    expect(filled, greaterThanOrEqualTo(13));
 
     await s.deleteAll();
 

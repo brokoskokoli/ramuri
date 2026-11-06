@@ -260,8 +260,25 @@ class Runs extends Table with TableInfo<Runs, Run> {
     requiredDuringInsert: false,
     $customConstraints: '',
   );
+  static const VerificationMeta _endedUtcOffsetSMeta = const VerificationMeta(
+    'endedUtcOffsetS',
+  );
+  late final GeneratedColumn<int> endedUtcOffsetS = GeneratedColumn<int>(
+    'ended_utc_offset_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800)',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, state, startedAtUs, endedAtUs];
+  List<GeneratedColumn> get $columns => [
+    id,
+    state,
+    startedAtUs,
+    endedAtUs,
+    endedUtcOffsetS,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -302,6 +319,15 @@ class Runs extends Table with TableInfo<Runs, Run> {
         endedAtUs.isAcceptableOrUnknown(data['ended_at_us']!, _endedAtUsMeta),
       );
     }
+    if (data.containsKey('ended_utc_offset_s')) {
+      context.handle(
+        _endedUtcOffsetSMeta,
+        endedUtcOffsetS.isAcceptableOrUnknown(
+          data['ended_utc_offset_s']!,
+          _endedUtcOffsetSMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -327,6 +353,10 @@ class Runs extends Table with TableInfo<Runs, Run> {
         DriftSqlType.int,
         data['${effectivePrefix}ended_at_us'],
       ),
+      endedUtcOffsetS: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ended_utc_offset_s'],
+      ),
     );
   }
 
@@ -346,11 +376,18 @@ class Run extends DataClass implements Insertable<Run> {
 
   /// NULL, solange der Lauf nicht beendet ist.
   final int? endedAtUs;
+
+  /// Seit Version 3 (WP09 D2a): UTC-Versatz der Ortszeit zum Laufende in
+  /// Sekunden (Zeitzone zum Laufzeitpunkt; Tageswerte hängen am lokalen
+  /// Kalendertag des Laufendes). NULL = unbekannt: Läufe aus Version 1, oder
+  /// der Aufrufer hat ihn nicht genannt; nur bei beendetem Lauf (Trigger).
+  final int? endedUtcOffsetS;
   const Run({
     required this.id,
     required this.state,
     required this.startedAtUs,
     this.endedAtUs,
+    this.endedUtcOffsetS,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -360,6 +397,9 @@ class Run extends DataClass implements Insertable<Run> {
     map['started_at_us'] = Variable<int>(startedAtUs);
     if (!nullToAbsent || endedAtUs != null) {
       map['ended_at_us'] = Variable<int>(endedAtUs);
+    }
+    if (!nullToAbsent || endedUtcOffsetS != null) {
+      map['ended_utc_offset_s'] = Variable<int>(endedUtcOffsetS);
     }
     return map;
   }
@@ -372,6 +412,9 @@ class Run extends DataClass implements Insertable<Run> {
       endedAtUs: endedAtUs == null && nullToAbsent
           ? const Value.absent()
           : Value(endedAtUs),
+      endedUtcOffsetS: endedUtcOffsetS == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endedUtcOffsetS),
     );
   }
 
@@ -385,6 +428,7 @@ class Run extends DataClass implements Insertable<Run> {
       state: serializer.fromJson<String>(json['state']),
       startedAtUs: serializer.fromJson<int>(json['started_at_us']),
       endedAtUs: serializer.fromJson<int?>(json['ended_at_us']),
+      endedUtcOffsetS: serializer.fromJson<int?>(json['ended_utc_offset_s']),
     );
   }
   @override
@@ -395,6 +439,7 @@ class Run extends DataClass implements Insertable<Run> {
       'state': serializer.toJson<String>(state),
       'started_at_us': serializer.toJson<int>(startedAtUs),
       'ended_at_us': serializer.toJson<int?>(endedAtUs),
+      'ended_utc_offset_s': serializer.toJson<int?>(endedUtcOffsetS),
     };
   }
 
@@ -403,11 +448,15 @@ class Run extends DataClass implements Insertable<Run> {
     String? state,
     int? startedAtUs,
     Value<int?> endedAtUs = const Value.absent(),
+    Value<int?> endedUtcOffsetS = const Value.absent(),
   }) => Run(
     id: id ?? this.id,
     state: state ?? this.state,
     startedAtUs: startedAtUs ?? this.startedAtUs,
     endedAtUs: endedAtUs.present ? endedAtUs.value : this.endedAtUs,
+    endedUtcOffsetS: endedUtcOffsetS.present
+        ? endedUtcOffsetS.value
+        : this.endedUtcOffsetS,
   );
   Run copyWithCompanion(RunsCompanion data) {
     return Run(
@@ -417,6 +466,9 @@ class Run extends DataClass implements Insertable<Run> {
           ? data.startedAtUs.value
           : this.startedAtUs,
       endedAtUs: data.endedAtUs.present ? data.endedAtUs.value : this.endedAtUs,
+      endedUtcOffsetS: data.endedUtcOffsetS.present
+          ? data.endedUtcOffsetS.value
+          : this.endedUtcOffsetS,
     );
   }
 
@@ -426,13 +478,15 @@ class Run extends DataClass implements Insertable<Run> {
           ..write('id: $id, ')
           ..write('state: $state, ')
           ..write('startedAtUs: $startedAtUs, ')
-          ..write('endedAtUs: $endedAtUs')
+          ..write('endedAtUs: $endedAtUs, ')
+          ..write('endedUtcOffsetS: $endedUtcOffsetS')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, state, startedAtUs, endedAtUs);
+  int get hashCode =>
+      Object.hash(id, state, startedAtUs, endedAtUs, endedUtcOffsetS);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -440,7 +494,8 @@ class Run extends DataClass implements Insertable<Run> {
           other.id == this.id &&
           other.state == this.state &&
           other.startedAtUs == this.startedAtUs &&
-          other.endedAtUs == this.endedAtUs);
+          other.endedAtUs == this.endedAtUs &&
+          other.endedUtcOffsetS == this.endedUtcOffsetS);
 }
 
 class RunsCompanion extends UpdateCompanion<Run> {
@@ -448,17 +503,20 @@ class RunsCompanion extends UpdateCompanion<Run> {
   final Value<String> state;
   final Value<int> startedAtUs;
   final Value<int?> endedAtUs;
+  final Value<int?> endedUtcOffsetS;
   const RunsCompanion({
     this.id = const Value.absent(),
     this.state = const Value.absent(),
     this.startedAtUs = const Value.absent(),
     this.endedAtUs = const Value.absent(),
+    this.endedUtcOffsetS = const Value.absent(),
   });
   RunsCompanion.insert({
     this.id = const Value.absent(),
     required String state,
     required int startedAtUs,
     this.endedAtUs = const Value.absent(),
+    this.endedUtcOffsetS = const Value.absent(),
   }) : state = Value(state),
        startedAtUs = Value(startedAtUs);
   static Insertable<Run> custom({
@@ -466,12 +524,14 @@ class RunsCompanion extends UpdateCompanion<Run> {
     Expression<String>? state,
     Expression<int>? startedAtUs,
     Expression<int>? endedAtUs,
+    Expression<int>? endedUtcOffsetS,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (state != null) 'state': state,
       if (startedAtUs != null) 'started_at_us': startedAtUs,
       if (endedAtUs != null) 'ended_at_us': endedAtUs,
+      if (endedUtcOffsetS != null) 'ended_utc_offset_s': endedUtcOffsetS,
     });
   }
 
@@ -480,12 +540,14 @@ class RunsCompanion extends UpdateCompanion<Run> {
     Value<String>? state,
     Value<int>? startedAtUs,
     Value<int?>? endedAtUs,
+    Value<int?>? endedUtcOffsetS,
   }) {
     return RunsCompanion(
       id: id ?? this.id,
       state: state ?? this.state,
       startedAtUs: startedAtUs ?? this.startedAtUs,
       endedAtUs: endedAtUs ?? this.endedAtUs,
+      endedUtcOffsetS: endedUtcOffsetS ?? this.endedUtcOffsetS,
     );
   }
 
@@ -504,6 +566,9 @@ class RunsCompanion extends UpdateCompanion<Run> {
     if (endedAtUs.present) {
       map['ended_at_us'] = Variable<int>(endedAtUs.value);
     }
+    if (endedUtcOffsetS.present) {
+      map['ended_utc_offset_s'] = Variable<int>(endedUtcOffsetS.value);
+    }
     return map;
   }
 
@@ -513,7 +578,8 @@ class RunsCompanion extends UpdateCompanion<Run> {
           ..write('id: $id, ')
           ..write('state: $state, ')
           ..write('startedAtUs: $startedAtUs, ')
-          ..write('endedAtUs: $endedAtUs')
+          ..write('endedAtUs: $endedAtUs, ')
+          ..write('endedUtcOffsetS: $endedUtcOffsetS')
           ..write(')'))
         .toString();
   }
@@ -6221,6 +6287,51 @@ class ComputedValues extends Table
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL CHECK (quality IN (\'provisional\', \'sufficient\', \'good\', \'undeterminable\'))',
   );
+  static const VerificationMeta _unavailableReasonMeta = const VerificationMeta(
+    'unavailableReason',
+  );
+  late final GeneratedColumn<String> unavailableReason =
+      GeneratedColumn<String>(
+        'unavailable_reason',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        $customConstraints: '',
+      );
+  static const VerificationMeta _hrMaxBpmMeta = const VerificationMeta(
+    'hrMaxBpm',
+  );
+  late final GeneratedColumn<int> hrMaxBpm = GeneratedColumn<int>(
+    'hr_max_bpm',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (hr_max_bpm > 0)',
+  );
+  static const VerificationMeta _hrRestBpmMeta = const VerificationMeta(
+    'hrRestBpm',
+  );
+  late final GeneratedColumn<int> hrRestBpm = GeneratedColumn<int>(
+    'hr_rest_bpm',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (hr_rest_bpm > 0)',
+  );
+  static const VerificationMeta _hrMaxIsEstimatedMeta = const VerificationMeta(
+    'hrMaxIsEstimated',
+  );
+  late final GeneratedColumn<bool> hrMaxIsEstimated = GeneratedColumn<bool>(
+    'hr_max_is_estimated',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (hr_max_is_estimated IN (0, 1))',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -6239,6 +6350,10 @@ class ComputedValues extends Table
     methodVersion,
     parameterVersion,
     quality,
+    unavailableReason,
+    hrMaxBpm,
+    hrRestBpm,
+    hrMaxIsEstimated,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6380,6 +6495,36 @@ class ComputedValues extends Table
     } else if (isInserting) {
       context.missing(_qualityMeta);
     }
+    if (data.containsKey('unavailable_reason')) {
+      context.handle(
+        _unavailableReasonMeta,
+        unavailableReason.isAcceptableOrUnknown(
+          data['unavailable_reason']!,
+          _unavailableReasonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('hr_max_bpm')) {
+      context.handle(
+        _hrMaxBpmMeta,
+        hrMaxBpm.isAcceptableOrUnknown(data['hr_max_bpm']!, _hrMaxBpmMeta),
+      );
+    }
+    if (data.containsKey('hr_rest_bpm')) {
+      context.handle(
+        _hrRestBpmMeta,
+        hrRestBpm.isAcceptableOrUnknown(data['hr_rest_bpm']!, _hrRestBpmMeta),
+      );
+    }
+    if (data.containsKey('hr_max_is_estimated')) {
+      context.handle(
+        _hrMaxIsEstimatedMeta,
+        hrMaxIsEstimated.isAcceptableOrUnknown(
+          data['hr_max_is_estimated']!,
+          _hrMaxIsEstimatedMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -6453,6 +6598,22 @@ class ComputedValues extends Table
         DriftSqlType.string,
         data['${effectivePrefix}quality'],
       )!,
+      unavailableReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}unavailable_reason'],
+      ),
+      hrMaxBpm: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}hr_max_bpm'],
+      ),
+      hrRestBpm: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}hr_rest_bpm'],
+      ),
+      hrMaxIsEstimated: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}hr_max_is_estimated'],
+      ),
     );
   }
 
@@ -6476,7 +6637,8 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
   final String valueKey;
   final String role;
 
-  /// NULL bei Qualitätsstufe 'undeterminable'.
+  /// NULL genau dann, wenn unavailable_reason gesetzt ist (Qualitätsstufe
+  /// 'undeterminable'; Trigger computed_values_reason_*).
   final double? valueReal;
   final String unit;
   final int computedAtUs;
@@ -6490,6 +6652,23 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
   final int methodVersion;
   final int parameterVersion;
   final String quality;
+
+  /// Seit Version 3 (WP09 D1): Grund, warum der Wert fehlt (FR-0068, PAR-037),
+  /// als stabiler Code (Name von UnavailableReason im Core). Ein Code, den eine
+  /// spätere App nicht kennt, ist beim Lesen ein Datenfehler.
+  final String? unavailableReason;
+
+  /// Seit Version 3 (WP09 D2a, OQ-0065): Schnappschuss der Herzfrequenzbasis,
+  /// mit der der Wert gerechnet wurde, damit spätere Neuberechnungen alte Werte
+  /// mit derselben Basis rechnen. hr_max_is_estimated ist der Anzeiger: NULL =
+  /// kein Schnappschuss (Wert braucht keine Basis, oder Zeile aus Version 1:
+  /// Basis unbekannt); sonst gilt der Schnappschuss, und hr_max_bpm bzw.
+  /// hr_rest_bpm sind NULL, wenn die Basis diesen Wert nicht kannte. Bei
+  /// hr_max_bpm / hr_rest_bpm ohne Anzeiger bricht der Trigger
+  /// computed_values_basis_* ab.
+  final int? hrMaxBpm;
+  final int? hrRestBpm;
+  final bool? hrMaxIsEstimated;
   const ComputedValue({
     required this.id,
     this.runId,
@@ -6507,6 +6686,10 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     required this.methodVersion,
     required this.parameterVersion,
     required this.quality,
+    this.unavailableReason,
+    this.hrMaxBpm,
+    this.hrRestBpm,
+    this.hrMaxIsEstimated,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6537,6 +6720,18 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     map['method_version'] = Variable<int>(methodVersion);
     map['parameter_version'] = Variable<int>(parameterVersion);
     map['quality'] = Variable<String>(quality);
+    if (!nullToAbsent || unavailableReason != null) {
+      map['unavailable_reason'] = Variable<String>(unavailableReason);
+    }
+    if (!nullToAbsent || hrMaxBpm != null) {
+      map['hr_max_bpm'] = Variable<int>(hrMaxBpm);
+    }
+    if (!nullToAbsent || hrRestBpm != null) {
+      map['hr_rest_bpm'] = Variable<int>(hrRestBpm);
+    }
+    if (!nullToAbsent || hrMaxIsEstimated != null) {
+      map['hr_max_is_estimated'] = Variable<bool>(hrMaxIsEstimated);
+    }
     return map;
   }
 
@@ -6566,6 +6761,18 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       methodVersion: Value(methodVersion),
       parameterVersion: Value(parameterVersion),
       quality: Value(quality),
+      unavailableReason: unavailableReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(unavailableReason),
+      hrMaxBpm: hrMaxBpm == null && nullToAbsent
+          ? const Value.absent()
+          : Value(hrMaxBpm),
+      hrRestBpm: hrRestBpm == null && nullToAbsent
+          ? const Value.absent()
+          : Value(hrRestBpm),
+      hrMaxIsEstimated: hrMaxIsEstimated == null && nullToAbsent
+          ? const Value.absent()
+          : Value(hrMaxIsEstimated),
     );
   }
 
@@ -6591,6 +6798,12 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       methodVersion: serializer.fromJson<int>(json['method_version']),
       parameterVersion: serializer.fromJson<int>(json['parameter_version']),
       quality: serializer.fromJson<String>(json['quality']),
+      unavailableReason: serializer.fromJson<String?>(
+        json['unavailable_reason'],
+      ),
+      hrMaxBpm: serializer.fromJson<int?>(json['hr_max_bpm']),
+      hrRestBpm: serializer.fromJson<int?>(json['hr_rest_bpm']),
+      hrMaxIsEstimated: serializer.fromJson<bool?>(json['hr_max_is_estimated']),
     );
   }
   @override
@@ -6613,6 +6826,10 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       'method_version': serializer.toJson<int>(methodVersion),
       'parameter_version': serializer.toJson<int>(parameterVersion),
       'quality': serializer.toJson<String>(quality),
+      'unavailable_reason': serializer.toJson<String?>(unavailableReason),
+      'hr_max_bpm': serializer.toJson<int?>(hrMaxBpm),
+      'hr_rest_bpm': serializer.toJson<int?>(hrRestBpm),
+      'hr_max_is_estimated': serializer.toJson<bool?>(hrMaxIsEstimated),
     };
   }
 
@@ -6633,6 +6850,10 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     int? methodVersion,
     int? parameterVersion,
     String? quality,
+    Value<String?> unavailableReason = const Value.absent(),
+    Value<int?> hrMaxBpm = const Value.absent(),
+    Value<int?> hrRestBpm = const Value.absent(),
+    Value<bool?> hrMaxIsEstimated = const Value.absent(),
   }) => ComputedValue(
     id: id ?? this.id,
     runId: runId.present ? runId.value : this.runId,
@@ -6650,6 +6871,14 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     methodVersion: methodVersion ?? this.methodVersion,
     parameterVersion: parameterVersion ?? this.parameterVersion,
     quality: quality ?? this.quality,
+    unavailableReason: unavailableReason.present
+        ? unavailableReason.value
+        : this.unavailableReason,
+    hrMaxBpm: hrMaxBpm.present ? hrMaxBpm.value : this.hrMaxBpm,
+    hrRestBpm: hrRestBpm.present ? hrRestBpm.value : this.hrRestBpm,
+    hrMaxIsEstimated: hrMaxIsEstimated.present
+        ? hrMaxIsEstimated.value
+        : this.hrMaxIsEstimated,
   );
   ComputedValue copyWithCompanion(ComputedValuesCompanion data) {
     return ComputedValue(
@@ -6679,6 +6908,14 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           ? data.parameterVersion.value
           : this.parameterVersion,
       quality: data.quality.present ? data.quality.value : this.quality,
+      unavailableReason: data.unavailableReason.present
+          ? data.unavailableReason.value
+          : this.unavailableReason,
+      hrMaxBpm: data.hrMaxBpm.present ? data.hrMaxBpm.value : this.hrMaxBpm,
+      hrRestBpm: data.hrRestBpm.present ? data.hrRestBpm.value : this.hrRestBpm,
+      hrMaxIsEstimated: data.hrMaxIsEstimated.present
+          ? data.hrMaxIsEstimated.value
+          : this.hrMaxIsEstimated,
     );
   }
 
@@ -6700,7 +6937,11 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           ..write('method: $method, ')
           ..write('methodVersion: $methodVersion, ')
           ..write('parameterVersion: $parameterVersion, ')
-          ..write('quality: $quality')
+          ..write('quality: $quality, ')
+          ..write('unavailableReason: $unavailableReason, ')
+          ..write('hrMaxBpm: $hrMaxBpm, ')
+          ..write('hrRestBpm: $hrRestBpm, ')
+          ..write('hrMaxIsEstimated: $hrMaxIsEstimated')
           ..write(')'))
         .toString();
   }
@@ -6723,6 +6964,10 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     methodVersion,
     parameterVersion,
     quality,
+    unavailableReason,
+    hrMaxBpm,
+    hrRestBpm,
+    hrMaxIsEstimated,
   );
   @override
   bool operator ==(Object other) =>
@@ -6743,7 +6988,11 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           other.method == this.method &&
           other.methodVersion == this.methodVersion &&
           other.parameterVersion == this.parameterVersion &&
-          other.quality == this.quality);
+          other.quality == this.quality &&
+          other.unavailableReason == this.unavailableReason &&
+          other.hrMaxBpm == this.hrMaxBpm &&
+          other.hrRestBpm == this.hrRestBpm &&
+          other.hrMaxIsEstimated == this.hrMaxIsEstimated);
 }
 
 class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
@@ -6763,6 +7012,10 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
   final Value<int> methodVersion;
   final Value<int> parameterVersion;
   final Value<String> quality;
+  final Value<String?> unavailableReason;
+  final Value<int?> hrMaxBpm;
+  final Value<int?> hrRestBpm;
+  final Value<bool?> hrMaxIsEstimated;
   const ComputedValuesCompanion({
     this.id = const Value.absent(),
     this.runId = const Value.absent(),
@@ -6780,6 +7033,10 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     this.methodVersion = const Value.absent(),
     this.parameterVersion = const Value.absent(),
     this.quality = const Value.absent(),
+    this.unavailableReason = const Value.absent(),
+    this.hrMaxBpm = const Value.absent(),
+    this.hrRestBpm = const Value.absent(),
+    this.hrMaxIsEstimated = const Value.absent(),
   });
   ComputedValuesCompanion.insert({
     this.id = const Value.absent(),
@@ -6798,6 +7055,10 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     required int methodVersion,
     required int parameterVersion,
     required String quality,
+    this.unavailableReason = const Value.absent(),
+    this.hrMaxBpm = const Value.absent(),
+    this.hrRestBpm = const Value.absent(),
+    this.hrMaxIsEstimated = const Value.absent(),
   }) : valueKey = Value(valueKey),
        role = Value(role),
        unit = Value(unit),
@@ -6825,6 +7086,10 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     Expression<int>? methodVersion,
     Expression<int>? parameterVersion,
     Expression<String>? quality,
+    Expression<String>? unavailableReason,
+    Expression<int>? hrMaxBpm,
+    Expression<int>? hrRestBpm,
+    Expression<bool>? hrMaxIsEstimated,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -6843,6 +7108,10 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
       if (methodVersion != null) 'method_version': methodVersion,
       if (parameterVersion != null) 'parameter_version': parameterVersion,
       if (quality != null) 'quality': quality,
+      if (unavailableReason != null) 'unavailable_reason': unavailableReason,
+      if (hrMaxBpm != null) 'hr_max_bpm': hrMaxBpm,
+      if (hrRestBpm != null) 'hr_rest_bpm': hrRestBpm,
+      if (hrMaxIsEstimated != null) 'hr_max_is_estimated': hrMaxIsEstimated,
     });
   }
 
@@ -6863,6 +7132,10 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     Value<int>? methodVersion,
     Value<int>? parameterVersion,
     Value<String>? quality,
+    Value<String?>? unavailableReason,
+    Value<int?>? hrMaxBpm,
+    Value<int?>? hrRestBpm,
+    Value<bool?>? hrMaxIsEstimated,
   }) {
     return ComputedValuesCompanion(
       id: id ?? this.id,
@@ -6881,6 +7154,10 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
       methodVersion: methodVersion ?? this.methodVersion,
       parameterVersion: parameterVersion ?? this.parameterVersion,
       quality: quality ?? this.quality,
+      unavailableReason: unavailableReason ?? this.unavailableReason,
+      hrMaxBpm: hrMaxBpm ?? this.hrMaxBpm,
+      hrRestBpm: hrRestBpm ?? this.hrRestBpm,
+      hrMaxIsEstimated: hrMaxIsEstimated ?? this.hrMaxIsEstimated,
     );
   }
 
@@ -6935,6 +7212,18 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     if (quality.present) {
       map['quality'] = Variable<String>(quality.value);
     }
+    if (unavailableReason.present) {
+      map['unavailable_reason'] = Variable<String>(unavailableReason.value);
+    }
+    if (hrMaxBpm.present) {
+      map['hr_max_bpm'] = Variable<int>(hrMaxBpm.value);
+    }
+    if (hrRestBpm.present) {
+      map['hr_rest_bpm'] = Variable<int>(hrRestBpm.value);
+    }
+    if (hrMaxIsEstimated.present) {
+      map['hr_max_is_estimated'] = Variable<bool>(hrMaxIsEstimated.value);
+    }
     return map;
   }
 
@@ -6956,7 +7245,785 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
           ..write('method: $method, ')
           ..write('methodVersion: $methodVersion, ')
           ..write('parameterVersion: $parameterVersion, ')
-          ..write('quality: $quality')
+          ..write('quality: $quality, ')
+          ..write('unavailableReason: $unavailableReason, ')
+          ..write('hrMaxBpm: $hrMaxBpm, ')
+          ..write('hrRestBpm: $hrRestBpm, ')
+          ..write('hrMaxIsEstimated: $hrMaxIsEstimated')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class ValueSections extends Table
+    with TableInfo<ValueSections, ValueSectionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  ValueSections(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  static const VerificationMeta _computedValueIdMeta = const VerificationMeta(
+    'computedValueId',
+  );
+  late final GeneratedColumn<int> computedValueId = GeneratedColumn<int>(
+    'computed_value_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL REFERENCES computed_values(id)ON DELETE CASCADE',
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (position >= 0)',
+  );
+  static const VerificationMeta _startUsMeta = const VerificationMeta(
+    'startUs',
+  );
+  late final GeneratedColumn<int> startUs = GeneratedColumn<int>(
+    'start_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _endUsMeta = const VerificationMeta('endUs');
+  late final GeneratedColumn<int> endUs = GeneratedColumn<int>(
+    'end_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (end_us >= start_us)',
+  );
+  static const VerificationMeta _gpsMedianAccuracyMMeta =
+      const VerificationMeta('gpsMedianAccuracyM');
+  late final GeneratedColumn<double> gpsMedianAccuracyM =
+      GeneratedColumn<double>(
+        'gps_median_accuracy_m',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        $customConstraints: 'CHECK (gps_median_accuracy_m >= 0)',
+      );
+  static const VerificationMeta _weightMeta = const VerificationMeta('weight');
+  late final GeneratedColumn<double> weight = GeneratedColumn<double>(
+    'weight',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (weight >= 0)',
+  );
+  static const VerificationMeta _lateFactorMeta = const VerificationMeta(
+    'lateFactor',
+  );
+  late final GeneratedColumn<double> lateFactor = GeneratedColumn<double>(
+    'late_factor',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (late_factor >= 0)',
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (status IN (\'eligible\', \'provisional\', \'rejected\'))',
+  );
+  static const VerificationMeta _discardMeta = const VerificationMeta(
+    'discard',
+  );
+  late final GeneratedColumn<String> discard = GeneratedColumn<String>(
+    'discard',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (discard IN (\'implausible\', \'incomplete\', \'zeroWeight\'))',
+  );
+  static const VerificationMeta _reasonsMeta = const VerificationMeta(
+    'reasons',
+  );
+  late final GeneratedColumn<String> reasons = GeneratedColumn<String>(
+    'reasons',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (json_valid(reasons))',
+  );
+  static const VerificationMeta _oxygenDemandMeta = const VerificationMeta(
+    'oxygenDemand',
+  );
+  late final GeneratedColumn<double> oxygenDemand = GeneratedColumn<double>(
+    'oxygen_demand',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _estimateMeta = const VerificationMeta(
+    'estimate',
+  );
+  late final GeneratedColumn<double> estimate = GeneratedColumn<double>(
+    'estimate',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    computedValueId,
+    position,
+    startUs,
+    endUs,
+    gpsMedianAccuracyM,
+    weight,
+    lateFactor,
+    status,
+    discard,
+    reasons,
+    oxygenDemand,
+    estimate,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'value_sections';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ValueSectionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('computed_value_id')) {
+      context.handle(
+        _computedValueIdMeta,
+        computedValueId.isAcceptableOrUnknown(
+          data['computed_value_id']!,
+          _computedValueIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_computedValueIdMeta);
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_positionMeta);
+    }
+    if (data.containsKey('start_us')) {
+      context.handle(
+        _startUsMeta,
+        startUs.isAcceptableOrUnknown(data['start_us']!, _startUsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startUsMeta);
+    }
+    if (data.containsKey('end_us')) {
+      context.handle(
+        _endUsMeta,
+        endUs.isAcceptableOrUnknown(data['end_us']!, _endUsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endUsMeta);
+    }
+    if (data.containsKey('gps_median_accuracy_m')) {
+      context.handle(
+        _gpsMedianAccuracyMMeta,
+        gpsMedianAccuracyM.isAcceptableOrUnknown(
+          data['gps_median_accuracy_m']!,
+          _gpsMedianAccuracyMMeta,
+        ),
+      );
+    }
+    if (data.containsKey('weight')) {
+      context.handle(
+        _weightMeta,
+        weight.isAcceptableOrUnknown(data['weight']!, _weightMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_weightMeta);
+    }
+    if (data.containsKey('late_factor')) {
+      context.handle(
+        _lateFactorMeta,
+        lateFactor.isAcceptableOrUnknown(data['late_factor']!, _lateFactorMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_lateFactorMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('discard')) {
+      context.handle(
+        _discardMeta,
+        discard.isAcceptableOrUnknown(data['discard']!, _discardMeta),
+      );
+    }
+    if (data.containsKey('reasons')) {
+      context.handle(
+        _reasonsMeta,
+        reasons.isAcceptableOrUnknown(data['reasons']!, _reasonsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reasonsMeta);
+    }
+    if (data.containsKey('oxygen_demand')) {
+      context.handle(
+        _oxygenDemandMeta,
+        oxygenDemand.isAcceptableOrUnknown(
+          data['oxygen_demand']!,
+          _oxygenDemandMeta,
+        ),
+      );
+    }
+    if (data.containsKey('estimate')) {
+      context.handle(
+        _estimateMeta,
+        estimate.isAcceptableOrUnknown(data['estimate']!, _estimateMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {computedValueId, position},
+  ];
+  @override
+  ValueSectionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ValueSectionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      computedValueId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}computed_value_id'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+      startUs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_us'],
+      )!,
+      endUs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_us'],
+      )!,
+      gpsMedianAccuracyM: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}gps_median_accuracy_m'],
+      ),
+      weight: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}weight'],
+      )!,
+      lateFactor: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}late_factor'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      discard: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}discard'],
+      ),
+      reasons: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reasons'],
+      )!,
+      oxygenDemand: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}oxygen_demand'],
+      ),
+      estimate: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}estimate'],
+      ),
+    );
+  }
+
+  @override
+  ValueSections createAlias(String alias) {
+    return ValueSections(attachedDatabase, alias);
+  }
+
+  @override
+  List<String> get customConstraints => const [
+    'UNIQUE(computed_value_id, position)',
+  ];
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class ValueSectionRow extends DataClass implements Insertable<ValueSectionRow> {
+  final int id;
+  final int computedValueId;
+  final int position;
+  final int startUs;
+  final int endUs;
+
+  /// NULL, wenn keine Genauigkeit gemeldet wurde.
+  final double? gpsMedianAccuracyM;
+  final double weight;
+  final double lateFactor;
+  final String status;
+  final String? discard;
+  final String reasons;
+  final double? oxygenDemand;
+  final double? estimate;
+  const ValueSectionRow({
+    required this.id,
+    required this.computedValueId,
+    required this.position,
+    required this.startUs,
+    required this.endUs,
+    this.gpsMedianAccuracyM,
+    required this.weight,
+    required this.lateFactor,
+    required this.status,
+    this.discard,
+    required this.reasons,
+    this.oxygenDemand,
+    this.estimate,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['computed_value_id'] = Variable<int>(computedValueId);
+    map['position'] = Variable<int>(position);
+    map['start_us'] = Variable<int>(startUs);
+    map['end_us'] = Variable<int>(endUs);
+    if (!nullToAbsent || gpsMedianAccuracyM != null) {
+      map['gps_median_accuracy_m'] = Variable<double>(gpsMedianAccuracyM);
+    }
+    map['weight'] = Variable<double>(weight);
+    map['late_factor'] = Variable<double>(lateFactor);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || discard != null) {
+      map['discard'] = Variable<String>(discard);
+    }
+    map['reasons'] = Variable<String>(reasons);
+    if (!nullToAbsent || oxygenDemand != null) {
+      map['oxygen_demand'] = Variable<double>(oxygenDemand);
+    }
+    if (!nullToAbsent || estimate != null) {
+      map['estimate'] = Variable<double>(estimate);
+    }
+    return map;
+  }
+
+  ValueSectionsCompanion toCompanion(bool nullToAbsent) {
+    return ValueSectionsCompanion(
+      id: Value(id),
+      computedValueId: Value(computedValueId),
+      position: Value(position),
+      startUs: Value(startUs),
+      endUs: Value(endUs),
+      gpsMedianAccuracyM: gpsMedianAccuracyM == null && nullToAbsent
+          ? const Value.absent()
+          : Value(gpsMedianAccuracyM),
+      weight: Value(weight),
+      lateFactor: Value(lateFactor),
+      status: Value(status),
+      discard: discard == null && nullToAbsent
+          ? const Value.absent()
+          : Value(discard),
+      reasons: Value(reasons),
+      oxygenDemand: oxygenDemand == null && nullToAbsent
+          ? const Value.absent()
+          : Value(oxygenDemand),
+      estimate: estimate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(estimate),
+    );
+  }
+
+  factory ValueSectionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ValueSectionRow(
+      id: serializer.fromJson<int>(json['id']),
+      computedValueId: serializer.fromJson<int>(json['computed_value_id']),
+      position: serializer.fromJson<int>(json['position']),
+      startUs: serializer.fromJson<int>(json['start_us']),
+      endUs: serializer.fromJson<int>(json['end_us']),
+      gpsMedianAccuracyM: serializer.fromJson<double?>(
+        json['gps_median_accuracy_m'],
+      ),
+      weight: serializer.fromJson<double>(json['weight']),
+      lateFactor: serializer.fromJson<double>(json['late_factor']),
+      status: serializer.fromJson<String>(json['status']),
+      discard: serializer.fromJson<String?>(json['discard']),
+      reasons: serializer.fromJson<String>(json['reasons']),
+      oxygenDemand: serializer.fromJson<double?>(json['oxygen_demand']),
+      estimate: serializer.fromJson<double?>(json['estimate']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'computed_value_id': serializer.toJson<int>(computedValueId),
+      'position': serializer.toJson<int>(position),
+      'start_us': serializer.toJson<int>(startUs),
+      'end_us': serializer.toJson<int>(endUs),
+      'gps_median_accuracy_m': serializer.toJson<double?>(gpsMedianAccuracyM),
+      'weight': serializer.toJson<double>(weight),
+      'late_factor': serializer.toJson<double>(lateFactor),
+      'status': serializer.toJson<String>(status),
+      'discard': serializer.toJson<String?>(discard),
+      'reasons': serializer.toJson<String>(reasons),
+      'oxygen_demand': serializer.toJson<double?>(oxygenDemand),
+      'estimate': serializer.toJson<double?>(estimate),
+    };
+  }
+
+  ValueSectionRow copyWith({
+    int? id,
+    int? computedValueId,
+    int? position,
+    int? startUs,
+    int? endUs,
+    Value<double?> gpsMedianAccuracyM = const Value.absent(),
+    double? weight,
+    double? lateFactor,
+    String? status,
+    Value<String?> discard = const Value.absent(),
+    String? reasons,
+    Value<double?> oxygenDemand = const Value.absent(),
+    Value<double?> estimate = const Value.absent(),
+  }) => ValueSectionRow(
+    id: id ?? this.id,
+    computedValueId: computedValueId ?? this.computedValueId,
+    position: position ?? this.position,
+    startUs: startUs ?? this.startUs,
+    endUs: endUs ?? this.endUs,
+    gpsMedianAccuracyM: gpsMedianAccuracyM.present
+        ? gpsMedianAccuracyM.value
+        : this.gpsMedianAccuracyM,
+    weight: weight ?? this.weight,
+    lateFactor: lateFactor ?? this.lateFactor,
+    status: status ?? this.status,
+    discard: discard.present ? discard.value : this.discard,
+    reasons: reasons ?? this.reasons,
+    oxygenDemand: oxygenDemand.present ? oxygenDemand.value : this.oxygenDemand,
+    estimate: estimate.present ? estimate.value : this.estimate,
+  );
+  ValueSectionRow copyWithCompanion(ValueSectionsCompanion data) {
+    return ValueSectionRow(
+      id: data.id.present ? data.id.value : this.id,
+      computedValueId: data.computedValueId.present
+          ? data.computedValueId.value
+          : this.computedValueId,
+      position: data.position.present ? data.position.value : this.position,
+      startUs: data.startUs.present ? data.startUs.value : this.startUs,
+      endUs: data.endUs.present ? data.endUs.value : this.endUs,
+      gpsMedianAccuracyM: data.gpsMedianAccuracyM.present
+          ? data.gpsMedianAccuracyM.value
+          : this.gpsMedianAccuracyM,
+      weight: data.weight.present ? data.weight.value : this.weight,
+      lateFactor: data.lateFactor.present
+          ? data.lateFactor.value
+          : this.lateFactor,
+      status: data.status.present ? data.status.value : this.status,
+      discard: data.discard.present ? data.discard.value : this.discard,
+      reasons: data.reasons.present ? data.reasons.value : this.reasons,
+      oxygenDemand: data.oxygenDemand.present
+          ? data.oxygenDemand.value
+          : this.oxygenDemand,
+      estimate: data.estimate.present ? data.estimate.value : this.estimate,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ValueSectionRow(')
+          ..write('id: $id, ')
+          ..write('computedValueId: $computedValueId, ')
+          ..write('position: $position, ')
+          ..write('startUs: $startUs, ')
+          ..write('endUs: $endUs, ')
+          ..write('gpsMedianAccuracyM: $gpsMedianAccuracyM, ')
+          ..write('weight: $weight, ')
+          ..write('lateFactor: $lateFactor, ')
+          ..write('status: $status, ')
+          ..write('discard: $discard, ')
+          ..write('reasons: $reasons, ')
+          ..write('oxygenDemand: $oxygenDemand, ')
+          ..write('estimate: $estimate')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    computedValueId,
+    position,
+    startUs,
+    endUs,
+    gpsMedianAccuracyM,
+    weight,
+    lateFactor,
+    status,
+    discard,
+    reasons,
+    oxygenDemand,
+    estimate,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ValueSectionRow &&
+          other.id == this.id &&
+          other.computedValueId == this.computedValueId &&
+          other.position == this.position &&
+          other.startUs == this.startUs &&
+          other.endUs == this.endUs &&
+          other.gpsMedianAccuracyM == this.gpsMedianAccuracyM &&
+          other.weight == this.weight &&
+          other.lateFactor == this.lateFactor &&
+          other.status == this.status &&
+          other.discard == this.discard &&
+          other.reasons == this.reasons &&
+          other.oxygenDemand == this.oxygenDemand &&
+          other.estimate == this.estimate);
+}
+
+class ValueSectionsCompanion extends UpdateCompanion<ValueSectionRow> {
+  final Value<int> id;
+  final Value<int> computedValueId;
+  final Value<int> position;
+  final Value<int> startUs;
+  final Value<int> endUs;
+  final Value<double?> gpsMedianAccuracyM;
+  final Value<double> weight;
+  final Value<double> lateFactor;
+  final Value<String> status;
+  final Value<String?> discard;
+  final Value<String> reasons;
+  final Value<double?> oxygenDemand;
+  final Value<double?> estimate;
+  const ValueSectionsCompanion({
+    this.id = const Value.absent(),
+    this.computedValueId = const Value.absent(),
+    this.position = const Value.absent(),
+    this.startUs = const Value.absent(),
+    this.endUs = const Value.absent(),
+    this.gpsMedianAccuracyM = const Value.absent(),
+    this.weight = const Value.absent(),
+    this.lateFactor = const Value.absent(),
+    this.status = const Value.absent(),
+    this.discard = const Value.absent(),
+    this.reasons = const Value.absent(),
+    this.oxygenDemand = const Value.absent(),
+    this.estimate = const Value.absent(),
+  });
+  ValueSectionsCompanion.insert({
+    this.id = const Value.absent(),
+    required int computedValueId,
+    required int position,
+    required int startUs,
+    required int endUs,
+    this.gpsMedianAccuracyM = const Value.absent(),
+    required double weight,
+    required double lateFactor,
+    required String status,
+    this.discard = const Value.absent(),
+    required String reasons,
+    this.oxygenDemand = const Value.absent(),
+    this.estimate = const Value.absent(),
+  }) : computedValueId = Value(computedValueId),
+       position = Value(position),
+       startUs = Value(startUs),
+       endUs = Value(endUs),
+       weight = Value(weight),
+       lateFactor = Value(lateFactor),
+       status = Value(status),
+       reasons = Value(reasons);
+  static Insertable<ValueSectionRow> custom({
+    Expression<int>? id,
+    Expression<int>? computedValueId,
+    Expression<int>? position,
+    Expression<int>? startUs,
+    Expression<int>? endUs,
+    Expression<double>? gpsMedianAccuracyM,
+    Expression<double>? weight,
+    Expression<double>? lateFactor,
+    Expression<String>? status,
+    Expression<String>? discard,
+    Expression<String>? reasons,
+    Expression<double>? oxygenDemand,
+    Expression<double>? estimate,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (computedValueId != null) 'computed_value_id': computedValueId,
+      if (position != null) 'position': position,
+      if (startUs != null) 'start_us': startUs,
+      if (endUs != null) 'end_us': endUs,
+      if (gpsMedianAccuracyM != null)
+        'gps_median_accuracy_m': gpsMedianAccuracyM,
+      if (weight != null) 'weight': weight,
+      if (lateFactor != null) 'late_factor': lateFactor,
+      if (status != null) 'status': status,
+      if (discard != null) 'discard': discard,
+      if (reasons != null) 'reasons': reasons,
+      if (oxygenDemand != null) 'oxygen_demand': oxygenDemand,
+      if (estimate != null) 'estimate': estimate,
+    });
+  }
+
+  ValueSectionsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? computedValueId,
+    Value<int>? position,
+    Value<int>? startUs,
+    Value<int>? endUs,
+    Value<double?>? gpsMedianAccuracyM,
+    Value<double>? weight,
+    Value<double>? lateFactor,
+    Value<String>? status,
+    Value<String?>? discard,
+    Value<String>? reasons,
+    Value<double?>? oxygenDemand,
+    Value<double?>? estimate,
+  }) {
+    return ValueSectionsCompanion(
+      id: id ?? this.id,
+      computedValueId: computedValueId ?? this.computedValueId,
+      position: position ?? this.position,
+      startUs: startUs ?? this.startUs,
+      endUs: endUs ?? this.endUs,
+      gpsMedianAccuracyM: gpsMedianAccuracyM ?? this.gpsMedianAccuracyM,
+      weight: weight ?? this.weight,
+      lateFactor: lateFactor ?? this.lateFactor,
+      status: status ?? this.status,
+      discard: discard ?? this.discard,
+      reasons: reasons ?? this.reasons,
+      oxygenDemand: oxygenDemand ?? this.oxygenDemand,
+      estimate: estimate ?? this.estimate,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (computedValueId.present) {
+      map['computed_value_id'] = Variable<int>(computedValueId.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (startUs.present) {
+      map['start_us'] = Variable<int>(startUs.value);
+    }
+    if (endUs.present) {
+      map['end_us'] = Variable<int>(endUs.value);
+    }
+    if (gpsMedianAccuracyM.present) {
+      map['gps_median_accuracy_m'] = Variable<double>(gpsMedianAccuracyM.value);
+    }
+    if (weight.present) {
+      map['weight'] = Variable<double>(weight.value);
+    }
+    if (lateFactor.present) {
+      map['late_factor'] = Variable<double>(lateFactor.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (discard.present) {
+      map['discard'] = Variable<String>(discard.value);
+    }
+    if (reasons.present) {
+      map['reasons'] = Variable<String>(reasons.value);
+    }
+    if (oxygenDemand.present) {
+      map['oxygen_demand'] = Variable<double>(oxygenDemand.value);
+    }
+    if (estimate.present) {
+      map['estimate'] = Variable<double>(estimate.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ValueSectionsCompanion(')
+          ..write('id: $id, ')
+          ..write('computedValueId: $computedValueId, ')
+          ..write('position: $position, ')
+          ..write('startUs: $startUs, ')
+          ..write('endUs: $endUs, ')
+          ..write('gpsMedianAccuracyM: $gpsMedianAccuracyM, ')
+          ..write('weight: $weight, ')
+          ..write('lateFactor: $lateFactor, ')
+          ..write('status: $status, ')
+          ..write('discard: $discard, ')
+          ..write('reasons: $reasons, ')
+          ..write('oxygenDemand: $oxygenDemand, ')
+          ..write('estimate: $estimate')
           ..write(')'))
         .toString();
   }
@@ -8475,6 +9542,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final StorageMeta storageMeta = StorageMeta(this);
   late final Runs runs = Runs(this);
+  late final Trigger runsOffsetInsert = Trigger(
+    'CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, \'offset without end\');END',
+    'runs_offset_insert',
+  );
+  late final Trigger runsOffsetUpdate = Trigger(
+    'CREATE TRIGGER runs_offset_update BEFORE UPDATE ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, \'offset without end\');END',
+    'runs_offset_update',
+  );
   late final Laps laps = Laps(this);
   late final RunGaps runGaps = RunGaps(this);
   late final Index runGapsRunTime = Index(
@@ -8570,6 +9645,31 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values WHEN OLD.role = \'original\' OR NEW.role = \'original\' BEGIN SELECT RAISE (ABORT, \'original value is immutable\');END',
     'computed_values_original_immutable',
   );
+  late final Trigger computedValuesReasonInsert = Trigger(
+    'CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, \'value and unavailable_reason are exclusive\');END',
+    'computed_values_reason_insert',
+  );
+  late final Trigger computedValuesReasonUpdate = Trigger(
+    'CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, \'value and unavailable_reason are exclusive\');END',
+    'computed_values_reason_update',
+  );
+  late final Trigger computedValuesBasisInsert = Trigger(
+    'CREATE TRIGGER computed_values_basis_insert BEFORE INSERT ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, \'basis values without snapshot flag\');END',
+    'computed_values_basis_insert',
+  );
+  late final Trigger computedValuesBasisUpdate = Trigger(
+    'CREATE TRIGGER computed_values_basis_update BEFORE UPDATE ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, \'basis values without snapshot flag\');END',
+    'computed_values_basis_update',
+  );
+  late final ValueSections valueSections = ValueSections(this);
+  late final Trigger valueSectionsOriginalImmutable = Trigger(
+    'CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections WHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = \'original\' OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = \'original\' BEGIN SELECT RAISE (ABORT, \'original value sections are immutable\');END',
+    'value_sections_original_immutable',
+  );
+  late final Trigger valueSectionsOriginalNoLateInsert = Trigger(
+    'CREATE TRIGGER value_sections_original_no_late_insert BEFORE INSERT ON value_sections WHEN (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = \'original\' AND NEW.computed_value_id <> (SELECT MAX(id) FROM computed_values) BEGIN SELECT RAISE (ABORT, \'original value sections are immutable\');END',
+    'value_sections_original_no_late_insert',
+  );
   late final Profile profile = Profile(this);
   late final Settings settings = Settings(this);
   late final KnownDevices knownDevices = KnownDevices(this);
@@ -8585,6 +9685,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     storageMeta,
     runs,
+    runsOffsetInsert,
+    runsOffsetUpdate,
     laps,
     runGaps,
     runGapsRunTime,
@@ -8616,6 +9718,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     computedValuesRunUnique,
     computedValuesDayUnique,
     computedValuesOriginalImmutable,
+    computedValuesReasonInsert,
+    computedValuesReasonUpdate,
+    computedValuesBasisInsert,
+    computedValuesBasisUpdate,
+    valueSections,
+    valueSectionsOriginalImmutable,
+    valueSectionsOriginalNoLateInsert,
     profile,
     settings,
     knownDevices,
@@ -8624,6 +9733,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.insert,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'runs',
@@ -8761,6 +9884,55 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       on: TableUpdateQuery.onTableName(
         'computed_values',
         limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.insert,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.insert,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('value_sections', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'value_sections',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'value_sections',
+        limitUpdateKind: UpdateKind.insert,
       ),
       result: [],
     ),
@@ -8916,12 +10088,14 @@ typedef $RunsCreateCompanionBuilder = RunsCompanion Function({
   required String state,
   required int startedAtUs,
   Value<int?> endedAtUs,
+  Value<int?> endedUtcOffsetS,
 });
 typedef $RunsUpdateCompanionBuilder = RunsCompanion Function({
   Value<int> id,
   Value<String> state,
   Value<int> startedAtUs,
   Value<int?> endedAtUs,
+  Value<int?> endedUtcOffsetS,
 });
 
 final class $RunsReferences extends BaseReferences<_$AppDatabase, Runs, Run> {
@@ -9163,6 +10337,11 @@ class $RunsFilterComposer extends Composer<_$AppDatabase, Runs> {
 
   ColumnFilters<int> get endedAtUs => $composableBuilder(
     column: $table.endedAtUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endedUtcOffsetS => $composableBuilder(
+    column: $table.endedUtcOffsetS,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9469,6 +10648,11 @@ class $RunsOrderingComposer extends Composer<_$AppDatabase, Runs> {
     column: $table.endedAtUs,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get endedUtcOffsetS => $composableBuilder(
+    column: $table.endedUtcOffsetS,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
@@ -9492,6 +10676,11 @@ class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
 
   GeneratedColumn<int> get endedAtUs =>
       $composableBuilder(column: $table.endedAtUs, builder: (column) => column);
+
+  GeneratedColumn<int> get endedUtcOffsetS => $composableBuilder(
+    column: $table.endedUtcOffsetS,
+    builder: (column) => column,
+  );
 
   Expression<T> lapsRefs<T extends Object>(
     Expression<T> Function($LapsAnnotationComposer a) f,
@@ -9813,11 +11002,13 @@ class $RunsTableManager
                 Value<String> state = const Value.absent(),
                 Value<int> startedAtUs = const Value.absent(),
                 Value<int?> endedAtUs = const Value.absent(),
+                Value<int?> endedUtcOffsetS = const Value.absent(),
               }) => RunsCompanion(
                 id: id,
                 state: state,
                 startedAtUs: startedAtUs,
                 endedAtUs: endedAtUs,
+                endedUtcOffsetS: endedUtcOffsetS,
               ),
           createCompanionCallback:
               ({
@@ -9825,11 +11016,13 @@ class $RunsTableManager
                 required String state,
                 required int startedAtUs,
                 Value<int?> endedAtUs = const Value.absent(),
+                Value<int?> endedUtcOffsetS = const Value.absent(),
               }) => RunsCompanion.insert(
                 id: id,
                 state: state,
                 startedAtUs: startedAtUs,
                 endedAtUs: endedAtUs,
+                endedUtcOffsetS: endedUtcOffsetS,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -13970,6 +15163,10 @@ typedef $ComputedValuesCreateCompanionBuilder =
       required int methodVersion,
       required int parameterVersion,
       required String quality,
+      Value<String?> unavailableReason,
+      Value<int?> hrMaxBpm,
+      Value<int?> hrRestBpm,
+      Value<bool?> hrMaxIsEstimated,
     });
 typedef $ComputedValuesUpdateCompanionBuilder =
     ComputedValuesCompanion Function({
@@ -13989,6 +15186,10 @@ typedef $ComputedValuesUpdateCompanionBuilder =
       Value<int> methodVersion,
       Value<int> parameterVersion,
       Value<String> quality,
+      Value<String?> unavailableReason,
+      Value<int?> hrMaxBpm,
+      Value<int?> hrRestBpm,
+      Value<bool?> hrMaxIsEstimated,
     });
 
 final class $ComputedValuesReferences
@@ -14009,6 +15210,24 @@ final class $ComputedValuesReferences
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<ValueSections, List<ValueSectionRow>>
+  _valueSectionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.valueSections,
+    aliasName: 'computed_values__id__value_sections__computed_value_id',
+  );
+
+  $ValueSectionsProcessedTableManager get valueSectionsRefs {
+    final manager = $ValueSectionsTableManager(
+      $_db,
+      $_db.valueSections,
+    ).filter((f) => f.computedValueId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_valueSectionsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
     );
   }
 }
@@ -14097,6 +15316,26 @@ class $ComputedValuesFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get unavailableReason => $composableBuilder(
+    column: $table.unavailableReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get hrMaxBpm => $composableBuilder(
+    column: $table.hrMaxBpm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get hrRestBpm => $composableBuilder(
+    column: $table.hrRestBpm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hrMaxIsEstimated => $composableBuilder(
+    column: $table.hrMaxIsEstimated,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $RunsFilterComposer get runId {
     final $RunsFilterComposer composer = $composerBuilder(
       composer: this,
@@ -14118,6 +15357,31 @@ class $ComputedValuesFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> valueSectionsRefs(
+    Expression<bool> Function($ValueSectionsFilterComposer f) f,
+  ) {
+    final $ValueSectionsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.valueSections,
+      getReferencedColumn: (t) => t.computedValueId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $ValueSectionsFilterComposer(
+            $db: $db,
+            $table: $db.valueSections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -14202,6 +15466,26 @@ class $ComputedValuesOrderingComposer
 
   ColumnOrderings<String> get quality => $composableBuilder(
     column: $table.quality,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get unavailableReason => $composableBuilder(
+    column: $table.unavailableReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get hrMaxBpm => $composableBuilder(
+    column: $table.hrMaxBpm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get hrRestBpm => $composableBuilder(
+    column: $table.hrRestBpm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hrMaxIsEstimated => $composableBuilder(
+    column: $table.hrMaxIsEstimated,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -14293,6 +15577,22 @@ class $ComputedValuesAnnotationComposer
   GeneratedColumn<String> get quality =>
       $composableBuilder(column: $table.quality, builder: (column) => column);
 
+  GeneratedColumn<String> get unavailableReason => $composableBuilder(
+    column: $table.unavailableReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get hrMaxBpm =>
+      $composableBuilder(column: $table.hrMaxBpm, builder: (column) => column);
+
+  GeneratedColumn<int> get hrRestBpm =>
+      $composableBuilder(column: $table.hrRestBpm, builder: (column) => column);
+
+  GeneratedColumn<bool> get hrMaxIsEstimated => $composableBuilder(
+    column: $table.hrMaxIsEstimated,
+    builder: (column) => column,
+  );
+
   $RunsAnnotationComposer get runId {
     final $RunsAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -14315,6 +15615,31 @@ class $ComputedValuesAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> valueSectionsRefs<T extends Object>(
+    Expression<T> Function($ValueSectionsAnnotationComposer a) f,
+  ) {
+    final $ValueSectionsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.valueSections,
+      getReferencedColumn: (t) => t.computedValueId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $ValueSectionsAnnotationComposer(
+            $db: $db,
+            $table: $db.valueSections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $ComputedValuesTableManager
@@ -14330,7 +15655,7 @@ class $ComputedValuesTableManager
           $ComputedValuesUpdateCompanionBuilder,
           (ComputedValue, $ComputedValuesReferences),
           ComputedValue,
-          PrefetchHooks Function({bool runId})
+          PrefetchHooks Function({bool runId, bool valueSectionsRefs})
         > {
   $ComputedValuesTableManager(_$AppDatabase db, ComputedValues table)
     : super(
@@ -14361,6 +15686,10 @@ class $ComputedValuesTableManager
                 Value<int> methodVersion = const Value.absent(),
                 Value<int> parameterVersion = const Value.absent(),
                 Value<String> quality = const Value.absent(),
+                Value<String?> unavailableReason = const Value.absent(),
+                Value<int?> hrMaxBpm = const Value.absent(),
+                Value<int?> hrRestBpm = const Value.absent(),
+                Value<bool?> hrMaxIsEstimated = const Value.absent(),
               }) => ComputedValuesCompanion(
                 id: id,
                 runId: runId,
@@ -14378,6 +15707,10 @@ class $ComputedValuesTableManager
                 methodVersion: methodVersion,
                 parameterVersion: parameterVersion,
                 quality: quality,
+                unavailableReason: unavailableReason,
+                hrMaxBpm: hrMaxBpm,
+                hrRestBpm: hrRestBpm,
+                hrMaxIsEstimated: hrMaxIsEstimated,
               ),
           createCompanionCallback:
               ({
@@ -14397,6 +15730,10 @@ class $ComputedValuesTableManager
                 required int methodVersion,
                 required int parameterVersion,
                 required String quality,
+                Value<String?> unavailableReason = const Value.absent(),
+                Value<int?> hrMaxBpm = const Value.absent(),
+                Value<int?> hrRestBpm = const Value.absent(),
+                Value<bool?> hrMaxIsEstimated = const Value.absent(),
               }) => ComputedValuesCompanion.insert(
                 id: id,
                 runId: runId,
@@ -14414,6 +15751,10 @@ class $ComputedValuesTableManager
                 methodVersion: methodVersion,
                 parameterVersion: parameterVersion,
                 quality: quality,
+                unavailableReason: unavailableReason,
+                hrMaxBpm: hrMaxBpm,
+                hrRestBpm: hrRestBpm,
+                hrMaxIsEstimated: hrMaxIsEstimated,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -14423,10 +15764,12 @@ class $ComputedValuesTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({runId = false}) {
+          prefetchHooksCallback: ({runId = false, valueSectionsRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [],
+              explicitlyWatchedTables: [
+                if (valueSectionsRefs) db.valueSections,
+              ],
               addJoins:
                   <
                     T extends TableManagerState<
@@ -14459,7 +15802,27 @@ class $ComputedValuesTableManager
                     return state;
                   },
               getPrefetchedDataCallback: (items) async {
-                return [];
+                return [
+                  if (valueSectionsRefs)
+                    await $_getPrefetchedDataByColumns<
+                      ComputedValue,
+                      ComputedValues,
+                      ValueSectionRow,
+                      ValueSections
+                    >(
+                      currentTable: table,
+                      referencedTable: $ComputedValuesReferences
+                          ._valueSectionsRefsTable(db),
+                      managerFromTypedResult: (p0) => $ComputedValuesReferences(
+                        db,
+                        table,
+                        p0,
+                      ).valueSectionsRefs,
+                      currentColumn: 'id',
+                      referencedColumn: 'computed_value_id',
+                      typedResults: items,
+                    ),
+                ];
               },
             );
           },
@@ -14479,7 +15842,473 @@ typedef $ComputedValuesProcessedTableManager =
       $ComputedValuesUpdateCompanionBuilder,
       (ComputedValue, $ComputedValuesReferences),
       ComputedValue,
-      PrefetchHooks Function({bool runId})
+      PrefetchHooks Function({bool runId, bool valueSectionsRefs})
+    >;
+typedef $ValueSectionsCreateCompanionBuilder = ValueSectionsCompanion Function({
+  Value<int> id,
+  required int computedValueId,
+  required int position,
+  required int startUs,
+  required int endUs,
+  Value<double?> gpsMedianAccuracyM,
+  required double weight,
+  required double lateFactor,
+  required String status,
+  Value<String?> discard,
+  required String reasons,
+  Value<double?> oxygenDemand,
+  Value<double?> estimate,
+});
+typedef $ValueSectionsUpdateCompanionBuilder = ValueSectionsCompanion Function({
+  Value<int> id,
+  Value<int> computedValueId,
+  Value<int> position,
+  Value<int> startUs,
+  Value<int> endUs,
+  Value<double?> gpsMedianAccuracyM,
+  Value<double> weight,
+  Value<double> lateFactor,
+  Value<String> status,
+  Value<String?> discard,
+  Value<String> reasons,
+  Value<double?> oxygenDemand,
+  Value<double?> estimate,
+});
+
+final class $ValueSectionsReferences
+    extends BaseReferences<_$AppDatabase, ValueSections, ValueSectionRow> {
+  $ValueSectionsReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static ComputedValues _computedValueIdTable(_$AppDatabase db) => db
+      .computedValues
+      .createAlias('value_sections__computed_value_id__computed_values__id');
+
+  $ComputedValuesProcessedTableManager get computedValueId {
+    final $_column = $_itemColumn<int>('computed_value_id')!;
+
+    final manager = $ComputedValuesTableManager(
+      $_db,
+      $_db.computedValues,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_computedValueIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $ValueSectionsFilterComposer
+    extends Composer<_$AppDatabase, ValueSections> {
+  $ValueSectionsFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startUs => $composableBuilder(
+    column: $table.startUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endUs => $composableBuilder(
+    column: $table.endUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get gpsMedianAccuracyM => $composableBuilder(
+    column: $table.gpsMedianAccuracyM,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get weight => $composableBuilder(
+    column: $table.weight,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get lateFactor => $composableBuilder(
+    column: $table.lateFactor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get discard => $composableBuilder(
+    column: $table.discard,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reasons => $composableBuilder(
+    column: $table.reasons,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get oxygenDemand => $composableBuilder(
+    column: $table.oxygenDemand,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get estimate => $composableBuilder(
+    column: $table.estimate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $ComputedValuesFilterComposer get computedValueId {
+    final $ComputedValuesFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.computedValueId,
+      referencedTable: $db.computedValues,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $ComputedValuesFilterComposer(
+            $db: $db,
+            $table: $db.computedValues,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $ValueSectionsOrderingComposer
+    extends Composer<_$AppDatabase, ValueSections> {
+  $ValueSectionsOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startUs => $composableBuilder(
+    column: $table.startUs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endUs => $composableBuilder(
+    column: $table.endUs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get gpsMedianAccuracyM => $composableBuilder(
+    column: $table.gpsMedianAccuracyM,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get weight => $composableBuilder(
+    column: $table.weight,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get lateFactor => $composableBuilder(
+    column: $table.lateFactor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get discard => $composableBuilder(
+    column: $table.discard,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reasons => $composableBuilder(
+    column: $table.reasons,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get oxygenDemand => $composableBuilder(
+    column: $table.oxygenDemand,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get estimate => $composableBuilder(
+    column: $table.estimate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $ComputedValuesOrderingComposer get computedValueId {
+    final $ComputedValuesOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.computedValueId,
+      referencedTable: $db.computedValues,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $ComputedValuesOrderingComposer(
+            $db: $db,
+            $table: $db.computedValues,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $ValueSectionsAnnotationComposer
+    extends Composer<_$AppDatabase, ValueSections> {
+  $ValueSectionsAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<int> get startUs =>
+      $composableBuilder(column: $table.startUs, builder: (column) => column);
+
+  GeneratedColumn<int> get endUs =>
+      $composableBuilder(column: $table.endUs, builder: (column) => column);
+
+  GeneratedColumn<double> get gpsMedianAccuracyM => $composableBuilder(
+    column: $table.gpsMedianAccuracyM,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get weight =>
+      $composableBuilder(column: $table.weight, builder: (column) => column);
+
+  GeneratedColumn<double> get lateFactor => $composableBuilder(
+    column: $table.lateFactor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get discard =>
+      $composableBuilder(column: $table.discard, builder: (column) => column);
+
+  GeneratedColumn<String> get reasons =>
+      $composableBuilder(column: $table.reasons, builder: (column) => column);
+
+  GeneratedColumn<double> get oxygenDemand => $composableBuilder(
+    column: $table.oxygenDemand,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get estimate =>
+      $composableBuilder(column: $table.estimate, builder: (column) => column);
+
+  $ComputedValuesAnnotationComposer get computedValueId {
+    final $ComputedValuesAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.computedValueId,
+      referencedTable: $db.computedValues,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $ComputedValuesAnnotationComposer(
+            $db: $db,
+            $table: $db.computedValues,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $ValueSectionsTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          ValueSections,
+          ValueSectionRow,
+          $ValueSectionsFilterComposer,
+          $ValueSectionsOrderingComposer,
+          $ValueSectionsAnnotationComposer,
+          $ValueSectionsCreateCompanionBuilder,
+          $ValueSectionsUpdateCompanionBuilder,
+          (ValueSectionRow, $ValueSectionsReferences),
+          ValueSectionRow,
+          PrefetchHooks Function({bool computedValueId})
+        > {
+  $ValueSectionsTableManager(_$AppDatabase db, ValueSections table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $ValueSectionsFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $ValueSectionsOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $ValueSectionsAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> computedValueId = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> startUs = const Value.absent(),
+                Value<int> endUs = const Value.absent(),
+                Value<double?> gpsMedianAccuracyM = const Value.absent(),
+                Value<double> weight = const Value.absent(),
+                Value<double> lateFactor = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> discard = const Value.absent(),
+                Value<String> reasons = const Value.absent(),
+                Value<double?> oxygenDemand = const Value.absent(),
+                Value<double?> estimate = const Value.absent(),
+              }) => ValueSectionsCompanion(
+                id: id,
+                computedValueId: computedValueId,
+                position: position,
+                startUs: startUs,
+                endUs: endUs,
+                gpsMedianAccuracyM: gpsMedianAccuracyM,
+                weight: weight,
+                lateFactor: lateFactor,
+                status: status,
+                discard: discard,
+                reasons: reasons,
+                oxygenDemand: oxygenDemand,
+                estimate: estimate,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int computedValueId,
+                required int position,
+                required int startUs,
+                required int endUs,
+                Value<double?> gpsMedianAccuracyM = const Value.absent(),
+                required double weight,
+                required double lateFactor,
+                required String status,
+                Value<String?> discard = const Value.absent(),
+                required String reasons,
+                Value<double?> oxygenDemand = const Value.absent(),
+                Value<double?> estimate = const Value.absent(),
+              }) => ValueSectionsCompanion.insert(
+                id: id,
+                computedValueId: computedValueId,
+                position: position,
+                startUs: startUs,
+                endUs: endUs,
+                gpsMedianAccuracyM: gpsMedianAccuracyM,
+                weight: weight,
+                lateFactor: lateFactor,
+                status: status,
+                discard: discard,
+                reasons: reasons,
+                oxygenDemand: oxygenDemand,
+                estimate: estimate,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<ValueSections, ValueSectionRow>(table),
+                  $ValueSectionsReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({computedValueId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (computedValueId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.computedValueId,
+                        referencedTable: $ValueSectionsReferences
+                            ._computedValueIdTable(db),
+                        referencedColumn: $ValueSectionsReferences
+                            ._computedValueIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $ValueSectionsProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      ValueSections,
+      ValueSectionRow,
+      $ValueSectionsFilterComposer,
+      $ValueSectionsOrderingComposer,
+      $ValueSectionsAnnotationComposer,
+      $ValueSectionsCreateCompanionBuilder,
+      $ValueSectionsUpdateCompanionBuilder,
+      (ValueSectionRow, $ValueSectionsReferences),
+      ValueSectionRow,
+      PrefetchHooks Function({bool computedValueId})
     >;
 typedef $ProfileCreateCompanionBuilder = ProfileCompanion Function({
   Value<int> id,
@@ -15316,6 +17145,8 @@ class $AppDatabaseManager {
       $RatedSectionsTableManager(_db, _db.ratedSections);
   $ComputedValuesTableManager get computedValues =>
       $ComputedValuesTableManager(_db, _db.computedValues);
+  $ValueSectionsTableManager get valueSections =>
+      $ValueSectionsTableManager(_db, _db.valueSections);
   $ProfileTableManager get profile => $ProfileTableManager(_db, _db.profile);
   $SettingsTableManager get settings =>
       $SettingsTableManager(_db, _db.settings);

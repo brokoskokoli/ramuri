@@ -1,0 +1,2836 @@
+{
+  "_meta": {
+    "description": "This file contains a serialized version of schema entities for drift.",
+    "version": "1.3.0"
+  },
+  "options": {
+    "store_date_time_values_as_text": false
+  },
+  "entities": [
+    {
+      "id": 0,
+      "references": [],
+      "type": "table",
+      "data": {
+        "name": "storage_meta",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "key",
+            "getter_name": "key",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "primary-key"
+            ]
+          },
+          {
+            "name": "value",
+            "getter_name": "value",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 1,
+      "references": [],
+      "type": "table",
+      "data": {
+        "name": "runs",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "state",
+            "getter_name": "state",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (state IN ('active', 'paused', 'finished'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "started_at_us",
+            "getter_name": "startedAtUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "ended_at_us",
+            "getter_name": "endedAtUs",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "ended_utc_offset_s",
+            "getter_name": "endedUtcOffsetS",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 2,
+      "references": [
+        1
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 1,
+        "references_in_body": [
+          1
+        ],
+        "name": "runs_offset_insert",
+        "sql": "CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs\nWHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL\nBEGIN SELECT RAISE(ABORT, 'offset without end'); END;"
+      }
+    },
+    {
+      "id": 3,
+      "references": [
+        1
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 1,
+        "references_in_body": [
+          1
+        ],
+        "name": "runs_offset_update",
+        "sql": "CREATE TRIGGER runs_offset_update BEFORE UPDATE ON runs\nWHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL\nBEGIN SELECT RAISE(ABORT, 'offset without end'); END;"
+      }
+    },
+    {
+      "id": 4,
+      "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "laps",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "lap_index",
+            "getter_name": "lapIndex",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "marked_at_us",
+            "getter_name": "markedAtUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "lap_time_s",
+            "getter_name": "lapTimeS",
+            "moor_type": "double",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [
+          "UNIQUE(run_id, lap_index)"
+        ],
+        "unique_keys": [
+          [
+            "run_id",
+            "lap_index"
+          ]
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "run_gaps",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "kind",
+            "getter_name": "kind",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (kind IN ('manual_pause', 'position_loss', 'heart_rate_loss', 'interruption'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "start_us",
+            "getter_name": "startUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "end_us",
+            "getter_name": "endUs",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 6,
+      "references": [
+        5
+      ],
+      "type": "index",
+      "data": {
+        "on": 5,
+        "name": "run_gaps_run_time",
+        "sql": "CREATE INDEX run_gaps_run_time ON run_gaps (run_id, start_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 7,
+      "references": [
+        4
+      ],
+      "type": "index",
+      "data": {
+        "on": 4,
+        "name": "laps_run_time",
+        "sql": "CREATE INDEX laps_run_time ON laps (run_id, marked_at_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 8,
+      "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "raw_positions",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "time_us",
+            "getter_name": "timeUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "source",
+            "getter_name": "source",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "state",
+            "getter_name": "state",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "latitude_deg",
+            "getter_name": "latitudeDeg",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "longitude_deg",
+            "getter_name": "longitudeDeg",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "accuracy_m",
+            "getter_name": "accuracyM",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "speed_mps",
+            "getter_name": "speedMps",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "speed_accuracy_mps",
+            "getter_name": "speedAccuracyMps",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "vertical_accuracy_m",
+            "getter_name": "verticalAccuracyM",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [
+          "CHECK(state = 'unavailable' OR(latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL))"
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "raw_heart_rates",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "time_us",
+            "getter_name": "timeUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "source",
+            "getter_name": "source",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "state",
+            "getter_name": "state",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "bpm",
+            "getter_name": "bpm",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "contact",
+            "getter_name": "contact",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (contact IN ('good', 'poor', 'unsupported'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [
+          "CHECK(state = 'unavailable' OR bpm IS NOT NULL)"
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "raw_altitudes",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "time_us",
+            "getter_name": "timeUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "source",
+            "getter_name": "source",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "state",
+            "getter_name": "state",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "altitude_m",
+            "getter_name": "altitudeM",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "vertical_accuracy_m",
+            "getter_name": "verticalAccuracyM",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [
+          "CHECK(state = 'unavailable' OR altitude_m IS NOT NULL)"
+        ]
+      }
+    },
+    {
+      "id": 11,
+      "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "raw_steps",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "time_us",
+            "getter_name": "timeUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "source",
+            "getter_name": "source",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "state",
+            "getter_name": "state",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "step_count",
+            "getter_name": "stepCount",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [
+          "CHECK(state = 'unavailable' OR step_count IS NOT NULL)"
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "references": [
+        8
+      ],
+      "type": "index",
+      "data": {
+        "on": 8,
+        "name": "raw_positions_run_time",
+        "sql": "CREATE INDEX raw_positions_run_time ON raw_positions (run_id, time_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 13,
+      "references": [
+        9
+      ],
+      "type": "index",
+      "data": {
+        "on": 9,
+        "name": "raw_heart_rates_run_time",
+        "sql": "CREATE INDEX raw_heart_rates_run_time ON raw_heart_rates (run_id, time_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 14,
+      "references": [
+        10
+      ],
+      "type": "index",
+      "data": {
+        "on": 10,
+        "name": "raw_altitudes_run_time",
+        "sql": "CREATE INDEX raw_altitudes_run_time ON raw_altitudes (run_id, time_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 15,
+      "references": [
+        11
+      ],
+      "type": "index",
+      "data": {
+        "on": 11,
+        "name": "raw_steps_run_time",
+        "sql": "CREATE INDEX raw_steps_run_time ON raw_steps (run_id, time_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 16,
+      "references": [
+        8
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 8,
+        "references_in_body": [
+          8
+        ],
+        "name": "raw_positions_no_update",
+        "sql": "CREATE TRIGGER raw_positions_no_update BEFORE UPDATE ON raw_positions\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
+      }
+    },
+    {
+      "id": 17,
+      "references": [
+        9
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 9,
+        "references_in_body": [
+          9
+        ],
+        "name": "raw_heart_rates_no_update",
+        "sql": "CREATE TRIGGER raw_heart_rates_no_update BEFORE UPDATE ON raw_heart_rates\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
+      }
+    },
+    {
+      "id": 18,
+      "references": [
+        10
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 10,
+        "references_in_body": [
+          10
+        ],
+        "name": "raw_altitudes_no_update",
+        "sql": "CREATE TRIGGER raw_altitudes_no_update BEFORE UPDATE ON raw_altitudes\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
+      }
+    },
+    {
+      "id": 19,
+      "references": [
+        11
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 11,
+        "references_in_body": [
+          11
+        ],
+        "name": "raw_steps_no_update",
+        "sql": "CREATE TRIGGER raw_steps_no_update BEFORE UPDATE ON raw_steps\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
+      }
+    },
+    {
+      "id": 20,
+      "references": [
+        8,
+        1
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 8,
+        "references_in_body": [
+          8,
+          1
+        ],
+        "name": "raw_positions_no_direct_delete",
+        "sql": "CREATE TRIGGER raw_positions_no_direct_delete BEFORE DELETE ON raw_positions\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
+      }
+    },
+    {
+      "id": 21,
+      "references": [
+        9,
+        1
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 9,
+        "references_in_body": [
+          9,
+          1
+        ],
+        "name": "raw_heart_rates_no_direct_delete",
+        "sql": "CREATE TRIGGER raw_heart_rates_no_direct_delete BEFORE DELETE ON raw_heart_rates\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
+      }
+    },
+    {
+      "id": 22,
+      "references": [
+        10,
+        1
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 10,
+        "references_in_body": [
+          10,
+          1
+        ],
+        "name": "raw_altitudes_no_direct_delete",
+        "sql": "CREATE TRIGGER raw_altitudes_no_direct_delete BEFORE DELETE ON raw_altitudes\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
+      }
+    },
+    {
+      "id": 23,
+      "references": [
+        11,
+        1
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 11,
+        "references_in_body": [
+          11,
+          1
+        ],
+        "name": "raw_steps_no_direct_delete",
+        "sql": "CREATE TRIGGER raw_steps_no_direct_delete BEFORE DELETE ON raw_steps\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
+      }
+    },
+    {
+      "id": 24,
+      "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "preprocessing_results",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL UNIQUE REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "unique",
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "method",
+            "getter_name": "method",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "method_version",
+            "getter_name": "methodVersion",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "parameter_version",
+            "getter_name": "parameterVersion",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "computed_at_us",
+            "getter_name": "computedAtUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "total_time_s",
+            "getter_name": "totalTimeS",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "moving_time_s",
+            "getter_name": "movingTimeS",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "distance_m",
+            "getter_name": "distanceM",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "bridged_distance_m",
+            "getter_name": "bridgedDistanceM",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "average_bpm",
+            "getter_name": "averageBpm",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "max_bpm",
+            "getter_name": "maxBpm",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "median_bpm",
+            "getter_name": "medianBpm",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 25,
+      "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "preprocessed_samples",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "channel",
+            "getter_name": "channel",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (channel IN ('position', 'heart_rate', 'altitude', 'steps'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "raw_id",
+            "getter_name": "rawId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "time_us",
+            "getter_name": "timeUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "state",
+            "getter_name": "state",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "discard_reason",
+            "getter_name": "discardReason",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": "CHECK (discard_reason IN ('accuracy', 'hardJump', 'softJump', 'nonMonotonicTime', 'implausibleHeartRate', 'noContact', 'heartRateOutlier', 'verticalAccuracy', 'invalidValue'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 26,
+      "references": [
+        25
+      ],
+      "type": "index",
+      "data": {
+        "on": 25,
+        "name": "preprocessed_samples_run_time",
+        "sql": "CREATE INDEX preprocessed_samples_run_time\n  ON preprocessed_samples (run_id, channel, time_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 27,
+      "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "preprocessed_spans",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "kind",
+            "getter_name": "kind",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (kind IN ('moving', 'settling', 'position_gap', 'heart_rate_gap'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "start_us",
+            "getter_name": "startUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "end_us",
+            "getter_name": "endUs",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 28,
+      "references": [
+        27
+      ],
+      "type": "index",
+      "data": {
+        "on": 27,
+        "name": "preprocessed_spans_run_time",
+        "sql": "CREATE INDEX preprocessed_spans_run_time\n  ON preprocessed_spans (run_id, kind, start_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 29,
+      "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "rated_sections",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "start_us",
+            "getter_name": "startUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "end_us",
+            "getter_name": "endUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "method",
+            "getter_name": "method",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "method_version",
+            "getter_name": "methodVersion",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "parameter_version",
+            "getter_name": "parameterVersion",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "assessed_at_us",
+            "getter_name": "assessedAtUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "heart_rate_present",
+            "getter_name": "heartRatePresent",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "heart_rate_estimated",
+            "getter_name": "heartRateEstimated",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "heart_rate_unavailable",
+            "getter_name": "heartRateUnavailable",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "heart_rate_discarded",
+            "getter_name": "heartRateDiscarded",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "position_present",
+            "getter_name": "positionPresent",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "position_estimated",
+            "getter_name": "positionEstimated",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "position_unavailable",
+            "getter_name": "positionUnavailable",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "position_discarded",
+            "getter_name": "positionDiscarded",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "missing_heart_rate_share",
+            "getter_name": "missingHeartRateShare",
+            "moor_type": "double",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "longest_heart_rate_gap_s",
+            "getter_name": "longestHeartRateGapS",
+            "moor_type": "double",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "meets_heart_rate_gap_rule",
+            "getter_name": "meetsHeartRateGapRule",
+            "moor_type": "bool",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (meets_heart_rate_gap_rule IN (0, 1))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "settling_overlap_s",
+            "getter_name": "settlingOverlapS",
+            "moor_type": "double",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "settling_share",
+            "getter_name": "settlingShare",
+            "moor_type": "double",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "gps_gaps",
+            "getter_name": "gpsGaps",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (json_valid(gps_gaps))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 30,
+      "references": [
+        29
+      ],
+      "type": "index",
+      "data": {
+        "on": 29,
+        "name": "rated_sections_run_time",
+        "sql": "CREATE INDEX rated_sections_run_time ON rated_sections (run_id, start_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 31,
+      "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "computed_values",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "day",
+            "getter_name": "day",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "value_key",
+            "getter_name": "valueKey",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "role",
+            "getter_name": "role",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (role IN ('original', 'current'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "value_real",
+            "getter_name": "valueReal",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "unit",
+            "getter_name": "unit",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "computed_at_us",
+            "getter_name": "computedAtUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "data_from_us",
+            "getter_name": "dataFromUs",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "data_to_us",
+            "getter_name": "dataToUs",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "measurement_count",
+            "getter_name": "measurementCount",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "sources",
+            "getter_name": "sources",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "method",
+            "getter_name": "method",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "method_version",
+            "getter_name": "methodVersion",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "parameter_version",
+            "getter_name": "parameterVersion",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "quality",
+            "getter_name": "quality",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (quality IN ('provisional', 'sufficient', 'good', 'undeterminable'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "unavailable_reason",
+            "getter_name": "unavailableReason",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "hr_max_bpm",
+            "getter_name": "hrMaxBpm",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "CHECK (hr_max_bpm > 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "hr_rest_bpm",
+            "getter_name": "hrRestBpm",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "CHECK (hr_rest_bpm > 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "hr_max_is_estimated",
+            "getter_name": "hrMaxIsEstimated",
+            "moor_type": "bool",
+            "nullable": true,
+            "customConstraints": "CHECK (hr_max_is_estimated IN (0, 1))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [
+          "CHECK((run_id IS NULL)<>(day IS NULL))"
+        ]
+      }
+    },
+    {
+      "id": 32,
+      "references": [
+        31
+      ],
+      "type": "index",
+      "data": {
+        "on": 31,
+        "name": "computed_values_run_unique",
+        "sql": "CREATE UNIQUE INDEX computed_values_run_unique\n  ON computed_values (run_id, value_key, role) WHERE run_id IS NOT NULL;",
+        "unique": true,
+        "columns": []
+      }
+    },
+    {
+      "id": 33,
+      "references": [
+        31
+      ],
+      "type": "index",
+      "data": {
+        "on": 31,
+        "name": "computed_values_day_unique",
+        "sql": "CREATE UNIQUE INDEX computed_values_day_unique\n  ON computed_values (day, value_key, role) WHERE day IS NOT NULL;",
+        "unique": true,
+        "columns": []
+      }
+    },
+    {
+      "id": 34,
+      "references": [
+        31
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 31,
+        "references_in_body": [
+          31
+        ],
+        "name": "computed_values_original_immutable",
+        "sql": "CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values\nWHEN OLD.role = 'original' OR NEW.role = 'original'\nBEGIN SELECT RAISE(ABORT, 'original value is immutable'); END;"
+      }
+    },
+    {
+      "id": 35,
+      "references": [
+        31
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 31,
+        "references_in_body": [
+          31
+        ],
+        "name": "computed_values_reason_insert",
+        "sql": "CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values\nWHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)\nBEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;"
+      }
+    },
+    {
+      "id": 36,
+      "references": [
+        31
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 31,
+        "references_in_body": [
+          31
+        ],
+        "name": "computed_values_reason_update",
+        "sql": "CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values\nWHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)\nBEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;"
+      }
+    },
+    {
+      "id": 37,
+      "references": [
+        31
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 31,
+        "references_in_body": [
+          31
+        ],
+        "name": "computed_values_basis_insert",
+        "sql": "CREATE TRIGGER computed_values_basis_insert BEFORE INSERT ON computed_values\nWHEN NEW.hr_max_is_estimated IS NULL\n  AND (NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)\nBEGIN SELECT RAISE(ABORT, 'basis values without snapshot flag'); END;"
+      }
+    },
+    {
+      "id": 38,
+      "references": [
+        31
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 31,
+        "references_in_body": [
+          31
+        ],
+        "name": "computed_values_basis_update",
+        "sql": "CREATE TRIGGER computed_values_basis_update BEFORE UPDATE ON computed_values\nWHEN NEW.hr_max_is_estimated IS NULL\n  AND (NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)\nBEGIN SELECT RAISE(ABORT, 'basis values without snapshot flag'); END;"
+      }
+    },
+    {
+      "id": 39,
+      "references": [
+        31
+      ],
+      "type": "table",
+      "data": {
+        "name": "value_sections",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "computed_value_id",
+            "getter_name": "computedValueId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES computed_values(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "computed_values",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "position",
+            "getter_name": "position",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (position >= 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "start_us",
+            "getter_name": "startUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "end_us",
+            "getter_name": "endUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (end_us >= start_us)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "gps_median_accuracy_m",
+            "getter_name": "gpsMedianAccuracyM",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "CHECK (gps_median_accuracy_m >= 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "weight",
+            "getter_name": "weight",
+            "moor_type": "double",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (weight >= 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "late_factor",
+            "getter_name": "lateFactor",
+            "moor_type": "double",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (late_factor >= 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "status",
+            "getter_name": "status",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (status IN ('eligible', 'provisional', 'rejected'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "discard",
+            "getter_name": "discard",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": "CHECK (discard IN ('implausible', 'incomplete', 'zeroWeight'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "reasons",
+            "getter_name": "reasons",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (json_valid(reasons))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "oxygen_demand",
+            "getter_name": "oxygenDemand",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "estimate",
+            "getter_name": "estimate",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [
+          "UNIQUE(computed_value_id, position)"
+        ],
+        "unique_keys": [
+          [
+            "computed_value_id",
+            "position"
+          ]
+        ]
+      }
+    },
+    {
+      "id": 40,
+      "references": [
+        39,
+        31
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 39,
+        "references_in_body": [
+          39,
+          31
+        ],
+        "name": "value_sections_original_immutable",
+        "sql": "CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections\nWHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = 'original'\n  OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original'\nBEGIN SELECT RAISE(ABORT, 'original value sections are immutable'); END;"
+      }
+    },
+    {
+      "id": 41,
+      "references": [
+        39,
+        31
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 39,
+        "references_in_body": [
+          39,
+          31
+        ],
+        "name": "value_sections_original_no_late_insert",
+        "sql": "CREATE TRIGGER value_sections_original_no_late_insert BEFORE INSERT ON value_sections\nWHEN (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original'\n  AND NEW.computed_value_id <> (SELECT MAX(id) FROM computed_values)\nBEGIN SELECT RAISE(ABORT, 'original value sections are immutable'); END;"
+      }
+    },
+    {
+      "id": 42,
+      "references": [],
+      "type": "table",
+      "data": {
+        "name": "profile",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY CHECK (id = 1)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "primary-key"
+            ]
+          },
+          {
+            "name": "birth_year",
+            "getter_name": "birthYear",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "CHECK (birth_year > 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "body_weight_kg",
+            "getter_name": "bodyWeightKg",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "CHECK (body_weight_kg > 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "body_height_m",
+            "getter_name": "bodyHeightM",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "CHECK (body_height_m > 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "resting_heart_rate_bpm",
+            "getter_name": "restingHeartRateBpm",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "max_heart_rate_bpm",
+            "getter_name": "maxHeartRateBpm",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "weekly_run_minutes",
+            "getter_name": "weeklyRunMinutes",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "training_days_mask",
+            "getter_name": "trainingDaysMask",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "CHECK (training_days_mask BETWEEN 0 AND 127)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "usual_training_minutes",
+            "getter_name": "usualTrainingMinutes",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 43,
+      "references": [],
+      "type": "table",
+      "data": {
+        "name": "settings",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "key",
+            "getter_name": "key",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "primary-key"
+            ]
+          },
+          {
+            "name": "value",
+            "getter_name": "value",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "updated_at_us",
+            "getter_name": "updatedAtUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 44,
+      "references": [],
+      "type": "table",
+      "data": {
+        "name": "known_devices",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "device_id",
+            "getter_name": "deviceId",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL UNIQUE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "unique"
+            ]
+          },
+          {
+            "name": "display_name",
+            "getter_name": "displayName",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "is_preferred",
+            "getter_name": "isPreferred",
+            "moor_type": "bool",
+            "nullable": false,
+            "customConstraints": "NOT NULL DEFAULT 0 CHECK (is_preferred IN (0, 1))",
+            "default_dart": "const CustomExpression('0')",
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "added_at_us",
+            "getter_name": "addedAtUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 45,
+      "references": [
+        44
+      ],
+      "type": "index",
+      "data": {
+        "on": 44,
+        "name": "known_devices_one_preferred",
+        "sql": "CREATE UNIQUE INDEX known_devices_one_preferred\n  ON known_devices (is_preferred) WHERE is_preferred = 1;",
+        "unique": true,
+        "columns": []
+      }
+    },
+    {
+      "id": 46,
+      "references": [],
+      "type": "table",
+      "data": {
+        "name": "consents",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "source_key",
+            "getter_name": "sourceKey",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "primary-key"
+            ]
+          },
+          {
+            "name": "state",
+            "getter_name": "state",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (state IN ('granted', 'revoked'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "changed_at_us",
+            "getter_name": "changedAtUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    }
+  ],
+  "fixed_sql": [
+    {
+      "name": "storage_meta",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"storage_meta\" (\"key\" TEXT NOT NULL PRIMARY KEY, \"value\" TEXT NOT NULL);"
+        }
+      ]
+    },
+    {
+      "name": "runs",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"runs\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"state\" TEXT NOT NULL CHECK (state IN ('active', 'paused', 'finished')), \"started_at_us\" INTEGER NOT NULL, \"ended_at_us\" INTEGER, \"ended_utc_offset_s\" INTEGER CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800));"
+        }
+      ]
+    },
+    {
+      "name": "runs_offset_insert",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, 'offset without end');END"
+        }
+      ]
+    },
+    {
+      "name": "runs_offset_update",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER runs_offset_update BEFORE UPDATE ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, 'offset without end');END"
+        }
+      ]
+    },
+    {
+      "name": "laps",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"laps\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"lap_index\" INTEGER NOT NULL, \"marked_at_us\" INTEGER NOT NULL, \"lap_time_s\" REAL NOT NULL, UNIQUE(run_id, lap_index));"
+        }
+      ]
+    },
+    {
+      "name": "run_gaps",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"run_gaps\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"kind\" TEXT NOT NULL CHECK (kind IN ('manual_pause', 'position_loss', 'heart_rate_loss', 'interruption')), \"start_us\" INTEGER NOT NULL, \"end_us\" INTEGER);"
+        }
+      ]
+    },
+    {
+      "name": "run_gaps_run_time",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX run_gaps_run_time ON run_gaps (run_id, start_us)"
+        }
+      ]
+    },
+    {
+      "name": "laps_run_time",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX laps_run_time ON laps (run_id, marked_at_us)"
+        }
+      ]
+    },
+    {
+      "name": "raw_positions",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"raw_positions\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"latitude_deg\" REAL, \"longitude_deg\" REAL, \"accuracy_m\" REAL, \"speed_mps\" REAL, \"speed_accuracy_mps\" REAL, \"vertical_accuracy_m\" REAL, CHECK(state = 'unavailable' OR(latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL)));"
+        }
+      ]
+    },
+    {
+      "name": "raw_heart_rates",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"raw_heart_rates\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"bpm\" INTEGER, \"contact\" TEXT NOT NULL CHECK (contact IN ('good', 'poor', 'unsupported')), CHECK(state = 'unavailable' OR bpm IS NOT NULL));"
+        }
+      ]
+    },
+    {
+      "name": "raw_altitudes",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"raw_altitudes\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"altitude_m\" REAL, \"vertical_accuracy_m\" REAL, CHECK(state = 'unavailable' OR altitude_m IS NOT NULL));"
+        }
+      ]
+    },
+    {
+      "name": "raw_steps",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"raw_steps\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"step_count\" INTEGER, CHECK(state = 'unavailable' OR step_count IS NOT NULL));"
+        }
+      ]
+    },
+    {
+      "name": "raw_positions_run_time",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX raw_positions_run_time ON raw_positions (run_id, time_us)"
+        }
+      ]
+    },
+    {
+      "name": "raw_heart_rates_run_time",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX raw_heart_rates_run_time ON raw_heart_rates (run_id, time_us)"
+        }
+      ]
+    },
+    {
+      "name": "raw_altitudes_run_time",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX raw_altitudes_run_time ON raw_altitudes (run_id, time_us)"
+        }
+      ]
+    },
+    {
+      "name": "raw_steps_run_time",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX raw_steps_run_time ON raw_steps (run_id, time_us)"
+        }
+      ]
+    },
+    {
+      "name": "raw_positions_no_update",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER raw_positions_no_update BEFORE UPDATE ON raw_positions BEGIN SELECT RAISE (ABORT, 'raw data is append-only');END"
+        }
+      ]
+    },
+    {
+      "name": "raw_heart_rates_no_update",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER raw_heart_rates_no_update BEFORE UPDATE ON raw_heart_rates BEGIN SELECT RAISE (ABORT, 'raw data is append-only');END"
+        }
+      ]
+    },
+    {
+      "name": "raw_altitudes_no_update",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER raw_altitudes_no_update BEFORE UPDATE ON raw_altitudes BEGIN SELECT RAISE (ABORT, 'raw data is append-only');END"
+        }
+      ]
+    },
+    {
+      "name": "raw_steps_no_update",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER raw_steps_no_update BEFORE UPDATE ON raw_steps BEGIN SELECT RAISE (ABORT, 'raw data is append-only');END"
+        }
+      ]
+    },
+    {
+      "name": "raw_positions_no_direct_delete",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER raw_positions_no_direct_delete BEFORE DELETE ON raw_positions WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, 'raw data is deleted only with its run');END"
+        }
+      ]
+    },
+    {
+      "name": "raw_heart_rates_no_direct_delete",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER raw_heart_rates_no_direct_delete BEFORE DELETE ON raw_heart_rates WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, 'raw data is deleted only with its run');END"
+        }
+      ]
+    },
+    {
+      "name": "raw_altitudes_no_direct_delete",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER raw_altitudes_no_direct_delete BEFORE DELETE ON raw_altitudes WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, 'raw data is deleted only with its run');END"
+        }
+      ]
+    },
+    {
+      "name": "raw_steps_no_direct_delete",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER raw_steps_no_direct_delete BEFORE DELETE ON raw_steps WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, 'raw data is deleted only with its run');END"
+        }
+      ]
+    },
+    {
+      "name": "preprocessing_results",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"preprocessing_results\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL UNIQUE REFERENCES runs(id)ON DELETE CASCADE, \"method\" TEXT NOT NULL, \"method_version\" INTEGER NOT NULL, \"parameter_version\" INTEGER NOT NULL, \"computed_at_us\" INTEGER NOT NULL, \"total_time_s\" REAL, \"moving_time_s\" REAL, \"distance_m\" REAL, \"bridged_distance_m\" REAL, \"average_bpm\" REAL, \"max_bpm\" INTEGER, \"median_bpm\" REAL);"
+        }
+      ]
+    },
+    {
+      "name": "preprocessed_samples",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"preprocessed_samples\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"channel\" TEXT NOT NULL CHECK (channel IN ('position', 'heart_rate', 'altitude', 'steps')), \"raw_id\" INTEGER NOT NULL, \"time_us\" INTEGER NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"discard_reason\" TEXT CHECK (discard_reason IN ('accuracy', 'hardJump', 'softJump', 'nonMonotonicTime', 'implausibleHeartRate', 'noContact', 'heartRateOutlier', 'verticalAccuracy', 'invalidValue')));"
+        }
+      ]
+    },
+    {
+      "name": "preprocessed_samples_run_time",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX preprocessed_samples_run_time ON preprocessed_samples (run_id, channel, time_us)"
+        }
+      ]
+    },
+    {
+      "name": "preprocessed_spans",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"preprocessed_spans\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"kind\" TEXT NOT NULL CHECK (kind IN ('moving', 'settling', 'position_gap', 'heart_rate_gap')), \"start_us\" INTEGER NOT NULL, \"end_us\" INTEGER);"
+        }
+      ]
+    },
+    {
+      "name": "preprocessed_spans_run_time",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX preprocessed_spans_run_time ON preprocessed_spans (run_id, kind, start_us)"
+        }
+      ]
+    },
+    {
+      "name": "rated_sections",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"rated_sections\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"start_us\" INTEGER NOT NULL, \"end_us\" INTEGER NOT NULL, \"method\" TEXT NOT NULL, \"method_version\" INTEGER NOT NULL, \"parameter_version\" INTEGER NOT NULL, \"assessed_at_us\" INTEGER NOT NULL, \"heart_rate_present\" INTEGER NOT NULL, \"heart_rate_estimated\" INTEGER NOT NULL, \"heart_rate_unavailable\" INTEGER NOT NULL, \"heart_rate_discarded\" INTEGER NOT NULL, \"position_present\" INTEGER NOT NULL, \"position_estimated\" INTEGER NOT NULL, \"position_unavailable\" INTEGER NOT NULL, \"position_discarded\" INTEGER NOT NULL, \"missing_heart_rate_share\" REAL NOT NULL, \"longest_heart_rate_gap_s\" REAL NOT NULL, \"meets_heart_rate_gap_rule\" INTEGER NOT NULL CHECK (meets_heart_rate_gap_rule IN (0, 1)), \"settling_overlap_s\" REAL NOT NULL, \"settling_share\" REAL NOT NULL, \"gps_gaps\" TEXT NOT NULL CHECK (json_valid(gps_gaps)));"
+        }
+      ]
+    },
+    {
+      "name": "rated_sections_run_time",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX rated_sections_run_time ON rated_sections (run_id, start_us)"
+        }
+      ]
+    },
+    {
+      "name": "computed_values",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"computed_values\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER REFERENCES runs(id)ON DELETE CASCADE, \"day\" TEXT, \"value_key\" TEXT NOT NULL, \"role\" TEXT NOT NULL CHECK (role IN ('original', 'current')), \"value_real\" REAL, \"unit\" TEXT NOT NULL, \"computed_at_us\" INTEGER NOT NULL, \"data_from_us\" INTEGER, \"data_to_us\" INTEGER, \"measurement_count\" INTEGER NOT NULL, \"sources\" TEXT NOT NULL, \"method\" TEXT NOT NULL, \"method_version\" INTEGER NOT NULL, \"parameter_version\" INTEGER NOT NULL, \"quality\" TEXT NOT NULL CHECK (quality IN ('provisional', 'sufficient', 'good', 'undeterminable')), \"unavailable_reason\" TEXT, \"hr_max_bpm\" INTEGER CHECK (hr_max_bpm > 0), \"hr_rest_bpm\" INTEGER CHECK (hr_rest_bpm > 0), \"hr_max_is_estimated\" INTEGER CHECK (hr_max_is_estimated IN (0, 1)), CHECK((run_id IS NULL)<>(day IS NULL)));"
+        }
+      ]
+    },
+    {
+      "name": "computed_values_run_unique",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE UNIQUE INDEX computed_values_run_unique ON computed_values (run_id, value_key, role) WHERE run_id IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "name": "computed_values_day_unique",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE UNIQUE INDEX computed_values_day_unique ON computed_values (day, value_key, role) WHERE day IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "name": "computed_values_original_immutable",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values WHEN OLD.role = 'original' OR NEW.role = 'original' BEGIN SELECT RAISE (ABORT, 'original value is immutable');END"
+        }
+      ]
+    },
+    {
+      "name": "computed_values_reason_insert",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, 'value and unavailable_reason are exclusive');END"
+        }
+      ]
+    },
+    {
+      "name": "computed_values_reason_update",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, 'value and unavailable_reason are exclusive');END"
+        }
+      ]
+    },
+    {
+      "name": "computed_values_basis_insert",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER computed_values_basis_insert BEFORE INSERT ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, 'basis values without snapshot flag');END"
+        }
+      ]
+    },
+    {
+      "name": "computed_values_basis_update",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER computed_values_basis_update BEFORE UPDATE ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, 'basis values without snapshot flag');END"
+        }
+      ]
+    },
+    {
+      "name": "value_sections",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"value_sections\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"computed_value_id\" INTEGER NOT NULL REFERENCES computed_values(id)ON DELETE CASCADE, \"position\" INTEGER NOT NULL CHECK (position >= 0), \"start_us\" INTEGER NOT NULL, \"end_us\" INTEGER NOT NULL CHECK (end_us >= start_us), \"gps_median_accuracy_m\" REAL CHECK (gps_median_accuracy_m >= 0), \"weight\" REAL NOT NULL CHECK (weight >= 0), \"late_factor\" REAL NOT NULL CHECK (late_factor >= 0), \"status\" TEXT NOT NULL CHECK (status IN ('eligible', 'provisional', 'rejected')), \"discard\" TEXT CHECK (discard IN ('implausible', 'incomplete', 'zeroWeight')), \"reasons\" TEXT NOT NULL CHECK (json_valid(reasons)), \"oxygen_demand\" REAL, \"estimate\" REAL, UNIQUE(computed_value_id, position));"
+        }
+      ]
+    },
+    {
+      "name": "value_sections_original_immutable",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections WHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = 'original' OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original' BEGIN SELECT RAISE (ABORT, 'original value sections are immutable');END"
+        }
+      ]
+    },
+    {
+      "name": "value_sections_original_no_late_insert",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER value_sections_original_no_late_insert BEFORE INSERT ON value_sections WHEN (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original' AND NEW.computed_value_id <> (SELECT MAX(id) FROM computed_values) BEGIN SELECT RAISE (ABORT, 'original value sections are immutable');END"
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"profile\" (\"id\" INTEGER NOT NULL PRIMARY KEY CHECK (id = 1), \"birth_year\" INTEGER CHECK (birth_year > 0), \"body_weight_kg\" REAL CHECK (body_weight_kg > 0), \"body_height_m\" REAL CHECK (body_height_m > 0), \"resting_heart_rate_bpm\" INTEGER, \"max_heart_rate_bpm\" INTEGER, \"weekly_run_minutes\" INTEGER, \"training_days_mask\" INTEGER CHECK (training_days_mask BETWEEN 0 AND 127), \"usual_training_minutes\" INTEGER);"
+        }
+      ]
+    },
+    {
+      "name": "settings",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"settings\" (\"key\" TEXT NOT NULL PRIMARY KEY, \"value\" TEXT NOT NULL, \"updated_at_us\" INTEGER NOT NULL);"
+        }
+      ]
+    },
+    {
+      "name": "known_devices",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"known_devices\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"device_id\" TEXT NOT NULL UNIQUE, \"display_name\" TEXT, \"is_preferred\" INTEGER NOT NULL DEFAULT 0 CHECK (is_preferred IN (0, 1)), \"added_at_us\" INTEGER NOT NULL);"
+        }
+      ]
+    },
+    {
+      "name": "known_devices_one_preferred",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE UNIQUE INDEX known_devices_one_preferred ON known_devices (is_preferred) WHERE is_preferred = 1"
+        }
+      ]
+    },
+    {
+      "name": "consents",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"consents\" (\"source_key\" TEXT NOT NULL PRIMARY KEY, \"state\" TEXT NOT NULL CHECK (state IN ('granted', 'revoked')), \"changed_at_us\" INTEGER NOT NULL);"
+        }
+      ]
+    }
+  ]
+}

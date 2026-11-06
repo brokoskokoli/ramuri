@@ -10,6 +10,9 @@ StoredRun _run(d.Run r) => StoredRun(
   state: enumOf(RunState.values, r.state, (v) => v.name),
   startedAt: timeOf(r.startedAtUs),
   endedAt: timeOfOrNull(r.endedAtUs),
+  endedUtcOffset: r.endedUtcOffsetS == null
+      ? null
+      : Duration(seconds: r.endedUtcOffsetS!),
 );
 
 class DriftRunStore implements RunStore {
@@ -34,20 +37,23 @@ class DriftRunStore implements RunStore {
   });
 
   @override
-  Future<void> setState(int runId, RunState state, {DateTime? endedAt}) =>
-      guarded(() async {
-        if ((state == RunState.finished) != (endedAt != null)) {
-          throw const StorageException(StorageFailure.rejected);
-        }
-        final n = await (_db.update(_db.runs)..where((t) => t.id.equals(runId)))
-            .write(
-              d.RunsCompanion(
-                state: Value(state.name),
-                endedAtUs: Value(usOfOrNull(endedAt)),
-              ),
-            );
-        if (n == 0) throw const StorageException(StorageFailure.notFound);
-      });
+  Future<void> setState(
+    int runId,
+    RunState state, {
+    DateTime? endedAt,
+    Duration? endedUtcOffset,
+  }) => guarded(() async {
+    requireRunEnd(state, endedAt, endedUtcOffset);
+    final n = await (_db.update(_db.runs)..where((t) => t.id.equals(runId)))
+        .write(
+          d.RunsCompanion(
+            state: Value(state.name),
+            endedAtUs: Value(usOfOrNull(endedAt)),
+            endedUtcOffsetS: Value(endedUtcOffset?.inSeconds),
+          ),
+        );
+    if (n == 0) throw const StorageException(StorageFailure.notFound);
+  });
 
   @override
   Future<StoredRun?> get(int runId) => guarded(() async {

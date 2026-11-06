@@ -1,8 +1,8 @@
 /// Aktuelle Version des Parametersatzes (docs/model-parameters.md). Einzige
 /// Versionsquelle; auch die Fitness-Parameter melden diese Version.
-const int currentParameterVersion = 3;
+const int currentParameterVersion = 4;
 
-/// Alle Schwellen der Vorverarbeitung (docs/model-parameters.md, Version 3).
+/// Alle Schwellen der Vorverarbeitung (docs/model-parameters.md, Version 4).
 ///
 /// Keine Schwelle steht außerhalb dieser Klasse. Prozessoren bekommen sie als
 /// Argument, so sind abweichende Werte testbar.
@@ -37,9 +37,9 @@ class PreprocessingParameters {
     this.resumeMinDuration = const Duration(seconds: 3),
   });
 
-  /// Die Startwerte aus Version 3 von docs/model-parameters.md. Nur hier ist
+  /// Die Startwerte aus Version 4 von docs/model-parameters.md. Nur hier ist
   /// die Version fest; jeder andere Parametersatz nennt seine Version selbst.
-  const PreprocessingParameters.v3()
+  const PreprocessingParameters.v4()
     : this(parameterVersion: currentParameterVersion);
 
   /// Version des Parametersatzes (ADR-0004 P.3).
@@ -59,8 +59,7 @@ class PreprocessingParameters {
   /// PAR-004: längere Zeit zwischen akzeptierten Punkten ist eine Lücke.
   final Duration gapMaxDuration;
 
-  /// Vorschlag (nicht in docs/model-parameters.md, Bezug PAR-002/PAR-003/
-  /// PAR-004): so viele aufeinanderfolgende, wegen Sprung verworfene Punkte,
+  /// PAR-207 (Bezug PAR-002/PAR-003/PAR-004): so viele aufeinanderfolgende, wegen Sprung verworfene Punkte,
   /// die untereinander PAR-001 bis PAR-003 erfüllen, setzen den Anker neu. Der
   /// Übergang trägt keine Strecke und ist eine Lücke.
   final int reanchorCount;

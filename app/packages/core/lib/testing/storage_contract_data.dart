@@ -11,6 +11,7 @@ final runContractCases = <StorageContractCase>[
     'Läufe: Zustandsregeln und unbekannter Lauf',
     _runRules,
   ),
+  const StorageContractCase('Läufe: UTC-Versatz des Laufendes', _runEndOffset),
   const StorageContractCase('Runden und Lücken', _markers),
 ];
 
@@ -39,7 +40,7 @@ Future<void> _runs(StorageContractHarness h) async {
   expectTrue(a.id != b.id, 'Ids verschieden');
   expectEq(
     describeRun(a),
-    '${a.id}|active|${us(at(10, 5))}|null/null',
+    '${a.id}|active|${us(at(10, 5))}|null/null|null',
     'angelegter Lauf',
   );
   expectEq(describeRun(await s.runs.get(a.id)), describeRun(a), 'lesen');
@@ -55,7 +56,7 @@ Future<void> _runs(StorageContractHarness h) async {
   await s.runs.setState(a.id, RunState.finished, endedAt: at(99, 1));
   expectEq(
     describeRun(await s.runs.get(a.id)),
-    '${a.id}|finished|${us(at(10, 5))}|${us(at(99, 1))}',
+    '${a.id}|finished|${us(at(10, 5))}|${us(at(99, 1))}|null',
     'beendet',
   );
   expectEq((await s.runs.unfinished()).map((r) => r.id), [
@@ -91,8 +92,88 @@ Future<void> _runRules(StorageContractHarness h) async {
   await s.runs.setState(a.id, RunState.active);
   expectEq(
     describeRun(await s.runs.get(a.id)),
-    '${a.id}|active|${us(at(0))}|null/null',
+    '${a.id}|active|${us(at(0))}|null/null|null',
     'Wiederaufnahme löscht das Ende',
+  );
+  await s.close();
+}
+
+Future<void> _runEndOffset(StorageContractHarness h) async {
+  final s = await h.open();
+  final a = await s.runs.create(startedAt: at(0));
+  final b = await s.runs.create(startedAt: at(0));
+  const offset = Duration(hours: 5, minutes: 30);
+  await s.runs.setState(
+    a.id,
+    RunState.finished,
+    endedAt: at(9),
+    endedUtcOffset: offset,
+  );
+  expectEq(
+    describeRun(await s.runs.get(a.id)),
+    '${a.id}|finished|${us(at(0))}|${us(at(9))}|${offset.inSeconds}',
+    'Versatz gespeichert',
+  );
+  expectEq(
+    describeRun((await s.runs.list()).firstWhere((r) => r.id == a.id)),
+    describeRun(await s.runs.get(a.id)),
+    'Liste liefert ihn auch',
+  );
+  await s.runs.setState(
+    b.id,
+    RunState.finished,
+    endedAt: at(9),
+    endedUtcOffset: const Duration(hours: -3),
+  );
+  expectEq(
+    (await s.runs.get(b.id))!.endedUtcOffset,
+    const Duration(hours: -3),
+    'negativer Versatz',
+  );
+  // Ohne Angabe bleibt er unbekannt, auch nach erneutem Beenden.
+  await s.runs.setState(a.id, RunState.finished, endedAt: at(10));
+  expectEq(
+    (await s.runs.get(a.id))!.endedUtcOffset,
+    null,
+    'ohne Angabe unbekannt',
+  );
+  // Wiederaufnahme löscht Ende und Versatz.
+  await s.runs.setState(b.id, RunState.active);
+  expectEq((await s.runs.get(b.id))!.endedUtcOffset, null, 'Wiederaufnahme');
+  final before = describeRun(await s.runs.get(a.id));
+  for (final (name, state, end, off)
+      in <(String, RunState, DateTime?, Duration)>[
+        ('ohne Ende', RunState.active, null, offset),
+        ('bei paused mit Ende', RunState.paused, at(1), offset),
+        (
+          'über 18 Stunden',
+          RunState.finished,
+          at(1),
+          const Duration(hours: 19),
+        ),
+        (
+          'unter -18 Stunden',
+          RunState.finished,
+          at(1),
+          const Duration(hours: -19),
+        ),
+        (
+          'keine ganzen Sekunden',
+          RunState.finished,
+          at(1),
+          const Duration(seconds: 1, milliseconds: 500),
+        ),
+      ]) {
+    await expectFails(
+      () => s.runs.setState(a.id, state, endedAt: end, endedUtcOffset: off),
+      StorageFailure.rejected,
+      'Versatz $name',
+    );
+  }
+  expectEq(
+    describeRun(await s.runs.get(a.id)),
+    before,
+    'abgelehnt ändert nichts',
   );
   await s.close();
 }

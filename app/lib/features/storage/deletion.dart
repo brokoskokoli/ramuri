@@ -34,16 +34,110 @@ Future<DeletionResult> runDeletion(Future<void> Function() action) async {
   }
 }
 
+/// Löscht den Lauf [runId] und legt danach die Tageswerte der verbleibenden
+/// Lauftage neu an (FR-0058: die Speicherschicht löscht überlappende
+/// Tageswerte). Vor dem Löschen steht ein Merker in den Einstellungen (nur
+/// Lauf-ID und Zeitpunkt); er wird nach erfolgreichem Neuanlegen entfernt. Ein
+/// Fehler beim Neuanlegen macht das Löschen nicht rückgängig und wird nicht
+/// angezeigt (keine Gesundheitsdaten in Meldungen); der Merker bleibt, und
+/// [completePendingValueRefresh] holt das Neuanlegen beim nächsten Start nach.
+/// Scheitert schon der Merker, wird nichts gelöscht (Wurf).
+///
+/// Das ganze Löschen samt Neuanlegen läuft über [serialize] (in der App
+/// `RecalculationController.exclusive`), nie parallel zum Nachholen beim Start,
+/// zur Berechnung nach einem Lauf oder zu einer Neuberechnung. [serialize] ist
+/// Pflicht, damit es niemand vergisst; Fehler der Aktion gehen an den Aufrufer.
+Future<void> deleteRunAndRefresh(
+  StorageSession session,
+  Clock clock,
+  int runId, {
+  required Future<void> Function(Future<void> Function() action) serialize,
+}) => serialize(() => _deleteRunAndRefresh(session, clock, runId));
+
+Future<void> _deleteRunAndRefresh(
+  StorageSession session,
+  Clock clock,
+  int runId,
+) async {
+  final calc = ValueCalculationService(session: session, clock: clock);
+  // Ein Merker eines früheren, unvollendeten Neuanlegens darf nicht verloren
+  // gehen, wenn dieses Löschen nichts löscht.
+  final previous = await session.settings.get(
+    ValueCalculationService.refreshPendingKey,
+  );
+  await calc.markRefreshPending(runId);
+
+  Future<void> refresh() async {
+    try {
+      await calc.completePendingRefresh();
+    } on Object {
+      // Siehe oben: Löschen gilt, Merker bleibt, Nachholen beim Start.
+    }
+  }
+
+  try {
+    await session.deleteRun(runId);
+  } on StorageException catch (e) {
+    if (e.failure == StorageFailure.deletedNotErased) {
+      // Gelöscht, nur der Checkpoint scheiterte: Tageswerte trotzdem anlegen.
+      await refresh();
+    } else {
+      // Nichts gelöscht: der eigene Merker wird nicht gebraucht, ein älterer
+      // (nicht leer vorher) bleibt stehen.
+      if (previous == null || previous.isEmpty) {
+        try {
+          await calc.clearRefreshPending();
+        } on Object {
+          // Ein stehengebliebener Merker kostet nur ein überflüssiges Neuanlegen.
+        }
+      }
+    }
+    rethrow;
+  }
+  await refresh();
+}
+
+/// Holt ein unterbrochenes Neuanlegen der Tageswerte nach einem Löschen nach
+/// (beim App-Start, vor einer Neuberechnung; nicht parallel zu ihr), ebenso eine
+/// unterbrochene Berechnung nach einem Lauf; Letzteres auch ohne Merker für jeden
+/// beendeten Lauf ohne Laufwert ([ValueCalculationService.completePendingCalculations]).
+/// Fehler werden weitergegeben; der Merker bleibt.
+Future<void> completePendingValueRefresh(
+  StorageSession session,
+  Clock clock,
+) async {
+  final calc = ValueCalculationService(session: session, clock: clock);
+  // Beide Nachholer laufen, auch wenn der erste scheitert; der erste Fehler
+  // wird weitergegeben.
+  Object? failure;
+  for (final step in [
+    calc.completePendingRefresh,
+    calc.completePendingCalculations,
+  ]) {
+    try {
+      await step();
+    } on Object catch (e) {
+      failure ??= e;
+    }
+  }
+  if (failure != null) throw failure;
+}
+
 /// Fragt nach und löscht den Lauf [runId]. Für WP10 (Eintrag in der Lauf-Liste).
-/// Zeigt danach eine kurze Rückmeldung, soweit der Kontext noch steht.
+/// Erwartet die [clock], weil nach dem Löschen die Tageswerte der übrigen
+/// Lauftage neu angelegt werden ([deleteRunAndRefresh]). Zeigt danach eine
+/// kurze Rückmeldung, soweit der Kontext noch steht.
 Future<DeletionResult> confirmAndDeleteRun(
   BuildContext context,
   StorageSession session,
-  int runId,
-) => _confirmAndDelete(
+  Clock clock,
+  int runId, {
+  required Future<void> Function(Future<void> Function() action) serialize,
+}) => _confirmAndDelete(
   context,
   all: false,
-  action: () => session.deleteRun(runId),
+  action: () =>
+      deleteRunAndRefresh(session, clock, runId, serialize: serialize),
 );
 
 /// Fragt nach und löscht alle Daten der App ("Alles löschen").

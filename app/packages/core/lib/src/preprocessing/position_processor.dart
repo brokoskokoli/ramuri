@@ -1,3 +1,4 @@
+import '../algorithm_category.dart';
 import 'geo.dart';
 import 'latest_value_index.dart';
 import 'measurement.dart';
@@ -6,6 +7,9 @@ import 'preprocessing_parameters.dart';
 /// Kennung und Version des Positionsverfahrens (ADR-0004 P.3).
 const String positionMethod = 'position-filter';
 const int positionMethodVersion = 1;
+
+/// Kategorie des Verfahrens (NFR-0002, docs/architecture/algorithm-categories.md): B.
+const AlgorithmCategory positionCategory = AlgorithmCategory.heuristic;
 
 /// Bewertung einer Positionseingabe.
 class ProcessedPosition {

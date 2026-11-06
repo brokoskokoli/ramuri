@@ -1,6 +1,6 @@
 # Verfahrenskategorien
 
-Jedes Berechnungsverfahren der App ist genau einer Kategorie aus NFR-0002 zugeordnet (A etabliert, B Heuristik, C individuell kalibriert). Im Code steht die Kategorie an der Variante (`AlgorithmVariant.category`, [ADR-0004](adr/ADR-0004-algorithmen-rohdaten-versionierung.md)) nur für die Verfahren aus WP04; sie laufen über die Registry der Standardbestückung `AlgorithmRegistry.standard()`, ein Test gleicht sie mit dieser Tabelle ab. Die Verfahren aus WP03 haben die Kategorie nur in dieser Tabelle, im Code gibt es für sie keine Variante. Neue Verfahren tragen sich hier ein.
+Jedes Berechnungsverfahren der App ist genau einer Kategorie aus NFR-0002 zugeordnet (A etabliert, B Heuristik, C individuell kalibriert). Im Code steht die Kategorie an der Variante (`AlgorithmVariant.category`, [ADR-0004](adr/ADR-0004-algorithmen-rohdaten-versionierung.md)) nur für die Verfahren aus WP04; sie laufen über die Registry der Standardbestückung `AlgorithmRegistry.standard()`, ein Test gleicht sie mit dieser Tabelle ab. WP03-Verfahren und die Abschnittsauswahl tragen die Kategorie als Konstante `<x>Category`; `review_nb3_test` gleicht sie ab. Neue Verfahren tragen sich hier ein.
 
 | Verfahren | Kennung | Kategorie | Begründung | Paket |
 |---|---|---|---|---|
@@ -15,3 +15,7 @@ Jedes Berechnungsverfahren der App ist genau einer Kategorie aus NFR-0002 zugeor
 | Höhenfilter | `altitude-filter` v1 | B | Eigene Schwellen (PAR-012, PAR-013). | WP03 |
 | Schrittreihe | `steps-series` v1 | B | Eigene Aufbereitung der Rohwerte. | WP03 |
 | Abschnittsqualität | `section-quality` v2 | B | „Qualitätsbewertung“ ist in NFR-0002 Kategorie B (FR-0048). | WP03 |
+| VO₂max-Abschnittsauswahl | `vo2max-section-selection` v1 | B | Alle Grenzen (PAR-020 bis PAR-031) sind Heuristik ohne Quelle; die Auswahl ist eine Qualitätsbewertung (NFR-0002, FR-0048). | WP09 |
+| VO₂max-Schätzer | `vo2max-acsm-hrr` v1 | B | ACSM-Laufformel und Hochrechnung über die Reserve sind etabliert (FR-0069, FR-0071), Plausibilität, Gewichtung, gewichteter Median und Stufen sind eigene Wahl (PAR-032, PAR-033, PAR-036 bis PAR-040). | WP09 |
+| VO₂max-Langzeitwert | `vo2max-long-term-ema` v1 | B | Glättungsformel aus FR-0079 (Ursprungskonzept), α, Neustart und Stufen sind eigene Wahl ohne Quelle (PAR-034, PAR-035, PAR-041 bis PAR-043). | WP09 |
+| Aerobe Effizienz | `aerobic-efficiency-median` v1 | B | Der Median ist etabliert, Belastungsbereich, Steigungsgrenze, Mindestmengen und Stufen sind eigene Wahl (OQ-0036, PAR-044 bis PAR-047). | WP09 |

@@ -118,9 +118,24 @@ class FakeComputedValueStore implements ComputedValueStore {
     }
   }
 
+  static ValueSection _normSection(ValueSection s) => ValueSection(
+    start: _utc(s.start),
+    end: _utc(s.end),
+    weight: s.weight,
+    lateFactor: s.lateFactor,
+    status: s.status,
+    reasons: s.reasons,
+    gpsMedianAccuracyMeters: s.gpsMedianAccuracyMeters,
+    discard: s.discard,
+    oxygenDemand: s.oxygenDemand,
+    estimate: s.estimate,
+  );
+
   static ComputedValue _norm(ComputedValue v) => ComputedValue(
     key: v.key,
     value: v.value,
+    unavailableReason: v.unavailableReason,
+    heartRateBasis: v.heartRateBasis,
     unit: v.unit,
     computedAt: _utc(v.computedAt),
     measurementCount: v.measurementCount,
@@ -131,19 +146,20 @@ class FakeComputedValueStore implements ComputedValueStore {
     quality: v.quality,
     dataFrom: _utcOrNull(v.dataFrom),
     dataTo: _utcOrNull(v.dataTo),
+    sections: List.unmodifiable(v.sections.map(_normSection)),
   );
 
-  @override
-  Future<void> createOriginals(
-    ValueOwner owner,
-    List<ComputedValue> values,
-  ) async {
+  void _checkCreate(ValueOwner owner, List<ComputedValue> values) {
     _checkOwner(owner);
     _noDuplicates(values);
     final existing = _d.values[owner];
     if (existing != null && values.any((v) => existing.containsKey(v.key))) {
       throw const StorageException(StorageFailure.rejected);
     }
+    requireStorableValues(values);
+  }
+
+  void _create(ValueOwner owner, List<ComputedValue> values) {
     final target = _d.values.putIfAbsent(owner, () => {});
     for (final v in values) {
       final n = _norm(v);
@@ -152,18 +168,55 @@ class FakeComputedValueStore implements ComputedValueStore {
   }
 
   @override
-  Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values) async {
+  Future<void> createOriginals(
+    ValueOwner owner,
+    List<ComputedValue> values,
+  ) async {
+    _checkCreate(owner, values);
+    _create(owner, values);
+  }
+
+  @override
+  Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values) =>
+      swapCurrentAll({owner: values});
+
+  @override
+  Future<void> swapCurrentAll(Map<ValueOwner, List<ComputedValue>> changes) =>
+      writeAll(swap: changes);
+
+  void _checkSwap(ValueOwner owner, List<ComputedValue> values) {
     _checkOwner(owner);
     _noDuplicates(values);
     final target = _d.values[owner] ?? const <String, ValuePair>{};
     if (values.any((v) => !target.containsKey(v.key))) {
       throw const StorageException(StorageFailure.notFound);
     }
-    for (final v in values) {
-      _d.values[owner]![v.key] = ValuePair(
-        original: target[v.key]!.original,
-        current: _norm(v),
-      );
+    requireStorableValues(values);
+  }
+
+  @override
+  Future<void> writeAll({
+    Map<ValueOwner, List<ComputedValue>> create = const {},
+    Map<ValueOwner, List<ComputedValue>> swap = const {},
+  }) async {
+    // Erst alles prüfen, dann schreiben: bei einem Fehler ändert sich nichts.
+    for (final e in swap.entries) {
+      _checkSwap(e.key, e.value);
+    }
+    for (final e in create.entries) {
+      _checkCreate(e.key, e.value);
+    }
+    for (final e in create.entries) {
+      _create(e.key, e.value);
+    }
+    for (final e in swap.entries) {
+      final target = _d.values[e.key]!;
+      for (final v in e.value) {
+        target[v.key] = ValuePair(
+          original: target[v.key]!.original,
+          current: _norm(v),
+        );
+      }
     }
   }
 

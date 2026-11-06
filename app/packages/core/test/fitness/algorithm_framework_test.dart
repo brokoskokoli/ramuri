@@ -51,7 +51,7 @@ void main() {
           basis: const HeartRateBasis(maxBpm: 200),
           heartRate: x.heartRate,
           movement: x.movement,
-          p: const FitnessParameters.v3(),
+          p: const FitnessParameters.v4(),
         );
 
     final r = AlgorithmRegistry.standard()
@@ -107,6 +107,9 @@ void main() {
         'heart-rate-reserve',
         'reserve-zones',
         'edwards-trimp',
+        'vo2max-acsm-hrr',
+        'vo2max-long-term-ema',
+        'aerobic-efficiency-median',
       });
       for (final v in all) {
         expect(v.method.trim(), isNotEmpty);
@@ -119,7 +122,7 @@ void main() {
   test(
     'jedes Ergebnis nennt die erzeugende Variante (verfügbar und nicht)',
     () {
-      const p = FitnessParameters.v3();
+      const p = FitnessParameters.v4();
       final hr = fitHeartRate(fitDense(0, 59, 150));
       final mv = fitMovement([fitSpan(0, 60)]);
       const full = HeartRateBasis(maxBpm: 200, restingBpm: 50);

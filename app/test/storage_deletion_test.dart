@@ -22,8 +22,15 @@ class _Host extends StatelessWidget {
       builder: (context) => Column(
         children: [
           TextButton(
-            onPressed: () async =>
-                results.add(await confirmAndDeleteRun(context, session, runId)),
+            onPressed: () async => results.add(
+              await confirmAndDeleteRun(
+                context,
+                session,
+                FakeClock(DateTime.utc(2030, 6)),
+                runId,
+                serialize: (a) => a(),
+              ),
+            ),
             child: const Text('run'),
           ),
           TextButton(

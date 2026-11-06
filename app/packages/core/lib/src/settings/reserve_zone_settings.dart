@@ -72,7 +72,7 @@ abstract final class ReserveZoneSettings {
   /// Aktueller Parametersatz, nur die Zonengrenzen ersetzt; Version und
   /// übrige Werte bleiben beim Satz.
   static FitnessParameters _params(List<int> percents) =>
-      const FitnessParameters.v3().copyWith(
+      const FitnessParameters.v4().copyWith(
         reserveZoneBounds: [for (final p in percents) p / 100],
       );
 

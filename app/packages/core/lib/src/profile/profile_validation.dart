@@ -93,7 +93,7 @@ bool _positive(num? v) => v == null || (v.isFinite && v > 0);
 ProfileValidation validateProfileInput(
   ProfileRecord p, {
   required int currentYear,
-  ProfileParameters params = const ProfileParameters.v3(),
+  ProfileParameters params = const ProfileParameters.v4(),
 }) {
   final issues = <ProfileIssue>[];
   void add(ProfileField f, ProfileIssueCode c, ProfileIssueSeverity s) =>

@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 import '../preprocessing/support.dart';
 
 const trimp = EdwardsTrimp();
-const p = FitnessParameters.v3();
+const p = FitnessParameters.v4();
 const basis = HeartRateBasis(maxBpm: 200);
 
 /// Lauf mit 3 m/s Position im 1-Hz-Raster, manueller Pause 300..330 s und

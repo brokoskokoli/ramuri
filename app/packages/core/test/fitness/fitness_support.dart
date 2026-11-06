@@ -19,7 +19,7 @@ HeartRateResult fitHeartRate(
   List<RawHeartRate> accepted, {
   List<HeartRateGap> gaps = const [],
   List<RawHeartRate> discarded = const [],
-  int version = 3,
+  int version = currentParameterVersion,
 }) {
   final processed = [
     for (final h in accepted)
@@ -43,13 +43,15 @@ HeartRateResult fitHeartRate(
   );
 }
 
-MovementResult fitMovement(List<TimeSpan> moving, {int version = 3}) =>
-    MovementResult(
-      parameterVersion: version,
-      totalTime: Duration.zero,
-      movingTime: Duration.zero,
-      movingIntervals: moving,
-      autoPauseState: AutoPauseState.moving,
-      manuallyPaused: false,
-      resumedAt: const [],
-    );
+MovementResult fitMovement(
+  List<TimeSpan> moving, {
+  int version = currentParameterVersion,
+}) => MovementResult(
+  parameterVersion: version,
+  totalTime: Duration.zero,
+  movingTime: Duration.zero,
+  movingIntervals: moving,
+  autoPauseState: AutoPauseState.moving,
+  manuallyPaused: false,
+  resumedAt: const [],
+);
