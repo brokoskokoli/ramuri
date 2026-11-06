@@ -13,6 +13,8 @@ class RunPorts {
     this.connectSensors,
     this.recordingService,
     this.requestNotifications,
+    this.cadence,
+    this.requestActivityRecognition,
   });
 
   /// Standortberechtigung und GPS-Schalter (FR-0195).
@@ -42,6 +44,15 @@ class RunPorts {
   /// Antwort ist egal: Ohne die Berechtigung läuft der Dienst, nur die
   /// Benachrichtigung ist unsichtbar. `null` ohne Plattform (Tests).
   final Future<void> Function()? requestNotifications;
+
+  /// Schrittsensor des Telefons (FR-0202). `null` ohne Plattform (Tests): Die
+  /// Schrittfrequenz ist dann „nicht verfügbar“.
+  final CadenceSensor? cadence;
+
+  /// Fragt vor dem Laufstart nach ACTIVITY_RECOGNITION. Wie bei den
+  /// Benachrichtigungen blockiert die Antwort nichts: ohne Recht ist nur die
+  /// Schrittfrequenz nicht verfügbar. `null` ohne Plattform (Tests).
+  final Future<void> Function()? requestActivityRecognition;
 }
 
 /// Der Dienst, der den Prozess für die Dauer eines Laufs am Leben hält.
@@ -57,6 +68,12 @@ abstract interface class RecordingServicePort {
 
   /// Läuft der Dienst in diesem Prozess. Nach einem Prozessende `false`.
   Future<bool> isRunning();
+
+  /// Ein Sensor wurde im Lauf verbunden: der Dienst nennt `connectedDevice`
+  /// nun auch im Typ, falls BLUETOOTH_CONNECT erst jetzt erteilt ist. Gibt
+  /// zurück, ob der Typ danach `connectedDevice` enthält. Ohne laufenden
+  /// Dienst `false`.
+  Future<bool> updateType();
 }
 
 /// Fake für Tests: zählt Aufrufe, kann den Start scheitern lassen und
@@ -72,6 +89,7 @@ class FakeRecordingServicePort implements RecordingServicePort {
 
   int startCalls = 0;
   int stopCalls = 0;
+  int updateTypeCalls = 0;
   bool running = false;
 
   @override
@@ -91,4 +109,10 @@ class FakeRecordingServicePort implements RecordingServicePort {
 
   @override
   Future<bool> isRunning() async => running;
+
+  @override
+  Future<bool> updateType() async {
+    updateTypeCalls++;
+    return running;
+  }
 }

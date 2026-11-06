@@ -17,7 +17,11 @@
          (abgelehnt) läuft der Dienst, nur die Benachrichtigung ist nicht sichtbar. Der Wake Lock gilt nur für die Laufdauer. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- FR-0202: Schrittsensor des Telefons für die Schrittfrequenz. Eigene Laufzeitberechtigung;
+         ohne sie ist die Schrittfrequenz "nicht verfügbar" und der Lauf wird normal aufgezeichnet. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Running App"
@@ -47,8 +51,8 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- connectedDevice ist hier schon erlaubt, startForeground nennt es erst mit dem
-             Pulssensor im Dienst und nur mit BLUETOOTH_CONNECT (WP08 Teil C). -->
+        <!-- connectedDevice nennt startForeground nur mit BLUETOOTH_CONNECT (RecordingLifecycle.startType),
+             sonst wirft Android 14 eine SecurityException. Kein Typ health. -->
         <service
             android:name=".RecordingService"
             android:exported="false"

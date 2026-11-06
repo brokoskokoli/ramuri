@@ -158,6 +158,7 @@
   "runUnavailable": "not available",
   "runNoDataYet": "no data yet",
   "runBpm": "{bpm} bpm",
+  "runSpm": "{spm} spm",
   "runZoneValue": "Zone {zone}",
   "runZoneBelow": "below zone 1",
   "runZoneAbove": "Zone {zone} (above 100 % of reserve)",

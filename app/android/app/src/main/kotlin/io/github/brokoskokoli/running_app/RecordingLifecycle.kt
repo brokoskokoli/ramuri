@@ -19,6 +19,8 @@ interface WakeLockHandle {
  */
 class RecordingLifecycle(
     private val lock: WakeLockHandle,
+    /** Aktueller Stand von BLUETOOTH_CONNECT; entscheidet über `connectedDevice` (ADR-0005 Punkt 2). */
+    private val bluetoothConnectGranted: () -> Boolean = { false },
     /** Beendet den Dienst (`stopSelf`); nur nach `startForeground` oder nach dessen Scheitern. */
     private val stopSelf: () -> Unit = {},
     /** Ruft `startForeground` mit dem Typ auf; wirft, wenn das System ablehnt. */
@@ -27,18 +29,44 @@ class RecordingLifecycle(
     var running: Boolean = false
         private set
 
+    /** Typ des letzten erfolgreichen `startForeground`; null, solange der Dienst nicht im Vordergrund ist. */
+    var currentType: Int? = null
+        private set
+
     /** Ergebnis des Starts; bei Fehler ist weder Lock noch Zustand `running` übrig. */
     fun start(): Result<Unit> {
         if (running) return Result.success(Unit)
         return try {
             lock.acquire()
-            enterForeground(startType())
+            val type = startType(bluetoothConnectGranted())
+            enterForeground(type)
+            currentType = type
             running = true
             Result.success(Unit)
         } catch (e: Throwable) {
             releaseQuietly()
             running = false
+            currentType = null
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Zieht den Typ nach, wenn BLUETOOTH_CONNECT erst nach dem Start erteilt wurde
+     * (Sensor wird im Lauf eingerichtet): `startForeground` erneut mit dem vollen Typ.
+     * Wirft das System, bleibt der alte Typ bestehen und der Dienst läuft weiter.
+     * Gibt zurück, ob der Typ jetzt `connectedDevice` enthält.
+     */
+    fun retype(): Boolean {
+        val old = currentType ?: return false
+        val wanted = startType(bluetoothConnectGranted())
+        if (wanted == old) return hasConnectedDevice(old)
+        return try {
+            enterForeground(wanted)
+            currentType = wanted
+            hasConnectedDevice(wanted)
+        } catch (_: Throwable) {
+            false
         }
     }
 
@@ -70,6 +98,7 @@ class RecordingLifecycle(
     /** Idempotent; gibt den Lock frei. */
     fun stop() {
         running = false
+        currentType = null
         releaseQuietly()
     }
 
@@ -96,9 +125,18 @@ class RecordingLifecycle(
         const val START_MODE: Int = Service.START_NOT_STICKY
 
         /**
-         * Typ beim Start: nur `location`. `connectedDevice` kommt mit dem
-         * Pulssensor im Dienst und nur mit BLUETOOTH_CONNECT (WP08 Teil C).
+         * Diensttyp (ADR-0005 Punkt 2): immer `location`, `connectedDevice` nur mit
+         * BLUETOOTH_CONNECT. Ohne das Recht wirft `startForeground` mit diesem Typ
+         * eine SecurityException (Android 14), deshalb dann gar nicht nennen.
          */
-        fun startType(): Int = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        fun startType(bluetoothConnectGranted: Boolean): Int =
+            if (bluetoothConnectGranted) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            }
+
+        fun hasConnectedDevice(type: Int): Boolean =
+            type and ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE != 0
     }
 }

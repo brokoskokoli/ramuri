@@ -26,8 +26,66 @@ class RecordingLifecycleTest {
         assertTrue(RecordingLifecycle.mayStart(true).isSuccess)
     }
 
-    @Test fun startTypeIsLocationOnly() {
-        assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION, RecordingLifecycle.startType())
+    @Test fun startTypeWithoutBluetoothConnectIsLocationOnly() {
+        val type = RecordingLifecycle.startType(false)
+        assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION, type)
+        assertFalse(RecordingLifecycle.hasConnectedDevice(type))
+    }
+
+    @Test fun startTypeWithBluetoothConnectAddsConnectedDevice() {
+        val type = RecordingLifecycle.startType(true)
+        assertEquals(
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+            type,
+        )
+        assertTrue(RecordingLifecycle.hasConnectedDevice(type))
+    }
+
+    @Test fun serviceEntersForegroundWithTypeFromPermissionAtStart() {
+        for (granted in listOf(false, true)) {
+            val types = mutableListOf<Int>()
+            val lc = RecordingLifecycle(FakeLock(), { granted }, {}, { types.add(it) })
+            assertTrue(lc.start().isSuccess)
+            assertEquals(listOf(RecordingLifecycle.startType(granted)), types)
+            assertEquals(RecordingLifecycle.startType(granted), lc.currentType)
+        }
+    }
+
+    @Test fun retypeAddsConnectedDeviceWhenPermissionArrivesLater() {
+        var granted = false
+        val types = mutableListOf<Int>()
+        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, { types.add(it) })
+        lc.start()
+        assertFalse(lc.retype()) // Recht fehlt weiter: kein zweiter startForeground
+        assertEquals(1, types.size)
+        granted = true
+        assertTrue(lc.retype())
+        assertEquals(2, types.size)
+        assertTrue(RecordingLifecycle.hasConnectedDevice(types.last()))
+        assertTrue(lc.retype()) // schon gesetzt: nichts mehr zu tun
+        assertEquals(2, types.size)
+    }
+
+    @Test fun retypeFailureKeepsOldTypeAndService() {
+        var granted = false
+        var calls = 0
+        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, { calls++; if (calls > 1) throw SecurityException("x") })
+        lc.start()
+        granted = true
+        assertFalse(lc.retype())
+        assertTrue(lc.running)
+        assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION, lc.currentType)
+    }
+
+    @Test fun retypeWithoutForegroundDoesNothing() {
+        var calls = 0
+        val lc = RecordingLifecycle(FakeLock(), { true }, {}, { calls++ })
+        assertFalse(lc.retype())
+        assertEquals(0, calls)
+        lc.start()
+        lc.stop()
+        assertFalse(lc.retype())
+        assertEquals(1, calls)
     }
 
     @Test fun startHoldsLockAndEntersForegroundWithLocation() {
@@ -106,8 +164,8 @@ class RecordingLifecycleTest {
     private fun events(lock: FakeLock, log: MutableList<String>, fgThrows: Boolean = false) =
         RecordingLifecycle(
             lock,
-            { log.add("stopSelf:held=${lock.isHeld}") },
-            { if (fgThrows) throw SecurityException("x"); log.add("foreground") },
+            stopSelf = { log.add("stopSelf:held=${lock.isHeld}") },
+            enterForeground = { if (fgThrows) throw SecurityException("x"); log.add("foreground") },
         )
 
     @Test fun normalStartKeepsServiceAndLock() {

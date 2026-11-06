@@ -86,6 +86,8 @@ class AppDependencies {
         connectSensors: sensors.connectKnown,
         recordingService: MethodChannelRecordingService(),
         requestNotifications: requestNotificationPermission,
+        cadence: MethodChannelCadenceSensor(),
+        requestActivityRecognition: requestActivityRecognitionPermission,
       ),
       storageStart: StorageStartController(
         keyStore: SecureKeyStore(),
@@ -156,6 +158,12 @@ class _NoRunPorts implements RunPorts {
 
   @override
   Future<void> Function()? get requestNotifications => null;
+
+  @override
+  CadenceSensor? get cadence => null;
+
+  @override
+  Future<void> Function()? get requestActivityRecognition => null;
 }
 
 class _DeniedAccess implements LocationAccessPort {

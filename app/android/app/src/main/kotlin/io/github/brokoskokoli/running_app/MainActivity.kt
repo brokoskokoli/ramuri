@@ -23,6 +23,8 @@ class MainActivity : FlutterActivity() {
         pendingLocation = null
         pendingNotifications?.error("detached", null, null)
         pendingNotifications = null
+        pendingActivity?.error("detached", null, null)
+        pendingActivity = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
@@ -50,6 +52,8 @@ class MainActivity : FlutterActivity() {
                     "requestLocation" -> requestLocation(result)
                     // ADR-0005 Punkt 2: Die App fragt, läuft aber auch ohne; Antwort blockiert nichts.
                     "requestNotifications" -> requestNotifications(result)
+                    // FR-0202: eigene Berechtigung, fragt nie, wenn es keinen Sensor gibt.
+                    "requestActivityRecognition" -> requestActivityRecognition(result)
                     "gpsEnabled" -> result.success(
                         (getSystemService(LOCATION_SERVICE) as LocationManager)
                             .isProviderEnabled(LocationManager.GPS_PROVIDER),
@@ -69,6 +73,21 @@ class MainActivity : FlutterActivity() {
 
     private var pendingLocation: MethodChannel.Result? = null
     private var pendingNotifications: MethodChannel.Result? = null
+    private var pendingActivity: MethodChannel.Result? = null
+
+    private fun requestActivityRecognition(result: MethodChannel.Result) {
+        val state = StepSensor.availability(this)
+        if (state != "permission_denied") {
+            result.success(state)
+            return
+        }
+        if (pendingActivity != null) {
+            result.error("busy", null, null)
+            return
+        }
+        pendingActivity = result
+        requestPermissions(arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), ACTIVITY_REQUEST)
+    }
 
     private fun notificationsGranted(): Boolean =
         Build.VERSION.SDK_INT < 33 ||
@@ -117,6 +136,10 @@ class MainActivity : FlutterActivity() {
             pendingLocation?.success(locationAccess())
             pendingLocation = null
         }
+        if (requestCode == ACTIVITY_REQUEST) {
+            pendingActivity?.success(StepSensor.availability(this))
+            pendingActivity = null
+        }
         if (requestCode == NOTIFICATION_REQUEST) {
             pendingNotifications?.success(if (notificationsGranted()) "granted" else "denied")
             pendingNotifications = null
@@ -146,5 +169,6 @@ class MainActivity : FlutterActivity() {
     private companion object {
         const val LOCATION_REQUEST = 6001
         const val NOTIFICATION_REQUEST = 6002
+        const val ACTIVITY_REQUEST = 6003
     }
 }

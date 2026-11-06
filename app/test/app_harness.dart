@@ -40,6 +40,12 @@ class Device {
   /// Abfrage von POST_NOTIFICATIONS vor dem Laufstart (WP08); `null` wie ohne Plattform.
   Future<void> Function()? requestNotifications;
 
+  /// Schrittsensor des Telefons (WP08 C, FR-0202); `null` wie ohne Anbindung.
+  CadenceSensor? cadence;
+
+  /// Abfrage von ACTIVITY_RECOGNITION vor dem Laufstart; `null` wie ohne Plattform.
+  Future<void> Function()? requestActivityRecognition;
+
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
   /// [heartRate]; [lastRun] ist die Pulsquelle des jüngsten Laufs.
   bool runViaSensors = false;
@@ -106,6 +112,8 @@ class Device {
             connectSensors: sensors.connectKnown,
             recordingService: recordingService,
             requestNotifications: requestNotifications,
+            cadence: cadence,
+            requestActivityRecognition: requestActivityRecognition,
           ),
         ),
       ),

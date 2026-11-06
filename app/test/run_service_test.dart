@@ -221,9 +221,53 @@ void main() {
         'android/app/src/main/kotlin/io/github/brokoskokoli/running_app/RecordingServiceState.kt',
       ).readAsStringSync();
       expect(kt, contains('"$recordingServiceChannelName"'));
-      for (final m in ['start', 'stop', 'isRunning']) {
+      for (final m in ['start', 'stop', 'isRunning', 'updateType']) {
         expect(kt, contains('"$m"'));
       }
+    });
+  });
+
+  group('Sensor im Lauf (WP08 C, ADR-0006 Punkt 4)', () {
+    test('erster Pulswert zieht den Diensttyp nach, nur einmal', () async {
+      final w = await _world();
+      final hr = StreamController<HeartRateReading>();
+      final c = RunController(
+        clock: w.clock,
+        storage: w.session,
+        location: w.location,
+        service: w.service,
+        heartRate: () => hr.stream,
+        tickEvery: const Duration(hours: 1),
+      );
+      addTearDown(c.dispose);
+      addTearDown(hr.close);
+      await c.start();
+      expect(w.service.updateTypeCalls, 0);
+      hr.add(HeartRateReading('s', w.clock.now(), 120));
+      hr.add(HeartRateReading('s', w.clock.now(), 121));
+      await Future<void>.delayed(Duration.zero);
+      expect(w.service.updateTypeCalls, 1);
+    });
+
+    test('Fehler beim Nachziehen stört den Lauf nicht', () async {
+      final w = await _world();
+      final service = _ThrowingUpdate();
+      final hr = StreamController<HeartRateReading>();
+      final c = RunController(
+        clock: w.clock,
+        storage: w.session,
+        location: w.location,
+        service: service,
+        heartRate: () => hr.stream,
+        tickEvery: const Duration(hours: 1),
+      );
+      addTearDown(c.dispose);
+      addTearDown(hr.close);
+      await c.start();
+      hr.add(HeartRateReading('s', w.clock.now(), 120));
+      await Future<void>.delayed(Duration.zero);
+      expect(c.phase, RecordingPhase.running);
+      expect(c.heartRateSourceSeen, isTrue);
     });
   });
 
@@ -261,6 +305,36 @@ void main() {
       expect(denied, contains('return'));
     });
 
+    test('connectedDevice nur hinter BLUETOOTH_CONNECT', () {
+      // Der Typ entsteht allein in startType(bluetoothConnectGranted) ...
+      expect(
+        lifecycle,
+        contains('fun startType(bluetoothConnectGranted: Boolean): Int'),
+      );
+      final body = lifecycle.substring(
+        lifecycle.indexOf('fun startType('),
+        lifecycle.indexOf('fun hasConnectedDevice'),
+      );
+      expect(
+        body,
+        matches(
+          RegExp(
+            r'if \(bluetoothConnectGranted\) \{[^}]*CONNECTED_DEVICE[^}]*\} else \{\s*ServiceInfo\.FOREGROUND_SERVICE_TYPE_LOCATION\s*\}',
+          ),
+        ),
+      );
+      // ... start und Nachziehen fragen das Recht ab, der Dienst liest es am System.
+      expect(lifecycle, contains('startType(bluetoothConnectGranted())'));
+      expect(
+        service,
+        contains(
+          'checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==',
+        ),
+      );
+      // Kein Typ health (Entscheidung des Maintainers).
+      expect(service + lifecycle + state, isNot(contains('HEALTH')));
+    });
+
     test('kein stopService vor dem Vordergrund', () {
       // Nur bei laufendem Dienst; Timeout und Stopp im Start werden vorgemerkt.
       expect(RegExp('stopService').allMatches(state), hasLength(1));
@@ -278,6 +352,7 @@ void main() {
       for (final p in [
         'FOREGROUND_SERVICE',
         'FOREGROUND_SERVICE_LOCATION',
+        'FOREGROUND_SERVICE_CONNECTED_DEVICE',
         'WAKE_LOCK',
         'POST_NOTIFICATIONS',
       ]) {
@@ -294,6 +369,12 @@ void main() {
       expect(manifest, isNot(contains('ACCESS_BACKGROUND_LOCATION')));
     });
   });
+}
+
+/// Dienst, dessen Nachziehen des Typs scheitert.
+class _ThrowingUpdate extends FakeRecordingServicePort {
+  @override
+  Future<bool> updateType() async => throw StateError('abgelehnt');
 }
 
 /// Recorder, dessen Start scheitert (Anlegen des Laufs).

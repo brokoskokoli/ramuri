@@ -25,6 +25,10 @@ object RecordingServiceState {
     private var pending: MutableList<MethodChannel.Result> = mutableListOf()
     private val handler = Handler(Looper.getMainLooper())
     private var appContext: Context? = null
+    private var service: RecordingService? = null
+
+    fun attach(s: RecordingService) { service = s }
+    fun detach(s: RecordingService) { if (service === s) service = null }
     /**
      * Stopp-Wunsch vor dem Vordergrund. Der Dienst wird nach `startForegroundService`
      * nie von außen beendet, bevor er `startForeground` erreicht hat (Absturz des
@@ -42,6 +46,8 @@ object RecordingServiceState {
         MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isRunning" -> result.success(running)
+                // Sensor im Lauf verbunden: Typ connectedDevice nachziehen, wenn BLUETOOTH_CONNECT da ist.
+                "updateType" -> result.success(service?.retype() ?: false)
                 "start" -> start(context, result)
                 "stop" -> {
                     stop(context)

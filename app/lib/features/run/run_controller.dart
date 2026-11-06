@@ -34,6 +34,7 @@ class RunController extends ChangeNotifier {
     this.heartRate,
     this.sensors,
     this.service,
+    this.cadence,
     this.resumeRunId,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
@@ -62,6 +63,9 @@ class RunController extends ChangeNotifier {
   /// Dienst, der den Prozess während des Laufs hält (WP08); `null` ohne Dienst.
   final RecordingServicePort? service;
 
+  /// Schrittsensor des Telefons (FR-0202); `null` ohne Sensor-Anbindung.
+  final CadenceSensor? cadence;
+
   /// Ist gesetzt, setzt [start] diesen unterbrochenen Lauf fort (FR-0193),
   /// statt einen neuen anzulegen.
   final int? resumeRunId;
@@ -76,6 +80,10 @@ class RunController extends ChangeNotifier {
   Timer? _timer;
   StreamSubscription<LocationSample>? _locationSub;
   StreamSubscription<HeartRateReading>? _heartSub;
+  StreamSubscription<CadenceReading>? _cadenceSub;
+  CadenceAvailability? _cadenceAvailability;
+  double? _cadence;
+  DateTime? _cadenceAt;
   bool _disposed = false;
 
   late RecordingSnapshot _snapshot;
@@ -106,6 +114,21 @@ class RunController extends ChangeNotifier {
   /// Der Dienst konnte nicht starten. Der Lauf zeichnet weiter auf, aber nur,
   /// solange die App sichtbar ist; die Oberfläche weist darauf hin.
   bool get serviceFailed => _serviceFailed;
+
+  /// Stand des Schrittsensors; `null`, solange er noch nicht geprüft ist oder
+  /// es keinen Anschluss gibt. Ohne [CadenceAvailability.available] ist die
+  /// Schrittfrequenz „nicht verfügbar“ und der Lauf läuft normal.
+  CadenceAvailability? get cadenceAvailability => _cadenceAvailability;
+
+  /// Aktuelle Schrittfrequenz (Schritte je Minute) oder `null`. Ein Wert, der
+  /// länger als das Fenster des Schätzers zurückliegt, zählt nicht mehr (Stillstand).
+  double? get cadenceStepsPerMinute {
+    final at = _cadenceAt;
+    if (_cadence == null || at == null) return null;
+    return clock.now().difference(at) > CadenceEstimator.defaultWindow
+        ? null
+        : _cadence;
+  }
 
   /// Von der Pulsquelle kam in diesem Lauf schon ein Wert.
   bool get heartRateSourceSeen => _heartRateSeen;
@@ -198,6 +221,7 @@ class RunController extends ChangeNotifier {
       final hrStream = sensors?.readings ?? heartRate?.call();
       if (hrStream != null) {
         _heartSub = hrStream.listen((r) {
+          if (!_heartRateSeen) _sensorConnected();
           _heartRateSeen = true;
           _recorder.addHeartRate(r);
         }, onError: (Object _) {});
@@ -206,6 +230,7 @@ class RunController extends ChangeNotifier {
         _recorder.tick();
         _update();
       });
+      unawaited(_startCadence());
       await _startService();
     } finally {
       _starting = false;
@@ -227,6 +252,35 @@ class RunController extends ChangeNotifier {
     }
     // Der Lauf endete oder der Controller wurde verworfen, während der Start lief.
     if (!_serviceWanted) _callStop(s);
+  }
+
+  /// Ein Sensor lieferte den ersten Wert: Der Dienst zieht `connectedDevice`
+  /// nach, falls er ohne startete (BLUETOOTH_CONNECT erst im Lauf erteilt).
+  void _sensorConnected() {
+    final s = service;
+    if (s == null || !_serviceWanted) return;
+    unawaited(s.updateType().then((_) {}, onError: (Object _) {}));
+  }
+
+  /// FR-0202: ohne Berechtigung oder Sensor bleibt es bei „nicht verfügbar“.
+  Future<void> _startCadence() async {
+    final c = cadence;
+    if (c == null) return;
+    try {
+      final a = await c.availability();
+      if (_disposed || _timer == null) return;
+      _cadenceAvailability = a;
+      if (a == CadenceAvailability.available) {
+        _cadenceSub = c.readings().listen((r) {
+          _cadence = r.stepsPerMinute;
+          _cadenceAt = clock.now();
+          _update();
+        }, onError: (Object _) {});
+      }
+    } on Object {
+      _cadenceAvailability = CadenceAvailability.noSensor;
+    }
+    _update();
   }
 
   void _stopService() {
@@ -313,6 +367,8 @@ class RunController extends ChangeNotifier {
     _locationSub = null;
     unawaited(_heartSub?.cancel());
     _heartSub = null;
+    unawaited(_cadenceSub?.cancel());
+    _cadenceSub = null;
     sensors?.close();
     _stopService();
   }

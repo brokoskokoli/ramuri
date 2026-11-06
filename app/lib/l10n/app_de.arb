@@ -629,6 +629,15 @@
       }
     }
   },
+  "runSpm": "{spm} spm",
+  "@runSpm": {
+    "description": "WP08 C",
+    "placeholders": {
+      "spm": {
+        "type": "int"
+      }
+    }
+  },
   "runZoneValue": "Zone {zone}",
   "@runZoneValue": {
     "description": "WP06 D",

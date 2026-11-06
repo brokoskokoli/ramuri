@@ -113,6 +113,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       return;
     }
     await _askNotifications();
+    await _askActivityRecognition();
     if (!mounted || gen != _generation) return;
     final controller = RunController(
       clock: widget.clock,
@@ -121,6 +122,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       heartRate: widget.ports.heartRate,
       sensors: widget.ports.heartRateRun?.call(),
       service: widget.ports.recordingService,
+      cadence: widget.ports.cadence,
       resumeRunId: widget.resumeRunId,
       tickEvery: widget.tickEvery,
       serialize: widget.serialize,
@@ -140,6 +142,15 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       await widget.ports.requestNotifications?.call();
     } catch (_) {
       // Ohne Berechtigung läuft der Dienst, nur die Benachrichtigung fehlt.
+    }
+  }
+
+  /// FR-0202: fragen, aber nie blockieren; ohne Recht fehlt nur die Schrittfrequenz.
+  Future<void> _askActivityRecognition() async {
+    try {
+      await widget.ports.requestActivityRecognition?.call();
+    } catch (_) {
+      // Ohne Berechtigung ist die Schrittfrequenz nicht verfügbar.
     }
   }
 

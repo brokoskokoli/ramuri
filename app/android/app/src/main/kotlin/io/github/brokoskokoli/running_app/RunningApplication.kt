@@ -36,6 +36,8 @@ class RunningApplication : Application() {
         EventChannel(messenger, "running_app/location_stream")
             .setStreamHandler(GpsStreamHandler(getSystemService(LocationManager::class.java)))
         RecordingServiceState.register(messenger, this)
+        // FR-0202: Schrittsensor des Telefons, ohne Activity erreichbar.
+        StepSensor.register(messenger, this)
     }
 
     companion object {

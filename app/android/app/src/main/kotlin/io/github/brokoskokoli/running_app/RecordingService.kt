@@ -1,5 +1,6 @@
 package io.github.brokoskokoli.running_app
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.IBinder
 import android.os.PowerManager
 
@@ -24,21 +26,29 @@ class RecordingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val lc = lifecycle ?: RecordingLifecycle(
             PowerLock(this),
+            { checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED },
             { stopSelf() },
             { type -> startForeground(NOTIFICATION_ID, notification(), type) },
         ).also { lifecycle = it }
         val outcome = lc.onStartCommand(RecordingServiceState.takeStopRequest())
-        outcome.onSuccess { RecordingServiceState.started() }
+        outcome.onSuccess {
+            RecordingServiceState.started()
+            RecordingServiceState.attach(this)
+        }
         outcome.onFailure { RecordingServiceState.failed(it) }
         return RecordingLifecycle.START_MODE
     }
 
     override fun onDestroy() {
+        RecordingServiceState.detach(this)
         lifecycle?.onDestroy()
         lifecycle = null
         RecordingServiceState.stopped()
         super.onDestroy()
     }
+
+    /** Typ nachziehen, wenn BLUETOOTH_CONNECT erst im Lauf erteilt wurde (Hauptthread). */
+    fun retype(): Boolean = lifecycle?.retype() ?: false
 
     private fun notification(): Notification {
         val manager = getSystemService(NotificationManager::class.java)
