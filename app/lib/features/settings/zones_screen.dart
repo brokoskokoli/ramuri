@@ -91,6 +91,8 @@ class _ZonesScreenState extends State<ZonesScreen> {
       setState(() {
         _error = switch (e.problem) {
           ZoneBoundsProblem.outOfRange => l10n.zonesOutOfRange(e.index + 1),
+          // Index 5 ist die feste Obergrenze (gesperrtes Feld): gemeint ist Grenze 5.
+          _ when e.index + 1 > _controllers.length => l10n.zonesBelowUpper,
           _ => l10n.zonesNotAscending(e.index + 1),
         };
       });

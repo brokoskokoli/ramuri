@@ -97,7 +97,8 @@ void main() {
 
     await enter(tester, 'profile_resting', '35');
     await save(tester);
-    expect(find.textContaining('is unusual. Saved'), findsOneWidget);
+    expect(find.textContaining('is unusual.'), findsOneWidget);
+    expect(find.text('Profile saved.'), findsOneWidget);
     expect((await d.session.profile.read()).restingHeartRateBpm, 35);
   });
 
@@ -110,6 +111,30 @@ void main() {
     expect(find.textContaining('must be higher than the resting'), findsOne);
     expect((await d.session.profile.read()).maxHeartRateBpm, isNull);
   });
+
+  testWidgets(
+    'Abgelehnte Eingabe: kein Gespeichert-Hinweis, Fehler vollständig',
+    (tester) async {
+      final d = await openProfile(tester, const Locale('de'));
+      await enter(tester, 'profile_birthYear', '1985');
+      await enter(tester, 'profile_resting', '110');
+      await enter(tester, 'profile_max', '105');
+      await save(tester);
+      expect(find.textContaining('Gespeichert'), findsNothing);
+      expect(find.textContaining('Saved'), findsNothing);
+      // Hinweis zu einem nicht gespeicherten Wert wäre irreführend.
+      expect(find.textContaining('Altersnäherung'), findsNothing);
+      expect(
+        find.textContaining('Es wurde nichts gespeichert'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('muss größer sein als der Ruhepuls'),
+        findsOneWidget,
+      );
+      expect((await d.session.profile.read()).maxHeartRateBpm, isNull);
+    },
+  );
 
   testWidgets('Zahl nicht lesbar: Meldung, nichts gespeichert', (tester) async {
     final d = await openProfile(tester, const Locale('en'));

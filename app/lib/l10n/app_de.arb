@@ -304,7 +304,7 @@
       }
     }
   },
-  "profileMaxHrDeviates": "Der Wert weicht um mehr als {tolerance} bpm von der Altersnäherung ab. Gespeichert; bitte prüfen.",
+  "profileMaxHrDeviates": "Der Wert weicht um mehr als {tolerance} bpm von der Altersnäherung ab.",
   "@profileMaxHrDeviates": {
     "description": "PAR-016, Hinweis",
     "placeholders": {
@@ -325,7 +325,7 @@
       }
     }
   },
-  "profileRestHrUnusual": "Ruhepuls unter {low} oder über {high} bpm ist ungewöhnlich. Gespeichert; bitte prüfen.",
+  "profileRestHrUnusual": "Ruhepuls unter {low} oder über {high} bpm ist ungewöhnlich.",
   "@profileRestHrUnusual": {
     "description": "PAR-017, Hinweis",
     "placeholders": {
@@ -513,6 +513,10 @@
         "type": "int"
       }
     }
+  },
+  "zonesBelowUpper": "Grenze 5 muss unter 100 % liegen; Zone 5 reicht bis 100 %. Nicht gespeichert.",
+  "@zonesBelowUpper": {
+    "description": "Zone-5-Beginn nicht unter der festen Obergrenze"
   },
   "zonesNotAscending": "Grenze {index} muss größer sein als die Grenze davor; die Zonen müssen lückenlos aufsteigen. Nicht gespeichert.",
   "@zonesNotAscending": {

@@ -168,8 +168,12 @@ class _ProfileFormState extends State<ProfileForm> {
     }
   }
 
+  /// Bei abgelehntem Feld nur die Ablehnungen: Hinweise zu Werten, die nicht
+  /// gespeichert werden, wären irreführend.
   String? _issueText(ProfileField field, AppLocalizations l10n) {
-    final texts = (_validation?.issues ?? const <ProfileIssue>[])
+    final all = _validation?.issues ?? const <ProfileIssue>[];
+    final issues = _isRejected(field) ? _validation!.rejections : all;
+    final texts = issues
         .where((i) => i.field == field)
         .map((i) => profileIssueText(l10n, i))
         .toList();
@@ -203,7 +207,7 @@ class _ProfileFormState extends State<ProfileForm> {
           errorText: unreadable
               ? l10n.profileNotANumber
               : (rejected ? issue : null),
-          errorMaxLines: 3,
+          errorMaxLines: 6,
           helperText: rejected ? null : issue,
           helperMaxLines: 3,
         ),

@@ -74,9 +74,9 @@
   "profileNotANumber": "Not a valid number.",
   "profileNotPositive": "The value must be a positive number.",
   "profileMaxHrOutOfRange": "Maximum heart rate outside {min} to {max} bpm. Not saved.",
-  "profileMaxHrDeviates": "The value differs from the age-based estimate by more than {tolerance} bpm. Saved; please check it.",
+  "profileMaxHrDeviates": "The value differs from the age-based estimate by more than {tolerance} bpm.",
   "profileRestHrOutOfRange": "Resting heart rate outside {min} to {max} bpm. Not saved.",
-  "profileRestHrUnusual": "A resting heart rate below {low} or above {high} bpm is unusual. Saved; please check it.",
+  "profileRestHrUnusual": "A resting heart rate below {low} or above {high} bpm is unusual.",
   "profileMaxNotAboveResting": "The maximum heart rate must be higher than the resting heart rate. Not saved.",
   "hrEntered": "Maximum heart rate: {bpm} bpm (entered)",
   "hrEstimated": "Maximum heart rate: about {bpm} bpm (estimate)",
@@ -115,5 +115,6 @@
   "zonesResetDone": "Default zones restored.",
   "zonesNotNumber": "Limit {index}: please enter a whole number. Not saved.",
   "zonesOutOfRange": "Limit {index}: only 0 to 100 % possible. Not saved.",
-  "zonesNotAscending": "Limit {index} must be greater than the limit before it; zones must ascend without gaps. Not saved."
+  "zonesNotAscending": "Limit {index} must be greater than the limit before it; zones must ascend without gaps. Not saved.",
+  "zonesBelowUpper": "Limit 5 must be below 100 %; zone 5 ends at 100 %. Not saved."
 }
