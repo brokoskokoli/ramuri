@@ -1,4 +1,4 @@
--- Schema Phase 1 (Version 1). Zeiten: Mikrosekunden seit Epoch (UTC), Spalten
+-- Schema Phase 1 (Version 1; Version 2 ergänzt value_sections). Zeiten: Mikrosekunden seit Epoch (UTC), Spalten
 -- `*_us`. Einheiten SI: Meter `_m`, Sekunden `_s`, Grad `_deg`, Schläge je
 -- Minute `_bpm`, Kilogramm `_kg`. Alles unter `runs` hängt per ON DELETE CASCADE
 -- am Lauf (SEC-0004). Fremdschlüssel gelten nur bei `PRAGMA foreign_keys=ON`
@@ -246,6 +246,44 @@ CREATE UNIQUE INDEX computed_values_day_unique
 CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values
 WHEN OLD.role = 'original' OR NEW.role = 'original'
 BEGIN SELECT RAISE(ABORT, 'original value is immutable'); END;
+
+-- ------------------------------------------ Bewertete Abschnitte je Wert
+-- Seit Version 2 (WP09 D1, FR-0073). Je Zeile von computed_values (original
+-- und current getrennt) die bewerteten Abschnitte des Laufs: Zeitraum, GPS-
+-- Median, Gewicht (PAR-033), Spätfaktor (PAR-024), Status, Gründe (JSON-Liste
+-- der verletzten Regeln und Einschränkungen) und Schätzwert je Abschnitt.
+-- Die Abschnitte eines `original` sind wie dieses unveränderlich.
+CREATE TABLE value_sections (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  computed_value_id INTEGER NOT NULL REFERENCES computed_values (id) ON DELETE CASCADE,
+  position INTEGER NOT NULL CHECK (position >= 0),
+  start_us INTEGER NOT NULL,
+  end_us INTEGER NOT NULL CHECK (end_us >= start_us),
+  -- NULL, wenn keine Genauigkeit gemeldet wurde.
+  gps_median_accuracy_m REAL CHECK (gps_median_accuracy_m >= 0),
+  weight REAL NOT NULL CHECK (weight >= 0),
+  late_factor REAL NOT NULL CHECK (late_factor >= 0),
+  status TEXT NOT NULL CHECK (status IN ('eligible', 'provisional', 'rejected')),
+  discard TEXT CHECK (discard IN ('implausible', 'incomplete', 'zeroWeight')),
+  reasons TEXT NOT NULL CHECK (json_valid(reasons)),
+  oxygen_demand REAL,
+  estimate REAL,
+  UNIQUE (computed_value_id, position)
+) AS ValueSectionRow;
+
+-- UPDATE: bei Abschnitten eines `original` immer abbrechen (auch Umhängen).
+CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections
+WHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = 'original'
+  OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original'
+BEGIN SELECT RAISE(ABORT, 'original value sections are immutable'); END;
+
+-- INSERT bei einem `original` nur direkt nach dessen Anlegen: Die Zeile des
+-- Werts muss die zuletzt vergebene sein (der Adapter legt Original, dessen
+-- Abschnitte, dann current an). Später kommt kein Abschnitt hinzu.
+CREATE TRIGGER value_sections_original_no_late_insert BEFORE INSERT ON value_sections
+WHEN (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original'
+  AND NEW.computed_value_id <> (SELECT MAX(id) FROM computed_values)
+BEGIN SELECT RAISE(ABORT, 'original value sections are immutable'); END;
 
 -- -------------------------------------------- Profil und Einstellungen
 -- Eine Zeile (id = 1). Alle Felder optional (FR-0002). Positive Zahlen für

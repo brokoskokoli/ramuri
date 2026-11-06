@@ -106,11 +106,11 @@ void main() {
 
   group('Schema und Dump', () {
     test(
-      'erzeugtes Schema der verschlüsselten Datenbank = Dump Version 1',
+      'erzeugtes Schema der verschlüsselten Datenbank = Dump Version 2',
       () async {
         final db = await openDb();
         addTearDown(db.close);
-        await SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 1);
+        await SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 2);
       },
     );
 
@@ -125,19 +125,19 @@ void main() {
       addTearDown(db.close);
       await _exec(db, 'DROP TRIGGER raw_steps_no_update');
       await expectLater(
-        SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 1),
+        SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 2),
         throwsA(isA<SchemaMismatch>()),
       );
     });
 
-    test('Meta-Tabelle aus Teil A ist Teil von Version 1', () async {
+    test('Meta-Tabelle aus Teil A ist Teil des Schemas', () async {
       final db = await openDb();
       addTearDown(db.close);
       await _exec(db, "INSERT INTO storage_meta VALUES ('k', 'v')");
       expect(await _count(db, 'storage_meta'), 1);
-      expect(db.schemaVersion, 1);
+      expect(db.schemaVersion, 2);
       final v = await db.customSelect('PRAGMA user_version').get();
-      expect(v.single.data.values.single, 1);
+      expect(v.single.data.values.single, 2);
     });
   });
 
@@ -597,14 +597,14 @@ void main() {
   });
 
   group('Migrationen', () {
-    test('Dump Version 1 liegt vor, Version 1 ohne Schritte', () async {
+    test('Dump Version 2 liegt vor, genau ein Schritt 1 -> 2', () async {
       final db = await openDb();
       addTearDown(db.close);
-      expect(db.migrationSteps, isEmpty);
+      expect(db.migrationSteps.keys, [1]);
     });
 
     test(
-      'synthetischer Schritt v1 -> v2 auf verschlüsselter Datei erhält Daten',
+      'synthetischer Schritt v2 -> v3 auf verschlüsselter Datei erhält Daten',
       () async {
         final v1 = await openDb();
         await _insertRun(v1, 7);
@@ -627,7 +627,7 @@ void main() {
               .data
               .values
               .single,
-          2,
+          3,
         );
         // Schritt wirkte, alte Daten, Trigger und Kaskade bleiben.
         await _exec(v2, "UPDATE settings SET note = 'neu'");
@@ -642,7 +642,7 @@ void main() {
     );
 
     test(
-      'fehlender Schritt: Datenbank öffnet nicht und bleibt Version 1',
+      'fehlender Schritt: Datenbank öffnet nicht und bleibt Version 2',
       () async {
         await (await openDb()).close();
         final storage = EncryptedStorage(
@@ -667,7 +667,7 @@ void main() {
               .data
               .values
               .single,
-          1,
+          2,
         );
       },
     );
@@ -678,7 +678,7 @@ void main() {
         databaseBuilder: (e) => _SyntheticV2(e, onStep: () {}),
       );
       await (await storage.open(testKey())).close();
-      // Datei ist jetzt Version 2, die App kennt nur 1.
+      // Datei ist jetzt Version 3, die App kennt nur 2.
       await expectLater(
         EncryptedStorage(path).open(testKey()),
         throwsA(
@@ -709,7 +709,7 @@ void main() {
       },
     );
 
-    test('Schritt 2 von 2 scheitert: Schritt 1 ist zurückgerollt, Version 1, '
+    test('Schritt 2 von 2 scheitert: Schritt 2 ist zurückgerollt, Version 2, '
         'Erneut versuchen läuft sauber', () async {
       await (await openDb()).close();
       final failing = EncryptedStorage(
@@ -733,7 +733,7 @@ void main() {
       expect(
         columns.map((r) => r.data['name']),
         isNot(contains('note')),
-        reason: 'Schritt 1 muss mit zurückgerollt sein',
+        reason: 'Schritt 2 muss mit zurückgerollt sein',
       );
       expect(
         (await v1.customSelect('PRAGMA user_version').get())
@@ -741,10 +741,10 @@ void main() {
             .data
             .values
             .single,
-        1,
+        2,
       );
       await v1.close();
-      // Erneut versuchen mit einem funktionierenden Schritt 1.
+      // Erneut versuchen mit einem funktionierenden Schritt 2.
       final retry = EncryptedStorage(
         path,
         databaseBuilder: (e) => _SyntheticV2(e, onStep: () {}),
@@ -758,12 +758,12 @@ void main() {
             .data
             .values
             .single,
-        2,
+        3,
       );
     });
 
     test(
-      'Version steht in beforeOpen schon auf 2, also vor drifts eigenem '
+      'Version steht in beforeOpen schon auf 3, also vor drifts eigenem '
       'Versionsschreiben (Reihenfolge PRAGMA/COMMIT: siehe nächster Test)',
       () async {
         await (await openDb()).close();
@@ -774,7 +774,7 @@ void main() {
               _SyntheticV2(e, onStep: () {}, onBeforeOpenVersion: observed.add),
         );
         await (await storage.open(testKey())).close();
-        expect(observed, [2]);
+        expect(observed, [3]);
       },
     );
 
@@ -792,7 +792,7 @@ void main() {
       final lines = (await logs.text()).split('\n');
       final step = lines.indexWhere((l) => l.contains('ADD COLUMN note'));
       final pragma = lines.indexWhere(
-        (l) => l.contains('PRAGMA user_version = 2'),
+        (l) => l.contains('PRAGMA user_version = 3'),
       );
       final commit = lines.indexWhere((l) => l.contains('COMMIT'), step);
       expect(step, isNonNegative, reason: '$lines');
@@ -802,7 +802,7 @@ void main() {
   });
 }
 
-/// Test-Datenbank "Version 2" mit einem Schritt, der nur im Test existiert.
+/// Test-Datenbank "Version 3" mit einem Schritt (2 -> 3), der nur im Test existiert.
 class _SyntheticV2 extends AppDatabase {
   _SyntheticV2(super.e, {required this.onStep, this.onBeforeOpenVersion});
   final void Function() onStep;
@@ -825,11 +825,11 @@ class _SyntheticV2 extends AppDatabase {
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   Map<int, MigrationStep> get migrationSteps => {
-    1: (Migrator m) async {
+    2: (Migrator m) async {
       onStep();
       await m.database.customStatement(
         'ALTER TABLE settings ADD COLUMN note TEXT',
@@ -842,18 +842,18 @@ class _NoStepV2 extends AppDatabase {
   _NoStepV2(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 }
 
 class _FailingStepV2 extends AppDatabase {
   _FailingStepV2(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   Map<int, MigrationStep> get migrationSteps => {
-    1: (Migrator m) async {
+    2: (Migrator m) async {
       await m.database.customStatement(
         "INSERT INTO no_such_table VALUES ('$marker')",
       );
@@ -866,16 +866,16 @@ class _TwoStepsSecondFails extends AppDatabase {
   _TwoStepsSecondFails(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   Map<int, MigrationStep> get migrationSteps => {
-    1: (Migrator m) async {
+    2: (Migrator m) async {
       await m.database.customStatement(
         'ALTER TABLE settings ADD COLUMN note TEXT',
       );
     },
-    2: (Migrator m) async {
+    3: (Migrator m) async {
       await m.database.customStatement(
         "INSERT INTO no_such_table VALUES ('x')",
       );

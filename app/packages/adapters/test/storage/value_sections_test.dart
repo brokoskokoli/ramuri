@@ -1,0 +1,387 @@
+import 'dart:io';
+
+import 'package:adapters/adapters.dart' hide RawSteps, ComputedValue;
+import 'package:core/core.dart';
+import 'package:core/testing/contract_samples.dart' as cs;
+import 'package:drift/drift.dart'
+    show MigrationStrategy, Migrator, QueryExecutor;
+import 'package:drift_dev/api/migrations_native.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'support.dart';
+
+/// Bewertete Abschnitte je Wert (WP09 D1, Schema Version 2, FR-0073).
+final _t0 = DateTime.utc(2030, 1, 1, 12);
+DateTime _at(int s) => _t0.add(Duration(seconds: s));
+
+ComputedValue _dayValue(String key, int from, int to) => ComputedValue(
+  key: key,
+  value: 1,
+  unit: 'au',
+  computedAt: _at(300),
+  dataFrom: _at(from),
+  dataTo: _at(to),
+  measurementCount: 1,
+  sources: const ['s'],
+  method: 'm',
+  methodVersion: 1,
+  parameterVersion: 1,
+  quality: ValueQuality.good,
+  sections: cs.sampleValueSections(),
+);
+
+/// Datenbank im Stand Version 1: Tabelle und Trigger von `value_sections`
+/// fehlen, `user_version` ist 1.
+class _V1 extends AppDatabase {
+  _V1(super.e);
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (Migrator m) async {
+      await m.createAll();
+      await customStatement('DROP TABLE value_sections');
+    },
+  );
+}
+
+void main() {
+  late Directory dir;
+  late String path;
+  setUp(() {
+    dir = tempDir();
+    path = '${dir.path}/test.db';
+  });
+  tearDown(() => dir.deleteSync(recursive: true));
+
+  Future<EncryptedStorageSession> open([
+    AppDatabase Function(QueryExecutor) builder = AppDatabase.new,
+  ]) async =>
+      await EncryptedStorage(path, databaseBuilder: builder).open(testKey())
+          as EncryptedStorageSession;
+
+  Future<int> count(EncryptedStorageSession s, String table) async =>
+      (await s.database.customSelect('SELECT count(*) c FROM $table').getSingle())
+              .data['c']
+          as int;
+
+  Future<Object?> failure(Future<void> f) async {
+    try {
+      await f;
+    } catch (e) {
+      return e;
+    }
+    return null;
+  }
+
+  group('Speichern und Lesen', () {
+    test('Roundtrip: Wert samt Abschnitten, original und current getrennt', () async {
+      final s = await open();
+      addTearDown(s.close);
+      final r = (await s.runs.create(startedAt: _at(0))).id;
+      final o = ValueOwner.run(r);
+      final first = cs.sampleValue('vo2max', 48.5, sections: cs.sampleValueSections());
+      await s.values.createOriginals(o, [first]);
+      final second = cs.sampleValue(
+        'vo2max',
+        50,
+        method: 2,
+        sections: cs.sampleValueSections(7).sublist(0, 2),
+      );
+      await s.values.swapCurrent(o, [second]);
+      final p = (await s.values.read(o)).single;
+      expect(cs.describeValue(p.original), cs.describeValue(first));
+      expect(cs.describeValue(p.current), cs.describeValue(second));
+      final x = p.original.sections;
+      expect(x, hasLength(3));
+      expect(x[0].duration, const Duration(seconds: 300, microseconds: 5));
+      expect(x[0].estimate, 47.75);
+      expect(x[1].reasons, ['paceVariation', 'gpsGap']);
+      expect(x[2].discard, EstimateDiscard.implausible);
+      expect(p.current.sections, hasLength(2));
+      // Zeilen: 3 (original) + 2 (current), nichts übrig vom alten current.
+      expect(await count(s, 'value_sections'), 5);
+    });
+
+    test('Fehlerinjektion: ungültiger Abschnitt im zweiten Wert, nichts bleibt', () async {
+      final s = await open();
+      addTearDown(s.close);
+      final r = (await s.runs.create(startedAt: _at(0))).id;
+      final bad = ValueSection(
+        start: _at(50),
+        end: _at(10),
+        weight: 1,
+        lateFactor: 1,
+        status: SectionStatus.eligible,
+      );
+      final e = await failure(
+        s.values.createOriginals(ValueOwner.run(r), [
+          cs.sampleValue('a', 1, sections: cs.sampleValueSections()),
+          cs.sampleValue('b', 2, sections: [bad]),
+        ]),
+      );
+      expect(e, isA<StorageException>());
+      expect((e! as StorageException).failure, StorageFailure.rejected);
+      expect(await count(s, 'computed_values'), 0);
+      expect(await count(s, 'value_sections'), 0);
+    });
+
+    test('Fehlerinjektion beim Tausch: current und seine Abschnitte unverändert', () async {
+      final s = await open();
+      addTearDown(s.close);
+      final r = (await s.runs.create(startedAt: _at(0))).id;
+      final o = ValueOwner.run(r);
+      await s.values.createOriginals(o, [
+        cs.sampleValue('a', 1, sections: cs.sampleValueSections()),
+        cs.sampleValue('b', 2, sections: cs.sampleValueSections(1)),
+      ]);
+      final before = (await s.values.read(o)).map(cs.describePair).join(';');
+      final bad = ValueSection(
+        start: _at(1),
+        end: _at(2),
+        weight: -1,
+        lateFactor: 1,
+        status: SectionStatus.eligible,
+      );
+      final e = await failure(
+        s.values.swapCurrent(o, [
+          cs.sampleValue('a', 5, sections: cs.sampleValueSections(3)),
+          cs.sampleValue('b', 6, sections: [bad]),
+        ]),
+      );
+      expect((e! as StorageException).failure, StorageFailure.rejected);
+      expect((await s.values.read(o)).map(cs.describePair).join(';'), before);
+      expect(await count(s, 'value_sections'), 12);
+    });
+  });
+
+  group('original-Abschnitte sind unveränderlich', () {
+    Future<(EncryptedStorageSession, int, int)> filled() async {
+      final s = await open();
+      addTearDown(s.close);
+      final r = (await s.runs.create(startedAt: _at(0))).id;
+      await s.values.createOriginals(ValueOwner.run(r), [
+        cs.sampleValue('a', 1, sections: cs.sampleValueSections()),
+      ]);
+      final ids = await s.database
+          .customSelect('SELECT id, role FROM computed_values ORDER BY id')
+          .get();
+      return (s, ids[0].data['id'] as int, ids[1].data['id'] as int);
+    }
+
+    test('UPDATE eines Original-Abschnitts bricht ab', () async {
+      final (s, orig, _) = await filled();
+      final e = await failure(
+        s.database.customStatement(
+          'UPDATE value_sections SET weight = 99 WHERE computed_value_id = ?',
+          [orig],
+        ),
+      );
+      expect(e.toString(), contains('immutable'));
+    });
+
+    test('Umhängen eines current-Abschnitts an das original bricht ab', () async {
+      final (s, orig, cur) = await filled();
+      final e = await failure(
+        s.database.customStatement(
+          'UPDATE value_sections SET computed_value_id = ?, position = 9 '
+          'WHERE computed_value_id = ?',
+          [orig, cur],
+        ),
+      );
+      expect(e.toString(), contains('immutable'));
+    });
+
+    test('nachträgliches Einfügen beim Original bricht ab', () async {
+      final (s, orig, _) = await filled();
+      final e = await failure(
+        s.database.customStatement(
+          'INSERT INTO value_sections (computed_value_id, position, start_us, '
+          "end_us, weight, late_factor, status, reasons) VALUES (?, 9, 1, 2, 1, 1, 'eligible', '[]')",
+          [orig],
+        ),
+      );
+      expect(e.toString(), contains('immutable'));
+      expect(await count(s, 'value_sections'), 6);
+    });
+
+    test('swapCurrent lässt die Original-Abschnitte unberührt, current ist änderbar', () async {
+      final (s, _, cur) = await filled();
+      final o = (await s.database.customSelect('SELECT run_id FROM computed_values LIMIT 1').getSingle())
+          .data['run_id'] as int;
+      await s.values.swapCurrent(ValueOwner.run(o), [
+        cs.sampleValue('a', 2, sections: cs.sampleValueSections(4).sublist(0, 1)),
+      ]);
+      final p = (await s.values.read(ValueOwner.run(o))).single;
+      expect(
+        p.original.sections.map(cs.describeSection),
+        cs.sampleValueSections().map(cs.describeSection),
+      );
+      expect(p.current.sections, hasLength(1));
+      await s.database.customStatement(
+        'UPDATE value_sections SET weight = 3 WHERE computed_value_id = ?',
+        [cur],
+      );
+    });
+  });
+
+  group('Löschen erfasst value_sections ausdrücklich', () {
+    // Mit foreign_keys=OFF wirkt die Kaskade nicht: Was weg ist, hat der Code
+    // ausdrücklich gelöscht.
+    Future<(EncryptedStorageSession, int, int)> setup() async {
+      final s = await open();
+      addTearDown(s.close);
+      final a = (await s.runs.create(startedAt: _at(0))).id;
+      await s.runs.setState(a, RunState.finished, endedAt: _at(100));
+      final b = (await s.runs.create(startedAt: _at(1000))).id;
+      await s.runs.setState(b, RunState.finished, endedAt: _at(1100));
+      for (final r in [a, b]) {
+        await s.values.createOriginals(ValueOwner.run(r), [
+          cs.sampleValue('v', 1, sections: cs.sampleValueSections()),
+        ]);
+      }
+      await s.values.createOriginals(const ValueOwner.day('2030-01-01'), [
+        _dayValue('atl', 10, 20),
+      ]);
+      await s.values.createOriginals(const ValueOwner.day('2030-01-02'), [
+        _dayValue('atl', 5000, 6000),
+      ]);
+      return (s, a, b);
+    }
+
+    Future<int> sectionsOf(EncryptedStorageSession s, String where) async =>
+        (await s.database
+                    .customSelect(
+                      'SELECT count(*) c FROM value_sections WHERE computed_value_id IN '
+                      '(SELECT id FROM computed_values WHERE $where)',
+                    )
+                    .getSingle())
+                .data['c']
+            as int;
+
+    test('Normalbetrieb: Lauf A samt überlappendem Tageswert weg, Rest bleibt', () async {
+      final (s, a, _) = await setup();
+      expect(await count(s, 'value_sections'), 24);
+      await s.deleteRun(a);
+      // übrig: Lauf B (6), Tag 2 (6)
+      expect(await count(s, 'value_sections'), 12);
+      expect(await count(s, 'computed_values'), 4);
+    });
+
+    test('deleteRun ohne Kaskade (foreign_keys=OFF)', () async {
+      final (s, a, b) = await setup();
+      await s.database.customStatement('PRAGMA foreign_keys = OFF');
+      await s.deleteRun(a);
+      expect(await sectionsOf(s, 'run_id = $a'), 0);
+      expect(await count(s, 'computed_values'), 4);
+      expect(await sectionsOf(s, "day = '2030-01-01'"), 0);
+      // fremde Werte behalten ihre Abschnitte
+      expect(await sectionsOf(s, 'run_id = $b'), 6);
+      expect(await sectionsOf(s, "day = '2030-01-02'"), 6);
+      expect(await count(s, 'value_sections'), 12);
+    });
+
+    test('deleteAll ohne Kaskade (foreign_keys=OFF)', () async {
+      final (s, _, _) = await setup();
+      await s.database.customStatement('PRAGMA foreign_keys = OFF');
+      await s.deleteAll();
+      expect(await count(s, 'value_sections'), 0);
+      expect(await count(s, 'computed_values'), 0);
+    });
+
+    test('deleteAll setzt auch den Zähler von value_sections zurück', () async {
+      final (s, _, _) = await setup();
+      await s.deleteAll();
+      expect(await count(s, 'sqlite_sequence'), 0);
+    });
+  });
+
+  group('Migration 1 -> 2 auf befüllter v1-Datenbank', () {
+    test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
+      final v1 = await open((e) => _V1(e));
+      Future<List<Object?>> master(String type) async => [
+        for (final r in await v1.database
+            .customSelect("SELECT name FROM sqlite_master WHERE type = '$type'")
+            .get())
+          r.data['name'],
+      ];
+      expect(await master('table'), isNot(contains('value_sections')));
+      expect(await master('trigger'), isNot(contains('value_sections_original_immutable')));
+      final r = (await v1.runs.create(startedAt: _at(0))).id;
+      await v1.runs.setState(r, RunState.finished, endedAt: _at(100));
+      final o = ValueOwner.run(r);
+      await v1.values.createOriginals(o, [cs.sampleValue('vo2max', 48.5)]);
+      await v1.values.createOriginals(const ValueOwner.day('2030-01-01'), [
+        _dayValue('atl', 1, 2).copyWithoutSections(),
+      ]);
+      await v1.settings.set('units', 'km', at: _at(0));
+      expect(
+        (await v1.database.customSelect('PRAGMA user_version').getSingle())
+            .data
+            .values
+            .single,
+        1,
+      );
+      // Der Store liest schon value_sections; vor der Migration also per SQL.
+      final expected = cs.describeValue(cs.sampleValue('vo2max', 48.5));
+      await v1.close();
+
+      final s = await open();
+      addTearDown(s.close);
+      expect(
+        (await s.database.customSelect('PRAGMA user_version').getSingle())
+            .data
+            .values
+            .single,
+        2,
+      );
+      await s.database.validateDatabaseSchema();
+      expect(await count(s, 'computed_values'), 4);
+      expect(await count(s, 'value_sections'), 0);
+      expect(await s.settings.all(), {'units': 'km'});
+      final p = (await s.values.read(o)).single;
+      expect(cs.describeValue(p.original), expected);
+      expect(p.original.sections, isEmpty);
+
+      // Neue Funktion auf der migrierten Datei, samt Triggern.
+      await s.values.swapCurrent(o, [
+        cs.sampleValue('vo2max', 50, sections: cs.sampleValueSections()),
+      ]);
+      expect((await s.values.read(o)).single.current.sections, hasLength(3));
+      expect((await s.values.read(o)).single.original.sections, isEmpty);
+      final orig = (await s.database
+              .customSelect("SELECT id FROM computed_values WHERE role = 'original' AND run_id = $r")
+              .getSingle())
+          .data['id'] as int;
+      final e = await failure(
+        s.database.customStatement(
+          'INSERT INTO value_sections (computed_value_id, position, start_us, '
+          "end_us, weight, late_factor, status, reasons) VALUES (?, 0, 1, 2, 1, 1, 'eligible', '[]')",
+          [orig],
+        ),
+      );
+      expect(e.toString(), contains('immutable'));
+      await s.deleteRun(r);
+      expect(await count(s, 'value_sections'), 0);
+    });
+  });
+}
+
+extension on ComputedValue {
+  ComputedValue copyWithoutSections() => ComputedValue(
+    key: key,
+    value: value,
+    unit: unit,
+    computedAt: computedAt,
+    measurementCount: measurementCount,
+    sources: sources,
+    method: method,
+    methodVersion: methodVersion,
+    parameterVersion: parameterVersion,
+    quality: quality,
+    dataFrom: dataFrom,
+    dataTo: dataTo,
+  );
+}

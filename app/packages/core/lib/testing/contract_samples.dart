@@ -113,6 +113,7 @@ ComputedValue sampleValue(
   double? value, {
   int method = 1,
   ValueQuality quality = ValueQuality.good,
+  List<ValueSection> sections = const [],
 }) => ComputedValue(
   key: key,
   value: value,
@@ -126,14 +127,51 @@ ComputedValue sampleValue(
   methodVersion: method,
   parameterVersion: 2,
   quality: quality,
+  sections: sections,
 );
+
+/// Zwei Abschnitte: ein verwendeter und ein abgelehnter mit Gründen.
+List<ValueSection> sampleValueSections([int seed = 0]) => [
+  ValueSection(
+    start: at(10 + seed),
+    end: at(310 + seed, 5),
+    weight: 5.5 + seed,
+    lateFactor: 1,
+    status: SectionStatus.provisional,
+    reasons: const ['limitedSpeed'],
+    gpsMedianAccuracyMeters: 4.25,
+    oxygenDemand: 40.5,
+    estimate: 47.75 + seed,
+  ),
+  ValueSection(
+    start: at(310 + seed),
+    end: at(400 + seed),
+    weight: 0,
+    lateFactor: 0.5,
+    status: SectionStatus.rejected,
+    reasons: const ['paceVariation', 'gpsGap'],
+  ),
+  ValueSection(
+    start: at(400 + seed),
+    end: at(500 + seed),
+    weight: 1.5,
+    lateFactor: 1,
+    status: SectionStatus.eligible,
+    discard: EstimateDiscard.implausible,
+    oxygenDemand: 80,
+    estimate: 120,
+  ),
+];
+
+String describeSection(ValueSection s) =>
+    '${us(s.start)}-${us(s.end)}|${s.duration.inMicroseconds}|${s.gpsMedianAccuracyMeters}|${s.weight}|${s.lateFactor}|${s.status.name}|${s.reasons}|${s.discard?.name}|${s.oxygenDemand}|${s.estimate}';
 
 String describeRun(StoredRun? r) => r == null
     ? 'null'
     : '${r.id}|${r.state.name}|${us(r.startedAt)}|${us(r.endedAt)}';
 
 String describeValue(ComputedValue v) =>
-    '${v.key}|${v.value}|${v.unit}|${us(v.computedAt)}|${us(v.dataFrom)}|${us(v.dataTo)}|${v.measurementCount}|${v.sources}|${v.method}|${v.methodVersion}|${v.parameterVersion}|${v.quality.name}';
+    '${v.key}|${v.value}|${v.unit}|${us(v.computedAt)}|${us(v.dataFrom)}|${us(v.dataTo)}|${v.measurementCount}|${v.sources}|${v.method}|${v.methodVersion}|${v.parameterVersion}|${v.quality.name}|sections=${v.sections.map(describeSection).toList()}';
 
 String describePair(ValuePair p) =>
     'O(${describeValue(p.original)}) C(${describeValue(p.current)})';

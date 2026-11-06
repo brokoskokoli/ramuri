@@ -58,6 +58,30 @@ class DriftComputedValueStore implements ComputedValueStore {
     quality: v.quality.name,
   );
 
+  Future<void> _insertSections(int valueId, List<ValueSection> sections) async {
+    for (var i = 0; i < sections.length; i++) {
+      final s = sections[i];
+      await _db
+          .into(_db.valueSections)
+          .insert(
+            d.ValueSectionsCompanion.insert(
+              computedValueId: valueId,
+              position: i,
+              startUs: usOf(s.start),
+              endUs: usOf(s.end),
+              gpsMedianAccuracyM: Value(s.gpsMedianAccuracyMeters),
+              weight: s.weight,
+              lateFactor: s.lateFactor,
+              status: s.status.name,
+              discard: Value(s.discard?.name),
+              reasons: jsonEncode(s.reasons),
+              oxygenDemand: Value(s.oxygenDemand),
+              estimate: Value(s.estimate),
+            ),
+          );
+    }
+  }
+
   @override
   Future<void> createOriginals(ValueOwner owner, List<ComputedValue> values) =>
       guarded(
@@ -68,12 +92,17 @@ class DriftComputedValueStore implements ComputedValueStore {
           if (values.any((v) => keys.contains(v.key))) {
             throw const StorageException(StorageFailure.rejected);
           }
-          await _db.batch((b) {
-            for (final v in values) {
-              b.insert(_db.computedValues, _insert(owner, v, _Role.original));
-              b.insert(_db.computedValues, _insert(owner, v, _Role.current));
+          // Je Wert: original, dessen Abschnitte, dann current samt Abschnitten.
+          // Die Reihenfolge ist Teil des Schutzes der Original-Abschnitte (Trigger
+          // value_sections_original_no_late_insert).
+          for (final v in values) {
+            for (final role in _Role.values) {
+              final id = await _db
+                  .into(_db.computedValues)
+                  .insert(_insert(owner, v, role));
+              await _insertSections(id, v.sections);
             }
-          });
+          }
         }),
       );
 
@@ -90,6 +119,10 @@ class DriftComputedValueStore implements ComputedValueStore {
           if (values.any((v) => !keys.contains(v.key))) {
             throw const StorageException(StorageFailure.notFound);
           }
+          final currentIds = {
+            for (final r in await _rows(owner))
+              if (r.role == _Role.current.name) r.valueKey: r.id,
+          };
           for (final v in values) {
             await (_db.update(_db.computedValues)..where(
                   (t) =>
@@ -114,6 +147,12 @@ class DriftComputedValueStore implements ComputedValueStore {
                     quality: Value(v.quality.name),
                   ),
                 );
+            // Abschnitte des current ersetzen; die des original bleiben.
+            final id = currentIds[v.key]!;
+            await (_db.delete(
+              _db.valueSections,
+            )..where((t) => t.computedValueId.equals(id))).go();
+            await _insertSections(id, v.sections);
           }
         }),
       );
@@ -122,8 +161,41 @@ class DriftComputedValueStore implements ComputedValueStore {
   Future<List<ValuePair>> read(ValueOwner owner) => guarded(() async {
     final original = <String, ComputedValue>{};
     final current = <String, ComputedValue>{};
-    for (final r in await _rows(owner)) {
+    final rows = await _rows(owner);
+    final sections = <int, List<ValueSection>>{};
+    if (rows.isNotEmpty) {
+      final found =
+          await (_db.select(_db.valueSections)
+                ..where((t) => t.computedValueId.isIn(rows.map((r) => r.id)))
+                ..orderBy([
+                  (t) => OrderingTerm.asc(t.computedValueId),
+                  (t) => OrderingTerm.asc(t.position),
+                ]))
+              .get();
+      for (final x in found) {
+        (sections[x.computedValueId] ??= []).add(
+          ValueSection(
+            start: timeOf(x.startUs),
+            end: timeOf(x.endUs),
+            weight: x.weight,
+            lateFactor: x.lateFactor,
+            status: enumOf(SectionStatus.values, x.status, (v) => v.name),
+            reasons: [
+              for (final e in jsonDecode(x.reasons) as List) e as String,
+            ],
+            gpsMedianAccuracyMeters: x.gpsMedianAccuracyM,
+            discard: x.discard == null
+                ? null
+                : enumOf(EstimateDiscard.values, x.discard!, (v) => v.name),
+            oxygenDemand: x.oxygenDemand,
+            estimate: x.estimate,
+          ),
+        );
+      }
+    }
+    for (final r in rows) {
       final v = ComputedValue(
+        sections: sections[r.id] ?? const [],
         key: r.valueKey,
         value: r.valueReal,
         unit: r.unit,

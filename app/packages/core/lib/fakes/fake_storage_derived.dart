@@ -118,6 +118,33 @@ class FakeComputedValueStore implements ComputedValueStore {
     }
   }
 
+  /// Wie die CHECK-Regeln der Tabelle `value_sections`.
+  static void _validate(List<ComputedValue> vs) {
+    for (final v in vs) {
+      for (final s in v.sections) {
+        final bad =
+            s.end.isBefore(s.start) ||
+            s.weight < 0 ||
+            s.lateFactor < 0 ||
+            (s.gpsMedianAccuracyMeters ?? 0) < 0;
+        if (bad) throw const StorageException(StorageFailure.rejected);
+      }
+    }
+  }
+
+  static ValueSection _normSection(ValueSection s) => ValueSection(
+    start: _utc(s.start),
+    end: _utc(s.end),
+    weight: s.weight,
+    lateFactor: s.lateFactor,
+    status: s.status,
+    reasons: s.reasons,
+    gpsMedianAccuracyMeters: s.gpsMedianAccuracyMeters,
+    discard: s.discard,
+    oxygenDemand: s.oxygenDemand,
+    estimate: s.estimate,
+  );
+
   static ComputedValue _norm(ComputedValue v) => ComputedValue(
     key: v.key,
     value: v.value,
@@ -131,6 +158,7 @@ class FakeComputedValueStore implements ComputedValueStore {
     quality: v.quality,
     dataFrom: _utcOrNull(v.dataFrom),
     dataTo: _utcOrNull(v.dataTo),
+    sections: List.unmodifiable(v.sections.map(_normSection)),
   );
 
   @override
@@ -140,6 +168,7 @@ class FakeComputedValueStore implements ComputedValueStore {
   ) async {
     _checkOwner(owner);
     _noDuplicates(values);
+    _validate(values);
     final existing = _d.values[owner];
     if (existing != null && values.any((v) => existing.containsKey(v.key))) {
       throw const StorageException(StorageFailure.rejected);
@@ -155,6 +184,7 @@ class FakeComputedValueStore implements ComputedValueStore {
   Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values) async {
     _checkOwner(owner);
     _noDuplicates(values);
+    _validate(values);
     final target = _d.values[owner] ?? const <String, ValuePair>{};
     if (values.any((v) => !target.containsKey(v.key))) {
       throw const StorageException(StorageFailure.notFound);
