@@ -92,16 +92,6 @@
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
-          },
-          {
-            "name": "ended_utc_offset_s",
-            "getter_name": "endedUtcOffsetS",
-            "moor_type": "int",
-            "nullable": true,
-            "customConstraints": "CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
           }
         ],
         "is_virtual": false,
@@ -111,36 +101,6 @@
     },
     {
       "id": 2,
-      "references": [
-        1
-      ],
-      "type": "trigger",
-      "data": {
-        "on": 1,
-        "references_in_body": [
-          1
-        ],
-        "name": "runs_offset_insert",
-        "sql": "CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs\nWHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL\nBEGIN SELECT RAISE(ABORT, 'offset without end'); END;"
-      }
-    },
-    {
-      "id": 3,
-      "references": [
-        1
-      ],
-      "type": "trigger",
-      "data": {
-        "on": 1,
-        "references_in_body": [
-          1
-        ],
-        "name": "runs_offset_update",
-        "sql": "CREATE TRIGGER runs_offset_update BEFORE UPDATE ON runs\nWHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL\nBEGIN SELECT RAISE(ABORT, 'offset without end'); END;"
-      }
-    },
-    {
-      "id": 4,
       "references": [
         1
       ],
@@ -228,7 +188,7 @@
       }
     },
     {
-      "id": 5,
+      "id": 3,
       "references": [
         1
       ],
@@ -308,13 +268,13 @@
       }
     },
     {
-      "id": 6,
+      "id": 4,
       "references": [
-        5
+        3
       ],
       "type": "index",
       "data": {
-        "on": 5,
+        "on": 3,
         "name": "run_gaps_run_time",
         "sql": "CREATE INDEX run_gaps_run_time ON run_gaps (run_id, start_us);",
         "unique": false,
@@ -322,13 +282,13 @@
       }
     },
     {
-      "id": 7,
+      "id": 5,
       "references": [
-        4
+        2
       ],
       "type": "index",
       "data": {
-        "on": 4,
+        "on": 2,
         "name": "laps_run_time",
         "sql": "CREATE INDEX laps_run_time ON laps (run_id, marked_at_us);",
         "unique": false,
@@ -336,7 +296,7 @@
       }
     },
     {
-      "id": 8,
+      "id": 6,
       "references": [
         1
       ],
@@ -438,6 +398,36 @@
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
+          },
+          {
+            "name": "speed_mps",
+            "getter_name": "speedMps",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "speed_accuracy_mps",
+            "getter_name": "speedAccuracyMps",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "vertical_accuracy_m",
+            "getter_name": "verticalAccuracyM",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
           }
         ],
         "is_virtual": false,
@@ -448,7 +438,7 @@
       }
     },
     {
-      "id": 9,
+      "id": 7,
       "references": [
         1
       ],
@@ -550,7 +540,7 @@
       }
     },
     {
-      "id": 10,
+      "id": 8,
       "references": [
         1
       ],
@@ -652,7 +642,7 @@
       }
     },
     {
-      "id": 11,
+      "id": 9,
       "references": [
         1
       ],
@@ -744,6 +734,34 @@
       }
     },
     {
+      "id": 10,
+      "references": [
+        6
+      ],
+      "type": "index",
+      "data": {
+        "on": 6,
+        "name": "raw_positions_run_time",
+        "sql": "CREATE INDEX raw_positions_run_time ON raw_positions (run_id, time_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 11,
+      "references": [
+        7
+      ],
+      "type": "index",
+      "data": {
+        "on": 7,
+        "name": "raw_heart_rates_run_time",
+        "sql": "CREATE INDEX raw_heart_rates_run_time ON raw_heart_rates (run_id, time_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
       "id": 12,
       "references": [
         8
@@ -751,8 +769,8 @@
       "type": "index",
       "data": {
         "on": 8,
-        "name": "raw_positions_run_time",
-        "sql": "CREATE INDEX raw_positions_run_time ON raw_positions (run_id, time_us);",
+        "name": "raw_altitudes_run_time",
+        "sql": "CREATE INDEX raw_altitudes_run_time ON raw_altitudes (run_id, time_us);",
         "unique": false,
         "columns": []
       }
@@ -765,8 +783,8 @@
       "type": "index",
       "data": {
         "on": 9,
-        "name": "raw_heart_rates_run_time",
-        "sql": "CREATE INDEX raw_heart_rates_run_time ON raw_heart_rates (run_id, time_us);",
+        "name": "raw_steps_run_time",
+        "sql": "CREATE INDEX raw_steps_run_time ON raw_steps (run_id, time_us);",
         "unique": false,
         "columns": []
       }
@@ -774,29 +792,31 @@
     {
       "id": 14,
       "references": [
-        10
+        6
       ],
-      "type": "index",
+      "type": "trigger",
       "data": {
-        "on": 10,
-        "name": "raw_altitudes_run_time",
-        "sql": "CREATE INDEX raw_altitudes_run_time ON raw_altitudes (run_id, time_us);",
-        "unique": false,
-        "columns": []
+        "on": 6,
+        "references_in_body": [
+          6
+        ],
+        "name": "raw_positions_no_update",
+        "sql": "CREATE TRIGGER raw_positions_no_update BEFORE UPDATE ON raw_positions\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
       }
     },
     {
       "id": 15,
       "references": [
-        11
+        7
       ],
-      "type": "index",
+      "type": "trigger",
       "data": {
-        "on": 11,
-        "name": "raw_steps_run_time",
-        "sql": "CREATE INDEX raw_steps_run_time ON raw_steps (run_id, time_us);",
-        "unique": false,
-        "columns": []
+        "on": 7,
+        "references_in_body": [
+          7
+        ],
+        "name": "raw_heart_rates_no_update",
+        "sql": "CREATE TRIGGER raw_heart_rates_no_update BEFORE UPDATE ON raw_heart_rates\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
       }
     },
     {
@@ -810,8 +830,8 @@
         "references_in_body": [
           8
         ],
-        "name": "raw_positions_no_update",
-        "sql": "CREATE TRIGGER raw_positions_no_update BEFORE UPDATE ON raw_positions\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
+        "name": "raw_altitudes_no_update",
+        "sql": "CREATE TRIGGER raw_altitudes_no_update BEFORE UPDATE ON raw_altitudes\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
       }
     },
     {
@@ -825,38 +845,42 @@
         "references_in_body": [
           9
         ],
-        "name": "raw_heart_rates_no_update",
-        "sql": "CREATE TRIGGER raw_heart_rates_no_update BEFORE UPDATE ON raw_heart_rates\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
+        "name": "raw_steps_no_update",
+        "sql": "CREATE TRIGGER raw_steps_no_update BEFORE UPDATE ON raw_steps\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
       }
     },
     {
       "id": 18,
       "references": [
-        10
+        6,
+        1
       ],
       "type": "trigger",
       "data": {
-        "on": 10,
+        "on": 6,
         "references_in_body": [
-          10
+          6,
+          1
         ],
-        "name": "raw_altitudes_no_update",
-        "sql": "CREATE TRIGGER raw_altitudes_no_update BEFORE UPDATE ON raw_altitudes\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
+        "name": "raw_positions_no_direct_delete",
+        "sql": "CREATE TRIGGER raw_positions_no_direct_delete BEFORE DELETE ON raw_positions\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
       }
     },
     {
       "id": 19,
       "references": [
-        11
+        7,
+        1
       ],
       "type": "trigger",
       "data": {
-        "on": 11,
+        "on": 7,
         "references_in_body": [
-          11
+          7,
+          1
         ],
-        "name": "raw_steps_no_update",
-        "sql": "CREATE TRIGGER raw_steps_no_update BEFORE UPDATE ON raw_steps\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
+        "name": "raw_heart_rates_no_direct_delete",
+        "sql": "CREATE TRIGGER raw_heart_rates_no_direct_delete BEFORE DELETE ON raw_heart_rates\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
       }
     },
     {
@@ -872,8 +896,8 @@
           8,
           1
         ],
-        "name": "raw_positions_no_direct_delete",
-        "sql": "CREATE TRIGGER raw_positions_no_direct_delete BEFORE DELETE ON raw_positions\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
+        "name": "raw_altitudes_no_direct_delete",
+        "sql": "CREATE TRIGGER raw_altitudes_no_direct_delete BEFORE DELETE ON raw_altitudes\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
       }
     },
     {
@@ -889,46 +913,12 @@
           9,
           1
         ],
-        "name": "raw_heart_rates_no_direct_delete",
-        "sql": "CREATE TRIGGER raw_heart_rates_no_direct_delete BEFORE DELETE ON raw_heart_rates\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
-      }
-    },
-    {
-      "id": 22,
-      "references": [
-        10,
-        1
-      ],
-      "type": "trigger",
-      "data": {
-        "on": 10,
-        "references_in_body": [
-          10,
-          1
-        ],
-        "name": "raw_altitudes_no_direct_delete",
-        "sql": "CREATE TRIGGER raw_altitudes_no_direct_delete BEFORE DELETE ON raw_altitudes\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
-      }
-    },
-    {
-      "id": 23,
-      "references": [
-        11,
-        1
-      ],
-      "type": "trigger",
-      "data": {
-        "on": 11,
-        "references_in_body": [
-          11,
-          1
-        ],
         "name": "raw_steps_no_direct_delete",
         "sql": "CREATE TRIGGER raw_steps_no_direct_delete BEFORE DELETE ON raw_steps\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
       }
     },
     {
-      "id": 24,
+      "id": 22,
       "references": [
         1
       ],
@@ -1089,7 +1079,7 @@
       }
     },
     {
-      "id": 25,
+      "id": 23,
       "references": [
         1
       ],
@@ -1189,13 +1179,13 @@
       }
     },
     {
-      "id": 26,
+      "id": 24,
       "references": [
-        25
+        23
       ],
       "type": "index",
       "data": {
-        "on": 25,
+        "on": 23,
         "name": "preprocessed_samples_run_time",
         "sql": "CREATE INDEX preprocessed_samples_run_time\n  ON preprocessed_samples (run_id, channel, time_us);",
         "unique": false,
@@ -1203,7 +1193,7 @@
       }
     },
     {
-      "id": 27,
+      "id": 25,
       "references": [
         1
       ],
@@ -1283,13 +1273,13 @@
       }
     },
     {
-      "id": 28,
+      "id": 26,
       "references": [
-        27
+        25
       ],
       "type": "index",
       "data": {
-        "on": 27,
+        "on": 25,
         "name": "preprocessed_spans_run_time",
         "sql": "CREATE INDEX preprocessed_spans_run_time\n  ON preprocessed_spans (run_id, kind, start_us);",
         "unique": false,
@@ -1297,7 +1287,7 @@
       }
     },
     {
-      "id": 29,
+      "id": 27,
       "references": [
         1
       ],
@@ -1547,13 +1537,13 @@
       }
     },
     {
-      "id": 30,
+      "id": 28,
       "references": [
-        29
+        27
       ],
       "type": "index",
       "data": {
-        "on": 29,
+        "on": 27,
         "name": "rated_sections_run_time",
         "sql": "CREATE INDEX rated_sections_run_time ON rated_sections (run_id, start_us);",
         "unique": false,
@@ -1561,7 +1551,7 @@
       }
     },
     {
-      "id": 31,
+      "id": 29,
       "references": [
         1
       ],
@@ -1743,46 +1733,6 @@
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
-          },
-          {
-            "name": "unavailable_reason",
-            "getter_name": "unavailableReason",
-            "moor_type": "string",
-            "nullable": true,
-            "customConstraints": "",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "hr_max_bpm",
-            "getter_name": "hrMaxBpm",
-            "moor_type": "int",
-            "nullable": true,
-            "customConstraints": "CHECK (hr_max_bpm > 0)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "hr_rest_bpm",
-            "getter_name": "hrRestBpm",
-            "moor_type": "int",
-            "nullable": true,
-            "customConstraints": "CHECK (hr_rest_bpm > 0)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "hr_max_is_estimated",
-            "getter_name": "hrMaxIsEstimated",
-            "moor_type": "bool",
-            "nullable": true,
-            "customConstraints": "CHECK (hr_max_is_estimated IN (0, 1))",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
           }
         ],
         "is_virtual": false,
@@ -1793,13 +1743,13 @@
       }
     },
     {
-      "id": 32,
+      "id": 30,
       "references": [
-        31
+        29
       ],
       "type": "index",
       "data": {
-        "on": 31,
+        "on": 29,
         "name": "computed_values_run_unique",
         "sql": "CREATE UNIQUE INDEX computed_values_run_unique\n  ON computed_values (run_id, value_key, role) WHERE run_id IS NOT NULL;",
         "unique": true,
@@ -1807,13 +1757,13 @@
       }
     },
     {
-      "id": 33,
+      "id": 31,
       "references": [
-        31
+        29
       ],
       "type": "index",
       "data": {
-        "on": 31,
+        "on": 29,
         "name": "computed_values_day_unique",
         "sql": "CREATE UNIQUE INDEX computed_values_day_unique\n  ON computed_values (day, value_key, role) WHERE day IS NOT NULL;",
         "unique": true,
@@ -1821,284 +1771,22 @@
       }
     },
     {
-      "id": 34,
+      "id": 32,
       "references": [
-        31
+        29
       ],
       "type": "trigger",
       "data": {
-        "on": 31,
+        "on": 29,
         "references_in_body": [
-          31
+          29
         ],
         "name": "computed_values_original_immutable",
         "sql": "CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values\nWHEN OLD.role = 'original' OR NEW.role = 'original'\nBEGIN SELECT RAISE(ABORT, 'original value is immutable'); END;"
       }
     },
     {
-      "id": 35,
-      "references": [
-        31
-      ],
-      "type": "trigger",
-      "data": {
-        "on": 31,
-        "references_in_body": [
-          31
-        ],
-        "name": "computed_values_reason_insert",
-        "sql": "CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values\nWHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)\nBEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;"
-      }
-    },
-    {
-      "id": 36,
-      "references": [
-        31
-      ],
-      "type": "trigger",
-      "data": {
-        "on": 31,
-        "references_in_body": [
-          31
-        ],
-        "name": "computed_values_reason_update",
-        "sql": "CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values\nWHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)\nBEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;"
-      }
-    },
-    {
-      "id": 37,
-      "references": [
-        31
-      ],
-      "type": "trigger",
-      "data": {
-        "on": 31,
-        "references_in_body": [
-          31
-        ],
-        "name": "computed_values_basis_insert",
-        "sql": "CREATE TRIGGER computed_values_basis_insert BEFORE INSERT ON computed_values\nWHEN NEW.hr_max_is_estimated IS NULL\n  AND (NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)\nBEGIN SELECT RAISE(ABORT, 'basis values without snapshot flag'); END;"
-      }
-    },
-    {
-      "id": 38,
-      "references": [
-        31
-      ],
-      "type": "trigger",
-      "data": {
-        "on": 31,
-        "references_in_body": [
-          31
-        ],
-        "name": "computed_values_basis_update",
-        "sql": "CREATE TRIGGER computed_values_basis_update BEFORE UPDATE ON computed_values\nWHEN NEW.hr_max_is_estimated IS NULL\n  AND (NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)\nBEGIN SELECT RAISE(ABORT, 'basis values without snapshot flag'); END;"
-      }
-    },
-    {
-      "id": 39,
-      "references": [
-        31
-      ],
-      "type": "table",
-      "data": {
-        "name": "value_sections",
-        "was_declared_in_moor": true,
-        "columns": [
-          {
-            "name": "id",
-            "getter_name": "id",
-            "moor_type": "int",
-            "nullable": false,
-            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": [
-              "auto-increment"
-            ]
-          },
-          {
-            "name": "computed_value_id",
-            "getter_name": "computedValueId",
-            "moor_type": "int",
-            "nullable": false,
-            "customConstraints": "NOT NULL REFERENCES computed_values(id)ON DELETE CASCADE",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": [
-              {
-                "foreign_key": {
-                  "to": {
-                    "table": "computed_values",
-                    "column": "id"
-                  },
-                  "initially_deferred": false,
-                  "on_update": null,
-                  "on_delete": "cascade"
-                }
-              }
-            ]
-          },
-          {
-            "name": "position",
-            "getter_name": "position",
-            "moor_type": "int",
-            "nullable": false,
-            "customConstraints": "NOT NULL CHECK (position >= 0)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "start_us",
-            "getter_name": "startUs",
-            "moor_type": "int",
-            "nullable": false,
-            "customConstraints": "NOT NULL",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "end_us",
-            "getter_name": "endUs",
-            "moor_type": "int",
-            "nullable": false,
-            "customConstraints": "NOT NULL CHECK (end_us >= start_us)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "gps_median_accuracy_m",
-            "getter_name": "gpsMedianAccuracyM",
-            "moor_type": "double",
-            "nullable": true,
-            "customConstraints": "CHECK (gps_median_accuracy_m >= 0)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "weight",
-            "getter_name": "weight",
-            "moor_type": "double",
-            "nullable": false,
-            "customConstraints": "NOT NULL CHECK (weight >= 0)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "late_factor",
-            "getter_name": "lateFactor",
-            "moor_type": "double",
-            "nullable": false,
-            "customConstraints": "NOT NULL CHECK (late_factor >= 0)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "status",
-            "getter_name": "status",
-            "moor_type": "string",
-            "nullable": false,
-            "customConstraints": "NOT NULL CHECK (status IN ('eligible', 'provisional', 'rejected'))",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "discard",
-            "getter_name": "discard",
-            "moor_type": "string",
-            "nullable": true,
-            "customConstraints": "CHECK (discard IN ('implausible', 'incomplete', 'zeroWeight'))",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "reasons",
-            "getter_name": "reasons",
-            "moor_type": "string",
-            "nullable": false,
-            "customConstraints": "NOT NULL CHECK (json_valid(reasons))",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "oxygen_demand",
-            "getter_name": "oxygenDemand",
-            "moor_type": "double",
-            "nullable": true,
-            "customConstraints": "",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "estimate",
-            "getter_name": "estimate",
-            "moor_type": "double",
-            "nullable": true,
-            "customConstraints": "",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          }
-        ],
-        "is_virtual": false,
-        "without_rowid": false,
-        "constraints": [
-          "UNIQUE(computed_value_id, position)"
-        ],
-        "unique_keys": [
-          [
-            "computed_value_id",
-            "position"
-          ]
-        ]
-      }
-    },
-    {
-      "id": 40,
-      "references": [
-        39,
-        31
-      ],
-      "type": "trigger",
-      "data": {
-        "on": 39,
-        "references_in_body": [
-          39,
-          31
-        ],
-        "name": "value_sections_original_immutable",
-        "sql": "CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections\nWHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = 'original'\n  OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original'\nBEGIN SELECT RAISE(ABORT, 'original value sections are immutable'); END;"
-      }
-    },
-    {
-      "id": 41,
-      "references": [
-        39,
-        31
-      ],
-      "type": "trigger",
-      "data": {
-        "on": 39,
-        "references_in_body": [
-          39,
-          31
-        ],
-        "name": "value_sections_original_no_late_insert",
-        "sql": "CREATE TRIGGER value_sections_original_no_late_insert BEFORE INSERT ON value_sections\nWHEN (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original'\n  AND NEW.computed_value_id <> (SELECT MAX(id) FROM computed_values)\nBEGIN SELECT RAISE(ABORT, 'original value sections are immutable'); END;"
-      }
-    },
-    {
-      "id": 42,
+      "id": 33,
       "references": [],
       "type": "table",
       "data": {
@@ -2204,7 +1892,7 @@
       }
     },
     {
-      "id": 43,
+      "id": 34,
       "references": [],
       "type": "table",
       "data": {
@@ -2250,7 +1938,7 @@
       }
     },
     {
-      "id": 44,
+      "id": 35,
       "references": [],
       "type": "table",
       "data": {
@@ -2318,13 +2006,13 @@
       }
     },
     {
-      "id": 45,
+      "id": 36,
       "references": [
-        44
+        35
       ],
       "type": "index",
       "data": {
-        "on": 44,
+        "on": 35,
         "name": "known_devices_one_preferred",
         "sql": "CREATE UNIQUE INDEX known_devices_one_preferred\n  ON known_devices (is_preferred) WHERE is_preferred = 1;",
         "unique": true,
@@ -2332,7 +2020,7 @@
       }
     },
     {
-      "id": 46,
+      "id": 37,
       "references": [],
       "type": "table",
       "data": {
@@ -2393,25 +2081,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"runs\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"state\" TEXT NOT NULL CHECK (state IN ('active', 'paused', 'finished')), \"started_at_us\" INTEGER NOT NULL, \"ended_at_us\" INTEGER, \"ended_utc_offset_s\" INTEGER CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800));"
-        }
-      ]
-    },
-    {
-      "name": "runs_offset_insert",
-      "sql": [
-        {
-          "dialect": "sqlite",
-          "sql": "CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, 'offset without end');END"
-        }
-      ]
-    },
-    {
-      "name": "runs_offset_update",
-      "sql": [
-        {
-          "dialect": "sqlite",
-          "sql": "CREATE TRIGGER runs_offset_update BEFORE UPDATE ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, 'offset without end');END"
+          "sql": "CREATE TABLE IF NOT EXISTS \"runs\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"state\" TEXT NOT NULL CHECK (state IN ('active', 'paused', 'finished')), \"started_at_us\" INTEGER NOT NULL, \"ended_at_us\" INTEGER);"
         }
       ]
     },
@@ -2456,7 +2126,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"raw_positions\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"latitude_deg\" REAL, \"longitude_deg\" REAL, \"accuracy_m\" REAL, CHECK(state = 'unavailable' OR(latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL)));"
+          "sql": "CREATE TABLE IF NOT EXISTS \"raw_positions\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"time_us\" INTEGER NOT NULL, \"source\" TEXT NOT NULL, \"state\" TEXT NOT NULL CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')), \"latitude_deg\" REAL, \"longitude_deg\" REAL, \"accuracy_m\" REAL, \"speed_mps\" REAL, \"speed_accuracy_mps\" REAL, \"vertical_accuracy_m\" REAL, CHECK(state = 'unavailable' OR(latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL)));"
         }
       ]
     },
@@ -2663,7 +2333,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"computed_values\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER REFERENCES runs(id)ON DELETE CASCADE, \"day\" TEXT, \"value_key\" TEXT NOT NULL, \"role\" TEXT NOT NULL CHECK (role IN ('original', 'current')), \"value_real\" REAL, \"unit\" TEXT NOT NULL, \"computed_at_us\" INTEGER NOT NULL, \"data_from_us\" INTEGER, \"data_to_us\" INTEGER, \"measurement_count\" INTEGER NOT NULL, \"sources\" TEXT NOT NULL, \"method\" TEXT NOT NULL, \"method_version\" INTEGER NOT NULL, \"parameter_version\" INTEGER NOT NULL, \"quality\" TEXT NOT NULL CHECK (quality IN ('provisional', 'sufficient', 'good', 'undeterminable')), \"unavailable_reason\" TEXT, \"hr_max_bpm\" INTEGER CHECK (hr_max_bpm > 0), \"hr_rest_bpm\" INTEGER CHECK (hr_rest_bpm > 0), \"hr_max_is_estimated\" INTEGER CHECK (hr_max_is_estimated IN (0, 1)), CHECK((run_id IS NULL)<>(day IS NULL)));"
+          "sql": "CREATE TABLE IF NOT EXISTS \"computed_values\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER REFERENCES runs(id)ON DELETE CASCADE, \"day\" TEXT, \"value_key\" TEXT NOT NULL, \"role\" TEXT NOT NULL CHECK (role IN ('original', 'current')), \"value_real\" REAL, \"unit\" TEXT NOT NULL, \"computed_at_us\" INTEGER NOT NULL, \"data_from_us\" INTEGER, \"data_to_us\" INTEGER, \"measurement_count\" INTEGER NOT NULL, \"sources\" TEXT NOT NULL, \"method\" TEXT NOT NULL, \"method_version\" INTEGER NOT NULL, \"parameter_version\" INTEGER NOT NULL, \"quality\" TEXT NOT NULL CHECK (quality IN ('provisional', 'sufficient', 'good', 'undeterminable')), CHECK((run_id IS NULL)<>(day IS NULL)));"
         }
       ]
     },
@@ -2691,69 +2361,6 @@
         {
           "dialect": "sqlite",
           "sql": "CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values WHEN OLD.role = 'original' OR NEW.role = 'original' BEGIN SELECT RAISE (ABORT, 'original value is immutable');END"
-        }
-      ]
-    },
-    {
-      "name": "computed_values_reason_insert",
-      "sql": [
-        {
-          "dialect": "sqlite",
-          "sql": "CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, 'value and unavailable_reason are exclusive');END"
-        }
-      ]
-    },
-    {
-      "name": "computed_values_reason_update",
-      "sql": [
-        {
-          "dialect": "sqlite",
-          "sql": "CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, 'value and unavailable_reason are exclusive');END"
-        }
-      ]
-    },
-    {
-      "name": "computed_values_basis_insert",
-      "sql": [
-        {
-          "dialect": "sqlite",
-          "sql": "CREATE TRIGGER computed_values_basis_insert BEFORE INSERT ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, 'basis values without snapshot flag');END"
-        }
-      ]
-    },
-    {
-      "name": "computed_values_basis_update",
-      "sql": [
-        {
-          "dialect": "sqlite",
-          "sql": "CREATE TRIGGER computed_values_basis_update BEFORE UPDATE ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, 'basis values without snapshot flag');END"
-        }
-      ]
-    },
-    {
-      "name": "value_sections",
-      "sql": [
-        {
-          "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"value_sections\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"computed_value_id\" INTEGER NOT NULL REFERENCES computed_values(id)ON DELETE CASCADE, \"position\" INTEGER NOT NULL CHECK (position >= 0), \"start_us\" INTEGER NOT NULL, \"end_us\" INTEGER NOT NULL CHECK (end_us >= start_us), \"gps_median_accuracy_m\" REAL CHECK (gps_median_accuracy_m >= 0), \"weight\" REAL NOT NULL CHECK (weight >= 0), \"late_factor\" REAL NOT NULL CHECK (late_factor >= 0), \"status\" TEXT NOT NULL CHECK (status IN ('eligible', 'provisional', 'rejected')), \"discard\" TEXT CHECK (discard IN ('implausible', 'incomplete', 'zeroWeight')), \"reasons\" TEXT NOT NULL CHECK (json_valid(reasons)), \"oxygen_demand\" REAL, \"estimate\" REAL, UNIQUE(computed_value_id, position));"
-        }
-      ]
-    },
-    {
-      "name": "value_sections_original_immutable",
-      "sql": [
-        {
-          "dialect": "sqlite",
-          "sql": "CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections WHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = 'original' OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original' BEGIN SELECT RAISE (ABORT, 'original value sections are immutable');END"
-        }
-      ]
-    },
-    {
-      "name": "value_sections_original_no_late_insert",
-      "sql": [
-        {
-          "dialect": "sqlite",
-          "sql": "CREATE TRIGGER value_sections_original_no_late_insert BEFORE INSERT ON value_sections WHEN (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original' AND NEW.computed_value_id <> (SELECT MAX(id) FROM computed_values) BEGIN SELECT RAISE (ABORT, 'original value sections are immutable');END"
         }
       ]
     },

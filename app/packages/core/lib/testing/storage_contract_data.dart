@@ -25,6 +25,10 @@ final rawContractCases = <StorageContractCase>[
     _rawAppend,
   ),
   const StorageContractCase('Rohdaten: Stapel ganz oder gar nicht', _rawAtomic),
+  const StorageContractCase(
+    'Rohdaten: fehlendes Tempo bleibt null, nie 0 (K12)',
+    _rawSpeedNullNotZero,
+  ),
 ];
 
 Future<void> _runs(StorageContractHarness h) async {
@@ -268,7 +272,7 @@ Future<void> _markers(StorageContractHarness h) async {
 String _positions(StoredRawData d) => d.positions
     .map(
       (p) =>
-          '${us(p.value.time)}|${p.value.source}|${p.value.latitude}|${p.value.longitude}|${p.value.accuracyMeters}|${p.value.state.name}',
+          '${us(p.value.time)}|${p.value.source}|${p.value.latitude}|${p.value.longitude}|${p.value.accuracyMeters}|${p.value.speedMetersPerSecond}|${p.value.speedAccuracyMetersPerSecond}|${p.value.verticalAccuracyMeters}|${p.value.state.name}',
     )
     .join(';');
 
@@ -279,8 +283,9 @@ Future<void> _rawRoundtrip(StorageContractHarness h) async {
   final d = await s.rawData.read(r);
   expectEq(
     _positions(d),
-    '${us(at(1))}|gps|52.0|13.0|null|estimated;${us(at(2, 123457))}|gps|52.5|13.25|4.5|present',
-    'Positionen nach Zeit sortiert, Mikrosekunden, fehlende Genauigkeit null',
+    '${us(at(1))}|gps|52.0|13.0|null|null|null|null|estimated;${us(at(2, 123457))}|gps|52.5|13.25|4.5|3.25|0.5|2.5|present',
+    'Positionen nach Zeit sortiert, Mikrosekunden, fehlende Werte null '
+        '(Tempo, Tempo- und Vertikalgenauigkeit, K12)',
   );
   expectEq(
     d.heartRates.map(
@@ -351,6 +356,60 @@ Future<void> _rawAppend(StorageContractHarness h) async {
     again.steps.map((x) => x.id),
     d.steps.map((x) => x.id),
     'Ids stabil beim erneuten Lesen',
+  );
+  await s.close();
+}
+
+/// K12: Ein echter Wert 0 bleibt 0, ein fehlender bleibt null (nie 0).
+Future<void> _rawSpeedNullNotZero(StorageContractHarness h) async {
+  final s = await h.open();
+  final r = (await s.runs.create(startedAt: at(0))).id;
+  await s.rawData.append(
+    r,
+    RawBatch(
+      positions: [
+        RawPosition(
+          time: at(1),
+          source: 'gps',
+          latitude: 1,
+          longitude: 2,
+          speedMetersPerSecond: 0,
+          speedAccuracyMetersPerSecond: 0,
+          verticalAccuracyMeters: 0,
+        ),
+        RawPosition(time: at(2), source: 'gps', latitude: 1, longitude: 2),
+      ],
+    ),
+  );
+  final p = (await s.rawData.read(r)).positions.map((x) => x.value).toList();
+  expectEq(
+    '${p[0].speedMetersPerSecond}|${p[0].speedAccuracyMetersPerSecond}|${p[0].verticalAccuracyMeters}',
+    '0.0|0.0|0.0',
+    'gelieferte Nullen bleiben 0',
+  );
+  expectTrue(
+    p[1].speedMetersPerSecond == null &&
+        p[1].speedAccuracyMetersPerSecond == null &&
+        p[1].verticalAccuracyMeters == null,
+    'fehlende Werte bleiben null, nie 0',
+  );
+  await expectFails(
+    () => s.rawData.append(
+      r,
+      RawBatch(
+        positions: [
+          RawPosition(
+            time: at(3),
+            source: 'gps',
+            latitude: 1,
+            longitude: 2,
+            speedMetersPerSecond: double.nan,
+          ),
+        ],
+      ),
+    ),
+    StorageFailure.rejected,
+    'NaN im Tempo',
   );
   await s.close();
 }

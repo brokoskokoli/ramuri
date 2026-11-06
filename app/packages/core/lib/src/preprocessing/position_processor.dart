@@ -18,6 +18,7 @@ class ProcessedPosition {
     required this.state,
     this.reason,
     this.countedDistanceMeters = 0,
+    this.reanchored = false,
   });
 
   final RawPosition input;
@@ -30,6 +31,10 @@ class ProcessedPosition {
 
   /// Strecke, die dieser Punkt zur Summe beigetragen hat.
   final double countedDistanceMeters;
+
+  /// Der Punkt ist nach einer Folge von Sprungverwürfen neuer Anker; der
+  /// Übergang trägt keine Strecke und steht als Lücke in [PositionResult.gaps].
+  final bool reanchored;
 
   bool get accepted =>
       state == MeasurementState.present || state == MeasurementState.estimated;
@@ -103,6 +108,8 @@ class PositionProcessor {
   RawPosition? _anchor;
   DateTime? _lastTime;
   int _discardedSinceAnchor = 0;
+  // Aufeinanderfolgende Sprungverwürfe, die untereinander plausibel sind.
+  final List<RawPosition> _jumpRun = [];
   double _distance = 0;
   double _bridged = 0;
   bool _paused = false;
@@ -164,6 +171,9 @@ class PositionProcessor {
     }
 
     final reason = _discardReason(p);
+    if (reason == DiscardReason.hardJump || reason == DiscardReason.softJump) {
+      if (_collectJump(p)) return _reanchor(p);
+    }
     if (reason != null) {
       _discardedSinceAnchor++;
       return ProcessedPosition(
@@ -189,6 +199,7 @@ class PositionProcessor {
     _anchor = p;
     _sectionStart = null;
     _discardedSinceAnchor = 0;
+    _jumpRun.clear();
     _accepted.add(p);
     final r = ProcessedPosition(
       input: p,
@@ -196,6 +207,42 @@ class PositionProcessor {
           ? MeasurementState.estimated
           : MeasurementState.present,
       countedDistanceMeters: counted,
+    );
+    _index.add(p.time, p, r.state);
+    return r;
+  }
+
+  /// Nimmt den Sprungverwurf [p] in die Folge auf. Passt er nicht zum Vorgänger
+  /// der Folge (PAR-002/PAR-003 gegen ihn statt gegen den Anker), beginnt die
+  /// Folge neu mit ihm. Wahr, wenn die Folge [PreprocessingParameters.reanchorCount]
+  /// erreicht.
+  bool _collectJump(RawPosition p) {
+    // Eine Folge reißt ab, wenn sie nicht zusammenpasst oder die Zeit seit dem
+    // letzten Folgepunkt über PAR-004 liegt (kein beliebig langes Offenhalten).
+    if (_jumpRun.isNotEmpty &&
+        (p.time.difference(_jumpRun.last.time) > parameters.gapMaxDuration ||
+            _jumpReason(_jumpRun.last, p) != null)) {
+      _jumpRun.clear();
+    }
+    _jumpRun.add(p);
+    return _jumpRun.length >= parameters.reanchorCount;
+  }
+
+  /// [p] wird neuer Anker. Keine Strecke für den Übergang, immer eine Lücke.
+  ProcessedPosition _reanchor(RawPosition p) {
+    _lastTime = p.time;
+    _gaps.add(PositionGap(start: _anchor!.time, end: p.time, open: false));
+    _anchor = p;
+    _sectionStart = null;
+    _discardedSinceAnchor = 0;
+    _jumpRun.clear();
+    _accepted.add(p);
+    final r = ProcessedPosition(
+      input: p,
+      state: p.state == MeasurementState.estimated
+          ? MeasurementState.estimated
+          : MeasurementState.present,
+      reanchored: true,
     );
     _index.add(p.time, p, r.state);
     return r;
@@ -216,12 +263,17 @@ class PositionProcessor {
     }
     final anchor = _anchor;
     if (anchor == null) return null;
-    final seconds = p.time.difference(anchor.time).inMicroseconds / 1e6;
-    final d = _distanceBetween(anchor, p);
+    return _jumpReason(anchor, p);
+  }
+
+  /// PAR-002/PAR-003 für [p] gegen den Bezugspunkt [ref].
+  DiscardReason? _jumpReason(RawPosition ref, RawPosition p) {
+    final seconds = p.time.difference(ref.time).inMicroseconds / 1e6;
+    final d = _distanceBetween(ref, p);
     final speed = d / seconds;
     if (speed > parameters.hardJumpMaxSpeed) return DiscardReason.hardJump;
     if (speed > parameters.softJumpSpeed &&
-        d > acc + (anchor.accuracyMeters ?? 0)) {
+        d > (p.accuracyMeters ?? 0) + (ref.accuracyMeters ?? 0)) {
       return DiscardReason.softJump;
     }
     return null;

@@ -407,6 +407,14 @@
   "@unitMiles": {
     "description": "Kürzel Meilen"
   },
+  "unitMeters": "m",
+  "@unitMeters": {
+    "description": "Kürzel Meter (Höhe)"
+  },
+  "unitFeet": "ft",
+  "@unitFeet": {
+    "description": "Kürzel Fuß (Höhe, Meilenmodus)"
+  },
   "unitPacePerKilometer": "min/km",
   "@unitPacePerKilometer": {
     "description": "Kürzel Pace je Kilometer"
@@ -587,5 +595,104 @@
         "type": "int"
       }
     }
-  }
+  },
+  "runChecking": "Standort wird geprüft …",
+  "runBlockTitle": "Lauf kann nicht starten",
+  "runBlockPermissionDenied": "Für einen Lauf braucht die App den genauen Standort, denn die Strecke wird per GPS gemessen. Ohne Berechtigung startet kein Lauf.",
+  "runBlockApproximate": "Es ist nur der ungefähre Standort erlaubt. Für einen Lauf ist der genaue Standort nötig. Erlaube „Genau“ in der Berechtigungsabfrage oder in den App-Einstellungen.",
+  "runBlockGpsOff": "GPS (Standortdienst) ist ausgeschaltet. Schalte den Standort in den Android-Schnelleinstellungen ein und prüfe dann erneut.",
+  "runBlockUnknown": "Berechtigung und GPS konnten nicht geprüft werden, etwa weil eine Anfrage noch offen ist. Prüfe bitte erneut.",
+  "runActionAsk": "Berechtigung anfragen",
+  "runActionSettings": "App-Einstellungen öffnen",
+  "runActionRecheck": "Erneut prüfen",
+  "runStartFailed": "Der Lauf konnte nicht angelegt werden. Es wurde nichts aufgezeichnet.",
+  "runTime": "Zeit",
+  "runMovingTime": "Bewegungszeit",
+  "runPace": "Pace",
+  "runAvgPace": "Ø Pace",
+  "runDistance": "Strecke",
+  "runHeartRate": "Puls",
+  "runZone": "Zone",
+  "runGps": "GPS",
+  "runSensors": "Sensoren",
+  "runAscent": "Höhenmeter",
+  "runCadence": "Schrittfrequenz",
+  "runLaps": "Runden",
+  "runUnavailable": "nicht verfügbar",
+  "runNoDataYet": "noch keine Daten",
+  "runBpm": "{bpm} bpm",
+  "@runBpm": {
+    "description": "WP06 D",
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
+  "runZoneValue": "Zone {zone}",
+  "@runZoneValue": {
+    "description": "WP06 D",
+    "placeholders": {
+      "zone": {
+        "type": "int"
+      }
+    }
+  },
+  "runZoneBelow": "unter Zone 1",
+  "runZoneAbove": "Zone {zone} (über 100 % der Reserve)",
+  "@runZoneAbove": {
+    "description": "WP06 D",
+    "placeholders": {
+      "zone": {
+        "type": "int"
+      }
+    }
+  },
+  "runZoneNoHeartRate": "nicht verfügbar (kein Puls)",
+  "runZoneNoBasis": "nicht verfügbar – Ruhepuls und HFmax im Profil prüfen",
+  "runGpsSearching": "Suche Signal …",
+  "runGpsOk": "Signal ok",
+  "runGpsLost": "Signal verloren – Lücke markiert, Strecke wird nicht geschätzt",
+  "runGpsError": "Die Standortquelle meldet einen Fehler",
+  "runGpsGaps": "GPS-Lücken: {count}",
+  "@runGpsGaps": {
+    "description": "WP06 D",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "runHeartRateSourceActive": "Puls: Quelle aktiv",
+  "runHeartRateSourceNone": "Puls: keine Quelle",
+  "runLapRow": "Runde {index}: {time}",
+  "@runLapRow": {
+    "description": "WP06 D",
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "runNoLaps": "Noch keine Runde markiert",
+  "runPausedBanner": "Pausiert",
+  "runAutoPausedBanner": "Automatisch pausiert (Stillstand erkannt)",
+  "runStorageFailed": "Speichern fehlgeschlagen. Die Anzeige läuft weiter, aber Messwerte könnten im Speicher fehlen.",
+  "runPause": "Pause",
+  "runResume": "Fortsetzen",
+  "runLap": "Runde",
+  "runFinish": "Beenden",
+  "runAutoPause": "Automatisch pausieren",
+  "runAutoPauseHint": "Pausiert nach rund 10 s Stillstand und setzt bei Bewegung fort. Standardmäßig aus.",
+  "runFinishTitle": "Lauf beenden?",
+  "runFinishBody": "Der Lauf wird abgeschlossen und gespeichert. Danach lässt er sich nicht fortsetzen.",
+  "runFinishConfirm": "Beenden",
+  "runFinishCancel": "Weiterlaufen",
+  "runDoneTitle": "Lauf beendet",
+  "runDoneSaved": "Der Lauf ist gespeichert.",
+  "runDoneSaveProblem": "Beim Speichern ist ein Fehler aufgetreten. Der Lauf ist möglicherweise unvollständig gespeichert.",
+  "runDoneClose": "Fertig"
 }

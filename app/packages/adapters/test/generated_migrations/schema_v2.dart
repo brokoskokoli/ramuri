@@ -87,22 +87,8 @@ class Runs extends Table with TableInfo {
     requiredDuringInsert: false,
     $customConstraints: '',
   );
-  late final GeneratedColumn<int> endedUtcOffsetS = GeneratedColumn<int>(
-    'ended_utc_offset_s',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    $customConstraints: 'CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800)',
-  );
   @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    state,
-    startedAtUs,
-    endedAtUs,
-    endedUtcOffsetS,
-  ];
+  List<GeneratedColumn> get $columns => [id, state, startedAtUs, endedAtUs];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -344,6 +330,31 @@ class RawPositions extends Table with TableInfo {
     requiredDuringInsert: false,
     $customConstraints: '',
   );
+  late final GeneratedColumn<double> speedMps = GeneratedColumn<double>(
+    'speed_mps',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  late final GeneratedColumn<double> speedAccuracyMps = GeneratedColumn<double>(
+    'speed_accuracy_mps',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  late final GeneratedColumn<double> verticalAccuracyM =
+      GeneratedColumn<double>(
+        'vertical_accuracy_m',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        $customConstraints: '',
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -354,6 +365,9 @@ class RawPositions extends Table with TableInfo {
     latitudeDeg,
     longitudeDeg,
     accuracyM,
+    speedMps,
+    speedAccuracyMps,
+    verticalAccuracyM,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1337,39 +1351,6 @@ class ComputedValues extends Table with TableInfo {
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL CHECK (quality IN (\'provisional\', \'sufficient\', \'good\', \'undeterminable\'))',
   );
-  late final GeneratedColumn<String> unavailableReason =
-      GeneratedColumn<String>(
-        'unavailable_reason',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-        $customConstraints: '',
-      );
-  late final GeneratedColumn<int> hrMaxBpm = GeneratedColumn<int>(
-    'hr_max_bpm',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    $customConstraints: 'CHECK (hr_max_bpm > 0)',
-  );
-  late final GeneratedColumn<int> hrRestBpm = GeneratedColumn<int>(
-    'hr_rest_bpm',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    $customConstraints: 'CHECK (hr_rest_bpm > 0)',
-  );
-  late final GeneratedColumn<int> hrMaxIsEstimated = GeneratedColumn<int>(
-    'hr_max_is_estimated',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    $customConstraints: 'CHECK (hr_max_is_estimated IN (0, 1))',
-  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1388,10 +1369,6 @@ class ComputedValues extends Table with TableInfo {
     methodVersion,
     parameterVersion,
     quality,
-    unavailableReason,
-    hrMaxBpm,
-    hrRestBpm,
-    hrMaxIsEstimated,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1413,164 +1390,6 @@ class ComputedValues extends Table with TableInfo {
   @override
   List<String> get customConstraints => const [
     'CHECK((run_id IS NULL)<>(day IS NULL))',
-  ];
-  @override
-  bool get dontWriteConstraints => true;
-}
-
-class ValueSections extends Table with TableInfo {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  ValueSections(this.attachedDatabase, [this._alias]);
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
-  );
-  late final GeneratedColumn<int> computedValueId = GeneratedColumn<int>(
-    'computed_value_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints:
-        'NOT NULL REFERENCES computed_values(id)ON DELETE CASCADE',
-  );
-  late final GeneratedColumn<int> position = GeneratedColumn<int>(
-    'position',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (position >= 0)',
-  );
-  late final GeneratedColumn<int> startUs = GeneratedColumn<int>(
-    'start_us',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
-  );
-  late final GeneratedColumn<int> endUs = GeneratedColumn<int>(
-    'end_us',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (end_us >= start_us)',
-  );
-  late final GeneratedColumn<double> gpsMedianAccuracyM =
-      GeneratedColumn<double>(
-        'gps_median_accuracy_m',
-        aliasedName,
-        true,
-        type: DriftSqlType.double,
-        requiredDuringInsert: false,
-        $customConstraints: 'CHECK (gps_median_accuracy_m >= 0)',
-      );
-  late final GeneratedColumn<double> weight = GeneratedColumn<double>(
-    'weight',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (weight >= 0)',
-  );
-  late final GeneratedColumn<double> lateFactor = GeneratedColumn<double>(
-    'late_factor',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (late_factor >= 0)',
-  );
-  late final GeneratedColumn<String> status = GeneratedColumn<String>(
-    'status',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (status IN (\'eligible\', \'provisional\', \'rejected\'))',
-  );
-  late final GeneratedColumn<String> discard = GeneratedColumn<String>(
-    'discard',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    $customConstraints:
-        'CHECK (discard IN (\'implausible\', \'incomplete\', \'zeroWeight\'))',
-  );
-  late final GeneratedColumn<String> reasons = GeneratedColumn<String>(
-    'reasons',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (json_valid(reasons))',
-  );
-  late final GeneratedColumn<double> oxygenDemand = GeneratedColumn<double>(
-    'oxygen_demand',
-    aliasedName,
-    true,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    $customConstraints: '',
-  );
-  late final GeneratedColumn<double> estimate = GeneratedColumn<double>(
-    'estimate',
-    aliasedName,
-    true,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    $customConstraints: '',
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    computedValueId,
-    position,
-    startUs,
-    endUs,
-    gpsMedianAccuracyM,
-    weight,
-    lateFactor,
-    status,
-    discard,
-    reasons,
-    oxygenDemand,
-    estimate,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'value_sections';
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  List<Set<GeneratedColumn>> get uniqueKeys => [
-    {computedValueId, position},
-  ];
-  @override
-  Never map(Map<String, dynamic> data, {String? tablePrefix}) {
-    throw UnsupportedError('TableInfo.map in schema verification code');
-  }
-
-  @override
-  ValueSections createAlias(String alias) {
-    return ValueSections(attachedDatabase, alias);
-  }
-
-  @override
-  List<String> get customConstraints => const [
-    'UNIQUE(computed_value_id, position)',
   ];
   @override
   bool get dontWriteConstraints => true;
@@ -1870,14 +1689,6 @@ class DatabaseAtV2 extends GeneratedDatabase {
   DatabaseAtV2(QueryExecutor e) : super(e);
   late final StorageMeta storageMeta = StorageMeta(this);
   late final Runs runs = Runs(this);
-  late final Trigger runsOffsetInsert = Trigger(
-    'CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, \'offset without end\');END',
-    'runs_offset_insert',
-  );
-  late final Trigger runsOffsetUpdate = Trigger(
-    'CREATE TRIGGER runs_offset_update BEFORE UPDATE ON runs WHEN NEW.ended_utc_offset_s IS NOT NULL AND NEW.ended_at_us IS NULL BEGIN SELECT RAISE (ABORT, \'offset without end\');END',
-    'runs_offset_update',
-  );
   late final Laps laps = Laps(this);
   late final RunGaps runGaps = RunGaps(this);
   late final Index runGapsRunTime = Index(
@@ -1973,31 +1784,6 @@ class DatabaseAtV2 extends GeneratedDatabase {
     'CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values WHEN OLD.role = \'original\' OR NEW.role = \'original\' BEGIN SELECT RAISE (ABORT, \'original value is immutable\');END',
     'computed_values_original_immutable',
   );
-  late final Trigger computedValuesReasonInsert = Trigger(
-    'CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, \'value and unavailable_reason are exclusive\');END',
-    'computed_values_reason_insert',
-  );
-  late final Trigger computedValuesReasonUpdate = Trigger(
-    'CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, \'value and unavailable_reason are exclusive\');END',
-    'computed_values_reason_update',
-  );
-  late final Trigger computedValuesBasisInsert = Trigger(
-    'CREATE TRIGGER computed_values_basis_insert BEFORE INSERT ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, \'basis values without snapshot flag\');END',
-    'computed_values_basis_insert',
-  );
-  late final Trigger computedValuesBasisUpdate = Trigger(
-    'CREATE TRIGGER computed_values_basis_update BEFORE UPDATE ON computed_values WHEN NEW.hr_max_is_estimated IS NULL AND(NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)BEGIN SELECT RAISE (ABORT, \'basis values without snapshot flag\');END',
-    'computed_values_basis_update',
-  );
-  late final ValueSections valueSections = ValueSections(this);
-  late final Trigger valueSectionsOriginalImmutable = Trigger(
-    'CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections WHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = \'original\' OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = \'original\' BEGIN SELECT RAISE (ABORT, \'original value sections are immutable\');END',
-    'value_sections_original_immutable',
-  );
-  late final Trigger valueSectionsOriginalNoLateInsert = Trigger(
-    'CREATE TRIGGER value_sections_original_no_late_insert BEFORE INSERT ON value_sections WHEN (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = \'original\' AND NEW.computed_value_id <> (SELECT MAX(id) FROM computed_values) BEGIN SELECT RAISE (ABORT, \'original value sections are immutable\');END',
-    'value_sections_original_no_late_insert',
-  );
   late final Profile profile = Profile(this);
   late final Settings settings = Settings(this);
   late final KnownDevices knownDevices = KnownDevices(this);
@@ -2013,8 +1799,6 @@ class DatabaseAtV2 extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     storageMeta,
     runs,
-    runsOffsetInsert,
-    runsOffsetUpdate,
     laps,
     runGaps,
     runGapsRunTime,
@@ -2046,13 +1830,6 @@ class DatabaseAtV2 extends GeneratedDatabase {
     computedValuesRunUnique,
     computedValuesDayUnique,
     computedValuesOriginalImmutable,
-    computedValuesReasonInsert,
-    computedValuesReasonUpdate,
-    computedValuesBasisInsert,
-    computedValuesBasisUpdate,
-    valueSections,
-    valueSectionsOriginalImmutable,
-    valueSectionsOriginalNoLateInsert,
     profile,
     settings,
     knownDevices,
@@ -2061,20 +1838,6 @@ class DatabaseAtV2 extends GeneratedDatabase {
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'runs',
-        limitUpdateKind: UpdateKind.insert,
-      ),
-      result: [],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'runs',
-        limitUpdateKind: UpdateKind.update,
-      ),
-      result: [],
-    ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'runs',
@@ -2212,55 +1975,6 @@ class DatabaseAtV2 extends GeneratedDatabase {
       on: TableUpdateQuery.onTableName(
         'computed_values',
         limitUpdateKind: UpdateKind.update,
-      ),
-      result: [],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'computed_values',
-        limitUpdateKind: UpdateKind.insert,
-      ),
-      result: [],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'computed_values',
-        limitUpdateKind: UpdateKind.update,
-      ),
-      result: [],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'computed_values',
-        limitUpdateKind: UpdateKind.insert,
-      ),
-      result: [],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'computed_values',
-        limitUpdateKind: UpdateKind.update,
-      ),
-      result: [],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'computed_values',
-        limitUpdateKind: UpdateKind.delete,
-      ),
-      result: [TableUpdate('value_sections', kind: UpdateKind.delete)],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'value_sections',
-        limitUpdateKind: UpdateKind.update,
-      ),
-      result: [],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'value_sections',
-        limitUpdateKind: UpdateKind.insert,
       ),
       result: [],
     ),

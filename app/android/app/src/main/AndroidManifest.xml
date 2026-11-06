@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- FR-0195, OQ-0064: Der Lauf verlangt genauen Standort (FINE). COARSE muss ab Android 12
+         mit angefordert werden, damit der Nutzer "ungefähr" wählen kann; dann startet kein Lauf. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="Running App"
         android:allowBackup="false"

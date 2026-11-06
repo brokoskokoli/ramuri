@@ -73,8 +73,9 @@ class AltitudeResult {
   final double? medianMeters;
 }
 
-/// Höhenfilter und Aufstieg (PAR-012, PAR-013). Eigene Reihe, unabhängig von
-/// den Positionsfiltern. Schrittform: Die Gesamtrechnung ist der Fold über
+/// Höhenfilter und Aufstieg (PAR-012, PAR-013). Eigene Reihe mit eigenen
+/// Filtern. Ob eine Höhe zur Position passt (verworfene Position, Neu ankern),
+/// entscheidet der Aufrufer, in der Aufzeichnung `RunPreprocessor`. Schrittform: Die Gesamtrechnung ist der Fold über
 /// [add].
 class AltitudeProcessor {
   AltitudeProcessor(this.parameters);
@@ -102,6 +103,13 @@ class AltitudeProcessor {
   void resume() {
     if (!_paused) return;
     _paused = false;
+    _window.clear();
+    _reference = null;
+  }
+
+  /// Neu verankerte Position: die Höhen davor gehören zu einer falschen Lage.
+  /// Fenster und Referenz beginnen neu, der bisherige Aufstieg bleibt.
+  void restart() {
     _window.clear();
     _reference = null;
   }

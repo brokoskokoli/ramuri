@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
 
-/// Bewertete Abschnitte je Wert (WP09 D1, Schema Version 2, FR-0073).
+/// Bewertete Abschnitte je Wert (WP09 D1, Schema Version 3, FR-0073).
 final _t0 = DateTime.utc(2030, 1, 1, 12);
 DateTime _at(int s) => _t0.add(Duration(seconds: s));
 
@@ -30,15 +30,17 @@ ComputedValue _dayValue(String key, int from, int to) => ComputedValue(
   sections: cs.sampleValueSections(),
 );
 
-/// Datenbank im Stand Version 1: Tabelle und Trigger von `value_sections`
-/// und die Spalte `unavailable_reason` samt Triggern fehlen, `user_version` ist
-/// 1. Der Store der aktuellen App schreibt in diese Datei nicht; die Zeilen
-/// kommen per SQL ([_seedV1]).
+/// Datenbank im Stand Version 1 oder 2 (WP06 ergänzt in Version 2 die Spalten
+/// der Rohpositionen): Tabelle und Trigger von `value_sections` und die Spalte
+/// `unavailable_reason` samt Triggern fehlen, `user_version` ist [version]. Der
+/// Store der aktuellen App schreibt in diese Datei nicht; die Zeilen kommen per
+/// SQL ([_seedV1]).
 class _V1 extends AppDatabase {
-  _V1(super.e);
+  _V1(super.e, this.version);
+  final int version;
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => version;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -64,6 +66,15 @@ class _V1 extends AppDatabase {
         await customStatement('ALTER TABLE computed_values DROP COLUMN $c');
       }
       await customStatement('ALTER TABLE runs DROP COLUMN ended_utc_offset_s');
+      if (version < 2) {
+        for (final c in [
+          'speed_mps',
+          'speed_accuracy_mps',
+          'vertical_accuracy_m',
+        ]) {
+          await customStatement('ALTER TABLE raw_positions DROP COLUMN $c');
+        }
+      }
     },
   );
 }
@@ -565,161 +576,166 @@ void main() {
     });
   });
 
-  group('Migration 1 -> 2 auf befüllter v1-Datenbank', () {
-    test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
-      final v1 = await open((e) => _V1(e));
-      Future<List<Object?>> master(String type) async => [
-        for (final r
-            in await v1.database
-                .customSelect(
-                  "SELECT name FROM sqlite_master WHERE type = '$type'",
-                )
-                .get())
-          r.data['name'],
-      ];
-      expect(await master('table'), isNot(contains('value_sections')));
-      expect(
-        await master('trigger'),
-        isNot(contains('value_sections_original_immutable')),
-      );
-      final r = (await v1.runs.create(startedAt: _at(0))).id;
-      // Der Store der aktuellen App kennt die v1-Spalten nicht: per SQL beenden.
-      await v1.database.customStatement(
-        "UPDATE runs SET state = 'finished', ended_at_us = ? WHERE id = ?",
-        [_at(100).microsecondsSinceEpoch, r],
-      );
-      final o = ValueOwner.run(r);
-      await _seedV1(v1.database, runId: r, v: cs.sampleValue('vo2max', 48.5));
-      // Ein alter Wert ohne Zahl (v1 verlangte dafür keinen Grund).
-      await _seedV1(
-        v1.database,
-        runId: r,
-        v: cs.sampleValue(
-          'efficiency',
-          null,
-          quality: ValueQuality.undeterminable,
-        ),
-      );
-      await _seedV1(
-        v1.database,
-        day: '2030-01-01',
-        v: _dayValue('atl', 1, 2).copyWithoutSections(),
-      );
-      await v1.settings.set('units', 'km', at: _at(0));
-      expect(
-        (await v1.database.customSelect('PRAGMA user_version').getSingle())
-            .data
-            .values
-            .single,
-        1,
-      );
-      final expected = cs.describeValue(cs.sampleValue('vo2max', 48.5));
-      await v1.close();
+  for (final from in [1, 2]) {
+    group('Migration $from -> 3 auf befüllter v$from-Datenbank', () {
+      test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
+        final v1 = await open((e) => _V1(e, from));
+        Future<List<Object?>> master(String type) async => [
+          for (final r
+              in await v1.database
+                  .customSelect(
+                    "SELECT name FROM sqlite_master WHERE type = '$type'",
+                  )
+                  .get())
+            r.data['name'],
+        ];
+        expect(await master('table'), isNot(contains('value_sections')));
+        expect(
+          await master('trigger'),
+          isNot(contains('value_sections_original_immutable')),
+        );
+        final r = (await v1.runs.create(startedAt: _at(0))).id;
+        // Der Store der aktuellen App kennt die v1-Spalten nicht: per SQL beenden.
+        await v1.database.customStatement(
+          "UPDATE runs SET state = 'finished', ended_at_us = ? WHERE id = ?",
+          [_at(100).microsecondsSinceEpoch, r],
+        );
+        final o = ValueOwner.run(r);
+        await _seedV1(v1.database, runId: r, v: cs.sampleValue('vo2max', 48.5));
+        // Ein alter Wert ohne Zahl (v1 verlangte dafür keinen Grund).
+        await _seedV1(
+          v1.database,
+          runId: r,
+          v: cs.sampleValue(
+            'efficiency',
+            null,
+            quality: ValueQuality.undeterminable,
+          ),
+        );
+        await _seedV1(
+          v1.database,
+          day: '2030-01-01',
+          v: _dayValue('atl', 1, 2).copyWithoutSections(),
+        );
+        await v1.settings.set('units', 'km', at: _at(0));
+        expect(
+          (await v1.database.customSelect('PRAGMA user_version').getSingle())
+              .data
+              .values
+              .single,
+          from,
+        );
+        final expected = cs.describeValue(cs.sampleValue('vo2max', 48.5));
+        await v1.close();
 
-      final s = await open();
-      addTearDown(s.close);
-      expect(
-        (await s.database.customSelect('PRAGMA user_version').getSingle())
-            .data
-            .values
-            .single,
-        2,
-      );
-      await s.database.validateDatabaseSchema();
-      expect(await count(s, 'computed_values'), 6);
-      expect(await count(s, 'value_sections'), 0);
-      expect(await s.settings.all(), {'units': 'km'});
-      final both = await s.values.read(o);
-      final p = both.last;
-      expect(cs.describeValue(p.original), expected);
-      expect(p.original.sections, isEmpty);
-      // Alter Wert ohne Zahl: bekommt den allgemeinen Grund, original und
-      // current, trotz unveränderlichem original.
-      expect(both.first.original.key, 'efficiency');
-      expect(
-        both.first.original.unavailableReason,
-        UnavailableReason.insufficientData,
-      );
-      expect(
-        both.first.current.unavailableReason,
-        UnavailableReason.insufficientData,
-      );
-      expect(p.original.unavailableReason, isNull);
-      // D2a: alte Zeilen haben keinen Basis-Schnappschuss, alte Läufe keinen
-      // UTC-Versatz (beides unbekannt, nicht 0).
-      for (final x in [...both.map((b) => b.original), p.current]) {
-        expect(x.heartRateBasis, isNull);
-      }
-      expect((await s.runs.get(r))!.endedUtcOffset, isNull);
-      expect((await s.runs.get(r))!.endedAt, _at(100));
-      // Die Regel gilt auf der migrierten Datei (Trigger vorhanden).
-      expect(
-        (await failure(
-          s.database.customStatement(
-            "UPDATE computed_values SET value_real = NULL WHERE role = 'current' "
-            "AND value_key = 'vo2max'",
-          ),
-        )).toString(),
-        contains('exclusive'),
-      );
+        final s = await open();
+        addTearDown(s.close);
+        expect(
+          (await s.database.customSelect('PRAGMA user_version').getSingle())
+              .data
+              .values
+              .single,
+          3,
+        );
+        await s.database.validateDatabaseSchema();
+        expect(await count(s, 'computed_values'), 6);
+        expect(await count(s, 'value_sections'), 0);
+        expect(await s.settings.all(), {'units': 'km'});
+        final both = await s.values.read(o);
+        final p = both.last;
+        expect(cs.describeValue(p.original), expected);
+        expect(p.original.sections, isEmpty);
+        // Alter Wert ohne Zahl: bekommt den allgemeinen Grund, original und
+        // current, trotz unveränderlichem original.
+        expect(both.first.original.key, 'efficiency');
+        expect(
+          both.first.original.unavailableReason,
+          UnavailableReason.insufficientData,
+        );
+        expect(
+          both.first.current.unavailableReason,
+          UnavailableReason.insufficientData,
+        );
+        expect(p.original.unavailableReason, isNull);
+        // D2a: alte Zeilen haben keinen Basis-Schnappschuss, alte Läufe keinen
+        // UTC-Versatz (beides unbekannt, nicht 0).
+        for (final x in [...both.map((b) => b.original), p.current]) {
+          expect(x.heartRateBasis, isNull);
+        }
+        expect((await s.runs.get(r))!.endedUtcOffset, isNull);
+        expect((await s.runs.get(r))!.endedAt, _at(100));
+        // Die Regel gilt auf der migrierten Datei (Trigger vorhanden).
+        expect(
+          (await failure(
+            s.database.customStatement(
+              "UPDATE computed_values SET value_real = NULL WHERE role = 'current' "
+              "AND value_key = 'vo2max'",
+            ),
+          )).toString(),
+          contains('exclusive'),
+        );
 
-      // Neue Funktion auf der migrierten Datei, samt Triggern.
-      await s.values.swapCurrent(o, [
-        cs.sampleValue(
-          'vo2max',
-          50,
-          sections: cs.sampleValueSections(),
-          basis: const HeartRateBasis(maxBpm: 188, restingBpm: 50),
-        ),
-      ]);
-      expect((await s.values.read(o)).last.current.heartRateBasis?.maxBpm, 188);
-      expect((await s.values.read(o)).last.original.heartRateBasis, isNull);
-      await s.runs.setState(
-        r,
-        RunState.finished,
-        endedAt: _at(101),
-        endedUtcOffset: const Duration(hours: 1),
-      );
-      expect((await s.runs.get(r))!.endedUtcOffset, const Duration(hours: 1));
-      expect(
-        (await failure(
-          s.database.customStatement(
-            'UPDATE computed_values SET hr_max_is_estimated = NULL '
-            "WHERE role = 'current' AND value_key = 'vo2max'",
+        // Neue Funktion auf der migrierten Datei, samt Triggern.
+        await s.values.swapCurrent(o, [
+          cs.sampleValue(
+            'vo2max',
+            50,
+            sections: cs.sampleValueSections(),
+            basis: const HeartRateBasis(maxBpm: 188, restingBpm: 50),
           ),
-        )).toString(),
-        contains('snapshot flag'),
-      );
-      expect(
-        (await failure(
+        ]);
+        expect(
+          (await s.values.read(o)).last.current.heartRateBasis?.maxBpm,
+          188,
+        );
+        expect((await s.values.read(o)).last.original.heartRateBasis, isNull);
+        await s.runs.setState(
+          r,
+          RunState.finished,
+          endedAt: _at(101),
+          endedUtcOffset: const Duration(hours: 1),
+        );
+        expect((await s.runs.get(r))!.endedUtcOffset, const Duration(hours: 1));
+        expect(
+          (await failure(
+            s.database.customStatement(
+              'UPDATE computed_values SET hr_max_is_estimated = NULL '
+              "WHERE role = 'current' AND value_key = 'vo2max'",
+            ),
+          )).toString(),
+          contains('snapshot flag'),
+        );
+        expect(
+          (await failure(
+            s.database.customStatement(
+              'UPDATE runs SET ended_at_us = NULL WHERE id = $r',
+            ),
+          )).toString(),
+          contains('offset without end'),
+        );
+        expect((await s.values.read(o)).last.current.sections, hasLength(3));
+        expect((await s.values.read(o)).last.original.sections, isEmpty);
+        final orig =
+            (await s.database
+                        .customSelect(
+                          "SELECT id FROM computed_values WHERE role = 'original' AND value_key = 'vo2max' AND run_id = $r",
+                        )
+                        .getSingle())
+                    .data['id']
+                as int;
+        final e = await failure(
           s.database.customStatement(
-            'UPDATE runs SET ended_at_us = NULL WHERE id = $r',
+            'INSERT INTO value_sections (computed_value_id, position, start_us, '
+            "end_us, weight, late_factor, status, reasons) VALUES (?, 0, 1, 2, 1, 1, 'eligible', '[]')",
+            [orig],
           ),
-        )).toString(),
-        contains('offset without end'),
-      );
-      expect((await s.values.read(o)).last.current.sections, hasLength(3));
-      expect((await s.values.read(o)).last.original.sections, isEmpty);
-      final orig =
-          (await s.database
-                      .customSelect(
-                        "SELECT id FROM computed_values WHERE role = 'original' AND value_key = 'vo2max' AND run_id = $r",
-                      )
-                      .getSingle())
-                  .data['id']
-              as int;
-      final e = await failure(
-        s.database.customStatement(
-          'INSERT INTO value_sections (computed_value_id, position, start_us, '
-          "end_us, weight, late_factor, status, reasons) VALUES (?, 0, 1, 2, 1, 1, 'eligible', '[]')",
-          [orig],
-        ),
-      );
-      expect(e.toString(), contains('immutable'));
-      await s.deleteRun(r);
-      expect(await count(s, 'value_sections'), 0);
+        );
+        expect(e.toString(), contains('immutable'));
+        await s.deleteRun(r);
+        expect(await count(s, 'value_sections'), 0);
+      });
     });
-  });
+  }
 }
 
 extension on ComputedValue {

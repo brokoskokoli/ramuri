@@ -15,6 +15,7 @@ Wartet nicht auf R005: Den Bau von `universal_ble` mit Target 36 belegt dieses P
 6. **Test-Sensor:** Fake-Gerät nur im Debug-Build, um Oberfläche und Lauf im Emulator ohne Funk zu prüfen. Es darf nicht im Release-Build landen.
 
 ## Umsetzung
+- Aus WP06: Die Aufzeichnung hat noch keine produktive Pulsquelle. Puls in der Pause wird verworfen und nicht in die Uhrbasis gelegt.
 - Aus WP05: Bluetooth-Berechtigungen nur im Manifest eintragen, dann erscheinen sie auf der Berechtigungsseite; Entzug im E2E prüfen.
 - Aus WP03: `HeartRateReading` hat noch kein Kontaktbit, das PAR-008 braucht. Aus WP01: Die Form des Ereignisstroms ist in ADR-0006 nicht festgelegt.
 - **Teile für die Coder-Aufträge:** Teil A: Punkte 1 und 2 / Teil B: Punkte 3 und 6 / Teil C: Punkt 4 / Teil D: Punkt 5, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.

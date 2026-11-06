@@ -13,6 +13,7 @@ Bezug: FR-0037, FR-0040 bis FR-0044, FR-0054, FR-0055, FR-0059, FR-0064, FR-0067
 6. **Sprachregeln:** Keine Genauigkeits- oder Validierungsaussage (FR-0054, FR-0072, NFR-0003, NFR-0004), Zonen nicht als Schwellen (FR-0064), TRIMP nicht als Ermüdung (FR-0094), Schätzungen erkennbar (CON-0009). Gilt für alle Texte der ARB-Dateien, auch aus früheren Paketen.
 
 ## Umsetzung
+- Aus WP06: Neuberechnung aus Rohdaten mit `RunPreprocessor`, Punkte in Lücken der manuellen Pause ausschließen, Rohzeiten in Uhrbasis. Die Abschlussansicht zeigt noch keinen Puls. Das Sammeln per Snapshot bei sehr langen Läufen messen.
 - Aus WP05: Zonenzeiten wie in WP09 mit den am Ergebnis festgehaltenen Grenzen. Formatierer `UnitFormatter` über `formatterOf(context)`; die Anzeige in Meilen ist mit echter Strecke noch ungeprüft. Zonennamen fehlen im Zoneneditor.
 - Aus WP02: Die Liste liest heute je Lauf einzeln (N+1), das ist für die Historie zu prüfen. `confirmAndDeleteRun` wird am Listeneintrag eingehängt.
 - **Teile für die Coder-Aufträge:** Teil A: Punkt 3 in `core` und die Berechnungen zu Punkt 1 / Teil B: Punkte 1 und 2 / Teil C: Punkte 3 und 4 mit Oberfläche / Teil D: Punkte 5 und 6, je ein Auftrag ohne Übergabe, in dieser Reihenfolge.

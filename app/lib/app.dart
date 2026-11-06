@@ -53,6 +53,7 @@ class _RunningAppState extends State<RunningApp> {
           session: session,
           clock: dependencies.clock,
           permissions: dependencies.permissions,
+          runPorts: dependencies.runPorts,
         ),
       ),
     );

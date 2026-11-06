@@ -8,23 +8,30 @@ part 'app_database.g.dart';
 /// Ein Migrationsschritt von Version `n` auf `n + 1`.
 typedef MigrationStep = Future<void> Function(Migrator m);
 
-/// Die Tabellen stehen in `schema.drift` (Schema Phase 1, ab Version 2 mit value_sections).
+/// Die Tabellen stehen in `schema.drift` (Schema Phase 1, ab Version 3 mit value_sections).
 @DriftDatabase(include: {'schema.drift'})
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
-  /// Phase 1 begann mit Version 1 (WP02 Teil B); Version 2 (WP09 D1) ergänzt
-  /// `value_sections`. Jede spätere Änderung erhöht die
+  /// Version 1: Phase 1 (WP02 Teil B). Version 2: Tempo, Tempo- und
+  /// Vertikalgenauigkeit je Rohposition (WP06 Teil C, K12). Version 3: value_sections
+  /// und Grund-, Basis- und Versatzspalten (WP09 D1/D2a). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
-  /// Schritt `n` überführt Version `n` in `n + 1`. Tests überschreiben das mit
-  /// synthetischen Schritten.
+  /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
+  /// nächste Version einen synthetischen Schritt an.
   Map<int, MigrationStep> get migrationSteps => {
-    // 1 -> 2: neue Tabelle samt Triggern, Grund-, Basis- und Versatzspalten.
-    1: (Migrator m) async {
+    1: (m) async {
+      // Bestehende Zeilen bekommen NULL (nicht geliefert), nie 0.
+      await m.addColumn(rawPositions, rawPositions.speedMps);
+      await m.addColumn(rawPositions, rawPositions.speedAccuracyMps);
+      await m.addColumn(rawPositions, rawPositions.verticalAccuracyM);
+    },
+    // 2 -> 3 (WP09): neue Tabelle samt Triggern, Grund-, Basis- und Versatzspalten.
+    2: (Migrator m) async {
       await m.create(valueSections);
       await m.create(valueSectionsOriginalImmutable);
       await m.create(valueSectionsOriginalNoLateInsert);

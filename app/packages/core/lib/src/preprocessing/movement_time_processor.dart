@@ -71,6 +71,9 @@ class MovementTimeProcessor {
   /// Bewegung im Zustand `standstillPause`).
   DateTime? _candidate;
 
+  /// Erkannter Zustand, ohne das Ergebnis aufzubauen (billig je Punkt).
+  AutoPauseState get autoPauseState => _state;
+
   void add(MotionSegment s) {
     if (_manual) return;
     if (s.isGap) {

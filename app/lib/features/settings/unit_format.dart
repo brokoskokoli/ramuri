@@ -9,6 +9,7 @@ class UnitFormatter {
     required this.languageCode,
     required this.distanceLabel,
     required this.paceLabel,
+    required this.elevationLabel,
   });
 
   final DistanceUnit unit;
@@ -26,6 +27,10 @@ class UnitFormatter {
   /// Kürzel der Paceeinheit (aus der Übersetzung), etwa `min/km`.
   final String paceLabel;
 
+  /// Kürzel der Höheneinheit (aus der Übersetzung): `m` bei Kilometern, `ft`
+  /// bei Meilen.
+  final String elevationLabel;
+
   /// Strecke aus Metern, zwei Nachkommastellen, etwa `5,23 km`.
   String distance(double? meters) {
     if (meters == null || !meters.isFinite || meters < 0) return noValue;
@@ -42,5 +47,12 @@ class UnitFormatter {
     final total = unit.paceFromSecondsPerKm(secondsPerKm).round();
     final seconds = (total % 60).toString().padLeft(2, '0');
     return '${total ~/ 60}:$seconds $paceLabel';
+  }
+
+  /// Höhe aus Metern, ganze Zahl, etwa `120 m` beziehungsweise `394 ft`. Die
+  /// gespeicherten Werte bleiben Meter.
+  String elevation(double? meters) {
+    if (meters == null || !meters.isFinite) return noValue;
+    return '${unit.elevationFromMeters(meters).round()} $elevationLabel';
   }
 }

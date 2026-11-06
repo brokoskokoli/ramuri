@@ -377,7 +377,7 @@ class Run extends DataClass implements Insertable<Run> {
   /// NULL, solange der Lauf nicht beendet ist.
   final int? endedAtUs;
 
-  /// Seit Version 2 (WP09 D2a): UTC-Versatz der Ortszeit zum Laufende in
+  /// Seit Version 3 (WP09 D2a): UTC-Versatz der Ortszeit zum Laufende in
   /// Sekunden (Zeitzone zum Laufzeitpunkt; Tageswerte hängen am lokalen
   /// Kalendertag des Laufendes). NULL = unbekannt: Läufe aus Version 1, oder
   /// der Aufrufer hat ihn nicht genannt; nur bei beendetem Lauf (Trigger).
@@ -1369,6 +1369,40 @@ class RawPositions extends Table with TableInfo<RawPositions, RawPosition> {
     requiredDuringInsert: false,
     $customConstraints: '',
   );
+  static const VerificationMeta _speedMpsMeta = const VerificationMeta(
+    'speedMps',
+  );
+  late final GeneratedColumn<double> speedMps = GeneratedColumn<double>(
+    'speed_mps',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _speedAccuracyMpsMeta = const VerificationMeta(
+    'speedAccuracyMps',
+  );
+  late final GeneratedColumn<double> speedAccuracyMps = GeneratedColumn<double>(
+    'speed_accuracy_mps',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _verticalAccuracyMMeta = const VerificationMeta(
+    'verticalAccuracyM',
+  );
+  late final GeneratedColumn<double> verticalAccuracyM =
+      GeneratedColumn<double>(
+        'vertical_accuracy_m',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        $customConstraints: '',
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1379,6 +1413,9 @@ class RawPositions extends Table with TableInfo<RawPositions, RawPosition> {
     latitudeDeg,
     longitudeDeg,
     accuracyM,
+    speedMps,
+    speedAccuracyMps,
+    verticalAccuracyM,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1451,6 +1488,30 @@ class RawPositions extends Table with TableInfo<RawPositions, RawPosition> {
         accuracyM.isAcceptableOrUnknown(data['accuracy_m']!, _accuracyMMeta),
       );
     }
+    if (data.containsKey('speed_mps')) {
+      context.handle(
+        _speedMpsMeta,
+        speedMps.isAcceptableOrUnknown(data['speed_mps']!, _speedMpsMeta),
+      );
+    }
+    if (data.containsKey('speed_accuracy_mps')) {
+      context.handle(
+        _speedAccuracyMpsMeta,
+        speedAccuracyMps.isAcceptableOrUnknown(
+          data['speed_accuracy_mps']!,
+          _speedAccuracyMpsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('vertical_accuracy_m')) {
+      context.handle(
+        _verticalAccuracyMMeta,
+        verticalAccuracyM.isAcceptableOrUnknown(
+          data['vertical_accuracy_m']!,
+          _verticalAccuracyMMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1492,6 +1553,18 @@ class RawPositions extends Table with TableInfo<RawPositions, RawPosition> {
         DriftSqlType.double,
         data['${effectivePrefix}accuracy_m'],
       ),
+      speedMps: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}speed_mps'],
+      ),
+      speedAccuracyMps: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}speed_accuracy_mps'],
+      ),
+      verticalAccuracyM: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}vertical_accuracy_m'],
+      ),
     );
   }
 
@@ -1517,6 +1590,12 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
   final double? latitudeDeg;
   final double? longitudeDeg;
   final double? accuracyM;
+
+  /// Ab Version 2 (WP06 C, K12): Rohwerte des Standortgebers, NULL = nicht
+  /// geliefert (nie 0). Zeilen aus Version 1 haben NULL.
+  final double? speedMps;
+  final double? speedAccuracyMps;
+  final double? verticalAccuracyM;
   const RawPosition({
     required this.id,
     required this.runId,
@@ -1526,6 +1605,9 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
     this.latitudeDeg,
     this.longitudeDeg,
     this.accuracyM,
+    this.speedMps,
+    this.speedAccuracyMps,
+    this.verticalAccuracyM,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1543,6 +1625,15 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
     }
     if (!nullToAbsent || accuracyM != null) {
       map['accuracy_m'] = Variable<double>(accuracyM);
+    }
+    if (!nullToAbsent || speedMps != null) {
+      map['speed_mps'] = Variable<double>(speedMps);
+    }
+    if (!nullToAbsent || speedAccuracyMps != null) {
+      map['speed_accuracy_mps'] = Variable<double>(speedAccuracyMps);
+    }
+    if (!nullToAbsent || verticalAccuracyM != null) {
+      map['vertical_accuracy_m'] = Variable<double>(verticalAccuracyM);
     }
     return map;
   }
@@ -1563,6 +1654,15 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
       accuracyM: accuracyM == null && nullToAbsent
           ? const Value.absent()
           : Value(accuracyM),
+      speedMps: speedMps == null && nullToAbsent
+          ? const Value.absent()
+          : Value(speedMps),
+      speedAccuracyMps: speedAccuracyMps == null && nullToAbsent
+          ? const Value.absent()
+          : Value(speedAccuracyMps),
+      verticalAccuracyM: verticalAccuracyM == null && nullToAbsent
+          ? const Value.absent()
+          : Value(verticalAccuracyM),
     );
   }
 
@@ -1580,6 +1680,13 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
       latitudeDeg: serializer.fromJson<double?>(json['latitude_deg']),
       longitudeDeg: serializer.fromJson<double?>(json['longitude_deg']),
       accuracyM: serializer.fromJson<double?>(json['accuracy_m']),
+      speedMps: serializer.fromJson<double?>(json['speed_mps']),
+      speedAccuracyMps: serializer.fromJson<double?>(
+        json['speed_accuracy_mps'],
+      ),
+      verticalAccuracyM: serializer.fromJson<double?>(
+        json['vertical_accuracy_m'],
+      ),
     );
   }
   @override
@@ -1594,6 +1701,9 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
       'latitude_deg': serializer.toJson<double?>(latitudeDeg),
       'longitude_deg': serializer.toJson<double?>(longitudeDeg),
       'accuracy_m': serializer.toJson<double?>(accuracyM),
+      'speed_mps': serializer.toJson<double?>(speedMps),
+      'speed_accuracy_mps': serializer.toJson<double?>(speedAccuracyMps),
+      'vertical_accuracy_m': serializer.toJson<double?>(verticalAccuracyM),
     };
   }
 
@@ -1606,6 +1716,9 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
     Value<double?> latitudeDeg = const Value.absent(),
     Value<double?> longitudeDeg = const Value.absent(),
     Value<double?> accuracyM = const Value.absent(),
+    Value<double?> speedMps = const Value.absent(),
+    Value<double?> speedAccuracyMps = const Value.absent(),
+    Value<double?> verticalAccuracyM = const Value.absent(),
   }) => RawPosition(
     id: id ?? this.id,
     runId: runId ?? this.runId,
@@ -1615,6 +1728,13 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
     latitudeDeg: latitudeDeg.present ? latitudeDeg.value : this.latitudeDeg,
     longitudeDeg: longitudeDeg.present ? longitudeDeg.value : this.longitudeDeg,
     accuracyM: accuracyM.present ? accuracyM.value : this.accuracyM,
+    speedMps: speedMps.present ? speedMps.value : this.speedMps,
+    speedAccuracyMps: speedAccuracyMps.present
+        ? speedAccuracyMps.value
+        : this.speedAccuracyMps,
+    verticalAccuracyM: verticalAccuracyM.present
+        ? verticalAccuracyM.value
+        : this.verticalAccuracyM,
   );
   RawPosition copyWithCompanion(RawPositionsCompanion data) {
     return RawPosition(
@@ -1630,6 +1750,13 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
           ? data.longitudeDeg.value
           : this.longitudeDeg,
       accuracyM: data.accuracyM.present ? data.accuracyM.value : this.accuracyM,
+      speedMps: data.speedMps.present ? data.speedMps.value : this.speedMps,
+      speedAccuracyMps: data.speedAccuracyMps.present
+          ? data.speedAccuracyMps.value
+          : this.speedAccuracyMps,
+      verticalAccuracyM: data.verticalAccuracyM.present
+          ? data.verticalAccuracyM.value
+          : this.verticalAccuracyM,
     );
   }
 
@@ -1643,7 +1770,10 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
           ..write('state: $state, ')
           ..write('latitudeDeg: $latitudeDeg, ')
           ..write('longitudeDeg: $longitudeDeg, ')
-          ..write('accuracyM: $accuracyM')
+          ..write('accuracyM: $accuracyM, ')
+          ..write('speedMps: $speedMps, ')
+          ..write('speedAccuracyMps: $speedAccuracyMps, ')
+          ..write('verticalAccuracyM: $verticalAccuracyM')
           ..write(')'))
         .toString();
   }
@@ -1658,6 +1788,9 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
     latitudeDeg,
     longitudeDeg,
     accuracyM,
+    speedMps,
+    speedAccuracyMps,
+    verticalAccuracyM,
   );
   @override
   bool operator ==(Object other) =>
@@ -1670,7 +1803,10 @@ class RawPosition extends DataClass implements Insertable<RawPosition> {
           other.state == this.state &&
           other.latitudeDeg == this.latitudeDeg &&
           other.longitudeDeg == this.longitudeDeg &&
-          other.accuracyM == this.accuracyM);
+          other.accuracyM == this.accuracyM &&
+          other.speedMps == this.speedMps &&
+          other.speedAccuracyMps == this.speedAccuracyMps &&
+          other.verticalAccuracyM == this.verticalAccuracyM);
 }
 
 class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
@@ -1682,6 +1818,9 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
   final Value<double?> latitudeDeg;
   final Value<double?> longitudeDeg;
   final Value<double?> accuracyM;
+  final Value<double?> speedMps;
+  final Value<double?> speedAccuracyMps;
+  final Value<double?> verticalAccuracyM;
   const RawPositionsCompanion({
     this.id = const Value.absent(),
     this.runId = const Value.absent(),
@@ -1691,6 +1830,9 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
     this.latitudeDeg = const Value.absent(),
     this.longitudeDeg = const Value.absent(),
     this.accuracyM = const Value.absent(),
+    this.speedMps = const Value.absent(),
+    this.speedAccuracyMps = const Value.absent(),
+    this.verticalAccuracyM = const Value.absent(),
   });
   RawPositionsCompanion.insert({
     this.id = const Value.absent(),
@@ -1701,6 +1843,9 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
     this.latitudeDeg = const Value.absent(),
     this.longitudeDeg = const Value.absent(),
     this.accuracyM = const Value.absent(),
+    this.speedMps = const Value.absent(),
+    this.speedAccuracyMps = const Value.absent(),
+    this.verticalAccuracyM = const Value.absent(),
   }) : runId = Value(runId),
        timeUs = Value(timeUs),
        source = Value(source),
@@ -1714,6 +1859,9 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
     Expression<double>? latitudeDeg,
     Expression<double>? longitudeDeg,
     Expression<double>? accuracyM,
+    Expression<double>? speedMps,
+    Expression<double>? speedAccuracyMps,
+    Expression<double>? verticalAccuracyM,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1724,6 +1872,9 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
       if (latitudeDeg != null) 'latitude_deg': latitudeDeg,
       if (longitudeDeg != null) 'longitude_deg': longitudeDeg,
       if (accuracyM != null) 'accuracy_m': accuracyM,
+      if (speedMps != null) 'speed_mps': speedMps,
+      if (speedAccuracyMps != null) 'speed_accuracy_mps': speedAccuracyMps,
+      if (verticalAccuracyM != null) 'vertical_accuracy_m': verticalAccuracyM,
     });
   }
 
@@ -1736,6 +1887,9 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
     Value<double?>? latitudeDeg,
     Value<double?>? longitudeDeg,
     Value<double?>? accuracyM,
+    Value<double?>? speedMps,
+    Value<double?>? speedAccuracyMps,
+    Value<double?>? verticalAccuracyM,
   }) {
     return RawPositionsCompanion(
       id: id ?? this.id,
@@ -1746,6 +1900,9 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
       latitudeDeg: latitudeDeg ?? this.latitudeDeg,
       longitudeDeg: longitudeDeg ?? this.longitudeDeg,
       accuracyM: accuracyM ?? this.accuracyM,
+      speedMps: speedMps ?? this.speedMps,
+      speedAccuracyMps: speedAccuracyMps ?? this.speedAccuracyMps,
+      verticalAccuracyM: verticalAccuracyM ?? this.verticalAccuracyM,
     );
   }
 
@@ -1776,6 +1933,15 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
     if (accuracyM.present) {
       map['accuracy_m'] = Variable<double>(accuracyM.value);
     }
+    if (speedMps.present) {
+      map['speed_mps'] = Variable<double>(speedMps.value);
+    }
+    if (speedAccuracyMps.present) {
+      map['speed_accuracy_mps'] = Variable<double>(speedAccuracyMps.value);
+    }
+    if (verticalAccuracyM.present) {
+      map['vertical_accuracy_m'] = Variable<double>(verticalAccuracyM.value);
+    }
     return map;
   }
 
@@ -1789,7 +1955,10 @@ class RawPositionsCompanion extends UpdateCompanion<RawPosition> {
           ..write('state: $state, ')
           ..write('latitudeDeg: $latitudeDeg, ')
           ..write('longitudeDeg: $longitudeDeg, ')
-          ..write('accuracyM: $accuracyM')
+          ..write('accuracyM: $accuracyM, ')
+          ..write('speedMps: $speedMps, ')
+          ..write('speedAccuracyMps: $speedAccuracyMps, ')
+          ..write('verticalAccuracyM: $verticalAccuracyM')
           ..write(')'))
         .toString();
   }
@@ -6484,12 +6653,12 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
   final int parameterVersion;
   final String quality;
 
-  /// Seit Version 2 (WP09 D1): Grund, warum der Wert fehlt (FR-0068, PAR-037),
+  /// Seit Version 3 (WP09 D1): Grund, warum der Wert fehlt (FR-0068, PAR-037),
   /// als stabiler Code (Name von UnavailableReason im Core). Ein Code, den eine
   /// spätere App nicht kennt, ist beim Lesen ein Datenfehler.
   final String? unavailableReason;
 
-  /// Seit Version 2 (WP09 D2a, OQ-0065): Schnappschuss der Herzfrequenzbasis,
+  /// Seit Version 3 (WP09 D2a, OQ-0065): Schnappschuss der Herzfrequenzbasis,
   /// mit der der Wert gerechnet wurde, damit spätere Neuberechnungen alte Werte
   /// mit derselben Basis rechnen. hr_max_is_estimated ist der Anzeiger: NULL =
   /// kein Schnappschuss (Wert braucht keine Basis, oder Zeile aus Version 1:
@@ -11727,6 +11896,9 @@ typedef $RawPositionsCreateCompanionBuilder = RawPositionsCompanion Function({
   Value<double?> latitudeDeg,
   Value<double?> longitudeDeg,
   Value<double?> accuracyM,
+  Value<double?> speedMps,
+  Value<double?> speedAccuracyMps,
+  Value<double?> verticalAccuracyM,
 });
 typedef $RawPositionsUpdateCompanionBuilder = RawPositionsCompanion Function({
   Value<int> id,
@@ -11737,6 +11909,9 @@ typedef $RawPositionsUpdateCompanionBuilder = RawPositionsCompanion Function({
   Value<double?> latitudeDeg,
   Value<double?> longitudeDeg,
   Value<double?> accuracyM,
+  Value<double?> speedMps,
+  Value<double?> speedAccuracyMps,
+  Value<double?> verticalAccuracyM,
 });
 
 final class $RawPositionsReferences
@@ -11802,6 +11977,21 @@ class $RawPositionsFilterComposer
 
   ColumnFilters<double> get accuracyM => $composableBuilder(
     column: $table.accuracyM,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get speedMps => $composableBuilder(
+    column: $table.speedMps,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get speedAccuracyMps => $composableBuilder(
+    column: $table.speedAccuracyMps,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get verticalAccuracyM => $composableBuilder(
+    column: $table.verticalAccuracyM,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11873,6 +12063,21 @@ class $RawPositionsOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get speedMps => $composableBuilder(
+    column: $table.speedMps,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get speedAccuracyMps => $composableBuilder(
+    column: $table.speedAccuracyMps,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get verticalAccuracyM => $composableBuilder(
+    column: $table.verticalAccuracyM,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $RunsOrderingComposer get runId {
     final $RunsOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -11930,6 +12135,19 @@ class $RawPositionsAnnotationComposer
 
   GeneratedColumn<double> get accuracyM =>
       $composableBuilder(column: $table.accuracyM, builder: (column) => column);
+
+  GeneratedColumn<double> get speedMps =>
+      $composableBuilder(column: $table.speedMps, builder: (column) => column);
+
+  GeneratedColumn<double> get speedAccuracyMps => $composableBuilder(
+    column: $table.speedAccuracyMps,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get verticalAccuracyM => $composableBuilder(
+    column: $table.verticalAccuracyM,
+    builder: (column) => column,
+  );
 
   $RunsAnnotationComposer get runId {
     final $RunsAnnotationComposer composer = $composerBuilder(
@@ -11991,6 +12209,9 @@ class $RawPositionsTableManager
                 Value<double?> latitudeDeg = const Value.absent(),
                 Value<double?> longitudeDeg = const Value.absent(),
                 Value<double?> accuracyM = const Value.absent(),
+                Value<double?> speedMps = const Value.absent(),
+                Value<double?> speedAccuracyMps = const Value.absent(),
+                Value<double?> verticalAccuracyM = const Value.absent(),
               }) => RawPositionsCompanion(
                 id: id,
                 runId: runId,
@@ -12000,6 +12221,9 @@ class $RawPositionsTableManager
                 latitudeDeg: latitudeDeg,
                 longitudeDeg: longitudeDeg,
                 accuracyM: accuracyM,
+                speedMps: speedMps,
+                speedAccuracyMps: speedAccuracyMps,
+                verticalAccuracyM: verticalAccuracyM,
               ),
           createCompanionCallback:
               ({
@@ -12011,6 +12235,9 @@ class $RawPositionsTableManager
                 Value<double?> latitudeDeg = const Value.absent(),
                 Value<double?> longitudeDeg = const Value.absent(),
                 Value<double?> accuracyM = const Value.absent(),
+                Value<double?> speedMps = const Value.absent(),
+                Value<double?> speedAccuracyMps = const Value.absent(),
+                Value<double?> verticalAccuracyM = const Value.absent(),
               }) => RawPositionsCompanion.insert(
                 id: id,
                 runId: runId,
@@ -12020,6 +12247,9 @@ class $RawPositionsTableManager
                 latitudeDeg: latitudeDeg,
                 longitudeDeg: longitudeDeg,
                 accuracyM: accuracyM,
+                speedMps: speedMps,
+                speedAccuracyMps: speedAccuracyMps,
+                verticalAccuracyM: verticalAccuracyM,
               ),
           withReferenceMapper: (p0) => p0
               .map(

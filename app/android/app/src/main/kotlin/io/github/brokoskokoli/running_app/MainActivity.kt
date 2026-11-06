@@ -3,11 +3,13 @@ package io.github.brokoskokoli.running_app
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
@@ -38,6 +40,13 @@ class MainActivity : FlutterActivity() {
                     )
                     // Nur gelesen: was das Manifest anfordert (PackageManager), nicht ob es erteilt ist.
                     "requested" -> result.success(requestedKeys())
+                    // FR-0195: genauer Standort vor dem Lauf (OQ-0064).
+                    "locationAccess" -> result.success(locationAccess())
+                    "requestLocation" -> requestLocation(result)
+                    "gpsEnabled" -> result.success(
+                        (getSystemService(LOCATION_SERVICE) as LocationManager)
+                            .isProviderEnabled(LocationManager.GPS_PROVIDER),
+                    )
                     "openAppSettings" -> {
                         val intent = Intent(
                             Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
@@ -49,6 +58,44 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // ADR-0005 Punkt 4: GPS_PROVIDER ohne Play-Dienste.
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/location_stream")
+            .setStreamHandler(GpsStreamHandler(getSystemService(LOCATION_SERVICE) as LocationManager))
+    }
+
+    private var pendingLocation: MethodChannel.Result? = null
+
+    /** "precise" nur mit ACCESS_FINE_LOCATION; nur COARSE ist "approximate". */
+    private fun locationAccess(): String = when {
+        checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED -> "precise"
+        checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED -> "approximate"
+        else -> "denied"
+    }
+
+    private fun requestLocation(result: MethodChannel.Result) {
+        if (locationAccess() == "precise") {
+            result.success("precise")
+            return
+        }
+        if (pendingLocation != null) {
+            result.error("busy", null, null)
+            return
+        }
+        pendingLocation = result
+        // Ab Android 12 immer beide anfordern; der Nutzer kann "ungefähr" wählen.
+        requestPermissions(
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+            LOCATION_REQUEST,
+        )
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_REQUEST) {
+            pendingLocation?.success(locationAccess())
+            pendingLocation = null
+        }
     }
 
     /** Schlüssel der Berechtigungen, die das Manifest der App anfordert (Dart: MethodChannelPermissionStatus.keys). */
@@ -70,4 +117,8 @@ class MainActivity : FlutterActivity() {
     /** "granted" nur, wenn alle genannten Berechtigungen erteilt sind. */
     private fun state(vararg permissions: String): String =
         if (permissions.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) "granted" else "denied"
+
+    private companion object {
+        const val LOCATION_REQUEST = 6001
+    }
 }

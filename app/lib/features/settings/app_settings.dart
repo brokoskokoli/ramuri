@@ -122,6 +122,7 @@ class AppSettingsScope extends InheritedNotifier<AppSettingsHolder> {
       languageCode: Localizations.localeOf(context).languageCode,
       distanceLabel: miles ? l10n.unitMiles : l10n.unitKilometers,
       paceLabel: miles ? l10n.unitPacePerMile : l10n.unitPacePerKilometer,
+      elevationLabel: miles ? l10n.unitFeet : l10n.unitMeters,
     );
   }
 }

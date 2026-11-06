@@ -1,4 +1,4 @@
--- Schema Phase 1 (Version 1; Version 2 ergänzt value_sections). Zeiten: Mikrosekunden seit Epoch (UTC), Spalten
+-- Schema Phase 1 (Version 1; Version 2 ergänzt Rohwerte des Standortgebers, Version 3 value_sections). Zeiten: Mikrosekunden seit Epoch (UTC), Spalten
 -- `*_us`. Einheiten SI: Meter `_m`, Sekunden `_s`, Grad `_deg`, Schläge je
 -- Minute `_bpm`, Kilogramm `_kg`. Alles unter `runs` hängt per ON DELETE CASCADE
 -- am Lauf (SEC-0004). Fremdschlüssel gelten nur bei `PRAGMA foreign_keys=ON`
@@ -18,7 +18,7 @@ CREATE TABLE runs (
   started_at_us INTEGER NOT NULL,
   -- NULL, solange der Lauf nicht beendet ist.
   ended_at_us INTEGER,
-  -- Seit Version 2 (WP09 D2a): UTC-Versatz der Ortszeit zum Laufende in
+  -- Seit Version 3 (WP09 D2a): UTC-Versatz der Ortszeit zum Laufende in
   -- Sekunden (Zeitzone zum Laufzeitpunkt; Tageswerte hängen am lokalen
   -- Kalendertag des Laufendes). NULL = unbekannt: Läufe aus Version 1, oder
   -- der Aufrufer hat ihn nicht genannt; nur bei beendetem Lauf (Trigger).
@@ -72,6 +72,11 @@ CREATE TABLE raw_positions (
   latitude_deg REAL,
   longitude_deg REAL,
   accuracy_m REAL,
+  -- Ab Version 2 (WP06 C, K12): Rohwerte des Standortgebers, NULL = nicht
+  -- geliefert (nie 0). Zeilen aus Version 1 haben NULL.
+  speed_mps REAL,
+  speed_accuracy_mps REAL,
+  vertical_accuracy_m REAL,
   CHECK (state = 'unavailable'
     OR (latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL))
 );
@@ -249,11 +254,11 @@ CREATE TABLE computed_values (
   parameter_version INTEGER NOT NULL,
   quality TEXT NOT NULL CHECK (quality IN
     ('provisional', 'sufficient', 'good', 'undeterminable')),
-  -- Seit Version 2 (WP09 D1): Grund, warum der Wert fehlt (FR-0068, PAR-037),
+  -- Seit Version 3 (WP09 D1): Grund, warum der Wert fehlt (FR-0068, PAR-037),
   -- als stabiler Code (Name von UnavailableReason im Core). Ein Code, den eine
   -- spätere App nicht kennt, ist beim Lesen ein Datenfehler.
   unavailable_reason TEXT,
-  -- Seit Version 2 (WP09 D2a, OQ-0065): Schnappschuss der Herzfrequenzbasis,
+  -- Seit Version 3 (WP09 D2a, OQ-0065): Schnappschuss der Herzfrequenzbasis,
   -- mit der der Wert gerechnet wurde, damit spätere Neuberechnungen alte Werte
   -- mit derselben Basis rechnen. hr_max_is_estimated ist der Anzeiger: NULL =
   -- kein Schnappschuss (Wert braucht keine Basis, oder Zeile aus Version 1:
@@ -277,7 +282,7 @@ WHEN OLD.role = 'original' OR NEW.role = 'original'
 BEGIN SELECT RAISE(ABORT, 'original value is immutable'); END;
 
 -- Kein fehlender Wert ohne Grund und kein Grund bei vorhandenem Wert (FR-0068).
--- Als Trigger statt CHECK, damit die Migration 1 -> 2 dasselbe Schema ergibt
+-- Als Trigger statt CHECK, damit die Migration 2 -> 3 dasselbe Schema ergibt
 -- wie das Anlegen (ADD COLUMN kann keine Regel über zwei Spalten ergänzen).
 CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values
 WHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)
@@ -298,7 +303,7 @@ WHEN NEW.hr_max_is_estimated IS NULL
 BEGIN SELECT RAISE(ABORT, 'basis values without snapshot flag'); END;
 
 -- ------------------------------------------ Bewertete Abschnitte je Wert
--- Seit Version 2 (WP09 D1, FR-0073). Je Zeile von computed_values (original
+-- Seit Version 3 (WP09 D1, FR-0073). Je Zeile von computed_values (original
 -- und current getrennt) die bewerteten Abschnitte des Laufs: Zeitraum, GPS-
 -- Median, Gewicht (PAR-033), Spätfaktor (PAR-024), Status, Gründe (JSON-Liste
 -- der verletzten Regeln und Einschränkungen) und Schätzwert je Abschnitt.
