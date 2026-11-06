@@ -310,6 +310,28 @@ void main() {
       );
     });
 
+    test('Neu ankern: falscher erster Punkt, Lücke gespeichert, Strecke ohne '
+        'Versatz', () async {
+      final r = await Rig.make();
+      await r.recorder.start();
+      r.clock.advance(const Duration(seconds: 1));
+      r.recorder.addPosition(fix(1, 500000)); // falscher Standardpunkt
+      for (var i = 0; i < 3; i++) {
+        r.clock.advance(const Duration(seconds: 1));
+        r.recorder.addPosition(fix(2 + i, 3.0 * i));
+      }
+      r.clock.advance(const Duration(seconds: 1));
+      r.recorder.addPosition(fix(5, 9));
+      await r.recorder.flush();
+      final snap = r.recorder.snapshot();
+      expect(snap.positionLost, isFalse);
+      expect(snap.distanceMeters!, closeTo(3, 1e-3));
+      final loss = (await r.gaps()).single;
+      expect(loss.kind, RunGapKind.positionLoss);
+      expect(loss.start, t0.add(const Duration(seconds: 1)));
+      expect(loss.end, t0.add(const Duration(seconds: 4)));
+    });
+
     test(
       'Scheitert das Öffnen der Lückenmarke, wird sie nachgeholt (Soll 2)',
       () async {

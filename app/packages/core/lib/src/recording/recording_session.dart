@@ -324,6 +324,9 @@ class RecordingSession {
     _checkLoss(now);
     final r = pre.addPosition(raw);
     if (r.accepted) {
+      // Neu verankert: der Übergang ist eine Lücke, auch wenn sie kürzer ist
+      // als PAR-004 (noch nicht als Verlust erkannt).
+      if (r.reanchored && !_lossOpen && _gapRef != null) _openLoss(_gapRef!);
       // Messzeit, wie die Punkte: die Lücke endet am schließenden Punkt.
       _closeLoss(time);
       _gapRef = time;
@@ -482,11 +485,15 @@ class RecordingSession {
     final ref = _gapRef;
     if (_lossOpen || ref == null) return;
     if (now.difference(ref) > parameters.gapMaxDuration) {
-      _lossOpen = true;
-      _lossStart = ref;
-      _gaps.add(RecordedGap(kind: RunGapKind.positionLoss, start: ref));
-      _emit(RecordingEventKind.positionLossStarted, ref);
+      _openLoss(ref);
     }
+  }
+
+  void _openLoss(DateTime ref) {
+    _lossOpen = true;
+    _lossStart = ref;
+    _gaps.add(RecordedGap(kind: RunGapKind.positionLoss, start: ref));
+    _emit(RecordingEventKind.positionLossStarted, ref);
   }
 
   void _closeLoss(DateTime end) {
