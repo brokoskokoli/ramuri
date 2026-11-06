@@ -98,8 +98,11 @@ abstract class AerobicEfficiency extends AlgorithmVariant {
 
   /// Veränderung der letzten 4 Wochen gegenüber den 4 Wochen davor.
   /// [now] ist der Berechnungszeitpunkt (kommt vom Aufrufer aus der
-  /// Uhr-Schnittstelle, wie bei `Vo2maxLongTerm`). Läufe nach [now] zählen
-  /// nicht. Jede Auswahl muss zur Parameterversion von [p] passen.
+  /// Uhr-Schnittstelle, wie bei `Vo2maxLongTerm`); es wird nach UTC
+  /// normalisiert, die Fenster sind 28 mal 24 Stunden lang. Läufe nach [now]
+  /// zählen nicht. Jede Auswahl muss zur Parameterversion von [p] passen.
+  /// Ein mehrfach übergebener Lauf zählt mehrfach; der Aufrufer liefert jeden
+  /// Lauf genau einmal.
   AerobicEfficiencyResult compute({
     required List<EfficiencyRun> runs,
     required FitnessParameters p,
@@ -130,12 +133,27 @@ class MedianAerobicEfficiency extends AerobicEfficiency {
     SectionRule.tooSlow,
   };
 
+  /// Einschränkungen aus Teil A, die hier bewusst nicht ausschließen:
+  /// PAR-031 (Tempo 120 bis 150 m/min zählt nach PAR-044) und PAR-027 (ohne
+  /// Höhe gilt G = 0, PAR-045). Eine neue Einschränkung in Teil A schließt
+  /// aus, bis sie hier ausdrücklich aufgenommen ist.
+  static const Set<SectionCaveat> ignoredCaveats = {
+    SectionCaveat.limitedSpeed,
+    SectionCaveat.noAltitude,
+    SectionCaveat.noVerticalAccuracy,
+  };
+
   /// PAR-044 und PAR-045 für einen Abschnitt der VO₂max-Auswahl: alle
   /// übrigen Regeln erfüllt, Tempo und `r` bekannt, `r` im Bereich aus
   /// OQ-0036, Nettosteigung höchstens [AerobicEfficiencyParameters
   /// .gradientMaxAbs] im Betrag.
-  static bool isEligible(EvaluatedSection s, AerobicEfficiencyParameters p) {
+  static bool isEligible(
+    EvaluatedSection s,
+    AerobicEfficiencyParameters p, {
+    Set<SectionCaveat> ignored = ignoredCaveats,
+  }) {
     if (s.violations.any((v) => !replacedRules.contains(v.rule))) return false;
+    if (s.caveats.any((c) => !ignored.contains(c))) return false;
     final r = s.relativeLoad;
     final v = s.speedMetersPerMinute;
     if (r == null || v == null) return false;
@@ -217,6 +235,7 @@ class MedianAerobicEfficiency extends AerobicEfficiency {
     required DateTime now,
     Set<String> dataSources = const {},
   }) {
+    now = now.toUtc();
     for (final r in runs) {
       if (r.selection.parameterVersion != p.parameterVersion) {
         throw ArgumentError(

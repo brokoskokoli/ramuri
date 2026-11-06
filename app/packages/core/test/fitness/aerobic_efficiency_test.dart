@@ -8,11 +8,12 @@ const _p = FitnessParameters.v3();
 final _now = DateTime.utc(2030, 6, 1, 12);
 
 EvaluatedSection sec({
-  double speed = 150,
+  double? speed = 150,
   double? r = 0.7,
   double gradient = 0,
   Duration length = const Duration(minutes: 10),
   List<SectionRule> rules = const [],
+  List<SectionCaveat> caveats = const [],
   DateTime? from,
 }) {
   final f = from ?? DateTime.utc(2030, 5, 1);
@@ -21,14 +22,14 @@ EvaluatedSection sec({
     to: f.add(length),
     status: rules.isEmpty ? SectionStatus.eligible : SectionStatus.rejected,
     violations: [for (final x in rules) SectionViolation(x)],
-    caveats: const [],
+    caveats: caveats,
     weight: 1,
     speedMetersPerMinute: speed,
     meanHeartRate: 150,
     relativeLoad: r,
     gradient: gradient,
     gradientBasis: GradientBasis.measured,
-    distanceMeters: speed * length.inMinutes,
+    distanceMeters: (speed ?? 0) * length.inMinutes,
   );
 }
 
@@ -155,6 +156,46 @@ void main() {
 
     test('ohne Tempo oder r nie zugelassen', () {
       expect(ok(sec(r: null)), isFalse);
+      expect(ok(sec(speed: null)), isFalse);
+    });
+
+    test(
+      'Einschränkungen: nur die ausdrücklich ignorierten (PAR-031, 027)',
+      () {
+        for (final c in SectionCaveat.values) {
+          expect(
+            ok(sec(caveats: [c])),
+            MedianAerobicEfficiency.ignoredCaveats.contains(c),
+            reason: c.name,
+          );
+        }
+        // Nicht ignorierte Einschränkungen schließen aus.
+        for (final c in SectionCaveat.values) {
+          expect(
+            MedianAerobicEfficiency.isEligible(
+              sec(caveats: [c]),
+              _p.aerobicEfficiency,
+              ignored: const {},
+            ),
+            isFalse,
+            reason: c.name,
+          );
+        }
+        // Neue Einschränkungen in Teil A erzwingen hier eine Entscheidung.
+        expect(
+          MedianAerobicEfficiency.ignoredCaveats,
+          unorderedEquals(SectionCaveat.values),
+        );
+      },
+    );
+
+    test('Abschnitt mit Tempo null fließt nicht in den Median ein', () {
+      final r = both([
+        ...cur(3, 2),
+        runOf([sec(speed: null)], ago: const Duration(days: 4)),
+      ], ref(3, 2));
+      expect(r.current.sections, hasLength(3));
+      expect(r.current.medianSpeed, 150);
     });
 
     test('unzulässige Abschnitte fließen nicht in den Median ein', () {
@@ -172,6 +213,23 @@ void main() {
 
   group('Fenster (OQ-0036)', () {
     EfficiencyRun at(Duration ago) => runOf([sec(), sec(), sec()], ago: ago);
+
+    test('now lokal: gleiches Ergebnis wie UTC, Metadaten in UTC', () {
+      final runs = [...cur(3, 2), ...ref(3, 2)];
+      final u = _eff.compute(runs: runs, p: _p, now: _now);
+      final l = _eff.compute(runs: runs, p: _p, now: _now.toLocal());
+      expect(l.change.value, u.change.value);
+      expect(l.change.metadata.calculatedAt.isUtc, isTrue);
+      expect(l.current.from.isUtc, isTrue);
+      expect(l.current.from, u.current.from);
+    });
+
+    test('doppelt übergebener Lauf zählt doppelt (dokumentiert)', () {
+      final one = runOf([sec(), sec(), sec()], ago: const Duration(days: 2));
+      final r = both([one, one], ref(3, 2));
+      expect(r.current.sections, hasLength(6));
+      expect(r.current.runCount, 2);
+    });
 
     test('Grenzen: 28 Tage inklusive aktuell, 56 Tage inklusive Vergleich', () {
       final r = compute([
@@ -438,6 +496,63 @@ void main() {
       expect(selectSections(sc).usable, isNotEmpty);
       final r = both([real(sc, const Duration(days: 2))], const []);
       expect(r.current.sections, isEmpty);
+    });
+
+    test('Tempo 125 m/min und r 0,7 (limitedSpeed) zählt mit (PAR-044)', () {
+      // 125 m/min: über 120 (nicht abgelehnt), unter 150 -> Einschränkung.
+      final sc = steady(900, speed: (s) => 125 / 60, bpm: (s) => 151);
+      final sel = selectSections(sc);
+      expect(sel.sections, isNotEmpty);
+      expect(
+        sel.sections.every(
+          (x) =>
+              x.isProvisional && x.caveats.contains(SectionCaveat.limitedSpeed),
+        ),
+        isTrue,
+      );
+      final r = both([
+        real(sc, const Duration(days: 2)),
+        real(sc, const Duration(days: 3)),
+      ], const []);
+      expect(r.current.sections, hasLength(2 * sel.sections.length));
+      expect(r.current.medianSpeed, closeTo(125, 1));
+    });
+
+    test('Abschnitt ohne Höhe (noAltitude) zählt mit', () {
+      final sc = steady(900, altitude: (s, m) => null, bpm: (s) => 151);
+      final sel = selectSections(sc);
+      expect(
+        sel.sections.every((x) => x.caveats.contains(SectionCaveat.noAltitude)),
+        isTrue,
+      );
+      final r = both([real(sc, const Duration(days: 2))], const []);
+      expect(r.current.sections, hasLength(sel.sections.length));
+      expect(r.current.sections, isNotEmpty);
+    });
+
+    test('Lauf über 60 min: Minute 30 bis 60 voll, ab Minute 60 nicht', () {
+      // PAR-024: nach 30 min halbes Gewicht für VO2max, hier ungewichtet.
+      final sc = steady(4000, bpm: (s) => 151); // 180 s Einschwingen + 4000 s
+      final sel = selectSections(sc);
+      final start = selT0;
+      Duration at(EvaluatedSection x) => x.from.difference(start);
+      final half = sel.sections.where((x) => x.weight == 0.5).toList();
+      final late = sel.sections.where((x) => x.violates(SectionRule.lateRun));
+      expect(half, isNotEmpty);
+      expect(late, isNotEmpty);
+      final r = both([real(sc, const Duration(days: 2))], const []);
+      final used = r.current.sections.map((e) => e.section).toList();
+      for (final x in used) {
+        expect(at(x), lessThan(const Duration(minutes: 60)));
+      }
+      expect(used.where((x) => x.weight == 0.5), hasLength(half.length));
+      expect(used.any((x) => x.violates(SectionRule.lateRun)), isFalse);
+      expect(
+        used,
+        hasLength(
+          sel.sections.where((x) => at(x) < const Duration(minutes: 60)).length,
+        ),
+      );
     });
 
     test('schlechtes GPS bleibt ausgeschlossen (PAR-025 gilt weiter)', () {
