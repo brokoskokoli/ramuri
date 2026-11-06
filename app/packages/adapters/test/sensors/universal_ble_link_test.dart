@@ -112,17 +112,21 @@ void main() {
     'discoverServices: Basis-UUIDs werden Kurzform, andere bleiben',
     () async {
       const custom = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+      const nearBase = '0000180d-1234-5678-9abc-def012345678';
       platform.services = [
         BleService(hrFull, [
           BleCharacteristic('00002a37-0000-1000-8000-00805f9b34fb', [], []),
         ]),
         BleService(custom, [BleCharacteristic(custom, [], [])]),
+        BleService(nearBase, [BleCharacteristic(nearBase, [], [])]),
       ];
       final r = await link.discoverServices('AA');
       expect(r[0].uuid, '180d');
       expect(r[0].characteristics, ['2a37']);
       expect(r[1].uuid, custom);
       expect(r[1].characteristics, [custom]);
+      expect(r[2].uuid, nearBase);
+      expect(r[2].characteristics, [nearBase]);
     },
   );
 }

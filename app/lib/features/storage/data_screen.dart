@@ -9,12 +9,12 @@ import 'deletion.dart';
 /// Einfacher Bildschirm "Daten" mit "Alles löschen". WP05 kann ihn in die
 /// Einstellungen verschieben.
 class DataScreen extends StatelessWidget {
-  const DataScreen({super.key, required this.session, this.sensors});
+  const DataScreen({super.key, required this.session, required this.sensors});
 
   final StorageSession session;
 
   /// Sensordienst: nach dem Löschen trennt er Geräte, die nicht mehr bekannt sind.
-  final SensorManager? sensors;
+  final SensorManager sensors;
 
   /// Nach dem Löschen gilt sofort der Zustand des ersten Starts: Einstellungen
   /// neu laden und zurück zur Wurzel, wo die Ersteinrichtung erscheint.
@@ -27,7 +27,7 @@ class DataScreen extends StatelessWidget {
       return;
     }
     try {
-      await sensors?.reloadKnown();
+      await sensors.reloadKnown();
     } on Object {
       // Der Gerätespeicher ist nicht lesbar: die Einstellungen kommen trotzdem.
     }

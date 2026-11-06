@@ -33,6 +33,7 @@ class _Rig {
     FakeHeartRateSensor? sensor,
     FakeStorage? storage,
     Future<bool> Function()? bluetoothAvailable,
+    Future<void> Function()? requestPermissions,
   }) : sensor = sensor ?? FakeHeartRateSensor(),
        storage = storage ?? FakeStorage() {
     manager = SensorManager(
@@ -40,7 +41,8 @@ class _Rig {
       clock: clock,
       reconnectDelay: const Duration(seconds: 5),
       bluetoothAvailable: bluetoothAvailable,
-      requestPermissions: () async => permissionRequests++,
+      requestPermissions:
+          requestPermissions ?? () async => permissionRequests++,
     );
   }
 
@@ -341,6 +343,64 @@ void main() {
     await manager.connect('g1');
     expect(manager.problem, SensorProblem.permissionDenied);
     expect(sensor.connectedIds, isEmpty);
+  });
+
+  testWidgets('Rechte verweigert, dann erteilt: zweites connect verbindet', (
+    t,
+  ) async {
+    var grant = false;
+    final r = _Rig(
+      requestPermissions: () async {
+        if (!grant) throw StateError('denied');
+      },
+    );
+    await r.open();
+    await r.connect(t, 'g1');
+    expect(r.manager.problem, SensorProblem.permissionDenied);
+    expect(r.manager.knownEntries, isEmpty);
+    expect(r.sensor.connectedIds, isEmpty);
+
+    grant = true;
+    await r.connect(t, 'g1');
+    expect(r.manager.problem, isNull);
+    expect(r.sensor.connectedIds, {'g1'});
+  });
+
+  testWidgets(
+    'zwei Geräte warten gleichzeitig auf die Rechte: beide verbinden',
+    (t) async {
+      final gate = Completer<void>();
+      final r = _Rig(requestPermissions: () => gate.future);
+      await r.open();
+      final a = r.manager.connect('g1');
+      final b = r.manager.connect('g2');
+      gate.complete();
+      await Future.wait([a, b]);
+      await t.pump();
+      expect(r.sensor.connectedIds, {'g1', 'g2'});
+      expect(r.manager.knownEntries.map((e) => e.id), ['g1', 'g2']);
+    },
+  );
+
+  testWidgets('späte Bluetooth-Antwort überschreibt keinen neuen Stand', (
+    t,
+  ) async {
+    final answer = Completer<bool>();
+    final sensor = _ScriptedSensor();
+    sensor.plans['g1'] = [_failing];
+    final r = _Rig(sensor: sensor, bluetoothAvailable: () => answer.future);
+    await r.open();
+    await r.connect(t, 'g1');
+    await t.pump();
+    expect(r.manager.problem, SensorProblem.connectFailed);
+
+    // Neuer Versuch gelingt und löscht den Hinweis; dann kommt die Antwort.
+    await r.connect(t, 'g1');
+    expect(r.manager.problem, isNull);
+    answer.complete(false);
+    await t.pump();
+    expect(r.manager.problem, isNull);
+    expect(r.sensor.connectedIds, {'g1'});
   });
 
   testWidgets('Bluetooth aus: Fehler der Suche wird Hinweis', (t) async {
