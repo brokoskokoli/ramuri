@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../storage/deletion.dart';
+import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
 import '../run/run_ports.dart';
 import '../setup/setup_screen.dart';
@@ -18,11 +19,13 @@ class ReadyRoot extends StatefulWidget {
     required this.clock,
     required this.permissions,
     required this.runPorts,
+    required this.sensors,
   });
 
   final StorageSession session;
   final PermissionStatusPort permissions;
   final RunPorts runPorts;
+  final SensorManager sensors;
   final Clock clock;
 
   @override
@@ -52,6 +55,10 @@ class _ReadyRootState extends State<ReadyRoot> {
       onStart: () => completePendingValueRefresh(widget.session, widget.clock),
     );
     _recalculation.start();
+    // Nur der Speicher wird angebunden; der Sensor bleibt unberührt.
+    widget.sensors
+        .attachStore(widget.session.devices)
+        .catchError((Object _) {});
     _loadSettings();
   }
 
@@ -120,6 +127,7 @@ class _ReadyRootState extends State<ReadyRoot> {
                 permissions: widget.permissions,
                 recalculation: _recalculation,
                 runPorts: widget.runPorts,
+                sensors: widget.sensors,
               )
             : SetupScreen(
                 session: widget.session,

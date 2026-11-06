@@ -207,7 +207,12 @@ class RunRecorder {
     _processEvents();
     if (intake != Intake.processed) return intake;
     _heartRates.add(
-      RawHeartRate(time: r.time, source: r.deviceId, bpm: r.beatsPerMinute),
+      RawHeartRate(
+        time: r.time,
+        source: r.deviceId,
+        bpm: r.beatsPerMinute,
+        contact: r.contact,
+      ),
     );
     _flushIfFull();
     return intake;

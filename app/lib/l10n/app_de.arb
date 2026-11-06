@@ -694,5 +694,70 @@
   "runDoneTitle": "Lauf beendet",
   "runDoneSaved": "Der Lauf ist gespeichert.",
   "runDoneSaveProblem": "Beim Speichern ist ein Fehler aufgetreten. Der Lauf ist möglicherweise unvollständig gespeichert.",
-  "runDoneClose": "Fertig"
+  "runDoneClose": "Fertig",
+  "settingsSensors": "Pulssensoren",
+  "sensorsTitle": "Pulssensoren",
+  "sensorsIntro": "Ein Pulssensor ist optional. Du kannst auch ohne Sensor laufen.",
+  "sensorsSearch": "Geräte suchen",
+  "sensorsStopSearch": "Suche beenden",
+  "sensorsSearching": "Suche läuft …",
+  "sensorsKnown": "Bekannte Geräte",
+  "sensorsFound": "Gefundene Geräte",
+  "sensorsNoneKnown": "Noch kein Gerät gespeichert.",
+  "sensorsNoneFound": "Noch kein Gerät gefunden.",
+  "sensorsUnnamed": "Pulssensor",
+  "sensorsConnect": "Verbinden",
+  "sensorsDisconnect": "Trennen",
+  "sensorsPreferred": "Bevorzugt",
+  "sensorsMakePreferred": "Bevorzugen",
+  "sensorsClearPreferred": "Bevorzugung aufheben",
+  "sensorsStateIdle": "Nicht verbunden",
+  "sensorsStateConnecting": "Verbindung wird aufgebaut",
+  "sensorsStateConnected": "Verbunden",
+  "sensorsStateReconnecting": "Verbindung abgebrochen, wird neu verbunden",
+  "sensorsNoValue": "Noch kein Wert",
+  "sensorsBpm": "{bpm} bpm",
+  "@sensorsBpm": {
+    "description": "Pulswert",
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
+  "sensorsBattery": "Batterie: {percent} %",
+  "@sensorsBattery": {
+    "description": "Akkustand, nur wenn gemeldet",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "sensorsProblemPermission": "Ohne die Bluetooth-Berechtigung kann die App keine Sensoren suchen oder verbinden. Erlaube sie in den Systemeinstellungen der App. Läufe ohne Sensor funktionieren weiterhin.",
+  "sensorsProblemBluetooth": "Bluetooth ist nicht verfügbar. Schalte Bluetooth ein und prüfe die Berechtigung in den Systemeinstellungen. Läufe ohne Sensor funktionieren weiterhin.",
+  "sensorsProblemConnect": "Das Gerät konnte nicht verbunden werden. Prüfe, ob es in der Nähe und eingeschaltet ist.",
+  "runSensorNone": "Kein Sensor verbunden. Der Lauf wird ohne Puls aufgezeichnet.",
+  "runSensorConnected": "Sensor verbunden",
+  "runSensorReconnecting": "Sensor abgebrochen, die App verbindet neu. Ohne Quelle gibt es keine Pulswerte.",
+  "runSensorLost": "Sensor getrennt. Ohne Quelle gibt es keine Pulswerte.",
+  "runSensorSource": "Quelle: {name}",
+  "@runSensorSource": {
+    "description": "Name der aktiven Pulsquelle",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "runSensorLossNote": "Die Pulsquelle ist in diesem Lauf abgebrochen.",
+  "runSensorSwitchTo": "Quelle wechseln zu {name}",
+  "@runSensorSwitchTo": {
+    "description": "Wechsel der Pulsquelle auf ein anderes verbundenes Gerät",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

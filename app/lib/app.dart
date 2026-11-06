@@ -54,6 +54,7 @@ class _RunningAppState extends State<RunningApp> {
           clock: dependencies.clock,
           permissions: dependencies.permissions,
           runPorts: dependencies.runPorts,
+          sensors: dependencies.sensors,
         ),
       ),
     );
