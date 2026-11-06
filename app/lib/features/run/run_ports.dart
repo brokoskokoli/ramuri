@@ -8,7 +8,6 @@ class RunPorts {
   const RunPorts({
     required this.access,
     required this.location,
-    this.heartRate,
     this.heartRateRun,
     this.connectSensors,
   });
@@ -19,13 +18,9 @@ class RunPorts {
   /// Standortpunkte des Laufs.
   final LocationSource location;
 
-  /// Einfache Pulsquelle ohne Verwaltung (Tests). Ohne Quelle `null`; die
-  /// Oberfläche zeigt dann „nicht verfügbar“. Hat [heartRateRun] Vorrang.
-  final Stream<HeartRateReading> Function()? heartRate;
-
   /// Pulsquelle eines Laufs aus der Sensorverwaltung: wird beim Start des
   /// Laufs aufgerufen (ein Selector je Lauf, WP07 Teil D). `null` ohne
-  /// Sensorverwaltung.
+  /// Sensorverwaltung; die Oberfläche zeigt dann „nicht verfügbar“.
   final RunHeartRate Function()? heartRateRun;
 
   /// Verbindet beim Öffnen des Lauf-Bildschirms die bekannten Pulssensoren,

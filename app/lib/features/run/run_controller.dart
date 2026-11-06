@@ -30,7 +30,6 @@ class RunController extends ChangeNotifier {
     required this.clock,
     required this.storage,
     required this.location,
-    this.heartRate,
     this.sensors,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
@@ -49,10 +48,9 @@ class RunController extends ChangeNotifier {
   final Clock clock;
   final StorageSession storage;
   final LocationSource location;
-  final Stream<HeartRateReading> Function()? heartRate;
 
   /// Pulsquelle dieses Laufs aus der Sensorverwaltung; sie wird mit dem Ende
-  /// des Laufs geschlossen. Hat Vorrang vor [heartRate].
+  /// des Laufs geschlossen. Ohne Quelle `null`.
   final RunHeartRate? sensors;
   final Duration tickEvery;
 
@@ -180,7 +178,7 @@ class RunController extends ChangeNotifier {
           _update();
         },
       );
-      final hrStream = sensors?.readings ?? heartRate?.call();
+      final hrStream = sensors?.readings;
       if (hrStream != null) {
         _heartSub = hrStream.listen((r) {
           _heartRateSeen = true;

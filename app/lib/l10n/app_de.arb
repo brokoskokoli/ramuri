@@ -164,10 +164,6 @@
   "@homeStartRun": {
     "description": "Schaltfläche Lauf starten (Startseite)"
   },
-  "homeStartRunSoon": "Die Aufzeichnung folgt mit einem späteren Arbeitspaket.",
-  "@homeStartRunSoon": {
-    "description": "Platzhaltermeldung, solange es keine Aufzeichnung gibt"
-  },
   "homeProfile": "Profil",
   "@homeProfile": {
     "description": "Schaltfläche Profil"
@@ -938,6 +934,8 @@
   "@explSourceDevice": {"description": "WP10 D", "placeholders": {"name": {"type": "String"}, "id": {"type": "String"}}},
   "explSourceDeviceUnnamed": "Pulssensor ohne Anzeigenamen (Kennung {id})",
   "@explSourceDeviceUnnamed": {"description": "WP10 D", "placeholders": {"id": {"type": "String"}}},
+  "explSourceUnknown": "Quelle nicht mehr bekannt (Kennung {id})",
+  "@explSourceUnknown": {"description": "WP10 D", "placeholders": {"id": {"type": "String"}}},
   "explSourceDeviceDeleted": "Gelöschter Pulssensor, ohne Namen (Kennung {id})",
   "@explSourceDeviceDeleted": {"description": "WP10 D", "placeholders": {"id": {"type": "String"}}},
   "explSourceValues": "{count, plural, =1{1 Wert} other{{count} Werte}}",
@@ -1004,7 +1002,7 @@
   "@explClassMethod": {"description": "WP10 D"},
   "explClassReliability": "Der Vergleich sagt nur, ob dieser Lauf schneller oder langsamer war. Strecke, Gelände, Wetter und Tagesform sind darin nicht berücksichtigt.",
   "@explClassReliability": {"description": "WP10 D"},
-  "explProfileHint": "Es fehlt im Profil: {fields}. Trag die Angabe auf der Startseite unter „Profil“ ein. Pace, Strecke und die Grundstatistik funktionieren auch mit nur GPS.",
+  "explProfileHint": "Bei der Berechnung fehlte im Profil: {fields}. Trag die Angabe auf der Startseite unter „Profil“ ein. Pace, Strecke und die Grundstatistik funktionieren auch mit nur GPS.",
   "@explProfileHint": {"description": "WP10 D", "placeholders": {"fields": {"type": "String"}}},
   "explGapMax": "maximale Herzfrequenz",
   "@explGapMax": {"description": "WP10 D"},

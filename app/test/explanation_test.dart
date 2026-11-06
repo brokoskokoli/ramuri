@@ -88,11 +88,11 @@ void main() {
         )).firstWhere((p) => p.current.key == vo2maxRunValueKey).current;
         // 1 Daten: Quellen, Datenbasis, Herzfrequenzbasis-Schnappschuss.
         expect(
-          text('expl_source_gps'),
+          text('expl_source_0_gps'),
           'Standort des Telefons (GPS), 1801 Werte',
         );
         expect(
-          text('expl_source_strap'),
+          text('expl_source_1_strap'),
           'Pulssensor „Brustgurt“ (Kennung strap), 1801 Werte',
         );
         expect(text('expl_data_basis'), 'Datenbasis: Standort (GPS) und Puls');
@@ -174,7 +174,7 @@ void main() {
           text('expl_profile_hint'),
           allOf(
             contains('maximale Herzfrequenz'),
-            contains('Ruhepuls'),
+            isNot(contains('Ruhepuls')), // nur, was der Grund nennt
             contains('„Profil“'),
             contains('nur GPS'),
           ),
@@ -195,7 +195,7 @@ void main() {
         text('expl_data_basis'),
         'Datenbasis: nur Standort (GPS), kein Puls',
       );
-      expect(find.byKey(const Key('expl_source_strap')), findsNothing);
+      expect(find.byKey(const Key('expl_source_1_strap')), findsNothing);
       expect(key('expl_profile_hint'), findsNothing);
     });
 
@@ -222,9 +222,9 @@ void main() {
     testWidgets('bekanntes Gerät mit Namen', (tester) async {
       final d = await seeded(tester, deviceName: 'Brustgurt');
       await openSources(tester, d);
-      expect(text('expl_source_gps'), contains('Standort des Telefons'));
-      expect(text('expl_source_strap'), contains('„Brustgurt“'));
-      expect(text('expl_source_strap'), contains('Kennung strap'));
+      expect(text('expl_source_0_gps'), contains('Standort des Telefons'));
+      expect(text('expl_source_1_strap'), contains('„Brustgurt“'));
+      expect(text('expl_source_1_strap'), contains('Kennung strap'));
       expect(key('expl_gap_note'), findsOneWidget);
     });
 
@@ -232,7 +232,7 @@ void main() {
       final d = await seeded(tester);
       await openSources(tester, d);
       expect(
-        text('expl_source_strap'),
+        text('expl_source_1_strap'),
         startsWith('Pulssensor ohne Anzeigenamen (Kennung strap)'),
       );
     });
@@ -243,7 +243,7 @@ void main() {
       final d = await seeded(tester, knownDevice: false);
       await openSources(tester, d);
       expect(
-        text('expl_source_strap'),
+        text('expl_source_1_strap'),
         startsWith('Gelöschter Pulssensor, ohne Namen (Kennung strap)'),
       );
     });
@@ -292,16 +292,16 @@ void main() {
       );
       await openRunDetail(d, tester, run.id);
       await explainFromStats(tester, 'sum_explain_sources');
-      expect(text('expl_source_a'), contains('11 Werte'));
-      expect(text('expl_source_b'), contains('1 Wert'));
-      expect(text('expl_source_b'), contains('Gelöschter Pulssensor'));
-      expect(key('expl_source_gps'), findsNothing);
+      expect(text('expl_source_0_a'), contains('11 Werte'));
+      expect(text('expl_source_1_b'), contains('1 Wert'));
+      expect(text('expl_source_1_b'), contains('Gelöschter Pulssensor'));
+      expect(find.textContaining('Standort des Telefons'), findsNothing);
       // Keine Dauer aus Abschnittsgrenzen.
       expect(bodyText(tester), isNot(contains('Stunde')));
       expect(bodyText(tester), isNot(contains('min')));
     });
 
-    testWidgets('Tageswert: Quellen am Wert, gelöschtes Gerät kenntlich', (
+    testWidgets('Tageswert: Quellen am Wert, unbekannte Kennung neutral', (
       tester,
     ) async {
       final d = await seeded(tester, knownDevice: false);
@@ -330,11 +330,188 @@ void main() {
         vo2maxLongTermValueKey,
         day: '2026-06-05',
       );
-      expect(text('expl_source_gps'), 'Standort des Telefons (GPS)');
-      expect(text('expl_source_gone'), contains('Gelöschter Pulssensor'));
+      expect(text('expl_source_0_gps'), 'Standort des Telefons (GPS)');
+      expect(
+        text('expl_source_1_gone'),
+        'Quelle nicht mehr bekannt (Kennung gone)',
+      );
       expect(text('expl_a3'), '3 verwertbare Läufe');
       expect(text('expl_a5'), 'Qualitätsstufe: ausreichend');
       expect(text('expl_a6'), contains('mehrerer Läufe'));
+    });
+  });
+
+  group('Nachbesserung Teil D', () {
+    Future<Device> twoDevices(WidgetTester tester, List<String> order) async {
+      final d = await started(tester);
+      final start = DateTime.utc(2026, 6, 1, 8);
+      final run = await d.session.runs.create(startedAt: start);
+      await d.session.rawData.append(
+        run.id,
+        RawBatch(
+          heartRates: [
+            for (var i = 0; i < order.length; i++)
+              RawHeartRate(
+                time: start.add(Duration(minutes: i)),
+                source: order[i],
+                bpm: 140,
+              ),
+          ],
+        ),
+      );
+      await d.session.runs.setState(
+        run.id,
+        RunState.finished,
+        endedAt: start.add(const Duration(hours: 1)),
+        endedUtcOffset: Duration.zero,
+      );
+      for (final id in order.toSet()) {
+        await d.session.devices.upsert(
+          id,
+          displayName: 'Gurt $id',
+          at: DateTime.utc(2026, 5, 1),
+        );
+      }
+      return d;
+    }
+
+    testWidgets('Gerätewechsel A, B, A: Quellenansicht ohne doppelten Key', (
+      tester,
+    ) async {
+      final d = await twoDevices(tester, ['a', 'b', 'a']);
+      final id = await firstRunId(d);
+      await openRunDetail(d, tester, id);
+      await explainFromStats(tester, 'sum_explain_sources');
+      expect(tester.takeException(), isNull);
+      expect(text('expl_source_0_a'), contains('Gurt a'));
+      expect(text('expl_source_1_b'), contains('Gurt b'));
+      expect(text('expl_source_2_a'), contains('Gurt a'));
+    });
+
+    testWidgets('Gerätewechsel A, B, A: Frage 1 eines Laufwerts', (
+      tester,
+    ) async {
+      final d = await twoDevices(tester, ['a', 'b', 'a']);
+      final id = await firstRunId(d);
+      await d.session.values.createOriginals(ValueOwner.run(id), [
+        ComputedValue(
+          key: trimpRunValueKey,
+          value: 50,
+          unit: 'TRIMP',
+          computedAt: DateTime.utc(2026, 6, 2),
+          dataFrom: DateTime.utc(2026, 6, 1, 8),
+          dataTo: DateTime.utc(2026, 6, 1, 9),
+          measurementCount: 3,
+          sources: const ['a', 'b'],
+          method: 'm',
+          methodVersion: 1,
+          parameterVersion: 1,
+          quality: ValueQuality.sufficient,
+        ),
+      ]);
+      await openRunDetail(d, tester, id);
+      await explainFromStats(tester, 'sum_explain_trimp');
+      expect(tester.takeException(), isNull);
+      expect(key('expl_source_2_a'), findsOneWidget);
+    });
+
+    testWidgets('berechneter TRIMP mit nur HFmax: kein Profil-Hinweis', (
+      tester,
+    ) async {
+      final d = await seeded(
+        tester,
+        profile: const ProfileRecord(maxHeartRateBpm: 190),
+      );
+      final id = await firstRunId(d);
+      final trimp = (await d.session.values.read(ValueOwner.run(id)))
+          .firstWhere((p) => p.current.key == trimpRunValueKey)
+          .current;
+      expect(trimp.value, isNotNull); // berechnet, nicht „nicht verfügbar“
+      await openRunDetail(d, tester, id);
+      await explainFromStats(tester, 'sum_explain_trimp');
+      expect(key('expl_reason'), findsNothing);
+      expect(key('expl_profile_hint'), findsNothing);
+      expect(text('expl_basis_rest'), contains('Ruhepuls'));
+    });
+
+    testWidgets('Lesefehler: eigener Text, nicht „nichts gespeichert“', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      await showExplanationFor(
+        tester,
+        d,
+        trimpRunValueKey,
+        runId: 1,
+        session: _FailingSession(d.session),
+      );
+      expect(key('expl_failed'), findsOneWidget);
+      expect(key('expl_not_stored'), findsNothing);
+    });
+
+    testWidgets('Tageswert ohne Wertzahl: kein Lückenhinweis', (tester) async {
+      final d = await seeded(tester, deviceName: 'Brustgurt');
+      await d.session.values.createOriginals(
+        const ValueOwner.day('2026-06-05'),
+        [
+          _dayValue(vo2maxLongTermValueKey, ['gps', 'strap']),
+        ],
+      );
+      await showExplanationFor(
+        tester,
+        d,
+        vo2maxLongTermValueKey,
+        day: '2026-06-05',
+      );
+      expect(text('expl_source_1_strap'), contains('Brustgurt'));
+      expect(key('expl_gap_note'), findsNothing);
+    });
+
+    testWidgets('Effizienz ist als Schätzung gekennzeichnet (CON-0009)', (
+      tester,
+    ) async {
+      final d = await seeded(tester);
+      await d.session.values.createOriginals(
+        const ValueOwner.day('2026-06-05'),
+        [
+          _dayValue(aerobicEfficiencyValueKey, ['gps', 'strap']),
+        ],
+      );
+      await showExplanationFor(
+        tester,
+        d,
+        aerobicEfficiencyValueKey,
+        day: '2026-06-05',
+      );
+      expect(text('expl_estimate'), 'Schätzung, keine Messung');
+      expect(text('expl_a6'), startsWith('Geschätzt'));
+    });
+
+    testWidgets('Frage 2 nennt Datenanfang, Datenende und Berechnung', (
+      tester,
+    ) async {
+      final d = await seeded(tester);
+      await d.session.values.createOriginals(
+        const ValueOwner.day('2026-06-05'),
+        [
+          _dayValue(vo2maxLongTermValueKey, ['gps']),
+        ],
+      );
+      await showExplanationFor(
+        tester,
+        d,
+        vo2maxLongTermValueKey,
+        day: '2026-06-05',
+      );
+      final context = tester.element(key('expl_a2'));
+      final m = MaterialLocalizations.of(context);
+      String date(int mo, int day) =>
+          m.formatMediumDate(DateTime.utc(2026, mo, day).toLocal());
+      expect(
+        text('expl_a2'),
+        'Daten vom ${date(5, 1)} bis ${date(6, 4)}. '
+        'Berechnet am ${date(6, 5)}.',
+      );
     });
   });
 
@@ -398,6 +575,7 @@ Future<void> showExplanationFor(
   String valueKey, {
   String? day,
   int? runId,
+  StorageSession? session,
 }) async {
   await tester.tap(key('home_statistics'));
   await tester.pumpAndSettle();
@@ -406,7 +584,7 @@ Future<void> showExplanationFor(
   Navigator.of(context).push<void>(
     MaterialPageRoute(
       builder: (_) => ValueExplanationScreen(
-        session: d.session,
+        session: session ?? d.session,
         valueKey: valueKey,
         day: day,
         runId: runId,
@@ -414,4 +592,33 @@ Future<void> showExplanationFor(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+/// Tageswert mit festen Daten: Zeitraum 1.5. bis 4.6., berechnet am 5.6.
+ComputedValue _dayValue(String key, List<String> sources) => ComputedValue(
+  key: key,
+  value: 44,
+  unit: key == vo2maxLongTermValueKey ? vo2maxUnit : 'x',
+  computedAt: DateTime.utc(2026, 6, 5),
+  dataFrom: DateTime.utc(2026, 5, 1),
+  dataTo: DateTime.utc(2026, 6, 4),
+  measurementCount: 3,
+  sources: sources,
+  method: 'm',
+  methodVersion: 1,
+  parameterVersion: 1,
+  quality: ValueQuality.sufficient,
+);
+
+/// Sitzung, deren Werte nicht lesbar sind (Lesefehler des Speichers).
+class _FailingSession implements StorageSession {
+  _FailingSession(this.inner);
+  final StorageSession inner;
+
+  @override
+  ComputedValueStore get values =>
+      throw const StorageException(StorageFailure.failed);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }

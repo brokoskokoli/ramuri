@@ -140,9 +140,6 @@ class _NoRunPorts implements RunPorts {
   LocationSource get location => _EmptySource();
 
   @override
-  Stream<HeartRateReading> Function()? get heartRate => null;
-
-  @override
   RunHeartRate Function()? get heartRateRun => null;
 
   @override

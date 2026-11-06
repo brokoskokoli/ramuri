@@ -372,21 +372,29 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
         key: Key(key),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final s in data.sources)
-            Text(_sourceText(l10n, s), key: Key('expl_source_${s.id}')),
+          // Eine Kennung kann mehrfach vorkommen (Gerät A, B, A): Index im Key.
+          for (var i = 0; i < data.sources.length; i++)
+            Text(
+              _sourceText(l10n, data.sources[i]),
+              key: Key('expl_source_${i}_${data.sources[i].id}'),
+            ),
         ],
       ),
     ];
   }
 
+  /// Nur wo eine Zahl der Werte steht, auf die der Hinweis verweist.
   List<Widget> _gapNote(AppLocalizations l10n, ValueExplanation data) =>
-      data.sources.any((s) => s.kind == ExplainedSourceKind.heartRateDevice)
+      data.sources.any(
+        (s) => s.kind == ExplainedSourceKind.heartRateDevice && s.count != null,
+      )
       ? [Text(l10n.explSourceGapNote, key: const Key('expl_gap_note'))]
       : const [];
 
   String _sourceText(AppLocalizations l10n, ExplainedSource s) {
     final label = switch (s.kind) {
       ExplainedSourceKind.gps => l10n.explSourceGps,
+      ExplainedSourceKind.unknown => l10n.explSourceUnknown(s.id),
       ExplainedSourceKind.heartRateDevice =>
         s.deleted
             ? l10n.explSourceDeviceDeleted(s.id)

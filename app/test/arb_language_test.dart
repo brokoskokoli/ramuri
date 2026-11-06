@@ -11,7 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// Die Wortliste ist bewusst eng: Jeder Treffer ist eine Aussage, die ohne
 /// dokumentierten Nachweis nicht stehen darf. Wo ein Wort nur in einer
 /// ausdrücklichen Verneinung vorkommt (etwa „keine gemessenen Schwellen“),
-/// steht der Schlüssel in [negated] und wird auf die Verneinung geprüft.
+/// steht der Schlüssel in [negated]: Nur diese Phrase wird aus dem Text
+/// genommen, der Rest wird gegen alle Muster geprüft.
 final List<RegExp> forbidden = [
   // Genauigkeit und Zuverlässigkeit als Eigenschaft des Werts
   RegExp(r'genauigkeit|präzis|accura|precision', caseSensitive: false),
@@ -26,16 +27,29 @@ final List<RegExp> forbidden = [
     r'ermüd|fatigue|überlastung|overtrain|trainingsanpassung|adaptation',
     caseSensitive: false,
   ),
+  // Sicherheitsversprechen, Medizin, Erholung
+  RegExp(
+    r'exakt|exact|bewiesen|proven|medizin|medical|diagnos|erholung|recovery',
+    caseSensitive: false,
+  ),
 ];
 
 /// Schlüssel, deren Text ein Wort der Liste nur verneint enthält, mit den
 /// Wörtern, die die Verneinung anzeigen.
 final Map<String, RegExp> negated = {
-  'zonesNote': RegExp(r'keine gemessenen Schwellen|not measured thresholds'),
+  'zonesNote': RegExp(
+    r'keine gemessenen Schwellen und ersetzen keine individuell bestimmten '
+    r'ventilatorischen oder Laktatschwellen|'
+    r'not measured thresholds and do not replace individually determined '
+    r'ventilatory or lactate thresholds',
+  ),
   'explKindZones': RegExp(
     r'keine gemessenen Schwellen|not measured thresholds',
   ),
-  'explKindTrimp': RegExp(r'sagt nichts über|says nothing about'),
+  'explKindTrimp': RegExp(
+    r'sagt nichts über Ermüdung oder Trainingsanpassung|'
+    r'says nothing about fatigue or training adaptation',
+  ),
   'explQualityNote': RegExp(
     r'keine Angabe zur Genauigkeit|not a statement about the accuracy',
   ),
@@ -57,10 +71,12 @@ List<String> violations(Map<String, Map<String, String>> byLocale) {
   byLocale.forEach((locale, texts) {
     texts.forEach((key, text) {
       for (final re in forbidden) {
-        final m = re.firstMatch(text);
+        // Nur die erlaubte Verneinung herausnehmen, der Rest bleibt geprüft.
+        final rest = negated[key] == null
+            ? text
+            : text.replaceAll(negated[key]!, ' ');
+        final m = re.firstMatch(rest);
         if (m == null) continue;
-        final ok = negated[key];
-        if (ok != null && ok.hasMatch(text)) continue;
         out.add('$locale/$key: "${m.group(0)}"');
       }
     });
@@ -93,6 +109,25 @@ void main() {
         },
       }),
       hasLength(2),
+    );
+    // Neue Wörter der Liste.
+    expect(
+      violations({
+        'de': {'a': 'Exakte Werte', 'b': 'Zeit zur Erholung', 'c': 'bewiesen'},
+        'en': {'a': 'Exact', 'b': 'recovery time', 'c': 'medical advice'},
+      }),
+      hasLength(6),
+    );
+    // Erlaubte Verneinung darf keine weitere Aussage im selben Text decken.
+    expect(
+      violations({
+        'de': {
+          'explQualityNote':
+              'Sie ist keine Angabe zur Genauigkeit des Werts, aber '
+              'wissenschaftlich validiert.',
+        },
+      }),
+      isNotEmpty,
     );
     // Schlüssel mit erlaubter Verneinung, aber ohne sie im Text.
     expect(

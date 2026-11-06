@@ -1,6 +1,5 @@
 import '../../ports/storage.dart';
 import '../../ports/storage_devices.dart';
-import '../../ports/storage_profile.dart';
 import '../../ports/storage_values.dart';
 import '../fitness/fitness_result.dart';
 import '../sensors/heart_rate_sources.dart';
@@ -12,6 +11,11 @@ enum ExplainedSourceKind {
 
   /// Pulssensor; die Kennung ist die Geräte-ID.
   heartRateDevice,
+
+  /// Eine Quelle, von der nur die Kennung am Wert bekannt ist (Tageswerte):
+  /// weder die Standortquelle noch ein bekanntes Gerät. Ob sie ein gelöschter
+  /// Pulssensor oder eine andere Quelle war, steht nicht am Wert.
+  unknown,
 }
 
 /// Eine Quelle zu einem Datensatz: die gespeicherte Kennung, bei einem
@@ -53,7 +57,6 @@ class ValueExplanation {
     required this.valueKey,
     required this.value,
     required this.sources,
-    required this.profile,
     required this.failed,
   });
 
@@ -66,24 +69,18 @@ class ValueExplanation {
   /// Standortquelle des Laufs, bei Tageswerten die Kennungen am Wert.
   final List<ExplainedSource> sources;
 
-  /// Aktuelles Profil (für den Hinweis nach FR-0055).
-  final ProfileRecord profile;
-
   /// Das Lesen ist gescheitert (kein Grund, kein Wert).
   final bool failed;
 
-  /// Welche Profilwerte fehlen, die dieser Wert braucht (FR-0055).
+  /// Welche Profilwerte fehlten, damit der Wert nicht berechnet werden konnte
+  /// (FR-0055). Nur aus dem gespeicherten Grund „nicht verfügbar“: ein
+  /// berechneter Wert braucht den Hinweis nicht (etwa TRIMP mit nur HFmax,
+  /// OQ-0012), auch wenn die Basis einen anderen Profilwert nicht kennt.
   Set<ProfileGap> get profileGaps {
-    final v = value;
-    final reason = v?.unavailableReason;
-    final basis = v?.heartRateBasis;
+    final reason = value?.unavailableReason;
     final gaps = <ProfileGap>{};
-    final needsMax =
-        reason == UnavailableReason.missingMaxHeartRate ||
-        (basis != null && basis.usableMaxBpm == null);
-    final needsRest =
-        reason == UnavailableReason.missingRestingHeartRate ||
-        (basis != null && basis.usableRestingBpm == null);
+    final needsMax = reason == UnavailableReason.missingMaxHeartRate;
+    final needsRest = reason == UnavailableReason.missingRestingHeartRate;
     final needsBoth =
         reason == UnavailableReason.maxNotAboveResting ||
         reason == UnavailableReason.reserveTooSmall;
@@ -127,7 +124,6 @@ class ValueExplanationService {
         valueKey: valueKey,
         value: value,
         sources: sources,
-        profile: await session.profile.read(),
         failed: false,
       );
     } on StorageException {
@@ -135,7 +131,6 @@ class ValueExplanationService {
         valueKey: valueKey,
         value: null,
         sources: const [],
-        profile: const ProfileRecord(),
         failed: true,
       );
     }
@@ -151,7 +146,6 @@ class ValueExplanationService {
         valueKey: 'run_sources',
         value: null,
         sources: await _runSources(runId, devices),
-        profile: const ProfileRecord(),
         failed: false,
       );
     } on StorageException {
@@ -159,7 +153,6 @@ class ValueExplanationService {
         valueKey: 'run_sources',
         value: null,
         sources: [],
-        profile: ProfileRecord(),
         failed: true,
       );
     }
@@ -212,7 +205,8 @@ class ValueExplanationService {
   }
 
   /// Quellen am Wert (Tageswerte tragen nur Kennungen). Eine Kennung, die weder
-  /// die Standortquelle noch ein bekanntes Gerät ist, gilt als gelöschtes Gerät.
+  /// die Standortquelle noch ein bekanntes Gerät ist, bleibt neutral
+  /// ([ExplainedSourceKind.unknown]): am Wert steht nicht, was sie war.
   List<ExplainedSource> _valueSources(
     ComputedValue? value,
     Map<String, KnownDevice> devices,
@@ -223,6 +217,8 @@ class ValueExplanationService {
               id: gpsSourceId,
               kind: ExplainedSourceKind.gps,
             )
-          : _device(id, devices),
+          : devices.containsKey(id)
+          ? _device(id, devices)
+          : ExplainedSource(id: id, kind: ExplainedSourceKind.unknown),
   ];
 }
