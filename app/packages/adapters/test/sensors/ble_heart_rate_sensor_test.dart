@@ -8,6 +8,10 @@ class FakeLink implements BleLink {
   final adverts = StreamController<BleAdvert>.broadcast();
   final states = StreamController<bool>.broadcast();
   final hrValues = StreamController<List<int>>.broadcast();
+  bool bluetoothOn = true;
+  @override
+  Future<bool> isBluetoothOn() async => bluetoothOn;
+
   String? scanService;
   bool scanCancelled = false;
   bool? autoConnect;

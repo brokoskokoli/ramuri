@@ -11,14 +11,35 @@ class _FailingScan extends FakeHeartRateSensor {
   Stream<HeartRateDevice> scan() => Stream.error(StateError('bluetooth off'));
 }
 
+/// Sensor mit vorgegebenen Verbindungen: je Gerät eine Warteschlange von
+/// Strömen für die nächsten `connect`-Aufrufe; danach das normale Verhalten.
+class _ScriptedSensor extends FakeHeartRateSensor {
+  final plans = <String, List<Stream<HeartRateEvent> Function()>>{};
+  int connects = 0;
+
+  @override
+  Stream<HeartRateEvent> connect(String deviceId) {
+    connects++;
+    final plan = plans[deviceId];
+    if (plan != null && plan.isNotEmpty) return plan.removeAt(0)();
+    return super.connect(deviceId);
+  }
+}
+
+Stream<HeartRateEvent> _failing() => Stream.error(StateError('timeout'));
+
 class _Rig {
-  _Rig({FakeHeartRateSensor? sensor, FakeStorage? storage})
-    : sensor = sensor ?? FakeHeartRateSensor(),
-      storage = storage ?? FakeStorage() {
+  _Rig({
+    FakeHeartRateSensor? sensor,
+    FakeStorage? storage,
+    Future<bool> Function()? bluetoothAvailable,
+  }) : sensor = sensor ?? FakeHeartRateSensor(),
+       storage = storage ?? FakeStorage() {
     manager = SensorManager(
       sensor: this.sensor,
       clock: clock,
       reconnectDelay: const Duration(seconds: 5),
+      bluetoothAvailable: bluetoothAvailable,
       requestPermissions: () async => permissionRequests++,
     );
   }
@@ -27,12 +48,14 @@ class _Rig {
   final FakeStorage storage;
   final clock = FakeClock(DateTime.utc(2026, 6, 1));
   int permissionRequests = 0;
+  late final StorageSession session;
   late final KnownDeviceStore store;
   late final SensorManager manager;
 
   /// Öffnet die Sitzung (wie der App-Start) und nimmt deren Gerätespeicher.
   Future<void> open() async {
     final session = await storage.open(Uint8List(32));
+    this.session = session;
     store = session.devices;
     await manager.attachStore(store);
   }
@@ -160,6 +183,136 @@ void main() {
     r.reading('g1', 90);
     await t.pump();
     expect(r.manager.knownEntries.single.bpm, 90);
+  });
+
+  testWidgets('Neuverbinden scheitert: weiter versuchen, nach Trennen nicht', (
+    t,
+  ) async {
+    final sensor = _ScriptedSensor();
+    final r = _Rig(sensor: sensor);
+    await r.open();
+    await r.connect(t, 'g1');
+    sensor.plans['g1'] = [_failing, _failing];
+    unawaited(sensor.drop('g1'));
+    await t.pump();
+    expect(sensor.connects, 1);
+
+    // Zwei Versuche scheitern (Gerät außer Reichweite), der Takt bleibt.
+    for (final n in [2, 3]) {
+      await t.pump(const Duration(seconds: 5));
+      await t.pump();
+      expect(sensor.connects, n);
+      expect(r.manager.knownEntries.single.state, SensorLinkState.reconnecting);
+      expect(r.manager.problem, isNull);
+    }
+    await t.pump(const Duration(seconds: 5));
+    expect(sensor.connects, 4);
+    expect(r.manager.knownEntries.single.state, SensorLinkState.connected);
+    expect(r.manager.selector.switches, isEmpty);
+
+    // Nach bewusstem Trennen kein weiterer Versuch, auch mitten im Warten.
+    sensor.plans['g1'] = [_failing];
+    unawaited(sensor.drop('g1'));
+    await t.pump(const Duration(seconds: 5));
+    await t.pump();
+    expect(sensor.connects, 5);
+    r.manager.disconnect('g1');
+    await t.pump(const Duration(minutes: 2));
+    expect(sensor.connects, 5);
+    expect(r.manager.knownEntries.single.state, SensorLinkState.idle);
+  });
+
+  testWidgets('Strom endet ohne Abbruch-Ereignis: Selector wechselt', (
+    t,
+  ) async {
+    for (final ending in <Stream<HeartRateEvent> Function()>[
+      () => Stream.value(const HeartRateConnected('g1')),
+      () => (() async* {
+        yield const HeartRateConnected('g1');
+        throw StateError('link');
+      })(),
+    ]) {
+      final sensor = _ScriptedSensor();
+      sensor.plans['g1'] = [ending];
+      final r = _Rig(sensor: sensor);
+      await r.open();
+      await r.connect(t, 'g1');
+      await r.connect(t, 'g2');
+      await t.pump();
+      expect(r.manager.selector.activeId, 'g2');
+      expect(
+        r.manager.selector.switches.single.reason,
+        SourceSwitchReason.lost,
+      );
+      r.manager.disconnect('g1');
+      r.manager.disconnect('g2');
+      await t.pump();
+    }
+  });
+
+  testWidgets('Doppeltipp auf Verbinden verbindet nur einmal', (t) async {
+    final sensor = _ScriptedSensor();
+    final r = _Rig(sensor: sensor);
+    await r.open();
+    final a = r.manager.connect('g1');
+    final b = r.manager.connect('g1');
+    await Future.wait([a, b]);
+    await t.pump();
+    expect(sensor.connects, 1);
+    expect(r.permissionRequests, 1);
+    expect(r.manager.connectedIds, {'g1'});
+
+    // Trennen während die Rechte/der Speicher noch laufen: kein Verbinden.
+    final c = r.manager.connect('g2');
+    r.manager.disconnect('g2');
+    await c;
+    await t.pump();
+    expect(sensor.connects, 1);
+    expect(r.manager.connectedIds, {'g1'});
+  });
+
+  testWidgets('Alle Daten löschen trennt Geräte und stoppt Neuverbinden', (
+    t,
+  ) async {
+    final sensor = _ScriptedSensor();
+    final r = _Rig(sensor: sensor);
+    await r.open();
+    await r.connect(t, 'g1');
+    await r.connect(t, 'g2');
+    unawaited(sensor.drop('g2'));
+    await t.pump();
+    expect(r.manager.knownEntries.last.state, SensorLinkState.reconnecting);
+
+    await r.session.deleteAll();
+    await r.manager.reloadKnown();
+    await t.pump();
+    expect(r.manager.knownEntries, isEmpty);
+    expect(r.manager.connectedIds, isEmpty);
+    expect(sensor.connectedIds, isEmpty);
+    expect(r.manager.selector.activeId, isNull);
+    final connects = sensor.connects;
+    await t.pump(const Duration(minutes: 2));
+    expect(sensor.connects, connects);
+  });
+
+  testWidgets('Verbinden scheitert bei Bluetooth aus: Bluetooth-Hinweis', (
+    t,
+  ) async {
+    var on = false;
+    final sensor = _ScriptedSensor();
+    sensor.plans['g1'] = [_failing, _failing];
+    final r = _Rig(sensor: sensor, bluetoothAvailable: () async => on);
+    await r.open();
+    await r.connect(t, 'g1');
+    await t.pump();
+    expect(r.manager.problem, SensorProblem.bluetoothUnavailable);
+    expect(r.manager.knownEntries.single.state, SensorLinkState.idle);
+
+    // Bluetooth an, Gerät nicht erreichbar: bleibt „Verbinden fehlgeschlagen“.
+    on = true;
+    await r.connect(t, 'g1');
+    await t.pump();
+    expect(r.manager.problem, SensorProblem.connectFailed);
   });
 
   testWidgets('bewusstes Trennen: Selector bekommt lost:false', (t) async {

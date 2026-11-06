@@ -67,8 +67,15 @@ class SensorManager extends ChangeNotifier {
     required this.sensor,
     required this.clock,
     this.requestPermissions,
-    this.reconnectDelay = const Duration(seconds: 5),
+    this.reconnectDelay = defaultReconnectDelay,
+    this.bluetoothAvailable,
   });
+
+  /// Pause zwischen dem Ende eines Verbindungsversuchs und dem nächsten
+  /// (Vorschlag, OQ-0064). Der Takt ist länger: Ein Versuch zu einem Gerät
+  /// außer Reichweite endet erst nach dem `connectTimeout` des Adapters
+  /// (60 s), real also etwa 65 s je Runde.
+  static const defaultReconnectDelay = Duration(seconds: 5);
 
   final HeartRateSensor sensor;
   final Clock clock;
@@ -76,9 +83,14 @@ class SensorManager extends ChangeNotifier {
   /// Fragt die Bluetooth-Rechte; `null`, wenn der Sensor keine braucht.
   final Future<void> Function()? requestPermissions;
 
-  /// Wartezeit bis zum nächsten Neuverbinden nach einem Abbruch (Vorschlag,
-  /// OQ-0064: dasselbe Gerät verbindet sich neu).
+  /// Pause zwischen zwei Versuchen, dasselbe Gerät neu zu verbinden (OQ-0064);
+  /// die Dauer des Versuchs selbst kommt dazu, siehe [defaultReconnectDelay].
   final Duration reconnectDelay;
+
+  /// Fragt, ob Bluetooth an ist; `null`, wenn der Sensor es nicht weiß. Damit
+  /// wird ein gescheitertes Verbinden bei ausgeschaltetem Bluetooth als
+  /// solches gemeldet (FR-0035).
+  final Future<bool> Function()? bluetoothAvailable;
 
   /// Wählt die Quelle für die Aufzeichnung. Beim Laufbeginn `lock`, am Ende
   /// `close` (Teil D); die Verwaltung speist sie mit allen Ereignissen.
@@ -149,6 +161,13 @@ class SensorManager extends ChangeNotifier {
     final list = await store.list();
     if (_disposed) return;
     _known = list;
+    // Gerät ohne Eintrag (Speicher gelöscht): trennen und nicht neu verbinden.
+    // Ein Gerät, das gerade erst verbindet (noch ohne Abo), ist ausgenommen.
+    for (final id in _conns.keys.toList()) {
+      final c = _conns[id]!;
+      final pending = c.sub == null && c.state == SensorLinkState.connecting;
+      if (!pending && !list.any((k) => k.deviceId == id)) disconnect(id);
+    }
     String? pref;
     for (final k in list) {
       if (k.isPreferred) pref = k.deviceId;
@@ -219,17 +238,40 @@ class SensorManager extends ChangeNotifier {
     final existing = _conns[id];
     if (existing != null && existing.state != SensorLinkState.idle) return;
     _problem = null;
-    if (!await _ensurePermissions()) {
-      _notify();
-      return;
+    // Vor dem ersten await als verbindend markieren: ein Doppeltipp startet
+    // keinen zweiten Versuch.
+    final c = existing ?? (_conns[id] = _Conn());
+    c.state = SensorLinkState.connecting;
+    _notify();
+    try {
+      if (!await _ensurePermissions()) {
+        _abortPending(c);
+        return;
+      }
+      if (_disposed) return;
+      final store = _store;
+      if (store != null) {
+        await store.upsert(
+          id,
+          displayName: name ?? _found[id],
+          at: clock.now(),
+        );
+        await reloadKnown();
+      }
+    } catch (_) {
+      _abortPending(c);
+      rethrow;
     }
-    if (_disposed) return;
-    final store = _store;
-    if (store != null) {
-      await store.upsert(id, displayName: name ?? _found[id], at: clock.now());
-      await reloadKnown();
+    // Währenddessen getrennt: nicht doch noch verbinden.
+    if (_disposed || c.state != SensorLinkState.connecting) return;
+    _open(c, id);
+  }
+
+  void _abortPending(_Conn c) {
+    if (c.sub == null && c.state == SensorLinkState.connecting) {
+      c.state = SensorLinkState.idle;
     }
-    _open(_conns[id] ?? (_conns[id] = _Conn()), id);
+    _notify();
   }
 
   void _open(_Conn c, String id) {
@@ -311,7 +353,22 @@ class SensorManager extends ChangeNotifier {
         ..state = SensorLinkState.idle
         ..sub = null;
       _problem = SensorProblem.connectFailed;
+      unawaited(_refineConnectProblem());
     }
+    _notify();
+  }
+
+  /// Ist Bluetooth aus, ist das der Grund des Scheiterns, nicht die Nähe.
+  Future<void> _refineConnectProblem() async {
+    final check = bluetoothAvailable;
+    if (check == null) return;
+    try {
+      if (await check()) return;
+    } catch (_) {
+      return;
+    }
+    if (_disposed || _problem != SensorProblem.connectFailed) return;
+    _problem = SensorProblem.bluetoothUnavailable;
     _notify();
   }
 

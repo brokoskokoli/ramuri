@@ -85,7 +85,9 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 8),
           OutlinedButton(
             onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute(builder: (_) => DataScreen(session: session)),
+              MaterialPageRoute(
+                builder: (_) => DataScreen(session: session, sensors: sensors),
+              ),
             ),
             child: Text(l10n.dataTitle),
           ),

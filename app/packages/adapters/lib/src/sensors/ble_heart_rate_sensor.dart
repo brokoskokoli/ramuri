@@ -43,6 +43,10 @@ class BleHeartRateSensor implements HeartRateSensor {
   /// Sensors, nie beim Start oder Lauf ohne Sensor (ADR-0006 Punkt 3).
   Future<void> requestPermissions() => _link.requestPermissions();
 
+  /// Ist Bluetooth eingeschaltet? Für den Hinweis nach einem gescheiterten
+  /// Verbinden.
+  Future<bool> isBluetoothOn() => _link.isBluetoothOn();
+
   @override
   Stream<HeartRateDevice> scan() {
     final seen = <String>{};

@@ -25,6 +25,9 @@ abstract interface class BleLink {
   /// Fragt die Bluetooth-Rechte ab. Wirft, wenn sie verweigert werden.
   Future<void> requestPermissions();
 
+  /// `true`, wenn Bluetooth eingeschaltet und nutzbar ist.
+  Future<bool> isBluetoothOn();
+
   /// Meldungen von Geräten mit dem Dienst [serviceUuid], bis das Abo endet.
   Stream<BleAdvert> scan(String serviceUuid);
 

@@ -14,6 +14,11 @@ class UniversalBleLink implements BleLink {
   Future<void> requestPermissions() => UniversalBle.requestPermissions();
 
   @override
+  Future<bool> isBluetoothOn() async =>
+      await UniversalBle.getBluetoothAvailabilityState() ==
+      AvailabilityState.poweredOn;
+
+  @override
   Stream<BleAdvert> scan(String serviceUuid) {
     late final StreamController<BleAdvert> out;
     StreamSubscription<BleDevice>? sub;

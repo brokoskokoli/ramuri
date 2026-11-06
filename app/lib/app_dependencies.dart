@@ -64,6 +64,9 @@ class AppDependencies {
         requestPermissions: sensor is BleHeartRateSensor
             ? sensor.requestPermissions
             : null,
+        bluetoothAvailable: sensor is BleHeartRateSensor
+            ? sensor.isBluetoothOn
+            : null,
       ),
       permissions: MethodChannelPermissionStatus(),
       runPorts: RunPorts(
