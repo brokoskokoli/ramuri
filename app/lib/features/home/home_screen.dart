@@ -9,9 +9,15 @@ import '../settings/settings_screen.dart';
 /// ([session] ist die offene Sitzung) und die Ersteinrichtung erledigt oder
 /// übersprungen ist.
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.session, required this.clock});
+  const HomeScreen({
+    super.key,
+    required this.session,
+    required this.clock,
+    required this.permissions,
+  });
 
   final StorageSession session;
+  final PermissionStatusPort permissions;
   final Clock clock;
 
   @override
@@ -48,7 +54,10 @@ class HomeScreen extends StatelessWidget {
               key: const Key('home_settings'),
               onPressed: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(
-                  builder: (_) => SettingsScreen(session: session),
+                  builder: (_) => SettingsScreen(
+                    session: session,
+                    permissions: permissions,
+                  ),
                 ),
               ),
               child: Text(l10n.homeSettings),

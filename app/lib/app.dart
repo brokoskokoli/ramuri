@@ -49,8 +49,11 @@ class _RunningAppState extends State<RunningApp> {
       localeResolutionCallback: resolveAppLocale,
       home: StorageGate(
         controller: dependencies.storageStart,
-        readyBuilder: (context, session) =>
-            ReadyRoot(session: session, clock: dependencies.clock),
+        readyBuilder: (context, session) => ReadyRoot(
+          session: session,
+          clock: dependencies.clock,
+          permissions: dependencies.permissions,
+        ),
       ),
     );
   }

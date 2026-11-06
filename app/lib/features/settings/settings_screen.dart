@@ -4,13 +4,19 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../storage/data_screen.dart';
 import 'app_settings.dart';
+import 'permissions_screen.dart';
 
 /// Einstellungen: Einheit für Strecken (reine Anzeige) und der Zugang zu den
 /// gespeicherten Daten.
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, required this.session});
+  const SettingsScreen({
+    super.key,
+    required this.session,
+    required this.permissions,
+  });
 
   final StorageSession session;
+  final PermissionStatusPort permissions;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +50,16 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Text(l10n.settingsUnitNote),
           const SizedBox(height: 24),
+          OutlinedButton(
+            key: const Key('settings_permissions'),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => PermissionsScreen(permissions: permissions),
+              ),
+            ),
+            child: Text(l10n.settingsPermissions),
+          ),
+          const SizedBox(height: 8),
           OutlinedButton(
             onPressed: () => Navigator.of(context).push<void>(
               MaterialPageRoute(builder: (_) => DataScreen(session: session)),

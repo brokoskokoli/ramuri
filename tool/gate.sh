@@ -154,6 +154,42 @@ PY
   return $rc
 }
 
+# Drift: app_database.g.dart muss aus schema.drift entstehen (build_runner/drift_dev), sonst laufen beide unbemerkt
+# auseinander. Der erzeugte Stand wird mit dem eingecheckten verglichen; die Datei wird danach immer wiederhergestellt.
+drift_aktuell() {
+  dir=app/packages/adapters
+  g=$dir/lib/src/storage/app_database.g.dart
+  [ -f "$g" ] || { echo "$g fehlt"; return 1; }
+  bak=$(mktemp) || return 1
+  cp "$g" "$bak" || { rm -f "$bak"; return 1; }
+  rc=0
+  ( cd "$dir" && dart run build_runner build --delete-conflicting-outputs ) || { echo "build_runner scheiterte"; rc=1; }
+  if [ $rc -eq 0 ] && ! cmp -s "$bak" "$g"; then
+    echo "app_database.g.dart passt nicht zu schema.drift; build_runner neu laufen lassen (siehe drift_schemas/README.md)"
+    diff "$bak" "$g" | head -20
+    rc=1
+  fi
+  cp "$bak" "$g"; rm -f "$bak"
+  return $rc
+}
+
+# SEC-0008: Das Release-APK fordert kein INTERNET. Geprüft am gebauten APK (aapt), nicht am Quell-Manifest, weil Plugins
+# per Manifest-Merge Berechtigungen hinzufügen können. Fail-closed: fehlt aapt oder die Ausgabe, ist der Schritt rot.
+release_ohne_internet() {
+  sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}
+  aapt=$(ls "$sdk"/build-tools/*/aapt 2>/dev/null | sort -V | tail -1)
+  [ -n "$aapt" ] || { echo "aapt nicht gefunden unter $sdk/build-tools"; return 1; }
+  ( cd app && flutter build apk --release ) || return 1
+  apk=app/build/app/outputs/flutter-apk/app-release.apk
+  [ -f "$apk" ] || { echo "$apk fehlt"; return 1; }
+  perms=$("$aapt" dump permissions "$apk") || { echo "aapt dump permissions scheiterte"; return 1; }
+  echo "$perms" | grep -q '^package: ' || { echo "aapt-Ausgabe unerwartet"; return 1; }
+  echo "$perms"
+  if echo "$perms" | grep -q 'android.permission.INTERNET'; then
+    echo "Release-APK fordert android.permission.INTERNET (SEC-0008)"; return 1
+  fi
+}
+
 if [ -f app/pubspec.yaml ]; then
   if [ "${1:-}" = --changed ] && ! app_changed; then
     echo "SKIP  flutter (app/ und tool/gate.sh gegenüber main unverändert)"
@@ -168,6 +204,8 @@ if [ -f app/pubspec.yaml ]; then
       step "$p analyze" pkg_analyze "$p"
       step "$p test" pkg_test "$p"
     done
+    step "drift schema" drift_aktuell
+    step "release ohne INTERNET" release_ohne_internet
     step "lock unverändert" lock_unveraendert
   fi
 fi

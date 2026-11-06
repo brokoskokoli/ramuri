@@ -402,5 +402,45 @@
   "unitPacePerMile": "min/mi",
   "@unitPacePerMile": {
     "description": "Kürzel Pace je Meile"
+  },
+  "settingsPermissions": "Berechtigungen",
+  "@settingsPermissions": {
+    "description": "Schaltfläche zur Seite mit dem Stand der Android-Berechtigungen"
+  },
+  "permissionsTitle": "Berechtigungen",
+  "@permissionsTitle": {
+    "description": "Titel der Seite (SEC-0007)"
+  },
+  "permissionsBody": "Hier siehst du, welche Berechtigungen die App hat. Entziehen kannst du sie in den Systemeinstellungen.",
+  "@permissionsBody": {
+    "description": "Erklärung"
+  },
+  "permissionLocation": "Standort",
+  "@permissionLocation": {
+    "description": "Berechtigung"
+  },
+  "permissionBluetooth": "Bluetooth",
+  "@permissionBluetooth": {
+    "description": "Berechtigung"
+  },
+  "permissionActivity": "Schritterkennung",
+  "@permissionActivity": {
+    "description": "Berechtigung Aktivitätserkennung"
+  },
+  "permissionGranted": "Erteilt",
+  "@permissionGranted": {
+    "description": "Stand"
+  },
+  "permissionDenied": "Nicht erteilt",
+  "@permissionDenied": {
+    "description": "Stand"
+  },
+  "permissionUnknown": "Unbekannt",
+  "@permissionUnknown": {
+    "description": "Stand"
+  },
+  "permissionsOpenSettings": "Systemeinstellungen öffnen",
+  "@permissionsOpenSettings": {
+    "description": "Schaltfläche"
   }
 }

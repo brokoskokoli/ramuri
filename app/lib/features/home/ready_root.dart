@@ -9,9 +9,15 @@ import 'home_screen.dart';
 /// Wurzel nach dem Öffnen des Speichers: lädt die Einstellungen, bietet beim
 /// ersten Start die Einrichtung an (FR-0001) und zeigt danach die Startseite.
 class ReadyRoot extends StatefulWidget {
-  const ReadyRoot({super.key, required this.session, required this.clock});
+  const ReadyRoot({
+    super.key,
+    required this.session,
+    required this.clock,
+    required this.permissions,
+  });
 
   final StorageSession session;
+  final PermissionStatusPort permissions;
   final Clock clock;
 
   @override
@@ -61,7 +67,11 @@ class _ReadyRootState extends State<ReadyRoot> {
       return ListenableBuilder(
         listenable: settings,
         builder: (context, _) => settings.setupDone
-            ? HomeScreen(session: widget.session, clock: widget.clock)
+            ? HomeScreen(
+                session: widget.session,
+                clock: widget.clock,
+                permissions: widget.permissions,
+              )
             : SetupScreen(
                 session: widget.session,
                 clock: widget.clock,

@@ -13,6 +13,7 @@ class Device {
   final FakeStorage storage = FakeStorage();
   final FakeKeyStore keyStore = FakeKeyStore();
   final FakeClock clock = FakeClock(DateTime.utc(2026, 6, 1));
+  final FakePermissionStatus permissions = FakePermissionStatus();
   late StorageStartController controller;
 
   StorageSession get session => (controller.state as StorageReady).session;
@@ -34,7 +35,11 @@ class Device {
     );
     await tester.pumpWidget(
       RunningApp(
-        dependencies: AppDependencies(storageStart: controller, clock: clock),
+        dependencies: AppDependencies(
+          storageStart: controller,
+          clock: clock,
+          permissions: permissions,
+        ),
       ),
     );
     await tester.pumpAndSettle();

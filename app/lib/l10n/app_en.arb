@@ -90,5 +90,15 @@
   "unitKilometers": "km",
   "unitMiles": "mi",
   "unitPacePerKilometer": "min/km",
-  "unitPacePerMile": "min/mi"
+  "unitPacePerMile": "min/mi",
+  "settingsPermissions": "Permissions",
+  "permissionsTitle": "Permissions",
+  "permissionsBody": "Here you can see which permissions the app has. You can revoke them in the system settings.",
+  "permissionLocation": "Location",
+  "permissionBluetooth": "Bluetooth",
+  "permissionActivity": "Step detection",
+  "permissionGranted": "Granted",
+  "permissionDenied": "Not granted",
+  "permissionUnknown": "Unknown",
+  "permissionsOpenSettings": "Open system settings"
 }
