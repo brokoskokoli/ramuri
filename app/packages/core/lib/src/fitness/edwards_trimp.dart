@@ -103,6 +103,18 @@ class EdwardsTrimp extends LoadModel {
     }
   }
 
+  /// Grund, warum die HF-Basis für TRIMP nicht reicht (`null`: reicht). Die
+  /// einzige Stelle dieser Prüfung; die Profilauflösung nutzt sie ebenfalls.
+  static UnavailableReason? basisUnavailableReason(HeartRateBasis basis) {
+    final max = basis.usableMaxBpm;
+    final rest = basis.usableRestingBpm;
+    if (max == null) return UnavailableReason.missingMaxHeartRate;
+    if (rest != null && max <= rest) {
+      return UnavailableReason.maxNotAboveResting;
+    }
+    return null;
+  }
+
   @override
   FitnessResult<TrimpResult> compute({
     required HeartRateBasis basis,
@@ -121,12 +133,9 @@ class EdwardsTrimp extends LoadModel {
           maxIsEstimated: basis.maxIsEstimated,
         );
 
-    final max = basis.usableMaxBpm;
-    final rest = basis.usableRestingBpm;
-    if (max == null) return no(UnavailableReason.missingMaxHeartRate);
-    if (rest != null && max <= rest) {
-      return no(UnavailableReason.maxNotAboveResting);
-    }
+    final basisReason = basisUnavailableReason(basis);
+    if (basisReason != null) return no(basisReason);
+    final max = basis.usableMaxBpm!;
     final time = heartRateTimeByBpm(
       heartRate: heartRate,
       movement: movement,

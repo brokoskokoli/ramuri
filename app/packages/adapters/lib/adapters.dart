@@ -3,6 +3,7 @@ library;
 
 import 'package:core/core.dart';
 
+export 'src/permissions/method_channel_permission_status.dart';
 export 'src/storage/app_database.dart';
 export 'src/storage/connection_setup.dart';
 export 'src/storage/database_files.dart';

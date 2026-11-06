@@ -305,14 +305,24 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       // Echte Ein-/Ausgabe und Microtasks der Testzone abwechselnd laufen lassen.
-      for (var i = 0; i < 500 && c.state is! StorageReady; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 20)),
-        );
-        await tester.pump();
+      // Danach lädt die Startseite die Einstellungen aus der echten Datei und
+      // zeigt die Ersteinrichtung (WP05).
+      Future<void> untilShown(Finder f) async {
+        for (var i = 0; i < 500 && f.evaluate().isEmpty; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump();
+        }
+        if (f.evaluate().isEmpty) fail('Widget nicht erschienen: $f');
       }
+
+      await untilShown(find.byKey(const Key('profile_save')));
       await tester.pumpAndSettle();
       expect(c.state, isA<StorageReady>());
+      await tester.tap(find.byKey(const Key('setup_skip')));
+      await untilShown(find.byKey(const Key('home_start_run')));
+      await tester.pumpAndSettle();
       expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
       final session = (c.state as StorageReady).session;
       expect(await tester.runAsync(() => session.runs.list()), isEmpty);

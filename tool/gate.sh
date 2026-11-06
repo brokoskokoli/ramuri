@@ -154,6 +154,56 @@ PY
   return $rc
 }
 
+# Drift: app_database.g.dart muss aus schema.drift entstehen (build_runner/drift_dev), sonst laufen beide unbemerkt
+# auseinander. Der erzeugte Stand wird mit dem eingecheckten verglichen; die Datei wird danach immer wiederhergestellt.
+drift_aktuell() {
+  dir=app/packages/adapters
+  g=$dir/lib/src/storage/app_database.g.dart
+  [ -f "$g" ] || { echo "$g fehlt"; return 1; }
+  bak=$(mktemp) || return 1
+  out=$(mktemp) || { rm -f "$bak"; return 1; }
+  cp "$g" "$bak" || { rm -f "$bak" "$out"; return 1; }
+  rc=0
+  # Abbruch (INT/TERM/EXIT) stellt die Datei wieder her und entfernt die Sicherung.
+  ( trap 'cp "$bak" "$g"; rm -f "$bak" "$out"' EXIT
+    trap 'exit 130' INT TERM
+    # Erst clean: sonst überspringt build_runner bei unveränderten Eingaben alles ("skipped") und gibt die Warnungen
+    # nicht noch einmal aus; ein zweiter Lauf oder ein manueller build_runner-Lauf machte den Schritt falsch grün.
+    # clean löscht die .g.dart nicht (sie ist eingecheckt); sie wird neu erzeugt, die Sicherung stellt der trap wieder her.
+    ( cd "$dir" && dart run build_runner clean && dart run build_runner build ) > "$out" 2>&1 || { cat "$out"; echo "build_runner scheiterte"; exit 1; }
+    # drift_dev meldet Syntaxfehler in schema.drift nur als Warnung (W drift_dev ...) bei Exit 0; die kaputte Tabelle
+    # fehlte dann still in der .g.dart. Darum zählen Warnungen und Fehler (Zeilen W/E/SEVERE) als rot.
+    if grep -Eq '^(\[[A-Z]+\] )?(W|E|SEVERE)[[:space:]]' "$out"; then
+      grep -E '^(\[[A-Z]+\] )?(W|E|SEVERE)[[:space:]]' "$out" | head -20
+      echo "build_runner/drift_dev meldet Warnungen oder Fehler (z. B. Syntaxfehler in schema.drift)"; exit 1
+    fi
+    if ! cmp -s "$bak" "$g"; then
+      echo "app_database.g.dart passt nicht zu schema.drift; build_runner neu laufen lassen (siehe drift_schemas/README.md)"
+      diff "$bak" "$g" | head -20
+      exit 1
+    fi )
+  rc=$?
+  rm -f "$bak" "$out"
+  return $rc
+}
+
+# SEC-0008: Das Release-APK fordert kein INTERNET. Geprüft am gebauten APK (aapt), nicht am Quell-Manifest, weil Plugins
+# per Manifest-Merge Berechtigungen hinzufügen können. Fail-closed: fehlt aapt oder die Ausgabe, ist der Schritt rot.
+release_ohne_internet() {
+  sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}
+  aapt=$(ls "$sdk"/build-tools/*/aapt 2>/dev/null | sort -V | tail -1)
+  [ -n "$aapt" ] || { echo "aapt nicht gefunden unter $sdk/build-tools"; return 1; }
+  ( cd app && flutter build apk --release ) || return 1
+  apk=app/build/app/outputs/flutter-apk/app-release.apk
+  [ -f "$apk" ] || { echo "$apk fehlt"; return 1; }
+  perms=$("$aapt" dump permissions "$apk") || { echo "aapt dump permissions scheiterte"; return 1; }
+  echo "$perms" | grep -q '^package: ' || { echo "aapt-Ausgabe unerwartet"; return 1; }
+  echo "$perms"
+  if echo "$perms" | grep -q 'android.permission.INTERNET'; then
+    echo "Release-APK fordert android.permission.INTERNET (SEC-0008)"; return 1
+  fi
+}
+
 if [ -f app/pubspec.yaml ]; then
   if [ "${1:-}" = --changed ] && ! app_changed; then
     echo "SKIP  flutter (app/ und tool/gate.sh gegenüber main unverändert)"
@@ -168,6 +218,8 @@ if [ -f app/pubspec.yaml ]; then
       step "$p analyze" pkg_analyze "$p"
       step "$p test" pkg_test "$p"
     done
+    step "drift schema" drift_aktuell
+    step "release ohne INTERNET" release_ohne_internet
     step "lock unverändert" lock_unveraendert
   fi
 fi
