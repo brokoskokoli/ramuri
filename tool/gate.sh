@@ -167,7 +167,10 @@ drift_aktuell() {
   # Abbruch (INT/TERM/EXIT) stellt die Datei wieder her und entfernt die Sicherung.
   ( trap 'cp "$bak" "$g"; rm -f "$bak" "$out"' EXIT
     trap 'exit 130' INT TERM
-    ( cd "$dir" && dart run build_runner build ) > "$out" 2>&1 || { cat "$out"; echo "build_runner scheiterte"; exit 1; }
+    # Erst clean: sonst überspringt build_runner bei unveränderten Eingaben alles ("skipped") und gibt die Warnungen
+    # nicht noch einmal aus; ein zweiter Lauf oder ein manueller build_runner-Lauf machte den Schritt falsch grün.
+    # clean entfernt auch die erzeugte .g.dart; der trap stellt sie wieder her.
+    ( cd "$dir" && dart run build_runner clean && dart run build_runner build ) > "$out" 2>&1 || { cat "$out"; echo "build_runner scheiterte"; exit 1; }
     # drift_dev meldet Syntaxfehler in schema.drift nur als Warnung (W drift_dev ...) bei Exit 0; die kaputte Tabelle
     # fehlte dann still in der .g.dart. Darum zählen Warnungen und Fehler (Zeilen W/E/SEVERE) als rot.
     if grep -Eq '^(\[[A-Z]+\] )?(W|E|SEVERE)[[:space:]]' "$out"; then

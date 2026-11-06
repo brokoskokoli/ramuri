@@ -124,7 +124,7 @@ void main() {
     await d.stop(tester);
   });
 
-  test('Kanalname steht gleich in Dart und MainActivity.kt', () {
+  test('Kanalname und requestedKeys-Schlüssel stehen gleich in Dart und MainActivity.kt', () {
     final kt = File(
       'android/app/src/main/kotlin/io/github/brokoskokoli/running_app/MainActivity.kt',
     ).readAsStringSync();
@@ -135,6 +135,14 @@ void main() {
         'MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "$permissionChannelName")',
       ),
     );
+
+    // requestedKeys() liefert die Schlüssel der Berechtigungsseite; ein Tippfehler blendet den Eintrag still aus.
+    final fn = kt.substring(kt.indexOf('fun requestedKeys'));
+    final added = RegExp(r'keys\.add\("([^"]+)"\)')
+        .allMatches(fn)
+        .map((m) => m.group(1))
+        .toList();
+    expect(added, unorderedEquals(MethodChannelPermissionStatus.keys.values));
   });
 
   group('MethodChannelPermissionStatus', () {
