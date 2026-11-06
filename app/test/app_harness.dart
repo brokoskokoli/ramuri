@@ -16,6 +16,9 @@ class Device {
   final FakePermissionStatus permissions = FakePermissionStatus();
   late StorageStartController controller;
 
+  /// Ersatz für [storage] (etwa ein Speicher mit Lesefehlern); sonst [storage].
+  Storage? storageOverride;
+
   StorageSession get session => (controller.state as StorageReady).session;
 
   /// Startet die App mit der Gerätesprache [locale] (neuer Prozess auf
@@ -30,8 +33,10 @@ class Device {
     controller = StorageStartController(
       keyStore: keyStore,
       generateKey: () => Uint8List.fromList(List.filled(32, 7)),
-      wire: () async =>
-          StorageWiring(storage: storage, files: FakeDatabaseFiles()),
+      wire: () async => StorageWiring(
+        storage: storageOverride ?? storage,
+        files: FakeDatabaseFiles(),
+      ),
     );
     await tester.pumpWidget(
       RunningApp(

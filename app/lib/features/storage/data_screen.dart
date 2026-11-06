@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../settings/app_settings.dart';
 import 'deletion.dart';
 
 /// Einfacher Bildschirm "Daten" mit "Alles löschen". WP05 kann ihn in die
@@ -10,6 +11,26 @@ class DataScreen extends StatelessWidget {
   const DataScreen({super.key, required this.session});
 
   final StorageSession session;
+
+  /// Nach dem Löschen gilt sofort der Zustand des ersten Starts: Einstellungen
+  /// neu laden und zurück zur Wurzel, wo die Ersteinrichtung erscheint.
+  Future<void> _deleteAll(BuildContext context) async {
+    final settings = AppSettingsScope.of(context);
+    final navigator = Navigator.of(context);
+    final result = await confirmAndDeleteAll(context, session);
+    if (result != DeletionResult.deleted &&
+        result != DeletionResult.deletedNotErased) {
+      return;
+    }
+    try {
+      await settings.reload();
+    } on StorageException {
+      // Lesen schlägt fehl: die Seite bleibt, der Stand wird beim nächsten
+      // Start neu geladen.
+      return;
+    }
+    navigator.popUntil((r) => r.isFirst);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +43,7 @@ class DataScreen extends StatelessWidget {
           Text(l10n.dataBody),
           const SizedBox(height: 16),
           OutlinedButton(
-            onPressed: () => confirmAndDeleteAll(context, session),
+            onPressed: () => _deleteAll(context),
             child: Text(l10n.deleteAllConfirm),
           ),
         ],

@@ -25,6 +25,16 @@ class AppSettings extends ChangeNotifier {
     );
   }
 
+  /// Liest den Stand neu aus dem Speicher, etwa nach "Alles löschen": danach
+  /// gilt wieder der Zustand des ersten Starts (km, Einrichtung offen).
+  Future<void> reload() async {
+    final unit = await _store.get(SettingKeys.distanceUnit);
+    final done = await _store.get(SettingKeys.setupDone);
+    _unit = DistanceUnit.fromStorage(unit);
+    _setupDone = done == '1';
+    notifyListeners();
+  }
+
   DistanceUnit get distanceUnit => _unit;
 
   /// Die Ersteinrichtung wurde abgeschlossen oder übersprungen (FR-0001).

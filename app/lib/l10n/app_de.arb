@@ -212,6 +212,14 @@
   "@profileSaveFailed": {
     "description": "Fehler beim Speichern"
   },
+  "profileLoadFailed": "Das Profil konnte nicht geladen werden.",
+  "@profileLoadFailed": {
+    "description": "Fehler beim Laden des Profils"
+  },
+  "settingsLoadFailed": "Die Einstellungen konnten nicht geladen werden.",
+  "@settingsLoadFailed": {
+    "description": "Fehler beim Laden der Einstellungen, mit Erneut-Schaltfläche"
+  },
   "profileCheckInput": "Bitte die markierten Angaben prüfen. Es wurde nichts gespeichert.",
   "@profileCheckInput": {
     "description": "Meldung bei abgelehnter Eingabe"

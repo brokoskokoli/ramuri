@@ -25,11 +25,15 @@ class ReadyRoot extends StatefulWidget {
 }
 
 class _ReadyRootState extends State<ReadyRoot> {
-  late final Future<AppSettings> _settings;
+  late Future<AppSettings> _settings;
 
   @override
   void initState() {
     super.initState();
+    _loadSettings();
+  }
+
+  void _loadSettings() {
     // Der Halter im Scope über dem Navigator bekommt die Einstellungen, bevor
     // diese Seite sie zeigt; so sehen auch per Navigator.push geöffnete Seiten
     // sie.
@@ -58,7 +62,21 @@ class _ReadyRootState extends State<ReadyRoot> {
     builder: (context, snapshot) {
       final l10n = AppLocalizations.of(context);
       if (snapshot.hasError) {
-        return Scaffold(body: Center(child: Text(l10n.notOpenableOpenFailed)));
+        return Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(l10n.settingsLoadFailed),
+                TextButton(
+                  key: const Key('settings_load_retry'),
+                  onPressed: () => setState(_loadSettings),
+                  child: Text(l10n.notOpenableRetry),
+                ),
+              ],
+            ),
+          ),
+        );
       }
       final settings = snapshot.data;
       if (settings == null) {

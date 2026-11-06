@@ -314,6 +314,7 @@ void main() {
           );
           await tester.pump();
         }
+        if (f.evaluate().isEmpty) fail('Widget nicht erschienen: $f');
       }
 
       await untilShown(find.byKey(const Key('profile_save')));

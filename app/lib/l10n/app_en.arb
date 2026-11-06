@@ -53,6 +53,8 @@
   "profileSave": "Save",
   "profileSaved": "Profile saved.",
   "profileSaveFailed": "The profile could not be saved.",
+  "profileLoadFailed": "The profile could not be loaded.",
+  "settingsLoadFailed": "The settings could not be loaded.",
   "profileCheckInput": "Please check the marked entries. Nothing was saved.",
   "profileBirthYear": "Year of birth",
   "profileWeight": "Body weight (kg)",

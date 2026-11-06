@@ -36,6 +36,7 @@ class _ProfileFormState extends State<ProfileForm> {
   final _usual = TextEditingController();
   int _days = 0;
   bool _loaded = false;
+  bool _loadFailed = false;
   bool _saving = false;
   ProfileValidation? _validation;
   final Set<TextEditingController> _unreadable = {};
@@ -61,7 +62,13 @@ class _ProfileFormState extends State<ProfileForm> {
   }
 
   Future<void> _load() async {
-    final p = await widget.service.load();
+    final ProfileRecord p;
+    try {
+      p = await widget.service.load();
+    } on StorageException {
+      if (mounted) setState(() => _loadFailed = true);
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _birthYear.text = p.birthYear?.toString() ?? '';
@@ -125,7 +132,7 @@ class _ProfileFormState extends State<ProfileForm> {
       restingHeartRateBpm: _int(_resting, bad),
       maxHeartRateBpm: _int(_max, bad),
       weeklyRunMinutes: _int(_weekly, bad),
-      trainingDaysMask: _days,
+      trainingDaysMask: _days == 0 ? null : _days,
       usualTrainingMinutes: _int(_usual, bad),
     );
   }
@@ -254,6 +261,22 @@ class _ProfileFormState extends State<ProfileForm> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (_loadFailed) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(l10n.profileLoadFailed, key: const Key('profile_load_failed')),
+          TextButton(
+            key: const Key('profile_load_retry'),
+            onPressed: () {
+              setState(() => _loadFailed = false);
+              _load();
+            },
+            child: Text(l10n.notOpenableRetry),
+          ),
+        ],
+      );
+    }
     if (!_loaded) {
       return const Center(child: CircularProgressIndicator());
     }
