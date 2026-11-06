@@ -55,6 +55,7 @@ class AppDependencies {
     final sensor =
         heartRateSensor ??
         BleHeartRateSensor(const UniversalBleLink(), const SystemClock());
+    final permissions = MethodChannelPermissionStatus();
     final sensors = SensorManager(
       sensor: sensor,
       clock: const SystemClock(),
@@ -66,15 +67,22 @@ class AppDependencies {
       bluetoothAvailable: sensor is BleHeartRateSensor
           ? sensor.isBluetoothOn
           : null,
+      // Nur lesen (kein Dialog): Stand aus der Berechtigungsseite (WP05).
+      bluetoothGranted: sensor is BleHeartRateSensor
+          ? () async =>
+                (await permissions.status())[AppPermission.bluetooth] ==
+                PermissionState.granted
+          : null,
     );
     return AppDependencies(
       heartRateSensor: sensor,
       sensors: sensors,
-      permissions: MethodChannelPermissionStatus(),
+      permissions: permissions,
       runPorts: RunPorts(
         access: MethodChannelLocationAccess(),
         location: MethodChannelLocationSource(),
         heartRateRun: sensors.beginRun,
+        connectSensors: sensors.connectKnown,
       ),
       storageStart: StorageStartController(
         keyStore: SecureKeyStore(),
@@ -136,6 +144,9 @@ class _NoRunPorts implements RunPorts {
 
   @override
   RunHeartRate Function()? get heartRateRun => null;
+
+  @override
+  Future<void> Function()? get connectSensors => null;
 }
 
 class _DeniedAccess implements LocationAccessPort {

@@ -10,6 +10,7 @@ class RunPorts {
     required this.location,
     this.heartRate,
     this.heartRateRun,
+    this.connectSensors,
   });
 
   /// Standortberechtigung und GPS-Schalter (FR-0195).
@@ -26,4 +27,8 @@ class RunPorts {
   /// Laufs aufgerufen (ein Selector je Lauf, WP07 Teil D). `null` ohne
   /// Sensorverwaltung.
   final RunHeartRate Function()? heartRateRun;
+
+  /// Verbindet beim Öffnen des Lauf-Bildschirms die bekannten Pulssensoren,
+  /// falls die Rechte schon erteilt sind (WP07 Teil E). Fragt nie nach Rechten.
+  final Future<void> Function()? connectSensors;
 }

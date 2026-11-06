@@ -28,6 +28,9 @@ class Device {
   /// simuliert eine Ablehnung.
   int sensorPermissionRequests = 0;
   Object? sensorPermissionError;
+
+  /// Bluetooth-Schalter für [SensorManager.bluetoothAvailable]; `null`: unbekannt.
+  bool? bluetoothOn;
   Duration reconnectDelay = const Duration(seconds: 5);
   late SensorManager sensors;
 
@@ -66,6 +69,10 @@ class Device {
       sensor: sensorFake,
       clock: clock,
       reconnectDelay: reconnectDelay,
+      bluetoothGranted: () async =>
+          permissions.states[AppPermission.bluetooth] ==
+          PermissionState.granted,
+      bluetoothAvailable: bluetoothOn == null ? null : () async => bluetoothOn!,
       requestPermissions: () async {
         sensorPermissionRequests++;
         if (sensorPermissionError != null) throw sensorPermissionError!;
@@ -90,6 +97,7 @@ class Device {
             heartRateRun: runViaSensors
                 ? () => lastRun = sensors.beginRun()
                 : null,
+            connectSensors: sensors.connectKnown,
           ),
         ),
       ),

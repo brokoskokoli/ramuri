@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
@@ -52,7 +54,17 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Bekannte Pulssensoren verbinden sich still (nur mit erteilten Rechten).
+    unawaited(_connectSensors());
     _check(askUser: false, autoStart: true);
+  }
+
+  Future<void> _connectSensors() async {
+    try {
+      await widget.ports.connectSensors?.call();
+    } catch (_) {
+      // Ohne Sensor läuft der Lauf unverändert.
+    }
   }
 
   @override

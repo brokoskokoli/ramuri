@@ -71,6 +71,7 @@ class SensorManager extends ChangeNotifier {
     this.requestPermissions,
     this.reconnectDelay = defaultReconnectDelay,
     this.bluetoothAvailable,
+    this.bluetoothGranted,
   });
 
   /// Pause zwischen dem Ende eines Verbindungsversuchs und dem nächsten
@@ -93,6 +94,11 @@ class SensorManager extends ChangeNotifier {
   /// wird ein gescheitertes Verbinden bei ausgeschaltetem Bluetooth als
   /// solches gemeldet (FR-0035).
   final Future<bool> Function()? bluetoothAvailable;
+
+  /// Liest nur, ob die Bluetooth-Rechte schon erteilt sind (keine Abfrage beim
+  /// Nutzer). `null`: nicht lesbar; dann gilt der Sensor als rechtefrei, wenn
+  /// [requestPermissions] `null` ist (Test-Sensor), sonst als nicht erteilt.
+  final Future<bool> Function()? bluetoothGranted;
 
   /// App-weite Quellenwahl außerhalb eines Laufs (Anzeige in der Verwaltung,
   /// Bevorzugung). Sie wird nie gesperrt oder geschlossen. Jeder Lauf bekommt
@@ -256,6 +262,47 @@ class SensorManager extends ChangeNotifier {
       return true;
     } catch (_) {
       _problem = SensorProblem.permissionDenied;
+      return false;
+    }
+  }
+
+  bool _autoConnecting = false;
+
+  /// Verbindet alle bekannten, nicht verbundenen Geräte, aber nur, wenn die
+  /// Bluetooth-Rechte schon erteilt sind und Bluetooth an ist (Auftrag Teil E,
+  /// beim Öffnen des Lauf-Bildschirms). Fragt nie nach Rechten, zeigt nie einen
+  /// Hinweis und wirft nie: ohne Rechte oder mit Bluetooth aus passiert nichts.
+  /// Die Neuverbinden-Regeln gelten danach wie bei manuellem Verbinden.
+  Future<void> connectKnown() async {
+    if (_autoConnecting || _disposed || _known.isEmpty) return;
+    _autoConnecting = true;
+    try {
+      if (!await _hasPermissions()) return;
+      final available = bluetoothAvailable;
+      if (available != null && !await available()) return;
+      if (_disposed) return;
+      // Rechte sind da: connect darf nicht mehr nachfragen.
+      _permitted = true;
+      for (final k in List.of(_known)) {
+        final c = _conns[k.deviceId];
+        if (c != null && c.state != SensorLinkState.idle) continue;
+        if (_disposed) return;
+        await connect(k.deviceId, name: k.displayName);
+      }
+    } catch (_) {
+      // Stilles Verbinden: Fehler zeigt höchstens die Verwaltung.
+    } finally {
+      _autoConnecting = false;
+    }
+  }
+
+  Future<bool> _hasPermissions() async {
+    if (_permitted) return true;
+    final read = bluetoothGranted;
+    if (read == null) return requestPermissions == null;
+    try {
+      return await read();
+    } catch (_) {
       return false;
     }
   }
