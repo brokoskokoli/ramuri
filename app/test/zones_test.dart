@@ -35,7 +35,7 @@ void main() {
       '60',
     );
 
-    await _enter(tester, ['40', '50', '60', '70', '80', '100']);
+    await _enter(tester, ['40', '50', '60', '70', '80']);
     await tester.tap(find.byKey(const Key('zones_save')));
     await tester.pumpAndSettle();
     expect(
@@ -45,6 +45,26 @@ void main() {
     expect(find.byKey(const Key('zones_error')), findsNothing);
   });
 
+  testWidgets('Zoneneditor: Obergrenze Zone 5 fest 100, nicht editierbar', (
+    tester,
+  ) async {
+    final d = Device();
+    await d.start(tester, const Locale('de'));
+    await _open(d, tester);
+    final upper = tester.widget<TextField>(
+      find.byKey(const Key('zone_bound_5')),
+    );
+    expect(upper.enabled, isFalse);
+    expect(upper.controller!.text, '100');
+    await _enter(tester, ['0', '60', '70', '80', '90']);
+    await tester.tap(find.byKey(const Key('zones_save')));
+    await tester.pumpAndSettle();
+    expect(
+      await d.session.settings.get(SettingKeys.reserveZoneBounds),
+      '0,60,70,80,90,100',
+    );
+  });
+
   testWidgets('Zoneneditor: ungültig wird gemeldet und nicht gespeichert', (
     tester,
   ) async {
@@ -52,18 +72,18 @@ void main() {
     await d.start(tester, const Locale('en'));
     await _open(d, tester);
 
-    await _enter(tester, ['50', '70', '60', '80', '90', '100']);
+    await _enter(tester, ['50', '70', '60', '80', '90']);
     await tester.tap(find.byKey(const Key('zones_save')));
     await tester.pumpAndSettle();
     expect(find.textContaining('Limit 3 must be greater'), findsOneWidget);
     expect(await d.session.settings.get(SettingKeys.reserveZoneBounds), isNull);
 
-    await _enter(tester, ['50', '60', '70', '80', '90', '101']);
+    await _enter(tester, ['50', '60', '70', '80', '101']);
     await tester.tap(find.byKey(const Key('zones_save')));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Limit 6: only 0 to 100'), findsOneWidget);
+    expect(find.textContaining('Limit 5: only 0 to 100'), findsOneWidget);
 
-    await _enter(tester, ['50', '60', '', '80', '90', '100']);
+    await _enter(tester, ['50', '60', '', '80', '90']);
     await tester.tap(find.byKey(const Key('zones_save')));
     await tester.pumpAndSettle();
     expect(
@@ -79,7 +99,7 @@ void main() {
     final d = Device();
     await d.start(tester, const Locale('de'));
     await _open(d, tester);
-    await _enter(tester, ['40', '50', '60', '70', '80', '100']);
+    await _enter(tester, ['40', '50', '60', '70', '80']);
     await tester.tap(find.byKey(const Key('zones_save')));
     await tester.pumpAndSettle();
 

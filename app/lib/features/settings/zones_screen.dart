@@ -16,19 +16,36 @@ class ZonesScreen extends StatefulWidget {
 }
 
 class _ZonesScreenState extends State<ZonesScreen> {
+  // Fünf bearbeitbare Untergrenzen; die Obergrenze von Zone 5 ist fest 100 %.
   final _controllers = [
-    for (final v in ReserveZoneSettings.defaultPercents)
+    for (final v in ReserveZoneSettings.defaultPercents.take(5))
       TextEditingController(text: '$v'),
   ];
+  final _upper = TextEditingController(
+    text: '${ReserveZoneSettings.upperPercent}',
+  );
   String? _error;
+  bool _started = false;
   bool _loaded = false;
+  bool _loadFailed = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_loaded) return;
-    _loaded = true;
-    AppSettingsScope.of(context).loadZoneBounds().then(_show);
+    if (_started) return;
+    _started = true;
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final percents = await AppSettingsScope.of(context).loadZoneBounds();
+      if (!mounted) return;
+      _show(percents);
+      setState(() => _loaded = true);
+    } on StorageException {
+      if (mounted) setState(() => _loadFailed = true);
+    }
   }
 
   @override
@@ -36,6 +53,7 @@ class _ZonesScreenState extends State<ZonesScreen> {
     for (final c in _controllers) {
       c.dispose();
     }
+    _upper.dispose();
     super.dispose();
   }
 
@@ -53,6 +71,7 @@ class _ZonesScreenState extends State<ZonesScreen> {
     final l10n = AppLocalizations.of(context);
     final settings = AppSettingsScope.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    if (!_loaded) return;
     final values = [for (final c in _controllers) int.tryParse(c.text.trim())];
     final bad = values.indexOf(null);
     if (bad >= 0) {
@@ -60,7 +79,10 @@ class _ZonesScreenState extends State<ZonesScreen> {
       return;
     }
     try {
-      await settings.saveZoneBounds(values.cast<int>());
+      await settings.saveZoneBounds([
+        ...values.cast<int>(),
+        ReserveZoneSettings.upperPercent,
+      ]);
       if (!mounted) return;
       setState(() => _error = null);
       messenger.showSnackBar(SnackBar(content: Text(l10n.zonesSaved)));
@@ -81,6 +103,7 @@ class _ZonesScreenState extends State<ZonesScreen> {
     final l10n = AppLocalizations.of(context);
     final settings = AppSettingsScope.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    if (!_loaded) return;
     try {
       await settings.resetZoneBounds();
       _show(ReserveZoneSettings.defaultPercents);
@@ -93,6 +116,32 @@ class _ZonesScreenState extends State<ZonesScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (!_loaded) {
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.zonesTitle)),
+        body: Center(
+          child: _loadFailed
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      l10n.settingsLoadFailed,
+                      key: const Key('zones_load_failed'),
+                    ),
+                    TextButton(
+                      key: const Key('zones_load_retry'),
+                      onPressed: () {
+                        setState(() => _loadFailed = false);
+                        _load();
+                      },
+                      child: Text(l10n.notOpenableRetry),
+                    ),
+                  ],
+                )
+              : const CircularProgressIndicator(),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(title: Text(l10n.zonesTitle)),
       body: ListView(
@@ -107,14 +156,23 @@ class _ZonesScreenState extends State<ZonesScreen> {
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
-                labelText: i < 5
-                    ? l10n.zonesLowerField(i + 1)
-                    : l10n.zonesUpperField,
+                labelText: l10n.zonesLowerField(i + 1),
                 suffixText: '%',
               ),
             ),
             const SizedBox(height: 12),
           ],
+          // FR-0062: über 100 % gilt Zone 5 mit Hinweis; nicht einstellbar.
+          TextField(
+            key: const Key('zone_bound_5'),
+            controller: _upper,
+            enabled: false,
+            decoration: InputDecoration(
+              labelText: l10n.zonesUpperField,
+              suffixText: '%',
+            ),
+          ),
+          const SizedBox(height: 12),
           if (_error != null)
             Text(
               _error!,

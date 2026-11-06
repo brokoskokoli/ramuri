@@ -22,6 +22,20 @@ class FitnessParameters {
   const FitnessParameters.v3()
     : this(parameterVersion: currentParameterVersion);
 
+  /// Kopie mit ersetzten Zonengrenzen; alles andere bleibt wie in diesem Satz.
+  FitnessParameters copyWith({List<double>? reserveZoneBounds}) =>
+      FitnessParameters(
+        parameterVersion: parameterVersion,
+        minHeartRateReserveBpm: minHeartRateReserveBpm,
+        reserveZoneCount: reserveZoneCount,
+        reserveZoneBounds: reserveZoneBounds ?? this.reserveZoneBounds,
+        trimpZoneLowerBounds: trimpZoneLowerBounds,
+        trimpWeights: trimpWeights,
+        hintAboveShare: hintAboveShare,
+        minCoveragePercent: minCoveragePercent,
+        fullCoveragePercent: fullCoveragePercent,
+      );
+
   /// Prozent je Ganzes; Umrechnung der ganzzahligen Abdeckung.
   static const percent = 100;
 

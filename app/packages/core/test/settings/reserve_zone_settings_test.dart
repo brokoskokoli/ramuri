@@ -6,7 +6,7 @@ import 'package:core/fakes/fake_storage_settings.dart';
 import '../fitness/fitness_support.dart';
 
 const zones = ReserveZones(reserve: HeartRateReserve());
-// HFR 100 bpm: bpm 165 ist r = 0,65.
+// HFR 100 bpm: bpm 155 ist r = 0,65.
 const basis = HeartRateBasis(maxBpm: 190, restingBpm: 90);
 
 int zoneAt(FitnessParameters p, int bpm) {
@@ -46,6 +46,36 @@ void main() {
     expect(r.value, isA<BelowReserveZone1>()); // r = 0,55
   });
 
+  test('Grenze 0 ist gültig (Untergrenze inklusive)', () async {
+    await ReserveZoneSettings.save(store, [0, 60, 70, 80, 90, 100], at: at);
+    expect(await ReserveZoneSettings.load(store), [0, 60, 70, 80, 90, 100]);
+  });
+
+  test(
+    'Parametersatz: nur Grenzen ersetzt, Version und Rest vom Satz',
+    () async {
+      await ReserveZoneSettings.save(store, [40, 50, 60, 70, 80, 100], at: at);
+      final p = await ReserveZoneSettings.loadParameters(store);
+      const base = FitnessParameters.v3();
+      expect(p.reserveZoneBounds, [0.4, 0.5, 0.6, 0.7, 0.8, 1.0]);
+      expect(p.parameterVersion, base.parameterVersion);
+      expect(p.trimpWeights, base.trimpWeights);
+      expect(p.hintAboveShare, base.hintAboveShare);
+      expect(p.minCoveragePercent, base.minCoveragePercent);
+      // copyWith übernimmt alles vom Ausgangssatz, auch Nicht-Standardwerte.
+      const odd = FitnessParameters(
+        parameterVersion: 99,
+        hintAboveShare: 1.2,
+        minCoveragePercent: 70,
+      );
+      final c = odd.copyWith(reserveZoneBounds: p.reserveZoneBounds);
+      expect(c.parameterVersion, 99);
+      expect(c.hintAboveShare, 1.2);
+      expect(c.minCoveragePercent, 70);
+      expect(c.reserveZoneBounds, p.reserveZoneBounds);
+    },
+  );
+
   final bad = <String, (List<int>, ZoneBoundsProblem, int)>{
     'absteigend': (
       [50, 70, 60, 80, 90, 100],
@@ -66,6 +96,11 @@ void main() {
       [-1, 60, 70, 80, 90, 100],
       ZoneBoundsProblem.outOfRange,
       0,
+    ),
+    'Obergrenze nicht 100 (fest)': (
+      [50, 60, 70, 80, 90, 95],
+      ZoneBoundsProblem.outOfRange,
+      5,
     ),
     'zu wenige': ([50, 60, 70, 80, 90], ZoneBoundsProblem.wrongCount, 0),
     'zu viele': (
@@ -114,28 +149,30 @@ void main() {
     );
   });
 
-  test('OQ-0065: bereits berechnete Zonenzeiten bleiben unverändert', () async {
-    // Noch keine gespeicherten Zonenzeiten im Schema; das Ergebnis ist ein
-    // unveränderlicher Wert, eine neue Einteilung rechnet nur neu.
+  test('OQ-0065: mit alten Grenzen berechnetes Ergebnis bleibt unverändert, '
+      'neue Berechnung weicht ab', () async {
+    // Noch keine gespeicherten Zonenzeiten im Schema: Das Ergebnis ist ein
+    // Wert, der nur mit den damals verwendeten Parametern reproduzierbar ist.
     final hr = fitHeartRate(fitDense(0, 60, 155));
     final mv = fitMovement([fitSpan(0, 60)]);
-    final before = zones.timeInZones(
-      basis: basis,
-      heartRate: hr,
-      movement: mv,
-      p: await ReserveZoneSettings.loadParameters(store),
-    ) as FitnessAvailable<ReserveZoneTimes>;
-    final snap = List.of(before.value.zoneMicros);
+    List<int> times(FitnessParameters p) {
+      final r = zones.timeInZones(
+        basis: basis,
+        heartRate: hr,
+        movement: mv,
+        p: p,
+      ) as FitnessAvailable<ReserveZoneTimes>;
+      return List.of(r.value.zoneMicros);
+    }
+
+    final oldParams = await ReserveZoneSettings.loadParameters(store);
+    final before = times(oldParams);
     await ReserveZoneSettings.save(store, [40, 50, 60, 70, 80, 100], at: at);
-    final after = zones.timeInZones(
-      basis: basis,
-      heartRate: hr,
-      movement: mv,
-      p: await ReserveZoneSettings.loadParameters(store),
-    ) as FitnessAvailable<ReserveZoneTimes>;
-    expect(before.value.zoneMicros, snap);
-    expect(before.value.zoneMicros[1], greaterThan(0));
-    expect(after.value.zoneMicros[2], greaterThan(0));
-    expect(after.value.zoneMicros, isNot(snap));
+    final newParams = await ReserveZoneSettings.loadParameters(store);
+
+    expect(times(oldParams), before);
+    expect(before[1], greaterThan(0));
+    expect(times(newParams), isNot(before));
+    expect(times(newParams)[2], greaterThan(0));
   });
 }

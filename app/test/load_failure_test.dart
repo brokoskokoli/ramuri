@@ -165,4 +165,42 @@ void main() {
     expect(p.birthYear, 1986);
     expect(p.trainingDaysMask, isNull);
   });
+
+  testWidgets('Zoneneditor: Ladefehler zeigt Fehlertext, kein Speichern, '
+      'Erneut lädt', (tester) async {
+    final d = Device();
+    final flaky = _Flaky(d.storage);
+    d.storageOverride = flaky;
+    await d.start(tester, const Locale('en'));
+    await d.skipSetup(tester);
+    await d.session.settings.set(
+      SettingKeys.reserveZoneBounds,
+      '40,50,60,70,80,100',
+      at: DateTime.utc(2026, 6, 1),
+    );
+    await tester.tap(find.byKey(const Key('home_settings')));
+    await tester.pumpAndSettle();
+    flaky.failSettings = true;
+    await tester.tap(find.byKey(const Key('settings_zones')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('zones_load_failed')), findsOneWidget);
+    expect(find.byKey(const Key('zones_save')), findsNothing);
+    expect(find.byKey(const Key('zone_bound_0')), findsNothing);
+
+    flaky.failSettings = false;
+    await tester.tap(find.byKey(const Key('zones_load_retry')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('zones_save')), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('zone_bound_0')))
+          .controller!
+          .text,
+      '40',
+    );
+    expect(
+      await d.session.settings.get(SettingKeys.reserveZoneBounds),
+      '40,50,60,70,80,100',
+    );
+  });
 }
