@@ -46,6 +46,7 @@ class DriftComputedValueStore implements ComputedValueStore {
     valueKey: v.key,
     role: role.name,
     valueReal: Value(v.value),
+    unavailableReason: Value(v.unavailableReason?.name),
     unit: v.unit,
     computedAtUs: usOf(v.computedAt),
     dataFromUs: Value(usOfOrNull(v.dataFrom)),
@@ -94,6 +95,7 @@ class DriftComputedValueStore implements ComputedValueStore {
       if (values.any((v) => keys.contains(v.key))) {
         throw const StorageException(StorageFailure.rejected);
       }
+      requireStorableValues(values);
       // Je Wert: original, dessen Abschnitte, dann current samt Abschnitten.
       // Die Reihenfolge ist Teil des Schutzes der Original-Abschnitte (Trigger
       // value_sections_original_no_late_insert).
@@ -132,6 +134,7 @@ class DriftComputedValueStore implements ComputedValueStore {
     if (values.any((v) => !keys.contains(v.key))) {
       throw const StorageException(StorageFailure.notFound);
     }
+    requireStorableValues(values);
     final currentIds = {
       for (final r in await _rows(owner))
         if (r.role == _Role.current.name) r.valueKey: r.id,
@@ -148,6 +151,7 @@ class DriftComputedValueStore implements ComputedValueStore {
           .write(
             d.ComputedValuesCompanion(
               valueReal: Value(v.value),
+              unavailableReason: Value(v.unavailableReason?.name),
               unit: Value(v.unit),
               computedAtUs: Value(usOf(v.computedAt)),
               dataFromUs: Value(usOfOrNull(v.dataFrom)),
@@ -210,6 +214,13 @@ class DriftComputedValueStore implements ComputedValueStore {
         sections: sections[r.id] ?? const [],
         key: r.valueKey,
         value: r.valueReal,
+        unavailableReason: r.unavailableReason == null
+            ? null
+            : enumOf(
+                UnavailableReason.values,
+                r.unavailableReason!,
+                (v) => v.name,
+              ),
         unit: r.unit,
         computedAt: timeOf(r.computedAtUs),
         dataFrom: timeOfOrNull(r.dataFromUs),

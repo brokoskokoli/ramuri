@@ -52,9 +52,9 @@ class RunAnalysis {
 }
 
 /// Die EINE Stelle, die bewertete Abschnitte in die Speicherform wandelt
-/// (FR-0073): alle Abschnitte der Auswahl in Zeitreihenfolge. Die Umwandlung
-/// selbst macht [ValueSection.fromEstimate]; abgelehnte Abschnitte haben keine
-/// Schätzung und gehen mit Gewicht 0 durch denselben Weg.
+/// (FR-0073): alle Abschnitte der Auswahl in Zeitreihenfolge. Mit Schätzung des
+/// Schätzers über [ValueSection.fromEstimate], ohne (abgelehnt, oder der
+/// Schätzer kam nicht bis dahin) über [ValueSection.withoutEstimate].
 List<ValueSection> valueSectionsOf(
   SectionSelection selection,
   Vo2maxRunEstimate estimate,
@@ -64,21 +64,15 @@ List<ValueSection> valueSectionsOf(
   };
   return [
     for (final s in selection.sections)
-      ValueSection.fromEstimate(
-        byIdentity[s] ??
-            SectionEstimate(
-              section: s,
-              oxygenDemand: null,
-              vo2max: null,
-              weight: 0,
-              discard: null,
-            ),
-      ),
+      if (byIdentity[s] case final e?)
+        ValueSection.fromEstimate(e)
+      else
+        ValueSection.withoutEstimate(s),
   ];
 }
 
 /// Überträgt einen fortgeschrittenen Wert in die Speicherform. „Nicht
-/// bestimmbar“ wird ohne Wert gespeichert.
+/// bestimmbar“ wird ohne Wert, aber mit Grund gespeichert (FR-0068).
 ComputedValue toComputedValue({
   required String key,
   required String unit,
@@ -90,6 +84,7 @@ ComputedValue toComputedValue({
   return ComputedValue(
     key: key,
     value: value.value,
+    unavailableReason: value.reason,
     unit: unit,
     computedAt: computedAt,
     dataFrom: m.dataFrom,

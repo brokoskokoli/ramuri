@@ -31,7 +31,9 @@ ComputedValue _dayValue(String key, int from, int to) => ComputedValue(
 );
 
 /// Datenbank im Stand Version 1: Tabelle und Trigger von `value_sections`
-/// fehlen, `user_version` ist 1.
+/// und die Spalte `unavailable_reason` samt Triggern fehlen, `user_version` ist
+/// 1. Der Store der aktuellen App schreibt in diese Datei nicht; die Zeilen
+/// kommen per SQL ([_seedV1]).
 class _V1 extends AppDatabase {
   _V1(super.e);
 
@@ -43,8 +45,47 @@ class _V1 extends AppDatabase {
     onCreate: (Migrator m) async {
       await m.createAll();
       await customStatement('DROP TABLE value_sections');
+      await customStatement('DROP TRIGGER computed_values_reason_insert');
+      await customStatement('DROP TRIGGER computed_values_reason_update');
+      await customStatement(
+        'ALTER TABLE computed_values DROP COLUMN unavailable_reason',
+      );
     },
   );
+}
+
+/// Legt einen Wert (original und current) im Stand v1 per SQL an.
+Future<void> _seedV1(
+  AppDatabase db, {
+  int? runId,
+  String? day,
+  required ComputedValue v,
+}) async {
+  for (final role in ['original', 'current']) {
+    await db.customStatement(
+      'INSERT INTO computed_values (run_id, day, value_key, role, value_real, '
+      'unit, computed_at_us, data_from_us, data_to_us, measurement_count, '
+      'sources, method, method_version, parameter_version, quality) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        runId,
+        day,
+        v.key,
+        role,
+        v.value,
+        v.unit,
+        v.computedAt.microsecondsSinceEpoch,
+        v.dataFrom?.microsecondsSinceEpoch,
+        v.dataTo?.microsecondsSinceEpoch,
+        v.measurementCount,
+        '["strap","gps"]',
+        v.method,
+        v.methodVersion,
+        v.parameterVersion,
+        v.quality.name,
+      ],
+    );
+  }
 }
 
 void main() {
@@ -63,7 +104,9 @@ void main() {
           as EncryptedStorageSession;
 
   Future<int> count(EncryptedStorageSession s, String table) async =>
-      (await s.database.customSelect('SELECT count(*) c FROM $table').getSingle())
+      (await s.database
+                  .customSelect('SELECT count(*) c FROM $table')
+                  .getSingle())
               .data['c']
           as int;
 
@@ -77,84 +120,97 @@ void main() {
   }
 
   group('Speichern und Lesen', () {
-    test('Roundtrip: Wert samt Abschnitten, original und current getrennt', () async {
-      final s = await open();
-      addTearDown(s.close);
-      final r = (await s.runs.create(startedAt: _at(0))).id;
-      final o = ValueOwner.run(r);
-      final first = cs.sampleValue('vo2max', 48.5, sections: cs.sampleValueSections());
-      await s.values.createOriginals(o, [first]);
-      final second = cs.sampleValue(
-        'vo2max',
-        50,
-        method: 2,
-        sections: cs.sampleValueSections(7).sublist(0, 2),
-      );
-      await s.values.swapCurrent(o, [second]);
-      final p = (await s.values.read(o)).single;
-      expect(cs.describeValue(p.original), cs.describeValue(first));
-      expect(cs.describeValue(p.current), cs.describeValue(second));
-      final x = p.original.sections;
-      expect(x, hasLength(3));
-      expect(x[0].duration, const Duration(seconds: 300, microseconds: 5));
-      expect(x[0].estimate, 47.75);
-      expect(x[1].reasons, ['paceVariation', 'gpsGap']);
-      expect(x[2].discard, EstimateDiscard.implausible);
-      expect(p.current.sections, hasLength(2));
-      // Zeilen: 3 (original) + 2 (current), nichts übrig vom alten current.
-      expect(await count(s, 'value_sections'), 5);
-    });
+    test(
+      'Roundtrip: Wert samt Abschnitten, original und current getrennt',
+      () async {
+        final s = await open();
+        addTearDown(s.close);
+        final r = (await s.runs.create(startedAt: _at(0))).id;
+        final o = ValueOwner.run(r);
+        final first = cs.sampleValue(
+          'vo2max',
+          48.5,
+          sections: cs.sampleValueSections(),
+        );
+        await s.values.createOriginals(o, [first]);
+        final second = cs.sampleValue(
+          'vo2max',
+          50,
+          method: 2,
+          sections: cs.sampleValueSections(7).sublist(0, 2),
+        );
+        await s.values.swapCurrent(o, [second]);
+        final p = (await s.values.read(o)).single;
+        expect(cs.describeValue(p.original), cs.describeValue(first));
+        expect(cs.describeValue(p.current), cs.describeValue(second));
+        final x = p.original.sections;
+        expect(x, hasLength(3));
+        expect(x[0].duration, const Duration(seconds: 300, microseconds: 5));
+        expect(x[0].estimate, 47.75);
+        expect(x[1].reasons, ['paceVariation', 'gpsGap']);
+        expect(x[2].discard, EstimateDiscard.implausible);
+        expect(p.current.sections, hasLength(2));
+        // Zeilen: 3 (original) + 2 (current), nichts übrig vom alten current.
+        expect(await count(s, 'value_sections'), 5);
+      },
+    );
 
-    test('Fehlerinjektion: ungültiger Abschnitt im zweiten Wert, nichts bleibt', () async {
-      final s = await open();
-      addTearDown(s.close);
-      final r = (await s.runs.create(startedAt: _at(0))).id;
-      final bad = ValueSection(
-        start: _at(50),
-        end: _at(10),
-        weight: 1,
-        lateFactor: 1,
-        status: SectionStatus.eligible,
-      );
-      final e = await failure(
-        s.values.createOriginals(ValueOwner.run(r), [
+    test(
+      'Fehlerinjektion: ungültiger Abschnitt im zweiten Wert, nichts bleibt',
+      () async {
+        final s = await open();
+        addTearDown(s.close);
+        final r = (await s.runs.create(startedAt: _at(0))).id;
+        final bad = ValueSection(
+          start: _at(50),
+          end: _at(10),
+          weight: 1,
+          lateFactor: 1,
+          status: SectionStatus.eligible,
+        );
+        final e = await failure(
+          s.values.createOriginals(ValueOwner.run(r), [
+            cs.sampleValue('a', 1, sections: cs.sampleValueSections()),
+            cs.sampleValue('b', 2, sections: [bad]),
+          ]),
+        );
+        expect(e, isA<StorageException>());
+        expect((e! as StorageException).failure, StorageFailure.rejected);
+        expect(await count(s, 'computed_values'), 0);
+        expect(await count(s, 'value_sections'), 0);
+      },
+    );
+
+    test(
+      'Fehlerinjektion beim Tausch: current und seine Abschnitte unverändert',
+      () async {
+        final s = await open();
+        addTearDown(s.close);
+        final r = (await s.runs.create(startedAt: _at(0))).id;
+        final o = ValueOwner.run(r);
+        await s.values.createOriginals(o, [
           cs.sampleValue('a', 1, sections: cs.sampleValueSections()),
-          cs.sampleValue('b', 2, sections: [bad]),
-        ]),
-      );
-      expect(e, isA<StorageException>());
-      expect((e! as StorageException).failure, StorageFailure.rejected);
-      expect(await count(s, 'computed_values'), 0);
-      expect(await count(s, 'value_sections'), 0);
-    });
-
-    test('Fehlerinjektion beim Tausch: current und seine Abschnitte unverändert', () async {
-      final s = await open();
-      addTearDown(s.close);
-      final r = (await s.runs.create(startedAt: _at(0))).id;
-      final o = ValueOwner.run(r);
-      await s.values.createOriginals(o, [
-        cs.sampleValue('a', 1, sections: cs.sampleValueSections()),
-        cs.sampleValue('b', 2, sections: cs.sampleValueSections(1)),
-      ]);
-      final before = (await s.values.read(o)).map(cs.describePair).join(';');
-      final bad = ValueSection(
-        start: _at(1),
-        end: _at(2),
-        weight: -1,
-        lateFactor: 1,
-        status: SectionStatus.eligible,
-      );
-      final e = await failure(
-        s.values.swapCurrent(o, [
-          cs.sampleValue('a', 5, sections: cs.sampleValueSections(3)),
-          cs.sampleValue('b', 6, sections: [bad]),
-        ]),
-      );
-      expect((e! as StorageException).failure, StorageFailure.rejected);
-      expect((await s.values.read(o)).map(cs.describePair).join(';'), before);
-      expect(await count(s, 'value_sections'), 12);
-    });
+          cs.sampleValue('b', 2, sections: cs.sampleValueSections(1)),
+        ]);
+        final before = (await s.values.read(o)).map(cs.describePair).join(';');
+        final bad = ValueSection(
+          start: _at(1),
+          end: _at(2),
+          weight: -1,
+          lateFactor: 1,
+          status: SectionStatus.eligible,
+        );
+        final e = await failure(
+          s.values.swapCurrent(o, [
+            cs.sampleValue('a', 5, sections: cs.sampleValueSections(3)),
+            cs.sampleValue('b', 6, sections: [bad]),
+          ]),
+        );
+        expect((e! as StorageException).failure, StorageFailure.rejected);
+        expect((await s.values.read(o)).map(cs.describePair).join(';'), before);
+        expect(await count(s, 'value_sections'), 12);
+      },
+    );
   });
 
   group('original-Abschnitte sind unveränderlich', () {
@@ -182,20 +238,32 @@ void main() {
       expect(e.toString(), contains('immutable'));
     });
 
-    test('Umhängen eines current-Abschnitts an das original bricht ab', () async {
-      final (s, orig, cur) = await filled();
-      final e = await failure(
-        s.database.customStatement(
-          'UPDATE value_sections SET computed_value_id = ?, position = 9 '
-          'WHERE computed_value_id = ?',
-          [orig, cur],
-        ),
-      );
-      expect(e.toString(), contains('immutable'));
-    });
+    test(
+      'Umhängen eines current-Abschnitts an das original bricht ab',
+      () async {
+        final (s, orig, cur) = await filled();
+        final e = await failure(
+          s.database.customStatement(
+            'UPDATE value_sections SET computed_value_id = ?, position = 9 '
+            'WHERE computed_value_id = ?',
+            [orig, cur],
+          ),
+        );
+        expect(e.toString(), contains('immutable'));
+      },
+    );
 
     test('nachträgliches Einfügen beim Original bricht ab', () async {
       final (s, orig, _) = await filled();
+      expect(
+        (await failure(
+          s.database.customStatement(
+            "UPDATE computed_values SET unit = 'x' WHERE role = 'original'",
+          ),
+        )).toString(),
+        contains('immutable'),
+        reason: 'Original-Trigger nach der Migration wieder da',
+      );
       final e = await failure(
         s.database.customStatement(
           'INSERT INTO value_sections (computed_value_id, position, start_us, '
@@ -209,10 +277,20 @@ void main() {
 
     test('swapCurrent lässt die Original-Abschnitte unberührt, current ist änderbar', () async {
       final (s, _, cur) = await filled();
-      final o = (await s.database.customSelect('SELECT run_id FROM computed_values LIMIT 1').getSingle())
-          .data['run_id'] as int;
+      final o =
+          (await s.database
+                      .customSelect(
+                        'SELECT run_id FROM computed_values LIMIT 1',
+                      )
+                      .getSingle())
+                  .data['run_id']
+              as int;
       await s.values.swapCurrent(ValueOwner.run(o), [
-        cs.sampleValue('a', 2, sections: cs.sampleValueSections(4).sublist(0, 1)),
+        cs.sampleValue(
+          'a',
+          2,
+          sections: cs.sampleValueSections(4).sublist(0, 1),
+        ),
       ]);
       final p = (await s.values.read(ValueOwner.run(o))).single;
       expect(
@@ -261,14 +339,17 @@ void main() {
                 .data['c']
             as int;
 
-    test('Normalbetrieb: Lauf A samt überlappendem Tageswert weg, Rest bleibt', () async {
-      final (s, a, _) = await setup();
-      expect(await count(s, 'value_sections'), 24);
-      await s.deleteRun(a);
-      // übrig: Lauf B (6), Tag 2 (6)
-      expect(await count(s, 'value_sections'), 12);
-      expect(await count(s, 'computed_values'), 4);
-    });
+    test(
+      'Normalbetrieb: Lauf A samt überlappendem Tageswert weg, Rest bleibt',
+      () async {
+        final (s, a, _) = await setup();
+        expect(await count(s, 'value_sections'), 24);
+        await s.deleteRun(a);
+        // übrig: Lauf B (6), Tag 2 (6)
+        expect(await count(s, 'value_sections'), 12);
+        expect(await count(s, 'computed_values'), 4);
+      },
+    );
 
     test('deleteRun ohne Kaskade (foreign_keys=OFF)', () async {
       final (s, a, b) = await setup();
@@ -298,24 +379,146 @@ void main() {
     });
   });
 
+  group('fehlender Wert nennt den Grund (FR-0068)', () {
+    test('Trigger: Wert genau dann NULL, wenn ein Grund gesetzt ist', () async {
+      final s = await open();
+      addTearDown(s.close);
+      final r = (await s.runs.create(startedAt: _at(0))).id;
+      Future<Object?> insert(String key, String? value, String? reason) =>
+          failure(
+            s.database.customStatement(
+              'INSERT INTO computed_values (run_id, value_key, role, '
+              'value_real, unavailable_reason, unit, computed_at_us, '
+              'measurement_count, sources, method, method_version, '
+              "parameter_version, quality) VALUES ($r, '$key', 'current', "
+              "$value, $reason, 'u', 1, 0, '[]', 'm', 1, 1, 'good')",
+            ),
+          );
+      expect(
+        (await insert('a', 'NULL', 'NULL')).toString(),
+        contains('exclusive'),
+      );
+      expect(
+        (await insert('b', '1.5', "'noValidSection'")).toString(),
+        contains('exclusive'),
+      );
+      expect(await insert('c', 'NULL', "'noValidSection'"), isNull);
+      expect(await insert('d', '1.5', 'NULL'), isNull);
+      // Auch beim Ändern der current-Zeile.
+      Future<Object?> update(String key, String set) => failure(
+        s.database.customStatement(
+          "UPDATE computed_values SET $set WHERE value_key = '$key'",
+        ),
+      );
+      expect(
+        (await update('d', 'value_real = NULL')).toString(),
+        contains('exclusive'),
+      );
+      expect(
+        (await update('c', 'unavailable_reason = NULL')).toString(),
+        contains('exclusive'),
+      );
+      expect(
+        (await update(
+          'c',
+          "value_real = 2, unavailable_reason = 'x'",
+        )).toString(),
+        contains('exclusive'),
+      );
+      expect(
+        await update('c', 'value_real = 2, unavailable_reason = NULL'),
+        isNull,
+      );
+    });
+
+    test(
+      'Adapter: Grund wird gespeichert, gelesen und beim Tausch ersetzt',
+      () async {
+        final s = await open();
+        addTearDown(s.close);
+        final r = (await s.runs.create(startedAt: _at(0))).id;
+        final o = ValueOwner.run(r);
+        await s.values.createOriginals(o, [
+          cs.sampleValue(
+            'v',
+            null,
+            quality: ValueQuality.undeterminable,
+            reason: UnavailableReason.spreadTooHigh,
+          ),
+        ]);
+        var p = (await s.values.read(o)).single;
+        expect(p.original.unavailableReason, UnavailableReason.spreadTooHigh);
+        await s.values.swapCurrent(o, [cs.sampleValue('v', 3)]);
+        p = (await s.values.read(o)).single;
+        expect(p.current.unavailableReason, isNull);
+        expect(p.current.value, 3);
+        expect(p.original.unavailableReason, UnavailableReason.spreadTooHigh);
+        await s.values.swapCurrent(o, [
+          cs.sampleValue('v', null, reason: UnavailableReason.noHeartRate),
+        ]);
+        p = (await s.values.read(o)).single;
+        expect(p.current.unavailableReason, UnavailableReason.noHeartRate);
+        expect(p.current.value, isNull);
+      },
+    );
+
+    test(
+      'unbekannter gespeicherter Code ist ein Datenfehler, kein Raten',
+      () async {
+        final s = await open();
+        addTearDown(s.close);
+        final r = (await s.runs.create(startedAt: _at(0))).id;
+        await s.values.createOriginals(ValueOwner.run(r), [
+          cs.sampleValue('v', null, quality: ValueQuality.undeterminable),
+        ]);
+        await s.database.customStatement(
+          "UPDATE computed_values SET unavailable_reason = 'neuerCode' "
+          "WHERE role = 'current'",
+        );
+        await expectLater(
+          s.values.read(ValueOwner.run(r)),
+          throwsA(isA<StorageException>()),
+        );
+      },
+    );
+  });
+
   group('Migration 1 -> 2 auf befüllter v1-Datenbank', () {
     test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
       final v1 = await open((e) => _V1(e));
       Future<List<Object?>> master(String type) async => [
-        for (final r in await v1.database
-            .customSelect("SELECT name FROM sqlite_master WHERE type = '$type'")
-            .get())
+        for (final r
+            in await v1.database
+                .customSelect(
+                  "SELECT name FROM sqlite_master WHERE type = '$type'",
+                )
+                .get())
           r.data['name'],
       ];
       expect(await master('table'), isNot(contains('value_sections')));
-      expect(await master('trigger'), isNot(contains('value_sections_original_immutable')));
+      expect(
+        await master('trigger'),
+        isNot(contains('value_sections_original_immutable')),
+      );
       final r = (await v1.runs.create(startedAt: _at(0))).id;
       await v1.runs.setState(r, RunState.finished, endedAt: _at(100));
       final o = ValueOwner.run(r);
-      await v1.values.createOriginals(o, [cs.sampleValue('vo2max', 48.5)]);
-      await v1.values.createOriginals(const ValueOwner.day('2030-01-01'), [
-        _dayValue('atl', 1, 2).copyWithoutSections(),
-      ]);
+      await _seedV1(v1.database, runId: r, v: cs.sampleValue('vo2max', 48.5));
+      // Ein alter Wert ohne Zahl (v1 verlangte dafür keinen Grund).
+      await _seedV1(
+        v1.database,
+        runId: r,
+        v: cs.sampleValue(
+          'efficiency',
+          null,
+          quality: ValueQuality.undeterminable,
+        ),
+      );
+      await _seedV1(
+        v1.database,
+        day: '2030-01-01',
+        v: _dayValue('atl', 1, 2).copyWithoutSections(),
+      );
       await v1.settings.set('units', 'km', at: _at(0));
       expect(
         (await v1.database.customSelect('PRAGMA user_version').getSingle())
@@ -324,7 +527,6 @@ void main() {
             .single,
         1,
       );
-      // Der Store liest schon value_sections; vor der Migration also per SQL.
       final expected = cs.describeValue(cs.sampleValue('vo2max', 48.5));
       await v1.close();
 
@@ -338,23 +540,50 @@ void main() {
         2,
       );
       await s.database.validateDatabaseSchema();
-      expect(await count(s, 'computed_values'), 4);
+      expect(await count(s, 'computed_values'), 6);
       expect(await count(s, 'value_sections'), 0);
       expect(await s.settings.all(), {'units': 'km'});
-      final p = (await s.values.read(o)).single;
+      final both = await s.values.read(o);
+      final p = both.last;
       expect(cs.describeValue(p.original), expected);
       expect(p.original.sections, isEmpty);
+      // Alter Wert ohne Zahl: bekommt den allgemeinen Grund, original und
+      // current, trotz unveränderlichem original.
+      expect(both.first.original.key, 'efficiency');
+      expect(
+        both.first.original.unavailableReason,
+        UnavailableReason.insufficientData,
+      );
+      expect(
+        both.first.current.unavailableReason,
+        UnavailableReason.insufficientData,
+      );
+      expect(p.original.unavailableReason, isNull);
+      // Die Regel gilt auf der migrierten Datei (Trigger vorhanden).
+      expect(
+        (await failure(
+          s.database.customStatement(
+            "UPDATE computed_values SET value_real = NULL WHERE role = 'current' "
+            "AND value_key = 'vo2max'",
+          ),
+        )).toString(),
+        contains('exclusive'),
+      );
 
       // Neue Funktion auf der migrierten Datei, samt Triggern.
       await s.values.swapCurrent(o, [
         cs.sampleValue('vo2max', 50, sections: cs.sampleValueSections()),
       ]);
-      expect((await s.values.read(o)).single.current.sections, hasLength(3));
-      expect((await s.values.read(o)).single.original.sections, isEmpty);
-      final orig = (await s.database
-              .customSelect("SELECT id FROM computed_values WHERE role = 'original' AND run_id = $r")
-              .getSingle())
-          .data['id'] as int;
+      expect((await s.values.read(o)).last.current.sections, hasLength(3));
+      expect((await s.values.read(o)).last.original.sections, isEmpty);
+      final orig =
+          (await s.database
+                      .customSelect(
+                        "SELECT id FROM computed_values WHERE role = 'original' AND value_key = 'vo2max' AND run_id = $r",
+                      )
+                      .getSingle())
+                  .data['id']
+              as int;
       final e = await failure(
         s.database.customStatement(
           'INSERT INTO value_sections (computed_value_id, position, start_us, '

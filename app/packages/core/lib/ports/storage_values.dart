@@ -1,4 +1,6 @@
+import '../src/fitness/fitness_result.dart' show UnavailableReason;
 import '../src/fitness/vo2max_estimator.dart';
+import 'storage.dart' show StorageException, StorageFailure;
 import '../src/fitness/vo2max_section_types.dart';
 
 /// Zu wem ein berechneter Wert gehört: einem Lauf oder einem Tag (ISO-Datum
@@ -18,7 +20,8 @@ class ValueOwner {
   int get hashCode => Object.hash(runId, day);
 }
 
-/// Qualitätsstufe eines Werts. Bei `undeterminable` ist der Wert `null`.
+/// Qualitätsstufe eines Werts. Bei `undeterminable` ist der Wert `null` und
+/// [ComputedValue.unavailableReason] gesetzt.
 enum ValueQuality { provisional, sufficient, good, undeterminable }
 
 /// Ein bewerteter Abschnitt eines Werts (FR-0073): Zeitraum, GPS-Median,
@@ -39,25 +42,51 @@ class ValueSection {
   }) : reasons = List.unmodifiable(reasons);
 
   /// Übernimmt einen Abschnitt samt Schätzung des Schätzers (WP09 B1). Gründe:
-  /// Namen der verletzten Regeln, dann der Einschränkungen.
+  /// Namen der verletzten Regeln, dann der Einschränkungen. Eine nicht endliche
+  /// Zahl (NaN, unendlich) wird nie gespeichert: Sie wird `null`, und der Grund
+  /// steht in `discard` (unbekannt: `incomplete`).
   factory ValueSection.fromEstimate(SectionEstimate e) {
     final s = e.section;
+    final demand = e.oxygenDemand;
+    final max = e.vo2max;
+    final demandBad = demand != null && !demand.isFinite;
+    final maxBad = max != null && !max.isFinite;
     return ValueSection(
       start: s.from,
       end: s.to,
       weight: e.weight,
       lateFactor: s.weight,
       status: s.status,
-      reasons: [
-        for (final v in s.violations) v.rule.name,
-        for (final c in s.caveats) c.name,
-      ],
+      reasons: _reasonsOf(s),
       gpsMedianAccuracyMeters: s.gpsMedianAccuracyMeters,
-      discard: e.discard,
-      oxygenDemand: e.oxygenDemand,
-      estimate: e.vo2max,
+      discard:
+          e.discard ??
+          (demandBad || maxBad ? EstimateDiscard.incomplete : null),
+      oxygenDemand: demandBad ? null : demand,
+      estimate: maxBad ? null : max,
     );
   }
+
+  /// Ein bewerteter Abschnitt ohne Schätzung: abgelehnte Abschnitte (der
+  /// Schätzer rechnet nur verwendbare) und verwendbare, die der Schätzer nicht
+  /// mehr erreicht hat (Basis fehlt, kein gültiger Abschnitt). Gewicht (PAR-033)
+  /// 0, kein Schätzwert; der Spätfaktor (PAR-024) und die Gründe (verletzte
+  /// Regeln, Einschränkungen) kommen aus dem Abschnitt. Warum der Wert fehlt,
+  /// steht an [ComputedValue.unavailableReason].
+  factory ValueSection.withoutEstimate(EvaluatedSection s) => ValueSection(
+    start: s.from,
+    end: s.to,
+    weight: 0,
+    lateFactor: s.weight,
+    status: s.status,
+    reasons: _reasonsOf(s),
+    gpsMedianAccuracyMeters: s.gpsMedianAccuracyMeters,
+  );
+
+  static List<String> _reasonsOf(EvaluatedSection s) => [
+    for (final v in s.violations) v.rule.name,
+    for (final c in s.caveats) c.name,
+  ];
 
   final DateTime start;
   final DateTime end;
@@ -106,10 +135,18 @@ class ComputedValue {
     this.dataFrom,
     this.dataTo,
     this.sections = const [],
+    this.unavailableReason,
   });
 
   final String key;
+
+  /// `null` genau dann, wenn [unavailableReason] gesetzt ist (FR-0068: ein
+  /// fehlender Wert nennt immer den Grund).
   final double? value;
+
+  /// Grund, warum der Wert nicht bestimmbar ist (FR-0053, FR-0068, PAR-037);
+  /// gespeichert als stabiler Code (Name des Enum).
+  final UnavailableReason? unavailableReason;
   final String unit;
   final DateTime computedAt;
   final DateTime? dataFrom;
@@ -141,15 +178,19 @@ class ValuePair {
 /// und ein `current`.
 abstract interface class ComputedValueStore {
   /// Legt die Werte neu an: `original` und `current` mit gleichem Inhalt (samt
-  /// Abschnitten), alle in einer Transaktion; ein ungültiger Abschnitt
-  /// (Ende vor Anfang, negative Zahl) ist `rejected` und nichts wird geschrieben. Existiert der Schlüssel für den Besitzer schon, ist
-  /// es `rejected` (ein Original wird nie ersetzt); doppelte Schlüssel in
-  /// [values] ebenso; unbekannter Lauf `notFound`.
+  /// Abschnitten und Grund), alle in einer Transaktion. Ungültige Werte (siehe
+  /// [requireStorableValues]: nicht endliche oder negative Zahlen, Ende vor
+  /// Anfang, fehlender Wert ohne Grund) sind `rejected`, nichts wird
+  /// geschrieben. Existiert der Schlüssel für den Besitzer schon, ist es
+  /// `rejected` (ein Original wird nie ersetzt); doppelte Schlüssel in [values]
+  /// ebenso; unbekannter Lauf `notFound`.
   Future<void> createOriginals(ValueOwner owner, List<ComputedValue> values);
 
   /// Tauscht `current` samt Abschnitten der genannten Schlüssel in einer
-  /// Transaktion; `original` samt Abschnitten bleibt (ADR-0004 Punkt 5). Fehlt für einen Schlüssel das Original, ist es
-  /// `notFound` und nichts ändert sich; doppelte Schlüssel `rejected`.
+  /// Transaktion; `original` samt Abschnitten bleibt (ADR-0004 Punkt 5). Fehlt
+  /// für einen Schlüssel das Original, ist es `notFound` und nichts ändert
+  /// sich; doppelte Schlüssel und ungültige Werte (siehe [createOriginals])
+  /// `rejected`, die Prüfung auf `notFound` kommt zuerst.
   Future<void> swapCurrent(ValueOwner owner, List<ComputedValue> values);
 
   /// Tauscht `current` samt Abschnitten für mehrere Besitzer in EINER
@@ -161,4 +202,33 @@ abstract interface class ComputedValueStore {
 
   /// Alle Werte des Besitzers, nach Schlüssel sortiert.
   Future<List<ValuePair>> read(ValueOwner owner);
+}
+
+/// Prüft Werte vor dem Speichern; Adapter und Fake rufen dieselbe Regel (die
+/// CHECK-Regeln und Trigger der Tabellen sind die zweite Sicherung). Wirft
+/// `rejected` bei: nicht endlichem Wert, Wert ohne Grund oder Grund bei Wert
+/// (`value == null` genau mit [ComputedValue.unavailableReason]), Abschnitt mit
+/// Ende vor Anfang, negativem oder nicht endlichem Gewicht, Spätfaktor oder
+/// GPS-Genauigkeit und nicht endlichem Sauerstoffbedarf oder Schätzwert.
+void requireStorableValues(List<ComputedValue> values) {
+  bool bad(double? x) => x != null && !x.isFinite;
+  bool negative(double? x) => x != null && x < 0;
+  for (final v in values) {
+    if (bad(v.value) || (v.value == null) == (v.unavailableReason == null)) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    for (final s in v.sections) {
+      final invalid =
+          s.end.isBefore(s.start) ||
+          !s.weight.isFinite ||
+          s.weight < 0 ||
+          !s.lateFactor.isFinite ||
+          s.lateFactor < 0 ||
+          bad(s.gpsMedianAccuracyMeters) ||
+          negative(s.gpsMedianAccuracyMeters) ||
+          bad(s.oxygenDemand) ||
+          bad(s.estimate);
+      if (invalid) throw const StorageException(StorageFailure.rejected);
+    }
+  }
 }

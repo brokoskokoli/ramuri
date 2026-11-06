@@ -1323,6 +1323,15 @@ class ComputedValues extends Table with TableInfo {
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL CHECK (quality IN (\'provisional\', \'sufficient\', \'good\', \'undeterminable\'))',
   );
+  late final GeneratedColumn<String> unavailableReason =
+      GeneratedColumn<String>(
+        'unavailable_reason',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        $customConstraints: '',
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1341,6 +1350,7 @@ class ComputedValues extends Table with TableInfo {
     methodVersion,
     parameterVersion,
     quality,
+    unavailableReason,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1914,6 +1924,14 @@ class DatabaseAtV2 extends GeneratedDatabase {
     'CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values WHEN OLD.role = \'original\' OR NEW.role = \'original\' BEGIN SELECT RAISE (ABORT, \'original value is immutable\');END',
     'computed_values_original_immutable',
   );
+  late final Trigger computedValuesReasonInsert = Trigger(
+    'CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, \'value and unavailable_reason are exclusive\');END',
+    'computed_values_reason_insert',
+  );
+  late final Trigger computedValuesReasonUpdate = Trigger(
+    'CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, \'value and unavailable_reason are exclusive\');END',
+    'computed_values_reason_update',
+  );
   late final ValueSections valueSections = ValueSections(this);
   late final Trigger valueSectionsOriginalImmutable = Trigger(
     'CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections WHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = \'original\' OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = \'original\' BEGIN SELECT RAISE (ABORT, \'original value sections are immutable\');END',
@@ -1969,6 +1987,8 @@ class DatabaseAtV2 extends GeneratedDatabase {
     computedValuesRunUnique,
     computedValuesDayUnique,
     computedValuesOriginalImmutable,
+    computedValuesReasonInsert,
+    computedValuesReasonUpdate,
     valueSections,
     valueSectionsOriginalImmutable,
     valueSectionsOriginalNoLateInsert,
@@ -2112,6 +2132,20 @@ class DatabaseAtV2 extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('computed_values', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.insert,
+      ),
+      result: [],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(

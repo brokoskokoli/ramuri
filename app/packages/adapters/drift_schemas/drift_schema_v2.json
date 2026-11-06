@@ -1703,6 +1703,16 @@
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
+          },
+          {
+            "name": "unavailable_reason",
+            "getter_name": "unavailableReason",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
           }
         ],
         "is_virtual": false,
@@ -1757,6 +1767,36 @@
     },
     {
       "id": 33,
+      "references": [
+        29
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 29,
+        "references_in_body": [
+          29
+        ],
+        "name": "computed_values_reason_insert",
+        "sql": "CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values\nWHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)\nBEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;"
+      }
+    },
+    {
+      "id": 34,
+      "references": [
+        29
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 29,
+        "references_in_body": [
+          29
+        ],
+        "name": "computed_values_reason_update",
+        "sql": "CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values\nWHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)\nBEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;"
+      }
+    },
+    {
+      "id": 35,
       "references": [
         29
       ],
@@ -1924,16 +1964,16 @@
       }
     },
     {
-      "id": 34,
+      "id": 36,
       "references": [
-        33,
+        35,
         29
       ],
       "type": "trigger",
       "data": {
-        "on": 33,
+        "on": 35,
         "references_in_body": [
-          33,
+          35,
           29
         ],
         "name": "value_sections_original_immutable",
@@ -1941,16 +1981,16 @@
       }
     },
     {
-      "id": 35,
+      "id": 37,
       "references": [
-        33,
+        35,
         29
       ],
       "type": "trigger",
       "data": {
-        "on": 33,
+        "on": 35,
         "references_in_body": [
-          33,
+          35,
           29
         ],
         "name": "value_sections_original_no_late_insert",
@@ -1958,7 +1998,7 @@
       }
     },
     {
-      "id": 36,
+      "id": 38,
       "references": [],
       "type": "table",
       "data": {
@@ -2064,7 +2104,7 @@
       }
     },
     {
-      "id": 37,
+      "id": 39,
       "references": [],
       "type": "table",
       "data": {
@@ -2110,7 +2150,7 @@
       }
     },
     {
-      "id": 38,
+      "id": 40,
       "references": [],
       "type": "table",
       "data": {
@@ -2178,13 +2218,13 @@
       }
     },
     {
-      "id": 39,
+      "id": 41,
       "references": [
-        38
+        40
       ],
       "type": "index",
       "data": {
-        "on": 38,
+        "on": 40,
         "name": "known_devices_one_preferred",
         "sql": "CREATE UNIQUE INDEX known_devices_one_preferred\n  ON known_devices (is_preferred) WHERE is_preferred = 1;",
         "unique": true,
@@ -2192,7 +2232,7 @@
       }
     },
     {
-      "id": 40,
+      "id": 42,
       "references": [],
       "type": "table",
       "data": {
@@ -2505,7 +2545,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"computed_values\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER REFERENCES runs(id)ON DELETE CASCADE, \"day\" TEXT, \"value_key\" TEXT NOT NULL, \"role\" TEXT NOT NULL CHECK (role IN ('original', 'current')), \"value_real\" REAL, \"unit\" TEXT NOT NULL, \"computed_at_us\" INTEGER NOT NULL, \"data_from_us\" INTEGER, \"data_to_us\" INTEGER, \"measurement_count\" INTEGER NOT NULL, \"sources\" TEXT NOT NULL, \"method\" TEXT NOT NULL, \"method_version\" INTEGER NOT NULL, \"parameter_version\" INTEGER NOT NULL, \"quality\" TEXT NOT NULL CHECK (quality IN ('provisional', 'sufficient', 'good', 'undeterminable')), CHECK((run_id IS NULL)<>(day IS NULL)));"
+          "sql": "CREATE TABLE IF NOT EXISTS \"computed_values\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER REFERENCES runs(id)ON DELETE CASCADE, \"day\" TEXT, \"value_key\" TEXT NOT NULL, \"role\" TEXT NOT NULL CHECK (role IN ('original', 'current')), \"value_real\" REAL, \"unit\" TEXT NOT NULL, \"computed_at_us\" INTEGER NOT NULL, \"data_from_us\" INTEGER, \"data_to_us\" INTEGER, \"measurement_count\" INTEGER NOT NULL, \"sources\" TEXT NOT NULL, \"method\" TEXT NOT NULL, \"method_version\" INTEGER NOT NULL, \"parameter_version\" INTEGER NOT NULL, \"quality\" TEXT NOT NULL CHECK (quality IN ('provisional', 'sufficient', 'good', 'undeterminable')), \"unavailable_reason\" TEXT, CHECK((run_id IS NULL)<>(day IS NULL)));"
         }
       ]
     },
@@ -2533,6 +2573,24 @@
         {
           "dialect": "sqlite",
           "sql": "CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values WHEN OLD.role = 'original' OR NEW.role = 'original' BEGIN SELECT RAISE (ABORT, 'original value is immutable');END"
+        }
+      ]
+    },
+    {
+      "name": "computed_values_reason_insert",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, 'value and unavailable_reason are exclusive');END"
+        }
+      ]
+    },
+    {
+      "name": "computed_values_reason_update",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, 'value and unavailable_reason are exclusive');END"
         }
       ]
     },

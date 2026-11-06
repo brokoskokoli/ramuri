@@ -46,6 +46,9 @@ void main() {
       final pair = (await w.session.values.read(ValueOwner.run(id))).single;
       expect(pair.original.quality, ValueQuality.undeterminable);
       expect(pair.original.value, isNull);
+      // FR-0068, PAR-037: nicht bestimmbar wird mit Grund gespeichert.
+      expect(pair.original.unavailableReason, UnavailableReason.noValidSection);
+      expect(pair.current.unavailableReason, UnavailableReason.noValidSection);
       expect(pair.original.sections, isNotEmpty);
       expect(
         pair.original.sections.every((s) => s.status == SectionStatus.rejected),
@@ -82,6 +85,18 @@ void main() {
       expect(res.runValue.quality, ValueQuality.undeterminable);
       expect(res.runValue.value, isNull);
       expect(res.longTerm.quality, ValueQuality.undeterminable);
+      expect(
+        res.runValue.unavailableReason,
+        UnavailableReason.missingMaxHeartRate,
+      );
+      expect(res.longTerm.unavailableReason, isNotNull);
+      final stored = (await w.session.values.read(ValueOwner.run(first)))
+          .single;
+      expect(
+        stored.original.unavailableReason,
+        UnavailableReason.missingMaxHeartRate,
+      );
+      expect(stored.original.value, isNull);
 
       // Mit Basis kommt ein Wert; ein späterer unbestimmbarer Lauf ändert ihn nicht.
       await w.session.profile.save(profile190);

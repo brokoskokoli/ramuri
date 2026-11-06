@@ -118,20 +118,6 @@ class FakeComputedValueStore implements ComputedValueStore {
     }
   }
 
-  /// Wie die CHECK-Regeln der Tabelle `value_sections`.
-  static void _validate(List<ComputedValue> vs) {
-    for (final v in vs) {
-      for (final s in v.sections) {
-        final bad =
-            s.end.isBefore(s.start) ||
-            s.weight < 0 ||
-            s.lateFactor < 0 ||
-            (s.gpsMedianAccuracyMeters ?? 0) < 0;
-        if (bad) throw const StorageException(StorageFailure.rejected);
-      }
-    }
-  }
-
   static ValueSection _normSection(ValueSection s) => ValueSection(
     start: _utc(s.start),
     end: _utc(s.end),
@@ -148,6 +134,7 @@ class FakeComputedValueStore implements ComputedValueStore {
   static ComputedValue _norm(ComputedValue v) => ComputedValue(
     key: v.key,
     value: v.value,
+    unavailableReason: v.unavailableReason,
     unit: v.unit,
     computedAt: _utc(v.computedAt),
     measurementCount: v.measurementCount,
@@ -168,11 +155,11 @@ class FakeComputedValueStore implements ComputedValueStore {
   ) async {
     _checkOwner(owner);
     _noDuplicates(values);
-    _validate(values);
     final existing = _d.values[owner];
     if (existing != null && values.any((v) => existing.containsKey(v.key))) {
       throw const StorageException(StorageFailure.rejected);
     }
+    requireStorableValues(values);
     final target = _d.values.putIfAbsent(owner, () => {});
     for (final v in values) {
       final n = _norm(v);
@@ -192,11 +179,11 @@ class FakeComputedValueStore implements ComputedValueStore {
     for (final e in changes.entries) {
       _checkOwner(e.key);
       _noDuplicates(e.value);
-      _validate(e.value);
       final target = _d.values[e.key] ?? const <String, ValuePair>{};
       if (e.value.any((v) => !target.containsKey(v.key))) {
         throw const StorageException(StorageFailure.notFound);
       }
+      requireStorableValues(e.value);
     }
     for (final e in changes.entries) {
       final target = _d.values[e.key]!;

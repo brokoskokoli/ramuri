@@ -23,6 +23,10 @@ final valueContractCases = <StorageContractCase>[
     'Werte: ungültiger Abschnitt ändert nichts',
     _valueSectionFailures,
   ),
+  const StorageContractCase(
+    'Werte: ungültige Zahlen und fehlender Grund werden abgelehnt',
+    _valueInvalidNumbers,
+  ),
   const StorageContractCase('Werte: Tageswerte', _dayValues),
   const StorageContractCase(
     'Werte: Tausch über mehrere Besitzer ganz oder gar nicht',
@@ -119,7 +123,12 @@ Future<void> _values(StorageContractHarness h) async {
       quality: ValueQuality.sufficient,
       sections: sampleValueSections(),
     ),
-    sampleValue('efficiency', null, quality: ValueQuality.undeterminable),
+    sampleValue(
+      'efficiency',
+      null,
+      quality: ValueQuality.undeterminable,
+      reason: UnavailableReason.noValidSection,
+    ),
   ]);
   var read = await s.values.read(o);
   expectEq(read.map((p) => p.original.key), [
@@ -132,6 +141,17 @@ Future<void> _values(StorageContractHarness h) async {
     'current beginnt als Kopie',
   );
   expectEq(read[0].original.value, null, 'undeterminable ohne Wert');
+  expectEq(
+    read[0].original.unavailableReason,
+    UnavailableReason.noValidSection,
+    'fehlender Wert mit Grund',
+  );
+  expectEq(
+    read[0].current.unavailableReason,
+    UnavailableReason.noValidSection,
+    'current beginnt mit demselben Grund',
+  );
+  expectEq(read[1].original.unavailableReason, null, 'Wert ohne Grund');
 
   await s.values.swapCurrent(o, [
     sampleValue(
@@ -277,6 +297,97 @@ Future<void> _valueSectionFailures(StorageContractHarness h) async {
     (await s.values.read(o)).map(describePair).join(';'),
     before,
     'Tausch ganz oder gar nicht, auch die Abschnitte',
+  );
+  await s.close();
+}
+
+/// Alle Fälle, die `requireStorableValues` ablehnt (Adapter und Fake gleich).
+List<(String, ComputedValue)> _invalidValues() {
+  ValueSection section({
+    double weight = 1,
+    double lateFactor = 1,
+    double? gps,
+    double? demand,
+    double? estimate,
+  }) => ValueSection(
+    start: at(1),
+    end: at(2),
+    weight: weight,
+    lateFactor: lateFactor,
+    status: SectionStatus.eligible,
+    gpsMedianAccuracyMeters: gps,
+    oxygenDemand: demand,
+    estimate: estimate,
+  );
+  const nan = double.nan;
+  const inf = double.infinity;
+  ComputedValue withSection(ValueSection s) =>
+      sampleValue('v', 1, sections: [s]);
+  return [
+    ('Wert NaN', sampleValue('v', nan)),
+    ('Wert unendlich', sampleValue('v', inf)),
+    ('Wert fehlt ohne Grund', sampleValue('v', null, withoutReason: true)),
+    (
+      'Grund trotz Wert',
+      sampleValue('v', 1, reason: UnavailableReason.noValidSection),
+    ),
+    ('Gewicht NaN', withSection(section(weight: nan))),
+    ('Gewicht unendlich', withSection(section(weight: inf))),
+    ('Spätfaktor negativ', withSection(section(lateFactor: -0.1))),
+    ('Spätfaktor NaN', withSection(section(lateFactor: nan))),
+    ('GPS-Genauigkeit negativ', withSection(section(gps: -1))),
+    ('GPS-Genauigkeit NaN', withSection(section(gps: nan))),
+    ('Schätzwert NaN', withSection(section(estimate: nan))),
+    ('Schätzwert unendlich', withSection(section(estimate: -inf))),
+    ('Sauerstoffbedarf NaN', withSection(section(demand: nan))),
+  ];
+}
+
+Future<void> _valueInvalidNumbers(StorageContractHarness h) async {
+  final s = await h.open();
+  final r = (await s.runs.create(startedAt: at(0))).id;
+  final o = ValueOwner.run(r);
+  await s.values.createOriginals(o, [
+    sampleValue('v', 3, sections: sampleValueSections()),
+  ]);
+  final before = (await s.values.read(o)).map(describePair).join(';');
+  for (final (name, bad) in _invalidValues()) {
+    await expectFails(
+      () => s.values.swapCurrent(o, [bad]),
+      StorageFailure.rejected,
+      'Tausch: $name',
+    );
+    await expectFails(
+      () => s.values.createOriginals(o, [
+        ComputedValue(
+          key: 'neu',
+          value: bad.value,
+          unavailableReason: bad.unavailableReason,
+          unit: bad.unit,
+          computedAt: bad.computedAt,
+          measurementCount: bad.measurementCount,
+          sources: bad.sources,
+          method: bad.method,
+          methodVersion: bad.methodVersion,
+          parameterVersion: bad.parameterVersion,
+          quality: bad.quality,
+          sections: bad.sections,
+        ),
+      ]),
+      StorageFailure.rejected,
+      'Anlegen: $name',
+    );
+  }
+  expectEq(
+    (await s.values.read(o)).map(describePair).join(';'),
+    before,
+    'nichts geschrieben',
+  );
+  // Gleiche Fehlerreihenfolge: erst Existenz, dann Gültigkeit.
+  await expectFails(
+    () => s.values.swapCurrent(o, [sampleValue('missing', double.nan)]),
+    StorageFailure.notFound,
+    'unbekannter Schlüssel vor ungültiger Zahl',
   );
   await s.close();
 }

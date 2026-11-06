@@ -23,11 +23,23 @@ class AppDatabase extends _$AppDatabase {
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests überschreiben das mit
   /// synthetischen Schritten.
   Map<int, MigrationStep> get migrationSteps => {
-    // 1 -> 2: neue Tabelle samt Triggern; bestehende Tabellen bleiben.
+    // 1 -> 2: neue Tabelle samt Triggern, Grund-Spalte an computed_values.
     1: (Migrator m) async {
       await m.create(valueSections);
       await m.create(valueSectionsOriginalImmutable);
       await m.create(valueSectionsOriginalNoLateInsert);
+      await m.addColumn(computedValues, computedValues.unavailableReason);
+      // Alte Zeilen ohne Wert hatten keinen Grund; sie bekommen den
+      // allgemeinen (insufficientData), damit die Regel für alle Zeilen gilt.
+      // Das Original ist per Trigger unveränderlich: nur hierfür ausnehmen.
+      await m.drop(computedValuesOriginalImmutable);
+      await customStatement(
+        "UPDATE computed_values SET unavailable_reason = 'insufficientData' "
+        'WHERE value_real IS NULL',
+      );
+      await m.create(computedValuesOriginalImmutable);
+      await m.create(computedValuesReasonInsert);
+      await m.create(computedValuesReasonUpdate);
     },
   };
 

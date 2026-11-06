@@ -221,7 +221,8 @@ CREATE TABLE computed_values (
   day TEXT,
   value_key TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('original', 'current')),
-  -- NULL bei Qualitätsstufe 'undeterminable'.
+  -- NULL genau dann, wenn unavailable_reason gesetzt ist (Qualitätsstufe
+  -- 'undeterminable'; Trigger computed_values_reason_*).
   value_real REAL,
   unit TEXT NOT NULL,
   computed_at_us INTEGER NOT NULL,
@@ -235,6 +236,10 @@ CREATE TABLE computed_values (
   parameter_version INTEGER NOT NULL,
   quality TEXT NOT NULL CHECK (quality IN
     ('provisional', 'sufficient', 'good', 'undeterminable')),
+  -- Seit Version 2 (WP09 D1): Grund, warum der Wert fehlt (FR-0068, PAR-037),
+  -- als stabiler Code (Name von UnavailableReason im Core). Ein Code, den eine
+  -- spätere App nicht kennt, ist beim Lesen ein Datenfehler.
+  unavailable_reason TEXT,
   CHECK ((run_id IS NULL) <> (day IS NULL))
 );
 CREATE UNIQUE INDEX computed_values_run_unique
@@ -246,6 +251,17 @@ CREATE UNIQUE INDEX computed_values_day_unique
 CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values
 WHEN OLD.role = 'original' OR NEW.role = 'original'
 BEGIN SELECT RAISE(ABORT, 'original value is immutable'); END;
+
+-- Kein fehlender Wert ohne Grund und kein Grund bei vorhandenem Wert (FR-0068).
+-- Als Trigger statt CHECK, damit die Migration 1 -> 2 dasselbe Schema ergibt
+-- wie das Anlegen (ADD COLUMN kann keine Regel über zwei Spalten ergänzen).
+CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values
+WHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)
+BEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;
+
+CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values
+WHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)
+BEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;
 
 -- ------------------------------------------ Bewertete Abschnitte je Wert
 -- Seit Version 2 (WP09 D1, FR-0073). Je Zeile von computed_values (original
@@ -280,6 +296,11 @@ BEGIN SELECT RAISE(ABORT, 'original value sections are immutable'); END;
 -- INSERT bei einem `original` nur direkt nach dessen Anlegen: Die Zeile des
 -- Werts muss die zuletzt vergebene sein (der Adapter legt Original, dessen
 -- Abschnitte, dann current an). Später kommt kein Abschnitt hinzu.
+-- Annahme: MAX(id) ist die zuletzt angelegte Zeile von computed_values, weil
+-- die ids per AUTOINCREMENT nur wachsen (nie neu vergeben werden) und original
+-- und current eines Werts nur zusammen gelöscht werden. Es gibt keinen DELETE-
+-- Trigger, wie bei computed_values selbst: Gelöscht wird nur über den Adapter
+-- (deleteRun, deleteAll, Tausch über die ids der current-Zeilen).
 CREATE TRIGGER value_sections_original_no_late_insert BEFORE INSERT ON value_sections
 WHEN (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original'
   AND NEW.computed_value_id <> (SELECT MAX(id) FROM computed_values)

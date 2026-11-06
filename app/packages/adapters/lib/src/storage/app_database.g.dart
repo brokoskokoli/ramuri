@@ -6052,6 +6052,18 @@ class ComputedValues extends Table
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL CHECK (quality IN (\'provisional\', \'sufficient\', \'good\', \'undeterminable\'))',
   );
+  static const VerificationMeta _unavailableReasonMeta = const VerificationMeta(
+    'unavailableReason',
+  );
+  late final GeneratedColumn<String> unavailableReason =
+      GeneratedColumn<String>(
+        'unavailable_reason',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        $customConstraints: '',
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -6070,6 +6082,7 @@ class ComputedValues extends Table
     methodVersion,
     parameterVersion,
     quality,
+    unavailableReason,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6211,6 +6224,15 @@ class ComputedValues extends Table
     } else if (isInserting) {
       context.missing(_qualityMeta);
     }
+    if (data.containsKey('unavailable_reason')) {
+      context.handle(
+        _unavailableReasonMeta,
+        unavailableReason.isAcceptableOrUnknown(
+          data['unavailable_reason']!,
+          _unavailableReasonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -6284,6 +6306,10 @@ class ComputedValues extends Table
         DriftSqlType.string,
         data['${effectivePrefix}quality'],
       )!,
+      unavailableReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}unavailable_reason'],
+      ),
     );
   }
 
@@ -6307,7 +6333,8 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
   final String valueKey;
   final String role;
 
-  /// NULL bei Qualitätsstufe 'undeterminable'.
+  /// NULL genau dann, wenn unavailable_reason gesetzt ist (Qualitätsstufe
+  /// 'undeterminable'; Trigger computed_values_reason_*).
   final double? valueReal;
   final String unit;
   final int computedAtUs;
@@ -6321,6 +6348,11 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
   final int methodVersion;
   final int parameterVersion;
   final String quality;
+
+  /// Seit Version 2 (WP09 D1): Grund, warum der Wert fehlt (FR-0068, PAR-037),
+  /// als stabiler Code (Name von UnavailableReason im Core). Ein Code, den eine
+  /// spätere App nicht kennt, ist beim Lesen ein Datenfehler.
+  final String? unavailableReason;
   const ComputedValue({
     required this.id,
     this.runId,
@@ -6338,6 +6370,7 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     required this.methodVersion,
     required this.parameterVersion,
     required this.quality,
+    this.unavailableReason,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6368,6 +6401,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     map['method_version'] = Variable<int>(methodVersion);
     map['parameter_version'] = Variable<int>(parameterVersion);
     map['quality'] = Variable<String>(quality);
+    if (!nullToAbsent || unavailableReason != null) {
+      map['unavailable_reason'] = Variable<String>(unavailableReason);
+    }
     return map;
   }
 
@@ -6397,6 +6433,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       methodVersion: Value(methodVersion),
       parameterVersion: Value(parameterVersion),
       quality: Value(quality),
+      unavailableReason: unavailableReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(unavailableReason),
     );
   }
 
@@ -6422,6 +6461,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       methodVersion: serializer.fromJson<int>(json['method_version']),
       parameterVersion: serializer.fromJson<int>(json['parameter_version']),
       quality: serializer.fromJson<String>(json['quality']),
+      unavailableReason: serializer.fromJson<String?>(
+        json['unavailable_reason'],
+      ),
     );
   }
   @override
@@ -6444,6 +6486,7 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
       'method_version': serializer.toJson<int>(methodVersion),
       'parameter_version': serializer.toJson<int>(parameterVersion),
       'quality': serializer.toJson<String>(quality),
+      'unavailable_reason': serializer.toJson<String?>(unavailableReason),
     };
   }
 
@@ -6464,6 +6507,7 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     int? methodVersion,
     int? parameterVersion,
     String? quality,
+    Value<String?> unavailableReason = const Value.absent(),
   }) => ComputedValue(
     id: id ?? this.id,
     runId: runId.present ? runId.value : this.runId,
@@ -6481,6 +6525,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     methodVersion: methodVersion ?? this.methodVersion,
     parameterVersion: parameterVersion ?? this.parameterVersion,
     quality: quality ?? this.quality,
+    unavailableReason: unavailableReason.present
+        ? unavailableReason.value
+        : this.unavailableReason,
   );
   ComputedValue copyWithCompanion(ComputedValuesCompanion data) {
     return ComputedValue(
@@ -6510,6 +6557,9 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           ? data.parameterVersion.value
           : this.parameterVersion,
       quality: data.quality.present ? data.quality.value : this.quality,
+      unavailableReason: data.unavailableReason.present
+          ? data.unavailableReason.value
+          : this.unavailableReason,
     );
   }
 
@@ -6531,7 +6581,8 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           ..write('method: $method, ')
           ..write('methodVersion: $methodVersion, ')
           ..write('parameterVersion: $parameterVersion, ')
-          ..write('quality: $quality')
+          ..write('quality: $quality, ')
+          ..write('unavailableReason: $unavailableReason')
           ..write(')'))
         .toString();
   }
@@ -6554,6 +6605,7 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
     methodVersion,
     parameterVersion,
     quality,
+    unavailableReason,
   );
   @override
   bool operator ==(Object other) =>
@@ -6574,7 +6626,8 @@ class ComputedValue extends DataClass implements Insertable<ComputedValue> {
           other.method == this.method &&
           other.methodVersion == this.methodVersion &&
           other.parameterVersion == this.parameterVersion &&
-          other.quality == this.quality);
+          other.quality == this.quality &&
+          other.unavailableReason == this.unavailableReason);
 }
 
 class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
@@ -6594,6 +6647,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
   final Value<int> methodVersion;
   final Value<int> parameterVersion;
   final Value<String> quality;
+  final Value<String?> unavailableReason;
   const ComputedValuesCompanion({
     this.id = const Value.absent(),
     this.runId = const Value.absent(),
@@ -6611,6 +6665,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     this.methodVersion = const Value.absent(),
     this.parameterVersion = const Value.absent(),
     this.quality = const Value.absent(),
+    this.unavailableReason = const Value.absent(),
   });
   ComputedValuesCompanion.insert({
     this.id = const Value.absent(),
@@ -6629,6 +6684,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     required int methodVersion,
     required int parameterVersion,
     required String quality,
+    this.unavailableReason = const Value.absent(),
   }) : valueKey = Value(valueKey),
        role = Value(role),
        unit = Value(unit),
@@ -6656,6 +6712,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     Expression<int>? methodVersion,
     Expression<int>? parameterVersion,
     Expression<String>? quality,
+    Expression<String>? unavailableReason,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -6674,6 +6731,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
       if (methodVersion != null) 'method_version': methodVersion,
       if (parameterVersion != null) 'parameter_version': parameterVersion,
       if (quality != null) 'quality': quality,
+      if (unavailableReason != null) 'unavailable_reason': unavailableReason,
     });
   }
 
@@ -6694,6 +6752,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     Value<int>? methodVersion,
     Value<int>? parameterVersion,
     Value<String>? quality,
+    Value<String?>? unavailableReason,
   }) {
     return ComputedValuesCompanion(
       id: id ?? this.id,
@@ -6712,6 +6771,7 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
       methodVersion: methodVersion ?? this.methodVersion,
       parameterVersion: parameterVersion ?? this.parameterVersion,
       quality: quality ?? this.quality,
+      unavailableReason: unavailableReason ?? this.unavailableReason,
     );
   }
 
@@ -6766,6 +6826,9 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
     if (quality.present) {
       map['quality'] = Variable<String>(quality.value);
     }
+    if (unavailableReason.present) {
+      map['unavailable_reason'] = Variable<String>(unavailableReason.value);
+    }
     return map;
   }
 
@@ -6787,7 +6850,8 @@ class ComputedValuesCompanion extends UpdateCompanion<ComputedValue> {
           ..write('method: $method, ')
           ..write('methodVersion: $methodVersion, ')
           ..write('parameterVersion: $parameterVersion, ')
-          ..write('quality: $quality')
+          ..write('quality: $quality, ')
+          ..write('unavailableReason: $unavailableReason')
           ..write(')'))
         .toString();
   }
@@ -9175,6 +9239,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values WHEN OLD.role = \'original\' OR NEW.role = \'original\' BEGIN SELECT RAISE (ABORT, \'original value is immutable\');END',
     'computed_values_original_immutable',
   );
+  late final Trigger computedValuesReasonInsert = Trigger(
+    'CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, \'value and unavailable_reason are exclusive\');END',
+    'computed_values_reason_insert',
+  );
+  late final Trigger computedValuesReasonUpdate = Trigger(
+    'CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values WHEN(NEW.value_real IS NULL)=(NEW.unavailable_reason IS NULL)BEGIN SELECT RAISE (ABORT, \'value and unavailable_reason are exclusive\');END',
+    'computed_values_reason_update',
+  );
   late final ValueSections valueSections = ValueSections(this);
   late final Trigger valueSectionsOriginalImmutable = Trigger(
     'CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections WHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = \'original\' OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = \'original\' BEGIN SELECT RAISE (ABORT, \'original value sections are immutable\');END',
@@ -9230,6 +9302,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     computedValuesRunUnique,
     computedValuesDayUnique,
     computedValuesOriginalImmutable,
+    computedValuesReasonInsert,
+    computedValuesReasonUpdate,
     valueSections,
     valueSectionsOriginalImmutable,
     valueSectionsOriginalNoLateInsert,
@@ -9373,6 +9447,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('computed_values', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'computed_values',
+        limitUpdateKind: UpdateKind.insert,
+      ),
+      result: [],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -14547,6 +14635,7 @@ typedef $ComputedValuesCreateCompanionBuilder =
       required int methodVersion,
       required int parameterVersion,
       required String quality,
+      Value<String?> unavailableReason,
     });
 typedef $ComputedValuesUpdateCompanionBuilder =
     ComputedValuesCompanion Function({
@@ -14566,6 +14655,7 @@ typedef $ComputedValuesUpdateCompanionBuilder =
       Value<int> methodVersion,
       Value<int> parameterVersion,
       Value<String> quality,
+      Value<String?> unavailableReason,
     });
 
 final class $ComputedValuesReferences
@@ -14689,6 +14779,11 @@ class $ComputedValuesFilterComposer
 
   ColumnFilters<String> get quality => $composableBuilder(
     column: $table.quality,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get unavailableReason => $composableBuilder(
+    column: $table.unavailableReason,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14825,6 +14920,11 @@ class $ComputedValuesOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get unavailableReason => $composableBuilder(
+    column: $table.unavailableReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $RunsOrderingComposer get runId {
     final $RunsOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -14912,6 +15012,11 @@ class $ComputedValuesAnnotationComposer
 
   GeneratedColumn<String> get quality =>
       $composableBuilder(column: $table.quality, builder: (column) => column);
+
+  GeneratedColumn<String> get unavailableReason => $composableBuilder(
+    column: $table.unavailableReason,
+    builder: (column) => column,
+  );
 
   $RunsAnnotationComposer get runId {
     final $RunsAnnotationComposer composer = $composerBuilder(
@@ -15006,6 +15111,7 @@ class $ComputedValuesTableManager
                 Value<int> methodVersion = const Value.absent(),
                 Value<int> parameterVersion = const Value.absent(),
                 Value<String> quality = const Value.absent(),
+                Value<String?> unavailableReason = const Value.absent(),
               }) => ComputedValuesCompanion(
                 id: id,
                 runId: runId,
@@ -15023,6 +15129,7 @@ class $ComputedValuesTableManager
                 methodVersion: methodVersion,
                 parameterVersion: parameterVersion,
                 quality: quality,
+                unavailableReason: unavailableReason,
               ),
           createCompanionCallback:
               ({
@@ -15042,6 +15149,7 @@ class $ComputedValuesTableManager
                 required int methodVersion,
                 required int parameterVersion,
                 required String quality,
+                Value<String?> unavailableReason = const Value.absent(),
               }) => ComputedValuesCompanion.insert(
                 id: id,
                 runId: runId,
@@ -15059,6 +15167,7 @@ class $ComputedValuesTableManager
                 methodVersion: methodVersion,
                 parameterVersion: parameterVersion,
                 quality: quality,
+                unavailableReason: unavailableReason,
               ),
           withReferenceMapper: (p0) => p0
               .map(

@@ -114,9 +114,18 @@ ComputedValue sampleValue(
   int method = 1,
   ValueQuality quality = ValueQuality.good,
   List<ValueSection> sections = const [],
+  UnavailableReason? reason,
+
+  /// Nur für Fehlerfälle: kein Grund, obwohl der Wert fehlt.
+  bool withoutReason = false,
 }) => ComputedValue(
   key: key,
   value: value,
+  unavailableReason:
+      reason ??
+      (value == null && !withoutReason
+          ? UnavailableReason.insufficientData
+          : null),
   unit: 'ml/kg/min',
   computedAt: at(200, 3),
   dataFrom: at(0),
@@ -171,7 +180,7 @@ String describeRun(StoredRun? r) => r == null
     : '${r.id}|${r.state.name}|${us(r.startedAt)}|${us(r.endedAt)}';
 
 String describeValue(ComputedValue v) =>
-    '${v.key}|${v.value}|${v.unit}|${us(v.computedAt)}|${us(v.dataFrom)}|${us(v.dataTo)}|${v.measurementCount}|${v.sources}|${v.method}|${v.methodVersion}|${v.parameterVersion}|${v.quality.name}|sections=${v.sections.map(describeSection).toList()}';
+    '${v.key}|${v.value}|${v.unavailableReason?.name}|${v.unit}|${us(v.computedAt)}|${us(v.dataFrom)}|${us(v.dataTo)}|${v.measurementCount}|${v.sources}|${v.method}|${v.methodVersion}|${v.parameterVersion}|${v.quality.name}|sections=${v.sections.map(describeSection).toList()}';
 
 String describePair(ValuePair p) =>
     'O(${describeValue(p.original)}) C(${describeValue(p.current)})';
