@@ -41,4 +41,8 @@ abstract final class SettingKeys {
   /// Grenzen der fünf Reservezonen in ganzen Prozent, kommagetrennt
   /// (FR-0061), zum Beispiel `50,60,70,80,90,100`.
   static const String reserveZoneBounds = 'zones.reserve_bounds';
+
+  /// `1`, wenn die Autopause eingeschaltet ist (FR-0029); fehlt der Eintrag,
+  /// gilt sie als aus (OQ-0065).
+  static const String autoPause = 'recording.auto_pause';
 }

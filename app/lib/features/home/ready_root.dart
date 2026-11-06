@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../settings/app_settings.dart';
+import '../run/run_ports.dart';
 import '../setup/setup_screen.dart';
 import 'home_screen.dart';
 
@@ -14,10 +15,12 @@ class ReadyRoot extends StatefulWidget {
     required this.session,
     required this.clock,
     required this.permissions,
+    required this.runPorts,
   });
 
   final StorageSession session;
   final PermissionStatusPort permissions;
+  final RunPorts runPorts;
   final Clock clock;
 
   @override
@@ -89,6 +92,7 @@ class _ReadyRootState extends State<ReadyRoot> {
                 session: widget.session,
                 clock: widget.clock,
                 permissions: widget.permissions,
+                runPorts: widget.runPorts,
               )
             : SetupScreen(
                 session: widget.session,
