@@ -19,27 +19,33 @@ object RecordingServiceState {
     const val CHANNEL = "running_app/recording_service"
     private const val START_TIMEOUT_MS = 5000L
 
-    @Volatile
-    var running: Boolean = false
-        private set
-    private var pending: MutableList<MethodChannel.Result> = mutableListOf()
     private val handler = Handler(Looper.getMainLooper())
+    private val timeout: Runnable = Runnable { controller.onTimeout() }
     private var appContext: Context? = null
     private var service: RecordingService? = null
 
+    /** Wirkungen auf Android; die Entscheidungen liegen in [RecordingServiceController]. */
+    private val effects = object : ServiceEffects<MethodChannel.Result> {
+        override fun startService() {
+            val c = appContext ?: throw IllegalStateException("no_context")
+            c.startForegroundService(Intent(c, RecordingService::class.java))
+        }
+        override fun stopService() {
+            val c = appContext ?: return
+            c.stopService(Intent(c, RecordingService::class.java))
+        }
+        override fun scheduleTimeout() { handler.postDelayed(timeout, START_TIMEOUT_MS) }
+        override fun cancelTimeout() { handler.removeCallbacks(timeout) }
+        override fun success(result: MethodChannel.Result) = result.success(null)
+        // Detail nur der Klassenname: keine Inhalte, keine Gesundheitsdaten.
+        override fun error(result: MethodChannel.Result, code: String, detail: String?) = result.error(code, detail, null)
+    }
+    private val controller: RecordingServiceController<MethodChannel.Result> = RecordingServiceController(effects)
+
+    val running: Boolean get() = controller.running
+
     fun attach(s: RecordingService) { service = s }
     fun detach(s: RecordingService) { if (service === s) service = null }
-    /**
-     * Stopp-Wunsch vor dem Vordergrund. Der Dienst wird nach `startForegroundService`
-     * nie von außen beendet, bevor er `startForeground` erreicht hat (Absturz des
-     * Prozesses); er liest den Wunsch in `onStartCommand` und beendet sich danach.
-     */
-    private var stopRequested = false
-    private val timeout = Runnable {
-        // Ein später doch gestarteter Dienst bliebe sonst ohne Dart-Gegenstück laufen.
-        stopRequested = true
-        failed(IllegalStateException("start_timeout"))
-    }
 
     fun register(messenger: BinaryMessenger, context: Context) {
         appContext = context.applicationContext
@@ -48,9 +54,13 @@ object RecordingServiceState {
                 "isRunning" -> result.success(running)
                 // Sensor im Lauf verbunden: Typ connectedDevice nachziehen, wenn BLUETOOTH_CONNECT da ist.
                 "updateType" -> result.success(service?.retype() ?: false)
-                "start" -> start(context, result)
+                "start" -> controller.start(
+                    result,
+                    context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+                        PackageManager.PERMISSION_GRANTED,
+                )
                 "stop" -> {
-                    stop(context)
+                    controller.stop()
                     result.success(null)
                 }
                 else -> result.notImplemented()
@@ -58,68 +68,8 @@ object RecordingServiceState {
         }
     }
 
-    private fun start(context: Context, result: MethodChannel.Result) {
-        if (running) {
-            result.success(null)
-            return
-        }
-        // Vor startForegroundService: danach lässt sich ein Scheitern von
-        // startForeground nicht mehr abfangen (siehe RecordingLifecycle.mayStart).
-        val allowed = RecordingLifecycle.mayStart(
-            context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED,
-        )
-        if (allowed.isFailure) {
-            result.error("start_failed", allowed.exceptionOrNull()?.javaClass?.simpleName, null)
-            return
-        }
-        val first = pending.isEmpty()
-        pending.add(result)
-        if (!first) return
-        stopRequested = false
-        try {
-            context.startForegroundService(Intent(context, RecordingService::class.java))
-            handler.postDelayed(timeout, START_TIMEOUT_MS)
-        } catch (e: RuntimeException) {
-            failed(e)
-        }
-    }
-
-    private fun stop(context: Context) {
-        if (pending.isNotEmpty()) {
-            // Dienst noch nicht im Vordergrund: nicht beenden, sondern vormerken.
-            stopRequested = true
-            failed(IllegalStateException("start_cancelled"))
-        } else if (running) {
-            context.stopService(Intent(context, RecordingService::class.java))
-        }
-    }
-
-    /** Liest und löscht den Stopp-Wunsch (aufgerufen in `onStartCommand`). */
-    fun takeStopRequest(): Boolean {
-        val r = stopRequested
-        stopRequested = false
-        return r
-    }
-
-    fun started() {
-        running = true
-        handler.removeCallbacks(timeout)
-        val waiting = pending
-        pending = mutableListOf()
-        waiting.forEach { it.success(null) }
-    }
-
-    fun failed(e: Throwable) {
-        running = false
-        handler.removeCallbacks(timeout)
-        val waiting = pending
-        pending = mutableListOf()
-        // Nur der Klassenname: keine Inhalte, keine Gesundheitsdaten.
-        waiting.forEach { it.error("start_failed", e.javaClass.simpleName, null) }
-    }
-
-    fun stopped() {
-        running = false
-    }
+    fun takeStopRequest(): Boolean = controller.takeStopRequest()
+    fun started() = controller.started()
+    fun failed(e: Throwable) = controller.failed(e)
+    fun stopped() = controller.stopped()
 }

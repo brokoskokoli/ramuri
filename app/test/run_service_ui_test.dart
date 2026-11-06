@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -61,6 +62,40 @@ void main() {
         ..requestNotifications = () async => throw StateError('detached');
       await openRun(d, tester);
       expect(key('run_pause'), findsOneWidget);
+      expect(await d.session.runs.list(), hasLength(1));
+    });
+
+    testWidgets('Antwort erst nach resumed: genau kein Start, Tippen startet', (
+      tester,
+    ) async {
+      final answer = Completer<void>();
+      final service = FakeRecordingServicePort();
+      final d = Device()
+        ..recordingService = service
+        ..requestNotifications = () => answer.future;
+      await d.start(tester, const Locale('de'));
+      await d.skipSetup(tester);
+      await tester.tap(key('home_start_run'));
+      await tester.pump();
+      await tester.pump();
+      // Systemdialog offen: Die App geht in den Hintergrund und kommt zurück,
+      // bevor die Antwort ankommt. resumed liest den Stand neu (Generation).
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(key('run_start_ready'), findsOneWidget);
+      answer.complete();
+      await tester.pumpAndSettle();
+      // Die späte Antwort startet keinen zweiten Weg.
+      expect(key('run_start_ready'), findsOneWidget);
+      expect(key('run_pause'), findsNothing);
+      expect(service.startCalls, 0);
+      expect(await d.session.runs.list(), isEmpty);
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
+      expect(key('run_pause'), findsOneWidget);
+      expect(service.startCalls, 1);
       expect(await d.session.runs.list(), hasLength(1));
     });
 

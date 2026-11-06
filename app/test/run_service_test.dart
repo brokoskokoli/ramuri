@@ -293,17 +293,13 @@ void main() {
       expect(lifecycle, matches(RegExp(r'fun onDestroy\(\) = stop\(\)')));
     });
 
-    test('Standortrecht wird vor startForegroundService geprüft', () {
-      final check = state.indexOf('RecordingLifecycle.mayStart(');
-      final start = state.indexOf('startForegroundService(');
-      expect(check, isNonNegative);
-      expect(start, greaterThan(check));
-      expect(state, contains('Manifest.permission.ACCESS_FINE_LOCATION'));
-      // Bei Ablehnung: Fehler start_failed und zurück, ohne Dienst.
-      final denied = state.substring(check, start);
-      expect(denied, contains('"start_failed"'));
-      expect(denied, contains('return'));
-    });
+    test(
+      'Standortrecht geht in den Controller (Entscheidung per JVM-Test)',
+      () {
+        expect(state, contains('Manifest.permission.ACCESS_FINE_LOCATION'));
+        expect(state, contains('controller.start('));
+      },
+    );
 
     test('connectedDevice nur hinter BLUETOOTH_CONNECT', () {
       // Der Typ entsteht allein in startType(bluetoothConnectGranted) ...
@@ -336,9 +332,11 @@ void main() {
     });
 
     test('kein stopService vor dem Vordergrund', () {
-      // Nur bei laufendem Dienst; Timeout und Stopp im Start werden vorgemerkt.
-      expect(RegExp('stopService').allMatches(state), hasLength(1));
-      expect(state, contains('else if (running)'));
+      // Nur bei laufendem Dienst (Entscheidung per JVM-Test des Controllers).
+      final controller = File('$dir/RecordingServiceController.kt')
+          .readAsStringSync();
+      expect(RegExp('stopService').allMatches(state + controller), isNotEmpty);
+      expect(controller, contains('else if (running)'));
       expect(service, contains('takeStopRequest()'));
     });
   });
