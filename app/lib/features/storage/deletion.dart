@@ -42,12 +42,29 @@ Future<DeletionResult> runDeletion(Future<void> Function() action) async {
 /// angezeigt (keine Gesundheitsdaten in Meldungen); der Merker bleibt, und
 /// [completePendingValueRefresh] holt das Neuanlegen beim nächsten Start nach.
 /// Scheitert schon der Merker, wird nichts gelöscht (Wurf).
+///
+/// Das ganze Löschen samt Neuanlegen läuft über [serialize] (in der App
+/// `RecalculationController.exclusive`), nie parallel zum Nachholen beim Start,
+/// zur Berechnung nach einem Lauf oder zu einer Neuberechnung. [serialize] ist
+/// Pflicht, damit es niemand vergisst; Fehler der Aktion gehen an den Aufrufer.
 Future<void> deleteRunAndRefresh(
+  StorageSession session,
+  Clock clock,
+  int runId, {
+  required Future<void> Function(Future<void> Function() action) serialize,
+}) => serialize(() => _deleteRunAndRefresh(session, clock, runId));
+
+Future<void> _deleteRunAndRefresh(
   StorageSession session,
   Clock clock,
   int runId,
 ) async {
   final calc = ValueCalculationService(session: session, clock: clock);
+  // Ein Merker eines früheren, unvollendeten Neuanlegens darf nicht verloren
+  // gehen, wenn dieses Löschen nichts löscht.
+  final previous = await session.settings.get(
+    ValueCalculationService.refreshPendingKey,
+  );
   await calc.markRefreshPending(runId);
 
   Future<void> refresh() async {
@@ -65,11 +82,14 @@ Future<void> deleteRunAndRefresh(
       // Gelöscht, nur der Checkpoint scheiterte: Tageswerte trotzdem anlegen.
       await refresh();
     } else {
-      // Nichts gelöscht: der Merker wird nicht gebraucht.
-      try {
-        await calc.clearRefreshPending();
-      } on Object {
-        // Ein stehengebliebener Merker kostet nur ein überflüssiges Neuanlegen.
+      // Nichts gelöscht: der eigene Merker wird nicht gebraucht, ein älterer
+      // (nicht leer vorher) bleibt stehen.
+      if (previous == null || previous.isEmpty) {
+        try {
+          await calc.clearRefreshPending();
+        } on Object {
+          // Ein stehengebliebener Merker kostet nur ein überflüssiges Neuanlegen.
+        }
       }
     }
     rethrow;
@@ -110,11 +130,13 @@ Future<DeletionResult> confirmAndDeleteRun(
   BuildContext context,
   StorageSession session,
   Clock clock,
-  int runId,
-) => _confirmAndDelete(
+  int runId, {
+  required Future<void> Function(Future<void> Function() action) serialize,
+}) => _confirmAndDelete(
   context,
   all: false,
-  action: () => deleteRunAndRefresh(session, clock, runId),
+  action: () =>
+      deleteRunAndRefresh(session, clock, runId, serialize: serialize),
 );
 
 /// Fragt nach und löscht alle Daten der App ("Alles löschen").

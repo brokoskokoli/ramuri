@@ -208,9 +208,7 @@ class RunController extends ChangeNotifier {
     if (phase == RecordingPhase.finished) {
       _stopInputs();
       final id = _recorder.runId;
-      if (id != null &&
-          _calculation == null &&
-          _recorder.lastWriteFailure == null) {
+      if (id != null && _calculation == null) {
         _calculation = _calculate(id);
         await _calculation;
       }
@@ -221,6 +219,11 @@ class RunController extends ChangeNotifier {
   /// der Lauf trotzdem gespeichert ([calculationFailed], Merker für später).
   Future<void> _calculate(int runId) async {
     Future<void> run() async {
+      // Nach dem tatsächlichen Zustand im Speicher entscheiden, nicht nach
+      // einem früheren Schreibfehler im Lauf: ist der Lauf nicht als beendet
+      // gespeichert, gibt es nichts zu berechnen.
+      final stored = await storage.runs.get(runId);
+      if (stored == null || stored.state != RunState.finished) return;
       await ValueCalculationService(
         session: storage,
         clock: clock,

@@ -28,6 +28,7 @@ class _Host extends StatelessWidget {
                 session,
                 FakeClock(DateTime.utc(2030, 6)),
                 runId,
+                serialize: (a) => a(),
               ),
             ),
             child: const Text('run'),

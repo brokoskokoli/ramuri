@@ -11,6 +11,9 @@ import 'app_harness.dart';
 final _key = Uint8List.fromList(List.filled(32, 7));
 const _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
 
+/// Ohne Reihe: führt die Aktion sofort aus.
+Future<void> _direct(Future<void> Function() action) => action();
+
 /// Werte, deren Tausch sich steuern lässt: Fehler oder Warten.
 class _Gate {
   bool fail = false;
@@ -20,6 +23,7 @@ class _Gate {
   bool failGetAfterSet = false;
   bool failSettingsAfterSwap = false;
   bool deletedNotErased = false;
+  bool failDelete = false;
   int swaps = 0;
 }
 
@@ -101,6 +105,7 @@ class _GatedSession implements StorageSession {
   ConsentStore get consents => inner.consents;
   @override
   Future<void> deleteRun(int runId) async {
+    if (gate.failDelete) throw const StorageException(StorageFailure.failed);
     await inner.deleteRun(runId);
     if (gate.deletedNotErased) {
       throw const StorageException(StorageFailure.deletedNotErased);
@@ -468,7 +473,7 @@ void main() {
           .length;
       expect(await s.values.read(ValueOwner.day(dayOfRemaining)), isNotEmpty);
 
-      await deleteRunAndRefresh(s, d.clock, doomed);
+      await deleteRunAndRefresh(s, d.clock, doomed, serialize: _direct);
 
       expect(await s.runs.get(doomed), isNull);
       expect(
@@ -493,7 +498,7 @@ void main() {
     final s = d.session;
     final id = (await s.runs.list()).first.id;
     gate.fail = true;
-    await deleteRunAndRefresh(s, d.clock, id);
+    await deleteRunAndRefresh(s, d.clock, id, serialize: _direct);
     expect(await s.runs.get(id), isNull);
   });
 
@@ -516,7 +521,7 @@ void main() {
       final day = dayOfRun(runs.last);
       gate.deletedNotErased = true;
       await expectLater(
-        deleteRunAndRefresh(s, d.clock, runs[1].id),
+        deleteRunAndRefresh(s, d.clock, runs[1].id, serialize: _direct),
         throwsA(
           isA<StorageException>().having(
             (e) => e.failure,
@@ -552,7 +557,7 @@ void main() {
         ..sort((a, b) => a.id.compareTo(b.id));
       final day = dayOfRun(runs.last);
       gate.fail = true;
-      await deleteRunAndRefresh(s, d.clock, runs[1].id);
+      await deleteRunAndRefresh(s, d.clock, runs[1].id, serialize: _direct);
       expect(await s.values.read(ValueOwner.day(day)), isEmpty);
       final mark = await s.settings.get(
         ValueCalculationService.refreshPendingKey,
@@ -576,12 +581,80 @@ void main() {
   ) async {
     final d = await _start(tester);
     final s = d.session;
-    await deleteRunAndRefresh(s, d.clock, (await s.runs.list()).first.id);
+    await deleteRunAndRefresh(
+      s,
+      d.clock,
+      (await s.runs.list()).first.id,
+      serialize: _direct,
+    );
     expect(
       await s.settings.get(ValueCalculationService.refreshPendingKey),
       anyOf(isNull, isEmpty),
     );
   });
+
+  testWidgets(
+    'Löschen und Neuanlegen laufen ganz über serialize (nichts davor)',
+    (tester) async {
+      final d = await _start(tester);
+      final s = d.session;
+      final id = (await s.runs.list()).first.id;
+      Future<void> Function()? queued;
+      var calls = 0;
+      final done = deleteRunAndRefresh(
+        s,
+        d.clock,
+        id,
+        serialize: (action) {
+          calls++;
+          queued = action;
+          return Future<void>.value();
+        },
+      );
+      await done;
+      // Eingereiht, aber noch nicht gelaufen: kein Merker, nichts gelöscht.
+      expect(calls, 1);
+      expect(await s.runs.get(id), isNotNull);
+      expect(
+        await s.settings.get(ValueCalculationService.refreshPendingKey),
+        isNull,
+      );
+      await queued!();
+      expect(await s.runs.get(id), isNull);
+    },
+  );
+
+  testWidgets(
+    'Löschen scheitert ohne Löschen: ein alter Merker bleibt, ein leerer wird entfernt',
+    (tester) async {
+      final gate = _Gate();
+      final d = await _start(tester, gate: gate);
+      final s = d.session;
+      final id = (await s.runs.list()).first.id;
+      const key = ValueCalculationService.refreshPendingKey;
+      gate.failDelete = true;
+
+      // Vorher leer: der eigene Merker wird wieder entfernt.
+      await expectLater(
+        deleteRunAndRefresh(s, d.clock, id, serialize: _direct),
+        throwsA(isA<StorageException>()),
+      );
+      expect(await s.settings.get(key), anyOf(isNull, isEmpty));
+
+      // Vorher ein Merker eines früheren, unvollendeten Neuanlegens: bleibt.
+      await s.settings.set(
+        key,
+        '99@2026-01-01T00:00:00.000Z',
+        at: d.clock.now(),
+      );
+      await expectLater(
+        deleteRunAndRefresh(s, d.clock, id, serialize: _direct),
+        throwsA(isA<StorageException>()),
+      );
+      expect(await s.settings.get(key), isNotEmpty);
+      expect(await s.runs.get(id), isNotNull);
+    },
+  );
 
   testWidgets('Merker nicht setzbar: nichts wird gelöscht', (tester) async {
     final gate = _Gate();
@@ -590,7 +663,7 @@ void main() {
     final id = (await s.runs.list()).first.id;
     gate.failSettings = true;
     await expectLater(
-      deleteRunAndRefresh(s, d.clock, id),
+      deleteRunAndRefresh(s, d.clock, id, serialize: _direct),
       throwsA(isA<StorageException>()),
     );
     expect(await s.runs.get(id), isNotNull);

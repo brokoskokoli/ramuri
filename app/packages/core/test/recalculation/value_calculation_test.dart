@@ -172,8 +172,8 @@ void main() {
     () async {
       final start = DateTime.utc(2030, 2, 25, 8);
       final pauseStart = start.add(const Duration(minutes: 10));
-      final pauseEnd = start.add(const Duration(minutes: 15));
-      // Gleicher Lauf, einmal mit Müllpunkten in der Pause (wie sie die
+      final pauseEnd = start.add(const Duration(minutes: 20));
+      // Gleicher Lauf, einmal mit plausiblen Punkten in der Pause (wie sie die
       // Aufzeichnung als Rohwerte speichert), einmal ohne.
       Future<ComputedValue> valueOf({required bool junkInPause}) async {
         final w = await RecalcWorld.create();
@@ -189,7 +189,7 @@ void main() {
             RawPosition(
               time: t,
               source: 'gps',
-              latitude: paused ? 40 : 10 + s * 3.0 / perDegree,
+              latitude: 10 + s * 3.0 / perDegree,
               longitude: 20,
               accuracyMeters: 5,
             ),
@@ -198,7 +198,7 @@ void main() {
             RawHeartRate(
               time: t,
               source: 'strap',
-              bpm: paused ? 60 : 150,
+              bpm: paused ? 170 : 150,
               contact: SensorContact.good,
             ),
           );
@@ -224,7 +224,9 @@ void main() {
       final clean = await valueOf(junkInPause: false);
       final withJunk = await valueOf(junkInPause: true);
       expect(clean.quality, isNot(ValueQuality.undeterminable));
-      expect(withJunk.value, clean.value);
+      // Plausible Punkte (Spur geht weiter, Puls 170): ohne Pause im Replay
+      // würde ein Abschnitt mit Puls 170 dazukommen (Wert 51,1 statt 55,5).
+      expect(withJunk.value, closeTo(clean.value!, 1e-6));
       expect(withJunk.sections.length, clean.sections.length);
     },
   );
@@ -258,6 +260,41 @@ void main() {
     final id2 = await w.seedRun(DateTime.utc(2030, 2, 26, 8));
     await w.calc().calculateAfterRunTracked(id2);
     expect(await w.session.settings.get(key), '');
+  });
+
+  test(
+    'Nachholen: beendeter Lauf ohne Laufwert ist offen, auch ohne Merker',
+    () async {
+      final w = await RecalcWorld.create();
+      final id = await w.seedRun(DateTime.utc(2030, 2, 25, 8));
+      const key = ValueCalculationService.calculationPendingKey;
+      expect(await w.session.settings.get(key), isNull);
+      expect(await w.session.values.read(ValueOwner.run(id)), isEmpty);
+
+      await w.calc().completePendingCalculations();
+      expect(await w.session.values.read(ValueOwner.run(id)), hasLength(1));
+      expect(await w.session.settings.get(key), isNull);
+    },
+  );
+
+  test('Nachholen: gemerkter Lauf mit Laufwert wird nur ausgetragen, nicht neu gerechnet', () async {
+    final w = await RecalcWorld.create();
+    final id = await w.seedRun(DateTime.utc(2030, 2, 25, 8));
+    await w.calc().calculateAfterRun(id);
+    const key = ValueCalculationService.calculationPendingKey;
+    await w.session.settings.set(key, '$id,999', at: w.clock.now());
+    final values = FailingValues(w.session.values)..failSwapAll = false;
+    final counted = FaultySession(
+      w.session,
+      rawData: w.session.rawData,
+      values: values,
+    );
+    final before = await w.dump();
+
+    await w.calc(over: counted).completePendingCalculations();
+    expect(values.writeAlls, 0, reason: 'kein erneutes Rechnen');
+    expect(await w.session.settings.get(key), '');
+    expect(await w.dump(), before);
   });
 
   test('Lauf mit Pause und ohne Dauer', () async {
