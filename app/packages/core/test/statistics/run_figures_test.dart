@@ -14,7 +14,7 @@ void main() {
         end: run.endedAt!,
         raw: raw,
         gaps: gaps,
-        parameters: const PreprocessingParameters.v3(),
+        parameters: const PreprocessingParameters.v4(),
       );
       return (RunFigures.fromRun(run: run, preprocessing: pre), run);
     }
