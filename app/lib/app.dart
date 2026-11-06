@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'app_dependencies.dart';
 import 'features/home/home_screen.dart';
+import 'features/storage/storage_gate.dart';
 import 'l10n/app_localizations.dart';
 
 /// Wurzel-Widget. Die Gerätesprache bestimmt die Sprache; für nicht
@@ -25,7 +26,10 @@ class RunningApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
-      home: const HomeScreen(),
+      home: StorageGate(
+        controller: dependencies.storageStart,
+        readyBuilder: (context, session) => HomeScreen(session: session),
+      ),
     );
   }
 }

@@ -1,0 +1,293 @@
+-- Schema Phase 1 (Version 1). Zeiten: Mikrosekunden seit Epoch (UTC), Spalten
+-- `*_us`. Einheiten SI: Meter `_m`, Sekunden `_s`, Grad `_deg`, Schläge je
+-- Minute `_bpm`, Kilogramm `_kg`. Alles unter `runs` hängt per ON DELETE CASCADE
+-- am Lauf (SEC-0004). Fremdschlüssel gelten nur bei `PRAGMA foreign_keys=ON`
+-- (connection_setup.dart).
+
+-- Meta-Tabelle aus Teil A.
+CREATE TABLE storage_meta (
+  "key" TEXT NOT NULL PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- ---------------------------------------------------------------- Lauf
+-- Lauf mit Zustand (ADR-0005 Punkt 5: aktiv; FR-0028: Pause, Ende).
+CREATE TABLE runs (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  state TEXT NOT NULL CHECK (state IN ('active', 'paused', 'finished')),
+  started_at_us INTEGER NOT NULL,
+  -- NULL, solange der Lauf nicht beendet ist.
+  ended_at_us INTEGER
+);
+
+-- Runden (FR-0030). Rundenzeit wie von der Aufzeichnung ermittelt (Sekunden).
+CREATE TABLE laps (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+  lap_index INTEGER NOT NULL,
+  marked_at_us INTEGER NOT NULL,
+  lap_time_s REAL NOT NULL,
+  UNIQUE (run_id, lap_index)
+);
+
+-- Lücken und Pausen, die die Aufzeichnung selbst markiert (FR-0194, FR-0193,
+-- FR-0028). end_us ist NULL, solange die Lücke offen ist.
+CREATE TABLE run_gaps (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN
+    ('manual_pause', 'position_loss', 'heart_rate_loss', 'interruption')),
+  start_us INTEGER NOT NULL,
+  end_us INTEGER
+);
+CREATE INDEX run_gaps_run_time ON run_gaps (run_id, start_us);
+CREATE INDEX laps_run_time ON laps (run_id, marked_at_us);
+
+-- ------------------------------------------------- Rohdaten (nur anhängen)
+-- Je Wert Zeitstempel, Quellgerät (FR-0020) und Zustand (FR-0057). Die
+-- Wertspalten sind nur im Zustand `unavailable` leer (fehlende Angaben sind
+-- NULL, nie 0; CHECK je Tabelle). `source` ist Text und kein Fremdschlüssel:
+-- Rohdaten bleiben, auch wenn ein Gerät vergessen wird. Zustände wie
+-- MeasurementState in core.
+CREATE TABLE raw_positions (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+  time_us INTEGER NOT NULL,
+  source TEXT NOT NULL,
+  state TEXT NOT NULL
+    CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')),
+  latitude_deg REAL,
+  longitude_deg REAL,
+  accuracy_m REAL,
+  CHECK (state = 'unavailable'
+    OR (latitude_deg IS NOT NULL AND longitude_deg IS NOT NULL))
+);
+
+CREATE TABLE raw_heart_rates (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+  time_us INTEGER NOT NULL,
+  source TEXT NOT NULL,
+  state TEXT NOT NULL
+    CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')),
+  bpm INTEGER,
+  contact TEXT NOT NULL CHECK (contact IN ('good', 'poor', 'unsupported')),
+  CHECK (state = 'unavailable' OR bpm IS NOT NULL)
+);
+
+CREATE TABLE raw_altitudes (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+  time_us INTEGER NOT NULL,
+  source TEXT NOT NULL,
+  state TEXT NOT NULL
+    CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')),
+  altitude_m REAL,
+  vertical_accuracy_m REAL,
+  CHECK (state = 'unavailable' OR altitude_m IS NOT NULL)
+);
+
+CREATE TABLE raw_steps (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+  time_us INTEGER NOT NULL,
+  source TEXT NOT NULL,
+  state TEXT NOT NULL
+    CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')),
+  step_count INTEGER,
+  CHECK (state = 'unavailable' OR step_count IS NOT NULL)
+);
+
+CREATE INDEX raw_positions_run_time ON raw_positions (run_id, time_us);
+CREATE INDEX raw_heart_rates_run_time ON raw_heart_rates (run_id, time_us);
+CREATE INDEX raw_altitudes_run_time ON raw_altitudes (run_id, time_us);
+CREATE INDEX raw_steps_run_time ON raw_steps (run_id, time_us);
+
+-- UPDATE auf Rohdaten: immer abbrechen (ADR-0004 Punkt 1).
+CREATE TRIGGER raw_positions_no_update BEFORE UPDATE ON raw_positions
+BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
+CREATE TRIGGER raw_heart_rates_no_update BEFORE UPDATE ON raw_heart_rates
+BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
+CREATE TRIGGER raw_altitudes_no_update BEFORE UPDATE ON raw_altitudes
+BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
+CREATE TRIGGER raw_steps_no_update BEFORE UPDATE ON raw_steps
+BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
+
+-- DELETE auf Rohdaten nur über die Kaskade des Laufs: Dort ist die Lauf-Zeile
+-- beim Löschen des Kindes schon weg (Test belegt das).
+CREATE TRIGGER raw_positions_no_direct_delete BEFORE DELETE ON raw_positions
+WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)
+BEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;
+CREATE TRIGGER raw_heart_rates_no_direct_delete BEFORE DELETE ON raw_heart_rates
+WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)
+BEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;
+CREATE TRIGGER raw_altitudes_no_direct_delete BEFORE DELETE ON raw_altitudes
+WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)
+BEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;
+CREATE TRIGGER raw_steps_no_direct_delete BEFORE DELETE ON raw_steps
+WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)
+BEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;
+
+-- ------------------------------------------------------ Vorverarbeitung
+-- Abgeleitet, jederzeit neu berechenbar (ADR-0004 Punkt 1); ersetzt bei
+-- Neuberechnung die Zeilen des Laufs. Rohdaten bleiben unberührt.
+CREATE TABLE preprocessing_results (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL UNIQUE REFERENCES runs (id) ON DELETE CASCADE,
+  method TEXT NOT NULL,
+  method_version INTEGER NOT NULL,
+  parameter_version INTEGER NOT NULL,
+  computed_at_us INTEGER NOT NULL,
+  -- Gesamt- und Bewegungszeit getrennt (FR-0052); NULL = nicht verfügbar.
+  total_time_s REAL,
+  moving_time_s REAL,
+  distance_m REAL,
+  bridged_distance_m REAL,
+  average_bpm REAL,
+  max_bpm INTEGER,
+  median_bpm REAL
+);
+
+-- Je Rohwert das Ergebnis des Filters: Zustand und Verwerfungsgrund.
+-- raw_id verweist auf die Zeile des Kanals, bewusst ohne Fremdschlüssel.
+CREATE TABLE preprocessed_samples (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+  channel TEXT NOT NULL
+    CHECK (channel IN ('position', 'heart_rate', 'altitude', 'steps')),
+  raw_id INTEGER NOT NULL,
+  time_us INTEGER NOT NULL,
+  state TEXT NOT NULL
+    CHECK (state IN ('present', 'estimated', 'unavailable', 'discarded')),
+  -- Namen wie DiscardReason in core; NULL, wenn nicht verworfen.
+  discard_reason TEXT CHECK (discard_reason IN (
+    'accuracy', 'hardJump', 'softJump', 'nonMonotonicTime',
+    'implausibleHeartRate', 'noContact', 'heartRateOutlier',
+    'verticalAccuracy', 'invalidValue'))
+);
+CREATE INDEX preprocessed_samples_run_time
+  ON preprocessed_samples (run_id, channel, time_us);
+
+-- Abgeleitete Zeitspannen: Bewegung, Einschwingzeit, Lücken je Kanal.
+-- end_us NULL = offen.
+CREATE TABLE preprocessed_spans (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN
+    ('moving', 'settling', 'position_gap', 'heart_rate_gap')),
+  start_us INTEGER NOT NULL,
+  end_us INTEGER
+);
+CREATE INDEX preprocessed_spans_run_time
+  ON preprocessed_spans (run_id, kind, start_us);
+
+-- ---------------------------------------- Abschnitte mit Bewertung
+-- Felder der SectionQuality aus core (FR-0048); Anteile 0..1, Dauern in s.
+-- Zählungen je Zustand nach FR-0057.
+CREATE TABLE rated_sections (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+  start_us INTEGER NOT NULL,
+  end_us INTEGER NOT NULL,
+  method TEXT NOT NULL,
+  method_version INTEGER NOT NULL,
+  parameter_version INTEGER NOT NULL,
+  assessed_at_us INTEGER NOT NULL,
+  heart_rate_present INTEGER NOT NULL,
+  heart_rate_estimated INTEGER NOT NULL,
+  heart_rate_unavailable INTEGER NOT NULL,
+  heart_rate_discarded INTEGER NOT NULL,
+  position_present INTEGER NOT NULL,
+  position_estimated INTEGER NOT NULL,
+  position_unavailable INTEGER NOT NULL,
+  position_discarded INTEGER NOT NULL,
+  missing_heart_rate_share REAL NOT NULL,
+  longest_heart_rate_gap_s REAL NOT NULL,
+  meets_heart_rate_gap_rule BOOLEAN NOT NULL CHECK (meets_heart_rate_gap_rule IN (0, 1)),
+  settling_overlap_s REAL NOT NULL,
+  settling_share REAL NOT NULL,
+  -- JSON-Liste der GPS-Lücken [[start_us, end_us, offen 0/1], ...] (FR-0048).
+  gps_gaps TEXT NOT NULL CHECK (json_valid(gps_gaps))
+);
+CREATE INDEX rated_sections_run_time ON rated_sections (run_id, start_us);
+
+-- --------------------------------------------------- Berechnete Werte
+-- Je Wert höchstens zwei Zeilen: unveränderlich `original` und `current`
+-- (ADR-0004 Punkt 4, FR-0058). Entweder an einem Lauf (run_id) oder ein
+-- Tageswert (day, ISO-Datum; z. B. ATL/CTL). Angaben nach FR-0053.
+CREATE TABLE computed_values (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER REFERENCES runs (id) ON DELETE CASCADE,
+  day TEXT,
+  value_key TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('original', 'current')),
+  -- NULL bei Qualitätsstufe 'undeterminable'.
+  value_real REAL,
+  unit TEXT NOT NULL,
+  computed_at_us INTEGER NOT NULL,
+  data_from_us INTEGER,
+  data_to_us INTEGER,
+  measurement_count INTEGER NOT NULL,
+  -- JSON-Liste der Quellgeräte und -quellen.
+  sources TEXT NOT NULL,
+  method TEXT NOT NULL,
+  method_version INTEGER NOT NULL,
+  parameter_version INTEGER NOT NULL,
+  quality TEXT NOT NULL CHECK (quality IN
+    ('provisional', 'sufficient', 'good', 'undeterminable')),
+  CHECK ((run_id IS NULL) <> (day IS NULL))
+);
+CREATE UNIQUE INDEX computed_values_run_unique
+  ON computed_values (run_id, value_key, role) WHERE run_id IS NOT NULL;
+CREATE UNIQUE INDEX computed_values_day_unique
+  ON computed_values (day, value_key, role) WHERE day IS NOT NULL;
+
+-- Eine Zeile `original` ist unveränderlich; auch nicht zu `original` machen.
+CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values
+WHEN OLD.role = 'original' OR NEW.role = 'original'
+BEGIN SELECT RAISE(ABORT, 'original value is immutable'); END;
+
+-- -------------------------------------------- Profil und Einstellungen
+-- Eine Zeile (id = 1). Alle Felder optional (FR-0002). Positive Zahlen für
+-- Alter, Gewicht und Größe (OQ-0065); Plausibilität prüft WP05. Erfahrung
+-- und Selbsteinschätzung sind bis Phase 2 zurückgestellt (OQ-0065).
+CREATE TABLE profile (
+  id INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
+  birth_year INTEGER CHECK (birth_year > 0),
+  body_weight_kg REAL CHECK (body_weight_kg > 0),
+  body_height_m REAL CHECK (body_height_m > 0),
+  resting_heart_rate_bpm INTEGER,
+  max_heart_rate_bpm INTEGER,
+  weekly_run_minutes INTEGER,
+  -- Bitmaske Montag = Bit 0 bis Sonntag = Bit 6.
+  training_days_mask INTEGER CHECK (training_days_mask BETWEEN 0 AND 127),
+  usual_training_minutes INTEGER
+);
+
+-- Einstellungen als Schlüssel-Wert (Zonen, Einheiten, Autopause usw.; die
+-- Schlüssel legen die jeweiligen Pakete fest).
+CREATE TABLE settings (
+  "key" TEXT NOT NULL PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at_us INTEGER NOT NULL
+);
+
+-- ----------------------------------------------- Bekannte Geräte (FR-0013/14)
+CREATE TABLE known_devices (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  device_id TEXT NOT NULL UNIQUE,
+  display_name TEXT,
+  is_preferred BOOLEAN NOT NULL DEFAULT 0 CHECK (is_preferred IN (0, 1)),
+  added_at_us INTEGER NOT NULL
+);
+-- Höchstens ein bevorzugtes Gerät.
+CREATE UNIQUE INDEX known_devices_one_preferred
+  ON known_devices (is_preferred) WHERE is_preferred = 1;
+
+-- ------------------------------------------------ Einwilligungen (SEC-0001/2/7)
+-- Fehlt eine Zeile, gilt: nicht erteilt.
+CREATE TABLE consents (
+  source_key TEXT NOT NULL PRIMARY KEY,
+  state TEXT NOT NULL CHECK (state IN ('granted', 'revoked')),
+  changed_at_us INTEGER NOT NULL
+);

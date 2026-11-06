@@ -46,6 +46,12 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
+  # Nur für Tests der echten Dateien (Isolate-Log, Klartextdatei); Versionen
+  # wie in adapters (ADR-0003).
+  drift: 2.35.3
+  sqlite3: 3.8.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -96,3 +102,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# ADR-0003 Punkt 1: SQLite3MultipleCiphers statt der Standard-SQLite-Bibliothek.
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc

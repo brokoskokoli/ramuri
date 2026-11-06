@@ -7,5 +7,157 @@
   "homeWelcome": "Willkommen bei der Lauf-App",
   "@homeWelcome": {
     "description": "Text auf dem Startbildschirm"
+  },
+  "deleteRunTitle": "Lauf löschen?",
+  "@deleteRunTitle": {
+    "description": "Titel des Bestätigungsdialogs: ein Lauf"
+  },
+  "deleteRunBody": "Der Lauf wird mit allen Messwerten, Abschnitten und berechneten Werten dauerhaft aus dem Speicher der App gelöscht. Tageswerte, die diesen Lauf einbeziehen, werden ebenfalls gelöscht und später neu berechnet. Das lässt sich nicht rückgängig machen.",
+  "@deleteRunBody": {
+    "description": "Text des Dialogs: ein Lauf"
+  },
+  "deleteAllTitle": "Alle Daten löschen?",
+  "@deleteAllTitle": {
+    "description": "Titel des Bestätigungsdialogs: alles"
+  },
+  "deleteAllBody": "Alle Läufe, Messwerte, berechneten Werte, das Profil, die Einstellungen, bekannte Geräte und Einwilligungen werden dauerhaft aus dem Speicher der App gelöscht. Das lässt sich nicht rückgängig machen.",
+  "@deleteAllBody": {
+    "description": "Text des Dialogs: alles"
+  },
+  "deleteSharedHint": "Was bereits weitergegeben wurde, etwa bei Strava, bleibt dort bestehen und wird hier nicht gelöscht.",
+  "@deleteSharedHint": {
+    "description": "Hinweis nach OQ-0025: Daten bei Dritten bleiben dort"
+  },
+  "deleteCancel": "Abbrechen",
+  "@deleteCancel": {
+    "description": "Schaltfläche: nichts löschen"
+  },
+  "deleteRunConfirm": "Lauf löschen",
+  "@deleteRunConfirm": {
+    "description": "Schaltfläche: den Lauf löschen"
+  },
+  "deleteAllConfirm": "Alles löschen",
+  "@deleteAllConfirm": {
+    "description": "Schaltfläche: alles löschen"
+  },
+  "deleteDone": "Gelöscht.",
+  "@deleteDone": {
+    "description": "Rückmeldung nach dem Löschen"
+  },
+  "deleteNotErased": "Gelöscht, aber die Bereinigung der Speicherdatei ist noch nicht abgeschlossen.",
+  "@deleteNotErased": {
+    "description": "Rückmeldung: Daten gelöscht, Checkpoint nicht durchgelaufen"
+  },
+  "deleteFailed": "Das Löschen ist fehlgeschlagen. Es wurde nichts gelöscht.",
+  "@deleteFailed": {
+    "description": "Rückmeldung bei einem Fehler"
+  },
+  "storageLoading": "Daten werden geöffnet …",
+  "@storageLoading": {
+    "description": "Meldung beim Öffnen der Datenbank"
+  },
+  "notOpenableTitle": "Daten lassen sich nicht öffnen",
+  "@notOpenableTitle": {
+    "description": "Titel: Datenbank nicht zu öffnen"
+  },
+  "notOpenableKeyMissing": "Der Schlüssel, der die gespeicherten Daten auf diesem Gerät schützt, fehlt. Ohne ihn sind die Daten nicht lesbar. Das kann nach einer Wiederherstellung des Geräts oder dem Zurücksetzen der Schlüsselablage passieren. Die Daten selbst wurden nicht verändert.",
+  "@notOpenableKeyMissing": {
+    "description": "Grund: Schlüssel fehlt"
+  },
+  "notOpenableKeyMalformed": "Der abgelegte Schlüssel ist beschädigt und lässt sich nicht verwenden. Die gespeicherten Daten sind dadurch nicht lesbar, wurden aber nicht verändert.",
+  "@notOpenableKeyMalformed": {
+    "description": "Grund: Schlüssel unbrauchbar"
+  },
+  "notOpenableKeyStoreError": "Die Schlüsselablage des Geräts antwortet nicht richtig. Die gespeicherten Daten wurden nicht verändert. Oft hilft ein erneuter Versuch, etwa nach dem Entsperren des Geräts. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
+  "@notOpenableKeyStoreError": {
+    "description": "Grund: Fehler der Schlüsselablage; Neubeginn erst nach einem Fehlversuch (canResetFor)"
+  },
+  "notOpenableUnreadable": "Die gespeicherten Daten lassen sich mit dem vorhandenen Schlüssel nicht lesen. Mögliche Gründe: Die Datei ist beschädigt oder der Schlüssel passt nicht.",
+  "@notOpenableUnreadable": {
+    "description": "Grund: Datei unlesbar oder falscher Schlüssel (SQLite NOTADB/CORRUPT); Neubeginn sofort (canResetFor)"
+  },
+  "notOpenableFileCheckError": "Der Zustand der gespeicherten Daten konnte nicht geprüft werden. Es wurde nichts verändert. Bitte erneut versuchen. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
+  "@notOpenableFileCheckError": {
+    "description": "Grund: Prüfung der Datei selbst gescheitert; Neubeginn erst nach einem Fehlversuch (canResetFor)"
+  },
+  "notOpenableNewerVersion": "Die gespeicherten Daten stammen von einer neueren Version der App und lassen sich mit dieser Version nicht öffnen. Die Daten sind vermutlich in Ordnung und wurden nicht verändert. Am besten die neuere Version der App wieder installieren. Erst wenn auch ein erneuter Versuch scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
+  "@notOpenableNewerVersion": {
+    "description": "Grund: Datei mit höherer Schemaversion (Herabstufen); Neubeginn erst nach einem Fehlversuch (canResetFor)"
+  },
+  "notOpenableConfigurationFailed": "Die Datenbank ließ sich auf diesem Gerät nicht sicher einrichten. Die Daten wurden nicht verändert. Bitte erneut versuchen, etwa nach einem App-Update. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
+  "@notOpenableConfigurationFailed": {
+    "description": "Grund: PRAGMA-Einrichtung der Verbindung weicht ab (Umgebung); Neubeginn erst nach einem Fehlversuch (canResetFor)"
+  },
+  "notOpenableMigrationFailed": "Die gespeicherten Daten konnten nicht auf die Form dieser App-Version umgestellt werden. Die Daten wurden nicht verändert. Bitte erneut versuchen oder zuerst die App aktualisieren. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
+  "@notOpenableMigrationFailed": {
+    "description": "Grund: Migration gescheitert (Fehler der App); Neubeginn erst nach einem Fehlversuch (canResetFor)"
+  },
+  "notOpenableLocationError": "Der Speicherort der Daten konnte nicht bestimmt werden. Es wurde nichts verändert.",
+  "@notOpenableLocationError": {
+    "description": "Grund: Pfad nicht ermittelbar; nie Neubeginn (canResetFor)"
+  },
+  "notOpenableOpenFailed": "Die gespeicherten Daten ließen sich nicht öffnen, etwa wegen eines Lese- oder Schreibfehlers, fehlenden Speicherplatzes oder einer Sperre. Die Daten wurden nicht verändert und sind vermutlich in Ordnung. Bitte erneut versuchen. Erst wenn auch das scheitert, lässt sich als letzter Ausweg neu beginnen; das löscht alle Daten endgültig.",
+  "@notOpenableOpenFailed": {
+    "description": "Grund: sonstiger Fehler beim Öffnen; Neubeginn erst nach einem Fehlversuch (canResetFor)"
+  },
+  "notOpenableDataDeleted": "Der bestätigte Neubeginn wurde begonnen, aber nicht abgeschlossen. Die alten Daten sind gelöscht. Bitte den Neubeginn fortsetzen.",
+  "@notOpenableDataDeleted": {
+    "description": "Nach einem Neubeginn: Dateien gelöscht, Schlüssel oder Öffnen danach gescheitert (ersetzt die Ursache)"
+  },
+  "notOpenableDataPartial": "Der bestätigte Neubeginn wurde begonnen, aber nicht abgeschlossen. Die alten Daten sind möglicherweise nur teilweise gelöscht. Bitte den Neubeginn fortsetzen.",
+  "@notOpenableDataPartial": {
+    "description": "Nach einem Neubeginn: Löschen nicht vollständig bestätigt (ersetzt die Ursache)"
+  },
+  "notOpenableResetHint": "„Neu beginnen“ löscht die bisherigen Daten endgültig und legt eine leere Datenbank an. Vorher fragt die App noch einmal nach.",
+  "@notOpenableResetHint": {
+    "description": "Hinweis zum Neubeginn"
+  },
+  "notOpenableRetry": "Erneut versuchen",
+  "@notOpenableRetry": {
+    "description": "Schaltfläche: erneut versuchen"
+  },
+  "notOpenableResume": "Neubeginn fortsetzen",
+  "@notOpenableResume": {
+    "description": "Schaltfläche: bestätigten Neubeginn fortsetzen (nach teilweisem oder vollständigem Löschen)"
+  },
+  "notOpenableReset": "Neu beginnen",
+  "@notOpenableReset": {
+    "description": "Schaltfläche: Neubeginn"
+  },
+  "resetProblemStart": "Der Neubeginn konnte nicht gestartet werden. Es wurde nichts gelöscht. Bitte erneut versuchen.",
+  "@resetProblemStart": {
+    "description": "Fehler beim Neubeginn, bevor etwas gelöscht wurde"
+  },
+  "resetConfirmTitle": "Neu beginnen?",
+  "@resetConfirmTitle": {
+    "description": "Titel der Bestätigung des Neubeginns"
+  },
+  "resetConfirmBody": "Die vorhandene Datenbank wird endgültig gelöscht: alle Läufe, Messwerte, berechneten Werte, das Profil und die Einstellungen gehen unwiederbringlich verloren. Danach beginnt die App mit einer leeren Datenbank und einem neuen Schlüssel. Das lässt sich nicht rückgängig machen.",
+  "@resetConfirmBody": {
+    "description": "Text der Bestätigung des Neubeginns, Hinweis auf Datenverlust"
+  },
+  "resetConfirmAction": "Endgültig löschen und neu beginnen",
+  "@resetConfirmAction": {
+    "description": "Schaltfläche: Neubeginn bestätigen"
+  },
+  "inactiveTitle": "Verschlüsselung nicht aktiv",
+  "@inactiveTitle": {
+    "description": "Titel: Verschlüsselung nicht aktiv"
+  },
+  "inactiveBody": "Die App kann die Daten auf diesem Gerät gerade nicht verschlüsseln und öffnet sie deshalb nicht. Die gespeicherten Daten wurden nicht verändert und bleiben geschützt. Bitte installiere die aktuelle Version der App neu oder melde das Problem; ein Neubeginn ist dafür nicht nötig.",
+  "@inactiveBody": {
+    "description": "Text: Verschlüsselung nicht aktiv"
+  },
+  "inactiveDataLossNote": "Die App öffnet ohne aktive Verschlüsselung nicht. Das Fortsetzen löscht nichts Neues und öffnet nichts unverschlüsselt.",
+  "@inactiveDataLossNote": {
+    "description": "Zusatz zum Text nach einem Neubeginn, wenn die Verschlüsselung nicht aktiv ist"
+  },
+  "dataTitle": "Daten",
+  "@dataTitle": {
+    "description": "Titel des Bildschirms und der Schaltfläche Daten"
+  },
+  "dataBody": "Hier verwaltest du die in der App gespeicherten Daten.",
+  "@dataBody": {
+    "description": "Text des Bildschirms Daten"
   }
 }
