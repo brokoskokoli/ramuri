@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:flutter/services.dart';
 
-/// Kanalnamen zu `LocationHandlers.kt` und `MainActivity.kt`; dieselben
+/// Kanalnamen zu `GpsStreamHandler.kt` und `MainActivity.kt`; dieselben
 /// Zeichenketten stehen dort (ein Test prüft das).
 const String locationStreamChannelName = 'running_app/location_stream';
 
@@ -11,7 +11,7 @@ const String locationStreamChannelName = 'running_app/location_stream';
 const String locationAccessChannelName = 'running_app/permissions';
 
 /// Takt der Standortabfrage in Millisekunden (OQ-0064: einmal je Sekunde).
-/// Steht auch in `LocationHandlers.kt` (`INTERVAL_MS`).
+/// Steht auch in `GpsStreamHandler.kt` (`INTERVAL_MS`).
 const int locationIntervalMs = 1000;
 
 /// [LocationSource] über `LocationManager.GPS_PROVIDER` (eigener Kotlin-Code,

@@ -60,8 +60,13 @@ class RunRecorder {
   bool _starting = false;
   Future<void> _tail = Future<void>.value();
   int _eventCursor = 0;
-  Future<int>? _lossGap;
-  Future<int>? _pauseGap;
+  _GapRecord? _lossGap;
+  _GapRecord? _pauseGap;
+
+  /// Lückenmarken, die im Speicher noch nicht vollständig (geöffnet und, falls
+  /// beendet, geschlossen) stehen; sie werden mit dem nächsten Schreiben
+  /// nachgeholt wie die Rohwerte.
+  final List<_GapRecord> _unsyncedGaps = [];
 
   final List<RawPosition> _positions = [];
   final List<RawAltitude> _altitudes = [];
@@ -201,10 +206,14 @@ class RunRecorder {
     _processEvents();
   }
 
-  RecordingSnapshot snapshot() {
-    final s = _session.snapshot();
+  RecordingSnapshot snapshot() => observe().snapshot;
+
+  /// Stand und Vorverarbeitung aus einem Aufbau (siehe
+  /// [RecordingSession.observe]).
+  ({RecordingSnapshot snapshot, RunPreprocessing? preprocessing}) observe() {
+    final o = _session.observe();
     _processEvents();
-    return s;
+    return o;
   }
 
   RunPreprocessing? preprocessing() => _session.preprocessing();
@@ -228,6 +237,7 @@ class RunRecorder {
   /// Schreibt den Puffer in Stapeln von höchstens `batchRows` Zeilen (je
   /// Kanal in Reihenfolge). Läuft nur in der Warteschlange.
   Future<void> _flush() async {
+    await _syncGaps();
     while (_pendingRows > 0) {
       var room = _batchRows;
       List<T> take<T>(List<T> from) {
@@ -305,24 +315,55 @@ class RunRecorder {
     }
   }
 
-  Future<int> _openGap(RunGapKind kind, DateTime start) {
-    final id = Completer<int>();
-    final runId = _runId!;
-    unawaited(
-      _write(
-        () async => id.complete(await _markers.openGap(runId, kind, start)),
-      ).catchError((Object e, StackTrace st) => id.completeError(e, st)),
-    );
-    // Fehler hier meldet schon _write über lastWriteFailure.
-    id.future.ignore();
-    return id.future;
+  _GapRecord _openGap(RunGapKind kind, DateTime start) {
+    final gap = _GapRecord(_runId!, kind, start);
+    _unsyncedGaps.add(gap);
+    // Fehler meldet schon _write über lastWriteFailure.
+    unawaited(_write(() => _syncGap(gap)).catchError((Object _) {}));
+    return gap;
   }
 
-  void _closeGap(Future<int>? gap, DateTime end) {
+  void _closeGap(_GapRecord? gap, DateTime end) {
     if (gap == null) return;
-    unawaited(
-      _write(() async => _markers.closeGap(await gap, end))
-          .catchError((Object _) {}),
-    );
+    gap.end = end;
+    unawaited(_write(() => _syncGap(gap)).catchError((Object _) {}));
   }
+
+  /// Bringt eine Lückenmarke auf den Stand der Sitzung: öffnen, falls noch
+  /// nicht geschehen, und schließen, falls sie beendet ist. Scheitert ein
+  /// Schritt mit `failed`, bleibt die Marke in [_unsyncedGaps] und wird beim
+  /// nächsten Schreiben wiederholt; ein abgelehnter Schritt kann nie gelingen.
+  Future<void> _syncGap(_GapRecord gap) async {
+    try {
+      gap.id ??= await _markers.openGap(gap.runId, gap.kind, gap.start);
+      final end = gap.end;
+      if (end != null && !gap.closed) {
+        await _markers.closeGap(gap.id!, end);
+        gap.closed = true;
+      }
+    } on StorageException catch (e) {
+      if (e.failure != StorageFailure.failed) {
+        _unsyncedGaps.remove(gap);
+      }
+      rethrow;
+    }
+    if (gap.end != null) _unsyncedGaps.remove(gap);
+  }
+
+  Future<void> _syncGaps() async {
+    for (final gap in List.of(_unsyncedGaps)) {
+      await _syncGap(gap);
+    }
+  }
+}
+
+/// Lücke im Arbeitsspeicher mit dem Stand ihrer Speicherung.
+class _GapRecord {
+  _GapRecord(this.runId, this.kind, this.start);
+  final int runId;
+  final RunGapKind kind;
+  final DateTime start;
+  DateTime? end;
+  int? id;
+  bool closed = false;
 }

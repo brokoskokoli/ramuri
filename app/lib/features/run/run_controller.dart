@@ -214,8 +214,9 @@ class RunController extends ChangeNotifier {
 
   void _update() {
     if (_disposed) return;
-    _snapshot = _recorder.snapshot();
-    _pre = _recorder.preprocessing();
+    final o = _recorder.observe();
+    _snapshot = o.snapshot;
+    _pre = o.preprocessing;
     notifyListeners();
   }
 

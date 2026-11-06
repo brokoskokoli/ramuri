@@ -82,31 +82,65 @@ class Probe implements RawDataStore, RunStore {
   Future<List<StoredRun>> unfinished() => runs.unfinished();
 }
 
+/// Lückenspeicher, dessen Öffnen bzw. Schließen auf Wunsch scheitert.
+class FlakyMarkers implements RunMarkerStore {
+  FlakyMarkers(this.inner);
+  final RunMarkerStore inner;
+  bool failOpens = false;
+  bool failCloses = false;
+
+  @override
+  Future<int> openGap(int runId, RunGapKind kind, DateTime start) {
+    if (failOpens) {
+      throw const StorageException(StorageFailure.failed);
+    }
+    return inner.openGap(runId, kind, start);
+  }
+
+  @override
+  Future<void> closeGap(int gapId, DateTime end) {
+    if (failCloses) {
+      throw const StorageException(StorageFailure.failed);
+    }
+    return inner.closeGap(gapId, end);
+  }
+
+  @override
+  Future<void> addLap(int runId, StoredLap lap) => inner.addLap(runId, lap);
+  @override
+  Future<List<StoredLap>> laps(int runId) => inner.laps(runId);
+  @override
+  Future<List<StoredGap>> gaps(int runId) => inner.gaps(runId);
+}
+
 class Rig {
   Rig._(this.clock, this.session, this.probe, this.recorder);
 
   static Future<Rig> make({
     bool autoPause = false,
     int batchRows = rawBatchRows,
+    bool flakyMarkers = false,
   }) async {
     final session = await FakeStorage().open(Uint8List(32));
+    final flaky = flakyMarkers ? FlakyMarkers(session.markers) : null;
     final probe = Probe(session.rawData, session.runs);
     final clock = FakeClock(t0);
     final rec = RunRecorder(
       clock: clock,
       runs: probe,
       rawData: probe,
-      markers: session.markers,
+      markers: flaky ?? session.markers,
       session: RecordingSession(clock: clock, autoPause: autoPause),
       batchRows: batchRows,
     );
-    return Rig._(clock, session, probe, rec);
+    return Rig._(clock, session, probe, rec).._flaky = flaky;
   }
 
   final FakeClock clock;
   final StorageSession session;
   final Probe probe;
   final RunRecorder recorder;
+  FlakyMarkers? _flaky;
   double north = 0;
 
   Future<void> move(int seconds, double speed) async {
@@ -266,6 +300,67 @@ void main() {
         reason: 'keine erfundenen Punkte in der Lücke',
       );
     });
+
+    test(
+      'Scheitert das Öffnen der Lückenmarke, wird sie nachgeholt (Soll 2)',
+      () async {
+        final r = await Rig.make(flakyMarkers: true);
+        r._flaky!.failOpens = true;
+        await r.recorder.start();
+        await r.move(5, 3);
+        r.clock.advance(const Duration(seconds: 20));
+        r.recorder.tick(); // Lücke beginnt, Speichern scheitert
+        await r.recorder.flush().catchError((Object _) {});
+        expect(r.recorder.lastWriteFailure, StorageFailure.failed);
+        expect(await r.gaps(), isEmpty);
+        r._flaky!.failOpens = false; // Speicher wieder da
+
+        r.clock.advance(const Duration(seconds: 1));
+        r.recorder.addPosition(fix(26, 100));
+        await r.recorder.flush();
+        final loss = (await r.gaps()).single;
+        expect(loss.kind, RunGapKind.positionLoss);
+        expect(loss.start, t0.add(const Duration(seconds: 5)));
+        expect(loss.end, t0.add(const Duration(seconds: 26)));
+      },
+    );
+
+    test(
+      'Scheitert das Schließen der Lückenmarke, wird es nachgeholt',
+      () async {
+        final r = await Rig.make(flakyMarkers: true);
+        r._flaky!.failCloses = true;
+        await r.recorder.start();
+        await r.move(5, 3);
+        r.clock.advance(const Duration(seconds: 20));
+        r.recorder.tick();
+        r.clock.advance(const Duration(seconds: 1));
+        r.recorder.addPosition(fix(26, 100));
+        await r.recorder.flush().catchError((Object _) {});
+        expect((await r.gaps()).single.end, isNull);
+        r._flaky!.failCloses = false;
+        await r.recorder.finish();
+        expect(
+          (await r.gaps()).single.end,
+          t0.add(const Duration(seconds: 26)),
+        );
+      },
+    );
+
+    test(
+      'Lückenmarke wird schon durch tick() gespeichert, ohne Anzeige',
+      () async {
+        final r = await Rig.make();
+        await r.recorder.start();
+        await r.move(5, 3);
+        r.clock.advance(const Duration(seconds: 11));
+        r.recorder.tick(); // kein snapshot(), kein Punkt
+        await r.recorder.flush();
+        final g = (await r.gaps()).single;
+        expect(g.kind, RunGapKind.positionLoss);
+        expect(g.start, t0.add(const Duration(seconds: 5)));
+      },
+    );
 
     test('Lücke ohne Rückkehr wird beim Ende geschlossen', () async {
       final r = await Rig.make();

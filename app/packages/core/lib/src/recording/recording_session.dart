@@ -30,6 +30,10 @@ enum Intake {
 
   /// Zeitstempel liegt vor Start bzw. Fortsetzen (nachgelieferter Altwert).
   ignoredStale,
+
+  /// Zeit springt gegenüber dem Empfangstakt vorwärts (Zukunftspunkt); er
+  /// würde alle Folgepunkte als nicht monoton sperren.
+  ignoredImplausibleTime,
 }
 
 enum RecordingEventKind {
@@ -88,6 +92,7 @@ class RecordingSnapshot {
     required this.distanceMeters,
     required this.heartRateBpm,
     required this.positionLost,
+    required this.positionLossTime,
     required this.standstillDetected,
     required this.laps,
     required this.gaps,
@@ -110,6 +115,10 @@ class RecordingSnapshot {
 
   /// Länger als PAR-004 ohne akzeptierte Position (nur im aktiven Lauf).
   final bool positionLost;
+
+  /// Summe der GPS-Lücken bis jetzt (eine offene zählt bis jetzt). Diese Zeit
+  /// läuft in [movingTime] mit, trägt aber keine gemessene Strecke.
+  final Duration positionLossTime;
 
   /// Stillstand erkannt (PAR-014, PAR-015), unabhängig von der Einstellung.
   final bool standstillDetected;
@@ -135,6 +144,11 @@ class RecordingSession {
   final PreprocessingParameters parameters;
   final String positionSource;
 
+  /// Größter Vorsprung eines (ausgerichteten) Punkts vor der Uhr. Der Versatz
+  /// ist je Lauf fest und der Empfang verzögert höchstens; 5 s lässt dem Takt
+  /// eines 1-Hz-Stroms Raum und fängt Zeitsprünge nach vorn ab.
+  static const _maxForwardJump = Duration(seconds: 5);
+
   bool _autoPause;
   RecordingPhase _phase = RecordingPhase.idle;
   RunPreprocessor? _pre;
@@ -142,11 +156,20 @@ class RecordingSession {
   DateTime? _endedAt;
   DateTime? _activeSince;
 
-  /// Bezugspunkt der Lückenprüfung (letzter akzeptierter Punkt bzw. Beginn des
-  /// Abschnitts) und offene Lücke.
+  // Zwei Zeitbasen (Review 1, Soll 1): Die Systemuhr führt Start, Pausen,
+  // Lücken und Anzeige; Punkte tragen GPS-Zeit. Ein roher Vergleich beider
+  // hängt vom Uhrversatz ab. Darum wird die GPS-Zeit mit einem je Lauf festen
+  // Versatz [_gpsOffset] (Empfangszeit des ersten Punkts minus dessen
+  // GPS-Zeit) in die Uhrbasis gelegt; ab da rechnet die Sitzung nur noch in
+  // einer Basis. Gespeichert wird weiter die rohe GPS-Zeit (Recorder).
+
+  /// Bezugspunkt der Lückenprüfung in Empfangszeit (letzter akzeptierter Punkt
+  /// bzw. Beginn des Abschnitts) und offene Lücke.
   DateTime? _gapRef;
   bool _lossOpen = false;
   DateTime? _lossStart;
+
+  Duration? _gpsOffset;
 
   DateTime? _lastMark;
   Duration _lastMarkMoving = Duration.zero;
@@ -263,11 +286,19 @@ class RecordingSession {
   }
 
   Intake addPosition(LocationSample s) {
-    final gate = _gate(s.time);
+    final now = _clock.now();
+    final offset = _gpsOffset ?? now.difference(s.time);
+    final time = s.time.add(offset);
+    final gate = _gate(time);
     if (gate != null) return gate;
+    // Ein Zukunftspunkt würde jeden Folgepunkt als nicht monoton sperren.
+    if (time.difference(now) > _maxForwardJump) {
+      return Intake.ignoredImplausibleTime;
+    }
+    _gpsOffset = offset;
     final pre = _pre!;
     final raw = RawPosition(
-      time: s.time,
+      time: time,
       source: positionSource,
       latitude: s.latitude,
       longitude: s.longitude,
@@ -276,24 +307,24 @@ class RecordingSession {
       speedAccuracyMetersPerSecond: s.speedAccuracyMetersPerSecond,
       verticalAccuracyMeters: s.verticalAccuracyMeters,
     );
-    _checkLoss(s.time);
+    _checkLoss(now);
     final r = pre.addPosition(raw);
     if (r.accepted) {
-      _closeLoss(s.time);
-      _gapRef = s.time;
+      _closeLoss(now);
+      _gapRef = now;
     }
     final alt = s.altitudeMeters;
     if (alt != null && alt.isFinite) {
       pre.addAltitude(
         RawAltitude(
-          time: s.time,
+          time: time,
           source: positionSource,
           meters: alt,
           verticalAccuracyMeters: s.verticalAccuracyMeters,
         ),
       );
     }
-    _syncAutoPause(s.time);
+    _syncAutoPause(time);
     return Intake.processed;
   }
 
@@ -313,28 +344,36 @@ class RecordingSession {
   }
 
   /// Stand jetzt (nach dem Ende: eingefroren auf das Ende).
-  RecordingSnapshot snapshot() {
+  RecordingSnapshot snapshot() => observe().snapshot;
+
+  /// Stand und Vorverarbeitung aus einem Aufbau (O(n) je Aufruf, darum für die
+  /// Anzeige je Takt nur einmal) und zu derselben Uhrablesung.
+  ({RecordingSnapshot snapshot, RunPreprocessing? preprocessing}) observe() {
     final pre = _pre;
     if (pre == null) {
-      return RecordingSnapshot(
-        phase: _phase,
-        autoPauseEnabled: _autoPause,
-        startedAt: null,
-        endedAt: null,
-        totalTime: null,
-        movingTime: null,
-        distanceMeters: null,
-        heartRateBpm: null,
-        positionLost: false,
-        standstillDetected: false,
-        laps: const [],
-        gaps: const [],
+      return (
+        preprocessing: null,
+        snapshot: RecordingSnapshot(
+          phase: _phase,
+          autoPauseEnabled: _autoPause,
+          startedAt: null,
+          endedAt: null,
+          totalTime: null,
+          movingTime: null,
+          distanceMeters: null,
+          heartRateBpm: null,
+          positionLost: false,
+          positionLossTime: Duration.zero,
+          standstillDetected: false,
+          laps: const [],
+          gaps: const [],
+        ),
       );
     }
     final now = _endedAt ?? _clock.now();
     if (_active) _checkLoss(now);
     final r = _finalResult ?? pre.result(at: now);
-    return RecordingSnapshot(
+    final snapshot = RecordingSnapshot(
       phase: _phase,
       autoPauseEnabled: _autoPause,
       startedAt: _startedAt,
@@ -346,11 +385,13 @@ class RecordingSession {
           ? null
           : pre.heartRateAt(now).value?.bpm,
       positionLost: _lossOpen,
+      positionLossTime: _lossTime(now),
       standstillDetected:
           r.movement.autoPauseState == AutoPauseState.standstillPause,
       laps: List.unmodifiable(_laps),
       gaps: List.unmodifiable(_gaps),
     );
+    return (snapshot: snapshot, preprocessing: r);
   }
 
   /// Vollständige Vorverarbeitung (Tempo, Höhe, Qualität) für Anzeige und
@@ -392,6 +433,15 @@ class RecordingSession {
         resumes.isEmpty ? sampleTime : resumes.last,
       );
     }
+  }
+
+  Duration _lossTime(DateTime now) {
+    var sum = Duration.zero;
+    for (final g in _gaps) {
+      if (g.kind != RunGapKind.positionLoss) continue;
+      sum += (g.end ?? now).difference(g.start);
+    }
+    return sum;
   }
 
   // PAR-004: Lücke ab "länger als" gapMaxDuration; löst nie eine Pause aus.

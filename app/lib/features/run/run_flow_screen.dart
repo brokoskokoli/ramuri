@@ -36,6 +36,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   StartBlock? _block;
   bool _checking = true;
 
+  /// Die Prüfung besteht, aber der Lauf wartet auf das Tippen des Nutzers.
+  bool _ready = false;
+
   /// Jede Prüfung bekommt eine Nummer; nur die jüngste zählt. So kann eine
   /// Antwort, die nach einer Neuerzeugung der Activity nie ankommt (oder
   /// `busy` ist), die Oberfläche nicht festhalten.
@@ -45,7 +48,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _check(askUser: false);
+    _check(askUser: false, autoStart: true);
   }
 
   @override
@@ -60,11 +63,14 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     // Zurück aus Systemdialog oder Einstellungen: Stand neu lesen, ohne zu
     // fragen. Das ersetzt auch eine verlorene Antwort auf die Anfrage.
     if (state == AppLifecycleState.resumed && _controller == null) {
-      _check(askUser: false);
+      _check(askUser: false, autoStart: false);
     }
   }
 
-  Future<void> _check({required bool askUser}) async {
+  /// Nur der Weg von der Startschaltfläche der Startseite startet sofort. Nach
+  /// einer Blockade, Einstellungen oder einer anderen App wartet der Lauf auf
+  /// das Tippen: Minuten später soll er nicht von selbst beginnen.
+  Future<void> _check({required bool askUser, required bool autoStart}) async {
     final gen = ++_generation;
     setState(() => _checking = true);
     final result = await RecordingStartGate(widget.ports.access)
@@ -73,6 +79,15 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     if (!result.canStart) {
       setState(() {
         _block = result.block;
+        _ready = false;
+        _checking = false;
+      });
+      return;
+    }
+    if (!autoStart) {
+      setState(() {
+        _block = null;
+        _ready = true;
         _checking = false;
       });
       return;
@@ -87,6 +102,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     setState(() {
       _controller = controller;
       _block = null;
+      _ready = false;
       _checking = false;
     });
     await controller.start();
@@ -103,7 +119,11 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     if (controller == null) {
       return Scaffold(
         appBar: AppBar(title: Text(l10n.homeStartRun)),
-        body: _checking ? _checkingBody(l10n) : _blockBody(l10n),
+        body: _checking
+            ? _checkingBody(l10n)
+            : _ready
+            ? _readyBody(l10n)
+            : _blockBody(l10n),
       );
     }
     return ListenableBuilder(
@@ -140,6 +160,16 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     ),
   );
 
+  /// Prüfung bestanden: Der Start erfolgt erst mit dem Tippen, und zwar nach
+  /// einer frischen Prüfung (der Stand kann sich inzwischen geändert haben).
+  Widget _readyBody(AppLocalizations l10n) => Center(
+    child: FilledButton(
+      key: const Key('run_start_ready'),
+      onPressed: () => _check(askUser: false, autoStart: true),
+      child: Text(l10n.homeStartRun),
+    ),
+  );
+
   Widget _blockBody(AppLocalizations l10n) {
     final block = _block ?? StartBlock.unknown;
     final text = switch (block) {
@@ -156,7 +186,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       if (canAsk)
         FilledButton(
           key: const Key('run_block_ask'),
-          onPressed: () => _check(askUser: true),
+          onPressed: () => _check(askUser: true, autoStart: false),
           child: Text(l10n.runActionAsk),
         ),
       if (canOpenSettings)
@@ -169,13 +199,13 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       if (!canAsk)
         FilledButton(
           key: const Key('run_block_recheck'),
-          onPressed: () => _check(askUser: false),
+          onPressed: () => _check(askUser: false, autoStart: false),
           child: Text(l10n.runActionRecheck),
         )
       else
         TextButton(
           key: const Key('run_block_recheck'),
-          onPressed: () => _check(askUser: false),
+          onPressed: () => _check(askUser: false, autoStart: false),
           child: Text(l10n.runActionRecheck),
         ),
     ], blockKey: Key('run_block_${block.name}'));

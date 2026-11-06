@@ -17,6 +17,9 @@ class GpsStreamHandler(private val manager: LocationManager) : EventChannel.Stre
 
     @SuppressLint("MissingPermission") // Fehlende Berechtigung wird als SecurityException gemeldet.
     override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
+        // Ein früherer Listener bliebe sonst beim System angemeldet.
+        listener?.let { manager.removeUpdates(it) }
+        listener = null
         val interval = ((arguments as? Map<*, *>)?.get("intervalMs") as? Number)?.toLong() ?: INTERVAL_MS
         val l = object : LocationListener {
             override fun onLocationChanged(location: Location) = events.success(toEvent(location))

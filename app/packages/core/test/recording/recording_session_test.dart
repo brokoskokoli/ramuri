@@ -12,6 +12,17 @@ LocationSample fix(num sec, num north, {double? alt}) => LocationSample(
   altitudeMeters: alt,
 );
 
+class _CountingClock implements Clock {
+  _CountingClock(this.inner);
+  final FakeClock inner;
+  int reads = 0;
+  @override
+  DateTime now() {
+    reads++;
+    return inner.now();
+  }
+}
+
 class Rig {
   Rig({bool autoPause = false}) : clock = FakeClock(t0) {
     s = RecordingSession(clock: clock, autoPause: autoPause);
@@ -302,7 +313,7 @@ void main() {
 
     test('Eingänge vor Start und in der Pause werden ignoriert', () {
       final r = Rig();
-      expect(r.s.addPosition(fix(1, 0)), Intake.ignoredNotActive);
+      expect(r.s.addPosition(fix(0, 0)), Intake.ignoredNotActive);
       r.s.start();
       r.move(5, 3);
       r.s.pause();
@@ -315,12 +326,103 @@ void main() {
       final r = Rig();
       r.wait(100);
       r.s.start();
-      expect(r.s.addPosition(fix(50, 0)), Intake.ignoredStale);
-      r.move(5, 3);
+      r.move(5, 3); // erster Punkt legt die Zeitbasis fest
       r.s.pause();
       r.wait(20);
       r.s.resume();
       expect(r.s.addPosition(fix(110, 0)), Intake.ignoredStale);
+      r.wait(1);
+      expect(r.s.addPosition(fix(126, 0)), isNot(Intake.ignoredStale));
+    });
+  });
+
+  test('observe: Stand und Vorverarbeitung aus einem Aufbau (Soll 4)', () {
+    final clock = _CountingClock(FakeClock(t0));
+    final s = RecordingSession(clock: clock)..start();
+    for (var i = 1; i <= 5; i++) {
+      clock.inner.advance(const Duration(seconds: 1));
+      s.addPosition(fix(i, i * 3.0));
+    }
+    clock.reads = 0;
+    final o = s.observe();
+    expect(clock.reads, 1, reason: 'ein Aufbau, eine Uhrablesung');
+    expect(o.preprocessing, isNotNull);
+    expect(o.snapshot.movingTime, o.preprocessing!.movement.movingTime);
+    expect(o.snapshot.distanceMeters, o.preprocessing!.position.distanceMeters);
+  });
+
+  group('Zeitbasen: GPS-Zeit und Systemuhr (Review 1, Soll 1)', () {
+    // Ein Lauf bei Uhrversatz: Punkte tragen die GPS-Zeit, die Uhr zeigt
+    // GPS-Zeit + [offset]. Die Entscheidung über Lücke und Veraltung darf nicht
+    // vom Versatz abhängen.
+    for (final offset in [
+      const Duration(seconds: 60),
+      const Duration(seconds: -60),
+    ]) {
+      test('Uhrversatz $offset: Punkte werden angenommen, keine falsche Lücke, '
+          'echte Lücke wird erkannt', () {
+        final clock = FakeClock(t0.add(offset));
+        final s = RecordingSession(clock: clock)..start();
+        var accepted = 0;
+        for (var i = 1; i <= 20; i++) {
+          clock.advance(const Duration(seconds: 1));
+          final r = s.addPosition(fix(i, i * 3.0));
+          if (r == Intake.processed) accepted++;
+          s.tick();
+        }
+        expect(accepted, 20);
+        var snap = s.snapshot();
+        expect(snap.positionLost, isFalse);
+        expect(snap.gaps, isEmpty);
+        expect(snap.distanceMeters, greaterThan(50));
+        expect(s.preprocessing()!.pace.liveSpeed, closeTo(3, 0.1));
+
+        for (var i = 0; i < 30; i++) {
+          clock.advance(const Duration(seconds: 1));
+          s.tick();
+        }
+        snap = s.snapshot();
+        expect(snap.positionLost, isTrue);
+        expect(snap.gaps.single.kind, RunGapKind.positionLoss);
+        // Lücke in Uhrzeit: Beginn beim letzten Punkt (Empfang).
+        expect(
+          snap.gaps.single.start,
+          t0.add(offset).add(const Duration(seconds: 20)),
+        );
+      });
+    }
+
+    test('Lücke beginnt mit dem Empfang des letzten Punkts, nicht mit seiner '
+        'GPS-Zeit', () {
+      final clock = FakeClock(t0);
+      final s = RecordingSession(clock: clock)..start();
+      for (var i = 1; i <= 5; i++) {
+        clock.advance(const Duration(seconds: 1));
+        s.addPosition(fix(i, i * 3.0));
+      }
+      // Letzter Punkt kommt 300 ms nach seiner (ausgerichteten) Zeit an.
+      clock.advance(const Duration(milliseconds: 1300));
+      s.addPosition(fix(6, 18));
+      clock.advance(const Duration(seconds: 11));
+      s.tick();
+      expect(
+        s.snapshot().gaps.single.start,
+        t0.add(const Duration(milliseconds: 6300)),
+      );
+    });
+
+    test('Ein Punkt mit Zukunftszeit blockiert die Folgepunkte nicht', () {
+      final r = Rig()..s.start();
+      r.move(5, 3);
+      r.wait(1);
+      final bad = r.s.addPosition(fix(6 + 3600, r.north + 3));
+      expect(bad, Intake.ignoredImplausibleTime);
+      r.north += 3;
+      r.wait(0);
+      final before = r.s.snapshot().distanceMeters!;
+      r.move(5, 3);
+      expect(r.s.snapshot().distanceMeters!, greaterThan(before + 10));
+      expect(r.s.preprocessing()!.position.positions.length, 10);
     });
   });
 
@@ -349,6 +451,7 @@ void main() {
 
         // Rückkehr: Lücke geschlossen, Strecke über die Lücke nicht geschätzt.
         r.north += 100;
+        r.wait(1);
         r.s.addPosition(fix(51, r.north));
         snap = r.s.snapshot();
         expect(snap.positionLost, isFalse);

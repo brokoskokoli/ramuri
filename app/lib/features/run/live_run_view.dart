@@ -16,11 +16,16 @@ String formatClock(Duration? d) {
 }
 
 /// Durchschnittspace in Sekunden je Kilometer aus Bewegungszeit und Strecke;
-/// `null`, solange eines von beiden fehlt oder die Strecke 0 ist.
+/// `null`, solange eines von beiden fehlt oder die Strecke 0 ist. Zeit in
+/// GPS-Lücken zählt nicht mit: Sie läuft in der Bewegungszeit, hat aber keine
+/// gemessene Strecke und würde den Schnitt sonst zu langsam machen. Die Spec
+/// schweigt dazu (Entscheidung des Coders, WP10 abstimmen).
 double? averagePaceSecondsPerKm(RecordingSnapshot s) {
-  final t = s.movingTime;
+  final moving = s.movingTime;
   final d = s.distanceMeters;
-  if (t == null || d == null || d <= 0) return null;
+  if (moving == null || d == null || d <= 0) return null;
+  final t = moving - s.positionLossTime;
+  if (t <= Duration.zero) return null;
   return t.inMicroseconds / 1e6 / (d / 1000);
 }
 
