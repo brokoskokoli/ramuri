@@ -217,7 +217,11 @@ void main() {
     ).readAsStringSync();
     final main = read('MainActivity.kt');
     final gps = read('GpsStreamHandler.kt');
-    expect(main, contains('"$locationStreamChannelName"'));
+    // Der Standortstrom hängt prozessweit an der Engine der Application (WP08).
+    expect(
+      read('RunningApplication.kt'),
+      contains('"$locationStreamChannelName"'),
+    );
     expect(main, contains('"$locationAccessChannelName"'));
     expect(gps, contains('INTERVAL_MS = ${locationIntervalMs}L'));
     for (final key in full().keys) {

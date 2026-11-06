@@ -9,21 +9,28 @@ import android.os.Build
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    /** Die Engine gehört der Application (ADR-0005 Punkt 1) und überlebt die Activity. */
+    override fun getCachedEngineId(): String = RunningApplication.ENGINE_ID
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        // Der Handler hält diese Activity; die Engine bleibt ohne sie bestehen.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/permissions")
+            .setMethodCallHandler(null)
+        pendingLocation?.error("detached", null, null)
+        pendingLocation = null
+        pendingNotifications?.error("detached", null, null)
+        pendingNotifications = null
+        pendingActivity?.error("detached", null, null)
+        pendingActivity = null
+        super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    /** Nur Kanäle, die diese Activity braucht; prozessweite hängen in [RunningApplication] an der Engine. */
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        // ADR-0003 Punkt 3: Die Datenbank liegt in getNoBackupFilesDir(), das immer vom Backup ausgenommen ist.
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/storage")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "getNoBackupFilesDir" -> result.success(applicationContext.noBackupFilesDir.absolutePath)
-                    else -> result.notImplemented()
-                }
-            }
-    
         // SEC-0007: Stand der Berechtigungen nur lesen; Widerruf im System.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/permissions")
             .setMethodCallHandler { call, result ->
@@ -43,6 +50,10 @@ class MainActivity : FlutterActivity() {
                     // FR-0195: genauer Standort vor dem Lauf (OQ-0064).
                     "locationAccess" -> result.success(locationAccess())
                     "requestLocation" -> requestLocation(result)
+                    // ADR-0005 Punkt 2: Die App fragt, läuft aber auch ohne; Antwort blockiert nichts.
+                    "requestNotifications" -> requestNotifications(result)
+                    // FR-0202: eigene Berechtigung, fragt nie, wenn es keinen Sensor gibt.
+                    "requestActivityRecognition" -> requestActivityRecognition(result)
                     "gpsEnabled" -> result.success(
                         (getSystemService(LOCATION_SERVICE) as LocationManager)
                             .isProviderEnabled(LocationManager.GPS_PROVIDER),
@@ -58,13 +69,42 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
-
-        // ADR-0005 Punkt 4: GPS_PROVIDER ohne Play-Dienste.
-        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/location_stream")
-            .setStreamHandler(GpsStreamHandler(getSystemService(LOCATION_SERVICE) as LocationManager))
     }
 
     private var pendingLocation: MethodChannel.Result? = null
+    private var pendingNotifications: MethodChannel.Result? = null
+    private var pendingActivity: MethodChannel.Result? = null
+
+    private fun requestActivityRecognition(result: MethodChannel.Result) {
+        val state = StepSensor.availability(this)
+        if (state != "permission_denied") {
+            result.success(state)
+            return
+        }
+        if (pendingActivity != null) {
+            result.error("busy", null, null)
+            return
+        }
+        pendingActivity = result
+        requestPermissions(arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), ACTIVITY_REQUEST)
+    }
+
+    private fun notificationsGranted(): Boolean =
+        Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    private fun requestNotifications(result: MethodChannel.Result) {
+        if (notificationsGranted()) {
+            result.success("granted")
+            return
+        }
+        if (pendingNotifications != null) {
+            result.error("busy", null, null)
+            return
+        }
+        pendingNotifications = result
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_REQUEST)
+    }
 
     /** "precise" nur mit ACCESS_FINE_LOCATION; nur COARSE ist "approximate". */
     private fun locationAccess(): String = when {
@@ -96,6 +136,14 @@ class MainActivity : FlutterActivity() {
             pendingLocation?.success(locationAccess())
             pendingLocation = null
         }
+        if (requestCode == ACTIVITY_REQUEST) {
+            pendingActivity?.success(StepSensor.availability(this))
+            pendingActivity = null
+        }
+        if (requestCode == NOTIFICATION_REQUEST) {
+            pendingNotifications?.success(if (notificationsGranted()) "granted" else "denied")
+            pendingNotifications = null
+        }
     }
 
     /** Schlüssel der Berechtigungen, die das Manifest der App anfordert (Dart: MethodChannelPermissionStatus.keys). */
@@ -120,5 +168,7 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val LOCATION_REQUEST = 6001
+        const val NOTIFICATION_REQUEST = 6002
+        const val ACTIVITY_REQUEST = 6003
     }
 }

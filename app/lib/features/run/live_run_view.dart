@@ -151,6 +151,12 @@ class LiveRunView extends StatelessWidget {
         banner(const Key('run_banner_paused'), l10n.runPausedBanner),
       if (s.phase == RecordingPhase.autoPaused)
         banner(const Key('run_banner_autopaused'), l10n.runAutoPausedBanner),
+      if (controller.serviceFailed && !finished)
+        banner(
+          const Key('run_banner_service'),
+          l10n.runServiceFailed,
+          error: true,
+        ),
       if (controller.writeFailure != null && !finished)
         banner(
           const Key('run_banner_storage'),
@@ -232,8 +238,15 @@ class LiveRunView extends StatelessWidget {
         l10n.runAscent,
         ascent == null ? na : formatter.elevation(ascent),
       ),
-      // Quelle (Schrittsensor) kommt mit WP08; bis dahin nie ein Wert.
-      _Metric('run_cadence', l10n.runCadence, na),
+      // FR-0202: Wert nur mit Berechtigung und Sensor, sonst „nicht verfügbar“.
+      _Metric('run_cadence', l10n.runCadence, switch ((
+        controller.cadenceAvailability,
+        controller.cadenceStepsPerMinute,
+      )) {
+        (CadenceAvailability.available, final spm?) => l10n.runSpm(spm.round()),
+        (CadenceAvailability.available, null) => l10n.runNoDataYet,
+        _ => na,
+      }),
       _Laps(laps: s.laps),
     ];
   }

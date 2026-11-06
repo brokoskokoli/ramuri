@@ -12,11 +12,22 @@
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="s"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <!-- ADR-0005 Punkt 2: Foreground Service der Aufzeichnung. Keine Hintergrund-Standortberechtigung,
+         kein BOOT_COMPLETED. POST_NOTIFICATIONS fragt die App vor dem Laufstart; ohne sie
+         (abgelehnt) läuft der Dienst, nur die Benachrichtigung ist nicht sichtbar. Der Wake Lock gilt nur für die Laufdauer. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- FR-0202: Schrittsensor des Telefons für die Schrittfrequenz. Eigene Laufzeitberechtigung;
+         ohne sie ist die Schrittfrequenz "nicht verfügbar" und der Lauf wird normal aufgezeichnet. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Running App"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:name="${applicationName}"
+        android:name=".RunningApplication"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -40,6 +51,12 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- connectedDevice nennt startForeground nur mit BLUETOOTH_CONNECT (RecordingLifecycle.startType),
+             sonst wirft Android 14 eine SecurityException. Kein Typ health. -->
+        <service
+            android:name=".RecordingService"
+            android:exported="false"
+            android:foregroundServiceType="location|connectedDevice"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

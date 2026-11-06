@@ -34,6 +34,18 @@ class Device {
   Duration reconnectDelay = const Duration(seconds: 5);
   late SensorManager sensors;
 
+  /// Dienst der Aufzeichnung (WP08); `null` wie ohne Dienst.
+  FakeRecordingServicePort? recordingService;
+
+  /// Abfrage von POST_NOTIFICATIONS vor dem Laufstart (WP08); `null` wie ohne Plattform.
+  Future<void> Function()? requestNotifications;
+
+  /// Schrittsensor des Telefons (WP08 C, FR-0202); `null` wie ohne Anbindung.
+  CadenceSensor? cadence;
+
+  /// Abfrage von ACTIVITY_RECOGNITION vor dem Laufstart; `null` wie ohne Plattform.
+  Future<void> Function()? requestActivityRecognition;
+
   /// Wo die Wiedergabe rechnet. Ein Isolate läuft nicht in der Test-Uhr
   /// (pumpAndSettle), darum standardmäßig inline; Tests setzen einen Fake.
   Offload offload = inlineOffload;
@@ -112,6 +124,10 @@ class Device {
               return lastRun = run;
             },
             connectSensors: sensors.connectKnown,
+            recordingService: recordingService,
+            requestNotifications: requestNotifications,
+            cadence: cadence,
+            requestActivityRecognition: requestActivityRecognition,
           ),
         ),
       ),

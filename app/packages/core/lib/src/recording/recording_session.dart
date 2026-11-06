@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import '../../ports/clock.dart';
 import '../../ports/heart_rate_sensor.dart';
 import '../../ports/location.dart';
+import '../../ports/storage_raw.dart';
 import '../../ports/storage_runs.dart';
 import '../preprocessing/gap_moving_time.dart';
 import '../preprocessing/measurement.dart';
@@ -217,6 +218,94 @@ class RecordingSession {
     _pre = RunPreprocessor(start: now, parameters: parameters);
     _phase = RecordingPhase.running;
     _emit(RecordingEventKind.started, now);
+    return CommandResult.ok;
+  }
+
+  /// Stellt eine unterbrochene Aufzeichnung wieder her (FR-0193): spielt die
+  /// gespeicherten Werte in zeitlicher Reihenfolge durch die Vorverarbeitung
+  /// (wie die Neuberechnung, `RunAnalysis`) und läuft ab [resumeAt] weiter.
+  /// [gaps] enthält die Lücke `interruption` bis [resumeAt] schon; sie wirkt
+  /// wie eine Pause: Es entsteht kein Segment über sie (keine geschätzte
+  /// Strecke) und ihre Zeit zählt zur Gesamtzeit, nicht zur Bewegungszeit.
+  /// Alle Lücken müssen geschlossen sein. Nur im Zustand `idle`; erzeugt keine
+  /// Ereignisse, denn alles Wiederhergestellte steht schon im Speicher.
+  CommandResult restore({
+    required DateTime startedAt,
+    required StoredRawData raw,
+    required List<StoredGap> gaps,
+    required List<StoredLap> laps,
+    required DateTime resumeAt,
+  }) {
+    if (_phase != RecordingPhase.idle) return CommandResult.rejected;
+    final pre = RunPreprocessor(start: startedAt, parameters: parameters);
+    final events = <({DateTime at, int rank, void Function() apply})>[];
+    void add(DateTime at, int rank, void Function() apply) =>
+        events.add((at: at, rank: rank, apply: apply));
+    for (final g in gaps) {
+      final end = g.end ?? resumeAt;
+      switch (g.kind) {
+        case RunGapKind.manualPause:
+        case RunGapKind.interruption:
+          add(g.start, 2, () => pre.pause(g.start));
+          add(end, 0, () => pre.resume(end));
+        case RunGapKind.positionLoss:
+        case RunGapKind.heartRateLoss:
+          break;
+      }
+      _gaps.add(RecordedGap(kind: g.kind, start: g.start, end: end));
+    }
+    var lastMark = startedAt;
+    var lastMarkMoving = Duration.zero;
+    for (final l in laps) {
+      add(l.markedAt, 1, () {
+        final moving = pre.result(at: l.markedAt).movement.movingTime;
+        _laps.add(
+          RecordedLap(
+            index: l.index,
+            markedAt: l.markedAt,
+            lapTime: l.lapTime,
+            movingTime: moving - lastMarkMoving,
+          ),
+        );
+        lastMark = l.markedAt;
+        lastMarkMoving = moving;
+      });
+    }
+    DateTime? lastPoint;
+    for (final r in raw.positions) {
+      add(r.value.time, 1, () => pre.addPosition(r.value));
+      if (lastPoint == null || r.value.time.isAfter(lastPoint)) {
+        lastPoint = r.value.time;
+      }
+    }
+    for (final r in raw.heartRates) {
+      add(r.value.time, 1, () => pre.addHeartRate(r.value));
+    }
+    for (final r in raw.altitudes) {
+      add(r.value.time, 1, () => pre.addAltitude(r.value));
+    }
+    for (final r in raw.steps) {
+      add(r.value.time, 1, () => pre.addSteps(r.value));
+    }
+    // Dart-Sortierung ist nicht stabil: Reihenfolge der Einfügung als Schlüssel.
+    final indexed = [for (var i = 0; i < events.length; i++) (i, events[i])]
+      ..sort((a, b) {
+        final c = a.$2.at.compareTo(b.$2.at);
+        if (c != 0) return c;
+        final r = a.$2.rank.compareTo(b.$2.rank);
+        return r != 0 ? r : a.$1.compareTo(b.$1);
+      });
+    for (final e in indexed) {
+      e.$2.apply();
+    }
+    _pre = pre;
+    _startedAt = startedAt;
+    _activeSince = resumeAt;
+    _gapRef = resumeAt;
+    _lastMark = lastMark;
+    _lastMarkMoving = lastMarkMoving;
+    _lastPointTime = lastPoint;
+    _phase = RecordingPhase.running;
     return CommandResult.ok;
   }
 

@@ -625,6 +625,15 @@
       }
     }
   },
+  "runSpm": "{spm} spm",
+  "@runSpm": {
+    "description": "WP08 C",
+    "placeholders": {
+      "spm": {
+        "type": "int"
+      }
+    }
+  },
   "runZoneValue": "Zone {zone}",
   "@runZoneValue": {
     "description": "WP06 D",
@@ -674,6 +683,13 @@
   "runNoLaps": "Noch keine Runde markiert",
   "runPausedBanner": "Pausiert",
   "runAutoPausedBanner": "Automatisch pausiert (Stillstand erkannt)",
+  "runServiceFailed": "Der Hintergrundbetrieb konnte nicht starten. Die Aufzeichnung läuft nur, solange die App sichtbar ist und das Display an bleibt.",
+  "recoverTitle": "Unterbrochener Lauf",
+  "recoverBody": "Ein Lauf wurde nicht beendet, etwa weil die App geschlossen wurde. Du kannst ihn fortsetzen oder so speichern, wie er bis zuletzt aufgezeichnet wurde. Die Zeit dazwischen ist als Lücke markiert, ihre Strecke wird nicht geschätzt.",
+  "recoverClockBehind": "Die Uhr des Geräts steht vor dem letzten gespeicherten Zeitpunkt. Beim Fortsetzen zählen neue Punkte erst, wenn die Uhr wieder aufgeholt hat.",
+  "recoverResume": "Fortsetzen",
+  "recoverSave": "Als beendet speichern",
+  "recoverSaveFailed": "Der Lauf konnte nicht gespeichert werden.",
   "runStorageFailed": "Speichern fehlgeschlagen. Die Anzeige läuft weiter, aber Messwerte könnten im Speicher fehlen.",
   "runPause": "Pause",
   "runResume": "Fortsetzen",

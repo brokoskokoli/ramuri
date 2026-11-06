@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="recording_channel_name">Recording</string>
+    <string name="recording_notification_title">Run in progress</string>
+    <string name="recording_notification_text">Tap to return to the run</string>
+</resources>

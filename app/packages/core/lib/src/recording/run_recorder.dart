@@ -10,10 +10,12 @@ import '../../ports/storage_runs.dart';
 import '../preprocessing/measurement.dart';
 import '../preprocessing/run_preprocessor.dart';
 import 'recording_session.dart';
+import 'run_recovery.dart';
 
-/// Höchstzahl Zeilen je Transaktion (ADR-0005 Punkt 5, Startwert R005: eine
-/// Zeile). Sie gilt für Position, Höhe und Puls zusammen; ein Messpunkt mit
-/// Höhe sind also zwei Transaktionen. Die endgültige Größe legt WP08 fest.
+/// Höchstzahl Zeilen je Transaktion (ADR-0005 Punkt 5; R005: eine Zeile, WP08
+/// bestätigt). Sie gilt für Position, Höhe und Puls zusammen; ein Messpunkt mit
+/// Höhe sind also zwei Transaktionen. Mit `synchronous = FULL` (WP02) bleibt
+/// bei einem Kill höchstens die laufende Zeile aus.
 const int rawBatchRows = 1;
 
 /// Verbindet [RecordingSession] mit dem Speicherzugriff (WP06 Teil C).
@@ -102,6 +104,56 @@ class RunRecorder {
       _session.start();
       _processEvents();
       return CommandResult.ok;
+    } finally {
+      _starting = false;
+    }
+  }
+
+  /// Setzt einen unterbrochenen Lauf fort (FR-0193): derselbe Lauf, die Zeit
+  /// vom letzten gespeicherten Zeitpunkt bis jetzt ist die Lücke
+  /// `interruption`. Offene Lücken (Pause, GPS) werden am letzten Zeitpunkt
+  /// geschlossen, ein pausierter Lauf wird wieder `active`. Liegt die Uhr vor
+  /// dem letzten Zeitpunkt (Uhr zurück), ist die Lücke leer (Anfang = Ende)
+  /// und Punkte gelten erst, wenn die Uhr ihn überschreitet; die Lücke wird
+  /// nie negativ. Gespeichert wird zuerst, die Sitzung danach: scheitert das
+  /// Schreiben, bleibt der Lauf unverändert fortsetzbar.
+  Future<CommandResult> restore(int runId) async {
+    if (_starting || _session.phase != RecordingPhase.idle) {
+      return CommandResult.rejected;
+    }
+    _starting = true;
+    try {
+      final run = await _runs.get(runId);
+      if (run == null || run.state == RunState.finished) {
+        return CommandResult.rejected;
+      }
+      final raw0 = await _raw.read(runId);
+      final gaps0 = await _markers.gaps(runId);
+      final laps = await _markers.laps(runId);
+      final last = lastRecordedTime(run, raw0, gaps0, laps);
+      final now = _clock.now();
+      final resumeAt = now.isBefore(last) ? last : now;
+      for (final g in gaps0) {
+        if (g.end == null) await _markers.closeGap(g.id, last);
+      }
+      final id = await _markers.openGap(runId, RunGapKind.interruption, last);
+      await _markers.closeGap(id, resumeAt);
+      if (run.state == RunState.paused) {
+        await _runs.setState(runId, RunState.active);
+      }
+      final gaps = await _markers.gaps(runId);
+      final r = _session.restore(
+        startedAt: run.startedAt,
+        raw: raw0,
+        gaps: gaps,
+        laps: laps,
+        resumeAt: resumeAt,
+      );
+      if (r == CommandResult.ok) {
+        _runId = runId;
+        _eventCursor = _session.events.length;
+      }
+      return r;
     } finally {
       _starting = false;
     }

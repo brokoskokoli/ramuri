@@ -21,6 +21,7 @@ class RunFlowScreen extends StatefulWidget {
     required this.permissions,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
+    this.resumeRunId,
   });
 
   final StorageSession session;
@@ -28,6 +29,9 @@ class RunFlowScreen extends StatefulWidget {
   final RunPorts ports;
   final PermissionStatusPort permissions;
   final Duration tickEvery;
+
+  /// Setzt diesen unterbrochenen Lauf fort (FR-0193); das Start-Gate gilt.
+  final int? resumeRunId;
 
   /// Siehe [RunController.serialize].
   final Future<void> Function(Future<void> Function() action)? serialize;
@@ -108,11 +112,17 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       });
       return;
     }
+    await _askNotifications();
+    await _askActivityRecognition();
+    if (!mounted || gen != _generation) return;
     final controller = RunController(
       clock: widget.clock,
       storage: widget.session,
       location: widget.ports.location,
       sensors: widget.ports.heartRateRun?.call(),
+      service: widget.ports.recordingService,
+      cadence: widget.ports.cadence,
+      resumeRunId: widget.resumeRunId,
       tickEvery: widget.tickEvery,
       serialize: widget.serialize,
     );
@@ -123,6 +133,24 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       _checking = false;
     });
     await controller.start();
+  }
+
+  /// ADR-0005 Punkt 2: fragen, aber nie blockieren (Ablehnung, Fehler, Abbruch).
+  Future<void> _askNotifications() async {
+    try {
+      await widget.ports.requestNotifications?.call();
+    } catch (_) {
+      // Ohne Berechtigung läuft der Dienst, nur die Benachrichtigung fehlt.
+    }
+  }
+
+  /// FR-0202: fragen, aber nie blockieren; ohne Recht fehlt nur die Schrittfrequenz.
+  Future<void> _askActivityRecognition() async {
+    try {
+      await widget.ports.requestActivityRecognition?.call();
+    } catch (_) {
+      // Ohne Berechtigung ist die Schrittfrequenz nicht verfügbar.
+    }
   }
 
   Future<void> _retryStart() async {

@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
 import '../sensors/run_heart_rate.dart';
+import 'run_ports.dart';
 
 /// Einordnung der Herzfrequenzzone für die Anzeige (FR-0026, OQ-0012).
 enum LiveZoneKind { zone, belowZone1, noHeartRate, noBasis }
@@ -31,6 +32,9 @@ class RunController extends ChangeNotifier {
     required this.storage,
     required this.location,
     this.sensors,
+    this.service,
+    this.cadence,
+    this.resumeRunId,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
     RunRecorder? recorder,
@@ -54,6 +58,16 @@ class RunController extends ChangeNotifier {
   final RunHeartRate? sensors;
   final Duration tickEvery;
 
+  /// Dienst, der den Prozess während des Laufs hält (WP08); `null` ohne Dienst.
+  final RecordingServicePort? service;
+
+  /// Schrittsensor des Telefons (FR-0202); `null` ohne Sensor-Anbindung.
+  final CadenceSensor? cadence;
+
+  /// Ist gesetzt, setzt [start] diesen unterbrochenen Lauf fort (FR-0193),
+  /// statt einen neuen anzulegen.
+  final int? resumeRunId;
+
   /// Reiht Schreiben von Werten hinter den Start und andere Neuberechnungen
   /// ein (siehe `RecalculationController.exclusive`); `null` = sofort.
   final Future<void> Function(Future<void> Function() action)? serialize;
@@ -65,6 +79,10 @@ class RunController extends ChangeNotifier {
   Timer? _timer;
   StreamSubscription<LocationSample>? _locationSub;
   StreamSubscription<HeartRateReading>? _heartSub;
+  StreamSubscription<CadenceReading>? _cadenceSub;
+  CadenceAvailability? _cadenceAvailability;
+  double? _cadence;
+  Duration? _cadenceAt; // Monotonzeit des Empfangs
   bool _disposed = false;
 
   late RecordingSnapshot _snapshot;
@@ -73,6 +91,8 @@ class RunController extends ChangeNotifier {
   bool _startFailed = false;
   bool _starting = false;
   bool _locationError = false;
+  bool _serviceFailed = false;
+  bool _serviceWanted = false;
   bool _heartRateSeen = false;
   ResolvedHeartRate? _basis;
   FitnessParameters _fitness = const FitnessParameters.v4();
@@ -89,6 +109,25 @@ class RunController extends ChangeNotifier {
 
   /// Die Standortquelle meldete einen Fehler und seitdem keinen Punkt mehr.
   bool get locationError => _locationError;
+
+  /// Der Dienst konnte nicht starten. Der Lauf zeichnet weiter auf, aber nur,
+  /// solange die App sichtbar ist; die Oberfläche weist darauf hin.
+  bool get serviceFailed => _serviceFailed;
+
+  /// Stand des Schrittsensors; `null`, solange er noch nicht geprüft ist oder
+  /// es keinen Anschluss gibt. Ohne [CadenceAvailability.available] ist die
+  /// Schrittfrequenz „nicht verfügbar“ und der Lauf läuft normal.
+  CadenceAvailability? get cadenceAvailability => _cadenceAvailability;
+
+  /// Aktuelle Schrittfrequenz (Schritte je Minute) oder `null`. Ein Wert, der
+  /// länger als das Fenster des Schätzers zurückliegt, zählt nicht mehr (Stillstand).
+  double? get cadenceStepsPerMinute {
+    final at = _cadenceAt;
+    if (_cadence == null || at == null) return null;
+    return clock.monotonic() - at > CadenceEstimator.defaultWindow
+        ? null
+        : _cadence;
+  }
 
   /// Von der Pulsquelle kam in diesem Lauf schon ein Wert.
   bool get heartRateSourceSeen => _heartRateSeen;
@@ -163,7 +202,14 @@ class RunController extends ChangeNotifier {
       }
       _recorder.setAutoPause(_autoPause);
       try {
-        await _recorder.start();
+        final resume = resumeRunId;
+        final r = resume == null
+            ? await _recorder.start()
+            : await _recorder.restore(resume);
+        if (r == CommandResult.rejected) {
+          _startFailed = true;
+          return;
+        }
       } on Object {
         _startFailed = true;
         return;
@@ -181,6 +227,7 @@ class RunController extends ChangeNotifier {
       final hrStream = sensors?.readings;
       if (hrStream != null) {
         _heartSub = hrStream.listen((r) {
+          if (!_heartRateSeen) _sensorConnected();
           _heartRateSeen = true;
           _recorder.addHeartRate(r);
         }, onError: (Object _) {});
@@ -189,11 +236,84 @@ class RunController extends ChangeNotifier {
         _recorder.tick();
         _update();
       });
+      unawaited(_startCadence());
+      await _startService();
     } finally {
       _starting = false;
       _update();
     }
   }
+
+  /// Startet den Dienst nach dem Anlegen des Laufs. Scheitert er, geht der Lauf
+  /// nicht verloren: Er läuft im Vordergrund weiter und [serviceFailed] meldet es.
+  Future<void> _startService() async {
+    final s = service;
+    if (s == null) return;
+    _serviceWanted = true;
+    try {
+      await s.start();
+      _serviceFailed = false;
+    } on Object {
+      _serviceFailed = true;
+    }
+    // Der Lauf endete oder der Controller wurde verworfen, während der Start lief.
+    if (!_serviceWanted) _callStop(s);
+  }
+
+  /// Ein Sensor lieferte den ersten Wert: Der Dienst zieht `connectedDevice`
+  /// nach, falls er ohne startete (BLUETOOTH_CONNECT erst im Lauf erteilt).
+  void _sensorConnected() {
+    final s = service;
+    if (s == null || !_serviceWanted) return;
+    unawaited(s.updateType().then((_) {}, onError: (Object _) {}));
+  }
+
+  /// FR-0202: ohne Berechtigung oder Sensor bleibt es bei „nicht verfügbar“.
+  Future<void> _startCadence() async {
+    final c = cadence;
+    if (c == null) return;
+    try {
+      final a = await c.availability();
+      if (_disposed || _timer == null) return;
+      _cadenceAvailability = a;
+      if (a == CadenceAvailability.available) {
+        _cadenceSub = c.readings().listen(
+          (r) {
+            _cadence = r.stepsPerMinute;
+            _cadenceAt = clock.monotonic();
+            _update();
+          },
+          onError: (Object _) => _cadenceEnded(),
+          onDone: _cadenceEnded,
+        );
+      }
+    } on Object {
+      _cadenceAvailability = CadenceAvailability.noSensor;
+    }
+    _update();
+  }
+
+  /// Der Schrittstrom endete von sich aus (Sensor oder Recht fiel weg): ab
+  /// jetzt „nicht verfügbar“ statt eines Werts, der nur verfällt.
+  void _cadenceEnded() {
+    if (_disposed || _timer == null) return;
+    // Der Strom ist nicht endgültig beendet, wenn der Port nach einem Fehler weiterliefert.
+    unawaited(_cadenceSub?.cancel());
+    _cadenceSub = null;
+    _cadence = null;
+    _cadenceAvailability = CadenceAvailability.noSensor;
+    _update();
+  }
+
+  void _stopService() {
+    final s = service;
+    if (s == null || !_serviceWanted) return;
+    _serviceWanted = false;
+    _callStop(s);
+  }
+
+  void _callStop(RecordingServicePort s) =>
+      unawaited(s.stop().then((_) {}, onError: (Object _) {}));
 
   /// Schaltet die Autopause und merkt sie dauerhaft (FR-0029). Ein
   /// Speicherfehler ändert die laufende Aufzeichnung nicht.
@@ -271,7 +391,10 @@ class RunController extends ChangeNotifier {
     _locationSub = null;
     unawaited(_heartSub?.cancel());
     _heartSub = null;
+    unawaited(_cadenceSub?.cancel());
+    _cadenceSub = null;
     sensors?.close();
+    _stopService();
   }
 
   void _update() {
