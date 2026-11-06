@@ -12,6 +12,24 @@ Duration movingTimeInPositionGaps(RunPreprocessing r) => overlapDuration(
   [for (final g in r.position.gaps) TimeSpan(start: g.start, end: g.end)],
 );
 
+/// Bewegungszeit mit bekanntem Puls: die Bewegungszeit ohne die Pulslücken
+/// (`HeartRateGap`, länger als PAR-010). `null`, wenn der Lauf keinen
+/// akzeptierten Puls hat (nie 0). Das Gewicht des Durchschnittspulses im Mittel
+/// über mehrere Läufe: Ein Lauf mit Pulslücken zählt nur mit der Zeit, in der
+/// der Puls bekannt war.
+Duration? movingTimeWithHeartRate(RunPreprocessing r) {
+  if (r.heartRate.averageBpm == null) return null;
+  var moving = Duration.zero;
+  for (final m in r.movement.movingIntervals) {
+    moving += m.end.difference(m.start);
+  }
+  final lost = overlapDuration(r.movement.movingIntervals, [
+    for (final g in r.heartRate.gaps) TimeSpan(start: g.start, end: g.end),
+  ]);
+  final t = moving - lost;
+  return t > Duration.zero ? t : null;
+}
+
 /// Summe der Überlappungen jeder Spanne aus [a] mit jeder aus [b]. Die eine
 /// Rechnung für Live/Historie ([movingTimeInPositionGaps]) und die gespeicherte
 /// Kurzfassung (Spannen `moving` und `positionGap`).

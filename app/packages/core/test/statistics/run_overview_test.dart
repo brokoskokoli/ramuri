@@ -72,6 +72,11 @@ class _Vals implements ComputedValueStore {
     c.valueBulkReads++;
     return i.readRunValues(keys);
   }
+
+  @override
+  Future<Map<String, Map<String, ComputedValue>>> readDayValues(
+    Set<String> keys,
+  ) => i.readDayValues(keys);
 }
 
 class _Raw implements RawDataStore {
@@ -352,7 +357,171 @@ void main() {
     );
 
     test(
-      'Durchschnittspuls der Zeitraumstatistik: nach Bewegungszeit gewichtet, '
+      'Kurzfassung trägt Bestpace, Runden und Zeit mit Puls; Zeitraum '
+      '(Woche/Monat/frei) daraus ohne Rohdaten und ohne Zugriff je Lauf',
+      () async {
+        final w = await RecalcWorld.create();
+        final slow = await w.seedRun(
+          DateTime.utc(2030, 1, 7, 8),
+          minutes: 10,
+          speed: 3.0,
+        );
+        final fast = await w.seedRun(
+          DateTime.utc(2030, 1, 8, 8),
+          minutes: 10,
+          speed: 4.0,
+        );
+        for (var i = 1; i <= 2; i++) {
+          await w.session.markers.addLap(
+            slow,
+            StoredLap(
+              index: i,
+              markedAt: DateTime.utc(2030, 1, 7, 8, i),
+              lapTime: const Duration(minutes: 1),
+            ),
+          );
+        }
+        await w.session.markers.addLap(
+          fast,
+          StoredLap(
+            index: 1,
+            markedAt: DateTime.utc(2030, 1, 8, 8, 1),
+            lapTime: const Duration(minutes: 1),
+          ),
+        );
+        await w.calc().calculateAfterRun(slow);
+        await w.calc().calculateAfterRun(fast);
+        final c = _Counting(w.session);
+        final list = await RunOverviewService(
+          session: c,
+          clock: w.clock,
+        ).load();
+        expect(c.rawReads, 0, reason: 'alles aus der Kurzfassung');
+        expect(c.runGets, 0);
+        final byId = {for (final o in list) o.run.id: o};
+        expect(byId[slow]!.bestPaceSecondsPerKm, closeTo(1000 / 3, 1));
+        expect(byId[fast]!.bestPaceSecondsPerKm, closeTo(250, 1));
+        expect(byId[slow]!.lapCount, 2);
+        expect(byId[fast]!.lapCount, 1);
+        expect(
+          byId[slow]!.heartRateTime!.inSeconds,
+          closeTo(byId[slow]!.movingTime!.inSeconds, 2),
+        );
+        for (final period in [
+          StatisticsPeriod.weekOf('2030-01-09'),
+          StatisticsPeriod.monthOf('2030-01-09'),
+          StatisticsPeriod.custom(from: '2030-01-01', to: '2030-01-31'),
+        ]) {
+          final stats = computePeriodStatistics(period, [
+            for (final o in list) o.toFigures(),
+          ]);
+          expect(stats.bestPaceSecondsPerKm.value, closeTo(250, 1));
+          expect(stats.lapCount.value, 3);
+          expect(stats.lapCount.runsWithValue, 2);
+        }
+      },
+    );
+
+    test('Lauf ohne Runden: Rundenzahl 0 (gezählt, nicht fehlend)', () async {
+      final w = await RecalcWorld.create();
+      final id = await w.seedRun(DateTime.utc(2030, 1, 7, 8), minutes: 5);
+      await w.calc().calculateAfterRun(id);
+      final o = (await RunOverviewService(
+        session: w.session,
+        clock: w.clock,
+      ).load()).single;
+      expect(o.lapCount, 0);
+    });
+
+    test(
+      'Kurzfassung der Version 1 (ohne Bestpace, Runden, Zeit mit Puls) wird '
+      'neu gerechnet und trägt die neuen Teile',
+      () async {
+        final w = await RecalcWorld.create();
+        final id = await w.seedRun(DateTime.utc(2030, 2, 1, 8), minutes: 10);
+        await w.session.markers.addLap(
+          id,
+          StoredLap(
+            index: 1,
+            markedAt: DateTime.utc(2030, 2, 1, 8, 5),
+            lapTime: const Duration(minutes: 5),
+          ),
+        );
+        await w.calc().calculateAfterRun(id);
+        final good = (await w.session.preprocessing.read(id))!;
+        // Stand vor WP10: Version 1 und ohne die neuen Teile.
+        await w.session.preprocessing.replace(
+          id,
+          StoredPreprocessing(
+            summary: PreprocessingSummary(
+              method: runOverviewMethod,
+              methodVersion: 1,
+              parameterVersion: good.summary.parameterVersion,
+              computedAt: good.summary.computedAt,
+              totalTime: good.summary.totalTime,
+              movingTime: good.summary.movingTime,
+              distanceMeters: good.summary.distanceMeters,
+              averageBpm: good.summary.averageBpm,
+              maxBpm: good.summary.maxBpm,
+            ),
+            spans: good.spans,
+          ),
+        );
+        final c = _Counting(w.session);
+        final o = (await RunOverviewService(
+          session: c,
+          clock: w.clock,
+        ).load()).single;
+        expect(c.rawReads, 1, reason: 'neu gerechnet');
+        expect(o.bestPaceSecondsPerKm, closeTo(1000 / 3, 1));
+        expect(o.lapCount, 1);
+        expect(o.heartRateTime, isNotNull);
+        final stored = (await w.session.preprocessing.read(id))!.summary;
+        expect(stored.methodVersion, runOverviewMethodVersion);
+        expect(runOverviewMethodVersion, greaterThan(1));
+        expect(stored.lapCount, 1);
+        expect(stored.bestPaceSecondsPerKm, isNotNull);
+        expect(stored.heartRateTime, isNotNull);
+        // Beim nächsten Lesen ist sie aktuell.
+        final again = _Counting(w.session);
+        await RunOverviewService(session: again, clock: w.clock).load();
+        expect(again.rawReads, 0);
+      },
+    );
+
+    test(
+      'Ø-Puls im Zeitraum nach Zeit mit Puls gewichtet, nicht nach '
+      'Bewegungszeit: Lauf mit Pulslücke zählt nur mit bekanntem Puls',
+      () async {
+        final w = await RecalcWorld.create();
+        // 20 min, aber nur die erste Hälfte mit Puls (100 bpm).
+        await w.seedRun(
+          DateTime.utc(2030, 1, 1, 8),
+          minutes: 20,
+          bpm: 100,
+          heartRateShare: 0.5,
+        );
+        // 10 min durchgehend mit Puls (160 bpm).
+        await w.seedRun(DateTime.utc(2030, 1, 2, 8), minutes: 10, bpm: 160);
+        final list = await RunOverviewService(
+          session: w.session,
+          clock: w.clock,
+        ).load();
+        final gappy = list.firstWhere((o) => o.averageHeartRateBpm == 100);
+        expect(gappy.heartRateTime!.inSeconds, closeTo(600, 15));
+        expect(gappy.movingTime!.inSeconds, closeTo(1200, 15));
+        final stats = computePeriodStatistics(
+          StatisticsPeriod.custom(from: '2030-01-01', to: '2030-01-02'),
+          [for (final o in list) o.toFigures()],
+        );
+        // Je 10 min mit Puls: (100 + 160) / 2 = 130. Nach Bewegungszeit wären
+        // es (20*100 + 10*160) / 30 = 120.
+        expect(stats.heartRateAverageBpm.value, closeTo(130, 1.5));
+      },
+    );
+
+    test(
+      'Durchschnittspuls der Zeitraumstatistik: nach Zeit mit Puls gewichtet, '
       'Lauf ohne Puls geht nicht ein',
       () async {
         final w = await RecalcWorld.create();
@@ -409,4 +578,7 @@ PreprocessingSummary _with(
   bridgedDistanceMeters: s.bridgedDistanceMeters,
   averageBpm: s.averageBpm,
   maxBpm: s.maxBpm,
+  bestPaceSecondsPerKm: s.bestPaceSecondsPerKm,
+  lapCount: s.lapCount,
+  heartRateTime: s.heartRateTime,
 );

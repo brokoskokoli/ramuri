@@ -40,6 +40,9 @@ class DriftPreprocessingStore implements PreprocessingStore {
               averageBpm: _v(s.averageBpm),
               maxBpm: _v(s.maxBpm),
               medianBpm: _v(s.medianBpm),
+              bestPaceSPerKm: _v(s.bestPaceSecondsPerKm),
+              lapCount: _v(s.lapCount),
+              heartRateTimeS: _v(secondsOfOrNull(s.heartRateTime)),
             ),
           );
       await _db.batch((b) {
@@ -270,4 +273,7 @@ PreprocessingSummary _summaryOf(d.PreprocessingResult r) =>
       averageBpm: r.averageBpm,
       maxBpm: r.maxBpm,
       medianBpm: r.medianBpm,
+      bestPaceSecondsPerKm: r.bestPaceSPerKm,
+      lapCount: r.lapCount,
+      heartRateTime: durationOfOrNull(r.heartRateTimeS),
     );

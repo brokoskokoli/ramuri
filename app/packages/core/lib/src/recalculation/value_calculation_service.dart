@@ -165,7 +165,11 @@ class ValueCalculationService {
     if (pre != null) {
       await session.preprocessing.replace(
         runId,
-        overviewOf(pre, computedAt: now),
+        overviewOf(
+          pre,
+          computedAt: now,
+          lapCount: (await session.markers.laps(runId)).length,
+        ),
       );
     }
     await session.values.writeAll(

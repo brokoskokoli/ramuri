@@ -163,15 +163,36 @@ void main() {
       expect(find.byKey(const Key('stat_compare_only')), findsOneWidget);
     });
 
-    testWidgets('Woche: Bestpace und Runden nicht verfügbar mit Grund', (
-      tester,
-    ) async {
+    testWidgets('Woche, Monat, frei: Bestpace und Runden aus der Kurzfassung '
+        '(schnellster Lauf, Summe der Runden)', (tester) async {
       final d = await started(tester);
       d.clock.set(DateTime.utc(2026, 6, 3, 12));
-      await seedRun(d.session, DateTime.utc(2026, 6, 1, 8));
+      final slow = await seedRun(d.session, DateTime.utc(2026, 6, 1, 8));
+      final fast = await seedRun(
+        d.session,
+        DateTime.utc(2026, 6, 2, 8),
+        speed: 4.0,
+      );
+      for (final (id, n) in [(slow, 2), (fast, 1)]) {
+        for (var i = 1; i <= n; i++) {
+          await d.session.markers.addLap(
+            id,
+            StoredLap(
+              index: i,
+              markedAt: DateTime.utc(2026, 6, 1, 8, i),
+              lapTime: const Duration(minutes: 1),
+            ),
+          );
+        }
+      }
       await openStats(d, tester);
-      expect(text('stat_best_pace_value'), contains('einzelnen Lauf'));
-      expect(text('stat_laps_value'), contains('einzelnen Lauf'));
+      for (final kind in ['week', 'month', 'custom']) {
+        await choose(tester, kind);
+        expect(text('stat_runs_value'), '2', reason: kind);
+        // 4 m/s = 4:10 min/km, der schnellere der beiden Läufe.
+        expect(text('stat_best_pace_value'), '4:10 min/km', reason: kind);
+        expect(text('stat_laps_value'), '3', reason: kind);
+      }
     });
 
     testWidgets('ohne Läufe: nicht verfügbar statt 0 km', (tester) async {
@@ -301,6 +322,104 @@ void main() {
       );
       // Die Effizienz erscheint nicht als VO₂max-Wert.
       expect(text('stat_efficiency_value'), isNot(contains('ml/kg/min')));
+    });
+
+    ComputedValue stored(String key, double? v, String unit, DateTime at) =>
+        ComputedValue(
+          key: key,
+          value: v,
+          unit: unit,
+          unavailableReason: v == null
+              ? UnavailableReason.insufficientData
+              : null,
+          computedAt: at,
+          measurementCount: 1,
+          sources: const ['strap'],
+          method: 'm',
+          methodVersion: 1,
+          parameterVersion: 1,
+          quality: ValueQuality.good,
+        );
+
+    for (final (value, shown) in [(2.5, '+2,5'), (-3.4, '-3,4')]) {
+      testWidgets('gespeicherte aerobe Effizienz $shown: Vorzeichen, %, Datum, '
+          'keine VO₂max-Einheit', (tester) async {
+        final d = await started(tester);
+        d.clock.set(DateTime.utc(2026, 6, 3, 12));
+        await seedRun(d.session, DateTime.utc(2026, 6, 1, 8));
+        await d.session.values.createOriginals(
+          const ValueOwner.day('2026-06-01'),
+          [stored(aerobicEfficiencyValueKey, value, '%', d.clock.now())],
+        );
+        await openStats(d, tester);
+        final eff = text('stat_efficiency_value');
+        expect(eff, startsWith('$shown % gegenüber dem Vergleichszeitraum'));
+        expect(eff, contains('Schätzung'));
+        expect(eff, contains('Stand Mo., 1. Juni'));
+        expect(eff, isNot(contains('ml/kg/min')));
+      });
+    }
+
+    testWidgets('Sicht 1: der neueste Lauf im Zeitraum, nicht der erste', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      d.clock.set(DateTime.utc(2026, 6, 4, 12));
+      final older = await seedRun(d.session, DateTime.utc(2026, 6, 1, 8));
+      final newer = await seedRun(d.session, DateTime.utc(2026, 6, 3, 8));
+      for (final (id, v) in [(older, 41.0), (newer, 47.0)]) {
+        await d.session.values.createOriginals(ValueOwner.run(id), [
+          stored(vo2maxRunValueKey, v, vo2maxUnit, d.clock.now()),
+        ]);
+      }
+      await openStats(d, tester);
+      expect(text('stat_runs_value'), '2');
+      expect(
+        text('stat_vo2_run_value'),
+        'Lauf vom Mi., 3. Juni: 47,0 ml/kg/min (Schätzung)',
+      );
+    });
+
+    testWidgets('Sicht 3: Verlauf über Wochen aus den Tageswerten, nicht aus '
+        'den Laufschätzungen', (tester) async {
+      final d = await started(tester);
+      d.clock.set(DateTime.utc(2026, 6, 20, 12));
+      final id = await seedRun(d.session, DateTime.utc(2026, 6, 18, 8));
+      // Eine Laufschätzung, die im Verlauf nicht auftauchen darf.
+      await d.session.values.createOriginals(ValueOwner.run(id), [
+        stored(vo2maxRunValueKey, 99, vo2maxUnit, d.clock.now()),
+      ]);
+      // Tageswerte über vier Wochen (Montag 1., 8., 15. Juni; Wochenbeginn
+      // Montag): je Woche zählt der letzte Tag mit Wert.
+      for (final (day, v) in [
+        ('2026-06-01', 40.0),
+        ('2026-06-03', 40.5),
+        ('2026-06-07', 41.0), // Sonntag, gleiche Woche wie der 1.
+        ('2026-06-09', 42.0),
+        ('2026-06-16', 43.0),
+        ('2026-06-17', null), // nicht bestimmbar: nicht der Wochenwert
+      ]) {
+        await d.session.values.createOriginals(ValueOwner.day(day), [
+          stored(vo2maxLongTermValueKey, v, vo2maxUnit, d.clock.now()),
+        ]);
+      }
+      await openStats(d, tester);
+      final rows = tester
+          .widget<Column>(key('stat_vo2_trend'))
+          .children
+          .whereType<Text>()
+          .map((t) => t.data!)
+          .where((t) => t.contains('ml/kg/min'))
+          .toList();
+      expect(rows, [
+        'So., 7. Juni: 41,0 ml/kg/min (Schätzung)',
+        'Di., 9. Juni: 42,0 ml/kg/min (Schätzung)',
+        'Di., 16. Juni: 43,0 ml/kg/min (Schätzung)',
+      ]);
+      // Sicht 1 zeigt die Laufschätzung, der Verlauf nicht.
+      expect(text('stat_vo2_run_value'), contains('99,0'));
+      expect(rows.where((t) => t.contains('99,0')), isEmpty);
+      expect(key('stat_vo2_trend_note'), findsOneWidget);
     });
 
     testWidgets('Gewicht-0-Abschnitt: Hinweis zur Schätzung', (tester) async {

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../settings/app_settings.dart';
-import '../summary/run_summary_body.dart' show summaryOffload;
 import 'fitness_section.dart';
 import 'statistics_view.dart';
 
@@ -47,9 +46,13 @@ class StatisticsScreen extends StatefulWidget {
 enum _Kind { week, month, custom, run }
 
 class _Data {
-  _Data(this.overviews, this.fitness);
+  _Data(this.overviews, this.fitness)
+    : figures = [for (final o in overviews) o.toFigures()];
   final List<RunOverview> overviews;
   final FitnessOverview fitness;
+
+  /// Einmal gebildet, nicht je Build (Review Teil C).
+  final List<RunFigures> figures;
 }
 
 class _StatisticsScreenState extends State<StatisticsScreen> {
@@ -263,21 +266,16 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             key: ValueKey(period),
             period: period,
             overviews: data.overviews,
+            figures: data.figures,
             formatter: formatter,
-            session: widget.session,
-            clock: widget.clock,
-            offload: summaryOffload,
           ),
         const SizedBox(height: 16),
         FitnessSection(
           period: period,
           runsInPeriod: period == null
               ? 0
-              : data.overviews
-                    .where(
-                      (o) =>
-                          period.contains(id: o.run.id, day: o.toFigures().day),
-                    )
+              : data.figures
+                    .where((f) => period.contains(id: f.runId, day: f.day))
                     .length,
           fitness: data.fitness,
           session: widget.session,

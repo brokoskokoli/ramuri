@@ -29,6 +29,9 @@ class FakePreprocessingStore implements PreprocessingStore {
         averageBpm: s.averageBpm,
         maxBpm: s.maxBpm,
         medianBpm: s.medianBpm,
+        bestPaceSecondsPerKm: s.bestPaceSecondsPerKm,
+        lapCount: s.lapCount,
+        heartRateTime: s.heartRateTime,
       ),
       samples:
           [
@@ -269,5 +272,20 @@ class FakeComputedValueStore implements ComputedValueStore {
             }
             case final found when found.isNotEmpty)
           e.key.runId!: found,
+  };
+
+  @override
+  Future<Map<String, Map<String, ComputedValue>>> readDayValues(
+    Set<String> keys,
+  ) async => {
+    for (final e in _d.values.entries)
+      if (e.key.day != null)
+        if ({
+              for (final p in e.value.values)
+                if (keys.contains(p.current.key))
+                  p.current.key: _withoutSections(p.current),
+            }
+            case final found when found.isNotEmpty)
+          e.key.day!: found,
   };
 }

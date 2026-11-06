@@ -16,6 +16,9 @@ class PreprocessingSummary {
     this.averageBpm,
     this.maxBpm,
     this.medianBpm,
+    this.bestPaceSecondsPerKm,
+    this.lapCount,
+    this.heartRateTime,
   });
 
   final String method;
@@ -29,6 +32,17 @@ class PreprocessingSummary {
   final double? averageBpm;
   final int? maxBpm;
   final double? medianBpm;
+
+  /// Schnellster zusammenhängender Abschnitt in s/km (Bestpace, FR-0037);
+  /// `null` = nicht verfügbar.
+  final double? bestPaceSecondsPerKm;
+
+  /// Zahl der Runden; `null` = nicht bekannt.
+  final int? lapCount;
+
+  /// Bewegungszeit mit bekanntem Puls (ohne Pulslücken); `null` = kein Puls.
+  /// Gewicht des Durchschnittspulses im Mittel über mehrere Läufe.
+  final Duration? heartRateTime;
 }
 
 /// Ergebnis des Filters je Rohwert; [rawId] ist die Id der Rohzeile

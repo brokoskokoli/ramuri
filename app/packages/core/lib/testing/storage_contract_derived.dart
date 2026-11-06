@@ -277,6 +277,37 @@ Future<void> _values(StorageContractHarness h) async {
     0,
     'keine Schlüssel, keine Antwort',
   );
+  // Dasselbe für Tageswerte: nach Tag, nur das current der verlangten
+  // Schlüssel, ohne Laufwerte und ohne Abschnitte.
+  await s.values.createOriginals(const ValueOwner.day('2030-01-09'), [
+    sampleValue('vo2max', 7),
+    sampleValue('anderer', 8),
+  ]);
+  await s.values.swapCurrent(const ValueOwner.day('2030-01-09'), [
+    sampleValue('vo2max', 7.5),
+  ]);
+  final days = await s.values.readDayValues({'vo2max', 'nichts'});
+  expectEq(days.keys.toList()..sort(), [
+    '2030-01-02',
+    '2030-01-09',
+  ], 'alle Tage mit dem Schlüssel');
+  expectEq(days['2030-01-02']!['vo2max']!.value, 1.0, 'Wert des Tages');
+  expectEq(
+    days['2030-01-09']!['vo2max']!.value,
+    7.5,
+    'current, nicht original',
+  );
+  expectEq(days['2030-01-09']!.keys.toList(), ['vo2max'], 'nur verlangte');
+  expectEq(
+    days['2030-01-09']!['vo2max']!.sections.length,
+    0,
+    'ohne Abschnitte',
+  );
+  expectEq(
+    (await s.values.readDayValues({})).length,
+    0,
+    'keine Schlüssel, keine Antwort (Tage)',
+  );
   await s.close();
 }
 

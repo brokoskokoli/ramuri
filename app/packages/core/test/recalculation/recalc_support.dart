@@ -307,6 +307,14 @@ class FailingValues implements ComputedValueStore {
     if (failRead) throw const StorageException(StorageFailure.failed);
     return inner.readRunValues(keys);
   }
+
+  @override
+  Future<Map<String, Map<String, ComputedValue>>> readDayValues(
+    Set<String> keys,
+  ) {
+    if (failRead) throw const StorageException(StorageFailure.failed);
+    return inner.readDayValues(keys);
+  }
 }
 
 /// Reicht alles durch und merkt sich, dass ein Sammel-Tausch gelang.
@@ -340,6 +348,11 @@ class SwapSignalValues implements ComputedValueStore {
   Future<Map<int, Map<String, ComputedValue>>> readRunValues(
     Set<String> keys,
   ) => inner.readRunValues(keys);
+
+  @override
+  Future<Map<String, Map<String, ComputedValue>>> readDayValues(
+    Set<String> keys,
+  ) => inner.readDayValues(keys);
 }
 
 /// Wie [FaultySession], aber Schreiben in die Einstellungen scheitert, solange

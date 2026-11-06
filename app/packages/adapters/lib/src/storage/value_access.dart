@@ -238,6 +238,27 @@ class DriftComputedValueStore implements ComputedValueStore {
   });
 
   @override
+  Future<Map<String, Map<String, ComputedValue>>> readDayValues(
+    Set<String> keys,
+  ) => guarded(() async {
+    if (keys.isEmpty) return {};
+    // Eine Abfrage für alle Tage; die Werte tragen keine Abschnitte.
+    final rows =
+        await (_db.select(_db.computedValues)..where(
+              (t) =>
+                  t.day.isNotNull() &
+                  t.role.equals(_Role.current.name) &
+                  t.valueKey.isIn(keys),
+            ))
+            .get();
+    final out = <String, Map<String, ComputedValue>>{};
+    for (final r in rows) {
+      (out[r.day!] ??= {})[r.valueKey] = _valueOf(r, const []);
+    }
+    return out;
+  });
+
+  @override
   Future<List<ValuePair>> read(ValueOwner owner) => guarded(() async {
     final original = <String, ComputedValue>{};
     final current = <String, ComputedValue>{};

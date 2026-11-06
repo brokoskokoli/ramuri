@@ -74,79 +74,38 @@ class StatHeading extends StatelessWidget {
 }
 
 /// Kennzahlen des Zeitraums [period] aus den bereits gelesenen [overviews]
-/// (FR-0043). Bei einem einzelnen Lauf kommen Bestpace und Runden aus der
-/// Zusammenfassung dieses Laufs.
-class PeriodStatisticsView extends StatefulWidget {
+/// (FR-0043). Bestpace und Runden stehen in der Kurzfassung jedes Laufs; es
+/// wird nichts je Lauf nachgelesen.
+class PeriodStatisticsView extends StatelessWidget {
   const PeriodStatisticsView({
     super.key,
     required this.period,
     required this.overviews,
+    required this.figures,
     required this.formatter,
-    required this.session,
-    required this.clock,
-    required this.offload,
   });
 
   final StatisticsPeriod period;
   final List<RunOverview> overviews;
+
+  /// Die Kennzahlen aller Läufe, einmal aus [overviews] gebildet.
+  final List<RunFigures> figures;
   final UnitFormatter formatter;
-  final StorageSession session;
-  final Clock clock;
-  final Offload offload;
-
-  @override
-  State<PeriodStatisticsView> createState() => _PeriodStatisticsViewState();
-}
-
-class _PeriodStatisticsViewState extends State<PeriodStatisticsView> {
-  late final Future<RunSummary?> _single = _loadSingle();
-
-  Future<RunSummary?> _loadSingle() async {
-    final id = widget.period.runId;
-    if (id == null) return null;
-    try {
-      return await RunSummaryService(
-        session: widget.session,
-        clock: widget.clock,
-        offload: widget.offload,
-      ).load(id);
-    } on Object {
-      // Ohne Zusammenfassung bleiben Bestpace und Runden „nicht verfügbar“.
-      return null;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final period = widget.period;
-    final figures = [for (final o in widget.overviews) o.toFigures()];
     final stats = computePeriodStatistics(period, figures);
     final comparison = comparePeriod(period, figures);
     final inPeriod = [
-      for (final o in widget.overviews)
-        if (period.contains(id: o.run.id, day: o.toFigures().day)) o,
+      for (var i = 0; i < overviews.length; i++)
+        if (period.contains(id: overviews[i].run.id, day: figures[i].day))
+          overviews[i],
     ];
-    if (period.runId == null) {
-      return _Body(
-        stats: stats,
-        comparison: comparison,
-        inPeriod: inPeriod,
-        formatter: widget.formatter,
-        single: null,
-      );
-    }
-    return FutureBuilder<RunSummary?>(
-      future: _single,
-      builder: (context, snapshot) => _Body(
-        stats: stats,
-        comparison: comparison,
-        inPeriod: inPeriod,
-        formatter: widget.formatter,
-        single: snapshot.connectionState == ConnectionState.done
-            ? snapshot.data
-            : null,
-        singlePending: snapshot.connectionState != ConnectionState.done,
-      ),
+    return _Body(
+      stats: stats,
+      comparison: comparison,
+      inPeriod: inPeriod,
+      formatter: formatter,
     );
   }
 }
@@ -157,16 +116,12 @@ class _Body extends StatelessWidget {
     required this.comparison,
     required this.inPeriod,
     required this.formatter,
-    required this.single,
-    this.singlePending = false,
   });
 
   final PeriodStatistics stats;
   final PeriodComparison? comparison;
   final List<RunOverview> inPeriod;
   final UnitFormatter formatter;
-  final RunSummary? single;
-  final bool singlePending;
 
   String _signed(String text, num sign) =>
       sign > 0 ? '+$text' : (sign < 0 ? '−$text' : text);
@@ -216,11 +171,6 @@ class _Body extends StatelessWidget {
     );
     final zones = stats.zoneTimes.value;
     final below = stats.belowZone1Time.value;
-    final laps = single?.laps.length;
-    final bestSingle = single?.bestPace.secondsPerKm;
-    final singleMissing = stats.period.runId != null
-        ? l10n.runUnavailable
-        : l10n.statSingleRunOnly;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,25 +215,19 @@ class _Body extends StatelessWidget {
           formatter.pace,
           missing: unavailable,
         ),
-        // Bestpace und Runden sind nicht in der Kurzfassung; sie werden nur für
-        // einen einzelnen Lauf gelesen (kein Zugriff je Lauf).
-        StatRow(
-          id: 'stat_best_pace',
-          label: l10n.sumBestPace,
-          value: empty
-              ? l10n.statNoRunsInPeriod
-              : (bestSingle != null
-                    ? formatter.pace(bestSingle)
-                    : (singlePending ? '…' : singleMissing)),
+        row<double>(
+          'stat_best_pace',
+          l10n.sumBestPace,
+          stats.bestPaceSecondsPerKm,
+          formatter.pace,
+          missing: unavailable,
         ),
-        StatRow(
-          id: 'stat_laps',
-          label: l10n.runLaps,
-          value: empty
-              ? l10n.statNoRunsInPeriod
-              : (laps != null
-                    ? '$laps'
-                    : (singlePending ? '…' : singleMissing)),
+        row<int>(
+          'stat_laps',
+          l10n.runLaps,
+          stats.lapCount,
+          (v) => '$v',
+          missing: unavailable,
         ),
         StatHeading(l10n.statHeart),
         row<double>(

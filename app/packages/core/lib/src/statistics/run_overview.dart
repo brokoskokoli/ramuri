@@ -2,18 +2,26 @@ import '../../ports/clock.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_derived.dart';
 import '../../ports/storage_runs.dart';
-import '../preprocessing/gap_moving_time.dart' show overlapDuration;
+import '../preprocessing/gap_moving_time.dart'
+    show movingTimeWithHeartRate, overlapDuration;
 import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
 import '../recalculation/run_analysis.dart';
 import '../recalculation/run_load_values.dart';
 import '../recalculation/value_calculation_service.dart' show dayOfRun;
+import 'best_pace.dart';
 import 'run_figures.dart';
+import 'statistics_parameters.dart';
 
 /// Kennung der gespeicherten Kurzfassung (`PreprocessingSummary.method`).
 const String runOverviewMethod = 'run-overview';
-const int runOverviewMethodVersion = 1;
+
+/// Version 2 (WP10): trägt zusätzlich Bestpace, Rundenzahl und die Zeit mit
+/// Puls; gespeicherte Kurzfassungen der Version 1 werden beim Lesen neu
+/// gerechnet. Ändert sich ein Parameter der Bestpace
+/// ([StatisticsParameters.bestPaceDistanceMeters]), ist die Version anzuheben.
+const int runOverviewMethodVersion = 2;
 
 /// Die Kurzfassung eines Laufs für Listen und Vergleiche, abgeleitet aus der
 /// Vorverarbeitung (ADR-0004 Punkt 1: jederzeit aus den Rohdaten neu
@@ -22,6 +30,8 @@ const int runOverviewMethodVersion = 1;
 StoredPreprocessing overviewOf(
   RunPreprocessing pre, {
   required DateTime computedAt,
+  int? lapCount,
+  StatisticsParameters statistics = const StatisticsParameters(),
 }) => StoredPreprocessing(
   summary: PreprocessingSummary(
     method: runOverviewMethod,
@@ -34,6 +44,12 @@ StoredPreprocessing overviewOf(
     bridgedDistanceMeters: pre.position.bridgedDistanceMeters,
     averageBpm: pre.heartRate.averageBpm,
     maxBpm: pre.heartRate.maxBpm,
+    bestPaceSecondsPerKm: bestPace(
+      pre.pace.segments,
+      parameters: statistics,
+    ).secondsPerKm,
+    lapCount: lapCount,
+    heartRateTime: movingTimeWithHeartRate(pre),
   ),
   spans: [
     for (final m in pre.movement.movingIntervals)
@@ -62,6 +78,9 @@ class RunOverview {
     this.paceTime,
     this.averageHeartRateBpm,
     this.maxHeartRateBpm,
+    this.bestPaceSecondsPerKm,
+    this.lapCount,
+    this.heartRateTime,
     this.readFailed = false,
     this.load = StoredRunLoad.none,
   });
@@ -87,20 +106,17 @@ class RunOverview {
   /// Dieselbe Rechnung wie [RunFigures.averagePaceSecondsPerKm].
   double? get averagePaceSecondsPerKm => toFigures().averagePaceSecondsPerKm;
 
-  /// Gewicht des Durchschnittspulses im Mittel über mehrere Läufe. Die
-  /// Kurzfassung trägt die Zahl der akzeptierten Pulswerte nicht; als Näherung
-  /// gilt die Bewegungszeit in Sekunden (Pulswerte kommen etwa im Sekundentakt).
-  /// Ohne Durchschnittspuls 0 (der Lauf geht nicht ein). Ob die Anzahl
-  /// gespeichert werden soll, entscheidet der Maintainer.
-  int get _heartRateWeight {
-    if (averageHeartRateBpm == null) return 0;
-    final seconds = (movingTime ?? totalTime)?.inSeconds ?? 0;
-    return seconds > 0 ? seconds : 1;
-  }
+  /// Schnellster Abschnitt in s/km; `null` = nicht verfügbar.
+  final double? bestPaceSecondsPerKm;
 
-  /// Für Vergleich ([classifyRun]) und Zeitraumstatistik; ohne Teile, die die
-  /// Kurzfassung nicht trägt (Bestpace, Runden). Die Pulsanzahl ist eine
-  /// Näherung ([_heartRateWeight]). Zonen und TRIMP
+  /// Zahl der Runden; `null` = nicht bekannt.
+  final int? lapCount;
+
+  /// Bewegungszeit mit bekanntem Puls: Gewicht des Durchschnittspulses im
+  /// Mittel über mehrere Läufe.
+  final Duration? heartRateTime;
+
+  /// Für Vergleich ([classifyRun]) und Zeitraumstatistik. Zonen und TRIMP
   /// kommen aus den gespeicherten Werten ([load]).
   RunFigures toFigures() => RunFigures(
     runId: run.id,
@@ -112,7 +128,9 @@ class RunOverview {
     paceTime: paceTime,
     heartRateAverageBpm: averageHeartRateBpm,
     heartRateMaxBpm: maxHeartRateBpm,
-    heartRateSampleCount: _heartRateWeight,
+    heartRateTime: heartRateTime,
+    bestPaceSecondsPerKm: bestPaceSecondsPerKm,
+    lapCount: lapCount,
     zoneTimes: load.zoneTimes,
     belowZone1Time: load.belowZone1Time,
     trimpPoints: load.trimpPoints,
@@ -150,6 +168,9 @@ class RunOverview {
       paceTime: paceTime,
       averageHeartRateBpm: s.averageBpm,
       maxHeartRateBpm: s.maxBpm,
+      bestPaceSecondsPerKm: s.bestPaceSecondsPerKm,
+      lapCount: s.lapCount,
+      heartRateTime: s.heartRateTime,
       load: load,
     );
   }
@@ -166,11 +187,13 @@ class RunOverviewService {
     required this.session,
     required this.clock,
     this.parameters = const PreprocessingParameters.v4(),
+    this.statistics = const StatisticsParameters(),
   });
 
   final StorageSession session;
   final Clock clock;
   final PreprocessingParameters parameters;
+  final StatisticsParameters statistics;
 
   /// Beendete Läufe, neuester Start zuerst (Reihenfolge von `runs.list`).
   /// Unfertige Läufe fehlen.
@@ -205,7 +228,9 @@ class RunOverviewService {
     final end = run.endedAt!;
     if (!end.isAfter(run.startedAt)) return RunOverview(run: run, load: load);
     final RunPreprocessing pre;
+    final int lapCount;
     try {
+      lapCount = (await session.markers.laps(run.id)).length;
       pre = replayRunPreprocessing(
         run: run,
         end: end,
@@ -217,7 +242,12 @@ class RunOverviewService {
       // Ein Lauf, der nicht lesbar ist, lässt die Historie nicht scheitern.
       return RunOverview(run: run, readFailed: true, load: load);
     }
-    final stored = overviewOf(pre, computedAt: clock.now());
+    final stored = overviewOf(
+      pre,
+      computedAt: clock.now(),
+      lapCount: lapCount,
+      statistics: statistics,
+    );
     try {
       await session.preprocessing.replace(run.id, stored);
     } on StorageException {

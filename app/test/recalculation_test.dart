@@ -49,6 +49,11 @@ class _GatedValues implements ComputedValueStore {
   ) => inner.readRunValues(keys);
 
   @override
+  Future<Map<String, Map<String, ComputedValue>>> readDayValues(
+    Set<String> keys,
+  ) => inner.readDayValues(keys);
+
+  @override
   Future<void> writeAll({
     Map<ValueOwner, List<ComputedValue>> create = const {},
     Map<ValueOwner, List<ComputedValue>> swap = const {},

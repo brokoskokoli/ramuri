@@ -25,7 +25,7 @@ class RunFigures {
     this.bestPaceSecondsPerKm,
     this.lapCount,
     this.heartRateAverageBpm,
-    this.heartRateSampleCount = 0,
+    this.heartRateTime,
     this.heartRateMaxBpm,
     this.trimpPoints,
     this.trimpIncomplete = false,
@@ -49,9 +49,10 @@ class RunFigures {
   final double? bestPaceSecondsPerKm;
   final int? lapCount;
 
-  /// Mittel der akzeptierten Pulswerte und deren Anzahl (Gewicht im Zeitraum).
+  /// Mittel der akzeptierten Pulswerte und die Bewegungszeit mit bekanntem Puls
+  /// (Gewicht im Zeitraum, [movingTimeWithHeartRate]).
   final double? heartRateAverageBpm;
-  final int heartRateSampleCount;
+  final Duration? heartRateTime;
   final int? heartRateMaxBpm;
 
   /// Edwards-TRIMP-Punkte und ob der Puls die Bewegungszeit nicht voll abdeckte.
@@ -105,7 +106,7 @@ class RunFigures {
       ).secondsPerKm,
       lapCount: laps.length,
       heartRateAverageBpm: hr.averageBpm,
-      heartRateSampleCount: hr.acceptedValues.length,
+      heartRateTime: movingTimeWithHeartRate(preprocessing),
       heartRateMaxBpm: hr.maxBpm,
       trimpPoints: load.trimpPoints,
       trimpIncomplete: load.trimpIncomplete,

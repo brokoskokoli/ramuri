@@ -73,7 +73,8 @@ class PeriodStatistics {
   /// Summe der Runden aller Läufe.
   final StatValue<int> lapCount;
 
-  /// Mittel aller akzeptierten Pulswerte des Zeitraums (nach Anzahl gewichtet).
+  /// Mittel der Durchschnittspulse der Läufe, gewichtet nach der Zeit mit
+  /// bekanntem Puls (nicht nach der Länge des Laufs).
   final StatValue<double> heartRateAverageBpm;
   final StatValue<int> heartRateMaxBpm;
 
@@ -135,15 +136,16 @@ PeriodStatistics computePeriodStatistics(
     paceRuns++;
   }
 
-  // Puls: gewichtetes Mittel über die Anzahl akzeptierter Werte.
+  // Puls: Mittel der Durchschnittspulse, gewichtet nach der Zeit mit Puls.
   var hrSum = 0.0;
-  var hrCount = 0;
+  var hrMicros = 0;
   var hrRuns = 0;
   for (final r in runs) {
     final avg = r.heartRateAverageBpm;
-    if (avg == null || r.heartRateSampleCount <= 0) continue;
-    hrSum += avg * r.heartRateSampleCount;
-    hrCount += r.heartRateSampleCount;
+    final t = r.heartRateTime?.inMicroseconds ?? 0;
+    if (avg == null || t <= 0) continue;
+    hrSum += avg * t;
+    hrMicros += t;
     hrRuns++;
   }
 
@@ -189,7 +191,7 @@ PeriodStatistics computePeriodStatistics(
     ),
     lapCount: sum<int>((r) => r.lapCount, (a, b) => a + b),
     heartRateAverageBpm: StatValue(
-      value: hrCount == 0 ? null : hrSum / hrCount,
+      value: hrMicros == 0 ? null : hrSum / hrMicros,
       runsWithValue: hrRuns,
       runsTotal: n,
     ),

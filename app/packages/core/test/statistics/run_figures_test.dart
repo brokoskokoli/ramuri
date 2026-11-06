@@ -34,7 +34,7 @@ void main() {
       expect(f.bestPaceSecondsPerKm, closeTo(1000 / 3, 1));
       expect(f.heartRateAverageBpm, 150);
       expect(f.heartRateMaxBpm, 150);
-      expect(f.heartRateSampleCount, greaterThan(1000));
+      expect(f.heartRateTime, const Duration(minutes: 30)); // lückenlos
       // Ende 23:30 UTC + 2 h = 01:30 am Folgetag (lokaler Kalendertag, K21).
       expect(f.day, '2030-02-26');
       expect(f.day, dayOfRun(run));
@@ -71,7 +71,7 @@ void main() {
       final (f, _) = await figuresOf(w, run.id);
       expect(f.heartRateAverageBpm, isNull);
       expect(f.heartRateMaxBpm, isNull);
-      expect(f.heartRateSampleCount, 0);
+      expect(f.heartRateTime, isNull);
       expect(f.distanceMeters, isNotNull);
       // 1800 m: Bestpace vorhanden; ein Lauf unter 1 km hätte keine.
       expect(f.bestPaceSecondsPerKm, isNotNull);

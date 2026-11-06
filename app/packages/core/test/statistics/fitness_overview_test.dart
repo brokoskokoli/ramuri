@@ -1,6 +1,8 @@
 import 'package:core/core.dart';
 import 'package:test/test.dart';
 
+import 'package:core/testing/contract_samples.dart' show sampleValue;
+
 import '../recalculation/recalc_support.dart';
 
 /// Zählt Zugriffe auf die Werte (kein Zugriff je Lauf).
@@ -22,6 +24,15 @@ class _CountingValues implements ComputedValueStore {
     bulkReads++;
     if (failBulk) throw const StorageException(StorageFailure.failed);
     return i.readRunValues(k);
+  }
+
+  int dayBulkReads = 0;
+
+  @override
+  Future<Map<String, Map<String, ComputedValue>>> readDayValues(Set<String> k) {
+    dayBulkReads++;
+    if (failBulk) throw const StorageException(StorageFailure.failed);
+    return i.readDayValues(k);
   }
 
   @override
@@ -71,7 +82,17 @@ void main() {
       expect(o.efficiency?.key, aerobicEfficiencyValueKey);
       // Eine Abfrage für alle Laufwerte, eine für die Tageswerte.
       expect(counting.bulkReads, 1);
-      expect(counting.reads, 1);
+      expect(counting.dayBulkReads, 1);
+      expect(counting.reads, 0);
+      // Verlauf aus den Tageswerten, aufsteigend nach Tag.
+      final days = o.longTermByDay.map((e) => e.day).toList();
+      expect(days, isNotEmpty);
+      expect(days, [...days]..sort());
+      expect(days, contains('2030-02-25'));
+      expect(
+        o.longTermByDay.every((e) => e.value.key == vo2maxLongTermValueKey),
+        isTrue,
+      );
     },
   );
 
@@ -135,5 +156,42 @@ void main() {
     expect(hasZeroWeightSection(value(EstimateDiscard.zeroWeight)), isTrue);
     expect(hasZeroWeightSection(value(EstimateDiscard.implausible)), isFalse);
     expect(hasZeroWeightSection(value(null)), isFalse);
+  });
+
+  test('Wochenverlauf: je Woche der letzte bestimmbare Tageswert, neueste '
+      'Wochen, aufsteigend', () {
+    DayEstimate d(String day, double? v) =>
+        DayEstimate(day: day, value: sampleValue(vo2maxLongTermValueKey, v));
+    final o = FitnessOverview(
+      runEstimates: const [],
+      longTerm: null,
+      efficiency: null,
+      pendingRuns: 0,
+      longTermByDay: [
+        d('2030-01-07', 40), // Montag
+        d('2030-01-09', 40.5),
+        d('2030-01-10', null), // nicht bestimmbar: zählt nicht
+        d('2030-01-13', 41), // Sonntag derselben Woche: gewinnt
+        d('2030-01-14', 42), // nächste Woche
+        d('2030-02-04', 43),
+        d('2030-02-05', null), // Woche nur mit nicht bestimmbarem Wert
+        d('2030-02-12', null),
+      ],
+    );
+    expect(o.weeklyLongTerm().map((e) => (e.day, e.value.value)).toList(), [
+      ('2030-01-13', 41.0),
+      ('2030-01-14', 42.0),
+      ('2030-02-04', 43.0),
+    ]);
+    // Nur die neuesten zwei Wochen, weiter aufsteigend.
+    expect(o.weeklyLongTerm(maxWeeks: 2).map((e) => e.day).toList(), [
+      '2030-01-14',
+      '2030-02-04',
+    ]);
+    // Wochenbeginn Sonntag: der 13. beginnt eine neue Woche.
+    expect(
+      o.weeklyLongTerm(firstDayOfWeek: DateTime.sunday).map((e) => e.day),
+      ['2030-01-09', '2030-01-14', '2030-02-04'],
+    );
   });
 }

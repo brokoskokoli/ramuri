@@ -47,7 +47,8 @@ class FitnessSection extends StatelessWidget {
   final StorageSession session;
   final ExplainValue? onExplain;
 
-  static const int _trendRows = 12;
+  /// Wochen im Verlauf (Sicht 3): rund drei Monate.
+  static const int _trendWeeks = 12;
 
   static DateTime _date(String day) => DateTime.parse('${day}T00:00:00Z');
 
@@ -106,10 +107,9 @@ class FitnessSection extends StatelessWidget {
           )
         : (runsInPeriod == 0 ? l10n.statVo2NoRunInPeriod : l10n.statVo2NoValue);
 
-    final trend = [
-      for (final e in fitness.runEstimates.reversed)
-        if (e.value.value != null) e,
-    ].take(_trendRows).toList();
+    // Sicht 3: Verlauf über Wochen aus den Tageswerten (nicht aus den
+    // Laufschätzungen, FR-0081, FR-0078).
+    final trend = fitness.weeklyLongTerm(maxWeeks: _trendWeeks);
 
     final longTerm = fitness.longTerm;
     final eff = fitness.efficiency;
@@ -129,7 +129,12 @@ class FitnessSection extends StatelessWidget {
             key: const Key('stat_pending'),
           ),
         StatRow(id: 'stat_vo2_run', label: l10n.statVo2Run, value: runText),
-        if (inPeriod != null) _ZeroWeightHint(session, inPeriod.runId),
+        if (inPeriod != null)
+          _ZeroWeightHint(
+            key: ValueKey(inPeriod.runId),
+            session: session,
+            runId: inPeriod.runId,
+          ),
         if (inPeriod != null)
           explain(
             'stat_explain_vo2_run',
@@ -159,6 +164,10 @@ class FitnessSection extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(l10n.statVo2Trend),
               ),
+              Text(
+                l10n.statVo2TrendNote,
+                key: const Key('stat_vo2_trend_note'),
+              ),
               if (trend.isEmpty)
                 Text(
                   l10n.statVo2TrendNone,
@@ -171,6 +180,7 @@ class FitnessSection extends StatelessWidget {
                       dateOf(e.day),
                       estimate(e.value.value!),
                     ),
+                    key: Key('stat_vo2_trend_${e.day}'),
                   ),
             ],
           ),
@@ -202,17 +212,30 @@ class FitnessSection extends StatelessWidget {
 }
 
 /// Hinweis zu einer Schätzung, bei der ein Abschnitt Gewicht 0 hatte
-/// (`EstimateDiscard.zeroWeight`). Liest die Abschnitte des einen Laufs.
-class _ZeroWeightHint extends StatelessWidget {
-  const _ZeroWeightHint(this.session, this.runId);
+/// (`EstimateDiscard.zeroWeight`). Liest die Abschnitte des einen Laufs, einmal
+/// je Lauf (nicht bei jedem Neuaufbau).
+class _ZeroWeightHint extends StatefulWidget {
+  const _ZeroWeightHint({
+    super.key,
+    required this.session,
+    required this.runId,
+  });
 
   final StorageSession session;
   final int runId;
 
   @override
+  State<_ZeroWeightHint> createState() => _ZeroWeightHintState();
+}
+
+class _ZeroWeightHintState extends State<_ZeroWeightHint> {
+  late final Future<ComputedValue?> _value = FitnessOverviewService(
+    session: widget.session,
+  ).runValueWithSections(widget.runId);
+
+  @override
   Widget build(BuildContext context) => FutureBuilder<ComputedValue?>(
-    future: FitnessOverviewService(session: session)
-        .runValueWithSections(runId),
+    future: _value,
     builder: (context, snapshot) {
       final v = snapshot.data;
       if (v == null || !hasZeroWeightSection(v)) return const SizedBox.shrink();

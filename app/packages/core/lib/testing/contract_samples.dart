@@ -55,6 +55,9 @@ StoredPreprocessing samplePreprocessing([int version = 1]) =>
         movingTime: const Duration(seconds: 60),
         distanceMeters: 1000.5,
         maxBpm: 170,
+        bestPaceSecondsPerKm: 312.5,
+        lapCount: 3,
+        heartRateTime: const Duration(seconds: 58, milliseconds: 500),
       ),
       samples: [
         PreprocessedSample(
