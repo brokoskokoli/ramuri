@@ -26,6 +26,31 @@ class _ScriptedSensor extends FakeHeartRateSensor {
   }
 }
 
+/// Gerätespeicher, bei dem `upsert` eines Geräts auf ein Signal wartet.
+class _GatedStore implements KnownDeviceStore {
+  _GatedStore(this.inner, this.gatedId, this.gate);
+
+  final KnownDeviceStore inner;
+  final String gatedId;
+  final Future<void> gate;
+
+  @override
+  Future<List<KnownDevice>> list() => inner.list();
+
+  @override
+  Future<void> upsert(
+    String deviceId, {
+    String? displayName,
+    required DateTime at,
+  }) async {
+    if (deviceId == gatedId) await gate;
+    return inner.upsert(deviceId, displayName: displayName, at: at);
+  }
+
+  @override
+  Future<void> setPreferred(String? deviceId) => inner.setPreferred(deviceId);
+}
+
 Stream<HeartRateEvent> _failing() => Stream.error(StateError('timeout'));
 
 class _Rig {
@@ -365,22 +390,26 @@ void main() {
     expect(r.manager.problem, isNull);
     expect(r.sensor.connectedIds, {'g1'});
   });
-
-  testWidgets(
-    'zwei Geräte warten gleichzeitig auf die Rechte: beide verbinden',
-    (t) async {
-      final gate = Completer<void>();
-      final r = _Rig(requestPermissions: () => gate.future);
-      await r.open();
-      final a = r.manager.connect('g1');
-      final b = r.manager.connect('g2');
-      gate.complete();
-      await Future.wait([a, b]);
-      await t.pump();
-      expect(r.sensor.connectedIds, {'g1', 'g2'});
-      expect(r.manager.knownEntries.map((e) => e.id), ['g1', 'g2']);
-    },
-  );
+  testWidgets('zwei Geräte warten auf Rechte und Speicher: beide verbinden', (
+    t,
+  ) async {
+    final permit = Completer<void>();
+    final store = Completer<void>();
+    final r = _Rig(requestPermissions: () => permit.future);
+    await r.open();
+    await r.manager.attachStore(_GatedStore(r.store, 'g2', store.future));
+    final a = r.manager.connect('g1');
+    final b = r.manager.connect('g2');
+    permit.complete();
+    // g1 ist gespeichert und lädt neu, g2 steht noch nicht im Speicher.
+    await a;
+    expect(r.manager.knownEntries.map((e) => e.id), ['g1']);
+    store.complete();
+    await b;
+    await t.pump();
+    expect(r.sensor.connectedIds, {'g1', 'g2'});
+    expect(r.manager.knownEntries.map((e) => e.id), ['g1', 'g2']);
+  });
 
   testWidgets('späte Bluetooth-Antwort überschreibt keinen neuen Stand', (
     t,
