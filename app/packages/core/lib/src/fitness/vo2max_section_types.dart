@@ -141,6 +141,7 @@ class EvaluatedSection {
     required this.gradient,
     required this.gradientBasis,
     required this.distanceMeters,
+    this.gpsMedianAccuracyMeters,
   }) : violations = List.unmodifiable(violations),
        caveats = List.unmodifiable(caveats);
 
@@ -176,6 +177,10 @@ class EvaluatedSection {
 
   /// Zurückgelegte Strecke aus den akzeptierten Positionen (m).
   final double? distanceMeters;
+
+  /// PAR-025: Median der gemeldeten GPS-Genauigkeit im Abschnitt (m); `null`,
+  /// wenn keine Genauigkeit gemeldet wurde. Geht in das Gewicht ein (PAR-033).
+  final double? gpsMedianAccuracyMeters;
 
   bool violates(SectionRule rule) => violations.any((v) => v.rule == rule);
 

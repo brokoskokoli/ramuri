@@ -107,6 +107,7 @@ void main() {
         'heart-rate-reserve',
         'reserve-zones',
         'edwards-trimp',
+        'vo2max-acsm-hrr',
       });
       for (final v in all) {
         expect(v.method.trim(), isNotEmpty);

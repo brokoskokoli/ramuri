@@ -15,3 +15,4 @@ Jedes Berechnungsverfahren der App ist genau einer Kategorie aus NFR-0002 zugeor
 | Höhenfilter | `altitude-filter` v1 | B | Eigene Schwellen (PAR-012, PAR-013). | WP03 |
 | Schrittreihe | `steps-series` v1 | B | Eigene Aufbereitung der Rohwerte. | WP03 |
 | Abschnittsqualität | `section-quality` v2 | B | „Qualitätsbewertung“ ist in NFR-0002 Kategorie B (FR-0048). | WP03 |
+| VO₂max-Schätzer | `vo2max-acsm-hrr` v1 | B | ACSM-Laufformel und Hochrechnung über die Reserve sind etabliert (FR-0069, FR-0071), Plausibilität, Gewichtung, gewichteter Median und Stufen sind eigene Wahl (PAR-032, PAR-033, PAR-036 bis PAR-040). | WP09 |

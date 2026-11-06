@@ -17,6 +17,7 @@ class FitnessParameters {
     this.minCoveragePercent = 80,
     this.fullCoveragePercent = 100,
     this.sectionSelection = const SectionSelectionParameters(),
+    this.vo2max = const Vo2maxParameters(),
   });
 
   /// Die Startwerte aus Version 3 von docs/model-parameters.md.
@@ -27,6 +28,7 @@ class FitnessParameters {
   FitnessParameters copyWith({
     List<double>? reserveZoneBounds,
     SectionSelectionParameters? sectionSelection,
+    Vo2maxParameters? vo2max,
   }) => FitnessParameters(
     parameterVersion: parameterVersion,
     minHeartRateReserveBpm: minHeartRateReserveBpm,
@@ -38,6 +40,7 @@ class FitnessParameters {
     minCoveragePercent: minCoveragePercent,
     fullCoveragePercent: fullCoveragePercent,
     sectionSelection: sectionSelection ?? this.sectionSelection,
+    vo2max: vo2max ?? this.vo2max,
   );
 
   /// Prozent je Ganzes; Umrechnung der ganzzahligen Abdeckung.
@@ -77,6 +80,10 @@ class FitnessParameters {
 
   /// PAR-020 bis PAR-031: Grenzen der Abschnittsauswahl für die VO₂max.
   final SectionSelectionParameters sectionSelection;
+
+  /// FR-0069, FR-0071, PAR-032, PAR-033, PAR-036 bis PAR-040: Schätzer und
+  /// Laufstufe der VO₂max.
+  final Vo2maxParameters vo2max;
 }
 
 /// Grenzen der Abschnittsauswahl (FR-0073, FR-0074, FR-0075;
@@ -173,4 +180,91 @@ class SectionSelectionParameters {
   /// PAR-031: darunter keine Schätzung; zwischen beiden Grenzen nur
   /// „vorläufig“ (m/min).
   final double limitedSpeedMetersPerMinute;
+}
+
+/// Konstanten und Grenzen des VO₂max-Schätzers (FR-0069, FR-0071,
+/// docs/model-parameters.md PAR-032, PAR-033, PAR-036 bis PAR-040, Version 3).
+class Vo2maxParameters {
+  const Vo2maxParameters({
+    this.restingOxygen = 3.5,
+    this.runCoefficient = 0.2,
+    this.gradeCoefficient = 0.9,
+    this.plausibleMin = 25,
+    this.plausibleMax = 90,
+    this.weightMaxDuration = const Duration(minutes: 10),
+    this.gpsGoodMedianMeters = 5,
+    this.gpsGoodFactor = 1,
+    this.gpsOtherFactor = 0.75,
+    this.trendFromSections = 3,
+    this.percentileFromSections = 5,
+    this.percentileLow = 0.1,
+    this.percentileHigh = 0.9,
+    this.undeterminableAbovePercent = 20,
+    this.sufficientMaxPercent = 10,
+    this.goodMaxPercent = 5,
+    this.sufficientMinSections = 2,
+    this.goodMinSections = 3,
+    this.goodMinDuration = const Duration(minutes: 20),
+    this.preliminaryMaxSections = 1,
+  });
+
+  /// FR-0069: Ruheumsatz (ml/kg/min), auch in FR-0071.
+  final double restingOxygen;
+
+  /// FR-0069: Anteil je m/min Geschwindigkeit (ml/kg/min je m/min).
+  final double runCoefficient;
+
+  /// FR-0069: Anteil je m/min und Steigung als Dezimalzahl.
+  final double gradeCoefficient;
+
+  /// PAR-032: kleinste plausible VO₂max (ml/kg/min), inklusiv.
+  final double plausibleMin;
+
+  /// PAR-032: größte plausible VO₂max (ml/kg/min), inklusiv.
+  final double plausibleMax;
+
+  /// PAR-033: Dauer, bis zu der die Minuten in das Gewicht eingehen.
+  final Duration weightMaxDuration;
+
+  /// PAR-033: GPS-Median (m), bis zu dem der gute Faktor gilt (inklusiv).
+  final double gpsGoodMedianMeters;
+
+  /// PAR-033: GPS-Faktor bei Median bis [gpsGoodMedianMeters].
+  final double gpsGoodFactor;
+
+  /// PAR-033: GPS-Faktor sonst, auch ohne gemeldete Genauigkeit.
+  final double gpsOtherFactor;
+
+  /// PAR-036: ab so vielen Abschnitten wird zuerst der Zeittrend entfernt.
+  final int trendFromSections;
+
+  /// PAR-036: ab so vielen Abschnitten zählt P10 bis P90 statt Spannweite.
+  final int percentileFromSections;
+
+  /// PAR-036: unteres Perzentil als Anteil (0,1 = P10).
+  final double percentileLow;
+
+  /// PAR-036: oberes Perzentil als Anteil (0,9 = P90).
+  final double percentileHigh;
+
+  /// PAR-037: `S` darüber (Prozent, exklusiv) ist „nicht bestimmbar“.
+  final double undeterminableAbovePercent;
+
+  /// PAR-039: größtes `S` (Prozent, inklusiv) für „ausreichend“.
+  final double sufficientMaxPercent;
+
+  /// PAR-040: größtes `S` (Prozent, inklusiv) für „gut“.
+  final double goodMaxPercent;
+
+  /// PAR-039: kleinste Abschnittszahl für „ausreichend“.
+  final int sufficientMinSections;
+
+  /// PAR-040: kleinste Abschnittszahl für „gut“.
+  final int goodMinSections;
+
+  /// PAR-040: kleinste Summe der Abschnittsdauern für „gut“ (inklusiv).
+  final Duration goodMinDuration;
+
+  /// PAR-038: bis zu dieser Abschnittszahl ist der Lauf höchstens „vorläufig“.
+  final int preliminaryMaxSections;
 }

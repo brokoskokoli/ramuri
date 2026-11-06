@@ -308,7 +308,7 @@ class Vo2maxSectionSelector {
     }
 
     // PAR-025: GPS-Genauigkeit.
-    _gpsAccuracy(run, from, to, add);
+    final gpsMedian = _gpsAccuracy(run, from, to, add);
 
     // PAR-026, PAR-027: Steigung.
     final (gradient, gradientBasis) = _gradient(run, from, to, distance);
@@ -345,13 +345,14 @@ class Vo2maxSectionSelector {
       gradient: gradient,
       gradientBasis: gradientBasis,
       distanceMeters: distance,
+      gpsMedianAccuracyMeters: gpsMedian,
     );
   }
 
   /// PAR-025: Median ≤ Grenze und Anteil der Punkte ≤ Grenze. Punkte ohne
   /// gemeldete Genauigkeit zählen nicht zum Median und gelten beim Anteil als
   /// nicht eingehalten.
-  void _gpsAccuracy(
+  double? _gpsAccuracy(
     RunPreprocessing run,
     DateTime from,
     DateTime to,
@@ -367,7 +368,7 @@ class Vo2maxSectionSelector {
     final known = [for (final a in points) ?a];
     if (known.isEmpty) {
       add(SectionRule.gpsMedianAccuracy, limit: _p.gpsMaxMedianAccuracyMeters);
-      return;
+      return null;
     }
     final median = _median(known);
     if (median > _p.gpsMaxMedianAccuracyMeters) {
@@ -382,6 +383,7 @@ class Vo2maxSectionSelector {
     if (share < _p.gpsMinShare) {
       add(SectionRule.gpsAccuracyShare, value: share, limit: _p.gpsMinShare);
     }
+    return median;
   }
 
   /// PAR-027: `G` nur einrechnen, wenn |G| ≥ 1 % und |Δh| ≥ 2 · Vertikal-
