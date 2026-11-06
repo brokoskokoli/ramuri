@@ -5,6 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../profile/profile_screen.dart';
 import '../run/run_flow_screen.dart';
 import '../run/run_ports.dart';
+import '../sensors/sensor_manager.dart';
 import '../settings/settings_screen.dart';
 
 /// Startbildschirm. Gebaut wird er erst, wenn der Speicher bereit ist
@@ -17,11 +18,13 @@ class HomeScreen extends StatelessWidget {
     required this.clock,
     required this.permissions,
     required this.runPorts,
+    required this.sensors,
   });
 
   final StorageSession session;
   final PermissionStatusPort permissions;
   final RunPorts runPorts;
+  final SensorManager sensors;
   final Clock clock;
 
   @override
@@ -69,6 +72,7 @@ class HomeScreen extends StatelessWidget {
                   builder: (_) => SettingsScreen(
                     session: session,
                     permissions: permissions,
+                    sensors: sensors,
                   ),
                 ),
               ),

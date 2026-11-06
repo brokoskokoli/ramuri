@@ -1,8 +1,11 @@
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:adapters/adapters.dart' show BleHeartRateSensor;
+import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/debug/debug_test_sensor.dart';
 
 void main() {
+  debugWiringTests();
   test('Test-Sensor: Werte, Abbruch, Neuverbinden', () async {
     final sensor = DebugTestSensor(
       FakeClock(DateTime.utc(2030)),
@@ -39,5 +42,27 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(ev.whereType<HeartRateReading>().single.beatsPerMinute, 88);
     await sub.cancel();
+  });
+}
+
+void debugWiringTests() {
+  test('main_debug: derselbe Sensordienst nutzt den Test-Sensor', () async {
+    final sensor = DebugTestSensor(FakeClock(DateTime.utc(2030)));
+    final deps = AppDependencies.create(heartRateSensor: sensor);
+    expect(identical(deps.sensors.sensor, sensor), isTrue);
+    // Der Test-Sensor braucht keine Bluetooth-Rechte.
+    expect(deps.sensors.requestPermissions, isNull);
+    await deps.sensors.startScan();
+    await pumpEventQueue();
+    expect(deps.sensors.foundEntries, isNotEmpty);
+    deps.sensors.dispose();
+  });
+
+  test('Standard: echter Adapter mit Rechteanfrage erst auf Abruf', () {
+    final deps = AppDependencies.create();
+    expect(deps.sensors.sensor, isA<BleHeartRateSensor>());
+    expect(deps.sensors.requestPermissions, isNotNull);
+    expect(deps.sensors.scanning, isFalse);
+    deps.sensors.dispose();
   });
 }

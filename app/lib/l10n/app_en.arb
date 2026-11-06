@@ -175,5 +175,47 @@
   "runDoneTitle": "Run finished",
   "runDoneSaved": "The run is saved.",
   "runDoneSaveProblem": "An error occurred while saving. The run may be saved incompletely.",
-  "runDoneClose": "Done"
+  "runDoneClose": "Done",
+  "settingsSensors": "Heart rate sensors",
+  "sensorsTitle": "Heart rate sensors",
+  "sensorsIntro": "A heart rate sensor is optional. You can also run without one.",
+  "sensorsSearch": "Search for devices",
+  "sensorsStopSearch": "Stop searching",
+  "sensorsSearching": "Searching …",
+  "sensorsKnown": "Known devices",
+  "sensorsFound": "Devices found",
+  "sensorsNoneKnown": "No device saved yet.",
+  "sensorsNoneFound": "No device found yet.",
+  "sensorsUnnamed": "Heart rate sensor",
+  "sensorsConnect": "Connect",
+  "sensorsDisconnect": "Disconnect",
+  "sensorsPreferred": "Preferred",
+  "sensorsMakePreferred": "Prefer",
+  "sensorsClearPreferred": "Remove preference",
+  "sensorsStateIdle": "Not connected",
+  "sensorsStateConnecting": "Connecting",
+  "sensorsStateConnected": "Connected",
+  "sensorsStateReconnecting": "Connection lost, reconnecting",
+  "sensorsNoValue": "No value yet",
+  "sensorsBpm": "{bpm} bpm",
+  "@sensorsBpm": {
+    "description": "Pulswert",
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
+  "sensorsBattery": "Battery: {percent} %",
+  "@sensorsBattery": {
+    "description": "Akkustand, nur wenn gemeldet",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "sensorsProblemPermission": "Without the Bluetooth permission the app cannot search for or connect sensors. Allow it in the app's system settings. Runs without a sensor still work.",
+  "sensorsProblemBluetooth": "Bluetooth is not available. Turn Bluetooth on and check the permission in the system settings. Runs without a sensor still work.",
+  "sensorsProblemConnect": "The device could not be connected. Check that it is nearby and switched on."
 }

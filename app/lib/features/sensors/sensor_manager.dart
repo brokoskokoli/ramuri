@@ -1,0 +1,387 @@
+import 'dart:async';
+
+import 'package:core/core.dart';
+import 'package:flutter/foundation.dart';
+
+/// Zustand der Verbindung zu einem Gerät.
+enum SensorLinkState {
+  /// Nicht verbunden (bewusst getrennt oder noch nie verbunden).
+  idle,
+
+  /// Verbindung wird aufgebaut.
+  connecting,
+
+  /// Verbunden; Werte kommen.
+  connected,
+
+  /// Verbindung abgebrochen (FR-0017); die App verbindet dasselbe Gerät neu.
+  reconnecting,
+}
+
+/// Hinweis zur Sensorverwaltung (FR-0035): nie ein Absturz.
+enum SensorProblem {
+  /// Bluetooth-Rechte fehlen oder wurden verweigert.
+  permissionDenied,
+
+  /// Suche oder Verbindung nicht möglich (Bluetooth aus oder nicht verfügbar).
+  bluetoothUnavailable,
+
+  /// Das Gerät ließ sich nicht verbinden.
+  connectFailed,
+}
+
+/// Ein Gerät aus Suche oder Speicher mit seinem Live-Stand.
+class SensorEntry {
+  const SensorEntry({
+    required this.id,
+    this.name,
+    this.known = false,
+    this.preferred = false,
+    this.state = SensorLinkState.idle,
+    this.bpm,
+    this.batteryPercent,
+  });
+
+  final String id;
+  final String? name;
+  final bool known;
+  final bool preferred;
+  final SensorLinkState state;
+
+  /// Letzter Pulswert; nur bei verbundenem Gerät, sonst `null`.
+  final int? bpm;
+
+  /// Nur wenn das Gerät einen Akkustand gemeldet hat (FR-0016).
+  final int? batteryPercent;
+}
+
+/// App-weiter Sensordienst (WP07 Teil C): hält die Verbindungen, speist den
+/// [HeartRateSourceSelector], kennt Puls und Batterie, speichert bekannte
+/// Geräte und das bevorzugte Gerät.
+///
+/// Beim Erzeugen und beim Anbinden des Speichers wird der Sensor nicht
+/// angefasst; Rechte werden erst bei [startScan] und [connect] angefragt
+/// (ADR-0006 Punkt 3).
+class SensorManager extends ChangeNotifier {
+  SensorManager({
+    required this.sensor,
+    required this.clock,
+    this.requestPermissions,
+    this.reconnectDelay = const Duration(seconds: 5),
+  });
+
+  final HeartRateSensor sensor;
+  final Clock clock;
+
+  /// Fragt die Bluetooth-Rechte; `null`, wenn der Sensor keine braucht.
+  final Future<void> Function()? requestPermissions;
+
+  /// Wartezeit bis zum nächsten Neuverbinden nach einem Abbruch (Vorschlag,
+  /// OQ-0064: dasselbe Gerät verbindet sich neu).
+  final Duration reconnectDelay;
+
+  /// Wählt die Quelle für die Aufzeichnung. Beim Laufbeginn `lock`, am Ende
+  /// `close` (Teil D); die Verwaltung speist sie mit allen Ereignissen.
+  final HeartRateSourceSelector selector = HeartRateSourceSelector();
+
+  KnownDeviceStore? _store;
+  List<KnownDevice> _known = const [];
+  final _found = <String, String?>{};
+  final _conns = <String, _Conn>{};
+  final _readings = StreamController<HeartRateReading>.broadcast();
+  StreamSubscription<HeartRateDevice>? _scanSub;
+  bool _scanning = false;
+  SensorProblem? _problem;
+  bool _permitted = false;
+  bool _disposed = false;
+
+  /// Werte der aktiven Quelle (nur dieses eine Gerät, FR-0019).
+  Stream<HeartRateReading> get activeReadings => _readings.stream;
+
+  bool get scanning => _scanning;
+  SensorProblem? get problem => _problem;
+
+  /// Kennungen der verbundenen Geräte.
+  Set<String> get connectedIds => {
+    for (final e in _conns.entries)
+      if (e.value.state == SensorLinkState.connected) e.key,
+  };
+
+  /// Bekannte Geräte (nach Hinzufügen sortiert).
+  List<SensorEntry> get knownEntries => [
+    for (final k in _known) _entry(k.deviceId),
+  ];
+
+  /// Gefundene, noch unbekannte Geräte.
+  List<SensorEntry> get foundEntries => [
+    for (final id in _found.keys)
+      if (!_known.any((k) => k.deviceId == id)) _entry(id),
+  ];
+
+  SensorEntry _entry(String id) {
+    KnownDevice? k;
+    for (final d in _known) {
+      if (d.deviceId == id) k = d;
+    }
+    final c = _conns[id];
+    final live = c?.state == SensorLinkState.connected;
+    return SensorEntry(
+      id: id,
+      name: k?.displayName ?? _found[id],
+      known: k != null,
+      preferred: k?.isPreferred ?? false,
+      state: c?.state ?? SensorLinkState.idle,
+      bpm: live ? c!.bpm : null,
+      batteryPercent: live ? c!.battery : null,
+    );
+  }
+
+  /// Bindet den Speicher an und lädt bekannte Geräte und Bevorzugung. Der
+  /// Sensor bleibt unberührt.
+  Future<void> attachStore(KnownDeviceStore store) async {
+    _store = store;
+    await reloadKnown();
+  }
+
+  Future<void> reloadKnown() async {
+    final store = _store;
+    if (store == null) return;
+    final list = await store.list();
+    if (_disposed) return;
+    _known = list;
+    String? pref;
+    for (final k in list) {
+      if (k.isPreferred) pref = k.deviceId;
+    }
+    selector.preferredId = pref;
+    _notify();
+  }
+
+  /// Sucht Geräte. Fragt zuerst die Rechte ab; ohne sie oder bei
+  /// ausgeschaltetem Bluetooth bleibt ein Hinweis in [problem].
+  Future<void> startScan() async {
+    if (_scanning) return;
+    _problem = null;
+    _found.clear();
+    _scanning = true;
+    _notify();
+    if (!await _ensurePermissions()) {
+      _scanning = false;
+      _notify();
+      return;
+    }
+    if (_disposed || !_scanning) return;
+    try {
+      _scanSub = sensor.scan().listen(
+        (d) {
+          _found[d.id] = d.name;
+          _notify();
+        },
+        onError: (Object _) {
+          _problem = SensorProblem.bluetoothUnavailable;
+          _stopScanState();
+        },
+        onDone: _stopScanState,
+      );
+    } catch (_) {
+      _problem = SensorProblem.bluetoothUnavailable;
+      _stopScanState();
+    }
+  }
+
+  void stopScan() {
+    if (!_scanning) return;
+    _stopScanState();
+  }
+
+  void _stopScanState() {
+    _scanSub?.cancel();
+    _scanSub = null;
+    _scanning = false;
+    _notify();
+  }
+
+  Future<bool> _ensurePermissions() async {
+    final request = requestPermissions;
+    if (request == null || _permitted) return true;
+    try {
+      await request();
+      _permitted = true;
+      return true;
+    } catch (_) {
+      _problem = SensorProblem.permissionDenied;
+      return false;
+    }
+  }
+
+  /// Merkt das Gerät als bekannt (FR-0013) und verbindet es.
+  Future<void> connect(String id, {String? name}) async {
+    final existing = _conns[id];
+    if (existing != null && existing.state != SensorLinkState.idle) return;
+    _problem = null;
+    if (!await _ensurePermissions()) {
+      _notify();
+      return;
+    }
+    if (_disposed) return;
+    final store = _store;
+    if (store != null) {
+      await store.upsert(id, displayName: name ?? _found[id], at: clock.now());
+      await reloadKnown();
+    }
+    _open(_conns[id] ?? (_conns[id] = _Conn()), id);
+  }
+
+  void _open(_Conn c, String id) {
+    c
+      ..wanted = true
+      ..state = c.everConnected
+          ? SensorLinkState.reconnecting
+          : SensorLinkState.connecting
+      ..timer?.cancel();
+    c.timer = null;
+    c.sub?.cancel();
+    late final StreamSubscription<HeartRateEvent> sub;
+    sub = sensor
+        .connect(id)
+        .listen(
+          (e) => _onEvent(c, id, e),
+          onError: (Object _) => _onFailure(c, id, sub),
+          onDone: () => _onEnded(c, id, sub),
+        );
+    c.sub = sub;
+    _notify();
+  }
+
+  void _onEvent(_Conn c, String id, HeartRateEvent e) {
+    if (e is HeartRateConnected) {
+      c
+        ..state = SensorLinkState.connected
+        ..everConnected = true
+        ..bpm = null
+        ..battery = null;
+    } else if (e is HeartRateReading) {
+      c.bpm = e.beatsPerMinute;
+    } else if (e is HeartRateBattery) {
+      c.battery = e.percent;
+    } else if (e is HeartRateDisconnected) {
+      if (e.lost) {
+        _lost(c, id, alreadyReported: true);
+      }
+      return _feed(e);
+    }
+    _feed(e);
+  }
+
+  void _feed(HeartRateEvent e) {
+    final r = selector.handle(e, clock.now());
+    if (r != null && !_readings.isClosed) _readings.add(r);
+    _notify();
+  }
+
+  /// Verbindung verloren (Strom meldete es oder endete ohne Abschluss).
+  void _lost(_Conn c, String id, {required bool alreadyReported}) {
+    final wasLive = c.state == SensorLinkState.connected;
+    c.bpm = null;
+    c.battery = null;
+    c.sub?.cancel();
+    c.sub = null;
+    if (!c.wanted) {
+      c.state = SensorLinkState.idle;
+      return;
+    }
+    if (wasLive && !alreadyReported) {
+      selector.handle(HeartRateDisconnected(id, lost: true), clock.now());
+    }
+    c.state = SensorLinkState.reconnecting;
+    c.timer?.cancel();
+    c.timer = Timer(reconnectDelay, () {
+      if (_disposed || !c.wanted) return;
+      _open(c, id);
+    });
+  }
+
+  void _onFailure(_Conn c, String id, StreamSubscription<void> sub) {
+    if (!identical(c.sub, sub)) return;
+    if (c.everConnected) {
+      _lost(c, id, alreadyReported: false);
+    } else {
+      c
+        ..wanted = false
+        ..state = SensorLinkState.idle
+        ..sub = null;
+      _problem = SensorProblem.connectFailed;
+    }
+    _notify();
+  }
+
+  void _onEnded(_Conn c, String id, StreamSubscription<void> sub) {
+    if (!identical(c.sub, sub)) return;
+    if (c.state == SensorLinkState.connected ||
+        c.state == SensorLinkState.reconnecting) {
+      _lost(c, id, alreadyReported: false);
+    } else {
+      c
+        ..state = SensorLinkState.idle
+        ..wanted = false
+        ..sub = null;
+    }
+    _notify();
+  }
+
+  /// Trennt bewusst (FR-0012): danach keine Werte, kein Neuverbinden.
+  void disconnect(String id) {
+    final c = _conns[id];
+    if (c == null || !c.wanted && c.state == SensorLinkState.idle) return;
+    final wasLive = c.state == SensorLinkState.connected;
+    c
+      ..wanted = false
+      ..timer?.cancel();
+    c.timer = null;
+    final sub = c.sub;
+    c.sub = null;
+    c
+      ..state = SensorLinkState.idle
+      ..bpm = null
+      ..battery = null
+      ..everConnected = false;
+    unawaited(sub?.cancel());
+    if (wasLive) _feed(HeartRateDisconnected(id));
+    _notify();
+  }
+
+  /// Macht das Gerät zum bevorzugten oder hebt die Festlegung auf (FR-0014).
+  Future<void> setPreferred(String? id) async {
+    final store = _store;
+    if (store == null) return;
+    await store.setPreferred(id);
+    await reloadKnown();
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _scanSub?.cancel();
+    for (final c in _conns.values) {
+      c.wanted = false;
+      c.timer?.cancel();
+      c.sub?.cancel();
+    }
+    _readings.close();
+    super.dispose();
+  }
+}
+
+class _Conn {
+  SensorLinkState state = SensorLinkState.idle;
+  bool wanted = false;
+  bool everConnected = false;
+  int? bpm;
+  int? battery;
+  StreamSubscription<HeartRateEvent>? sub;
+  Timer? timer;
+}

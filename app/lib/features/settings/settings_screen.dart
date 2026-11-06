@@ -2,6 +2,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../sensors/sensor_manager.dart';
+import '../sensors/sensors_screen.dart';
 import '../storage/data_screen.dart';
 import 'app_settings.dart';
 import 'permissions_screen.dart';
@@ -14,10 +16,12 @@ class SettingsScreen extends StatelessWidget {
     super.key,
     required this.session,
     required this.permissions,
+    required this.sensors,
   });
 
   final StorageSession session;
   final PermissionStatusPort permissions;
+  final SensorManager sensors;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +63,16 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             child: Text(l10n.settingsPermissions),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            key: const Key('settings_sensors'),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => SensorsScreen(manager: sensors),
+              ),
+            ),
+            child: Text(l10n.settingsSensors),
           ),
           const SizedBox(height: 8),
           OutlinedButton(
