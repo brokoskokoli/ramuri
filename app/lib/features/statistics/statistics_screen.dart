@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../offload_scope.dart';
 import '../settings/app_settings.dart';
 import 'fitness_section.dart';
 import 'statistics_view.dart';
@@ -73,6 +74,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     final overviews = await RunOverviewService(
       session: widget.session,
       clock: widget.clock,
+      offload: OffloadScope.of(context),
     ).load();
     final fitness = await FitnessOverviewService(session: widget.session)
         .load([for (final o in overviews) o.run]);

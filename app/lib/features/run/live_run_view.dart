@@ -223,16 +223,7 @@ class LiveRunView extends StatelessWidget {
         ),
         _Metric('run_zone', l10n.runZone, zoneText),
         _Metric('run_gps', l10n.runGps, gpsText),
-        if (controller.sensors case final run?)
-          _SensorPanel(run: run)
-        else
-          _Metric(
-            'run_sensors',
-            l10n.runSensors,
-            bpm != null
-                ? l10n.runHeartRateSourceActive
-                : l10n.runHeartRateSourceNone,
-          ),
+        if (controller.sensors case final run?) _SensorPanel(run: run),
       ],
       if (gapCount > 0)
         _Metric('run_gaps', l10n.runGps, l10n.runGpsGaps(gapCount)),

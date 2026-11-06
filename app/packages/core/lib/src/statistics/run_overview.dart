@@ -11,6 +11,7 @@ import '../recalculation/run_analysis.dart';
 import '../recalculation/run_load_values.dart';
 import '../recalculation/value_calculation_service.dart' show dayOfRun;
 import 'best_pace.dart';
+import 'offload.dart';
 import 'run_figures.dart';
 import 'statistics_parameters.dart';
 
@@ -183,11 +184,16 @@ class RunOverviewService {
     required this.session,
     required this.clock,
     this.parameters = const PreprocessingParameters.v4(),
+    this.offload = inlineOffload,
   });
 
   final StorageSession session;
   final Clock clock;
   final PreprocessingParameters parameters;
+
+  /// Wo die Wiedergabe veralteter Läufe rechnet (in der App ein eigener
+  /// Isolate); Lesen und Speichern bleiben im aufrufenden Isolate.
+  final Offload offload;
 
   /// Beendete Läufe, neuester Start zuerst (Reihenfolge von `runs.list`).
   /// Unfertige Läufe fehlen.
@@ -225,13 +231,13 @@ class RunOverviewService {
     final int lapCount;
     try {
       lapCount = (await session.markers.laps(run.id)).length;
-      pre = replayRunPreprocessing(
+      pre = await offload(replayJob, (
         run: run,
         end: end,
         raw: await session.rawData.read(run.id),
         gaps: await session.markers.gaps(run.id),
         parameters: parameters,
-      );
+      ));
     } on StorageException {
       // Ein Lauf, der nicht lesbar ist, lässt die Historie nicht scheitern.
       return RunOverview(run: run, readFailed: true, load: load);

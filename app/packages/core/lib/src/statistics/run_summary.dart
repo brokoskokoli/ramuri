@@ -113,6 +113,7 @@ class RunSummaryService {
         session: session,
         clock: clock,
         parameters: preprocessing,
+        offload: offload,
       ).load())
         if (o.run.id != runId) o.toFigures(),
     ];

@@ -239,6 +239,33 @@ void main() {
       expect(o.paceTime, s.figures.paceTime);
     });
 
+    test('Veraltete Läufe werden über den Offload neu gerechnet', () async {
+      final w = await RecalcWorld.create();
+      await w.seedRun(DateTime.utc(2030, 2, 1, 8), minutes: 5);
+      await w.seedRun(DateTime.utc(2030, 2, 2, 8), minutes: 5);
+      final jobs = <Object>[];
+      Future<R> counting<A, R>(R Function(A) job, A argument) {
+        jobs.add(job);
+        return inlineOffload(job, argument);
+      }
+
+      final first = await RunOverviewService(
+        session: w.session,
+        clock: w.clock,
+        offload: counting,
+      ).load();
+      expect(first, hasLength(2));
+      expect(first.every((o) => o.distanceMeters! > 800), isTrue);
+      expect(jobs, [replayJob, replayJob]);
+      // Gespeichert: kein weiterer Offload.
+      await RunOverviewService(
+        session: w.session,
+        clock: w.clock,
+        offload: counting,
+      ).load();
+      expect(jobs, hasLength(2));
+    });
+
     test(
       'Lauf ohne gespeicherte Kurzfassung wird neu gerechnet und gespeichert',
       () async {

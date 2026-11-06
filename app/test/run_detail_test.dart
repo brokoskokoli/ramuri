@@ -497,4 +497,79 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  group('Offload über AppDependencies', () {
+    Future<Device> startedWith(WidgetTester tester, Offload offload) async {
+      final d = Device()..offload = offload;
+      await d.start(tester, const Locale('de'));
+      await d.skipSetup(tester);
+      return d;
+    }
+
+    testWidgets('Historie und Detail rechnen über den eingesetzten Offload', (
+      tester,
+    ) async {
+      final jobs = <Object>[];
+      Future<R> counting<A, R>(R Function(A) job, A argument) {
+        jobs.add(job);
+        return inlineOffload(job, argument);
+      }
+
+      final d = await startedWith(tester, counting);
+      await openDetail(
+        tester,
+        d,
+        () => seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8)),
+      );
+      expect(chartPaths('detail_pace'), hasLength(1));
+      // Historie (veralteter Lauf) und Zusammenfassung je eine Wiedergabe.
+      expect(jobs.where((j) => j == replayJob), hasLength(2));
+      expect(jobs, contains(buildRunDetailJob));
+    });
+
+    testWidgets('Statistik rechnet veraltete Läufe über den Offload', (
+      tester,
+    ) async {
+      final jobs = <Object>[];
+      Future<R> counting<A, R>(R Function(A) job, A argument) {
+        jobs.add(job);
+        return inlineOffload(job, argument);
+      }
+
+      final d = await startedWith(tester, counting);
+      await seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8));
+      await tester.tap(key('home_statistics'));
+      await tester.pumpAndSettle();
+      expect(jobs, [replayJob]);
+    });
+
+    testWidgets('Offload wirft: Fallback-Hinweis sichtbar, kein Hängen', (
+      tester,
+    ) async {
+      // Nur der Aufbau der Zeichendaten scheitert (Isolate-Fehler); die
+      // Historie rechnet weiter.
+      Future<R> failing<A, R>(R Function(A) job, A argument) {
+        if (job == buildRunDetailJob) {
+          return Future<R>.error(StateError('Isolate abgestürzt'));
+        }
+        return inlineOffload(job, argument);
+      }
+
+      final d = await startedWith(tester, failing);
+      await openDetail(
+        tester,
+        d,
+        () => seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8)),
+      );
+      // pumpAndSettle in openDetail ist zurückgekehrt: nichts hängt.
+      expect(key('sum_loading'), findsNothing);
+      expect(key('sum_fallback'), findsOneWidget);
+      expect(
+        find.text('Dieser Lauf konnte nicht gelesen werden.'),
+        findsOneWidget,
+      );
+      expect(key('route_paint'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

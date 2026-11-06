@@ -19,6 +19,7 @@ class AppDependencies {
     RunPorts? runPorts,
     this.heartRateSensor,
     SensorManager? sensors,
+    this.offload = isolateOffload,
   }) : permissions = permissions ?? const _NoPermissionStatus(),
        runPorts = runPorts ?? const _NoRunPorts(),
        sensors =
@@ -39,6 +40,10 @@ class AppDependencies {
 
   /// Pulssensoren (Suche und Verbindung). `null` in Tests ohne Sensor.
   final HeartRateSensor? heartRateSensor;
+
+  /// Wo die Wiedergabe der Rohdaten rechnet (Zusammenfassung, Historie,
+  /// Statistik). Vorgabe: eigener Isolate; Tests setzen den Inline-Offload.
+  final Offload offload;
 
   /// App-weiter Sensordienst: Verbindungen, bekannte Geräte, Puls (WP07).
   final SensorManager sensors;

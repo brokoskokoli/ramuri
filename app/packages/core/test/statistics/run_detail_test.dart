@@ -224,6 +224,35 @@ void main() {
     );
   });
 
+  test(
+    'Ausdünnen mit Lücke: Anfang und Ende jedes Teils bleiben (Puls, Pace)',
+    () {
+      final pre = _run(
+        3000,
+        noHeartRate: (1000, 1100),
+        noPosition: (2000, 2100),
+      );
+      final full = _detail(pre, 3000, maxPoints: 100000);
+      final thin = _detail(pre, 3000, maxPoints: 200);
+      for (final (name, f, t) in [
+        ('Puls', full.heartRate, thin.heartRate),
+        ('Pace', full.pace, thin.pace),
+      ]) {
+        expect(f.length, greaterThan(1), reason: '$name hat eine Lücke');
+        expect(t, hasLength(f.length), reason: name);
+        expect(
+          t.fold<int>(0, (n, p) => n + p.length),
+          lessThan(f.fold<int>(0, (n, p) => n + p.length)),
+          reason: '$name wurde ausgedünnt',
+        );
+        for (var i = 0; i < f.length; i++) {
+          expect(t[i].first.seconds, f[i].first.seconds, reason: '$name $i');
+          expect(t[i].last.seconds, f[i].last.seconds, reason: '$name $i');
+        }
+      }
+    },
+  );
+
   test('Messung: vier Stunden mit 1 Hz', () {
     final sw = Stopwatch()..start();
     final pre = _run(14400, noPosition: (5000, 5100));
@@ -382,4 +411,25 @@ void main() {
       );
     },
   );
+
+  test('Zusammenfassung: Wiedergabe läuft über den Offload', () async {
+    final w = await RecalcWorld.create();
+    final id = await w.seedRun(DateTime.utc(2030, 2, 1, 8), minutes: 5);
+    final calls = <Object>[];
+    Future<R> counting<A, R>(R Function(A) job, A argument) {
+      calls.add(job);
+      return inlineOffload(job, argument);
+    }
+
+    final summary = await RunSummaryService(
+      session: w.session,
+      clock: w.clock,
+      offload: counting,
+    ).load(id);
+    expect(summary, isNotNull);
+    // Eigene Wiedergabe; die Kurzfassung des Laufs fehlt, wird also über
+    // denselben Offload gerechnet (zweiter Aufruf).
+    expect(calls, everyElement(same(replayJob)));
+    expect(calls.length, greaterThanOrEqualTo(2));
+  });
 }

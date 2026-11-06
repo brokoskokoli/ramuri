@@ -5,13 +5,8 @@ import '../../l10n/app_localizations.dart';
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
 import '../transparency/value_explanation_screen.dart';
+import '../../offload_scope.dart';
 import 'run_charts.dart';
-
-/// Wo die reine Rechnung der Zusammenfassung läuft: in der App in einem eigenen
-/// Isolate, damit die Oberfläche bei langen Läufen nicht einfriert (Lesen und
-/// Speichern bleiben im Haupt-Isolate). Tests stellen [inlineOffload] ein, weil
-/// ein Isolate in der Test-Uhr nicht abläuft.
-Offload summaryOffload = isolateOffload;
 
 /// Zeit für die Anzeige; fehlt sie, „nicht verfügbar“ (nie „–“ oder 0).
 String clockText(AppLocalizations l10n, Duration? d) =>
@@ -46,17 +41,19 @@ class _RunSummaryBodyState extends State<RunSummaryBody> {
   late final Future<_Loaded?> _future = _load();
 
   Future<_Loaded?> _load() async {
+    // Wo die reine Rechnung läuft (in der App ein eigener Isolate).
+    final offload = OffloadScope.of(context);
     try {
       final summary = await RunSummaryService(
         session: widget.session,
         clock: widget.clock,
-        offload: summaryOffload,
+        offload: offload,
       ).load(widget.runId);
       if (summary == null) return null;
       // Einmal gebaut, nicht bei jedem Neuzeichnen.
       return _Loaded(
         summary,
-        await summaryOffload(buildRunDetailJob, (
+        await offload(buildRunDetailJob, (
           pre: summary.preprocessing,
           start: summary.run.startedAt,
           end: summary.run.endedAt!,

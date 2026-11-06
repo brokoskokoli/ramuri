@@ -6,6 +6,7 @@ import 'features/home/ready_root.dart';
 import 'features/settings/app_settings.dart';
 import 'features/storage/storage_gate.dart';
 import 'l10n/app_localizations.dart';
+import 'offload_scope.dart';
 
 /// Wurzel-Widget. Die Gerätesprache bestimmt die Sprache: Deutsch und Englisch
 /// werden unterstützt, jede andere Gerätesprache zeigt Englisch (NFR-0006,
@@ -35,8 +36,10 @@ class _RunningAppState extends State<RunningApp> {
     return MaterialApp(
       // Scope über dem Navigator: auch normal geöffnete Seiten sehen die
       // Einstellungen.
-      builder: (context, child) =>
-          AppSettingsScope(holder: _settings, child: child!),
+      builder: (context, child) => OffloadScope(
+        offload: dependencies.offload,
+        child: AppSettingsScope(holder: _settings, child: child!),
+      ),
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       theme: ThemeData(colorSchemeSeed: Colors.teal),
       localizationsDelegates: const [

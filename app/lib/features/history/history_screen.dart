@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../offload_scope.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/app_settings.dart';
@@ -33,8 +34,11 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   late Future<List<RunOverview>> _future = _load();
 
-  Future<List<RunOverview>> _load() =>
-      RunOverviewService(session: widget.session, clock: widget.clock).load();
+  Future<List<RunOverview>> _load() => RunOverviewService(
+    session: widget.session,
+    clock: widget.clock,
+    offload: OffloadScope.of(context),
+  ).load();
 
   void _reload() {
     setState(() {
