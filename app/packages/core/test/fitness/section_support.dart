@@ -20,6 +20,8 @@ class SelScenario {
     this.bpm = _bpm150,
     this.altitude = _flat,
     this.verticalAccuracy = 3,
+    this.verticalAccuracyAt,
+    this.jumps = const {},
     this.dropPositions = const {},
     this.pauses = const [],
   });
@@ -32,6 +34,12 @@ class SelScenario {
   /// Höhe aus Sekunde und zurückgelegten Metern; `null` lässt den Wert weg.
   final double? Function(int s, double meters) altitude;
   final double? verticalAccuracy;
+
+  /// Vertikalgenauigkeit je Sekunde; ersetzt [verticalAccuracy], wo gesetzt.
+  final double? Function(int s)? verticalAccuracyAt;
+
+  /// Einzelner Positionssprung nach Norden (m) nur in dieser Sekunde.
+  final Map<int, double> jumps;
   final Set<int> dropPositions;
   final List<(int, int)> pauses;
 
@@ -60,7 +68,7 @@ RunPreprocessing buildRun(SelScenario sc) {
         RawPosition(
           time: selAt(s),
           source: 'test',
-          latitude: 10 + north / _metersPerDegree,
+          latitude: 10 + (north + (sc.jumps[s] ?? 0)) / _metersPerDegree,
           longitude: 20,
           accuracyMeters: sc.accuracy(s),
         ),
@@ -84,7 +92,8 @@ RunPreprocessing buildRun(SelScenario sc) {
           time: selAt(s),
           source: 'test',
           meters: h,
-          verticalAccuracyMeters: sc.verticalAccuracy,
+          verticalAccuracyMeters:
+              sc.verticalAccuracyAt?.call(s) ?? sc.verticalAccuracy,
         ),
       );
     }
@@ -113,6 +122,8 @@ SelScenario steady(
   int? Function(int s)? bpm,
   double? Function(int s, double m)? altitude,
   double? verticalAccuracy = 3,
+  double? Function(int s)? verticalAccuracyAt,
+  Map<int, double> jumps = const {},
   Set<int> dropPositions = const {},
 }) => SelScenario(
   seconds: 180 + usable,
@@ -121,6 +132,8 @@ SelScenario steady(
   bpm: bpm ?? (s) => 150,
   altitude: altitude ?? (s, m) => 100,
   verticalAccuracy: verticalAccuracy,
+  verticalAccuracyAt: verticalAccuracyAt,
+  jumps: jumps,
   dropPositions: dropPositions,
 );
 

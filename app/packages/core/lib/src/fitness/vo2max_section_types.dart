@@ -157,8 +157,10 @@ class EvaluatedSection {
   bool get isUsable => status != SectionStatus.rejected;
   bool get isProvisional => status == SectionStatus.provisional;
 
-  /// PAR-024: 1 für frühe Abschnitte, `lateWeight` ab Minute 30; 0 bei einem
-  /// abgelehnten Abschnitt (geht nicht ein).
+  /// Nur der Spätfaktor nach PAR-024: 1 für frühe Abschnitte, `lateWeight` ab
+  /// Minute 30; 0 bei einem abgelehnten Abschnitt (geht nicht ein). Es ist
+  /// nicht das Gewicht nach PAR-033 (Dauer × GPS-Faktor × Spätfaktor); das
+  /// rechnet der Schätzer aus Dauer, [gpsMedianAccuracyMeters] und diesem Wert.
   final double weight;
 
   /// PAR-006/PAR-030: Strecke durch Zeit des Abschnitts in m/min.

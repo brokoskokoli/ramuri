@@ -11,8 +11,8 @@ import 'vo2max_section_types.dart';
 export 'vo2max_section_types.dart';
 
 /// Abschnittsauswahl für die VO₂max (FR-0073, FR-0074, FR-0070; PAR-020 bis
-/// PAR-031 sowie PAR-006, PAR-010, PAR-011). Kategorie A: reine Regelprüfung
-/// auf den Ergebnissen der Vorverarbeitung.
+/// PAR-031 sowie PAR-006, PAR-010, PAR-011). Kategorie B (Heuristik, Qualitätsbewertung
+/// nach NFR-0002): reine Regelprüfung auf den Ergebnissen der Vorverarbeitung.
 ///
 /// Ablauf:
 /// 1. Bewegungszeit ([MovementResult.movingIntervals]) ohne Einschwingzeit
@@ -194,14 +194,15 @@ class Vo2maxSectionSelector {
     final quality = run.assessSection(from, to);
     if (!quality.meetsHeartRateGapRule) {
       final pp = run.parameters;
-      // Der Wert, der die Regel verletzt: Anteil, sonst die Einzellücke.
+      // Beide Bedingungen von PAR-010 einzeln melden, wenn beide verletzt sind.
       if (quality.missingHeartRateShare > pp.heartRateMaxMissingShare) {
         add(
           SectionRule.heartRateGaps,
           value: quality.missingHeartRateShare,
           limit: pp.heartRateMaxMissingShare,
         );
-      } else {
+      }
+      if (quality.longestHeartRateGap > pp.heartRateMaxSingleGap) {
         add(
           SectionRule.heartRateGaps,
           value: _seconds(quality.longestHeartRateGap),

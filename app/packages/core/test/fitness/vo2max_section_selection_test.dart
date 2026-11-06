@@ -550,4 +550,268 @@ void main() {
       expect(p.limitedSpeedMetersPerMinute, 120);
     });
   });
+
+  group('Gleichheit an den Grenzen (Review A, Muss 1)', () {
+    // Die Grenze wird genau auf den gemessenen Wert gesetzt; die Spezifikation
+    // legt für jede Regel fest, ob die Grenze selbst noch gilt.
+    SectionSelection run(SelScenario sc, SectionSelectionParameters p) =>
+        selectSections(
+          sc,
+          parameters: FitnessParameters(
+            parameterVersion: currentParameterVersion,
+            sectionSelection: p,
+          ),
+        );
+
+    /// Messwert einer Regel: eine unmögliche Grenze lässt sie verletzen, der
+    /// Verstoß trägt den Wert.
+    double measured(
+      SelScenario sc,
+      SectionRule rule,
+      SectionSelectionParameters strict,
+    ) {
+      final v = single(run(sc, strict)).violations
+          .firstWhere((v) => v.rule == rule);
+      return v.value!;
+    }
+
+    double? Function(int, double) slope(double g) =>
+        (s, m) => 100 + g * m;
+
+    test('PAR-022 Variationskoeffizient gleich der Grenze: gültig', () {
+      final sc = steady(600, speed: alternating(0.04));
+      final cv = measured(
+        sc,
+        SectionRule.paceVariation,
+        const SectionSelectionParameters(paceMaxVariation: 0),
+      );
+      expect(cv, inInclusiveRange(0.03, 0.05));
+      expectUsable(run(sc, SectionSelectionParameters(paceMaxVariation: cv)));
+    });
+
+    test('PAR-022 Hälftenunterschied gleich der Grenze: gültig', () {
+      final sc = steady(600, speed: stepSpeed(480, 3.0, 3.0 * 1.03));
+      final d = measured(
+        sc,
+        SectionRule.paceHalves,
+        const SectionSelectionParameters(paceMaxHalfDifference: 0),
+      );
+      expect(d, inInclusiveRange(0.02, 0.04));
+      expectUsable(
+        run(sc, SectionSelectionParameters(paceMaxHalfDifference: d)),
+      );
+    });
+
+    test('PAR-025 Anteil der Punkte ≤ 15 m gleich der Grenze: gültig', () {
+      final sc = steady(600, accuracy: (s) => (s >= 200 && s < 260) ? 20 : 5);
+      final share = measured(
+        sc,
+        SectionRule.gpsAccuracyShare,
+        const SectionSelectionParameters(gpsMinShare: 1.1),
+      );
+      expect(share, inInclusiveRange(0.89, 0.91));
+      expectUsable(run(sc, SectionSelectionParameters(gpsMinShare: share)));
+    });
+
+    test('PAR-026 Steigung gleich +3 % und gleich -2 %: gültig', () {
+      final up = single(
+        run(
+          steady(600, altitude: slope(0.029)),
+          const SectionSelectionParameters(),
+        ),
+      );
+      expect(up.gradientBasis, GradientBasis.measured);
+      expectUsable(
+        run(
+          steady(600, altitude: slope(0.029)),
+          SectionSelectionParameters(gradientMax: up.gradient),
+        ),
+      );
+      final down = single(
+        run(
+          steady(600, altitude: slope(-0.019)),
+          const SectionSelectionParameters(),
+        ),
+      );
+      expect(down.gradientBasis, GradientBasis.measured);
+      expectUsable(
+        run(
+          steady(600, altitude: slope(-0.019)),
+          SectionSelectionParameters(gradientMin: down.gradient),
+        ),
+      );
+    });
+
+    test('PAR-027 |G| gleich 1 %: G zählt', () {
+      final sc = steady(600, altitude: slope(0.011));
+      final g = single(run(sc, const SectionSelectionParameters())).gradient;
+      expect(g, closeTo(0.011, 1e-6));
+      final s = single(run(sc, SectionSelectionParameters(gradientUseFrom: g)));
+      expect(s.gradientBasis, GradientBasis.measured);
+      expect(s.gradient, g);
+    });
+
+    test('PAR-027 Δh gleich 2 · Vertikalgenauigkeit: G zählt', () {
+      final sc = steady(600, altitude: slope(0.02), verticalAccuracy: 2);
+      final heights = [
+        for (final a in buildRun(sc).altitude.smoothed)
+          if (!a.time.isBefore(selAt(180)) && !a.time.isAfter(selAt(780)))
+            a.meters,
+      ];
+      final rise = (heights.last - heights.first).abs();
+      expect(rise, greaterThan(30));
+      // Vertikalgenauigkeit 2 m: Faktor rise / 2 ist genau (Zweierpotenz).
+      final s = single(
+        run(sc, SectionSelectionParameters(gradientAltitudeFactor: rise / 2)),
+      );
+      expect(s.gradientBasis, GradientBasis.measured);
+      expect(s.gradient, closeTo(0.02, 1e-3));
+      // Gegenprobe: knapp größerer Faktor, dann gilt es als Rauschen.
+      final noisy = single(
+        run(
+          sc,
+          SectionSelectionParameters(gradientAltitudeFactor: rise / 2 * 1.001),
+        ),
+      );
+      expect(noisy.gradientBasis, GradientBasis.belowThreshold);
+    });
+
+    test('PAR-028 r gleich 0,55 und PAR-029 r gleich 0,85: gültig', () {
+      final low = single(
+        run(steady(600, bpm: (s) => 132), const SectionSelectionParameters()),
+      );
+      expectUsable(
+        run(
+          steady(600, bpm: (s) => 132),
+          SectionSelectionParameters(intensityMin: low.relativeLoad!),
+        ),
+      );
+      final high = single(
+        run(steady(600, bpm: (s) => 170), const SectionSelectionParameters()),
+      );
+      expectUsable(
+        run(
+          steady(600, bpm: (s) => 170),
+          SectionSelectionParameters(intensityMax: high.relativeLoad!),
+        ),
+      );
+    });
+
+    test('PAR-030 Tempo gleich 134 m/min: voll bewertet', () {
+      final sc = steady(600, speed: (s) => 2.2);
+      final v = single(run(sc, const SectionSelectionParameters()))
+          .speedMetersPerMinute!;
+      final s = single(
+        run(sc, SectionSelectionParameters(fullSpeedMetersPerMinute: v)),
+      );
+      expect(s.status, SectionStatus.eligible);
+      expect(s.caveats, isEmpty);
+    });
+
+    test('PAR-031 Tempo gleich 120 m/min: vorläufig, nicht abgelehnt', () {
+      final sc = steady(600, speed: (s) => 2.1);
+      final v = single(run(sc, const SectionSelectionParameters()))
+          .speedMetersPerMinute!;
+      final s = single(
+        run(sc, SectionSelectionParameters(limitedSpeedMetersPerMinute: v)),
+      );
+      expect(s.status, SectionStatus.provisional);
+      expect(s.caveats, [SectionCaveat.limitedSpeed]);
+    });
+  });
+
+  group('Messausreißer und Randfälle (Review A)', () {
+    // Zwei Serien zu je 8 s (unter der Einzellücke von 10 s): Ungefiltert läge
+    // der 30-s-Median in der Zeit mit 16 von 30 Werten bei 250 bpm.
+    test(
+      'FR-0073 Regel 6: unplausibler Puls (250 bpm, PAR-007) zählt nicht',
+      () {
+        final clean = single(selectSections(steady(600)));
+        final noisy = single(
+          selectSections(
+            steady(
+              600,
+              bpm: (s) =>
+                  (s >= 400 && s < 408) || (s >= 412 && s < 420) ? 250 : 150,
+            ),
+          ),
+        );
+        expect(noisy.violations, isEmpty, reason: '${noisy.violations}');
+        expect(noisy.status, SectionStatus.eligible);
+        expect(noisy.meanHeartRate, clean.meanHeartRate);
+        expect(noisy.relativeLoad, clean.relativeLoad);
+      },
+    );
+
+    // Der 30-s-Median hält einzelne Sprünge ohnehin heraus; dieser Test belegt
+    // das Ergebnis, nicht die Wirkung von PAR-009 (dort greift er nicht).
+    test(
+      'FR-0073 Regel 6: kurzer Pulssprung (90 bpm, PAR-009) ändert nichts',
+      () {
+        final clean = single(selectSections(steady(600)));
+        final noisy = single(
+          selectSections(
+            steady(600, bpm: (s) => s >= 400 && s < 403 ? 90 : 150),
+          ),
+        );
+        expect(noisy.violations, isEmpty, reason: '${noisy.violations}');
+        expect(noisy.meanHeartRate, clean.meanHeartRate);
+      },
+    );
+
+    test('FR-0073 Regel 6: GPS-Sprung (PAR-003) verschiebt Tempo und Strecke nicht', () {
+      final clean = single(selectSections(steady(600)));
+      // 50 m in 1 s, danach zurück; ein zweiter Sprung nach hinten.
+      final noisy = single(
+        selectSections(steady(600, jumps: {450: 50, 600: -60})),
+      );
+      expect(noisy.violations, isEmpty, reason: '${noisy.violations}');
+      expect(
+        noisy.speedMetersPerMinute,
+        closeTo(clean.speedMetersPerMinute!, 1e-6),
+      );
+      expect(noisy.distanceMeters, closeTo(clean.distanceMeters!, 1e-6));
+    });
+
+    test('PAR-027 größte Vertikalgenauigkeit: ein schlechter Punkt genügt', () {
+      // 300 s bei 2,25 m/s = 675 m; 3,5 % = 23,6 m; 2 · 15 m = 30 m.
+      final s = single(
+        selectSections(
+          steady(
+            300,
+            speed: (s) => 2.25,
+            altitude: (s, m) => 100 + 0.035 * m,
+            verticalAccuracyAt: (s) => s == 300 ? 15 : 3,
+          ),
+        ),
+      );
+      expect(s.gradient, 0);
+      expect(s.gradientBasis, GradientBasis.belowThreshold);
+      expect(s.isUsable, isTrue);
+    });
+
+    test('PAR-025 Punkte ohne Genauigkeit zählen beim Anteil nicht', () {
+      // 20 % ohne Angabe, die übrigen alle ≤ 5 m: Anteil 80 % < 90 %.
+      final r = selectSections(
+        steady(600, accuracy: (s) => s % 5 == 0 ? null : 5),
+      );
+      expectOnly(r, SectionRule.gpsAccuracyShare);
+      expect(r.sections.single.violations.single.value, closeTo(0.8, 0.01));
+    });
+
+    test('PAR-010 beide verletzten Bedingungen werden gemeldet', () {
+      // 12 s Einzellücke plus 30 verstreute Sekunden: Anteil über 5 %.
+      final gone = {
+        for (var s = 300; s < 312; s++) s,
+        for (var k = 0; k < 30; k++) 400 + 5 * k,
+      };
+      final r = selectSections(
+        steady(600, bpm: (s) => gone.contains(s) ? null : 150),
+      );
+      final v = single(r).violations
+          .where((v) => v.rule == SectionRule.heartRateGaps);
+      expect(v.map((v) => v.limit).toSet(), {0.05, 10});
+      expect(v, hasLength(2));
+    });
+  });
 }
