@@ -6,6 +6,7 @@ class FakeClock implements Clock {
     : _now = start.toUtc();
 
   DateTime _now;
+  Duration _mono = Duration.zero;
 
   /// Versatz, den [utcOffsetAt] liefert (jederzeit änderbar).
   Duration utcOffset;
@@ -16,7 +17,14 @@ class FakeClock implements Clock {
   @override
   Duration utcOffsetAt(DateTime at) => utcOffset;
 
-  void advance(Duration d) => _now = _now.add(d);
+  /// Folgt nur [advance], nicht [set]: eine umgestellte Wanduhr ändert sie nicht.
+  @override
+  Duration monotonic() => _mono;
+
+  void advance(Duration d) {
+    _now = _now.add(d);
+    _mono += d;
+  }
 
   void set(DateTime t) => _now = t.toUtc();
 }

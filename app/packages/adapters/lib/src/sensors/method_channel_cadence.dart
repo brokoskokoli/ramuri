@@ -53,10 +53,13 @@ class MethodChannelCadenceSensor implements CadenceSensor {
         sub = _events.receiveBroadcastStream().listen(
           (event) {
             final ms = event is Map ? event['timeMs'] : null;
-            if (ms is! int) return;
+            final mono = event is Map ? event['elapsedMs'] : null;
+            if (ms is! int || mono is! int) return;
             final time = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
-            final spm = estimator.add(time);
-            if (spm != null) out.add(CadenceReading(time, spm));
+            final elapsed = Duration(milliseconds: mono);
+            // Abstände nur auf der Monotonzeit: die Wanduhr kann zurückspringen.
+            final spm = estimator.add(elapsed);
+            if (spm != null) out.add(CadenceReading(time, spm, elapsed));
           },
           // Sensor oder Recht fiel weg: der Strom endet, der Lauf geht weiter.
           onError: (Object _) => out.close(),

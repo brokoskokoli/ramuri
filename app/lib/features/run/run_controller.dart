@@ -83,7 +83,7 @@ class RunController extends ChangeNotifier {
   StreamSubscription<CadenceReading>? _cadenceSub;
   CadenceAvailability? _cadenceAvailability;
   double? _cadence;
-  DateTime? _cadenceAt;
+  Duration? _cadenceAt; // Monotonzeit des Empfangs
   bool _disposed = false;
 
   late RecordingSnapshot _snapshot;
@@ -125,7 +125,7 @@ class RunController extends ChangeNotifier {
   double? get cadenceStepsPerMinute {
     final at = _cadenceAt;
     if (_cadence == null || at == null) return null;
-    return clock.now().difference(at) > CadenceEstimator.defaultWindow
+    return clock.monotonic() - at > CadenceEstimator.defaultWindow
         ? null
         : _cadence;
   }
@@ -271,15 +271,29 @@ class RunController extends ChangeNotifier {
       if (_disposed || _timer == null) return;
       _cadenceAvailability = a;
       if (a == CadenceAvailability.available) {
-        _cadenceSub = c.readings().listen((r) {
-          _cadence = r.stepsPerMinute;
-          _cadenceAt = clock.now();
-          _update();
-        }, onError: (Object _) {});
+        _cadenceSub = c.readings().listen(
+          (r) {
+            _cadence = r.stepsPerMinute;
+            _cadenceAt = clock.monotonic();
+            _update();
+          },
+          onError: (Object _) => _cadenceEnded(),
+          onDone: _cadenceEnded,
+        );
       }
     } on Object {
       _cadenceAvailability = CadenceAvailability.noSensor;
     }
+    _update();
+  }
+
+  /// Der Schrittstrom endete von sich aus (Sensor oder Recht fiel weg): ab
+  /// jetzt „nicht verfügbar“ statt eines Werts, der nur verfällt.
+  void _cadenceEnded() {
+    if (_disposed || _timer == null) return;
+    _cadenceSub = null;
+    _cadence = null;
+    _cadenceAvailability = CadenceAvailability.noSensor;
     _update();
   }
 

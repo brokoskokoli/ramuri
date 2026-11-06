@@ -1,8 +1,7 @@
 import 'package:core/core.dart';
 import 'package:test/test.dart';
 
-DateTime at(num sec) =>
-    DateTime.utc(2030, 1, 1).add(Duration(milliseconds: (sec * 1000).round()));
+Duration at(num sec) => Duration(milliseconds: (sec * 1000).round());
 
 void main() {
   group('CadenceEstimator (FR-0202)', () {

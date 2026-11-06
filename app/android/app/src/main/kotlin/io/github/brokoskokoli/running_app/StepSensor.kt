@@ -66,7 +66,14 @@ object StepSensor {
             val l = object : SensorEventListener {
                 override fun onSensorChanged(event: SensorEvent) {
                     val ageMs = (SystemClock.elapsedRealtimeNanos() - event.timestamp) / 1_000_000L
-                    events.success(mapOf("timeMs" to System.currentTimeMillis() - ageMs))
+                    // elapsedMs: Monotonuhr (Zeitbasis des Sensors), für Abstände.
+                    // timeMs: Wanduhr, nur zur Anzeige; sie kann umgestellt werden.
+                    events.success(
+                        mapOf(
+                            "timeMs" to System.currentTimeMillis() - ageMs,
+                            "elapsedMs" to event.timestamp / 1_000_000L,
+                        ),
+                    )
                 }
 
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}

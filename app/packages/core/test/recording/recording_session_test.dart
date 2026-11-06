@@ -25,6 +25,9 @@ class _CountingClock implements Clock {
   }
 
   @override
+  Duration monotonic() => inner.monotonic();
+
+  @override
   Duration utcOffsetAt(DateTime at) => inner.utcOffsetAt(at);
 }
 

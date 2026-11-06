@@ -19,6 +19,19 @@ class FakeCadenceSensor implements CadenceSensor {
       ? _controller.stream
       : const Stream<CadenceReading>.empty();
 
-  void emit(DateTime time, double stepsPerMinute) =>
-      _controller.add(CadenceReading(time, stepsPerMinute));
+  /// [elapsed] fehlt: Monotonzeit wie die Wanduhr seit der Epoche.
+  void emit(DateTime time, double stepsPerMinute, [Duration? elapsed]) =>
+      _controller.add(
+        CadenceReading(
+          time,
+          stepsPerMinute,
+          elapsed ?? Duration(milliseconds: time.millisecondsSinceEpoch),
+        ),
+      );
+
+  /// Der Strom endet mit Fehler (Sensor oder Recht fiel weg).
+  void fail() => _controller.addError(StateError('Sensor weg'));
+
+  /// Der Strom endet regulär.
+  Future<void> end() => _controller.close();
 }

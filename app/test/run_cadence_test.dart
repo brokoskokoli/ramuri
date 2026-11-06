@@ -62,6 +62,46 @@ void main() {
       expect(cadenceText(tester), 'noch keine Daten');
     });
 
+    testWidgets('Uhr im Lauf zurückgestellt: Wert verfällt nach dem Fenster', (
+      tester,
+    ) async {
+      final cadence = FakeCadenceSensor();
+      final d = Device()..cadence = cadence;
+      await openRun(d, tester);
+      cadence.emit(d.clock.now(), 160);
+      await tester.pump();
+      await tester.pump();
+      expect(cadenceText(tester), '160 spm');
+      d.clock.set(d.clock.now().subtract(const Duration(hours: 1)));
+      for (var i = 0; i < 12; i++) {
+        d.clock.advance(const Duration(seconds: 1));
+        await tester.pump(const Duration(seconds: 1));
+      }
+      expect(cadenceText(tester), 'noch keine Daten');
+    });
+
+    for (final ends in <String, Future<void> Function(FakeCadenceSensor)>{
+      'Fehler': (c) async => c.fail(),
+      'Ende': (c) => c.end(),
+    }.entries) {
+      testWidgets('Schrittstrom endet (${ends.key}): nicht verfügbar', (
+        tester,
+      ) async {
+        final cadence = FakeCadenceSensor();
+        final d = Device()..cadence = cadence;
+        await openRun(d, tester);
+        cadence.emit(d.clock.now(), 160);
+        await tester.pump();
+        await tester.pump();
+        expect(cadenceText(tester), '160 spm');
+        await ends.value(cadence);
+        await tester.pump();
+        await tester.pump();
+        expect(cadenceText(tester), 'nicht verfügbar');
+        expect(key('run_pause'), findsOneWidget);
+      });
+    }
+
     testWidgets('ohne Berechtigung: nicht verfügbar, Lauf normal', (
       tester,
     ) async {

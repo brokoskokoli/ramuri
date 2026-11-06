@@ -8,6 +8,13 @@ final t0 = DateTime.utc(2030, 1, 1, 12);
 
 void main() {
   group('FakeClock', () {
+    test('monotonic folgt advance, nicht set', () {
+      final c = FakeClock(DateTime.utc(2030));
+      c.advance(const Duration(seconds: 5));
+      c.set(DateTime.utc(2020));
+      expect(c.monotonic(), const Duration(seconds: 5));
+    });
+
     test('läuft nur auf Anweisung', () {
       final c = FakeClock(t0);
       expect(c.now(), t0);
