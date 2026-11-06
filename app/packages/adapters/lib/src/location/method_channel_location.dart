@@ -86,8 +86,10 @@ LocationSample decodeLocationEvent(Object? event) {
       !lon.isFinite) {
     throw const FormatException('Standortereignis unvollständig');
   }
+  final age = event['ageMs'];
   return LocationSample(
     time: DateTime.fromMillisecondsSinceEpoch(time, isUtc: true),
+    ageMs: age is int ? age : null,
     latitude: lat.toDouble(),
     longitude: lon.toDouble(),
     accuracyMeters: optional('accuracy', 'hasAccuracy'),

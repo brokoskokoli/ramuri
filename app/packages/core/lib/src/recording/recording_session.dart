@@ -1,4 +1,6 @@
 // ignore_for_file: prefer_initializing_formals
+import 'dart:math' as math;
+
 import '../../ports/clock.dart';
 import '../../ports/heart_rate_sensor.dart';
 import '../../ports/location.dart';
@@ -34,12 +36,9 @@ enum Intake {
   /// Lauf beendet: der Wert wird verworfen (auch bei Rennen mit dem Stopp).
   ignoredFinished,
 
-  /// Zeitstempel liegt vor Start bzw. Fortsetzen (nachgelieferter Altwert).
+  /// Zeitstempel liegt vor Start bzw. Fortsetzen (nachgelieferter Altwert) oder
+  /// nicht nach dem letzten angenommenen Punkt (Uhr sprang zurück).
   ignoredStale,
-
-  /// Zeit springt gegenüber dem Empfangstakt vorwärts (Zukunftspunkt); er
-  /// würde alle Folgepunkte als nicht monoton sperren.
-  ignoredImplausibleTime,
 }
 
 enum RecordingEventKind {
@@ -99,6 +98,7 @@ class RecordingSnapshot {
     required this.heartRateBpm,
     required this.positionLost,
     required this.positionLossTime,
+    required this.positionLossMovingTime,
     required this.standstillDetected,
     required this.laps,
     required this.gaps,
@@ -126,6 +126,10 @@ class RecordingSnapshot {
   /// läuft in [movingTime] mit, trägt aber keine gemessene Strecke.
   final Duration positionLossTime;
 
+  /// Der Teil von [positionLossTime], der in [movingTime] enthalten ist. Im
+  /// Stillstand (erkannte Pause) zählt eine Lücke nicht zur Bewegungszeit.
+  final Duration positionLossMovingTime;
+
   /// Stillstand erkannt (PAR-014, PAR-015), unabhängig von der Einstellung.
   final bool standstillDetected;
   final List<RecordedLap> laps;
@@ -150,11 +154,6 @@ class RecordingSession {
   final PreprocessingParameters parameters;
   final String positionSource;
 
-  /// Größter Vorsprung eines (ausgerichteten) Punkts vor der Uhr. Der Versatz
-  /// ist je Lauf fest und der Empfang verzögert höchstens; 5 s lässt dem Takt
-  /// eines 1-Hz-Stroms Raum und fängt Zeitsprünge nach vorn ab.
-  static const _maxForwardJump = Duration(seconds: 5);
-
   bool _autoPause;
   RecordingPhase _phase = RecordingPhase.idle;
   RunPreprocessor? _pre;
@@ -162,12 +161,11 @@ class RecordingSession {
   DateTime? _endedAt;
   DateTime? _activeSince;
 
-  // Zwei Zeitbasen (Review 1, Soll 1): Die Systemuhr führt Start, Pausen,
-  // Lücken und Anzeige; Punkte tragen GPS-Zeit. Ein roher Vergleich beider
-  // hängt vom Uhrversatz ab. Darum wird die GPS-Zeit mit einem je Lauf festen
-  // Versatz [_gpsOffset] (Empfangszeit des ersten Punkts minus dessen
-  // GPS-Zeit) in die Uhrbasis gelegt; ab da rechnet die Sitzung nur noch in
-  // einer Basis. Gespeichert wird weiter die rohe GPS-Zeit (Recorder).
+  // Zeitbasis (Review 2, Blocker 1): Die Systemuhr führt Start, Pausen,
+  // Lücken und Anzeige. Ein Punkt wird datiert mit Uhr beim Empfang minus
+  // Alter ([LocationSample.ageMs], Monotonuhr des Geräts); fehlt das Alter,
+  // gilt die Empfangszeit. Die GPS-Uhrzeit des Punkts geht nirgends ein, ein
+  // Vergleich mit der Systemuhr entfällt also. Gespeichert wird dieselbe Zeit.
 
   /// Bezugspunkt der Lückenprüfung in Empfangszeit (letzter akzeptierter Punkt
   /// bzw. Beginn des Abschnitts) und offene Lücke.
@@ -175,7 +173,8 @@ class RecordingSession {
   bool _lossOpen = false;
   DateTime? _lossStart;
 
-  Duration? _gpsOffset;
+  /// Zeit des letzten angenommenen (auch in der Pause gespeicherten) Punkts.
+  DateTime? _lastPointTime;
 
   DateTime? _lastMark;
   Duration _lastMarkMoving = Duration.zero;
@@ -291,26 +290,26 @@ class RecordingSession {
     return CommandResult.ok;
   }
 
+  /// Zeit des zuletzt von [addPosition] angenommenen Punkts (Uhrbasis).
+  DateTime? get lastPointTime => _lastPointTime;
+
   Intake addPosition(LocationSample s) {
     final now = _clock.now();
-    final offset = _gpsOffset ?? now.difference(s.time);
-    final time = s.time.add(offset);
+    final age = Duration(milliseconds: math.max(0, s.ageMs ?? 0));
+    final time = now.subtract(age);
+    // Springt die Uhr zurück, ist ein Punkt älter als der letzte angenommene:
+    // verworfen, bis die Zeit wieder vorn liegt (Verlust ≤ Sprungdauer).
+    final last = _lastPointTime;
     if (_phase == RecordingPhase.paused) {
-      final pausedAt = _gaps.last.start;
-      if (time.isBefore(pausedAt)) return Intake.ignoredStale;
-      if (time.difference(now) > _maxForwardJump) {
-        return Intake.ignoredImplausibleTime;
-      }
-      _gpsOffset = offset;
+      if (time.isBefore(_gaps.last.start)) return Intake.ignoredStale;
+      if (last != null && !time.isAfter(last)) return Intake.ignoredStale;
+      _lastPointTime = time;
       return Intake.recordedWhilePaused;
     }
     final gate = _gate(time);
     if (gate != null) return gate;
-    // Ein Zukunftspunkt würde jeden Folgepunkt als nicht monoton sperren.
-    if (time.difference(now) > _maxForwardJump) {
-      return Intake.ignoredImplausibleTime;
-    }
-    _gpsOffset = offset;
+    if (last != null && !time.isAfter(last)) return Intake.ignoredStale;
+    _lastPointTime = time;
     final pre = _pre!;
     final raw = RawPosition(
       time: time,
@@ -342,11 +341,6 @@ class RecordingSession {
     _syncAutoPause(time);
     return Intake.processed;
   }
-
-  /// Legt eine GPS-Zeit in die Uhrbasis des Laufs (Zeit von Start, Pausen,
-  /// Lücken, Runden). Vor dem ersten angenommenen Punkt unverändert.
-  DateTime toRunTime(DateTime gpsTime) =>
-      _gpsOffset == null ? gpsTime : gpsTime.add(_gpsOffset!);
 
   Intake addHeartRate(HeartRateReading r) {
     final gate = _gate(r.time);
@@ -384,6 +378,7 @@ class RecordingSession {
           heartRateBpm: null,
           positionLost: false,
           positionLossTime: Duration.zero,
+          positionLossMovingTime: Duration.zero,
           standstillDetected: false,
           laps: const [],
           gaps: const [],
@@ -406,6 +401,7 @@ class RecordingSession {
           : pre.heartRateAt(now).value?.bpm,
       positionLost: _lossOpen,
       positionLossTime: _lossTime(now),
+      positionLossMovingTime: _lossMovingTime(now, r.movement.movingIntervals),
       standstillDetected:
           r.movement.autoPauseState == AutoPauseState.standstillPause,
       laps: List.unmodifiable(_laps),
@@ -460,6 +456,22 @@ class RecordingSession {
     for (final g in _gaps) {
       if (g.kind != RunGapKind.positionLoss) continue;
       sum += (g.end ?? now).difference(g.start);
+    }
+    return sum;
+  }
+
+  /// Schnittmenge der GPS-Lücken mit den Bewegungsintervallen.
+  Duration _lossMovingTime(DateTime now, List<TimeSpan> moving) {
+    var sum = Duration.zero;
+    for (final g in _gaps) {
+      if (g.kind != RunGapKind.positionLoss) continue;
+      final gStart = g.start;
+      final gEnd = g.end ?? now;
+      for (final m in moving) {
+        final from = m.start.isAfter(gStart) ? m.start : gStart;
+        final to = m.end.isBefore(gEnd) ? m.end : gEnd;
+        if (to.isAfter(from)) sum += to.difference(from);
+      }
     }
     return sum;
   }

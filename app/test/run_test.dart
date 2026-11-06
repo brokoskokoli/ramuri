@@ -142,6 +142,40 @@ void main() {
     },
   );
 
+  test('Durchschnittspace: Lücke im erkannten Stillstand wird nicht '
+      'abgezogen (Review 2, Soll 2)', () {
+    final clock = FakeClock(DateTime.utc(2030, 1, 1, 12));
+    final session = RecordingSession(clock: clock, autoPause: true)..start();
+    void gps(int from, int n, {required bool move}) {
+      for (var i = from; i < from + n; i++) {
+        clock.advance(const Duration(seconds: 1));
+        session.addPosition(
+          LocationSample(
+            time: clock.now(),
+            latitude: 50 + (move ? i : from) * 0.000027,
+            longitude: 8,
+            accuracyMeters: 5,
+          ),
+        );
+      }
+    }
+
+    gps(1, 30, move: true);
+    gps(30, 20, move: false); // Stand, erkannte Pause
+    expect(session.phase, RecordingPhase.autoPaused);
+    final before = session.snapshot();
+    clock.advance(const Duration(seconds: 40)); // Lücke im Stand
+    final s = session.snapshot();
+    expect(s.positionLossTime, greaterThan(Duration.zero));
+    expect(s.positionLossMovingTime, Duration.zero);
+    expect(s.movingTime, before.movingTime);
+    final km = s.distanceMeters! / 1000;
+    expect(
+      averagePaceSecondsPerKm(s)!,
+      closeTo(s.movingTime!.inMicroseconds / 1e6 / km, 0.001),
+    );
+  });
+
   group('Startprüfung (FR-0195)', () {
     testWidgets(
       'Berechtigung fehlt: Grund sichtbar, kein Lauf; Anfrage startet',

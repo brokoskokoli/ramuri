@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 Map<String, Object?> full() => {
   'timeMs': 1893499200000, // 2030-01-01T12:00:00Z
+  'ageMs': 250,
   'lat': 10.5,
   'lon': 20.25,
   'hasAccuracy': true,
@@ -37,6 +38,12 @@ void main() {
       expect(s.speedMetersPerSecond, 2.5);
       expect(s.speedAccuracyMetersPerSecond, 0.5);
       expect(s.verticalAccuracyMeters, 3);
+      expect(s.ageMs, 250);
+    });
+
+    test('ageMs fehlt oder ist null: Alter ist null, nie 0', () {
+      expect(decodeLocationEvent(full()..remove('ageMs')).ageMs, isNull);
+      expect(decodeLocationEvent(full()..['ageMs'] = null).ageMs, isNull);
     });
 
     test(

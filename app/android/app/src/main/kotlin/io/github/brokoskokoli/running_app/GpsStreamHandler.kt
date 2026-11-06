@@ -5,6 +5,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Looper
+import android.os.SystemClock
 import io.flutter.plugin.common.EventChannel
 
 /**
@@ -45,12 +46,23 @@ class GpsStreamHandler(private val manager: LocationManager) : EventChannel.Stre
     }
 
     companion object {
+        /**
+         * Alter des Punkts in ms auf der Monotonuhr (unabhaengig von GPS-Zeit und
+         * Wanduhr); null, wenn der Punkt keine Zeit der Monotonuhr traegt.
+         */
+        fun ageMs(l: Location): Long? {
+            val at = l.elapsedRealtimeNanos
+            if (at <= 0L) return null
+            return (SystemClock.elapsedRealtimeNanos() - at) / 1_000_000L
+        }
+
         /** OQ-0064: einmal je Sekunde (Dart: locationIntervalMs). */
         const val INTERVAL_MS = 1000L
 
         /** Schlüssel stehen in Dart (decodeLocationEvent). */
-        fun toEvent(l: Location): Map<String, Any> = mapOf(
+        fun toEvent(l: Location): Map<String, Any?> = mapOf(
             "timeMs" to l.time,
+            "ageMs" to ageMs(l),
             "lat" to l.latitude,
             "lon" to l.longitude,
             "hasAccuracy" to l.hasAccuracy(),

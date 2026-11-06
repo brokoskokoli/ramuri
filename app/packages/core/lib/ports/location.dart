@@ -4,6 +4,7 @@ class LocationSample {
     required this.time,
     required this.latitude,
     required this.longitude,
+    this.ageMs,
     this.accuracyMeters,
     this.altitudeMeters,
     this.speedMetersPerSecond,
@@ -12,6 +13,11 @@ class LocationSample {
   });
 
   final DateTime time;
+
+  /// Alter des Punkts beim Senden in ms auf der Monotonuhr des Geräts
+  /// (unabhängig von GPS-Zeit und Wanduhr); `null`, wenn nicht verfügbar. Die
+  /// Aufzeichnung datiert den Punkt damit: Empfangszeit minus Alter.
+  final int? ageMs;
   final double latitude;
   final double longitude;
 

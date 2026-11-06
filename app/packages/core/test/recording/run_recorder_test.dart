@@ -13,10 +13,12 @@ LocationSample fix(
   double? speedAcc,
   double? vAcc,
   double? alt,
+  int? ageMs,
 }) => LocationSample(
   time: t0.add(Duration(milliseconds: (sec * 1000).round())),
   latitude: 10 + north / 111195,
   longitude: 20,
+  ageMs: ageMs,
   accuracyMeters: 5,
   altitudeMeters: alt,
   speedMetersPerSecond: speed,
@@ -88,9 +90,15 @@ class FlakyMarkers implements RunMarkerStore {
   final RunMarkerStore inner;
   bool failOpens = false;
   bool failCloses = false;
+  bool rejectOpens = false;
+  int openCalls = 0;
 
   @override
   Future<int> openGap(int runId, RunGapKind kind, DateTime start) {
+    openCalls++;
+    if (rejectOpens) {
+      throw const StorageException(StorageFailure.rejected);
+    }
     if (failOpens) {
       throw const StorageException(StorageFailure.failed);
     }
@@ -326,6 +334,22 @@ void main() {
       },
     );
 
+    test('Abgelehntes Öffnen der Lückenmarke wird beim Schließen nicht erneut '
+        'versucht (Soll 4)', () async {
+      final r = await Rig.make(flakyMarkers: true);
+      r._flaky!.rejectOpens = true;
+      await r.recorder.start();
+      await r.move(5, 3);
+      r.clock.advance(const Duration(seconds: 20));
+      r.recorder.tick();
+      await r.recorder.flush().catchError((Object _) {});
+      expect(r._flaky!.openCalls, 1);
+      r.clock.advance(const Duration(seconds: 1));
+      r.recorder.addPosition(fix(26, 100)); // schließt die Lücke
+      await r.recorder.flush().catchError((Object _) {});
+      expect(r._flaky!.openCalls, 1);
+    });
+
     test(
       'Scheitert das Schließen der Lückenmarke, wird es nachgeholt',
       () async {
@@ -432,7 +456,10 @@ void main() {
         await r.move(3, 3);
         r.clock.advance(const Duration(seconds: 2));
         await r.recorder.pause();
-        expect(r.recorder.addPosition(fix(4, 12)), Intake.ignoredStale);
+        expect(
+          r.recorder.addPosition(fix(4, 12, ageMs: 3000)),
+          Intake.ignoredStale,
+        );
         await r.recorder.flush();
         expect((await r.raw()).positions, hasLength(3));
       },

@@ -163,8 +163,8 @@ class RunRecorder {
     if (intake != Intake.processed && intake != Intake.recordedWhilePaused) {
       return intake;
     }
-    // Gleiche Zeitbasis wie Lauf, Lücken und Runden (Uhr), nicht rohe GPS-Zeit.
-    final time = _session.toRunTime(s.time);
+    // Gleiche Zeitbasis wie Lauf, Lücken und Runden (Uhr, Empfang minus Alter).
+    final time = _session.lastPointTime!;
     if (s.latitude.isFinite && s.longitude.isFinite) {
       _positions.add(
         RawPosition(
@@ -339,6 +339,7 @@ class RunRecorder {
   /// Schritt mit `failed`, bleibt die Marke in [_unsyncedGaps] und wird beim
   /// nächsten Schreiben wiederholt; ein abgelehnter Schritt kann nie gelingen.
   Future<void> _syncGap(_GapRecord gap) async {
+    if (gap.rejected) return;
     try {
       gap.id ??= await _markers.openGap(gap.runId, gap.kind, gap.start);
       final end = gap.end;
@@ -348,6 +349,7 @@ class RunRecorder {
       }
     } on StorageException catch (e) {
       if (e.failure != StorageFailure.failed) {
+        gap.rejected = true;
         _unsyncedGaps.remove(gap);
       }
       rethrow;
@@ -371,4 +373,7 @@ class _GapRecord {
   DateTime? end;
   int? id;
   bool closed = false;
+
+  /// Das Öffnen wurde abgelehnt: die Marke kann nie gespeichert werden.
+  bool rejected = false;
 }

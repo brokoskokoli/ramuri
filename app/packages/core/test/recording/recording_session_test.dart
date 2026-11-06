@@ -3,14 +3,16 @@ import 'package:test/test.dart';
 
 final DateTime t0 = DateTime.utc(2030, 1, 1, 12);
 
-LocationSample fix(num sec, num north, {double? alt}) => LocationSample(
-  time: t0.add(Duration(milliseconds: (sec * 1000).round())),
-  // Erfundener Nullpunkt; 1 Grad Breite ~ 111195 m.
-  latitude: 10 + north / 111195,
-  longitude: 20,
-  accuracyMeters: 5,
-  altitudeMeters: alt,
-);
+LocationSample fix(num sec, num north, {double? alt, int? ageMs}) =>
+    LocationSample(
+      ageMs: ageMs,
+      time: t0.add(Duration(milliseconds: (sec * 1000).round())),
+      // Erfundener Nullpunkt; 1 Grad Breite ~ 111195 m.
+      latitude: 10 + north / 111195,
+      longitude: 20,
+      accuracyMeters: 5,
+      altitudeMeters: alt,
+    );
 
 class _CountingClock implements Clock {
   _CountingClock(this.inner);
@@ -317,6 +319,7 @@ void main() {
       r.s.start();
       r.move(5, 3);
       r.s.pause();
+      r.wait(1);
       expect(r.s.addPosition(fix(10, 99)), Intake.recordedWhilePaused);
       r.s.resume();
       expect(r.s.preprocessing()!.position.positions, hasLength(5));
@@ -330,7 +333,7 @@ void main() {
       r.s.pause();
       r.wait(20);
       r.s.resume();
-      expect(r.s.addPosition(fix(110, 0)), Intake.ignoredStale);
+      expect(r.s.addPosition(fix(110, 0, ageMs: 21000)), Intake.ignoredStale);
       r.wait(1);
       expect(r.s.addPosition(fix(126, 0)), isNot(Intake.ignoredStale));
     });
@@ -411,18 +414,94 @@ void main() {
       );
     });
 
-    test('Ein Punkt mit Zukunftszeit blockiert die Folgepunkte nicht', () {
+    test('Die GPS-Uhrzeit des Punkts geht nicht ein: Zukunftszeit sperrt '
+        'nichts', () {
       final r = Rig()..s.start();
       r.move(5, 3);
       r.wait(1);
-      final bad = r.s.addPosition(fix(6 + 3600, r.north + 3));
-      expect(bad, Intake.ignoredImplausibleTime);
+      expect(r.s.addPosition(fix(6 + 3600, r.north + 3)), Intake.processed);
       r.north += 3;
-      r.wait(0);
       final before = r.s.snapshot().distanceMeters!;
       r.move(5, 3);
       expect(r.s.snapshot().distanceMeters!, greaterThan(before + 10));
-      expect(r.s.preprocessing()!.position.positions.length, 10);
+      expect(r.s.preprocessing()!.position.positions.length, 11);
+    });
+
+    test('Punktzeit ist Empfang minus Alter; fehlt das Alter, der Empfang', () {
+      final r = Rig()..s.start();
+      r.wait(10);
+      r.s.addPosition(fix(0, 0, ageMs: 400));
+      expect(r.s.lastPointTime, t0.add(const Duration(milliseconds: 9600)));
+      r.wait(1);
+      r.s.addPosition(fix(0, 3));
+      expect(r.s.lastPointTime, t0.add(const Duration(seconds: 11)));
+      // Negatives Alter (Zeitgeber springt) zählt als 0: nie Zukunft.
+      r.wait(1);
+      r.s.addPosition(fix(0, 6, ageMs: -5000));
+      expect(r.s.lastPointTime, t0.add(const Duration(seconds: 12)));
+    });
+
+    // Sondenfälle aus Review 2 (Blocker 1).
+    test('P1: erster Punkt 60 s alt wird verworfen, Folgepunkte kommen an', () {
+      final r = Rig()..s.start();
+      r.wait(1);
+      expect(r.s.addPosition(fix(0, 0, ageMs: 60000)), Intake.ignoredStale);
+      r.move(20, 3);
+      expect(r.s.snapshot().distanceMeters, greaterThan(40));
+      expect(r.s.preprocessing()!.position.positions.length, 20);
+    });
+
+    test('P2: erster Punkt 7 s verspätet: Folgepunkte kommen an', () {
+      final r = Rig()..s.start();
+      r.wait(7);
+      // Alter 7 s, aber nach dem Start gemessen: angenommen.
+      expect(r.s.addPosition(fix(0, 0, ageMs: 6500)), Intake.processed);
+      r.move(20, 3);
+      expect(r.s.snapshot().distanceMeters, greaterThan(40));
+      expect(r.s.preprocessing()!.position.positions.length, 21);
+    });
+
+    test('P3: Uhr springt 10 s zurück: Verlust höchstens die Sprungdauer', () {
+      final r = Rig()..s.start();
+      r.move(20, 3);
+      final before = r.s.snapshot().distanceMeters!;
+      r.clock.advance(const Duration(seconds: -10));
+      var lost = 0;
+      for (var i = 0; i < 30; i++) {
+        r.clock.advance(const Duration(seconds: 1));
+        r.north += 3;
+        final res = r.s.addPosition(fix(0, r.north));
+        if (res != Intake.processed) lost++;
+      }
+      expect(lost, 10); // genau die Sprungdauer, nicht mehr
+      expect(r.s.snapshot().distanceMeters!, greaterThan(before + 30));
+    });
+
+    test('Zeitgleicher oder älterer Punkt als der letzte wird verworfen', () {
+      final r = Rig()..s.start();
+      r.move(3, 3);
+      expect(r.s.addPosition(fix(0, 99)), Intake.ignoredStale);
+      r.wait(1);
+      expect(r.s.addPosition(fix(0, 99, ageMs: 5000)), Intake.ignoredStale);
+      expect(r.s.preprocessing()!.position.positions.length, 3);
+    });
+
+    test('Rückspringende Uhr in der Pause: Punkt wird nicht gespeichert', () {
+      final r = Rig()..s.start();
+      r.move(3, 3);
+      r.s.pause();
+      r.wait(5);
+      expect(r.s.addPosition(fix(0, 9)), Intake.recordedWhilePaused);
+      r.clock.advance(const Duration(seconds: -3));
+      expect(r.s.addPosition(fix(0, 9)), Intake.ignoredStale);
+    });
+
+    test('Pausenpunkt vor Pausenbeginn (Alter) ist veraltet', () {
+      final r = Rig()..s.start();
+      r.move(3, 3);
+      r.wait(2);
+      r.s.pause();
+      expect(r.s.addPosition(fix(0, 9, ageMs: 1500)), Intake.ignoredStale);
     });
   });
 
