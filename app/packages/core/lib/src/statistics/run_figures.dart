@@ -1,9 +1,9 @@
 import '../../ports/storage_runs.dart';
 import '../fitness/edwards_trimp.dart';
 import '../fitness/reserve_zones.dart';
-import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/run_preprocessor.dart';
 import '../recalculation/value_calculation_service.dart' show dayOfRun;
+import '../preprocessing/gap_moving_time.dart';
 import 'best_pace.dart';
 import 'statistics_parameters.dart';
 
@@ -78,7 +78,7 @@ class RunFigures {
   factory RunFigures.fromRun({
     required StoredRun run,
     required RunPreprocessing preprocessing,
-    List<StoredLap> laps = const [],
+    required List<StoredLap> laps,
     TrimpResult? trimp,
     ReserveZoneTimes? zones,
     StatisticsParameters parameters = const StatisticsParameters(),
@@ -118,18 +118,4 @@ class RunFigures {
           : Duration(microseconds: zones.belowZone1Micros),
     );
   }
-}
-
-/// Bewegungszeit, die in Positionslücken (PAR-004) liegt. Sie hat keine
-/// gemessene Strecke und gehört nicht in die Durchschnittspace (K20).
-Duration movingTimeInPositionGaps(RunPreprocessing r) {
-  var sum = Duration.zero;
-  for (final TimeSpan m in r.movement.movingIntervals) {
-    for (final g in r.position.gaps) {
-      final from = m.start.isAfter(g.start) ? m.start : g.start;
-      final to = m.end.isBefore(g.end) ? m.end : g.end;
-      if (to.isAfter(from)) sum += to.difference(from);
-    }
-  }
-  return sum;
 }

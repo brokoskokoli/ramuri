@@ -28,6 +28,42 @@ void main() {
       expect(c.relation, PaceRelation.faster);
     });
 
+    test('Referenz ist Σ Strecke / Σ Zeit, nicht das Mittel der Paces', () {
+      // 1 km in 300 s (300 s/km) und 9 km in 3600 s (400 s/km):
+      // gewichtet 3900 s / 10 km = 390, ungewichtet 350.
+      final others = [
+        figures(1, '2030-01-01', km: 1, paceSec: 300),
+        figures(2, '2030-01-02', km: 9, paceSec: 3600),
+      ];
+      final c = classifyRun(run, others);
+      expect(c.referenceSecondsPerKm, closeTo(390, 1e-9));
+      expect(c.deltaSecondsPerKm, closeTo(-100, 1e-9));
+    });
+
+    test('gleich nur bei |Δ| unter 1 s/km, sonst nur der Unterschied', () {
+      PaceRelation? rel(double pace) => classifyRun(
+        RunFigures(
+          runId: 20,
+          endedAt: run.endedAt,
+          day: run.day,
+          distanceMeters: 1000,
+          paceTime: Duration(milliseconds: (pace * 1000).round()),
+        ),
+        prev,
+      ).relation;
+      expect(rel(340.9), PaceRelation.same);
+      expect(rel(339.1), PaceRelation.same);
+      expect(rel(341), PaceRelation.slower);
+      expect(rel(339), PaceRelation.faster);
+    });
+
+    test('Lauf mit gleichem Laufende zählt nicht als Vorlauf', () {
+      final same = withPace(30, '2030-01-20', 100); // Tag/Stunde wie der Lauf
+      final c = classifyRun(run, [same, ...prev]);
+      expect(c.referenceSecondsPerKm, 340);
+      expect(c.comparedRuns, 5);
+    });
+
     test('langsamer und genau gleich', () {
       expect(
         classifyRun(withPace(20, '2030-01-20', 400), prev).relation,

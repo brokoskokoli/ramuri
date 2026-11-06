@@ -21,21 +21,23 @@ void main() {
     test('Wochenbeginn einstellbar (Sonntag)', () {
       final p = StatisticsPeriod.weekOf(
         '2030-01-02',
-        firstDayOfWeek: DateTime.sunday,
+        parameters: const StatisticsParameters(firstDayOfWeek: DateTime.sunday),
       );
       expect([p.firstDay, p.lastDay], ['2029-12-30', '2030-01-05']);
       // Ist der Tag selbst der erste Tag, beginnt die Woche dort.
       expect(
         StatisticsPeriod.weekOf(
           '2029-12-30',
-          firstDayOfWeek: DateTime.sunday,
+          parameters: const StatisticsParameters(
+            firstDayOfWeek: DateTime.sunday,
+          ),
         ).firstDay,
         '2029-12-30',
       );
-      expect(
-        () => StatisticsPeriod.weekOf('2030-01-02', firstDayOfWeek: 0),
-        throwsRangeError,
-      );
+      // Die Vorwoche behält den Wochenbeginn (Befund 4).
+      final before = p.previous()!;
+      expect([before.firstDay, before.lastDay], ['2029-12-23', '2029-12-29']);
+      expect(before.firstDayOfWeek, DateTime.sunday);
     });
 
     test('Monate: Februar normal und im Schaltjahr, Dezember', () {

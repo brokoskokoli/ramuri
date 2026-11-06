@@ -5,6 +5,7 @@ import '../../ports/clock.dart';
 import '../../ports/heart_rate_sensor.dart';
 import '../../ports/location.dart';
 import '../../ports/storage_runs.dart';
+import '../preprocessing/gap_moving_time.dart';
 import '../preprocessing/measurement.dart';
 import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/preprocessing_parameters.dart';
@@ -407,7 +408,7 @@ class RecordingSession {
           : pre.heartRateAt(now).value?.bpm,
       positionLost: _lossOpen,
       positionLossTime: _lossTime(now),
-      positionLossMovingTime: _lossMovingTime(now, r.movement.movingIntervals),
+      positionLossMovingTime: movingTimeInPositionGaps(r),
       standstillDetected:
           r.movement.autoPauseState == AutoPauseState.standstillPause,
       laps: List.unmodifiable(_laps),
@@ -462,22 +463,6 @@ class RecordingSession {
     for (final g in _gaps) {
       if (g.kind != RunGapKind.positionLoss) continue;
       sum += (g.end ?? now).difference(g.start);
-    }
-    return sum;
-  }
-
-  /// Schnittmenge der GPS-Lücken mit den Bewegungsintervallen.
-  Duration _lossMovingTime(DateTime now, List<TimeSpan> moving) {
-    var sum = Duration.zero;
-    for (final g in _gaps) {
-      if (g.kind != RunGapKind.positionLoss) continue;
-      final gStart = g.start;
-      final gEnd = g.end ?? now;
-      for (final m in moving) {
-        final from = m.start.isAfter(gStart) ? m.start : gStart;
-        final to = m.end.isBefore(gEnd) ? m.end : gEnd;
-        if (to.isAfter(from)) sum += to.difference(from);
-      }
     }
     return sum;
   }

@@ -16,7 +16,10 @@ void main() {
         gaps: gaps,
         parameters: const PreprocessingParameters.v4(),
       );
-      return (RunFigures.fromRun(run: run, preprocessing: pre), run);
+      return (
+        RunFigures.fromRun(run: run, preprocessing: pre, laps: const []),
+        run,
+      );
     }
 
     test('30 min mit 3 m/s: Strecke, Pace, Bestpace, Puls, Tag', () async {
@@ -92,7 +95,7 @@ void main() {
       final pre = RunPreprocessor(start: run.startedAt)
           .result(at: run.startedAt);
       expect(
-        () => RunFigures.fromRun(run: run, preprocessing: pre),
+        () => RunFigures.fromRun(run: run, preprocessing: pre, laps: const []),
         throwsArgumentError,
       );
     });
@@ -115,6 +118,39 @@ void main() {
       final pre = r.result(at: start.add(const Duration(seconds: 600)));
       final loss = movingTimeInPositionGaps(pre);
       expect(loss.inSeconds, inInclusiveRange(25, 35));
+
+      // fromRun zieht die Lücke von der Pace-Zeit ab (Befund 2).
+      final f = RunFigures.fromRun(
+        run: StoredRun(
+          id: 1,
+          state: RunState.finished,
+          startedAt: start,
+          endedAt: start.add(const Duration(seconds: 600)),
+        ),
+        preprocessing: pre,
+        laps: const [],
+      );
+      expect(f.movingTime, pre.movement.movingTime);
+      expect(f.paceTime, pre.movement.movingTime - loss);
+      expect(
+        f.averagePaceSecondsPerKm,
+        closeTo(
+          (pre.movement.movingTime - loss).inMicroseconds /
+              1e6 /
+              (pre.position.distanceMeters! / 1000),
+          1e-9,
+        ),
+      );
+      // Ohne Abzug wäre die Pace um mindestens 4 % zu langsam.
+      expect(
+        f.averagePaceSecondsPerKm,
+        lessThan(
+          pre.movement.movingTime.inMicroseconds /
+              1e6 /
+              (pre.position.distanceMeters! / 1000) *
+              0.96,
+        ),
+      );
     });
   });
 }

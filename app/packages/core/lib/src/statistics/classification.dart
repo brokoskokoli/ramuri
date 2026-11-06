@@ -14,24 +14,30 @@ enum ClassificationUnavailable {
 enum PaceRelation { faster, same, slower }
 
 /// Einordnung gegenüber vorherigen Einheiten (FR-0037, OQ-0037): Vergleich der
-/// Durchschnittspace des Laufs mit dem Schnitt der letzten Läufe. Ohne
+/// Durchschnittspace des Laufs mit der Referenz der letzten Läufe (Σ Strecke /
+/// Σ Zeit der Vorläufe, Maintainer 2026-11-06). Ohne
 /// Einordnung sind [referenceSecondsPerKm] und [deltaSecondsPerKm] `null`.
 class RunClassification {
   const RunClassification.available({
     required double this.runSecondsPerKm,
     required double this.referenceSecondsPerKm,
     required this.comparedRuns,
+    this.sameToleranceSecondsPerKm = 1,
   }) : unavailable = null;
 
   const RunClassification.unavailable(
     ClassificationUnavailable this.unavailable, {
     this.comparedRuns = 0,
   }) : runSecondsPerKm = null,
-       referenceSecondsPerKm = null;
+       referenceSecondsPerKm = null,
+       sameToleranceSecondsPerKm = 1;
 
   final double? runSecondsPerKm;
 
-  /// Mittel der Durchschnittspaces der verglichenen Vorläufe (s/km).
+  /// Unterschied unterhalb dieser Grenze (s/km, ausschließlich) gilt als gleich.
+  final double sameToleranceSecondsPerKm;
+
+  /// Referenz der verglichenen Vorläufe: Σ Strecke / Σ Zeit (s/km).
   final double? referenceSecondsPerKm;
 
   /// Zahl der tatsächlich verglichenen Vorläufe (höchstens
@@ -45,23 +51,23 @@ class RunClassification {
   double? get deltaSecondsPerKm =>
       isAvailable ? runSecondsPerKm! - referenceSecondsPerKm! : null;
 
-  /// Nur das Vorzeichen des Unterschieds; die Spec nennt keine Toleranz für
-  /// „gleich“, darum gilt nur ein Unterschied von genau 0 als gleich.
+  /// Nur Unterschied, keine Klassifikation nach Toleranzstufen (Maintainer
+  /// 2026-11-06): |Δ| unter [sameToleranceSecondsPerKm] gilt als gleich.
   PaceRelation? get relation {
     final d = deltaSecondsPerKm;
     if (d == null) return null;
-    return d < 0
+    return d.abs() < sameToleranceSecondsPerKm
+        ? PaceRelation.same
+        : d < 0
         ? PaceRelation.faster
-        : d > 0
-        ? PaceRelation.slower
-        : PaceRelation.same;
+        : PaceRelation.slower;
   }
 }
 
 /// Ordnet [run] gegenüber [others] ein. Vorläufe sind Läufe mit früherem
 /// Laufende (gleiche Id und spätere zählen nicht); es zählen die letzten
-/// `comparisonRunCount` mit Durchschnittspace. Der Schnitt ist das einfache
-/// Mittel ihrer Durchschnittspaces.
+/// `comparisonRunCount` mit Durchschnittspace. Die Referenz ist Σ Strecke /
+/// Σ Pace-Zeit dieser Läufe (nicht das Mittel der Paces).
 RunClassification classifyRun(
   RunFigures run,
   Iterable<RunFigures> others, {
@@ -93,12 +99,16 @@ RunClassification classifyRun(
       comparedRuns: used.length,
     );
   }
-  final mean =
-      used.map((r) => r.averagePaceSecondsPerKm!).reduce((a, b) => a + b) /
-      used.length;
+  var meters = 0.0;
+  var micros = 0;
+  for (final r in used) {
+    meters += r.distanceMeters!;
+    micros += r.paceTime!.inMicroseconds;
+  }
   return RunClassification.available(
     runSecondsPerKm: pace,
-    referenceSecondsPerKm: mean,
+    referenceSecondsPerKm: micros / 1e6 / (meters / 1000),
     comparedRuns: used.length,
+    sameToleranceSecondsPerKm: parameters.sameToleranceSecondsPerKm,
   );
 }

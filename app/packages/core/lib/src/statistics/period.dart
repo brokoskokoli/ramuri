@@ -1,4 +1,5 @@
 import '../recalculation/value_calculation_service.dart' show isoDay;
+import 'statistics_parameters.dart';
 
 /// Art des Auswertungszeitraums (FR-0044).
 enum PeriodKind { run, week, month, custom }
@@ -8,24 +9,26 @@ enum PeriodKind { run, week, month, custom }
 /// (K21), beide Enden eingeschlossen; Rechnen mit Tagen kennt keine
 /// Sommerzeit. Ein Jahr ist in der Spec nicht vorgesehen.
 class StatisticsPeriod {
-  const StatisticsPeriod._(this.kind, this.firstDay, this.lastDay, this.runId);
+  const StatisticsPeriod._(
+    this.kind,
+    this.firstDay,
+    this.lastDay,
+    this.runId, [
+    this.firstDayOfWeek = DateTime.monday,
+  ]);
 
   /// Ein einzelner Lauf; er gehört zu keinem Tagesbereich.
   const StatisticsPeriod.singleRun(int runId)
     : this._(PeriodKind.run, null, null, runId);
 
-  /// Die Kalenderwoche, die [day] enthält. [firstDayOfWeek] ist
-  /// `DateTime.monday` bis `DateTime.sunday`.
+  /// Die Kalenderwoche, die [day] enthält. Den Wochenbeginn legt allein
+  /// [StatisticsParameters.firstDayOfWeek] fest; die Woche merkt ihn sich für
+  /// [previous].
   factory StatisticsPeriod.weekOf(
     String day, {
-    int firstDayOfWeek = DateTime.monday,
+    StatisticsParameters parameters = const StatisticsParameters(),
   }) {
-    RangeError.checkValueInInterval(
-      firstDayOfWeek,
-      DateTime.monday,
-      DateTime.sunday,
-      'firstDayOfWeek',
-    );
+    final firstDayOfWeek = parameters.firstDayOfWeek;
     final d = _parse(day);
     final back = (d.weekday - firstDayOfWeek) % DateTime.daysPerWeek;
     final first = d.subtract(Duration(days: back));
@@ -34,6 +37,7 @@ class StatisticsPeriod {
       _format(first),
       _format(first.add(const Duration(days: DateTime.daysPerWeek - 1))),
       null,
+      firstDayOfWeek,
     );
   }
 
@@ -68,6 +72,9 @@ class StatisticsPeriod {
   final String? lastDay;
   final int? runId;
 
+  /// Wochenbeginn einer Woche (`DateTime.monday` bis `sunday`); sonst ohne Bedeutung.
+  final int firstDayOfWeek;
+
   /// Ob ein Lauf mit Id [id] und Tag [day] in den Zeitraum fällt.
   bool contains({required int id, required String day}) => switch (kind) {
     PeriodKind.run => id == runId,
@@ -76,13 +83,13 @@ class StatisticsPeriod {
 
   /// Der gleichartige Zeitraum davor (Woche bzw. Monat), für Vergleiche
   /// (FR-0043 „Entwicklung“). `null` für Lauf und freien Zeitraum.
-  StatisticsPeriod? previous({int firstDayOfWeek = DateTime.monday}) {
+  StatisticsPeriod? previous() {
     final first = firstDay;
     switch (kind) {
       case PeriodKind.week:
         return StatisticsPeriod.weekOf(
           _format(_parse(first!).subtract(const Duration(days: 1))),
-          firstDayOfWeek: firstDayOfWeek,
+          parameters: StatisticsParameters(firstDayOfWeek: firstDayOfWeek),
         );
       case PeriodKind.month:
         return StatisticsPeriod.monthOf(

@@ -150,6 +150,8 @@ PeriodStatistics computePeriodStatistics(
   // Zonen: nur Läufe mit derselben Zonenzahl wie der erste Lauf mit Zonen.
   List<Duration>? zoneTotal;
   var zoneRuns = 0;
+  var belowMicros = 0;
+  var belowRuns = 0;
   for (final r in runs) {
     final z = r.zoneTimes;
     if (z == null) continue;
@@ -159,6 +161,12 @@ PeriodStatistics computePeriodStatistics(
       zoneTotal[i] += z[i];
     }
     zoneRuns++;
+    // Zeit unter Zone 1 nur aus denselben Läufen wie die Zonen.
+    final below = r.belowZone1Time;
+    if (below != null) {
+      belowMicros += below.inMicroseconds;
+      belowRuns++;
+    }
   }
 
   return PeriodStatistics(
@@ -194,7 +202,11 @@ PeriodStatistics computePeriodStatistics(
       runsWithValue: zoneRuns,
       runsTotal: n,
     ),
-    belowZone1Time: sum<Duration>((r) => r.belowZone1Time, plus),
+    belowZone1Time: StatValue(
+      value: belowRuns == 0 ? null : Duration(microseconds: belowMicros),
+      runsWithValue: belowRuns,
+      runsTotal: n,
+    ),
     trimpPoints: sum<double>((r) => r.trimpPoints, (a, b) => a + b),
     trimpIncomplete: runs.any(
       (r) => r.trimpPoints != null && r.trimpIncomplete,
@@ -229,10 +241,9 @@ class PeriodComparison {
 /// Zeitraum (kein Vorgänger definiert).
 PeriodComparison? comparePeriod(
   StatisticsPeriod period,
-  Iterable<RunFigures> all, {
-  StatisticsParameters parameters = const StatisticsParameters(),
-}) {
-  final before = period.previous(firstDayOfWeek: parameters.firstDayOfWeek);
+  Iterable<RunFigures> all,
+) {
+  final before = period.previous();
   if (before == null) return null;
   final runs = all.toList(growable: false);
   return PeriodComparison(

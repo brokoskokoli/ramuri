@@ -109,10 +109,11 @@ class _SummaryContent extends StatelessWidget {
     }
     final delta = c.deltaSecondsPerKm!;
     final reference = formatter.pace(c.referenceSecondsPerKm);
-    // Der Unterschied wird wie jede Pace auf ganze Sekunden gerundet; ergibt
-    // das 0, gilt er als gleich (nur Anzeige, die Einordnung bleibt unberührt).
-    final rounded = formatter.unit.paceFromSecondsPerKm(delta.abs()).round();
-    if (rounded == 0) return l10n.sumClassSame(c.comparedRuns, reference);
+    // Nur der Unterschied, ohne Stufen; unter der Toleranz der Einordnung
+    // (|Δ| < 1 s/km) gilt er als gleich.
+    if (c.relation == PaceRelation.same) {
+      return l10n.sumClassSame(c.comparedRuns, reference);
+    }
     final text = formatter.pace(delta.abs());
     return delta < 0
         ? l10n.sumClassFaster(text, c.comparedRuns, reference)

@@ -203,8 +203,11 @@ void main() {
     });
 
     test('abweichende Zonenzahl: Lauf bleibt außen, Teilwert gemeldet', () {
-      final odd = figures(6, '2030-01-03', zonesSec: [1, 2, 3]);
+      final odd = figures(6, '2030-01-03', zonesSec: [1, 2, 3], belowSec: 999);
       final s = computePeriodStatistics(week, [a, odd]);
+      // Unter Zone 1 nur aus denselben Läufen wie die Zonen (Befund 5).
+      expect(s.belowZone1Time.value, const Duration(seconds: 50));
+      expect(s.belowZone1Time.runsWithValue, 1);
       expect(s.zoneTimes.value!.length, 5);
       expect(s.zoneTimes.runsWithValue, 1);
       expect(s.zoneTimes.isPartial, isTrue);
