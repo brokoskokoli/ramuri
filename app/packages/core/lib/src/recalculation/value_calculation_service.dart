@@ -350,9 +350,13 @@ class ValueCalculationService {
     final runOwners = <ValueOwner, List<ComputedValue>>{};
     for (final r in runs) {
       if (await _runValue(r.id) == null) continue;
-      final value = (await analysisOf(r, profile)).vo2maxValue(now);
+      final analysis = await analysisOf(r, profile);
+      final value = analysis.vo2maxValue(now);
       runValues[r.id] = value;
-      runOwners[ValueOwner.run(r.id)] = [value];
+      runOwners[ValueOwner.run(r.id)] = [
+        value,
+        ...await _trimpSwap(r, analysis, profile, now),
+      ];
     }
     final dayOwners = <ValueOwner, List<ComputedValue>>{};
     final days = <String>{for (final r in runs) dayOfRun(r)};
@@ -376,6 +380,32 @@ class ValueCalculationService {
       if (swappable.isNotEmpty) dayOwners[ValueOwner.day(day)] = swappable;
     }
     return ValueSnapshot(runValues: runOwners, dayValues: dayOwners);
+  }
+
+  /// TRIMP des Laufs mit der neuen Basis, wenn der Lauf schon einen gespeicherten
+  /// TRIMP hat (FR-0006, OQ-0031: TRIMP hängt an HFmax; `original` bleibt).
+  /// Zonenzeiten werden nie neu gerechnet (L11), ein Lauf ohne gespeicherten
+  /// TRIMP (vor dieser Entscheidung) bekommt keinen.
+  Future<List<ComputedValue>> _trimpSwap(
+    StoredRun r,
+    RunAnalysis analysis,
+    HeartRateBasis profile,
+    DateTime now,
+  ) async {
+    final stored = (await session.values.read(ValueOwner.run(r.id)))
+        .any((p) => p.original.key == trimpRunValueKey);
+    if (!stored) return const [];
+    return [
+      for (final v in buildRunLoadValues(
+        run: r,
+        pre: analysis.preprocessing,
+        basis: profile,
+        fitness: fitness,
+        sources: analysis.sources,
+        computedAt: now,
+      ))
+        if (v.key == trimpRunValueKey) v,
+    ];
   }
 
   /// Zeitpunkt, für den der Tageswert des lokalen Tages [day] gilt: Ende des

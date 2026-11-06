@@ -59,6 +59,7 @@ class RecalcWorld {
     int bpm = 150,
     String source = 'strap',
     Duration? utcOffset,
+    double heartRateShare = 1,
   }) async {
     final run = await session.runs.create(startedAt: start);
     final seconds = minutes * 60;
@@ -76,14 +77,17 @@ class RecalcWorld {
           accuracyMeters: 5,
         ),
       );
-      hrs.add(
-        RawHeartRate(
-          time: t,
-          source: source,
-          bpm: bpm,
-          contact: SensorContact.good,
-        ),
-      );
+      // Puls nur im ersten Teil des Laufs (Pulsabdeckung unter 100 %).
+      if (s <= seconds * heartRateShare) {
+        hrs.add(
+          RawHeartRate(
+            time: t,
+            source: source,
+            bpm: bpm,
+            contact: SensorContact.good,
+          ),
+        );
+      }
       alts.add(
         RawAltitude(
           time: t,

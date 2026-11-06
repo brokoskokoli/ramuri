@@ -66,9 +66,10 @@ class RecalculationResult {
 ///    ändern sich nie still, OQ-0065).
 ///
 /// Zonenzeiten und TRIMP sind Laufwerte, die nach dem Lauf einmal gespeichert
-/// werden ([buildRunLoadValues]). Die Neuberechnung fasst sie nie an (L11): Sie
-/// tauscht nur VO₂max-Laufwerte und Tageswerte; alte Läufe behalten ihre
-/// Zonenzeiten (FR-0061, OQ-0065).
+/// werden ([buildRunLoadValues]). Die Zonenzeiten fasst die Neuberechnung nie
+/// an (L11, FR-0061, OQ-0065). TRIMP hängt an HFmax: Er wird bei einer Änderung
+/// der Basis wie der VO₂max-Laufwert im `current` neu gerechnet (nur für Läufe
+/// mit gespeichertem TRIMP; `original` bleibt).
 class RecalculationService {
   RecalculationService({
     required this.session,

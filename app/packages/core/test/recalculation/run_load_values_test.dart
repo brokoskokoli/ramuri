@@ -6,10 +6,11 @@ import 'recalc_support.dart';
 Future<Map<String, ComputedValue>> _stored(RecalcWorld w, int id) async =>
     (await w.session.values.readRunValues(runLoadValueKeys))[id] ?? {};
 
-String _fingerprint(Map<String, ComputedValue> m) => [
+String _fingerprint(Map<String, ComputedValue> m, {bool withTrimp = true}) => [
   for (final k in (m.keys.toList()..sort()))
-    '$k=${m[k]!.value}|${m[k]!.unavailableReason?.name}|${m[k]!.computedAt.toIso8601String()}'
-        '|${m[k]!.heartRateBasis?.maxBpm}/${m[k]!.heartRateBasis?.restingBpm}',
+    if (withTrimp || k != trimpRunValueKey)
+      '$k=${m[k]!.value}|${m[k]!.unavailableReason?.name}|${m[k]!.computedAt.toIso8601String()}'
+          '|${m[k]!.heartRateBasis?.maxBpm}/${m[k]!.heartRateBasis?.restingBpm}',
 ].join(';');
 
 Future<int> _run(
@@ -17,8 +18,15 @@ Future<int> _run(
   int day, {
   bool calculate = true,
   int minutes = 5,
+  int bpm = 150,
+  double heartRateShare = 1,
 }) async {
-  final id = await w.seedRun(DateTime.utc(2030, 1, day, 8), minutes: minutes);
+  final id = await w.seedRun(
+    DateTime.utc(2030, 1, day, 8),
+    minutes: minutes,
+    bpm: bpm,
+    heartRateShare: heartRateShare,
+  );
   if (calculate) await w.calc().calculateAfterRun(id);
   return id;
 }
@@ -98,7 +106,8 @@ void main() {
       final w = await RecalcWorld.create();
       final id = await _run(w, 10, minutes: 30);
       final other = await _run(w, 11, minutes: 30);
-      final before = _fingerprint(await _stored(w, id));
+      final before = _fingerprint(await _stored(w, id), withTrimp: false);
+      final trimpBefore = (await _stored(w, id))[trimpRunValueKey]!;
       final vo2Before = (await w.session.values.read(ValueOwner.run(id)))
           .singleWhere((p) => p.original.key == vo2maxRunValueKey)
           .current
@@ -134,12 +143,93 @@ void main() {
           .current
           .value;
       expect(vo2After, isNot(vo2Before), reason: 'Neuberechnung lief');
-      expect(_fingerprint(await _stored(w, id)), before);
+      // Zonenzeiten bleiben (L11); TRIMP hängt an HFmax und wird mit der neuen
+      // Basis neu gerechnet (FR-0006, OQ-0031), original bleibt.
+      expect(_fingerprint(await _stored(w, id), withTrimp: false), before);
+      final trimpPair = (await w.session.values.read(ValueOwner.run(id)))
+          .singleWhere((p) => p.original.key == trimpRunValueKey);
+      expect(trimpPair.original.value, trimpBefore.value);
+      expect(trimpPair.original.heartRateBasis!.maxBpm, 190);
+      // 30 min bei 150 bpm: Anteil 79 % (Gewicht 3), mit HFmax 180 83 % (4).
+      expect(trimpPair.current.value, closeTo(120, 1));
+      expect(trimpBefore.value, closeTo(90, 1));
+      expect(trimpPair.current.heartRateBasis!.maxBpm, 180);
       expect(
         (await _stored(w, other))[zoneTimeValueKey(2)]!.heartRateBasis!.maxBpm,
         190,
       );
       await s.dispose();
+    });
+
+    test('Neuberechnung: TRIMP neu, Zonen nie; Statistik summiert current; '
+        'Lauf ohne gespeicherten TRIMP bekommt keinen', () async {
+      final w = await RecalcWorld.create();
+      final a = await _run(w, 10, minutes: 30);
+      // Alter Lauf: nur VO2max-Laufwert, kein TRIMP (vor dieser Entscheidung).
+      final old = await _run(w, 11, minutes: 30, calculate: false);
+      final vo2 = (await w.session.values.read(ValueOwner.run(a)))
+          .singleWhere((p) => p.original.key == vo2maxRunValueKey)
+          .original;
+      await w.session.values.createOriginals(ValueOwner.run(old), [vo2]);
+      final s = w.recalc();
+      await w.session.profile.save(profile180);
+      final offer = await s.profileChanged(
+        before: profile190,
+        after: profile180,
+      );
+      await s.confirm(offer!);
+      expect(
+        [
+          for (final p in await w.session.values.read(ValueOwner.run(old)))
+            p.original.key,
+        ],
+        [vo2maxRunValueKey],
+        reason: 'kein TRIMP nachträglich',
+      );
+      final overviews = await RunOverviewService(
+        session: w.session,
+        clock: w.clock,
+      ).load();
+      final stats = computePeriodStatistics(
+        StatisticsPeriod.custom(from: '2030-01-01', to: '2030-01-31'),
+        [for (final o in overviews) o.toFigures()],
+      );
+      expect(stats.trimpPoints.value, closeTo(120, 1), reason: 'current');
+      expect(stats.zoneTimes.value![1].inSeconds, closeTo(1800, 10));
+      expect(
+        (await _stored(w, a))[zoneTimeValueKey(2)]!.heartRateBasis!.maxBpm,
+        190,
+      );
+      await s.dispose();
+    });
+
+    test(
+      'Pulsabdeckung unter 100 %: TRIMP vorläufig und unvollständig',
+      () async {
+        final w = await RecalcWorld.create();
+        final id = await _run(w, 10, minutes: 10, heartRateShare: 0.9);
+        final v = await _stored(w, id);
+        expect(v[trimpRunValueKey]!.quality, ValueQuality.provisional);
+        expect(v[trimpRunValueKey]!.value, isNotNull);
+        expect(v[zoneTimeValueKey(2)]!.quality, ValueQuality.good);
+        expect(StoredRunLoad.fromValues(v).trimpIncomplete, isTrue);
+        // Volle Abdeckung bleibt gut.
+        final full = await _stored(w, await _run(w, 11, minutes: 10));
+        expect(full[trimpRunValueKey]!.quality, ValueQuality.good);
+      },
+    );
+
+    test('Zeit unter Zone 1 wird gespeichert und gelesen', () async {
+      final w = await RecalcWorld.create();
+      // 100 bpm: r = 0,31, unter Zone 1 (ab 50 %).
+      final id = await _run(w, 10, bpm: 100);
+      final v = await _stored(w, id);
+      expect(v[zoneBelowValueKey]!.value, closeTo(300, 5));
+      expect(v[zoneTimeValueKey(1)]!.value, 0);
+      expect(v[zoneTimeValueKey(5)]!.value, 0);
+      final load = StoredRunLoad.fromValues(v);
+      expect(load.belowZone1Time!.inSeconds, closeTo(300, 5));
+      expect(load.zoneTimes!.every((d) => d == Duration.zero), isTrue);
     });
 
     test('Lauf ohne gespeicherte Werte: nicht gespeichert, nie 0', () async {
