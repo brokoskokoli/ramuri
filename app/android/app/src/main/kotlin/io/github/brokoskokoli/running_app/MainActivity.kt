@@ -9,21 +9,24 @@ import android.os.Build
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    /** Die Engine gehört der Application (ADR-0005 Punkt 1) und überlebt die Activity. */
+    override fun getCachedEngineId(): String = RunningApplication.ENGINE_ID
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        // Der Handler hält diese Activity; die Engine bleibt ohne sie bestehen.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/permissions")
+            .setMethodCallHandler(null)
+        pendingLocation?.error("detached", null, null)
+        pendingLocation = null
+        super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    /** Nur Kanäle, die diese Activity braucht; prozessweite hängen in [RunningApplication] an der Engine. */
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        // ADR-0003 Punkt 3: Die Datenbank liegt in getNoBackupFilesDir(), das immer vom Backup ausgenommen ist.
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/storage")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "getNoBackupFilesDir" -> result.success(applicationContext.noBackupFilesDir.absolutePath)
-                    else -> result.notImplemented()
-                }
-            }
-    
         // SEC-0007: Stand der Berechtigungen nur lesen; Widerruf im System.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/permissions")
             .setMethodCallHandler { call, result ->
@@ -58,10 +61,6 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
-
-        // ADR-0005 Punkt 4: GPS_PROVIDER ohne Play-Dienste.
-        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/location_stream")
-            .setStreamHandler(GpsStreamHandler(getSystemService(LOCATION_SERVICE) as LocationManager))
     }
 
     private var pendingLocation: MethodChannel.Result? = null

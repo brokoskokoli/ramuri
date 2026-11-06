@@ -11,9 +11,10 @@ import '../preprocessing/measurement.dart';
 import '../preprocessing/run_preprocessor.dart';
 import 'recording_session.dart';
 
-/// Höchstzahl Zeilen je Transaktion (ADR-0005 Punkt 5, Startwert R005: eine
-/// Zeile). Sie gilt für Position, Höhe und Puls zusammen; ein Messpunkt mit
-/// Höhe sind also zwei Transaktionen. Die endgültige Größe legt WP08 fest.
+/// Höchstzahl Zeilen je Transaktion (ADR-0005 Punkt 5; R005: eine Zeile, WP08
+/// bestätigt). Sie gilt für Position, Höhe und Puls zusammen; ein Messpunkt mit
+/// Höhe sind also zwei Transaktionen. Mit `synchronous = FULL` (WP02) bleibt
+/// bei einem Kill höchstens die laufende Zeile aus.
 const int rawBatchRows = 1;
 
 /// Verbindet [RecordingSession] mit dem Speicherzugriff (WP06 Teil C).

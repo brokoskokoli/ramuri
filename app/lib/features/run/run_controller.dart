@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
 import '../sensors/run_heart_rate.dart';
+import 'run_ports.dart';
 
 /// Einordnung der Herzfrequenzzone für die Anzeige (FR-0026, OQ-0012).
 enum LiveZoneKind { zone, belowZone1, noHeartRate, noBasis }
@@ -32,6 +33,7 @@ class RunController extends ChangeNotifier {
     required this.location,
     this.heartRate,
     this.sensors,
+    this.service,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
     RunRecorder? recorder,
@@ -56,6 +58,9 @@ class RunController extends ChangeNotifier {
   final RunHeartRate? sensors;
   final Duration tickEvery;
 
+  /// Dienst, der den Prozess während des Laufs hält (WP08); `null` ohne Dienst.
+  final RecordingServicePort? service;
+
   /// Reiht Schreiben von Werten hinter den Start und andere Neuberechnungen
   /// ein (siehe `RecalculationController.exclusive`); `null` = sofort.
   final Future<void> Function(Future<void> Function() action)? serialize;
@@ -74,6 +79,8 @@ class RunController extends ChangeNotifier {
   bool _startFailed = false;
   bool _starting = false;
   bool _locationError = false;
+  bool _serviceFailed = false;
+  bool _serviceWanted = false;
   bool _heartRateSeen = false;
   ResolvedHeartRate? _basis;
   FitnessParameters _fitness = const FitnessParameters.v4();
@@ -90,6 +97,10 @@ class RunController extends ChangeNotifier {
 
   /// Die Standortquelle meldete einen Fehler und seitdem keinen Punkt mehr.
   bool get locationError => _locationError;
+
+  /// Der Dienst konnte nicht starten. Der Lauf zeichnet weiter auf, aber nur,
+  /// solange die App sichtbar ist; die Oberfläche weist darauf hin.
+  bool get serviceFailed => _serviceFailed;
 
   /// Von der Pulsquelle kam in diesem Lauf schon ein Wert.
   bool get heartRateSourceSeen => _heartRateSeen;
@@ -183,11 +194,38 @@ class RunController extends ChangeNotifier {
         _recorder.tick();
         _update();
       });
+      await _startService();
     } finally {
       _starting = false;
       _update();
     }
   }
+
+  /// Startet den Dienst nach dem Anlegen des Laufs. Scheitert er, geht der Lauf
+  /// nicht verloren: Er läuft im Vordergrund weiter und [serviceFailed] meldet es.
+  Future<void> _startService() async {
+    final s = service;
+    if (s == null) return;
+    _serviceWanted = true;
+    try {
+      await s.start();
+      _serviceFailed = false;
+    } on Object {
+      _serviceFailed = true;
+    }
+    // Der Lauf endete oder der Controller wurde verworfen, während der Start lief.
+    if (!_serviceWanted) _callStop(s);
+  }
+
+  void _stopService() {
+    final s = service;
+    if (s == null || !_serviceWanted) return;
+    _serviceWanted = false;
+    _callStop(s);
+  }
+
+  void _callStop(RecordingServicePort s) =>
+      unawaited(s.stop().then((_) {}, onError: (Object _) {}));
 
   /// Schaltet die Autopause und merkt sie dauerhaft (FR-0029). Ein
   /// Speicherfehler ändert die laufende Aufzeichnung nicht.
@@ -264,6 +302,7 @@ class RunController extends ChangeNotifier {
     unawaited(_heartSub?.cancel());
     _heartSub = null;
     sensors?.close();
+    _stopService();
   }
 
   void _update() {

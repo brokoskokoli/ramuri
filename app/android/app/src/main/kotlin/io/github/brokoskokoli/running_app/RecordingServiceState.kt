@@ -1,0 +1,83 @@
+package io.github.brokoskokoli.running_app
+
+import android.content.Context
+import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.MethodChannel
+
+/**
+ * Prozessweiter Stand des Dienstes und sein Kanal `running_app/recording_service`
+ * (start, stop, isRunning). Alles läuft auf dem Hauptthread. Nach einem
+ * Prozessende ist [running] falsch, also `false`: Daran erkennt WP08 Teil B einen
+ * Lauf ohne Dienst.
+ */
+object RecordingServiceState {
+    const val CHANNEL = "running_app/recording_service"
+    private const val START_TIMEOUT_MS = 5000L
+
+    @Volatile
+    var running: Boolean = false
+        private set
+    private var pending: MutableList<MethodChannel.Result> = mutableListOf()
+    private val handler = Handler(Looper.getMainLooper())
+    private var appContext: Context? = null
+    private val timeout = Runnable {
+        // Ein später doch gestarteter Dienst bliebe sonst ohne Dart-Gegenstück laufen.
+        appContext?.stopService(Intent(appContext, RecordingService::class.java))
+        failed(IllegalStateException("start_timeout"))
+    }
+
+    fun register(messenger: BinaryMessenger, context: Context) {
+        appContext = context.applicationContext
+        MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isRunning" -> result.success(running)
+                "start" -> start(context, result)
+                "stop" -> {
+                    context.stopService(Intent(context, RecordingService::class.java))
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun start(context: Context, result: MethodChannel.Result) {
+        if (running) {
+            result.success(null)
+            return
+        }
+        val first = pending.isEmpty()
+        pending.add(result)
+        if (!first) return
+        try {
+            context.startForegroundService(Intent(context, RecordingService::class.java))
+            handler.postDelayed(timeout, START_TIMEOUT_MS)
+        } catch (e: RuntimeException) {
+            failed(e)
+        }
+    }
+
+    fun started() {
+        running = true
+        handler.removeCallbacks(timeout)
+        val waiting = pending
+        pending = mutableListOf()
+        waiting.forEach { it.success(null) }
+    }
+
+    fun failed(e: Throwable) {
+        running = false
+        handler.removeCallbacks(timeout)
+        val waiting = pending
+        pending = mutableListOf()
+        // Nur der Klassenname: keine Inhalte, keine Gesundheitsdaten.
+        waiting.forEach { it.error("start_failed", e.javaClass.simpleName, null) }
+    }
+
+    fun stopped() {
+        running = false
+    }
+}

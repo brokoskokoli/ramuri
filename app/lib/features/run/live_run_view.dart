@@ -117,6 +117,12 @@ class LiveRunView extends StatelessWidget {
         banner(const Key('run_banner_paused'), l10n.runPausedBanner),
       if (s.phase == RecordingPhase.autoPaused)
         banner(const Key('run_banner_autopaused'), l10n.runAutoPausedBanner),
+      if (controller.serviceFailed && !finished)
+        banner(
+          const Key('run_banner_service'),
+          l10n.runServiceFailed,
+          error: true,
+        ),
       if (controller.writeFailure != null && !finished)
         banner(
           const Key('run_banner_storage'),

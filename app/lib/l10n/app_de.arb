@@ -680,6 +680,7 @@
   "runNoLaps": "Noch keine Runde markiert",
   "runPausedBanner": "Pausiert",
   "runAutoPausedBanner": "Automatisch pausiert (Stillstand erkannt)",
+  "runServiceFailed": "Der Hintergrundbetrieb konnte nicht starten. Die Aufzeichnung läuft nur, solange die App sichtbar ist und das Display an bleibt.",
   "runStorageFailed": "Speichern fehlgeschlagen. Die Anzeige läuft weiter, aber Messwerte könnten im Speicher fehlen.",
   "runPause": "Pause",
   "runResume": "Fortsetzen",

@@ -114,6 +114,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       location: widget.ports.location,
       heartRate: widget.ports.heartRate,
       sensors: widget.ports.heartRateRun?.call(),
+      service: widget.ports.recordingService,
       tickEvery: widget.tickEvery,
       serialize: widget.serialize,
     );

@@ -1,6 +1,7 @@
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
 
+import 'features/run/method_channel_recording_service.dart';
 import 'features/run/run_ports.dart';
 import 'features/sensors/run_heart_rate.dart';
 import 'features/sensors/sensor_manager.dart';
@@ -83,6 +84,7 @@ class AppDependencies {
         location: MethodChannelLocationSource(),
         heartRateRun: sensors.beginRun,
         connectSensors: sensors.connectKnown,
+        recordingService: MethodChannelRecordingService(),
       ),
       storageStart: StorageStartController(
         keyStore: SecureKeyStore(),
@@ -147,6 +149,9 @@ class _NoRunPorts implements RunPorts {
 
   @override
   Future<void> Function()? get connectSensors => null;
+
+  @override
+  RecordingServicePort? get recordingService => null;
 }
 
 class _DeniedAccess implements LocationAccessPort {

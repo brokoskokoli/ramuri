@@ -12,11 +12,18 @@
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="s"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <!-- ADR-0005 Punkt 2: Foreground Service der Aufzeichnung. Keine Hintergrund-Standortberechtigung,
+         kein BOOT_COMPLETED. POST_NOTIFICATIONS wird nie verlangt; ohne sie läuft der Dienst
+         und nur die Benachrichtigung ist nicht sichtbar. Der Wake Lock gilt nur für die Laufdauer. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Running App"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:name="${applicationName}"
+        android:name=".RunningApplication"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -40,6 +47,12 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- connectedDevice ist hier schon erlaubt, startForeground nennt es erst mit dem
+             Pulssensor im Dienst und nur mit BLUETOOTH_CONNECT (WP08 Teil C). -->
+        <service
+            android:name=".RecordingService"
+            android:exported="false"
+            android:foregroundServiceType="location|connectedDevice"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
