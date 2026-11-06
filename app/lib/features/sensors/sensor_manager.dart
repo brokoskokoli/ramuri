@@ -268,13 +268,20 @@ class SensorManager extends ChangeNotifier {
 
   bool _autoConnecting = false;
 
-  /// Verbindet alle bekannten, nicht verbundenen Geräte, aber nur, wenn die
+  /// Verbindet bekannte, nicht verbundene Geräte, aber nur, wenn die
   /// Bluetooth-Rechte schon erteilt sind und Bluetooth an ist (Auftrag Teil E,
-  /// beim Öffnen des Lauf-Bildschirms). Fragt nie nach Rechten, setzt bei
-  /// einem gescheiterten Erstversuch keinen Hinweis (auch einen bestehenden
-  /// löscht es nicht) und wirft nie: ohne Rechte oder mit Bluetooth aus
-  /// passiert nichts. Gerätewahl und Verlust nach einer Verbindung wie sonst.
-  /// Die Neuverbinden-Regeln gelten danach wie bei manuellem Verbinden.
+  /// beim Öffnen des Lauf-Bildschirms). Das bevorzugte Gerät kommt zuerst; die
+  /// übrigen werden erst verbunden, wenn dessen Versuch endet (verbunden,
+  /// gescheitert oder abgebrochen) oder eine manuelle Quellenwahl ihn
+  /// ablöst ([manualSelection]). So bekommt ein Lauf, der währenddessen
+  /// startet, kein anderes Gerät aus diesem Auto-Verbinden als Quelle und
+  /// wechselt nie (FR-0019). Ohne bevorzugtes Gerät werden alle wie bisher
+  /// nacheinander gestartet. Fragt nie nach Rechten, setzt bei einem
+  /// gescheiterten Erstversuch keinen Hinweis (auch einen bestehenden löscht es
+  /// nicht) und wirft nie: ohne Rechte oder mit Bluetooth aus passiert nichts.
+  /// Die Neuverbinden-Regeln gelten danach wie bei manuellem Verbinden; nach
+  /// einem späteren Abbruch des bevorzugten Geräts werden die übrigen nicht
+  /// nachträglich automatisch verbunden.
   Future<void> connectKnown() async {
     if (_autoConnecting || _disposed || _known.isEmpty) return;
     _autoConnecting = true;
@@ -285,19 +292,55 @@ class SensorManager extends ChangeNotifier {
       if (_disposed) return;
       // Rechte sind da: connect darf nicht mehr nachfragen.
       _permitted = true;
-      for (final k in List.of(_known)) {
+      final all = List.of(_known);
+      for (final k in [
+        ...all.where((k) => k.isPreferred),
+        ...all.where((k) => !k.isPreferred),
+      ]) {
         final c = _conns[k.deviceId];
         if (c != null && c.state != SensorLinkState.idle) continue;
         if (_disposed) return;
         // Währenddessen vergessen (Löschen): nicht wieder anlegen.
         if (!_known.any((x) => x.deviceId == k.deviceId)) continue;
         await _connect(k.deviceId, name: k.displayName, silent: true);
+        if (k.isPreferred) await _awaitAttempt(k.deviceId);
       }
     } catch (_) {
       // Stilles Verbinden: Fehler zeigt höchstens die Verwaltung.
     } finally {
       _autoConnecting = false;
     }
+  }
+
+  Completer<void>? _attemptWait;
+  String? _attemptWaitId;
+
+  /// Wartet, bis der Versuch zu [id] verbunden oder beendet ist.
+  Future<void> _awaitAttempt(String id) {
+    final c = _conns[id];
+    if (_disposed || c == null || _attemptEnded(c)) return Future.value();
+    final w = _attemptWait = Completer<void>();
+    _attemptWaitId = id;
+    return w.future.whenComplete(() {
+      if (identical(_attemptWait, w)) _attemptWait = null;
+    });
+  }
+
+  bool _attemptEnded(_Conn c) =>
+      c.state == SensorLinkState.connected || c.state == SensorLinkState.idle;
+
+  void _checkAttemptWait() {
+    final w = _attemptWait;
+    if (w == null || w.isCompleted) return;
+    final c = _conns[_attemptWaitId];
+    if (c == null || _attemptEnded(c)) w.complete();
+  }
+
+  /// Der Nutzer hat von Hand eine Quelle gewählt: Das Warten auf das
+  /// bevorzugte Gerät endet, die übrigen werden jetzt verbunden.
+  void manualSelection() {
+    final w = _attemptWait;
+    if (w != null && !w.isCompleted) w.complete();
   }
 
   Future<bool> _hasPermissions() async {
@@ -509,12 +552,14 @@ class SensorManager extends ChangeNotifier {
   }
 
   void _notify() {
+    _checkAttemptWait();
     if (!_disposed) notifyListeners();
   }
 
   @override
   void dispose() {
     _disposed = true;
+    manualSelection();
     _scanSub?.cancel();
     for (final c in _conns.values) {
       c.wanted = false;

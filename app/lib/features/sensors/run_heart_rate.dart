@@ -96,7 +96,10 @@ class RunHeartRate extends ChangeNotifier {
   bool select(String deviceId) {
     if (_closed) return false;
     final ok = _selector.select(deviceId, _manager.clock.now());
-    if (ok) notifyListeners();
+    if (ok) {
+      _manager.manualSelection();
+      notifyListeners();
+    }
     return ok;
   }
 

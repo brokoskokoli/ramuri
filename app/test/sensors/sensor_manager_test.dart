@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/sensors/run_heart_rate.dart';
 import 'package:running_app/features/sensors/sensor_manager.dart';
 
 /// Sensor, dessen Suche mit einem Fehler endet (Bluetooth aus).
@@ -81,6 +82,24 @@ class _ForgetfulStore implements KnownDeviceStore {
 
   @override
   Future<void> setPreferred(String? deviceId) => inner.setPreferred(deviceId);
+}
+
+/// Sensor, dessen Verbindungen der Test von Hand steuert (kein Zeitablauf):
+/// `up` meldet "verbunden", `fail` lässt den Versuch scheitern.
+class _ManualSensor extends FakeHeartRateSensor {
+  final order = <String>[];
+  final _ctrls = <String, StreamController<HeartRateEvent>>{};
+
+  @override
+  Stream<HeartRateEvent> connect(String deviceId) {
+    order.add(deviceId);
+    final c = _ctrls[deviceId] = StreamController<HeartRateEvent>();
+    return c.stream;
+  }
+
+  void up(String id) => _ctrls[id]!.add(HeartRateConnected(id));
+  void fail(String id) => _ctrls[id]!.addError(StateError('timeout'));
+  bool hasListener(String id) => _ctrls[id]?.hasListener ?? false;
 }
 
 Stream<HeartRateEvent> _failing() => Stream.error(StateError('timeout'));
@@ -584,6 +603,162 @@ void main() {
       await t.pump();
       expect(store.upserts, ['g1'], reason: 'g2 nicht wieder angelegt');
       expect(r.sensor.connectedIds, {'g1'});
+    });
+  });
+
+  group('connectKnown: bevorzugtes Gerät zuerst', () {
+    /// g1, g2 bekannt; [preferred] bevorzugt (oder keins).
+    Future<_Rig> rig(
+      WidgetTester t,
+      _ManualSensor sensor, {
+      String? preferred = 'g2',
+      List<String> extra = const [],
+    }) async {
+      final storage = FakeStorage();
+      final a = _Rig(storage: storage);
+      await a.open();
+      await a.connect(t, 'g1', name: 'Gurt 1');
+      await a.connect(t, 'g2', name: 'Gurt 2');
+      for (final id in extra) {
+        await a.connect(t, id, name: 'Gurt $id');
+      }
+      await a.manager.setPreferred(preferred);
+      a.manager.dispose();
+      final r = _Rig(
+        storage: storage,
+        sensor: sensor,
+        bluetoothGranted: () async => true,
+      );
+      await r.open();
+      return r;
+    }
+
+    testWidgets('bevorzugtes verbindet: Quelle, andere danach ohne Wechsel', (
+      t,
+    ) async {
+      final s = _ManualSensor();
+      final r = await rig(t, s);
+      final run = r.manager.beginRun();
+      unawaited(r.manager.connectKnown());
+      await t.pump();
+      expect(s.order, ['g2'], reason: 'nur das bevorzugte, g1 wartet');
+      s.up('g2');
+      await t.pump();
+      expect(s.order, ['g2', 'g1']);
+      s.up('g1');
+      await t.pump();
+      expect(r.manager.connectedIds, {'g1', 'g2'});
+      expect(run.activeId, 'g2');
+      expect(run.switches, isEmpty);
+      run.close();
+      r.manager.dispose();
+    });
+
+    testWidgets('bevorzugtes scheitert: andere werden verbunden, eins Quelle', (
+      t,
+    ) async {
+      final s = _ManualSensor();
+      final r = await rig(t, s);
+      unawaited(r.manager.connectKnown());
+      await t.pump();
+      expect(s.order, ['g2']);
+      s.fail('g2');
+      await t.pump();
+      expect(s.order, ['g2', 'g1']);
+      s.up('g1');
+      await t.pump();
+      expect(r.manager.selector.activeId, 'g1');
+      expect(r.manager.problem, isNull, reason: 'Auto-Versuch bleibt still');
+      r.manager.dispose();
+    });
+
+    testWidgets('Laufstart während des Wartens: keine Quelle bis Ergebnis, '
+        'kein Wechsel im Lauf', (t) async {
+      final s = _ManualSensor();
+      final r = await rig(t, s);
+      unawaited(r.manager.connectKnown());
+      await t.pump();
+      final run = r.manager.beginRun();
+      await t.pump();
+      expect(run.activeId, isNull);
+      expect(run.status, RunSensorStatus.none);
+      expect(s.hasListener('g1'), isFalse);
+      s.up('g2');
+      await t.pump();
+      expect(run.activeId, 'g2');
+      s.up('g1');
+      await t.pump();
+      expect(run.activeId, 'g2');
+      expect(run.switches, isEmpty);
+      run.close();
+      r.manager.dispose();
+    });
+
+    testWidgets('Laufstart während des Wartens, bevorzugtes scheitert: '
+        'dann wird ein anderes die Quelle', (t) async {
+      final s = _ManualSensor();
+      final r = await rig(t, s);
+      unawaited(r.manager.connectKnown());
+      await t.pump();
+      final run = r.manager.beginRun();
+      s.fail('g2');
+      await t.pump();
+      expect(run.activeId, isNull);
+      s.up('g1');
+      await t.pump();
+      expect(run.activeId, 'g1');
+      run.close();
+      r.manager.dispose();
+    });
+
+    testWidgets('ohne bevorzugtes Gerät: alle wie bisher, ohne Warten', (
+      t,
+    ) async {
+      final s = _ManualSensor();
+      final r = await rig(t, s, preferred: null);
+      unawaited(r.manager.connectKnown());
+      await t.pump();
+      expect(s.order, ['g1', 'g2']);
+      r.manager.dispose();
+    });
+
+    testWidgets('manuelle Quellenwahl beendet das Warten, übrige folgen', (
+      t,
+    ) async {
+      final s = _ManualSensor();
+      final r = await rig(t, s, extra: ['g3', 'g4']);
+      // g1 und g3 waren schon von Hand verbunden (g1 ist Quelle).
+      await r.manager.connect('g1', name: 'Gurt 1');
+      s.up('g1');
+      await r.manager.connect('g3', name: 'Gurt 3');
+      s.up('g3');
+      await t.pump();
+      s.order.clear();
+      final run = r.manager.beginRun();
+      unawaited(r.manager.connectKnown());
+      await t.pump();
+      expect(s.order, ['g2'], reason: 'bevorzugtes zuerst, g4 wartet');
+      expect(run.select('g3'), isTrue);
+      await t.pump();
+      expect(s.order, ['g2', 'g4']);
+      expect(run.activeId, 'g3');
+      run.close();
+      r.manager.dispose();
+    });
+
+    testWidgets('Ende während des Wartens: keine Lecks', (t) async {
+      final s = _ManualSensor();
+      final r = await rig(t, s);
+      final run = r.manager.beginRun();
+      final done = r.manager.connectKnown();
+      await t.pump();
+      expect(s.order, ['g2']);
+      run.close();
+      expect(r.manager.openRuns, 0);
+      r.manager.dispose();
+      await done;
+      expect(s.order, ['g2'], reason: 'nach dispose nichts mehr gestartet');
+      expect(t.takeException(), isNull);
     });
   });
 }

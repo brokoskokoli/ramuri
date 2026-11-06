@@ -52,7 +52,7 @@ void main() {
       await tester.tap(key('home_start_run'));
       await tester.pumpAndSettle();
       expect(d.sensorFake.connectedIds, {'h1', 'h2'});
-      // h1 verband zuerst, das bevorzugte h2 übernimmt trotzdem.
+      // Das bevorzugte h2 verbindet zuerst und ist Quelle.
       expect(d.sensors.selector.activeId, 'h2');
       expect(d.sensorPermissionRequests, asked, reason: 'keine Rechteabfrage');
       expect(find.byType(AlertDialog), findsNothing);
@@ -77,15 +77,16 @@ void main() {
       await d.stop(tester);
     });
 
-    testWidgets('ab Laufstart kein Rückwechsel zum bevorzugten Gerät', (
+    testWidgets('Laufstart sofort: bevorzugtes ist Quelle, kein Wechsel', (
       tester,
     ) async {
       final d = await knownAndDisconnected(tester);
-      // Der Lauf startet sofort; h1 verbindet zuerst, h2 (bevorzugt) danach.
+      // Der Lauf startet sofort; h2 (bevorzugt) verbindet zuerst, h1 danach.
       await tester.tap(key('home_start_run'));
       await tester.pumpAndSettle();
       expect(d.sensorFake.connectedIds, {'h1', 'h2'});
-      expect(d.lastRun!.activeId, 'h1');
+      expect(d.lastRun!.activeId, 'h2');
+      expect(d.lastRun!.switches, isEmpty);
       await d.stop(tester);
     });
 
