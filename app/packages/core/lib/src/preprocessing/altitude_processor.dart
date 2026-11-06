@@ -102,6 +102,13 @@ class AltitudeProcessor {
     _reference = null;
   }
 
+  /// Neu verankerte Position: die Höhen davor gehören zu einer falschen Lage.
+  /// Fenster und Referenz beginnen neu, der bisherige Aufstieg bleibt.
+  void restart() {
+    _window.clear();
+    _reference = null;
+  }
+
   ProcessedAltitude add(RawAltitude a) {
     final last = _lastTime;
     final ProcessedAltitude r;

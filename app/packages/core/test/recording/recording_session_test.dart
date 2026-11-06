@@ -613,6 +613,48 @@ void main() {
     expect(r.s.preprocessing()!.altitude.ascentMeters, isNull);
   });
 
+  group('Neu ankern in der Sitzung (Nachbesserung E1)', () {
+    void at(Rig r, int sec, num north, {double? alt}) {
+      r.clock.advance(t0.add(Duration(seconds: sec)).difference(r.clock.now()));
+      r.s.addPosition(fix(sec, north, alt: alt));
+    }
+
+    test('falscher Anker mit anderer Höhe: kein Anstieg daraus', () {
+      final r = Rig()..s.start();
+      at(r, 1, 500000, alt: 0); // falscher Anker, Höhe 0
+      for (var i = 0; i < 4; i++) {
+        at(r, 2 + i, 3.0 * i, alt: 495);
+      }
+      expect(r.s.preprocessing()!.altitude.ascentMeters, 0);
+    });
+
+    test('Höhe nach dem Re-Anker zählt wieder normal', () {
+      final r = Rig()..s.start();
+      at(r, 1, 500000, alt: 0);
+      for (var i = 0; i < 4; i++) {
+        at(r, 2 + i, 3.0 * i, alt: 495);
+      }
+      for (var i = 0; i < 40; i++) {
+        at(r, 6 + i, 9 + 3.0 * i, alt: 495 + 0.5 * (i + 1));
+      }
+      expect(r.s.preprocessing()!.altitude.ascentMeters, greaterThan(10));
+    });
+
+    test('Re-Anker in einem offenen PAR-004-Verlust: genau eine Lücke', () {
+      final r = Rig()..s.start();
+      at(r, 1, 0);
+      at(r, 12, 5000); // Verlust öffnet (11 s), hardJump
+      at(r, 13, 5003);
+      at(r, 14, 5006); // Re-Anker schließt den Verlust
+      final snap = r.s.snapshot();
+      final losses = snap.gaps.where((g) => g.kind == RunGapKind.positionLoss);
+      expect(losses, hasLength(1));
+      expect(losses.single.start, t0.add(const Duration(seconds: 1)));
+      expect(losses.single.end, t0.add(const Duration(seconds: 14)));
+      expect(snap.positionLost, isFalse);
+    });
+  });
+
   group('Genauigkeiten aus dem Standortpunkt (K12 Adapter-Teil)', () {
     test('Vertikalgenauigkeit erreicht die Höhenfilterung (PAR-013)', () {
       final r = Rig()..s.start();

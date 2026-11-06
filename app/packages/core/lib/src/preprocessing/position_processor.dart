@@ -213,7 +213,11 @@ class PositionProcessor {
   /// Folge neu mit ihm. Wahr, wenn die Folge [PreprocessingParameters.reanchorCount]
   /// erreicht.
   bool _collectJump(RawPosition p) {
-    if (_jumpRun.isNotEmpty && _jumpReason(_jumpRun.last, p) != null) {
+    // Eine Folge reißt ab, wenn sie nicht zusammenpasst oder die Zeit seit dem
+    // letzten Folgepunkt über PAR-004 liegt (kein beliebig langes Offenhalten).
+    if (_jumpRun.isNotEmpty &&
+        (p.time.difference(_jumpRun.last.time) > parameters.gapMaxDuration ||
+            _jumpReason(_jumpRun.last, p) != null)) {
       _jumpRun.clear();
     }
     _jumpRun.add(p);

@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:test/test.dart';
 
+import 'motion_support.dart';
 import 'support.dart';
 
 /// Neu ankern bei Positionssprüngen (Vorschlag, Bezug PAR-002/PAR-003/PAR-004,
@@ -91,6 +92,85 @@ void main() {
       expect(r.positions.any((p) => p.reanchored), isFalse);
       expect(r.gaps, isEmpty);
       expect(r.distanceMeters, closeTo(9, 1e-3));
+    });
+  });
+  group('Folge der Sprungverwürfe (Nachbesserung E1)', () {
+    test('softJump-Folge verankert neu (Geschwindigkeit 8..12,5 m/s)', () {
+      final r = run([pos(0, 0), pos(4, 40), pos(5, 43), pos(5.5, 44.5)]);
+      expect(r.positions[1].reason, DiscardReason.softJump);
+      expect(r.positions[2].reason, DiscardReason.softJump);
+      expect(r.positions[3].reanchored, isTrue);
+      expect(r.gaps, hasLength(1));
+    });
+
+    test('Zeit über PAR-004 seit dem letzten Folgepunkt leert die Folge', () {
+      final r = run([
+        pos(0, 0),
+        pos(1, 2000), // Ausreißer, Folge [1]
+        pos(30, 2000, acc: 100), // nur Genauigkeits-Verwürfe
+        pos(60, 2000, acc: 100),
+        pos(61, 2000), // 60 s nach dem letzten Folgepunkt: neue Folge
+        pos(62, 2003),
+      ]);
+      expect(r.positions.any((p) => p.reanchored), isFalse);
+      expect(r.acceptedPoints, hasLength(1));
+    });
+
+    test('andere Verwürfe innerhalb von PAR-004 lassen die Folge stehen', () {
+      final r = run([
+        pos(0, 0),
+        pos(1, 2000),
+        pos(2, 2003),
+        pos(3, 2006, acc: 100), // Genauigkeit, Folge bleibt
+        pos(4, 2009),
+      ]);
+      expect(r.positions[4].reanchored, isTrue);
+    });
+  });
+
+  group('Übergang als Lücke im Tempo und in der Bewegungszeit', () {
+    // Falscher Anker bei 0 s, Re-Anker bei 3 s, danach 3 m/s.
+    List<RawPosition> wrongStart() => [
+      pos(0, 500000),
+      pos(1, 0),
+      pos(2, 3),
+      pos(3, 6),
+      ...track([(27, 3)], from: 3, north: 6, first: false),
+    ];
+
+    test('Live-Tempo ist unverfälscht (kein Stillstandsanteil)', () {
+      final r = feed(wrongStart());
+      final res = r.result(at: at(8));
+      expect(res.pace.liveSpeed, closeTo(3, 1e-6));
+      expect(res.pace.liveCountedTime, const Duration(seconds: 5));
+    });
+
+    test('ein Übergang von 10 s löst keine Autopause aus', () {
+      // Re-Anker nach genau 10 s (nicht länger als PAR-004).
+      final pts = [
+        pos(0, 500000),
+        pos(4, 0),
+        pos(7, 12),
+        pos(10, 24),
+        ...track([(20, 3)], from: 10, north: 24, first: false),
+      ];
+      final r = RunPreprocessor(start: t0);
+      for (final p in pts) {
+        r.addPosition(p);
+        expect(r.autoPauseState, isNot(AutoPauseState.standstillPause));
+      }
+    });
+
+    test('Bewegungszeit nach einem Übergang von 10 s geht nicht verloren', () {
+      final pts = [
+        pos(0, 500000),
+        pos(8, 0),
+        pos(9, 3),
+        pos(10, 6),
+        ...track([(20, 3)], from: 10, north: 6, first: false),
+      ];
+      final res = feed(pts).result(at: at(30));
+      expect(res.movement.movingTime, const Duration(seconds: 30));
     });
   });
 }

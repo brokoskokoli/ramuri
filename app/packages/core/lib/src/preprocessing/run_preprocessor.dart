@@ -68,7 +68,12 @@ class RunPreprocessor {
   ProcessedPosition addPosition(RawPosition p) {
     final r = _position.add(p);
     if (r.accepted) {
-      final segment = _segments.add(p, r.countedDistanceMeters);
+      if (r.reanchored) _altitude.restart();
+      final segment = _segments.add(
+        p,
+        r.countedDistanceMeters,
+        forceGap: r.reanchored,
+      );
       if (segment != null) {
         _pace.add(segment);
         _movement.add(segment);
