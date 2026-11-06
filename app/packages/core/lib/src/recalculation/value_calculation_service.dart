@@ -148,7 +148,8 @@ class ValueCalculationService {
     final plan = _DayPlan();
     await plan.add(session, day, values.all);
     // Zonenzeiten und TRIMP mit den Zonengrenzen und der Basis zum Laufende;
-    // sie werden nie neu gerechnet (L11).
+    // Zonenzeiten werden nie neu gerechnet (L11), TRIMP nur bei geänderter
+    // Basis im current (FR-0006).
     final bounds = (await ReserveZoneSettings.loadParameters(session.settings))
         .reserveZoneBounds;
     final loadValues = buildRunLoadValues(

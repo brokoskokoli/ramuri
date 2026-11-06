@@ -92,7 +92,7 @@ List<ComputedValue> buildRunLoadValues({
           maxIsEstimated: basis.maxIsEstimated,
         );
     zones = noTime(ReserveZones.methodId, 1);
-    trimp = noTime(EdwardsTrimp.methodId, 1);
+    trimp = noTime(EdwardsTrimp.methodId, const EdwardsTrimp().methodVersion);
   } else {
     zones = const ReserveZones(reserve: HeartRateReserve()).timeInZones(
       basis: basis,

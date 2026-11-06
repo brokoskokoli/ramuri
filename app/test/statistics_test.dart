@@ -167,19 +167,20 @@ void main() {
         '(schnellster Lauf, Summe der Runden)', (tester) async {
       final d = await started(tester);
       d.clock.set(DateTime.utc(2026, 6, 3, 12));
-      final slow = await seedRun(d.session, DateTime.utc(2026, 6, 1, 8));
-      final fast = await seedRun(
-        d.session,
-        DateTime.utc(2026, 6, 2, 8),
-        speed: 4.0,
-      );
-      for (final (id, n) in [(slow, 2), (fast, 1)]) {
+      final slowStart = DateTime.utc(2026, 6, 1, 8);
+      final fastStart = DateTime.utc(2026, 6, 2, 8);
+      final slow = await seedRun(d.session, slowStart);
+      final fast = await seedRun(d.session, fastStart, speed: 4.0);
+      for (final (id, start, n) in [
+        (slow, slowStart, 2),
+        (fast, fastStart, 1),
+      ]) {
         for (var i = 1; i <= n; i++) {
           await d.session.markers.addLap(
             id,
             StoredLap(
               index: i,
-              markedAt: DateTime.utc(2026, 6, 1, 8, i),
+              markedAt: start.add(Duration(minutes: i)),
               lapTime: const Duration(minutes: 1),
             ),
           );

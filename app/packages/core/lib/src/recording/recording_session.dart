@@ -98,7 +98,6 @@ class RecordingSnapshot {
     required this.distanceMeters,
     required this.heartRateBpm,
     required this.positionLost,
-    required this.positionLossTime,
     required this.positionLossMovingTime,
     required this.standstillDetected,
     required this.laps,
@@ -123,12 +122,12 @@ class RecordingSnapshot {
   /// Länger als PAR-004 ohne akzeptierte Position (nur im aktiven Lauf).
   final bool positionLost;
 
-  /// Summe der GPS-Lücken bis jetzt (eine offene zählt bis jetzt). Diese Zeit
-  /// läuft in [movingTime] mit, trägt aber keine gemessene Strecke.
-  final Duration positionLossTime;
-
-  /// Der Teil von [positionLossTime], der in [movingTime] enthalten ist. Im
+  /// Bewegungszeit innerhalb der GPS-Lücken (`movingTimeInPositionGaps`):
+  /// läuft in [movingTime] mit, trägt aber keine gemessene Strecke. Im
   /// Stillstand (erkannte Pause) zählt eine Lücke nicht zur Bewegungszeit.
+  /// Die Lücken folgen der Messzeit (Punktzeit, K18), die Marker in [gaps]
+  /// der Uhrzeit des Eintreffens; bei verspäteten Punkten weichen beide
+  /// ab. Für die Pace (K20) gilt die Messzeit.
   final Duration positionLossMovingTime;
 
   /// Stillstand erkannt (PAR-014, PAR-015), unabhängig von der Einstellung.
@@ -389,7 +388,6 @@ class RecordingSession {
           distanceMeters: null,
           heartRateBpm: null,
           positionLost: false,
-          positionLossTime: Duration.zero,
           positionLossMovingTime: Duration.zero,
           standstillDetected: false,
           laps: const [],
@@ -412,7 +410,6 @@ class RecordingSession {
           ? null
           : pre.heartRateAt(now).value?.bpm,
       positionLost: _lossOpen,
-      positionLossTime: _lossTime(now),
       positionLossMovingTime: movingTimeInPositionGaps(r),
       standstillDetected:
           r.movement.autoPauseState == AutoPauseState.standstillPause,
@@ -461,15 +458,6 @@ class RecordingSession {
         resumes.isEmpty ? sampleTime : resumes.last,
       );
     }
-  }
-
-  Duration _lossTime(DateTime now) {
-    var sum = Duration.zero;
-    for (final g in _gaps) {
-      if (g.kind != RunGapKind.positionLoss) continue;
-      sum += (g.end ?? now).difference(g.start);
-    }
-    return sum;
   }
 
   // PAR-004: Lücke ab "länger als" gapMaxDuration; löst nie eine Pause aus.

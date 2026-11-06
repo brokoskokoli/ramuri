@@ -135,7 +135,7 @@ void main() {
       clock.advance(const Duration(seconds: 30)); // keine Punkte mehr
       final s = session.snapshot();
       expect(s.movingTime, const Duration(seconds: 60), reason: 'läuft weiter');
-      expect(s.positionLossTime, const Duration(seconds: 30));
+      expect(s.positionLossMovingTime, const Duration(seconds: 30));
       final km = s.distanceMeters! / 1000;
       // Nur die 30 s mit Strecke gelten: rund 345 s/km statt rund 690 s/km.
       expect(averagePaceSecondsPerKm(s)!, closeTo(30 / km, 0.001));
@@ -166,7 +166,7 @@ void main() {
     final before = session.snapshot();
     clock.advance(const Duration(seconds: 40)); // Lücke im Stand
     final s = session.snapshot();
-    expect(s.positionLossTime, greaterThan(Duration.zero));
+    expect(s.positionLost, isTrue);
     expect(s.positionLossMovingTime, Duration.zero);
     expect(s.movingTime, before.movingTime);
     final km = s.distanceMeters! / 1000;

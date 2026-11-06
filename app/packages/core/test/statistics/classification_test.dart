@@ -95,6 +95,25 @@ void main() {
       expect(c.comparedRuns, 0);
     });
 
+    test('Toleranz für "gleich" kommt aus den Parametern', () {
+      PaceRelation? rel(double pace, StatisticsParameters p) => classifyRun(
+        RunFigures(
+          runId: 20,
+          endedAt: run.endedAt,
+          day: run.day,
+          distanceMeters: 1000,
+          paceTime: Duration(milliseconds: (pace * 1000).round()),
+        ),
+        prev,
+        parameters: p,
+      ).relation;
+      const wide = StatisticsParameters(sameToleranceSecondsPerKm: 5);
+      const none = StatisticsParameters(sameToleranceSecondsPerKm: 0);
+      expect(rel(344, wide), PaceRelation.same);
+      expect(rel(344, const StatisticsParameters()), PaceRelation.slower);
+      expect(rel(340.5, none), PaceRelation.slower);
+    });
+
     test('Mindestzahl ist an einer Stelle austauschbar', () {
       const strict = StatisticsParameters(minimumComparisonRuns: 5);
       final c = classifyRun(run, prev.take(4), parameters: strict);

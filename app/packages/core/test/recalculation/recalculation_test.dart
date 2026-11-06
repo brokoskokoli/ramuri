@@ -220,4 +220,84 @@ void main() {
     expect(offer!.causes, {RecalculationCause.algorithmVersion});
     expect(offer.runIds, [id]);
   });
+
+  group('Versionsprüfung: TRIMP, nicht die Zonenzeiten', () {
+    ComputedValue changed(
+      ComputedValue v, {
+      String? method,
+      int? methodVersion,
+      int? parameterVersion,
+    }) => ComputedValue(
+      key: v.key,
+      value: v.value,
+      unit: v.unit,
+      computedAt: v.computedAt,
+      measurementCount: v.measurementCount,
+      sources: v.sources,
+      method: method ?? v.method,
+      methodVersion: methodVersion ?? v.methodVersion,
+      parameterVersion: parameterVersion ?? v.parameterVersion,
+      quality: v.quality,
+      dataFrom: v.dataFrom,
+      dataTo: v.dataTo,
+      unavailableReason: v.unavailableReason,
+      heartRateBasis: v.heartRateBasis,
+    );
+
+    // Ändert nur den Wert [key] im current des ersten Laufs.
+    Future<void> alter(
+      String key, {
+      String? method,
+      int? methodVersion,
+      int? parameterVersion,
+    }) async {
+      final owner = ValueOwner.run(ids.first);
+      final pair = (await w.session.values.read(owner))
+          .firstWhere((p) => p.original.key == key);
+      await w.session.values.swapCurrentAll({
+        owner: [
+          changed(
+            pair.current,
+            method: method,
+            methodVersion: methodVersion,
+            parameterVersion: parameterVersion,
+          ),
+        ],
+      });
+    }
+
+    test('Ausgangslage: nichts anzubieten', () async {
+      expect(await w.recalc().checkVersions(), isNull);
+    });
+
+    for (final (name, method, methodVersion, parameterVersion) in [
+      ('Methodenversion', null, 99, null),
+      ('Methode', 'anderes-trimp', null, null),
+      ('Parameterversion', null, null, 99),
+    ]) {
+      test('TRIMP mit anderer $name bietet an', () async {
+        await alter(
+          trimpRunValueKey,
+          method: method,
+          methodVersion: methodVersion,
+          parameterVersion: parameterVersion,
+        );
+        final offer = await w.recalc().checkVersions();
+        expect(offer!.causes, {RecalculationCause.algorithmVersion});
+        expect(offer.runIds, contains(ids.first));
+      });
+    }
+
+    test(
+      'Zonenzeiten mit anderer Version bieten nichts an (keine Schleife)',
+      () async {
+        await alter(
+          zoneTimeValueKey(1),
+          methodVersion: 99,
+          parameterVersion: 99,
+        );
+        expect(await w.recalc().checkVersions(), isNull);
+      },
+    );
+  });
 }

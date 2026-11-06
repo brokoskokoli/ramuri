@@ -22,7 +22,7 @@ class RunClassification {
     required double this.runSecondsPerKm,
     required double this.referenceSecondsPerKm,
     required this.comparedRuns,
-    this.sameToleranceSecondsPerKm = 1,
+    required this.sameToleranceSecondsPerKm,
   }) : unavailable = null;
 
   const RunClassification.unavailable(
@@ -30,7 +30,9 @@ class RunClassification {
     this.comparedRuns = 0,
   }) : runSecondsPerKm = null,
        referenceSecondsPerKm = null,
-       sameToleranceSecondsPerKm = 1;
+       // Ohne Einordnung gibt es keinen Unterschied, der zu vergleichen wäre;
+       // die Toleranz steht nur in StatisticsParameters.
+       sameToleranceSecondsPerKm = 0;
 
   final double? runSecondsPerKm;
 

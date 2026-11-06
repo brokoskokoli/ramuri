@@ -44,7 +44,7 @@ final valueContractCases = <StorageContractCase>[
 
 String _describe(StoredPreprocessing p) {
   final s = p.summary;
-  return '${s.method}|${s.methodVersion}|${s.parameterVersion}|${us(s.computedAt)}|${s.totalTime?.inMicroseconds}|${s.movingTime?.inMicroseconds}|${s.distanceMeters}|${s.bridgedDistanceMeters}|${s.averageBpm}|${s.maxBpm}|${s.medianBpm}'
+  return '${s.method}|${s.methodVersion}|${s.parameterVersion}|${us(s.computedAt)}|${s.totalTime?.inMicroseconds}|${s.movingTime?.inMicroseconds}|${s.distanceMeters}|${s.bridgedDistanceMeters}|${s.averageBpm}|${s.maxBpm}|${s.medianBpm}|${s.bestPaceSecondsPerKm}|${s.lapCount}|${s.heartRateTime?.inMicroseconds}'
       ' samples=${p.samples.map((x) => '${x.channel.name}/${x.rawId}/${us(x.time)}/${x.state.name}/${x.discardReason?.name}')}'
       ' spans=${p.spans.map((x) => '${x.kind.name}/${us(x.start)}/${us(x.end)}')}';
 }
@@ -59,7 +59,7 @@ Future<void> _preprocessing(StorageContractHarness h) async {
   final first = await s.preprocessing.read(r);
   expectEq(
     _describe(first!),
-    'preprocessing|1|2|${us(at(60, 5))}|61500000|60000000|1000.5|null|null|170|null'
+    'preprocessing|1|2|${us(at(60, 5))}|61500000|60000000|1000.5|null|null|170|null|312.5|3|58500000'
         ' samples=(position/1/${us(at(1))}/present/null, position/2/${us(at(2))}/discarded/hardJump)'
         ' spans=(moving/${us(at(5))}/null/null, settling/${us(at(1))}/${us(at(5))})',
     'gelesen: sortiert, fehlende Werte null',
@@ -70,6 +70,35 @@ Future<void> _preprocessing(StorageContractHarness h) async {
   );
   final replaced = await s.preprocessing.read(r);
   expectEq(replaced!.summary.methodVersion, 3, 'ersetzt');
+  expectEq(
+    '${replaced.summary.bestPaceSecondsPerKm}|${replaced.summary.lapCount}|${replaced.summary.heartRateTime}',
+    '312.5|3|0:00:58.500000',
+    'ersetzt: Bestpace, Runden, Zeit mit Puls',
+  );
+  // Nicht bestimmbar bleibt null, wird nie zu 0 (Spalten nullbar).
+  final bare = samplePreprocessing(3).summary;
+  await s.preprocessing.replace(
+    r,
+    StoredPreprocessing(
+      summary: PreprocessingSummary(
+        method: bare.method,
+        methodVersion: bare.methodVersion,
+        parameterVersion: bare.parameterVersion,
+        computedAt: bare.computedAt,
+      ),
+    ),
+  );
+  final nulls = (await s.preprocessing.read(r))!.summary;
+  expectEq(
+    '${nulls.bestPaceSecondsPerKm}|${nulls.lapCount}|${nulls.heartRateTime}',
+    'null|null|null',
+    'ohne Bestpace, Runden, Zeit mit Puls: null statt 0',
+  );
+  expectEq(
+    '${(await s.preprocessing.readOverviews())[r]!.summary.lapCount}',
+    'null',
+    'Kurzfassung: Runden null statt 0',
+  );
   expectEq(
     '${replaced.samples.length}/${replaced.spans.length}',
     '0/0',
@@ -122,6 +151,11 @@ Future<void> _overviews(StorageSession s, int r, int other) async {
   final o = all[r]!;
   expectEq(o.summary.methodVersion, 4, 'Zusammenfassung des Laufs');
   expectEq(o.summary.distanceMeters, 1000.5, 'Strecke');
+  expectEq(
+    '${o.summary.bestPaceSecondsPerKm}|${o.summary.lapCount}|${o.summary.heartRateTime?.inMicroseconds}',
+    '312.5|3|58500000',
+    'Kurzfassung: Bestpace, Runden, Zeit mit Puls',
+  );
   expectEq(o.samples.length, 0, 'keine Samples');
   expectEq(
     o.spans.map((x) => '${x.kind.name}/${us(x.start)}/${us(x.end)}').toList(),

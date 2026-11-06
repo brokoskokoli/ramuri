@@ -31,7 +31,6 @@ StoredPreprocessing overviewOf(
   RunPreprocessing pre, {
   required DateTime computedAt,
   int? lapCount,
-  StatisticsParameters statistics = const StatisticsParameters(),
 }) => StoredPreprocessing(
   summary: PreprocessingSummary(
     method: runOverviewMethod,
@@ -44,10 +43,7 @@ StoredPreprocessing overviewOf(
     bridgedDistanceMeters: pre.position.bridgedDistanceMeters,
     averageBpm: pre.heartRate.averageBpm,
     maxBpm: pre.heartRate.maxBpm,
-    bestPaceSecondsPerKm: bestPace(
-      pre.pace.segments,
-      parameters: statistics,
-    ).secondsPerKm,
+    bestPaceSecondsPerKm: bestPace(pre.pace.segments).secondsPerKm,
     lapCount: lapCount,
     heartRateTime: movingTimeWithHeartRate(pre),
   ),
@@ -187,13 +183,11 @@ class RunOverviewService {
     required this.session,
     required this.clock,
     this.parameters = const PreprocessingParameters.v4(),
-    this.statistics = const StatisticsParameters(),
   });
 
   final StorageSession session;
   final Clock clock;
   final PreprocessingParameters parameters;
-  final StatisticsParameters statistics;
 
   /// Beendete Läufe, neuester Start zuerst (Reihenfolge von `runs.list`).
   /// Unfertige Läufe fehlen.
@@ -242,12 +236,7 @@ class RunOverviewService {
       // Ein Lauf, der nicht lesbar ist, lässt die Historie nicht scheitern.
       return RunOverview(run: run, readFailed: true, load: load);
     }
-    final stored = overviewOf(
-      pre,
-      computedAt: clock.now(),
-      lapCount: lapCount,
-      statistics: statistics,
-    );
+    final stored = overviewOf(pre, computedAt: clock.now(), lapCount: lapCount);
     try {
       await session.preprocessing.replace(run.id, stored);
     } on StorageException {
