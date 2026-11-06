@@ -1,7 +1,6 @@
-import '../fitness/algorithm_variant.dart';
-
 import 'dart:collection';
 
+import '../algorithm_category.dart';
 import 'latest_value_index.dart';
 import 'measurement.dart';
 import 'preprocessing_parameters.dart';

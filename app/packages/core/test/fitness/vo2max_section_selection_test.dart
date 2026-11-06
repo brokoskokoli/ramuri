@@ -602,6 +602,19 @@ void main() {
       );
     });
 
+    test('PAR-023 Pulsunterschied der Hälften gleich der Grenze: gültig', () {
+      final sc = steady(600, bpm: (s) => s <= 480 ? 148 : 153);
+      final d = measured(
+        sc,
+        SectionRule.heartRateHalves,
+        const SectionSelectionParameters(heartRateMaxHalfDifferenceBpm: 0),
+      );
+      expect(d, inInclusiveRange(4, 6));
+      expectUsable(
+        run(sc, SectionSelectionParameters(heartRateMaxHalfDifferenceBpm: d)),
+      );
+    });
+
     test('PAR-025 Anteil der Punkte ≤ 15 m gleich der Grenze: gültig', () {
       final sc = steady(600, accuracy: (s) => (s >= 200 && s < 260) ? 20 : 5);
       final share = measured(

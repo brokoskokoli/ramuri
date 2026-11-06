@@ -1,4 +1,4 @@
-import '../fitness/algorithm_variant.dart';
+import '../algorithm_category.dart';
 import 'motion_segments.dart';
 import 'pace.dart';
 import 'preprocessing_parameters.dart';

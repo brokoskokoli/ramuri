@@ -1,4 +1,4 @@
-import '../fitness/algorithm_variant.dart';
+import '../algorithm_category.dart';
 import 'heart_rate_beat.dart';
 import 'heart_rate_processor.dart';
 import 'measurement.dart';

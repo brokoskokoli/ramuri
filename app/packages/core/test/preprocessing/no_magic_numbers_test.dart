@@ -21,6 +21,7 @@ const perFile = <String, Set<String>>{
     'settling_processor.dart',
   }, // Mikrosekunden je Sekunde
   '1000': {'pace.dart'}, // Meter je Kilometer
+  '1e-9': {'vo2max_estimator.dart'}, // Gleitkomma-Toleranz, kein Grenzwert
   '180': {'geo.dart'}, // Grad zu Bogenmaß
   '6371008.8': {'geo.dart'}, // Erdradius (benannte Konstante)
 };

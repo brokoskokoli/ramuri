@@ -208,6 +208,61 @@ void main() {
       }
     });
 
+    test('nur unvollständige Abschnitte: Grund noValidSection', () {
+      final s = EvaluatedSection(
+        from: _t0,
+        to: _t0.add(const Duration(minutes: 10)),
+        status: SectionStatus.eligible,
+        violations: const [],
+        caveats: const [],
+        weight: 1,
+        speedMetersPerMinute: 180,
+        meanHeartRate: 150,
+        relativeLoad: null,
+        gradient: 0,
+        gradientBasis: GradientBasis.belowThreshold,
+        distanceMeters: 1800,
+      );
+      final r = run([s]);
+      expect(r.sections.single.discard, EstimateDiscard.incomplete);
+      expect(r.result.reason, UnavailableReason.noValidSection);
+    });
+
+    test('nur Abschnitte mit Gewicht 0: verworfen, Grund noValidSection', () {
+      final r = run([sec(50, weight: 0), sec(52, startMin: 10, weight: 0)]);
+      expect(r.sections.map((e) => e.discard), [
+        EstimateDiscard.zeroWeight,
+        EstimateDiscard.zeroWeight,
+      ]);
+      expect(r.tier, QualityTier.notDeterminable);
+      expect(r.result.reason, UnavailableReason.noValidSection);
+    });
+
+    test('Gewicht 0 neben gültigen Abschnitten: verworfen, kein Fehler', () {
+      final r = run([...three(), sec(70, startMin: 30, weight: 0)]);
+      expect(r.sections.last.discard, EstimateDiscard.zeroWeight);
+      expect(r.used, hasLength(3));
+      expect(r.result.value, run(three()).result.value);
+    });
+
+    test('Parameterversion der Auswahl weicht ab: ArgumentError', () {
+      expect(
+        () => _est.estimate(
+          selection: SectionSelection(
+            parameterVersion: 2,
+            sections: three(),
+            excluded: const [],
+          ),
+          basis: selBasis,
+          p: _p,
+          calculatedAt: _end,
+          runStart: _t0,
+          runEnd: _end,
+        ),
+        throwsArgumentError,
+      );
+    });
+
     test('nur Abschnitte ohne Puls: Grund noHeartRate', () {
       final s = EvaluatedSection(
         from: _t0,
@@ -287,10 +342,11 @@ void main() {
 
     test('abgelehnte Abschnitte gehen nicht ein', () {
       final r = run([
-        ...three(),
-        sec(50, startMin: 30, status: SectionStatus.rejected),
+        ...three(48, 50, 52),
+        sec(80, startMin: 30, status: SectionStatus.rejected),
       ]);
       expect(r.sections, hasLength(3));
+      expect(r.result.value, run(three(48, 50, 52)).result.value);
     });
 
     test('jeder Laufwert trägt eine Stufe', () {
@@ -335,6 +391,17 @@ void main() {
         sec(70, startMin: 20, durMin: 5), // 5
       ]);
       expect(r.result.value, closeTo(40, 1e-9));
+    });
+
+    test('Hälfte genau getroffen trotz Gleitkomma-Rundung: Mitte', () {
+      // Dezimal ist die Summe der ersten beiden Gewichte genau die Hälfte,
+      // in Gleitkomma ist cum * 2 != total.
+      const w = [0.1, 0.2, 0.2, 0.1];
+      expect((w[0] + w[1]) * 2, isNot(w.reduce((a, b) => a + b)));
+      expect(
+        AcsmReserveVo2maxEstimator.weightedMedian([10, 20, 30, 40], w),
+        25,
+      );
     });
 
     test('gewichteter Median: Hälfte genau getroffen mittelt', () {
@@ -386,6 +453,15 @@ void main() {
       final wide = run(withResidual(1.5));
       double mean(Vo2maxRunEstimate r) =>
           r.used.map((e) => e.vo2max!).reduce((a, b) => a + b) / 3;
+      // Gleicher Trend: Steigung der kleinsten Quadrate über die Abschnitte
+      // (Mitten im Abstand von 10 min) ist bei beiden gleich.
+      double slope(Vo2maxRunEstimate r) {
+        final y = r.used.map((e) => e.vo2max!).toList();
+        return (y[2] - y[0]) / 20;
+      }
+
+      expect(slope(tight), closeTo(0.1, 1e-9));
+      expect(slope(wide), closeTo(slope(tight), 1e-9));
       expect(mean(tight), closeTo(mean(wide), 1e-9));
       expect(tight.tier, QualityTier.good);
       expect(wide.tier, QualityTier.sufficient);

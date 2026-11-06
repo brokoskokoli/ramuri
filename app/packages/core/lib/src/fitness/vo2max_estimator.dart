@@ -42,6 +42,10 @@ enum EstimateDiscard {
   /// Tempo oder `r` fehlt, obwohl der Abschnitt zugelassen war (sollte nicht
   /// vorkommen; Teil A lehnt solche Abschnitte ab).
   incomplete,
+
+  /// Gewicht 0 (PAR-033 mit Spätfaktor 0 oder Dauer 0): der Abschnitt trägt
+  /// nichts zum gewichteten Median bei und zählt nicht.
+  zeroWeight,
 }
 
 /// Schätzung eines Abschnitts (FR-0076 Schritte 4 bis 7).
@@ -171,10 +175,16 @@ class AcsmReserveVo2maxEstimator extends Vo2maxEstimator {
     return minutes * factor * s.weight;
   }
 
+  /// Relative Toleranz für den Gewichtsvergleich im gewichteten Median
+  /// (Gleitkomma-Rundung, kein fachlicher Grenzwert).
+  static const double _weightTolerance = 1e-9;
+
   /// Gewichteter Median: der Wert, bei dem das Gewicht der kleineren Werte
   /// die Hälfte nicht erreicht und das der kleineren und gleichen sie
   /// erreicht. Trifft die Summe genau die Hälfte, gilt die Mitte zwischen
-  /// diesem und dem nächsten Wert. Werte mit Gewicht 0 zählen nicht.
+  /// diesem und dem nächsten Wert. „Genau“ gilt mit relativer Toleranz
+  /// [_weightTolerance], damit Rundung bei Dauern wie 7:20 min nicht
+  /// entscheidet. Werte mit Gewicht 0 zählen nicht.
   static double weightedMedian(List<double> values, List<double> weights) {
     if (values.length != weights.length || values.isEmpty) {
       throw ArgumentError('Werte und Gewichte müssen gleich lang sein');
@@ -185,13 +195,15 @@ class AcsmReserveVo2maxEstimator extends Vo2maxEstimator {
     ]..sort((a, b) => values[a].compareTo(values[b]));
     if (idx.isEmpty) throw ArgumentError('kein Gewicht größer 0');
     final total = idx.fold<double>(0, (a, i) => a + weights[i]);
+    final half = total / 2;
+    final tolerance = _weightTolerance * total;
     var cum = 0.0;
     for (var k = 0; k < idx.length; k++) {
       cum += weights[idx[k]];
-      if (cum * 2 == total && k + 1 < idx.length) {
+      if ((cum - half).abs() <= tolerance && k + 1 < idx.length) {
         return (values[idx[k]] + values[idx[k + 1]]) / 2;
       }
-      if (cum * 2 >= total) return values[idx[k]];
+      if (cum >= half - tolerance) return values[idx[k]];
     }
     return values[idx.last];
   }
@@ -278,6 +290,12 @@ class AcsmReserveVo2maxEstimator extends Vo2maxEstimator {
     Set<String> dataSources = const {},
     bool treadmill = false,
   }) {
+    if (selection.parameterVersion != p.parameterVersion) {
+      throw ArgumentError(
+        'Parameterversionen weichen ab: Abschnittsauswahl '
+        '${selection.parameterVersion}, Fitness ${p.parameterVersion}',
+      );
+    }
     final vp = p.vo2max;
     AdvancedFitnessValue<double> make(
       QualityTier tier, {
@@ -337,11 +355,14 @@ class AcsmReserveVo2maxEstimator extends Vo2maxEstimator {
       final max = demand == null || r == null || r <= 0
           ? null
           : extrapolate(demand, r, vp);
+      final weight = sectionWeight(s, vp);
       final EstimateDiscard? discard;
       if (max == null || !max.isFinite) {
         discard = EstimateDiscard.incomplete;
       } else if (max < vp.plausibleMin || max > vp.plausibleMax) {
         discard = EstimateDiscard.implausible; // PAR-032
+      } else if (weight <= 0) {
+        discard = EstimateDiscard.zeroWeight;
       } else {
         discard = null;
       }
@@ -350,7 +371,7 @@ class AcsmReserveVo2maxEstimator extends Vo2maxEstimator {
           section: s,
           oxygenDemand: demand,
           vo2max: max,
-          weight: sectionWeight(s, vp),
+          weight: weight,
           discard: discard,
         ),
       );
@@ -360,8 +381,14 @@ class AcsmReserveVo2maxEstimator extends Vo2maxEstimator {
         if (e.isUsed) e,
     ];
     if (used.isEmpty) {
+      // Grund nach Art des Verwerfens: nur unplausible Werte nennen sich so.
+      final anyImplausible = estimates.any(
+        (e) => e.discard == EstimateDiscard.implausible,
+      );
       return undetermined(
-        UnavailableReason.allEstimatesImplausible,
+        anyImplausible
+            ? UnavailableReason.allEstimatesImplausible
+            : UnavailableReason.noValidSection,
         sections: estimates,
       );
     }

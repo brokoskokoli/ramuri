@@ -17,8 +17,15 @@ abstract class Vo2maxLongTerm extends AlgorithmVariant {
   /// [now] ist der Berechnungszeitpunkt; der Aufrufer liest ihn aus der
   /// Uhr-Schnittstelle (`Clock.now()`), diese Familie importiert keine Ports
   /// (algorithm_framework_test, NFR-0005). Läufe der Stufe „nicht bestimmbar“
-  /// ändern nichts (FR-0080). Ohne einen verwertbaren Lauf ist das Ergebnis
-  /// „nicht bestimmbar“.
+  /// ändern nichts (FR-0080), ebenso Läufe, die erst nach [now] enden (der
+  /// Wert gilt „zum Stand [now]“, FR-0053). Ohne einen verwertbaren Lauf ist
+  /// das Ergebnis „nicht bestimmbar“.
+  ///
+  /// Metadaten: `usableMeasurements` zählt die verwertbaren Läufe im weiteren
+  /// Fenster (PAR-043, 8 Wochen vor [now]); bei einem veralteten Wert ohne
+  /// Lauf im Fenster ist es 0, Zeitraum und Datenquellen stammen dann vom
+  /// letzten verwertbaren Lauf. Bei „nicht bestimmbar“ ist der Datenzeitraum
+  /// leer (`now` bis `now`).
   AdvancedFitnessValue<double> compute({
     required List<AdvancedFitnessValue<double>> runs,
     required FitnessParameters p,
@@ -97,7 +104,9 @@ class SmoothedVo2maxLongTerm extends Vo2maxLongTerm {
     final v = p.vo2max;
     final usable = [
       for (final r in runs)
-        if (r.metadata.tier != QualityTier.notDeterminable && r.value != null)
+        if (r.metadata.tier != QualityTier.notDeterminable &&
+            r.value != null &&
+            !r.metadata.dataTo.isAfter(now))
           r,
     ]..sort((a, b) => a.metadata.dataTo.compareTo(b.metadata.dataTo));
 
@@ -117,6 +126,7 @@ class SmoothedVo2maxLongTerm extends Vo2maxLongTerm {
     }
 
     if (value == null) {
+      // Kein verwertbarer Lauf: leerer Datenzeitraum now..now.
       return AdvancedFitnessValue(
         metadata: FitnessValueMetadata(
           calculatedAt: now,

@@ -270,6 +270,32 @@ void main() {
     );
   });
 
+  group('Läufe nach now (Review B2, Muss 1)', () {
+    test('ein Lauf in der Zukunft geht weder in Wert noch Zeitraum ein', () {
+      final past = run(40, g, 10);
+      final future = run(80, g, -5);
+      final r = compute([past, future]);
+      final alone = compute([past]);
+      expect(r.value, alone.value);
+      expect(r.value, 40);
+      expect(r.metadata.usableMeasurements, 1);
+      expect(r.metadata.dataTo, past.metadata.dataTo);
+      expect(r.metadata.tier, alone.metadata.tier);
+    });
+
+    test('nur Läufe in der Zukunft: nicht bestimmbar', () {
+      final r = compute([run(80, g, -1)]);
+      expect(r.value, isNull);
+      expect(r.reason, UnavailableReason.insufficientData);
+    });
+
+    test('Lauf genau zum Zeitpunkt now zählt noch', () {
+      final r = compute([runAt(70, g, _now)]);
+      expect(r.value, 70);
+      expect(r.metadata.usableMeasurements, 1);
+    });
+  });
+
   group('Metadaten und Uhr', () {
     test('Methode, Versionen, Datenzeitraum, Berechnungszeitpunkt', () {
       final a = run(40, g, 10);
