@@ -1,6 +1,7 @@
 import 'algorithm_variant.dart';
 import '../preprocessing/movement_time_processor.dart';
 import 'fitness_result.dart';
+import 'heart_rate_basis.dart';
 
 /// Kennung und Version der Abschnittsauswahl für die VO₂max (ADR-0004 P.3).
 const String vo2maxSectionSelectionMethod = 'vo2max-section-selection';
@@ -217,6 +218,7 @@ class ExcludedSpan {
 class SectionSelection {
   SectionSelection({
     required this.parameterVersion,
+    required this.basis,
     required List<EvaluatedSection> sections,
     required List<ExcludedSpan> excluded,
   }) : sections = List.unmodifiable(sections),
@@ -225,6 +227,10 @@ class SectionSelection {
   String get method => vo2maxSectionSelectionMethod;
   int get methodVersion => vo2maxSectionSelectionMethodVersion;
   final int parameterVersion;
+
+  /// Die Herzfrequenzbasis, mit der `r` der Abschnitte berechnet wurde. Der
+  /// Schätzer verlangt dieselbe Basis (sonst [ArgumentError]).
+  final HeartRateBasis basis;
 
   /// Alle Abschnitte in Zeitreihenfolge, auch die abgelehnten.
   final List<EvaluatedSection> sections;

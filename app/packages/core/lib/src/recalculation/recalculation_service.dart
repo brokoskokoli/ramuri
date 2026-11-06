@@ -74,6 +74,14 @@ class RecalculationService {
 
   /// Wie oft eine Ursache angeboten wurde; zeigt, ob während einer laufenden
   /// Bestätigung ein neues Angebot dazukam.
+  ///
+  /// Der Zähler lebt nur in dieser Instanz. Vorausgesetzt ist genau EINE
+  /// Instanz je Sitzung (die App erfüllt das als Singleton der
+  /// Abhängigkeitsinjektion) und dass Anbieten, Bestätigen und Ablehnen nicht
+  /// gleichzeitig laufen. Zwischen Lesen ([_pendingCauses]) und Speichern
+  /// ([_setPending]) der offenen Ursachen liegt eine Lücke: eine zweite
+  /// Instanz oder ein paralleler Aufruf könnte ein Angebot dazwischen
+  /// verlieren.
   final _offerSeq = <RecalculationCause, int>{};
 
   /// Ereignis „Neuberechnung angeboten“.

@@ -153,7 +153,9 @@ class ComputedValue {
   /// HFRuhe und ob HFmax eine Schätzung ist, unverändert und nie neu gelesen.
   /// Eine Neuberechnung rechnet den Wert mit genau dieser Basis, nie mit einer
   /// abgelehnten neuen. `null` = kein Schnappschuss: der Wert braucht keine
-  /// Basis, oder die Zeile stammt aus Schema 1 (Basis unbekannt). Ein Wert in
+  /// Basis, die Zeile stammt aus Schema 1 (Basis unbekannt), oder es ist eine
+  /// aerobe Effizienz aus Läufen mit verschiedenen Basen (gemischt; nie gelesen,
+  /// die Neuberechnung nimmt die Basis der Laufwerte). Ein Wert in
   /// [heartRateBasis] ist `null`, wenn die Basis ihn nicht kannte; vorhandene
   /// Werte sind größer 0 ([HeartRateBasis.usableMaxBpm]).
   final HeartRateBasis? heartRateBasis;

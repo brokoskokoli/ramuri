@@ -40,8 +40,15 @@ EvaluatedSection sec(
   );
 }
 
-SectionSelection selOf(List<EvaluatedSection> s) =>
-    SectionSelection(parameterVersion: 3, sections: s, excluded: const []);
+SectionSelection selOf(
+  List<EvaluatedSection> s, [
+  HeartRateBasis basis = selBasis,
+]) => SectionSelection(
+  parameterVersion: 3,
+  basis: basis,
+  sections: s,
+  excluded: const [],
+);
 
 Vo2maxRunEstimate run(
   List<EvaluatedSection> s, {
@@ -49,7 +56,7 @@ Vo2maxRunEstimate run(
   FitnessParameters p = _p,
   bool treadmill = false,
 }) => _est.estimate(
-  selection: selOf(s),
+  selection: selOf(s, basis),
   basis: basis,
   p: p,
   calculatedAt: _end,
@@ -250,6 +257,7 @@ void main() {
         () => _est.estimate(
           selection: SectionSelection(
             parameterVersion: 2,
+            basis: selBasis,
             sections: three(),
             excluded: const [],
           ),
@@ -261,6 +269,32 @@ void main() {
         ),
         throwsArgumentError,
       );
+    });
+
+    test('Herzfrequenzbasis der Auswahl weicht ab: ArgumentError', () {
+      for (final other in const [
+        HeartRateBasis(maxBpm: 185, restingBpm: 60),
+        HeartRateBasis(maxBpm: 190, restingBpm: 55),
+        HeartRateBasis(maxBpm: 190, restingBpm: 60, maxIsEstimated: true),
+      ]) {
+        expect(
+          () => _est.estimate(
+            selection: selOf(three()),
+            basis: other,
+            p: _p,
+            calculatedAt: _end,
+            runStart: _t0,
+            runEnd: _end,
+          ),
+          throwsArgumentError,
+        );
+      }
+    });
+
+    test('unplausibel und Gewicht 0: implausible, allEstimatesImplausible', () {
+      final r = run([sec(95, weight: 0)]);
+      expect(r.sections.single.discard, EstimateDiscard.implausible);
+      expect(r.result.reason, UnavailableReason.allEstimatesImplausible);
     });
 
     test('nur Abschnitte ohne Puls: Grund noHeartRate', () {

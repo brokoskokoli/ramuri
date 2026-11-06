@@ -81,15 +81,17 @@ void main() {
 
   test('ohne Schätzung (Basis fehlt): Abschnitte mit Gewicht 0 und ohne '
       'Schätzwert, Spätfaktor bleibt', () {
-    final e = _estimate(selection, const HeartRateBasis(), scenario.seconds);
+    const none = HeartRateBasis();
+    final noBasis = selectSections(scenario, basis: none);
+    final e = _estimate(noBasis, none, scenario.seconds);
     expect(e.result.reason, isNotNull);
     expect(e.sections, isEmpty);
-    final v = valueSectionsOf(selection, e);
+    final v = valueSectionsOf(noBasis, e);
     expect(v, hasLength(5));
     expect(v.every((s) => s.weight == 0 && s.estimate == null), isTrue);
     expect(
       [for (final s in v) s.lateFactor],
-      [for (final s in selection.sections) s.weight],
+      [for (final s in noBasis.sections) s.weight],
     );
   });
 

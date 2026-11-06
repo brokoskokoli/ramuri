@@ -40,6 +40,7 @@ EfficiencyRun runOf(
   endedAt: _now.subtract(ago),
   selection: SectionSelection(
     parameterVersion: _p.parameterVersion,
+    basis: selBasis,
     sections: sections,
     excluded: const [],
   ),
@@ -436,6 +437,7 @@ void main() {
         endedAt: _now,
         selection: SectionSelection(
           parameterVersion: 99,
+          basis: selBasis,
           sections: const [],
           excluded: const [],
         ),

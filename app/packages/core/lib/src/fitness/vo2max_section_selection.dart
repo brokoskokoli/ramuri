@@ -76,6 +76,7 @@ class Vo2maxSectionSelector {
     }
     return SectionSelection(
       parameterVersion: parameters.parameterVersion,
+      basis: basis,
       sections: sections,
       excluded: excluded,
     );

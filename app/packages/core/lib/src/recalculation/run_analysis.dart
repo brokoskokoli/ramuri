@@ -195,6 +195,7 @@ class RunAnalyzer {
       // Lauf ohne Dauer: nichts auszuwählen, der Schätzer meldet den Grund.
       selection = SectionSelection(
         parameterVersion: fitness.parameterVersion,
+        basis: basis,
         sections: const [],
         excluded: const [],
       );

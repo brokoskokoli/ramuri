@@ -80,6 +80,53 @@ void main() {
     });
   });
 
+  group('Stichtag der Tageswerte', () {
+    Future<ComputedValue> longOf(RecalcWorld w, String day) async =>
+        (await w.session.values.read(ValueOwner.day(day)))
+            .firstWhere((p) => p.original.key == vo2maxLongTermValueKey)
+            .current;
+
+    test(
+      'vergangener Tag mit +2 h: Stichtag ist das lokale Tagesende',
+      () async {
+        final w = await RecalcWorld.create();
+        const plus2 = Duration(hours: 2);
+        // A endet 20:30 UTC = 22:30 lokal (25.), B endet 22:30 UTC = 00:30
+        // lokal (26.). Der Tageswert des 25. darf B nicht enthalten, obwohl B
+        // vor dem UTC-Tagesende liegt.
+        final a = await w.seedRun(
+          DateTime.utc(2030, 2, 25, 20),
+          utcOffset: plus2,
+        );
+        final b = await w.seedRun(
+          DateTime.utc(2030, 2, 25, 22),
+          utcOffset: plus2,
+        );
+        w.clock.set(DateTime.utc(2030, 2, 27, 9));
+        await w.calc().calculateAfterRun(b);
+        await w.calc().calculateAfterRun(a);
+        final v = await longOf(w, '2030-02-25');
+        expect(v.measurementCount, 1);
+        expect(v.dataTo, DateTime.utc(2030, 2, 25, 20, 30));
+      },
+    );
+
+    test(
+      'Lauf erst Tage später gerechnet: Stichtag ist sein Tagesende',
+      () async {
+        final w = await RecalcWorld.create();
+        final a = await w.seedRun(DateTime.utc(2030, 2, 20, 8));
+        final later = await w.seedRun(DateTime.utc(2030, 2, 25, 8));
+        w.clock.set(DateTime.utc(2030, 2, 28, 9));
+        await w.calc().calculateAfterRun(later);
+        await w.calc().calculateAfterRun(a);
+        final v = await longOf(w, '2030-02-20');
+        expect(v.measurementCount, 1);
+        expect(v.dataTo, DateTime.utc(2030, 2, 20, 8, 30));
+      },
+    );
+  });
+
   group('nach dem Lauf: alles oder nichts', () {
     test('Fehler beim Lesen eines anderen Laufs hinterlässt nichts', () async {
       final w = await RecalcWorld.create();
@@ -152,6 +199,19 @@ void main() {
       // Der Langzeitwert braucht keine Basis.
       expect(res.longTerm.heartRateBasis, isNull);
     });
+
+    test(
+      'Läufe mit verschiedenen Basen: Effizienz trägt keine (gemischt)',
+      () async {
+        final w = await RecalcWorld.create();
+        await w.seedFourRunsCalculated();
+        await w.session.profile.save(profile180);
+        final id = await w.seedRun(DateTime.utc(2030, 2, 28, 8));
+        final res = await w.calc().calculateAfterRun(id);
+        expect(res.runValue.heartRateBasis!.maxBpm, 180);
+        expect(res.efficiency!.heartRateBasis, isNull);
+      },
+    );
 
     test('Löschen rechnet alte Werte mit der gespeicherten Basis', () async {
       final w = await RecalcWorld.create();

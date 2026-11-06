@@ -43,8 +43,9 @@ enum EstimateDiscard {
   /// vorkommen; Teil A lehnt solche Abschnitte ab).
   incomplete,
 
-  /// Gewicht 0 (PAR-033 mit Spätfaktor 0 oder Dauer 0): der Abschnitt trägt
-  /// nichts zum gewichteten Median bei und zählt nicht.
+  /// Gewicht 0 (Abschnittsgewicht 0 aus Teil A, PAR-033 mit Spätfaktor 0 oder
+  /// Dauer 0): der Abschnitt trägt nichts zum gewichteten Median bei und zählt
+  /// nicht.
   zeroWeight,
 }
 
@@ -294,6 +295,15 @@ class AcsmReserveVo2maxEstimator extends Vo2maxEstimator {
       throw ArgumentError(
         'Parameterversionen weichen ab: Abschnittsauswahl '
         '${selection.parameterVersion}, Fitness ${p.parameterVersion}',
+      );
+    }
+    if (selection.basis.maxBpm != basis.maxBpm ||
+        selection.basis.restingBpm != basis.restingBpm ||
+        selection.basis.maxIsEstimated != basis.maxIsEstimated) {
+      // `r` stammt aus der Basis der Auswahl, die Prüfung und maxIsEstimated
+      // aus [basis]: abweichend wäre das ein Verdrahtungsfehler.
+      throw ArgumentError(
+        'Herzfrequenzbasen weichen ab: Abschnittsauswahl und Schätzer',
       );
     }
     final vp = p.vo2max;

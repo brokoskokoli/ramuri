@@ -331,7 +331,12 @@ class ValueCalculationService {
     );
   }
 
-  /// Die gemeinsame Basis, sonst `null`.
+  /// Die gemeinsame Basis, sonst `null`. `null` heißt am Effizienzwert also
+  /// „gemischt“ (Läufe mit verschiedenen Basen) und ist dort nicht von
+  /// „unbekannt“ (Schema 1) zu unterscheiden. Das ist fürs Rechnen harmlos: Die
+  /// Effizienz-Basis wird nie gelesen; eine Neuberechnung nimmt die Basis der
+  /// Laufwerte. Für Anzeige und Export bedeutet `null` „gemischt oder
+  /// unbekannt“ (OQ-0065).
   static HeartRateBasis? _common(List<HeartRateBasis> bases) {
     if (bases.isEmpty) return null;
     final first = bases.first;
