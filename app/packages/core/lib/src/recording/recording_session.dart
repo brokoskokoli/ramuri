@@ -352,7 +352,12 @@ class RecordingSession {
     final gate = _gate(r.time);
     if (gate != null) return gate;
     _pre!.addHeartRate(
-      RawHeartRate(time: r.time, source: r.deviceId, bpm: r.beatsPerMinute),
+      RawHeartRate(
+        time: r.time,
+        source: r.deviceId,
+        bpm: r.beatsPerMinute,
+        contact: r.contact,
+      ),
     );
     return Intake.processed;
   }

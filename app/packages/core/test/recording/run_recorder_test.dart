@@ -572,6 +572,20 @@ void main() {
   });
 
   group('Rennen und Serialisierung', () {
+    test('Kontakt des Pulswerts wird mit gespeichert (PAR-008)', () async {
+      final r = await Rig.make();
+      await r.recorder.start();
+      r.clock.advance(const Duration(seconds: 1));
+      r.recorder.addHeartRate(
+        HeartRateReading('s', r.clock.now(), 140, contact: SensorContact.poor),
+      );
+      await r.recorder.flush();
+      expect(
+        (await r.raw()).heartRates.single.value.contact,
+        SensorContact.poor,
+      );
+    });
+
     test('Ende während laufendem Schreiben: Punkte danach verworfen, Zustand '
         'erst nach dem Stapel', () async {
       final r = await Rig.make();
