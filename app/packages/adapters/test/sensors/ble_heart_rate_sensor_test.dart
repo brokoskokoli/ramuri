@@ -196,7 +196,7 @@ void main() {
       expect(events.whereType<HeartRateReading>(), isEmpty);
     });
 
-    test('Abbrechen während des Verbindens: trennt, kein Ereignis', () async {
+    test('Abbrechen während des Verbindens: trennt (auch nach spätem Verbinden), kein Ereignis', () async {
       link.connectGate = Completer<void>();
       final events = <HeartRateEvent>[];
       final sub = sensor.connect('d1').listen(events.add);
@@ -205,7 +205,7 @@ void main() {
       link.connectGate!.complete();
       await pump();
       await pump();
-      expect(link.disconnects, 1);
+      expect(link.disconnects, 2);
       expect(events, isEmpty);
     });
 

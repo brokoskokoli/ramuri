@@ -114,7 +114,12 @@ class _Session {
         closeGattOnDetach: true,
         timeout: _timeout,
       );
-      if (_closed) return;
+      if (_closed) {
+        // Abbruch lief vor dem Verbindungsaufbau; mit autoConnect kann das
+        // Plugin danach doch „verbunden“ melden. Die Verbindung wieder lösen.
+        await _disconnectQuietly();
+        return;
+      }
       final services = await _link.discoverServices(_id);
       if (_closed) return;
       final hr = _find(services, BleHeartRateSensor.heartRateService);
@@ -212,6 +217,10 @@ class _Session {
     await _states?.cancel();
     _notifications = null;
     _states = null;
+    await _disconnectQuietly();
+  }
+
+  Future<void> _disconnectQuietly() async {
     try {
       await _link.disconnect(_id);
     } catch (_) {

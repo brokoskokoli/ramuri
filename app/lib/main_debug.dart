@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'app.dart';
@@ -7,9 +8,11 @@ import 'system_clock.dart';
 
 /// Debug-Einstiegspunkt mit Test-Sensor (WP07): `flutter run -t lib/main_debug.dart`.
 ///
-/// Der Release-Build startet `main.dart` und erreicht diese Datei nie; so
-/// landet der Test-Sensor nicht im APK (belegt am Artefakt, siehe WP07).
+/// Der Release-Build startet `main.dart`. Auch `-t lib/main_debug.dart` im
+/// Release bricht ab; `kReleaseMode` ist eine Konstante, der Compiler entfernt
+/// damit den Rest (belegt am Artefakt, siehe WP07).
 void main() {
+  if (kReleaseMode) throw StateError('main_debug nur im Debug-Build');
   runApp(
     RunningApp(
       dependencies: AppDependencies.create(

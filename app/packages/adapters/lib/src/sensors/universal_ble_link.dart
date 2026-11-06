@@ -21,6 +21,7 @@ class UniversalBleLink implements BleLink {
       onListen: () async {
         sub = UniversalBle.scanStream.listen(
           (d) => out.add(BleAdvert(id: d.deviceId, name: d.name)),
+          onError: out.addError,
         );
         try {
           await UniversalBle.startScan(
