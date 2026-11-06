@@ -447,6 +447,10 @@
   "@permissionUnknown": {
     "description": "Stand"
   },
+  "permissionsNone": "Die App fordert noch keine Berechtigungen an.",
+  "@permissionsNone": {
+    "description": "Hinweis, solange keine Berechtigung angefordert ist"
+  },
   "permissionsOpenSettings": "Systemeinstellungen öffnen",
   "@permissionsOpenSettings": {
     "description": "Schaltfläche"

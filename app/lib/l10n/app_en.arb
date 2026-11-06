@@ -102,6 +102,7 @@
   "permissionGranted": "Granted",
   "permissionDenied": "Not granted",
   "permissionUnknown": "Unknown",
+  "permissionsNone": "The app does not request any permissions yet.",
   "permissionsOpenSettings": "Open system settings",
   "settingsZones": "Heart rate zones",
   "zonesTitle": "Heart rate zones",

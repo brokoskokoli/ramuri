@@ -17,6 +17,7 @@ class PermissionsScreen extends StatefulWidget {
 class _PermissionsScreenState extends State<PermissionsScreen>
     with WidgetsBindingObserver {
   Map<AppPermission, PermissionState>? _status;
+  Set<AppPermission> _requested = {};
 
   @override
   void initState() {
@@ -46,7 +47,20 @@ class _PermissionsScreenState extends State<PermissionsScreen>
         for (final p in AppPermission.values) p: PermissionState.unknown,
       };
     }
-    if (mounted) setState(() => _status = status);
+    // Nur angeforderte Berechtigungen anzeigen. Ist das Manifest nicht lesbar,
+    // lieber alle (mit ihrem Stand) zeigen als eine fälschlich leere Seite.
+    Set<AppPermission> requested;
+    try {
+      requested = await widget.permissions.requested();
+    } catch (_) {
+      requested = {...AppPermission.values};
+    }
+    if (mounted) {
+      setState(() {
+        _status = status;
+        _requested = requested;
+      });
+    }
   }
 
   @override
@@ -72,8 +86,10 @@ class _PermissionsScreenState extends State<PermissionsScreen>
           const SizedBox(height: 16),
           if (status == null)
             const Center(child: CircularProgressIndicator())
+          else if (_requested.isEmpty)
+            Text(l10n.permissionsNone, key: const Key('permissions_none'))
           else
-            for (final p in AppPermission.values)
+            for (final p in AppPermission.values.where(_requested.contains))
               ListTile(
                 key: Key('permission_${p.name}'),
                 title: Text(names[p]!),

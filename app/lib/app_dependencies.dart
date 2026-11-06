@@ -53,5 +53,8 @@ class _NoPermissionStatus implements PermissionStatusPort {
   };
 
   @override
+  Future<Set<AppPermission>> requested() async => {...AppPermission.values};
+
+  @override
   Future<void> openSystemSettings() async {}
 }

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -35,6 +36,8 @@ class MainActivity : FlutterActivity() {
                             "activity_recognition" to state(Manifest.permission.ACTIVITY_RECOGNITION),
                         ),
                     )
+                    // Nur gelesen: was das Manifest anfordert (PackageManager), nicht ob es erteilt ist.
+                    "requested" -> result.success(requestedKeys())
                     "openAppSettings" -> {
                         val intent = Intent(
                             Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
@@ -46,6 +49,22 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    /** Schlüssel der Berechtigungen, die das Manifest der App anfordert (Dart: MethodChannelPermissionStatus.keys). */
+    private fun requestedKeys(): List<String> {
+        val info = if (Build.VERSION.SDK_INT >= 33) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()))
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
+        }
+        val asked = info.requestedPermissions?.toSet() ?: emptySet()
+        val keys = mutableListOf<String>()
+        if (Manifest.permission.ACCESS_FINE_LOCATION in asked) keys.add("location")
+        if (Manifest.permission.BLUETOOTH_SCAN in asked || Manifest.permission.BLUETOOTH_CONNECT in asked) keys.add("bluetooth")
+        if (Manifest.permission.ACTIVITY_RECOGNITION in asked) keys.add("activity_recognition")
+        return keys
     }
 
     /** "granted" nur, wenn alle genannten Berechtigungen erteilt sind. */

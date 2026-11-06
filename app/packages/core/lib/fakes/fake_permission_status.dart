@@ -12,6 +12,16 @@ class FakePermissionStatus implements PermissionStatusPort {
   int openSettingsCount = 0;
   bool failStatus = false;
 
+  /// Im Manifest angeforderte Berechtigungen (Standard: alle).
+  Set<AppPermission> requestedSet = {...AppPermission.values};
+  bool failRequested = false;
+
+  @override
+  Future<Set<AppPermission>> requested() async {
+    if (failRequested) throw StateError('Manifest nicht lesbar');
+    return Set.of(requestedSet);
+  }
+
   @override
   Future<Map<AppPermission, PermissionState>> status() async {
     if (failStatus) throw StateError('Stand nicht lesbar');

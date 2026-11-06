@@ -161,15 +161,26 @@ drift_aktuell() {
   g=$dir/lib/src/storage/app_database.g.dart
   [ -f "$g" ] || { echo "$g fehlt"; return 1; }
   bak=$(mktemp) || return 1
-  cp "$g" "$bak" || { rm -f "$bak"; return 1; }
+  out=$(mktemp) || { rm -f "$bak"; return 1; }
+  cp "$g" "$bak" || { rm -f "$bak" "$out"; return 1; }
   rc=0
-  ( cd "$dir" && dart run build_runner build --delete-conflicting-outputs ) || { echo "build_runner scheiterte"; rc=1; }
-  if [ $rc -eq 0 ] && ! cmp -s "$bak" "$g"; then
-    echo "app_database.g.dart passt nicht zu schema.drift; build_runner neu laufen lassen (siehe drift_schemas/README.md)"
-    diff "$bak" "$g" | head -20
-    rc=1
-  fi
-  cp "$bak" "$g"; rm -f "$bak"
+  # Abbruch (INT/TERM/EXIT) stellt die Datei wieder her und entfernt die Sicherung.
+  ( trap 'cp "$bak" "$g"; rm -f "$bak" "$out"' EXIT
+    trap 'exit 130' INT TERM
+    ( cd "$dir" && dart run build_runner build ) > "$out" 2>&1 || { cat "$out"; echo "build_runner scheiterte"; exit 1; }
+    # drift_dev meldet Syntaxfehler in schema.drift nur als Warnung (W drift_dev ...) bei Exit 0; die kaputte Tabelle
+    # fehlte dann still in der .g.dart. Darum zählen Warnungen und Fehler (Zeilen W/E/SEVERE) als rot.
+    if grep -Eq '^(\[[A-Z]+\] )?(W|E|SEVERE)[[:space:]]' "$out"; then
+      grep -E '^(\[[A-Z]+\] )?(W|E|SEVERE)[[:space:]]' "$out" | head -20
+      echo "build_runner/drift_dev meldet Warnungen oder Fehler (z. B. Syntaxfehler in schema.drift)"; exit 1
+    fi
+    if ! cmp -s "$bak" "$g"; then
+      echo "app_database.g.dart passt nicht zu schema.drift; build_runner neu laufen lassen (siehe drift_schemas/README.md)"
+      diff "$bak" "$g" | head -20
+      exit 1
+    fi )
+  rc=$?
+  rm -f "$bak" "$out"
   return $rc
 }
 

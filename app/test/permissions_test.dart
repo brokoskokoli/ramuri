@@ -1,6 +1,7 @@
+import 'dart:io';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:adapters/adapters.dart';
 
@@ -73,8 +74,71 @@ void main() {
     await d.stop(tester);
   });
 
+  testWidgets('zeigt nur im Manifest angeforderte Berechtigungen', (
+    tester,
+  ) async {
+    final d = Device();
+    d.permissions.requestedSet = {AppPermission.location};
+    await d.start(tester, const Locale('de'));
+    await d.skipSetup(tester);
+    await openPermissions(tester);
+    expect(find.byKey(const Key('permission_location')), findsOneWidget);
+    expect(find.byKey(const Key('permission_bluetooth')), findsNothing);
+    expect(
+      find.byKey(const Key('permission_activityRecognition')),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('permissions_none')), findsNothing);
+    await d.stop(tester);
+  });
+
+  testWidgets('ohne angeforderte Berechtigung: Hinweis statt Liste', (
+    tester,
+  ) async {
+    final d = Device();
+    d.permissions.requestedSet = {};
+    await d.start(tester, const Locale('de'));
+    await d.skipSetup(tester);
+    await openPermissions(tester);
+    expect(find.byKey(const Key('permissions_none')), findsOneWidget);
+    expect(
+      find.text('Die App fordert noch keine Berechtigungen an.'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('permission_location')), findsNothing);
+    expect(find.byKey(const Key('permissions_open_settings')), findsOneWidget);
+    await d.stop(tester);
+  });
+
+  testWidgets('Manifest nicht lesbar: alle zeigen, nie eine leere Seite', (
+    tester,
+  ) async {
+    final d = Device();
+    d.permissions.requestedSet = {};
+    d.permissions.failRequested = true;
+    await d.start(tester, const Locale('en'));
+    await d.skipSetup(tester);
+    await openPermissions(tester);
+    expect(find.byKey(const Key('permissions_none')), findsNothing);
+    expect(find.byKey(const Key('permission_bluetooth')), findsOneWidget);
+    await d.stop(tester);
+  });
+
+  test('Kanalname steht gleich in Dart und MainActivity.kt', () {
+    final kt = File(
+      'android/app/src/main/kotlin/io/github/brokoskokoli/running_app/MainActivity.kt',
+    ).readAsStringSync();
+    expect(permissionChannel.name, permissionChannelName);
+    expect(
+      kt,
+      contains(
+        'MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "$permissionChannelName")',
+      ),
+    );
+  });
+
   group('MethodChannelPermissionStatus', () {
-    const channel = MethodChannel('test/permissions');
+    const channel = permissionChannel; // echter Kanalname
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     tearDown(() => messenger.setMockMethodCallHandler(channel, null));
@@ -90,10 +154,25 @@ void main() {
             'activity_recognition': 'weird',
           };
         });
-        final s = await MethodChannelPermissionStatus(channel).status();
+        final s = await MethodChannelPermissionStatus().status();
         expect(s[AppPermission.location], PermissionState.granted);
         expect(s[AppPermission.bluetooth], PermissionState.denied);
         expect(s[AppPermission.activityRecognition], PermissionState.unknown);
+      },
+    );
+
+    test(
+      'requested: bekannte Schlüssel, fremde und fehlende entfallen',
+      () async {
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          expect(call.method, 'requested');
+          return ['bluetooth', 'weird'];
+        });
+        expect(await MethodChannelPermissionStatus().requested(), {
+          AppPermission.bluetooth,
+        });
+        messenger.setMockMethodCallHandler(channel, (call) async => null);
+        expect(await MethodChannelPermissionStatus().requested(), isEmpty);
       },
     );
 
@@ -103,7 +182,7 @@ void main() {
         method = call.method;
         return null;
       });
-      await MethodChannelPermissionStatus(channel).openSystemSettings();
+      await MethodChannelPermissionStatus().openSystemSettings();
       expect(method, 'openAppSettings');
     });
   });

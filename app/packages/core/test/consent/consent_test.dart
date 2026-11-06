@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 class _BrokenStore implements ConsentStore {
   _BrokenStore({this.failRead = true, this.failWrite = false});
   final bool failRead;
-  final bool failWrite;
+  bool failWrite;
   final data = <String, ConsentState>{};
 
   @override
@@ -157,6 +157,27 @@ void main() {
     expect(await svc.isGranted('source_a'), isTrue);
     await expectLater(svc.revoke('source_a'), throwsA(isA<StorageException>()));
     expect(await svc.isGranted('source_a'), isFalse);
+  });
+
+  test(
+    'Widerruf bei unlesbarem Stand fragt vorsichtshalber nach Löschen',
+    () async {
+      final svc = ConsentService(_BrokenStore(), clock); // Lesen scheitert
+      final outcome = await svc.revoke('source_a');
+      expect(outcome.askDeleteImportedData, isTrue);
+      expect(await svc.isGranted('source_a'), isFalse);
+    },
+  );
+
+  test('neue Einwilligung nach gescheitertem Widerruf gibt frei', () async {
+    final store = _BrokenStore(failRead: false, failWrite: true)
+      ..data['source_a'] = ConsentState.granted;
+    final svc = ConsentService(store, clock);
+    await expectLater(svc.revoke('source_a'), throwsA(isA<StorageException>()));
+    expect(await svc.isGranted('source_a'), isFalse);
+    store.failWrite = false;
+    await svc.grant('source_a');
+    expect(await svc.isGranted('source_a'), isTrue);
   });
 
   test('CON-0007: ohne jede Freigabe bleibt das Profil nutzbar', () async {
