@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
 import '../setup/setup_screen.dart';
 import 'home_screen.dart';
@@ -26,11 +27,31 @@ class ReadyRoot extends StatefulWidget {
 
 class _ReadyRootState extends State<ReadyRoot> {
   late Future<AppSettings> _settings;
+  late final RecalculationController _recalculation;
 
   @override
   void initState() {
     super.initState();
+    // Dienste für die Neuberechnung (FR-0006): eine Instanz je Sitzung; beim
+    // Start wird ein offenes Angebot gelesen.
+    _recalculation = RecalculationController(
+      RecalculationService(
+        session: widget.session,
+        clock: widget.clock,
+        calculation: ValueCalculationService(
+          session: widget.session,
+          clock: widget.clock,
+        ),
+      ),
+    );
+    _recalculation.start();
     _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    _recalculation.dispose();
+    super.dispose();
   }
 
   void _loadSettings() {
@@ -89,6 +110,7 @@ class _ReadyRootState extends State<ReadyRoot> {
                 session: widget.session,
                 clock: widget.clock,
                 permissions: widget.permissions,
+                recalculation: _recalculation,
               )
             : SetupScreen(
                 session: widget.session,

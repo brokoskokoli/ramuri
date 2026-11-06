@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../profile/profile_screen.dart';
+import '../recalculation/recalculation_controller.dart';
 import '../settings/settings_screen.dart';
 
 /// Startbildschirm. Gebaut wird er erst, wenn der Speicher bereit ist
@@ -14,11 +15,13 @@ class HomeScreen extends StatelessWidget {
     required this.session,
     required this.clock,
     required this.permissions,
+    required this.recalculation,
   });
 
   final StorageSession session;
   final PermissionStatusPort permissions;
   final Clock clock;
+  final RecalculationController recalculation;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +47,11 @@ class HomeScreen extends StatelessWidget {
               key: const Key('home_profile'),
               onPressed: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(
-                  builder: (_) => ProfileScreen(session: session, clock: clock),
+                  builder: (_) => ProfileScreen(
+                    session: session,
+                    clock: clock,
+                    recalculation: recalculation,
+                  ),
                 ),
               ),
               child: Text(l10n.homeProfile),
@@ -57,6 +64,7 @@ class HomeScreen extends StatelessWidget {
                   builder: (_) => SettingsScreen(
                     session: session,
                     permissions: permissions,
+                    recalculation: recalculation,
                   ),
                 ),
               ),

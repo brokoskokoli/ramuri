@@ -463,6 +463,59 @@
   "@settingsZones": {
     "description": "Schaltfläche zum Zoneneditor"
   },
+  "recalcTitle": "Neu berechnen?",
+  "@recalcTitle": {
+    "description": "Titel des Neuberechnungsangebots in den Einstellungen"
+  },
+  "recalcIntro": "Folgendes hat sich geändert, die gespeicherten Werte früherer Läufe passen nicht mehr dazu:",
+  "@recalcIntro": {
+    "description": "Einleitung des Angebots"
+  },
+  "recalcCauseHeartRate": "Die Herzfrequenz-Basis (HFmax oder Ruhepuls) ist eine andere.",
+  "@recalcCauseHeartRate": {
+    "description": "Grund: Profil geändert"
+  },
+  "recalcCauseAlgorithm": "Das Berechnungsverfahren der App wurde aktualisiert.",
+  "@recalcCauseAlgorithm": {
+    "description": "Grund: neue Version des Algorithmus"
+  },
+  "recalcKeepsOriginal": "Die ursprünglichen Werte und die Rohdaten bleiben erhalten. Ohne Neuberechnung ändert sich nichts.",
+  "@recalcKeepsOriginal": {
+    "description": "Hinweis zum Angebot"
+  },
+  "recalcConfirm": "Neu berechnen",
+  "@recalcConfirm": {
+    "description": "Schaltfläche, startet die Neuberechnung"
+  },
+  "recalcRetry": "Erneut versuchen",
+  "@recalcRetry": {
+    "description": "Schaltfläche nach einem Fehler"
+  },
+  "recalcDecline": "Nicht jetzt",
+  "@recalcDecline": {
+    "description": "Schaltfläche, lehnt das Angebot ab"
+  },
+  "recalcRunning": "Die Werte werden neu berechnet. Bitte warten.",
+  "@recalcRunning": {
+    "description": "Zustand während der Berechnung"
+  },
+  "recalcFailed": "Die Neuberechnung ist fehlgeschlagen. Die bisherigen Werte sind unverändert.",
+  "@recalcFailed": {
+    "description": "Fehlermeldung ohne Gesundheitsdaten"
+  },
+  "recalcOffered": "Eine Neuberechnung ist möglich. Du findest sie in den Einstellungen.",
+  "@recalcOffered": {
+    "description": "Hinweis nach dem Speichern des Profils"
+  },
+  "recalcDone": "Neuberechnet: {count} Läufe. Die ursprünglichen Werte bleiben erhalten.",
+  "@recalcDone": {
+    "description": "Ergebnis der Neuberechnung",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "zonesTitle": "Herzfrequenzzonen",
   "@zonesTitle": {
     "description": "Titel des Zoneneditors"
