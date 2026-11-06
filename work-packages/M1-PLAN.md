@@ -73,7 +73,7 @@ Nur gemeldet, nichts davon ist hier entschieden. „Blockiert“ nennt, was ohne
 | L5 | **Einordnung** (FR-0037, OQ-0037): „Schnitt der letzten 5 Läufe“ nennt keine Größe | WP10 | diesen Punkt | Maintainer nennt die Größe, etwa Pace |
 | L6 | **Lücke nach Abbruch** (FR-0193): Zählt die Zeit des Ausfalls zur Gesamtzeit? Zur Bewegungszeit? | WP08 | diesen Punkt | Gesamtzeit ja, Bewegungszeit nein |
 | L7 | **Freigaben:** SEC-0001, SEC-0002 und SEC-0007 gelten ab Phase 1, aber ihre Quellen (Plattform-Import, Strava) kommen erst in Phase 3 oder sind zurückgestellt | WP05 | nichts | Nur Logik und Schema mit Fake-Quelle, Oberfläche mit der ersten echten Quelle |
-| L8 | **Virtueller Sensor:** R006 (ADR-0006) ist nicht beauftragt. Ohne ihn prüft der Emulator `universal_ble` nur beim Bau; Abbruch und Wechsel laufen über den Fake | WP07, WP08 | nichts | Maintainer entscheidet über R006 |
+| L8 | **Virtueller Sensor:** R006 (ADR-0006) ist nicht beauftragt. Ohne ihn prüft der Emulator `universal_ble` nur beim Bau; Abbruch und Wechsel laufen über den Fake | WP07, WP08 | nichts | Entschieden 2026-11-06: WP07 ohne R006, der echte BLE-Weg bleibt dem Feldtest |
 | L9 | **Formatversionen** (OQ-0032) für GPX, TCX, FIT | WP11 | nichts | Paket schlägt vor, Maintainer bestätigt |
 | L10 | **Neueres Archiv in älterer App** (ADR-0004) | WP12 | wird über ADR-0008 C entschieden | Ablehnen |
 | L11 | **Zonen:** FR-0061 nennt keine Regeln für gültige Grenzen und nicht, ob gespeicherte Zonenzeiten alter Läufe bleiben | WP05 | Validierung im Editor | Lückenlos und aufsteigend; alte Läufe bleiben |

@@ -1,6 +1,6 @@
 # Modellparameter
 
-**Status:** Vom Maintainer freigegebene Startwerte, vorläufig und nicht validiert. Version 3, Stand 2026-11-04, eingefroren (OQ-0019, OQ-0059); gegenüber Version 2 ändert sich nur PAR-011 (K6). Frühere Stände vom selben Tag sind ungültig. Künftige Änderungen brauchen eine neue Version (NFR-0001).
+**Status:** Vom Maintainer freigegebene Startwerte, vorläufig und nicht validiert. Version 4, Stand 2026-11-06, eingefroren (OQ-0019, OQ-0059); gegenüber Version 3 kommt nur PAR-207 hinzu (K18, Entscheidung des Maintainers vom 2026-11-06), Version 3 änderte gegenüber Version 2 nur PAR-011 (K6). Frühere Stände vom selben Tag sind ungültig. Künftige Änderungen brauchen eine neue Version (NFR-0001).
 
 **Hinweis:** Die Werte sind nicht an eigenen Laufdaten validiert. Sie sind vorläufige Startwerte und keine Genauigkeitsangaben (FR-0054, FR-0072, NFR-0003).
 
@@ -42,6 +42,7 @@
 | PAR-013 | Höhenfilter, Vorverarbeitung | Gleitender 30-s-Median; Punkte mit gemeldeter Vertikalgenauigkeit > 15 m verwerfen | Heuristik | Android meldet die Vertikalgenauigkeit ebenfalls zum 68. Perzentil, sofern vorhanden [Q9]. Die Zahlen sind eigene Wahl. Die erlaubten 15 m heben die Höhengrenze aus PAR-027 auf 840 m auf 3,6 Prozentpunkte. | FR-0037, FR-0047 |
 | PAR-014 | Schwelle Bewegung und Stillstand | Stillstand unter 0,5 m/s, Bewegung wieder ab 0,8 m/s | Heuristik | Die obere Schwelle liegt am langsamen Gehen im Freien von 0,82 m/s [Q22]. Ein Forenbeitrag zitiert für Strava 30 min/Meile (rund 0,89 m/s) [Q13]; in den offiziellen Strava-Seiten steht keine Zahl [Q12, Q37]. Der Abstand beider Werte soll Flattern verhindern. GPS-Rauschen im Stand ist nicht geprüft. | FR-0029, FR-0052 |
 | PAR-015 | Bewegungszeit und Fortsetzen | Stillstand zählt erst ab rund 10 s als Pause, auch bei ausgeschalteter Autopause. Fortsetzen nach 3 s über der oberen Schwelle | Heuristik | Die 10 s übernehmen OQ-0037 auch für die Bewegungszeit, damit beide Werte zusammenpassen. Die 3 s sind eigene Wahl. Strava nennt für Läufe GPS oder Beschleunigungssensor als Grundlage [Q37]; eine Festlegung ist hier nicht nötig. | FR-0028, FR-0029, FR-0052 |
+| PAR-207 | Neu-Ankern nach Positionssprüngen | Bilden 3 aufeinanderfolgende, wegen Sprung verworfene Punkte untereinander eine plausible Folge (PAR-001 bis PAR-003), beginnt dort der neue Anker. Der Übergang zählt als Lücke ohne Strecke. Liegt zwischen zwei Folgepunkten mehr als PAR-004, beginnt die Folge neu | Heuristik | Keine Quelle. Ohne Neu-Ankern verwirft PAR-002/PAR-003 nach einem echten Versatz des ersten Ankers jeden weiteren Punkt. 3 Punkte sind bei rund 1 Hz etwa 3 s; das Ergebnis ist eine kurze Lücke statt einer falschen Strecke. Eingeführt in WP06 (K18). | FR-0047, FR-0194 |
 
 ## 2. Basiswerte (Phase 1)
 
@@ -187,5 +188,6 @@ Die Validierung erfolgt im Feldtest und ist kein Release-Gate (OQ-0020). Die uns
 | PAR-024 | Die Datenbasis ist klein und nicht auf Freizeitläufer bezogen. | Lange gleichmäßige Läufe: Schätzung je Abschnitt über die Zeit auftragen. Prüfen, ab wann sie systematisch fällt, auch getrennt nach Temperatur. |
 | PAR-005 | Keine belastbare Quelle für das Fenster. | Tempowechsel auf bekannter Strecke: Verzögerung bis zur korrekten Anzeige und Schwankung im gleichmäßigen Lauf messen, mit 10, 20 und 30 s vergleichen. |
 | PAR-009 | Cadence-Lock wird nicht erkannt. | Optischen Sensor und Brustgurt parallel tragen, Schrittfrequenz mitschreiben. Falsche Plateaus zählen und prüfen, ob sie die Abschnittsauswahl passieren. |
+| PAR-207 | Wie oft echte Versätze vorkommen und ob 3 Punkte genügen, ist nicht gemessen. Ein zu kleiner Wert übernimmt einen falschen Sprung, ein zu großer verliert Strecke. | Rohdaten von Läufen in dichter Bebauung und unter Brücken: Neu-Anker zählen und die Lückenstrecke gegen die bekannte Strecke stellen. |
 
 Personenbezogene Laufdaten bleiben dabei unter den Regeln von SEC-0001 bis SEC-0010.
