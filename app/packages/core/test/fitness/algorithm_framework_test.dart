@@ -108,6 +108,7 @@ void main() {
         'reserve-zones',
         'edwards-trimp',
         'vo2max-acsm-hrr',
+        'vo2max-long-term-ema',
       });
       for (final v in all) {
         expect(v.method.trim(), isNotEmpty);

@@ -1,3 +1,5 @@
+import '../fitness/algorithm_variant.dart';
+
 import 'dart:collection';
 
 import 'latest_value_index.dart';
@@ -7,6 +9,9 @@ import 'preprocessing_parameters.dart';
 /// Kennung und Version des Höhenverfahrens (ADR-0004 P.3).
 const String altitudeMethod = 'altitude-filter';
 const int altitudeMethodVersion = 1;
+
+/// Kategorie des Verfahrens (NFR-0002, docs/architecture/algorithm-categories.md): B.
+const AlgorithmCategory altitudeCategory = AlgorithmCategory.heuristic;
 
 /// Bewertung einer Höheneingabe.
 class ProcessedAltitude {

@@ -1,3 +1,4 @@
+import '../fitness/algorithm_variant.dart';
 import 'motion_segments.dart';
 import 'pace.dart';
 import 'preprocessing_parameters.dart';
@@ -5,6 +6,9 @@ import 'preprocessing_parameters.dart';
 /// Kennung und Version des Tempoverfahrens (ADR-0004 P.3).
 const String paceMethod = 'pace';
 const int paceMethodVersion = 1;
+
+/// Kategorie des Verfahrens (NFR-0002, docs/architecture/algorithm-categories.md): B.
+const AlgorithmCategory paceCategory = AlgorithmCategory.heuristic;
 
 /// Median der Segmentgeschwindigkeit im Fenster, das an [time] endet.
 class SpeedSample {

@@ -206,6 +206,18 @@ class Vo2maxParameters {
     this.goodMinSections = 3,
     this.goodMinDuration = const Duration(minutes: 20),
     this.preliminaryMaxSections = 1,
+    this.alphaGoodMin = 0.15,
+    this.alphaSufficientMin = 0.10,
+    this.alphaPreliminaryMin = 0.05,
+    this.alphaPreliminaryDivisorFactor = 2,
+    this.restartAfter = const Duration(days: 56),
+    this.restartRunNumber = 2,
+    this.longTermRecentWindow = const Duration(days: 42),
+    this.longTermGoodWindow = const Duration(days: 56),
+    this.longTermMinRecentRuns = 3,
+    this.longTermSufficientMinQualityRuns = 2,
+    this.longTermGoodMinRuns = 5,
+    this.longTermGoodMinGoodRuns = 3,
   });
 
   /// FR-0069: Ruheumsatz (ml/kg/min), auch in FR-0071.
@@ -267,4 +279,42 @@ class Vo2maxParameters {
 
   /// PAR-038: bis zu dieser Abschnittszahl ist der Lauf höchstens „vorläufig“.
   final int preliminaryMaxSections;
+
+  /// PAR-034: untere Grenze von α bei „gut“ (`max(0,15; 1/n)`).
+  final double alphaGoodMin;
+
+  /// PAR-034: untere Grenze von α bei „ausreichend“.
+  final double alphaSufficientMin;
+
+  /// PAR-034: untere Grenze von α bei „vorläufig“ (`max(0,05; 1/(2n))`).
+  final double alphaPreliminaryMin;
+
+  /// PAR-034: Faktor vor `n` im Nenner bei „vorläufig“ (2).
+  final int alphaPreliminaryDivisorFactor;
+
+  /// PAR-035: Pause darüber (exklusiv) ohne verwertbaren Lauf startet neu.
+  final Duration restartAfter;
+
+  /// PAR-035: Laufnummer `n` des ersten Laufs nach dem Neustart.
+  final int restartRunNumber;
+
+  /// PAR-041 bis PAR-043: „letzte 6 Wochen“ (inklusiv).
+  final Duration longTermRecentWindow;
+
+  /// PAR-043: „letzte 8 Wochen“ (inklusiv).
+  final Duration longTermGoodWindow;
+
+  /// PAR-041 bis PAR-043: Läufe in [longTermRecentWindow]; weniger ist
+  /// „vorläufig“, mindestens so viele sind Voraussetzung für die höheren
+  /// Stufen.
+  final int longTermMinRecentRuns;
+
+  /// PAR-042: davon mindestens so viele „ausreichend“ oder „gut“.
+  final int longTermSufficientMinQualityRuns;
+
+  /// PAR-043: Läufe in [longTermGoodWindow].
+  final int longTermGoodMinRuns;
+
+  /// PAR-043: davon mindestens so viele „gut“.
+  final int longTermGoodMinGoodRuns;
 }

@@ -43,6 +43,7 @@ export 'src/fitness/heart_rate_reserve.dart';
 export 'src/fitness/heart_rate_time.dart';
 export 'src/fitness/reserve_zones.dart';
 export 'src/fitness/vo2max_estimator.dart';
+export 'src/fitness/vo2max_long_term.dart';
 export 'src/fitness/vo2max_section_selection.dart';
 export 'src/preprocessing/altitude_processor.dart';
 export 'src/preprocessing/geo.dart';

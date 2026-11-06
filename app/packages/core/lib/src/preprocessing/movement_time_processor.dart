@@ -1,9 +1,13 @@
+import '../fitness/algorithm_variant.dart';
 import 'motion_segments.dart';
 import 'preprocessing_parameters.dart';
 
 /// Kennung und Version des Bewegungszeitverfahrens (ADR-0004 P.3).
 const String movementMethod = 'movement-time';
 const int movementMethodVersion = 1;
+
+/// Kategorie des Verfahrens (NFR-0002, docs/architecture/algorithm-categories.md): B.
+const AlgorithmCategory movementCategory = AlgorithmCategory.heuristic;
 
 /// Zustand der erkannten Pause (nur Zustand; die Steuerung ist WP06).
 enum AutoPauseState { moving, standstillPause }

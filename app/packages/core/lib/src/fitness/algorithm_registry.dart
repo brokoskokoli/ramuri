@@ -3,6 +3,7 @@ import 'edwards_trimp.dart';
 import 'heart_rate_reserve.dart';
 import 'reserve_zones.dart';
 import 'vo2max_estimator.dart';
+import 'vo2max_long_term.dart';
 
 /// Familie -> registrierte Varianten und aktive Variante (NFR-0005).
 ///
@@ -26,7 +27,8 @@ class AlgorithmRegistry {
       const ReserveZones(reserve: HeartRateReserve()),
     )
     ..register(loadModelFamily, const EdwardsTrimp())
-    ..register(vo2maxEstimatorFamily, const AcsmReserveVo2maxEstimator());
+    ..register(vo2maxEstimatorFamily, const AcsmReserveVo2maxEstimator())
+    ..register(vo2maxLongTermFamily, const SmoothedVo2maxLongTerm());
 
   final Map<String, _Entry> _families = {};
 

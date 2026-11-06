@@ -1,3 +1,5 @@
+import '../fitness/algorithm_variant.dart';
+
 import 'dart:collection';
 
 import 'latest_value_index.dart';
@@ -7,6 +9,9 @@ import 'preprocessing_parameters.dart';
 /// Kennung und Version des Herzfrequenzverfahrens (ADR-0004 P.3).
 const String heartRateMethod = 'heart-rate-filter';
 const int heartRateMethodVersion = 1;
+
+/// Kategorie des Verfahrens (NFR-0002, docs/architecture/algorithm-categories.md): B.
+const AlgorithmCategory heartRateCategory = AlgorithmCategory.heuristic;
 
 /// Bewertung einer Herzfrequenzeingabe.
 class ProcessedHeartRate {

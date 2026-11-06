@@ -1,9 +1,14 @@
+import 'algorithm_variant.dart';
 import '../preprocessing/movement_time_processor.dart';
 import 'fitness_result.dart';
 
 /// Kennung und Version der Abschnittsauswahl für die VO₂max (ADR-0004 P.3).
 const String vo2maxSectionSelectionMethod = 'vo2max-section-selection';
 const int vo2maxSectionSelectionMethodVersion = 1;
+
+/// Kategorie des Verfahrens (NFR-0002): B.
+const AlgorithmCategory vo2maxSectionSelectionCategory =
+    AlgorithmCategory.heuristic;
 
 /// Regeln, die ein Abschnitt verletzen kann (FR-0073). Jede Regel nennt ihre
 /// Parameter-ID; ein Abschnitt trägt alle verletzten Regeln, nicht nur die

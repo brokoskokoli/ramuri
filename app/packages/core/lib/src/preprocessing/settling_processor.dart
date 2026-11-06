@@ -1,3 +1,4 @@
+import '../fitness/algorithm_variant.dart';
 import 'motion_segments.dart';
 import 'movement_time_processor.dart';
 import 'pace.dart';
@@ -6,6 +7,9 @@ import 'preprocessing_parameters.dart';
 /// Kennung und Version der Einschwingzeit (ADR-0004 P.3).
 const String settlingMethod = 'settling';
 const int settlingMethodVersion = 1;
+
+/// Kategorie des Verfahrens (NFR-0002, docs/architecture/algorithm-categories.md): B.
+const AlgorithmCategory settlingCategory = AlgorithmCategory.heuristic;
 
 class SettlingResult {
   SettlingResult({
