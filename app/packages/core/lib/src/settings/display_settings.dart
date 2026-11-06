@@ -22,6 +22,15 @@ enum DistanceUnit {
     miles => meters / metersPerMile,
   };
 
+  /// Meter je internationalem Fuß (exakt).
+  static const double metersPerFoot = 0.3048;
+
+  /// Höhe in der Anzeigeeinheit: Meter bei km, Fuß bei Meilen.
+  double elevationFromMeters(double meters) => switch (this) {
+    kilometers => meters,
+    miles => meters / metersPerFoot,
+  };
+
   /// Pace in Sekunden je Anzeigeeinheit aus Sekunden je Kilometer.
   double paceFromSecondsPerKm(double secondsPerKm) => switch (this) {
     kilometers => secondsPerKm,
@@ -41,4 +50,8 @@ abstract final class SettingKeys {
   /// Grenzen der fünf Reservezonen in ganzen Prozent, kommagetrennt
   /// (FR-0061), zum Beispiel `50,60,70,80,90,100`.
   static const String reserveZoneBounds = 'zones.reserve_bounds';
+
+  /// `1`, wenn die Autopause eingeschaltet ist (FR-0029); fehlt der Eintrag,
+  /// gilt sie als aus (OQ-0065).
+  static const String autoPause = 'recording.auto_pause';
 }

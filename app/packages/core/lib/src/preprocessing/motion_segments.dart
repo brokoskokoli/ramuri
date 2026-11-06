@@ -31,11 +31,18 @@ class SegmentBuilder {
   DateTime? _previous;
 
   /// Nimmt einen akzeptierten Punkt mit seiner gezählten Strecke auf.
-  MotionSegment? add(RawPosition p, double countedMeters) {
+  ///
+  /// [forceGap]: der Übergang beim Neu-Verankern ist eine Lücke (keine Strecke,
+  /// weder Tempo noch Stillstand).
+  MotionSegment? add(
+    RawPosition p,
+    double countedMeters, {
+    bool forceGap = false,
+  }) {
     final before = _previous;
     _previous = p.time;
     if (before == null) return null;
-    final gap = p.time.difference(before) > gapMaxDuration;
+    final gap = forceGap || p.time.difference(before) > gapMaxDuration;
     return MotionSegment(
       start: before,
       end: p.time,

@@ -83,7 +83,13 @@ void validateRawBatch(RawBatch b) {
   bool bad(double? v) => v != null && v.isNaN;
   final invalid =
       b.positions.any(
-        (p) => bad(p.latitude) || bad(p.longitude) || bad(p.accuracyMeters),
+        (p) =>
+            bad(p.latitude) ||
+            bad(p.longitude) ||
+            bad(p.accuracyMeters) ||
+            bad(p.speedMetersPerSecond) ||
+            bad(p.speedAccuracyMetersPerSecond) ||
+            bad(p.verticalAccuracyMeters),
       ) ||
       b.altitudes.any((a) => bad(a.meters) || bad(a.verticalAccuracyMeters));
   if (invalid) throw const StorageException(StorageFailure.rejected);

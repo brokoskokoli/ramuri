@@ -144,6 +144,9 @@ class FakeRawDataStore implements RawDataStore {
           latitude: p.latitude,
           longitude: p.longitude,
           accuracyMeters: p.accuracyMeters,
+          speedMetersPerSecond: p.speedMetersPerSecond,
+          speedAccuracyMetersPerSecond: p.speedAccuracyMetersPerSecond,
+          verticalAccuracyMeters: p.verticalAccuracyMeters,
           state: p.state,
         ),
       );

@@ -29,8 +29,8 @@ void main() {
         final b = r.addAltitude(alt(30, 500));
         r.resume(at(40));
         r.addAltitude(alt(50, 500));
-        expect(a.state, MeasurementState.unavailable);
-        expect(b.state, MeasurementState.unavailable);
+        expect(a!.state, MeasurementState.unavailable);
+        expect(b!.state, MeasurementState.unavailable);
         expect(r.result(at: at(50)).altitude.ascentMeters, 0);
       },
     );

@@ -27,6 +27,9 @@ class DriftRawDataStore implements RawDataStore {
               latitudeDeg: Value(p.latitude),
               longitudeDeg: Value(p.longitude),
               accuracyM: Value(p.accuracyMeters),
+              speedMps: Value(p.speedMetersPerSecond),
+              speedAccuracyMps: Value(p.speedAccuracyMetersPerSecond),
+              verticalAccuracyM: Value(p.verticalAccuracyMeters),
             ),
           );
         }
@@ -153,6 +156,9 @@ class DriftRawDataStore implements RawDataStore {
             latitude: r.latitudeDeg!,
             longitude: r.longitudeDeg!,
             accuracyMeters: r.accuracyM,
+            speedMetersPerSecond: r.speedMps,
+            speedAccuracyMetersPerSecond: r.speedAccuracyMps,
+            verticalAccuracyMeters: r.verticalAccuracyM,
             state: stateOf(r.state),
           ),
         ),

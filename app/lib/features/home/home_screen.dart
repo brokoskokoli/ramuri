@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../profile/profile_screen.dart';
+import '../run/run_flow_screen.dart';
+import '../run/run_ports.dart';
 import '../settings/settings_screen.dart';
 
 /// Startbildschirm. Gebaut wird er erst, wenn der Speicher bereit ist
@@ -14,10 +16,12 @@ class HomeScreen extends StatelessWidget {
     required this.session,
     required this.clock,
     required this.permissions,
+    required this.runPorts,
   });
 
   final StorageSession session;
   final PermissionStatusPort permissions;
+  final RunPorts runPorts;
   final Clock clock;
 
   @override
@@ -31,12 +35,20 @@ class HomeScreen extends StatelessWidget {
           children: [
             Text(l10n.homeWelcome),
             const SizedBox(height: 16),
-            // Die Aufzeichnung kommt mit einem späteren Paket; der Zugang
-            // ist ohne Profil und ohne Freigaben offen (FR-0001, CON-0007).
+            // Der Zugang ist ohne Profil und ohne Freigaben offen (FR-0001,
+            // CON-0007); nur der Standort wird geprüft (FR-0195).
             FilledButton(
               key: const Key('home_start_run'),
-              onPressed: () => ScaffoldMessenger.of(context)
-                  .showSnackBar(SnackBar(content: Text(l10n.homeStartRunSoon))),
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => RunFlowScreen(
+                    session: session,
+                    clock: clock,
+                    ports: runPorts,
+                    permissions: permissions,
+                  ),
+                ),
+              ),
               child: Text(l10n.homeStartRun),
             ),
             const SizedBox(height: 8),

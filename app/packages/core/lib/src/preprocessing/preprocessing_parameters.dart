@@ -13,6 +13,7 @@ class PreprocessingParameters {
     this.hardJumpMaxSpeed = 12.5,
     this.softJumpSpeed = 8,
     this.gapMaxDuration = const Duration(seconds: 10),
+    this.reanchorCount = 3,
     this.liveSmoothingWindow = const Duration(seconds: 20),
     this.liveMinData = const Duration(seconds: 5),
     this.selectionMedianWindow = const Duration(seconds: 30),
@@ -57,6 +58,12 @@ class PreprocessingParameters {
 
   /// PAR-004: längere Zeit zwischen akzeptierten Punkten ist eine Lücke.
   final Duration gapMaxDuration;
+
+  /// Vorschlag (nicht in docs/model-parameters.md, Bezug PAR-002/PAR-003/
+  /// PAR-004): so viele aufeinanderfolgende, wegen Sprung verworfene Punkte,
+  /// die untereinander PAR-001 bis PAR-003 erfüllen, setzen den Anker neu. Der
+  /// Übergang trägt keine Strecke und ist eine Lücke.
+  final int reanchorCount;
 
   /// PAR-005: Fenster des Live-Tempos.
   final Duration liveSmoothingWindow;

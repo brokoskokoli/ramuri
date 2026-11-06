@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
+import 'package:running_app/features/run/run_ports.dart';
 import 'package:running_app/features/storage/storage_start.dart';
 
 /// "Gerät" für App-Tests: Speicher und Schlüsselablage bleiben über mehrere
@@ -14,6 +15,12 @@ class Device {
   final FakeKeyStore keyStore = FakeKeyStore();
   final FakeClock clock = FakeClock(DateTime.utc(2026, 6, 1));
   final FakePermissionStatus permissions = FakePermissionStatus();
+  final FakeLocationAccess locationAccess = FakeLocationAccess();
+  final FakeLocationSource location = FakeLocationSource();
+  final FakeHeartRateSensor heartRate = FakeHeartRateSensor();
+
+  /// Ersatz für [locationAccess] (etwa mit Fehlern); sonst [locationAccess].
+  LocationAccessPort? locationAccessOverride;
   late StorageStartController controller;
 
   /// Ersatz für [storage] (etwa ein Speicher mit Lesefehlern); sonst [storage].
@@ -44,6 +51,14 @@ class Device {
           storageStart: controller,
           clock: clock,
           permissions: permissions,
+          runPorts: RunPorts(
+            access: locationAccessOverride ?? locationAccess,
+            location: location,
+            heartRate: () => heartRate
+                .connect('hr1')
+                .where((e) => e is HeartRateReading)
+                .cast<HeartRateReading>(),
+          ),
         ),
       ),
     );
