@@ -41,6 +41,7 @@ class _ProfileFormState extends State<ProfileForm> {
   ProfileValidation? _validation;
   final Set<TextEditingController> _unreadable = {};
   String? _banner;
+  String? _savedNote;
 
   List<TextEditingController> get _all => [
     _birthYear,
@@ -148,6 +149,7 @@ class _ProfileFormState extends State<ProfileForm> {
           ..addAll(bad);
         _validation = null;
         _banner = l10n.profileCheckInput;
+        _savedNote = null;
       });
       return;
     }
@@ -159,10 +161,19 @@ class _ProfileFormState extends State<ProfileForm> {
         _unreadable.clear();
         _validation = result.validation;
         _banner = result.saved ? null : l10n.profileCheckInput;
+        // Gespeichert mit Hinweisen: bleibt stehen, die Snackbar allein verfliegt.
+        _savedNote = result.saved && result.validation.hints.isNotEmpty
+            ? l10n.profileSavedCheckHints
+            : null;
       });
       if (result.saved) widget.onSaved(result.validation);
     } on StorageException {
-      if (mounted) setState(() => _banner = l10n.profileSaveFailed);
+      if (mounted) {
+        setState(() {
+          _banner = l10n.profileSaveFailed;
+          _savedNote = null;
+        });
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -194,6 +205,9 @@ class _ProfileFormState extends State<ProfileForm> {
     final issue = field == null ? null : _issueText(field, l10n);
     final unreadable = _unreadable.contains(controller);
     final rejected = unreadable || (field != null && _isRejected(field));
+    final errorMessage = unreadable
+        ? l10n.profileNotANumber
+        : (rejected ? issue : null);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
@@ -204,10 +218,15 @@ class _ProfileFormState extends State<ProfileForm> {
           labelText: label,
           border: const OutlineInputBorder(),
           // Ablehnung als Fehler, Hinweis nur als Hilfetext (gespeichert).
-          errorText: unreadable
-              ? l10n.profileNotANumber
-              : (rejected ? issue : null),
-          errorMaxLines: 6,
+          // Als Widget statt errorText: errorText kürzt bei null Zeilen mit
+          // "..." und bei fester Zeilenzahl irgendwann ebenfalls; die Meldung
+          // muss auch bei großer Schrift vollständig lesbar bleiben.
+          error: errorMessage == null
+              ? null
+              : Text(
+                  errorMessage,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
           helperText: rejected ? null : issue,
           helperMaxLines: 3,
         ),
@@ -355,6 +374,11 @@ class _ProfileFormState extends State<ProfileForm> {
         ),
         const SizedBox(height: 12),
         _field('profile_usual', _usual, l10n.profileUsualMinutes, l10n),
+        if (_savedNote != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(_savedNote!, key: const Key('profile_saved_note')),
+          ),
         if (_banner != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),

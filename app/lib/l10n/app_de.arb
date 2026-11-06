@@ -188,6 +188,10 @@
   "@setupSkip": {
     "description": "Einrichtung überspringen"
   },
+  "profileSavedCheckHints": "Gespeichert. Bitte die Hinweise prüfen.",
+  "@profileSavedCheckHints": {
+    "description": "PAR-016/017: gespeichert, mit Hinweisen; bleibt stehen"
+  },
   "setupContinue": "Weiter",
   "@setupContinue": {
     "description": "Weiter nach der Einrichtung"
@@ -304,7 +308,7 @@
       }
     }
   },
-  "profileMaxHrDeviates": "Der Wert weicht um mehr als {tolerance} bpm von der Altersnäherung ab.",
+  "profileMaxHrDeviates": "Der Wert weicht um mehr als {tolerance} bpm von der Altersnäherung ab. Bitte prüfen.",
   "@profileMaxHrDeviates": {
     "description": "PAR-016, Hinweis",
     "placeholders": {
@@ -325,7 +329,7 @@
       }
     }
   },
-  "profileRestHrUnusual": "Ruhepuls unter {low} oder über {high} bpm ist ungewöhnlich.",
+  "profileRestHrUnusual": "Ruhepuls unter {low} oder über {high} bpm ist ungewöhnlich. Bitte prüfen.",
   "@profileRestHrUnusual": {
     "description": "PAR-017, Hinweis",
     "placeholders": {

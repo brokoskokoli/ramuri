@@ -1,5 +1,6 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'app_harness.dart';
@@ -97,8 +98,9 @@ void main() {
 
     await enter(tester, 'profile_resting', '35');
     await save(tester);
-    expect(find.textContaining('is unusual.'), findsOneWidget);
+    expect(find.textContaining('is unusual. Please check.'), findsOneWidget);
     expect(find.text('Profile saved.'), findsOneWidget);
+    expect(find.text('Saved. Please check the notes.'), findsOneWidget);
     expect((await d.session.profile.read()).restingHeartRateBpm, 35);
   });
 
@@ -121,6 +123,7 @@ void main() {
       await enter(tester, 'profile_max', '105');
       await save(tester);
       expect(find.textContaining('Gespeichert'), findsNothing);
+      expect(find.byKey(const Key('profile_saved_note')), findsNothing);
       expect(find.textContaining('Saved'), findsNothing);
       // Hinweis zu einem nicht gespeicherten Wert wäre irreführend.
       expect(find.textContaining('Altersnäherung'), findsNothing);
@@ -176,4 +179,42 @@ void main() {
     expect(find.text('180'), findsOneWidget);
     expect(find.text('185'), findsOneWidget);
   });
+
+  for (final locale in const [Locale('de'), Locale('en')]) {
+    for (final scale in const [1.0, 2.0]) {
+      testWidgets('PAR-018 Fehlertext bei 411x914, ${locale.languageCode}, '
+          'Textskalierung $scale nicht abgeschnitten', (tester) async {
+        await openProfile(tester, locale);
+        // Nach dem Harness-Setup setzen: der Harness erzwingt sonst 800x2400.
+        tester.view.physicalSize = const Size(411, 914);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await tester.pumpAndSettle();
+        await enter(tester, 'profile_max', '120');
+        await enter(tester, 'profile_resting', '120');
+        // Extent der lazy Liste wird erst beim Scrollen genau: mehrfach.
+        for (var i = 0; i < 4; i++) {
+          await tester.dragFrom(const Offset(5, 450), const Offset(0, -10000));
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.byKey(const Key('profile_save')));
+        await tester.pumpAndSettle();
+        // Die Liste baut nur Sichtbares: zum Feld mit dem Fehler scrollen.
+        await tester.dragFrom(const Offset(5, 450), const Offset(0, 10000));
+        await tester.pumpAndSettle();
+        await tester.dragFrom(const Offset(5, 450), const Offset(0, -300));
+        await tester.pumpAndSettle();
+        final text = locale.languageCode == 'de'
+            ? 'muss größer sein als der Ruhepuls'
+            : 'must be higher than the resting';
+        final finder = find.textContaining(text);
+        expect(finder, findsOneWidget);
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(of: finder, matching: find.byType(RichText)).first,
+        );
+        expect(paragraph.didExceedMaxLines, isFalse);
+      });
+    }
+  }
 }

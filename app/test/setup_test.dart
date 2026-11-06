@@ -76,6 +76,9 @@ void main() {
     await tester.tap(find.byKey(const Key('profile_save')));
     await tester.pumpAndSettle();
     expect(find.textContaining('differs from the age-based'), findsOneWidget);
+    expect(find.textContaining('Please check.'), findsOneWidget);
+    // Dauerhaft sichtbar, nicht nur als flüchtige Snackbar.
+    expect(find.text('Saved. Please check the notes.'), findsOneWidget);
     expect(find.byKey(const Key('home_start_run')), findsNothing);
     expect((await d.session.profile.read()).maxHeartRateBpm, 150);
     await tester.tap(find.byKey(const Key('setup_continue')));

@@ -83,6 +83,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Limit 5: only 0 to 100'), findsOneWidget);
 
+    // Grenze 5 nicht über Grenze 4: aufsteigend verletzt, nicht "unter 100 %".
+    await _enter(tester, ['50', '60', '70', '80', '75']);
+    await tester.tap(find.byKey(const Key('zones_save')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Limit 5 must be greater'), findsOneWidget);
+    expect(find.textContaining('below 100'), findsNothing);
+
     await _enter(tester, ['50', '60', '70', '80', '100']);
     await tester.tap(find.byKey(const Key('zones_save')));
     await tester.pumpAndSettle();
