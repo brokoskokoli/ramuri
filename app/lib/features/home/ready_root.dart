@@ -243,6 +243,7 @@ class _ReadyRootState extends State<ReadyRoot> {
                 session: widget.session,
                 clock: widget.clock,
                 onFinished: () => _finishSetup(settings),
+                serialize: _recalculation.exclusive,
               ),
       );
     },

@@ -508,6 +508,8 @@
   "@archiveExportRunActive": {"description": "Export nicht möglich, solange ein Lauf offen ist (WP12)"},
   "archiveImportAction": "Import archive",
   "@archiveImportAction": {"description": "Schaltfläche im Daten-Bildschirm (WP12)"},
+  "setupRestoreAction": "Restore from archive",
+  "@setupRestoreAction": {"description": "Schaltfläche in der Ersteinrichtung: Daten aus einem Archiv holen (WP12 D3)"},
   "archiveImportTitle": "Import archive",
   "@archiveImportTitle": {"description": "Titel der Dialoge (WP12)"},
   "archiveImportNotice": "An older archive can bring back data you have deleted since. Credentials and consents are not in the archive: afterwards consents count as not granted and are asked for again when needed.",

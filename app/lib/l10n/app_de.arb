@@ -1088,6 +1088,8 @@
   "@archiveExportRunActive": {"description": "Export nicht möglich, solange ein Lauf offen ist (WP12)"},
   "archiveImportAction": "Archiv importieren",
   "@archiveImportAction": {"description": "Schaltfläche im Daten-Bildschirm (WP12)"},
+  "setupRestoreAction": "Aus Archiv wiederherstellen",
+  "@setupRestoreAction": {"description": "Schaltfläche in der Ersteinrichtung: Daten aus einem Archiv holen (WP12 D3)"},
   "archiveImportTitle": "Archiv importieren",
   "@archiveImportTitle": {"description": "Titel der Dialoge (WP12)"},
   "archiveImportNotice": "Ein älteres Archiv kann Daten zurückbringen, die du inzwischen gelöscht hast. Zugangsdaten und Einwilligungen stehen nicht im Archiv: Einwilligungen gelten danach als nicht erteilt und werden bei Bedarf neu eingeholt.",

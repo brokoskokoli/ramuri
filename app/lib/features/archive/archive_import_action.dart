@@ -19,9 +19,20 @@ class ArchiveImportAction extends StatelessWidget {
     super.key,
     required this.session,
     required this.serialize,
+    this.buttonKey = const Key('archive_import'),
+    this.label,
+    this.prepare,
   });
 
   final StorageSession session;
+
+  /// Schlüssel und Beschriftung der Schaltfläche (Standard: Daten-Bildschirm).
+  final Key buttonKey;
+  final String? label;
+
+  /// Läuft mit der neuen Sitzung, bevor sie übernommen wird (Ersteinrichtung:
+  /// Einrichtung als erledigt markieren). Fehler hindern die Übernahme nicht.
+  final Future<void> Function(StorageSession fresh)? prepare;
 
   /// In der App `RecalculationController.exclusive`.
   final SerializeAction serialize;
@@ -92,6 +103,11 @@ class ArchiveImportAction extends StatelessWidget {
               );
             },
           );
+          try {
+            await prepare?.call(fresh);
+          } on Object {
+            // Die Daten sind eingespielt; die Übernahme hängt nicht daran.
+          }
           start.adoptSession(fresh);
           navigator.popUntil((r) => r.isFirst);
           say(l10n.archiveImportDone);
@@ -140,9 +156,9 @@ class ArchiveImportAction extends StatelessWidget {
       return const SizedBox.shrink();
     }
     return OutlinedButton(
-      key: const Key('archive_import'),
+      key: buttonKey,
       onPressed: () => _import(context, factory, handoff, start),
-      child: Text(AppLocalizations.of(context).archiveImportAction),
+      child: Text(label ?? AppLocalizations.of(context).archiveImportAction),
     );
   }
 }
