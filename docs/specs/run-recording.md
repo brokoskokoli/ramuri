@@ -4,7 +4,7 @@ title: Aufzeichnung von Laufeinheiten
 status: Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0031, FR-0032, FR-0033, FR-0034, FR-0035, FR-0036, FR-0037, FR-0038, FR-0039, FR-0193, FR-0194, FR-0195, FR-0196, FR-0202]
+related_requirements: [FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0031, FR-0032, FR-0033, FR-0034, FR-0035, FR-0036, FR-0037, FR-0038, FR-0039, FR-0193, FR-0194, FR-0195, FR-0196, FR-0202, FR-0204]
 ---
 
 # Aufzeichnung von Laufeinheiten
@@ -51,11 +51,13 @@ Während des Trainings zeigt die App mindestens: verstrichene Zeit, aktuelle Ges
 - [ ] Fehlen Basiswerte für die Zonenberechnung, wird die Zone als nicht verfügbar angezeigt (OQ-0012).
 
 ### FR-0027 — Optionale Anzeigen während des Trainings
-- **Status:** Approved | **Phase:** 1 (Rundenzeiten, Höhenmeter, Schrittfrequenz), 2 (Soll-/Ist-Vergleich, Belastungsbereich)
+- **Status:** Approved | **Phase:** 1 (Rundenzeiten, Höhenmeter, Schrittfrequenz, Karte), 2 (Soll-/Ist-Vergleich, Belastungsbereich)
 - **Quelle:** SRC-001 §4.1, Z. 142–148
-- **Verwandt:** OQ-0041
+- **Verwandt:** FR-0204, OQ-0041, OQ-0074
 
 Optional zeigt die App Rundenzeiten, Höhenmeter, Schrittfrequenz, einen Soll-/Ist-Vergleich bei strukturierten Trainings und Hinweise zum geplanten Belastungsbereich.
+
+**Festlegung (OQ-0074):** Dazu kommt in Phase 1 eine Karte mit der bisherigen Strecke auf einer eigenen Seite des Lauf-Bildschirms (FR-0204).
 
 ### FR-0028 — Training starten, pausieren, fortsetzen, beenden
 - **Status:** Approved | **Phase:** 1
@@ -151,11 +153,11 @@ Ein Verbindungsabbruch führt nicht zum Verlust des übrigen Laufs.
 ### FR-0037 — Zusammenfassung nach dem Lauf
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §4.3, Z. 168–180
-- **Verwandt:** FR-0052, FR-0092, OQ-0037, OQ-0065
+- **Verwandt:** FR-0052, FR-0092, FR-0204, OQ-0037, OQ-0065, OQ-0074
 
 Nach dem Lauf erscheint eine Zusammenfassung mit: Strecke, Bewegungszeit und Gesamtzeit, Durchschnitts- und Bestpace, Durchschnitts- und Maximalpuls, Herzfrequenzzonen, Höhenprofil, GPS-Karte, Rundenzeiten, Trainingsbelastung, Einordnung gegenüber vorherigen Einheiten und optional aktualisierter VO₂max-Schätzung.
 
-**Festlegung (OQ-0065):** Die Einordnung vergleicht die Pace. Die Route wird ohne Kartenmaterial gezeichnet.
+**Festlegung (OQ-0065, OQ-0074):** Die Einordnung vergleicht die Pace. Die GPS-Karte zeigt die Route nach FR-0204: mit Einwilligung auf Kartenmaterial, sonst ohne.
 
 **Akzeptanzkriterien:**
 - [ ] Die Zusammenfassung erscheint nach dem Beenden.
@@ -232,6 +234,29 @@ In Phase 1 liefert der Schrittsensor des Smartphones die Schrittfrequenz. Die Ap
 - [ ] Mit Berechtigung wird die Schrittfrequenz live angezeigt.
 - [ ] Ohne Berechtigung ist sie als nicht verfügbar ausgewiesen, und der Lauf wird normal aufgezeichnet.
 
+### FR-0204 — Karte der Route
+- **Status:** Approved | **Phase:** 1
+- **Quelle:** SRC-001 §4.3, Z. 168–180; §5.1, Z. 197; SRC-003 (OQ-0074)
+- **Verwandt:** FR-0027, FR-0037, FR-0040, FR-0041, FR-0056, SEC-0002, SEC-0007, SEC-0008, SEC-0009, OQ-0074, ADR-0009
+
+Die App zeigt die gelaufene Route auf einer Karte: während des Laufs auf einer eigenen Seite des Lauf-Bildschirms, in der Zusammenfassung und in der Detailansicht eines Laufs sowie als Miniatur je Lauf in der Trainingshistorie. Kartenmaterial kommt aus dem Netz vom Anbieter nach ADR-0009, nur nach ausdrücklicher Einwilligung, die der Nutzer jederzeit widerrufen kann. Ohne Einwilligung, ohne Netz oder bei Fehlern zeigt die App dieselbe Route ohne Kartenhintergrund.
+
+**Festlegungen (OQ-0074):**
+- Lauf-Bildschirm: Die Werte bleiben die erste Seite, die Karte ist per Wischen erreichbar. Sie folgt der aktuellen Position und zeigt die bisherige Strecke. Gezeichnet wird nur, solange die Seite sichtbar und der Bildschirm an ist. Die Aufzeichnung hängt nicht von der Karte ab.
+- Einheitliche Darstellung in allen Ansichten: Strecke als Linie, Start und Ende markiert, Pausen und GPS-Lücken als Unterbrechung der Linie, nie als gerade Verbindung (FR-0056). Gezeichnet werden die gespeicherten Positionen, die die Vorverarbeitung akzeptiert hat.
+- Miniatur: kleine, nicht bedienbare Karte mit der Route, mit Einwilligung auf Kartenhintergrund, sonst nur die Linie.
+- Anfragen an den Anbieter enthalten nur die Koordinaten der Kacheln, keine Kennung, keine Lauf- oder Gesundheitsdaten und keine Cookies.
+- Geladene Kacheln und Miniaturen werden nur verschlüsselt gespeichert (SEC-0009), mit fester Größengrenze. Sie gehören nicht in Archiv und Dateiexport. Nach dem Widerruf fragt die App, ob sie gelöscht werden sollen (SEC-0007); „Alles löschen“ löscht sie.
+- Jede Karte mit Kartenhintergrund nennt die Quelle des Kartenmaterials, wie dessen Lizenz es verlangt.
+
+**Akzeptanzkriterien:**
+- [ ] Lauf-Bildschirm, Zusammenfassung, Detailansicht und Historie zeigen die Route, mit Einwilligung auf Kartenmaterial, ohne Einwilligung als Linie.
+- [ ] SEC-0008: Ohne Einwilligung zeigt ein Netzwerkmitschnitt keine Verbindung; nach dem Widerruf keine neue.
+- [ ] Pausen und GPS-Lücken erscheinen nicht als gerade Verbindung.
+- [ ] Kacheln und Miniaturen liegen nicht im Klartext auf dem Datenträger.
+- [ ] Die Aufzeichnung läuft unverändert, wenn die Karte nicht lädt oder die Seite gewechselt wird.
+- [ ] Die Quellenangabe ist auf jeder Karte mit Kartenhintergrund sichtbar.
+
 ### FR-0196 — Laufbandmodus
 - **Status:** Approved | **Phase:** 2
 - **Quelle:** SRC-003 (Maintainer 2026-11-03)
@@ -263,6 +288,7 @@ In Phase 2 gibt es einen Laufbandmodus, in dem der Nutzer die aktuelle Geschwind
 - [OQ-0065](../migration/open-questions.md#oq-0065--lücken-aus-dem-plan-für-phase-1) (entschieden): Lücken aus dem Plan für Phase 1
 - [OQ-0068](../migration/open-questions.md#oq-0068--gps-rauschen-im-stand) (entschieden): GPS-Rauschen im Stand
 - [OQ-0071](../migration/open-questions.md#oq-0071--strecke-während-der-erkannten-pause) (non-blocking): Strecke während der erkannten Pause
+- [OQ-0074](../migration/open-questions.md#oq-0074--karte-der-route) (entschieden): Karte der Route
 <!-- END OQ -->
 
 ## Quellen

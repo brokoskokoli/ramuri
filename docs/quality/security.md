@@ -83,7 +83,7 @@ Der Nutzer kann Berechtigungen widerrufen.
 ### SEC-0008 — Keine Übertragung an Dritte ohne Einwilligung
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §21, Z. 1244
-- **Verwandt:** FR-0185, FR-0186, FR-0187, OQ-0017, OQ-0025
+- **Verwandt:** FR-0185, FR-0186, FR-0187, FR-0204, OQ-0017, OQ-0025, OQ-0074, ADR-0009
 
 Externe Daten dürfen nicht ohne Einwilligung an Dritte übertragen werden.
 

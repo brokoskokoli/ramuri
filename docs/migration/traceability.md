@@ -231,6 +231,9 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-003 | (OQ-0052) | Schrittfrequenz aus dem Smartphone | FR-0202 | [run-recording.md](../specs/run-recording.md) | 2 AK | Übernommen |
 | SRC-001 | §17.3, Z. 1110–1114 | Warnsignal melden und aufheben | FR-0203 | [plan-adaptation.md](../specs/plan-adaptation.md) | 3 AK | Übernommen |
 | SRC-003 | (OQ-0055) | Warnsignal melden und aufheben | FR-0203 | [plan-adaptation.md](../specs/plan-adaptation.md) | 3 AK | Übernommen |
+| SRC-001 | §4.3, Z. 168–180 | Karte der Route | FR-0204 | [run-recording.md](../specs/run-recording.md) | 6 AK | Übernommen |
+| SRC-001 | §5.1, Z. 197 | Karte der Route | FR-0204 | [run-recording.md](../specs/run-recording.md) | 6 AK | Übernommen |
+| SRC-003 | (OQ-0074) | Karte der Route | FR-0204 | [run-recording.md](../specs/run-recording.md) | 6 AK | Übernommen |
 | SRC-001 | §23, Z. 1270–1272 | Algorithmen versionierbar und nachvollziehbar | NFR-0001 | [non-functional.md](../quality/non-functional.md) | 1 AK | Übernommen |
 | SRC-001 | §23.1, Z. 1276–1305 | Einordnung in drei Verfahrenskategorien | NFR-0002 | [non-functional.md](../quality/non-functional.md) | 1 AK | Übernommen |
 | SRC-001 | §23.1, Z. 1307 | Heuristiken nicht als validiert darstellen | NFR-0003 | [non-functional.md](../quality/non-functional.md) | 1 AK | Übernommen |

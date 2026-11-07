@@ -35,7 +35,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0024 | Fremde VO2max-Werte nicht ungeprüft zusammenführen | functional | Approved | 3 | [health-import](specs/health-import.md#fr-0024--fremde-vo2max-werte-nicht-ungeprüft-zusammenführen) | FR-0081, OQ-0033 |
 | FR-0025 | Freie oder geplante Einheit starten | functional | Approved | 1 (frei), 2 (aus Plan) | [run-recording](specs/run-recording.md#fr-0025--freie-oder-geplante-einheit-starten) | — |
 | FR-0026 | Pflichtanzeigen während des Trainings | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0026--pflichtanzeigen-während-des-trainings) | FR-0051, FR-0056, OQ-0012 |
-| FR-0027 | Optionale Anzeigen während des Trainings | functional | Approved | 1 (Rundenzeiten, Höhenmeter, Schrittfrequenz), 2 (Soll-/Ist-Vergleich, Belastungsbereich) | [run-recording](specs/run-recording.md#fr-0027--optionale-anzeigen-während-des-trainings) | OQ-0041 |
+| FR-0027 | Optionale Anzeigen während des Trainings | functional | Approved | 1 (Rundenzeiten, Höhenmeter, Schrittfrequenz, Karte), 2 (Soll-/Ist-Vergleich, Belastungsbereich) | [run-recording](specs/run-recording.md#fr-0027--optionale-anzeigen-während-des-trainings) | FR-0204, OQ-0041, OQ-0074 |
 | FR-0028 | Training starten, pausieren, fortsetzen, beenden | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0028--training-starten-pausieren-fortsetzen-beenden) | FR-0052 |
 | FR-0029 | Automatisches Pausieren | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0029--automatisches-pausieren) | OQ-0037, OQ-0065, OQ-0068, OQ-0071 |
 | FR-0030 | Manuelle Rundenmarkierung | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0030--manuelle-rundenmarkierung) | — |
@@ -45,11 +45,11 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0034 | Aufzeichnung bei ausgeschaltetem Bildschirm | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0034--aufzeichnung-bei-ausgeschaltetem-bildschirm) | OQ-0021 |
 | FR-0035 | Aufzeichnung ohne Pulssensor | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0035--aufzeichnung-ohne-pulssensor) | CON-0004, ACC-01, OQ-0021 |
 | FR-0036 | Verbindungsabbruch verliert den übrigen Lauf nicht | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0036--verbindungsabbruch-verliert-den-übrigen-lauf-nicht) | FR-0017, ACC-03 |
-| FR-0037 | Zusammenfassung nach dem Lauf | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0037--zusammenfassung-nach-dem-lauf) | FR-0052, FR-0092, OQ-0037, OQ-0065 |
+| FR-0037 | Zusammenfassung nach dem Lauf | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0037--zusammenfassung-nach-dem-lauf) | FR-0052, FR-0092, FR-0204, OQ-0037, OQ-0065, OQ-0074 |
 | FR-0038 | Subjektive Angaben erfassen | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0038--subjektive-angaben-erfassen) | FR-0095, OQ-0059 |
 | FR-0039 | Subjektive Angaben in der Planung berücksichtigen | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0039--subjektive-angaben-in-der-planung-berücksichtigen) | FR-0148, FR-0157 |
-| FR-0040 | Trainingshistorie | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0040--trainingshistorie) | ACC-04 |
-| FR-0041 | Detailansicht eines Laufs | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0041--detailansicht-eines-laufs) | — |
+| FR-0040 | Trainingshistorie | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0040--trainingshistorie) | ACC-04, FR-0204, OQ-0074 |
+| FR-0041 | Detailansicht eines Laufs | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0041--detailansicht-eines-laufs) | FR-0204, OQ-0065, OQ-0074 |
 | FR-0042 | Pace und Herzfrequenz zeitlich vergleichen | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0042--pace-und-herzfrequenz-zeitlich-vergleichen) | — |
 | FR-0043 | Statistische Kennzahlen | functional | Approved | 1 (je Kennzahl abhängig von der liefernden Funktion) | [history-statistics](specs/history-statistics.md#fr-0043--statistische-kennzahlen) | FR-0055, OQ-0039, OQ-0065 |
 | FR-0044 | Auswertungszeiträume | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0044--auswertungszeiträume) | — |
@@ -212,6 +212,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0201 | Export teilen | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0201--export-teilen) | FR-0182, CON-0010, OQ-0049 |
 | FR-0202 | Schrittfrequenz aus dem Smartphone | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0202--schrittfrequenz-aus-dem-smartphone) | FR-0027, FR-0021, OQ-0052 |
 | FR-0203 | Warnsignal melden und aufheben | functional | Approved | 2 | [plan-adaptation](specs/plan-adaptation.md#fr-0203--warnsignal-melden-und-aufheben) | FR-0163, FR-0118, OQ-0026, OQ-0048, OQ-0055, OQ-0058 |
+| FR-0204 | Karte der Route | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0204--karte-der-route) | FR-0027, FR-0037, FR-0040, FR-0041, FR-0056, SEC-0002, SEC-0007, SEC-0008, SEC-0009, OQ-0074, ADR-0009 |
 | NFR-0001 | Algorithmen versionierbar und nachvollziehbar | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0001--algorithmen-versionierbar-und-nachvollziehbar) | FR-0053, FR-0058 |
 | NFR-0002 | Einordnung in drei Verfahrenskategorien | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0002--einordnung-in-drei-verfahrenskategorien) | — |
 | NFR-0003 | Heuristiken nicht als validiert darstellen | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0003--heuristiken-nicht-als-validiert-darstellen) | FR-0054 |
@@ -225,7 +226,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | SEC-0005 | Datenherkunft erkennbar | non-functional | Approved | 1 | [security](quality/security.md#sec-0005--datenherkunft-erkennbar) | FR-0020, FR-0053, OQ-0017 |
 | SEC-0006 | Berechnungen ohne zwingende externe Übertragung | non-functional | Approved | 1 | [security](quality/security.md#sec-0006--berechnungen-ohne-zwingende-externe-übertragung) | CON-0008, OQ-0017, OQ-0023 |
 | SEC-0007 | Berechtigungen widerrufen | non-functional | Approved | 1 | [security](quality/security.md#sec-0007--berechtigungen-widerrufen) | FR-0191, OQ-0017, OQ-0025 |
-| SEC-0008 | Keine Übertragung an Dritte ohne Einwilligung | non-functional | Approved | 1 | [security](quality/security.md#sec-0008--keine-übertragung-an-dritte-ohne-einwilligung) | FR-0185, FR-0186, FR-0187, OQ-0017, OQ-0025 |
+| SEC-0008 | Keine Übertragung an Dritte ohne Einwilligung | non-functional | Approved | 1 | [security](quality/security.md#sec-0008--keine-übertragung-an-dritte-ohne-einwilligung) | FR-0185, FR-0186, FR-0187, FR-0204, OQ-0017, OQ-0025, OQ-0074, ADR-0009 |
 | SEC-0009 | Verschlüsselte Speicherung | non-functional | Approved | 1 | [security](quality/security.md#sec-0009--verschlüsselte-speicherung) | FR-0185, OQ-0024, OQ-0062, OQ-0072 |
 | SEC-0010 | System-Backups immer aus | non-functional | Approved | 1 | [security](quality/security.md#sec-0010--system-backups-immer-aus) | SEC-0008, FR-0192, OQ-0024, OQ-0056 |
 | SEC-0011 | Verschlüsseltes Archiv | non-functional | Approved | 1 | [security](quality/security.md#sec-0011--verschlüsseltes-archiv) | SEC-0009, FR-0192, FR-0198, OQ-0050 |

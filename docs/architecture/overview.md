@@ -61,6 +61,7 @@ Bisher entschieden: [ADR-0001](adr/ADR-0001-nur-lokale-datenhaltung.md). Am 2026
 | Anbindung von Bluetooth-Sensoren | FR-0008, OQ-0018 | [ADR-0006](adr/ADR-0006-bluetooth-sensoren.md) |
 | Anbindung von Health Connect | FR-0200, OQ-0047 | [ADR-0007](adr/ADR-0007-health-connect.md) |
 | Verschlüsselung des passwortgeschützten Archivs | SEC-0011, FR-0192, FR-0198 | [ADR-0008](adr/ADR-0008-verschluesselung-des-archivs.md) |
+| Kartenkacheln aus dem Netz nach Einwilligung | FR-0204, SEC-0008, OQ-0074 | [ADR-0009](adr/ADR-0009-kartenkacheln-nach-einwilligung.md) |
 
 Die Einordnung der Berechnungsverfahren in die Kategorien aus NFR-0002 steht in [algorithm-categories.md](algorithm-categories.md).
 

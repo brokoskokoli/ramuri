@@ -17,9 +17,11 @@ Der Nutzer sieht alle Läufe und wertet sie über verschiedene Zeiträume aus.
 ### FR-0040 — Trainingshistorie
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §5, Z. 193; §25 Nr. 4, Z. 1399
-- **Verwandt:** ACC-04
+- **Verwandt:** ACC-04, FR-0204, OQ-0074
 
 Alle Laufeinheiten werden in einer Trainingshistorie dargestellt, mit Strecke, Dauer, Pace und vorhandenen Herzfrequenzdaten.
+
+**Festlegung (OQ-0074):** Jeder Lauf mit Positionen zeigt eine Miniatur seiner Route nach FR-0204.
 
 **Akzeptanzkriterien:**
 - [ ] Jeder aufgezeichnete Lauf erscheint mit Strecke, Dauer und Pace (ACC-04).
@@ -28,10 +30,11 @@ Alle Laufeinheiten werden in einer Trainingshistorie dargestellt, mit Strecke, D
 ### FR-0041 — Detailansicht eines Laufs
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §5.1, Z. 197
+- **Verwandt:** FR-0204, OQ-0065, OQ-0074
 
 Jeder Lauf verfügt über eine Detailansicht mit GPS-Route, Zeitverlauf und Messwertdiagrammen.
 
-**Festlegung (OQ-0065):** Die Route wird ohne Kartenmaterial gezeichnet.
+**Festlegung (OQ-0065, OQ-0074):** Die Route erscheint auf einer Karte nach FR-0204: mit Einwilligung auf Kartenmaterial, sonst ohne.
 
 **Akzeptanzkriterien:**
 - [ ] Die Detailansicht zeigt GPS-Route, Zeitverlauf und Messwertdiagramme.
@@ -84,6 +87,7 @@ Die App soll Statistiken nach einzelnen Läufen, Kalenderwochen, Monaten und fre
 <!-- BEGIN OQ -->
 - [OQ-0039](../migration/open-questions.md#oq-0039--benennung-von-ctl-in-statistik-und-erklärungen) (entschieden): Benennung von CTL in Statistik und Erklärungen
 - [OQ-0065](../migration/open-questions.md#oq-0065--lücken-aus-dem-plan-für-phase-1) (entschieden): Lücken aus dem Plan für Phase 1
+- [OQ-0074](../migration/open-questions.md#oq-0074--karte-der-route) (entschieden): Karte der Route
 <!-- END OQ -->
 
 ## Quellen

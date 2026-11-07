@@ -539,10 +539,10 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 ### OQ-0065 — Lücken aus dem Plan für Phase 1
 - **Frage:** Wie werden die in `work-packages/M1-PLAN.md` gefundenen kleinen Lücken L2 bis L6, L11 und L12 gefüllt?
 - **Auslöser/Quellen:** Plan für M1; Maintainer, 2026-11-04, SRC-003.
-- **Betroffene Anforderungen:** FR-0002, FR-0029, FR-0037, FR-0043, FR-0193
+- **Betroffene Anforderungen:** FR-0002, FR-0029, FR-0037, FR-0041, FR-0043, FR-0193
 - **Auswirkung:** blocking — war Phase 1, einzelne Punkte von WP05, WP06, WP08 und WP10.
 - **Status:** Resolved
-- **Entscheidung:** 2026-11-04, SRC-003: Lauferfahrung und Selbsteinschätzung sind bis Phase 2 zurückgestellt; Alter, Gewicht und Größe verlangen nur positive Zahlen. Persönliche Bestzeiten werden bis zu ihrer Definition nicht angezeigt. Die Einordnung vergleicht die Pace. Die Ausfallzeit nach einem Abbruch zählt zur Gesamtzeit, nicht zur Bewegungszeit. Die Route wird in Phase 1 ohne Kartenmaterial gezeichnet. Zonen sind lückenlos und aufsteigend, alte Läufe behalten ihre Zonenzeiten. Die Autopause ist standardmäßig aus. Ziel: DEC-0065.
+- **Entscheidung:** 2026-11-04, SRC-003: Lauferfahrung und Selbsteinschätzung sind bis Phase 2 zurückgestellt; Alter, Gewicht und Größe verlangen nur positive Zahlen. Persönliche Bestzeiten werden bis zu ihrer Definition nicht angezeigt. Die Einordnung vergleicht die Pace. Die Ausfallzeit nach einem Abbruch zählt zur Gesamtzeit, nicht zur Bewegungszeit. Die Route wird in Phase 1 ohne Kartenmaterial gezeichnet (für die Route abgelöst durch OQ-0074, 2026-11-07). Zonen sind lückenlos und aufsteigend, alte Läufe behalten ihre Zonenzeiten. Die Autopause ist standardmäßig aus. Ziel: DEC-0065.
 
 ### OQ-0066 — Weg zum FIT-Export
 - **Frage:** Wie werden FIT-Dateien erzeugt, wenn die GPL-Verträglichkeit des Garmin-SDK ungeprüft ist?
@@ -612,3 +612,13 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Optionen:** Wortlaut behalten; Stufe auf „vorläufig“ begrenzen; Abschnitt ausschließen.
 - **Status:** Open
 - **Entscheidung:** —
+
+### OQ-0074 — Karte der Route
+- **Frage:** Soll die App die Route auf einer Karte zeigen, während des Laufs, in Zusammenfassung und Detailansicht und als Miniatur in der Historie? Woher kommt das Kartenmaterial, wenn die App bisher kein Netz nutzt?
+- **Auslöser/Quellen:** Wunsch des Maintainers vom 2026-11-07; SRC-001 §4.3 („GPS-Karte“), §5.1 („GPS-Route“); bisher OQ-0065 (ohne Kartenmaterial).
+- **Betroffene Anforderungen:** FR-0027, FR-0037, FR-0040, FR-0041, FR-0204, SEC-0008
+- **Auswirkung:** non-blocking, entschieden.
+- **Optionen:** Kacheln aus dem Netz nach Einwilligung; nur selbst importierte Offline-Kartendatei; Miniaturen nur als Linie oder mit Kartenhintergrund; Live-Karte als eigene Seite oder dauerhaft unter den Werten.
+- **Status:** Resolved
+- **Entscheidung:** 2026-11-07, SRC-003: Karte in allen vier Ansichten. Kacheln aus dem Netz (vorgesehen OpenFreeMap mit OpenStreetMap-Daten, ohne Schlüssel) nur nach ausdrücklicher, abschaltbarer Einwilligung; ohne Einwilligung oder Netz die Route ohne Karte. Miniaturen in der Historie mit Kartenhintergrund. Live-Karte als eigene Seite zum Wischen. Ziel: FR-0204, ADR-0009, DEC-0069.
+

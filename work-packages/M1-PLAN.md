@@ -13,6 +13,7 @@ Laufaufzeichnung und grundlegende Fitnessanalyse. 12 Pakete, höchstens 2 Sitzun
 | 5 | [WP07](WP07-pulssensoren.md) ‖ [WP10](WP10-zusammenfassung-historie-statistik.md) | WP07: WP06. WP10: WP06, WP09 | – |
 | 6 | [WP08](WP08-hintergrund-und-wiederanlauf.md) ‖ [WP11](WP11-dateiexport-und-teilen.md) | WP08: WP06, WP07. WP11: WP06 | WP08: **wartet auf R005**. WP11: Punkt FIT auf L1 |
 | 7 | [WP12](WP12-archiv-und-reimport.md), danach Abschlussprüfung | WP11, WP02 | WP12: ADR-0008 ist freigegeben |
+| 8 | R008, danach [WP13](WP13-karte-der-route.md), danach Wiederholung der netzbezogenen Abschlussprüfung | WP05, WP06, WP10, WP12 | WP13: **wartet auf R008** (ADR-0009 Punkt 6). Nachgereicht am 2026-11-07 (OQ-0074) |
 
 Ist R005 bei Welle 6 nicht fertig, läuft WP11 allein weiter und danach WP12, sobald ADR-0008 freigegeben ist. Ist ADR-0008 früher freigegeben, kann WP12 direkt nach WP11 starten. Nichts außer WP08 hängt an R005, nichts außer WP12 an ADR-0008. Sofort startbar ist nur WP01.
 
@@ -56,7 +57,7 @@ Nach dem letzten Merge, durch den Agenten `running-app-e2e` auf `main`, kein eig
 
 - ACC-01, ACC-03 (mit Test-Sensor), ACC-04, ACC-05, ACC-06, ACC-13, ACC-14, ACC-15 durchgehend an einem synthetischen Lauf.
 - Rundgang: Lauf, Werte, Export, Archiv, Reimport auf zweitem AVD.
-- SEC-0008: Berechtigungsliste des Release-APK ohne `INTERNET` und ohne Hintergrundstandort; Lizenzbaum aller Abhängigkeiten.
+- SEC-0008: Berechtigungsliste des Release-APK ohne Hintergrundstandort; Lizenzbaum aller Abhängigkeiten. Bis WP13 auch ohne `INTERNET`; ab WP13 (ADR-0009) stattdessen ein Netzwerkmitschnitt im Emulator: ohne Einwilligung keine Verbindung, mit Einwilligung nur der Kartenanbieter.
 - Der Test-Sensor fehlt im Release-APK.
 - Für den Status offen bleiben FR-0034 unter Feldbedingungen, ACC-02 und Akku. Sie sind kein Abnahmekriterium und werden in `STATUS.md` nicht als erfüllt geführt.
 
@@ -67,7 +68,7 @@ Nur gemeldet, nichts davon ist hier entschieden. „Blockiert“ nennt, was ohne
 | Nr. | Punkt | Paket | Blockiert | Vorschlag |
 |---|---|---|---|---|
 | L1 | **FIT:** FR-0182 verlangt FIT, aber kein Paket und keine ADR legen den Weg fest. Das Garmin-SDK steht unter einer eigenen Lizenz (Verbreitung, Kündigungsrecht; Volltext war nicht abrufbar), die GPL-Verträglichkeit ist ungeprüft (OQ-0048). Formatversionen sind offen (OQ-0032) | WP11 | FIT-Teil | Entschieden 2026-11-06: eigener Kodierer ohne Garmin-Code; Rechtsfrage zum Protokoll bleibt in OQ-0048 |
-| L2 | **Karte:** FR-0037 nennt „GPS-Karte“, FR-0041 „GPS-Route“. Kein Kartenmaterial ist festgelegt; Kacheln aus dem Netz gäben den Standort an Dritte (SEC-0008) und bräuchten `INTERNET` | WP10 | nichts, solange die gezeichnete Route genügt | Gezeichnete Route ohne Netz für Phase 1 |
+| L2 | **Karte:** FR-0037 nennt „GPS-Karte“, FR-0041 „GPS-Route“. Kein Kartenmaterial ist festgelegt; Kacheln aus dem Netz gäben den Standort an Dritte (SEC-0008) und bräuchten `INTERNET` | WP10 | nichts, solange die gezeichnete Route genügt | Überholt am 2026-11-07: Karte mit Kacheln aus dem Netz nach Einwilligung (OQ-0074, ADR-0009, WP13) |
 | L3 | **Profilfelder:** Für „Fitness-/Lauferfahrung“ und die Selbsteinschätzung in FR-0002 fehlt eine Werteliste; PAR-192 kennt keine Trainingsstufen mehr. Für Alter, Gewicht und Größe gibt es keine Plausibilitätsgrenzen | WP05 | diese Felder | Zwei Felder bis Phase 2 zurückstellen; bei den übrigen nur positive Zahlen |
 | L4 | **Persönliche Bestzeiten** (FR-0043): keine Definition, keine liefernde Anforderung | WP10 | diese Kennzahl | Bis zur Definition nicht anzeigen |
 | L5 | **Einordnung** (FR-0037, OQ-0037): „Schnitt der letzten 5 Läufe“ nennt keine Größe | WP10 | diesen Punkt | Maintainer nennt die Größe, etwa Pace |
