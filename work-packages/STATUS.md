@@ -4,14 +4,14 @@ Einzige Stelle für den Stand der Meilensteine und Arbeitspakete. Gepflegt vom O
 
 Status: `geplant` · `in Arbeit` · `Review` · `wartet` (Grund in „Offen“) · `gemergt` (Commit) · `verworfen`
 
-Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP01 bis WP12, R005 und R007 abgeschlossen; Abschlussprüfung M1 läuft; Karte (OQ-0074) nachgereicht: R008, dann WP13.
+Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP01 bis WP12, R005 und R007 abgeschlossen; Abschlussprüfung M1 am 2026-11-08 bestanden (ohne Feldkriterien); Karte (OQ-0074) nachgereicht: R008, dann WP13.
 
 ## Meilensteine
 
 | Meilenstein | Inhalt | Status |
 | --- | --- | --- |
 | M0 ADRs | Architekturentscheidungen; ADR-0002 bis ADR-0008 freigegeben | erledigt |
-| M1 Phase 1 | Laufaufzeichnung und grundlegende Fitnessanalyse | Plan: [M1-PLAN.md](M1-PLAN.md), WP01 bis WP12 gemergt, Abschlussprüfung läuft; WP13 (Karte) nachgereicht |
+| M1 Phase 1 | Laufaufzeichnung und grundlegende Fitnessanalyse | Plan: [M1-PLAN.md](M1-PLAN.md), WP01 bis WP12 gemergt, Abschlussprüfung bestanden (2026-11-08); offen: WP13 (Karte) nachgereicht |
 | M2 Phase 2 | Adaptiver Trainingscoach | wartet auf Go des Maintainers |
 | M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | wartet auf Go des Maintainers |
 
@@ -34,6 +34,8 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP08 | Hintergrund und Wiederanlauf | gemergt (41aebc9) | Feldtest: FR-0034 (echter Suspend, Doze, Akku, Hersteller-Kill), Schrittsensor unter Typ `location`, Pulsgurt im Hintergrund; Aufzeichnung nutzt `Clock.monotonic()` noch nicht (Uhrsprünge); Diagramme der Zusammenfassung zeichnen `interruption` nicht als Lücke (Spec regelt es nicht); Semantik von `raw_steps` offen; Soll-Tests: Pulsquelle nach Fortsetzen, Zeitquelle des Schrittsensors, Produktionsverdrahtung `app_dependencies.dart:90`; E2E-Vorlagen in `handoff/e2e-vorlagen/` |
 
 ## Offen außerhalb der Pakete
+
+- Abschlussprüfung M1 (2026-11-08, Bericht nur lokal in `handoff/m1-abschluss/`): ACC-01, 03, 04, 05, 06, 13, 15 und der Rundgang mit Reimport auf API 31 erfüllt; ACC-14 ohne Flugmodus geprüft; Release-APK ohne `INTERNET`, Hintergrundstandort, Boot-Start und Test-Sensor. Zwei Funde behoben (8d61242 doppelter Punkt, 7db2340 Abbruch-Hinweis, K32). Lizenzen: alle Dart-Pakete BSD/MIT/Apache-2.0 (`bluez`, `dbus` MPL-2.0 nur Linux); bei Gradle nur 26 von 53 Lizenzen belegt (androidx, jsr305, Flutter-Engine offen), Lizenztext von sqlite3mc liegt nicht bei; Drittlizenz-Hinweise in der App ungeregelt (OQ-0048). Nach WP13 netzbezogenen Teil wiederholen (Mitschnitt).
 
 - Rechtliche Prüfung vor einem Release (OQ-0048), beauftragt der Maintainer.
 - Feldtests: vorerst keine (Emulator). Echte Hintergrundaufzeichnung, Akku und echter Pulsgurt (ACC-02) bleiben unbelegt.
