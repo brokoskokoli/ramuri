@@ -68,54 +68,60 @@ def archive_rows():
     r = {s: [] for s in SECTIONS}
     r["runs"] = [
         dict(id=1, state="finished", started_at_us=t0, ended_at_us=t0 + 600_000_000, ended_utc_offset_s=3600),
-        dict(id=7, state="finished", started_at_us=t0 + 86_400_000_000, ended_at_us=None, ended_utc_offset_s=None),
+        dict(id=7, state="active", started_at_us=t0 + 86_400_000_000, ended_at_us=None, ended_utc_offset_s=None),
     ]
     r["laps"] = [dict(id=1, run_id=1, lap_index=1, marked_at_us=t0 + 300_000_000, lap_time_s=300.5)]
-    r["run_gaps"] = [dict(id=1, run_id=1, kind="pause", start_us=t0 + 100_000_000, end_us=None)]
+    r["run_gaps"] = [dict(id=1, run_id=1, kind="manual_pause", start_us=t0 + 100_000_000, end_us=None)]
     r["raw_positions"] = [
-        dict(id=1, run_id=1, time_us=t0 + 1_000_000, source="gps", state="ok", latitude_deg=52.5, longitude_deg=13.25,
+        dict(id=1, run_id=1, time_us=t0 + 1_000_000, source="gps", state="present", latitude_deg=52.5, longitude_deg=13.25,
              accuracy_m=4.5, speed_mps=3.0, speed_accuracy_mps=0.5, vertical_accuracy_m=None),
         dict(id=2, run_id=1, time_us=t0 + 2_000_000, source="gps", state="unavailable", latitude_deg=None,
              longitude_deg=None, accuracy_m=None, speed_mps=None, speed_accuracy_mps=None, vertical_accuracy_m=None),
     ]
-    r["raw_heart_rates"] = [dict(id=1, run_id=1, time_us=t0 + 1_000_000, source="ble", state="ok", bpm=150, contact="yes"),
-                            dict(id=2, run_id=1, time_us=t0 + 2_000_000, source="ble", state="ok", bpm=None, contact="unknown")]
-    r["raw_altitudes"] = [dict(id=1, run_id=1, time_us=t0 + 1_000_000, source="baro", state="ok", altitude_m=34.25, vertical_accuracy_m=1.0)]
-    r["raw_steps"] = [dict(id=1, run_id=1, time_us=t0 + 1_000_000, source="pedometer", state="ok", step_count=1234)]
+    r["raw_heart_rates"] = [dict(id=1, run_id=1, time_us=t0 + 1_000_000, source="ble", state="present", bpm=150, contact="good"),
+                            dict(id=2, run_id=1, time_us=t0 + 2_000_000, source="ble", state="unavailable", bpm=None, contact="unsupported")]
+    r["raw_altitudes"] = [dict(id=1, run_id=1, time_us=t0 + 1_000_000, source="baro", state="present", altitude_m=34.25, vertical_accuracy_m=1.0)]
+    r["raw_steps"] = [dict(id=1, run_id=1, time_us=t0 + 1_000_000, source="pedometer", state="present", step_count=1234)]
     r["preprocessing_results"] = [dict(
         id=1, run_id=1, method="basic", method_version=1, parameter_version=1, computed_at_us=t0 + 700_000_000,
         total_time_s=600.0, moving_time_s=590, distance_m=2000.0, bridged_distance_m=0, average_bpm=150.5,
         max_bpm=172, median_bpm=151.0, best_pace_s_per_km=285.0, lap_count=1, heart_rate_time_s=None)]
-    r["preprocessed_samples"] = [dict(id=1, run_id=1, channel="position", raw_id=1, time_us=t0 + 1_000_000, state="kept", discard_reason=None),
-                                 dict(id=2, run_id=1, channel="position", raw_id=2, time_us=t0 + 2_000_000, state="discarded", discard_reason="no_fix")]
-    r["preprocessed_spans"] = [dict(id=1, run_id=1, kind="stationary", start_us=t0 + 10_000_000, end_us=t0 + 20_000_000)]
+    r["preprocessed_samples"] = [dict(id=1, run_id=1, channel="position", raw_id=1, time_us=t0 + 1_000_000, state="present", discard_reason=None),
+                                 dict(id=2, run_id=1, channel="position", raw_id=2, time_us=t0 + 2_000_000, state="discarded", discard_reason="accuracy")]
+    r["preprocessed_spans"] = [dict(id=1, run_id=1, kind="settling", start_us=t0 + 10_000_000, end_us=t0 + 20_000_000)]
     r["rated_sections"] = [dict(
         id=1, run_id=1, start_us=t0, end_us=t0 + 600_000_000, method="rating", method_version=1, parameter_version=1,
         assessed_at_us=t0 + 710_000_000, heart_rate_present=550, heart_rate_estimated=0, heart_rate_unavailable=40,
         heart_rate_discarded=10, position_present=580, position_estimated=0, position_unavailable=10, position_discarded=10,
         missing_heart_rate_share=0.0666667, longest_heart_rate_gap_s=12.5, meets_heart_rate_gap_rule=1,
-        settling_overlap_s=0, settling_share=0, gps_gaps='[{"start_us":1,"end_us":2}]')]
+        settling_overlap_s=0, settling_share=0, gps_gaps='[[1,2,0]]')]
+    # Je (Lauf oder Tag, value_key) genau eine Zeile je Rolle (Vertrag 4.2); original
+    # vor current, ids aufsteigend. value_sections folgen der Reihenfolge der Werte.
+    def cv(i, run, day, key, role, val, **kw):
+        d = dict(id=i, run_id=run, day=day, value_key=key, role=role, value_real=val, unit="au",
+                 computed_at_us=t0 + 700_000_000 + i * 10_000_000, data_from_us=None, data_to_us=None,
+                 measurement_count=1, sources="[]", method="trimp", method_version=1, parameter_version=1,
+                 quality="good", unavailable_reason=None, hr_max_bpm=None, hr_rest_bpm=None,
+                 hr_max_is_estimated=None)
+        d.update(kw)
+        return d
+    run_kw = dict(data_from_us=t0, data_to_us=t0 + 600_000_000, measurement_count=550, sources='["heart_rate"]',
+                  hr_max_bpm=190, hr_rest_bpm=55)
+    gone = dict(unit="x", data_from_us=None, data_to_us=None, measurement_count=0, sources="[]",
+                method="neue_methode", method_version=9, parameter_version=9, quality="undeterminable",
+                unavailable_reason="neuer_code")
     r["computed_values"] = [
-        dict(id=1, run_id=1, day=None, value_key="trimp_run", role="original", value_real=87.5, unit="au",
-             computed_at_us=t0 + 720_000_000, data_from_us=t0, data_to_us=t0 + 600_000_000, measurement_count=550,
-             sources='["heart_rate"]', method="trimp", method_version=1, parameter_version=1, quality="good",
-             unavailable_reason=None, hr_max_bpm=190, hr_rest_bpm=55, hr_max_is_estimated=0),
-        dict(id=2, run_id=1, day=None, value_key="trimp_run", role="current", value_real=88.0, unit="au",
-             computed_at_us=t0 + 730_000_000, data_from_us=t0, data_to_us=t0 + 600_000_000, measurement_count=550,
-             sources='["heart_rate"]', method="trimp", method_version=1, parameter_version=2, quality="good",
-             unavailable_reason=None, hr_max_bpm=190, hr_rest_bpm=55, hr_max_is_estimated=1),
-        dict(id=3, run_id=1, day=None, value_key="zukunft_kennzahl_äö", role="original", value_real=None,
-             unit="x", computed_at_us=t0 + 740_000_000, data_from_us=None, data_to_us=None, measurement_count=0,
-             sources="[]", method="neue_methode", method_version=9, parameter_version=9, quality="unavailable",
-             unavailable_reason="neuer_code", hr_max_bpm=None, hr_rest_bpm=None, hr_max_is_estimated=None),
-        dict(id=4, run_id=None, day="2026-11-07", value_key="trimp_day", role="original", value_real=9007199254740993.0 / 2,
-             unit="au", computed_at_us=t0 + 750_000_000, data_from_us=None, data_to_us=None, measurement_count=1,
-             sources="[]", method="trimp", method_version=1, parameter_version=1, quality="good",
-             unavailable_reason=None, hr_max_bpm=None, hr_rest_bpm=None, hr_max_is_estimated=None),
+        cv(1, 1, None, "trimp_run", "original", 87.5, hr_max_is_estimated=0, **run_kw),
+        cv(2, 1, None, "trimp_run", "current", 88.0, parameter_version=2, hr_max_is_estimated=1, **run_kw),
+        cv(3, 1, None, "zukunft_kennzahl_äö", "original", None, **gone),
+        cv(4, 1, None, "zukunft_kennzahl_äö", "current", None, **gone),
+        cv(5, None, "2026-11-07", "trimp_day", "original", 9007199254740993.0 / 2),
+        cv(6, None, "2026-11-07", "trimp_day", "current", 4503599627370497.5),
     ]
-    r["value_sections"] = [dict(
-        id=1, computed_value_id=1, position=0, start_us=t0, end_us=t0 + 600_000_000, gps_median_accuracy_m=4.5,
-        weight=1.0, late_factor=1, status="used", discard=None, reasons='["a","b"]', oxygen_demand=None, estimate=87.5)]
+    vs = lambda i, cvid, est: dict(
+        id=i, computed_value_id=cvid, position=0, start_us=t0, end_us=t0 + 600_000_000, gps_median_accuracy_m=4.5,
+        weight=1.0, late_factor=1, status="eligible", discard=None, reasons='["a","b"]', oxygen_demand=None, estimate=est)
+    r["value_sections"] = [vs(1, 1, 87.5), vs(2, 2, 88.0)]
     r["profile"] = [dict(id=1, birth_year=1985, body_weight_kg=72.5, body_height_m=1.78, resting_heart_rate_bpm=55,
                          max_heart_rate_bpm=None, weekly_run_minutes=120, training_days_mask=21, usual_training_minutes=45)]
     r["settings"] = [dict(key="a.unknown.key", value="Wert „Umlaut“ \U0001F3C3 \"q\" \\ \n", updated_at_us=9007199254740993),
