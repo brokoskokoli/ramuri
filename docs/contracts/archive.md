@@ -185,6 +185,16 @@ Der Leser (`ArchiveImporter`, `readArchive`) arbeitet als Strom in einem Arbeits
 
 Die Reihenfolge der Wiederherstellung (`value_sections` hinter `computed_values`, Original vor Abschnitten vor `current`) stellt das Ziel her (Zwischenspeicher oder Zwischendatenbank), nicht der Leser.
 
+### 4.6 Wiederherstellung: Zwischendatenbank, Tausch, Voraussetzung
+
+**Wann:** Nur auf **leerer App** oder nach **ausdrücklichem Zurücksetzen** (Bestätigung des Nutzers, Hinweis aus OQ-0050). Leer heißt (`ArchiveRestoreService.isEmpty`): keine Läufe, kein Profilwert, keine bekannten Geräte, keine Einstellung außer den technischen Merkern (`archiveExcludedSettingKeys`, 4.3). Einwilligungen zählen nicht (sie werden ohnehin nicht übernommen). Sonst Fehler „nicht leer“ und nichts geschieht (keine Zwischendatenbank, keine Änderung). Das Zurücksetzen löscht nichts vorab: Die alten Daten verschwinden erst mit dem Tausch. Aufnahme und Neuberechnung laufen nicht parallel (der Aufrufer reicht `serialize`, in der App `RecalculationController.exclusive`).
+
+**Zwischendatenbank** (`DriftArchiveSink`): neue Datei `<aktive Datei>.import` im selben Ordner (gleiches Dateisystem, damit das Umbenennen atomar bleibt), geöffnet mit **demselben Datenbankschlüssel** und derselben Einrichtung wie die aktive (sqlite3mc, `ConnectionSetup`, nie Klartext), Schema 4 frisch. Einfügen in Dateireihenfolge, je Stapel eine Transaktion. `computed_values` und `value_sections` kommen zuerst in Hilfstabellen derselben Datei und werden in `commit` je Wert in `id`-Reihenfolge eingefügt (Wert, dann dessen Abschnitte), damit die Trigger (4.2) greifen; `id`s bleiben wie im Archiv. `commit`: Hilfstabellen zusammenführen und löschen, Zeilenzahlen je Tabelle gegen die gelieferten (der Leser hat sie gegen die Endzeile geprüft), `PRAGMA foreign_key_check` leer, `wal_checkpoint(TRUNCATE)` ohne Sperre, Datei schließen. Verletzung einer Beschränkung (CHECK, Trigger, Fremdschlüssel, Eindeutigkeit, Zähler) heißt „beschädigt“, anderes „Zielfehler“. `abort` schließt und löscht die Zwischendatenbank samt `-wal`, `-shm`, `-journal`.
+
+**Tausch** (`DatabaseFiles.replaceWithImport`, erst nach `commit`): aktive Sitzung schließen (Checkpoint), `-wal`/`-shm`/`-journal` der aktiven Datei löschen, die der Zwischendatenbank löschen, **ein** atomares `rename` der Zwischen- auf die aktive Hauptdatei, neu öffnen. Das Verzeichnis wird nicht eigens synchronisiert (Dart bietet keinen Aufruf); nach Stromausfall kann das Umbenennen fehlen, dann gilt der alte Stand. Ein Prozessende an jeder Stelle hinterlässt entweder die alte oder die vollständige neue Hauptdatei, nie eine gemischte oder fehlende. Die Einwilligungen sind danach leer (nicht erteilt), der Schlüssel bleibt.
+
+**Start:** `StorageStartController._load` löscht vor allem anderen Reste einer Zwischendatenbank (`deleteImport`); sie wird nie weiterverwendet. Schlägt das Löschen fehl, geht der Start weiter. `DatabaseFiles.exist` meint nur die aktive Datenbank: Reste allein lösen keinen Neubeginn und keinen neuen Schlüssel aus.
+
 ## 5. Sicherheitsaussagen und Grenzen
 
 - Ohne Passwort ist kein Inhalt lesbar; auch Zeilenzahlen und Abschnitte stehen nur im verschlüsselten Teil. Sichtbar sind Magic, Formatversion, Parameter, Salz und die ungefähre Gesamtgröße.

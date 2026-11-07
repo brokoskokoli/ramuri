@@ -49,6 +49,7 @@ export 'src/archive/archive_json.dart';
 export 'src/archive/archive_lines.dart';
 export 'src/archive/archive_password.dart';
 export 'src/archive/archive_reader.dart';
+export 'src/archive/archive_restore.dart';
 export 'src/archive/archive_schema.dart';
 export 'src/archive/framed_archive_cipher.dart';
 export 'src/consent/consent_service.dart';

@@ -235,6 +235,12 @@ class StorageStartController extends ChangeNotifier {
       fail(StorageNotOpenableCause.locationError);
       return;
     }
+    // Reste einer abgebrochenen Wiederherstellung (WP12): eine Zwischen-
+    // datenbank wird nie weiterverwendet, nur gelöscht. Scheitert das, bleibt
+    // sie liegen (verschlüsselt, ungenutzt); der Start geht trotzdem weiter.
+    try {
+      await wiring.files.deleteImport();
+    } catch (_) {}
     final StorageStart decision;
     var fileCheckFailed = false;
     try {

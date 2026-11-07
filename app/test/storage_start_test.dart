@@ -20,6 +20,32 @@ void main() {
     expect(w.files.present, isTrue);
   });
 
+  test(
+    'Rest einer Zwischendatenbank wird beim Start gelöscht, alte Daten bleiben',
+    () async {
+      final w = World();
+      await w.seed(fileKey: k0, storedKey: k0);
+      w.files.importPresent = true;
+      final c = w.controller();
+      await c.start();
+      expect(w.files.importPresent, isFalse);
+      expect(w.files.deleteImportCalls, 1);
+      final s = (c.state as StorageReady).session;
+      expect(await s.runs.list(), hasLength(1));
+    },
+  );
+
+  test('Löschen des Rests scheitert: Start geht trotzdem weiter', () async {
+    final w = World();
+    await w.seed(fileKey: k0, storedKey: k0);
+    w.files.importPresent = true;
+    w.files.failDeleteImport = true;
+    final c = w.controller();
+    await c.start();
+    expect(c.state, isA<StorageReady>());
+    expect(w.files.importPresent, isTrue);
+  });
+
   test('Datei und passender Schlüssel: bereit mit den alten Daten', () async {
     final w = World();
     await w.seed(fileKey: k0, storedKey: k0);

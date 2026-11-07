@@ -77,3 +77,28 @@ class ArchiveImportException implements Exception {
   @override
   String toString() => 'ArchiveImportException(${failure.name})';
 }
+
+/// Warum eine Wiederherstellung aus dem Archiv nicht ausgeführt wurde
+/// (außer den Fehlern des Lesens, die als [ArchiveImportException] kommen).
+enum ArchiveRestoreFailure {
+  /// Die App enthält Daten und das ausdrückliche Zurücksetzen fehlt.
+  notEmpty,
+
+  /// Prüfen der App oder Tausch scheiterte. Die Datenbank ist vollständig und
+  /// wieder geöffnet: der alte Stand, oder (Fehler erst nach dem atomaren
+  /// Umbenennen) der vollständig neue, nie ein gemischter.
+  swapFailed,
+
+  /// Der Tausch ist erfolgt (oder unklar), aber das Öffnen danach scheiterte:
+  /// Der Aufrufer startet den normalen Startablauf neu.
+  reopenFailed,
+}
+
+class ArchiveRestoreException implements Exception {
+  const ArchiveRestoreException(this.failure);
+
+  final ArchiveRestoreFailure failure;
+
+  @override
+  String toString() => 'ArchiveRestoreException(${failure.name})';
+}

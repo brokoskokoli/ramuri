@@ -28,4 +28,29 @@ class FakeDatabaseFiles implements DatabaseFiles {
     if (failDelete) throw StateError('Löschen nicht möglich');
     present = false;
   }
+
+  /// Zwischendatenbank vorhanden und Aufrufe (für Tests des Startablaufs).
+  bool importPresent = false;
+  int deleteImportCalls = 0;
+  int replaceCalls = 0;
+  bool failDeleteImport = false;
+  bool failReplace = false;
+
+  @override
+  Future<bool> importExists() async => importPresent;
+
+  @override
+  Future<void> deleteImport() async {
+    deleteImportCalls++;
+    if (failDeleteImport) throw StateError('Löschen nicht möglich');
+    importPresent = false;
+  }
+
+  @override
+  Future<void> replaceWithImport() async {
+    replaceCalls++;
+    if (failReplace) throw StateError('Tausch nicht möglich');
+    present = true;
+    importPresent = false;
+  }
 }
