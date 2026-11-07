@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -50,9 +51,88 @@ Future<StorageSession> _archived({required bool setupDone}) async {
   return s;
 }
 
-Future<(Device, _Restore)> _setup(WidgetTester tester) async {
+/// Sitzung, die alles an [inner] weitergibt; nur das Schreiben von
+/// `setup.done` ist abfangbar ([failSetupDone], [onSetupDone]) und das Lesen der
+/// Merker der Neuberechnung anhaltbar ([holdPendingRead]).
+class _WrapSession implements StorageSession {
+  _WrapSession(this.inner);
+  final StorageSession inner;
+  bool failSetupDone = false;
+  void Function()? onSetupDone;
+  Future<void>? holdPendingRead;
+
+  @override
+  SettingsStore get settings => _WrapSettings(inner.settings, this);
+  @override
+  RunStore get runs => inner.runs;
+  @override
+  RunMarkerStore get markers => inner.markers;
+  @override
+  RawDataStore get rawData => inner.rawData;
+  @override
+  PreprocessingStore get preprocessing => inner.preprocessing;
+  @override
+  RatedSectionStore get sections => inner.sections;
+  @override
+  ComputedValueStore get values => inner.values;
+  @override
+  ProfileStore get profile => inner.profile;
+  @override
+  KnownDeviceStore get devices => inner.devices;
+  @override
+  ConsentStore get consents => inner.consents;
+  @override
+  Future<void> deleteRun(int runId) => inner.deleteRun(runId);
+  @override
+  Future<void> deleteAll() => inner.deleteAll();
+  @override
+  Future<void> close() => inner.close();
+}
+
+class _WrapSettings implements SettingsStore {
+  _WrapSettings(this.inner, this.owner);
+  final SettingsStore inner;
+  final _WrapSession owner;
+
+  @override
+  Future<String?> get(String key) async {
+    if (key == ValueCalculationService.refreshPendingKey) {
+      await owner.holdPendingRead;
+    }
+    return inner.get(key);
+  }
+
+  @override
+  Future<Map<String, String>> all() => inner.all();
+
+  @override
+  Future<void> set(String key, String value, {required DateTime at}) async {
+    if (key == SettingKeys.setupDone) {
+      owner.onSetupDone?.call();
+      if (owner.failSetupDone) {
+        throw const StorageException(StorageFailure.unreadable);
+      }
+    }
+    await inner.set(key, value, at: at);
+  }
+}
+
+class _WrapStorage implements Storage {
+  _WrapStorage(this.inner, {this.hold});
+  final Storage inner;
+  final Future<void>? hold;
+  @override
+  Future<StorageSession> open(Uint8List key) async =>
+      _WrapSession(await inner.open(key))..holdPendingRead = hold;
+}
+
+Future<(Device, _Restore)> _setup(
+  WidgetTester tester, {
+  Storage Function(Storage)? wrap,
+}) async {
   final restore = _Restore();
   final d = Device()..archiveRestore = restore.factory;
+  if (wrap != null) d.storageOverride = wrap(d.storage);
   await d.start(tester, const Locale('de'));
   expect(find.byKey(const Key('setup_skip')), findsOneWidget);
   return (d, restore);
@@ -223,6 +303,78 @@ void main() {
     await _expectUntouched(tester, d);
     expect(restore.calls, isEmpty);
     expect(d.fileHandoff.discardCount, 1);
+    await d.stop(tester);
+  });
+
+  testWidgets('setup.done lässt sich auf der neuen Sitzung nicht schreiben: '
+      'sie wird trotzdem übernommen (alte ist geschlossen), Einrichtung '
+      'erscheint erneut', (tester) async {
+    final (d, restore) = await _setup(tester);
+    final fresh = _WrapSession(await _archived(setupDone: false))
+      ..failSetupDone = true;
+    restore.result = fresh;
+    d.fileHandoff.nextPick = const FilePickResult.completed(_path);
+    await _tap(tester, 'setup_restore');
+    await _tap(tester, 'archive_import_confirm');
+    await _enterPassword(tester, _pw);
+    expect(d.session, same(fresh));
+    expect(d.fileHandoff.discardCount, 1);
+    expect(find.byKey(const Key('archive_import_error')), findsNothing);
+    expect(find.byKey(const Key('setup_skip')), findsOneWidget);
+    // Die eingespielten Daten sind da.
+    expect(
+      await fresh.settings.get(SettingKeys.distanceUnit),
+      DistanceUnit.miles.storageValue,
+    );
+    await d.stop(tester);
+  });
+
+  testWidgets('setup.done wird geschrieben, bevor die neue Sitzung übernommen '
+      'wird', (tester) async {
+    final (d, restore) = await _setup(tester);
+    final fresh = _WrapSession(await _archived(setupDone: false));
+    var adoptedAtWrite = true;
+    var writes = 0;
+    fresh.onSetupDone = () {
+      writes++;
+      adoptedAtWrite = identical(d.session, fresh);
+    };
+    restore.result = fresh;
+    d.fileHandoff.nextPick = const FilePickResult.completed(_path);
+    await _tap(tester, 'setup_restore');
+    await _tap(tester, 'archive_import_confirm');
+    await _enterPassword(tester, _pw);
+    expect(writes, 1);
+    expect(adoptedAtWrite, isFalse);
+    expect(d.session, same(fresh));
+    await d.stop(tester);
+  });
+
+  testWidgets('Wiederherstellen läuft über serialize: hinter dem Nachholen '
+      'der Neuberechnung beim Start', (tester) async {
+    final hold = Completer<void>();
+    final (d, restore) = await _setup(
+      tester,
+      // Der Start der Neuberechnung (ReadyRoot) liest den Merker und bleibt
+      // hängen, bis [hold] frei ist.
+      wrap: (inner) => _WrapStorage(inner, hold: hold.future),
+    );
+    restore.result = await _archived(setupDone: true);
+    d.fileHandoff.nextPick = const FilePickResult.completed(_path);
+    await _tap(tester, 'setup_restore');
+    await _tap(tester, 'archive_import_confirm');
+    await tester.enterText(
+      find.byKey(const Key('archive_import_password')),
+      _pw,
+    );
+    await tester.tap(find.byKey(const Key('archive_import_password_ok')));
+    await tester.pump();
+    await tester.pump();
+    expect(restore.calls, isEmpty);
+    hold.complete();
+    await tester.pumpAndSettle();
+    expect(restore.calls, hasLength(1));
+    expect(find.byKey(const Key('home_start_run')), findsOneWidget);
     await d.stop(tester);
   });
 }
