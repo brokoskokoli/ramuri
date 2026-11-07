@@ -16,6 +16,8 @@ import io.flutter.plugin.common.MethodChannel
 class RunningApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        // FR-0201: Exportdateien eines früheren Teilens aufräumen (ExportFiles); Fehler ändern nichts am Start.
+        ExportFiles.clear(java.io.File(cacheDir, ExportFiles.DIR))
         // Registriert die generierten Plugins selbst (automaticallyRegisterPlugins).
         val engine = FlutterEngine(this)
         registerProcessChannels(engine)

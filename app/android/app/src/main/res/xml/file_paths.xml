@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FR-0201: Der FileProvider gibt nur Exportdateien frei (cacheDir/exports/, ExportFiles.kt).
+     Datenbank (noBackupFilesDir) und übrige Dateien sind nicht erreichbar. -->
+<paths>
+    <cache-path name="exports" path="exports/"/>
+</paths>

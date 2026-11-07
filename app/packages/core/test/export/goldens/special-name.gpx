@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="running-app" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd http://www.garmin.com/xmlschemas/TrackPointExtension/v1 https://www8.garmin.com/xmlschemas/TrackPointExtensionv1.xsd">
+  <metadata>
+    <name>a&lt;b&gt;&amp;c&quot;d&apos;ef🏃gh ü</name>
+    <time>2030-01-01T08:00:00.000Z</time>
+  </metadata>
+  <trk>
+    <name>a&lt;b&gt;&amp;c&quot;d&apos;ef🏃gh ü</name>
+    <type>running</type>
+    <trkseg>
+      <trkpt lat="10.0" lon="20.5">
+        <ele>100.25</ele>
+        <time>2030-01-01T08:00:00.000Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>140</gpxtpx:hr>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="10.000026979610912" lon="20.5">
+        <ele>101.25</ele>
+        <time>2030-01-01T08:00:01.000Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>141</gpxtpx:hr>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="10.000053959221823" lon="20.5">
+        <ele>102.25</ele>
+        <time>2030-01-01T08:00:02.000Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>142</gpxtpx:hr>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

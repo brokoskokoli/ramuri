@@ -464,5 +464,16 @@
   "explGapMax": "maximum heart rate",
   "explGapRest": "resting heart rate",
   "explNeedsHeartRate": "This value needs heart rate data. Connect a heart rate sensor so it can be calculated. Pace, distance and the basic statistics also work with GPS only.",
-  "explSourcesButton": "Sources of the measurements"
+  "explSourcesButton": "Sources of the measurements",
+  "exportAction": "Export",
+  "exportTitle": "Export run",
+  "exportFormat": "Format",
+  "exportHint": "The file contains the measurements of this run (time, route, elevation, heart rate where available). Nothing is transferred until you choose a target.",
+  "exportShare": "Share",
+  "exportSave": "Save",
+  "exportCancel": "Cancel",
+  "exportRunning": "Preparing export",
+  "exportShared": "File handed to the chosen target.",
+  "exportSaved": "File saved.",
+  "exportFailed": "Export failed."
 }

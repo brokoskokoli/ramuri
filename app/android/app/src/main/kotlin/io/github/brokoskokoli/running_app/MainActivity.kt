@@ -25,12 +25,35 @@ class MainActivity : FlutterActivity() {
         pendingNotifications = null
         pendingActivity?.error("detached", null, null)
         pendingActivity = null
+        fileHandoff?.detach()
+        fileHandoff = null
         super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    /** FR-0201: Teilen und Speichern starten Systemdialoge, daher an der Activity. */
+    private var fileHandoff: FileHandoffChannel? = null
+
+    override fun onResume() {
+        super.onResume()
+        fileHandoff?.onResume()
+    }
+
+    override fun onPause() {
+        fileHandoff?.onPause()
+        super.onPause()
+    }
+
+    /** Antwort des Dokumentenziels (FileHandoffChannel.save). */
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (fileHandoff?.onActivityResult(requestCode, resultCode, data) == true) return
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     /** Nur Kanäle, die diese Activity braucht; prozessweite hängen in [RunningApplication] an der Engine. */
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        fileHandoff?.detach()
+        fileHandoff = FileHandoffChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         // SEC-0007: Stand der Berechtigungen nur lesen; Widerruf im System.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/permissions")
             .setMethodCallHandler { call, result ->

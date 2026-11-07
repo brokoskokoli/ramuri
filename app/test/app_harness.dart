@@ -50,6 +50,9 @@ class Device {
   /// (pumpAndSettle), darum standardmäßig inline; Tests setzen einen Fake.
   Offload offload = inlineOffload;
 
+  /// Teilen und Speichern von Exportdateien (WP11).
+  final FakeFileHandoff fileHandoff = FakeFileHandoff();
+
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
   /// [heartRate] (Gerät 'hr1', ohne Verwaltung); [lastRun] ist die Pulsquelle
   /// des jüngsten Laufs.
@@ -102,6 +105,7 @@ class Device {
           sensors: sensors,
           clock: clock,
           offload: offload,
+          fileHandoff: fileHandoff,
           permissions: permissions,
           runPorts: RunPorts(
             access: locationAccessOverride ?? locationAccess,
