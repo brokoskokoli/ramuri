@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'app_dependencies.dart';
+import 'features/archive/archive_scope.dart';
 import 'features/export/file_handoff_scope.dart';
 import 'features/home/ready_root.dart';
 import 'features/settings/app_settings.dart';
@@ -41,7 +42,13 @@ class _RunningAppState extends State<RunningApp> {
         offload: dependencies.offload,
         child: FileHandoffScope(
           handoff: dependencies.fileHandoff,
-          child: AppSettingsScope(holder: _settings, child: child!),
+          child: ArchiveScope(
+            export: dependencies.archiveExport,
+            restore: dependencies.archiveRestore,
+            verify: dependencies.archiveVerify,
+            start: dependencies.storageStart,
+            child: AppSettingsScope(holder: _settings, child: child!),
+          ),
         ),
       ),
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
@@ -57,6 +64,9 @@ class _RunningAppState extends State<RunningApp> {
       home: StorageGate(
         controller: dependencies.storageStart,
         readyBuilder: (context, session) => ReadyRoot(
+          // Eine neue Sitzung (nach dem Import) baut alles neu auf:
+          // Einstellungen, Sensoren, Verlauf.
+          key: ObjectKey(session),
           session: session,
           clock: dependencies.clock,
           permissions: dependencies.permissions,

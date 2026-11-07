@@ -20,6 +20,12 @@ object ExportFiles {
     const val DIR = "exports"
     const val MAX_NAME_LENGTH = 255
 
+    /** Ordner für die Kopie einer geöffneten Datei (Reimport, WP12); nicht im FileProvider freigegeben. */
+    const val IMPORT_DIR = "imports"
+
+    /** Fester Name: Der Name der Quelle (Content-URI) fließt nie in einen Pfad. */
+    const val IMPORT_NAME = "archive.bin"
+
     /** Wie `isSafeExportFileName` in core (file_handoff.dart). */
     private val SAFE_NAME = Regex("^[A-Za-z0-9-][A-Za-z0-9._-]*$")
     private val MIME_TYPE = Regex("^[a-z0-9.+-]+/[a-z0-9.+-]+$")
@@ -35,6 +41,36 @@ object ExportFiles {
      * eines noch laufenden Auftrags der alten Activity die Datei des neuen löschen.
      */
     val io: ExecutorService by lazy { Executors.newSingleThreadExecutor() }
+
+    /**
+     * Quelle einer Übergabe: genau eins von [bytes] oder [path]. Ein Pfad gilt nur, wenn er
+     * nach [resolve] unter [dir] liegt und die Datei selbst [fileName] heißt (Name, den der
+     * Nutzer sieht, gleich dem Namen auf der Platte); sonst `null`.
+     */
+    fun source(dir: File, fileName: String, bytes: ByteArray?, path: String?): HandoffSource? = when {
+        bytes != null && path == null -> HandoffSource.Bytes(bytes)
+        bytes == null && path != null ->
+            resolve(dir, path)?.takeIf { it.name == fileName }?.let { HandoffSource.Path(it) }
+        else -> null
+    }
+
+    /**
+     * Öffnen einer Datei (WP12): leert [dir], legt es bei Bedarf an und kopiert [input] als
+     * Strom nach [dir]/[IMPORT_NAME]; kein Zwischenpuffer im Speicher. Bei jedem Fehler wird
+     * die Teilkopie entfernt und der Fehler weitergereicht. Liefert den kanonischen Pfad.
+     */
+    fun importInto(dir: File, input: java.io.InputStream): File {
+        clear(dir)
+        if (!dir.isDirectory && !dir.mkdirs()) throw IOException("mkdirs")
+        val file = File(dir, IMPORT_NAME)
+        try {
+            input.use { i -> file.outputStream().use { o -> i.copyTo(o) } }
+        } catch (e: Exception) {
+            file.delete()
+            throw e
+        }
+        return file.canonicalFile
+    }
 
     /** Authority des FileProviders im Manifest (`${applicationId}.exports`). */
     fun authority(packageName: String): String = "$packageName.$DIR"

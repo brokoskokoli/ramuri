@@ -184,9 +184,36 @@ class StorageStartController extends ChangeNotifier {
   /// Ab dem Löschen im Neubeginn bis zum erfolgreichen Öffnen.
   StorageDataLoss _dataLoss = StorageDataLoss.none;
 
+  /// Nur während eines Neubeginns mit anschließender Wiederherstellung
+  /// (SEC-0009): läuft einmal mit der frisch geöffneten, leeren Sitzung, bevor
+  /// [StorageReady] gesetzt wird, und liefert die Sitzung, die gilt.
+  Future<StorageSession> Function(StorageSession fresh)? _afterOpen;
+
   void _set(StorageStartState s) {
     _state = s;
     notifyListeners();
+  }
+
+  /// Übernimmt eine neue Sitzung, nachdem die Datenbank getauscht wurde (Import
+  /// aus dem Archiv, WP12): Die bisherige ist geschlossen. Die Oberfläche baut
+  /// sich mit der neuen Sitzung neu auf.
+  void adoptSession(StorageSession session) {
+    _dataLoss = StorageDataLoss.none;
+    _set(StorageReady(session));
+  }
+
+  /// Startet den normalen Ablauf neu, auch aus [StorageReady]: nach einem
+  /// Tausch, dessen Öffnen scheiterte (`ArchiveRestoreFailure.reopenFailed`).
+  /// Die bisherige Sitzung ist dann geschlossen.
+  Future<void> restart() async {
+    if (_running) return;
+    _running = true;
+    try {
+      _set(const StorageLoading());
+      await _load();
+    } finally {
+      _running = false;
+    }
   }
 
   /// Lädt: Schlüssel und Dateien prüfen, dann öffnen. Auch für "Erneut
@@ -235,6 +262,12 @@ class StorageStartController extends ChangeNotifier {
       fail(StorageNotOpenableCause.locationError);
       return;
     }
+    // Reste einer abgebrochenen Wiederherstellung (WP12): eine Zwischen-
+    // datenbank wird nie weiterverwendet, nur gelöscht. Scheitert das, bleibt
+    // sie liegen (verschlüsselt, ungenutzt); der Start geht trotzdem weiter.
+    try {
+      await wiring.files.deleteImport();
+    } catch (_) {}
     final StorageStart decision;
     var fileCheckFailed = false;
     try {
@@ -274,7 +307,20 @@ class StorageStartController extends ChangeNotifier {
         key = k;
     }
     try {
-      final session = await wiring.storage.open(key);
+      var session = await wiring.storage.open(key);
+      final after = _afterOpen;
+      _afterOpen = null;
+      if (after != null) {
+        try {
+          session = await after(session);
+        } catch (_) {
+          // Die Datenbank existiert wieder (leer oder mit dem Archiv): Ein
+          // erneuter Versuch öffnet sie normal. Ein fortgesetzter Neubeginn
+          // würde die eingespielten Daten löschen.
+          _dataLoss = StorageDataLoss.none;
+          rethrow;
+        }
+      }
       _dataLoss = StorageDataLoss.none;
       _set(StorageReady(session));
     } on StorageException catch (e) {
@@ -317,15 +363,25 @@ class StorageStartController extends ChangeNotifier {
   /// Bis (1) fertig ist, wird der Schlüssel nie angefasst, es liegt also nie
   /// ein neuer Schlüssel neben der alten Datei. Schlägt (1) fehl, entsteht kein
   /// Schlüssel.
-  Future<void> resetStorage() async {
+  ///
+  /// [restoreInto] (Wiederherstellung aus dem Archiv, SEC-0009): läuft mit der
+  /// frisch geöffneten leeren Sitzung, bevor die App bereit meldet, und liefert
+  /// die Sitzung, die gilt. Es soll nicht werfen; tut es das doch, endet der
+  /// Start wie ein Öffnungsfehler ("Erneut versuchen" öffnet die Datenbank
+  /// dann normal). Scheitert der Neubeginn vor dem Öffnen, läuft es nicht.
+  Future<void> resetStorage({
+    Future<StorageSession> Function(StorageSession fresh)? restoreInto,
+  }) async {
     final current = _state;
     if (_running || current is! StorageNotOpenableState || !current.canReset) {
       return;
     }
     _running = true;
+    _afterOpen = restoreInto;
     try {
       await _reset(current);
     } finally {
+      _afterOpen = null;
       _running = false;
     }
   }

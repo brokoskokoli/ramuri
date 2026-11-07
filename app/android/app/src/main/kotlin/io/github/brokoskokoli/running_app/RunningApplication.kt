@@ -18,6 +18,8 @@ class RunningApplication : Application() {
         super.onCreate()
         // FR-0201: Exportdateien eines früheren Teilens aufräumen (ExportFiles); Fehler ändern nichts am Start.
         ExportFiles.clear(java.io.File(cacheDir, ExportFiles.DIR))
+        // WP12: Kopie einer geöffneten Archivdatei (Chiffretext) eines früheren Laufs entfernen.
+        ExportFiles.clear(java.io.File(cacheDir, ExportFiles.IMPORT_DIR))
         // Registriert die generierten Plugins selbst (automaticallyRegisterPlugins).
         val engine = FlutterEngine(this)
         registerProcessChannels(engine)

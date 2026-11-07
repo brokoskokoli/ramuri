@@ -110,6 +110,41 @@ void main() {
     messenger.setMockMethodCallHandler(other, null);
   });
 
+  test('pickFile: Pfad der Kopie, Abbruch, alles andere ist failed', () async {
+    final h = MethodChannelFileHandoff();
+    answer = (_) => '/c/imports/archive.bin';
+    final ok = await h.pickFile();
+    expect(ok.result, FileHandoffResult.completed);
+    expect(ok.path, '/c/imports/archive.bin');
+    expect(calls.single.method, 'pickFile');
+    answer = (_) => 'cancelled';
+    final c = await h.pickFile();
+    expect([c.result, c.path], [FileHandoffResult.cancelled, null]);
+    for (final other in [null, 'completed', 'rel/x', '/c/../x', '']) {
+      answer = (_) => other;
+      final f = await h.pickFile();
+      expect(
+        [f.result, f.path],
+        [FileHandoffResult.failed, null],
+        reason: '$other',
+      );
+    }
+    answer = (_) => throw PlatformException(code: 'read_failed');
+    expect((await h.pickFile()).result, FileHandoffResult.failed);
+    messenger.setMockMethodCallHandler(channel, null);
+    expect((await h.pickFile()).result, FileHandoffResult.failed);
+  });
+
+  test('discardPicked ruft die Plattform und wirft nie', () async {
+    final h = MethodChannelFileHandoff();
+    await h.discardPicked();
+    expect(calls.single.method, 'discardPicked');
+    answer = (_) => throw PlatformException(code: 'x');
+    await h.discardPicked();
+    messenger.setMockMethodCallHandler(channel, null);
+    await h.discardPicked();
+  });
+
   test('Kanalname, Methoden und Antworten stehen gleich in Kotlin', () {
     const dir =
         '../../android/app/src/main/kotlin/io/github/brokoskokoli/running_app';
@@ -117,7 +152,14 @@ void main() {
     final flow = File('$dir/FileHandoffFlow.kt').readAsStringSync();
     expect(kt, contains('"$fileHandoffChannelName"'));
     for (final m in [
-      'share', 'save', 'exportDirectory', 'fileName', 'mimeType', 'bytes', //
+      'share',
+      'save',
+      'exportDirectory',
+      'pickFile',
+      'discardPicked',
+      'fileName',
+      'mimeType',
+      'bytes', //
       'path',
     ]) {
       expect(kt, contains('"$m"'), reason: m);

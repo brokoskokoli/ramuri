@@ -2,6 +2,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../archive/archive_import_action.dart';
+import '../archive/archive_wiring.dart';
 import '../profile/profile_form.dart';
 
 /// Ersteinrichtung beim ersten Start (FR-0001, OQ-0010): Profilformular, das
@@ -13,7 +15,11 @@ class SetupScreen extends StatefulWidget {
     required this.session,
     required this.clock,
     required this.onFinished,
+    required this.serialize,
   });
+
+  /// In der App `RecalculationController.exclusive` (Archiv-Import).
+  final SerializeAction serialize;
 
   final StorageSession session;
   final Clock clock;
@@ -44,6 +50,25 @@ class _SetupScreenState extends State<SetupScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(l10n.setupIntro),
+          const SizedBox(height: 16),
+          // Neues Gerät: Daten aus einem Archiv holen (FR-0198, Vertrag 4.6).
+          // Hier ist die App noch leer; der Import übernimmt auch die
+          // Einstellungen und das Profil und beendet die Einrichtung.
+          ArchiveImportAction(
+            session: widget.session,
+            serialize: widget.serialize,
+            buttonKey: const Key('setup_restore'),
+            label: l10n.setupRestoreAction,
+            prepare: (fresh) async {
+              if (await fresh.settings.get(SettingKeys.setupDone) != '1') {
+                await fresh.settings.set(
+                  SettingKeys.setupDone,
+                  '1',
+                  at: widget.clock.now(),
+                );
+              }
+            },
+          ),
           const SizedBox(height: 16),
           ProfileForm(
             service: ProfileService(widget.session.profile, widget.clock),

@@ -138,7 +138,10 @@ void main() {
         final ok = make('/data/user/0/app/cache/exports/archiv.zip');
         expect(ok.path, '/data/user/0/app/cache/exports/archiv.zip');
         expect(ok.bytes, isNull);
-        expect(make('/c/exports/teil/a.zip').path, '/c/exports/teil/a.zip');
+        expect(
+          make('/c/exports/teil/archiv.zip').path,
+          '/c/exports/teil/archiv.zip',
+        );
         for (final bad in [
           '', '/', 'exports/a.zip', '../a.zip', '/c/exports/../a.zip', //
           '/c/exports/teil/../../a.zip', '/c/./exports/a.zip', '/c//a.zip',
@@ -147,6 +150,9 @@ void main() {
           expect(() => make(bad), throwsArgumentError, reason: bad);
         }
         expect(() => make('/c/exports/a.zip', '../a.zip'), throwsArgumentError);
+        // Der Name auf der Platte ist der angezeigte Name.
+        expect(() => make('/c/exports/a.zip'), throwsArgumentError);
+        expect(() => make('/c/exports/xarchiv.zip'), throwsArgumentError);
         final inMemory = ExportFile(
           fileName: 'run.gpx',
           mimeType: 'application/gpx+xml',
@@ -155,6 +161,17 @@ void main() {
         expect(inMemory.path, isNull);
       },
     );
+  });
+
+  test('FakeFileHandoff: pickFile und discardPicked', () async {
+    final fake = FakeFileHandoff();
+    expect((await fake.pickFile()).result, FileHandoffResult.cancelled);
+    fake.nextPick = const FilePickResult.completed('/c/imports/archive.bin');
+    final r = await fake.pickFile();
+    expect(r.path, '/c/imports/archive.bin');
+    await fake.discardPicked();
+    expect([fake.pickCount, fake.discardCount], [2, 1]);
+    expect(const FilePickResult.failed().path, isNull);
   });
 
   test(
