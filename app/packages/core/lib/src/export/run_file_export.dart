@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import '../../ports/file_handoff.dart';
 import '../../ports/storage.dart';
+import '../../ports/storage_raw.dart';
+import '../../ports/storage_runs.dart';
+import '../statistics/offload.dart';
 import 'export_run.dart';
 import 'fit_encoder.dart';
 import 'gpx_encoder.dart';
@@ -25,19 +28,52 @@ enum ExportFormat {
 /// Baut aus einem gespeicherten Lauf die Datei eines Formats; die Übergabe
 /// an das System macht [FileHandoff].
 class RunFileExportService {
-  RunFileExportService({required StorageSession session})
-    : _runs = RunExportService(session: session);
+  RunFileExportService({required this.session, this.offload = inlineOffload});
 
-  final RunExportService _runs;
+  final StorageSession session;
+
+  /// Wo Abbildung und Kodierung rechnen (in der App ein eigener Isolate);
+  /// das Lesen bleibt im aufrufenden Isolate.
+  final Offload offload;
 
   /// `null` für einen unbekannten oder nicht beendeten Lauf. Wirft
   /// [StorageException] bei Lesefehlern.
   Future<ExportFile?> build(int runId, ExportFormat format) async {
-    final run = await _runs.load(runId, resolution: format.resolution);
-    if (run == null) return null;
-    return exportFileOf(run, format);
+    final run = await session.runs.get(runId);
+    if (run == null || run.state != RunState.finished || run.endedAt == null) {
+      return null;
+    }
+    return offload(exportFileJob, (
+      run: run,
+      raw: await session.rawData.read(runId),
+      gaps: await session.markers.gaps(runId),
+      laps: await session.markers.laps(runId),
+      format: format,
+    ));
   }
 }
+
+/// Eingabe von [exportFileJob]: alles Gelesene, sendbar an einen Isolate.
+typedef ExportFileInput = ({
+  StoredRun run,
+  StoredRawData raw,
+  List<StoredGap> gaps,
+  List<StoredLap> laps,
+  ExportFormat format,
+});
+
+/// Reine Rechnung für [Offload]: Abbildung und Kodierung eines beendeten
+/// Laufs.
+ExportFile exportFileJob(ExportFileInput input) => exportFileOf(
+  buildExportRun(
+    run: input.run,
+    raw: input.raw,
+    gaps: input.gaps,
+    laps: input.laps,
+    resolution: input.format.resolution,
+  ),
+  input.format,
+);
 
 /// Kodiert [run] im [format]. [run] muss mit `format.resolution` gebaut sein
 /// (FIT wirft sonst [ArgumentError]). GPX und TCX als UTF-8.

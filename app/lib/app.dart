@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'app_dependencies.dart';
+import 'features/export/file_handoff_scope.dart';
 import 'features/home/ready_root.dart';
 import 'features/settings/app_settings.dart';
 import 'features/storage/storage_gate.dart';
@@ -38,7 +39,10 @@ class _RunningAppState extends State<RunningApp> {
       // Einstellungen.
       builder: (context, child) => OffloadScope(
         offload: dependencies.offload,
-        child: AppSettingsScope(holder: _settings, child: child!),
+        child: FileHandoffScope(
+          handoff: dependencies.fileHandoff,
+          child: AppSettingsScope(holder: _settings, child: child!),
+        ),
       ),
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       theme: ThemeData(colorSchemeSeed: Colors.teal),

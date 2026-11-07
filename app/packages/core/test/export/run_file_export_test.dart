@@ -49,6 +49,32 @@ void main() {
       }
     });
 
+    test('rechnet über den Offload, im eigenen Isolate wie inline', () async {
+      final id = await seedMainRun(s);
+      final jobs = <Object>[];
+      Future<R> recording<A, R>(R Function(A) job, A argument) {
+        jobs.add(job);
+        return isolateOffload(job, argument);
+      }
+
+      for (final f in ExportFormat.values) {
+        final viaIsolate = (await RunFileExportService(
+          session: s,
+          offload: recording,
+        ).build(id, f))!;
+        final inline = (await RunFileExportService(session: s).build(id, f))!;
+        expect(viaIsolate.fileName, inline.fileName);
+        expect(viaIsolate.bytes, inline.bytes, reason: f.name);
+      }
+      expect(jobs, [for (final _ in ExportFormat.values) exportFileJob]);
+      // Kein Offload für unbekannte Läufe.
+      await RunFileExportService(
+        session: s,
+        offload: recording,
+      ).build(999, ExportFormat.gpx);
+      expect(jobs, hasLength(ExportFormat.values.length));
+    });
+
     test('leerer Lauf ergibt je Format eine Datei', () async {
       final id = await seedRun(s);
       for (final f in ExportFormat.values) {

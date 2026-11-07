@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../export/run_export_action.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
 import '../storage/deletion.dart';
@@ -9,8 +10,9 @@ import '../summary/run_summary_body.dart';
 
 /// Detailansicht eines Laufs (FR-0041, FR-0042): dieselben Kennzahlen wie die
 /// Zusammenfassung nach dem Lauf, dazu gezeichnete Route, Zeitverlauf und
-/// Diagramme ([RunSummaryBody]). Löschen ist auch hier möglich; nach dem
-/// Löschen schließt die Ansicht mit `true`.
+/// Diagramme ([RunSummaryBody]). Exportieren ([RunExportAction])
+/// und Löschen sind auch hier möglich; nach dem Löschen schließt die Ansicht
+/// mit `true`.
 class RunDetailScreen extends StatelessWidget {
   const RunDetailScreen({
     super.key,
@@ -47,6 +49,7 @@ class RunDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(l10n.detTitle),
         actions: [
+          RunExportAction(session: session, runId: runId),
           IconButton(
             key: const Key('detail_delete'),
             tooltip: l10n.histDeleteRun,

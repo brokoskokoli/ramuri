@@ -21,7 +21,9 @@ class AppDependencies {
     this.heartRateSensor,
     SensorManager? sensors,
     this.offload = isolateOffload,
-  }) : permissions = permissions ?? const _NoPermissionStatus(),
+    FileHandoff? fileHandoff,
+  }) : fileHandoff = fileHandoff ?? const _NoFileHandoff(),
+       permissions = permissions ?? const _NoPermissionStatus(),
        runPorts = runPorts ?? const _NoRunPorts(),
        sensors =
            sensors ??
@@ -45,6 +47,10 @@ class AppDependencies {
   /// Wo die Wiedergabe der Rohdaten rechnet (Zusammenfassung, Historie,
   /// Statistik). Vorgabe: eigener Isolate; Tests setzen den Inline-Offload.
   final Offload offload;
+
+  /// Teilen und Speichern von Exportdateien (FR-0201); Tests setzen den Fake
+  /// aus `core`.
+  final FileHandoff fileHandoff;
 
   /// App-weiter Sensordienst: Verbindungen, bekannte Geräte, Puls (WP07).
   final SensorManager sensors;
@@ -84,6 +90,7 @@ class AppDependencies {
       heartRateSensor: sensor,
       sensors: sensors,
       permissions: permissions,
+      fileHandoff: MethodChannelFileHandoff(),
       runPorts: RunPorts(
         access: MethodChannelLocationAccess(),
         location: MethodChannelLocationSource(),
@@ -119,6 +126,20 @@ class _NoHeartRateSensor implements HeartRateSensor {
   @override
   Stream<HeartRateEvent> connect(String deviceId) =>
       Stream.error(StateError('kein Sensor'));
+}
+
+/// Vorgabe ohne Plattform (Tests, die nichts exportieren): Jede Übergabe
+/// scheitert. Produktiv setzt `create` den Plattformkanal.
+class _NoFileHandoff implements FileHandoff {
+  const _NoFileHandoff();
+
+  @override
+  Future<FileHandoffResult> share(ExportFile file) async =>
+      FileHandoffResult.failed;
+
+  @override
+  Future<FileHandoffResult> save(ExportFile file) async =>
+      FileHandoffResult.failed;
 }
 
 /// Vorgabe ohne Plattform: Der Stand ist unbekannt (Tests, die ihn nicht

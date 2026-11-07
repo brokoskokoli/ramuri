@@ -8,6 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.DocumentsContract
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -15,16 +17,21 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Kanal `running_app/file_handoff` (FR-0201, WP11): Datei teilen (`ACTION_SEND` über den
  * Chooser, FileProvider mit Leserecht nur für diese URI) oder über das System-Dokumentenziel
  * speichern (`ACTION_CREATE_DOCUMENT`, Bytes direkt in die gelieferte URI, ohne Temp-Datei).
- * Hängt an der Activity, weil beide Wege einen Systemdialog starten. Antworten: "completed",
+ * Hängt an der Activity, weil beide Wege einen Systemdialog starten. Die Bytes schreibt ein
+ * eigener Hintergrundthread, nicht der Hauptthread. Antworten: "completed",
  * "cancelled" oder ein Fehler mit Code; nichts davon enthält Inhalte oder Pfade.
  */
 class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessenger) {
     private val channel = MethodChannel(messenger, CHANNEL)
+    private val io: ExecutorService = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val flow = FileHandoffFlow(object : HandoffAnswers<MethodChannel.Result> {
         override fun success(result: MethodChannel.Result, value: String) {
             unregisterChosen()
@@ -34,6 +41,13 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
             // "busy": Die laufende Übergabe braucht ihren Empfänger noch.
             if (code != "busy") unregisterChosen()
             result.error(code, detail, null)
+        }
+    }, object : HandoffThreads {
+        override fun background(work: () -> Unit) {
+            io.execute(work)
+        }
+        override fun main(work: () -> Unit) {
+            mainHandler.post(work)
         }
     })
     private var chosenReceiver: BroadcastReceiver? = null
@@ -61,9 +75,13 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
     }
 
     private fun share(result: MethodChannel.Result, name: String, type: String, bytes: ByteArray) {
-        if (!flow.beginShare(result)) return
-        try {
-            val file = ExportFiles.write(File(activity.cacheDir, ExportFiles.DIR), name, bytes)
+        val dir = File(activity.cacheDir, ExportFiles.DIR)
+        flow.share(result, write = { ExportFiles.write(dir, name, bytes) }) { file ->
+            // Während des Schreibens kann die App nach hinten gegangen sein.
+            if (!foreground) {
+                flow.fail("not_foreground", null)
+                return@share
+            }
             val uri = FileProvider.getUriForFile(activity, ExportFiles.authority(activity.packageName), file)
             val spec = HandoffIntents.send(type)
             val send = Intent(spec.action).apply {
@@ -74,8 +92,6 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
                 addFlags(spec.flags)
             }
             activity.startActivity(Intent.createChooser(send, null, chosenSender()))
-        } catch (e: Exception) {
-            flow.fail("share_failed", e.javaClass.simpleName)
         }
     }
 
@@ -149,6 +165,8 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
         channel.setMethodCallHandler(null)
         flow.detached()
         unregisterChosen()
+        // Laufendes Schreiben endet noch; seine Antwort verfällt im Ablauf (Generation).
+        io.shutdown()
     }
 
     companion object {
