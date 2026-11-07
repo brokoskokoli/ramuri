@@ -120,3 +120,8 @@ ArchiveCipher createArchiveCipher({
   aead: CryptographyChunkAead(),
   randomBytes: randomBytes,
 );
+
+/// Cipher für das Arbeits-Isolate des Exports: Top-Level-Funktion (als
+/// `ArchiveCipherFactory` sendbar), Ableitung im selben Isolate.
+ArchiveCipher createArchiveCipherInWorker() =>
+    createArchiveCipher(offload: inlineOffloadAsync);

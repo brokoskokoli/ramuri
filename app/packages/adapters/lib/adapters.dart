@@ -4,6 +4,7 @@ library;
 import 'package:core/core.dart';
 
 export 'src/archive/cryptography_archive.dart';
+export 'src/archive/drift_archive_source.dart';
 export 'src/export/method_channel_file_handoff.dart';
 export 'src/location/method_channel_location.dart';
 export 'src/permissions/method_channel_permission_status.dart';
