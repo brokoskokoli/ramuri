@@ -41,6 +41,7 @@ export 'ports/storage_raw.dart';
 export 'ports/storage_runs.dart';
 export 'ports/storage_settings.dart';
 export 'ports/storage_values.dart';
+export 'src/archive/archive_discard_sink.dart';
 export 'src/archive/archive_errors.dart';
 export 'src/archive/archive_export.dart';
 export 'src/archive/archive_header.dart';

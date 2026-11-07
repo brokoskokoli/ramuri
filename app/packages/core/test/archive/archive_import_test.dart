@@ -164,6 +164,45 @@ void main() {
   List<String> valid([int rowsPer = 1]) =>
       _validLines(_fullDb(rowsPer: rowsPer));
 
+  group('Verwerfendes Ziel (nur prüfen)', () {
+    test('gültiges Archiv: vollständig gelesen, kein Fehler', () async {
+      final bytes = await _archive(valid(3));
+      await ArchiveImporter(
+        sink: DiscardArchiveSink(),
+        cipherFactory: _fakeCipher,
+      ).import(path: c.write(bytes), password: _password);
+    });
+
+    test('falsches Passwort scheitert trotzdem', () async {
+      final bytes = await _archive(valid());
+      await expectLater(
+        ArchiveImporter(
+          sink: DiscardArchiveSink(),
+          cipherFactory: _fakeCipher,
+        ).import(path: c.write(bytes), password: 'ganz anderes Passwort'),
+        throwsA(
+          isA<ArchiveImportException>().having(
+            (e) => e.failure,
+            'failure',
+            ArchiveImportFailure.wrongPasswordOrDamaged,
+          ),
+        ),
+      );
+    });
+
+    test('Beschädigung erst am Ende (falscher Zähler) scheitert', () async {
+      final lines = valid()..removeLast();
+      lines.add(_endLine({for (final s in archiveSections) s.name: 99}));
+      await expectLater(
+        ArchiveImporter(
+          sink: DiscardArchiveSink(),
+          cipherFactory: _fakeCipher,
+        ).import(path: c.write(await _archive(lines)), password: _password),
+        throwsA(isA<ArchiveImportException>()),
+      );
+    });
+  });
+
   group('Rundgang Export -> Leser', () {
     test('alle Zeilen gleich, commit genau einmal am Ende', () async {
       final db = _fullDb(rowsPer: 3);

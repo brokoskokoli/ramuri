@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../archive/archive_export_action.dart';
+import '../archive/archive_import_action.dart';
 import '../archive/archive_wiring.dart';
 import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
@@ -63,6 +64,8 @@ class DataScreen extends StatelessWidget {
           Text(l10n.dataBody),
           const SizedBox(height: 16),
           ArchiveExportAction(session: session, serialize: serialize),
+          const SizedBox(height: 8),
+          ArchiveImportAction(session: session, serialize: serialize),
           const SizedBox(height: 8),
           OutlinedButton(
             onPressed: () => _deleteAll(context),

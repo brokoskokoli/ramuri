@@ -2,6 +2,9 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../archive/archive_import_flow.dart';
+import '../archive/archive_scope.dart';
+import '../export/file_handoff_scope.dart';
 import 'storage_start.dart';
 
 /// Zeigt je Zustand des App-Starts den passenden Bildschirm. Den Inhalt
@@ -30,6 +33,117 @@ class _StorageGateState extends State<StorageGate> {
     if (widget.controller.state is StorageLoading) widget.controller.start();
   }
 
+  bool _canRestore(BuildContext context) =>
+      ArchiveScope.verifyOf(context) != null &&
+      ArchiveScope.restoreOf(context) != null &&
+      FileHandoffScope.of(context) != null;
+
+  /// Weg "Aus Archiv wiederherstellen" im Dialog "nicht zu öffnen" (SEC-0009):
+  /// Datei wählen, Passwort, das Archiv vollständig prüfen, ohne etwas zu
+  /// schreiben, erst dann die Bestätigung, dass die alte Datei gelöscht wird.
+  /// Bis zur Bestätigung bleibt alles unberührt; ein falsches Passwort kostet
+  /// nichts. Danach Neubeginn und Einspielen in die leere Datenbank, bevor die
+  /// App bereit meldet. Die gewählte Kopie wird immer entsorgt.
+  Future<void> _restoreFromArchive() async {
+    final handoff = FileHandoffScope.of(context);
+    final verify = ArchiveScope.verifyOf(context);
+    final factory = ArchiveScope.restoreOf(context);
+    if (handoff == null || verify == null || factory == null) return;
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    void say(String text) =>
+        messenger?.showSnackBar(SnackBar(content: Text(text)));
+    try {
+      final pick = await handoff.pickFile();
+      switch (pick.result) {
+        case FileHandoffResult.cancelled:
+          return;
+        case FileHandoffResult.failed:
+          say(l10n.archiveImportPickFailed);
+          return;
+        case FileHandoffResult.completed:
+          break;
+      }
+      final path = pick.path;
+      if (path == null || !mounted) return;
+      var wrong = false;
+      String password;
+      while (true) {
+        if (!mounted) return;
+        final asked = await askArchivePassword(context, wrong: wrong);
+        if (asked == null || !mounted) return;
+        password = asked;
+        final cancel = ArchiveCancel();
+        try {
+          await withArchiveProgress(
+            context,
+            text: l10n.archiveImportVerifying,
+            cancel: cancel,
+            run: () => verify(path: path, password: password, cancel: cancel),
+          );
+          break;
+        } on ArchiveImportException catch (e) {
+          if (e.failure == ArchiveImportFailure.wrongPasswordOrDamaged) {
+            wrong = true;
+            continue;
+          }
+          if (e.failure == ArchiveImportFailure.cancelled) {
+            say(l10n.archiveImportCancelled);
+          } else if (mounted) {
+            await showArchiveImportError(context, e);
+          }
+          return;
+        } on Object catch (e) {
+          if (mounted) await showArchiveImportError(context, e);
+          return;
+        }
+      }
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => const RestoreConfirmDialog(),
+      );
+      if (confirmed != true) return;
+      await widget.controller.resetStorage(
+        restoreInto: (fresh) async {
+          if (!mounted) return fresh;
+          final cancel = ArchiveCancel();
+          try {
+            final restored = await withArchiveProgress(
+              context,
+              text: l10n.archiveImportWorking,
+              cancel: cancel,
+              run: () async {
+                final run = await factory(fresh, <T>(action) => action());
+                return run(path: path, password: password, cancel: cancel);
+              },
+            );
+            say(l10n.archiveImportDone);
+            return restored;
+          } on ArchiveImportException catch (e) {
+            if (e.failure == ArchiveImportFailure.cancelled) {
+              say(l10n.archiveImportCancelled);
+            } else if (mounted) {
+              await showArchiveImportError(context, e);
+            }
+            return fresh;
+          } on ArchiveRestoreException catch (e) {
+            if (mounted) await showArchiveImportError(context, e);
+            // Das Öffnen nach dem Tausch scheiterte: der Start meldet "nicht
+            // zu öffnen", "Erneut versuchen" öffnet die Datenbank normal.
+            if (e.failure == ArchiveRestoreFailure.reopenFailed) rethrow;
+            return e.session ?? fresh;
+          } on Object catch (e) {
+            if (mounted) await showArchiveImportError(context, e);
+            return fresh;
+          }
+        },
+      );
+    } finally {
+      await handoff.discardPicked();
+    }
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.controller,
@@ -40,6 +154,7 @@ class _StorageGateState extends State<StorageGate> {
         state: s,
         onRetry: widget.controller.start,
         onReset: widget.controller.resetStorage,
+        onRestoreFromArchive: _canRestore(context) ? _restoreFromArchive : null,
       ),
       StorageEncryptionInactive(:final dataLoss) => EncryptionInactiveScreen(
         dataLoss: dataLoss,
@@ -67,19 +182,23 @@ class _LoadingScreen extends StatelessWidget {
   );
 }
 
-/// Bildschirm "nicht zu öffnen" (OQ-0062). Hier wäre der Platz für den Eintrag
-/// "Reimport aus dem Archiv" (WP12); er ist absichtlich noch nicht gebaut.
+/// Bildschirm "nicht zu öffnen" (OQ-0062) mit dem Weg "Aus Archiv
+/// wiederherstellen" (WP12, SEC-0009).
 class NotOpenableScreen extends StatelessWidget {
   const NotOpenableScreen({
     super.key,
     required this.state,
     required this.onRetry,
     required this.onReset,
+    this.onRestoreFromArchive,
   });
 
   final StorageNotOpenableState state;
   final VoidCallback onRetry;
   final VoidCallback onReset;
+
+  /// Weg "Aus Archiv wiederherstellen" (SEC-0009); `null`: nicht angeboten.
+  final VoidCallback? onRestoreFromArchive;
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +276,16 @@ class NotOpenableScreen extends StatelessWidget {
                   },
                   child: Text(l10n.notOpenableReset),
                 ),
+                if (onRestoreFromArchive != null) ...[
+                  const SizedBox(height: 12),
+                  Text(l10n.notOpenableRestoreHint),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    key: const Key('not_openable_restore'),
+                    onPressed: onRestoreFromArchive,
+                    child: Text(l10n.notOpenableRestore),
+                  ),
+                ],
               ],
             ],
           ],
@@ -186,6 +315,49 @@ class ResetConfirmDialog extends StatelessWidget {
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(l10n.resetConfirmAction),
+        ),
+      ],
+    );
+  }
+}
+
+/// Bestätigung vor dem Löschen der alten Datei, nachdem das Archiv geprüft ist
+/// (SEC-0009), mit dem Hinweis aus OQ-0050. Gibt `true` nur bei der
+/// Schaltfläche zum Löschen zurück.
+class RestoreConfirmDialog extends StatelessWidget {
+  const RestoreConfirmDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      key: const Key('restore_confirm_dialog'),
+      title: Text(l10n.restoreConfirmTitle),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.restoreConfirmBody),
+            const SizedBox(height: 12),
+            Text(
+              l10n.archiveImportNotice,
+              key: const Key('archive_import_notice'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          autofocus: true,
+          key: const Key('restore_confirm_cancel'),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l10n.deleteCancel),
+        ),
+        FilledButton(
+          key: const Key('restore_confirm_action'),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(l10n.restoreConfirmAction),
         ),
       ],
     );

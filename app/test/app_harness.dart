@@ -57,6 +57,9 @@ class Device {
   /// Archiv-Export (WP12); `null`: nicht verdrahtet.
   ArchiveExportFactory? archiveExport;
 
+  /// Archiv-Import (WP12); `null`: nicht verdrahtet.
+  ArchiveRestoreFactory? archiveRestore;
+
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
   /// [heartRate] (Gerät 'hr1', ohne Verwaltung); [lastRun] ist die Pulsquelle
   /// des jüngsten Laufs.
@@ -111,6 +114,7 @@ class Device {
           offload: offload,
           fileHandoff: fileHandoff,
           archiveExport: archiveExport,
+          archiveRestore: archiveRestore,
           permissions: permissions,
           runPorts: RunPorts(
             access: locationAccessOverride ?? locationAccess,

@@ -15,10 +15,28 @@ typedef SerializeAction = Future<T> Function<T>(Future<T> Function() action);
 /// Baut den Export für die geöffnete Sitzung.
 typedef ArchiveExportFactory = ArchiveExportRunner Function(StorageSession s);
 
-/// Baut den Wiederherstellungsdienst für die geöffnete Sitzung (Reimport,
-/// folgt in der Oberfläche mit D2). [serialize] schließt Aufnahme und
-/// Neuberechnung aus.
-typedef ArchiveRestoreFactory = Future<ArchiveRestoreService> Function(
+/// Eine Wiederherstellung aus dem Archiv (Reimport, FR-0198): ersetzt die
+/// Datenbank und liefert die neue Sitzung. Wirft `ArchiveImportException` oder
+/// `ArchiveRestoreException`. In der App `ArchiveRestoreService.restore`.
+typedef ArchiveRestoreRunner = Future<StorageSession> Function({
+  required String path,
+  required String password,
+  bool resetConfirmed,
+  ArchiveCancel? cancel,
+});
+
+/// Baut den Wiederherstellungsdienst für die geöffnete Sitzung. [serialize]
+/// schließt Aufnahme und Neuberechnung aus. Wirft
+/// `ArchiveRestoreException(keyUnavailable)`, wenn der Schlüssel fehlt.
+typedef ArchiveRestoreFactory = Future<ArchiveRestoreRunner> Function(
   StorageSession session,
   SerializeAction serialize,
 );
+
+/// Prüft ein Archiv vollständig, ohne etwas zu schreiben (SEC-0009). Wirft
+/// `ArchiveImportException`.
+typedef ArchiveVerifier = Future<void> Function({
+  required String path,
+  required String password,
+  ArchiveCancel? cancel,
+});

@@ -94,6 +94,10 @@ enum ArchiveRestoreFailure {
   /// Der Tausch ist erfolgt (oder unklar), aber das Öffnen danach scheiterte:
   /// Der Aufrufer startet den normalen Startablauf neu.
   reopenFailed,
+
+  /// Der Datenbankschlüssel war nicht lesbar, bevor etwas geschah: Die aktive
+  /// Sitzung ist unberührt und offen, die Datenbank unverändert.
+  keyUnavailable,
 }
 
 class ArchiveRestoreException implements Exception {

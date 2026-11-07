@@ -45,6 +45,8 @@ class _RunningAppState extends State<RunningApp> {
           child: ArchiveScope(
             export: dependencies.archiveExport,
             restore: dependencies.archiveRestore,
+            verify: dependencies.archiveVerify,
+            start: dependencies.storageStart,
             child: AppSettingsScope(holder: _settings, child: child!),
           ),
         ),
@@ -62,6 +64,9 @@ class _RunningAppState extends State<RunningApp> {
       home: StorageGate(
         controller: dependencies.storageStart,
         readyBuilder: (context, session) => ReadyRoot(
+          // Eine neue Sitzung (nach dem Import) baut alles neu auf:
+          // Einstellungen, Sensoren, Verlauf.
+          key: ObjectKey(session),
           session: session,
           clock: dependencies.clock,
           permissions: dependencies.permissions,

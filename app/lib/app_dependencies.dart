@@ -25,6 +25,7 @@ class AppDependencies {
     FileHandoff? fileHandoff,
     this.archiveExport,
     this.archiveRestore,
+    this.archiveVerify,
   }) : fileHandoff = fileHandoff ?? const _NoFileHandoff(),
        permissions = permissions ?? const _NoPermissionStatus(),
        runPorts = runPorts ?? const _NoRunPorts(),
@@ -59,9 +60,13 @@ class AppDependencies {
   /// an (Tests ohne Archiv); Tests setzen einen Fake.
   final ArchiveExportFactory? archiveExport;
 
-  /// Wiederherstellung aus einem Archiv (WP12, Oberfläche folgt). `null`:
-  /// nicht verdrahtet (Tests).
+  /// Wiederherstellung aus einem Archiv (WP12, FR-0198). `null`: nicht
+  /// verdrahtet (Tests), dann bietet die Oberfläche den Import nicht an.
   final ArchiveRestoreFactory? archiveRestore;
+
+  /// Prüfung eines Archivs ohne Schreiben (SEC-0009, Weg im Dialog "nicht zu
+  /// öffnen"). `null`: nicht verdrahtet.
+  final ArchiveVerifier? archiveVerify;
 
   /// App-weiter Sensordienst: Verbindungen, bekannte Geräte, Puls (WP07).
   final SensorManager sensors;
@@ -123,10 +128,10 @@ class AppDependencies {
         final key = await keyStore.read(storageKeyName);
         if (key == null) {
           throw const ArchiveRestoreException(
-            ArchiveRestoreFailure.reopenFailed,
+            ArchiveRestoreFailure.keyUnavailable,
           );
         }
-        return ArchiveRestoreService(
+        final service = ArchiveRestoreService(
           session: session,
           sink: DriftArchiveSink(
             storage: EncryptedStorage(files.importPath),
@@ -138,7 +143,13 @@ class AppDependencies {
           reopen: () => storage.open(key),
           serialize: serialize,
         );
+        return service.restore;
       },
+      archiveVerify: ({required path, required password, cancel}) =>
+          ArchiveImporter(
+            sink: DiscardArchiveSink(),
+            cipherFactory: createArchiveCipherInWorker,
+          ).import(path: path, password: password, cancel: cancel),
       runPorts: RunPorts(
         access: MethodChannelLocationAccess(),
         location: MethodChannelLocationSource(),
