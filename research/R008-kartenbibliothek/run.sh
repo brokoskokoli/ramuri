@@ -39,7 +39,8 @@ OUT="$WORK/$STEP-$(date +%Y%m%d-%H%M%S)"; mkdir -p "$OUT"
 case "$STEP" in
   host)
     APP=$(src/mkapp.sh fm "$WORK/apps")
-    python3 src/patch_vmt.py ~/.pub-cache/hosted/pub.dev/vector_map_tiles-9.0.0-beta.13 "$WORK/apps/vmt_patched" >/dev/null
+    VMT=~/.pub-cache/hosted/pub.dev/vector_map_tiles-9.0.0-beta.13; [ -d "$VMT" ] || dart pub cache add vector_map_tiles --version 9.0.0-beta.13
+    python3 src/patch_vmt.py "$VMT" "$WORK/apps/vmt_patched" >/dev/null
     ( cd "$APP" && flutter pub get >/dev/null && R008_FIXTURES="$FIX" R008_OUT="$OUT" flutter test --reporter expanded ) 2>&1 | tee "$OUT/host.log" ;;
   build) src/build.sh "$OUT" $APPS 2>&1 | tee "$OUT/build.log" ;;
   licenses) python3 src/licenses.py "$WORK/apps" "$OUT" $APPS 2>&1 | tee "$OUT/licenses.log" ;;

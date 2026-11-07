@@ -3,9 +3,9 @@
 set -euo pipefail
 OUT=$1; shift; HERE="$(cd "$(dirname "$0")" && pwd)"
 APPS="$(dirname "$OUT")/apps"   # gemeinsame Build-Ordner unter work/R008/apps
-python3 "$HERE/patch_vmt.py" ~/.pub-cache/hosted/pub.dev/vector_map_tiles-9.0.0-beta.13 "$APPS/vmt_patched" >/dev/null 2>&1 || {
-  ( cd "$APPS" && mkdir -p _fetch && cd _fetch && [ -f pubspec.yaml ] || flutter create --platforms android x >/dev/null; cd x && flutter pub add vector_map_tiles:9.0.0-beta.13 >/dev/null )
-  python3 "$HERE/patch_vmt.py" ~/.pub-cache/hosted/pub.dev/vector_map_tiles-9.0.0-beta.13 "$APPS/vmt_patched"; }
+VMT=~/.pub-cache/hosted/pub.dev/vector_map_tiles-9.0.0-beta.13
+[ -d "$VMT" ] || dart pub cache add vector_map_tiles --version 9.0.0-beta.13
+python3 "$HERE/patch_vmt.py" "$VMT" "$APPS/vmt_patched"
 printf 'app\tvariante\tdatei\tbytes\n' > "$OUT/apk_sizes.tsv"
 for a in "$@"; do
   APP=$("$HERE/mkapp.sh" "$a" "$APPS")
