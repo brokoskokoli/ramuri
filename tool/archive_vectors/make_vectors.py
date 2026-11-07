@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: GPL-3.0-only
 """Erzeugt Testvektoren fuer das Archivformat (docs/contracts/archive.md).
 
 Unabhaengig vom Dart-Code, nur nach dem Vertragstext geschrieben.

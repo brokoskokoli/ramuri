@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:adapters/adapters.dart';
@@ -195,6 +196,31 @@ List<String> _leaks(List<Directory> roots, Directory skip, DateTime since) {
   return bad;
 }
 
+/// Test-Chiffre: beendet den Arbeits-Isolate hart nach dem Kopf, ohne dass
+/// dessen catch/finally läuft.
+class _DyingCipher implements ArchiveCipher {
+  @override
+  Stream<Uint8List> encrypt(
+    String password,
+    Stream<List<int>> plaintext,
+  ) async* {
+    var n = 0;
+    await for (final c in createArchiveCipherInWorker().encrypt(
+      password,
+      plaintext,
+    )) {
+      if (n++ >= 1) Isolate.exit();
+      yield c;
+    }
+  }
+
+  @override
+  Stream<Uint8List> decrypt(String password, Stream<List<int>> archive) =>
+      throw UnimplementedError();
+}
+
+ArchiveCipher _dyingCipher() => _DyingCipher();
+
 void main() {
   late Directory work;
   late Directory exportDir;
@@ -310,12 +336,39 @@ void main() {
       final magic = head.readSync(8);
       head.closeSync();
       expect(utf8.decode(magic), 'RUNARCHV');
-      // Quelle (Test-Datenbank) ist ausgenommen: sie ist hier unverschlüsselt.
-      expect(_leaks([exportDir, Directory.systemTemp], work, started), isEmpty);
+      // Nur die Test-Datenbank ist ausgenommen (unverschlüsselt; der Präfix
+      // deckt -wal/-shm/-journal). Exportordner und .part werden mitgeprüft.
+      expect(
+        _leaks(
+          [exportDir, Directory.systemTemp],
+          Directory('${work.path}/plain.db'),
+          started,
+        ),
+        isEmpty,
+      );
       // Selbstprüfung: Die Suche findet die Marke im Klartext der Datenbank.
       expect(_leaks([work], Directory('/nonexistent'), started), isNotEmpty);
     },
   );
+
+  test('Arbeits-Isolate stirbt: keine .part, Fehler ohne Inhalte', () async {
+    await _fillAll(db);
+    await _x(db, "UPDATE known_devices SET display_name = '$_marker'");
+    Object? error;
+    try {
+      await exporter(cipher: _dyingCipher).export(password: _password);
+    } catch (e) {
+      error = e;
+    }
+    expect(error, isA<ArchiveExportException>());
+    expect(
+      (error! as ArchiveExportException).failure,
+      ArchiveExportFailure.writeFailed,
+    );
+    expect(error.toString(), isNot(contains(_marker)));
+    expect(error.toString(), isNot(contains(_password)));
+    expect(exportDir.listSync(), isEmpty);
+  });
 
   test('Fehler mitten im Strom: keine Datei im Exportordner', () async {
     await _fillAll(db);
