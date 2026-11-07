@@ -1,0 +1,23 @@
+name: r008_fmvt
+description: R008 flutter_map + flutter_map_vector_tiles mit OpenFreeMap (ohne Patch)
+publish_to: 'none'
+version: 1.0.0+1
+environment:
+  sdk: ^3.13.5
+  flutter: 3.47.7
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_map: 8.3.2
+  flutter_map_vector_tiles: 2.11.0
+  http: 1.6.0
+  latlong2: 0.10.1
+  cryptography: 2.9.0
+  path_provider: 2.1.5
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  path_provider_platform_interface: 2.1.3
+  plugin_platform_interface: 2.1.8
+flutter:
+  uses-material-design: true

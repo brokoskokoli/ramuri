@@ -9,20 +9,26 @@ def parse(path):
     e = '<' if magic in (0xa1b2c3d4, 0xa1b23c4d) else '>'
     link = struct.unpack(e + 'I', b[20:24])[0]
     off, n = 24, 0
-    dns, sni, dst = collections.Counter(), collections.Counter(), collections.Counter()
+    dns, sni, dst, ports = collections.Counter(), collections.Counter(), collections.Counter(), collections.Counter()
     while off + 16 <= len(b):
         _, _, incl, _ = struct.unpack(e + 'IIII', b[off:off + 16]); off += 16
         pkt = b[off:off + incl]; off += incl; n += 1
         if link == 1:  # Ethernet
-            if len(pkt) < 14 or pkt[12:14] != b'\x08\x00': continue
+            if len(pkt) < 14 or pkt[12:14] not in (b'\x08\x00', b'\x86\xdd'): continue
             ip = pkt[14:]
         elif link in (101, 228):  # raw IPv4
             ip = pkt
         else:
             continue
-        if len(ip) < 20 or ip[0] >> 4 != 4: continue
-        ihl = (ip[0] & 15) * 4; proto = ip[9]; d = '.'.join(map(str, ip[16:20])); pl = ip[ihl:]
+        if len(ip) >= 40 and ip[0] >> 4 == 6:  # IPv6 ohne Erweiterungskoepfe
+            proto = ip[6]; d = ip[24:40].hex(':', 2); pl = ip[40:]
+        elif len(ip) >= 20 and ip[0] >> 4 == 4:
+            ihl = (ip[0] & 15) * 4; proto = ip[9]; d = '.'.join(map(str, ip[16:20])); pl = ip[ihl:]
+        else:
+            continue
         dst[d] += len(ip)
+        if proto in (6, 17) and len(pl) >= 4:  # Zielport (DoT 853, QUIC udp/443 fallen hier auf)
+            ports[('tcp' if proto == 6 else 'udp') + '/' + str(struct.unpack('>H', pl[2:4])[0])] += 1
         if proto == 17 and len(pl) >= 8 and struct.unpack('>H', pl[2:4])[0] == 53:
             q = pl[8 + 12:]; labels = []; i = 0
             while i < len(q) and q[i]:
@@ -40,7 +46,7 @@ def parse(path):
                         p += l
                 except Exception:
                     pass
-    return {'packets': n, 'dns': dict(dns), 'sni': dict(sni), 'dst_bytes': dict(dst.most_common(15))}
+    return {'packets': n, 'dns': dict(dns), 'sni': dict(sni), 'dst_bytes': dict(dst.most_common(15)), 'dst_ports': dict(ports.most_common(15))}
 
 if __name__ == '__main__':
     print(json.dumps(parse(sys.argv[1]), indent=1))

@@ -1,16 +1,21 @@
 #!/bin/bash
 # Emulator-Messungen R008. Usage: emu.sh <out> <api> <port> <live_s> <apps...>
-# Startet genau einen eigenen Emulator (running_app_api<api>, Serial emulator-<port>, -no-audio) und beendet ihn per PID.
+# Startet genau einen eigenen Emulator (running_app_api<api>, Serial emulator-<port>, -no-audio, -read-only: AVD bleibt unveraendert) und beendet ihn per PID.
 # Bricht ab, wenn schon ein anderer Emulator laeuft. Mitschnitt je Phase per "adb emu network capture".
 set -uo pipefail
 OUT=$1; API=$2; PORT=$3; LIVE_S=$4; shift 4; APPS="$*"
 HERE="$(cd "$(dirname "$0")" && pwd)"; SDK=~/Library/Android/sdk; ADB="$SDK/platform-tools/adb -s emulator-$PORT"
 BUILD=$(ls -d "$(dirname "$OUT")"/build-*/ | tail -1)
 if pgrep -f qemu-system >/dev/null; then echo "Anderer Emulator laeuft (pgrep qemu-system): Abbruch, nichts gestartet" >&2; exit 3; fi
-"$SDK/emulator/emulator" -avd "running_app_api$API" -port "$PORT" -no-audio -no-snapshot-save -no-boot-anim > "$OUT/emulator.log" 2>&1 &
+"$SDK/emulator/emulator" -avd "running_app_api$API" -port "$PORT" -no-audio -no-snapshot-save -no-boot-anim -read-only > "$OUT/emulator.log" 2>&1 &
 EPID=$!; echo "$EPID" > "$OUT/emulator.pid"; echo "emulator pid=$EPID"
-trap 'kill $EPID 2>/dev/null; wait $EPID 2>/dev/null' EXIT
-$ADB wait-for-device; until [ "$($ADB shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; do sleep 3; done
+stop_emu() { # sauber ueber die Konsole, dann eigene PIDs (Startprozess und dessen qemu-Kind), kein pkill
+  $ADB emu kill >/dev/null 2>&1; sleep 10
+  for p in $(pgrep -P "$EPID" 2>/dev/null) "$EPID"; do kill "$p" 2>/dev/null; done; wait "$EPID" 2>/dev/null
+  pgrep -f "qemu-system.*-port $PORT|emulator-$PORT|avd running_app_api$API" >/dev/null && echo "WARNUNG: Emulator-Prozess lebt noch" || echo "emulator beendet"
+}
+trap stop_emu EXIT
+echo "serial=emulator-$PORT"; $ADB wait-for-device; until [ "$($ADB shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; do sleep 3; done
 $ADB root >/dev/null; sleep 3; $ADB wait-for-device
 $ADB shell settings put global window_animation_scale 0; $ADB shell svc power stayon true; $ADB shell input keyevent KEYCODE_WAKEUP
 sleep 60   # Systemstart abklingen lassen
@@ -33,8 +38,9 @@ measure() { # app name route seconds
 }
 storage_scan() { # app tag
   local a=$1 d="$OUT/files-$1-$2"; mkdir -p "$d"
-  $ADB shell find /data/data/"$(pkg "$a")" /data/user_de/0/"$(pkg "$a")" -type f -exec ls -l {} + > "$d/ls.txt" 2>/dev/null
+  $ADB shell find /data/data/"$(pkg "$a")" /data/user_de/0/"$(pkg "$a")" /sdcard/Android/data/"$(pkg "$a")" -type f -exec ls -l {} + > "$d/ls.txt" 2>/dev/null
   $ADB pull /data/data/"$(pkg "$a")" "$d/" >/dev/null 2>&1
+  $ADB pull /sdcard/Android/data/"$(pkg "$a")" "$d/external" >/dev/null 2>&1
   python3 "$HERE/scan_plain.py" "$d" > "$d/scan.txt"; cat "$d/scan.txt"
 }
 echo -e "app\tphase\troute\tsekunden\tcpu_ticks_start\tcpu_ticks_ende" > "$OUT/phases.tsv"
@@ -58,7 +64,7 @@ for a in $APPS; do
   measure "$a" thumbs-stored "/thumbs?consent=1&n=50&auto=1" 60
   measure "$a" detail "/detail?consent=1" 20
   storage_scan "$a" consent
-  if [ "$a" = fm ]; then measure fm plaincache "/detail?consent=1&plaincache=1" 20; storage_scan fm plaincache; fi
+  if [ "$a" = fm ] || [ "$a" = fmvt ]; then measure "$a" plaincache "/detail?consent=1&plaincache=1" 20; storage_scan "$a" plaincache; fi
   if [ "$a" = ml ]; then $ADB shell pm clear "$(pkg ml)" >/dev/null; measure ml ambient "/detail?consent=1&ambient=1" 20; storage_scan ml ambient; fi
 done
 echo "Emulator-Messung fertig: $OUT"

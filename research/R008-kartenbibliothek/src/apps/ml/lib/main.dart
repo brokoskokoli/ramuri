@@ -178,7 +178,8 @@ class _ThumbsState extends State<ThumbsPage> {
   final imgs = <int, Uint8List>{};
   MapLibreMapController? gen;
   bool genReady = false, genDone = false;
-  int generated = 0, genMs = 0, loaded = 0;
+  int generated = 0, genMs = 0, loaded = 0, idleTimeouts = 0;
+  Completer<void>? idle; // onMapIdle der Generator-Karte: alle Kacheln geladen und gezeichnet
 
   @override
   void initState() {
@@ -210,14 +211,20 @@ class _ThumbsState extends State<ThumbsPage> {
       if (imgs.containsKey(i)) continue;
       final t = Stopwatch()..start();
       final r = ll(syntheticRun(i + 1));
+      idle = Completer<void>();
       await m.setGeoJsonSource('route', lineGeo(r));
       await m.moveCamera(CameraUpdate.newLatLngBounds(bounds(r), left: 8, right: 8, top: 8, bottom: 8));
-      await Future.delayed(const Duration(milliseconds: 300)); // Kacheln laden lassen (kein Idle-Ereignis abgewartet)
+      // Ladeende: onMapIdle (MapLibre: alle sichtbaren Kacheln geladen, keine Uebergaenge), Zeitgrenze 10 s
+      var ok = true;
+      await idle!.future.timeout(const Duration(seconds: 10), onTimeout: () {
+        ok = false;
+        idleTimeouts++;
+      });
       final png = await m.takeSnapshot();
       await thumbStore.write('thumb:$i:map', png);
       generated++;
       genMs += t.elapsedMilliseconds;
-      log('thumb gen ms=${t.elapsedMilliseconds} png_bytes=${png.length} generated=$generated avg_ms=${genMs ~/ generated}');
+      log('thumb gen ms=${t.elapsedMilliseconds} png_bytes=${png.length} idle=$ok generated=$generated avg_ms=${genMs ~/ generated}');
       setState(() => imgs[i] = png);
     }
     setState(() => genDone = true);
@@ -231,7 +238,7 @@ class _ThumbsState extends State<ThumbsPage> {
         await sc.animateTo(sc.position.maxScrollExtent, duration: const Duration(seconds: 8), curve: Curves.linear);
         await sc.animateTo(0, duration: const Duration(seconds: 8), curve: Curves.linear);
       }
-      log('autoscroll_done generated=$generated loaded=$loaded');
+      log('autoscroll_done generated=$generated loaded=$loaded idle_timeouts=$idleTimeouts');
     });
   }
 
@@ -248,6 +255,9 @@ class _ThumbsState extends State<ThumbsPage> {
               styleString: styleUrl,
               initialCameraPosition: CameraPosition(target: r1[0], zoom: 14),
               onMapCreated: (m) => gen = m,
+              onMapIdle: () {
+                if (idle != null && !idle!.isCompleted) idle!.complete();
+              },
               onStyleLoadedCallback: () {
                 if (!genReady) {
                   genReady = true;

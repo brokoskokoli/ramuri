@@ -5,11 +5,11 @@ cd "$(dirname "$0")"
 source "$(git rev-parse --show-toplevel)/research/_shared/paths.sh"
 ID=R008
 WORK="$(research_work "$ID")"; FIX="$WORK/fixtures"
-APPS_ALL="base fm ml"
+APPS_ALL="base fm fmvt ml"
 usage() { cat <<HELP
 Usage: ./run.sh <schritt> [Parameter]
 Schritte:
-| \`host\`     | Host-Tests der Mini-App fm (flutter test): Speicher-Hook, fail-closed, Miniatur, Klartext-Gegenprobe |
+| \`host\`     | Host-Tests der Mini-Apps fm und fmvt (flutter test): Hook bzw. Tor, fail-closed, Miniatur, Klartext-Gegenprobe |
 | \`build\`    | Mini-Apps bauen (Release, arm64/x86_64 einzeln und universal), APK-Groessen nach apk_sizes.tsv |
 | \`licenses\` | Lizenzbaum: Dart (pubspec.lock + LICENSE im Pub-Cache) und Gradle (releaseRuntimeClasspath + POM) |
 | \`netstatic\`| Netz-APIs und fest eingebaute Hosts in Dart-Paketen, Java/Kotlin-Quellen und nativen Bibliotheken |
@@ -38,10 +38,12 @@ OUT="$WORK/$STEP-$(date +%Y%m%d-%H%M%S)"; mkdir -p "$OUT"
   flutter --version 2>/dev/null | head -1; sw_vers -productVersion; uname -m; } > "$OUT/run.info"
 case "$STEP" in
   host)
-    APP=$(src/mkapp.sh fm "$WORK/apps")
     VMT=~/.pub-cache/hosted/pub.dev/vector_map_tiles-9.0.0-beta.13; [ -d "$VMT" ] || dart pub cache add vector_map_tiles --version 9.0.0-beta.13
     python3 src/patch_vmt.py "$VMT" "$WORK/apps/vmt_patched" >/dev/null
-    ( cd "$APP" && flutter pub get >/dev/null && R008_FIXTURES="$FIX" R008_OUT="$OUT" flutter test --reporter expanded ) 2>&1 | tee "$OUT/host.log" ;;
+    for a in fm fmvt; do
+      APP=$(src/mkapp.sh $a "$WORK/apps")
+      ( cd "$APP" && flutter pub get >/dev/null && R008_FIXTURES="$FIX" R008_OUT="$OUT" flutter test --reporter expanded ) 2>&1 | tee "$OUT/host_$a.log"
+    done ;;
   build) src/build.sh "$OUT" $APPS 2>&1 | tee "$OUT/build.log" ;;
   licenses) python3 src/licenses.py "$WORK/apps" "$OUT" $APPS 2>&1 | tee "$OUT/licenses.log" ;;
   netstatic) bash src/netstatic.sh "$WORK/apps" "$OUT" 2>&1 | tee "$OUT/netstatic.log" ;;
