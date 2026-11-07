@@ -577,9 +577,11 @@ void main() {
           m.formatMediumDate(DateTime.utc(2026, mo, day).toLocal());
       expect(
         text('expl_a2'),
-        'Daten vom ${date(5, 1)} bis ${date(6, 4)}. '
-        'Berechnet am ${date(6, 5)}.',
+        'Daten vom ${date(5, 1)} bis ${date(6, 4)}\n'
+        'Berechnet am ${date(6, 5)}',
       );
+      // Das deutsche Datum endet mit einem Abkürzungspunkt; kein zweiter.
+      expect(text('expl_a2'), isNot(contains('..')));
     });
   });
 
