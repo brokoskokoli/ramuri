@@ -155,7 +155,9 @@ void main() {
       await d.sensorFake.drop('h1');
       await tester.pump();
       expect(text('run_sensor_source'), 'Quelle: Gurt h2');
-      expect(key('run_sensor_loss'), findsOneWidget);
+      // Ersatzquelle liefert: kein Abbruch-Hinweis mehr (nur aktueller Zustand).
+      expect(key('run_sensor_loss'), findsNothing);
+      expect(d.lastRun!.lossSeen, isTrue);
       await walk(d, tester, 5, from: 5, bpm: {'h2': 140});
       // Das bevorzugte Gerät verbindet neu: bleibt bei h2.
       d.clock.advance(const Duration(seconds: 1));
@@ -199,6 +201,8 @@ void main() {
         await walk(d, tester, 3, from: 17, bpm: {'h1': 152});
         expect(text('run_sensor_status'), 'Sensor verbunden');
         expect(text('run_hr'), '152 bpm');
+        // Nach der Neuverbindung verschwindet der Abbruch-Hinweis.
+        expect(key('run_sensor_loss'), findsNothing);
         final raw = await finishAndRead(d, tester);
         expect(
           raw.positions.length,

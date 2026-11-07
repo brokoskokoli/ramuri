@@ -64,6 +64,11 @@ class RunHeartRate extends ChangeNotifier {
   /// Die aktive Quelle ist in diesem Lauf mindestens einmal abgebrochen.
   bool get lossSeen => _lossSeen;
 
+  /// Nach einem Abbruch liefert gerade keine Quelle. Der Hinweis zeigt nur
+  /// den aktuellen Zustand; nach Neuverbindung oder Ersatzquelle
+  /// verschwindet er (Entscheidung des Maintainers, 2026-11-07).
+  bool get lossOngoing => _lossSeen && _selector.activeId == null;
+
   /// Verbundene Geräte, aus denen der Nutzer die Quelle wählen kann.
   List<SensorEntry> get devices => [
     for (final e in [..._manager.knownEntries, ..._manager.foundEntries])

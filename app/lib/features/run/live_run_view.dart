@@ -349,7 +349,7 @@ class _SensorPanel extends StatelessWidget {
                 l10n.runSensorSource(active.name ?? l10n.sensorsUnnamed),
                 key: const Key('run_sensor_source'),
               ),
-            if (run.lossSeen)
+            if (run.lossOngoing)
               Text(
                 l10n.runSensorLossNote,
                 key: const Key('run_sensor_loss'),

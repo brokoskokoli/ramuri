@@ -902,7 +902,7 @@
       }
     }
   },
-  "runSensorLossNote": "Die Pulsquelle ist in diesem Lauf abgebrochen.",
+  "runSensorLossNote": "Die Pulsquelle ist abgebrochen. Bis zur Neuverbindung fehlen Pulswerte.",
   "runSensorSwitchTo": "Quelle wechseln zu {name}",
   "@runSensorSwitchTo": {
     "description": "Wechsel der Pulsquelle auf ein anderes verbundenes Gerät",
