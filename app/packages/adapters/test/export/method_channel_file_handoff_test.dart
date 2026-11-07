@@ -39,7 +39,40 @@ void main() {
       expect(args['fileName'], file.fileName);
       expect(args['mimeType'], file.mimeType);
       expect(args['bytes'], file.bytes);
+      expect(args.containsKey('path'), isFalse);
     }
+  });
+
+  test('Datei im Exportordner: nur Pfad, keine Bytes über den Kanal', () async {
+    final big = ExportFile.inExportDirectory(
+      fileName: 'archiv.zip',
+      mimeType: 'application/zip',
+      path: '/c/exports/archiv.zip',
+    );
+    final h = MethodChannelFileHandoff();
+    expect(await h.share(big), FileHandoffResult.completed);
+    expect(await h.save(big), FileHandoffResult.completed);
+    for (final c in calls) {
+      expect(c.arguments, {
+        'fileName': 'archiv.zip',
+        'mimeType': 'application/zip',
+        'path': '/c/exports/archiv.zip',
+      });
+    }
+    // Lehnt Kotlin den Pfad ab (nicht unter exports/), ist das failed.
+    answer = (_) => throw PlatformException(code: 'bad_arguments');
+    expect(await h.share(big), FileHandoffResult.failed);
+  });
+
+  test('exportDirectory: Antwort der Plattform, Fehler sind null', () async {
+    final h = MethodChannelFileHandoff();
+    answer = (_) => '/c/exports';
+    expect(await h.exportDirectory(), '/c/exports');
+    expect(calls.single.method, 'exportDirectory');
+    answer = (_) => throw PlatformException(code: 'no_directory');
+    expect(await h.exportDirectory(), isNull);
+    messenger.setMockMethodCallHandler(channel, null);
+    expect(await h.exportDirectory(), isNull);
   });
 
   test('Antworten werden auf das Ergebnis abgebildet', () async {
@@ -83,7 +116,10 @@ void main() {
     final kt = File('$dir/FileHandoffChannel.kt').readAsStringSync();
     final flow = File('$dir/FileHandoffFlow.kt').readAsStringSync();
     expect(kt, contains('"$fileHandoffChannelName"'));
-    for (final m in ['share', 'save', 'fileName', 'mimeType', 'bytes']) {
+    for (final m in [
+      'share', 'save', 'exportDirectory', 'fileName', 'mimeType', 'bytes', //
+      'path',
+    ]) {
       expect(kt, contains('"$m"'), reason: m);
     }
     for (final r in ['completed', 'cancelled']) {

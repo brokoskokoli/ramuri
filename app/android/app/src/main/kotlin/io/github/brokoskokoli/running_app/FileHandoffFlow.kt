@@ -1,6 +1,7 @@
 package io.github.brokoskokoli.running_app
 
 import android.content.Intent
+import java.io.File
 
 /** Wirkungen auf den Kanal; die Entscheidungen liegen in [FileHandoffFlow]. */
 interface HandoffAnswers<R> {
@@ -35,6 +36,14 @@ object HandoffIntents {
     )
 }
 
+/** Inhalt einer Übergabe: Bytes aus dem Kanal oder eine Datei, die schon im Exportordner liegt. */
+sealed interface HandoffSource {
+    class Bytes(val bytes: ByteArray) : HandoffSource
+
+    /** Geprüft über [ExportFiles.resolve]; wird beim Speichern gestreamt, nie ganz geladen. */
+    class Path(val file: File) : HandoffSource
+}
+
 /** Wo der Ablauf arbeitet: Schreiben im Hintergrund, Entscheidungen auf dem Hauptthread. */
 interface HandoffThreads {
     fun background(work: () -> Unit)
@@ -61,7 +70,7 @@ class FileHandoffFlow<R>(
     private var kind: Kind? = null
     private var launched = false
     private var left = false
-    private var saveBytes: ByteArray? = null
+    private var saveSource: HandoffSource? = null
 
     /** Zählt Übergaben; eine Hintergrundantwort einer schon beendeten Übergabe verfällt. */
     private var generation = 0
@@ -96,10 +105,12 @@ class FileHandoffFlow<R>(
         return true
     }
 
-    /** Hält [bytes] bis zur Antwort des Dokumentenziels. */
-    fun beginSave(result: R, bytes: ByteArray): Boolean = begin(result, Kind.SAVE, bytes)
+    /** Hält [source] bis zur Antwort des Dokumentenziels. */
+    fun beginSave(result: R, source: HandoffSource): Boolean = begin(result, Kind.SAVE, source)
 
-    private fun begin(result: R, k: Kind, bytes: ByteArray?): Boolean {
+    fun beginSave(result: R, bytes: ByteArray): Boolean = beginSave(result, HandoffSource.Bytes(bytes))
+
+    private fun begin(result: R, k: Kind, source: HandoffSource?): Boolean {
         if (pending != null) {
             answers.error(result, "busy", null)
             return false
@@ -109,7 +120,7 @@ class FileHandoffFlow<R>(
         kind = k
         launched = false
         left = false
-        saveBytes = bytes
+        saveSource = source
         return true
     }
 
@@ -118,7 +129,11 @@ class FileHandoffFlow<R>(
         if (kind == Kind.SHARE && launched) left = true
     }
 
-    /** Ein Ziel im Teilen-Menü wurde gewählt. */
+    /**
+     * Ein Ziel im Teilen-Menü wurde gewählt. Bekannte Unschärfe: Android meldet die Wahl
+     * asynchron. Schließt das Ziel sofort (oder bei der Aktion „Kopieren“ ab Android 14), kann
+     * [resumed] vorher ankommen; dann heißt das Ergebnis „cancelled“, obwohl geteilt wurde.
+     */
     fun chosen() {
         if (kind == Kind.SHARE && launched) finish("completed")
     }
@@ -129,20 +144,23 @@ class FileHandoffFlow<R>(
     }
 
     /**
-     * Antwort des Dokumentenziels: `null` heißt abgebrochen, sonst schreibt [write] die Bytes
-     * im Hintergrund; die Antwort an Dart folgt auf dem Hauptthread.
+     * Antwort des Dokumentenziels: `null` heißt abgebrochen, sonst schreibt [write] den Inhalt
+     * im Hintergrund; die Antwort an Dart folgt auf dem Hauptthread. `false`, wenn kein
+     * Speichern offen ist (Activity neu erzeugt, Übergabe schon beendet): Dann gehört ein vom
+     * System schon angelegtes Dokument niemandem, und der Aufrufer entfernt es.
      */
-    fun <U> saveAnswered(uri: U?, write: (U, ByteArray) -> Unit) {
-        if (kind != Kind.SAVE) return
-        val bytes = saveBytes ?: return
-        saveBytes = null
+    fun <U> saveAnswered(uri: U?, write: (U, HandoffSource) -> Unit): Boolean {
+        if (kind != Kind.SAVE) return false
+        // Schon beantwortet, das Schreiben läuft: Das Dokument gehört dieser Übergabe.
+        val source = saveSource ?: return true
+        saveSource = null
         if (uri == null) {
             finish("cancelled")
-            return
+            return true
         }
         val token = generation
         threads.background {
-            val written = runCatching { write(uri, bytes) }
+            val written = runCatching { write(uri, source) }
             threads.main {
                 if (token != generation) return@main
                 written.fold(
@@ -152,6 +170,7 @@ class FileHandoffFlow<R>(
                 )
             }
         }
+        return true
     }
 
     /** Start des Systemdialogs oder Vorbereitung gescheitert. */
@@ -175,7 +194,7 @@ class FileHandoffFlow<R>(
         kind = null
         launched = false
         left = false
-        saveBytes = null
+        saveSource = null
         generation++
     }
 }

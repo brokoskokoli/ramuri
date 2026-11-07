@@ -140,6 +140,9 @@ class _NoFileHandoff implements FileHandoff {
   @override
   Future<FileHandoffResult> save(ExportFile file) async =>
       FileHandoffResult.failed;
+
+  @override
+  Future<String?> exportDirectory() async => null;
 }
 
 /// Vorgabe ohne Plattform: Der Stand ist unbekannt (Tests, die ihn nicht

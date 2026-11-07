@@ -8,6 +8,9 @@ class FakeFileHandoff implements FileHandoff {
   final List<ExportFile> shared = [];
   final List<ExportFile> saved = [];
 
+  /// Antwort von [exportDirectory].
+  String? directory;
+
   @override
   Future<FileHandoffResult> share(ExportFile file) async {
     shared.add(file);
@@ -19,4 +22,7 @@ class FakeFileHandoff implements FileHandoff {
     saved.add(file);
     return nextResult;
   }
+
+  @override
+  Future<String?> exportDirectory() async => directory;
 }

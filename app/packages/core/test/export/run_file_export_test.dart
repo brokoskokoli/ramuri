@@ -37,7 +37,7 @@ void main() {
       final id = await seedMainRun(s);
       final gpx = (await RunFileExportService(session: s)
           .build(id, ExportFormat.gpx))!;
-      expect(utf8.decode(gpx.bytes), startsWith('<?xml'));
+      expect(utf8.decode(gpx.bytes!), startsWith('<?xml'));
     });
 
     test('unbekannter oder nicht beendeter Lauf: null', () async {
@@ -125,6 +125,36 @@ void main() {
       expect(make('run-20300101-090000.gpx').fileName, isNotEmpty);
       expect(make('x' * 255).fileName.length, 255);
     });
+
+    test(
+      'ExportFile aus dem Exportordner: nur Pfad, schlichte absolute Pfade',
+      () {
+        ExportFile make(String path, [String name = 'archiv.zip']) =>
+            ExportFile.inExportDirectory(
+              fileName: name,
+              mimeType: 'application/zip',
+              path: path,
+            );
+        final ok = make('/data/user/0/app/cache/exports/archiv.zip');
+        expect(ok.path, '/data/user/0/app/cache/exports/archiv.zip');
+        expect(ok.bytes, isNull);
+        expect(make('/c/exports/teil/a.zip').path, '/c/exports/teil/a.zip');
+        for (final bad in [
+          '', '/', 'exports/a.zip', '../a.zip', '/c/exports/../a.zip', //
+          '/c/exports/teil/../../a.zip', '/c/./exports/a.zip', '/c//a.zip',
+          '/c/exports/', '/c/exports/a\u0000.zip', '/c\\..\\a.zip',
+        ]) {
+          expect(() => make(bad), throwsArgumentError, reason: bad);
+        }
+        expect(() => make('/c/exports/a.zip', '../a.zip'), throwsArgumentError);
+        final inMemory = ExportFile(
+          fileName: 'run.gpx',
+          mimeType: 'application/gpx+xml',
+          bytes: Uint8List(1),
+        );
+        expect(inMemory.path, isNull);
+      },
+    );
   });
 
   test(
@@ -141,6 +171,9 @@ void main() {
       expect(await fake.save(file), FileHandoffResult.cancelled);
       expect(fake.shared, [file]);
       expect(fake.saved, [file]);
+      expect(await fake.exportDirectory(), isNull);
+      fake.directory = '/fake/exports';
+      expect(await fake.exportDirectory(), '/fake/exports');
     },
   );
 }

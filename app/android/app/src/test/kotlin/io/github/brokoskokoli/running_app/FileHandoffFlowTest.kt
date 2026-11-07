@@ -1,5 +1,6 @@
 package io.github.brokoskokoli.running_app
 
+import java.io.File
 import java.io.IOException
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -80,9 +81,9 @@ class FileHandoffFlowTest {
     @Test fun saveWritesTheBytesIntoTheChosenTarget() {
         flow.beginSave("s", byteArrayOf(4, 5))
         var written: Pair<String, ByteArray>? = null
-        flow.saveAnswered("content://doc") { uri, bytes ->
+        flow.saveAnswered("content://doc") { uri, source ->
             assertTrue("Schreiben im Hintergrund", onBackground)
-            written = uri to bytes
+            written = uri to (source as HandoffSource.Bytes).bytes
         }
         assertEquals(null, written)
         assertEquals(emptyList<String>(), log)
@@ -199,5 +200,43 @@ class FileHandoffFlowTest {
         drain()
         assertEquals(listOf("s!detached"), log)
         assertTrue(flow.busy)
+    }
+
+    @Test fun saveHandsAPathSourceToTheWriter() {
+        val file = File("exports/archiv.zip")
+        assertTrue(flow.beginSave("s", HandoffSource.Path(file)))
+        var got: HandoffSource? = null
+        assertTrue(flow.saveAnswered("content://doc") { _, source -> got = source })
+        drain()
+        assertEquals(file, (got as HandoffSource.Path).file)
+        assertEquals(listOf("s:completed"), log)
+    }
+
+    /** Befund 2: Ohne offenes Speichern gehört ein geliefertes Dokument niemandem. */
+    @Test fun documentAnswerWithoutOpenSaveIsNotOwned() {
+        // Neue Activity (frischer Ablauf), etwa nach Prozessende im Dokumentenziel.
+        assertFalse(flow.saveAnswered("content://doc") { _, _ -> throw AssertionError() })
+        // Speichern schon mit "detached" beendet.
+        flow.beginSave("s", byteArrayOf(1))
+        flow.detached()
+        assertFalse(flow.saveAnswered("content://doc") { _, _ -> throw AssertionError() })
+        // Während eines Teilens.
+        beginShare("a")
+        drain()
+        assertFalse(flow.saveAnswered("content://doc") { _, _ -> throw AssertionError() })
+        drain()
+        assertEquals(listOf("s!detached"), log)
+    }
+
+    @Test fun documentAnswerOfTheOpenSaveIsOwned() {
+        flow.beginSave("s", byteArrayOf(1))
+        assertTrue(flow.saveAnswered("content://doc") { _, _ -> })
+        // Doppelte Antwort, während das Schreiben läuft: gehört noch zu diesem Speichern.
+        assertTrue(flow.saveAnswered("content://doc") { _, _ -> throw AssertionError() })
+        drain()
+        assertEquals(listOf("s:completed"), log)
+        flow.beginSave("t", byteArrayOf(1))
+        assertTrue(flow.saveAnswered<String>(null) { _, _ -> })
+        assertEquals("t:cancelled", log.last())
     }
 }

@@ -36,7 +36,7 @@ Die TCX-ActivityExtension v2 wird nicht gebraucht und nicht verwendet.
 | Name | `metadata/name`, `trk/name` | – | – |
 | Sportart | `trk/type = running` | `Activity/@Sport = Running` | `lap`/`session.sport` = running (1), `session.sub_sport` = generic (0) |
 | Laufstart | `metadata/time` | `Activity/Id`, `Lap/@StartTime` der ersten Runde | `file_id.time_created`, `session.start_time` |
-| Laufende | – (kein Feld) | über `TotalTimeSeconds` | `session.timestamp`, `activity.timestamp` |
+| Laufende | – (kein Feld) | – (kein Feld; nur Rundenstart + Trackpoint-Zeiten) | `session.timestamp`, `activity.timestamp` |
 | Position | `trkpt/@lat`, `@lon` (Dezimal ohne Exponent, verlustfrei) | `Trackpoint/Position/LatitudeDegrees`, `LongitudeDegrees` | `record.position_lat`, `position_long` (sint32, Semicircles = Grad · 2³¹/180, gerundet) |
 | Zeitstempel | `trkpt/time` | `Trackpoint/Time` | `record.timestamp` (ganze Sekunden) |
 | Höhe | `trkpt/ele` (Regel 4) | `Trackpoint/AltitudeMeters` | `record.altitude` (uint16, (m + 500) · 5, gerundet: 0,2 m Auflösung) |
@@ -65,6 +65,21 @@ Nicht ausgegeben: `total_calories`, Durchschnitts- und Höchstwerte, `distance` 
 **FIT-Wertebereiche:** Höhe außerhalb −500 … 12 606,8 m und Puls 255 (Invalid-Wert von uint8) fehlen. Länge: Der Rundungswert 2³¹ (= 180°) wird −2³¹ (= −180°); der Wert 2³¹ − 1 fiele mit dem Invalid-Wert zusammen und wird 2³¹ − 2 (eine Einheit, unter 1 cm).
 
 **Bekannte Verluste:** GPX trägt Puls und Höhe ohne gleichzeitige Position nicht; GPX hat keine Runden und kein Laufende. TCX hat kein Namensfeld. FIT hat kein Namensfeld (nur der Dateiname), Zeit nur in ganzen Sekunden und Höhe in 0,2 m.
+
+## Übergabe an das System (FR-0201)
+
+**Code:** Port `app/packages/core/lib/ports/file_handoff.dart`, Adapter `app/packages/adapters/lib/src/export/method_channel_file_handoff.dart`, Android `FileHandoffChannel.kt`, `FileHandoffFlow.kt`, `ExportFiles.kt`. Kanal `running_app/file_handoff`.
+
+| Methode | Argumente | Antwort |
+|---|---|---|
+| `share`, `save` | `fileName` (sicherer Name), `mimeType`, genau eins von `bytes` (Inhalt) oder `path` (absolute Datei unter dem Ordner aus `exportDirectory`) | `completed`, `cancelled` oder Fehler mit Code (`bad_arguments`, `not_foreground`, `busy`, `share_failed`, `save_failed`, `write_failed`, `detached`); Dart bildet Fehler auf `failed` ab |
+| `exportDirectory` | – | absoluter, kanonischer Pfad von `cacheDir/exports` (wird angelegt) oder Fehler `no_directory` |
+
+- **Quellen:** Kleine Dateien (ein Lauf) als `bytes`. Große Dateien (z. B. ein Archiv) schreibt Dart vorher selbst in den Ordner aus `exportDirectory` und übergibt nur `path`; die Bytes gehen dann nicht über den Kanal, und `save` streamt aus der Datei in die Dokument-URI.
+- **Pfadprüfung:** Ein `path` gilt nur, wenn er absolut ist und nach Auflösen von `..` und symbolischen Links eine reguläre Datei echt unterhalb von `cacheDir/exports` bezeichnet; sonst `bad_arguments`. Dart lehnt schon vorher Pfade mit `.`/`..`-Abschnitten ab.
+- **Aufräumen:** `cacheDir/exports` wird beim Prozessstart und vor jedem Teilen geleert; beim Teilen über `path` bleibt nur der Eintrag mit dieser Datei. Alle Schreib- und Aufräumaufträge laufen nacheinander auf einem Thread für den ganzen Prozess, auch über einen Neuaufbau der Activity hinweg.
+- **Verwaistes Dokument:** Kommt eine Dokument-URI an, ohne dass ein Speichern offen ist (Activity neu erzeugt, Prozess im Dokumentenziel beendet), entfernt die App das vom System schon angelegte leere Dokument; Dart hat dann bereits eine Antwort.
+- **Bekannte Unschärfe beim Teilen:** Android meldet die Wahl des Ziels asynchron. Schließt ein Ziel sofort (oder bei der Aktion „Kopieren“ ab Android 14), kann die App vorher wieder vorne sein; dann lautet das Ergebnis `cancelled`, obwohl geteilt wurde. Folge nur eine fehlende Bestätigung in der Oberfläche, kein Datenrisiko. Der E2E-Test beobachtet das.
 
 ## Prüfung
 

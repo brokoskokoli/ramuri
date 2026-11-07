@@ -17,20 +17,19 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.IOException
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 
 /**
  * Kanal `running_app/file_handoff` (FR-0201, WP11): Datei teilen (`ACTION_SEND` über den
  * Chooser, FileProvider mit Leserecht nur für diese URI) oder über das System-Dokumentenziel
- * speichern (`ACTION_CREATE_DOCUMENT`, Bytes direkt in die gelieferte URI, ohne Temp-Datei).
- * Hängt an der Activity, weil beide Wege einen Systemdialog starten. Die Bytes schreibt ein
- * eigener Hintergrundthread, nicht der Hauptthread. Antworten: "completed",
+ * speichern (`ACTION_CREATE_DOCUMENT`, Inhalt direkt in die gelieferte URI, ohne Temp-Datei).
+ * Der Inhalt kommt als `bytes` oder als `path` einer Datei, die Dart schon unter dem Ordner
+ * aus `exportDirectory` angelegt hat (nur dort, [ExportFiles.resolve]). Hängt an der
+ * Activity, weil beide Wege einen Systemdialog starten. Geschrieben wird auf dem
+ * prozessweiten Thread [ExportFiles.io], nicht auf dem Hauptthread. Antworten: "completed",
  * "cancelled" oder ein Fehler mit Code; nichts davon enthält Inhalte oder Pfade.
  */
 class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessenger) {
     private val channel = MethodChannel(messenger, CHANNEL)
-    private val io: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val flow = FileHandoffFlow(object : HandoffAnswers<MethodChannel.Result> {
         override fun success(result: MethodChannel.Result, value: String) {
@@ -44,7 +43,7 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
         }
     }, object : HandoffThreads {
         override fun background(work: () -> Unit) {
-            io.execute(work)
+            ExportFiles.io.execute(work)
         }
         override fun main(work: () -> Unit) {
             mainHandler.post(work)
@@ -57,26 +56,52 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
 
     init {
         channel.setMethodCallHandler { call, result ->
-            val name = call.argument<String>("fileName")
-            val type = call.argument<String>("mimeType")
-            val bytes = call.argument<ByteArray>("bytes")
             when (call.method) {
-                "share", "save" -> when {
-                    name == null || type == null || bytes == null ||
-                        !ExportFiles.isSafeName(name) || !ExportFiles.isMimeType(type) ->
-                        result.error("bad_arguments", null, null)
-                    !foreground -> result.error("not_foreground", null, null)
-                    call.method == "share" -> share(result, name, type, bytes)
-                    else -> save(result, name, type, bytes)
+                "exportDirectory" -> exportDirectory(result)
+                "share", "save" -> {
+                    val name = call.argument<String>("fileName")
+                    val type = call.argument<String>("mimeType")
+                    val source = source(call.argument<ByteArray>("bytes"), call.argument<String>("path"))
+                    when {
+                        name == null || type == null || source == null ||
+                            !ExportFiles.isSafeName(name) || !ExportFiles.isMimeType(type) ->
+                            result.error("bad_arguments", null, null)
+                        !foreground -> result.error("not_foreground", null, null)
+                        call.method == "share" -> share(result, name, type, source)
+                        else -> save(result, name, type, source)
+                    }
                 }
                 else -> result.notImplemented()
             }
         }
     }
 
-    private fun share(result: MethodChannel.Result, name: String, type: String, bytes: ByteArray) {
-        val dir = File(activity.cacheDir, ExportFiles.DIR)
-        flow.share(result, write = { ExportFiles.write(dir, name, bytes) }) { file ->
+    private val exportDir: File get() = File(activity.cacheDir, ExportFiles.DIR)
+
+    /** Genau eine Quelle; ein Pfad nur, wenn er unter dem Exportordner liegt. */
+    private fun source(bytes: ByteArray?, path: String?): HandoffSource? = when {
+        bytes != null && path == null -> HandoffSource.Bytes(bytes)
+        bytes == null && path != null -> ExportFiles.resolve(exportDir, path)?.let { HandoffSource.Path(it) }
+        else -> null
+    }
+
+    /** Ordner, in den Dart große Dateien vor der Übergabe schreibt (absolut, kanonisch). */
+    private fun exportDirectory(result: MethodChannel.Result) {
+        val dir = exportDir
+        if (!dir.isDirectory && !dir.mkdirs()) {
+            result.error("no_directory", null, null)
+            return
+        }
+        result.success(dir.canonicalPath)
+    }
+
+    private fun share(result: MethodChannel.Result, name: String, type: String, source: HandoffSource) {
+        val dir = exportDir
+        val write = when (source) {
+            is HandoffSource.Bytes -> { -> ExportFiles.write(dir, name, source.bytes) }
+            is HandoffSource.Path -> { -> ExportFiles.adopt(dir, source.file.path) }
+        }
+        flow.share(result, write = write) { file ->
             // Während des Schreibens kann die App nach hinten gegangen sein.
             if (!foreground) {
                 flow.fail("not_foreground", null)
@@ -118,8 +143,8 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
         chosenReceiver = null
     }
 
-    private fun save(result: MethodChannel.Result, name: String, type: String, bytes: ByteArray) {
-        if (!flow.beginSave(result, bytes)) return
+    private fun save(result: MethodChannel.Result, name: String, type: String, source: HandoffSource) {
+        if (!flow.beginSave(result, source)) return
         val spec = HandoffIntents.createDocument(name, type)
         val intent = Intent(spec.action).apply {
             spec.categories.forEach { addCategory(it) }
@@ -138,15 +163,26 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
         if (requestCode != SAVE_REQUEST) return false
         val uri = if (resultCode == Activity.RESULT_OK) data?.data else null
-        flow.saveAnswered(uri) { target: Uri, bytes ->
+        val resolver = activity.contentResolver
+        val owned = flow.saveAnswered(uri) { target: Uri, source ->
             try {
-                val out = activity.contentResolver.openOutputStream(target, "wt") ?: throw IOException("no_stream")
-                out.use { it.write(bytes) }
+                val out = resolver.openOutputStream(target, "wt") ?: throw IOException("no_stream")
+                out.use { o ->
+                    when (source) {
+                        is HandoffSource.Bytes -> o.write(source.bytes)
+                        is HandoffSource.Path -> source.file.inputStream().use { it.copyTo(o) }
+                    }
+                }
             } catch (e: Exception) {
                 // Halb geschriebenes Dokument nicht liegen lassen.
-                runCatching { DocumentsContract.deleteDocument(activity.contentResolver, target) }
+                runCatching { DocumentsContract.deleteDocument(resolver, target) }
                 throw e
             }
+        }
+        // Kein Speichern offen (Activity neu erzeugt, Prozess im Dokumentenziel beendet): Das
+        // System hat das Dokument schon leer angelegt, Dart hat schon eine Antwort. Entfernen.
+        if (!owned && uri != null) {
+            ExportFiles.io.execute { runCatching { DocumentsContract.deleteDocument(resolver, uri) } }
         }
         return true
     }
@@ -165,8 +201,8 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
         channel.setMethodCallHandler(null)
         flow.detached()
         unregisterChosen()
-        // Laufendes Schreiben endet noch; seine Antwort verfällt im Ablauf (Generation).
-        io.shutdown()
+        // Laufendes Schreiben endet noch auf dem prozessweiten Thread; seine Antwort verfällt
+        // im Ablauf (Generation). Der Thread bleibt für die nächste Activity.
     }
 
     companion object {

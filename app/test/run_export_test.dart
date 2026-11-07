@@ -100,7 +100,7 @@ void main() {
       // Start 08:00 UTC, Ortszeit UTC+0 (seedDetailRun).
       expect(file.fileName, 'run-20300101-080000.${format.extension}');
       expect(file.mimeType, mime);
-      expect(check(file.bytes), isTrue, reason: format.name);
+      expect(check(file.bytes!), isTrue, reason: format.name);
       expect(_snackText(), 'Datei an das gewählte Ziel übergeben.');
       // SnackBar abwarten, damit die nächste Runde sie neu sieht.
       ScaffoldMessenger.of(tester.element(key('detail_export')))

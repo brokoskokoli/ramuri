@@ -323,6 +323,48 @@ void main() {
       expect(f.of(lap).single.fields[9], 0);
     });
 
+    test(
+      'Höhe und Puls außerhalb des Wertebereichs: Invalid, kein Umlauf',
+      () async {
+        // Sekunde -> (Höhe, Puls). Grenzen: Höhe −500…12 606,8 m (uint16,
+        // 0xFFFF Invalid), Puls 1…254 (uint8, 0xFF Invalid).
+        const values = <int, (double, int)>{
+          0: (-500, 1),
+          1: (12606.8, 254),
+          2: (12607, 255),
+          3: (20000, 255),
+          4: (-500.2, 0),
+          5: (-1000, 300),
+        };
+        final full = steadyBatch(0, 5);
+        final id = await seedRun(
+          s,
+          seconds: 5,
+          batch: RawBatch(
+            positions: full.positions,
+            altitudes: [
+              for (final MapEntry(key: i, value: (m, _)) in values.entries)
+                RawAltitude(time: xAt(i), source: 'gps', meters: m),
+            ],
+            heartRates: [
+              for (final MapEntry(key: i, value: (_, bpm)) in values.entries)
+                RawHeartRate(time: xAt(i), source: 'strap', bpm: bpm),
+            ],
+          ),
+        );
+        final f = await fit(id);
+        final raw = [for (final m in f.of(record)) (m.fields[2], m.fields[3])];
+        expect(raw, [
+          (0, 1),
+          (65534, 254),
+          (invalidUint16, invalidUint8),
+          (invalidUint16, invalidUint8),
+          (invalidUint16, invalidUint8),
+          (invalidUint16, invalidUint8),
+        ]);
+      },
+    );
+
     test('Zeiten mit Sekundenbruchteilen werden abgelehnt', () async {
       final id = await seedMainRun(s);
       final ms = (await RunExportService(session: s).load(id))!;

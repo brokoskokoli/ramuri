@@ -6,6 +6,7 @@ import java.nio.file.Files
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -103,5 +104,69 @@ class ExportFilesTest {
         assertEquals("run.fit", s.title)
         assertEquals("application/vnd.ant.fit", s.mimeType)
         assertEquals(0, s.flags)
+    }
+
+    /** Befund W: Pfadquellen nur unterhalb des Exportordners. */
+    @Test fun resolveAcceptsOnlyRegularFilesBelowTheExportFolder() {
+        val parent = tempDir()
+        val dir = File(parent, ExportFiles.DIR).apply { mkdirs() }
+        val direct = File(dir, "run.gpx").apply { writeText("x") }
+        val nested = File(dir, "archiv/teil.zip").apply { parentFile.mkdirs(); writeText("x") }
+        assertEquals(direct.canonicalFile, ExportFiles.resolve(dir, direct.path))
+        assertEquals(nested.canonicalFile, ExportFiles.resolve(dir, nested.path))
+        // Über ../ hinaus, auch wenn die Datei existiert.
+        val outside = File(parent, "secret.db").apply { writeText("geheim") }
+        assertTrue(outside.isFile)
+        val sibling = File(parent, "${ExportFiles.DIR}2/x.gpx").apply { parentFile.mkdirs(); writeText("x") }
+        val link = File(dir, "link.gpx")
+        Files.createSymbolicLink(link.toPath(), outside.toPath())
+        for (bad in listOf(
+            "${dir.path}/../secret.db",
+            "${dir.path}/archiv/../../secret.db",
+            sibling.path,
+            link.path,
+            "${ExportFiles.DIR}/run.gpx",
+            dir.path,
+            File(dir, "archiv").path,
+            File(dir, "fehlt.gpx").path,
+            "",
+        )) {
+            assertEquals(bad, null, ExportFiles.resolve(dir, bad))
+        }
+        parent.deleteRecursively()
+    }
+
+    @Test fun adoptKeepsTheGivenFileAndClearsTheRest() {
+        val parent = tempDir()
+        val dir = File(parent, ExportFiles.DIR).apply { mkdirs() }
+        File(dir, "old.gpx").writeText("alt")
+        val file = File(dir, "archiv/teil.zip").apply { parentFile.mkdirs(); writeBytes(byteArrayOf(7)) }
+        val adopted = ExportFiles.adopt(dir, file.path)
+        assertEquals(file.canonicalFile, adopted)
+        assertEquals(listOf("archiv"), dir.list()!!.toList())
+        assertArrayEquals(byteArrayOf(7), adopted.readBytes())
+        parent.deleteRecursively()
+    }
+
+    @Test fun adoptRejectsPathsOutsideWithoutTouchingFiles() {
+        val parent = tempDir()
+        val dir = File(parent, ExportFiles.DIR).apply { mkdirs() }
+        File(dir, "keep.gpx").writeText("x")
+        File(parent, "secret.db").writeText("geheim")
+        try {
+            ExportFiles.adopt(dir, "${dir.path}/../secret.db")
+            fail()
+        } catch (_: IllegalArgumentException) {
+        }
+        assertTrue(File(dir, "keep.gpx").exists())
+        assertTrue(File(parent, "secret.db").exists())
+        parent.deleteRecursively()
+    }
+
+    /** Befund 3: ein Schreib-Thread für den ganzen Prozess, auch über Activities hinweg. */
+    @Test fun ioIsOneSharedSingleThread() {
+        assertSame(ExportFiles.io, ExportFiles.io)
+        val threads = (1..3).map { ExportFiles.io.submit<Thread> { Thread.currentThread() }.get() }
+        assertEquals(1, threads.toSet().size)
     }
 }
