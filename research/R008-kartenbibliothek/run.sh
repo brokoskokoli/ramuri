@@ -1,28 +1,50 @@
 #!/bin/bash
-# Führt die Analyse aus. Alle Parameter mit Standardwerten: ./run.sh --help (gleichlautend zur README).
+# Fuehrt R008 aus. Alle Schritte und Parameter: ./run.sh --help (gleichlautend zur README).
 set -euo pipefail
 cd "$(dirname "$0")"
 source "$(git rev-parse --show-toplevel)/research/_shared/paths.sh"
-ID="$(basename "$PWD")"; ID="${ID%%-*}"
-
-SEED=42
+ID=R008
+WORK="$(research_work "$ID")"; FIX="$WORK/fixtures"
+APPS_ALL="base fm ml"
 usage() { cat <<HELP
-Usage: ./run.sh [--seed N]
-  --seed N   Zufallsstartwert (Standard: $SEED)
+Usage: ./run.sh <schritt> [Parameter]
+Schritte:
+| \`host\`     | Host-Tests der Mini-App fm (flutter test): Speicher-Hook, fail-closed, Miniatur, Klartext-Gegenprobe |
+| \`build\`    | Mini-Apps bauen (Release, arm64/x86_64 einzeln und universal), APK-Groessen nach apk_sizes.tsv |
+| \`licenses\` | Lizenzbaum: Dart (pubspec.lock + LICENSE im Pub-Cache) und Gradle (releaseRuntimeClasspath + POM) |
+| \`netstatic\`| Netz-APIs und fest eingebaute Hosts in Dart-Paketen, Java/Kotlin-Quellen und nativen Bibliotheken |
+| \`emu\`      | Emulator-Messungen (src/emu.sh): Mitschnitt ohne/mit Einwilligung, Live-Seite, Miniaturen, Speicher |
+Parameter:
+| \`--apps "a b"\` | "$APPS_ALL" | Mini-Apps fuer build, licenses, emu |
+| \`--api N\`      | 36          | emu: API-Stufe (36 voll, 31 nur Start-Smoke) |
+| \`--port N\`     | 5600        | emu: Konsolenport des eigenen Emulators (Serial emulator-N) |
+| \`--live-s S\`   | 120         | emu: Dauer der Live-Messung je App in Sekunden |
+Ausgaben: \$RESEARCH_DATA/work/R008/<schritt>-<zeit>/ (nie ueberschrieben). Laufmarker .done nach Exit 0.
 HELP
 }
+STEP="${1:-}"; [ -n "$STEP" ] || { usage >&2; exit 2; }; shift || true
+[ "$STEP" = "--help" ] && { usage; exit 0; }
+APPS="$APPS_ALL"; API=36; PORT=5600; LIVE_S=120
 while [ $# -gt 0 ]; do
   case "$1" in
-    --seed) SEED="$2"; shift 2 ;;
-    --help) usage; exit 0 ;;
-    *) echo "Unbekannter Parameter: $1" >&2; usage >&2; exit 2 ;;
+    --apps) APPS="$2"; shift 2 ;; --api) API="$2"; shift 2 ;; --port) PORT="$2"; shift 2 ;; --live-s) LIVE_S="$2"; shift 2 ;;
+    --help) usage; exit 0 ;; *) echo "Unbekannter Parameter: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
-
-OUT="$(research_work "$ID")/$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$OUT"
-echo "seed=$SEED commit=$(git rev-parse --short HEAD 2>/dev/null || echo keiner) dirty=$(git status --porcelain . | wc -l | tr -d " ")" > "$OUT/run.info"
-
-# <eigentliche Analyse, z. B.: python3 src/analyse.py --seed "$SEED" --out "$OUT">
-
-echo "Fertig: $OUT"
+[ -f "$FIX/.done" ] || { echo "Testvorlagen fehlen: erst ./init.sh" >&2; exit 2; }
+OUT="$WORK/$STEP-$(date +%Y%m%d-%H%M%S)"; mkdir -p "$OUT"
+{ echo "schritt=$STEP apps=$APPS api=$API port=$PORT live_s=$LIVE_S"
+  echo "commit=$(git rev-parse --short HEAD) dirty=$(git status --porcelain . | wc -l | tr -d ' ')"
+  flutter --version 2>/dev/null | head -1; sw_vers -productVersion; uname -m; } > "$OUT/run.info"
+case "$STEP" in
+  host)
+    APP=$(src/mkapp.sh fm "$WORK/apps")
+    python3 src/patch_vmt.py ~/.pub-cache/hosted/pub.dev/vector_map_tiles-9.0.0-beta.13 "$WORK/apps/vmt_patched" >/dev/null
+    ( cd "$APP" && flutter pub get >/dev/null && R008_FIXTURES="$FIX" R008_OUT="$OUT" flutter test --reporter expanded ) 2>&1 | tee "$OUT/host.log" ;;
+  build) src/build.sh "$OUT" $APPS 2>&1 | tee "$OUT/build.log" ;;
+  licenses) python3 src/licenses.py "$WORK/apps" "$OUT" $APPS 2>&1 | tee "$OUT/licenses.log" ;;
+  netstatic) bash src/netstatic.sh "$WORK/apps" "$OUT" 2>&1 | tee "$OUT/netstatic.log" ;;
+  emu) bash src/emu.sh "$OUT" "$API" "$PORT" "$LIVE_S" $APPS 2>&1 | tee "$OUT/emu.log" ;;
+  *) echo "Unbekannter Schritt: $STEP" >&2; usage >&2; exit 2 ;;
+esac
+touch "$OUT/.done"; echo "Fertig: $OUT"

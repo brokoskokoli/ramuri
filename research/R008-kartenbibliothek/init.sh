@@ -1,34 +1,42 @@
 #!/bin/bash
-# Stellt alles her, was diese Analyse in research/data/ braucht. Idempotent: Vorhandenes wird nicht neu geladen.
+# Stellt alles her, was R008 in research/data/ braucht. Idempotent: Vorhandenes wird nicht neu geladen.
 # Usage: ./init.sh [--help]
 set -euo pipefail
 cd "$(dirname "$0")"
 source "$(git rev-parse --show-toplevel)/research/_shared/paths.sh"
-ID="$(basename "$PWD")"; ID="${ID%%-*}"
+ID=R008
+FIX="$(research_work "$ID")/fixtures"
 
 if [ "${1:-}" = "--help" ]; then
   cat <<HELP
-Lädt bzw. erzeugt für $ID:
-  <Modell X>   -> \$RESEARCH_MODELS/<name>/     (~<GB>)
-  <Datensatz>  -> \$RESEARCH_DATASETS/<name>/   (~<GB>)
-Prüft die benötigten Sammlungen in research/input/ (ändert dort nichts).
-Vorher nachsehen, was schon da ist: research/DATA.md, research/data/INDEX.md.
+Laedt fuer $ID wenige Testvorlagen von OpenFreeMap (insgesamt 15 Anfragen, ca. 1,5 MB):
+  Stil liberty, TileJSON planet, Sprite (json, png, @2x), 9 Vektorkacheln
+  (z14 und z13 je 2x2, z12 eine) ueber dem Tempelhofer Feld in Berlin (oeffentliche Flaeche, synthetische Route)
+  -> \$RESEARCH_DATA/work/R008/fixtures/  (manifest.tsv mit URL, Groesse, SHA-256)
+OpenFreeMap baut die Kacheln woechentlich neu (Datum im Pfad). Ist der Pfad aus manifest.tsv nicht mehr
+erreichbar, wird der aktuelle geladen und im Manifest vermerkt; die Pruefsummen gelten dann nicht mehr.
+Kein Massenabruf. Keine Sammlung aus research/input/ noetig.
 HELP
   exit 0
 fi
 
-mkdir -p "$RESEARCH_MODELS" "$RESEARCH_DATASETS" "$(research_work "$ID")"
-
-# Beispiel für einen geteilten, idempotenten Download mit Prüfsumme:
-# fetch() { local url="$1" dest="$2" sha="$3"
-#   [ -f "$dest.done" ] && return 0
-#   mkdir -p "$(dirname "$dest")"; curl -fL "$url" -o "$dest.part"
-#   echo "$sha  $dest.part" | shasum -a 256 -c - && mv "$dest.part" "$dest" && touch "$dest.done"; }
-# fetch "<url>" "$RESEARCH_MODELS/<name>/<datei>" "<sha256>"
-# research_register "models/<name>" "$ID" "<Modell X>, Version <…>"   # Eintrag in data/INDEX.md
-
-# Pflicht-Eingaben prüfen:
-# input="$(research_input <sammlung>)"
-# [ -n "$(ls "$input"/*.wav 2>/dev/null)" ] || { echo "Fehlt: WAV-Dateien in $input (siehe research/input/README.md)" >&2; exit 1; }
-
-echo "$ID initialisiert (Daten: $RESEARCH_DATA)"
+mkdir -p "$FIX/tiles"
+[ -f "$FIX/.done" ] && [ "$(cat "$FIX/.done")" = v2 ] && { echo "$ID: Testvorlagen vorhanden ($FIX)"; exit 0; }
+UA="running-app-research-R008"
+get() { [ -s "$2" ] || { curl -fsS -A "$UA" "$1" -o "$2.part" && mv "$2.part" "$2"; sleep 1; }; }
+get https://tiles.openfreemap.org/styles/liberty "$FIX/liberty.json"
+get https://tiles.openfreemap.org/planet "$FIX/planet.json"
+SPRITE=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['sprite'])" "$FIX/liberty.json")
+for s in ".json" ".png" "@2x.json" "@2x.png"; do get "$SPRITE$s" "$FIX/sprite$s"; done
+TPL=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['tiles'][0])" "$FIX/planet.json")
+echo "$TPL" > "$FIX/tile_template.txt"
+# Kacheln um das Tempelhofer Feld (52.4731 N, 13.4031 O): z14 2x2, z13 und z12 je eine
+for zxy in $(python3 src/tiles_for.py 52.4731 13.4031); do
+  z=${zxy%%/*}; rest=${zxy#*/}; x=${rest%%/*}; y=${rest#*/}
+  url=${TPL/\{z\}/$z}; url=${url/\{x\}/$x}; url=${url/\{y\}/$y}
+  get "$url" "$FIX/tiles/$z-$x-$y.pbf"
+done
+( cd "$FIX"; for f in liberty.json planet.json sprite* tiles/*; do printf '%s\t%s\t%s\n' "$f" "$(stat -f %z "$f")" "$(shasum -a 256 "$f" | cut -d' ' -f1)"; done ) > "$FIX/manifest.tsv"
+echo v2 > "$FIX/.done"
+research_register "work/R008/fixtures" "$ID" "OpenFreeMap liberty, TileJSON, Sprite, 9 Kacheln Tempelhofer Feld (OSM ODbL, OpenMapTiles)"
+echo "$ID initialisiert (Daten: $FIX)"

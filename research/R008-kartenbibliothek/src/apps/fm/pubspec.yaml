@@ -1,0 +1,25 @@
+name: r008_fm
+description: R008 flutter_map + vector_map_tiles mit OpenFreeMap
+publish_to: 'none'
+version: 1.0.0+1
+environment:
+  sdk: ^3.13.5
+  flutter: 3.47.7
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_map: 8.3.2
+  vector_map_tiles: 9.0.0-beta.13
+  vector_tile_renderer: 6.1.0
+  latlong2: 0.10.1
+  cryptography: 2.9.0
+  path_provider: 2.1.5
+dependency_overrides:
+  # Kopie aus dem Pub-Cache mit kleinem Patch (src/patch_vmt.py): eigener ByteStorage statt Dateicache
+  vector_map_tiles:
+    path: ../vmt_patched
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  uses-material-design: true

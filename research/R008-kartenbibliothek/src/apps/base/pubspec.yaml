@@ -1,0 +1,12 @@
+name: r008_base
+description: R008 leere Basis-App (Vergleich APK-Groesse)
+publish_to: 'none'
+version: 1.0.0+1
+environment:
+  sdk: ^3.13.5
+  flutter: 3.47.7
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  uses-material-design: true
