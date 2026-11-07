@@ -367,6 +367,24 @@ void main() {
     expect(w.violations, isEmpty);
   });
 
+  testWidgets('Tausch scheitert (swapFailed mit Sitzung): die App läuft mit '
+      'der Sitzung der Ausnahme, nicht mit der geschlossenen', (tester) async {
+    final (w, f, h, c) = await _pump(tester);
+    final other = await FakeStorage().open(keyOf(4));
+    f.restoreErrors.add(
+      ArchiveRestoreException(ArchiveRestoreFailure.swapFailed, session: other),
+    );
+    await _tap(tester, 'not_openable_restore');
+    await _password(tester);
+    await _tapBusy(tester, 'restore_confirm_action');
+    await _tap(tester, 'archive_import_error_close');
+    expect(c.state, isA<StorageReady>());
+    expect((c.state as StorageReady).session, same(other));
+    expect((c.state as StorageReady).session, isNot(same(f.freshSeen)));
+    expect(h.discardCount, 1);
+    expect(w.violations, isEmpty);
+  });
+
   testWidgets('Öffnen nach dem Tausch scheitert: "nicht zu öffnen", Erneut '
       'versuchen öffnet normal', (tester) async {
     final (w, f, h, c) = await _pump(tester);

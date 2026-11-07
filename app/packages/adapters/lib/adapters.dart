@@ -3,6 +3,7 @@ library;
 
 import 'package:core/core.dart';
 
+export 'src/archive/archive_verification.dart';
 export 'src/archive/cryptography_archive.dart';
 export 'src/archive/drift_archive_sink.dart';
 export 'src/archive/drift_archive_source.dart';

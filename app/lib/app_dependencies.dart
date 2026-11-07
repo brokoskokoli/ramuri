@@ -145,11 +145,16 @@ class AppDependencies {
         );
         return service.restore;
       },
-      archiveVerify: ({required path, required password, cancel}) =>
-          ArchiveImporter(
-            sink: DiscardArchiveSink(),
+      // SEC-0009: Zwischendatenbank mit flüchtigem Zufallsschlüssel (nie im
+      // KeyStore), damit auch die Beschränkungen der Datenbank prüfen.
+      archiveVerify: ({required path, required password, cancel}) async =>
+          verifyArchive(
+            path: path,
+            password: password,
+            files: FileDatabaseFiles(await databasePath()),
             cipherFactory: createArchiveCipherInWorker,
-          ).import(path: path, password: password, cancel: cancel),
+            cancel: cancel,
+          ),
       runPorts: RunPorts(
         access: MethodChannelLocationAccess(),
         location: MethodChannelLocationSource(),

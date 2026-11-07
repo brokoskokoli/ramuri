@@ -499,7 +499,49 @@ void main() {
           ArchiveImportFailure.damaged,
         );
       });
+
+      // SEC-0009: Die Prüfung vor dem Löschen der alten Datei muss dieselben
+      // Beschränkungen der Datenbank anwenden wie der Dienst.
+      test('Vorprüfung (SEC-0009) lehnt ab: ${c.key}', () async {
+        final lines = _mutate(
+          await _decode(File(archivePath)),
+          c.value.$1,
+          c.value.$2,
+          index: c.value.$3,
+        );
+        final f = File('${work.path}/bad.runarchv')
+          ..writeAsBytesSync(await _encrypt(lines));
+        await expectLater(
+          verifyArchive(
+            path: f.path,
+            password: _password,
+            files: files,
+            cipherFactory: createArchiveCipherInWorker,
+          ),
+          throwsA(
+            isA<ArchiveImportException>().having(
+              (e) => e.failure,
+              'failure',
+              ArchiveImportFailure.damaged,
+            ),
+          ),
+        );
+        expect(appFiles().where((n) => n.contains('.import')), isEmpty);
+      });
     }
+
+    test(
+      'Vorprüfung (SEC-0009): gültiges Archiv besteht, nichts bleibt',
+      () async {
+        await verifyArchive(
+          path: archivePath,
+          password: _password,
+          files: files,
+          cipherFactory: createArchiveCipherInWorker,
+        );
+        expect(appFiles().where((n) => n.contains('.import')), isEmpty);
+      },
+    );
 
     test('Fehler des Ziels (Zwischendatenbank nicht anlegbar): Zielfehler, unverändert', () async {
       final blocked = FileDatabaseFiles(
