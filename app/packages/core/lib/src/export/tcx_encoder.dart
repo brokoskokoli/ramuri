@@ -1,4 +1,3 @@
-import '../preprocessing/geo.dart';
 import 'export_run.dart';
 import 'xml_text.dart';
 
@@ -12,7 +11,7 @@ const String _tcxNs =
 /// Zeit ohne Pausen, `DistanceMeters` = Summe der Großkreisabstände
 /// aufeinanderfolgender Positionen je Abschnitt, `Calories` = 0.
 String encodeTcx(ExportRun run) {
-  final distances = _lapDistances(run);
+  final distances = run.lapDistancesMeters();
   final b = StringBuffer()
     ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
     ..writeln(
@@ -44,7 +43,7 @@ String encodeTcx(ExportRun run) {
     for (final s in run.segments) {
       final points = [
         for (final p in s.points)
-          if (_lapOf(run, p.time) == i) p,
+          if (run.lapIndexAt(p.time) == i) p,
       ];
       if (points.isEmpty) continue;
       b.writeln('        <Track>');
@@ -89,36 +88,4 @@ String encodeTcx(ExportRun run) {
     ..writeln('  </Activities>')
     ..writeln('</TrainingCenterDatabase>');
   return b.toString();
-}
-
-/// Index der letzten Runde, deren Start nicht nach [t] liegt (sonst 0).
-int _lapOf(ExportRun run, DateTime t) {
-  var index = 0;
-  for (var i = 0; i < run.laps.length; i++) {
-    if (!run.laps[i].start.isAfter(t)) index = i;
-  }
-  return index;
-}
-
-/// Strecke je Runde: Abstand aufeinanderfolgender Positionen desselben
-/// Abschnitts, der Runde des späteren Punkts zugerechnet.
-List<double> _lapDistances(ExportRun run) {
-  final out = List<double>.filled(run.laps.length, 0);
-  for (final s in run.segments) {
-    ExportPosition? previous;
-    for (final p in s.points) {
-      final pos = p.position;
-      if (pos == null) continue;
-      if (previous != null) {
-        out[_lapOf(run, p.time)] += haversineMeters(
-          previous.latitude,
-          previous.longitude,
-          pos.latitude,
-          pos.longitude,
-        );
-      }
-      previous = pos;
-    }
-  }
-  return out;
 }

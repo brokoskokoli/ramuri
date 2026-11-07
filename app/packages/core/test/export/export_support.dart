@@ -152,3 +152,14 @@ void expectGolden(String actual, String name) {
   }
   expect(actual, file.readAsStringSync(), reason: 'Golden $name');
 }
+
+/// Wie [expectGolden] für Binärdateien (FIT).
+void expectGoldenBytes(List<int> actual, String name) {
+  final file = File('test/export/goldens/$name');
+  if (Platform.environment['UPDATE_GOLDENS'] == '1') {
+    file
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(actual);
+  }
+  expect(actual, file.readAsBytesSync(), reason: 'Golden $name');
+}

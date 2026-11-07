@@ -36,6 +36,8 @@ export 'ports/storage_values.dart';
 export 'src/consent/consent_service.dart';
 export 'src/consent/consented_source.dart';
 export 'src/export/export_run.dart';
+export 'src/export/fit_crc.dart';
+export 'src/export/fit_encoder.dart';
 export 'src/export/gpx_encoder.dart';
 export 'src/export/tcx_encoder.dart';
 export 'src/export/xml_text.dart';

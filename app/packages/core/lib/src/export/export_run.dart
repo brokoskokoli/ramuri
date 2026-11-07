@@ -1,6 +1,7 @@
 import '../../ports/storage.dart';
 import '../../ports/storage_raw.dart';
 import '../../ports/storage_runs.dart';
+import '../preprocessing/geo.dart';
 import '../preprocessing/measurement.dart';
 
 /// Gemessene Position eines Exportpunkts (WGS84, Grad).
@@ -96,6 +97,39 @@ class ExportRun {
     }
     return Duration(microseconds: us);
   }
+
+  /// Index der letzten Runde, deren Start nicht nach [t] liegt (sonst 0).
+  int lapIndexAt(DateTime t) {
+    var index = 0;
+    for (var i = 0; i < laps.length; i++) {
+      if (!laps[i].start.isAfter(t)) index = i;
+    }
+    return index;
+  }
+
+  /// Strecke je Runde in Metern: Großkreisabstand aufeinanderfolgender
+  /// Positionen desselben Abschnitts, der Runde des späteren Punkts
+  /// zugerechnet (Vertrag, Pflichtfelder der Runde).
+  List<double> lapDistancesMeters() {
+    final out = List<double>.filled(laps.length, 0);
+    for (final s in segments) {
+      ExportPosition? previous;
+      for (final p in s.points) {
+        final pos = p.position;
+        if (pos == null) continue;
+        if (previous != null) {
+          out[lapIndexAt(p.time)] += haversineMeters(
+            previous.latitude,
+            previous.longitude,
+            pos.latitude,
+            pos.longitude,
+          );
+        }
+        previous = pos;
+      }
+    }
+    return out;
+  }
 }
 
 int _maxUs(DateTime a, DateTime b) =>
@@ -110,6 +144,9 @@ int _minUs(DateTime a, DateTime b) =>
 
 /// Zeitauflösung für GPX und TCX (ISO 8601 mit Millisekunden).
 const Duration exportMillisecond = Duration(milliseconds: 1);
+
+/// Zeitauflösung für FIT (ganze Sekunden).
+const Duration exportSecond = Duration(seconds: 1);
 
 /// Bildet einen beendeten Lauf auf das Exportmodell ab (Abbildungsregeln 1–8,
 /// `docs/contracts/file-export.md`). Zeitstempel werden auf [resolution]
