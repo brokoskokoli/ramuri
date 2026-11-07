@@ -1,6 +1,7 @@
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
 
+import 'features/archive/archive_wiring.dart';
 import 'features/run/method_channel_recording_service.dart';
 import 'features/run/run_ports.dart';
 import 'features/sensors/run_heart_rate.dart';
@@ -22,6 +23,8 @@ class AppDependencies {
     SensorManager? sensors,
     this.offload = isolateOffload,
     FileHandoff? fileHandoff,
+    this.archiveExport,
+    this.archiveRestore,
   }) : fileHandoff = fileHandoff ?? const _NoFileHandoff(),
        permissions = permissions ?? const _NoPermissionStatus(),
        runPorts = runPorts ?? const _NoRunPorts(),
@@ -52,6 +55,14 @@ class AppDependencies {
   /// aus `core`.
   final FileHandoff fileHandoff;
 
+  /// Export des Gesamtarchivs (WP12). `null`: Die Oberfläche bietet ihn nicht
+  /// an (Tests ohne Archiv); Tests setzen einen Fake.
+  final ArchiveExportFactory? archiveExport;
+
+  /// Wiederherstellung aus einem Archiv (WP12, Oberfläche folgt). `null`:
+  /// nicht verdrahtet (Tests).
+  final ArchiveRestoreFactory? archiveRestore;
+
   /// App-weiter Sensordienst: Verbindungen, bekannte Geräte, Puls (WP07).
   final SensorManager sensors;
 
@@ -68,6 +79,8 @@ class AppDependencies {
         heartRateSensor ??
         BleHeartRateSensor(const UniversalBleLink(), const SystemClock());
     final permissions = MethodChannelPermissionStatus();
+    final fileHandoff = MethodChannelFileHandoff();
+    final keyStore = SecureKeyStore();
     final sensors = SensorManager(
       sensor: sensor,
       clock: const SystemClock(),
@@ -90,7 +103,42 @@ class AppDependencies {
       heartRateSensor: sensor,
       sensors: sensors,
       permissions: permissions,
-      fileHandoff: MethodChannelFileHandoff(),
+      fileHandoff: fileHandoff,
+      archiveExport: (session) {
+        // Nur die echte Sitzung hat eine Datenbank, die das Archiv liest.
+        final exporter = ArchiveExporter(
+          source: DriftArchiveSource(
+            (session as EncryptedStorageSession).database,
+          ),
+          handoff: fileHandoff,
+          clock: const SystemClock(),
+          cipherFactory: createArchiveCipherInWorker,
+        );
+        return exporter.export;
+      },
+      archiveRestore: (session, serialize) async {
+        final path = await databasePath();
+        final files = FileDatabaseFiles(path);
+        final storage = EncryptedStorage(path);
+        final key = await keyStore.read(storageKeyName);
+        if (key == null) {
+          throw const ArchiveRestoreException(
+            ArchiveRestoreFailure.reopenFailed,
+          );
+        }
+        return ArchiveRestoreService(
+          session: session,
+          sink: DriftArchiveSink(
+            storage: EncryptedStorage(files.importPath),
+            key: () => key,
+            files: files,
+          ),
+          files: files,
+          cipherFactory: createArchiveCipherInWorker,
+          reopen: () => storage.open(key),
+          serialize: serialize,
+        );
+      },
       runPorts: RunPorts(
         access: MethodChannelLocationAccess(),
         location: MethodChannelLocationSource(),
@@ -102,7 +150,7 @@ class AppDependencies {
         requestActivityRecognition: requestActivityRecognitionPermission,
       ),
       storageStart: StorageStartController(
-        keyStore: SecureKeyStore(),
+        keyStore: keyStore,
         generateKey: generateStorageKey,
         wire: () async {
           final path = await databasePath();

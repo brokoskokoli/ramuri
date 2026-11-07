@@ -114,8 +114,11 @@ class SettingsScreen extends StatelessWidget {
                 ? null
                 : () => Navigator.of(context).push<void>(
                     MaterialPageRoute(
-                      builder: (_) =>
-                          DataScreen(session: session, sensors: sensors),
+                      builder: (_) => DataScreen(
+                        session: session,
+                        sensors: sensors,
+                        serialize: recalculation.exclusive,
+                      ),
                     ),
                   ),
             child: Text(l10n.dataTitle),

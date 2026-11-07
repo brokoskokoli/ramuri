@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
+import 'package:running_app/features/archive/archive_wiring.dart';
 import 'package:running_app/features/run/run_ports.dart';
 import 'package:running_app/features/sensors/run_heart_rate.dart';
 import 'package:running_app/features/sensors/sensor_manager.dart';
@@ -52,6 +53,9 @@ class Device {
 
   /// Teilen und Speichern von Exportdateien (WP11).
   final FakeFileHandoff fileHandoff = FakeFileHandoff();
+
+  /// Archiv-Export (WP12); `null`: nicht verdrahtet.
+  ArchiveExportFactory? archiveExport;
 
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
   /// [heartRate] (Gerät 'hr1', ohne Verwaltung); [lastRun] ist die Pulsquelle
@@ -106,6 +110,7 @@ class Device {
           clock: clock,
           offload: offload,
           fileHandoff: fileHandoff,
+          archiveExport: archiveExport,
           permissions: permissions,
           runPorts: RunPorts(
             access: locationAccessOverride ?? locationAccess,
