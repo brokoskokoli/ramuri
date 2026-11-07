@@ -19,16 +19,16 @@ Daran hängt ADR-0009 Punkt 6 (Bibliothek und Darstellung) und damit der Zuschni
    - `base`: leere Flutter-App (Vergleichsbasis für die APK-Größe).
    - `fm`: `flutter_map` + `vector_map_tiles` mit OpenFreeMap-Stil, eigene Kachelquelle über einen Hook (verschlüsselter Speicher statt Klartext-Cache), Live-Seite mit wandernder Position, Miniatur als einmaliger Snapshot.
    - `ml`: `maplibre_gl` mit OpenFreeMap-Stil, Live-Seite, Miniatur über die Snapshot-Funktion der Bibliothek, sofern vorhanden.
-   - weitere nur, wenn die Vorrecherche es nahelegt.
+   - `fmvt` (nach der Vorrecherche ergänzt): `flutter_map` + `flutter_map_vector_tiles` 2.11.0 ohne Patch; ein eigener `http.Client` (Einwilligung, nur `tiles.openfreemap.org`, Antworten verschlüsselt im Speicher) über `StyleReader(httpClient:, cache: false, resolveProvider:)`, Plattencache der Bibliothek 0; Miniatur als Schnappschuss einer unsichtbaren Karte nach Ladeende.
 3. **Kennzahlen:**
    - **APK-Zuwachs:** Release-APK je ABI (`--split-per-abi`, arm64-v8a und x86_64) und universal, Differenz zu `base` in MB.
-   - **Lizenzbaum:** vollständiger Abhängigkeitsbaum (Dart über `pubspec.lock` und die LICENSE-Dateien im Pub-Cache, Android/Gradle über `releaseRuntimeClasspath` und die POM-Lizenzen), jede Lizenz gegen GPL-3.0 eingeordnet.
-   - **Netz und Telemetrie:** statisch (Netz-APIs und fest eingebaute Hosts in den Quellen und Bibliotheken), dynamisch per Netzwerkmitschnitt im Emulator (`-tcpdump`): ohne Einwilligung keine Verbindung, mit Einwilligung nur die Hosts des Anbieters.
+   - **Lizenzbaum:** vollständiger Abhängigkeitsbaum (Dart: alle Pakete aus `pubspec.lock`, ausgeliefert = Abschluss der Nicht-Dev-Abhängigkeiten laut `flutter pub deps --json`, Lizenz aus der LICENSE-Datei; Android/Gradle: `releaseRuntimeClasspath` und `<licenses>` der POM samt Eltern-POM, fehlende POMs einmalig von Google Maven bzw. Maven Central nach `work/R008/poms/`), jede Lizenz gegen GPL-3.0 eingeordnet.
+   - **Netz und Telemetrie:** statisch (Netz-APIs und fest eingebaute Hosts in den Quellen und Bibliotheken), dynamisch per Netzwerkmitschnitt im Emulator (Konsolenbefehl `network capture`, gleichwertig zu `-tcpdump`; sieht nur das emulierte Mobilfunknetz `eth0`, daher WLAN aus und eine Positivkontrolle mit bekannter DNS-Anfrage vor den Phasen): ohne Einwilligung keine Verbindung, mit Einwilligung nur die Hosts des Anbieters.
    - **Speicher-Hook:** Host-Test, dass Kacheln nur über den eigenen Hook gelesen und geschrieben werden und im App-Verzeichnis keine Kachel- oder Bildsignaturen im Klartext liegen (Suche nach `\x1a`-PBF-Kopf, gzip, PNG, SQLite-Kopf).
    - **Miniaturen:** Snapshot einmal erzeugen, verschlüsselt ablegen, danach nur das Bild anzeigen; Zeit je Snapshot und Größe je Miniatur.
    - **Live-Seite:** Bildrate und CPU-Zeit (`dumpsys gfxinfo`, `/proc/<pid>/stat`) während einer eingespeisten Fahrt im Emulator; Akku nur als Stellvertreter (CPU-Zeit), keine Aussage über echte Geräte.
    - **Aufwand:** Umfang der Hooks, nötige native Eingriffe, Testbarkeit am Host (Gate).
-4. **Emulator:** nur wenn kein anderer Emulator läuft. Erst API 36 voll, dann API 31 nur Start-Smoke. Höchstens ein Emulator, explizites Serial, `-no-audio`, Ende per PID.
+4. **Emulator:** nur wenn kein anderer Emulator läuft. Erst API 36 voll, dann API 31 nur Start-Smoke. Höchstens ein Emulator, explizites Serial, `-no-audio`, `-read-only` (das geteilte AVD bleibt unverändert), Ende per PID.
 
 Warum aussagekräftig: Die Kriterien aus ADR-0009 Punkt 6 werden je Kandidat am gebauten Release-APK gemessen, nicht nur aus der Dokumentation übernommen. Grenzen: Emulator statt Gerät (Akku, GPU), wenige Kachelanfragen.
 
@@ -42,13 +42,36 @@ Warum aussagekräftig: Die Kriterien aus ADR-0009 Punkt 6 werden je Kandidat am 
 Keine Sammlung aus `research/input/`.
 
 ## Ausführung
-Voraussetzungen: Flutter 3.47.7 (global), Android-SDK mit AVDs `running_app_api36` und `running_app_api31`, Netz für `pub get`, Gradle und wenige Kacheln.
+Voraussetzungen: Flutter 3.47.7 (global), Android-SDK mit AVDs `running_app_api36` und `running_app_api31` (google_apis, arm64), Netz für `pub get`, Gradle, wenige POMs und wenige Kacheln. Rechenzeit: `host` ~1 min, `build` ~10 min, `licenses` ~2 min, `netstatic` < 1 min, `emu --api 36` ~45 min, `emu --api 31` ~8 min (Mac, Apple Silicon).
 
 ```bash
-./init.sh            # Fixture-Kacheln laden (idempotent, wenige Anfragen)
-./run.sh <schritt>   # siehe Tabelle
+./init.sh            # Testvorlagen laden (idempotent, 15 Anfragen, ~1,5 MB)
+./run.sh <schritt> [Parameter]
 ```
 
-Die Schritte und Parameter stehen gleichlautend in `./run.sh --help` (wird mit den Skripten ergänzt).
+| Schritt | Was |
+| --- | --- |
+| `host` | Host-Tests der Mini-Apps fm und fmvt (flutter test): Hook bzw. Tor, fail-closed, Miniatur, Klartext-Gegenprobe |
+| `build` | Mini-Apps bauen (Release, arm64/x86_64 einzeln und universal), APK-Größen nach `apk_sizes.tsv` |
+| `licenses` | Lizenzbaum: Dart (pubspec.lock + LICENSE im Pub-Cache) und Gradle (releaseRuntimeClasspath + POM) |
+| `netstatic` | Netz-APIs und fest eingebaute Hosts in Dart-Paketen, Java/Kotlin-Quellen und nativen Bibliotheken (nutzt den letzten `build`) |
+| `emu` | Emulator-Messungen (`src/emu.sh`): Mitschnitt ohne/mit Einwilligung, Live-Seite, Miniaturen, Speicher (nutzt den letzten `build`) |
 
-Ausgaben: `research/data/work/R008/<schritt>/` (wegwerfbar).
+| Parameter | Standard | Bedeutung |
+| --- | --- | --- |
+| `--apps "a b"` | `"base fm fmvt ml"` | Mini-Apps für build, licenses, emu |
+| `--api N` | `36` | emu: API-Stufe (36 voll, 31 nur Start-Smoke) |
+| `--port N` | `5600` | emu: Konsolenport des eigenen Emulators (Serial `emulator-N`) |
+| `--live-s S` | `120` | emu: Dauer der Live-Messung je App in Sekunden |
+
+Vollständiger Ablauf wie in RESULTS.md:
+
+```bash
+./init.sh && ./run.sh host && ./run.sh build && ./run.sh licenses --apps "fm fmvt ml" && ./run.sh netstatic
+./run.sh emu --api 36 --apps "fm fmvt ml" && ./run.sh emu --api 31 --apps "fm fmvt ml"
+```
+
+Ausgaben: `$RESEARCH_DATA/work/R008/<schritt>-<zeit>/` (nie überschrieben, `.done` nach Exit 0); gemeinsame Build-Ordner der Mini-Apps unter `work/R008/apps/`, geholte POMs unter `work/R008/poms/`.
+
+## Status
+läuft

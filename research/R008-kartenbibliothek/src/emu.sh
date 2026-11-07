@@ -18,7 +18,15 @@ trap stop_emu EXIT
 echo "serial=emulator-$PORT"; $ADB wait-for-device; until [ "$($ADB shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; do sleep 3; done
 $ADB root >/dev/null; sleep 3; $ADB wait-for-device
 $ADB shell settings put global window_animation_scale 0; $ADB shell svc power stayon true; $ADB shell input keyevent KEYCODE_WAKEUP
+# Netz: Mitschnitt (Konsole "network capture", wie -tcpdump) sieht nur eth0 (Mobilfunk ueber slirp), nicht das
+# Netsim-WLAN. Daher WLAN aus, Mobilfunk an (-read-only: Aenderung wird verworfen).
+$ADB shell svc wifi disable; $ADB shell svc data enable
 sleep 60   # Systemstart abklingen lassen
+# Positivkontrolle: Mitschnitt muss eine bekannte DNS-Anfrage sehen, sonst Abbruch (Nullen waeren wertlos)
+$ADB emu network capture start "$OUT/positivkontrolle.pcap" >/dev/null; $ADB shell ping -c1 -W3 example.com > "$OUT/positivkontrolle.txt" 2>&1
+sleep 2; $ADB emu network capture stop >/dev/null; python3 "$HERE/pcap_hosts.py" "$OUT/positivkontrolle.pcap" > "$OUT/positivkontrolle.hosts.json"
+grep -q '"example.com"' "$OUT/positivkontrolle.hosts.json" || { echo "Positivkontrolle Mitschnitt fehlgeschlagen: Abbruch" >&2; exit 4; }
+echo "Positivkontrolle Mitschnitt ok"; $ADB shell ip route > "$OUT/ip_route.txt"
 pkg() { echo "io.github.r008.r008_$1"; }
 cap_start() { $ADB emu network capture start "$OUT/$1.pcap" >/dev/null; }
 cap_stop() { $ADB emu network capture stop >/dev/null; python3 "$HERE/pcap_hosts.py" "$OUT/$1.pcap" > "$OUT/$1.hosts.json"; }
