@@ -207,6 +207,10 @@ drift_aktuell() {
 kotlin_tests() {
   jh=${KOTLIN_TEST_JAVA_HOME:-/Applications/Android Studio.app/Contents/jbr/Contents/Home}
   [ -x "$jh/bin/java" ] || { echo "JDK für die Kotlin-Tests fehlt: $jh (KOTLIN_TEST_JAVA_HOME setzen)"; return 1; }
+  # gradlew ist erzeugt und nicht versioniert; in einem frischen Worktree fehlt er bis zum ersten Android-Build.
+  if [ ! -x app/android/gradlew ]; then
+    ( cd app && flutter build apk --config-only ) || { echo "flutter build apk --config-only scheiterte"; return 1; }
+  fi
   ( cd app/android && JAVA_HOME="$jh" ./gradlew -q :app:testDebugUnitTest )
 }
 

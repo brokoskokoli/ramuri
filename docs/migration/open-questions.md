@@ -275,9 +275,9 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Frage:** Welche Formatversionen und welches Format für Zusatzmetriken und Gesamtexport gelten? Wie funktioniert der Reimport, den ein Gerätewechsel nach ADR-0001 braucht? Wann wird automatisch synchronisiert, wie oft wird wiederholt, und woran wird ein Duplikat erkannt?
 - **Auslöser/Quellen:** SRC-001 §20.1 (Z. 1193–1207); §20.2 (Z. 1217–1220); §20.3 (Z. 1229–1231).
 - **Betroffene Anforderungen:** FR-0182, FR-0184, FR-0187, FR-0189, FR-0190, FR-0192, FR-0198
-- **Auswirkung:** non-blocking, weil nur noch Formatversionen und das separate Format für Zusatzmetriken (Phase 2) offen sind.
+- **Auswirkung:** non-blocking, weil nur noch das separate Format für Zusatzmetriken (Phase 2) und die Formatversionen des Archivs (WP12) offen sind.
 - **Status:** Open
-- **Entscheidung:** Teilweise, 2026-11-03, SRC-003: Der Gesamtexport ist ein dokumentiertes Archiv mit allen Daten und Rohdaten; der Reimport kommt in Phase 1. Strava synchronisiert nach Laufende, wenn online, mit Wiederholung bei Fehlern und einer Upload-Kennung gegen Duplikate. Ziel: FR-0187, FR-0189, FR-0190, FR-0192, FR-0198, DEC-0028.
+- **Entscheidung:** Teilweise, 2026-11-03, SRC-003: Der Gesamtexport ist ein dokumentiertes Archiv mit allen Daten und Rohdaten; der Reimport kommt in Phase 1. Strava synchronisiert nach Laufende, wenn online, mit Wiederholung bei Fehlern und einer Upload-Kennung gegen Duplikate. Ziel: FR-0187, FR-0189, FR-0190, FR-0192, FR-0198, DEC-0028. Formatversionen der Dateiexporte, 2026-11-06, vom Maintainer in WP11 bestätigt: GPX 1.1 mit Garmin TrackPointExtension v1, TCX TrainingCenterDatabase v2, FIT-Protokoll 2.0 mit Profil 21.40 (K29, `docs/contracts/file-export.md`).
 
 ### OQ-0033 — Welche Gesundheitsplattformen werden unterstützt?
 - **Frage:** Welche Plattformen gelten als „kompatibel“? Was bedeutet „nicht ungeprüft“ beim Zusammenführen fremder VO₂max-Werte: Ist ein Zusammenführen nach Prüfung vorgesehen?
