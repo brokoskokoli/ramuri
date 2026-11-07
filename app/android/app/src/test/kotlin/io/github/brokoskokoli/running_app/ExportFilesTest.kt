@@ -2,10 +2,12 @@ package io.github.brokoskokoli.running_app
 
 import android.content.Intent
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -168,5 +170,59 @@ class ExportFilesTest {
         assertSame(ExportFiles.io, ExportFiles.io)
         val threads = (1..3).map { ExportFiles.io.submit<Thread> { Thread.currentThread() }.get() }
         assertEquals(1, threads.toSet().size)
+    }
+
+    @Test fun sourceRequiresThePathToBeNamedLikeFileName() {
+        val dir = tempDir()
+        val f = File(dir, "archiv.zip").apply { writeText("x") }
+        val sub = File(dir, "teil").apply { mkdirs() }
+        File(sub, "a.zip").writeText("x")
+        val ok = ExportFiles.source(dir, "archiv.zip", null, f.path) as HandoffSource.Path
+        assertEquals(f.canonicalFile, ok.file)
+        assertEquals("a.zip", (ExportFiles.source(dir, "a.zip", null, File(sub, "a.zip").path) as HandoffSource.Path).file.name)
+        // Anderer Name auf der Platte als angezeigt.
+        assertNull(ExportFiles.source(dir, "anders.zip", null, f.path))
+        assertNull(ExportFiles.source(dir, "zip", null, f.path))
+        // Bytes ohne Pfad ja, beides oder nichts nein, Pfad außerhalb nein.
+        assertTrue(ExportFiles.source(dir, "a.gpx", byteArrayOf(1), null) is HandoffSource.Bytes)
+        assertNull(ExportFiles.source(dir, "archiv.zip", byteArrayOf(1), f.path))
+        assertNull(ExportFiles.source(dir, "archiv.zip", null, null))
+        val outside = File(tempDir(), "archiv.zip").apply { writeText("x") }
+        assertNull(ExportFiles.source(dir, "archiv.zip", null, outside.path))
+        dir.deleteRecursively()
+        outside.parentFile.deleteRecursively()
+    }
+
+    @Test fun importCopiesTheStreamAfterClearingTheFolder() {
+        val dir = File(tempDir(), ExportFiles.IMPORT_DIR)
+        dir.mkdirs()
+        File(dir, "old.bin").writeText("alt")
+        File(dir, "sub").mkdirs()
+        val data = ByteArray(300_000) { (it % 251).toByte() }
+        val f = ExportFiles.importInto(dir, data.inputStream())
+        assertEquals(listOf(ExportFiles.IMPORT_NAME), dir.list()!!.toList())
+        assertArrayEquals(data, f.readBytes())
+        assertEquals(dir.canonicalFile, f.parentFile)
+        // Ordner fehlt: wird angelegt.
+        dir.deleteRecursively()
+        ExportFiles.importInto(dir, byteArrayOf(7).inputStream())
+        assertArrayEquals(byteArrayOf(7), File(dir, ExportFiles.IMPORT_NAME).readBytes())
+        dir.parentFile.deleteRecursively()
+    }
+
+    @Test fun importFailureRemovesThePartialCopyAndRethrows() {
+        val dir = File(tempDir(), ExportFiles.IMPORT_DIR)
+        val broken = object : java.io.InputStream() {
+            var n = 0
+            override fun read(): Int = if (n++ < 10) 1 else throw IOException("kaputt")
+        }
+        try {
+            ExportFiles.importInto(dir, broken)
+            fail()
+        } catch (e: IOException) {
+            assertEquals("kaputt", e.message)
+        }
+        assertEquals(emptyList<String>(), dir.list()!!.toList())
+        dir.parentFile.deleteRecursively()
     }
 }

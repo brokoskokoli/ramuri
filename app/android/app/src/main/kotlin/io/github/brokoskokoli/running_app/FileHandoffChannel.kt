@@ -22,6 +22,8 @@ import java.io.IOException
  * Kanal `running_app/file_handoff` (FR-0201, WP11): Datei teilen (`ACTION_SEND` über den
  * Chooser, FileProvider mit Leserecht nur für diese URI) oder über das System-Dokumentenziel
  * speichern (`ACTION_CREATE_DOCUMENT`, Inhalt direkt in die gelieferte URI, ohne Temp-Datei).
+ * `pickFile` öffnet eine Datei (`ACTION_OPEN_DOCUMENT`) und kopiert sie als Strom nach
+ * `cacheDir/imports/` ([ExportFiles.importInto]); `discardPicked` leert den Ordner.
  * Der Inhalt kommt als `bytes` oder als `path` einer Datei, die Dart schon unter dem Ordner
  * aus `exportDirectory` angelegt hat (nur dort, [ExportFiles.resolve]). Hängt an der
  * Activity, weil beide Wege einen Systemdialog starten. Geschrieben wird auf dem
@@ -58,10 +60,17 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "exportDirectory" -> exportDirectory(result)
+                "pickFile" -> if (foreground) pick(result) else result.error("not_foreground", null, null)
+                "discardPicked" -> ExportFiles.io.execute {
+                    ExportFiles.clear(importDir)
+                    mainHandler.post { result.success(null) }
+                }
                 "share", "save" -> {
                     val name = call.argument<String>("fileName")
                     val type = call.argument<String>("mimeType")
-                    val source = source(call.argument<ByteArray>("bytes"), call.argument<String>("path"))
+                    val source = name?.let {
+                        ExportFiles.source(exportDir, it, call.argument<ByteArray>("bytes"), call.argument<String>("path"))
+                    }
                     when {
                         name == null || type == null || source == null ||
                             !ExportFiles.isSafeName(name) || !ExportFiles.isMimeType(type) ->
@@ -78,12 +87,7 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
 
     private val exportDir: File get() = File(activity.cacheDir, ExportFiles.DIR)
 
-    /** Genau eine Quelle; ein Pfad nur, wenn er unter dem Exportordner liegt. */
-    private fun source(bytes: ByteArray?, path: String?): HandoffSource? = when {
-        bytes != null && path == null -> HandoffSource.Bytes(bytes)
-        bytes == null && path != null -> ExportFiles.resolve(exportDir, path)?.let { HandoffSource.Path(it) }
-        else -> null
-    }
+    private val importDir: File get() = File(activity.cacheDir, ExportFiles.IMPORT_DIR)
 
     /** Ordner, in den Dart große Dateien vor der Übergabe schreibt (absolut, kanonisch). */
     private fun exportDirectory(result: MethodChannel.Result) {
@@ -159,8 +163,33 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
         }
     }
 
+    /** Datei öffnen (`ACTION_OPEN_DOCUMENT`); die Antwort ist der Pfad der Kopie unter [importDir] oder "cancelled". */
+    private fun pick(result: MethodChannel.Result) {
+        if (!flow.beginPick(result)) return
+        val spec = HandoffIntents.openDocument()
+        val intent = Intent(spec.action).apply {
+            spec.categories.forEach { addCategory(it) }
+            setType(spec.mimeType)
+        }
+        try {
+            @Suppress("DEPRECATION")
+            activity.startActivityForResult(intent, PICK_REQUEST)
+        } catch (e: Exception) {
+            flow.fail("pick_failed", e.javaClass.simpleName)
+        }
+    }
+
     /** Aus MainActivity.onActivityResult; `true`, wenn die Antwort hierher gehört. */
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode == PICK_REQUEST) {
+            val uri = if (resultCode == Activity.RESULT_OK) data?.data else null
+            val resolver = activity.contentResolver
+            flow.pickAnswered(uri) { source: Uri ->
+                val input = resolver.openInputStream(source) ?: throw IOException("no_stream")
+                ExportFiles.importInto(importDir, input).path
+            }
+            return true
+        }
         if (requestCode != SAVE_REQUEST) return false
         val uri = if (resultCode == Activity.RESULT_OK) data?.data else null
         val resolver = activity.contentResolver
@@ -209,5 +238,6 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
         const val CHANNEL = "running_app/file_handoff"
         private const val SHARE_REQUEST = 6101
         private const val SAVE_REQUEST = 6102
+        private const val PICK_REQUEST = 6103
     }
 }

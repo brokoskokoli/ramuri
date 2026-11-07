@@ -239,4 +239,60 @@ class FileHandoffFlowTest {
         assertTrue(flow.saveAnswered<String>(null) { _, _ -> })
         assertEquals("t:cancelled", log.last())
     }
+
+    @Test fun pickCopiesInTheBackgroundAndAnswersWithThePath() {
+        assertTrue(flow.beginPick("p"))
+        assertTrue(flow.pickAnswered("content://doc") { "/c/imports/archive.bin" })
+        assertEquals(emptyList<String>(), log)
+        drain()
+        assertEquals(listOf("p:/c/imports/archive.bin"), log)
+        assertFalse(flow.busy)
+    }
+
+    @Test fun pickWithoutChoiceIsCancelledAndCopiesNothing() {
+        flow.beginPick("p")
+        assertTrue(flow.pickAnswered<String>(null) { throw AssertionError() })
+        assertEquals(listOf("p:cancelled"), log)
+    }
+
+    @Test fun pickCopyErrorIsReadFailedWithClassNameOnly() {
+        flow.beginPick("p")
+        flow.pickAnswered("content://doc") { throw IOException("pfad/geheim") }
+        drain()
+        assertEquals(listOf("p!read_failed(IOException)"), log)
+        assertFalse(flow.busy)
+    }
+
+    @Test fun pickIgnoresPauseResumeDoubleAnswersAndLateResults() {
+        flow.beginPick("p")
+        flow.paused()
+        flow.resumed()
+        assertTrue(log.isEmpty())
+        var copies = 0
+        assertTrue(flow.pickAnswered("content://doc") { copies++; "/x/archive.bin" })
+        assertTrue(flow.pickAnswered("content://doc") { copies++; "/x/zweite.bin" })
+        drain()
+        assertEquals(1, copies)
+        assertEquals(listOf("p:/x/archive.bin"), log)
+        // Detach während des Kopierens: die späte Antwort verfällt.
+        flow.beginPick("d")
+        flow.pickAnswered("content://doc") { "/x/archive.bin" }
+        flow.detached()
+        drain()
+        assertEquals("d!detached", log.last())
+        assertEquals(2, log.size)
+        // Antwort ohne offenes Öffnen gehört niemandem.
+        assertFalse(flow.pickAnswered("content://doc") { throw AssertionError() })
+        // Ein Öffnen schließt ein zweites aus.
+        flow.beginPick("q")
+        assertFalse(flow.beginPick("r"))
+        assertEquals("r!busy", log.last())
+    }
+
+    @Test fun openDocumentIntentIsOpenableAnyType() {
+        val spec = HandoffIntents.openDocument()
+        assertEquals("android.intent.action.OPEN_DOCUMENT", spec.action)
+        assertEquals("*/*", spec.mimeType)
+        assertEquals(listOf("android.intent.category.OPENABLE"), spec.categories)
+    }
 }

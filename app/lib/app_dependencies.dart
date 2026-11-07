@@ -143,6 +143,12 @@ class _NoFileHandoff implements FileHandoff {
 
   @override
   Future<String?> exportDirectory() async => null;
+
+  @override
+  Future<FilePickResult> pickFile() async => const FilePickResult.failed();
+
+  @override
+  Future<void> discardPicked() async {}
 }
 
 /// Vorgabe ohne Plattform: Der Stand ist unbekannt (Tests, die ihn nicht

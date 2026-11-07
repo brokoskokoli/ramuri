@@ -26,6 +26,14 @@ object HandoffIntents {
         flags = Intent.FLAG_GRANT_READ_URI_PERMISSION,
     )
 
+    /** Öffnen: Das System liefert eine lesbare URI; die App kopiert den Inhalt als Strom. */
+    fun openDocument() = IntentSpec(
+        action = Intent.ACTION_OPEN_DOCUMENT,
+        mimeType = "*/*",
+        flags = 0,
+        categories = listOf(Intent.CATEGORY_OPENABLE),
+    )
+
     /** Speichern: Das System-Dokumentenziel liefert eine URI, in die die App schreibt. */
     fun createDocument(fileName: String, mimeType: String) = IntentSpec(
         action = Intent.ACTION_CREATE_DOCUMENT,
@@ -64,13 +72,14 @@ class FileHandoffFlow<R>(
     private val answers: HandoffAnswers<R>,
     private val threads: HandoffThreads,
 ) {
-    private enum class Kind { SHARE, SAVE }
+    private enum class Kind { SHARE, SAVE, PICK }
 
     private var pending: R? = null
     private var kind: Kind? = null
     private var launched = false
     private var left = false
     private var saveSource: HandoffSource? = null
+    private var pickAnswered = false
 
     /** Zählt Übergaben; eine Hintergrundantwort einer schon beendeten Übergabe verfällt. */
     private var generation = 0
@@ -121,6 +130,7 @@ class FileHandoffFlow<R>(
         launched = false
         left = false
         saveSource = source
+        pickAnswered = false
         return true
     }
 
@@ -173,6 +183,38 @@ class FileHandoffFlow<R>(
         return true
     }
 
+    /** Datei öffnen (Reimport): Der Aufrufer startet danach den Dialog. */
+    fun beginPick(result: R): Boolean = begin(result, Kind.PICK, null)
+
+    /**
+     * Antwort des Dokumentendialogs: `null` heißt abgebrochen, sonst kopiert [copy] im
+     * Hintergrund und liefert den Pfad der Kopie, der als Antwort an Dart geht. `false`, wenn
+     * kein Öffnen offen ist; das System legt beim Öffnen nichts an, es gibt nichts zu entfernen.
+     */
+    fun <U> pickAnswered(uri: U?, copy: (U) -> String): Boolean {
+        if (kind != Kind.PICK) return false
+        // Doppelte Antwort, während das Kopieren läuft: gehört noch zu diesem Öffnen.
+        if (pickAnswered) return true
+        pickAnswered = true
+        if (uri == null) {
+            finish("cancelled")
+            return true
+        }
+        val token = generation
+        threads.background {
+            val copied = runCatching { copy(uri) }
+            threads.main {
+                if (token != generation) return@main
+                copied.fold(
+                    onSuccess = { path -> finish(path) },
+                    // Detail nur der Klassenname: keine Inhalte, keine Pfade.
+                    onFailure = { e -> fail("read_failed", e.javaClass.simpleName) },
+                )
+            }
+        }
+        return true
+    }
+
     /** Start des Systemdialogs oder Vorbereitung gescheitert. */
     fun fail(code: String, detail: String?) {
         val r = pending ?: return
@@ -195,6 +237,7 @@ class FileHandoffFlow<R>(
         launched = false
         left = false
         saveSource = null
+        pickAnswered = false
         generation++
     }
 }

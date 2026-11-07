@@ -23,6 +23,23 @@ class FakeFileHandoff implements FileHandoff {
     return nextResult;
   }
 
+  /// Ergebnis von [pickFile]; Vorgabe: abgebrochen.
+  FilePickResult nextPick = const FilePickResult.cancelled();
+
+  int pickCount = 0;
+  int discardCount = 0;
+
+  @override
+  Future<FilePickResult> pickFile() async {
+    pickCount++;
+    return nextPick;
+  }
+
+  @override
+  Future<void> discardPicked() async {
+    discardCount++;
+  }
+
   @override
   Future<String?> exportDirectory() async => directory;
 }

@@ -30,6 +30,15 @@ class ExportFile {
     if (!isPlainAbsolutePath(path!)) {
       throw ArgumentError.value(path, 'path', 'kein schlichter absoluter Pfad');
     }
+    // Der Name der Datei ist der Name, den der Nutzer sieht; Kotlin prüft
+    // dasselbe (ExportFiles.source).
+    if (path!.substring(path!.lastIndexOf('/') + 1) != fileName) {
+      throw ArgumentError.value(
+        path,
+        'path',
+        'Dateiname weicht von fileName ab',
+      );
+    }
   }
 
   final String fileName;
@@ -38,7 +47,8 @@ class ExportFile {
   /// Inhalt im Speicher; `null` bei einer Datei über [path].
   final Uint8List? bytes;
 
-  /// Absoluter Pfad unter [FileHandoff.exportDirectory]; `null` bei [bytes].
+  /// Absoluter Pfad unter [FileHandoff.exportDirectory], dessen letzter
+  /// Abschnitt [fileName] ist; `null` bei [bytes].
   final String? path;
 
   void _check() {
@@ -89,6 +99,36 @@ abstract interface class FileHandoff {
   /// Teilen auf (außer der geteilten Datei). `null`, wenn es keinen gibt.
   /// Wirft nie.
   Future<String?> exportDirectory();
+
+  /// Datei zum Öffnen wählen (`ACTION_OPEN_DOCUMENT`, beliebiger Typ), z. B.
+  /// ein Archiv für den Reimport. Die Plattform kopiert den Inhalt als Strom
+  /// in eine eigene App-Datei (nur die gewählte Datei, höchstens eine zugleich,
+  /// vorher wird der Ordner geleert); [FilePickResult.path] zeigt auf diese
+  /// Kopie. Eine Größengrenze gibt es nicht: Die Wahl liegt beim Nutzer, der
+  /// Strom belegt keinen Arbeitsspeicher, und ein volles Gerät ergibt
+  /// [FileHandoffResult.failed] (die Teilkopie wird entfernt). Wirft nie.
+  Future<FilePickResult> pickFile();
+
+  /// Entfernt die Kopie aus [pickFile] (nach dem Import, auch bei Fehlern).
+  /// Die Plattform räumt sie außerdem beim Prozessstart. Wirft nie.
+  Future<void> discardPicked();
+}
+
+/// Ergebnis von [FileHandoff.pickFile]: [path] nur bei [FileHandoffResult.completed].
+class FilePickResult {
+  const FilePickResult.completed(String this.path)
+    : result = FileHandoffResult.completed;
+  const FilePickResult.cancelled()
+    : result = FileHandoffResult.cancelled,
+      path = null;
+  const FilePickResult.failed()
+    : result = FileHandoffResult.failed,
+      path = null;
+
+  final FileHandoffResult result;
+
+  /// Absoluter Pfad der Kopie unter der Plattform (nur lesen; mit [FileHandoff.discardPicked] entsorgen).
+  final String? path;
 }
 
 /// Höchstlänge eines Dateinamens in Zeichen (Dateisysteme: 255 Bytes; alle

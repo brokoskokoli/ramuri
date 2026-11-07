@@ -6,7 +6,8 @@ import 'package:flutter/services.dart';
 const String fileHandoffChannelName = 'running_app/file_handoff';
 
 /// [FileHandoff] über eigenen Kotlin-Code (FR-0201): Teilen über
-/// `ACTION_SEND` und `FileProvider`, Speichern über `ACTION_CREATE_DOCUMENT`.
+/// `ACTION_SEND` und `FileProvider`, Speichern über `ACTION_CREATE_DOCUMENT`,
+/// Öffnen über `ACTION_OPEN_DOCUMENT` (`pickFile`).
 /// Der Kanal hängt an der Activity, weil beide Wege einen Systemdialog
 /// starten. Gesendet wird entweder `bytes` oder `path` (Datei unter
 /// [exportDirectory]; Kotlin prüft, dass sie dort liegt). Antworten der
@@ -32,6 +33,33 @@ class MethodChannelFileHandoff implements FileHandoff {
       return null;
     } on MissingPluginException {
       return null;
+    }
+  }
+
+  @override
+  Future<FilePickResult> pickFile() async {
+    try {
+      final answer = await _channel.invokeMethod<String>('pickFile');
+      if (answer == 'cancelled') return const FilePickResult.cancelled();
+      if (answer != null && isPlainAbsolutePath(answer)) {
+        return FilePickResult.completed(answer);
+      }
+      return const FilePickResult.failed();
+    } on PlatformException {
+      return const FilePickResult.failed();
+    } on MissingPluginException {
+      return const FilePickResult.failed();
+    }
+  }
+
+  @override
+  Future<void> discardPicked() async {
+    try {
+      await _channel.invokeMethod<void>('discardPicked');
+    } on PlatformException {
+      // Die Plattform räumt beim Prozessstart ohnehin auf.
+    } on MissingPluginException {
+      // dito
     }
   }
 
