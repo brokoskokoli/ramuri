@@ -2,6 +2,7 @@
 library;
 
 export 'fakes/fake_archive_crypto.dart';
+export 'fakes/fake_archive_sink.dart';
 export 'fakes/fake_archive_source.dart';
 export 'fakes/fake_cadence_sensor.dart';
 export 'fakes/fake_clock.dart';
@@ -28,6 +29,7 @@ export 'ports/location_access.dart';
 export 'ports/permission_status.dart';
 export 'ports/recording_service.dart';
 export 'ports/database_files.dart';
+export 'ports/archive_sink.dart';
 export 'ports/archive_source.dart';
 export 'ports/file_handoff.dart';
 export 'ports/storage.dart';
@@ -42,8 +44,11 @@ export 'ports/storage_values.dart';
 export 'src/archive/archive_errors.dart';
 export 'src/archive/archive_export.dart';
 export 'src/archive/archive_header.dart';
+export 'src/archive/archive_import.dart';
+export 'src/archive/archive_json.dart';
 export 'src/archive/archive_lines.dart';
 export 'src/archive/archive_password.dart';
+export 'src/archive/archive_reader.dart';
 export 'src/archive/archive_schema.dart';
 export 'src/archive/framed_archive_cipher.dart';
 export 'src/consent/consent_service.dart';

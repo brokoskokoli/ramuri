@@ -6,6 +6,7 @@ import '../../ports/clock.dart';
 import '../recalculation/recalculation_service.dart';
 import '../recalculation/value_calculation_service.dart';
 import 'archive_errors.dart';
+import 'archive_json.dart';
 import 'archive_schema.dart';
 
 /// Technische Merker in `settings`, die nicht ins Archiv gehören (Vertrag 4.3).
@@ -119,7 +120,7 @@ Map<String, Object?> encodeArchiveRow(
       final ok = switch (c.type) {
         ArchiveType.integer => v is int,
         ArchiveType.real => v is num && v.isFinite,
-        ArchiveType.text => v is String && _validUnicode(v),
+        ArchiveType.text => v is String && isValidArchiveText(v),
         ArchiveType.boolean => v is int && (v == 0 || v == 1),
       };
       if (!ok) throw bad;
@@ -127,20 +128,4 @@ Map<String, Object?> encodeArchiveRow(
     out[c.name] = v;
   }
   return out;
-}
-
-bool _validUnicode(String s) {
-  final u = s.codeUnits;
-  for (var i = 0; i < u.length; i++) {
-    final c = u[i];
-    if (c >= 0xD800 && c <= 0xDBFF) {
-      if (i + 1 < u.length && u[i + 1] >= 0xDC00 && u[i + 1] <= 0xDFFF) {
-        i++;
-        continue;
-      }
-      return false;
-    }
-    if (c >= 0xDC00 && c <= 0xDFFF) return false;
-  }
-  return true;
 }

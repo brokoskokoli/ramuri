@@ -2,7 +2,7 @@
 
 **Status:** Vorschlag des Pakets (WP12 Teil A, OQ-0032). Formatversion 1 vom Maintainer bestätigt (2026-11-07); Schema der Datenbank: Version 4. Die Zeilen- und Abschnittsregeln (Inhalt unter der Verschlüsselung) sind Vorschläge des Pakets und umkehrbar, solange kein Archiv der Version 1 ausgeliefert ist.
 **Anforderungen:** FR-0192, FR-0198, SEC-0011, ACC-15; Entscheidungen in [ADR-0008](../architecture/adr/ADR-0008-verschluesselung-des-archivs.md) (Verfahren, Parameter), ADR-0004 Punkt 6 (Kennungen).
-**Code:** `app/packages/core/lib/src/archive/` (Kopf und Rahmen), Port `app/packages/core/lib/ports/archive_cipher.dart`, Adapter `app/packages/adapters/lib/src/archive/`. Export und Import der Datenbank folgen in späteren Teilen von WP12; dieser Vertrag legt sie fest.
+**Code:** `app/packages/core/lib/src/archive/` (Kopf, Rahmen, Export, Leser), Ports `app/packages/core/lib/ports/archive_cipher.dart`, `archive_source.dart` (Export) und `archive_sink.dart` (Import), Adapter `app/packages/adapters/lib/src/archive/`. Zwischendatenbank und Tausch beim Import sowie die Oberfläche folgen in späteren Teilen von WP12; dieser Vertrag legt sie fest.
 
 Das Dokument beschreibt das Format so, dass es ohne den Dart-Code unabhängig umgesetzt werden kann. „MUSS“, „DARF NICHT“ und „KANN“ sind im Sinn von RFC 2119 gemeint. Alle Zahlen im Kopf sind unsigned und Big-Endian.
 
@@ -62,21 +62,23 @@ Argon2id nach RFC 9106, Version `0x13` (1.3), Parameter aus dem Kopf (Speicher 6
 | Ein **späteres** Stück scheitert (Tag), der Rest nach einem vollen Stück fehlt (Abschneiden an einer Stückgrenze: das letzte vorhandene Stück ist mit Flag `0x00` geschrieben und scheitert als letztes), Stücke vertauscht oder doppelt (falscher Zähler), Bytes angehängt (das echte letzte Stück erscheint dann als nicht-letztes) | beschädigt |
 | Ein leeres letztes Stück (Klartext 0 Byte), das nicht das einzige Stück ist (Zähler > 0) | beschädigt |
 
+**Vorrang:** Scheitert das **erste** Stück, gilt immer Zeile 1, auch wenn zugleich eine Beschreibung der Zeile 2 passt. Das betrifft das Abschneiden unmittelbar nach dem ersten vollen Stück (es wird dann mit Flag `0x01` gelesen und scheitert) und ein einziges volles Stück, das mit Flag `0x00` geschrieben wurde. Zeile 2 gilt erst, wenn das erste Stück die Prüfung bestanden hat. Ein Rest von 1 bis 15 Byte nach einem vollen Stück ist kein Tag und damit „beschädigt“ (Zeile 2); ein einziges Stück unter 16 Byte ist Zeile 1.
+
 Das Ende der Datei beendet die Prüfung: Nach dem letzten gültigen Stück gibt es keine weiteren Byte.
 
 **Wichtig für Verbraucher des Stroms:** Frühere Stücke können Klartext liefern, bevor das letzte Stück geprüft ist. Ein Leser MUSS das Ergebnis verwerfen, wenn der Strom nicht fehlerfrei bis zum letzten Stück endet (Zwischendatenbank, Tausch erst danach; ADR-0008 Punkt 5).
 
 ## 4. Inhalt unter der Verschlüsselung
 
-Der entschlüsselte Klartext ist **ein** gzip-Element (RFC 1952, ein Member, DEFLATE; Stufe und Kopffelder frei, `FNAME`/`FEXTRA`/`FCOMMENT` ungenutzt). Der Leser MUSS CRC32 und ISIZE (mod 2^32) prüfen und DARF NICHT Byte nach dem Element dulden. Die Dekompression erfolgt als Strom; sie darf nicht den ganzen Inhalt im Speicher halten.
+Der entschlüsselte Klartext ist **ein** gzip-Element (RFC 1952, ein Member, DEFLATE; Stufe und Kopffelder frei, `FNAME`/`FEXTRA`/`FCOMMENT` ungenutzt). Der Leser MUSS CRC32 und ISIZE (mod 2^32) prüfen und DARF NICHT Byte nach dem Element dulden; ein abgeschnittenes, ein zweites oder ein um Byte verlängertes Element ist „beschädigt“. (Die Zlib-Anbindung von Dart prüft das nicht streng; der Leser vergleicht deshalb die letzten 8 Byte des entschlüsselten Stroms mit CRC32 und Länge der gesamten entpackten Ausgabe.) Zeitstempel (`MTIME`) und `OS`-Byte des gzip-Kopfs sind beliebig. Die Dekompression erfolgt als Strom; sie darf nicht den ganzen Inhalt im Speicher halten.
 
-Dekomprimiert ist es ein JSON-Lines-Text (UTF-8 ohne BOM): Jede Zeile ist **ein** JSON-Objekt (RFC 8259) auf einer Zeile, Zeilentrenner genau `\n` (auch nach der letzten Zeile), keine leeren Zeilen. Der Schreiber erzeugt kompaktes JSON ohne Leerraum; der Leser liest jedes gültige JSON. Eine Zeile ist höchstens 16 MiB lang (Leser-Grenze gegen Speicherbomben). Ganze Zahlen sind 64-Bit-Ganzzahlen und MÜSSEN verlustfrei gelesen werden (Mikrosekunden seit Epoch passen nicht in jede Gleitkommadarstellung). Objekte dürfen keinen Schlüssel doppelt tragen.
+Dekomprimiert ist es ein JSON-Lines-Text (UTF-8 ohne BOM): Jede Zeile ist **ein** JSON-Objekt (RFC 8259) auf einer Zeile, Zeilentrenner genau `\n` (auch nach der letzten Zeile), keine leeren Zeilen. Der Schreiber erzeugt kompaktes JSON ohne Leerraum; der Leser liest jedes gültige JSON. Eine Zeile ist höchstens 16 MiB lang (Leser-Grenze gegen Speicherbomben). Ganze Zahlen sind 64-Bit-Ganzzahlen (signed) und MÜSSEN verlustfrei gelesen werden (Mikrosekunden seit Epoch passen nicht in jede Gleitkommadarstellung); eine Ganzzahl außerhalb von −2^63 bis 2^63−1 ist ein Fehler, nie ein Ersatz durch eine Gleitkommazahl. Objekte dürfen keinen Schlüssel doppelt tragen. Der Leser nimmt jede Schreibweise gültigen JSONs an (auch Escapes wie `\ud83c\udfc3` statt direktem UTF-8, `-0` als Ganzzahl 0, Leerraum einschließlich `\r`), aber keinen Text mit einzelnem Surrogat (auch nicht als `\ud800`), kein BOM und keine ungültige UTF-8-Folge.
 
 ### 4.1 Zeilenfolge
 
-1. **Manifest** (genau eine, erste Zeile): `{"type":"manifest","format":1,"schema_version":4,"created_at_us":<int>}`. `format` ist die Formatversion des Kopfes (gleich), `schema_version` das Datenbankschema der Zeilen, `created_at_us` der Erstellzeitpunkt in Mikrosekunden seit Epoch (UTC). Der Leser lehnt `format` ungleich 1 und `schema_version` ungleich 4 ab (ein größeres Schema: „neueres Archiv“, ohne Änderung; ein kleineres ist nicht vorgesehen, Format 1 beginnt mit Schema 4). Unbekannte weitere Schlüssel im Manifest sind ein Fehler.
+1. **Manifest** (genau eine, erste Zeile): `{"type":"manifest","format":1,"schema_version":4,"created_at_us":<int>}`. `format` ist die Formatversion des Kopfes (gleich), `schema_version` das Datenbankschema der Zeilen, `created_at_us` der Erstellzeitpunkt in Mikrosekunden seit Epoch (UTC). Der Leser lehnt `format` ungleich 1 und `schema_version` ungleich 4 ab (ein größeres Schema: „neueres Archiv“, ohne Änderung; ein kleineres ist „Schema nicht unterstützt“, solange es keine Migration gibt; Format 1 beginnt mit Schema 4). Unbekannte weitere Schlüssel im Manifest sind ein Fehler, **außer** bei einem größeren Schema: Der Leser wertet `schema_version` zuerst aus, ein größeres Schema ist „neueres Archiv“, auch wenn das Manifest weitere Schlüssel trägt. `format` ungleich 1 im Manifest bei Kopf-Formatversion 1 ist ein Widerspruch (beschädigt).
 2. **Abschnitte** in der festen Reihenfolge der Tabelle in 4.3, **alle** 19 Abschnitte, auch leere. Jeder Abschnitt beginnt mit `{"type":"section","name":"<Abschnittsname>"}`, darauf folgen seine Zeilen `{"type":"row","data":{<Spalte>:<Wert>,...}}`. Eine Zeile gehört zum zuletzt begonnenen Abschnitt.
-3. **Ende** (genau eine, letzte Zeile): `{"type":"end","rows":{"runs":<n>,"laps":<n>,...}}` mit der Zeilenzahl **jedes** der 19 Abschnitte (auch 0), in der Reihenfolge der Abschnitte. Der Leser zählt mit und lehnt jede Abweichung ab.
+3. **Ende** (genau eine, letzte Zeile): `{"type":"end","rows":{"runs":<n>,"laps":<n>,...}}` mit der Zeilenzahl **jedes** der 19 Abschnitte (auch 0), in der Reihenfolge der Abschnitte. Der Leser zählt mit und lehnt jede Abweichung ab. Jeder Zähler ist eine Ganzzahl (`0.0` ist keine); die Reihenfolge der Schlüssel in `rows` ist beliebig, der Schlüsselsatz muss genau die 19 Abschnitte sein.
 
 Abweichungen sind Fehler: fehlender oder doppelter Abschnitt, falsche Reihenfolge, Zeile außerhalb eines Abschnitts, Zeile nach der Endzeile, fehlende Endzeile, unbekannter `type`, unbekannter Abschnittsname.
 
@@ -86,8 +88,30 @@ Abweichungen sind Fehler: fehlender oder doppelter Abschnitt, falsche Reihenfolg
 - INTEGER: JSON-Ganzzahl (ohne Bruch und Exponent). REAL: endliche JSON-Zahl (der Schreiber bricht den Export ab, wenn ein Wert nicht endlich ist); eine Ganzzahl-Schreibweise ist für REAL zulässig. TEXT: JSON-String (gültiges Unicode, keine einzelnen Surrogate). BOOLEAN-Spalten sind SQLite-Ganzzahlen: `0` oder `1`.
 - Spalten, die JSON-Text enthalten (`rated_sections.gps_gaps`, `computed_values.sources`, `value_sections.reasons`), werden als **String** mit dem gespeicherten Text übertragen, nicht als verschachteltes JSON; der Leser setzt sie unverändert ein.
 - **Kennungen bleiben erhalten:** Alle `id`-Spalten und Verweise (`run_id`, `computed_value_id`, `raw_id`) tragen die Werte der Quelldatenbank. Der Leser stellt die Zeilen unter diesen Kennungen wieder her (die Verweise in `preprocessed_samples.raw_id` hängen daran) und lässt die Datenbank Fremdschlüssel, CHECKs und Trigger prüfen; jede Verletzung lehnt das ganze Archiv ab.
-- **Zeilenreihenfolge:** innerhalb eines Abschnitts aufsteigend nach dem Primärschlüssel (`id`, bei `settings` nach `key`). Die Datenbank-Trigger verlangen beim Wiederherstellen: erst `runs`, dann deren Rohdaten (nur anhängen); bei Laufwerten je `computed_values`-Zeile `original`, dann dessen `value_sections`, dann `current`, jeweils in aufsteigender `id` (Trigger `value_sections_original_no_late_insert` prüft, dass die Zeile des Werts die zuletzt vergebene ist). Weil `value_sections` hinter `computed_values` steht, MUSS der Leser dafür zwischenspeichern oder die Reihenfolge herstellen; der Zwischenspeicher darf nicht der Klartext auf dem Datenträger sein (ADR-0008 Punkt 5).
+- **Zeilenreihenfolge:** innerhalb eines Abschnitts aufsteigend nach dem Primärschlüssel (`id`, bei `settings` nach `key`). Der Leser lehnt nicht aufsteigende oder doppelte `id`s ab (Abschnitt 4.5); die Reihenfolge der Schlüssel in `settings` und doppelte Schlüssel dort prüft die Datenbank (Primärschlüssel). Der Schreiber vergibt die `id`s so, dass sie in jedem Abschnitt in der Dateireihenfolge wachsen, auch `value_sections.id` mit der Reihenfolge der `computed_values`-Zeilen, zu denen sie gehören. Die Datenbank-Trigger verlangen beim Wiederherstellen: erst `runs`, dann deren Rohdaten (nur anhängen); bei Laufwerten je `computed_values`-Zeile `original`, dann dessen `value_sections`, dann `current`, jeweils in aufsteigender `id` (Trigger `value_sections_original_no_late_insert` prüft, dass die Zeile des Werts die zuletzt vergebene ist). Weil `value_sections` hinter `computed_values` steht, MUSS der Leser dafür zwischenspeichern oder die Reihenfolge herstellen; der Zwischenspeicher darf nicht der Klartext auf dem Datenträger sein (ADR-0008 Punkt 5).
 - **Unbekannte `value_key`s** (und unbekannte `method`-Namen, `unavailable_reason`-Codes, `source`-Namen) werden unverändert durchgereicht: Der Leser prüft sie nicht gegen eine Liste. Ein Code, den die App beim späteren Lesen nicht versteht, ist dort ein Datenfehler wie im bisherigen Schema.
+- **Zulässige Werte der TEXT-Spalten:** Der Leser prüft Typ und Form, nicht diese Mengen; sie prüft die Datenbank beim Wiederherstellen (CHECK in `schema.drift`, Schema 4), und jede Verletzung lehnt das ganze Archiv ab. Maßgeblich ist `schema.drift`; zur Orientierung:
+
+  | Spalte | Zulässig |
+  |---|---|
+  | `runs.state` | `active`, `paused`, `finished` |
+  | `run_gaps.kind` | `manual_pause`, `position_loss`, `heart_rate_loss`, `interruption` |
+  | `raw_positions`, `raw_heart_rates`, `raw_altitudes`, `raw_steps`: `state`; `preprocessed_samples.state` | `present`, `estimated`, `unavailable`, `discarded` (Wertspalten nur bei `unavailable` leer) |
+  | `raw_*.source` | beliebiger Text (Gerät oder Quelle, kein Fremdschlüssel) |
+  | `raw_heart_rates.contact` | `good`, `poor`, `unsupported` |
+  | `preprocessed_samples.channel` | `position`, `heart_rate`, `altitude`, `steps` |
+  | `preprocessed_samples.discard_reason` | `null` oder `accuracy`, `hardJump`, `softJump`, `nonMonotonicTime`, `implausibleHeartRate`, `noContact`, `heartRateOutlier`, `verticalAccuracy`, `invalidValue` |
+  | `preprocessed_spans.kind` | `moving`, `settling`, `position_gap`, `heart_rate_gap` |
+  | `computed_values.role` | `original`, `current` (je Lauf oder Tag und `value_key` genau eine Zeile je Rolle) |
+  | `computed_values.quality` | `provisional`, `sufficient`, `good`, `undeterminable` |
+  | `computed_values.run_id` / `day` | genau eines von beiden gesetzt; `day` ist ein ISO-Datum |
+  | `computed_values.value_key`, `unit`, `method`, `unavailable_reason`, `sources` | beliebiger Text (siehe unbekannte `value_key`s); `value_real` ist genau dann `null`, wenn `unavailable_reason` gesetzt ist (Trigger) |
+  | `value_sections.status` | `eligible`, `provisional`, `rejected` |
+  | `value_sections.discard` | `null` oder `implausible`, `incomplete`, `zeroWeight` |
+  | `rated_sections.gps_gaps`, `value_sections.reasons` | gültiger JSON-Text (als String übertragen) |
+  | `preprocessing_results.method`, `rated_sections.method` | beliebiger Text |
+
+  Zahlenbereiche (zum Beispiel `ended_utc_offset_s` −64800 bis 64800, `training_days_mask` 0 bis 127, positive Werte in `profile`, `end_us >= start_us`) stehen ebenfalls als CHECK in `schema.drift`. Fehlende Werte sind `null`, nie 0.
 - Laufwerte (`computed_values`) tragen **beide** Rollen (`original`, `current`) mit `unavailable_reason`, Basis (`hr_max_bpm`, `hr_rest_bpm`, `hr_max_is_estimated`), Quellen, Versionen und Qualität. Zonenzeiten und `trimp_run` sind Laufwerte und stehen hier; sie sind nicht aus den Rohdaten rekonstruierbar.
 
 ### 4.3 Abschnitte und Spalten (Schema 4)
@@ -136,6 +160,31 @@ Nicht im Archiv: die Tabellen `storage_meta` (technisch), `consents` (Einwilligu
 {"type":"end","rows":{"runs":1,"laps":0,...,"goals":0,"plans":0,"active_warning":0}}
 ```
 
+### 4.5 Leser: Ablauf, Ziel und Fehlerarten
+
+Der Leser (`ArchiveImporter`, `readArchive`) arbeitet als Strom in einem Arbeits-Isolate: Datei lesen → Kopf prüfen → entschlüsseln (Port `ArchiveCipher`) → gunzip → in Zeilen an `\n` teilen → je Zeile JSON strikt lesen und prüfen → geprüfte Zeilen in Stapeln an das Ziel (Port `ArchiveSink`: `begin`, `insert`, `commit`, `abort`). Es entsteht keine Datei und kein Klartext auf dem Datenträger.
+
+**Prüfungen je Zeile (jede Verletzung: „beschädigt“):** Manifest zuerst; Abschnitt nur mit dem als nächstes erwarteten Namen (damit sind doppelte, fehlende, vertauschte und unbekannte Abschnitte ausgeschlossen); Zeile nur innerhalb eines Abschnitts und nie in einem der drei reservierten; genau die Schlüssel `type`/`name` (Abschnitt), `type`/`data` (Zeile), `type`/`rows` (Ende); genau die Spalten laut 4.3 mit passendem Typ; `id` je Abschnitt streng aufsteigend; Endzeile erst nach allen 19 Abschnitten, Zähler gleich den gelesenen Zeilen; nach der Endzeile nichts, auch keine Zeile und kein Byte; Ende des Stroms ohne halbe Zeile; Zeile höchstens 16 MiB, nicht leer.
+
+**Wann `commit` kommt:** Erst wenn der entschlüsselte Strom ohne Fehler bis zum letzten Stück geendet hat (Tags aller Stücke, Zähler, Endmarke im Nonce), das gzip-Element samt CRC32 und ISIZE vollständig und ohne Byte danach ist **und** die Endzeile mit den Zählern stimmt. Eine gültige Endzeile allein genügt nicht: Sie kann in einem früheren Stück stehen als das letzte. Bei **jedem** anderen Ausgang (Fehler, Abbruch, Fehler des Ziels) folgt `abort` und nie `commit`. Das Ziel bekommt Zeilen schon vor dem `commit` und muss sie bis dahin verwerfbar halten (Zwischendatenbank).
+
+**Fehlerarten (ohne Inhalte, Zeilenzahlen und Passwort):**
+
+| Lage | Fehler |
+|---|---|
+| Magic fehlt, Datei zu kurz | keine Archivdatei |
+| Formatversion unbekannt (auch kleiner, auch 0) | unbekannte Formatversion |
+| Parameter im Kopf ungleich Version 1 | nicht unterstützte Parameter |
+| erstes Stück scheitert, Datei endet nach dem Kopf | falsches Passwort oder beschädigter Anfang (eine Meldung) |
+| späteres Stück, Datei zwischen 10 und 35 Byte, gzip, UTF-8, JSON, Zeilen-, Abschnitts-, Spalten-, Typ- oder Zählerverletzung, Endzeile fehlt, Inhalt nach der Endzeile | beschädigt |
+| `schema_version` größer als 4 | neueres Archiv (Datenbank unverändert) |
+| `schema_version` kleiner als 4 | Schema nicht unterstützt |
+| Datei nicht lesbar | Lesefehler |
+| Ziel lehnt ab (Fremdschlüssel, CHECK, Trigger: beschädigt; sonst Speicher, E/A: Zielfehler) | beschädigt oder Zielfehler |
+| Vom Aufrufer abgebrochen | abgebrochen |
+
+Die Reihenfolge der Wiederherstellung (`value_sections` hinter `computed_values`, Original vor Abschnitten vor `current`) stellt das Ziel her (Zwischenspeicher oder Zwischendatenbank), nicht der Leser.
+
 ## 5. Sicherheitsaussagen und Grenzen
 
 - Ohne Passwort ist kein Inhalt lesbar; auch Zeilenzahlen und Abschnitte stehen nur im verschlüsselten Teil. Sichtbar sind Magic, Formatversion, Parameter, Salz und die ungefähre Gesamtgröße.
@@ -147,7 +196,7 @@ Nicht im Archiv: die Tabellen `storage_meta` (technisch), `consents` (Einwilligu
 
 ## 6. Testvektoren
 
-Feste Vektoren (Kopf, Schlüssel, einzelne Stücke, ganze Dateien) aus einer unabhängigen Umsetzung folgen in einem späteren Teil von WP12 und werden hier verlinkt. Bis dahin ist dieser Text die Definition.
+Feste Vektoren (Kopf, Schlüssel, einzelne Stücke, ganze Dateien, Negativfälle) aus einer unabhängigen Umsetzung in Python: Erzeuger `tool/archive_vectors/make_vectors.py`, Dateien in `app/packages/adapters/test/archive/vectors/`. Dieser Text bleibt die Definition. Die Zeilen von `archive_small` prüfen Format und Zähler; ihre Werte der TEXT-Spalten sind nicht durchgängig die der Datenbank (zum Beispiel `run_gaps.kind`), der Vektor ist daher kein Beleg für den Datenbank-Import.
 
 ## 7. Änderungen am Format
 
