@@ -3,6 +3,7 @@ library;
 
 import 'package:core/core.dart';
 
+export 'src/export/method_channel_file_handoff.dart';
 export 'src/location/method_channel_location.dart';
 export 'src/permissions/method_channel_permission_status.dart';
 export 'src/sensors/ble_heart_rate_sensor.dart';

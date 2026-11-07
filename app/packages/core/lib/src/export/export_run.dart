@@ -3,6 +3,7 @@ import '../../ports/storage_raw.dart';
 import '../../ports/storage_runs.dart';
 import '../preprocessing/geo.dart';
 import '../preprocessing/measurement.dart';
+import '../../ports/file_handoff.dart';
 
 /// Gemessene Position eines Exportpunkts (WGS84, Grad).
 class ExportPosition {
@@ -80,12 +81,9 @@ class ExportRun {
   /// Mindestens eine Runde, nach Zeit sortiert.
   final List<ExportLap> laps;
 
-  /// Dateiname: [name] auf `A-Z a-z 0-9 . _ -` beschränkt, plus [extension].
-  String fileName(String extension) {
-    final safe = name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
-    final base = safe.replaceAll(RegExp(r'^[._]+'), '');
-    return '${base.isEmpty ? 'run' : base}.$extension';
-  }
+  /// Dateiname: [name] auf `A-Z a-z 0-9 . _ -` beschränkt, plus [extension]
+  /// (siehe [exportFileName]).
+  String fileName(String extension) => exportFileName(name, extension);
 
   /// Zeit der Abschnitte innerhalb von [from] bis [to] (Pausen zählen nicht).
   Duration activeTimeWithin(DateTime from, DateTime to) {

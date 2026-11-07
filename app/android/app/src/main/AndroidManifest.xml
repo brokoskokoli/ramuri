@@ -57,6 +57,18 @@
             android:name=".RecordingService"
             android:exported="false"
             android:foregroundServiceType="location|connectedDevice"/>
+        <!-- FR-0201: Teilen von Exportdateien. Nicht exportiert; Empfänger bekommen nur ein
+             Leserecht auf die eine URI (FLAG_GRANT_READ_URI_PERMISSION, FileHandoffChannel.kt).
+             Freigegeben ist nur cacheDir/exports/ (res/xml/file_paths.xml). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.exports"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"/>
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
