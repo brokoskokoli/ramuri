@@ -3,6 +3,7 @@
 // Ablehnung bei nicht leerer App, jeder Fehlerfall lässt die aktive Datenbank
 // unverändert, Fehlerinjektion an jedem Schritt des Tauschs, kein Klartext.
 // Alle Daten sind synthetisch.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -173,6 +174,7 @@ class _SpySink implements ArchiveSink {
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   late Directory work;
+  late Directory src;
   late Directory appDir;
   late String activePath;
   late String archivePath;
@@ -235,7 +237,11 @@ void main() {
     activePath = '${appDir.path}/running_app.db';
     files = makeFiles();
     // Quelle: Klartext-Datenbank mit allem, exportiert mit echter Kryptografie.
-    final src = Directory('${work.path}/src')..createSync();
+    // Nicht unter systemTemp: Der Marken-Test des Exports durchsucht ihn, und
+    // die Testdateien laufen gleichzeitig (Review 2, Befund 2). Die Klartext-
+    // Quelle liegt im (nicht versionierten) .dart_tool des Pakets.
+    Directory('.dart_tool').createSync();
+    src = Directory('.dart_tool').createTempSync('wp12c2src_');
     final exportDir = Directory('${work.path}/exports')..createSync();
     final plain = openPlain('${src.path}/plain.db');
     await fillAllTables(plain);
@@ -260,6 +266,7 @@ void main() {
       await session.close();
     } catch (_) {}
     work.deleteSync(recursive: true);
+    if (src.existsSync()) src.deleteSync(recursive: true);
   });
 
   test(
@@ -636,14 +643,75 @@ void main() {
     }
   });
 
+  test('swapFailed trägt die neu geöffnete Sitzung (alter Stand)', () async {
+    await addOldData();
+    hook = (s) {
+      if (s == 'rename') throw StateError('Tausch scheitert');
+    };
+    final old = session;
+    Object? error;
+    try {
+      await service().restore(
+        path: archivePath,
+        password: _password,
+        resetConfirmed: true,
+      );
+    } catch (e) {
+      error = e;
+    }
+    hook = null;
+    expect(error, isA<ArchiveRestoreException>());
+    final e = error! as ArchiveRestoreException;
+    expect(e.failure, ArchiveRestoreFailure.swapFailed);
+    expect(e.session, isNotNull);
+    expect(e.session, isNot(same(old)));
+    final rows = await _dbOf(e.session!)
+        .customSelect('SELECT id FROM runs WHERE id = 77')
+        .get();
+    expect(rows, hasLength(1));
+  });
+
+  test('zweite Verbindung offen, kein Checkpoint beim close: swapFailed, alter Stand, Zwischendatei weg', () async {
+    await addOldData();
+    final other = await openActive();
+    final gate = Completer<void>();
+    final started = Completer<void>();
+    final reading = _dbOf(other).transaction(() async {
+      await _dbOf(other).customSelect('SELECT * FROM runs').get();
+      started.complete();
+      await gate.future;
+    });
+    await started.future;
+    Object? error;
+    try {
+      await service().restore(
+        path: archivePath,
+        password: _password,
+        resetConfirmed: true,
+      );
+    } catch (e) {
+      error = e;
+    }
+    gate.complete();
+    await reading;
+    await other.close();
+    expect(error, isA<ArchiveRestoreException>());
+    expect(
+      (error! as ArchiveRestoreException).failure,
+      ArchiveRestoreFailure.swapFailed,
+    );
+    expect(await files.importExists(), isFalse);
+  });
+
   group('FileDatabaseFiles', () {
     test(
       'replaceWithImport entfernt -wal/-shm/-journal beider Seiten',
       () async {
         await session.close();
-        for (final s in ['', '-wal', '-shm', '-journal']) {
+        for (final s in ['', '-shm', '-journal']) {
           File('$activePath$s').writeAsBytesSync([1, 2, 3]);
         }
+        File('$activePath-wal').writeAsBytesSync([]); // leer: eingecheckt
         for (final s in ['-wal', '-shm', '-journal']) {
           File('${files.importPath}$s').writeAsBytesSync([9]);
         }
@@ -652,6 +720,41 @@ void main() {
         expect(File(activePath).readAsBytesSync(), [7, 7, 7, 7]);
         expect(appFiles(), ['running_app.db']);
         session = await openActive().catchError((_) => session);
+      },
+    );
+
+    test(
+      'aktives -wal mit Inhalt (nicht eingecheckt): kein Tausch, Daten bleiben',
+      () async {
+        // Zustand nach einem Prozessende ohne Checkpoint: Hauptdatei alt, die
+        // Läufe stehen nur im -wal (Review 2, Befund 1).
+        await addOldData();
+        final snap = Directory('${work.path}/snap')..createSync();
+        File(activePath).copySync('${snap.path}/db');
+        File('$activePath-wal').copySync('${snap.path}/wal');
+        File('$activePath-shm').copySync('${snap.path}/shm');
+        await session.close();
+        File('${snap.path}/db').copySync(activePath);
+        File('${snap.path}/wal').copySync('$activePath-wal');
+        File('${snap.path}/shm').copySync('$activePath-shm');
+        expect(File('$activePath-wal').lengthSync(), greaterThan(0));
+        File(files.importPath).writeAsBytesSync([7, 7, 7, 7]);
+        final walBefore = File('$activePath-wal').readAsBytesSync();
+        hook = (s) {
+          if (s == 'rename') throw StateError('Prozess endet bei $s');
+        };
+        await expectLater(
+          files.replaceWithImport(),
+          throwsA(isA<FileSystemException>()),
+        );
+        expect(File('$activePath-wal').readAsBytesSync(), walBefore);
+        hook = null;
+        await files.deleteImport();
+        session = await openActive();
+        final runs = await _dbOf(session)
+            .customSelect('SELECT id FROM runs WHERE id = 77')
+            .get();
+        expect(runs, hasLength(1), reason: 'Lauf 77 darf nicht verloren sein');
       },
     );
 

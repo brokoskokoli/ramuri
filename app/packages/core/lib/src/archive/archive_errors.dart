@@ -1,3 +1,5 @@
+import '../../ports/storage.dart';
+
 /// Warum ein Export scheitert. Die Fehler tragen nie Inhalte oder das Passwort.
 enum ArchiveExportFailure {
   /// Passwort zu kurz (15 Zeichen).
@@ -95,9 +97,15 @@ enum ArchiveRestoreFailure {
 }
 
 class ArchiveRestoreException implements Exception {
-  const ArchiveRestoreException(this.failure);
+  const ArchiveRestoreException(this.failure, {this.session});
 
   final ArchiveRestoreFailure failure;
+
+  /// Bei [ArchiveRestoreFailure.swapFailed] nach dem Schließen: die neu
+  /// geöffnete Sitzung mit dem alten (oder ganz neuen) Stand. Die bisherige
+  /// Sitzung ist dann geschlossen; der Aufrufer muss diese übernehmen. Sonst
+  /// `null`.
+  final StorageSession? session;
 
   @override
   String toString() => 'ArchiveRestoreException(${failure.name})';

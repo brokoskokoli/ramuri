@@ -67,6 +67,10 @@ class EncryptedStorageSession implements StorageSession {
   @override
   Future<void> deleteAll() => _deletion.deleteAll();
 
+  /// Schließt die Verbindung. SQLite checkpointet beim Schließen der letzten
+  /// Verbindung; ob das gelang, weist diese Methode nicht nach. Wer die Dateien
+  /// danach ersetzt (WP12), prüft das `-wal` selbst
+  /// ([FileDatabaseFiles.replaceWithImport]).
   @override
   Future<void> close() => database.close();
 }

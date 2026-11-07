@@ -894,6 +894,20 @@ void main() {
       );
     });
 
+    test('Kopffelder FNAME und FCOMMENT werden geduldet (Vertrag 4)', () async {
+      final gz = _gzip(_jsonl(valid(2)));
+      expect(gz[3], 0, reason: 'der Schreiber setzt keine Felder');
+      final withFields = Uint8List.fromList([
+        ...gz.sublist(0, 3),
+        0x08 | 0x10, // FNAME | FCOMMENT
+        ...gz.sublist(4, 10),
+        ...utf8.encode('name.jsonl'), 0,
+        ...utf8.encode('Kommentar'), 0,
+        ...gz.sublist(10),
+      ]);
+      await c.run(await _encrypt(withFields));
+    });
+
     test('abgeschnitten', () async {
       final gz = _gzip(_jsonl(valid(1)));
       for (final cut in [1, 8, 9, gz.length - 12]) {

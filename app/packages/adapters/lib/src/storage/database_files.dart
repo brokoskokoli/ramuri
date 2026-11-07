@@ -75,8 +75,8 @@ class FileDatabaseFiles implements DatabaseFiles {
   /// (ein altes `-wal` neben der neuen Hauptdatei wäre falsch), dann die der
   /// Zwischendatenbank (sie ist geschlossen und per Checkpoint geleert), zuletzt
   /// **ein** atomares Umbenennen. Vor dem Umbenennen steht die alte Hauptdatei
-  /// vollständig (die aktive Sitzung wurde geschlossen, also eingecheckt), danach
-  /// die neue. Das Verzeichnis wird nicht eigens synchronisiert (Dart hat dafür
+  /// vollständig (die aktive Sitzung wurde mit Checkpoint geschlossen; ein
+  /// aktives -wal mit Inhalt bricht den Tausch vorher ab), danach die neue. Das Verzeichnis wird nicht eigens synchronisiert (Dart hat dafür
   /// keinen Aufruf): Nach einem Stromausfall kann das Umbenennen fehlen, dann
   /// gilt der alte Stand.
   @override
@@ -85,6 +85,14 @@ class FileDatabaseFiles implements DatabaseFiles {
     step('start');
     if (!await File(importPath).exists()) {
       throw const FileSystemException('Zwischendatenbank fehlt');
+    }
+    // Fail-closed: Ein aktives -wal mit Inhalt kann Schreibvorgänge enthalten,
+    // die nicht in der Hauptdatei stehen (Checkpoint fehlte oder scheiterte).
+    // Es zu löschen, ginge ohne Spur verloren. Nach sauberem Schließen der
+    // letzten Verbindung ist es leer oder weg.
+    final activeWal = File('$path-wal');
+    if (await activeWal.exists() && await activeWal.length() > 0) {
+      throw const FileSystemException('Aktives -wal nicht eingecheckt');
     }
     for (final suffix in const ['-wal', '-shm', '-journal']) {
       step('active$suffix');

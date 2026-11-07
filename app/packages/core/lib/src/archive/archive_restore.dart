@@ -16,8 +16,11 @@ import 'archive_lines.dart' show archiveExcludedSettingKeys;
 /// 2. [ArchiveImporter] füllt über den [ArchiveSink] die Zwischendatenbank;
 ///    `commit` kommt nur nach vollständiger Prüfung. Jeder Fehler hinterlässt
 ///    die aktive Datenbank unverändert und keine Zwischendatenbank.
-/// 3. Tausch: aktive Sitzung schließen, [DatabaseFiles.replaceWithImport],
-///    neu öffnen. Einwilligungen sind danach leer (nicht erteilt).
+/// 3. Tausch: aktive Sitzung mit Checkpoint schließen (scheitert der
+///    Checkpoint, bleibt der alte Stand und `swapFailed`),
+///    [DatabaseFiles.replaceWithImport] (bricht bei einem aktiven `-wal` mit
+///    Inhalt ab), neu öffnen. Bei `swapFailed` trägt die Ausnahme die neu
+///    geöffnete Sitzung. Einwilligungen sind danach leer (nicht erteilt).
 ///
 /// [serialize] schließt Aufnahme und Neuberechnung aus (in der App
 /// `RecalculationController.exclusive`); die Aufnahme darf nicht laufen.
@@ -47,7 +50,9 @@ class ArchiveRestoreService {
 
   /// Keine Läufe, kein Profilwert, keine Geräte und keine Einstellung außer den
   /// technischen Merkern ([archiveExcludedSettingKeys]). Einwilligungen zählen
-  /// nicht: Sie werden ohnehin nicht übernommen. Wirft [StorageException].
+  /// nicht: Sie werden ohnehin nicht übernommen. Tageswerte zählen nicht: Sie
+  /// sind aus Läufen abgeleitet (ohne Läufe nichts Eigenes) und der Port bietet
+  /// keine Auflistung. Wirft [StorageException].
   static Future<bool> isEmpty(StorageSession s) async {
     if ((await s.runs.list()).isNotEmpty) return false;
     final p = await s.profile.read();
@@ -99,12 +104,16 @@ class ArchiveRestoreService {
       try {
         await files.deleteImport();
       } catch (_) {}
+      final StorageSession reopened;
       try {
-        await reopen();
+        reopened = await reopen();
       } catch (_) {
         throw const ArchiveRestoreException(ArchiveRestoreFailure.reopenFailed);
       }
-      throw const ArchiveRestoreException(ArchiveRestoreFailure.swapFailed);
+      throw ArchiveRestoreException(
+        ArchiveRestoreFailure.swapFailed,
+        session: reopened,
+      );
     }
     try {
       return await reopen();
