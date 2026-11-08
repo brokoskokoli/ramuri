@@ -64,20 +64,7 @@ class RunDetailCharts extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        section(
-          l10n.sumRoute,
-          data.route.isEmpty
-              ? Text(l10n.detRouteNone, key: const Key('detail_route_none'))
-              : RouteMapSection(
-                  route: data.route,
-                  lineBuilder: (context, map, style) => RunRouteView(
-                    route: data.route,
-                    map: map,
-                    startColor: style?.startColor,
-                    endColor: style?.endColor,
-                  ),
-                ),
-        ),
+        section(l10n.sumRoute, RunRouteSection(route: data.route)),
         section(
           l10n.detPaceChart,
           _chart(
@@ -160,6 +147,33 @@ class RunDetailCharts extends StatelessWidget {
 }
 
 /// Eine Linie (Reihe aus Teilen) eines Diagramms.
+/// Route eines Laufs: auf der Karte (mit Einwilligung) oder gezeichnet, ohne
+/// Positionen der Hinweis (FR-0204). Für Zusammenfassung und Detailansicht.
+class RunRouteSection extends StatelessWidget {
+  const RunRouteSection({super.key, required this.route});
+
+  final List<List<RoutePoint>> route;
+
+  @override
+  Widget build(BuildContext context) {
+    if (route.isEmpty) {
+      return Text(
+        AppLocalizations.of(context).detRouteNone,
+        key: const Key('detail_route_none'),
+      );
+    }
+    return RouteMapSection(
+      route: route,
+      lineBuilder: (context, map, style) => RunRouteView(
+        route: route,
+        map: map,
+        startColor: style?.startColor,
+        endColor: style?.endColor,
+      ),
+    );
+  }
+}
+
 class ChartLayer {
   const ChartLayer({
     required this.name,

@@ -422,7 +422,11 @@ void main() {
         expect(text('sum_vo2max'), 'nicht verfügbar');
         expect(find.text('VO₂max (Schätzung)'), findsOneWidget);
         // Route und Diagramme sind gezeichnet (WP10 B2).
-        expect(key('run_detail_charts'), findsOneWidget);
+        expect(
+          key('sum_altitude').evaluate().length +
+              key('sum_altitude_none').evaluate().length,
+          1,
+        );
         expect(key('route_paint'), findsOneWidget);
       },
     );
@@ -438,6 +442,39 @@ void main() {
       expect(text('sum_trimp'), contains('nicht verfügbar'));
       expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
       expect(text('run_distance'), isNot(contains('nicht')));
+    });
+
+    testWidgets('Fertig ändert keine Daten; Details öffnet die Detailansicht', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await runAndFinish(d, tester, 120);
+      // Beide Knöpfe sind erreichbar und mindestens 48 dp hoch.
+      for (final k in ['run_done_close', 'run_done_details']) {
+        expect(tester.getSize(key(k)).height, greaterThanOrEqualTo(48));
+      }
+      expect(find.text('Fertig'), findsOneWidget);
+      expect(find.text('Details'), findsOneWidget);
+
+      // Details: Detailansicht desselben Laufs, Zurück zur Zusammenfassung.
+      await tester.tap(key('run_done_details'));
+      await tester.pumpAndSettle();
+      expect(key('detail_pace'), findsOneWidget);
+      // Deutsch: pageBack sucht den englischen Tooltip.
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(key('run_done_close'), findsOneWidget);
+
+      // Fertig: Speicher davor und danach gleich.
+      final before = await _storeSnapshot(d);
+      await tester.tap(key('run_done_close'));
+      await tester.pumpAndSettle();
+      expect(key('home_start_run'), findsOneWidget);
+      expect(await _storeSnapshot(d), before);
+      expect(before, isNot(contains('runs=0')));
     });
 
     testWidgets('große Schrift (2,0): Zusammenfassung ohne Überlauf', (
@@ -516,4 +553,23 @@ void main() {
       expect(text('run_time'), '0:30');
     });
   });
+}
+
+/// Läufe, Rohdaten, Runden und gespeicherte Werte als Text zum Vergleichen.
+Future<String> _storeSnapshot(Device d) async {
+  final s = d.session;
+  final runs = await s.runs.list();
+  final out = StringBuffer('runs=${runs.length}');
+  for (final r in runs) {
+    final raw = await s.rawData.read(r.id);
+    final values = await s.values.read(ValueOwner.run(r.id));
+    out
+      ..write(' [${r.id} ${r.state} ${r.startedAt} ${r.endedAt}')
+      ..write(' pos=${raw.positions.length} hr=${raw.heartRates.length}')
+      ..write(' laps=${(await s.markers.laps(r.id)).length}')
+      ..write(
+        ' values=${[for (final v in values) '${v.original.key}=${v.current.value}']}]',
+      );
+  }
+  return out.toString();
 }

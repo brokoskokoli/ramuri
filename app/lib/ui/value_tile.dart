@@ -19,6 +19,8 @@ class RamuriValueTile extends StatelessWidget {
     this.estimated = false,
     this.size = RamuriValueSize.small,
     this.tone = RamuriCardTone.surface,
+    this.valueKey,
+    this.textValue = false,
   });
 
   final String label;
@@ -27,6 +29,13 @@ class RamuriValueTile extends StatelessWidget {
   final bool estimated;
   final RamuriValueSize size;
   final RamuriCardTone tone;
+
+  /// Schlüssel auf dem Text mit Zahl und Einheit (für Tests und Hilfen).
+  final Key? valueKey;
+
+  /// [value] ist ein Satz („nicht verfügbar“), keine Zahl: gesetzt in der
+  /// Schrift des Fließtexts statt in der Zahlenschrift.
+  final bool textValue;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +49,10 @@ class RamuriValueTile extends StatelessWidget {
         child: Builder(
           builder: (context) {
             final type = RamuriType.of(context);
-            final valueStyle = size == RamuriValueSize.large
+            final text = Theme.of(context).textTheme;
+            final valueStyle = textValue
+                ? text.titleSmall
+                : size == RamuriValueSize.large
                 ? type.value
                 : type.valueSmall;
             return Column(
@@ -50,6 +62,7 @@ class RamuriValueTile extends StatelessWidget {
                 Text(label, style: Theme.of(context).textTheme.labelSmall),
                 const SizedBox(height: 2),
                 Text.rich(
+                  key: valueKey,
                   TextSpan(
                     children: [
                       TextSpan(text: value, style: valueStyle),
@@ -67,6 +80,47 @@ class RamuriValueTile extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+/// Raster der Wertkacheln: drei Spalten, bei großer Schrift oder schmalem
+/// Display zwei. Die Kacheln einer Reihe sind gleich hoch.
+class RamuriTileGrid extends StatelessWidget {
+  const RamuriTileGrid({super.key, required this.children, this.gap = 8});
+
+  final List<Widget> children;
+  final double gap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scaled = MediaQuery.textScalerOf(context).scale(16) / 16 > 1.15;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = scaled || constraints.maxWidth < 340 ? 2 : 3;
+        return Column(
+          children: [
+            for (var i = 0; i < children.length; i += columns) ...[
+              if (i > 0) SizedBox(height: gap),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var j = 0; j < columns; j++) ...[
+                      if (j > 0) SizedBox(width: gap),
+                      Expanded(
+                        child: i + j < children.length
+                            ? children[i + j]
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

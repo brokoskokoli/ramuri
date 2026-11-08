@@ -183,6 +183,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       permissions: widget.permissions,
                       serialize: widget.recalculation.exclusive,
                       sensors: widget.sensors,
+                      recalculation: widget.recalculation,
                     ),
                   ),
                 ),

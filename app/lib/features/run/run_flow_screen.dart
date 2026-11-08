@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../recalculation/recalculation_controller.dart';
 import '../sensors/sensor_manager.dart';
 import '../sensors/sensors_screen.dart';
 import '../settings/app_settings.dart';
@@ -27,6 +28,7 @@ class RunFlowScreen extends StatefulWidget {
     this.serialize,
     this.resumeRunId,
     this.sensors,
+    this.recalculation,
   });
 
   final StorageSession session;
@@ -37,6 +39,9 @@ class RunFlowScreen extends StatefulWidget {
 
   /// Sensorverwaltung für „Koppeln“ (FR-0011). Ohne sie fehlt der Knopf.
   final SensorManager? sensors;
+
+  /// Für „Details“ nach dem Lauf; ohne sie fehlt der Knopf.
+  final RecalculationController? recalculation;
 
   /// Setzt diesen unterbrochenen Lauf fort (FR-0193); das Start-Gate gilt.
   final int? resumeRunId;
@@ -270,6 +275,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
           controller: controller,
           formatter: AppSettingsScope.formatterOf(context),
           clock: widget.clock,
+          recalculation: widget.recalculation,
         );
       },
     );

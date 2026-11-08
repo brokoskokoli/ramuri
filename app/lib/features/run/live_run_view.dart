@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../settings/unit_format.dart';
+import '../history/run_detail_screen.dart';
+import '../recalculation/recalculation_controller.dart';
 import '../summary/run_summary_body.dart';
+import '../summary/run_summary_page.dart';
 import 'live_map_page.dart';
 import 'live_run_values.dart';
 import 'run_controller.dart';
@@ -58,6 +61,7 @@ class LiveRunView extends StatelessWidget {
     required this.controller,
     required this.formatter,
     this.clock,
+    this.recalculation,
   });
 
   final RunController controller;
@@ -66,6 +70,9 @@ class LiveRunView extends StatelessWidget {
   /// Uhr für die Zusammenfassung nach dem Lauf; ohne sie zeigt die
   /// Abschlussansicht nur die Werte der Aufzeichnung.
   final Clock? clock;
+
+  /// Für „Details“ nach dem Lauf; ohne sie fehlt der Knopf.
+  final RecalculationController? recalculation;
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +94,6 @@ class LiveRunView extends StatelessWidget {
             : paused
             ? c.segmentTrack
             : c.accentPanel,
-        appBar: finished ? AppBar(title: Text(l10n.runDoneTitle)) : null,
         body: SafeArea(
           child: finished
               ? _valuesPage(context, l10n, finished)
@@ -114,23 +120,87 @@ class LiveRunView extends StatelessWidget {
             // Oben Platz für die Reiter Werte/Karte, die über der Seite schweben.
             padding: EdgeInsets.fromLTRB(16, finished ? 16 : 72, 16, 16),
             children: finished
-                ? [..._banners(context, l10n), ..._body(l10n)]
+                ? [
+                    _title(context, l10n),
+                    ..._banners(context, l10n),
+                    ..._body(l10n),
+                  ]
                 : [LiveValues(controller: controller, formatter: formatter)],
           ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: finished
-              ? SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    key: const Key('run_done_close'),
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(l10n.runDoneClose),
-                  ),
-                )
+              ? _doneButtons(context, l10n)
               : _controls(context, l10n),
         ),
+      ],
+    );
+  }
+
+  /// Überschrift der Abschlussseite.
+  Widget _title(BuildContext context, AppLocalizations l10n) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Semantics(
+      header: true,
+      child: Text(l10n.runDoneTitle, style: RamuriType.of(context).pageTitle),
+    ),
+  );
+
+  /// „Fertig“ schließt nur die Seite und ändert keine Daten; „Details“ öffnet
+  /// die Detailansicht des Laufs. Wurde der Lauf dort gelöscht, schließt auch
+  /// diese Seite.
+  Widget _doneButtons(BuildContext context, AppLocalizations l10n) {
+    final c = RamuriColors.of(context);
+    final id = controller.runId;
+    final clock = this.clock;
+    final recalculation = this.recalculation;
+    final canOpen = id != null && clock != null && recalculation != null;
+    return Row(
+      children: [
+        Expanded(
+          child: FilledButton(
+            key: const Key('run_done_close'),
+            style: FilledButton.styleFrom(
+              backgroundColor: c.action,
+              foregroundColor: c.onAction,
+              minimumSize: const Size(0, 58),
+              shape: const StadiumBorder(),
+              textStyle: Theme.of(context).textTheme.labelLarge,
+            ),
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(l10n.runDoneClose),
+          ),
+        ),
+        if (canOpen) ...[
+          const SizedBox(width: 10),
+          OutlinedButton(
+            key: const Key('run_done_details'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: c.text,
+              side: BorderSide(color: c.outline),
+              minimumSize: const Size(0, 58),
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              shape: const StadiumBorder(),
+              textStyle: Theme.of(context).textTheme.labelLarge,
+            ),
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              final deleted = await navigator.push<bool>(
+                MaterialPageRoute(
+                  builder: (_) => RunDetailScreen(
+                    session: controller.storage,
+                    clock: clock,
+                    recalculation: recalculation,
+                    runId: id,
+                  ),
+                ),
+              );
+              if (deleted == true && navigator.mounted) navigator.pop();
+            },
+            child: Text(l10n.summaryDetails),
+          ),
+        ],
       ],
     );
   }
@@ -157,6 +227,13 @@ class LiveRunView extends StatelessWidget {
         runId: id,
         formatter: formatter,
         fallback: () => _metrics(l10n),
+        contentBuilder: (context, summary, detail) => RunSummaryPage(
+          summary: summary,
+          detail: detail,
+          formatter: formatter,
+          session: controller.storage,
+          runId: id,
+        ),
       ),
     ];
   }

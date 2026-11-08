@@ -175,6 +175,7 @@ class _ReadyRootState extends State<ReadyRoot> {
               permissions: widget.permissions,
               serialize: _recalculation.exclusive,
               resumeRunId: run!.id,
+              recalculation: _recalculation,
             ),
           ),
         );

@@ -12,6 +12,45 @@ import 'run_charts.dart';
 String clockText(AppLocalizations l10n, Duration? d) =>
     d == null ? l10n.runUnavailable : formatClock(d);
 
+/// Grund, warum ein Wert fehlt, als Text (nie 0).
+String unavailableReasonText(AppLocalizations l10n, UnavailableReason reason) =>
+    switch (reason) {
+      UnavailableReason.noHeartRate => l10n.sumNoHeartRate,
+      UnavailableReason.missingMaxHeartRate ||
+      UnavailableReason.missingRestingHeartRate ||
+      UnavailableReason.maxNotAboveResting ||
+      UnavailableReason.reserveTooSmall => l10n.runZoneNoBasis,
+      UnavailableReason.insufficientCoverage => l10n.sumCoverageLow,
+      _ => l10n.runUnavailable,
+    };
+
+/// Dezimalzahl in der Schreibweise der Sprache.
+String decimalText(UnitFormatter formatter, String text) =>
+    formatter.languageCode == 'de' ? text.replaceAll('.', ',') : text;
+
+/// Einordnung gegenüber den letzten Läufen (OQ-0037: Pace, nur der
+/// Unterschied, unter 1 s/km gleich).
+String classificationText(
+  AppLocalizations l10n,
+  RunClassification c,
+  UnitFormatter formatter,
+) {
+  if (!c.isAvailable) {
+    return c.unavailable == ClassificationUnavailable.noPaceForRun
+        ? l10n.sumClassNoPace
+        : l10n.sumClassNoPrevious;
+  }
+  final delta = c.deltaSecondsPerKm!;
+  final reference = formatter.pace(c.referenceSecondsPerKm);
+  if (c.relation == PaceRelation.same) {
+    return l10n.sumClassSame(c.comparedRuns, reference);
+  }
+  final text = formatter.pace(delta.abs());
+  return delta < 0
+      ? l10n.sumClassFaster(text, c.comparedRuns, reference)
+      : l10n.sumClassSlower(text, c.comparedRuns, reference);
+}
+
 /// Zusammenfassung eines beendeten Laufs (FR-0037). Liest und rechnet beim
 /// Öffnen aus den gespeicherten Rohdaten ([RunSummaryService]). Fehlendes steht
 /// als „nicht verfügbar“, nie als 0. Route und Diagramme zeichnet
@@ -25,6 +64,7 @@ class RunSummaryBody extends StatefulWidget {
     required this.runId,
     required this.formatter,
     required this.fallback,
+    this.contentBuilder,
   });
 
   final StorageSession session;
@@ -32,6 +72,16 @@ class RunSummaryBody extends StatefulWidget {
   final int runId;
   final UnitFormatter formatter;
   final List<Widget> Function() fallback;
+
+  /// Gestaltet den geladenen Lauf anders als die Detailansicht (die
+  /// Zusammenfassung nach dem Lauf, `RunSummaryPage`). Laden, Rechnen und
+  /// Rückfall bleiben hier für beide gleich.
+  final Widget Function(
+    BuildContext context,
+    RunSummary summary,
+    RunDetailData detail,
+  )?
+  contentBuilder;
 
   @override
   State<RunSummaryBody> createState() => _RunSummaryBodyState();
@@ -95,6 +145,8 @@ class _RunSummaryBodyState extends State<RunSummaryBody> {
             ],
           );
         }
+        final build = widget.contentBuilder;
+        if (build != null) return build(context, loaded.summary, loaded.detail);
         return _SummaryContent(
           summary: loaded.summary,
           detail: loaded.detail,
@@ -129,38 +181,12 @@ class _SummaryContent extends StatelessWidget {
   final int runId;
 
   String _unavailable(AppLocalizations l10n, UnavailableReason reason) =>
-      switch (reason) {
-        UnavailableReason.noHeartRate => l10n.sumNoHeartRate,
-        UnavailableReason.missingMaxHeartRate ||
-        UnavailableReason.missingRestingHeartRate ||
-        UnavailableReason.maxNotAboveResting ||
-        UnavailableReason.reserveTooSmall => l10n.runZoneNoBasis,
-        UnavailableReason.insufficientCoverage => l10n.sumCoverageLow,
-        _ => l10n.runUnavailable,
-      };
+      unavailableReasonText(l10n, reason);
 
-  String _number(String text) =>
-      formatter.languageCode == 'de' ? text.replaceAll('.', ',') : text;
+  String _number(String text) => decimalText(formatter, text);
 
-  String _classification(AppLocalizations l10n) {
-    final c = summary.classification;
-    if (!c.isAvailable) {
-      return c.unavailable == ClassificationUnavailable.noPaceForRun
-          ? l10n.sumClassNoPace
-          : l10n.sumClassNoPrevious;
-    }
-    final delta = c.deltaSecondsPerKm!;
-    final reference = formatter.pace(c.referenceSecondsPerKm);
-    // Nur der Unterschied, ohne Stufen; unter der Toleranz der Einordnung
-    // (|Δ| < 1 s/km) gilt er als gleich.
-    if (c.relation == PaceRelation.same) {
-      return l10n.sumClassSame(c.comparedRuns, reference);
-    }
-    final text = formatter.pace(delta.abs());
-    return delta < 0
-        ? l10n.sumClassFaster(text, c.comparedRuns, reference)
-        : l10n.sumClassSlower(text, c.comparedRuns, reference);
-  }
+  String _classification(AppLocalizations l10n) =>
+      classificationText(l10n, summary.classification, formatter);
 
   @override
   Widget build(BuildContext context) {

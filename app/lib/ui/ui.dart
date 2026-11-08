@@ -20,6 +20,7 @@ export 'ramuri_theme.dart';
 export 'ramuri_type.dart';
 export 'section_heading.dart';
 export 'sparkline.dart';
+export 'unbreakable_unit.dart';
 export 'value_tile.dart';
 export 'week_bars.dart';
 export 'week_strip.dart';

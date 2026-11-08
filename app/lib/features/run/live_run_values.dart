@@ -8,14 +8,6 @@ import '../settings/unit_format.dart';
 import 'live_run_view.dart';
 import 'run_controller.dart';
 
-/// Wortverbinder (U+2060): Eine Einheit wie `min/km` bricht nicht am „/“ um.
-const String _joiner = '⁠';
-
-/// Einheit so gesetzt, dass sie in einem Stück bleibt (Schriftfaktor 1,3,
-/// schmales Display).
-String unbreakableUnit(String unit) =>
-    unit.replaceAll('/', '$_joiner/$_joiner');
-
 /// Zahl und Einheit eines fertig formatierten Werts: Hat [text] die [unit] als
 /// Endung, steht sie getrennt; sonst (etwa „–“ oder „noch keine Daten“) ist der
 /// ganze Text der Wert.
