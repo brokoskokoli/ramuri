@@ -23,6 +23,12 @@ Bezug: FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0037, FR-0040, F
 - Aus WP15: Zeitraum und Scrollposition beim Tab-Wechsel erhalten nach dem Muster `StatisticsViewState` in `app_shell`; der Archiv-Import setzt den Zeitraum zurück (Ursache ungeprüft). Einheiten nicht am „/“ umbrechen (Schriftfaktor 1,3, schmales Display).
 - Bildschirmfotos je API und Modus; Vorlagen in `../running-app-wt/handoff/e2e-vorlagen/wp14-e2e*`.
 
+## Hinweise aus WP13
+- Die Zeitraumwahl im Verlauf (FR-0212) fehlt noch; die Scrollposition bleibt schon erhalten. Miniaturen (`run_miniature.dart`, `miniature_service.dart`) und die Quellenangabe einmal unter der Liste übernehmen.
+- Zusammenfassung und Detail: Kartenteil `route_map_section.dart` mit Umschalter; ein Finger scrollt die Seite, die Karte reagiert auf zwei Finger und Doppeltipp. Live: `live_map_page.dart` ist die zweite Seite, Reiter schwebend über der Seite; Beenden gehört nicht ins Kartenblatt.
+- Jede neue Abhängigkeit macht das Gate rot, bis sie geprüft und in `tool/net_allowed_packages.txt` eingetragen ist.
+- E2E: Mitschnitt- und Emulator-Hinweise in `../running-app-wt/handoff/e2e-vorlagen/wp13-e2e-36/` (`uid.sh --poll`, WifiWake aus, `geo fix` vor Laufstart).
+
 ## Abnahmekriterien
 - [ ] Jede der fünf Seiten wie ihr Screen, hell und dunkel; Abweichungen nach FR-0205 benannt.
 - [ ] FR-0210: Autopause beim ersten Lauf aus, danach wie zuletzt gewählt; gilt für den gestarteten Lauf (Test mit Mutationsbeleg). Ohne Standortrecht kein Start.

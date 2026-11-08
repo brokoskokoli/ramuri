@@ -26,7 +26,7 @@ python3 docs/migration/tools/spec_tool.py build
 python3 docs/migration/tools/spec_tool.py check
 ```
 
-Gate (Spec-Prüfung, private Daten, Flutter-Version, Lockfile, `core` flutterfrei (Auflösung außerhalb des Workspace), je Paket in `app/` und `app/packages/*` Format, Analyse und Tests), volle Fassung in CI. Details: [docs/quality/testing.md](docs/quality/testing.md#ci-gates).
+Gate (Spec-Prüfung, private Daten, Netz nur im Kartenadapter (`tool/check_net.py`, Freigabeliste `tool/net_allowed_packages.txt`), Flutter-Version, Lockfile, `core` flutterfrei (Auflösung außerhalb des Workspace), je Paket in `app/` und `app/packages/*` Format, Analyse und Tests), volle Fassung in CI. Details: [docs/quality/testing.md](docs/quality/testing.md#ci-gates).
 
 ```sh
 sh tool/gate.sh            # alles
