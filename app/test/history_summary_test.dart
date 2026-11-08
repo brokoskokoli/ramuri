@@ -462,7 +462,7 @@ void main() {
       // Details: Detailansicht desselben Laufs, Zurück zur Zusammenfassung.
       await tester.tap(key('run_done_details'));
       await tester.pumpAndSettle();
-      expect(key('detail_pace'), findsOneWidget);
+      expect(key('detail_compare'), findsOneWidget);
       // Deutsch: pageBack sucht den englischen Tooltip.
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();

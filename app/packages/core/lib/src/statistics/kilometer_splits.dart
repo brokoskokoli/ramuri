@@ -245,6 +245,11 @@ KilometerSplits computeKilometerSplits(
   );
 }
 
+/// [computeKilometerSplits] als Auftrag für einen anderen Isolate.
+KilometerSplits kilometerSplitsJob(
+  ({RunPreprocessing pre, double unitMeters}) a,
+) => computeKilometerSplits(a.pre, unitMeters: a.unitMeters);
+
 RoutePoint? _between(
   Map<DateTime, RawPosition> points,
   MotionSegment s,

@@ -225,9 +225,8 @@ class LiveRunView extends StatelessWidget {
         session: controller.storage,
         clock: clock,
         runId: id,
-        formatter: formatter,
         fallback: () => _metrics(l10n),
-        contentBuilder: (context, summary, detail) => RunSummaryPage(
+        contentBuilder: (context, summary, detail, _) => RunSummaryPage(
           summary: summary,
           detail: detail,
           formatter: formatter,

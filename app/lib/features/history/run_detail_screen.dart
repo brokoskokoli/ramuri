@@ -8,12 +8,12 @@ import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
 import '../storage/deletion.dart';
 import '../summary/run_summary_body.dart';
+import 'run_detail_page.dart';
 
-/// Detailansicht eines Laufs (FR-0041, FR-0042): dieselben Kennzahlen wie die
-/// Zusammenfassung nach dem Lauf, dazu gezeichnete Route, Zeitverlauf und
-/// Diagramme ([RunSummaryBody]). Exportieren ([RunExportAction])
-/// und Löschen sind auch hier möglich; nach dem Löschen schließt die Ansicht
-/// mit `true`.
+/// Detailansicht eines Laufs (FR-0041, FR-0042, FR-0211) nach `Detail.dc.html`:
+/// Lauf laden ([RunSummaryBody]), Inhalt in [RunDetailPage]. Exportieren
+/// ([RunExportAction]) und Löschen sind in der Kopfzeile; nach dem Löschen
+/// schließt die Ansicht mit `true`.
 class RunDetailScreen extends StatelessWidget {
   const RunDetailScreen({
     super.key,
@@ -47,6 +47,7 @@ class RunDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final formatter = AppSettingsScope.formatterOf(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.detTitle),
@@ -67,8 +68,18 @@ class RunDetailScreen extends StatelessWidget {
           session: session,
           clock: clock,
           runId: runId,
-          formatter: AppSettingsScope.formatterOf(context),
+          splitUnitMeters: formatter.unit == DistanceUnit.miles
+              ? mileMeters
+              : kilometerMeters,
           fallback: () => [Text(l10n.detLoadFailed)],
+          contentBuilder: (context, summary, detail, splits) => RunDetailPage(
+            summary: summary,
+            detail: detail,
+            splits: splits,
+            formatter: formatter,
+            session: session,
+            runId: runId,
+          ),
         ),
       ),
     );

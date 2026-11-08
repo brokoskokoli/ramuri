@@ -40,18 +40,18 @@ class RunSummaryPage extends StatelessWidget {
       children: [
         _hero(context, l10n),
         gap,
-        RamuriTileGrid(children: _tiles(l10n)),
-        _explain(context, 'sum_explain_trimp', trimpRunValueKey),
+        RamuriTileGrid(children: tiles(l10n)),
+        explain(context, 'sum_explain_trimp', trimpRunValueKey),
         gap,
-        _zones(context, l10n),
+        zones(context, l10n),
         gap,
-        _compare(context, l10n),
+        compare(context, l10n),
         gap,
         _altitude(context, l10n),
         gap,
-        _laps(context, l10n),
-        _notes(context, l10n),
-        _explain(
+        laps(context, l10n),
+        notes(context, l10n),
+        explain(
           context,
           'sum_explain_sources',
           runSourcesKey,
@@ -61,7 +61,7 @@ class RunSummaryPage extends StatelessWidget {
     );
   }
 
-  Widget _explain(
+  Widget explain(
     BuildContext context,
     String id,
     String valueKey, {
@@ -161,7 +161,7 @@ class RunSummaryPage extends StatelessWidget {
     );
   }
 
-  List<Widget> _tiles(AppLocalizations l10n) {
+  List<Widget> tiles(AppLocalizations l10n) {
     final f = summary.figures;
     final avgHr = f.heartRateAverageBpm;
     final maxHr = f.heartRateMaxBpm;
@@ -243,7 +243,7 @@ class RunSummaryPage extends StatelessWidget {
   }
 
   /// Zeit in Zonen: Balken, darunter je Zone die Zeit als Text.
-  Widget _zones(BuildContext context, AppLocalizations l10n) {
+  Widget zones(BuildContext context, AppLocalizations l10n) {
     final f = summary.figures;
     final load = summary.load;
     final times = f.zoneTimes;
@@ -292,14 +292,14 @@ class RunSummaryPage extends StatelessWidget {
               children: [for (final r in rows) Text(r, style: style)],
             ),
           ],
-          _explain(context, 'sum_explain_zones', zoneTimeValueKey(1)),
+          explain(context, 'sum_explain_zones', zoneTimeValueKey(1)),
         ],
       ),
     );
   }
 
   /// Einordnung (letzte 5 Läufe, Pace; OQ-0037) und VO₂max auf dunkler Karte.
-  Widget _compare(BuildContext context, AppLocalizations l10n) {
+  Widget compare(BuildContext context, AppLocalizations l10n) {
     final vo2 = summary.vo2max;
     return RamuriCard(
       tone: RamuriCardTone.panel,
@@ -318,7 +318,7 @@ class RunSummaryPage extends StatelessWidget {
                 key: const Key('sum_class'),
                 style: text.titleMedium,
               ),
-              _explain(
+              explain(
                 context,
                 'sum_explain_class',
                 classificationKey,
@@ -343,7 +343,7 @@ class RunSummaryPage extends StatelessWidget {
                   ),
                 ],
               ),
-              _explain(context, 'sum_explain_vo2max', vo2maxRunValueKey),
+              explain(context, 'sum_explain_vo2max', vo2maxRunValueKey),
             ],
           );
         },
@@ -383,7 +383,7 @@ class RunSummaryPage extends StatelessWidget {
     );
   }
 
-  Widget _laps(BuildContext context, AppLocalizations l10n) {
+  Widget laps(BuildContext context, AppLocalizations l10n) {
     return RamuriCard(
       radius: 22,
       padding: const EdgeInsets.all(16),
@@ -402,7 +402,7 @@ class RunSummaryPage extends StatelessWidget {
   }
 
   /// Datenhinweise: GPS-Lücken und was Lücken in den Zeichnungen bedeuten.
-  Widget _notes(BuildContext context, AppLocalizations l10n) {
+  Widget notes(BuildContext context, AppLocalizations l10n) {
     final small = Theme.of(context).textTheme.bodySmall;
     return Padding(
       padding: const EdgeInsets.only(top: 12),

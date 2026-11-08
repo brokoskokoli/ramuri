@@ -99,6 +99,10 @@ List<Path> chartPaths(String id) {
   return chart(id).linePaths(size);
 }
 
+/// Gezeichnete Teile (mindestens zwei Punkte) einer Reihe des Pace-und-Puls-Diagramms: 0 Pace, 1 Puls.
+int drawnParts(String id, int layer) =>
+    chart(id).layers[layer].parts.where((p) => p.length >= 2).length;
+
 SeriesChartPainter chart(String id) =>
     tester_
             .widget<CustomPaint>(
@@ -137,25 +141,19 @@ void main() {
     expect(text('run_distance'), '1,83 km');
     expect(text('run_time'), '10:00');
     expect(routePaths(), hasLength(1));
-    expect(chartPaths('detail_pace'), hasLength(1));
-    expect(chartPaths('detail_hr'), hasLength(1));
     expect(chartPaths('detail_altitude'), hasLength(1));
-    // Vergleich: Pace und Puls, zwei Linien im selben Diagramm.
+    // Pace und Puls: zwei Linien im selben Diagramm.
     expect(chart('detail_compare').layers, hasLength(2));
     expect(chartPaths('detail_compare'), hasLength(2));
+    expect(key('detail_pace'), findsNothing);
+    expect(key('detail_hr'), findsNothing);
     expect(key('detail_hr_none'), findsNothing);
     // Der Puls ist als geglättet gekennzeichnet (sichtbar und in der Semantik).
-    expect(text('detail_hr_note'), 'Puls geglättet (Median über 30 s)');
     expect(text('detail_compare_note'), 'Puls geglättet (Median über 30 s)');
-    expect(key('detail_pace_note'), findsNothing);
     final semantics = tester.ensureSemantics();
     expect(
-      tester.getSemantics(key('detail_hr')).label,
+      tester.getSemantics(key('detail_compare')).label,
       contains('Puls geglättet (Median über 30 s).'),
-    );
-    expect(
-      tester.getSemantics(key('detail_pace')).label,
-      isNot(contains('geglättet')),
     );
     semantics.dispose();
     // Alter Lauf ohne gespeicherte Zonen/TRIMP.
@@ -180,9 +178,9 @@ void main() {
       ),
     );
     expect(routePaths(), hasLength(2));
-    expect(chartPaths('detail_pace'), hasLength(2));
+    expect(drawnParts('detail_compare', 0), 2);
     expect(chartPaths('detail_altitude'), hasLength(2));
-    expect(chartPaths('detail_hr'), hasLength(1));
+    expect(drawnParts('detail_compare', 1), 1);
     // Beide Teile der Route liegen auseinander: die Lücke (60 s mal 3 m/s)
     // wird nicht überbrückt.
     final paths = routePaths();
@@ -206,15 +204,15 @@ void main() {
         noHeartRate: (200, 260),
       ),
     );
-    expect(chartPaths('detail_hr'), hasLength(2));
+    expect(drawnParts('detail_compare', 1), 2);
     expect(routePaths(), hasLength(1));
-    expect(chartPaths('detail_pace'), hasLength(1));
+    expect(drawnParts('detail_compare', 0), 1);
     expect(chartPaths('detail_altitude'), hasLength(1));
-    // Vergleich: Pace (1 Pfad) und Puls (2 Pfade).
+    // Pace (1 Pfad) und Puls (2 Pfade) im selben Diagramm.
     expect(chartPaths('detail_compare'), hasLength(3));
     // Die Lücke im Puls ist nicht überbrückt: keine Linie zwischen 200 und 260 s.
-    final c = chart('detail_hr');
-    final layer = c.layers.single;
+    final c = chart('detail_compare');
+    final layer = c.layers[1];
     expect(layer.parts, hasLength(2));
     expect(
       layer.parts[1].first.seconds - layer.parts[0].last.seconds,
@@ -446,12 +444,12 @@ void main() {
       ),
     );
     expect(routePaths(), hasLength(2));
-    expect(chartPaths('detail_pace'), hasLength(2));
-    expect(chartPaths('detail_hr'), hasLength(2));
+    expect(drawnParts('detail_compare', 0), 2);
+    expect(drawnParts('detail_compare', 1), 2);
     expect(chartPaths('detail_altitude'), hasLength(2));
     expect(chartPaths('detail_compare'), hasLength(4));
-    expect(chart('detail_pace').pauses.single.start, 200);
-    expect(chart('detail_pace').pauses.single.end, 260);
+    expect(chart('detail_compare').pauses.single.start, 200);
+    expect(chart('detail_compare').pauses.single.end, 260);
   });
 
   testWidgets('Lauf ohne Puls: kein Pulsdiagramm, kein Vergleich, nie 0', (
@@ -470,7 +468,7 @@ void main() {
     expect(key('detail_hr'), findsNothing);
     expect(text('detail_hr_none'), 'nicht verfügbar (kein Puls)');
     expect(key('detail_compare'), findsNothing);
-    expect(key('detail_compare_none'), findsOneWidget);
+    expect(key('detail_compare_none'), findsNothing);
     expect(routePaths(), hasLength(1));
     expect(chartPaths('detail_pace'), hasLength(1));
     expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
@@ -548,10 +546,6 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.bySemanticsLabel(RegExp(r'^Puls\. Kleinster Wert 140 bpm')),
-      findsOneWidget,
-    );
-    expect(
       find.bySemanticsLabel(RegExp(r'^Pace und Puls über die Zeit')),
       findsOneWidget,
     );
@@ -604,10 +598,11 @@ void main() {
         d,
         () => seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8)),
       );
-      expect(chartPaths('detail_pace'), hasLength(1));
+      expect(chartPaths('detail_compare'), hasLength(2));
       // Historie (veralteter Lauf) und Zusammenfassung je eine Wiedergabe.
       expect(jobs.where((j) => j == replayJob), hasLength(2));
       expect(jobs, contains(buildRunDetailJob));
+      expect(jobs, contains(kilometerSplitsJob));
     });
 
     testWidgets('Statistik rechnet veraltete Läufe über den Offload', (

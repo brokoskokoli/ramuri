@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:adapters/adapters.dart' show RouteMapMark;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
@@ -8,13 +9,11 @@ import '../map/route_map_section.dart';
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
 
-/// Route und Diagramme eines Laufs (FR-0041, FR-0042), mit Flutter-Mitteln
-/// gezeichnet; die Karte der Route kommt aus `features/map` und nur mit
-/// Einwilligung (SEC-0008, FR-0204), sonst bleibt die Zeichnung. Unterbrechungen
-/// (Positionslücke, Pulslücke, manuelle Pause) bleiben offen; Teile werden nie
-/// zu einer Linie verbunden.
-class RunDetailCharts extends StatelessWidget {
-  const RunDetailCharts({
+/// Pace und Puls eines Laufs in einem Diagramm (FR-0041, FR-0042; Detail.dc.html), mit Flutter-Mitteln
+/// gezeichnet. Unterbrechungen (Positionslücke, Pulslücke, manuelle Pause) bleiben offen; Teile werden nie
+/// zu einer Linie verbunden. Fehlt eine Reihe, steht die andere allein und der Grund der fehlenden als Text.
+class RunPaceHeartChart extends StatelessWidget {
+  const RunPaceHeartChart({
     super.key,
     required this.data,
     required this.formatter,
@@ -26,9 +25,7 @@ class RunDetailCharts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final title = theme.textTheme.titleSmall;
+    final scheme = Theme.of(context).colorScheme;
     final pace = ChartLayer(
       name: l10n.detPaceName,
       parts: data.pace,
@@ -37,122 +34,119 @@ class RunDetailCharts extends StatelessWidget {
       inverted: true,
       robust: true,
     );
-    final smoothed = l10n.detHrSmoothed(data.heartRateSmoothing.inSeconds);
     final hr = ChartLayer(
       name: l10n.detHeartRateName,
       parts: data.heartRate,
       color: scheme.error,
       format: (v) => l10n.runBpm(v!.round()),
-      note: smoothed,
+      note: l10n.detHrSmoothed(data.heartRateSmoothing.inSeconds),
     );
+    bool empty(ChartLayer l) => l.parts.every((p) => p.isEmpty);
+    final noPace = empty(pace);
+    final noHr = empty(hr);
+    if (noPace && noHr) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.detPaceNone, key: const Key('detail_pace_none')),
+          Text(l10n.sumNoHeartRate, key: const Key('detail_hr_none')),
+        ],
+      );
+    }
+    if (noHr || noPace) {
+      final single = noHr ? pace : hr;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _detailChart(context, data, Key(noHr ? 'detail_pace' : 'detail_hr'), [
+            single,
+          ]),
+          Text(
+            noHr ? l10n.sumNoHeartRate : l10n.detPaceNone,
+            key: Key(noHr ? 'detail_hr_none' : 'detail_pace_none'),
+          ),
+        ],
+      );
+    }
+    return _detailChart(context, data, const Key('detail_compare'), [pace, hr]);
+  }
+}
+
+/// Höhenprofil eines Laufs; ohne Höhendaten der Hinweis.
+class RunAltitudeChart extends StatelessWidget {
+  const RunAltitudeChart({
+    super.key,
+    required this.data,
+    required this.formatter,
+  });
+
+  final RunDetailData data;
+  final UnitFormatter formatter;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final altitude = ChartLayer(
       name: l10n.detAltitudeName,
       parts: data.altitude,
-      color: scheme.tertiary,
+      color: Theme.of(context).colorScheme.tertiary,
       format: formatter.elevation,
     );
-    Widget section(String heading, Widget child) => Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(heading, style: title),
-          child,
-        ],
-      ),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        section(l10n.sumRoute, RunRouteSection(route: data.route)),
-        section(
-          l10n.detPaceChart,
-          _chart(
-            context,
-            const Key('detail_pace'),
-            [pace],
-            l10n.detPaceNone,
-            const Key('detail_pace_none'),
-          ),
-        ),
-        section(
-          l10n.detHeartRateChart,
-          _chart(
-            context,
-            const Key('detail_hr'),
-            [hr],
-            l10n.sumNoHeartRate,
-            const Key('detail_hr_none'),
-          ),
-        ),
-        section(
-          l10n.detCompareChart,
-          _chart(
-            context,
-            const Key('detail_compare'),
-            [pace, hr],
-            l10n.detCompareNone,
-            const Key('detail_compare_none'),
-          ),
-        ),
-        section(
-          l10n.sumElevation,
-          _chart(
-            context,
-            const Key('detail_altitude'),
-            [altitude],
-            l10n.detAltitudeNone,
-            const Key('detail_altitude_none'),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(l10n.detGapNote, style: theme.textTheme.bodySmall),
-      ],
-    );
-  }
-
-  Widget _chart(
-    BuildContext context,
-    Key key,
-    List<ChartLayer> layers,
-    String none,
-    Key noneKey,
-  ) {
-    if (layers.any((l) => l.parts.every((p) => p.isEmpty))) {
-      return Text(none, key: noneKey);
+    if (altitude.parts.every((p) => p.isEmpty)) {
+      return Text(l10n.detAltitudeNone, key: const Key('detail_altitude_none'));
     }
-    final chart = RunSeriesChart(
-      key: key,
-      layers: layers,
-      totalSeconds: data.totalSeconds,
-      pauses: data.pauses,
-    );
-    final notes = [
-      for (final l in layers)
-        if (l.note != null) l.note!,
-    ];
-    if (notes.isEmpty) return chart;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        chart,
-        Text(
-          notes.join(' '),
-          key: Key('${(key as ValueKey<String>).value}_note'),
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-    );
+    return _detailChart(context, data, const Key('detail_altitude'), [
+      altitude,
+    ]);
   }
+}
+
+Widget _detailChart(
+  BuildContext context,
+  RunDetailData data,
+  Key key,
+  List<ChartLayer> layers,
+) {
+  final chart = RunSeriesChart(
+    key: key,
+    layers: layers,
+    totalSeconds: data.totalSeconds,
+    pauses: data.pauses,
+  );
+  final notes = [
+    for (final l in layers)
+      if (l.note != null) l.note!,
+  ];
+  if (notes.isEmpty) return chart;
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      chart,
+      Text(
+        notes.join(' '),
+        key: Key('${(key as ValueKey<String>).value}_note'),
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    ],
+  );
 }
 
 /// Eine Linie (Reihe aus Teilen) eines Diagramms.
 /// Route eines Laufs: auf der Karte (mit Einwilligung) oder gezeichnet, ohne
 /// Positionen der Hinweis (FR-0204). Für Zusammenfassung und Detailansicht.
 class RunRouteSection extends StatelessWidget {
-  const RunRouteSection({super.key, required this.route});
+  const RunRouteSection({
+    super.key,
+    required this.route,
+    this.marks = const [],
+    this.markUnitLabel,
+  });
 
   final List<List<RoutePoint>> route;
+
+  /// Kilometermarken (Detailansicht), auf der Karte und in der Zeichnung; [markUnitLabel] ist die Einheit der Legende.
+  final List<KilometerMark> marks;
+  final String? markUnitLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -162,13 +156,19 @@ class RunRouteSection extends StatelessWidget {
         key: const Key('detail_route_none'),
       );
     }
+    final mapMarks = [
+      for (final m in marks) RouteMapMark(index: m.index, position: m.position),
+    ];
     return RouteMapSection(
       route: route,
+      marks: mapMarks,
       lineBuilder: (context, map, style) => RunRouteView(
         route: route,
         map: map,
         startColor: style?.startColor,
         endColor: style?.endColor,
+        marks: mapMarks,
+        markUnitLabel: markUnitLabel,
       ),
     );
   }
@@ -562,9 +562,15 @@ class RunRouteView extends StatelessWidget {
     this.map,
     this.startColor,
     this.endColor,
+    this.marks = const [],
+    this.markUnitLabel,
   });
 
   final List<List<RoutePoint>> route;
+
+  /// Kilometermarken: in der Zeichnung gemalt; auf der Karte malt sie die Karte selbst ([map] ist dann gesetzt).
+  final List<RouteMapMark> marks;
+  final String? markUnitLabel;
   final Widget? map;
   final Color? startColor;
   final Color? endColor;
@@ -578,6 +584,11 @@ class RunRouteView extends StatelessWidget {
       lineColor: scheme.primary,
       startColor: scheme.tertiary,
       endColor: scheme.error,
+      marks: map == null ? marks : const [],
+      markColor: scheme.surface,
+      markTextColor: scheme.onSurface,
+      markBorderColor: scheme.onSurface,
+      markTextStyle: Theme.of(context).textTheme.labelSmall,
     );
     Widget legend(Key key, Color color, String text) => Row(
       mainAxisSize: MainAxisSize.min,
@@ -622,6 +633,12 @@ class RunRouteView extends StatelessWidget {
               endColor ?? scheme.error,
               l10n.detRouteEnd,
             ),
+            if (marks.isNotEmpty && markUnitLabel != null)
+              Text(
+                l10n.detailMarkLegend(markUnitLabel!),
+                key: const Key('route_legend_marks'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
           ],
         ),
       ],
@@ -638,9 +655,21 @@ class RoutePainter extends CustomPainter {
     this.padding = 16,
     this.strokeWidth = 3,
     this.markerRadius = 6,
+    this.marks = const [],
+    this.markColor,
+    this.markTextColor,
+    this.markBorderColor,
+    this.markTextStyle,
   });
 
   final List<List<RoutePoint>> route;
+
+  /// Kilometermarken mit Nummer (Detailansicht); fehlen die Farben, werden keine gemalt.
+  final List<RouteMapMark> marks;
+  final Color? markColor;
+  final Color? markTextColor;
+  final Color? markBorderColor;
+  final TextStyle? markTextStyle;
   final Color lineColor;
   final Color startColor;
   final Color endColor;
@@ -657,11 +686,18 @@ class RoutePainter extends CustomPainter {
   /// Linien der Route: ein Pfad je zusammenhängendem Teil mit mindestens zwei
   /// Punkten, einzelne Punkte als Punkt, dazu Start und Ende. Teile werden
   /// nie verbunden.
-  ({List<Path> paths, List<Offset> dots, Offset? start, Offset? end}) shapes(
-    Size size,
-  ) {
+  ({
+    List<Path> paths,
+    List<Offset> dots,
+    Offset? start,
+    Offset? end,
+    List<({int index, Offset at})> marks,
+  })
+  shapes(Size size) {
     final all = [for (final p in route) ...p];
-    if (all.isEmpty) return (paths: [], dots: [], start: null, end: null);
+    if (all.isEmpty) {
+      return (paths: [], dots: [], start: null, end: null, marks: []);
+    }
     var minLat = all.first.latitude, maxLat = minLat;
     var minLon = all.first.longitude, maxLon = minLon;
     for (final p in all) {
@@ -700,7 +736,13 @@ class RoutePainter extends CustomPainter {
       }
       paths.add(path);
     }
-    return (paths: paths, dots: dots, start: at(all.first), end: at(all.last));
+    return (
+      paths: paths,
+      dots: dots,
+      start: at(all.first),
+      end: at(all.last),
+      marks: [for (final m in marks) (index: m.index, at: at(m.position))],
+    );
   }
 
   @override
@@ -718,14 +760,45 @@ class RoutePainter extends CustomPainter {
     for (final dot in s.dots) {
       canvas.drawCircle(dot, strokeWidth / 1.2, Paint()..color = lineColor);
     }
+    final fill = markColor, text = markTextColor, border = markBorderColor;
+    if (fill != null && text != null && border != null) {
+      for (final m in s.marks) {
+        canvas.drawCircle(m.at, _markRadius, Paint()..color = fill);
+        canvas.drawCircle(
+          m.at,
+          _markRadius,
+          Paint()
+            ..color = border
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5,
+        );
+        final tp = TextPainter(
+          text: TextSpan(
+            text: '${m.index}',
+            style: (markTextStyle ?? const TextStyle()).copyWith(
+              color: text,
+              fontWeight: FontWeight.w700,
+              height: 1,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+          textScaler: TextScaler.noScaling,
+        )..layout();
+        tp.paint(canvas, m.at - Offset(tp.width / 2, tp.height / 2));
+      }
+    }
     if (s.start != null) {
       canvas.drawCircle(s.start!, markerRadius, Paint()..color = startColor);
       canvas.drawCircle(s.end!, markerRadius, Paint()..color = endColor);
     }
   }
 
+  static const double _markRadius = 12;
+
   @override
   bool shouldRepaint(RoutePainter old) =>
+      old.marks != marks ||
+      old.markColor != markColor ||
       old.route != route ||
       old.lineColor != lineColor ||
       old.startColor != startColor ||

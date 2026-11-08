@@ -79,9 +79,8 @@ Future<void> pumpPage(
                 session: d.session,
                 clock: d.clock,
                 runId: runId,
-                formatter: _km,
                 fallback: () => const [],
-                contentBuilder: (context, summary, detail) => RunSummaryPage(
+                contentBuilder: (context, summary, detail, _) => RunSummaryPage(
                   summary: summary,
                   detail: detail,
                   formatter: _km,
