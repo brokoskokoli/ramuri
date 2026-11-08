@@ -283,6 +283,30 @@ void main() {
   });
 
   testWidgets(
+    'Löschen eines Laufs, dessen Miniatur gerade entsteht: Abbruch, danach wird nichts gespeichert',
+    (tester) async {
+      final (d, w) = await _start(tester, consent: true, runs: [2, 3]);
+      w.hold = Completer<void>(); // die erste Aufnahme hängt
+      await _openHistory(tester);
+      expect(w.captures, 1);
+      final ids = (await d.session.runs.list()).map((r) => r.id).toList();
+      final gone = ids.first; // der oberste Eintrag ist der laufende
+      await tester.tap(key('history_delete_$gone'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lauf löschen').last);
+      await tester.pumpAndSettle();
+      w.hold!.complete();
+      await _settle(tester);
+      expect(
+        w.thumbs.writtenKeys.where((k) => k.endsWith(':$gone')),
+        isEmpty,
+        reason: 'verwaistes Bild eines gelöschten Laufs',
+      );
+      expect(w.thumbs.data.keys.any((k) => k.endsWith(':$gone')), isFalse);
+    },
+  );
+
+  testWidgets(
     'Warteschlange: wegscrollen nimmt Einträge heraus, sichtbare zuerst',
     (tester) async {
       final (d, w) = await _start(

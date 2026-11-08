@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_buttons.dart';
+import '../map/map_consent_controller.dart';
 
 /// Ergebnis eines Löschvorgangs mit Bestätigung.
 enum DeletionResult {
@@ -165,10 +166,20 @@ Future<DeletionResult> confirmAndDeleteRun(
 );
 
 /// Fragt nach und löscht alle Daten der App ("Alles löschen").
+///
+/// [map]: Der Kartenanbieter (WP13) wird vor dem Löschen gesperrt und danach zurückgesetzt
+/// ([MapConsentController.deleteAllAround]).
 Future<DeletionResult> confirmAndDeleteAll(
   BuildContext context,
-  StorageSession session,
-) => _confirmAndDelete(context, all: true, action: session.deleteAll);
+  StorageSession session, {
+  MapConsentController? map,
+}) => _confirmAndDelete(
+  context,
+  all: true,
+  action: map == null
+      ? session.deleteAll
+      : () => map.deleteAllAround(session.deleteAll),
+);
 
 Future<DeletionResult> _confirmAndDelete(
   BuildContext context, {

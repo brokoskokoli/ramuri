@@ -7,6 +7,7 @@ import '../../ui/ramuri_card.dart';
 import '../archive/archive_export_action.dart';
 import '../archive/archive_import_action.dart';
 import '../archive/archive_wiring.dart';
+import '../map/map_consent_scope.dart';
 import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
 import 'deletion.dart';
@@ -35,7 +36,11 @@ class DataScreen extends StatelessWidget {
   Future<void> _deleteAll(BuildContext context) async {
     final settings = AppSettingsScope.of(context);
     final navigator = Navigator.of(context);
-    final result = await confirmAndDeleteAll(context, session);
+    final result = await confirmAndDeleteAll(
+      context,
+      session,
+      map: MapConsentScope.of(context),
+    );
     if (result != DeletionResult.deleted &&
         result != DeletionResult.deletedNotErased) {
       return;

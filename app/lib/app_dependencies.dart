@@ -141,8 +141,8 @@ class AppDependencies {
       },
       archiveRestore: (session, serialize) async {
         final path = await databasePath();
-        final files = FileDatabaseFiles(path);
-        final storage = EncryptedStorage(path, onDeleteAll: mapCache.delete);
+        final files = databaseFilesFor(path, mapCache);
+        final storage = encryptedStorageFor(path, mapCache);
         final key = await keyStore.read(storageKeyName);
         if (key == null) {
           throw const ArchiveRestoreException(
@@ -188,15 +188,36 @@ class AppDependencies {
         generateKey: generateStorageKey,
         wire: () async {
           final path = await databasePath();
-          return StorageWiring(
-            storage: EncryptedStorage(path, onDeleteAll: mapCache.delete),
-            files: FileDatabaseFiles(path, alsoDelete: mapCache.delete),
-          );
+          return storageWiringFor(path, mapCache);
         },
       ),
     );
   }
 }
+
+/// Die verschlüsselte Datenbank; "Alles löschen" räumt den Kartenspeicher mit ab (WP13, SEC-0004).
+EncryptedStorage encryptedStorageFor(
+  String path,
+  EncryptedMapTileStore mapCache,
+) => EncryptedStorage(path, onDeleteAll: mapCache.delete);
+
+/// Die Dateien der Datenbank; der Neubeginn nach Schlüsselverlust räumt den Kartenspeicher mit ab, ein Tausch durch
+/// eine Wiederherstellung verwirft die Miniaturen (ihre Lauf-Nummern gehören danach zu anderen Läufen).
+FileDatabaseFiles databaseFilesFor(
+  String path,
+  EncryptedMapTileStore mapCache,
+) => FileDatabaseFiles(
+  path,
+  alsoDelete: mapCache.delete,
+  afterReplace: mapCache.deleteAllThumbnails,
+);
+
+/// Verdrahtung der Speicherung beim App-Start.
+StorageWiring storageWiringFor(String path, EncryptedMapTileStore mapCache) =>
+    StorageWiring(
+      storage: encryptedStorageFor(path, mapCache),
+      files: databaseFilesFor(path, mapCache),
+    );
 
 /// Vorgabe ohne Sensor (Tests): nichts zu finden, Verbinden scheitert.
 class _NoHeartRateSensor implements HeartRateSensor {

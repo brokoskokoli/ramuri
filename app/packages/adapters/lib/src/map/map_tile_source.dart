@@ -7,6 +7,10 @@ import 'package:http/http.dart' as http;
 
 import 'map_gate.dart';
 
+/// Leert den prozessweiten Arbeitsspeicher der Kachelbibliothek (dekodierte Kacheln, Beschriftungen). Beim Widerruf
+/// und bei "Alles löschen" gerufen, damit nichts vom Kartenanbieter im Speicher des Prozesses bleibt (SEC-0007).
+void clearMapTileMemory() => vt.VectorTileLayer.clearMemoryCache();
+
 /// Die Kachelquelle konnte nicht entstehen (Netz, Anbieter, Stil). Ohne Text: Ursachen können URLs nennen.
 class MapSourceUnavailable implements Exception {
   const MapSourceUnavailable();
@@ -38,7 +42,11 @@ class MapTileSource {
     labelFadeDuration: fade,
   );
 
-  void dispose() => style.dispose();
+  /// Gibt die Quelle frei und schließt das Tor samt Verbindungen.
+  void dispose() {
+    style.dispose();
+    gate.close();
+  }
 
   /// Öffnet die Quelle. Ohne Einwilligung entsteht keine Quelle (`null`) und es gibt keine Anfrage (fail-closed,
   /// SEC-0002, SEC-0008). Die Kachelquellen löst `resolveProvider` über das Tor auf; ohne ihn ginge die Bibliothek mit
@@ -87,6 +95,7 @@ class MapTileSource {
       ).read();
       return MapTileSource._(gate, read);
     } catch (_) {
+      gate.close();
       throw const MapSourceUnavailable();
     }
   }

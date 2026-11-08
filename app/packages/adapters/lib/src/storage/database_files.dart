@@ -10,6 +10,7 @@ class FileDatabaseFiles implements DatabaseFiles {
     String? importPath,
     this.beforeStep,
     this.alsoDelete,
+    this.afterReplace,
   }) : importPath = importPath ?? '$path$importSuffix';
 
   final String path;
@@ -18,6 +19,11 @@ class FileDatabaseFiles implements DatabaseFiles {
   /// Kartenspeicher (WP13) ist mit dem verlorenen Schlüssel verschlüsselt und darf nicht stehen bleiben. Er zählt
   /// nicht für [exist]: Er allein ist kein Grund für "Schlüssel fehlt".
   final Future<void> Function()? alsoDelete;
+
+  /// Wird nach dem erfolgreichen Tausch der Datenbank gerufen ([replaceWithImport]): Abgeleitetes, das an Nummern der
+  /// alten Datenbank hängt (Miniaturen der Karte, WP13), gehört zu anderen Läufen und wird verworfen. Ein Fehler
+  /// hier bricht den Tausch nicht ab: Er ist dann schon geschehen.
+  final Future<void> Function()? afterReplace;
 
   /// Zwischendatenbank der Wiederherstellung (WP12): neben der aktiven, im
   /// selben Ordner, damit das Umbenennen atomar bleibt (gleiches Dateisystem).
@@ -117,5 +123,8 @@ class FileDatabaseFiles implements DatabaseFiles {
     step('rename');
     await File(importPath).rename(path);
     step('renamed');
+    try {
+      await afterReplace?.call();
+    } catch (_) {}
   }
 }

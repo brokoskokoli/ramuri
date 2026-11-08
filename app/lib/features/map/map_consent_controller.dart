@@ -41,7 +41,9 @@ class MapConsentController extends ChangeNotifier {
     required ConsentStore store,
     required Clock clock,
     required this.services,
+    void Function()? clearTileMemory,
   }) : _store = store,
+       _clearTileMemory = clearTileMemory ?? clearMapTileMemory,
        _service = ConsentService(store, clock) {
     ready = _load();
   }
@@ -49,6 +51,7 @@ class MapConsentController extends ChangeNotifier {
   final ConsentStore _store;
   final ConsentService _service;
   final MapServices services;
+  final void Function() _clearTileMemory;
 
   /// Fertig, sobald der gespeicherte Stand gelesen ist (auch bei Lesefehler).
   late final Future<void> ready;
@@ -123,6 +126,7 @@ class MapConsentController extends ChangeNotifier {
     await ready;
     _granted = false;
     _status = MapConsentStatus.declined;
+    _clearTileMemory(); // dekodierte Kacheln nicht im Arbeitsspeicher stehen lassen (SEC-0007)
     _notify();
     try {
       final out = await _service.revoke(mapProviderSourceKey);
@@ -132,6 +136,40 @@ class MapConsentController extends ChangeNotifier {
       );
     } catch (_) {
       return const MapRevokeResult(askDeleteCache: true, saveFailed: true);
+    }
+  }
+
+  /// "Alles löschen" ([deleteAll] löscht die Daten): Schon **vor** dem Löschen fällt die Einwilligung im Prozess
+  /// (Tor zu, Warteschlange und Quellen der Miniaturen stoppen über die Hörer), damit nichts mehr aus dem
+  /// Speicher gelöscht wird und eine laufende Miniatur nach dem Löschen nichts schreibt. Danach gilt der Stand des
+  /// ersten Starts: nie gefragt, auch bei `deletedNotErased` (die Daten sind dann gelöscht). Scheitert das Löschen
+  /// ganz, gilt wieder der gespeicherte Stand. Der Kartenspeicher wird nach dem Löschen noch einmal abgeräumt, falls
+  /// eine Schreibung durchkam. Der Fehler von [deleteAll] wird weitergegeben.
+  Future<void> deleteAllAround(Future<void> Function() deleteAll) async {
+    await ready;
+    _granted = false;
+    _status = MapConsentStatus.declined;
+    _clearTileMemory();
+    _notify();
+    var erased = false;
+    try {
+      await deleteAll();
+      erased = true;
+    } on StorageException catch (e) {
+      erased = e.failure == StorageFailure.deletedNotErased;
+      rethrow;
+    } finally {
+      if (erased) {
+        _status = MapConsentStatus.neverAsked;
+        _deferred = false;
+        _clearTileMemory();
+        try {
+          await services.cache.delete();
+        } catch (_) {}
+        _notify();
+      } else {
+        await _load(); // nichts gelöscht: der gespeicherte Stand gilt
+      }
     }
   }
 
@@ -184,6 +222,8 @@ class MapConsentController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _granted = false; // Tore einer noch offenen Quelle sagen ab jetzt nein
+    _status = MapConsentStatus.declined;
     _removedRuns.close();
     super.dispose();
   }

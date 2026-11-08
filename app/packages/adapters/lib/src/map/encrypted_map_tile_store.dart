@@ -50,6 +50,12 @@ class EncryptedMapTileStore implements MapThumbnailStore {
   static const int _maxRestarts = 3;
   int _restarts = 0;
 
+  /// Wie [_ensure], aber ohne den Speicher anzulegen: gibt es keine Verbindung und keine Datei, ist da nichts.
+  Future<_Worker?> _ensureExisting() async {
+    if (_worker == null && !await File(await _path()).exists()) return null;
+    return _ensure();
+  }
+
   Future<_Worker?> _ensure() async {
     if (_off || _closed) return null;
     var pending = _worker;
@@ -113,12 +119,22 @@ class EncryptedMapTileStore implements MapThumbnailStore {
   @override
   Future<void> deleteRun(int runId) async {
     try {
-      final w = await _ensure();
+      final w = await _ensureExisting();
       if (w == null) return;
       await w.request(['deleteRun', runId]);
     } catch (_) {
       // Gibt es die Datei nicht oder ist sie nicht lesbar, gibt es auch keine Miniatur.
     }
+  }
+
+  /// Entfernt alle Miniaturen, die Kacheln bleiben (nach dem Tausch der Datenbank durch eine Wiederherstellung).
+  /// Fehler sind kein Wurf; gibt es den Speicher nicht, tut es nichts.
+  Future<void> deleteAllThumbnails() async {
+    try {
+      final w = await _ensureExisting();
+      if (w == null) return;
+      await w.request(['deleteThumbnails']);
+    } catch (_) {}
   }
 
   /// Größe der Dateien auf der Platte (Datei und Nebendateien); 0, wenn es sie nicht gibt. Für die Anzeige (A3).
@@ -310,6 +326,9 @@ void _run(_Init init) {
         case 'deleteRun':
           core.deleteRunThumbnails(l[2] as int);
           ok = true;
+        case 'deleteThumbnails':
+          core.deleteAllThumbnails();
+          ok = true;
         case 'close':
           core.close();
           ok = true;
@@ -322,8 +341,8 @@ void _run(_Init init) {
     } catch (_) {
       broken = true;
     }
-    init.reply.send([id, ok, result]);
-    // Nach einem Fehler weiterzumachen wäre geraten; der nächste Start baut die Datei bei Bedarf neu auf.
+    // Nach einem Fehler weiterzumachen wäre geraten; der nächste Start baut die Datei bei Bedarf neu auf. Erst
+    // aufräumen, dann antworten: Wer die Antwort hat, sieht den Stand danach.
     if (broken) {
       try {
         core.close();
@@ -334,6 +353,9 @@ void _run(_Init init) {
           deleteMapCacheFiles(init.path);
         } catch (_) {}
       }
+    }
+    init.reply.send([id, ok, result]);
+    if (broken) {
       commands.close();
     }
   });

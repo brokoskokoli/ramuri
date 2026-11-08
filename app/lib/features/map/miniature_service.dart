@@ -116,6 +116,10 @@ class MiniatureService extends ChangeNotifier {
   final List<MiniatureTicket> _queue = [];
   MiniatureTicket? _current;
   final Set<int> _failed = {};
+
+  /// Läufe, die in diesem Aufbau gelöscht wurden: Ihre Rohdaten können schon gelesen sein, eine Anfrage danach
+  /// ließe ein verwaistes Bild entstehen.
+  final Set<int> _removedIds = {};
   MapTileSource? _source;
   bool _sourceFailed = false;
   bool _running = false;
@@ -152,7 +156,11 @@ class MiniatureService extends ChangeNotifier {
     RouteMapStyle style, {
     required double? Function() visibleTop,
   }) {
-    if (_disposed || !enabled || _sourceFailed || _failed.contains(runId)) {
+    if (_disposed ||
+        !enabled ||
+        _sourceFailed ||
+        _failed.contains(runId) ||
+        _removedIds.contains(runId)) {
       return null;
     }
     final t = MiniatureTicket._(runId, route, style, visibleTop, this);
@@ -167,6 +175,7 @@ class MiniatureService extends ChangeNotifier {
   }
 
   void _onRemoved(int runId) {
+    _removedIds.add(runId);
     for (final t in [..._queue, ?_current]) {
       if (t.runId == runId) _cancel(t);
     }

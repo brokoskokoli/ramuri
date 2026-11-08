@@ -230,6 +230,28 @@ class MapCacheCore {
     return n;
   }
 
+  /// Entfernt alle Miniaturen (jede Variante, jeder Lauf), die Kacheln bleiben. Nach dem Tausch der Datenbank durch
+  /// eine Wiederherstellung: Die Lauf-Nummern gehören dann zu anderen Läufen. Gibt den Platz zurück. Ergebnis: Zahl der
+  /// entfernten Einträge.
+  int deleteAllThumbnails() {
+    final kind = MapStoreKind.thumbnail.index;
+    var n = 0;
+    _db.execute('BEGIN IMMEDIATE');
+    try {
+      _db.execute('DELETE FROM entries WHERE kind = ?', [kind]);
+      _marks.removeWhere((k, _) => k.$1 == kind);
+      n = _db.updatedRows;
+      _db.execute('COMMIT');
+    } catch (_) {
+      try {
+        _db.execute('ROLLBACK');
+      } catch (_) {}
+      rethrow;
+    }
+    if (n > 0) _db.execute('PRAGMA incremental_vacuum');
+    return n;
+  }
+
   void _flushMarks() {
     if (_marks.isEmpty) return;
     final stmt = _db.prepare(
