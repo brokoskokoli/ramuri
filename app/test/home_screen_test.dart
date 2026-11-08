@@ -275,6 +275,59 @@ void main() {
     expect(key('home_last_run'), findsOneWidget);
   });
 
+  testWidgets('Beobachter wird mit dem Heute-Tab abgebaut: Fortsetzen nach '
+      'Tab-Wechsel und Tageswechsel wirft nichts', (tester) async {
+    final d = Device();
+    d.clock.set(DateTime.utc(2026, 6, 14, 12));
+    final s = await _preopen(d);
+    await _run(s, DateTime.utc(2026, 6, 14, 9), Duration.zero);
+    await _start(d, tester);
+    await tester.tap(key('home_history'));
+    await tester.pumpAndSettle();
+    expect(key('home_screen'), findsNothing, reason: 'Heute ist abgebaut');
+    _pause(tester);
+    d.clock.set(DateTime.utc(2026, 6, 15, 7));
+    await _resume(tester);
+    expect(tester.takeException(), isNull);
+    await tester.tap(key('home_today'));
+    await tester.pumpAndSettle();
+    expect(text('home_date'), 'Montag, 15. Juni');
+  });
+
+  testWidgets('Fortsetzen lädt nur bei neuem Tag neu: am selben Tag und nach '
+      'dem Neuladen am neuen Tag bleibt die Anzeige stehen', (tester) async {
+    final d = Device();
+    d.clock.set(DateTime.utc(2026, 6, 14, 12));
+    final s = await _preopen(d);
+    final id = await _run(s, DateTime.utc(2026, 6, 14, 9), Duration.zero);
+    await _start(d, tester);
+    expect(key('home_last_run'), findsOneWidget);
+    // Der Lauf verschwindet am Speicher vorbei; die Seite weiß es nicht.
+    await s.deleteRun(id);
+
+    // Selber Tag: kein Neuladen, der gelöschte Lauf steht noch da.
+    _pause(tester);
+    d.clock.set(DateTime.utc(2026, 6, 14, 20));
+    await _resume(tester);
+    expect(key('home_last_run'), findsOneWidget);
+    expect(key('home_empty'), findsNothing);
+
+    // Neuer Tag: Neuladen, der Lauf ist weg.
+    _pause(tester);
+    d.clock.set(DateTime.utc(2026, 6, 15, 7));
+    await _resume(tester);
+    expect(key('home_last_run'), findsNothing);
+    expect(key('home_empty'), findsOneWidget);
+
+    // Neuer Lauf am Speicher vorbei; am selben (neuen) Tag lädt nichts neu.
+    await _run(s, DateTime.utc(2026, 6, 15, 8), Duration.zero);
+    _pause(tester);
+    d.clock.set(DateTime.utc(2026, 6, 15, 9));
+    await _resume(tester);
+    expect(key('home_last_run'), findsNothing);
+    expect(key('home_empty'), findsOneWidget);
+  });
+
   testWidgets('Tageswechsel mitten in der Woche: Datum und Heute-Kreis '
       'ziehen mit', (tester) async {
     final d = Device();

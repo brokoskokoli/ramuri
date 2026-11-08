@@ -58,6 +58,19 @@ void main() {
     },
   );
 
+  test('jedes Logo-PNG aus RamuriLogo steht einzeln in der pubspec', () {
+    final used = RegExp(r"'(assets/brand/[\w.-]+\.png)'")
+        .allMatches(code('lib/ui/ramuri_logo.dart'))
+        .map((m) => m.group(1)!)
+        .toSet();
+    expect(used, hasLength(3), reason: 'gestapelt, horizontal dunkel und hell');
+    final bundled = RegExp(
+      r'^\s+- (assets/\S+)$',
+      multiLine: true,
+    ).allMatches(code('pubspec.yaml')).map((m) => m.group(1)!).toSet();
+    expect(used.difference(bundled), isEmpty, reason: 'nicht gebündelt');
+  });
+
   for (final (brightness, expected) in [
     (Brightness.dark, Brightness.dark),
     (Brightness.light, Brightness.light),

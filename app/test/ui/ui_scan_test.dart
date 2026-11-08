@@ -11,7 +11,8 @@ final forbidden = <String, RegExp>{
   'CupertinoColors': RegExp(r'\bCupertinoColors\b'),
   'HSLColor': RegExp(r'\bHSLColor\b'),
   'HSVColor': RegExp(r'\bHSVColor\b'),
-  'fontSize:': RegExp(r'\bfontSize\s*:'),
+  'Color.new': RegExp(r'\bColor\s*\.\s*new'),
+  'fontSize:': RegExp(r'\bfontSize(?:Factor|Delta)?\s*:'),
 };
 
 /// Quelltext ohne Kommentare und ohne Inhalt der Zeichenketten; Zeilenumbrüche bleiben erhalten,
@@ -48,13 +49,18 @@ String stripCommentsAndStrings(String source) {
       final quote = triple ? c * 3 : c;
       out.write(quote);
       i += quote.length;
+      // Einfache Zeichenketten enden spätestens am Zeilenende (in Dart gibt es dort kein
+      // Weiterschreiben), damit ein verlorener Takt höchstens bis dorthin reicht.
       while (i < n && !source.startsWith(quote, i)) {
+        if (!triple && source[i] == '\n') break;
         if (source[i] == '\\' && !raw) i++;
         if (i < n && source[i] == '\n') out.write('\n');
         i++;
       }
-      out.write(quote);
-      i += quote.length;
+      if (i < n && source.startsWith(quote, i)) {
+        out.write(quote);
+        i += quote.length;
+      }
     } else {
       out.write(c);
       i++;
@@ -90,7 +96,11 @@ void main() {
       'color: CupertinoColors.black,',
       'final c = HSLColor.fromAHSL(1, 0, 0, 0);',
       'final c = HSVColor.fromAHSV(1, 0, 0, 0);',
+      'final c = Color.new(1);',
+      'final c = Color\n    .new(1);',
       'TextStyle(fontSize: 12)',
+      'TextStyle(fontSizeFactor: 2)',
+      'TextStyle(fontSizeDelta : 1)',
       'TextStyle(\n  fontSize\n      : 12)',
     ]) {
       expect(violations('a', code), isNotEmpty, reason: code);
@@ -117,6 +127,11 @@ void main() {
     // Roh-Zeichenkette endet am nächsten Anführungszeichen, ein Schrägstrich schützt nicht.
     expect(violations('a', r"f(r'\'); Colors.red;"), isNotEmpty);
     expect(violations('a', 'x;\n\ny = Colors.red;').single, 'a:3: Colors.');
+    // Verlorener Takt (Apostroph in der Interpolation) reicht höchstens bis zum Zeilenende.
+    expect(
+      violations('a', "x = '\${g(\"it's\")}';\ny = Colors.red;").single,
+      'a:2: Colors.',
+    );
   });
 
   test('lib/ ohne ui/ und l10n/: keine Farbwerte, keine Schriftgrößen', () {
