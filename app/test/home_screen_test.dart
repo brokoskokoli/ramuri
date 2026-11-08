@@ -459,6 +459,63 @@ void main() {
     expect(key('home_failed'), findsNothing);
     expect(text('home_week_km'), '1,80 km');
   });
+
+  testWidgets('Design: Tage vergangen/heute/künftig, Summe fett in Sora, '
+      'Symbol-Kästchen beim letzten Lauf, Liste im Verlauf-Tab', (
+    tester,
+  ) async {
+    final d = Device();
+    d.clock.set(DateTime.utc(2026, 6, 10, 12)); // Mittwoch
+    final s = await _preopen(d);
+    await _run(s, DateTime.utc(2026, 6, 8, 8), Duration.zero); // Montag
+    await _start(d, tester);
+    String kind(int i) {
+      for (final k in [
+        'week_dot_done',
+        'week_dot_past',
+        'week_dot_today',
+        'week_dot_future',
+      ]) {
+        if (find
+            .descendant(of: key('week_day_$i'), matching: key(k))
+            .evaluate()
+            .isNotEmpty) {
+          return k;
+        }
+      }
+      return 'keiner';
+    }
+
+    expect(
+      [for (var i = 0; i < 7; i++) kind(i)],
+      [
+        'week_dot_done',
+        'week_dot_past',
+        'week_dot_today',
+        'week_dot_future',
+        'week_dot_future',
+        'week_dot_future',
+        'week_dot_future',
+      ],
+    );
+    final km = tester.widget<Text>(key('home_week_km'));
+    expect(km.style!.fontFamily, 'Sora');
+    expect(km.style!.fontWeight, FontWeight.w700);
+    expect(
+      find.descendant(
+        of: key('home_last_run'),
+        matching: find.byIcon(Icons.timeline_rounded),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: key('home_history'),
+        matching: find.byIcon(Icons.format_list_bulleted_rounded),
+      ),
+      findsOneWidget,
+    );
+  });
 }
 
 /// Speicher, dessen Läufe sich nicht lesen lassen, solange [failRuns] gilt.
