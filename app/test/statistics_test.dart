@@ -286,9 +286,10 @@ void main() {
     ) async {
       await withEstimate(tester);
       expect(find.text('VO₂max-Schätzung aus einem Lauf'), findsOneWidget);
+      // Einmal in der VO₂max-Karte (WP15), einmal in der Fitnessgruppe.
       expect(
         find.text('Aktuelle langfristige VO₂max-Schätzung'),
-        findsOneWidget,
+        findsNWidgets(2),
       );
       expect(find.text('Verlauf der VO₂max-Schätzung'), findsWidgets);
       final estimate = RegExp(r'\d+,\d ml/kg/min \(Schätzung\)');
@@ -339,7 +340,7 @@ void main() {
           quality: ValueQuality.good,
         );
 
-    for (final (value, shown) in [(2.5, '+2,5'), (-3.4, '-3,4')]) {
+    for (final (value, shown) in [(2.5, '+2,5'), (-3.4, '\u22123,4')]) {
       testWidgets('gespeicherte aerobe Effizienz $shown: Vorzeichen, %, Datum, '
           'keine VO₂max-Einheit', (tester) async {
         final d = await started(tester);
@@ -353,8 +354,30 @@ void main() {
         final eff = text('stat_efficiency_value');
         expect(eff, startsWith('$shown % gegenüber dem Vergleichszeitraum'));
         expect(eff, contains('Schätzung'));
-        expect(eff, contains('Stand Mo., 1. Juni'));
+        expect(eff, contains('Stand Mo., 1. Juni 2026'));
         expect(eff, isNot(contains('ml/kg/min')));
+      });
+    }
+
+    for (final (locale, vo2, eff) in [
+      ('de', 'Stand Mo., 3. Juni 2024: 46,0', 'Stand Mo., 3. Juni 2024)'),
+      ('en', 'As of Mon, Jun 3, 2024: 46.0', 'as of Mon, Jun 3, 2024)'),
+    ]) {
+      testWidgets('$locale: Stand der Sektion nennt das Jahr '
+          '(FR-0059)', (tester) async {
+        final d = await started(tester, locale: locale);
+        d.clock.set(DateTime.utc(2024, 6, 4, 12));
+        await seedRun(d.session, DateTime.utc(2024, 6, 3, 8));
+        await d.session.values.createOriginals(
+          const ValueOwner.day('2024-06-03'),
+          [
+            stored(vo2maxLongTermValueKey, 46.04, 'ml/kg/min', d.clock.now()),
+            stored(aerobicEfficiencyValueKey, 2.5, '%', d.clock.now()),
+          ],
+        );
+        await openStats(d, tester);
+        expect(text('stat_vo2_current_value'), contains(vo2));
+        expect(text('stat_efficiency_value'), contains(eff));
       });
     }
 
@@ -465,6 +488,10 @@ void main() {
       ]) {
         expect(key(id), findsOneWidget);
       }
+      // Der Kopf der Seite (Wochenbalken, VO₂max) schiebt die Fitness-Details
+      // unter den Rand von 2400 px: erst in Sicht bringen, dann tippen.
+      await tester.ensureVisible(key('stat_explain_vo2_current'));
+      await tester.pumpAndSettle();
       await tester.tap(key('stat_explain_vo2_current'));
       await tester.pumpAndSettle();
       expect(key('expl_body'), findsOneWidget);

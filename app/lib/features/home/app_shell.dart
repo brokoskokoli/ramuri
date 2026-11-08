@@ -7,6 +7,7 @@ import '../recalculation/recalculation_controller.dart';
 import '../run/run_ports.dart';
 import '../sensors/sensor_manager.dart';
 import '../statistics/statistics_screen.dart';
+import '../statistics/statistics_view_state.dart';
 import 'data_changes.dart';
 import 'home_screen.dart';
 
@@ -16,7 +17,9 @@ import 'home_screen.dart';
 ///
 /// Der gewählte Bereich wird bei jedem Wechsel und bei jeder Meldung von
 /// [changes] neu aufgebaut (kein `IndexedStack`), damit nichts Veraltetes
-/// stehen bleibt.
+/// stehen bleibt. Die Daten werden dabei frisch geladen; die Auswahl des
+/// Zeitraums und die Scrollposition von Fortschritt hält die Hülle in einem
+/// Zustandsobjekt über den Neuaufbau hinweg.
 class AppShell extends StatefulWidget {
   const AppShell({
     super.key,
@@ -74,6 +77,9 @@ class _AppShellState extends State<AppShell> {
 
   int _index = 0;
 
+  /// Zeitraumwahl und Scrollposition von Fortschritt über Tab-Wechsel.
+  final StatisticsViewState _progressState = StatisticsViewState();
+
   Widget _body(String id) {
     switch (id) {
       case 'history':
@@ -83,7 +89,11 @@ class _AppShellState extends State<AppShell> {
           recalculation: widget.recalculation,
         );
       case 'progress':
-        return StatisticsScreen(session: widget.session, clock: widget.clock);
+        return StatisticsScreen(
+          session: widget.session,
+          clock: widget.clock,
+          viewState: _progressState,
+        );
       default:
         return HomeScreen(
           session: widget.session,

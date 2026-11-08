@@ -403,7 +403,10 @@ void main() {
         text('expl_source_1_gone'),
         'Quelle nicht mehr bekannt (Kennung gone)',
       );
-      expect(text('expl_a3'), '3 verwertbare Läufe');
+      expect(
+        text('expl_a3'),
+        '3 verwertbare Läufe in den 8 Wochen bis zum Stand',
+      );
       expect(text('expl_a5'), 'Qualitätsstufe: ausreichend');
       expect(text('expl_a6'), contains('mehrerer Läufe'));
     });
@@ -535,6 +538,80 @@ void main() {
       expect(key('expl_gap_note'), findsNothing);
     });
 
+    testWidgets('Tageswert: der Tag steht als „Stand“ unter dem Alter', (
+      tester,
+    ) async {
+      final d = await seeded(tester, deviceName: 'Brustgurt');
+      await d.session.values.createOriginals(
+        const ValueOwner.day('2026-06-05'),
+        [
+          _dayValue(vo2maxLongTermValueKey, ['gps', 'strap']),
+        ],
+      );
+      await showExplanationFor(
+        tester,
+        d,
+        vo2maxLongTermValueKey,
+        day: '2026-06-05',
+      );
+      expect(text('expl_a2').split('\n').last, 'Stand Fr., 5. Juni 2026');
+    });
+
+    for (final (locale, expected) in [
+      ('de', 'Stand Mo., 3. Juni 2024'),
+      ('en', 'As of Mon, Jun 3, 2024'),
+    ]) {
+      testWidgets('$locale: Stand aus dem Vorjahr nennt das Jahr, Tag aus '
+          'dem Besitzertag (FR-0059)', (tester) async {
+        final d = await seeded(tester, locale: locale);
+        await d.session.values.createOriginals(
+          const ValueOwner.day('2024-06-03'),
+          [
+            _dayValue(vo2maxLongTermValueKey, ['gps']),
+          ],
+        );
+        await showExplanationFor(
+          tester,
+          d,
+          vo2maxLongTermValueKey,
+          day: '2024-06-03',
+        );
+        // computedAt (5. Juni 2026) weicht vom Besitzertag ab.
+        expect(text('expl_a2').split('\n').last, expected);
+      });
+    }
+
+    testWidgets('Tageswert ohne Wert: kein „Stand“, nur der Versuch', (
+      tester,
+    ) async {
+      final d = await seeded(tester);
+      await d.session.values.createOriginals(
+        const ValueOwner.day('2026-06-05'),
+        [
+          ComputedValue(
+            key: vo2maxLongTermValueKey,
+            value: null,
+            unit: vo2maxUnit,
+            unavailableReason: UnavailableReason.insufficientData,
+            computedAt: DateTime.utc(2026, 6, 5, 10),
+            measurementCount: 0,
+            sources: const ['gps'],
+            method: 'm',
+            methodVersion: 1,
+            parameterVersion: 1,
+            quality: ValueQuality.undeterminable,
+          ),
+        ],
+      );
+      await showExplanationFor(
+        tester,
+        d,
+        vo2maxLongTermValueKey,
+        day: '2026-06-05',
+      );
+      expect(text('expl_a2'), 'Berechnungsversuch am Fr., 5. Juni 2026');
+    });
+
     testWidgets('Effizienz ist als Schätzung gekennzeichnet (CON-0009)', (
       tester,
     ) async {
@@ -571,14 +648,12 @@ void main() {
         vo2maxLongTermValueKey,
         day: '2026-06-05',
       );
-      final context = tester.element(key('expl_a2'));
-      final m = MaterialLocalizations.of(context);
-      String date(int mo, int day) =>
-          m.formatMediumDate(DateTime.utc(2026, mo, day).toLocal());
+      // Alle drei Angaben mit Jahr (FR-0059 „Wie alt“).
       expect(
         text('expl_a2'),
-        'Daten vom ${date(5, 1)} bis ${date(6, 4)}\n'
-        'Berechnet am ${date(6, 5)}',
+        'Daten vom Fr., 1. Mai 2026 bis Do., 4. Juni 2026\n'
+        'Berechnet am Fr., 5. Juni 2026\n'
+        'Stand Fr., 5. Juni 2026',
       );
       // Das deutsche Datum endet mit einem Abkürzungspunkt; kein zweiter.
       expect(text('expl_a2'), isNot(contains('..')));
@@ -665,13 +740,15 @@ Future<void> showExplanationFor(
 }
 
 /// Tageswert mit festen Daten: Zeitraum 1.5. bis 4.6., berechnet am 5.6.
+/// Die Zeiten liegen um 10:00 UTC, damit der Kalendertag in jeder Zeitzone
+/// von UTC-10 bis UTC+13 derselbe bleibt (die App zeigt die lokale Zeit).
 ComputedValue _dayValue(String key, List<String> sources) => ComputedValue(
   key: key,
   value: 44,
   unit: key == vo2maxLongTermValueKey ? vo2maxUnit : 'x',
-  computedAt: DateTime.utc(2026, 6, 5),
-  dataFrom: DateTime.utc(2026, 5, 1),
-  dataTo: DateTime.utc(2026, 6, 4),
+  computedAt: DateTime.utc(2026, 6, 5, 10),
+  dataFrom: DateTime.utc(2026, 5, 1, 10),
+  dataTo: DateTime.utc(2026, 6, 4, 10),
   measurementCount: 3,
   sources: sources,
   method: 'm',

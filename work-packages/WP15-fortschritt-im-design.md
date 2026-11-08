@@ -20,6 +20,21 @@ Bezug: FR-0043, FR-0044, FR-0053, FR-0059, FR-0067, FR-0072, FR-0081, FR-0087, F
 - Verlauf und Fortschritt werden bei jedem Tab-Wechsel neu aufgebaut; Zeitraumwahl und Scrollposition gehen dabei verloren. Sie bleiben beim Tab-Wechsel erhalten (Abnahme), die Daten trotzdem frisch.
 - Bildschirmfotos je API und Modus; Vorlagen in `../running-app-wt/handoff/e2e-vorlagen/wp14-e2e*`.
 
+## Abweichungen vom Design (FR-0205)
+Gegenüber `Fortschritt.dc.html`, jeweils begründet:
+- Ohne „±3“ an der VO₂max (FR-0072).
+- Stufen „Qualitätsstufe: …“ statt „Datenqualität: mittel“ (FR-0053).
+- „N verwertbare Läufe in den 8 Wochen bis zum Stand“ statt „Aus 9 Läufen mit Puls“: Der Wert ist nicht aus genau diesen Läufen gebildet, die Zahl zählt die verwertbaren Läufe im 8-Wochen-Fenster (PAR-043). Dasselbe gilt für die Erklärungsseite.
+- Unter der Zahl steht „Aktuelle langfristige VO₂max-Schätzung“ mit „Stand {Datum}“ (FR-0081); das Design hat beides nicht.
+- Ohne gestrichelte Hülle der aktuellen Woche (Wochenziel, Phase 2).
+- Beschreibung der Sparkline nennt die Werte statt „Trend leicht steigend“ (keine Trendbewertung).
+- Link „Wie wird das berechnet?“ mit 48 statt 32 dp Höhe (FR-0205, Tippziel).
+- Effizienzkachel in voller Breite statt zwei Spalten; ohne Prognose und „Lockere Pace bei Z2“, ohne Belastung (Phase 2).
+- Zusätzlich Zeitraumwahl und übrige Kennzahlen (FR-0043, FR-0044).
+- Ohne VO₂max-Wert entfällt der Chip „Schätzung“ (nichts Geschätztes); ohne jeden Lauf steht in der Balkenkarte „Noch keine Läufe aufgezeichnet.“ (FR-0057).
+- Alle „Stand“-, „Daten vom … bis …“- und „Berechnet am …“-Angaben tragen das Jahr (FR-0059 „Wie alt“), auch in der Sektion darunter.
+- Der Hero der VO₂max ist wie im Design ganzzahlig („46“); die Sichten darunter und der Verlauf zeigen eine Nachkommastelle (45,5 steht oben als 46, darunter als 45,5).
+
 ## Abnahmekriterien
 - [ ] Aufbau und Optik wie `Fortschritt.dc.html`, hell und dunkel; Abweichungen nach FR-0205 benannt.
 - [ ] FR-0043/FR-0057: jede Kennzahl berechnet oder als nicht verfügbar erkennbar; alle vorher sichtbaren Kennzahlen weiter da (Test).

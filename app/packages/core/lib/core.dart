@@ -121,6 +121,7 @@ export 'src/statistics/run_overview.dart';
 export 'src/statistics/run_summary.dart';
 export 'src/statistics/statistics_parameters.dart';
 export 'src/statistics/value_explanation.dart';
+export 'src/statistics/weekly_distance.dart';
 export 'src/storage/storage_key_service.dart';
 
 /// Name des Pakets, nur damit das Paket auflösbar und testbar ist.

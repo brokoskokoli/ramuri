@@ -2,6 +2,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_card.dart';
+import '../settings/unit_format.dart' show asOfDateText;
 import '../transparency/value_explanation_screen.dart';
 import 'statistics_screen.dart' show ExplainValue;
 import 'statistics_view.dart';
@@ -26,6 +28,54 @@ String reasonText(AppLocalizations l10n, UnavailableReason reason) =>
       UnavailableReason.referenceWindowTooSmall =>
         l10n.statReasonReferenceWindow,
     };
+
+/// Zahl mit einer Nachkommastelle, im Deutschen mit Komma; mit [sign] steht
+/// bei positiven Werten ein Plus (FR-0087: 5,56 wird „5,6“). Das Vorzeichen
+/// richtet sich nach dem gerundeten Wert: Was zu 0,0 rundet, steht ohne
+/// Vorzeichen da. Minus ist das echte Minuszeichen „−“.
+String fitnessNumber(bool german, double v, {bool sign = false}) {
+  final rounded = double.parse(v.toStringAsFixed(1));
+  final digits = rounded.abs().toStringAsFixed(1);
+  final text = rounded < 0
+      ? '\u2212$digits'
+      : (sign && rounded > 0 ? '+$digits' : digits);
+  return german ? text.replaceAll('.', ',') : text;
+}
+
+/// Wert eines gespeicherten Fitnesswerts oder, wenn er fehlt, sein Grund
+/// (FR-0068, FR-0057).
+String valueOrReasonText(
+  AppLocalizations l10n,
+  ComputedValue v,
+  String Function(double) format,
+) => v.value != null
+    ? format(v.value!)
+    : (v.unavailableReason == null
+          ? l10n.runUnavailable
+          : reasonText(l10n, v.unavailableReason!));
+
+/// Öffnet die Erklärung eines Werts: über [onExplain], sonst die
+/// Erklärungsseite aus den gespeicherten Angaben.
+void openValueExplanation(
+  BuildContext context, {
+  required StorageSession session,
+  required ExplainValue? onExplain,
+  required String valueKey,
+  int? runId,
+  String? day,
+}) {
+  if (onExplain != null) {
+    onExplain(context, valueKey, runId: runId, day: day);
+  } else {
+    showValueExplanation(
+      context,
+      session,
+      valueKey: valueKey,
+      runId: runId,
+      day: day,
+    );
+  }
+}
 
 /// Fitness in der Statistik: drei getrennte, benannte Sichten auf die VO₂max
 /// (FR-0081) und die aerobe Effizienz (FR-0084), abgegrenzt von der VO₂max
@@ -57,40 +107,32 @@ class FitnessSection extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final material = MaterialLocalizations.of(context);
     final german = Localizations.localeOf(context).languageCode == 'de';
-    String number(double v, {bool sign = false}) {
-      final text = v.toStringAsFixed(1);
-      final signed = sign && v > 0 ? '+$text' : text;
-      return german ? signed.replaceAll('.', ',') : signed;
-    }
+    String number(double v, {bool sign = false}) =>
+        fitnessNumber(german, v, sign: sign);
 
     String estimate(double v) => l10n.sumVo2maxValue(number(v));
     String dateOf(String day) => material.formatMediumDate(_date(day));
+    // „Stand“ mit Jahr, wie auf Karte und Erklärung (FR-0059).
+    String asOf(String day) => asOfDateText(
+      Localizations.localeOf(context).languageCode,
+      DateTime.parse(day),
+    );
 
     Widget explain(String id, String valueKey, {int? runId, String? day}) =>
         ExplainButton(
           id: id,
-          onPressed: () {
-            final handler = onExplain;
-            if (handler != null) {
-              handler(context, valueKey, runId: runId, day: day);
-            } else {
-              showValueExplanation(
-                context,
-                session,
-                valueKey: valueKey,
-                runId: runId,
-                day: day,
-              );
-            }
-          },
+          onPressed: () => openValueExplanation(
+            context,
+            session: session,
+            onExplain: onExplain,
+            valueKey: valueKey,
+            runId: runId,
+            day: day,
+          ),
         );
 
     String valueOrReason(ComputedValue v, String Function(double) format) =>
-        v.value != null
-        ? format(v.value!)
-        : (v.unavailableReason == null
-              ? l10n.runUnavailable
-              : reasonText(l10n, v.unavailableReason!));
+        valueOrReasonText(l10n, v, format);
 
     // Sicht 1: Schätzung aus einem Lauf, der neueste im Zeitraum.
     RunEstimate? inPeriod;
@@ -115,98 +157,106 @@ class FitnessSection extends StatelessWidget {
     final eff = fitness.efficiency;
     final day = fitness.day;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      key: const Key('stat_fitness'),
-      children: [
-        StatHeading(l10n.statFitness),
-        Text(l10n.statVo2Note, key: const Key('stat_vo2_note')),
-        if (fitness.readFailed)
-          Text(l10n.statFitnessFailed, key: const Key('stat_fitness_failed')),
-        if (fitness.pendingRuns > 0)
-          Text(
-            l10n.statPending(fitness.pendingRuns),
-            key: const Key('stat_pending'),
+    return RamuriCard(
+      radius: 22,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        key: const Key('stat_fitness'),
+        children: [
+          StatHeading(l10n.statFitness),
+          Text(l10n.statVo2Note, key: const Key('stat_vo2_note')),
+          if (fitness.readFailed)
+            Text(l10n.statFitnessFailed, key: const Key('stat_fitness_failed')),
+          if (fitness.pendingRuns > 0)
+            Text(
+              l10n.statPending(fitness.pendingRuns),
+              key: const Key('stat_pending'),
+            ),
+          StatRow(id: 'stat_vo2_run', label: l10n.statVo2Run, value: runText),
+          if (inPeriod != null)
+            _ZeroWeightHint(
+              key: ValueKey(inPeriod.runId),
+              session: session,
+              runId: inPeriod.runId,
+            ),
+          if (inPeriod != null)
+            explain(
+              'stat_explain_vo2_run',
+              vo2maxRunValueKey,
+              runId: inPeriod.runId,
+            ),
+          StatRow(
+            id: 'stat_vo2_current',
+            label: l10n.statVo2Current,
+            value: longTerm == null
+                ? l10n.statVo2NoValue
+                : l10n.statVo2Day(
+                    day == null ? '' : asOf(day),
+                    valueOrReason(longTerm, estimate),
+                  ),
           ),
-        StatRow(id: 'stat_vo2_run', label: l10n.statVo2Run, value: runText),
-        if (inPeriod != null)
-          _ZeroWeightHint(
-            key: ValueKey(inPeriod.runId),
-            session: session,
-            runId: inPeriod.runId,
-          ),
-        if (inPeriod != null)
-          explain(
-            'stat_explain_vo2_run',
-            vo2maxRunValueKey,
-            runId: inPeriod.runId,
-          ),
-        StatRow(
-          id: 'stat_vo2_current',
-          label: l10n.statVo2Current,
-          value: longTerm == null
-              ? l10n.statVo2NoValue
-              : l10n.statVo2Day(
-                  day == null ? '' : dateOf(day),
-                  valueOrReason(longTerm, estimate),
+          if (day != null)
+            explain(
+              'stat_explain_vo2_current',
+              vo2maxLongTermValueKey,
+              day: day,
+            ),
+          Semantics(
+            container: true,
+            label: l10n.statVo2Trend,
+            child: Column(
+              key: const Key('stat_vo2_trend'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(l10n.statVo2Trend),
                 ),
-        ),
-        if (day != null)
-          explain('stat_explain_vo2_current', vo2maxLongTermValueKey, day: day),
-        Semantics(
-          container: true,
-          label: l10n.statVo2Trend,
-          child: Column(
-            key: const Key('stat_vo2_trend'),
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(l10n.statVo2Trend),
-              ),
-              Text(
-                l10n.statVo2TrendNote,
-                key: const Key('stat_vo2_trend_note'),
-              ),
-              if (trend.isEmpty)
                 Text(
-                  l10n.statVo2TrendNone,
-                  key: const Key('stat_vo2_trend_none'),
-                )
-              else
-                for (final e in trend)
-                  Text(
-                    l10n.statVo2TrendRow(
-                      dateOf(e.day),
-                      estimate(e.value.value!),
-                    ),
-                    key: Key('stat_vo2_trend_${e.day}'),
-                  ),
-            ],
-          ),
-        ),
-        const Divider(),
-        StatRow(
-          id: 'stat_efficiency',
-          label: l10n.statEfficiency,
-          value: eff == null
-              ? l10n.statEfficiencyNone
-              : valueOrReason(
-                  eff,
-                  (v) => l10n.statEfficiencyValue(
-                    number(v, sign: true),
-                    day == null ? '' : dateOf(day),
-                  ),
+                  l10n.statVo2TrendNote,
+                  key: const Key('stat_vo2_trend_note'),
                 ),
-        ),
-        Text(l10n.statEfficiencyNote, key: const Key('stat_efficiency_note')),
-        if (day != null)
-          explain(
-            'stat_explain_efficiency',
-            aerobicEfficiencyValueKey,
-            day: day,
+                if (trend.isEmpty)
+                  Text(
+                    l10n.statVo2TrendNone,
+                    key: const Key('stat_vo2_trend_none'),
+                  )
+                else
+                  for (final e in trend)
+                    Text(
+                      l10n.statVo2TrendRow(
+                        dateOf(e.day),
+                        estimate(e.value.value!),
+                      ),
+                      key: Key('stat_vo2_trend_${e.day}'),
+                    ),
+              ],
+            ),
           ),
-      ],
+          const Divider(),
+          StatRow(
+            id: 'stat_efficiency',
+            label: l10n.statEfficiency,
+            value: eff == null
+                ? l10n.statEfficiencyNone
+                : valueOrReason(
+                    eff,
+                    (v) => l10n.statEfficiencyValue(
+                      number(v, sign: true),
+                      day == null ? '' : asOf(day),
+                    ),
+                  ),
+          ),
+          Text(l10n.statEfficiencyNote, key: const Key('stat_efficiency_note')),
+          if (day != null)
+            explain(
+              'stat_explain_efficiency',
+              aerobicEfficiencyValueKey,
+              day: day,
+            ),
+        ],
+      ),
     );
   }
 }
