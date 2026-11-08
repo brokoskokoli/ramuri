@@ -1,0 +1,15 @@
+name: r008_ml
+description: R008 maplibre_gl mit OpenFreeMap
+publish_to: 'none'
+version: 1.0.0+1
+environment:
+  sdk: ^3.13.5
+  flutter: 3.47.7
+dependencies:
+  flutter:
+    sdk: flutter
+  maplibre_gl: 0.28.0
+  cryptography: 2.9.0
+  path_provider: 2.1.5
+flutter:
+  uses-material-design: true

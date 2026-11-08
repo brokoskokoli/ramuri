@@ -1,0 +1,3 @@
+# R008: keine Google-Play-Dienste (FOSS, F-Droid), Renderer OpenGL ES
+maplibre_gl.playServicesLocation=false
+maplibre_gl.renderer=opengl
