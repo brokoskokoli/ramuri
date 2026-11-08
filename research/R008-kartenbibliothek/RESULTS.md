@@ -32,7 +32,7 @@ Belastbar sind Netz- und Speicherinhalts-Aussagen (Mitschnitt mit Positivkontrol
 | Nachbesserung Review 1: Namensprobe auf den Emulator-Abzügen (ohne Netz) | `files-*-consent` der Läufe oben | `python3 -I src/name_leak.py <map-tiles-ordner> 52.4731 13.4031 7` | < 1 min |
 | Nachbesserung Review 1: Host-Tests mit HMAC-Namen und Namens-Gegenprobe | `host-20261108-094737` (Commit `1126210`, `dirty=0`) | `./run.sh host` | ~1 min |
 | Nachbesserung Review 2: Zuordnung aller Dateien (ohne Netz) | `files-fmvt-consent` beider Läufe | `python3 -I src/foreign_tiles.py <map-tiles-ordner>` | < 1 min |
-| Nachbesserung Review 2: Host-Tests mit Fremdkachel-Tests, gzip-Prüfung, Namen je Schlüssel | `host-20261108-101128` (Commit `3c817b3`, `dirty=0`), 17/17 fmvt, 6/6 fm | `./run.sh host` | ~1 min |
+| Nachbesserung Review 2: Host-Tests mit Fremdkachel-Tests, gzip-Prüfung, Namen je Schlüssel | `host-20261108-101644` (Commit `b216117`, `dirty=0`), 17/17 fmvt, 6/6 fm | `./run.sh host` | ~1 min |
 | Nachbesserung Review 2: Host-Probe Speicher | `store-20261108-101222` (Commit `3c817b3`, `dirty=0`) | `./run.sh store` | < 1 min |
 
 Der erste Emulatorlauf `emu-20261108-001612` ist ungültig (Mitschnitt sah das WLAN nicht, nur Nullen) und wurde abgebrochen.
@@ -91,10 +91,10 @@ Alle Lizenzen sind mit GPL-3.0 verträglich (BSD, MIT, Apache-2.0). „Engine“
 | Dateien außerhalb des verschlüsselten Speichers | 0 | 0 | fm ungepatcht: 12 Klartextdateien; fmvt Standard: 9 Dateien in `support/flutter_map_vector_tiles`, 12 Klartext-Treffer (PBF-Ebenennamen) |
 | ohne Einwilligung | keine Anfrage, Linie ohne Karte | keine Anfrage, Linie ohne Karte | – |
 | Miniatur am Host | 182 ms, 99 kB PNG | 480 × 240, 44,7 kB PNG (angesehen: Tempelhofer Feld, rote Runde korrekt) | – |
-| Dateinamen per URL-Hash zuzuordnen (Nachbesserung, `host-20261108-094737`, wiederholt in `-101128`) | 0 von 1 (HMAC), **nur Speichertest:** eine Datei nach der Verdrängung, künstliche Schlüssel `tile:14/i/0`, nicht die echten `vmt:`-Namen | 0 von 8 (HMAC; 15 URLs angefragt, 8 mit 200 gespeichert) | alte Benennung SHA-256: fm 1 von 1, fmvt 8 von 8 |
-| Name hängt vom Geheimnis ab (Nachbesserung Review 2, `host-20261108-101128`) | nicht geprüft | zwei Speicher mit verschiedenen Schlüsseln: gleicher Eintrag, verschiedene Namen; gleicher Schlüssel findet ihn wieder | – |
+| Dateinamen per URL-Hash zuzuordnen (Nachbesserung, `host-20261108-094737`, wiederholt in `-101644`) | 0 von 1 (HMAC), **nur Speichertest:** eine Datei nach der Verdrängung, künstliche Schlüssel `tile:14/i/0`, nicht die echten `vmt:`-Namen | 0 von 8 (HMAC; 15 URLs angefragt, 8 mit 200 gespeichert) | alte Benennung SHA-256: fm 1 von 1, fmvt 8 von 8 |
+| Name hängt vom Geheimnis ab (Nachbesserung Review 2, `host-20261108-101644`) | nicht geprüft | zwei Speicher mit verschiedenen Schlüsseln: gleicher Eintrag, verschiedene Namen; gleicher Schlüssel findet ihn wieder | – |
 
-Die Nachbesserung `host-20261108-094737` (7/7 fmvt, 6/6 fm bestanden) wiederholt alle Tests oben mit HMAC-Namen; die Zahlen der übrigen Zeilen sind gleich geblieben (fmvt Tor: style 1, tilejson 1, sprite 2, glyph 3, tile 6, other 2; Gegenprobe 9 Dateien außerhalb, 12 Treffer). Dabei sind zwei Schwächen der eigenen Tests aufgefallen und behoben (Fehler 4 und 5 unten). Der Lauf `host-20261108-101128` (17/17 fmvt, 6/6 fm) ergänzt die Fremdkachel-Tests (Abschnitt „Fremdkacheln“) und die strengere gzip-Prüfung (Fehler 7); die Werte oben bleiben gleich.
+Die Nachbesserung `host-20261108-094737` (7/7 fmvt, 6/6 fm bestanden) wiederholt alle Tests oben mit HMAC-Namen; die Zahlen der übrigen Zeilen sind gleich geblieben (fmvt Tor: style 1, tilejson 1, sprite 2, glyph 3, tile 6, other 2; Gegenprobe 9 Dateien außerhalb, 12 Treffer). Dabei sind zwei Schwächen der eigenen Tests aufgefallen und behoben (Fehler 4 und 5 unten). Der Lauf `host-20261108-101644` (17/17 fmvt, 6/6 fm) ergänzt die Fremdkachel-Tests (Abschnitt „Fremdkacheln“) und die strengere gzip-Prüfung (Fehler 7); die Werte oben bleiben gleich.
 
 ### Emulator API 36: Netz (`emu-20261108-003341`, Auswertung `eval.json`)
 Mitschnitt geräteweit über das emulierte Mobilfunknetz (`eth0`), WLAN aus; Positivkontrolle `ping example.com` vor den Phasen im Mitschnitt gesehen. Gegenstellen zugeordnet über DNS-Antworten aus allen Mitschnitten des Laufs, SNI und Cloudflare-Adressbereiche. `tiles.openfreemap.org` löste auf 104.26.6.23, 104.26.7.23, 172.67.74.56 (und die IPv6-Gegenstücke in 2606:4700::/32) auf, alles Cloudflare; jede Cloudflare-Gegenstelle im Lauf außer der Positivkontrolle trägt diesen Namen per DNS und SNI.
@@ -150,7 +150,7 @@ Ohne die Fremdkacheln kosten die 50 Miniaturen 14 Anfragen und 1 833 112 Byte en
 
 **Wie sicher ist die Zuordnung?**
 - **Gemessen:** Die Koordinaten (Hash-Abgleich `src/foreign_tiles.py`, Fenster um Route und Standardzentrum; das Review hat den Block unabhängig davon über alle Kacheln z10–z14 weltweit gefunden). Die Bytebilanz: 12 Kiew-Kacheln 687 784 Byte, davon 340 949 im Nachlauf, Rest 346 835 = genau `net_bytes` der fmvt-Detailphase; Nachlauf 1 568 236 + 340 949 + 350 940 = 2 260 125 = genau `net_bytes`.
-- **Am Host beobachtet (neu, ohne Netz):** Der Host-Test (`host-20261108-101128`, „Fremdkacheln“) zeichnet alle URLs am Tor auf. Eine Karte mit `initialCameraFit` und 480 × 240 fragt genau die 6 Vektorkacheln und die Rasterkachel 6/37/21 aus dem Nachlauf an; damit ist auch die Rasterkachel belegt, die bisher nur vermutet war.
+- **Am Host beobachtet (neu, ohne Netz):** Der Host-Test (`host-20261108-101644`, „Fremdkacheln“) zeichnet alle URLs am Tor auf. Eine Karte mit `initialCameraFit` und 480 × 240 fragt genau die 6 Vektorkacheln und die Rasterkachel 6/37/21 aus dem Nachlauf an; damit ist auch die Rasterkachel belegt, die bisher nur vermutet war.
 - **Erschlossen, nicht beobachtet:** dass es im Emulator derselbe Ablauf war, und die Detailkarte dort. Am Host bei 800 × 600 sind es 13 Kacheln (Block etwas breiter, weil anderes Seitenverhältnis als das Telefon). URLs protokolliert die Mini-App bewusst nicht, neue Emulatorläufe waren nicht im Auftrag.
 
 **Abhilfe am Host geprüft** (Soll-Ausschnitt aus den Routengrenzen, mit einer Kachel Rand je Richtung; `tilesOutside`):
