@@ -74,17 +74,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   )..addListener(_rememberScroll);
 
   StatisticsKind get _kind => _view.kind;
-  String get _anchor => _view.anchor!;
-  String get _from => _view.from!;
-  String get _to => _view.to!;
-
-  @override
-  void initState() {
-    super.initState();
-    _view.anchor ??= _today;
-    _view.from ??= _shift(_today, -6);
-    _view.to ??= _today;
-  }
+  // Ungewählt (null) folgt dem heutigen Tag bei jedem Aufbau; ins Objekt
+  // schreibt nur die Wahl des Nutzers.
+  String get _anchor => _view.anchor ?? _today;
+  String get _from => _view.from ?? _shift(_today, -6);
+  String get _to => _view.to ?? _today;
 
   @override
   void dispose() {

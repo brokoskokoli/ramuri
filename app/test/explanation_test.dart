@@ -403,7 +403,10 @@ void main() {
         text('expl_source_1_gone'),
         'Quelle nicht mehr bekannt (Kennung gone)',
       );
-      expect(text('expl_a3'), '3 verwertbare Läufe');
+      expect(
+        text('expl_a3'),
+        '3 verwertbare Läufe in den 8 Wochen bis zum Stand',
+      );
       expect(text('expl_a5'), 'Qualitätsstufe: ausreichend');
       expect(text('expl_a6'), contains('mehrerer Läufe'));
     });

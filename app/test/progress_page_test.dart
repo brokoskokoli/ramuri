@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/home/app_shell.dart';
 import 'package:running_app/features/statistics/progress_header.dart';
 import 'package:running_app/features/statistics/statistics_screen.dart';
 import 'package:running_app/features/statistics/statistics_view_state.dart';
@@ -82,6 +83,7 @@ void main() {
       final label = barsLabel(tester);
       // Von der aktuellen Woche rückwärts: die Wochenwahl liefert die Summe.
       final heights = <double>[];
+      String? week22;
       for (var back = 0; back < 8; back++) {
         final week = 23 - back;
         final runs = plain('stat_runs_value');
@@ -92,6 +94,7 @@ void main() {
             ? 'KW $week (diese Woche, bisher): $expected'
             : 'KW $week: $expected';
         expect(label, contains(entry), reason: 'Woche $week');
+        if (week == 22) week22 = expected;
         heights.add(tester.getSize(key('week_bar_${7 - back}')).height);
         expect(
           runs == '0',
@@ -116,8 +119,8 @@ void main() {
       expect(label, isNot(contains('KW 15')));
       expect(label, contains('KW 16: 0,00 km'));
       // Fuß: letzte volle Woche (KW 22) mit ihrem Wert.
-      expect(plain('progress_week_last'), startsWith('letzte: '));
-      expect(plain('progress_week_last'), contains(' km'));
+      expect(week22, isNot('0,00 km'));
+      expect(plain('progress_week_last'), 'letzte: $week22');
       handle.dispose();
     });
 
@@ -224,9 +227,12 @@ void main() {
   });
 
   group('alle bisherigen Kennzahlen bleiben (FR-0043, FR-0057)', () {
-    // Stand 5adab5c: alle Schlüssel aus statistics_screen.dart,
-    // statistics_view.dart und fitness_section.dart. Zeilen `id` haben dazu
-    // `id_value`.
+    // Stand 5adab5c: die Schlüssel aus statistics_screen.dart,
+    // statistics_view.dart und fitness_section.dart, die in den Lagen unten
+    // (Woche mit Werten, `perScenario`) sichtbar sind. Nur in anderen Tests
+    // stehen `stat_failed`, `stat_retry` (load_failure_test),
+    // `stat_fitness_failed` (progress_cards_test) und `stat_vo2_zero_weight`
+    // (statistics_test). Zeilen `id` haben dazu `id_value`.
     const rows = [
       'stat_runs',
       'stat_days',
@@ -292,8 +298,7 @@ void main() {
       await calc(d, id);
       await openStats(d, tester);
       final expected = {
-        for (final r in rows)
-          if (r != 'stat_zones') ...[r, '${r}_value'],
+        for (final r in rows) ...[r, '${r}_value'],
         ...others,
       };
       final missing = expected.difference(visible(expected));
@@ -349,6 +354,77 @@ void main() {
       await openToday(tester);
       await openStats(d, tester);
       expect(plain('stat_period_label'), 'Mai 2026');
+    });
+
+    testWidgets('ohne Wahl folgt der Zeitraum der Uhr (Wochenkarte und '
+        'Balken), mit Wahl bleibt er', (tester) async {
+      final d = await started(tester);
+      d.clock.set(DateTime.utc(2026, 6, 3, 12)); // KW 23
+      await seedRun(d.session, DateTime.utc(2026, 6, 1, 8));
+      await seedRun(d.session, DateTime.utc(2026, 6, 19, 8)); // KW 25
+      await openStats(d, tester);
+      final first = plain('stat_period_label');
+      await openHistory(d, tester);
+      d.clock.set(DateTime.utc(2026, 6, 20, 12)); // KW 25
+      await openStats(d, tester);
+      expect(plain('stat_period_label'), isNot(first));
+      expect(plain('stat_runs_value'), '1');
+      expect(plain('progress_week_last'), isNotEmpty);
+
+      // Mit Wahl (eine Woche zurück) bleibt der Zeitraum über Uhr und Tab.
+      await tester.tap(key('stat_prev'));
+      await tester.pumpAndSettle();
+      final chosen = plain('stat_period_label');
+      await openHistory(d, tester);
+      d.clock.set(DateTime.utc(2026, 7, 8, 12));
+      await openStats(d, tester);
+      expect(plain('stat_period_label'), chosen);
+    });
+
+    testWidgets('freier Zeitraum ohne Wahl folgt der Uhr', (tester) async {
+      final d = await started(tester);
+      d.clock.set(DateTime.utc(2026, 6, 10, 12));
+      await openStats(d, tester);
+      await choose(tester, 'custom');
+      String from() =>
+          ((key('stat_from').evaluate().single.widget as OutlinedButton).child!
+                  as Text)
+              .data!;
+      final before = from();
+      await openHistory(d, tester);
+      d.clock.set(DateTime.utc(2026, 6, 20, 12));
+      await openStats(d, tester);
+      expect(from(), isNot(before));
+    });
+
+    testWidgets('Datenmeldung (changes.revision): Zeitraum und Lage bleiben, '
+        'Läufe frisch', (tester) async {
+      final d = await started(tester);
+      d.clock.set(DateTime.utc(2026, 6, 3, 12));
+      await seedRun(d.session, DateTime.utc(2026, 6, 1, 8));
+      await seedRun(d.session, DateTime.utc(2026, 5, 20, 8));
+      await openStats(d, tester);
+      await choose(tester, 'month');
+      await tester.tap(key('stat_prev'));
+      await tester.pumpAndSettle();
+      // Erst jetzt schmal: Die Chips lägen sonst unter der Navigationsleiste.
+      tester.view.physicalSize = const Size(411, 914);
+      await tester.pumpAndSettle();
+      await tester.drag(key('stat_list'), const Offset(0, -500));
+      await tester.pumpAndSettle();
+      final offset = position(tester).pixels;
+      expect(offset, greaterThan(300));
+      expect(plain('stat_runs_value'), '1');
+
+      await seedRun(d.session, DateTime.utc(2026, 5, 22, 8));
+      final shell = tester.widget<AppShell>(find.byType(AppShell));
+      final before = shell.changes.revision;
+      shell.changes.changed();
+      await tester.pumpAndSettle();
+      expect(shell.changes.revision, before + 1);
+      expect(plain('stat_period_label'), 'Mai 2026');
+      expect(plain('stat_runs_value'), '2');
+      expect(position(tester).pixels, closeTo(offset, 0.5));
     });
 
     testWidgets('freier Zeitraum bleibt', (tester) async {

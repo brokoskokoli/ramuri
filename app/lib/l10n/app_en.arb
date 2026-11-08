@@ -451,7 +451,7 @@
   "explAge": "Data from {from} to {to}\nCalculated on {computed}",
   "explAgeNoRange": "The period of the data is not stored.\nCalculated on {computed}",
   "explCountSections": "{count, plural, =1{1 usable section} other{{count} usable sections}}",
-  "explCountRuns": "{count, plural, =1{1 usable run} other{{count} usable runs}}",
+  "explCountRuns": "{count, plural, =0{no usable runs in the last 8 weeks} =1{1 usable run in the 8 weeks up to the as-of date} other{{count} usable runs in the 8 weeks up to the as-of date}}",
   "explCountValues": "{count, plural, =1{1 heart rate value used} other{{count} heart rate values used}}",
   "explSectionsHeading": "Rated sections",
   "explSectionUsed": "From minute {start}, {minutes} min: entered the estimate with weight {weight}",

@@ -15,8 +15,8 @@ const double ramuriSparklineMinSpan = 2.0;
 /// Ist der Abstand zwischen größtem und kleinstem Wert kleiner als [minSpan],
 /// wird die y-Achse auf [minSpan] um die Mitte der Werte geweitet; die Linie
 /// bleibt dann flach. Die Linie nutzt die Aktionsfarbe (Minze), gedacht für
-/// dunkle Karten. [semanticLabel] liefert der Aufrufer (etwa „Trend leicht
-/// steigend“).
+/// dunkle Karten. [semanticLabel] liefert der Aufrufer; er nennt die Werte,
+/// bewertet den Verlauf aber nicht („steigend“ o. Ä.).
 class RamuriSparkline extends StatelessWidget {
   const RamuriSparkline({
     super.key,

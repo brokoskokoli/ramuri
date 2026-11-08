@@ -142,14 +142,13 @@ void main() {
             ),
             locale: locale,
           );
-          final decimal = locale == 'de' ? '46,0' : '46.0';
-          expect(plain(tester, 'progress_vo2'), startsWith(decimal));
-          expect(plain(tester, 'progress_vo2'), endsWith(' ml/kg/min'));
+          // Hero ganzzahlig wie im Design (OQ-0075).
+          expect(plain(tester, 'progress_vo2'), '46 ml/kg/min');
           expect(
             plain(tester, 'progress_vo2_basis'),
             locale == 'de'
-                ? '9 verwertbare Läufe · $de'
-                : '9 usable runs · $en',
+                ? '9 verwertbare Läufe in den 8 Wochen bis zum Stand · $de'
+                : '9 usable runs in the 8 weeks up to the as-of date · $en',
           );
           // Stufen sind Einteilungen, keine Genauigkeit (FR-0054, FR-0072).
           final everything = find
@@ -163,6 +162,89 @@ void main() {
           }
         });
       }
+    }
+
+    testWidgets('Link zur Erklärung: Tippziel mindestens 48 dp', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpCards(
+        tester,
+        overview(longTerm: stored(vo2maxLongTermValueKey, 46.04)),
+      );
+      expect(k('progress_vo2_explain'), findsOneWidget);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      handle.dispose();
+    });
+
+    testWidgets('Zahl 0 verwertbare Läufe im Fenster: eigener Text, kein '
+        '„0 Läufe“ neben dem Wert', (tester) async {
+      for (final (locale, text) in [
+        ('de', 'keine verwertbaren Läufe in den letzten 8 Wochen'),
+        ('en', 'no usable runs in the last 8 weeks'),
+      ]) {
+        await pumpCards(
+          tester,
+          overview(
+            longTerm: stored(
+              vo2maxLongTermValueKey,
+              46.04,
+              quality: ValueQuality.provisional,
+              count: 0,
+            ),
+            weeks: _weeks,
+          ),
+          locale: locale,
+        );
+        expect(plain(tester, 'progress_vo2_basis'), startsWith(text));
+        expect(plain(tester, 'progress_vo2_basis'), isNot(contains('0 ')));
+      }
+    });
+
+    testWidgets('Hero gerundet, Sichten darunter mit einer Stelle', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpCards(
+        tester,
+        overview(
+          longTerm: stored(vo2maxLongTermValueKey, 45.5),
+          weeks: const [('2026-05-25', 44.0), ('2026-06-01', 45.5)],
+        ),
+      );
+      expect(plain(tester, 'progress_vo2'), '46 ml/kg/min');
+      expect(
+        tester.getSemantics(k('progress_vo2_semantics')).label,
+        contains('46 ml/kg/min'),
+      );
+      expect(
+        tester.getSemantics(k('progress_vo2_sparkline')).label,
+        contains('44,0, 45,5 ml/kg/min'),
+      );
+      handle.dispose();
+    });
+
+    for (final (locale, estimate, current, asOf) in [
+      ('de', 'Schätzung', 'Aktuelle langfristige VO₂max-Schätzung', 'Stand '),
+      ('en', 'estimate', 'Current long-term VO₂max estimate', 'As of '),
+    ]) {
+      testWidgets('$locale: langfristiger Wert benannt, mit Datum, in Text '
+          'und Vorlesetext (FR-0081, CON-0009, FR-0067)', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpCards(
+          tester,
+          overview(longTerm: stored(vo2maxLongTermValueKey, 46.04)),
+          locale: locale,
+        );
+        expect(plain(tester, 'progress_vo2_current'), current);
+        expect(plain(tester, 'progress_vo2_asof'), startsWith(asOf));
+        final label = tester.getSemantics(k('progress_vo2_semantics')).label;
+        expect(label, startsWith('VO₂max, $estimate: 46 ml/kg/min'));
+        expect(label, contains(current));
+        expect(label, contains(plain(tester, 'progress_vo2_asof')));
+        expect(label, contains('46 ml/kg/min'));
+        handle.dispose();
+      });
     }
 
     testWidgets(
@@ -221,6 +303,11 @@ void main() {
       );
       final label = tester.getSemantics(k('progress_vo2_sparkline')).label;
       expect(label, contains('44,0, 46,0 ml/kg/min'));
+      // Reihenfolge der Linie: ältester Wert zuerst (Anstieg bleibt Anstieg).
+      expect(
+        tester.widget<RamuriSparkline>(k('progress_vo2_sparkline')).values,
+        [44.0, 46.04],
+      );
       for (final word in ['steigend', 'fallend', 'besser', 'Trend leicht']) {
         expect(label, isNot(contains(word)), reason: word);
       }
@@ -326,7 +413,15 @@ void main() {
         tester,
         overview(efficiency: stored(aerobicEfficiencyValueKey, -3.44)),
       );
-      expect(plain(tester, 'progress_efficiency'), '-3,4 %');
+      expect(plain(tester, 'progress_efficiency'), '\u22123,4 %');
+      // Rundet auf 0,0: weder „-0,0“ noch „+0,0“.
+      for (final v in [-0.04, 0.04]) {
+        await pumpCards(
+          tester,
+          overview(efficiency: stored(aerobicEfficiencyValueKey, v)),
+        );
+        expect(plain(tester, 'progress_efficiency'), '0,0 %', reason: '$v');
+      }
       await pumpCards(
         tester,
         overview(efficiency: stored(aerobicEfficiencyValueKey, 0.0)),
@@ -343,7 +438,36 @@ void main() {
         plain(tester, 'progress_efficiency_reason'),
         'nicht verfügbar (noch kein Wert gespeichert)',
       );
+      // Lesefehler ist nicht „noch kein Wert gespeichert“.
+      await pumpCards(tester, overview(failed: true));
+      expect(
+        plain(tester, 'progress_efficiency_reason'),
+        'Die Fitnesswerte konnten nicht gelesen werden.',
+      );
     });
+
+    for (final (locale, estimated, asOf) in [
+      ('de', 'geschätzt', 'Stand '),
+      ('en', 'estimated', 'As of '),
+    ]) {
+      testWidgets('$locale: Vorlesetext nennt Schätzung und Stand (CON-0009)', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        await pumpCards(
+          tester,
+          overview(efficiency: stored(aerobicEfficiencyValueKey, 5.56)),
+          locale: locale,
+        );
+        final label = tester
+            .getSemantics(k('progress_efficiency_compare'))
+            .label;
+        expect(label, contains(estimated));
+        expect(label, contains(asOf));
+        expect(label, contains(locale == 'de' ? '+5,6 %' : '+5.6 %'));
+        handle.dispose();
+      });
+    }
   });
 
   group('FitnessSection bei Lesefehler', () {

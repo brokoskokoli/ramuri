@@ -166,14 +166,21 @@ class Vo2ProgressCard extends StatelessWidget {
     final german = Localizations.localeOf(context).languageCode == 'de';
     final longTerm = fitness.longTerm;
     final value = longTerm?.value;
+    // Im Hero ganzzahlig wie im Design; die Sichten darunter zeigen eine
+    // Stelle (OQ-0075, Maintainer).
+    String heroText(double v) => v.round().toString();
     final day = fitness.day;
-    final trend = [
-      for (final e in fitness.weeklyLongTerm())
-        fitnessNumber(german, e.value.value!),
-    ];
+    // Eine Liste für Linie und Beschreibung, ältester Wert zuerst.
     final trendValues = [
       for (final e in fitness.weeklyLongTerm()) e.value.value!,
     ];
+    final trend = [for (final v in trendValues) fitnessNumber(german, v)];
+    final material = MaterialLocalizations.of(context);
+    final asOf = day == null
+        ? null
+        : l10n.progressEfficiencyAsOf(
+            material.formatMediumDate(DateTime.parse('${day}T00:00:00Z')),
+          );
 
     return RamuriCard(
       tone: RamuriCardTone.panel,
@@ -208,29 +215,53 @@ class Vo2ProgressCard extends StatelessWidget {
                             style: theme.bodyMedium,
                           )
                         : Semantics(
+                            key: const Key('progress_vo2_semantics'),
                             container: true,
                             excludeSemantics: true,
-                            label: l10n.progressVo2Semantics(
-                              '${fitnessNumber(german, value)} '
-                              '${l10n.progressVo2Unit}',
-                            ),
-                            child: Text.rich(
-                              key: const Key('progress_vo2'),
-                              TextSpan(
-                                children: [
+                            label: [
+                              l10n.progressVo2Semantics(
+                                '${heroText(value)} ${l10n.progressVo2Unit}',
+                              ),
+                              l10n.statVo2Current,
+                              ?asOf,
+                            ].join(', '),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text.rich(
+                                  key: const Key('progress_vo2'),
                                   TextSpan(
-                                    text: fitnessNumber(german, value),
-                                    style: type.hero,
+                                    children: [
+                                      TextSpan(
+                                        text: heroText(value),
+                                        style: type.hero,
+                                      ),
+                                      TextSpan(
+                                        text: ' ${l10n.progressVo2Unit}',
+                                        style: type.unit.copyWith(
+                                          color: c.onPanelSoft,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  TextSpan(
-                                    text: ' ${l10n.progressVo2Unit}',
-                                    style: type.unit.copyWith(
+                                ),
+                                Text(
+                                  l10n.statVo2Current,
+                                  key: const Key('progress_vo2_current'),
+                                  style: theme.bodySmall!.copyWith(
+                                    color: c.onPanelSoft,
+                                  ),
+                                ),
+                                if (asOf != null)
+                                  Text(
+                                    asOf,
+                                    key: const Key('progress_vo2_asof'),
+                                    style: theme.bodySmall!.copyWith(
                                       color: c.onPanelSoft,
-                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                ],
-                              ),
+                              ],
                             ),
                           ),
                   ),
@@ -313,6 +344,11 @@ class EfficiencyCard extends StatelessWidget {
     final shown = value == null
         ? null
         : fitnessNumber(german, value, sign: true);
+    final asOf = day == null
+        ? null
+        : l10n.progressEfficiencyAsOf(
+            material.formatMediumDate(DateTime.parse('${day}T00:00:00Z')),
+          );
 
     return RamuriCard(
       radius: 22,
@@ -326,8 +362,12 @@ class EfficiencyCard extends StatelessWidget {
               container: true,
               label: shown == null
                   ? '${l10n.statEfficiency}: $reason'
-                  : '${l10n.statEfficiency}: $shown %, '
-                        '${l10n.progressEfficiencyCompare}',
+                  : [
+                      '${l10n.statEfficiency}: $shown %',
+                      l10n.progressEfficiencyCompare,
+                      ?asOf,
+                      l10n.uiEstimated,
+                    ].join(', '),
               excludeSemantics: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,13 +399,9 @@ class EfficiencyCard extends StatelessWidget {
                       key: const Key('progress_efficiency_compare'),
                       style: theme.labelMedium!.copyWith(color: c.textMuted),
                     ),
-                    if (day != null)
+                    if (asOf != null)
                       Text(
-                        l10n.progressEfficiencyAsOf(
-                          material.formatMediumDate(
-                            DateTime.parse('${day}T00:00:00Z'),
-                          ),
-                        ),
+                        asOf,
                         style: theme.labelMedium!.copyWith(color: c.textMuted),
                       ),
                     const SizedBox(height: 4),

@@ -17,6 +17,7 @@ class StatisticsViewState {
   String? to;
   int? runId;
 
-  /// Scrollposition der Liste; die Seite klemmt sie auf den neuen Inhalt.
+  /// Scrollposition der Liste; ein kürzerer Inhalt begrenzt sie beim ersten
+  /// Layout selbst auf sein Ende.
   double scrollOffset = 0;
 }

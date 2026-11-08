@@ -286,9 +286,10 @@ void main() {
     ) async {
       await withEstimate(tester);
       expect(find.text('VO₂max-Schätzung aus einem Lauf'), findsOneWidget);
+      // Einmal in der VO₂max-Karte (WP15), einmal in der Fitnessgruppe.
       expect(
         find.text('Aktuelle langfristige VO₂max-Schätzung'),
-        findsOneWidget,
+        findsNWidgets(2),
       );
       expect(find.text('Verlauf der VO₂max-Schätzung'), findsWidgets);
       final estimate = RegExp(r'\d+,\d ml/kg/min \(Schätzung\)');
@@ -339,7 +340,7 @@ void main() {
           quality: ValueQuality.good,
         );
 
-    for (final (value, shown) in [(2.5, '+2,5'), (-3.4, '-3,4')]) {
+    for (final (value, shown) in [(2.5, '+2,5'), (-3.4, '\u22123,4')]) {
       testWidgets('gespeicherte aerobe Effizienz $shown: Vorzeichen, %, Datum, '
           'keine VO₂max-Einheit', (tester) async {
         final d = await started(tester);
