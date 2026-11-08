@@ -11,6 +11,7 @@ RunPreprocessing _run(
   (int, int)? noPosition,
   (int, int)? pause,
   bool heartRate = true,
+  int tail = 0,
 }) {
   final pre = RunPreprocessor(
     start: _start,
@@ -47,7 +48,7 @@ RunPreprocessing _run(
     }
     metres += 3.0;
   }
-  return pre.result(at: _start.add(Duration(seconds: seconds)));
+  return pre.result(at: _start.add(Duration(seconds: seconds + tail)));
 }
 
 Duration _sum(KilometerSplits s) =>
@@ -87,10 +88,12 @@ void main() {
     final s = computeKilometerSplits(pre);
     expect(pre.movement.movingTime, lessThan(pre.movement.totalTime));
     expect(_sum(s), pre.movement.movingTime);
-    // Die Pause zählt nicht zur Pace (der erste Schritt nach dem Fortsetzen
-    // trägt keine Strecke, daher gut 1 s Abweichung).
-    for (final e in s.splits) {
-      expect(e.paceSecondsPerKm, closeTo(333.3, 2));
+    // Die Pause zählt nicht zur Pace. Die Sekunde zwischen dem letzten Punkt
+    // (s 299) und der Pause (s 300) trägt keine Strecke: Der erste Kilometer
+    // braucht 1 s mehr, alle anderen exakt 3 m/s.
+    expect(s.splits.first.paceSecondsPerKm, closeTo(334.33, 0.01));
+    for (final e in s.splits.skip(1)) {
+      expect(e.paceSecondsPerKm, closeTo(333.33, 0.01));
     }
   });
 
@@ -107,7 +110,7 @@ void main() {
       ];
       expect(flagged, [1]);
       // Pace ohne Lückenzeit (K20), nicht von der Lücke verfälscht.
-      expect(s.splits.first.paceSecondsPerKm, closeTo(333.3, 15));
+      expect(s.splits.first.paceSecondsPerKm, closeTo(333.33, 0.01));
       expect(s.splits.first.time, greaterThan(const Duration(seconds: 400)));
       expect(s.splits[1].hasPositionGap, isFalse);
     },
@@ -193,6 +196,53 @@ void main() {
     expect(s.splits.length, 3);
     expect(s.splits.every((e) => !e.isPartial), isTrue);
     expect(_sum(s), pre.movement.movingTime);
+  });
+
+  test('genau voller letzter Kilometer mit Bewegungszeit danach', () {
+    // Der letzte Punkt liegt bei 3000 m; der Lauf geht danach noch 20 s weiter
+    // (Zeit ohne neue Strecke). Die Summe bleibt die Bewegungszeit.
+    final pre = _run(1000, tail: 20);
+    final bare = _run(1000);
+    expect(
+      pre.movement.movingTime,
+      greaterThan(bare.movement.movingTime),
+      reason: 'die Zeit danach zählt als Bewegung',
+    );
+    final s = computeKilometerSplits(pre);
+    expect(_sum(s), pre.movement.movingTime);
+  });
+
+  test('Puls im Stillstand ohne Autopause zählt nicht zum Kilometermittel', () {
+    final pre = RunPreprocessor(
+      start: _start,
+      parameters: const PreprocessingParameters.v4(),
+    );
+    // 100 s mit 3 m/s bei 150 bpm, dann 60 s Stillstand; der Puls steigt dabei
+    // langsam (0,5 bpm/s), damit ihn der Ausreißerfilter nicht verwirft.
+    for (var i = 0; i <= 160; i++) {
+      final t = _start.add(Duration(seconds: i));
+      pre.addPosition(
+        RawPosition(
+          time: t,
+          source: 'gps',
+          latitude: 10 + (i < 100 ? i : 100) * 3.0 / _mPerDeg,
+          longitude: 20,
+          accuracyMeters: 5,
+        ),
+      );
+      pre.addHeartRate(
+        RawHeartRate(
+          time: t,
+          source: 'strap',
+          bpm: i < 100 ? 150 : 150 + (i - 100) ~/ 2,
+          contact: SensorContact.good,
+        ),
+      );
+    }
+    final r = pre.result(at: _start.add(const Duration(seconds: 160)));
+    expect(r.heartRate.acceptedValues.last.bpm, greaterThan(170));
+    final s = computeKilometerSplits(r);
+    expect(s.splits.single.heartRateAverageBpm, closeTo(150, 1));
   });
 
   test('unter einem Kilometer: nur der angebrochene Abschnitt', () {

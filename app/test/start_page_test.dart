@@ -103,7 +103,7 @@ void main() {
       final d = Device()..cadence = FakeCadenceSensor();
       await openStart(d, tester);
       expect(find.text('Bereit?'), findsOneWidget);
-      expect(key('start_gps_ready'), findsOneWidget);
+      expect(key('start_gps_searching'), findsOneWidget);
       expect(find.text('Pulssensor'), findsOneWidget);
       expect(key('start_sensor_pair'), findsOneWidget);
       expect(find.text('Handy-Sensor'), findsOneWidget);
@@ -165,6 +165,152 @@ void main() {
         expect(d.location.hasListeners, false);
       });
     }
+    testWidgets('erstes Los startet, auch wenn der Systemdialog zurückkehrt', (
+      tester,
+    ) async {
+      // Der Dialog der Benachrichtigungen schickt die App kurz in den
+      // Hintergrund; die Rückkehr darf den laufenden Start nicht abbrechen.
+      final d = Device();
+      d.requestNotifications = () async {
+        for (final s in [
+          AppLifecycleState.inactive,
+          AppLifecycleState.paused,
+          AppLifecycleState.hidden,
+          AppLifecycleState.inactive,
+          AppLifecycleState.resumed,
+        ]) {
+          tester.binding.handleAppLifecycleStateChanged(s);
+        }
+      };
+      await openStart(d, tester);
+      await go(tester);
+      expect(find.byType(LiveRunView), findsOneWidget);
+    });
+
+    testWidgets('Rückkehr aus den Einstellungen liest den Stand neu', (
+      tester,
+    ) async {
+      final d = Device();
+      d.locationAccess.current = LocationAccess.denied;
+      await openStart(d, tester);
+      expect(key('start_gps_blocked'), findsOneWidget);
+      d.locationAccess.current = LocationAccess.precise;
+      for (final s in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
+      await tester.pumpAndSettle();
+      expect(key('start_gps_blocked'), findsNothing);
+      expect(key('run_start_ready'), findsOneWidget);
+    });
+  });
+
+  group('GPS-Zustand der Seite (FR-0210)', () {
+    LocationSample sample(double? accuracy) => LocationSample(
+      time: DateTime.utc(2026, 6, 1),
+      latitude: 50,
+      longitude: 8,
+      accuracyMeters: accuracy,
+    );
+
+    testWidgets('ohne Punkt: Sucht; Genauigkeit bis zur Schwelle: gut', (
+      tester,
+    ) async {
+      final d = Device();
+      await openStart(d, tester);
+      expect(key('start_gps_searching'), findsOneWidget);
+      expect(find.text('Sucht Signal'), findsOneWidget);
+      d.location.emit(sample(10));
+      await tester.pumpAndSettle();
+      expect(key('start_gps_good'), findsOneWidget);
+      expect(find.text('Signal gut'), findsOneWidget);
+      // Schwelle PAR (positionMaxAccuracyMeters): 25 m zählt noch, mehr nicht.
+      d.location.emit(sample(25));
+      await tester.pumpAndSettle();
+      expect(key('start_gps_good'), findsOneWidget);
+      d.location.emit(sample(25.5));
+      await tester.pumpAndSettle();
+      expect(key('start_gps_searching'), findsOneWidget);
+      d.location.emit(sample(null));
+      await tester.pumpAndSettle();
+      expect(key('start_gps_searching'), findsOneWidget);
+    });
+
+    testWidgets('ein Fehler im Strom setzt auf Sucht und sperrt nichts', (
+      tester,
+    ) async {
+      final d = Device();
+      await openStart(d, tester);
+      d.location.emit(sample(5));
+      await tester.pumpAndSettle();
+      d.location.fail(const LocationSourceFailure(LocationFailureReason.other));
+      await tester.pumpAndSettle();
+      expect(key('start_gps_searching'), findsOneWidget);
+      expect(key('run_start_ready'), findsOneWidget);
+    });
+
+    testWidgets('Los geht auch ohne Signal', (tester) async {
+      final d = Device();
+      await openStart(d, tester);
+      await go(tester);
+      expect(find.byType(LiveRunView), findsOneWidget);
+    });
+
+    testWidgets('nur bei vorhandenem Recht: gesperrt hört niemand zu', (
+      tester,
+    ) async {
+      final d = Device();
+      d.locationAccess.current = LocationAccess.denied;
+      await openStart(d, tester);
+      expect(d.location.hasListeners, isFalse);
+    });
+
+    testWidgets('Recht entzogen: gesperrt, der Strom endet', (tester) async {
+      final d = Device();
+      await openStart(d, tester);
+      expect(d.location.hasListeners, isTrue);
+      d.locationAccess.current = LocationAccess.denied;
+      for (final s in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
+      await tester.pumpAndSettle();
+      expect(key('start_gps_blocked'), findsOneWidget);
+      expect(d.location.hasListeners, isFalse);
+    });
+
+    testWidgets('bereit: Strom läuft; beim Verlassen der Seite beendet', (
+      tester,
+    ) async {
+      final d = Device();
+      await openStart(d, tester);
+      expect(d.location.hasListeners, isTrue);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(LiveRunView), findsNothing);
+      expect(d.location.hasListeners, isFalse);
+    });
+
+    testWidgets('mit Los ist der Seitenstrom beendet, der Lauf hört zu', (
+      tester,
+    ) async {
+      // Die Quelle kennt nur einen Zuhörer: der Lauf übernimmt allein.
+      final d = Device();
+      await openStart(d, tester);
+      await go(tester);
+      expect(d.location.hasListeners, isTrue);
+      expect(d.location.peakListeners, 1);
+    });
   });
 
   group('Autopause (FR-0029, FR-0210)', () {
@@ -186,7 +332,7 @@ void main() {
       final d = Device();
       await openStart(d, tester);
       await tester.tap(key('start_autopause'));
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(switchValue(tester), true);
       expect(await d.session.settings.get(SettingKeys.autoPause), '1');
       await go(tester);
@@ -199,7 +345,7 @@ void main() {
       final d = Device();
       await openStart(d, tester);
       await tester.tap(key('start_autopause'));
-      await tester.pump();
+      await tester.pumpAndSettle();
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       await tester.tap(key('home_start_run'));
@@ -243,7 +389,7 @@ void main() {
       d.storageOverride = _AutoPauseFailStorage(d.storage, failSet: true);
       await openStart(d, tester);
       await tester.tap(key('start_autopause'));
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(switchValue(tester), true);
       await go(tester);
       expect(runAutoPause(tester), true);

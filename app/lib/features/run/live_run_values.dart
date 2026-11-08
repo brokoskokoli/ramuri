@@ -47,7 +47,12 @@ class LiveValueText extends StatelessWidget {
         children: [
           TextSpan(text: value, style: valueStyle),
           if (unit != null)
-            TextSpan(text: ' ${unbreakableUnit(unit)}', style: unitStyle),
+            TextSpan(
+              text: ' ${unbreakableUnit(unit)}',
+              // Der Wortverbinder soll nicht in der Sprachausgabe landen.
+              semanticsLabel: ' $unit',
+              style: unitStyle,
+            ),
         ],
       ),
       key: Key(id),
@@ -361,6 +366,7 @@ class _Header extends StatelessWidget {
     final c = RamuriColors.of(context);
     final text = Theme.of(context).textTheme;
     final run = controller.sensors;
+    final autoPaused = controller.snapshot.phase == RecordingPhase.autoPaused;
     Widget chips(RunSensorStatus? status) {
       final pulse = switch (status) {
         RunSensorStatus.connected => (l10n.livePulseConnected, true),
@@ -394,7 +400,11 @@ class _Header extends StatelessWidget {
     }
 
     final label = Text(
-      paused ? l10n.runPausedBanner : l10n.liveStateRunning,
+      paused
+          ? l10n.runPausedBanner
+          : autoPaused
+          ? l10n.liveStateAutoPaused
+          : l10n.liveStateRunning,
       key: paused ? const Key('run_banner_paused') : const Key('live_state'),
       style: text.labelMedium?.copyWith(
         fontWeight: FontWeight.w800,

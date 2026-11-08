@@ -589,6 +589,7 @@ class LiveRoundButton extends StatelessWidget {
       button: true,
       enabled: onPressed != null,
       label: semanticLabel,
+      onTap: onPressed,
       excludeSemantics: true,
       child: Opacity(
         opacity: onPressed == null ? 0.4 : 1,

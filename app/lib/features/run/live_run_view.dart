@@ -543,7 +543,7 @@ class _Tabs extends StatelessWidget {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(4),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -556,23 +556,31 @@ class _Tabs extends StatelessWidget {
                     key: Key('run_tab_$i'),
                     behavior: HitTestBehavior.opaque,
                     onTap: () => onSelected(i),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: i == selected ? c.panel : null,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: SizedBox(
-                        height: 40,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Center(
-                            child: Text(
-                              labels[i],
-                              style: text.labelLarge?.copyWith(
-                                color: i == selected ? c.action : c.text,
-                                fontWeight: i == selected
-                                    ? FontWeight.w800
-                                    : FontWeight.w700,
+                    // Tippfläche 48 dp (FR-0205); sichtbar bleiben 40 dp.
+                    child: SizedBox(
+                      height: 48,
+                      child: Center(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: i == selected ? c.panel : null,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: SizedBox(
+                            height: 40,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  labels[i],
+                                  style: text.labelLarge?.copyWith(
+                                    color: i == selected ? c.action : c.text,
+                                    fontWeight: i == selected
+                                        ? FontWeight.w800
+                                        : FontWeight.w700,
+                                  ),
+                                ),
                               ),
                             ),
                           ),

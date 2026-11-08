@@ -66,6 +66,8 @@ const textPairs = <(String, String)>[
   ('textMuted', 'tint'),
   ('textMuted', 'accentPanel'),
   ('textMuted', 'track'),
+  ('text', 'segmentTrack'),
+  ('textMuted', 'segmentTrack'),
   ('textSoft', 'accentPanel'),
   ('textLabel', 'background'),
   ('textLabel', 'surface'),

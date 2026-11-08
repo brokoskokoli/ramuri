@@ -326,23 +326,6 @@ class RunController extends ChangeNotifier {
   void _callStop(RecordingServicePort s) =>
       unawaited(s.stop().then((_) {}, onError: (Object _) {}));
 
-  /// Schaltet die Autopause und merkt sie dauerhaft (FR-0029). Ein
-  /// Speicherfehler ändert die laufende Aufzeichnung nicht.
-  Future<void> setAutoPause(bool enabled) async {
-    _autoPause = enabled;
-    _recorder.setAutoPause(enabled);
-    _update();
-    try {
-      await storage.settings.set(
-        SettingKeys.autoPause,
-        enabled ? '1' : '0',
-        at: clock.now(),
-      );
-    } on Object {
-      // Nur das Merken scheitert; der Lauf bleibt wie eingestellt.
-    }
-  }
-
   Future<void> pause() => _command(_recorder.pause);
   Future<void> resume() => _command(_recorder.resume);
   Future<void> lap() => _command(_recorder.lap);

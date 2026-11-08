@@ -1,5 +1,5 @@
 /// Wortverbinder (U+2060): Eine Einheit wie `min/km` bricht nicht am „/“ um.
-const String _joiner = '⁠';
+const String _joiner = '\u2060';
 
 /// Einheit so gesetzt, dass sie in einem Stück bleibt (Schriftfaktor 1,3,
 /// schmales Display).

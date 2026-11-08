@@ -72,6 +72,16 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   bool _autoPauseTouched = false;
   late Future<void> _autoPauseLoaded;
 
+  /// GPS-Zustand der Seite (FR-0210): Genauigkeit des letzten Punkts. Nur eine
+  /// Anzeige; es wird nichts gespeichert und nie gesperrt. Der Strom läuft nur,
+  /// solange die Seite bereit ist (Recht und Dienst vorhanden).
+  StreamSubscription<LocationSample>? _gpsSub;
+  bool _gpsGood = false;
+
+  /// Ein Start läuft (Abfragen im Startweg): Der Lebenszyklus prüft dann nicht
+  /// neu, sonst verwirft er den Start beim Zurück vom Systemdialog.
+  bool _starting = false;
+
   /// Quelle der Schrittfrequenz; `null`, solange sie noch nicht gelesen ist.
   CadenceAvailability? _cadenceAvailability;
 
@@ -153,6 +163,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _stopGps();
     _controller?.dispose();
     super.dispose();
   }
@@ -161,21 +172,58 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Zurück aus Systemdialog oder Einstellungen: Stand neu lesen, ohne zu
     // fragen. Das ersetzt auch eine verlorene Antwort auf die Anfrage.
-    if (state == AppLifecycleState.resumed && _controller == null) {
+    if (state == AppLifecycleState.resumed &&
+        _controller == null &&
+        !_starting) {
       _check(askUser: false, autoStart: false);
     }
+  }
+
+  /// Hört auf die Standortpunkte, nur um die Genauigkeit anzuzeigen. Die
+  /// Punkte selbst werden weder gehalten noch geloggt.
+  void _startGps() {
+    if (_gpsSub != null) return;
+    _gpsGood = false;
+    _gpsSub = widget.ports.location.samples().listen(
+      (sample) {
+        final accuracy = sample.accuracyMeters;
+        final good =
+            accuracy != null &&
+            accuracy >= 0 &&
+            accuracy <=
+                const PreprocessingParameters.v4().positionMaxAccuracyMeters;
+        if (good != _gpsGood && mounted) setState(() => _gpsGood = good);
+      },
+      onError: (Object _) {
+        if (_gpsGood && mounted) setState(() => _gpsGood = false);
+      },
+    );
+  }
+
+  /// Beendet den Strom. Die Abmeldung geht sofort als Kanalnachricht hinaus,
+  /// vor der Anmeldung des Laufs: Die Quelle kennt nur einen Zuhörer, und die
+  /// Nachrichten eines Kanals bleiben in ihrer Reihenfolge. Darauf zu warten
+  /// wäre nicht nötig.
+  void _stopGps() {
+    final sub = _gpsSub;
+    _gpsSub = null;
+    _gpsGood = false;
+    if (sub != null) unawaited(sub.cancel());
   }
 
   /// Nur der Weg von der Startschaltfläche der Startseite startet sofort. Nach
   /// einer Blockade, Einstellungen oder einer anderen App wartet der Lauf auf
   /// das Tippen: Minuten später soll er nicht von selbst beginnen.
   Future<void> _check({required bool askUser, required bool autoStart}) async {
+    // Ein zweites „Los“ während des Starts tut nichts.
+    if (autoStart && _starting) return;
     final gen = ++_generation;
     setState(() => _checking = true);
     final result = await RecordingStartGate(widget.ports.access)
         .check(askUser: askUser);
     if (!mounted || gen != _generation) return;
     if (!result.canStart) {
+      _stopGps();
       setState(() {
         _block = result.block;
         _ready = false;
@@ -189,13 +237,32 @@ class _RunFlowScreenState extends State<RunFlowScreen>
         _ready = true;
         _checking = false;
       });
+      _startGps();
       return;
     }
-    await _autoPauseLoaded;
-    await _askNotifications();
-    await _askActivityRecognition();
-    if (!mounted || gen != _generation) return;
-    final controller = RunController(
+    _starting = true;
+    final RunController controller;
+    try {
+      await _autoPauseLoaded;
+      await _askNotifications();
+      await _askActivityRecognition();
+      if (!mounted || gen != _generation) return;
+      _stopGps();
+      controller = _newController();
+    } finally {
+      _starting = false;
+    }
+    setState(() {
+      _controller = controller;
+      _block = null;
+      _ready = false;
+      _checking = false;
+    });
+    await controller.start();
+  }
+
+  RunController _newController() {
+    return RunController(
       clock: widget.clock,
       storage: widget.session,
       location: widget.ports.location,
@@ -207,13 +274,6 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       tickEvery: widget.tickEvery,
       serialize: widget.serialize,
     );
-    setState(() {
-      _controller = controller;
-      _block = null;
-      _ready = false;
-      _checking = false;
-    });
-    await controller.start();
   }
 
   /// ADR-0005 Punkt 2: fragen, aber nie blockieren (Ablehnung, Fehler, Abbruch).
@@ -369,12 +429,19 @@ class _RunFlowScreenState extends State<RunFlowScreen>
             textAlign: TextAlign.end,
           )
         : _ready
-        ? Text(
-            l10n.startGpsReady,
-            key: const Key('start_gps_ready'),
-            style: text.labelMedium!.copyWith(color: c.accent),
-            textAlign: TextAlign.end,
-          )
+        ? _gpsGood
+              ? Text(
+                  l10n.startGpsGood,
+                  key: const Key('start_gps_good'),
+                  style: text.labelMedium!.copyWith(color: c.accent),
+                  textAlign: TextAlign.end,
+                )
+              : Text(
+                  l10n.startGpsSearching,
+                  key: const Key('start_gps_searching'),
+                  style: text.labelMedium,
+                  textAlign: TextAlign.end,
+                )
         : Text(
             l10n.startGpsBlocked,
             key: const Key('start_gps_blocked'),

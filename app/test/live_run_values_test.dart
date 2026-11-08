@@ -23,10 +23,12 @@ Future<void> openRun(
   bool viaSensors = false,
   List<String> ids = const [],
   bool profile = true,
+  Future<void> Function()? before,
 }) async {
   d.runViaSensors = viaSensors;
   await d.start(tester, const Locale('de'));
   await d.skipSetup(tester);
+  await before?.call();
   if (profile) {
     await d.session.profile.save(
       const ProfileRecord(maxHeartRateBpm: 190, restingHeartRateBpm: 60),
@@ -219,6 +221,98 @@ void main() {
     });
   });
 
+  group('Autopause und Bedienung (FR-0028, FR-0029)', () {
+    Future<void> standStill(Device d, WidgetTester tester, int seconds) async {
+      for (var i = 0; i < seconds; i++) {
+        d.clock.advance(const Duration(seconds: 1));
+        d.location.emit(
+          LocationSample(
+            time: d.clock.now(),
+            latitude: 50 + 20 * 0.000027,
+            longitude: 8,
+            accuracyMeters: 5,
+          ),
+        );
+        await tester.pump(const Duration(seconds: 1));
+      }
+    }
+
+    Future<Device> autoPaused(WidgetTester tester) async {
+      final d = Device();
+      await openRun(
+        d,
+        tester,
+        before: () => d.session.settings.set(
+          SettingKeys.autoPause,
+          '1',
+          at: d.clock.now(),
+        ),
+      );
+      await walk(d, tester, 20);
+      await standStill(d, tester, 30);
+      return d;
+    }
+
+    testWidgets('Autopause: Kopfzeile sagt Autopause, nicht „Läuft“', (
+      tester,
+    ) async {
+      await autoPaused(tester);
+      expect(key('run_banner_autopaused'), findsOneWidget);
+      expect(text('live_state'), 'Autopause');
+      expect(find.text('Läuft'), findsNothing);
+    });
+
+    testWidgets('Autopause: Pause und Runde, kein Weiter/Beenden; Pause '
+        'führt zu Beenden', (tester) async {
+      await autoPaused(tester);
+      expect(key('run_pause'), findsOneWidget);
+      expect(key('run_lap'), findsOneWidget);
+      expect(key('run_resume'), findsNothing);
+      expect(key('run_finish'), findsNothing);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      expect(text('run_banner_paused'), 'Pausiert');
+      expect(key('run_resume'), findsOneWidget);
+      expect(key('run_finish'), findsOneWidget);
+      await tester.tap(key('run_finish'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_finish_confirm'));
+      await tester.pumpAndSettle();
+      expect(find.text('Lauf beendet'), findsOneWidget);
+    });
+
+    testWidgets('Pause, Runde und Beenden haben die Tipp-Aktion', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final d = Device();
+      await openRun(d, tester);
+      await walk(d, tester, 5);
+      bool canTap(String k) => tester
+          .getSemantics(key(k))
+          .getSemanticsData()
+          .hasAction(SemanticsAction.tap);
+      expect(canTap('run_pause'), isTrue);
+      expect(canTap('run_lap'), isTrue);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      expect(canTap('run_finish'), isTrue);
+      expect(canTap('run_resume'), isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('Sprachausgabe: Einheit ohne Wortverbinder', (tester) async {
+      final handle = tester.ensureSemantics();
+      final d = Device();
+      await openRun(d, tester);
+      await walk(d, tester, 30);
+      final label = tester.getSemantics(key('run_avg_pace')).label;
+      expect(label, contains('min/km'));
+      expect(label, isNot(contains('\u2060')));
+      handle.dispose();
+    });
+  });
+
   group('Beenden (FR-0028)', () {
     testWidgets('ohne Bestätigung beendet nichts, Pause bleibt', (
       tester,
@@ -383,7 +477,7 @@ void main() {
             final buttons = paused
                 ? ['run_resume', 'run_finish']
                 : ['run_lap', 'run_pause'];
-            for (final k in buttons) {
+            for (final k in [...buttons, 'run_tab_0', 'run_tab_1']) {
               final r = tester.getRect(key(k));
               expect(r.width, greaterThanOrEqualTo(48), reason: k);
               expect(r.height, greaterThanOrEqualTo(48), reason: k);
