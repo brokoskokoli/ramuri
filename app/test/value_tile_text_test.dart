@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/l10n/app_localizations_de.dart';
+import 'package:running_app/l10n/app_localizations_en.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
@@ -26,7 +27,7 @@ Widget _app(Widget body, {required double scale, required Size size}) =>
         data: MediaQueryData(size: size, textScaler: TextScaler.linear(scale)),
         child: Scaffold(
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20), // wie die Zusammenfassung
             child: body,
           ),
         ),
@@ -43,23 +44,29 @@ Iterable<TextSpan> _leaves(TextSpan span, [TextStyle? parent]) sync* {
 }
 
 void main() {
-  final l10n = AppLocalizationsDe();
-  final texts = {
-    'best': l10n.sumBestPaceNone,
-    'hr': l10n.sumNoHeartRate,
-    'load': l10n.runZoneNoBasis,
-    'stored': l10n.sumLoadNotStored,
-    'plain': l10n.runUnavailable,
-  };
-
-  for (final (width, scale) in [
-    (411.0, 1.0),
-    (360.0, 1.0),
-    (320.0, 1.0),
-    (411.0, 1.3),
-    (360.0, 2.0),
-  ]) {
-    testWidgets('echte Schrift, ${width.round()} dp, Faktor $scale: '
+  final variants = [
+    for (final (lang, l10n) in <(String, AppLocalizations)>[
+      ('de', AppLocalizationsDe()),
+      ('en', AppLocalizationsEn()),
+    ])
+      for (final (width, scale) in [
+        (411.0, 1.0),
+        (360.0, 1.0),
+        (320.0, 1.0),
+        (411.0, 1.3),
+        (360.0, 2.0),
+      ])
+        (lang, l10n, width, scale),
+  ];
+  for (final (lang, l10n, width, scale) in variants) {
+    final texts = {
+      'best': l10n.sumBestPaceNone,
+      'hr': l10n.sumNoHeartRate,
+      'load': l10n.runZoneNoBasis,
+      'stored': l10n.sumLoadNotStored,
+      'plain': l10n.runUnavailable,
+    };
+    testWidgets('echte Schrift, $lang, ${width.round()} dp, Faktor $scale: '
         'Ersatztext klein, Grund eigene Zeile, kein Bruch im Wort', (
       tester,
     ) async {
@@ -91,6 +98,15 @@ void main() {
           size: size,
         ),
       );
+      // Bei Faktor 1,0 und mindestens 360 dp bleibt es wie im Design bei drei
+      // Spalten, auch wenn alle Ersatztexte gleichzeitig stehen.
+      if (scale == 1.0 && width >= 360) {
+        final lefts = {
+          for (final t in tester.widgetList(find.byType(RamuriValueTile)))
+            tester.getTopLeft(find.byWidget(t)).dx.round(),
+        };
+        expect(lefts.length, 3, reason: 'Spalten bei ${width.round()} dp');
+      }
       final numberHeight = tester
           .getSize(find.byKey(const Key('number')))
           .height;
@@ -122,10 +138,12 @@ void main() {
         )..layout(maxWidth: paragraph.size.width);
         final metrics = lines.computeLineMetrics();
         lines.dispose();
-        // Keine sechszeilige Kachel; die Aussage allein steht in einer Zeile.
+        // Höchstens vier Zeilen je Kachel.
         expect(
           metrics.length,
-          lessThanOrEqualTo(e.key == 'plain' ? 1 : 4),
+          // Die Aussage allein bricht in drei schmalen Spalten zwischen den
+          // Wörtern („nicht / verfügbar“), nie mitten im Wort.
+          lessThanOrEqualTo(e.key == 'plain' ? 2 : 4),
           reason: e.key,
         );
         // Kleiner als der Zahlenwert (Sora 22 sp).

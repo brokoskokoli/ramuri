@@ -605,12 +605,9 @@ class _HeartCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            // Ohne Zone sagt schon der Text „Zone nicht verfügbar“; der Balken
+            // Der Text daneben sagt die Zone in jedem Fall; der Balken
             // wiederholt es nicht für die Sprachausgabe.
-            ZoneMeter(
-              zone: zoneNumber,
-              semanticLabel: zoneNumber == null ? '' : zoneText,
-            ),
+            ZoneMeter(zone: zoneNumber, semanticLabel: ''),
           ],
         ),
       ),

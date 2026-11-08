@@ -119,6 +119,11 @@ void main() {
         2,
         reason: 'Zonenanzeige zeigt Zone 2',
       );
+      expect(
+        tester.widget<ZoneMeter>(find.byType(ZoneMeter)).semanticLabel,
+        isEmpty,
+        reason: 'der Text sagt „Zone 2“ schon; der Balken nicht noch einmal',
+      );
       expect(text('run_ascent'), matches(RegExp(r'^\d+ m$')));
       expect(text('run_cadence'), '172 spm');
       expect(find.text('Runde 1: 1:01'), findsOneWidget);
@@ -457,7 +462,7 @@ void main() {
             await tester.pump(const Duration(seconds: 1));
           }
           expect(tester.takeException(), isNull);
-          final viewport = tester.getRect(find.byType(Scrollable).first);
+          final viewport = tester.getRect(find.byType(ListView).first);
           final controlsTop = tester.getRect(key('run_pause')).top;
           for (final k in [
             'run_time',

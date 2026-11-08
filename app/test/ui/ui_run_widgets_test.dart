@@ -128,6 +128,10 @@ void main() {
           tester.getSize(find.byKey(Key('zone_meter_$i'))).width,
       };
       expect(widths.length, 1);
+      // Die Stücke sind sichtbar hoch (nicht 0 dp, weil die Row zentriert).
+      for (var i = 1; i <= 5; i++) {
+        expect(tester.getSize(find.byKey(Key('zone_meter_$i'))).height, 10);
+      }
       expect(find.bySemanticsLabel('Zone 2 von 5'), findsOneWidget);
     });
 

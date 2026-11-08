@@ -164,7 +164,7 @@ void main() {
     // Alter Lauf ohne gespeicherte Zonen/TRIMP.
     expect(
       text('sum_zones_unavailable'),
-      'nicht verfügbar (für diesen Lauf nicht gespeichert)',
+      'nicht verfügbar (nicht gespeichert)',
     );
     expect(text('sum_trimp'), contains('nicht gespeichert'));
   });

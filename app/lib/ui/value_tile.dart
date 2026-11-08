@@ -126,8 +126,9 @@ class RamuriValueTile extends StatelessWidget {
   }
 }
 
-/// Raster der Wertkacheln: drei Spalten, bei großer Schrift oder schmalem
-/// Display zwei. Die Kacheln einer Reihe sind gleich hoch.
+/// Raster der Wertkacheln: drei Spalten wie im Design (auch auf 360 dp mit
+/// 20 dp Seitenrand), bei großer Schrift oder unter 300 dp Breite zwei. Die
+/// Kacheln einer Reihe sind gleich hoch.
 class RamuriTileGrid extends StatelessWidget {
   const RamuriTileGrid({super.key, required this.children, this.gap = 8});
 
@@ -139,7 +140,7 @@ class RamuriTileGrid extends StatelessWidget {
     final scaled = MediaQuery.textScalerOf(context).scale(16) / 16 > 1.15;
     return LayoutBuilder(
       builder: (context, constraints) {
-        var columns = scaled || constraints.maxWidth < 340 ? 2 : 3;
+        var columns = scaled || constraints.maxWidth < 300 ? 2 : 3;
         // Passt ein Wort der Ersatztexte nicht in die schmale Spalte, bricht es
         // mitten im Wort: dann weniger Spalten.
         while (columns > 1 &&

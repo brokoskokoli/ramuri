@@ -34,6 +34,7 @@ class ZoneMeter extends StatelessWidget {
         child: SizedBox(
           height: height,
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (var i = 1; i <= 5; i++) ...[
                 if (i > 1) const SizedBox(width: 4),
