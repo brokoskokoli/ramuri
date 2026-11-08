@@ -2,6 +2,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_card.dart';
+import '../../ui/ramuri_type.dart';
 import '../../ui/section_heading.dart';
 import '../settings/unit_format.dart';
 import '../statistics/fitness_section.dart' show reasonText;
@@ -138,20 +140,69 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
             );
           }
           final data = snapshot.data;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              key: const Key('expl_body'),
-              children: [
-                Heading(_title(l10n), key: const Key('expl_value_title')),
-                ..._content(context, l10n, data),
-              ],
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                key: const Key('expl_body'),
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      _title(l10n),
+                      key: const Key('expl_value_title'),
+                      style: RamuriType.of(context).pageTitle,
+                    ),
+                  ),
+                  ..._cards(_content(context, l10n, data)),
+                ],
+              ),
             ),
           );
         },
       ),
     );
+  }
+
+  /// Gruppiert die Inhalte wie Fortschritt: jede [Heading] steht über einer
+  /// eigenen Karte mit den folgenden Angaben; Inhalt ohne Überschrift
+  /// (Hinweise, Fehler) steht in einer Karte davor.
+  List<Widget> _cards(List<Widget> content) {
+    final out = <Widget>[];
+    Widget? heading;
+    var body = <Widget>[];
+    void flush() {
+      if (heading == null && body.isEmpty) return;
+      if (heading != null) out.add(heading!);
+      if (body.isNotEmpty) {
+        out.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: RamuriCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: body,
+              ),
+            ),
+          ),
+        );
+      }
+      heading = null;
+      body = <Widget>[];
+    }
+
+    for (final w in content) {
+      if (w is Heading) {
+        flush();
+        heading = w;
+      } else {
+        body.add(w);
+      }
+    }
+    flush();
+    return out;
   }
 
   List<Widget> _content(
@@ -435,7 +486,7 @@ class Heading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 18, bottom: 6),
+    padding: const EdgeInsets.only(top: 20, bottom: 10),
     child: SectionHeading(text),
   );
 }
