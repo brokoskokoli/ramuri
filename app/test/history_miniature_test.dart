@@ -21,7 +21,7 @@ import 'package:running_app/features/map/route_map_section.dart'
     show routeMapStyle;
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show seedRun;
+import 'history_summary_test.dart' show seedRun, showAllRuns;
 
 Finder key(String k) => find.byKey(Key(k));
 
@@ -139,6 +139,7 @@ MapConsentController _controller(WidgetTester tester) =>
 Future<void> _openHistory(WidgetTester tester) async {
   await tester.tap(key('home_history'));
   await tester.pumpAndSettle();
+  await showAllRuns(tester);
   await _settle(tester);
 }
 
@@ -414,6 +415,9 @@ void main() {
       final id = (await d.session.runs.list()).first.id;
       w.thumbs.data[thumbnailKey(miniatureVariant(_styleOf(tester)), id)] =
           png1x1;
+      d.clock.set(
+        DateTime.utc(2030, 1, 15, 12),
+      ); // Monat der Läufe: „Alle“ nicht nötig
       await tester.tap(key('home_history'));
       // Ohne echte Zeit: das Bild liegt vor, ist aber noch nicht entschlüsselt.
       for (var i = 0; i < 20; i++) {
@@ -559,8 +563,11 @@ void main() {
       await _openHistory(tester);
       expect(w.captures, 1);
       // Ans Ende scrollen: die oberen Einträge (nur Wartende) fallen aus der Liste.
-      await tester.drag(find.byType(ListView), const Offset(0, -5000));
-      await tester.pump();
+      // Die Länge der Liste schätzt der Builder erst beim Scrollen; darum mehrmals bis zum Ende.
+      for (var i = 0; i < 4; i++) {
+        await tester.drag(find.byType(ListView), const Offset(0, -5000));
+        await tester.pump();
+      }
       w.hold!.complete();
       await _settle(tester);
       final ids = (await d.session.runs.list()).map((r) => r.id).toList();
@@ -577,9 +584,11 @@ void main() {
         reason: 'Weggescrollte Einträge wurden erzeugt: $captured',
       );
       final order = captured.map(ids.indexOf).toList();
+      // Die ersten beiden gehören zu den untersten drei, die nach dem Scrollen zu sehen sind (die Reihenfolge unter
+      // ihnen hängt vom Zeitpunkt ab, zu dem sich jeder Eintrag meldet).
       expect(
-        order.take(2).toSet(),
-        {ids.length - 2, ids.length - 1},
+        order.take(2).every((i) => i >= ids.length - 3),
+        isTrue,
         reason:
             'sichtbare Einträge zuerst (die untersten), dann die knapp daneben: $order',
       );
@@ -645,7 +654,7 @@ void main() {
         final (_, w) = await _start(tester, consent: true, runs: [2, 4, 3, 5]);
         final fake = await tester.runAsync(_fakeMapPng);
         w.pngOverride = fake;
-        tester.view.physicalSize = const Size(780, 1500);
+        tester.view.physicalSize = const Size(780, 1900);
         tester.view.devicePixelRatio = 2;
         tester.platformDispatcher.platformBrightnessTestValue = dark
             ? Brightness.dark

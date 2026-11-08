@@ -109,6 +109,9 @@ class _SegmentButton extends StatelessWidget {
   final RamuriColors colors;
   final TextStyle style;
 
+  Widget _fit(Widget text) =>
+      expanded ? FittedBox(fit: BoxFit.scaleDown, child: text) : text;
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
@@ -134,16 +137,22 @@ class _SegmentButton extends StatelessWidget {
               minWidth: RamuriTheme.minTarget,
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
+              // Teilen sich vier Abschnitte eine schmale Zeile (Verlauf), bleibt
+              // wenig Platz; die Beschriftung schrumpft dann statt mitten im Wort
+              // umzubrechen.
+              padding: EdgeInsets.symmetric(horizontal: expanded ? 4 : 18),
               child: Center(
                 widthFactor: expanded ? null : 1,
-                child: Text(
-                  label,
-                  style: style.copyWith(
-                    color: selected && look == RamuriSegmentedStyle.dark
-                        ? colors.action
-                        : colors.text,
-                    fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                child: _fit(
+                  Text(
+                    label,
+                    maxLines: expanded ? 1 : null,
+                    style: style.copyWith(
+                      color: selected && look == RamuriSegmentedStyle.dark
+                          ? colors.action
+                          : colors.text,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                    ),
                   ),
                 ),
               ),

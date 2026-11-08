@@ -420,6 +420,9 @@ void main() {
       addTearDown(tester.view.reset);
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await openHistory(d, tester);
+      // Bei großer Schrift auf dem kleinen Display liegt der Eintrag unter dem Kopf der Seite.
+      await tester.ensureVisible(key('history_run_$id'));
+      await tester.pumpAndSettle();
       await tester.tap(key('history_run_$id'));
       await tester.pumpAndSettle();
       for (final k in ['detail_export', 'detail_delete']) {

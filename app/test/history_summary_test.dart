@@ -220,9 +220,21 @@ Future<void> _runAndFinishHeld(
   await session.reached.future;
 }
 
+/// Wählt im Verlauf „Alle“ (letzter Abschnitt): Die Testläufe liegen im Jahr
+/// 2030, die Uhr des Geräts steht 2026; ohne Läufe gibt es keinen Umschalter.
+Future<void> showAllRuns(WidgetTester tester) async {
+  final range = key('history_range');
+  if (range.evaluate().isEmpty) return;
+  await tester.tap(
+    find.descendant(of: range, matching: find.byType(InkWell)).last,
+  );
+  await tester.pumpAndSettle();
+}
+
 Future<void> openHistory(Device d, WidgetTester tester) async {
   await tester.tap(key('home_history'));
   await tester.pumpAndSettle();
+  await showAllRuns(tester);
 }
 
 Future<Device> started(WidgetTester tester, {String locale = 'de'}) async {
@@ -232,7 +244,12 @@ Future<Device> started(WidgetTester tester, {String locale = 'de'}) async {
   return d;
 }
 
-final historyList = find.byKey(const PageStorageKey<String>('history_list'));
+final historyList = find.byWidgetPredicate(
+  (w) =>
+      w is ListView &&
+      w.key is PageStorageKey<String> &&
+      (w.key! as PageStorageKey<String>).value.startsWith('history_list'),
+);
 
 void main() {
   group('Historie (FR-0040, ACC-04)', () {
@@ -262,12 +279,12 @@ void main() {
       await openHistory(d, tester);
       // 10 min mit 3 m/s: 1,80 km in 10:00, Pace 5:33 min/km.
       expect(text('history_distance_$a'), '1,80 km');
-      expect(text('history_time_$a'), 'Dauer 10:00');
-      expect(text('history_pace_$a'), 'Ø Pace: 5:33 min/km');
+      expect(text('history_time_$a'), '10:00');
+      expect(text('history_pace_$a'), '5:33 min/km');
       expect(text('history_hr_$a'), 'Ø Puls 150 bpm');
       // 20 min mit 2,5 m/s: 3,00 km, Pace 6:40, kein Puls.
       expect(text('history_distance_$b'), '3,00 km');
-      expect(text('history_pace_$b'), 'Ø Pace: 6:40 min/km');
+      expect(text('history_pace_$b'), '6:40 min/km');
       expect(text('history_hr_$b'), 'Puls: nicht verfügbar');
       expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
       // Neuester Start oben.
@@ -288,7 +305,7 @@ void main() {
         bpm: null,
       );
       await openHistory(d, tester);
-      expect(text('history_time_$a'), 'Dauer: nicht verfügbar');
+      expect(text('history_time_$a'), 'nicht verfügbar');
       expect(find.text('–'), findsNothing);
     });
 
@@ -322,7 +339,7 @@ void main() {
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await openHistory(d, tester);
       expect(historyList, findsOneWidget);
-      expect(find.textContaining('Ø Pace'), findsWidgets);
+      expect(find.textContaining(RegExp(r'min.*km')), findsWidgets);
       expect(tester.takeException(), isNull);
     });
 
@@ -356,8 +373,9 @@ void main() {
         await seedRun(d.session, DateTime.utc(2030, 1, 1 + i, 8), minutes: 2);
       }
       await openHistory(d, tester);
+      // Titel, Umschalter, Summen und Wochenköpfe stehen mit in der Liste.
       final list = tester.widget<ListView>(historyList);
-      expect(list.semanticChildCount ?? 30, 30);
+      expect(list.semanticChildCount ?? 30, greaterThanOrEqualTo(30));
       // Alle Einträge sind nach der gebündelten Abfrage mit Strecke gefüllt.
       expect(text('history_distance_30'), '0,36 km');
     });
