@@ -44,7 +44,7 @@ Warum aussagekräftig: Die Kriterien aus ADR-0009 Punkt 6 werden je Kandidat am 
 Keine Sammlung aus `research/input/`.
 
 ## Ausführung
-Voraussetzungen: Flutter 3.47.7 (global), Android-SDK mit AVDs `running_app_api36` und `running_app_api31` (google_apis, arm64), Netz für `pub get`, Gradle, wenige POMs und wenige Kacheln. Rechenzeit: `host` ~1 min, `build` ~10 min, `licenses` ~2 min, `netstatic` < 1 min, `store` < 1 min, `emu --api 36` ~45 min, `emu --api 31` ~8 min (Mac, Apple Silicon).
+Voraussetzungen: Flutter 3.47.7 (global), Android-SDK mit AVDs `running_app_api36` und `running_app_api31` (google_apis, arm64), Netz für `pub get`, Gradle, wenige POMs und wenige Kacheln, für `store` das GitHub-Release von `sqlite3` oder eine lokale Kopie der Bibliothek (siehe „Bibliothek für den Schritt `store`“). Rechenzeit: `host` ~1 min, `build` ~10 min, `licenses` ~2 min, `netstatic` < 1 min, `store` < 1 min, `emu --api 36` ~45 min, `emu --api 31` ~8 min (Mac, Apple Silicon).
 
 ```bash
 ./init.sh            # Testvorlagen laden (idempotent, 15 Anfragen, ~1,5 MB)
@@ -94,7 +94,32 @@ Vollständige Zuordnung eines solchen Abzugs (Route, Standardzentrum von `flutte
 python3 -I src/foreign_tiles.py "$RESEARCH_DATA/work/R008/emu-<zeit>/files-fmvt-consent/io.github.r008.r008_fmvt/files/map-tiles"
 ```
 
+### Bibliothek für den Schritt `store`
+Der Build-Hook von `sqlite3` 3.8.0 lädt beim ersten `dart run` die Datei `libsqlite3mc.arm64.macos.dylib` aus dem [GitHub-Release `sqlite3-3.8.0`](https://github.com/simolus3/sqlite3.dart/releases/tag/sqlite3-3.8.0): 1 977 232 Byte, SHA-256 `ddd9afc6cbf795d85166223e8368bfd8fc3b4e90deba43a764f35606bac145c4` (hinterlegt in `lib/src/hook/asset_hashes.dart` des Pakets). Auf anderen Hosts gelten anderer Dateiname, Hash und Ordner. **Die Probe läuft nur mit dieser Datei, und der Download war am 2026-11-08 gestört:** Um 10:09, 10:22, 10:30 und 10:31 lieferte GitHub HTTP 504, nur ein Teilabruf um 10:28 kam durch. Der reguläre Weg ist für `store` in keinem Lauf belegt.
+
+**So verhält sich `./run.sh store` auf frischem `data/` bei HTTP 504** (am 2026-11-08 so beobachtet):
+- Der Hook prüft nicht den HTTP-Status, sondern den Hash der Antwort. Die Fehlerseite (92 Byte) ergibt `Bad state: Hash of downloaded file libsqlite3mc.arm64.macos.dylib is bef140a1…, expected ddd9afc6…` und `Building assets for package:sqlite3 failed`.
+- `./run.sh store` endet mit Exit 255, vor der ersten Messung. Im Laufordner liegen nur `run.info` und `store.log`, kein `store.json` und kein `.done`, der Lauf zählt also nicht.
+- Im Zielordner bleibt `libsqlite3mc.dylib.tmp` (92 Byte) liegen. Er stört nicht und kann bleiben.
+
+**Vorgehen dann:** erst später erneut versuchen, sonst eine Datei mit genau diesem Hash in den Cache des Hooks legen. Der Lauf `store-20261108-101222` nahm sie aus dem App-Build des Haupt-Checkouts (`app/.dart_tool/` ist nicht in Git und existiert nur, wenn die App dort auf dem Mac gebaut wurde):
+
+```bash
+source "$(git rev-parse --show-toplevel)/research/_shared/paths.sh"
+A="$RESEARCH_MAIN/app/.dart_tool/hooks_runner/shared/sqlite3/build/download-ddd9afc6/libsqlite3mc.dylib"
+D="$RESEARCH_DATA/work/R008/apps/storeprobe/.dart_tool/hooks_runner/shared/sqlite3/build/download-ddd9afc6"
+shasum -a 256 "$A"   # muss ddd9afc6cbf795d85166223e8368bfd8fc3b4e90deba43a764f35606bac145c4 ergeben
+mkdir -p "$D" && cp "$A" "$D/libsqlite3mc.dylib"
+./run.sh store
+```
+
+- Das geht vor dem ersten Aufruf und nach einem gescheiterten. `./run.sh store` löscht die Kopie nicht, der Hook prüft ihren Hash und lädt dann nichts. Eine Datei mit falschem Hash nimmt er laut Code (`description.dart`) nicht an, sondern lädt neu.
+- `run.info` und `store.log` halten die Kopie nicht fest. Wer so misst, trägt es in RESULTS ein.
+- Ohne `app/.dart_tool/`: `url_pattern` aus `doc/hook.md` des Pakets (eigener Spiegel) unter `hooks: user_defines: sqlite3:` in `src/storeprobe/pubspec.yaml`. Das ändert den Code-Stand, `run.info` zeigt dann `dirty=1`.
+
+**Geprüft am 2026-11-08, ohne Messung:** `./run.sh store` mit `RESEARCH_DATA` in einem Wegwerf-Ordner und einem `dart` davor, das statt der Probe nur die Bibliothek lädt (`sqlite_version()` 3.54.0, `PRAGMA cipher` `chacha20`). Ohne Kopie gegen das echte GitHub: Exit 255 wie oben. Mit Kopie: Exit 0 und `.done`. Direkt am Hook auch mit Kopie vor dem ersten Aufruf: läuft, obwohl die eingestellte Download-Adresse nicht erreichbar war. Für `url_pattern` ist nur belegt, dass der Hook die Adresse übernimmt (sie steht in der Fehlermeldung); ein erfolgreicher Abruf ließ sich nicht prüfen, weil die Prüfumgebung Verbindungen zu `localhost` sperrte.
+
 Ausgaben: `$RESEARCH_DATA/work/R008/<schritt>-<zeit>/` (nie überschrieben, `.done` nach Exit 0); gemeinsame Build-Ordner der Mini-Apps unter `work/R008/apps/`, geholte POMs unter `work/R008/poms/`.
 
 ## Status
-abgeschlossen (2026-11-08), Ergebnis in [RESULTS.md](RESULTS.md); Nachbesserungen nach Review Runde 1 und 2 eingearbeitet, erneutes Review offen
+abgeschlossen (2026-11-08), Ergebnis in [RESULTS.md](RESULTS.md); Nachbesserungen nach Review Runde 1 bis 3 eingearbeitet, erneutes Review offen
