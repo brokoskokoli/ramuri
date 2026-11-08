@@ -94,8 +94,8 @@ class _RouteMapSectionState extends State<RouteMapSection>
     _holder.setWanted(_wanted);
   }
 
-  /// Die Karte wird gebraucht: Route vorhanden und App im Vordergrund (wie auf der Live-Seite).
-  bool get _wanted => _hasRoute && _foreground;
+  /// Die Karte wird gebraucht: Route vorhanden, App im Vordergrund und Route nicht verdeckt (wie auf der Live-Seite).
+  bool get _wanted => _hasRoute && !_paused;
 
   bool get _hasRoute => widget.route.any((p) => p.isNotEmpty);
 

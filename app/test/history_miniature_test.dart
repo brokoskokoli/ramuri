@@ -303,6 +303,40 @@ void main() {
   });
 
   testWidgets(
+    'Neuaufbau und Sprung im selben Bild: gezeigte Bilder werden nicht zu hoch gezählt (S1)',
+    (tester) async {
+      await _start(tester, consent: true, runs: List.filled(14, 2));
+      tester.view.physicalSize = const Size(411, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await _openHistory(tester);
+      final service = tester
+          .widget<MiniatureHost>(find.byType(MiniatureHost))
+          .service;
+      expect(find.byKey(const Key('miniature_image')), findsWidgets);
+      // Alle Einträge neu bauen (der Bild-Rückruf wird vorgemerkt) und im selben Bild so weit springen, dass sie
+      // beim Anordnen abgebaut werden.
+      for (final e in tester.elementList(find.byType(RunMiniature))) {
+        e.markNeedsBuild();
+      }
+      tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .jumpTo(5000);
+      await tester.pump();
+      await _settle(tester);
+      expect(
+        service.shownImages.value,
+        find
+            .byKey(const Key('miniature_image'), skipOffstage: false)
+            .evaluate()
+            .length,
+        reason: 'gezählt wird, was wirklich zu sehen ist',
+      );
+    },
+  );
+
+  testWidgets(
     'Fehler: Linie, nichts gespeichert, Wiederholung erst beim nächsten Aufbau',
     (tester) async {
       final (_, w) = await _start(tester, consent: true, runs: [2]);

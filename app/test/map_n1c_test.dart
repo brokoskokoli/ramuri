@@ -626,6 +626,68 @@ void main() {
       );
     }
 
+    testWidgets(
+      'nicht darstellbare Bilder zählen als Fehlversuch: nach der Obergrenze keine neue Aufnahme (S2)',
+      (tester) async {
+        await setup(tester, (
+          boundary,
+          gate, {
+          cancelled,
+          failuresBefore,
+        }) async {
+          captures++;
+          return png1x1;
+        });
+        for (var i = 0; i < miniatureMaxAttempts; i++) {
+          final t = ask(5);
+          expect(t, isNotNull, reason: 'Versuch ${i + 1}');
+          expect(await _drive(tester, t!), isNotNull);
+          await service.discard(
+            5,
+            _style,
+          ); // das Bild ließ sich nicht entschlüsseln
+        }
+        expect(ask(5), isNull, reason: 'Grenze erreicht');
+        expect(captures, miniatureMaxAttempts);
+        await finish(tester);
+      },
+    );
+
+    testWidgets(
+      'Abbruch mitten in der Aufnahme zählt nicht als Fehlversuch, auch nicht dreimal (S3)',
+      (tester) async {
+        await setup(tester, (
+          boundary,
+          gate, {
+          cancelled,
+          failuresBefore,
+        }) async {
+          captures++;
+          for (var i = 0; i < 100; i++) {
+            if (cancelled?.call() ?? false) return null;
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          return png1x1;
+        });
+        for (var i = 0; i < miniatureMaxAttempts; i++) {
+          final t = ask(9)!;
+          for (var k = 0; k < 100 && captures <= i; k++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 10)),
+            );
+            await tester.pump(const Duration(milliseconds: 20));
+          }
+          expect(captures, i + 1, reason: 'Aufnahme läuft');
+          t.cancel();
+          await _drive(tester, t);
+        }
+        final again = ask(9);
+        expect(again, isNotNull, reason: 'Abbruch ist kein Fehlversuch');
+        again!.cancel();
+        await finish(tester);
+      },
+    );
+
     testWidgets('abgebrochener Lauf (kein Fehler) darf neu angefragt werden', (
       tester,
     ) async {

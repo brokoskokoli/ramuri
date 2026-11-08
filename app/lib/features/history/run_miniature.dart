@@ -163,7 +163,8 @@ class _RunMiniatureState extends State<RunMiniature> {
 
   /// Meldet dem Dienst, ob dieser Eintrag sein Kartenbild zeigt; baut neu auf, wenn sich das ändert.
   void _setShown(bool value, {bool rebuild = true}) {
-    if (_shown == value) return;
+    // Der Post-Frame-Rückruf kann nach dispose kommen (Neuaufbau und Sprung im selben Bild): dann nicht mehr zählen (S1).
+    if (_shown == value || (value && !mounted)) return;
     _shown = value;
     widget.service?.imageShown(value);
     if (rebuild && mounted) setState(() {});

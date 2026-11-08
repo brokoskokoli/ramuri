@@ -399,6 +399,49 @@ void main() {
   );
 
   testWidgets(
+    'Rückkehr aus dem Hintergrund bei verdeckter Route und gescheitertem Öffnen: keine Anfrage (S4)',
+    (tester) async {
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+      final net = FakeInner()..failWhere = (u) => true;
+      final w = _World(net: net, consent: ConsentState.granted);
+      await tester.pumpWidget(_app(w, _route));
+      await _settle(tester, w);
+      expect(_k('route_map'), findsNothing, reason: 'Öffnen gescheitert');
+      final nav = tester.state<NavigatorState>(find.byType(Navigator));
+      nav.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('oben')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _settle(tester, w);
+      final n = w.requests;
+      for (final st in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(st);
+      }
+      await tester.pump();
+      await _settle(tester, w);
+      expect(w.requests, n, reason: 'im Hintergrund kein Verkehr');
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await _settle(tester, w);
+      expect(w.requests, n, reason: 'Route verdeckt: kein neuer Versuch');
+      nav.pop();
+      await tester.pumpAndSettle();
+      await _settle(tester, w);
+      expect(w.requests, greaterThan(n), reason: 'Route wieder oben: Versuch');
+    },
+  );
+
+  testWidgets(
     'Dialog über der Seite: die Karte bleibt im Baum und wird nicht neu aufgebaut (N6)',
     (tester) async {
       final w = _World(consent: ConsentState.granted);

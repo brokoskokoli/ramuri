@@ -180,6 +180,8 @@ class MiniatureService extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Entfernt ein unlesbares Bild aus dem Speicher (es ließ sich nicht darstellen), damit es neu entsteht.
   Future<void> discard(int runId, RouteMapStyle style) async {
+    // Ein Bild, das nicht darstellbar ist, ist ein Fehlversuch: so bleibt die Obergrenze auch bei ständiger Rückkehr (S2).
+    _failures[runId] = (_failures[runId] ?? 0) + 1;
     try {
       await _store?.remove(thumbnailKey(miniatureVariant(style), runId));
     } catch (_) {}
