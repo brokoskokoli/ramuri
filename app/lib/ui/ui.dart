@@ -6,6 +6,7 @@ export 'dark_scope.dart';
 export 'ember_dot.dart';
 export 'estimated_mark.dart';
 export 'font_licenses.dart';
+export 'ramuri_badge.dart';
 export 'ramuri_buttons.dart';
 export 'ramuri_card.dart';
 export 'ramuri_chip.dart';

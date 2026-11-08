@@ -465,6 +465,10 @@ void main() {
       ]) {
         expect(key(id), findsOneWidget);
       }
+      // Der Kopf der Seite (Wochenbalken, VO₂max) schiebt die Fitness-Details
+      // unter den Rand von 2400 px: erst in Sicht bringen, dann tippen.
+      await tester.ensureVisible(key('stat_explain_vo2_current'));
+      await tester.pumpAndSettle();
       await tester.tap(key('stat_explain_vo2_current'));
       await tester.pumpAndSettle();
       expect(key('expl_body'), findsOneWidget);

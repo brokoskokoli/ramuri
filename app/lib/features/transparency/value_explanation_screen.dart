@@ -5,6 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/section_heading.dart';
 import '../settings/unit_format.dart';
 import '../statistics/fitness_section.dart' show reasonText;
+import 'quality_text.dart';
 
 /// Schlüssel für die Quellen eines Laufs (SEC-0005); kein gespeicherter Wert.
 const String runSourcesKey = 'run_sources';
@@ -307,12 +308,7 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
     // 5 Verlässlichkeit
     out.add(Heading(l10n.explQ5));
     out.add(
-      Text(switch (value.quality) {
-        ValueQuality.provisional => l10n.explQualityProvisional,
-        ValueQuality.sufficient => l10n.explQualitySufficient,
-        ValueQuality.good => l10n.explQualityGood,
-        ValueQuality.undeterminable => l10n.explQualityUndeterminable,
-      }, key: const Key('expl_a5')),
+      Text(qualityStageText(l10n, value.quality), key: const Key('expl_a5')),
     );
     out.add(Text(l10n.explQualityNote, key: const Key('expl_a5_note')));
     // 6 gemessen oder geschätzt

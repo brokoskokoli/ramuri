@@ -81,6 +81,7 @@ const textPairs = <(String, String)>[
   ('onPanelMuted', 'panelRaised'),
   ('onPanelSoft', 'panel'),
   ('onEmber', 'ember'),
+  ('onEmber', 'emberSoft'),
   ('onDanger', 'danger'),
   ('danger', 'background'),
   ('danger', 'surface'),

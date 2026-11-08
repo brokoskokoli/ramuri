@@ -2,6 +2,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_card.dart';
+import '../../ui/section_heading.dart';
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
 import 'fitness_section.dart' show reasonText;
@@ -64,11 +66,31 @@ class StatHeading extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    header: true,
-    child: Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 4),
-      child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 8, bottom: 4),
+    child: SectionHeading(text),
+  );
+}
+
+/// Karte eines Abschnitts der Kennzahlen (Stil des Designs).
+class StatCard extends StatelessWidget {
+  const StatCard({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: RamuriCard(
+      radius: 22,
+      padding: const EdgeInsets.all(16),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children,
+        ),
+      ),
     ),
   );
 }
@@ -175,163 +197,184 @@ class _Body extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        StatHeading(l10n.statScope),
-        StatRow(
-          id: 'stat_runs',
-          label: l10n.statRuns,
-          value: '${stats.runCount}',
-        ),
-        StatRow(
-          id: 'stat_days',
-          label: l10n.statTrainingDays,
-          value: '${stats.trainingDays}',
-        ),
-        row<double>(
-          'stat_distance',
-          l10n.runDistance,
-          stats.distanceMeters,
-          formatter.distance,
-          missing: unavailable,
-        ),
-        row<Duration>(
-          'stat_moving',
-          l10n.runMovingTime,
-          stats.movingTime,
-          formatClock,
-          missing: unavailable,
-        ),
-        row<Duration>(
-          'stat_total',
-          l10n.sumTotalTime,
-          stats.totalTime,
-          formatClock,
-          missing: unavailable,
-        ),
-        StatHeading(l10n.statSpeed),
-        row<double>(
-          'stat_avg_pace',
-          l10n.runAvgPace,
-          stats.averagePaceSecondsPerKm,
-          formatter.pace,
-          missing: unavailable,
-        ),
-        row<double>(
-          'stat_best_pace',
-          l10n.sumBestPace,
-          stats.bestPaceSecondsPerKm,
-          formatter.pace,
-          missing: unavailable,
-        ),
-        row<int>(
-          'stat_laps',
-          l10n.runLaps,
-          stats.lapCount,
-          (v) => '$v',
-          missing: unavailable,
-        ),
-        StatHeading(l10n.statHeart),
-        row<double>(
-          'stat_avg_hr',
-          l10n.sumAvgHeartRate,
-          stats.heartRateAverageBpm,
-          (v) => l10n.runBpm(v.round()),
-          missing: l10n.sumNoHeartRate,
-        ),
-        row<int>(
-          'stat_max_hr',
-          l10n.sumMaxHeartRate,
-          stats.heartRateMaxBpm,
-          l10n.runBpm,
-          missing: l10n.sumNoHeartRate,
-        ),
-        if (zones == null)
-          StatRow(
-            id: 'stat_zones',
-            label: l10n.sumZones,
-            value: empty ? l10n.statNoRunsInPeriod : zonesReason,
-          )
-        else
-          MergeSemantics(
-            child: Column(
-              key: const Key('stat_zones'),
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(l10n.sumZones),
-                ),
-                for (var i = 0; i < zones.length; i++)
-                  Text(l10n.sumZoneRow(i + 1, formatClock(zones[i]))),
-                if (below != null) Text(l10n.sumBelowZone1(formatClock(below))),
-                if (stats.zoneTimes.isPartial)
-                  Text(
-                    l10n.statPartial(
-                      stats.zoneTimes.runsWithValue,
-                      stats.zoneTimes.runsTotal,
-                    ),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-              ],
+        StatCard(
+          children: [
+            StatHeading(l10n.statScope),
+            StatRow(
+              id: 'stat_runs',
+              label: l10n.statRuns,
+              value: '${stats.runCount}',
             ),
-          ),
-        StatHeading(l10n.statLoad),
-        row<double>(
-          'stat_trimp',
-          l10n.sumTrimp,
-          stats.trimpPoints,
-          (v) => stats.trimpIncomplete
-              ? l10n.sumTrimpPartial(v.round().toString())
-              : l10n.sumTrimpValue(v.round().toString()),
-          missing: trimpReason,
+            StatRow(
+              id: 'stat_days',
+              label: l10n.statTrainingDays,
+              value: '${stats.trainingDays}',
+            ),
+            row<double>(
+              'stat_distance',
+              l10n.runDistance,
+              stats.distanceMeters,
+              formatter.distance,
+              missing: unavailable,
+            ),
+            row<Duration>(
+              'stat_moving',
+              l10n.runMovingTime,
+              stats.movingTime,
+              formatClock,
+              missing: unavailable,
+            ),
+            row<Duration>(
+              'stat_total',
+              l10n.sumTotalTime,
+              stats.totalTime,
+              formatClock,
+              missing: unavailable,
+            ),
+          ],
         ),
-        StatHeading(l10n.statDevelopment),
-        if (comparison == null)
-          Text(l10n.statCompareOnly, key: const Key('stat_compare_only'))
-        else
-          Column(
-            key: const Key('stat_compare'),
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(l10n.statCompareTitle),
+        StatCard(
+          children: [
+            StatHeading(l10n.statSpeed),
+            row<double>(
+              'stat_avg_pace',
+              l10n.runAvgPace,
+              stats.averagePaceSecondsPerKm,
+              formatter.pace,
+              missing: unavailable,
+            ),
+            row<double>(
+              'stat_best_pace',
+              l10n.sumBestPace,
+              stats.bestPaceSecondsPerKm,
+              formatter.pace,
+              missing: unavailable,
+            ),
+            row<int>(
+              'stat_laps',
+              l10n.runLaps,
+              stats.lapCount,
+              (v) => '$v',
+              missing: unavailable,
+            ),
+          ],
+        ),
+        StatCard(
+          children: [
+            StatHeading(l10n.statHeart),
+            row<double>(
+              'stat_avg_hr',
+              l10n.sumAvgHeartRate,
+              stats.heartRateAverageBpm,
+              (v) => l10n.runBpm(v.round()),
+              missing: l10n.sumNoHeartRate,
+            ),
+            row<int>(
+              'stat_max_hr',
+              l10n.sumMaxHeartRate,
+              stats.heartRateMaxBpm,
+              l10n.runBpm,
+              missing: l10n.sumNoHeartRate,
+            ),
+            if (zones == null)
               StatRow(
-                id: 'stat_delta_runs',
-                label: l10n.statRuns,
-                value: _signed(
-                  '${comparison!.runCountDelta.abs()}',
-                  comparison!.runCountDelta,
+                id: 'stat_zones',
+                label: l10n.sumZones,
+                value: empty ? l10n.statNoRunsInPeriod : zonesReason,
+              )
+            else
+              MergeSemantics(
+                child: Column(
+                  key: const Key('stat_zones'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(l10n.sumZones),
+                    ),
+                    for (var i = 0; i < zones.length; i++)
+                      Text(l10n.sumZoneRow(i + 1, formatClock(zones[i]))),
+                    if (below != null)
+                      Text(l10n.sumBelowZone1(formatClock(below))),
+                    if (stats.zoneTimes.isPartial)
+                      Text(
+                        l10n.statPartial(
+                          stats.zoneTimes.runsWithValue,
+                          stats.zoneTimes.runsTotal,
+                        ),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                  ],
                 ),
               ),
-              StatRow(
-                id: 'stat_delta_distance',
-                label: l10n.runDistance,
-                value: comparison!.distanceDeltaMeters == null
-                    ? l10n.statCompareNone
-                    : _signed(
-                        formatter.distance(
-                          comparison!.distanceDeltaMeters!.abs(),
-                        ),
-                        comparison!.distanceDeltaMeters!,
-                      ),
-              ),
-              StatRow(
-                id: 'stat_delta_moving',
-                label: l10n.runMovingTime,
-                value: comparison!.movingTimeDelta == null
-                    ? l10n.statCompareNone
-                    : _signed(
-                        formatClock(
-                          Duration(
-                            microseconds: comparison!
-                                .movingTimeDelta!
-                                .inMicroseconds
-                                .abs(),
+          ],
+        ),
+        StatCard(
+          children: [
+            StatHeading(l10n.statLoad),
+            row<double>(
+              'stat_trimp',
+              l10n.sumTrimp,
+              stats.trimpPoints,
+              (v) => stats.trimpIncomplete
+                  ? l10n.sumTrimpPartial(v.round().toString())
+                  : l10n.sumTrimpValue(v.round().toString()),
+              missing: trimpReason,
+            ),
+          ],
+        ),
+        StatCard(
+          children: [
+            StatHeading(l10n.statDevelopment),
+            if (comparison == null)
+              Text(l10n.statCompareOnly, key: const Key('stat_compare_only'))
+            else
+              Column(
+                key: const Key('stat_compare'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.statCompareTitle),
+                  StatRow(
+                    id: 'stat_delta_runs',
+                    label: l10n.statRuns,
+                    value: _signed(
+                      '${comparison!.runCountDelta.abs()}',
+                      comparison!.runCountDelta,
+                    ),
+                  ),
+                  StatRow(
+                    id: 'stat_delta_distance',
+                    label: l10n.runDistance,
+                    value: comparison!.distanceDeltaMeters == null
+                        ? l10n.statCompareNone
+                        : _signed(
+                            formatter.distance(
+                              comparison!.distanceDeltaMeters!.abs(),
+                            ),
+                            comparison!.distanceDeltaMeters!,
                           ),
-                        ),
-                        comparison!.movingTimeDelta!.inMicroseconds,
-                      ),
+                  ),
+                  StatRow(
+                    id: 'stat_delta_moving',
+                    label: l10n.runMovingTime,
+                    value: comparison!.movingTimeDelta == null
+                        ? l10n.statCompareNone
+                        : _signed(
+                            formatClock(
+                              Duration(
+                                microseconds: comparison!
+                                    .movingTimeDelta!
+                                    .inMicroseconds
+                                    .abs(),
+                              ),
+                            ),
+                            comparison!.movingTimeDelta!.inMicroseconds,
+                          ),
+                  ),
+                ],
               ),
-            ],
-          ),
+          ],
+        ),
       ],
     );
   }
