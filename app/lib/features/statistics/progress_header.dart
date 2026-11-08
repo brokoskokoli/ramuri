@@ -22,10 +22,15 @@ class WeekDistanceCard extends StatelessWidget {
     super.key,
     required this.series,
     required this.formatter,
+    required this.hasAnyRun,
   });
 
   final List<WeeklyDistance> series;
   final UnitFormatter formatter;
+
+  /// Gibt es überhaupt einen Lauf (auch älter als die 8 Wochen)? Nur ohne
+  /// jeden Lauf steht der Hinweis „Noch keine Läufe“.
+  final bool hasAnyRun;
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +149,7 @@ class WeekDistanceCard extends StatelessWidget {
               ),
             ],
           ),
-          if (!series.any((w) => w.hasRuns)) ...[
+          if (!hasAnyRun) ...[
             const SizedBox(height: 8),
             Text(
               l10n.statNoRunYet,

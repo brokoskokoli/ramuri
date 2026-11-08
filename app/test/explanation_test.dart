@@ -593,7 +593,7 @@ void main() {
             value: null,
             unit: vo2maxUnit,
             unavailableReason: UnavailableReason.insufficientData,
-            computedAt: DateTime.utc(2026, 6, 5),
+            computedAt: DateTime.utc(2026, 6, 5, 10),
             measurementCount: 0,
             sources: const ['gps'],
             method: 'm',
@@ -740,13 +740,15 @@ Future<void> showExplanationFor(
 }
 
 /// Tageswert mit festen Daten: Zeitraum 1.5. bis 4.6., berechnet am 5.6.
+/// Die Zeiten liegen um 10:00 UTC, damit der Kalendertag in jeder Zeitzone
+/// von UTC-10 bis UTC+13 derselbe bleibt (die App zeigt die lokale Zeit).
 ComputedValue _dayValue(String key, List<String> sources) => ComputedValue(
   key: key,
   value: 44,
   unit: key == vo2maxLongTermValueKey ? vo2maxUnit : 'x',
-  computedAt: DateTime.utc(2026, 6, 5),
-  dataFrom: DateTime.utc(2026, 5, 1),
-  dataTo: DateTime.utc(2026, 6, 4),
+  computedAt: DateTime.utc(2026, 6, 5, 10),
+  dataFrom: DateTime.utc(2026, 5, 1, 10),
+  dataTo: DateTime.utc(2026, 6, 4, 10),
   measurementCount: 3,
   sources: sources,
   method: 'm',

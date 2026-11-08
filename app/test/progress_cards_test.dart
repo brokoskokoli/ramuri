@@ -221,6 +221,32 @@ void main() {
       }
     });
 
+    testWidgets('„Aktuelle …“ und „Stand …“ werden nicht doppelt vorgelesen', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpCards(
+        tester,
+        overview(
+          longTerm: stored(vo2maxLongTermValueKey, 45.5),
+          weeks: const [('2026-05-25', 44.0), ('2026-06-01', 45.5)],
+        ),
+      );
+      // Beide Texte sind sichtbar und stehen im Sammeltext der Hero-Zahl.
+      expect(k('progress_vo2_asof'), findsOneWidget);
+      expect(
+        tester.getSemantics(k('progress_vo2_semantics')).label,
+        allOf(contains('Aktuelle langfristige'), contains('Stand ')),
+      );
+      // Es gibt keinen eigenen Knoten, der sie ein zweites Mal vorliest.
+      expect(
+        find.bySemanticsLabel('Aktuelle langfristige VO₂max-Schätzung'),
+        findsNothing,
+      );
+      expect(find.bySemanticsLabel(RegExp(r'^Stand ')), findsNothing);
+      handle.dispose();
+    });
+
     testWidgets('Hero gerundet, Sichten darunter mit einer Stelle', (
       tester,
     ) async {

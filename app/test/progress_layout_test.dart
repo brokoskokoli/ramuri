@@ -67,6 +67,7 @@ Future<void> _pump(
 Widget _week(List<RunFigures> runs) => WeekDistanceCard(
   series: weeklyDistanceSeries('2026-06-03', runs),
   formatter: _km,
+  hasAnyRun: runs.isNotEmpty,
 );
 
 Finder _k(String k) => find.byKey(Key(k));
@@ -128,6 +129,19 @@ void main() {
       expect(
         (tester.widget(_k('progress_week_no_runs')) as Text).data,
         'Noch keine Läufe aufgezeichnet.',
+      );
+    });
+
+    testWidgets('Lauf nur vor 10 Wochen: kein Hinweis, Balken ohne Strecke', (
+      tester,
+    ) async {
+      await _pump(tester, _week([_run(1, '2026-03-25', 5000)]));
+      expect(_k('progress_week_no_runs'), findsNothing);
+      expect(
+        weeklyDistanceSeries('2026-06-03', [
+          _run(1, '2026-03-25', 5000),
+        ]).every((w) => w.meters == 0),
+        isTrue,
       );
     });
 

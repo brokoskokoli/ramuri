@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
@@ -26,42 +28,77 @@ class StatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context).textTheme;
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    double longest(String text, TextStyle? style) {
+      var max = 0.0;
+      for (final word in text.split(RegExp(r'\s+'))) {
+        if (word.isEmpty) continue;
+        final painter = TextPainter(
+          text: TextSpan(text: word, style: style),
+          textDirection: direction,
+          textScaler: scaler,
+        )..layout();
+        if (painter.width > max) max = painter.width;
+        painter.dispose();
+      }
+      return max;
+    }
+
+    final valueWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          value,
+          key: Key('${id}_value'),
+          textAlign: TextAlign.end,
+          style: theme.titleMedium,
+        ),
+        if (note != null)
+          Text(note!, textAlign: TextAlign.end, style: theme.bodySmall),
+      ],
+    );
     return MergeSemantics(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: LayoutBuilder(
-          builder: (context, box) => Row(
-            // Das Label nimmt seine natürliche Breite bis 60 %, der Wert den
-            // Rest. Ein festes Verhältnis (früher 2:3) gab „Herzfrequenzzonen“
-            // nur 40 % und brach es im Wort.
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: box.maxWidth * 0.6),
-                child: Text(label, style: theme.bodyMedium),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      value,
-                      key: Key('${id}_value'),
-                      textAlign: TextAlign.end,
-                      style: theme.titleMedium,
-                    ),
-                    if (note != null)
-                      Text(
-                        note!,
-                        textAlign: TextAlign.end,
-                        style: theme.bodySmall,
-                      ),
-                  ],
+          builder: (context, box) {
+            const gap = 12.0;
+            // Weder Label noch Wert darf mitten im Wort brechen. Passt das
+            // längste Wort beider nicht nebeneinander, stehen sie
+            // untereinander (Wert rechts).
+            final labelMin = longest(label, theme.bodyMedium);
+            final valueMin = max(
+              longest(value, theme.titleMedium),
+              note == null ? 0.0 : longest(note!, theme.bodySmall),
+            );
+            if (labelMin + gap + valueMin > box.maxWidth) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(label, style: theme.bodyMedium),
+                  valueWidget,
+                ],
+              );
+            }
+            // Das Label nimmt seine natürliche Breite bis 60 %, mindestens
+            // sein längstes Wort; der Wert behält sein längstes Wort.
+            final labelMax = (box.maxWidth * 0.6).clamp(
+              labelMin,
+              box.maxWidth - gap - valueMin,
+            );
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: labelMax),
+                  child: Text(label, style: theme.bodyMedium),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: gap),
+                Expanded(child: valueWidget),
+              ],
+            );
+          },
         ),
       ),
     );

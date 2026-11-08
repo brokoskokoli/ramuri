@@ -303,7 +303,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            WeekDistanceCard(series: series, formatter: formatter),
+            WeekDistanceCard(
+              series: series,
+              formatter: formatter,
+              hasAnyRun: data.figures.isNotEmpty,
+            ),
             const SizedBox(height: 14),
             Vo2ProgressCard(
               fitness: data.fitness,
