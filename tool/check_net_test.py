@@ -184,6 +184,8 @@ RED = [
     ("export aneinandergereiht, mehrzeilig", {"app/lib/a.dart": "export 'pack'\n  'age:http/http.dart';\n"}, "a.dart:1: export: aneinandergereihte"),
     ("Gradle benannte Argumente (Kotlin)", {"app/android/app/build.gradle.kts": 'dependencies { implementation(group = "io.sentry", name = "sentry-android", version = "7.0") }\n'}, "Koordinate in benannten Argumenten"),
     ("Gradle benannte Argumente (Groovy)", {"app/android/app/build.gradle": "dependencies {\n  implementation group: 'io.sentry', name: 'sentry', version: '7'\n}\n"}, "Koordinate in benannten Argumenten"),
+    ("Gradle mapOf mit group/name", {"app/android/app/build.gradle.kts": 'dependencies { implementation(mapOf("group" to "io.sentry", "name" to "sentry", "version" to "7")) }\n'}, "getrennten Zeichenketten"),
+    ("Gradle create() mit mehreren Zeichenketten", {"app/android/app/build.gradle.kts": 'dependencies { implementation(create("io.sentry", "sentry", "7")) }\n'}, "create() mit getrennten"),
     ("Gradle Interpolation $a", {"app/android/app/build.gradle.kts": 'dependencies { implementation("$a:sentry-android:7.0") }\n'}, "Koordinate mit Interpolation"),
     ("Gradle Interpolation ${a}", {"app/android/app/build.gradle.kts": 'dependencies { implementation("${a}:sentry-android:7.0") }\n'}, "Koordinate mit Interpolation"),
     ("Gradle Interpolation im Namen", {"app/android/app/build.gradle.kts": 'dependencies { implementation("io.sentry:${n}:7.0") }\n'}, "Koordinate mit Interpolation"),

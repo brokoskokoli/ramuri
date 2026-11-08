@@ -147,6 +147,21 @@ void main() {
     await s.deleteAllThumbnails(); // keine Datei: nichts zu tun
   });
 
+  test('N3-S1: deleteAllThumbnails wirft, wenn das Löschen im Arbeiter scheitert (Ordner nur lesbar)', () async {
+    final s = store();
+    await s.write(_thumb(7), _bytes(100, 7));
+    await Process.run('chmod', ['555', dir.path]);
+    try {
+      await expectLater(
+        s.deleteAllThumbnails(),
+        throwsA(isA<FileSystemException>()),
+      );
+    } finally {
+      await Process.run('chmod', ['755', dir.path]);
+    }
+    await s.close();
+  });
+
   test('S6: im Betrieb zerstörte Datei (offene Verbindung): Lesen liefert nichts, die Datei ist danach klein und neu, Schreiben geht', () async {
     final s = store();
     for (var i = 0; i < 40; i++) {

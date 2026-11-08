@@ -382,5 +382,18 @@ void main() {
       expect(await map.read('thumb:v1:7'), isNull);
       expect(await map.read('map:/a'), bytes(500));
     });
+
+    test('Review 3, S2: Speicher geschlossen, der Tausch löscht über die Verdrahtung die Kartendatei (Rückfall)', () async {
+      final files = databaseFilesFor(dbPath, map);
+      await map.write('map:/a', bytes(500));
+      await map.write('thumb:v1:7', bytes(300));
+      await map.close();
+      expect(File(mapFile()).existsSync(), isTrue);
+      File(dbPath).writeAsBytesSync([1]);
+      File('$dbPath.import').writeAsBytesSync([2]);
+      await files.replaceWithImport();
+      expect(File(mapFile()).existsSync(), isFalse);
+      expect(File(dbPath).readAsBytesSync(), [2]);
+    });
   });
 }

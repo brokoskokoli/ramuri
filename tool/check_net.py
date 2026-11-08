@@ -392,6 +392,13 @@ def check_gradle(rel, text):
     for m in re.finditer(r"(?:[(,]|\b\w*(?:[Ii]mplementation|[Aa]pi|[Oo]nly|classpath|kapt|ksp|annotationProcessor|platform)\s*\(?)\s*"
                          r"(?:group|name|module)\s*[:=(]", code):
         err(rel, line_of(code, m.start()), "Gradle: Koordinate in benannten Argumenten (group/name/module), nicht lesbar (fail-closed)")
+    # Gradle-Map-Form (mapOf("group" to ..., "name" to ...)) und create("g", "n", "v"): die Koordinate steht in
+    # getrennten Zeichenketten. Die Plus-Verkettung ("g" + ":n:v") wird hingenommen (fällt in der Durchsicht auf).
+    for m in re.finditer(r"\x01(\d+)\x02", code):
+        if strs[int(m.group(1))] in ("group", "name", "module"):
+            err(rel, line_of(code, m.start()), "Gradle: Koordinate in getrennten Zeichenketten (group/name/module), nicht lesbar (fail-closed)")
+    for m in re.finditer(r"\bcreate\s*\(\s*\x01\d+\x02\s*,\s*\x01\d+\x02", code):
+        err(rel, line_of(code, m.start()), "Gradle: create() mit getrennten Zeichenketten, Koordinate nicht lesbar (fail-closed)")
     for m in re.finditer(r"\bincludeBuild\s*\(\s*\x01(\d+)\x02", code):
         if strs[int(m.group(1))] != "$flutterSdkPath/packages/flutter_tools/gradle":
             err(rel, line_of(code, m.start()), "includeBuild außerhalb des Flutter-Werkzeugs")

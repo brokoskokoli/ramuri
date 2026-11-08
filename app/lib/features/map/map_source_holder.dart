@@ -68,7 +68,14 @@ class MapSourceHolder extends ChangeNotifier {
 
   void _maybeStart() {
     final c = _consent;
-    if (_disposed || !_wanted || _started || _opening || c == null) return;
+    if (_disposed ||
+        !_wanted ||
+        _started ||
+        _opening ||
+        _source != null ||
+        c == null) {
+      return;
+    }
     if (c.status == MapConsentStatus.declined) return;
     _started = true;
     _opening = true;

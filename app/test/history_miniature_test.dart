@@ -252,6 +252,30 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Aufnahme, die nach Pause und Rückkehr ein Bild liefert: dieses Bild wird nicht gespeichert, neu aufgenommen (Review 3, S4)',
+    (tester) async {
+      final (d, w) = await _start(tester, consent: true, runs: [2]);
+      w.hold = Completer<void>(); // Aufnahme ignoriert die Absage und liefert nach der Rückkehr ein Bild
+      await _openHistory(tester);
+      expect(w.captures, 1);
+      final id = (await d.session.runs.list()).first.id;
+      await tester.tap(key('history_run_$id'));
+      await tester.pumpAndSettle();
+      expect(w.thumbs.writtenKeys, isEmpty);
+      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await tester.pumpAndSettle();
+      w.hold!.complete();
+      await _settle(tester);
+      expect(w.captures, 2, reason: 'die unterbrochene Aufnahme zählt nicht');
+      expect(
+        w.thumbs.writtenKeys.length,
+        1,
+        reason: 'nur die zweite Aufnahme schreibt',
+      );
+    },
+  );
+
   testWidgets('Widerruf: keine Kartenbilder mehr, kein Lesen, keine Anfrage', (
     tester,
   ) async {

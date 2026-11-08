@@ -148,7 +148,10 @@ class EncryptedMapTileStore implements MapThumbnailStore {
       }
       return;
     }
-    await w.request(['deleteThumbnails']);
+    // `request` liefert bei jedem Fehler null (auch bei Kappen des Arbeiters): nur `true` heißt gelöscht.
+    if (await w.request(['deleteThumbnails']) != true) {
+      throw const FileSystemException('Miniaturen nicht gelöscht');
+    }
   }
 
   /// Größe der Dateien auf der Platte (Datei und Nebendateien); 0, wenn es sie nicht gibt. Für die Anzeige (A3).
@@ -345,6 +348,7 @@ void _run(_Init init) {
           ok = true;
         case 'deleteThumbnails':
           core.deleteAllThumbnails();
+          result = true;
           ok = true;
         case 'close':
           core.close();

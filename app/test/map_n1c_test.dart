@@ -267,6 +267,45 @@ void main() {
     );
 
     testWidgets(
+      'Umschalten während des Öffnens: kein zweites Öffnen (Review 3, S3)',
+      (tester) async {
+        final w = _World(consent: ConsentState.granted, slow: true);
+        final c = w.controller as _SlowController..deliver = Completer<void>();
+        final h = await holder(tester, w);
+        await _wait(tester);
+        expect(c.opens, 1);
+        h.setWanted(false);
+        h.setWanted(true);
+        c.deliver!.complete();
+        await _wait(tester);
+        expect(h.usable, isNotNull);
+        expect(c.opens, 1);
+      },
+    );
+
+    testWidgets(
+      'Widerruf und erneutes Erteilen während des Öffnens, dann Umschalten: die offene Quelle wird nicht ersetzt (Review 3, S3)',
+      (tester) async {
+        final w = _World(consent: ConsentState.granted, slow: true);
+        final c = w.controller as _SlowController..deliver = Completer<void>();
+        final h = await holder(tester, w);
+        await _wait(tester);
+        expect(c.opens, 1);
+        await tester.runAsync(c.revoke);
+        await tester.runAsync(c.grant);
+        c.deliver!.complete();
+        await _wait(tester);
+        final first = h.source;
+        expect(first, isNotNull);
+        h.setWanted(false);
+        h.setWanted(true);
+        await _wait(tester);
+        expect(c.opens, 1, reason: 'keine zweite Quelle neben der offenen');
+        expect(h.source, same(first));
+      },
+    );
+
+    testWidgets(
       'verweigert gestartet, später erteilt: die Quelle öffnet (S4)',
       (tester) async {
         final w = _World(consent: ConsentState.revoked);
