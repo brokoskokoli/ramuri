@@ -214,6 +214,15 @@ kotlin_tests() {
   ( cd app/android && JAVA_HOME="$jh" ./gradlew -q :app:testDebugUnitTest )
 }
 
+# WP14: Die Paket-ID des gebauten APK ist io.github.brokoskokoli.ramuri (aapt dump badging). Eine andere applicationId
+# ändert nebenbei die FileProvider-Authority. Aufruf: paket_id_pruefen <aapt> <apk> [erwartete ID]; fail-closed.
+paket_id_pruefen() {
+  erwartet=${3:-io.github.brokoskokoli.ramuri}
+  badging=$("$1" dump badging "$2") || { echo "aapt dump badging scheiterte"; return 1; }
+  ist=$(echo "$badging" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+  [ "$ist" = "$erwartet" ] || { echo "Paket-ID des APK ist '$ist', erwartet '$erwartet'"; return 1; }
+}
+
 # SEC-0008: Das Release-APK fordert kein INTERNET. Geprüft am gebauten APK (aapt), nicht am Quell-Manifest, weil Plugins
 # per Manifest-Merge Berechtigungen hinzufügen können. Fail-closed: fehlt aapt oder die Ausgabe, ist der Schritt rot.
 release_ohne_internet() {
@@ -223,6 +232,7 @@ release_ohne_internet() {
   ( cd app && flutter build apk --release ) || return 1
   apk=app/build/app/outputs/flutter-apk/app-release.apk
   [ -f "$apk" ] || { echo "$apk fehlt"; return 1; }
+  paket_id_pruefen "$aapt" "$apk" || return 1
   perms=$("$aapt" dump permissions "$apk") || { echo "aapt dump permissions scheiterte"; return 1; }
   echo "$perms" | grep -q '^package: ' || { echo "aapt-Ausgabe unerwartet"; return 1; }
   echo "$perms"
