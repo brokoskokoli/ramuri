@@ -79,6 +79,9 @@ class RamuriType extends ThemeExtension<RamuriType> {
     required this.unit,
     required this.eyebrow,
     required this.sheetValue,
+    required this.hero,
+    required this.pageTitle,
+    required this.link,
   });
 
   factory RamuriType.from(RamuriColors c) => RamuriType(
@@ -90,6 +93,10 @@ class RamuriType extends ThemeExtension<RamuriType> {
     unit: _manrope(13, FontWeight.w700, c.textMuted),
     eyebrow: _manrope(12, FontWeight.w700, c.accent, tracking: 0.06),
     sheetValue: _sora(44, FontWeight.w700, c.text, tracking: -0.03, height: 1),
+    hero: _sora(48, FontWeight.w700, c.text, tracking: -0.03, height: 1),
+    // Design: Sora 800; gebündelt bis 700, dort gilt 700 (siehe oben).
+    pageTitle: _sora(34, FontWeight.w800, c.text, tracking: -0.02),
+    link: _manrope(14, FontWeight.w800, c.text),
   );
 
   /// Restmeter im Intervall (104).
@@ -112,6 +119,15 @@ class RamuriType extends ThemeExtension<RamuriType> {
   /// Zeit und Strecke im Blatt der Live-Karte (44).
   final TextStyle sheetValue;
 
+  /// Große Kennzahl einer Karte, etwa VO₂max (48).
+  final TextStyle hero;
+
+  /// Seitenüberschrift im Design (34, Sora 800).
+  final TextStyle pageTitle;
+
+  /// Textlink in einer Karte, etwa „Wie wird das berechnet?“ (14, 800).
+  final TextStyle link;
+
   static RamuriType of(BuildContext context) =>
       Theme.of(context).extension<RamuriType>()!;
 
@@ -125,6 +141,9 @@ class RamuriType extends ThemeExtension<RamuriType> {
     TextStyle? unit,
     TextStyle? eyebrow,
     TextStyle? sheetValue,
+    TextStyle? hero,
+    TextStyle? pageTitle,
+    TextStyle? link,
   }) => RamuriType(
     countdown: countdown ?? this.countdown,
     distance: distance ?? this.distance,
@@ -134,6 +153,9 @@ class RamuriType extends ThemeExtension<RamuriType> {
     unit: unit ?? this.unit,
     eyebrow: eyebrow ?? this.eyebrow,
     sheetValue: sheetValue ?? this.sheetValue,
+    hero: hero ?? this.hero,
+    pageTitle: pageTitle ?? this.pageTitle,
+    link: link ?? this.link,
   );
 
   @override
@@ -149,6 +171,9 @@ class RamuriType extends ThemeExtension<RamuriType> {
       unit: l(unit, other.unit),
       eyebrow: l(eyebrow, other.eyebrow),
       sheetValue: l(sheetValue, other.sheetValue),
+      hero: l(hero, other.hero),
+      pageTitle: l(pageTitle, other.pageTitle),
+      link: l(link, other.link),
     );
   }
 }

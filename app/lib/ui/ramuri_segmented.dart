@@ -28,7 +28,8 @@ class RamuriSegmentedToggle<T> extends StatelessWidget {
   final ValueChanged<T> onChanged;
   final String? semanticLabel;
 
-  /// Volle Breite: die Abschnitte teilen sich die Zeile zu gleichen Teilen.
+  /// Volle Breite: der Umschalter füllt die Zeile, die Abschnitte teilen sie
+  /// gleich auf (Design „Verlauf“, „Fortschritt“). Vorgabe: so schmal wie der Inhalt.
   final bool expanded;
 
   Widget segmentButton(RamuriSegment<T> s, RamuriColors c, TextStyle style) =>

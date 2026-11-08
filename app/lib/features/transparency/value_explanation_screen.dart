@@ -2,9 +2,12 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_card.dart';
+import '../../ui/ramuri_type.dart';
 import '../../ui/section_heading.dart';
 import '../settings/unit_format.dart';
 import '../statistics/fitness_section.dart' show reasonText;
+import 'quality_text.dart';
 
 /// Schlüssel für die Quellen eines Laufs (SEC-0005); kein gespeicherter Wert.
 const String runSourcesKey = 'run_sources';
@@ -137,20 +140,69 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
             );
           }
           final data = snapshot.data;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              key: const Key('expl_body'),
-              children: [
-                Heading(_title(l10n), key: const Key('expl_value_title')),
-                ..._content(context, l10n, data),
-              ],
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                key: const Key('expl_body'),
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      _title(l10n),
+                      key: const Key('expl_value_title'),
+                      style: RamuriType.of(context).pageTitle,
+                    ),
+                  ),
+                  ..._cards(_content(context, l10n, data)),
+                ],
+              ),
             ),
           );
         },
       ),
     );
+  }
+
+  /// Gruppiert die Inhalte wie Fortschritt: jede [Heading] steht über einer
+  /// eigenen Karte mit den folgenden Angaben; Inhalt ohne Überschrift
+  /// (Hinweise, Fehler) steht in einer Karte davor.
+  List<Widget> _cards(List<Widget> content) {
+    final out = <Widget>[];
+    Widget? heading;
+    var body = <Widget>[];
+    void flush() {
+      if (heading == null && body.isEmpty) return;
+      if (heading != null) out.add(heading!);
+      if (body.isNotEmpty) {
+        out.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: RamuriCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: body,
+              ),
+            ),
+          ),
+        );
+      }
+      heading = null;
+      body = <Widget>[];
+    }
+
+    for (final w in content) {
+      if (w is Heading) {
+        flush();
+        heading = w;
+      } else {
+        body.add(w);
+      }
+    }
+    flush();
+    return out;
   }
 
   List<Widget> _content(
@@ -175,20 +227,23 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
       return [Text(l10n.explNotStored, key: const Key('expl_not_stored'))];
     }
     final kind = _kindOf(widget.valueKey);
-    final material = MaterialLocalizations.of(context);
     final german = Localizations.localeOf(context).languageCode == 'de';
     String num(double v) {
       final t = v.toStringAsFixed(1);
       return german ? t.replaceAll('.', ',') : t;
     }
 
-    String date(DateTime t) => material.formatMediumDate(t.toLocal());
+    // Mit Jahr, passend zum „Stand“ (FR-0059 „Wie alt“).
+    String date(DateTime t) =>
+        asOfDateText(Localizations.localeOf(context).languageCode, t.toLocal());
     final estimate =
         kind == _Kind.vo2Run ||
         kind == _Kind.vo2LongTerm ||
         kind == _Kind.efficiency;
     final from = value.dataFrom;
     final to = value.dataTo;
+    final dayText = widget.day;
+    final asOfDay = dayText == null ? null : DateTime.tryParse(dayText);
     final out = <Widget>[];
     final missing = value.value == null;
     if (estimate && !missing) {
@@ -251,11 +306,21 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
     out.add(Heading(l10n.explQ2));
     out.add(
       Text(
-        missing
-            ? l10n.explAgeAttempt(date(value.computedAt))
-            : from != null && to != null
-            ? l10n.explAge(date(from), date(to), date(value.computedAt))
-            : l10n.explAgeNoRange(date(value.computedAt)),
+        [
+          missing
+              ? l10n.explAgeAttempt(date(value.computedAt))
+              : from != null && to != null
+              ? l10n.explAge(date(from), date(to), date(value.computedAt))
+              : l10n.explAgeNoRange(date(value.computedAt)),
+          // Tageswert: der Tag, auf den sich „bis zum Stand“ (Anzahl) bezieht.
+          if (!missing && asOfDay != null)
+            l10n.explAsOf(
+              asOfDateText(
+                Localizations.localeOf(context).languageCode,
+                asOfDay,
+              ),
+            ),
+        ].join('\n'),
         key: const Key('expl_a2'),
       ),
     );
@@ -307,12 +372,7 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
     // 5 Verlässlichkeit
     out.add(Heading(l10n.explQ5));
     out.add(
-      Text(switch (value.quality) {
-        ValueQuality.provisional => l10n.explQualityProvisional,
-        ValueQuality.sufficient => l10n.explQualitySufficient,
-        ValueQuality.good => l10n.explQualityGood,
-        ValueQuality.undeterminable => l10n.explQualityUndeterminable,
-      }, key: const Key('expl_a5')),
+      Text(qualityStageText(l10n, value.quality), key: const Key('expl_a5')),
     );
     out.add(Text(l10n.explQualityNote, key: const Key('expl_a5_note')));
     // 6 gemessen oder geschätzt
@@ -439,7 +499,7 @@ class Heading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 18, bottom: 6),
+    padding: const EdgeInsets.only(top: 20, bottom: 10),
     child: SectionHeading(text),
   );
 }
