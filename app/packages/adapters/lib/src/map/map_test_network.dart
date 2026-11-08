@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter_map_vector_tiles/flutter_map_vector_tiles.dart' as vt;
 import 'package:http/http.dart' as http;
 
 import 'map_provider.dart';
@@ -97,3 +98,15 @@ class FakeInner extends http.BaseClient {
 
   int count(bool Function(Uri) f) => requests.where((r) => f(r.url)).length;
 }
+
+/// Netz, das jede Anfrage aufzeichnet und mit einem Fehler beantwortet (Netz weg, Anbieter nicht erreichbar).
+class ThrowingInner extends FakeInner {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest r) async {
+    requests.add(r);
+    throw StateError('Netz weg');
+  }
+}
+
+/// Leert den prozessweiten Speicher der Kachelbibliothek (je Test, R008 Hinweis 3).
+void clearMapMemoryCache() => vt.VectorTileLayer.clearMemoryCache();

@@ -20,12 +20,26 @@ class RamuriSegmentedToggle<T> extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     this.semanticLabel,
+    this.expanded = false,
   });
 
   final List<RamuriSegment<T>> segments;
   final T selected;
   final ValueChanged<T> onChanged;
   final String? semanticLabel;
+
+  /// Volle Breite: die Abschnitte teilen sich die Zeile zu gleichen Teilen.
+  final bool expanded;
+
+  Widget segmentButton(RamuriSegment<T> s, RamuriColors c, TextStyle style) =>
+      _SegmentButton(
+        expanded: expanded,
+        label: s.label,
+        selected: s.value == selected,
+        onTap: () => onChanged(s.value),
+        colors: c,
+        style: style,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -42,16 +56,13 @@ class RamuriSegmentedToggle<T> extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
             children: [
               for (final s in segments)
-                _SegmentButton(
-                  label: s.label,
-                  selected: s.value == selected,
-                  onTap: () => onChanged(s.value),
-                  colors: c,
-                  style: labelStyle,
-                ),
+                if (expanded)
+                  Expanded(child: segmentButton(s, c, labelStyle))
+                else
+                  segmentButton(s, c, labelStyle),
             ],
           ),
         ),
@@ -67,8 +78,10 @@ class _SegmentButton extends StatelessWidget {
     required this.onTap,
     required this.colors,
     required this.style,
+    this.expanded = false,
   });
 
+  final bool expanded;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -98,7 +111,7 @@ class _SegmentButton extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
               child: Center(
-                widthFactor: 1,
+                widthFactor: expanded ? null : 1,
                 child: Text(
                   label,
                   style: style.copyWith(

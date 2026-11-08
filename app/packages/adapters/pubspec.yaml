@@ -21,6 +21,7 @@ dependencies:
   # WP13 / ADR-0009: Karte nur im Kartenadapter (lib/src/map), exakt gepinnt (R008 Hinweis 8).
   flutter_map: 8.3.2
   flutter_map_vector_tiles: 2.11.0
+  latlong2: 0.10.1
   http: 1.6.0
 
 dev_dependencies:

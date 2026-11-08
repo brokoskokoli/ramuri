@@ -628,5 +628,13 @@
   "mapDeleteKeep": "Keep",
   "@mapDeleteKeep": {"description": "Karte (WP13)"},
   "mapDeleteFailed": "The map storage could not be deleted.",
-  "@mapDeleteFailed": {"description": "Karte (WP13)"}
+  "@mapDeleteFailed": {"description": "Karte (WP13)"},
+  "mapViewToggle": "Route view",
+  "@mapViewToggle": {"description": "Karte (WP13 B)"},
+  "mapViewLine": "Line",
+  "@mapViewLine": {"description": "Karte (WP13 B)"},
+  "mapViewMap": "Map",
+  "@mapViewMap": {"description": "Karte (WP13 B)"},
+  "mapRouteSemantics": "Route map. {parts} connected sections; gaps are not joined. Start and end are marked. Source: {source}. Zoom and pan with two fingers.",
+  "@mapRouteSemantics": {"description": "Karte (WP13 B)", "placeholders": {"parts": {"type": "int"}, "source": {"type": "String"}}}
 }
