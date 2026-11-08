@@ -17,6 +17,11 @@ Bezug: FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0037, FR-0040, F
 - Laufnamen, „Aus dem Plan“, Ansagen, Belastungsbereich „im Ziel“ und Abschnittshinweise aus dem Design sind Phase 2 und kommen nicht.
 - **Parallel:** läuft allein nach WP13. Berührt `live_run_view.dart`, `run_flow_screen.dart`, `run_summary_body.dart`, `run_charts.dart`, `run_detail_screen.dart`, `history_screen.dart`. Neue Texte mit Präfix `start`/`live`/`summary`/`detail`/`history`.
 
+## Hinweise aus WP14
+- Theme und Bausteine liegen in `app/lib/ui/`. Noch fehlende Tokens und Bausteine legt dieses Paket dort an, nicht in den Seiten: Töne `#E2EAE8`, `#D3EEE9`, `#3A4F4D`, `#FFE6DA`, `#8DBDB4`, Schriftgrößen 48/44/30, Umschalter in voller Breite, Live-Zonenanzeige, Wochenbalken (`handoff/wp14-review-1.md`, Zusatzfrage 8; `handoff/wp14-a.md` für abgeleitete Töne).
+- Verlauf und Fortschritt werden bei jedem Tab-Wechsel neu aufgebaut; Zeitraumwahl und Scrollposition gehen dabei verloren. Sie bleiben beim Tab-Wechsel erhalten (Abnahme), die Daten trotzdem frisch.
+- Bildschirmfotos je API und Modus; Vorlagen in `../running-app-wt/handoff/e2e-vorlagen/wp14-e2e*`.
+
 ## Abnahmekriterien
 - [ ] Jede der fünf Seiten wie ihr Screen, hell und dunkel; Abweichungen nach FR-0205 benannt.
 - [ ] FR-0210: Autopause beim ersten Lauf aus, danach wie zuletzt gewählt; gilt für den gestarteten Lauf (Test mit Mutationsbeleg). Ohne Standortrecht kein Start.
@@ -25,6 +30,7 @@ Bezug: FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0037, FR-0040, F
 - [ ] FR-0037: alle Inhalte der Zusammenfassung vorhanden; „Fertig“ ändert keine Daten.
 - [ ] FR-0211: Summe der Kilometerzeiten gleich Bewegungszeit, „–“ statt 0 ohne Puls, Lücken gekennzeichnet, Meilen (Tests in core).
 - [ ] FR-0212: Summen gleich der Statistik für denselben Zeitraum (Test).
+- [ ] Verlauf: Zeitraum und Scrollposition bleiben beim Tab-Wechsel erhalten, die Liste ist danach aktuell (Test).
 - [ ] E2E (separater Agent), API 31 und 36, hell und dunkel: eingespeister Lauf mit Pause, GPS-Lücke und Sensorabbruch durch alle fünf Seiten, Bildschirmfotos neben dem Design; Aufzeichnung bei ausgeschaltetem Bildschirm unverändert. Gate grün.
 
 ## Ungeprüft

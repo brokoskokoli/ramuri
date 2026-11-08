@@ -2,7 +2,7 @@
 
 Logo der App **ramuri** (Konzept „Puls“). Ein Pulsausschlag geht in eine steigende Formkurve über. Der abgesetzte Punkt ist der heutige Stand: eine Schätzung, kein Messwert, darum berührt er die Linie nicht.
 
-Die Dateien sind noch nicht in die App eingebunden. Das geschieht über ein Arbeitspaket.
+Eingebunden in die App mit WP14 (Launcher, Benachrichtigung, Splash, Willkommen).
 
 ## Dateien
 
