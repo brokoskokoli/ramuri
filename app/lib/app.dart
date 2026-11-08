@@ -6,6 +6,7 @@ import 'app_dependencies.dart';
 import 'features/archive/archive_scope.dart';
 import 'features/export/file_handoff_scope.dart';
 import 'features/home/ready_root.dart';
+import 'features/map/map_consent_scope.dart';
 import 'features/home/welcome_screen.dart';
 import 'features/settings/app_settings.dart';
 import 'features/storage/storage_gate.dart';
@@ -30,6 +31,9 @@ class _RunningAppState extends State<RunningApp> {
 
   /// Über der Sitzung: ReadyRoot entsteht je Sitzung neu (FR-0207).
   final WelcomeFlag _welcome = WelcomeFlag();
+
+  /// Kartencontroller der aktuellen Sitzung, über dem Navigator (Einstellungen, Karten).
+  final MapConsentHolder _map = MapConsentHolder();
 
   @override
   void dispose() {
@@ -58,7 +62,10 @@ class _RunningAppState extends State<RunningApp> {
             // vor.
             child: AnnotatedRegion<SystemUiOverlayStyle>(
               value: ramuriOverlayStyle(Theme.of(context).brightness),
-              child: AppSettingsScope(holder: _settings, child: child!),
+              child: MapConsentScope(
+                holder: _map,
+                child: AppSettingsScope(holder: _settings, child: child!),
+              ),
             ),
           ),
         ),
@@ -87,6 +94,8 @@ class _RunningAppState extends State<RunningApp> {
           runPorts: dependencies.runPorts,
           sensors: dependencies.sensors,
           welcome: _welcome,
+          map: dependencies.map,
+          mapHolder: _map,
         ),
       ),
     );

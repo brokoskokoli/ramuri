@@ -2,6 +2,7 @@ import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
 
 import 'features/archive/archive_wiring.dart';
+import 'features/map/map_services.dart';
 import 'features/run/method_channel_recording_service.dart';
 import 'features/run/run_ports.dart';
 import 'features/sensors/run_heart_rate.dart';
@@ -27,6 +28,7 @@ class AppDependencies {
     this.archiveRestore,
     this.archiveVerify,
     this.mapCache,
+    this.map,
   }) : fileHandoff = fileHandoff ?? const _NoFileHandoff(),
        permissions = permissions ?? const _NoPermissionStatus(),
        runPorts = runPorts ?? const _NoRunPorts(),
@@ -73,6 +75,10 @@ class AppDependencies {
   /// der Neubeginn räumen ihn ab.
   final EncryptedMapTileStore? mapCache;
 
+  /// Kartenanbieter für die Oberfläche (Tor, Speichergröße, Löschen). `null`: nicht verdrahtet (Tests), dann bietet die
+  /// Oberfläche keine Karte an.
+  final MapServices? map;
+
   /// App-weiter Sensordienst: Verbindungen, bekannte Geräte, Puls (WP07).
   final SensorManager sensors;
 
@@ -117,6 +123,7 @@ class AppDependencies {
     return AppDependencies(
       heartRateSensor: sensor,
       mapCache: mapCache,
+      map: MapServices.production(mapCache),
       sensors: sensors,
       permissions: permissions,
       fileHandoff: fileHandoff,

@@ -149,6 +149,15 @@ void main() {
     });
   });
 
+  test('Alles löschen entfernt die Karteneinwilligung', () async {
+    final (s, _, _) = await setup();
+    await s.consents.set(mapProviderSourceKey, ConsentState.granted, at: at(0));
+    expect(await s.consents.get(mapProviderSourceKey), ConsentState.granted);
+    await s.deleteAll();
+    expect(await s.consents.get(mapProviderSourceKey), isNull);
+    await s.close();
+  });
+
   test('Alle Tabellen laut sqlite_master sind nach deleteAll leer', () async {
     final (s, a, _) = await setup();
     final db = s.database;

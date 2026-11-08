@@ -312,6 +312,24 @@ void main() {
     },
   );
 
+  test(
+    'Karteneinwilligung kommt mit dem Reimport nicht zurück (K30)',
+    () async {
+      await session.consents.set(
+        mapProviderSourceKey,
+        ConsentState.granted,
+        at: DateTime.utc(2026),
+      );
+      expect(
+        await session.consents.get(mapProviderSourceKey),
+        ConsentState.granted,
+      );
+      session = await service().restore(path: archivePath, password: _password);
+      // Nicht erteilt und nie gefragt: Die Oberfläche fragt beim nächsten Öffnen einer Karte neu.
+      expect(await session.consents.get(mapProviderSourceKey), isNull);
+    },
+  );
+
   test('Einwilligung aus der Quellinstallation kommt nicht mit', () async {
     session = await service().restore(path: archivePath, password: _password);
     expect(await session.consents.get(fixtureConsentMarker), isNull);

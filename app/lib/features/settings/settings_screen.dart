@@ -2,6 +2,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../map/map_consent_scope.dart';
+import '../map/map_settings_card.dart';
 import '../recalculation/recalculation_card.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../../ui/ramuri_card.dart';
@@ -35,6 +37,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _body(BuildContext context, bool busy) {
     final l10n = AppLocalizations.of(context);
     final settings = AppSettingsScope.of(context);
+    final map = MapConsentScope.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: ListView(
@@ -69,6 +72,11 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
           ),
+          if (map != null) ...[
+            SectionHeading(l10n.mapSettingsTitle),
+            const SizedBox(height: 12),
+            MapSettingsCard(controller: map),
+          ],
         ],
       ),
     );
