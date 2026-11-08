@@ -20,7 +20,8 @@ $ADB root >/dev/null; sleep 3; $ADB wait-for-device
 $ADB shell settings put global window_animation_scale 0; $ADB shell svc power stayon true; $ADB shell input keyevent KEYCODE_WAKEUP
 # Netz: Mitschnitt (Konsole "network capture", wie -tcpdump) sieht nur eth0 (Mobilfunk ueber slirp), nicht das
 # Netsim-WLAN. Daher WLAN aus, Mobilfunk an (-read-only: Aenderung wird verworfen).
-$ADB shell svc wifi disable; $ADB shell svc data enable
+# Flugmodus aus (im AVD running_app_api31 war er an, -read-only verwirft auch das), WLAN aus, Mobilfunk an
+$ADB shell cmd connectivity airplane-mode disable; $ADB shell svc wifi disable; $ADB shell svc data enable
 sleep 60   # Systemstart abklingen lassen
 # Positivkontrolle: Mitschnitt muss eine bekannte DNS-Anfrage sehen, sonst Abbruch (Nullen waeren wertlos)
 $ADB emu network capture start "$OUT/positivkontrolle.pcap" >/dev/null; $ADB shell ping -c1 -W3 example.com > "$OUT/positivkontrolle.txt" 2>&1
@@ -31,7 +32,7 @@ pkg() { echo "io.github.r008.r008_$1"; }
 cap_start() { $ADB emu network capture start "$OUT/$1.pcap" >/dev/null; }
 cap_stop() { $ADB emu network capture stop >/dev/null; python3 "$HERE/pcap_hosts.py" "$OUT/$1.pcap" > "$OUT/$1.hosts.json"; }
 cputime() { local p; p=$($ADB shell pidof "$(pkg "$1")" | tr -d '\r'); [ -n "$p" ] && $ADB shell cat /proc/$p/stat | awk '{print $14+$15}' || echo NA; }
-launch() { $ADB shell am force-stop "$(pkg "$1")"; $ADB logcat -c; $ADB shell am start -W -n "$(pkg "$1")/.MainActivity" --es route "$2" >/dev/null; }
+launch() { $ADB shell am force-stop "$(pkg "$1")"; $ADB logcat -c; $ADB shell am start -W -n "$(pkg "$1")/.MainActivity" --es route "'$2'" >/dev/null; }  # einfache Anfuehrung fuer die Geraete-Shell: sonst trennt dort "&" die Route ab (Fehler im Lauf emu-20261108-003341)
 measure() { # app name route seconds
   local a=$1 n=$2 r=$3 s=$4
   cap_start "$a-$n"; launch "$a" "$r"; sleep 5
@@ -60,7 +61,7 @@ for a in $APPS; do
   if [ "$API" = 31 ]; then   # nur Start-Smoke
     measure "$a" smoke "/live?consent=1&page=1" 30
     $ADB shell pidof "$(pkg "$a")" >/dev/null && echo "$a smoke: Prozess laeuft" || echo "$a smoke: Prozess FEHLT"
-    continue
+    $ADB shell am force-stop "$(pkg "$a")"; continue
   fi
   measure "$a" noconsent-live "/live?consent=0&page=1" 45
   measure "$a" noconsent-thumbs "/thumbs?consent=0&n=50&auto=1" 60
@@ -74,5 +75,6 @@ for a in $APPS; do
   storage_scan "$a" consent
   if [ "$a" = fm ] || [ "$a" = fmvt ]; then measure "$a" plaincache "/detail?consent=1&plaincache=1" 20; storage_scan "$a" plaincache; fi
   if [ "$a" = ml ]; then $ADB shell pm clear "$(pkg ml)" >/dev/null; measure ml ambient "/detail?consent=1&ambient=1" 20; storage_scan ml ambient; fi
+  $ADB shell am force-stop "$(pkg "$a")"   # App nicht im Hintergrund weiterlaufen lassen (im Lauf emu-20261108-003341 liefen fm/fmvt weiter)
 done
 echo "Emulator-Messung fertig: $OUT"

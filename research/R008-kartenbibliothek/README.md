@@ -1,6 +1,6 @@
 # R008 – Kartenbibliothek und Kachelanbieter
 
-**Status:** läuft · **Auftraggeber:** Project Supervisor für ADR-0009 Punkt 6, vor WP13 · **Datum:** 2026-11-07
+**Status:** abgeschlossen · **Auftraggeber:** Project Supervisor für ADR-0009 Punkt 6, vor WP13 · **Datum:** 2026-11-07
 
 ## Frage
 Welche Flutter-Bibliothek und welcher Kachelanbieter tragen FR-0204 (Karte auf der Live-Seite, in Zusammenfassung und Detailansicht, Miniaturen in einer Historie mit 50 und mehr Läufen) unter den Randbedingungen von ADR-0009 Punkt 1 bis 5 (Netz nur im Kartenadapter und nur nach Einwilligung, verschlüsselter Kachel- und Miniaturspeicher, Karte nur in der Oberfläche)? Ist OpenFreeMap für eine verteilte App zulässig und tragfähig (Nutzungsbedingungen, Verfügbarkeit, Alternativen; die Server der OSMF sind ausgeschlossen)?
@@ -23,7 +23,7 @@ Daran hängt ADR-0009 Punkt 6 (Bibliothek und Darstellung) und damit der Zuschni
 3. **Kennzahlen:**
    - **APK-Zuwachs:** Release-APK je ABI (`--split-per-abi`, arm64-v8a und x86_64) und universal, Differenz zu `base` in MB.
    - **Lizenzbaum:** vollständiger Abhängigkeitsbaum (Dart: alle Pakete aus `pubspec.lock`, ausgeliefert = Abschluss der Nicht-Dev-Abhängigkeiten laut `flutter pub deps --json`, Lizenz aus der LICENSE-Datei; Android/Gradle: `releaseRuntimeClasspath` und `<licenses>` der POM samt Eltern-POM, fehlende POMs einmalig von Google Maven bzw. Maven Central nach `work/R008/poms/`), jede Lizenz gegen GPL-3.0 eingeordnet.
-   - **Netz und Telemetrie:** statisch (Netz-APIs und fest eingebaute Hosts in den Quellen und Bibliotheken), dynamisch per Netzwerkmitschnitt im Emulator (Konsolenbefehl `network capture`, gleichwertig zu `-tcpdump`; sieht nur das emulierte Mobilfunknetz `eth0`, daher WLAN aus und eine Positivkontrolle mit bekannter DNS-Anfrage vor den Phasen): ohne Einwilligung keine Verbindung, mit Einwilligung nur die Hosts des Anbieters.
+   - **Netz und Telemetrie:** statisch (Netz-APIs und fest eingebaute Hosts in den Quellen und Bibliotheken), dynamisch per Netzwerkmitschnitt im Emulator (Konsolenbefehl `network capture`, gleichwertig zu `-tcpdump`; sieht nur das emulierte Mobilfunknetz `eth0`, daher Flugmodus und WLAN aus, Mobilfunk an, und eine Positivkontrolle mit bekannter DNS-Anfrage vor den Phasen): ohne Einwilligung keine Verbindung, mit Einwilligung nur die Hosts des Anbieters.
    - **Speicher-Hook:** Host-Test, dass Kacheln nur über den eigenen Hook gelesen und geschrieben werden und im App-Verzeichnis keine Kachel- oder Bildsignaturen im Klartext liegen (Suche nach `\x1a`-PBF-Kopf, gzip, PNG, SQLite-Kopf).
    - **Miniaturen:** Snapshot einmal erzeugen, verschlüsselt ablegen, danach nur das Bild anzeigen; Zeit je Snapshot und Größe je Miniatur.
    - **Live-Seite:** Bildrate und CPU-Zeit (`dumpsys gfxinfo`, `/proc/<pid>/stat`) während einer eingespeisten Fahrt im Emulator; Akku nur als Stellvertreter (CPU-Zeit), keine Aussage über echte Geräte.
@@ -71,7 +71,13 @@ Vollständiger Ablauf wie in RESULTS.md:
 ./run.sh emu --api 36 --apps "fm fmvt ml" && ./run.sh emu --api 31 --apps "fm fmvt ml"
 ```
 
+Auswertung eines emu-Laufs (nur lesen, schreibt `eval.json` in den Laufordner und Tabellen nach stdout):
+
+```bash
+python3 -I src/emu_eval.py "$RESEARCH_DATA/work/R008/emu-<zeit>"
+```
+
 Ausgaben: `$RESEARCH_DATA/work/R008/<schritt>-<zeit>/` (nie überschrieben, `.done` nach Exit 0); gemeinsame Build-Ordner der Mini-Apps unter `work/R008/apps/`, geholte POMs unter `work/R008/poms/`.
 
 ## Status
-läuft
+abgeschlossen (2026-11-08), Ergebnis in [RESULTS.md](RESULTS.md); Review offen
