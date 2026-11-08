@@ -75,7 +75,7 @@ void main() {
     File('$dbPath.import').writeAsBytesSync([2]);
     await FileDatabaseFiles(
       dbPath,
-      afterReplace: s.deleteAllThumbnails,
+      beforeReplace: s.deleteAllThumbnails,
     ).replaceWithImport();
     expect(
       await s.read(_thumb(7)),
@@ -87,15 +87,64 @@ void main() {
     await s.close();
   });
 
-  test('M3: scheitert der Hook, bleibt der Tausch gültig', () async {
+  test('N7: scheitert das Verwerfen, löscht der Tausch den ganzen Kartenspeicher und tauscht dann', () async {
     final dbPath = '${dir.path}/running_app.db';
     File(dbPath).writeAsBytesSync([1]);
     File('$dbPath.import').writeAsBytesSync([2]);
+    var fallback = 0;
+    Object? seenAtFallback;
     await FileDatabaseFiles(
       dbPath,
-      afterReplace: () async => throw const FileSystemException('x'),
+      beforeReplace: () async => throw const FileSystemException('x'),
+      beforeReplaceFallback: () async {
+        fallback++;
+        seenAtFallback = File(dbPath).readAsBytesSync().first;
+      },
     ).replaceWithImport();
+    expect(fallback, 1);
+    expect(seenAtFallback, 1, reason: 'vor dem Umbenennen');
     expect(File(dbPath).readAsBytesSync(), [2]);
+  });
+
+  test('N7: Miniaturen werden vor dem Umbenennen verworfen (alte Datenbank steht noch)', () async {
+    final dbPath = '${dir.path}/running_app.db';
+    File(dbPath).writeAsBytesSync([1]);
+    File('$dbPath.import').writeAsBytesSync([2]);
+    int? atHook;
+    await FileDatabaseFiles(
+      dbPath,
+      beforeReplace: () async => atHook = File(dbPath).readAsBytesSync().first,
+    ).replaceWithImport();
+    expect(atHook, 1);
+    expect(File(dbPath).readAsBytesSync(), [2]);
+  });
+
+  test('N7: scheitert auch das Löschen, bricht der Tausch vor dem Umbenennen ab; die alte Datenbank bleibt, nichts verloren', () async {
+    final dbPath = '${dir.path}/running_app.db';
+    File(dbPath).writeAsBytesSync([1]);
+    File('$dbPath.import').writeAsBytesSync([2]);
+    await expectLater(
+      FileDatabaseFiles(
+        dbPath,
+        beforeReplace: () async => throw const FileSystemException('x'),
+        beforeReplaceFallback: () async => throw const FileSystemException('y'),
+      ).replaceWithImport(),
+      throwsA(isA<FileSystemException>()),
+    );
+    expect(File(dbPath).readAsBytesSync(), [1]);
+    expect(File('$dbPath.import').readAsBytesSync(), [2]);
+  });
+
+  test('N7: deleteAllThumbnails wirft, wenn die Datei da ist, aber der Speicher nicht erreichbar (geschlossen)', () async {
+    final s = store();
+    await s.write(_thumb(7), _bytes(100, 7));
+    await s.close();
+    await expectLater(
+      s.deleteAllThumbnails(),
+      throwsA(isA<FileSystemException>()),
+    );
+    await s.delete();
+    await s.deleteAllThumbnails(); // keine Datei: nichts zu tun
   });
 
   test('S6: im Betrieb zerstörte Datei (offene Verbindung): Lesen liefert nichts, die Datei ist danach klein und neu, Schreiben geht', () async {

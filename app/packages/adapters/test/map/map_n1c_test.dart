@@ -64,6 +64,17 @@ void main() {
       expect(seen, [true, false]);
     });
 
+    test(
+      'ein einzelner Fehlschlag fällt noch nicht zurück (Limit größer als 1)',
+      () async {
+        final g = gate();
+        inner.failWhere = (u) => u.path.endsWith('.pbf');
+        await ignore(g.read(_tile(1)));
+        expect(g.tilesFailed.value, isFalse);
+        expect(mapTileFailureLimit, greaterThan(1));
+      },
+    );
+
     test('durchgehend 404 zählt als Fehlschlag', () async {
       final g = gate();
       inner.statusWhere = (u) => u.path.endsWith('.pbf') ? 404 : null;
@@ -274,6 +285,21 @@ void main() {
       await expectLater(g.read(_tile(1)), throwsA(isA<MapGateException>()));
       expect(store.writes, 0);
       expect(g.inFlight, 0);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        inner.aborted,
+        inner.requests.length,
+        reason: 'jede Anfrage wurde abgebrochen',
+      );
+      expect(inner.aborted, greaterThanOrEqualTo(2));
+    });
+
+    test('Netzfehler: die Verbindung wird abgebrochen', () async {
+      inner.failWhere = (u) => true;
+      final g = gate();
+      await expectLater(g.read(_tilejson), throwsA(isA<MapGateException>()));
+      await Future<void>.delayed(Duration.zero);
+      expect(inner.aborted, 1);
     });
 
     for (final chunked in [false, true]) {
@@ -294,6 +320,12 @@ void main() {
             ),
           );
           expect(store.writes, 0);
+          await Future<void>.delayed(Duration.zero);
+          expect(
+            inner.aborted,
+            1,
+            reason: 'Verbindung nach Überschreitung abgebrochen',
+          );
           inner.bodyWhere = (u) => Uint8List(1000); // genau die Grenze geht
           expect((await g.readBytes(_tile(2))).length, 1000);
           expect(store.writes, 1);

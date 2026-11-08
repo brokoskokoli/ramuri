@@ -74,9 +74,13 @@ class FakeInner extends http.BaseClient {
   /// Datierter Pfad der Kacheln im TileJSON (der Anbieter ändert ihn wöchentlich).
   String tileDate = '20260101_000000_pt';
 
+  /// Zahl der Anfragen, deren Verbindung der Aufrufer über `abortTrigger` abgebrochen hat.
+  int aborted = 0;
+
   @override
   Future<http.StreamedResponse> send(http.BaseRequest r) async {
     requests.add(r);
+    if (r is http.Abortable) r.abortTrigger?.then((_) => aborted++);
     active++;
     if (active > maxActive) maxActive = active;
     try {

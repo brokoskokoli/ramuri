@@ -25,7 +25,7 @@ APP_SKIP = {"test", "integration_test", "build", "coverage", "assets", "packages
 PKG_SKIP = {"test", "build", ".dart_tool", "drift_schemas"}
 # Erzeugte Ordner nur an diesen genauen Stellen auslassen (nie als Namensmuster, sonst versteckt sich Code darin).
 GENERATED = {"app/android/build", "app/android/app/build", "app/android/.gradle"}
-BINARY_EXT = {".so", ".aar", ".jar", ".a", ".dylib", ".dll", ".framework", ".jnilib", ".wasm", ".apk", ".aab", ".o"}
+BINARY_EXT = {".so", ".aar", ".jar", ".dex", ".a", ".dylib", ".dll", ".framework", ".jnilib", ".wasm", ".apk", ".aab", ".o"}
 BINARY_OK = {"app/android/gradle/wrapper/gradle-wrapper.jar"}
 
 DART_OK = {"core", "async", "collection", "convert", "math", "typed_data", "io", "isolate", "ui", "developer"}
@@ -36,6 +36,9 @@ DART_API = [
      r"RawSecureSocket|ServerSocket|RawServerSocket|RawDatagramSocket|RawSynchronousSocket|WebSocket|NetworkImage|"
      r"NetworkAssetBundle|InternetAddress|NetworkInterface|ConnectivityResult|Dio)\b", "Netz-Klasse"),
     (r"\bImage\s*\.\s*network\b|\bNetworkImage\b", "Netz-Aufruf (Image.network)"),
+    (r"\bProcess\s*\.\s*(?:run|runSync|start)\b|\bSecureServerSocket\b", "Prozessstart oder Server-Socket"),
+    (r"\btypedef\s+\w+\s*(?:<[^>]*>)?\s*=\s*(?:\w+\s*\.\s*)?(?:Image|Process|\w*Socket\w*|HttpClient\w*|HttpServer|"
+     r"NetworkAssetBundle|InternetAddress)\b", "Alias einer Netz-Klasse (typedef)"),
 ]
 JVM_API = [
     (r"\b(HttpURLConnection|HttpsURLConnection|URLConnection|Socket|ServerSocket|SocketChannel|DatagramSocket|"
@@ -132,6 +135,7 @@ def lex(text, rel, nested=True, interp=True):
             i += 2
             continue
         if interp and not raw and t.startswith("${", i):
+            buf.append("\x03")  # Merker: hier steht ein Ausdruck
             stack.append((ctx, depth))
             ctx, depth = None, 0
             i += 2
@@ -305,6 +309,9 @@ def check_dart(rel, text, own):
             continue
         uris = [strs[int(x)] for x in PH.findall(m.group(2))]
         line = line_of(code, m.start())
+        if re.search(r"\x02\s*\x01", m.group(2)):
+            # Dart verkettet benachbarte Zeichenketten: 'package' ':http/http.dart' ist ein einziger URI.
+            err(rel, line, f"{kind}: aneinandergereihte Zeichenketten im URI (fail-closed)")
         if not uris:
             err(rel, line, f"{kind} ohne lesbare URI (fail-closed)")
         for u in uris:
@@ -382,6 +389,9 @@ def check_gradle(rel, text):
     for pat, what in GRADLE_RISK:
         for m in re.finditer(pat, code):
             err(rel, line_of(code, m.start()), what)
+    for m in re.finditer(r"(?:[(,]|\b\w*(?:[Ii]mplementation|[Aa]pi|[Oo]nly|classpath|kapt|ksp|annotationProcessor|platform)\s*\(?)\s*"
+                         r"(?:group|name|module)\s*[:=(]", code):
+        err(rel, line_of(code, m.start()), "Gradle: Koordinate in benannten Argumenten (group/name/module), nicht lesbar (fail-closed)")
     for m in re.finditer(r"\bincludeBuild\s*\(\s*\x01(\d+)\x02", code):
         if strs[int(m.group(1))] != "$flutterSdkPath/packages/flutter_tools/gradle":
             err(rel, line_of(code, m.start()), "includeBuild außerhalb des Flutter-Werkzeugs")
@@ -389,6 +399,8 @@ def check_gradle(rel, text):
         err(rel, line_of(code, m.start()), "includeBuild nicht lesbar (fail-closed)")
     for m in re.finditer(r"\x01(\d+)\x02", code):
         s = strs[int(m.group(1))]
+        if ":" in s and "/" not in s and re.search(r"[$\x03]", ":".join(s.split(":")[:2])) and re.match(r"^[^\s]+:[^\s]*", s):
+            err(rel, line_of(code, m.start()), "Gradle: Koordinate mit Interpolation in Gruppe oder Name (fail-closed)")
         if COORD.match(s) and "/" not in s:
             check_gradle_name(rel, line_of(code, m.start()), "gradle", ":".join(s.split("@")[0].split(":")[:2]))
     for m in re.finditer(r"\b(?:id|kotlin)\s*\(\s*\x01(\d+)\x02|\bplugin\s*[:=]\s*\x01(\d+)\x02|\bapply\s+plugin\s*:\s*\x01(\d+)\x02", code):
@@ -438,6 +450,9 @@ def scan_files(files, own):
         p = os.path.join(root, rel)
         if os.path.islink(p):
             err(rel, 0, "symbolischer Link in einem Suchpfad")
+            continue
+        if base == "CMakeLists.txt" or ext == ".cmake":
+            err(rel, 0, "CMake-Skript kann nicht auf Netz geprüft werden")
             continue
         if ext in BINARY_EXT and rel not in BINARY_OK:
             err(rel, 0, "Binärdatei kann nicht auf Netz geprüft werden")

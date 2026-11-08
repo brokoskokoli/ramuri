@@ -64,8 +64,12 @@ class _SlowController extends MapConsentController {
     required super.services,
   });
   Completer<void>? deliver;
+  bool failOpen = false;
+  int opens = 0;
   @override
   Future<MapTileSource?> openSource({int? maxParallel}) async {
+    opens++;
+    if (failOpen) throw StateError('Anbieter nicht erreichbar');
     final s = await super.openSource(maxParallel: maxParallel);
     if (deliver != null) await deliver!.future;
     return s;
@@ -186,6 +190,81 @@ void main() {
       expect(w.inner.closed, isTrue);
       expect(notified, greaterThan(0));
     });
+
+    testWidgets(
+      'dispose während des Öffnens: die fertige Quelle wird freigegeben, keine Benachrichtigung (N4)',
+      (tester) async {
+        final w = _World(consent: ConsentState.granted, slow: true);
+        final gate = Completer<void>();
+        (w.controller as _SlowController).deliver = gate;
+        final h = await holder(tester, w);
+        await _wait(tester); // Quelle fertig, Aufrufer wartet
+        expect(w.inner.requests, isNotEmpty);
+        var notified = 0;
+        h.addListener(() => notified++);
+        h.dispose();
+        gate.complete();
+        await _wait(tester);
+        expect(w.inner.closed, isTrue, reason: 'Quelle nach dispose frei');
+        expect(notified, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'bind während des Öffnens: die alte Quelle wird freigegeben, die des neuen Controllers gilt (N4)',
+      (tester) async {
+        final w = _World(consent: ConsentState.granted, slow: true);
+        final gate = Completer<void>();
+        (w.controller as _SlowController).deliver = gate;
+        final h = await holder(tester, w);
+        await _wait(tester);
+        final w2 = _World(consent: ConsentState.granted);
+        await tester.runAsync(() => w2.controller.ready);
+        h.bind(w2.controller);
+        gate.complete();
+        await _wait(tester);
+        expect(w.inner.closed, isTrue, reason: 'alte Quelle frei');
+        expect(w2.inner.closed, isFalse);
+        expect(h.usable, isNotNull);
+        expect(
+          w2.inner.requests,
+          isNotEmpty,
+          reason: 'neue Quelle ist die geöffnete',
+        );
+      },
+    );
+
+    testWidgets('dispose bei offener Quelle: Quelle zu (N4)', (tester) async {
+      final w = _World(consent: ConsentState.granted);
+      final h = await holder(tester, w);
+      await _wait(tester);
+      expect(h.usable, isNotNull);
+      h.dispose();
+      expect(h.source, isNull);
+      expect(w.inner.closed, isTrue);
+      expect(h.usable, isNull);
+    });
+
+    testWidgets(
+      'gescheitertes Öffnen: bei erneutem Bedarf (Seitenwechsel) neuer Versuch, ohne neue Frage (N5)',
+      (tester) async {
+        final w = _World(consent: ConsentState.granted, slow: true);
+        final c = w.controller as _SlowController..failOpen = true;
+        final h = await holder(tester, w);
+        await _wait(tester);
+        expect(h.source, isNull);
+        expect(c.opens, 1);
+        await _wait(tester);
+        expect(c.opens, 1, reason: 'ohne neuen Anstoß kein Zeitgeber');
+        c.failOpen = false;
+        h.setWanted(false);
+        h.setWanted(true);
+        await _wait(tester);
+        expect(c.opens, 2);
+        expect(h.usable, isNotNull, reason: 'Karte erholt sich');
+      },
+    );
 
     testWidgets(
       'verweigert gestartet, später erteilt: die Quelle öffnet (S4)',
@@ -440,6 +519,11 @@ void main() {
           final t = ask(1)!;
           await until(tester, () => captures == 1);
           pause(tester);
+          expect(
+            w.inner.closed,
+            isTrue,
+            reason: 'Tor sofort zu, noch vor dem nächsten Bild (closeNow)',
+          );
           await until(tester, () => sawCancel);
           expect(w.thumbs.writes, 0);
           expect(
@@ -455,6 +539,41 @@ void main() {
           expect(await _drive(tester, t), isNotNull);
           expect(captures, 2);
           expect(w.thumbs.writes, 1);
+          await finish(tester);
+        },
+      );
+
+      testWidgets(
+        'Pause ($cause) und Rückkehr, bevor die Aufnahme es bemerkt: kein Fehlversuch, der Lauf kommt neu dran (N8)',
+        (tester) async {
+          addTearDown(
+            () => tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.resumed,
+            ),
+          );
+          final release = Completer<void>();
+          await setup(tester, (
+            boundary,
+            gate, {
+            cancelled,
+            failuresBefore,
+          }) async {
+            captures++;
+            if (captures == 1) {
+              // Wie das Fenster bis thumbnailSettle: die Aufnahme sieht die Pause nicht (kein Blick auf cancelled),
+              // der Träger war inzwischen weg, das Bild fehlt.
+              await release.future;
+              return null;
+            }
+            return png1x1;
+          });
+          final t = ask(1)!;
+          await until(tester, () => captures == 1);
+          pause(tester);
+          resume(tester);
+          release.complete();
+          expect(await _drive(tester, t), isNotNull);
+          expect(captures, 2, reason: 'neue Aufnahme statt Fehlversuch');
           await finish(tester);
         },
       );

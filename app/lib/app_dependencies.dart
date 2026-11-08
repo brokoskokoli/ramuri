@@ -209,7 +209,8 @@ FileDatabaseFiles databaseFilesFor(
 ) => FileDatabaseFiles(
   path,
   alsoDelete: mapCache.delete,
-  afterReplace: mapCache.deleteAllThumbnails,
+  beforeReplace: mapCache.deleteAllThumbnails,
+  beforeReplaceFallback: mapCache.delete,
 );
 
 /// Verdrahtung der Speicherung beim App-Start.

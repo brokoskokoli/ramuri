@@ -47,7 +47,7 @@ pub ffi_leak_tracker kein-netz
 pub file kein-netz
 pub fixnum kein-netz
 pub flutter sdk  # Flutter-SDK
-pub flutter_driver sdk  # Flutter-SDK
+pub flutter_driver nur-entwicklung  # Flutter-SDK, nur Test und Werkzeug; direkter Import gesperrt
 pub flutter_lints nur-entwicklung
 pub flutter_localizations sdk  # Flutter-SDK
 pub flutter_map nur-karte  # Kachel-Abruf über package:http (NetworkTileProvider), nur über das Kartentor genutzt
@@ -58,21 +58,21 @@ pub flutter_secure_storage_linux kein-netz
 pub flutter_secure_storage_platform_interface kein-netz
 pub flutter_secure_storage_web kein-netz
 pub flutter_secure_storage_windows kein-netz
-pub flutter_test sdk  # Flutter-SDK
+pub flutter_test nur-entwicklung  # Flutter-SDK, nur Test und Werkzeug; direkter Import gesperrt
 pub flutter_web_bluetooth kein-netz  # nur Web, Bluetooth
 pub flutter_web_plugins sdk  # Flutter-SDK
 pub frontend_server_client nur-entwicklung
-pub fuchsia_remote_debug_protocol sdk  # Flutter-SDK
+pub fuchsia_remote_debug_protocol nur-entwicklung  # Flutter-SDK, nur Test und Werkzeug; direkter Import gesperrt
 pub glob kein-netz
 pub graphs nur-entwicklung
 pub hooks kein-netz  # Build-Hook-Rahmen, Rechner des Entwicklers
 pub http nur-karte  # HTTP-Client (dart:io HttpClient), nur der Kartenadapter
 pub http_multi_server nur-entwicklung
 pub http_parser kein-netz  # reiner Parser, kein Netz
-pub integration_test sdk  # Flutter-SDK
+pub integration_test nur-entwicklung  # Flutter-SDK, nur Test und Werkzeug; direkter Import gesperrt
 pub intl kein-netz  # nur dart:io für Locale
 pub io nur-entwicklung
-pub jni kein-netz  # Java-Brücke, in der Quelle kein Netz
+pub jni nur-entwicklung  # kann Netz oder Prozesse; nur transitiv, direkter Import gesperrt
 pub jni_flutter kein-netz
 pub jni_util kein-netz
 pub json_annotation nur-entwicklung
@@ -90,7 +90,7 @@ pub mime nur-entwicklung
 pub native_toolchain_c kein-netz  # Build-Werkzeug
 pub node_preamble nur-entwicklung
 pub objective_c kein-netz
-pub package_config kein-netz  # Netz nur in Entwicklungswerkzeug (util_io), nicht in der App
+pub package_config nur-entwicklung  # kann Netz oder Prozesse; nur transitiv, direkter Import gesperrt
 pub path kein-netz
 pub path_provider kein-netz
 pub path_provider_android kein-netz  # Pfade, kein Netz
@@ -103,7 +103,7 @@ pub platform kein-netz
 pub plugin_platform_interface kein-netz
 pub pool nur-entwicklung
 pub posix kein-netz
-pub process kein-netz
+pub process nur-entwicklung  # kann Netz oder Prozesse; nur transitiv, direkter Import gesperrt
 pub proj4dart kein-netz
 pub pub_semver kein-netz
 pub pubspec_parse nur-entwicklung

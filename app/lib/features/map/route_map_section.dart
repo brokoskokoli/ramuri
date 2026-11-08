@@ -57,7 +57,7 @@ class _RouteMapSectionState extends State<RouteMapSection>
   bool _foreground = true;
   bool _routeCurrent = true;
 
-  /// Pause (ADR-0009 Punkt 5, nur im Vordergrund): App im Hintergrund oder Route verdeckt. Dann baut die Hülle die
+  /// Pause (ADR-0009 Punkt 5, nur im Vordergrund): App im Hintergrund oder von einer deckenden Route verdeckt (kein Dialog). Dann baut die Hülle die
   /// Karte nicht, es gibt keine Kachelanfragen (auch keine Wiederholungen der Bibliothek); die Quelle bleibt offen.
   bool get _paused => !_foreground || !_routeCurrent;
 
@@ -79,7 +79,9 @@ class _RouteMapSectionState extends State<RouteMapSection>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _routeCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+    // TickerMode ist nur aus, wenn eine deckende Route darüber liegt (Navigator setzt die verdeckte Route auf offstage);
+    // ein Dialog lässt die Seite an: Zoom und Ausschnitt bleiben (N6). Anders als ModalRoute.isCurrent.
+    _routeCurrent = TickerMode.valuesOf(context).enabled;
     _holder.bind(MapConsentScope.of(context));
     _holder.setWanted(_hasRoute);
   }

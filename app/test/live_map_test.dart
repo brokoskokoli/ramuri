@@ -625,6 +625,48 @@ void main() {
       );
     }
 
+    _testRun(
+      'Kachelfehler, dann Hintergrund und Rückkehr bei wieder erreichbarem Netz: die Karte kommt zurück (N10)',
+      (tester) async {
+        addTearDown(
+          () => tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.resumed,
+          ),
+        );
+        final net = FakeInner()..failWhere = (u) => u.path.endsWith('.pbf');
+        final w = _World(net: net, consent: ConsentState.granted);
+        await w.startRun();
+        await tester.pumpWidget(_app(w));
+        await _toMap(tester);
+        await w.step(tester, n: 20);
+        await _settle(tester, w);
+        expect(
+          _k('live_route_map'),
+          findsNothing,
+          reason: 'Rückfall auf die Linie',
+        );
+        expect(_k('live_map_line'), findsOneWidget);
+        net.failWhere = null; // Netz wieder da
+        for (final st in [
+          AppLifecycleState.inactive,
+          AppLifecycleState.hidden,
+          AppLifecycleState.paused,
+          AppLifecycleState.resumed,
+        ]) {
+          tester.binding.handleAppLifecycleStateChanged(st);
+        }
+        await tester.pump();
+        await w.step(tester, n: 5);
+        await _settle(tester, w);
+        expect(
+          _k('live_route_map'),
+          findsOneWidget,
+          reason: 'neuer Versuch bei Rückkehr',
+        );
+        expect(w.run.phase, RecordingPhase.running);
+      },
+    );
+
     _testRun('Widerruf bei offener Karte: Linie, keine Anfrage mehr', (
       tester,
     ) async {

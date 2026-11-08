@@ -60,6 +60,9 @@ class MapSourceHolder extends ChangeNotifier {
     if (!wanted || was) return;
     final s = _source;
     if (s != null && s.tilesFailed.value) s.retryTiles();
+    // Ein gescheitertes Öffnen (Anbieter nicht erreichbar) wird bei jedem neuen Bedarf einmal wiederholt (N5); die Frage
+    // stellt der Controller nicht erneut nach "Nicht jetzt".
+    if (s == null && !_opening) _started = false;
     _maybeStart();
   }
 

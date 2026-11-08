@@ -17,6 +17,12 @@ pub drift kein-netz
 pub http nur-karte
 pub flutter_map nur-karte
 pub test nur-entwicklung
+pub flutter_driver nur-entwicklung
+pub fuchsia_remote_debug_protocol nur-entwicklung
+pub integration_test nur-entwicklung
+pub jni nur-entwicklung
+pub package_config nur-entwicklung
+pub process nur-entwicklung
 gradle junit:junit nur-entwicklung
 plugin dev.flutter.flutter-plugin-loader nur-entwicklung
 plugin com.android.application nur-entwicklung
@@ -173,6 +179,28 @@ RED = [
     ("dart:html in app/lib", {"app/lib/a.dart": "import 'dart:html';\n"}, "dart:html nicht erlaubt"),
     ("dart:ffi in core", {"app/packages/core/lib/a.dart": "import 'dart:ffi';\n"}, "dart:ffi nicht erlaubt"),
     ("http:-URI", {"app/lib/a.dart": "import 'http://x/y.dart';\n"}, "URI-Schema"),
+    ("import mit aneinandergereihten Zeichenketten", {"app/lib/a.dart": "import 'package' ':http/http.dart';\n"}, "a.dart:1: import: aneinandergereihte"),
+    ("import dart: aneinandergereiht", {"app/lib/a.dart": "import 'dart' ':io' as x;\n"}, "a.dart:1: import: aneinandergereihte"),
+    ("export aneinandergereiht, mehrzeilig", {"app/lib/a.dart": "export 'pack'\n  'age:http/http.dart';\n"}, "a.dart:1: export: aneinandergereihte"),
+    ("Gradle benannte Argumente (Kotlin)", {"app/android/app/build.gradle.kts": 'dependencies { implementation(group = "io.sentry", name = "sentry-android", version = "7.0") }\n'}, "Koordinate in benannten Argumenten"),
+    ("Gradle benannte Argumente (Groovy)", {"app/android/app/build.gradle": "dependencies {\n  implementation group: 'io.sentry', name: 'sentry', version: '7'\n}\n"}, "Koordinate in benannten Argumenten"),
+    ("Gradle Interpolation $a", {"app/android/app/build.gradle.kts": 'dependencies { implementation("$a:sentry-android:7.0") }\n'}, "Koordinate mit Interpolation"),
+    ("Gradle Interpolation ${a}", {"app/android/app/build.gradle.kts": 'dependencies { implementation("${a}:sentry-android:7.0") }\n'}, "Koordinate mit Interpolation"),
+    ("Gradle Interpolation im Namen", {"app/android/app/build.gradle.kts": 'dependencies { implementation("io.sentry:${n}:7.0") }\n'}, "Koordinate mit Interpolation"),
+    ("Process.run", {"app/lib/a.dart": d("Future<void> f() => Process.run('curl', ['x']);")}, "a.dart:2: Prozessstart"),
+    ("Process . start mit Zeilenumbruch", {"app/lib/a.dart": d("Future<void> f() => Process\n  .start('curl', []);")}, "a.dart:2: Prozessstart"),
+    ("SecureServerSocket", {"app/lib/a.dart": d("final s = SecureServerSocket.bind('x', 1, null);")}, "a.dart:2: Prozessstart oder Server-Socket"),
+    ("typedef auf Image", {"app/lib/a.dart": d("typedef I = Image;\nfinal w = I.network('x');")}, "a.dart:2: Alias einer Netz-Klasse"),
+    ("typedef auf HttpClient", {"app/lib/a.dart": "typedef H = HttpClient;\n"}, "a.dart:1: Alias einer Netz-Klasse"),
+    ("flutter_driver in lib", {"app/lib/a.dart": "import 'package:flutter_driver/flutter_driver.dart';\n"}, "Paket 'flutter_driver' ist nur für die Entwicklung"),
+    ("fuchsia_remote_debug_protocol in lib", {"app/lib/a.dart": "import 'package:fuchsia_remote_debug_protocol/x.dart';\n"}, "Paket 'fuchsia_remote_debug_protocol' ist nur für"),
+    ("integration_test in lib", {"app/lib/a.dart": "import 'package:integration_test/integration_test.dart';\n"}, "Paket 'integration_test' ist nur für"),
+    ("jni in lib", {"app/lib/a.dart": "import 'package:jni/jni.dart';\n"}, "Paket 'jni' ist nur für die Entwicklung"),
+    ("package_config in lib", {"app/lib/a.dart": "import 'package:package_config/package_config.dart';\n"}, "Paket 'package_config' ist nur für"),
+    ("process in lib", {"app/lib/a.dart": "import 'package:process/process.dart';\n"}, "Paket 'process' ist nur für"),
+    (".dex in app/android", {"app/android/app/libs/x.dex": "x"}, "x.dex: Binärdatei"),
+    ("CMakeLists.txt", {"app/android/app/src/main/cpp/CMakeLists.txt": "project(x)\n"}, "CMakeLists.txt: CMake-Skript"),
+    ("*.cmake", {"app/android/app/src/main/cpp/x.cmake": "x\n"}, "x.cmake: CMake-Skript"),
     ("Verzeichnis-Symlink in app/lib", {}, "symbolischer Link"),
     ("Datei-Symlink in app/lib", {}, "symbolischer Link"),
     ("Code in unbekanntem Ordner app/hook", {"app/hook/build.dart": "final c = HttpClient();\n"}, "app/hook/build.dart:1"),

@@ -136,14 +136,19 @@ class EncryptedMapTileStore implements MapThumbnailStore {
     }
   }
 
-  /// Entfernt alle Miniaturen, die Kacheln bleiben (nach dem Tausch der Datenbank durch eine Wiederherstellung).
-  /// Fehler sind kein Wurf; gibt es den Speicher nicht, tut es nichts.
+  /// Entfernt alle Miniaturen, die Kacheln bleiben (vor dem Tausch der Datenbank durch eine Wiederherstellung).
+  /// Gibt es den Speicher nicht, tut es nichts. Wirft, wenn das Entfernen scheitert: Der Aufrufer (Tausch) muss dann
+  /// den ganzen Speicher löschen (N7).
   Future<void> deleteAllThumbnails() async {
-    try {
-      final w = await _ensureExisting();
-      if (w == null) return;
-      await w.request(['deleteThumbnails']);
-    } catch (_) {}
+    final w = await _ensureExisting();
+    if (w == null) {
+      // Datei da, aber kein Arbeiter (ausgeschaltet oder geschlossen): die Miniaturen stehen noch.
+      if (await File(await _path()).exists()) {
+        throw const FileSystemException('Kartenspeicher nicht erreichbar');
+      }
+      return;
+    }
+    await w.request(['deleteThumbnails']);
   }
 
   /// Größe der Dateien auf der Platte (Datei und Nebendateien); 0, wenn es sie nicht gibt. Für die Anzeige (A3).

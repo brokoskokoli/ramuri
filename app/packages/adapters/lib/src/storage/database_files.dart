@@ -10,7 +10,8 @@ class FileDatabaseFiles implements DatabaseFiles {
     String? importPath,
     this.beforeStep,
     this.alsoDelete,
-    this.afterReplace,
+    this.beforeReplace,
+    this.beforeReplaceFallback,
   }) : importPath = importPath ?? '$path$importSuffix';
 
   final String path;
@@ -20,10 +21,15 @@ class FileDatabaseFiles implements DatabaseFiles {
   /// nicht für [exist]: Er allein ist kein Grund für "Schlüssel fehlt".
   final Future<void> Function()? alsoDelete;
 
-  /// Wird nach dem erfolgreichen Tausch der Datenbank gerufen ([replaceWithImport]): Abgeleitetes, das an Nummern der
-  /// alten Datenbank hängt (Miniaturen der Karte, WP13), gehört zu anderen Läufen und wird verworfen. Ein Fehler
-  /// hier bricht den Tausch nicht ab: Er ist dann schon geschehen.
-  final Future<void> Function()? afterReplace;
+  /// Wird **vor** dem Umbenennen in [replaceWithImport] gerufen: Abgeleitetes, das an Nummern der alten Datenbank
+  /// hängt (Miniaturen der Karte, WP13), gehört danach zu anderen Läufen und wird verworfen. Es ist neu erzeugbar,
+  /// also kostet ein Abbruch danach nur Miniaturen. Würde man erst nach dem Tausch verwerfen, blieben bei einem Fehler
+  /// oder Prozessende dazwischen Bilder anderer Läufe stehen (N7). Wirft die Funktion, ruft der Tausch
+  /// [beforeReplaceFallback] (den ganzen Kartenspeicher löschen); scheitert auch das, bricht er vor dem Umbenennen ab.
+  final Future<void> Function()? beforeReplace;
+
+  /// Ersatz für [beforeReplace], wenn dieses wirft.
+  final Future<void> Function()? beforeReplaceFallback;
 
   /// Zwischendatenbank der Wiederherstellung (WP12): neben der aktiven, im
   /// selben Ordner, damit das Umbenennen atomar bleibt (gleiches Dateisystem).
@@ -39,6 +45,7 @@ class FileDatabaseFiles implements DatabaseFiles {
   /// Die Schritte von [replaceWithImport] in Reihenfolge.
   static const List<String> replaceSteps = [
     'start',
+    'discard',
     'active-wal',
     'active-shm',
     'active-journal',
@@ -92,7 +99,7 @@ class FileDatabaseFiles implements DatabaseFiles {
   /// Zwischendatenbank (sie ist geschlossen und per Checkpoint geleert), zuletzt
   /// **ein** atomares Umbenennen. Vor dem Umbenennen steht die alte Hauptdatei
   /// vollständig (die aktive Sitzung wurde mit Checkpoint geschlossen; ein
-  /// aktives -wal mit Inhalt bricht den Tausch vorher ab), danach die neue. Das Verzeichnis wird nicht eigens synchronisiert (Dart hat dafür
+  /// aktives -wal mit Inhalt oder nicht verwerfbare Miniaturen brechen den Tausch vorher ab), danach die neue. Das Verzeichnis wird nicht eigens synchronisiert (Dart hat dafür
   /// keinen Aufruf): Nach einem Stromausfall kann das Umbenennen fehlen, dann
   /// gilt der alte Stand.
   @override
@@ -110,6 +117,17 @@ class FileDatabaseFiles implements DatabaseFiles {
     if (await activeWal.exists() && await activeWal.length() > 0) {
       throw const FileSystemException('Aktives -wal nicht eingecheckt');
     }
+    step('discard');
+    try {
+      await beforeReplace?.call();
+    } catch (_) {
+      try {
+        await beforeReplaceFallback?.call();
+      } catch (_) {
+        // Die alten Miniaturen würden zu fremden Läufen gehören: lieber nichts tauschen.
+        throw const FileSystemException('Abgeleitete Daten nicht verworfen');
+      }
+    }
     for (final suffix in const ['-wal', '-shm', '-journal']) {
       step('active$suffix');
       final f = File('$path$suffix');
@@ -123,8 +141,5 @@ class FileDatabaseFiles implements DatabaseFiles {
     step('rename');
     await File(importPath).rename(path);
     step('renamed');
-    try {
-      await afterReplace?.call();
-    } catch (_) {}
   }
 }

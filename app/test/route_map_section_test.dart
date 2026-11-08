@@ -349,11 +349,44 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(_k('route_map'), findsNothing);
+      // find.byKey lässt Offstage-Teile aus: ohne skipOffstage: false fände der Test die Karte hier nie (N3).
+      expect(
+        find.byKey(const Key('route_map'), skipOffstage: false),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('route_paint'), skipOffstage: false),
+        findsOneWidget,
+      );
       nav.pop();
       await tester.pumpAndSettle();
       await _settle(tester, w);
       expect(_k('route_map'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Dialog über der Seite: die Karte bleibt im Baum und wird nicht neu aufgebaut (N6)',
+    (tester) async {
+      final w = _World(consent: ConsentState.granted);
+      await tester.pumpWidget(_app(w, _route));
+      await _settle(tester, w);
+      expect(_k('route_map'), findsOneWidget);
+      final before = tester.element(_k('route_map'));
+      final n = w.requests;
+      final nav = tester.state<NavigatorState>(find.byType(Navigator));
+      showDialog<void>(
+        context: nav.context,
+        builder: (_) => const AlertDialog(content: Text('Frage')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Frage'), findsOneWidget);
+      expect(_k('route_map'), findsOneWidget);
+      expect(identical(tester.element(_k('route_map')), before), isTrue);
+      expect(w.requests, n, reason: 'keine neuen Anfragen durch den Dialog');
+      nav.pop();
+      await tester.pumpAndSettle();
+      expect(identical(tester.element(_k('route_map')), before), isTrue);
     },
   );
 

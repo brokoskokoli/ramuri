@@ -112,6 +112,10 @@ class MiniatureService extends ChangeNotifier with WidgetsBindingObserver {
   bool _foreground = true;
   bool _routeCurrent = true;
 
+  /// Zählt jede Pause. Kommt die Rückkehr, bevor eine laufende Aufnahme die Pause bemerkt, ist der Träger trotzdem
+  /// weg und das Bild fehlt: Der Auftrag ist dann unterbrochen, nicht gescheitert (N8).
+  int _pauses = 0;
+
   /// Pause (ADR-0009 Punkt 5, nur im Vordergrund): Die App ist nicht im Vordergrund oder die Route des Verlaufs ist
   /// verdeckt. Dann entsteht keine Aufnahme (bei verdeckter Route könnte das Bild veraltet sein und würde gespeichert),
   /// die Quelle ist zu und nichts geht ins Netz. Der laufende Auftrag kommt vorn in die Warteschlange zurück.
@@ -135,6 +139,7 @@ class MiniatureService extends ChangeNotifier with WidgetsBindingObserver {
   void _pauseChanged() {
     if (_disposed) return;
     if (paused) {
+      _pauses++;
       job.value = null;
       _dropSource(closeNow: true);
     } else if (_queue.isNotEmpty) {
@@ -300,6 +305,8 @@ class MiniatureService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _run(MiniatureTicket t) async {
     Uint8List? out;
     var attempted = false;
+    final pausesAtStart = _pauses;
+    bool interrupted() => paused || _pauses != pausesAtStart;
     try {
       final source = (enabled && !t.cancelled && !paused)
           ? await _ensureSource()
@@ -314,13 +321,14 @@ class MiniatureService extends ChangeNotifier with WidgetsBindingObserver {
           j.boundary,
           source.gate,
           failuresBefore: failuresBefore,
-          cancelled: () => t.cancelled || !enabled || _disposed || paused,
+          cancelled: () =>
+              t.cancelled || !enabled || _disposed || interrupted(),
         );
         final store = _store;
         if (out != null &&
             !t.cancelled &&
             enabled &&
-            !paused &&
+            !interrupted() &&
             store != null) {
           await store.write(
             thumbnailKey(miniatureVariant(t.style), t.runId),
@@ -336,7 +344,7 @@ class MiniatureService extends ChangeNotifier with WidgetsBindingObserver {
       if (!_disposed) job.value = null;
     }
     // Pause (App im Hintergrund, Route verdeckt): kein Fehlversuch, der Auftrag wartet vorn auf die Rückkehr.
-    if (out == null && paused && !t.cancelled && !_disposed) {
+    if (out == null && interrupted() && !t.cancelled && !_disposed) {
       _queue.insert(0, t);
       return;
     }
