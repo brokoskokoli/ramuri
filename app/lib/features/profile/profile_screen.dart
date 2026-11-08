@@ -46,9 +46,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.profileTitle)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
-          Text(l10n.profileIntro),
+          Text(l10n.profileIntro, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 16),
           ProfileForm(
             service: _NotifyingProfileService(

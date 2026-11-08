@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../recalculation/recalculation_card.dart';
 import '../recalculation/recalculation_controller.dart';
+import '../../ui/ramuri_card.dart';
+import '../../ui/section_heading.dart';
 import 'app_settings.dart';
 
 /// Einstellungen: Einheit für Strecken (reine Anzeige) und die Neuberechnung.
@@ -36,33 +38,37 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
           RecalculationCard(controller: recalculation),
-          Text(
-            l10n.settingsUnits,
-            style: Theme.of(context).textTheme.titleMedium,
+          SectionHeading(l10n.settingsUnits),
+          const SizedBox(height: 12),
+          RamuriCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SegmentedButton<DistanceUnit>(
+                  key: const Key('settings_unit'),
+                  segments: [
+                    ButtonSegment(
+                      value: DistanceUnit.kilometers,
+                      label: Text(l10n.settingsUnitKm),
+                    ),
+                    ButtonSegment(
+                      value: DistanceUnit.miles,
+                      label: Text(l10n.settingsUnitMi),
+                    ),
+                  ],
+                  selected: {settings.distanceUnit},
+                  onSelectionChanged: busy
+                      ? null
+                      : (s) => _change(context, settings, s.first),
+                ),
+                const SizedBox(height: 12),
+                Text(l10n.settingsUnitNote),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          SegmentedButton<DistanceUnit>(
-            key: const Key('settings_unit'),
-            segments: [
-              ButtonSegment(
-                value: DistanceUnit.kilometers,
-                label: Text(l10n.settingsUnitKm),
-              ),
-              ButtonSegment(
-                value: DistanceUnit.miles,
-                label: Text(l10n.settingsUnitMi),
-              ),
-            ],
-            selected: {settings.distanceUnit},
-            onSelectionChanged: busy
-                ? null
-                : (s) => _change(context, settings, s.first),
-          ),
-          const SizedBox(height: 8),
-          Text(l10n.settingsUnitNote),
         ],
       ),
     );

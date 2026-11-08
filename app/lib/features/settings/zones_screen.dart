@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_buttons.dart';
+import '../../ui/ramuri_card.dart';
 import 'app_settings.dart';
 
 /// Zoneneditor (FR-0061): sechs gemeinsame Grenzen in ganzen Prozent der
@@ -147,31 +149,42 @@ class _ZonesScreenState extends State<ZonesScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.zonesTitle)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
-          Text(l10n.zonesNote, key: const Key('zones_note')),
+          Text(
+            l10n.zonesNote,
+            key: const Key('zones_note'),
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
           const SizedBox(height: 16),
-          for (var i = 0; i < _controllers.length; i++) ...[
-            TextField(
-              key: Key('zone_bound_$i'),
-              controller: _controllers[i],
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: l10n.zonesLowerField(i + 1),
-                suffixText: '%',
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          // FR-0062: über 100 % gilt Zone 5 mit Hinweis; nicht einstellbar.
-          TextField(
-            key: const Key('zone_bound_5'),
-            controller: _upper,
-            enabled: false,
-            decoration: InputDecoration(
-              labelText: l10n.zonesUpperField,
-              suffixText: '%',
+          RamuriCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < _controllers.length; i++) ...[
+                  TextField(
+                    key: Key('zone_bound_$i'),
+                    controller: _controllers[i],
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: l10n.zonesLowerField(i + 1),
+                      suffixText: '%',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                // FR-0062: über 100 % gilt Zone 5 mit Hinweis; nicht einstellbar.
+                TextField(
+                  key: const Key('zone_bound_5'),
+                  controller: _upper,
+                  enabled: false,
+                  decoration: InputDecoration(
+                    labelText: l10n.zonesUpperField,
+                    suffixText: '%',
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -182,16 +195,16 @@ class _ZonesScreenState extends State<ZonesScreen> {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           const SizedBox(height: 8),
-          FilledButton(
+          RamuriPrimaryButton(
             key: const Key('zones_save'),
             onPressed: _save,
-            child: Text(l10n.zonesSave),
+            label: l10n.zonesSave,
           ),
           const SizedBox(height: 8),
-          OutlinedButton(
+          RamuriSecondaryButton(
             key: const Key('zones_reset'),
             onPressed: _reset,
-            child: Text(l10n.zonesReset),
+            label: l10n.zonesReset,
           ),
         ],
       ),

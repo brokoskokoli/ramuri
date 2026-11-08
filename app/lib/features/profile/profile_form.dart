@@ -2,6 +2,9 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_buttons.dart';
+import '../../ui/ramuri_card.dart';
+import '../../ui/section_heading.dart';
 import 'profile_messages.dart';
 
 /// Eingabeformular für das Profil (FR-0002): alle Felder leer lassbar, Prüfung
@@ -216,7 +219,6 @@ class _ProfileFormState extends State<ProfileForm> {
         keyboardType: TextInputType.numberWithOptions(decimal: decimal),
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
           // Ablehnung als Fehler, Hinweis nur als Hilfetext (gespeichert).
           // Als Widget statt errorText: errorText kürzt bei null Zeilen mit
           // "..." und bei fester Zeilenzahl irgendwann ebenfalls; die Meldung
@@ -243,7 +245,6 @@ class _ProfileFormState extends State<ProfileForm> {
       record,
       currentYear: widget.clock.now().year,
     );
-    final theme = Theme.of(context);
     final max = resolved.basis.maxBpm;
     final lines = <Widget>[
       switch (resolved.maxSource) {
@@ -266,11 +267,11 @@ class _ProfileFormState extends State<ProfileForm> {
           resolved.askForInputOrCheck)
         Text(l10n.hrDependentUnavailable, key: const Key('hr_unavailable')),
     ];
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: RamuriCard(
+        tone: RamuriCardTone.accent,
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -316,65 +317,93 @@ class _ProfileFormState extends State<ProfileForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _field(
-          'profile_birthYear',
-          _birthYear,
-          l10n.profileBirthYear,
-          l10n,
-          field: ProfileField.birthYear,
-        ),
-        _field(
-          'profile_weight',
-          _weight,
-          l10n.profileWeight,
-          l10n,
-          field: ProfileField.bodyWeight,
-          decimal: true,
-        ),
-        _field(
-          'profile_height',
-          _height,
-          l10n.profileHeight,
-          l10n,
-          field: ProfileField.bodyHeight,
-          decimal: true,
-        ),
-        _field(
-          'profile_resting',
-          _resting,
-          l10n.profileRestingHr,
-          l10n,
-          field: ProfileField.restingHeartRate,
-        ),
-        _field(
-          'profile_max',
-          _max,
-          l10n.profileMaxHr,
-          l10n,
-          field: ProfileField.maxHeartRate,
-        ),
-        _heartRateInfo(l10n),
-        _field('profile_weekly', _weekly, l10n.profileWeeklyMinutes, l10n),
-        Text(
-          l10n.profileTrainingDays,
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        Wrap(
-          spacing: 8,
-          children: [
-            for (var i = 0; i < 7; i++)
-              FilterChip(
-                key: Key('profile_day_$i'),
-                label: Text(dayNames[i]),
-                selected: _days & (1 << i) != 0,
-                onSelected: (on) => setState(
-                  () => _days = on ? _days | (1 << i) : _days & ~(1 << i),
-                ),
+        RamuriCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _field(
+                'profile_birthYear',
+                _birthYear,
+                l10n.profileBirthYear,
+                l10n,
+                field: ProfileField.birthYear,
               ),
-          ],
+              _field(
+                'profile_weight',
+                _weight,
+                l10n.profileWeight,
+                l10n,
+                field: ProfileField.bodyWeight,
+                decimal: true,
+              ),
+              _field(
+                'profile_height',
+                _height,
+                l10n.profileHeight,
+                l10n,
+                field: ProfileField.bodyHeight,
+                decimal: true,
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 12),
-        _field('profile_usual', _usual, l10n.profileUsualMinutes, l10n),
+        const SizedBox(height: 16),
+        RamuriCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _field(
+                'profile_resting',
+                _resting,
+                l10n.profileRestingHr,
+                l10n,
+                field: ProfileField.restingHeartRate,
+              ),
+              _field(
+                'profile_max',
+                _max,
+                l10n.profileMaxHr,
+                l10n,
+                field: ProfileField.maxHeartRate,
+              ),
+              _heartRateInfo(l10n),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        RamuriCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _field(
+                'profile_weekly',
+                _weekly,
+                l10n.profileWeeklyMinutes,
+                l10n,
+              ),
+              SectionHeading(l10n.profileTrainingDays),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (var i = 0; i < 7; i++)
+                    FilterChip(
+                      key: Key('profile_day_$i'),
+                      label: Text(dayNames[i]),
+                      selected: _days & (1 << i) != 0,
+                      onSelected: (on) => setState(
+                        () => _days = on ? _days | (1 << i) : _days & ~(1 << i),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _field('profile_usual', _usual, l10n.profileUsualMinutes, l10n),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
         if (_savedNote != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -389,10 +418,10 @@ class _ProfileFormState extends State<ProfileForm> {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
-        FilledButton(
+        RamuriPrimaryButton(
           key: const Key('profile_save'),
           onPressed: _saving ? null : _save,
-          child: Text(l10n.profileSave),
+          label: l10n.profileSave,
         ),
       ],
     );
