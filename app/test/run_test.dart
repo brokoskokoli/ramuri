@@ -76,7 +76,13 @@ class _FailingRaw implements RawDataStore {
 }
 
 Finder key(String k) => find.byKey(Key(k));
-String text(String k) => (key(k).evaluate().single.widget as Text).data!;
+
+/// Text eines Werts der Lauf-Seite; Zahl und Einheit stehen in Teilen, der
+/// Wortverbinder (U+2060) ist unsichtbar.
+String text(String k) {
+  final w = key(k).evaluate().single.widget as Text;
+  return (w.data ?? w.textSpan!.toPlainText()).replaceAll('\u2060', '');
+}
 
 Future<void> openRun(
   Device d,
@@ -374,7 +380,9 @@ void main() {
       expect(text('run_hr'), '150 bpm');
       expect(text('run_zone'), 'Zone 2');
       expect(text('run_sensor_status'), 'Sensor verbunden');
-      expect(text('run_gps'), 'Signal ok');
+      // Gutes GPS steht nur im Chip, die lange Meldung gibt es nur bei Problemen.
+      expect(text('live_chip_gps'), 'GPS gut');
+      expect(key('run_gps'), findsNothing);
       expect(text('run_ascent'), matches(RegExp(r'^\d+ m$')));
       expect(text('run_cadence'), 'nicht verfügbar');
     });
@@ -485,7 +493,8 @@ void main() {
       expect(text('run_time'), '0:35');
       // Rückkehr schließt die Lücke, sie bleibt als Zähler sichtbar.
       await walk(d, tester, 2, from: 40);
-      expect(text('run_gps'), 'Signal ok');
+      expect(key('run_gps'), findsNothing);
+      expect(text('live_chip_gps'), 'GPS gut');
       expect(text('run_gaps'), 'GPS-Lücken: 1');
     });
 
@@ -524,7 +533,8 @@ void main() {
       await tester.pump();
       expect(key('run_banner_paused'), findsOneWidget);
       expect(key('run_resume'), findsOneWidget);
-      expect(tester.widget<OutlinedButton>(key('run_lap')).onPressed, isNull);
+      // In der Pause ist die Runde gesperrt und der Knopf entfällt (Design).
+      expect(key('run_lap'), findsNothing);
       await tester.tap(key('run_resume'));
       await tester.pump();
       expect(key('run_banner_paused'), findsNothing);
@@ -534,19 +544,43 @@ void main() {
       expect(find.text('Runde 1: 0:15'), findsOneWidget);
     });
 
-    testWidgets('Beenden mit Bestätigung: Abbrechen läuft weiter', (
+    testWidgets('Beenden mit Bestätigung: Abbrechen lässt den Lauf pausiert', (
       tester,
     ) async {
       final d = Device();
       await openRun(d, tester);
       await walk(d, tester, 5);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
       await tester.tap(key('run_finish'));
       await tester.pumpAndSettle();
       expect(find.text('Lauf beenden?'), findsOneWidget);
       await tester.tap(key('run_finish_cancel'));
       await tester.pumpAndSettle();
+      expect(key('run_resume'), findsOneWidget);
+      expect(key('run_banner_paused'), findsOneWidget);
+      expect((await d.session.runs.list()).single.state, RunState.paused);
+      // Ohne Bestätigung endet nichts, auch nicht nach Zurück aus der Rückfrage.
+      expect(find.text('Lauf beendet'), findsNothing);
+    });
+
+    testWidgets('Beenden gibt es nur pausiert (FR-0028)', (tester) async {
+      final d = Device();
+      await openRun(d, tester);
+      await walk(d, tester, 5);
+      expect(key('run_finish'), findsNothing);
+      // Zurück im laufenden Lauf öffnet keine Rückfrage und beendet nichts.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Lauf beenden?'), findsNothing);
       expect(key('run_pause'), findsOneWidget);
-      expect((await d.session.runs.list()).single.state, RunState.active);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      expect(key('run_finish'), findsOneWidget);
+      expect(key('run_pause'), findsNothing);
+      await tester.tap(key('run_resume'));
+      await tester.pump();
+      expect(key('run_finish'), findsNothing);
     });
 
     testWidgets('Beenden: Abschlussansicht, Lauf gespeichert, Fertig', (
@@ -556,6 +590,8 @@ void main() {
       await openRun(d, tester);
       await walk(d, tester, 30);
       await tester.tap(key('run_lap'));
+      await tester.pump();
+      await tester.tap(key('run_pause'));
       await tester.pump();
       await tester.tap(key('run_finish'));
       await tester.pumpAndSettle();
@@ -580,6 +616,8 @@ void main() {
       d.storageOverride = _RawFailStorage(d.storage);
       await openRun(d, tester);
       await walk(d, tester, 3);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
       await tester.tap(key('run_finish'));
       await tester.pumpAndSettle();
       await tester.tap(key('run_finish_confirm'));

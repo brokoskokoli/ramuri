@@ -5,7 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'app_harness.dart';
 
 Finder key(String k) => find.byKey(Key(k));
-String text(String k) => (key(k).evaluate().single.widget as Text).data!;
+
+/// Text eines Werts der Lauf-Seite; Zahl und Einheit stehen in Teilen, der
+/// Wortverbinder (U+2060) ist unsichtbar.
+String text(String k) {
+  final w = key(k).evaluate().single.widget as Text;
+  return (w.data ?? w.textSpan!.toPlainText()).replaceAll('\u2060', '');
+}
 
 /// Öffnet den Lauf mit den Geräten [ids] schon verbunden (Verbindung aus der
 /// Sensorverwaltung); der Puls kommt über den Dienst.
@@ -56,6 +62,8 @@ Future<void> walk(
 }
 
 Future<StoredRawData> finishAndRead(Device d, WidgetTester tester) async {
+  await tester.tap(key('run_pause'));
+  await tester.pump();
   await tester.tap(key('run_finish'));
   await tester.pumpAndSettle();
   await tester.tap(key('run_finish_confirm'));

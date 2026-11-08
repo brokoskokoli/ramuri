@@ -83,6 +83,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(NavigationBar), findsNothing);
     await walk(d, tester, 60);
+    await tester.tap(key('run_pause'));
+    await tester.pump();
     await tester.tap(key('run_finish'));
     await tester.pumpAndSettle();
     await tester.tap(key('run_finish_confirm'));
