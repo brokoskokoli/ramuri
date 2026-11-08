@@ -18,7 +18,7 @@ String encodeGpx(ExportRun run) {
   final b = StringBuffer()
     ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
     ..writeln(
-      '<gpx version="1.1" creator="running-app" xmlns="$_gpxNs" '
+      '<gpx version="1.1" creator="ramuri" xmlns="$_gpxNs" '
       'xmlns:gpxtpx="$_tpxNs" '
       'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
       'xsi:schemaLocation="$_gpxNs http://www.topografix.com/GPX/1/1/gpx.xsd '

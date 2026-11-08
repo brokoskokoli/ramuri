@@ -394,7 +394,7 @@ void main() {
         for (final v in gpx.all('gpxtpx:hr')) {
           expect(bpms, contains(int.parse(v.text)));
         }
-        expect(gpx.attributes['creator'], 'running-app');
+        expect(gpx.attributes['creator'], 'ramuri');
         expect(encodeGpx(run), isNot(contains('strap')));
         expect(encodeTcx(run), isNot(contains('strap')));
       },
