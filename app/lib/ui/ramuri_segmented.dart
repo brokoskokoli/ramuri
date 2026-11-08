@@ -32,6 +32,16 @@ class RamuriSegmentedToggle<T> extends StatelessWidget {
   /// gleich auf (Design „Verlauf“, „Fortschritt“). Vorgabe: so schmal wie der Inhalt.
   final bool expanded;
 
+  Widget segmentButton(RamuriSegment<T> s, RamuriColors c, TextStyle style) =>
+      _SegmentButton(
+        expanded: expanded,
+        label: s.label,
+        selected: s.value == selected,
+        onTap: () => onChanged(s.value),
+        colors: c,
+        style: style,
+      );
+
   @override
   Widget build(BuildContext context) {
     final c = RamuriColors.of(context);
@@ -50,23 +60,16 @@ class RamuriSegmentedToggle<T> extends StatelessWidget {
             mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
             children: [
               for (final s in segments)
-                _wrap(
-                  _SegmentButton(
-                    label: s.label,
-                    selected: s.value == selected,
-                    onTap: () => onChanged(s.value),
-                    colors: c,
-                    style: labelStyle,
-                  ),
-                ),
+                if (expanded)
+                  Expanded(child: segmentButton(s, c, labelStyle))
+                else
+                  segmentButton(s, c, labelStyle),
             ],
           ),
         ),
       ),
     );
   }
-
-  Widget _wrap(Widget button) => expanded ? Expanded(child: button) : button;
 }
 
 class _SegmentButton extends StatelessWidget {
@@ -76,8 +79,10 @@ class _SegmentButton extends StatelessWidget {
     required this.onTap,
     required this.colors,
     required this.style,
+    this.expanded = false,
   });
 
+  final bool expanded;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -107,7 +112,7 @@ class _SegmentButton extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
               child: Center(
-                widthFactor: 1,
+                widthFactor: expanded ? null : 1,
                 child: Text(
                   label,
                   style: style.copyWith(

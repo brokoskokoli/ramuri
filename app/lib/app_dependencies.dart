@@ -2,6 +2,7 @@ import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
 
 import 'features/archive/archive_wiring.dart';
+import 'features/map/map_services.dart';
 import 'features/run/method_channel_recording_service.dart';
 import 'features/run/run_ports.dart';
 import 'features/sensors/run_heart_rate.dart';
@@ -26,6 +27,8 @@ class AppDependencies {
     this.archiveExport,
     this.archiveRestore,
     this.archiveVerify,
+    this.mapCache,
+    this.map,
   }) : fileHandoff = fileHandoff ?? const _NoFileHandoff(),
        permissions = permissions ?? const _NoPermissionStatus(),
        runPorts = runPorts ?? const _NoRunPorts(),
@@ -68,6 +71,14 @@ class AppDependencies {
   /// öffnen"). `null`: nicht verdrahtet.
   final ArchiveVerifier? archiveVerify;
 
+  /// Kartenspeicher (WP13). `null` in Tests. Löschen und Größe gibt Teil A3 an die Oberfläche; "Alles löschen" und
+  /// der Neubeginn räumen ihn ab.
+  final EncryptedMapTileStore? mapCache;
+
+  /// Kartenanbieter für die Oberfläche (Tor, Speichergröße, Löschen). `null`: nicht verdrahtet (Tests), dann bietet die
+  /// Oberfläche keine Karte an.
+  final MapServices? map;
+
   /// App-weiter Sensordienst: Verbindungen, bekannte Geräte, Puls (WP07).
   final SensorManager sensors;
 
@@ -86,6 +97,11 @@ class AppDependencies {
     final permissions = MethodChannelPermissionStatus();
     final fileHandoff = MethodChannelFileHandoff();
     final keyStore = SecureKeyStore();
+    // WP13: Kartenspeicher mit dem Schlüssel der Datenbank; geöffnet wird er erst beim ersten Zugriff.
+    final mapCache = EncryptedMapTileStore(
+      directory: noBackupFilesDir,
+      key: () => keyStore.read(storageKeyName),
+    );
     final sensors = SensorManager(
       sensor: sensor,
       clock: const SystemClock(),
@@ -106,6 +122,8 @@ class AppDependencies {
     );
     return AppDependencies(
       heartRateSensor: sensor,
+      mapCache: mapCache,
+      map: MapServices.production(mapCache),
       sensors: sensors,
       permissions: permissions,
       fileHandoff: fileHandoff,
@@ -123,8 +141,8 @@ class AppDependencies {
       },
       archiveRestore: (session, serialize) async {
         final path = await databasePath();
-        final files = FileDatabaseFiles(path);
-        final storage = EncryptedStorage(path);
+        final files = databaseFilesFor(path, mapCache);
+        final storage = encryptedStorageFor(path, mapCache);
         final key = await keyStore.read(storageKeyName);
         if (key == null) {
           throw const ArchiveRestoreException(
@@ -170,15 +188,37 @@ class AppDependencies {
         generateKey: generateStorageKey,
         wire: () async {
           final path = await databasePath();
-          return StorageWiring(
-            storage: EncryptedStorage(path),
-            files: FileDatabaseFiles(path),
-          );
+          return storageWiringFor(path, mapCache);
         },
       ),
     );
   }
 }
+
+/// Die verschlüsselte Datenbank; "Alles löschen" räumt den Kartenspeicher mit ab (WP13, SEC-0004).
+EncryptedStorage encryptedStorageFor(
+  String path,
+  EncryptedMapTileStore mapCache,
+) => EncryptedStorage(path, onDeleteAll: mapCache.delete);
+
+/// Die Dateien der Datenbank; der Neubeginn nach Schlüsselverlust räumt den Kartenspeicher mit ab, ein Tausch durch
+/// eine Wiederherstellung verwirft die Miniaturen (ihre Lauf-Nummern gehören danach zu anderen Läufen).
+FileDatabaseFiles databaseFilesFor(
+  String path,
+  EncryptedMapTileStore mapCache,
+) => FileDatabaseFiles(
+  path,
+  alsoDelete: mapCache.delete,
+  beforeReplace: mapCache.deleteAllThumbnails,
+  beforeReplaceFallback: mapCache.delete,
+);
+
+/// Verdrahtung der Speicherung beim App-Start.
+StorageWiring storageWiringFor(String path, EncryptedMapTileStore mapCache) =>
+    StorageWiring(
+      storage: encryptedStorageFor(path, mapCache),
+      files: databaseFilesFor(path, mapCache),
+    );
 
 /// Vorgabe ohne Sensor (Tests): nichts zu finden, Verbinden scheitert.
 class _NoHeartRateSensor implements HeartRateSensor {

@@ -84,6 +84,21 @@ class ConnectionSetup {
   /// Prüfung, dann Journal, Synchronisation, `secure_delete`, Fremdschlüssel,
   /// Temp im Speicher. Rückgabewerte werden gelesen; jede Abweichung bricht ab.
   void apply(raw.Database db) {
+    unlock(db, hexKey, libraryProbe);
+    configure(db);
+    // Erst nach dem ersten Zugriff existiert der Kopf der Datei.
+    if (!fileProbe(path)) {
+      throw const ConnectionSetupFailure(StorageFailure.encryptionNotActive);
+    }
+  }
+
+  /// Laufzeitprüfung der Verschlüsselung und Schlüssel (ADR-0003 Punkt 1). Auch
+  /// für die Kartendatei (WP13): dort mit eigenen PRAGMAs statt [configure].
+  static void unlock(
+    raw.Database db,
+    String hexKey,
+    LibraryCipherProbe libraryProbe,
+  ) {
     if (!libraryProbe(db)) {
       throw const ConnectionSetupFailure(StorageFailure.encryptionNotActive);
     }
@@ -95,12 +110,15 @@ class ConnectionSetup {
       // nicht annimmt, ist ein Fehler der Einrichtung, nicht der Datei.
       throw const ConnectionSetupFailure(StorageFailure.encryptionNotActive);
     }
-    configure(db);
-    // Erst nach dem ersten Zugriff existiert der Kopf der Datei.
-    if (!fileProbe(path)) {
-      throw const ConnectionSetupFailure(StorageFailure.encryptionNotActive);
-    }
   }
+
+  /// Setzt ein PRAGMA und liest es zurück; Abweichung bricht ab (fail-closed).
+  static void expectPragma(
+    raw.Database db,
+    String pragma,
+    Object expected, {
+    required Object set,
+  }) => _expect(db, pragma, expected, set: set);
 
   /// Die PRAGMAs nach dem Schlüssel. Eigene Methode, damit Tests die
   /// Löschprüfung (Marke weg) an einer Klartext-Datenbank mit genau diesen

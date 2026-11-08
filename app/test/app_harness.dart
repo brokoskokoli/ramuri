@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/features/archive/archive_wiring.dart';
+import 'package:running_app/features/map/map_services.dart';
 import 'package:running_app/features/run/run_ports.dart';
 import 'package:running_app/features/sensors/run_heart_rate.dart';
 import 'package:running_app/features/sensors/sensor_manager.dart';
@@ -59,6 +60,9 @@ class Device {
 
   /// Archiv-Import (WP12); `null`: nicht verdrahtet.
   ArchiveRestoreFactory? archiveRestore;
+
+  /// Kartenanbieter (WP13); `null`: nicht verdrahtet.
+  MapServices? map;
 
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
   /// [heartRate] (Gerät 'hr1', ohne Verwaltung); [lastRun] ist die Pulsquelle
@@ -124,6 +128,7 @@ class Device {
           fileHandoff: fileHandoff,
           archiveExport: archiveExport,
           archiveRestore: archiveRestore,
+          map: map,
           permissions: permissions,
           runPorts: RunPorts(
             access: locationAccessOverride ?? locationAccess,

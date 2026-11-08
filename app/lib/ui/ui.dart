@@ -12,6 +12,7 @@ export 'ramuri_card.dart';
 export 'ramuri_chip.dart';
 export 'ramuri_colors.dart';
 export 'ramuri_logo.dart';
+export 'ramuri_map_colors.dart';
 export 'ramuri_segmented.dart';
 export 'ramuri_theme.dart';
 export 'ramuri_type.dart';

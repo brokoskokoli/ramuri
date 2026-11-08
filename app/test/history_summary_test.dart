@@ -218,6 +218,8 @@ Future<Device> started(WidgetTester tester, {String locale = 'de'}) async {
   return d;
 }
 
+final historyList = find.byKey(const PageStorageKey<String>('history_list'));
+
 void main() {
   group('Historie (FR-0040, ACC-04)', () {
     testWidgets('leer: Hinweis statt Liste', (tester) async {
@@ -305,7 +307,7 @@ void main() {
       tester.platformDispatcher.textScaleFactorTestValue = 2.0;
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await openHistory(d, tester);
-      expect(key('history_list'), findsOneWidget);
+      expect(historyList, findsOneWidget);
       expect(find.textContaining('Ø Pace'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
@@ -340,7 +342,7 @@ void main() {
         await seedRun(d.session, DateTime.utc(2030, 1, 1 + i, 8), minutes: 2);
       }
       await openHistory(d, tester);
-      final list = tester.widget<ListView>(key('history_list'));
+      final list = tester.widget<ListView>(historyList);
       expect(list.semanticChildCount ?? 30, 30);
       // Alle Einträge sind nach der gebündelten Abfrage mit Strecke gefüllt.
       expect(text('history_distance_30'), '0,36 km');

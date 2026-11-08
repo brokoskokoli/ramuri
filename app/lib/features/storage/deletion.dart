@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_buttons.dart';
+import '../map/map_consent_controller.dart';
 
 /// Ergebnis eines Löschvorgangs mit Bestätigung.
 enum DeletionResult {
@@ -48,17 +49,24 @@ Future<DeletionResult> runDeletion(Future<void> Function() action) async {
 /// `RecalculationController.exclusive`), nie parallel zum Nachholen beim Start,
 /// zur Berechnung nach einem Lauf oder zu einer Neuberechnung. [serialize] ist
 /// Pflicht, damit es niemand vergisst; Fehler der Aktion gehen an den Aufrufer.
+///
+/// [onDeleted] läuft, nachdem der Lauf gelöscht ist (auch bei
+/// [StorageFailure.deletedNotErased]), und räumt Abgeleitetes außerhalb der
+/// Speicherdatei weg, etwa die Miniatur des Laufs im Kartenspeicher (WP13 D).
+/// Ein Fehler darin ändert das Ergebnis nicht.
 Future<void> deleteRunAndRefresh(
   StorageSession session,
   Clock clock,
   int runId, {
   required Future<void> Function(Future<void> Function() action) serialize,
-}) => serialize(() => _deleteRunAndRefresh(session, clock, runId));
+  Future<void> Function(int runId)? onDeleted,
+}) => serialize(() => _deleteRunAndRefresh(session, clock, runId, onDeleted));
 
 Future<void> _deleteRunAndRefresh(
   StorageSession session,
   Clock clock,
   int runId,
+  Future<void> Function(int runId)? onDeleted,
 ) async {
   final calc = ValueCalculationService(session: session, clock: clock);
   // Ein Merker eines früheren, unvollendeten Neuanlegens darf nicht verloren
@@ -76,10 +84,19 @@ Future<void> _deleteRunAndRefresh(
     }
   }
 
+  Future<void> cleanUp() async {
+    try {
+      await onDeleted?.call(runId);
+    } on Object {
+      // Der Lauf ist gelöscht; ein Rest im Kartenspeicher ist nur ein altes Bild.
+    }
+  }
+
   try {
     await session.deleteRun(runId);
   } on StorageException catch (e) {
     if (e.failure == StorageFailure.deletedNotErased) {
+      await cleanUp();
       // Gelöscht, nur der Checkpoint scheiterte: Tageswerte trotzdem anlegen.
       await refresh();
     } else {
@@ -95,6 +112,7 @@ Future<void> _deleteRunAndRefresh(
     }
     rethrow;
   }
+  await cleanUp();
   await refresh();
 }
 
@@ -134,18 +152,34 @@ Future<DeletionResult> confirmAndDeleteRun(
   Clock clock,
   int runId, {
   required Future<void> Function(Future<void> Function() action) serialize,
+  Future<void> Function(int runId)? onDeleted,
 }) => _confirmAndDelete(
   context,
   all: false,
-  action: () =>
-      deleteRunAndRefresh(session, clock, runId, serialize: serialize),
+  action: () => deleteRunAndRefresh(
+    session,
+    clock,
+    runId,
+    serialize: serialize,
+    onDeleted: onDeleted,
+  ),
 );
 
 /// Fragt nach und löscht alle Daten der App ("Alles löschen").
+///
+/// [map]: Der Kartenanbieter (WP13) wird vor dem Löschen gesperrt und danach zurückgesetzt
+/// ([MapConsentController.deleteAllAround]).
 Future<DeletionResult> confirmAndDeleteAll(
   BuildContext context,
-  StorageSession session,
-) => _confirmAndDelete(context, all: true, action: session.deleteAll);
+  StorageSession session, {
+  MapConsentController? map,
+}) => _confirmAndDelete(
+  context,
+  all: true,
+  action: map == null
+      ? session.deleteAll
+      : () => map.deleteAllAround(session.deleteAll),
+);
 
 Future<DeletionResult> _confirmAndDelete(
   BuildContext context, {

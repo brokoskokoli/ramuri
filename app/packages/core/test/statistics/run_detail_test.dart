@@ -264,6 +264,52 @@ void main() {
     expect(d.hasRoute, isTrue);
   });
 
+  group('Live-Route für die Kartenseite (WP13 C)', () {
+    test(
+      'Positionslücke und manuelle Pause trennen, nichts wird verbunden',
+      () {
+        final gap = buildLiveRoute(_run(120, noPosition: (40, 70)));
+        expect(gap, hasLength(2));
+        final pre = _run(120, pause: (30, 50));
+        expect(buildLiveRoute(pre), hasLength(1), reason: 'Pause ohne Angabe');
+        final paused = buildLiveRoute(
+          pre,
+          pauses: [
+            TimeSpan(
+              start: _start.add(const Duration(seconds: 30)),
+              end: _start.add(const Duration(seconds: 50)),
+            ),
+          ],
+        );
+        expect(paused, hasLength(2));
+        expect(paused[0].last.latitude, lessThan(paused[1].first.latitude));
+      },
+    );
+
+    test('begrenzt die Punkte, Anfang und Ende jedes Teils bleiben', () {
+      final pre = _run(1500, noPosition: (500, 530));
+      final all = buildLiveRoute(pre, maxPoints: 100000);
+      final thin = buildLiveRoute(pre, maxPoints: 200);
+      expect(thin, hasLength(all.length));
+      final n = thin.fold<int>(0, (a, p) => a + p.length);
+      expect(n, lessThanOrEqualTo(200 + all.length));
+      expect(n, lessThan(all.fold<int>(0, (a, p) => a + p.length)));
+      for (var i = 0; i < thin.length; i++) {
+        expect(thin[i].first.latitude, all[i].first.latitude);
+        expect(thin[i].last.latitude, all[i].last.latitude);
+      }
+    });
+
+    test('ohne Position: leer', () {
+      expect(
+        buildLiveRoute(_run(0, heartRate: false)).expand((p) => p),
+        hasLength(1),
+      );
+      final pre = RunPreprocessor(start: _start).result(at: _start);
+      expect(buildLiveRoute(pre), isEmpty);
+    });
+  });
+
   test('Ausdünnen begrenzt die Punkte, erhält Teile, Anfang und Ende', () {
     final pre = _run(3000, noPosition: (1000, 1100));
     final full = _detail(pre, 3000, maxPoints: 100000);

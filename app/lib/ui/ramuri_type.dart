@@ -78,6 +78,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     required this.unitLarge,
     required this.unit,
     required this.eyebrow,
+    required this.sheetValue,
     required this.hero,
     required this.pageTitle,
     required this.link,
@@ -91,6 +92,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     unitLarge: _manrope(20, FontWeight.w700, c.textMuted),
     unit: _manrope(13, FontWeight.w700, c.textMuted),
     eyebrow: _manrope(12, FontWeight.w700, c.accent, tracking: 0.06),
+    sheetValue: _sora(44, FontWeight.w700, c.text, tracking: -0.03, height: 1),
     hero: _sora(48, FontWeight.w700, c.text, tracking: -0.03, height: 1),
     // Design: Sora 800; gebündelt bis 700, dort gilt 700 (siehe oben).
     pageTitle: _sora(34, FontWeight.w800, c.text, tracking: -0.02),
@@ -114,6 +116,9 @@ class RamuriType extends ThemeExtension<RamuriType> {
   /// Kleine Überschrift über einer Karte; wird in Großbuchstaben gesetzt.
   final TextStyle eyebrow;
 
+  /// Zeit und Strecke im Blatt der Live-Karte (44).
+  final TextStyle sheetValue;
+
   /// Große Kennzahl einer Karte, etwa VO₂max (48).
   final TextStyle hero;
 
@@ -135,6 +140,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     TextStyle? unitLarge,
     TextStyle? unit,
     TextStyle? eyebrow,
+    TextStyle? sheetValue,
     TextStyle? hero,
     TextStyle? pageTitle,
     TextStyle? link,
@@ -146,6 +152,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     unitLarge: unitLarge ?? this.unitLarge,
     unit: unit ?? this.unit,
     eyebrow: eyebrow ?? this.eyebrow,
+    sheetValue: sheetValue ?? this.sheetValue,
     hero: hero ?? this.hero,
     pageTitle: pageTitle ?? this.pageTitle,
     link: link ?? this.link,
@@ -163,6 +170,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
       unitLarge: l(unitLarge, other.unitLarge),
       unit: l(unit, other.unit),
       eyebrow: l(eyebrow, other.eyebrow),
+      sheetValue: l(sheetValue, other.sheetValue),
       hero: l(hero, other.hero),
       pageTitle: l(pageTitle, other.pageTitle),
       link: l(link, other.link),

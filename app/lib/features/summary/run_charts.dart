@@ -4,11 +4,13 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../map/route_map_section.dart';
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
 
 /// Route und Diagramme eines Laufs (FR-0041, FR-0042), mit Flutter-Mitteln
-/// gezeichnet: kein Kartenpaket, kein Netz (SEC-0008, OQ-0065). Unterbrechungen
+/// gezeichnet; die Karte der Route kommt aus `features/map` und nur mit
+/// Einwilligung (SEC-0008, FR-0204), sonst bleibt die Zeichnung. Unterbrechungen
 /// (Positionslücke, Pulslücke, manuelle Pause) bleiben offen; Teile werden nie
 /// zu einer Linie verbunden.
 class RunDetailCharts extends StatelessWidget {
@@ -66,7 +68,15 @@ class RunDetailCharts extends StatelessWidget {
           l10n.sumRoute,
           data.route.isEmpty
               ? Text(l10n.detRouteNone, key: const Key('detail_route_none'))
-              : RunRouteView(route: data.route),
+              : RouteMapSection(
+                  route: data.route,
+                  lineBuilder: (context, map, style) => RunRouteView(
+                    route: data.route,
+                    map: map,
+                    startColor: style?.startColor,
+                    endColor: style?.endColor,
+                  ),
+                ),
         ),
         section(
           l10n.detPaceChart,
@@ -529,11 +539,21 @@ class SeriesChartPainter extends CustomPainter {
       old.axisColor != axisColor;
 }
 
-/// Die gezeichnete Route (ohne Karte).
+/// Die gezeichnete Route (ohne Karte). Mit [map] steht an der Stelle der Zeichnung die Karte der Route (WP13); die
+/// Legende bleibt und nimmt dann [startColor] und [endColor] der Karte.
 class RunRouteView extends StatelessWidget {
-  const RunRouteView({super.key, required this.route});
+  const RunRouteView({
+    super.key,
+    required this.route,
+    this.map,
+    this.startColor,
+    this.endColor,
+  });
 
   final List<List<RoutePoint>> route;
+  final Widget? map;
+  final Color? startColor;
+  final Color? endColor;
 
   @override
   Widget build(BuildContext context) {
@@ -560,27 +580,32 @@ class RunRouteView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Semantics(
-          container: true,
-          label: l10n.detRouteSemantics(painter.pathCount),
-          excludeSemantics: true,
-          child: SizedBox(
-            height: 240,
-            width: double.infinity,
-            child: CustomPaint(key: const Key('route_paint'), painter: painter),
-          ),
+        SizedBox(
+          height: 240,
+          width: double.infinity,
+          child:
+              map ??
+              Semantics(
+                container: true,
+                label: l10n.detRouteSemantics(painter.pathCount),
+                excludeSemantics: true,
+                child: CustomPaint(
+                  key: const Key('route_paint'),
+                  painter: painter,
+                ),
+              ),
         ),
         Wrap(
           spacing: 16,
           children: [
             legend(
               const Key('route_legend_start'),
-              scheme.tertiary,
+              startColor ?? scheme.tertiary,
               l10n.detRouteStart,
             ),
             legend(
               const Key('route_legend_end'),
-              scheme.error,
+              endColor ?? scheme.error,
               l10n.detRouteEnd,
             ),
           ],
@@ -596,12 +621,20 @@ class RoutePainter extends CustomPainter {
     required this.lineColor,
     required this.startColor,
     required this.endColor,
+    this.padding = 16,
+    this.strokeWidth = 3,
+    this.markerRadius = 6,
   });
 
   final List<List<RoutePoint>> route;
   final Color lineColor;
   final Color startColor;
   final Color endColor;
+
+  /// Rand, Strichstärke und Markenradius; die Miniatur im Verlauf nimmt kleinere Werte.
+  final double padding;
+  final double strokeWidth;
+  final double markerRadius;
 
   /// Zahl der gezeichneten Linien: ein Teil mit mindestens zwei Punkten ist ein
   /// Pfad; Teile werden nie verbunden.
@@ -627,7 +660,7 @@ class RoutePainter extends CustomPainter {
     final k = math.cos((minLat + maxLat) / 2 * math.pi / 180);
     final w = math.max((maxLon - minLon) * k, 1e-9);
     final h = math.max(maxLat - minLat, 1e-9);
-    const pad = 16.0;
+    final pad = padding;
     final scale = math.min(
       (size.width - 2 * pad) / w,
       (size.height - 2 * pad) / h,
@@ -662,22 +695,28 @@ class RoutePainter extends CustomPainter {
     final paint = Paint()
       ..color = lineColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     for (final path in s.paths) {
       canvas.drawPath(path, paint);
     }
     for (final dot in s.dots) {
-      canvas.drawCircle(dot, 2.5, Paint()..color = lineColor);
+      canvas.drawCircle(dot, strokeWidth / 1.2, Paint()..color = lineColor);
     }
     if (s.start != null) {
-      canvas.drawCircle(s.start!, 6, Paint()..color = startColor);
-      canvas.drawCircle(s.end!, 6, Paint()..color = endColor);
+      canvas.drawCircle(s.start!, markerRadius, Paint()..color = startColor);
+      canvas.drawCircle(s.end!, markerRadius, Paint()..color = endColor);
     }
   }
 
   @override
   bool shouldRepaint(RoutePainter old) =>
-      old.route != route || old.lineColor != lineColor;
+      old.route != route ||
+      old.lineColor != lineColor ||
+      old.startColor != startColor ||
+      old.endColor != endColor ||
+      old.padding != padding ||
+      old.strokeWidth != strokeWidth ||
+      old.markerRadius != markerRadius;
 }

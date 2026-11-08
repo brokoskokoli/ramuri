@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SEC-0002, SEC-0008, ADR-0009: Nur HTTPS. Klartext-Verkehr ist für die ganze App verboten; die
+     einzige Gegenstelle (Kartenanbieter) steht zusätzlich in der Host-Liste des Kartenadapters. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

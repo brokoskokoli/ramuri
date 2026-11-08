@@ -15,6 +15,10 @@ class SettingsGateStorage implements Storage {
   /// Lesen der Einstellungen wirft `StorageException`.
   bool failGets = false;
 
+  /// Lesen bzw. Schreiben der Einwilligungen wirft `StorageException`.
+  bool failConsentGets = false;
+  bool failConsentSets = false;
+
   @override
   Future<StorageSession> open(Uint8List key) async =>
       _Session(this, await inner.open(key));
@@ -43,7 +47,7 @@ class _Session implements StorageSession {
   @override
   KnownDeviceStore get devices => s.devices;
   @override
-  ConsentStore get consents => s.consents;
+  ConsentStore get consents => _Consents(o, s.consents);
   @override
   Future<void> deleteRun(int runId) => s.deleteRun(runId);
   @override
@@ -70,4 +74,29 @@ class _Settings implements SettingsStore {
   @override
   Future<void> set(String key, String value, {required DateTime at}) =>
       s.set(key, value, at: at);
+}
+
+class _Consents implements ConsentStore {
+  _Consents(this.o, this.s);
+  final SettingsGateStorage o;
+  final ConsentStore s;
+
+  @override
+  Future<ConsentState?> get(String sourceKey) async {
+    if (o.failConsentGets) throw const StorageException(StorageFailure.failed);
+    return s.get(sourceKey);
+  }
+
+  @override
+  Future<Map<String, ConsentState>> all() => s.all();
+
+  @override
+  Future<void> set(
+    String sourceKey,
+    ConsentState state, {
+    required DateTime at,
+  }) async {
+    if (o.failConsentSets) throw const StorageException(StorageFailure.failed);
+    return s.set(sourceKey, state, at: at);
+  }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../export/run_export_action.dart';
+import '../map/map_consent_scope.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
 import '../storage/deletion.dart';
@@ -35,6 +36,7 @@ class RunDetailScreen extends StatelessWidget {
       clock,
       runId,
       serialize: recalculation.exclusive,
+      onDeleted: MapConsentScope.of(context)?.deleteRunThumbnails,
     );
     if (result == DeletionResult.deleted ||
         result == DeletionResult.deletedNotErased) {

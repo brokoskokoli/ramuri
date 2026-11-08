@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../map/map_consent_controller.dart';
+import '../map/map_consent_scope.dart';
+import '../map/map_services.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../storage/deletion.dart';
 import '../sensors/sensor_manager.dart';
@@ -28,7 +31,15 @@ class ReadyRoot extends StatefulWidget {
     required this.runPorts,
     required this.sensors,
     required this.welcome,
+    this.map,
+    this.mapHolder,
   });
+
+  /// Kartenanbieter (WP13); `null`: nicht verdrahtet, dann gibt es keinen Kartencontroller.
+  final MapServices? map;
+
+  /// Wo der Controller dieser Sitzung für Seiten über dem Navigator abgelegt wird.
+  final MapConsentHolder? mapHolder;
 
   /// Merker über der Sitzung: Willkommen wurde in diesem Prozess bestätigt.
   final WelcomeFlag welcome;
@@ -48,6 +59,7 @@ class _ReadyRootState extends State<ReadyRoot> {
   late final RecalculationController _recalculation;
   late final RunRecovery _recovery;
   final DataChanges _changes = DataChanges();
+  MapConsentController? _mapConsent;
 
   /// Fertig, sobald Willkommen nicht (mehr) im Weg ist; der Dialog zum
   /// unterbrochenen Lauf wartet darauf und überdeckt Willkommen nicht.
@@ -82,6 +94,16 @@ class _ReadyRootState extends State<ReadyRoot> {
       rawData: widget.session.rawData,
       markers: widget.session.markers,
     );
+    // Nur lesen, nie fragen: Gefragt wird beim ersten Öffnen einer Karte (ADR-0009 Punkt 3).
+    final map = widget.map;
+    if (map != null) {
+      _mapConsent = MapConsentController(
+        store: widget.session.consents,
+        clock: widget.clock,
+        services: map,
+      );
+      widget.mapHolder?.bind(_mapConsent!);
+    }
     _loadSettings();
     // Einmal je Start nach der Storage-Freigabe (FR-0193).
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
@@ -193,6 +215,11 @@ class _ReadyRootState extends State<ReadyRoot> {
 
   @override
   void dispose() {
+    final mapConsent = _mapConsent;
+    if (mapConsent != null) {
+      widget.mapHolder?.unbind(mapConsent);
+      mapConsent.dispose();
+    }
     _recalculation.dispose();
     _recalculationService.dispose();
     _changes.dispose();
