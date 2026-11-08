@@ -1147,5 +1147,7 @@
   "restoreConfirmBody": "Das Archiv ist geprüft und lässt sich lesen. Jetzt wird die vorhandene, nicht lesbare Datenbank endgültig gelöscht. Danach beginnt die App mit einer leeren Datenbank und einem neuen Schlüssel, in die das Archiv eingespielt wird. Das lässt sich nicht rückgängig machen.",
   "@restoreConfirmBody": {"description": "Bestätigung vor dem Löschen der alten Datei (WP12, SEC-0009)"},
   "restoreConfirmAction": "Löschen und wiederherstellen",
-  "@restoreConfirmAction": {"description": "Bestätigen (WP12, SEC-0009)"}
+  "@restoreConfirmAction": {"description": "Bestätigen (WP12, SEC-0009)"},
+  "uiEstimated": "geschätzt",
+  "@uiEstimated": {"description": "Kennzeichnung geschätzter Werte neben dem Glutpunkt (FR-0205, CON-0009)"}
 }

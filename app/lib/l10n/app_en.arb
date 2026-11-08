@@ -567,5 +567,7 @@
   "restoreConfirmBody": "The archive was checked and can be read. Now the existing unreadable database is permanently deleted. Then the app starts with an empty database and a new key, and the archive is loaded into it. This cannot be undone.",
   "@restoreConfirmBody": {"description": "Bestätigung vor dem Löschen der alten Datei (WP12, SEC-0009)"},
   "restoreConfirmAction": "Delete and restore",
-  "@restoreConfirmAction": {"description": "Bestätigen (WP12, SEC-0009)"}
+  "@restoreConfirmAction": {"description": "Bestätigen (WP12, SEC-0009)"},
+  "uiEstimated": "estimated",
+  "@uiEstimated": {"description": "Kennzeichnung geschätzter Werte neben dem Glutpunkt (FR-0205, CON-0009)"}
 }

@@ -5,6 +5,7 @@ import 'app.dart';
 import 'app_dependencies.dart';
 import 'debug/debug_test_sensor.dart';
 import 'system_clock.dart';
+import 'ui/font_licenses.dart';
 
 /// Debug-Einstiegspunkt mit Test-Sensor (WP07): `flutter run -t lib/main_debug.dart`.
 ///
@@ -13,6 +14,7 @@ import 'system_clock.dart';
 /// damit den Rest (belegt am Artefakt, siehe WP07).
 void main() {
   if (kReleaseMode) throw StateError('main_debug nur im Debug-Build');
+  registerFontLicenses();
   runApp(
     RunningApp(
       dependencies: AppDependencies.create(

@@ -72,6 +72,35 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Schriften (FR-0205): statische Schnitte, siehe assets/fonts/README.md.
+  # Je Datei ein `weight`, weil fontWeight bei Variable Fonts nicht zuverlässig wirkt.
+  fonts:
+    - family: Sora
+      fonts:
+        - asset: assets/fonts/Sora-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Sora-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Sora-Bold.ttf
+          weight: 700
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Manrope-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Manrope-ExtraBold.ttf
+          weight: 800
+
+  # Lizenztexte der Schriften (OFL 1.1), registriert in lib/ui/font_licenses.dart.
+  assets:
+    - assets/fonts/OFL-Sora.txt
+    - assets/fonts/OFL-Manrope.txt
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

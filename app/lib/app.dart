@@ -9,6 +9,7 @@ import 'features/settings/app_settings.dart';
 import 'features/storage/storage_gate.dart';
 import 'l10n/app_localizations.dart';
 import 'offload_scope.dart';
+import 'ui/ui.dart';
 
 /// Wurzel-Widget. Die Gerätesprache bestimmt die Sprache: Deutsch und Englisch
 /// werden unterstützt, jede andere Gerätesprache zeigt Englisch (NFR-0006,
@@ -52,7 +53,9 @@ class _RunningAppState extends State<RunningApp> {
         ),
       ),
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
-      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      theme: RamuriTheme.light,
+      darkTheme: RamuriTheme.dark,
+      themeMode: ThemeMode.system,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
