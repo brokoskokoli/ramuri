@@ -81,7 +81,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return _Data(overviews, fitness);
   }
 
-  void _reload() => setState(() => _future = _load());
+  // Block statt Pfeil: Ein Pfeil gäbe die Zuweisung (das Future) an setState
+  // zurück, und setState weist das in Debug und Test mit einem Fehler ab.
+  void _reload() => setState(() {
+    _future = _load();
+  });
 
   static DateTime _date(String day) => DateTime.parse('${day}T00:00:00Z');
 
