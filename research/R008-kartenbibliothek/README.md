@@ -63,12 +63,14 @@ Voraussetzungen: Flutter 3.47.7 (global), Android-SDK mit AVDs `running_app_api3
 | `--api N` | `36` | emu: API-Stufe (36 voll, 31 nur Start-Smoke) |
 | `--port N` | `5600` | emu: Konsolenport des eigenen Emulators (Serial `emulator-N`) |
 | `--live-s S` | `120` | emu: Dauer der Live-Messung je App in Sekunden |
+| `--profil P` | `voll` | emu: `voll` (alle Phasen) oder `nachlauf` (nur Werte-Seite, 50 Miniaturen mit Scrollen, Klartext-Gegenprobe; für fmvt) |
 
 Vollständiger Ablauf wie in RESULTS.md:
 
 ```bash
 ./init.sh && ./run.sh host && ./run.sh build && ./run.sh licenses --apps "fm fmvt ml" && ./run.sh netstatic
 ./run.sh emu --api 36 --apps "fm fmvt ml" && ./run.sh emu --api 31 --apps "fm fmvt ml"
+./run.sh build --apps fmvt && ./run.sh emu --api 36 --apps fmvt --profil nachlauf   # Nachlauf (Bildzaehler in der Historie)
 ```
 
 Auswertung eines emu-Laufs (nur lesen, schreibt `eval.json` in den Laufordner und Tabellen nach stdout):

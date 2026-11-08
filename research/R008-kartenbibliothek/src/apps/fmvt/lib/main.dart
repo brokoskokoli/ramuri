@@ -169,9 +169,24 @@ class _ThumbsState extends State<ThumbsPage> {
     return done.future;
   }
 
+  // Grobe Bildrate der Historie: Flutter-FrameTiming je 5 s (Bilder, mittlere Build-/Raster-Zeit, Bilder ueber 16,7 ms)
+  int fr = 0, slow = 0, buildUs = 0, rasterUs = 0;
+
   @override
   void initState() {
     super.initState();
+    SchedulerBinding.instance.addTimingsCallback((ts) {
+      for (final t in ts) {
+        fr++;
+        buildUs += t.buildDuration.inMicroseconds;
+        rasterUs += t.rasterDuration.inMicroseconds;
+        if (t.totalSpan.inMicroseconds > 16667) slow++;
+      }
+    });
+    Timer.periodic(const Duration(seconds: 5), (_) {
+      log('thumbs frames_5s=$fr build_ms=${fr == 0 ? 0 : (buildUs / fr / 1000).toStringAsFixed(1)} raster_ms=${fr == 0 ? 0 : (rasterUs / fr / 1000).toStringAsFixed(1)} over16ms=$slow');
+      fr = slow = buildUs = rasterUs = 0;
+    });
     if (cfg.queryParameters['auto'] == '1') {
       Future.delayed(const Duration(seconds: 5), () async {
         for (var k = 0; k < 3; k++) {

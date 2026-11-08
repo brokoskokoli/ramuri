@@ -1,9 +1,9 @@
 #!/bin/bash
-# Emulator-Messungen R008. Usage: emu.sh <out> <api> <port> <live_s> <apps...>
+# Emulator-Messungen R008. Usage: emu.sh <out> <api> <port> <live_s> <profil> <apps...>  (profil: voll | nachlauf)
 # Startet genau einen eigenen Emulator (running_app_api<api>, Serial emulator-<port>, -no-audio, -read-only: AVD bleibt unveraendert) und beendet ihn per PID.
 # Bricht ab, wenn schon ein anderer Emulator laeuft. Mitschnitt je Phase per "adb emu network capture".
 set -uo pipefail
-OUT=$1; API=$2; PORT=$3; LIVE_S=$4; shift 4; APPS="$*"
+OUT=$1; API=$2; PORT=$3; LIVE_S=$4; PROFIL=$5; shift 5; APPS="$*"
 HERE="$(cd "$(dirname "$0")" && pwd)"; SDK=~/Library/Android/sdk; ADB="$SDK/platform-tools/adb -s emulator-$PORT"
 BUILD=$(ls -d "$(dirname "$OUT")"/build-*/ | tail -1)
 if pgrep -f qemu-system >/dev/null; then echo "Anderer Emulator laeuft (pgrep qemu-system): Abbruch, nichts gestartet" >&2; exit 3; fi
@@ -61,6 +61,14 @@ for a in $APPS; do
   if [ "$API" = 31 ]; then   # nur Start-Smoke
     measure "$a" smoke "/live?consent=1&page=1" 30
     $ADB shell pidof "$(pkg "$a")" >/dev/null && echo "$a smoke: Prozess laeuft" || echo "$a smoke: Prozess FEHLT"
+    $ADB shell am force-stop "$(pkg "$a")"; continue
+  fi
+  if [ "$PROFIL" = nachlauf ]; then   # Nachlauf (nur fmvt sinnvoll): Werte-Seite, 50 Miniaturen mit Scrollen, Klartext-Gegenprobe
+    measure "$a" values "/live?consent=1&page=0" "$LIVE_S"
+    measure "$a" thumbs-gen "/thumbs?consent=1&n=50&auto=1" 150
+    measure "$a" thumbs-stored "/thumbs?consent=1&n=50&auto=1" 60
+    storage_scan "$a" consent
+    measure "$a" plaincache "/detail?consent=1&plaincache=1" 20; storage_scan "$a" plaincache
     $ADB shell am force-stop "$(pkg "$a")"; continue
   fi
   measure "$a" noconsent-live "/live?consent=0&page=1" 45
