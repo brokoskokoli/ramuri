@@ -22,6 +22,8 @@ class RouteMapStyle {
     this.markerRadius = 7,
     this.markerBorderWidth = 2,
     this.attributionTextStyle,
+    this.positionColor,
+    this.positionBorderColor = const Color(0xFFFFFFFF),
   });
 
   final Color lineColor;
@@ -37,6 +39,10 @@ class RouteMapStyle {
   final double markerRadius;
   final double markerBorderWidth;
   final TextStyle? attributionTextStyle;
+
+  /// Punkt der aktuellen Position (Live-Karte); ohne Angabe [endColor].
+  final Color? positionColor;
+  final Color positionBorderColor;
 }
 
 /// Wie die Karte auf Gesten reagiert. Ein Finger bleibt der Seite überlassen, damit eine Karte in einer
@@ -244,5 +250,180 @@ class _Attribution extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Live-Karte: folgt der Position, zeigt die bisherige Strecke (ein Linienzug je zusammenhängendem Teil) und die
+/// Position als Punkt mit Hof. Die Kamera steht erst mit einer Position (R008 Hinweis 5, ADR-0009 Punkt 2): ohne sie
+/// gibt es keine Kachelebene, also keine Kachelanfrage und keine Kamera am Standardzentrum der Bibliothek.
+///
+/// [following] gehört dem Aufrufer. Verschiebt oder zoomt der Nutzer die Karte (Geste), ruft sie [onUserMove] und
+/// folgt nicht mehr, bis [following] wieder `true` ist; dann springt die Kamera auf die Position. Bis dahin ändern
+/// neue Positionen die Kamera nicht. Ein Finger verschiebt (die Seite wischt nicht über die Karte).
+class LiveRouteMap extends StatefulWidget {
+  const LiveRouteMap({
+    super.key,
+    required this.source,
+    required this.route,
+    required this.position,
+    required this.following,
+    required this.onUserMove,
+    required this.style,
+    this.zoom = 16,
+  });
+
+  final MapTileSource source;
+  final List<List<RoutePoint>> route;
+
+  /// Aktuelle Position; `null`, solange keine akzeptiert ist (dann keine Kachelebene).
+  final RoutePoint? position;
+  final bool following;
+  final VoidCallback onUserMove;
+  final RouteMapStyle style;
+
+  /// Zoomstufe, mit der die Karte beginnt und beim Zentrieren bleibt, solange der Nutzer nicht zoomt.
+  final double zoom;
+
+  @override
+  State<LiveRouteMap> createState() => _LiveRouteMapState();
+}
+
+class _LiveRouteMapState extends State<LiveRouteMap> {
+  final MapController _controller = MapController();
+  bool _ready = false;
+
+  static const _gestureSources = {
+    MapEventSource.dragStart,
+    MapEventSource.onDrag,
+    MapEventSource.flingAnimationController,
+    MapEventSource.multiFingerGestureStart,
+    MapEventSource.onMultiFinger,
+    MapEventSource.doubleTapZoomAnimationController,
+  };
+
+  LatLng? get _at {
+    final p = widget.position;
+    return p == null ? null : LatLng(p.latitude, p.longitude);
+  }
+
+  @override
+  void didUpdateWidget(LiveRouteMap old) {
+    super.didUpdateWidget(old);
+    final at = _at;
+    if (at == null || !_ready || !widget.following) return;
+    if (widget.position != old.position || !old.following) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !widget.following) return;
+        final next = _at;
+        if (next == null) return;
+        _controller.move(next, _controller.camera.zoom);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onEvent(MapEvent e) {
+    if (widget.following && _gestureSources.contains(e.source)) {
+      widget.onUserMove();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = widget.style;
+    final at = _at;
+    if (at == null) return ColoredBox(color: style.backgroundColor);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        FlutterMap(
+          mapController: _controller,
+          options: MapOptions(
+            initialCenter: at,
+            initialZoom: widget.zoom,
+            maxZoom: 18,
+            backgroundColor: style.backgroundColor,
+            onMapReady: () => _ready = true,
+            onMapEvent: _onEvent,
+            interactionOptions: const InteractionOptions(
+              flags:
+                  InteractiveFlag.drag |
+                  InteractiveFlag.flingAnimation |
+                  InteractiveFlag.pinchZoom |
+                  InteractiveFlag.pinchMove |
+                  InteractiveFlag.doubleTapZoom,
+            ),
+          ),
+          children: [widget.source.layer(), ..._layers(at)],
+        ),
+        Positioned(
+          left: 0,
+          bottom: 0,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width,
+            ),
+            child: _Attribution(
+              key: const Key('map_attribution'),
+              text: widget.source.attribution,
+              style: style,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _layers(LatLng at) {
+    final style = widget.style;
+    LatLng ll(RoutePoint p) => LatLng(p.latitude, p.longitude);
+    final lines = <Polyline>[
+      for (final part in widget.route)
+        if (part.length >= 2)
+          Polyline(
+            points: [for (final p in part) ll(p)],
+            strokeWidth: style.lineWidth,
+            color: style.lineColor,
+            strokeCap: StrokeCap.round,
+            strokeJoin: StrokeJoin.round,
+          ),
+    ];
+    final first = widget.route
+        .where((p) => p.isNotEmpty)
+        .map((p) => p.first)
+        .firstOrNull;
+    final pos = style.positionColor ?? style.endColor;
+    return [
+      PolylineLayer(polylines: lines),
+      CircleLayer(
+        circles: [
+          if (first != null)
+            CircleMarker(
+              point: ll(first),
+              radius: style.markerRadius,
+              color: style.startColor,
+              borderColor: style.markerBorderColor,
+              borderStrokeWidth: style.markerBorderWidth,
+            ),
+          CircleMarker(
+            point: at,
+            radius: 16,
+            color: pos.withValues(alpha: 0.3),
+          ),
+          CircleMarker(
+            point: at,
+            radius: 9,
+            color: pos,
+            borderColor: style.positionBorderColor,
+            borderStrokeWidth: 3,
+          ),
+        ],
+      ),
+    ];
   }
 }

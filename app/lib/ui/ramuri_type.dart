@@ -78,6 +78,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     required this.unitLarge,
     required this.unit,
     required this.eyebrow,
+    required this.sheetValue,
   });
 
   factory RamuriType.from(RamuriColors c) => RamuriType(
@@ -88,6 +89,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     unitLarge: _manrope(20, FontWeight.w700, c.textMuted),
     unit: _manrope(13, FontWeight.w700, c.textMuted),
     eyebrow: _manrope(12, FontWeight.w700, c.accent, tracking: 0.06),
+    sheetValue: _sora(44, FontWeight.w700, c.text, tracking: -0.03, height: 1),
   );
 
   /// Restmeter im Intervall (104).
@@ -107,6 +109,9 @@ class RamuriType extends ThemeExtension<RamuriType> {
   /// Kleine Überschrift über einer Karte; wird in Großbuchstaben gesetzt.
   final TextStyle eyebrow;
 
+  /// Zeit und Strecke im Blatt der Live-Karte (44).
+  final TextStyle sheetValue;
+
   static RamuriType of(BuildContext context) =>
       Theme.of(context).extension<RamuriType>()!;
 
@@ -119,6 +124,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     TextStyle? unitLarge,
     TextStyle? unit,
     TextStyle? eyebrow,
+    TextStyle? sheetValue,
   }) => RamuriType(
     countdown: countdown ?? this.countdown,
     distance: distance ?? this.distance,
@@ -127,6 +133,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     unitLarge: unitLarge ?? this.unitLarge,
     unit: unit ?? this.unit,
     eyebrow: eyebrow ?? this.eyebrow,
+    sheetValue: sheetValue ?? this.sheetValue,
   );
 
   @override
@@ -141,6 +148,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
       unitLarge: l(unitLarge, other.unitLarge),
       unit: l(unit, other.unit),
       eyebrow: l(eyebrow, other.eyebrow),
+      sheetValue: l(sheetValue, other.sheetValue),
     );
   }
 }

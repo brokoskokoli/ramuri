@@ -429,4 +429,60 @@ void main() {
     );
     expect(left, isEmpty, reason: 'Plattencache muss aus sein');
   });
+
+  // WP13 C: Live-Karte. Ohne Position keine Kachelebene (R008 Hinweis 5), mit Position nur Kacheln um sie.
+  testWidgets('LiveRouteMap ohne Position: keine Kachelebene, keine Anfrage', (
+    tester,
+  ) async {
+    final source = await open(tester);
+    addTearDown(source.dispose);
+    await tester.pumpWidget(
+      host(
+        LiveRouteMap(
+          source: source,
+          route: const [],
+          position: null,
+          following: true,
+          onUserMove: () {},
+          style: _style,
+        ),
+      ),
+    );
+    await _settle(tester, inner);
+    expect(_tiles(inner), isEmpty);
+    expect(find.byType(fm.FlutterMap), findsNothing);
+    expect(gate.counts.network[MapResource.tile] ?? 0, 0);
+  });
+
+  testWidgets('LiveRouteMap mit Position: nur Kacheln um sie, Punkt markiert', (
+    tester,
+  ) async {
+    final source = await open(tester);
+    addTearDown(source.dispose);
+    await tester.pumpWidget(
+      host(
+        LiveRouteMap(
+          source: source,
+          route: [
+            [_a, _b],
+          ],
+          position: _b,
+          following: true,
+          onUserMove: () {},
+          style: _style,
+        ),
+      ),
+    );
+    await _settle(tester, inner);
+    final tiles = _tiles(inner).toList();
+    expect(tiles, isNotEmpty);
+    expect(
+      tilesOutside(tiles, [
+        [_b],
+      ]),
+      0,
+      reason: 'Fremdkacheln',
+    );
+    expect(find.text(MapProvider.openFreeMap.attribution), findsOneWidget);
+  });
 }

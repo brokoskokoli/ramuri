@@ -2,9 +2,11 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ui.dart';
 import '../sensors/run_heart_rate.dart';
 import '../settings/unit_format.dart';
 import '../summary/run_summary_body.dart';
+import 'live_map_page.dart';
 import 'run_controller.dart';
 
 /// Zeit als `h:mm:ss`, unter einer Stunde `m:ss`; `null` ergibt „–“.
@@ -31,6 +33,22 @@ double? averagePaceSecondsPerKm(RecordingSnapshot s) {
   final t = moving - s.positionLossMovingTime;
   if (t <= Duration.zero) return null;
   return t.inMicroseconds / 1e6 / (d / 1000);
+}
+
+/// Aktuelle Pace als Text (Werte-Seite und Blatt der Kartenseite).
+String livePaceText(
+  RunController controller,
+  UnitFormatter formatter,
+  AppLocalizations l10n,
+) {
+  switch (controller.preprocessing?.pace.livePace) {
+    case PaceValue(:final secondsPerKm):
+      return formatter.pace(secondsPerKm);
+    case PaceStandstill():
+      return UnitFormatter.noValue; // OQ-0037
+    case PaceNoData() || null:
+      return l10n.runNoDataYet;
+  }
 }
 
 /// Live-Bildschirm und Abschlussansicht eines Laufs.
@@ -64,35 +82,51 @@ class LiveRunView extends StatelessWidget {
           automaticallyImplyLeading: finished,
         ),
         body: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    ..._banners(context, l10n, finished),
-                    ..._body(l10n, finished),
-                    if (!finished) _autoPauseSwitch(l10n),
-                  ],
+          child: finished
+              ? _valuesPage(context, l10n, finished)
+              : _LiveRunPager(
+                  values: _valuesPage(context, l10n, finished),
+                  controller: controller,
+                  formatter: formatter,
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: finished
-                    ? SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          key: const Key('run_done_close'),
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: Text(l10n.runDoneClose),
-                        ),
-                      )
-                    : _controls(context, l10n),
-              ),
+        ),
+      ),
+    );
+  }
+
+  /// Die Werte-Seite: Meldungen, Werte und unten die Knöpfe. Beim Wischen zur Karte bleibt sie unberührt.
+  Widget _valuesPage(
+    BuildContext context,
+    AppLocalizations l10n,
+    bool finished,
+  ) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            // Oben Platz für die Reiter Werte/Karte, die über der Seite schweben.
+            padding: EdgeInsets.fromLTRB(16, finished ? 16 : 72, 16, 16),
+            children: [
+              ..._banners(context, l10n, finished),
+              ..._body(l10n, finished),
+              if (!finished) _autoPauseSwitch(l10n),
             ],
           ),
         ),
-      ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: finished
+              ? SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    key: const Key('run_done_close'),
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(l10n.runDoneClose),
+                  ),
+                )
+              : _controls(context, l10n),
+        ),
+      ],
     );
   }
 
@@ -171,15 +205,7 @@ class LiveRunView extends StatelessWidget {
     final pre = controller.preprocessing;
     final na = l10n.runUnavailable;
 
-    final String livePace;
-    switch (pre?.pace.livePace) {
-      case PaceValue(:final secondsPerKm):
-        livePace = formatter.pace(secondsPerKm);
-      case PaceStandstill():
-        livePace = UnitFormatter.noValue; // OQ-0037
-      case PaceNoData() || null:
-        livePace = l10n.runNoDataYet;
-    }
+    final livePace = livePaceText(controller, formatter, l10n);
     final avg = averagePaceSecondsPerKm(s);
     final ascent = pre?.altitude.ascentMeters;
     final bpm = s.heartRateBpm;
@@ -425,6 +451,163 @@ class _Laps extends StatelessWidget {
         for (final lap in laps.reversed)
           Text(l10n.runLapRow(lap.index, formatClock(lap.lapTime))),
       ],
+    );
+  }
+}
+
+/// Die zwei Seiten des laufenden Lauf-Bildschirms: Werte (erste) und Karte (zweite), dazu die Reiter. Der Seitenwechsel
+/// ändert nichts am Zustand des Laufs; beide Seiten lesen nur den [RunController].
+///
+/// Wischen und Verschieben: Auf der Werte-Seite wischt ein Zug nach links zur Karte. Auf der Karte gehört ein Finger
+/// der Karte (Verschieben): ihre Gestenerkennung gewinnt gegen die der Seite (belegt im Test, langsamer und schneller
+/// Zug). Zurück geht es mit dem Reiter, mit einem Wisch auf dem Blatt oder vom linken Rand der Karte (eigener
+/// Streifen in [LiveMapPage]).
+class _LiveRunPager extends StatefulWidget {
+  const _LiveRunPager({
+    required this.values,
+    required this.controller,
+    required this.formatter,
+  });
+
+  final Widget values;
+  final RunController controller;
+  final UnitFormatter formatter;
+
+  @override
+  State<_LiveRunPager> createState() => _LiveRunPagerState();
+}
+
+class _LiveRunPagerState extends State<_LiveRunPager> {
+  final PageController _pages = PageController();
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  void _go(int page) {
+    _pages.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Stack(
+      children: [
+        PageView(
+          key: const Key('run_pages'),
+          controller: _pages,
+          allowImplicitScrolling: true, // die Karte behält Quelle und Zustand, auch wenn sie nicht zu sehen ist
+          onPageChanged: (p) => setState(() => _page = p),
+          children: [
+            widget.values,
+            LiveMapPage(
+              key: const Key('run_page_map'),
+              controller: widget.controller,
+              formatter: widget.formatter,
+              visible: _page == 1,
+              onBack: () => _go(0),
+            ),
+          ],
+        ),
+        Positioned(
+          left: 16,
+          top: 16,
+          child: _Tabs(
+            semanticLabel: l10n.mapTabsSemantics,
+            labels: [l10n.mapTabValues, l10n.mapViewMap],
+            selected: _page,
+            onSelected: _go,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Reiter Werte/Karte (`LiveKarte.dc.html`): weiße Kapsel, der gewählte Reiter dunkel mit Minze.
+class _Tabs extends StatelessWidget {
+  const _Tabs({
+    required this.semanticLabel,
+    required this.labels,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String semanticLabel;
+  final List<String> labels;
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = RamuriColors.of(context);
+    final text = Theme.of(context).textTheme;
+    return Semantics(
+      container: true,
+      label: semanticLabel,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: const [
+            BoxShadow(
+              color: RamuriMapColors.floatingShadow,
+              blurRadius: 10,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < labels.length; i++) ...[
+                if (i > 0) const SizedBox(width: 4),
+                Semantics(
+                  button: true,
+                  selected: i == selected,
+                  child: GestureDetector(
+                    key: Key('run_tab_$i'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onSelected(i),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: i == selected ? c.panel : null,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: SizedBox(
+                        height: 40,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Center(
+                            child: Text(
+                              labels[i],
+                              style: text.labelLarge?.copyWith(
+                                color: i == selected ? c.action : c.text,
+                                fontWeight: i == selected
+                                    ? FontWeight.w800
+                                    : FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

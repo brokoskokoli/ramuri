@@ -52,10 +52,14 @@ class FakeInner extends http.BaseClient {
   int? forceStatus;
   Completer<void>? hold;
 
+  /// Anfragen, für die das Netz mit einem Fehler antwortet (etwa nur Kacheln: Flugmodus nach gecachtem Stil).
+  bool Function(Uri)? failWhere;
+
   @override
   Future<http.StreamedResponse> send(http.BaseRequest r) async {
     requests.add(r);
     if (hold != null) await hold!.future;
+    if (failWhere?.call(r.url) ?? false) throw StateError('Netz weg');
     final status = forceStatus;
     if (status != null) {
       return http.StreamedResponse(

@@ -1267,5 +1267,17 @@
   "mapViewMap": "Karte",
   "@mapViewMap": {"description": "Karte (WP13 B)"},
   "mapRouteSemantics": "Karte der Route. {parts} zusammenhängende Abschnitte; Lücken sind nicht verbunden. Start und Ende sind markiert. Quelle: {source}. Mit zwei Fingern zoomen und verschieben.",
-  "@mapRouteSemantics": {"description": "Karte (WP13 B)", "placeholders": {"parts": {"type": "int"}, "source": {"type": "String"}}}
+  "@mapRouteSemantics": {"description": "Karte (WP13 B)", "placeholders": {"parts": {"type": "int"}, "source": {"type": "String"}}},
+  "mapTabValues": "Werte",
+  "@mapTabValues": {"description": "Karte (WP13 C)"},
+  "mapTabsSemantics": "Ansicht",
+  "@mapTabsSemantics": {"description": "Karte (WP13 C)"},
+  "mapCenter": "Karte auf meine Position zentrieren",
+  "@mapCenter": {"description": "Karte (WP13 C)"},
+  "mapWaitingPosition": "Warte auf die erste Position …",
+  "@mapWaitingPosition": {"description": "Karte (WP13 C)"},
+  "mapLiveSemantics": "Karte mit bisheriger Strecke und aktueller Position. Quelle: {source}. Mit einem Finger verschieben; die Karte folgt der Position, bis du sie verschiebst.",
+  "@mapLiveSemantics": {"description": "Karte (WP13 C)", "placeholders": {"source": {"type": "String"}}},
+  "mapLiveLineSemantics": "Bisherige Strecke ohne Kartenhintergrund, {parts} zusammenhängende Abschnitte; Lücken sind nicht verbunden. Die aktuelle Position ist markiert.",
+  "@mapLiveLineSemantics": {"description": "Karte (WP13 C)", "placeholders": {"parts": {"type": "int"}}}
 }

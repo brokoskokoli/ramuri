@@ -81,21 +81,13 @@ RunDetailData buildRunDetail(
 }) {
   double x(DateTime t) => t.difference(start).inMicroseconds / 1e6;
 
-  final positionBreaks = _merge([
-    ...pauses,
-    for (final g in pre.position.gaps) TimeSpan(start: g.start, end: g.end),
-    for (final s in pre.pace.segments)
-      if (s.isGap) TimeSpan(start: s.start, end: s.end),
-  ]);
+  final positionBreaks = _positionBreaks(pre, pauses);
   final heartBreaks = _merge([
     ...pauses,
     for (final g in pre.heartRate.gaps) TimeSpan(start: g.start, end: g.end),
   ]);
 
-  final route = _split<RoutePoint>([
-    for (final p in pre.position.acceptedPoints)
-      (p.time, RoutePoint(p.latitude, p.longitude)),
-  ], positionBreaks);
+  final route = _routeParts(pre, positionBreaks);
 
   final paceSamples = <(DateTime, DetailPoint?)>[];
   for (final s in pre.pace.medianSeries) {
@@ -129,6 +121,32 @@ RunDetailData buildRunDetail(
     pauses: [for (final p in pauses) (start: x(p.start), end: x(p.end))],
   );
 }
+
+/// Unterbrechungen der Position: manuelle Pausen, Positionslücken und Lücken der Pace.
+List<TimeSpan> _positionBreaks(RunPreprocessing pre, List<TimeSpan> pauses) =>
+    _merge([
+      ...pauses,
+      for (final g in pre.position.gaps) TimeSpan(start: g.start, end: g.end),
+      for (final s in pre.pace.segments)
+        if (s.isGap) TimeSpan(start: s.start, end: s.end),
+    ]);
+
+List<List<RoutePoint>> _routeParts(
+  RunPreprocessing pre,
+  List<TimeSpan> positionBreaks,
+) => _split<RoutePoint>([
+  for (final p in pre.position.acceptedPoints)
+    (p.time, RoutePoint(p.latitude, p.longitude)),
+], positionBreaks);
+
+/// Route des laufenden Laufs für die Kartenseite (WP13 C): die akzeptierten Positionen, an Pausen und Lücken
+/// geteilt wie in [buildRunDetail], je Teil auf höchstens [maxPoints] Punkte insgesamt ausgedünnt (nur für die
+/// Anzeige, die Daten bleiben unverändert). Eine offene Pause gibt der Aufrufer mit spätem Ende an. Rechnet nur die Route, nicht die übrigen Reihen.
+List<List<RoutePoint>> buildLiveRoute(
+  RunPreprocessing pre, {
+  List<TimeSpan> pauses = const [],
+  int maxPoints = 600,
+}) => _thinRoute(_routeParts(pre, _positionBreaks(pre, pauses)), maxPoints);
 
 /// Sortiert und fasst überlappende Zeiträume zusammen.
 List<TimeSpan> _merge(List<TimeSpan> spans) {

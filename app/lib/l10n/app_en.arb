@@ -636,5 +636,17 @@
   "mapViewMap": "Map",
   "@mapViewMap": {"description": "Karte (WP13 B)"},
   "mapRouteSemantics": "Route map. {parts} connected sections; gaps are not joined. Start and end are marked. Source: {source}. Zoom and pan with two fingers.",
-  "@mapRouteSemantics": {"description": "Karte (WP13 B)", "placeholders": {"parts": {"type": "int"}, "source": {"type": "String"}}}
+  "@mapRouteSemantics": {"description": "Karte (WP13 B)", "placeholders": {"parts": {"type": "int"}, "source": {"type": "String"}}},
+  "mapTabValues": "Values",
+  "@mapTabValues": {"description": "Karte (WP13 C)"},
+  "mapTabsSemantics": "View",
+  "@mapTabsSemantics": {"description": "Karte (WP13 C)"},
+  "mapCenter": "Center the map on my position",
+  "@mapCenter": {"description": "Karte (WP13 C)"},
+  "mapWaitingPosition": "Waiting for the first position …",
+  "@mapWaitingPosition": {"description": "Karte (WP13 C)"},
+  "mapLiveSemantics": "Map with the route so far and the current position. Source: {source}. Drag with one finger; the map follows your position until you move it.",
+  "@mapLiveSemantics": {"description": "Karte (WP13 C)", "placeholders": {"source": {"type": "String"}}},
+  "mapLiveLineSemantics": "Route so far without a map background, {parts} connected sections; gaps are not joined. The current position is marked.",
+  "@mapLiveLineSemantics": {"description": "Karte (WP13 C)", "placeholders": {"parts": {"type": "int"}}}
 }

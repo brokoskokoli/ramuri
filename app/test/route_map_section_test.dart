@@ -285,6 +285,22 @@ void main() {
     expect(_k('route_paint'), findsNothing);
   });
 
+  testWidgets(
+    'alle Kacheln scheitern (Flugmodus nach gecachtem Stil): Karte ohne Hintergrund, aber mit Linie, Marken und Quellenangabe',
+    (tester) async {
+      final net = FakeInner()..failWhere = (u) => u.path.endsWith('.pbf');
+      final w = _World(net: net, consent: ConsentState.granted);
+      await tester.pumpWidget(_app(w, _route));
+      await _settle(tester, w);
+      expect(w.tileRequests, greaterThan(0), reason: 'Kacheln wurden versucht');
+      // Kein Rückfall auf RunRouteView: Die Karte bleibt, ihre eigenen Ebenen zeichnen die Route.
+      expect(_k('route_map'), findsOneWidget);
+      expect(_k('route_paint'), findsNothing);
+      expect(mapPolylineCount(tester.element(_k('route_map'))), 2);
+      expect(find.text(MapProvider.openFreeMap.attribution), findsOneWidget);
+    },
+  );
+
   // Bildschirmfoto hell und dunkel (Layout statt Emulator). Nur mit SHOT_DIR, sonst nur die Prüfung.
   for (final dark in [false, true]) {
     testWidgets(
