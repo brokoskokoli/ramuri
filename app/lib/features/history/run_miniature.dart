@@ -10,7 +10,7 @@ import '../map/miniature_service.dart';
 import '../map/route_map_section.dart' show routeMapStyle;
 import '../summary/run_charts.dart' show RoutePainter;
 
-/// Größe der Miniatur im Verlauf (Seitenverhältnis wie das Bild 480 x 240).
+/// Größe der Miniatur im Verlauf (Seitenverhältnis wie das Bild 360 x 180).
 const double runMiniatureWidth = 120;
 const double runMiniatureHeight = 60;
 
@@ -83,6 +83,11 @@ class _RunMiniatureState extends State<RunMiniature> {
   bool _started = false;
   int _epoch = 0;
 
+  /// Das Kartenbild wurde wirklich gemalt (ein Bild kam an). Nur dann sagen Bedienungshilfe und Verlauf "Karte" und
+  /// nennen die Quelle; ein Bild, das sich nicht darstellen lässt, zählt nicht (WP13 N5).
+  bool _shown = false;
+  bool _decodeRetried = false;
+
   @override
   void initState() {
     super.initState();
@@ -153,6 +158,31 @@ class _RunMiniatureState extends State<RunMiniature> {
     _ticket?.cancel();
     _ticket = null;
     _png = null;
+    _setShown(false);
+  }
+
+  /// Meldet dem Dienst, ob dieser Eintrag sein Kartenbild zeigt; baut neu auf, wenn sich das ändert.
+  void _setShown(bool value, {bool rebuild = true}) {
+    if (_shown == value) return;
+    _shown = value;
+    widget.service?.imageShown(value);
+    if (rebuild && mounted) setState(() {});
+  }
+
+  /// Das Bild kam nicht auf den Schirm (es ließ sich nicht entschlüsseln). Das Kartenbild zählt nicht, der Eintrag
+  /// zeigt die Linie; das unlesbare Bild wird entfernt und einmal neu erzeugt (ohne Neuaufbau des Verlaufs).
+  void _onImageError() {
+    if (!mounted || _png == null) return;
+    final service = widget.service;
+    final style = _style;
+    _png = null;
+    _setShown(false, rebuild: false);
+    setState(() {});
+    if (service == null || style == null || _decodeRetried) return;
+    _decodeRetried = true;
+    service.discard(widget.runId, style).then((_) {
+      if (mounted && _load == _Load.ready) _fetch();
+    });
   }
 
   /// Oberkante auf dem Bildschirm, wenn der Eintrag gerade zu sehen ist, sonst `null`.
@@ -207,6 +237,7 @@ class _RunMiniatureState extends State<RunMiniature> {
   void dispose() {
     widget.service?.removeListener(_onService);
     _ticket?.cancel();
+    _setShown(false, rebuild: false);
     super.dispose();
   }
 
@@ -219,6 +250,7 @@ class _RunMiniatureState extends State<RunMiniature> {
     // Nur mit Einwilligung: Kartenbilder, die nach einem Widerruf noch liegen, werden nicht gezeigt.
     final png = (service?.enabled ?? false) ? _png : null;
     final attribution = service?.consent.services.attribution ?? '';
+    final showsMap = png != null && _shown;
     final drawing = _load == _Load.ready
         ? CustomPaint(
             key: const Key('miniature_line'),
@@ -238,50 +270,46 @@ class _RunMiniatureState extends State<RunMiniature> {
       child: Semantics(
         container: true,
         excludeSemantics: true,
-        label: png == null
-            ? l10n.mapThumbLineSemantics
-            : l10n.mapThumbSemantics(attribution),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: runMiniatureHeight,
-              width: runMiniatureWidth,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: ColoredBox(
-                  color: scheme.surfaceContainerHighest,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ?drawing,
-                      if (png != null)
-                        Image.memory(
-                          png,
-                          key: const Key('miniature_image'),
-                          fit: BoxFit.cover,
-                          cacheWidth: (runMiniatureWidth * 2).round(),
-                          gaplessPlayback: true,
-                          filterQuality: FilterQuality.medium,
-                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                        ),
-                    ],
-                  ),
-                ),
+        label: showsMap
+            ? l10n.mapThumbSemantics(attribution)
+            : l10n.mapThumbLineSemantics,
+        child: SizedBox(
+          height: runMiniatureHeight,
+          width: runMiniatureWidth,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: ColoredBox(
+              color: scheme.surfaceContainerHighest,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ?drawing,
+                  if (png != null)
+                    Image.memory(
+                      png,
+                      key: const Key('miniature_image'),
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                      filterQuality: FilterQuality.medium,
+                      frameBuilder: (_, child, frame, sync) {
+                        if (frame != null || sync) {
+                          WidgetsBinding.instance.addPostFrameCallback(
+                            (_) => _setShown(true),
+                          );
+                        }
+                        return child;
+                      },
+                      errorBuilder: (_, _, _) {
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => _onImageError(),
+                        );
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                ],
               ),
             ),
-            if (png != null && attribution.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  attribution,
-                  key: const Key('miniature_attribution'),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-              ),
-          ],
+          ),
         ),
       ),
     );

@@ -654,6 +654,8 @@
   "@mapThumbSemantics": {"description": "Miniatur der Route im Verlauf (WP13 D)", "placeholders": {"source": {"type": "String"}}},
   "mapThumbLineSemantics": "Small drawing of the route",
   "@mapThumbLineSemantics": {"description": "Miniatur der Route im Verlauf ohne Karte (WP13 D)"},
+  "mapHistoryAttribution": "Map source: {source}",
+  "@mapHistoryAttribution": {"description": "Quellenangabe der Kartenbilder unter der Liste im Verlauf (WP13 N5, FR-0204)", "placeholders": {"source": {"type": "String"}}},
   "progressWeekTitleKm": "Kilometers per week",
   "@progressWeekTitleKm": {"description": "WP15 B"},
   "progressWeekTitleMi": "Miles per week",

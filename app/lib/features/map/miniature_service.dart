@@ -10,6 +10,12 @@ import 'map_consent_controller.dart';
 /// Höchstzahl gleichzeitiger Anfragen beim Erzeugen der Miniaturen (R008 Hinweis 6, Grenzen des Anbieters).
 const int miniatureMaxParallel = 4;
 
+/// So oft darf die Erzeugung einer Miniatur in einem Aufbau des Verlaufs scheitern (Netz, Zeitgrenze, Fehler), bevor
+/// sie bis zum nächsten Aufbau ruht. Dazwischen versucht es der Eintrag jedes Mal, wenn er wieder sichtbar wird
+/// (WP13 N5): ein einzelner Fehlschlag unter Last macht den Lauf nicht für den ganzen Aufbau zur bloßen Linie, und
+/// ein echter Fehler kostet höchstens diese Versuche, nie einen Dauerversuch.
+const int miniatureMaxAttempts = 3;
+
 /// Fassung der Miniatur: bei jeder Änderung an Größe oder Aussehen hochzählen, dann entstehen neue Bilder.
 const String miniatureVersion = 'v1';
 
@@ -88,7 +94,8 @@ class MiniatureJob {
 
 /// Erzeugt die Miniaturen des Verlaufs bei Bedarf (WP13 D, R008 Hinweis 5): strikt nacheinander, sichtbare Einträge
 /// zuerst, ein Eintrag verlässt die Warteschlange, wenn er wegscrollt. Je Aufbau des Verlaufs eine Instanz: ein
-/// Lauf, dessen Erzeugung scheiterte, wird erst beim nächsten Aufbau wieder versucht (kein Dauerversuch).
+/// Lauf, dessen Erzeugung scheiterte, wird beim Wiederkehren des Eintrags noch einmal versucht, höchstens
+/// [miniatureMaxAttempts] Mal je Aufbau (kein Dauerversuch).
 ///
 /// Ohne Einwilligung ([enabled] `false`) gibt es weder Anfragen noch Bilder aus dem Speicher: auch Kartenbilder, die
 /// nach einem Widerruf noch liegen, werden nicht gezeigt.
@@ -156,7 +163,27 @@ class MiniatureService extends ChangeNotifier with WidgetsBindingObserver {
 
   final List<MiniatureTicket> _queue = [];
   MiniatureTicket? _current;
-  final Set<int> _failed = {};
+  final Map<int, int> _failures = {};
+
+  /// Wie viele Kartenbilder gerade zu sehen sind (der Verlauf zeigt die Quelle darunter nur dann, FR-0204). Zählt
+  /// Bilder, die wirklich gemalt wurden, nicht die abgelegten.
+  final ValueNotifier<int> shownImages = ValueNotifier<int>(0);
+
+  /// Ein Eintrag zeigt sein Kartenbild ([shown] `true`) oder nicht mehr. Meldet sich asynchron, damit kein Eintrag
+  /// beim Abbau oder Aufbau die Oberfläche mitten im Bild ändert.
+  void imageShown(bool shown) {
+    scheduleMicrotask(() {
+      if (_disposed) return;
+      shownImages.value += shown ? 1 : -1;
+    });
+  }
+
+  /// Entfernt ein unlesbares Bild aus dem Speicher (es ließ sich nicht darstellen), damit es neu entsteht.
+  Future<void> discard(int runId, RouteMapStyle style) async {
+    try {
+      await _store?.remove(thumbnailKey(miniatureVariant(style), runId));
+    } catch (_) {}
+  }
 
   /// Läufe, die in diesem Aufbau gelöscht wurden: Ihre Rohdaten können schon gelesen sein, eine Anfrage danach
   /// ließe ein verwaistes Bild entstehen.
@@ -200,7 +227,7 @@ class MiniatureService extends ChangeNotifier with WidgetsBindingObserver {
     if (_disposed ||
         !enabled ||
         _sourceFailed ||
-        _failed.contains(runId) ||
+        (_failures[runId] ?? 0) >= miniatureMaxAttempts ||
         _removedIds.contains(runId)) {
       return null;
     }
@@ -348,8 +375,10 @@ class MiniatureService extends ChangeNotifier with WidgetsBindingObserver {
       _queue.insert(0, t);
       return;
     }
-    // Gescheitert (nicht abgebrochen): in diesem Aufbau nicht noch einmal.
-    if (out == null && attempted && !t.cancelled) _failed.add(t.runId);
+    // Gescheitert (nicht abgebrochen): zählt als Fehlversuch, der Eintrag fragt beim Wiederkehren erneut.
+    if (out == null && attempted && !t.cancelled) {
+      _failures[t.runId] = (_failures[t.runId] ?? 0) + 1;
+    }
     if (!t._done.isCompleted) t._done.complete(out);
   }
 
@@ -378,6 +407,7 @@ class MiniatureService extends ChangeNotifier with WidgetsBindingObserver {
     job.value = null;
     _dropSource();
     job.dispose();
+    shownImages.dispose();
     super.dispose();
   }
 }

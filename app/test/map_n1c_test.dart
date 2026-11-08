@@ -448,7 +448,7 @@ void main() {
     );
 
     testWidgets(
-      'gescheiterter Lauf wird im selben Aufbau nicht erneut versucht (X4)',
+      'gescheiterter Lauf wird beim Wiederkehren erneut versucht, höchstens miniatureMaxAttempts Mal je Aufbau (X4, WP13 N5)',
       (tester) async {
         await setup(tester, (
           boundary,
@@ -459,13 +459,21 @@ void main() {
           captures++;
           return null;
         });
-        expect(await _drive(tester, ask(7)!), isNull);
-        expect(captures, 1);
-        expect(ask(7), isNull, reason: 'gescheitert: nicht noch einmal');
+        for (var i = 0; i < miniatureMaxAttempts; i++) {
+          final t = ask(7);
+          expect(
+            t,
+            isNotNull,
+            reason: 'Versuch ${i + 1}: der Eintrag kehrt wieder',
+          );
+          expect(await _drive(tester, t!), isNull);
+        }
+        expect(captures, miniatureMaxAttempts);
+        expect(ask(7), isNull, reason: 'Grenze erreicht: kein Dauerversuch');
         final other = ask(8);
         expect(other, isNotNull, reason: 'andere Läufe gehen');
         await _drive(tester, other!);
-        expect(captures, 2);
+        expect(captures, miniatureMaxAttempts + 1);
         expect(w.thumbs.writes, 0);
       },
     );

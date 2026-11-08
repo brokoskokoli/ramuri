@@ -177,6 +177,7 @@ void main() {
     expect(w.inner.requests, isEmpty);
     expect(w.thumbs.reads, 0);
     expect(w.captures, 0);
+    expect(key('history_attribution'), findsNothing);
   });
 
   testWidgets('Laufband ohne Positionen: keine Miniatur', (tester) async {
@@ -219,7 +220,11 @@ void main() {
       expect(w.captures, 3);
       expect(w.thumbs.writtenKeys.length, 3);
       expect(w.thumbs.writtenKeys.every((k) => k.startsWith('thumb:')), isTrue);
-      expect(find.text('Quelle-Test'), findsNWidgets(3));
+      // Die Quelle steht einmal unter der Liste, nicht unter jedem Bild und nicht im Bild (WP13 N5).
+      expect(find.text('Kartenquelle: Quelle-Test'), findsOneWidget);
+      expect(key('history_attribution'), findsOneWidget);
+      expect(key('miniature_attribution'), findsNothing);
+      expect(find.text('Quelle-Test'), findsNothing);
       // Erneut öffnen: aus dem Speicher, keine neue Aufnahme.
       await _closeHistory(tester);
       await _openHistory(tester);
@@ -314,6 +319,141 @@ void main() {
       await _openHistory(tester);
       expect(w.captures, 2);
       expect(key('miniature_image'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Quellenangabe nur mit gezeigtem Kartenbild: Fehler und Linie zeigen keine (WP13 N5)',
+    (tester) async {
+      final (_, w) = await _start(tester, consent: true, runs: [2, 3]);
+      w.captureFails = true;
+      await _openHistory(tester);
+      expect(key('miniature_line'), findsNWidgets(2));
+      expect(key('history_attribution'), findsNothing);
+      await _controller(tester).revoke();
+      await _settle(tester);
+      expect(key('history_attribution'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Bild, das sich nicht darstellen lässt: Zeichnung statt Karte, keine Quellenangabe, einmal neu erzeugt (WP13 N5)',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+      final (_, w) = await _start(tester, consent: true, runs: [2]);
+      w.pngOverride = Uint8List.fromList([1, 2, 3, 4, 5]); // kein PNG
+      await _openHistory(tester);
+      await _settle(tester);
+      expect(find.bySemanticsLabel(RegExp('Kleine Karte')), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('Kleine Zeichnung')), findsOneWidget);
+      expect(key('history_attribution'), findsNothing);
+      expect(key('miniature_line'), findsOneWidget);
+      expect(w.captures, 2, reason: 'einmal neu erzeugt, kein Dauerversuch');
+      await _settle(tester);
+      expect(w.captures, 2);
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'Unlesbares Bild im Speicher: wird entfernt und neu erzeugt, ohne Neuaufbau (WP13 N5)',
+    (tester) async {
+      final (d, w) = await _start(tester, consent: true, runs: [2]);
+      final id = (await d.session.runs.list()).first.id;
+      w.thumbs.data[thumbnailKey(miniatureVariant(_styleOf(tester)), id)] =
+          Uint8List.fromList([9, 9, 9]);
+      await _openHistory(tester);
+      await _settle(tester);
+      expect(w.captures, 1, reason: 'neu erzeugt');
+      expect(key('miniature_image'), findsOneWidget);
+      expect(key('history_attribution'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Karte der Route und Quelle erst, wenn das Bild gemalt ist (WP13 N5)',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+      PaintingBinding.instance.imageCache
+          .clear(); // sonst steht das Bild schon aus einem früheren Test bereit
+      final (d, w) = await _start(tester, consent: true, runs: [2]);
+      final id = (await d.session.runs.list()).first.id;
+      w.thumbs.data[thumbnailKey(miniatureVariant(_styleOf(tester)), id)] =
+          png1x1;
+      await tester.tap(key('home_history'));
+      // Ohne echte Zeit: das Bild liegt vor, ist aber noch nicht entschlüsselt.
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(key('miniature_image'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Kleine Karte')), findsNothing);
+      expect(key('history_attribution'), findsNothing);
+      await _settle(tester);
+      expect(
+        find.bySemanticsLabel(RegExp('Kleine Karte der Route')),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(RegExp('Quelle: Quelle-Test')),
+        findsOneWidget,
+      );
+      expect(key('history_attribution'), findsOneWidget);
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'Gescheiterter Lauf: kehrt der Eintrag wieder, wird er neu versucht, höchstens $miniatureMaxAttempts Mal (WP13 N5)',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      const runs = 40;
+      final (_, w) = await _start(
+        tester,
+        consent: true,
+        runs: List.generate(runs, (i) => 2 + i),
+      );
+      w.captureFails = true;
+      // Wartet, bis die Warteschlange leer ist (die Zahl der Aufnahmen steht still).
+      Future<void> quiesce() async {
+        var last = -1;
+        while (w.captures != last) {
+          last = w.captures;
+          await _settle(tester);
+        }
+      }
+
+      Future<void> round() async {
+        await tester.drag(find.byType(ListView), const Offset(0, -20000));
+        await quiesce();
+        await tester.drag(find.byType(ListView), const Offset(0, 20000));
+        await quiesce();
+      }
+
+      await _openHistory(tester);
+      await quiesce();
+      await round();
+      final afterFirst = w.captures;
+      await round();
+      expect(
+        w.captures,
+        greaterThan(afterFirst),
+        reason: 'wiederkehrende Einträge werden neu versucht',
+      );
+      for (var i = 0; i < 4; i++) {
+        await round();
+      }
+      expect(
+        w.captures,
+        // Abgebrochene Aufnahmen (wegscrollen) zählen hier mit, nicht als Fehlversuch.
+        lessThanOrEqualTo(runs * miniatureMaxAttempts + runs ~/ 4),
+        reason: 'kein Dauerversuch: höchstens $miniatureMaxAttempts je Lauf',
+      );
+      final settled = w.captures;
+      await round();
+      expect(w.captures, settled, reason: 'alle Läufe ruhen bis zum Aufbau');
+      expect(key('history_attribution'), findsNothing);
     },
   );
 
@@ -526,7 +666,7 @@ void main() {
       attributionForeground: Color(0xFF000000),
     );
     expect(miniatureVariant(base), isNot(miniatureVariant(dark)));
-    expect(miniatureVariant(base), startsWith('v1-480x240-'));
+    expect(miniatureVariant(base), startsWith('v1-360x180-'));
     expect(runMiniatureWidth / runMiniatureHeight, 2);
   });
 }
@@ -539,31 +679,31 @@ Future<Uint8List> _fakeMapPng() async {
   final recorder = ui.PictureRecorder();
   final c = Canvas(recorder);
   c.drawRect(
-    const Rect.fromLTWH(0, 0, 480, 240),
+    const Rect.fromLTWH(0, 0, 360, 180),
     Paint()..color = const Color(0xFFF2EFE9),
   );
   c.drawRect(
-    const Rect.fromLTWH(0, 150, 480, 50),
+    const Rect.fromLTWH(0, 112, 360, 38),
     Paint()..color = const Color(0xFFAAD3DF),
   );
   c.drawRect(
-    const Rect.fromLTWH(300, 20, 140, 90),
+    const Rect.fromLTWH(225, 15, 105, 68),
     Paint()..color = const Color(0xFFC8FACC),
   );
   final line = Paint()
     ..color = const Color(0xFF0E8F7E)
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 5
+    ..strokeWidth = 4
     ..strokeCap = StrokeCap.round;
   c.drawPath(
     Path()
-      ..moveTo(60, 190)
-      ..lineTo(150, 100)
-      ..lineTo(260, 130)
-      ..lineTo(380, 50),
+      ..moveTo(45, 142)
+      ..lineTo(112, 75)
+      ..lineTo(195, 98)
+      ..lineTo(285, 38),
     line,
   );
-  final image = await recorder.endRecording().toImage(480, 240);
+  final image = await recorder.endRecording().toImage(360, 180);
   return (await image.toByteData(format: ui.ImageByteFormat.png))!.buffer
       .asUint8List();
 }

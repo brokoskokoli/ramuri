@@ -111,12 +111,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final formatter = AppSettingsScope.formatterOf(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.histTitle)),
-      body: Stack(
-        fit: StackFit.expand,
-        clipBehavior: Clip.none,
+      body: Column(
         children: [
-          Positioned.fill(child: _list(l10n, formatter)),
-          if (_miniatures != null) MiniatureHost(service: _miniatures!),
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(child: _list(l10n, formatter)),
+                if (_miniatures != null) MiniatureHost(service: _miniatures!),
+              ],
+            ),
+          ),
+          if (_miniatures != null) _AttributionFooter(service: _miniatures!),
         ],
       ),
     );
@@ -269,6 +276,41 @@ class _RunTile extends StatelessWidget {
         ),
         Expanded(child: tile),
       ],
+    );
+  }
+}
+
+/// Die Quelle der Kartenbilder, einmal vollständig unter der Liste (FR-0204 "jede Karte nennt die Quelle"; WP13 N5).
+/// Nur sichtbar, solange mindestens ein Kartenbild zu sehen ist; nie abgeschnitten, bricht bei Bedarf um.
+class _AttributionFooter extends StatelessWidget {
+  const _AttributionFooter({required this.service});
+
+  final MiniatureService service;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: service.shownImages,
+      builder: (context, shown, _) {
+        final source = service.consent.services.attribution;
+        if (shown <= 0 || !service.enabled || source.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final theme = Theme.of(context);
+        return SizedBox(
+          width: double.infinity,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Text(
+              AppLocalizations.of(context).mapHistoryAttribution(source),
+              key: const Key('history_attribution'),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

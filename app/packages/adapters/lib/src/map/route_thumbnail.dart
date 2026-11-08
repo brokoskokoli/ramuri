@@ -11,9 +11,11 @@ import 'map_gate.dart';
 import 'map_tile_source.dart';
 import 'route_map.dart';
 
-/// Größe einer Miniatur in Pixeln (R008 Hinweis 5: 480 x 240).
-const double thumbnailWidth = 480;
-const double thumbnailHeight = 240;
+/// Größe einer Miniatur in Pixeln. R008 Hinweis 5 nannte 480 x 240 (48 kB); auf dem Gerät waren es rund 100 kB je
+/// Bild bei einer Anzeige von etwa 105 x 52 dp (WP13 N5). 360 x 180 liegt bei gut dem Dreifachen der Anzeige und
+/// bleibt scharf. Die Größe steckt in der Variante des Speicherschlüssels: ältere Bilder gelten damit nicht mehr.
+const double thumbnailWidth = 360;
+const double thumbnailHeight = 180;
 
 /// Ladeende (R008 Hinweis 5): Netz und Speicher seit [thumbnailQuiet] ruhig und zwei Bilder im Abstand von
 /// [thumbnailSettle] pixelgleich; sonst nach [thumbnailTimeLimit] aufgeben.
@@ -21,7 +23,8 @@ const Duration thumbnailQuiet = Duration(milliseconds: 400);
 const Duration thumbnailSettle = Duration(milliseconds: 250);
 const Duration thumbnailTimeLimit = Duration(seconds: 15);
 
-/// Die Karte, die als Miniatur aufgenommen wird: feste Größe, nicht bedienbar, mit Quellenangabe. Sie muss wirklich
+/// Die Karte, die als Miniatur aufgenommen wird: feste Größe, nicht bedienbar, ohne eingebrannte Quellenangabe (der
+/// Verlauf nennt sie unter der Liste). Sie muss wirklich
 /// gemalt werden (außerhalb des Bildschirms, nicht in einem `Offstage`), sonst gibt es kein Bild. [boundary] ist der
 /// Schlüssel der `RepaintBoundary`, den [captureThumbnail] liest.
 class ThumbnailMap extends StatelessWidget {
@@ -50,8 +53,9 @@ class ThumbnailMap extends StatelessWidget {
           route: route,
           style: style,
           gestures: RouteMapGestures.none,
-          fitPadding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
+          fitPadding: const EdgeInsets.all(18),
           maxFitZoom: 16,
+          showAttribution: false,
         ),
       ),
     );
@@ -108,11 +112,18 @@ Future<Uint8List?> captureThumbnail(
       a.dispose();
       return null;
     }
-    final same = _equal(await rgba(a), await rgba(b));
+    final pixelsB = await rgba(b);
+    final same = _equal(await rgba(a), pixelsB);
     a.dispose();
     if (aborted()) {
       b.dispose();
       return null;
+    }
+    // Eine Aufnahme, die nicht deckend ist, hat nichts gemalt (die Karte hat immer einen Grund): kein Bild, weiter
+    // warten statt eines unsichtbaren Bildes zu speichern (WP13 N5).
+    if (same && !_opaque(pixelsB)) {
+      b.dispose();
+      continue;
     }
     // Während der beiden Bilder kam nichts Neues, und es ging nichts schief: das Bild ist fertig.
     if (same && gate.quietFor >= quiet) {
@@ -127,6 +138,17 @@ Future<Uint8List?> captureThumbnail(
     b.dispose();
   }
   return null;
+}
+
+/// Ob die Aufnahme an ihren Stichproben deckend ist (Alpha 255).
+bool _opaque(Uint8List? rgba) {
+  if (rgba == null || rgba.length < 4) return false;
+  final pixels = rgba.length ~/ 4;
+  final step = pixels > 997 ? 997 : 1;
+  for (var i = 0; i < pixels; i += step) {
+    if (rgba[i * 4 + 3] != 255) return false;
+  }
+  return rgba[rgba.length - 1] == 255;
 }
 
 bool _equal(Uint8List? a, Uint8List? b) {

@@ -65,6 +65,7 @@ class RouteMap extends StatelessWidget {
     this.mapController,
     this.fitPadding = defaultFitPadding,
     this.maxFitZoom = 17,
+    this.showAttribution = true,
   });
 
   /// Rand um die Route; unten mehr Platz, damit die Quellenangabe keine Marke verdeckt.
@@ -84,6 +85,10 @@ class RouteMap extends StatelessWidget {
   final MapController? mapController;
   final EdgeInsets fitPadding;
   final double maxFitZoom;
+
+  /// Ob die Quellenangabe ins Bild gemalt wird. Nur die Miniatur schaltet sie ab (WP13 N5): Die Angabe stünde dort
+  /// unlesbar klein im Bild, der Verlauf nennt die Quelle einmal vollständig unter der Liste (FR-0204).
+  final bool showAttribution;
 
   /// Startkamera für eine Größe: Mitte und Zoom, in die Route samt Rand passt. `null` ohne Punkte.
   static ({LatLng center, double zoom})? startCamera(
@@ -155,18 +160,19 @@ class RouteMap extends StatelessWidget {
               ),
               children: [source.layer(), ..._routeLayers()],
             ),
-            Positioned(
-              left: 0,
-              bottom: 0,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                child: _Attribution(
-                  key: const Key('map_attribution'),
-                  text: source.attribution,
-                  style: style,
+            if (showAttribution)
+              Positioned(
+                left: 0,
+                bottom: 0,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                  child: _Attribution(
+                    key: const Key('map_attribution'),
+                    text: source.attribution,
+                    style: style,
+                  ),
                 ),
               ),
-            ),
           ],
         );
       },
