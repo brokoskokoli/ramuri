@@ -115,11 +115,12 @@ mkdir -p "$D" && cp "$A" "$D/libsqlite3mc.dylib"
 
 - Das geht vor dem ersten Aufruf und nach einem gescheiterten. `./run.sh store` löscht die Kopie nicht, der Hook prüft ihren Hash und lädt dann nichts. Eine Datei mit falschem Hash nimmt er laut Code (`description.dart`) nicht an, sondern lädt neu.
 - `run.info` und `store.log` halten die Kopie nicht fest. Wer so misst, trägt es in RESULTS ein.
-- Ohne `app/.dart_tool/`: `url_pattern` aus `doc/hook.md` des Pakets (eigener Spiegel) unter `hooks: user_defines: sqlite3:` in `src/storeprobe/pubspec.yaml`. Das ändert den Code-Stand, `run.info` zeigt dann `dirty=1`.
+- Ohne `app/.dart_tool/`: Laut Review Runde 4 kam die Datei über die GitHub-API vollständig und mit dem richtigen Hash (HTTP 200), während der Release-Weg 504 lieferte; geprüft ist das dort bis zum Hash, nicht als Lauf aus dieser Datei und von uns nicht wiederholt. Mit `$D` wie oben: `mkdir -p "$D" && curl -L -H 'Accept: application/octet-stream' -o "$D/libsqlite3mc.dylib" https://api.github.com/repos/simolus3/sqlite3.dart/releases/assets/669392873`, danach `shasum -a 256 "$D/libsqlite3mc.dylib"` gegen den Hash oben prüfen.
+- Alternative dazu: `url_pattern` aus `doc/hook.md` des Pakets (eigener Spiegel) unter `hooks: user_defines: sqlite3:` in `src/storeprobe/pubspec.yaml`. Das ändert den Code-Stand, `run.info` zeigt dann `dirty=1`.
 
 **Geprüft am 2026-11-08, ohne Messung:** `./run.sh store` mit `RESEARCH_DATA` in einem Wegwerf-Ordner und einem `dart` davor, das statt der Probe nur die Bibliothek lädt (`sqlite_version()` 3.54.0, `PRAGMA cipher` `chacha20`). Ohne Kopie gegen das echte GitHub: Exit 255 wie oben. Mit Kopie: Exit 0 und `.done`. Direkt am Hook auch mit Kopie vor dem ersten Aufruf: läuft, obwohl die eingestellte Download-Adresse nicht erreichbar war. Für `url_pattern` ist nur belegt, dass der Hook die Adresse übernimmt (sie steht in der Fehlermeldung); ein erfolgreicher Abruf ließ sich nicht prüfen, weil die Prüfumgebung Verbindungen zu `localhost` sperrte.
 
 Ausgaben: `$RESEARCH_DATA/work/R008/<schritt>-<zeit>/` (nie überschrieben, `.done` nach Exit 0); gemeinsame Build-Ordner der Mini-Apps unter `work/R008/apps/`, geholte POMs unter `work/R008/poms/`.
 
 ## Status
-abgeschlossen (2026-11-08), Ergebnis in [RESULTS.md](RESULTS.md); Nachbesserungen nach Review Runde 1 bis 3 eingearbeitet, erneutes Review offen
+abgeschlossen (2026-11-08), Review FREIGABE in Runde 4, Ergebnis in [RESULTS.md](RESULTS.md); die vier Soll-Befunde der Runde 4 sind eingearbeitet
