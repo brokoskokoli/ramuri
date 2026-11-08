@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_buttons.dart';
 import '../archive/archive_import_flow.dart';
 import '../archive/archive_scope.dart';
 import '../export/file_handoff_scope.dart';
@@ -208,7 +209,7 @@ class NotOpenableScreen extends StatelessWidget {
       appBar: AppBar(title: Text(l10n.notOpenableTitle)),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           children: [
             Text(switch (state.dataLoss) {
               StorageDataLoss.deleted => l10n.notOpenableDataDeleted,
@@ -254,17 +255,15 @@ class NotOpenableScreen extends StatelessWidget {
             if (state.busy)
               const Center(child: CircularProgressIndicator())
             else ...[
-              FilledButton(
+              RamuriPrimaryButton(
                 onPressed: onRetry,
-                child: Text(
-                  state.dataLoss == StorageDataLoss.none
-                      ? l10n.notOpenableRetry
-                      : l10n.notOpenableResume,
-                ),
+                label: state.dataLoss == StorageDataLoss.none
+                    ? l10n.notOpenableRetry
+                    : l10n.notOpenableResume,
               ),
               if (state.canReset && state.dataLoss == StorageDataLoss.none) ...[
                 const SizedBox(height: 12),
-                OutlinedButton(
+                RamuriSecondaryButton(
                   onPressed: () async {
                     // Nur ein ausdrückliches "true" setzt zurück; Abbrechen,
                     // Zurück und Tippen daneben lassen alles stehen.
@@ -274,16 +273,16 @@ class NotOpenableScreen extends StatelessWidget {
                     );
                     if (confirmed == true) onReset();
                   },
-                  child: Text(l10n.notOpenableReset),
+                  label: l10n.notOpenableReset,
                 ),
                 if (onRestoreFromArchive != null) ...[
                   const SizedBox(height: 12),
                   Text(l10n.notOpenableRestoreHint),
                   const SizedBox(height: 8),
-                  OutlinedButton(
+                  RamuriSecondaryButton(
                     key: const Key('not_openable_restore'),
                     onPressed: onRestoreFromArchive,
-                    child: Text(l10n.notOpenableRestore),
+                    label: l10n.notOpenableRestore,
                   ),
                 ],
               ],
@@ -313,6 +312,7 @@ class ResetConfirmDialog extends StatelessWidget {
           child: Text(l10n.deleteCancel),
         ),
         FilledButton(
+          style: ramuriDangerFilledStyle(context),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(l10n.resetConfirmAction),
         ),
@@ -386,7 +386,7 @@ class EncryptionInactiveScreen extends StatelessWidget {
       appBar: AppBar(title: Text(l10n.inactiveTitle)),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           children: [
             if (dataLoss == StorageDataLoss.none)
               Text(l10n.inactiveBody)
@@ -399,13 +399,11 @@ class EncryptionInactiveScreen extends StatelessWidget {
               Text(l10n.inactiveDataLossNote),
             ],
             const SizedBox(height: 24),
-            FilledButton(
+            RamuriPrimaryButton(
               onPressed: onRetry,
-              child: Text(
-                dataLoss == StorageDataLoss.none
-                    ? l10n.notOpenableRetry
-                    : l10n.notOpenableResume,
-              ),
+              label: dataLoss == StorageDataLoss.none
+                  ? l10n.notOpenableRetry
+                  : l10n.notOpenableResume,
             ),
           ],
         ),

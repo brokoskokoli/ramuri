@@ -50,3 +50,24 @@ class RamuriSecondaryButton extends StatelessWidget {
           );
   }
 }
+
+/// Stil für Knöpfe, die Daten unwiderruflich löschen: Fehlerrot statt
+/// Minze (gefüllt, für die Bestätigung im Dialog).
+ButtonStyle ramuriDangerFilledStyle(BuildContext context) {
+  // Das Theme belegt `error` mit `danger` (ramuri_theme.dart).
+  final scheme = Theme.of(context).colorScheme;
+  return FilledButton.styleFrom(
+    backgroundColor: scheme.error,
+    foregroundColor: scheme.onError,
+  );
+}
+
+/// Wie [ramuriDangerFilledStyle], mit Rand statt Fläche (für den Knopf, der
+/// den Dialog erst öffnet).
+ButtonStyle ramuriDangerOutlinedStyle(BuildContext context) {
+  final color = Theme.of(context).colorScheme.error;
+  return OutlinedButton.styleFrom(
+    foregroundColor: color,
+    side: BorderSide(color: color, width: 1.5),
+  );
+}

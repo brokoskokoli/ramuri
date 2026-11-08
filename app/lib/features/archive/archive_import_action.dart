@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_buttons.dart';
 import '../export/file_handoff_scope.dart';
 import '../storage/storage_start.dart';
 import 'archive_import_flow.dart';
@@ -155,10 +156,10 @@ class ArchiveImportAction extends StatelessWidget {
     if (factory == null || start == null || handoff == null) {
       return const SizedBox.shrink();
     }
-    return OutlinedButton(
+    return RamuriSecondaryButton(
       key: buttonKey,
       onPressed: () => _import(context, factory, handoff, start),
-      child: Text(label ?? AppLocalizations.of(context).archiveImportAction),
+      label: label ?? AppLocalizations.of(context).archiveImportAction,
     );
   }
 }

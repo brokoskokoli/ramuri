@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_buttons.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../storage/deletion.dart';
 import '../sensors/sensor_manager.dart';
@@ -240,16 +241,20 @@ class _ReadyRootState extends State<ReadyRoot> {
       if (snapshot.hasError) {
         return Scaffold(
           body: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(l10n.settingsLoadFailed),
-                TextButton(
-                  key: const Key('settings_load_retry'),
-                  onPressed: () => setState(_loadSettings),
-                  child: Text(l10n.notOpenableRetry),
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(l10n.settingsLoadFailed, textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  RamuriSecondaryButton(
+                    key: const Key('settings_load_retry'),
+                    onPressed: () => setState(_loadSettings),
+                    label: l10n.notOpenableRetry,
+                  ),
+                ],
+              ),
             ),
           ),
         );

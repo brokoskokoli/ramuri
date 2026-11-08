@@ -408,13 +408,23 @@ void main() {
       expect(find.textContaining('Please wait'), findsOneWidget);
       expect(
         tester
-            .widget<FilledButton>(find.byKey(const Key('recalc_confirm')))
+            .widget<FilledButton>(
+              find.descendant(
+                of: find.byKey(const Key('recalc_confirm')),
+                matching: find.byType(FilledButton),
+              ),
+            )
             .onPressed,
         isNull,
       );
       expect(
         tester
-            .widget<OutlinedButton>(find.byKey(const Key('recalc_decline')))
+            .widget<OutlinedButton>(
+              find.descendant(
+                of: find.byKey(const Key('recalc_decline')),
+                matching: find.byType(OutlinedButton),
+              ),
+            )
             .onPressed,
         isNull,
       );
