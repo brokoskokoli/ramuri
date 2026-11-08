@@ -25,7 +25,7 @@ import 'value_access.dart';
 /// Offene, verschlüsselte Datenbank mit den Zugriffen des Ports. Jeder
 /// Zugriff läuft über `guarded` und damit über [translateStorageError].
 class EncryptedStorageSession implements StorageSession {
-  EncryptedStorageSession(this.database)
+  EncryptedStorageSession(this.database, {this.onDeleteAll})
     : runs = DriftRunStore(database),
       markers = DriftRunMarkerStore(database),
       rawData = DriftRawDataStore(database),
@@ -38,6 +38,10 @@ class EncryptedStorageSession implements StorageSession {
       consents = DriftConsentStore(database);
 
   final AppDatabase database;
+
+  /// "Alles löschen" räumt auch abgeleitete Dateien ab (Kartenspeicher, WP13). Scheitert das, gilt das Löschen der
+  /// Datenbank, aber nicht als vollständig ([StorageFailure.deletedNotErased]).
+  final Future<void> Function()? onDeleteAll;
   late final DriftDeletion _deletion = DriftDeletion(database);
 
   @override
@@ -65,7 +69,16 @@ class EncryptedStorageSession implements StorageSession {
   Future<void> deleteRun(int runId) => _deletion.deleteRun(runId);
 
   @override
-  Future<void> deleteAll() => _deletion.deleteAll();
+  Future<void> deleteAll() async {
+    await _deletion.deleteAll();
+    final extra = onDeleteAll;
+    if (extra == null) return;
+    try {
+      await extra();
+    } catch (_) {
+      throw const StorageException(StorageFailure.deletedNotErased);
+    }
+  }
 
   /// Schließt die Verbindung. SQLite checkpointet beim Schließen der letzten
   /// Verbindung; ob das gelang, weist diese Methode nicht nach. Wer die Dateien
@@ -84,11 +97,13 @@ class EncryptedStorage implements Storage {
     LibraryCipherProbe libraryProbe = defaultLibraryCipherProbe,
     FileEncryptedProbe fileProbe = defaultFileEncryptedProbe,
     AppDatabase Function(QueryExecutor) databaseBuilder = AppDatabase.new,
+    Future<void> Function()? onDeleteAll,
   }) : this._(
          path,
          libraryProbe: libraryProbe,
          fileProbe: fileProbe,
          databaseBuilder: databaseBuilder,
+         onDeleteAll: onDeleteAll,
        );
 
   /// Nur für Tests: dazu `isolateSetup` und `logStatements`. Die Analyse
@@ -119,9 +134,13 @@ class EncryptedStorage implements Storage {
     required this.databaseBuilder,
     this.isolateSetup,
     this.logStatements = false,
+    this.onDeleteAll,
   });
 
   final String path;
+
+  /// Siehe [EncryptedStorageSession.onDeleteAll].
+  final Future<void> Function()? onDeleteAll;
 
   /// Nur für Tests austauschbar (Fehlweg "Verschlüsselung nicht aktiv").
   final LibraryCipherProbe libraryProbe;
@@ -170,7 +189,7 @@ class EncryptedStorage implements Storage {
       // Absichtlich ohne Ursache: sie könnte Statement und Parameter tragen.
       throw StorageException(failure);
     }
-    return EncryptedStorageSession(db);
+    return EncryptedStorageSession(db, onDeleteAll: onDeleteAll);
   }
 }
 

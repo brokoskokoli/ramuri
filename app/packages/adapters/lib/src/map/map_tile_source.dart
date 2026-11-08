@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_map_vector_tiles/flutter_map_vector_tiles.dart' as vt;
+
+import 'package:http/http.dart' as http;
 
 import 'map_gate.dart';
 
@@ -44,9 +47,9 @@ class MapTileSource {
     if (!gate.consent()) return null;
     try {
       final c = gate;
-      final style = jsonDecode(
-        await c.read(gate.provider.styleUri),
-      ) as Map<String, dynamic>;
+      // Der Stil wird einmal geholt (Tor, Speicher, Netz) und dem StyleReader aus dem Arbeitsspeicher gereicht.
+      final styleBytes = await c.readBytes(gate.provider.styleUri);
+      final style = jsonDecode(utf8.decode(styleBytes)) as Map<String, dynamic>;
       final templates = <String, (String, int, int)>{};
       for (final e in (style['sources'] as Map).entries) {
         final s = e.value as Map;
@@ -69,7 +72,7 @@ class MapTileSource {
       }
       final read = await vt.StyleReader(
         uri: gate.provider.styleUri.toString(),
-        httpClient: c,
+        httpClient: _StyleOnce(gate.provider.styleUri, styleBytes, c),
         cache: false,
         resolveProvider: (id) async {
           final t = templates[id];
@@ -87,4 +90,31 @@ class MapTileSource {
       throw const MapSourceUnavailable();
     }
   }
+}
+
+/// Reicht die schon geholte Stil-Antwort einmal weiter, alles andere geht an das Tor. So geht der Stil nie zweimal
+/// ins Netz, auch wenn der Speicher ihn nicht hält (aus, voll, Fehler).
+class _StyleOnce extends http.BaseClient {
+  _StyleOnce(this._uri, this._bytes, this._inner);
+  final Uri _uri;
+  Uint8List? _bytes;
+  final http.Client _inner;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final b = _bytes;
+    if (b != null && request.method == 'GET' && request.url == _uri) {
+      _bytes = null;
+      return http.StreamedResponse(
+        Stream.value(b),
+        200,
+        contentLength: b.length,
+        request: request,
+      );
+    }
+    return _inner.send(request);
+  }
+
+  @override
+  void close() {}
 }

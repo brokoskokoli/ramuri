@@ -26,6 +26,7 @@ class AppDependencies {
     this.archiveExport,
     this.archiveRestore,
     this.archiveVerify,
+    this.mapCache,
   }) : fileHandoff = fileHandoff ?? const _NoFileHandoff(),
        permissions = permissions ?? const _NoPermissionStatus(),
        runPorts = runPorts ?? const _NoRunPorts(),
@@ -68,6 +69,10 @@ class AppDependencies {
   /// öffnen"). `null`: nicht verdrahtet.
   final ArchiveVerifier? archiveVerify;
 
+  /// Kartenspeicher (WP13). `null` in Tests. Löschen und Größe gibt Teil A3 an die Oberfläche; "Alles löschen" und
+  /// der Neubeginn räumen ihn ab.
+  final EncryptedMapTileStore? mapCache;
+
   /// App-weiter Sensordienst: Verbindungen, bekannte Geräte, Puls (WP07).
   final SensorManager sensors;
 
@@ -86,6 +91,11 @@ class AppDependencies {
     final permissions = MethodChannelPermissionStatus();
     final fileHandoff = MethodChannelFileHandoff();
     final keyStore = SecureKeyStore();
+    // WP13: Kartenspeicher mit dem Schlüssel der Datenbank; geöffnet wird er erst beim ersten Zugriff.
+    final mapCache = EncryptedMapTileStore(
+      directory: noBackupFilesDir,
+      key: () => keyStore.read(storageKeyName),
+    );
     final sensors = SensorManager(
       sensor: sensor,
       clock: const SystemClock(),
@@ -106,6 +116,7 @@ class AppDependencies {
     );
     return AppDependencies(
       heartRateSensor: sensor,
+      mapCache: mapCache,
       sensors: sensors,
       permissions: permissions,
       fileHandoff: fileHandoff,
@@ -124,7 +135,7 @@ class AppDependencies {
       archiveRestore: (session, serialize) async {
         final path = await databasePath();
         final files = FileDatabaseFiles(path);
-        final storage = EncryptedStorage(path);
+        final storage = EncryptedStorage(path, onDeleteAll: mapCache.delete);
         final key = await keyStore.read(storageKeyName);
         if (key == null) {
           throw const ArchiveRestoreException(
@@ -171,8 +182,8 @@ class AppDependencies {
         wire: () async {
           final path = await databasePath();
           return StorageWiring(
-            storage: EncryptedStorage(path),
-            files: FileDatabaseFiles(path),
+            storage: EncryptedStorage(path, onDeleteAll: mapCache.delete),
+            files: FileDatabaseFiles(path, alsoDelete: mapCache.delete),
           );
         },
       ),

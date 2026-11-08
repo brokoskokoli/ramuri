@@ -8,6 +8,14 @@ export 'src/archive/cryptography_archive.dart';
 export 'src/archive/drift_archive_sink.dart';
 export 'src/archive/drift_archive_source.dart';
 export 'src/export/method_channel_file_handoff.dart';
+export 'src/map/encrypted_map_tile_store.dart';
+export 'src/map/map_cache_core.dart'
+    show
+        MapStoreKind,
+        mapCacheFileName,
+        mapCacheSuffixes,
+        mapThumbnailLimitBytes,
+        mapTileLimitBytes;
 export 'src/map/map_gate.dart';
 export 'src/map/map_provider.dart';
 export 'src/map/map_tile_source.dart';

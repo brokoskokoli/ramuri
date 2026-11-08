@@ -5,10 +5,19 @@ import 'package:core/core.dart';
 /// Dateien der Datenbank neben [path]: Haupt-, `-wal`-, `-shm`- und
 /// `-journal`-Datei.
 class FileDatabaseFiles implements DatabaseFiles {
-  FileDatabaseFiles(this.path, {String? importPath, this.beforeStep})
-    : importPath = importPath ?? '$path$importSuffix';
+  FileDatabaseFiles(
+    this.path, {
+    String? importPath,
+    this.beforeStep,
+    this.alsoDelete,
+  }) : importPath = importPath ?? '$path$importSuffix';
 
   final String path;
+
+  /// Wird nach dem Löschen der Datenbank gerufen (nur [deleteAll], der Neubeginn nach Schlüsselverlust): Der
+  /// Kartenspeicher (WP13) ist mit dem verlorenen Schlüssel verschlüsselt und darf nicht stehen bleiben. Er zählt
+  /// nicht für [exist]: Er allein ist kein Grund für "Schlüssel fehlt".
+  final Future<void> Function()? alsoDelete;
 
   /// Zwischendatenbank der Wiederherstellung (WP12): neben der aktiven, im
   /// selben Ordner, damit das Umbenennen atomar bleibt (gleiches Dateisystem).
@@ -53,6 +62,7 @@ class FileDatabaseFiles implements DatabaseFiles {
       final f = File('$path$suffix');
       if (await f.exists()) await f.delete();
     }
+    await alsoDelete?.call();
   }
 
   @override
