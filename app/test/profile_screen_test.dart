@@ -9,6 +9,7 @@ Future<Device> openProfile(WidgetTester tester, Locale locale) async {
   final d = Device();
   await d.start(tester, locale);
   await d.skipSetup(tester);
+  await openOverview(tester);
   await tester.tap(find.byKey(const Key('home_profile')));
   await tester.pumpAndSettle();
   return d;
@@ -174,6 +175,7 @@ void main() {
       const ProfileRecord(bodyHeightMeters: 1.8, maxHeartRateBpm: 185),
     );
     await d.skipSetup(tester);
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_profile')));
     await tester.pumpAndSettle();
     expect(find.text('180'), findsOneWidget);

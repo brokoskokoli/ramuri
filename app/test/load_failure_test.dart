@@ -96,13 +96,16 @@ void main() {
     final d = Device();
     await d.start(tester, const Locale('en'));
     await d.skipSetup(tester);
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Miles'));
     await tester.pumpAndSettle();
     expect(await d.session.settings.get(SettingKeys.distanceUnit), 'mi');
 
-    await tester.tap(find.text('Data'));
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('overview_data')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete everything'));
     await tester.pumpAndSettle();
@@ -119,6 +122,7 @@ void main() {
     expect(find.byKey(const Key('home_start_run')), findsNothing);
 
     await d.skipSetup(tester);
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     final button = tester.widget<SegmentedButton<DistanceUnit>>(
@@ -167,6 +171,7 @@ void main() {
     d.storageOverride = flaky;
     await d.start(tester, const Locale('en'));
     await d.skipSetup(tester);
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_profile')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('profile_resting')), '35');
@@ -207,10 +212,9 @@ void main() {
       '40,50,60,70,80,100',
       at: DateTime.utc(2026, 6, 1),
     );
-    await tester.tap(find.byKey(const Key('home_settings')));
-    await tester.pumpAndSettle();
+    await openOverview(tester);
     flaky.failSettings = true;
-    await tester.tap(find.byKey(const Key('settings_zones')));
+    await tester.tap(find.byKey(const Key('overview_zones')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('zones_load_failed')), findsOneWidget);
     expect(find.byKey(const Key('zones_save')), findsNothing);

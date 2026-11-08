@@ -8,15 +8,15 @@ void main() {
     final d = Device();
     await d.start(tester, const Locale('de'));
     await d.skipSetup(tester);
-    expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+    expect(find.byKey(const Key('home_screen')), findsOneWidget);
   });
 
   testWidgets('Startbildschirm auf Englisch', (tester) async {
     final d = Device();
     await d.start(tester, const Locale('en'));
     await d.skipSetup(tester);
-    expect(find.text('Welcome to the running app'), findsOneWidget);
-    expect(find.text('Willkommen bei der Lauf-App'), findsNothing);
+    expect(find.text('Start run'), findsOneWidget);
+    expect(find.text('Lauf starten'), findsNothing);
   });
 
   // NFR-0006, OQ-0067: jede andere Gerätesprache zeigt Englisch.
@@ -33,9 +33,8 @@ void main() {
       expect(find.text('Skip'), findsOneWidget);
       expect(find.text('Überspringen'), findsNothing);
       await d.skipSetup(tester);
-      expect(find.text('Welcome to the running app'), findsOneWidget);
       expect(find.text('Start run'), findsOneWidget);
-      expect(find.text('Willkommen bei der Lauf-App'), findsNothing);
+      expect(find.text('Lauf starten'), findsNothing);
     });
   }
 
@@ -43,6 +42,6 @@ void main() {
     final d = Device();
     await d.start(tester, const Locale('de', 'AT'));
     await d.skipSetup(tester);
-    expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+    expect(find.byKey(const Key('home_screen')), findsOneWidget);
   });
 }

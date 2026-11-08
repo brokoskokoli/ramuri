@@ -5,9 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'app_harness.dart';
 
 Future<void> openSensors(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('home_settings')));
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('settings_sensors')));
+  await openOverview(tester);
+  await tester.tap(find.byKey(const Key('overview_sensors')));
   await tester.pumpAndSettle();
 }
 

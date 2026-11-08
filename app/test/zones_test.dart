@@ -6,9 +6,8 @@ import 'app_harness.dart';
 
 Future<void> _open(Device d, WidgetTester tester) async {
   await d.skipSetup(tester);
-  await tester.tap(find.byKey(const Key('home_settings')));
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('settings_zones')));
+  await openOverview(tester);
+  await tester.tap(find.byKey(const Key('overview_zones')));
   await tester.pumpAndSettle();
 }
 
@@ -119,7 +118,7 @@ void main() {
     // Seite neu öffnen: gespeicherte Werte stehen drin.
     await tester.tap(find.byTooltip('Zurück'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('settings_zones')));
+    await tester.tap(find.byKey(const Key('overview_zones')));
     await tester.pumpAndSettle();
     expect(
       tester

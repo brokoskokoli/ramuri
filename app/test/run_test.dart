@@ -400,9 +400,12 @@ void main() {
         at: d.clock.now(),
       );
       // Einstellung wirkt über die Oberfläche.
+      await openOverview(tester);
       await tester.tap(key('home_settings'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Miles'));
+      await tester.pumpAndSettle();
+      await tester.pageBack();
       await tester.pumpAndSettle();
       await tester.pageBack();
       await tester.pumpAndSettle();
@@ -423,9 +426,12 @@ void main() {
         'mi',
         at: d.clock.now(),
       );
+      await openOverview(tester);
       await tester.tap(key('home_settings'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Miles'));
+      await tester.pumpAndSettle();
+      await tester.pageBack();
       await tester.pumpAndSettle();
       await tester.pageBack();
       await tester.pumpAndSettle();

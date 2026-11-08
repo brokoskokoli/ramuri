@@ -4,10 +4,6 @@
   "@appTitle": {
     "description": "Titel der App"
   },
-  "homeWelcome": "Willkommen bei der Lauf-App",
-  "@homeWelcome": {
-    "description": "Text auf dem Startbildschirm"
-  },
   "deleteRunTitle": "Lauf löschen?",
   "@deleteRunTitle": {
     "description": "Titel des Bestätigungsdialogs: ein Lauf"
@@ -159,6 +155,26 @@
   "dataBody": "Hier verwaltest du die in der App gespeicherten Daten.",
   "@dataBody": {
     "description": "Text des Bildschirms Daten"
+  },
+  "homeToday": "Heute",
+  "@homeToday": {
+    "description": "Navigation: Startbereich Heute"
+  },
+  "homeProgress": "Fortschritt",
+  "@homeProgress": {
+    "description": "Navigation: Bereich Fortschritt (Statistik)"
+  },
+  "homeOverview": "Profil und Einstellungen",
+  "@homeOverview": {
+    "description": "Beschriftung des Profil-Symbols auf Heute"
+  },
+  "overviewTitle": "Übersicht",
+  "@overviewTitle": {
+    "description": "Titel der Übersicht hinter dem Profil-Symbol"
+  },
+  "overviewLicenses": "Lizenzen",
+  "@overviewLicenses": {
+    "description": "Eintrag der Übersicht: Lizenzangaben"
   },
   "homeStartRun": "Lauf starten",
   "@homeStartRun": {

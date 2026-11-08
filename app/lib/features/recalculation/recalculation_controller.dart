@@ -13,7 +13,7 @@ enum RecalculationPhase { idle, running, done, failed, declineFailed }
 /// Fehlermeldungen tragen keine Gesundheitsdaten: der Fehler selbst wird
 /// nicht angezeigt, nur [RecalculationPhase.failed].
 class RecalculationController extends ChangeNotifier {
-  RecalculationController(this.service, {this.onStart}) {
+  RecalculationController(this.service, {this.onStart, this.onDataChanged}) {
     _sub = service.offers.listen(_onOffer);
   }
 
@@ -31,6 +31,12 @@ class RecalculationController extends ChangeNotifier {
   /// Läuft einmal zu Beginn von [start], vor allem anderen (etwa das Nachholen
   /// der Tageswerte nach einem Löschen). Fehler werden verschluckt.
   final Future<void> Function()? onStart;
+
+  /// Meldet, dass Werte geschrieben worden sein können: nach dem Nachholen
+  /// beim Start und nach jeder Aktion über [exclusive] (Berechnung nach dem
+  /// Lauf, Löschen, Import, Neuberechnung), auch wenn sie scheitert. Die
+  /// Oberfläche lädt daraufhin ihre Daten neu.
+  final VoidCallback? onDataChanged;
   Future<void>? _starting;
   Future<void> _queue = Future<void>.value();
   late final StreamSubscription<RecalculationOffer> _sub;
@@ -68,6 +74,11 @@ class RecalculationController extends ChangeNotifier {
     } on Object {
       // Kein Angebot sichtbar; beim nächsten Start erneut.
     }
+    _dataChanged();
+  }
+
+  void _dataChanged() {
+    if (!_disposed) onDataChanged?.call();
   }
 
   /// Führt [action] erst aus, wenn der Start (Nachholen beim Start) und alle
@@ -80,7 +91,7 @@ class RecalculationController extends ChangeNotifier {
       return action();
     });
     _queue = result.then((_) {}, onError: (Object _) {});
-    return result;
+    return result.whenComplete(_dataChanged);
   }
 
   /// Nach dem Speichern des Profils. Fehler hier verhindern nichts am

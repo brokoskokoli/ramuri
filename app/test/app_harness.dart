@@ -162,3 +162,12 @@ class Device {
     await tester.pumpAndSettle();
   }
 }
+
+/// Öffnet die Übersicht über das Profil-Symbol auf Heute. Steht sie schon
+/// oben (die Einträge sind sichtbar), tut sie nichts.
+Future<void> openOverview(WidgetTester tester) async {
+  final icon = find.byKey(const Key('home_overview'));
+  if (icon.evaluate().isEmpty) return;
+  await tester.tap(icon);
+  await tester.pumpAndSettle();
+}

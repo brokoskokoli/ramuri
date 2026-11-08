@@ -9,7 +9,8 @@ import '../settings/app_settings.dart';
 import '../run/run_flow_screen.dart';
 import '../run/run_ports.dart';
 import '../setup/setup_screen.dart';
-import 'home_screen.dart';
+import 'app_shell.dart';
+import 'data_changes.dart';
 
 /// Wurzel nach dem Öffnen des Speichers: lädt die Einstellungen, bietet beim
 /// ersten Start die Einrichtung an (FR-0001) und zeigt danach die Startseite.
@@ -38,6 +39,7 @@ class _ReadyRootState extends State<ReadyRoot> {
   late final RecalculationService _recalculationService;
   late final RecalculationController _recalculation;
   late final RunRecovery _recovery;
+  final DataChanges _changes = DataChanges();
 
   @override
   void initState() {
@@ -55,6 +57,7 @@ class _ReadyRootState extends State<ReadyRoot> {
     _recalculation = RecalculationController(
       _recalculationService,
       onStart: () => completePendingValueRefresh(widget.session, widget.clock),
+      onDataChanged: _changes.changed,
     );
     _recalculation.start();
     // Nur der Speicher wird angebunden; der Sensor bleibt unberührt.
@@ -139,6 +142,7 @@ class _ReadyRootState extends State<ReadyRoot> {
             ),
           ),
         );
+        _changes.changed();
         // Zurück aus dem Lauf-Bildschirm: Wurde der Lauf beendet oder läuft
         // der Dienst, bietet `pending` nichts mehr an; blieb er offen (etwa
         // Fortsetzen ohne Standortrecht, FR-0195), kommt das Angebot wieder.
@@ -156,6 +160,7 @@ class _ReadyRootState extends State<ReadyRoot> {
     try {
       final saved = await _recovery.saveFinished(runId);
       if (saved != null) {
+        _changes.changed();
         // Die Werte des Laufs wie nach einem normalen Ende (FR-0006); ein
         // Fehler hier holt der nächste Start nach.
         await _recalculation.exclusive(() async {
@@ -176,6 +181,7 @@ class _ReadyRootState extends State<ReadyRoot> {
   void dispose() {
     _recalculation.dispose();
     _recalculationService.dispose();
+    _changes.dispose();
     super.dispose();
   }
 
@@ -231,13 +237,14 @@ class _ReadyRootState extends State<ReadyRoot> {
       return ListenableBuilder(
         listenable: settings,
         builder: (context, _) => settings.setupDone
-            ? HomeScreen(
+            ? AppShell(
                 session: widget.session,
                 clock: widget.clock,
                 permissions: widget.permissions,
                 recalculation: _recalculation,
                 runPorts: widget.runPorts,
                 sensors: widget.sensors,
+                changes: _changes,
               )
             : SetupScreen(
                 session: widget.session,

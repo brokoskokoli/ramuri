@@ -282,8 +282,7 @@ void main() {
   });
 
   group('Quelltext des Dienstes (ADR-0005 Punkt 6, Wake Lock)', () {
-    const dir =
-        'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri';
+    const dir = 'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri';
     final service = File('$dir/RecordingService.kt').readAsStringSync();
     final lifecycle = File('$dir/RecordingLifecycle.kt').readAsStringSync();
     final state = File('$dir/RecordingServiceState.kt').readAsStringSync();

@@ -323,7 +323,7 @@ void main() {
       await tester.tap(find.byKey(const Key('setup_skip')));
       await untilShown(find.byKey(const Key('home_start_run')));
       await tester.pumpAndSettle();
-      expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+      expect(find.byKey(const Key('home_screen')), findsOneWidget);
       final session = (c.state as StorageReady).session;
       expect(await tester.runAsync(() => session.runs.list()), isEmpty);
       expect(await tester.runAsync(() => session.settings.get('m')), isNull);

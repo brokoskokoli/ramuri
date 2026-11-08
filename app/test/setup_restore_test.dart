@@ -187,7 +187,8 @@ void main() {
     expect(d.fileHandoff.discardCount, 1);
     expect(find.byKey(const Key('setup_skip')), findsNothing);
     expect(find.byKey(const Key('home_start_run')), findsOneWidget);
-    await tester.tap(find.text('Einstellungen'));
+    await openOverview(tester);
+    await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     expect(
       tester

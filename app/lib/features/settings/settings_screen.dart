@@ -4,28 +4,19 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../recalculation/recalculation_card.dart';
 import '../recalculation/recalculation_controller.dart';
-import '../sensors/sensor_manager.dart';
-import '../sensors/sensors_screen.dart';
-import '../storage/data_screen.dart';
 import 'app_settings.dart';
-import 'permissions_screen.dart';
-import 'zones_screen.dart';
 
-/// Einstellungen: Einheit für Strecken (reine Anzeige) und der Zugang zu den
-/// gespeicherten Daten.
+/// Einstellungen: Einheit für Strecken (reine Anzeige) und die Neuberechnung.
+/// Sensoren, Zonen, Berechtigungen und Daten liegen in der Übersicht.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
     required this.session,
-    required this.permissions,
     required this.recalculation,
-    required this.sensors,
   });
 
   final StorageSession session;
-  final PermissionStatusPort permissions;
   final RecalculationController recalculation;
-  final SensorManager sensors;
 
   @override
   Widget build(BuildContext context) {
@@ -72,57 +63,6 @@ class SettingsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(l10n.settingsUnitNote),
-          const SizedBox(height: 24),
-          OutlinedButton(
-            key: const Key('settings_permissions'),
-            onPressed: busy
-                ? null
-                : () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          PermissionsScreen(permissions: permissions),
-                    ),
-                  ),
-            child: Text(l10n.settingsPermissions),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            key: const Key('settings_sensors'),
-            onPressed: busy
-                ? null
-                : () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) => SensorsScreen(manager: sensors),
-                    ),
-                  ),
-            child: Text(l10n.settingsSensors),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            key: const Key('settings_zones'),
-            onPressed: busy
-                ? null
-                : () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(builder: (_) => const ZonesScreen()),
-                  ),
-            child: Text(l10n.settingsZones),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            key: const Key('settings_data'),
-            onPressed: busy
-                ? null
-                : () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) => DataScreen(
-                        session: session,
-                        sensors: sensors,
-                        serialize: recalculation.exclusive,
-                      ),
-                    ),
-                  ),
-            child: Text(l10n.dataTitle),
-          ),
         ],
       ),
     );
