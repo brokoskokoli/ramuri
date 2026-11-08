@@ -23,6 +23,7 @@ Diese Datei sagt den globalen Skills und Agenten (`project-supervisor`, `wp-supe
 | Research | `research/` (ein Ordner `Rnnn-<slug>/` je Analyse; R001 bis R004 liegen als Berichte in `docs/migration/research-reviews/`, nächste freie Nummer laut `research/README.md`) | Research Supervisor, Researcher | `research/CLAUDE.md` |
 | Research-Daten | `research/data/` im Haupt-Checkout, nicht in Git | Researcher | `research/CLAUDE.md` |
 | Nicht wiederherstellbare Eingaben | `research/input/<sammlung>/` im Haupt-Checkout, nicht in Git | Maintainer legt ab | `research/CLAUDE.md` |
+| Logo und Icon | `branding/` (Quelle `build_brand.py`) | Maintainer | `branding/README.md` |
 | Werkzeuge, Git-Hooks | `tool/` (`core.hooksPath=tool/hooks`) | Project Supervisor | `docs/agents/common.md` |
 | Worktrees und Übergaben | `../running-app-wt/` (`wpNN`, `rev-wpNN`, `rNNN`, `handoff/`) | alle Agenten | `docs/agents/common.md` |
 
