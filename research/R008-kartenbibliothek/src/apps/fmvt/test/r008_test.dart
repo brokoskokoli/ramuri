@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_vector_tiles/flutter_map_vector_tiles.dart' as vt;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cryptography/cryptography.dart' show Sha256;
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -19,6 +20,17 @@ import 'package:r008_fmvt/store.dart';
 import 'package:r008_fmvt/thumbvt.dart';
 
 final fix = Platform.environment['R008_FIXTURES'] ?? '';
+
+/// gzip-Signatur (3 Byte) kommt in Zufallsdaten etwa einmal je 16 MiB vor (verschluesselte Dateien!). Ein Treffer
+/// zaehlt nur, wenn ab dort wirklich ein gzip-Strom entpackt werden kann (Review R008 Runde 1: Fehlalarm im Host-Test).
+bool gunzipOk(List<int> b, int i) {
+  try {
+    gzip.decode(b.sublist(i));
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
 
 List<String> plaintextHits(Directory d) {
   final sigs = <String, List<int>>{
@@ -39,6 +51,7 @@ List<String> plaintextHits(Directory d) {
         for (var j = 0; j < s.length && ok; j++) {
           ok = b[i + j] == s[j];
         }
+        if (ok && n == 'gzip') ok = gunzipOk(b, i);
         if (ok) {
           hits.add('$n in ${f.path.substring(d.path.length)}');
           return;
@@ -52,9 +65,11 @@ List<String> plaintextHits(Directory d) {
 /// Liefert die Testvorlagen unter ihren OpenFreeMap-URLs; alles andere 404. Zaehlt Anfragen je Art.
 class FixtureClient extends http.BaseClient {
   final calls = <String, int>{};
+  final urls = <Uri>{};
   @override
   Future<http.StreamedResponse> send(http.BaseRequest r) async {
     final u = r.url.toString();
+    urls.add(r.url);
     String? f;
     var kind = 'other';
     if (u == styleUrl) { f = 'liberty.json'; kind = 'style'; }
@@ -86,6 +101,22 @@ class FakePaths extends PathProviderPlatform with MockPlatformInterfaceMixin {
   Future<String?> getApplicationCachePath() async => '$root/cache';
 }
 
+/// Gate-Test M2: Kein Dateiname im Speicher darf sich aus einer angefragten URL ohne Geheimnis nachrechnen lassen.
+/// Kandidaten je URL: SHA-256 von Speicherschluessel (GatedClient.key), roher URL und URL mit Datumspfad.
+Future<List<String>> guessableNames(Directory store, Iterable<Uri> urls) async {
+  String hex(List<int> b) => b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
+  final cand = <String, String>{};
+  for (final u in urls) {
+    for (final t in {GatedClient.key(u), u.toString(), 'http:$u'}) {
+      cand[hex((await Sha256().hash(utf8.encode(t))).bytes)] = u.path;
+    }
+  }
+  return [
+    for (final f in store.listSync().whereType<File>())
+      if (cand.containsKey(f.uri.pathSegments.last.replaceFirst('.bin', ''))) cand[f.uri.pathSegments.last.replaceFirst('.bin', '')]!
+  ];
+}
+
 Future<void> settle(WidgetTester t, {int n = 40}) async {
   for (var k = 0; k < n; k++) {
     await t.runAsync(() => Future.delayed(const Duration(milliseconds: 100)));
@@ -107,8 +138,13 @@ void main() {
     File('${tmp.path}/a').writeAsBytesSync(File('$fix/tiles/14-8801-5376.pbf').readAsBytesSync());
     File('${tmp.path}/b').writeAsBytesSync(File('$fix/sprite@2x.png').readAsBytesSync());
     File('${tmp.path}/c').writeAsBytesSync(File('$fix/liberty.json').readAsBytesSync());
+    File('${tmp.path}/d').writeAsBytesSync(gzip.encode(utf8.encode('{"r008": "gzip-Positivkontrolle"}')));
+    // Negativkontrolle: Zufallsbytes mit eingestreuter gzip-Signatur sind kein Treffer
+    final rnd = List<int>.generate(4096, (i) => (i * 2654435761 >> 7) & 0xff)..setRange(1000, 1003, [0x1f, 0x8b, 0x08]);
+    File('${tmp.path}/e').writeAsBytesSync(rnd);
     final h = plaintextHits(tmp);
-    expect(h, containsAll([startsWith('pbf:'), startsWith('png'), startsWith('json:')]));
+    expect(h, containsAll([startsWith('pbf:'), startsWith('png'), startsWith('json:'), 'gzip in /d']));
+    expect(h.where((x) => x.endsWith('/e')), isEmpty, reason: 'zufaellige gzip-Signatur ohne gzip-Strom');
   });
 
   test('fail-closed und Tor: ohne Einwilligung kein Client, fremde Hosts abgewiesen', () async {
@@ -121,14 +157,17 @@ void main() {
     expect(inner.calls, isEmpty);
   });
 
-  for (final mode in ['tor', 'standard']) {
-    testWidgets(mode == 'tor'
-        ? 'fmvt mit Tor: alles ueber den Client, nur verschluesselt gespeichert'
-        : 'Gegenprobe Standardwerte (Stil-Cache, Plattencache 50 MB): Klartext auf der Platte', (tester) async {
-      final enc = (await tester.runAsync(() => EncStore.open(Directory('${tmp.path}/support/map-tiles'))))!;
+  for (final mode in ['tor', 'tor-altnamen', 'standard']) {
+    testWidgets(switch (mode) {
+      'tor' => 'fmvt mit Tor: alles ueber den Client, nur verschluesselt gespeichert, Dateinamen nicht erratbar',
+      'tor-altnamen' => 'Gegenprobe Dateinamen: alte Benennung SHA-256(URL) ist per URL-Hash auffindbar',
+      _ => 'Gegenprobe Standardwerte (Stil-Cache, Plattencache 50 MB): Klartext auf der Platte',
+    }, (tester) async {
+      final enc = (await tester.runAsync(
+          () => EncStore.open(Directory('${tmp.path}/support/map-tiles'), legacyNames: mode == 'tor-altnamen')))!;
       final inner = FixtureClient();
       final c = GatedClient.create(consent: true, store: enc, inner: inner);
-      final style = mode == 'tor'
+      final style = mode != 'standard'
           ? (await tester.runAsync(() => loadStyle(c)))!
           : (await tester.runAsync(() => vt.StyleReader(
                 uri: styleUrl,
@@ -147,7 +186,7 @@ void main() {
                       height: 240,
                       child: FlutterMap(
                         options: const MapOptions(initialCenter: LatLng(centerLat, centerLon), initialZoom: 14.5),
-                        children: [vtLayer(style, plain: mode != 'tor', fade: Duration.zero)],
+                        children: [vtLayer(style, plain: mode == 'standard', fade: Duration.zero)],
                       ))))));
       await settle(tester);
       final img = (await tester.runAsync(() => (key.currentContext!.findRenderObject() as RenderRepaintBoundary).toImage()))!;
@@ -156,15 +195,23 @@ void main() {
       final files = tmp.listSync(recursive: true).whereType<File>().map((f) => f.path.substring(tmp.path.length)).toList();
       final outside = files.where((p) => !p.startsWith('/support/map-tiles/') && p != '/support/r008-research.key').toList();
       final hits = plaintextHits(tmp);
+      final encFiles = Directory('${tmp.path}/support/map-tiles').listSync().whereType<File>().length;
+      final guessed = (await tester.runAsync(() => guessableNames(Directory('${tmp.path}/support/map-tiles'), inner.urls)))!;
       // ignore: avoid_print
       print('R008 fmvt mode=$mode inner_calls=${inner.calls} net_req=${c.netRequests} store_hits=${c.storeHits} '
           'enc_writes=${enc.writes} files=${files.length} outside_enc=${outside.length} plaintext_hits=${hits.length} '
-          'png_bytes=${png.lengthInBytes} ${hits.take(5)}');
+          'png_bytes=${png.lengthInBytes} ${hits.take(5)} enc_files=$encFiles urls=${inner.urls.length} '
+          'names_guessable=${guessed.length} ${guessed.take(3)}');
       expect(inner.calls['tile'] ?? 0, greaterThan(0), reason: 'Kacheln ueber den Client');
-      if (mode == 'tor') {
+      if (mode != 'standard') {
         expect(enc.writes, greaterThan(0));
         expect(outside, isEmpty, reason: 'keine Dateien ausserhalb des verschluesselten Speichers');
         expect(hits, isEmpty);
+      }
+      if (mode == 'tor') {
+        expect(guessed, isEmpty, reason: 'kein Dateiname = SHA-256 einer angefragten URL');
+      } else if (mode == 'tor-altnamen') {
+        expect(guessed.length, encFiles, reason: 'Gegenprobe: jede Datei per URL-Hash zuzuordnen');
       } else {
         expect(hits, isNotEmpty, reason: 'Gegenprobe: Bibliothek speichert im Klartext');
       }
@@ -210,6 +257,10 @@ void main() {
     expect(img.width, thumbW.toInt());
     expect(png.length, greaterThan(20000), reason: 'mit Karteninhalt, nicht nur Hintergrund und Linie');
     expect(plaintextHits(tmp), isEmpty);
+    final thumbNames = thumbs.dir.listSync().map((f) => f.uri.pathSegments.last).toList();
+    final plainName = (await tester.runAsync(() => Sha256().hash(utf8.encode('thumb:1:map'))))!.bytes
+        .map((x) => x.toRadixString(16).padLeft(2, '0')).join();
+    expect(thumbNames, isNot(contains('$plainName.bin')), reason: 'Miniatur-Name nicht aus der Lauf-Nummer erratbar');
     img.dispose();
     style.dispose();
     await tester.pumpWidget(const SizedBox());

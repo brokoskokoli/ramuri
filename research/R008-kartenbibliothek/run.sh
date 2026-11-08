@@ -9,7 +9,7 @@ APPS_ALL="base fm fmvt ml"
 usage() { cat <<HELP
 Usage: ./run.sh <schritt> [Parameter]
 Schritte:
-| \`host\`     | Host-Tests der Mini-Apps fm und fmvt (flutter test): Hook bzw. Tor, fail-closed, Miniatur, Klartext-Gegenprobe |
+| \`host\`     | Host-Tests der Mini-Apps fm und fmvt (flutter test): Hook bzw. Tor, fail-closed, Miniatur, Klartext- und Dateinamen-Gegenprobe |
 | \`build\`    | Mini-Apps bauen (Release, arm64/x86_64 einzeln und universal), APK-Groessen nach apk_sizes.tsv |
 | \`licenses\` | Lizenzbaum: Dart (pubspec.lock + LICENSE im Pub-Cache) und Gradle (releaseRuntimeClasspath + POM) |
 | \`netstatic\`| Netz-APIs und fest eingebaute Hosts in Dart-Paketen, Java/Kotlin-Quellen und nativen Bibliotheken |

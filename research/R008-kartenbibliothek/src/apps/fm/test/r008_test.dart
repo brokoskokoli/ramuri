@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:cryptography/cryptography.dart' show Sha256;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:r008_fm/ofm.dart';
@@ -17,6 +18,17 @@ import 'package:vector_tile_renderer/vector_tile_renderer.dart' as vtr;
 final fix = Platform.environment['R008_FIXTURES'] ?? '';
 
 /// Klartext-Signaturen: PBF-Ebenennamen der OpenMapTiles, PNG, gzip, SQLite.
+/// gzip-Signatur (3 Byte) kommt in Zufallsdaten etwa einmal je 16 MiB vor (verschluesselte Dateien!). Ein Treffer
+/// zaehlt nur, wenn ab dort wirklich ein gzip-Strom entpackt werden kann (Review R008 Runde 1: Fehlalarm im Host-Test).
+bool gunzipOk(List<int> b, int i) {
+  try {
+    gzip.decode(b.sublist(i));
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 List<String> plaintextHits(Directory d) {
   final sigs = <String, List<int>>{
     'pbf:transportation': utf8.encode('transportation'),
@@ -34,6 +46,7 @@ List<String> plaintextHits(Directory d) {
         for (var j = 0; j < s.length && ok; j++) {
           ok = b[i + j] == s[j];
         }
+        if (ok && n == 'gzip') ok = gunzipOk(b, i);
         if (ok) {
           hits.add('$n in ${f.path.split('/').last}');
           return;
@@ -77,8 +90,21 @@ void main() {
     expect(plaintextHits(Directory('${tmp.path}/tiles')), isEmpty);
     await st.evict();
     expect(await st.size(), lessThanOrEqualTo(400 * 1024));
-    // Dateinamen ohne Kachelkoordinaten
-    expect(Directory('${tmp.path}/tiles').listSync().map((e) => e.path).where((p) => p.contains('14')), isEmpty);
+    // Dateinamen: keine Kachelkoordinaten und nicht aus dem Schluessel nachrechenbar (frueher: Suche nach '14' im Pfad,
+    // die SHA-256(Schluessel) nicht erkannte; Review R008 Runde 1, M2)
+    final names = Directory('${tmp.path}/tiles').listSync().map((e) => e.uri.pathSegments.last).toList();
+    expect(names.where((n) => !RegExp(r'^[0-9a-f]{64}\.bin$').hasMatch(n)), isEmpty);
+    final guess = <String>{};
+    for (var i = 0; i < 40; i++) {
+      guess.add('${(await Sha256().hash(utf8.encode('tile:14/$i/0'))).bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join()}.bin');
+    }
+    expect(names.where(guess.contains), isEmpty, reason: 'kein Dateiname = SHA-256 des Kachelschluessels');
+    // Gegenprobe: alte Benennung ist per Hash auffindbar
+    final old = await EncStore.open(Directory('${tmp.path}/alt/tiles'), legacyNames: true);
+    await old.write('tile:14/0/0', t);
+    expect(old.dir.listSync().map((e) => e.uri.pathSegments.last).where(guess.contains), hasLength(1));
+    // ignore: avoid_print
+    print('R008 fm names hmac_guessable=${names.where(guess.contains).length}/${names.length} legacy_guessable=1/1');
   });
 
   test('fail-closed: ohne Einwilligung keine Quelle', () async {

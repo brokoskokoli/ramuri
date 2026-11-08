@@ -9,12 +9,12 @@ Daran hängt ADR-0009 Punkt 6 (Bibliothek und Darstellung) und damit der Zuschni
 
 ## Hintergrund
 - Konzept: FR-0204, FR-0027, FR-0037, FR-0040, FR-0041, SEC-0002, SEC-0007, SEC-0008, SEC-0009; OQ-0074; ADR-0009 (Punkte 1 bis 5 sind Randbedingung, nicht Gegenstand), ADR-0003 (Schlüssel und Verschlüsselung), ADR-0005 (Aufzeichnungsdienst kennt die Karte nicht); WP13.
-- Kandidaten laut ADR-0009: `flutter_map` mit `vector_map_tiles` und `maplibre_gl`. Weitere Kandidaten, wo sinnvoll (z. B. `maplibre` von josxha, Rasterkacheln eines freien Anbieters).
+- Kandidaten laut ADR-0009: `flutter_map` mit `vector_map_tiles` und `maplibre_gl`. Weitere Kandidaten, wo sinnvoll (z. B. `maplibre` von josxha, Rasterkacheln eines freien Anbieters); warum diese nicht gebaut wurden, steht in RESULTS unter „Kandidaten und Versionen“.
 - Frühere Analysen: R005 (Emulator-Aufbau, Lizenzbaum-Werkzeug), keine zur Karte.
 - Quellen der Vorrecherche stehen in [RESULTS.md](RESULTS.md) unter „Quellen“.
 
 ## Methode
-1. **Vorrecherche (Web):** Nutzungsbedingungen und Betriebsmodell von OpenFreeMap, Namensnennung, Verfügbarkeit; Alternativen ohne Schlüssel und Konto (z. B. VersaTiles, selbst gehostete PMTiles, freie Rasterdienste), die OSMF-Server ausgeschlossen. Reife und Pflege der Bibliotheken (Versionen, Beta-Status, Kompatibilität mit Flutter 3.47.7).
+1. **Vorrecherche (Web):** Nutzungsbedingungen und Betriebsmodell von OpenFreeMap, Namensnennung, Verfügbarkeit; Alternativen ohne Schlüssel und Konto (z. B. VersaTiles, selbst gehostete PMTiles, freie Rasterdienste), die OSMF-Server ausgeschlossen. Reife und Pflege der Bibliotheken (Versionen, Beta-Status, Kompatibilität mit Flutter 3.47.7; Ergebnis je Kandidat in RESULTS „Reife und Pflege“).
 2. **Mini-Apps** (Quellen in `src/apps/`, gebaut unter `research/data/work/R008/`), alle mit Flutter 3.47.7, minSdk 31, targetSdk 36, Release-Build:
    - `base`: leere Flutter-App (Vergleichsbasis für die APK-Größe).
    - `fm`: `flutter_map` + `vector_map_tiles` mit OpenFreeMap-Stil, eigene Kachelquelle über einen Hook (verschlüsselter Speicher statt Klartext-Cache), Live-Seite mit wandernder Position, Miniatur als einmaliger Snapshot.
@@ -24,9 +24,9 @@ Daran hängt ADR-0009 Punkt 6 (Bibliothek und Darstellung) und damit der Zuschni
    - **APK-Zuwachs:** Release-APK je ABI (`--split-per-abi`, arm64-v8a und x86_64) und universal, Differenz zu `base` in MB.
    - **Lizenzbaum:** vollständiger Abhängigkeitsbaum (Dart: alle Pakete aus `pubspec.lock`, ausgeliefert = Abschluss der Nicht-Dev-Abhängigkeiten laut `flutter pub deps --json`, Lizenz aus der LICENSE-Datei; Android/Gradle: `releaseRuntimeClasspath` und `<licenses>` der POM samt Eltern-POM, fehlende POMs einmalig von Google Maven bzw. Maven Central nach `work/R008/poms/`), jede Lizenz gegen GPL-3.0 eingeordnet.
    - **Netz und Telemetrie:** statisch (Netz-APIs und fest eingebaute Hosts in den Quellen und Bibliotheken), dynamisch per Netzwerkmitschnitt im Emulator (Konsolenbefehl `network capture`, gleichwertig zu `-tcpdump`; sieht nur das emulierte Mobilfunknetz `eth0`, daher Flugmodus und WLAN aus, Mobilfunk an, und eine Positivkontrolle mit bekannter DNS-Anfrage vor den Phasen): ohne Einwilligung keine Verbindung, mit Einwilligung nur die Hosts des Anbieters.
-   - **Speicher-Hook:** Host-Test, dass Kacheln nur über den eigenen Hook gelesen und geschrieben werden und im App-Verzeichnis keine Kachel- oder Bildsignaturen im Klartext liegen (Suche nach `\x1a`-PBF-Kopf, gzip, PNG, SQLite-Kopf).
+   - **Speicher-Hook:** Host-Test, dass Kacheln nur über den eigenen Hook gelesen und geschrieben werden und im App-Verzeichnis keine Kachel- oder Bildsignaturen im Klartext liegen (Suche nach PBF-Ebenennamen `transportation` und `landcover`, gzip, PNG, SQLite-Kopf; `src/scan_plain.py` und `plaintextHits` in den Host-Tests, dort zählt gzip nur, wenn es sich entpacken lässt). Dateinamen: kein Name darf dem SHA-256 einer angefragten URL entsprechen (Host-Test mit Gegenprobe, Probe auf Emulator-Abzügen mit `src/name_leak.py`).
    - **Miniaturen:** Snapshot einmal erzeugen, verschlüsselt ablegen, danach nur das Bild anzeigen; Zeit je Snapshot und Größe je Miniatur.
-   - **Live-Seite:** Bildrate und CPU-Zeit (`dumpsys gfxinfo`, `/proc/<pid>/stat`) während einer eingespeisten Fahrt im Emulator; Akku nur als Stellvertreter (CPU-Zeit), keine Aussage über echte Geräte.
+   - **Live-Seite:** Bildrate und CPU-Zeit (Flutter-`FrameTiming` in den Mini-Apps, weil `dumpsys gfxinfo` Flutter-Bilder nicht zählt; `/proc/<pid>/stat`) während einer eingespeisten Fahrt im Emulator; Akku nur als Stellvertreter (CPU-Zeit), keine Aussage über echte Geräte.
    - **Aufwand:** Umfang der Hooks, nötige native Eingriffe, Testbarkeit am Host (Gate).
 4. **Emulator:** nur wenn kein anderer Emulator läuft. Erst API 36 voll, dann API 31 nur Start-Smoke. Höchstens ein Emulator, explizites Serial, `-no-audio`, `-read-only` (das geteilte AVD bleibt unverändert), Ende per PID.
 
@@ -37,7 +37,7 @@ Warum aussagekräftig: Die Kriterien aus ADR-0009 Punkt 6 werden je Kandidat am 
 | --- | --- | --- | --- | --- |
 | Synthetische Route | `src/route.dart` bzw. erzeugt | selbst erzeugt, öffentlicher Park ohne Personenbezug | < 10 kB | ja |
 | Wenige Kacheln, Stil, Sprites als Testvorlage | `research/data/work/R008/fixtures/` | OpenFreeMap, Daten © OpenStreetMap-Mitwirkende (ODbL), OpenMapTiles | < 5 MB | ja, `./init.sh` |
-| Mini-App-Builds, APKs, Mitschnitte | `research/data/work/R008/` | selbst erzeugt | ~2 GB (Build-Ordner) | ja, `./run.sh` |
+| Mini-App-Builds, APKs, Mitschnitte | `research/data/work/R008/` | selbst erzeugt | ~4,8 GB (davon Build-Ordner ~4 GB) | ja, `./run.sh` |
 
 Keine Sammlung aus `research/input/`.
 
@@ -51,7 +51,7 @@ Voraussetzungen: Flutter 3.47.7 (global), Android-SDK mit AVDs `running_app_api3
 
 | Schritt | Was |
 | --- | --- |
-| `host` | Host-Tests der Mini-Apps fm und fmvt (flutter test): Hook bzw. Tor, fail-closed, Miniatur, Klartext-Gegenprobe |
+| `host` | Host-Tests der Mini-Apps fm und fmvt (flutter test): Hook bzw. Tor, fail-closed, Miniatur, Klartext- und Dateinamen-Gegenprobe |
 | `build` | Mini-Apps bauen (Release, arm64/x86_64 einzeln und universal), APK-Größen nach `apk_sizes.tsv` |
 | `licenses` | Lizenzbaum: Dart (pubspec.lock + LICENSE im Pub-Cache) und Gradle (releaseRuntimeClasspath + POM) |
 | `netstatic` | Netz-APIs und fest eingebaute Hosts in Dart-Paketen, Java/Kotlin-Quellen und nativen Bibliotheken (nutzt den letzten `build`) |
@@ -79,7 +79,13 @@ Auswertung eines emu-Laufs (nur lesen, schreibt `eval.json` in den Laufordner un
 python3 -I src/emu_eval.py "$RESEARCH_DATA/work/R008/emu-<zeit>"
 ```
 
+Probe auf erratbare Dateinamen in einem Emulator-Abzug (nur lesen, ohne Netz; Abzüge der Läufe vor der HMAC-Umstellung):
+
+```bash
+python3 -I src/name_leak.py "$RESEARCH_DATA/work/R008/emu-<zeit>/files-fmvt-consent/io.github.r008.r008_fmvt/files/map-tiles" 52.4731 13.4031 7
+```
+
 Ausgaben: `$RESEARCH_DATA/work/R008/<schritt>-<zeit>/` (nie überschrieben, `.done` nach Exit 0); gemeinsame Build-Ordner der Mini-Apps unter `work/R008/apps/`, geholte POMs unter `work/R008/poms/`.
 
 ## Status
-abgeschlossen (2026-11-08), Ergebnis in [RESULTS.md](RESULTS.md); Review offen
+abgeschlossen (2026-11-08), Ergebnis in [RESULTS.md](RESULTS.md); Nachbesserung nach Review Runde 1 eingearbeitet, erneutes Review offen
