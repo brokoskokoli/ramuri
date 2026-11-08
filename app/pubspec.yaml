@@ -104,7 +104,9 @@ flutter:
     - assets/fonts/OFL-Sora.txt
     - assets/fonts/OFL-Manrope.txt
     # Logo-PNGs (FR-0207, FR-0209), siehe assets/brand/README.md.
-    - assets/brand/
+    - assets/brand/ramuri-logo-horizontal-on-dark.png
+    - assets/brand/ramuri-logo-horizontal-on-light.png
+    - assets/brand/ramuri-logo-stacked-on-dark.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

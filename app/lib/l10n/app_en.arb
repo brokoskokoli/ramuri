@@ -279,7 +279,6 @@
   "detRouteStart": "Start",
   "detRouteEnd": "End",
   "detLoadFailed": "This run could not be read.",
-  "homeStatistics": "Statistics",
   "statTitle": "Statistics",
   "statKindWeek": "Week",
   "statKindMonth": "Month",

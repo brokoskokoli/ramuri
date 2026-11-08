@@ -43,6 +43,21 @@ void main() {
     expect(icons, isNotEmpty);
   });
 
+  test(
+    'pubspec bündelt Assets einzeln, keine Ordner (keine README im APK)',
+    () {
+      final entries = RegExp(
+        r'^\s+- (assets/\S+)$',
+        multiLine: true,
+      ).allMatches(code('pubspec.yaml')).map((m) => m.group(1)!).toList();
+      expect(entries, contains('assets/brand/ramuri-logo-stacked-on-dark.png'));
+      for (final e in entries) {
+        expect(e.endsWith('/'), isFalse, reason: '$e ist ein Ordner');
+        expect(File(e).existsSync(), isTrue, reason: '$e fehlt');
+      }
+    },
+  );
+
   for (final (brightness, expected) in [
     (Brightness.dark, Brightness.dark),
     (Brightness.light, Brightness.light),

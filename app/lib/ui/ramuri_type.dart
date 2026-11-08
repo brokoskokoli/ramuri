@@ -46,8 +46,9 @@ TextStyle _manrope(
 /// - `body*`: Fließtext 16, 15, 13
 /// - `label*`: Knöpfe 17, Chips 14, Beschriftungen 12
 ///
-/// Die Design-Überschriften stehen in Sora 800; es gibt Sora nur bis 700
-/// (siehe `assets/fonts/README.md`), dort gilt 700.
+/// Die Design-Überschriften stehen in Sora 800. Die Schrift reicht zwar bis 800,
+/// gebündelt sind aber nur 500 bis 700 (siehe `assets/fonts/README.md`); dort gilt 700,
+/// wie das Design im Browser mit nur diesen Schnitten gerendert wird.
 TextTheme ramuriTextTheme(RamuriColors c) => TextTheme(
   displayLarge: _sora(96, FontWeight.w700, c.text, tracking: -0.04, height: 1),
   displayMedium: _sora(64, FontWeight.w700, c.text, tracking: -0.03, height: 1),
