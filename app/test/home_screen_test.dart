@@ -8,6 +8,7 @@ import 'package:running_app/features/history/run_detail_screen.dart';
 import 'app_harness.dart';
 import 'history_summary_test.dart' show key, seedRun, text;
 import 'run_recovery_test.dart' show crash;
+import 'settings_gate_storage.dart';
 
 // Heute (FR-0209): Woche, Kilometersumme, letzter Lauf, Hinweis ohne Läufe.
 // Alle Werte sind erfunden: 10 Minuten mit 3 m/s sind 1,80 km.
@@ -52,6 +53,29 @@ Future<void> _start(Device d, WidgetTester tester, [String locale = 'de']) =>
 
 String _dayLabel(WidgetTester tester, int i) =>
     tester.widget<Semantics>(key('week_day_$i')).properties.label!;
+
+/// Zurück in den Vordergrund.
+Future<void> _resume(WidgetTester tester) async {
+  for (final s in [
+    AppLifecycleState.hidden,
+    AppLifecycleState.inactive,
+    AppLifecycleState.resumed,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(s);
+  }
+  await tester.pumpAndSettle();
+}
+
+/// In den Hintergrund.
+void _pause(WidgetTester tester) {
+  for (final s in [
+    AppLifecycleState.inactive,
+    AppLifecycleState.hidden,
+    AppLifecycleState.paused,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(s);
+  }
+}
 
 void main() {
   testWidgets('ohne Läufe: Hinweis statt leerer Werte, Start bleibt', (
@@ -213,6 +237,154 @@ void main() {
     expect(key('home_empty'), findsNothing);
     expect(key('home_last_run'), findsOneWidget);
     expect(key('home_week_km'), findsOneWidget);
+  });
+
+  testWidgets('Tageswechsel im Hintergrund: beim Fortsetzen zeigt Heute den '
+      'neuen Tag und die neue Woche (Sonntag zu Montag)', (tester) async {
+    final d = Device();
+    d.clock.set(DateTime.utc(2026, 6, 14, 12)); // Sonntag
+    final s = await _preopen(d);
+    await _run(s, DateTime.utc(2026, 6, 14, 9), Duration.zero);
+    await _start(d, tester);
+    expect(text('home_date'), 'Sonntag, 14. Juni');
+    expect(text('home_week_km'), '1,80 km');
+    expect(_dayLabel(tester, 6), 'Sonntag, gelaufen');
+
+    // Dieselbe Uhr am selben Tag: Fortsetzen ändert nichts.
+    _pause(tester);
+    d.clock.set(DateTime.utc(2026, 6, 14, 20));
+    await _resume(tester);
+    expect(text('home_date'), 'Sonntag, 14. Juni');
+    expect(text('home_week_km'), '1,80 km');
+
+    _pause(tester);
+    d.clock.set(DateTime.utc(2026, 6, 15, 7)); // Montag, neue Woche
+    await _resume(tester);
+    expect(text('home_date'), 'Montag, 15. Juni');
+    // Neue Woche: der Lauf vom Sonntag zählt nicht mehr, kein Haken.
+    expect(text('home_week_km'), '0,00 km');
+    expect(_dayLabel(tester, 6), 'Sonntag, kein Lauf');
+    expect(
+      find.descendant(
+        of: key('home_week'),
+        matching: find.byIcon(Icons.check_rounded),
+      ),
+      findsNothing,
+    );
+    // Letzter Lauf bleibt der vom Sonntag.
+    expect(key('home_last_run'), findsOneWidget);
+  });
+
+  testWidgets('Tageswechsel mitten in der Woche: Datum und Heute-Kreis '
+      'ziehen mit', (tester) async {
+    final d = Device();
+    d.clock.set(DateTime.utc(2026, 6, 10, 12)); // Mittwoch
+    final s = await _preopen(d);
+    await _run(s, DateTime.utc(2026, 6, 9, 9), Duration.zero);
+    await _start(d, tester);
+    expect(text('home_date'), 'Mittwoch, 10. Juni');
+    _pause(tester);
+    d.clock.set(DateTime.utc(2026, 6, 11, 6));
+    await _resume(tester);
+    expect(text('home_date'), 'Donnerstag, 11. Juni');
+    expect(text('home_week_km'), '1,80 km');
+  });
+
+  testWidgets('Woche und Datum nach Ortszeit, nicht nach UTC: Sonntag 23:30 '
+      'UTC ist bei +2 h schon Montag', (tester) async {
+    final d = Device();
+    d.clock.utcOffset = const Duration(hours: 2);
+    d.clock.set(DateTime.utc(2026, 6, 14, 23, 30));
+    final s = await _preopen(d);
+    // Lauf der Vorwoche und ein Lauf der neuen Woche (Montag früh Ortszeit).
+    await _run(s, DateTime.utc(2026, 6, 10, 9), const Duration(hours: 2));
+    await _run(
+      s,
+      DateTime.utc(2026, 6, 14, 22, 10),
+      const Duration(hours: 2),
+      minutes: 20,
+    );
+    await _start(d, tester);
+    expect(text('home_date'), 'Montag, 15. Juni');
+    // Neue Woche (Mo 15.): nur der Lauf von 00:10 Ortszeit zählt.
+    expect(text('home_week_km'), '3,60 km');
+    expect(_dayLabel(tester, 0), 'Montag, gelaufen');
+    expect(_dayLabel(tester, 6), 'Sonntag, kein Lauf');
+    // Dieselbe Summe wie die Wochenstatistik.
+    await tester.tap(key('home_statistics'));
+    await tester.pumpAndSettle();
+    expect(text('stat_runs_value'), '1');
+    expect(text('stat_distance_value'), '3,60 km');
+  });
+
+  testWidgets('Wochensumme aus einem Teil der Läufe sagt es, wie die '
+      'Statistik', (tester) async {
+    final d = Device();
+    d.clock.set(DateTime.utc(2026, 6, 10, 12));
+    final s = await _preopen(d);
+    await _run(s, DateTime.utc(2026, 6, 9, 9), Duration.zero);
+    // Beendet, aber ohne Messwerte: keine Strecke.
+    final empty = await s.runs.create(startedAt: DateTime.utc(2026, 6, 8, 9));
+    await s.runs.setState(
+      empty.id,
+      RunState.finished,
+      endedAt: DateTime.utc(2026, 6, 8, 9),
+      endedUtcOffset: Duration.zero,
+    );
+    await _start(d, tester);
+    expect(text('home_week_km'), '1,80 km');
+    expect(text('home_week_partial'), 'Aus 1 von 2 Läufen');
+    await tester.tap(key('home_statistics'));
+    await tester.pumpAndSettle();
+    expect(text('stat_distance_value'), '1,80 km');
+    expect(find.text('Aus 1 von 2 Läufen'), findsWidgets);
+  });
+
+  testWidgets('Wochensumme vollständig: kein Teilhinweis', (tester) async {
+    final d = Device();
+    d.clock.set(DateTime.utc(2026, 6, 10, 12));
+    final s = await _preopen(d);
+    await _run(s, DateTime.utc(2026, 6, 9, 9), Duration.zero);
+    await _start(d, tester);
+    expect(key('home_week_partial'), findsNothing);
+  });
+
+  testWidgets('Zurück von Alles löschen bei Lesefehler der Einstellungen: '
+      'Heute meldet und lädt neu', (tester) async {
+    final d = Device();
+    d.clock.set(DateTime.utc(2026, 6, 10, 12));
+    final s = await _preopen(d);
+    await _run(s, DateTime.utc(2026, 6, 9, 9), Duration.zero);
+    final gate = SettingsGateStorage(d.storage);
+    d.storageOverride = gate;
+    await _start(d, tester);
+    expect(key('home_last_run'), findsOneWidget);
+    await openOverview(tester);
+    await tester.tap(key('overview_data'));
+    await tester.pumpAndSettle();
+    // Nach dem Löschen scheitert das Neulesen der Einstellungen: die Seite
+    // bleibt stehen, es gibt kein popUntil.
+    gate.failGets = true;
+    await tester.tap(find.text('Alles löschen'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Alles löschen'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    gate.failGets = false;
+    expect(key('overview_data'), findsNothing);
+    expect(find.text('Alles löschen'), findsWidgets);
+    // Deutsch: pageBack sucht den englischen Tooltip „Back“.
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(key('home_screen'), findsOneWidget);
+    expect(key('home_last_run'), findsNothing);
+    expect(key('home_empty'), findsOneWidget);
   });
 
   testWidgets('Ladefehler sichtbar, Start bleibt, Erneut lädt', (tester) async {

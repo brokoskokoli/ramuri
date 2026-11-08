@@ -52,8 +52,32 @@ class _Data {
   final List<RunFigures> figures;
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late Future<_Data> _future = _load();
+
+  /// Der Ortstag, für den die Seite zuletzt geladen und gebaut wurde.
+  late String _shownDay;
+
+  @override
+  void initState() {
+    super.initState();
+    _shownDay = _today;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Bleibt der Prozess über Mitternacht am Leben, steht beim Fortsetzen noch
+  /// der alte Tag (Datum, Heute-Kreis, Woche, Summe): bei einem anderen Tag
+  /// lädt die Seite neu (FR-0209).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _today != _shownDay) _reload();
+  }
 
   Future<_Data> _load() async => _Data(
     await RunOverviewService(
@@ -65,6 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _reload() {
     setState(() {
+      _shownDay = _today;
       _future = _load();
     });
   }
@@ -197,6 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _content(BuildContext context, _Data data) {
     final l10n = AppLocalizations.of(context);
+    final c = RamuriColors.of(context);
     final material = MaterialLocalizations.of(context);
     final formatter = AppSettingsScope.formatterOf(context);
     if (data.overviews.isEmpty) {
@@ -232,6 +258,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: RamuriType.of(context).unit,
                 ),
               ),
+              // Wie in der Statistik: Fehlt bei einem Lauf die Strecke, ist die
+              // Summe nur ein Teil und sagt es.
+              if (stats.distanceMeters.isPartial)
+                Text(
+                  l10n.statPartial(
+                    stats.distanceMeters.runsWithValue,
+                    stats.distanceMeters.runsTotal,
+                  ),
+                  key: const Key('home_week_partial'),
+                  style: Theme.of(context).textTheme.labelSmall!
+                      .copyWith(color: c.textMuted),
+                ),
               const SizedBox(height: 14),
               RamuriWeekStrip(
                 key: const Key('home_week'),

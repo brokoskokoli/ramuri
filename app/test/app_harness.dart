@@ -85,6 +85,7 @@ class Device {
     WidgetTester tester,
     Locale locale, {
     bool welcome = false,
+    bool settle = true,
   }) async {
     // Hoher Bildschirm, damit das ganze Formular ohne Scrollen sichtbar ist.
     tester.view.physicalSize = const Size(800, 2400);
@@ -153,6 +154,7 @@ class Device {
         ),
       ),
     );
+    if (!settle) return;
     await tester.pumpAndSettle();
     if (!welcome) await confirmWelcome(tester);
   }

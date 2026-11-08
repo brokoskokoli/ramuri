@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -7,6 +8,7 @@ import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show key;
+import 'settings_gate_storage.dart';
 
 // Willkommen (FR-0207): vor der ersten Einrichtung, einmal.
 
@@ -123,6 +125,34 @@ void main() {
     expect(key('welcome_screen'), findsNothing);
     expect(key('home_screen'), findsOneWidget);
   });
+
+  for (final setupDone in [false, true]) {
+    testWidgets('Einstellungen noch nicht gelesen '
+        '(${setupDone ? 'Einrichtung erledigt' : 'erster Start'}): weder '
+        'Willkommen noch Einrichtung blitzen auf', (tester) async {
+      final d = Device();
+      if (setupDone) {
+        final s = await d.storage.open(_appKey);
+        await s.settings.set(
+          SettingKeys.setupDone,
+          '1',
+          at: DateTime.utc(2026),
+        );
+      }
+      final gate = SettingsGateStorage(d.storage)..hold = Completer<void>();
+      d.storageOverride = gate;
+      await d.start(tester, const Locale('de'), welcome: true, settle: false);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(key('welcome_screen'), findsNothing);
+      expect(key('setup_skip'), findsNothing);
+      expect(key('home_screen'), findsNothing);
+      gate.hold!.complete();
+      await tester.pumpAndSettle();
+      expect(key(setupDone ? 'home_screen' : 'welcome_screen'), findsOneWidget);
+    });
+  }
 
   testWidgets('unterbrochener Lauf: der Dialog überdeckt Willkommen nicht, '
       'erscheint danach', (tester) async {
