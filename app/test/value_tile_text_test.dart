@@ -62,7 +62,7 @@ void main() {
     final texts = {
       'best': l10n.sumBestPaceNone,
       'hr': l10n.sumNoHeartRate,
-      'load': l10n.runZoneNoBasis,
+      'load': l10n.sumNoBasisShort,
       'stored': l10n.sumLoadNotStored,
       'plain': l10n.runUnavailable,
     };

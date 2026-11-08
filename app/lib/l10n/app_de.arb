@@ -717,7 +717,8 @@
     }
   },
   "runZoneNoHeartRate": "Zone nicht verfügbar",
-  "runZoneNoBasis": "nicht verfügbar – Pulswerte im Profil prüfen",
+  "runZoneNoBasis": "nicht verfügbar – Ruhepuls und HFmax im Profil prüfen",
+  "sumNoBasisShort": "nicht verfügbar – Pulswerte im Profil prüfen",
   "runGpsSearching": "Suche Signal …",
   "runGpsOk": "Signal ok",
   "runGpsLost": "Signal verloren – Lücke markiert, Strecke wird nicht geschätzt",

@@ -17,7 +17,7 @@ String unavailableReasonText(AppLocalizations l10n, UnavailableReason reason) =>
       UnavailableReason.missingMaxHeartRate ||
       UnavailableReason.missingRestingHeartRate ||
       UnavailableReason.maxNotAboveResting ||
-      UnavailableReason.reserveTooSmall => l10n.runZoneNoBasis,
+      UnavailableReason.reserveTooSmall => l10n.sumNoBasisShort,
       UnavailableReason.insufficientCoverage => l10n.sumCoverageLow,
       _ => l10n.runUnavailable,
     };
