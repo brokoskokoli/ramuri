@@ -24,6 +24,7 @@ Diese Datei sagt den globalen Skills und Agenten (`project-supervisor`, `wp-supe
 | Research-Daten | `research/data/` im Haupt-Checkout, nicht in Git | Researcher | `research/CLAUDE.md` |
 | Nicht wiederherstellbare Eingaben | `research/input/<sammlung>/` im Haupt-Checkout, nicht in Git | Maintainer legt ab | `research/CLAUDE.md` |
 | Logo und Icon | `branding/` (Quelle `build_brand.py`) | Maintainer | `branding/README.md` |
+| Screen-Design (Vorschlag) | `design/` | Maintainer | `design/README.md` |
 | Werkzeuge, Git-Hooks | `tool/` (`core.hooksPath=tool/hooks`) | Project Supervisor | `docs/agents/common.md` |
 | Worktrees und Übergaben | `../running-app-wt/` (`wpNN`, `rev-wpNN`, `rNNN`, `handoff/`) | alle Agenten | `docs/agents/common.md` |
 

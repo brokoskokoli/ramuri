@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Live-Lauf mit Karte</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#0F5E5A;text-decoration:none}a:hover{color:#0B4744}
+button{font-family:inherit;cursor:pointer}
+.num{font-family:Sora,sans-serif;font-variant-numeric:tabular-nums}
+h1{font-family:Sora,sans-serif;letter-spacing:-0.03em}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: #EEF2F0; color: #0E1A1A; font-family: Manrope, sans-serif">
+  <svg viewBox="0 0 390 560" width="390" height="560" role="img" aria-label="Karte mit bisheriger Strecke und aktueller Position" style="position: absolute; left: 0; top: 0">
+    <rect width="390" height="560" fill="#EEF2F0"></rect>
+    <path d="M-20 300 C 60 280, 110 330, 180 320 S 300 270, 410 300 L 410 350 C 300 320, 240 370, 180 370 S 60 330, -20 350 Z" fill="#CFE6F2"></path>
+    <path d="M30 60 L 170 40 L 200 170 L 60 200 Z" fill="#D6EDE4"></path>
+    <path d="M250 400 L 370 380 L 390 520 L 270 540 Z" fill="#D6EDE4"></path>
+    <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
+      <path d="M-10 230 L 400 200" stroke-width="12"></path>
+      <path d="M220 -10 L 250 560" stroke-width="12"></path>
+      <path d="M-10 440 L 400 470" stroke-width="9"></path>
+      <path d="M100 -10 L 120 560" stroke-width="7"></path>
+      <path d="M330 -10 L 350 560" stroke-width="7"></path>
+      <path d="M-10 110 L 400 80" stroke-width="6"></path>
+      <path d="M180 320 L 190 380" stroke-width="7"></path>
+    </g>
+    <text x="80" y="128" font-family="Manrope" font-size="11" font-weight="700" fill="#2F6B60">Stadtpark</text>
+    <text x="270" y="335" font-family="Manrope" font-size="11" font-weight="700" fill="#3F6E86">Fluss</text>
+    <path d="M118 520 L 116 440 C 114 380, 150 360, 186 352 C 200 300, 230 260, 236 222 C 240 180, 200 150, 160 140" fill="none" stroke="#0E1A1A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></path>
+    <path d="M160 140 C 130 132, 112 120, 108 100" fill="none" stroke="#0E1A1A" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 8" opacity="0.45"></path>
+    <circle cx="118" cy="520" r="7" fill="#FFFFFF" stroke="#0E1A1A" stroke-width="3"></circle>
+    <path d="M160 140 L 140 108 A 36 36 0 0 1 176 104 Z" fill="#7FD6C6" opacity="0.45"></path>
+    <circle cx="160" cy="140" r="16" fill="#FF7A45" opacity="0.3"></circle>
+    <circle cx="160" cy="140" r="9" fill="#E0561F" stroke="#FFFFFF" stroke-width="3"></circle>
+  </svg>
+
+  <div style="position: absolute; left: 16px; right: 16px; top: 16px; display: flex; justify-content: space-between; align-items: center">
+    <div role="tablist" aria-label="Ansicht" style="background: #FFFFFF; border-radius: 22px; padding: 4px; display: flex; gap: 4px; box-shadow: 0 2px 10px rgba(14,26,26,0.12)">
+      <a href="Live.dc.html" role="tab" aria-selected="false" style="height: 40px; padding: 0 16px; border-radius: 18px; color: #0E1A1A; font-size: 14px; font-weight: 700; display: flex; align-items: center">Werte</a>
+      <a href="LiveKarte.dc.html" role="tab" aria-selected="true" style="height: 40px; padding: 0 16px; border-radius: 18px; background: #0E1A1A; color: #7FD6C6; font-size: 14px; font-weight: 800; display: flex; align-items: center">Karte</a>
+    </div>
+    <span style="height: 32px; padding: 0 12px; border-radius: 16px; background: #FFFFFF; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 10px rgba(14,26,26,0.12)"><span style="width: 8px; height: 8px; border-radius: 4px; background: #0F5E5A"></span>GPS gut</span>
+  </div>
+
+  <button aria-label="Karte auf meine Position zentrieren" style="position: absolute; right: 16px; top: 440px; width: 48px; height: 48px; border-radius: 24px; border: 0; background: #FFFFFF; color: #0E1A1A; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(14,26,26,0.15)">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg>
+  </button>
+
+  <section style="position: absolute; left: 0; right: 0; bottom: 0; background: #CBEDE6; border-radius: 32px 32px 0 0; padding: 14px 20px 32px; display: flex; flex-direction: column; gap: 14px">
+    <div style="width: 40px; height: 5px; border-radius: 3px; background: #8DBDB4; align-self: center"></div>
+    <div style="display: flex; justify-content: space-between; align-items: flex-end">
+      <div style="display: flex; flex-direction: column"><span style="font-size: 12px; font-weight: 700; color: #3A4F4D">Zeit</span><span class="num" style="font-size: 44px; font-weight: 700; letter-spacing: -0.03em; line-height: 1">28:14</span></div>
+      <div style="display: flex; flex-direction: column; align-items: flex-end"><span style="font-size: 12px; font-weight: 700; color: #3A4F4D">Strecke</span><span class="num" style="font-size: 44px; font-weight: 700; letter-spacing: -0.03em; line-height: 1">4,92<span style="font-size: 16px; font-family: Manrope"> km</span></span></div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+      <div style="background: #FFFFFF; border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column"><span style="font-size: 11px; font-weight: 700; color: #4F6361">Pace jetzt</span><span class="num" style="font-size: 20px; font-weight: 700">5:38</span></div>
+      <div style="background: #FFFFFF; border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column"><span style="font-size: 11px; font-weight: 700; color: #4F6361">Ø Pace</span><span class="num" style="font-size: 20px; font-weight: 700">5:44</span></div>
+      <div style="background: #FFFFFF; border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column"><span style="font-size: 11px; font-weight: 700; color: #4F6361">Puls · Z2</span><span class="num" style="font-size: 20px; font-weight: 700">142</span></div>
+    </div>
+    <div style="display: flex; justify-content: center; align-items: center; gap: 24px">
+      <button aria-label="Runde markieren" style="width: 60px; height: 60px; border-radius: 30px; border: 0; background: #FFFFFF; color: #0E1A1A; display: flex; align-items: center; justify-content: center">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"></path></svg>
+      </button>
+      <a href="Live.dc.html" aria-label="Pausieren" style="width: 84px; height: 84px; border-radius: 42px; background: #0E1A1A; color: #7FD6C6; display: flex; align-items: center; justify-content: center">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1.5"></rect><rect x="14" y="4" width="4" height="16" rx="1.5"></rect></svg>
+      </a>
+      <div style="width: 60px"></div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Lauf vorbereiten</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#0F5E5A;text-decoration:none}a:hover{color:#0B4744}
+button{font-family:inherit;cursor:pointer}
+.num{font-family:Sora,sans-serif;font-variant-numeric:tabular-nums}
+h1{font-family:Sora,sans-serif;letter-spacing:-0.03em}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #F3F6F5; color: #0E1A1A; font-family: Manrope, sans-serif; padding: 20px 20px 28px; display: flex; flex-direction: column; gap: 18px">
+  <header style="display: flex; align-items: center; gap: 8px">
+    <a href="Main.dc.html" aria-label="Zurück" style="width: 44px; height: 44px; border-radius: 22px; background: #FFFFFF; border: 1px solid #DAE4E1; display: flex; align-items: center; justify-content: center; color: #0E1A1A">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+    <h1 style="margin: 0; font-size: 22px; font-weight: 800">Bereit?</h1>
+  </header>
+
+  <div role="tablist" aria-label="Art des Laufs" style="background: #E2EAE8; border-radius: 22px; padding: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+    <button role="tab" aria-selected="{{planSel}}" onClick="{{pickPlan}}" style="height: 44px; border: 0; border-radius: 18px; font-size: 15px; font-weight: 800; background: {{planBg}}; color: #0E1A1A">Geplante Einheit</button>
+    <button role="tab" aria-selected="{{freeSel}}" onClick="{{pickFree}}" style="height: 44px; border: 0; border-radius: 18px; font-size: 15px; font-weight: 800; background: {{freeBg}}; color: #0E1A1A">Freier Lauf</button>
+  </div>
+
+  <sc-if value="{{isPlan}}" hint-placeholder-val="{{ true }}">
+    <section style="background: #FFFFFF; border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 20px; font-weight: 800">Lockerer Dauerlauf</span>
+        <span style="font-size: 14px; color: #4F6361">40 min · Ziel: Zone 2 (128–145 bpm)</span>
+      </div>
+      <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px">
+        <li style="display: flex; gap: 12px; align-items: center"><span style="width: 10px; height: 10px; border-radius: 5px; background: #A9E3D8"></span><span style="flex: 1; font-size: 15px">Einlaufen</span><span class="num" style="font-size: 15px; font-weight: 600">10:00</span></li>
+        <li style="display: flex; gap: 12px; align-items: center"><span style="width: 10px; height: 10px; border-radius: 5px; background: #7FD6C6"></span><span style="flex: 1; font-size: 15px; font-weight: 700">Locker, Zone 2</span><span class="num" style="font-size: 15px; font-weight: 600">25:00</span></li>
+        <li style="display: flex; gap: 12px; align-items: center"><span style="width: 10px; height: 10px; border-radius: 5px; background: #A9E3D8"></span><span style="flex: 1; font-size: 15px">Auslaufen</span><span class="num" style="font-size: 15px; font-weight: 600">5:00</span></li>
+      </ol>
+    </section>
+  </sc-if>
+  <sc-if value="{{isFree}}" hint-placeholder-val="{{ false }}">
+    <section style="background: #FFFFFF; border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 20px; font-weight: 800">Einfach loslaufen</span>
+      <span style="font-size: 14px; color: #4F6361; line-height: 1.45">Ohne Vorgabe. Die App zeichnet auf und ordnet den Lauf danach für dich ein.</span>
+    </section>
+  </sc-if>
+
+  <section aria-label="Bereitschaft" style="background: #FFFFFF; border-radius: 24px; padding: 6px 18px; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; gap: 12px; min-height: 56px; border-bottom: 1px solid #EBF1EF">
+      <span style="width: 36px; height: 36px; border-radius: 12px; background: #DDF2EE; color: #0F5E5A; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="10" r="3"></circle><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"></path></svg></span>
+      <span style="flex: 1; font-size: 15px; font-weight: 700">GPS</span>
+      <span style="font-size: 14px; font-weight: 700; color: #0F5E5A">Signal gut</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px; min-height: 56px; border-bottom: 1px solid #EBF1EF">
+      <span style="width: 36px; height: 36px; border-radius: 12px; background: #EBF1EF; color: #4F6361; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></span>
+      <div style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 700">Pulssensor</span><span style="font-size: 12px; color: #4F6361">Optional, geht auch ohne</span></div>
+      <a href="Start.dc.html" style="font-size: 14px; font-weight: 700; min-height: 44px; display: flex; align-items: center">Koppeln</a>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px; min-height: 56px">
+      <span style="width: 36px; height: 36px; border-radius: 12px; background: #DDF2EE; color: #0F5E5A; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 19c-2 0-3-1.5-3-3.5S6 11 8 11s3 2 3 4-1 4-3 4zM16 13c-2 0-3-1.5-3-3.5S14 5 16 5s3 2 3 4-1 4-3 4z"></path></svg></span>
+      <span style="flex: 1; font-size: 15px; font-weight: 700">Schrittfrequenz</span>
+      <span style="font-size: 14px; font-weight: 700; color: #0F5E5A">Handy-Sensor</span>
+    </div>
+  </section>
+
+  <section aria-label="Optionen" style="display: flex; gap: 10px">
+    <label style="flex: 1; background: #FFFFFF; border-radius: 18px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 700; min-height: 44px; box-sizing: border-box">Auto-Pause <input type="checkbox" checked style="width: 22px; height: 22px; accent-color: #0F5E5A"></label>
+    <label style="flex: 1; background: #FFFFFF; border-radius: 18px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 700; min-height: 44px; box-sizing: border-box">Ansagen <input type="checkbox" checked style="width: 22px; height: 22px; accent-color: #0F5E5A"></label>
+  </section>
+
+  <div style="flex-grow: 1"></div>
+
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 10px">
+    <a href="Live.dc.html" aria-label="Lauf starten" style="width: 132px; height: 132px; border-radius: 66px; background: #7FD6C6; color: #0E1A1A; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 800; box-shadow: 0 0 0 12px #DDF2EE">Los</a>
+    <span style="font-size: 13px; color: #4F6361; margin-top: 8px">Aufzeichnung läuft auch bei ausgeschaltetem Bildschirm</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { mode: 'plan' }; }
+  renderVals() {
+    const plan = this.state.mode === 'plan';
+    return {
+      isPlan: plan, isFree: !plan,
+      planSel: plan ? 'true' : 'false', freeSel: plan ? 'false' : 'true',
+      planBg: plan ? '#FFFFFF' : 'transparent', freeBg: plan ? 'transparent' : '#FFFFFF',
+      pickPlan: () => this.setState({ mode: 'plan' }),
+      pickFree: () => this.setState({ mode: 'free' })
+    };
+  }
+}
+</script>
+</body>
+</html>

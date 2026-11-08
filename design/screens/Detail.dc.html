@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Lauf-Detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#0F5E5A;text-decoration:none}a:hover{color:#0B4744}
+button{font-family:inherit;cursor:pointer}
+.num{font-family:Sora,sans-serif;font-variant-numeric:tabular-nums}
+h1{font-family:Sora,sans-serif;letter-spacing:-0.03em}
+</style>
+</helmet>
+<div style="width: 390px; height: 1360px; box-sizing: border-box; background: #F3F6F5; color: #0E1A1A; font-family: Manrope, sans-serif; padding: 20px 20px 28px; display: flex; flex-direction: column; gap: 14px">
+  <header style="display: flex; align-items: center; gap: 10px">
+    <a href="Verlauf.dc.html" aria-label="Zurück zum Verlauf" style="width: 44px; height: 44px; border-radius: 22px; background: #FFFFFF; border: 1px solid #DAE4E1; display: flex; align-items: center; justify-content: center; color: #0E1A1A">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+    <div style="flex: 1; display: flex; flex-direction: column">
+      <h1 style="margin: 0; font-size: 20px; font-weight: 800">Lockerer Dauerlauf</h1>
+      <span style="font-size: 13px; color: #4F6361; font-weight: 600">Sa, 7. Nov · 07:40</span>
+    </div>
+    <button aria-label="Teilen oder exportieren" style="width: 44px; height: 44px; border-radius: 22px; background: #FFFFFF; border: 1px solid #DAE4E1; color: #0E1A1A; display: flex; align-items: center; justify-content: center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"></path></svg>
+    </button>
+  </header>
+
+  <section style="background: #FFFFFF; border-radius: 24px; overflow: hidden; display: flex; flex-direction: column">
+    <div style="position: relative; height: 220px; background: {{routeBg}}">
+      <sc-if value="{{showMap}}" hint-placeholder-val="{{ false }}">
+        <svg viewBox="0 0 350 220" width="350" height="220" aria-hidden="true" style="position: absolute; left: 0; top: 0">
+          <path d="M-10 150 C 60 140, 120 170, 190 160 S 300 130, 360 150 L 360 180 C 300 165, 240 195, 180 190 S 60 170, -10 180 Z" fill="#CFE6F2"></path>
+          <path d="M20 20 L 140 10 L 150 100 L 30 110 Z" fill="#D6EDE4"></path>
+          <g fill="none" stroke="#FFFFFF" stroke-linecap="round"><path d="M-10 120 L 360 100" stroke-width="10"></path><path d="M210 -10 L 230 230" stroke-width="10"></path><path d="M90 -10 L 100 230" stroke-width="6"></path><path d="M-10 210 L 360 200" stroke-width="6"></path></g>
+        </svg>
+      </sc-if>
+      <svg viewBox="0 0 350 220" width="350" height="220" role="img" aria-label="Route mit Start und Ziel" style="position: absolute; left: 0; top: 0">
+        <path d="M60 190 C 40 130, 70 70, 120 56 S 210 30, 250 54 S 320 100, 290 150 S 220 190, 180 176 S 100 200, 60 190 Z" fill="none" stroke="#0E1A1A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M250 54 S 300 76, 312 100" fill="none" stroke="#F3F6F5" stroke-width="3" stroke-dasharray="4 6"></path>
+        <circle cx="60" cy="190" r="8" fill="#7FD6C6" stroke="#0E1A1A" stroke-width="3"></circle>
+        <g font-family="Sora" font-size="11" font-weight="700"><circle cx="58" cy="118" r="11" fill="#FFFFFF" stroke="#0E1A1A" stroke-width="2"></circle><text x="58" y="122" text-anchor="middle" fill="#0E1A1A">2</text><circle cx="178" cy="40" r="11" fill="#FFFFFF" stroke="#0E1A1A" stroke-width="2"></circle><text x="178" y="44" text-anchor="middle" fill="#0E1A1A">4</text><circle cx="270" cy="168" r="11" fill="#FFFFFF" stroke="#0E1A1A" stroke-width="2"></circle><text x="270" y="172" text-anchor="middle" fill="#0E1A1A">6</text></g>
+      </svg>
+      <div role="tablist" aria-label="Routenansicht" style="position: absolute; right: 10px; top: 10px; background: #FFFFFF; border-radius: 18px; padding: 3px; display: flex; gap: 2px; box-shadow: 0 2px 8px rgba(14,26,26,0.12)">
+        <button role="tab" aria-selected="{{lineSel}}" onClick="{{pickLine}}" style="height: 36px; padding: 0 12px; border: 0; border-radius: 15px; background: {{lineBg}}; color: {{lineFg}}; font-size: 13px; font-weight: 800">Linie</button>
+        <button role="tab" aria-selected="{{mapSel}}" onClick="{{pickMap}}" style="height: 36px; padding: 0 12px; border: 0; border-radius: 15px; background: {{mapBg}}; color: {{mapFg}}; font-size: 13px; font-weight: 800">Karte</button>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 14px 16px">
+      <div style="display: flex; flex-direction: column"><span style="font-size: 12px; font-weight: 700; color: #4F6361">Strecke</span><span class="num" style="font-size: 22px; font-weight: 700">6,42 km</span></div>
+      <div style="display: flex; flex-direction: column"><span style="font-size: 12px; font-weight: 700; color: #4F6361">Zeit</span><span class="num" style="font-size: 22px; font-weight: 700">36:48</span></div>
+      <div style="display: flex; flex-direction: column"><span style="font-size: 12px; font-weight: 700; color: #4F6361">Ø Pace</span><span class="num" style="font-size: 22px; font-weight: 700">5:44</span></div>
+    </div>
+  </section>
+
+  <section style="background: #FFFFFF; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="font-size: 15px; font-weight: 800">Pace &amp; Puls</span>
+      <span style="display: flex; gap: 12px; font-size: 12px; font-weight: 700; color: #4F6361"><span style="display: flex; align-items: center; gap: 5px"><span style="width: 14px; height: 3px; background: #0F5E5A; border-radius: 2px"></span>Pace</span><span style="display: flex; align-items: center; gap: 5px"><span style="width: 14px; height: 3px; background: #E0561F; border-radius: 2px"></span>Puls</span></span>
+    </div>
+    <svg viewBox="0 0 318 130" width="100%" height="130" role="img" aria-label="Pace bleibt ruhig um 5:44, Puls steigt von 125 auf 150; zwischen Minute 22 und 24 GPS-Lücke">
+      <g stroke="#EBF1EF" stroke-width="1"><path d="M0 20H318M0 60H318M0 100H318"></path></g>
+      <rect x="190" y="0" width="16" height="110" fill="#EBF1EF"></rect>
+      <path d="M0 70 C 30 60, 50 52, 80 56 S 140 50, 170 54 S 186 52, 190 54" fill="none" stroke="#0F5E5A" stroke-width="2.5" stroke-linecap="round"></path>
+      <path d="M206 50 C 230 46, 260 44, 290 40 S 312 50, 318 56" fill="none" stroke="#0F5E5A" stroke-width="2.5" stroke-linecap="round"></path>
+      <path d="M0 104 C 30 90, 60 80, 100 76 S 170 68, 220 66 S 290 58, 318 52" fill="none" stroke="#E0561F" stroke-width="2.5" stroke-linecap="round"></path>
+      <g font-family="Manrope" font-size="10" font-weight="700" fill="#4F6361"><text x="0" y="126">0</text><text x="150" y="126">18 min</text><text x="290" y="126">36 min</text><text x="176" y="10">GPS-Lücke</text></g>
+    </svg>
+  </section>
+
+  <section style="background: #FFFFFF; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; justify-content: space-between"><span style="font-size: 15px; font-weight: 800">Höhenprofil</span><span class="num" style="font-size: 13px; font-weight: 700; color: #4F6361">+48 m / −46 m</span></div>
+    <svg viewBox="0 0 318 70" width="100%" height="70" role="img" aria-label="Höhenprofil, sanfter Anstieg in der Mitte">
+      <path d="M0 56 C 40 54, 70 40, 110 30 S 170 14, 200 26 S 270 52, 318 54 L 318 70 L 0 70 Z" fill="#DDF2EE"></path>
+      <path d="M0 56 C 40 54, 70 40, 110 30 S 170 14, 200 26 S 270 52, 318 54" fill="none" stroke="#0F5E5A" stroke-width="2"></path>
+    </svg>
+  </section>
+
+  <section style="background: #FFFFFF; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 6px">
+    <span style="font-size: 15px; font-weight: 800; margin-bottom: 4px">Kilometer</span>
+    <div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 54px 40px; gap: 10px; align-items: center; font-size: 12px; font-weight: 700; color: #4F6361"><span>km</span><span></span><span>Pace</span><span>Puls</span></div>
+    <sc-for list="{{splits}}" as="s" hint-placeholder-count="6">
+      <div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 54px 40px; gap: 10px; align-items: center; height: 30px">
+        <span class="num" style="font-size: 14px; font-weight: 700">{{s.km}}</span>
+        <div style="height: 10px; background: #EBF1EF; border-radius: 5px"><div style="height: 10px; width: {{s.w}}; background: {{s.c}}; border-radius: 5px"></div></div>
+        <span class="num" style="font-size: 14px; font-weight: 700">{{s.pace}}</span>
+        <span class="num" style="font-size: 14px; color: #2A3F3D">{{s.hr}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <section style="background: #FFFFFF; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 15px; font-weight: 800">Dein Gefühl</span>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap">
+      <span style="font-size: 13px; font-weight: 700; background: #DDF2EE; padding: 6px 12px; border-radius: 12px">Anstrengung 4 · angenehm</span>
+      <span style="font-size: 13px; font-weight: 700; background: #DDF2EE; padding: 6px 12px; border-radius: 12px">Befinden: gut</span>
+    </div>
+    <span style="font-size: 14px; color: #2A3F3D; line-height: 1.45">„Beine fühlten sich frisch an, letzter Kilometer locker gesteigert.“</span>
+  </section>
+
+  <div style="display: flex; gap: 10px">
+    <button style="flex: 1; height: 52px; border-radius: 26px; border: 1px solid #DAE4E1; background: #FFFFFF; color: #0E1A1A; font-size: 15px; font-weight: 800">Exportieren (GPX · TCX · FIT)</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1360}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { map: false }; }
+  renderVals() {
+    const m = this.state.map;
+    const raw = [['1','5:52',128],['2','5:47',136],['3','5:44',141],['4','5:46',143],['5','5:41',146],['6','5:24',152]];
+    const splits = raw.map(([km, pace, hr]) => {
+      const [mi, se] = pace.split(':').map(Number); const s = mi * 60 + se;
+      return { km, pace, hr, w: Math.round(40 + (360 - s) / 40 * 60) + '%', c: s < 330 ? '#0F5E5A' : '#7FD6C6' };
+    });
+    return {
+      splits, showMap: m,
+      routeBg: m ? '#EEF2F0' : '#F3F6F5',
+      lineSel: m ? 'false' : 'true', mapSel: m ? 'true' : 'false',
+      lineBg: m ? 'transparent' : '#0E1A1A', lineFg: m ? '#0E1A1A' : '#7FD6C6',
+      mapBg: m ? '#0E1A1A' : 'transparent', mapFg: m ? '#7FD6C6' : '#0E1A1A',
+      pickLine: () => this.setState({ map: false }),
+      pickMap: () => this.setState({ map: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

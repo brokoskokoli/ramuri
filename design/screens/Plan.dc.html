@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Trainingsplan</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#0F5E5A;text-decoration:none}a:hover{color:#0B4744}
+.num{font-family:Sora,sans-serif;font-variant-numeric:tabular-nums}
+h1{font-family:Sora,sans-serif;letter-spacing:-0.03em}
+</style>
+</helmet>
+<div style="width: 390px; height: 900px; box-sizing: border-box; background: #F3F6F5; color: #0E1A1A; font-family: Manrope, sans-serif; display: flex; flex-direction: column">
+  <main style="flex-grow: 1; padding: 28px 20px 16px; display: flex; flex-direction: column; gap: 14px">
+    <h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em">Plan</h1>
+
+    <section style="background: #CBEDE6; border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 12px; font-weight: 800; color: #0B4744; text-transform: uppercase; letter-spacing: 0.06em">Dein Ziel</span>
+        <span style="font-size: 22px; font-weight: 800">10 km unter 55 min</span>
+        <span style="font-size: 14px; font-weight: 600; color: #2A3F3D">Stadtlauf · 14. März · noch 18 Wochen</span>
+      </div>
+      <div role="img" aria-label="Phase Grundlage, Woche 3 von 18" style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; gap: 4px; height: 10px">
+          <div style="flex: 6; border-radius: 5px; background: #FFFFFF; overflow: hidden"><div style="width: 50%; height: 10px; background: #0E1A1A"></div></div>
+          <div style="flex: 6; border-radius: 5px; background: #FFFFFF"></div>
+          <div style="flex: 4; border-radius: 5px; background: #FFFFFF"></div>
+          <div style="flex: 2; border-radius: 5px; background: #FFFFFF"></div>
+        </div>
+        <div style="display: flex; font-size: 11px; font-weight: 800; color: #2A3F3D"><span style="flex: 6">Grundlage</span><span style="flex: 6">Aufbau</span><span style="flex: 4">Spitze</span><span style="flex: 2">Taper</span></div>
+      </div>
+      <span style="font-size: 13px; font-weight: 700; color: #0B4744">Gut machbar, wenn du dranbleibst</span>
+    </section>
+
+    <section role="note" style="background: #FFFFFF; border: 1.5px solid #A9E3D8; border-radius: 20px; padding: 14px 16px; display: flex; gap: 12px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0F5E5A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 1px"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4"></path></svg>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 14px; font-weight: 800">Plan angepasst</span>
+        <span style="font-size: 13px; color: #2A3F3D; line-height: 1.45">Mittwoch ausgefallen, die Intervalle sind deshalb auf Donnerstag gerutscht. Der Rest der Woche bleibt ruhig.</span>
+      </div>
+    </section>
+
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px">
+      <span style="font-size: 16px; font-weight: 800">Woche 3</span>
+      <span style="font-size: 13px; font-weight: 700; color: #4F6361"><span class="num">2. – 8. Nov</span> · <span class="num">25 km</span></span>
+    </div>
+
+    <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px">
+      <li style="display: flex; align-items: center; gap: 12px; padding: 4px 4px"><span style="width: 32px; font-size: 13px; font-weight: 800; color: #4F6361">Mo</span><span style="flex: 1; font-size: 14px; color: #4F6361">Ruhetag</span></li>
+      <li style="background: #FFFFFF; border-radius: 16px; display: flex; align-items: center; gap: 12px; padding: 12px 14px"><span style="width: 32px; font-size: 13px; font-weight: 800; color: #4F6361">Di</span><span style="flex: 1; font-size: 15px; font-weight: 700">Locker · 30 min</span><span aria-label="erledigt" style="width: 28px; height: 28px; border-radius: 14px; background: #7FD6C6; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0E1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></li>
+      <li style="display: flex; align-items: center; gap: 12px; padding: 4px 4px"><span style="width: 32px; font-size: 13px; font-weight: 800; color: #4F6361">Mi</span><span style="flex: 1; font-size: 14px; color: #4F6361; text-decoration: line-through">Intervalle</span><span style="font-size: 12px; font-weight: 700; color: #4F6361">verschoben</span></li>
+      <li style="background: #FFFFFF; border-radius: 16px; display: flex; align-items: center; gap: 12px; padding: 12px 14px"><span style="width: 32px; font-size: 13px; font-weight: 800; color: #4F6361">Do</span><span style="flex: 1; font-size: 15px; font-weight: 700">Intervalle 6 × 400 m</span><span aria-label="erledigt" style="width: 28px; height: 28px; border-radius: 14px; background: #7FD6C6; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0E1A1A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></li>
+      <li style="display: flex; align-items: center; gap: 12px; padding: 4px 4px"><span style="width: 32px; font-size: 13px; font-weight: 800; color: #4F6361">Fr</span><span style="flex: 1; font-size: 14px; color: #4F6361">Ruhetag</span></li>
+      <li style="background: #0E1A1A; color: #FFFFFF; border-radius: 16px; display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 14px"><span style="width: 32px; font-size: 13px; font-weight: 800; color: #7FD6C6">Sa</span><div style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 800">Lockerer Dauerlauf</span><span style="font-size: 12px; color: #CDDEDB">40 min · Zone 2 · heute</span></div><a href="Start.dc.html" style="height: 44px; padding: 0 16px; border-radius: 22px; background: #7FD6C6; color: #0E1A1A; font-size: 14px; font-weight: 800; display: flex; align-items: center">Start</a></li>
+      <li style="background: #FFFFFF; border-radius: 16px; display: flex; align-items: center; gap: 12px; padding: 12px 14px"><span style="width: 32px; font-size: 13px; font-weight: 800; color: #4F6361">So</span><span style="flex: 1; font-size: 15px; font-weight: 700">Langer Lauf · 65 min</span><span style="font-size: 12px; font-weight: 700; color: #4F6361">Zone 2</span></li>
+    </ol>
+  </main>
+
+  <nav aria-label="Hauptnavigation" style="background: #FFFFFF; border-top: 1px solid #DAE4E1; padding: 8px 12px 22px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
+    <a href="Main.dc.html" style="height: 56px; border-radius: 18px; color: #4F6361; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 700">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"></path></svg>Heute</a>
+    <a href="Plan.dc.html" aria-current="page" style="height: 56px; border-radius: 18px; background: #DDF2EE; color: #0E1A1A; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 800">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"></rect><path d="M4 10h16M9 3v4M15 3v4"></path></svg>Plan</a>
+    <a href="Verlauf.dc.html" style="height: 56px; border-radius: 18px; color: #4F6361; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 700">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path></svg>Verlauf</a>
+    <a href="Fortschritt.dc.html" style="height: 56px; border-radius: 18px; color: #4F6361; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 700">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19l5-6 4 3 7-9"></path></svg>Fortschritt</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

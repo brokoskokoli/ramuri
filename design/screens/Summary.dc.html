@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Nach dem Lauf</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#0F5E5A;text-decoration:none}a:hover{color:#0B4744}
+button,textarea{font-family:inherit}
+button{cursor:pointer}
+.num{font-family:Sora,sans-serif;font-variant-numeric:tabular-nums}
+h1{font-family:Sora,sans-serif;letter-spacing:-0.03em}
+</style>
+</helmet>
+<div style="width: 390px; height: 1180px; box-sizing: border-box; background: #F3F6F5; color: #0E1A1A; font-family: Manrope, sans-serif; padding: 28px 20px 28px; display: flex; flex-direction: column; gap: 16px">
+  <header style="display: flex; flex-direction: column; gap: 4px">
+    <span style="font-size: 14px; font-weight: 600; color: #4F6361">Sa, 7. Nov · 07:40 · Lockerer Dauerlauf</span>
+    <h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em">Geschafft. Schön locker.</h1>
+  </header>
+
+  <section style="background: #CBEDE6; border-radius: 28px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: baseline; gap: 8px"><span class="num" style="font-size: 64px; font-weight: 700; letter-spacing: -0.03em; line-height: 1">6,42</span><span style="font-size: 20px; font-weight: 700">km</span></div>
+    <svg viewBox="0 0 350 130" width="100%" height="130" role="img" aria-label="Gelaufene Route, ohne Karte">
+      <path d="M40 104 C 30 70, 60 40, 104 34 S 170 18, 206 30 S 290 26, 306 58 S 286 112, 238 104 S 170 90, 140 104 S 70 120, 40 104 Z" fill="none" stroke="#0F5E5A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+      <circle cx="40" cy="104" r="7" fill="#0E1A1A"></circle><circle cx="40" cy="104" r="3" fill="#7FD6C6"></circle>
+    </svg>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 13px; font-weight: 600; color: #2A3F3D">
+      <span>Bewegungszeit <b class="num" style="color: #0E1A1A; font-size: 15px">36:48</b></span>
+      <span>Gesamtzeit <b class="num" style="color: #0E1A1A; font-size: 15px">38:10</b></span>
+    </div>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 700; color: #4F6361">Ø Pace</span><span class="num" style="font-size: 22px; font-weight: 700">5:44</span></div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 700; color: #4F6361">Bestpace</span><span class="num" style="font-size: 22px; font-weight: 700">5:02</span></div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 700; color: #4F6361">Höhe</span><span class="num" style="font-size: 22px; font-weight: 700">+48 m</span></div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 700; color: #4F6361">Ø Puls</span><span class="num" style="font-size: 22px; font-weight: 700">141</span></div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 700; color: #4F6361">Max Puls</span><span class="num" style="font-size: 22px; font-weight: 700">163</span></div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 700; color: #4F6361">Belastung</span><span class="num" style="font-size: 22px; font-weight: 700">58 <span style="font-size: 11px; font-family: Manrope; font-weight: 700; color: #4F6361"><span aria-hidden="true" style="display: inline-block; width: 7px; height: 7px; border-radius: 4px; background: #E0561F; margin-right: 4px; vertical-align: middle"></span>geschätzt</span></span></div>
+  </section>
+
+  <section style="background: #FFFFFF; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+    <span style="font-size: 15px; font-weight: 800">Zeit in Zonen</span>
+    <div role="img" aria-label="Zone 1: 8 Minuten, Zone 2: 24 Minuten, Zone 3: 5 Minuten" style="display: flex; height: 14px; gap: 3px">
+      <div style="flex: 8; background: #A9E3D8; border-radius: 7px"></div>
+      <div style="flex: 24; background: #0F5E5A; border-radius: 7px"></div>
+      <div style="flex: 5; background: #FFB896; border-radius: 7px"></div>
+    </div>
+    <div style="display: flex; gap: 14px; font-size: 12px; font-weight: 700; color: #4F6361"><span>Z1 8 min</span><span style="color: #0F5E5A">Z2 24 min</span><span>Z3 5 min</span></div>
+  </section>
+
+  <section style="background: #0E1A1A; color: #FFFFFF; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 14px; font-weight: 600; color: #CDDEDB">Im Vergleich</span>
+    <span style="font-size: 17px; font-weight: 700; line-height: 1.35"><span style="color: #7FD6C6">8 s/km schneller</span> als deine letzten 5 lockeren Läufe, bei gleichem Puls.</span>
+    <span style="font-size: 13px; color: #CDDEDB">VO₂max-Schätzung: <b class="num" style="color: #FFFFFF">46</b> (unverändert) · Schätzung, keine Messung</span>
+  </section>
+
+  <section aria-labelledby="rpe-h" style="background: #FFFFFF; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <span id="rpe-h" style="font-size: 15px; font-weight: 800">Wie anstrengend war's?</span>
+      <span style="font-size: 13px; font-weight: 700; color: #0F5E5A">{{rpeLabel}}</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px">
+      <sc-for list="{{rpe}}" as="r" hint-placeholder-count="11">
+        <button onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" class="num" style="height: 44px; border-radius: 14px; border: 0; font-size: 16px; font-weight: 700; background: {{r.bg}}; color: #0E1A1A">{{r.n}}</button>
+      </sc-for>
+    </div>
+    <span style="font-size: 15px; font-weight: 800; margin-top: 4px">Wie geht's dir?</span>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap">
+      <sc-for list="{{moods}}" as="m" hint-placeholder-count="3">
+        <button onClick="{{m.pick}}" aria-pressed="{{m.pressed}}" style="height: 44px; padding: 0 18px; border-radius: 22px; border: 1.5px solid {{m.border}}; background: {{m.bg}}; color: #0E1A1A; font-size: 14px; font-weight: 700">{{m.label}}</button>
+      </sc-for>
+      <button style="height: 44px; padding: 0 18px; border-radius: 22px; border: 1.5px dashed #B5C9C6; background: transparent; color: #0E1A1A; font-size: 14px; font-weight: 700">Beschwerden?</button>
+    </div>
+    <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: #4F6361">Notiz
+      <textarea rows="2" placeholder="Beine fühlten sich frisch an …" style="border: 1.5px solid #DAE4E1; border-radius: 14px; padding: 10px 12px; font-size: 15px; color: #0E1A1A; background: #F7FAF9; resize: none"></textarea>
+    </label>
+  </section>
+
+  <div style="flex-grow: 1"></div>
+  <div style="display: flex; gap: 10px">
+    <a href="Verlauf.dc.html" style="flex: 1; height: 58px; border-radius: 29px; background: #7FD6C6; color: #0E1A1A; font-size: 17px; font-weight: 800; display: flex; align-items: center; justify-content: center">Speichern</a>
+    <a href="Detail.dc.html" style="height: 58px; padding: 0 22px; border-radius: 29px; background: #FFFFFF; border: 1px solid #DAE4E1; color: #0E1A1A; font-size: 15px; font-weight: 700; display: flex; align-items: center">Details</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { rpe: 4, mood: 'Gut' }; }
+  renderVals() {
+    const words = ['ganz ruhig','sehr leicht','leicht','locker','angenehm','mittel','fordernd','hart','sehr hart','extrem','maximal'];
+    const rpe = Array.from({ length: 11 }, (_, n) => ({
+      n, pressed: n === this.state.rpe ? 'true' : 'false',
+      bg: n === this.state.rpe ? '#7FD6C6' : '#EBF1EF',
+      pick: () => this.setState({ rpe: n })
+    }));
+    const moods = ['Gut', 'Okay', 'Müde'].map((label) => ({
+      label, pressed: label === this.state.mood ? 'true' : 'false',
+      bg: label === this.state.mood ? '#DDF2EE' : '#FFFFFF',
+      border: label === this.state.mood ? '#0F5E5A' : '#DAE4E1',
+      pick: () => this.setState({ mood: label })
+    }));
+    return { rpe, moods, rpeLabel: this.state.rpe + ' · ' + words[this.state.rpe] };
+  }
+}
+</script>
+</body>
+</html>

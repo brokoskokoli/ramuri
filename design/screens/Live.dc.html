@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Live-Lauf</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#0F5E5A;text-decoration:none}a:hover{color:#0B4744}
+button{font-family:inherit;cursor:pointer}
+.num{font-family:Sora,sans-serif;font-variant-numeric:tabular-nums}
+h1{font-family:Sora,sans-serif;letter-spacing:-0.03em}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{bg}}; color: #0E1A1A; font-family: Manrope, sans-serif; padding: 20px 20px 32px; display: flex; flex-direction: column; gap: 14px">
+  <header style="display: flex; justify-content: space-between; align-items: center">
+    <span style="font-size: 14px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase">{{stateLabel}}</span>
+    <div style="display: flex; gap: 6px">
+      <span style="height: 30px; padding: 0 12px; border-radius: 15px; background: #FFFFFF; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #0F5E5A"></span>GPS gut</span>
+      <span style="height: 30px; padding: 0 12px; border-radius: 15px; background: #FFFFFF; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #0F5E5A"></span>Puls verbunden</span>
+    </div>
+  </header>
+
+  <div role="tablist" aria-label="Ansicht" style="align-self: center; background: #FFFFFF; border-radius: 22px; padding: 4px; display: flex; gap: 4px">
+    <a href="Live.dc.html" role="tab" aria-selected="true" style="height: 40px; padding: 0 18px; border-radius: 18px; background: #0E1A1A; color: #7FD6C6; font-size: 14px; font-weight: 800; display: flex; align-items: center">Werte</a>
+    <a href="LiveKarte.dc.html" role="tab" aria-selected="false" style="height: 40px; padding: 0 18px; border-radius: 18px; color: #0E1A1A; font-size: 14px; font-weight: 700; display: flex; align-items: center">Karte</a>
+  </div>
+
+  <section aria-label="Zeit" style="display: flex; flex-direction: column; align-items: center; padding: 4px 0 2px">
+    <span style="font-size: 13px; font-weight: 700; color: #3A4F4D">Zeit</span>
+    <span class="num" style="font-size: 96px; font-weight: 700; letter-spacing: -0.04em; line-height: 1">28:14</span>
+  </section>
+
+  <section aria-label="Strecke" style="display: flex; justify-content: center; align-items: baseline; gap: 8px">
+    <span class="num" style="font-size: 52px; font-weight: 700; letter-spacing: -0.03em">4,92</span>
+    <span style="font-size: 20px; font-weight: 700; color: #3A4F4D">km</span>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+    <div style="background: #FFFFFF; border-radius: 22px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px">
+      <span style="font-size: 13px; font-weight: 700; color: #4F6361">Pace jetzt</span>
+      <span><span class="num" style="font-size: 34px; font-weight: 700">5:38</span> <span style="font-size: 14px; color: #4F6361; font-weight: 600">/km</span></span>
+    </div>
+    <div style="background: #FFFFFF; border-radius: 22px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px">
+      <span style="font-size: 13px; font-weight: 700; color: #4F6361">Ø Pace</span>
+      <span><span class="num" style="font-size: 34px; font-weight: 700">5:44</span> <span style="font-size: 14px; color: #4F6361; font-weight: 600">/km</span></span>
+    </div>
+  </section>
+
+  <section aria-label="Herzfrequenz" style="background: #FFFFFF; border-radius: 22px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="display: flex; align-items: center; gap: 8px"><svg width="22" height="22" viewBox="0 0 24 24" fill="#FF7A45" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg><span class="num" style="font-size: 34px; font-weight: 700">142</span><span style="font-size: 14px; color: #4F6361; font-weight: 600">bpm</span></span>
+      <span style="font-size: 14px; font-weight: 800; color: #0F5E5A">Zone 2 · im Ziel</span>
+    </div>
+    <div role="img" aria-label="Herzfrequenzzone 2 von 5" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px">
+      <div style="height: 10px; border-radius: 5px; background: #D3EEE9"></div>
+      <div style="height: 10px; border-radius: 5px; background: #0F5E5A; box-shadow: 0 0 0 3px #A9E3D8"></div>
+      <div style="height: 10px; border-radius: 5px; background: #E2EAE8"></div>
+      <div style="height: 10px; border-radius: 5px; background: #E2EAE8"></div>
+      <div style="height: 10px; border-radius: 5px; background: #E2EAE8"></div>
+    </div>
+  </section>
+
+  <div style="background: #0E1A1A; color: #FFFFFF; border-radius: 18px; padding: 12px 16px; font-size: 14px; font-weight: 600; display: flex; justify-content: space-between">
+    <span>Noch 11:46 locker</span><span style="color: #7FD6C6">dann 5 min Auslaufen</span>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+
+  <sc-if value="{{running}}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; justify-content: center; align-items: center; gap: 28px">
+      <button aria-label="Runde markieren" style="width: 68px; height: 68px; border-radius: 34px; border: 0; background: #FFFFFF; color: #0E1A1A; display: flex; align-items: center; justify-content: center">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"></path></svg>
+      </button>
+      <button aria-label="Pausieren" onClick="{{pause}}" style="width: 104px; height: 104px; border-radius: 52px; border: 0; background: #0E1A1A; color: #7FD6C6; display: flex; align-items: center; justify-content: center">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1.5"></rect><rect x="14" y="4" width="4" height="16" rx="1.5"></rect></svg>
+      </button>
+      <div style="width: 68px"></div>
+    </div>
+  </sc-if>
+  <sc-if value="{{paused}}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; gap: 12px">
+      <button onClick="{{resume}}" style="flex: 1; height: 64px; border-radius: 32px; border: 0; background: #0E1A1A; color: #7FD6C6; font-size: 17px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"></path></svg>Weiter</button>
+      <a href="Summary.dc.html" style="flex: 1; height: 64px; border-radius: 32px; background: #FFFFFF; color: #0E1A1A; font-size: 17px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"></rect></svg>Beenden</a>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { paused: false }; }
+  renderVals() {
+    const p = this.state.paused;
+    return {
+      running: !p, paused: p,
+      bg: p ? '#E2EAE8' : '#CBEDE6',
+      stateLabel: p ? 'Pausiert' : 'Läuft · Lockerer Dauerlauf',
+      pause: () => this.setState({ paused: true }),
+      resume: () => this.setState({ paused: false })
+    };
+  }
+}
+</script>
+</body>
+</html>
