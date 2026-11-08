@@ -45,6 +45,10 @@ Map<String, Color> tokens(RamuriColors c) => {
   'onEmber': c.onEmber,
   'danger': c.danger,
   'onDanger': c.onDanger,
+  'outlineStrong': c.outlineStrong,
+  'weekBarOlder': c.weekBarOlder,
+  'weekBarLast': c.weekBarLast,
+  'weekBarCurrent': c.weekBarCurrent,
 };
 
 /// Text-Grund-Paare (Vordergrund, Grund), die die Seiten verwenden dürfen.
@@ -85,6 +89,11 @@ const textPairs = <(String, String)>[
 ];
 
 const minRatio = 4.5;
+
+/// Nicht-Text (Balken, Linien) mindestens 3 : 1 auf Karte (WCAG 1.4.11), soweit
+/// das Design es zulässt: hell sind ältere und laufende Woche Pastell aus dem
+/// Design (1,4 und 1,7 : 1); dort trägt die Beschriftung die Aussage.
+const minNonText = 3.0;
 
 /// Fehlerliste: Paare unter [minRatio].
 List<String> weakPairs(RamuriColors c, {String name = ''}) {
@@ -232,6 +241,63 @@ void main() {
       expect(emberTextOnLight([(name, t[name]!, t['background']!)], c), [
         name,
       ], reason: name);
+    }
+  });
+
+  test('Wochenbalken und Sparkline: Kontrast und Unterscheidbarkeit', () {
+    for (final (name, c, onCard) in [
+      ('hell', RamuriColors.light, RamuriColors.light.surface),
+      ('dunkel', RamuriColors.night, RamuriColors.night.surface),
+    ]) {
+      final t = tokens(c);
+      // Letzte volle Woche immer kräftig; dunkel alle Balken.
+      expect(
+        contrast(t['weekBarLast']!, onCard),
+        greaterThanOrEqualTo(minNonText),
+        reason: '$name last',
+      );
+      if (name == 'dunkel') {
+        for (final k in ['weekBarOlder', 'weekBarCurrent']) {
+          expect(
+            contrast(t[k]!, onCard),
+            greaterThanOrEqualTo(minNonText),
+            reason: '$name $k',
+          );
+        }
+      } else {
+        // Design-Werte, nur Mindestabstand zur Karte (sonst unsichtbar).
+        for (final k in ['weekBarOlder', 'weekBarCurrent']) {
+          expect(
+            contrast(t[k]!, onCard),
+            greaterThanOrEqualTo(1.4),
+            reason: '$name $k',
+          );
+        }
+      }
+      // Die drei Rollen sind untereinander unterscheidbar.
+      for (final (a, b) in [
+        ('weekBarOlder', 'weekBarLast'),
+        ('weekBarOlder', 'weekBarCurrent'),
+        ('weekBarCurrent', 'weekBarLast'),
+      ]) {
+        expect(
+          contrast(t[a]!, t[b]!),
+          greaterThanOrEqualTo(1.15),
+          reason: '$name $a/$b',
+        );
+      }
+      // Nulllinie hebt sich von der Karte ab.
+      expect(
+        contrast(t['outlineStrong']!, onCard),
+        greaterThanOrEqualTo(1.5),
+        reason: '$name Nulllinie',
+      );
+      // Sparkline (Aktionsfarbe) auf der dunklen Karte.
+      expect(
+        contrast(c.action, c.panel),
+        greaterThanOrEqualTo(minNonText),
+        reason: '$name Sparkline',
+      );
     }
   });
 

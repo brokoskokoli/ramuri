@@ -20,12 +20,17 @@ class RamuriSegmentedToggle<T> extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     this.semanticLabel,
+    this.expanded = false,
   });
 
   final List<RamuriSegment<T>> segments;
   final T selected;
   final ValueChanged<T> onChanged;
   final String? semanticLabel;
+
+  /// Volle Breite: der Umschalter füllt die Zeile, die Abschnitte teilen sie
+  /// gleich auf (Design „Verlauf“, „Fortschritt“). Vorgabe: so schmal wie der Inhalt.
+  final bool expanded;
 
   @override
   Widget build(BuildContext context) {
@@ -42,15 +47,17 @@ class RamuriSegmentedToggle<T> extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
             children: [
               for (final s in segments)
-                _SegmentButton(
-                  label: s.label,
-                  selected: s.value == selected,
-                  onTap: () => onChanged(s.value),
-                  colors: c,
-                  style: labelStyle,
+                _wrap(
+                  _SegmentButton(
+                    label: s.label,
+                    selected: s.value == selected,
+                    onTap: () => onChanged(s.value),
+                    colors: c,
+                    style: labelStyle,
+                  ),
                 ),
             ],
           ),
@@ -58,6 +65,8 @@ class RamuriSegmentedToggle<T> extends StatelessWidget {
       ),
     );
   }
+
+  Widget _wrap(Widget button) => expanded ? Expanded(child: button) : button;
 }
 
 class _SegmentButton extends StatelessWidget {

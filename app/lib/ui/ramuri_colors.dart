@@ -45,6 +45,9 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
     required this.zone3,
     required this.zone4,
     required this.zone5,
+    required this.weekBarOlder,
+    required this.weekBarLast,
+    required this.weekBarCurrent,
   });
 
   /// Seitengrund (Papier / Nacht).
@@ -109,6 +112,14 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
   final Color zone4;
   final Color zone5;
 
+  /// Wochenbalken (Fortschritt): ältere Wochen, letzte volle Woche (die
+  /// kräftigste) und laufende Woche (noch unvollständig, heller als die letzte
+  /// volle). Hell sind es Minze hell, Tiefgrün und Minze (Design); dunkel
+  /// abgeleitet, so dass die letzte volle Woche die hellste ist (Minze rund 80 % Richtung Weiß).
+  final Color weekBarOlder;
+  final Color weekBarLast;
+  final Color weekBarCurrent;
+
   /// Farbe der Herzfrequenzzone 1 bis 5.
   Color zone(int number) => switch (number) {
     1 => zone1,
@@ -155,6 +166,9 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
     zone3: Color(0xFFFFB896),
     zone4: Color(0xFFFF7A45),
     zone5: Color(0xFFE0561F),
+    weekBarOlder: Color(0xFFA9E3D8),
+    weekBarLast: Color(0xFF0F5E5A),
+    weekBarCurrent: Color(0xFF7FD6C6),
   );
 
   /// Dunkel: Nacht als Grund, Minze als Akzent. Abgeleitet, nicht im Design
@@ -195,6 +209,9 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
     zone3: Color(0xFFFFB896),
     zone4: Color(0xFFFF7A45),
     zone5: Color(0xFFE0561F),
+    weekBarOlder: Color(0xFF4A9385),
+    weekBarLast: Color(0xFFE6F7F3),
+    weekBarCurrent: Color(0xFF7FD6C6),
   );
 
   /// Die Farben des umgebenden Themes.
@@ -240,6 +257,9 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
     Color? zone3,
     Color? zone4,
     Color? zone5,
+    Color? weekBarOlder,
+    Color? weekBarLast,
+    Color? weekBarCurrent,
   }) {
     return RamuriColors(
       background: background ?? this.background,
@@ -276,6 +296,9 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
       zone3: zone3 ?? this.zone3,
       zone4: zone4 ?? this.zone4,
       zone5: zone5 ?? this.zone5,
+      weekBarOlder: weekBarOlder ?? this.weekBarOlder,
+      weekBarLast: weekBarLast ?? this.weekBarLast,
+      weekBarCurrent: weekBarCurrent ?? this.weekBarCurrent,
     );
   }
 
@@ -318,6 +341,9 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
       zone3: l(zone3, other.zone3),
       zone4: l(zone4, other.zone4),
       zone5: l(zone5, other.zone5),
+      weekBarOlder: l(weekBarOlder, other.weekBarOlder),
+      weekBarLast: l(weekBarLast, other.weekBarLast),
+      weekBarCurrent: l(weekBarCurrent, other.weekBarCurrent),
     );
   }
 }
