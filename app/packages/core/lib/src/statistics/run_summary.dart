@@ -53,6 +53,9 @@ class RunSummary {
   /// Anstieg in Metern; `null` ohne Höhendaten.
   double? get ascentMeters => preprocessing.altitude.ascentMeters;
 
+  /// Abstieg in Metern (FR-0211); `null` ohne Höhendaten.
+  double? get descentMeters => preprocessing.altitude.descentMeters;
+
   /// Anzahl Positionslücken (FR-0194).
   int get positionGapCount => preprocessing.position.gaps.length;
 }

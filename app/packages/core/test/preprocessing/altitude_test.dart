@@ -31,7 +31,27 @@ String altFingerprint(AltitudeResult r) => [
   r.smoothed.map((s) => '${s.time}/${s.meters}').join(','),
 ].join('|');
 
+double? descentOf(List<double> meters) =>
+    runAlt([for (var i = 0; i < meters.length; i++) alt(i * 40, meters[i])])
+        .descentMeters;
+
 void main() {
+  group('Abstieg (FR-0211), spiegelbildlich zum Aufstieg (PAR-012)', () {
+    test('Schwelle 3 m zählt, darunter nicht; Aufstieg bleibt unverändert', () {
+      expect(descentOf([100, 97]), 3);
+      expect(descentOf([100, 97.01]), 0);
+      expect(descentOf([100, 98, 96]), 4);
+      expect(descentOf([100, 105, 100, 110]), 5);
+      expect(ascentOf([100, 105, 100, 110]), 15);
+      expect(
+        AltitudeProcessor(const PreprocessingParameters.v4())
+            .result(at: at(0))
+            .descentMeters,
+        isNull,
+      );
+    });
+  });
+
   group('PAR-013 Vertikalgenauigkeit', () {
     test('15 zählt, knapp darüber verworfen, null bleibt und wird gezählt', () {
       final r = runAlt([
