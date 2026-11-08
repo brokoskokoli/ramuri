@@ -341,10 +341,7 @@ class Vo2ProgressCard extends StatelessWidget {
                     alignment: AlignmentDirectional.centerStart,
                     minimumSize: const Size(0, RamuriTheme.minTarget),
                     padding: EdgeInsets.zero,
-                    textStyle: theme.labelLarge!.copyWith(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    textStyle: RamuriType.of(context).link,
                   ),
                   onPressed: () => openValueExplanation(
                     context,
