@@ -1,0 +1,156 @@
+# Freigabeliste für tool/check_net.py (SEC-0002, SEC-0008, ADR-0009). Eine Zeile je Eintrag:
+#   pub    <Paketname>      <Einordnung>   jedes Paket aus app/pubspec.lock, auch transitiv
+#   gradle <Gruppe:Artefakt> <Einordnung>  jede Gradle-Abhängigkeit (Versionskatalog eingeschlossen)
+#   plugin <Plugin-Id>      <Einordnung>   jedes Gradle-Plugin
+# Einordnung:
+#   kein-netz        im Quelltext auf Netzzugriff geprüft (dart:io HttpClient/Socket, package:http, web_socket, java.net,
+#                    okhttp, native Sockets), nichts gefunden oder nur Werkzeug-/Plattform-Code, der in der App nicht läuft
+#   nur-karte        Netz oder Kartenbibliothek, importierbar nur unter app/packages/adapters/lib/src/map/
+#   nur-entwicklung  Test-/Build-Werkzeug, in lib/ nie importierbar, nicht unter dependencies
+#   sdk              Flutter-SDK-Paket (Netz-APIs des SDK sperrt der Quelltext-Scan: NetworkAssetBundle, Image.network)
+# Ein neues Paket ist rot, bis sein Quelltext auf Netzfähigkeit geprüft und hier eingetragen ist.
+
+pub _fe_analyzer_shared nur-entwicklung
+pub analyzer nur-entwicklung
+pub archive kein-netz  # Archivformate, kein Netz
+pub args kein-netz
+pub async kein-netz
+pub bluez kein-netz  # Linux-Desktop (nicht im Android-Build)
+pub boolean_selector nur-entwicklung
+pub build nur-entwicklung
+pub build_config nur-entwicklung
+pub build_daemon nur-entwicklung
+pub build_runner nur-entwicklung
+pub built_collection nur-entwicklung
+pub built_value nur-entwicklung
+pub characters kein-netz
+pub charcode nur-entwicklung
+pub checked_yaml nur-entwicklung
+pub cli_config nur-entwicklung
+pub cli_util nur-entwicklung
+pub clock kein-netz
+pub code_assets kein-netz
+pub collection kein-netz
+pub convert kein-netz
+pub coverage nur-entwicklung
+pub crypto kein-netz
+pub cryptography kein-netz
+pub dart_earcut kein-netz
+pub dart_polylabel2 kein-netz
+pub dart_style nur-entwicklung
+pub dbus kein-netz  # Linux-Desktop, Unix-Socket (nicht im Android-Build)
+pub drift kein-netz
+pub drift_dev nur-entwicklung
+pub fake_async nur-entwicklung
+pub ffi kein-netz
+pub ffi_leak_tracker kein-netz
+pub file kein-netz
+pub fixnum kein-netz
+pub flutter sdk  # Flutter-SDK
+pub flutter_driver sdk  # Flutter-SDK
+pub flutter_lints nur-entwicklung
+pub flutter_localizations sdk  # Flutter-SDK
+pub flutter_map nur-karte  # Kachel-Abruf über package:http (NetworkTileProvider), nur über das Kartentor genutzt
+pub flutter_map_vector_tiles nur-karte  # Vektorkacheln und Stil über package:http, nur über das Kartentor genutzt
+pub flutter_secure_storage kein-netz  # Android-Schlüsselspeicher, kein Netz
+pub flutter_secure_storage_darwin kein-netz
+pub flutter_secure_storage_linux kein-netz
+pub flutter_secure_storage_platform_interface kein-netz
+pub flutter_secure_storage_web kein-netz
+pub flutter_secure_storage_windows kein-netz
+pub flutter_test sdk  # Flutter-SDK
+pub flutter_web_bluetooth kein-netz  # nur Web, Bluetooth
+pub flutter_web_plugins sdk  # Flutter-SDK
+pub frontend_server_client nur-entwicklung
+pub fuchsia_remote_debug_protocol sdk  # Flutter-SDK
+pub glob kein-netz
+pub graphs nur-entwicklung
+pub hooks kein-netz  # Build-Hook-Rahmen, Rechner des Entwicklers
+pub http nur-karte  # HTTP-Client (dart:io HttpClient), nur der Kartenadapter
+pub http_multi_server nur-entwicklung
+pub http_parser kein-netz  # reiner Parser, kein Netz
+pub integration_test sdk  # Flutter-SDK
+pub intl kein-netz  # nur dart:io für Locale
+pub io nur-entwicklung
+pub jni kein-netz  # Java-Brücke, in der Quelle kein Netz
+pub jni_flutter kein-netz
+pub jni_util kein-netz
+pub json_annotation nur-entwicklung
+pub latlong2 kein-netz
+pub leak_tracker nur-entwicklung
+pub leak_tracker_flutter_testing nur-entwicklung
+pub leak_tracker_testing nur-entwicklung
+pub lints nur-entwicklung
+pub logging kein-netz
+pub matcher nur-entwicklung
+pub material_color_utilities kein-netz
+pub meta kein-netz
+pub mgrs_dart kein-netz
+pub mime nur-entwicklung
+pub native_toolchain_c kein-netz  # Build-Werkzeug
+pub node_preamble nur-entwicklung
+pub objective_c kein-netz
+pub package_config kein-netz  # Netz nur in Entwicklungswerkzeug (util_io), nicht in der App
+pub path kein-netz
+pub path_provider kein-netz
+pub path_provider_android kein-netz  # Pfade, kein Netz
+pub path_provider_foundation kein-netz
+pub path_provider_linux kein-netz
+pub path_provider_platform_interface kein-netz
+pub path_provider_windows kein-netz
+pub petitparser kein-netz
+pub platform kein-netz
+pub plugin_platform_interface kein-netz
+pub pool nur-entwicklung
+pub posix kein-netz
+pub process kein-netz
+pub proj4dart kein-netz
+pub pub_semver kein-netz
+pub pubspec_parse nur-entwicklung
+pub recase nur-entwicklung
+pub record_use kein-netz
+pub shelf nur-entwicklung  # Test-Server
+pub shelf_packages_handler nur-entwicklung
+pub shelf_static nur-entwicklung
+pub shelf_web_socket nur-entwicklung
+pub simple_sparse_list kein-netz
+pub sky_engine sdk  # Flutter-SDK
+pub source_gen nur-entwicklung
+pub source_map_stack_trace nur-entwicklung
+pub source_maps nur-entwicklung
+pub source_span kein-netz
+pub sqlite3 kein-netz  # Build-Hook lädt SQLite-Binärdatei beim Bau (Hash geprüft, Rechner des Entwicklers), zur Laufzeit kein Netz
+pub sqlparser nur-entwicklung
+pub stack_trace kein-netz
+pub stream_channel kein-netz
+pub stream_transform nur-entwicklung
+pub string_scanner kein-netz
+pub sync_http nur-entwicklung
+pub term_glyph kein-netz
+pub test nur-entwicklung  # Testläufer (lokaler Server)
+pub test_api nur-entwicklung
+pub test_core nur-entwicklung
+pub typed_data kein-netz
+pub unicode kein-netz
+pub universal_ble kein-netz  # Bluetooth, kein Netz
+pub uuid kein-netz
+pub vector_math kein-netz
+pub vm_service nur-entwicklung  # Debug-Dienst (WebSocket)
+pub watcher nur-entwicklung
+pub web nur-karte  # Browser-Bindungen inkl. WebSocket/fetch, nur Web, nie in App-Code
+pub web_socket nur-entwicklung  # Test-/Debug-Werkzeug
+pub web_socket_channel nur-entwicklung  # Test-/Debug-Werkzeug
+pub webdriver nur-entwicklung  # Test-Treiber (HTTP)
+pub webkit_inspection_protocol nur-entwicklung
+pub win32 kein-netz
+pub wkt_parser kein-netz
+pub xdg_directories kein-netz
+pub xml kein-netz
+pub yaml kein-netz
+pub yaml_edit nur-entwicklung
+
+gradle junit:junit nur-entwicklung  # Unit-Tests
+plugin dev.flutter.flutter-plugin-loader nur-entwicklung  # Build-Werkzeug, nicht im APK
+plugin dev.flutter.flutter-gradle-plugin nur-entwicklung  # Build-Werkzeug, nicht im APK
+plugin com.android.application nur-entwicklung  # Build-Werkzeug, nicht im APK
+plugin org.jetbrains.kotlin.android nur-entwicklung  # Build-Werkzeug, nicht im APK
