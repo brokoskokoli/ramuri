@@ -173,7 +173,7 @@
   "runZoneValue": "Zone {zone}",
   "runZoneBelow": "below zone 1",
   "runZoneAbove": "Zone {zone} (above 100 % of reserve)",
-  "runZoneNoHeartRate": "not available (no heart rate)",
+  "runZoneNoHeartRate": "Zone not available",
   "runZoneNoBasis": "not available – check resting and maximum heart rate in the profile",
   "runGpsSearching": "Searching for signal …",
   "runGpsOk": "signal ok",

@@ -716,7 +716,7 @@
       }
     }
   },
-  "runZoneNoHeartRate": "nicht verfügbar (kein Puls)",
+  "runZoneNoHeartRate": "Zone nicht verfügbar",
   "runZoneNoBasis": "nicht verfügbar – Ruhepuls und HFmax im Profil prüfen",
   "runGpsSearching": "Suche Signal …",
   "runGpsOk": "Signal ok",

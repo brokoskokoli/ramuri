@@ -1,3 +1,4 @@
+import 'package:adapters/adapters.dart' show RouteMapMark;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -326,6 +327,93 @@ void main() {
         handle.dispose();
       },
     );
+
+    // Runde 4: Bei fast konstanter Pace (Spanne 7 s) füllt Rauschen nicht die
+    // Höhe; die Achse ist mindestens 60 s breit, um den Kernbereich zentriert.
+    ChartLayer steady({List<double> extra = const []}) => ChartLayer.pace(
+      name: 'Pace',
+      parts: [
+        [
+          for (var i = 0; i < 200; i++)
+            DetailPoint(i.toDouble(), 247 + (i % 8).toDouble()),
+          for (var i = 0; i < extra.length; i++)
+            DetailPoint(200.0 + i, extra[i]),
+        ],
+      ],
+      color: Colors.blue,
+      format: (v) => '${v!.round()}',
+    );
+
+    test('Pace-Achse: Mindestspanne 60 s, um den Kernbereich zentriert', () {
+      expect(paceAxisMinSpanSeconds, 60);
+      final r = steady().range;
+      expect(r.hi - r.lo, closeTo(60, 1e-9));
+      expect((r.lo + r.hi) / 2, closeTo(250.5, 1e-9));
+      // Ohne Mindestspanne wären es 7 s.
+      final bare = ChartLayer(
+        name: 'Pace',
+        parts: steady().parts,
+        color: Colors.blue,
+        format: (v) => '',
+        robust: true,
+      ).range;
+      expect(bare.hi - bare.lo, closeTo(7, 1e-9));
+      // Breiter als 60 s: unverändert.
+      final wide = ChartLayer(
+        name: 'Pace',
+        parts: [
+          [for (var i = 0; i < 100; i++) DetailPoint(i.toDouble(), 240.0 + i)],
+        ],
+        color: Colors.blue,
+        format: (v) => '',
+        robust: true,
+        minSpan: paceAxisMinSpanSeconds,
+      ).range;
+      expect(wide.hi - wide.lo, greaterThan(60));
+    });
+
+    testWidgets('Rückfall-Zeichnung: Kilometermarke über der Endmarke', (
+      tester,
+    ) async {
+      const a = RoutePoint(50, 8);
+      const b = RoutePoint(50.001, 8);
+      final painter = RoutePainter(
+        route: const [
+          [a, b],
+        ],
+        lineColor: Colors.black,
+        startColor: Colors.green,
+        endColor: Colors.red,
+        marks: const [RouteMapMark(index: 2, position: b)],
+        markColor: Colors.white,
+        markTextColor: Colors.black,
+        markBorderColor: Colors.black,
+      );
+      await tester.pumpWidget(
+        Center(
+          child: SizedBox(
+            width: 200,
+            height: 200,
+            child: CustomPaint(painter: painter),
+          ),
+        ),
+      );
+      // Reihenfolge: Ende (rot), dann die weiße Marke darüber.
+      expect(
+        find.byType(CustomPaint).last,
+        paints
+          ..circle(color: Colors.green)
+          ..circle(color: Colors.red)
+          ..circle(color: Colors.white),
+      );
+    });
+
+    test('Pace-Achse: Hinweis nur bei wirklichem Abschneiden', () {
+      // Rauschen von 20 s liegt in der 60-s-Achse: nichts abgeschnitten.
+      expect(steady(extra: [232, 270]).clipped, isFalse);
+      // 100 s daneben liegt außerhalb.
+      expect(steady(extra: [400]).clipped, isTrue);
+    });
 
     testWidgets('ohne Ausreißer: kein Hinweis', (tester) async {
       await tester.pumpWidget(

@@ -159,8 +159,8 @@ void main() {
       noPosition: (0, 601),
     );
     await pumpPage(tester, d, id);
-    expect(text('sum_avg_hr'), 'nicht verfügbar (kein Puls)');
-    expect(text('sum_max_hr'), 'nicht verfügbar (kein Puls)');
+    expect(text('sum_avg_hr'), 'nicht verfügbar\n(kein Puls)');
+    expect(text('sum_max_hr'), 'nicht verfügbar\n(kein Puls)');
     expect(text('run_ascent'), 'nicht verfügbar');
     expect(text('run_descent'), 'nicht verfügbar');
     expect(text('run_distance'), 'nicht verfügbar');

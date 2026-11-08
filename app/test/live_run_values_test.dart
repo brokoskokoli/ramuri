@@ -420,6 +420,94 @@ void main() {
     }
   });
 
+  group('Layout 411x914, Faktor 1,0 (Gerätebefund E2E 36)', () {
+    // Alle laufenden Werte stehen ohne Anschnitt und ohne Scrollen über dem
+    // Bedienfeld, auch ohne Puls und ohne Schrittfrequenz.
+    for (final cadenceAvailable in [false, true]) {
+      testWidgets(
+        'echte Schrift, ${cadenceAvailable ? 'mit' : 'ohne'} Sensoren: '
+        'alle Werte sichtbar, Abstand zum Bedienfeld',
+        (tester) async {
+          await loadManrope(tester);
+          final cadence = FakeCadenceSensor(
+            cadenceAvailable
+                ? CadenceAvailability.available
+                : CadenceAvailability.permissionDenied,
+          );
+          final d = Device()..cadence = cadence;
+          await d.start(tester, const Locale('de'));
+          await d.skipSetup(tester);
+          tester.view.physicalSize = const Size(411, 914);
+          tester.view.devicePixelRatio = 1;
+          // Statusleiste und Navigationsleiste des Geräts.
+          tester.view.padding = const FakeViewPadding(top: 28, bottom: 24);
+          tester.view.viewPadding = const FakeViewPadding(top: 28, bottom: 24);
+          addTearDown(tester.view.reset);
+          await d.session.profile.save(
+            const ProfileRecord(maxHeartRateBpm: 190, restingHeartRateBpm: 60),
+          );
+          await tester.tap(key('home_start_run'));
+          await tester.pumpAndSettle();
+          await tester.tap(key('run_start_ready'));
+          await tester.pumpAndSettle();
+          await walk(d, tester, 5);
+          if (cadenceAvailable) {
+            d.heartRate.emitReading('hr1', d.clock.now(), 150);
+            cadence.emit(d.clock.now(), 172);
+            await tester.pump(const Duration(seconds: 1));
+          }
+          expect(tester.takeException(), isNull);
+          final viewport = tester.getRect(find.byType(Scrollable).first);
+          final controlsTop = tester.getRect(key('run_pause')).top;
+          for (final k in [
+            'run_time',
+            'run_distance',
+            'run_pace',
+            'run_avg_pace',
+            'run_hr',
+            'run_zone',
+            'run_moving_time',
+            'run_ascent',
+            'run_cadence',
+          ]) {
+            final r = tester.getRect(key(k));
+            expect(r.bottom, lessThanOrEqualTo(viewport.bottom), reason: k);
+            expect(r.bottom, lessThan(controlsTop), reason: k);
+          }
+          // Die Karte der Schrittfrequenz endet samt Rand im sichtbaren Bereich.
+          final card = find.ancestor(
+            of: key('run_cadence'),
+            matching: find.byType(RamuriCard),
+          );
+          expect(
+            tester.getRect(card.first).bottom,
+            lessThanOrEqualTo(viewport.bottom - 8),
+            reason: 'Karte Schrittfrequenz nicht angeschnitten',
+          );
+        },
+      );
+    }
+
+    testWidgets('ohne Puls: Zone ausgewiesen, ohne Doppelung für die '
+        'Sprachausgabe', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final d = Device();
+      await openRun(d, tester);
+      await walk(d, tester, 5);
+      expect(text('run_hr'), 'nicht verfügbar');
+      expect(text('run_zone'), 'Zone nicht verfügbar');
+      final label = tester
+          .getSemantics(find.bySemanticsLabel(RegExp('Zone nicht verfügbar')))
+          .label;
+      expect(
+        'Zone nicht verfügbar'.allMatches(label),
+        hasLength(1),
+        reason: 'Text und Balken sagen die Zone nur einmal: $label',
+      );
+      semantics.dispose();
+    });
+  });
+
   group('Layout 360x640, Schriftfaktor 1,3', () {
     for (final dark in [false, true]) {
       for (final paused in [false, true]) {

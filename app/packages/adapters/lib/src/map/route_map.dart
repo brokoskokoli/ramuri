@@ -83,7 +83,8 @@ class RouteMap extends StatelessWidget {
     this.marks = const [],
   });
 
-  /// Kilometermarken (Detailansicht); sie liegen über der Linie, unter Start und Ende.
+  /// Kilometermarken (Detailansicht); sie liegen über Linie, Start und Ende, damit keine Marke halb verdeckt ist, wo sie
+  /// an einem Endpunkt liegt.
   final List<RouteMapMark> marks;
 
   /// Rand um die Route; unten mehr Platz, damit die Quellenangabe keine Marke verdeckt.
@@ -233,6 +234,13 @@ class RouteMap extends StatelessWidget {
     return [
       PolylineLayer(polylines: lines),
       CircleLayer(circles: singles),
+      if (all.isNotEmpty)
+        CircleLayer(
+          circles: [
+            dot(all.last, style.endColor),
+            dot(all.first, style.startColor),
+          ],
+        ),
       if (marks.isNotEmpty)
         MarkerLayer(
           markers: [
@@ -267,13 +275,6 @@ class RouteMap extends StatelessWidget {
                   ),
                 ),
               ),
-          ],
-        ),
-      if (all.isNotEmpty)
-        CircleLayer(
-          circles: [
-            dot(all.last, style.endColor),
-            dot(all.first, style.startColor),
           ],
         ),
     ];

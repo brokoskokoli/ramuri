@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
@@ -5,6 +7,11 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
+
+/// Untere Grenze der Balkenbreite (Anteil der Spur) und Mindestspanne der Pace
+/// in s/km, über die die Balken von voll bis zur Grenze laufen (Detail.dc.html).
+const double barMinFraction = 0.4;
+const double barMinSpanSeconds = 40;
 
 /// Kilometertabelle der Detailansicht nach `Detail.dc.html` (FR-0211): je
 /// voller Kilometer (bei Meilen je Meile) die Bewegungszeit, ein Balken nach
@@ -76,9 +83,16 @@ class KilometerTable extends StatelessWidget {
     final mean = scale.isEmpty
         ? 0.0
         : scale.reduce((a, b) => a + b) / scale.length;
-    double fraction(double pace) => slow - fast < 1e-9
-        ? 1
-        : (0.4 + 0.6 * (slow - pace) / (slow - fast)).clamp(0.05, 1.0);
+    // Detail.dc.html: 40 % bis 100 % über eine Spanne von mindestens 40 s, der
+    // schnellste volle Abschnitt voll. Wenige Sekunden Unterschied sehen so nicht
+    // nach viel aus; ein angebrochener Abschnitt mit absurder Pace steht auf der
+    // unteren Grenze.
+    final span = math.max(barMinSpanSeconds, slow - fast);
+    double fraction(double pace) =>
+        (1 - (pace - fast) / span * (1 - barMinFraction)).clamp(
+          barMinFraction,
+          1.0,
+        );
 
     final head = text.labelMedium?.copyWith(color: colors.textMuted);
     final cell = text.bodyMedium?.copyWith(

@@ -34,9 +34,35 @@ class RamuriValueTile extends StatelessWidget {
   /// Schlüssel auf dem Text mit Zahl und Einheit (für Tests und Hilfen).
   final Key? valueKey;
 
-  /// [value] ist ein Satz („nicht verfügbar“), keine Zahl: gesetzt in der
-  /// Schrift des Fließtexts statt in der Zahlenschrift.
+  /// [value] ist ein Satz („nicht verfügbar (Grund)“), keine Zahl: gesetzt
+  /// klein in der Schrift des Fließtexts, der Grund in einer eigenen Zeile.
   final bool textValue;
+
+  /// Innenabstand der Kachel (links und rechts je einmal).
+  static const double padding = 12;
+
+  /// Stil des Grundes bei [textValue].
+  static TextStyle reasonStyle(BuildContext context) =>
+      Theme.of(context).textTheme.bodySmall!
+          .copyWith(fontSize: 12, height: 1.3);
+
+  /// Trennt „nicht verfügbar (Grund)“ und „nicht verfügbar – Grund“ in Aussage
+  /// und Grund; ohne Grund ist er null.
+  static (String, String?) splitReason(String value) {
+    final m = RegExp(r'^(.+?)\s*(?:\((.+)\)|–\s*(.+))$').firstMatch(value);
+    if (m == null) return (value, null);
+    final reason = m.group(2) ?? m.group(3)!;
+    return (m.group(1)!, m.group(2) != null ? '($reason)' : reason);
+  }
+
+  /// Das längste Wort des Grundes (für die Spaltenwahl im Raster).
+  String? get longestReasonWord {
+    if (!textValue) return null;
+    final reason = splitReason(value).$2;
+    if (reason == null) return null;
+    final words = reason.split(RegExp(r'\s+'));
+    return words.reduce((a, b) => a.length >= b.length ? a : b);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,17 +71,18 @@ class RamuriValueTile extends StatelessWidget {
       child: RamuriCard(
         tone: tone,
         radius: 18,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(padding),
         // Builder: auf der dunklen Karte gilt das dunkle Theme erst darunter.
         child: Builder(
           builder: (context) {
             final type = RamuriType.of(context);
             final text = Theme.of(context).textTheme;
-            final valueStyle = textValue
-                ? text.titleSmall
-                : size == RamuriValueSize.large
+            final valueStyle = size == RamuriValueSize.large
                 ? type.value
                 : type.valueSmall;
+            final (head, reason) = textValue
+                ? splitReason(value)
+                : (value, null);
             return Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,7 +93,16 @@ class RamuriValueTile extends StatelessWidget {
                   key: valueKey,
                   TextSpan(
                     children: [
-                      TextSpan(text: value, style: valueStyle),
+                      if (textValue) ...[
+                        TextSpan(text: head, style: text.labelMedium),
+                        // Der Grund steht in einer eigenen Zeile.
+                        if (reason != null)
+                          TextSpan(
+                            text: '\n$reason',
+                            style: reasonStyle(context),
+                          ),
+                      ] else
+                        TextSpan(text: value, style: valueStyle),
                       if (unit != null)
                         TextSpan(
                           text: ' $unit',
@@ -103,7 +139,13 @@ class RamuriTileGrid extends StatelessWidget {
     final scaled = MediaQuery.textScalerOf(context).scale(16) / 16 > 1.15;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = scaled || constraints.maxWidth < 340 ? 2 : 3;
+        var columns = scaled || constraints.maxWidth < 340 ? 2 : 3;
+        // Passt ein Wort der Ersatztexte nicht in die schmale Spalte, bricht es
+        // mitten im Wort: dann weniger Spalten.
+        while (columns > 1 &&
+            !_wordsFit(context, constraints.maxWidth, columns)) {
+          columns--;
+        }
         return Column(
           children: [
             for (var i = 0; i < children.length; i += columns) ...[
@@ -128,5 +170,25 @@ class RamuriTileGrid extends StatelessWidget {
         );
       },
     );
+  }
+
+  bool _wordsFit(BuildContext context, double width, int columns) {
+    final inner =
+        (width - gap * (columns - 1)) / columns - 2 * RamuriValueTile.padding;
+    final style = RamuriValueTile.reasonStyle(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    for (final child in children) {
+      final word = child is RamuriValueTile ? child.longestReasonWord : null;
+      if (word == null) continue;
+      final painter = TextPainter(
+        text: TextSpan(text: word, style: style),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+      final fits = painter.width <= inner;
+      painter.dispose();
+      if (!fits) return false;
+    }
+    return true;
   }
 }

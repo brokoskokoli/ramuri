@@ -26,13 +26,11 @@ class RunPaceHeartChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
-    final pace = ChartLayer(
+    final pace = ChartLayer.pace(
       name: l10n.detPaceName,
       parts: data.pace,
       color: scheme.primary,
       format: formatter.pace,
-      inverted: true,
-      robust: true,
     );
     final hr = ChartLayer(
       name: l10n.detHeartRateName,
@@ -173,6 +171,10 @@ class RunRouteSection extends StatelessWidget {
   }
 }
 
+/// Mindestspanne der Pace-Achse in s/km: Bei fast konstanter Pace füllte sonst
+/// jedes Rauschen die Höhe. Die Achse wird um den Kernbereich zentriert.
+const double paceAxisMinSpanSeconds = 60;
+
 /// Eine Linie (Reihe aus Teilen) eines Diagramms.
 class ChartLayer {
   const ChartLayer({
@@ -182,8 +184,21 @@ class ChartLayer {
     required this.format,
     this.inverted = false,
     this.robust = false,
+    this.minSpan = 0,
     this.note,
   });
+
+  /// Die Pace-Reihe: schnell oben, Ausreißer am Rand, Achse mindestens
+  /// [paceAxisMinSpanSeconds] breit.
+  const ChartLayer.pace({
+    required this.name,
+    required this.parts,
+    required this.color,
+    required this.format,
+  }) : inverted = true,
+       robust = true,
+       minSpan = paceAxisMinSpanSeconds,
+       note = null;
 
   final String name;
   final List<List<DetailPoint>> parts;
@@ -196,6 +211,10 @@ class ChartLayer {
   /// Achse nach dem 2.- bis 98.-Perzentil, Ausreißer werden am Rand
   /// abgeschnitten (langsames Gehen soll die Pace-Achse nicht stauchen).
   final bool robust;
+
+  /// Kleinste Spanne der Achse in Werteinheiten; schmaler wird sie um die Mitte
+  /// des Kernbereichs aufgeweitet.
+  final double minSpan;
 
   /// Kurzer Hinweis zur Reihe, sichtbar unter dem Diagramm und in der Semantik.
   final String? note;
@@ -227,6 +246,11 @@ class ChartLayer {
     if (robust && all.length >= 20) {
       lo = all[(all.length * 0.02).floor()];
       hi = all[math.min(all.length - 1, (all.length * 0.98).ceil())];
+    }
+    if (hi - lo < minSpan) {
+      final mid = (lo + hi) / 2;
+      lo = mid - minSpan / 2;
+      hi = mid + minSpan / 2;
     }
     if (hi - lo < 1e-9) {
       lo -= 1;
@@ -760,6 +784,11 @@ class RoutePainter extends CustomPainter {
     for (final dot in s.dots) {
       canvas.drawCircle(dot, strokeWidth / 1.2, Paint()..color = lineColor);
     }
+    // Start und Ende zuerst: die Kilometermarken liegen darüber.
+    if (s.start != null) {
+      canvas.drawCircle(s.start!, markerRadius, Paint()..color = startColor);
+      canvas.drawCircle(s.end!, markerRadius, Paint()..color = endColor);
+    }
     final fill = markColor, text = markTextColor, border = markBorderColor;
     if (fill != null && text != null && border != null) {
       for (final m in s.marks) {
@@ -786,10 +815,6 @@ class RoutePainter extends CustomPainter {
         )..layout();
         tp.paint(canvas, m.at - Offset(tp.width / 2, tp.height / 2));
       }
-    }
-    if (s.start != null) {
-      canvas.drawCircle(s.start!, markerRadius, Paint()..color = startColor);
-      canvas.drawCircle(s.end!, markerRadius, Paint()..color = endColor);
     }
   }
 

@@ -248,6 +248,8 @@ class LiveRunView extends StatelessWidget {
         ),
         error: failed,
       ),
+      // Abstand wie zwischen den Blöcken der Zusammenfassung.
+      const SizedBox(height: 16),
     ];
   }
 

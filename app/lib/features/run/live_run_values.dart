@@ -193,7 +193,11 @@ class LiveValues extends StatelessWidget {
         id: id,
         value: value,
         unit: unit,
-        valueStyle: style ?? type.valueSmall,
+        // Ersatztexte („nicht verfügbar“, „noch keine Daten“) klein, nicht in
+        // Wertgröße: sie brächen sonst in der halben Breite mehrzeilig um.
+        valueStyle: value == na || value == l10n.runNoDataYet
+            ? text.labelMedium!
+            : style ?? type.valueSmall,
         unitStyle: unitStyle,
       ),
     );
@@ -578,7 +582,7 @@ class _HeartCard extends StatelessWidget {
                           ? Text(
                               l10n.runUnavailable,
                               key: const Key('run_hr'),
-                              style: text.titleMedium,
+                              style: text.labelMedium,
                             )
                           : LiveValueText(
                               id: 'run_hr',
@@ -601,7 +605,12 @@ class _HeartCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            ZoneMeter(zone: zoneNumber, semanticLabel: zoneText),
+            // Ohne Zone sagt schon der Text „Zone nicht verfügbar“; der Balken
+            // wiederholt es nicht für die Sprachausgabe.
+            ZoneMeter(
+              zone: zoneNumber,
+              semanticLabel: zoneNumber == null ? '' : zoneText,
+            ),
           ],
         ),
       ),

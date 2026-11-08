@@ -343,7 +343,7 @@ void main() {
       await openRun(d, tester);
       expect(text('run_hr'), 'nicht verfügbar');
       expect(text('run_zone'), contains('nicht verfügbar'));
-      expect(text('run_zone'), contains('kein Puls'));
+      expect(text('run_zone'), 'Zone nicht verfügbar');
       expect(text('run_cadence'), 'nicht verfügbar');
       expect(text('run_ascent'), 'nicht verfügbar');
       expect(text('run_distance'), 'noch keine Daten');

@@ -5,6 +5,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:running_app/ui/ui.dart';
+
 import 'app_harness.dart';
 
 Finder key(String k) => find.byKey(Key(k));
@@ -409,6 +411,32 @@ void main() {
   });
 
   group('Zusammenfassung nach dem Lauf (FR-0037)', () {
+    testWidgets('Hinweis „gespeichert“ hat Abstand wie zwischen den Blöcken', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      await runAndFinish(d, tester, 400);
+      Rect card(String id) => tester.getRect(
+        find.ancestor(of: key(id), matching: find.byType(RamuriCard)).first,
+      );
+      final banner = tester.getRect(
+        find
+            .descendant(
+              of: find.ancestor(
+                of: key('run_done_status'),
+                matching: find.byType(Card),
+              ),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      final hero = card('run_distance');
+      final firstTile = card('run_avg_pace');
+      final between = firstTile.top - hero.bottom;
+      expect(between, 16, reason: 'Abstand zwischen den Blöcken');
+      expect(hero.top - banner.bottom, between, reason: 'Hinweis und Kopf');
+    });
+
     testWidgets(
       'alle Punkte; Einordnung mit Vorläufen; Fehlendes nicht als 0',
       (tester) async {
@@ -456,8 +484,8 @@ void main() {
     ) async {
       final d = await started(tester);
       await runAndFinish(d, tester, 120, heartRate: false);
-      expect(text('sum_avg_hr'), 'nicht verfügbar (kein Puls)');
-      expect(text('sum_max_hr'), 'nicht verfügbar (kein Puls)');
+      expect(text('sum_avg_hr'), 'nicht verfügbar\n(kein Puls)');
+      expect(text('sum_max_hr'), 'nicht verfügbar\n(kein Puls)');
       expect(text('sum_zones_unavailable'), contains('nicht verfügbar'));
       expect(text('sum_trimp'), contains('nicht verfügbar'));
       expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);

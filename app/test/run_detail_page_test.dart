@@ -187,6 +187,54 @@ void main() {
       },
     );
 
+    // Balkenformel nach Detail.dc.html:119 (Runde 4): 8 s Unterschied sehen
+    // nicht nach viel aus; angebrochen mit absurder Pace steht auf 40 %.
+    testWidgets('Balken: kleine Unterschiede flach, breite Spanne bis 40 %, '
+        'angebrochen begrenzt', (tester) async {
+      final close = _splits([
+        _split(1, seconds: 255, pace: 255),
+        _split(2, seconds: 250, pace: 250),
+        _split(3, seconds: 258, pace: 258),
+        _split(4, seconds: 60, pace: 900, partial: true, meters: 100),
+        _split(5, seconds: 60, pace: 200, partial: true, meters: 300),
+      ]);
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: close, formatter: _km)),
+      );
+      double share(int i) =>
+          tester
+              .getSize(
+                find.descendant(
+                  of: key('detail_km_bar_$i'),
+                  matching: find.byType(FractionallySizedBox),
+                ),
+              )
+              .width /
+          tester.getSize(key('detail_km_bar_$i')).width;
+      expect(share(2), closeTo(1, 1e-6));
+      expect(share(1), closeTo(1 - 5 / 40 * 0.6, 1e-3));
+      expect(share(3), closeTo(1 - 8 / 40 * 0.6, 1e-3));
+      expect(share(3), greaterThan(0.85), reason: '8 s sehen nicht nach 38 %');
+      expect(share(4), closeTo(0.4, 1e-6), reason: 'absurd langsam: Grenze');
+      expect(share(5), closeTo(1, 1e-6), reason: 'schneller als alle: voll');
+
+      final wide = _splits([
+        _split(1, seconds: 300, pace: 300),
+        _split(2, seconds: 420, pace: 420),
+        _split(3, seconds: 360, pace: 360),
+      ]);
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: wide, formatter: _km)),
+      );
+      expect(share(1), closeTo(1, 1e-6));
+      expect(
+        share(2),
+        closeTo(0.4, 1e-3),
+        reason: 'Spanne 120 s: langsamster 40 %',
+      );
+      expect(share(3), closeTo(0.7, 1e-3));
+    });
+
     testWidgets('Balken: gerenderte Höhe 10, Breite nach der Pace', (
       tester,
     ) async {
@@ -202,10 +250,11 @@ void main() {
       final track = tester.getSize(key('detail_km_bar_1'));
       expect(track.height, 10);
       expect(track.width, greaterThan(20));
-      // Schnellster Abschnitt (330) voll, langsamster (360) 40 %, ohne Pace nichts.
+      // Schnellster Abschnitt (330) voll; 30 s langsamer (360) bei der Mindest-
+      // spanne von 40 s: 100 % - 30/40 * 60 % = 55 %; ohne Pace nichts.
       expect(fill(1), Size(track.width, 10));
       expect(fill(2).height, 10);
-      expect(fill(2).width, closeTo(track.width * 0.4, 0.01));
+      expect(fill(2).width, closeTo(track.width * 0.55, 0.01));
       expect(fill(3).width, 0);
       expect(fill(4), Size(track.width, 10));
     });
