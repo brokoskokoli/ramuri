@@ -62,3 +62,10 @@ class UnitFormatter {
     return '${unit.elevationFromMeters(meters).round()} $elevationLabel';
   }
 }
+
+/// Höhenwert mit Vorzeichen für Anstieg („+“) oder Gefälle („−“); null hat
+/// keines („0 m“, nicht „+0 m“).
+String signedElevation(String sign, String formatted) =>
+    formatted.contains('0') && !RegExp(r'[1-9]').hasMatch(formatted)
+    ? formatted
+    : '$sign$formatted';

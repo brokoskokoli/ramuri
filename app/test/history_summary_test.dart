@@ -247,8 +247,10 @@ Future<Device> started(WidgetTester tester, {String locale = 'de'}) async {
 final historyList = find.byWidgetPredicate(
   (w) =>
       w is ListView &&
-      w.key is PageStorageKey<String> &&
-      (w.key! as PageStorageKey<String>).value.startsWith('history_list'),
+      w.key is PageStorageKey<(StorageSession, String)> &&
+      (w.key! as PageStorageKey<(StorageSession, String)>).value.$2.startsWith(
+        'history_list',
+      ),
 );
 
 void main() {
@@ -577,7 +579,10 @@ void main() {
 Future<String> _storeSnapshot(Device d) async {
   final s = d.session;
   final runs = await s.runs.list();
-  final out = StringBuffer('runs=${runs.length}');
+  final out = StringBuffer('runs=${runs.length}')
+    ..write(
+      ' settings=${(await s.settings.all()).entries.map((e) => '${e.key}=${e.value}').toList()..sort()}',
+    );
   for (final r in runs) {
     final raw = await s.rawData.read(r.id);
     final values = await s.values.read(ValueOwner.run(r.id));

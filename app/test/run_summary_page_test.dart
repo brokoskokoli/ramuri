@@ -188,13 +188,21 @@ void main() {
       // am „/“) und steht in einem Stück in der Zeile.
       for (final k in ['run_avg_pace', 'sum_best_pace']) {
         final span = (key(k).evaluate().single.widget as Text).textSpan!;
-        expect(span.toPlainText(), contains('min⁠/⁠km'), reason: k);
+        expect(
+          span.toPlainText(includeSemanticsLabels: false),
+          contains('min⁠/⁠km'),
+          reason: k,
+        );
         final box = tester.renderObject<RenderParagraph>(key(k));
         final lines = box
             .getBoxesForSelection(
               TextSelection(
-                baseOffset: span.toPlainText().indexOf('min'),
-                extentOffset: span.toPlainText().length,
+                baseOffset: span
+                    .toPlainText(includeSemanticsLabels: false)
+                    .indexOf('min'),
+                extentOffset: span
+                    .toPlainText(includeSemanticsLabels: false)
+                    .length,
               ),
             )
             .map((b) => b.top.round())

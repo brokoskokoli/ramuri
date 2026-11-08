@@ -5,3 +5,6 @@ const String _joiner = '\u2060';
 /// schmales Display).
 String unbreakableUnit(String unit) =>
     unit.replaceAll('/', '$_joiner/$_joiner');
+
+/// Dieselbe Einheit ohne Wortverbinder, für die Sprachausgabe.
+String spokenUnit(String unit) => unit.replaceAll(_joiner, '');

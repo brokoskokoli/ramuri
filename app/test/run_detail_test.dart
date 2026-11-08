@@ -21,6 +21,7 @@ Future<int> seedDetailRun(
   (int, int)? noPosition,
   (int, int)? pause,
   (int, int)? noHeartRate,
+  double Function(int second)? altitude,
 }) async {
   final run = await s.runs.create(startedAt: start);
   bool inside((int, int)? r, int i) => r != null && i >= r.$1 && i < r.$2;
@@ -44,7 +45,7 @@ Future<int> seedDetailRun(
             RawAltitude(
               time: start.add(Duration(seconds: i)),
               source: 'gps',
-              meters: 100 + (i % 50).toDouble(),
+              meters: altitude?.call(i) ?? 100 + (i % 50).toDouble(),
               verticalAccuracyMeters: 3,
             ),
       ],
@@ -122,6 +123,9 @@ Future<int> openDetail(
   tester_ = tester;
   final id = await seed();
   await openHistory(d, tester);
+  // Bei großer Schrift liegt der Lauf unter dem Bildschirmrand.
+  await tester.ensureVisible(key('history_run_$id'));
+  await tester.pumpAndSettle();
   await tester.tap(key('history_run_$id'));
   await tester.pumpAndSettle();
   return id;

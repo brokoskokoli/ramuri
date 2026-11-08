@@ -238,7 +238,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       (_) => RamuriSegmentedToggle<HistoryRange>(
         key: const Key('history_range'),
         expanded: true,
-        style: RamuriSegmentedStyle.soft,
+        style: RamuriSegmentedStyle.dark,
         semanticLabel: l10n.histRangeLabel,
         selected: range,
         onChanged: (r) => setState(() => _view.range = r),
@@ -302,7 +302,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return ListView.builder(
       // Je Zeitraum eine eigene Position: ein Wechsel beginnt oben, die Rückkehr
       // aus einem anderen Tab findet die Stelle wieder (PageStorage der Route).
-      key: PageStorageKey<String>('history_list_${range.name}'),
+      // Die Sitzung gehört zum Schlüssel: Nach einem Archiv-Import beginnt die
+      // Liste oben, nicht an der Stelle der alten Daten.
+      key: PageStorageKey<(StorageSession, String)>((
+        widget.session,
+        'history_list_${range.name}',
+      )),
       padding: _pagePadding,
       itemCount: rows.length,
       itemBuilder: (context, i) => rows[i](context),
@@ -512,6 +517,7 @@ class _RunTile extends StatelessWidget {
               pace == null
                   ? l10n.runUnavailable
                   : unbreakableUnit(formatter.pace(pace)),
+              semanticsLabel: pace == null ? null : formatter.pace(pace),
               key: Key('history_pace_$id'),
               style: text.bodyMedium,
             ),

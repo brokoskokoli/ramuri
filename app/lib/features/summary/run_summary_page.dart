@@ -152,9 +152,11 @@ class RunSummaryPage extends StatelessWidget {
       );
     }
     final (value, found) = unit == null ? (text, null) : splitUnit(text, unit);
+    // Null hat kein Vorzeichen: nicht „+0 m“ oder „−0 m“.
+    final signed = prefix.isEmpty ? value : signedElevation(prefix, value);
     return RamuriValueTile(
       label: label,
-      value: '$prefix$value',
+      value: signed,
       unit: found == null ? null : unbreakableUnit(found),
       estimated: estimated,
       valueKey: Key(id),

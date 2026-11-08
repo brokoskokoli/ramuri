@@ -294,8 +294,12 @@ void main() {
           .hasAction(SemanticsAction.tap);
       expect(canTap('run_pause'), isTrue);
       expect(canTap('run_lap'), isTrue);
-      await tester.tap(key('run_pause'));
-      await tester.pump();
+      // Wie ein Screenreader: die Aktion selbst auslösen, nicht den Zeiger.
+      expect(key('run_finish'), findsNothing);
+      final node = tester.getSemantics(key('run_pause'));
+      node.owner!.performAction(node.id, SemanticsAction.tap);
+      await tester.pumpAndSettle();
+      expect(key('run_finish'), findsOneWidget);
       expect(canTap('run_finish'), isTrue);
       expect(canTap('run_resume'), isTrue);
       handle.dispose();

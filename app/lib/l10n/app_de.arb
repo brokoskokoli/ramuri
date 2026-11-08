@@ -1100,6 +1100,7 @@
   "@explSourcesButton": {"description": "WP10 D"},
   "exportAction": "Exportieren",
   "@exportAction": {"description": "Schaltfläche im Lauf-Detail (WP11)"},
+  "exportIconLabel": "Teilen oder exportieren",
   "exportButton": "Exportieren (GPX · TCX · FIT)",
   "@exportButton": {"description": "Knopf am Ende des Lauf-Details (Detail.dc.html)"},
   "exportTitle": "Lauf exportieren",

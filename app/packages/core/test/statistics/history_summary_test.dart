@@ -28,6 +28,19 @@ void main() {
     expect(span(HistoryRange.all), '2029-06-10..2030-01-16');
   });
 
+  test('Alle reicht bis zum letzten Lauftag, auch nach heute', () {
+    // Ein Lauf nach „heute“ (Uhr zurückgestellt, Zeitzone): er gehört dazu.
+    final withFuture = [
+      ...runs,
+      figures(8, '2030-01-20', km: 3, movingSec: 900),
+    ];
+    final p = historyPeriod(HistoryRange.all, today, runs: withFuture);
+    expect(p.lastDay, '2030-01-20');
+    final t = historyTotals(HistoryRange.all, today, withFuture);
+    expect(t.runCount, 8);
+    expect(t.runCount, withFuture.length);
+  });
+
   test('FR-0212: Summen gleich der Statistik für denselben Zeitraum', () {
     for (final r in HistoryRange.values) {
       final t = historyTotals(r, today, runs);

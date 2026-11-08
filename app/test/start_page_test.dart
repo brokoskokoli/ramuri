@@ -241,6 +241,45 @@ void main() {
       expect(key('start_gps_searching'), findsOneWidget);
     });
 
+    testWidgets('Punkte bleiben aus: nach PAR-004 wieder Sucht Signal', (
+      tester,
+    ) async {
+      final d = Device();
+      await openStart(d, tester);
+      d.location.emit(sample(10));
+      await tester.pumpAndSettle();
+      expect(key('start_gps_good'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 9));
+      expect(key('start_gps_good'), findsOneWidget);
+      // Ein neuer Punkt verlängert die Frist.
+      d.location.emit(sample(10));
+      await tester.pump(const Duration(seconds: 9));
+      expect(key('start_gps_good'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
+      expect(key('start_gps_searching'), findsOneWidget);
+      expect(key('run_start_ready'), findsOneWidget);
+    });
+
+    testWidgets('im Hintergrund endet der Strom, danach hört die Seite neu', (
+      tester,
+    ) async {
+      final d = Device();
+      await openStart(d, tester);
+      expect(d.location.hasListeners, isTrue);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      expect(d.location.hasListeners, isTrue);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(d.location.hasListeners, isFalse);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(d.location.hasListeners, isTrue);
+      expect(key('start_gps_searching'), findsOneWidget);
+    });
+
     testWidgets('ein Fehler im Strom setzt auf Sucht und sperrt nichts', (
       tester,
     ) async {

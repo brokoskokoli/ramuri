@@ -28,6 +28,7 @@ class RunDetailPage extends StatelessWidget {
     required this.formatter,
     required this.session,
     required this.runId,
+    this.exportBusy,
   });
 
   final RunSummary summary;
@@ -38,6 +39,9 @@ class RunDetailPage extends StatelessWidget {
   final UnitFormatter formatter;
   final StorageSession session;
   final int runId;
+
+  /// Gemeinsamer Zustand „Export läuft“ mit dem Symbol der Kopfzeile.
+  final ValueNotifier<bool>? exportBusy;
 
   /// Beginn in der Ortszeit zum Laufende (Versatz des Laufs), sonst in der
   /// Ortszeit des Geräts.
@@ -102,7 +106,7 @@ class RunDetailPage extends StatelessWidget {
           label: l10n.explSourcesButton,
         ),
         gap,
-        RunExportAction(session: session, runId: runId),
+        RunExportAction(session: session, runId: runId, busy: exportBusy),
       ],
     );
   }
@@ -193,12 +197,12 @@ class RunDetailPage extends StatelessWidget {
                 spacing: 12,
                 children: [
                   Text(
-                    '+${formatter.elevation(up)}',
+                    signedElevation('+', formatter.elevation(up)),
                     key: const Key('detail_ascent'),
                     style: text.titleSmall,
                   ),
                   Text(
-                    '−${formatter.elevation(down)}',
+                    signedElevation('−', formatter.elevation(down)),
                     key: const Key('detail_descent'),
                     style: text.titleSmall,
                   ),

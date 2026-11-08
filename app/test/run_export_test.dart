@@ -139,6 +139,29 @@ void main() {
     expect(find.text('Exportieren (GPX · TCX · FIT)'), findsOneWidget);
   });
 
+  testWidgets('Symbol in der Kopfleiste „Teilen oder exportieren“ exportiert '
+      'wie der Knopf (Detail.dc.html)', (tester) async {
+    tester_ = tester;
+    final d = await _openDetail(tester);
+    final icon = find.descendant(
+      of: find.byType(AppBar),
+      matching: key('detail_export_icon'),
+    );
+    expect(icon, findsOneWidget);
+    expect(tester.widget<IconButton>(icon).tooltip, 'Teilen oder exportieren');
+    expect(tester.getSize(icon).shortestSide, greaterThanOrEqualTo(48));
+    // Der Knopf unten bleibt daneben.
+    expect(key('detail_export'), findsOneWidget);
+    await tester.tap(icon);
+    await tester.pumpAndSettle();
+    expect(d.fileHandoff.shared, isEmpty);
+    await tester.tap(key('export_format_fit'));
+    await tester.tap(key('export_share'));
+    await tester.pumpAndSettle();
+    expect(d.fileHandoff.shared, hasLength(1));
+    expect(_snackText(), 'Datei an das gewählte Ziel übergeben.');
+  });
+
   testWidgets('Abbruch in der Formatwahl erzeugt und überträgt nichts', (
     tester,
   ) async {
@@ -219,9 +242,18 @@ void main() {
     await tester.pump();
     expect(key('export_progress'), findsOneWidget);
     expect(key('detail_export'), findsNothing);
+    // Während des Exports ist auch das Symbol der Kopfleiste gesperrt.
+    expect(
+      tester.widget<IconButton>(key('detail_export_icon')).onPressed,
+      isNull,
+    );
     expect(d.fileHandoff.shared, isEmpty);
     release.complete();
     await tester.pumpAndSettle();
+    expect(
+      tester.widget<IconButton>(key('detail_export_icon')).onPressed,
+      isNotNull,
+    );
     expect(key('export_progress'), findsNothing);
     expect(d.fileHandoff.shared, hasLength(1));
   });
@@ -240,16 +272,24 @@ void main() {
           MaterialPageRoute(
             builder: (_) => Scaffold(
               appBar: AppBar(
-                actions: [RunExportAction(session: d.session, runId: id)],
+                actions: [
+                  RunExportAction(session: d.session, runId: id),
+                  RunExportAction(
+                    session: d.session,
+                    runId: id,
+                    presentation: ExportPresentation.icon,
+                  ),
+                ],
               ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byType(RunExportAction), findsOneWidget);
+      expect(find.byType(RunExportAction), findsNWidgets(2));
       expect(key('detail_export'), findsNothing, reason: '$id');
-      Navigator.of(tester.element(find.byType(RunExportAction))).pop();
+      expect(key('detail_export_icon'), findsNothing, reason: '$id');
+      Navigator.of(tester.element(find.byType(RunExportAction).first)).pop();
       await tester.pumpAndSettle();
     }
     expect(d.fileHandoff.shared, isEmpty);

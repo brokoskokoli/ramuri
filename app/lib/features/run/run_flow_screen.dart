@@ -78,6 +78,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   StreamSubscription<LocationSample>? _gpsSub;
   bool _gpsGood = false;
 
+  /// Bleibt ein Punkt länger als PAR-004 aus, gilt das Signal nicht mehr als gut.
+  Timer? _gpsStale;
+
   /// Ein Start läuft (Abfragen im Startweg): Der Lebenszyklus prüft dann nicht
   /// neu, sonst verwirft er den Start beim Zurück vom Systemdialog.
   bool _starting = false;
@@ -172,6 +175,8 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Zurück aus Systemdialog oder Einstellungen: Stand neu lesen, ohne zu
     // fragen. Das ersetzt auch eine verlorene Antwort auf die Anfrage.
+    // Im Hintergrund braucht die Anzeige keinen Strom; `resumed` startet ihn neu.
+    if (state == AppLifecycleState.paused && _controller == null) _stopGps();
     if (state == AppLifecycleState.resumed &&
         _controller == null &&
         !_starting) {
@@ -192,12 +197,22 @@ class _RunFlowScreenState extends State<RunFlowScreen>
             accuracy >= 0 &&
             accuracy <=
                 const PreprocessingParameters.v4().positionMaxAccuracyMeters;
+        _gpsStale?.cancel();
+        _gpsStale = good
+            ? Timer(const PreprocessingParameters.v4().gapMaxDuration, _gpsLost)
+            : null;
         if (good != _gpsGood && mounted) setState(() => _gpsGood = good);
       },
       onError: (Object _) {
-        if (_gpsGood && mounted) setState(() => _gpsGood = false);
+        _gpsLost();
       },
     );
+  }
+
+  void _gpsLost() {
+    _gpsStale?.cancel();
+    _gpsStale = null;
+    if (_gpsGood && mounted) setState(() => _gpsGood = false);
   }
 
   /// Beendet den Strom. Die Abmeldung geht sofort als Kanalnachricht hinaus,
@@ -208,6 +223,8 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     final sub = _gpsSub;
     _gpsSub = null;
     _gpsGood = false;
+    _gpsStale?.cancel();
+    _gpsStale = null;
     if (sub != null) unawaited(sub.cancel());
   }
 

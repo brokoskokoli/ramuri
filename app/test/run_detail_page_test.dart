@@ -1,7 +1,10 @@
 // WP16 C2: Detailansicht nach Detail.dc.html (FR-0041, FR-0042, FR-0211, FR-0204): Kilometertabelle, Marken,
 // Pace und Puls, Höhenprofil, vollständige Inhalte, Schriftfaktor 1,3 auf 360x640.
+import 'dart:io';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/history/run_detail_page.dart';
@@ -202,6 +205,67 @@ void main() {
       expect(fill(4), Size(track.width, 10));
     });
 
+    // Unterschiedlich breite Zellen (Zeit mit Stunde, zweistellige Minuten
+    // bei der Pace, dreistelliger Puls), damit nur feste Spalten fluchten.
+    final uneven = _splits([
+      _split(1, seconds: 330, pace: 330, hr: 99),
+      _split(2, seconds: 4000, pace: 605, hr: 150, gapSeconds: 30),
+      _split(3, seconds: 60, gapSeconds: 60),
+      _split(4, seconds: 120, pace: 285.7, hr: 188, partial: true, meters: 420),
+    ]);
+    for (final scale in [1.0, 1.3]) {
+      testWidgets('echte Schrift, Faktor $scale auf 360 dp: Spalten fluchten, '
+          'Balken sichtbar', (tester) async {
+        await tester.runAsync(() async {
+          final loader = FontLoader('Manrope');
+          for (final f in [
+            'Regular',
+            'Medium',
+            'SemiBold',
+            'Bold',
+            'ExtraBold',
+          ]) {
+            final bytes = File('assets/fonts/Manrope-$f.ttf').readAsBytesSync();
+            loader.addFont(Future.value(ByteData.sublistView(bytes)));
+          }
+          await loader.load();
+        });
+        tester.view.physicalSize = const Size(360, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          _app(
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: KilometerTable(splits: uneven, formatter: _km),
+            ),
+            scale: scale,
+            size: const Size(360, 800),
+          ),
+        );
+        for (final column in ['index', 'time', 'bar', 'pace', 'hr']) {
+          final lefts = {
+            for (var i = 1; i <= 4; i++)
+              tester.getRect(key('detail_km_${column}_$i')).left,
+          };
+          expect(lefts, hasLength(1), reason: '$column fluchtet links: $lefts');
+        }
+        for (var i = 1; i <= 4; i++) {
+          final track = tester.getSize(key('detail_km_bar_$i'));
+          expect(track.width, greaterThanOrEqualTo(24), reason: 'Spur $i');
+          expect(track.height, 10);
+        }
+        final fill = tester.getSize(
+          find.descendant(
+            of: key('detail_km_bar_1'),
+            matching: find.byType(FractionallySizedBox),
+          ),
+        );
+        expect(fill, tester.getSize(key('detail_km_bar_1')));
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets('Beschriftung steht über der vollen Tabellenbreite', (
       tester,
     ) async {
@@ -338,6 +402,27 @@ void main() {
     expect(key('detail_hr_none'), findsOneWidget);
     expect(key('detail_pace'), findsOneWidget);
     expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
+  });
+
+  testWidgets('Flacher Lauf: Anstieg und Gefälle ohne Vorzeichen, Pace ohne '
+      'Wortverbinder in der Sprachausgabe', (tester) async {
+    final handle = tester.ensureSemantics();
+    final d = await started(tester);
+    final id = await seedDetailRun(
+      d.session,
+      DateTime.utc(2030, 1, 1, 8),
+      altitude: (_) => 100,
+    );
+    await pumpDetail(tester, d, id);
+    expect(text('run_ascent'), '0 m');
+    expect(text('run_descent'), '0 m');
+    expect(text('detail_ascent'), '0 m');
+    expect(text('detail_descent'), '0 m');
+    // Die Einheit der Kachel hat in der Sprachausgabe keinen Wortverbinder.
+    final label = tester.getSemantics(key('run_avg_pace')).label;
+    expect(label, contains('min/km'));
+    expect(label, isNot(contains('\u2060')));
+    handle.dispose();
   });
 
   testWidgets('Seite in Meilen: Tabelle, Legende, Anstieg in ft', (

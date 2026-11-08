@@ -131,7 +131,6 @@ Widget _detailChart(
   );
 }
 
-/// Eine Linie (Reihe aus Teilen) eines Diagramms.
 /// Route eines Laufs: auf der Karte (mit Einwilligung) oder gezeichnet, ohne
 /// Positionen der Hinweis (FR-0204). Für Zusammenfassung und Detailansicht.
 class RunRouteSection extends StatelessWidget {
@@ -174,6 +173,7 @@ class RunRouteSection extends StatelessWidget {
   }
 }
 
+/// Eine Linie (Reihe aus Teilen) eines Diagramms.
 class ChartLayer {
   const ChartLayer({
     required this.name,

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -72,10 +74,9 @@ double _scrolled(WidgetTester tester) => tester
             of: find.byWidgetPredicate(
               (w) =>
                   w is ListView &&
-                  w.key is PageStorageKey<String> &&
-                  (w.key! as PageStorageKey<String>).value.startsWith(
-                    'history_list',
-                  ),
+                  w.key is PageStorageKey<(StorageSession, String)> &&
+                  (w.key! as PageStorageKey<(StorageSession, String)>).value.$2
+                      .startsWith('history_list'),
             ),
             matching: find.byType(Scrollable),
           )
@@ -274,6 +275,31 @@ void main() {
   });
 
   group('Zeitraum und Lage über Tab-Wechsel (WP16 D)', () {
+    testWidgets('nach einem Import (neue Sitzung) beginnt die Liste oben', (
+      tester,
+    ) async {
+      final d = await _start(tester);
+      tester.view.physicalSize = const Size(411, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      for (var i = 0; i < 12; i++) {
+        await seedRun(d.session, DateTime.utc(2026, 6, 1 + i, 8), minutes: 2);
+      }
+      await tester.tap(key('home_history'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -500));
+      await tester.pumpAndSettle();
+      expect(_scrolled(tester), greaterThan(200));
+
+      d.controller.adoptSession(
+        await d.storage.open(Uint8List.fromList(List.filled(32, 7))),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(key('home_history'));
+      await tester.pumpAndSettle();
+      expect(_scrolled(tester), 0);
+    });
+
     testWidgets('Zeitraum bleibt, die Liste ist danach aktuell', (
       tester,
     ) async {
@@ -337,6 +363,31 @@ void main() {
   });
 
   group('Zeile (FR-0040)', () {
+    testWidgets('Sprachausgabe der Pace ohne Wortverbinder', (tester) async {
+      final handle = tester.ensureSemantics();
+      final d = await _start(tester);
+      final ids = await _seed(d);
+      await tester.tap(key('home_history'));
+      await tester.pumpAndSettle();
+      final label = tester.getSemantics(key('history_pace_${ids['a']}')).label;
+      expect(label, contains('5:33 min/km'));
+      expect(label, isNot(contains('\u2060')));
+      handle.dispose();
+    });
+
+    testWidgets('Zeitraum-Umschalter: gewählt dunkel wie Verlauf.dc.html', (
+      tester,
+    ) async {
+      final d = await _start(tester);
+      await _seed(d);
+      await tester.tap(key('home_history'));
+      await tester.pumpAndSettle();
+      final toggle = tester.widget<RamuriSegmentedToggle<HistoryRange>>(
+        key('history_range'),
+      );
+      expect(toggle.style, RamuriSegmentedStyle.dark);
+    });
+
     testWidgets(
       'Strecke, Dauer, Pace, Puls; ohne Puls kein 0; Tipp öffnet Detail',
       (tester) async {
@@ -437,7 +488,10 @@ void main() {
             );
             // Die Einheit der Pace steht auf einer Zeile, nie am "/" getrennt.
             final pace = tester.renderObject<RenderParagraph>(
-              key('history_pace_$id'),
+              find.descendant(
+                of: key('history_pace_$id'),
+                matching: find.byType(RichText),
+              ),
             );
             expect(_lines(pace), 1);
           }

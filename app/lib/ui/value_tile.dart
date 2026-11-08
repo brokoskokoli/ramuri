@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'estimated_mark.dart';
 import 'ramuri_card.dart';
 import 'ramuri_type.dart';
+import 'unbreakable_unit.dart';
 
 /// Größe der Zahl einer [RamuriValueTile].
 enum RamuriValueSize { small, large }
@@ -67,7 +68,12 @@ class RamuriValueTile extends StatelessWidget {
                     children: [
                       TextSpan(text: value, style: valueStyle),
                       if (unit != null)
-                        TextSpan(text: ' $unit', style: type.unit),
+                        TextSpan(
+                          text: ' $unit',
+                          // Der Wortverbinder gehört nicht in die Sprachausgabe.
+                          semanticsLabel: ' ${spokenUnit(unit!)}',
+                          style: type.unit,
+                        ),
                     ],
                   ),
                 ),

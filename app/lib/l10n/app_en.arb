@@ -477,6 +477,7 @@
   "explNeedsHeartRate": "This value needs heart rate data. Connect a heart rate sensor so it can be calculated. Pace, distance and the basic statistics also work with GPS only.",
   "explSourcesButton": "Sources of the measurements",
   "exportAction": "Export",
+  "exportIconLabel": "Share or export",
   "exportButton": "Export (GPX · TCX · FIT)",
   "exportTitle": "Export run",
   "exportFormat": "Format",

@@ -12,9 +12,9 @@ import 'run_detail_page.dart';
 
 /// Detailansicht eines Laufs (FR-0041, FR-0042, FR-0211) nach `Detail.dc.html`:
 /// Lauf laden ([RunSummaryBody]), Inhalt in [RunDetailPage]. Exportieren
-/// ([RunExportAction]) ist der Knopf am Ende, Löschen sitzt in der Kopfzeile; nach dem Löschen
+/// ([RunExportAction]) ist Symbol in der Kopfzeile und Knopf am Ende, Löschen sitzt in der Kopfzeile; nach dem Löschen
 /// schließt die Ansicht mit `true`.
-class RunDetailScreen extends StatelessWidget {
+class RunDetailScreen extends StatefulWidget {
   const RunDetailScreen({
     super.key,
     required this.session,
@@ -27,6 +27,25 @@ class RunDetailScreen extends StatelessWidget {
   final Clock clock;
   final RecalculationController recalculation;
   final int runId;
+
+  @override
+  State<RunDetailScreen> createState() => _RunDetailScreenState();
+}
+
+class _RunDetailScreenState extends State<RunDetailScreen> {
+  /// „Export läuft“ für Symbol und Knopf gemeinsam.
+  final _exportBusy = ValueNotifier<bool>(false);
+
+  StorageSession get session => widget.session;
+  Clock get clock => widget.clock;
+  RecalculationController get recalculation => widget.recalculation;
+  int get runId => widget.runId;
+
+  @override
+  void dispose() {
+    _exportBusy.dispose();
+    super.dispose();
+  }
 
   Future<void> _delete(BuildContext context) async {
     final navigator = Navigator.of(context);
@@ -52,6 +71,12 @@ class RunDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(l10n.detTitle),
         actions: [
+          RunExportAction(
+            session: session,
+            runId: runId,
+            presentation: ExportPresentation.icon,
+            busy: _exportBusy,
+          ),
           IconButton(
             key: const Key('detail_delete'),
             tooltip: l10n.histDeleteRun,
@@ -78,6 +103,7 @@ class RunDetailScreen extends StatelessWidget {
             formatter: formatter,
             session: session,
             runId: runId,
+            exportBusy: _exportBusy,
           ),
         ),
       ),
