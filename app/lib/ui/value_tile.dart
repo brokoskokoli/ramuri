@@ -141,8 +141,8 @@ class RamuriTileGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         var columns = scaled || constraints.maxWidth < 300 ? 2 : 3;
-        // Passt ein Wort der Ersatztexte nicht in die schmale Spalte, bricht es
-        // mitten im Wort: dann weniger Spalten.
+        // Passt ein Wort der Ersatztexte oder eine Zahl nicht in die schmale
+        // Spalte, bricht es mitten im Wort: dann weniger Spalten.
         while (columns > 1 &&
             !_wordsFit(context, constraints.maxWidth, columns)) {
           columns--;
@@ -176,13 +176,20 @@ class RamuriTileGrid extends StatelessWidget {
   bool _wordsFit(BuildContext context, double width, int columns) {
     final inner =
         (width - gap * (columns - 1)) / columns - 2 * RamuriValueTile.padding;
-    final style = RamuriValueTile.reasonStyle(context);
+    final reasonStyle = RamuriValueTile.reasonStyle(context);
+    final numberStyle = RamuriType.of(context).valueSmall;
     final scaler = MediaQuery.textScalerOf(context);
     for (final child in children) {
-      final word = child is RamuriValueTile ? child.longestReasonWord : null;
+      if (child is! RamuriValueTile) continue;
+      // Auch eine Zahl bricht, wenn sie nicht passt („+120 / 0“): sie zählt
+      // wie ein Wort. Die Einheit hängt über den Wortverbinder an der Zahl.
+      final word = child.textValue ? child.longestReasonWord : child.value;
       if (word == null) continue;
       final painter = TextPainter(
-        text: TextSpan(text: word, style: style),
+        text: TextSpan(
+          text: word,
+          style: child.textValue ? reasonStyle : numberStyle,
+        ),
         textDirection: TextDirection.ltr,
         textScaler: scaler,
       )..layout();

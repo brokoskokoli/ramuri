@@ -71,6 +71,7 @@ void main() {
       tester,
     ) async {
       await loadManrope(tester);
+      await loadSora(tester);
       final size = Size(width, 900);
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
@@ -152,6 +153,70 @@ void main() {
       expect(numberHeight, greaterThan(20));
       expect(tester.takeException(), isNull);
     });
+  }
+
+  // Review 5, Befund 1: Eine Zahl bricht nie innerhalb der Ziffern („+120 / 0“).
+  for (final width in [320.0, 340.0, 360.0, 411.0]) {
+    for (final scale in [1.0, 1.15, 1.3, 2.0]) {
+      testWidgets('große Zahlen brechen nie, ${width.round()} dp, '
+          'Faktor $scale', (tester) async {
+        await loadManrope(tester);
+        await loadSora(tester);
+        final size = Size(width, 900);
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        const numbers = [
+          ('+1200', 'm'),
+          ('−1200', 'm'),
+          ('+3937', 'ft'),
+          ('10,50', 'km'),
+        ];
+        await tester.pumpWidget(
+          _app(
+            RamuriTileGrid(
+              children: [
+                for (final (v, u) in numbers)
+                  RamuriValueTile(
+                    label: 'Zahl',
+                    value: v,
+                    unit: u,
+                    valueKey: Key(v),
+                  ),
+              ],
+            ),
+            scale: scale,
+            size: size,
+          ),
+        );
+        final style = RamuriType.of(tester.element(find.byType(RamuriTileGrid)))
+            .valueSmall;
+        for (final (v, _) in numbers) {
+          final paragraph = tester.renderObject<RenderParagraph>(
+            find.byKey(Key(v)),
+          );
+          final painter = TextPainter(
+            text: TextSpan(text: v, style: style),
+            textDirection: TextDirection.ltr,
+            textScaler: TextScaler.linear(scale),
+          )..layout();
+          expect(
+            painter.width,
+            lessThanOrEqualTo(paragraph.size.width + 0.01),
+            reason: '"$v" bricht (Breite ${paragraph.size.width})',
+          );
+          painter.dispose();
+        }
+        if (scale == 1.0 && width >= 360) {
+          final lefts = {
+            for (final t in tester.widgetList(find.byType(RamuriValueTile)))
+              tester.getTopLeft(find.byWidget(t)).dx.round(),
+          };
+          expect(lefts.length, 3, reason: 'Spalten bei ${width.round()} dp');
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
   }
 
   testWidgets('Aussage und Grund sind getrennt, der Text bleibt vollständig', (
