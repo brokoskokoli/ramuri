@@ -1,6 +1,6 @@
 # WP13 – Karte der Route (`app/packages/core/lib/src/map`, `app/packages/adapters/lib/src/map`, `app/lib/features/map`, `run`, `summary`, `history`, `settings`, `storage`, `tool/gate.sh`, Android-Manifest)
 
-**Zuordnung:** M1, nachgereicht am 2026-11-07 (OQ-0074). **Wartet auf R008** (ADR-0009 Punkt 6: Bibliothek und Darstellung) **und auf WP14** (Theme, Paket-ID, Manifest).
+**Zuordnung:** M1, nachgereicht am 2026-11-07 (OQ-0074). R008 ist abgeschlossen (ADR-0009 Punkt 6; **Hinweise 1 bis 10 in `research/R008-kartenbibliothek/RESULTS.md` sind verbindlich**). **Wartet auf WP14** (Theme, Paket-ID, Manifest).
 
 Bezug: FR-0204, FR-0205, FR-0027, FR-0037, FR-0040, FR-0041, FR-0056; SEC-0002, SEC-0004, SEC-0007, SEC-0008, SEC-0009, SEC-0010; ADR-0003, ADR-0005, ADR-0009; OQ-0074, OQ-0075, DEC-0069, DEC-0070; K31, K33. Vorlagen: `design/screens/LiveKarte.dc.html`, Route in `Detail.dc.html`, Miniatur in `Verlauf.dc.html`.
 
@@ -16,7 +16,8 @@ Bezug: FR-0204, FR-0205, FR-0027, FR-0037, FR-0040, FR-0041, FR-0056; SEC-0002, 
    - Die Kachelquelle entsteht nur bei erteilter Einwilligung (fail-closed).
 3. **Kachelquelle und Speicher:**
    - Adapter für den Anbieter nach ADR-0009/R008: nur Kachelkoordinaten, keine Kennung, keine Cookies, neutraler User-Agent.
-   - Verschlüsselter Speicher für Kacheln und Miniaturen (ADR-0003-Schlüssel, eigene Datei oder eigene Tabellen nach R008), Größengrenze mit Verdrängung.
+   - Verschlüsselter Speicher nach ADR-0009 Punkt 4: eigene `sqlite3mc`-Datei ohne WAL in `getNoBackupFilesDir()`, Grenzen 50 MB Kacheln und 20 MB Miniaturen, Verdrängung des am längsten ungenutzten Eintrags; Plattencache der Bibliothek aus.
+   - Tor als eigener `http.Client` mit `resolveProvider`, ohne Weiterleitungen; Startkamera vor dem ersten Laden auf der Route, Live-Karte lädt erst mit Position.
    - Nicht in Archiv (WP12) und Dateiexport (WP11). „Alles löschen“ (SEC-0004) und der Neubeginn nach Schlüsselverlust löschen ihn mit.
 4. **Gemeinsame Kartenansicht:**
    - Ein Widget für alle Ansichten. Route aus `RunDetail.route` (Teilstücke, Lücken und Pausen als Unterbrechung), Start und Ende markiert, Quellenangabe.
@@ -53,12 +54,14 @@ Bezug: FR-0204, FR-0205, FR-0027, FR-0037, FR-0040, FR-0041, FR-0056; SEC-0002, 
 - [ ] FR-0056: Pausen und GPS-Lücken erscheinen auf Karte und Miniatur nicht als gerade Verbindung (Test mit Lauf mit Lücke und Pause).
 - [ ] SEC-0008, SEC-0002: Ohne Einwilligung entsteht keine Kachelquelle und keine Verbindung (Unit-Test mit Mutationsbeleg); Gate-Schritt „Netz nur im Kartenadapter“ wird rot, wenn anderer Code Netz nutzt (Mutationsbeleg).
 - [ ] SEC-0007: Nach dem Widerruf keine Anfrage mehr; Frage nach dem Löschen des Kartenspeichers; Löschen wirkt.
+- [ ] ADR-0009 Punkt 2: Beim ersten Laden ohne Bedienung fragt das Tor nur Kacheln im Ausschnitt der Route an; eine Live-Karte ohne Position fragt keine an (Gate-Test mit Mutationsbeleg, Gegenprobe nur `initialCameraFit`).
+- [ ] Gate-Tests aus R008 Hinweis 1, 2, 8, 10: Tor zählt jede Ressourcenart (tile > 0), keine Datei außerhalb des Speichers, Klartext-Scan mit Gegenprobe, kein `-wal`, Grenzen je Art; Versionen exakt gepinnt.
 - [ ] SEC-0009: Kacheln und Miniaturen liegen nicht im Klartext auf dem Datenträger (Suche nach Kachel- und Bildsignaturen im App-Verzeichnis); Größengrenze greift.
 - [ ] SEC-0004, SEC-0010, WP12: „Alles löschen“ löscht den Kartenspeicher; er ist von System-Backups ausgeschlossen; Archiv und Dateiexport enthalten nichts davon.
 - [ ] ADR-0005: Aufzeichnung unverändert bei fehlendem Netz, Fehlern des Anbieters und Seitenwechsel; die Karte zeichnet bei ausgeschaltetem Bildschirm nicht.
 - [ ] Release-APK: `INTERNET` vorhanden, `ACCESS_BACKGROUND_LOCATION` und `RECEIVE_BOOT_COMPLETED` fehlen, Test-Sensor fehlt.
 - [ ] E2E (separater Agent), API 31 und 36:
-  - Netzwerkmitschnitt (Emulator `-tcpdump`) ohne Einwilligung leer, mit Einwilligung nur der Anbieter
+  - Netzwerkmitschnitt über Mobilfunk mit WLAN aus und Positivkontrolle vor und nach jeder Phase (R008 Hinweis 9): ohne Einwilligung kein Kartenhost und 0 Bytes für die App-UID, sonst nur bekannter Systemverkehr; mit Einwilligung nur der Anbieter
   - Live-Seite während eines eingespeisten Laufs
   - Flugmodus: Rückfall auf Linie
   - Historie mit 50 Läufen flüssig scrollbar, grobe Bildrate berichtet

@@ -20,7 +20,7 @@ Die Datenbankdatei muss ohne Schlüssel unlesbar sein (SEC-0009), ein System-Bac
 
 **4. Löschen:** `PRAGMA secure_delete = ON`, damit gelöschte Inhalte überschrieben werden [10]; nach dem Löschen ein WAL-Checkpoint.
 
-**5. Haltbarkeit:** WAL mit `synchronous = FULL`, denn nur so überstehen bestätigte Transaktionen einen Stromausfall [10]. Die Kosten sind klein (R005: Commit p50 unter 7 ms bei 1 Punkt je Sekunde, nur relativ gültig).
+**5. Haltbarkeit:** Für die Lauf-Datenbank WAL mit `synchronous = FULL` (der Kartenspeicher nach ADR-0009 Punkt 4 ist abgeleitet und nutzt kein WAL), denn nur so überstehen bestätigte Transaktionen einen Stromausfall [10]. Die Kosten sind klein (R005: Commit p50 unter 7 ms bei 1 Punkt je Sekunde, nur relativ gültig).
 
 ## Erwogene Alternativen
 - **`sqlcipher_flutter_libs`:** Eingestellt (0.7.0+eol), drift verweist auf den Weg über `sqlite3` 3.x [1][11]. SQLCipher bindet auf Android zudem OpenSSL ein [2].
