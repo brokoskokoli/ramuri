@@ -37,6 +37,8 @@ class _Thumbs implements MapThumbnailStore {
   @override
   Future<void> write(String key, Uint8List bytes) async => data[key] = bytes;
   @override
+  Future<void> remove(String key) async => data.remove(key);
+  @override
   Future<void> deleteRun(int runId) async => deletedRuns.add(runId);
 }
 

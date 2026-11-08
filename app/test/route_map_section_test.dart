@@ -285,21 +285,90 @@ void main() {
     expect(_k('route_paint'), findsNothing);
   });
 
+  for (final mode in ['Flugmodus', '404']) {
+    testWidgets(
+      'alle Kacheln scheitern ($mode, Stil vorhanden): Linie, kein Umschalter, keine Quellenangabe',
+      (tester) async {
+        final net = FakeInner();
+        if (mode == '404') {
+          net.statusWhere = (u) => u.path.endsWith('.pbf') ? 404 : null;
+        } else {
+          net.failWhere = (u) => u.path.endsWith('.pbf');
+        }
+        final w = _World(net: net, consent: ConsentState.granted);
+        await tester.pumpWidget(_app(w, _route));
+        await _settle(tester, w);
+        expect(
+          w.tileRequests,
+          greaterThan(0),
+          reason: 'Kacheln wurden versucht',
+        );
+        expect(_k('route_map'), findsNothing);
+        expect(_k('route_paint'), findsOneWidget);
+        expect(_k('route_view_toggle'), findsNothing);
+        expect(find.text(MapProvider.openFreeMap.attribution), findsNothing);
+      },
+    );
+  }
+
   testWidgets(
-    'alle Kacheln scheitern (Flugmodus nach gecachtem Stil): Karte ohne Hintergrund, aber mit Linie, Marken und Quellenangabe',
+    'Pause (App im Hintergrund, Route verdeckt): keine Karte, keine Anfrage; danach wieder da (S6)',
     (tester) async {
-      final net = FakeInner()..failWhere = (u) => u.path.endsWith('.pbf');
-      final w = _World(net: net, consent: ConsentState.granted);
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+      final w = _World(consent: ConsentState.granted);
       await tester.pumpWidget(_app(w, _route));
       await _settle(tester, w);
-      expect(w.tileRequests, greaterThan(0), reason: 'Kacheln wurden versucht');
-      // Kein Rückfall auf RunRouteView: Die Karte bleibt, ihre eigenen Ebenen zeichnen die Route.
       expect(_k('route_map'), findsOneWidget);
-      expect(_k('route_paint'), findsNothing);
-      expect(mapPolylineCount(tester.element(_k('route_map'))), 2);
-      expect(find.text(MapProvider.openFreeMap.attribution), findsOneWidget);
+      // App im Hintergrund
+      for (final st in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(st);
+      }
+      await tester.pump();
+      expect(_k('route_map'), findsNothing);
+      expect(_k('route_paint'), findsOneWidget);
+      final n = w.requests;
+      await _settle(tester, w);
+      expect(w.requests, n);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await _settle(tester, w);
+      expect(_k('route_map'), findsOneWidget);
+      // Route verdeckt
+      final nav = tester.state<NavigatorState>(find.byType(Navigator));
+      nav.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('oben')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(_k('route_map'), findsNothing);
+      nav.pop();
+      await tester.pumpAndSettle();
+      await _settle(tester, w);
+      expect(_k('route_map'), findsOneWidget);
     },
   );
+
+  testWidgets('einzelne Kachel scheitert, andere treffen: Karte bleibt', (
+    tester,
+  ) async {
+    var n = 0;
+    final net = FakeInner()
+      ..statusWhere = (u) => u.path.endsWith('.pbf') && n++ == 0 ? 404 : null;
+    final w = _World(net: net, consent: ConsentState.granted);
+    await tester.pumpWidget(_app(w, _route));
+    await _settle(tester, w);
+    expect(_k('route_map'), findsOneWidget);
+    expect(_k('route_view_toggle'), findsOneWidget);
+  });
 
   // Bildschirmfoto hell und dunkel (Layout statt Emulator). Nur mit SHOT_DIR, sonst nur die Prüfung.
   for (final dark in [false, true]) {

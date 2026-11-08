@@ -92,9 +92,12 @@ class MiniatureJob {
 ///
 /// Ohne Einwilligung ([enabled] `false`) gibt es weder Anfragen noch Bilder aus dem Speicher: auch Kartenbilder, die
 /// nach einem Widerruf noch liegen, werden nicht gezeigt.
-class MiniatureService extends ChangeNotifier {
+class MiniatureService extends ChangeNotifier with WidgetsBindingObserver {
   MiniatureService({required this.consent, MiniatureCapture? capture})
     : _capture = capture ?? debugMiniatureCapture ?? _defaultCapture {
+    final life = WidgetsBinding.instance.lifecycleState;
+    _foreground = life == null || life == AppLifecycleState.resumed;
+    WidgetsBinding.instance.addObserver(this);
     consent.addListener(_onConsent);
     _removed = consent.removedRuns.listen(_onRemoved);
     _wasEnabled = enabled;
@@ -105,6 +108,39 @@ class MiniatureService extends ChangeNotifier {
   late final StreamSubscription<int> _removed;
 
   MapThumbnailStore? get _store => consent.services.thumbnails;
+
+  bool _foreground = true;
+  bool _routeCurrent = true;
+
+  /// Pause (ADR-0009 Punkt 5, nur im Vordergrund): Die App ist nicht im Vordergrund oder die Route des Verlaufs ist
+  /// verdeckt. Dann entsteht keine Aufnahme (bei verdeckter Route könnte das Bild veraltet sein und würde gespeichert),
+  /// die Quelle ist zu und nichts geht ins Netz. Der laufende Auftrag kommt vorn in die Warteschlange zurück.
+  bool get paused => !_foreground || !_routeCurrent;
+
+  /// Ob die Route des Verlaufs oben liegt (kein Bildschirm darüber). Setzt der Verlauf aus `ModalRoute.isCurrent`.
+  set routeCurrent(bool value) {
+    if (value == _routeCurrent) return;
+    _routeCurrent = value;
+    _pauseChanged();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final fg = state == AppLifecycleState.resumed;
+    if (fg == _foreground) return;
+    _foreground = fg;
+    _pauseChanged();
+  }
+
+  void _pauseChanged() {
+    if (_disposed) return;
+    if (paused) {
+      job.value = null;
+      _dropSource(closeNow: true);
+    } else if (_queue.isNotEmpty) {
+      _pump();
+    }
+  }
 
   /// Einwilligung erteilt und ein Miniaturen-Speicher vorhanden.
   bool get enabled => consent.granted && _store != null;
@@ -221,7 +257,7 @@ class MiniatureService extends ChangeNotifier {
     _running = true;
     try {
       await Future<void>.delayed(collectDelay);
-      while (!_disposed) {
+      while (!_disposed && !paused) {
         final t = _next();
         if (t == null) break;
         _queue.remove(t);
@@ -250,7 +286,7 @@ class MiniatureService extends ChangeNotifier {
         _sourceFailed = true;
         return null;
       }
-      if (_disposed || !enabled) {
+      if (_disposed || !enabled || paused) {
         s.dispose();
         return null;
       }
@@ -265,8 +301,10 @@ class MiniatureService extends ChangeNotifier {
     Uint8List? out;
     var attempted = false;
     try {
-      final source = (enabled && !t.cancelled) ? await _ensureSource() : null;
-      if (source != null && enabled && !t.cancelled) {
+      final source = (enabled && !t.cancelled && !paused)
+          ? await _ensureSource()
+          : null;
+      if (source != null && enabled && !t.cancelled && !paused) {
         attempted = true;
         final j = MiniatureJob(source, t.route, t.style);
         final failuresBefore = source.gate.failures;
@@ -276,10 +314,14 @@ class MiniatureService extends ChangeNotifier {
           j.boundary,
           source.gate,
           failuresBefore: failuresBefore,
-          cancelled: () => t.cancelled || !enabled || _disposed,
+          cancelled: () => t.cancelled || !enabled || _disposed || paused,
         );
         final store = _store;
-        if (out != null && !t.cancelled && enabled && store != null) {
+        if (out != null &&
+            !t.cancelled &&
+            enabled &&
+            !paused &&
+            store != null) {
           await store.write(
             thumbnailKey(miniatureVariant(t.style), t.runId),
             out,
@@ -293,15 +335,23 @@ class MiniatureService extends ChangeNotifier {
     } finally {
       if (!_disposed) job.value = null;
     }
+    // Pause (App im Hintergrund, Route verdeckt): kein Fehlversuch, der Auftrag wartet vorn auf die Rückkehr.
+    if (out == null && paused && !t.cancelled && !_disposed) {
+      _queue.insert(0, t);
+      return;
+    }
     // Gescheitert (nicht abgebrochen): in diesem Aufbau nicht noch einmal.
     if (out == null && attempted && !t.cancelled) _failed.add(t.runId);
     if (!t._done.isCompleted) t._done.complete(out);
   }
 
-  void _dropSource() {
+  void _dropSource({bool closeNow = false}) {
     final s = _source;
     _source = null;
     if (s == null) return;
+    // Im Hintergrund laufen keine Bilder, die Freigabe käme zu spät: das Tor sofort schließen, damit die
+    // Wiederholungen der Bibliothek nichts mehr anfragen.
+    if (closeNow) s.gate.close();
     // Der Träger malt die Karte noch bis zum nächsten Bild; erst danach freigeben.
     WidgetsBinding.instance.addPostFrameCallback((_) => s.dispose());
     WidgetsBinding.instance.scheduleFrame();
@@ -311,6 +361,7 @@ class MiniatureService extends ChangeNotifier {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    WidgetsBinding.instance.removeObserver(this);
     consent.removeListener(_onConsent);
     _removed.cancel();
     for (final t in [..._queue, ?_current]) {

@@ -47,11 +47,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final consent = MapConsentScope.of(context);
+    final current = ModalRoute.of(context)?.isCurrent ?? true;
     if (!identical(consent, _consent)) {
       _miniatures?.dispose();
       _consent = consent;
       _miniatures = consent == null ? null : MiniatureService(consent: consent);
     }
+    // Verdeckte Route (etwa das Detail eines Laufs darüber): keine Aufnahme, nichts Veraltetes speichern (S6).
+    _miniatures?.routeCurrent = current;
   }
 
   @override

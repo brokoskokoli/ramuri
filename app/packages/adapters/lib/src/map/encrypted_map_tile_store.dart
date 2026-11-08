@@ -117,6 +117,15 @@ class EncryptedMapTileStore implements MapThumbnailStore {
   }
 
   @override
+  Future<void> remove(String key) async {
+    try {
+      final w = await _ensureExisting();
+      if (w == null) return;
+      await w.request(['remove', key]);
+    } catch (_) {}
+  }
+
+  @override
   Future<void> deleteRun(int runId) async {
     try {
       final w = await _ensureExisting();
@@ -322,6 +331,9 @@ void _run(_Init init) {
           ok = true;
         case 'write':
           core.write(l[2] as String, l[3] as Uint8List);
+          ok = true;
+        case 'remove':
+          core.remove(l[2] as String);
           ok = true;
         case 'deleteRun':
           core.deleteRunThumbnails(l[2] as int);

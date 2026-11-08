@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import '../map/map_consent_controller.dart';
 import '../map/map_consent_scope.dart';
+import '../map/map_source_holder.dart';
 import '../settings/unit_format.dart';
 import '../summary/run_charts.dart' show RoutePainter;
 import 'live_run_view.dart'
@@ -68,9 +68,9 @@ class LiveMapPage extends StatefulWidget {
 }
 
 class _LiveMapPageState extends State<LiveMapPage> with WidgetsBindingObserver {
-  MapConsentController? _consent;
-  MapTileSource? _source;
-  bool _started = false;
+  late final MapSourceHolder _holder = MapSourceHolder(
+    askContext: () => mounted ? context : null,
+  )..addListener(_onHolder);
   bool _foreground = true;
   bool _following = true;
   List<List<RoutePoint>> _route = const [];
@@ -84,27 +84,20 @@ class _LiveMapPageState extends State<LiveMapPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     final life = WidgetsBinding.instance.lifecycleState;
     _foreground = life == null || life == AppLifecycleState.resumed;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStart());
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final next = MapConsentScope.of(context);
-    if (identical(next, _consent)) return;
-    _consent?.removeListener(_onConsent);
-    _consent = next;
-    next?.addListener(_onConsent);
-    _closeSource();
-    _started = false;
-    _maybeStart();
+    _holder.bind(MapConsentScope.of(context));
+    _holder.setWanted(_active);
   }
 
   @override
   void didUpdateWidget(LiveMapPage old) {
     super.didUpdateWidget(old);
     if (old.visible && !widget.visible) _following = true;
-    if (!old.visible && widget.visible) _maybeStart();
+    _holder.setWanted(_active);
   }
 
   @override
@@ -115,54 +108,17 @@ class _LiveMapPageState extends State<LiveMapPage> with WidgetsBindingObserver {
       _foreground = fg;
       if (!fg) _following = true; // Die Karte wird beim Zurückkehren neu auf die Position gesetzt.
     });
-    _maybeStart();
+    _holder.setWanted(_active);
   }
 
-  /// Öffnet Frage und Quelle erst, wenn die Seite zum ersten Mal zu sehen ist (nicht beim Laufstart).
-  void _maybeStart() {
-    final c = _consent;
-    if (!mounted || !_active || _started || c == null) return;
-    if (c.status == MapConsentStatus.declined) return;
-    _started = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _open(c));
-  }
-
-  Future<void> _open(MapConsentController c) async {
-    if (!mounted || !identical(c, _consent)) return;
-    final yes = await c.ensureAsked(context);
-    if (!yes || !mounted || !identical(c, _consent)) return;
-    MapTileSource? source;
-    try {
-      source = await c.openSource();
-    } catch (_) {
-      source = null; // Anbieter nicht erreichbar: bei der Linie bleiben.
-    }
-    if (source == null) return;
-    if (!mounted || !identical(c, _consent) || !c.granted) {
-      source.dispose();
-      return;
-    }
-    setState(() => _source = source);
-  }
-
-  /// Widerruf bei offener Karte: Quelle freigeben, zurück zur Linie. Die Anfragen enden schon am Tor.
-  void _onConsent() {
-    if (!mounted) return;
-    if (_consent?.granted != true && _source != null) {
-      setState(_closeSource);
-    }
-  }
-
-  void _closeSource() {
-    _source?.dispose();
-    _source = null;
+  void _onHolder() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _consent?.removeListener(_onConsent);
-    _closeSource();
+    _holder.dispose();
     super.dispose();
   }
 
@@ -203,13 +159,8 @@ class _LiveMapPageState extends State<LiveMapPage> with WidgetsBindingObserver {
     if (_active) _refreshRoute();
     final position = _position;
     final style = liveMapStyle(context);
-    final source = _source;
-    final consent = _consent;
-    final mapShown =
-        _active &&
-        source != null &&
-        (consent?.granted ?? false) &&
-        position != null;
+    final source = _holder.usable;
+    final mapShown = _active && source != null && position != null;
 
     Widget body;
     if (!_active) {
@@ -230,7 +181,7 @@ class _LiveMapPageState extends State<LiveMapPage> with WidgetsBindingObserver {
         ),
       );
     } else {
-      body = _LineFallback(route: _route, style: style, source: source);
+      body = _LineFallback(route: _route, style: style);
     }
 
     return Column(
@@ -285,15 +236,10 @@ class _LiveMapPageState extends State<LiveMapPage> with WidgetsBindingObserver {
 
 /// Linie ohne Kartenhintergrund mit Position (ohne Einwilligung, ohne Netz, bei Fehlern, vor der Quelle).
 class _LineFallback extends StatelessWidget {
-  const _LineFallback({
-    required this.route,
-    required this.style,
-    required this.source,
-  });
+  const _LineFallback({required this.route, required this.style});
 
   final List<List<RoutePoint>> route;
   final RouteMapStyle style;
-  final MapTileSource? source;
 
   @override
   Widget build(BuildContext context) {

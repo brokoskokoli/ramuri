@@ -205,6 +205,13 @@ class MapCacheCore {
     if (evicted) _db.execute('PRAGMA incremental_vacuum');
   }
 
+  /// Entfernt einen einzelnen Eintrag.
+  void remove(String key) {
+    final kind = MapStoreKind.of(key).index;
+    _db.execute('DELETE FROM entries WHERE kind = ? AND key = ?', [kind, key]);
+    _marks.remove((kind, key));
+  }
+
   /// Entfernt die Miniaturen des Laufs [runId] (Schlüssel `thumb:<Variante>:<Lauf>`), jede Variante. Gibt den Platz
   /// zurück. Ergebnis: Zahl der entfernten Einträge.
   int deleteRunThumbnails(int runId) {

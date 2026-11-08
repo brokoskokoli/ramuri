@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter_map_vector_tiles/flutter_map_vector_tiles.dart' as vt;
 
 import 'package:http/http.dart' as http;
@@ -27,6 +28,13 @@ class MapTileSource {
   final vt.Style style;
 
   String get attribution => gate.provider.attribution;
+
+  /// `true`, solange keine Kachel ein Treffer war und mehrere scheiterten: Die Oberfläche zeigt dann die Linie statt
+  /// der Karte (siehe [MapGate.tilesFailed]).
+  ValueListenable<bool> get tilesFailed => gate.tilesFailed;
+
+  /// Zählt die Kacheln neu (nach einer Pause versucht die Oberfläche die Karte wieder).
+  void retryTiles() => gate.resetTileHealth();
 
   /// Ebene der Bibliothek ohne Plattencache (`diskCacheMaximumSizeInBytes: 0`, R008 Hinweis 2) und ohne Rasterquellen.
   vt.VectorTileLayer layer({

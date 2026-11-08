@@ -542,6 +542,21 @@ void main() {
     );
   });
 
+  test(
+    'remove entfernt genau einen Eintrag, ohne Datei tut es nichts',
+    () async {
+      final s = store();
+      await s.remove(_tile(1));
+      expect(File(path).existsSync(), isFalse, reason: 'legt nichts an');
+      await s.write(_tile(1), _bytes(100, 1));
+      await s.write(_tile(2), _bytes(100, 2));
+      await s.remove(_tile(1));
+      expect(await s.read(_tile(1)), isNull);
+      expect(await s.read(_tile(2)), isNotNull);
+      await s.close();
+    },
+  );
+
   test('MESSUNG (Host, nur Rangfolgen): Lesen 431 kB, Schreiben, Verdrängen', () async {
     final s = store(tileLimit: 5000000);
     final big = _bytes(431000, 1);

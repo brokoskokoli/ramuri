@@ -50,6 +50,8 @@ class _Thumbs implements MapThumbnailStore {
   }
 
   @override
+  Future<void> remove(String key) async => data.remove(key);
+  @override
   Future<void> deleteRun(int runId) async {
     deletedRuns.add(runId);
     data.removeWhere((k, _) => k.endsWith(':$runId'));
@@ -66,6 +68,10 @@ class _World {
   bool captureFails = false;
   Completer<void>? hold;
   Uint8List? pngOverride;
+
+  /// Die hängende Aufnahme prüft `cancelled` und gibt auf, sobald es wahr wird (Pause der Route).
+  bool pollCancel = false;
+  int sawCancelled = 0;
 
   late final MapServices services = MapServices(
     gate: (consent) => MapGate(
@@ -85,7 +91,17 @@ class _World {
           running++;
           if (running > peak) peak = running;
           try {
-            if (hold != null) await hold!.future;
+            if (hold != null && pollCancel) {
+              while (!hold!.isCompleted) {
+                if (cancelled?.call() ?? false) {
+                  sawCancelled++;
+                  return null;
+                }
+                await Future<void>.delayed(const Duration(milliseconds: 10));
+              }
+            } else if (hold != null) {
+              await hold!.future;
+            }
             await Future<void>.delayed(captureTime);
             return captureFails ? null : (pngOverride ?? png1x1);
           } finally {
@@ -209,6 +225,30 @@ void main() {
       await _openHistory(tester);
       expect(key('miniature_image'), findsNWidgets(3));
       expect(w.captures, 3);
+    },
+  );
+
+  testWidgets(
+    'Detail eines Laufs darüber: Aufnahme pausiert, nichts gespeichert; zurück: weiter (S6, Verdrahtung)',
+    (tester) async {
+      final (d, w) = await _start(tester, consent: true, runs: [2]);
+      w.hold = Completer<void>();
+      w.pollCancel = true;
+      await _openHistory(tester);
+      expect(w.captures, 1);
+      final id = (await d.session.runs.list()).first.id;
+      await tester.tap(key('history_run_$id'));
+      await tester.pumpAndSettle();
+      await _settle(tester);
+      expect(w.sawCancelled, 1, reason: 'verdeckte Route: Aufnahme gibt auf');
+      expect(w.thumbs.writtenKeys, isEmpty);
+      expect(w.captures, 1);
+      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await tester.pumpAndSettle();
+      w.hold!.complete();
+      await _settle(tester);
+      expect(w.captures, 2, reason: 'nach der Rückkehr neu aufgenommen');
+      expect(w.thumbs.writtenKeys.length, 1);
     },
   );
 

@@ -597,23 +597,33 @@ void main() {
       expect(w.run.snapshot.gaps, isEmpty);
     });
 
-    _testRun('alle Kacheln scheitern (Flugmodus nach gecachtem Stil)', (
-      tester,
-    ) async {
-      final net = FakeInner()..failWhere = (u) => u.path.endsWith('.pbf');
-      final w = _World(net: net, consent: ConsentState.granted);
-      await w.startRun();
-      await tester.pumpWidget(_app(w));
-      await _toMap(tester);
-      await w.step(tester, n: 20);
-      await _settle(tester, w);
-      // Die Karte steht (Stil geöffnet), die Kacheln fehlen: Hintergrund, Linie, Position, Quellenangabe.
-      expect(_k('live_route_map'), findsOneWidget);
-      expect(w.tiles, isNotEmpty);
-      expect(find.text(MapProvider.openFreeMap.attribution), findsOneWidget);
-      expect(w.run.phase, RecordingPhase.running);
-      expect(w.run.writeFailure, isNull);
-    });
+    for (final mode in ['Flugmodus', '404']) {
+      _testRun(
+        'alle Kacheln scheitern ($mode, Stil vorhanden): Linie mit Position und Blatt, keine Karte',
+        (tester) async {
+          final net = FakeInner();
+          if (mode == '404') {
+            net.statusWhere = (u) => u.path.endsWith('.pbf') ? 404 : null;
+          } else {
+            net.failWhere = (u) => u.path.endsWith('.pbf');
+          }
+          final w = _World(net: net, consent: ConsentState.granted);
+          await w.startRun();
+          await tester.pumpWidget(_app(w));
+          await _toMap(tester);
+          await w.step(tester, n: 20);
+          await _settle(tester, w);
+          expect(w.tiles, isNotEmpty, reason: 'Kacheln wurden versucht');
+          // Rückfall (FR-0204): Linie mit Position und Blatt, keine Karte, keine Quellenangabe.
+          expect(_k('live_route_map'), findsNothing);
+          expect(_k('live_map_line'), findsOneWidget);
+          expect(find.text(MapProvider.openFreeMap.attribution), findsNothing);
+          expect(_k('live_map_sheet'), findsOneWidget);
+          expect(w.run.phase, RecordingPhase.running);
+          expect(w.run.writeFailure, isNull);
+        },
+      );
+    }
 
     _testRun('Widerruf bei offener Karte: Linie, keine Anfrage mehr', (
       tester,

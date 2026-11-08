@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
-import 'map_consent_controller.dart';
 import 'map_consent_scope.dart';
+import 'map_source_holder.dart';
 
 /// Farben der Routenkarte aus dem App-Theme. Das Kartenmaterial (OpenFreeMap "liberty") ist hell, auch im dunklen
 /// Theme; Linie und Marken nehmen deshalb die Farben der hellen Palette, damit sie auf dem Kartengrund lesbar bleiben.
@@ -26,7 +26,7 @@ RouteMapStyle routeMapStyle(BuildContext context) {
 /// Route eines Laufs als Karte oder als Linie (FR-0204). Die Hülle um das Kernwidget [RouteMap]: sie holt beim
 /// ersten Öffnen die Einwilligung ([MapConsentController.ensureAsked]), öffnet die Kachelquelle, gibt sie beim
 /// Entfernen oder Widerruf wieder frei und fällt auf die Zeichnung ([lineBuilder] mit `map == null`) zurück: ohne
-/// Einwilligung, ohne Netz, bei Fehlern des Anbieters und solange die Karte lädt.
+/// Einwilligung, ohne Netz, bei Fehlern des Anbieters (auch wenn alle Kacheln scheitern) und solange die Karte lädt.
 ///
 /// Mit Einwilligung und geöffneter Quelle schaltet ein Umschalter zwischen Linie und Karte; sonst gibt es ihn nicht.
 class RouteMapSection extends StatefulWidget {
@@ -48,81 +48,67 @@ class RouteMapSection extends StatefulWidget {
 
 enum _View { line, map }
 
-class _RouteMapSectionState extends State<RouteMapSection> {
-  MapConsentController? _consent;
-  MapTileSource? _source;
-  bool _started = false;
+class _RouteMapSectionState extends State<RouteMapSection>
+    with WidgetsBindingObserver {
+  late final MapSourceHolder _holder = MapSourceHolder(
+    askContext: () => mounted ? context : null,
+  )..addListener(_onHolder);
   _View _view = _View.map;
+  bool _foreground = true;
+  bool _routeCurrent = true;
+
+  /// Pause (ADR-0009 Punkt 5, nur im Vordergrund): App im Hintergrund oder Route verdeckt. Dann baut die Hülle die
+  /// Karte nicht, es gibt keine Kachelanfragen (auch keine Wiederholungen der Bibliothek); die Quelle bleibt offen.
+  bool get _paused => !_foreground || !_routeCurrent;
+
+  @override
+  void initState() {
+    super.initState();
+    final life = WidgetsBinding.instance.lifecycleState;
+    _foreground = life == null || life == AppLifecycleState.resumed;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final fg = state == AppLifecycleState.resumed;
+    if (fg == _foreground) return;
+    setState(() => _foreground = fg);
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final next = MapConsentScope.of(context);
-    if (identical(next, _consent)) return;
-    _consent?.removeListener(_onConsent);
-    _consent = next;
-    next?.addListener(_onConsent);
-    _closeSource();
-    _started = false;
-    _maybeStart();
+    _routeCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+    _holder.bind(MapConsentScope.of(context));
+    _holder.setWanted(_hasRoute);
+  }
+
+  @override
+  void didUpdateWidget(RouteMapSection old) {
+    super.didUpdateWidget(old);
+    _holder.setWanted(_hasRoute);
   }
 
   bool get _hasRoute => widget.route.any((p) => p.isNotEmpty);
 
-  void _maybeStart() {
-    final c = _consent;
-    if (_started || c == null || !_hasRoute) return;
-    if (c.status == MapConsentStatus.declined) return;
-    _started = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _open(c));
-  }
-
-  Future<void> _open(MapConsentController c) async {
-    if (!mounted || !identical(c, _consent)) return;
-    final yes = await c.ensureAsked(context);
-    if (!yes || !mounted || !identical(c, _consent)) return;
-    MapTileSource? source;
-    try {
-      source = await c.openSource();
-    } on MapSourceUnavailable {
-      source = null; // Anbieter nicht erreichbar: bei der Linie bleiben.
-    } catch (_) {
-      source = null;
-    }
-    if (source == null) return;
-    if (!mounted || !identical(c, _consent) || !c.granted) {
-      source.dispose();
-      return;
-    }
-    setState(() => _source = source);
-  }
-
-  /// Widerruf bei offener Karte: Quelle freigeben, zurück zur Linie. Die Anfragen enden schon am Tor.
-  void _onConsent() {
-    if (!mounted) return;
-    if (_consent?.granted != true && _source != null) {
-      setState(_closeSource);
-    }
-  }
-
-  void _closeSource() {
-    _source?.dispose();
-    _source = null;
+  void _onHolder() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    _consent?.removeListener(_onConsent);
-    _closeSource();
+    WidgetsBinding.instance.removeObserver(this);
+    _holder.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final source = _source;
-    final canToggle = source != null && (_consent?.granted ?? false);
-    final showMap = canToggle && _view == _View.map;
+    final source = _holder.usable;
+    final canToggle = source != null;
+    final showMap = canToggle && _view == _View.map && !_paused;
     final style = routeMapStyle(context);
     Widget? map;
     if (showMap) {

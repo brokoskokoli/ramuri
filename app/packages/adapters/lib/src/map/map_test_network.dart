@@ -55,12 +55,42 @@ class FakeInner extends http.BaseClient {
   /// Anfragen, für die das Netz mit einem Fehler antwortet (etwa nur Kacheln: Flugmodus nach gecachtem Stil).
   bool Function(Uri)? failWhere;
 
+  /// Fehlerstatus für bestimmte Anfragen (etwa 404 nur für Kacheln), leerer Körper.
+  int? Function(Uri)? statusWhere;
+
+  /// Eigener Körper für bestimmte Anfragen (kaputter Stil, zu große Antwort); `chunked` sendet ihn in Stücken ohne
+  /// Längenangabe.
+  Uint8List? Function(Uri)? bodyWhere;
+  bool chunked = false;
+
+  /// Verzögerung jeder Antwort und die Zahl gleichzeitig offener Anfragen (Spitze in [maxActive]).
+  Duration? delay;
+  int active = 0;
+  int maxActive = 0;
+
+  /// Nur diese Anfragen warten auf [hold] (Standard: alle).
+  bool Function(Uri)? holdWhere;
+
+  /// Datierter Pfad der Kacheln im TileJSON (der Anbieter ändert ihn wöchentlich).
+  String tileDate = '20260101_000000_pt';
+
   @override
   Future<http.StreamedResponse> send(http.BaseRequest r) async {
     requests.add(r);
-    if (hold != null) await hold!.future;
+    active++;
+    if (active > maxActive) maxActive = active;
+    try {
+      return await _answer(r);
+    } finally {
+      active--;
+    }
+  }
+
+  Future<http.StreamedResponse> _answer(http.BaseRequest r) async {
+    if (hold != null && (holdWhere?.call(r.url) ?? true)) await hold!.future;
+    if (delay != null) await Future<void>.delayed(delay!);
     if (failWhere?.call(r.url) ?? false) throw StateError('Netz weg');
-    final status = forceStatus;
+    final status = forceStatus ?? statusWhere?.call(r.url);
     if (status != null) {
       return http.StreamedResponse(
         Stream.value(const <int>[]),
@@ -70,16 +100,31 @@ class FakeInner extends http.BaseClient {
     }
     final p = r.url.path;
     final Uint8List body;
-    if (p.startsWith('/styles/')) {
+    final custom = bodyWhere?.call(r.url);
+    if (custom != null) {
+      body = custom;
+      if (chunked) {
+        return http.StreamedResponse(
+          Stream.fromIterable([
+            for (var i = 0; i < body.length; i += 4096)
+              Uint8List.sublistView(
+                body,
+                i,
+                i + 4096 > body.length ? body.length : i + 4096,
+              ),
+          ]),
+          200,
+          request: r,
+        );
+      }
+    } else if (p.startsWith('/styles/')) {
       body = Uint8List.fromList(utf8.encode(jsonEncode(styleJson())));
     } else if (p == '/planet') {
       body = Uint8List.fromList(
         utf8.encode(
           jsonEncode({
             'tilejson': '3.0.0',
-            'tiles': [
-              'https://$host/planet/20260101_000000_pt/{z}/{x}/{y}.pbf',
-            ],
+            'tiles': ['https://$host/planet/$tileDate/{z}/{x}/{y}.pbf'],
             'minzoom': 0,
             'maxzoom': 14,
           }),

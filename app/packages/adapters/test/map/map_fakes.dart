@@ -22,4 +22,11 @@ class MemoryStore implements MapTileStore {
     writes++;
     data[key] = bytes;
   }
+
+  int removes = 0;
+  @override
+  Future<void> remove(String key) async {
+    removes++;
+    data.remove(key);
+  }
 }
