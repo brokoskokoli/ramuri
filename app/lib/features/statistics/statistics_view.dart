@@ -29,31 +29,39 @@ class StatRow extends StatelessWidget {
     return MergeSemantics(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(flex: 2, child: Text(label, style: theme.bodyMedium)),
-            Expanded(
-              flex: 3,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    value,
-                    key: Key('${id}_value'),
-                    textAlign: TextAlign.end,
-                    style: theme.titleMedium,
-                  ),
-                  if (note != null)
-                    Text(
-                      note!,
-                      textAlign: TextAlign.end,
-                      style: theme.bodySmall,
-                    ),
-                ],
+        child: LayoutBuilder(
+          builder: (context, box) => Row(
+            // Das Label nimmt seine natürliche Breite bis 60 %, der Wert den
+            // Rest. Ein festes Verhältnis (früher 2:3) gab „Herzfrequenzzonen“
+            // nur 40 % und brach es im Wort.
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: box.maxWidth * 0.6),
+                child: Text(label, style: theme.bodyMedium),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      value,
+                      key: Key('${id}_value'),
+                      textAlign: TextAlign.end,
+                      style: theme.titleMedium,
+                    ),
+                    if (note != null)
+                      Text(
+                        note!,
+                        textAlign: TextAlign.end,
+                        style: theme.bodySmall,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

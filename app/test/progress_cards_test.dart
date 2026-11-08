@@ -533,6 +533,7 @@ void main() {
   ]) {
     testWidgets('$locale: Stand aus dem Vorjahr nennt das Jahr auf Karte und '
         'Effizienzkachel (FR-0059)', (tester) async {
+      final handle = tester.ensureSemantics();
       await pumpCards(
         tester,
         overview(
@@ -541,6 +542,11 @@ void main() {
           day: '2024-06-03',
         ),
         locale: locale,
+      );
+      // Auch der Vorlesetext der Effizienzkachel nennt das Jahr.
+      expect(
+        tester.getSemantics(k('progress_efficiency_compare')).label,
+        contains(expected),
       );
       expect(plain(tester, 'progress_vo2_asof'), expected);
       expect(find.textContaining(expected), findsWidgets);
@@ -551,6 +557,7 @@ void main() {
         ),
         findsWidgets,
       );
+      handle.dispose();
     });
   }
 

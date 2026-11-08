@@ -31,6 +31,8 @@ Gegenüber `Fortschritt.dc.html`, jeweils begründet:
 - Link „Wie wird das berechnet?“ mit 48 statt 32 dp Höhe (FR-0205, Tippziel).
 - Effizienzkachel in voller Breite statt zwei Spalten; ohne Prognose und „Lockere Pace bei Z2“, ohne Belastung (Phase 2).
 - Zusätzlich Zeitraumwahl und übrige Kennzahlen (FR-0043, FR-0044).
+- Ohne VO₂max-Wert entfällt der Chip „Schätzung“ (nichts Geschätztes); ohne jeden Lauf steht in der Balkenkarte „Noch keine Läufe aufgezeichnet.“ (FR-0057).
+- Alle „Stand“-, „Daten vom … bis …“- und „Berechnet am …“-Angaben tragen das Jahr (FR-0059 „Wie alt“), auch in der Sektion darunter.
 - Der Hero der VO₂max ist wie im Design ganzzahlig („46“); die Sichten darunter und der Verlauf zeigen eine Nachkommastelle (45,5 steht oben als 46, darunter als 45,5).
 
 ## Abnahmekriterien

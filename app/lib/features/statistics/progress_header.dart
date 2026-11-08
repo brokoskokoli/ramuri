@@ -70,11 +70,15 @@ class WeekDistanceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Volle Breite, Enden bündig (Design: space-between). Ein Expanded
+          // neben einem Flexible teilt den Platz 1:1 und ließ den rechten
+          // Text in der Mitte beginnen.
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Expanded(
+              Flexible(
                 child: Semantics(
                   header: true,
                   child: Text(
@@ -88,6 +92,7 @@ class WeekDistanceCard extends StatelessWidget {
               Flexible(
                 child: Text(
                   l10n.progressLast8,
+                  key: const Key('progress_week_range'),
                   textAlign: TextAlign.end,
                   style: theme.labelMedium!.copyWith(color: c.textMuted),
                 ),
@@ -101,32 +106,52 @@ class WeekDistanceCard extends StatelessWidget {
             semanticLabel: label,
           ),
           const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            spacing: 8,
+          // Ein Wrap schrumpft auf seinen Inhalt, spaceBetween hatte dann keinen
+          // Raum; die Row füllt die Breite, „KW“ links, „jetzt“ rechts.
+          Row(
+            key: const Key('progress_week_footer'),
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (series.isNotEmpty)
-                Text(
-                  l10n.progressWeekShort(series.first.isoWeek),
-                  key: const Key('progress_week_first'),
-                  style: theme.labelSmall!.copyWith(color: c.textMuted),
+                Flexible(
+                  child: Text(
+                    l10n.progressWeekShort(series.first.isoWeek),
+                    key: const Key('progress_week_first'),
+                    style: theme.labelSmall!.copyWith(color: c.textMuted),
+                  ),
                 ),
               if (lastFull != null)
-                Text(
-                  l10n.progressLastWeek(
-                    lastFull.isUnavailable
-                        ? UnitFormatter.noValue
-                        : shown(lastFull),
+                Flexible(
+                  child: Text(
+                    l10n.progressLastWeek(
+                      lastFull.isUnavailable
+                          ? UnitFormatter.noValue
+                          : shown(lastFull),
+                    ),
+                    key: const Key('progress_week_last'),
+                    textAlign: TextAlign.center,
+                    style: theme.labelSmall!.copyWith(color: c.textMuted),
                   ),
-                  key: const Key('progress_week_last'),
+                ),
+              Flexible(
+                child: Text(
+                  l10n.progressNow,
+                  key: const Key('progress_week_now'),
+                  textAlign: TextAlign.end,
                   style: theme.labelSmall!.copyWith(color: c.textMuted),
                 ),
-              Text(
-                l10n.progressNow,
-                style: theme.labelSmall!.copyWith(color: c.textMuted),
               ),
             ],
           ),
+          if (!series.any((w) => w.hasRuns)) ...[
+            const SizedBox(height: 8),
+            Text(
+              l10n.statNoRunYet,
+              key: const Key('progress_week_no_runs'),
+              style: theme.bodySmall!.copyWith(color: c.textMuted),
+            ),
+          ],
           if (notes.isNotEmpty) ...[
             const SizedBox(height: 8),
             Column(
@@ -205,82 +230,93 @@ class Vo2ProgressCard extends StatelessWidget {
               SectionHeading(
                 l10n.progressVo2Title,
                 eyebrow: true,
-                trailing: RamuriBadge(l10n.progressEstimateBadge),
+                trailing: value == null
+                    ? null
+                    : RamuriBadge(l10n.progressEstimateBadge),
               ),
               const SizedBox(height: 10),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: value == null
-                        ? Text(
-                            reason,
-                            key: const Key('progress_vo2_reason'),
-                            style: theme.bodyMedium,
-                          )
-                        : Semantics(
-                            key: const Key('progress_vo2_semantics'),
-                            container: true,
-                            excludeSemantics: true,
-                            label: [
-                              l10n.progressVo2Semantics(
-                                '${heroText(value)} ${l10n.progressVo2Unit}',
-                              ),
-                              l10n.statVo2Current,
-                              ?asOf,
-                            ].join(', '),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text.rich(
-                                  key: const Key('progress_vo2'),
-                                  TextSpan(
-                                    children: [
-                                      TextSpan(
-                                        text: heroText(value),
-                                        style: type.hero,
-                                      ),
-                                      TextSpan(
-                                        text: ' ${l10n.progressVo2Unit}',
-                                        style: type.unit.copyWith(
-                                          color: c.onPanelSoft,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  l10n.statVo2Current,
-                                  key: const Key('progress_vo2_current'),
-                                  style: theme.bodySmall!.copyWith(
-                                    color: c.onPanelSoft,
-                                  ),
-                                ),
-                                if (asOf != null)
-                                  Text(
-                                    asOf,
-                                    key: const Key('progress_vo2_asof'),
-                                    style: theme.bodySmall!.copyWith(
-                                      color: c.onPanelSoft,
-                                    ),
-                                  ),
-                              ],
-                            ),
+              if (value == null)
+                Text(
+                  reason,
+                  key: const Key('progress_vo2_reason'),
+                  style: theme.bodyMedium,
+                )
+              else ...[
+                // Design: große Zahl links, Verlauf rechts unten bündig in
+                // derselben Zeile; die Beschriftung darunter über die ganze
+                // Breite. Die Zahl trägt den ganzen Vorlesetext, die
+                // Beschriftung wird nicht doppelt vorgelesen.
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Semantics(
+                        key: const Key('progress_vo2_semantics'),
+                        container: true,
+                        excludeSemantics: true,
+                        label: [
+                          l10n.progressVo2Semantics(
+                            '${heroText(value)} ${l10n.progressVo2Unit}',
                           ),
-                  ),
-                  if (trendValues.length >= 2) ...[
-                    const SizedBox(width: 12),
-                    RamuriSparkline(
-                      key: const Key('progress_vo2_sparkline'),
-                      values: trendValues,
-                      semanticLabel: l10n.progressVo2TrendSemantics(
-                        '${trend.join(', ')} ${l10n.progressVo2Unit}',
+                          l10n.statVo2Current,
+                          ?asOf,
+                        ].join(', '),
+                        child: Text.rich(
+                          key: const Key('progress_vo2'),
+                          TextSpan(
+                            children: [
+                              TextSpan(text: heroText(value), style: type.hero),
+                              TextSpan(
+                                text: ' ${l10n.progressVo2Unit}',
+                                style: type.unit.copyWith(
+                                  color: c.onPanelSoft,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
+                    if (trendValues.length >= 2) ...[
+                      const SizedBox(width: 12),
+                      RamuriSparkline(
+                        key: const Key('progress_vo2_sparkline'),
+                        values: trendValues,
+                        semanticLabel: l10n.progressVo2TrendSemantics(
+                          '${trend.join(', ')} ${l10n.progressVo2Unit}',
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              ),
+                ),
+                const SizedBox(height: 4),
+                ExcludeSemantics(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.statVo2Current,
+                          key: const Key('progress_vo2_current'),
+                          style: theme.bodySmall!.copyWith(
+                            color: c.onPanelSoft,
+                          ),
+                        ),
+                        if (asOf != null)
+                          Text(
+                            asOf,
+                            key: const Key('progress_vo2_asof'),
+                            style: theme.bodySmall!.copyWith(
+                              color: c.onPanelSoft,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               if (value != null && longTerm != null) ...[
                 const SizedBox(height: 10),
                 Text(
@@ -301,6 +337,7 @@ class Vo2ProgressCard extends StatelessWidget {
                     minimumSize: const Size(0, RamuriTheme.minTarget),
                     padding: EdgeInsets.zero,
                     textStyle: theme.labelLarge!.copyWith(
+                      fontSize: 14,
                       fontWeight: FontWeight.w800,
                     ),
                   ),

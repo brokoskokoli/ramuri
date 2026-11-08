@@ -609,11 +609,7 @@ void main() {
         vo2maxLongTermValueKey,
         day: '2026-06-05',
       );
-      final m = MaterialLocalizations.of(tester.element(key('expl_a2')));
-      expect(
-        text('expl_a2'),
-        'Berechnungsversuch am ${m.formatMediumDate(DateTime.utc(2026, 6, 5).toLocal())}',
-      );
+      expect(text('expl_a2'), 'Berechnungsversuch am Fr., 5. Juni 2026');
     });
 
     testWidgets('Effizienz ist als Schätzung gekennzeichnet (CON-0009)', (
@@ -652,14 +648,11 @@ void main() {
         vo2maxLongTermValueKey,
         day: '2026-06-05',
       );
-      final context = tester.element(key('expl_a2'));
-      final m = MaterialLocalizations.of(context);
-      String date(int mo, int day) =>
-          m.formatMediumDate(DateTime.utc(2026, mo, day).toLocal());
+      // Alle drei Angaben mit Jahr (FR-0059 „Wie alt“).
       expect(
         text('expl_a2'),
-        'Daten vom ${date(5, 1)} bis ${date(6, 4)}\n'
-        'Berechnet am ${date(6, 5)}\n'
+        'Daten vom Fr., 1. Mai 2026 bis Do., 4. Juni 2026\n'
+        'Berechnet am Fr., 5. Juni 2026\n'
         'Stand Fr., 5. Juni 2026',
       );
       // Das deutsche Datum endet mit einem Abkürzungspunkt; kein zweiter.

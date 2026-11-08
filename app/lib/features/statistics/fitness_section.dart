@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_card.dart';
+import '../settings/unit_format.dart' show asOfDateText;
 import '../transparency/value_explanation_screen.dart';
 import 'statistics_screen.dart' show ExplainValue;
 import 'statistics_view.dart';
@@ -111,6 +112,11 @@ class FitnessSection extends StatelessWidget {
 
     String estimate(double v) => l10n.sumVo2maxValue(number(v));
     String dateOf(String day) => material.formatMediumDate(_date(day));
+    // „Stand“ mit Jahr, wie auf Karte und Erklärung (FR-0059).
+    String asOf(String day) => asOfDateText(
+      Localizations.localeOf(context).languageCode,
+      DateTime.parse(day),
+    );
 
     Widget explain(String id, String valueKey, {int? runId, String? day}) =>
         ExplainButton(
@@ -186,7 +192,7 @@ class FitnessSection extends StatelessWidget {
             value: longTerm == null
                 ? l10n.statVo2NoValue
                 : l10n.statVo2Day(
-                    day == null ? '' : dateOf(day),
+                    day == null ? '' : asOf(day),
                     valueOrReason(longTerm, estimate),
                   ),
           ),
@@ -238,7 +244,7 @@ class FitnessSection extends StatelessWidget {
                     eff,
                     (v) => l10n.statEfficiencyValue(
                       number(v, sign: true),
-                      day == null ? '' : dateOf(day),
+                      day == null ? '' : asOf(day),
                     ),
                   ),
           ),

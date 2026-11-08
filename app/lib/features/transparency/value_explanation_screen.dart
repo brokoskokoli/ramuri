@@ -227,14 +227,15 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
       return [Text(l10n.explNotStored, key: const Key('expl_not_stored'))];
     }
     final kind = _kindOf(widget.valueKey);
-    final material = MaterialLocalizations.of(context);
     final german = Localizations.localeOf(context).languageCode == 'de';
     String num(double v) {
       final t = v.toStringAsFixed(1);
       return german ? t.replaceAll('.', ',') : t;
     }
 
-    String date(DateTime t) => material.formatMediumDate(t.toLocal());
+    // Mit Jahr, passend zum „Stand“ (FR-0059 „Wie alt“).
+    String date(DateTime t) =>
+        asOfDateText(Localizations.localeOf(context).languageCode, t.toLocal());
     final estimate =
         kind == _Kind.vo2Run ||
         kind == _Kind.vo2LongTerm ||
