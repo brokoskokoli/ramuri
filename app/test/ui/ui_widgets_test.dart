@@ -497,4 +497,42 @@ void main() {
       expect(find.text(b.name), findsOneWidget);
     }
   });
+
+  testWidgets(
+    'Wochenstreifen: Heute mit Lauf bleibt an der Beschriftung kenntlich',
+    (tester) async {
+      for (final mode in modes) {
+        await pumpUi(
+          tester,
+          const RamuriWeekStrip(
+            days: [
+              RamuriWeekDay(
+                label: 'Mo',
+                semanticLabel: 'a',
+                done: true,
+                today: true,
+              ),
+              RamuriWeekDay(
+                label: 'Di',
+                semanticLabel: 'b',
+                done: false,
+                today: true,
+              ),
+              RamuriWeekDay(label: 'Mi', semanticLabel: 'c', done: false),
+            ],
+          ),
+          mode: mode,
+        );
+        await tester.pumpAndSettle(); // Themewechsel läuft animiert
+        final c = colorsOf(mode);
+        Color? colorOf(String t) =>
+            tester.widget<Text>(find.text(t)).style?.color;
+        expect(find.byKey(const Key('week_dot_done')), findsOneWidget);
+        expect(find.byKey(const Key('week_dot_today')), findsOneWidget);
+        expect(colorOf('Mo'), c.text);
+        expect(colorOf('Di'), c.text);
+        expect(colorOf('Mi'), isNot(c.text));
+      }
+    },
+  );
 }

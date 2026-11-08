@@ -22,7 +22,8 @@ class RamuriWeekDay {
   /// Es wurde gelaufen: Kreis in Minze mit Haken.
   final bool done;
 
-  /// Der heutige Tag: Kreis mit Akzentrand.
+  /// Der heutige Tag: gestrichelter Ring (ohne Lauf), Beschriftung kräftig
+  /// in Textfarbe (auch mit Lauf).
   final bool today;
 
   /// Ein Tag nach heute: weißer Kreis mit Rand.
@@ -55,7 +56,12 @@ class RamuriWeekStrip extends StatelessWidget {
                 children: [
                   _dot(c, days[i]),
                   const SizedBox(height: 6),
-                  Text(days[i].label, style: label),
+                  Text(
+                    days[i].label,
+                    style: days[i].today
+                        ? label.copyWith(color: c.text)
+                        : label,
+                  ),
                 ],
               ),
             ),
@@ -90,7 +96,7 @@ class RamuriWeekStrip extends StatelessWidget {
       height: 34,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: day.future ? c.surface : c.track,
+        color: day.future ? c.surface : c.outline,
         border: day.future ? Border.all(color: c.outline, width: 2) : null,
       ),
     );
