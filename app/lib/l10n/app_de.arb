@@ -799,7 +799,7 @@
   "@sumZoneRow": {"description": "WP10 B1", "placeholders": {"zone": {"type": "int"}, "time": {"type": "String"}}},
   "sumBelowZone1": "Unter Zone 1: {time}",
   "@sumBelowZone1": {"description": "WP10 B1", "placeholders": {"time": {"type": "String"}}},
-  "sumCoverageLow": "nicht verfügbar (zu wenig Puls)",
+  "sumCoverageLow": "nicht verfügbar (zu wenig Pulsdaten)",
   "sumTrimp": "Trainingsbelastung",
   "sumTrimpValue": "{points} Punkte",
   "@sumTrimpValue": {"description": "WP10 B1", "placeholders": {"points": {"type": "String"}}},

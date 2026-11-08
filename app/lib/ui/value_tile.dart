@@ -182,7 +182,8 @@ class RamuriTileGrid extends StatelessWidget {
     for (final child in children) {
       if (child is! RamuriValueTile) continue;
       // Auch eine Zahl bricht, wenn sie nicht passt („+120 / 0“): sie zählt
-      // wie ein Wort. Die Einheit hängt über den Wortverbinder an der Zahl.
+      // wie ein Wort. Nur die Zahl wird geprüft; die Einheit steht danach hinter
+      // einem normalen Leerzeichen und darf umbrechen.
       final word = child.textValue ? child.longestReasonWord : child.value;
       if (word == null) continue;
       final painter = TextPainter(

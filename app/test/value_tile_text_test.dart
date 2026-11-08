@@ -219,46 +219,47 @@ void main() {
     }
   }
 
-  // E2E 31: 360 dp, Faktor 1,15, "+1200 m" steht in einer Zeile.
-  testWidgets('+1200 m steht auf 360 dp bei Faktor 1,15 in einer Zeile', (
-    tester,
-  ) async {
-    await loadManrope(tester);
-    await loadSora(tester);
-    const size = Size(360, 900);
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      _app(
-        RamuriTileGrid(
-          children: const [
-            RamuriValueTile(
-              label: 'Zahl',
-              value: '+1200',
-              unit: 'm',
-              valueKey: Key('n1200'),
-            ),
-            RamuriValueTile(label: 'Zahl', value: '5:30', unit: 'min/km'),
-            RamuriValueTile(label: 'Zahl', value: '10,50', unit: 'km'),
-          ],
+  // E2E 31: 360 dp, Faktor 1,15, die Zahl "+1200" steht in einer Zeile.
+  testWidgets(
+    'Die Zahl +1200 steht auf 360 dp bei Faktor 1,15 in einer Zeile',
+    (tester) async {
+      await loadManrope(tester);
+      await loadSora(tester);
+      const size = Size(360, 900);
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        _app(
+          RamuriTileGrid(
+            children: const [
+              RamuriValueTile(
+                label: 'Zahl',
+                value: '+1200',
+                unit: 'm',
+                valueKey: Key('n1200'),
+              ),
+              RamuriValueTile(label: 'Zahl', value: '5:30', unit: 'min/km'),
+              RamuriValueTile(label: 'Zahl', value: '10,50', unit: 'km'),
+            ],
+          ),
+          scale: 1.15,
+          size: size,
         ),
-        scale: 1.15,
-        size: size,
-      ),
-    );
-    final paragraph = tester.renderObject<RenderParagraph>(
-      find.byKey(const Key('n1200')),
-    );
-    // Alle Zeichen der Zahl (nicht der Einheit) liegen auf derselben Zeile.
-    final boxes = paragraph.getBoxesForSelection(
-      const TextSelection(baseOffset: 0, extentOffset: 5),
-    );
-    final tops = {for (final b in boxes) b.top.round()};
-    expect(tops.length, 1, reason: 'Zahl bricht: $tops');
-    expect(paragraph.text.toPlainText(), contains('+1200'));
-    expect(tester.takeException(), isNull);
-  });
+      );
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.byKey(const Key('n1200')),
+      );
+      // Alle Zeichen der Zahl (nicht der Einheit) liegen auf derselben Zeile.
+      final boxes = paragraph.getBoxesForSelection(
+        const TextSelection(baseOffset: 0, extentOffset: 5),
+      );
+      final tops = {for (final b in boxes) b.top.round()};
+      expect(tops.length, 1, reason: 'Zahl bricht: $tops');
+      expect(paragraph.text.toPlainText(), contains('+1200'));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('Aussage und Grund sind getrennt, der Text bleibt vollständig', (
     tester,
