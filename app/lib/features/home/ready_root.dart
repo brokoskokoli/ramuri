@@ -4,7 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../../ui/ramuri_buttons.dart';
+import '../../ui/ui.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../storage/deletion.dart';
 import '../sensors/sensor_manager.dart';
@@ -261,7 +261,9 @@ class _ReadyRootState extends State<ReadyRoot> {
       }
       final settings = snapshot.data;
       if (settings == null) {
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        return const RamuriDarkScope(
+          child: Scaffold(body: Center(child: CircularProgressIndicator())),
+        );
       }
       return ListenableBuilder(
         listenable: settings,

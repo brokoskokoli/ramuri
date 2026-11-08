@@ -2,7 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../../ui/ramuri_buttons.dart';
+import '../../ui/ui.dart';
 import '../archive/archive_import_flow.dart';
 import '../archive/archive_scope.dart';
 import '../export/file_handoff_scope.dart';
@@ -169,15 +169,18 @@ class _LoadingScreen extends StatelessWidget {
   const _LoadingScreen();
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 16),
-          Text(AppLocalizations.of(context).storageLoading),
-        ],
+  // Fest dunkel wie Splash und Willkommen: kein Hellblitz im hellen System.
+  Widget build(BuildContext context) => RamuriDarkScope(
+    child: Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(AppLocalizations.of(context).storageLoading),
+          ],
+        ),
       ),
     ),
   );

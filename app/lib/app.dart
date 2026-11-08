@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'app_dependencies.dart';
@@ -52,7 +53,13 @@ class _RunningAppState extends State<RunningApp> {
             restore: dependencies.archiveRestore,
             verify: dependencies.archiveVerify,
             start: dependencies.storageStart,
-            child: AppSettingsScope(holder: _settings, child: child!),
+            // Ohne Region behält Flutter den letzten Stil; Heute hat keine
+            // App-Leiste. Tiefere Regionen (Dunkel-Fläche, App-Leisten) gehen
+            // vor.
+            child: AnnotatedRegion<SystemUiOverlayStyle>(
+              value: ramuriOverlayStyle(Theme.of(context).brightness),
+              child: AppSettingsScope(holder: _settings, child: child!),
+            ),
           ),
         ),
       ),

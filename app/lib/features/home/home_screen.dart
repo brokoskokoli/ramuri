@@ -255,7 +255,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 trailing: Text(
                   km,
                   key: const Key('home_week_km'),
-                  style: RamuriType.of(context).unit,
+                  // Zahl fett in Sora wie im Design.
+                  style: Theme.of(context).textTheme.titleSmall!.copyWith(
+                    fontFamily: ramuriHeadingFamily,
+                    fontWeight: FontWeight.w700,
+                    color: c.text,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
               // Wie in der Statistik: Fehlt bei einem Lauf die Strecke, ist die
@@ -323,6 +329,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           : l10n.homeWeekDayNone(long),
       done: done,
       today: day == today,
+      future: day.compareTo(today) > 0,
     );
   }
 }
@@ -377,6 +384,17 @@ class _LastRun extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
+          // Statisches Symbol-Kästchen wie im Design.
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: c.tint,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(Icons.timeline_rounded, color: c.accent),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
