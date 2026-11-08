@@ -67,7 +67,11 @@ List<String> plaintextHits(Directory d) {
         for (var j = 0; j < s.length && ok; j++) {
           ok = b[i + j] == s[j];
         }
-        if (ok && n == 'gzip') ok = gunzipOk(b, i);
+        if (ok && n == 'gzip') {
+          ok = gunzipOk(b, i);
+          // ignore: avoid_print
+          if (ok) print('R008 gzip_hit offset=$i dateigroesse=${b.length} ${f.path.substring(d.path.length)}');
+        }
         if (ok) {
           hits.add('$n in ${f.path.substring(d.path.length)}');
           return;

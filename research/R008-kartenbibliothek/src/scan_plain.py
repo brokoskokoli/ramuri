@@ -9,19 +9,19 @@ GZ = b'\x1f\x8b\x08'
 
 
 def gzip_output(b):
-    """(echte Treffer, Signaturen ohne Ausgabe)"""
-    real, sig, i = 0, 0, b.find(GZ)
+    """(echte Treffer, Signaturen ohne Ausgabe, Offsets der echten Treffer)"""
+    real, sig, off, i = 0, 0, [], b.find(GZ)
     while i >= 0:
         try:
             out = zlib.decompressobj(31).decompress(b[i:i + 1 << 20])
         except zlib.error:
             out = b''
         if out:
-            real += 1
+            real += 1; off.append(i)
         else:
             sig += 1
         i = b.find(GZ, i + 1)
-    return real, sig
+    return real, sig, off
 
 
 if __name__ == '__main__':
@@ -30,9 +30,9 @@ if __name__ == '__main__':
         for f in files:
             p = os.path.join(root, f); b = open(p, 'rb').read(); tot += len(b)
             h = [n for n, s in SIGS.items() if s in b]
-            real, sig = gzip_output(b)
+            real, sig, off = gzip_output(b)
             if real: h.append('gzip')
             if h: hit += 1
-            note = f' (gzip-sig ohne Ausgabe: {sig})' if sig else ''
+            note = (f' (gzip-sig ohne Ausgabe: {sig})' if sig else '') + (f' (gzip-Offset {off[:3]})' if off else '')
             print(f'{len(b):>10}  {",".join(h) or "-":<30} {os.path.relpath(p, sys.argv[1])}{note}')
     print(f'SUMME bytes={tot} dateien_mit_treffer={hit}')

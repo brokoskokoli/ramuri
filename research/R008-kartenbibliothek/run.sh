@@ -14,7 +14,7 @@ Schritte:
 | \`licenses\` | Lizenzbaum: Dart (pubspec.lock + LICENSE im Pub-Cache) und Gradle (releaseRuntimeClasspath + POM) |
 | \`netstatic\`| Netz-APIs und fest eingebaute Hosts in Dart-Paketen, Java/Kotlin-Quellen und nativen Bibliotheken |
 | \`emu\`      | Emulator-Messungen (src/emu.sh): Mitschnitt ohne/mit Einwilligung, Live-Seite, Miniaturen, Speicher |
-| \`store\`    | Host-Probe der Speicherempfehlung (src/storeprobe): sqlite3mc-Datei gegen AES-GCM je Datei, ohne Netz fuer Kacheln, Ausgabe store.json |
+| \`store\`    | Host-Probe der Speicherempfehlung (src/storeprobe): sqlite3mc-Datei gegen AES-GCM je Datei, ohne Netz fuer Kacheln, Ausgabe store.json (laedt beim ersten Mal die SHA-256-gepruefte Bibliothek libsqlite3mc von GitHub) |
 Parameter:
 | \`--apps "a b"\` | "$APPS_ALL" | Mini-Apps fuer build, licenses, emu |
 | \`--api N\`      | 36          | emu: API-Stufe (36 voll, 31 nur Start-Smoke) |
