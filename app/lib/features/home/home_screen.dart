@@ -1,5 +1,6 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
@@ -86,7 +87,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final material = MaterialLocalizations.of(context);
     final theme = Theme.of(context).textTheme;
     final c = RamuriColors.of(context);
     return Scaffold(
@@ -108,7 +108,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        material.formatMediumDate(_date(_today)),
+                        DateFormat.MMMMEEEEd(
+                          Localizations.localeOf(context).toString(),
+                        ).format(_date(_today)),
                         key: const Key('home_date'),
                         style: theme.labelMedium!.copyWith(color: c.textMuted),
                       ),

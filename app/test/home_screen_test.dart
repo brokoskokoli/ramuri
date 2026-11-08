@@ -149,8 +149,8 @@ void main() {
     expect(find.text('This week'), findsOneWidget);
     expect(find.textContaining('Last run'), findsOneWidget);
     expect(find.text('Free run'), findsOneWidget);
-    // Datum lokalisiert: englische Reihenfolge, Wochentag zuerst.
-    expect(text('home_date'), 'Wed, Jun 10');
+    // Datum lang, lokalisiert: Wochentag zuerst, ohne Jahr.
+    expect(text('home_date'), 'Wednesday, June 10');
   });
 
   testWidgets('Datum auf Deutsch', (tester) async {
@@ -158,7 +158,7 @@ void main() {
     d.clock.set(DateTime.utc(2026, 6, 10, 12));
     await _preopen(d);
     await _start(d, tester);
-    expect(text('home_date'), 'Mi., 10. Juni');
+    expect(text('home_date'), 'Mittwoch, 10. Juni');
   });
 
   testWidgets('letzter Lauf: Sprung in dieselbe Detailseite wie im Verlauf', (

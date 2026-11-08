@@ -37,6 +37,9 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  # Langes Datum auf Heute (DateFormat); schon über flutter_localizations im
+  # Lock, kein neuer Code im APK. Version wie im Lock.
+  intl: 0.20.3
 
   core:
     path: packages/core
