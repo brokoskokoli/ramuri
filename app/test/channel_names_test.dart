@@ -8,7 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// Ein Kanalname ist ein Literal an einem Kanalkonstruktor (`MethodChannel(`, `EventChannel(`; in
 /// Kotlin steht der Messenger davor) oder der Wert einer Konstante, deren Name `Channel` enthält.
-/// Benachrichtigungskanäle (`CHANNEL_ID`) sind keine Flutter-Kanäle. Das Präfix spielt für die Erkennung keine Rolle: auch `other/x` wird gefunden und dann abgelehnt.
+/// Benachrichtigungskanäle (`CHANNEL_ID`) sind keine Flutter-Kanäle. Das Präfix spielt für die
+/// Erkennung keine Rolle: auch `other/x` wird gefunden und dann abgelehnt.
 final _constructor = RegExp(
   '(?:Method|Event)Channel\\(\\s*(?:[\\w.]+\\s*,\\s*)?["\']([^"\']+)["\']',
 );
