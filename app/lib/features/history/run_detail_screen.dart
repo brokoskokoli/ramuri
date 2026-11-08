@@ -12,7 +12,7 @@ import 'run_detail_page.dart';
 
 /// Detailansicht eines Laufs (FR-0041, FR-0042, FR-0211) nach `Detail.dc.html`:
 /// Lauf laden ([RunSummaryBody]), Inhalt in [RunDetailPage]. Exportieren
-/// ([RunExportAction]) und Löschen sind in der Kopfzeile; nach dem Löschen
+/// ([RunExportAction]) ist der Knopf am Ende, Löschen sitzt in der Kopfzeile; nach dem Löschen
 /// schließt die Ansicht mit `true`.
 class RunDetailScreen extends StatelessWidget {
   const RunDetailScreen({
@@ -52,7 +52,6 @@ class RunDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(l10n.detTitle),
         actions: [
-          RunExportAction(session: session, runId: runId),
           IconButton(
             key: const Key('detail_delete'),
             tooltip: l10n.histDeleteRun,

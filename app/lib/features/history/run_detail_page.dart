@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../export/run_export_action.dart';
 import '../settings/unit_format.dart';
 import '../summary/kilometer_table.dart';
 import '../summary/run_charts.dart';
@@ -16,8 +17,8 @@ import '../transparency/value_explanation_screen.dart';
 /// Anstieg und Gefälle, Kilometertabelle, danach die Kacheln, Zonen, Belastung,
 /// Einordnung, VO₂max, Runden, Hinweise und Quellen wie in der Zusammenfassung
 /// ([RunSummaryPage]). Nicht Verfügbares steht als „nicht verfügbar“ oder „–“,
-/// nie als 0. Die Ansicht ändert keine Daten; Exportieren und Löschen sitzen in
-/// der Kopfzeile des Screens.
+/// nie als 0. Die Ansicht ändert keine Daten; Exportieren ist der Knopf am Ende, Löschen
+/// sitzt in der Kopfzeile des Screens.
 class RunDetailPage extends StatelessWidget {
   const RunDetailPage({
     super.key,
@@ -100,6 +101,8 @@ class RunDetailPage extends StatelessWidget {
           runSourcesKey,
           label: l10n.explSourcesButton,
         ),
+        gap,
+        RunExportAction(session: session, runId: runId),
       ],
     );
   }

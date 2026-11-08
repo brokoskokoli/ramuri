@@ -171,6 +171,39 @@ void main() {
       expect(text('history_total_runs'), '1');
     });
 
+    testWidgets('leerer Zeitraum mit Läufen anderswo: Knopf führt zu „Alle“', (
+      tester,
+    ) async {
+      final d = await _start(tester);
+      final id = await seedRun(d.session, DateTime.utc(2026, 5, 28, 8));
+      await tester.tap(key('home_history'));
+      await tester.pumpAndSettle();
+      expect(key('history_empty_range'), findsOneWidget);
+      expect(key('history_run_$id'), findsNothing);
+      // Der Umschalter bleibt stehen, der Knopf ist mindestens 48 dp hoch.
+      expect(key('history_range'), findsOneWidget);
+      expect(find.text('Alle anzeigen'), findsOneWidget);
+      expect(
+        tester.getSize(key('history_show_all')).height,
+        greaterThanOrEqualTo(48),
+      );
+      await tester.tap(key('history_show_all'));
+      await tester.pumpAndSettle();
+      expect(key('history_empty_range'), findsNothing);
+      expect(key('history_show_all'), findsNothing);
+      expect(key('history_run_$id'), findsOneWidget);
+      expect(text('history_total_runs'), '1');
+    });
+
+    testWidgets('gar keine Läufe: kein Knopf „Alle anzeigen“', (tester) async {
+      await _start(tester);
+      await tester.tap(key('home_history'));
+      await tester.pumpAndSettle();
+      expect(key('history_empty'), findsOneWidget);
+      expect(key('history_show_all'), findsNothing);
+      expect(find.text('Alle anzeigen'), findsNothing);
+    });
+
     testWidgets('Läufe ohne Strecke: Summe "nicht verfügbar", nie 0', (
       tester,
     ) async {

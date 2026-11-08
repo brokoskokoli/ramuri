@@ -179,6 +179,65 @@ void main() {
       },
     );
 
+    testWidgets('Balken: gerenderte Höhe 10, Breite nach der Pace', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: splits, formatter: _km)),
+      );
+      Size fill(int i) => tester.getSize(
+        find.descendant(
+          of: key('detail_km_bar_$i'),
+          matching: find.byType(FractionallySizedBox),
+        ),
+      );
+      final track = tester.getSize(key('detail_km_bar_1'));
+      expect(track.height, 10);
+      expect(track.width, greaterThan(20));
+      // Schnellster Abschnitt (330) voll, langsamster (360) 40 %, ohne Pace nichts.
+      expect(fill(1), Size(track.width, 10));
+      expect(fill(2).height, 10);
+      expect(fill(2).width, closeTo(track.width * 0.4, 0.01));
+      expect(fill(3).width, 0);
+      expect(fill(4), Size(track.width, 10));
+    });
+
+    testWidgets('Beschriftung steht über der vollen Tabellenbreite', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: splits, formatter: _km)),
+      );
+      final table = tester.getRect(key('detail_km_table'));
+      final bar = tester.getRect(key('detail_km_bar_2'));
+      for (final k in ['detail_km_gap_2', 'detail_km_partial_4']) {
+        final r = tester.getRect(key(k));
+        expect(r.left, table.left, reason: k);
+        expect(r.left, lessThan(bar.left), reason: k);
+      }
+      // Unter dem Balken der eigenen Zeile.
+      expect(
+        tester.getRect(key('detail_km_gap_2')).top,
+        greaterThanOrEqualTo(bar.bottom),
+      );
+    });
+
+    testWidgets('Screenreader liest Lücke und „angebrochen“ mit', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: splits, formatter: _km)),
+      );
+      String label(int i) =>
+          tester.getSemantics(key('detail_km_index_$i')).label;
+      expect(label(1), 'km 1: Zeit 5:30, Pace 5:30, Puls 140 bpm');
+      expect(label(2), contains('GPS-Lücke'));
+      expect(label(2), contains('0:30'));
+      expect(label(4), contains('angebrochen: 0,42 km'));
+      handle.dispose();
+    });
+
     testWidgets('Meilen: Kopf „mi“, Rest in Meilen', (tester) async {
       final miles = _splits([
         _split(1, seconds: 540, pace: 335.5, hr: 141),
@@ -410,7 +469,7 @@ void main() {
   }
 
   testWidgets(
-    'Kopfzeile: Export und Löschen bleiben, 48 dp, bei Schriftfaktor 1,3',
+    'Löschen in der Kopfzeile, Export als Knopf am Seitenende, 48 dp, bei 1,3',
     (tester) async {
       final d = await started(tester);
       final id = await seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8));
@@ -425,14 +484,23 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(key('history_run_$id'));
       await tester.pumpAndSettle();
-      for (final k in ['detail_export', 'detail_delete']) {
-        expect(key(k), findsOneWidget, reason: k);
-        expect(
-          tester.getSize(key(k)).height,
-          greaterThanOrEqualTo(RamuriTheme.minTarget),
-          reason: k,
-        );
-      }
+      expect(
+        tester.getSize(key('detail_delete')).height,
+        greaterThanOrEqualTo(RamuriTheme.minTarget),
+      );
+      // Export: kein Eintrag der Kopfleiste, sondern der Knopf am Ende.
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: key('detail_export'),
+        ),
+        findsNothing,
+      );
+      expect(find.text('Exportieren (GPX · TCX · FIT)'), findsOneWidget);
+      expect(
+        tester.getSize(key('detail_export')).height,
+        greaterThanOrEqualTo(RamuriTheme.minTarget),
+      );
       expect(key('detail_km_table'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

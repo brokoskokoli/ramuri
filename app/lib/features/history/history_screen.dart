@@ -253,12 +253,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
       if (totals.runCount == 0)
         (_) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 32),
-          child: Center(
-            child: Text(
-              l10n.histEmptyRange,
-              key: const Key('history_empty_range'),
-              textAlign: TextAlign.center,
-            ),
+          child: Column(
+            children: [
+              Text(
+                l10n.histEmptyRange,
+                key: const Key('history_empty_range'),
+                textAlign: TextAlign.center,
+              ),
+              // Läufe in anderen Zeiträumen (z. B. nach einem Archiv-Import):
+              // ein Tipp führt zu „Alle“, der Umschalter bleibt stehen.
+              if (data.overviews.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(l10n.histEmptyOtherRuns, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                RamuriSecondaryButton(
+                  key: const Key('history_show_all'),
+                  label: l10n.histEmptyShowAll,
+                  onPressed: () =>
+                      setState(() => _view.range = HistoryRange.all),
+                ),
+              ],
+            ],
           ),
         )
       else ...[

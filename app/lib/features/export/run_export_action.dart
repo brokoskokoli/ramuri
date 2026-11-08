@@ -8,7 +8,7 @@ import 'file_handoff_scope.dart';
 /// Wohin die Datei geht: Teilen-Menü oder System-Dokumentenziel (FR-0201).
 enum ExportTarget { share, save }
 
-/// Export eines beendeten Laufs aus dem Lauf-Detail (FR-0182, FR-0201,
+/// Export eines beendeten Laufs als Knopf am Ende des Lauf-Details (FR-0182, FR-0201,
 /// WP11): Formatwahl, Ziel, Fortschritt und Ergebnis. Erst das Tippen auf
 /// „Teilen“ oder „Speichern“ erzeugt und übergibt die Datei; Abbildung und
 /// Kodierung rechnen über den [OffloadScope] (in der App ein eigener
@@ -93,23 +93,29 @@ class _RunExportActionState extends State<RunExportAction> {
       builder: (context, snapshot) {
         if (snapshot.data != true) return const SizedBox.shrink();
         if (_busy) {
-          return Padding(
-            padding: const EdgeInsets.all(12),
-            child: SizedBox.square(
-              dimension: 24,
-              child: CircularProgressIndicator(
-                key: const Key('export_progress'),
-                strokeWidth: 2,
-                semanticsLabel: l10n.exportRunning,
+          return SizedBox(
+            height: 52,
+            child: Center(
+              child: SizedBox.square(
+                dimension: 24,
+                child: CircularProgressIndicator(
+                  key: const Key('export_progress'),
+                  strokeWidth: 2,
+                  semanticsLabel: l10n.exportRunning,
+                ),
               ),
             ),
           );
         }
-        return IconButton(
-          key: const Key('detail_export'),
-          tooltip: l10n.exportAction,
-          icon: const Icon(Icons.share_outlined),
-          onPressed: () => _export(handoff),
+        // Knopf über die volle Breite am Seitenende (Detail.dc.html, 52 dp).
+        return SizedBox(
+          height: 52,
+          width: double.infinity,
+          child: OutlinedButton(
+            key: const Key('detail_export'),
+            onPressed: () => _export(handoff),
+            child: Text(l10n.exportButton),
+          ),
         );
       },
     );

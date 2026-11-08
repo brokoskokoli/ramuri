@@ -120,6 +120,25 @@ void main() {
     expect(_snackText(), 'File saved.');
   });
 
+  testWidgets('Export ist der Knopf am Seitenende, nicht in der Kopfleiste', (
+    tester,
+  ) async {
+    tester_ = tester;
+    await _openDetail(tester);
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: key('detail_export')),
+      findsNothing,
+    );
+    final button = tester.getRect(key('detail_export'));
+    final screen = tester.getSize(find.byType(Scaffold).first);
+    // Volle Breite abzüglich Seitenrand 16 + 16, 52 dp hoch, unter dem Inhalt.
+    expect(button.width, screen.width - 32);
+    expect(button.height, 52);
+    final sources = tester.getRect(key('sum_explain_sources'));
+    expect(button.top, greaterThan(sources.bottom));
+    expect(find.text('Exportieren (GPX · TCX · FIT)'), findsOneWidget);
+  });
+
   testWidgets('Abbruch in der Formatwahl erzeugt und überträgt nichts', (
     tester,
   ) async {

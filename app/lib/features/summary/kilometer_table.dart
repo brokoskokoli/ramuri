@@ -90,99 +90,149 @@ class KilometerTable extends StatelessWidget {
         Padding(padding: p, child: w);
     final unitLabel = formatter.distanceLabel;
     final unitName = unitLabel;
+    final times = _wholeSeconds();
 
-    TableRow header() => TableRow(
+    // Spaltenbreiten wie bei IntrinsicColumnWidth, aber selbst gemessen: Die
+    // Beschriftung eines Abschnitts steht als eigene Zeile über der vollen
+    // Tabellenbreite (eine Table kann Zellen nicht verbinden).
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    double measure(String t, TextStyle? st) =>
+        (TextPainter(
+          text: TextSpan(text: t, style: st),
+          textDirection: direction,
+          textScaler: scaler,
+        )..layout()).width.ceilToDouble() +
+        1;
+    double widest(String h, TextStyle? hs, Iterable<String> v, TextStyle? vs) =>
+        [
+          measure(h, hs),
+          for (final t in v) measure(t, vs),
+        ].reduce((a, b) => a > b ? a : b);
+    final paces = [for (final s in splits.splits) _pace(s.paceSecondsPerKm)];
+    final hrs = [for (final s in splits.splits) _hr(s.heartRateAverageBpm)];
+    final w0 =
+        widest(unitLabel, head, [
+          for (final s in splits.splits) '${s.index}',
+        ], cell) +
+        10;
+    final w1 =
+        widest(l10n.detailColTime, head, [
+          for (final t in times) _time(t),
+        ], cell) +
+        10;
+    final w3 = widest(l10n.detailColPace, head, paces, cell) + 10;
+    final w4 = widest(l10n.detailColHr, head, hrs, text.bodyMedium);
+
+    // Reicht die Breite nicht (sehr große Schrift), schrumpfen die festen
+    // Spalten anteilig und der Balken behält mindestens [minBar].
+    const minBar = 24.0;
+    var shrink = 1.0;
+    Widget line(List<Widget> cells) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        padded(Text(unitLabel, style: head)),
-        padded(Text(l10n.detailColTime, style: head)),
-        const SizedBox.shrink(),
-        padded(Text(l10n.detailColPace, style: head)),
-        Text(l10n.detailColHr, style: head),
+        SizedBox(width: w0 * shrink, child: cells[0]),
+        SizedBox(width: w1 * shrink, child: cells[1]),
+        Expanded(child: cells[2]),
+        SizedBox(width: w3 * shrink, child: cells[3]),
+        SizedBox(width: w4 * shrink, child: cells[4]),
       ],
     );
 
-    final times = _wholeSeconds();
-    TableRow row(KilometerSplit s) {
+    Widget header() => line([
+      padded(Text(unitLabel, style: head)),
+      padded(Text(l10n.detailColTime, style: head)),
+      const SizedBox.shrink(),
+      padded(Text(l10n.detailColPace, style: head)),
+      Text(l10n.detailColHr, style: head),
+    ]);
+
+    Widget row(KilometerSplit s) {
       final i = s.index;
       final time = times[s.index - 1];
       final pace = s.paceSecondsPerKm;
-      final label = l10n.detailSplitSemantics(
-        unitName,
-        i,
-        _time(time),
-        _pace(pace),
-        s.heartRateAverageBpm == null
-            ? l10n.sumNoHeartRate
-            : l10n.runBpm(s.heartRateAverageBpm!.round()),
-      );
       final captions = [
         if (s.isPartial)
           l10n.detailSplitPartial(formatter.distance(s.lengthMeters)),
         if (s.hasPositionGap)
           l10n.detailSplitGap(formatClock(s.positionGapTime)),
       ];
+      // Der Screenreader liest auch „angebrochen“ und die GPS-Lücke (FR-0211).
+      final label = [
+        l10n.detailSplitSemantics(
+          unitName,
+          i,
+          _time(time),
+          _pace(pace),
+          s.heartRateAverageBpm == null
+              ? l10n.sumNoHeartRate
+              : l10n.runBpm(s.heartRateAverageBpm!.round()),
+        ),
+        ...captions,
+      ].join(', ');
       final small = text.bodySmall;
-      return TableRow(
+      return Column(
         key: ValueKey('detail_km_row_$i'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          padded(
-            Semantics(
-              container: true,
-              label: label,
-              excludeSemantics: true,
-              child: Text('$i', key: Key('detail_km_index_$i'), style: cell),
-            ),
-          ),
-          ExcludeSemantics(
-            child: padded(
-              Text(_time(time), key: Key('detail_km_time_$i'), style: cell),
-            ),
-          ),
-          ExcludeSemantics(
-            child: padded(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: _Bar(
-                      key: Key('detail_km_bar_$i'),
-                      fraction: pace == null ? 0 : fraction(pace),
-                      fast: pace != null && pace <= mean,
-                      track: colors.track,
-                      strong: colors.accent,
-                      soft: colors.action,
-                    ),
-                  ),
-                  for (var c = 0; c < captions.length; c++)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        captions[c],
-                        key: Key(
-                          (s.isPartial && c == 0)
-                              ? 'detail_km_partial_$i'
-                              : 'detail_km_gap_$i',
-                        ),
-                        style: small,
-                      ),
-                    ),
-                ],
+          line([
+            padded(
+              Semantics(
+                container: true,
+                label: label,
+                excludeSemantics: true,
+                child: Text('$i', key: Key('detail_km_index_$i'), style: cell),
               ),
             ),
-          ),
-          ExcludeSemantics(
-            child: padded(
-              Text(_pace(pace), key: Key('detail_km_pace_$i'), style: cell),
+            ExcludeSemantics(
+              child: padded(
+                Text(_time(time), key: Key('detail_km_time_$i'), style: cell),
+              ),
             ),
-          ),
-          ExcludeSemantics(
-            child: Text(
-              _hr(s.heartRateAverageBpm),
-              key: Key('detail_km_hr_$i'),
-              style: text.bodyMedium,
+            ExcludeSemantics(
+              child: padded(
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: _Bar(
+                    key: Key('detail_km_bar_$i'),
+                    fraction: pace == null ? 0 : fraction(pace),
+                    fast: pace != null && pace <= mean,
+                    track: colors.track,
+                    strong: colors.accent,
+                    soft: colors.action,
+                  ),
+                ),
+              ),
             ),
-          ),
+            ExcludeSemantics(
+              child: padded(
+                Text(_pace(pace), key: Key('detail_km_pace_$i'), style: cell),
+              ),
+            ),
+            ExcludeSemantics(
+              child: Text(
+                _hr(s.heartRateAverageBpm),
+                key: Key('detail_km_hr_$i'),
+                style: text.bodyMedium,
+              ),
+            ),
+          ]),
+          // Beschriftung über die volle Breite, nicht in der Balkenspalte.
+          for (var c = 0; c < captions.length; c++)
+            ExcludeSemantics(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  captions[c],
+                  key: Key(
+                    (s.isPartial && c == 0)
+                        ? 'detail_km_partial_$i'
+                        : 'detail_km_gap_$i',
+                  ),
+                  style: small,
+                ),
+              ),
+            ),
         ],
       );
     }
@@ -190,17 +240,18 @@ class KilometerTable extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Table(
-          key: const Key('detail_km_table'),
-          defaultVerticalAlignment: TableCellVerticalAlignment.top,
-          columnWidths: const {
-            0: IntrinsicColumnWidth(),
-            1: IntrinsicColumnWidth(),
-            2: FlexColumnWidth(),
-            3: IntrinsicColumnWidth(),
-            4: IntrinsicColumnWidth(),
+        LayoutBuilder(
+          builder: (context, c) {
+            final fixed = w0 + w1 + w3 + w4;
+            shrink = fixed + minBar > c.maxWidth
+                ? ((c.maxWidth - minBar) / fixed).clamp(0.0, 1.0)
+                : 1.0;
+            return Column(
+              key: const Key('detail_km_table'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [header(), for (final s in splits.splits) row(s)],
+            );
           },
-          children: [header(), for (final s in splits.splits) row(s)],
         ),
         const SizedBox(height: 8),
         Text(l10n.detailSplitsNote, style: text.bodySmall),
@@ -236,6 +287,7 @@ class _Bar extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: FractionallySizedBox(
         widthFactor: fraction,
+        heightFactor: 1,
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: fast ? strong : soft,
