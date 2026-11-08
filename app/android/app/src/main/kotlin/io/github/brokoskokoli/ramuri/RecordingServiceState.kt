@@ -1,4 +1,4 @@
-package io.github.brokoskokoli.running_app
+package io.github.brokoskokoli.ramuri
 
 import android.Manifest
 import android.content.Context
@@ -10,13 +10,13 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 
 /**
- * Prozessweiter Stand des Dienstes und sein Kanal `running_app/recording_service`
+ * Prozessweiter Stand des Dienstes und sein Kanal `ramuri/recording_service`
  * (start, stop, isRunning). Alles läuft auf dem Hauptthread. Nach einem
  * Prozessende ist [running] falsch, also `false`: Daran erkennt WP08 Teil B einen
  * Lauf ohne Dienst.
  */
 object RecordingServiceState {
-    const val CHANNEL = "running_app/recording_service"
+    const val CHANNEL = "ramuri/recording_service"
     private const val START_TIMEOUT_MS = 5000L
 
     private val handler = Handler(Looper.getMainLooper())

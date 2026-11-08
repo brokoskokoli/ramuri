@@ -1,4 +1,4 @@
-package io.github.brokoskokoli.running_app
+package io.github.brokoskokoli.ramuri
 
 import android.app.Service
 import android.content.pm.ServiceInfo

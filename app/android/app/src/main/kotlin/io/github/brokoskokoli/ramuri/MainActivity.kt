@@ -1,4 +1,4 @@
-package io.github.brokoskokoli.running_app
+package io.github.brokoskokoli.ramuri
 
 import android.Manifest
 import android.content.Intent
@@ -17,7 +17,7 @@ class MainActivity : FlutterActivity() {
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         // Der Handler hält diese Activity; die Engine bleibt ohne sie bestehen.
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/permissions")
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "ramuri/permissions")
             .setMethodCallHandler(null)
         pendingLocation?.error("detached", null, null)
         pendingLocation = null
@@ -55,7 +55,7 @@ class MainActivity : FlutterActivity() {
         fileHandoff?.detach()
         fileHandoff = FileHandoffChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         // SEC-0007: Stand der Berechtigungen nur lesen; Widerruf im System.
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "running_app/permissions")
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "ramuri/permissions")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "status" -> result.success(

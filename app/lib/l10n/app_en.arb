@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "appTitle": "Running App",
+  "appTitle": "ramuri",
   "homeWelcome": "Welcome to the running app",
   "deleteRunTitle": "Delete run?",
   "deleteRunBody": "The run is permanently deleted from the app's storage together with all its measurements, sections and calculated values. Daily values that include this run are deleted as well and calculated again later. This cannot be undone.",

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ramuri: generiert von branding/build_brand.py, nicht von Hand ändern -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M3.86,14.42 L7.38,14.42 L9.14,10.46 L11.34,17.06 L13.1,12.66 C14.2,10.24 15.52,8.92 16.62,8.7"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M17.94,7.6 a1.76,1.76 0 1,0 3.52,0 a1.76,1.76 0 1,0 -3.52,0"
+        android:fillColor="#FFFFFF" />
+</vector>

@@ -1,4 +1,4 @@
-package io.github.brokoskokoli.running_app
+package io.github.brokoskokoli.ramuri
 
 /** Seiteneffekte des [RecordingServiceController] (in Tests ersetzt). */
 interface ServiceEffects<R> {
@@ -12,7 +12,7 @@ interface ServiceEffects<R> {
 }
 
 /**
- * Entscheidungen hinter dem Kanal `running_app/recording_service` ohne Android-Objekte
+ * Entscheidungen hinter dem Kanal `ramuri/recording_service` ohne Android-Objekte
  * (JVM-testbar): wann gestartet wird, wann ein Stopp vorgemerkt statt ausgeführt wird,
  * wie ein Timeout endet. Alles auf dem Hauptthread. [R] ist das Antwortobjekt des Kanals.
  */

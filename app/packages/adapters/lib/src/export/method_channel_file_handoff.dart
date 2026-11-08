@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 /// Kanalname zu `FileHandoffChannel.kt` (`CHANNEL`); dieselbe Zeichenkette
 /// steht dort (ein Test prüft das).
-const String fileHandoffChannelName = 'running_app/file_handoff';
+const String fileHandoffChannelName = 'ramuri/file_handoff';
 
 /// [FileHandoff] über eigenen Kotlin-Code (FR-0201): Teilen über
 /// `ACTION_SEND` und `FileProvider`, Speichern über `ACTION_CREATE_DOCUMENT`,

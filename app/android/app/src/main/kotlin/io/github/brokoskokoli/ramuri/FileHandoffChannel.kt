@@ -1,4 +1,4 @@
-package io.github.brokoskokoli.running_app
+package io.github.brokoskokoli.ramuri
 
 import android.app.Activity
 import android.app.PendingIntent
@@ -19,7 +19,7 @@ import java.io.File
 import java.io.IOException
 
 /**
- * Kanal `running_app/file_handoff` (FR-0201, WP11): Datei teilen (`ACTION_SEND` über den
+ * Kanal `ramuri/file_handoff` (FR-0201, WP11): Datei teilen (`ACTION_SEND` über den
  * Chooser, FileProvider mit Leserecht nur für diese URI) oder über das System-Dokumentenziel
  * speichern (`ACTION_CREATE_DOCUMENT`, Inhalt direkt in die gelieferte URI, ohne Temp-Datei).
  * `pickFile` öffnet eine Datei (`ACTION_OPEN_DOCUMENT`) und kopiert sie als Strom nach
@@ -235,7 +235,7 @@ class FileHandoffChannel(private val activity: Activity, messenger: BinaryMessen
     }
 
     companion object {
-        const val CHANNEL = "running_app/file_handoff"
+        const val CHANNEL = "ramuri/file_handoff"
         private const val SHARE_REQUEST = 6101
         private const val SAVE_REQUEST = 6102
         private const val PICK_REQUEST = 6103

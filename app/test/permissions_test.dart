@@ -126,7 +126,7 @@ void main() {
 
   test('Kanalname und requestedKeys-Schlüssel stehen gleich in Dart und MainActivity.kt', () {
     final kt = File(
-      'android/app/src/main/kotlin/io/github/brokoskokoli/running_app/MainActivity.kt',
+      'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri/MainActivity.kt',
     ).readAsStringSync();
     expect(permissionChannel.name, permissionChannelName);
     expect(

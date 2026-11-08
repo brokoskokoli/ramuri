@@ -1,4 +1,4 @@
-package io.github.brokoskokoli.running_app
+package io.github.brokoskokoli.ramuri
 
 import android.Manifest
 import android.content.Context
@@ -23,8 +23,8 @@ import io.flutter.plugin.common.MethodChannel
  * Beide brauchen ACTIVITY_RECOGNITION. Kein Foreground-Typ `health`.
  */
 object StepSensor {
-    const val METHOD_CHANNEL = "running_app/step_sensor"
-    const val EVENT_CHANNEL = "running_app/step_stream"
+    const val METHOD_CHANNEL = "ramuri/step_sensor"
+    const val EVENT_CHANNEL = "ramuri/step_stream"
 
     /** Dart: CadenceAvailability (available, permissionDenied, noSensor). */
     fun decide(hasSensor: Boolean, permissionGranted: Boolean): String = when {

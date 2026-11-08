@@ -1,4 +1,4 @@
-package io.github.brokoskokoli.running_app
+package io.github.brokoskokoli.ramuri
 
 import android.app.Application
 import android.location.LocationManager
@@ -30,14 +30,14 @@ class RunningApplication : Application() {
     private fun registerProcessChannels(engine: FlutterEngine) {
         val messenger = engine.dartExecutor.binaryMessenger
         // ADR-0003 Punkt 3: Die Datenbank liegt in getNoBackupFilesDir(), das immer vom Backup ausgenommen ist.
-        MethodChannel(messenger, "running_app/storage").setMethodCallHandler { call, result ->
+        MethodChannel(messenger, "ramuri/storage").setMethodCallHandler { call, result ->
             when (call.method) {
                 "getNoBackupFilesDir" -> result.success(noBackupFilesDir.absolutePath)
                 else -> result.notImplemented()
             }
         }
         // ADR-0005 Punkt 4: GPS_PROVIDER ohne Play-Dienste.
-        EventChannel(messenger, "running_app/location_stream")
+        EventChannel(messenger, "ramuri/location_stream")
             .setStreamHandler(GpsStreamHandler(getSystemService(LocationManager::class.java)))
         RecordingServiceState.register(messenger, this)
         // FR-0202: Schrittsensor des Telefons, ohne Activity erreichbar.

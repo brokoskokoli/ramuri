@@ -5,10 +5,10 @@ import 'package:flutter/services.dart';
 
 /// Kanalnamen zu `GpsStreamHandler.kt` und `MainActivity.kt`; dieselben
 /// Zeichenketten stehen dort (ein Test prüft das).
-const String locationStreamChannelName = 'running_app/location_stream';
+const String locationStreamChannelName = 'ramuri/location_stream';
 
 /// Zugriff (Berechtigung, GPS-Schalter) läuft über den Berechtigungskanal.
-const String locationAccessChannelName = 'running_app/permissions';
+const String locationAccessChannelName = 'ramuri/permissions';
 
 /// Takt der Standortabfrage in Millisekunden (OQ-0064: einmal je Sekunde).
 /// Steht auch in `GpsStreamHandler.kt` (`INTERVAL_MS`).
@@ -100,7 +100,7 @@ LocationSample decodeLocationEvent(Object? event) {
   );
 }
 
-/// [LocationAccessPort] über den Berechtigungskanal (`running_app/permissions`).
+/// [LocationAccessPort] über den Berechtigungskanal (`ramuri/permissions`).
 class MethodChannelLocationAccess implements LocationAccessPort {
   MethodChannelLocationAccess([MethodChannel? channel])
     : _channel = channel ?? const MethodChannel(locationAccessChannelName);

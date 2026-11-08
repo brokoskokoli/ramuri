@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 const String databaseFileName = 'running_app.db';
 
 /// Kanal zum kleinen Plattformaufruf in `MainActivity` (ADR-0003 Punkt 3).
-const MethodChannel noBackupChannel = MethodChannel('running_app/storage');
+const MethodChannel noBackupChannel = MethodChannel('ramuri/storage');
 
 /// Liefert `Context.getNoBackupFilesDir()`, das immer vom Backup ausgenommen ist.
 Future<String> noBackupFilesDir([

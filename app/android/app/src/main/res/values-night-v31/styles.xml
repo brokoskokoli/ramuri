@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- System-Splash ab Android 12: Nacht mit Zeichen, ohne Text. Das Zeichen ist die Vordergrundebene
+         des Adaptive Icons (Inhalt im Schutzkreis von 66 dp auf 108 dp); die Splash-API maskiert 2/3
+         der Symbolfläche, das Zeichen liegt also vollständig im sichtbaren Kreis. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/ramuri_night</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+    </style>
+</resources>

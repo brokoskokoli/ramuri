@@ -1,4 +1,4 @@
-package io.github.brokoskokoli.running_app
+package io.github.brokoskokoli.ramuri
 
 import android.Manifest
 import android.app.Notification
@@ -62,7 +62,7 @@ class RecordingService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         return Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_ramuri)
             .setContentTitle(getString(R.string.recording_notification_title))
             .setContentText(getString(R.string.recording_notification_text))
             .setContentIntent(open)
@@ -75,7 +75,7 @@ class RecordingService : Service() {
         // Ohne Zähler: ein release gibt den Lock frei. Kein Zeitlimit: Der Lauf bestimmt die Dauer.
         @Suppress("WakelockTimeout")
         private val lock = context.getSystemService(PowerManager::class.java)
-            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "running_app:recording")
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ramuri:recording")
             .apply { setReferenceCounted(false) }
 
         override val isHeld: Boolean get() = lock.isHeld

@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 
 /// Kanalnamen zu `StepSensor.kt`; dieselben Zeichenketten stehen dort
 /// (ein Test prüft das).
-const String stepSensorChannelName = 'running_app/step_sensor';
-const String stepStreamChannelName = 'running_app/step_stream';
+const String stepSensorChannelName = 'ramuri/step_sensor';
+const String stepStreamChannelName = 'ramuri/step_stream';
 
 /// [CadenceSensor] über den Schrittsensor des Telefons (eigener Kotlin-Code,
 /// prozessweit an der Engine). Kotlin meldet nur Schrittzeitpunkte; die

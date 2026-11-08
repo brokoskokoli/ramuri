@@ -1,4 +1,4 @@
-package io.github.brokoskokoli.running_app
+package io.github.brokoskokoli.ramuri
 
 import android.content.Intent
 import java.io.File
@@ -75,7 +75,7 @@ class ExportFilesTest {
     }
 
     @Test fun authorityMatchesManifest() {
-        assertEquals("io.github.brokoskokoli.running_app.exports", ExportFiles.authority("io.github.brokoskokoli.running_app"))
+        assertEquals("io.github.brokoskokoli.ramuri.exports", ExportFiles.authority("io.github.brokoskokoli.ramuri"))
         val manifest = File("src/main/AndroidManifest.xml").readText()
         assertTrue(manifest.contains("android:authorities=\"\${applicationId}.${ExportFiles.DIR}\""))
     }
