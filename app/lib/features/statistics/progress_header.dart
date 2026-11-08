@@ -166,9 +166,11 @@ class Vo2ProgressCard extends StatelessWidget {
     final german = Localizations.localeOf(context).languageCode == 'de';
     final longTerm = fitness.longTerm;
     final value = longTerm?.value;
-    // Im Hero ganzzahlig wie im Design; die Sichten darunter zeigen eine
-    // Stelle (OQ-0075, Maintainer).
-    String heroText(double v) => v.round().toString();
+    // Im Hero ganzzahlig nach dem Design (FR-0205); die Sichten darunter
+    // zeigen eine Stelle. Gerundet wird den angezeigten Wert, damit 45,46
+    // (dort 45,5) nicht als 45 daneben steht.
+    String heroText(double v) =>
+        double.parse(v.toStringAsFixed(1)).round().toString();
     final day = fitness.day;
     // Eine Liste für Linie und Beschreibung, ältester Wert zuerst.
     final trendValues = [

@@ -241,6 +241,8 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
         kind == _Kind.efficiency;
     final from = value.dataFrom;
     final to = value.dataTo;
+    final dayText = widget.day;
+    final asOfDay = dayText == null ? null : DateTime.tryParse(dayText);
     final out = <Widget>[];
     final missing = value.value == null;
     if (estimate && !missing) {
@@ -303,11 +305,15 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
     out.add(Heading(l10n.explQ2));
     out.add(
       Text(
-        missing
-            ? l10n.explAgeAttempt(date(value.computedAt))
-            : from != null && to != null
-            ? l10n.explAge(date(from), date(to), date(value.computedAt))
-            : l10n.explAgeNoRange(date(value.computedAt)),
+        [
+          missing
+              ? l10n.explAgeAttempt(date(value.computedAt))
+              : from != null && to != null
+              ? l10n.explAge(date(from), date(to), date(value.computedAt))
+              : l10n.explAgeNoRange(date(value.computedAt)),
+          // Tageswert: der Tag, auf den sich „bis zum Stand“ (Anzahl) bezieht.
+          if (!missing && asOfDay != null) l10n.explAsOf(date(asOfDay)),
+        ].join('\n'),
         key: const Key('expl_a2'),
       ),
     );

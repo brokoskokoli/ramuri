@@ -159,6 +159,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     // Jahr, Monat, Tag zählen.
     final day = isoDay(DateTime.utc(picked.year, picked.month, picked.day));
     setState(() {
+      // Jede Wahl legt beide Enden fest: Folgte das andere Ende der Uhr,
+      // könnte es später vor oder hinter das gewählte rutschen (von > bis).
+      _view.from ??= _from;
+      _view.to ??= _to;
       if (from) {
         _view.from = day;
         if (_to.compareTo(day) < 0) _view.to = day;

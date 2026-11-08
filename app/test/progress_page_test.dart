@@ -7,6 +7,7 @@ import 'package:running_app/features/statistics/statistics_screen.dart';
 import 'package:running_app/features/statistics/statistics_view_state.dart';
 import 'package:running_app/ui/ui.dart';
 
+import 'app_harness.dart' show Device;
 import 'history_summary_test.dart' show key, openHistory, seedRun, started;
 import 'statistics_test.dart' show calc, choose, openStats;
 
@@ -395,6 +396,83 @@ void main() {
       d.clock.set(DateTime.utc(2026, 6, 20, 12));
       await openStats(d, tester);
       expect(from(), isNot(before));
+    });
+
+    group('freier Zeitraum: jede Wahl legt beide Enden fest', () {
+      String label(String k) =>
+          ((key(k).evaluate().single.widget as OutlinedButton).child! as Text)
+              .data!
+              .split(': ')
+              .last;
+
+      Future<void> pickDay(WidgetTester tester, String k, int day) async {
+        await tester.tap(key(k));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('$day').last);
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+      }
+
+      Future<Device> open(WidgetTester tester) async {
+        final d = await started(tester);
+        d.clock.set(DateTime.utc(2026, 6, 10, 12)); // von 4. bis 10. Juni
+        await openStats(d, tester);
+        await choose(tester, 'custom');
+        return d;
+      }
+
+      for (final (name, later) in [
+        ('Uhr vor', DateTime.utc(2026, 6, 20, 12)),
+        ('Uhr zurück', DateTime.utc(2026, 6, 5, 12)),
+      ]) {
+        testWidgets('nur „bis“ gewählt, $name: Enden bleiben, kein Absturz', (
+          tester,
+        ) async {
+          final d = await open(tester);
+          final from = label('stat_from');
+          await pickDay(tester, 'stat_to', 10);
+          final to = label('stat_to');
+          await openHistory(d, tester);
+          d.clock.set(later);
+          await openStats(d, tester);
+          expect(tester.takeException(), isNull);
+          expect(label('stat_from'), from);
+          expect(label('stat_to'), to);
+        });
+
+        testWidgets('nur „von“ gewählt, $name: Enden bleiben, kein Absturz', (
+          tester,
+        ) async {
+          final d = await open(tester);
+          final to = label('stat_to');
+          await pickDay(tester, 'stat_from', 8);
+          final from = label('stat_from');
+          await openHistory(d, tester);
+          d.clock.set(later);
+          await openStats(d, tester);
+          expect(tester.takeException(), isNull);
+          expect(label('stat_from'), from);
+          expect(label('stat_to'), to);
+        });
+      }
+
+      testWidgets('„bis“ vor „von“ gewählt: „von“ zieht mit, keine Ausnahme', (
+        tester,
+      ) async {
+        await open(tester);
+        await pickDay(tester, 'stat_to', 2);
+        expect(tester.takeException(), isNull);
+        expect(label('stat_from'), label('stat_to'));
+      });
+
+      testWidgets('„von“ nach „bis“ gewählt: „bis“ zieht mit, keine Ausnahme', (
+        tester,
+      ) async {
+        await open(tester);
+        await pickDay(tester, 'stat_from', 15);
+        expect(tester.takeException(), isNull);
+        expect(label('stat_from'), label('stat_to'));
+      });
     });
 
     testWidgets('Datenmeldung (changes.revision): Zeitraum und Lage bleiben, '

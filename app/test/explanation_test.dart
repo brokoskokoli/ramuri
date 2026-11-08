@@ -538,6 +538,25 @@ void main() {
       expect(key('expl_gap_note'), findsNothing);
     });
 
+    testWidgets('Tageswert: der Tag steht als „Stand“ unter dem Alter', (
+      tester,
+    ) async {
+      final d = await seeded(tester, deviceName: 'Brustgurt');
+      await d.session.values.createOriginals(
+        const ValueOwner.day('2026-06-05'),
+        [
+          _dayValue(vo2maxLongTermValueKey, ['gps', 'strap']),
+        ],
+      );
+      await showExplanationFor(
+        tester,
+        d,
+        vo2maxLongTermValueKey,
+        day: '2026-06-05',
+      );
+      expect(text('expl_a2').split('\n').last, 'Stand Fr., 5. Juni');
+    });
+
     testWidgets('Effizienz ist als Schätzung gekennzeichnet (CON-0009)', (
       tester,
     ) async {
@@ -581,7 +600,8 @@ void main() {
       expect(
         text('expl_a2'),
         'Daten vom ${date(5, 1)} bis ${date(6, 4)}\n'
-        'Berechnet am ${date(6, 5)}',
+        'Berechnet am ${date(6, 5)}\n'
+        'Stand ${date(6, 5)}',
       );
       // Das deutsche Datum endet mit einem Abkürzungspunkt; kein zweiter.
       expect(text('expl_a2'), isNot(contains('..')));

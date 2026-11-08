@@ -142,7 +142,7 @@ void main() {
             ),
             locale: locale,
           );
-          // Hero ganzzahlig wie im Design (OQ-0075).
+          // Hero ganzzahlig nach dem Design (FR-0205).
           expect(plain(tester, 'progress_vo2'), '46 ml/kg/min');
           expect(
             plain(tester, 'progress_vo2_basis'),
@@ -174,14 +174,33 @@ void main() {
       );
       expect(k('progress_vo2_explain'), findsOneWidget);
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      // Bei 411 dp bricht der Text der Testschrift um, und zwei Zeilen
+      // ergeben von selbst 48 dp. Breit genug für eine Zeile prüft das Tippziel
+      // selbst (Mindesthöhe und Padding des Buttons).
+      tester.view.physicalSize = const Size(700, 1400);
+      await tester.pumpAndSettle();
+      final label = find.descendant(
+        of: k('progress_vo2_explain'),
+        matching: find.byType(Text),
+      );
+      expect(
+        tester.getSize(label).height,
+        lessThan(30),
+        reason: 'Text muss einzeilig sein, sonst ist der Test blind',
+      );
+      expect(
+        tester.getSize(k('progress_vo2_explain')).height,
+        greaterThanOrEqualTo(48),
+      );
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
       handle.dispose();
     });
 
     testWidgets('Zahl 0 verwertbare Läufe im Fenster: eigener Text, kein '
         '„0 Läufe“ neben dem Wert', (tester) async {
       for (final (locale, text) in [
-        ('de', 'keine verwertbaren Läufe in den letzten 8 Wochen'),
-        ('en', 'no usable runs in the last 8 weeks'),
+        ('de', 'Keine verwertbaren Läufe in den letzten 8 Wochen'),
+        ('en', 'No usable runs in the last 8 weeks'),
       ]) {
         await pumpCards(
           tester,
@@ -222,6 +241,43 @@ void main() {
         contains('44,0, 45,5 ml/kg/min'),
       );
       handle.dispose();
+    });
+
+    testWidgets('Hero folgt dem angezeigten Wert: 45,46 steht als 45,5 und '
+        'oben als 46', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpCards(
+        tester,
+        overview(
+          longTerm: stored(vo2maxLongTermValueKey, 45.46),
+          weeks: const [('2026-05-25', 44.0), ('2026-06-01', 45.46)],
+        ),
+      );
+      expect(
+        tester.getSemantics(k('progress_vo2_sparkline')).label,
+        contains('44,0, 45,5 ml/kg/min'),
+      );
+      expect(plain(tester, 'progress_vo2'), '46 ml/kg/min');
+      handle.dispose();
+    });
+
+    testWidgets('Zahl 1 verwertbarer Lauf: Einzahl in de und en', (
+      tester,
+    ) async {
+      for (final (locale, text) in [
+        ('de', '1 verwertbarer Lauf in den 8 Wochen bis zum Stand'),
+        ('en', '1 usable run in the 8 weeks up to the as-of date'),
+      ]) {
+        await pumpCards(
+          tester,
+          overview(
+            longTerm: stored(vo2maxLongTermValueKey, 46.04, count: 1),
+            weeks: _weeks,
+          ),
+          locale: locale,
+        );
+        expect(plain(tester, 'progress_vo2_basis'), startsWith(text));
+      }
     });
 
     for (final (locale, estimate, current, asOf) in [
