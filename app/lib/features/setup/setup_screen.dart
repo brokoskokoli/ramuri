@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../archive/archive_import_action.dart';
 import '../archive/archive_wiring.dart';
+import '../../ui/ramuri_buttons.dart';
+import '../../ui/ramuri_card.dart';
 import '../profile/profile_form.dart';
 
 /// Ersteinrichtung beim ersten Start (FR-0001, OQ-0010): Profilformular, das
@@ -47,27 +49,29 @@ class _SetupScreenState extends State<SetupScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
-          Text(l10n.setupIntro),
+          Text(l10n.setupIntro, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 16),
           // Neues Gerät: Daten aus einem Archiv holen (FR-0198, Vertrag 4.6).
           // Hier ist die App noch leer; der Import übernimmt auch die
           // Einstellungen und das Profil und beendet die Einrichtung.
-          ArchiveImportAction(
-            session: widget.session,
-            serialize: widget.serialize,
-            buttonKey: const Key('setup_restore'),
-            label: l10n.setupRestoreAction,
-            prepare: (fresh) async {
-              if (await fresh.settings.get(SettingKeys.setupDone) != '1') {
-                await fresh.settings.set(
-                  SettingKeys.setupDone,
-                  '1',
-                  at: widget.clock.now(),
-                );
-              }
-            },
+          RamuriCard(
+            child: ArchiveImportAction(
+              session: widget.session,
+              serialize: widget.serialize,
+              buttonKey: const Key('setup_restore'),
+              label: l10n.setupRestoreAction,
+              prepare: (fresh) async {
+                if (await fresh.settings.get(SettingKeys.setupDone) != '1') {
+                  await fresh.settings.set(
+                    SettingKeys.setupDone,
+                    '1',
+                    at: widget.clock.now(),
+                  );
+                }
+              },
+            ),
           ),
           const SizedBox(height: 16),
           ProfileForm(
@@ -85,10 +89,10 @@ class _SetupScreenState extends State<SetupScreen> {
           ),
           if (_savedWithHints) ...[
             const SizedBox(height: 12),
-            OutlinedButton(
+            RamuriSecondaryButton(
               key: const Key('setup_continue'),
               onPressed: widget.onFinished,
-              child: Text(l10n.setupContinue),
+              label: l10n.setupContinue,
             ),
           ],
         ],

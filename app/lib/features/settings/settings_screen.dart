@@ -4,28 +4,21 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../recalculation/recalculation_card.dart';
 import '../recalculation/recalculation_controller.dart';
-import '../sensors/sensor_manager.dart';
-import '../sensors/sensors_screen.dart';
-import '../storage/data_screen.dart';
+import '../../ui/ramuri_card.dart';
+import '../../ui/section_heading.dart';
 import 'app_settings.dart';
-import 'permissions_screen.dart';
-import 'zones_screen.dart';
 
-/// Einstellungen: Einheit für Strecken (reine Anzeige) und der Zugang zu den
-/// gespeicherten Daten.
+/// Einstellungen: Einheit für Strecken (reine Anzeige) und die Neuberechnung.
+/// Sensoren, Zonen, Berechtigungen und Daten liegen in der Übersicht.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
     required this.session,
-    required this.permissions,
     required this.recalculation,
-    required this.sensors,
   });
 
   final StorageSession session;
-  final PermissionStatusPort permissions;
   final RecalculationController recalculation;
-  final SensorManager sensors;
 
   @override
   Widget build(BuildContext context) {
@@ -45,83 +38,36 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
           RecalculationCard(controller: recalculation),
-          Text(
-            l10n.settingsUnits,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<DistanceUnit>(
-            key: const Key('settings_unit'),
-            segments: [
-              ButtonSegment(
-                value: DistanceUnit.kilometers,
-                label: Text(l10n.settingsUnitKm),
-              ),
-              ButtonSegment(
-                value: DistanceUnit.miles,
-                label: Text(l10n.settingsUnitMi),
-              ),
-            ],
-            selected: {settings.distanceUnit},
-            onSelectionChanged: busy
-                ? null
-                : (s) => _change(context, settings, s.first),
-          ),
-          const SizedBox(height: 8),
-          Text(l10n.settingsUnitNote),
-          const SizedBox(height: 24),
-          OutlinedButton(
-            key: const Key('settings_permissions'),
-            onPressed: busy
-                ? null
-                : () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          PermissionsScreen(permissions: permissions),
+          SectionHeading(l10n.settingsUnits),
+          const SizedBox(height: 12),
+          RamuriCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SegmentedButton<DistanceUnit>(
+                  key: const Key('settings_unit'),
+                  segments: [
+                    ButtonSegment(
+                      value: DistanceUnit.kilometers,
+                      label: Text(l10n.settingsUnitKm),
                     ),
-                  ),
-            child: Text(l10n.settingsPermissions),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            key: const Key('settings_sensors'),
-            onPressed: busy
-                ? null
-                : () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) => SensorsScreen(manager: sensors),
+                    ButtonSegment(
+                      value: DistanceUnit.miles,
+                      label: Text(l10n.settingsUnitMi),
                     ),
-                  ),
-            child: Text(l10n.settingsSensors),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            key: const Key('settings_zones'),
-            onPressed: busy
-                ? null
-                : () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(builder: (_) => const ZonesScreen()),
-                  ),
-            child: Text(l10n.settingsZones),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            key: const Key('settings_data'),
-            onPressed: busy
-                ? null
-                : () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) => DataScreen(
-                        session: session,
-                        sensors: sensors,
-                        serialize: recalculation.exclusive,
-                      ),
-                    ),
-                  ),
-            child: Text(l10n.dataTitle),
+                  ],
+                  selected: {settings.distanceUnit},
+                  onSelectionChanged: busy
+                      ? null
+                      : (s) => _change(context, settings, s.first),
+                ),
+                const SizedBox(height: 12),
+                Text(l10n.settingsUnitNote),
+              ],
+            ),
           ),
         ],
       ),

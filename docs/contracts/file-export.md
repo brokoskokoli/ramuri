@@ -32,7 +32,7 @@ Die TCX-ActivityExtension v2 wird nicht gebraucht und nicht verwendet.
 
 | Inhalt (FR-0183) | GPX 1.1 | TCX v2 | FIT (Teil B) |
 |---|---|---|---|
-| Quelle | `gpx/@creator = "running-app"` | – | `file_id`: Hersteller „development“ (255) |
+| Quelle | `gpx/@creator = "ramuri"` | – | `file_id`: Hersteller „development“ (255) |
 | Name | `metadata/name`, `trk/name` | – | – |
 | Sportart | `trk/type = running` | `Activity/@Sport = Running` | `lap`/`session.sport` = running (1), `session.sub_sport` = generic (0) |
 | Laufstart | `metadata/time` | `Activity/Id`, `Lap/@StartTime` der ersten Runde | `file_id.time_created`, `session.start_time` |
@@ -68,7 +68,7 @@ Nicht ausgegeben: `total_calories`, Durchschnitts- und Höchstwerte, `distance` 
 
 ## Übergabe an das System (FR-0201)
 
-**Code:** Port `app/packages/core/lib/ports/file_handoff.dart`, Adapter `app/packages/adapters/lib/src/export/method_channel_file_handoff.dart`, Android `FileHandoffChannel.kt`, `FileHandoffFlow.kt`, `ExportFiles.kt`. Kanal `running_app/file_handoff`.
+**Code:** Port `app/packages/core/lib/ports/file_handoff.dart`, Adapter `app/packages/adapters/lib/src/export/method_channel_file_handoff.dart`, Android `FileHandoffChannel.kt`, `FileHandoffFlow.kt`, `ExportFiles.kt`. Kanal `ramuri/file_handoff`.
 
 | Methode | Argumente | Antwort |
 |---|---|---|

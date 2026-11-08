@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_buttons.dart';
+import '../../ui/ramuri_card.dart';
+import '../../ui/ramuri_colors.dart';
+import '../../ui/section_heading.dart';
 import 'sensor_manager.dart';
 
 /// Sensorverwaltung (FR-0011 bis FR-0016): suchen, verbinden, trennen,
@@ -34,6 +38,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final m = widget.manager;
+    final c = RamuriColors.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.sensorsTitle)),
       body: ListenableBuilder(
@@ -48,29 +53,25 @@ class _SensorsScreenState extends State<SensorsScreen> {
             null => null,
           };
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             children: [
               Text(l10n.sensorsIntro),
               if (problem != null) ...[
                 const SizedBox(height: 12),
-                Card(
+                RamuriCard(
                   key: const Key('sensors_problem'),
-                  color: Theme.of(context).colorScheme.errorContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(problem),
-                  ),
+                  child: Text(problem, style: TextStyle(color: c.danger)),
                 ),
               ],
               const SizedBox(height: 16),
               Align(
                 alignment: Alignment.centerLeft,
-                child: FilledButton(
+                child: RamuriPrimaryButton(
                   key: const Key('sensors_scan'),
                   onPressed: m.scanning ? m.stopScan : m.startScan,
-                  child: Text(
-                    m.scanning ? l10n.sensorsStopSearch : l10n.sensorsSearch,
-                  ),
+                  label: m.scanning
+                      ? l10n.sensorsStopSearch
+                      : l10n.sensorsSearch,
                 ),
               ),
               if (m.scanning) ...[
@@ -78,18 +79,14 @@ class _SensorsScreenState extends State<SensorsScreen> {
                 Text(l10n.sensorsSearching),
               ],
               const SizedBox(height: 16),
-              Text(
-                l10n.sensorsKnown,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              SectionHeading(l10n.sensorsKnown),
+              const SizedBox(height: 8),
               if (known.isEmpty) Text(l10n.sensorsNoneKnown),
               for (final e in known) _DeviceTile(entry: e, manager: m),
               if (m.scanning || found.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                Text(
-                  l10n.sensorsFound,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                SectionHeading(l10n.sensorsFound),
+                const SizedBox(height: 8),
                 if (found.isEmpty) Text(l10n.sensorsNoneFound),
                 for (final e in found) _DeviceTile(entry: e, manager: m),
               ],
@@ -118,10 +115,10 @@ class _DeviceTile extends StatelessWidget {
       SensorLinkState.reconnecting => l10n.sensorsStateReconnecting,
     };
     final active = e.state != SensorLinkState.idle;
-    return Card(
-      key: Key('sensor_${e.id}'),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: RamuriCard(
+        key: Key('sensor_${e.id}'),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -146,15 +143,15 @@ class _DeviceTile extends StatelessWidget {
               spacing: 8,
               children: [
                 active
-                    ? OutlinedButton(
+                    ? RamuriSecondaryButton(
                         key: Key('sensor_disconnect_${e.id}'),
                         onPressed: () => manager.disconnect(e.id),
-                        child: Text(l10n.sensorsDisconnect),
+                        label: l10n.sensorsDisconnect,
                       )
-                    : FilledButton(
+                    : RamuriPrimaryButton(
                         key: Key('sensor_connect_${e.id}'),
                         onPressed: () => manager.connect(e.id, name: e.name),
-                        child: Text(l10n.sensorsConnect),
+                        label: l10n.sensorsConnect,
                       ),
                 if (e.known)
                   TextButton(

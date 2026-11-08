@@ -1,12 +1,8 @@
 {
   "@@locale": "de",
-  "appTitle": "Lauf-App",
+  "appTitle": "ramuri",
   "@appTitle": {
     "description": "Titel der App"
-  },
-  "homeWelcome": "Willkommen bei der Lauf-App",
-  "@homeWelcome": {
-    "description": "Text auf dem Startbildschirm"
   },
   "deleteRunTitle": "Lauf löschen?",
   "@deleteRunTitle": {
@@ -160,9 +156,76 @@
   "@dataBody": {
     "description": "Text des Bildschirms Daten"
   },
-  "homeStartRun": "Lauf starten",
+  "homeToday": "Heute",
+  "@homeToday": {
+    "description": "Navigation: Startbereich Heute"
+  },
+  "homeProgress": "Fortschritt",
+  "@homeProgress": {
+    "description": "Navigation: Bereich Fortschritt (Statistik)"
+  },
+  "homeOverview": "Profil und Einstellungen",
+  "@homeOverview": {
+    "description": "Beschriftung des Profil-Symbols auf Heute"
+  },
+  "overviewTitle": "Übersicht",
+  "@overviewTitle": {
+    "description": "Titel der Übersicht hinter dem Profil-Symbol"
+  },
+  "overviewLicenses": "Lizenzen",
+  "@overviewLicenses": {
+    "description": "Eintrag der Übersicht: Lizenzangaben"
+  },
+  "homeStartRun": "Frei laufen",
   "@homeStartRun": {
     "description": "Schaltfläche Lauf starten (Startseite)"
+  },
+  "homeEmpty": "Noch kein Lauf. Starte mit „Frei laufen“, dann erscheinen hier deine Woche und dein letzter Lauf.",
+  "@homeEmpty": {
+    "description": "Hinweis auf Heute, solange es keinen Lauf gibt (FR-0209)"
+  },
+  "homeWeekTitle": "Diese Woche",
+  "@homeWeekTitle": {
+    "description": "Überschrift der Wochenkarte auf Heute"
+  },
+  "homeWeekDayRun": "{day}, gelaufen",
+  "@homeWeekDayRun": {
+    "description": "Bedienungshilfe: Tag der Woche, an dem gelaufen wurde",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "homeWeekDayNone": "{day}, kein Lauf",
+  "@homeWeekDayNone": {
+    "description": "Bedienungshilfe: Tag der Woche ohne Lauf",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "homeLastRun": "Letzter Lauf · {date}",
+  "@homeLastRun": {
+    "description": "Zeile über dem letzten Lauf auf Heute; date ist der Tag",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "welcomeTagline": "Ruhig laufen.\nKlar vorankommen.",
+  "@welcomeTagline": {
+    "description": "Willkommensbildschirm: Satz unter dem Logo (FR-0207)"
+  },
+  "welcomeStart": "Los geht's",
+  "@welcomeStart": {
+    "description": "Willkommensbildschirm: Knopf zur Einrichtung"
+  },
+  "welcomeNote": "Deine Läufe bleiben auf deinem Handy.\nOhne Konto, ohne Uhr-Zwang.",
+  "@welcomeNote": {
+    "description": "Willkommensbildschirm: Hinweis unter dem Knopf, ohne das Wort Daten (OQ-0075)"
   },
   "homeProfile": "Profil",
   "@homeProfile": {
@@ -778,7 +841,6 @@
   "detRouteStart": "Start",
   "detRouteEnd": "Ende",
   "detLoadFailed": "Dieser Lauf konnte nicht gelesen werden.",
-  "homeStatistics": "Statistik",
   "statTitle": "Statistik",
   "statKindWeek": "Woche",
   "statKindMonth": "Monat",
@@ -1147,5 +1209,7 @@
   "restoreConfirmBody": "Das Archiv ist geprüft und lässt sich lesen. Jetzt wird die vorhandene, nicht lesbare Datenbank endgültig gelöscht. Danach beginnt die App mit einer leeren Datenbank und einem neuen Schlüssel, in die das Archiv eingespielt wird. Das lässt sich nicht rückgängig machen.",
   "@restoreConfirmBody": {"description": "Bestätigung vor dem Löschen der alten Datei (WP12, SEC-0009)"},
   "restoreConfirmAction": "Löschen und wiederherstellen",
-  "@restoreConfirmAction": {"description": "Bestätigen (WP12, SEC-0009)"}
+  "@restoreConfirmAction": {"description": "Bestätigen (WP12, SEC-0009)"},
+  "uiEstimated": "geschätzt",
+  "@uiEstimated": {"description": "Kennzeichnung geschätzter Werte neben dem Glutpunkt (FR-0205, CON-0009)"}
 }

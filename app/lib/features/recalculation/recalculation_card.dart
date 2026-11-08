@@ -2,6 +2,9 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_buttons.dart';
+import '../../ui/ramuri_card.dart';
+import '../../ui/section_heading.dart';
 import 'recalculation_controller.dart';
 
 /// Angebot der Neuberechnung in den Einstellungen: Grund, "Neu berechnen" und
@@ -34,19 +37,15 @@ class RecalculationCard extends StatelessWidget {
         ),
         RecalculationPhase.idle => null,
       };
-      return Card(
-        key: const Key('recalc_dialog'),
-        margin: const EdgeInsets.only(bottom: 24),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 24),
+        child: RamuriCard(
+          key: const Key('recalc_dialog'),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (offer != null) ...[
-                Text(
-                  l10n.recalcTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                SectionHeading(l10n.recalcTitle),
                 const SizedBox(height: 8),
                 Text(l10n.recalcIntro),
                 for (final c in RecalculationCause.values)
@@ -75,19 +74,17 @@ class RecalculationCard extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    FilledButton(
+                    RamuriPrimaryButton(
                       key: const Key('recalc_confirm'),
                       onPressed: busy ? null : controller.confirm,
-                      child: Text(
-                        phase == RecalculationPhase.failed
-                            ? l10n.recalcRetry
-                            : l10n.recalcConfirm,
-                      ),
+                      label: phase == RecalculationPhase.failed
+                          ? l10n.recalcRetry
+                          : l10n.recalcConfirm,
                     ),
-                    OutlinedButton(
+                    RamuriSecondaryButton(
                       key: const Key('recalc_decline'),
                       onPressed: busy ? null : controller.decline,
-                      child: Text(l10n.recalcDecline),
+                      label: l10n.recalcDecline,
                     ),
                   ],
                 ),

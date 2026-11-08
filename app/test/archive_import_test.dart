@@ -86,9 +86,8 @@ Future<Device> _open(
       endedAt: DateTime.utc(2030, 1, 1, 1),
     );
   }
-  await tester.tap(find.text('Einstellungen'));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Daten'));
+  await openOverview(tester);
+  await tester.tap(find.byKey(const Key('overview_data')));
   await tester.pumpAndSettle();
   return d;
 }
@@ -228,7 +227,8 @@ void main() {
       find.textContaining('Archiv importiert. Einwilligungen sind nicht'),
       findsOneWidget,
     );
-    await tester.tap(find.text('Einstellungen'));
+    await openOverview(tester);
+    await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     expect(
       tester
@@ -417,7 +417,7 @@ void main() {
     await _tapKey(tester, 'archive_import_error_close');
     // Die bisherige Sitzung ist geschlossen: die übergebene wird übernommen.
     expect(d.session, same(reopened));
-    expect(find.text('Einstellungen'), findsOneWidget);
+    expect(find.byKey(const Key('home_screen')), findsOneWidget);
     expect(d.fileHandoff.discardCount, 1);
     await d.stop(tester);
   });

@@ -317,13 +317,17 @@ void main() {
         if (f.evaluate().isEmpty) fail('Widget nicht erschienen: $f');
       }
 
+      await untilShown(find.byKey(const Key('welcome_start')));
+      await tester.tap(find.byKey(const Key('welcome_start')));
       await untilShown(find.byKey(const Key('profile_save')));
       await tester.pumpAndSettle();
       expect(c.state, isA<StorageReady>());
       await tester.tap(find.byKey(const Key('setup_skip')));
       await untilShown(find.byKey(const Key('home_start_run')));
+      // Heute liest die Läufe aus der echten Datei (kein Lauf: Hinweis).
+      await untilShown(find.byKey(const Key('home_empty')));
       await tester.pumpAndSettle();
-      expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+      expect(find.byKey(const Key('home_screen')), findsOneWidget);
       final session = (c.state as StorageReady).session;
       expect(await tester.runAsync(() => session.runs.list()), isEmpty);
       expect(await tester.runAsync(() => session.settings.get('m')), isNull);

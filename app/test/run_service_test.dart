@@ -230,7 +230,7 @@ void main() {
 
     test('Kanalname und Methoden stehen auch in Kotlin', () {
       final kt = File(
-        'android/app/src/main/kotlin/io/github/brokoskokoli/running_app/RecordingServiceState.kt',
+        'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri/RecordingServiceState.kt',
       ).readAsStringSync();
       expect(kt, contains('"$recordingServiceChannelName"'));
       for (final m in ['start', 'stop', 'isRunning', 'updateType']) {
@@ -282,8 +282,7 @@ void main() {
   });
 
   group('Quelltext des Dienstes (ADR-0005 Punkt 6, Wake Lock)', () {
-    const dir =
-        'android/app/src/main/kotlin/io/github/brokoskokoli/running_app';
+    const dir = 'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri';
     final service = File('$dir/RecordingService.kt').readAsStringSync();
     final lifecycle = File('$dir/RecordingLifecycle.kt').readAsStringSync();
     final state = File('$dir/RecordingServiceState.kt').readAsStringSync();

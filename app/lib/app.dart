@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'app_dependencies.dart';
 import 'features/archive/archive_scope.dart';
 import 'features/export/file_handoff_scope.dart';
 import 'features/home/ready_root.dart';
+import 'features/home/welcome_screen.dart';
 import 'features/settings/app_settings.dart';
 import 'features/storage/storage_gate.dart';
 import 'l10n/app_localizations.dart';
 import 'offload_scope.dart';
+import 'ui/ui.dart';
 
 /// Wurzel-Widget. Die Gerätesprache bestimmt die Sprache: Deutsch und Englisch
 /// werden unterstützt, jede andere Gerätesprache zeigt Englisch (NFR-0006,
@@ -24,6 +27,9 @@ class RunningApp extends StatefulWidget {
 
 class _RunningAppState extends State<RunningApp> {
   final AppSettingsHolder _settings = AppSettingsHolder();
+
+  /// Über der Sitzung: ReadyRoot entsteht je Sitzung neu (FR-0207).
+  final WelcomeFlag _welcome = WelcomeFlag();
 
   @override
   void dispose() {
@@ -47,12 +53,20 @@ class _RunningAppState extends State<RunningApp> {
             restore: dependencies.archiveRestore,
             verify: dependencies.archiveVerify,
             start: dependencies.storageStart,
-            child: AppSettingsScope(holder: _settings, child: child!),
+            // Ohne Region behält Flutter den letzten Stil; Heute hat keine
+            // App-Leiste. Tiefere Regionen (Dunkel-Fläche, App-Leisten) gehen
+            // vor.
+            child: AnnotatedRegion<SystemUiOverlayStyle>(
+              value: ramuriOverlayStyle(Theme.of(context).brightness),
+              child: AppSettingsScope(holder: _settings, child: child!),
+            ),
           ),
         ),
       ),
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
-      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      theme: RamuriTheme.light,
+      darkTheme: RamuriTheme.dark,
+      themeMode: ThemeMode.system,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -72,6 +86,7 @@ class _RunningAppState extends State<RunningApp> {
           permissions: dependencies.permissions,
           runPorts: dependencies.runPorts,
           sensors: dependencies.sensors,
+          welcome: _welcome,
         ),
       ),
     );

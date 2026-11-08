@@ -18,7 +18,7 @@ Future<void> openRun(Device d, WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-const _kt = 'android/app/src/main/kotlin/io/github/brokoskokoli/running_app';
+const _kt = 'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri';
 
 void main() {
   group('Banner Dienststart (WP08)', () {
@@ -104,7 +104,7 @@ void main() {
       () async {
         final messenger =
             TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-        const channel = MethodChannel('running_app/permissions');
+        const channel = MethodChannel('ramuri/permissions');
         String? answer;
         messenger.setMockMethodCallHandler(channel, (call) async {
           expect(call.method, 'requestNotifications');

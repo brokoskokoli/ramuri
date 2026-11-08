@@ -7,6 +7,7 @@ import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/features/storage/storage_start.dart';
 
+import 'app_harness.dart' show openOverview;
 import 'storage_world.dart';
 
 Future<void> pumpApp(
@@ -26,6 +27,11 @@ Future<void> pumpApp(
 /// Die Ersteinrichtung (WP05) ist nicht Thema dieser Tests: Ist sie da,
 /// wird sie übersprungen, damit die Startseite sichtbar ist.
 Future<void> skipSetupIfShown(WidgetTester tester) async {
+  final start = find.byKey(const Key('welcome_start'));
+  if (start.evaluate().isNotEmpty) {
+    await tester.tap(start);
+    await tester.pumpAndSettle();
+  }
   final skip = find.byKey(const Key('setup_skip'));
   if (skip.evaluate().isEmpty) return;
   await tester.tap(skip);
@@ -40,8 +46,7 @@ void main() {
     final w = World();
     await w.seed(fileKey: k0, storedKey: k0);
     await pumpApp(tester, w.controller());
-    expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
-    expect(find.text('Einstellungen'), findsOneWidget);
+    expect(find.byKey(const Key('home_screen')), findsOneWidget);
   });
 
   testWidgets('laden: kein Inhalt, nur Fortschritt', (tester) async {
@@ -63,12 +68,11 @@ void main() {
     );
     await tester.pump();
     expect(find.text('Daten werden geöffnet …'), findsOneWidget);
-    expect(find.text('Willkommen bei der Lauf-App'), findsNothing);
-    expect(find.text('Einstellungen'), findsNothing);
+    expect(find.byKey(const Key('home_screen')), findsNothing);
     await tester.pump(const Duration(seconds: 6));
     await tester.pumpAndSettle();
     await skipSetupIfShown(tester);
-    expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+    expect(find.byKey(const Key('home_screen')), findsOneWidget);
   });
 
   for (final (name, setup, text)
@@ -100,7 +104,7 @@ void main() {
       expect(find.textContaining(text), findsOneWidget);
       expect(find.text('Erneut versuchen'), findsOneWidget);
       expect(find.text('Neu beginnen'), findsOneWidget);
-      expect(find.text('Willkommen bei der Lauf-App'), findsNothing);
+      expect(find.byKey(const Key('home_screen')), findsNothing);
       expect(w.files.deleteCalls, 0);
       expect(w.log, isEmpty);
     });
@@ -153,7 +157,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(w.files.deleteCalls, 1);
     await skipSetupIfShown(tester);
-    expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+    expect(find.byKey(const Key('home_screen')), findsOneWidget);
     expect(w.violations, isEmpty);
   });
 
@@ -268,7 +272,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(w.files.deleteCalls, 1);
     await skipSetupIfShown(tester);
-    expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+    expect(find.byKey(const Key('home_screen')), findsOneWidget);
   });
 
   testWidgets('Neubeginn: Datei gelöscht, Schlüssel nicht erneuert: Text sagt '
@@ -318,7 +322,7 @@ void main() {
     await tester.tap(find.text('Neubeginn fortsetzen'));
     await tester.pumpAndSettle();
     await skipSetupIfShown(tester);
-    expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+    expect(find.byKey(const Key('home_screen')), findsOneWidget);
   });
 
   testWidgets(
@@ -345,7 +349,7 @@ void main() {
       expect(w.files.deleteCalls, 2);
       expect(w.oldFileKey, isNull);
       await skipSetupIfShown(tester);
-      expect(find.text('Willkommen bei der Lauf-App'), findsOneWidget);
+      expect(find.byKey(const Key('home_screen')), findsOneWidget);
     },
   );
 
@@ -475,14 +479,14 @@ void main() {
       expect(find.text('Neubeginn fortsetzen'), findsOneWidget);
       expect(find.text('Erneut versuchen'), findsNothing);
       expect(find.text('Neu beginnen'), findsNothing);
-      expect(find.text('Willkommen bei der Lauf-App'), findsNothing);
+      expect(find.byKey(const Key('home_screen')), findsNothing);
       if (inactive) {
         // Fortsetzen löscht nichts Neues und öffnet nie unverschlüsselt.
         final deletes = w.files.deleteCalls;
         await tester.tap(find.text('Neubeginn fortsetzen'));
         await tester.pumpAndSettle();
         expect(w.files.deleteCalls, deletes);
-        expect(find.text('Willkommen bei der Lauf-App'), findsNothing);
+        expect(find.byKey(const Key('home_screen')), findsNothing);
         expect(find.textContaining(deletedText), findsOneWidget);
       }
     });
@@ -539,8 +543,7 @@ void main() {
     expect(find.text('Neu beginnen'), findsNothing);
     expect(find.textContaining('Neu beginnen'), findsNothing);
     expect(find.text('Erneut versuchen'), findsOneWidget);
-    expect(find.text('Willkommen bei der Lauf-App'), findsNothing);
-    expect(find.text('Einstellungen'), findsNothing);
+    expect(find.byKey(const Key('home_screen')), findsNothing);
     expect(w.files.deleteCalls, 0);
     expect(w.log, isEmpty);
     expect(w.files.present, isTrue);
@@ -571,9 +574,8 @@ void main() {
     final c = w.controller();
     await pumpApp(tester, c);
     final session = (c.state as StorageReady).session;
-    await tester.tap(find.text('Einstellungen'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Daten'));
+    await openOverview(tester);
+    await tester.tap(find.byKey(const Key('overview_data')));
     await tester.pumpAndSettle();
     expect(find.text('Alles löschen'), findsOneWidget);
     await tester.tap(find.text('Alles löschen'));

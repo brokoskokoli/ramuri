@@ -4,7 +4,7 @@ import 'run_ports.dart';
 
 /// Kanalname zu `RecordingServiceState.kt` (`CHANNEL`); dieselbe Zeichenkette
 /// steht dort (ein Test prüft das).
-const String recordingServiceChannelName = 'running_app/recording_service';
+const String recordingServiceChannelName = 'ramuri/recording_service';
 
 /// [RecordingServicePort] über den Kotlin-Dienst. Der Kanal hängt an der
 /// Engine der Application, also auch ohne Activity erreichbar.
@@ -37,7 +37,7 @@ class MethodChannelRecordingService implements RecordingServicePort {
 Future<bool> requestActivityRecognitionPermission([
   MethodChannel? channel,
 ]) async {
-  final c = channel ?? const MethodChannel('running_app/permissions');
+  final c = channel ?? const MethodChannel('ramuri/permissions');
   return await c.invokeMethod<String>('requestActivityRecognition') ==
       'available';
 }
@@ -45,6 +45,6 @@ Future<bool> requestActivityRecognitionPermission([
 /// Fragt POST_NOTIFICATIONS über den Berechtigungskanal (`MainActivity.kt`,
 /// ADR-0005 Punkt 2). Liefert, ob erteilt; Ablehnung ist kein Fehler.
 Future<bool> requestNotificationPermission([MethodChannel? channel]) async {
-  final c = channel ?? const MethodChannel('running_app/permissions');
+  final c = channel ?? const MethodChannel('ramuri/permissions');
   return await c.invokeMethod<String>('requestNotifications') == 'granted';
 }

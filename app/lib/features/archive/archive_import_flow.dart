@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_buttons.dart';
 import 'archive_wiring.dart';
 
 /// Bausteine des Archiv-Imports (WP12, FR-0198, SEC-0009), gemeinsam für den
@@ -85,6 +86,7 @@ Future<bool> confirmArchiveImport(
           ),
           FilledButton(
             key: const Key('archive_import_confirm'),
+            style: replaces ? ramuriDangerFilledStyle(context) : null,
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(
               replaces

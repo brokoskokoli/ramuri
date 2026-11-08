@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "io.github.brokoskokoli.running_app"
+    namespace = "io.github.brokoskokoli.ramuri"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -15,7 +15,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.brokoskokoli.running_app"
+        applicationId = "io.github.brokoskokoli.ramuri"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 31

@@ -214,6 +214,7 @@ Future<String> _dump(StorageSession s) async {
 /// Ändert HFmax im Profil auf 180 über die Oberfläche und geht zurück in die
 /// Einstellungen.
 Future<void> _changeMaxAndOpenSettings(WidgetTester tester) async {
+  await openOverview(tester);
   await tester.tap(find.byKey(const Key('home_profile')));
   await tester.pumpAndSettle();
   await tester.enterText(find.byKey(const Key('profile_max')), '180');
@@ -221,6 +222,7 @@ Future<void> _changeMaxAndOpenSettings(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(find.byType(BackButton));
   await tester.pumpAndSettle();
+  await openOverview(tester);
   await tester.tap(find.byKey(const Key('home_settings')));
   await tester.pumpAndSettle();
 }
@@ -247,6 +249,7 @@ void main() {
       final before = await _dump(d.session);
       expect(before, isNotEmpty);
       // Ohne Änderung: kein Angebot.
+      await openOverview(tester);
       await tester.tap(find.byKey(const Key('home_settings')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('recalc_dialog')), findsNothing);
@@ -266,6 +269,7 @@ void main() {
   testWidgets('Snackbar nach dem Speichern weist auf die Neuberechnung hin, '
       'verschwindet mit der Seite', (tester) async {
     await _start(tester, locale: const Locale('en'));
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_profile')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('profile_max')), '180');
@@ -289,6 +293,7 @@ void main() {
     tester,
   ) async {
     await _start(tester);
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_profile')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('profile_weight')), '70');
@@ -296,6 +301,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('recalc_dialog')), findsNothing);
@@ -308,6 +314,7 @@ void main() {
     await _changeMaxAndOpenSettings(tester);
     await d.stop(tester);
     await d.start(tester, const Locale('de'));
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('recalc_dialog')), findsOneWidget);
@@ -401,13 +408,23 @@ void main() {
       expect(find.textContaining('Please wait'), findsOneWidget);
       expect(
         tester
-            .widget<FilledButton>(find.byKey(const Key('recalc_confirm')))
+            .widget<FilledButton>(
+              find.descendant(
+                of: find.byKey(const Key('recalc_confirm')),
+                matching: find.byType(FilledButton),
+              ),
+            )
             .onPressed,
         isNull,
       );
       expect(
         tester
-            .widget<OutlinedButton>(find.byKey(const Key('recalc_decline')))
+            .widget<OutlinedButton>(
+              find.descendant(
+                of: find.byKey(const Key('recalc_decline')),
+                matching: find.byType(OutlinedButton),
+              ),
+            )
             .onPressed,
         isNull,
       );
@@ -415,25 +432,20 @@ void main() {
       await tester.tap(find.byType(BackButton));
       await tester.pump();
       expect(find.byKey(const Key('recalc_dialog')), findsOneWidget);
-      // Alle Knöpfe der Einstellungen sind gesperrt, auch "Daten" (und damit
-      // "Alles löschen").
+      // Die Einstellungen führen nicht mehr zu Sensoren, Zonen, Berechtigungen
+      // und Daten; diese Einträge liegen in der Übersicht (dort gesperrt,
+      // overview_test.dart).
       for (final k in [
+        'overview_permissions',
+        'overview_sensors',
+        'overview_zones',
+        'overview_data',
         'settings_permissions',
         'settings_sensors',
         'settings_zones',
         'settings_data',
       ]) {
-        // Die Liste baut nur Sichtbares: erst hinscrollen.
-        await tester.scrollUntilVisible(
-          find.byKey(Key(k)),
-          100,
-          scrollable: find.byType(Scrollable).first,
-        );
-        expect(
-          tester.widget<OutlinedButton>(find.byKey(Key(k))).onPressed,
-          isNull,
-          reason: k,
-        );
+        expect(find.byKey(Key(k)), findsNothing, reason: k);
       }
       expect(
         tester
@@ -443,20 +455,18 @@ void main() {
             .onSelectionChanged,
         isNull,
       );
-      await tester.tap(find.byKey(const Key('settings_data')));
-      await tester.pump();
-      expect(find.text('Alles löschen'), findsNothing);
-      expect(tester.takeException(), isNull);
 
       gate.hold!.complete();
       await tester.pumpAndSettle();
       expect(find.textContaining('Recalculated: 2 runs'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      // Danach sind die Knöpfe wieder frei.
+      // Danach ist die Einheit wieder frei.
       expect(
         tester
-            .widget<OutlinedButton>(find.byKey(const Key('settings_data')))
-            .onPressed,
+            .widget<SegmentedButton<DistanceUnit>>(
+              find.byKey(const Key('settings_unit')),
+            )
+            .onSelectionChanged,
         isNotNull,
       );
     },
@@ -464,6 +474,7 @@ void main() {
 
   testWidgets('Abgelehntes Profil löst kein Angebot aus', (tester) async {
     final d = await _start(tester);
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_profile')));
     await tester.pumpAndSettle();
     // HFmax 400 liegt außerhalb von PAR-016 und wird abgelehnt.
@@ -473,6 +484,7 @@ void main() {
     expect((await d.session.profile.read()).maxHeartRateBpm, 190);
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('recalc_dialog')), findsNothing);

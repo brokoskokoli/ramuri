@@ -77,7 +77,16 @@ class Device {
 
   /// Startet die App mit der Gerätesprache [locale] (neuer Prozess auf
   /// demselben Speicher).
-  Future<void> start(WidgetTester tester, Locale locale) async {
+  ///
+  /// Steht der Willkommensbildschirm (FR-0207) davor, bestätigt [start] ihn,
+  /// außer mit `welcome: true`; so beginnen die übrigen Tests bei der
+  /// Einrichtung.
+  Future<void> start(
+    WidgetTester tester,
+    Locale locale, {
+    bool welcome = false,
+    bool settle = true,
+  }) async {
     // Hoher Bildschirm, damit das ganze Formular ohne Scrollen sichtbar ist.
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;
@@ -145,6 +154,16 @@ class Device {
         ),
       ),
     );
+    if (!settle) return;
+    await tester.pumpAndSettle();
+    if (!welcome) await confirmWelcome(tester);
+  }
+
+  /// „Los geht's“ auf dem Willkommensbildschirm, falls er steht.
+  Future<void> confirmWelcome(WidgetTester tester) async {
+    final button = find.byKey(const Key('welcome_start'));
+    if (button.evaluate().isEmpty) return;
+    await tester.tap(button);
     await tester.pumpAndSettle();
   }
 
@@ -161,4 +180,13 @@ class Device {
     await tester.tap(find.byKey(const Key('setup_skip')));
     await tester.pumpAndSettle();
   }
+}
+
+/// Öffnet die Übersicht über das Profil-Symbol auf Heute. Steht sie schon
+/// oben (die Einträge sind sichtbar), tut sie nichts.
+Future<void> openOverview(WidgetTester tester) async {
+  final icon = find.byKey(const Key('home_overview'));
+  if (icon.evaluate().isEmpty) return;
+  await tester.tap(icon);
+  await tester.pumpAndSettle();
 }

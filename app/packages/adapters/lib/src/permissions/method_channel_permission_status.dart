@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 /// Name des Kanals zu `MainActivity`; dieselbe Zeichenkette steht in
 /// `MainActivity.kt` (der Test prüft das).
-const String permissionChannelName = 'running_app/permissions';
+const String permissionChannelName = 'ramuri/permissions';
 
 /// Kanal zu `MainActivity` für den Stand der Berechtigungen.
 const MethodChannel permissionChannel = MethodChannel(permissionChannelName);

@@ -51,9 +51,6 @@ void main() {
       await openHistory(d, tester);
       final sum =
           km(text('history_distance_$a')) + km(text('history_distance_$b'));
-      await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
-      await tester.pumpAndSettle();
       await openStats(d, tester);
       expect(text('stat_runs_value'), '2');
       expect(text('stat_days_value'), '2');

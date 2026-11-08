@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ui.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../storage/deletion.dart';
 import '../sensors/sensor_manager.dart';
@@ -9,10 +12,13 @@ import '../settings/app_settings.dart';
 import '../run/run_flow_screen.dart';
 import '../run/run_ports.dart';
 import '../setup/setup_screen.dart';
-import 'home_screen.dart';
+import 'app_shell.dart';
+import 'data_changes.dart';
+import 'welcome_screen.dart';
 
 /// Wurzel nach dem Öffnen des Speichers: lädt die Einstellungen, bietet beim
-/// ersten Start die Einrichtung an (FR-0001) und zeigt danach die Startseite.
+/// ersten Start Willkommen (FR-0207) und die Einrichtung an (FR-0001) und
+/// zeigt danach die Startseite.
 class ReadyRoot extends StatefulWidget {
   const ReadyRoot({
     super.key,
@@ -21,8 +27,11 @@ class ReadyRoot extends StatefulWidget {
     required this.permissions,
     required this.runPorts,
     required this.sensors,
+    required this.welcome,
   });
 
+  /// Merker über der Sitzung: Willkommen wurde in diesem Prozess bestätigt.
+  final WelcomeFlag welcome;
   final StorageSession session;
   final PermissionStatusPort permissions;
   final RunPorts runPorts;
@@ -38,6 +47,11 @@ class _ReadyRootState extends State<ReadyRoot> {
   late final RecalculationService _recalculationService;
   late final RecalculationController _recalculation;
   late final RunRecovery _recovery;
+  final DataChanges _changes = DataChanges();
+
+  /// Fertig, sobald Willkommen nicht (mehr) im Weg ist; der Dialog zum
+  /// unterbrochenen Lauf wartet darauf und überdeckt Willkommen nicht.
+  final Completer<void> _welcomeResolved = Completer<void>();
 
   @override
   void initState() {
@@ -55,6 +69,7 @@ class _ReadyRootState extends State<ReadyRoot> {
     _recalculation = RecalculationController(
       _recalculationService,
       onStart: () => completePendingValueRefresh(widget.session, widget.clock),
+      onDataChanged: _changes.changed,
     );
     _recalculation.start();
     // Nur der Speicher wird angebunden; der Sensor bleibt unberührt.
@@ -84,8 +99,10 @@ class _ReadyRootState extends State<ReadyRoot> {
         run = await _recovery.pending(
           serviceRunning: service != null && await service.isRunning(),
         );
-        // Erst die Einrichtung abwarten: der Dialog gehört über die Startseite.
+        // Erst Einstellungen und Willkommen abwarten: der Dialog überdeckt
+        // den Willkommensbildschirm nicht.
         await _settings;
+        await _welcomeResolved.future;
       } on Object {
         return;
       }
@@ -139,6 +156,7 @@ class _ReadyRootState extends State<ReadyRoot> {
             ),
           ),
         );
+        _changes.changed();
         // Zurück aus dem Lauf-Bildschirm: Wurde der Lauf beendet oder läuft
         // der Dienst, bietet `pending` nichts mehr an; blieb er offen (etwa
         // Fortsetzen ohne Standortrecht, FR-0195), kommt das Angebot wieder.
@@ -156,6 +174,7 @@ class _ReadyRootState extends State<ReadyRoot> {
     try {
       final saved = await _recovery.saveFinished(runId);
       if (saved != null) {
+        _changes.changed();
         // Die Werte des Laufs wie nach einem normalen Ende (FR-0006); ein
         // Fehler hier holt der nächste Start nach.
         await _recalculation.exclusive(() async {
@@ -176,6 +195,7 @@ class _ReadyRootState extends State<ReadyRoot> {
   void dispose() {
     _recalculation.dispose();
     _recalculationService.dispose();
+    _changes.dispose();
     super.dispose();
   }
 
@@ -188,8 +208,19 @@ class _ReadyRootState extends State<ReadyRoot> {
       s,
     ) {
       holder.attach(s);
+      // Wer die Einrichtung abgeschlossen hat, sieht Willkommen nie wieder,
+      // auch nicht in einer neuen Sitzung nach einem Import.
+      if (s.setupDone) widget.welcome.confirmed = true;
+      if (widget.welcome.confirmed && !_welcomeResolved.isCompleted) {
+        _welcomeResolved.complete();
+      }
       return s;
     });
+  }
+
+  void _confirmWelcome() {
+    setState(() => widget.welcome.confirmed = true);
+    if (!_welcomeResolved.isCompleted) _welcomeResolved.complete();
   }
 
   Future<void> _finishSetup(AppSettings settings) async {
@@ -210,35 +241,44 @@ class _ReadyRootState extends State<ReadyRoot> {
       if (snapshot.hasError) {
         return Scaffold(
           body: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(l10n.settingsLoadFailed),
-                TextButton(
-                  key: const Key('settings_load_retry'),
-                  onPressed: () => setState(_loadSettings),
-                  child: Text(l10n.notOpenableRetry),
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(l10n.settingsLoadFailed, textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  RamuriSecondaryButton(
+                    key: const Key('settings_load_retry'),
+                    onPressed: () => setState(_loadSettings),
+                    label: l10n.notOpenableRetry,
+                  ),
+                ],
+              ),
             ),
           ),
         );
       }
       final settings = snapshot.data;
       if (settings == null) {
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        return const RamuriDarkScope(
+          child: Scaffold(body: Center(child: CircularProgressIndicator())),
+        );
       }
       return ListenableBuilder(
         listenable: settings,
         builder: (context, _) => settings.setupDone
-            ? HomeScreen(
+            ? AppShell(
                 session: widget.session,
                 clock: widget.clock,
                 permissions: widget.permissions,
                 recalculation: _recalculation,
                 runPorts: widget.runPorts,
                 sensors: widget.sensors,
+                changes: _changes,
               )
+            : !widget.welcome.confirmed
+            ? WelcomeScreen(onStart: _confirmWelcome)
             : SetupScreen(
                 session: widget.session,
                 clock: widget.clock,

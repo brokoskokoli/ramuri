@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/section_heading.dart';
 import '../settings/unit_format.dart';
 import '../statistics/fitness_section.dart' show reasonText;
 
@@ -137,7 +138,7 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
           }
           final data = snapshot.data;
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               key: const Key('expl_body'),
@@ -438,10 +439,7 @@ class Heading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 14, bottom: 4),
-    child: Semantics(
-      header: true,
-      child: Text(text, style: Theme.of(context).textTheme.titleMedium),
-    ),
+    padding: const EdgeInsets.only(top: 18, bottom: 6),
+    child: SectionHeading(text),
   );
 }

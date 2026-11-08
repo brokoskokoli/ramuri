@@ -71,6 +71,8 @@ void main() {
     final before = await snapshot(d.session);
     expect(before, contains('52.5'));
 
+    await openOverview(tester);
+
     await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Miles'));
@@ -92,12 +94,14 @@ void main() {
     final d = Device();
     await d.start(tester, const Locale('de'));
     await d.skipSetup(tester);
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Meilen'));
     await tester.pumpAndSettle();
     await d.stop(tester);
     await d.start(tester, const Locale('de'));
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     final button = tester.widget<SegmentedButton<DistanceUnit>>(
@@ -112,6 +116,7 @@ void main() {
     final d = Device();
     await d.start(tester, const Locale('de'));
     await d.skipSetup(tester);
+    await openOverview(tester);
     await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Meilen'));

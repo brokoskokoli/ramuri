@@ -2,6 +2,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_buttons.dart';
+import '../../ui/ramuri_card.dart';
 import '../archive/archive_export_action.dart';
 import '../archive/archive_import_action.dart';
 import '../archive/archive_wiring.dart';
@@ -59,15 +61,16 @@ class DataScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.dataTitle)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         children: [
-          Text(l10n.dataBody),
+          RamuriCard(child: Text(l10n.dataBody)),
           const SizedBox(height: 16),
           ArchiveExportAction(session: session, serialize: serialize),
           const SizedBox(height: 8),
           ArchiveImportAction(session: session, serialize: serialize),
           const SizedBox(height: 8),
           OutlinedButton(
+            style: ramuriDangerOutlinedStyle(context),
             onPressed: () => _deleteAll(context),
             child: Text(l10n.deleteAllConfirm),
           ),

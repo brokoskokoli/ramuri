@@ -179,7 +179,7 @@ void main() {
     expect((c.state as StorageReady).session, same(f.restored));
     expect(h.discardCount, 1);
     expect(find.textContaining('Archiv importiert'), findsOneWidget);
-    expect(find.text('Einstellungen'), findsOneWidget);
+    expect(find.byKey(const Key('home_screen')), findsOneWidget);
     expect(w.violations, isEmpty);
   });
 

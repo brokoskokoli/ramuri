@@ -49,9 +49,8 @@ Future<Device> _open(
   if (wired) d.archiveExport = (_) => runner.call;
   await d.start(tester, const Locale('de'));
   await d.skipSetup(tester);
-  await tester.tap(find.text('Einstellungen'));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Daten'));
+  await openOverview(tester);
+  await tester.tap(find.byKey(const Key('overview_data')));
   await tester.pumpAndSettle();
   return d;
 }

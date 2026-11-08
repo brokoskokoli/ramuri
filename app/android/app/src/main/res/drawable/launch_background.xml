@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- Fenster nach dem System-Splash bis zum ersten Flutter-Frame: Nacht mit Zeichen, ohne Text.
+     240 dp wie die Symbolfläche der Splash-API, damit das Zeichen beim Wechsel nicht springt. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <item android:drawable="@color/ramuri_night" />
+    <item
+        android:drawable="@drawable/ic_launcher_foreground"
+        android:gravity="center"
+        android:width="240dp"
+        android:height="240dp" />
 </layer-list>

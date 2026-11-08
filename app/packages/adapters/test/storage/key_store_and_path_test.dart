@@ -90,7 +90,7 @@ void main() {
   });
 
   test('Pfad kommt vom Plattformaufruf getNoBackupFilesDir', () async {
-    const channel = MethodChannel('running_app/storage');
+    const channel = MethodChannel('ramuri/storage');
     final calls = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {

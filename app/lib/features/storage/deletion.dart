@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_buttons.dart';
 
 /// Ergebnis eines Löschvorgangs mit Bestätigung.
 enum DeletionResult {
@@ -203,6 +204,7 @@ class DeletionDialog extends StatelessWidget {
           child: Text(l10n.deleteCancel),
         ),
         FilledButton(
+          style: ramuriDangerFilledStyle(context),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(all ? l10n.deleteAllConfirm : l10n.deleteRunConfirm),
         ),

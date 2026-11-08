@@ -161,13 +161,27 @@ Future<void> _startApp(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox());
   await tester.pumpWidget(RunningApp(dependencies: AppDependencies.create()));
   await tester.pumpAndSettle(const Duration(seconds: 2));
+  if (find.byKey(const Key('welcome_start')).evaluate().isNotEmpty) {
+    await tester.tap(find.byKey(const Key('welcome_start')));
+    await tester.pumpAndSettle();
+  }
   if (find.byKey(const Key('setup_skip')).evaluate().isNotEmpty) {
     await tester.tap(find.byKey(const Key('setup_skip')));
     await tester.pumpAndSettle();
   }
 }
 
+/// Öffnet die Übersicht über das Profil-Symbol auf Heute; steht sie schon
+/// oben, tut es nichts.
+Future<void> openOverview(WidgetTester tester) async {
+  final icon = find.byKey(const Key('home_overview'));
+  if (icon.evaluate().isEmpty) return;
+  await tester.tap(icon);
+  await tester.pumpAndSettle();
+}
+
 Future<void> _changeMax(WidgetTester tester, String v) async {
+  await openOverview(tester);
   await tester.tap(find.byKey(const Key('home_profile')));
   await tester.pumpAndSettle();
   await tester.enterText(find.byKey(const Key('profile_max')), v);
@@ -191,6 +205,7 @@ Future<void> _changeMax(WidgetTester tester, String v) async {
 }
 
 Future<void> _openSettings(WidgetTester tester) async {
+  await openOverview(tester);
   await tester.tap(find.byKey(const Key('home_settings')));
   await tester.pumpAndSettle();
 }
@@ -209,7 +224,7 @@ void main() {
     final base = await tester.runAsync(() => _dump('S0')) as String;
 
     await _startApp(tester);
-    expect(find.byKey(const Key('home_settings')), findsOneWidget);
+    expect(find.byKey(const Key('home_screen')), findsOneWidget);
     await _openSettings(tester);
     expect(find.byKey(const Key('recalc_dialog')), findsNothing);
     await tester.tap(find.byType(BackButton));

@@ -12,9 +12,8 @@ void main() {
     await tester.pump();
     expect(d.sensorFake.connectedIds, {'h1'});
 
-    await tester.tap(find.text('Einstellungen'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Daten'));
+    await openOverview(tester);
+    await tester.tap(find.byKey(const Key('overview_data')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Alles löschen'));
     await tester.pumpAndSettle();

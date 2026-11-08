@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nacht und Papier aus branding/README.md; dieselben Werte wie lib/ui/ramuri_colors.dart -->
+    <color name="ramuri_night">#0E1A1A</color>
+    <color name="ramuri_paper">#F3F6F5</color>
+</resources>

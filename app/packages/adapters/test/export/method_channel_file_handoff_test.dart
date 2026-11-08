@@ -147,7 +147,7 @@ void main() {
 
   test('Kanalname, Methoden und Antworten stehen gleich in Kotlin', () {
     const dir =
-        '../../android/app/src/main/kotlin/io/github/brokoskokoli/running_app';
+        '../../android/app/src/main/kotlin/io/github/brokoskokoli/ramuri';
     final kt = File('$dir/FileHandoffChannel.kt').readAsStringSync();
     final flow = File('$dir/FileHandoffFlow.kt').readAsStringSync();
     expect(kt, contains('"$fileHandoffChannelName"'));

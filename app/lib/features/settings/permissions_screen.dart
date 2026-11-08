@@ -2,6 +2,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ramuri_buttons.dart';
+import '../../ui/ramuri_card.dart';
 
 /// Stand der Android-Berechtigungen und Weg in die Systemeinstellungen
 /// (SEC-0007). Die App fordert hier nichts an.
@@ -80,26 +82,45 @@ class _PermissionsScreenState extends State<PermissionsScreen>
     return Scaffold(
       appBar: AppBar(title: Text(l10n.permissionsTitle)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
-          Text(l10n.permissionsBody),
+          Text(
+            l10n.permissionsBody,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
           const SizedBox(height: 16),
           if (status == null)
             const Center(child: CircularProgressIndicator())
           else if (_requested.isEmpty)
-            Text(l10n.permissionsNone, key: const Key('permissions_none'))
-          else
-            for (final p in AppPermission.values.where(_requested.contains))
-              ListTile(
-                key: Key('permission_${p.name}'),
-                title: Text(names[p]!),
-                trailing: Text(label(status[p] ?? PermissionState.unknown)),
+            RamuriCard(
+              child: Text(
+                l10n.permissionsNone,
+                key: const Key('permissions_none'),
               ),
+            )
+          else
+            RamuriCard(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                children: [
+                  for (final p in AppPermission.values.where(
+                    _requested.contains,
+                  ))
+                    ListTile(
+                      key: Key('permission_${p.name}'),
+                      title: Text(names[p]!),
+                      trailing: Text(
+                        label(status[p] ?? PermissionState.unknown),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           const SizedBox(height: 16),
-          OutlinedButton(
+          RamuriSecondaryButton(
             key: const Key('permissions_open_settings'),
             onPressed: () => widget.permissions.openSystemSettings(),
-            child: Text(l10n.permissionsOpenSettings),
+            label: l10n.permissionsOpenSettings,
           ),
         ],
       ),

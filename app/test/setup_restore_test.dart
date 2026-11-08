@@ -187,7 +187,8 @@ void main() {
     expect(d.fileHandoff.discardCount, 1);
     expect(find.byKey(const Key('setup_skip')), findsNothing);
     expect(find.byKey(const Key('home_start_run')), findsOneWidget);
-    await tester.tap(find.text('Einstellungen'));
+    await openOverview(tester);
+    await tester.tap(find.byKey(const Key('home_settings')));
     await tester.pumpAndSettle();
     expect(
       tester
@@ -320,6 +321,9 @@ void main() {
     expect(d.session, same(fresh));
     expect(d.fileHandoff.discardCount, 1);
     expect(find.byKey(const Key('archive_import_error')), findsNothing);
+    // Reimport aus der Ersteinrichtung: kein zweites Willkommen (FR-0207),
+    // obwohl die neue Sitzung noch ohne Merker ist.
+    expect(find.byKey(const Key('welcome_screen')), findsNothing);
     expect(find.byKey(const Key('setup_skip')), findsOneWidget);
     // Die eingespielten Daten sind da.
     expect(

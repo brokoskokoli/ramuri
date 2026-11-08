@@ -213,7 +213,7 @@ void main() {
 
   test('Kanalnamen, Takt und Schlüssel stehen gleich in Dart und Kotlin', () {
     String read(String f) => File(
-      '../../android/app/src/main/kotlin/io/github/brokoskokoli/running_app/$f',
+      '../../android/app/src/main/kotlin/io/github/brokoskokoli/ramuri/$f',
     ).readAsStringSync();
     final main = read('MainActivity.kt');
     final gps = read('GpsStreamHandler.kt');

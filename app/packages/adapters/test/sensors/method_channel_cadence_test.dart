@@ -112,10 +112,10 @@ void main() {
 
   test('Kanalnamen und Zustände stehen gleich in Kotlin', () {
     final kt = File(
-      '../../android/app/src/main/kotlin/io/github/brokoskokoli/running_app/StepSensor.kt',
+      '../../android/app/src/main/kotlin/io/github/brokoskokoli/ramuri/StepSensor.kt',
     ).readAsStringSync();
     final app = File(
-      '../../android/app/src/main/kotlin/io/github/brokoskokoli/running_app/RunningApplication.kt',
+      '../../android/app/src/main/kotlin/io/github/brokoskokoli/ramuri/RunningApplication.kt',
     ).readAsStringSync();
     expect(kt, contains('"$stepSensorChannelName"'));
     expect(kt, contains('"$stepStreamChannelName"'));

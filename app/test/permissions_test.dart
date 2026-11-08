@@ -8,9 +8,8 @@ import 'package:adapters/adapters.dart';
 import 'app_harness.dart';
 
 Future<void> openPermissions(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('home_settings')));
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('settings_permissions')));
+  await openOverview(tester);
+  await tester.tap(find.byKey(const Key('overview_permissions')));
   await tester.pumpAndSettle();
 }
 
@@ -126,7 +125,7 @@ void main() {
 
   test('Kanalname und requestedKeys-Schlüssel stehen gleich in Dart und MainActivity.kt', () {
     final kt = File(
-      'android/app/src/main/kotlin/io/github/brokoskokoli/running_app/MainActivity.kt',
+      'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri/MainActivity.kt',
     ).readAsStringSync();
     expect(permissionChannel.name, permissionChannelName);
     expect(
