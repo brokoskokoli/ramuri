@@ -16,6 +16,8 @@ spec() {
 }
 step "spec" spec
 step "privat" sh tool/check_private.sh
+# SEC-0002, SEC-0008, ADR-0009: Netz-APIs und Kartenbibliotheken nur im Kartenadapter (fail-closed, siehe tool/check_net.py).
+[ -f app/pubspec.yaml ] && step "Netz nur im Kartenadapter" python3 tool/check_net.py
 
 # --- Flutter und Dart: je Paket (app und app/packages/*) ---
 is_flutter() { grep -Eq '^[[:space:]]+sdk:[[:space:]]*flutter[[:space:]]*$' "$1/pubspec.yaml"; }
@@ -223,9 +225,11 @@ paket_id_pruefen() {
   [ "$ist" = "$erwartet" ] || { echo "Paket-ID des APK ist '$ist', erwartet '$erwartet'"; return 1; }
 }
 
-# SEC-0008: Das Release-APK fordert kein INTERNET. Geprüft am gebauten APK (aapt), nicht am Quell-Manifest, weil Plugins
-# per Manifest-Merge Berechtigungen hinzufügen können. Fail-closed: fehlt aapt oder die Ausgabe, ist der Schritt rot.
-release_ohne_internet() {
+# SEC-0008 (WP13): Das Release-APK fordert INTERNET (nur für Kartenkacheln, Einwilligung, Gate-Schritt "net"), aber keine
+# Hintergrund-Standortberechtigung und kein BOOT_COMPLETED. Geprüft am gebauten APK (aapt), nicht am Quell-Manifest,
+# weil Plugins per Manifest-Merge Berechtigungen hinzufügen können. Fail-closed: fehlt aapt oder die Ausgabe, ist der
+# Schritt rot. Auch Klartext-Verkehr (usesCleartextTraffic, Netzwerk-Sicherheitskonfiguration) wird am APK geprüft.
+release_rechte() {
   sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}
   aapt=$(ls "$sdk"/build-tools/*/aapt 2>/dev/null | sort -V | tail -1)
   [ -n "$aapt" ] || { echo "aapt nicht gefunden unter $sdk/build-tools"; return 1; }
@@ -236,8 +240,23 @@ release_ohne_internet() {
   perms=$("$aapt" dump permissions "$apk") || { echo "aapt dump permissions scheiterte"; return 1; }
   echo "$perms" | grep -q '^package: ' || { echo "aapt-Ausgabe unerwartet"; return 1; }
   echo "$perms"
-  if echo "$perms" | grep -q 'android.permission.INTERNET'; then
-    echo "Release-APK fordert android.permission.INTERNET (SEC-0008)"; return 1
+  if ! echo "$perms" | grep -q 'android.permission.INTERNET'; then
+    echo "Release-APK fordert android.permission.INTERNET nicht (WP13: Kartenkacheln)"; return 1
+  fi
+  tree=$("$aapt" dump xmltree "$apk" AndroidManifest.xml) || { echo "aapt dump xmltree scheiterte"; return 1; }
+  echo "$tree" | grep -q 'networkSecurityConfig' || { echo "Release-APK: android:networkSecurityConfig fehlt"; return 1; }
+  if echo "$tree" | grep 'usesCleartextTraffic' | grep -qv ')0x0$'; then
+    echo "Release-APK erlaubt Klartext-Verkehr (usesCleartextTraffic)"; return 1
+  fi
+  # Die Konfiguration selbst (res/xml kann im APK umbenannt sein): cleartextTrafficPermitted muss false sein.
+  nscfile=$(unzip -Z1 "$apk" | grep -E '^res/.*\.xml$' | while IFS= read -r f; do
+    "$aapt" dump xmltree "$apk" "$f" 2>/dev/null | grep -q 'network-security-config' && { echo "$f"; break; }
+  done)
+  [ -n "$nscfile" ] || { echo "Release-APK: network-security-config nicht gefunden"; return 1; }
+  nsc=$("$aapt" dump xmltree "$apk" "$nscfile")
+  echo "$nsc" | grep -q 'cleartextTrafficPermitted' || { echo "Release-APK: cleartextTrafficPermitted fehlt"; return 1; }
+  if echo "$nsc" | grep 'cleartextTrafficPermitted' | grep -qv ')0x0$'; then
+    echo "Release-APK: Klartext-Verkehr in der Netzwerk-Sicherheitskonfiguration erlaubt"; return 1
   fi
   # WP08: keine Hintergrund-Standortberechtigung und kein Start nach dem Booten (ADR-0005).
   for verboten in android.permission.ACCESS_BACKGROUND_LOCATION android.permission.RECEIVE_BOOT_COMPLETED; do
@@ -270,7 +289,7 @@ if [ -f app/pubspec.yaml ]; then
     done
     step "drift schema" drift_aktuell
     step "kotlin test" kotlin_tests
-    step "release ohne verbotene Rechte und Test-Sensor" release_ohne_internet
+    step "release: INTERNET, keine verbotenen Rechte, nur HTTPS, kein Test-Sensor" release_rechte
     step "lock unverändert" lock_unveraendert
   fi
 fi
