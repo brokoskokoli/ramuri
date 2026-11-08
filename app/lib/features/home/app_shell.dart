@@ -54,7 +54,12 @@ class _AppShellState extends State<AppShell> {
   // Ab Phase 2 kommt „Plan“ an zweiter Stelle dazu (FR-0208).
   static const _tabs = [
     _Tab('today', Key('home_today'), Icons.home_rounded, _today),
-    _Tab('history', Key('home_history'), Icons.format_list_bulleted_rounded, _history),
+    _Tab(
+      'history',
+      Key('home_history'),
+      Icons.format_list_bulleted_rounded,
+      _history,
+    ),
     _Tab(
       'progress',
       Key('home_statistics'),
