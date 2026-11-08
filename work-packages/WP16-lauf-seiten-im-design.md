@@ -18,7 +18,7 @@ Bezug: FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0037, FR-0040, F
 - **Parallel:** läuft allein nach WP13. Berührt `live_run_view.dart`, `run_flow_screen.dart`, `run_summary_body.dart`, `run_charts.dart`, `run_detail_screen.dart`, `history_screen.dart`. Neue Texte mit Präfix `start`/`live`/`summary`/`detail`/`history`.
 
 ## Hinweise aus WP14
-- Theme und Bausteine liegen in `app/lib/ui/`. Noch fehlende Tokens und Bausteine legt dieses Paket dort an, nicht in den Seiten: Töne `#E2EAE8`, `#D3EEE9`, `#3A4F4D`, `#FFE6DA`, `#8DBDB4`, Schriftgrößen 48/44/30, Umschalter in voller Breite, Live-Zonenanzeige, Wochenbalken (`handoff/wp14-review-1.md`, Zusatzfrage 8; `handoff/wp14-a.md` für abgeleitete Töne).
+- Theme und Bausteine liegen in `app/lib/ui/`. Noch fehlende Tokens und Bausteine legt dieses Paket dort an, nicht in den Seiten: Töne `#E2EAE8`, `#D3EEE9`, `#3A4F4D`, `#FFE6DA`, `#8DBDB4`, Schriftgrößen 48/44/30, Umschalter in voller Breite, Live-Zonenanzeige, Wochenbalken (`../running-app-wt/handoff/hinweise/wp14/wp14-review-1.md`, Zusatzfrage 8; `wp14-a.md` dort für abgeleitete Töne).
 - Verlauf und Fortschritt werden bei jedem Tab-Wechsel neu aufgebaut; Zeitraumwahl und Scrollposition gehen dabei verloren. Sie bleiben beim Tab-Wechsel erhalten (Abnahme), die Daten trotzdem frisch.
 - Bildschirmfotos je API und Modus; Vorlagen in `../running-app-wt/handoff/e2e-vorlagen/wp14-e2e*`.
 
