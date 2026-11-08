@@ -40,6 +40,8 @@ Map<String, Color> tokens(RamuriColors c) => {
   'onPanelMuted': c.onPanelMuted,
   'onPanelSoft': c.onPanelSoft,
   'ember': c.ember,
+  'emberDot': c.emberDot,
+  'emberSoft': c.emberSoft,
   'onEmber': c.onEmber,
   'danger': c.danger,
   'onDanger': c.onDanger,
@@ -56,11 +58,14 @@ const textPairs = <(String, String)>[
   ('textMuted', 'surface'),
   ('textMuted', 'field'),
   ('textMuted', 'tint'),
+  ('textMuted', 'accentPanel'),
+  ('textMuted', 'track'),
   ('textSoft', 'accentPanel'),
   ('accent', 'background'),
   ('accent', 'surface'),
   ('accent', 'field'),
   ('accent', 'tint'),
+  ('accent', 'accentPanel'),
   ('onAccent', 'accent'),
   ('onAction', 'action'),
   ('onAction', 'actionSoft'),
@@ -76,6 +81,7 @@ const textPairs = <(String, String)>[
   ('danger', 'background'),
   ('danger', 'surface'),
   ('danger', 'field'),
+  ('danger', 'tint'),
 ];
 
 const minRatio = 4.5;
@@ -220,6 +226,13 @@ void main() {
     final c = RamuriColors.light;
     expect(emberTextOnLight([('x', c.emberDot, c.background)], c), ['x']);
     expect(emberTextOnLight([('x', c.ember, c.panel)], c), isEmpty);
+    // Auch der Listenteil sieht alle drei Glutfarben über tokens().
+    final t = tokens(c);
+    for (final name in ['ember', 'emberDot', 'emberSoft']) {
+      expect(emberTextOnLight([(name, t[name]!, t['background']!)], c), [
+        name,
+      ], reason: name);
+    }
   });
 
   test('Prüfung findet schwache Paare (Gegenprobe)', () {
