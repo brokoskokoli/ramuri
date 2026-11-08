@@ -53,6 +53,7 @@ FitnessOverview overview({
   ComputedValue? efficiency,
   List<(String, double)> weeks = const [],
   bool failed = false,
+  String day = '2026-06-03',
 }) => failed
     ? FitnessOverview.failed()
     : FitnessOverview(
@@ -64,7 +65,7 @@ FitnessOverview overview({
           for (final (day, v) in weeks)
             DayEstimate(day: day, value: stored(vo2maxLongTermValueKey, v)),
         ],
-        day: '2026-06-03',
+        day: day,
       );
 
 Future<void> pumpCards(
@@ -525,6 +526,33 @@ void main() {
       });
     }
   });
+
+  for (final (locale, expected) in [
+    ('de', 'Stand Mo., 3. Juni 2024'),
+    ('en', 'As of Mon, Jun 3, 2024'),
+  ]) {
+    testWidgets('$locale: Stand aus dem Vorjahr nennt das Jahr auf Karte und '
+        'Effizienzkachel (FR-0059)', (tester) async {
+      await pumpCards(
+        tester,
+        overview(
+          longTerm: stored(vo2maxLongTermValueKey, 46.04),
+          efficiency: stored(aerobicEfficiencyValueKey, 5.56),
+          day: '2024-06-03',
+        ),
+        locale: locale,
+      );
+      expect(plain(tester, 'progress_vo2_asof'), expected);
+      expect(find.textContaining(expected), findsWidgets);
+      expect(
+        find.descendant(
+          of: find.byType(EfficiencyCard),
+          matching: find.textContaining(expected),
+        ),
+        findsWidgets,
+      );
+    });
+  }
 
   group('FitnessSection bei Lesefehler', () {
     testWidgets('Hinweis bleibt und keine Zahl erfunden', (tester) async {

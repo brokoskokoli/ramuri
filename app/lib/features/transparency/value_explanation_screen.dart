@@ -312,7 +312,13 @@ class _ValueExplanationScreenState extends State<ValueExplanationScreen> {
               ? l10n.explAge(date(from), date(to), date(value.computedAt))
               : l10n.explAgeNoRange(date(value.computedAt)),
           // Tageswert: der Tag, auf den sich „bis zum Stand“ (Anzahl) bezieht.
-          if (!missing && asOfDay != null) l10n.explAsOf(date(asOfDay)),
+          if (!missing && asOfDay != null)
+            l10n.explAsOf(
+              asOfDateText(
+                Localizations.localeOf(context).languageCode,
+                asOfDay,
+              ),
+            ),
         ].join('\n'),
         key: const Key('expl_a2'),
       ),

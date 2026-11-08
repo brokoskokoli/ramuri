@@ -554,7 +554,66 @@ void main() {
         vo2maxLongTermValueKey,
         day: '2026-06-05',
       );
-      expect(text('expl_a2').split('\n').last, 'Stand Fr., 5. Juni');
+      expect(text('expl_a2').split('\n').last, 'Stand Fr., 5. Juni 2026');
+    });
+
+    for (final (locale, expected) in [
+      ('de', 'Stand Mo., 3. Juni 2024'),
+      ('en', 'As of Mon, Jun 3, 2024'),
+    ]) {
+      testWidgets('$locale: Stand aus dem Vorjahr nennt das Jahr, Tag aus '
+          'dem Besitzertag (FR-0059)', (tester) async {
+        final d = await seeded(tester, locale: locale);
+        await d.session.values.createOriginals(
+          const ValueOwner.day('2024-06-03'),
+          [
+            _dayValue(vo2maxLongTermValueKey, ['gps']),
+          ],
+        );
+        await showExplanationFor(
+          tester,
+          d,
+          vo2maxLongTermValueKey,
+          day: '2024-06-03',
+        );
+        // computedAt (5. Juni 2026) weicht vom Besitzertag ab.
+        expect(text('expl_a2').split('\n').last, expected);
+      });
+    }
+
+    testWidgets('Tageswert ohne Wert: kein „Stand“, nur der Versuch', (
+      tester,
+    ) async {
+      final d = await seeded(tester);
+      await d.session.values.createOriginals(
+        const ValueOwner.day('2026-06-05'),
+        [
+          ComputedValue(
+            key: vo2maxLongTermValueKey,
+            value: null,
+            unit: vo2maxUnit,
+            unavailableReason: UnavailableReason.insufficientData,
+            computedAt: DateTime.utc(2026, 6, 5),
+            measurementCount: 0,
+            sources: const ['gps'],
+            method: 'm',
+            methodVersion: 1,
+            parameterVersion: 1,
+            quality: ValueQuality.undeterminable,
+          ),
+        ],
+      );
+      await showExplanationFor(
+        tester,
+        d,
+        vo2maxLongTermValueKey,
+        day: '2026-06-05',
+      );
+      final m = MaterialLocalizations.of(tester.element(key('expl_a2')));
+      expect(
+        text('expl_a2'),
+        'Berechnungsversuch am ${m.formatMediumDate(DateTime.utc(2026, 6, 5).toLocal())}',
+      );
     });
 
     testWidgets('Effizienz ist als Schätzung gekennzeichnet (CON-0009)', (
@@ -601,7 +660,7 @@ void main() {
         text('expl_a2'),
         'Daten vom ${date(5, 1)} bis ${date(6, 4)}\n'
         'Berechnet am ${date(6, 5)}\n'
-        'Stand ${date(6, 5)}',
+        'Stand Fr., 5. Juni 2026',
       );
       // Das deutsche Datum endet mit einem Abkürzungspunkt; kein zweiter.
       expect(text('expl_a2'), isNot(contains('..')));

@@ -167,7 +167,7 @@ class Vo2ProgressCard extends StatelessWidget {
     final longTerm = fitness.longTerm;
     final value = longTerm?.value;
     // Im Hero ganzzahlig nach dem Design (FR-0205); die Sichten darunter
-    // zeigen eine Stelle. Gerundet wird den angezeigten Wert, damit 45,46
+    // zeigen eine Stelle. Gerundet wird der angezeigte Wert, damit 45,46
     // (dort 45,5) nicht als 45 daneben steht.
     String heroText(double v) =>
         double.parse(v.toStringAsFixed(1)).round().toString();
@@ -177,11 +177,13 @@ class Vo2ProgressCard extends StatelessWidget {
       for (final e in fitness.weeklyLongTerm()) e.value.value!,
     ];
     final trend = [for (final v in trendValues) fitnessNumber(german, v)];
-    final material = MaterialLocalizations.of(context);
     final asOf = day == null
         ? null
         : l10n.progressEfficiencyAsOf(
-            material.formatMediumDate(DateTime.parse('${day}T00:00:00Z')),
+            asOfDateText(
+              Localizations.localeOf(context).languageCode,
+              DateTime.parse(day),
+            ),
           );
 
     return RamuriCard(
@@ -330,7 +332,6 @@ class EfficiencyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final material = MaterialLocalizations.of(context);
     final german = Localizations.localeOf(context).languageCode == 'de';
     final c = RamuriColors.of(context);
     final type = RamuriType.of(context);
@@ -349,7 +350,10 @@ class EfficiencyCard extends StatelessWidget {
     final asOf = day == null
         ? null
         : l10n.progressEfficiencyAsOf(
-            material.formatMediumDate(DateTime.parse('${day}T00:00:00Z')),
+            asOfDateText(
+              Localizations.localeOf(context).languageCode,
+              DateTime.parse(day),
+            ),
           );
 
     return RamuriCard(

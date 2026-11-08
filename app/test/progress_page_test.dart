@@ -462,7 +462,8 @@ void main() {
         await open(tester);
         await pickDay(tester, 'stat_to', 2);
         expect(tester.takeException(), isNull);
-        expect(label('stat_from'), label('stat_to'));
+        expect(label('stat_from'), contains('2. Juni'));
+        expect(label('stat_to'), contains('2. Juni'));
       });
 
       testWidgets('„von“ nach „bis“ gewählt: „bis“ zieht mit, keine Ausnahme', (
@@ -471,8 +472,30 @@ void main() {
         await open(tester);
         await pickDay(tester, 'stat_from', 15);
         expect(tester.takeException(), isNull);
-        expect(label('stat_from'), label('stat_to'));
+        expect(label('stat_from'), contains('15. Juni'));
+        expect(label('stat_to'), contains('15. Juni'));
       });
+
+      for (final (name, k) in [('von', 'stat_from'), ('bis', 'stat_to')]) {
+        testWidgets('Dialog „$name“ abgebrochen, Uhr vor: beide Enden folgen '
+            'weiter der Uhr', (tester) async {
+          final d = await open(tester);
+          final from = label('stat_from');
+          final to = label('stat_to');
+          await tester.tap(key(k));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Abbrechen'));
+          await tester.pumpAndSettle();
+          expect(label('stat_from'), from);
+          expect(label('stat_to'), to);
+          await openHistory(d, tester);
+          d.clock.set(DateTime.utc(2026, 6, 20, 12));
+          await openStats(d, tester);
+          expect(tester.takeException(), isNull);
+          expect(label('stat_from'), isNot(from));
+          expect(label('stat_to'), contains('20. Juni'));
+        });
+      }
     });
 
     testWidgets('Datenmeldung (changes.revision): Zeitraum und Lage bleiben, '

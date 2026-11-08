@@ -1,4 +1,10 @@
 import 'package:core/core.dart';
+import 'package:intl/intl.dart';
+
+/// Tag der „Stand“-Angabe, immer mit Jahr (FR-0059): ein alter Wert darf nicht
+/// frisch wirken. [day] ist ein Kalendertag (`yyyy-MM-dd`) oder ein Zeitpunkt.
+String asOfDateText(String languageCode, DateTime day) =>
+    DateFormat.yMMMEd(languageCode).format(day);
 
 /// Der eine Formatierer für Strecke und Pace (NFR-0006). Eingaben sind immer
 /// Meter beziehungsweise Sekunden je Kilometer; umgerechnet wird nur für die
