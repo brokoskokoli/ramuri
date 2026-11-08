@@ -74,6 +74,8 @@ class _RouteMapSectionState extends State<RouteMapSection>
     final fg = state == AppLifecycleState.resumed;
     if (fg == _foreground) return;
     setState(() => _foreground = fg);
+    // Die Rückkehr in den Vordergrund ist ein neuer Bedarf: bei aktivem Rückfall neuer Versuch (E2E 36).
+    _holder.setWanted(_wanted);
   }
 
   @override
@@ -83,14 +85,17 @@ class _RouteMapSectionState extends State<RouteMapSection>
     // ein Dialog lässt die Seite an: Zoom und Ausschnitt bleiben (N6). Anders als ModalRoute.isCurrent.
     _routeCurrent = TickerMode.valuesOf(context).enabled;
     _holder.bind(MapConsentScope.of(context));
-    _holder.setWanted(_hasRoute);
+    _holder.setWanted(_wanted);
   }
 
   @override
   void didUpdateWidget(RouteMapSection old) {
     super.didUpdateWidget(old);
-    _holder.setWanted(_hasRoute);
+    _holder.setWanted(_wanted);
   }
+
+  /// Die Karte wird gebraucht: Route vorhanden und App im Vordergrund (wie auf der Live-Seite).
+  bool get _wanted => _hasRoute && _foreground;
 
   bool get _hasRoute => widget.route.any((p) => p.isNotEmpty);
 

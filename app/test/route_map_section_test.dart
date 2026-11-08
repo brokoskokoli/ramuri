@@ -312,6 +312,39 @@ void main() {
   }
 
   testWidgets(
+    'Rückkehr aus dem Hintergrund bei aktivem Rückfall: neuer Versuch, Karte erholt sich (E2E 36)',
+    (tester) async {
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+      final net = FakeInner()..failWhere = (u) => u.path.endsWith('.pbf');
+      final w = _World(net: net, consent: ConsentState.granted);
+      await tester.pumpWidget(_app(w, _route));
+      await _settle(tester, w);
+      expect(_k('route_map'), findsNothing, reason: 'Rückfall aktiv');
+      for (final st in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(st);
+      }
+      await tester.pump();
+      net.failWhere =
+          null; // Netz wieder da, während die App im Hintergrund ist
+      final n = w.requests;
+      await _settle(tester, w);
+      expect(w.requests, n, reason: 'im Hintergrund kein Verkehr');
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await _settle(tester, w);
+      expect(_k('route_map'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'Pause (App im Hintergrund, Route verdeckt): keine Karte, keine Anfrage; danach wieder da (S6)',
     (tester) async {
       addTearDown(
