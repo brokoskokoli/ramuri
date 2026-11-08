@@ -1,6 +1,6 @@
 # ADR-0009 — Kartenkacheln aus dem Netz nach Einwilligung
 
-- **Status:** Accepted (Maintainer, 2026-11-07) für die Punkte 1 bis 5; Punkt 6 und die Nachträge aus R008 vorgeschlagen (2026-11-08, K34), Bestätigung offen
+- **Status:** Accepted (Maintainer, 2026-11-07 für die Punkte 1 bis 5; 2026-11-08 für Punkt 6 und die Nachträge aus R008, K34)
 - **Datum:** 2026-11-07
 - **Quellen:** SRC-003 (OQ-0074), R008 (`research/R008-kartenbibliothek/RESULTS.md`)
 - **Betroffene Anforderungen:** FR-0204, FR-0027, FR-0037, FR-0040, FR-0041, SEC-0002, SEC-0007, SEC-0008, SEC-0009, ADR-0001, ADR-0003, ADR-0005
@@ -25,7 +25,7 @@ Bisher nutzt die App kein Netz. Das Release-APK fordert kein `INTERNET`, und das
 
 **5. Nur Oberfläche:** Die Karte lebt nur in der Oberfläche und nur im Vordergrund. Der Aufzeichnungsdienst (ADR-0005) kennt sie nicht und läuft unverändert, wenn die Karte nicht lädt.
 
-**6. Bibliothek und Darstellung (nach R008, vorgeschlagen):** `flutter_map` 8.3.2 mit `flutter_map_vector_tiles` 2.11.0, Vektorkacheln von OpenFreeMap im Stil „liberty“ ohne Rasterquellen. Nur diese Wahl erfüllt die Kriterien ohne nativen Code: Ein eigener `http.Client` ist das Tor für jede Anfrage (nur GET, nur HTTPS, nur freigegebene Hosts, keine Weiterleitungen, vor der Einwilligung keine Anfrage), `StyleReader` bekommt ihn samt `resolveProvider`. Lizenzen BSD/MIT/Apache-2.0, APK etwa +2,6 MB. `maplibre_gl` lädt nativ am Dart-Code vorbei (+13 MB), `vector_map_tiles` braucht einen Patch.
+**6. Bibliothek und Darstellung (nach R008):** `flutter_map` 8.3.2 mit `flutter_map_vector_tiles` 2.11.0, Vektorkacheln von OpenFreeMap im Stil „liberty“ ohne Rasterquellen. Nur diese Wahl erfüllt die Kriterien ohne nativen Code: Ein eigener `http.Client` ist das Tor für jede Anfrage (nur GET, nur HTTPS, nur freigegebene Hosts, keine Weiterleitungen, vor der Einwilligung keine Anfrage), `StyleReader` bekommt ihn samt `resolveProvider`. Lizenzen BSD/MIT/Apache-2.0, APK etwa +2,6 MB. `maplibre_gl` lädt nativ am Dart-Code vorbei (+13 MB), `vector_map_tiles` braucht einen Patch.
 - Miniaturen: unsichtbare Karte, `RepaintBoundary.toImage` nach Ladeende, Bild im Kartenspeicher, nacheinander und höchstens 4 Anfragen parallel.
 - Auflagen wegen der Reife (Paket drei Monate alt, eine Person): Version exakt pinnen, Update nur als eigener Schritt über die Gate-Tests (Tor zählt jede Ressourcenart, kein Klartext außerhalb des Speichers, Fremdkachel-Test). Rückfall 1: Fork der gepinnten Version. Rückfall 2: `maplibre_gl` mit eigener OkHttp-`Call.Factory`.
 - Nicht belegt: Flüssigkeit der Historie und Akku auf echten Geräten (Emulator mit Software-GL); der Speicher nur als Probe am Rechner, auf Android in WP13 zu belegen.
@@ -42,6 +42,6 @@ Bisher nutzt die App kein Netz. Das Release-APK fordert kein `INTERNET`, und das
 - Mobile Daten werden nur mit Einwilligung genutzt. Eine Grenze für mobile Daten ist nicht vorgesehen.
 
 ## Offene Punkte
-- Bestätigung von Punkt 6 und der Nachträge aus R008 (K34).
+
 - Abhängigkeit des Builds vom Download von `libsqlite3mc` über GitHub-Releases (am 2026-11-08 HTTP 504, R008-Review); ein Build mit leerem Hook-Cache scheitert dann.
 - Rechtliche Einordnung von Einwilligung und Namensnennung (OQ-0048).
