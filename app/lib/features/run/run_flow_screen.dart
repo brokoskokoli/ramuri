@@ -4,12 +4,16 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../ui/ui.dart';
+import '../sensors/sensor_manager.dart';
+import '../sensors/sensors_screen.dart';
 import '../settings/app_settings.dart';
 import 'live_run_view.dart';
 import 'run_controller.dart';
 import 'run_ports.dart';
 
-/// Ablauf „Lauf starten“: Startprüfung (FR-0195), Live-Bildschirm
+/// Ablauf „Lauf starten“: Seite „Lauf vorbereiten“ (FR-0210) mit Startprüfung
+/// (FR-0195), Live-Bildschirm
 /// (FR-0026, FR-0027, FR-0028 bis FR-0030) und einfache Abschlussansicht.
 /// Die Zusammenfassung zeigt `RunSummaryBody` (WP10).
 class RunFlowScreen extends StatefulWidget {
@@ -22,6 +26,7 @@ class RunFlowScreen extends StatefulWidget {
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
     this.resumeRunId,
+    this.sensors,
   });
 
   final StorageSession session;
@@ -29,6 +34,9 @@ class RunFlowScreen extends StatefulWidget {
   final RunPorts ports;
   final PermissionStatusPort permissions;
   final Duration tickEvery;
+
+  /// Sensorverwaltung für „Koppeln“ (FR-0011). Ohne sie fehlt der Knopf.
+  final SensorManager? sensors;
 
   /// Setzt diesen unterbrochenen Lauf fort (FR-0193); das Start-Gate gilt.
   final int? resumeRunId;
@@ -54,13 +62,79 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   /// `busy` ist), die Oberfläche nicht festhalten.
   int _generation = 0;
 
+  /// Autopause der Seite (FR-0029, FR-0210): zuletzt gewählt, sonst aus.
+  bool _autoPause = false;
+  bool _autoPauseTouched = false;
+  late Future<void> _autoPauseLoaded;
+
+  /// Quelle der Schrittfrequenz; `null`, solange sie noch nicht gelesen ist.
+  CadenceAvailability? _cadenceAvailability;
+
+  /// Fortsetzen (FR-0193) startet sofort, ein neuer Lauf wartet auf „Los“.
+  bool get _preparing => widget.resumeRunId == null;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     // Bekannte Pulssensoren verbinden sich still (nur mit erteilten Rechten).
     unawaited(_connectSensors());
-    _check(askUser: false, autoStart: true);
+    _autoPauseLoaded = _loadAutoPause();
+    unawaited(_loadCadence());
+    _check(askUser: false, autoStart: !_preparing);
+  }
+
+  /// Fehler beim Lesen: Autopause aus (FR-0029).
+  Future<void> _loadAutoPause() async {
+    var value = false;
+    try {
+      value = await widget.session.settings.get(SettingKeys.autoPause) == '1';
+    } on Object {
+      value = false;
+    }
+    if (!mounted || _autoPauseTouched) return;
+    setState(() => _autoPause = value);
+  }
+
+  Future<void> _loadCadence() async {
+    CadenceAvailability a;
+    try {
+      a =
+          await widget.ports.cadence?.availability() ??
+          CadenceAvailability.noSensor;
+    } on Object {
+      a = CadenceAvailability.noSensor;
+    }
+    if (!mounted) return;
+    setState(() => _cadenceAvailability = a);
+  }
+
+  /// Merkt die Wahl dauerhaft; ein Speicherfehler ändert die Wahl nicht.
+  Future<void> _setAutoPause(bool enabled) async {
+    setState(() {
+      _autoPause = enabled;
+      _autoPauseTouched = true;
+    });
+    try {
+      await widget.session.settings.set(
+        SettingKeys.autoPause,
+        enabled ? '1' : '0',
+        at: widget.clock.now(),
+      );
+    } on Object {
+      // Nur das Merken scheitert; der nächste Lauf nutzt die Wahl trotzdem.
+    }
+  }
+
+  Future<void> _pairSensors() async {
+    final manager = widget.sensors;
+    if (manager == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => SensorsScreen(manager: manager)),
+    );
+    if (!mounted) return;
+    // Zurück auf dieser Seite; die Berechtigung kann sich geändert haben.
+    unawaited(_loadCadence());
   }
 
   Future<void> _connectSensors() async {
@@ -112,6 +186,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       });
       return;
     }
+    await _autoPauseLoaded;
     await _askNotifications();
     await _askActivityRecognition();
     if (!mounted || gen != _generation) return;
@@ -123,6 +198,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       service: widget.ports.recordingService,
       cadence: widget.ports.cadence,
       resumeRunId: widget.resumeRunId,
+      initialAutoPause: _preparing ? _autoPause : null,
       tickEvery: widget.tickEvery,
       serialize: widget.serialize,
     );
@@ -163,8 +239,12 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     final controller = _controller;
     if (controller == null) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.homeStartRun)),
-        body: _checking
+        appBar: AppBar(
+          title: Text(_preparing ? l10n.startTitle : l10n.homeStartRun),
+        ),
+        body: _preparing
+            ? _prepareBody(context, l10n)
+            : _checking
             ? _checkingBody(l10n)
             : _ready
             ? _readyBody(l10n)
@@ -217,6 +297,12 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   );
 
   Widget _blockBody(AppLocalizations l10n) {
+    final (text, actions, blockKey) = _blockParts(l10n);
+    return _explanation(l10n, text, actions, blockKey: blockKey);
+  }
+
+  /// Grund der Sperre (FR-0195) mit den Knöpfen, die sie beheben können.
+  (String, List<Widget>, Key) _blockParts(AppLocalizations l10n) {
     final block = _block ?? StartBlock.unknown;
     final text = switch (block) {
       StartBlock.permissionDenied => l10n.runBlockPermissionDenied,
@@ -228,7 +314,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
         block == StartBlock.permissionDenied ||
         block == StartBlock.approximateOnly;
     final canOpenSettings = canAsk;
-    return _explanation(l10n, text, [
+    final actions = <Widget>[
       if (canAsk)
         FilledButton(
           key: const Key('run_block_ask'),
@@ -254,8 +340,188 @@ class _RunFlowScreenState extends State<RunFlowScreen>
           onPressed: () => _check(askUser: false, autoStart: false),
           child: Text(l10n.runActionRecheck),
         ),
-    ], blockKey: Key('run_block_${block.name}'));
+    ];
+    return (text, actions, Key('run_block_${block.name}'));
   }
+
+  /// Seite „Lauf vorbereiten“ (FR-0210, Design `Start`). Der GPS-Zustand ist
+  /// eine Anzeige; gesperrt wird nur nach FR-0195, dann steht der Grund da und
+  /// „Los“ tut nichts.
+  Widget _prepareBody(BuildContext context, AppLocalizations l10n) {
+    final c = RamuriColors.of(context);
+    final text = Theme.of(context).textTheme;
+    final blocked = !_checking && !_ready;
+    final cadence = _cadenceAvailability;
+    final (blockText, blockActions, blockKey) = blocked
+        ? _blockParts(l10n)
+        : ('', const <Widget>[], const Key('run_explanation'));
+    final gps = _checking
+        ? Text(
+            l10n.runChecking,
+            key: const Key('run_checking'),
+            style: text.labelMedium,
+            textAlign: TextAlign.end,
+          )
+        : _ready
+        ? Text(
+            l10n.startGpsReady,
+            key: const Key('start_gps_ready'),
+            style: text.labelMedium!.copyWith(color: c.accent),
+            textAlign: TextAlign.end,
+          )
+        : Text(
+            l10n.startGpsBlocked,
+            key: const Key('start_gps_blocked'),
+            style: text.labelMedium!.copyWith(color: c.danger),
+            textAlign: TextAlign.end,
+          );
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            children: [
+              if (blocked) ...[
+                RamuriCard(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l10n.runBlockTitle, style: text.titleMedium),
+                      const SizedBox(height: 8),
+                      Text(blockText, key: blockKey),
+                      const SizedBox(height: 12),
+                      for (final a in blockActions) ...[
+                        a,
+                        const SizedBox(height: 8),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+              ],
+              RamuriCard(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.startFreeTitle, style: text.titleMedium),
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.startFreeBody,
+                      style: text.bodySmall!.copyWith(height: 1.45),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Semantics(
+                container: true,
+                label: l10n.startReadiness,
+                child: RamuriCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 6,
+                  ),
+                  child: Column(
+                    children: [
+                      RamuriReadinessRow(
+                        icon: Icons.place_outlined,
+                        title: l10n.startGps,
+                        trailing: gps,
+                      ),
+                      ListenableBuilder(
+                        listenable: widget.sensors ?? _noChange,
+                        builder: (context, _) {
+                          final connected =
+                              widget.sensors?.connectedIds.isNotEmpty ?? false;
+                          return RamuriReadinessRow(
+                            icon: Icons.favorite_border,
+                            title: l10n.startSensor,
+                            subtitle: connected
+                                ? l10n.startSensorConnected
+                                : l10n.startSensorOptional,
+                            muted: !connected,
+                            trailing: widget.sensors == null
+                                ? null
+                                : TextButton(
+                                    key: const Key('start_sensor_pair'),
+                                    onPressed: _pairSensors,
+                                    child: Text(l10n.startSensorPair),
+                                  ),
+                          );
+                        },
+                      ),
+                      RamuriReadinessRow(
+                        icon: Icons.directions_walk,
+                        title: l10n.startCadence,
+                        divider: false,
+                        muted: cadence == CadenceAvailability.noSensor,
+                        trailing: cadence == null
+                            ? null
+                            : Text(
+                                key: const Key('start_cadence_source'),
+                                switch (cadence) {
+                                  CadenceAvailability.available =>
+                                    l10n.startCadencePhone,
+                                  CadenceAvailability.permissionDenied =>
+                                    l10n.startCadenceAsk,
+                                  CadenceAvailability.noSensor =>
+                                    l10n.startCadenceNone,
+                                },
+                                style: text.labelMedium!.copyWith(
+                                  color: cadence == CadenceAvailability.noSensor
+                                      ? c.textMuted
+                                      : c.accent,
+                                ),
+                                textAlign: TextAlign.end,
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              RamuriCard(
+                radius: 18,
+                padding: EdgeInsets.zero,
+                child: SwitchListTile(
+                  key: const Key('start_autopause'),
+                  title: Text(l10n.startAutoPause, style: text.labelMedium),
+                  subtitle: Text(l10n.startAutoPauseHint),
+                  value: _autoPause,
+                  onChanged: _setAutoPause,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            children: [
+              RamuriStartButton(
+                key: const Key('run_start_ready'),
+                label: l10n.startGo,
+                semanticLabel: l10n.startGoSemantics,
+                onPressed: _ready
+                    ? () => _check(askUser: false, autoStart: true)
+                    : null,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.startScreenOff,
+                style: text.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static final Listenable _noChange = ChangeNotifier();
 
   Widget _explanation(
     AppLocalizations l10n,

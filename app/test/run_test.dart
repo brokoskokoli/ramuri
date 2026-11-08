@@ -89,6 +89,8 @@ Future<void> openRun(
   await before?.call();
   await tester.tap(key('home_start_run'));
   await tester.pumpAndSettle();
+  await tester.tap(key('run_start_ready'));
+  await tester.pumpAndSettle();
 }
 
 /// Ein Punkt je Sekunde, geradeaus nach Norden mit rund 3 m/s.
@@ -411,6 +413,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(key('home_start_run'));
       await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
       await walk(d, tester, 120);
       // 119 Schritte zu je rund 3,0 m: rund 357 m = 0.22 mi (0.36 km).
       expect(text('run_distance'), '0.22 mi');
@@ -436,6 +440,8 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
       await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
       await tester.pumpAndSettle();
       await walk(d, tester, 61, altitude: true);
       // 60 Schritte zu je 0,5 m Anstieg: höchstens 30 m = 98 ft.
@@ -581,19 +587,6 @@ void main() {
       expect(text('run_done_status'), contains('Fehler'));
     });
 
-    testWidgets('Autopause: Standard aus, setzbar, gespeichert', (
-      tester,
-    ) async {
-      final d = Device();
-      await openRun(d, tester);
-      expect(tester.widget<SwitchListTile>(key('run_autopause')).value, false);
-      expect(await d.session.settings.get(SettingKeys.autoPause), isNull);
-      await tester.tap(key('run_autopause'));
-      await tester.pump();
-      expect(tester.widget<SwitchListTile>(key('run_autopause')).value, true);
-      expect(await d.session.settings.get(SettingKeys.autoPause), '1');
-    });
-
     testWidgets('Autopause an: Stillstand pausiert, aus: nicht', (
       tester,
     ) async {
@@ -612,7 +605,6 @@ void main() {
             }
           },
         );
-        expect(tester.widget<SwitchListTile>(key('run_autopause')).value, on);
         await walk(d, tester, 20);
         for (var i = 0; i < 30; i++) {
           d.clock.advance(const Duration(seconds: 1));
@@ -648,6 +640,8 @@ void main() {
         tester.platformDispatcher.textScaleFactorTestValue = scale;
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
         await tester.tap(key('home_start_run'));
+        await tester.pumpAndSettle();
+        await tester.tap(key('run_start_ready'));
         await tester.pumpAndSettle();
         await walk(d, tester, 40, altitude: true);
         d.heartRate.emitReading('hr1', d.clock.now(), 150);

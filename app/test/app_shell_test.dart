@@ -79,6 +79,8 @@ void main() {
     // Lauf (Vollbild über den Root-Navigator)
     await tester.tap(key('home_start_run'));
     await tester.pumpAndSettle();
+    await tester.tap(key('run_start_ready'));
+    await tester.pumpAndSettle();
     expect(find.byType(NavigationBar), findsNothing);
     await walk(d, tester, 60);
     await tester.tap(key('run_finish'));

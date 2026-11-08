@@ -35,6 +35,7 @@ class RunController extends ChangeNotifier {
     this.service,
     this.cadence,
     this.resumeRunId,
+    this.initialAutoPause,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
     RunRecorder? recorder,
@@ -67,6 +68,11 @@ class RunController extends ChangeNotifier {
   /// Ist gesetzt, setzt [start] diesen unterbrochenen Lauf fort (FR-0193),
   /// statt einen neuen anzulegen.
   final int? resumeRunId;
+
+  /// Die auf der Seite „Lauf vorbereiten“ gewählte Autopause (FR-0210). Sie
+  /// gilt für diesen Lauf, auch wenn das Merken scheitert. `null`: der
+  /// gemerkte Wert aus dem Speicher gilt (Fortsetzen, FR-0193).
+  final bool? initialAutoPause;
 
   /// Reiht Schreiben von Werten hinter den Start und andere Neuberechnungen
   /// ein (siehe `RecalculationController.exclusive`); `null` = sofort.
@@ -182,10 +188,15 @@ class RunController extends ChangeNotifier {
     _startFailed = false;
     notifyListeners();
     try {
-      try {
-        _autoPause = await storage.settings.get(SettingKeys.autoPause) == '1';
-      } on Object {
-        _autoPause = false;
+      final chosen = initialAutoPause;
+      if (chosen != null) {
+        _autoPause = chosen;
+      } else {
+        try {
+          _autoPause = await storage.settings.get(SettingKeys.autoPause) == '1';
+        } on Object {
+          _autoPause = false;
+        }
       }
       try {
         _fitness = await ReserveZoneSettings.loadParameters(storage.settings);

@@ -109,7 +109,6 @@ class LiveRunView extends StatelessWidget {
             children: [
               ..._banners(context, l10n, finished),
               ..._body(l10n, finished),
-              if (!finished) _autoPauseSwitch(l10n),
             ],
           ),
         ),
@@ -276,15 +275,6 @@ class LiveRunView extends StatelessWidget {
       _Laps(laps: s.laps),
     ];
   }
-
-  Widget _autoPauseSwitch(AppLocalizations l10n) => SwitchListTile(
-    key: const Key('run_autopause'),
-    contentPadding: EdgeInsets.zero,
-    title: Text(l10n.runAutoPause),
-    subtitle: Text(l10n.runAutoPauseHint),
-    value: controller.autoPause,
-    onChanged: controller.setAutoPause,
-  );
 
   Widget _controls(BuildContext context, AppLocalizations l10n) {
     final phase = controller.phase;

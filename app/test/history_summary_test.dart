@@ -89,6 +89,8 @@ Future<void> runAndFinish(
 }) async {
   await tester.tap(key('home_start_run'));
   await tester.pumpAndSettle();
+  await tester.tap(key('run_start_ready'));
+  await tester.pumpAndSettle();
   await walk(d, tester, seconds, heartRate: heartRate);
   await tester.tap(key('run_finish'));
   await tester.pumpAndSettle();
@@ -198,6 +200,8 @@ Future<void> _runAndFinishHeld(
   int seconds,
 ) async {
   await tester.tap(key('home_start_run'));
+  await tester.pumpAndSettle();
+  await tester.tap(key('run_start_ready'));
   await tester.pumpAndSettle();
   await walk(d, tester, seconds);
   await tester.tap(key('run_finish'));
@@ -488,6 +492,8 @@ void main() {
       await d.skipSetup(tester);
       storage.session.raw.fail = true;
       await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
       await tester.pumpAndSettle();
       await walk(d, tester, 30);
       await tester.tap(key('run_finish'));

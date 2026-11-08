@@ -18,6 +18,8 @@ Future<void> openRun(Device d, WidgetTester tester) async {
   await d.skipSetup(tester);
   await tester.tap(key('home_start_run'));
   await tester.pumpAndSettle();
+  await tester.tap(key('run_start_ready'));
+  await tester.pumpAndSettle();
 }
 
 /// Ein Punkt je Sekunde, damit der Lauf Daten bekommt.

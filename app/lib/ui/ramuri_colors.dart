@@ -48,6 +48,11 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
     required this.weekBarOlder,
     required this.weekBarLast,
     required this.weekBarCurrent,
+    required this.segmentTrack,
+    required this.zoneDone,
+    required this.textLabel,
+    required this.emberTint,
+    required this.accentFaint,
   });
 
   /// Seitengrund (Papier / Nacht).
@@ -120,6 +125,23 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
   final Color weekBarLast;
   final Color weekBarCurrent;
 
+  /// Grund des Umschalters in voller Breite und ungefüllte Stücke der
+  /// Live-Zonenanzeige (Design: `#E2EAE8`).
+  final Color segmentTrack;
+
+  /// Zonenstücke unterhalb der aktuellen Zone (Design: `#D3EEE9`).
+  final Color zoneDone;
+
+  /// Beschriftung über großen Zahlen auf hellem Grund, etwas kräftiger als
+  /// [textMuted] (Design: `#3A4F4D`).
+  final Color textLabel;
+
+  /// Hellglut als Fläche, etwa unter Symbolen im Verlauf (Design: `#FFE6DA`).
+  final Color emberTint;
+
+  /// Gedämpftes Minzgrün für Linien und Flächen ohne Text (Design: `#8DBDB4`).
+  final Color accentFaint;
+
   /// Farbe der Herzfrequenzzone 1 bis 5.
   Color zone(int number) => switch (number) {
     1 => zone1,
@@ -169,6 +191,11 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
     weekBarOlder: Color(0xFFA9E3D8),
     weekBarLast: Color(0xFF0F5E5A),
     weekBarCurrent: Color(0xFF7FD6C6),
+    segmentTrack: Color(0xFFE2EAE8),
+    zoneDone: Color(0xFFD3EEE9),
+    textLabel: Color(0xFF3A4F4D),
+    emberTint: Color(0xFFFFE6DA),
+    accentFaint: Color(0xFF8DBDB4),
   );
 
   /// Dunkel: Nacht als Grund, Minze als Akzent. Abgeleitet, nicht im Design
@@ -212,6 +239,11 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
     weekBarOlder: Color(0xFF4A9385),
     weekBarLast: Color(0xFFE6F7F3),
     weekBarCurrent: Color(0xFF7FD6C6),
+    segmentTrack: Color(0xFF284040),
+    zoneDone: Color(0xFF2F5F58),
+    textLabel: Color(0xFFCDDEDB),
+    emberTint: Color(0xFF3D2B25),
+    accentFaint: Color(0xFF4A9385),
   );
 
   /// Die Farben des umgebenden Themes.
@@ -260,6 +292,11 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
     Color? weekBarOlder,
     Color? weekBarLast,
     Color? weekBarCurrent,
+    Color? segmentTrack,
+    Color? zoneDone,
+    Color? textLabel,
+    Color? emberTint,
+    Color? accentFaint,
   }) {
     return RamuriColors(
       background: background ?? this.background,
@@ -299,6 +336,11 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
       weekBarOlder: weekBarOlder ?? this.weekBarOlder,
       weekBarLast: weekBarLast ?? this.weekBarLast,
       weekBarCurrent: weekBarCurrent ?? this.weekBarCurrent,
+      segmentTrack: segmentTrack ?? this.segmentTrack,
+      zoneDone: zoneDone ?? this.zoneDone,
+      textLabel: textLabel ?? this.textLabel,
+      emberTint: emberTint ?? this.emberTint,
+      accentFaint: accentFaint ?? this.accentFaint,
     );
   }
 
@@ -344,6 +386,11 @@ class RamuriColors extends ThemeExtension<RamuriColors> {
       weekBarOlder: l(weekBarOlder, other.weekBarOlder),
       weekBarLast: l(weekBarLast, other.weekBarLast),
       weekBarCurrent: l(weekBarCurrent, other.weekBarCurrent),
+      segmentTrack: l(segmentTrack, other.segmentTrack),
+      zoneDone: l(zoneDone, other.zoneDone),
+      textLabel: l(textLabel, other.textLabel),
+      emberTint: l(emberTint, other.emberTint),
+      accentFaint: l(accentFaint, other.accentFaint),
     );
   }
 }
