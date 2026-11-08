@@ -14,6 +14,7 @@ Schritte:
 | \`licenses\` | Lizenzbaum: Dart (pubspec.lock + LICENSE im Pub-Cache) und Gradle (releaseRuntimeClasspath + POM) |
 | \`netstatic\`| Netz-APIs und fest eingebaute Hosts in Dart-Paketen, Java/Kotlin-Quellen und nativen Bibliotheken |
 | \`emu\`      | Emulator-Messungen (src/emu.sh): Mitschnitt ohne/mit Einwilligung, Live-Seite, Miniaturen, Speicher |
+| \`store\`    | Host-Probe der Speicherempfehlung (src/storeprobe): sqlite3mc-Datei gegen AES-GCM je Datei, ohne Netz fuer Kacheln, Ausgabe store.json |
 Parameter:
 | \`--apps "a b"\` | "$APPS_ALL" | Mini-Apps fuer build, licenses, emu |
 | \`--api N\`      | 36          | emu: API-Stufe (36 voll, 31 nur Start-Smoke) |
@@ -49,6 +50,10 @@ case "$STEP" in
   licenses) python3 src/licenses.py "$WORK/apps" "$OUT" $APPS 2>&1 | tee "$OUT/licenses.log" ;;
   netstatic) bash src/netstatic.sh "$WORK/apps" "$OUT" 2>&1 | tee "$OUT/netstatic.log" ;;
   emu) bash src/emu.sh "$OUT" "$API" "$PORT" "$LIVE_S" "$PROFIL" $APPS 2>&1 | tee "$OUT/emu.log" ;;
+  store)
+    SP="$WORK/apps/storeprobe"; mkdir -p "$SP"; cp -R src/storeprobe/. "$SP/"
+    FIXABS="$FIX"; ( cd "$SP" && dart pub get >/dev/null && nice -n 10 dart run bin/storeprobe.dart "$FIXABS" "$OUT/w" ) 2>&1 | tee "$OUT/store.log"
+    cp "$OUT/w/store.json" "$OUT/store.json"; trash "$OUT/w" ;;
   *) echo "Unbekannter Schritt: $STEP" >&2; usage >&2; exit 2 ;;
 esac
 touch "$OUT/.done"; echo "Fertig: $OUT"

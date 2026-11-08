@@ -1,6 +1,7 @@
 // R008 Host-Tests fmvt (flutter test, kein Emulator). Testvorlagen aus ./init.sh: R008_FIXTURES=<.../fixtures>
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -22,15 +23,30 @@ import 'package:r008_fmvt/thumbvt.dart';
 final fix = Platform.environment['R008_FIXTURES'] ?? '';
 
 /// gzip-Signatur (3 Byte) kommt in Zufallsdaten etwa einmal je 16 MiB vor (verschluesselte Dateien!). Ein Treffer
-/// zaehlt nur, wenn ab dort wirklich ein gzip-Strom entpackt werden kann (Review R008 Runde 1: Fehlalarm im Host-Test).
-bool gunzipOk(List<int> b, int i) {
-  try {
-    gzip.decode(b.sublist(i));
-    return true;
-  } catch (_) {
-    return false;
-  }
+/// zaehlt nur, wenn ab dort ein Streaming-Inflate tatsaechlich Ausgabe liefert; Anhang hinter dem Strom ist erlaubt.
+/// Frueher gzip.decode(rest): lehnte echtes gzip mit >= 8 Byte Anhang ab und "entpackte" Zufallsbytes zu leerer Ausgabe
+/// (Review R008 Runde 2, Befund 3).
+class _CountSink implements Sink<List<int>> {
+  int n = 0;
+  @override
+  void add(List<int> c) => n += c.length;
+  @override
+  void close() {}
 }
+
+int gunzipOutput(List<int> b, int i) {
+  final sink = _CountSink();
+  try {
+    final conv = gzip.decoder.startChunkedConversion(sink);
+    conv.add(b.sublist(i));
+    conv.close();
+  } catch (_) {
+    // Fehler am Ende (Anhang, abgeschnitten) zaehlen nicht; zaehlt, was bis dahin herauskam.
+  }
+  return sink.n;
+}
+
+bool gunzipOk(List<int> b, int i) => gunzipOutput(b, i) > 0;
 
 List<String> plaintextHits(Directory d) {
   final sigs = <String, List<int>>{
@@ -117,6 +133,48 @@ Future<List<String>> guessableNames(Directory store, Iterable<Uri> urls) async {
   ];
 }
 
+/// Kachel-URLs (Vektor und Raster), die ausserhalb des Sollausschnitts liegen (mit einer Kachel Rand je Richtung, weil
+/// die Kachelebene am Rand etwas vorauslaedt). Gate-Vorlage fuer WP13: jede vom Tor gesehene Kachel liegt im Umfeld der Route.
+(List<String>, int, Set<int>) tilesOutside(Iterable<Uri> urls, MapCamera soll) {
+  final re = RegExp(r'/(\d+)/(\d+)/(\d+)\.(pbf|png)$');
+  final b = soll.visibleBounds;
+  double tx(double lon, int z) => (lon + 180) / 360 * (1 << z);
+  double ty(double lat, int z) => (1 - log(tan(lat * pi / 180) + 1 / cos(lat * pi / 180)) / pi) / 2 * (1 << z);
+  final out = <String>[];
+  final zs = <int>{};
+  var n = 0;
+  for (final u in urls) {
+    if (u.path.startsWith('/fonts/')) continue;
+    final m = re.firstMatch(u.path);
+    if (m == null) continue;
+    n++;
+    final z = int.parse(m[1]!), x = int.parse(m[2]!), y = int.parse(m[3]!);
+    zs.add(z);
+    final inX = x >= tx(b.west, z).floor() - 1 && x <= tx(b.east, z).floor() + 1;
+    final inY = y >= ty(b.north, z).floor() - 1 && y <= ty(b.south, z).floor() + 1;
+    if (!inX || !inY) out.add('$z/$x/$y');
+  }
+  return (out, n, zs);
+}
+
+/// Baut die Kachelebene erst, wenn die Karte ihre Groesse kennt und die Kamera eingepasst ist.
+class _LayerAfterFit extends StatefulWidget {
+  const _LayerAfterFit({required this.fit, required this.layer});
+  final CameraFit fit;
+  final Widget layer;
+  @override
+  State<_LayerAfterFit> createState() => _LayerAfterFitState();
+}
+
+class _LayerAfterFitState extends State<_LayerAfterFit> {
+  bool ready = false;
+  @override
+  Widget build(BuildContext context) => FlutterMap(
+        options: MapOptions(initialCameraFit: widget.fit, onMapReady: () => setState(() => ready = true)),
+        children: [if (ready) widget.layer],
+      );
+}
+
 Future<void> settle(WidgetTester t, {int n = 40}) async {
   for (var k = 0; k < n; k++) {
     await t.runAsync(() => Future.delayed(const Duration(milliseconds: 100)));
@@ -138,13 +196,37 @@ void main() {
     File('${tmp.path}/a').writeAsBytesSync(File('$fix/tiles/14-8801-5376.pbf').readAsBytesSync());
     File('${tmp.path}/b').writeAsBytesSync(File('$fix/sprite@2x.png').readAsBytesSync());
     File('${tmp.path}/c').writeAsBytesSync(File('$fix/liberty.json').readAsBytesSync());
-    File('${tmp.path}/d').writeAsBytesSync(gzip.encode(utf8.encode('{"r008": "gzip-Positivkontrolle"}')));
+    final gz = gzip.encode(utf8.encode('{"r008": "gzip-Positivkontrolle"}'));
+    File('${tmp.path}/d').writeAsBytesSync(gz);
+    // gzip mit Anhang und in Nonce + Inhalt + Tag (so saehe ein Speicher mit ausgeschalteter Verschluesselung aus)
+    for (final n in [1, 8, 16, 28, 64]) {
+      File('${tmp.path}/g$n').writeAsBytesSync([...gz, ...List<int>.filled(n, 0x5a)]);
+    }
+    File('${tmp.path}/box').writeAsBytesSync([...List<int>.filled(12, 0x11), ...gz, ...List<int>.filled(16, 0x22)]);
     // Negativkontrolle: Zufallsbytes mit eingestreuter gzip-Signatur sind kein Treffer
     final rnd = List<int>.generate(4096, (i) => (i * 2654435761 >> 7) & 0xff)..setRange(1000, 1003, [0x1f, 0x8b, 0x08]);
     File('${tmp.path}/e').writeAsBytesSync(rnd);
     final h = plaintextHits(tmp);
     expect(h, containsAll([startsWith('pbf:'), startsWith('png'), startsWith('json:'), 'gzip in /d']));
     expect(h.where((x) => x.endsWith('/e')), isEmpty, reason: 'zufaellige gzip-Signatur ohne gzip-Strom');
+    expect(h, containsAll(['gzip in /g1', 'gzip in /g8', 'gzip in /g16', 'gzip in /g28', 'gzip in /g64', 'gzip in /box']),
+        reason: 'gzip mit Anhang wird erkannt');
+  });
+
+  test('Fehlalarm-Rate: Zufallsbytes hinter gzip-Signatur liefern keine Ausgabe', () {
+    final rng = Random(8);
+    final out = <int, int>{};
+    for (final len in [64, 20000]) {
+      var yes = 0;
+      for (var k = 0; k < 3000; k++) {
+        final b = [0x1f, 0x8b, 0x08, ...List<int>.generate(len, (_) => rng.nextInt(256))];
+        if (gunzipOk(b, 0)) yes++;
+      }
+      out[len] = yes;
+    }
+    // ignore: avoid_print
+    print('R008 fmvt gzip_false_positive of3000 $out');
+    expect(out.values.reduce((a, b) => a + b), lessThanOrEqualTo(3), reason: 'hoechstens seltener Fehlalarm');
   });
 
   test('fail-closed und Tor: ohne Einwilligung kein Client, fremde Hosts abgewiesen', () async {
@@ -236,6 +318,60 @@ void main() {
     expect(r, isA<vt.TileResponseError>(), reason: 'Bibliothek versuchte eigenes Netz (im Test gesperrt)');
     style.dispose();
   });
+
+  test('Dateinamen haengen vom Geheimnis ab: zwei Speicher mit verschiedenen Schluesseln, gleicher Eintrag', () async {
+    // Review R008 Runde 2, Befund 4: "nicht SHA-256 der URL" allein bestuende auch ein fest eingebauter HMAC-Schluessel.
+    final a = await EncStore.open(Directory('${tmp.path}/a/tiles'));
+    final b = await EncStore.open(Directory('${tmp.path}/b/tiles'));
+    final a2 = await EncStore.open(Directory('${tmp.path}/a/tiles')); // gleicher Schluessel
+    final t = Uint8List.fromList(List<int>.filled(100, 7));
+    await a.write('http:eintrag', t);
+    await b.write('http:eintrag', t);
+    final na = a.dir.listSync().map((f) => f.uri.pathSegments.last).toSet();
+    final nb = b.dir.listSync().map((f) => f.uri.pathSegments.last).toSet();
+    // ignore: avoid_print
+    print('R008 fmvt names_per_key verschieden=${na.intersection(nb).isEmpty}');
+    expect(na.intersection(nb), isEmpty, reason: 'gleicher Eintrag, anderer Schluessel: anderer Name');
+    expect(await a2.read('http:eintrag'), t, reason: 'gleicher Schluessel findet den Eintrag wieder');
+  });
+
+  // Review R008 Runde 2, Befund 1: initialCameraFit greift erst nach bekannter Groesse; bis dahin steht die Kamera auf
+  // dem Standard von MapOptions (50.5/30.51, Zoom 13), und die Kachelebene fragt dort schon an.
+  for (final (name, size) in [('miniatur', const Size(thumbW, thumbH)), ('detail', const Size(800, 600))]) {
+    for (final mode in ['wie-gemessen', 'nur-zentrum', 'startkamera', 'ebene-danach']) {
+      testWidgets('Fremdkacheln $name $mode', (tester) async {
+        final enc = (await tester.runAsync(() => EncStore.open(Directory('${tmp.path}/support/map-tiles'))))!;
+        final inner = FixtureClient();
+        final c = GatedClient.create(consent: true, store: enc, inner: inner);
+        final style = (await tester.runAsync(() => loadStyle(c)))!;
+        final r = [for (final p in syntheticRun(1)) LatLng(p.lat, p.lon)];
+        const pad = EdgeInsets.all(16);
+        final fit = CameraFit.coordinates(coordinates: r, padding: pad);
+        final soll = fit.fit(MapCamera.initialCamera(const MapOptions()).withNonRotatedSize(size));
+        final Widget map = switch (mode) {
+          'wie-gemessen' => FlutterMap(options: MapOptions(initialCameraFit: fit), children: [vtLayer(style, fade: Duration.zero)]),
+          'nur-zentrum' => FlutterMap(options: MapOptions(initialCenter: soll.center, initialCameraFit: fit), children: [vtLayer(style, fade: Duration.zero)]),
+          'startkamera' => FlutterMap(options: MapOptions(initialCenter: soll.center, initialZoom: soll.zoom, initialCameraFit: fit), children: [vtLayer(style, fade: Duration.zero)]),
+          _ => _LayerAfterFit(fit: fit, layer: vtLayer(style, fade: Duration.zero)),
+        };
+        await tester.pumpWidget(MaterialApp(home: Center(child: SizedBox(width: size.width, height: size.height, child: map))));
+        await settle(tester, n: 15);
+        final (ausserhalb, tiles, zs) = tilesOutside(inner.urls, soll);
+        // ignore: avoid_print
+        print('R008 fmvt fremd $name $mode kacheln=$tiles zooms=$zs soll_zoom=${soll.zoom.toStringAsFixed(2)} ausserhalb=${ausserhalb.length} $ausserhalb');
+        expect(tiles, greaterThan(0));
+        if (mode == 'wie-gemessen') {
+          expect(ausserhalb.where((t) => t.startsWith('12/239')), isNotEmpty, reason: 'Befund: Kacheln am Standardzentrum');
+        }
+        if (mode == 'startkamera' || mode == 'ebene-danach') {
+          expect(ausserhalb, isEmpty, reason: 'keine Kachel ausserhalb des Ausschnitts');
+        }
+        style.dispose();
+        await tester.pumpWidget(const SizedBox());
+        await settle(tester, n: 3);
+      });
+    }
+  }
 
   testWidgets('Miniatur: unsichtbare Karte, Schnappschuss, verschluesselt abgelegt', (tester) async {
     final enc = (await tester.runAsync(() => EncStore.open(Directory('${tmp.path}/support/map-tiles'))))!;
