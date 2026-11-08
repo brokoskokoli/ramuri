@@ -35,7 +35,7 @@ Warum aussagekräftig: Die Kriterien aus ADR-0009 Punkt 6 werden je Kandidat am 
 ## Daten
 | Was | Wo | Herkunft / Lizenz | Größe | Wiederherstellbar |
 | --- | --- | --- | --- | --- |
-| Synthetische Route | `src/route.dart` bzw. erzeugt | selbst erzeugt, öffentlicher Park ohne Personenbezug | < 10 kB | ja |
+| Synthetische Route | `src/apps/common/route.dart` | selbst erzeugt, öffentlicher Park ohne Personenbezug | < 10 kB | ja |
 | Wenige Kacheln, Stil, Sprites als Testvorlage | `research/data/work/R008/fixtures/` | OpenFreeMap, Daten © OpenStreetMap-Mitwirkende (ODbL), OpenMapTiles | < 5 MB | ja, `./init.sh` |
 | Mini-App-Builds, APKs, Mitschnitte | `research/data/work/R008/` | selbst erzeugt | ~4,8 GB (davon Build-Ordner ~4 GB) | ja, `./run.sh` |
 
