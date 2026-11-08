@@ -161,6 +161,10 @@ Future<void> _startApp(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox());
   await tester.pumpWidget(RunningApp(dependencies: AppDependencies.create()));
   await tester.pumpAndSettle(const Duration(seconds: 2));
+  if (find.byKey(const Key('welcome_start')).evaluate().isNotEmpty) {
+    await tester.tap(find.byKey(const Key('welcome_start')));
+    await tester.pumpAndSettle();
+  }
   if (find.byKey(const Key('setup_skip')).evaluate().isNotEmpty) {
     await tester.tap(find.byKey(const Key('setup_skip')));
     await tester.pumpAndSettle();

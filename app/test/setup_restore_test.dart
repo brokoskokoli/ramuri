@@ -321,6 +321,9 @@ void main() {
     expect(d.session, same(fresh));
     expect(d.fileHandoff.discardCount, 1);
     expect(find.byKey(const Key('archive_import_error')), findsNothing);
+    // Reimport aus der Ersteinrichtung: kein zweites Willkommen (FR-0207),
+    // obwohl die neue Sitzung noch ohne Merker ist.
+    expect(find.byKey(const Key('welcome_screen')), findsNothing);
     expect(find.byKey(const Key('setup_skip')), findsOneWidget);
     // Die eingespielten Daten sind da.
     expect(

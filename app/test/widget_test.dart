@@ -15,8 +15,8 @@ void main() {
     final d = Device();
     await d.start(tester, const Locale('en'));
     await d.skipSetup(tester);
-    expect(find.text('Start run'), findsOneWidget);
-    expect(find.text('Lauf starten'), findsNothing);
+    expect(find.text('Free run'), findsOneWidget);
+    expect(find.text('Frei laufen'), findsNothing);
   });
 
   // NFR-0006, OQ-0067: jede andere Gerätesprache zeigt Englisch.
@@ -33,8 +33,8 @@ void main() {
       expect(find.text('Skip'), findsOneWidget);
       expect(find.text('Überspringen'), findsNothing);
       await d.skipSetup(tester);
-      expect(find.text('Start run'), findsOneWidget);
-      expect(find.text('Lauf starten'), findsNothing);
+      expect(find.text('Free run'), findsOneWidget);
+      expect(find.text('Frei laufen'), findsNothing);
     });
   }
 

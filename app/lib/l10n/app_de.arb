@@ -176,9 +176,56 @@
   "@overviewLicenses": {
     "description": "Eintrag der Übersicht: Lizenzangaben"
   },
-  "homeStartRun": "Lauf starten",
+  "homeStartRun": "Frei laufen",
   "@homeStartRun": {
     "description": "Schaltfläche Lauf starten (Startseite)"
+  },
+  "homeEmpty": "Noch kein Lauf. Starte mit „Frei laufen“, dann erscheinen hier deine Woche und dein letzter Lauf.",
+  "@homeEmpty": {
+    "description": "Hinweis auf Heute, solange es keinen Lauf gibt (FR-0209)"
+  },
+  "homeWeekTitle": "Diese Woche",
+  "@homeWeekTitle": {
+    "description": "Überschrift der Wochenkarte auf Heute"
+  },
+  "homeWeekDayRun": "{day}, gelaufen",
+  "@homeWeekDayRun": {
+    "description": "Bedienungshilfe: Tag der Woche, an dem gelaufen wurde",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "homeWeekDayNone": "{day}, kein Lauf",
+  "@homeWeekDayNone": {
+    "description": "Bedienungshilfe: Tag der Woche ohne Lauf",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "homeLastRun": "Letzter Lauf · {date}",
+  "@homeLastRun": {
+    "description": "Zeile über dem letzten Lauf auf Heute; date ist der Tag",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "welcomeTagline": "Ruhig laufen.\nKlar vorankommen.",
+  "@welcomeTagline": {
+    "description": "Willkommensbildschirm: Satz unter dem Logo (FR-0207)"
+  },
+  "welcomeStart": "Los geht's",
+  "@welcomeStart": {
+    "description": "Willkommensbildschirm: Knopf zur Einrichtung"
+  },
+  "welcomeNote": "Deine Läufe bleiben auf deinem Handy.\nOhne Konto, ohne Uhr-Zwang.",
+  "@welcomeNote": {
+    "description": "Willkommensbildschirm: Hinweis unter dem Knopf, ohne das Wort Daten (OQ-0075)"
   },
   "homeProfile": "Profil",
   "@homeProfile": {

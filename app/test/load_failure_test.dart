@@ -144,6 +144,7 @@ void main() {
     flaky.failSettings = false;
     await tester.tap(find.byKey(const Key('settings_load_retry')));
     await tester.pumpAndSettle();
+    await d.confirmWelcome(tester);
     expect(find.byKey(const Key('setup_skip')), findsOneWidget);
   });
 

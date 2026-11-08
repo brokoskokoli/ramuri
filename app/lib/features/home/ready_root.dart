@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
@@ -11,9 +13,11 @@ import '../run/run_ports.dart';
 import '../setup/setup_screen.dart';
 import 'app_shell.dart';
 import 'data_changes.dart';
+import 'welcome_screen.dart';
 
 /// Wurzel nach dem Öffnen des Speichers: lädt die Einstellungen, bietet beim
-/// ersten Start die Einrichtung an (FR-0001) und zeigt danach die Startseite.
+/// ersten Start Willkommen (FR-0207) und die Einrichtung an (FR-0001) und
+/// zeigt danach die Startseite.
 class ReadyRoot extends StatefulWidget {
   const ReadyRoot({
     super.key,
@@ -22,8 +26,11 @@ class ReadyRoot extends StatefulWidget {
     required this.permissions,
     required this.runPorts,
     required this.sensors,
+    required this.welcome,
   });
 
+  /// Merker über der Sitzung: Willkommen wurde in diesem Prozess bestätigt.
+  final WelcomeFlag welcome;
   final StorageSession session;
   final PermissionStatusPort permissions;
   final RunPorts runPorts;
@@ -40,6 +47,10 @@ class _ReadyRootState extends State<ReadyRoot> {
   late final RecalculationController _recalculation;
   late final RunRecovery _recovery;
   final DataChanges _changes = DataChanges();
+
+  /// Fertig, sobald Willkommen nicht (mehr) im Weg ist; der Dialog zum
+  /// unterbrochenen Lauf wartet darauf und überdeckt Willkommen nicht.
+  final Completer<void> _welcomeResolved = Completer<void>();
 
   @override
   void initState() {
@@ -87,8 +98,10 @@ class _ReadyRootState extends State<ReadyRoot> {
         run = await _recovery.pending(
           serviceRunning: service != null && await service.isRunning(),
         );
-        // Erst die Einrichtung abwarten: der Dialog gehört über die Startseite.
+        // Erst Einstellungen und Willkommen abwarten: der Dialog überdeckt
+        // den Willkommensbildschirm nicht.
         await _settings;
+        await _welcomeResolved.future;
       } on Object {
         return;
       }
@@ -194,8 +207,19 @@ class _ReadyRootState extends State<ReadyRoot> {
       s,
     ) {
       holder.attach(s);
+      // Wer die Einrichtung abgeschlossen hat, sieht Willkommen nie wieder,
+      // auch nicht in einer neuen Sitzung nach einem Import.
+      if (s.setupDone) widget.welcome.confirmed = true;
+      if (widget.welcome.confirmed && !_welcomeResolved.isCompleted) {
+        _welcomeResolved.complete();
+      }
       return s;
     });
+  }
+
+  void _confirmWelcome() {
+    setState(() => widget.welcome.confirmed = true);
+    if (!_welcomeResolved.isCompleted) _welcomeResolved.complete();
   }
 
   Future<void> _finishSetup(AppSettings settings) async {
@@ -246,6 +270,8 @@ class _ReadyRootState extends State<ReadyRoot> {
                 sensors: widget.sensors,
                 changes: _changes,
               )
+            : !widget.welcome.confirmed
+            ? WelcomeScreen(onStart: _confirmWelcome)
             : SetupScreen(
                 session: widget.session,
                 clock: widget.clock,

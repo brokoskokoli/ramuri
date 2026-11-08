@@ -5,6 +5,7 @@ import 'app_dependencies.dart';
 import 'features/archive/archive_scope.dart';
 import 'features/export/file_handoff_scope.dart';
 import 'features/home/ready_root.dart';
+import 'features/home/welcome_screen.dart';
 import 'features/settings/app_settings.dart';
 import 'features/storage/storage_gate.dart';
 import 'l10n/app_localizations.dart';
@@ -25,6 +26,9 @@ class RunningApp extends StatefulWidget {
 
 class _RunningAppState extends State<RunningApp> {
   final AppSettingsHolder _settings = AppSettingsHolder();
+
+  /// Über der Sitzung: ReadyRoot entsteht je Sitzung neu (FR-0207).
+  final WelcomeFlag _welcome = WelcomeFlag();
 
   @override
   void dispose() {
@@ -75,6 +79,7 @@ class _RunningAppState extends State<RunningApp> {
           permissions: dependencies.permissions,
           runPorts: dependencies.runPorts,
           sensors: dependencies.sensors,
+          welcome: _welcome,
         ),
       ),
     );

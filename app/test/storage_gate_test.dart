@@ -27,6 +27,11 @@ Future<void> pumpApp(
 /// Die Ersteinrichtung (WP05) ist nicht Thema dieser Tests: Ist sie da,
 /// wird sie übersprungen, damit die Startseite sichtbar ist.
 Future<void> skipSetupIfShown(WidgetTester tester) async {
+  final start = find.byKey(const Key('welcome_start'));
+  if (start.evaluate().isNotEmpty) {
+    await tester.tap(start);
+    await tester.pumpAndSettle();
+  }
   final skip = find.byKey(const Key('setup_skip'));
   if (skip.evaluate().isEmpty) return;
   await tester.tap(skip);
