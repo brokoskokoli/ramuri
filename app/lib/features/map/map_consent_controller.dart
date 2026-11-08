@@ -156,16 +156,35 @@ class MapConsentController extends ChangeNotifier {
   }
 
   /// Öffnet die Kachelquelle. Ohne Einwilligung `null`, und es gibt keine Anfrage (fail-closed). Wirft
-  /// [MapSourceUnavailable], wenn der Anbieter nicht erreichbar ist.
-  Future<MapTileSource?> openSource() async {
+  /// [MapSourceUnavailable], wenn der Anbieter nicht erreichbar ist. [maxParallel] begrenzt die gleichzeitigen
+  /// Anfragen der Quelle (Miniaturen: höchstens 4, R008 Hinweis 6).
+  Future<MapTileSource?> openSource({int? maxParallel}) async {
     await ready;
     if (!_granted) return null;
-    return MapTileSource.open(services.gate(() => _granted));
+    final gate = services.gate(() => _granted)..maxParallel = maxParallel;
+    return MapTileSource.open(gate);
+  }
+
+  final StreamController<int> _removedRuns = StreamController<int>.broadcast(
+    sync: true,
+  );
+
+  /// Läufe, deren Miniatur entfernt wird (Löschen eines Laufs); laufende Erzeugungen für sie brechen ab.
+  Stream<int> get removedRuns => _removedRuns.stream;
+
+  /// Entfernt die Miniatur des gelöschten Laufs [runId] aus dem Kartenspeicher, auch ohne Einwilligung (rein
+  /// lokal), und bricht ihre Erzeugung ab. Fehler sind kein Wurf: der Lauf ist dann schon gelöscht.
+  Future<void> deleteRunThumbnails(int runId) async {
+    if (!_removedRuns.isClosed) _removedRuns.add(runId);
+    try {
+      await services.thumbnails?.deleteRun(runId);
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _removedRuns.close();
     super.dispose();
   }
 }

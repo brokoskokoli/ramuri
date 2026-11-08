@@ -32,6 +32,7 @@ class MapServices {
     required this.gate,
     required this.cache,
     this.attribution = '',
+    this.thumbnails,
   });
 
   final MapGateFactory gate;
@@ -39,6 +40,9 @@ class MapServices {
 
   /// Quellenangabe des Kartenmaterials (Einstellungen).
   final String attribution;
+
+  /// Miniaturen der Läufe (WP13 D); `null`: keine Miniaturen mit Kartenhintergrund, der Verlauf zeigt die Linie.
+  final MapThumbnailStore? thumbnails;
 
   /// Produktiv: OpenFreeMap über das Tor, Kacheln im verschlüsselten Speicher.
   factory MapServices.production(EncryptedMapTileStore store) => MapServices(
@@ -48,6 +52,7 @@ class MapServices {
       store: store,
     ),
     cache: StoreMapCacheAdmin(store),
+    thumbnails: store,
     attribution: MapProvider.openFreeMap.attribution,
   );
 }

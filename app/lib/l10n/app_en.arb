@@ -648,5 +648,9 @@
   "mapLiveSemantics": "Map with the route so far and the current position. Source: {source}. Drag with one finger; the map follows your position until you move it.",
   "@mapLiveSemantics": {"description": "Karte (WP13 C)", "placeholders": {"source": {"type": "String"}}},
   "mapLiveLineSemantics": "Route so far without a map background, {parts} connected sections; gaps are not joined. The current position is marked.",
-  "@mapLiveLineSemantics": {"description": "Karte (WP13 C)", "placeholders": {"parts": {"type": "int"}}}
+  "@mapLiveLineSemantics": {"description": "Karte (WP13 C)", "placeholders": {"parts": {"type": "int"}}},
+  "mapThumbSemantics": "Small map of the route. Source: {source}.",
+  "@mapThumbSemantics": {"description": "Miniatur der Route im Verlauf (WP13 D)", "placeholders": {"source": {"type": "String"}}},
+  "mapThumbLineSemantics": "Small drawing of the route",
+  "@mapThumbLineSemantics": {"description": "Miniatur der Route im Verlauf ohne Karte (WP13 D)"}
 }

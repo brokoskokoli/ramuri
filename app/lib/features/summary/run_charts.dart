@@ -621,12 +621,20 @@ class RoutePainter extends CustomPainter {
     required this.lineColor,
     required this.startColor,
     required this.endColor,
+    this.padding = 16,
+    this.strokeWidth = 3,
+    this.markerRadius = 6,
   });
 
   final List<List<RoutePoint>> route;
   final Color lineColor;
   final Color startColor;
   final Color endColor;
+
+  /// Rand, Strichstärke und Markenradius; die Miniatur im Verlauf nimmt kleinere Werte.
+  final double padding;
+  final double strokeWidth;
+  final double markerRadius;
 
   /// Zahl der gezeichneten Linien: ein Teil mit mindestens zwei Punkten ist ein
   /// Pfad; Teile werden nie verbunden.
@@ -652,7 +660,7 @@ class RoutePainter extends CustomPainter {
     final k = math.cos((minLat + maxLat) / 2 * math.pi / 180);
     final w = math.max((maxLon - minLon) * k, 1e-9);
     final h = math.max(maxLat - minLat, 1e-9);
-    const pad = 16.0;
+    final pad = padding;
     final scale = math.min(
       (size.width - 2 * pad) / w,
       (size.height - 2 * pad) / h,
@@ -687,22 +695,28 @@ class RoutePainter extends CustomPainter {
     final paint = Paint()
       ..color = lineColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     for (final path in s.paths) {
       canvas.drawPath(path, paint);
     }
     for (final dot in s.dots) {
-      canvas.drawCircle(dot, 2.5, Paint()..color = lineColor);
+      canvas.drawCircle(dot, strokeWidth / 1.2, Paint()..color = lineColor);
     }
     if (s.start != null) {
-      canvas.drawCircle(s.start!, 6, Paint()..color = startColor);
-      canvas.drawCircle(s.end!, 6, Paint()..color = endColor);
+      canvas.drawCircle(s.start!, markerRadius, Paint()..color = startColor);
+      canvas.drawCircle(s.end!, markerRadius, Paint()..color = endColor);
     }
   }
 
   @override
   bool shouldRepaint(RoutePainter old) =>
-      old.route != route || old.lineColor != lineColor;
+      old.route != route ||
+      old.lineColor != lineColor ||
+      old.startColor != startColor ||
+      old.endColor != endColor ||
+      old.padding != padding ||
+      old.strokeWidth != strokeWidth ||
+      old.markerRadius != markerRadius;
 }

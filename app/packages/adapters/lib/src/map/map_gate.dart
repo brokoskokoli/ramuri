@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection' show Queue;
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -17,6 +18,21 @@ abstract interface class MapTileStore {
   Future<Uint8List?> read(String key);
   Future<void> write(String key, Uint8List bytes);
 }
+
+/// Miniaturen der Läufe im Kartenspeicher (WP13 D). Schlüssel haben das Präfix [thumbnailKeyPrefix]; die Miniatur
+/// eines Laufs verschwindet mit dem Lauf ([deleteRun]).
+abstract interface class MapThumbnailStore implements MapTileStore {
+  /// Entfernt alle Miniaturen des Laufs [runId] (jede Variante). Fehler sind kein Wurf.
+  Future<void> deleteRun(int runId);
+}
+
+/// Schlüssel einer Miniatur: `thumb:<Variante>:<Lauf>`. [variant] trägt Fassung, Größe und Farben, damit sich
+/// Miniaturen verschiedener Darstellung nie überschreiben und eine Änderung des Aussehens neue erzeugt.
+String thumbnailKey(String variant, int runId) =>
+    '$thumbnailKeyPrefix$variant:$runId';
+
+/// Präfix der Miniatur-Schlüssel (Art `thumbnail` im Speicher).
+const String thumbnailKeyPrefix = 'thumb:';
 
 enum MapGateReason {
   noConsent,
@@ -70,6 +86,42 @@ class MapGate extends http.BaseClient {
   final http.Client _inner;
   final MapRequestCounts counts = MapRequestCounts();
 
+  /// Anfragen, die gerade laufen (Netz oder Speicher), und der Zeitpunkt der letzten Bewegung (Beginn oder Ende einer
+  /// Anfrage). Die Miniatur wartet damit auf das Ende des Ladens (WP13 D).
+  int inFlight = 0;
+
+  /// Höchstzahl gleichzeitiger Anfragen (`null`: unbegrenzt). Die Miniaturen im Verlauf nehmen 4, damit die
+  /// Anfragen die Grenzen des Anbieters einhalten (R008 Hinweis 6).
+  int? maxParallel;
+  int _running = 0;
+  final Queue<Completer<void>> _waiting = Queue();
+
+  Future<void> _acquire() async {
+    final m = maxParallel;
+    if (m == null || _running < m) {
+      _running++;
+      return;
+    }
+    final c = Completer<void>();
+    _waiting.add(c);
+    await c.future; // der Platz wird weitergereicht
+  }
+
+  void _release() {
+    if (_waiting.isNotEmpty) {
+      _waiting.removeFirst().complete();
+    } else {
+      _running--;
+    }
+  }
+
+  /// Anfragen, die gescheitert sind (Netz, Weiterleitung, Fehlerstatus außer 404). Die Miniatur speichert nichts,
+  /// wenn beim Laden eine scheiterte: ein Bild mit Lücken wäre halbfertig.
+  int failures = 0;
+  final Stopwatch _sinceActivity = Stopwatch()..start();
+  Duration get quietFor =>
+      inFlight > 0 ? Duration.zero : _sinceActivity.elapsed;
+
   /// Speicherschlüssel ohne Datumspfad: Kacheln werden wöchentlich neu erzeugt (`/planet/<Datum>/z/x/y`).
   static String storeKey(Uri u) =>
       'map:${u.path.replaceFirst(RegExp(r'^/planet/[0-9_a-z]+/'), '/planet/_/')}';
@@ -92,6 +144,24 @@ class MapGate extends http.BaseClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    inFlight++;
+    _sinceActivity.reset();
+    await _acquire();
+    try {
+      final res = await _send(request);
+      if (res.statusCode != 200 && res.statusCode != 404) failures++;
+      return res;
+    } catch (_) {
+      failures++;
+      rethrow;
+    } finally {
+      _release();
+      inFlight--;
+      _sinceActivity.reset();
+    }
+  }
+
+  Future<http.StreamedResponse> _send(http.BaseRequest request) async {
     final kind = _check(request);
     final key = storeKey(request.url);
     Uint8List? bytes;

@@ -119,6 +119,7 @@ export 'src/statistics/period_statistics.dart';
 export 'src/statistics/run_detail.dart';
 export 'src/statistics/run_figures.dart';
 export 'src/statistics/run_overview.dart';
+export 'src/statistics/run_route.dart';
 export 'src/statistics/run_summary.dart';
 export 'src/statistics/statistics_parameters.dart';
 export 'src/statistics/value_explanation.dart';

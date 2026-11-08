@@ -5,6 +5,7 @@ import 'package:core/core.dart';
 import 'package:sqlite3/sqlite3.dart' as raw;
 
 import '../storage/connection_setup.dart';
+import 'map_gate.dart' show thumbnailKeyPrefix;
 
 /// Art eines Eintrags im Kartenspeicher. Je Art eine eigene Grenze, damit Kacheln die Miniaturen nicht verdrängen
 /// (R008 "Speicher: Entscheidung").
@@ -16,7 +17,7 @@ enum MapStoreKind {
   thumbnail;
 
   /// Präfix der Schlüssel von Miniaturen; alles andere ist [tile].
-  static const String thumbnailPrefix = 'thumb:';
+  static const String thumbnailPrefix = thumbnailKeyPrefix;
 
   static MapStoreKind of(String key) =>
       key.startsWith(thumbnailPrefix) ? thumbnail : tile;
@@ -202,6 +203,31 @@ class MapCacheCore {
       rethrow;
     }
     if (evicted) _db.execute('PRAGMA incremental_vacuum');
+  }
+
+  /// Entfernt die Miniaturen des Laufs [runId] (Schlüssel `thumb:<Variante>:<Lauf>`), jede Variante. Gibt den Platz
+  /// zurück. Ergebnis: Zahl der entfernten Einträge.
+  int deleteRunThumbnails(int runId) {
+    final kind = MapStoreKind.thumbnail.index;
+    // Das Muster endet auf ":<Lauf>"; "%" und "_" in der Variante sind nicht vorgesehen, die Lauf-Nummer ist eine Zahl.
+    var n = 0;
+    _db.execute('BEGIN IMMEDIATE');
+    try {
+      _db.execute('DELETE FROM entries WHERE kind = ? AND key LIKE ?', [
+        kind,
+        '${MapStoreKind.thumbnailPrefix}%:$runId',
+      ]);
+      _marks.removeWhere((k, _) => k.$1 == kind && k.$2.endsWith(':$runId'));
+      n = _db.updatedRows;
+      _db.execute('COMMIT');
+    } catch (_) {
+      try {
+        _db.execute('ROLLBACK');
+      } catch (_) {}
+      rethrow;
+    }
+    if (n > 0) _db.execute('PRAGMA incremental_vacuum');
+    return n;
   }
 
   void _flushMarks() {

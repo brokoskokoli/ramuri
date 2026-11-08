@@ -1279,5 +1279,9 @@
   "mapLiveSemantics": "Karte mit bisheriger Strecke und aktueller Position. Quelle: {source}. Mit einem Finger verschieben; die Karte folgt der Position, bis du sie verschiebst.",
   "@mapLiveSemantics": {"description": "Karte (WP13 C)", "placeholders": {"source": {"type": "String"}}},
   "mapLiveLineSemantics": "Bisherige Strecke ohne Kartenhintergrund, {parts} zusammenhängende Abschnitte; Lücken sind nicht verbunden. Die aktuelle Position ist markiert.",
-  "@mapLiveLineSemantics": {"description": "Karte (WP13 C)", "placeholders": {"parts": {"type": "int"}}}
+  "@mapLiveLineSemantics": {"description": "Karte (WP13 C)", "placeholders": {"parts": {"type": "int"}}},
+  "mapThumbSemantics": "Kleine Karte der Route. Quelle: {source}.",
+  "@mapThumbSemantics": {"description": "Miniatur der Route im Verlauf (WP13 D)", "placeholders": {"source": {"type": "String"}}},
+  "mapThumbLineSemantics": "Kleine Zeichnung der Route",
+  "@mapThumbLineSemantics": {"description": "Miniatur der Route im Verlauf ohne Karte (WP13 D)"}
 }

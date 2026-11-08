@@ -20,6 +20,7 @@ export 'src/map/map_gate.dart';
 export 'src/map/map_provider.dart';
 export 'src/map/map_tile_source.dart';
 export 'src/map/route_map.dart';
+export 'src/map/route_thumbnail.dart';
 export 'src/location/method_channel_location.dart';
 export 'src/permissions/method_channel_permission_status.dart';
 export 'src/sensors/ble_heart_rate_sensor.dart';

@@ -17,7 +17,7 @@ import 'map_gate.dart';
 /// Fehler des Speichers brechen nie die Karte und nie die Aufzeichnung: Lesefehler sind "kein Treffer", Schreibfehler
 /// werden verschluckt. Ist die Verschlüsselung nicht belegt aktiv, bleibt der Speicher aus (fail-closed). Es wird
 /// nichts geloggt.
-class EncryptedMapTileStore implements MapTileStore {
+class EncryptedMapTileStore implements MapThumbnailStore {
   EncryptedMapTileStore({
     required this.directory,
     required this.key,
@@ -107,6 +107,17 @@ class EncryptedMapTileStore implements MapTileStore {
       await w.request(['write', key, bytes]);
     } catch (_) {
       // Ein Schreibfehler kostet nur einen späteren Netzabruf.
+    }
+  }
+
+  @override
+  Future<void> deleteRun(int runId) async {
+    try {
+      final w = await _ensure();
+      if (w == null) return;
+      await w.request(['deleteRun', runId]);
+    } catch (_) {
+      // Gibt es die Datei nicht oder ist sie nicht lesbar, gibt es auch keine Miniatur.
     }
   }
 
@@ -295,6 +306,9 @@ void _run(_Init init) {
           ok = true;
         case 'write':
           core.write(l[2] as String, l[3] as Uint8List);
+          ok = true;
+        case 'deleteRun':
+          core.deleteRunThumbnails(l[2] as int);
           ok = true;
         case 'close':
           core.close();

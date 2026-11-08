@@ -3,12 +3,16 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
+import '../map/map_consent_controller.dart';
+import '../map/map_consent_scope.dart';
+import '../map/miniature_service.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/app_settings.dart';
 import '../settings/unit_format.dart';
 import '../storage/deletion.dart';
 import 'run_detail_screen.dart';
+import 'run_miniature.dart';
 
 /// Trainingshistorie (FR-0040, ACC-04): jeder beendete Lauf mit Strecke,
 /// Dauer, Pace und, soweit vorhanden, Puls. Fehlendes steht als „nicht
@@ -34,6 +38,28 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   late Future<List<RunOverview>> _future = _load();
 
+  /// Erzeugt die Kartenbilder der Miniaturen; je Aufbau des Verlaufs eine Instanz (ein gescheiterter Versuch wird
+  /// erst beim nächsten Aufbau wiederholt). `null` ohne verdrahteten Kartenanbieter.
+  MiniatureService? _miniatures;
+  MapConsentController? _consent;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final consent = MapConsentScope.of(context);
+    if (!identical(consent, _consent)) {
+      _miniatures?.dispose();
+      _consent = consent;
+      _miniatures = consent == null ? null : MiniatureService(consent: consent);
+    }
+  }
+
+  @override
+  void dispose() {
+    _miniatures?.dispose();
+    super.dispose();
+  }
+
   Future<List<RunOverview>> _load() => RunOverviewService(
     session: widget.session,
     clock: widget.clock,
@@ -53,6 +79,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       widget.clock,
       runId,
       serialize: widget.recalculation.exclusive,
+      onDeleted: _consent?.deleteRunThumbnails,
     );
     if (!mounted) return;
     if (result == DeletionResult.deleted ||
@@ -81,59 +108,78 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final formatter = AppSettingsScope.formatterOf(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.histTitle)),
-      body: FutureBuilder<List<RunOverview>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(l10n.histLoadFailed, key: const Key('history_failed')),
-                  TextButton(
-                    key: const Key('history_retry'),
-                    onPressed: _reload,
-                    child: Text(l10n.notOpenableRetry),
-                  ),
-                ],
-              ),
-            );
-          }
-          final runs = snapshot.data;
-          if (runs == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (runs.isEmpty) {
-            return Center(
-              child: Text(l10n.histEmpty, key: const Key('history_empty')),
-            );
-          }
-          return ListView.builder(
-            key: const Key('history_list'),
-            itemCount: runs.length,
-            itemBuilder: (context, i) => _RunTile(
-              overview: runs[i],
-              formatter: formatter,
-              onDelete: _delete,
-              onOpen: _open,
+      body: Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(child: _list(l10n, formatter)),
+          if (_miniatures != null) MiniatureHost(service: _miniatures!),
+        ],
+      ),
+    );
+  }
+
+  Widget _list(AppLocalizations l10n, UnitFormatter formatter) {
+    return FutureBuilder<List<RunOverview>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(l10n.histLoadFailed, key: const Key('history_failed')),
+                TextButton(
+                  key: const Key('history_retry'),
+                  onPressed: _reload,
+                  child: Text(l10n.notOpenableRetry),
+                ),
+              ],
             ),
           );
-        },
-      ),
+        }
+        final runs = snapshot.data;
+        if (runs == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (runs.isEmpty) {
+          return Center(
+            child: Text(l10n.histEmpty, key: const Key('history_empty')),
+          );
+        }
+        return ListView.builder(
+          key: const PageStorageKey<String>('history_list'),
+          itemCount: runs.length,
+          itemBuilder: (context, i) => _RunTile(
+            key: ValueKey(runs[i].run.id),
+            overview: runs[i],
+            formatter: formatter,
+            session: widget.session,
+            miniatures: _miniatures,
+            onDelete: _delete,
+            onOpen: _open,
+          ),
+        );
+      },
     );
   }
 }
 
 class _RunTile extends StatelessWidget {
   const _RunTile({
+    super.key,
     required this.overview,
     required this.formatter,
+    required this.session,
+    required this.miniatures,
     required this.onDelete,
     required this.onOpen,
   });
 
   final RunOverview overview;
   final UnitFormatter formatter;
+  final StorageSession session;
+  final MiniatureService? miniatures;
   final Future<void> Function(int runId) onDelete;
   final Future<void> Function(int runId) onOpen;
 
@@ -155,7 +201,7 @@ class _RunTile extends StatelessWidget {
     final start = _start;
     final pace = overview.averagePaceSecondsPerKm;
     final bpm = overview.averageHeartRateBpm;
-    return ListTile(
+    final tile = ListTile(
       key: Key('history_run_$id'),
       title: Text(
         '${material.formatMediumDate(start)}, '
@@ -199,6 +245,27 @@ class _RunTile extends StatelessWidget {
         icon: const Icon(Icons.delete_outline),
         onPressed: () => onDelete(id),
       ),
+    );
+    // Die Miniatur steht neben dem Eintrag, nicht als `leading`: ListTile begrenzt dessen Höhe, die Quellenangabe
+    // unter dem Bild brauchte mehr.
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onOpen(id),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 0, 8),
+            child: RunMiniature(
+              key: Key('history_miniature_$id'),
+              session: session,
+              runId: id,
+              service: miniatures,
+            ),
+          ),
+        ),
+        Expanded(child: tile),
+      ],
     );
   }
 }
