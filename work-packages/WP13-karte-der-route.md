@@ -1,8 +1,8 @@
 # WP13 – Karte der Route (`app/packages/core/lib/src/map`, `app/packages/adapters/lib/src/map`, `app/lib/features/map`, `run`, `summary`, `history`, `settings`, `storage`, `tool/gate.sh`, Android-Manifest)
 
-**Zuordnung:** M1, nachgereicht am 2026-11-07 (OQ-0074). **Wartet auf R008** (ADR-0009 Punkt 6: Bibliothek und Darstellung).
+**Zuordnung:** M1, nachgereicht am 2026-11-07 (OQ-0074). **Wartet auf R008** (ADR-0009 Punkt 6: Bibliothek und Darstellung) **und auf WP14** (Theme, Paket-ID, Manifest).
 
-Bezug: FR-0204, FR-0027, FR-0037, FR-0040, FR-0041, FR-0056; SEC-0002, SEC-0004, SEC-0007, SEC-0008, SEC-0009, SEC-0010; ADR-0003, ADR-0005, ADR-0009; OQ-0074, DEC-0069; K31.
+Bezug: FR-0204, FR-0205, FR-0027, FR-0037, FR-0040, FR-0041, FR-0056; SEC-0002, SEC-0004, SEC-0007, SEC-0008, SEC-0009, SEC-0010; ADR-0003, ADR-0005, ADR-0009; OQ-0074, OQ-0075, DEC-0069, DEC-0070; K31, K33. Vorlagen: `design/screens/LiveKarte.dc.html`, Route in `Detail.dc.html`, Miniatur in `Verlauf.dc.html`.
 
 ## Inhalt
 1. **Netz und Gate (zuerst, in einem Commit):**
@@ -21,17 +21,19 @@ Bezug: FR-0204, FR-0027, FR-0037, FR-0040, FR-0041, FR-0056; SEC-0002, SEC-0004,
 4. **Gemeinsame Kartenansicht:**
    - Ein Widget für alle Ansichten. Route aus `RunDetail.route` (Teilstücke, Lücken und Pausen als Unterbrechung), Start und Ende markiert, Quellenangabe.
    - Ohne Einwilligung, ohne Netz oder bei Fehlern fällt sie auf die bestehende `RunRouteView` (ohne Karte) mit gleichem Ausschnitt zurück.
-5. **Zusammenfassung und Detailansicht:** Die Karte ersetzt `RunRouteView` in `run_charts.dart`. Zoomen und Verschieben sind möglich.
+5. **Zusammenfassung und Detailansicht:** Die Karte ersetzt `RunRouteView` in `run_charts.dart`. Zoomen und Verschieben sind möglich. In der Detailansicht schaltet der Nutzer mit Einwilligung zwischen Karte und Linie um (FR-0204, OQ-0075).
 6. **Lauf-Bildschirm:**
    - Zweite Seite zum Wischen in `live_run_view.dart`. Die Werte bleiben die erste Seite.
    - Die Karte folgt der Position und zeigt die bisherige Strecke aus den akzeptierten Positionen.
    - Gezeichnet wird nur, solange die Seite sichtbar und der Bildschirm an ist. Der Aufzeichnungsdienst bleibt unverändert (ADR-0005).
+   - Nach `LiveKarte.dc.html`: Reiter Werte/Karte, Glutpunkt als Position, unten ein Blatt mit den wichtigsten Werten und Pause, Knopf zum Zentrieren nach Verschieben (bis dahin folgt die Karte nicht), Quellenangabe sichtbar.
 7. **Historie:**
    - Miniatur je Lauf mit Positionen, nicht bedienbar, mit Kartenhintergrund bei Einwilligung, sonst nur die Linie.
    - Erzeugt bei Bedarf beim Scrollen, verschlüsselt zwischengespeichert, abgeleitet und jederzeit neu erzeugbar.
    - Läufe ohne Positionen (z. B. Laufband) ohne Miniatur.
 
 ## Umsetzung
+- Alle Kartenansichten nutzen Theme und Bausteine aus WP14 und sehen aus wie die Vorlagen; die übrige Gestaltung von Lauf, Zusammenfassung, Detail und Verlauf macht WP16.
 - Bibliothek, Kachelformat, Art des Speichers und Weg zu den Miniaturen kommen aus R008 und ADR-0009 Punkt 6. Weicht die Umsetzung davon ab, vorher melden.
 - Lizenz der neuen Abhängigkeiten (vollständiger Baum) und Namensnennung des Kartenmaterials nennen. Neue Abhängigkeiten auf eigene Netzzugriffe und Telemetrie prüfen.
 - Keine Koordinaten, Kachelkoordinaten oder URLs mit Kachelkoordinaten in Logs.
@@ -43,9 +45,10 @@ Bezug: FR-0204, FR-0027, FR-0037, FR-0040, FR-0041, FR-0056; SEC-0002, SEC-0004,
 
   Je ein Auftrag ohne Übergabe, in dieser Reihenfolge. Mutationstests sind Pflicht für Einwilligung, Gate-Schritt und Verschlüsselung des Speichers.
 - Nicht dazu: Offline-Kartenpakete, Routenplanung, Karte in der Statistik, Höhenfärbung der Linie, Grenze für mobile Daten.
-- Parallel: läuft allein. Berührt `live_run_view.dart`, `run_charts.dart`, `history_screen.dart`, die Einstellungen, `tool/gate.sh` und das Manifest.
+- Parallel: nach WP14; parallel zu WP15 möglich (keine gemeinsamen Dateien). Berührt `live_run_view.dart`, `run_charts.dart`, `history_screen.dart`, die Einstellungen, `tool/gate.sh` und das Manifest.
 
 ## Abnahmekriterien
+- [ ] FR-0204, OQ-0075: Zentrieren-Knopf, Werte-Blatt und Umschalter Linie/Karte funktionieren; Kartenseiten wie die Vorlagen, hell und dunkel.
 - [ ] FR-0204: Lauf-Bildschirm (zweite Seite), Zusammenfassung, Detailansicht und Historie zeigen die Route; mit Einwilligung auf Kartenmaterial, ohne Einwilligung als Linie; Quellenangabe sichtbar.
 - [ ] FR-0056: Pausen und GPS-Lücken erscheinen auf Karte und Miniatur nicht als gerade Verbindung (Test mit Lauf mit Lücke und Pause).
 - [ ] SEC-0008, SEC-0002: Ohne Einwilligung entsteht keine Kachelquelle und keine Verbindung (Unit-Test mit Mutationsbeleg); Gate-Schritt „Netz nur im Kartenadapter“ wird rot, wenn anderer Code Netz nutzt (Mutationsbeleg).

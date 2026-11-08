@@ -1,6 +1,6 @@
 # Dokumentationsindex
 
-Einstieg in die Spezifikation der Adaptive Running & Fitness App. Der Status jeder Anforderung steht im Register; der Status einer Spec steht in ihrem Kopf.
+Einstieg in die Spezifikation von ramuri (Adaptive Running & Fitness App). Der Status jeder Anforderung steht im Register; der Status einer Spec steht in ihrem Kopf.
 
 ## Lesereihenfolge
 
@@ -32,6 +32,7 @@ Einstieg in die Spezifikation der Adaptive Running & Fitness App. Der Status jed
 | FEAT-017 | [Trainingskalender](specs/calendar.md) |
 | FEAT-018 | [Erklärungen](specs/explanations.md) |
 | FEAT-019 | [Export und Strava](specs/export-sync.md) |
+| FEAT-020 | [Oberfläche, Marke und Navigation](specs/app-design.md) |
 
 ## Weitere Dokumente
 

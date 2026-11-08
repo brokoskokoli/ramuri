@@ -4,7 +4,7 @@ title: Aufzeichnung von Laufeinheiten
 status: Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0031, FR-0032, FR-0033, FR-0034, FR-0035, FR-0036, FR-0037, FR-0038, FR-0039, FR-0193, FR-0194, FR-0195, FR-0196, FR-0202, FR-0204]
+related_requirements: [FR-0025, FR-0026, FR-0027, FR-0028, FR-0029, FR-0030, FR-0031, FR-0032, FR-0033, FR-0034, FR-0035, FR-0036, FR-0037, FR-0038, FR-0039, FR-0193, FR-0194, FR-0195, FR-0196, FR-0202, FR-0204, FR-0210]
 ---
 
 # Aufzeichnung von Laufeinheiten
@@ -31,8 +31,11 @@ Der Nutzer zeichnet Läufe auf, steuert sie während des Trainings und erhält d
 ### FR-0025 — Freie oder geplante Einheit starten
 - **Status:** Approved | **Phase:** 1 (frei), 2 (aus Plan)
 - **Quelle:** SRC-001 §4.1, Z. 130
+- **Verwandt:** FR-0210, OQ-0075
 
 Der Nutzer startet eine freie Laufeinheit oder eine Trainingseinheit aus einem Trainingsplan.
+
+**Festlegung (OQ-0075):** Vor dem Start steht die Seite „Lauf vorbereiten“ nach FR-0210.
 
 **Akzeptanzkriterien:**
 - [ ] Eine freie Einheit lässt sich ohne Trainingsplan starten.
@@ -62,9 +65,11 @@ Optional zeigt die App Rundenzeiten, Höhenmeter, Schrittfrequenz, einen Soll-/I
 ### FR-0028 — Training starten, pausieren, fortsetzen, beenden
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §4.2, Z. 152–157
-- **Verwandt:** FR-0052
+- **Verwandt:** FR-0052, OQ-0075
 
 Der Nutzer kann ein Training starten, pausieren, fortsetzen und beenden.
+
+**Festlegung (OQ-0075):** Wie im Design gibt es „Beenden“ erst im pausierten Zustand, neben „Weiter“. Beenden fragt kurz nach, damit ein versehentliches Tippen den Lauf nicht abschließt.
 
 **Akzeptanzkriterien:**
 - [ ] Pausenzeit zählt nicht zur Bewegungszeit, aber zur Gesamtzeit (FR-0052).
@@ -73,11 +78,11 @@ Der Nutzer kann ein Training starten, pausieren, fortsetzen und beenden.
 ### FR-0029 — Automatisches Pausieren
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §4.2, Z. 158
-- **Verwandt:** OQ-0037, OQ-0065, OQ-0068, OQ-0071
+- **Verwandt:** FR-0210, OQ-0037, OQ-0065, OQ-0068, OQ-0071, OQ-0075
 
 Optional pausiert die App das Training automatisch.
 
-**Festlegung (OQ-0065):** Die Autopause ist standardmäßig aus.
+**Festlegung (OQ-0065, OQ-0075):** Die Autopause ist standardmäßig aus. Sie wird auf der Seite „Lauf vorbereiten“ (FR-0210) ein- oder ausgeschaltet.
 
 **Akzeptanzkriterien:**
 - [ ] Nach rund 10 s ohne Bewegung pausiert die Aufzeichnung, wenn die Funktion eingeschaltet ist (OQ-0037; Schwellen: PAR-014, PAR-015).
@@ -237,7 +242,7 @@ In Phase 1 liefert der Schrittsensor des Smartphones die Schrittfrequenz. Die Ap
 ### FR-0204 — Karte der Route
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §4.3, Z. 168–180; §5.1, Z. 197; SRC-003 (OQ-0074)
-- **Verwandt:** FR-0027, FR-0037, FR-0040, FR-0041, FR-0056, SEC-0002, SEC-0007, SEC-0008, SEC-0009, OQ-0074, ADR-0009
+- **Verwandt:** FR-0027, FR-0037, FR-0040, FR-0041, FR-0056, SEC-0002, SEC-0007, SEC-0008, SEC-0009, OQ-0074, OQ-0075, ADR-0009
 
 Die App zeigt die gelaufene Route auf einer Karte: während des Laufs auf einer eigenen Seite des Lauf-Bildschirms, in der Zusammenfassung und in der Detailansicht eines Laufs sowie als Miniatur je Lauf in der Trainingshistorie. Kartenmaterial kommt aus dem Netz vom Anbieter nach ADR-0009, nur nach ausdrücklicher Einwilligung, die der Nutzer jederzeit widerrufen kann. Ohne Einwilligung, ohne Netz oder bei Fehlern zeigt die App dieselbe Route ohne Kartenhintergrund.
 
@@ -248,6 +253,8 @@ Die App zeigt die gelaufene Route auf einer Karte: während des Laufs auf einer 
 - Anfragen an den Anbieter enthalten nur die Koordinaten der Kacheln, keine Kennung, keine Lauf- oder Gesundheitsdaten und keine Cookies.
 - Geladene Kacheln und Miniaturen werden nur verschlüsselt gespeichert (SEC-0009), mit fester Größengrenze. Sie gehören nicht in Archiv und Dateiexport. Nach dem Widerruf fragt die App, ob sie gelöscht werden sollen (SEC-0007); „Alles löschen“ löscht sie.
 - Jede Karte mit Kartenhintergrund nennt die Quelle des Kartenmaterials, wie dessen Lizenz es verlangt.
+- Kartenseite im Lauf (OQ-0075, nach Design `LiveKarte`): unten ein Blatt mit den wichtigsten Werten und Pause; nach Verschieben der Karte zentriert ein Knopf wieder auf die Position, bis dahin folgt sie nicht.
+- Detailansicht (OQ-0075): Mit Einwilligung schaltet der Nutzer zwischen Karte und Linie um; ohne Einwilligung gibt es nur die Linie.
 
 **Akzeptanzkriterien:**
 - [ ] Lauf-Bildschirm, Zusammenfassung, Detailansicht und Historie zeigen die Route, mit Einwilligung auf Kartenmaterial, ohne Einwilligung als Linie.
@@ -256,6 +263,23 @@ Die App zeigt die gelaufene Route auf einer Karte: während des Laufs auf einer 
 - [ ] Kacheln und Miniaturen liegen nicht im Klartext auf dem Datenträger.
 - [ ] Die Aufzeichnung läuft unverändert, wenn die Karte nicht lädt oder die Seite gewechselt wird.
 - [ ] Die Quellenangabe ist auf jeder Karte mit Kartenhintergrund sichtbar.
+
+### FR-0210 — Lauf vorbereiten
+- **Status:** Approved | **Phase:** 1 (freier Lauf), 2 (geplante Einheit)
+- **Quelle:** SRC-003 (Maintainer 2026-11-08, OQ-0075)
+- **Verwandt:** FR-0011, FR-0025, FR-0029, FR-0195, FR-0202, OQ-0075
+
+Vor dem Start zeigt die Seite „Lauf vorbereiten“ (Design `Start`): den Zustand des GPS-Signals, den Pulssensor mit „Koppeln“, die Quelle der Schrittfrequenz, den Schalter für die Autopause und den Knopf „Los“ mit dem Hinweis, dass der Bildschirm aus sein darf.
+
+**Festlegungen (OQ-0075):**
+- Der GPS-Zustand ist eine Anzeige, keine Sperre; gesperrt wird nur nach FR-0195.
+- „Koppeln“ führt zur Sensorsuche (FR-0011); nach dem Koppeln kehrt die App auf diese Seite zurück.
+- Die Autopause ist vorgewählt wie zuletzt eingestellt, beim ersten Mal aus (FR-0029).
+- Umschalter „Geplante Einheit“ und Abschnittsliste kommen mit Phase 2; Ansagen mit FR-0031.
+
+**Akzeptanzkriterien:**
+- [ ] Ohne Standortrecht zeigt die Seite den Grund und startet nicht (FR-0195).
+- [ ] Die gewählte Autopause gilt für den gestarteten Lauf.
 
 ### FR-0196 — Laufbandmodus
 - **Status:** Approved | **Phase:** 2
@@ -289,6 +313,7 @@ In Phase 2 gibt es einen Laufbandmodus, in dem der Nutzer die aktuelle Geschwind
 - [OQ-0068](../migration/open-questions.md#oq-0068--gps-rauschen-im-stand) (entschieden): GPS-Rauschen im Stand
 - [OQ-0071](../migration/open-questions.md#oq-0071--strecke-während-der-erkannten-pause) (non-blocking): Strecke während der erkannten Pause
 - [OQ-0074](../migration/open-questions.md#oq-0074--karte-der-route) (entschieden): Karte der Route
+- [OQ-0075](../migration/open-questions.md#oq-0075--screen-design-und-marke) (entschieden): Screen-Design und Marke
 <!-- END OQ -->
 
 ## Quellen

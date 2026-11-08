@@ -1,4 +1,4 @@
-# Adaptive Running & Fitness App
+# ramuri – Adaptive Running & Fitness App
 
 Android-App (später optional iOS) für Laufaufzeichnung, Fitnessanalyse, Regeneration und adaptive Trainingsplanung. Sie funktioniert ohne Wearable und ohne Bindung an einen Gerätehersteller.
 

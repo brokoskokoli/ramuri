@@ -2,7 +2,7 @@
 
 Entwurf der App-Oberfläche: 11 Screens für ein Android-Handy (390 × 844 pt), in den Farben und der Schrift des Logos aus [`branding/`](../branding/README.md).
 
-**Status:** Vorschlag. Das Design ist keine Anforderung. Maßgeblich bleiben die Specs in [`docs/specs/`](../docs/specs/). Wo das Design davon abweicht, steht es unten unter „Abweichungen“.
+**Status:** Verbindlich für Aussehen und Verhalten (Entscheidung des Maintainers vom 2026-11-08, OQ-0075, [FR-0205](../docs/specs/app-design.md)). Was eine Seite zeigt und berechnet, legen die Specs in [`docs/specs/`](../docs/specs/) fest. Wo das Design ihnen widerspricht, gilt die Spec in der Optik des Designs.
 
 Alle Zahlen und Namen in den Screens sind erfundene Beispielwerte, keine echten Lauf- oder Gesundheitsdaten.
 
@@ -40,4 +40,15 @@ Die Dateien stammen aus einem Claude-Design-Canvas. Sie brauchen dessen Laufzeit
 
 ## Abweichungen von der Spec
 
-- **Karte:** `LiveKarte.dc.html` und die Ansicht „Karte“ in `Detail.dc.html` zeigen Kartenmaterial. Die Spec zeichnet die Route bisher ohne Karte (Festlegung OQ-0065 in FR-0037 und FR-0041). Die Karten-Ansichten gelten erst nach einer Entscheidung des Maintainers. Bis dahin ist nur die Linie ohne Karte umsetzbar.
+Entschieden in OQ-0075 (Einzelheiten in FR-0205 bis FR-0212):
+
+- **Karte:** Die Karten-Ansichten gelten seit OQ-0074 (FR-0204, WP13). Die Live-Karte bekommt zusätzlich die Quellenangabe des Kartenmaterials.
+- **Navigation:** In Phase 1 nur Heute, Verlauf und Fortschritt; Plan ab Phase 2. Einstellungen, Profil, Sensoren und Daten über das Profil-Symbol.
+- **Heute:** In Phase 1 ohne Erholung, geplante Einheit und Wochenziel.
+- **Start:** Autopause ist standardmäßig aus (OQ-0065).
+- **Live:** Beenden nach Pause mit Rückfrage. Bewegungszeit, Höhe, Schrittfrequenz, Runden, Sensorwechsel und Hinweise bleiben, auch wenn das Design sie nicht zeigt.
+- **Summary:** „Fertig“ statt „Speichern“ (der Lauf ist schon gespeichert); Einordnung gegen die letzten 5 Läufe nach Pace (OQ-0037); Höhenprofil und Runden bleiben. Subjektive Angaben erst in Phase 2.
+- **Fortschritt:** VO₂max ohne „±3“, Datenqualität in den Stufen von FR-0053, Effizienz in % nach FR-0087; Zeitraumwahl und übrige Kennzahlen bleiben.
+- **Splash:** Text ohne das Versprechen, dass alle Daten auf dem Handy bleiben (Kartenkacheln nach Einwilligung).
+- **Intervall, Plan, Erholung:** erst mit Phase 2 und 3; ihre Widersprüche zur Spec werden dann entschieden.
+- **Dunkelmodus:** kommt dazu, abgeleitet aus den Markenfarben.

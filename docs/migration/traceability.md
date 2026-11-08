@@ -234,6 +234,14 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-001 | §4.3, Z. 168–180 | Karte der Route | FR-0204 | [run-recording.md](../specs/run-recording.md) | 6 AK | Übernommen |
 | SRC-001 | §5.1, Z. 197 | Karte der Route | FR-0204 | [run-recording.md](../specs/run-recording.md) | 6 AK | Übernommen |
 | SRC-003 | (OQ-0074) | Karte der Route | FR-0204 | [run-recording.md](../specs/run-recording.md) | 6 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Erscheinungsbild nach dem Screen-Design | FR-0205 | [app-design.md](../specs/app-design.md) | 3 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Name, Icon und Systemsymbole | FR-0206 | [app-design.md](../specs/app-design.md) | 2 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Willkommensbildschirm | FR-0207 | [app-design.md](../specs/app-design.md) | 2 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Navigation | FR-0208 | [app-design.md](../specs/app-design.md) | 2 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Startseite „Heute“ | FR-0209 | [app-design.md](../specs/app-design.md) | 2 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Lauf vorbereiten | FR-0210 | [run-recording.md](../specs/run-recording.md) | 2 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Kilometerwerte in der Detailansicht | FR-0211 | [history-statistics.md](../specs/history-statistics.md) | 2 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Zeitraum in der Historie | FR-0212 | [history-statistics.md](../specs/history-statistics.md) | 1 AK | Übernommen |
 | SRC-001 | §23, Z. 1270–1272 | Algorithmen versionierbar und nachvollziehbar | NFR-0001 | [non-functional.md](../quality/non-functional.md) | 1 AK | Übernommen |
 | SRC-001 | §23.1, Z. 1276–1305 | Einordnung in drei Verfahrenskategorien | NFR-0002 | [non-functional.md](../quality/non-functional.md) | 1 AK | Übernommen |
 | SRC-001 | §23.1, Z. 1307 | Heuristiken nicht als validiert darstellen | NFR-0003 | [non-functional.md](../quality/non-functional.md) | 1 AK | Übernommen |

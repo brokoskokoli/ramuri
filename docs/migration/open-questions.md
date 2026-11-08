@@ -622,3 +622,13 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Status:** Resolved
 - **Entscheidung:** 2026-11-07, SRC-003: Karte in allen vier Ansichten. Kacheln aus dem Netz (vorgesehen OpenFreeMap mit OpenStreetMap-Daten, ohne Schlüssel) nur nach ausdrücklicher, abschaltbarer Einwilligung; ohne Einwilligung oder Netz die Route ohne Karte. Miniaturen in der Historie mit Kartenhintergrund. Live-Karte als eigene Seite zum Wischen. Ziel: FR-0204, ADR-0009, DEC-0069.
 
+
+
+### OQ-0075 — Screen-Design und Marke
+- **Frage:** Wie werden Screen-Design (`design/`) und Marke (`branding/`) übernommen, und was gilt, wo das Design Funktionen zeigt, die die Spec nicht hat, oder ihr widerspricht?
+- **Auslöser/Quellen:** Design und Logo vom Maintainer, eingecheckt 2026-11-08; Wunsch, dass alle Seiten aussehen und sich verhalten wie im Design.
+- **Betroffene Anforderungen:** FR-0025, FR-0028, FR-0029, FR-0040, FR-0041, FR-0043, FR-0204, FR-0205, FR-0206, FR-0207, FR-0208, FR-0209, FR-0210, FR-0211, FR-0212
+- **Auswirkung:** non-blocking, entschieden.
+- **Optionen:** Name mit oder ohne neue Paket-ID; 3 oder 4 Bereiche in der Navigation; „Heute“ reduziert oder mit Platzhaltern; Willkommen einmalig, immer oder nie; Autopause-Vorgabe; Beenden mit oder ohne Rückfrage; Zusatzfunktionen aus dem Design; Design oder Spec bei Widersprüchen; nur hell oder hell und dunkel.
+- **Status:** Resolved
+- **Entscheidung:** 2026-11-08, SRC-003: Alle Seiten folgen dem Design in Aussehen und Verhalten; bei Widersprüchen gilt die Spec in der Optik des Designs. Name „ramuri“ mit neuer Paket-ID `io.github.brokoskokoli.ramuri`. Navigation mit Heute, Verlauf, Fortschritt, Plan ab Phase 2, Einstellungen über das Profil-Symbol. „Heute“ in Phase 1 ohne Erholung, Plan und Wochenziel. Willkommen nur beim ersten Start. Autopause auf der Startseite, Vorgabe aus; Beenden nach Pause mit Rückfrage. Dazu in Phase 1: Kilometertabelle, Kilometermarken und Gefälle im Detail, Zeitraum mit Summen im Verlauf, Zentrieren und Werte-Blatt auf der Live-Karte, Umschalter Linie/Karte im Detail. Hell und dunkel. Ziel: FR-0205 bis FR-0212, DEC-0070.

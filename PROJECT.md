@@ -3,7 +3,7 @@
 Diese Datei sagt den globalen Skills und Agenten (`project-supervisor`, `wp-supervisor`, `research-supervisor`, `researcher`, `research-reviewer`), wo sie in diesem Repository arbeiten. Fehlt ein Eintrag, wird gefragt, nicht geraten.
 
 ## Projekt
-- **Name:** Adaptive Running & Fitness App (Kurzname `running-app`)
+- **Name:** ramuri (Adaptive Running & Fitness App; Kurzname des Repositorys `running-app`, Paket-ID `io.github.brokoskokoli.ramuri`)
 - **Zweck:** Android-App für Laufaufzeichnung, Fitnessanalyse und adaptive Trainingsplanung, ohne Wearable-Zwang und nur mit lokaler Datenhaltung.
 - **Repository:** vorerst nur lokal, kein Remote. Geplant ist das öffentliche Repo `brokoskokoli/running-app`, den Push gibt der Maintainer separat frei. Inhalte werden schon jetzt so behandelt, als wären sie öffentlich. Lizenz GPL-3.0. Solange es kein Remote gibt, läuft das volle Gate lokal; der Workflow `gate` greift erst danach.
 - **Maintainer:** der Nutzer.

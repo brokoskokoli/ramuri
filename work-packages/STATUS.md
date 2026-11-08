@@ -4,14 +4,14 @@ Einzige Stelle für den Stand der Meilensteine und Arbeitspakete. Gepflegt vom O
 
 Status: `geplant` · `in Arbeit` · `Review` · `wartet` (Grund in „Offen“) · `gemergt` (Commit) · `verworfen`
 
-Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP01 bis WP12, R005 und R007 abgeschlossen; Abschlussprüfung M1 am 2026-11-08 bestanden (ohne Feldkriterien); Karte (OQ-0074) nachgereicht: R008, dann WP13.
+Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP01 und WP03 gemergt, WP01 bis WP12, R005 und R007 abgeschlossen; Abschlussprüfung M1 am 2026-11-08 bestanden (ohne Feldkriterien); Karte (OQ-0074) nachgereicht: R008, dann WP13; Screen-Design und Marke (OQ-0075) nachgereicht: WP14, dann WP15 und WP16.
 
 ## Meilensteine
 
 | Meilenstein | Inhalt | Status |
 | --- | --- | --- |
 | M0 ADRs | Architekturentscheidungen; ADR-0002 bis ADR-0008 freigegeben | erledigt |
-| M1 Phase 1 | Laufaufzeichnung und grundlegende Fitnessanalyse | Plan: [M1-PLAN.md](M1-PLAN.md), WP01 bis WP12 gemergt, Abschlussprüfung bestanden (2026-11-08); offen: WP13 (Karte) nachgereicht |
+| M1 Phase 1 | Laufaufzeichnung und grundlegende Fitnessanalyse | Plan: [M1-PLAN.md](M1-PLAN.md), WP01 bis WP12 gemergt, Abschlussprüfung bestanden (2026-11-08); offen: WP13 (Karte) und WP14 bis WP16 (Screen-Design) nachgereicht |
 | M2 Phase 2 | Adaptiver Trainingscoach | wartet auf Go des Maintainers |
 | M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | wartet auf Go des Maintainers |
 
@@ -29,7 +29,10 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP10 | Zusammenfassung, Historie, Statistik und Transparenz | gemergt (30cf5b1) | Laufzeiten nur auf VM und Emulator (4-h-Lauf etwa 1 s), Gerät ungemessen; Meilen nur synthetisch; Deutsch und Diagrammlücken nur per Widget-Test; Screenreader liest den Glättungshinweis im Pulsdiagramm doppelt, Pace-Reihe ohne Hinweis (Soll); `PaceProcessor` kopiert Segmente je Snapshot; `RunPorts.heartRate` entfernen (aus WP07); E2E-Vorlagen in `handoff/e2e-vorlagen/` |
 | WP11 | Dateiexport und Teilen | gemergt (1d358ec) | Kadenz wird nicht gespeichert, daher nicht exportiert (FR-0183, Folge aus WP06); E2E-Wiedergabe verlor rund 8 % der eingespeisten GPS-Fixes schon bei der Aufzeichnung (Emulator-Takt oder Abtastung, nicht untersucht); „übergeben“ meldet nur die Zielwahl; Strava-Import und Verhalten anderer Plattformen bei getrennten TCX-Punkten ungeprüft; Rechtsfrage FIT-Protokoll (OQ-0048); E2E nur API 36; E2E- und Prüfvorlagen (XSD, FIT-Decoder) in `handoff/e2e-vorlagen/` |
 | WP12 | Archiv und Reimport | gemergt (06ff78b) | E2E nur Debug-Build und Läufe ohne Puls; Archiv über 64 KiB nur in Host-Tests; Dauer von Argon2 auf schwachen Geräten, echter Gerätewechsel und große Archive ungeprüft; Kill während des Tauschs nur per Fehlerinjektion; Fremddatei wird erst nach der Passworteingabe erkannt (Kopf vorher prüfen); Drittlizenz-Hinweise in der App nicht geregelt (OQ-0048); Ladeanzeige hinter dem Fehlerdialog (kosmetisch); E2E-Vorlagen in `handoff/e2e-vorlagen/` |
-| WP13 | Karte der Route | wartet | auf R008 (Bibliothek, ADR-0009 Punkt 6); danach netzbezogene Abschlussprüfung wiederholen |
+| WP13 | Karte der Route | wartet | auf R008 (Bibliothek, ADR-0009 Punkt 6) und WP14; danach netzbezogene Abschlussprüfung wiederholen |
+| WP14 | Erscheinungsbild, Marke und Navigation | in Arbeit | Grundlage für WP13, WP15, WP16; neue Paket-ID |
+| WP15 | Fortschritt im Design | wartet | auf WP14 |
+| WP16 | Lauf-Seiten im Design | wartet | auf WP13; danach Abschlussprüfung für Netz und Oberfläche wiederholen |
 | WP04 | Algorithmen-Rahmen, Herzfrequenzzonen und TRIMP | gemergt (9a3d5a1) | Nur synthetische Pulswerte; OQ-0070; Modellgüte ungeprüft (NFR-0004); Stufenvergabe bei WP09 |
 | WP08 | Hintergrund und Wiederanlauf | gemergt (41aebc9) | Feldtest: FR-0034 (echter Suspend, Doze, Akku, Hersteller-Kill), Schrittsensor unter Typ `location`, Pulsgurt im Hintergrund; Aufzeichnung nutzt `Clock.monotonic()` noch nicht (Uhrsprünge); Diagramme der Zusammenfassung zeichnen `interruption` nicht als Lücke (Spec regelt es nicht); Semantik von `raw_steps` offen; Soll-Tests: Pulsquelle nach Fortsetzen, Zeitquelle des Schrittsensors, Produktionsverdrahtung `app_dependencies.dart:90`; E2E-Vorlagen in `handoff/e2e-vorlagen/` |
 

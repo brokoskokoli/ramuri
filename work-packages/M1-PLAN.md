@@ -13,7 +13,9 @@ Laufaufzeichnung und grundlegende Fitnessanalyse. 12 Pakete, höchstens 2 Sitzun
 | 5 | [WP07](WP07-pulssensoren.md) ‖ [WP10](WP10-zusammenfassung-historie-statistik.md) | WP07: WP06. WP10: WP06, WP09 | – |
 | 6 | [WP08](WP08-hintergrund-und-wiederanlauf.md) ‖ [WP11](WP11-dateiexport-und-teilen.md) | WP08: WP06, WP07. WP11: WP06 | WP08: **wartet auf R005**. WP11: Punkt FIT auf L1 |
 | 7 | [WP12](WP12-archiv-und-reimport.md), danach Abschlussprüfung | WP11, WP02 | WP12: ADR-0008 ist freigegeben |
-| 8 | R008, danach [WP13](WP13-karte-der-route.md), danach Wiederholung der netzbezogenen Abschlussprüfung | WP05, WP06, WP10, WP12 | WP13: **wartet auf R008** (ADR-0009 Punkt 6). Nachgereicht am 2026-11-07 (OQ-0074) |
+| 8 | R008 ‖ [WP14](WP14-erscheinungsbild-marke-navigation.md) | WP14: alle bisherigen Pakete | WP14: – (nachgereicht am 2026-11-08, OQ-0075) |
+| 9 | [WP13](WP13-karte-der-route.md) ‖ [WP15](WP15-fortschritt-im-design.md) | WP13: R008, WP14. WP15: WP14 | WP13: **wartet auf R008** (ADR-0009 Punkt 6). Nachgereicht am 2026-11-07 (OQ-0074) |
+| 10 | [WP16](WP16-lauf-seiten-im-design.md), danach Wiederholung der Abschlussprüfung für Netz und Oberfläche | WP13, WP14 | – |
 
 Ist R005 bei Welle 6 nicht fertig, läuft WP11 allein weiter und danach WP12, sobald ADR-0008 freigegeben ist. Ist ADR-0008 früher freigegeben, kann WP12 direkt nach WP11 starten. Nichts außer WP08 hängt an R005, nichts außer WP12 an ADR-0008. Sofort startbar ist nur WP01.
 

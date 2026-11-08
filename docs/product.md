@@ -1,4 +1,4 @@
-# Produktdefinition: Adaptive Running & Fitness App
+# Produktdefinition: ramuri (Adaptive Running & Fitness App)
 
 **Status:** Draft (Quelle: SRC-001, Version 0.1 – Entwurf). Keine Aussage dieses Dokuments ist bisher fachlich freigegeben.
 
@@ -206,6 +206,7 @@ Die Tabelle fasst Entscheidungen aus der Quelle und vom Maintainer (SRC-003) zus
 | DEC-0067 | Rückfallsprache Englisch bei jeder anderen Gerätesprache (Maintainer, SRC-003) | NFR-0006 | Entschieden (OQ-0067) |
 | DEC-0068 | GPS-Rauschen im Stand: Parameter bleiben bis zum Feldtest, auch bei übertragenen Werten über 1 % (Maintainer, SRC-003) | FR-0029, FR-0052 | Entschieden (OQ-0068) |
 | DEC-0069 | Karte der Route im Lauf, in Zusammenfassung, Detailansicht und als Miniatur; Kacheln aus dem Netz nur nach Einwilligung, sonst Route ohne Karte (Maintainer, SRC-003) | FR-0027, FR-0037, FR-0040, FR-0041, FR-0204, SEC-0008 | Entschieden (OQ-0074) |
+| DEC-0070 | Name „ramuri“ mit neuer Paket-ID; alle Seiten nach dem Screen-Design, Inhalte nach Spec; Navigation Heute/Verlauf/Fortschritt (Plan ab Phase 2); hell und dunkel (Maintainer, SRC-003) | FR-0205, FR-0206, FR-0207, FR-0208, FR-0209, FR-0210, FR-0211, FR-0212 | Entschieden (OQ-0075) |
 
 ## Phasen
 
