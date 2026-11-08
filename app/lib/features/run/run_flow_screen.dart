@@ -163,6 +163,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     }
   }
 
+  /// Die App ist im Hintergrund: `_startGps` bleibt dann untätig.
+  bool _inBackground = false;
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -176,6 +179,8 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     // Zurück aus Systemdialog oder Einstellungen: Stand neu lesen, ohne zu
     // fragen. Das ersetzt auch eine verlorene Antwort auf die Anfrage.
     // Im Hintergrund braucht die Anzeige keinen Strom; `resumed` startet ihn neu.
+    if (state == AppLifecycleState.paused) _inBackground = true;
+    if (state == AppLifecycleState.resumed) _inBackground = false;
     if (state == AppLifecycleState.paused && _controller == null) _stopGps();
     if (state == AppLifecycleState.resumed &&
         _controller == null &&
@@ -187,7 +192,8 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   /// Hört auf die Standortpunkte, nur um die Genauigkeit anzuzeigen. Die
   /// Punkte selbst werden weder gehalten noch geloggt.
   void _startGps() {
-    if (_gpsSub != null) return;
+    // Eine Prüfung, die erst nach `paused` fertig wird, startet keinen Strom.
+    if (_gpsSub != null || _inBackground) return;
     _gpsGood = false;
     _gpsSub = widget.ports.location.samples().listen(
       (sample) {

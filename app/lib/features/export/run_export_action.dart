@@ -70,7 +70,7 @@ class _RunExportActionState extends State<RunExportAction> {
       context: context,
       builder: (_) => const ExportDialog(),
     );
-    if (choice == null || !mounted) return;
+    if (choice == null || !mounted || _busy.value) return;
     final (format, target) = choice;
     _busy.value = true;
     FileHandoffResult result;
@@ -118,14 +118,18 @@ class _RunExportActionState extends State<RunExportAction> {
             if (busy) {
               // Nur eine Darstellung zeigt den Fortschritt, die andere ist gesperrt.
               if (icon) {
-                return const IconButton(
-                  key: Key('detail_export_icon'),
+                return IconButton(
+                  key: const Key('detail_export_icon'),
+                  tooltip: l10n.exportRunning,
                   onPressed: null,
-                  icon: Icon(Icons.ios_share),
+                  icon: const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                 );
               }
-              return SizedBox(
-                height: 52,
+              return ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 52),
                 child: Center(
                   child: SizedBox.square(
                     dimension: 24,
@@ -146,14 +150,24 @@ class _RunExportActionState extends State<RunExportAction> {
                 onPressed: () => _export(handoff),
               );
             }
-            // Knopf über die volle Breite am Seitenende (52 dp).
-            return SizedBox(
-              height: 52,
-              width: double.infinity,
+            // Knopf über die volle Breite am Seitenende, mindestens 52 dp: Bei
+            // großer Schrift wächst er mit der Beschriftung.
+            return ConstrainedBox(
+              constraints: const BoxConstraints(
+                minHeight: 52,
+                minWidth: double.infinity,
+              ),
               child: OutlinedButton(
                 key: const Key('detail_export'),
                 onPressed: () => _export(handoff),
-                child: Text(l10n.exportButton),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 8,
+                  ),
+                ),
+                child: Text(l10n.exportButton, textAlign: TextAlign.center),
               ),
             );
           },

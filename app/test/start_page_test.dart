@@ -340,6 +340,37 @@ void main() {
       expect(d.location.hasListeners, isFalse);
     });
 
+    testWidgets('gutes Signal, dann Los: kein Timer des Seitenstroms im Lauf', (
+      tester,
+    ) async {
+      final d = Device();
+      await openStart(d, tester);
+      d.location.emit(sample(10));
+      await tester.pumpAndSettle();
+      expect(key('start_gps_good'), findsOneWidget);
+      await go(tester);
+      expect(key('run_pause'), findsOneWidget);
+    });
+
+    testWidgets('Hintergrund vor Ende der Prüfung: kein Strom danach', (
+      tester,
+    ) async {
+      final d = Device();
+      await openStart(d, tester);
+      for (final s in [
+        AppLifecycleState.paused,
+        AppLifecycleState.resumed,
+        AppLifecycleState.paused,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
+      await tester.pumpAndSettle();
+      expect(d.location.hasListeners, isFalse);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(d.location.hasListeners, isTrue);
+    });
+
     testWidgets('mit Los ist der Seitenstrom beendet, der Lauf hört zu', (
       tester,
     ) async {

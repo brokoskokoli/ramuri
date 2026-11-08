@@ -1,10 +1,8 @@
 // WP16 C2: Detailansicht nach Detail.dc.html (FR-0041, FR-0042, FR-0211, FR-0204): Kilometertabelle, Marken,
 // Pace und Puls, Höhenprofil, vollständige Inhalte, Schriftfaktor 1,3 auf 360x640.
-import 'dart:io';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/history/run_detail_page.dart';
@@ -36,28 +34,35 @@ const _mi = UnitFormatter(
   elevationLabel: 'ft',
 );
 
-Widget _app(Widget body, {bool dark = false, double scale = 1, Size? size}) =>
-    MaterialApp(
-      theme: dark ? RamuriTheme.dark : RamuriTheme.light,
-      locale: const Locale('de'),
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: MediaQuery(
-        data: MediaQueryData(
-          size: size ?? const Size(360, 640),
-          textScaler: TextScaler.linear(scale),
-        ),
-        child: OffloadScope(
-          offload: inlineOffload,
-          child: Scaffold(body: SingleChildScrollView(child: body)),
-        ),
-      ),
-    );
+Widget _app(
+  Widget body, {
+  bool dark = false,
+  double scale = 1,
+  Size? size,
+  bool bold = false,
+  String lang = 'de',
+}) => MaterialApp(
+  theme: dark ? RamuriTheme.dark : RamuriTheme.light,
+  locale: Locale(lang),
+  localizationsDelegates: const [
+    AppLocalizations.delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  supportedLocales: AppLocalizations.supportedLocales,
+  home: MediaQuery(
+    data: MediaQueryData(
+      size: size ?? const Size(360, 640),
+      textScaler: TextScaler.linear(scale),
+      boldText: bold,
+    ),
+    child: OffloadScope(
+      offload: inlineOffload,
+      child: Scaffold(body: SingleChildScrollView(child: body)),
+    ),
+  ),
+);
 
 Future<void> pumpDetail(
   WidgetTester tester,
@@ -216,20 +221,7 @@ void main() {
     for (final scale in [1.0, 1.3]) {
       testWidgets('echte Schrift, Faktor $scale auf 360 dp: Spalten fluchten, '
           'Balken sichtbar', (tester) async {
-        await tester.runAsync(() async {
-          final loader = FontLoader('Manrope');
-          for (final f in [
-            'Regular',
-            'Medium',
-            'SemiBold',
-            'Bold',
-            'ExtraBold',
-          ]) {
-            final bytes = File('assets/fonts/Manrope-$f.ttf').readAsBytesSync();
-            loader.addFont(Future.value(ByteData.sublistView(bytes)));
-          }
-          await loader.load();
-        });
+        await loadManrope(tester);
         tester.view.physicalSize = const Size(360, 800);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
@@ -262,6 +254,98 @@ void main() {
           ),
         );
         expect(fill, tester.getSize(key('detail_km_bar_1')));
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    // Nie ein Umbruch in Zahlen, Einheiten oder Köpfen (WP15-Hinweis): Zellen
+    // werden höchstens verkleinert; wo die Breite reicht, bleibt die Schrift
+    // unverkleinert (Verhältnis 1), sonst nicht unter [minRatio].
+    final wide = _splits([
+      _split(1, seconds: 330, pace: 330, hr: 99),
+      _split(2, seconds: 4000, pace: 605, hr: 150, gapSeconds: 30),
+      _split(3, seconds: 60, gapSeconds: 60),
+      _split(4, seconds: 120, pace: 285.7, hr: 188, partial: true, meters: 420),
+    ]);
+    for (final (width, scale, bold, unit, fits, lang) in [
+      (360.0, 1.0, false, _km, true, 'de'),
+      (360.0, 1.3, false, _km, true, 'de'),
+      (320.0, 1.0, false, _km, true, 'de'),
+      (320.0, 1.0, true, _km, true, 'de'),
+      (360.0, 1.0, true, _mi, true, 'de'),
+      (360.0, 2.0, false, _km, false, 'de'),
+      (320.0, 2.0, false, _km, false, 'de'),
+      (320.0, 2.0, true, _mi, false, 'de'),
+      (320.0, 1.0, true, _km, true, 'en'),
+      (360.0, 1.0, true, _km, true, 'en'),
+      (320.0, 2.0, true, _km, false, 'en'),
+    ]) {
+      testWidgets('echte Schrift, ${width.round()} dp, Faktor $scale, '
+          '${bold ? 'fett, ' : ''}${unit.distanceLabel}, $lang: kein Umbruch', (
+        tester,
+      ) async {
+        await loadManrope(tester);
+        tester.view.physicalSize = Size(width, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          _app(
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: KilometerTable(splits: wide, formatter: unit),
+            ),
+            scale: scale,
+            bold: bold,
+            lang: lang,
+            size: Size(width, 800),
+          ),
+        );
+        final table = find.byKey(const Key('detail_km_table'));
+        final cells = [
+          for (var i = 1; i <= 4; i++)
+            for (final c in ['index', 'time', 'pace', 'hr'])
+              key('detail_km_${c}_$i'),
+          for (final h in [
+            unit.distanceLabel,
+            if (lang == 'de') ...[
+              'Zeit',
+              'Pace',
+              'Puls',
+            ] else ...[
+              'Time',
+              'Pace',
+              'HR',
+            ],
+          ])
+            find.descendant(of: table, matching: find.text(h)),
+        ];
+        var shown = 0;
+        for (final cell in cells) {
+          if (cell.evaluate().isEmpty) continue;
+          shown++;
+          final layout = tester.renderObject<RenderBox>(cell).size;
+          final drawn = tester.getRect(cell);
+          final ratio = drawn.width / layout.width;
+          // Eine Zeile: Höhe passt zu einer Zeile der Schrift.
+          expect(
+            layout.height,
+            lessThan(1.8 * 14 * scale * 1.5),
+            reason: '$cell einzeilig',
+          );
+          if (fits) {
+            expect(ratio, closeTo(1, 0.001), reason: '$cell unverkleinert');
+          } else {
+            expect(ratio, greaterThanOrEqualTo(0.5), reason: '$cell lesbar');
+          }
+        }
+        expect(shown, greaterThanOrEqualTo(20));
+        // Die Spuren der Balken bleiben mindestens 24 dp breit.
+        for (var i = 1; i <= 4; i++) {
+          expect(
+            tester.getSize(key('detail_km_bar_$i')).width,
+            greaterThanOrEqualTo(24),
+          );
+        }
         expect(tester.takeException(), isNull);
       });
     }

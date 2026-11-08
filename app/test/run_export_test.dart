@@ -139,6 +139,32 @@ void main() {
     expect(find.text('Exportieren (GPX · TCX · FIT)'), findsOneWidget);
   });
 
+  for (final (width, scale) in [(360.0, 1.0), (320.0, 2.0), (360.0, 2.0)]) {
+    testWidgets('Exportknopf bei ${width.round()} dp, Faktor $scale: '
+        'Beschriftung vollständig im Knopf', (tester) async {
+      tester_ = tester;
+      await loadManrope(tester);
+      await _openDetail(tester);
+      tester.view.physicalSize = Size(width, 640);
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(key('detail_export'));
+      await tester.pumpAndSettle();
+      final button = tester.getRect(key('detail_export'));
+      final label = tester.getRect(
+        find.descendant(of: key('detail_export'), matching: find.byType(Text)),
+      );
+      expect(button.top, lessThanOrEqualTo(label.top));
+      expect(button.bottom, greaterThanOrEqualTo(label.bottom));
+      expect(button.height, greaterThanOrEqualTo(52));
+      if (scale == 1.0) expect(button.height, 52);
+      // Zwei Zeilen bei großer Schrift: der Knopf wächst mit.
+      if (scale == 2.0) expect(button.height, greaterThan(52));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('Symbol in der Kopfleiste „Teilen oder exportieren“ exportiert '
       'wie der Knopf (Detail.dc.html)', (tester) async {
     tester_ = tester;
@@ -242,6 +268,16 @@ void main() {
     await tester.pump();
     expect(key('export_progress'), findsOneWidget);
     expect(key('detail_export'), findsNothing);
+    // Das gesperrte Symbol zeigt selbst einen Kreis und hat einen Namen.
+    final icon = tester.widget<IconButton>(key('detail_export_icon'));
+    expect(icon.tooltip, 'Export wird vorbereitet');
+    expect(
+      find.descendant(
+        of: key('detail_export_icon'),
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsOneWidget,
+    );
     // Während des Exports ist auch das Symbol der Kopfleiste gesperrt.
     expect(
       tester.widget<IconButton>(key('detail_export_icon')).onPressed,

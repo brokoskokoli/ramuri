@@ -18,7 +18,8 @@ enum RamuriSegmentedStyle {
 
   /// Graue Spur über die volle Breite, der gewählte Abschnitt weiß (Design
   /// „Lauf vorbereiten“). Der Verlauf nutzt [dark]: gewählt dunkel
-  /// (`Verlauf.dc.html:24-26`).
+  /// (`Verlauf.dc.html:24-26`). [soft] bleibt für „Geplante Einheit / Freier
+  /// Lauf“ (`Start.dc.html:28`, Phase 2) und ist bis dahin ungenutzt.
   soft,
 }
 

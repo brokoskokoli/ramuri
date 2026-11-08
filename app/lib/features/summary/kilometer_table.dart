@@ -97,13 +97,24 @@ class KilometerTable extends StatelessWidget {
     // Tabellenbreite (eine Table kann Zellen nicht verbinden).
     final scaler = MediaQuery.textScalerOf(context);
     final direction = Directionality.of(context);
-    double measure(String t, TextStyle? st) =>
-        (TextPainter(
-          text: TextSpan(text: t, style: st),
-          textDirection: direction,
-          textScaler: scaler,
-        )..layout()).width.ceilToDouble() +
-        1;
+    // Fettschrift des Systems macht Text breiter; Text() merkt sie sich selbst.
+    final bold = MediaQuery.boldTextOf(context);
+    double measure(String t, TextStyle? st) {
+      final p = TextPainter(
+        text: TextSpan(
+          text: t,
+          style: bold
+              ? st?.merge(const TextStyle(fontWeight: FontWeight.bold))
+              : st,
+        ),
+        textDirection: direction,
+        textScaler: scaler,
+      )..layout();
+      final w = p.width.ceilToDouble() + 1;
+      p.dispose();
+      return w;
+    }
+
     double widest(String h, TextStyle? hs, Iterable<String> v, TextStyle? vs) =>
         [
           measure(h, hs),
@@ -125,8 +136,16 @@ class KilometerTable extends StatelessWidget {
     final w4 = widest(l10n.detailColHr, head, hrs, text.bodyMedium);
 
     // Reicht die Breite nicht (sehr große Schrift), schrumpfen die festen
-    // Spalten anteilig und der Balken behält mindestens [minBar].
+    // Spalten anteilig und die Balkenspur behält mindestens [minBar]; der
+    // Abstand der Zelle (10) kommt dazu. Zahlen und Köpfe brechen nie um,
+    // sondern werden in ihrer Zelle verkleinert ([fit]).
     const minBar = 24.0;
+    const barGap = 10.0;
+    Widget fit(Widget w) => FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: w,
+    );
     var shrink = 1.0;
     Widget line(List<Widget> cells) => Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,11 +159,11 @@ class KilometerTable extends StatelessWidget {
     );
 
     Widget header() => line([
-      padded(Text(unitLabel, style: head)),
-      padded(Text(l10n.detailColTime, style: head)),
+      padded(fit(Text(unitLabel, style: head))),
+      padded(fit(Text(l10n.detailColTime, style: head))),
       const SizedBox.shrink(),
-      padded(Text(l10n.detailColPace, style: head)),
-      Text(l10n.detailColHr, style: head),
+      padded(fit(Text(l10n.detailColPace, style: head))),
+      fit(Text(l10n.detailColHr, style: head)),
     ]);
 
     Widget row(KilometerSplit s) {
@@ -181,12 +200,16 @@ class KilometerTable extends StatelessWidget {
                 container: true,
                 label: label,
                 excludeSemantics: true,
-                child: Text('$i', key: Key('detail_km_index_$i'), style: cell),
+                child: fit(
+                  Text('$i', key: Key('detail_km_index_$i'), style: cell),
+                ),
               ),
             ),
             ExcludeSemantics(
               child: padded(
-                Text(_time(time), key: Key('detail_km_time_$i'), style: cell),
+                fit(
+                  Text(_time(time), key: Key('detail_km_time_$i'), style: cell),
+                ),
               ),
             ),
             ExcludeSemantics(
@@ -206,14 +229,18 @@ class KilometerTable extends StatelessWidget {
             ),
             ExcludeSemantics(
               child: padded(
-                Text(_pace(pace), key: Key('detail_km_pace_$i'), style: cell),
+                fit(
+                  Text(_pace(pace), key: Key('detail_km_pace_$i'), style: cell),
+                ),
               ),
             ),
             ExcludeSemantics(
-              child: Text(
-                _hr(s.heartRateAverageBpm),
-                key: Key('detail_km_hr_$i'),
-                style: text.bodyMedium,
+              child: fit(
+                Text(
+                  _hr(s.heartRateAverageBpm),
+                  key: Key('detail_km_hr_$i'),
+                  style: text.bodyMedium,
+                ),
               ),
             ),
           ]),
@@ -243,8 +270,8 @@ class KilometerTable extends StatelessWidget {
         LayoutBuilder(
           builder: (context, c) {
             final fixed = w0 + w1 + w3 + w4;
-            shrink = fixed + minBar > c.maxWidth
-                ? ((c.maxWidth - minBar) / fixed).clamp(0.0, 1.0)
+            shrink = fixed + minBar + barGap > c.maxWidth
+                ? ((c.maxWidth - minBar - barGap) / fixed).clamp(0.0, 1.0)
                 : 1.0;
             return Column(
               key: const Key('detail_km_table'),
