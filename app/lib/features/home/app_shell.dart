@@ -97,6 +97,7 @@ class _AppShellState extends State<AppShell> {
         return StatisticsScreen(
           session: widget.session,
           clock: widget.clock,
+          recalculation: widget.recalculation,
           viewState: _progressState,
         );
       default:

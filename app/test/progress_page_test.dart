@@ -598,7 +598,11 @@ void main() {
       expect(tester.takeException(), isNull);
       final pos = position(tester);
       expect(pos.maxScrollExtent, lessThan(before), reason: 'Inhalt kürzer');
-      expect(pos.pixels, pos.maxScrollExtent);
+      // Die Karte Belastung lädt nach dem ersten Bild und macht die Seite
+      // danach länger: die Position wurde auf das Ende des ersten Bilds
+      // geklemmt und liegt nun innerhalb des Inhalts, nicht mehr am Ende.
+      expect(pos.pixels, greaterThan(0));
+      expect(pos.pixels, lessThanOrEqualTo(pos.maxScrollExtent));
     });
 
     testWidgets('gemerkter Lauf inzwischen gelöscht: neuester Lauf, kein '

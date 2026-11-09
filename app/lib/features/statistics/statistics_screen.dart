@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
+import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
 import 'fitness_section.dart';
+import 'load_card.dart';
 import 'progress_header.dart';
 import 'statistics_view.dart';
 import 'statistics_view_state.dart';
@@ -32,6 +34,7 @@ class StatisticsScreen extends StatefulWidget {
     this.today,
     this.onExplain,
     this.viewState,
+    this.recalculation,
   });
 
   final StorageSession session;
@@ -48,6 +51,10 @@ class StatisticsScreen extends StatefulWidget {
   /// gehalten werden; ohne Angabe legt die Seite ein eigenes Objekt an. Die
   /// Daten lädt die Seite in jedem Fall bei jedem Aufbau neu.
   final StatisticsViewState? viewState;
+
+  /// Die eine Neuberechnung der App; die Karte Belastung lädt über ihre Reihe.
+  /// Ohne sie fehlt die Karte.
+  final RecalculationController? recalculation;
 
   @override
   State<StatisticsScreen> createState() => _StatisticsScreenState();
@@ -316,6 +323,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             ),
             const SizedBox(height: 14),
             EfficiencyCard(fitness: data.fitness),
+            LoadCard(
+              session: widget.session,
+              clock: widget.clock,
+              recalculation: widget.recalculation,
+            ),
             const SizedBox(height: 28),
             SectionHeading(l10n.progressPeriodTitle),
             const SizedBox(height: 8),
