@@ -208,6 +208,9 @@ void main() {
               ValueCalculationService.refreshPendingKey,
               RecalculationService.pendingKey,
               SettingKeys.loadProfilePending,
+              SettingKeys.loadFactorPending,
+              SettingKeys.loadFactorDeclined,
+              SettingKeys.loadFactor,
               'unit.pace',
               SettingKeys.loadProfile,
               SettingKeys.loadCoefficients,
@@ -228,12 +231,13 @@ void main() {
           [
             SettingKeys.loadAllRecorded,
             SettingKeys.loadCoefficients,
+            SettingKeys.loadFactor,
             SettingKeys.loadProfile,
             'unit.pace',
             'zukunft.unbekannt',
           ],
         );
-        expect((lines.last['rows']! as Map)['settings'], 5);
+        expect((lines.last['rows']! as Map)['settings'], 6);
       },
     );
 

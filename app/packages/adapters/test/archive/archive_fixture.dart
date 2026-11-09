@@ -89,11 +89,14 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     'INSERT INTO profile (id, birth_year, body_weight_kg, body_height_m, resting_heart_rate_bpm, max_heart_rate_bpm, weekly_run_minutes, training_days_mask, usual_training_minutes) VALUES (1, 1990, 70.5, 1.8, 50, 190, 120, 5, 45)',
   );
-  // Belastungsprofil (WP19), vor den übrigen in Schlüsselreihenfolge: drei Einstellungen gehören ins Archiv, die
-  // unbestätigte Wahl ist ein technischer Merker.
+  // Belastungsprofil (WP19), vor den übrigen in Schlüsselreihenfolge: vier Einstellungen gehören ins Archiv, die
+  // unbestätigte Wahl und die Faktor-Merker sind technische Merker.
   for (final kv in const [
     ('load.all_recorded', '1'),
     ('load.coefficients', 'female'),
+    ('load.factor', 'banister;1.5;14;2026-11-07'),
+    ('load.factor_declined', 'banister;3.0;14;2026-11-01'),
+    ('load.factor_pending', 'banister;2.5;14;2026-11-08'),
     ('load.profile', 'banister'),
     ('load.profile_pending', 'edwards'),
   ]) {

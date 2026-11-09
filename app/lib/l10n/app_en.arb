@@ -124,6 +124,7 @@
   "recalcCauseHeartRate": "The heart rate basis (max or resting heart rate) is different.",
   "recalcCauseAlgorithm": "The app's calculation method has been updated.",
   "recalcCauseLoadProfile": "The load profile is to be changed. The training load of your runs is then recalculated on one scale.",
+  "recalcCauseLoadFactor": "Your personal factor for converting perceived effort into training load has changed noticeably. If you confirm, the new factor applies and the load of converted days is recalculated.",
   "recalcKeepsOriginal": "The original values and the raw data are kept. Nothing changes unless you recalculate.",
   "recalcConfirm": "Recalculate",
   "recalcRetry": "Try again",

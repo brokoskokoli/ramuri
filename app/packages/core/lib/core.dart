@@ -81,6 +81,7 @@ export 'src/fitness/vo2max_estimator.dart';
 export 'src/fitness/vo2max_long_term.dart';
 export 'src/fitness/vo2max_section_selection.dart';
 export 'src/load/training_load.dart';
+export 'src/load/training_load_service.dart';
 export 'src/preprocessing/altitude_processor.dart';
 export 'src/preprocessing/gap_moving_time.dart';
 export 'src/preprocessing/geo.dart';

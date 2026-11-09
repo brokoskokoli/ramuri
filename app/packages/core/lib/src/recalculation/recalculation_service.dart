@@ -28,6 +28,12 @@ enum RecalculationCause {
   /// Ursache bietet auch den Rückweg auf Edwards an, wenn bei aktivem Banister
   /// Ruhepuls oder Koeffizienten wegfallen.
   loadProfile,
+
+  /// Der berechnete persönliche Faktor TRIMP/sRPE weicht mehr als 25 % vom
+  /// angewandten ab (PAR-087, FR-0199): [RecalculationOffer.personalFactor]
+  /// gilt erst nach Bestätigung. Ablehnen lässt den alten Faktor. Ändert keine
+  /// gespeicherten Werte (der Faktor geht erst in den Belastungsverlauf ein).
+  personalFactor,
 }
 
 /// Das gewählte Belastungsprofil ist nicht anwendbar (Ruhepuls oder
@@ -48,6 +54,7 @@ class RecalculationOffer {
     required Set<RecalculationCause> causes,
     required List<int> runIds,
     this.loadProfile,
+    this.personalFactor,
   }) : causes = Set.unmodifiable(causes),
        runIds = List.unmodifiable(runIds);
 
@@ -60,6 +67,9 @@ class RecalculationOffer {
   /// Das gewählte, noch nicht aktive Belastungsprofil bei der Ursache
   /// [RecalculationCause.loadProfile]; sonst `null`.
   final LoadProfile? loadProfile;
+
+  /// Der angebotene neue Faktor bei [RecalculationCause.personalFactor].
+  final LoadFactorRecord? personalFactor;
 }
 
 /// Ergebnis einer bestätigten Neuberechnung.
@@ -138,6 +148,7 @@ class RecalculationService {
       causes: causes,
       runIds: await _affectedRuns(),
       loadProfile: await _pendingLoadProfile(causes),
+      personalFactor: await _pendingFactor(causes),
     );
   }
 
@@ -233,6 +244,55 @@ class RecalculationService {
     return null;
   }
 
+  /// Bietet den neuen persönlichen Faktor [fresh] an (Ursache
+  /// [RecalculationCause.personalFactor]). Anders als die anderen Ursachen
+  /// braucht das keine betroffenen Läufe: es ändert keine gespeicherten Werte.
+  Future<RecalculationOffer> requestPersonalFactor(
+    LoadFactorRecord fresh,
+  ) async {
+    await LoadSettings.writePendingFactor(
+      session.settings,
+      fresh,
+      at: clock.now(),
+    );
+    _offerSeq[RecalculationCause.personalFactor] =
+        (_offerSeq[RecalculationCause.personalFactor] ?? 0) + 1;
+    final causes = {
+      ...await _pendingCauses(),
+      RecalculationCause.personalFactor,
+    };
+    await _setPending(causes);
+    final offer = RecalculationOffer(
+      causes: causes,
+      runIds: await _affectedRuns(),
+      loadProfile: await _pendingLoadProfile(causes),
+      personalFactor: fresh,
+    );
+    _controller.add(offer);
+    return offer;
+  }
+
+  /// Nimmt ein offenes Faktor-Angebot zurück (der Faktor ist wieder innerhalb
+  /// der Toleranz, nicht mehr berechenbar oder gehört zu einem anderen
+  /// Profil). Merkt sich nichts als abgelehnt.
+  Future<void> withdrawPersonalFactor() async {
+    await LoadSettings.writePendingFactor(
+      session.settings,
+      null,
+      at: clock.now(),
+    );
+    final causes = await _pendingCauses();
+    if (causes.remove(RecalculationCause.personalFactor)) {
+      await _setPending(causes);
+    }
+  }
+
+  Future<LoadFactorRecord?> _pendingFactor(
+    Set<RecalculationCause> causes,
+  ) async => causes.contains(RecalculationCause.personalFactor)
+      ? LoadSettings.pendingFactor(session.settings)
+      : null;
+
   /// Entfernt eine offene Profilwahl samt Ursache.
   Future<void> _dropLoadChoice() async {
     await LoadSettings.writePendingProfile(
@@ -312,11 +372,19 @@ class RecalculationService {
         throw LoadProfileNotApplicableException(target, resolution.issues);
       }
     }
-    final snapshot = await _calc.buildSnapshot(loadProfile: target);
-    await session.values.swapCurrentAll({
-      ...snapshot.runValues,
-      ...snapshot.dayValues,
-    });
+    // Nur der Faktor: es gibt nichts neu zu rechnen.
+    final factorOnly =
+        started.length == 1 &&
+        started.contains(RecalculationCause.personalFactor);
+    final snapshot = factorOnly
+        ? const ValueSnapshot(runValues: {}, dayValues: {})
+        : await _calc.buildSnapshot(loadProfile: target);
+    if (!factorOnly) {
+      await session.values.swapCurrentAll({
+        ...snapshot.runValues,
+        ...snapshot.dayValues,
+      });
+    }
     // Ab hier ist getauscht: ein Fehler beim Erledigen des Angebots darf nicht
     // als gescheiterte Neuberechnung gemeldet werden.
     var cleared = true;
@@ -342,6 +410,23 @@ class RecalculationService {
           at: clock.now(),
         );
       }
+      if (done.contains(RecalculationCause.personalFactor)) {
+        // Der Faktor gilt nur für das (jetzt) aktive Profil.
+        final offered = await LoadSettings.pendingFactor(session.settings);
+        final active = await LoadSettings.activeProfile(session.settings);
+        if (offered != null && offered.profile == active) {
+          await LoadSettings.writeFactor(
+            session.settings,
+            offered,
+            at: clock.now(),
+          );
+        }
+        await LoadSettings.writePendingFactor(
+          session.settings,
+          null,
+          at: clock.now(),
+        );
+      }
       await _setPending((await _pendingCauses()).difference(done));
     } on Object {
       cleared = false;
@@ -356,6 +441,20 @@ class RecalculationService {
   /// Lehnt das Angebot ab: Werte, Rohdaten und Profil bleiben unverändert.
   /// Eine offene Profilwahl verfällt (OQ-0053): das aktive Profil bleibt.
   Future<void> decline(RecalculationOffer offer) async {
+    // Ein abgelehnter Faktor wird nicht bei jedem Laden erneut angeboten.
+    final offered = await LoadSettings.pendingFactor(session.settings);
+    if (offered != null) {
+      await LoadSettings.writeDeclinedFactor(
+        session.settings,
+        offered,
+        at: clock.now(),
+      );
+      await LoadSettings.writePendingFactor(
+        session.settings,
+        null,
+        at: clock.now(),
+      );
+    }
     await _setPending(const {});
     await LoadSettings.writePendingProfile(
       session.settings,
@@ -374,6 +473,7 @@ class RecalculationService {
       causes: causes,
       runIds: runs,
       loadProfile: await _pendingLoadProfile(causes),
+      personalFactor: await _pendingFactor(causes),
     );
     _controller.add(offer);
     return offer;

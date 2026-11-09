@@ -71,4 +71,18 @@ abstract final class SettingKeys {
   /// Technischer Merker: das mit einem offenen Angebot gewählte, noch nicht
   /// bestätigte Belastungsprofil. Nicht im Archiv (Vertrag 4.3).
   static const String loadProfilePending = 'load.profile_pending';
+
+  /// Angewandter persönlicher Faktor TRIMP/sRPE (FR-0097, PAR-087) mit Profil,
+  /// Zahl der Läufe und Datum: `profil;wert;läufe;JJJJ-MM-TT`. Fehlt der
+  /// Eintrag oder ist er unlesbar, gibt es keinen Faktor. Kommt ins Archiv.
+  static const String loadFactor = 'load.factor';
+
+  /// Technischer Merker: der zu einem offenen Angebot berechnete neue Faktor
+  /// (gleiches Format wie [loadFactor]). Nicht im Archiv (Vertrag 4.3).
+  static const String loadFactorPending = 'load.factor_pending';
+
+  /// Technischer Merker: der zuletzt abgelehnte neue Faktor; solange der
+  /// berechnete Faktor innerhalb der Toleranz davon liegt, wird er nicht
+  /// erneut angeboten. Nicht im Archiv (Vertrag 4.3).
+  static const String loadFactorDeclined = 'load.factor_declined';
 }

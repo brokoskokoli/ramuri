@@ -550,6 +550,10 @@
   "@recalcCauseLoadProfile": {
     "description": "Grund: Wechsel des Belastungsprofils (vorläufiger Text, WP19)"
   },
+  "recalcCauseLoadFactor": "Der persönliche Umrechnungsfaktor für die Belastung aus der Anstrengung hat sich deutlich geändert. Mit der Bestätigung gilt der neue Faktor; die Belastung der umgerechneten Tage wird dann neu gerechnet.",
+  "@recalcCauseLoadFactor": {
+    "description": "Grund: neuer persönlicher Faktor TRIMP/sRPE weicht über 25 % ab (vorläufiger Text, WP19)"
+  },
   "recalcKeepsOriginal": "Die ursprünglichen Werte und die Rohdaten bleiben erhalten. Ohne Neuberechnung ändert sich nichts.",
   "@recalcKeepsOriginal": {
     "description": "Hinweis zum Angebot"

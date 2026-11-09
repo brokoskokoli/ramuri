@@ -100,5 +100,6 @@ class RecalculationCard extends StatelessWidget {
     RecalculationCause.heartRateBasis => l10n.recalcCauseHeartRate,
     RecalculationCause.algorithmVersion => l10n.recalcCauseAlgorithm,
     RecalculationCause.loadProfile => l10n.recalcCauseLoadProfile,
+    RecalculationCause.personalFactor => l10n.recalcCauseLoadFactor,
   };
 }
