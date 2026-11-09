@@ -79,7 +79,7 @@ void main() {
       expect(text('manual_srpe_$id'), '225 Punkte (Schätzung)');
       expect(
         text('manual_basis_$id'),
-        'Grundlage: Dauer 45 min · Anstrengung 5',
+        'Grundlage: Dauer 45:00 · Anstrengung 5',
       );
       expect(text('manual_not_rated_$id'), 'Belastung: nicht bewertet');
       expect(find.text('Ohne Karte und Distanz'), findsOneWidget);

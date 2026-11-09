@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../run/live_run_view.dart' show formatClock;
 
 /// Wort zur RPE-Stufe (PAR-105).
 String rpeWord(AppLocalizations l10n, int rpe) => switch (rpe) {
@@ -471,7 +472,7 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
           ),
           Text(
             l10n.subjectiveSrpeBasis(
-              (srpe.duration.inSeconds / 60).round().toString(),
+              formatClock(srpe.duration),
               srpe.rpe,
             ),
             key: const Key('subjective_srpe_basis'),

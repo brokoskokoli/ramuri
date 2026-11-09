@@ -782,7 +782,7 @@ class _TrainingTile extends StatelessWidget {
                   style: text.bodyMedium,
                 ),
                 Text(
-                  l10n.manualRowBasis(minutes, t.rpe),
+                  l10n.manualRowBasis(formatClock(t.duration), t.rpe),
                   key: Key('manual_basis_$id'),
                   style: text.bodySmall,
                 ),
