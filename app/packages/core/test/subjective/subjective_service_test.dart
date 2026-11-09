@@ -310,13 +310,20 @@ void main() {
         moving: const Duration(minutes: 40),
       );
       await service.save(run, RunSubjective(rpe: 5));
+      // Neue Bewegungszeit: die Neuberechnung hat etwas zu schreiben.
+      await _setTimes(
+        w.session,
+        run,
+        total: const Duration(minutes: 60),
+        moving: const Duration(minutes: 50),
+      );
       final racing = _RacingSession(w.session, () async {
         await service.save(run, RunSubjective(rpe: 7));
       });
       await refreshSrpe(racing, run);
       final s = (await service.read(run))!;
       expect(s.subjective.rpe, 7);
-      expect(s.srpe!.points, 280);
+      expect(s.srpe!.points, 350);
     },
   );
 
