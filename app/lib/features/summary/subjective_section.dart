@@ -471,10 +471,7 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
             style: text.titleMedium,
           ),
           Text(
-            l10n.subjectiveSrpeBasis(
-              formatClock(srpe.duration),
-              srpe.rpe,
-            ),
+            l10n.subjectiveSrpeBasis(formatClock(srpe.duration), srpe.rpe),
             key: const Key('subjective_srpe_basis'),
             style: text.bodySmall,
           ),

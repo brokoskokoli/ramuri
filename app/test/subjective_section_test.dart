@@ -361,19 +361,20 @@ void main() {
     expect(s.warningAnswer, isNull);
   });
 
-  testWidgets('sRPE-Grundlage zeigt die Bewegungszeit mit Sekunden, nachrechenbar', (
-    tester,
-  ) async {
-    final w = await _World.create(moving: const Duration(seconds: 96));
-    await _pump(tester, w, srpe: true);
-    await _tap(tester, 'subjective_rpe_7');
-    // 96 s = 1,6 min; 1,6 * 7 = 11,2 -> 11 Punkte, Dauer nicht auf 2 min gerundet.
-    expect(_t(tester, 'subjective_srpe_value'), '11 Punkte');
-    expect(
-      _t(tester, 'subjective_srpe_basis'),
-      'Grundlage: Dauer 1:36 · Anstrengung 7',
-    );
-  });
+  testWidgets(
+    'sRPE-Grundlage zeigt die Bewegungszeit mit Sekunden, nachrechenbar',
+    (tester) async {
+      final w = await _World.create(moving: const Duration(seconds: 96));
+      await _pump(tester, w, srpe: true);
+      await _tap(tester, 'subjective_rpe_7');
+      // 96 s = 1,6 min; 1,6 * 7 = 11,2 -> 11 Punkte, Dauer nicht auf 2 min gerundet.
+      expect(_t(tester, 'subjective_srpe_value'), '11 Punkte');
+      expect(
+        _t(tester, 'subjective_srpe_basis'),
+        'Grundlage: Dauer 1:36 · Anstrengung 7',
+      );
+    },
+  );
 
   testWidgets('sRPE im Detail: Wert nach RPE und Bewegungszeit, getrennt', (
     tester,
