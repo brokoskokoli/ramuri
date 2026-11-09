@@ -5,10 +5,18 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:running_app/ui/ui.dart';
+
 import 'app_harness.dart';
 
 Finder key(String k) => find.byKey(Key(k));
-String text(String k) => (key(k).evaluate().single.widget as Text).data!;
+
+/// Text eines Werts der Lauf-Seite; Zahl und Einheit stehen in Teilen, der
+/// Wortverbinder (U+2060) ist unsichtbar.
+String text(String k) {
+  final w = key(k).evaluate().single.widget as Text;
+  return (w.data ?? w.textSpan!.toPlainText()).replaceAll('\u2060', '');
+}
 
 const double _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
 
@@ -89,7 +97,11 @@ Future<void> runAndFinish(
 }) async {
   await tester.tap(key('home_start_run'));
   await tester.pumpAndSettle();
+  await tester.tap(key('run_start_ready'));
+  await tester.pumpAndSettle();
   await walk(d, tester, seconds, heartRate: heartRate);
+  await tester.tap(key('run_pause'));
+  await tester.pump();
   await tester.tap(key('run_finish'));
   await tester.pumpAndSettle();
   await tester.tap(key('run_finish_confirm'));
@@ -199,16 +211,32 @@ Future<void> _runAndFinishHeld(
 ) async {
   await tester.tap(key('home_start_run'));
   await tester.pumpAndSettle();
+  await tester.tap(key('run_start_ready'));
+  await tester.pumpAndSettle();
   await walk(d, tester, seconds);
+  await tester.tap(key('run_pause'));
+  await tester.pump();
   await tester.tap(key('run_finish'));
   await tester.pump();
   await tester.tap(key('run_finish_confirm'));
   await session.reached.future;
 }
 
+/// Wählt im Verlauf „Alle“ (letzter Abschnitt): Die Testläufe liegen im Jahr
+/// 2030, die Uhr des Geräts steht 2026; ohne Läufe gibt es keinen Umschalter.
+Future<void> showAllRuns(WidgetTester tester) async {
+  final range = key('history_range');
+  if (range.evaluate().isEmpty) return;
+  await tester.tap(
+    find.descendant(of: range, matching: find.byType(InkWell)).last,
+  );
+  await tester.pumpAndSettle();
+}
+
 Future<void> openHistory(Device d, WidgetTester tester) async {
   await tester.tap(key('home_history'));
   await tester.pumpAndSettle();
+  await showAllRuns(tester);
 }
 
 Future<Device> started(WidgetTester tester, {String locale = 'de'}) async {
@@ -218,7 +246,14 @@ Future<Device> started(WidgetTester tester, {String locale = 'de'}) async {
   return d;
 }
 
-final historyList = find.byKey(const PageStorageKey<String>('history_list'));
+final historyList = find.byWidgetPredicate(
+  (w) =>
+      w is ListView &&
+      w.key is PageStorageKey<(StorageSession, String)> &&
+      (w.key! as PageStorageKey<(StorageSession, String)>).value.$2.startsWith(
+        'history_list',
+      ),
+);
 
 void main() {
   group('Historie (FR-0040, ACC-04)', () {
@@ -248,12 +283,12 @@ void main() {
       await openHistory(d, tester);
       // 10 min mit 3 m/s: 1,80 km in 10:00, Pace 5:33 min/km.
       expect(text('history_distance_$a'), '1,80 km');
-      expect(text('history_time_$a'), 'Dauer 10:00');
-      expect(text('history_pace_$a'), 'Ø Pace: 5:33 min/km');
+      expect(text('history_time_$a'), '10:00');
+      expect(text('history_pace_$a'), '5:33 min/km');
       expect(text('history_hr_$a'), 'Ø Puls 150 bpm');
       // 20 min mit 2,5 m/s: 3,00 km, Pace 6:40, kein Puls.
       expect(text('history_distance_$b'), '3,00 km');
-      expect(text('history_pace_$b'), 'Ø Pace: 6:40 min/km');
+      expect(text('history_pace_$b'), '6:40 min/km');
       expect(text('history_hr_$b'), 'Puls: nicht verfügbar');
       expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
       // Neuester Start oben.
@@ -274,7 +309,7 @@ void main() {
         bpm: null,
       );
       await openHistory(d, tester);
-      expect(text('history_time_$a'), 'Dauer: nicht verfügbar');
+      expect(text('history_time_$a'), 'nicht verfügbar');
       expect(find.text('–'), findsNothing);
     });
 
@@ -308,7 +343,7 @@ void main() {
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await openHistory(d, tester);
       expect(historyList, findsOneWidget);
-      expect(find.textContaining('Ø Pace'), findsWidgets);
+      expect(find.textContaining(RegExp(r'min.*km')), findsWidgets);
       expect(tester.takeException(), isNull);
     });
 
@@ -342,8 +377,9 @@ void main() {
         await seedRun(d.session, DateTime.utc(2030, 1, 1 + i, 8), minutes: 2);
       }
       await openHistory(d, tester);
+      // Titel, Umschalter, Summen und Wochenköpfe stehen mit in der Liste.
       final list = tester.widget<ListView>(historyList);
-      expect(list.semanticChildCount ?? 30, 30);
+      expect(list.semanticChildCount ?? 30, greaterThanOrEqualTo(30));
       // Alle Einträge sind nach der gebündelten Abfrage mit Strecke gefüllt.
       expect(text('history_distance_30'), '0,36 km');
     });
@@ -375,6 +411,32 @@ void main() {
   });
 
   group('Zusammenfassung nach dem Lauf (FR-0037)', () {
+    testWidgets('Hinweis „gespeichert“ hat Abstand wie zwischen den Blöcken', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      await runAndFinish(d, tester, 400);
+      Rect card(String id) => tester.getRect(
+        find.ancestor(of: key(id), matching: find.byType(RamuriCard)).first,
+      );
+      final banner = tester.getRect(
+        find
+            .descendant(
+              of: find.ancestor(
+                of: key('run_done_status'),
+                matching: find.byType(Card),
+              ),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      final hero = card('run_distance');
+      final firstTile = card('run_avg_pace');
+      final between = firstTile.top - hero.bottom;
+      expect(between, 16, reason: 'Abstand zwischen den Blöcken');
+      expect(hero.top - banner.bottom, between, reason: 'Hinweis und Kopf');
+    });
+
     testWidgets(
       'alle Punkte; Einordnung mit Vorläufen; Fehlendes nicht als 0',
       (tester) async {
@@ -408,7 +470,11 @@ void main() {
         expect(text('sum_vo2max'), 'nicht verfügbar');
         expect(find.text('VO₂max (Schätzung)'), findsOneWidget);
         // Route und Diagramme sind gezeichnet (WP10 B2).
-        expect(key('run_detail_charts'), findsOneWidget);
+        expect(
+          key('sum_altitude').evaluate().length +
+              key('sum_altitude_none').evaluate().length,
+          1,
+        );
         expect(key('route_paint'), findsOneWidget);
       },
     );
@@ -418,12 +484,45 @@ void main() {
     ) async {
       final d = await started(tester);
       await runAndFinish(d, tester, 120, heartRate: false);
-      expect(text('sum_avg_hr'), 'nicht verfügbar (kein Puls)');
-      expect(text('sum_max_hr'), 'nicht verfügbar (kein Puls)');
+      expect(text('sum_avg_hr'), 'nicht verfügbar\n(kein Puls)');
+      expect(text('sum_max_hr'), 'nicht verfügbar\n(kein Puls)');
       expect(text('sum_zones_unavailable'), contains('nicht verfügbar'));
       expect(text('sum_trimp'), contains('nicht verfügbar'));
       expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
       expect(text('run_distance'), isNot(contains('nicht')));
+    });
+
+    testWidgets('Fertig ändert keine Daten; Details öffnet die Detailansicht', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await runAndFinish(d, tester, 120);
+      // Beide Knöpfe sind erreichbar und mindestens 48 dp hoch.
+      for (final k in ['run_done_close', 'run_done_details']) {
+        expect(tester.getSize(key(k)).height, greaterThanOrEqualTo(48));
+      }
+      expect(find.text('Fertig'), findsOneWidget);
+      expect(find.text('Details'), findsOneWidget);
+
+      // Details: Detailansicht desselben Laufs, Zurück zur Zusammenfassung.
+      await tester.tap(key('run_done_details'));
+      await tester.pumpAndSettle();
+      expect(key('detail_compare'), findsOneWidget);
+      // Deutsch: pageBack sucht den englischen Tooltip.
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(key('run_done_close'), findsOneWidget);
+
+      // Fertig: Speicher davor und danach gleich.
+      final before = await _storeSnapshot(d);
+      await tester.tap(key('run_done_close'));
+      await tester.pumpAndSettle();
+      expect(key('home_start_run'), findsOneWidget);
+      expect(await _storeSnapshot(d), before);
+      expect(before, isNot(contains('runs=0')));
     });
 
     testWidgets('große Schrift (2,0): Zusammenfassung ohne Überlauf', (
@@ -489,7 +588,11 @@ void main() {
       storage.session.raw.fail = true;
       await tester.tap(key('home_start_run'));
       await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
       await walk(d, tester, 30);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
       await tester.tap(key('run_finish'));
       await tester.pumpAndSettle();
       await tester.tap(key('run_finish_confirm'));
@@ -498,4 +601,26 @@ void main() {
       expect(text('run_time'), '0:30');
     });
   });
+}
+
+/// Läufe, Rohdaten, Runden und gespeicherte Werte als Text zum Vergleichen.
+Future<String> _storeSnapshot(Device d) async {
+  final s = d.session;
+  final runs = await s.runs.list();
+  final out = StringBuffer('runs=${runs.length}')
+    ..write(
+      ' settings=${(await s.settings.all()).entries.map((e) => '${e.key}=${e.value}').toList()..sort()}',
+    );
+  for (final r in runs) {
+    final raw = await s.rawData.read(r.id);
+    final values = await s.values.read(ValueOwner.run(r.id));
+    out
+      ..write(' [${r.id} ${r.state} ${r.startedAt} ${r.endedAt}')
+      ..write(' pos=${raw.positions.length} hr=${raw.heartRates.length}')
+      ..write(' laps=${(await s.markers.laps(r.id)).length}')
+      ..write(
+        ' values=${[for (final v in values) '${v.original.key}=${v.current.value}']}]',
+      );
+  }
+  return out.toString();
 }

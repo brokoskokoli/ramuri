@@ -110,6 +110,8 @@ void main() {
       final d = Device();
       await openRun(d, tester);
       await walk(d, tester, 10);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
       await tester.tap(key('run_finish'));
       await tester.pumpAndSettle();
       await tester.tap(key('run_finish_confirm'));

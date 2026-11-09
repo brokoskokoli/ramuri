@@ -1,7 +1,8 @@
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
@@ -195,3 +196,25 @@ Future<void> openOverview(WidgetTester tester) async {
   await tester.tap(icon);
   await tester.pumpAndSettle();
 }
+
+/// Lädt die echte Zahlenschrift (Sora), sonst misst der Test mit der breiten
+/// Testschrift.
+Future<void> loadSora(WidgetTester tester) => tester.runAsync(() async {
+  final loader = FontLoader('Sora');
+  for (final f in ['Medium', 'SemiBold', 'Bold']) {
+    final bytes = File('assets/fonts/Sora-$f.ttf').readAsBytesSync();
+    loader.addFont(Future.value(ByteData.sublistView(bytes)));
+  }
+  await loader.load();
+});
+
+/// Lädt die echte Schrift (Manrope), damit Tests Umbrüche so messen wie auf
+/// dem Gerät; die Testschrift ist deutlich breiter.
+Future<void> loadManrope(WidgetTester tester) => tester.runAsync(() async {
+  final loader = FontLoader('Manrope');
+  for (final f in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) {
+    final bytes = File('assets/fonts/Manrope-$f.ttf').readAsBytesSync();
+    loader.addFont(Future.value(ByteData.sublistView(bytes)));
+  }
+  await loader.load();
+});

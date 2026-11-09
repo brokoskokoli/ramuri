@@ -16,6 +16,8 @@ Future<void> openRun(Device d, WidgetTester tester) async {
   await d.skipSetup(tester);
   await tester.tap(key('home_start_run'));
   await tester.pumpAndSettle();
+  await tester.tap(key('run_start_ready'));
+  await tester.pumpAndSettle();
 }
 
 const _kt = 'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri';

@@ -17,6 +17,7 @@ import 'package:running_app/features/map/map_services.dart';
 import 'package:running_app/features/map/miniature_service.dart';
 
 import 'app_harness.dart';
+import 'history_summary_test.dart' show openHistory;
 import 'run_detail_test.dart' show seedDetailRun;
 
 Finder key(String k) => find.byKey(Key(k));
@@ -152,8 +153,7 @@ void main() {
   ) async {
     final (d, w) = await _start(tester);
     final id = await seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8));
-    await tester.tap(key('home_history'));
-    await tester.pumpAndSettle();
+    await openHistory(d, tester);
     await tester.tap(key('history_run_$id'));
     await tester.pumpAndSettle();
     // Die Karte im Detail fragt zuerst nach der Einwilligung: "Nicht jetzt".

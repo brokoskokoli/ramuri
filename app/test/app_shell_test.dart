@@ -4,7 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/home/app_shell.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key, seedRun, started, text, walk;
+import 'history_summary_test.dart'
+    show key, openHistory, seedRun, started, text, walk;
 
 /// Zählt die Aufrufe von `SystemNavigator.pop` (App verlassen).
 List<int> _exits(WidgetTester tester) {
@@ -79,8 +80,12 @@ void main() {
     // Lauf (Vollbild über den Root-Navigator)
     await tester.tap(key('home_start_run'));
     await tester.pumpAndSettle();
+    await tester.tap(key('run_start_ready'));
+    await tester.pumpAndSettle();
     expect(find.byType(NavigationBar), findsNothing);
     await walk(d, tester, 60);
+    await tester.tap(key('run_pause'));
+    await tester.pump();
     await tester.tap(key('run_finish'));
     await tester.pumpAndSettle();
     await tester.tap(key('run_finish_confirm'));
@@ -96,8 +101,7 @@ void main() {
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
     // Detail
-    await tester.tap(key('home_history'));
-    await tester.pumpAndSettle();
+    await openHistory(d, tester);
     await tester.tap(key('history_run_$id'));
     await tester.pumpAndSettle();
     expect(find.byType(NavigationBar), findsNothing);

@@ -5,7 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'app_harness.dart';
 
 Finder key(String k) => find.byKey(Key(k));
-String text(String k) => (key(k).evaluate().single.widget as Text).data!;
+
+/// Text eines Werts der Lauf-Seite; Zahl und Einheit stehen in Teilen, der
+/// Wortverbinder (U+2060) ist unsichtbar.
+String text(String k) {
+  final w = key(k).evaluate().single.widget as Text;
+  return (w.data ?? w.textSpan!.toPlainText()).replaceAll('\u2060', '');
+}
 
 /// Öffnet den Lauf mit den Geräten [ids] schon verbunden (Verbindung aus der
 /// Sensorverwaltung); der Puls kommt über den Dienst.
@@ -27,6 +33,8 @@ Future<void> openRun(
     await tester.pump();
   }
   await tester.tap(key('home_start_run'));
+  await tester.pumpAndSettle();
+  await tester.tap(key('run_start_ready'));
   await tester.pumpAndSettle();
 }
 
@@ -54,6 +62,8 @@ Future<void> walk(
 }
 
 Future<StoredRawData> finishAndRead(Device d, WidgetTester tester) async {
+  await tester.tap(key('run_pause'));
+  await tester.pump();
   await tester.tap(key('run_finish'));
   await tester.pumpAndSettle();
   await tester.tap(key('run_finish_confirm'));
@@ -139,6 +149,8 @@ void main() {
       // Wahl vor dem Lauf (app-weiter Selector): h2 statt h1.
       expect(d.sensors.selector.select('h2', d.clock.now()), isTrue);
       await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
       await tester.pumpAndSettle();
       expect(d.lastRun!.activeId, 'h2');
       await walk(d, tester, 2, bpm: {'h1': 90, 'h2': 140});
@@ -299,6 +311,8 @@ void main() {
       expect(d.sensors.selector.select('h1', d.clock.now()), isTrue);
       await tester.tap(key('home_start_run'));
       await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
       expect(d.lastRun!.activeId, 'h1');
       await d.sensorFake.drop('h1');
       await tester.pump();
@@ -376,6 +390,8 @@ void main() {
       await tester.pump();
       await tester.tap(key('home_start_run'));
       await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
       expect(text('run_sensor_status'), contains('verbindet neu'));
       await tester.pump(const Duration(seconds: 5));
       await walk(e, tester, 3, bpm: {'h1': 150});
@@ -394,6 +410,8 @@ void main() {
       await d.sensors.connect('AA:BB:CC:DD:EE:FF');
       await tester.pump();
       await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
       await tester.pumpAndSettle();
       expect(text('run_sensor_source'), 'Quelle: Pulssensor');
       expect(find.textContaining('AA:BB'), findsNothing);

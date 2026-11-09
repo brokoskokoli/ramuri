@@ -239,6 +239,39 @@ void main() {
     },
   );
 
+  testWidgets('Kilometermarken liegen über Start und Ende (Runde 4)', (
+    tester,
+  ) async {
+    final source = await open(tester);
+    addTearDown(source.dispose);
+    await tester.pumpWidget(
+      host(
+        RouteMap(
+          source: source,
+          route: _route,
+          style: _style,
+          marks: [RouteMapMark(index: 2, position: _d)],
+        ),
+      ),
+    );
+    await _settle(tester, inner);
+    final layers = tester
+        .widget<fm.FlutterMap>(find.byType(fm.FlutterMap))
+        .children;
+    final endLayer = layers.indexWhere(
+      (l) =>
+          l is fm.CircleLayer &&
+          l.circles.any((c) => c.color == _style.endColor),
+    );
+    final markLayer = layers.indexWhere((l) => l is fm.MarkerLayer);
+    expect(endLayer, isNonNegative);
+    expect(
+      markLayer,
+      greaterThan(endLayer),
+      reason: 'später gezeichnet = oben',
+    );
+  });
+
   testWidgets('Fehler des Anbieters (500): Linie bleibt in der Karte', (
     tester,
   ) async {

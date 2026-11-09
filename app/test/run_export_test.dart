@@ -120,6 +120,74 @@ void main() {
     expect(_snackText(), 'File saved.');
   });
 
+  testWidgets('Export ist der Knopf am Seitenende, nicht in der Kopfleiste', (
+    tester,
+  ) async {
+    tester_ = tester;
+    await _openDetail(tester);
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: key('detail_export')),
+      findsNothing,
+    );
+    final button = tester.getRect(key('detail_export'));
+    final screen = tester.getSize(find.byType(Scaffold).first);
+    // Volle Breite abzüglich Seitenrand 16 + 16, 52 dp hoch, unter dem Inhalt.
+    expect(button.width, screen.width - 32);
+    expect(button.height, 52);
+    final sources = tester.getRect(key('sum_explain_sources'));
+    expect(button.top, greaterThan(sources.bottom));
+    expect(find.text('Exportieren (GPX · TCX · FIT)'), findsOneWidget);
+  });
+
+  for (final (width, scale) in [(360.0, 1.0), (320.0, 2.0), (360.0, 2.0)]) {
+    testWidgets('Exportknopf bei ${width.round()} dp, Faktor $scale: '
+        'Beschriftung vollständig im Knopf', (tester) async {
+      tester_ = tester;
+      await loadManrope(tester);
+      await _openDetail(tester);
+      tester.view.physicalSize = Size(width, 640);
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(key('detail_export'));
+      await tester.pumpAndSettle();
+      final button = tester.getRect(key('detail_export'));
+      final label = tester.getRect(
+        find.descendant(of: key('detail_export'), matching: find.byType(Text)),
+      );
+      expect(button.top, lessThanOrEqualTo(label.top));
+      expect(button.bottom, greaterThanOrEqualTo(label.bottom));
+      expect(button.height, greaterThanOrEqualTo(52));
+      if (scale == 1.0) expect(button.height, 52);
+      // Zwei Zeilen bei großer Schrift: der Knopf wächst mit.
+      if (scale == 2.0) expect(button.height, greaterThan(52));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('Symbol in der Kopfleiste „Teilen oder exportieren“ exportiert '
+      'wie der Knopf (Detail.dc.html)', (tester) async {
+    tester_ = tester;
+    final d = await _openDetail(tester);
+    final icon = find.descendant(
+      of: find.byType(AppBar),
+      matching: key('detail_export_icon'),
+    );
+    expect(icon, findsOneWidget);
+    expect(tester.widget<IconButton>(icon).tooltip, 'Teilen oder exportieren');
+    expect(tester.getSize(icon).shortestSide, greaterThanOrEqualTo(48));
+    // Der Knopf unten bleibt daneben.
+    expect(key('detail_export'), findsOneWidget);
+    await tester.tap(icon);
+    await tester.pumpAndSettle();
+    expect(d.fileHandoff.shared, isEmpty);
+    await tester.tap(key('export_format_fit'));
+    await tester.tap(key('export_share'));
+    await tester.pumpAndSettle();
+    expect(d.fileHandoff.shared, hasLength(1));
+    expect(_snackText(), 'Datei an das gewählte Ziel übergeben.');
+  });
+
   testWidgets('Abbruch in der Formatwahl erzeugt und überträgt nichts', (
     tester,
   ) async {
@@ -200,9 +268,28 @@ void main() {
     await tester.pump();
     expect(key('export_progress'), findsOneWidget);
     expect(key('detail_export'), findsNothing);
+    // Das gesperrte Symbol zeigt selbst einen Kreis und hat einen Namen.
+    final icon = tester.widget<IconButton>(key('detail_export_icon'));
+    expect(icon.tooltip, 'Export wird vorbereitet');
+    expect(
+      find.descendant(
+        of: key('detail_export_icon'),
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsOneWidget,
+    );
+    // Während des Exports ist auch das Symbol der Kopfleiste gesperrt.
+    expect(
+      tester.widget<IconButton>(key('detail_export_icon')).onPressed,
+      isNull,
+    );
     expect(d.fileHandoff.shared, isEmpty);
     release.complete();
     await tester.pumpAndSettle();
+    expect(
+      tester.widget<IconButton>(key('detail_export_icon')).onPressed,
+      isNotNull,
+    );
     expect(key('export_progress'), findsNothing);
     expect(d.fileHandoff.shared, hasLength(1));
   });
@@ -221,16 +308,24 @@ void main() {
           MaterialPageRoute(
             builder: (_) => Scaffold(
               appBar: AppBar(
-                actions: [RunExportAction(session: d.session, runId: id)],
+                actions: [
+                  RunExportAction(session: d.session, runId: id),
+                  RunExportAction(
+                    session: d.session,
+                    runId: id,
+                    presentation: ExportPresentation.icon,
+                  ),
+                ],
               ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byType(RunExportAction), findsOneWidget);
+      expect(find.byType(RunExportAction), findsNWidgets(2));
       expect(key('detail_export'), findsNothing, reason: '$id');
-      Navigator.of(tester.element(find.byType(RunExportAction))).pop();
+      expect(key('detail_export_icon'), findsNothing, reason: '$id');
+      Navigator.of(tester.element(find.byType(RunExportAction).first)).pop();
       await tester.pumpAndSettle();
     }
     expect(d.fileHandoff.shared, isEmpty);

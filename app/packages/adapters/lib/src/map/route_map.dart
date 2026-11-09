@@ -24,6 +24,8 @@ class RouteMapStyle {
     this.attributionTextStyle,
     this.positionColor,
     this.positionBorderColor = const Color(0xFFFFFFFF),
+    this.markColor,
+    this.markTextColor,
   });
 
   final Color lineColor;
@@ -43,6 +45,18 @@ class RouteMapStyle {
   /// Punkt der aktuellen Position (Live-Karte); ohne Angabe [endColor].
   final Color? positionColor;
   final Color positionBorderColor;
+
+  /// Füllung und Zahl der Kilometermarken ([RouteMap.marks]); ohne Angabe Kartengrund und Markenrand.
+  final Color? markColor;
+  final Color? markTextColor;
+}
+
+/// Kilometermarke auf der Karte: die Nummer [index] an der Stelle [position] (Ende des vollen Abschnitts).
+@immutable
+class RouteMapMark {
+  const RouteMapMark({required this.index, required this.position});
+  final int index;
+  final RoutePoint position;
 }
 
 /// Wie die Karte auf Gesten reagiert. Ein Finger bleibt der Seite überlassen, damit eine Karte in einer
@@ -66,7 +80,12 @@ class RouteMap extends StatelessWidget {
     this.fitPadding = defaultFitPadding,
     this.maxFitZoom = 17,
     this.showAttribution = true,
+    this.marks = const [],
   });
+
+  /// Kilometermarken (Detailansicht); sie liegen über Linie, Start und Ende, damit keine Marke halb verdeckt ist, wo sie
+  /// an einem Endpunkt liegt.
+  final List<RouteMapMark> marks;
 
   /// Rand um die Route; unten mehr Platz, damit die Quellenangabe keine Marke verdeckt.
   static const EdgeInsets defaultFitPadding = EdgeInsets.fromLTRB(
@@ -209,6 +228,9 @@ class RouteMap extends StatelessWidget {
       borderColor: style.markerBorderColor,
       borderStrokeWidth: style.markerBorderWidth,
     );
+    final markFill = style.markColor ?? style.backgroundColor;
+    final markText = style.markTextColor ?? style.markerBorderColor;
+    const markSize = 24.0;
     return [
       PolylineLayer(polylines: lines),
       CircleLayer(circles: singles),
@@ -217,6 +239,42 @@ class RouteMap extends StatelessWidget {
           circles: [
             dot(all.last, style.endColor),
             dot(all.first, style.startColor),
+          ],
+        ),
+      if (marks.isNotEmpty)
+        MarkerLayer(
+          markers: [
+            for (final m in marks)
+              Marker(
+                point: ll(m.position),
+                width: markSize,
+                height: markSize,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: markFill,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: style.markerBorderColor,
+                      width: style.markerBorderWidth,
+                    ),
+                  ),
+                  // Die Zahl wächst nicht mit der Schrift: die Marke hat feste Größe auf der Karte.
+                  child: Center(
+                    child: MediaQuery.withNoTextScaling(
+                      child: Text(
+                        '${m.index}',
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: m.index >= 100 ? 8 : 11,
+                          height: 1,
+                          fontWeight: FontWeight.w700,
+                          color: markText,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
     ];

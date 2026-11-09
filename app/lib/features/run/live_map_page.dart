@@ -528,7 +528,7 @@ class _Sheet extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _RoundButton(
+                  LiveRoundButton(
                     key: const Key('live_map_lap'),
                     semanticLabel: l10n.runLap,
                     size: 60,
@@ -538,7 +538,7 @@ class _Sheet extends StatelessWidget {
                     onPressed: paused ? null : controller.lap,
                   ),
                   const SizedBox(width: 24),
-                  _RoundButton(
+                  LiveRoundButton(
                     key: Key(paused ? 'live_map_resume' : 'live_map_pause'),
                     semanticLabel: paused ? l10n.runResume : l10n.runPause,
                     size: 84,
@@ -562,8 +562,9 @@ class _Sheet extends StatelessWidget {
   }
 }
 
-class _RoundButton extends StatelessWidget {
-  const _RoundButton({
+/// Runder Knopf der Lauf-Seiten (Werte und Karte).
+class LiveRoundButton extends StatelessWidget {
+  const LiveRoundButton({
     super.key,
     required this.semanticLabel,
     required this.size,
@@ -588,6 +589,7 @@ class _RoundButton extends StatelessWidget {
       button: true,
       enabled: onPressed != null,
       label: semanticLabel,
+      onTap: onPressed,
       excludeSemantics: true,
       child: Opacity(
         opacity: onPressed == null ? 0.4 : 1,

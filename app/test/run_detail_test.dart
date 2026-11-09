@@ -1,3 +1,4 @@
+import 'package:adapters/adapters.dart' show RouteMapMark;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +22,7 @@ Future<int> seedDetailRun(
   (int, int)? noPosition,
   (int, int)? pause,
   (int, int)? noHeartRate,
+  double Function(int second)? altitude,
 }) async {
   final run = await s.runs.create(startedAt: start);
   bool inside((int, int)? r, int i) => r != null && i >= r.$1 && i < r.$2;
@@ -44,7 +46,7 @@ Future<int> seedDetailRun(
             RawAltitude(
               time: start.add(Duration(seconds: i)),
               source: 'gps',
-              meters: 100 + (i % 50).toDouble(),
+              meters: altitude?.call(i) ?? 100 + (i % 50).toDouble(),
               verticalAccuracyMeters: 3,
             ),
       ],
@@ -99,6 +101,10 @@ List<Path> chartPaths(String id) {
   return chart(id).linePaths(size);
 }
 
+/// Gezeichnete Teile (mindestens zwei Punkte) einer Reihe des Pace-und-Puls-Diagramms: 0 Pace, 1 Puls.
+int drawnParts(String id, int layer) =>
+    chart(id).layers[layer].parts.where((p) => p.length >= 2).length;
+
 SeriesChartPainter chart(String id) =>
     tester_
             .widget<CustomPaint>(
@@ -118,6 +124,9 @@ Future<int> openDetail(
   tester_ = tester;
   final id = await seed();
   await openHistory(d, tester);
+  // Bei großer Schrift liegt der Lauf unter dem Bildschirmrand.
+  await tester.ensureVisible(key('history_run_$id'));
+  await tester.pumpAndSettle();
   await tester.tap(key('history_run_$id'));
   await tester.pumpAndSettle();
   return id;
@@ -137,31 +146,25 @@ void main() {
     expect(text('run_distance'), '1,83 km');
     expect(text('run_time'), '10:00');
     expect(routePaths(), hasLength(1));
-    expect(chartPaths('detail_pace'), hasLength(1));
-    expect(chartPaths('detail_hr'), hasLength(1));
     expect(chartPaths('detail_altitude'), hasLength(1));
-    // Vergleich: Pace und Puls, zwei Linien im selben Diagramm.
+    // Pace und Puls: zwei Linien im selben Diagramm.
     expect(chart('detail_compare').layers, hasLength(2));
     expect(chartPaths('detail_compare'), hasLength(2));
+    expect(key('detail_pace'), findsNothing);
+    expect(key('detail_hr'), findsNothing);
     expect(key('detail_hr_none'), findsNothing);
     // Der Puls ist als geglättet gekennzeichnet (sichtbar und in der Semantik).
-    expect(text('detail_hr_note'), 'Puls geglättet (Median über 30 s)');
     expect(text('detail_compare_note'), 'Puls geglättet (Median über 30 s)');
-    expect(key('detail_pace_note'), findsNothing);
     final semantics = tester.ensureSemantics();
     expect(
-      tester.getSemantics(key('detail_hr')).label,
+      tester.getSemantics(key('detail_compare')).label,
       contains('Puls geglättet (Median über 30 s).'),
-    );
-    expect(
-      tester.getSemantics(key('detail_pace')).label,
-      isNot(contains('geglättet')),
     );
     semantics.dispose();
     // Alter Lauf ohne gespeicherte Zonen/TRIMP.
     expect(
       text('sum_zones_unavailable'),
-      'nicht verfügbar (für diesen Lauf nicht gespeichert)',
+      'nicht verfügbar (nicht gespeichert)',
     );
     expect(text('sum_trimp'), contains('nicht gespeichert'));
   });
@@ -180,9 +183,9 @@ void main() {
       ),
     );
     expect(routePaths(), hasLength(2));
-    expect(chartPaths('detail_pace'), hasLength(2));
+    expect(drawnParts('detail_compare', 0), 2);
     expect(chartPaths('detail_altitude'), hasLength(2));
-    expect(chartPaths('detail_hr'), hasLength(1));
+    expect(drawnParts('detail_compare', 1), 1);
     // Beide Teile der Route liegen auseinander: die Lücke (60 s mal 3 m/s)
     // wird nicht überbrückt.
     final paths = routePaths();
@@ -206,15 +209,15 @@ void main() {
         noHeartRate: (200, 260),
       ),
     );
-    expect(chartPaths('detail_hr'), hasLength(2));
+    expect(drawnParts('detail_compare', 1), 2);
     expect(routePaths(), hasLength(1));
-    expect(chartPaths('detail_pace'), hasLength(1));
+    expect(drawnParts('detail_compare', 0), 1);
     expect(chartPaths('detail_altitude'), hasLength(1));
-    // Vergleich: Pace (1 Pfad) und Puls (2 Pfade).
+    // Pace (1 Pfad) und Puls (2 Pfade) im selben Diagramm.
     expect(chartPaths('detail_compare'), hasLength(3));
     // Die Lücke im Puls ist nicht überbrückt: keine Linie zwischen 200 und 260 s.
-    final c = chart('detail_hr');
-    final layer = c.layers.single;
+    final c = chart('detail_compare');
+    final layer = c.layers[1];
     expect(layer.parts, hasLength(2));
     expect(
       layer.parts[1].first.seconds - layer.parts[0].last.seconds,
@@ -324,6 +327,93 @@ void main() {
         handle.dispose();
       },
     );
+
+    // Runde 4: Bei fast konstanter Pace (Spanne 7 s) füllt Rauschen nicht die
+    // Höhe; die Achse ist mindestens 60 s breit, um den Kernbereich zentriert.
+    ChartLayer steady({List<double> extra = const []}) => ChartLayer.pace(
+      name: 'Pace',
+      parts: [
+        [
+          for (var i = 0; i < 200; i++)
+            DetailPoint(i.toDouble(), 247 + (i % 8).toDouble()),
+          for (var i = 0; i < extra.length; i++)
+            DetailPoint(200.0 + i, extra[i]),
+        ],
+      ],
+      color: Colors.blue,
+      format: (v) => '${v!.round()}',
+    );
+
+    test('Pace-Achse: Mindestspanne 60 s, um den Kernbereich zentriert', () {
+      expect(paceAxisMinSpanSeconds, 60);
+      final r = steady().range;
+      expect(r.hi - r.lo, closeTo(60, 1e-9));
+      expect((r.lo + r.hi) / 2, closeTo(250.5, 1e-9));
+      // Ohne Mindestspanne wären es 7 s.
+      final bare = ChartLayer(
+        name: 'Pace',
+        parts: steady().parts,
+        color: Colors.blue,
+        format: (v) => '',
+        robust: true,
+      ).range;
+      expect(bare.hi - bare.lo, closeTo(7, 1e-9));
+      // Breiter als 60 s: unverändert.
+      final wide = ChartLayer(
+        name: 'Pace',
+        parts: [
+          [for (var i = 0; i < 100; i++) DetailPoint(i.toDouble(), 240.0 + i)],
+        ],
+        color: Colors.blue,
+        format: (v) => '',
+        robust: true,
+        minSpan: paceAxisMinSpanSeconds,
+      ).range;
+      expect(wide.hi - wide.lo, greaterThan(60));
+    });
+
+    testWidgets('Rückfall-Zeichnung: Kilometermarke über der Endmarke', (
+      tester,
+    ) async {
+      const a = RoutePoint(50, 8);
+      const b = RoutePoint(50.001, 8);
+      final painter = RoutePainter(
+        route: const [
+          [a, b],
+        ],
+        lineColor: Colors.black,
+        startColor: Colors.green,
+        endColor: Colors.red,
+        marks: const [RouteMapMark(index: 2, position: b)],
+        markColor: Colors.white,
+        markTextColor: Colors.black,
+        markBorderColor: Colors.black,
+      );
+      await tester.pumpWidget(
+        Center(
+          child: SizedBox(
+            width: 200,
+            height: 200,
+            child: CustomPaint(painter: painter),
+          ),
+        ),
+      );
+      // Reihenfolge: Ende (rot), dann die weiße Marke darüber.
+      expect(
+        find.byType(CustomPaint).last,
+        paints
+          ..circle(color: Colors.green)
+          ..circle(color: Colors.red)
+          ..circle(color: Colors.white),
+      );
+    });
+
+    test('Pace-Achse: Hinweis nur bei wirklichem Abschneiden', () {
+      // Rauschen von 20 s liegt in der 60-s-Achse: nichts abgeschnitten.
+      expect(steady(extra: [232, 270]).clipped, isFalse);
+      // 100 s daneben liegt außerhalb.
+      expect(steady(extra: [400]).clipped, isTrue);
+    });
 
     testWidgets('ohne Ausreißer: kein Hinweis', (tester) async {
       await tester.pumpWidget(
@@ -446,12 +536,12 @@ void main() {
       ),
     );
     expect(routePaths(), hasLength(2));
-    expect(chartPaths('detail_pace'), hasLength(2));
-    expect(chartPaths('detail_hr'), hasLength(2));
+    expect(drawnParts('detail_compare', 0), 2);
+    expect(drawnParts('detail_compare', 1), 2);
     expect(chartPaths('detail_altitude'), hasLength(2));
     expect(chartPaths('detail_compare'), hasLength(4));
-    expect(chart('detail_pace').pauses.single.start, 200);
-    expect(chart('detail_pace').pauses.single.end, 260);
+    expect(chart('detail_compare').pauses.single.start, 200);
+    expect(chart('detail_compare').pauses.single.end, 260);
   });
 
   testWidgets('Lauf ohne Puls: kein Pulsdiagramm, kein Vergleich, nie 0', (
@@ -470,7 +560,7 @@ void main() {
     expect(key('detail_hr'), findsNothing);
     expect(text('detail_hr_none'), 'nicht verfügbar (kein Puls)');
     expect(key('detail_compare'), findsNothing);
-    expect(key('detail_compare_none'), findsOneWidget);
+    expect(key('detail_compare_none'), findsNothing);
     expect(routePaths(), hasLength(1));
     expect(chartPaths('detail_pace'), hasLength(1));
     expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
@@ -548,10 +638,6 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.bySemanticsLabel(RegExp(r'^Puls\. Kleinster Wert 140 bpm')),
-      findsOneWidget,
-    );
-    expect(
       find.bySemanticsLabel(RegExp(r'^Pace und Puls über die Zeit')),
       findsOneWidget,
     );
@@ -604,10 +690,11 @@ void main() {
         d,
         () => seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8)),
       );
-      expect(chartPaths('detail_pace'), hasLength(1));
+      expect(chartPaths('detail_compare'), hasLength(2));
       // Historie (veralteter Lauf) und Zusammenfassung je eine Wiedergabe.
       expect(jobs.where((j) => j == replayJob), hasLength(2));
       expect(jobs, contains(buildRunDetailJob));
+      expect(jobs, contains(kilometerSplitsJob));
     });
 
     testWidgets('Statistik rechnet veraltete Läufe über den Offload', (

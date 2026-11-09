@@ -8,13 +8,13 @@ import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
 import '../storage/deletion.dart';
 import '../summary/run_summary_body.dart';
+import 'run_detail_page.dart';
 
-/// Detailansicht eines Laufs (FR-0041, FR-0042): dieselben Kennzahlen wie die
-/// Zusammenfassung nach dem Lauf, dazu gezeichnete Route, Zeitverlauf und
-/// Diagramme ([RunSummaryBody]). Exportieren ([RunExportAction])
-/// und Löschen sind auch hier möglich; nach dem Löschen schließt die Ansicht
-/// mit `true`.
-class RunDetailScreen extends StatelessWidget {
+/// Detailansicht eines Laufs (FR-0041, FR-0042, FR-0211) nach `Detail.dc.html`:
+/// Lauf laden ([RunSummaryBody]), Inhalt in [RunDetailPage]. Exportieren
+/// ([RunExportAction]) ist Symbol in der Kopfzeile und Knopf am Ende, Löschen sitzt in der Kopfzeile; nach dem Löschen
+/// schließt die Ansicht mit `true`.
+class RunDetailScreen extends StatefulWidget {
   const RunDetailScreen({
     super.key,
     required this.session,
@@ -27,6 +27,25 @@ class RunDetailScreen extends StatelessWidget {
   final Clock clock;
   final RecalculationController recalculation;
   final int runId;
+
+  @override
+  State<RunDetailScreen> createState() => _RunDetailScreenState();
+}
+
+class _RunDetailScreenState extends State<RunDetailScreen> {
+  /// „Export läuft“ für Symbol und Knopf gemeinsam.
+  final _exportBusy = ValueNotifier<bool>(false);
+
+  StorageSession get session => widget.session;
+  Clock get clock => widget.clock;
+  RecalculationController get recalculation => widget.recalculation;
+  int get runId => widget.runId;
+
+  @override
+  void dispose() {
+    _exportBusy.dispose();
+    super.dispose();
+  }
 
   Future<void> _delete(BuildContext context) async {
     final navigator = Navigator.of(context);
@@ -47,11 +66,17 @@ class RunDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final formatter = AppSettingsScope.formatterOf(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.detTitle),
         actions: [
-          RunExportAction(session: session, runId: runId),
+          RunExportAction(
+            session: session,
+            runId: runId,
+            presentation: ExportPresentation.icon,
+            busy: _exportBusy,
+          ),
           IconButton(
             key: const Key('detail_delete'),
             tooltip: l10n.histDeleteRun,
@@ -67,8 +92,19 @@ class RunDetailScreen extends StatelessWidget {
           session: session,
           clock: clock,
           runId: runId,
-          formatter: AppSettingsScope.formatterOf(context),
+          splitUnitMeters: formatter.unit == DistanceUnit.miles
+              ? mileMeters
+              : kilometerMeters,
           fallback: () => [Text(l10n.detLoadFailed)],
+          contentBuilder: (context, summary, detail, splits) => RunDetailPage(
+            summary: summary,
+            detail: detail,
+            splits: splits,
+            formatter: formatter,
+            session: session,
+            runId: runId,
+            exportBusy: _exportBusy,
+          ),
         ),
       ),
     );

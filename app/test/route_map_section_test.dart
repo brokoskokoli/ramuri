@@ -13,7 +13,6 @@ import 'package:running_app/features/map/map_consent_controller.dart';
 import 'package:running_app/features/map/map_consent_scope.dart';
 import 'package:running_app/features/map/map_services.dart';
 import 'package:running_app/features/map/route_map_section.dart';
-import 'package:running_app/features/settings/unit_format.dart';
 import 'package:running_app/features/summary/run_charts.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
@@ -101,6 +100,19 @@ Widget _app(
         : MapConsentScope(holder: w.holder, child: body),
   );
 }
+
+Widget _host(_World? w, Widget child) {
+  final body = Scaffold(body: SingleChildScrollView(child: child));
+  return MaterialApp(
+    locale: const Locale('de'),
+    theme: RamuriTheme.light,
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: w == null ? body : MapConsentScope(holder: w.holder, child: body),
+  );
+}
+
+final _t0 = DateTime.utc(2030);
 
 /// Lässt Quelle und Kacheln (echte Zeit) zur Ruhe kommen.
 Future<void> _settle(WidgetTester tester, _World w) async {
@@ -242,19 +254,10 @@ void main() {
     expect(w.requests, 0);
   });
 
-  testWidgets('RunDetailCharts nimmt die Karte (Zusammenfassung und Detail)', (
+  testWidgets('RunRouteSection nimmt die Karte (Zusammenfassung und Detail)', (
     tester,
   ) async {
     final w = _World(consent: ConsentState.granted);
-    final data = RunDetailData(
-      route: _route,
-      pace: const [],
-      heartRate: const [],
-      heartRateSmoothing: const Duration(seconds: 10),
-      altitude: const [],
-      totalSeconds: 600,
-      pauses: const [],
-    );
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('de'),
@@ -264,18 +267,7 @@ void main() {
         home: MapConsentScope(
           holder: w.holder,
           child: Scaffold(
-            body: SingleChildScrollView(
-              child: RunDetailCharts(
-                data: data,
-                formatter: const UnitFormatter(
-                  unit: DistanceUnit.kilometers,
-                  languageCode: 'de',
-                  distanceLabel: 'km',
-                  paceLabel: 'min/km',
-                  elevationLabel: 'm',
-                ),
-              ),
-            ),
+            body: SingleChildScrollView(child: RunRouteSection(route: _route)),
           ),
         ),
       ),
@@ -283,6 +275,54 @@ void main() {
     await _settle(tester, w);
     expect(_k('route_map'), findsOneWidget);
     expect(_k('route_paint'), findsNothing);
+  });
+
+  final marks = [
+    KilometerMark(index: 1, position: _b, time: _t0),
+    KilometerMark(index: 2, position: _c, time: _t0),
+  ];
+
+  testWidgets('Kilometermarken: auf der Karte mit Einwilligung', (
+    tester,
+  ) async {
+    final w = _World(consent: ConsentState.granted);
+    await tester.pumpWidget(
+      _host(
+        w,
+        RunRouteSection(route: _route, marks: marks, markUnitLabel: 'km'),
+      ),
+    );
+    await _settle(tester, w);
+    final map = tester.widget<RouteMap>(_k('route_map'));
+    expect([for (final m in map.marks) m.index], [1, 2]);
+    expect(find.text('2'), findsWidgets);
+    expect(_k('route_legend_marks'), findsOneWidget);
+  });
+
+  testWidgets('Kilometermarken: auch im Rückfall ohne Karte gezeichnet', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        null,
+        RunRouteSection(route: _route, marks: marks, markUnitLabel: 'mi'),
+      ),
+    );
+    await tester.pump();
+    expect(_k('route_map'), findsNothing);
+    final painter =
+        tester.widget<CustomPaint>(_k('route_paint')).painter! as RoutePainter;
+    final shapes = painter.shapes(tester.getSize(_k('route_paint')));
+    expect([for (final m in shapes.marks) m.index], [1, 2]);
+    // Die Marken liegen in der Zeichnung innerhalb der Fläche.
+    final box = Offset.zero & tester.getSize(_k('route_paint'));
+    for (final m in shapes.marks) {
+      expect(box.contains(m.at), isTrue);
+    }
+    expect(
+      tester.widget<Text>(_k('route_legend_marks')).data,
+      'Nummern: volle mi',
+    );
   });
 
   for (final mode in ['Flugmodus', '404']) {

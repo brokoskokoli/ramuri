@@ -20,6 +20,8 @@ RouteMapStyle routeMapStyle(BuildContext context) {
     attributionBackground: RamuriMapColors.attributionScrim,
     attributionForeground: c.text,
     attributionTextStyle: Theme.of(context).textTheme.labelSmall,
+    markColor: c.surface,
+    markTextColor: c.text,
   );
 }
 
@@ -34,9 +36,13 @@ class RouteMapSection extends StatefulWidget {
     super.key,
     required this.route,
     required this.lineBuilder,
+    this.marks = const [],
   });
 
   final List<List<RoutePoint>> route;
+
+  /// Kilometermarken auf der Karte (die Zeichnung malt [lineBuilder]).
+  final List<RouteMapMark> marks;
 
   /// Baut die Zeichnung der Route; mit [map] an der Stelle der Zeichnung die Karte, [style] sind dann deren Farben.
   final Widget Function(BuildContext context, Widget? map, RouteMapStyle? style)
@@ -129,6 +135,7 @@ class _RouteMapSectionState extends State<RouteMapSection>
           source: source,
           route: widget.route,
           style: style,
+          marks: widget.marks,
         ),
       );
     }

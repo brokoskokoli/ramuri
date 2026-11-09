@@ -51,6 +51,8 @@ void main() {
       final asked = d.sensorPermissionRequests;
       await tester.tap(key('home_start_run'));
       await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
       expect(d.sensorFake.connectedIds, {'h1', 'h2'});
       // Das bevorzugte h2 verbindet zuerst und ist Quelle.
       expect(d.sensors.selector.activeId, 'h2');
@@ -65,6 +67,8 @@ void main() {
       final d = await knownAndDisconnected(tester);
       d.locationAccess.current = LocationAccess.denied;
       await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
       await tester.pumpAndSettle();
       d.locationAccess
         ..current = LocationAccess.denied
@@ -84,6 +88,8 @@ void main() {
       // Der Lauf startet sofort; h2 (bevorzugt) verbindet zuerst, h1 danach.
       await tester.tap(key('home_start_run'));
       await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
       expect(d.sensorFake.connectedIds, {'h1', 'h2'});
       expect(d.lastRun!.activeId, 'h2');
       expect(d.lastRun!.switches, isEmpty);
@@ -96,6 +102,8 @@ void main() {
       final d = await knownAndDisconnected(tester, bluetoothGranted: false);
       final asked = d.sensorPermissionRequests;
       await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
       await tester.pumpAndSettle();
       expect(d.sensorFake.connectedIds, isEmpty);
       expect(d.sensorPermissionRequests, asked);
@@ -120,6 +128,8 @@ void main() {
       d.bluetoothOn = false;
       final asked = d.sensorPermissionRequests;
       await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(d.sensorFake.connectedIds, isEmpty);

@@ -47,6 +47,7 @@ class AltitudeResult {
     required this.ascentMeters,
     required this.withoutVerticalAccuracy,
     required this.medianMeters,
+    this.descentMeters,
   }) : processed = List.unmodifiable(processed),
        acceptedValues = List.unmodifiable(acceptedValues),
        smoothed = List.unmodifiable(smoothed);
@@ -64,6 +65,10 @@ class AltitudeResult {
 
   /// PAR-012: Aufstieg in Metern; `null` ohne Höhenwerte, nie 0 dafür.
   final double? ascentMeters;
+
+  /// Abstieg in Metern nach derselben Referenz und Schwelle wie
+  /// [ascentMeters] (PAR-012, spiegelbildlich); `null` ohne Höhenwerte.
+  final double? descentMeters;
 
   /// Akzeptierte Werte ohne gemeldete Vertikalgenauigkeit. Sie bleiben
   /// erhalten, die Auswertung kann den Aufstieg dann als vorläufig führen.
@@ -90,6 +95,7 @@ class AltitudeProcessor {
   DateTime? _lastTime;
   double? _reference;
   double? _ascent;
+  double? _descent;
   int _withoutAccuracy = 0;
   bool _paused = false;
 
@@ -175,10 +181,12 @@ class AltitudeProcessor {
     if (ref == null) {
       _reference = m;
       _ascent ??= 0;
+      _descent ??= 0;
     } else if (m - ref >= parameters.ascentThresholdMeters) {
       _ascent = _ascent! + (m - ref);
       _reference = m;
     } else if (ref - m >= parameters.ascentThresholdMeters) {
+      _descent = _descent! + (ref - m);
       _reference = m;
     }
   }
@@ -205,6 +213,7 @@ class AltitudeProcessor {
       acceptedValues: _accepted,
       smoothed: _smoothed,
       ascentMeters: _ascent,
+      descentMeters: _descent,
       withoutVerticalAccuracy: _withoutAccuracy,
       medianMeters: inWindow.isEmpty ? null : _median(inWindow),
     );

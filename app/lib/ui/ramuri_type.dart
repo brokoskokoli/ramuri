@@ -82,6 +82,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     required this.hero,
     required this.pageTitle,
     required this.link,
+    required this.startButton,
   });
 
   factory RamuriType.from(RamuriColors c) => RamuriType(
@@ -97,6 +98,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     // Design: Sora 800; gebündelt bis 700, dort gilt 700 (siehe oben).
     pageTitle: _sora(34, FontWeight.w800, c.text, tracking: -0.02),
     link: _manrope(14, FontWeight.w800, c.text),
+    startButton: _manrope(30, FontWeight.w800, c.onAction),
   );
 
   /// Restmeter im Intervall (104).
@@ -128,6 +130,9 @@ class RamuriType extends ThemeExtension<RamuriType> {
   /// Textlink in einer Karte, etwa „Wie wird das berechnet?“ (14, 800).
   final TextStyle link;
 
+  /// „Los“ im runden Startknopf (30, Manrope 800, Design „Lauf vorbereiten“).
+  final TextStyle startButton;
+
   static RamuriType of(BuildContext context) =>
       Theme.of(context).extension<RamuriType>()!;
 
@@ -144,6 +149,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     TextStyle? hero,
     TextStyle? pageTitle,
     TextStyle? link,
+    TextStyle? startButton,
   }) => RamuriType(
     countdown: countdown ?? this.countdown,
     distance: distance ?? this.distance,
@@ -156,6 +162,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
     hero: hero ?? this.hero,
     pageTitle: pageTitle ?? this.pageTitle,
     link: link ?? this.link,
+    startButton: startButton ?? this.startButton,
   );
 
   @override
@@ -174,6 +181,7 @@ class RamuriType extends ThemeExtension<RamuriType> {
       hero: l(hero, other.hero),
       pageTitle: l(pageTitle, other.pageTitle),
       link: l(link, other.link),
+      startButton: l(startButton, other.startButton),
     );
   }
 }

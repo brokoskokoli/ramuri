@@ -15,9 +15,13 @@ class EstimatedMark extends StatelessWidget {
       children: [
         const EmberDot(),
         const SizedBox(width: 4),
-        Text(
-          AppLocalizations.of(context).uiEstimated,
-          style: Theme.of(context).textTheme.labelSmall,
+        // Flexible: bei großer Schrift in einer schmalen Kachel umbrechen
+        // statt überlaufen.
+        Flexible(
+          child: Text(
+            AppLocalizations.of(context).uiEstimated,
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
         ),
       ],
     );

@@ -8,7 +8,12 @@ import 'file_handoff_scope.dart';
 /// Wohin die Datei geht: Teilen-Menü oder System-Dokumentenziel (FR-0201).
 enum ExportTarget { share, save }
 
-/// Export eines beendeten Laufs aus dem Lauf-Detail (FR-0182, FR-0201,
+/// Darstellung der Export-Aktion (`Detail.dc.html`): Symbol in der Kopfleiste
+/// und Knopf am Seitenende.
+enum ExportPresentation { icon, button }
+
+/// Export eines beendeten Laufs als Symbol in der Kopfleiste und als Knopf am
+/// Ende des Lauf-Details (FR-0182, FR-0201,
 /// WP11): Formatwahl, Ziel, Fortschritt und Ergebnis. Erst das Tippen auf
 /// „Teilen“ oder „Speichern“ erzeugt und übergibt die Datei; Abbildung und
 /// Kodierung rechnen über den [OffloadScope] (in der App ein eigener
@@ -18,10 +23,17 @@ class RunExportAction extends StatefulWidget {
     super.key,
     required this.session,
     required this.runId,
+    this.presentation = ExportPresentation.button,
+    this.busy,
   });
 
   final StorageSession session;
   final int runId;
+  final ExportPresentation presentation;
+
+  /// Gemeinsamer Zustand „Export läuft“ beider Darstellungen; ohne Angabe
+  /// hat die Aktion einen eigenen.
+  final ValueNotifier<bool>? busy;
 
   @override
   State<RunExportAction> createState() => _RunExportActionState();
@@ -30,7 +42,7 @@ class RunExportAction extends StatefulWidget {
 class _RunExportActionState extends State<RunExportAction> {
   /// Nur beendete Läufe sind exportierbar; Lesefehler blenden die Aktion aus.
   late final Future<bool> _exportable = _isFinished();
-  bool _busy = false;
+  late final ValueNotifier<bool> _busy = widget.busy ?? ValueNotifier(false);
 
   Future<bool> _isFinished() async {
     try {
@@ -43,7 +55,14 @@ class _RunExportActionState extends State<RunExportAction> {
     }
   }
 
+  @override
+  void dispose() {
+    if (widget.busy == null) _busy.dispose();
+    super.dispose();
+  }
+
   Future<void> _export(FileHandoff handoff) async {
+    if (_busy.value) return;
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.maybeOf(context);
     final offload = OffloadScope.of(context);
@@ -51,9 +70,9 @@ class _RunExportActionState extends State<RunExportAction> {
       context: context,
       builder: (_) => const ExportDialog(),
     );
-    if (choice == null || !mounted) return;
+    if (choice == null || !mounted || _busy.value) return;
     final (format, target) = choice;
-    setState(() => _busy = true);
+    _busy.value = true;
     FileHandoffResult result;
     try {
       final file = await RunFileExportService(
@@ -70,7 +89,7 @@ class _RunExportActionState extends State<RunExportAction> {
       // Keine Gesundheitsdaten und keine Pfade in Meldungen.
       result = FileHandoffResult.failed;
     }
-    if (mounted) setState(() => _busy = false);
+    if (mounted) _busy.value = false;
     final message = switch ((result, target)) {
       (FileHandoffResult.completed, ExportTarget.share) => l10n.exportShared,
       (FileHandoffResult.completed, ExportTarget.save) => l10n.exportSaved,
@@ -92,24 +111,66 @@ class _RunExportActionState extends State<RunExportAction> {
       future: _exportable,
       builder: (context, snapshot) {
         if (snapshot.data != true) return const SizedBox.shrink();
-        if (_busy) {
-          return Padding(
-            padding: const EdgeInsets.all(12),
-            child: SizedBox.square(
-              dimension: 24,
-              child: CircularProgressIndicator(
-                key: const Key('export_progress'),
-                strokeWidth: 2,
-                semanticsLabel: l10n.exportRunning,
+        return ValueListenableBuilder<bool>(
+          valueListenable: _busy,
+          builder: (context, busy, _) {
+            final icon = widget.presentation == ExportPresentation.icon;
+            if (busy) {
+              // Nur eine Darstellung zeigt den Fortschritt, die andere ist gesperrt.
+              if (icon) {
+                return IconButton(
+                  key: const Key('detail_export_icon'),
+                  tooltip: l10n.exportRunning,
+                  onPressed: null,
+                  icon: const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              }
+              return ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 52),
+                child: Center(
+                  child: SizedBox.square(
+                    dimension: 24,
+                    child: CircularProgressIndicator(
+                      key: const Key('export_progress'),
+                      strokeWidth: 2,
+                      semanticsLabel: l10n.exportRunning,
+                    ),
+                  ),
+                ),
+              );
+            }
+            if (icon) {
+              return IconButton(
+                key: const Key('detail_export_icon'),
+                tooltip: l10n.exportIconLabel,
+                icon: const Icon(Icons.ios_share),
+                onPressed: () => _export(handoff),
+              );
+            }
+            // Knopf über die volle Breite am Seitenende, mindestens 52 dp: Bei
+            // großer Schrift wächst er mit der Beschriftung.
+            return ConstrainedBox(
+              constraints: const BoxConstraints(
+                minHeight: 52,
+                minWidth: double.infinity,
               ),
-            ),
-          );
-        }
-        return IconButton(
-          key: const Key('detail_export'),
-          tooltip: l10n.exportAction,
-          icon: const Icon(Icons.share_outlined),
-          onPressed: () => _export(handoff),
+              child: OutlinedButton(
+                key: const Key('detail_export'),
+                onPressed: () => _export(handoff),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 8,
+                  ),
+                ),
+                child: Text(l10n.exportButton, textAlign: TextAlign.center),
+              ),
+            );
+          },
         );
       },
     );

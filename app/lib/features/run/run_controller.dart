@@ -35,6 +35,7 @@ class RunController extends ChangeNotifier {
     this.service,
     this.cadence,
     this.resumeRunId,
+    this.initialAutoPause,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
     RunRecorder? recorder,
@@ -67,6 +68,11 @@ class RunController extends ChangeNotifier {
   /// Ist gesetzt, setzt [start] diesen unterbrochenen Lauf fort (FR-0193),
   /// statt einen neuen anzulegen.
   final int? resumeRunId;
+
+  /// Die auf der Seite „Lauf vorbereiten“ gewählte Autopause (FR-0210). Sie
+  /// gilt für diesen Lauf, auch wenn das Merken scheitert. `null`: der
+  /// gemerkte Wert aus dem Speicher gilt (Fortsetzen, FR-0193).
+  final bool? initialAutoPause;
 
   /// Reiht Schreiben von Werten hinter den Start und andere Neuberechnungen
   /// ein (siehe `RecalculationController.exclusive`); `null` = sofort.
@@ -182,10 +188,15 @@ class RunController extends ChangeNotifier {
     _startFailed = false;
     notifyListeners();
     try {
-      try {
-        _autoPause = await storage.settings.get(SettingKeys.autoPause) == '1';
-      } on Object {
-        _autoPause = false;
+      final chosen = initialAutoPause;
+      if (chosen != null) {
+        _autoPause = chosen;
+      } else {
+        try {
+          _autoPause = await storage.settings.get(SettingKeys.autoPause) == '1';
+        } on Object {
+          _autoPause = false;
+        }
       }
       try {
         _fitness = await ReserveZoneSettings.loadParameters(storage.settings);
@@ -314,23 +325,6 @@ class RunController extends ChangeNotifier {
 
   void _callStop(RecordingServicePort s) =>
       unawaited(s.stop().then((_) {}, onError: (Object _) {}));
-
-  /// Schaltet die Autopause und merkt sie dauerhaft (FR-0029). Ein
-  /// Speicherfehler ändert die laufende Aufzeichnung nicht.
-  Future<void> setAutoPause(bool enabled) async {
-    _autoPause = enabled;
-    _recorder.setAutoPause(enabled);
-    _update();
-    try {
-      await storage.settings.set(
-        SettingKeys.autoPause,
-        enabled ? '1' : '0',
-        at: clock.now(),
-      );
-    } on Object {
-      // Nur das Merken scheitert; der Lauf bleibt wie eingestellt.
-    }
-  }
 
   Future<void> pause() => _command(_recorder.pause);
   Future<void> resume() => _command(_recorder.resume);

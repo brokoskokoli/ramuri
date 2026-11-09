@@ -1,0 +1,738 @@
+// WP16 C2: Detailansicht nach Detail.dc.html (FR-0041, FR-0042, FR-0211, FR-0204): Kilometertabelle, Marken,
+// Pace und Puls, Höhenprofil, vollständige Inhalte, Schriftfaktor 1,3 auf 360x640.
+
+import 'package:core/core.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/history/run_detail_page.dart';
+import 'package:running_app/features/settings/unit_format.dart';
+import 'package:running_app/features/summary/kilometer_table.dart';
+import 'package:running_app/features/summary/run_charts.dart';
+import 'package:running_app/features/summary/run_summary_body.dart';
+import 'package:running_app/l10n/app_localizations.dart';
+import 'package:running_app/offload_scope.dart';
+import 'package:running_app/ui/ui.dart';
+
+import 'app_harness.dart';
+import 'history_summary_test.dart' show key, openHistory, started, text;
+import 'run_detail_test.dart' show seedDetailRun;
+import 'run_summary_page_test.dart' show seedLoad;
+
+const _km = UnitFormatter(
+  unit: DistanceUnit.kilometers,
+  languageCode: 'de',
+  distanceLabel: 'km',
+  paceLabel: 'min/km',
+  elevationLabel: 'm',
+);
+const _mi = UnitFormatter(
+  unit: DistanceUnit.miles,
+  languageCode: 'de',
+  distanceLabel: 'mi',
+  paceLabel: 'min/mi',
+  elevationLabel: 'ft',
+);
+
+Widget _app(
+  Widget body, {
+  bool dark = false,
+  double scale = 1,
+  Size? size,
+  bool bold = false,
+  String lang = 'de',
+}) => MaterialApp(
+  theme: dark ? RamuriTheme.dark : RamuriTheme.light,
+  locale: Locale(lang),
+  localizationsDelegates: const [
+    AppLocalizations.delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  supportedLocales: AppLocalizations.supportedLocales,
+  home: MediaQuery(
+    data: MediaQueryData(
+      size: size ?? const Size(360, 640),
+      textScaler: TextScaler.linear(scale),
+      boldText: bold,
+    ),
+    child: OffloadScope(
+      offload: inlineOffload,
+      child: Scaffold(body: SingleChildScrollView(child: body)),
+    ),
+  ),
+);
+
+Future<void> pumpDetail(
+  WidgetTester tester,
+  Device d,
+  int runId, {
+  UnitFormatter formatter = _km,
+  double scale = 1,
+  bool dark = false,
+}) async {
+  tester.view.physicalSize = const Size(360, 640);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    _app(
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: RunSummaryBody(
+          session: d.session,
+          clock: d.clock,
+          runId: runId,
+          fallback: () => const [],
+          splitUnitMeters: formatter.unit == DistanceUnit.miles
+              ? mileMeters
+              : kilometerMeters,
+          contentBuilder: (context, summary, detail, splits) => RunDetailPage(
+            summary: summary,
+            detail: detail,
+            splits: splits,
+            formatter: formatter,
+            session: d.session,
+            runId: runId,
+          ),
+        ),
+      ),
+      dark: dark,
+      scale: scale,
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// Alle Abschnitte der Tabelle auf der Seite: Zeit, Pace, Puls und Beschriftungen je Nummer.
+List<({int index, String time, String pace, String hr})> tableRows() {
+  final rows = <({int index, String time, String pace, String hr})>[];
+  for (var i = 1; key('detail_km_index_$i').evaluate().isNotEmpty; i++) {
+    rows.add((
+      index: i,
+      time: text('detail_km_time_$i'),
+      pace: text('detail_km_pace_$i'),
+      hr: text('detail_km_hr_$i'),
+    ));
+  }
+  return rows;
+}
+
+Duration clock(String s) {
+  final p = s.split(':').map(int.parse).toList();
+  return p.length == 3
+      ? Duration(hours: p[0], minutes: p[1], seconds: p[2])
+      : Duration(minutes: p[0], seconds: p[1]);
+}
+
+KilometerSplit _split(
+  int i, {
+  required int seconds,
+  double? pace,
+  double? hr,
+  int gapSeconds = 0,
+  bool partial = false,
+  double meters = 1000,
+}) => KilometerSplit(
+  index: i,
+  lengthMeters: meters,
+  isPartial: partial,
+  time: Duration(seconds: seconds),
+  positionGapTime: Duration(seconds: gapSeconds),
+  paceSecondsPerKm: pace,
+  heartRateAverageBpm: hr,
+);
+
+KilometerSplits _splits(List<KilometerSplit> s, {double unit = 1000}) =>
+    KilometerSplits(
+      unitMeters: unit,
+      splits: s,
+      marks: const [],
+      ascentMeters: null,
+      descentMeters: null,
+    );
+
+void main() {
+  group('Kilometertabelle (nur Anzeige)', () {
+    final splits = _splits([
+      _split(1, seconds: 330, pace: 330, hr: 140.4),
+      // Lückenkilometer: 30 s lagen in einer Positionslücke; die Zeit zählt sie, die Pace nicht.
+      _split(2, seconds: 390, pace: 360, hr: 150, gapSeconds: 30),
+      // Ohne Puls, ganze Zeit in der Lücke: keine Pace.
+      _split(3, seconds: 60, gapSeconds: 60),
+      // Angebrochen: 420 m.
+      _split(4, seconds: 120, pace: 285.7, partial: true, meters: 420),
+    ]);
+
+    testWidgets(
+      'Zeit, Pace, Puls; „–“ statt 0; Lücke und angebrochen gekennzeichnet',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(KilometerTable(splits: splits, formatter: _km)),
+        );
+        final rows = tableRows();
+        expect(rows.map((r) => r.time), ['5:30', '6:30', '1:00', '2:00']);
+        expect(rows.map((r) => r.pace), ['5:30', '6:00', '–', '4:46']);
+        expect(rows.map((r) => r.hr), ['140', '150', '–', '–']);
+        // Die Zeit enthält die Lückenzeit, die Pace nicht: 6:30 Zeit, aber 6:00 Pace bei 1 km.
+        expect(key('detail_km_gap_2'), findsOneWidget);
+        expect(text('detail_km_gap_2'), contains('0:30'));
+        expect(key('detail_km_gap_1'), findsNothing);
+        expect(key('detail_km_gap_3'), findsOneWidget);
+        expect(text('detail_km_partial_4'), 'angebrochen: 0,42 km');
+        expect(key('detail_km_partial_3'), findsNothing);
+        expect(find.text('0'), findsNothing);
+        // Kopf: Einheit der Einstellungen.
+        expect(find.text('km'), findsOneWidget);
+      },
+    );
+
+    // Balkenformel nach Detail.dc.html:119 (Runde 4): 8 s Unterschied sehen
+    // nicht nach viel aus; angebrochen mit absurder Pace steht auf 40 %.
+    testWidgets('Balken: kleine Unterschiede flach, breite Spanne bis 40 %, '
+        'angebrochen begrenzt', (tester) async {
+      final close = _splits([
+        _split(1, seconds: 255, pace: 255),
+        _split(2, seconds: 250, pace: 250),
+        _split(3, seconds: 258, pace: 258),
+        _split(4, seconds: 60, pace: 900, partial: true, meters: 100),
+        _split(5, seconds: 60, pace: 200, partial: true, meters: 300),
+      ]);
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: close, formatter: _km)),
+      );
+      double share(int i) =>
+          tester
+              .getSize(
+                find.descendant(
+                  of: key('detail_km_bar_$i'),
+                  matching: find.byType(FractionallySizedBox),
+                ),
+              )
+              .width /
+          tester.getSize(key('detail_km_bar_$i')).width;
+      expect(share(2), closeTo(1, 1e-6));
+      expect(share(1), closeTo(1 - 5 / 40 * 0.6, 1e-3));
+      expect(share(3), closeTo(1 - 8 / 40 * 0.6, 1e-3));
+      expect(share(3), greaterThan(0.85), reason: '8 s sehen nicht nach 38 %');
+      expect(share(4), closeTo(0.4, 1e-6), reason: 'absurd langsam: Grenze');
+      expect(share(5), closeTo(1, 1e-6), reason: 'schneller als alle: voll');
+
+      final wide = _splits([
+        _split(1, seconds: 300, pace: 300),
+        _split(2, seconds: 420, pace: 420),
+        _split(3, seconds: 360, pace: 360),
+      ]);
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: wide, formatter: _km)),
+      );
+      expect(share(1), closeTo(1, 1e-6));
+      expect(
+        share(2),
+        closeTo(0.4, 1e-3),
+        reason: 'Spanne 120 s: langsamster 40 %',
+      );
+      expect(share(3), closeTo(0.7, 1e-3));
+    });
+
+    testWidgets('Balken: gerenderte Höhe 10, Breite nach der Pace', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: splits, formatter: _km)),
+      );
+      Size fill(int i) => tester.getSize(
+        find.descendant(
+          of: key('detail_km_bar_$i'),
+          matching: find.byType(FractionallySizedBox),
+        ),
+      );
+      final track = tester.getSize(key('detail_km_bar_1'));
+      expect(track.height, 10);
+      expect(track.width, greaterThan(20));
+      // Schnellster Abschnitt (330) voll; 30 s langsamer (360) bei der Mindest-
+      // spanne von 40 s: 100 % - 30/40 * 60 % = 55 %; ohne Pace nichts.
+      expect(fill(1), Size(track.width, 10));
+      expect(fill(2).height, 10);
+      expect(fill(2).width, closeTo(track.width * 0.55, 0.01));
+      expect(fill(3).width, 0);
+      expect(fill(4), Size(track.width, 10));
+    });
+
+    // Unterschiedlich breite Zellen (Zeit mit Stunde, zweistellige Minuten
+    // bei der Pace, dreistelliger Puls), damit nur feste Spalten fluchten.
+    final uneven = _splits([
+      _split(1, seconds: 330, pace: 330, hr: 99),
+      _split(2, seconds: 4000, pace: 605, hr: 150, gapSeconds: 30),
+      _split(3, seconds: 60, gapSeconds: 60),
+      _split(4, seconds: 120, pace: 285.7, hr: 188, partial: true, meters: 420),
+    ]);
+    for (final scale in [1.0, 1.3]) {
+      testWidgets('echte Schrift, Faktor $scale auf 360 dp: Spalten fluchten, '
+          'Balken sichtbar', (tester) async {
+        await loadManrope(tester);
+        tester.view.physicalSize = const Size(360, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          _app(
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: KilometerTable(splits: uneven, formatter: _km),
+            ),
+            scale: scale,
+            size: const Size(360, 800),
+          ),
+        );
+        for (final column in ['index', 'time', 'bar', 'pace', 'hr']) {
+          final lefts = {
+            for (var i = 1; i <= 4; i++)
+              tester.getRect(key('detail_km_${column}_$i')).left,
+          };
+          expect(lefts, hasLength(1), reason: '$column fluchtet links: $lefts');
+        }
+        for (var i = 1; i <= 4; i++) {
+          final track = tester.getSize(key('detail_km_bar_$i'));
+          expect(track.width, greaterThanOrEqualTo(24), reason: 'Spur $i');
+          expect(track.height, 10);
+        }
+        final fill = tester.getSize(
+          find.descendant(
+            of: key('detail_km_bar_1'),
+            matching: find.byType(FractionallySizedBox),
+          ),
+        );
+        expect(fill, tester.getSize(key('detail_km_bar_1')));
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    // Nie ein Umbruch in Zahlen, Einheiten oder Köpfen (WP15-Hinweis): Zellen
+    // werden höchstens verkleinert; wo die Breite reicht, bleibt die Schrift
+    // unverkleinert (Verhältnis 1), sonst nicht unter [minRatio].
+    final wide = _splits([
+      _split(1, seconds: 330, pace: 330, hr: 99),
+      _split(2, seconds: 4000, pace: 605, hr: 150, gapSeconds: 30),
+      _split(3, seconds: 60, gapSeconds: 60),
+      _split(4, seconds: 120, pace: 285.7, hr: 188, partial: true, meters: 420),
+    ]);
+    for (final (width, scale, bold, unit, fits, lang) in [
+      (360.0, 1.0, false, _km, true, 'de'),
+      (360.0, 1.3, false, _km, true, 'de'),
+      (320.0, 1.0, false, _km, true, 'de'),
+      (320.0, 1.0, true, _km, true, 'de'),
+      (360.0, 1.0, true, _mi, true, 'de'),
+      (360.0, 2.0, false, _km, false, 'de'),
+      (320.0, 2.0, false, _km, false, 'de'),
+      (320.0, 2.0, true, _mi, false, 'de'),
+      (320.0, 1.0, true, _km, true, 'en'),
+      (360.0, 1.0, true, _km, true, 'en'),
+      (320.0, 2.0, true, _km, false, 'en'),
+    ]) {
+      testWidgets('echte Schrift, ${width.round()} dp, Faktor $scale, '
+          '${bold ? 'fett, ' : ''}${unit.distanceLabel}, $lang: kein Umbruch', (
+        tester,
+      ) async {
+        await loadManrope(tester);
+        tester.view.physicalSize = Size(width, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          _app(
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: KilometerTable(splits: wide, formatter: unit),
+            ),
+            scale: scale,
+            bold: bold,
+            lang: lang,
+            size: Size(width, 800),
+          ),
+        );
+        final table = find.byKey(const Key('detail_km_table'));
+        final cells = [
+          for (var i = 1; i <= 4; i++)
+            for (final c in ['index', 'time', 'pace', 'hr'])
+              key('detail_km_${c}_$i'),
+          for (final h in [
+            unit.distanceLabel,
+            if (lang == 'de') ...[
+              'Zeit',
+              'Pace',
+              'Puls',
+            ] else ...[
+              'Time',
+              'Pace',
+              'HR',
+            ],
+          ])
+            find.descendant(of: table, matching: find.text(h)),
+        ];
+        var shown = 0;
+        for (final cell in cells) {
+          if (cell.evaluate().isEmpty) continue;
+          shown++;
+          final layout = tester.renderObject<RenderBox>(cell).size;
+          final drawn = tester.getRect(cell);
+          final ratio = drawn.width / layout.width;
+          // Eine Zeile: Höhe passt zu einer Zeile der Schrift.
+          expect(
+            layout.height,
+            lessThan(1.8 * 14 * scale * 1.5),
+            reason: '$cell einzeilig',
+          );
+          if (fits) {
+            expect(ratio, closeTo(1, 0.001), reason: '$cell unverkleinert');
+          } else {
+            expect(ratio, greaterThanOrEqualTo(0.5), reason: '$cell lesbar');
+          }
+        }
+        expect(shown, greaterThanOrEqualTo(20));
+        // Die Spuren der Balken bleiben mindestens 24 dp breit.
+        for (var i = 1; i <= 4; i++) {
+          expect(
+            tester.getSize(key('detail_km_bar_$i')).width,
+            greaterThanOrEqualTo(24),
+          );
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('Beschriftung steht über der vollen Tabellenbreite', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: splits, formatter: _km)),
+      );
+      final table = tester.getRect(key('detail_km_table'));
+      final bar = tester.getRect(key('detail_km_bar_2'));
+      for (final k in ['detail_km_gap_2', 'detail_km_partial_4']) {
+        final r = tester.getRect(key(k));
+        expect(r.left, table.left, reason: k);
+        expect(r.left, lessThan(bar.left), reason: k);
+      }
+      // Unter dem Balken der eigenen Zeile.
+      expect(
+        tester.getRect(key('detail_km_gap_2')).top,
+        greaterThanOrEqualTo(bar.bottom),
+      );
+    });
+
+    testWidgets('Screenreader liest Lücke und „angebrochen“ mit', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: splits, formatter: _km)),
+      );
+      String label(int i) =>
+          tester.getSemantics(key('detail_km_index_$i')).label;
+      expect(label(1), 'km 1: Zeit 5:30, Pace 5:30, Puls 140 bpm');
+      expect(label(2), contains('GPS-Lücke'));
+      expect(label(2), contains('0:30'));
+      expect(label(4), contains('angebrochen: 0,42 km'));
+      handle.dispose();
+    });
+
+    testWidgets('Meilen: Kopf „mi“, Rest in Meilen', (tester) async {
+      final miles = _splits([
+        _split(1, seconds: 540, pace: 335.5, hr: 141),
+        _split(2, seconds: 100, pace: 300, partial: true, meters: 400),
+      ], unit: mileMeters);
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: miles, formatter: _mi)),
+      );
+      expect(find.text('mi'), findsOneWidget);
+      expect(find.text('km'), findsNothing);
+      // 335,5 s/km sind 9:00 min/mi.
+      expect(text('detail_km_pace_1'), '9:00');
+      expect(text('detail_km_partial_2'), 'angebrochen: 0,25 mi');
+    });
+
+    testWidgets('ohne Abschnitte: Hinweis statt leerer Tabelle', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: _splits([]), formatter: _km)),
+      );
+      expect(key('detail_km_none'), findsOneWidget);
+      expect(key('detail_km_table'), findsNothing);
+    });
+  });
+
+  testWidgets(
+    'Seite: Tabellenzeiten summieren sich zur Bewegungszeit, Marken, Anstieg/Gefälle',
+    (tester) async {
+      final d = await started(tester);
+      final id = await seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8));
+      await pumpDetail(tester, d, id);
+      final rows = tableRows();
+      // 1,83 km: ein voller Kilometer und der angebrochene Rest.
+      expect(rows, hasLength(2));
+      expect(key('detail_km_partial_2'), findsOneWidget);
+      final sum = rows.fold(Duration.zero, (a, r) => a + clock(r.time));
+      expect(sum, clock(text('run_moving_time')));
+      expect(text('run_moving_time'), '10:00');
+      // Kilometermarke 1 auf der Route (Zeichnung, ohne Einwilligung).
+      final painter =
+          tester.widget<CustomPaint>(key('route_paint')).painter!
+              as RoutePainter;
+      final shapes = painter.shapes(tester.getSize(key('route_paint')));
+      expect([for (final m in shapes.marks) m.index], [1]);
+      expect(text('route_legend_marks'), 'Nummern: volle km');
+      // Anstieg und Gefälle: Kopf des Höhenprofils und Kacheln zeigen dieselben Werte.
+      expect(text('detail_ascent'), text('run_ascent'));
+      expect(text('detail_descent'), text('run_descent'));
+      final summary = await RunSummaryService(
+        session: d.session,
+        clock: d.clock,
+        offload: inlineOffload,
+      ).load(id);
+      final splits = computeKilometerSplits(summary!.preprocessing);
+      expect(splits.ascentMeters, summary.ascentMeters);
+      expect(splits.descentMeters, summary.descentMeters);
+      expect(summary.ascentMeters, isNotNull);
+      expect(text('detail_ascent'), '+${_km.elevation(summary.ascentMeters)}');
+      expect(
+        text('detail_descent'),
+        '−${_km.elevation(summary.descentMeters)}',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Seite mit GPS-Lücke: Lückenkilometer gekennzeichnet, Summe stimmt',
+    (tester) async {
+      final d = await started(tester);
+      final id = await seedDetailRun(
+        d.session,
+        DateTime.utc(2030, 1, 1, 8),
+        noPosition: (200, 260),
+      );
+      await pumpDetail(tester, d, id);
+      final rows = tableRows();
+      expect(key('detail_km_gap_1'), findsOneWidget);
+      final sum = rows.fold(Duration.zero, (a, r) => a + clock(r.time));
+      expect(sum, clock(text('run_moving_time')));
+      // Die Karte zeigt zwei Teile; Pace und Puls: Pace getrennt, Puls durchgehend.
+      expect(chartLayerParts('detail_compare', 0), 2);
+      expect(chartLayerParts('detail_compare', 1), 1);
+      expect(key('run_gaps'), findsOneWidget);
+    },
+  );
+
+  testWidgets('Seite ohne Puls: Tabelle mit „–“, nie 0 bpm', (tester) async {
+    final d = await started(tester);
+    final id = await seedDetailRun(
+      d.session,
+      DateTime.utc(2030, 1, 1, 8),
+      heartRate: false,
+    );
+    await pumpDetail(tester, d, id);
+    expect(tableRows().map((r) => r.hr), everyElement('–'));
+    expect(key('detail_hr_none'), findsOneWidget);
+    expect(key('detail_pace'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
+  });
+
+  testWidgets('Flacher Lauf: Anstieg und Gefälle ohne Vorzeichen, Pace ohne '
+      'Wortverbinder in der Sprachausgabe', (tester) async {
+    final handle = tester.ensureSemantics();
+    final d = await started(tester);
+    final id = await seedDetailRun(
+      d.session,
+      DateTime.utc(2030, 1, 1, 8),
+      altitude: (_) => 100,
+    );
+    await pumpDetail(tester, d, id);
+    expect(text('run_ascent'), '0 m');
+    expect(text('run_descent'), '0 m');
+    expect(text('detail_ascent'), '0 m');
+    expect(text('detail_descent'), '0 m');
+    // Die Einheit der Kachel hat in der Sprachausgabe keinen Wortverbinder.
+    final label = tester.getSemantics(key('run_avg_pace')).label;
+    expect(label, contains('min/km'));
+    expect(label, isNot(contains('\u2060')));
+    handle.dispose();
+  });
+
+  testWidgets('Seite in Meilen: Tabelle, Legende, Anstieg in ft', (
+    tester,
+  ) async {
+    final d = await started(tester);
+    final id = await seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8));
+    await pumpDetail(tester, d, id, formatter: _mi);
+    // 1,14 mi: eine volle Meile und der Rest.
+    final rows = tableRows();
+    expect(rows, hasLength(2));
+    expect(text('detail_km_partial_2'), startsWith('angebrochen: 0,'));
+    expect(text('detail_km_partial_2'), endsWith(' mi'));
+    expect(text('route_legend_marks'), 'Nummern: volle mi');
+    expect(text('detail_ascent'), endsWith(' ft'));
+    expect(find.text('Meilen'), findsOneWidget);
+    final sum = rows.fold(Duration.zero, (a, r) => a + clock(r.time));
+    expect(sum, clock(text('run_moving_time')));
+  });
+
+  testWidgets('Seite ohne Positionen: keine Tabelle, Hinweis, keine Marken', (
+    tester,
+  ) async {
+    final d = await started(tester);
+    final id = await seedDetailRun(
+      d.session,
+      DateTime.utc(2030, 1, 1, 8),
+      noPosition: (0, 601),
+    );
+    await pumpDetail(tester, d, id);
+    expect(key('detail_km_none'), findsOneWidget);
+    expect(key('detail_route_none'), findsOneWidget);
+    expect(text('run_distance'), 'nicht verfügbar');
+    expect(text('detail_started'), startsWith('Gelaufen am'));
+  });
+
+  testWidgets('alle Inhalte der Detailansicht bleiben', (tester) async {
+    final d = await started(tester);
+    final id = await seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8));
+    await seedLoad(d.session, id);
+    await pumpDetail(tester, d, id);
+    for (final k in [
+      'detail_started',
+      'route_paint',
+      'run_distance',
+      'run_moving_time',
+      'run_time',
+      'run_avg_pace',
+      'sum_best_pace',
+      'run_ascent',
+      'run_descent',
+      'sum_avg_hr',
+      'sum_max_hr',
+      'sum_trimp',
+      'sum_zones',
+      'sum_class',
+      'sum_vo2max',
+      'run_laps',
+      'detail_compare',
+      'detail_compare_note',
+      'detail_altitude',
+      'detail_km_table',
+      'sum_explain_trimp',
+      'sum_explain_zones',
+      'sum_explain_class',
+      'sum_explain_vo2max',
+      'sum_explain_sources',
+    ]) {
+      expect(key(k), findsOneWidget, reason: k);
+    }
+    expect(find.byType(ZoneBar), findsOneWidget);
+    expect(find.text('Zone 2: 8:00'), findsOneWidget);
+    expect(text('sum_trimp'), '58 Punkte');
+    expect(find.text('Pace & Puls'), findsOneWidget);
+    expect(find.text('Höhenprofil'), findsOneWidget);
+    expect(find.text('Kilometer'), findsOneWidget);
+  });
+
+  for (final dark in [false, true]) {
+    testWidgets(
+      'Schriftfaktor 1,3 auf 360x640 ohne Überlauf, ${dark ? 'dunkel' : 'hell'}; '
+      'Tabelle bleibt in der Breite, Ziele mindestens 48 dp',
+      (tester) async {
+        final d = await started(tester);
+        final id = await seedDetailRun(
+          d.session,
+          DateTime.utc(2030, 1, 1, 8),
+          seconds: 1000,
+          noPosition: (200, 260),
+        );
+        await seedLoad(d.session, id);
+        await pumpDetail(tester, d, id, scale: 1.3, dark: dark);
+        expect(tester.takeException(), isNull);
+        expect(tableRows(), hasLength(3));
+        // Tabelle innerhalb Seitenrand (360 - 2 * 16) und Karte (2 * 16).
+        final table = tester.getRect(key('detail_km_table'));
+        expect(table.left, greaterThanOrEqualTo(32));
+        expect(table.right, lessThanOrEqualTo(360 - 32));
+        for (final k in [
+          'detail_km_time_1',
+          'detail_km_pace_1',
+          'detail_km_hr_1',
+        ]) {
+          final r = tester.getRect(key(k));
+          expect(r.right, lessThanOrEqualTo(table.right), reason: k);
+        }
+        // Die Beschriftung des Lückenkilometers bricht um, läuft aber nicht über.
+        final gap = tester.getRect(key('detail_km_gap_1'));
+        expect(gap.right, lessThanOrEqualTo(table.right));
+        await tester.scrollUntilVisible(
+          key('sum_explain_sources'),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(tester.takeException(), isNull);
+        for (final k in [
+          'sum_explain_trimp',
+          'sum_explain_zones',
+          'sum_explain_sources',
+        ]) {
+          expect(
+            tester.getSize(key(k)).height,
+            greaterThanOrEqualTo(RamuriTheme.minTarget),
+            reason: k,
+          );
+        }
+      },
+    );
+  }
+
+  testWidgets(
+    'Löschen in der Kopfzeile, Export als Knopf am Seitenende, 48 dp, bei 1,3',
+    (tester) async {
+      final d = await started(tester);
+      final id = await seedDetailRun(d.session, DateTime.utc(2030, 1, 1, 8));
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await openHistory(d, tester);
+      // Bei großer Schrift auf dem kleinen Display liegt der Eintrag unter dem Kopf der Seite.
+      await tester.ensureVisible(key('history_run_$id'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('history_run_$id'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(key('detail_delete')).height,
+        greaterThanOrEqualTo(RamuriTheme.minTarget),
+      );
+      // Export: kein Eintrag der Kopfleiste, sondern der Knopf am Ende.
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: key('detail_export'),
+        ),
+        findsNothing,
+      );
+      expect(find.text('Exportieren (GPX · TCX · FIT)'), findsOneWidget);
+      expect(
+        tester.getSize(key('detail_export')).height,
+        greaterThanOrEqualTo(RamuriTheme.minTarget),
+      );
+      expect(key('detail_km_table'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+}
+
+/// Zahl der gezeichneten Teile einer Reihe des Pace-und-Puls-Diagramms (0 Pace, 1 Puls).
+int chartLayerParts(String id, int layer) {
+  final paint = find.descendant(
+    of: key(id),
+    matching: find.byKey(const Key('chart_paint')),
+  );
+  final p =
+      (paint.evaluate().single.widget as CustomPaint).painter!
+          as SeriesChartPainter;
+  return p.layers[layer].parts.where((x) => x.length >= 2).length;
+}

@@ -29,6 +29,7 @@ Map<String, Color> tokens(RamuriColors c) => {
   'text': c.text,
   'textMuted': c.textMuted,
   'textSoft': c.textSoft,
+  'textLabel': c.textLabel,
   'accent': c.accent,
   'onAccent': c.onAccent,
   'action': c.action,
@@ -49,6 +50,7 @@ Map<String, Color> tokens(RamuriColors c) => {
   'weekBarOlder': c.weekBarOlder,
   'weekBarLast': c.weekBarLast,
   'weekBarCurrent': c.weekBarCurrent,
+  'segmentTrack': c.segmentTrack,
 };
 
 /// Text-Grund-Paare (Vordergrund, Grund), die die Seiten verwenden dürfen.
@@ -64,7 +66,13 @@ const textPairs = <(String, String)>[
   ('textMuted', 'tint'),
   ('textMuted', 'accentPanel'),
   ('textMuted', 'track'),
+  ('text', 'segmentTrack'),
+  ('textMuted', 'segmentTrack'),
   ('textSoft', 'accentPanel'),
+  ('textLabel', 'background'),
+  ('textLabel', 'surface'),
+  ('textLabel', 'accentPanel'),
+  ('textLabel', 'segmentTrack'),
   ('accent', 'background'),
   ('accent', 'surface'),
   ('accent', 'field'),

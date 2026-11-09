@@ -26,4 +26,46 @@ void main() {
       }
     });
   }
+
+  // E2E 31: "der letzten 1 Läufe" im Vergleichstext der Zusammenfassung.
+  test('Vergleichstext mit 1 und 2 vorigen Läufen (de)', () {
+    final l = lookupAppLocalizations(const Locale('de'));
+    expect(
+      l.sumClassFaster('5 s/km', 1, '5:00'),
+      '5 s/km schneller als der letzte Lauf (5:00)',
+    );
+    expect(
+      l.sumClassSlower('5 s/km', 1, '5:00'),
+      '5 s/km langsamer als der letzte Lauf (5:00)',
+    );
+    expect(
+      l.sumClassSame(1, '5:00'),
+      'Gleiche Pace wie der letzte Lauf (5:00)',
+    );
+    expect(
+      l.sumClassFaster('5 s/km', 2, '5:00'),
+      '5 s/km schneller als der Schnitt der letzten 2 Läufe (5:00)',
+    );
+    expect(l.sumClassSlower('5 s/km', 2, '5:00'), contains('letzten 2 Läufe'));
+    expect(l.sumClassSame(2, '5:00'), contains('letzten 2 Läufe'));
+  });
+
+  test('Vergleichstext mit 1 und 2 vorigen Läufen (en)', () {
+    final l = lookupAppLocalizations(const Locale('en'));
+    expect(
+      l.sumClassFaster('5 s/km', 1, '5:00'),
+      '5 s/km faster than the last run (5:00)',
+    );
+    expect(
+      l.sumClassSlower('5 s/km', 1, '5:00'),
+      '5 s/km slower than the last run (5:00)',
+    );
+    expect(l.sumClassSame(1, '5:00'), 'Same pace as the last run (5:00)');
+    expect(
+      l.sumClassFaster('5 s/km', 2, '5:00'),
+      '5 s/km faster than the average of the last 2 runs (5:00)',
+    );
+    expect(l.sumClassSlower('5 s/km', 2, '5:00'), contains('last 2 runs'));
+    expect(l.sumClassSame(2, '5:00'), contains('last 2 runs'));
+  });
 }

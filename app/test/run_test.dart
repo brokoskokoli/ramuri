@@ -76,7 +76,13 @@ class _FailingRaw implements RawDataStore {
 }
 
 Finder key(String k) => find.byKey(Key(k));
-String text(String k) => (key(k).evaluate().single.widget as Text).data!;
+
+/// Text eines Werts der Lauf-Seite; Zahl und Einheit stehen in Teilen, der
+/// Wortverbinder (U+2060) ist unsichtbar.
+String text(String k) {
+  final w = key(k).evaluate().single.widget as Text;
+  return (w.data ?? w.textSpan!.toPlainText()).replaceAll('\u2060', '');
+}
 
 Future<void> openRun(
   Device d,
@@ -88,6 +94,8 @@ Future<void> openRun(
   await d.skipSetup(tester);
   await before?.call();
   await tester.tap(key('home_start_run'));
+  await tester.pumpAndSettle();
+  await tester.tap(key('run_start_ready'));
   await tester.pumpAndSettle();
 }
 
@@ -335,7 +343,7 @@ void main() {
       await openRun(d, tester);
       expect(text('run_hr'), 'nicht verfügbar');
       expect(text('run_zone'), contains('nicht verfügbar'));
-      expect(text('run_zone'), contains('kein Puls'));
+      expect(text('run_zone'), 'Zone nicht verfügbar');
       expect(text('run_cadence'), 'nicht verfügbar');
       expect(text('run_ascent'), 'nicht verfügbar');
       expect(text('run_distance'), 'noch keine Daten');
@@ -372,7 +380,9 @@ void main() {
       expect(text('run_hr'), '150 bpm');
       expect(text('run_zone'), 'Zone 2');
       expect(text('run_sensor_status'), 'Sensor verbunden');
-      expect(text('run_gps'), 'Signal ok');
+      // Gutes GPS steht nur im Chip, die lange Meldung gibt es nur bei Problemen.
+      expect(text('live_chip_gps'), 'GPS gut');
+      expect(key('run_gps'), findsNothing);
       expect(text('run_ascent'), matches(RegExp(r'^\d+ m$')));
       expect(text('run_cadence'), 'nicht verfügbar');
     });
@@ -411,6 +421,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(key('home_start_run'));
       await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
       await walk(d, tester, 120);
       // 119 Schritte zu je rund 3,0 m: rund 357 m = 0.22 mi (0.36 km).
       expect(text('run_distance'), '0.22 mi');
@@ -436,6 +448,8 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
       await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
       await tester.pumpAndSettle();
       await walk(d, tester, 61, altitude: true);
       // 60 Schritte zu je 0,5 m Anstieg: höchstens 30 m = 98 ft.
@@ -479,7 +493,8 @@ void main() {
       expect(text('run_time'), '0:35');
       // Rückkehr schließt die Lücke, sie bleibt als Zähler sichtbar.
       await walk(d, tester, 2, from: 40);
-      expect(text('run_gps'), 'Signal ok');
+      expect(key('run_gps'), findsNothing);
+      expect(text('live_chip_gps'), 'GPS gut');
       expect(text('run_gaps'), 'GPS-Lücken: 1');
     });
 
@@ -518,7 +533,8 @@ void main() {
       await tester.pump();
       expect(key('run_banner_paused'), findsOneWidget);
       expect(key('run_resume'), findsOneWidget);
-      expect(tester.widget<OutlinedButton>(key('run_lap')).onPressed, isNull);
+      // In der Pause ist die Runde gesperrt und der Knopf entfällt (Design).
+      expect(key('run_lap'), findsNothing);
       await tester.tap(key('run_resume'));
       await tester.pump();
       expect(key('run_banner_paused'), findsNothing);
@@ -528,19 +544,43 @@ void main() {
       expect(find.text('Runde 1: 0:15'), findsOneWidget);
     });
 
-    testWidgets('Beenden mit Bestätigung: Abbrechen läuft weiter', (
+    testWidgets('Beenden mit Bestätigung: Abbrechen lässt den Lauf pausiert', (
       tester,
     ) async {
       final d = Device();
       await openRun(d, tester);
       await walk(d, tester, 5);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
       await tester.tap(key('run_finish'));
       await tester.pumpAndSettle();
       expect(find.text('Lauf beenden?'), findsOneWidget);
       await tester.tap(key('run_finish_cancel'));
       await tester.pumpAndSettle();
+      expect(key('run_resume'), findsOneWidget);
+      expect(key('run_banner_paused'), findsOneWidget);
+      expect((await d.session.runs.list()).single.state, RunState.paused);
+      // Ohne Bestätigung endet nichts, auch nicht nach Zurück aus der Rückfrage.
+      expect(find.text('Lauf beendet'), findsNothing);
+    });
+
+    testWidgets('Beenden gibt es nur pausiert (FR-0028)', (tester) async {
+      final d = Device();
+      await openRun(d, tester);
+      await walk(d, tester, 5);
+      expect(key('run_finish'), findsNothing);
+      // Zurück im laufenden Lauf öffnet keine Rückfrage und beendet nichts.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Lauf beenden?'), findsNothing);
       expect(key('run_pause'), findsOneWidget);
-      expect((await d.session.runs.list()).single.state, RunState.active);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      expect(key('run_finish'), findsOneWidget);
+      expect(key('run_pause'), findsNothing);
+      await tester.tap(key('run_resume'));
+      await tester.pump();
+      expect(key('run_finish'), findsNothing);
     });
 
     testWidgets('Beenden: Abschlussansicht, Lauf gespeichert, Fertig', (
@@ -550,6 +590,8 @@ void main() {
       await openRun(d, tester);
       await walk(d, tester, 30);
       await tester.tap(key('run_lap'));
+      await tester.pump();
+      await tester.tap(key('run_pause'));
       await tester.pump();
       await tester.tap(key('run_finish'));
       await tester.pumpAndSettle();
@@ -574,24 +616,13 @@ void main() {
       d.storageOverride = _RawFailStorage(d.storage);
       await openRun(d, tester);
       await walk(d, tester, 3);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
       await tester.tap(key('run_finish'));
       await tester.pumpAndSettle();
       await tester.tap(key('run_finish_confirm'));
       await tester.pumpAndSettle();
       expect(text('run_done_status'), contains('Fehler'));
-    });
-
-    testWidgets('Autopause: Standard aus, setzbar, gespeichert', (
-      tester,
-    ) async {
-      final d = Device();
-      await openRun(d, tester);
-      expect(tester.widget<SwitchListTile>(key('run_autopause')).value, false);
-      expect(await d.session.settings.get(SettingKeys.autoPause), isNull);
-      await tester.tap(key('run_autopause'));
-      await tester.pump();
-      expect(tester.widget<SwitchListTile>(key('run_autopause')).value, true);
-      expect(await d.session.settings.get(SettingKeys.autoPause), '1');
     });
 
     testWidgets('Autopause an: Stillstand pausiert, aus: nicht', (
@@ -612,7 +643,6 @@ void main() {
             }
           },
         );
-        expect(tester.widget<SwitchListTile>(key('run_autopause')).value, on);
         await walk(d, tester, 20);
         for (var i = 0; i < 30; i++) {
           d.clock.advance(const Duration(seconds: 1));
@@ -648,6 +678,8 @@ void main() {
         tester.platformDispatcher.textScaleFactorTestValue = scale;
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
         await tester.tap(key('home_start_run'));
+        await tester.pumpAndSettle();
+        await tester.tap(key('run_start_ready'));
         await tester.pumpAndSettle();
         await walk(d, tester, 40, altitude: true);
         d.heartRate.emitReading('hr1', d.clock.now(), 150);

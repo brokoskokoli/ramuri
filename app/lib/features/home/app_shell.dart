@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../history/history_screen.dart';
+import '../history/history_view_state.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/run_ports.dart';
 import '../sensors/sensor_manager.dart';
@@ -80,6 +81,9 @@ class _AppShellState extends State<AppShell> {
   /// Zeitraumwahl und Scrollposition von Fortschritt über Tab-Wechsel.
   final StatisticsViewState _progressState = StatisticsViewState();
 
+  /// Zeitraum des Verlaufs über Tab-Wechsel.
+  final HistoryViewState _historyState = HistoryViewState();
+
   Widget _body(String id) {
     switch (id) {
       case 'history':
@@ -87,6 +91,7 @@ class _AppShellState extends State<AppShell> {
           session: widget.session,
           clock: widget.clock,
           recalculation: widget.recalculation,
+          viewState: _historyState,
         );
       case 'progress':
         return StatisticsScreen(
