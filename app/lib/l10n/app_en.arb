@@ -919,7 +919,7 @@
   "loadLegendConverted": "converted",
   "loadLegendUnrated": "unrated",
   "loadLegendEmpty": "empty",
-  "loadProfileShort": "Profile: {name} TRIMP",
+  "loadProfileShort": "{name} TRIMP",
   "loadFigAtl": "Short-term (ATL)",
   "loadFigCtl": "Long-term load level (CTL)",
   "loadFigTsb": "TSB, no rating",

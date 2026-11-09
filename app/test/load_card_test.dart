@@ -457,11 +457,19 @@ void main() {
       // passen und daneben ein Stück der Nachbarkarte sehen. Vorher waren es
       // rund 2,5 Bildschirme. Die Testschrift (Ahem) ist breiter als die
       // echte und bricht eher um, die Grenze ist also eher streng.
-      for (final state in [
-        LoadViewState.ready(mixed()),
-        LoadViewState.ready(settled()),
+      for (final (state, locale) in [
+        (LoadViewState.ready(mixed()), 'de'),
+        (LoadViewState.ready(settled()), 'de'),
+        (LoadViewState.ready(mixed()), 'en'),
+        (LoadViewState.ready(settled()), 'en'),
       ]) {
-        await pump(tester, LoadCardBody(state: state), width: 390, height: 844);
+        await pump(
+          tester,
+          LoadCardBody(state: state),
+          width: 390,
+          height: 844,
+          locale: locale,
+        );
         final h = tester.getSize(find.byType(RamuriCard)).height;
         expect(h, lessThanOrEqualTo(560), reason: 'Höhe $h');
         expect(k('load_chart'), findsOneWidget);
@@ -470,7 +478,10 @@ void main() {
         expect(k('load_basis'), findsNothing);
         // FR-0197: das verwendete Profil steht auch eingeklappt da.
         expect(k('load_profile_short'), findsOneWidget);
-        expect(find.text('Profil: Edwards-TRIMP'), findsOneWidget);
+        expect(
+          find.text(locale == 'de' ? 'Edwards-TRIMP' : 'Edwards TRIMP'),
+          findsOneWidget,
+        );
       }
       final banister = report(
         profile: LoadProfile.banister,
@@ -484,7 +495,7 @@ void main() {
         width: 390,
         height: 844,
       );
-      expect(find.text('Profil: Banister-TRIMP'), findsOneWidget);
+      expect(find.text('Banister-TRIMP'), findsOneWidget);
     });
 
     testWidgets('Grundlage: Schalter mit 48 dp und Semantik, klappt auf und '

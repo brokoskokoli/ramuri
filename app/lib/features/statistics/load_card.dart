@@ -138,36 +138,36 @@ class LoadCardBody extends StatelessWidget {
     final c = RamuriColors.of(context);
     final theme = Theme.of(context).textTheme;
 
+    // Das verwendete Profil steht immer sichtbar neben dem Titel (FR-0197);
+    // dieselbe Zeile, damit die eingeklappte Karte nicht höher wird.
+    final profileName = switch (state.profile ?? LoadProfile.edwards) {
+      LoadProfile.edwards => l10n.loadProfileNameEdwards,
+      LoadProfile.banister => l10n.loadProfileNameBanister,
+    };
     final children = <Widget>[
-      Semantics(
-        header: true,
-        child: Text(
-          l10n.loadTitle,
-          key: const Key('load_title'),
-          style: theme.titleMedium!.copyWith(fontWeight: FontWeight.w800),
-        ),
+      Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.end,
+        spacing: 4,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              l10n.loadTitle,
+              key: const Key('load_title'),
+              style: theme.titleMedium!.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ),
+          if (state.phase == LoadPhase.ready)
+            Text(
+              l10n.loadProfileShort(profileName),
+              key: const Key('load_profile_short'),
+              style: theme.labelSmall!.copyWith(color: c.textMuted),
+            ),
+        ],
       ),
       const SizedBox(height: 10),
     ];
-
-    if (state.phase == LoadPhase.ready) {
-      // Das verwendete Profil steht immer sichtbar (FR-0197), eine Zeile.
-      final profileName = switch (state.profile ?? LoadProfile.edwards) {
-        LoadProfile.edwards => l10n.loadProfileNameEdwards,
-        LoadProfile.banister => l10n.loadProfileNameBanister,
-      };
-      children.insert(
-        1,
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Text(
-            l10n.loadProfileShort(profileName),
-            key: const Key('load_profile_short'),
-            style: theme.labelSmall!.copyWith(color: c.textMuted),
-          ),
-        ),
-      );
-    }
 
     switch (state.phase) {
       case LoadPhase.loading:

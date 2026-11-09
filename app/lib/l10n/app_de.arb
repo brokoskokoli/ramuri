@@ -1585,7 +1585,7 @@
   "@loadLegendUnrated": {"description": "Kurzlegende: unbewerteter Tag"},
   "loadLegendEmpty": "leer",
   "@loadLegendEmpty": {"description": "Kurzlegende: leerer Tag"},
-  "loadProfileShort": "Profil: {name}-TRIMP",
+  "loadProfileShort": "{name}-TRIMP",
   "@loadProfileShort": {"description": "Verwendetes Profil, kompakt in der eingeklappten Karte (FR-0197)", "placeholders": {"name": {"type": "String"}}},
   "loadFigAtl": "Kurzfristig (ATL)",
   "@loadFigAtl": {"description": "Kurzbezeichnung ATL über dem Wert"},
