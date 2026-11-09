@@ -1,6 +1,6 @@
 # R009 – Ruhepuls und HRV-Morgenmessung mit der Handykamera
 
-**Status:** abgeschlossen (Nachbesserung 2 nach Review-Runde 2, erneutes Review ausstehend) · **Auftraggeber:** Project Supervisor (für FR-0214, FR-0215, M3), Auftrag mit dem Maintainer geklärt · **Datum:** 2026-11-09
+**Status:** abgeschlossen (Nachbesserung 3 nach Review-Runde 3, erneutes Review ausstehend) · **Auftraggeber:** Project Supervisor (für FR-0214, FR-0215, M3), Auftrag mit dem Maintainer geklärt · **Datum:** 2026-11-09
 
 ## Frage
 Wie misst man Ruhepuls und RMSSD mit der Handykamera (60 s, Finger auf Rückkamera und Blitz), damit die Werte (a) als Ruhepuls im Profil (FR-0214) und (b) als tägliche Morgenmessung für die Erholungseinschätzung (FR-0215) taugen? Wie wertet man die täglichen Werte aus, und wie prüft man die Messung gegen einen EKG-Brustgurt (Polar H9)?
