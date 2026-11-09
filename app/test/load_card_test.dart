@@ -6,6 +6,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/statistics/fitness_section.dart'
+    show fitnessNumber;
 import 'package:running_app/features/statistics/load_card.dart';
 import 'package:running_app/features/statistics/load_view_state.dart';
 import 'package:running_app/features/statistics/statistics_screen.dart';
@@ -166,7 +168,7 @@ void main() {
           expect(k('load_atl_provisional'), findsOneWidget);
           expect(k('load_ctl_provisional'), findsOneWidget);
           expect(k('load_tsb_provisional'), findsOneWidget);
-          expect(find.text(l10n.loadProvAtl), findsOneWidget);
+          expect(find.text(l10n.loadProvAtlCommitment), findsOneWidget);
           expect(find.text(l10n.loadProvStartup), findsOneWidget);
           expect(find.text(l10n.loadProvCommitment), findsOneWidget);
           // Alle drei Kennzeichen sind in der Legende erkennbar.
@@ -271,6 +273,188 @@ void main() {
       expect(k('load_empty'), findsOneWidget);
       expect(k('load_atl'), findsNothing);
     });
+
+    for (final locale in ['de', 'en']) {
+      testWidgets('$locale: nur unbewertete Einheiten: Leerzustand nennt '
+          'Anzahl und Grund, ohne Fitnessaussage (FR-0102)', (tester) async {
+        await pump(
+          tester,
+          LoadCardBody(
+            initiallyExpanded: true,
+            state: LoadViewState.ready(
+              report(
+                units: [
+                  // Ohne Puls und ohne RPE.
+                  LoadUnit.run(day: _d(3)),
+                  // RPE da, Faktor fehlt.
+                  LoadUnit.manual(day: _d(2), srpePoints: 120),
+                  LoadUnit.run(day: _d(1), srpePoints: 90),
+                ],
+              ),
+            ),
+          ),
+          locale: locale,
+        );
+        final l10n = AppLocalizations.of(tester.element(k('load_card')));
+        final text = tester.widget<Text>(k('load_empty_unrated')).data!;
+        expect(
+          text,
+          [
+            l10n.loadEmptyUnrated(3),
+            l10n.loadEmptyUnratedNoRpe(1),
+            l10n.loadEmptyUnratedNoFactor(2),
+          ].join(' '),
+        );
+        expect(text, contains('3'));
+        expect(k('load_atl'), findsNothing);
+        for (final b in banned) {
+          expect(b.hasMatch(text), isFalse, reason: '$b in "$text"');
+        }
+      });
+    }
+
+    testWidgets('Leerzustand: Einzahl und kein Hinweis ohne unbewertete', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        LoadCardBody(
+          initiallyExpanded: true,
+          state: LoadViewState.ready(report(units: [LoadUnit.run(day: _d(1))])),
+        ),
+      );
+      final l10n = AppLocalizations.of(tester.element(k('load_card')));
+      final text = tester.widget<Text>(k('load_empty_unrated')).data!;
+      expect(text, startsWith(l10n.loadEmptyUnrated(1)));
+      expect(text, contains(l10n.loadEmptyUnratedNoRpe(1)));
+      expect(text, isNot(contains(l10n.loadEmptyUnratedNoFactor(1))));
+    });
+
+    testWidgets('Leerzustand ohne Einheit: kein Hinweis auf Unbewertete', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        LoadCardBody(
+          initiallyExpanded: true,
+          state: LoadViewState.ready(report(units: const [])),
+        ),
+      );
+      expect(k('load_empty_unrated'), findsNothing);
+    });
+
+    // E2E 36: Grund der Vorläufigkeit passt zur Ursache (PAR-088/089/090).
+    group('Grund der Vorläufigkeit je Ursache', () {
+      List<LoadUnit> daily(int from, int to) => [
+        for (var i = from; i <= to; i++) LoadUnit.run(day: _d(i), trimp: 60),
+      ];
+
+      Future<AppLocalizations> reasons(
+        WidgetTester tester,
+        TrainingLoadReport r,
+        String locale,
+      ) async {
+        await pump(
+          tester,
+          LoadCardBody(initiallyExpanded: true, state: LoadViewState.ready(r)),
+          locale: locale,
+        );
+        return AppLocalizations.of(tester.element(k('load_card')));
+      }
+
+      for (final locale in ['de', 'en']) {
+        testWidgets('$locale: Anlauf (kurz, mit Zusage): nur Verlauf kurz', (
+          tester,
+        ) async {
+          final l = await reasons(
+            tester,
+            report(confirms: true, units: daily(0, 10)),
+            locale,
+          );
+          expect(find.text(l.loadProvAtl), findsOneWidget);
+          expect(find.text(l.loadProvStartup), findsOneWidget);
+          expect(find.text(l.loadProvAtlCommitment), findsNothing);
+          expect(find.text(l.loadProvCommitment), findsNothing);
+          expect(find.text(l.loadProvMissing), findsNothing);
+        });
+
+        testWidgets('$locale: Anlauf ohne Zusage: beide Gründe', (
+          tester,
+        ) async {
+          final l = await reasons(tester, report(units: daily(0, 10)), locale);
+          expect(find.text(l.loadProvAtl), findsOneWidget);
+          expect(find.text(l.loadProvStartup), findsOneWidget);
+          expect(find.text(l.loadProvAtlCommitment), findsOneWidget);
+          expect(find.text(l.loadProvCommitment), findsOneWidget);
+        });
+
+        testWidgets('$locale: lange Historie ohne Zusage: nur fehlende Zusage, '
+            'nicht "Verlauf kurz"', (tester) async {
+          final l = await reasons(tester, report(units: daily(0, 300)), locale);
+          expect(find.text(l.loadProvAtlCommitment), findsOneWidget);
+          expect(find.text(l.loadProvCommitment), findsOneWidget);
+          expect(find.text(l.loadProvAtl), findsNothing);
+          expect(find.text(l.loadProvStartup), findsNothing);
+          expect(find.text(l.loadProvMissing), findsNothing);
+        });
+
+        testWidgets('$locale: lange Historie mit Zusage, viele unbewertet '
+            '(Rückfall PAR-090): nur CTL/TSB, ATL nicht', (tester) async {
+          final units = [
+            for (var i = 0; i <= 300; i++)
+              if (i < 20 && i.isEven)
+                LoadUnit.run(day: _d(i))
+              else
+                LoadUnit.run(day: _d(i), trimp: 60),
+          ];
+          final l = await reasons(
+            tester,
+            report(confirms: true, units: units),
+            locale,
+          );
+          expect(find.text(l.loadProvMissing), findsOneWidget);
+          expect(find.text(l.loadProvAtl), findsNothing);
+          expect(find.text(l.loadProvAtlCommitment), findsNothing);
+          expect(find.text(l.loadProvStartup), findsNothing);
+          expect(find.text(l.loadProvCommitment), findsNothing);
+        });
+      }
+    });
+
+    // E2E 36: "Pkt. Punkte" und doppelter Punkt nach dem abgekürzten Datum.
+    for (final locale in ['de', 'en']) {
+      testWidgets('$locale: Diagramm-Semantik als fertiger Text', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        final r = settled();
+        await pump(
+          tester,
+          LoadCardBody(initiallyExpanded: true, state: LoadViewState.ready(r)),
+          locale: locale,
+        );
+        final label = tester.getSemantics(k('load_chart')).label;
+        final cur = r.series.summary.current!;
+        final german = locale == 'de';
+        final end = MaterialLocalizations.of(tester.element(k('load_card')))
+            .formatMediumDate(DateTime.utc(2030, 3, 1));
+        final atl = fitnessNumber(german, cur.atl!);
+        final ctl = fitnessNumber(german, cur.ctl!);
+        expect(
+          label,
+          german
+              ? 'Verlauf der kurzfristigen Belastung und des langfristigen '
+                    'Belastungsniveaus, 84 Tage bis $end; zuletzt $atl und '
+                    '$ctl Punkte.'
+              : 'Course of the short-term load and the long-term load '
+                    'level, 84 days up to $end; latest $atl and $ctl points.',
+        );
+        expect(label, isNot(contains('Pkt')));
+        expect(label, isNot(contains('..')));
+        expect(label, isNot(contains('pts')));
+        handle.dispose();
+      });
+    }
 
     testWidgets('Faktor: fehlt, wenig gesichert, angewandt, nicht mehr '
         'gestützt, Angebot', (tester) async {
@@ -528,7 +712,7 @@ void main() {
       );
       expect(k('load_basis'), findsOneWidget);
       for (final t in [
-        l10n.loadProvAtl,
+        l10n.loadProvAtlCommitment,
         l10n.loadProvStartup,
         l10n.loadProvCommitment,
         l10n.loadProfileEdwards,
@@ -608,7 +792,7 @@ void main() {
       tsb: null,
       tsbPercentMean7: null,
       flags: flags,
-      atlProvisional: false,
+      atlProvisionalReasons: const {},
       ctlProvisionalReasons: const {},
       unitCount: 0,
       ratedUnits: 0,

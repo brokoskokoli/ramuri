@@ -98,7 +98,7 @@ class LoadDay {
     required this.tsb,
     required this.tsbPercentMean7,
     required this.flags,
-    required this.atlProvisional,
+    required this.atlProvisionalReasons,
     required this.ctlProvisionalReasons,
     required this.unitCount,
     required this.ratedUnits,
@@ -124,7 +124,11 @@ class LoadDay {
   final double? tsbPercentMean7;
 
   final Set<LoadDayFlag> flags;
-  final bool atlProvisional;
+
+  /// Gründe, warum ATL vorläufig ist: [LoadProvisionalReason.startup]
+  /// (PAR-088, unter 21 Tagen) und/oder
+  /// [LoadProvisionalReason.noCommitment] (FR-0103). Nie `missingUnits`.
+  final Set<LoadProvisionalReason> atlProvisionalReasons;
   final Set<LoadProvisionalReason> ctlProvisionalReasons;
 
   final int unitCount;
@@ -132,6 +136,7 @@ class LoadDay {
   final int convertedUnits;
   final int unratedUnits;
 
+  bool get atlProvisional => atlProvisionalReasons.isNotEmpty;
   bool get ctlProvisional => ctlProvisionalReasons.isNotEmpty;
 
   /// PAR-073: Die TSB%-Schwellen greifen nicht, solange ATL oder CTL
@@ -151,6 +156,8 @@ class TrainingLoadSummary {
     required this.unratedUnits,
     required this.convertedUnits,
     required this.unratedDays,
+    this.unratedNoRpeUnits = 0,
+    this.unratedNoFactorUnits = 0,
   });
 
   /// Stand heute (letzter Tag der Reihe); `null`, wenn es keine Einheit gibt.
@@ -168,6 +175,13 @@ class TrainingLoadSummary {
   final int unratedUnits;
   final int convertedUnits;
   final int unratedDays;
+
+  /// Unbewertete Einheiten ohne RPE (und ohne Puls): ohne Wert keine Last.
+  final int unratedNoRpeUnits;
+
+  /// Unbewertete Einheiten mit RPE, aber ohne persönlichen Faktor
+  /// (PAR-086): sRPE lässt sich nicht in Punkte umrechnen.
+  final int unratedNoFactorUnits;
 
   /// FR-0104: Es gibt eine Aussage erst ab dem ersten bewerteten Tag.
   bool get hasStatement => current?.hasValues ?? false;
@@ -273,6 +287,8 @@ TrainingLoadSeries computeTrainingLoad({
   final unrated = List<int>.filled(count, 0);
   final units0 = List<int>.filled(count, 0);
   final loads = List<double>.filled(count, 0);
+  var noRpe = 0;
+  var noFactor = 0;
   for (final e in byDay.entries) {
     final i = e.key - first;
     for (final u in e.value) {
@@ -291,6 +307,11 @@ TrainingLoadSeries computeTrainingLoad({
         continue;
       }
       unrated[i]++;
+      if (srpe != null && srpe.isFinite && srpe >= 0) {
+        noFactor++;
+      } else {
+        noRpe++;
+      }
     }
   }
 
@@ -390,11 +411,16 @@ TrainingLoadSeries computeTrainingLoad({
   for (var i = 0; i < count; i++) {
     final s = start;
     final reasons = <LoadProvisionalReason>{};
-    var atlProvisional = false;
+    final atlReasons = <LoadProvisionalReason>{};
     double? mean;
     if (s != null && i >= s) {
       final age = i - s;
-      atlProvisional = age < p.atlProvisionalDays || !confirmsAllRecorded;
+      if (age < p.atlProvisionalDays) {
+        atlReasons.add(LoadProvisionalReason.startup);
+      }
+      if (!confirmsAllRecorded) {
+        atlReasons.add(LoadProvisionalReason.noCommitment);
+      }
       if (age < p.ctlProvisionalDays) {
         reasons.add(LoadProvisionalReason.startup);
       }
@@ -423,7 +449,7 @@ TrainingLoadSeries computeTrainingLoad({
         tsb: tsbOf[i],
         tsbPercentMean7: mean,
         flags: flagsOf[i],
-        atlProvisional: atlProvisional,
+        atlProvisionalReasons: atlReasons,
         ctlProvisionalReasons: reasons,
         unitCount: units0[i],
         ratedUnits: rated[i],
@@ -449,6 +475,8 @@ TrainingLoadSeries computeTrainingLoad({
       unratedUnits: unratedTotal,
       convertedUnits: convertedTotal,
       unratedDays: unratedDays,
+      unratedNoRpeUnits: noRpe,
+      unratedNoFactorUnits: noFactor,
     ),
   );
 }

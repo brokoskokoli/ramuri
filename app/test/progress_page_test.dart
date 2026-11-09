@@ -592,8 +592,11 @@ void main() {
       await openStats(d, tester);
       await tester.drag(key('stat_list'), const Offset(0, -9000));
       await tester.pumpAndSettle();
-      await tester.drag(key('stat_list'), const Offset(0, 300));
+      await tester.drag(key('stat_list'), const Offset(0, 390));
       await tester.pumpAndSettle();
+      // 390 statt 300: Mit dem Lauf nennt die Karte dessen unbewertete Einheit
+      // (eine Zeile mehr); ohne ihn ist die Seite etwas kürzer. Die Position
+      // muss zwischen dem ersten Bild und dem geladenen Ende liegen.
       final before = position(tester).pixels;
       expect(before, greaterThan(500));
       await openHistory(d, tester);

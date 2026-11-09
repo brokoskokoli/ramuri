@@ -313,6 +313,51 @@ void main() {
     });
   });
 
+  group('Gründe der ATL-Vorläufigkeit (E2E 36)', () {
+    test('kurz mit Zusage: nur startup', () {
+      final d = _calc(_daily(0, 10), today: 10).days.last;
+      expect(d.atlProvisionalReasons, {LoadProvisionalReason.startup});
+    });
+
+    test('kurz ohne Zusage: startup und noCommitment', () {
+      final d = _calc(_daily(0, 10), today: 10, commit: false).days.last;
+      expect(d.atlProvisionalReasons, {
+        LoadProvisionalReason.startup,
+        LoadProvisionalReason.noCommitment,
+      });
+    });
+
+    test('lang ohne Zusage: nur noCommitment, nicht startup', () {
+      final d = _calc(_daily(0, 300), today: 300, commit: false).days.last;
+      expect(d.atlProvisionalReasons, {LoadProvisionalReason.noCommitment});
+      expect(d.ctlProvisionalReasons, {LoadProvisionalReason.noCommitment});
+    });
+
+    test('lang mit Zusage: leer, auch bei Rückfall nie missingUnits', () {
+      final units = [
+        for (var i = 0; i <= 300; i++)
+          if (i > 280 && i.isEven) LoadUnit.run(day: _d(i)) else _run(i, 60),
+      ];
+      final d = _calc(units, today: 300).days.last;
+      expect(d.ctlProvisionalReasons, {LoadProvisionalReason.missingUnits});
+      expect(d.atlProvisionalReasons, isEmpty);
+    });
+  });
+
+  group('Unbewertete nach Grund (FR-0102)', () {
+    test('ohne RPE und ohne Faktor getrennt gezählt', () {
+      final s = _calc([
+        LoadUnit.run(day: _d(2)),
+        LoadUnit.manual(day: _d(1), srpePoints: 50),
+        LoadUnit.run(day: _d(0), srpePoints: 50),
+      ], today: 2).summary;
+      expect(s.unratedUnits, 3);
+      expect(s.unratedNoRpeUnits, 1);
+      expect(s.unratedNoFactorUnits, 2);
+      expect(s.hasStatement, isFalse);
+    });
+  });
+
   group('Vorläufig (PAR-088, PAR-089)', () {
     test('ATL 21 Tage, CTL/TSB 126 Tage ab erstem bewerteten Tag', () {
       final r = _calc(_daily(5, 200), today: 200);

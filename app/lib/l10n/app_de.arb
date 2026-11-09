@@ -590,7 +590,7 @@
   "@recalcOffered": {
     "description": "Hinweis nach dem Speichern des Profils"
   },
-  "recalcDone": "Neuberechnet: {count} Läufe. Die ursprünglichen Werte bleiben erhalten.",
+  "recalcDone": "{count, plural, =1{Neuberechnet: 1 Lauf.} other{Neuberechnet: {count} Läufe.}} Die ursprünglichen Werte bleiben erhalten.",
   "@recalcDone": {
     "description": "Ergebnis der Neuberechnung",
     "placeholders": {
@@ -1555,7 +1555,7 @@
   "@loadTsbNone": {"description": "TSB am ersten Tag nicht vorhanden"},
   "loadScaleNote": "Eine Skala, 0 bis {max} Punkte",
   "@loadScaleNote": {"description": "Skala des Diagramms", "placeholders": {"max": {"type": "String"}}},
-  "loadChartSemantics": "Verlauf der kurzfristigen Belastung und des langfristigen Belastungsniveaus, {days} Tage bis {end}. Zuletzt {atl} und {ctl} Punkte.",
+  "loadChartSemantics": "Verlauf der kurzfristigen Belastung und des langfristigen Belastungsniveaus, {days} Tage bis {end}; zuletzt {atl} und {ctl} Punkte.",
   "@loadChartSemantics": {"description": "Bedienungshilfe des Diagramms", "placeholders": {"days": {"type": "int"}, "end": {"type": "String"}, "atl": {"type": "String"}, "ctl": {"type": "String"}}},
   "loadLegendAtl": "ATL",
   "@loadLegendAtl": {"description": "Legende: Linie ATL"},
@@ -1569,6 +1569,14 @@
   "@loadFlagEmpty": {"description": "Legende: leerer Tag ohne Angabe, dass alles erfasst ist"},
   "loadProvAtl": "Die kurzfristige Belastung ist noch vorläufig, weil der Verlauf noch kurz ist.",
   "@loadProvAtl": {"description": "Grund der Vorläufigkeit ATL (PAR-088)"},
+  "loadProvAtlCommitment": "Leere Tage zählen nicht als Pause, solange nicht angegeben ist, dass alles erfasst ist. Die kurzfristige Belastung bleibt daher vorläufig.",
+  "@loadProvAtlCommitment": {"description": "Grund der Vorläufigkeit ATL ohne Angabe (FR-0103)"},
+  "loadEmptyUnrated": "{count, plural, =1{1 erfasste Einheit ist unbewertet und zählt nicht als Last 0.} other{{count} erfasste Einheiten sind unbewertet und zählen nicht als Last 0.}}",
+  "@loadEmptyUnrated": {"description": "Leerzustand: Anzahl unbewerteter Einheiten (FR-0102)", "placeholders": {"count": {"type": "int"}}},
+  "loadEmptyUnratedNoRpe": "{count, plural, =1{Bei 1 Einheit fehlt die RPE, und ein nutzbarer Puls liegt nicht vor.} other{Bei {count} Einheiten fehlt die RPE, und ein nutzbarer Puls liegt nicht vor.}}",
+  "@loadEmptyUnratedNoRpe": {"description": "Leerzustand: Grund keine RPE", "placeholders": {"count": {"type": "int"}}},
+  "loadEmptyUnratedNoFactor": "{count, plural, =1{Bei 1 Einheit gibt es eine RPE, aber noch keinen persönlichen Faktor, um sie in Punkte umzurechnen.} other{Bei {count} Einheiten gibt es eine RPE, aber noch keinen persönlichen Faktor, um sie in Punkte umzurechnen.}}",
+  "@loadEmptyUnratedNoFactor": {"description": "Leerzustand: Grund Faktor fehlt", "placeholders": {"count": {"type": "int"}}},
   "loadProvStartup": "Das langfristige Belastungsniveau und der TSB sind noch vorläufig, weil der Verlauf noch kurz ist.",
   "@loadProvStartup": {"description": "Grund der Vorläufigkeit CTL (PAR-089)"},
   "loadProvMissing": "Viele erfasste Einheiten der letzten Wochen sind unbewertet, daher bleiben das langfristige Belastungsniveau und der TSB vorläufig.",

@@ -245,6 +245,26 @@ class LoadCardBody extends StatelessWidget {
           style: theme.bodyMedium,
         ),
       );
+      // FR-0102: Unbewertete Einheiten nennen, ohne Fitnessaussage.
+      final unrated = state.unratedUnits;
+      if (unrated > 0) {
+        final reasons = [
+          if (state.unratedNoRpeUnits > 0)
+            l10n.loadEmptyUnratedNoRpe(state.unratedNoRpeUnits),
+          if (state.unratedNoFactorUnits > 0)
+            l10n.loadEmptyUnratedNoFactor(state.unratedNoFactorUnits),
+        ];
+        out.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              [l10n.loadEmptyUnrated(unrated), ...reasons].join(' '),
+              key: const Key('load_empty_unrated'),
+              style: theme.bodyMedium,
+            ),
+          ),
+        );
+      }
     } else {
       window = state.days.length > chartDays
           ? state.days.sublist(state.days.length - chartDays)
@@ -261,8 +281,8 @@ class LoadCardBody extends StatelessWidget {
             label: l10n.loadChartSemantics(
               window.length,
               material.formatMediumDate(last),
-              points(current.atl!),
-              points(current.ctl!),
+              fitnessNumber(german, current.atl!),
+              fitnessNumber(german, current.ctl!),
             ),
             child: LoadChart(
               key: const Key('load_chart'),
@@ -332,8 +352,15 @@ class LoadCardBody extends StatelessWidget {
         );
 
       // Hinweise: kurz, Gründe stehen unter „Grundlage“.
-      final reasons = <String>[
-        if (state.atlProvisional) l10n.loadProvAtl,
+      final reasons = <String?>[
+        for (final r in LoadProvisionalReason.values)
+          if (state.atlProvisionalReasons.contains(r))
+            switch (r) {
+              LoadProvisionalReason.startup => l10n.loadProvAtl,
+              LoadProvisionalReason.noCommitment => l10n.loadProvAtlCommitment,
+              // ATL kennt keinen Rückfall nach PAR-090.
+              LoadProvisionalReason.missingUnits => null,
+            },
         for (final r in LoadProvisionalReason.values)
           if (state.ctlProvisionalReasons.contains(r))
             switch (r) {
@@ -347,7 +374,7 @@ class LoadCardBody extends StatelessWidget {
           _Hint(l10n.loadHintProvisional, keyName: 'load_hint_provisional'),
         );
       }
-      for (final r in reasons) {
+      for (final r in reasons.nonNulls) {
         details.add(
           Padding(
             padding: const EdgeInsets.only(top: 6),

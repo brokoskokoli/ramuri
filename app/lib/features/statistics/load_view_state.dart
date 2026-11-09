@@ -55,6 +55,17 @@ class LoadViewState {
   /// ATL ist vorläufig (PAR-088, FR-0103).
   bool get atlProvisional => current?.atlProvisional ?? false;
 
+  /// Gründe der ATL-Vorläufigkeit (kurzer Verlauf, fehlende Zusage).
+  Set<LoadProvisionalReason> get atlProvisionalReasons =>
+      current?.atlProvisionalReasons ?? const {};
+
+  /// Unbewertete Einheiten insgesamt und nach Grund (FR-0102); auch ohne
+  /// bewerteten Tag, damit der Leerzustand sie nennen kann.
+  int get unratedUnits => report?.series.summary.unratedUnits ?? 0;
+  int get unratedNoRpeUnits => report?.series.summary.unratedNoRpeUnits ?? 0;
+  int get unratedNoFactorUnits =>
+      report?.series.summary.unratedNoFactorUnits ?? 0;
+
   /// CTL und TSB sind vorläufig, mit den Gründen (PAR-089, PAR-090).
   Set<LoadProvisionalReason> get ctlProvisionalReasons =>
       current?.ctlProvisionalReasons ?? const {};
