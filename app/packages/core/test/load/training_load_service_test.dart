@@ -83,12 +83,13 @@ void main() {
     double ratio, {
     int firstAgo = 60,
     int n = 12,
+    String method = 'edwards-trimp',
   }) async {
     for (var i = 0; i < n; i++) {
       final rpe = const [3, 7, 5][i % 3];
       await addRun(
         ago(firstAgo).add(Duration(hours: 8 + 12 * i)),
-        trimp: trimpValue(ratio * 30 * rpe),
+        trimp: trimpValue(ratio * 30 * rpe, method: method),
         rpe: rpe,
       );
     }
@@ -273,6 +274,71 @@ void main() {
       expect(dayOf(r, ago(2)).load, isNull);
       expect(dayOf(r, ago(2)).flags, contains(LoadDayFlag.unrated));
       expect(r.series.summary.unratedUnits, 1);
+    });
+
+    test('Läufe mit TRIMP einer fremden Skala (Methode oder Version) gehen '
+        'nicht in den Faktor ein', () async {
+      // Nur fremde Skala: weder Faktor noch Läufe gezählt.
+      await seedFactorRuns(2.0, method: BanisterTrimp.methodIdFemale);
+      var r = await service.load();
+      expect(r.factor.value, isNull);
+      expect(r.factor.eligibleRuns, 0);
+      expect(await LoadSettings.factor(w.session.settings), isNull);
+      // Passende Läufe (Faktor 2,0) und neuere fremde (9,0, andere Version):
+      // der Faktor kommt allein aus den passenden.
+      await seedFactorRuns(
+        2.0,
+        firstAgo: 50,
+        method: BanisterTrimp.methodIdMale,
+      );
+      for (var i = 0; i < 20; i++) {
+        final rpe = const [3, 7, 5][i % 3];
+        await addRun(
+          ago(30).add(Duration(hours: 8 + 12 * i)),
+          trimp: trimpValue(
+            9.0 * 30 * rpe,
+            method: BanisterTrimp.methodIdMale,
+            version: 2,
+          ),
+          rpe: rpe,
+        );
+      }
+      r = await service.load();
+      expect(r.factor.eligibleRuns, 12);
+      expect(r.factor.value, closeTo(2.0, 1e-9));
+      expect(r.factor.offered, isNull);
+    });
+
+    test('Profil nicht anwendbar (Koeffizienten fehlen): kein Faktor, pulslose '
+        'Läufe bleiben unbewertet, der gespeicherte Faktor bleibt '
+        'unangetastet', () async {
+      await LoadSettings.writeCoefficients(
+        w.session.settings,
+        null,
+        at: recalcNow,
+      );
+      final stored = LoadFactorRecord(
+        profile: LoadProfile.banister,
+        value: 2.0,
+        runs: 12,
+        day: ago(5),
+      );
+      await LoadSettings.writeFactor(w.session.settings, stored, at: recalcNow);
+      await addRun(
+        ago(1).add(const Duration(hours: 9)),
+        trimp: trimpValue(null),
+        rpe: 6,
+      );
+      final r = await service.load();
+      expect(r.profileApplicable, isFalse);
+      expect(r.factor.value, isNull);
+      final d = dayOf(r, ago(1));
+      expect(d.load, isNull);
+      expect(d.flags, contains(LoadDayFlag.unrated));
+      expect(
+        (await LoadSettings.factor(w.session.settings))!.storageValue,
+        stored.storageValue,
+      );
     });
 
     test('Lücke zwischen Tausch und Schreiben der Einstellung: die getauschten '
@@ -564,6 +630,72 @@ void main() {
         expect(await recalc.pendingOffer(), isNull);
         expect((await stored())!.value, closeTo(3.0, 1e-9));
       });
+    });
+  });
+
+  group('Ablehnung des Faktors gilt nur bis 183 Tage (PAR-087)', () {
+    Future<TrainingLoadReport> withDeclined(int declinedAgeDays) async {
+      await seedFactorRuns(3.0); // Kandidat 3,0
+      await LoadSettings.writeFactor(
+        w.session.settings,
+        LoadFactorRecord(
+          profile: LoadProfile.edwards,
+          value: 2.0,
+          runs: 12,
+          day: today,
+        ),
+        at: recalcNow,
+      );
+      await LoadSettings.writeDeclinedFactor(
+        w.session.settings,
+        LoadFactorRecord(
+          profile: LoadProfile.edwards,
+          value: 3.0,
+          runs: 12,
+          day: ago(declinedAgeDays),
+        ),
+        at: recalcNow,
+      );
+      return service.load();
+    }
+
+    test(
+      '183 Tage alt: ähnlicher Faktor wird nicht erneut angeboten',
+      () async {
+        final r = await withDeclined(183);
+        expect(r.factor.offered, isNull);
+        expect(await recalc.pendingOffer(), isNull);
+      },
+    );
+
+    test(
+      '184 Tage alt: Ablehnung verfallen, der Faktor wird angeboten',
+      () async {
+        final r = await withDeclined(184);
+        expect(r.factor.offered!.value, closeTo(3.0, 1e-9));
+        expect(await recalc.pendingOffer(), isNotNull);
+      },
+    );
+
+    test('alte Ablehnung (3,0) unterdrückt später kein Angebot 4,0', () async {
+      await seedFactorRuns(2.0);
+      await service.load();
+      await seedFactorRuns(3.0, firstAgo: 30, n: 20);
+      await service.load();
+      await recalc.decline((await recalc.pendingOffer())!);
+      // 190 Tage später: Vorwert älter als 183 Tage, 2,2 wird still übernommen.
+      w.clock.set(recalcNow.add(const Duration(days: 190)));
+      await seedFactorRuns(2.2, firstAgo: -176);
+      await service.load();
+      expect(
+        (await LoadSettings.factor(w.session.settings))!.value,
+        closeTo(2.2, 1e-9),
+      );
+      // Weitere 10 Tage, jetzt 4,0 (weit weg von 2,2): Angebot.
+      w.clock.set(recalcNow.add(const Duration(days: 200)));
+      await seedFactorRuns(4.0, firstAgo: -183, n: 20);
+      final r = await service.load();
+      expect(r.factor.offered!.value, closeTo(4.0, 1e-9));
     });
   });
 

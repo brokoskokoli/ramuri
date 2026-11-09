@@ -208,6 +208,7 @@ void main() {
               ValueCalculationService.refreshPendingKey,
               RecalculationService.pendingKey,
               SettingKeys.loadProfilePending,
+              SettingKeys.loadCoefficientsPending,
               SettingKeys.loadFactorPending,
               SettingKeys.loadFactorDeclined,
               SettingKeys.loadFactor,

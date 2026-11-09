@@ -302,14 +302,15 @@ class TrainingLoadService {
     // Abweichung über der Toleranz: Angebot, es sei denn, ein ähnlicher
     // Faktor wurde schon abgelehnt.
     final declined = await LoadSettings.declinedFactor(settings);
+    // Eine Ablehnung gilt nur bis [priorValueDays] (PAR-087, wie der Vorwert);
+    // danach vergleicht der Faktor normal. Das Alter bleibt deshalb aus dem
+    // Vergleich heraus (sonst gäbe eine alte Ablehnung „adopt“ für jeden Wert).
+    final declinedAge = declined == null ? null : _ageDays(today, declined.day);
     final suppressed =
         declined != null &&
         declined.profile == profile &&
-        decideFactorAdoption(
-              stored: declined.value,
-              storedAgeDays: _ageDays(today, declined.day),
-              fresh: candidate.value,
-            ) ==
+        declinedAge! <= personalLoadFactorParameters.priorValueDays &&
+        decideFactorAdoption(stored: declined.value, fresh: candidate.value) ==
             FactorDecision.adopt;
     LoadFactorRecord? offered;
     if (!suppressed) {

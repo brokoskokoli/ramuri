@@ -231,6 +231,7 @@ void main() {
     );
     for (final merker in const [
       'load.profile_pending',
+      'load.coefficients_pending',
       'load.factor_pending',
       'load.factor_declined',
     ]) {

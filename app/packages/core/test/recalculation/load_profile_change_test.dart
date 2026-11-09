@@ -202,6 +202,27 @@ void main() {
       expect(await LoadSettings.pendingProfile(fresh.session.settings), isNull);
     });
 
+    test('Faktor-Angebot eines anderen Profils: Bestätigen schreibt ihn nicht '
+        'als Faktor des neuen Profils, das Angebot ist weg', () async {
+      await setCoefficients(LoadCoefficients.male);
+      final s = w.recalc();
+      await s.requestLoadProfile(LoadProfile.banister);
+      final offer = await s.requestPersonalFactor(
+        LoadFactorRecord(
+          profile: LoadProfile.edwards,
+          value: 2.5,
+          runs: 12,
+          day: DateTime.utc(2030, 3, 1),
+        ),
+      );
+      expect(offer.causes, contains(RecalculationCause.personalFactor));
+      expect(offer.causes, contains(RecalculationCause.loadProfile));
+      await s.confirm(offer);
+      expect(await active(), LoadProfile.banister);
+      expect(await LoadSettings.factor(w.session.settings), isNull);
+      expect(await LoadSettings.pendingFactor(w.session.settings), isNull);
+    });
+
     test('Wahl zusammen mit Änderung der Herzfrequenzbasis: eine Bestätigung '
         'rechnet beides', () async {
       await setCoefficients(LoadCoefficients.male);

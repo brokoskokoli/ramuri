@@ -94,6 +94,7 @@ Future<void> fillAllTables(AppDatabase db) async {
   for (final kv in const [
     ('load.all_recorded', '1'),
     ('load.coefficients', 'female'),
+    ('load.coefficients_pending', 'male'),
     ('load.factor', 'banister;1.5;14;2026-11-07'),
     ('load.factor_declined', 'banister;3.0;14;2026-11-01'),
     ('load.factor_pending', 'banister;2.5;14;2026-11-08'),
