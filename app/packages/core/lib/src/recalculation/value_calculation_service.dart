@@ -381,7 +381,21 @@ class ValueCalculationService {
     final runValues = <int, ComputedValue>{};
     final runOwners = <ValueOwner, List<ComputedValue>>{};
     for (final r in runs) {
-      if (await _runValue(r.id) == null) continue;
+      if (await _runValue(r.id) == null) {
+        // Lauf mit TRIMP, aber ohne Laufwert (VO2max): nur der TRIMP wird
+        // getauscht, sonst bliebe er nach einem Profilwechsel im alten Modell
+        // und ATL/CTL mischten Skalen (FR-0097, FR-0197).
+        if (!await _hasTrimp(r.id)) continue;
+        final trimp = await _trimpSwap(
+          r,
+          await analysisOf(r, profile),
+          profile,
+          resolution,
+          now,
+        );
+        if (trimp.isNotEmpty) runOwners[ValueOwner.run(r.id)] = trimp;
+        continue;
+      }
       final analysis = await analysisOf(r, profile);
       final value = analysis.vo2maxValue(now);
       runValues[r.id] = value;
@@ -425,9 +439,7 @@ class ValueCalculationService {
     LoadProfileResolution resolution,
     DateTime now,
   ) async {
-    final stored = (await session.values.read(ValueOwner.run(r.id)))
-        .any((p) => p.original.key == trimpRunValueKey);
-    if (!stored || !resolution.applicable) return const [];
+    if (!await _hasTrimp(r.id) || !resolution.applicable) return const [];
     return [
       for (final v in buildRunLoadValues(
         run: r,
@@ -458,6 +470,11 @@ class ValueCalculationService {
         .subtract(const Duration(microseconds: 1));
     return end.isAfter(now) ? now : end;
   }
+
+  /// Hat der Lauf einen gespeicherten TRIMP (auch „nicht verfügbar“)?
+  Future<bool> _hasTrimp(int runId) async =>
+      (await session.values.read(ValueOwner.run(runId)))
+          .any((p) => p.original.key == trimpRunValueKey);
 
   Future<ValuePair?> _runValue(int runId) async {
     for (final p in await session.values.read(ValueOwner.run(runId))) {

@@ -311,4 +311,73 @@ void main() {
       expect(await w.recalc().loadBasisChanged(), isNull);
     });
   });
+
+  group('Läufe mit TRIMP, aber ohne Laufwert (VO2max)', () {
+    /// Ein Lauf, der nur einen TRIMP trägt (etwa älterer Bestand): der TRIMP
+    /// eines berechneten Laufs, ohne VO2max-Wert.
+    Future<int> trimpOnlyRun() async {
+      final id = await w.seedRun(DateTime.utc(2030, 2, 26, 8));
+      final trimp = (await w.session.values.read(ValueOwner.run(ids.first)))
+          .firstWhere((p) => p.original.key == trimpRunValueKey)
+          .original;
+      await w.session.values.writeAll(
+        create: {
+          ValueOwner.run(id): [trimp],
+        },
+        swap: const {},
+      );
+      return id;
+    }
+
+    Future<List<ValuePair>> pairs(int id) =>
+        w.session.values.read(ValueOwner.run(id));
+
+    /// Invariante: nach Bestätigung trägt jeder TRIMP die Methode des aktiven
+    /// Profils (eine Skala für ATL/CTL).
+    Future<void> expectOneScale(String method) async {
+      var seen = 0;
+      for (final r in await w.session.runs.list()) {
+        for (final p in await pairs(r.id)) {
+          if (p.original.key != trimpRunValueKey) continue;
+          seen++;
+          expect(p.current.method, method, reason: 'Lauf ${r.id}');
+        }
+      }
+      expect(seen, ids.length + 1);
+    }
+
+    test('Wechsel nach Banister und zurück: der Lauf wechselt mit', () async {
+      final only = await trimpOnlyRun();
+      expect((await pairs(only)).map((p) => p.original.key), [
+        trimpRunValueKey,
+      ]);
+      await setCoefficients(LoadCoefficients.male);
+      final s = w.recalc();
+      final offer = await s.requestLoadProfile(LoadProfile.banister);
+      expect(offer!.runIds, contains(only));
+      await s.confirm(offer);
+      await expectOneScale(BanisterTrimp.methodIdMale);
+      // Kein Laufwert nebenbei entstanden.
+      expect((await pairs(only)).map((p) => p.original.key), [
+        trimpRunValueKey,
+      ]);
+
+      final back = await s.requestLoadProfile(LoadProfile.edwards);
+      expect(back!.runIds, contains(only));
+      await s.confirm(back);
+      await expectOneScale(EdwardsTrimp.methodId);
+    });
+
+    test('Rückweg bei wegfallenden Angaben: der Lauf wechselt mit', () async {
+      await setCoefficients(LoadCoefficients.male);
+      final s = w.recalc();
+      await s.confirm((await s.requestLoadProfile(LoadProfile.banister))!);
+      final only = await trimpOnlyRun();
+      await setCoefficients(null);
+      final offer = await s.loadBasisChanged();
+      expect(offer!.runIds, contains(only));
+      await s.confirm(offer);
+      await expectOneScale(EdwardsTrimp.methodId);
+    });
+  });
 }

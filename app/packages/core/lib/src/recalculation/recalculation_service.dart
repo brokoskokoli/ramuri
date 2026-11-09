@@ -382,8 +382,13 @@ class RecalculationService {
   Future<List<int>> _affectedRuns() async => [
     for (final r in await session.runs.list())
       if (r.state == RunState.finished && r.endedAt != null)
-        if ((await session.values.read(ValueOwner.run(r.id)))
-            .any((p) => p.original.key == vo2maxRunValueKey))
+        // Laufwert (VO2max) ODER TRIMP: ein Lauf nur mit TRIMP wechselt beim
+        // Profilwechsel mit, `buildSnapshot` tauscht dann nur den TRIMP.
+        if ((await session.values.read(ValueOwner.run(r.id))).any(
+          (p) =>
+              p.original.key == vo2maxRunValueKey ||
+              p.original.key == trimpRunValueKey,
+        ))
           r.id,
   ];
 
