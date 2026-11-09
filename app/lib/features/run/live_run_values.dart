@@ -665,8 +665,9 @@ class _HeartCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            // Der Text daneben sagt die Zone in jedem Fall; der Balken
-            // wiederholt es nicht für die Sprachausgabe.
+            // Der Text daneben nennt die Zone, sobald es einen Puls gibt (ohne
+            // Puls gibt es keinen Zonentext); der Balken wiederholt es nicht
+            // für die Sprachausgabe.
             ZoneMeter(zone: zoneNumber, semanticLabel: ''),
           ],
         ),

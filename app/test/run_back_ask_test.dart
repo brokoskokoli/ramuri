@@ -1,6 +1,7 @@
 // WP17 A (OQ-0076, FR-0028): Zurück im laufenden Lauf fragt „Lauf pausieren?“. Die Aufzeichnung ist ein Zähler hinter
 // dem echten Recorder: Jeder Befehl wird gezählt. Ohne Antwort, bei „Weiterlaufen“, außerhalb und bei erneutem Zurück
 // geht kein Befehl hinaus; „Pausieren“ sendet genau einen Pause-Befehl (wie der Pause-Knopf).
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:adapters/adapters.dart';
@@ -46,9 +47,14 @@ class _CountingRecorder extends RunRecorder {
 
   final commands = <String>[];
 
+  /// Hält `pause()` fest, bis der Completer fertig ist (Schreibfenster).
+  Completer<void>? holdPause;
+
   @override
-  Future<CommandResult> pause() {
+  Future<CommandResult> pause() async {
     commands.add('pause');
+    final hold = holdPause;
+    if (hold != null) await hold.future;
     return super.pause();
   }
 
@@ -223,21 +229,48 @@ void main() {
     await end(tester);
   });
 
-  testWidgets('Doppel-Zurück ohne Pause dazwischen: ein Dialog', (
+  testWidgets('Doppel-Zurück im selben Takt: ein Dialog, kein Befehl', (
     tester,
   ) async {
     await open(tester);
-    await tester.binding.handlePopRoute();
-    await tester.pump(); // Dialog ist da, die Einblendung läuft noch
-    await tester.binding.handlePopRoute(); // schnelles zweites Zurück
+    // Beide Zurück kommen, bevor der Navigator das erste ausgewertet hat. Das
+    // zweite verwirft der Navigator selbst: maybePop prüft nach dem Warten auf
+    // willPop, ob sich die Route ganz oben geändert hat (navigator.dart,
+    // `lastEntry != newLastEntry`), und das hat das erste mit dem Dialog.
+    // Dieser Fall braucht den Wächter `_asking` also nicht (siehe nächster Test).
+    unawaited(tester.binding.handlePopRoute());
+    unawaited(tester.binding.handlePopRoute());
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    // Das zweite Zurück schloss den ersten Dialog oder fand ihn nicht vor;
-    // es steht nie ein zweiter über dem ersten.
-    expect(find.text('Lauf pausieren?').evaluate().length, lessThan(2));
+    expect(find.text('Lauf pausieren?'), findsOneWidget);
     expect(w.recorder.commands, isEmpty);
     await end(tester);
   });
+
+  testWidgets(
+    'Zurück im Schreibfenster nach Pausieren: keine zweite Rückfrage',
+    (tester) async {
+      await open(tester);
+      final hold = Completer<void>();
+      w.recorder.holdPause = hold;
+      await back(tester);
+      await tester.tap(_k('run_pause_ask_confirm'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      // Der Pause-Befehl ist unterwegs, die Phase noch „laufend“: Der Dialog ist
+      // zu, aber `_asking` hält. Ein Zurück darf keine neue Rückfrage öffnen.
+      expect(w.recorder.commands, ['pause']);
+      expect(w.run.phase, RecordingPhase.running);
+      expect(find.text('Lauf pausieren?'), findsNothing);
+      await back(tester);
+      expect(find.text('Lauf pausieren?'), findsNothing);
+      hold.complete();
+      await tester.pumpAndSettle();
+      expect(w.recorder.commands, ['pause']);
+      expect(w.run.phase, RecordingPhase.paused);
+      await end(tester);
+    },
+  );
 
   testWidgets('Pausieren: genau ein Pause-Befehl, danach pausiert', (
     tester,

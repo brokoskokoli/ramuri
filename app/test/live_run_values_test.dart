@@ -477,7 +477,8 @@ void main() {
             'run_pace',
             'run_avg_pace',
             'run_hr',
-            if (key('run_zone').evaluate().isNotEmpty) 'run_zone',
+            // Mit Puls steht die Zone da (nicht von der Zone selbst abhängig).
+            if (text('run_hr') != 'nicht verfügbar') 'run_zone',
             'run_moving_time',
             'run_ascent',
             'run_cadence',

@@ -14,7 +14,7 @@ import 'app_harness.dart';
 import 'history_summary_test.dart' show key, seedRun, showAllRuns;
 
 /// Einheitswort: nach dem Entfernen der Wortverbinder genau eine Einheit.
-final _unitWord = RegExp(r'^(km|mi|m|ft|min/km|min/mi|bpm|spm)$');
+final _unitWord = RegExp(r'^(km|mi|m|ft|min/km|min/mi|bpm|spm|Punkte|points)$');
 
 /// Werte in schmalen Kacheln: Reicht die Spalte für Zahl und Einheit nicht
 /// (Design: drei Spalten auf 360 dp), steht die Einheit als Ganzes unter der
@@ -23,9 +23,11 @@ const _tileKeys = {
   'run_pace',
   'run_avg_pace',
   'run_ascent',
+  'run_descent',
   'sum_best_pace',
   'sum_avg_hr',
   'sum_max_hr',
+  'sum_trimp',
 };
 
 /// Prüft alle Texte auf dem Bildschirm: Kein Wort (auch keine Zahl, keine
@@ -139,7 +141,8 @@ void main() {
           await loadManrope(tester);
           await loadSora(tester);
           final semantics = tester.ensureSemantics();
-          final d = Device();
+          final cadence = FakeCadenceSensor();
+          final d = Device()..cadence = cadence;
           d.clock.set(DateTime.utc(2026, 6, 17, 12));
           final s = await d.storage.open(
             Uint8List.fromList(List.filled(32, 7)),
@@ -156,6 +159,10 @@ void main() {
               at: DateTime.utc(2026),
             );
           }
+          // Profil vor dem Verlaufslauf: Puls und TRIMP (Belastung) sind da.
+          await s.profile.save(
+            const ProfileRecord(maxHeartRateBpm: 190, restingHeartRateBpm: 60),
+          );
           // Langsamer Lauf: breiteste Pace (rund 15 min/km), mehrere km.
           final id = await seedRun(
             s,
@@ -180,7 +187,8 @@ void main() {
           await checkScrolled(tester, 'Detail');
           expect(tester.takeException(), isNull);
 
-          // Live: langsam (rund 15 min/km), 1200 m Anstieg, Puls 187.
+          // Live: langsam (rund 15 min/km), 1200 m Anstieg, dann 1200 m
+          // Gefälle, Puls 187 über die ganze Zeit (TRIMP), 180 spm.
           Navigator.of(tester.element(find.byType(Scaffold).last)).pop();
           await tester.pumpAndSettle();
           await tester.tap(key('home_today'));
@@ -192,7 +200,7 @@ void main() {
           await tester.pumpAndSettle();
           await tester.tap(key('run_start_ready'));
           await tester.pumpAndSettle();
-          for (var i = 0; i < 60; i++) {
+          for (var i = 0; i < 80; i++) {
             d.clock.advance(const Duration(seconds: 10));
             d.location.emit(
               LocationSample(
@@ -200,14 +208,16 @@ void main() {
                 latitude: 50 + i * 0.0001,
                 longitude: 8,
                 accuracyMeters: 5,
-                altitudeMeters: 100 + i * 20.0,
+                altitudeMeters: i < 60
+                    ? 100 + i * 20.0
+                    : 1300 - (i - 59) * 60.0,
                 verticalAccuracyMeters: 3,
               ),
             );
+            d.heartRate.emitReading('hr1', d.clock.now(), 187);
+            cadence.emit(d.clock.now(), 180);
             await tester.pump(const Duration(seconds: 1));
           }
-          d.heartRate.emitReading('hr1', d.clock.now(), 187);
-          await tester.pump(const Duration(seconds: 1));
           await checkScrolled(tester, 'Live Werte');
           await tester.tap(key('run_tab_1'));
           await tester.pumpAndSettle();

@@ -27,5 +27,11 @@ Bezug: FR-0028, FR-0037, FR-0041, FR-0057, FR-0205, FR-0211, FR-0212; PAR-014; O
 - [ ] Texte nach Punkt 4, de und en; Einheit bricht nicht von der Zahl (Widget-Test bei 360 dp, Faktor 1,3).
 - [ ] E2E (separater Agent), API 36 und 31, hell und dunkel, auf dem letzten Stand: Lauf mit Pause und Zurück-Taste, Zusammenfassung, Detail mit kurzem Rest, Verlauf mit Summen; Bildschirmfotos neben dem Design. Gate grün.
 
+## Ergebnis: Summen im Verlauf
+- **Ursache der Abweichung 18:52 / 18:50 (FR-0212):** Jede Zeile zeigt die Gesamtzeit ihres Laufs auf ganze Sekunden abgeschnitten (`formatClock`, `Duration.inSeconds`). Die Summe darüber addiert die Gesamtzeiten ungerundet und schneidet erst das Ergebnis ab. Zeile und Summe kommen aus derselben Liste (`history_screen.dart`, `RunOverview.totalTime`), die Zeitbasis ist dieselbe. Die Differenz liegt deshalb in [0, n) Sekunden bei n Läufen; 2 s bei sieben Läufen passen.
+- **Beleg und Grenze:** Herleitung aus dem Code. Die Sekundenbruchteile der E2E-Läufe wurden nicht gemessen.
+- **Speicherung:** Die Gesamtzeit liegt als `double` in Sekunden (`total_time_s`, `derived_access.dart`), beim Lesen auf Mikrosekunden gerundet (`access_support.dart`, `durationOf`). Die Bruchteile bleiben erhalten.
+- **Tests:** `app/test/history_totals_rounding_test.dart` (Rundung, Summe = Statistik; Widget-Test mit Pause: Zeile und Zeitsumme zeigen die Gesamtzeit), `app/packages/core/test/statistics/run_overview_test.dart` (Kurzfassung führt die Gesamtzeit, nicht die Bewegungszeit).
+
 ## Ungeprüft
 Bedienung mit Handschuhen und im Laufen auf echtem Gerät.

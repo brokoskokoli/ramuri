@@ -426,7 +426,10 @@ class _BackAskState extends State<_BackAsk> {
   bool _asking = false;
 
   Future<void> _askPause() async {
-    if (_asking) return; // schnelles Doppel-Zurück: nur ein Dialog
+    // Schreibfenster nach „Pausieren“: Der Dialog ist zu, die Phase noch
+    // „laufend“; ein Zurück dort öffnet keine zweite Rückfrage. (Zwei Zurück im
+    // selben Takt verwirft schon der Navigator, dafür braucht es den Wächter nicht.)
+    if (_asking) return;
     _asking = true;
     final controller = widget.controller;
     try {

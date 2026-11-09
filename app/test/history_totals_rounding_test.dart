@@ -6,6 +6,8 @@ import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/run/live_run_view.dart' show formatClock;
 
+import 'history_summary_test.dart' show openHistory, started, text;
+
 void main() {
   test('Zeitsumme = Statistik; Abweichung zur Zeilensumme höchstens Rundung je Zeile', () {
     // Sieben Läufe in einer Woche, jede Gesamtzeit mit 0,3 s Bruchteil.
@@ -60,4 +62,57 @@ void main() {
     expect(shownSum - rowsSum, lessThan(runs.length));
     expect(shownSum - rowsSum, greaterThanOrEqualTo(0));
   });
+
+  // WP17 NB1 (Befund 1): Der echte Weg bis zur Oberfläche. Ein Lauf mit
+  // Stillstand hat eine Gesamtzeit, die länger ist als die Bewegungszeit;
+  // Zeile und Zeitsumme zeigen die Gesamtzeit (FR-0212).
+  testWidgets(
+    'Lauf mit Stillstand: Zeile und Zeitsumme zeigen die Gesamtzeit',
+    (tester) async {
+      final d = await started(tester);
+      final start = DateTime.utc(2030, 1, 2, 8);
+      final run = await d.session.runs.create(startedAt: start);
+      // 10 min: 3 min laufen, 3 min stehen (gleiche Position), 4 min laufen.
+      const perDegree = earthRadiusMeters * 3.141592653589793 / 180;
+      double lat(int s) =>
+          10 + (s <= 180 ? s : (s <= 360 ? 180 : s - 180)) * 3.0 / perDegree;
+      await d.session.rawData.append(
+        run.id,
+        RawBatch(
+          positions: [
+            for (var s = 0; s <= 600; s++)
+              RawPosition(
+                time: start.add(Duration(seconds: s)),
+                source: 'gps',
+                latitude: lat(s),
+                longitude: 20,
+                accuracyMeters: 5,
+              ),
+          ],
+        ),
+      );
+      await d.session.runs.setState(
+        run.id,
+        RunState.finished,
+        endedAt: start.add(const Duration(seconds: 600)),
+        endedUtcOffset: Duration.zero,
+      );
+      // Gegenprobe: Die Bewegungszeit ist wirklich kürzer als die Gesamtzeit.
+      final summary = (await RunSummaryService(
+        session: d.session,
+        clock: d.clock,
+      ).load(run.id))!;
+      expect(
+        summary.preprocessing.movement.totalTime,
+        const Duration(minutes: 10),
+      );
+      expect(
+        summary.preprocessing.movement.movingTime,
+        lessThan(const Duration(minutes: 9)),
+      );
+      await openHistory(d, tester);
+      expect(text('history_time_${run.id}'), '10:00');
+      expect(text('history_total_time'), '10:00');
+    },
+  );
 }
