@@ -208,6 +208,7 @@ Die Tabelle fasst Entscheidungen aus der Quelle und vom Maintainer (SRC-003) zus
 | DEC-0069 | Karte der Route im Lauf, in Zusammenfassung, Detailansicht und als Miniatur; Kacheln aus dem Netz nur nach Einwilligung, sonst Route ohne Karte (Maintainer, SRC-003) | FR-0027, FR-0037, FR-0040, FR-0041, FR-0204, SEC-0008 | Entschieden (OQ-0074) |
 | DEC-0070 | Name „ramuri“ mit neuer Paket-ID; alle Seiten nach dem Screen-Design, Inhalte nach Spec; Navigation Heute/Verlauf/Fortschritt (Plan ab Phase 2); hell und dunkel (Maintainer, SRC-003) | FR-0205, FR-0206, FR-0207, FR-0208, FR-0209, FR-0210, FR-0211, FR-0212 | Entschieden (OQ-0075) |
 | DEC-0071 | Start von Phase 2: Geh-Lauf-Abfolge in Testversionen, Release erst nach OQ-0048; Erholung ohne Gesundheitsdaten nur als Text; Spec in der Optik des Designs, kurze Phasennamen; Phase 3 zurückgestellt (Maintainer, SRC-003) | FR-0107, FR-0140, FR-0141, FR-0205 | Entschieden (OQ-0077) |
+| DEC-0072 | RR-Intervalle des Pulsgurts ab Phase 2 als Rohdaten speichern, Auswertung später (Maintainer, SRC-003) | FR-0021, FR-0213 | Entschieden |
 
 ## Phasen
 

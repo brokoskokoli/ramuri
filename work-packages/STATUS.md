@@ -13,7 +13,7 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | M0 ADRs | Architekturentscheidungen; ADR-0002 bis ADR-0008 freigegeben | erledigt |
 | M1 Phase 1 | Laufaufzeichnung und grundlegende Fitnessanalyse | Plan: [M1-PLAN.md](M1-PLAN.md), WP01 bis WP12 gemergt, Abschlussprüfung bestanden (2026-11-08); WP13 (Karte) und WP14 bis WP17 (Screen-Design) gemergt, Abschlussprüfung für Netz und Oberfläche wiederholt (2026-11-09) |
 | M2 Phase 2 | Adaptiver Trainingscoach | Go am 2026-11-09, in Arbeit; Plan: [M2-PLAN.md](M2-PLAN.md) |
-| M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | zurückgestellt (OQ-0077), neue Entscheidung nach den Erfahrungen mit M2; vor dem Start Prüfung am Gerät (ADR-0007) |
+| M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | zurückgestellt (OQ-0077), neue Entscheidung nach den Erfahrungen mit M2; vor dem Start Prüfung am Gerät (ADR-0007); als Alternative zu Uhrdaten eine Morgenmessung der RMSSD mit dem Pulsgurt prüfen (RR-Daten aus WP26); DFA α1 als späterer Research-Auftrag mit echten Läufen |
 
 ## M2 im Detail
 
@@ -27,6 +27,7 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP23 | Plananpassung, Warnsignal, Erklärungen, Basis-Erholung | geplant | |
 | WP24 | Geführte Einheit und Ansagen | geplant | |
 | WP25 | Laufband und Zusatzmetriken | geplant | |
+| WP26 | RR-Intervalle speichern | geplant | Start nach WP20 |
 
 ## M1 im Detail
 
