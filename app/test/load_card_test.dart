@@ -158,7 +158,9 @@ void main() {
           expect(find.text(l10n.loadTitle), findsOneWidget);
           expect(k('load_chart'), findsOneWidget);
           expect(find.text(l10n.loadAtlLabel), findsOneWidget);
-          expect(find.text(l10n.loadCtlLabel), findsOneWidget);
+          // Englisch: Kurz- und Langname sind gleich (Anzeige und Grundlage).
+          expect(find.text(l10n.loadCtlLabel), findsWidgets);
+          expect(find.text(l10n.loadFigCtl), findsWidgets);
           expect(find.text(l10n.loadTsbLabel), findsOneWidget);
           // Frühe Phase: alle drei vorläufig, mit Gründen.
           expect(k('load_atl_provisional'), findsOneWidget);
@@ -466,7 +468,23 @@ void main() {
         expect(k('load_legend'), findsOneWidget);
         expect(k('load_tsb'), findsOneWidget);
         expect(k('load_basis'), findsNothing);
+        // FR-0197: das verwendete Profil steht auch eingeklappt da.
+        expect(k('load_profile_short'), findsOneWidget);
+        expect(find.text('Profil: Edwards-TRIMP'), findsOneWidget);
       }
+      final banister = report(
+        profile: LoadProfile.banister,
+        units: [
+          for (var i = 0; i < 60; i += 2) LoadUnit.run(day: _d(i), trimp: 50),
+        ],
+      );
+      await pump(
+        tester,
+        LoadCardBody(state: LoadViewState.ready(banister)),
+        width: 390,
+        height: 844,
+      );
+      expect(find.text('Profil: Banister-TRIMP'), findsOneWidget);
     });
 
     testWidgets('Grundlage: Schalter mit 48 dp und Semantik, klappt auf und '
@@ -511,7 +529,11 @@ void main() {
         l10n.loadFlagUnrated,
         l10n.loadFlagEmpty,
       ]) {
-        expect(find.text(t), findsOneWidget, reason: t);
+        expect(
+          find.text(t),
+          t == l10n.loadCtlLabel ? findsWidgets : findsOneWidget,
+          reason: t,
+        );
       }
       expect(k('load_scale'), findsOneWidget);
 
@@ -681,11 +703,31 @@ void main() {
     });
 
     test('CTL heißt langfristiges Belastungsniveau, nie Fitness (FR-0100)', () {
-      expect(
-        arb('de')['loadCtlLabel'],
-        contains('Langfristiges Belastungsniveau'),
-      );
-      expect(arb('en')['loadCtlLabel'], contains('Long-term load level'));
+      // Jeder load*-Text, der CTL benennt (außer dem bloßen Kürzel der Legende),
+      // nennt das ausgeschriebene Belastungsniveau.
+      final names = {
+        'de': RegExp('(Langfristiges|Langfr\\.) Belastungsniveau'),
+        'en': RegExp('Long-term load level'),
+      };
+      for (final lang in ['de', 'en']) {
+        final m = arb(lang);
+        final ctl = [
+          for (final e in m.entries)
+            if (e.key.startsWith('load') &&
+                !e.key.startsWith('@') &&
+                e.value.contains('CTL') &&
+                e.value != 'CTL')
+              e.key,
+        ];
+        expect(ctl, containsAll(['loadCtlLabel', 'loadFigCtl']), reason: lang);
+        for (final key in ctl) {
+          expect(
+            names[lang]!.hasMatch(m[key]!),
+            isTrue,
+            reason: '$lang $key: ${m[key]}',
+          );
+        }
+      }
     });
 
     test('Hinweis zum Datenstand macht keine Zusage „alles erfasst“', () {

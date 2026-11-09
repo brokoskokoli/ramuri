@@ -251,6 +251,42 @@ void main() {
       expect(await _active(d), LoadProfile.edwards);
     });
 
+    testWidgets('Knopf „Zur Bestätigung“ bringt das Angebot ins Bild, 48 dp', (
+      tester,
+    ) async {
+      await _start(tester, coefficients: LoadCoefficients.male);
+      tester.view.physicalSize = const Size(390, 520);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await _openSettings(tester);
+      expect(find.byKey(const Key('load_show_offer')), findsNothing);
+      await _tap(tester, 'load_profile_banister');
+      // Das Angebot ist erreichbar, wenn sein Anfang im Bild liegt.
+      final offer = find.byKey(const Key('recalc_cause_loadProfile'));
+      final viewport = tester.getRect(find.byType(Scaffold));
+      bool inView() {
+        // Außerhalb gebaut wird die Karte der ListView gar nicht erst.
+        if (offer.evaluate().isEmpty) return false;
+        final r = tester.getRect(offer);
+        // Die Liste beginnt unter der Titelleiste.
+        return r.top >= viewport.top + kToolbarHeight &&
+            r.top < viewport.bottom;
+      }
+
+      // Der Nutzer liest weiter unten: das Angebot ist aus dem Bild.
+      await tester.drag(find.byType(ListView), const Offset(0, -3000));
+      await tester.pumpAndSettle();
+      expect(inView(), isFalse, reason: 'Testaufbau: Angebot liegt außerhalb');
+      expect(
+        tester.getSize(find.byKey(const Key('load_show_offer'))).height,
+        greaterThanOrEqualTo(48),
+      );
+      await tester.ensureVisible(find.byKey(const Key('load_show_offer')));
+      await tester.pumpAndSettle();
+      await _tap(tester, 'load_show_offer');
+      expect(inView(), isTrue);
+    });
+
     testWidgets('Bestätigen macht die Wahl aktiv', (tester) async {
       final d = await _start(tester, coefficients: LoadCoefficients.female);
       await _openSettings(tester);
@@ -399,6 +435,39 @@ void main() {
       expect(
         await LoadSettings.coefficients(d.session.settings),
         LoadCoefficients.female,
+      );
+    });
+
+    testWidgets('abgewiesene Angabe: alter Chip wieder gewählt, nichts '
+        'gespeichert, Banner (Review 3 Befund 4)', (tester) async {
+      final d = await _start(tester, coefficients: LoadCoefficients.male);
+      await _openSettings(tester);
+      await _tap(tester, 'load_profile_banister');
+      await _tap(tester, 'recalc_confirm');
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await _openProfile(tester);
+      bool selected(String k) =>
+          tester.widget<ChoiceChip>(find.byKey(Key(k))).selected;
+      expect(selected('profile_coef_male'), isTrue);
+      // Ruhepuls entfernen und Angabe ändern im selben Speichern.
+      await tester.enterText(find.byKey(const Key('profile_resting')), '');
+      await _tap(tester, 'profile_coef_female');
+      expect(selected('profile_coef_female'), isTrue);
+      await _tap(tester, 'profile_save');
+      expect(
+        find.text(
+          AppLocalizations.of(
+            tester.element(find.byKey(const Key('profile_save'))),
+          ).loadCoefficientsNotApplied,
+        ),
+        findsOneWidget,
+      );
+      expect(selected('profile_coef_male'), isTrue);
+      expect(selected('profile_coef_female'), isFalse);
+      expect(
+        await LoadSettings.coefficients(d.session.settings),
+        LoadCoefficients.male,
       );
     });
   });

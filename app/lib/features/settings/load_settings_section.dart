@@ -20,10 +20,14 @@ class LoadSettingsSection extends StatefulWidget {
     super.key,
     required this.session,
     required this.recalculation,
+    this.onShowOffer,
   });
 
   final StorageSession session;
   final RecalculationController recalculation;
+
+  /// Bringt die Karte der Neuberechnung (mit dem Angebot) ins Bild.
+  final VoidCallback? onShowOffer;
 
   @override
   State<LoadSettingsSection> createState() => _LoadSettingsSectionState();
@@ -210,6 +214,17 @@ class _LoadSettingsSectionState extends State<LoadSettingsSection> {
               l10n.loadSettingsChosen(_name(l10n, s.chosen!)),
               key: const Key('load_chosen'),
               style: TextStyle(color: c.textMuted),
+            ),
+          ),
+        if (s.chosen != null &&
+            s.chosen != s.active &&
+            widget.onShowOffer != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: RamuriSecondaryButton(
+              key: const Key('load_show_offer'),
+              onPressed: widget.onShowOffer,
+              label: l10n.loadSettingsShowOffer,
             ),
           ),
         if (!banisterOk) ...[

@@ -54,6 +54,48 @@ void main() {
     });
   });
 
+  group('loadProfileResolution (Anzeige der Wählbarkeit, nur lesend)', () {
+    test('anwendbar, Ruhepuls fehlt, Angabe fehlt', () async {
+      final s = w.recalc();
+      final before = await w.dump();
+      // Edwards braucht nichts davon; Banister ohne Angabe: nicht anwendbar.
+      expect(
+        (await s.loadProfileResolution(LoadProfile.edwards)).applicable,
+        isTrue,
+      );
+      var r = await s.loadProfileResolution(LoadProfile.banister);
+      expect(r.applicable, isFalse);
+      expect(r.issues, [LoadProfileIssue.missingCoefficients]);
+      // Mit Angabe und Ruhepuls: anwendbar.
+      await setCoefficients(LoadCoefficients.male);
+      r = await s.loadProfileResolution(LoadProfile.banister);
+      expect(r.applicable, isTrue);
+      expect(r.issues, isEmpty);
+      // Ruhepuls weg: nicht anwendbar, Grund Ruhepuls.
+      await w.session.profile.save(const ProfileRecord(maxHeartRateBpm: 190));
+      r = await s.loadProfileResolution(LoadProfile.banister);
+      expect(r.applicable, isFalse);
+      expect(r.issues, [LoadProfileIssue.missingRestingHeartRate]);
+      // Beides fehlt: beide Gründe.
+      await setCoefficients(null);
+      r = await s.loadProfileResolution(LoadProfile.banister);
+      expect(
+        r.issues,
+        containsAll([
+          LoadProfileIssue.missingRestingHeartRate,
+          LoadProfileIssue.missingCoefficients,
+        ]),
+      );
+      // Nur lesend: weder Wahl noch Angebot.
+      expect(await chosen(), isNull);
+      expect(await s.pendingOffer(), isNull);
+      expect(await active(), LoadProfile.edwards);
+      await w.session.profile.save(profile190);
+      await setCoefficients(null);
+      expect(await w.dump(), before);
+    });
+  });
+
   group('Wechsel Edwards -> Banister', () {
     test('Banister ohne Koeffizienten oder Ruhepuls: abgewiesen, nichts '
         'geändert', () async {
