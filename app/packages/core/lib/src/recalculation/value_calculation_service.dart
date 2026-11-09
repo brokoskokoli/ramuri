@@ -5,10 +5,12 @@ import '../../ports/storage_values.dart';
 import '../fitness/aerobic_efficiency.dart';
 import '../fitness/fitness_parameters.dart';
 import '../fitness/heart_rate_basis.dart';
+import '../fitness/load_profile.dart';
 import '../fitness/vo2max_long_term.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../statistics/run_overview.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
+import '../settings/load_settings.dart';
 import '../settings/reserve_zone_settings.dart';
 import 'run_analysis.dart';
 import '../subjective/subjective_service.dart' show refreshSrpe;
@@ -105,6 +107,20 @@ class ValueCalculationService {
     ).basis,
   );
 
+  /// Aufgelöstes Belastungsprofil (FR-0197): [profile] oder das gespeicherte
+  /// aktive; Banister nur anwendbar mit Ruhepuls und Koeffizienten.
+  Future<LoadProfileResolution> loadResolution(
+    HeartRateBasis basis, {
+    LoadProfile? profile,
+  }) async => resolveLoadProfile(
+    requested: profile ?? await LoadSettings.activeProfile(session.settings),
+    basis: basis,
+    coefficients: await LoadSettings.coefficients(session.settings),
+  );
+
+  /// Basis des gespeicherten Profils für die Auflösung des Belastungsprofils.
+  Future<HeartRateBasis> profileBasis() => _profileBasis();
+
   RunAnalyzer _analyzer(HeartRateBasis basis) =>
       RunAnalyzer(fitness: fitness, preprocessing: preprocessing, basis: basis);
 
@@ -160,6 +176,7 @@ class ValueCalculationService {
       fitness: fitness.copyWith(reserveZoneBounds: bounds),
       sources: analysis.sources,
       computedAt: now,
+      loadProfile: await loadResolution(profile),
     );
     // Kurzfassung für Historie und Vergleich (vor den Werten: scheitert sie,
     // ist nichts geschrieben und ein neuer Versuch möglich).
@@ -346,10 +363,16 @@ class ValueCalculationService {
   /// Rechnet alle Läufe mit gespeichertem Laufwert und deren Tageswerte mit
   /// der aktuellen Profilbasis neu, ohne etwas zu speichern (Zwischenstand der
   /// Neuberechnung). Tageswerte nur für Tage, die schon einen haben.
-  Future<ValueSnapshot> buildSnapshot() async {
+  ///
+  /// [loadProfile]: das Belastungsprofil, mit dem der TRIMP gerechnet wird
+  /// (Wechsel nach Bestätigung, OQ-0053); ohne Angabe das aktive. Ist das
+  /// Profil nicht anwendbar, bleiben die gespeicherten TRIMP-Werte
+  /// unverändert (kein stiller Wechsel, nichts Unbrauchbares schreiben).
+  Future<ValueSnapshot> buildSnapshot({LoadProfile? loadProfile}) async {
     final now = clock.now();
     final runs = await _finishedRuns();
     final profile = await _profileBasis();
+    final resolution = await loadResolution(profile, profile: loadProfile);
     final analyzer = _analyzer(profile);
     final cache = <int, RunAnalysis>{};
     Future<RunAnalysis> analysisOf(StoredRun r, HeartRateBasis _) async =>
@@ -364,7 +387,7 @@ class ValueCalculationService {
       runValues[r.id] = value;
       runOwners[ValueOwner.run(r.id)] = [
         value,
-        ...await _trimpSwap(r, analysis, profile, now),
+        ...await _trimpSwap(r, analysis, profile, resolution, now),
       ];
     }
     final dayOwners = <ValueOwner, List<ComputedValue>>{};
@@ -399,11 +422,12 @@ class ValueCalculationService {
     StoredRun r,
     RunAnalysis analysis,
     HeartRateBasis profile,
+    LoadProfileResolution resolution,
     DateTime now,
   ) async {
     final stored = (await session.values.read(ValueOwner.run(r.id)))
         .any((p) => p.original.key == trimpRunValueKey);
-    if (!stored) return const [];
+    if (!stored || !resolution.applicable) return const [];
     return [
       for (final v in buildRunLoadValues(
         run: r,
@@ -412,6 +436,7 @@ class ValueCalculationService {
         fitness: fitness,
         sources: analysis.sources,
         computedAt: now,
+        loadProfile: resolution,
       ))
         if (v.key == trimpRunValueKey) v,
     ];

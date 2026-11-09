@@ -123,6 +123,7 @@
   "recalcIntro": "The following has changed, so the stored values of earlier runs no longer match:",
   "recalcCauseHeartRate": "The heart rate basis (max or resting heart rate) is different.",
   "recalcCauseAlgorithm": "The app's calculation method has been updated.",
+  "recalcCauseLoadProfile": "The load profile is to be changed. The training load of your runs is then recalculated on one scale.",
   "recalcKeepsOriginal": "The original values and the raw data are kept. Nothing changes unless you recalculate.",
   "recalcConfirm": "Recalculate",
   "recalcRetry": "Try again",

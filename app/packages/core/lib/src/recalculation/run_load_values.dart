@@ -1,10 +1,12 @@
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
+import '../fitness/banister_trimp.dart';
 import '../fitness/edwards_trimp.dart';
 import '../fitness/fitness_parameters.dart';
 import '../fitness/fitness_result.dart';
 import '../fitness/heart_rate_basis.dart';
 import '../fitness/heart_rate_reserve.dart';
+import '../fitness/load_profile.dart';
 import '../fitness/reserve_zones.dart';
 import '../preprocessing/run_preprocessor.dart';
 import 'run_analysis.dart' show snapshotOf;
@@ -40,7 +42,10 @@ final Set<String> runLoadValueKeys = Set.unmodifiable({
 /// Daten), steht jeder Wert ohne Zahl mit [ComputedValue.unavailableReason],
 /// nie 0. [pre] ist `null` bei einem Lauf ohne Dauer. [fitness] trägt die
 /// Zonengrenzen zum Laufende, [basis] die Herzfrequenzbasis (wird als
-/// Schnappschuss an jeden Wert geschrieben).
+/// Schnappschuss an jeden Wert geschrieben). [loadProfile] ist das aufgelöste
+/// Belastungsprofil (FR-0197); `null` = Edwards. Ist es nicht anwendbar, steht
+/// der TRIMP „nicht verfügbar“ mit Grund, nie mit einem anderen Modell
+/// gerechnet (kein stiller Wechsel).
 List<ComputedValue> buildRunLoadValues({
   required StoredRun run,
   required RunPreprocessing? pre,
@@ -48,6 +53,7 @@ List<ComputedValue> buildRunLoadValues({
   required FitnessParameters fitness,
   required Set<String> sources,
   required DateTime computedAt,
+  LoadProfileResolution? loadProfile,
 }) {
   final snapshot = snapshotOf(basis);
   final sorted = (sources.toList()..sort());
@@ -80,27 +86,46 @@ List<ComputedValue> buildRunLoadValues({
     );
   }
 
-  FitnessResult<ReserveZoneTimes> zones;
-  FitnessResult<TrimpResult> trimp;
-  if (pre == null) {
-    FitnessUnavailable<T> noTime<T>(String method, int version) =>
-        FitnessUnavailable(
-          reason: UnavailableReason.noMovingTime,
-          method: method,
-          methodVersion: version,
-          parameterVersion: fitness.parameterVersion,
-          maxIsEstimated: basis.maxIsEstimated,
+  final LoadModel? model = loadProfile == null
+      ? const EdwardsTrimp()
+      : loadProfile.model;
+  FitnessUnavailable<T> unavailable<T>(
+    UnavailableReason reason,
+    String method,
+    int version,
+  ) => FitnessUnavailable(
+    reason: reason,
+    method: method,
+    methodVersion: version,
+    parameterVersion: fitness.parameterVersion,
+    maxIsEstimated: basis.maxIsEstimated,
+  );
+
+  final FitnessResult<ReserveZoneTimes> zones = pre == null
+      ? unavailable(UnavailableReason.noMovingTime, ReserveZones.methodId, 1)
+      : const ReserveZones(reserve: HeartRateReserve()).timeInZones(
+          basis: basis,
+          heartRate: pre.heartRate,
+          movement: pre.movement,
+          p: fitness,
         );
-    zones = noTime(ReserveZones.methodId, 1);
-    trimp = noTime(EdwardsTrimp.methodId, const EdwardsTrimp().methodVersion);
-  } else {
-    zones = const ReserveZones(reserve: HeartRateReserve()).timeInZones(
-      basis: basis,
-      heartRate: pre.heartRate,
-      movement: pre.movement,
-      p: fitness,
+  final FitnessResult<TrimpResult> trimp;
+  if (model == null) {
+    trimp = unavailable(
+      loadProfile!.issues.contains(LoadProfileIssue.missingRestingHeartRate)
+          ? UnavailableReason.missingRestingHeartRate
+          : UnavailableReason.missingLoadCoefficients,
+      BanisterTrimp.methodIdUnresolved,
+      1,
     );
-    trimp = const EdwardsTrimp().compute(
+  } else if (pre == null) {
+    trimp = unavailable(
+      UnavailableReason.noMovingTime,
+      model.method,
+      model.methodVersion,
+    );
+  } else {
+    trimp = model.compute(
       basis: basis,
       heartRate: pre.heartRate,
       movement: pre.movement,

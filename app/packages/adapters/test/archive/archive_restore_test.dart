@@ -302,6 +302,17 @@ void main() {
       // Einwilligungen nicht erteilt, Merker weg.
       expect(await session.consents.all(), isEmpty);
       expect(await session.settings.get('values.refreshPending'), isNull);
+      // Belastungsprofil: Einstellungen kommen mit, die offene Wahl nicht.
+      expect(
+        await LoadSettings.activeProfile(session.settings),
+        LoadProfile.banister,
+      );
+      expect(
+        await LoadSettings.coefficients(session.settings),
+        LoadCoefficients.female,
+      );
+      expect(await LoadSettings.allRecorded(session.settings), isTrue);
+      expect(await LoadSettings.pendingProfile(session.settings), isNull);
       // Danach nur die aktive Datenbank, keine Zwischendatenbank.
       expect(await files.importExists(), isFalse);
       expect(appFiles().where((n) => n.contains('.import')), isEmpty);

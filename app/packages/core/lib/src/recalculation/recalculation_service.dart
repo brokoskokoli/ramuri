@@ -6,8 +6,10 @@ import '../../ports/storage_profile.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
 import '../fitness/edwards_trimp.dart';
+import '../fitness/load_profile.dart';
 import '../fitness/vo2max_estimator.dart';
 import '../profile/heart_rate_resolution.dart';
+import '../settings/load_settings.dart';
 import 'run_analysis.dart';
 import 'run_load_values.dart';
 import 'value_calculation_service.dart';
@@ -20,6 +22,24 @@ enum RecalculationCause {
   /// Parameter- oder Methodenversion der gespeicherten Werte weicht von der
   /// der App ab (Änderung des Algorithmus).
   algorithmVersion,
+
+  /// Wechsel des Belastungsprofils (FR-0197, OQ-0053): das gewählte Profil
+  /// ([RecalculationOffer.loadProfile]) gilt erst nach Bestätigung. Dieselbe
+  /// Ursache bietet auch den Rückweg auf Edwards an, wenn bei aktivem Banister
+  /// Ruhepuls oder Koeffizienten wegfallen.
+  loadProfile,
+}
+
+/// Das gewählte Belastungsprofil ist nicht anwendbar (Ruhepuls oder
+/// Koeffizienten-Angabe fehlen). Es wurde nichts geändert.
+class LoadProfileNotApplicableException implements Exception {
+  const LoadProfileNotApplicableException(this.profile, this.issues);
+
+  final LoadProfile profile;
+  final List<LoadProfileIssue> issues;
+
+  @override
+  String toString() => 'LoadProfileNotApplicableException($profile, $issues)';
 }
 
 /// Angebot einer Neuberechnung. Es ändert nichts, bis es bestätigt wird.
@@ -27,6 +47,7 @@ class RecalculationOffer {
   RecalculationOffer({
     required Set<RecalculationCause> causes,
     required List<int> runIds,
+    this.loadProfile,
   }) : causes = Set.unmodifiable(causes),
        runIds = List.unmodifiable(runIds);
 
@@ -35,6 +56,10 @@ class RecalculationOffer {
   /// Läufe mit gespeichertem VO₂max-Laufwert, deren `current` neu gerechnet
   /// würde.
   final List<int> runIds;
+
+  /// Das gewählte, noch nicht aktive Belastungsprofil bei der Ursache
+  /// [RecalculationCause.loadProfile]; sonst `null`.
+  final LoadProfile? loadProfile;
 }
 
 /// Ergebnis einer bestätigten Neuberechnung.
@@ -109,7 +134,11 @@ class RecalculationService {
   Future<RecalculationOffer?> pendingOffer() async {
     final causes = await _pendingCauses();
     if (causes.isEmpty) return null;
-    return RecalculationOffer(causes: causes, runIds: await _affectedRuns());
+    return RecalculationOffer(
+      causes: causes,
+      runIds: await _affectedRuns(),
+      loadProfile: await _pendingLoadProfile(causes),
+    );
   }
 
   /// Das Profil wurde von [before] auf [after] geändert (nach dem Speichern).
@@ -126,9 +155,102 @@ class RecalculationService {
         a.maxBpm == b.maxBpm &&
         a.restingBpm == b.restingBpm &&
         a.maxIsEstimated == b.maxIsEstimated;
-    if (same) return null;
-    return _offer(RecalculationCause.heartRateBasis);
+    if (same) return _offerLoadRevert();
+    final offer = await _offer(RecalculationCause.heartRateBasis);
+    // Fällt dabei der Ruhepuls weg, während Banister aktiv ist, kommt der
+    // Rückweg auf Edwards als weitere Ursache dazu.
+    return await _offerLoadRevert() ?? offer;
   }
+
+  /// Wählt das Belastungsprofil [target] (FR-0197). Es gilt erst nach
+  /// [confirm]; bis dahin bleibt das aktive Profil und es ändert sich nichts
+  /// an den Werten. Banister nur anwendbar mit Ruhepuls und Koeffizienten,
+  /// sonst [LoadProfileNotApplicableException]. Ist [target] das aktive
+  /// Profil, verfällt eine offene Wahl. Gibt es keine Läufe mit Werten, wird
+  /// sofort gewechselt (nichts zu rechnen) und es gibt kein Angebot.
+  Future<RecalculationOffer?> requestLoadProfile(LoadProfile target) async {
+    final active = await LoadSettings.activeProfile(session.settings);
+    if (target == active) {
+      await _dropLoadChoice();
+      return null;
+    }
+    final resolution = await _calc.loadResolution(
+      await _calc.profileBasis(),
+      profile: target,
+    );
+    if (!resolution.applicable) {
+      throw LoadProfileNotApplicableException(target, resolution.issues);
+    }
+    await LoadSettings.writePendingProfile(
+      session.settings,
+      target,
+      at: clock.now(),
+    );
+    final offer = await _offer(RecalculationCause.loadProfile);
+    if (offer == null) {
+      await LoadSettings.writeActiveProfile(
+        session.settings,
+        target,
+        at: clock.now(),
+      );
+      await LoadSettings.writePendingProfile(
+        session.settings,
+        null,
+        at: clock.now(),
+      );
+    }
+    return offer;
+  }
+
+  /// Nach einer Änderung der Koeffizienten-Angabe oder des Ruhepulses
+  /// aufrufen. Ist Banister aktiv und nicht mehr anwendbar, gibt es keinen
+  /// stillen Wechsel der Skala: Die App bietet den Rückweg auf Edwards an
+  /// (Ursache [RecalculationCause.loadProfile]); lehnt der Nutzer ab, bleibt
+  /// Banister gewählt und der TRIMP neuer Läufe steht als nicht verfügbar,
+  /// gespeicherte Werte bleiben. Ist Banister weiter anwendbar, aber mit
+  /// anderen Konstanten gerechnet (andere Koeffizienten), erkennt
+  /// [checkVersions] die Abweichung.
+  Future<RecalculationOffer?> loadBasisChanged() async =>
+      await _offerLoadRevert() ?? await checkVersions();
+
+  /// Bietet den Rückweg auf Edwards an, wenn Banister aktiv und nicht mehr
+  /// anwendbar ist; sonst `null`.
+  Future<RecalculationOffer?> _offerLoadRevert() async {
+    final active = await LoadSettings.activeProfile(session.settings);
+    if (active == LoadProfile.banister) {
+      final resolution = await _calc.loadResolution(await _calc.profileBasis());
+      if (!resolution.applicable) {
+        await LoadSettings.writePendingProfile(
+          session.settings,
+          LoadProfile.edwards,
+          at: clock.now(),
+        );
+        final offer = await _offer(RecalculationCause.loadProfile);
+        if (offer == null) await _dropLoadChoice();
+        return offer;
+      }
+    }
+    return null;
+  }
+
+  /// Entfernt eine offene Profilwahl samt Ursache.
+  Future<void> _dropLoadChoice() async {
+    await LoadSettings.writePendingProfile(
+      session.settings,
+      null,
+      at: clock.now(),
+    );
+    final causes = await _pendingCauses();
+    if (causes.remove(RecalculationCause.loadProfile)) {
+      await _setPending(causes);
+    }
+  }
+
+  Future<LoadProfile?> _pendingLoadProfile(
+    Set<RecalculationCause> causes,
+  ) async => causes.contains(RecalculationCause.loadProfile)
+      ? LoadSettings.pendingProfile(session.settings)
+      : null;
 
   /// Prüft, ob gespeicherte Laufwerte mit einer anderen Parameter- oder
   /// Methodenversion gerechnet sind als die App sie jetzt verwendet: VO2max
@@ -137,13 +259,19 @@ class RecalculationService {
   /// gerechnet (L11), das Angebot käme nach jeder Bestätigung wieder.
   Future<RecalculationOffer?> checkVersions() async {
     const estimator = AcsmReserveVo2maxEstimator();
-    const trimp = EdwardsTrimp();
+    // TRIMP-Modell des aktiven Belastungsprofils; nicht anwendbar: nicht
+    // vergleichen (die Rückweg-Ursache deckt das ab, [loadBasisChanged]).
+    final resolution = await _calc.loadResolution(await _calc.profileBasis());
+    final LoadModel? trimp = resolution.model;
     for (final r in await session.runs.list()) {
       for (final p in await session.values.read(ValueOwner.run(r.id))) {
         final c = p.current;
         final (method, version) = switch (p.original.key) {
           vo2maxRunValueKey => (estimator.method, estimator.methodVersion),
-          trimpRunValueKey => (trimp.method, trimp.methodVersion),
+          trimpRunValueKey when trimp != null => (
+            trimp.method,
+            trimp.methodVersion,
+          ),
           _ => (null, 0),
         };
         if (method == null) continue;
@@ -170,7 +298,21 @@ class RecalculationService {
       throw StateError('Es ist keine Neuberechnung angeboten.');
     }
     final seqAtStart = Map.of(_offerSeq);
-    final snapshot = await _calc.buildSnapshot();
+    // Die Wahl gilt erst jetzt. Ist sie nicht mehr anwendbar, bricht confirm
+    // ab, bevor etwas geändert wird; der Nutzer kann ablehnen.
+    final target = started.contains(RecalculationCause.loadProfile)
+        ? await LoadSettings.pendingProfile(session.settings)
+        : null;
+    if (target != null) {
+      final resolution = await _calc.loadResolution(
+        await _calc.profileBasis(),
+        profile: target,
+      );
+      if (!resolution.applicable) {
+        throw LoadProfileNotApplicableException(target, resolution.issues);
+      }
+    }
+    final snapshot = await _calc.buildSnapshot(loadProfile: target);
     await session.values.swapCurrentAll({
       ...snapshot.runValues,
       ...snapshot.dayValues,
@@ -186,6 +328,20 @@ class RecalculationService {
         for (final c in started)
           if (_offerSeq[c] == seqAtStart[c]) c,
       };
+      if (done.contains(RecalculationCause.loadProfile)) {
+        if (target != null) {
+          await LoadSettings.writeActiveProfile(
+            session.settings,
+            target,
+            at: clock.now(),
+          );
+        }
+        await LoadSettings.writePendingProfile(
+          session.settings,
+          null,
+          at: clock.now(),
+        );
+      }
       await _setPending((await _pendingCauses()).difference(done));
     } on Object {
       cleared = false;
@@ -198,7 +354,15 @@ class RecalculationService {
   }
 
   /// Lehnt das Angebot ab: Werte, Rohdaten und Profil bleiben unverändert.
-  Future<void> decline(RecalculationOffer offer) => _setPending(const {});
+  /// Eine offene Profilwahl verfällt (OQ-0053): das aktive Profil bleibt.
+  Future<void> decline(RecalculationOffer offer) async {
+    await _setPending(const {});
+    await LoadSettings.writePendingProfile(
+      session.settings,
+      null,
+      at: clock.now(),
+    );
+  }
 
   Future<RecalculationOffer?> _offer(RecalculationCause cause) async {
     final runs = await _affectedRuns();
@@ -206,7 +370,11 @@ class RecalculationService {
     _offerSeq[cause] = (_offerSeq[cause] ?? 0) + 1;
     final causes = {...await _pendingCauses(), cause};
     await _setPending(causes);
-    final offer = RecalculationOffer(causes: causes, runIds: runs);
+    final offer = RecalculationOffer(
+      causes: causes,
+      runIds: runs,
+      loadProfile: await _pendingLoadProfile(causes),
+    );
     _controller.add(offer);
     return offer;
   }

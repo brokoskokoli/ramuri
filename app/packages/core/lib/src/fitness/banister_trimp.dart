@@ -58,6 +58,11 @@ class BanisterTrimp extends LoadModel {
   static const methodIdMale = 'banister-trimp-male';
   static const methodIdFemale = 'banister-trimp-female';
 
+  /// Kennung am Wert, wenn das Profil Banister gewählt, aber nicht anwendbar
+  /// ist (Koeffizienten oder Ruhepuls fehlen): es gibt dann kein Modell mit
+  /// festen Konstanten, der Wert steht als „nicht verfügbar“.
+  static const methodIdUnresolved = 'banister-trimp';
+
   static const _reserve = HeartRateReserve();
 
   @override

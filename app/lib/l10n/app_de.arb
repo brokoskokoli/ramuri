@@ -546,6 +546,10 @@
   "@recalcCauseAlgorithm": {
     "description": "Grund: neue Version des Algorithmus"
   },
+  "recalcCauseLoadProfile": "Das Belastungsprofil soll gewechselt werden. Die Trainingsbelastung der Läufe wird dann in einer Skala neu gerechnet.",
+  "@recalcCauseLoadProfile": {
+    "description": "Grund: Wechsel des Belastungsprofils (vorläufiger Text, WP19)"
+  },
   "recalcKeepsOriginal": "Die ursprünglichen Werte und die Rohdaten bleiben erhalten. Ohne Neuberechnung ändert sich nichts.",
   "@recalcKeepsOriginal": {
     "description": "Hinweis zum Angebot"

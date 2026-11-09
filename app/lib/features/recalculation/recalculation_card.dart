@@ -99,5 +99,6 @@ class RecalculationCard extends StatelessWidget {
   String _causeText(AppLocalizations l10n, RecalculationCause c) => switch (c) {
     RecalculationCause.heartRateBasis => l10n.recalcCauseHeartRate,
     RecalculationCause.algorithmVersion => l10n.recalcCauseAlgorithm,
+    RecalculationCause.loadProfile => l10n.recalcCauseLoadProfile,
   };
 }

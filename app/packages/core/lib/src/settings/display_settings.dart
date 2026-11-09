@@ -54,4 +54,21 @@ abstract final class SettingKeys {
   /// `1`, wenn die Autopause eingeschaltet ist (FR-0029); fehlt der Eintrag,
   /// gilt sie als aus (OQ-0065).
   static const String autoPause = 'recording.auto_pause';
+
+  /// Aktives Belastungsprofil (FR-0197): `edwards` oder `banister`; fehlt der
+  /// Eintrag, gilt `edwards`. Geschrieben wird er nur von der Neuberechnung
+  /// nach Bestätigung (OQ-0053), siehe `LoadSettings`.
+  static const String loadProfile = 'load.profile';
+
+  /// Koeffizienten-Angabe des Profils (FR-0002): `male` oder `female`; fehlt
+  /// oder leer = keine Angabe.
+  static const String loadCoefficients = 'load.coefficients';
+
+  /// `1`, wenn der Nutzer zusagt, dass alle Trainings erfasst sind (FR-0103);
+  /// fehlt der Eintrag, gilt keine Zusage.
+  static const String loadAllRecorded = 'load.all_recorded';
+
+  /// Technischer Merker: das mit einem offenen Angebot gewählte, noch nicht
+  /// bestätigte Belastungsprofil. Nicht im Archiv (Vertrag 4.3).
+  static const String loadProfilePending = 'load.profile_pending';
 }

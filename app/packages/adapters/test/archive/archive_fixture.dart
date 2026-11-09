@@ -89,6 +89,16 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     'INSERT INTO profile (id, birth_year, body_weight_kg, body_height_m, resting_heart_rate_bpm, max_heart_rate_bpm, weekly_run_minutes, training_days_mask, usual_training_minutes) VALUES (1, 1990, 70.5, 1.8, 50, 190, 120, 5, 45)',
   );
+  // Belastungsprofil (WP19), vor den übrigen in Schlüsselreihenfolge: drei Einstellungen gehören ins Archiv, die
+  // unbestätigte Wahl ist ein technischer Merker.
+  for (final kv in const [
+    ('load.all_recorded', '1'),
+    ('load.coefficients', 'female'),
+    ('load.profile', 'banister'),
+    ('load.profile_pending', 'edwards'),
+  ]) {
+    await sql(db, "INSERT INTO settings VALUES ('${kv.$1}', '${kv.$2}', 1)");
+  }
   await sql(db, "INSERT INTO settings VALUES ('unit.pace', 'min_km', 1)");
   await sql(
     db,
