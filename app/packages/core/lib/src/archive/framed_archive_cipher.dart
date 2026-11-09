@@ -13,7 +13,9 @@ class FramedArchiveCipher implements ArchiveCipher {
     required this._kdf,
     required this._aead,
     required Uint8List Function(int length) randomBytes,
-  }) : _random = randomBytes;
+    int headerFormat = ArchiveHeader.formatVersion,
+  }) : _random = randomBytes,
+       _format = headerFormat;
 
   /// Klartext je Stück.
   static const int chunkSize = 65536;
@@ -26,6 +28,9 @@ class FramedArchiveCipher implements ArchiveCipher {
   final ArchiveKdf _kdf;
   final ChunkAead _aead;
   final Uint8List Function(int length) _random;
+
+  /// Formatversion, die [encrypt] in den Kopf schreibt (Tests für Format 1).
+  final int _format;
 
   /// Nonce des Stücks [index]: 11 Byte Zähler (Big-Endian), dann `0x01` nur
   /// beim letzten Stück.
@@ -50,7 +55,7 @@ class FramedArchiveCipher implements ArchiveCipher {
     Stream<List<int>> plaintext,
   ) async* {
     final salt = _random(ArchiveHeader.saltLength);
-    final header = ArchiveHeader(Uint8List.fromList(salt));
+    final header = ArchiveHeader(Uint8List.fromList(salt), format: _format);
     final aad = header.encode();
     final key = await _kdf.deriveKey(
       password: Uint8List.fromList(utf8.encode(password)),

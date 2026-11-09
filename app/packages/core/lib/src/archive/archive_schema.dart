@@ -1,5 +1,5 @@
 /// Abschnitte und Spalten des Archivs (`docs/contracts/archive.md` 4.3,
-/// Schema 4). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
+/// Schema 5, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
 /// Adapter-Test mit der Datenbank.
 library;
 
@@ -18,9 +18,19 @@ class ArchiveColumn {
 /// seitenweisen Lesens (Primärschlüssel); [keyIsText] nur bei `settings`.
 /// Reservierte Abschnitte (Ziele, Pläne, Warnmeldung) haben keine Spalten.
 class ArchiveSectionSpec {
-  const ArchiveSectionSpec._(this.name, this.columns, this.key);
+  const ArchiveSectionSpec._(
+    this.name,
+    this.columns,
+    this.key,
+    this.sinceFormat,
+  );
 
-  factory ArchiveSectionSpec(String name, String columns, {String? key}) {
+  factory ArchiveSectionSpec(
+    String name,
+    String columns, {
+    String? key,
+    int sinceFormat = 1,
+  }) {
     final cols = <ArchiveColumn>[];
     if (columns.isNotEmpty) {
       for (final part in columns.split(', ')) {
@@ -40,6 +50,7 @@ class ArchiveSectionSpec {
       name,
       List.unmodifiable(cols),
       cols.isEmpty ? null : key ?? 'id',
+      sinceFormat,
     );
   }
 
@@ -47,14 +58,20 @@ class ArchiveSectionSpec {
   final List<ArchiveColumn> columns;
   final String? key;
 
-  /// Schlüsselspalte ist Text (nur `settings`).
-  bool get keyIsText => key != null && key != 'id';
+  /// Erste Formatversion, in der der Abschnitt steht (1 oder 2).
+  final int sinceFormat;
 
-  /// Abschnitt ohne Tabelle (in Schema 4 immer leer).
+  /// Schlüsselspalte ist Text (nur `settings`).
+  bool get keyIsText =>
+      key != null &&
+      columns.firstWhere((c) => c.name == key).type == ArchiveType.text;
+
+  /// Abschnitt ohne Tabelle (immer leer).
   bool get isReserved => columns.isEmpty;
 }
 
-/// Die 19 Abschnitte in der Reihenfolge des Vertrags.
+/// Die 21 Abschnitte der Formatversion 2 in der Reihenfolge des Vertrags;
+/// Formatversion 1 hat die 19 mit `sinceFormat == 1` ([archiveSectionsFor]).
 final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
   ArchiveSectionSpec(
     'runs',
@@ -138,7 +155,36 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     'known_devices',
     'id I, device_id T, display_name T?, is_preferred B, added_at_us I',
   ),
+  // WP18, Formatversion 2 (Schema 5).
+  ArchiveSectionSpec(
+    'run_feedback',
+    'run_id I, rpe I?, wellbeing I?, complaints T?, warning_answer T?, '
+        'note T?, srpe_points R?, srpe_duration_s R?, srpe_method T?, '
+        'srpe_method_version I?',
+    key: 'run_id',
+    sinceFormat: 2,
+  ),
+  ArchiveSectionSpec(
+    'manual_trainings',
+    'id I, day T, kind T, duration_s I, rpe I',
+    sinceFormat: 2,
+  ),
   ArchiveSectionSpec('goals', ''),
   ArchiveSectionSpec('plans', ''),
   ArchiveSectionSpec('active_warning', ''),
 ]);
+
+/// Formatversionen, die der Leser kennt.
+const List<int> archiveFormats = [1, 2];
+
+/// Formatversion, die der Schreiber erzeugt.
+const int archiveWriteFormat = 2;
+
+/// Datenbankschema, das zu einer Formatversion gehört (Format 1: 4, Format 2: 5).
+int archiveSchemaFor(int format) => format == 1 ? 4 : 5;
+
+/// Die Abschnitte einer Formatversion in Reihenfolge.
+List<ArchiveSectionSpec> archiveSectionsFor(int format) => [
+  for (final s in archiveSections)
+    if (s.sinceFormat <= format) s,
+];

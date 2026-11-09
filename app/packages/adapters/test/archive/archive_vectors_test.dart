@@ -140,12 +140,16 @@ void main() {
       test('${v['name']}', () async {
         final salt = _hex(v['salt_hex'] as String);
         var calls = 0;
-        final cipher = createArchiveCipher(
+        // Die Vektoren sind Format 1; der Schreiber erzeugt sonst Format 2.
+        final cipher = FramedArchiveCipher(
+          kdf: CryptographyArchiveKdf(),
+          aead: CryptographyChunkAead(),
           randomBytes: (len) {
             calls++;
             expect(len, 16);
             return salt;
           },
+          headerFormat: 1,
         );
         final plain = _read(v['plaintext_file'] as String);
         final out = await _collect(

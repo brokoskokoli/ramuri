@@ -103,6 +103,16 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     "INSERT INTO known_devices (device_id, display_name, is_preferred, added_at_us) VALUES ('AA:BB', 'Gurt', 1, 5)",
   );
+  // WP18 (Format 2): Angaben zum Lauf mit sRPE (45 min, RPE 5) und zwei
+  // nachgetragene Trainings, eines mit Datum in der Zukunft. Synthetisch.
+  await sql(
+    db,
+    "INSERT INTO run_feedback VALUES (1, 5, 2, 'Wade', 'yes', 'Notiz-Ä', 225.0, 2700.0, 'srpe_duration_rpe', 1)",
+  );
+  await sql(
+    db,
+    "INSERT INTO manual_trainings (day, kind, duration_s, rpe) VALUES ('2026-11-01', 'other', 3600, 4), ('2999-12-31', 'run', 1800, 0)",
+  );
   await sql(
     db,
     "INSERT INTO consents VALUES ('$fixtureConsentMarker', 'granted', 5)",

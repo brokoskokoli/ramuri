@@ -54,12 +54,12 @@ Stream<Uint8List> archiveLines({
   }
   line({
     'type': 'manifest',
-    'format': 1,
-    'schema_version': 4,
+    'format': archiveWriteFormat,
+    'schema_version': archiveSchemaFor(archiveWriteFormat),
     'created_at_us': clock.now().toUtc().microsecondsSinceEpoch,
   });
   final counts = <String, int>{};
-  for (final section in archiveSections) {
+  for (final section in archiveSectionsFor(archiveWriteFormat)) {
     line({'type': 'section', 'name': section.name});
     var count = 0;
     Object? after;

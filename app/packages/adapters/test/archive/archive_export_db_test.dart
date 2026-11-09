@@ -162,15 +162,8 @@ void main() {
       for (final s in archiveSections)
         if (!s.isReserved) s.name,
     };
-    // Nicht im Archiv: technische Tabelle und Einwilligungen (SEC-0011). Die
-    // Tabellen aus Schema 5 (WP18) kommen mit Archivformat 2 (WP18 Auftrag 2);
-    // bis dahin stehen sie hier, danach fällt der Eintrag weg.
-    expect(tables.difference(specTables), {
-      'storage_meta',
-      'consents',
-      'run_feedback',
-      'manual_trainings',
-    });
+    // Nicht im Archiv: technische Tabelle und Einwilligungen (SEC-0011).
+    expect(tables.difference(specTables), {'storage_meta', 'consents'});
     expect(specTables.difference(tables), isEmpty);
     for (final s in archiveSections.where((s) => !s.isReserved)) {
       final info = await db.customSelect('PRAGMA table_info(${s.name})').get();
