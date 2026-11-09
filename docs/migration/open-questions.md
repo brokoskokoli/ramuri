@@ -445,7 +445,7 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Betroffene Anforderungen:** FR-0197
 - **Auswirkung:** blocking — war Phase 2.
 - **Status:** Resolved
-- **Entscheidung:** Ein optionales Profilfeld wählt die Koeffizienten. Ohne Angabe bleibt nur Edwards wählbar. Lehnt der Nutzer die Neuberechnung ab, verfällt die Modellwahl. Ziel: FR-0002, FR-0197, DEC-0054. 2026-11-03, SRC-003.
+- **Entscheidung:** Ein optionales Profilfeld wählt die Koeffizienten. Ohne Angabe bleibt nur Edwards wählbar. Lehnt der Nutzer die Neuberechnung ab, verfällt die Modellwahl. Ziel: FR-0002, FR-0197, DEC-0054. 2026-11-03, SRC-003. Nachtrag 2026-11-09 (Orchestrator, WP19): Formel und b an Banister et al. 1992 geprüft; k (0,64/0,86) ist nur sekundär belegt und bleibt als verbreitete Variante, weil es für eine Person nur die Skala ändert.
 
 ### OQ-0054 — ATL und CTL an Tagen mit unbewerteter Einheit
 - **Frage:** Welchen Wert haben Tage mit unbewerteter Einheit?
