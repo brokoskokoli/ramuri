@@ -30,7 +30,13 @@ class LoadCard extends StatefulWidget {
     this.clock,
     this.recalculation,
     this.controller,
+    this.onFirstSettled,
   });
+
+  /// Einmal, nachdem die Karte ihre endgültige Höhe hat (erstes Ergebnis oder
+  /// Fehler statt „wird berechnet“). Die Seite stellt dann ihre gemerkte
+  /// Scrollposition wieder her.
+  final VoidCallback? onFirstSettled;
 
   final StorageSession? session;
   final Clock? clock;
@@ -47,6 +53,19 @@ class _LoadCardState extends State<LoadCard> {
   LoadController? _owned;
 
   LoadController? get _controller => widget.controller ?? _owned;
+  bool _settledReported = false;
+
+  void _reportSettled() {
+    final c = _controller;
+    if (_settledReported || c == null || c.state.phase == LoadPhase.loading) {
+      return;
+    }
+    _settledReported = true;
+    // Nach dem Layout mit der neuen Höhe, nicht davor.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onFirstSettled?.call();
+    });
+  }
 
   @override
   void initState() {
@@ -68,10 +87,13 @@ class _LoadCardState extends State<LoadCard> {
         serialize: recalculation.serializedRefreshingOffer,
       );
     }
+    _controller?.addListener(_reportSettled);
+    _reportSettled();
   }
 
   @override
   void dispose() {
+    _controller?.removeListener(_reportSettled);
     _owned?.dispose();
     super.dispose();
   }

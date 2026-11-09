@@ -1,5 +1,6 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
@@ -88,9 +89,37 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   String get _to => _view.to ?? _today;
 
   @override
+  void initState() {
+    super.initState();
+    // Jetzt lesen: später überschreibt das Scrollen den Wert im Objekt.
+    _restoreTarget = _view.scrollOffset;
+  }
+
+  @override
   void dispose() {
     _scroll.dispose();
     super.dispose();
+  }
+
+  // Die beim Öffnen gemerkte Position. Das erste Bild klemmt sie auf das Ende
+  // des noch kurzen Inhalts (die Karte Belastung lädt erst danach und
+  // verlängert die Seite); ist die Karte fertig, wird sie einmal wieder
+  // angesteuert, außer der Nutzer hat inzwischen selbst gescrollt.
+  late final double _restoreTarget;
+  bool _userScrolled = false;
+
+  bool _onScrollNotification(ScrollNotification n) {
+    if (n is UserScrollNotification && n.direction != ScrollDirection.idle) {
+      _userScrolled = true;
+    }
+    return false;
+  }
+
+  void _restoreScroll() {
+    if (_userScrolled || !_scroll.hasClients) return;
+    final max = _scroll.position.maxScrollExtent;
+    final target = _restoreTarget.clamp(0.0, max);
+    if (target != _scroll.offset) _scroll.jumpTo(target);
   }
 
   void _rememberScroll() {
@@ -294,85 +323,95 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     final series = weeklyDistanceSeries(_today, data.figures);
     return SafeArea(
       bottom: false,
-      child: SingleChildScrollView(
-        key: const Key('stat_list'),
-        controller: _scroll,
-        padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Semantics(
-              header: true,
-              child: Text(
-                l10n.homeProgress,
-                key: const Key('progress_title'),
-                style: RamuriType.of(context).pageTitle,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _onScrollNotification,
+        child: SingleChildScrollView(
+          key: const Key('stat_list'),
+          controller: _scroll,
+          padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Semantics(
+                header: true,
+                child: Text(
+                  l10n.homeProgress,
+                  key: const Key('progress_title'),
+                  style: RamuriType.of(context).pageTitle,
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
-            WeekDistanceCard(
-              series: series,
-              formatter: formatter,
-              hasAnyRun: data.figures.isNotEmpty,
-            ),
-            const SizedBox(height: 14),
-            Vo2ProgressCard(
-              fitness: data.fitness,
-              session: widget.session,
-              onExplain: widget.onExplain,
-            ),
-            const SizedBox(height: 14),
-            EfficiencyCard(fitness: data.fitness),
-            LoadCard(
-              session: widget.session,
-              clock: widget.clock,
-              recalculation: widget.recalculation,
-            ),
-            const SizedBox(height: 28),
-            SectionHeading(l10n.progressPeriodTitle),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                chip(StatisticsKind.week, 'stat_kind_week', l10n.statKindWeek),
-                chip(
-                  StatisticsKind.month,
-                  'stat_kind_month',
-                  l10n.statKindMonth,
-                ),
-                chip(
-                  StatisticsKind.custom,
-                  'stat_kind_custom',
-                  l10n.statKindCustom,
-                ),
-                chip(StatisticsKind.run, 'stat_kind_run', l10n.statKindRun),
-              ],
-            ),
-            const SizedBox(height: 8),
-            selector,
-            const SizedBox(height: 8),
-            if (period != null)
-              PeriodStatisticsView(
-                key: ValueKey(period),
-                period: period,
-                overviews: data.overviews,
-                figures: data.figures,
+              const SizedBox(height: 14),
+              WeekDistanceCard(
+                series: series,
                 formatter: formatter,
+                hasAnyRun: data.figures.isNotEmpty,
               ),
-            const SizedBox(height: 6),
-            FitnessSection(
-              period: period,
-              runsInPeriod: period == null
-                  ? 0
-                  : data.figures
-                        .where((f) => period.contains(id: f.runId, day: f.day))
-                        .length,
-              fitness: data.fitness,
-              session: widget.session,
-              onExplain: widget.onExplain,
-            ),
-          ],
+              const SizedBox(height: 14),
+              Vo2ProgressCard(
+                fitness: data.fitness,
+                session: widget.session,
+                onExplain: widget.onExplain,
+              ),
+              const SizedBox(height: 14),
+              EfficiencyCard(fitness: data.fitness),
+              LoadCard(
+                session: widget.session,
+                clock: widget.clock,
+                recalculation: widget.recalculation,
+                onFirstSettled: _restoreScroll,
+              ),
+              const SizedBox(height: 28),
+              SectionHeading(l10n.progressPeriodTitle),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  chip(
+                    StatisticsKind.week,
+                    'stat_kind_week',
+                    l10n.statKindWeek,
+                  ),
+                  chip(
+                    StatisticsKind.month,
+                    'stat_kind_month',
+                    l10n.statKindMonth,
+                  ),
+                  chip(
+                    StatisticsKind.custom,
+                    'stat_kind_custom',
+                    l10n.statKindCustom,
+                  ),
+                  chip(StatisticsKind.run, 'stat_kind_run', l10n.statKindRun),
+                ],
+              ),
+              const SizedBox(height: 8),
+              selector,
+              const SizedBox(height: 8),
+              if (period != null)
+                PeriodStatisticsView(
+                  key: ValueKey(period),
+                  period: period,
+                  overviews: data.overviews,
+                  figures: data.figures,
+                  formatter: formatter,
+                ),
+              const SizedBox(height: 6),
+              FitnessSection(
+                period: period,
+                runsInPeriod: period == null
+                    ? 0
+                    : data.figures
+                          .where(
+                            (f) => period.contains(id: f.runId, day: f.day),
+                          )
+                          .length,
+                fitness: data.fitness,
+                session: widget.session,
+                onExplain: widget.onExplain,
+              ),
+            ],
+          ),
         ),
       ),
     );
