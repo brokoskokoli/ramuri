@@ -1,6 +1,7 @@
 // WP18 Auftrag 3: Angaben zum Lauf in Zusammenfassung und Detail (FR-0038,
 // FR-0095, FR-0096, PAR-105). Synthetische Daten.
 
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -54,6 +55,9 @@ class _FlakySession implements StorageSession {
   _FlakySession(this.s);
   final StorageSession s;
   bool failRead = false;
+
+  /// Hält das Lesen an, bis der Completer erfüllt ist.
+  Completer<void>? gate;
   @override
   RunSubjectiveStore get subjective => _FlakySubjective(this, s.subjective);
   @override
@@ -91,9 +95,16 @@ class _FlakySubjective implements RunSubjectiveStore {
   final _FlakySession o;
   final RunSubjectiveStore inner;
   @override
-  Future<StoredRunSubjective?> read(int runId) => o.failRead
-      ? Future.error(const StorageException(StorageFailure.failed))
-      : inner.read(runId);
+  Future<StoredRunSubjective?> read(int runId) {
+    if (o.failRead) {
+      return Future.error(const StorageException(StorageFailure.failed));
+    }
+    final gate = o.gate;
+    return gate == null
+        ? inner.read(runId)
+        : gate.future.then((_) => inner.read(runId));
+  }
+
   @override
   Future<Map<int, StoredRunSubjective>> readAll() => inner.readAll();
   @override
@@ -456,6 +467,86 @@ void main() {
       expect((await w.session.subjective.read(w.runId))!.srpe!.points, 180);
     },
   );
+
+  // Review 2, Soll 4: Zusammenfassung -> Details -> zurück; das Neuladen wird
+  // angehalten. Zurück baut eine eigene Sitzung mit angehaltenem Lesen auf.
+  Future<({_FlakySession session, SubjectiveService service, int runId})>
+  reloadWorld(WidgetTester tester, {String? note}) async {
+    final base = await FakeStorage().open(Uint8List(32));
+    final session = _FlakySession(base);
+    final run = await base.runs.create(startedAt: DateTime.utc(2030, 1, 1));
+    final service = SubjectiveService(
+      session: session,
+      clock: FakeClock(DateTime.utc(2030, 1, 2)),
+    );
+    if (note != null) await service.save(run.id, RunSubjective(note: note));
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      _app(
+        (context) => Column(
+          children: [
+            SubjectiveSection(service: service, runId: run.id),
+            FilledButton(
+              key: const Key('details'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const Scaffold(body: Text('Detail')),
+                ),
+              ),
+              child: const Text('Details'),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return (session: session, service: service, runId: run.id);
+  }
+
+  testWidgets(
+    'Tippen während des Neuladens: Eingabe bleibt, wird gespeichert',
+    (tester) async {
+      final w = await reloadWorld(tester, note: 'alt');
+      await _tap(tester, 'details');
+      w.session.gate = Completer<void>();
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+      // Das Neuladen hängt; die Notiz wird getippt.
+      await tester.enterText(_k('subjective_note'), 'neu getippt');
+      final gate = w.session.gate!;
+      w.session.gate = null;
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(_k('subjective_note')).controller!.text,
+        'neu getippt',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      expect(
+        (await w.session.subjective.read(w.runId))!.subjective.note,
+        'neu getippt',
+      );
+    },
+  );
+
+  testWidgets('Neuladen mit gleichem Text lässt den Cursor stehen', (
+    tester,
+  ) async {
+    final w = await reloadWorld(tester, note: 'abcdef');
+    final controller = tester
+        .widget<TextField>(_k('subjective_note'))
+        .controller!;
+    controller.selection = const TextSelection.collapsed(offset: 2);
+    await _tap(tester, 'details');
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pumpAndSettle();
+    expect(w.session.gate, isNull);
+    expect(controller.text, 'abcdef');
+    expect(controller.selection, const TextSelection.collapsed(offset: 2));
+  });
 
   // Auch ohne Neuladen schreibt eine Ansicht nur das geänderte Feld.
   testWidgets('veralteter Stand überschreibt fremde Änderung nicht', (

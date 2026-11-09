@@ -125,8 +125,10 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
         _warning = s?.warningAnswer;
         _srpe = stored?.srpe;
         // Ungespeicherte Eingabe im Feld nicht überfahren.
-        if (!_complaintsDirty) _complaints.text = s?.complaints ?? '';
-        if (!_noteDirty) _note.text = s?.note ?? '';
+        // Nur bei geändertem Text setzen: Der Setter setzt sonst die Auswahl
+        // zurück, und der Cursor im fokussierten Feld ginge verloren.
+        if (!_complaintsDirty) _setText(_complaints, s?.complaints ?? '');
+        if (!_noteDirty) _setText(_note, s?.note ?? '');
         _complaintsOpen = _complaintsOpen || _complaints.text.isNotEmpty;
         _loaded = true;
         _loadFailed = false;
@@ -139,6 +141,10 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
         _loadFailed = true;
       });
     }
+  }
+
+  static void _setText(TextEditingController c, String text) {
+    if (c.text != text) c.text = text;
   }
 
   Future<void> _retryLoad() {

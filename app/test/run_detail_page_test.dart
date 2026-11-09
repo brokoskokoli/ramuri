@@ -638,24 +638,27 @@ void main() {
     }
   }
 
-  // Review 1, Befund 4: bei Schriftfaktor 2,0 lief der Kopf über. Der Kopf
-  // wird dazu ins Bild geholt; flach bleibt „0 m / 0 m“ lesbar.
-  testWidgets('Flacher Lauf: Höhenprofil-Kopf bei Faktor 2,0 ohne Überlauf', (
+  // Review 1, Befund 4 / Review 2, Soll 3: bei Schriftfaktor 2,0 lief der Kopf
+  // über. Große Werte passen nicht in eine Zeile: Die Gruppe muss umbrechen
+  // (Wrap); eine Row liefe über.
+  testWidgets('Höhenprofil-Kopf bei Faktor 2,0 bricht um statt überzulaufen', (
     tester,
   ) async {
     final d = await started(tester);
     final id = await seedDetailRun(
       d.session,
       DateTime.utc(2030, 1, 1, 8),
-      altitude: (_) => 100,
+      altitude: (s) => s.isEven ? 100 : 1500,
     );
-    await pumpDetail(tester, d, id, scale: 2.0, size: const Size(411, 914));
+    await pumpDetail(tester, d, id, scale: 2.0, size: const Size(320, 914));
     await tester.ensureVisible(key('detail_ascent'));
     await tester.pump();
-    expect(tester.getRect(key('detail_ascent')).right, lessThanOrEqualTo(411));
-    expect(tester.getRect(key('detail_descent')).right, lessThanOrEqualTo(411));
-    expect(text('detail_ascent'), '0 m');
-    expect(text('detail_descent'), '0 m');
+    final up = tester.getRect(key('detail_ascent'));
+    final down = tester.getRect(key('detail_descent'));
+    // Die Werte stehen untereinander und innerhalb der Breite.
+    expect(down.top, greaterThanOrEqualTo(up.bottom - 0.5));
+    expect(up.right, lessThanOrEqualTo(320));
+    expect(down.right, lessThanOrEqualTo(320));
     expect(find.text(' / '), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
@@ -65,26 +66,111 @@ int _check(WidgetTester t, String tag, {required bool sideBySide}) {
     final label = t.getRect(
       find.descendant(of: row, matching: find.byType(Text)).first,
     );
+    // Die Regel selbst (WP18, M1 Fehler 1; Review 2, Soll 2): Der Wert steht
+    // nur dann untereinander, wenn er neben dem Label mehr als 2 Zeilen
+    // bräuchte; nebeneinander braucht er höchstens 2.
+    final valueText = t.widget<Text>(find.byKey(Key('${id}_value')));
+    final valueParagraph = t.renderObject<RenderParagraph>(
+      find.descendant(
+        of: find.byKey(Key('${id}_value')),
+        matching: find.byType(RichText),
+      ),
+    );
+    final labelParagraph = t.renderObject<RenderParagraph>(
+      find.descendant(of: row, matching: find.byType(RichText)).first,
+    );
+    TextPainter painter(RenderParagraph p, String text, double maxWidth) =>
+        TextPainter(
+          text: TextSpan(text: text, style: p.text.style),
+          textDirection: TextDirection.ltr,
+          textScaler: p.textScaler,
+        )..layout(maxWidth: maxWidth);
+    final labelNatural = painter(
+      labelParagraph,
+      labelParagraph.text.toPlainText(),
+      double.infinity,
+    ).width;
+    final besideWidth = rowWidth - 12 - min(labelNatural, rowWidth * 0.6);
+    final beside = painter(
+      valueParagraph,
+      valueText.data ?? '',
+      besideWidth,
+    ).computeLineMetrics().length;
     if (value.top >= label.bottom - 0.5) {
       stacked++;
-      // Lange Ersatztexte („nicht verfügbar (…)“, Sätze) stehen untereinander,
-      // sobald sie neben dem Label mehr als 2 Zeilen bräuchten (WP18, M1
-      // Fehler 1), auch wenn sonst alles nebeneinander passt.
-      final text = t.widget<Text>(find.byKey(Key('${id}_value'))).data ?? '';
-      final placeholder = text.length > 30;
-      expect(
-        sideBySide && !placeholder,
-        isFalse,
-        reason: '$tag $id steht untereinander',
-      );
+      // Bei der weiten Anordnung nur mit Grund: neben dem Label > 2 Zeilen.
+      if (sideBySide) {
+        expect(
+          beside,
+          greaterThan(2),
+          reason: '$tag $id steht untereinander ohne Grund ($beside Zeilen)',
+        );
+      }
     } else {
       expect(value.left, greaterThanOrEqualTo(label.right), reason: '$tag $id');
+      final actual = painter(
+        valueParagraph,
+        valueText.data ?? '',
+        value.width,
+      ).computeLineMetrics().length;
+      expect(actual, lessThanOrEqualTo(2), reason: '$tag $id nebeneinander');
     }
   }
   return stacked;
 }
 
 void main() {
+  // Review 2, Soll 1: Die Grenze der Regel. Ein Wert, der neben dem Label
+  // genau 2 Zeilen braucht, bleibt daneben; erst bei 3 Zeilen steht er
+  // darunter.
+  testWidgets('Grenze: 2 Zeilen neben dem Label bleiben, 3 stehen darunter', (
+    t,
+  ) async {
+    const rowWidth = 400.0;
+    t.view.physicalSize = const Size(rowWidth, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final seenLines = <int>{};
+    for (var words = 1; words <= 8; words++) {
+      final value = List.filled(words, 'aaaaaaaaa').join(' ');
+      await t.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatRow(id: 'r', label: 'Dist', value: value),
+          ),
+        ),
+      );
+      final row = find.byKey(const Key('r'));
+      final labelP = t.renderObject<RenderParagraph>(
+        find.descendant(of: row, matching: find.byType(RichText)).first,
+      );
+      final valueP = t.renderObject<RenderParagraph>(
+        find.descendant(
+          of: find.byKey(const Key('r_value')),
+          matching: find.byType(RichText),
+        ),
+      );
+      double widthOf(RenderParagraph p, String text, double max) =>
+          (TextPainter(
+            text: TextSpan(text: text, style: p.text.style),
+            textDirection: TextDirection.ltr,
+          )..layout(maxWidth: max)).width;
+      final labelW = widthOf(labelP, 'Dist', rowWidth * 0.6);
+      final lines = (TextPainter(
+        text: TextSpan(text: value, style: valueP.text.style),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: rowWidth - 12 - labelW)).computeLineMetrics().length;
+      seenLines.add(lines);
+      final label = t.getRect(
+        find.descendant(of: row, matching: find.byType(Text)).first,
+      );
+      final stacked =
+          t.getRect(find.byKey(const Key('r_value'))).top >= label.bottom - 0.5;
+      expect(stacked, lines > 2, reason: '$words Wörter, $lines Zeilen');
+    }
+    expect(seenLines, containsAll([1, 2, 3]), reason: 'Grenze wird erreicht');
+  });
+
   for (final locale in ['de', 'en']) {
     for (final (w, s) in [(390.0, 1.0), (320.0, 1.0), (320.0, 2.0)]) {
       testWidgets('Zeilen $locale $w x $s: kein Wortbruch', (t) async {
