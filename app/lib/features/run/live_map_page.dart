@@ -457,17 +457,27 @@ class _Sheet extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(
+                    // Ersatztext: klein und umbrechend (de bei großer Schrift
+                    // dreizeilig, ohne Abschneiden) statt auf die Breite
+                    // geschrumpft (sonst winzig, auch bei großer Schrift).
+                    if (value == l10n.runNoDataYet)
+                      Text(
                         value,
                         key: key,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: text.titleLarge?.copyWith(color: colors.text),
+                        style: text.labelMedium?.copyWith(color: colors.text),
+                      )
+                    else
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          value,
+                          key: key,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: text.titleLarge?.copyWith(color: colors.text),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),

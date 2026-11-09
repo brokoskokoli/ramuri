@@ -308,33 +308,37 @@ class LiveRunView extends StatelessWidget {
     final mainBackground = dark ? c.action : c.panel;
     final mainForeground = dark ? c.onAction : c.action;
     if (!paused) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          LiveRoundButton(
-            key: const Key('run_lap'),
-            semanticLabel: l10n.runLap,
-            size: 68,
-            background: c.surface,
-            foreground: c.text,
-            icon: Icons.flag_outlined,
-            iconSize: 26,
-            onPressed: controller.lap,
-          ),
-          const SizedBox(width: 28),
-          LiveRoundButton(
-            key: const Key('run_pause'),
-            semanticLabel: l10n.runPause,
-            size: 104,
-            background: mainBackground,
-            foreground: mainForeground,
-            icon: Icons.pause_rounded,
-            iconSize: 36,
-            onPressed: controller.pause,
-          ),
-          const SizedBox(width: 28),
-          const SizedBox(width: 68),
-        ],
+      // Auf sehr schmalen Schirmen (320 dp) etwas kleiner statt Überlauf.
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            LiveRoundButton(
+              key: const Key('run_lap'),
+              semanticLabel: l10n.runLap,
+              size: 68,
+              background: c.surface,
+              foreground: c.text,
+              icon: Icons.flag_outlined,
+              iconSize: 26,
+              onPressed: controller.lap,
+            ),
+            const SizedBox(width: 28),
+            LiveRoundButton(
+              key: const Key('run_pause'),
+              semanticLabel: l10n.runPause,
+              size: 104,
+              background: mainBackground,
+              foreground: mainForeground,
+              icon: Icons.pause_rounded,
+              iconSize: 36,
+              onPressed: controller.pause,
+            ),
+            const SizedBox(width: 28),
+            const SizedBox(width: 68),
+          ],
+        ),
       );
     }
     ButtonStyle pill(Color background, Color foreground) =>

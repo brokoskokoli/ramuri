@@ -730,4 +730,198 @@ void main() {
       }
     }
   });
+
+  // Ø Pace ab 100 min/km (langsame Proben am Start): Die Zahl schrumpft in
+  // einer Zeile, statt mitten in der Zahl zu brechen. Messung mit der
+  // breitesten Form „88:88“ reicht dafür nicht.
+  for (final lang in ['de', 'en']) {
+    for (final (width, scale) in [(360.0, 1.15), (411.0, 1.3)]) {
+      testWidgets('Live: dreistellige Ø Pace bricht nicht in der Zahl: '
+          '$lang, ${width.round()} dp, Faktor $scale', (tester) async {
+        await loadManrope(tester);
+        await loadSora(tester);
+        final d = Device();
+        await d.start(tester, Locale(lang));
+        await d.skipSetup(tester);
+        await tester.tap(key('home_start_run'));
+        await tester.pumpAndSettle();
+        await tester.tap(key('run_start_ready'));
+        await tester.pumpAndSettle();
+        tester.view.physicalSize = Size(width, 640);
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await tester.pumpAndSettle();
+
+        var lat = 50.0;
+        String? avg;
+        for (var n = 0; n < 60; n++) {
+          d.clock.advance(const Duration(seconds: 1));
+          lat += 0.1 / 111195; // 0,1 m/s: 166:40 min/km
+          d.location.emit(
+            LocationSample(
+              time: d.clock.now(),
+              latitude: lat,
+              longitude: 8,
+              accuracyMeters: 5,
+              altitudeMeters: 100,
+              verticalAccuracyMeters: 3,
+            ),
+          );
+          await tester.pump(const Duration(seconds: 1));
+          final t = tester.widget<Text>(find.byKey(const Key('run_avg_pace')));
+          avg = t.textSpan?.toPlainText() ?? t.data;
+          if (RegExp(r'^\d{3}:\d\d').hasMatch(avg ?? '')) break;
+        }
+        expect(avg, matches(RegExp(r'^\d{3}:\d\d')), reason: 'dreistellig');
+        final p = tester.renderObject<RenderParagraph>(
+          find.byKey(const Key('run_avg_pace')),
+        );
+        expect(_oneLine(p), isTrue, reason: 'Zahl "$avg" in einer Zeile');
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  // Kartenseite: Der Ersatztext „noch keine Daten“ steht klein, aber lesbar
+  // (mindestens 12 dp wirksam), darf umbrechen (de: drei Zeilen) und wird nicht
+  // auf die Kachelbreite geschrumpft; das Blatt läuft nicht über.
+  for (final lang in ['de', 'en']) {
+    for (final scale in [1.0, 1.15, 1.3]) {
+      testWidgets('Karte: Ersatztext bleibt lesbar: $lang, Faktor $scale', (
+        tester,
+      ) async {
+        await loadManrope(tester);
+        await loadSora(tester);
+        final d = Device();
+        await d.start(tester, Locale(lang));
+        await d.skipSetup(tester);
+        await tester.tap(key('home_start_run'));
+        await tester.pumpAndSettle();
+        await tester.tap(key('run_start_ready'));
+        await tester.pumpAndSettle();
+        tester.view.physicalSize = const Size(360, 640);
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await tester.pumpAndSettle();
+        await tester.tap(key('run_tab_1'));
+        await tester.pumpAndSettle();
+        for (final k in ['live_map_pace', 'live_map_avg_pace']) {
+          final p = tester.renderObject<RenderParagraph>(find.byKey(Key(k)));
+          expect(
+            p.text.toPlainText(),
+            matches(RegExp(r'noch keine Daten|no data yet')),
+          );
+          expect(
+            find.ancestor(
+              of: find.byKey(Key(k)),
+              matching: find.byType(FittedBox),
+            ),
+            findsNothing,
+            reason: '$k: nicht auf die Breite geschrumpft',
+          );
+          final size = p.textScaler.scale(p.text.style!.fontSize!);
+          expect(
+            size,
+            greaterThanOrEqualTo(12),
+            reason: '$k: wirksame Schrift',
+          );
+          expect(
+            p.didExceedMaxLines,
+            isFalse,
+            reason: '$k: nichts abgeschnitten',
+          );
+          expect(
+            p.size.height,
+            lessThanOrEqualTo(size * 1.5 * 3),
+            reason: '$k: höchstens drei Zeilen',
+          );
+        }
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'kein Überlauf im Blatt',
+        );
+      });
+    }
+  }
+
+  // Live-Reihe: Schrumpft „+1200 m“, bleibt die Reihe so hoch wie ohne
+  // Schrumpfen (keine Scheinzeile vom umgebrochenen Text unter der FittedBox).
+  testWidgets('Live: schrumpfende Zahl macht die Reihe nicht höher', (
+    tester,
+  ) async {
+    await loadManrope(tester);
+    await loadSora(tester);
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    Future<double> rowHeight(double width) async {
+      await tester.pumpWidget(
+        app(
+          Builder(
+            builder: (context) => SizedBox(
+              width: width,
+              child: IntrinsicHeight(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: LiveValueText(
+                        id: 'v',
+                        value: '+1200',
+                        unit: 'm',
+                        shrink: true,
+                        valueStyle: RamuriType.of(context).valueSmall,
+                        unitStyle: RamuriType.of(context).unit,
+                      ),
+                    ),
+                    const Expanded(child: SizedBox()),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          scale: 1.3,
+        ),
+      );
+      return tester.getSize(find.byType(IntrinsicHeight)).height;
+    }
+
+    final wide = await rowHeight(600);
+    final narrow = await rowHeight(120);
+    expect(
+      tester.getRect(find.byKey(const Key('v'))).width,
+      lessThan(
+        tester
+            .renderObject<RenderParagraph>(find.byKey(const Key('v')))
+            .size
+            .width,
+      ),
+      reason: 'geschrumpft',
+    );
+    expect(narrow, closeTo(wide, 0.5));
+  });
+
+  // Bedienleiste auf 320 dp bei Faktor 1,3: kein Überlauf, alle Tasten im
+  // Bild.
+  testWidgets('Live: Bedienleiste läuft bei 320 dp nicht über', (tester) async {
+    await loadManrope(tester);
+    await loadSora(tester);
+    final d = Device();
+    await d.start(tester, const Locale('de'));
+    await d.skipSetup(tester);
+    await tester.tap(key('home_start_run'));
+    await tester.pumpAndSettle();
+    await tester.tap(key('run_start_ready'));
+    await tester.pumpAndSettle();
+    tester.view.physicalSize = const Size(320, 640);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: 'kein Überlauf');
+    for (final k in ['run_lap', 'run_pause']) {
+      final r = tester.getRect(key(k));
+      expect(r.left, greaterThanOrEqualTo(0), reason: k);
+      expect(r.right, lessThanOrEqualTo(320), reason: k);
+    }
+  });
 }

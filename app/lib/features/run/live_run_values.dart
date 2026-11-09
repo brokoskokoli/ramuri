@@ -218,7 +218,9 @@ class LiveValues extends StatelessWidget {
         id: id,
         value: value,
         unit: unitInLabel ? null : unit,
-        shrink: unit != null && !unitInLabel,
+        // Zahlen schrumpfen, statt mitten in der Zahl zu brechen (Ø Pace
+        // ab 100 min/km); Ersatztexte schrumpfen nicht, sie brechen um.
+        shrink: value != na && value != l10n.runNoDataYet,
         valueStyle: valueStyleOf(value, style),
         unitStyle: unitStyle,
       ),
