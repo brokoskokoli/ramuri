@@ -103,6 +103,7 @@ class _RunDetailScreenState extends State<RunDetailScreen> {
             formatter: formatter,
             session: session,
             runId: runId,
+            subjective: SubjectiveService(session: session, clock: clock),
             exportBusy: _exportBusy,
           ),
         ),

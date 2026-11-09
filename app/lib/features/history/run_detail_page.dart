@@ -28,6 +28,7 @@ class RunDetailPage extends StatelessWidget {
     required this.formatter,
     required this.session,
     required this.runId,
+    this.subjective,
     this.exportBusy,
   });
 
@@ -39,6 +40,9 @@ class RunDetailPage extends StatelessWidget {
   final UnitFormatter formatter;
   final StorageSession session;
   final int runId;
+
+  /// Dienst für die Angaben zum Lauf; im Detail änderbar, mit sRPE.
+  final SubjectiveService? subjective;
 
   /// Gemeinsamer Zustand „Export läuft“ mit dem Symbol der Kopfzeile.
   final ValueNotifier<bool>? exportBusy;
@@ -65,6 +69,7 @@ class RunDetailPage extends StatelessWidget {
       formatter: formatter,
       session: session,
       runId: runId,
+      subjective: subjective,
     );
     const gap = SizedBox(height: 16);
     return Column(
@@ -97,6 +102,7 @@ class RunDetailPage extends StatelessWidget {
         gap,
         base.compare(context, l10n),
         gap,
+        base.subjectiveSection(showSrpe: true),
         base.laps(context, l10n),
         base.notes(context, l10n),
         base.explain(
