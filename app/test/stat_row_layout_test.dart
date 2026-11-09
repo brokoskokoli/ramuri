@@ -67,7 +67,16 @@ int _check(WidgetTester t, String tag, {required bool sideBySide}) {
     );
     if (value.top >= label.bottom - 0.5) {
       stacked++;
-      expect(sideBySide, isFalse, reason: '$tag $id steht untereinander');
+      // Lange Ersatztexte („nicht verfügbar (…)“, Sätze) stehen untereinander,
+      // sobald sie neben dem Label mehr als 2 Zeilen bräuchten (WP18, M1
+      // Fehler 1), auch wenn sonst alles nebeneinander passt.
+      final text = t.widget<Text>(find.byKey(Key('${id}_value'))).data ?? '';
+      final placeholder = text.length > 30;
+      expect(
+        sideBySide && !placeholder,
+        isFalse,
+        reason: '$tag $id steht untereinander',
+      );
     } else {
       expect(value.left, greaterThanOrEqualTo(label.right), reason: '$tag $id');
     }

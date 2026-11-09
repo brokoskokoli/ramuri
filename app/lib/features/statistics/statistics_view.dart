@@ -72,7 +72,34 @@ class StatRow extends StatelessWidget {
               longest(value, theme.titleMedium),
               note == null ? 0.0 : longest(note!, theme.bodySmall),
             );
-            if (labelMin + gap + valueMin > box.maxWidth) {
+            // Das Label nimmt seine natürliche Breite bis 60 %, mindestens
+            // sein längstes Wort; der Wert behält sein längstes Wort.
+            final fits = labelMin + gap + valueMin <= box.maxWidth;
+            final labelMax = fits
+                ? (box.maxWidth * 0.6).clamp(
+                    labelMin,
+                    box.maxWidth - gap - valueMin,
+                  )
+                : 0.0;
+            // Brauchte der Wert neben dem Label mehr als 2 Zeilen (etwa der
+            // lange Ersatztext), stehen beide ebenfalls untereinander.
+            var stack = !fits;
+            if (fits) {
+              final labelPainter = TextPainter(
+                text: TextSpan(text: label, style: theme.bodyMedium),
+                textDirection: direction,
+                textScaler: scaler,
+              )..layout(maxWidth: labelMax);
+              final valuePainter = TextPainter(
+                text: TextSpan(text: value, style: theme.titleMedium),
+                textDirection: direction,
+                textScaler: scaler,
+              )..layout(maxWidth: box.maxWidth - gap - labelPainter.width);
+              stack = valuePainter.computeLineMetrics().length > 2;
+              labelPainter.dispose();
+              valuePainter.dispose();
+            }
+            if (stack) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -81,12 +108,6 @@ class StatRow extends StatelessWidget {
                 ],
               );
             }
-            // Das Label nimmt seine natürliche Breite bis 60 %, mindestens
-            // sein längstes Wort; der Wert behält sein längstes Wort.
-            final labelMax = (box.maxWidth * 0.6).clamp(
-              labelMin,
-              box.maxWidth - gap - valueMin,
-            );
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
