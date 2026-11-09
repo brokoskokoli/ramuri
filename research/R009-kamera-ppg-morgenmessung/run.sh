@@ -9,12 +9,13 @@ SEED=1
 REPS=4000
 PART=all
 usage() { cat <<HELP
-Usage: ./run.sh [--seed N] [--reps N] [--part A|B|C|all]
+Usage: ./run.sh [--seed N] [--reps N] [--part A|B|C|D|all]
   --seed N             Zufallsstartwert (Standard: $SEED)
-  --reps N             Wiederholungen je Fall in A und B (Standard: $REPS)
-  --part A|B|C|all     nur einen Teil rechnen (Standard: $PART)
+  --reps N             Wiederholungen je Fall in A, B und D (Standard: $REPS)
+  --part A|B|C|D|all   nur einen Teil rechnen (Standard: $PART)
                        A Fallzahl Bland-Altman, B 7-Tage-Mittel bei Lücken und Kamera-Streuung,
-                       C Streuung von ln RMSSD über 60 s gegenüber 300 s
+                       C Streuung von ln RMSSD über 60 s gegenüber 300 s,
+                       D Trennschärfe der Akzeptanzkriterien für lnRMSSD (Verhältnis, proportionaler Bias)
 HELP
 }
 while [ $# -gt 0 ]; do
@@ -36,7 +37,7 @@ mkdir -p "$OUT"
   echo "python=$(python3 -c 'import sys; print(sys.version.split()[0])') host=$(uname -sm)"
 } > "$OUT/run.info"
 
-for p in A B C; do
+for p in A B C D; do
   if [ "$PART" = all ] || [ "$PART" = "$p" ]; then
     start=$(date +%s)
     python3 -E -s "src/part_$p.py" --seed "$SEED" --reps "$REPS" | tee "$OUT/$p.txt"

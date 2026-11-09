@@ -58,10 +58,8 @@ def table(name, unit, cases, deltas):
 table("Puls", "1/min",
       [(mu, s, rho) for mu in (0.0, 0.5) for s in (0.5, 1.0, 1.5) for rho in (0.0,)] + [(0.0, 1.0, 0.5)],
       (2.0, 3.0))
-# ln RMSSD (ln ms). 0,05 entspricht rund 5 % RMSSD. Akzeptanz Delta 0,10 und 0,15.
-table("ln RMSSD", "ln ms",
-      [(mu, s, rho) for mu in (0.0, 0.03) for s in (0.03, 0.05, 0.08) for rho in (0.0,)] + [(0.0, 0.05, 0.5)],
-      (0.10, 0.15))
+# ln RMSSD: entfällt seit Nachbesserung 1. Das Kriterium für lnRMSSD ist kein festes Delta, sondern das Verhältnis
+# SD(d) / Tages-SD der H9-Reihe; seine Trennschärfe rechnet Teil D.
 
 # Handrechnung zur Kontrolle: n=21, s=1, t(0,975;20)=2,086 -> ci_bias 0,455, ci_loa 2,086*sqrt(3/21)=0,789
 print("\nKontrolle n=21, s=1:", round(t_quantile(0.975, 20) / math.sqrt(21), 3), round(t_quantile(0.975, 20) * math.sqrt(3 / 21), 3))

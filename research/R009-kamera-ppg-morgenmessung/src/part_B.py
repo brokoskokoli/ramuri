@@ -52,10 +52,10 @@ def z_of(meas, mask, mad_min, rounding=False, today_required=True, kmin=3, refmi
     return (statistics.fmean(win) - med) / (1.4826 * mad / math.sqrt(k)), "ok"
 
 
-def run(kind, sb, sm, ar, p, q, delta=1.0, rounding=False, reps=A.reps, **rule):
+def run(kind, sb, sm, ar, p, q, delta=1.0, rounding=False, reps=A.reps, out=None, **rule):
     """kind 'hrv' (ln-Einheiten, Abfall ungünstig) oder 'rhr' (1/min, Anstieg ungünstig, z umgedreht)."""
     sign = -1 if kind == "hrv" else 1        # Richtung der ungünstigen Änderung
-    out_size = 0.4 if kind == "hrv" else 4.0
+    out_size = out if out is not None else (0.4 if kind == "hrv" else 4.0)
     mad_min = rule.pop("mad_min", 0.02 if kind == "hrv" else 1.0)
     rng = random.Random(A.seed)
     zs, reasons = [], {}
@@ -129,6 +129,13 @@ print(f"{'Ruhepuls PAR-162 wie heute':<42} " + run("rhr", 2.0, 1.0, 0.3, 0.2, 0.
 print(f"{'Ruhepuls MAD-Grenze 0,5':<42} " + run("rhr", 2.0, 1.0, 0.3, 0.2, 0.05, mad_min=0.5))
 print(f"{'Ruhepuls sb 1,5, MAD-Grenze 1':<42} " + run("rhr", 1.5, 1.0, 0.3, 0.2, 0.05))
 print(f"{'Ruhepuls sb 1,5, MAD-Grenze 0,5':<42} " + run("rhr", 1.5, 1.0, 0.3, 0.2, 0.05, mad_min=0.5))
+
+print("\n## B4 lnRMSSD mit realistischer Tagesstreuung sb = 0,33 ln (Nuuttila 2024, Plews-Dissertation), sm 0,5·sb,")
+print("AR 0,3, Lücken p 0,2: Wirkung der Fehlmessungen (+0,4 ln fest bzw. +4·sb) im Vergleich zu sb 0,10")
+print("sb    sm     q     out    " + HEAD)
+for sb, sm in ((0.10, 0.05), (0.33, 0.165)):
+    for q, out in ((0.0, 0.4), (0.05, 0.4), (0.05, 4 * sb)):
+        print(f"{sb:<5} {sm:<6} {q:<5} {out:<6.2f} " + run("hrv", sb, sm, 0.3, 0.2, q, out=out))
 
 # Kontrolle: Erwartete MAD einer Normalverteilung = 0,6745·SD. Bei sb=1,5 liegt sie also bei ≈1,01 1/min,
 # d. h. rund die Hälfte der Referenzen fällt unter die Grenze 1 aus PAR-162.
