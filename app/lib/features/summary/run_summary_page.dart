@@ -9,6 +9,7 @@ import '../settings/unit_format.dart';
 import '../transparency/value_explanation_screen.dart';
 import 'run_charts.dart';
 import 'run_summary_body.dart';
+import 'subjective_section.dart';
 
 /// Inhalt der Zusammenfassung nach dem Lauf nach dem Screen `Summary.dc.html`
 /// (FR-0037): Strecke mit Route, Zeiten, Kacheln, Zonen, Einordnung, Höhenprofil,
@@ -23,6 +24,7 @@ class RunSummaryPage extends StatelessWidget {
     required this.formatter,
     required this.session,
     required this.runId,
+    this.subjective,
   });
 
   final RunSummary summary;
@@ -30,6 +32,23 @@ class RunSummaryPage extends StatelessWidget {
   final UnitFormatter formatter;
   final StorageSession session;
   final int runId;
+
+  /// Dienst für die Angaben zum Lauf (FR-0038); ohne ihn entfällt der Abschnitt.
+  final SubjectiveService? subjective;
+
+  /// Abschnitt „Angaben zum Lauf“, falls ein Dienst da ist.
+  Widget subjectiveSection({bool showSrpe = false}) {
+    final service = subjective;
+    if (service == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: SubjectiveSection(
+        service: service,
+        runId: runId,
+        showSrpe: showSrpe,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +66,7 @@ class RunSummaryPage extends StatelessWidget {
         gap,
         compare(context, l10n),
         gap,
+        subjectiveSection(),
         _altitude(context, l10n),
         gap,
         laps(context, l10n),

@@ -21,6 +21,7 @@ import 'prediction_access.dart';
 import 'raw_access.dart';
 import 'run_access.dart';
 import 'settings_access.dart';
+import 'subjective_access.dart';
 import 'value_access.dart';
 
 /// Offene, verschlüsselte Datenbank mit den Zugriffen des Ports. Jeder
@@ -37,6 +38,8 @@ class EncryptedStorageSession implements StorageSession, PredictionStorage {
       settings = DriftSettingsStore(database),
       devices = DriftKnownDeviceStore(database),
       consents = DriftConsentStore(database),
+      subjective = DriftRunSubjectiveStore(database),
+      manualTrainings = DriftManualTrainingStore(database),
       prediction = DriftPredictionStore(database);
 
   final AppDatabase database;
@@ -66,6 +69,10 @@ class EncryptedStorageSession implements StorageSession, PredictionStorage {
   final KnownDeviceStore devices;
   @override
   final ConsentStore consents;
+  @override
+  final RunSubjectiveStore subjective;
+  @override
+  final ManualTrainingStore manualTrainings;
   @override
   final PredictionStore prediction;
 

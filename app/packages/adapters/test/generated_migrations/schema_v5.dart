@@ -1921,11 +1921,136 @@ class Consents extends Table with TableInfo {
   bool get dontWriteConstraints => true;
 }
 
-class ReferencePerformances extends Table with TableInfo {
+class RunFeedback extends Table with TableInfo {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  ReferencePerformances(this.attachedDatabase, [this._alias]);
+  RunFeedback(this.attachedDatabase, [this._alias]);
+  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
+    'run_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'NOT NULL PRIMARY KEY REFERENCES runs(id)ON DELETE CASCADE',
+  );
+  late final GeneratedColumn<int> rpe = GeneratedColumn<int>(
+    'rpe',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (rpe IS NULL OR(typeof(rpe) = \'integer\' AND rpe BETWEEN 0 AND 10))',
+  );
+  late final GeneratedColumn<int> wellbeing = GeneratedColumn<int>(
+    'wellbeing',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (wellbeing IS NULL OR(typeof(wellbeing) = \'integer\' AND wellbeing BETWEEN 1 AND 5))',
+  );
+  late final GeneratedColumn<String> complaints = GeneratedColumn<String>(
+    'complaints',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  late final GeneratedColumn<String> warningAnswer = GeneratedColumn<String>(
+    'warning_answer',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (warning_answer IN (\'yes\', \'no\'))',
+  );
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  late final GeneratedColumn<double> srpePoints = GeneratedColumn<double>(
+    'srpe_points',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (srpe_points >= 0)',
+  );
+  late final GeneratedColumn<double> srpeDurationS = GeneratedColumn<double>(
+    'srpe_duration_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (srpe_duration_s >= 0)',
+  );
+  late final GeneratedColumn<String> srpeMethod = GeneratedColumn<String>(
+    'srpe_method',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  late final GeneratedColumn<int> srpeMethodVersion = GeneratedColumn<int>(
+    'srpe_method_version',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    runId,
+    rpe,
+    wellbeing,
+    complaints,
+    warningAnswer,
+    note,
+    srpePoints,
+    srpeDurationS,
+    srpeMethod,
+    srpeMethodVersion,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'run_feedback';
+  @override
+  Set<GeneratedColumn> get $primaryKey => {runId};
+  @override
+  Never map(Map<String, dynamic> data, {String? tablePrefix}) {
+    throw UnsupportedError('TableInfo.map in schema verification code');
+  }
+
+  @override
+  RunFeedback createAlias(String alias) {
+    return RunFeedback(attachedDatabase, alias);
+  }
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK(warning_answer IS NULL OR complaints IS NOT NULL)',
+    'CHECK((srpe_points IS NULL AND srpe_duration_s IS NULL AND srpe_method IS NULL AND srpe_method_version IS NULL)OR(srpe_points IS NOT NULL AND srpe_duration_s IS NOT NULL AND srpe_method IS NOT NULL AND srpe_method_version IS NOT NULL AND rpe IS NOT NULL))',
+  ];
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class ManualTrainings extends Table with TableInfo {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  ManualTrainings(this.attachedDatabase, [this._alias]);
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
     'id',
     aliasedName,
@@ -1934,6 +2059,14 @@ class ReferencePerformances extends Table with TableInfo {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
     $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  late final GeneratedColumn<String> day = GeneratedColumn<String>(
+    'day',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (day GLOB \'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\' AND date(day) IS day)',
   );
   late final GeneratedColumn<String> kind = GeneratedColumn<String>(
     'kind',
@@ -1941,64 +2074,33 @@ class ReferencePerformances extends Table with TableInfo {
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (kind IN (\'run\', \'other\'))',
+  );
+  late final GeneratedColumn<int> durationS = GeneratedColumn<int>(
+    'duration_s',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
     $customConstraints:
-        'NOT NULL CHECK (kind IN (\'race\', \'test\', \'confirmedRun\'))',
+        'NOT NULL CHECK (typeof(duration_s) = \'integer\' AND duration_s > 0)',
   );
-  late final GeneratedColumn<double> distanceM = GeneratedColumn<double>(
-    'distance_m',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (distance_m > 0)',
-  );
-  late final GeneratedColumn<double> timeS = GeneratedColumn<double>(
-    'time_s',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (time_s > 0)',
-  );
-  late final GeneratedColumn<String> performedOn = GeneratedColumn<String>(
-    'performed_on',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (date(performed_on) IS performed_on)',
-  );
-  late final GeneratedColumn<int> createdAtUs = GeneratedColumn<int>(
-    'created_at_us',
+  late final GeneratedColumn<int> rpe = GeneratedColumn<int>(
+    'rpe',
     aliasedName,
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
-  );
-  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
-    'run_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    $customConstraints: 'REFERENCES runs(id)ON DELETE CASCADE',
+    $customConstraints:
+        'NOT NULL CHECK (typeof(rpe) = \'integer\' AND rpe BETWEEN 0 AND 10)',
   );
   @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    kind,
-    distanceM,
-    timeS,
-    performedOn,
-    createdAtUs,
-    runId,
-  ];
+  List<GeneratedColumn> get $columns => [id, day, kind, durationS, rpe];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'reference_performances';
+  static const String $name = 'manual_trainings';
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
@@ -2007,57 +2109,8 @@ class ReferencePerformances extends Table with TableInfo {
   }
 
   @override
-  ReferencePerformances createAlias(String alias) {
-    return ReferencePerformances(attachedDatabase, alias);
-  }
-
-  @override
-  List<String> get customConstraints => const [
-    'CHECK(kind <> \'confirmedRun\' OR run_id IS NOT NULL)',
-  ];
-  @override
-  bool get dontWriteConstraints => true;
-}
-
-class RejectedSuggestions extends Table with TableInfo {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  RejectedSuggestions(this.attachedDatabase, [this._alias]);
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
-  );
-  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
-    'run_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL UNIQUE REFERENCES runs(id)ON DELETE CASCADE',
-  );
-  @override
-  List<GeneratedColumn> get $columns => [id, runId];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'rejected_suggestions';
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  Never map(Map<String, dynamic> data, {String? tablePrefix}) {
-    throw UnsupportedError('TableInfo.map in schema verification code');
-  }
-
-  @override
-  RejectedSuggestions createAlias(String alias) {
-    return RejectedSuggestions(attachedDatabase, alias);
+  ManualTrainings createAlias(String alias) {
+    return ManualTrainings(attachedDatabase, alias);
   }
 
   @override
@@ -2204,14 +2257,11 @@ class DatabaseAtV5 extends GeneratedDatabase {
     'CREATE UNIQUE INDEX known_devices_one_preferred ON known_devices (is_preferred) WHERE is_preferred = 1',
   );
   late final Consents consents = Consents(this);
-  late final ReferencePerformances referencePerformances =
-      ReferencePerformances(this);
-  late final Index referencePerformancesRun = Index(
-    'reference_performances_run',
-    'CREATE INDEX reference_performances_run ON reference_performances (run_id)',
-  );
-  late final RejectedSuggestions rejectedSuggestions = RejectedSuggestions(
-    this,
+  late final RunFeedback runFeedback = RunFeedback(this);
+  late final ManualTrainings manualTrainings = ManualTrainings(this);
+  late final Index manualTrainingsDay = Index(
+    'manual_trainings_day',
+    'CREATE INDEX manual_trainings_day ON manual_trainings (day)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -2265,9 +2315,9 @@ class DatabaseAtV5 extends GeneratedDatabase {
     knownDevices,
     knownDevicesOnePreferred,
     consents,
-    referencePerformances,
-    referencePerformancesRun,
-    rejectedSuggestions,
+    runFeedback,
+    manualTrainings,
+    manualTrainingsDay,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2479,14 +2529,7 @@ class DatabaseAtV5 extends GeneratedDatabase {
         'runs',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('reference_performances', kind: UpdateKind.delete)],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'runs',
-        limitUpdateKind: UpdateKind.delete,
-      ),
-      result: [TableUpdate('rejected_suggestions', kind: UpdateKind.delete)],
+      result: [TableUpdate('run_feedback', kind: UpdateKind.delete)],
     ),
   ]);
   @override

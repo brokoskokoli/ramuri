@@ -9,10 +9,11 @@ import 'package:test/test.dart';
 const String _password = 'synthetisches Testpasswort';
 const String _marker = 'SYNTHETISCHE-MARKE-4711';
 
-ArchiveCipher _fakeCipher() => FramedArchiveCipher(
+ArchiveCipher _fakeCipher({int format = 2}) => FramedArchiveCipher(
   kdf: FakeArchiveKdf(),
   aead: FakeChunkAead(),
   randomBytes: (n) => Uint8List(n),
+  headerFormat: format,
 );
 
 /// Die Datei ist schon der gzip-Strom (keine Kryptografie, schnell).
@@ -55,7 +56,7 @@ Map<String, List<Map<String, Object?>>> _fullDb({int rowsPer = 1}) => {
     if (!s.isReserved) s.name: [for (var i = 1; i <= rowsPer; i++) _row(s, i)],
 };
 
-String _manifest({int schema = 5}) =>
+String _manifest({int schema = 4}) =>
     '{"type":"manifest","format":1,"schema_version":$schema,'
     '"created_at_us":1793000000000000}';
 
@@ -70,11 +71,13 @@ String _endLine(Map<String, int> counts) =>
 /// Gültige Zeilen für [db] im Format des Vertrags.
 List<String> _validLines(Map<String, List<Map<String, Object?>>> db) => [
   _manifest(),
-  for (final s in archiveSections) ...[
+  for (final s in archiveSectionsFor(4)) ...[
     _section(s.name),
     for (final r in db[s.name] ?? const <Map<String, Object?>>[]) _rowLine(r),
   ],
-  _endLine({for (final s in archiveSections) s.name: db[s.name]?.length ?? 0}),
+  _endLine({
+    for (final s in archiveSectionsFor(4)) s.name: db[s.name]?.length ?? 0,
+  }),
 ];
 
 Uint8List _jsonl(List<String> lines) =>
@@ -82,9 +85,17 @@ Uint8List _jsonl(List<String> lines) =>
 
 Uint8List _gzip(List<int> plain) => Uint8List.fromList(gzip.encode(plain));
 
-Future<Uint8List> _encrypt(List<int> plain, {String pw = _password}) async {
+/// Die Hilfen bauen Format 1 (Kopf und Manifest); Format 2 steht in der Gruppe
+/// "Formatversion 2".
+Future<Uint8List> _encrypt(
+  List<int> plain, {
+  String pw = _password,
+  int format = 1,
+}) async {
   final b = BytesBuilder(copy: false);
-  await for (final c in _fakeCipher().encrypt(pw, Stream.value(plain))) {
+  await for (final c in _fakeCipher(
+    format: format,
+  ).encrypt(pw, Stream.value(plain))) {
     b.add(c);
   }
   return b.takeBytes();
@@ -114,6 +125,7 @@ class _Case {
   }) => ArchiveImporter(
     sink: sink,
     cipherFactory: cipher,
+    clock: _clock,
     batchRows: batchRows,
   ).import(path: write(bytes), password: password, cancel: cancel);
 
@@ -151,6 +163,9 @@ class _Case {
   ) => rejects(_gzip(_jsonl(lines)), failure, cipher: _identity);
 }
 
+/// Heute für die Tests: 2026-11-20 (Ortstag, Versatz 0).
+final Clock _clock = FakeClock(DateTime.utc(2026, 11, 20, 12));
+
 void main() {
   late Directory dir;
   late _Case c;
@@ -170,6 +185,7 @@ void main() {
       await ArchiveImporter(
         sink: DiscardArchiveSink(),
         cipherFactory: _fakeCipher,
+        clock: _clock,
       ).import(path: c.write(bytes), password: _password);
     });
 
@@ -179,6 +195,7 @@ void main() {
         ArchiveImporter(
           sink: DiscardArchiveSink(),
           cipherFactory: _fakeCipher,
+          clock: _clock,
         ).import(path: c.write(bytes), password: 'ganz anderes Passwort'),
         throwsA(
           isA<ArchiveImportException>().having(
@@ -192,11 +209,12 @@ void main() {
 
     test('Beschädigung erst am Ende (falscher Zähler) scheitert', () async {
       final lines = valid()..removeLast();
-      lines.add(_endLine({for (final s in archiveSections) s.name: 99}));
+      lines.add(_endLine({for (final s in archiveSectionsFor(4)) s.name: 99}));
       await expectLater(
         ArchiveImporter(
           sink: DiscardArchiveSink(),
           cipherFactory: _fakeCipher,
+          clock: _clock,
         ).import(path: c.write(await _archive(lines)), password: _password),
         throwsA(isA<ArchiveImportException>()),
       );
@@ -276,7 +294,7 @@ void main() {
           ]
           ..['rated_sections'] = [
             {
-              for (final col in archiveSections[10].columns)
+              for (final col in archiveSectionsFor(4)[10].columns)
                 col.name: col.name == 'gps_gaps'
                     ? '[{"start_us":1,"end_us":2}]'
                     : _valueFor(col, 1),
@@ -397,7 +415,7 @@ void main() {
     test('unbekannte Formatversion und Parameter', () async {
       final bytes = await _archive(valid());
       await c.rejects(
-        Uint8List.fromList(bytes)..[9] = 2,
+        Uint8List.fromList(bytes)..[9] = 3,
         ArchiveImportFailure.unsupportedVersion,
       );
       c = _Case(dir);
@@ -413,6 +431,7 @@ void main() {
         await ArchiveImporter(
           sink: c.sink,
           cipherFactory: _fakeCipher,
+          clock: _clock,
         ).import(path: '${dir.path}/gibt-es-nicht', password: _password);
       } catch (e) {
         error = e;
@@ -430,53 +449,32 @@ void main() {
   });
 
   group('Manifest und Schema', () {
-    /// Zeilen eines Archivs mit Schema 4: 19 Abschnitte ohne die seit Schema 5.
-    List<String> schema4Lines() {
-      final sections = archiveSectionsFor(4);
-      final db = _fullDb();
-      return [
-        _manifest(schema: 4),
-        for (final s in sections) ...[
-          _section(s.name),
-          for (final r in db[s.name] ?? const <Map<String, Object?>>[])
-            _rowLine(r),
-        ],
-        _endLine({for (final s in sections) s.name: db[s.name]?.length ?? 0}),
-      ];
-    }
-
     test(
-      'Schema 4 (19 Abschnitte) bleibt lesbar, neue Abschnitte leer',
+      'Schema größer als 6: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        expect(archiveSectionsFor(4), hasLength(19));
-        expect(archiveSectionsFor(5), hasLength(21));
-        await c.run(await _archive(schema4Lines()));
-        expect(c.sink.commits, 1);
-        expect(c.sink.aborts, 0);
-        expect(c.sink.calls, isNot(contains('insert:reference_performances')));
-      },
-    );
-
-    test('Schema 4 mit Abschnitt aus Schema 5: beschädigt', () async {
-      final l = schema4Lines();
-      final at = l.indexOf(_section('goals'));
-      l.insertAll(at, [_section('reference_performances')]);
-      await c.rejectsLines(l, ArchiveImportFailure.damaged);
-    });
-
-    test('Schema 5 ohne die neuen Abschnitte: beschädigt', () async {
-      final l = schema4Lines()..[0] = _manifest(schema: 5);
-      await c.rejectsLines(l, ArchiveImportFailure.damaged);
-    });
-
-    test(
-      'Schema größer als 5: neueres Archiv, auch mit fremden Schlüsseln',
-      () async {
-        final lines = valid()..[0] = _manifest(schema: 6);
+        final lines = valid()..[0] = _manifest(schema: 7);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
         lines[0] = '{"type":"manifest","format":1,"schema_version":9,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
+      },
+    );
+
+    test(
+      'Format 1 mit Schema 4 (19 Abschnitte) bleibt lesbar, neuere leer',
+      () async {
+        expect(archiveSectionsFor(4), hasLength(19));
+        await c.run(await _archive(valid()));
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['runs'], isNotEmpty);
+        for (final t in [
+          'run_feedback',
+          'manual_trainings',
+          'reference_performances',
+          'rejected_suggestions',
+        ]) {
+          expect(c.sink.rows[t] ?? const [], isEmpty, reason: t);
+        }
       },
     );
 
@@ -537,7 +535,7 @@ void main() {
       final l = valid(0);
       final i = l.indexOf(_section('laps'));
       final counts = {
-        for (final s in archiveSections)
+        for (final s in archiveSectionsFor(4))
           if (s.name != 'laps') s.name: 0,
       };
       await c.rejectsLines([
@@ -550,7 +548,7 @@ void main() {
     test('letzter Abschnitt fehlt', () async {
       final l = valid(0);
       final counts = {
-        for (final s in archiveSections)
+        for (final s in archiveSectionsFor(4))
           if (s.name != 'active_warning') s.name: 0,
       };
       await c.rejectsLines([
@@ -603,7 +601,7 @@ void main() {
       final l = valid(0);
       await c.rejectsLines([
         l[0],
-        _rowLine(_row(archiveSections[0], 1)),
+        _rowLine(_row(archiveSectionsFor(4)[0], 1)),
         ...l.skip(1),
       ], ArchiveImportFailure.damaged);
     });
@@ -615,7 +613,7 @@ void main() {
       return [...l.take(2), _rowLine(data), ...l.skip(2)];
     }
 
-    Map<String, Object?> run() => _row(archiveSections[0], 1);
+    Map<String, Object?> run() => _row(archiveSectionsFor(4)[0], 1);
 
     Future<void> counted(
       Map<String, Object?> data,
@@ -624,7 +622,7 @@ void main() {
       // Mit richtigem Zähler, damit nur die Zeile selbst falsch ist.
       final l = withRunRow(data);
       l[l.length - 1] = _endLine({
-        for (final s in archiveSections) s.name: s.name == 'runs' ? 1 : 0,
+        for (final s in archiveSectionsFor(4)) s.name: s.name == 'runs' ? 1 : 0,
       });
       await c.rejectsLines(l, f);
     }
@@ -634,7 +632,8 @@ void main() {
       () async {
         final l = withRunRow(run());
         l[l.length - 1] = _endLine({
-          for (final s in archiveSections) s.name: s.name == 'runs' ? 1 : 0,
+          for (final s in archiveSectionsFor(4))
+            s.name: s.name == 'runs' ? 1 : 0,
         });
         await c.run(await _archive(l));
         expect(c.sink.rows['runs'], [run()]);
@@ -680,7 +679,8 @@ void main() {
         expect(json, contains(text), reason: 'Ersetzung hat gegriffen');
         l[2] = json;
         l[l.length - 1] = _endLine({
-          for (final s in archiveSections) s.name: s.name == 'runs' ? 1 : 0,
+          for (final s in archiveSectionsFor(4))
+            s.name: s.name == 'runs' ? 1 : 0,
         });
         await c.rejectsLines(l, ArchiveImportFailure.damaged);
       }
@@ -689,7 +689,7 @@ void main() {
     test(
       'REAL: nicht endlich abgelehnt, Ganzzahlschreibweise erlaubt',
       () async {
-        final lap = _row(archiveSections[1], 1);
+        final lap = _row(archiveSectionsFor(4)[1], 1);
         String lapsRow(String time) =>
             _rowLine(lap)
                 .replaceFirst('"lap_time_s":1.25', '"lap_time_s":$time');
@@ -702,7 +702,8 @@ void main() {
             lapsRow(time),
             ...l.skip(i + 1).take(l.length - i - 2),
             _endLine({
-              for (final s in archiveSections) s.name: s.name == 'laps' ? 1 : 0,
+              for (final s in archiveSectionsFor(4))
+                s.name: s.name == 'laps' ? 1 : 0,
             }),
           ];
         }
@@ -719,7 +720,8 @@ void main() {
       () async {
         final l = withRunRow(run());
         l[l.length - 1] = _endLine({
-          for (final s in archiveSections) s.name: s.name == 'runs' ? 1 : 0,
+          for (final s in archiveSectionsFor(4))
+            s.name: s.name == 'runs' ? 1 : 0,
         });
         final lone = [...l]
           ..[2] = _rowLine(run()).replaceFirst('"s1"', r'"\ud800"');
@@ -739,7 +741,8 @@ void main() {
       await c.rejectsLines(
         l
           ..[l.length - 1] = _endLine({
-            for (final s in archiveSections) s.name: s.name == 'runs' ? 1 : 0,
+            for (final s in archiveSectionsFor(4))
+              s.name: s.name == 'runs' ? 1 : 0,
           }),
         ArchiveImportFailure.damaged,
       );
@@ -749,7 +752,8 @@ void main() {
       'Zeile mit fremdem Schlüssel neben data / ohne data / data kein Objekt',
       () async {
         final counts = {
-          for (final s in archiveSections) s.name: s.name == 'runs' ? 1 : 0,
+          for (final s in archiveSectionsFor(4))
+            s.name: s.name == 'runs' ? 1 : 0,
         };
         for (final line in [
           '${_rowLine(run()).substring(0, _rowLine(run()).length - 1)},"x":1}',
@@ -768,7 +772,7 @@ void main() {
     test('Schlüssel nicht aufsteigend oder doppelt', () async {
       final l = valid(0);
       final counts = {
-        for (final s in archiveSections) s.name: s.name == 'runs' ? 2 : 0,
+        for (final s in archiveSectionsFor(4)) s.name: s.name == 'runs' ? 2 : 0,
       };
       for (final ids in [
         [2, 1],
@@ -777,7 +781,7 @@ void main() {
         c = _Case(dir);
         final rows = [
           for (final id in ids)
-            _rowLine({..._row(archiveSections[0], 1), 'id': id}),
+            _rowLine({..._row(archiveSectionsFor(4)[0], 1), 'id': id}),
         ];
         await c.rejectsLines([
           ...l.take(2),
@@ -795,7 +799,8 @@ void main() {
         c = _Case(dir);
         final db = _fullDb(rowsPer: 2);
         final counts = {
-          for (final s in archiveSections) s.name: db[s.name]?.length ?? 0,
+          for (final s in archiveSectionsFor(4))
+            s.name: db[s.name]?.length ?? 0,
         };
         counts['laps'] = counts['laps']! + delta;
         final l = _validLines(db);
@@ -805,7 +810,7 @@ void main() {
     });
 
     test('Zähler fehlt / überzählig / Text statt Zahl', () async {
-      final base = {for (final s in archiveSections) s.name: 0};
+      final base = {for (final s in archiveSectionsFor(4)) s.name: 0};
       for (final counts in <Map<String, Object?>>[
         {...base}..remove('plans'),
         {...base, 'extra': 0},
@@ -831,7 +836,7 @@ void main() {
       () async {
         final l = valid();
         for (final extra in [
-          _rowLine(_row(archiveSections[0], 9)),
+          _rowLine(_row(archiveSectionsFor(4)[0], 9)),
           _section('runs'),
           l.last,
           _manifest(),
@@ -916,7 +921,7 @@ void main() {
           settingsRow(n),
           ...l.skip(i + 1).take(l.length - i - 2),
           _endLine({
-            for (final s in archiveSections)
+            for (final s in archiveSectionsFor(4))
               s.name: s.name == 'settings' ? 1 : 0,
           }),
         ];
@@ -1084,6 +1089,376 @@ void main() {
       );
       expect(c.sink.commits, 0);
       expect(c.sink.aborts, 1);
+    });
+  });
+
+  group('Formatversion 2 (WP18): run_feedback, manual_trainings', () {
+    const secret = 'GEHEIME-NOTIZ-4711';
+
+    Map<String, Object?> fb({
+      int run = 1,
+      Object? rpe = 5,
+      Object? wellbeing = 3,
+      Object? points = 225.0,
+      Object? seconds = 2700.0,
+      Object? method = 'srpe_duration_rpe',
+      Object? version = 1,
+    }) => {
+      'run_id': run,
+      'rpe': rpe,
+      'wellbeing': wellbeing,
+      'complaints': secret,
+      'warning_answer': 'no',
+      'note': secret,
+      'srpe_points': points,
+      'srpe_duration_s': seconds,
+      'srpe_method': method,
+      'srpe_method_version': version,
+    };
+
+    Map<String, Object?> mt({
+      int id = 1,
+      Object? day = '2026-11-20',
+      Object? kind = 'other',
+      Object? duration = 2700,
+      Object? rpe = 5,
+    }) => {
+      'id': id,
+      'day': day,
+      'kind': kind,
+      'duration_s': duration,
+      'rpe': rpe,
+    };
+
+    List<String> v2({
+      List<Map<String, Object?>>? feedback,
+      List<Map<String, Object?>>? trainings,
+      String? manifest,
+      int schema = 5,
+      Map<String, List<Map<String, Object?>>> extra = const {},
+    }) {
+      final db = <String, List<Map<String, Object?>>>{
+        'runs': [_row(archiveSections[0], 1), _row(archiveSections[0], 2)],
+        'run_feedback': feedback ?? [fb()],
+        'manual_trainings': trainings ?? [mt()],
+        ...extra,
+      };
+      final sections = archiveSectionsFor(schema);
+      return [
+        manifest ??
+            '{"type":"manifest","format":2,"schema_version":$schema,'
+                '"created_at_us":1793000000000000}',
+        for (final sec in sections) ...[
+          _section(sec.name),
+          for (final r in db[sec.name] ?? const <Map<String, Object?>>[])
+            _rowLine(r),
+        ],
+        _endLine({
+          for (final sec in sections) sec.name: db[sec.name]?.length ?? 0,
+        }),
+      ];
+    }
+
+    Future<List<int>> file(List<String> lines, {int header = 2}) =>
+        _encrypt(_gzip(_jsonl(lines)), format: header);
+
+    Future<void> rejectsV2(
+      List<String> lines, [
+      ArchiveImportFailure f = ArchiveImportFailure.damaged,
+      int header = 2,
+    ]) async {
+      await c.rejects(await file(lines, header: header), f);
+      expect(c.sink.rows['run_feedback'] ?? const [], isNotNull);
+      c = _Case(dir);
+    }
+
+    test('gültig, auch heute', () async {
+      final lines = v2(
+        feedback: [
+          fb(),
+          fb(
+            run: 2,
+            rpe: null,
+            wellbeing: null,
+            points: null,
+            seconds: null,
+            method: null,
+            version: null,
+          ),
+        ],
+        trainings: [
+          mt(day: '2026-11-20'),
+          mt(id: 2, kind: 'run', rpe: 0),
+        ],
+      );
+      await c.run(await file(lines));
+      expect(c.sink.rows['run_feedback'], hasLength(2));
+      expect(c.sink.rows['manual_trainings']![0]['day'], '2026-11-20');
+      expect(c.sink.commits, 1);
+    });
+
+    test('Nachgetragenes Training morgen: abgelehnt, nichts bleibt', () async {
+      final lines = v2(
+        trainings: [
+          mt(day: '2026-11-20'),
+          mt(id: 2, day: '2026-11-21'),
+        ],
+      );
+      await rejectsV2(lines);
+    });
+
+    test('Grenze ist der Ortstag, nicht der UTC-Tag', () async {
+      // 23:30 UTC, Versatz +2 h: Ortstag ist schon der 21.
+      final late = FakeClock(
+        DateTime.utc(2026, 11, 20, 23, 30),
+        utcOffset: const Duration(hours: 2),
+      );
+      await ArchiveImporter(
+        sink: c.sink,
+        cipherFactory: _fakeCipher,
+        clock: late,
+      ).import(
+        path: c.write(await file(v2(trainings: [mt(day: '2026-11-21')]))),
+        password: _password,
+      );
+      expect(c.sink.commits, 1);
+      c = _Case(dir);
+      await expectLater(
+        ArchiveImporter(
+          sink: c.sink,
+          cipherFactory: _fakeCipher,
+          clock: late,
+        ).import(
+          path: c.write(await file(v2(trainings: [mt(day: '2026-11-22')]))),
+          password: _password,
+        ),
+        throwsA(isA<ArchiveImportException>()),
+      );
+      expect(c.sink.commits, 0);
+      expect(c.sink.aborts, 1);
+    });
+
+    test('Format 1 mit den neuen Abschnitten wird abgelehnt', () async {
+      final lines = v2();
+      lines[0] = _manifest();
+      await rejectsV2(lines, ArchiveImportFailure.damaged, 1);
+    });
+
+    test('Format 2 ohne die neuen Abschnitte wird abgelehnt', () async {
+      await rejectsV2(valid());
+      c = _Case(dir);
+      // Manifest 2/5, aber Abschnittsfolge von Format 1.
+      final l = valid()..[0] = v2()[0];
+      await rejectsV2(l);
+    });
+
+    for (final entry in {
+      'Format 2 mit Schema 4': (
+        '{"type":"manifest","format":2,"schema_version":4,"created_at_us":1}',
+        2,
+      ),
+      'Format 1 mit Schema 5': (
+        '{"type":"manifest","format":1,"schema_version":5,"created_at_us":1}',
+        1,
+      ),
+      'Format 1 mit Schema 6': (
+        '{"type":"manifest","format":1,"schema_version":6,"created_at_us":1}',
+        1,
+      ),
+      'Format 3': (
+        '{"type":"manifest","format":3,"schema_version":5,"created_at_us":1}',
+        2,
+      ),
+      'Format 0': (
+        '{"type":"manifest","format":0,"schema_version":5,"created_at_us":1}',
+        2,
+      ),
+      'Manifest 1, Kopf 2': (
+        '{"type":"manifest","format":1,"schema_version":4,"created_at_us":1}',
+        2,
+      ),
+      'Manifest 2, Kopf 1': (
+        '{"type":"manifest","format":2,"schema_version":5,"created_at_us":1}',
+        1,
+      ),
+    }.entries) {
+      test('Manifest/Kopf widersprüchlich: ${entry.key}', () async {
+        final lines =
+            entry.key.contains('Format 1') || entry.key == 'Manifest 1, Kopf 2'
+            ? valid()
+            : v2();
+        lines[0] = entry.value.$1;
+        await rejectsV2(lines, ArchiveImportFailure.damaged, entry.value.$2);
+      });
+    }
+
+    test(
+      'Format 2 mit Schema 5 (21 Abschnitte, ohne Prognose) bleibt lesbar',
+      () async {
+        expect(archiveSectionsFor(5), hasLength(21));
+        await c.run(await file(v2()));
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['run_feedback'], hasLength(1));
+        expect(c.sink.rows['manual_trainings'], hasLength(1));
+        expect(c.sink.rows['reference_performances'] ?? const [], isEmpty);
+      },
+    );
+
+    test('Format 2 mit Schema 6: Prognose-Abschnitte mit Inhalt', () async {
+      expect(archiveSectionsFor(6), hasLength(23));
+      final refs = [
+        {
+          'id': 1,
+          'kind': 'race',
+          'distance_m': 10000.0,
+          'time_s': 3012.5,
+          'performed_on': '2026-10-01',
+          'created_at_us': 7,
+          'run_id': null,
+        },
+        {
+          'id': 2,
+          'kind': 'confirmedRun',
+          'distance_m': 5000.0,
+          'time_s': 1490.0,
+          'performed_on': '2026-11-02',
+          'created_at_us': 8,
+          'run_id': 1,
+        },
+      ];
+      await c.run(
+        await file(
+          v2(
+            schema: 6,
+            extra: {
+              'reference_performances': refs,
+              'rejected_suggestions': [
+                {'id': 1, 'run_id': 2},
+              ],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['reference_performances'], hasLength(2));
+      expect(c.sink.rows['reference_performances']![0]['time_s'], 3012.5);
+      expect(c.sink.rows['reference_performances']![0]['run_id'], isNull);
+      expect(c.sink.rows['rejected_suggestions']![0]['run_id'], 2);
+      expect(c.sink.rows['run_feedback'], hasLength(1));
+    });
+
+    test('Schema 6 ohne die Prognose-Abschnitte: beschädigt', () async {
+      final l = v2();
+      l[0] = v2(schema: 6)[0];
+      await rejectsV2(l);
+    });
+
+    test('Schema 5 mit Prognose-Abschnitt: beschädigt', () async {
+      final l = v2();
+      final at = l.indexOf(_section('goals'));
+      l.insert(at, _section('reference_performances'));
+      await rejectsV2(l);
+    });
+
+    test('Schema 4 mit Abschnitt aus Schema 6: beschädigt', () async {
+      final l = valid();
+      final at = l.indexOf(_section('goals'));
+      l.insert(at, _section('reference_performances'));
+      await c.rejectsLines(l, ArchiveImportFailure.damaged);
+    });
+
+    test('Schema 7: neueres Archiv', () async {
+      await rejectsV2(
+        v2(schema: 6)..[0] = '{"type":"manifest","format":2,"schema_version":7,"created_at_us":1}',
+        ArchiveImportFailure.newerSchema,
+      );
+    });
+
+    test('Kopf Format 3 oder 0: unbekannte Formatversion', () async {
+      final bytes = await file(v2());
+      for (final v in [0, 3]) {
+        await c.rejects(
+          Uint8List.fromList(bytes)..[9] = v,
+          ArchiveImportFailure.unsupportedVersion,
+        );
+        c = _Case(dir);
+      }
+    });
+
+    final bad = <String, List<String>>{
+      'RPE 11': v2(feedback: [fb(rpe: 11)]),
+      'RPE -1': v2(feedback: [fb(rpe: -1)]),
+      'RPE 5.5': v2(feedback: [fb(rpe: 5.5)]),
+      'Befinden 0': v2(feedback: [fb(wellbeing: 0)]),
+      'Befinden 6': v2(feedback: [fb(wellbeing: 6)]),
+      'Befinden 4.5': v2(feedback: [fb(wellbeing: 4.5)]),
+      'sRPE-Wert passt nicht zu Dauer mal RPE': v2(
+        feedback: [fb(points: 226.0)],
+      ),
+      'sRPE ohne RPE': v2(feedback: [fb(rpe: null)]),
+      'sRPE-Dauer ohne Punkte': v2(feedback: [fb(points: null)]),
+      // Diese Fälle erreichen ohne die Spaltenregel keinen TypeError: nur die
+      // Regel selbst erkennt sie (sonst bliebe der DB-CHECK als Umweg).
+      'sRPE fremde Methode ohne RPE': v2(
+        feedback: [fb(rpe: null, method: 'andere', version: 0)],
+      ),
+      'sRPE nur Punkte und Dauer, Methode fehlt': v2(
+        feedback: [fb(method: null, version: null)],
+      ),
+      'sRPE nur Methode und Version, Werte fehlen': v2(
+        feedback: [fb(points: null, seconds: null)],
+      ),
+      'sRPE Version fehlt': v2(feedback: [fb(version: null)]),
+      'sRPE Methode fehlt, fremde Version': v2(
+        feedback: [fb(method: null, version: 0)],
+      ),
+      'doppelte run_id': v2(feedback: [fb(), fb()]),
+      'absteigende run_id': v2(feedback: [fb(run: 2), fb(run: 1)]),
+      'Training RPE 11': v2(trainings: [mt(rpe: 11)]),
+      'Training RPE fehlt': v2(trainings: [mt(rpe: null)]),
+      'Training Dauer 0': v2(trainings: [mt(duration: 0)]),
+      'Training Dauer -1': v2(trainings: [mt(duration: -1)]),
+      'Training Dauer 1.5': v2(trainings: [mt(duration: 1.5)]),
+      'doppelte Training-id': v2(trainings: [mt(), mt()]),
+    };
+    for (final e in bad.entries) {
+      test('Leser lehnt ab: ${e.key}', () async {
+        await rejectsV2(e.value);
+      });
+    }
+
+    test('ältere sRPE-Methode wird nicht nachgerechnet', () async {
+      await c.run(await file(v2(feedback: [fb(points: 1.0, version: 0)])));
+      expect(c.sink.commits, 1);
+    });
+
+    test('Fehlertexte nennen keine Inhalte', () async {
+      Object? error;
+      try {
+        await c.run(await file(v2(feedback: [fb(rpe: 11)])));
+      } catch (e) {
+        error = e;
+      }
+      expect(error.toString(), isNot(contains(secret)));
+      expect(error.toString(), 'ArchiveImportException(damaged)');
+    });
+
+    test('Rundgang: Export schreibt Format 2 mit beiden Abschnitten', () async {
+      final db = _fullDb(rowsPer: 2);
+      db['run_feedback'] = [fb(), fb(run: 2)];
+      db['manual_trainings'] = [mt(), mt(id: 2)];
+      final handoff = FakeFileHandoff()..directory = dir.path;
+      final out = await ArchiveExporter(
+        source: FakeArchiveSource(db),
+        handoff: handoff,
+        clock: FakeClock(DateTime.utc(2026, 11, 7, 12)),
+        cipherFactory: _fakeCipher,
+      ).export(password: _password);
+      final bytes = File(out.path!).readAsBytesSync();
+      expect(bytes[9], 2);
+      await c.run(bytes);
+      expect(c.sink.rows['run_feedback'], db['run_feedback']);
+      expect(c.sink.rows['manual_trainings'], db['manual_trainings']);
     });
   });
 }

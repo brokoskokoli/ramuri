@@ -14,7 +14,7 @@ class PredictionRun {
   /// Datum des Laufs (lokaler Kalendertag).
   final DateTime date;
 
-  /// Bewegungszeit in Sekunden.
+  /// Bewegungszeit in Sekunden ohne Positionslücken (passt zur Distanz).
   final double movingSeconds;
 
   /// Gemessene Distanz; `null`, wenn nicht gemessen.

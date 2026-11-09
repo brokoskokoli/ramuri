@@ -57,6 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               widget.recalculation,
             ),
             clock: widget.clock,
+            coefficients: _Coefficients(widget.session, widget.recalculation),
             onSaved: (_) {
               final messenger = ScaffoldMessenger.of(context);
               messenger.showSnackBar(
@@ -88,7 +89,44 @@ class _NotifyingProfileService extends ProfileService {
   Future<ProfileSaveResult> save(ProfileRecord profile) async {
     final before = await load();
     final result = await super.save(profile);
-    if (result.saved) await _recalc.profileChanged(before, profile);
+    if (result.saved) {
+      await _recalc.profileChanged(before, profile);
+      // Ruhepuls, HFmax und Geburtsjahr (Näherung der HFmax) tragen die
+      // Belastungsrechnung; danach prüft sie, ob das gewählte Profil noch
+      // trägt (kein stiller Wechsel der Skala).
+      if (before.restingHeartRateBpm != profile.restingHeartRateBpm ||
+          before.maxHeartRateBpm != profile.maxHeartRateBpm ||
+          before.birthYear != profile.birthYear) {
+        await _recalc.loadBasisChanged();
+      }
+    }
     return result;
   }
+}
+
+/// Die Koeffizienten-Angabe aus den Einstellungen; Änderungen gehen über den
+/// Controller der Neuberechnung (bei aktivem Banister als Angebot).
+class _Coefficients implements LoadCoefficientsAccess {
+  _Coefficients(this._session, this._recalc);
+
+  final StorageSession _session;
+  final RecalculationController _recalc;
+
+  /// Eine noch unbestätigte Änderung gilt als gewählt, wie beim Profil: die
+  /// Seite zeigt, was angeboten wurde, bis bestätigt oder abgelehnt ist.
+  @override
+  Future<LoadCoefficients?> read() async {
+    final pending = await LoadSettings.pendingCoefficients(_session.settings);
+    if (pending != null) return pending.value;
+    return LoadSettings.coefficients(_session.settings);
+  }
+
+  @override
+  Future<bool> banisterActive() async =>
+      await LoadSettings.activeProfile(_session.settings) ==
+      LoadProfile.banister;
+
+  @override
+  Future<void> apply(LoadCoefficients? value) =>
+      _recalc.requestLoadCoefficients(value);
 }

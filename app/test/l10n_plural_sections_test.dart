@@ -68,4 +68,26 @@ void main() {
     expect(l.sumClassSlower('5 s/km', 2, '5:00'), contains('last 2 runs'));
     expect(l.sumClassSame(2, '5:00'), contains('last 2 runs'));
   });
+
+  // E2E 36 (NB5): "Neuberechnet: 1 Läufe", "Recalculated: 1 runs".
+  test('Neuberechnet im Singular und Plural (de, en)', () {
+    final de = lookupAppLocalizations(const Locale('de'));
+    final en = lookupAppLocalizations(const Locale('en'));
+    expect(
+      de.recalcDone(1),
+      'Neuberechnet: 1 Lauf. Die ursprünglichen Werte bleiben erhalten.',
+    );
+    expect(
+      de.recalcDone(14),
+      'Neuberechnet: 14 Läufe. Die ursprünglichen Werte bleiben erhalten.',
+    );
+    expect(
+      en.recalcDone(1),
+      'Recalculated: 1 run. The original values are kept.',
+    );
+    expect(
+      en.recalcDone(14),
+      'Recalculated: 14 runs. The original values are kept.',
+    );
+  });
 }

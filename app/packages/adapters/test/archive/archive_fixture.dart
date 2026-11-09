@@ -89,6 +89,20 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     'INSERT INTO profile (id, birth_year, body_weight_kg, body_height_m, resting_heart_rate_bpm, max_heart_rate_bpm, weekly_run_minutes, training_days_mask, usual_training_minutes) VALUES (1, 1990, 70.5, 1.8, 50, 190, 120, 5, 45)',
   );
+  // Belastungsprofil (WP19), vor den übrigen in Schlüsselreihenfolge: vier Einstellungen gehören ins Archiv, die
+  // unbestätigte Wahl und die Faktor-Merker sind technische Merker.
+  for (final kv in const [
+    ('load.all_recorded', '1'),
+    ('load.coefficients', 'female'),
+    ('load.coefficients_pending', 'male'),
+    ('load.factor', 'banister;1.5;14;2026-11-07'),
+    ('load.factor_declined', 'banister;3.0;14;2026-11-01'),
+    ('load.factor_pending', 'banister;2.5;14;2026-11-08'),
+    ('load.profile', 'banister'),
+    ('load.profile_pending', 'edwards'),
+  ]) {
+    await sql(db, "INSERT INTO settings VALUES ('${kv.$1}', '${kv.$2}', 1)");
+  }
   await sql(db, "INSERT INTO settings VALUES ('unit.pace', 'min_km', 1)");
   await sql(
     db,
@@ -103,7 +117,17 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     "INSERT INTO known_devices (device_id, display_name, is_preferred, added_at_us) VALUES ('AA:BB', 'Gurt', 1, 5)",
   );
-  // Leistungsprognose (Schema 5): eine Wettkampfzeit ohne Lauf, ein
+  // WP18 (Format 2): Angaben zum Lauf mit sRPE (45 min, RPE 5) und zwei
+  // nachgetragene Trainings, eines mit Datum in der Zukunft. Synthetisch.
+  await sql(
+    db,
+    "INSERT INTO run_feedback VALUES (1, 5, 2, 'Wade', 'yes', 'Notiz-Ä', 225.0, 2700.0, 'srpe_duration_rpe', 1)",
+  );
+  await sql(
+    db,
+    "INSERT INTO manual_trainings (day, kind, duration_s, rpe) VALUES ('2026-11-01', 'other', 3600, 4), ('2026-11-20', 'run', 1800, 0)",
+  );
+  // Leistungsprognose (Schema 6): eine Wettkampfzeit ohne Lauf, ein
   // bestätigter Lauf mit Verweis, ein abgelehnter Vorschlag.
   await sql(
     db,

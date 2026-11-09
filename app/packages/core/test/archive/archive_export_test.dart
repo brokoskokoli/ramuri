@@ -117,7 +117,7 @@ void main() {
 
   group('Rundgang über den Entschlüssler', () {
     test(
-      'v5 vollständig: jeder Abschnitt, Reihenfolge, Zeilen, Endzeile',
+      'v6 vollständig: jeder Abschnitt, Reihenfolge, Zeilen, Endzeile',
       () async {
         final db = _fullDb(rowsPer: 2);
         final file = await exporter(FakeArchiveSource(db))
@@ -129,8 +129,8 @@ void main() {
         final lines = await _readBack(File(file.path!));
         expect(lines.first, {
           'type': 'manifest',
-          'format': 1,
-          'schema_version': 5,
+          'format': 2,
+          'schema_version': 6,
           'created_at_us': DateTime.utc(2026, 11, 7, 12).microsecondsSinceEpoch,
         });
         final sections = [
@@ -138,7 +138,7 @@ void main() {
             if (l['type'] == 'section') l['name'],
         ];
         expect(sections, [for (final s in archiveSections) s.name]);
-        expect(sections, hasLength(21));
+        expect(sections, hasLength(23));
         // Jede Tabelle mit mindestens einer Zeile.
         for (final s in archiveSections.where((s) => !s.isReserved)) {
           final rows = _rowsOf(lines, s.name);
@@ -207,7 +207,15 @@ void main() {
               ValueCalculationService.calculationPendingKey,
               ValueCalculationService.refreshPendingKey,
               RecalculationService.pendingKey,
+              SettingKeys.loadProfilePending,
+              SettingKeys.loadCoefficientsPending,
+              SettingKeys.loadFactorPending,
+              SettingKeys.loadFactorDeclined,
+              SettingKeys.loadFactor,
               'unit.pace',
+              SettingKeys.loadProfile,
+              SettingKeys.loadCoefficients,
+              SettingKeys.loadAllRecorded,
               'zukunft.unbekannt',
             ])
               {'key': k, 'value': 'x', 'updated_at_us': 5},
@@ -221,9 +229,16 @@ void main() {
         expect(text, isNot(contains(_marker)));
         expect(
           [for (final r in _rowsOf(lines, 'settings')) r['key']],
-          ['unit.pace', 'zukunft.unbekannt'],
+          [
+            SettingKeys.loadAllRecorded,
+            SettingKeys.loadCoefficients,
+            SettingKeys.loadFactor,
+            SettingKeys.loadProfile,
+            'unit.pace',
+            'zukunft.unbekannt',
+          ],
         );
-        expect((lines.last['rows']! as Map)['settings'], 2);
+        expect((lines.last['rows']! as Map)['settings'], 6);
       },
     );
 
@@ -262,7 +277,7 @@ void main() {
         r'^\| (\d+) \| `(\w+)` \| (.+) \|$',
         multiLine: true,
       ).allMatches(doc).toList();
-      expect(rows, hasLength(21));
+      expect(rows, hasLength(23));
       for (final m in rows) {
         final spec = archiveSections[int.parse(m.group(1)!) - 1];
         expect(spec.name, m.group(2));

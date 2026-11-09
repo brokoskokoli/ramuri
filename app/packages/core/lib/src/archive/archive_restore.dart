@@ -1,4 +1,5 @@
 import '../../ports/archive_sink.dart';
+import '../../ports/clock.dart';
 import '../../ports/database_files.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_prediction.dart';
@@ -32,6 +33,7 @@ class ArchiveRestoreService {
     required this.files,
     required this.cipherFactory,
     required this.reopen,
+    required this.clock,
     this.serialize = _direct,
   });
 
@@ -40,6 +42,9 @@ class ArchiveRestoreService {
   final ArchiveSink sink;
   final DatabaseFiles files;
   final ArchiveCipherFactory cipherFactory;
+
+  /// „Heute“ für die Obergrenze nachgetragener Trainings beim Einlesen.
+  final Clock clock;
 
   /// Öffnet die Datenbank nach dem Tausch (oder nach einem gescheiterten
   /// Tausch den alten Stand) neu.
@@ -69,6 +74,7 @@ class ArchiveRestoreService {
       return false;
     }
     if ((await s.devices.list()).isNotEmpty) return false;
+    if ((await s.manualTrainings.list()).isNotEmpty) return false;
     // Eingetragene Referenzleistungen sind eigene Daten, auch ohne Läufe.
     if (s is PredictionStorage &&
         (await (s as PredictionStorage).prediction.references()).isNotEmpty) {
@@ -101,6 +107,7 @@ class ArchiveRestoreService {
     await ArchiveImporter(
       sink: sink,
       cipherFactory: cipherFactory,
+      clock: clock,
     ).import(path: path, password: password, cancel: cancel);
     // Ab hier ist die Zwischendatenbank vollständig. Schlägt etwas vor dem
     // Umbenennen fehl, steht noch der alte Stand: aufräumen und neu öffnen.

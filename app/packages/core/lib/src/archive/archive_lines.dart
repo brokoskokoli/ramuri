@@ -5,9 +5,9 @@ import '../../ports/archive_source.dart';
 import '../../ports/clock.dart';
 import '../recalculation/recalculation_service.dart';
 import '../recalculation/value_calculation_service.dart';
+import '../settings/display_settings.dart';
 import 'archive_errors.dart';
 import 'archive_json.dart';
-import 'archive_reader.dart' show archiveSchemaVersion;
 import 'archive_schema.dart';
 
 /// Technische Merker in `settings`, die nicht ins Archiv gehören (Vertrag 4.3).
@@ -15,6 +15,10 @@ const Set<String> archiveExcludedSettingKeys = {
   ValueCalculationService.calculationPendingKey,
   ValueCalculationService.refreshPendingKey,
   RecalculationService.pendingKey,
+  SettingKeys.loadProfilePending,
+  SettingKeys.loadCoefficientsPending,
+  SettingKeys.loadFactorPending,
+  SettingKeys.loadFactorDeclined,
 };
 
 /// Zeilen je Seite beim Lesen.
@@ -55,12 +59,12 @@ Stream<Uint8List> archiveLines({
   }
   line({
     'type': 'manifest',
-    'format': 1,
+    'format': archiveWriteFormat,
     'schema_version': archiveSchemaVersion,
     'created_at_us': clock.now().toUtc().microsecondsSinceEpoch,
   });
   final counts = <String, int>{};
-  for (final section in archiveSections) {
+  for (final section in archiveSectionsFor(archiveSchemaVersion)) {
     line({'type': 'section', 'name': section.name});
     var count = 0;
     Object? after;

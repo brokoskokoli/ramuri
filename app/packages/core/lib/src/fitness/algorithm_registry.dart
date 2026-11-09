@@ -1,5 +1,6 @@
 import 'aerobic_efficiency.dart';
 import 'algorithm_variant.dart';
+import 'banister_trimp.dart';
 import 'edwards_trimp.dart';
 import '../prediction/prediction_registry.dart';
 import 'heart_rate_reserve.dart';
@@ -29,6 +30,8 @@ class AlgorithmRegistry {
       const ReserveZones(reserve: HeartRateReserve()),
     )
     ..register(loadModelFamily, const EdwardsTrimp())
+    ..register(loadModelFamily, const BanisterTrimp(LoadCoefficients.male))
+    ..register(loadModelFamily, const BanisterTrimp(LoadCoefficients.female))
     ..register(vo2maxEstimatorFamily, const AcsmReserveVo2maxEstimator())
     ..register(vo2maxLongTermFamily, const SmoothedVo2maxLongTerm())
     ..register(aerobicEfficiencyFamily, const MedianAerobicEfficiency())

@@ -35,7 +35,7 @@ class PredictionRunReader {
   final Offload offload;
 
   /// Beendete Läufe, neuester Start zuerst. Läufe ohne lesbare Kurzfassung
-  /// (Rohdaten nicht lesbar) haben keine Bewegungszeit und fehlen.
+  /// (Rohdaten nicht lesbar) oder ohne Zeit außerhalb von Positionslücken fehlen.
   Future<List<PredictionRun>> load({bool withPaceSamples = true}) async {
     final overviews = await RunOverviewService(
       session: session,
@@ -45,7 +45,9 @@ class PredictionRunReader {
     ).load();
     final out = <PredictionRun>[];
     for (final o in overviews) {
-      final moving = o.movingTime;
+      // Zeit ohne Positionslücken (`paceTime`): Die Distanz enthält die
+      // überbrückte Strecke nicht, die Bewegungszeit ihre Zeit schon.
+      final moving = o.paceTime;
       if (o.readFailed || moving == null || moving <= Duration.zero) continue;
       final meters = o.distanceMeters;
       List<double>? pace;

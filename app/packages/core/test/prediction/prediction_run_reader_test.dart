@@ -61,6 +61,46 @@ void main() {
       expect(calendarDay(r.date), DateTime.utc(2030, 1, 6));
     });
 
+    test(
+      'Positionslücke: Zeit ohne die Lückenzeit, passend zur Distanz',
+      () async {
+        // 20 Minuten bei 3 m/s, aber 120 s ohne Positionen (Tunnel).
+        final start = DateTime.utc(2030, 1, 5, 8);
+        final run = await w.session.runs.create(startedAt: start);
+        final positions = <RawPosition>[
+          for (var s = 0; s <= 1200; s++)
+            if (s < 500 || s > 620)
+              RawPosition(
+                time: start.add(Duration(seconds: s)),
+                source: 'gps',
+                latitude: 10 + s * 3.0 / 111195,
+                longitude: 20,
+                accuracyMeters: 5,
+              ),
+        ];
+        await w.session.rawData.append(run.id, RawBatch(positions: positions));
+        await w.session.runs.setState(
+          run.id,
+          RunState.finished,
+          endedAt: start.add(const Duration(seconds: 1200)),
+        );
+        w.clock.set(start.add(const Duration(minutes: 30)));
+        final overview = (await RunOverviewService(
+          session: w.session,
+          clock: w.clock,
+        ).load()).single;
+        // Voraussetzung des Tests: Die Lücke kostet Bewegungszeit.
+        expect(overview.paceTime!, lessThan(overview.movingTime!));
+        final r = (await reader.load(withPaceSamples: false)).single;
+        expect(
+          r.movingSeconds,
+          overview.paceTime!.inMicroseconds / Duration.microsecondsPerSecond,
+        );
+        // Distanz und Zeit passen zusammen (3 m/s), nicht die lange Zeit.
+        expect(r.distanceMeters! / r.movingSeconds, closeTo(3.0, 0.15));
+      },
+    );
+
     test('unfertiger Lauf und leerer Speicher: keine Läufe', () async {
       expect(await reader.load(), isEmpty);
       await w.session.runs.create(startedAt: DateTime.utc(2030, 1, 5, 8));

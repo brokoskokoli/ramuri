@@ -7,6 +7,7 @@ import 'storage_profile.dart';
 import 'storage_raw.dart';
 import 'storage_runs.dart';
 import 'storage_settings.dart';
+import 'storage_subjective.dart';
 import 'storage_values.dart';
 
 enum StorageFailure {
@@ -85,8 +86,14 @@ abstract interface class StorageSession {
   KnownDeviceStore get devices;
   ConsentStore get consents;
 
+  /// Angaben zum Lauf samt sRPE (FR-0038, FR-0095), gelöscht mit dem Lauf.
+  RunSubjectiveStore get subjective;
+
+  /// Nachgetragene Trainings (FR-0199), unabhängig von Läufen.
+  ManualTrainingStore get manualTrainings;
+
   /// Löscht den Lauf mit allem darunter (Rohdaten, Runden, Lücken,
-  /// Vorverarbeitung, Abschnitte, Werte) und alle Tageswerte, deren
+  /// Vorverarbeitung, Abschnitte, Werte, Angaben und sRPE) und alle Tageswerte, deren
   /// Datenzeitraum den Lauf überlappt oder unbekannt ist (WP09 berechnet sie
   /// neu). Eine Transaktion, danach WAL-Checkpoint (TRUNCATE). Unbekannter
   /// Lauf: [StorageFailure.notFound]. Lief der Checkpoint nicht durch:
@@ -94,7 +101,7 @@ abstract interface class StorageSession {
   Future<void> deleteRun(int runId);
 
   /// Löscht alle Nutzdaten (Läufe, Werte, Profil, Einstellungen, Geräte,
-  /// Einwilligungen). Der Schlüssel liegt nicht im Speicher und bleibt.
+  /// Einwilligungen, Angaben, nachgetragene Trainings). Der Schlüssel liegt nicht im Speicher und bleibt.
   /// Sonst wie [deleteRun].
   Future<void> deleteAll();
 

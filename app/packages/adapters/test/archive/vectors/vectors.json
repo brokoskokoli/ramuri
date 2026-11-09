@@ -15,7 +15,8 @@
       "plaintext_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "chunk_count": 1,
       "file_len": 52,
-      "expect": "ok"
+      "expect": "ok",
+      "format": 1
     },
     {
       "name": "short",
@@ -30,7 +31,8 @@
       "plaintext_sha256": "e00bc3a0932996d8955da028ea47ca14a6bfeea1380af28a0ec0312f697b68dc",
       "chunk_count": 1,
       "file_len": 64,
-      "expect": "ok"
+      "expect": "ok",
+      "format": 1
     },
     {
       "name": "exact_65536",
@@ -45,7 +47,8 @@
       "plaintext_sha256": "cadebb2c416b070e917094a46a01e8c27e8920a95cd27e1a94c5764e677b39b1",
       "chunk_count": 1,
       "file_len": 65588,
-      "expect": "ok"
+      "expect": "ok",
+      "format": 1
     },
     {
       "name": "exact_65537",
@@ -60,7 +63,8 @@
       "plaintext_sha256": "a8bcfc1a48d40062c1fd894c425d1667b5e04d9b33d1207277620fd1f3f4de25",
       "chunk_count": 2,
       "file_len": 65605,
-      "expect": "ok"
+      "expect": "ok",
+      "format": 1
     },
     {
       "name": "multi_150k",
@@ -75,7 +79,8 @@
       "plaintext_sha256": "1bb428e3182aaef9cf3212a8368e381b60b279341aacfd8b3508d1f85697f109",
       "chunk_count": 3,
       "file_len": 153684,
-      "expect": "ok"
+      "expect": "ok",
+      "format": 1
     },
     {
       "name": "exact_131072",
@@ -90,7 +95,8 @@
       "plaintext_sha256": "dfa1a99f6e127757fd0b52592b72fb6698cf468f4f89478a66af8371446cf2fc",
       "chunk_count": 2,
       "file_len": 131140,
-      "expect": "ok"
+      "expect": "ok",
+      "format": 1
     },
     {
       "name": "archive_small",
@@ -106,6 +112,7 @@
       "chunk_count": 1,
       "file_len": 1755,
       "expect": "ok",
+      "format": 1,
       "jsonl_file": "archive_small.jsonl",
       "jsonl_sha256": "b0436c1986b08dfda6af17f974811ad002d1c9b5e0b699dbdb68561ace61b221",
       "row_counts": {
@@ -129,6 +136,48 @@
         "plans": 0,
         "active_warning": 0
       }
+    },
+    {
+      "name": "archive_v2",
+      "file": "archive_v2.runarchv",
+      "plaintext_file": "archive_v2.plain",
+      "password": "archiv-test-passwort-v2+",
+      "password_utf8_hex": "6172636869762d746573742d70617373776f72742d76322b",
+      "salt_hex": "d8d9dadbdcdddedfe0e1e2e3e4e5e6e7",
+      "key_hex": "8ea679d5b8cc809eb07707e8b16bc6acb50819bef2d0b3b887deb6e74168865d",
+      "header_hex": "52554e4152434856000200010000000000030120d8d9dadbdcdddedfe0e1e2e3e4e5e6e7",
+      "plaintext_len": 1905,
+      "plaintext_sha256": "71d801e67510392f055786b056a4bbedd1279401c02edebdd228725eb66d9b82",
+      "chunk_count": 1,
+      "file_len": 1957,
+      "expect": "ok",
+      "format": 2,
+      "jsonl_file": "archive_v2.jsonl",
+      "jsonl_sha256": "a3feb67a47c7db689d38ff1616429c9f7bf431a114b77ba4a3c9b7ac959da4f9",
+      "row_counts": {
+        "runs": 2,
+        "laps": 1,
+        "run_gaps": 1,
+        "raw_positions": 2,
+        "raw_heart_rates": 2,
+        "raw_altitudes": 1,
+        "raw_steps": 1,
+        "preprocessing_results": 1,
+        "preprocessed_samples": 2,
+        "preprocessed_spans": 1,
+        "rated_sections": 1,
+        "computed_values": 6,
+        "value_sections": 2,
+        "profile": 1,
+        "settings": 2,
+        "known_devices": 1,
+        "run_feedback": 2,
+        "manual_trainings": 2,
+        "goals": 0,
+        "plans": 0,
+        "active_warning": 0
+      },
+      "today": "2026-11-20"
     },
     {
       "name": "neg_truncate_at_boundary",
@@ -221,13 +270,13 @@
       "file_len": 65588
     },
     {
-      "name": "neg_version_2",
-      "file": "neg_version_2.runarchv",
+      "name": "neg_version_3",
+      "file": "neg_version_3.runarchv",
       "password": "synthetisches-Passwort-0003",
       "salt_hex": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
       "key_hex": "270566a5ddfabd9ee3fdf12079d08082c6fe1bb3a463620f3bfb93a757b0a4e9",
       "expect": "unknown_version",
-      "note": "Formatversion 2",
+      "note": "Formatversion 3",
       "file_len": 65588
     },
     {
@@ -259,6 +308,18 @@
       "expect": "corrupt",
       "note": "20 Byte (Magic+Version ok)",
       "file_len": 20
+    },
+    {
+      "name": "neg_v2_training_after_today",
+      "file": "neg_v2_training_after_today.runarchv",
+      "password": "archiv-test-passwort-v2+",
+      "salt_hex": "d8d9dadbdcdddedfe0e1e2e3e4e5e6e7",
+      "key_hex": "8ea679d5b8cc809eb07707e8b16bc6acb50819bef2d0b3b887deb6e74168865d",
+      "expect": "corrupt",
+      "note": "Format 2, manual_trainings mit Tag nach heute (2026-11-20): Archiv abgelehnt",
+      "file_len": 1968,
+      "layer": "content",
+      "today": "2026-11-20"
     }
   ]
 }

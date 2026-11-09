@@ -20,11 +20,17 @@ const _failures = {
   'not_an_archive': ArchiveImportFailure.notAnArchive,
 };
 
-Future<void> _import(FakeArchiveSink sink, String path, String password) =>
-    ArchiveImporter(
-      sink: sink,
-      cipherFactory: createArchiveCipherInWorker,
-    ).import(path: path, password: password);
+/// [today]: Ortstag des Vektors (`today`, sonst 2026-11-20), 12:00, Versatz 0.
+Future<void> _import(
+  FakeArchiveSink sink,
+  String path,
+  String password, [
+  String today = '2026-11-20',
+]) => ArchiveImporter(
+  sink: sink,
+  cipherFactory: createArchiveCipherInWorker,
+  clock: FakeClock(DateTime.parse('${today}T12:00:00Z')),
+).import(path: path, password: password);
 
 void main() {
   final meta = jsonDecode(
@@ -34,30 +40,64 @@ void main() {
   final positive = vectors.where((v) => v['expect'] == 'ok').toList();
   final negative = vectors.where((v) => v['expect'] != 'ok').toList();
 
-  test(
-    'archive_small: alle Zeilen des Vektors kommen an, commit am Ende',
-    () async {
-      final v = positive.firstWhere((v) => v['name'] == 'archive_small');
-      final sink = FakeArchiveSink();
-      await _import(sink, '$_dir/${v['file']}', v['password'] as String);
+  // Format 1 (archive_small) und Format 2 (archive_v2, Schema 5 mit
+  // run_feedback und manual_trainings): alle Zeilen kommen an, commit am Ende.
+  for (final v in positive.where((v) => v['jsonl_file'] != null)) {
+    test(
+      '${v['name']}: alle Zeilen des Vektors kommen an, commit am Ende',
+      () async {
+        final sink = FakeArchiveSink();
+        await _import(
+          sink,
+          '$_dir/${v['file']}',
+          v['password'] as String,
+          (v['today'] as String?) ?? '2026-11-20',
+        );
 
-      final expected = <String, List<Map<String, Object?>>>{};
-      String? section;
-      for (final line in File('$_dir/archive_small.jsonl').readAsLinesSync()) {
-        final m = jsonDecode(line) as Map<String, dynamic>;
-        if (m['type'] == 'section') {
-          section = m['name'] as String;
-        } else if (m['type'] == 'row') {
-          (expected[section!] ??= []).add(
-            (m['data'] as Map<String, dynamic>).cast<String, Object?>(),
-          );
+        final expected = <String, List<Map<String, Object?>>>{};
+        String? section;
+        for (final line in File('$_dir/${v['jsonl_file']}').readAsLinesSync()) {
+          final m = jsonDecode(line) as Map<String, dynamic>;
+          if (m['type'] == 'section') {
+            section = m['name'] as String;
+          } else if (m['type'] == 'row') {
+            (expected[section!] ??= []).add(
+              (m['data'] as Map<String, dynamic>).cast<String, Object?>(),
+            );
+          }
         }
-      }
-      expect(sink.rows, expected);
-      expect(sink.calls.first, 'begin');
-      expect(sink.calls.last, 'commit');
-      expect(sink.commits, 1);
-      expect(sink.aborts, 0);
+        expect(sink.rows, expected);
+        expect(sink.calls.first, 'begin');
+        expect(sink.calls.last, 'commit');
+        expect(sink.commits, 1);
+        expect(sink.aborts, 0);
+      },
+    );
+  }
+
+  test(
+    'archive_v2: ein Tag früher als das Datum des letzten Trainings lehnt ab',
+    () async {
+      // Grenzfall im Vektor: das zweite Training liegt genau auf "heute".
+      final v = positive.firstWhere((v) => v['name'] == 'archive_v2');
+      final sink = FakeArchiveSink();
+      await expectLater(
+        _import(
+          sink,
+          '$_dir/${v['file']}',
+          v['password'] as String,
+          '2026-11-19',
+        ),
+        throwsA(
+          isA<ArchiveImportException>().having(
+            (e) => e.failure,
+            'failure',
+            ArchiveImportFailure.damaged,
+          ),
+        ),
+      );
+      expect(sink.commits, 0);
+      expect(sink.aborts, 1);
     },
   );
 
@@ -66,7 +106,12 @@ void main() {
       test('${v['name']} (${v['note']})', () async {
         final sink = FakeArchiveSink();
         await expectLater(
-          _import(sink, '$_dir/${v['file']}', v['password'] as String),
+          _import(
+            sink,
+            '$_dir/${v['file']}',
+            v['password'] as String,
+            (v['today'] as String?) ?? '2026-11-20',
+          ),
           throwsA(
             isA<ArchiveImportException>().having(
               (e) => e.failure,
@@ -78,13 +123,15 @@ void main() {
         expect(sink.commits, 0);
         expect(sink.aborts, 1);
         expect(sink.calls.last, 'abort');
-        expect(sink.rows, isEmpty);
+        // Inhaltsfehler zeigt sich erst beim Lesen der Zeile: frühere Stapel
+        // sind schon im Ziel, der Abbruch verwirft sie (Vertrag 3.2).
+        if (v['layer'] != 'content') expect(sink.rows, isEmpty);
       });
     }
   });
 
   group('gültiger Rahmen, aber kein Archivinhalt: beschädigt', () {
-    for (final v in positive.where((v) => v['name'] != 'archive_small')) {
+    for (final v in positive.where((v) => v['jsonl_file'] == null)) {
       test('${v['name']}', () async {
         final sink = FakeArchiveSink();
         await expectLater(

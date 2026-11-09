@@ -5,12 +5,15 @@ import '../../ports/storage_values.dart';
 import '../fitness/aerobic_efficiency.dart';
 import '../fitness/fitness_parameters.dart';
 import '../fitness/heart_rate_basis.dart';
+import '../fitness/load_profile.dart';
 import '../fitness/vo2max_long_term.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../statistics/run_overview.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
+import '../settings/load_settings.dart';
 import '../settings/reserve_zone_settings.dart';
 import 'run_analysis.dart';
+import '../subjective/subjective_service.dart' show refreshSrpe;
 import 'run_load_values.dart';
 
 /// Die Werte, die nach einem Lauf entstehen.
@@ -104,6 +107,26 @@ class ValueCalculationService {
     ).basis,
   );
 
+  /// Aufgelöstes Belastungsprofil (FR-0197): [profile] oder das gespeicherte
+  /// aktive; Banister nur anwendbar mit Ruhepuls, Koeffizienten und
+  /// berechenbarem `r`. [coefficients] ersetzt die gespeicherte Angabe (die
+  /// Änderung, die ein Angebot erst nach der Bestätigung gültig macht).
+  Future<LoadProfileResolution> loadResolution(
+    HeartRateBasis basis, {
+    LoadProfile? profile,
+    CoefficientChange? coefficients,
+  }) async => resolveLoadProfile(
+    requested: profile ?? await LoadSettings.activeProfile(session.settings),
+    basis: basis,
+    coefficients: coefficients != null
+        ? coefficients.value
+        : await LoadSettings.coefficients(session.settings),
+    fitness: fitness,
+  );
+
+  /// Basis des gespeicherten Profils für die Auflösung des Belastungsprofils.
+  Future<HeartRateBasis> profileBasis() => _profileBasis();
+
   RunAnalyzer _analyzer(HeartRateBasis basis) =>
       RunAnalyzer(fitness: fitness, preprocessing: preprocessing, basis: basis);
 
@@ -159,6 +182,7 @@ class ValueCalculationService {
       fitness: fitness.copyWith(reserveZoneBounds: bounds),
       sources: analysis.sources,
       computedAt: now,
+      loadProfile: await loadResolution(profile),
     );
     // Kurzfassung für Historie und Vergleich (vor den Werten: scheitert sie,
     // ist nichts geschrieben und ein neuer Versuch möglich).
@@ -172,6 +196,9 @@ class ValueCalculationService {
           lapCount: (await session.markers.laps(runId)).length,
         ),
       );
+      // Angaben zum Lauf, die schon vor der Berechnung gemacht wurden: sRPE
+      // folgt der jetzt bekannten Bewegungszeit.
+      await refreshSrpe(session, runId);
     }
     await session.values.writeAll(
       create: {
@@ -342,10 +369,26 @@ class ValueCalculationService {
   /// Rechnet alle Läufe mit gespeichertem Laufwert und deren Tageswerte mit
   /// der aktuellen Profilbasis neu, ohne etwas zu speichern (Zwischenstand der
   /// Neuberechnung). Tageswerte nur für Tage, die schon einen haben.
-  Future<ValueSnapshot> buildSnapshot() async {
+  ///
+  /// [loadProfile]: das Belastungsprofil, mit dem der TRIMP gerechnet wird
+  /// (Wechsel nach Bestätigung, OQ-0053); ohne Angabe das aktive. Ist das
+  /// Profil nicht anwendbar, bleiben die gespeicherten TRIMP-Werte
+  /// unverändert (kein stiller Wechsel, nichts Unbrauchbares schreiben).
+  ///
+  /// [coefficients]: die Koeffizienten-Angabe, mit der gerechnet wird (Änderung
+  /// nach Bestätigung); ohne Angabe die gespeicherte.
+  Future<ValueSnapshot> buildSnapshot({
+    LoadProfile? loadProfile,
+    CoefficientChange? coefficients,
+  }) async {
     final now = clock.now();
     final runs = await _finishedRuns();
     final profile = await _profileBasis();
+    final resolution = await loadResolution(
+      profile,
+      profile: loadProfile,
+      coefficients: coefficients,
+    );
     final analyzer = _analyzer(profile);
     final cache = <int, RunAnalysis>{};
     Future<RunAnalysis> analysisOf(StoredRun r, HeartRateBasis _) async =>
@@ -354,13 +397,27 @@ class ValueCalculationService {
     final runValues = <int, ComputedValue>{};
     final runOwners = <ValueOwner, List<ComputedValue>>{};
     for (final r in runs) {
-      if (await _runValue(r.id) == null) continue;
+      if (await _runValue(r.id) == null) {
+        // Lauf mit TRIMP, aber ohne Laufwert (VO2max): nur der TRIMP wird
+        // getauscht, sonst bliebe er nach einem Profilwechsel im alten Modell
+        // und ATL/CTL mischten Skalen (FR-0097, FR-0197).
+        if (!await _hasTrimp(r.id)) continue;
+        final trimp = await _trimpSwap(
+          r,
+          await analysisOf(r, profile),
+          profile,
+          resolution,
+          now,
+        );
+        if (trimp.isNotEmpty) runOwners[ValueOwner.run(r.id)] = trimp;
+        continue;
+      }
       final analysis = await analysisOf(r, profile);
       final value = analysis.vo2maxValue(now);
       runValues[r.id] = value;
       runOwners[ValueOwner.run(r.id)] = [
         value,
-        ...await _trimpSwap(r, analysis, profile, now),
+        ...await _trimpSwap(r, analysis, profile, resolution, now),
       ];
     }
     final dayOwners = <ValueOwner, List<ComputedValue>>{};
@@ -395,11 +452,10 @@ class ValueCalculationService {
     StoredRun r,
     RunAnalysis analysis,
     HeartRateBasis profile,
+    LoadProfileResolution resolution,
     DateTime now,
   ) async {
-    final stored = (await session.values.read(ValueOwner.run(r.id)))
-        .any((p) => p.original.key == trimpRunValueKey);
-    if (!stored) return const [];
+    if (!await _hasTrimp(r.id) || !resolution.applicable) return const [];
     return [
       for (final v in buildRunLoadValues(
         run: r,
@@ -408,6 +464,7 @@ class ValueCalculationService {
         fitness: fitness,
         sources: analysis.sources,
         computedAt: now,
+        loadProfile: resolution,
       ))
         if (v.key == trimpRunValueKey) v,
     ];
@@ -429,6 +486,11 @@ class ValueCalculationService {
         .subtract(const Duration(microseconds: 1));
     return end.isAfter(now) ? now : end;
   }
+
+  /// Hat der Lauf einen gespeicherten TRIMP (auch „nicht verfügbar“)?
+  Future<bool> _hasTrimp(int runId) async =>
+      (await session.values.read(ValueOwner.run(runId)))
+          .any((p) => p.original.key == trimpRunValueKey);
 
   Future<ValuePair?> _runValue(int runId) async {
     for (final p in await session.values.read(ValueOwner.run(runId))) {

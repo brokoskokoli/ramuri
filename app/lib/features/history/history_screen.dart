@@ -14,6 +14,7 @@ import '../settings/app_settings.dart';
 import '../settings/unit_format.dart';
 import '../storage/deletion.dart';
 import 'history_view_state.dart';
+import 'manual_training_screen.dart';
 import 'run_detail_screen.dart';
 import 'run_miniature.dart';
 
@@ -46,8 +47,13 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _Data {
-  _Data(this.overviews) : figures = [for (final o in overviews) o.toFigures()];
+  _Data(this.overviews, this.trainings)
+    : figures = [for (final o in overviews) o.toFigures()];
   final List<RunOverview> overviews;
+
+  /// Nachgetragene Trainings (FR-0199). Sie liegen nicht in `runs` und fließen
+  /// darum in keine Summe, Statistik, Bestwerte oder VO₂max ein.
+  final List<StoredManualTraining> trainings;
 
   /// Einmal gebildet, nicht je Build.
   final List<RunFigures> figures;
@@ -82,13 +88,66 @@ class _HistoryScreenState extends State<HistoryScreen> {
     super.dispose();
   }
 
-  Future<_Data> _load() async => _Data(
-    await RunOverviewService(
+  SubjectiveService get _subjective =>
+      SubjectiveService(session: widget.session, clock: widget.clock);
+
+  Future<_Data> _load() async {
+    final offload = OffloadScope.of(context);
+    final overviews = await RunOverviewService(
       session: widget.session,
       clock: widget.clock,
-      offload: OffloadScope.of(context),
-    ).load(),
-  );
+      offload: offload,
+    ).load();
+    return _Data(overviews, await _subjective.trainings());
+  }
+
+  Future<void> _editTraining([StoredManualTraining? existing]) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ManualTrainingScreen(
+          service: _subjective,
+          today: _today,
+          existing: existing,
+        ),
+      ),
+    );
+    if (mounted && saved == true) _reload();
+  }
+
+  Future<void> _deleteTraining(StoredManualTraining t) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.manualDeleteTitle),
+        content: Text(l10n.manualDeleteBody),
+        actions: [
+          TextButton(
+            autofocus: true,
+            key: const Key('manual_delete_cancel'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.manualDeleteCancel),
+          ),
+          FilledButton(
+            key: const Key('manual_delete_confirm'),
+            style: ramuriDangerFilledStyle(context),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.manualDeleteConfirm),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await _subjective.deleteTraining(t.id);
+    } on Object {
+      // Ohne Inhalt melden.
+      messenger?.showSnackBar(SnackBar(content: Text(l10n.manualDeleteFailed)));
+      return;
+    }
+    if (mounted) _reload();
+  }
 
   void _reload() {
     setState(() {
@@ -161,13 +220,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   static const EdgeInsets _pagePadding = EdgeInsets.fromLTRB(20, 28, 20, 16);
 
-  Widget _title(AppLocalizations l10n) => Semantics(
-    header: true,
-    child: Text(
-      l10n.histTitle,
-      key: const Key('history_title'),
-      style: RamuriType.of(context).pageTitle,
-    ),
+  /// Titel mit „Training nachtragen“ als Knopf in derselben Zeile (kostet keine
+  /// zusätzliche Höhe in der Liste).
+  Widget _title(AppLocalizations l10n) => Row(
+    children: [
+      Expanded(
+        child: Semantics(
+          header: true,
+          child: Text(
+            l10n.histTitle,
+            key: const Key('history_title'),
+            style: RamuriType.of(context).pageTitle,
+          ),
+        ),
+      ),
+      IconButton(
+        key: const Key('manual_add'),
+        tooltip: l10n.manualAdd,
+        icon: const Icon(Icons.add),
+        onPressed: _editTraining,
+      ),
+    ],
   );
 
   Widget _body(AppLocalizations l10n, UnitFormatter formatter) {
@@ -193,7 +266,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         if (data == null) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (data.overviews.isEmpty) {
+        if (data.overviews.isEmpty && data.trainings.isEmpty) {
           return Padding(
             padding: _pagePadding,
             child: Column(
@@ -226,11 +299,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
       for (final o in data.overviews)
         if (period.contains(id: o.run.id, day: dayOfRun(o.run))) o,
     ];
-    final groups = groupByWeek<RunOverview>(
-      inRange,
+    final entries = <_Entry>[
+      for (final o in inRange) _RunEntry(o),
+      for (final t in data.trainings)
+        // „Alle“ reicht nur über die Lauftage; ein Training vor dem ersten Lauf
+        // gehört trotzdem dazu.
+        if (range == HistoryRange.all ||
+            period.contains(id: -1, day: t.training.isoDay))
+          _TrainingEntry(t),
+    ];
+    final groups = groupByWeek<_Entry>(
+      entries,
       today,
-      dayOf: (o) => dayOfRun(o.run),
-      endedAtOf: (o) => o.run.endedAt!,
+      dayOf: (e) => e.day,
+      endedAtOf: (e) => e.sortKey,
     );
     final rows = <Widget Function(BuildContext)>[
       (_) => _title(l10n),
@@ -250,7 +332,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ],
       ),
       (_) => const SizedBox(height: 14),
-      if (totals.runCount == 0)
+      if (entries.isEmpty)
         (_) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 32),
           child: Column(
@@ -277,24 +359,33 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
         )
       else ...[
-        (_) => _TotalsPanel(totals: totals, formatter: formatter),
+        if (totals.runCount > 0)
+          (_) => _TotalsPanel(totals: totals, formatter: formatter),
         for (final g in groups) ...[
           (_) => Padding(
             padding: const EdgeInsets.only(top: 18, bottom: 8),
             child: SectionHeading(_weekTitle(l10n, g, today), eyebrow: true),
           ),
-          for (final o in g.items)
+          for (final e in g.items)
             (_) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _RunTile(
-                key: ValueKey(o.run.id),
-                overview: o,
-                formatter: formatter,
-                session: widget.session,
-                miniatures: _miniatures,
-                onDelete: _delete,
-                onOpen: _open,
-              ),
+              child: switch (e) {
+                _RunEntry(:final overview) => _RunTile(
+                  key: ValueKey(overview.run.id),
+                  overview: overview,
+                  formatter: formatter,
+                  session: widget.session,
+                  miniatures: _miniatures,
+                  onDelete: _delete,
+                  onOpen: _open,
+                ),
+                _TrainingEntry(:final training) => _TrainingTile(
+                  key: ValueKey('manual_${training.id}'),
+                  stored: training,
+                  onEdit: _editTraining,
+                  onDelete: _deleteTraining,
+                ),
+              },
             ),
         ],
       ],
@@ -316,11 +407,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   /// „Diese Woche“, „Letzte Woche“, sonst Anfang und Ende der Woche; das Jahr
   /// steht nur, wenn die Woche nicht im Jahr von heute beginnt.
-  String _weekTitle(
-    AppLocalizations l10n,
-    WeekGroup<RunOverview> g,
-    String today,
-  ) {
+  String _weekTitle(AppLocalizations l10n, WeekGroup<_Entry> g, String today) {
     switch (g.kind) {
       case WeekGroupKind.thisWeek:
         return l10n.histThisWeek;
@@ -336,6 +423,40 @@ class _HistoryScreenState extends State<HistoryScreen> {
         return l10n.histWeekRange(f.format(from), f.format(to));
     }
   }
+}
+
+/// Eintrag der Liste: Lauf oder nachgetragenes Training, nach Tag einsortiert.
+sealed class _Entry {
+  String get day;
+
+  /// Ordnung innerhalb der Woche (neuester zuerst): Ortszeit des Laufendes,
+  /// bei Trainings der Beginn ihres Tages (unter den Läufen desselben Tages).
+  DateTime get sortKey;
+}
+
+class _RunEntry extends _Entry {
+  _RunEntry(this.overview);
+  final RunOverview overview;
+
+  @override
+  String get day => dayOfRun(overview.run);
+
+  @override
+  DateTime get sortKey {
+    final run = overview.run;
+    return run.endedAt!.toUtc().add(run.endedUtcOffset ?? Duration.zero);
+  }
+}
+
+class _TrainingEntry extends _Entry {
+  _TrainingEntry(this.training);
+  final StoredManualTraining training;
+
+  @override
+  String get day => training.training.isoDay;
+
+  @override
+  DateTime get sortKey => training.training.day;
 }
 
 /// Summen über der Liste (Läufe, Strecke, Zeit) auf dem dunklen Feld; nur
@@ -576,6 +697,112 @@ class _RunTile extends StatelessWidget {
                 delete,
               ],
             ),
+    );
+  }
+}
+
+/// Nachgetragenes Training (FR-0199): deutlich gekennzeichnet, ohne Karte,
+/// Distanz und Pace. Belastung: sRPE-Punkte als Schätzung mit Grundlage; die
+/// Umrechnung nach PAR-086 gibt es noch nicht, die Belastung ist „nicht
+/// bewertet“. Tippen ändert, der Papierkorb löscht (mit Rückfrage).
+class _TrainingTile extends StatelessWidget {
+  const _TrainingTile({
+    super.key,
+    required this.stored,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final StoredManualTraining stored;
+  final Future<void> Function(StoredManualTraining) onEdit;
+  final Future<void> Function(StoredManualTraining) onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final material = MaterialLocalizations.of(context);
+    final text = Theme.of(context).textTheme;
+    final id = stored.id;
+    final t = stored.training;
+    final srpe = t.srpe;
+    final minutes = (t.duration.inSeconds / 60).round().toString();
+    final kind = t.kind == ManualTrainingKind.run
+        ? l10n.manualKindRun
+        : l10n.manualKindOther;
+    return RamuriCard(
+      key: Key('manual_training_$id'),
+      radius: 20,
+      padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
+      onTap: () => onEdit(stored),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    RamuriBadge(l10n.manualBadge),
+                    Text(
+                      kind,
+                      key: Key('manual_kind_$id'),
+                      style: text.titleSmall,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  material.formatMediumDate(t.day),
+                  key: Key('manual_date_$id'),
+                  style: text.titleSmall,
+                ),
+                const SizedBox(height: 3),
+                Wrap(
+                  spacing: 10,
+                  children: [
+                    Text(
+                      l10n.manualRowDuration(minutes),
+                      key: Key('manual_duration_$id'),
+                      style: text.bodyMedium,
+                    ),
+                    Text(
+                      l10n.manualRowRpe(t.rpe),
+                      key: Key('manual_rpe_$id'),
+                      style: text.bodyMedium,
+                    ),
+                  ],
+                ),
+                Text(
+                  l10n.manualRowSrpe(srpe.points.round().toString()),
+                  key: Key('manual_srpe_$id'),
+                  style: text.bodyMedium,
+                ),
+                Text(
+                  l10n.manualRowBasis(formatClock(t.duration), t.rpe),
+                  key: Key('manual_basis_$id'),
+                  style: text.bodySmall,
+                ),
+                Text(
+                  l10n.manualRowNotRated,
+                  key: Key('manual_not_rated_$id'),
+                  style: text.bodySmall,
+                ),
+                Text(l10n.manualRowNoMap, style: text.bodySmall),
+              ],
+            ),
+          ),
+          IconButton(
+            key: Key('manual_delete_$id'),
+            tooltip: l10n.manualDeleteTooltip,
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () => onDelete(stored),
+          ),
+        ],
+      ),
     );
   }
 }

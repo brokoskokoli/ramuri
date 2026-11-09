@@ -8,11 +8,14 @@ import '../ports/storage_profile.dart';
 import '../ports/storage_raw.dart';
 import '../ports/storage_runs.dart';
 import '../ports/storage_values.dart';
+import '../src/subjective/manual_training.dart';
+import '../src/subjective/run_subjective.dart';
 
 /// Inhalt der Fake-"Datei". Liegt im [FakeStorage] und überlebt Sitzungen.
 class FakeStorageData {
   int nextRunId = 1;
   int nextGapId = 1;
+  int nextTrainingId = 1;
   final nextRawId = {for (final c in RawChannel.values) c: 1};
 
   final runs = <int, StoredRun>{};
@@ -24,6 +27,8 @@ class FakeStorageData {
   final preprocessing = <int, StoredPreprocessing>{};
   final sections = <int, List<RatedSection>>{};
   final values = <ValueOwner, Map<String, ValuePair>>{};
+  final subjective = <int, StoredRunSubjective>{};
+  final manualTrainings = <int, ManualTraining>{};
 
   ProfileRecord profile = const ProfileRecord();
   final settings = <String, String>{};
@@ -63,6 +68,7 @@ class FakeStorageData {
     raw.remove(runId);
     preprocessing.remove(runId);
     sections.remove(runId);
+    subjective.remove(runId);
     values.remove(ValueOwner.run(runId));
     references.removeWhere((r) => r.reference.runId == '$runId');
     rejectedSuggestions.remove(runId);
@@ -80,6 +86,7 @@ class FakeStorageData {
   void deleteAll() {
     nextRunId = 1;
     nextGapId = 1;
+    nextTrainingId = 1;
     for (final c in RawChannel.values) {
       nextRawId[c] = 1;
     }
@@ -90,6 +97,8 @@ class FakeStorageData {
     preprocessing.clear();
     sections.clear();
     values.clear();
+    subjective.clear();
+    manualTrainings.clear();
     profile = const ProfileRecord();
     settings.clear();
     devices.clear();

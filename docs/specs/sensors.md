@@ -4,7 +4,7 @@ title: Sensoren und Fitnessgeräte
 status: Teilweise Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0007, FR-0008, FR-0009, FR-0010, FR-0011, FR-0012, FR-0013, FR-0014, FR-0015, FR-0016, FR-0017, FR-0018, FR-0019, FR-0020, FR-0021]
+related_requirements: [FR-0007, FR-0008, FR-0009, FR-0010, FR-0011, FR-0012, FR-0013, FR-0014, FR-0015, FR-0016, FR-0017, FR-0018, FR-0019, FR-0020, FR-0021, FR-0213]
 ---
 
 # Sensoren und Fitnessgeräte
@@ -170,6 +170,19 @@ Falls vorhanden, können zusätzlich RR-Intervalle, Herzfrequenzvariabilität (H
 
 **Akzeptanzkriterien:**
 - [ ] Ein Gerät ohne diese Daten führt zu keinem Fehler und zu keinen Ersatzwerten.
+
+### FR-0213 — RR-Intervalle als Rohdaten speichern
+- **Status:** Approved | **Phase:** 2
+- **Quelle:** SRC-003 (Maintainer 2026-11-09)
+- **Verwandt:** FR-0021, FR-0019, SEC-0001, DEC-0072
+
+Sendet der Pulssensor RR-Intervalle in der Heart Rate Measurement (`0x2A37`), speichert die App sie während des Laufs als Rohdaten mit, zusammen mit Zeitbezug und Quellgerät. So lassen sich spätere Auswertungen (etwa Morgenmessung, DFA α1, Ermüdung im langen Lauf) rückwirkend auf alle Läufe anwenden. Phase 2 speichert nur; Auswertung und Anzeige gehören nicht dazu.
+
+**Akzeptanzkriterien:**
+- [ ] RR-Intervalle eines Geräts, das sie sendet, werden vollständig und in der empfangenen Auflösung (1/1024 s) gespeichert, je Wert mit Quellgerät und Zuordnung zum Empfangszeitpunkt.
+- [ ] Ein Gerät ohne RR-Intervalle führt zu keinem Fehler und zu keinen Ersatzwerten; Puls und Aufzeichnung laufen unverändert.
+- [ ] Die Daten sind Gesundheitsdaten (SEC-0001): verschlüsselt gespeichert, im Gesamtexport und Reimport enthalten, beim Löschen entfernt, nie in Logs.
+- [ ] Die App zeigt in Phase 2 keine aus RR-Intervallen abgeleiteten Werte an.
 
 ## Abhängigkeiten
 - Geräteschnittstelle: siehe [Verträge](../contracts/README.md)

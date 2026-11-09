@@ -207,6 +207,7 @@ void main() {
           ),
       files: fl,
       cipherFactory: createArchiveCipherInWorker,
+      clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
       reopen: () async => session = await openActive(),
       serialize:
           serialize ??
@@ -301,6 +302,17 @@ void main() {
       // Einwilligungen nicht erteilt, Merker weg.
       expect(await session.consents.all(), isEmpty);
       expect(await session.settings.get('values.refreshPending'), isNull);
+      // Belastungsprofil: Einstellungen kommen mit, die offene Wahl nicht.
+      expect(
+        await LoadSettings.activeProfile(session.settings),
+        LoadProfile.banister,
+      );
+      expect(
+        await LoadSettings.coefficients(session.settings),
+        LoadCoefficients.female,
+      );
+      expect(await LoadSettings.allRecorded(session.settings), isTrue);
+      expect(await LoadSettings.pendingProfile(session.settings), isNull);
       // Danach nur die aktive Datenbank, keine Zwischendatenbank.
       expect(await files.importExists(), isFalse);
       expect(appFiles().where((n) => n.contains('.import')), isEmpty);
@@ -487,6 +499,52 @@ void main() {
       );
     }
     expect(await session.consents.all(), isEmpty);
+    // Format 1 (Schema 4) kennt die Angaben und Trainings nicht: leer.
+    expect(got['run_feedback'], isEmpty);
+    expect(got['manual_trainings'], isEmpty);
+    expect(await session.manualTrainings.list(), isEmpty);
+    expect(await session.subjective.readAll(), isEmpty);
+  });
+
+  test(
+    'Alles löschen, dann Reimport: Angaben, sRPE und Trainings sind wieder da',
+    () async {
+      final before = await _dump(_dbOf(session));
+      expect(before['run_feedback'], isEmpty); // leere App
+      session = await service().restore(path: archivePath, password: _password);
+      final restored = await _dump(_dbOf(session));
+      expect(restored['run_feedback'], sourceDump['run_feedback']);
+      expect(restored['manual_trainings'], sourceDump['manual_trainings']);
+      await session.deleteAll();
+      final empty = await _dump(_dbOf(session));
+      expect(empty['run_feedback'], isEmpty);
+      expect(empty['manual_trainings'], isEmpty);
+      expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+      session = await service().restore(path: archivePath, password: _password);
+      final again = await _dump(_dbOf(session));
+      expect(again['run_feedback'], sourceDump['run_feedback']);
+      expect(again['manual_trainings'], sourceDump['manual_trainings']);
+      final fb = (await session.subjective.read(1))!;
+      expect(fb.subjective.rpe, 5);
+      expect(fb.srpe!.points, 225.0);
+      final trainings = await session.manualTrainings.list();
+      expect(trainings, hasLength(2));
+      // Datum in der Zukunft wurde angenommen.
+      expect(trainings.map((t) => t.training.isoDay), contains('2026-11-20'));
+    },
+  );
+
+  test('nachgetragene Trainings machen die App nicht leer', () async {
+    expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+    await session.manualTrainings.add(
+      ManualTraining(
+        day: DateTime.utc(2026, 11, 1),
+        kind: ManualTrainingKind.other,
+        duration: const Duration(minutes: 45),
+        rpe: 5,
+      ),
+    );
+    expect(await ArchiveRestoreService.isEmpty(session), isFalse);
   });
 
   group('Fehler: aktive Datenbank unverändert, keine Zwischendatenbank', () {
@@ -587,6 +645,51 @@ void main() {
         },
         3,
       ),
+      // WP18 (Format 2): Angaben zum Lauf und nachgetragene Trainings.
+      'Leser: RPE 11': ('run_feedback', (d) => d['rpe'] = 11, 0),
+      'Leser: RPE 5.5': ('run_feedback', (d) => d['rpe'] = 5.5, 0),
+      'Leser: Befinden 0': ('run_feedback', (d) => d['wellbeing'] = 0, 0),
+      'Leser: sRPE-Wert passt nicht zu Dauer mal RPE': (
+        'run_feedback',
+        (d) => d['srpe_points'] = 226.0,
+        0,
+      ),
+      'CHECK: sRPE-Spalten nicht alle gesetzt': (
+        'run_feedback',
+        (d) => d['srpe_method'] = null,
+        0,
+      ),
+      'CHECK: Warnsignal-Antwort ohne Beschwerden': (
+        'run_feedback',
+        (d) => d['complaints'] = null,
+        0,
+      ),
+      'CHECK: Warnsignal-Antwort unbekannt': (
+        'run_feedback',
+        (d) => d['warning_answer'] = 'vielleicht',
+        0,
+      ),
+      'Fremdschlüssel: Angabe ohne Lauf': (
+        'run_feedback',
+        (d) => d['run_id'] = 99,
+        0,
+      ),
+      'Leser: Training Dauer 0': (
+        'manual_trainings',
+        (d) => d['duration_s'] = 0,
+        0,
+      ),
+      'Leser: Training RPE 11': ('manual_trainings', (d) => d['rpe'] = 11, 1),
+      'CHECK: Training ungültiges Datum': (
+        'manual_trainings',
+        (d) => d['day'] = '2026-02-30',
+        0,
+      ),
+      'CHECK: Training unbekannte Art': (
+        'manual_trainings',
+        (d) => d['kind'] = 'swim',
+        0,
+      ),
     };
     for (final c in cases.entries) {
       test(c.key, () async {
@@ -625,6 +728,7 @@ void main() {
             password: _password,
             files: files,
             cipherFactory: createArchiveCipherInWorker,
+            clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
           ),
           throwsA(
             isA<ArchiveImportException>().having(
@@ -646,6 +750,7 @@ void main() {
           password: _password,
           files: files,
           cipherFactory: createArchiveCipherInWorker,
+          clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
         );
         expect(appFiles().where((n) => n.contains('.import')), isEmpty);
       },

@@ -229,6 +229,10 @@ class LiveRunView extends StatelessWidget {
           formatter: formatter,
           session: controller.storage,
           runId: id,
+          subjective: SubjectiveService(
+            session: controller.storage,
+            clock: clock,
+          ),
         ),
       ),
     ];

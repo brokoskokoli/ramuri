@@ -200,7 +200,7 @@ Der Nutzer kann in Phase 2 sein Belastungsprofil auswählen, nach dem gerechnet 
 - [ ] Das Profil wählt das Rechenmodell für die Belastung (OQ-0043).
 - [ ] Beim Wechsel werden alte Läufe nach Bestätigung neu gerechnet, sodass ATL und CTL auf einer Skala bleiben (OQ-0043).
 - [ ] Wählbar sind Edwards und Banister; ohne Ruhepuls oder ohne Angabe der Koeffizienten bleibt nur Edwards wählbar (OQ-0045, OQ-0053).
-- [ ] Banister: `TRIMP = Σ t[min] · r · k · e^(b · r)` mit r aus FR-0060; männlich k = 0,64, b = 1,92; weiblich k = 0,86, b = 1,67. Die Werte stammen aus Sekundärquellen und sind vor der Umsetzung an der Originalarbeit zu prüfen (OQ-0053).
+- [ ] Banister: `TRIMP = Σ t[min] · r · k · e^(b · r)` mit r aus FR-0060; männlich k = 0,64, b = 1,92; weiblich k = 0,86, b = 1,67. Geprüft am 2026-11-09 an Banister, Morton, Fitz-Clarke 1992 (Ann Physiol Anthropol 11:345, Anhang Gl. 1, gibt Morton et al. 1990 wieder): Formel, r als Anteil der Herzfrequenzreserve und b sind dort belegt, aber ohne Vorfaktor k. k stammt nach Sekundärquellen aus Banister 1991 (Buchkapitel, nicht eingesehen) und wird als dort übliche Variante beibehalten (OQ-0053). Für eine Person ändert k nur die Skala; der sRPE-Faktor (PAR-087) wird je Profil bestimmt, TSB% ist skalenfrei.
 - [ ] Testfall: männlich, 30 min, HF 130, HFmax 200, HFRuhe 40 ergibt rund 32.
 - [ ] Lehnt der Nutzer die Neuberechnung ab, verfällt die Modellwahl (OQ-0053).
 

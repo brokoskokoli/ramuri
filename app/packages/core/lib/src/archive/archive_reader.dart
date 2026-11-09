@@ -3,17 +3,12 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../../ports/archive_cipher.dart';
+import '../subjective/srpe.dart';
+import '../subjective/subjective_limits.dart';
 import 'archive_errors.dart';
+import 'archive_header.dart';
 import 'archive_json.dart';
 import 'archive_schema.dart';
-
-/// Neuestes Schema der Datenbank, das dieser Leser liest und der Schreiber
-/// schreibt.
-const int archiveSchemaVersion = 5;
-
-/// Älteste Schema-Version, die der Leser noch liest (Format 1 beginnt mit
-/// Schema 4). Fehlende Abschnitte eines älteren Schemas gelten als leer.
-const int archiveMinSchemaVersion = 4;
 
 /// Längste Zeile (ohne `\n`), Grenze gegen Speicherbomben (Vertrag 4).
 const int archiveMaxLineBytes = 16 * 1024 * 1024;
@@ -26,6 +21,8 @@ class ArchiveRowBatch {
   final List<Map<String, Object?>> rows;
 }
 
+final RegExp _isoDay = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
 const ArchiveImportException _damaged = ArchiveImportException(
   ArchiveImportFailure.damaged,
 );
@@ -34,8 +31,20 @@ const ArchiveImportException _damaged = ArchiveImportException(
 /// zuerst, Abschnitte vollständig und in Vertragsreihenfolge, Zeilen nach
 /// Spalten und Typen, Endzeile mit Zählern, nichts danach.
 class ArchiveLineValidator {
-  /// Abschnitte des Schemas aus dem Manifest ([archiveSectionsFor]).
-  List<ArchiveSectionSpec> _sections = const [];
+  /// [headerFormat]: Formatversion aus dem Kopf der Datei, falls bekannt; das
+  /// Manifest muss dazu passen (Widerspruch: beschädigt).
+  ArchiveLineValidator({this.headerFormatOf, required this.today});
+
+  final int? Function()? headerFormatOf;
+
+  /// Heutiger Ortstag als `JJJJ-MM-TT` (Vertrag 4.1, `manual_trainings`): ein
+  /// nachgetragenes Training mit späterem Tag macht das Archiv ungültig, wie
+  /// die Eingabe (`ManualTraining.requireNotAfter`). Der Leser hat keine Uhr;
+  /// der Aufrufer legt den Tag vor dem ersten Schreiben fest.
+  final String today;
+  List<ArchiveSectionSpec> _sections = archiveSectionsFor(
+    archiveMinSchemaVersion,
+  );
   int _nextSection = 0;
   ArchiveSectionSpec? _current;
   int _currentCount = 0;
@@ -100,7 +109,16 @@ class ArchiveLineValidator {
       );
     }
     _exactKeys(m, {'type', 'format', 'schema_version', 'created_at_us'});
-    if (m['format'] != 1 || m['created_at_us'] is! int) throw _damaged;
+    final format = m['format'];
+    // Format 1 gehört zu Schema 4, Format 2 zu Schema 5 und 6; alles andere
+    // ist ein Widerspruch, auch zum Kopf.
+    if (format is! int ||
+        !archiveFormats.contains(format) ||
+        format != archiveFormatFor(schema) ||
+        (headerFormatOf?.call() ?? format) != format ||
+        m['created_at_us'] is! int) {
+      throw _damaged;
+    }
     _sections = archiveSectionsFor(schema);
   }
 
@@ -143,6 +161,7 @@ class ArchiveLineValidator {
       }
       out[c.name] = v;
     }
+    _checkSubjective(spec, out);
     // Aufsteigend nach dem Schlüssel (Vertrag 4.2); Textschlüssel
     // (`settings`) prüft die Datenbank als Primärschlüssel.
     final key = out[spec.key];
@@ -154,6 +173,59 @@ class ArchiveLineValidator {
     }
     _currentCount++;
     return out;
+  }
+
+  /// Grenzen der Angaben zum Lauf und der nachgetragenen Trainings (WP18):
+  /// kein Klemmen, kein Runden. Alles Weitere (Art, Datum, Warnsignal-Regel,
+  /// sRPE-Spalten gleichzeitig, Fremdschlüssel) prüft die Datenbank. Nichts
+  /// davon nennt einen Wert.
+  void _checkSubjective(ArchiveSectionSpec spec, Map<String, Object?> row) {
+    bool inRange(Object? v, int lo, int hi) =>
+        v == null || (v is int && v >= lo && v <= hi);
+    switch (spec.name) {
+      case 'run_feedback':
+        if (!inRange(row['rpe'], rpeMin, rpeMax) ||
+            !inRange(row['wellbeing'], wellbeingMin, wellbeingMax)) {
+          throw _damaged;
+        }
+        // Die vier sRPE-Spalten: alle gesetzt (dann mit RPE) oder alle leer.
+        final srpe = [
+          row['srpe_points'],
+          row['srpe_duration_s'],
+          row['srpe_method'],
+          row['srpe_method_version'],
+        ];
+        final set = srpe.where((v) => v != null).length;
+        if (set != 0 && (set != srpe.length || row['rpe'] == null)) {
+          throw _damaged;
+        }
+        if (set != 0) {
+          final points = row['srpe_points']! as num;
+          final seconds = row['srpe_duration_s']! as num;
+          // Eigene Methode und Version: der Wert muss Dauer · RPE sein. Andere
+          // (ältere) Methoden kann der Leser nicht nachrechnen.
+          if (row['srpe_method'] == SrpeLoad.methodId &&
+              row['srpe_method_version'] == SrpeLoad.methodVersion) {
+            final expected = seconds * (row['rpe']! as int) / 60;
+            if ((points - expected).abs() > 1e-6 * (expected.abs() + 1)) {
+              throw _damaged;
+            }
+          }
+        }
+      case 'manual_trainings':
+        final d = row['duration_s'];
+        if (d is! int || d <= 0 || !inRange(row['rpe'], rpeMin, rpeMax)) {
+          throw _damaged;
+        }
+        // Gleiche Form, dann ist der Textvergleich der Tagesvergleich. Andere
+        // Formen lehnt die Datenbank ab (CHECK, Vertrag 4.1).
+        final day = row['day'];
+        if (day is String &&
+            _isoDay.hasMatch(day) &&
+            day.compareTo(today) > 0) {
+          throw _damaged;
+        }
+    }
   }
 
   void _end(Map<String, Object?> m) {
@@ -264,9 +336,25 @@ Stream<ArchiveRowBatch> readArchive({
   required Stream<List<int>> file,
   required ArchiveCipher cipher,
   required String password,
+  required String today,
   int batchRows = 500,
 }) async* {
-  final validator = ArchiveLineValidator();
+  // Formatversion aus dem Kopf (Offset 8): Das Manifest muss dazu passen.
+  // Ohne Magic (Tests mit einem Rahmen ohne Kopf) entfällt die Prüfung.
+  final headStart = BytesBuilder(copy: false);
+  int? headFormat() {
+    if (headStart.length < 10) return null;
+    final b = headStart.toBytes();
+    for (var i = 0; i < 8; i++) {
+      if (b[i] != ArchiveHeader.magic[i]) return null;
+    }
+    return ByteData.sublistView(b).getUint16(8);
+  }
+
+  final validator = ArchiveLineValidator(
+    headerFormatOf: headFormat,
+    today: today,
+  );
   final splitter = _LineSplitter();
   final tail = _Tail8();
   final crc = _Crc32();
@@ -305,7 +393,13 @@ Stream<ArchiveRowBatch> readArchive({
     if (rows.length >= batchRows) flush();
   }
 
-  final compressed = cipher.decrypt(password, file).map((c) {
+  final tapped = file.map((c) {
+    if (headStart.length < 10) {
+      headStart.add(c.length > 10 ? c.sublist(0, 10) : c);
+    }
+    return c;
+  });
+  final compressed = cipher.decrypt(password, tapped).map((c) {
     tail.add(c);
     return c;
   });

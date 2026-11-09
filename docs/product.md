@@ -178,7 +178,7 @@ Die Tabelle fasst Entscheidungen aus der Quelle und vom Maintainer (SRC-003) zus
 | DEC-0039 | Prognosen nur mit Referenzleistung (Maintainer, SRC-003) | FR-0129 | Entschieden (OQ-0034) |
 | DEC-0040 | Warnsignale nur aus Selbstauskunft; Messwerte werden nicht medizinisch gedeutet (Maintainer, SRC-003) | FR-0163 | Entschieden (OQ-0026); rechtliche Prüfung OQ-0048 |
 | DEC-0041 | Akustische Hinweise als einzeln schaltbare Sprachansagen (Maintainer, SRC-003) | FR-0031 | Entschieden (OQ-0044); Sprachen OQ-0035 |
-| DEC-0042 | Readiness-Zahl nur mit HRV, Schlaf und persönlicher Referenz (Maintainer, SRC-003) | FR-0109 | Entschieden (OQ-0006) |
+| DEC-0042 | Readiness-Zahl nur mit HRV, Schlaf und persönlicher Referenz (Maintainer, SRC-003) | FR-0109 | Entschieden (OQ-0006); neu gefasst 2026-11-09 (DEC-0074) |
 | DEC-0043 | Feste Readiness-Bänder; die Basisstufe gibt nur Texthinweise (Maintainer, SRC-003) | FR-0116 | Entschieden (OQ-0029) |
 | DEC-0044 | Energiereserve nur mit kontinuierlichen Daten (Maintainer, SRC-003) | FR-0120, FR-0121 | Entschieden (OQ-0007) |
 | DEC-0045 | Import ohne eigenen Server, Umfang siehe DEC-0049; fremde VO₂max-Werte nie zusammenführen (Maintainer, SRC-003) | FR-0024, FR-0200 | Entschieden (OQ-0033); Umfang siehe DEC-0049 |
@@ -208,6 +208,21 @@ Die Tabelle fasst Entscheidungen aus der Quelle und vom Maintainer (SRC-003) zus
 | DEC-0069 | Karte der Route im Lauf, in Zusammenfassung, Detailansicht und als Miniatur; Kacheln aus dem Netz nur nach Einwilligung, sonst Route ohne Karte (Maintainer, SRC-003) | FR-0027, FR-0037, FR-0040, FR-0041, FR-0204, SEC-0008 | Entschieden (OQ-0074) |
 | DEC-0070 | Name „ramuri“ mit neuer Paket-ID; alle Seiten nach dem Screen-Design, Inhalte nach Spec; Navigation Heute/Verlauf/Fortschritt (Plan ab Phase 2); hell und dunkel (Maintainer, SRC-003) | FR-0205, FR-0206, FR-0207, FR-0208, FR-0209, FR-0210, FR-0211, FR-0212 | Entschieden (OQ-0075) |
 | DEC-0071 | Start von Phase 2: Geh-Lauf-Abfolge in Testversionen, Release erst nach OQ-0048; Erholung ohne Gesundheitsdaten nur als Text; Spec in der Optik des Designs, kurze Phasennamen; Phase 3 zurückgestellt (Maintainer, SRC-003) | FR-0107, FR-0140, FR-0141, FR-0205 | Entschieden (OQ-0077) |
+| DEC-0072 | RR-Intervalle des Pulsgurts ab Phase 2 als Rohdaten speichern, Auswertung später (Maintainer, SRC-003) | FR-0021, FR-0213 | Entschieden |
+| DEC-0073 | Ruhepuls und Morgen-RMSSD mit der Handykamera messen; Phase 3 baut darauf auf statt nur auf Uhrdaten (Maintainer, SRC-003) | FR-0214, FR-0215 | Entschieden (OQ-0078); Phase-3-Regeln nach R009 |
+| DEC-0074 | Kamera-Morgenmessung nach R009: Regelversion K-1, Validierung gegen Polar H9, Folgen der Ergebnisse; im Einzelnen E1 bis E7c unter der Tabelle (Maintainer, SRC-003) | FR-0109, FR-0113, FR-0115, FR-0116, FR-0214, FR-0215 | Entschieden (OQ-0006, R009 RESULTS 5a, K46) |
+
+**DEC-0074 im Einzelnen** (Maintainer, 2026-11-09, `research/R009-kamera-ppg-morgenmessung/RESULTS.md` Abschnitt 5a):
+- E1: Ohne Uhr gibt es nur die eingeschränkte Einschätzung, solange Kamera-RMSSD gesperrt ist; keine Zahl.
+- E2: Nach bestandener Validierung zählt Kamera-RMSSD nur per Opt-in als „experimentell, mit einem Brustgurt verglichen (ein Handy)“, nie „validiert“; eine Prüfung je Nutzer mit eigenem Gurt kann später dazukommen.
+- E3: Neue Fassung von OQ-0006: HRV aus Uhr oder Kamera, Schlafdauer aus Uhr oder freiwilliger Angabe in Stufen; keine Zahl ohne Schlafangabe.
+- E4: PAR-169 bleibt; am Morgen nur Messung und Schlafdauer in Stufen, kein Schlafgefühl.
+- E5: Haltung bei der Morgenmessung liegend als Vorgabe, sitzend wählbar als eigene Reihe; nie stehend.
+- E6 (vorerst): Das Opt-in gilt nach einer liegend bestandenen Validierung auch sitzend, dort mit „liegend verglichen“; eine Validierung im Sitzen ist empfohlen.
+- E7a: lnRMSSD „eingeschränkt“ gilt wie „nicht bestanden“: gesperrt, nur markierte Tatsache „ungenauer als erwartet“.
+- E7b: Kamera-Ruhepuls bleibt bei „bestanden“ und „eingeschränkt“ in Gebrauch; bei „nicht bestanden“ nur für das Profil (FR-0214) und in der eingeschränkten Einschätzung als markierte Tatsache „ungenauer als erwartet“, in keiner Zahl und keinem Faktor.
+- E7c: Freigegeben oder gesperrt wird das Verfahren (Algorithmus und Protokoll), nicht ein Gerät; eine erneute Validierung nur nach dokumentierter Änderung des Verfahrens, nicht nach Gerätewechsel allein.
+- Festlegung des Research Supervisors, aus E7b abgeleitet, keine Entscheidung des Maintainers: Nach „nicht bestanden“ trägt auch der Profilvorschlag des Kamera-Ruhepulses den Hinweis „ungenauer als erwartet“; der Nutzer übernimmt ihn weiter ausdrücklich.
 
 ## Phasen
 

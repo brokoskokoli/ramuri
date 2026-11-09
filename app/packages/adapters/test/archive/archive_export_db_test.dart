@@ -240,7 +240,26 @@ void main() {
       1,
     );
     expect(_rows(lines, 'rated_sections').single['gps_gaps'], '[]');
-    expect([for (final r in _rows(lines, 'settings')) r['key']], ['unit.pace']);
+    // Archiviert: die vier load.*-Einstellungen; die technischen Merker
+    // (unbestätigte Wahl, Faktor-Angebot, abgelehnter Faktor) fehlen.
+    expect(
+      [for (final r in _rows(lines, 'settings')) r['key']],
+      [
+        'load.all_recorded',
+        'load.coefficients',
+        'load.factor',
+        'load.profile',
+        'unit.pace',
+      ],
+    );
+    for (final merker in const [
+      'load.profile_pending',
+      'load.coefficients_pending',
+      'load.factor_pending',
+      'load.factor_declined',
+    ]) {
+      expect(jsonEncode(lines), isNot(contains(merker)));
+    }
     final all = jsonEncode(lines);
     expect(all, isNot(contains(fixtureConsentMarker)));
     expect(all, isNot(contains('consents')));

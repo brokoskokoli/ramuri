@@ -45,6 +45,8 @@ const _rowFor = <String, String>{
       'position_unavailable, position_discarded, missing_heart_rate_share, '
       'longest_heart_rate_gap_s, meets_heart_rate_gap_rule, settling_overlap_s, settling_share, gps_gaps) '
       "VALUES (?, 1, 9, 'section-quality', 1, 2, 99, 1, 0, 0, 0, 1, 0, 0, 0, 0.0, 0.0, 1, 0.0, 0.0, '[]')",
+  'run_feedback':
+      'INSERT INTO run_feedback (run_id, rpe, wellbeing) VALUES (?, 5, 3)',
   'reference_performances':
       "INSERT INTO reference_performances (kind, distance_m, time_s, performed_on, created_at_us, run_id) "
       "VALUES ('confirmedRun', 5000.0, 1500.0, '2030-01-01', 99, ?)",
@@ -111,11 +113,11 @@ void main() {
 
   group('Schema und Dump', () {
     test(
-      'erzeugtes Schema der verschlüsselten Datenbank = Dump Version 5',
+      'erzeugtes Schema der verschlüsselten Datenbank = Dump Version 6',
       () async {
         final db = await openDb();
         addTearDown(db.close);
-        await SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 5);
+        await SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 6);
       },
     );
 
@@ -130,19 +132,19 @@ void main() {
       addTearDown(db.close);
       await _exec(db, 'DROP TRIGGER raw_steps_no_update');
       await expectLater(
-        SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 5),
+        SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 6),
         throwsA(isA<SchemaMismatch>()),
       );
     });
 
-    test('Meta-Tabelle aus Teil A ist Teil von Version 5', () async {
+    test('Meta-Tabelle aus Teil A ist Teil von Version 6', () async {
       final db = await openDb();
       addTearDown(db.close);
       await _exec(db, "INSERT INTO storage_meta VALUES ('k', 'v')");
       expect(await _count(db, 'storage_meta'), 1);
-      expect(db.schemaVersion, 5);
+      expect(db.schemaVersion, 6);
       final v = await db.customSelect('PRAGMA user_version').get();
-      expect(v.single.data.values.single, 5);
+      expect(v.single.data.values.single, 6);
     });
   });
 
@@ -602,8 +604,8 @@ void main() {
   });
 
   group('Migrationen', () {
-    test('echte Migration v1 -> v5 auf befüllter v1-Datenbank (alle Schritte): Daten bleiben, '
-        'neue Spalten NULL (nie 0), Schema = Dump v5', () async {
+    test('echte Migration v1 -> v6 auf befüllter v1-Datenbank (alle Schritte): Daten bleiben, '
+        'neue Spalten NULL (nie 0), Schema = Dump v6', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v1 = await verifier.schemaAt(1);
       v1.rawDatabase
@@ -623,7 +625,7 @@ void main() {
       _fillComputedV2(v1.rawDatabase);
       final db = AppDatabase(v1.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 5);
+      await verifier.migrateAndValidate(db, 6);
       final rows = await db
           .customSelect(
             'SELECT latitude_deg, accuracy_m, speed_mps, speed_accuracy_mps, '
@@ -654,8 +656,8 @@ void main() {
     });
 
     test(
-      'echte Migration v2 -> v5 auf befüllter v2-Datenbank: Daten bleiben, '
-      'Grund für Zeilen ohne Wert, neue Spalten NULL, Schema = Dump v5',
+      'echte Migration v2 -> v6 auf befüllter v2-Datenbank: Daten bleiben, '
+      'Grund für Zeilen ohne Wert, neue Spalten NULL, Schema = Dump v6',
       () async {
         final verifier = SchemaVerifier(GeneratedHelper());
         final v2 = await verifier.schemaAt(2);
@@ -671,7 +673,7 @@ void main() {
         );
         final db = AppDatabase(v2.newConnection());
         addTearDown(db.close);
-        await verifier.migrateAndValidate(db, 5);
+        await verifier.migrateAndValidate(db, 6);
         final speed = await db
             .customSelect('SELECT speed_mps FROM raw_positions')
             .getSingle();
@@ -680,8 +682,8 @@ void main() {
       },
     );
 
-    test('echte Migration v3 -> v5 auf befüllter v3-Datenbank: Kurzfassung bleibt, '
-        'neue Spalten NULL (nie 0), Schema = Dump v5', () async {
+    test('echte Migration v3 -> v6 auf befüllter v3-Datenbank: Kurzfassung bleibt, '
+        'neue Spalten NULL (nie 0), Schema = Dump v6', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v3 = await verifier.schemaAt(3);
       v3.rawDatabase
@@ -697,7 +699,7 @@ void main() {
         );
       final db = AppDatabase(v3.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 5);
+      await verifier.migrateAndValidate(db, 6);
       final row = await db
           .customSelect('SELECT * FROM preprocessing_results')
           .getSingle();
@@ -709,11 +711,11 @@ void main() {
       expect(row.data['heart_rate_time_s'], isNull);
     });
 
-    test('echte Migration v4 -> v5 auf befüllter v4-Datenbank: Zeilen bleiben, '
-        'neue Tabellen leer und mit Kaskade, Schema = Dump v5', () async {
+    test('echte Migration v5 -> v6 auf befüllter v5-Datenbank: Zeilen bleiben, '
+        'neue Tabellen leer und mit Kaskade, Schema = Dump v6', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
-      final v4 = await verifier.schemaAt(4);
-      v4.rawDatabase
+      final v5 = await verifier.schemaAt(5);
+      v5.rawDatabase
         ..execute(
           "INSERT INTO runs (id, state, started_at_us, ended_at_us) "
           "VALUES (7, 'finished', 1, 9)",
@@ -729,10 +731,17 @@ void main() {
           "VALUES (7, 'run-overview', 2, 4, 5, 60.0, 1000.5, 290.0, 1, 55.0)",
         )
         ..execute("INSERT INTO settings VALUES ('units', 'km', 1)")
-        ..execute("INSERT INTO profile (id, birth_year) VALUES (1, 1990)");
-      final db = AppDatabase(v4.newConnection());
+        ..execute("INSERT INTO profile (id, birth_year) VALUES (1, 1990)")
+        ..execute(
+          "INSERT INTO run_feedback (run_id, rpe, wellbeing) VALUES (7, 5, 3)",
+        )
+        ..execute(
+          "INSERT INTO manual_trainings (day, kind, duration_s, rpe) "
+          "VALUES ('2026-11-01', 'run', 1800, 4)",
+        );
+      final db = AppDatabase(v5.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 5);
+      await verifier.migrateAndValidate(db, 6);
       // Die Rohverbindung hat Fremdschlüssel aus (sie setzt connection_setup).
       await _exec(db, 'PRAGMA foreign_keys = ON');
       // Alles Bisherige ist unverändert da.
@@ -746,6 +755,8 @@ void main() {
       expect(pre.data['lap_count'], 1);
       expect(await _count(db, 'settings'), 1);
       expect(await _count(db, 'profile'), 1);
+      expect(await _count(db, 'run_feedback', 7), 1);
+      expect(await _count(db, 'manual_trainings'), 1);
       // Neue Tabellen: leer, nehmen Zeilen an und kaskadieren mit dem Lauf.
       expect(await _count(db, 'reference_performances'), 0);
       expect(await _count(db, 'rejected_suggestions'), 0);
@@ -799,14 +810,14 @@ void main() {
       );
     });
 
-    test('Dump Version 5 liegt vor, genau vier Schritte (1 -> 2, 2 -> 3, 3 -> 4, 4 -> 5)', () async {
+    test('Dump Version 6 liegt vor, genau fünf Schritte (1 -> 2, 2 -> 3, 3 -> 4, 4 -> 5, 5 -> 6)', () async {
       final db = await openDb();
       addTearDown(db.close);
-      expect(db.migrationSteps.keys, [1, 2, 3, 4]);
+      expect(db.migrationSteps.keys, [1, 2, 3, 4, 5]);
     });
 
     test(
-      'synthetischer Schritt v5 -> v6 auf verschlüsselter Datei erhält Daten',
+      'synthetischer Schritt v6 -> v7 auf verschlüsselter Datei erhält Daten',
       () async {
         final v1 = await openDb();
         await _insertRun(v1, 7);
@@ -829,7 +840,7 @@ void main() {
               .data
               .values
               .single,
-          6,
+          7,
         );
         // Schritt wirkte, alte Daten, Trigger und Kaskade bleiben.
         await _exec(v2, "UPDATE settings SET note = 'neu'");
@@ -844,7 +855,7 @@ void main() {
     );
 
     test(
-      'fehlender Schritt: Datenbank öffnet nicht und bleibt Version 5',
+      'fehlender Schritt: Datenbank öffnet nicht und bleibt Version 6',
       () async {
         await (await openDb()).close();
         final storage = EncryptedStorage(
@@ -869,7 +880,7 @@ void main() {
               .data
               .values
               .single,
-          5,
+          6,
         );
       },
     );
@@ -880,7 +891,7 @@ void main() {
         databaseBuilder: (e) => _SyntheticV2(e, onStep: () {}),
       );
       await (await storage.open(testKey())).close();
-      // Datei ist jetzt Version 6, die App kennt nur 5.
+      // Datei ist jetzt Version 7, die App kennt nur 6.
       await expectLater(
         EncryptedStorage(path).open(testKey()),
         throwsA(
@@ -911,7 +922,7 @@ void main() {
       },
     );
 
-    test('Schritt 2 von 2 scheitert: Schritt 5 ist zurückgerollt, Version 5, '
+    test('Schritt 2 von 2 scheitert: Schritt 6 ist zurückgerollt, Version 6, '
         'Erneut versuchen läuft sauber', () async {
       await (await openDb()).close();
       final failing = EncryptedStorage(
@@ -935,7 +946,7 @@ void main() {
       expect(
         columns.map((r) => r.data['name']),
         isNot(contains('note')),
-        reason: 'Schritt 5 muss mit zurückgerollt sein',
+        reason: 'Schritt 6 muss mit zurückgerollt sein',
       );
       expect(
         (await v1.customSelect('PRAGMA user_version').get())
@@ -943,10 +954,10 @@ void main() {
             .data
             .values
             .single,
-        5,
+        6,
       );
       await v1.close();
-      // Erneut versuchen mit einem funktionierenden Schritt 5.
+      // Erneut versuchen mit einem funktionierenden Schritt 6.
       final retry = EncryptedStorage(
         path,
         databaseBuilder: (e) => _SyntheticV2(e, onStep: () {}),
@@ -960,12 +971,12 @@ void main() {
             .data
             .values
             .single,
-        6,
+        7,
       );
     });
 
     test(
-      'Version steht in beforeOpen schon auf 6, also vor drifts eigenem '
+      'Version steht in beforeOpen schon auf 7, also vor drifts eigenem '
       'Versionsschreiben (Reihenfolge PRAGMA/COMMIT: siehe nächster Test)',
       () async {
         await (await openDb()).close();
@@ -976,7 +987,7 @@ void main() {
               _SyntheticV2(e, onStep: () {}, onBeforeOpenVersion: observed.add),
         );
         await (await storage.open(testKey())).close();
-        expect(observed, [6]);
+        expect(observed, [7]);
       },
     );
 
@@ -994,7 +1005,7 @@ void main() {
       final lines = (await logs.text()).split('\n');
       final step = lines.indexWhere((l) => l.contains('ADD COLUMN note'));
       final pragma = lines.indexWhere(
-        (l) => l.contains('PRAGMA user_version = 6'),
+        (l) => l.contains('PRAGMA user_version = 7'),
       );
       final commit = lines.indexWhere((l) => l.contains('COMMIT'), step);
       expect(step, isNonNegative, reason: '$lines');
@@ -1004,7 +1015,7 @@ void main() {
   });
 }
 
-/// Test-Datenbank "Version 6" mit einem Schritt, der nur im Test existiert.
+/// Test-Datenbank "Version 7" mit einem Schritt, der nur im Test existiert.
 class _SyntheticV2 extends AppDatabase {
   _SyntheticV2(super.e, {required this.onStep, this.onBeforeOpenVersion});
   final void Function() onStep;
@@ -1027,12 +1038,12 @@ class _SyntheticV2 extends AppDatabase {
   }
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   Map<int, MigrationStep> get migrationSteps => {
     ...super.migrationSteps,
-    5: (Migrator m) async {
+    6: (Migrator m) async {
       onStep();
       await m.database.customStatement(
         'ALTER TABLE settings ADD COLUMN note TEXT',
@@ -1045,29 +1056,11 @@ class _NoStepV2 extends AppDatabase {
   _NoStepV2(super.e);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 }
 
 class _FailingStepV2 extends AppDatabase {
   _FailingStepV2(super.e);
-
-  @override
-  int get schemaVersion => 6;
-
-  @override
-  Map<int, MigrationStep> get migrationSteps => {
-    ...super.migrationSteps,
-    5: (Migrator m) async {
-      await m.database.customStatement(
-        "INSERT INTO no_such_table VALUES ('$marker')",
-      );
-    },
-  };
-}
-
-/// Version 7 mit zwei Schritten: Schritt 5 gelingt, Schritt 6 wirft.
-class _TwoStepsSecondFails extends AppDatabase {
-  _TwoStepsSecondFails(super.e);
 
   @override
   int get schemaVersion => 7;
@@ -1075,12 +1068,30 @@ class _TwoStepsSecondFails extends AppDatabase {
   @override
   Map<int, MigrationStep> get migrationSteps => {
     ...super.migrationSteps,
-    5: (Migrator m) async {
+    6: (Migrator m) async {
+      await m.database.customStatement(
+        "INSERT INTO no_such_table VALUES ('$marker')",
+      );
+    },
+  };
+}
+
+/// Version 8 mit zwei Schritten: Schritt 6 gelingt, Schritt 7 wirft.
+class _TwoStepsSecondFails extends AppDatabase {
+  _TwoStepsSecondFails(super.e);
+
+  @override
+  int get schemaVersion => 8;
+
+  @override
+  Map<int, MigrationStep> get migrationSteps => {
+    ...super.migrationSteps,
+    6: (Migrator m) async {
       await m.database.customStatement(
         'ALTER TABLE settings ADD COLUMN note TEXT',
       );
     },
-    6: (Migrator m) async {
+    7: (Migrator m) async {
       await m.database.customStatement(
         "INSERT INTO no_such_table VALUES ('x')",
       );

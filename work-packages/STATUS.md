@@ -13,20 +13,22 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | M0 ADRs | Architekturentscheidungen; ADR-0002 bis ADR-0008 freigegeben | erledigt |
 | M1 Phase 1 | Laufaufzeichnung und grundlegende Fitnessanalyse | Plan: [M1-PLAN.md](M1-PLAN.md), WP01 bis WP12 gemergt, Abschlussprüfung bestanden (2026-11-08); WP13 (Karte) und WP14 bis WP17 (Screen-Design) gemergt, Abschlussprüfung für Netz und Oberfläche wiederholt (2026-11-09) |
 | M2 Phase 2 | Adaptiver Trainingscoach | Go am 2026-11-09, in Arbeit; Plan: [M2-PLAN.md](M2-PLAN.md) |
-| M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | zurückgestellt (OQ-0077), neue Entscheidung nach den Erfahrungen mit M2; vor dem Start Prüfung am Gerät (ADR-0007) |
+| M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | wird nach M2 geplant; Grundlage R009/K-1 (DEC-0074, K46), Morgenmessung per Handykamera als Datenquelle (OQ-0078); RMSSD bis zur Validierung gegen H9 gesperrt. Health Connect und Pulsgurt bleiben Ergänzungen; DFA α1 später als eigener Research-Auftrag |
 
 ## M2 im Detail
 
 | Paket | Titel | Status | Offen |
 | --- | --- | --- | --- |
-| WP18 | Subjektive Angaben und Nachtragen | in Arbeit | |
-| WP19 | Belastungsverlauf und Belastungsprofil | geplant | |
+| WP18 | Subjektive Angaben und Nachtragen | gemergt (755b39d) | Python-Testvektor für Archivformat 2 fehlt; Reimport nimmt nachgetragene Trainings mit Datum in der Zukunft an (Grenze mit WP19); Speicherfehler beim Schließen der Zusammenfassung verliert die Notiz still; sRPE kann nach fehlgeschlagener Neuberechnung veraltet bleiben; Warnsignal-Antwort ohne Wirkung bis WP23; Bestpace-Ersatztext bei Faktor 1,3 noch 3 Zeilen; Hinweise in `handoff/hinweise/wp18/` | |
+| WP19 | Belastungsverlauf und Belastungsprofil | gemergt (2aa9ec4) | Meldung „Neuberechnet“ bleibt bis zur nächsten Aktion; VO₂max-Tageswerte jüngerer Tage nach Import älterer Läufe bis zur nächsten Neuberechnung veraltet (prüfen, ob gewollt); Reimport-Fehlermeldung ohne Grund; nach abgelehntem Rückweg auf Edwards TRIMP „nicht verfügbar“; ungeprüft auf dem Gerät: Ladefehler, „Banister aktiv, aber nicht anwendbar“ |
 | WP20 | Leistungsprognose | in Arbeit | |
 | WP21 | Planmodell und Planerzeugung | geplant | |
 | WP22 | Plan-Seite, Ziele und Kalender | geplant | |
 | WP23 | Plananpassung, Warnsignal, Erklärungen, Basis-Erholung | geplant | |
 | WP24 | Geführte Einheit und Ansagen | geplant | |
 | WP25 | Laufband und Zusatzmetriken | geplant | |
+| WP26 | RR-Intervalle speichern | geplant | Start nach WP20 |
+| WP27 | Ruhepuls mit der Handykamera | in Arbeit | Erst Screens (Claude Design), dann Umsetzung; Messprotokoll aus R009 in FR-0214 übernommen |
 
 ## M1 im Detail
 
@@ -65,3 +67,4 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | R005 | Durchstich der Aufzeichnung | ADR-0005 Punkt 3, ADR-0003 (verschlüsseltes WAL), Lizenzbaum, WP08 | abgeschlossen (1aa053a) | Feldthemen: Hersteller-Energiesparen, Akku, Stromausfall, echtes Schlafverhalten, FR-0034, Schrittsensor |
 | R007 | GPS-Rauschen im Stand (Literatur, `getSpeed`) | OQ-0068, FR-0029, FR-0052, vor WP06 | abgeschlossen (3e04586) | Feldtest mit protokollierten Stopps; OQ-0071 |
 | R008 | Kartenbibliothek und Kachelanbieter | ADR-0009 Punkt 6, WP13 | abgeschlossen (e5c00fa) | flutter_map + flutter_map_vector_tiles, OpenFreeMap, eigene sqlite3mc-Datei; offen: echtes Gerät (Bildrate, Akku), VersaTiles mit Tor, Speicher auf Android; Daten ~4,8 GB in research/data |
+| R009 | Ruhepuls und HRV-Morgenmessung mit der Handykamera | FR-0214 (WP27), FR-0215, Plan für M3, OQ-0006 | gemergt (a204ad2) | Kamera-Ruhepuls in Ruhe belegt, RMSSD aus 60 s Kamera gemischt belegt und bis zur Validierung gegen Polar H9 gesperrt; ins Konzept übernommen (DEC-0074, K-1, K46). Offen: Validierung gegen H9 (Folgeanalyse), RMSSD-Qualitätsgrenze, Validierung im Sitzen, MAD-Grenze 0,5 prüfen, Zahlenwerte K47 |

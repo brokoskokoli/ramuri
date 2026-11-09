@@ -9701,6 +9701,985 @@ class ConsentsCompanion extends UpdateCompanion<Consent> {
   }
 }
 
+class RunFeedback extends Table with TableInfo<RunFeedback, RunFeedbackRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  RunFeedback(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
+    'run_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'NOT NULL PRIMARY KEY REFERENCES runs(id)ON DELETE CASCADE',
+  );
+  static const VerificationMeta _rpeMeta = const VerificationMeta('rpe');
+  late final GeneratedColumn<int> rpe = GeneratedColumn<int>(
+    'rpe',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (rpe IS NULL OR(typeof(rpe) = \'integer\' AND rpe BETWEEN 0 AND 10))',
+  );
+  static const VerificationMeta _wellbeingMeta = const VerificationMeta(
+    'wellbeing',
+  );
+  late final GeneratedColumn<int> wellbeing = GeneratedColumn<int>(
+    'wellbeing',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (wellbeing IS NULL OR(typeof(wellbeing) = \'integer\' AND wellbeing BETWEEN 1 AND 5))',
+  );
+  static const VerificationMeta _complaintsMeta = const VerificationMeta(
+    'complaints',
+  );
+  late final GeneratedColumn<String> complaints = GeneratedColumn<String>(
+    'complaints',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _warningAnswerMeta = const VerificationMeta(
+    'warningAnswer',
+  );
+  late final GeneratedColumn<String> warningAnswer = GeneratedColumn<String>(
+    'warning_answer',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (warning_answer IN (\'yes\', \'no\'))',
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _srpePointsMeta = const VerificationMeta(
+    'srpePoints',
+  );
+  late final GeneratedColumn<double> srpePoints = GeneratedColumn<double>(
+    'srpe_points',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (srpe_points >= 0)',
+  );
+  static const VerificationMeta _srpeDurationSMeta = const VerificationMeta(
+    'srpeDurationS',
+  );
+  late final GeneratedColumn<double> srpeDurationS = GeneratedColumn<double>(
+    'srpe_duration_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (srpe_duration_s >= 0)',
+  );
+  static const VerificationMeta _srpeMethodMeta = const VerificationMeta(
+    'srpeMethod',
+  );
+  late final GeneratedColumn<String> srpeMethod = GeneratedColumn<String>(
+    'srpe_method',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _srpeMethodVersionMeta = const VerificationMeta(
+    'srpeMethodVersion',
+  );
+  late final GeneratedColumn<int> srpeMethodVersion = GeneratedColumn<int>(
+    'srpe_method_version',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    runId,
+    rpe,
+    wellbeing,
+    complaints,
+    warningAnswer,
+    note,
+    srpePoints,
+    srpeDurationS,
+    srpeMethod,
+    srpeMethodVersion,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'run_feedback';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RunFeedbackRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('run_id')) {
+      context.handle(
+        _runIdMeta,
+        runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta),
+      );
+    }
+    if (data.containsKey('rpe')) {
+      context.handle(
+        _rpeMeta,
+        rpe.isAcceptableOrUnknown(data['rpe']!, _rpeMeta),
+      );
+    }
+    if (data.containsKey('wellbeing')) {
+      context.handle(
+        _wellbeingMeta,
+        wellbeing.isAcceptableOrUnknown(data['wellbeing']!, _wellbeingMeta),
+      );
+    }
+    if (data.containsKey('complaints')) {
+      context.handle(
+        _complaintsMeta,
+        complaints.isAcceptableOrUnknown(data['complaints']!, _complaintsMeta),
+      );
+    }
+    if (data.containsKey('warning_answer')) {
+      context.handle(
+        _warningAnswerMeta,
+        warningAnswer.isAcceptableOrUnknown(
+          data['warning_answer']!,
+          _warningAnswerMeta,
+        ),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('srpe_points')) {
+      context.handle(
+        _srpePointsMeta,
+        srpePoints.isAcceptableOrUnknown(data['srpe_points']!, _srpePointsMeta),
+      );
+    }
+    if (data.containsKey('srpe_duration_s')) {
+      context.handle(
+        _srpeDurationSMeta,
+        srpeDurationS.isAcceptableOrUnknown(
+          data['srpe_duration_s']!,
+          _srpeDurationSMeta,
+        ),
+      );
+    }
+    if (data.containsKey('srpe_method')) {
+      context.handle(
+        _srpeMethodMeta,
+        srpeMethod.isAcceptableOrUnknown(data['srpe_method']!, _srpeMethodMeta),
+      );
+    }
+    if (data.containsKey('srpe_method_version')) {
+      context.handle(
+        _srpeMethodVersionMeta,
+        srpeMethodVersion.isAcceptableOrUnknown(
+          data['srpe_method_version']!,
+          _srpeMethodVersionMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {runId};
+  @override
+  RunFeedbackRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RunFeedbackRow(
+      runId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}run_id'],
+      )!,
+      rpe: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rpe'],
+      ),
+      wellbeing: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}wellbeing'],
+      ),
+      complaints: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}complaints'],
+      ),
+      warningAnswer: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}warning_answer'],
+      ),
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      srpePoints: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}srpe_points'],
+      ),
+      srpeDurationS: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}srpe_duration_s'],
+      ),
+      srpeMethod: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}srpe_method'],
+      ),
+      srpeMethodVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}srpe_method_version'],
+      ),
+    );
+  }
+
+  @override
+  RunFeedback createAlias(String alias) {
+    return RunFeedback(attachedDatabase, alias);
+  }
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK(warning_answer IS NULL OR complaints IS NOT NULL)',
+    'CHECK((srpe_points IS NULL AND srpe_duration_s IS NULL AND srpe_method IS NULL AND srpe_method_version IS NULL)OR(srpe_points IS NOT NULL AND srpe_duration_s IS NOT NULL AND srpe_method IS NOT NULL AND srpe_method_version IS NOT NULL AND rpe IS NOT NULL))',
+  ];
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class RunFeedbackRow extends DataClass implements Insertable<RunFeedbackRow> {
+  final int runId;
+  final int? rpe;
+  final int? wellbeing;
+  final String? complaints;
+  final String? warningAnswer;
+  final String? note;
+  final double? srpePoints;
+
+  /// Bewegungszeit in Sekunden, mit der gerechnet wurde.
+  final double? srpeDurationS;
+  final String? srpeMethod;
+  final int? srpeMethodVersion;
+  const RunFeedbackRow({
+    required this.runId,
+    this.rpe,
+    this.wellbeing,
+    this.complaints,
+    this.warningAnswer,
+    this.note,
+    this.srpePoints,
+    this.srpeDurationS,
+    this.srpeMethod,
+    this.srpeMethodVersion,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['run_id'] = Variable<int>(runId);
+    if (!nullToAbsent || rpe != null) {
+      map['rpe'] = Variable<int>(rpe);
+    }
+    if (!nullToAbsent || wellbeing != null) {
+      map['wellbeing'] = Variable<int>(wellbeing);
+    }
+    if (!nullToAbsent || complaints != null) {
+      map['complaints'] = Variable<String>(complaints);
+    }
+    if (!nullToAbsent || warningAnswer != null) {
+      map['warning_answer'] = Variable<String>(warningAnswer);
+    }
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    if (!nullToAbsent || srpePoints != null) {
+      map['srpe_points'] = Variable<double>(srpePoints);
+    }
+    if (!nullToAbsent || srpeDurationS != null) {
+      map['srpe_duration_s'] = Variable<double>(srpeDurationS);
+    }
+    if (!nullToAbsent || srpeMethod != null) {
+      map['srpe_method'] = Variable<String>(srpeMethod);
+    }
+    if (!nullToAbsent || srpeMethodVersion != null) {
+      map['srpe_method_version'] = Variable<int>(srpeMethodVersion);
+    }
+    return map;
+  }
+
+  RunFeedbackCompanion toCompanion(bool nullToAbsent) {
+    return RunFeedbackCompanion(
+      runId: Value(runId),
+      rpe: rpe == null && nullToAbsent ? const Value.absent() : Value(rpe),
+      wellbeing: wellbeing == null && nullToAbsent
+          ? const Value.absent()
+          : Value(wellbeing),
+      complaints: complaints == null && nullToAbsent
+          ? const Value.absent()
+          : Value(complaints),
+      warningAnswer: warningAnswer == null && nullToAbsent
+          ? const Value.absent()
+          : Value(warningAnswer),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      srpePoints: srpePoints == null && nullToAbsent
+          ? const Value.absent()
+          : Value(srpePoints),
+      srpeDurationS: srpeDurationS == null && nullToAbsent
+          ? const Value.absent()
+          : Value(srpeDurationS),
+      srpeMethod: srpeMethod == null && nullToAbsent
+          ? const Value.absent()
+          : Value(srpeMethod),
+      srpeMethodVersion: srpeMethodVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(srpeMethodVersion),
+    );
+  }
+
+  factory RunFeedbackRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RunFeedbackRow(
+      runId: serializer.fromJson<int>(json['run_id']),
+      rpe: serializer.fromJson<int?>(json['rpe']),
+      wellbeing: serializer.fromJson<int?>(json['wellbeing']),
+      complaints: serializer.fromJson<String?>(json['complaints']),
+      warningAnswer: serializer.fromJson<String?>(json['warning_answer']),
+      note: serializer.fromJson<String?>(json['note']),
+      srpePoints: serializer.fromJson<double?>(json['srpe_points']),
+      srpeDurationS: serializer.fromJson<double?>(json['srpe_duration_s']),
+      srpeMethod: serializer.fromJson<String?>(json['srpe_method']),
+      srpeMethodVersion: serializer.fromJson<int?>(json['srpe_method_version']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'run_id': serializer.toJson<int>(runId),
+      'rpe': serializer.toJson<int?>(rpe),
+      'wellbeing': serializer.toJson<int?>(wellbeing),
+      'complaints': serializer.toJson<String?>(complaints),
+      'warning_answer': serializer.toJson<String?>(warningAnswer),
+      'note': serializer.toJson<String?>(note),
+      'srpe_points': serializer.toJson<double?>(srpePoints),
+      'srpe_duration_s': serializer.toJson<double?>(srpeDurationS),
+      'srpe_method': serializer.toJson<String?>(srpeMethod),
+      'srpe_method_version': serializer.toJson<int?>(srpeMethodVersion),
+    };
+  }
+
+  RunFeedbackRow copyWith({
+    int? runId,
+    Value<int?> rpe = const Value.absent(),
+    Value<int?> wellbeing = const Value.absent(),
+    Value<String?> complaints = const Value.absent(),
+    Value<String?> warningAnswer = const Value.absent(),
+    Value<String?> note = const Value.absent(),
+    Value<double?> srpePoints = const Value.absent(),
+    Value<double?> srpeDurationS = const Value.absent(),
+    Value<String?> srpeMethod = const Value.absent(),
+    Value<int?> srpeMethodVersion = const Value.absent(),
+  }) => RunFeedbackRow(
+    runId: runId ?? this.runId,
+    rpe: rpe.present ? rpe.value : this.rpe,
+    wellbeing: wellbeing.present ? wellbeing.value : this.wellbeing,
+    complaints: complaints.present ? complaints.value : this.complaints,
+    warningAnswer: warningAnswer.present
+        ? warningAnswer.value
+        : this.warningAnswer,
+    note: note.present ? note.value : this.note,
+    srpePoints: srpePoints.present ? srpePoints.value : this.srpePoints,
+    srpeDurationS: srpeDurationS.present
+        ? srpeDurationS.value
+        : this.srpeDurationS,
+    srpeMethod: srpeMethod.present ? srpeMethod.value : this.srpeMethod,
+    srpeMethodVersion: srpeMethodVersion.present
+        ? srpeMethodVersion.value
+        : this.srpeMethodVersion,
+  );
+  RunFeedbackRow copyWithCompanion(RunFeedbackCompanion data) {
+    return RunFeedbackRow(
+      runId: data.runId.present ? data.runId.value : this.runId,
+      rpe: data.rpe.present ? data.rpe.value : this.rpe,
+      wellbeing: data.wellbeing.present ? data.wellbeing.value : this.wellbeing,
+      complaints: data.complaints.present
+          ? data.complaints.value
+          : this.complaints,
+      warningAnswer: data.warningAnswer.present
+          ? data.warningAnswer.value
+          : this.warningAnswer,
+      note: data.note.present ? data.note.value : this.note,
+      srpePoints: data.srpePoints.present
+          ? data.srpePoints.value
+          : this.srpePoints,
+      srpeDurationS: data.srpeDurationS.present
+          ? data.srpeDurationS.value
+          : this.srpeDurationS,
+      srpeMethod: data.srpeMethod.present
+          ? data.srpeMethod.value
+          : this.srpeMethod,
+      srpeMethodVersion: data.srpeMethodVersion.present
+          ? data.srpeMethodVersion.value
+          : this.srpeMethodVersion,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RunFeedbackRow(')
+          ..write('runId: $runId, ')
+          ..write('rpe: $rpe, ')
+          ..write('wellbeing: $wellbeing, ')
+          ..write('complaints: $complaints, ')
+          ..write('warningAnswer: $warningAnswer, ')
+          ..write('note: $note, ')
+          ..write('srpePoints: $srpePoints, ')
+          ..write('srpeDurationS: $srpeDurationS, ')
+          ..write('srpeMethod: $srpeMethod, ')
+          ..write('srpeMethodVersion: $srpeMethodVersion')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    runId,
+    rpe,
+    wellbeing,
+    complaints,
+    warningAnswer,
+    note,
+    srpePoints,
+    srpeDurationS,
+    srpeMethod,
+    srpeMethodVersion,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RunFeedbackRow &&
+          other.runId == this.runId &&
+          other.rpe == this.rpe &&
+          other.wellbeing == this.wellbeing &&
+          other.complaints == this.complaints &&
+          other.warningAnswer == this.warningAnswer &&
+          other.note == this.note &&
+          other.srpePoints == this.srpePoints &&
+          other.srpeDurationS == this.srpeDurationS &&
+          other.srpeMethod == this.srpeMethod &&
+          other.srpeMethodVersion == this.srpeMethodVersion);
+}
+
+class RunFeedbackCompanion extends UpdateCompanion<RunFeedbackRow> {
+  final Value<int> runId;
+  final Value<int?> rpe;
+  final Value<int?> wellbeing;
+  final Value<String?> complaints;
+  final Value<String?> warningAnswer;
+  final Value<String?> note;
+  final Value<double?> srpePoints;
+  final Value<double?> srpeDurationS;
+  final Value<String?> srpeMethod;
+  final Value<int?> srpeMethodVersion;
+  const RunFeedbackCompanion({
+    this.runId = const Value.absent(),
+    this.rpe = const Value.absent(),
+    this.wellbeing = const Value.absent(),
+    this.complaints = const Value.absent(),
+    this.warningAnswer = const Value.absent(),
+    this.note = const Value.absent(),
+    this.srpePoints = const Value.absent(),
+    this.srpeDurationS = const Value.absent(),
+    this.srpeMethod = const Value.absent(),
+    this.srpeMethodVersion = const Value.absent(),
+  });
+  RunFeedbackCompanion.insert({
+    this.runId = const Value.absent(),
+    this.rpe = const Value.absent(),
+    this.wellbeing = const Value.absent(),
+    this.complaints = const Value.absent(),
+    this.warningAnswer = const Value.absent(),
+    this.note = const Value.absent(),
+    this.srpePoints = const Value.absent(),
+    this.srpeDurationS = const Value.absent(),
+    this.srpeMethod = const Value.absent(),
+    this.srpeMethodVersion = const Value.absent(),
+  });
+  static Insertable<RunFeedbackRow> custom({
+    Expression<int>? runId,
+    Expression<int>? rpe,
+    Expression<int>? wellbeing,
+    Expression<String>? complaints,
+    Expression<String>? warningAnswer,
+    Expression<String>? note,
+    Expression<double>? srpePoints,
+    Expression<double>? srpeDurationS,
+    Expression<String>? srpeMethod,
+    Expression<int>? srpeMethodVersion,
+  }) {
+    return RawValuesInsertable({
+      if (runId != null) 'run_id': runId,
+      if (rpe != null) 'rpe': rpe,
+      if (wellbeing != null) 'wellbeing': wellbeing,
+      if (complaints != null) 'complaints': complaints,
+      if (warningAnswer != null) 'warning_answer': warningAnswer,
+      if (note != null) 'note': note,
+      if (srpePoints != null) 'srpe_points': srpePoints,
+      if (srpeDurationS != null) 'srpe_duration_s': srpeDurationS,
+      if (srpeMethod != null) 'srpe_method': srpeMethod,
+      if (srpeMethodVersion != null) 'srpe_method_version': srpeMethodVersion,
+    });
+  }
+
+  RunFeedbackCompanion copyWith({
+    Value<int>? runId,
+    Value<int?>? rpe,
+    Value<int?>? wellbeing,
+    Value<String?>? complaints,
+    Value<String?>? warningAnswer,
+    Value<String?>? note,
+    Value<double?>? srpePoints,
+    Value<double?>? srpeDurationS,
+    Value<String?>? srpeMethod,
+    Value<int?>? srpeMethodVersion,
+  }) {
+    return RunFeedbackCompanion(
+      runId: runId ?? this.runId,
+      rpe: rpe ?? this.rpe,
+      wellbeing: wellbeing ?? this.wellbeing,
+      complaints: complaints ?? this.complaints,
+      warningAnswer: warningAnswer ?? this.warningAnswer,
+      note: note ?? this.note,
+      srpePoints: srpePoints ?? this.srpePoints,
+      srpeDurationS: srpeDurationS ?? this.srpeDurationS,
+      srpeMethod: srpeMethod ?? this.srpeMethod,
+      srpeMethodVersion: srpeMethodVersion ?? this.srpeMethodVersion,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (runId.present) {
+      map['run_id'] = Variable<int>(runId.value);
+    }
+    if (rpe.present) {
+      map['rpe'] = Variable<int>(rpe.value);
+    }
+    if (wellbeing.present) {
+      map['wellbeing'] = Variable<int>(wellbeing.value);
+    }
+    if (complaints.present) {
+      map['complaints'] = Variable<String>(complaints.value);
+    }
+    if (warningAnswer.present) {
+      map['warning_answer'] = Variable<String>(warningAnswer.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (srpePoints.present) {
+      map['srpe_points'] = Variable<double>(srpePoints.value);
+    }
+    if (srpeDurationS.present) {
+      map['srpe_duration_s'] = Variable<double>(srpeDurationS.value);
+    }
+    if (srpeMethod.present) {
+      map['srpe_method'] = Variable<String>(srpeMethod.value);
+    }
+    if (srpeMethodVersion.present) {
+      map['srpe_method_version'] = Variable<int>(srpeMethodVersion.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RunFeedbackCompanion(')
+          ..write('runId: $runId, ')
+          ..write('rpe: $rpe, ')
+          ..write('wellbeing: $wellbeing, ')
+          ..write('complaints: $complaints, ')
+          ..write('warningAnswer: $warningAnswer, ')
+          ..write('note: $note, ')
+          ..write('srpePoints: $srpePoints, ')
+          ..write('srpeDurationS: $srpeDurationS, ')
+          ..write('srpeMethod: $srpeMethod, ')
+          ..write('srpeMethodVersion: $srpeMethodVersion')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class ManualTrainings extends Table
+    with TableInfo<ManualTrainings, ManualTrainingRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  ManualTrainings(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  static const VerificationMeta _dayMeta = const VerificationMeta('day');
+  late final GeneratedColumn<String> day = GeneratedColumn<String>(
+    'day',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (day GLOB \'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\' AND date(day) IS day)',
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (kind IN (\'run\', \'other\'))',
+  );
+  static const VerificationMeta _durationSMeta = const VerificationMeta(
+    'durationS',
+  );
+  late final GeneratedColumn<int> durationS = GeneratedColumn<int>(
+    'duration_s',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (typeof(duration_s) = \'integer\' AND duration_s > 0)',
+  );
+  static const VerificationMeta _rpeMeta = const VerificationMeta('rpe');
+  late final GeneratedColumn<int> rpe = GeneratedColumn<int>(
+    'rpe',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (typeof(rpe) = \'integer\' AND rpe BETWEEN 0 AND 10)',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, day, kind, durationS, rpe];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'manual_trainings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ManualTrainingRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('day')) {
+      context.handle(
+        _dayMeta,
+        day.isAcceptableOrUnknown(data['day']!, _dayMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dayMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('duration_s')) {
+      context.handle(
+        _durationSMeta,
+        durationS.isAcceptableOrUnknown(data['duration_s']!, _durationSMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_durationSMeta);
+    }
+    if (data.containsKey('rpe')) {
+      context.handle(
+        _rpeMeta,
+        rpe.isAcceptableOrUnknown(data['rpe']!, _rpeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_rpeMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ManualTrainingRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ManualTrainingRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      day: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}day'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      durationS: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_s'],
+      )!,
+      rpe: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rpe'],
+      )!,
+    );
+  }
+
+  @override
+  ManualTrainings createAlias(String alias) {
+    return ManualTrainings(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class ManualTrainingRow extends DataClass
+    implements Insertable<ManualTrainingRow> {
+  final int id;
+  final String day;
+  final String kind;
+  final int durationS;
+  final int rpe;
+  const ManualTrainingRow({
+    required this.id,
+    required this.day,
+    required this.kind,
+    required this.durationS,
+    required this.rpe,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['day'] = Variable<String>(day);
+    map['kind'] = Variable<String>(kind);
+    map['duration_s'] = Variable<int>(durationS);
+    map['rpe'] = Variable<int>(rpe);
+    return map;
+  }
+
+  ManualTrainingsCompanion toCompanion(bool nullToAbsent) {
+    return ManualTrainingsCompanion(
+      id: Value(id),
+      day: Value(day),
+      kind: Value(kind),
+      durationS: Value(durationS),
+      rpe: Value(rpe),
+    );
+  }
+
+  factory ManualTrainingRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ManualTrainingRow(
+      id: serializer.fromJson<int>(json['id']),
+      day: serializer.fromJson<String>(json['day']),
+      kind: serializer.fromJson<String>(json['kind']),
+      durationS: serializer.fromJson<int>(json['duration_s']),
+      rpe: serializer.fromJson<int>(json['rpe']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'day': serializer.toJson<String>(day),
+      'kind': serializer.toJson<String>(kind),
+      'duration_s': serializer.toJson<int>(durationS),
+      'rpe': serializer.toJson<int>(rpe),
+    };
+  }
+
+  ManualTrainingRow copyWith({
+    int? id,
+    String? day,
+    String? kind,
+    int? durationS,
+    int? rpe,
+  }) => ManualTrainingRow(
+    id: id ?? this.id,
+    day: day ?? this.day,
+    kind: kind ?? this.kind,
+    durationS: durationS ?? this.durationS,
+    rpe: rpe ?? this.rpe,
+  );
+  ManualTrainingRow copyWithCompanion(ManualTrainingsCompanion data) {
+    return ManualTrainingRow(
+      id: data.id.present ? data.id.value : this.id,
+      day: data.day.present ? data.day.value : this.day,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      durationS: data.durationS.present ? data.durationS.value : this.durationS,
+      rpe: data.rpe.present ? data.rpe.value : this.rpe,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ManualTrainingRow(')
+          ..write('id: $id, ')
+          ..write('day: $day, ')
+          ..write('kind: $kind, ')
+          ..write('durationS: $durationS, ')
+          ..write('rpe: $rpe')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, day, kind, durationS, rpe);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ManualTrainingRow &&
+          other.id == this.id &&
+          other.day == this.day &&
+          other.kind == this.kind &&
+          other.durationS == this.durationS &&
+          other.rpe == this.rpe);
+}
+
+class ManualTrainingsCompanion extends UpdateCompanion<ManualTrainingRow> {
+  final Value<int> id;
+  final Value<String> day;
+  final Value<String> kind;
+  final Value<int> durationS;
+  final Value<int> rpe;
+  const ManualTrainingsCompanion({
+    this.id = const Value.absent(),
+    this.day = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.durationS = const Value.absent(),
+    this.rpe = const Value.absent(),
+  });
+  ManualTrainingsCompanion.insert({
+    this.id = const Value.absent(),
+    required String day,
+    required String kind,
+    required int durationS,
+    required int rpe,
+  }) : day = Value(day),
+       kind = Value(kind),
+       durationS = Value(durationS),
+       rpe = Value(rpe);
+  static Insertable<ManualTrainingRow> custom({
+    Expression<int>? id,
+    Expression<String>? day,
+    Expression<String>? kind,
+    Expression<int>? durationS,
+    Expression<int>? rpe,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (day != null) 'day': day,
+      if (kind != null) 'kind': kind,
+      if (durationS != null) 'duration_s': durationS,
+      if (rpe != null) 'rpe': rpe,
+    });
+  }
+
+  ManualTrainingsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? day,
+    Value<String>? kind,
+    Value<int>? durationS,
+    Value<int>? rpe,
+  }) {
+    return ManualTrainingsCompanion(
+      id: id ?? this.id,
+      day: day ?? this.day,
+      kind: kind ?? this.kind,
+      durationS: durationS ?? this.durationS,
+      rpe: rpe ?? this.rpe,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (day.present) {
+      map['day'] = Variable<String>(day.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (durationS.present) {
+      map['duration_s'] = Variable<int>(durationS.value);
+    }
+    if (rpe.present) {
+      map['rpe'] = Variable<int>(rpe.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ManualTrainingsCompanion(')
+          ..write('id: $id, ')
+          ..write('day: $day, ')
+          ..write('kind: $kind, ')
+          ..write('durationS: $durationS, ')
+          ..write('rpe: $rpe')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class ReferencePerformances extends Table
     with TableInfo<ReferencePerformances, ReferenceRow> {
   @override
@@ -10492,6 +11471,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'CREATE UNIQUE INDEX known_devices_one_preferred ON known_devices (is_preferred) WHERE is_preferred = 1',
   );
   late final Consents consents = Consents(this);
+  late final RunFeedback runFeedback = RunFeedback(this);
+  late final ManualTrainings manualTrainings = ManualTrainings(this);
+  late final Index manualTrainingsDay = Index(
+    'manual_trainings_day',
+    'CREATE INDEX manual_trainings_day ON manual_trainings (day)',
+  );
   late final ReferencePerformances referencePerformances =
       ReferencePerformances(this);
   late final Index referencePerformancesRun = Index(
@@ -10553,6 +11538,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     knownDevices,
     knownDevicesOnePreferred,
     consents,
+    runFeedback,
+    manualTrainings,
+    manualTrainingsDay,
     referencePerformances,
     referencePerformancesRun,
     rejectedSuggestions,
@@ -10761,6 +11749,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.insert,
       ),
       result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('run_feedback', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -11151,6 +12146,24 @@ final class $RunsReferences extends BaseReferences<_$AppDatabase, Runs, Run> {
     );
   }
 
+  static MultiTypedResultKey<RunFeedback, List<RunFeedbackRow>>
+  _runFeedbackRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.runFeedback,
+    aliasName: 'runs__id__run_feedback__run_id',
+  );
+
+  $RunFeedbackProcessedTableManager get runFeedbackRefs {
+    final manager = $RunFeedbackTableManager(
+      $_db,
+      $_db.runFeedback,
+    ).filter((f) => f.runId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_runFeedbackRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<ReferencePerformances, List<ReferenceRow>>
   _referencePerformancesRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
@@ -11493,6 +12506,31 @@ class $RunsFilterComposer extends Composer<_$AppDatabase, Runs> {
           }) => $ComputedValuesFilterComposer(
             $db: $db,
             $table: $db.computedValues,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> runFeedbackRefs(
+    Expression<bool> Function($RunFeedbackFilterComposer f) f,
+  ) {
+    final $RunFeedbackFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.runFeedback,
+      getReferencedColumn: (t) => t.runId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunFeedbackFilterComposer(
+            $db: $db,
+            $table: $db.runFeedback,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11889,6 +12927,31 @@ class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
     return f(composer);
   }
 
+  Expression<T> runFeedbackRefs<T extends Object>(
+    Expression<T> Function($RunFeedbackAnnotationComposer a) f,
+  ) {
+    final $RunFeedbackAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.runFeedback,
+      getReferencedColumn: (t) => t.runId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunFeedbackAnnotationComposer(
+            $db: $db,
+            $table: $db.runFeedback,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> referencePerformancesRefs<T extends Object>(
     Expression<T> Function($ReferencePerformancesAnnotationComposer a) f,
   ) {
@@ -11965,6 +13028,7 @@ class $RunsTableManager
             bool preprocessedSpansRefs,
             bool ratedSectionsRefs,
             bool computedValuesRefs,
+            bool runFeedbackRefs,
             bool referencePerformancesRefs,
             bool rejectedSuggestionsRefs,
           })
@@ -12029,6 +13093,7 @@ class $RunsTableManager
                 preprocessedSpansRefs = false,
                 ratedSectionsRefs = false,
                 computedValuesRefs = false,
+                runFeedbackRefs = false,
                 referencePerformancesRefs = false,
                 rejectedSuggestionsRefs = false,
               }) {
@@ -12046,6 +13111,7 @@ class $RunsTableManager
                     if (preprocessedSpansRefs) db.preprocessedSpans,
                     if (ratedSectionsRefs) db.ratedSections,
                     if (computedValuesRefs) db.computedValues,
+                    if (runFeedbackRefs) db.runFeedback,
                     if (referencePerformancesRefs) db.referencePerformances,
                     if (rejectedSuggestionsRefs) db.rejectedSuggestions,
                   ],
@@ -12238,6 +13304,22 @@ class $RunsTableManager
                           referencedColumn: 'run_id',
                           typedResults: items,
                         ),
+                      if (runFeedbackRefs)
+                        await $_getPrefetchedDataByColumns<
+                          Run,
+                          Runs,
+                          RunFeedbackRow,
+                          RunFeedback
+                        >(
+                          currentTable: table,
+                          referencedTable: $RunsReferences
+                              ._runFeedbackRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $RunsReferences(db, table, p0).runFeedbackRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'run_id',
+                          typedResults: items,
+                        ),
                       if (referencePerformancesRefs)
                         await $_getPrefetchedDataByColumns<
                           Run,
@@ -12308,6 +13390,7 @@ typedef $RunsProcessedTableManager =
         bool preprocessedSpansRefs,
         bool ratedSectionsRefs,
         bool computedValuesRefs,
+        bool runFeedbackRefs,
         bool referencePerformancesRefs,
         bool rejectedSuggestionsRefs,
       })
@@ -18207,6 +19290,621 @@ typedef $ConsentsProcessedTableManager =
       Consent,
       PrefetchHooks Function()
     >;
+typedef $RunFeedbackCreateCompanionBuilder = RunFeedbackCompanion Function({
+  Value<int> runId,
+  Value<int?> rpe,
+  Value<int?> wellbeing,
+  Value<String?> complaints,
+  Value<String?> warningAnswer,
+  Value<String?> note,
+  Value<double?> srpePoints,
+  Value<double?> srpeDurationS,
+  Value<String?> srpeMethod,
+  Value<int?> srpeMethodVersion,
+});
+typedef $RunFeedbackUpdateCompanionBuilder = RunFeedbackCompanion Function({
+  Value<int> runId,
+  Value<int?> rpe,
+  Value<int?> wellbeing,
+  Value<String?> complaints,
+  Value<String?> warningAnswer,
+  Value<String?> note,
+  Value<double?> srpePoints,
+  Value<double?> srpeDurationS,
+  Value<String?> srpeMethod,
+  Value<int?> srpeMethodVersion,
+});
+
+final class $RunFeedbackReferences
+    extends BaseReferences<_$AppDatabase, RunFeedback, RunFeedbackRow> {
+  $RunFeedbackReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static Runs _runIdTable(_$AppDatabase db) =>
+      db.runs.createAlias('run_feedback__run_id__runs__id');
+
+  $RunsProcessedTableManager get runId {
+    final $_column = $_itemColumn<int>('run_id')!;
+
+    final manager = $RunsTableManager(
+      $_db,
+      $_db.runs,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_runIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $RunFeedbackFilterComposer extends Composer<_$AppDatabase, RunFeedback> {
+  $RunFeedbackFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get rpe => $composableBuilder(
+    column: $table.rpe,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get wellbeing => $composableBuilder(
+    column: $table.wellbeing,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get complaints => $composableBuilder(
+    column: $table.complaints,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get warningAnswer => $composableBuilder(
+    column: $table.warningAnswer,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get srpePoints => $composableBuilder(
+    column: $table.srpePoints,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get srpeDurationS => $composableBuilder(
+    column: $table.srpeDurationS,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get srpeMethod => $composableBuilder(
+    column: $table.srpeMethod,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get srpeMethodVersion => $composableBuilder(
+    column: $table.srpeMethodVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $RunsFilterComposer get runId {
+    final $RunsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsFilterComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $RunFeedbackOrderingComposer
+    extends Composer<_$AppDatabase, RunFeedback> {
+  $RunFeedbackOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get rpe => $composableBuilder(
+    column: $table.rpe,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get wellbeing => $composableBuilder(
+    column: $table.wellbeing,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get complaints => $composableBuilder(
+    column: $table.complaints,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get warningAnswer => $composableBuilder(
+    column: $table.warningAnswer,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get srpePoints => $composableBuilder(
+    column: $table.srpePoints,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get srpeDurationS => $composableBuilder(
+    column: $table.srpeDurationS,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get srpeMethod => $composableBuilder(
+    column: $table.srpeMethod,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get srpeMethodVersion => $composableBuilder(
+    column: $table.srpeMethodVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $RunsOrderingComposer get runId {
+    final $RunsOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsOrderingComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $RunFeedbackAnnotationComposer
+    extends Composer<_$AppDatabase, RunFeedback> {
+  $RunFeedbackAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get rpe =>
+      $composableBuilder(column: $table.rpe, builder: (column) => column);
+
+  GeneratedColumn<int> get wellbeing =>
+      $composableBuilder(column: $table.wellbeing, builder: (column) => column);
+
+  GeneratedColumn<String> get complaints => $composableBuilder(
+    column: $table.complaints,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get warningAnswer => $composableBuilder(
+    column: $table.warningAnswer,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<double> get srpePoints => $composableBuilder(
+    column: $table.srpePoints,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get srpeDurationS => $composableBuilder(
+    column: $table.srpeDurationS,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get srpeMethod => $composableBuilder(
+    column: $table.srpeMethod,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get srpeMethodVersion => $composableBuilder(
+    column: $table.srpeMethodVersion,
+    builder: (column) => column,
+  );
+
+  $RunsAnnotationComposer get runId {
+    final $RunsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsAnnotationComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $RunFeedbackTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          RunFeedback,
+          RunFeedbackRow,
+          $RunFeedbackFilterComposer,
+          $RunFeedbackOrderingComposer,
+          $RunFeedbackAnnotationComposer,
+          $RunFeedbackCreateCompanionBuilder,
+          $RunFeedbackUpdateCompanionBuilder,
+          (RunFeedbackRow, $RunFeedbackReferences),
+          RunFeedbackRow,
+          PrefetchHooks Function({bool runId})
+        > {
+  $RunFeedbackTableManager(_$AppDatabase db, RunFeedback table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $RunFeedbackFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $RunFeedbackOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $RunFeedbackAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> runId = const Value.absent(),
+                Value<int?> rpe = const Value.absent(),
+                Value<int?> wellbeing = const Value.absent(),
+                Value<String?> complaints = const Value.absent(),
+                Value<String?> warningAnswer = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<double?> srpePoints = const Value.absent(),
+                Value<double?> srpeDurationS = const Value.absent(),
+                Value<String?> srpeMethod = const Value.absent(),
+                Value<int?> srpeMethodVersion = const Value.absent(),
+              }) => RunFeedbackCompanion(
+                runId: runId,
+                rpe: rpe,
+                wellbeing: wellbeing,
+                complaints: complaints,
+                warningAnswer: warningAnswer,
+                note: note,
+                srpePoints: srpePoints,
+                srpeDurationS: srpeDurationS,
+                srpeMethod: srpeMethod,
+                srpeMethodVersion: srpeMethodVersion,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> runId = const Value.absent(),
+                Value<int?> rpe = const Value.absent(),
+                Value<int?> wellbeing = const Value.absent(),
+                Value<String?> complaints = const Value.absent(),
+                Value<String?> warningAnswer = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<double?> srpePoints = const Value.absent(),
+                Value<double?> srpeDurationS = const Value.absent(),
+                Value<String?> srpeMethod = const Value.absent(),
+                Value<int?> srpeMethodVersion = const Value.absent(),
+              }) => RunFeedbackCompanion.insert(
+                runId: runId,
+                rpe: rpe,
+                wellbeing: wellbeing,
+                complaints: complaints,
+                warningAnswer: warningAnswer,
+                note: note,
+                srpePoints: srpePoints,
+                srpeDurationS: srpeDurationS,
+                srpeMethod: srpeMethod,
+                srpeMethodVersion: srpeMethodVersion,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<RunFeedback, RunFeedbackRow>(table),
+                  $RunFeedbackReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({runId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (runId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.runId,
+                        referencedTable: $RunFeedbackReferences._runIdTable(db),
+                        referencedColumn: $RunFeedbackReferences
+                            ._runIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $RunFeedbackProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      RunFeedback,
+      RunFeedbackRow,
+      $RunFeedbackFilterComposer,
+      $RunFeedbackOrderingComposer,
+      $RunFeedbackAnnotationComposer,
+      $RunFeedbackCreateCompanionBuilder,
+      $RunFeedbackUpdateCompanionBuilder,
+      (RunFeedbackRow, $RunFeedbackReferences),
+      RunFeedbackRow,
+      PrefetchHooks Function({bool runId})
+    >;
+typedef $ManualTrainingsCreateCompanionBuilder =
+    ManualTrainingsCompanion Function({
+      Value<int> id,
+      required String day,
+      required String kind,
+      required int durationS,
+      required int rpe,
+    });
+typedef $ManualTrainingsUpdateCompanionBuilder =
+    ManualTrainingsCompanion Function({
+      Value<int> id,
+      Value<String> day,
+      Value<String> kind,
+      Value<int> durationS,
+      Value<int> rpe,
+    });
+
+class $ManualTrainingsFilterComposer
+    extends Composer<_$AppDatabase, ManualTrainings> {
+  $ManualTrainingsFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get day => $composableBuilder(
+    column: $table.day,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationS => $composableBuilder(
+    column: $table.durationS,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get rpe => $composableBuilder(
+    column: $table.rpe,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $ManualTrainingsOrderingComposer
+    extends Composer<_$AppDatabase, ManualTrainings> {
+  $ManualTrainingsOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get day => $composableBuilder(
+    column: $table.day,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationS => $composableBuilder(
+    column: $table.durationS,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get rpe => $composableBuilder(
+    column: $table.rpe,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $ManualTrainingsAnnotationComposer
+    extends Composer<_$AppDatabase, ManualTrainings> {
+  $ManualTrainingsAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get day =>
+      $composableBuilder(column: $table.day, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<int> get durationS =>
+      $composableBuilder(column: $table.durationS, builder: (column) => column);
+
+  GeneratedColumn<int> get rpe =>
+      $composableBuilder(column: $table.rpe, builder: (column) => column);
+}
+
+class $ManualTrainingsTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          ManualTrainings,
+          ManualTrainingRow,
+          $ManualTrainingsFilterComposer,
+          $ManualTrainingsOrderingComposer,
+          $ManualTrainingsAnnotationComposer,
+          $ManualTrainingsCreateCompanionBuilder,
+          $ManualTrainingsUpdateCompanionBuilder,
+          (
+            ManualTrainingRow,
+            BaseReferences<_$AppDatabase, ManualTrainings, ManualTrainingRow>,
+          ),
+          ManualTrainingRow,
+          PrefetchHooks Function()
+        > {
+  $ManualTrainingsTableManager(_$AppDatabase db, ManualTrainings table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $ManualTrainingsFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $ManualTrainingsOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $ManualTrainingsAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> day = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<int> durationS = const Value.absent(),
+                Value<int> rpe = const Value.absent(),
+              }) => ManualTrainingsCompanion(
+                id: id,
+                day: day,
+                kind: kind,
+                durationS: durationS,
+                rpe: rpe,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String day,
+                required String kind,
+                required int durationS,
+                required int rpe,
+              }) => ManualTrainingsCompanion.insert(
+                id: id,
+                day: day,
+                kind: kind,
+                durationS: durationS,
+                rpe: rpe,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<ManualTrainings, ManualTrainingRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    ManualTrainings,
+                    ManualTrainingRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $ManualTrainingsProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      ManualTrainings,
+      ManualTrainingRow,
+      $ManualTrainingsFilterComposer,
+      $ManualTrainingsOrderingComposer,
+      $ManualTrainingsAnnotationComposer,
+      $ManualTrainingsCreateCompanionBuilder,
+      $ManualTrainingsUpdateCompanionBuilder,
+      (
+        ManualTrainingRow,
+        BaseReferences<_$AppDatabase, ManualTrainings, ManualTrainingRow>,
+      ),
+      ManualTrainingRow,
+      PrefetchHooks Function()
+    >;
 typedef $ReferencePerformancesCreateCompanionBuilder =
     ReferencePerformancesCompanion Function({
       Value<int> id,
@@ -18843,6 +20541,10 @@ class $AppDatabaseManager {
       $KnownDevicesTableManager(_db, _db.knownDevices);
   $ConsentsTableManager get consents =>
       $ConsentsTableManager(_db, _db.consents);
+  $RunFeedbackTableManager get runFeedback =>
+      $RunFeedbackTableManager(_db, _db.runFeedback);
+  $ManualTrainingsTableManager get manualTrainings =>
+      $ManualTrainingsTableManager(_db, _db.manualTrainings);
   $ReferencePerformancesTableManager get referencePerformances =>
       $ReferencePerformancesTableManager(_db, _db.referencePerformances);
   $RejectedSuggestionsTableManager get rejectedSuggestions =>

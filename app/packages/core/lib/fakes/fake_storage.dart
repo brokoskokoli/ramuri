@@ -9,12 +9,14 @@ import '../ports/storage_profile.dart';
 import '../ports/storage_raw.dart';
 import '../ports/storage_runs.dart';
 import '../ports/storage_settings.dart';
+import '../ports/storage_subjective.dart';
 import '../ports/storage_values.dart';
 import 'fake_storage_data.dart';
 import 'fake_storage_derived.dart';
 import 'fake_storage_prediction.dart';
 import 'fake_storage_runs.dart';
 import 'fake_storage_settings.dart';
+import 'fake_storage_subjective.dart';
 
 /// Speicher im Arbeitsspeicher. Der erste Schlüssel legt die "Datei" an.
 class FakeStorage implements Storage {
@@ -77,6 +79,8 @@ class _FakeSession implements StorageSession, PredictionStorage {
       settings = FakeSettingsStore(_data),
       devices = FakeKnownDeviceStore(_data),
       consents = FakeConsentStore(_data),
+      subjective = FakeRunSubjectiveStore(_data),
+      manualTrainings = FakeManualTrainingStore(_data),
       prediction = FakePredictionStore(_data);
 
   final FakeStorage _owner;
@@ -103,6 +107,10 @@ class _FakeSession implements StorageSession, PredictionStorage {
   final KnownDeviceStore devices;
   @override
   final ConsentStore consents;
+  @override
+  final RunSubjectiveStore subjective;
+  @override
+  final ManualTrainingStore manualTrainings;
   @override
   final PredictionStore prediction;
 

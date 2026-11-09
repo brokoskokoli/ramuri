@@ -66,6 +66,9 @@ class _V1 extends AppDatabase {
         await customStatement('ALTER TABLE computed_values DROP COLUMN $c');
       }
       await customStatement('ALTER TABLE runs DROP COLUMN ended_utc_offset_s');
+      // Tabellen aus Schema 5 (WP18).
+      await customStatement('DROP TABLE run_feedback');
+      await customStatement('DROP TABLE manual_trainings');
       // Spalten der Kurzfassung (Schema 4, WP10).
       for (final c in [
         'best_pace_s_per_km',
@@ -76,7 +79,7 @@ class _V1 extends AppDatabase {
           'ALTER TABLE preprocessing_results DROP COLUMN $c',
         );
       }
-      // Tabellen der Leistungsprognose (Schema 5, WP20).
+      // Tabellen der Leistungsprognose (Schema 6, WP20).
       await customStatement('DROP TABLE reference_performances');
       await customStatement('DROP TABLE rejected_suggestions');
       if (version < 2) {
@@ -590,7 +593,7 @@ void main() {
   });
 
   for (final from in [1, 2]) {
-    group('Migration $from -> 5 auf befüllter v$from-Datenbank', () {
+    group('Migration $from -> 6 auf befüllter v$from-Datenbank', () {
       test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
         final v1 = await open((e) => _V1(e, from));
         Future<List<Object?>> master(String type) async => [
@@ -648,7 +651,7 @@ void main() {
               .data
               .values
               .single,
-          5,
+          6,
         );
         await s.database.validateDatabaseSchema();
         expect(await count(s, 'computed_values'), 6);

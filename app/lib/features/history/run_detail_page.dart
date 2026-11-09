@@ -28,6 +28,7 @@ class RunDetailPage extends StatelessWidget {
     required this.formatter,
     required this.session,
     required this.runId,
+    this.subjective,
     this.exportBusy,
   });
 
@@ -39,6 +40,9 @@ class RunDetailPage extends StatelessWidget {
   final UnitFormatter formatter;
   final StorageSession session;
   final int runId;
+
+  /// Dienst für die Angaben zum Lauf; im Detail änderbar, mit sRPE.
+  final SubjectiveService? subjective;
 
   /// Gemeinsamer Zustand „Export läuft“ mit dem Symbol der Kopfzeile.
   final ValueNotifier<bool>? exportBusy;
@@ -65,6 +69,7 @@ class RunDetailPage extends StatelessWidget {
       formatter: formatter,
       session: session,
       runId: runId,
+      subjective: subjective,
     );
     const gap = SizedBox(height: 16);
     return Column(
@@ -97,6 +102,7 @@ class RunDetailPage extends StatelessWidget {
         gap,
         base.compare(context, l10n),
         gap,
+        base.subjectiveSection(showSrpe: true),
         base.laps(context, l10n),
         base.notes(context, l10n),
         base.explain(
@@ -193,14 +199,20 @@ class RunDetailPage extends StatelessWidget {
                 formatter.elevation(down),
               ),
               excludeSemantics: true,
+              // Wie im Design „+48 m / −46 m“: Der Schrägstrich trennt beide
+              // Werte, auch wenn bei einem flachen Lauf beide ohne Vorzeichen
+              // „0 m“ heißen (sonst „0 m 0 m“). Bei großer Schrift bricht die
+              // Gruppe nach den Teilen um, statt überzulaufen.
               child: Wrap(
-                spacing: 12,
+                key: const Key('detail_elevation_values'),
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
                     signedElevation('+', formatter.elevation(up)),
                     key: const Key('detail_ascent'),
                     style: text.titleSmall,
                   ),
+                  Text(' / ', style: text.titleSmall),
                   Text(
                     signedElevation('−', formatter.elevation(down)),
                     key: const Key('detail_descent'),

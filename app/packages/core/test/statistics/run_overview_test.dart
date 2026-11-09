@@ -36,6 +36,10 @@ class _Counting implements StorageSession {
   @override
   ConsentStore get consents => s.consents;
   @override
+  RunSubjectiveStore get subjective => s.subjective;
+  @override
+  ManualTrainingStore get manualTrainings => s.manualTrainings;
+  @override
   Future<void> deleteRun(int runId) => s.deleteRun(runId);
   @override
   Future<void> deleteAll() => s.deleteAll();
@@ -310,6 +314,23 @@ void main() {
         offload: counting,
       ).load();
       expect(jobs, hasLength(2));
+    });
+
+    test('Neu gerechnete Kurzfassung zieht sRPE des Laufs nach (Bewegungszeit)', () async {
+      final w = await RecalcWorld.create();
+      final id = await w.seedRun(DateTime.utc(2030, 2, 1, 8), minutes: 5);
+      // RPE vor der Berechnung: noch keine Bewegungszeit, also kein sRPE-Wert.
+      await w.session.subjective.save(id, RunSubjective(rpe: 5));
+      await RunOverviewService(session: w.session, clock: w.clock).load();
+      final moving = (await w.session.preprocessing.read(id))!
+          .summary
+          .movingTime!;
+      final srpe = (await w.session.subjective.read(id))!.srpe!;
+      expect(srpe.duration, moving);
+      expect(
+        srpe.points,
+        moving.inMicroseconds * 5 / Duration.microsecondsPerMinute,
+      );
     });
 
     test('Wirft der Offload für einen Lauf: Lesefehler, Rest normal', () async {

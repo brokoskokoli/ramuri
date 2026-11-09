@@ -395,7 +395,48 @@ CREATE TABLE consents (
   changed_at_us INTEGER NOT NULL
 );
 
--- ------------------------------------- Leistungsprognose (Version 5, WP20)
+-- ------------------------------------- Angaben zum Lauf (Version 5, WP18)
+-- Höchstens eine Zeile je Lauf (1:1, FR-0038), alle Angaben einzeln optional.
+-- Die Grenzen gelten auch gegen die Datenbank: RPE 0 bis 10, Befinden 1 bis 5,
+-- nur ganze Zahlen (5.5 ist ein Fehler; INTEGER-Affinität würde sie sonst
+-- behalten). Die Antwort auf die Warnsignal-Frage gibt es nur mit Beschwerden.
+-- Der sRPE-Wert (FR-0095) steht als eigener Wert dabei, mit Bewegungszeit,
+-- Methode und Version; er gehört nur zu einem vorhandenen RPE und wird nie mit
+-- TRIMP zusammengerechnet (FR-0096). Gelöscht wird mit dem Lauf (Kaskade).
+CREATE TABLE run_feedback (
+  run_id INTEGER NOT NULL PRIMARY KEY REFERENCES runs (id) ON DELETE CASCADE,
+  rpe INTEGER CHECK (rpe IS NULL OR (typeof(rpe) = 'integer' AND rpe BETWEEN 0 AND 10)),
+  wellbeing INTEGER CHECK (wellbeing IS NULL OR (typeof(wellbeing) = 'integer' AND wellbeing BETWEEN 1 AND 5)),
+  complaints TEXT,
+  warning_answer TEXT CHECK (warning_answer IN ('yes', 'no')),
+  note TEXT,
+  srpe_points REAL CHECK (srpe_points >= 0),
+  -- Bewegungszeit in Sekunden, mit der gerechnet wurde.
+  srpe_duration_s REAL CHECK (srpe_duration_s >= 0),
+  srpe_method TEXT,
+  srpe_method_version INTEGER,
+  CHECK (warning_answer IS NULL OR complaints IS NOT NULL),
+  CHECK (
+    (srpe_points IS NULL AND srpe_duration_s IS NULL AND srpe_method IS NULL AND srpe_method_version IS NULL)
+    OR (srpe_points IS NOT NULL AND srpe_duration_s IS NOT NULL AND srpe_method IS NOT NULL AND srpe_method_version IS NOT NULL AND rpe IS NOT NULL)
+  )
+) AS RunFeedbackRow;
+
+-- ------------------------------ Nachgetragene Trainings (Version 5, WP18)
+-- Eigene Tabelle, nicht in `runs`: So bleiben VO2max, Bestwerte und alle
+-- Lauf-Abfragen unberührt (FR-0199). Datum als Kalendertag `JJJJ-MM-TT`
+-- (gültig, kein 30. Februar), Dauer in ganzen Sekunden größer 0, RPE Pflicht.
+-- `other` ist Sonstiges (OQ-0058).
+CREATE TABLE manual_trainings (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  day TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND date(day) IS day),
+  kind TEXT NOT NULL CHECK (kind IN ('run', 'other')),
+  duration_s INTEGER NOT NULL CHECK (typeof(duration_s) = 'integer' AND duration_s > 0),
+  rpe INTEGER NOT NULL CHECK (typeof(rpe) = 'integer' AND rpe BETWEEN 0 AND 10)
+) AS ManualTrainingRow;
+CREATE INDEX manual_trainings_day ON manual_trainings (day);
+
+-- ------------------------------------- Leistungsprognose (Version 6, WP20)
 -- Referenzleistungen (FR-0129): Art, Distanz, Zeit, Datum. `performed_on` ist
 -- der lokale Kalendertag als ISO-Datum (YYYY-MM-DD). `created_at_us` entscheidet
 -- bei gleichem Datum, welche die geltende ist. Ein bestätigter Lauf trägt die

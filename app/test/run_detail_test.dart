@@ -659,11 +659,18 @@ void main() {
       ),
     );
     expect(key('route_paint'), findsOneWidget);
+    // Die Kopfzeile des Höhenprofils muss wirklich im Bild sein: Außerhalb
+    // des Sichtbereichs wird sie nicht gelayoutet und ein Überlauf bliebe
+    // unbemerkt (WP18 Review 1, Befund 4).
     await tester.scrollUntilVisible(
-      key('detail_altitude'),
+      key('detail_ascent'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(key('detail_descent'));
+    await tester.pump();
+    expect(key('detail_ascent'), findsOneWidget);
+    expect(key('detail_descent'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

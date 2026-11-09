@@ -2444,7 +2444,137 @@
       ],
       "type": "table",
       "data": {
-        "name": "reference_performances",
+        "name": "run_feedback",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "primary-key",
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "rpe",
+            "getter_name": "rpe",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "CHECK (rpe IS NULL OR(typeof(rpe) = 'integer' AND rpe BETWEEN 0 AND 10))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "wellbeing",
+            "getter_name": "wellbeing",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "CHECK (wellbeing IS NULL OR(typeof(wellbeing) = 'integer' AND wellbeing BETWEEN 1 AND 5))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "complaints",
+            "getter_name": "complaints",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "warning_answer",
+            "getter_name": "warningAnswer",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": "CHECK (warning_answer IN ('yes', 'no'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "note",
+            "getter_name": "note",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "srpe_points",
+            "getter_name": "srpePoints",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "CHECK (srpe_points >= 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "srpe_duration_s",
+            "getter_name": "srpeDurationS",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "CHECK (srpe_duration_s >= 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "srpe_method",
+            "getter_name": "srpeMethod",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "srpe_method_version",
+            "getter_name": "srpeMethodVersion",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [
+          "CHECK(warning_answer IS NULL OR complaints IS NOT NULL)",
+          "CHECK((srpe_points IS NULL AND srpe_duration_s IS NULL AND srpe_method IS NULL AND srpe_method_version IS NULL)OR(srpe_points IS NOT NULL AND srpe_duration_s IS NOT NULL AND srpe_method IS NOT NULL AND srpe_method_version IS NOT NULL AND rpe IS NOT NULL))"
+        ]
+      }
+    },
+    {
+      "id": 48,
+      "references": [],
+      "type": "table",
+      "data": {
+        "name": "manual_trainings",
         "was_declared_in_moor": true,
         "columns": [
           {
@@ -2458,150 +2588,65 @@
             "dsl_features": [
               "auto-increment"
             ]
+          },
+          {
+            "name": "day",
+            "getter_name": "day",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND date(day) IS day)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
           },
           {
             "name": "kind",
             "getter_name": "kind",
             "moor_type": "string",
             "nullable": false,
-            "customConstraints": "NOT NULL CHECK (kind IN ('race', 'test', 'confirmedRun'))",
+            "customConstraints": "NOT NULL CHECK (kind IN ('run', 'other'))",
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
           },
           {
-            "name": "distance_m",
-            "getter_name": "distanceM",
-            "moor_type": "double",
-            "nullable": false,
-            "customConstraints": "NOT NULL CHECK (distance_m > 0)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "time_s",
-            "getter_name": "timeS",
-            "moor_type": "double",
-            "nullable": false,
-            "customConstraints": "NOT NULL CHECK (time_s > 0)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "performed_on",
-            "getter_name": "performedOn",
-            "moor_type": "string",
-            "nullable": false,
-            "customConstraints": "NOT NULL CHECK (date(performed_on) IS performed_on)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "created_at_us",
-            "getter_name": "createdAtUs",
+            "name": "duration_s",
+            "getter_name": "durationS",
             "moor_type": "int",
             "nullable": false,
-            "customConstraints": "NOT NULL",
+            "customConstraints": "NOT NULL CHECK (typeof(duration_s) = 'integer' AND duration_s > 0)",
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
           },
           {
-            "name": "run_id",
-            "getter_name": "runId",
-            "moor_type": "int",
-            "nullable": true,
-            "customConstraints": "REFERENCES runs(id)ON DELETE CASCADE",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": [
-              {
-                "foreign_key": {
-                  "to": {
-                    "table": "runs",
-                    "column": "id"
-                  },
-                  "initially_deferred": false,
-                  "on_update": null,
-                  "on_delete": "cascade"
-                }
-              }
-            ]
-          }
-        ],
-        "is_virtual": false,
-        "without_rowid": false,
-        "constraints": [
-          "CHECK(kind <> 'confirmedRun' OR run_id IS NOT NULL)"
-        ]
-      }
-    },
-    {
-      "id": 48,
-      "references": [
-        47
-      ],
-      "type": "index",
-      "data": {
-        "on": 47,
-        "name": "reference_performances_run",
-        "sql": "CREATE INDEX reference_performances_run ON reference_performances (run_id);",
-        "unique": false,
-        "columns": []
-      }
-    },
-    {
-      "id": 49,
-      "references": [
-        1
-      ],
-      "type": "table",
-      "data": {
-        "name": "rejected_suggestions",
-        "was_declared_in_moor": true,
-        "columns": [
-          {
-            "name": "id",
-            "getter_name": "id",
+            "name": "rpe",
+            "getter_name": "rpe",
             "moor_type": "int",
             "nullable": false,
-            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "customConstraints": "NOT NULL CHECK (typeof(rpe) = 'integer' AND rpe BETWEEN 0 AND 10)",
             "default_dart": null,
             "default_client_dart": null,
-            "dsl_features": [
-              "auto-increment"
-            ]
-          },
-          {
-            "name": "run_id",
-            "getter_name": "runId",
-            "moor_type": "int",
-            "nullable": false,
-            "customConstraints": "NOT NULL UNIQUE REFERENCES runs(id)ON DELETE CASCADE",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": [
-              "unique",
-              {
-                "foreign_key": {
-                  "to": {
-                    "table": "runs",
-                    "column": "id"
-                  },
-                  "initially_deferred": false,
-                  "on_update": null,
-                  "on_delete": "cascade"
-                }
-              }
-            ]
+            "dsl_features": []
           }
         ],
         "is_virtual": false,
         "without_rowid": false,
         "constraints": []
+      }
+    },
+    {
+      "id": 49,
+      "references": [
+        48
+      ],
+      "type": "index",
+      "data": {
+        "on": 48,
+        "name": "manual_trainings_day",
+        "sql": "CREATE INDEX manual_trainings_day ON manual_trainings (day);",
+        "unique": false,
+        "columns": []
       }
     }
   ],
@@ -3030,29 +3075,29 @@
       ]
     },
     {
-      "name": "reference_performances",
+      "name": "run_feedback",
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"reference_performances\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"kind\" TEXT NOT NULL CHECK (kind IN ('race', 'test', 'confirmedRun')), \"distance_m\" REAL NOT NULL CHECK (distance_m > 0), \"time_s\" REAL NOT NULL CHECK (time_s > 0), \"performed_on\" TEXT NOT NULL CHECK (date(performed_on) IS performed_on), \"created_at_us\" INTEGER NOT NULL, \"run_id\" INTEGER REFERENCES runs(id)ON DELETE CASCADE, CHECK(kind <> 'confirmedRun' OR run_id IS NOT NULL));"
+          "sql": "CREATE TABLE IF NOT EXISTS \"run_feedback\" (\"run_id\" INTEGER NOT NULL PRIMARY KEY REFERENCES runs(id)ON DELETE CASCADE, \"rpe\" INTEGER CHECK (rpe IS NULL OR(typeof(rpe) = 'integer' AND rpe BETWEEN 0 AND 10)), \"wellbeing\" INTEGER CHECK (wellbeing IS NULL OR(typeof(wellbeing) = 'integer' AND wellbeing BETWEEN 1 AND 5)), \"complaints\" TEXT, \"warning_answer\" TEXT CHECK (warning_answer IN ('yes', 'no')), \"note\" TEXT, \"srpe_points\" REAL CHECK (srpe_points >= 0), \"srpe_duration_s\" REAL CHECK (srpe_duration_s >= 0), \"srpe_method\" TEXT, \"srpe_method_version\" INTEGER, CHECK(warning_answer IS NULL OR complaints IS NOT NULL), CHECK((srpe_points IS NULL AND srpe_duration_s IS NULL AND srpe_method IS NULL AND srpe_method_version IS NULL)OR(srpe_points IS NOT NULL AND srpe_duration_s IS NOT NULL AND srpe_method IS NOT NULL AND srpe_method_version IS NOT NULL AND rpe IS NOT NULL)));"
         }
       ]
     },
     {
-      "name": "reference_performances_run",
+      "name": "manual_trainings",
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE INDEX reference_performances_run ON reference_performances (run_id)"
+          "sql": "CREATE TABLE IF NOT EXISTS \"manual_trainings\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"day\" TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND date(day) IS day), \"kind\" TEXT NOT NULL CHECK (kind IN ('run', 'other')), \"duration_s\" INTEGER NOT NULL CHECK (typeof(duration_s) = 'integer' AND duration_s > 0), \"rpe\" INTEGER NOT NULL CHECK (typeof(rpe) = 'integer' AND rpe BETWEEN 0 AND 10));"
         }
       ]
     },
     {
-      "name": "rejected_suggestions",
+      "name": "manual_trainings_day",
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"rejected_suggestions\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL UNIQUE REFERENCES runs(id)ON DELETE CASCADE);"
+          "sql": "CREATE INDEX manual_trainings_day ON manual_trainings (day)"
         }
       ]
     }

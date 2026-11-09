@@ -1,5 +1,5 @@
 /// Abschnitte und Spalten des Archivs (`docs/contracts/archive.md` 4.3,
-/// Schema 4). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
+/// Schema 6, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
 /// Adapter-Test mit der Datenbank.
 library;
 
@@ -18,9 +18,19 @@ class ArchiveColumn {
 /// seitenweisen Lesens (Primärschlüssel); [keyIsText] nur bei `settings`.
 /// Reservierte Abschnitte (Ziele, Pläne, Warnmeldung) haben keine Spalten.
 class ArchiveSectionSpec {
-  const ArchiveSectionSpec._(this.name, this.columns, this.key);
+  const ArchiveSectionSpec._(
+    this.name,
+    this.columns,
+    this.key,
+    this.sinceSchema,
+  );
 
-  factory ArchiveSectionSpec(String name, String columns, {String? key}) {
+  factory ArchiveSectionSpec(
+    String name,
+    String columns, {
+    String? key,
+    int sinceSchema = 4,
+  }) {
     final cols = <ArchiveColumn>[];
     if (columns.isNotEmpty) {
       for (final part in columns.split(', ')) {
@@ -40,6 +50,7 @@ class ArchiveSectionSpec {
       name,
       List.unmodifiable(cols),
       cols.isEmpty ? null : key ?? 'id',
+      sinceSchema,
     );
   }
 
@@ -47,30 +58,21 @@ class ArchiveSectionSpec {
   final List<ArchiveColumn> columns;
   final String? key;
 
+  /// Erstes Datenbankschema, in dem der Abschnitt steht (4, 5 oder 6).
+  final int sinceSchema;
+
   /// Schlüsselspalte ist Text (nur `settings`).
-  bool get keyIsText => key != null && key != 'id';
+  bool get keyIsText =>
+      key != null &&
+      columns.firstWhere((c) => c.name == key).type == ArchiveType.text;
 
   /// Abschnitt ohne Tabelle (immer leer).
   bool get isReserved => columns.isEmpty;
 }
 
-/// Abschnitte, die erst ab Schema 5 im Archiv stehen. Ein Archiv mit Schema 4
-/// kennt sie nicht; sie gelten dort als leer.
-const Set<String> archiveSectionsSinceSchema5 = {
-  'reference_performances',
-  'rejected_suggestions',
-};
-
-/// Die Abschnitte, die ein Archiv mit [schema] trägt, in Vertragsreihenfolge
-/// (Schema 4: 19, ab Schema 5: 21).
-List<ArchiveSectionSpec> archiveSectionsFor(int schema) => schema >= 5
-    ? archiveSections
-    : List.unmodifiable([
-        for (final s in archiveSections)
-          if (!archiveSectionsSinceSchema5.contains(s.name)) s,
-      ]);
-
-/// Alle Abschnitte (Schema 5) in der Reihenfolge des Vertrags.
+/// Die 23 Abschnitte des Schemas 6 in der Reihenfolge des Vertrags;
+/// ältere Schemas haben weniger ([archiveSectionsFor]): Schema 4 die 19 mit
+/// `sinceSchema == 4`, Schema 5 dazu die zwei von WP18.
 final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
   ArchiveSectionSpec(
     'runs',
@@ -154,14 +156,53 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     'known_devices',
     'id I, device_id T, display_name T?, is_preferred B, added_at_us I',
   ),
-  // Seit Schema 5 (WP20). Archive mit Schema 4 haben diese Abschnitte nicht.
+  // WP18, seit Schema 5 (Formatversion 2).
+  ArchiveSectionSpec(
+    'run_feedback',
+    'run_id I, rpe I?, wellbeing I?, complaints T?, warning_answer T?, '
+        'note T?, srpe_points R?, srpe_duration_s R?, srpe_method T?, '
+        'srpe_method_version I?',
+    key: 'run_id',
+    sinceSchema: 5,
+  ),
+  ArchiveSectionSpec(
+    'manual_trainings',
+    'id I, day T, kind T, duration_s I, rpe I',
+    sinceSchema: 5,
+  ),
+  ArchiveSectionSpec('goals', ''),
+  ArchiveSectionSpec('plans', ''),
+  ArchiveSectionSpec('active_warning', ''),
+  // WP20, seit Schema 6 (Nummern 22 und 23; 19 bis 21 sind reserviert).
+  // Archive mit Schema 4 oder 5 haben diese Abschnitte nicht.
   ArchiveSectionSpec(
     'reference_performances',
     'id I, kind T, distance_m R, time_s R, performed_on T, created_at_us I, '
         'run_id I?',
+    sinceSchema: 6,
   ),
-  ArchiveSectionSpec('rejected_suggestions', 'id I, run_id I'),
-  ArchiveSectionSpec('goals', ''),
-  ArchiveSectionSpec('plans', ''),
-  ArchiveSectionSpec('active_warning', ''),
+  ArchiveSectionSpec('rejected_suggestions', 'id I, run_id I', sinceSchema: 6),
 ]);
+
+/// Formatversionen, die der Leser kennt.
+const List<int> archiveFormats = [1, 2];
+
+/// Formatversion, die der Schreiber erzeugt.
+const int archiveWriteFormat = 2;
+
+/// Neuestes Datenbankschema, das Leser und Schreiber kennen.
+const int archiveSchemaVersion = 6;
+
+/// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
+/// Fehlende Abschnitte eines älteren Schemas gelten als leer.
+const int archiveMinSchemaVersion = 4;
+
+/// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 und 6).
+int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
+
+/// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23).
+List<ArchiveSectionSpec> archiveSectionsFor(int schema) => [
+  for (final s in archiveSections)
+    if (s.sinceSchema <= schema) s,
+];
