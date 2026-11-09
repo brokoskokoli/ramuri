@@ -19,8 +19,8 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 
 | Paket | Titel | Status | Offen |
 | --- | --- | --- | --- |
-| WP18 | Subjektive Angaben und Nachtragen | in Arbeit | |
-| WP19 | Belastungsverlauf und Belastungsprofil | geplant | |
+| WP18 | Subjektive Angaben und Nachtragen | gemergt (755b39d) | Python-Testvektor für Archivformat 2 fehlt; Reimport nimmt nachgetragene Trainings mit Datum in der Zukunft an (Grenze mit WP19); Speicherfehler beim Schließen der Zusammenfassung verliert die Notiz still; sRPE kann nach fehlgeschlagener Neuberechnung veraltet bleiben; Warnsignal-Antwort ohne Wirkung bis WP23; Bestpace-Ersatztext bei Faktor 1,3 noch 3 Zeilen; Hinweise in `handoff/hinweise/wp18/` | |
+| WP19 | Belastungsverlauf und Belastungsprofil | geplant | Zusätzlich: Datum in der Zukunft beim Reimport nachgetragener Trainings abweisen wie bei der Eingabe (aus WP18) |
 | WP20 | Leistungsprognose | in Arbeit | |
 | WP21 | Planmodell und Planerzeugung | geplant | |
 | WP22 | Plan-Seite, Ziele und Kalender | geplant | |

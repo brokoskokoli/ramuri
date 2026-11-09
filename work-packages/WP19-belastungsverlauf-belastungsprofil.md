@@ -9,6 +9,7 @@ Bezug: FR-0097 bis FR-0104, FR-0197; PAR-072 bis PAR-076, PAR-086 bis PAR-090; O
 2. **Lücken (Teil B, FR-0102 bis FR-0104):** Unvollständige Daten, nicht aufgezeichnete Tage und fehlender Datenbestand gelten nicht stillschweigend als trainingsfrei oder als niedrige Fitness. Dazu die Zusage „alles erfasst“ und die Bestätigung einer Pause, soweit dieses Paket sie braucht.
 3. **Anzeige (Teil C):** Verlauf auf der Seite Fortschritt im Stil des Designs, mit Grundlage und Datenstand. Keine Risikoaussage aus TSB (OQ-0028).
 4. **Belastungsprofil (Teil D, FR-0197):** Edwards und Banister; ohne Ruhepuls oder Koeffizienten nur Edwards. Beim Wechsel Neuberechnung alter Läufe nach Bestätigung über den Mechanismus aus WP09.
+5. **Aus WP18 (Teil B):** Der Reimport nimmt nachgetragene Trainings mit Datum in der Zukunft an, die Eingabe nicht. Der Reimport weist sie wie die Eingabe ab, bevor sie in die Belastung eingehen (Test). Python-Testvektor für Archivformat 2 nachziehen.
 
 ## Umsetzung
 - Teile je ein Coder-Auftrag. Mutationsbelege für die Glättung, die Anlaufsperre, das Einbeziehen nachgetragener Trainings und die Auswahlregel des Profils.
