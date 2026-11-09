@@ -51,6 +51,31 @@ RunPreprocessing _run(
   return pre.result(at: _start.add(Duration(seconds: seconds + tail)));
 }
 
+/// 1000 m mit 4 m/s (250 s), dann steht der Läufer [stillSeconds] Sekunden mit
+/// laufenden Positionen (unter der Mindestdauer des Stillstands, also noch
+/// Bewegungszeit). Der Rest ist 4 m lang und braucht 1 + [stillSeconds]
+/// Sekunden.
+RunPreprocessing _restRun(
+  int stillSeconds, {
+  PreprocessingParameters parameters = const PreprocessingParameters.v4(),
+}) {
+  final pre = RunPreprocessor(start: _start, parameters: parameters);
+  RawPosition at(int i, double metres) => RawPosition(
+    time: _start.add(Duration(seconds: i)),
+    source: 'gps',
+    latitude: 10 + metres / _mPerDeg,
+    longitude: 20,
+    accuracyMeters: 5,
+  );
+  for (var i = 0; i <= 251; i++) {
+    pre.addPosition(at(i, i * 4.0));
+  }
+  for (var k = 1; k <= stillSeconds; k++) {
+    pre.addPosition(at(251 + k, 251 * 4.0));
+  }
+  return pre.result(at: _start.add(Duration(seconds: 251 + stillSeconds)));
+}
+
 Duration _sum(KilometerSplits s) =>
     s.splits.fold(Duration.zero, (a, b) => a + b.time);
 
@@ -314,5 +339,90 @@ void main() {
     final net =
         r.altitude.smoothed.last.meters - r.altitude.smoothed.first.meters;
     expect(s.ascentMeters! - s.descentMeters!, closeTo(net, 3));
+  });
+
+  group('Rest-Pace unter der Stillstandsgrenze (OQ-0076, PAR-014)', () {
+    test(
+      'knapp darunter: keine Pace, Länge und Zeit bleiben, Summe stimmt',
+      () {
+        // Rest 4 m in 8 s = 0,4999... m/s.
+        final pre = _restRun(7);
+        final s = computeKilometerSplits(pre);
+        final rest = s.splits.last;
+        expect(rest.isPartial, isTrue);
+        expect(rest.lengthMeters, closeTo(4, 1e-6));
+        expect(rest.time, const Duration(seconds: 8));
+        expect(rest.paceSecondsPerKm, isNull);
+        expect(s.splits.first.paceSecondsPerKm, closeTo(250, 0.01));
+        expect(_sum(s), pre.movement.movingTime);
+      },
+    );
+
+    test('knapp darüber: die Pace bleibt', () {
+      // Rest 4 m in 7 s = 0,57 m/s.
+      final pre = _restRun(6);
+      final s = computeKilometerSplits(pre);
+      expect(s.splits.last.paceSecondsPerKm, closeTo(1750, 0.01));
+      expect(_sum(s), pre.movement.movingTime);
+    });
+
+    test(
+      'genau auf der Grenze gilt noch als Bewegung, ein Haar darüber nicht',
+      () {
+        final length = computeKilometerSplits(_restRun(7))
+            .splits
+            .last
+            .lengthMeters;
+        final speed = length / 8; // der Rest braucht genau 8 s
+        final exact = computeKilometerSplits(
+          _restRun(
+            7,
+            parameters: PreprocessingParameters(
+              parameterVersion: currentParameterVersion,
+              standstillBelow: speed,
+            ),
+          ),
+        );
+        expect(exact.splits.last.paceSecondsPerKm, isNotNull);
+        final above = computeKilometerSplits(
+          _restRun(
+            7,
+            parameters: PreprocessingParameters(
+              parameterVersion: currentParameterVersion,
+              standstillBelow: speed * 1.0001,
+            ),
+          ),
+        );
+        expect(above.splits.last.paceSecondsPerKm, isNull);
+      },
+    );
+
+    test('Tempobasis wie die Pace: Lückenzeit zählt nicht mit', () {
+      // Rest 200 m in 401 s, davon 351 s Lücke ohne Positionen: auf der ganzen
+      // Zeit wären es 0,499 m/s (keine Pace), ohne die Lücke 4 m/s.
+      final pre = RunPreprocessor(
+        start: _start,
+        parameters: const PreprocessingParameters.v4(),
+      );
+      for (var i = 0; i <= 300; i++) {
+        pre.addPosition(
+          RawPosition(
+            time: _start.add(Duration(seconds: i)),
+            source: 'gps',
+            latitude: 10 + i * 4.0 / _mPerDeg,
+            longitude: 20,
+            accuracyMeters: 5,
+          ),
+        );
+      }
+      final run = pre.result(at: _start.add(const Duration(seconds: 651)));
+      final s = computeKilometerSplits(run);
+      final rest = s.splits.last;
+      expect(rest.isPartial, isTrue);
+      expect(rest.time, const Duration(seconds: 401));
+      expect(rest.positionGapTime, const Duration(seconds: 351));
+      expect(rest.paceSecondsPerKm, closeTo(250, 0.01));
+      expect(_sum(s), run.movement.movingTime);
+    });
   });
 }

@@ -569,10 +569,14 @@ void main() {
       await openRun(d, tester);
       await walk(d, tester, 5);
       expect(key('run_finish'), findsNothing);
-      // Zurück im laufenden Lauf öffnet keine Rückfrage und beendet nichts.
+      // Zurück im laufenden Lauf fragt nach der Pause (OQ-0076), nie nach dem
+      // Beenden; „Weiterlaufen“ lässt alles, wie es ist.
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(find.text('Lauf beenden?'), findsNothing);
+      expect(find.text('Lauf pausieren?'), findsOneWidget);
+      await tester.tap(key('run_pause_ask_stay'));
+      await tester.pumpAndSettle();
       expect(key('run_pause'), findsOneWidget);
       await tester.tap(key('run_pause'));
       await tester.pump();

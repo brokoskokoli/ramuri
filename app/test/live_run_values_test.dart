@@ -343,15 +343,17 @@ void main() {
       expect((await d.session.runs.list()).single.state, RunState.paused);
     });
 
-    testWidgets('Zurück beendet nur nach Bestätigung, laufend gar nicht', (
-      tester,
-    ) async {
+    testWidgets('Zurück beendet nur nach Bestätigung, laufend fragt nach der '
+        'Pause und beendet nie', (tester) async {
       final d = Device();
       await openRun(d, tester);
       await walk(d, tester, 5);
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(find.text('Lauf beenden?'), findsNothing);
+      expect(find.text('Lauf pausieren?'), findsOneWidget); // OQ-0076
+      await tester.tap(key('run_pause_ask_stay'));
+      await tester.pumpAndSettle();
       await tester.tap(key('run_pause'));
       await tester.pump();
       await tester.binding.handlePopRoute();

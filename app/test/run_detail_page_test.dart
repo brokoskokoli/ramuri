@@ -235,6 +235,63 @@ void main() {
       expect(share(3), closeTo(0.7, 1e-3));
     });
 
+    // OQ-0076: Ein Rest ohne Pace (unter 0,5 m/s) zeigt „–“ und keinen Balken
+    // und verschiebt die Skala der übrigen Zeilen nicht.
+    testWidgets('Zeile ohne Pace: „–“, kein Balken, Skala der anderen gleich', (
+      tester,
+    ) async {
+      double share(int i) =>
+          tester
+              .getSize(
+                find.descendant(
+                  of: key('detail_km_bar_$i'),
+                  matching: find.byType(FractionallySizedBox),
+                ),
+              )
+              .width /
+          tester.getSize(key('detail_km_bar_$i')).width;
+      final base = [
+        _split(1, seconds: 300, pace: 300),
+        _split(2, seconds: 420, pace: 420),
+      ];
+      await tester.pumpWidget(
+        _app(KilometerTable(splits: _splits(base), formatter: _km)),
+      );
+      final before = [share(1), share(2)];
+      await tester.pumpWidget(
+        _app(
+          KilometerTable(
+            splits: _splits([
+              ...base,
+              _split(3, seconds: 8, partial: true, meters: 4),
+            ]),
+            formatter: _km,
+          ),
+        ),
+      );
+      expect(text('detail_km_pace_3'), '–');
+      expect(text('detail_km_time_3'), '0:08');
+      expect(share(3), 0);
+      expect([share(1), share(2)], before);
+      // Auch eine volle Zeile ohne Pace prägt die Skala nicht.
+      await tester.pumpWidget(
+        _app(
+          KilometerTable(
+            splits: _splits([
+              base[0],
+              _split(2, seconds: 3000),
+              _split(3, seconds: 420, pace: 420),
+            ]),
+            formatter: _km,
+          ),
+        ),
+      );
+      expect(text('detail_km_pace_2'), '–');
+      expect(share(2), 0);
+      expect(share(1), before[0]);
+      expect(share(3), before[1]);
+    });
+
     testWidgets('Balken: gerenderte Höhe 10, Breite nach der Pace', (
       tester,
     ) async {

@@ -106,7 +106,8 @@ class KilometerSplits {
 /// seinen Grenzen. Bewegungszeit vor der ersten und nach der letzten Grenze und
 /// in Lücken ohne Strecke fällt in den Abschnitt, in dem sie liegt; die Summe
 /// ist deshalb genau die Bewegungszeit. Ein Rest unter einer Einheit ist der
-/// angebrochene letzte Abschnitt mit seiner Länge.
+/// angebrochene letzte Abschnitt mit seiner Länge. Liegt das Tempo eines
+/// Abschnitts unter `standstillBelow` (PAR-014), ist seine Pace `null`.
 KilometerSplits computeKilometerSplits(
   RunPreprocessing pre, {
   double unitMeters = kilometerMeters,
@@ -213,6 +214,12 @@ KilometerSplits computeKilometerSplits(
       n++;
     }
     final paceTime = time - gap;
+    // OQ-0076: Ein Abschnitt unter der Stillstandsgrenze (PAR-014) hat keine
+    // Pace, meist der kurze Rest; Länge und Zeit bleiben. Tempobasis wie die
+    // Pace (ohne Lückenzeit). Genau die Grenze gilt noch als Bewegung.
+    final speed = paceTime > Duration.zero
+        ? length / (paceTime.inMicroseconds / 1e6)
+        : null;
     splits.add(
       KilometerSplit(
         index: i + 1,
@@ -220,9 +227,10 @@ KilometerSplits computeKilometerSplits(
         isPartial: partial,
         time: time,
         positionGapTime: gap,
-        paceSecondsPerKm: paceTime > Duration.zero
-            ? paceTime.inMicroseconds / 1e6 / (length / 1000)
-            : null,
+        paceSecondsPerKm:
+            speed == null || speed < pre.parameters.standstillBelow
+            ? null
+            : paceTime.inMicroseconds / 1e6 / (length / 1000),
         heartRateAverageBpm: n == 0 ? null : sum / n,
       ),
     );
