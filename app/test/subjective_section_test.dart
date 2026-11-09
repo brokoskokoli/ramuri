@@ -49,6 +49,64 @@ const _rpeEn = [
 const _moodDe = ['sehr schlecht', 'schlecht', 'mittel', 'gut', 'sehr gut'];
 const _moodEn = ['very bad', 'bad', 'okay', 'good', 'very good'];
 
+/// Sitzung, deren Lesen der Angaben sich ausfallen lässt.
+class _FlakySession implements StorageSession {
+  _FlakySession(this.s);
+  final StorageSession s;
+  bool failRead = false;
+  @override
+  RunSubjectiveStore get subjective => _FlakySubjective(this, s.subjective);
+  @override
+  SettingsStore get settings => s.settings;
+  @override
+  ProfileStore get profile => s.profile;
+  @override
+  RunStore get runs => s.runs;
+  @override
+  RunMarkerStore get markers => s.markers;
+  @override
+  RawDataStore get rawData => s.rawData;
+  @override
+  PreprocessingStore get preprocessing => s.preprocessing;
+  @override
+  RatedSectionStore get sections => s.sections;
+  @override
+  ComputedValueStore get values => s.values;
+  @override
+  KnownDeviceStore get devices => s.devices;
+  @override
+  ConsentStore get consents => s.consents;
+  @override
+  ManualTrainingStore get manualTrainings => s.manualTrainings;
+  @override
+  Future<void> deleteRun(int runId) => s.deleteRun(runId);
+  @override
+  Future<void> deleteAll() => s.deleteAll();
+  @override
+  Future<void> close() => s.close();
+}
+
+class _FlakySubjective implements RunSubjectiveStore {
+  _FlakySubjective(this.o, this.inner);
+  final _FlakySession o;
+  final RunSubjectiveStore inner;
+  @override
+  Future<StoredRunSubjective?> read(int runId) => o.failRead
+      ? Future.error(const StorageException(StorageFailure.failed))
+      : inner.read(runId);
+  @override
+  Future<Map<int, StoredRunSubjective>> readAll() => inner.readAll();
+  @override
+  Future<void> save(int runId, RunSubjective subjective, {SrpeLoad? srpe}) =>
+      inner.save(runId, subjective, srpe: srpe);
+  @override
+  Future<bool> setSrpe(
+    int runId,
+    SrpeLoad? srpe, {
+    required int? expectedRpe,
+  }) => inner.setSrpe(runId, srpe, expectedRpe: expectedRpe);
+}
+
 class _World {
   _World(this.session, this.runId)
     : service = SubjectiveService(
@@ -346,6 +404,120 @@ void main() {
     final s = (await w.stored())!;
     expect((s.rpe, s.wellbeing, s.complaints, s.note), (8, 5, 'Fuß', 'ok'));
   });
+
+  // Review 1, Befund 2: Zusammenfassung -> Details -> zurück. Die
+  // Zusammenfassung darf weder den alten Stand zeigen noch schreiben.
+  testWidgets(
+    'Detail ändert RPE, zurück: Zusammenfassung zeigt und behält es',
+    (tester) async {
+      final w = await _World.create(moving: const Duration(minutes: 30));
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        _app(
+          (context) => Column(
+            children: [
+              SubjectiveSection(service: w.service, runId: w.runId),
+              FilledButton(
+                key: const Key('details'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => Scaffold(
+                      body: SingleChildScrollView(
+                        child: SubjectiveSection(
+                          service: w.service,
+                          runId: w.runId,
+                          showSrpe: true,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                child: const Text('Details'),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, 'details');
+      await _tap(tester, 'subjective_rpe_6');
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+      // Der Stand der Zusammenfassung ist neu geladen.
+      expect(_t(tester, 'subjective_rpe_label'), '6 · ${_rpeDe[6]}');
+      await _tap(tester, 'subjective_wellbeing_4');
+      await tester.enterText(_k('subjective_note'), 'Beine frisch');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      final s = (await w.stored())!;
+      expect((s.rpe, s.wellbeing, s.note), (6, 4, 'Beine frisch'));
+      expect((await w.session.subjective.read(w.runId))!.srpe!.points, 180);
+    },
+  );
+
+  // Auch ohne Neuladen schreibt eine Ansicht nur das geänderte Feld.
+  testWidgets('veralteter Stand überschreibt fremde Änderung nicht', (
+    tester,
+  ) async {
+    final w = await _World.create();
+    await _pump(tester, w);
+    await w.service.save(w.runId, RunSubjective(rpe: 7, note: 'anderswo'));
+    await _tap(tester, 'subjective_wellbeing_2');
+    final s = (await w.stored())!;
+    expect((s.rpe, s.wellbeing, s.note), (7, 2, 'anderswo'));
+  });
+
+  // Review 1, Befund 3: Lesefehler ist fail-closed.
+  testWidgets(
+    'Lesefehler: keine Felder, nichts wird überschrieben, Wiederholen',
+    (tester) async {
+      final base = await FakeStorage().open(Uint8List(32));
+      final session = _FlakySession(base);
+      final run = await base.runs.create(startedAt: DateTime.utc(2030, 1, 1));
+      final service = SubjectiveService(
+        session: session,
+        clock: FakeClock(DateTime.utc(2030, 1, 2)),
+      );
+      final saved = RunSubjective(
+        rpe: 4,
+        wellbeing: 3,
+        complaints: 'Knie',
+        note: 'ALT',
+      );
+      await service.save(run.id, saved);
+      session.failRead = true;
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        _app((_) => SubjectiveSection(service: service, runId: run.id)),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Die Angaben konnten nicht geladen werden.'),
+        findsOneWidget,
+      );
+      expect(_k('subjective_save_failed'), findsNothing);
+      expect(_k('subjective_rpe_5'), findsNothing);
+      expect(_k('subjective_note'), findsNothing);
+      // Erneut versuchen, weiter kaputt: bleibt gesperrt.
+      await _tap(tester, 'subjective_load_retry');
+      expect(_k('subjective_load_failed'), findsOneWidget);
+      expect(_k('subjective_rpe_5'), findsNothing);
+      expect((await base.subjective.read(run.id))!.subjective, saved);
+      // Lesen geht wieder: Felder mit den gespeicherten Werten.
+      session.failRead = false;
+      await _tap(tester, 'subjective_load_retry');
+      expect(_k('subjective_load_failed'), findsNothing);
+      expect(_t(tester, 'subjective_rpe_label'), '4 · ${_rpeDe[4]}');
+      expect(
+        tester.widget<TextField>(_k('subjective_note')).controller!.text,
+        'ALT',
+      );
+    },
+  );
 
   testWidgets('Notiz geht nicht verloren: Tippen, sofort "Fertig"', (
     tester,

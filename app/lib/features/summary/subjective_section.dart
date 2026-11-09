@@ -62,6 +62,10 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
   final _noteFocus = FocusNode();
 
   bool _loaded = false;
+
+  /// Lesen der gespeicherten Angaben ist gescheitert: Die Felder bleiben
+  /// gesperrt, damit nichts Gespeichertes überschrieben wird (fail-closed).
+  bool _loadFailed = false;
   bool _failed = false;
   bool _complaintsOpen = false;
   int? _rpe;
@@ -70,7 +74,11 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
   SrpeLoad? _srpe;
 
   /// Texte, die noch nicht gespeichert sind.
-  bool _textDirty = false;
+  bool _complaintsDirty = false;
+  bool _noteDirty = false;
+
+  /// Ob die Ansicht oben liegt (nicht von einer Detailansicht verdeckt).
+  bool? _wasCurrent;
 
   /// Speichern der Reihe nach: Die letzte Änderung gewinnt.
   Future<void> _queue = Future.value();
@@ -83,6 +91,29 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
     unawaited(_load());
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Eine Detailansicht über dieser Ansicht kann dieselben Angaben ändern.
+    // Beim Verdecken die offenen Texte sichern, beim Zurückkehren neu laden,
+    // damit weder ein veralteter Stand angezeigt noch gespeichert wird.
+    final current = ModalRoute.of(context)?.isCurrent ?? true;
+    final was = _wasCurrent;
+    _wasCurrent = current;
+    if (was == null || was == current) return;
+    if (!current) {
+      _saveDirtyTexts();
+    } else if (_loaded) {
+      unawaited(_reload());
+    }
+  }
+
+  Future<void> _reload() async {
+    await _queue;
+    if (!mounted) return;
+    await _load();
+  }
+
   Future<void> _load() async {
     try {
       final stored = await widget.service.read(widget.runId);
@@ -93,19 +124,26 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
         _wellbeing = s?.wellbeing;
         _warning = s?.warningAnswer;
         _srpe = stored?.srpe;
-        _complaints.text = s?.complaints ?? '';
-        _note.text = s?.note ?? '';
-        _complaintsOpen = _complaints.text.isNotEmpty;
+        // Ungespeicherte Eingabe im Feld nicht überfahren.
+        if (!_complaintsDirty) _complaints.text = s?.complaints ?? '';
+        if (!_noteDirty) _note.text = s?.note ?? '';
+        _complaintsOpen = _complaintsOpen || _complaints.text.isNotEmpty;
         _loaded = true;
+        _loadFailed = false;
       });
     } on Object {
       // Keine Inhalte in Meldungen.
       if (!mounted) return;
       setState(() {
         _loaded = true;
-        _failed = true;
+        _loadFailed = true;
       });
     }
+  }
+
+  Future<void> _retryLoad() {
+    setState(() => _loaded = false);
+    return _load();
   }
 
   @override
@@ -113,7 +151,8 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
     _complaintsFocus.removeListener(_flushOnBlur);
     _noteFocus.removeListener(_flushOnBlur);
     // Tippen und sofort „Fertig“: Der Text wird mit dem Schließen gespeichert.
-    if (_textDirty) unawaited(_save());
+    // Ein Fehler dabei lässt sich nicht mehr anzeigen (bekannte Grenze).
+    _saveDirtyTexts();
     _complaints.dispose();
     _note.dispose();
     _complaintsFocus.dispose();
@@ -122,10 +161,18 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
   }
 
   void _flushOnBlur() {
-    if (!_complaintsFocus.hasFocus && !_noteFocus.hasFocus && _textDirty) {
-      unawaited(_save());
-    }
+    if (!_complaintsFocus.hasFocus && !_noteFocus.hasFocus) _saveDirtyTexts();
   }
+
+  void _saveDirtyTexts() {
+    final fields = <_Field>{
+      if (_complaintsDirty) ..._complaintsFields,
+      if (_noteDirty) _Field.note,
+    };
+    if (fields.isNotEmpty && !_loadFailed) unawaited(_save(fields));
+  }
+
+  static const _complaintsFields = {_Field.complaints, _Field.warning};
 
   RunSubjective _current() => RunSubjective(
     rpe: _rpe,
@@ -136,17 +183,37 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
     note: _note.text,
   );
 
-  /// Speichert den aktuellen Stand. Der Stand wird jetzt gelesen, geschrieben
-  /// wird der Reihe nach.
-  Future<void> _save() {
-    final subjective = _current();
-    _textDirty = false;
+  /// Speichert nur die geänderten [fields]: Der gespeicherte Satz wird beim
+  /// Schreiben gelesen, die übrigen Felder bleiben, wie sie dort stehen (auch
+  /// wenn eine andere Ansicht sie inzwischen geändert hat). Geschrieben wird
+  /// der Reihe nach.
+  Future<void> _save(Set<_Field> fields) {
+    final local = _current();
+    if (fields.contains(_Field.complaints)) _complaintsDirty = false;
+    if (fields.contains(_Field.note)) _noteDirty = false;
     final service = widget.service;
     final runId = widget.runId;
     final wantSrpe = widget.showSrpe;
     return _queue = _queue.then((_) async {
       try {
-        await service.save(runId, subjective);
+        final base =
+            (await service.read(runId))?.subjective ?? RunSubjective.empty;
+        await service.save(
+          runId,
+          RunSubjective(
+            rpe: fields.contains(_Field.rpe) ? local.rpe : base.rpe,
+            wellbeing: fields.contains(_Field.wellbeing)
+                ? local.wellbeing
+                : base.wellbeing,
+            complaints: fields.contains(_Field.complaints)
+                ? local.complaints
+                : base.complaints,
+            warningAnswer: fields.contains(_Field.warning)
+                ? local.warningAnswer
+                : base.warningAnswer,
+            note: fields.contains(_Field.note) ? local.note : base.note,
+          ),
+        );
         final stored = wantSrpe ? await service.read(runId) : null;
         if (!mounted) return;
         setState(() {
@@ -162,17 +229,17 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
 
   void _pickRpe(int n) {
     setState(() => _rpe = _rpe == n ? null : n);
-    unawaited(_save());
+    unawaited(_save({_Field.rpe}));
   }
 
   void _pickWellbeing(int n) {
     setState(() => _wellbeing = _wellbeing == n ? null : n);
-    unawaited(_save());
+    unawaited(_save({_Field.wellbeing}));
   }
 
   void _pickWarning(WarningAnswer a) {
     setState(() => _warning = _warning == a ? null : a);
-    unawaited(_save());
+    unawaited(_save({_Field.warning}));
   }
 
   void _toggleComplaints() {
@@ -192,6 +259,8 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
       padding: const EdgeInsets.all(16),
       child: !_loaded
           ? const SizedBox(key: Key('subjective_loading'), height: 48)
+          : _loadFailed
+          ? _loadFailedBlock(l10n, text, c)
           : Column(
               key: const Key('subjective_section'),
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -276,7 +345,7 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
                       labelText: l10n.subjectiveComplaintsLabel,
                       hintText: l10n.subjectiveComplaintsHint,
                     ),
-                    onChanged: (_) => setState(() => _textDirty = true),
+                    onChanged: (_) => setState(() => _complaintsDirty = true),
                     onTapOutside: (_) => _complaintsFocus.unfocus(),
                   ),
                   if (hasComplaints) ...[
@@ -324,7 +393,7 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
                     labelText: l10n.subjectiveNoteLabel,
                     hintText: l10n.subjectiveNoteHint,
                   ),
-                  onChanged: (_) => _textDirty = true,
+                  onChanged: (_) => _noteDirty = true,
                   onTapOutside: (_) => _noteFocus.unfocus(),
                 ),
                 if (_failed) ...[
@@ -341,6 +410,31 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
                 ],
               ],
             ),
+    );
+  }
+
+  /// Lesen gescheitert: kein Eingabefeld, nur Hinweis und erneuter Versuch.
+  Widget _loadFailedBlock(
+    AppLocalizations l10n,
+    TextTheme text,
+    RamuriColors c,
+  ) {
+    return Column(
+      key: const Key('subjective_load_failed'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.subjectiveLoadFailed,
+          style: text.bodyMedium?.copyWith(color: c.danger),
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          key: const Key('subjective_load_retry'),
+          style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+          onPressed: _retryLoad,
+          child: Text(l10n.subjectiveLoadRetry),
+        ),
+      ],
     );
   }
 
@@ -383,6 +477,8 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
     );
   }
 }
+
+enum _Field { rpe, wellbeing, complaints, warning, note }
 
 /// Wahltaste, mindestens 48 dp, als Taste mit Zustand „ausgewählt“.
 class SubjectiveChoice extends StatelessWidget {

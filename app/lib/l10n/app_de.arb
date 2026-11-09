@@ -1485,6 +1485,8 @@
   "subjectiveNoteLabel": "Notiz",
   "subjectiveNoteHint": "Beine fühlten sich frisch an …",
   "subjectiveSaveFailed": "Die Angaben konnten nicht gespeichert werden.",
+  "subjectiveLoadFailed": "Die Angaben konnten nicht geladen werden.",
+  "subjectiveLoadRetry": "Erneut versuchen",
   "subjectiveSrpeTitle": "Belastung nach Anstrengung (sRPE)",
   "subjectiveSrpeNone": "Ohne Angabe zur Anstrengung gibt es keinen Wert.",
   "subjectiveSrpeEstimate": "Schätzung, getrennt von der Trainingsbelastung nach Puls.",

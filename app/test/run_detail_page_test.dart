@@ -621,9 +621,7 @@ void main() {
             lang: lang,
             size: Size(w, 640),
           );
-          final group = find
-              .ancestor(of: key('detail_ascent'), matching: find.byType(Row))
-              .first;
+          final group = key('detail_elevation_values');
           final texts = find.descendant(of: group, matching: find.byType(Text));
           expect(
             tester.widgetList<Text>(texts).map((t) => t.data).join(),
@@ -639,6 +637,28 @@ void main() {
       );
     }
   }
+
+  // Review 1, Befund 4: bei Schriftfaktor 2,0 lief der Kopf über. Der Kopf
+  // wird dazu ins Bild geholt; flach bleibt „0 m / 0 m“ lesbar.
+  testWidgets('Flacher Lauf: Höhenprofil-Kopf bei Faktor 2,0 ohne Überlauf', (
+    tester,
+  ) async {
+    final d = await started(tester);
+    final id = await seedDetailRun(
+      d.session,
+      DateTime.utc(2030, 1, 1, 8),
+      altitude: (_) => 100,
+    );
+    await pumpDetail(tester, d, id, scale: 2.0, size: const Size(411, 914));
+    await tester.ensureVisible(key('detail_ascent'));
+    await tester.pump();
+    expect(tester.getRect(key('detail_ascent')).right, lessThanOrEqualTo(411));
+    expect(tester.getRect(key('detail_descent')).right, lessThanOrEqualTo(411));
+    expect(text('detail_ascent'), '0 m');
+    expect(text('detail_descent'), '0 m');
+    expect(find.text(' / '), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Flacher Lauf: Anstieg und Gefälle ohne Vorzeichen, Pace ohne '
       'Wortverbinder in der Sprachausgabe', (tester) async {

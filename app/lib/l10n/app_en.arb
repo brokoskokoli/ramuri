@@ -851,6 +851,8 @@
   "subjectiveNoteLabel": "Note",
   "subjectiveNoteHint": "Legs felt fresh …",
   "subjectiveSaveFailed": "Your entries could not be saved.",
+  "subjectiveLoadFailed": "Your entries could not be loaded.",
+  "subjectiveLoadRetry": "Try again",
   "subjectiveSrpeTitle": "Load by effort (sRPE)",
   "subjectiveSrpeNone": "Without an effort rating there is no value.",
   "subjectiveSrpeEstimate": "Estimate, kept separate from the heart-rate training load.",

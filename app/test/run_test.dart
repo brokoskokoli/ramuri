@@ -625,6 +625,30 @@ void main() {
       expect(key('home_start_run'), findsOneWidget);
     });
 
+    // WP18 Review 1, Befund 7: Die Angaben zum Lauf sind in der Abschlussansicht
+    // verdrahtet und speichern in den Speicher des Laufs.
+    testWidgets('Beenden: Angaben zum Lauf in der Abschlussansicht', (
+      tester,
+    ) async {
+      final d = Device();
+      await openRun(d, tester);
+      await walk(d, tester, 30);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      await tester.tap(key('run_finish'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_finish_confirm'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(key('subjective_section'));
+      expect(key('subjective_section'), findsOneWidget);
+      final id = (await d.session.runs.list()).single.id;
+      expect(await d.session.subjective.read(id), isNull);
+      await tester.ensureVisible(key('subjective_rpe_5'));
+      await tester.tap(key('subjective_rpe_5'));
+      await tester.pumpAndSettle();
+      expect((await d.session.subjective.read(id))!.subjective.rpe, 5);
+    });
+
     testWidgets('Abschluss bei Speicherfehler meldet ihn', (tester) async {
       final d = Device();
       d.storageOverride = _RawFailStorage(d.storage);
