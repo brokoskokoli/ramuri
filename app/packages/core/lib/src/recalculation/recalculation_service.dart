@@ -55,6 +55,18 @@ class LoadProfileNotApplicableException implements Exception {
   String toString() => 'LoadProfileNotApplicableException($profile, $issues)';
 }
 
+/// Das angezeigte Angebot ist nicht mehr das offene: der angebotene Faktor
+/// wurde zurückgenommen oder durch einen anderen ersetzt (etwa beim Laden des
+/// Belastungsstands). Bestätigen und Ablehnen wirken dann nicht auf einen
+/// Wert, den die Nutzerin nie gesehen hat; die Oberfläche liest das Angebot
+/// neu ([RecalculationService.pendingOffer]).
+class RecalculationOfferChangedException implements Exception {
+  const RecalculationOfferChangedException();
+
+  @override
+  String toString() => 'RecalculationOfferChangedException()';
+}
+
 /// Angebot einer Neuberechnung. Es ändert nichts, bis es bestätigt wird.
 class RecalculationOffer {
   RecalculationOffer({
@@ -440,6 +452,7 @@ class RecalculationService {
   /// nach dem Tausch, wirft [confirm] nicht; das Ergebnis trägt dann
   /// `offerCleared: false`.
   Future<RecalculationResult> confirm(RecalculationOffer offer) async {
+    await _requireShownFactor(offer);
     final started = await _pendingCauses();
     if (started.isEmpty) {
       throw StateError('Es ist keine Neuberechnung angeboten.');
@@ -551,6 +564,7 @@ class RecalculationService {
   /// Lehnt das Angebot ab: Werte, Rohdaten und Profil bleiben unverändert.
   /// Eine offene Profilwahl verfällt (OQ-0053): das aktive Profil bleibt.
   Future<void> decline(RecalculationOffer offer) async {
+    await _requireShownFactor(offer);
     // Ein abgelehnter Faktor wird nicht bei jedem Laden erneut angeboten.
     final offered = await LoadSettings.pendingFactor(session.settings);
     if (offered != null) {
@@ -576,6 +590,19 @@ class RecalculationService {
       null,
       at: clock.now(),
     );
+  }
+
+  /// Bestätigt und abgelehnt wird der Faktor, den [offer] zeigt: stimmt er
+  /// nicht mit dem offenen überein (zurückgenommen, ersetzt, neu dazugekommen),
+  /// wirft das [RecalculationOfferChangedException], bevor etwas geändert wird.
+  Future<void> _requireShownFactor(RecalculationOffer offer) async {
+    final causes = await _pendingCauses();
+    final open = causes.contains(RecalculationCause.personalFactor)
+        ? await LoadSettings.pendingFactor(session.settings)
+        : null;
+    if (offer.personalFactor != open) {
+      throw const RecalculationOfferChangedException();
+    }
   }
 
   Future<RecalculationOffer?> _offer(RecalculationCause cause) =>

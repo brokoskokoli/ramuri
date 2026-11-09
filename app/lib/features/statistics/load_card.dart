@@ -22,7 +22,7 @@ import 'load_view_state.dart';
 ///
 /// Ohne [recalculation] und ohne [controller] zeigt die Karte nichts. In der
 /// App kommt der Controller aus [session], [clock] und der einen
-/// Neuberechnungs-Instanz; das Laden läuft über deren Reihe (`serialized`).
+/// Neuberechnungs-Instanz; das Laden läuft über deren Reihe (`serializedRefreshingOffer`).
 class LoadCard extends StatefulWidget {
   const LoadCard({
     super.key,
@@ -65,7 +65,7 @@ class _LoadCardState extends State<LoadCard> {
           calculation: ValueCalculationService(session: session, clock: clock),
           recalculation: recalculation.service,
         ),
-        serialize: recalculation.serialized,
+        serialize: recalculation.serializedRefreshingOffer,
       );
     }
   }

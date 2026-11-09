@@ -101,6 +101,41 @@ class RecalculationController extends ChangeNotifier {
     return result;
   }
 
+  /// Wie [serialized], liest danach aber das offene Angebot neu. Für Aktionen,
+  /// die ein Faktor-Angebot zurücknehmen oder ersetzen können (Laden des
+  /// Belastungsstands): die Karte der Neuberechnung zeigt sonst weiter ein
+  /// Angebot, das es nicht mehr gibt, oder einen alten Wert.
+  Future<T> serializedRefreshingOffer<T>(Future<T> Function() action) =>
+      serialized(() async {
+        try {
+          return await action();
+        } finally {
+          await _refreshOffer();
+        }
+      });
+
+  /// Liest das offene Angebot neu und meldet nur eine Änderung. Während der
+  /// Neuberechnung nicht: sie liest das Angebot danach selbst.
+  Future<void> _refreshOffer() async {
+    if (_disposed || busy) return;
+    try {
+      final pending = await service.pendingOffer();
+      if (_disposed || busy || _sameOffer(_offer, pending)) return;
+      _offer = pending;
+      notifyListeners();
+    } on Object {
+      // Das Angebot bleibt, wie es war; beim nächsten Mal erneut.
+    }
+  }
+
+  static bool _sameOffer(RecalculationOffer? a, RecalculationOffer? b) {
+    if (a == null || b == null) return a == null && b == null;
+    return setEquals(a.causes, b.causes) &&
+        listEquals(a.runIds, b.runIds) &&
+        a.loadProfile == b.loadProfile &&
+        a.personalFactor == b.personalFactor;
+  }
+
   /// Nach dem Speichern des Profils. Fehler hier verhindern nichts am
   /// Speichern selbst. Das Angebot steht nach dem Rückkehr sofort in [offer]:
   /// der Strom [RecalculationService.offers] liefert asynchron und käme für
@@ -114,6 +149,16 @@ class RecalculationController extends ChangeNotifier {
     }
   }
 
+  Future<void> _showCurrentOffer() async {
+    try {
+      _offer = await service.pendingOffer();
+    } on Object {
+      _offer = null;
+    }
+    _phase = RecalculationPhase.idle;
+    if (!_disposed) notifyListeners();
+  }
+
   Future<void> confirm() async {
     final offer = _offer;
     if (offer == null || busy) return;
@@ -124,6 +169,11 @@ class RecalculationController extends ChangeNotifier {
       // Nicht parallel zum Nachholen aus dem Start und zur Berechnung nach
       // einem Lauf.
       _result = await exclusive(() => service.confirm(offer));
+    } on RecalculationOfferChangedException {
+      // Das gezeigte Angebot gibt es so nicht mehr; nichts wurde geändert. Das
+      // neue Angebot steht danach da, bestätigt wird erst auf Wunsch.
+      await _showCurrentOffer();
+      return;
     } on Object {
       // Der alte Stand bleibt ganz (Tausch in einer Transaktion), das Angebot
       // bleibt für einen neuen Versuch.
@@ -151,6 +201,9 @@ class RecalculationController extends ChangeNotifier {
       await serialized(() => service.decline(offer));
       _offer = null;
       _phase = RecalculationPhase.idle;
+    } on RecalculationOfferChangedException {
+      await _showCurrentOffer();
+      return;
     } on Object {
       // Nichts geändert; das Angebot bleibt, eigene Meldung (kein Rechenfehler).
       _phase = RecalculationPhase.declineFailed;
