@@ -5,6 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
 import '../../offload_scope.dart';
+import '../../ui/unbreakable_unit.dart';
 
 /// Zeit für die Anzeige; fehlt sie, „nicht verfügbar“ (nie „–“ oder 0).
 String clockText(AppLocalizations l10n, Duration? d) =>
@@ -47,11 +48,14 @@ String classificationText(
         : l10n.sumClassNoPrevious;
   }
   final delta = c.deltaSecondsPerKm!;
-  final reference = formatter.pace(c.referenceSecondsPerKm);
+  // Pace und Einheit bleiben im Satz zusammen (Sprachausgabe: [spokenUnit]).
+  String pace(double? secondsPerKm) =>
+      unitTogether(formatter.pace(secondsPerKm), formatter.paceLabel);
+  final reference = pace(c.referenceSecondsPerKm);
   if (c.relation == PaceRelation.same) {
     return l10n.sumClassSame(c.comparedRuns, reference);
   }
-  final text = formatter.pace(delta.abs());
+  final text = pace(delta.abs());
   return delta < 0
       ? l10n.sumClassFaster(text, c.comparedRuns, reference)
       : l10n.sumClassSlower(text, c.comparedRuns, reference);

@@ -182,6 +182,13 @@ class LiveValues extends StatelessWidget {
     final numberStyle = text.headlineLarge!;
     final unitStyle = type.unit;
 
+    // Ersatztexte („nicht verfügbar“, „noch keine Daten“) klein, nicht in
+    // Wertgröße: sie brächen sonst in der halben Breite mehrzeilig um.
+    TextStyle valueStyleOf(String value, TextStyle? style) =>
+        value == na || value == l10n.runNoDataYet
+        ? text.labelMedium!
+        : style ?? type.valueSmall;
+
     Widget tile(
       String label,
       String id,
@@ -194,13 +201,25 @@ class LiveValues extends StatelessWidget {
         id: id,
         value: value,
         unit: unit,
-        // Ersatztexte („nicht verfügbar“, „noch keine Daten“) klein, nicht in
-        // Wertgröße: sie brächen sonst in der halben Breite mehrzeilig um.
-        valueStyle: value == na || value == l10n.runNoDataYet
-            ? text.labelMedium!
-            : style ?? type.valueSmall,
+        valueStyle: valueStyleOf(value, style),
         unitStyle: unitStyle,
       ),
+    );
+
+    /// Zwei Kacheln nebeneinander; passt eine Zahl nicht in die halbe Breite,
+    /// stehen sie untereinander (wie das Raster weniger Spalten nimmt).
+    Widget pair(
+      (String, TextStyle?) first,
+      Widget firstTile,
+      Widget? secondTile, [
+      (String, TextStyle?)? second,
+    ]) => _TilePair(
+      words: [
+        for (final (value, style) in [first, ?second])
+          (value, valueStyleOf(value, style)),
+      ],
+      first: firstTile,
+      second: secondTile,
     );
 
     return Column(
@@ -265,29 +284,23 @@ class LiveValues extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: tile(
-                l10n.livePaceNow,
-                'run_pace',
-                paceValue,
-                paceUnit,
-                style: numberStyle,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: tile(
-                l10n.runAvgPace,
-                'run_avg_pace',
-                avgValue,
-                avgUnit,
-                style: numberStyle,
-              ),
-            ),
-          ],
+        pair(
+          (paceValue, numberStyle),
+          tile(
+            l10n.livePaceNow,
+            'run_pace',
+            paceValue,
+            paceUnit,
+            style: numberStyle,
+          ),
+          tile(
+            l10n.runAvgPace,
+            'run_avg_pace',
+            avgValue,
+            avgUnit,
+            style: numberStyle,
+          ),
+          (avgValue, numberStyle),
         ),
         const SizedBox(height: 10),
         _HeartCard(
@@ -298,39 +311,23 @@ class LiveValues extends StatelessWidget {
           unitStyle: unitStyle,
         ),
         const SizedBox(height: 10),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: tile(
-                l10n.runMovingTime,
-                'run_moving_time',
-                formatClock(s.movingTime),
-                null,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: tile(
-                l10n.runAscent,
-                'run_ascent',
-                ascentValue,
-                ascentUnit,
-              ),
-            ),
-          ],
+        pair(
+          (formatClock(s.movingTime), null),
+          tile(
+            l10n.runMovingTime,
+            'run_moving_time',
+            formatClock(s.movingTime),
+            null,
+          ),
+          tile(l10n.runAscent, 'run_ascent', ascentValue, ascentUnit),
+          (ascentValue, null),
         ),
         const SizedBox(height: 10),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // FR-0202: Wert nur mit Berechtigung und Sensor, sonst „nicht verfügbar“.
-            Expanded(
-              child: tile(l10n.runCadence, 'run_cadence', cadence, cadenceUnit),
-            ),
-            const SizedBox(width: 10),
-            const Expanded(child: SizedBox.shrink()),
-          ],
+        // FR-0202: Wert nur mit Berechtigung und Sensor, sonst „nicht verfügbar“.
+        pair(
+          (cadence, null),
+          tile(l10n.runCadence, 'run_cadence', cadence, cadenceUnit),
+          null,
         ),
         if (gapCount > 0) ...[
           const SizedBox(height: 10),
@@ -501,6 +498,65 @@ class _LiveCard extends StatelessWidget {
       radius: 22,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: child,
+    );
+  }
+}
+
+/// Ein oder zwei Kacheln in einer Reihe, je eine halbe Breite. Passt eine Zahl
+/// nicht hinein (sie bräche mitten in der Zahl, „14:5“ / „9“), stehen die
+/// Kacheln untereinander und haben die ganze Breite, wie das Raster der
+/// Zusammenfassung weniger Spalten nimmt. Die Einheit hinter der Zahl darf als
+/// Ganzes darunter stehen (Design), sie bricht nie im Wort.
+class _TilePair extends StatelessWidget {
+  const _TilePair({
+    required this.words,
+    required this.first,
+    required this.second,
+  });
+
+  /// Zahl und Schrift der Zahl je Kachel.
+  final List<(String, TextStyle)> words;
+  final Widget first;
+  final Widget? second;
+
+  /// Innenabstand der Kachel ([_LiveCard]) links und rechts.
+  static const double _cardPadding = 16;
+  static const double _gap = 10;
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final inner = (constraints.maxWidth - _gap) / 2 - 2 * _cardPadding;
+        var fits = true;
+        for (final (value, style) in words) {
+          final painter = TextPainter(
+            text: TextSpan(text: value, style: style),
+            textDirection: Directionality.of(context),
+            textScaler: scaler,
+          )..layout();
+          fits &= painter.width <= inner;
+          painter.dispose();
+        }
+        if (!fits) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              first,
+              if (second != null) ...[const SizedBox(height: _gap), second!],
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: first),
+            const SizedBox(width: _gap),
+            Expanded(child: second ?? const SizedBox.shrink()),
+          ],
+        );
+      },
     );
   }
 }

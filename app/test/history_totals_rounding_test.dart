@@ -14,17 +14,25 @@ void main() {
       for (var i = 0; i < 7; i++)
         Duration(milliseconds: (160 + i) * 1000 + 300),
     ];
-    final runs = [
+    // Die Zeile der Liste zeigt RunOverview.totalTime; die Summe rechnet aus
+    // denselben Läufen (toFigures). Die Bewegungszeit ist bewusst kürzer: Wer
+    // sie für Zeile oder Summe nähme, fiele hier durch.
+    final overviews = [
       for (var i = 0; i < 7; i++)
-        RunFigures(
-          runId: i + 1,
-          endedAt: DateTime.utc(2030, 1, 14 + i, 12),
-          day: '2030-01-${14 + i}',
+        RunOverview(
+          run: StoredRun(
+            id: i + 1,
+            state: RunState.finished,
+            startedAt: DateTime.utc(2030, 1, 14 + i, 11),
+            endedAt: DateTime.utc(2030, 1, 14 + i, 12),
+            endedUtcOffset: Duration.zero,
+          ),
           distanceMeters: 1000,
           movingTime: totals[i] - const Duration(seconds: 5),
           totalTime: totals[i],
         ),
     ];
+    final runs = [for (final o in overviews) o.toFigures()];
     final t = historyTotals(HistoryRange.week, '2030-01-16', runs);
     expect(t.runCount, 7);
     final stat = computePeriodStatistics(t.period, runs);
@@ -34,7 +42,15 @@ void main() {
     expect(t.totalTime, exact);
     // Summe angezeigt 19:03, Zeilen addiert 19:01: genau 2 s (7 * 0,3 = 2,1 s).
     final shownSum = t.totalTime!.inSeconds;
-    final rowsSum = totals.fold<int>(0, (a, d) => a + d.inSeconds);
+    // Zeilen, wie die Liste sie zeigt (formatClock schneidet auf Sekunden).
+    final rowsSum = overviews.fold<int>(
+      0,
+      (a, o) => a + o.totalTime!.inSeconds,
+    );
+    expect(
+      [for (final o in overviews) formatClock(o.totalTime)],
+      ['2:40', '2:41', '2:42', '2:43', '2:44', '2:45', '2:46'],
+    );
     expect(shownSum - rowsSum, 2);
     expect(
       formatClock(t.totalTime),

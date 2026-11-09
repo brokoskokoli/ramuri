@@ -105,7 +105,7 @@ class RamuriValueTile extends StatelessWidget {
                         TextSpan(text: value, style: valueStyle),
                       if (unit != null)
                         TextSpan(
-                          text: '$unitSeparator$unit',
+                          text: ' $unit',
                           // Der Wortverbinder gehört nicht in die Sprachausgabe.
                           semanticsLabel: ' ${spokenUnit(unit!)}',
                           style: type.unit,

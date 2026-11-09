@@ -532,6 +532,12 @@ class _RunTile extends StatelessWidget {
         Text(
           bpm == null
               ? l10n.histRowNoHeartRate
+              : unitTogether(
+                  l10n.histRowHeartRate(bpm.round()),
+                  l10n.liveUnitBpm,
+                ),
+          semanticsLabel: bpm == null
+              ? null
               : l10n.histRowHeartRate(bpm.round()),
           key: Key('history_hr_$id'),
           style: text.bodySmall,

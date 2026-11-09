@@ -325,6 +325,9 @@ class RunSummaryPage extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 classificationText(l10n, summary.classification, formatter),
+                semanticsLabel: spokenUnit(
+                  classificationText(l10n, summary.classification, formatter),
+                ),
                 key: const Key('sum_class'),
                 style: text.titleMedium,
               ),

@@ -14,7 +14,9 @@ Finder key(String k) => find.byKey(Key(k));
 
 String text(String k) {
   final w = key(k).evaluate().single.widget as Text;
-  return (w.data ?? w.textSpan!.toPlainText()).replaceAll('⁠', '');
+  return (w.data ?? w.textSpan!.toPlainText())
+      .replaceAll('⁠', '')
+      .replaceAll('\u00A0', ' ');
 }
 
 Future<void> openRun(

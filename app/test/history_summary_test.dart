@@ -15,7 +15,9 @@ Finder key(String k) => find.byKey(Key(k));
 /// Wortverbinder (U+2060) ist unsichtbar.
 String text(String k) {
   final w = key(k).evaluate().single.widget as Text;
-  return (w.data ?? w.textSpan!.toPlainText()).replaceAll('\u2060', '');
+  return (w.data ?? w.textSpan!.toPlainText())
+      .replaceAll('\u2060', '')
+      .replaceAll('\u00A0', ' ');
 }
 
 const double _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;

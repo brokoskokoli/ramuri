@@ -264,7 +264,9 @@ class KilometerTable extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
-                  captions[c],
+                  // Die Länge „0,84 km“ am Ende bleibt zusammen (nur Anzeige;
+                  // die Sprachausgabe liest [captions] im Label der Zeile).
+                  unitTogether(captions[c], formatter.distanceLabel),
                   key: Key(
                     (s.isPartial && c == 0)
                         ? 'detail_km_partial_$i'
