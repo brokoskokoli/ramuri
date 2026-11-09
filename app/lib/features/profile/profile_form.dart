@@ -7,6 +7,20 @@ import '../../ui/ramuri_card.dart';
 import '../../ui/section_heading.dart';
 import 'profile_messages.dart';
 
+/// Zugriff auf das optionale Profilfeld „Koeffizienten des Banister-Modells“
+/// (FR-0002, FR-0197). Das Feld liegt nicht im Profildatensatz, sondern in den
+/// Einstellungen (`load.coefficients`); [apply] geht bei aktivem Banister über
+/// die Neuberechnung.
+abstract class LoadCoefficientsAccess {
+  Future<LoadCoefficients?> read();
+
+  /// Ob Banister aktiv ist (die Änderung gilt dann erst nach Bestätigung).
+  Future<bool> banisterActive();
+
+  /// Wirft [LoadProfileNotApplicableException] und [StorageException].
+  Future<void> apply(LoadCoefficients? value);
+}
+
 /// Eingabeformular für das Profil (FR-0002): alle Felder leer lassbar, Prüfung
 /// und Speichern über [ProfileService] aus `core`. Die HFmax-Zeile zeigt, ob
 /// der Wert eingegeben oder nur eine Schätzung ist (FR-0003 bis FR-0005,
@@ -17,6 +31,7 @@ class ProfileForm extends StatefulWidget {
     required this.service,
     required this.clock,
     required this.onSaved,
+    this.coefficients,
   });
 
   final ProfileService service;
@@ -24,6 +39,9 @@ class ProfileForm extends StatefulWidget {
 
   /// Nach erfolgreichem Speichern (auch mit Hinweisen).
   final void Function(ProfileValidation validation) onSaved;
+
+  /// Das Feld „Koeffizienten des Banister-Modells“; ohne Zugriff kein Feld.
+  final LoadCoefficientsAccess? coefficients;
 
   @override
   State<ProfileForm> createState() => _ProfileFormState();
@@ -45,6 +63,9 @@ class _ProfileFormState extends State<ProfileForm> {
   final Set<TextEditingController> _unreadable = {};
   String? _banner;
   String? _savedNote;
+  LoadCoefficients? _coef;
+  LoadCoefficients? _coefStored;
+  bool _banisterActive = false;
 
   List<TextEditingController> get _all => [
     _birthYear,
@@ -73,8 +94,22 @@ class _ProfileFormState extends State<ProfileForm> {
       if (mounted) setState(() => _loadFailed = true);
       return;
     }
+    LoadCoefficients? coef;
+    var banister = false;
+    final access = widget.coefficients;
+    if (access != null) {
+      try {
+        coef = await access.read();
+        banister = await access.banisterActive();
+      } on StorageException {
+        if (mounted) setState(() => _loadFailed = true);
+        return;
+      }
+    }
     if (!mounted) return;
     setState(() {
+      _coef = _coefStored = coef;
+      _banisterActive = banister;
       _birthYear.text = p.birthYear?.toString() ?? '';
       _weight.text = _formatDecimal(p.bodyWeightKg);
       _height.text = _formatDecimal(
@@ -160,10 +195,25 @@ class _ProfileFormState extends State<ProfileForm> {
     try {
       final result = await widget.service.save(record);
       if (!mounted) return;
+      String? coefBanner;
+      final access = widget.coefficients;
+      if (result.saved && access != null && _coef != _coefStored) {
+        try {
+          await access.apply(_coef);
+          _coefStored = _coef;
+          _banisterActive = await access.banisterActive();
+        } on LoadProfileNotApplicableException {
+          coefBanner = l10n.loadCoefficientsNotApplied;
+          _coef = _coefStored;
+        } on StorageException {
+          coefBanner = l10n.profileSaveFailed;
+        }
+        if (!mounted) return;
+      }
       setState(() {
         _unreadable.clear();
         _validation = result.validation;
-        _banner = result.saved ? null : l10n.profileCheckInput;
+        _banner = result.saved ? coefBanner : l10n.profileCheckInput;
         // Gespeichert mit Hinweisen: bleibt stehen, die Snackbar allein verfliegt.
         _savedNote = result.saved && result.validation.hints.isNotEmpty
             ? l10n.profileSavedCheckHints
@@ -283,6 +333,55 @@ class _ProfileFormState extends State<ProfileForm> {
     );
   }
 
+  /// Optionales Feld der Rechenkoeffizienten (FR-0002): nur Auswahl für das
+  /// Banister-Modell, ohne Angabe bleibt Edwards.
+  Widget _coefficientsCard(AppLocalizations l10n) {
+    Widget chip(String key, String label, LoadCoefficients? value) =>
+        ChoiceChip(
+          key: Key(key),
+          label: Text(label),
+          selected: _coef == value,
+          onSelected: _saving ? null : (_) => setState(() => _coef = value),
+        );
+    return RamuriCard(
+      key: const Key('profile_coefficients'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SectionHeading(l10n.loadCoefficientsTitle),
+          const SizedBox(height: 8),
+          Text(l10n.loadCoefficientsExplain),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              chip(
+                'profile_coef_male',
+                l10n.loadCoefficientsMale,
+                LoadCoefficients.male,
+              ),
+              chip(
+                'profile_coef_female',
+                l10n.loadCoefficientsFemale,
+                LoadCoefficients.female,
+              ),
+              chip('profile_coef_none', l10n.loadCoefficientsNone, null),
+            ],
+          ),
+          if (_banisterActive)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                l10n.loadCoefficientsActiveNote,
+                key: const Key('profile_coef_active_note'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -370,6 +469,10 @@ class _ProfileFormState extends State<ProfileForm> {
             ],
           ),
         ),
+        if (widget.coefficients != null) ...[
+          const SizedBox(height: 16),
+          _coefficientsCard(l10n),
+        ],
         const SizedBox(height: 16),
         RamuriCard(
           child: Column(

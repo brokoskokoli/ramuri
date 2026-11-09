@@ -192,6 +192,12 @@ class RecalculationService {
     return await _offerLoadRevert() ?? offer;
   }
 
+  /// Ob [profile] mit dem gespeicherten Profil anwendbar wäre und warum nicht
+  /// (FR-0197): Grundlage der Anzeige in den Einstellungen, nur lesend.
+  Future<LoadProfileResolution> loadProfileResolution(
+    LoadProfile profile,
+  ) async => _calc.loadResolution(await _calc.profileBasis(), profile: profile);
+
   /// Wählt das Belastungsprofil [target] (FR-0197). Es gilt erst nach
   /// [confirm]; bis dahin bleibt das aktive Profil und es ändert sich nichts
   /// an den Werten. Banister nur anwendbar mit Ruhepuls und Koeffizienten,

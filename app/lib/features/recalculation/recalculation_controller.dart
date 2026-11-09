@@ -149,6 +149,66 @@ class RecalculationController extends ChangeNotifier {
     }
   }
 
+  /// Wählt das Belastungsprofil (FR-0197). Mit Läufen entsteht ein Angebot
+  /// (Ursache `loadProfile`), das erst die Bestätigung gültig macht; sonst gilt
+  /// die Wahl sofort. Wirft [LoadProfileNotApplicableException] oder
+  /// [StorageException]. Meldet danach eine Datenänderung (Karte Belastung).
+  Future<void> requestLoadProfile(LoadProfile target) =>
+      _requestChange(() => service.requestLoadProfile(target));
+
+  /// Ändert die Koeffizienten-Angabe (`null` entfernt sie). Bei aktivem
+  /// Banister als Angebot, sonst sofort (siehe
+  /// [RecalculationService.requestLoadCoefficients]).
+  Future<void> requestLoadCoefficients(LoadCoefficients? value) =>
+      _requestChange(() => service.requestLoadCoefficients(value));
+
+  /// Nach einer Änderung von Ruhepuls oder HFmax (siehe
+  /// [RecalculationService.loadBasisChanged]); Fehler verhindern nichts am
+  /// bereits gespeicherten Profil.
+  Future<void> loadBasisChanged() async {
+    try {
+      await _requestChange(service.loadBasisChanged);
+    } on Object {
+      // Das Profil ist gespeichert; ein Angebot gibt es dann eben nicht.
+    }
+  }
+
+  /// Die Zusage „alles erfasst“ (FR-0103). Leere Tage ändern ATL/CTL, darum
+  /// lädt die Karte Belastung danach neu; eine Neuberechnung gibt es nicht.
+  Future<void> setAllRecorded(bool value) => _requestChange(() async {
+    await LoadSettings.saveAllRecorded(
+      service.session.settings,
+      value,
+      at: service.clock.now(),
+    );
+    return null;
+  });
+
+  /// Führt eine Änderung der Belastungseinstellungen in der Reihe aus und liest
+  /// danach das offene Angebot neu: ein Wechsel, eine Rücknahme der Wahl oder
+  /// eine Ablehnung ändern es, der Strom [RecalculationService.offers] liefert
+  /// nur neue Angebote.
+  Future<void> _requestChange(
+    Future<RecalculationOffer?> Function() action,
+  ) async {
+    try {
+      await exclusive(action);
+    } finally {
+      if (!_disposed && !busy) {
+        try {
+          final pending = await service.pendingOffer();
+          if (!_disposed && !_sameOffer(_offer, pending)) {
+            _offer = pending;
+            _phase = RecalculationPhase.idle;
+          }
+        } on Object {
+          // Das Angebot bleibt, wie es war.
+        }
+        if (!_disposed) notifyListeners();
+      }
+    }
+  }
+
   Future<void> _showCurrentOffer() async {
     try {
       _offer = await service.pendingOffer();

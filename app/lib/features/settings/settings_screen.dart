@@ -9,6 +9,7 @@ import '../recalculation/recalculation_controller.dart';
 import '../../ui/ramuri_card.dart';
 import '../../ui/section_heading.dart';
 import 'app_settings.dart';
+import 'load_settings_section.dart';
 
 /// Einstellungen: Einheit für Strecken (reine Anzeige) und die Neuberechnung.
 /// Sensoren, Zonen, Berechtigungen und Daten liegen in der Übersicht.
@@ -44,6 +45,7 @@ class SettingsScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
           RecalculationCard(controller: recalculation),
+          LoadSettingsSection(session: session, recalculation: recalculation),
           SectionHeading(l10n.settingsUnits),
           const SizedBox(height: 12),
           RamuriCard(
