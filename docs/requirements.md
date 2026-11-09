@@ -222,6 +222,8 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0211 | Kilometerwerte in der Detailansicht | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0211--kilometerwerte-in-der-detailansicht) | FR-0041, FR-0056, FR-0204, OQ-0075, OQ-0076 |
 | FR-0212 | Zeitraum in der Historie | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0212--zeitraum-in-der-historie) | FR-0040, FR-0044, OQ-0075 |
 | FR-0213 | RR-Intervalle als Rohdaten speichern | functional | Approved | 2 | [sensors](specs/sensors.md#fr-0213--rr-intervalle-als-rohdaten-speichern) | FR-0021, FR-0019, SEC-0001, DEC-0072 |
+| FR-0214 | Ruhepuls mit der Handykamera messen | functional | Approved | 2 | [profile](specs/profile.md#fr-0214--ruhepuls-mit-der-handykamera-messen) | FR-0002, FR-0060, SEC-0001, OQ-0078, DEC-0073 |
+| FR-0215 | Morgenmessung mit der Handykamera | functional | Draft | 3 | [readiness](specs/readiness.md#fr-0215--morgenmessung-mit-der-handykamera) | FR-0109, FR-0112, FR-0115, FR-0214, OQ-0006, OQ-0078, DEC-0073 |
 | NFR-0001 | Algorithmen versionierbar und nachvollziehbar | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0001--algorithmen-versionierbar-und-nachvollziehbar) | FR-0053, FR-0058 |
 | NFR-0002 | Einordnung in drei Verfahrenskategorien | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0002--einordnung-in-drei-verfahrenskategorien) | — |
 | NFR-0003 | Heuristiken nicht als validiert darstellen | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0003--heuristiken-nicht-als-validiert-darstellen) | FR-0054 |

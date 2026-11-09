@@ -4,7 +4,7 @@ title: Nutzerprofil und persönliche Einstellungen
 status: Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0001, FR-0002, FR-0003, FR-0004, FR-0005, FR-0006]
+related_requirements: [FR-0001, FR-0002, FR-0003, FR-0004, FR-0005, FR-0006, FR-0214]
 ---
 
 # Nutzerprofil und persönliche Einstellungen
@@ -101,6 +101,22 @@ Die Näherung besitzt eine erhebliche individuelle Streuung. Der Nutzer kann den
 - [ ] Nach einer Änderung lassen sich abhängige Fitnesswerte neu berechnen.
 - [ ] Ursprünglicher und neu berechneter Wert bleiben unterscheidbar (FR-0058).
 
+### FR-0214 — Ruhepuls mit der Handykamera messen
+- **Status:** Approved | **Phase:** 2
+- **Quelle:** SRC-003 (Maintainer 2026-11-09)
+- **Verwandt:** FR-0002, FR-0060, SEC-0001, OQ-0078, DEC-0073
+
+Im Profil und bei der Einrichtung kann der Nutzer seinen Ruhepuls messen lassen, statt ihn einzutragen: Finger auf Rückkamera und Blitz, die App erkennt die Schläge im Kamerabild (Photoplethysmografie). Vor der Messung empfiehlt sie eine Ruhephase mit beruhigender Anleitung; wer schon entspannt ist, misst sofort.
+
+**Akzeptanzkriterien:**
+- [ ] Erreichbar über das Profil (Ruheherzfrequenz) und als Knopf bei der Einrichtung.
+- [ ] Ablauf: Erklärung mit Bild, wie der Finger liegt; wählbar Ruhephase (Vorgabe 4 min, Länge einstellbar) oder sofort messen; danach 60 s Messung.
+- [ ] Während der Messung zeigt die App die Pulskurve und den laufenden Puls, damit der Nutzer den Finger justieren kann, sowie den Fortschritt.
+- [ ] Ergebnis nur bei ausreichender Signalqualität; sonst ein Hinweis mit Grund und „noch einmal“. Der Nutzer übernimmt den Wert ausdrücklich ins Profil.
+- [ ] Ohne Kamera, Blitz oder Berechtigung bleibt die manuelle Eingabe; die App stürzt nicht ab.
+- [ ] Kamerabilder werden weder gespeichert noch übertragen; die Auswertung läuft auf dem Gerät.
+- [ ] Der Algorithmus folgt der Referenz aus `../puls` (`docs/ALGORITHMUS.md`, Stand `algo-v0.4-frozen`) und ist gegen deren Testvektoren geprüft.
+
 ## Randfälle und Fehlerverhalten
 - Weder Alter noch maximale Herzfrequenz bekannt: Abhängige Funktionen sind nicht verfügbar, die App bittet um die Eingabe (OQ-0012).
 
@@ -112,6 +128,7 @@ Die Näherung besitzt eine erhebliche individuelle Streuung. Der Nutzer kann den
 - [OQ-0031](../migration/open-questions.md#oq-0031--ablauf-der-neuberechnung-historischer-werte) (entschieden): Ablauf der Neuberechnung historischer Werte
 - [OQ-0038](../migration/open-questions.md#oq-0038--doppelte-eingaben-in-profil-und-ziel) (entschieden): Doppelte Eingaben in Profil und Ziel
 - [OQ-0065](../migration/open-questions.md#oq-0065--lücken-aus-dem-plan-für-phase-1) (entschieden): Lücken aus dem Plan für Phase 1
+- [OQ-0078](../migration/open-questions.md#oq-0078--puls-und-hrv-mit-der-handykamera) (entschieden): Puls und HRV mit der Handykamera
 <!-- END OQ -->
 
 ## Quellen

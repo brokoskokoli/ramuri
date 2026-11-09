@@ -57,7 +57,7 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 ### OQ-0006 — Mindestdatenqualität für einen numerischen Readiness-Wert
 - **Frage:** Welche Mindestdatenqualität wird für einen numerischen Readiness-Wert vorausgesetzt?
 - **Auslöser/Quellen:** SRC-001 §26 Nr. 6 (Z. 1421); §11.2 (Z. 683, 697); §11.3 (Z. 703, 713).
-- **Betroffene Anforderungen:** FR-0109, FR-0112, FR-0114
+- **Betroffene Anforderungen:** FR-0109, FR-0112, FR-0114, FR-0215
 - **Auswirkung:** blocking — Phase 3, erweiterte Readiness.
 - **Status:** Resolved
 - **Entscheidung:** Eine Zahl erscheint nur mit aktueller HRV und Schlaf sowie einer persönlichen Referenz aus mindestens 14 gültigen Messungen in 28 Tagen; sonst eine eingeschränkte Einschätzung ohne Zahl. Die Mengen sind vorläufige Heuristiken. Ziel: FR-0109, FR-0112, DEC-0042. 2026-11-03, SRC-003.
@@ -650,3 +650,12 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Optionen:** Abfolge bauen, selbst entwerfen oder weglassen; Texthinweis oder Zahl; Spec, Spec mit kurzen Phasennamen oder Design; Phase 3 nach Prüfung am Gerät, mit Testdaten oder zurückstellen.
 - **Status:** Resolved
 - **Entscheidung:** 2026-11-09, SRC-003: Die Abfolge kommt als austauschbarer Datensatz ohne Nennung des NHS in die App, ein Release bleibt bis OQ-0048 gesperrt. Die Karte „Erholung“ zeigt in der Basisstufe nur einen Texthinweis, ohne Zahl und Zustand. Bei den übrigen Widersprüchen gilt die Spec in der Optik des Designs; nur die Anzeige der Phasen nutzt die Kurzformen Einstieg, Grundlage, Aufbau, Spezifisch, Reduktion, Ziel. Phase 3 ist zurückgestellt, über sie wird nach den Erfahrungen mit dem Plan neu entschieden. Ziel: FR-0107, FR-0140, FR-0141, FR-0205, DEC-0071.
+
+### OQ-0078 — Puls und HRV mit der Handykamera
+- **Frage:** Soll die App Ruhepuls und RMSSD selbst mit der Handykamera messen, und soll Phase 3 darauf statt auf Uhrdaten aufbauen?
+- **Auslöser/Quellen:** Versuch des Maintainers in `../puls` (Kamera-PPG, Algorithmus `algo-v0.4-frozen`, eine Vergleichsmessung gegen Polar H9: Puls < 0,5/min, RMSSD < 1 ms über 60 s).
+- **Betroffene Anforderungen:** FR-0214, FR-0215
+- **Auswirkung:** non-blocking, entschieden; Einzelheiten von Phase 3 nach R009.
+- **Optionen:** Kamera-Messung für Ruhepuls (Phase 2) und Morgenmessung (Phase 3); Phase 3 weiter nur über Health Connect.
+- **Status:** Resolved
+- **Entscheidung:** 2026-11-09, SRC-003: Ruhepuls lässt sich in Profil und Einrichtung mit der Kamera messen, mit beruhigender Ruhephase (überspringbar), Pulskurve zum Justieren und Erklärbild (FR-0214, Phase 2). Für Phase 3 misst der Nutzer morgens 60 s Ruhepuls und RMSSD mit der Kamera, auf Wunsch mit Erinnerung (FR-0215). Phase 3 wird nach M2 auf dieser Grundlage geplant und nicht mehr zurückgestellt; Protokoll, Literatur und Regeln klärt R009. Neue Screens entwirft Claude Design im Stil von `design/`. Ziel: FR-0214, FR-0215, DEC-0073.

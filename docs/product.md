@@ -209,6 +209,7 @@ Die Tabelle fasst Entscheidungen aus der Quelle und vom Maintainer (SRC-003) zus
 | DEC-0070 | Name „ramuri“ mit neuer Paket-ID; alle Seiten nach dem Screen-Design, Inhalte nach Spec; Navigation Heute/Verlauf/Fortschritt (Plan ab Phase 2); hell und dunkel (Maintainer, SRC-003) | FR-0205, FR-0206, FR-0207, FR-0208, FR-0209, FR-0210, FR-0211, FR-0212 | Entschieden (OQ-0075) |
 | DEC-0071 | Start von Phase 2: Geh-Lauf-Abfolge in Testversionen, Release erst nach OQ-0048; Erholung ohne Gesundheitsdaten nur als Text; Spec in der Optik des Designs, kurze Phasennamen; Phase 3 zurückgestellt (Maintainer, SRC-003) | FR-0107, FR-0140, FR-0141, FR-0205 | Entschieden (OQ-0077) |
 | DEC-0072 | RR-Intervalle des Pulsgurts ab Phase 2 als Rohdaten speichern, Auswertung später (Maintainer, SRC-003) | FR-0021, FR-0213 | Entschieden |
+| DEC-0073 | Ruhepuls und Morgen-RMSSD mit der Handykamera messen; Phase 3 baut darauf auf statt nur auf Uhrdaten (Maintainer, SRC-003) | FR-0214, FR-0215 | Entschieden (OQ-0078); Phase-3-Regeln nach R009 |
 
 ## Phasen
 

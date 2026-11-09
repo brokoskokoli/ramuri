@@ -1,10 +1,10 @@
 ---
 id: FEAT-011
 title: Erholungszustand und Training Readiness
-status: Approved
+status: Teilweise Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0105, FR-0106, FR-0107, FR-0108, FR-0109, FR-0110, FR-0111, FR-0112, FR-0113, FR-0114, FR-0115, FR-0116, FR-0117, FR-0118]
+related_requirements: [FR-0105, FR-0106, FR-0107, FR-0108, FR-0109, FR-0110, FR-0111, FR-0112, FR-0113, FR-0114, FR-0115, FR-0116, FR-0117, FR-0118, FR-0215]
 ---
 
 # Erholungszustand und Training Readiness
@@ -182,6 +182,16 @@ Die App stellt daraus keine medizinische Diagnose.
 **Akzeptanzkriterien:**
 - [ ] Texte der App stellen keine medizinische Diagnose.
 
+### FR-0215 — Morgenmessung mit der Handykamera
+- **Status:** Draft | **Phase:** 3
+- **Quelle:** SRC-003 (Maintainer 2026-11-09)
+- **Verwandt:** FR-0109, FR-0112, FR-0115, FR-0214, OQ-0006, OQ-0078, DEC-0073
+
+Für die erweiterte Einschätzung ohne Uhr misst der Nutzer morgens 60 s mit der Kamera wie in FR-0214. Daraus entstehen Ruhepuls und RMSSD als eigene Reihe (nicht gemischt mit Werten aus Health Connect, FR-0115). Eine morgendliche Erinnerung ist freiwillig. Protokoll, Referenzbildung und die Frage, ob eine Zahl ohne Schlafdaten erlaubt ist (OQ-0006), klärt R009; danach wird die Anforderung freigegeben.
+
+**Akzeptanzkriterien:**
+- [ ] Nach R009 festzulegen.
+
 ## Offene Fragen
 <!-- BEGIN OQ -->
 - [OQ-0006](../migration/open-questions.md#oq-0006--mindestdatenqualität-für-einen-numerischen-readiness-wert) (entschieden): Mindestdatenqualität für einen numerischen Readiness-Wert
@@ -192,6 +202,7 @@ Die App stellt daraus keine medizinische Diagnose.
 - [OQ-0058](../migration/open-questions.md#oq-0058--entscheidungen-aus-der-prüfung-von-phase-2-und-3) (entschieden): Entscheidungen aus der Prüfung von Phase 2 und 3
 - [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
 - [OQ-0077](../migration/open-questions.md#oq-0077--vorgaben-zum-start-von-phase-2) (entschieden): Vorgaben zum Start von Phase 2
+- [OQ-0078](../migration/open-questions.md#oq-0078--puls-und-hrv-mit-der-handykamera) (entschieden): Puls und HRV mit der Handykamera
 <!-- END OQ -->
 
 ## Quellen
