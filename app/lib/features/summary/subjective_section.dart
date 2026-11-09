@@ -223,7 +223,7 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
                   runSpacing: 6,
                   children: [
                     for (var n = rpeMin; n <= rpeMax; n++)
-                      _Choice(
+                      SubjectiveChoice(
                         key: Key('subjective_rpe_$n'),
                         label: '$n',
                         semanticLabel: '$n, ${rpeWord(l10n, n)}',
@@ -247,13 +247,13 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
                   runSpacing: 8,
                   children: [
                     for (var n = wellbeingMin; n <= wellbeingMax; n++)
-                      _Choice(
+                      SubjectiveChoice(
                         key: Key('subjective_wellbeing_$n'),
                         label: wellbeingWord(l10n, n),
                         selected: _wellbeing == n,
                         onTap: () => _pickWellbeing(n),
                       ),
-                    _Choice(
+                    SubjectiveChoice(
                       key: const Key('subjective_complaints_button'),
                       label: l10n.subjectiveComplaintsButton,
                       selected: _complaintsOpen,
@@ -294,13 +294,13 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _Choice(
+                        SubjectiveChoice(
                           key: const Key('subjective_warn_yes'),
                           label: l10n.subjectiveWarnYes,
                           selected: _warning == WarningAnswer.yes,
                           onTap: () => _pickWarning(WarningAnswer.yes),
                         ),
-                        _Choice(
+                        SubjectiveChoice(
                           key: const Key('subjective_warn_no'),
                           label: l10n.subjectiveWarnNo,
                           selected: _warning == WarningAnswer.no,
@@ -385,8 +385,8 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
 }
 
 /// Wahltaste, mindestens 48 dp, als Taste mit Zustand „ausgewählt“.
-class _Choice extends StatelessWidget {
-  const _Choice({
+class SubjectiveChoice extends StatelessWidget {
+  const SubjectiveChoice({
     super.key,
     required this.label,
     required this.selected,
@@ -415,7 +415,7 @@ class _Choice extends StatelessWidget {
       excludeSemantics: true,
       onTap: onTap,
       child: Material(
-        color: selected ? c.tint : (dashed ? Colors.transparent : c.field),
+        color: selected ? c.tint : (dashed ? c.field.withAlpha(0) : c.field),
         shape: RoundedRectangleBorder(
           borderRadius: radius,
           side: BorderSide(
