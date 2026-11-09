@@ -836,6 +836,7 @@ void main() {
             reason: '$k: höchstens drei Zeilen',
           );
         }
+        expectUnitInLabels(tester, 'Karte leer', miles: false, lang: lang);
         expect(
           tester.takeException(),
           isNull,
@@ -924,4 +925,86 @@ void main() {
       expect(r.right, lessThanOrEqualTo(320), reason: k);
     }
   });
+
+  // Live-Seite, leerer Zustand: Ersatztexte schrumpfen nicht (kein FittedBox).
+  testWidgets('Live: Ersatztext schrumpft nicht', (tester) async {
+    await loadManrope(tester);
+    await loadSora(tester);
+    final d = Device();
+    await d.start(tester, const Locale('de'));
+    await d.skipSetup(tester);
+    await tester.tap(key('home_start_run'));
+    await tester.pumpAndSettle();
+    await tester.tap(key('run_start_ready'));
+    await tester.pumpAndSettle();
+    tester.view.physicalSize = const Size(360, 640);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpAndSettle();
+    for (final k in ['run_pace', 'run_cadence']) {
+      final p = tester.renderObject<RenderParagraph>(find.byKey(Key(k)));
+      expect(
+        p.text.toPlainText(),
+        matches(RegExp(r'noch keine Daten|nicht verfügbar|–')),
+        reason: '$k: Ersatztext',
+      );
+      expect(
+        find.ancestor(of: find.byKey(Key(k)), matching: find.byType(FittedBox)),
+        findsNothing,
+        reason: '$k: Ersatztext ohne FittedBox',
+      );
+    }
+  });
+
+  // Bedienleiste wächst auf breiten Schirmen nicht (nur scaleDown).
+  testWidgets('Live: Bedienleiste wächst bei 411 dp nicht', (tester) async {
+    await loadManrope(tester);
+    await loadSora(tester);
+    final d = Device();
+    await d.start(tester, const Locale('de'));
+    await d.skipSetup(tester);
+    await tester.tap(key('home_start_run'));
+    await tester.pumpAndSettle();
+    await tester.tap(key('run_start_ready'));
+    await tester.pumpAndSettle();
+    tester.view.physicalSize = const Size(411, 800);
+    await tester.pumpAndSettle();
+    // Gezeichnete Breite (mit Skalierung der FittedBox), nicht die Layoutgröße.
+    double drawn(String k) =>
+        tester.getBottomRight(key(k)).dx - tester.getTopLeft(key(k)).dx;
+    expect(drawn('run_pause'), closeTo(104, 0.5));
+    expect(drawn('run_lap'), closeTo(68, 0.5));
+  });
+
+  // Pausierte Reihe bei 320 dp/1,3: „Weiter“/„Beenden“ in einer Zeile.
+  for (final lang in ['de', 'en']) {
+    testWidgets('Live: pausierte Tasten einzeilig bei 320 dp: $lang', (
+      tester,
+    ) async {
+      await loadManrope(tester);
+      await loadSora(tester);
+      final d = Device();
+      await d.start(tester, Locale(lang));
+      await d.skipSetup(tester);
+      await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
+      tester.view.physicalSize = const Size(320, 640);
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_pause'));
+      await tester.pumpAndSettle();
+      for (final k in ['run_resume', 'run_finish']) {
+        final t = find.descendant(of: key(k), matching: find.byType(FittedBox));
+        expect(t, findsOneWidget, reason: k);
+        final p = tester.renderObject<RenderParagraph>(
+          find.descendant(of: t, matching: find.byType(RichText)).first,
+        );
+        expect(p.size.height, lessThan(40), reason: '$k: eine Zeile');
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

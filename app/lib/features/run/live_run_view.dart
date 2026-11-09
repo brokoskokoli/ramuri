@@ -358,7 +358,10 @@ class LiveRunView extends StatelessWidget {
             style: pill(mainBackground, mainForeground),
             onPressed: controller.resume,
             icon: const Icon(Icons.play_arrow_rounded, size: 22),
-            label: Text(l10n.liveResume),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(l10n.liveResume, maxLines: 1, softWrap: false),
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -368,7 +371,10 @@ class LiveRunView extends StatelessWidget {
             style: pill(c.surface, c.text),
             onPressed: () => _confirmFinish(context),
             icon: const Icon(Icons.stop_rounded, size: 22),
-            label: Text(l10n.runFinish),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(l10n.runFinish, maxLines: 1, softWrap: false),
+            ),
           ),
         ),
       ],
