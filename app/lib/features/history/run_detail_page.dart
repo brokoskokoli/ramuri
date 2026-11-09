@@ -199,14 +199,18 @@ class RunDetailPage extends StatelessWidget {
                 formatter.elevation(down),
               ),
               excludeSemantics: true,
-              child: Wrap(
-                spacing: 12,
+              // Wie im Design „+48 m / −46 m“: Der Schrägstrich trennt beide
+              // Werte, auch wenn bei einem flachen Lauf beide ohne Vorzeichen
+              // „0 m“ heißen (sonst „0 m 0 m“). Die Gruppe bricht nicht um.
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     signedElevation('+', formatter.elevation(up)),
                     key: const Key('detail_ascent'),
                     style: text.titleSmall,
                   ),
+                  Text(' / ', style: text.titleSmall),
                   Text(
                     signedElevation('−', formatter.elevation(down)),
                     key: const Key('detail_descent'),
