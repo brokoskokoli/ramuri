@@ -1,6 +1,7 @@
 import 'aerobic_efficiency.dart';
 import 'algorithm_variant.dart';
 import 'edwards_trimp.dart';
+import '../prediction/prediction_registry.dart';
 import 'heart_rate_reserve.dart';
 import 'reserve_zones.dart';
 import 'vo2max_estimator.dart';
@@ -30,7 +31,8 @@ class AlgorithmRegistry {
     ..register(loadModelFamily, const EdwardsTrimp())
     ..register(vo2maxEstimatorFamily, const AcsmReserveVo2maxEstimator())
     ..register(vo2maxLongTermFamily, const SmoothedVo2maxLongTerm())
-    ..register(aerobicEfficiencyFamily, const MedianAerobicEfficiency());
+    ..register(aerobicEfficiencyFamily, const MedianAerobicEfficiency())
+    ..register(performancePredictionFamily, const RiegelPrediction());
 
   final Map<String, _Entry> _families = {};
 

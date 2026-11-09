@@ -110,6 +110,7 @@ void main() {
         'vo2max-acsm-hrr',
         'vo2max-long-term-ema',
         'aerobic-efficiency-median',
+        'riegel-prediction',
       });
       for (final v in all) {
         expect(v.method.trim(), isNotEmpty);
