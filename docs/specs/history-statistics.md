@@ -88,12 +88,13 @@ Die App soll Statistiken nach einzelnen Läufen, Kalenderwochen, Monaten und fre
 ### FR-0211 — Kilometerwerte in der Detailansicht
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-003 (Maintainer 2026-11-08, OQ-0075)
-- **Verwandt:** FR-0041, FR-0056, FR-0204, OQ-0075
+- **Verwandt:** FR-0041, FR-0056, FR-0204, OQ-0075, OQ-0076
 
 Die Detailansicht zeigt eine Tabelle je vollem Kilometer mit Pace und Durchschnittspuls, Kilometermarken auf der Route und zum Höhenprofil Anstieg und Gefälle in Metern.
 
 **Festlegungen (OQ-0075):**
 - Grundlage ist die Bewegungsstrecke nach der Vorverarbeitung; Pausen zählen nicht zur Pace. Ein angebrochener letzter Kilometer erscheint mit seiner Länge.
+- Liegt das Tempo eines Abschnitts unter der Stillstandsschwelle (PAR-014, 0,5 m/s), steht statt der Pace „–“ (OQ-0076).
 - Fehlt der Puls in einem Kilometer, steht dort „–“, nicht 0. Kilometer mit GPS-Lücke sind gekennzeichnet.
 - In Meilen gelten Meilen statt Kilometer (NFR-0006).
 
@@ -119,6 +120,7 @@ Die Detailansicht zeigt eine Tabelle je vollem Kilometer mit Pace und Durchschni
 - [OQ-0065](../migration/open-questions.md#oq-0065--lücken-aus-dem-plan-für-phase-1) (entschieden): Lücken aus dem Plan für Phase 1
 - [OQ-0074](../migration/open-questions.md#oq-0074--karte-der-route) (entschieden): Karte der Route
 - [OQ-0075](../migration/open-questions.md#oq-0075--screen-design-und-marke) (entschieden): Screen-Design und Marke
+- [OQ-0076](../migration/open-questions.md#oq-0076--nachschliff-der-lauf-seiten) (entschieden): Nachschliff der Lauf-Seiten
 <!-- END OQ -->
 
 ## Quellen

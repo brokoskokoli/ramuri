@@ -15,7 +15,7 @@ Laufaufzeichnung und grundlegende Fitnessanalyse. 12 Pakete, höchstens 2 Sitzun
 | 7 | [WP12](WP12-archiv-und-reimport.md), danach Abschlussprüfung | WP11, WP02 | WP12: ADR-0008 ist freigegeben |
 | 8 | R008 ‖ [WP14](WP14-erscheinungsbild-marke-navigation.md) | WP14: alle bisherigen Pakete | WP14: – (nachgereicht am 2026-11-08, OQ-0075) |
 | 9 | [WP13](WP13-karte-der-route.md) ‖ [WP15](WP15-fortschritt-im-design.md) | WP13: R008, WP14. WP15: WP14 | R008 abgeschlossen (e5c00fa). Nachgereicht am 2026-11-07 (OQ-0074) |
-| 10 | [WP16](WP16-lauf-seiten-im-design.md), danach Wiederholung der Abschlussprüfung für Netz und Oberfläche | WP13, WP14 | – |
+| 10 | [WP16](WP16-lauf-seiten-im-design.md), dann [WP17](WP17-nachschliff-lauf-seiten.md), danach Wiederholung der Abschlussprüfung für Netz und Oberfläche | WP13, WP14 | – |
 
 Ist R005 bei Welle 6 nicht fertig, läuft WP11 allein weiter und danach WP12, sobald ADR-0008 freigegeben ist. Ist ADR-0008 früher freigegeben, kann WP12 direkt nach WP11 starten. Nichts außer WP08 hängt an R005, nichts außer WP12 an ADR-0008. Sofort startbar ist nur WP01.
 

@@ -36,7 +36,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0025 | Freie oder geplante Einheit starten | functional | Approved | 1 (frei), 2 (aus Plan) | [run-recording](specs/run-recording.md#fr-0025--freie-oder-geplante-einheit-starten) | FR-0210, OQ-0075 |
 | FR-0026 | Pflichtanzeigen während des Trainings | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0026--pflichtanzeigen-während-des-trainings) | FR-0051, FR-0056, OQ-0012 |
 | FR-0027 | Optionale Anzeigen während des Trainings | functional | Approved | 1 (Rundenzeiten, Höhenmeter, Schrittfrequenz, Karte), 2 (Soll-/Ist-Vergleich, Belastungsbereich) | [run-recording](specs/run-recording.md#fr-0027--optionale-anzeigen-während-des-trainings) | FR-0204, OQ-0041, OQ-0074 |
-| FR-0028 | Training starten, pausieren, fortsetzen, beenden | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0028--training-starten-pausieren-fortsetzen-beenden) | FR-0052, OQ-0075 |
+| FR-0028 | Training starten, pausieren, fortsetzen, beenden | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0028--training-starten-pausieren-fortsetzen-beenden) | FR-0052, OQ-0075, OQ-0076 |
 | FR-0029 | Automatisches Pausieren | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0029--automatisches-pausieren) | FR-0210, OQ-0037, OQ-0065, OQ-0068, OQ-0071, OQ-0075 |
 | FR-0030 | Manuelle Rundenmarkierung | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0030--manuelle-rundenmarkierung) | — |
 | FR-0031 | Akustische Trainingshinweise | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0031--akustische-trainingshinweise) | OQ-0044 |
@@ -219,7 +219,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0208 | Navigation | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0208--navigation) | FR-0209, OQ-0075 |
 | FR-0209 | Startseite „Heute“ | functional | Approved | 1 (Erholung, geplante Einheit und Wochenziel mit ihrer Phase) | [app-design](specs/app-design.md#fr-0209--startseite-heute) | FR-0025, FR-0043, FR-0106, FR-0148, OQ-0075 |
 | FR-0210 | Lauf vorbereiten | functional | Approved | 1 (freier Lauf), 2 (geplante Einheit) | [run-recording](specs/run-recording.md#fr-0210--lauf-vorbereiten) | FR-0011, FR-0025, FR-0029, FR-0195, FR-0202, OQ-0075 |
-| FR-0211 | Kilometerwerte in der Detailansicht | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0211--kilometerwerte-in-der-detailansicht) | FR-0041, FR-0056, FR-0204, OQ-0075 |
+| FR-0211 | Kilometerwerte in der Detailansicht | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0211--kilometerwerte-in-der-detailansicht) | FR-0041, FR-0056, FR-0204, OQ-0075, OQ-0076 |
 | FR-0212 | Zeitraum in der Historie | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0212--zeitraum-in-der-historie) | FR-0040, FR-0044, OQ-0075 |
 | NFR-0001 | Algorithmen versionierbar und nachvollziehbar | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0001--algorithmen-versionierbar-und-nachvollziehbar) | FR-0053, FR-0058 |
 | NFR-0002 | Einordnung in drei Verfahrenskategorien | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0002--einordnung-in-drei-verfahrenskategorien) | — |

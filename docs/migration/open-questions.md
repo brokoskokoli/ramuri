@@ -632,3 +632,12 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Optionen:** Name mit oder ohne neue Paket-ID; 3 oder 4 Bereiche in der Navigation; „Heute“ reduziert oder mit Platzhaltern; Willkommen einmalig, immer oder nie; Autopause-Vorgabe; Beenden mit oder ohne Rückfrage; Zusatzfunktionen aus dem Design; Design oder Spec bei Widersprüchen; nur hell oder hell und dunkel.
 - **Status:** Resolved
 - **Entscheidung:** 2026-11-08, SRC-003: Alle Seiten folgen dem Design in Aussehen und Verhalten; bei Widersprüchen gilt die Spec in der Optik des Designs. Name „ramuri“ mit neuer Paket-ID `io.github.brokoskokoli.ramuri`. Navigation mit Heute, Verlauf, Fortschritt, Plan ab Phase 2, Einstellungen über das Profil-Symbol. „Heute“ in Phase 1 ohne Erholung, Plan und Wochenziel. Willkommen nur beim ersten Start. Autopause auf der Startseite, Vorgabe aus; Beenden nach Pause mit Rückfrage. Dazu in Phase 1: Kilometertabelle, Kilometermarken und Gefälle im Detail, Zeitraum mit Summen im Verlauf, Zentrieren und Werte-Blatt auf der Live-Karte, Umschalter Linie/Karte im Detail. Hell und dunkel. Ziel: FR-0205 bis FR-0212, DEC-0070.
+
+### OQ-0076 — Nachschliff der Lauf-Seiten
+- **Frage:** Was zeigt die Kilometertabelle bei einem sehr kurzen Restabschnitt mit unplausibler Pace, und was tut die Zurück-Taste im laufenden Lauf?
+- **Auslöser/Quellen:** WP16 (Review): 2 m in 8,7 s ergeben 72 min/km; die Zurück-Taste hatte im laufenden Lauf keine Wirkung, was wie ein Hänger wirken kann.
+- **Betroffene Anforderungen:** FR-0028, FR-0211
+- **Auswirkung:** non-blocking, entschieden.
+- **Optionen:** Rest-Pace immer, „–“ unter einer Schwelle oder kurzen Rest weglassen; Zurück-Taste ohne Wirkung, pausieren oder nachfragen.
+- **Status:** Resolved
+- **Entscheidung:** 2026-11-09, SRC-003: Liegt das Tempo eines Abschnitts unter der Stillstandsschwelle (PAR-014, 0,5 m/s), steht statt der Pace „–“; Länge und Zeit bleiben. Die Zurück-Taste soll im laufenden Lauf nicht ohne Wirkung bleiben (Maintainer); ausgelegt vom Orchestrator: Sie fragt, ob der Lauf pausiert werden soll. Ziel: FR-0028, FR-0211, WP17.

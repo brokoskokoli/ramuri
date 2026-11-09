@@ -65,11 +65,13 @@ Optional zeigt die App Rundenzeiten, Höhenmeter, Schrittfrequenz, einen Soll-/I
 ### FR-0028 — Training starten, pausieren, fortsetzen, beenden
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §4.2, Z. 152–157
-- **Verwandt:** FR-0052, OQ-0075
+- **Verwandt:** FR-0052, OQ-0075, OQ-0076
 
 Der Nutzer kann ein Training starten, pausieren, fortsetzen und beenden.
 
 **Festlegung (OQ-0075):** Wie im Design gibt es „Beenden“ erst im pausierten Zustand, neben „Weiter“. Beenden fragt kurz nach, damit ein versehentliches Tippen den Lauf nicht abschließt.
+
+**Festlegung (OQ-0076):** Die Zurück-Taste fragt im laufenden Lauf, ob er pausiert werden soll („Pausieren“ / „Weiterlaufen“). Die Aufzeichnung läuft bis zur Antwort unverändert weiter.
 
 **Akzeptanzkriterien:**
 - [ ] Pausenzeit zählt nicht zur Bewegungszeit, aber zur Gesamtzeit (FR-0052).
@@ -314,6 +316,7 @@ In Phase 2 gibt es einen Laufbandmodus, in dem der Nutzer die aktuelle Geschwind
 - [OQ-0071](../migration/open-questions.md#oq-0071--strecke-während-der-erkannten-pause) (non-blocking): Strecke während der erkannten Pause
 - [OQ-0074](../migration/open-questions.md#oq-0074--karte-der-route) (entschieden): Karte der Route
 - [OQ-0075](../migration/open-questions.md#oq-0075--screen-design-und-marke) (entschieden): Screen-Design und Marke
+- [OQ-0076](../migration/open-questions.md#oq-0076--nachschliff-der-lauf-seiten) (entschieden): Nachschliff der Lauf-Seiten
 <!-- END OQ -->
 
 ## Quellen
