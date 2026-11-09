@@ -427,6 +427,12 @@ void main() {
       // 119 Schritte zu je rund 3,0 m: rund 357 m = 0.22 mi (0.36 km).
       expect(text('run_distance'), '0.22 mi');
       expect(text('run_pace'), matches(RegExp(r'^\d+:\d\d$')));
+      // Die Einheit steht in der Beschriftung (die Sprachausgabe nennt sie).
+      final semantics = tester.ensureSemantics();
+      final label = tester.getSemantics(key('run_pace')).label;
+      expect(label, contains('min/mi'));
+      expect(label, isNot(contains('min/km')));
+      semantics.dispose();
     });
 
     testWidgets('Meilenmodus: Höhenmeter in Fuß', (tester) async {

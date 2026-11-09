@@ -441,6 +441,8 @@ void main() {
         'alle Werte sichtbar, Abstand zum Bedienfeld',
         (tester) async {
           await loadManrope(tester);
+          // Die Zahlen sind Sora: ohne sie misst die Ersatzschrift breiter.
+          await loadSora(tester);
           final cadence = FakeCadenceSensor(
             cadenceAvailable
                 ? CadenceAvailability.available

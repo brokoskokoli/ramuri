@@ -8,6 +8,7 @@ import '../map/map_consent_scope.dart';
 import '../map/map_source_holder.dart';
 import '../settings/unit_format.dart';
 import '../summary/run_charts.dart' show RoutePainter;
+import 'live_run_values.dart' show splitUnit;
 import 'live_run_view.dart'
     show formatClock, livePaceText, averagePaceSecondsPerKm;
 import 'run_controller.dart';
@@ -428,37 +429,60 @@ class _Sheet extends StatelessWidget {
           ),
         );
 
-    Widget tile(Key key, String title, String value) => Expanded(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: text.labelSmall?.copyWith(
-                  color: colors.textMuted,
-                  fontWeight: FontWeight.w700,
+    // Die Einheit steht in der Beschriftung (zweizeilig erlaubt), die Zahl
+    // darunter ohne Einheit; sie schrumpft nur, wenn sie nicht passt, und
+    // steht unten, damit die Zahlen einer Reihe auf einer Höhe stehen.
+    Widget tile(Key key, String title, String value, [String? unit]) =>
+        Expanded(
+          child: Semantics(
+            container: true,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text.rich(
+                      labelWithUnit(title, unit),
+                      style: text.labelSmall?.copyWith(
+                        color: colors.textMuted,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                        value,
+                        key: key,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: text.titleLarge?.copyWith(color: colors.text),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                value,
-                key: key,
-                maxLines: 1,
-                style: text.titleLarge?.copyWith(color: colors.text),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+
+    (String, String?) paceOf(String shown) =>
+        splitUnit(shown, formatter.paceLabel);
+    final (paceValue, paceUnit) = paceOf(
+      livePaceText(controller, formatter, l10n),
     );
+    final (avgValue, avgUnit) = avg == null
+        ? (l10n.runNoDataYet, null)
+        : paceOf(formatter.pace(avg));
 
     return DecoratedBox(
       key: const Key('live_map_sheet'),
@@ -501,28 +525,34 @@ class _Sheet extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              Row(
-                children: [
-                  tile(
-                    const Key('live_map_pace'),
-                    l10n.runPace,
-                    livePaceText(controller, formatter, l10n),
-                  ),
-                  const SizedBox(width: 8),
-                  tile(
-                    const Key('live_map_avg_pace'),
-                    l10n.runAvgPace,
-                    avg == null ? l10n.runNoDataYet : formatter.pace(avg),
-                  ),
-                  const SizedBox(width: 8),
-                  tile(
-                    const Key('live_map_hr'),
-                    zoneNo == null
-                        ? l10n.runHeartRate
-                        : '${l10n.runHeartRate} · Z$zoneNo',
-                    bpm == null ? UnitFormatter.noValue : '$bpm',
-                  ),
-                ],
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    tile(
+                      const Key('live_map_pace'),
+                      l10n.runPace,
+                      paceValue,
+                      paceUnit,
+                    ),
+                    const SizedBox(width: 8),
+                    tile(
+                      const Key('live_map_avg_pace'),
+                      l10n.runAvgPace,
+                      avgValue,
+                      avgUnit,
+                    ),
+                    const SizedBox(width: 8),
+                    tile(
+                      const Key('live_map_hr'),
+                      zoneNo == null
+                          ? l10n.runHeartRate
+                          : '${l10n.runHeartRate} · Z$zoneNo',
+                      bpm == null ? UnitFormatter.noValue : '$bpm',
+                      bpm == null ? null : l10n.liveUnitBpm,
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
               Row(

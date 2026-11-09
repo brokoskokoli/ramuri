@@ -99,46 +99,59 @@ class RamuriValueTile extends StatelessWidget {
             final (head, reason) = textValue
                 ? splitReason(value)
                 : (value, null);
+            // Im Raster sind die Kacheln einer Reihe gleich hoch: Beschriftung
+            // oben, Zahl unten, damit Zahlen auf einer Höhe stehen, auch wenn
+            // eine Beschriftung zweizeilig ist. Ohne feste Höhe schließt die
+            // Spalte eng ab.
             return Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text.rich(
                   labelWithUnit(label, labelUnit),
                   style: Theme.of(context).textTheme.labelSmall,
                 ),
-                const SizedBox(height: 2),
-                _fitUnit(
-                  unit != null,
-                  Text.rich(
-                    key: valueKey,
-                    TextSpan(
-                      children: [
-                        if (textValue) ...[
-                          TextSpan(text: head, style: text.labelMedium),
-                          // Der Grund steht in einer eigenen Zeile.
-                          if (reason != null)
-                            TextSpan(
-                              text: '\n$reason',
-                              style: reasonStyle(context),
-                            ),
-                        ] else
-                          TextSpan(text: value, style: valueStyle),
-                        if (unit != null)
-                          TextSpan(
-                            text: ' $unit',
-                            // Der Wortverbinder gehört nicht in die Sprachausgabe.
-                            semanticsLabel: ' ${spokenUnit(unit!)}',
-                            style: type.unit,
-                          ),
-                      ],
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 2),
+                    _fitUnit(
+                      unit != null,
+                      Text.rich(
+                        key: valueKey,
+                        // Mit Einheit bleibt alles in einer Zeile (FittedBox); der
+                        // Umbruch würde im IntrinsicHeight eine Scheinzeile messen.
+                        softWrap: unit == null,
+                        TextSpan(
+                          children: [
+                            if (textValue) ...[
+                              TextSpan(text: head, style: text.labelMedium),
+                              // Der Grund steht in einer eigenen Zeile.
+                              if (reason != null)
+                                TextSpan(
+                                  text: '\n$reason',
+                                  style: reasonStyle(context),
+                                ),
+                            ] else
+                              TextSpan(text: value, style: valueStyle),
+                            if (unit != null)
+                              TextSpan(
+                                text: ' $unit',
+                                // Der Wortverbinder gehört nicht in die Sprachausgabe.
+                                semanticsLabel: ' ${spokenUnit(unit!)}',
+                                style: type.unit,
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                    if (estimated) ...[
+                      const SizedBox(height: 2),
+                      const EstimatedMark(),
+                    ],
+                  ],
                 ),
-                if (estimated) ...[
-                  const SizedBox(height: 2),
-                  const EstimatedMark(),
-                ],
               ],
             );
           },
@@ -224,8 +237,10 @@ class RamuriTileGrid extends StatelessWidget {
         if (widthOf(word, labelStyle) > inner) return false;
       }
       // Auch eine Zahl bricht, wenn sie nicht passt („+120 / 0“): sie zählt
-      // wie ein Wort. Nur die Zahl wird geprüft; die Einheit steht danach hinter
-      // einem normalen Leerzeichen und darf umbrechen.
+      // wie ein Wort. Nur die Zahl wird geprüft; die Einheit dahinter bleibt
+      // bei der Zahl in einer Zeile und schrumpft samt Zahl, wenn beides nicht
+      // passt (FittedBox). Das Raster zeigt einen fertigen Lauf: die Werte
+      // ändern sich nicht, die Spaltenzahl springt nicht.
       final word = child.textValue ? child.longestReasonWord : child.value;
       if (word == null) continue;
       final painter = TextPainter(

@@ -61,6 +61,9 @@ class LiveValueText extends StatelessWidget {
       ),
       key: Key(id),
       textAlign: textAlign,
+      // Geschrumpft wird in einer Zeile; der Umbruch würde im IntrinsicHeight
+      // eine Scheinzeile messen.
+      softWrap: !shrink,
     );
     if (!shrink) return text;
     return FittedBox(
@@ -221,9 +224,16 @@ class LiveValues extends StatelessWidget {
       ),
     );
 
-    /// Zwei Kacheln nebeneinander; passt eine Zahl oder ein Wort der
-    /// Beschriftung nicht in die halbe Breite, stehen sie untereinander (wie
-    /// das Raster weniger Spalten nimmt).
+    /// Längstes Wort der Ersatztexte: Sie dürfen umbrechen, aber nicht im Wort.
+    String longestWord(String t) =>
+        t.split(RegExp(r'\s+')).reduce((a, b) => a.length >= b.length ? a : b);
+    final placeholderWords = [longestWord(na), longestWord(l10n.runNoDataYet)];
+
+    /// Zwei Kacheln nebeneinander; passt die breiteste Form einer Zahl oder
+    /// ein Wort der Beschriftung nicht in die halbe Breite, stehen sie
+    /// untereinander (wie das Raster weniger Spalten nimmt). Gemessen wird nie
+    /// der aktuelle Wert: Die Anordnung darf sich während des Laufs nicht
+    /// ändern, nur weil die Pace von 9:59 auf 10:00 springt.
     Widget pair(
       (String, TextStyle?, String, String?) first,
       Widget firstTile,
@@ -231,9 +241,13 @@ class LiveValues extends StatelessWidget {
       (String, TextStyle?, String, String?)? second,
     ]) => _TilePair(
       words: [
-        for (final (value, style, label, labelUnit) in [first, ?second]) ...[
-          (value, valueStyleOf(value, style)),
-          for (final word in [...label.split(RegExp(r'\s+')), ?labelUnit])
+        for (final (widest, style, label, labelUnit) in [first, ?second]) ...[
+          (widest, style ?? type.valueSmall),
+          for (final word in [
+            ...label.split(RegExp(r'\s+')),
+            ...placeholderWords,
+            ?labelUnit,
+          ])
             (word, text.labelMedium!),
         ],
       ],
@@ -304,7 +318,12 @@ class LiveValues extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         pair(
-          (paceValue, numberStyle, l10n.livePaceNow, paceUnit),
+          (
+            '88:88',
+            numberStyle,
+            l10n.livePaceNow,
+            paceUnit ?? formatter.paceLabel,
+          ),
           tile(
             l10n.livePaceNow,
             'run_pace',
@@ -321,7 +340,12 @@ class LiveValues extends StatelessWidget {
             style: numberStyle,
             unitInLabel: true,
           ),
-          (avgValue, numberStyle, l10n.runAvgPace, avgUnit),
+          (
+            '88:88',
+            numberStyle,
+            l10n.runAvgPace,
+            avgUnit ?? formatter.paceLabel,
+          ),
         ),
         const SizedBox(height: 10),
         _HeartCard(
@@ -333,7 +357,7 @@ class LiveValues extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         pair(
-          (formatClock(s.movingTime), null, l10n.runMovingTime, null),
+          ('8:88:88', null, l10n.runMovingTime, null),
           tile(
             l10n.runMovingTime,
             'run_moving_time',
@@ -341,12 +365,12 @@ class LiveValues extends StatelessWidget {
             null,
           ),
           tile(l10n.runAscent, 'run_ascent', ascentValue, ascentUnit),
-          (ascentValue, null, l10n.runAscent, null),
+          ('+8888', null, l10n.runAscent, null),
         ),
         const SizedBox(height: 10),
         // FR-0202: Wert nur mit Berechtigung und Sensor, sonst „nicht verfügbar“.
         pair(
-          (cadence, null, l10n.runCadence, null),
+          ('888', null, l10n.runCadence, null),
           tile(l10n.runCadence, 'run_cadence', cadence, cadenceUnit),
           null,
         ),
@@ -570,13 +594,17 @@ class _TilePair extends StatelessWidget {
             ],
           );
         }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: first),
-            const SizedBox(width: _gap),
-            Expanded(child: second ?? const SizedBox.shrink()),
-          ],
+        // Gleich hohe Karten; die Zahlen stehen unten auf einer Höhe, auch wenn
+        // eine Beschriftung zweizeilig ist.
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: first),
+              const SizedBox(width: _gap),
+              Expanded(child: second ?? const SizedBox.shrink()),
+            ],
+          ),
         );
       },
     );
@@ -602,6 +630,8 @@ class _LiveTile extends StatelessWidget {
         child: _LiveCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            // Die Zahl unten: Zahlen nebeneinander stehen auf einer Höhe.
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text.rich(
                 labelWithUnit(label, labelUnit),

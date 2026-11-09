@@ -27,6 +27,10 @@ Bezug: FR-0028, FR-0037, FR-0041, FR-0057, FR-0205, FR-0211, FR-0212; PAR-014; O
 - [ ] Texte nach Punkt 4, de und en; Einheit bricht nicht von der Zahl (Widget-Test bei 360 dp, Faktor 1,3).
 - [ ] E2E (separater Agent), API 36 und 31, hell und dunkel, auf dem letzten Stand: Lauf mit Pause und Zurück-Taste, Zusammenfassung, Detail mit kurzem Rest, Verlauf mit Summen; Bildschirmfotos neben dem Design. Gate grün.
 
+## Ergebnis: Einheit
+- **Entscheidung des Maintainers (2026-11-09), abweichend von „Einheit bleibt bei der Zahl“ (Punkt 4) und vom Design (`Live.dc.html`):** Bei Pace, Puls und Punkten steht die Einheit in der Beschriftung („Ø Pace min/km“, „Ø Puls bpm“, „Belastung Punkte“), die Zahl darunter bleibt groß und ohne Einheit. Das gilt auf der Werte-Seite, in der Zusammenfassung, im Detail und auf der Kartenseite (Blatt unter der Karte); die Beschriftung darf dort zweizeilig sein. Anstieg und Gefälle behalten „+1200 m“ zusammen und schrumpfen nur bei Platzmangel (`FittedBox`, `scaleDown`). Ersatztexte („noch keine Daten“, „nicht verfügbar“) stehen ohne Einheit, die Beschriftung bleibt dann ohne.
+- **Anordnung:** Ob zwei Kacheln nebeneinander oder untereinander stehen, richtet sich nach der breitesten Form der Zahl (Pace 88:88, Bewegungszeit 8:88:88, vom Ersatztext das längste Wort), nicht nach dem aktuellen Wert: Die Seite springt während des Laufs nicht. Die Zahlen einer Reihe stehen unten auf einer Höhe.
+
 ## Ergebnis: Summen im Verlauf
 - **Ursache der Abweichung 18:52 / 18:50 (FR-0212):** Jede Zeile zeigt die Gesamtzeit ihres Laufs auf ganze Sekunden abgeschnitten (`formatClock`, `Duration.inSeconds`). Die Summe darüber addiert die Gesamtzeiten ungerundet und schneidet erst das Ergebnis ab. Zeile und Summe kommen aus derselben Liste (`history_screen.dart`, `RunOverview.totalTime`), die Zeitbasis ist dieselbe. Die Differenz liegt deshalb in [0, n) Sekunden bei n Läufen; 2 s bei sieben Läufen passen.
 - **Beleg und Grenze:** Herleitung aus dem Code. Die Sekundenbruchteile der E2E-Läufe wurden nicht gemessen.

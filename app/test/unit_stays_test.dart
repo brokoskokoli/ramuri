@@ -19,6 +19,9 @@ import 'history_summary_test.dart' show key, seedRun, showAllRuns;
 /// Einheitswort: nach dem Entfernen der Wortverbinder genau eine Einheit.
 final _unitWord = RegExp(r'^(km|mi|m|ft|min/km|min/mi|bpm|spm|Punkte|points)$');
 
+/// Eine Zahl als ganzes Wort („5:33“, „0,84“, „+1200“); „Z5“ ist keine.
+final _number = RegExp(r'^[+\-−]?[\d.,:]*\d$');
+
 /// Pace, Puls und Punkte: Die Einheit steht in der Beschriftung, die Zahl
 /// bleibt groß und ohne Einheit (WP17 B3). Ein Wert ist hier nie samt Einheit
 /// in der Kachel (das Schrumpfen wäre sonst nur versteckt).
@@ -29,8 +32,61 @@ const _unitInLabelKeys = {
   'sum_avg_hr',
   'sum_max_hr',
   'sum_trimp',
+  // Kartenseite: Blatt unter der Karte.
+  'live_map_pace',
+  'live_map_avg_pace',
+  'live_map_hr',
 };
 final _seenUnitInLabel = <String>{};
+final _labelChecked = <String>{};
+
+/// Einheit der Beschriftung je Schlüssel.
+String _unitOfKey(String k, {required bool miles, required String lang}) =>
+    switch (k) {
+      'sum_avg_hr' || 'sum_max_hr' || 'live_map_hr' => 'bpm',
+      'sum_trimp' => lang == 'de' ? 'Punkte' : 'points',
+      _ => miles ? 'min/mi' : 'min/km',
+    };
+
+/// Die Sprachausgabe (Semantics-Label) nennt die Einheit genau einmal, wenn
+/// eine Zahl da ist, und gar nicht, wenn ein Ersatztext („noch keine Daten“,
+/// „nicht verfügbar“) dasteht. Nie die Einheit des anderen Maßes.
+void expectUnitInLabels(
+  WidgetTester tester,
+  String where, {
+  required bool miles,
+  required String lang,
+}) {
+  for (final k in _unitInLabelKeys) {
+    final finder = find.byKey(Key(k));
+    if (finder.evaluate().isEmpty) continue;
+    final w = tester.widget<Text>(finder.first);
+    final plain =
+        (w.data ?? w.textSpan!.toPlainText(includeSemanticsLabels: false))
+            .replaceAll('\u2060', '')
+            .replaceAll('\u00A0', ' ');
+    final isNumber = _number.hasMatch(plain);
+    final unit = _unitOfKey(k, miles: miles, lang: lang);
+    final label = tester.getSemantics(finder.first).label;
+    final count = RegExp('(?<![\\w/])${RegExp.escape(unit)}(?![\\w/])')
+        .allMatches(label)
+        .length;
+    expect(
+      count,
+      isNumber ? 1 : 0,
+      reason: '$where: $k (Wert "$plain") nennt "$unit" im Label "$label"',
+    );
+    for (final other in ['min/km', 'min/mi', 'bpm', 'Punkte', 'points']) {
+      if (other == unit) continue;
+      expect(
+        label.contains(other),
+        isFalse,
+        reason: '$where: $k nennt fremde Einheit "$other": "$label"',
+      );
+    }
+    _labelChecked.add(k);
+  }
+}
 
 /// Prüft alle Texte auf dem Bildschirm: Kein Wort (auch keine Beschriftung,
 /// keine Zahl, keine Einheit wie „min/km“) bricht mitten im Wort, und Zahl und
@@ -61,6 +117,12 @@ int expectUnitsStay(WidgetTester tester, String where) {
     final p = e.renderObject;
     if (p is! RenderParagraph) continue;
     final plain = p.text.toPlainText(includeSemanticsLabels: false);
+    // Ein Text wird nie gekürzt (Beschriftung zweizeilig, Zahl schrumpft).
+    expect(
+      p.didExceedMaxLines,
+      isFalse,
+      reason: '$where: "$plain" ist abgeschnitten (maxLines)',
+    );
     final ownKey = _keyOf(tester, e);
     if (_unitInLabelKeys.contains(ownKey)) {
       _seenUnitInLabel.add(ownKey!);
@@ -69,7 +131,7 @@ int expectUnitsStay(WidgetTester tester, String where) {
       expect(
         words.length > 1 &&
             _unitWord.hasMatch(words.last) &&
-            RegExp(r'\d$').hasMatch(words[words.length - 2]),
+            _number.hasMatch(words[words.length - 2]),
         isFalse,
         reason: '$where: "$plain" ($ownKey) trägt die Einheit im Wert',
       );
@@ -86,12 +148,11 @@ int expectUnitsStay(WidgetTester tester, String where) {
       );
       if (boxes.isEmpty) continue;
       // Geprüft wird jedes Wort: auch Beschriftungen („Bewegungszeit“).
-      const relevant = true;
       // Ein Wort in einer Zeile: die Kästen laufen von links nach rechts.
       double? left;
       for (final b in boxes) {
         expect(
-          !relevant || left == null || b.left >= left - 0.5,
+          left == null || b.left >= left - 0.5,
           isTrue,
           reason: '$where: "${w.group(0)}" in "$plain" bricht im Wort',
         );
@@ -104,7 +165,7 @@ int expectUnitsStay(WidgetTester tester, String where) {
     }
     for (var k = 1; k < spans.length; k++) {
       if (!_unitWord.hasMatch(spans[k].$2)) continue;
-      if (!RegExp(r'\d$').hasMatch(spans[k - 1].$2)) continue;
+      if (!_number.hasMatch(spans[k - 1].$2)) continue;
       checked++;
       expect(
         lineOfWord[k],
@@ -147,14 +208,26 @@ String? _keyOf(WidgetTester tester, Element richText) {
   return found;
 }
 
-Future<void> checkScrolled(WidgetTester tester, String where) async {
+Future<void> checkScrolled(
+  WidgetTester tester,
+  String where, {
+  required bool miles,
+  required String lang,
+}) async {
   final scrollable = find.byType(Scrollable);
   var seen = expectUnitsStay(tester, where);
+  expectUnitInLabels(tester, where, miles: miles, lang: lang);
   if (scrollable.evaluate().isEmpty) return;
   for (var i = 0; i < 6; i++) {
     await tester.drag(scrollable.first, const Offset(0, -300));
     await tester.pump();
     seen += expectUnitsStay(tester, '$where (gescrollt $i)');
+    expectUnitInLabels(
+      tester,
+      '$where (gescrollt $i)',
+      miles: miles,
+      lang: lang,
+    );
   }
   expect(seen, greaterThan(0), reason: where);
 }
@@ -167,6 +240,8 @@ void main() {
             '${miles ? 'Meilen' : 'km'}, Faktor $scale', (tester) async {
           await loadManrope(tester);
           await loadSora(tester);
+          _seenUnitInLabel.clear();
+          _labelChecked.clear();
           final semantics = tester.ensureSemantics();
           final cadence = FakeCadenceSensor();
           final d = Device()..cadence = cadence;
@@ -207,11 +282,11 @@ void main() {
           await tester.tap(key('home_history'));
           await tester.pumpAndSettle();
           await showAllRuns(tester);
-          await checkScrolled(tester, 'Verlauf');
+          await checkScrolled(tester, 'Verlauf', miles: miles, lang: lang);
           // Detail.
           await tester.tap(key('history_distance_$id'));
           await tester.pumpAndSettle();
-          await checkScrolled(tester, 'Detail');
+          await checkScrolled(tester, 'Detail', miles: miles, lang: lang);
           expect(tester.takeException(), isNull);
 
           // Live: langsam (rund 15 min/km), 1200 m Anstieg, dann 1200 m
@@ -245,10 +320,22 @@ void main() {
             cadence.emit(d.clock.now(), 180);
             await tester.pump(const Duration(seconds: 1));
           }
-          await checkScrolled(tester, 'Live Werte');
+          await checkScrolled(tester, 'Live Werte', miles: miles, lang: lang);
           await tester.tap(key('run_tab_1'));
           await tester.pumpAndSettle();
           expect(expectUnitsStay(tester, 'Live Karte'), greaterThan(0));
+          expectUnitInLabels(tester, 'Live Karte', miles: miles, lang: lang);
+          // Die Zahlen der Reihe stehen auf einer Höhe (unten ausgerichtet).
+          final bottoms = [
+            for (final k in [
+              'live_map_pace',
+              'live_map_avg_pace',
+              'live_map_hr',
+            ])
+              tester.getRect(key(k)).bottom,
+          ];
+          expect(bottoms[1], closeTo(bottoms[0], 0.5), reason: 'Karte: Pace');
+          expect(bottoms[2], closeTo(bottoms[0], 0.5), reason: 'Karte: Puls');
           await tester.tap(key('run_tab_0'));
           await tester.pumpAndSettle();
           // Zusammenfassung nach dem Beenden.
@@ -258,12 +345,22 @@ void main() {
           await tester.pumpAndSettle();
           await tester.tap(key('run_finish_confirm'));
           await tester.pumpAndSettle();
-          await checkScrolled(tester, 'Zusammenfassung');
+          await checkScrolled(
+            tester,
+            'Zusammenfassung',
+            miles: miles,
+            lang: lang,
+          );
           expect(tester.takeException(), isNull);
           expect(
             _seenUnitInLabel,
             _unitInLabelKeys,
             reason: 'alle Werte mit Einheit in der Beschriftung gesehen',
+          );
+          expect(
+            _labelChecked,
+            _unitInLabelKeys,
+            reason: 'Sprachausgabe aller Werte mit Einheit in der Beschriftung',
           );
           semantics.dispose();
         });
@@ -286,6 +383,220 @@ void main() {
       child: Scaffold(body: Center(child: body)),
     ),
   );
+
+  // Keine Sprünge während des Laufs: Ob zwei Kacheln nebeneinander oder
+  // untereinander stehen, hängt von der breitesten Form der Zahl ab (Pace
+  // 88:88, Zeit 8:88:88), nicht vom aktuellen Wert. Die Pace wechselt hier
+  // über 10:00 hin und her; die Zahlen einer Reihe stehen unten auf einer Höhe.
+  for (final lang in ['de', 'en']) {
+    for (final scale in [1.0, 1.15, 1.3]) {
+      testWidgets('Live: Anordnung bleibt bei jedem Wert gleich: $lang, '
+          'Faktor $scale', (tester) async {
+        await loadManrope(tester);
+        await loadSora(tester);
+        final semantics = tester.ensureSemantics();
+        final d = Device();
+        await d.start(tester, Locale(lang));
+        await d.skipSetup(tester);
+        await d.session.profile.save(
+          const ProfileRecord(maxHeartRateBpm: 190, restingHeartRateBpm: 60),
+        );
+        await tester.tap(key('home_start_run'));
+        await tester.pumpAndSettle();
+        await tester.tap(key('run_start_ready'));
+        await tester.pumpAndSettle();
+        tester.view.physicalSize = const Size(360, 640);
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await tester.pumpAndSettle();
+
+        var lat = 50.0;
+        var i = 0;
+        Future<void> leg(
+          int steps,
+          int stepSeconds,
+          double metersPerSecond,
+        ) async {
+          for (var n = 0; n < steps; n++) {
+            d.clock.advance(Duration(seconds: stepSeconds));
+            lat += metersPerSecond * stepSeconds / 111195;
+            d.location.emit(
+              LocationSample(
+                time: d.clock.now(),
+                latitude: lat,
+                longitude: 8,
+                accuracyMeters: 5,
+                altitudeMeters: 100 + i++ * 0.5,
+                verticalAccuracyMeters: 3,
+              ),
+            );
+            await tester.pump(const Duration(seconds: 1));
+          }
+        }
+
+        String shown(String k) =>
+            (tester.widget<Text>(find.byKey(Key(k))).data ??
+            tester.widget<Text>(find.byKey(Key(k))).textSpan!.toPlainText());
+        // Breite der Karte je Wert: halbe oder ganze Breite.
+        double cardWidth(String k) => tester
+            .getSize(
+              find
+                  .ancestor(
+                    of: find.byKey(Key(k)),
+                    matching: find.byType(RamuriCard),
+                  )
+                  .first,
+            )
+            .width;
+        const keys = [
+          'run_pace',
+          'run_avg_pace',
+          'run_moving_time',
+          'run_ascent',
+          'run_cadence',
+        ];
+        final layouts = <String, List<double>>{};
+        void record(String state, RegExp pace) {
+          expect(shown('run_pace'), matches(pace), reason: state);
+          layouts[state] = [for (final k in keys) cardWidth(k)];
+          // Nebeneinander: die Zahlen stehen unten auf einer Höhe.
+          for (final (a, b) in [
+            ('run_pace', 'run_avg_pace'),
+            ('run_moving_time', 'run_ascent'),
+          ]) {
+            if (tester.getTopLeft(key(b)).dx > tester.getTopLeft(key(a)).dx) {
+              expect(
+                tester.getRect(key(b)).bottom,
+                closeTo(tester.getRect(key(a)).bottom, 0.5),
+                reason: '$state: $a und $b auf einer Höhe',
+              );
+            }
+          }
+          expectUnitInLabels(tester, state, miles: false, lang: lang);
+        }
+
+        record('noch keine Daten', RegExp(r'^(noch keine Daten|no data yet)$'));
+        await leg(60, 1, 3.0);
+        record('5:33', RegExp(r'^5:\d\d$'));
+        await leg(90, 1, 1.3);
+        record('12:29', RegExp(r'^1[1-4]:\d\d$'));
+        await leg(60, 1, 3.0);
+        record('wieder 5:33', RegExp(r'^5:\d\d$'));
+        // Über eine Stunde Bewegungszeit.
+        await leg(40, 100, 3.0);
+        expect(shown('run_moving_time'), matches(RegExp(r'^\d:\d\d:\d\d$')));
+        layouts['Stunden'] = [for (final k in keys) cardWidth(k)];
+        for (final entry in layouts.entries) {
+          expect(
+            entry.value,
+            layouts.values.first,
+            reason:
+                'Faktor $scale: Anordnung bei "${entry.key}" '
+                'anders als bei "noch keine Daten"',
+          );
+        }
+        expect(tester.takeException(), isNull);
+        semantics.dispose();
+      });
+    }
+  }
+
+  // Gleiche Höhe im Raster: Eine zweizeilige Beschriftung schiebt die Zahl
+  // nicht nach oben.
+  testWidgets('Raster: Zahlen einer Reihe stehen auf einer Höhe', (
+    tester,
+  ) async {
+    await loadManrope(tester);
+    await loadSora(tester);
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      app(
+        const SingleChildScrollView(
+          padding: EdgeInsets.all(20),
+          child: RamuriTileGrid(
+            children: [
+              RamuriValueTile(
+                label: 'Ø Pace',
+                value: '5:40',
+                labelUnit: 'min/km',
+                valueKey: Key('a'),
+              ),
+              RamuriValueTile(
+                label: 'Anstieg',
+                value: '+12',
+                unit: 'm',
+                valueKey: Key('b'),
+              ),
+              RamuriValueTile(label: 'Max', value: '187', valueKey: Key('c')),
+            ],
+          ),
+        ),
+      ),
+    );
+    // Die erste Beschriftung ist zweizeilig, die anderen einzeilig.
+    final label = tester
+        .renderObjectList<RenderParagraph>(find.byType(RichText))
+        .firstWhere((p) => p.text.toPlainText().startsWith('Ø Pace'));
+    expect(label.size.height, greaterThan(18), reason: 'zweizeilig');
+    final bottoms = [
+      for (final k in ['a', 'b', 'c'])
+        tester.getRect(find.byKey(Key(k))).bottom,
+    ];
+    expect(bottoms[1], closeTo(bottoms[0], 0.5));
+    expect(bottoms[2], closeTo(bottoms[0], 0.5));
+  });
+
+  // Schrumpft „+1200 m“ in der Kachel, wird die Reihe nicht höher (keine
+  // Scheinzeile vom umgebrochenen Text unter der FittedBox).
+  for (final scale in [1.0]) {
+    testWidgets('Raster: schrumpfende Zahl macht die Reihe nicht höher '
+        '(Faktor $scale)', (tester) async {
+      await loadManrope(tester);
+      await loadSora(tester);
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      Future<double> height(String value) async {
+        await tester.pumpWidget(
+          app(
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: RamuriTileGrid(
+                children: [
+                  RamuriValueTile(
+                    label: 'Anstieg',
+                    value: value,
+                    unit: 'm',
+                    valueKey: const Key('v'),
+                  ),
+                  const RamuriValueTile(label: 'Max', value: '187'),
+                  const RamuriValueTile(label: 'Min', value: '90'),
+                ],
+              ),
+            ),
+            scale: scale,
+          ),
+        );
+        return tester.getSize(find.byType(RamuriTileGrid)).height;
+      }
+
+      final normal = await height('+12');
+      final shrunk = await height('+1200');
+      expect(
+        tester.getRect(find.byKey(const Key('v'))).width,
+        lessThan(
+          tester
+              .renderObject<RenderParagraph>(find.byKey(const Key('v')))
+              .size
+              .width,
+        ),
+        reason: 'die Zahl ist hier tatsächlich geschrumpft',
+      );
+      expect(shrunk, closeTo(normal, 0.5));
+    });
+  }
 
   // Anstieg und Gefälle: „+1200 m“ bleibt zusammen und schrumpft nur, wenn
   // es nicht in die Kachel passt.
