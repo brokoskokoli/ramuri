@@ -43,7 +43,7 @@ Zunächst werden ausgewertet: gewünschtes Trainingsziel, Zeit bis zum Zieldatum
 ### FR-0140 — Konservativer Einstiegsplan bei unzureichenden Daten
 - **Status:** Approved | **Phase:** 2
 - **Quelle:** SRC-001 §15.1, Z. 921–923
-- **Verwandt:** FR-0104, OQ-0010, OQ-0028, OQ-0048, OQ-0059, OQ-0060
+- **Verwandt:** FR-0104, OQ-0010, OQ-0028, OQ-0048, OQ-0059, OQ-0060, OQ-0077
 
 Wenn keine ausreichenden Daten vorliegen, wird ein konservativer Einstiegsplan erstellt. Der erste Trainingsabschnitt dient dann zugleich dem Aufbau einer individuellen Datenbasis.
 
@@ -56,7 +56,7 @@ Wenn keine ausreichenden Daten vorliegen, wird ein konservativer Einstiegsplan e
 ### FR-0141 — Trainingsphasen
 - **Status:** Approved | **Phase:** 2
 - **Quelle:** SRC-001 §15.2, Z. 927–938
-- **Verwandt:** OQ-0027, OQ-0028, OQ-0059, OQ-0060
+- **Verwandt:** OQ-0027, OQ-0028, OQ-0059, OQ-0060, OQ-0077
 
 Ein längerer Plan kann in Phasen unterteilt werden. Die Dauer hängt vom Ziel, Trainingsstand und verfügbaren Zeitraum ab.
 
@@ -68,6 +68,8 @@ Ein längerer Plan kann in Phasen unterteilt werden. Die Dauer hängt vom Ziel, 
 | Spezifisches Training | Vorbereitung auf das konkrete Laufziel |
 | Reduktion vor Wettkampf | Belastung senken und Erholung ermöglichen |
 | Zieltermin | Wettkampf oder Leistungstest |
+
+**Festlegung (OQ-0077):** Im Phasenbalken des Plans stehen die Kurzformen Einstieg, Grundlage, Aufbau, Spezifisch, Reduktion, Ziel. Die Erklärung der Phase nennt den vollen Namen.
 
 **Akzeptanzkriterien:**
 - [ ] Der Plan zeigt Einstieg, Aufbau und bei einem Datum die Reduktion (PAR-192, PAR-199). Weitere Phasen sind zunächst nicht vorgesehen.
@@ -252,6 +254,7 @@ Die konkreten Werte stehen in [planning-rules.md](../planning-rules.md) und [pha
 - [OQ-0057](../migration/open-questions.md#oq-0057--fehlende-regeln-für-phase-2-und-3) (entschieden): Fehlende Regeln für Phase 2 und 3
 - [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
 - [OQ-0060](../migration/open-questions.md#oq-0060--einfacher-trainingsplan) (entschieden): Einfacher Trainingsplan
+- [OQ-0077](../migration/open-questions.md#oq-0077--vorgaben-zum-start-von-phase-2) (entschieden): Vorgaben zum Start von Phase 2
 <!-- END OQ -->
 
 ## Quellen

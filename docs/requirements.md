@@ -115,7 +115,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0104 | Fehlender Datenbestand ist kein niedriges Fitnessniveau | functional | Approved | 2 | [training-load](specs/training-load.md#fr-0104--fehlender-datenbestand-ist-kein-niedriges-fitnessniveau) | OQ-0016 |
 | FR-0105 | Zwei Stufen der Einschätzung | functional | Approved | 2 (Basis), 3 (erweitert) | [readiness](specs/readiness.md#fr-0105--zwei-stufen-der-einschätzung) | FR-0106, FR-0108 |
 | FR-0106 | Basis-Erholungseinschätzung ohne Fitnessuhr | functional | Approved | 2 | [readiness](specs/readiness.md#fr-0106--basis-erholungseinschätzung-ohne-fitnessuhr) | CON-0004, OQ-0029, OQ-0057 |
-| FR-0107 | Kein Anspruch auf vollständige Bestimmung | functional | Approved | 2 | [readiness](specs/readiness.md#fr-0107--kein-anspruch-auf-vollständige-bestimmung) | — |
+| FR-0107 | Kein Anspruch auf vollständige Bestimmung | functional | Approved | 2 | [readiness](specs/readiness.md#fr-0107--kein-anspruch-auf-vollständige-bestimmung) | OQ-0029, OQ-0077 |
 | FR-0108 | Faktoren der erweiterten Training Readiness | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0108--faktoren-der-erweiterten-training-readiness) | FR-0022, SEC-0001 |
 | FR-0109 | Wert von 0 bis 100 mit Einordnung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0109--wert-von-0-bis-100-mit-einordnung) | OQ-0006, OQ-0059 |
 | FR-0110 | Vorläufige Gewichtung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0110--vorläufige-gewichtung) | NFR-0002, NFR-0003, NFR-0004, OQ-0020, OQ-0029, OQ-0057, OQ-0059 |
@@ -148,8 +148,8 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0137 | Keine feste Zielzeit erforderlich | functional | Approved | 2 | [goals](specs/goals.md#fr-0137--keine-feste-zielzeit-erforderlich) | OQ-0027, OQ-0059, OQ-0060 |
 | FR-0138 | Individuellen Plan erzeugen | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0138--individuellen-plan-erzeugen) | ACC-08 |
 | FR-0139 | Ausgangsanalyse | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0139--ausgangsanalyse) | OQ-0013, OQ-0027, OQ-0059, OQ-0060 |
-| FR-0140 | Konservativer Einstiegsplan bei unzureichenden Daten | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0140--konservativer-einstiegsplan-bei-unzureichenden-daten) | FR-0104, OQ-0010, OQ-0028, OQ-0048, OQ-0059, OQ-0060 |
-| FR-0141 | Trainingsphasen | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0141--trainingsphasen) | OQ-0027, OQ-0028, OQ-0059, OQ-0060 |
+| FR-0140 | Konservativer Einstiegsplan bei unzureichenden Daten | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0140--konservativer-einstiegsplan-bei-unzureichenden-daten) | FR-0104, OQ-0010, OQ-0028, OQ-0048, OQ-0059, OQ-0060, OQ-0077 |
+| FR-0141 | Trainingsphasen | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0141--trainingsphasen) | OQ-0027, OQ-0028, OQ-0059, OQ-0060, OQ-0077 |
 | FR-0142 | Trainingstypen | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0142--trainingstypen) | OQ-0004, OQ-0057 |
 | FR-0143 | Beschreibung einer Trainingseinheit | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0143--beschreibung-einer-trainingseinheit) | OQ-0057 |
 | FR-0144 | Arten der Zielintensität | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0144--arten-der-zielintensität) | OQ-0003 |
@@ -213,7 +213,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0202 | Schrittfrequenz aus dem Smartphone | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0202--schrittfrequenz-aus-dem-smartphone) | FR-0027, FR-0021, OQ-0052 |
 | FR-0203 | Warnsignal melden und aufheben | functional | Approved | 2 | [plan-adaptation](specs/plan-adaptation.md#fr-0203--warnsignal-melden-und-aufheben) | FR-0163, FR-0118, OQ-0026, OQ-0048, OQ-0055, OQ-0058 |
 | FR-0204 | Karte der Route | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0204--karte-der-route) | FR-0027, FR-0037, FR-0040, FR-0041, FR-0056, SEC-0002, SEC-0007, SEC-0008, SEC-0009, OQ-0074, OQ-0075, ADR-0009 |
-| FR-0205 | Erscheinungsbild nach dem Screen-Design | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0205--erscheinungsbild-nach-dem-screen-design) | NFR-0006, CON-0009, OQ-0075, OQ-0076, DEC-0070 |
+| FR-0205 | Erscheinungsbild nach dem Screen-Design | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0205--erscheinungsbild-nach-dem-screen-design) | NFR-0006, CON-0009, OQ-0075, OQ-0076, OQ-0077, DEC-0070 |
 | FR-0206 | Name, Icon und Systemsymbole | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0206--name-icon-und-systemsymbole) | FR-0034, OQ-0075, DEC-0070 |
 | FR-0207 | Willkommensbildschirm | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0207--willkommensbildschirm) | FR-0001, OQ-0075 |
 | FR-0208 | Navigation | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0208--navigation) | FR-0209, OQ-0075 |

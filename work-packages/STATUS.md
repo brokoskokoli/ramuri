@@ -12,8 +12,21 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | --- | --- | --- |
 | M0 ADRs | Architekturentscheidungen; ADR-0002 bis ADR-0008 freigegeben | erledigt |
 | M1 Phase 1 | Laufaufzeichnung und grundlegende Fitnessanalyse | Plan: [M1-PLAN.md](M1-PLAN.md), WP01 bis WP12 gemergt, Abschlussprüfung bestanden (2026-11-08); WP13 (Karte) und WP14 bis WP17 (Screen-Design) gemergt, Abschlussprüfung für Netz und Oberfläche wiederholt (2026-11-09) |
-| M2 Phase 2 | Adaptiver Trainingscoach | wartet auf Go des Maintainers |
-| M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | wartet auf Go des Maintainers |
+| M2 Phase 2 | Adaptiver Trainingscoach | Go am 2026-11-09, in Arbeit; Plan: [M2-PLAN.md](M2-PLAN.md) |
+| M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | zurückgestellt (OQ-0077), neue Entscheidung nach den Erfahrungen mit M2; vor dem Start Prüfung am Gerät (ADR-0007) |
+
+## M2 im Detail
+
+| Paket | Titel | Status | Offen |
+| --- | --- | --- | --- |
+| WP18 | Subjektive Angaben und Nachtragen | in Arbeit | |
+| WP19 | Belastungsverlauf und Belastungsprofil | geplant | |
+| WP20 | Leistungsprognose | in Arbeit | |
+| WP21 | Planmodell und Planerzeugung | geplant | |
+| WP22 | Plan-Seite, Ziele und Kalender | geplant | |
+| WP23 | Plananpassung, Warnsignal, Erklärungen, Basis-Erholung | geplant | |
+| WP24 | Geführte Einheit und Ansagen | geplant | |
+| WP25 | Laufband und Zusatzmetriken | geplant | |
 
 ## M1 im Detail
 

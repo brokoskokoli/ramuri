@@ -43,12 +43,14 @@ Beispiel: „Deine Trainingsbelastung lag in den letzten sieben Tagen deutlich �
 ### FR-0107 — Kein Anspruch auf vollständige Bestimmung
 - **Status:** Approved | **Phase:** 2
 - **Quelle:** SRC-001 §11.1, Z. 670
+- **Verwandt:** OQ-0029, OQ-0077
 
 Es wird nicht behauptet, dass daraus der tatsächliche körperliche Erholungszustand vollständig bestimmbar sei.
 
 **Akzeptanzkriterien:**
 - [ ] Hinweise der Basisstufe formulieren keinen festgestellten Erholungszustand.
 - [ ] Die Basisstufe gibt nur Texthinweise und zeigt keine Zustände (OQ-0029).
+- [ ] Die Karte „Erholung“ auf „Heute“ hat in der Basisstufe die Optik des Designs, zeigt aber nur den Texthinweis, ohne Zahl und ohne Zustand (OQ-0077).
 
 ### FR-0108 — Faktoren der erweiterten Training Readiness
 - **Status:** Approved | **Phase:** 3
@@ -189,6 +191,7 @@ Die App stellt daraus keine medizinische Diagnose.
 - [OQ-0057](../migration/open-questions.md#oq-0057--fehlende-regeln-für-phase-2-und-3) (entschieden): Fehlende Regeln für Phase 2 und 3
 - [OQ-0058](../migration/open-questions.md#oq-0058--entscheidungen-aus-der-prüfung-von-phase-2-und-3) (entschieden): Entscheidungen aus der Prüfung von Phase 2 und 3
 - [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
+- [OQ-0077](../migration/open-questions.md#oq-0077--vorgaben-zum-start-von-phase-2) (entschieden): Vorgaben zum Start von Phase 2
 <!-- END OQ -->
 
 ## Quellen

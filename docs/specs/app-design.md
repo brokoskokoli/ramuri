@@ -17,7 +17,7 @@ Alle Seiten der App sehen aus und verhalten sich wie das Screen-Design in [`desi
 ### FR-0205 — Erscheinungsbild nach dem Screen-Design
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-003 (Maintainer 2026-11-08, OQ-0075)
-- **Verwandt:** NFR-0006, CON-0009, OQ-0075, OQ-0076, DEC-0070
+- **Verwandt:** NFR-0006, CON-0009, OQ-0075, OQ-0076, OQ-0077, DEC-0070
 
 Jede Seite folgt in Farben, Schrift, Anordnung, Bedienelementen und Verhalten dem zugehörigen Screen des Designs. Seiten ohne eigenen Screen (Einrichtung, Profil, Einstellungen, Sensoren, Zonen, Berechtigungen, Daten, Erklärungen, Dialoge) nutzen dieselben Bausteine und Farben.
 
@@ -29,6 +29,7 @@ Jede Seite folgt in Farben, Schrift, Anordnung, Bedienelementen und Verhalten de
 - Kontrast: Text mindestens 4,5 : 1 in beiden Modi, Bedienelemente mindestens 48 dp. Glut ist nie Textfarbe auf hellem Grund.
 - Der Glutpunkt kennzeichnet die eigene Position auf der Karte und, vor dem Wort „geschätzt“, geschätzte Werte (CON-0009).
 - Alle Texte gibt es auf Deutsch und Englisch (NFR-0006); Einheiten folgen der Einstellung.
+- Plan, Intervall und Zusammenfassung (OQ-0077): Ziele stehen als Zeit, Kilometer nur als „ca.“, wenn das lockere Tempo bekannt ist. RPE-Wörter nach PAR-105, Befinden in 5 Stufen (PAR-169), Einheiten nach PAR-197 und PAR-198, Pulshinweise nach PAR-107, also keine in Blöcken unter 4 min. Beispielwerte des Designs sind keine Vorgaben.
 - Einheit in Kacheln (OQ-0076): Bei Pace, Puls und Punkten steht die Einheit in der Beschriftung, die Zahl bleibt groß. Anstieg und Gefälle behalten die Einheit an der Zahl und schrumpfen nur bei Platzmangel.
 - Seiten aus Phase 2 und 3 (Intervall, Plan, Erholung, subjektive Angaben) folgen dem Design, wenn ihre Phase umgesetzt wird. Ihre Abweichungen von der Spec (Pulswarnung in kurzen Blöcken gegen PAR-107, Phasennamen gegen FR-0141, Erholung als Zahl gegen FR-0107, RPE-Wörter gegen PAR-105, drei statt fünf Stufen beim Befinden gegen PAR-169) werden dann entschieden.
 
@@ -96,6 +97,7 @@ Die App hat unten eine Navigation mit den Bereichen Heute, Verlauf und Fortschri
 <!-- BEGIN OQ -->
 - [OQ-0075](../migration/open-questions.md#oq-0075--screen-design-und-marke) (entschieden): Screen-Design und Marke
 - [OQ-0076](../migration/open-questions.md#oq-0076--nachschliff-der-lauf-seiten) (entschieden): Nachschliff der Lauf-Seiten
+- [OQ-0077](../migration/open-questions.md#oq-0077--vorgaben-zum-start-von-phase-2) (entschieden): Vorgaben zum Start von Phase 2
 <!-- END OQ -->
 
 ## Quellen

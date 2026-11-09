@@ -250,7 +250,7 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 ### OQ-0029 — Berechnung der Readiness-Zustände
 - **Frage:** Wie wird aus dem Wert 0–100 ein Zustand? Wie werden Gewichte bei fehlenden Faktoren behandelt? Gelten die Zustände auch für die Basisstufe?
 - **Auslöser/Quellen:** SRC-001 §11.1 (Z. 664); §11.2 (Z. 683–697); §11.4 (Z. 721–727).
-- **Betroffene Anforderungen:** FR-0106, FR-0110, FR-0111, FR-0116
+- **Betroffene Anforderungen:** FR-0106, FR-0107, FR-0110, FR-0111, FR-0116
 - **Auswirkung:** blocking — Phase 3.
 - **Status:** Resolved
 - **Entscheidung:** 75–100 gut erholt, 50–74 normal belastbar, 25–49 erhöhte Belastung, 0–24 Erholung empfohlen; vorläufig und versioniert. Fehlende optionale Faktoren werden herausgerechnet und ausgewiesen. Die Basisstufe gibt nur Texthinweise. Ziel: FR-0106, FR-0111, FR-0116, DEC-0043. 2026-11-03, SRC-003.
@@ -641,3 +641,12 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Optionen:** Rest-Pace immer, „–“ unter einer Schwelle oder kurzen Rest weglassen; Zurück-Taste ohne Wirkung, pausieren oder nachfragen.
 - **Status:** Resolved
 - **Entscheidung:** 2026-11-09, SRC-003: Liegt das Tempo eines Abschnitts unter der Stillstandsschwelle (PAR-014, 0,5 m/s), steht statt der Pace „–“; Länge und Zeit bleiben. Die Zurück-Taste soll im laufenden Lauf nicht ohne Wirkung bleiben (Maintainer); ausgelegt vom Orchestrator: Sie fragt, ob der Lauf pausiert werden soll. Ziel: FR-0028, FR-0211, WP17. Nachtrag 2026-11-09, SRC-003: Bei Pace, Puls und Punkten steht die Einheit in der Beschriftung, die Zahl bleibt groß; Anstieg und Gefälle behalten die Einheit an der Zahl (FR-0205, K40).
+
+### OQ-0077 — Vorgaben zum Start von Phase 2
+- **Frage:** Darf die Geh-Lauf-Abfolge vor der Rechtsprüfung in die App? Was zeigt die Karte „Erholung“ ohne Gesundheitsdaten? Was gilt bei den Widersprüchen zwischen Design und Spec bei Plan, Intervall und Zusammenfassung? Wie geht es mit Phase 3 weiter?
+- **Auslöser/Quellen:** Go des Maintainers für M2, 2026-11-09; Abgleich von `design/screens/` mit PAR-105, PAR-107, PAR-142, PAR-169, PAR-193 bis PAR-198, FR-0107, FR-0141; ADR-0007.
+- **Betroffene Anforderungen:** FR-0107, FR-0140, FR-0141, FR-0205
+- **Auswirkung:** non-blocking, entschieden.
+- **Optionen:** Abfolge bauen, selbst entwerfen oder weglassen; Texthinweis oder Zahl; Spec, Spec mit kurzen Phasennamen oder Design; Phase 3 nach Prüfung am Gerät, mit Testdaten oder zurückstellen.
+- **Status:** Resolved
+- **Entscheidung:** 2026-11-09, SRC-003: Die Abfolge kommt als austauschbarer Datensatz ohne Nennung des NHS in die App, ein Release bleibt bis OQ-0048 gesperrt. Die Karte „Erholung“ zeigt in der Basisstufe nur einen Texthinweis, ohne Zahl und Zustand. Bei den übrigen Widersprüchen gilt die Spec in der Optik des Designs; nur die Anzeige der Phasen nutzt die Kurzformen Einstieg, Grundlage, Aufbau, Spezifisch, Reduktion, Ziel. Phase 3 ist zurückgestellt, über sie wird nach den Erfahrungen mit dem Plan neu entschieden. Ziel: FR-0107, FR-0140, FR-0141, FR-0205, DEC-0071.

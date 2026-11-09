@@ -51,5 +51,5 @@ Entschieden in OQ-0075 (Einzelheiten in FR-0205 bis FR-0212):
 - **Summary:** „Fertig“ statt „Speichern“ (der Lauf ist schon gespeichert); Einordnung gegen die letzten 5 Läufe nach Pace (OQ-0037); Höhenprofil und Runden bleiben. Subjektive Angaben erst in Phase 2.
 - **Fortschritt:** VO₂max ohne „±3“, Datenqualität in den Stufen von FR-0053, Effizienz in % nach FR-0087; Zeitraumwahl und übrige Kennzahlen bleiben.
 - **Splash:** Text ohne das Versprechen, dass alle Daten auf dem Handy bleiben (Kartenkacheln nach Einwilligung).
-- **Intervall, Plan, Erholung:** erst mit Phase 2 und 3; ihre Widersprüche zur Spec werden dann entschieden.
+- **Intervall, Plan, Erholung (OQ-0077):** Es gilt die Spec in der Optik des Designs. Ziele als Zeit, Kilometer nur als „ca.“; Phasen Einstieg, Grundlage, Aufbau, Spezifisch, Reduktion, Ziel; RPE-Wörter nach PAR-105; Befinden in 5 Stufen; Pulshinweise nach PAR-107. Die Karte „Erholung“ zeigt ohne Gesundheitsdaten nur einen Texthinweis, keine Zahl und keinen Zustand.
 - **Dunkelmodus:** kommt dazu, abgeleitet aus den Markenfarben.

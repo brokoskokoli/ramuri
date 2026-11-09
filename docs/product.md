@@ -207,6 +207,7 @@ Die Tabelle fasst Entscheidungen aus der Quelle und vom Maintainer (SRC-003) zus
 | DEC-0068 | GPS-Rauschen im Stand: Parameter bleiben bis zum Feldtest, auch bei übertragenen Werten über 1 % (Maintainer, SRC-003) | FR-0029, FR-0052 | Entschieden (OQ-0068) |
 | DEC-0069 | Karte der Route im Lauf, in Zusammenfassung, Detailansicht und als Miniatur; Kacheln aus dem Netz nur nach Einwilligung, sonst Route ohne Karte (Maintainer, SRC-003) | FR-0027, FR-0037, FR-0040, FR-0041, FR-0204, SEC-0008 | Entschieden (OQ-0074) |
 | DEC-0070 | Name „ramuri“ mit neuer Paket-ID; alle Seiten nach dem Screen-Design, Inhalte nach Spec; Navigation Heute/Verlauf/Fortschritt (Plan ab Phase 2); hell und dunkel (Maintainer, SRC-003) | FR-0205, FR-0206, FR-0207, FR-0208, FR-0209, FR-0210, FR-0211, FR-0212 | Entschieden (OQ-0075) |
+| DEC-0071 | Start von Phase 2: Geh-Lauf-Abfolge in Testversionen, Release erst nach OQ-0048; Erholung ohne Gesundheitsdaten nur als Text; Spec in der Optik des Designs, kurze Phasennamen; Phase 3 zurückgestellt (Maintainer, SRC-003) | FR-0107, FR-0140, FR-0141, FR-0205 | Entschieden (OQ-0077) |
 
 ## Phasen
 

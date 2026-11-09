@@ -119,7 +119,7 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-001 | §10.6, Z. 646 | Fehlender Datenbestand ist kein niedriges Fitnessniveau | FR-0104 | [training-load.md](../specs/training-load.md) | 1 AK | Übernommen |
 | SRC-001 | §11, Z. 650–652 | Zwei Stufen der Einschätzung | FR-0105 | [readiness.md](../specs/readiness.md) | 1 AK | Übernommen |
 | SRC-001 | §11.1, Z. 656–668 | Basis-Erholungseinschätzung ohne Fitnessuhr | FR-0106 | [readiness.md](../specs/readiness.md) | 1 AK | Übernommen |
-| SRC-001 | §11.1, Z. 670 | Kein Anspruch auf vollständige Bestimmung | FR-0107 | [readiness.md](../specs/readiness.md) | 2 AK | Übernommen |
+| SRC-001 | §11.1, Z. 670 | Kein Anspruch auf vollständige Bestimmung | FR-0107 | [readiness.md](../specs/readiness.md) | 3 AK | Übernommen |
 | SRC-001 | §11.2, Z. 674–681 | Faktoren der erweiterten Training Readiness | FR-0108 | [readiness.md](../specs/readiness.md) | 1 AK | Übernommen |
 | SRC-001 | §11.2, Z. 683 | Wert von 0 bis 100 mit Einordnung | FR-0109 | [readiness.md](../specs/readiness.md) | 2 AK | Übernommen |
 | SRC-001 | §11.2, Z. 685–695 | Vorläufige Gewichtung | FR-0110 | [readiness.md](../specs/readiness.md) | 4 AK | Übernommen |

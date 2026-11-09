@@ -47,5 +47,5 @@ Diese Datei sagt den globalen Skills und Agenten (`project-supervisor`, `wp-supe
 
 ## Rahmen vom Maintainer (2026-11-04)
 - **Testumgebung:** vorerst nur Emulator, keine Feldtests. Echte Hintergrundaufzeichnung, Akku und echter Pulsgurt (ACC-02) bleiben dadurch unbelegt; Anforderungen, die nur im Feld prüfbar sind, werden in `STATUS.md` als offen geführt und nicht als erfüllt gemeldet.
-- **Ablauf:** Nach Freigabe der ADRs laufen die Pakete von Phase 1 ohne weitere Plan-Freigabe, höchstens 2 Sitzungen gleichzeitig. Phase 2 und 3 starten erst nach seinem Go.
+- **Ablauf:** Nach Freigabe der ADRs laufen die Pakete von Phase 1 ohne weitere Plan-Freigabe, höchstens 2 Sitzungen gleichzeitig. Phase 2 läuft seit seinem Go vom 2026-11-09 ebenso ohne weitere Plan-Freigabe. Phase 3 ist zurückgestellt und startet erst nach einem neuen Go (OQ-0077).
 - **Öffentliches Repo:** Keine echten Gesundheitsdaten, keine privaten Daten, auch nicht in Testdaten und Logs (SEC-0001 bis SEC-0010). Verbotene Begriffe stehen lokal in `~/.config/running-app/forbidden-terms`.
