@@ -4,7 +4,7 @@
 **Ruhepuls mit der Kamera (FR-0214) ist gut gedeckt.** In Ruhe stimmt der Fingerpuls aus der Kamera auf etwa ±2/min mit dem EKG überein [B7, B2, B8]. 60 s reichen dafür. Ruhepuls heißt hier: Ruhe vorher, immer dieselbe Haltung, kein Koffein vorher. Er ist nicht der Schlafpuls einer Uhr [A10].
 
 **RMSSD aus 60 s Kamera ist gemischt belegt, die direkteste Studie spricht eher dagegen.** Das Messfenster an sich trägt: 60 s gegen 5 min ergibt lnRMSSD mit LoA ±0,22, gemessen liegend mit EKG [A5]. Zur Kamera selbst:
-- **Dafür:** Plews 2017 fand mit einer Kamera-App über **5 min** TEE 6,35 % und r = 1,00 [B1]. Moya-Ramon 2022 fand mit Apps über 1 min r = 0,77–0,94 und SEM < 6 %, aber ohne LoA [B5]. Altini und Plews nutzten 1-min-Kameramessungen für eine große Feldstudie, ohne EKG-Vergleich [C10].
+- **Dafür:** Plews 2017 fand mit einer Kamera-App über **5 min** TEE 6,35 % und r = 1,00 [B1]. Van Dijk 2023 fand über 5 min mit langsamer, geführter Atmung ICC > 0,90 für lnRMSSD ohne proportionalen Bias [B20, nur Abstract]. Moya-Ramon 2022 fand mit Apps über 1 min r = 0,77–0,94 und SEM < 6 %, aber ohne LoA [B5]. Altini und Plews nutzten 1-min-Kameramessungen für eine große Feldstudie, ohne EKG-Vergleich [C10].
 - **Dagegen:** Holmes 2020 maß genau diesen Aufbau, **60 s Finger auf Kamera und Blitz** gleichzeitig mit EKG (n = 31, sitzend). Die Kamera lag immer zu hoch, Bias ± LoA in Ruhe 0,19 ± 0,95 bis 0,34 ± 1,12 ln [B19]. Peng 2015 (20–30 Bilder/s, 5 min) überschätzte RMSSD deutlich [B3]. Laborde 2017 rät „for research purposes“ von Kamera-Apps ab, weil die Abtastrate zu niedrig sei; das ist eine Expertenmeinung ohne eigene Messung [A2].
 - Bei Holmes zeigte die Teilmenge mit „optimaler“ Signalgüte kleinere mittlere Differenzen (0,32 / 0,16 / 0,10 / 0,09 ln). Das stützt eine strenge Qualitätsgrenze für RMSSD.
 
@@ -12,14 +12,24 @@
 
 **Empfehlung:**
 - WP27 übernimmt das Protokoll unten für FR-0214 (Vorgabe liegend, sitzend wählbar als eigene Reihe, E5).
-- FR-0215 wird **mit Auflage** freigegeben. Der Kamera-Ruhepuls geht sofort in die eingeschränkte Einschätzung ein und erscheint dort als Tatsache. RMSSD geht erst in die Readiness ein, wenn die Validierung gegen Polar H9 bestanden ist (Abschnitt 6: 28 Morgen mit wochenweiser Kreuzvalidierung, n = 1).
-- **Folge für M3, ausdrücklich:** Nach OQ-0006 (heutige wie neue Fassung) braucht eine Zahl eine HRV. Solange Kamera-RMSSD gesperrt ist, gibt es **ohne Uhr keine Zahl**, nur die eingeschränkte Einschätzung. Fällt die Validierung durch, bleibt das dauerhaft so. Nach der Literatur (Holmes 2020) ist ein Nichtbestehen gut möglich. „Readiness ohne Uhr“ in M3 heißt dann: Morgenmessung, Ruhepuls-Trend und eingeschränkte Einschätzung, keine Zahl.
-- Für M3 eine neue Regelversion (Vorschlag „K-1“, Abschnitt 5). **Der Maintainer hat am 2026-11-09 entschieden** (Abschnitt 5a): E1 ohne Uhr nur die eingeschränkte Einschätzung, solange RMSSD gesperrt ist; E2 nach bestandener Validierung Kamera-RMSSD nur per Opt-in als „experimentell“, eine Prüfung je Nutzer mit Gurt kann später dazukommen; E3 die neue Fassung von OQ-0006, Schlafdauer aus Uhr oder freiwilliger Angabe in Stufen; E4 PAR-169 bleibt, am Morgen nur Messung und Schlafdauer in Stufen (kein Schlafgefühl); E5 Haltung liegend als Vorgabe, sitzend wählbar als eigene Reihe. Das Konzept ändert der Project Supervisor. E6 (vorerst): Das Opt-in gilt nach einer liegend bestandenen Validierung auch sitzend, dort mit „liegend verglichen“; eine eigene Validierung im Sitzen ist empfohlen (Offene Punkte 4).
+- FR-0215 wird **mit Auflage** freigegeben. Der Kamera-Ruhepuls geht sofort in die eingeschränkte Einschätzung ein und erscheint dort als Tatsache. RMSSD geht erst in die Readiness ein, wenn die Validierung gegen Polar H9 bestanden ist (Abschnitt 6: 28 Morgen mit wochenweiser Kreuzvalidierung, n = 1) **und** der Nutzer es per Opt-in einschaltet (E2).
+- **Folgen des Validierungsergebnisses (E7):** lnRMSSD „eingeschränkt“ zählt wie „nicht bestanden“: RMSSD bleibt gesperrt und erscheint nur als markierte Tatsache (E7a). Der Ruhepuls bleibt bei „bestanden“ und „eingeschränkt“ (LoA innerhalb ±3/min) in Gebrauch; bei „nicht bestanden“ gilt er nur noch für das Profil (FR-0214), nicht für die Readiness (E7b). Nach einer Änderung von Algorithmus oder Gerät ist eine erneute Validierung erlaubt, für beide Größen und jedes Ergebnis.
+- **Folge für M3, ausdrücklich:** Nach OQ-0006 (heutige wie neue Fassung) braucht eine Zahl eine HRV. Solange Kamera-RMSSD gesperrt ist, gibt es **ohne Uhr keine Zahl**, nur die eingeschränkte Einschätzung. Bei „eingeschränkt“ oder „nicht bestanden“ bleibt das so, bis eine erneute Validierung nach einer Änderung von Algorithmus oder Gerät bestanden ist (E7a). Nach der Literatur (Holmes 2020) ist ein Nichtbestehen gut möglich, nach Rechnung D auch ein „eingeschränkt“. „Readiness ohne Uhr“ in M3 heißt dann: Morgenmessung, Ruhepuls-Trend und eingeschränkte Einschätzung, keine Zahl.
+- Für M3 eine neue Regelversion (Vorschlag „K-1“, Abschnitt 5). **Der Maintainer hat am 2026-11-09 entschieden** (Abschnitt 5a):
+  - E1: ohne Uhr nur die eingeschränkte Einschätzung, solange RMSSD gesperrt ist.
+  - E2: nach bestandener Validierung Kamera-RMSSD nur per Opt-in als „experimentell“; eine Prüfung je Nutzer mit Gurt kann später dazukommen.
+  - E3: die neue Fassung von OQ-0006, Schlafdauer aus Uhr oder freiwilliger Angabe in Stufen.
+  - E4: PAR-169 bleibt, am Morgen nur Messung und Schlafdauer in Stufen (kein Schlafgefühl).
+  - E5: Haltung liegend als Vorgabe, sitzend wählbar als eigene Reihe.
+  - E6 (vorerst): Das Opt-in gilt nach einer liegend bestandenen Validierung auch sitzend, dort mit „liegend verglichen“; eine eigene Validierung im Sitzen ist empfohlen (Offene Punkte 4).
+  - E7: Folgen von „eingeschränkt“ und „nicht bestanden“ für RMSSD (E7a) und Ruhepuls (E7b), erneute Validierung nach Änderungen erlaubt.
+  - Das Konzept ändert der Project Supervisor.
 
 ## Lauf
 - **Datum:** 2026-11-09. **Rechner:** Mac, Apple M3 Pro (arm64), macOS, Python 3.15.0, nur Standardbibliothek.
 - **Kommando:** `./init.sh && ./run.sh --seed 1 --reps 4000`. Lauf `research/data/work/R009/20261109-212401/` auf Commit `052f564` (`dirty=0`). Laufzeit 61 s (A 5 s, B 8 s, C 1 s, D 47 s).
 - **Nachbesserung 1 (2026-11-09):** Rechnung D neu (Trennschärfe der Akzeptanzkriterien), in B der Fall B4 (Tagesstreuung 0,33 ln). In A entfällt die lnRMSSD-Tabelle, weil ihr festes Δ keinem Kriterium entsprach. Alle übrigen Tabellen von A, B und C sind mit dem ersten Lauf (`20261109-205242`, Commit `171378a`) bitgleich.
+- **Nachbesserung 2 (2026-11-09):** keine neue Rechnung. Entscheidung E7 des Maintainers eingearbeitet (Folgen von „eingeschränkt“ und „nicht bestanden“, erneute Validierung). Validierungsplan: Quote an den Mindestumfang gebunden (≥ 22 von 28 Referenzmorgen), Verlängerung nur für fehlende Referenzmorgen, keine Zwischenauswertung. Teil D unverändert, weil sein Design (22 Prüftage, Tages-SD aus 28 Tagen) genau dem Mindestumfang entspricht; zur Kontrolle `./run.sh --seed 1 --reps 4000 --part D` neu gelaufen (Lauf `20261109-220151`, Basis `e5abdd6`, `dirty=1` nur durch RESULTS.md, Code unverändert, 56 s): alle Werte von D1, D1b und D2 gleich wie in Abschnitt 6. In `D.txt` heißt die Zeile mit 22 von 28 Prüftagen noch „80 % gültig“; gemeint ist der Mindestumfang 22 von 28 (78,6 %). Van Dijk 2023 [B20] ergänzt, MAD-Begründung eingeschränkt.
 - **Literatur:** im Original geprüft, je Quelle vermerkt, ob Volltext oder nur Abstract (Quellenliste am Ende). Drei Teilrecherchen liefen parallel als Sub-Agenten. Kernstellen habe ich selbst nachgeprüft: Bánhalmi, Tabelle 1, Esco und Flatt 2014, Ergebnisse, und in Nachbesserung 1 Holmes 2020 (Methoden, Tabellen 1 und 2), Altini und Plews 2021, Buchheit 2014 und Laborde 2017 (Zitate) sowie das Abstract von Flatt und Esco 2016 (LoA).
 - **Kontrollen im Code:**
   - t-Quantile gegen Tabellenwerte (Assertion).
@@ -59,6 +69,7 @@ Rechnung C dient als Plausibilitätsprüfung für die Fensterlänge. In einer st
 | Bánhalmi 2018 [B2] | n = 50, sitzend, 5 min, iPhone 6 mit **240 fps**, strenge Artefaktfilter (±20 % vom Median) | Bias 0,03, SD 0,11/min | RMSSD Bias +2,5 ms, SD 1,8 ms; ln Bias +0,10, SD 0,15 (LoA −0,20 bis +0,40) | Volltext, selbst nachgeprüft |
 | Peng 2015 [B3] | n = 30, liegend, ≥ 5 min, **20–30 fps** schwankend, auf 800 Hz interpoliert | AVNN −0,05 ± 0,55 ms | RMSSD **+33 bis +68 ms** zu hoch (je nach Gipfelerkennung), „insufficient agreement“ | Volltext |
 | **Holmes 2020 [B19]** | n = 31, **sitzend, 60 s** nach 5 min Ruhe, spontane Atmung, iPhone 6 mit HRV4Training, **Finger auf Kamera und Blitz**, gleichzeitig EKG; bis zu 3 Versuche für gute Signalgüte | – | lnRMSSD in Ruhe (4 Messungen): Bias ± 1,96 SD 0,34 ± 1,12 / 0,23 ± 1,03 / 0,19 ± 0,95 / 0,28 ± 0,83, r = 0,59–0,76, Kamera immer zu hoch („Significant, small–moderate differences“). Nur „optimale“ Signalgüte (n = 19–22): mittlere Differenz 0,32 / 0,16 / 0,10 / 0,09. Trend der Differenz zum Mittel r = −0,08 bis −0,13 (kaum proportionaler Bias). Nach Belastung 0,98 ± 0,96 | Volltext, selbst nachgeprüft |
+| van Dijk 2023 [B20] | n = 57, Labor, Handykamera (Happitech-SDK) gegen EKG (NeXus), **5 × 5 min geführte Zwerchfellatmung** mit 6,5 bis 4,5 Atemzügen/min (Biofeedback) | – | ln-transformierte RMSSD: ICC „near perfect“ (> 0,90) bei allen Atemtempi, Bland-Altman gute Austauschbarkeit mit drei vereinzelten Ausnahmen, kein systematischer proportionaler Bias. Bias und LoA nicht im Abstract. Stützt die „Dafür“-Seite, aber 5 min und langsame geführte Atmung (große, regelmäßige RR-Schwankungen), nicht wie das Protokoll hier | nur Abstract (Repositorium VU Amsterdam) |
 | Plews 2017 [B1] | n = 29, Ruhe, **5 min** (nicht 60 s), HRV4Training-Kamera | – | TEE 6,35 % (90 % KI 5,13–8,5), r = 1,00 | nur Abstract |
 | Esco 2017 [B6] | n = 30, **60 s**, liegend/sitzend/stehend, App mit Pulssensor (laut [B2] externer Infrarot-Fingersensor, keine Kamera) | – | lnRMSSD×20: LoA −0,13 ± 2,83 / −0,94 ± 3,47 / −1,37 ± 3,56, umgerechnet ≈ ±0,14 / ±0,17 / ±0,18 ln | nur Abstract |
 | Moya-Ramon 2022 [B5] | n = 26 Radprofis, 1 und 5 min, liegend/sitzend, Apps | – | r = 0,77–0,94, SEM < 6 %, keine LoA im Abstract | nur Abstract |
@@ -75,7 +86,7 @@ Die Grenze „Zeitrauschen > 25 ms → eingeschränkt“ aus `../puls` (ALGORITH
 
 **Einordnung von Laborde 2017 [A2]:** Die Warnung „We strongly recommend to avoid using smartphone apps based on the camera … because their sampling is simply too low“ steht im Kontext der Geräteauswahl „for research purposes“. Sie ist eine Expertenmeinung ohne eigene Messung. `../puls` begegnet genau diesem Punkt mit Interpolation der Pulskurve. Die Gegenbelege mit Daten sind Holmes 2020 und Peng 2015.
 
-**Folgerung:** Für den Ruhepuls ist die Kamera belegt. Für RMSSD aus 60 s Kamera ist die Lage gemischt: positive Befunde mit 5 min [B1] und ohne LoA [B5], dagegen die einzige Studie mit LoA genau zu 60 s Kamera [B19] und Peng [B3]. Ein Nichtbestehen der Validierung ist deshalb gut möglich. Eine eigene Vergleichsmessung des Maintainers mit `../puls` gegen Polar H9 verlief laut OQ-0078 gut. Es ist aber eine einzige Messung, sie ersetzt keine Validierung. Die Zahlen stehen absichtlich nicht hier.
+**Folgerung:** Für den Ruhepuls ist die Kamera belegt. Für RMSSD aus 60 s Kamera ist die Lage gemischt: positive Befunde mit 5 min [B1, B20] und ohne LoA [B5], dagegen die einzige Studie mit LoA genau zu 60 s Kamera [B19] und Peng [B3]. Ein Nichtbestehen der Validierung ist deshalb gut möglich. Eine eigene Vergleichsmessung des Maintainers mit `../puls` gegen Polar H9 verlief laut OQ-0078 gut. Es ist aber eine einzige Messung, sie ersetzt keine Validierung. Die Zahlen stehen absichtlich nicht hier.
 
 ## 4. Auswertung täglicher Werte
 
@@ -150,7 +161,7 @@ Modell wie R8:
 2. **Lücken kosten vor allem Verfügbarkeit.** Da der heutige Wert Pflicht ist, fehlt die Zahl an jedem Tag ohne Messung. Die Trennschärfe sinkt nur mäßig. „Heute nicht Pflicht“ brächte 99 % Verfügbarkeit bei gleicher Trennschärfe; dann gäbe es aber eine Zahl ohne frische Messung.
 3. **Fehlmessungen, die durch die Qualitätsprüfung rutschen,** kosten so viel, wie sie im Verhältnis zur Tagesstreuung groß sind. Ein Ausreißer von 4 Tages-SD bei 5 % der Messungen kostet etwa 6 Punkte; +0,4 ln bei einer Tages-SD von 0,33 ln (1,2 SD) kostet fast nichts (B4). Teuer sind also nur grobe Ausreißer, etwa ein Zeitrauschen von 15 ms und mehr (Rechnung C: +0,3 ln und mehr bei RMSSD 40 ms, bei kleinem RMSSD deutlich mehr). Die Qualitätsgrenze für RMSSD ist deshalb vor allem gegen solche Ausreißer wichtig.
 4. **Das 7-Tage-Mittel erkennt einen anhaltenden Abfall nach 3–7 Tagen besser, der Einzeltag am ersten Tag.** Das deckt sich mit [C1, C3] und mit PAR-161, das Mittel bleibt also. Die Varianten Referenz ohne Fenster und k ≥ 4 ändern bei gleicher Fehlalarmrate nichts und werden nicht empfohlen.
-5. **Ruhepuls: Die Grenze „MAD < 1/min → kein z“ aus PAR-162 ist für die Kamera zu grob.** Bei sehr gleichmäßigem Ruhepuls (SD ≈ 1,5/min) sperrt sie bei Werten mit Nachkommastelle die Hälfte der Tage. Die Grenze war für ganzzahlige Werte aus Health Connect gedacht. Eine SD von 1,5/min liegt eher am unteren Rand (CV 6,8 % liegend [C13] entspricht bei 55/min ≈ 3,7/min). Das betrifft also nur sehr gleichmäßige Personen. **Warum 0,5:** Die erwartete MAD ist 0,6745·√(sb² + sm²). Schon der Messfehler der Kamera allein (sm ≈ 1/min, abgeleitet aus LoA ±2/min [B7]) ergibt eine MAD um 0,67/min. Eine MAD unter 0,5/min ist also gleichmäßiger, als die Messung selbst sein kann, und deutet auf zu wenige oder auffällig gleiche Werte. Genau dann greift FR-0114 (keine Scheinpräzision). Eine Grenze von 0,3 schützte davor kaum noch; ein anderer Wert als 1 und 0,5 ist nicht gerechnet. Die Auflösung von 0,1/min ist dabei kein Problem, weil sie weit unter dem Messfehler liegt.
+5. **Ruhepuls: Die Grenze „MAD < 1/min → kein z“ aus PAR-162 ist für die Kamera zu grob.** Bei sehr gleichmäßigem Ruhepuls (SD ≈ 1,5/min) sperrt sie bei Werten mit Nachkommastelle die Hälfte der Tage. Die Grenze war für ganzzahlige Werte aus Health Connect gedacht. Eine SD von 1,5/min liegt eher am unteren Rand (CV 6,8 % liegend [C13] entspricht bei 55/min ≈ 3,7/min). Das betrifft also nur sehr gleichmäßige Personen. **Warum 0,5:** Die erwartete MAD ist 0,6745·√(sb² + sm²). **Angenommen** sm ≈ 1/min (abgeleitet aus LoA ±2/min bei 20 s [B7]), ergibt schon der Messfehler allein eine MAD um 0,67/min; eine MAD unter 0,5/min wäre dann gleichmäßiger, als die Messung selbst sein kann. Diese Annahme ist unsicher: Bánhalmi fand mit 240 Bildern/s über 5 min eine SD von nur 0,11/min [B2]. Ist die Kamera über 60 s ähnlich genau, trägt die Begründung nur noch über die biologische Streuung: Bei sb = 1,5/min (unterer Rand, siehe oben) ist die erwartete MAD ≈ 1,0/min, eine MAD unter 0,5 entspräche einer Tages-SD unter etwa 0,75/min, weit unter dem unteren Rand der Literatur (CV 6,8 % liegend ≈ 3,7/min [C13]). Dazu kommt: Die MAD aus 14–28 Werten streut selbst deutlich, die Grenze ist also eher grob. Die Grenze dient FR-0114 (keine Scheinpräzision) bei zu wenigen oder auffällig gleichen Werten. Eine Grenze von 0,3 schützte davor kaum noch; ein anderer Wert als 1 und 0,5 ist nicht gerechnet. **Die Validierung misst sm und die Tages-SD des Pulses; danach ist die Grenze 0,5 zu prüfen** (Offene Punkte). Die Auflösung von 0,1/min ist kein Problem, solange sie unter dem Messfehler liegt; bei sm ≈ 0,1/min wäre sie gleich groß, aber weiter klein gegen die biologische Streuung.
 6. **Die Größe des Effekts relativieren:** Ein Abfall um 1 Tages-SD (≈ 0,33 ln, also RMSSD rund −28 %) wird auch nach 7 Tagen nur zu 60–74 % erkannt. Die Effekte aus [C10] (3–12 %, also 0,1–0,4 Tages-SD) sind im Einzelfall kaum sicher sichtbar. Das stützt die zurückhaltenden Texte (FR-0117, FR-0118).
 
 ## 5. Vorschlag: Regelversion „K-1“ (Kamera-Morgenmessung) für M3
@@ -167,7 +178,7 @@ Nur ein Vorschlag. Das Regelwerk `docs/phase-2-3-rules.md` bleibt unverändert, 
 | PAR-170 | unverändert (Kappung 74 ohne Belastungsfaktor) | – | – |
 | Vorrang (neu) | **Health Connect und Kamera am selben Tag:** Beide Reihen bleiben getrennt (FR-0115) und werden nie gemittelt. Für HRV **und** Ruhepuls gilt je Faktor: Hat die Health-Connect-Reihe heute ein gültiges `z`, zählt sie; sonst die Kamerareihe, wenn sie heute ein gültiges `z` hat. Die andere Messung erscheint nur als Tatsache. Die Quelle steht in der Erklärung. | Heuristik, Evidenz keine | Das Regelwerk ist für nächtliche Werte geschrieben und dafür geprüft (R8); Kamera-RMSSD ist im besten Fall „mit einem Brustgurt verglichen“. Ein Wechsel der Quelle von Tag zu Tag ist möglich; er ändert nur, welche Reihe zählt, nie deren Referenz. |
 | PAR-171K | Zahl nur nach der neuen Fassung von OQ-0006 (unten): HRV aus Uhr oder Kamera (Kamera nur nach bestandener Validierung **und** Opt-in), Schlafdauer aus Uhr oder Selbstangabe, Referenz ≥ 14 in 28 Tagen. Sonst „Eingeschränkte Einschätzung“, wenn **eine** frische Messung (Kamera oder Health Connect) oder Schlaf (auch Selbstangabe) vorliegt, mit den Tatsachen („Ruhepuls heute 3/min über deinem Mittel“, „Du hast rund 6 Stunden geschlafen“). Gesperrte oder nicht eingeschaltete Kamera-RMSSD erscheint dort höchstens als Tatsache mit „noch nicht geprüft“ bzw. „experimentell“. Ohne Uhr ist das bis zur Freigabe der einzige Zustand mit Inhalt (E1). Sonst „Unzureichende Daten“. | abgeleitet | erweitert PAR-171 um den Fall „Kamera ohne Schlaf“; Entscheidungen E1–E3 |
-| Validierungssperre | Bis die Validierung (Abschnitt 6) bestanden ist, geht nur der Kamera-Ruhepuls ein (in die eingeschränkte Einschätzung bzw. bei Uhr-Nutzern als Faktor). RMSSD wird angezeigt, aber als „noch nicht geprüft“ markiert und nicht gewertet. Fällt die Validierung durch, bleibt das dauerhaft so. **Nach Bestehen: Opt-in experimentell (E2).** Kamera-RMSSD zählt nur, wenn der Nutzer es ausdrücklich einschaltet; Zahl und Wert tragen „experimentell, mit einem Brustgurt verglichen (ein Handy)“, nie „validiert“. Die Validierung wird liegend gemessen; das Opt-in gilt **vorläufig auch für die sitzende Reihe**, dort mit dem Zusatz „liegend verglichen“ (E6). Fällt eine spätere Validierung im Sitzen durch, wird RMSSD sitzend gesperrt. Die RMSSD-Qualitätsgrenze schützt jede einzelne Messung. Eine Prüfung je Nutzer mit eigenem Gurt kann später dazukommen. | Entscheidung des Maintainers 2026-11-09 (E2, E6) | Abschnitt 3; Gerät beeinflusst die Güte [B4]; n = 1 (Abschnitt 6) |
+| Validierungssperre | Bis die Validierung (Abschnitt 6) bestanden ist, geht nur der Kamera-Ruhepuls ein (in die eingeschränkte Einschätzung bzw. bei Uhr-Nutzern als Faktor). RMSSD wird angezeigt, aber als „noch nicht geprüft“ markiert und nicht gewertet. **Folgen je Ergebnis (E7):** lnRMSSD „eingeschränkt“ gilt wie „nicht bestanden“: RMSSD bleibt gesperrt und erscheint nur als markierte Tatsache (E7a). Der Ruhepuls bleibt bei „bestanden“ und „eingeschränkt“ in Gebrauch; bei „nicht bestanden“ gilt er nur noch für das Profil (FR-0214) und geht nicht in die Readiness ein (E7b). Die Sperre gilt bis zu einer erneuten Validierung; diese ist nach einer Änderung von Algorithmus oder Gerät erlaubt (Regeln in Abschnitt 6). **Nach Bestehen: Opt-in experimentell (E2).** Kamera-RMSSD zählt nur, wenn der Nutzer es ausdrücklich einschaltet; Zahl und Wert tragen „experimentell, mit einem Brustgurt verglichen (ein Handy)“, nie „validiert“. Die Validierung wird liegend gemessen; das Opt-in gilt **vorläufig auch für die sitzende Reihe**, dort mit dem Zusatz „liegend verglichen“ (E6). Ergibt eine spätere Validierung im Sitzen „eingeschränkt“ oder „nicht bestanden“, wird RMSSD sitzend gesperrt (E7a). Die RMSSD-Qualitätsgrenze schützt jede einzelne Messung. Eine Prüfung je Nutzer mit eigenem Gurt kann später dazukommen. | Entscheidung des Maintainers 2026-11-09 (E2, E6, E7) | Abschnitt 3; Gerät beeinflusst die Güte [B4]; n = 1 (Abschnitt 6) |
 
 **OQ-0006, neue Fassung (vom Maintainer am 2026-11-09 gewählt, E3; Konzept noch nicht geändert):** Eine Zahl erscheint nur mit
 - einer aktuellen HRV, nächtlich aus Health Connect **oder** als gültiger Kamera-Morgenwert nach bestandener Validierung und eingeschaltetem Opt-in (E2),
@@ -192,10 +203,10 @@ Verworfen (E3): Option B, eine Zahl auch ohne Schlaf mit Kappung 74.
 - FR-0215: Akzeptanzkriterien aus Protokoll, PAR-160K bis PAR-171K und der Validierungssperre.
 
 ## 5a. Entscheidungen des Maintainers (2026-11-09)
-Die drei Produktfragen hat der Maintainer am 2026-11-09 entschieden. Das Konzept ist noch nicht geändert; das übernimmt der Project Supervisor.
+Die sieben Produktfragen E1–E7 hat der Maintainer am 2026-11-09 entschieden. Das Konzept ist noch nicht geändert; das übernimmt der Project Supervisor.
 
 **E1: Was bekommen Nutzer ohne Uhr, solange Kamera-RMSSD gesperrt ist?**
-- **Entscheidung des Maintainers (2026-11-09): „Nur eingeschränkte Einschätzung“ (Option a).** Ohne Uhr gibt es keine Zahl, solange Kamera-RMSSD gesperrt ist. Fällt die Validierung durch, bleibt das dauerhaft so. Der Nutzer sieht die eingeschränkte Einschätzung nach PAR-171K mit den Tatsachen (z. B. „Ruhepuls heute 3/min über deinem Mittel“, Schlafangabe) und die Basis-Hinweise aus Trainingsdaten (FR-0106).
+- **Entscheidung des Maintainers (2026-11-09): „Nur eingeschränkte Einschätzung“ (Option a).** Ohne Uhr gibt es keine Zahl, solange Kamera-RMSSD gesperrt ist. Ergibt die Validierung „eingeschränkt“ oder „nicht bestanden“, bleibt das so, bis eine erneute Validierung nach einer Änderung von Algorithmus oder Gerät bestanden ist (E7a). Der Nutzer sieht die eingeschränkte Einschätzung nach PAR-171K mit den Tatsachen (z. B. „Ruhepuls heute 3/min über deinem Mittel“, Schlafangabe) und die Basis-Hinweise aus Trainingsdaten (FR-0106).
 - Begründung: OQ-0006 verlangt eine HRV; eine Zahl ohne HRV würde das Herausrechnen fehlender Daten zur Hauptquelle machen (FR-0111) und hinge fast nur an Selbstangaben.
 - Verworfen: (b) Zahl aus Ruhepuls und Schlaf ohne HRV mit Kappung (widerspricht OQ-0006 und PAR-147); (c) Zahl nur nach persönlicher Prüfung mit eigenem Brustgurt (als spätere Ergänzung über E2 möglich).
 
@@ -219,36 +230,46 @@ Die drei Produktfragen hat der Maintainer am 2026-11-09 entschieden. Das Konzept
 **E6: Gilt eine liegend bestandene Validierung auch für die sitzende Reihe?**
 - **Entscheidung des Maintainers (2026-11-09): „gilt vorerst beides“ (Option b), also vorläufig.** Nach einer liegend bestandenen Validierung gilt das Opt-in „experimentell“ für beide Haltungen. Bei der sitzenden Reihe kommt der Zusatz „liegend verglichen“ dazu.
 - **Gegenbeleg:** Die Abweichung der Kamera zum EKG wächst von liegend über sitzend zu stehend (Esco 2017, 60 s, externer Fingersensor, nur Abstract) [B6]. Holmes 2020 maß sitzend und fand breite LoA (rund ±1 ln zwischen Personen) [B19]. Die sitzende Reihe ist deshalb voraussichtlich schlechter als die geprüfte liegende.
-- „Vorerst“: Eine eigene Validierung im Sitzen ist als Folgeanalyse empfohlen (Offene Punkte). Fällt sie durch, wird RMSSD sitzend gesperrt.
+- „Vorerst“: Eine eigene Validierung im Sitzen ist als Folgeanalyse empfohlen (Offene Punkte). Ergibt sie „eingeschränkt“ oder „nicht bestanden“, wird RMSSD sitzend gesperrt (E7a).
 - Verworfen: (a) Sperre sitzend bis zur eigenen Validierung; (c) sitzend nur Ruhepuls.
 
-**Was das für M3 heißt:** Für Nutzer ohne Uhr entsteht eine Zahl erst, wenn (1) die Validierung bestanden ist, (2) der Nutzer Kamera-RMSSD per Opt-in einschaltet, (3) eine Schlafdauer vorliegt (Selbstangabe genügt) und (4) die Kamerareihe 14 gültige Werte in 28 Tagen hat. Bis dahin: Morgenmessung, Ruhepuls-Trend und eingeschränkte Einschätzung.
+**E7: Was folgt aus „eingeschränkt“ und „nicht bestanden“?** (Frage aus Review-Runde 2: Der Plan hat drei Stufen, die Sperre kannte nur „bestanden“ und „durchgefallen, dauerhaft“.)
+- **E7a, lnRMSSD. Entscheidung des Maintainers (2026-11-09): „Gesperrt wie nicht bestanden“.** Bei „eingeschränkt“ geht RMSSD nicht in die Zahl ein und erscheint nur als markierte Tatsache, genau wie bei „nicht bestanden“. Eine erneute Validierung nach einer Änderung von Algorithmus oder Gerät ist erlaubt; das gilt auch nach „nicht bestanden“. Das frühere „bleibt dauerhaft so“ heißt damit: gesperrt bis zu einer bestandenen erneuten Validierung nach einer solchen Änderung.
+- **E7b, Ruhepuls. Entscheidung des Maintainers (2026-11-09): „Eingeschr. ok, sonst nur Profil“.** Ein Kamera-Ruhepuls mit Ergebnis „eingeschränkt“ (LoA innerhalb ±3/min) bleibt in Gebrauch, wie bei „bestanden“. Bei „nicht bestanden“ gilt er nur noch für das Profil (FR-0214), nicht für die Readiness. Eine erneute Validierung nach Änderungen ist erlaubt.
+- Begründung: Rechnung D zeigt, dass „eingeschränkt“ bei einem wahren Verhältnis von 0,5–1,0 das häufigste Ergebnis ist; ohne Regel wäre gerade dieser Fall offen gewesen. Für RMSSD ist die Belegung schwach (Abschnitt 3), für den Puls gut, daher die unterschiedliche Strenge.
+- Auslegung (nicht ausdrücklich entschieden): „nicht für die Readiness“ verstehe ich als weder Faktor noch Inhalt der eingeschränkten Einschätzung. Ohne Uhr bliebe dann in der eingeschränkten Einschätzung nur die Schlaf-Selbstangabe. Ob der Puls dort noch als reine Tatsache erscheinen darf, sollte der Project Supervisor bei der Übernahme klären.
+- Regeln für eine erneute Validierung: Abschnitt 6.
+
+**Was das für M3 heißt:** Für Nutzer ohne Uhr entsteht eine Zahl erst, wenn (1) die Validierung für lnRMSSD bestanden ist („eingeschränkt“ reicht nicht, E7a), (2) der Nutzer Kamera-RMSSD per Opt-in einschaltet, (3) eine Schlafdauer vorliegt (Selbstangabe genügt) und (4) die Kamerareihe 14 gültige Werte in 28 Tagen hat. Bis dahin: Morgenmessung, Ruhepuls-Trend und eingeschränkte Einschätzung.
 
 ## 6. Validierungsplan gegen Polar H9 (n = 1, 4–6 Wochen)
 
 **Aufbau:**
-- **Wer und womit:** der Maintainer, sein Handy, **28 aufeinanderfolgende Morgen**, verlängerbar auf bis zu 42 (Regel unten).
+- **Wer und womit:** der Maintainer, sein Handy, **28 Referenzmorgen**. Ein Referenzmorgen ist ein Morgen, an dem nach Protokoll mit dem H9 gemessen und eine Kameramessung versucht wurde und der H9-Wert gültig ist. Ob die Kameramessung gültig ist oder überhaupt einen Wert liefert, spielt dafür keine Rolle; ein Ausfall der Kamera zählt gegen die Quote. Fehlen Morgen (vergessen, H9-Ausfall), wird verlängert, bis 28 Referenzmorgen vorliegen, höchstens bis zum 42. Kalendermorgen (Regel unten).
 - **Ablauf am Morgen:** genau das Protokoll aus Abschnitt 1, **liegend** (Vorgabe nach E5), an allen Morgen gleich. Der H9 läuft gleichzeitig und zeichnet RR-Intervalle auf (eine Logger-App mit RR-Export). Die Uhren beider Geräte werden abgeglichen.
 - **Referenz:** RMSSD und Puls aus den H9-RR **im selben 60-s-Fenster**, ohne Interpolation. Ein offensichtlicher Artefakt wird nach fester Regel entfernt, die vorher festgelegt und für beide Seiten gleich ist. Weil beide Geräte dieselben Schläge messen, steckt das Rauschen des kurzen Fensters (Rechnung C, [A5]) nicht in der Differenz.
 - **Zusatz an 1–2 Tagen pro Woche:** gleich danach eine zweite Kameramessung (Wiederholbarkeit der Kamera allein).
 - **Stresstests getrennt:** einzelne Messungen mit kalten Händen oder nach Bewegung, nicht in der Hauptauswertung.
 
 **Kalibrier- und Prüftage (wochenweise Kreuzvalidierung):** Die RMSSD-Qualitätsgrenze (Zeitrauschen) wird an den Daten bestimmt. Würde an denselben Tagen geprüft, wäre das optimistisch. Eine feste Aufteilung „14 Tage festlegen, Rest prüfen“ ließe bei 28 Morgen nur 14 Prüftage, abzüglich verworfener Messungen eher 10–12; dort trennt das Kriterium deutlich schlechter (Tabelle unten). Deshalb:
-1. Vorab festlegen, nach welcher Regel die Grenze gewählt wird. Vorschlag: die größte Grenze, bei der an den zugelassenen Tagen SD(d) ≤ 0,5 × Tages-SD **und** die Qualitätsquote ≥ 80 % gelten; gibt es keine, die strengste Grenze mit Quote ≥ 60 %.
-2. Für jede der 4 Wochen die Grenze nur aus den **anderen 3 Wochen** bestimmen und auf diese Woche anwenden.
-3. Gewertet werden alle in ihrer Woche zugelassenen Tage zusammen. Sie sind alle Prüftage, keiner hat seine eigene Grenze mitbestimmt.
-4. **Mindestens 22 gültige Prüftage.** Sind es nach 28 Morgen weniger, wird wochenweise auf bis zu 42 Morgen verlängert (dann 6 Wochen, je Woche aus den anderen 5).
-5. Für die App gilt danach die Grenze, die die Regel aus allen Tagen ergibt. Ihr Ergebnis berichtet die Auswertung zusätzlich, entscheidend ist aber das Ergebnis der Kreuzvalidierung.
+1. Vorab festlegen, nach welcher Regel die Grenze gewählt wird. Vorschlag: die größte Grenze, bei der an den zugelassenen Tagen SD(d) ≤ 0,5 × Tages-SD **und** ein Anteil gültiger Messungen ≥ 22/28 (78,6 %) gelten; gibt es keine, die strengste Grenze mit Anteil ≥ 17/28 (60,7 %). Das sind dieselben Schwellen wie bei der Qualitätsquote unten.
+2. Die 28 Referenzmorgen bilden 4 Blöcke zu je 7 aufeinanderfolgenden Referenzmorgen („Wochen“). Für jeden Block die Grenze nur aus den **anderen 3 Blöcken** bestimmen und auf diesen Block anwenden.
+3. Gewertet werden alle in ihrem Block zugelassenen Tage zusammen. Sie sind alle Prüftage, keiner hat seine eigene Grenze mitbestimmt.
+4. **Mindestumfang und Quote hängen zusammen:** Die Prüftage sind genau die gültigen Kameramessungen unter den 28 Referenzmorgen. „Mindestens 22 Prüftage“ und „Qualitätsquote bestanden (≥ 22 von 28)“ sind also dieselbe Bedingung. Weniger als 22 Prüftage heißt Quote „eingeschränkt“ oder „nicht bestanden“, für lnRMSSD damit höchstens „eingeschränkt“ und nach E7a gesperrt.
+5. **Verlängerung, vorab festgelegt:** Sie sichert nur die Zahl der **Referenzmorgen** (Ausfälle, die nicht an der Kamera liegen), nie die Quote. Wegen ungültiger Kameramessungen wird nicht verlängert. Quote, Prüftage und Tages-SD zählen immer über genau die 28 Referenzmorgen, auch wenn sie sich über bis zu 42 Kalendermorgen verteilen. Kommen bis zum 42. Kalendermorgen keine 28 Referenzmorgen zusammen, gilt die Validierung als nicht durchgeführt (kein Ergebnis); ein neuer Versuch beginnt mit neuen Morgen.
+6. **Keine Zwischenauswertung:** Die Kameradaten werden erst nach dem 28. Referenzmorgen ausgewertet. Während der Messung wird nur geprüft, ob der H9-Wert gültig ist. So kann der Zwischenstand weder Verlängerung noch Abbruch beeinflussen.
+7. Für die App gilt danach die Grenze, die die Regel aus allen Tagen ergibt. Ihr Ergebnis berichtet die Auswertung zusätzlich, entscheidend ist aber das Ergebnis der Kreuzvalidierung.
 
-Gleichwertige, aber längere Alternative: 42 Morgen, Grenze aus den ersten 14, geprüft an den letzten 28.
+Gleichwertige, aber längere Alternative: 42 Referenzmorgen, Grenze aus den ersten 14, geprüft an den letzten 28; Quote dann über diese 28.
 
 **Auswertung:**
 - Je Morgen die Differenz d = Kamera − H9 für Puls und lnRMSSD.
 - Bland-Altman: Bias, LoA = Bias ± 1,96·SD, 95-%-KI der LoA ≈ ± t·√(3/n)·SD [B12, B15].
 - Proportionaler Bias: Steigung `b` der Regression **d gegen den H9-Wert** (nicht gegen den Mittelwert beider Geräte: Der enthält den Kamerafehler selbst und ergibt bei einem Verhältnis von 0,5 eine Scheinsteigung von etwa +0,12, Rechnung D2). Dazu die Grafik Differenz gegen H9-Wert.
 - Lag-1-Autokorrelation der d prüfen.
-- **Tages-SD der H9-Reihe über alle Morgen** schätzen (alle 28 bzw. 42, unabhängig davon, ob die Kameramessung gültig war). Sie ist der Bezug für die Akzeptanz von lnRMSSD. Sie enthält auch das Rauschen des 60-s-Fensters; das ist richtig, weil auch die Reihe in der App 60-s-Werte hat.
-- Qualitätsquote: Anteil gültiger Kameramessungen, aus der Kreuzvalidierung.
+- **Tages-SD der H9-Reihe über alle 28 Referenzmorgen** schätzen (unabhängig davon, ob die Kameramessung gültig war). Sie ist der Bezug für die Akzeptanz von lnRMSSD. Sie enthält auch das Rauschen des 60-s-Fensters; das ist richtig, weil auch die Reihe in der App 60-s-Werte hat.
+- Qualitätsquote: Anteil gültiger Kameramessungen an den 28 Referenzmorgen, aus der Kreuzvalidierung (je Block mit der Grenze aus den anderen Blöcken).
+- Puls: Bland-Altman über alle Referenzmorgen mit gültigem Kamera-Ruhepuls (Qualität „gut“ oder „eingeschränkt“, PAR-160K).
 
 **Akzeptanzgrenzen (vorab festgelegt):**
 
@@ -257,9 +278,22 @@ Gleichwertige, aber längere Alternative: 42 Morgen, Grenze aus den ersten 14, g
 | Puls | LoA (Punktschätzung) innerhalb ±2/min | innerhalb ±3/min | darüber | Literatur Finger in Ruhe ±2/min [B7, B2]. Die übliche Norm (±5/min bzw. ±10 %) gilt für EKG-Geräte und schließt PPG aus [B18]. Für Änderungen von wenigen /min ist sie zu grob. |
 | lnRMSSD, Streuung | SD(d) ≤ 0,5 × Tages-SD der H9-Reihe | ≤ 1 × Tages-SD | darüber | Rechnung B: 0,5 kostet 3–4, 1,0 etwa 12 Punkte Erkennung. **Absolut** bei einer Tages-SD von 0,33 ln [C13]: bestanden heißt SD(d) ≤ 0,165 ln, also je Messung etwa **+18 % / −15 % RMSSD** (1 SD), LoA etwa +38 % / −28 %; eingeschränkt heißt bis 0,33 ln, etwa +39 % / −28 % je SD. Zum Vergleich: Bánhalmi mit 240 Bildern/s SD 0,153 [B2], Holmes zwischen Personen 0,42–0,57 [B19]. Bei einer Person mit kleinerer Tagesstreuung ist die Grenze absolut strenger. Der Bias zählt nicht, weil die Kamerareihe nie mit anderen gemischt wird (FR-0115), wird aber berichtet. |
 | lnRMSSD, proportionaler Bias | \|b\| ≤ 0,2 (Punktschätzung) | 0,2 < \|b\| ≤ 0,35 | darüber | `b` = −0,2 heißt: Eine echte Änderung erscheint in der Kamerareihe nur zu 80 %. Für die Erkennung wirkt das wie ein Verhältnis von 0,5/0,8 ≈ 0,63 statt 0,5, kostet also nur wenige Punkte (Rechnung B, zwischen 70 und 62 %). Zeitrauschen erzeugt genau diesen Bias: `b` ≈ −0,2 entsteht bei RMSSD 25 ms schon ab σ_t ≈ 5 ms, bei 40 ms ab ≈ 8 ms (Rechnung D3). Holmes fand zwischen Personen nur einen schwachen Trend (r = −0,08 bis −0,13) [B19]. Die Grenzen sind eigene Wahl. |
-| Qualitätsquote | ≥ 80 % der Morgen mit gültigem Wert | 60–80 % | darunter | eigene Wahl. Rechnung B: Verfügbarkeit folgt direkt der Quote. |
+| Qualitätsquote | ≥ 22 von 28 Referenzmorgen gültig (78,6 %) | 17–21 von 28 (60,7–75 %) | ≤ 16 von 28 | eigene Wahl. Rechnung B: Verfügbarkeit folgt direkt der Quote. Die Schwelle ist an den Mindestumfang von 22 Prüftagen gebunden (Schritt 4 oben); früher „≥ 80 %“, das hätte bei 22 von 28 nie „bestanden“ ergeben. |
 
-Gesamturteil lnRMSSD: bestanden nur, wenn Streuung, proportionaler Bias und Qualitätsquote bestanden sind; sonst das schlechteste Teilurteil.
+Gesamturteil lnRMSSD: bestanden nur, wenn Streuung, proportionaler Bias und Qualitätsquote bestanden sind; sonst das schlechteste Teilurteil. Gesamturteil Puls: nach der Puls-Zeile allein.
+
+**Folgen der Ergebnisse (E7, entschieden 2026-11-09):**
+
+| Größe | Bestanden | Eingeschränkt | Nicht bestanden |
+| --- | --- | --- | --- |
+| lnRMSSD | Opt-in „experimentell“ (E2, E6) | gesperrt wie „nicht bestanden“ (E7a) | gesperrt: nur markierte Tatsache, nicht in der Zahl |
+| Ruhepuls | in Gebrauch (Faktor bzw. eingeschränkte Einschätzung) | in Gebrauch wie „bestanden“ (E7b) | nur Profil (FR-0214), nicht in der Readiness (E7b) |
+
+**Erneute Validierung (E7):** erlaubt nach einer Änderung von Algorithmus oder Gerät, für beide Größen und nach jedem Ergebnis. Damit sie kein „Weitermessen, bis es passt“ wird, gilt (Vorschlag, eigene Wahl):
+- Die Änderung ist vor dem neuen Lauf festgelegt und dokumentiert (Algorithmus-Version bzw. Gerät). Ohne Änderung gibt es keinen neuen Lauf.
+- Der neue Lauf nutzt nur neue Morgen, denselben Plan und dieselben Schwellen. Daten früherer Läufe zählen nicht mit. Eine Änderung darf an alten Daten entwickelt sein (etwa eine Korrektur des Zeitrauschens, Offene Punkte 6); geprüft wird sie nur an neuen.
+- Alle Läufe und ihre Ergebnisse werden berichtet, auch die nicht bestandenen.
+- Ein neues Gerät mit unverändertem Algorithmus erweitert die Freigabe nicht auf andere Geräte (Grenzen von n = 1 unten).
 
 **Wie sicher trennt das Verhältniskriterium? (Rechnung D1, 4000 Läufe je Fall, H9-Reihe AR 0,3, d unabhängig)**
 
@@ -270,7 +304,7 @@ Anteil der Läufe mit Punktschätzung ≤ 0,5 („bestanden“) bei wahrem Verh�
 | 14 Morgen, 4 verworfen | 10 | 14 | 73 % | 47 % | 14 % | 5 % | 2 % | 20 % |
 | 14 Morgen | 14 | 14 | 74 % | 45 % | 10 % | 3 % | 1 % | 15 % |
 | 28 Morgen, 14 Kalibrier + 14 Prüf | 14 | 28 | 81 % | 50 % | 9 % | 2 % | 1 % | 15 % |
-| **28 Morgen, Kreuzvalidierung, 80 % gültig** | 22 | 28 | 84 % | 47 % | 5 % | 1 % | 0 % | 10 % |
+| **28 Morgen, Kreuzvalidierung, 22 von 28 gültig (Mindestumfang)** | 22 | 28 | 84 % | 47 % | 5 % | 1 % | 0 % | 10 % |
 | 28 Morgen, Kreuzvalidierung, alle gültig | 28 | 28 | 85 % | 47 % | 4 % | 0 % | 0 % | 8 % |
 | 42 Morgen, 14 Kalibrier + 28 Prüf | 28 | 42 | 88 % | 48 % | 4 % | 0 % | 0 % | 8 % |
 
@@ -305,11 +339,11 @@ Ein **formaler** Nachweis nach Lu et al. [B16] verlangt, dass das obere KI-Ende 
 Für lnRMSSD gibt es kein festes Δ; die frühere lnRMSSD-Tabelle in A mit Δ = 0,10/0,15 ln entsprach keinem Kriterium und ist entfallen.
 
 **Folgerung für den Plan:**
-- 28 Morgen mit Kreuzvalidierung, mindestens 22 gültige Prüftage, sonst verlängern.
+- 28 Referenzmorgen mit Kreuzvalidierung, mindestens 22 gültige Prüftage (gleichbedeutend mit Quote „bestanden“). Verlängert wird nur bei fehlenden Referenzmorgen, nicht bei ungültigen Kameramessungen.
 - Die Entscheidung beruht auf den Punktschätzungen, die KI werden berichtet.
 - Ein Ergebnis „Punktschätzung erfüllt, KI überschreitet die Grenze“ heißt „vorläufig bestanden“, nicht „bewiesen“.
 - Sind die Tagesdifferenzen autokorreliert (z. B. eine Woche mit kalten Händen), ist das KI der LoA zu schmal: Deckung 82 % statt 95 %. Bei Lag-1-Autokorrelation über 0,3 die KI-Breite deshalb um rund √((1+r)/(1−r)) erweitern (Näherung, eigene Wahl; Review-Runde 1 bestätigte 95–96 % Deckung damit).
-- Nach der Literatur [B19, B3] ist ein Nichtbestehen bei lnRMSSD gut möglich. Die Folge für M3 steht in der Kurzfassung und in E1.
+- Nach der Literatur [B19, B3] ist ein Nichtbestehen bei lnRMSSD gut möglich. Die Folge für M3 steht in der Kurzfassung, in E1 und E7.
 
 **Grenzen von n = 1:**
 - Das Ergebnis gilt für eine Person, ein Handy, eine Haltung und die Jahreszeit der Messung.
@@ -321,8 +355,8 @@ Für lnRMSSD gibt es kein festes Δ; die frühere lnRMSSD-Tabelle in A mit Δ = 
 ## Bewertung und Zweifel
 - **Literatur:**
   - Volltext gelesen: Kernaussagen zu Puls, Ultrakurzzeit (liegend, EKG), Monitoring-Regeln [C1–C4 über die Dissertation von Plews, C5, C8, C10, C13], Bánhalmi, Peng, Holmes, Laborde und Task Force.
-  - In der ersten Fassung fehlte Holmes 2020 [B19], die direkteste Studie zu 60 s Kamera gegen EKG; der Research Reviewer hat sie gefunden. Die Suche war also nicht vollständig. Weitere Studien dieser Art sind möglich.
-  - Nur Abstract: unter anderem Plews 2017, Esco 2017, Schäfer und Vagedes 2013, Saboul 2013, Flatt und Esco 2016, Kiviniemi, Javaloyes, Moya-Ramon, Lu 2016 und die Metaanalyse zur langsamen Atmung. Alles ist in der Quellenliste vermerkt.
+  - In der ersten Fassung fehlte Holmes 2020 [B19], die direkteste Studie zu 60 s Kamera gegen EKG; der Research Reviewer hat sie gefunden, in Runde 2 außerdem van Dijk 2023 [B20]. Die Suche war also nicht vollständig. Weitere Studien dieser Art sind möglich. Van Dijk ändert die Empfehlung nicht: Messdauer und Atmung weichen vom Protokoll ab, und die Validierung bleibt ohnehin Pflicht.
+  - Nur Abstract: unter anderem Plews 2017, van Dijk 2023, Esco 2017, Schäfer und Vagedes 2013, Saboul 2013, Flatt und Esco 2016, Kiviniemi, Javaloyes, Moya-Ramon, Lu 2016 und die Metaanalyse zur langsamen Atmung. Alles ist in der Quellenliste vermerkt.
   - Drei Arbeiten von Plews habe ich über die Dissertation gelesen, nicht in der Verlagsfassung. Dort steht für die SWC 0,5 × CV, während Buchheit [C5] Plews 1 × CV zuschreibt; das ist nicht aufgelöst.
 - **Korrekturen am Auftrag bzw. an `../puls/METHODIK`:**
   - Plews 2017 maß 5 min, nicht 60 s.
@@ -352,8 +386,11 @@ Für lnRMSSD gibt es kein festes Δ; die frühere lnRMSSD-Tabelle in A mit Δ = 
 1. **Validierung durchführen** (Abschnitt 6). Folgeanalyse, z. B. R0xx, mit einer neuen Sammlung `research/input/kamera-h9-morgen-<datum>/` (privat, nur lokal, nie ins Repo).
 2. **RMSSD-Qualitätsgrenze** (Zeitrauschen) aus der Validierung festlegen, mit wochenweiser Kreuzvalidierung (Abschnitt 6).
 3. **Entscheidungen des Maintainers:**
-   - E1–E6 sind am 2026-11-09 entschieden (Abschnitt 5a); offen ist die Übernahme ins Konzept (Project Supervisor).
-4. **Empfohlene Folgeanalyse: Validierung im Sitzen** (wegen E6, „vorerst“). Gleicher Plan wie Abschnitt 6, aber sitzend, eigene Sammlung. Grund: Die Abweichung wächst von liegend zu sitzend [B6], Holmes fand sitzend breite LoA [B19]. Bis dahin gilt das Opt-in sitzend nur vorläufig mit „liegend verglichen“; fällt die Validierung durch, wird RMSSD sitzend gesperrt.
+   - E1–E7 sind am 2026-11-09 entschieden (Abschnitt 5a); offen ist die Übernahme ins Konzept (Project Supervisor).
+   - Bei der Übernahme von E7b zu klären: Darf ein Kamera-Ruhepuls mit „nicht bestanden“ in der eingeschränkten Einschätzung noch als reine Tatsache erscheinen? Hier ausgelegt als „nein, nur Profil“ (Abschnitt 5a).
+4. **Empfohlene Folgeanalyse: Validierung im Sitzen** (wegen E6, „vorerst“). Gleicher Plan wie Abschnitt 6, aber sitzend, eigene Sammlung. Grund: Die Abweichung wächst von liegend zu sitzend [B6], Holmes fand sitzend breite LoA [B19]. Bis dahin gilt das Opt-in sitzend nur vorläufig mit „liegend verglichen“; ergibt die Validierung „eingeschränkt“ oder „nicht bestanden“, wird RMSSD sitzend gesperrt (E7a).
+4a. **Erneute Validierung** nach einer Änderung von Algorithmus oder Gerät ist erlaubt (E7), nach den Regeln in Abschnitt 6 (neue Morgen, gleicher Plan, alle Läufe berichtet).
+4b. **MAD-Grenze 0,5/min für den Ruhepuls** nach der Validierung prüfen: Sie misst sm und die Tages-SD des Pulses; die Begründung hängt an sm ≈ 1/min (Rechnung B, Punkt 5).
 5. FR-0214: Ruhephase 4 min auf 5 min anheben? Anleitung ohne Atemtempo; Profilvorschlag aus dem Median der Morgenwerte.
 6. Ob eine Korrektur des RMSSD um das Zeitrauschen (RMSSD² − 6·σ_t²) hilft, ist eine Frage an den Algorithmus in `../puls`, nicht Teil dieses Auftrags.
 
@@ -394,6 +431,7 @@ Zugriff: **V** = Volltext geprüft, **A** = nur Abstract geprüft, **D** = über
 - [B16] Lu MJ et al. 2016, Int J Biostat 12(2), doi:10.1515/ijb-2015-0039 – A
 - [B17] Mühlen JM et al. 2021, Br J Sports Med 55:767, PMC8273688 – V
 - [B19] Holmes CJ, Fedewa MV, Winchester LJ, MacDonald HV, Wind SA, Esco MR 2020, Sensors 20:5738, doi:10.3390/s20205738, PMC7600564 – V (Tabellen 1 und 2 selbst nachgeprüft)
+- [B20] van Dijk W, Huizink AC, Oosterman M, Lemmers-Jansen ILJ, de Vente W 2023, Psychosom Med 85(7):568–576, doi:10.1097/PSY.0000000000001236, https://research.vu.nl/en/publications/validation-of-photoplethysmography-using-a-mobile-phone-applicati/ – A
 - [B18] ANSI/AAMI EC13 – nicht geprüft (kostenpflichtig); Sekundärbeleg Pstras et al. 2025, Front Physiol, PMC12505149 – V
 
 **Auswertung täglicher Werte**
