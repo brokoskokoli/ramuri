@@ -662,6 +662,11 @@ void main() {
               greaterThanOrEqualTo(start.right),
               reason: 'Abstand',
             );
+            final startText =
+                tester.widget<Text>(k('load_axis_start')).data ?? '';
+            final endText = tester.widget<Text>(k('load_axis_end')).data ?? '';
+            expect(startText, isNotEmpty);
+            expect(endText, isNot(startText), reason: 'Ende zeigt Endedatum');
           }
         },
       );
