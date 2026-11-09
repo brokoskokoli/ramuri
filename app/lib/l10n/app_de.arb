@@ -1583,6 +1583,8 @@
   "@loadProvMissing": {"description": "Grund der Vorläufigkeit CTL (PAR-090)"},
   "loadProvCommitment": "Leere Tage zählen nicht als Pause, solange nicht angegeben ist, dass alles erfasst ist. Das langfristige Belastungsniveau und der TSB bleiben daher vorläufig.",
   "@loadProvCommitment": {"description": "Grund der Vorläufigkeit CTL ohne Angabe (FR-0103)"},
+  "loadProvBothCommitment": "Leere Tage zählen nicht als Pause, solange nicht angegeben ist, dass alles erfasst ist. Die kurzfristige Belastung, das langfristige Belastungsniveau und der TSB bleiben daher vorläufig.",
+  "@loadProvBothCommitment": {"description": "Grund der Vorläufigkeit ATL und CTL ohne Angabe, ein gemeinsamer Satz (FR-0103)"},
   "loadEmpty": "Noch keine Aussage möglich: Es gibt noch keine bewertete Einheit. Das bedeutet nicht, dass dein Belastungsniveau niedrig ist.",
   "@loadEmpty": {"description": "Leerzustand ohne Aussage zur Fitness (FR-0104)"},
   "loadBasisTitle": "Grundlage",

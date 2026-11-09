@@ -168,9 +168,13 @@ void main() {
           expect(k('load_atl_provisional'), findsOneWidget);
           expect(k('load_ctl_provisional'), findsOneWidget);
           expect(k('load_tsb_provisional'), findsOneWidget);
-          expect(find.text(l10n.loadProvAtlCommitment), findsOneWidget);
+          // Ohne Zusage ein gemeinsamer Satz statt zwei fast gleicher.
+          expect(find.text(l10n.loadProvBothCommitment), findsOneWidget);
+          expect(find.text(l10n.loadProvAtlCommitment), findsNothing);
+          expect(find.text(l10n.loadProvCommitment), findsNothing);
           expect(find.text(l10n.loadProvStartup), findsOneWidget);
-          expect(find.text(l10n.loadProvCommitment), findsOneWidget);
+          // ATL-Verlauf ist lang genug (PAR-088): kein Grund „Verlauf kurz“.
+          expect(find.text(l10n.loadProvAtl), findsNothing);
           // Alle drei Kennzeichen sind in der Legende erkennbar.
           expect(k('load_legend_converted'), findsOneWidget);
           expect(k('load_legend_unrated'), findsOneWidget);
@@ -384,15 +388,17 @@ void main() {
           final l = await reasons(tester, report(units: daily(0, 10)), locale);
           expect(find.text(l.loadProvAtl), findsOneWidget);
           expect(find.text(l.loadProvStartup), findsOneWidget);
-          expect(find.text(l.loadProvAtlCommitment), findsOneWidget);
-          expect(find.text(l.loadProvCommitment), findsOneWidget);
+          expect(find.text(l.loadProvBothCommitment), findsOneWidget);
+          expect(find.text(l.loadProvAtlCommitment), findsNothing);
+          expect(find.text(l.loadProvCommitment), findsNothing);
         });
 
         testWidgets('$locale: lange Historie ohne Zusage: nur fehlende Zusage, '
             'nicht "Verlauf kurz"', (tester) async {
           final l = await reasons(tester, report(units: daily(0, 300)), locale);
-          expect(find.text(l.loadProvAtlCommitment), findsOneWidget);
-          expect(find.text(l.loadProvCommitment), findsOneWidget);
+          expect(find.text(l.loadProvBothCommitment), findsOneWidget);
+          expect(find.text(l.loadProvAtlCommitment), findsNothing);
+          expect(find.text(l.loadProvCommitment), findsNothing);
           expect(find.text(l.loadProvAtl), findsNothing);
           expect(find.text(l.loadProvStartup), findsNothing);
           expect(find.text(l.loadProvMissing), findsNothing);
@@ -712,9 +718,8 @@ void main() {
       );
       expect(k('load_basis'), findsOneWidget);
       for (final t in [
-        l10n.loadProvAtlCommitment,
+        l10n.loadProvBothCommitment,
         l10n.loadProvStartup,
-        l10n.loadProvCommitment,
         l10n.loadProfileEdwards,
         l10n.loadDataNote,
         l10n.loadAtlLabel,

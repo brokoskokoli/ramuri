@@ -918,6 +918,7 @@
   "loadProvStartup": "The long-term load level and the TSB are still provisional because the history is still short.",
   "loadProvMissing": "Many recorded sessions of the last weeks are unrated, so the long-term load level and the TSB stay provisional.",
   "loadProvCommitment": "Empty days do not count as rest as long as it is not stated that everything is recorded. The long-term load level and the TSB therefore stay provisional.",
+  "loadProvBothCommitment": "Empty days do not count as rest as long as it is not stated that everything is recorded. The short-term load, the long-term load level and the TSB therefore stay provisional.",
   "loadEmpty": "No statement is possible yet: there is no rated session so far. This does not mean that your load level is low.",
   "loadBasisTitle": "Basis",
   "loadLegendConverted": "converted",

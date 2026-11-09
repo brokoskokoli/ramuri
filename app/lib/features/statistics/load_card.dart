@@ -352,12 +352,23 @@ class LoadCardBody extends StatelessWidget {
         );
 
       // Hinweise: kurz, Gründe stehen unter „Grundlage“.
+      // Ohne Zusage haben ATL und CTL denselben Grund: ein gemeinsamer Satz.
+      final bothNoCommitment =
+          state.atlProvisionalReasons.contains(
+            LoadProvisionalReason.noCommitment,
+          ) &&
+          state.ctlProvisionalReasons.contains(
+            LoadProvisionalReason.noCommitment,
+          );
       final reasons = <String?>[
         for (final r in LoadProvisionalReason.values)
           if (state.atlProvisionalReasons.contains(r))
             switch (r) {
               LoadProvisionalReason.startup => l10n.loadProvAtl,
-              LoadProvisionalReason.noCommitment => l10n.loadProvAtlCommitment,
+              LoadProvisionalReason.noCommitment =>
+                bothNoCommitment
+                    ? l10n.loadProvBothCommitment
+                    : l10n.loadProvAtlCommitment,
               // ATL kennt keinen Rückfall nach PAR-090.
               LoadProvisionalReason.missingUnits => null,
             },
@@ -366,10 +377,12 @@ class LoadCardBody extends StatelessWidget {
             switch (r) {
               LoadProvisionalReason.startup => l10n.loadProvStartup,
               LoadProvisionalReason.missingUnits => l10n.loadProvMissing,
-              LoadProvisionalReason.noCommitment => l10n.loadProvCommitment,
+              // Beim gemeinsamen Satz steht er schon bei ATL.
+              LoadProvisionalReason.noCommitment =>
+                bothNoCommitment ? null : l10n.loadProvCommitment,
             },
       ];
-      if (reasons.isNotEmpty) {
+      if (reasons.nonNulls.isNotEmpty) {
         out.add(
           _Hint(l10n.loadHintProvisional, keyName: 'load_hint_provisional'),
         );
