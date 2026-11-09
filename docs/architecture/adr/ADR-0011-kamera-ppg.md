@@ -1,6 +1,6 @@
 # ADR-0011 — Puls mit der Handykamera (Kamera-PPG)
 
-- **Status:** Proposed
+- **Status:** Accepted (entschieden vom Orchestrator, 2026-11-10)
 - **Datum:** 2026-11-10
 - **Quellen:** SRC-003 (OQ-0078, DEC-0073, DEC-0074), R009, Referenz `../puls` (Tag `algo-v0.4-frozen`)
 - **Betroffene Anforderungen:** FR-0214, FR-0215 (Wiederverwendung), FR-0002, FR-0060, SEC-0001 bis SEC-0010, NFR-0001, NFR-0005
