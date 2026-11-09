@@ -14,7 +14,14 @@ Future<void> refreshSrpe(StorageSession session, int runId) async {
   if (stored == null) return;
   final srpe = await _srpeOf(session, runId, stored.subjective.rpe);
   if (srpe == stored.srpe) return;
-  await session.subjective.save(runId, stored.subjective, srpe: srpe);
+  // Nur die sRPE-Spalten, und nur wenn das RPE noch das gelesene ist: eine
+  // parallele Änderung der Angabe geht nicht verloren (sie rechnet ihren
+  // eigenen Wert).
+  await session.subjective.setSrpe(
+    runId,
+    srpe,
+    expectedRpe: stored.subjective.rpe,
+  );
 }
 
 Future<SrpeLoad?> _srpeOf(StorageSession session, int runId, int? rpe) async {
@@ -44,16 +51,23 @@ class SubjectiveService {
     await session.subjective.save(runId, subjective, srpe: srpe);
   }
 
-  /// Trägt ein Training nach. Liegt der Tag nach heute (Uhr des Geräts),
+  /// Trägt ein Training nach. Liegt der Tag nach heute (Ortstag laut Uhr des Geräts),
   /// wirft es [SubjectiveRangeError].
   Future<StoredManualTraining> addTraining(ManualTraining training) async {
-    training.requireNotAfter(clock.now());
+    training.requireNotAfter(_localDay());
     return session.manualTrainings.add(training);
   }
 
   Future<void> updateTraining(int id, ManualTraining training) async {
-    training.requireNotAfter(clock.now());
+    training.requireNotAfter(_localDay());
     await session.manualTrainings.update(id, training);
+  }
+
+  /// „Heute“ ist der Ortstag des Nutzers (wie Oberfläche und Datumswähler),
+  /// nicht der UTC-Tag. Als UTC-Zeitpunkt mit Ortsuhrzeit zurückgegeben.
+  DateTime _localDay() {
+    final n = clock.now();
+    return n.toUtc().add(clock.utcOffsetAt(n));
   }
 
   Future<void> deleteTraining(int id) => session.manualTrainings.delete(id);

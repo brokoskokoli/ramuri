@@ -36,6 +36,24 @@ class FakeRunSubjectiveStore implements RunSubjectiveStore {
       srpe: srpe,
     );
   }
+
+  @override
+  Future<bool> setSrpe(
+    int runId,
+    SrpeLoad? srpe, {
+    required int? expectedRpe,
+  }) async {
+    if (srpe != null && srpe.rpe != expectedRpe) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    final cur = _d.subjective[runId];
+    if (cur == null || cur.subjective.rpe != expectedRpe) return false;
+    _d.subjective[runId] = StoredRunSubjective(
+      subjective: cur.subjective,
+      srpe: srpe,
+    );
+    return true;
+  }
 }
 
 class FakeManualTrainingStore implements ManualTrainingStore {

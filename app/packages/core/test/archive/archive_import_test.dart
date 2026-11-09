@@ -1241,6 +1241,21 @@ void main() {
       ),
       'sRPE ohne RPE': v2(feedback: [fb(rpe: null)]),
       'sRPE-Dauer ohne Punkte': v2(feedback: [fb(points: null)]),
+      // Diese Fälle erreichen ohne die Spaltenregel keinen TypeError: nur die
+      // Regel selbst erkennt sie (sonst bliebe der DB-CHECK als Umweg).
+      'sRPE fremde Methode ohne RPE': v2(
+        feedback: [fb(rpe: null, method: 'andere', version: 0)],
+      ),
+      'sRPE nur Punkte und Dauer, Methode fehlt': v2(
+        feedback: [fb(method: null, version: null)],
+      ),
+      'sRPE nur Methode und Version, Werte fehlen': v2(
+        feedback: [fb(points: null, seconds: null)],
+      ),
+      'sRPE Version fehlt': v2(feedback: [fb(version: null)]),
+      'sRPE Methode fehlt, fremde Version': v2(
+        feedback: [fb(method: null, version: 0)],
+      ),
       'doppelte run_id': v2(feedback: [fb(), fb()]),
       'absteigende run_id': v2(feedback: [fb(run: 2), fb(run: 1)]),
       'Training RPE 11': v2(trainings: [mt(rpe: 11)]),

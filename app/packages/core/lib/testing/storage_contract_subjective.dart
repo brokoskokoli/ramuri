@@ -83,6 +83,47 @@ Future<void> _runSubjective(StorageContractHarness h) async {
   );
   expectEq((await s.subjective.read(r))!.subjective.rpe, 10, 'unverändert');
 
+  // Nur die sRPE-Spalten setzen: übrige Angaben bleiben, RPE muss noch passen.
+  await s.subjective.save(
+    r,
+    RunSubjective(rpe: 10, wellbeing: 5, complaints: 'Knie', note: 'n'),
+  );
+  final srpe10 = SrpeLoad.compute(
+    duration: const Duration(minutes: 30),
+    rpe: 10,
+  );
+  expectTrue(
+    await s.subjective.setSrpe(r, srpe10, expectedRpe: 10),
+    'setSrpe greift',
+  );
+  expectEq(
+    _s(await s.subjective.read(r)),
+    '10|5|Knie|null|n|300.0|1800|${SrpeLoad.methodId}|${SrpeLoad.methodVersion}',
+    'nur sRPE gesetzt, Rest unberührt',
+  );
+  expectTrue(
+    !await s.subjective.setSrpe(r, null, expectedRpe: 9),
+    'setSrpe bei geändertem RPE: nichts',
+  );
+  expectTrue(
+    !await s.subjective.setSrpe(99, null, expectedRpe: 10),
+    'setSrpe ohne Satz: nichts',
+  );
+  await expectFails(
+    () => s.subjective.setSrpe(r, srpe10, expectedRpe: 3),
+    StorageFailure.rejected,
+    'setSrpe: sRPE zu anderem RPE',
+  );
+  expectTrue(
+    await s.subjective.setSrpe(r, null, expectedRpe: 10),
+    'setSrpe entfernt den Wert',
+  );
+  expectEq(
+    _s(await s.subjective.read(r)),
+    '10|5|Knie|null|n|null|null|null|null',
+    'sRPE entfernt, Rest unberührt',
+  );
+
   await expectFails(
     () => s.subjective.save(99, RunSubjective(rpe: 1)),
     StorageFailure.notFound,

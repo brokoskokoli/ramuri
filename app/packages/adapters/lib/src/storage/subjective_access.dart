@@ -80,6 +80,36 @@ class DriftRunSubjectiveStore implements RunSubjectiveStore {
               );
         });
       });
+
+  @override
+  Future<bool> setSrpe(
+    int runId,
+    SrpeLoad? srpe, {
+    required int? expectedRpe,
+  }) => guarded(() async {
+    if (srpe != null && srpe.rpe != expectedRpe) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    // Eine einzige UPDATE-Anweisung: Bedingung und Schreiben sind atomar, die
+    // übrigen Spalten werden nicht angefasst.
+    final n =
+        await (_db.update(_db.runFeedback)
+              ..where((t) => t.runId.equals(runId))
+              ..where(
+                (t) => expectedRpe == null
+                    ? t.rpe.isNull()
+                    : t.rpe.equals(expectedRpe),
+              ))
+            .write(
+              d.RunFeedbackCompanion(
+                srpePoints: Value(srpe?.points),
+                srpeDurationS: Value(secondsOfOrNull(srpe?.duration)),
+                srpeMethod: Value(srpe?.method),
+                srpeMethodVersion: Value(srpe?.version),
+              ),
+            );
+    return n > 0;
+  });
 }
 
 /// Nachgetragene Trainings (FR-0199) in eigener Tabelle.

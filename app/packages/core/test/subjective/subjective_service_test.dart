@@ -224,6 +224,102 @@ void main() {
     },
   );
 
+  test('Training heute im Ortstag: kurz nach Ortsmitternacht (+1 h)', () async {
+    // 23:30 UTC am 1.1. ist in UTC+1 schon der 2.1.
+    final clock = FakeClock(
+      DateTime.utc(2030, 1, 1, 23, 30),
+      utcOffset: const Duration(hours: 1),
+    );
+    final svc = SubjectiveService(session: w.session, clock: clock);
+    ManualTraining on(int day) => ManualTraining(
+      day: DateTime.utc(2030, 1, day),
+      kind: ManualTrainingKind.run,
+      duration: const Duration(minutes: 20),
+      rpe: 2,
+    );
+    final today = await svc.addTraining(on(2));
+    await svc.updateTraining(today.id, on(2));
+    await expectLater(
+      svc.addTraining(on(3)),
+      throwsA(isA<SubjectiveRangeError>()),
+    );
+    await expectLater(
+      svc.updateTraining(today.id, on(3)),
+      throwsA(isA<SubjectiveRangeError>()),
+    );
+  });
+
+  test(
+    'Training: westlich von UTC (-5 h) ist der Ortstag noch gestern',
+    () async {
+      // 02:00 UTC am 2.1. ist in UTC-5 noch der 1.1. um 21 Uhr.
+      final clock = FakeClock(
+        DateTime.utc(2030, 1, 2, 2),
+        utcOffset: const Duration(hours: -5),
+      );
+      final svc = SubjectiveService(session: w.session, clock: clock);
+      ManualTraining on(int day) => ManualTraining(
+        day: DateTime.utc(2030, 1, day),
+        kind: ManualTrainingKind.run,
+        duration: const Duration(minutes: 20),
+        rpe: 2,
+      );
+      await svc.addTraining(on(1));
+      // „Morgen“ im Ortstag, obwohl in UTC schon heute.
+      await expectLater(
+        svc.addTraining(on(2)),
+        throwsA(isA<SubjectiveRangeError>()),
+      );
+      expect(await svc.trainings(), hasLength(1));
+    },
+  );
+
+  test('refreshSrpe überschreibt eine parallele Änderung nicht', () async {
+    await _setTimes(
+      w.session,
+      run,
+      total: const Duration(minutes: 50),
+      moving: const Duration(minutes: 40),
+    );
+    await service.save(run, RunSubjective(rpe: 5, note: 'alt'));
+    // Bewegungszeit ändert sich; der Aufruf liest zuerst, dann schreibt ein
+    // anderer Weg Notiz und Befinden, bevor die Neuberechnung speichert.
+    await _setTimes(
+      w.session,
+      run,
+      total: const Duration(minutes: 60),
+      moving: const Duration(minutes: 50),
+    );
+    final racing = _RacingSession(w.session, () async {
+      await service.save(run, RunSubjective(rpe: 5, note: 'neu', wellbeing: 4));
+    });
+    await refreshSrpe(racing, run);
+    final s = (await service.read(run))!;
+    expect(s.subjective.note, 'neu');
+    expect(s.subjective.wellbeing, 4);
+    expect(s.srpe!.points, 250);
+  });
+
+  test(
+    'refreshSrpe: geändertes RPE wird nicht mit altem Wert belegt',
+    () async {
+      await _setTimes(
+        w.session,
+        run,
+        total: const Duration(minutes: 50),
+        moving: const Duration(minutes: 40),
+      );
+      await service.save(run, RunSubjective(rpe: 5));
+      final racing = _RacingSession(w.session, () async {
+        await service.save(run, RunSubjective(rpe: 7));
+      });
+      await refreshSrpe(racing, run);
+      final s = (await service.read(run))!;
+      expect(s.subjective.rpe, 7);
+      expect(s.srpe!.points, 280);
+    },
+  );
+
   test('unbekannter Lauf: notFound', () async {
     await expectLater(
       service.save(999, RunSubjective(rpe: 5)),
@@ -236,4 +332,50 @@ void main() {
       ),
     );
   });
+}
+
+/// Führt nach dem ersten Lesen der Angaben eine parallele Änderung aus.
+class _RacingSession implements StorageSession {
+  _RacingSession(this._inner, this._race);
+  final StorageSession _inner;
+  final Future<void> Function() _race;
+
+  @override
+  RunSubjectiveStore get subjective => _RacingStore(_inner.subjective, _race);
+
+  @override
+  PreprocessingStore get preprocessing => _inner.preprocessing;
+
+  // Mehr braucht refreshSrpe nicht; alles andere wirft hier bewusst.
+  @override
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+class _RacingStore implements RunSubjectiveStore {
+  _RacingStore(this._inner, this._race);
+  final RunSubjectiveStore _inner;
+  Future<void> Function()? _race;
+
+  @override
+  Future<StoredRunSubjective?> read(int runId) async {
+    final r = await _inner.read(runId);
+    final race = _race;
+    _race = null;
+    if (race != null) await race();
+    return r;
+  }
+
+  @override
+  Future<Map<int, StoredRunSubjective>> readAll() => _inner.readAll();
+
+  @override
+  Future<void> save(int runId, RunSubjective subjective, {SrpeLoad? srpe}) =>
+      _inner.save(runId, subjective, srpe: srpe);
+
+  @override
+  Future<bool> setSrpe(
+    int runId,
+    SrpeLoad? srpe, {
+    required int? expectedRpe,
+  }) => _inner.setSrpe(runId, srpe, expectedRpe: expectedRpe);
 }

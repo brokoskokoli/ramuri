@@ -16,6 +16,12 @@ abstract interface class RunSubjectiveStore {
   /// entfernen den Satz. Unbekannter Lauf: `notFound`. [srpe] ohne passendes
   /// RPE in [subjective]: `rejected`.
   Future<void> save(int runId, RunSubjective subjective, {SrpeLoad? srpe});
+
+  /// Setzt nur die vier sRPE-Spalten des Satzes, alle übrigen Angaben bleiben
+  /// unberührt. Greift nur, wenn der Satz existiert und sein RPE noch
+  /// [expectedRpe] ist (atomar); sonst bleibt alles wie es ist. Gibt zurück,
+  /// ob geschrieben wurde. [srpe] mit anderem RPE als [expectedRpe]: `rejected`.
+  Future<bool> setSrpe(int runId, SrpeLoad? srpe, {required int? expectedRpe});
 }
 
 /// Nachgetragene Trainings (FR-0199), unabhängig von Läufen.
