@@ -277,4 +277,67 @@ void main() {
       null,
     ));
   });
+
+  // WP17 B2: Passen Zahl und Einheit in die Spalte, stehen sie in einer Zeile.
+  // Passen sie nicht (drei Spalten auf 360 dp, Design), steht die Einheit als
+  // Ganzes unter der Zahl; die Zahl bricht nie, und das Raster nimmt keine
+  // weitere Spalte weg. (Das B-Gate maß hier mit gleicher Oberkante je Kasten
+  // und sah „eine Zeile“ auch bei zwei Zeilen: darum zählt dieser Test Zeilen
+  // über die Höhe des Absatzes.)
+  for (final scale in [1.0, 1.15, 1.3]) {
+    for (final (v, u) in [('+1200', 'm'), ('+3937', 'ft')]) {
+      testWidgets('Zahl und Einheit: $v $u, 360 dp, '
+          'Faktor $scale', (tester) async {
+        await loadManrope(tester);
+        await loadSora(tester);
+        const size = Size(360, 900);
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          _app(
+            RamuriTileGrid(
+              children: [
+                RamuriValueTile(
+                  label: 'Zahl',
+                  value: v,
+                  unit: unbreakableUnit(u),
+                  valueKey: const Key('wert'),
+                ),
+                const RamuriValueTile(label: 'Zahl', value: '5:30', unit: 'km'),
+                const RamuriValueTile(label: 'Zahl', value: '1', unit: 'km'),
+              ],
+            ),
+            scale: scale,
+            size: size,
+          ),
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.byKey(const Key('wert')),
+        );
+        final span = paragraph.text as TextSpan;
+        final painter = TextPainter(
+          text: span,
+          textDirection: TextDirection.ltr,
+          textScaler: TextScaler.linear(scale),
+        )..layout();
+        final oneLine = painter.width <= paragraph.size.width + 0.01;
+        final lines = TextPainter(
+          text: span,
+          textDirection: TextDirection.ltr,
+          textScaler: TextScaler.linear(scale),
+        )..layout(maxWidth: paragraph.size.width);
+        final count = lines.computeLineMetrics().length;
+        if (oneLine) {
+          expect(count, 1, reason: 'passt in die Spalte, bricht aber');
+        } else {
+          // Zahl in einer Zeile, Einheit ganz darunter: zwei Zeilen.
+          expect(count, 2, reason: 'Einheit als Ganzes unter der Zahl');
+        }
+        painter.dispose();
+        lines.dispose();
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 }

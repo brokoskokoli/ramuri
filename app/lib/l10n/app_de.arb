@@ -716,7 +716,6 @@
       }
     }
   },
-  "runZoneNoHeartRate": "Zone nicht verfügbar",
   "runZoneNoBasis": "nicht verfügbar – Ruhepuls und HFmax im Profil prüfen",
   "sumNoBasisShort": "nicht verfügbar – Pulswerte im Profil prüfen",
   "runGpsSearching": "Suche Signal …",
@@ -763,6 +762,9 @@
   "runFinishBody": "Der Lauf wird abgeschlossen und gespeichert. Danach lässt er sich nicht fortsetzen.",
   "runFinishConfirm": "Beenden",
   "runFinishCancel": "Abbrechen",
+  "runPauseAskTitle": "Lauf pausieren?",
+  "runPauseAskConfirm": "Pausieren",
+  "runPauseAskStay": "Weiterlaufen",
   "runDoneTitle": "Lauf beendet",
   "runDoneSaved": "Der Lauf ist gespeichert.",
   "runDoneSaveProblem": "Beim Speichern ist ein Fehler aufgetreten. Der Lauf ist möglicherweise unvollständig gespeichert.",

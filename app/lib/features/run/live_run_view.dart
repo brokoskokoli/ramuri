@@ -80,13 +80,10 @@ class LiveRunView extends StatelessWidget {
     final c = RamuriColors.of(context);
     final finished = controller.phase == RecordingPhase.finished;
     final paused = controller.phase == RecordingPhase.paused;
-    return PopScope(
-      canPop: finished,
-      onPopInvokedWithResult: (didPop, _) {
-        // FR-0028: Beenden gibt es nur pausiert. Zurück im laufenden Lauf tut
-        // nichts, damit er nicht versehentlich endet.
-        if (!didPop && paused) _confirmFinish(context);
-      },
+    return _BackAsk(
+      controller: controller,
+      finished: finished,
+      onFinishBack: () => _confirmFinish(context),
       child: Scaffold(
         // Design „Live“: Minzgrund im Lauf, grauer Grund in der Pause.
         backgroundColor: finished
@@ -311,33 +308,37 @@ class LiveRunView extends StatelessWidget {
     final mainBackground = dark ? c.action : c.panel;
     final mainForeground = dark ? c.onAction : c.action;
     if (!paused) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          LiveRoundButton(
-            key: const Key('run_lap'),
-            semanticLabel: l10n.runLap,
-            size: 68,
-            background: c.surface,
-            foreground: c.text,
-            icon: Icons.flag_outlined,
-            iconSize: 26,
-            onPressed: controller.lap,
-          ),
-          const SizedBox(width: 28),
-          LiveRoundButton(
-            key: const Key('run_pause'),
-            semanticLabel: l10n.runPause,
-            size: 104,
-            background: mainBackground,
-            foreground: mainForeground,
-            icon: Icons.pause_rounded,
-            iconSize: 36,
-            onPressed: controller.pause,
-          ),
-          const SizedBox(width: 28),
-          const SizedBox(width: 68),
-        ],
+      // Auf sehr schmalen Schirmen (320 dp) etwas kleiner statt Überlauf.
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            LiveRoundButton(
+              key: const Key('run_lap'),
+              semanticLabel: l10n.runLap,
+              size: 68,
+              background: c.surface,
+              foreground: c.text,
+              icon: Icons.flag_outlined,
+              iconSize: 26,
+              onPressed: controller.lap,
+            ),
+            const SizedBox(width: 28),
+            LiveRoundButton(
+              key: const Key('run_pause'),
+              semanticLabel: l10n.runPause,
+              size: 104,
+              background: mainBackground,
+              foreground: mainForeground,
+              icon: Icons.pause_rounded,
+              iconSize: 36,
+              onPressed: controller.pause,
+            ),
+            const SizedBox(width: 28),
+            const SizedBox(width: 68),
+          ],
+        ),
       );
     }
     ButtonStyle pill(Color background, Color foreground) =>
@@ -357,7 +358,10 @@ class LiveRunView extends StatelessWidget {
             style: pill(mainBackground, mainForeground),
             onPressed: controller.resume,
             icon: const Icon(Icons.play_arrow_rounded, size: 22),
-            label: Text(l10n.liveResume),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(l10n.liveResume, maxLines: 1, softWrap: false),
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -367,7 +371,10 @@ class LiveRunView extends StatelessWidget {
             style: pill(c.surface, c.text),
             onPressed: () => _confirmFinish(context),
             icon: const Icon(Icons.stop_rounded, size: 22),
-            label: Text(l10n.runFinish),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(l10n.runFinish, maxLines: 1, softWrap: false),
+            ),
           ),
         ),
       ],
@@ -398,6 +405,127 @@ class LiveRunView extends StatelessWidget {
       ),
     );
     if (ok == true) await controller.finish();
+  }
+}
+
+bool _isRunning(RecordingPhase p) =>
+    p == RecordingPhase.running || p == RecordingPhase.autoPaused;
+
+/// Zurück-Taste des Lauf-Bildschirms (FR-0028, OQ-0076). Abgeschlossen: normales
+/// Schließen. Pausiert: Rückfrage zum Beenden. Laufend (auch Autopause): „Lauf
+/// pausieren?“. Ohne Antwort, bei „Weiterlaufen“, außerhalb des Dialogs und bei
+/// erneutem Zurück geht kein Befehl an die Aufzeichnung.
+class _BackAsk extends StatefulWidget {
+  const _BackAsk({
+    required this.controller,
+    required this.finished,
+    required this.onFinishBack,
+    required this.child,
+  });
+
+  final RunController controller;
+  final bool finished;
+  final VoidCallback onFinishBack;
+  final Widget child;
+
+  @override
+  State<_BackAsk> createState() => _BackAskState();
+}
+
+class _BackAskState extends State<_BackAsk> {
+  bool _asking = false;
+
+  Future<void> _askPause() async {
+    // Schreibfenster nach „Pausieren“: Der Dialog ist zu, die Phase noch
+    // „laufend“; ein Zurück dort öffnet keine zweite Rückfrage. (Zwei Zurück im
+    // selben Takt verwirft schon der Navigator, dafür braucht es den Wächter nicht.)
+    if (_asking) return;
+    _asking = true;
+    final controller = widget.controller;
+    try {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => _PauseAskDialog(controller: controller),
+      );
+      // Wechselte der Zustand während der Rückfrage (Pause, Ende), wirkt die
+      // Antwort nicht mehr; sie führt nie zu einem falschen Befehl.
+      if (ok == true && _isRunning(controller.phase)) {
+        await controller.pause();
+      }
+    } finally {
+      _asking = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: widget.finished,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        final phase = widget.controller.phase;
+        if (phase == RecordingPhase.paused) {
+          widget.onFinishBack();
+        } else if (_isRunning(phase)) {
+          _askPause();
+        }
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// „Lauf pausieren?“. Endet der Lauf oder wird er pausiert, während der Dialog
+/// offen ist, schließt er sich ohne Antwort.
+class _PauseAskDialog extends StatefulWidget {
+  const _PauseAskDialog({required this.controller});
+
+  final RunController controller;
+
+  @override
+  State<_PauseAskDialog> createState() => _PauseAskDialogState();
+}
+
+class _PauseAskDialogState extends State<_PauseAskDialog> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_changed);
+    super.dispose();
+  }
+
+  // Nach der Antwort läuft die Schließanimation noch, der Zuhörer hängt aber
+  // noch am Controller: nur eine noch aktive Route wird geschlossen, sonst
+  // träfe pop() die Seite darunter.
+  void _changed() {
+    if (!mounted || _isRunning(widget.controller.phase)) return;
+    final route = ModalRoute.of(context);
+    if (route != null && route.isActive) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l10n.runPauseAskTitle),
+      actions: [
+        TextButton(
+          key: const Key('run_pause_ask_stay'),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l10n.runPauseAskStay),
+        ),
+        FilledButton(
+          key: const Key('run_pause_ask_confirm'),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(l10n.runPauseAskConfirm),
+        ),
+      ],
+    );
   }
 }
 

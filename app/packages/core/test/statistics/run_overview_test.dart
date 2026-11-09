@@ -239,6 +239,52 @@ void main() {
       expect(o.paceTime, s.figures.paceTime);
     });
 
+    test('Lauf mit Stillstand: Kurzfassung führt die Gesamtzeit, nicht die '
+        'Bewegungszeit (WP17 NB1)', () async {
+      final w = await RecalcWorld.create();
+      final start = DateTime.utc(2030, 2, 2, 8);
+      final run = await w.session.runs.create(startedAt: start);
+      // 10 min: 3 min laufen, 3 min stehen (gleiche Position), 4 min laufen.
+      double lat(int s) {
+        final moved = s <= 180 ? s : (s <= 360 ? 180 : s - 180);
+        return 10 + moved * 3.0 / 111194.9;
+      }
+
+      await w.session.rawData.append(
+        run.id,
+        RawBatch(
+          positions: [
+            for (var s = 0; s <= 600; s++)
+              RawPosition(
+                time: start.add(Duration(seconds: s)),
+                source: 'gps',
+                latitude: lat(s),
+                longitude: 20,
+                accuracyMeters: 5,
+              ),
+          ],
+        ),
+      );
+      await w.session.runs.setState(
+        run.id,
+        RunState.finished,
+        endedAt: start.add(const Duration(seconds: 600)),
+      );
+      final o = (await RunOverviewService(
+        session: w.session,
+        clock: w.clock,
+      ).load()).single;
+      expect(o.totalTime, const Duration(seconds: 600));
+      expect(o.movingTime, lessThan(const Duration(seconds: 500)));
+      expect(o.totalTime, greaterThan(o.movingTime!));
+      final s = (await RunSummaryService(
+        session: w.session,
+        clock: w.clock,
+      ).load(run.id))!;
+      expect(o.totalTime, s.preprocessing.movement.totalTime);
+      expect(o.toFigures().totalTime, o.totalTime);
+    });
+
     test('Veraltete Läufe werden über den Offload neu gerechnet', () async {
       final w = await RecalcWorld.create();
       await w.seedRun(DateTime.utc(2030, 2, 1, 8), minutes: 5);

@@ -15,7 +15,9 @@ Finder key(String k) => find.byKey(Key(k));
 /// Wortverbinder (U+2060) ist unsichtbar.
 String text(String k) {
   final w = key(k).evaluate().single.widget as Text;
-  return (w.data ?? w.textSpan!.toPlainText()).replaceAll('\u2060', '');
+  return (w.data ?? w.textSpan!.toPlainText())
+      .replaceAll('\u2060', '')
+      .replaceAll('\u00A0', ' ');
 }
 
 const double _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
@@ -455,14 +457,21 @@ void main() {
         expect(text('run_done_status'), 'Der Lauf ist gespeichert.');
         expect(text('run_distance'), matches(RegExp(r'^1,[12]\d km$')));
         expect(text('run_moving_time'), '6:40');
-        expect(text('run_avg_pace'), matches(RegExp(r'^5:\d\d min/km$')));
+        expect(text('run_avg_pace'), matches(RegExp(r'^5:\d\d$')));
         // Bestpace: schnellster zusammenhängender Kilometer.
-        expect(text('sum_best_pace'), matches(RegExp(r'^5:\d\d min/km$')));
-        expect(text('sum_avg_hr'), '150 bpm');
-        expect(text('sum_max_hr'), '150 bpm');
+        expect(text('sum_best_pace'), matches(RegExp(r'^5:\d\d$')));
+        expect(text('sum_avg_hr'), '150');
+        expect(text('sum_max_hr'), '150');
         // Ohne Profil: keine Zonen, keine Belastung, mit Grund statt 0.
-        expect(text('sum_zones_unavailable'), contains('nicht verfügbar'));
-        expect(text('sum_trimp'), contains('nicht verfügbar'));
+        // Mit Puls, aber ohne Werte im Profil: der Grund ist das Profil (FR-0057).
+        expect(
+          text('sum_zones_unavailable'),
+          'nicht verfügbar – Pulswerte im Profil prüfen',
+        );
+        expect(
+          text('sum_trimp'),
+          'nicht verfügbar\nPulswerte im Profil prüfen',
+        );
         // Einordnung mit Anzahl der Vorläufe (Pace, schneller).
         expect(text('sum_class'), contains('schneller'));
         expect(text('sum_class'), contains('letzten 2 Läufe'));
@@ -486,8 +495,9 @@ void main() {
       await runAndFinish(d, tester, 120, heartRate: false);
       expect(text('sum_avg_hr'), 'nicht verfügbar\n(kein Puls)');
       expect(text('sum_max_hr'), 'nicht verfügbar\n(kein Puls)');
-      expect(text('sum_zones_unavailable'), contains('nicht verfügbar'));
-      expect(text('sum_trimp'), contains('nicht verfügbar'));
+      // Ohne Puls ist der Puls der Grund, nicht das Profil (FR-0057).
+      expect(text('sum_zones_unavailable'), 'nicht verfügbar (kein Puls)');
+      expect(text('sum_trimp'), 'nicht verfügbar\n(kein Puls)');
       expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
       expect(text('run_distance'), isNot(contains('nicht')));
     });
@@ -563,7 +573,7 @@ void main() {
         text('sum_vo2max'),
         matches(RegExp(r'^\d+,\d ml/kg/min \(Schätzung\)$')),
       );
-      expect(text('sum_avg_hr'), '150 bpm');
+      expect(text('sum_avg_hr'), '150');
     });
 
     testWidgets('erster Lauf, kürzer als der Bestpace-Kilometer', (

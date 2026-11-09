@@ -1,6 +1,5 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/settings/unit_format.dart';
@@ -132,11 +131,11 @@ void main() {
     expect(text('run_distance'), '1,83 km');
     expect(text('run_moving_time'), '10:00');
     expect(text('run_time'), '10:00');
-    expect(text('sum_best_pace'), contains('min/km'));
+    expect(text('sum_best_pace'), matches(RegExp(r'^\d+:\d\d$')));
     expect(text('run_ascent'), startsWith('+'));
     expect(text('run_descent'), startsWith('−'));
-    expect(text('sum_avg_hr'), endsWith(' bpm'));
-    expect(text('sum_trimp'), '58 Punkte');
+    expect(text('sum_avg_hr'), matches(RegExp(r'^\d+$')));
+    expect(text('sum_trimp'), '58');
     expect(find.text('geschätzt'), findsOneWidget);
     // Zonen mit Balken und Zeit je Zone, Höhenprofil und Route gezeichnet.
     expect(key('sum_zones'), findsOneWidget);
@@ -184,31 +183,17 @@ void main() {
       await seedLoad(d.session, id);
       await pumpPage(tester, d, id, scale: 1.3, dark: dark);
       expect(tester.takeException(), isNull);
-      // Die Einheit „min/km“ ist mit Wortverbindern gesetzt (kein Umbruch
-      // am „/“) und steht in einem Stück in der Zeile.
-      for (final k in ['run_avg_pace', 'sum_best_pace']) {
-        final span = (key(k).evaluate().single.widget as Text).textSpan!;
-        expect(
-          span.toPlainText(includeSemanticsLabels: false),
-          contains('min⁠/⁠km'),
-          reason: k,
-        );
-        final box = tester.renderObject<RenderParagraph>(key(k));
-        final lines = box
-            .getBoxesForSelection(
-              TextSelection(
-                baseOffset: span
-                    .toPlainText(includeSemanticsLabels: false)
-                    .indexOf('min'),
-                extentOffset: span
-                    .toPlainText(includeSemanticsLabels: false)
-                    .length,
-              ),
-            )
-            .map((b) => b.top.round())
-            .toSet();
-        expect(lines, hasLength(1), reason: '$k bricht um');
-      }
+      // Die Einheit „min/km“ steht mit Wortverbindern (kein Umbruch am „/“)
+      // in der Beschriftung, nicht im Wert (Ø Pace und Bestpace).
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Text &&
+              (w.textSpan?.toPlainText(includeSemanticsLabels: false) ?? '')
+                  .endsWith('min\u2060/\u2060km'),
+        ),
+        findsNWidgets(2),
+      );
       await tester.scrollUntilVisible(
         key('sum_explain_sources'),
         300,
