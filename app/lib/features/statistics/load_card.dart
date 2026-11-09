@@ -94,10 +94,18 @@ class _LoadCardState extends State<LoadCard> {
 /// Inhalt der Karte für einen Stand; ohne Controller, damit Tests jeden Stand
 /// direkt zeigen können.
 class LoadCardBody extends StatelessWidget {
-  const LoadCardBody({super.key, required this.state, this.onRetry});
+  const LoadCardBody({
+    super.key,
+    required this.state,
+    this.onRetry,
+    this.initiallyExpanded = false,
+  });
 
   final LoadViewState state;
   final VoidCallback? onRetry;
+
+  /// Der Bereich „Grundlage“ ist eingeklappt; Tests können ihn offen starten.
+  final bool initiallyExpanded;
 
   /// Tage im Diagramm: zwölf Wochen, wie der Trend der VO₂max.
   static const int chartDays = 84;
@@ -183,6 +191,10 @@ class LoadCardBody extends StatelessWidget {
     String points(double v) => l10n.loadValuePoints(fitnessNumber(german, v));
     final current = state.current;
     final out = <Widget>[];
+    // Alles, was nicht in die kompakte Ansicht passt, kommt in „Grundlage“.
+    final details = <Widget>[];
+    var window = const <LoadDay>[];
+    double? scaleMax;
 
     if (current == null) {
       out.add(
@@ -193,10 +205,10 @@ class LoadCardBody extends StatelessWidget {
         ),
       );
     } else {
-      final window = state.days.length > chartDays
+      window = state.days.length > chartDays
           ? state.days.sublist(state.days.length - chartDays)
           : state.days;
-      final scaleMax = LoadChart.scaleFor(window);
+      scaleMax = LoadChart.scaleFor(window);
       final first = window.first.day;
       final last = window.last.day;
       out
@@ -234,46 +246,51 @@ class LoadCardBody extends StatelessWidget {
             ],
           ),
         )
-        ..add(
-          Text(
-            l10n.loadScaleNote(scaleMax.toStringAsFixed(0)),
-            key: const Key('load_scale'),
-            style: theme.labelSmall!.copyWith(color: c.textMuted),
-          ),
-        )
-        ..add(const SizedBox(height: 10))
+        ..add(const SizedBox(height: 8))
         ..add(_legend(l10n, c, theme, window))
-        ..add(const SizedBox(height: 12))
+        ..add(const SizedBox(height: 10))
         ..add(
-          _Figure(
-            keyName: 'load_atl',
-            label: l10n.loadAtlLabel,
-            value: points(current.atl!),
-            provisional: state.atlProvisional,
-            swatch: _Swatch.line(c.ember, 2),
-          ),
-        )
-        ..add(
-          _Figure(
-            keyName: 'load_ctl',
-            label: l10n.loadCtlLabel,
-            value: points(current.ctl!),
-            provisional: current.ctlProvisional,
-            swatch: _Swatch.line(c.accent, 4),
-          ),
-        )
-        ..add(
-          _Figure(
-            keyName: 'load_tsb',
-            label: l10n.loadTsbLabel,
-            value: current.tsb == null
-                ? l10n.loadTsbNone
-                : l10n.loadValuePoints(
-                    fitnessNumber(german, current.tsb!, sign: true),
-                  ),
-            provisional: current.ctlProvisional || current.atlProvisional,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _Figure(
+                  keyName: 'load_atl',
+                  label: l10n.loadFigAtl,
+                  semanticsLabel: l10n.loadAtlLabel,
+                  value: points(current.atl!),
+                  provisional: state.atlProvisional,
+                  swatch: _Swatch.line(c.ember, 2),
+                ),
+              ),
+              Expanded(
+                child: _Figure(
+                  keyName: 'load_ctl',
+                  label: l10n.loadFigCtl,
+                  semanticsLabel: l10n.loadCtlLabel,
+                  value: points(current.ctl!),
+                  provisional: current.ctlProvisional,
+                  swatch: _Swatch.line(c.accent, 4),
+                ),
+              ),
+              Expanded(
+                child: _Figure(
+                  keyName: 'load_tsb',
+                  label: l10n.loadFigTsb,
+                  semanticsLabel: l10n.loadTsbLabel,
+                  value: current.tsb == null
+                      ? l10n.loadTsbNone
+                      : l10n.loadValuePoints(
+                          fitnessNumber(german, current.tsb!, sign: true),
+                        ),
+                  provisional: current.ctlProvisional || current.atlProvisional,
+                ),
+              ),
+            ],
           ),
         );
+
+      // Hinweise: kurz, Gründe stehen unter „Grundlage“.
       final reasons = <String>[
         if (state.atlProvisional) l10n.loadProvAtl,
         for (final r in LoadProvisionalReason.values)
@@ -284,8 +301,13 @@ class LoadCardBody extends StatelessWidget {
               LoadProvisionalReason.noCommitment => l10n.loadProvCommitment,
             },
       ];
-      for (final r in reasons) {
+      if (reasons.isNotEmpty) {
         out.add(
+          _Hint(l10n.loadHintProvisional, keyName: 'load_hint_provisional'),
+        );
+      }
+      for (final r in reasons) {
+        details.add(
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
@@ -297,13 +319,71 @@ class LoadCardBody extends StatelessWidget {
         );
       }
     }
-
+    if (!state.profileApplicable) {
+      out.add(_Hint(l10n.loadHintProfile, keyName: 'load_hint_profile'));
+    }
+    if (state.factorOffered) {
+      out.add(_Hint(l10n.loadFactorOffered, keyName: 'load_factor_offered'));
+    }
     out
-      ..add(const SizedBox(height: 14))
-      ..addAll(_basis(context, l10n, c, theme));
+      ..add(const SizedBox(height: 8))
+      ..add(
+        _BasisSection(
+          initiallyExpanded: initiallyExpanded,
+          title: l10n.loadBasisTitle,
+          children: [
+            ..._basis(context, l10n, c, theme),
+            ...details,
+            if (current != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                l10n.loadBasisFiguresTitle,
+                style: theme.labelMedium!.copyWith(color: c.textMuted),
+              ),
+              const SizedBox(height: 2),
+              Text(l10n.loadAtlLabel, style: theme.bodySmall),
+              Text(l10n.loadCtlLabel, style: theme.bodySmall),
+              Text(l10n.loadTsbLabel, style: theme.bodySmall),
+              Text(
+                l10n.loadScaleNote(scaleMax!.toStringAsFixed(0)),
+                key: const Key('load_scale'),
+                style: theme.bodySmall!.copyWith(color: c.textMuted),
+              ),
+              ..._flagExplanations(l10n, c, theme, window),
+            ],
+          ],
+        ),
+      );
     return out;
   }
 
+  /// Erklärung der Kennzeichen im Verlauf, nur für die vorhandenen Arten.
+  List<Widget> _flagExplanations(
+    AppLocalizations l10n,
+    RamuriColors c,
+    TextTheme theme,
+    List<LoadDay> window,
+  ) {
+    bool any(LoadDayFlag f) => window.any((d) => d.flags.contains(f));
+    final texts = <String>[
+      if (any(LoadDayFlag.converted)) l10n.loadFlagConverted,
+      if (any(LoadDayFlag.unrated)) l10n.loadFlagUnrated,
+      if (any(LoadDayFlag.emptyUnchanged)) l10n.loadFlagEmpty,
+    ];
+    if (texts.isEmpty) return const [];
+    return [
+      const SizedBox(height: 10),
+      Text(
+        l10n.loadBasisFlagsTitle,
+        style: theme.labelMedium!.copyWith(color: c.textMuted),
+      ),
+      const SizedBox(height: 2),
+      for (final t in texts) Text(t, style: theme.bodySmall),
+    ];
+  }
+
+  /// Eine Zeile: die Linien und, nur wenn im Zeitraum vorhanden, die
+  /// Kennzeichen-Symbole (Erklärung unter „Grundlage“).
   Widget _legend(
     AppLocalizations l10n,
     RamuriColors c,
@@ -313,8 +393,8 @@ class LoadCardBody extends StatelessWidget {
     bool any(LoadDayFlag f) => window.any((d) => d.flags.contains(f));
     return Wrap(
       key: const Key('load_legend'),
-      spacing: 14,
-      runSpacing: 6,
+      spacing: 12,
+      runSpacing: 4,
       children: [
         _LegendItem(swatch: _Swatch.line(c.ember, 2), text: l10n.loadLegendAtl),
         _LegendItem(
@@ -325,19 +405,19 @@ class LoadCardBody extends StatelessWidget {
           _LegendItem(
             keyName: 'load_legend_converted',
             swatch: _Swatch.marker(LoadDayFlag.converted, c),
-            text: l10n.loadFlagConverted,
+            text: l10n.loadLegendConverted,
           ),
         if (any(LoadDayFlag.unrated))
           _LegendItem(
             keyName: 'load_legend_unrated',
             swatch: _Swatch.marker(LoadDayFlag.unrated, c),
-            text: l10n.loadFlagUnrated,
+            text: l10n.loadLegendUnrated,
           ),
         if (any(LoadDayFlag.emptyUnchanged))
           _LegendItem(
             keyName: 'load_legend_empty',
             swatch: _Swatch.marker(LoadDayFlag.emptyUnchanged, c),
-            text: l10n.loadFlagEmpty,
+            text: l10n.loadLegendEmpty,
           ),
       ],
     );
@@ -409,25 +489,9 @@ class LoadCardBody extends StatelessWidget {
     final small = theme.bodySmall!.copyWith(color: c.textMuted);
 
     return [
-      Semantics(
-        header: true,
-        child: Text(
-          l10n.loadBasisTitle,
-          style: theme.labelMedium!.copyWith(color: c.textMuted),
-        ),
-      ),
-      const SizedBox(height: 4),
       Text(profileText, key: const Key('load_profile'), style: theme.bodySmall),
       const SizedBox(height: 2),
       Text(factorText, key: const Key('load_factor'), style: theme.bodySmall),
-      if (state.factorOffered) ...[
-        const SizedBox(height: 2),
-        Text(
-          l10n.loadFactorOffered,
-          key: const Key('load_factor_offered'),
-          style: theme.bodySmall,
-        ),
-      ],
       const SizedBox(height: 2),
       Text(dataText, key: const Key('load_data'), style: theme.bodySmall),
       const SizedBox(height: 6),
@@ -436,12 +500,108 @@ class LoadCardBody extends StatelessWidget {
   }
 }
 
-/// Eine Kennzahl: Name, Wert, ggf. „vorläufig“. Die Zeile ist ein
-/// zusammenhängender Satz für die Vorlesehilfe.
+/// Kurzer Hinweis unter den Kennzahlen.
+class _Hint extends StatelessWidget {
+  const _Hint(this.text, {required this.keyName});
+
+  final String text;
+  final String keyName;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = RamuriColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Text(
+        text,
+        key: Key(keyName),
+        style: Theme.of(context).textTheme.bodySmall!
+            .copyWith(color: c.textMuted),
+      ),
+    );
+  }
+}
+
+/// Aufklappbarer Bereich „Grundlage“: Kopfzeile mit mindestens 48 dp, als
+/// Schalter mit Zustand für die Vorlesehilfe. Eingeklappt steht nichts davon
+/// im Baum.
+class _BasisSection extends StatefulWidget {
+  const _BasisSection({
+    required this.title,
+    required this.children,
+    required this.initiallyExpanded,
+  });
+
+  final String title;
+  final List<Widget> children;
+  final bool initiallyExpanded;
+
+  @override
+  State<_BasisSection> createState() => _BasisSectionState();
+}
+
+class _BasisSectionState extends State<_BasisSection> {
+  late bool _open = widget.initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = RamuriColors.of(context);
+    final theme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          button: true,
+          expanded: _open,
+          excludeSemantics: true,
+          label: widget.title,
+          onTap: () => setState(() => _open = !_open),
+          child: InkWell(
+            key: const Key('load_basis_toggle'),
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => setState(() => _open = !_open),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                minHeight: RamuriTheme.minTarget,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: theme.labelLarge!.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _open ? Icons.expand_less : Icons.expand_more,
+                    color: c.textMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_open)
+          Column(
+            key: const Key('load_basis'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: widget.children,
+          ),
+      ],
+    );
+  }
+}
+
+/// Eine Kennzahl kompakt: Name, Wert, ggf. „vorläufig“. Die Spalte ist ein
+/// zusammenhängender Satz für die Vorlesehilfe ([semanticsLabel] ist die
+/// ausgeschriebene Bezeichnung).
 class _Figure extends StatelessWidget {
   const _Figure({
     required this.keyName,
     required this.label,
+    required this.semanticsLabel,
     required this.value,
     required this.provisional,
     this.swatch,
@@ -449,6 +609,7 @@ class _Figure extends StatelessWidget {
 
   final String keyName;
   final String label;
+  final String semanticsLabel;
   final String value;
   final bool provisional;
   final _Swatch? swatch;
@@ -462,55 +623,28 @@ class _Figure extends StatelessWidget {
     return Semantics(
       container: true,
       excludeSemantics: true,
-      label: [label, value, if (provisional) mark].join(', '),
+      label: [semanticsLabel, value, if (provisional) mark].join(', '),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(
+        padding: const EdgeInsets.only(right: 6),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 24,
-              height: 20,
-              child: swatch == null
-                  ? null
-                  : Align(alignment: Alignment.centerLeft, child: swatch),
+            Text(label, style: theme.labelSmall!.copyWith(color: c.textMuted)),
+            Text(
+              value,
+              key: Key(keyName),
+              style: theme.titleMedium!.copyWith(fontWeight: FontWeight.w800),
             ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            if (provisional)
+              Row(
+                key: Key('${keyName}_provisional'),
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    label,
-                    style: theme.bodyMedium!.copyWith(color: c.textMuted),
-                  ),
-                  Wrap(
-                    spacing: 10,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        value,
-                        key: Key(keyName),
-                        style: theme.titleMedium!.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      if (provisional)
-                        Row(
-                          key: Key('${keyName}_provisional'),
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const EmberDot(),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(mark, style: theme.labelSmall),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
+                  const EmberDot(),
+                  const SizedBox(width: 4),
+                  Flexible(child: Text(mark, style: theme.labelSmall)),
                 ],
               ),
-            ),
           ],
         ),
       ),
@@ -622,7 +756,7 @@ class LoadChart extends StatelessWidget {
     super.key,
     required this.days,
     required this.scaleMax,
-    this.height = 150,
+    this.height = 130,
   });
 
   final List<LoadDay> days;

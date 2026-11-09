@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show Tristate;
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
@@ -89,8 +90,9 @@ Future<void> pump(
   Brightness brightness = Brightness.light,
   double width = 411,
   double textScale = 1,
+  double height = 1800,
 }) async {
-  tester.view.physicalSize = Size(width, 1800);
+  tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
@@ -145,7 +147,10 @@ void main() {
             'Kennzeichen, Grundlage', (tester) async {
           await pump(
             tester,
-            LoadCardBody(state: LoadViewState.ready(mixed())),
+            LoadCardBody(
+              initiallyExpanded: true,
+              state: LoadViewState.ready(mixed()),
+            ),
             locale: locale,
             brightness: brightness,
           );
@@ -186,7 +191,11 @@ void main() {
           const LoadViewState.failed(),
           const LoadViewState.loading(),
         ]) {
-          await pump(tester, LoadCardBody(state: state), locale: locale);
+          await pump(
+            tester,
+            LoadCardBody(initiallyExpanded: true, state: state),
+            locale: locale,
+          );
           final text = allText(tester);
           for (final re in banned) {
             expect(re.hasMatch(text), isFalse, reason: '$locale: $re in $text');
@@ -198,7 +207,13 @@ void main() {
     testWidgets('eingeschwungen (126 Tage, Zusage): nichts vorläufig', (
       tester,
     ) async {
-      await pump(tester, LoadCardBody(state: LoadViewState.ready(settled())));
+      await pump(
+        tester,
+        LoadCardBody(
+          initiallyExpanded: true,
+          state: LoadViewState.ready(settled()),
+        ),
+      );
       expect(k('load_atl'), findsOneWidget);
       expect(k('load_atl_provisional'), findsNothing);
       expect(k('load_ctl_provisional'), findsNothing);
@@ -218,7 +233,10 @@ void main() {
       (tester) async {
         await pump(
           tester,
-          LoadCardBody(state: LoadViewState.ready(report(units: const []))),
+          LoadCardBody(
+            initiallyExpanded: true,
+            state: LoadViewState.ready(report(units: const [])),
+          ),
         );
         final l10n = AppLocalizations.of(tester.element(k('load_card')));
         expect(find.text(l10n.loadEmpty), findsOneWidget);
@@ -237,6 +255,7 @@ void main() {
       await pump(
         tester,
         LoadCardBody(
+          initiallyExpanded: true,
           state: LoadViewState.ready(
             report(
               units: [
@@ -285,6 +304,7 @@ void main() {
         await pump(
           tester,
           LoadCardBody(
+            initiallyExpanded: true,
             state: LoadViewState.ready(
               report(units: units, factorState: state),
             ),
@@ -297,6 +317,7 @@ void main() {
       await pump(
         tester,
         LoadCardBody(
+          initiallyExpanded: true,
           state: LoadViewState.ready(
             report(
               units: units,
@@ -323,6 +344,7 @@ void main() {
         await pump(
           tester,
           LoadCardBody(
+            initiallyExpanded: true,
             state: LoadViewState.ready(
               report(
                 units: [LoadUnit.run(day: _d(1), trimp: 50)],
@@ -354,6 +376,7 @@ void main() {
       await pump(
         tester,
         LoadCardBody(
+          initiallyExpanded: true,
           state: LoadViewState.ready(
             report(
               units: [LoadUnit.run(day: _d(1), trimp: 50)],
@@ -423,6 +446,106 @@ void main() {
       );
       handle.dispose();
     });
+
+    testWidgets('eingeklappt höchstens 560 dp hoch bei 390 dp Breite', (
+      tester,
+    ) async {
+      // Grenze: Ein Telefon ist rund 844 dp hoch; davon gehen Statuszeile,
+      // Kopf und Navigation ab. 560 dp (zwei Drittel) lassen die Karte auf einen Bildschirm
+      // passen und daneben ein Stück der Nachbarkarte sehen. Vorher waren es
+      // rund 2,5 Bildschirme. Die Testschrift (Ahem) ist breiter als die
+      // echte und bricht eher um, die Grenze ist also eher streng.
+      for (final state in [
+        LoadViewState.ready(mixed()),
+        LoadViewState.ready(settled()),
+      ]) {
+        await pump(tester, LoadCardBody(state: state), width: 390, height: 844);
+        final h = tester.getSize(find.byType(RamuriCard)).height;
+        expect(h, lessThanOrEqualTo(560), reason: 'Höhe $h');
+        expect(k('load_chart'), findsOneWidget);
+        expect(k('load_legend'), findsOneWidget);
+        expect(k('load_tsb'), findsOneWidget);
+        expect(k('load_basis'), findsNothing);
+      }
+    });
+
+    testWidgets('Grundlage: Schalter mit 48 dp und Semantik, klappt auf und '
+        'zu, nichts geht verloren', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(
+        tester,
+        LoadCardBody(state: LoadViewState.ready(mixed())),
+        width: 390,
+        height: 844,
+      );
+      final l10n = AppLocalizations.of(tester.element(k('load_card')));
+      final size = tester.getSize(k('load_basis_toggle'));
+      expect(size.height, greaterThanOrEqualTo(48));
+      expect(size.width, greaterThanOrEqualTo(48));
+      final sem = tester.getSemantics(k('load_basis_toggle'));
+      expect(sem.label, l10n.loadBasisTitle);
+      expect(sem.flagsCollection.isButton, isTrue);
+      expect(sem.flagsCollection.isExpanded, Tristate.isFalse);
+      // Eingeklappt steht nur der kurze Hinweis, nicht die Gründe.
+      expect(k('load_hint_provisional'), findsOneWidget);
+      expect(k('load_provisional_reason'), findsNothing);
+      expect(find.text(l10n.loadDataNote), findsNothing);
+
+      await tester.tap(k('load_basis_toggle'));
+      await tester.pump();
+      expect(
+        tester.getSemantics(k('load_basis_toggle')).flagsCollection.isExpanded,
+        Tristate.isTrue,
+      );
+      expect(k('load_basis'), findsOneWidget);
+      for (final t in [
+        l10n.loadProvAtl,
+        l10n.loadProvStartup,
+        l10n.loadProvCommitment,
+        l10n.loadProfileEdwards,
+        l10n.loadDataNote,
+        l10n.loadAtlLabel,
+        l10n.loadCtlLabel,
+        l10n.loadTsbLabel,
+        l10n.loadFlagConverted,
+        l10n.loadFlagUnrated,
+        l10n.loadFlagEmpty,
+      ]) {
+        expect(find.text(t), findsOneWidget, reason: t);
+      }
+      expect(k('load_scale'), findsOneWidget);
+
+      await tester.tap(k('load_basis_toggle'));
+      await tester.pump();
+      expect(k('load_basis'), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('Legende: Kennzeichen nur, wenn im Zeitraum vorhanden', (
+      tester,
+    ) async {
+      await pump(tester, LoadCardBody(state: LoadViewState.ready(settled())));
+      expect(k('load_legend'), findsOneWidget);
+      expect(k('load_legend_converted'), findsNothing);
+    });
+
+    for (final width in [320.0, 411.0]) {
+      testWidgets('große Schrift, aufgeklappt, ${width}px: kein Überlauf', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          LoadCardBody(
+            state: LoadViewState.ready(mixed()),
+            initiallyExpanded: true,
+          ),
+          width: width,
+          textScale: 2,
+          locale: 'en',
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     for (final width in [320.0, 411.0]) {
       testWidgets('große Schrift, ${width}px: kein Überlauf', (tester) async {
