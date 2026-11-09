@@ -7,6 +7,7 @@ import '../recalculation/recalculation_service.dart';
 import '../recalculation/value_calculation_service.dart';
 import 'archive_errors.dart';
 import 'archive_json.dart';
+import 'archive_reader.dart' show archiveSchemaVersion;
 import 'archive_schema.dart';
 
 /// Technische Merker in `settings`, die nicht ins Archiv gehören (Vertrag 4.3).
@@ -55,7 +56,7 @@ Stream<Uint8List> archiveLines({
   line({
     'type': 'manifest',
     'format': 1,
-    'schema_version': 4,
+    'schema_version': archiveSchemaVersion,
     'created_at_us': clock.now().toUtc().microsecondsSinceEpoch,
   });
   final counts = <String, int>{};

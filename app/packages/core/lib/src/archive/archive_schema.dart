@@ -50,11 +50,27 @@ class ArchiveSectionSpec {
   /// Schlüsselspalte ist Text (nur `settings`).
   bool get keyIsText => key != null && key != 'id';
 
-  /// Abschnitt ohne Tabelle (in Schema 4 immer leer).
+  /// Abschnitt ohne Tabelle (immer leer).
   bool get isReserved => columns.isEmpty;
 }
 
-/// Die 19 Abschnitte in der Reihenfolge des Vertrags.
+/// Abschnitte, die erst ab Schema 5 im Archiv stehen. Ein Archiv mit Schema 4
+/// kennt sie nicht; sie gelten dort als leer.
+const Set<String> archiveSectionsSinceSchema5 = {
+  'reference_performances',
+  'rejected_suggestions',
+};
+
+/// Die Abschnitte, die ein Archiv mit [schema] trägt, in Vertragsreihenfolge
+/// (Schema 4: 19, ab Schema 5: 21).
+List<ArchiveSectionSpec> archiveSectionsFor(int schema) => schema >= 5
+    ? archiveSections
+    : List.unmodifiable([
+        for (final s in archiveSections)
+          if (!archiveSectionsSinceSchema5.contains(s.name)) s,
+      ]);
+
+/// Alle Abschnitte (Schema 5) in der Reihenfolge des Vertrags.
 final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
   ArchiveSectionSpec(
     'runs',
@@ -138,6 +154,13 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     'known_devices',
     'id I, device_id T, display_name T?, is_preferred B, added_at_us I',
   ),
+  // Seit Schema 5 (WP20). Archive mit Schema 4 haben diese Abschnitte nicht.
+  ArchiveSectionSpec(
+    'reference_performances',
+    'id I, kind T, distance_m R, time_s R, performed_on T, created_at_us I, '
+        'run_id I?',
+  ),
+  ArchiveSectionSpec('rejected_suggestions', 'id I, run_id I'),
   ArchiveSectionSpec('goals', ''),
   ArchiveSectionSpec('plans', ''),
   ArchiveSectionSpec('active_warning', ''),

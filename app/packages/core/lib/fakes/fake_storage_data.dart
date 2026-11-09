@@ -3,6 +3,7 @@ import '../ports/storage.dart';
 import '../ports/storage_consents.dart';
 import '../ports/storage_derived.dart';
 import '../ports/storage_devices.dart';
+import '../ports/storage_prediction.dart';
 import '../ports/storage_profile.dart';
 import '../ports/storage_raw.dart';
 import '../ports/storage_runs.dart';
@@ -28,6 +29,9 @@ class FakeStorageData {
   final settings = <String, String>{};
   final devices = <KnownDevice>[];
   final consents = <String, ConsentState>{};
+  final references = <StoredReference>[];
+  final rejectedSuggestions = <int>{};
+  int nextReferenceId = 1;
 
   void requireRun(int runId) {
     if (!runs.containsKey(runId)) {
@@ -60,6 +64,8 @@ class FakeStorageData {
     preprocessing.remove(runId);
     sections.remove(runId);
     values.remove(ValueOwner.run(runId));
+    references.removeWhere((r) => r.reference.runId == '$runId');
+    rejectedSuggestions.remove(runId);
   }
 
   static bool _overlaps(ComputedValue v, int runStart, int? runEnd) {
@@ -88,5 +94,8 @@ class FakeStorageData {
     settings.clear();
     devices.clear();
     consents.clear();
+    references.clear();
+    rejectedSuggestions.clear();
+    nextReferenceId = 1;
   }
 }

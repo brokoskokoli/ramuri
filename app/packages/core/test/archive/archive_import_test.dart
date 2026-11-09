@@ -55,7 +55,7 @@ Map<String, List<Map<String, Object?>>> _fullDb({int rowsPer = 1}) => {
     if (!s.isReserved) s.name: [for (var i = 1; i <= rowsPer; i++) _row(s, i)],
 };
 
-String _manifest({int schema = 4}) =>
+String _manifest({int schema = 5}) =>
     '{"type":"manifest","format":1,"schema_version":$schema,'
     '"created_at_us":1793000000000000}';
 
@@ -430,10 +430,49 @@ void main() {
   });
 
   group('Manifest und Schema', () {
+    /// Zeilen eines Archivs mit Schema 4: 19 Abschnitte ohne die seit Schema 5.
+    List<String> schema4Lines() {
+      final sections = archiveSectionsFor(4);
+      final db = _fullDb();
+      return [
+        _manifest(schema: 4),
+        for (final s in sections) ...[
+          _section(s.name),
+          for (final r in db[s.name] ?? const <Map<String, Object?>>[])
+            _rowLine(r),
+        ],
+        _endLine({for (final s in sections) s.name: db[s.name]?.length ?? 0}),
+      ];
+    }
+
     test(
-      'Schema größer als 4: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema 4 (19 Abschnitte) bleibt lesbar, neue Abschnitte leer',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 5);
+        expect(archiveSectionsFor(4), hasLength(19));
+        expect(archiveSectionsFor(5), hasLength(21));
+        await c.run(await _archive(schema4Lines()));
+        expect(c.sink.commits, 1);
+        expect(c.sink.aborts, 0);
+        expect(c.sink.calls, isNot(contains('insert:reference_performances')));
+      },
+    );
+
+    test('Schema 4 mit Abschnitt aus Schema 5: beschädigt', () async {
+      final l = schema4Lines();
+      final at = l.indexOf(_section('goals'));
+      l.insertAll(at, [_section('reference_performances')]);
+      await c.rejectsLines(l, ArchiveImportFailure.damaged);
+    });
+
+    test('Schema 5 ohne die neuen Abschnitte: beschädigt', () async {
+      final l = schema4Lines()..[0] = _manifest(schema: 5);
+      await c.rejectsLines(l, ArchiveImportFailure.damaged);
+    });
+
+    test(
+      'Schema größer als 5: neueres Archiv, auch mit fremden Schlüsseln',
+      () async {
+        final lines = valid()..[0] = _manifest(schema: 6);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
         lines[0] = '{"type":"manifest","format":1,"schema_version":9,"created_at_us":1,"neu":true}';

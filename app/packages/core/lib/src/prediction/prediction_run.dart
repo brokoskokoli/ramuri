@@ -20,7 +20,7 @@ class PredictionRun {
   /// Gemessene Distanz; `null`, wenn nicht gemessen.
   final double? distanceMeters;
 
-  /// Anstrengung 1 bis 10 (WP18); `null`, solange es sie nicht gibt.
+  /// Anstrengung 0 bis 10 (WP18); `null`, solange es sie nicht gibt.
   final int? rpe;
 
   /// 30-s-Tempowerte (m/s) für die Tempostabilität (PAR-022); `null` oder

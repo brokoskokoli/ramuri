@@ -103,6 +103,15 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     "INSERT INTO known_devices (device_id, display_name, is_preferred, added_at_us) VALUES ('AA:BB', 'Gurt', 1, 5)",
   );
+  // Leistungsprognose (Schema 5): eine Wettkampfzeit ohne Lauf, ein
+  // bestätigter Lauf mit Verweis, ein abgelehnter Vorschlag.
+  await sql(
+    db,
+    'INSERT INTO reference_performances (kind, distance_m, time_s, performed_on, created_at_us, run_id) '
+    "VALUES ('race', 10000.0, 3012.5, '2026-10-01', 7, NULL), "
+    "('confirmedRun', 5000.0, 1490.0, '2026-11-02', 8, 1)",
+  );
+  await sql(db, 'INSERT INTO rejected_suggestions (run_id) VALUES (1)');
   await sql(
     db,
     "INSERT INTO consents VALUES ('$fixtureConsentMarker', 'granted', 5)",

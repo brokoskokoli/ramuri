@@ -1,6 +1,7 @@
 import '../../ports/archive_sink.dart';
 import '../../ports/database_files.dart';
 import '../../ports/storage.dart';
+import '../../ports/storage_prediction.dart';
 import 'archive_errors.dart';
 import 'archive_export.dart';
 import 'archive_import.dart';
@@ -52,7 +53,8 @@ class ArchiveRestoreService {
   /// technischen Merkern ([archiveExcludedSettingKeys]). Einwilligungen zählen
   /// nicht: Sie werden ohnehin nicht übernommen. Tageswerte zählen nicht: Sie
   /// sind aus Läufen abgeleitet (ohne Läufe nichts Eigenes) und der Port bietet
-  /// keine Auflistung. Wirft [StorageException].
+  /// keine Auflistung. Referenzleistungen zählen (sie brauchen keinen Lauf).
+  /// Wirft [StorageException].
   static Future<bool> isEmpty(StorageSession s) async {
     if ((await s.runs.list()).isNotEmpty) return false;
     final p = await s.profile.read();
@@ -67,6 +69,11 @@ class ArchiveRestoreService {
       return false;
     }
     if ((await s.devices.list()).isNotEmpty) return false;
+    // Eingetragene Referenzleistungen sind eigene Daten, auch ohne Läufe.
+    if (s is PredictionStorage &&
+        (await (s as PredictionStorage).prediction.references()).isNotEmpty) {
+      return false;
+    }
     final settings = await s.settings.all();
     return settings.keys.every(archiveExcludedSettingKeys.contains);
   }

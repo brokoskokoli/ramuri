@@ -180,6 +180,21 @@ void main() {
     await s.devices.upsert('dev', displayName: 'x', at: at(0));
     await s.consents.set('c', ConsentState.granted, at: at(0));
     await db.customStatement("INSERT INTO storage_meta VALUES ('k', 'v')");
+    // Leistungsprognose (Schema 5): eine Referenz ohne Lauf (hängt an keiner
+    // Kaskade, nur die Löschschleife erreicht sie) und eine mit Lauf.
+    for (final (kind, runId) in [('race', null), ('confirmedRun', a)]) {
+      await s.prediction.addReference(
+        ReferencePerformance(
+          kind: ReferenceKind.values.byName(kind),
+          distanceMeters: 5000,
+          seconds: 1500,
+          date: DateTime(2029, 12, 1),
+          createdAt: at(10),
+          runId: runId == null ? null : '$runId',
+        ),
+      );
+    }
+    await s.prediction.rejectSuggestion(a);
     final tables =
         (await db
                 .customSelect(
@@ -198,7 +213,7 @@ void main() {
               .read<int>('c');
       if (n > 0) filled++;
     }
-    expect(filled, greaterThanOrEqualTo(13));
+    expect(filled, greaterThanOrEqualTo(15));
 
     await s.deleteAll();
 

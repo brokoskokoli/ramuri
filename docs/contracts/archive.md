@@ -76,9 +76,9 @@ Dekomprimiert ist es ein JSON-Lines-Text (UTF-8 ohne BOM): Jede Zeile ist **ein*
 
 ### 4.1 Zeilenfolge
 
-1. **Manifest** (genau eine, erste Zeile): `{"type":"manifest","format":1,"schema_version":4,"created_at_us":<int>}`. `format` ist die Formatversion des Kopfes (gleich), `schema_version` das Datenbankschema der Zeilen, `created_at_us` der Erstellzeitpunkt in Mikrosekunden seit Epoch (UTC). Der Leser lehnt `format` ungleich 1 und `schema_version` ungleich 4 ab (ein größeres Schema: „neueres Archiv“, ohne Änderung; ein kleineres ist „Schema nicht unterstützt“, solange es keine Migration gibt; Format 1 beginnt mit Schema 4). Unbekannte weitere Schlüssel im Manifest sind ein Fehler, **außer** bei einem größeren Schema: Der Leser wertet `schema_version` zuerst aus, ein größeres Schema ist „neueres Archiv“, auch wenn das Manifest weitere Schlüssel trägt. `format` ungleich 1 im Manifest bei Kopf-Formatversion 1 ist ein Widerspruch (beschädigt).
-2. **Abschnitte** in der festen Reihenfolge der Tabelle in 4.3, **alle** 19 Abschnitte, auch leere. Jeder Abschnitt beginnt mit `{"type":"section","name":"<Abschnittsname>"}`, darauf folgen seine Zeilen `{"type":"row","data":{<Spalte>:<Wert>,...}}`. Eine Zeile gehört zum zuletzt begonnenen Abschnitt.
-3. **Ende** (genau eine, letzte Zeile): `{"type":"end","rows":{"runs":<n>,"laps":<n>,...}}` mit der Zeilenzahl **jedes** der 19 Abschnitte (auch 0), in der Reihenfolge der Abschnitte. Der Leser zählt mit und lehnt jede Abweichung ab. Jeder Zähler ist eine Ganzzahl (`0.0` ist keine); die Reihenfolge der Schlüssel in `rows` ist beliebig, der Schlüsselsatz muss genau die 19 Abschnitte sein.
+1. **Manifest** (genau eine, erste Zeile): `{"type":"manifest","format":1,"schema_version":5,"created_at_us":<int>}`. `format` ist die Formatversion des Kopfes (gleich), `schema_version` das Datenbankschema der Zeilen, `created_at_us` der Erstellzeitpunkt in Mikrosekunden seit Epoch (UTC). Der Schreiber schreibt Schema 5. Der Leser lehnt `format` ungleich 1 ab und liest die Schemas 4 und 5 (ein größeres Schema: „neueres Archiv“, ohne Änderung; ein kleineres als 4 ist „Schema nicht unterstützt“, solange es keine Migration gibt; Format 1 beginnt mit Schema 4). Ein Archiv mit Schema 4 trägt die zwei Abschnitte `reference_performances` und `rejected_suggestions` nicht (Reihenfolge und Zähler dann ohne sie, 19 Abschnitte); sie gelten als leer. Ein Schema-4-Archiv mit einem dieser Abschnitte ist beschädigt, ebenso ein Schema-5-Archiv ohne sie. Unbekannte weitere Schlüssel im Manifest sind ein Fehler, **außer** bei einem größeren Schema: Der Leser wertet `schema_version` zuerst aus, ein größeres Schema ist „neueres Archiv“, auch wenn das Manifest weitere Schlüssel trägt. `format` ungleich 1 im Manifest bei Kopf-Formatversion 1 ist ein Widerspruch (beschädigt).
+2. **Abschnitte** in der festen Reihenfolge der Tabelle in 4.3, **alle** Abschnitte des Schemas (Schema 5: 21, Schema 4: 19 ohne die Nummern 17 und 18), auch leere. Jeder Abschnitt beginnt mit `{"type":"section","name":"<Abschnittsname>"}`, darauf folgen seine Zeilen `{"type":"row","data":{<Spalte>:<Wert>,...}}`. Eine Zeile gehört zum zuletzt begonnenen Abschnitt.
+3. **Ende** (genau eine, letzte Zeile): `{"type":"end","rows":{"runs":<n>,"laps":<n>,...}}` mit der Zeilenzahl **jedes** Abschnitts des Schemas (auch 0), in der Reihenfolge der Abschnitte. Der Leser zählt mit und lehnt jede Abweichung ab. Jeder Zähler ist eine Ganzzahl (`0.0` ist keine); die Reihenfolge der Schlüssel in `rows` ist beliebig, der Schlüsselsatz muss genau die Abschnitte des Schemas sein.
 
 Abweichungen sind Fehler: fehlender oder doppelter Abschnitt, falsche Reihenfolge, Zeile außerhalb eines Abschnitts, Zeile nach der Endzeile, fehlende Endzeile, unbekannter `type`, unbekannter Abschnittsname.
 
@@ -87,10 +87,10 @@ Abweichungen sind Fehler: fehlender oder doppelter Abschnitt, falsche Reihenfolg
 - `data` enthält **genau** die Spalten der Tabelle laut 4.3 (in Schemareihenfolge geschrieben, der Leser darf jede Reihenfolge lesen), **jede** Spalte, `NULL` als `null`. Ein fehlender oder zusätzlicher Schlüssel ist ein Fehler.
 - INTEGER: JSON-Ganzzahl (ohne Bruch und Exponent). REAL: endliche JSON-Zahl (der Schreiber bricht den Export ab, wenn ein Wert nicht endlich ist); eine Ganzzahl-Schreibweise ist für REAL zulässig. TEXT: JSON-String (gültiges Unicode, keine einzelnen Surrogate). BOOLEAN-Spalten sind SQLite-Ganzzahlen: `0` oder `1`.
 - Spalten, die JSON-Text enthalten (`rated_sections.gps_gaps`, `computed_values.sources`, `value_sections.reasons`), werden als **String** mit dem gespeicherten Text übertragen, nicht als verschachteltes JSON; der Leser setzt sie unverändert ein.
-- **Kennungen bleiben erhalten:** Alle `id`-Spalten und Verweise (`run_id`, `computed_value_id`, `raw_id`) tragen die Werte der Quelldatenbank. Der Leser stellt die Zeilen unter diesen Kennungen wieder her (die Verweise in `preprocessed_samples.raw_id` hängen daran) und lässt die Datenbank Fremdschlüssel, CHECKs und Trigger prüfen; jede Verletzung lehnt das ganze Archiv ab.
+- **Kennungen bleiben erhalten:** Alle `id`-Spalten und Verweise (`run_id`, auch in `reference_performances` und `rejected_suggestions`, `computed_value_id`, `raw_id`) tragen die Werte der Quelldatenbank. Der Leser stellt die Zeilen unter diesen Kennungen wieder her (die Verweise in `preprocessed_samples.raw_id` hängen daran) und lässt die Datenbank Fremdschlüssel, CHECKs und Trigger prüfen; jede Verletzung lehnt das ganze Archiv ab.
 - **Zeilenreihenfolge:** innerhalb eines Abschnitts aufsteigend nach dem Primärschlüssel (`id`, bei `settings` nach `key`). Der Leser lehnt nicht aufsteigende oder doppelte `id`s ab (Abschnitt 4.5); die Reihenfolge der Schlüssel in `settings` und doppelte Schlüssel dort prüft die Datenbank (Primärschlüssel). Der Schreiber vergibt die `id`s so, dass sie in jedem Abschnitt in der Dateireihenfolge wachsen, auch `value_sections.id` mit der Reihenfolge der `computed_values`-Zeilen, zu denen sie gehören. Die Datenbank-Trigger verlangen beim Wiederherstellen: erst `runs`, dann deren Rohdaten (nur anhängen); bei Laufwerten je `computed_values`-Zeile `original`, dann dessen `value_sections`, dann `current`, jeweils in aufsteigender `id` (Trigger `value_sections_original_no_late_insert` prüft, dass die Zeile des Werts die zuletzt vergebene ist). Weil `value_sections` hinter `computed_values` steht, MUSS der Leser dafür zwischenspeichern oder die Reihenfolge herstellen; der Zwischenspeicher darf nicht der Klartext auf dem Datenträger sein (ADR-0008 Punkt 5).
 - **Unbekannte `value_key`s** (und unbekannte `method`-Namen, `unavailable_reason`-Codes, `source`-Namen) werden unverändert durchgereicht: Der Leser prüft sie nicht gegen eine Liste. Ein Code, den die App beim späteren Lesen nicht versteht, ist dort ein Datenfehler wie im bisherigen Schema.
-- **Zulässige Werte der TEXT-Spalten:** Der Leser prüft Typ und Form, nicht diese Mengen; sie prüft die Datenbank beim Wiederherstellen (CHECK in `schema.drift`, Schema 4), und jede Verletzung lehnt das ganze Archiv ab. Maßgeblich ist `schema.drift`; zur Orientierung:
+- **Zulässige Werte der TEXT-Spalten:** Der Leser prüft Typ und Form, nicht diese Mengen; sie prüft die Datenbank beim Wiederherstellen (CHECK in `schema.drift`, Schema 5), und jede Verletzung lehnt das ganze Archiv ab. Maßgeblich ist `schema.drift`; zur Orientierung:
 
   | Spalte | Zulässig |
   |---|---|
@@ -108,6 +108,8 @@ Abweichungen sind Fehler: fehlender oder doppelter Abschnitt, falsche Reihenfolg
   | `computed_values.value_key`, `unit`, `method`, `unavailable_reason`, `sources` | beliebiger Text (siehe unbekannte `value_key`s); `value_real` ist genau dann `null`, wenn `unavailable_reason` gesetzt ist (Trigger) |
   | `value_sections.status` | `eligible`, `provisional`, `rejected` |
   | `value_sections.discard` | `null` oder `implausible`, `incomplete`, `zeroWeight` |
+  | `reference_performances.kind` | `race`, `test`, `confirmedRun` (bei `confirmedRun` ist `run_id` gesetzt) |
+  | `reference_performances.performed_on` | ISO-Kalendertag `YYYY-MM-DD` (lokales Datum der Leistung); `distance_m` und `time_s` positiv |
   | `rated_sections.gps_gaps` | gültiger JSON-Text (als String übertragen), Format `[[start_us, end_us, open], …]` mit `open` = 0 oder 1 (Schema-Kommentar, `derived_access.dart`); der Leser prüft nur `json_valid`, die App lehnt beim Lesen anderes ab (fail-closed) |
   | `value_sections.reasons` | gültiger JSON-Text (als String übertragen) |
   | `preprocessing_results.method`, `rated_sections.method` | beliebiger Text |
@@ -115,9 +117,9 @@ Abweichungen sind Fehler: fehlender oder doppelter Abschnitt, falsche Reihenfolg
   Zahlenbereiche (zum Beispiel `ended_utc_offset_s` −64800 bis 64800, `training_days_mask` 0 bis 127, positive Werte in `profile`, `end_us >= start_us`) stehen ebenfalls als CHECK in `schema.drift`. Fehlende Werte sind `null`, nie 0.
 - Laufwerte (`computed_values`) tragen **beide** Rollen (`original`, `current`) mit `unavailable_reason`, Basis (`hr_max_bpm`, `hr_rest_bpm`, `hr_max_is_estimated`), Quellen, Versionen und Qualität. Zonenzeiten und `trimp_run` sind Laufwerte und stehen hier; sie sind nicht aus den Rohdaten rekonstruierbar.
 
-### 4.3 Abschnitte und Spalten (Schema 4)
+### 4.3 Abschnitte und Spalten (Schema 5)
 
-Quelle der Spalten: `app/packages/adapters/lib/src/storage/schema.drift` (Schemaversion 4). Typen: I = INTEGER, R = REAL, T = TEXT, B = BOOLEAN (0/1). `?` = darf `null` sein.
+Quelle der Spalten: `app/packages/adapters/lib/src/storage/schema.drift` (Schemaversion 5). Typen: I = INTEGER, R = REAL, T = TEXT, B = BOOLEAN (0/1). `?` = darf `null` sein.
 
 | # | Abschnitt | Spalten |
 |--:|---|---|
@@ -137,35 +139,41 @@ Quelle der Spalten: `app/packages/adapters/lib/src/storage/schema.drift` (Schema
 | 14 | `profile` | id I (immer 1), birth_year I?, body_weight_kg R?, body_height_m R?, resting_heart_rate_bpm I?, max_heart_rate_bpm I?, weekly_run_minutes I?, training_days_mask I?, usual_training_minutes I? |
 | 15 | `settings` | key T, value T, updated_at_us I |
 | 16 | `known_devices` | id I, device_id T, display_name T?, is_preferred B, added_at_us I |
-| 17 | `goals` | (leer, siehe unten) |
-| 18 | `plans` | (leer, siehe unten) |
-| 19 | `active_warning` | (leer, siehe unten) |
+| 17 | `reference_performances` | id I, kind T, distance_m R, time_s R, performed_on T, created_at_us I, run_id I? |
+| 18 | `rejected_suggestions` | id I, run_id I |
+| 19 | `goals` | (leer, siehe unten) |
+| 20 | `plans` | (leer, siehe unten) |
+| 21 | `active_warning` | (leer, siehe unten) |
 
 Nicht im Archiv: die Tabellen `storage_meta` (technisch), `consents` (Einwilligungen, SEC-0011) sowie Datenbankschlüssel und Zugangsdaten (liegen nie in der Datenbank). Nach dem Import sind Einwilligungen nicht erteilt.
 
-**Leere Abschnitte (17 bis 19):** `goals`, `plans`, `active_warning` sind für spätere Phasen vorgesehen (FR-0192, L13). In Version 1 mit Schema 4 haben sie **0 Zeilen**; der Leser lehnt einen Abschnitt mit Zeilen ab, weil er sie nicht speichern kann (nicht stillschweigend verwerfen). Ihre Spalten legt das Schema fest, das sie einführt (mit neuem `schema_version`, nötigenfalls neuer Formatversion).
+**Referenzleistungen (17, 18):** Seit Schema 5 (WP20). `run_id` verweist auf einen Lauf des Archivs; ein Verweis auf einen Lauf, den das Archiv nicht enthält, ist beschädigt (Fremdschlüssel der Zwischendatenbank). Beim Löschen eines Laufs verschwinden Referenz und Ablehnung mit ihm.
+
+**Leere Abschnitte (19 bis 21):** `goals`, `plans`, `active_warning` sind für spätere Phasen vorgesehen (FR-0192, L13). In Format 1 haben sie **0 Zeilen**; der Leser lehnt einen Abschnitt mit Zeilen ab, weil er sie nicht speichern kann (nicht stillschweigend verwerfen). Ihre Spalten legt das Schema fest, das sie einführt (mit neuem `schema_version`, nötigenfalls neuer Formatversion).
 
 **Technische Merker in `settings`:** Der Schreiber lässt die Schlüssel `values.calculationPending`, `values.refreshPending` und `recalculation.pending` weg. Sie sind Merker für unterbrochene Hintergrundarbeit oder ein offenes Angebot der Quellinstallation (`core/lib/src/recalculation/`) und gehören nicht in einen Wiederherstellungsstand; sie würden nach dem Import auf Zustände zeigen, die dort nicht gelten. Alle anderen Schlüssel (auch unbekannte) werden übernommen. Der Leser nimmt jeden Schlüssel an, den er findet. (Die Liste ist an den Quelltext gebunden: Kommt ein neuer technischer Merker hinzu, ist sie hier und im Schreiber zu ergänzen; der Schreiber-Teil von WP12 soll sie per Test gegen die Konstanten prüfen.)
 
 ### 4.4 Beispiel (Klartext, bevor gzip angewendet wird; Werte synthetisch, gekürzt)
 
 ```
-{"type":"manifest","format":1,"schema_version":4,"created_at_us":1793000000000000}
+{"type":"manifest","format":1,"schema_version":5,"created_at_us":1793000000000000}
 {"type":"section","name":"runs"}
 {"type":"row","data":{"id":1,"state":"finished","started_at_us":1792000000000000,"ended_at_us":1792000600000000,"ended_utc_offset_s":3600}}
 {"type":"section","name":"laps"}
 ...
+{"type":"section","name":"reference_performances"}
+{"type":"section","name":"rejected_suggestions"}
 {"type":"section","name":"goals"}
 {"type":"section","name":"plans"}
 {"type":"section","name":"active_warning"}
-{"type":"end","rows":{"runs":1,"laps":0,...,"goals":0,"plans":0,"active_warning":0}}
+{"type":"end","rows":{"runs":1,"laps":0,...,"reference_performances":0,"rejected_suggestions":0,"goals":0,"plans":0,"active_warning":0}}
 ```
 
 ### 4.5 Leser: Ablauf, Ziel und Fehlerarten
 
 Der Leser (`ArchiveImporter`, `readArchive`) arbeitet als Strom in einem Arbeits-Isolate: Datei lesen → Kopf prüfen → entschlüsseln (Port `ArchiveCipher`) → gunzip → in Zeilen an `\n` teilen → je Zeile JSON strikt lesen und prüfen → geprüfte Zeilen in Stapeln an das Ziel (Port `ArchiveSink`: `begin`, `insert`, `commit`, `abort`). Es entsteht keine Datei und kein Klartext auf dem Datenträger.
 
-**Prüfungen je Zeile (jede Verletzung: „beschädigt“):** Manifest zuerst; Abschnitt nur mit dem als nächstes erwarteten Namen (damit sind doppelte, fehlende, vertauschte und unbekannte Abschnitte ausgeschlossen); Zeile nur innerhalb eines Abschnitts und nie in einem der drei reservierten; genau die Schlüssel `type`/`name` (Abschnitt), `type`/`data` (Zeile), `type`/`rows` (Ende); genau die Spalten laut 4.3 mit passendem Typ; `id` je Abschnitt streng aufsteigend; Endzeile erst nach allen 19 Abschnitten, Zähler gleich den gelesenen Zeilen; nach der Endzeile nichts, auch keine Zeile und kein Byte; Ende des Stroms ohne halbe Zeile; Zeile höchstens 16 MiB, nicht leer.
+**Prüfungen je Zeile (jede Verletzung: „beschädigt“):** Manifest zuerst; Abschnitt nur mit dem als nächstes erwarteten Namen (damit sind doppelte, fehlende, vertauschte und unbekannte Abschnitte ausgeschlossen); Zeile nur innerhalb eines Abschnitts und nie in einem der drei reservierten; genau die Schlüssel `type`/`name` (Abschnitt), `type`/`data` (Zeile), `type`/`rows` (Ende); genau die Spalten laut 4.3 mit passendem Typ; `id` je Abschnitt streng aufsteigend; Endzeile erst nach allen Abschnitten des Schemas, Zähler gleich den gelesenen Zeilen; nach der Endzeile nichts, auch keine Zeile und kein Byte; Ende des Stroms ohne halbe Zeile; Zeile höchstens 16 MiB, nicht leer.
 
 **Wann `commit` kommt:** Erst wenn der entschlüsselte Strom ohne Fehler bis zum letzten Stück geendet hat (Tags aller Stücke, Zähler, Endmarke im Nonce), das gzip-Element samt CRC32 und ISIZE vollständig und ohne Byte danach ist **und** die Endzeile mit den Zählern stimmt. Eine gültige Endzeile allein genügt nicht: Sie kann in einem früheren Stück stehen als das letzte. Bei **jedem** anderen Ausgang (Fehler, Abbruch, Fehler des Ziels) folgt `abort` und nie `commit`. Das Ziel bekommt Zeilen schon vor dem `commit` und muss sie bis dahin verwerfbar halten (Zwischendatenbank).
 
@@ -178,7 +186,7 @@ Der Leser (`ArchiveImporter`, `readArchive`) arbeitet als Strom in einem Arbeits
 | Parameter im Kopf ungleich Version 1 | nicht unterstützte Parameter |
 | erstes Stück scheitert, Datei endet nach dem Kopf | falsches Passwort oder beschädigter Anfang (eine Meldung) |
 | späteres Stück, Datei zwischen 10 und 35 Byte, gzip, UTF-8, JSON, Zeilen-, Abschnitts-, Spalten-, Typ- oder Zählerverletzung, Endzeile fehlt, Inhalt nach der Endzeile | beschädigt |
-| `schema_version` größer als 4 | neueres Archiv (Datenbank unverändert) |
+| `schema_version` größer als 5 | neueres Archiv (Datenbank unverändert) |
 | `schema_version` kleiner als 4 | Schema nicht unterstützt |
 | Datei nicht lesbar | Lesefehler |
 | Ziel lehnt ab (Fremdschlüssel, CHECK, Trigger: beschädigt; sonst Speicher, E/A: Zielfehler) | beschädigt oder Zielfehler |
@@ -190,7 +198,7 @@ Die Reihenfolge der Wiederherstellung (`value_sections` hinter `computed_values`
 
 **Wann:** Nur auf **leerer App** oder nach **ausdrücklichem Zurücksetzen** (Bestätigung des Nutzers, Hinweis aus OQ-0050). Leer heißt (`ArchiveRestoreService.isEmpty`): keine Läufe, kein Profilwert, keine bekannten Geräte, keine Einstellung außer den technischen Merkern (`archiveExcludedSettingKeys`, 4.3). Einwilligungen zählen nicht (sie werden ohnehin nicht übernommen), ebenso Tageswerte (`computed_values.day`): Sie sind aus Läufen abgeleitet, ohne Läufe nichts Eigenes, und der Port bietet keine Auflistung; sie werden mit dem Tausch ersetzt. Sonst Fehler „nicht leer“ und nichts geschieht (keine Zwischendatenbank, keine Änderung). Das Zurücksetzen löscht nichts vorab: Die alten Daten verschwinden erst mit dem Tausch. Aufnahme und Neuberechnung laufen nicht parallel (der Aufrufer reicht `serialize`, in der App `RecalculationController.exclusive`).
 
-**Zwischendatenbank** (`DriftArchiveSink`): neue Datei `<aktive Datei>.import` im selben Ordner (gleiches Dateisystem, damit das Umbenennen atomar bleibt), geöffnet mit **demselben Datenbankschlüssel** und derselben Einrichtung wie die aktive (sqlite3mc, `ConnectionSetup`, nie Klartext), Schema 4 frisch. Einfügen in Dateireihenfolge, je Stapel eine Transaktion. `computed_values` und `value_sections` kommen zuerst in Hilfstabellen derselben Datei und werden in `commit` je Wert in `id`-Reihenfolge eingefügt (Wert, dann dessen Abschnitte), damit die Trigger (4.2) greifen; `id`s bleiben wie im Archiv. `commit`: Hilfstabellen zusammenführen und löschen, Zeilenzahlen je Tabelle gegen die gelieferten (der Leser hat sie gegen die Endzeile geprüft), `PRAGMA foreign_key_check` leer, `wal_checkpoint(TRUNCATE)` ohne Sperre, Datei schließen. Verletzung einer Beschränkung (CHECK, Trigger, Fremdschlüssel, Eindeutigkeit, Zähler) heißt „beschädigt“, anderes „Zielfehler“. `abort` schließt und löscht die Zwischendatenbank samt `-wal`, `-shm`, `-journal`.
+**Zwischendatenbank** (`DriftArchiveSink`): neue Datei `<aktive Datei>.import` im selben Ordner (gleiches Dateisystem, damit das Umbenennen atomar bleibt), geöffnet mit **demselben Datenbankschlüssel** und derselben Einrichtung wie die aktive (sqlite3mc, `ConnectionSetup`, nie Klartext), Schema 5 frisch. Einfügen in Dateireihenfolge, je Stapel eine Transaktion. `computed_values` und `value_sections` kommen zuerst in Hilfstabellen derselben Datei und werden in `commit` je Wert in `id`-Reihenfolge eingefügt (Wert, dann dessen Abschnitte), damit die Trigger (4.2) greifen; `id`s bleiben wie im Archiv. `commit`: Hilfstabellen zusammenführen und löschen, Zeilenzahlen je Tabelle gegen die gelieferten (der Leser hat sie gegen die Endzeile geprüft), `PRAGMA foreign_key_check` leer, `wal_checkpoint(TRUNCATE)` ohne Sperre, Datei schließen. Verletzung einer Beschränkung (CHECK, Trigger, Fremdschlüssel, Eindeutigkeit, Zähler) heißt „beschädigt“, anderes „Zielfehler“. `abort` schließt und löscht die Zwischendatenbank samt `-wal`, `-shm`, `-journal`.
 
 **Tausch** (`DatabaseFiles.replaceWithImport`, erst nach `commit`): aktive Sitzung schließen (SQLite checkpointet beim Schließen der letzten Verbindung; der Nachweis folgt im nächsten Schritt). Dann **fail-closed**: Ist ein aktives `-wal` länger als 0 Byte, bricht der Tausch ab (nichts gelöscht, `swapFailed`, alter Stand; das `-wal` wird beim Wiederöffnen übernommen). Sonst `-wal`/`-shm`/`-journal` der aktiven Datei löschen, die der Zwischendatenbank löschen, **ein** atomares `rename` der Zwischen- auf die aktive Hauptdatei, neu öffnen. Das Verzeichnis wird nicht eigens synchronisiert (Dart bietet keinen Aufruf); nach Stromausfall kann das Umbenennen fehlen, dann gilt der alte Stand. Ein Prozessende an jeder Stelle hinterlässt entweder die alte oder die vollständige neue Hauptdatei, nie eine gemischte oder fehlende. Bei `swapFailed` trägt die Ausnahme die neu geöffnete Sitzung (`ArchiveRestoreException.session`); die alte ist dann geschlossen. Die Einwilligungen sind danach leer (nicht erteilt), der Schlüssel bleibt.
 
@@ -215,4 +223,4 @@ Feste Vektoren (Kopf, Schlüssel, einzelne Stücke, ganze Dateien, Negativfälle
 
 ## 7. Änderungen am Format
 
-Ein anderes Schema oder andere Parameter bedeuten eine neue Formatversion (Kopf Offset 8). Eine App liest nur ihr bekannte Versionen und lehnt andere ab, ohne Daten zu ändern. Wächst das Datenbankschema (zum Beispiel um Ziele und Pläne), wächst dieser Vertrag mit: neuer `schema_version`, neue Spalten in 4.3, Leseregeln für ältere Schemata.
+Andere Parameter oder ein anderer Kopf bedeuten eine neue Formatversion (Kopf Offset 8); ein neues Datenbankschema erhöht nur `schema_version` im Manifest (seit Schema 5 ohne neue Formatversion). Eine App liest nur ihr bekannte Versionen und lehnt andere ab, ohne Daten zu ändern. Wächst das Datenbankschema (zum Beispiel um Ziele und Pläne), wächst dieser Vertrag mit: neuer `schema_version`, neue Spalten in 4.3, Leseregeln für ältere Schemata. Schema 5 (WP20) ergänzt `reference_performances` und `rejected_suggestions` und liest Schema 4 weiter (fehlende Abschnitte sind leer); das Format bleibt 1, weil Kopf und Parameter gleich sind.

@@ -1,0 +1,70 @@
+import 'package:core/core.dart';
+import 'package:test/test.dart';
+
+import '../recalculation/recalc_support.dart';
+
+void main() {
+  group('PredictionRunReader (Läufe aus vorhandenen Daten)', () {
+    late RecalcWorld w;
+    late PredictionRunReader reader;
+
+    setUp(() async {
+      w = await RecalcWorld.create();
+      reader = PredictionRunReader(session: w.session, clock: w.clock);
+    });
+
+    test(
+      'Bewegungszeit, Distanz und 30-s-Tempowerte; rpe bleibt null',
+      () async {
+        final long = await w.seedRun(DateTime.utc(2030, 1, 5, 8), minutes: 20);
+        final short = await w.seedRun(DateTime.utc(2030, 1, 6, 8), minutes: 5);
+        final runs = await reader.load();
+        // Neuester Start zuerst; nur beendete Läufe.
+        expect(runs.map((r) => r.id), ['$short', '$long']);
+        final l = runs.last;
+        expect(l.movingSeconds, closeTo(1200, 5));
+        expect(l.distanceMeters, closeTo(3600, 40));
+        expect(l.rpe, isNull);
+        expect(l.paceSamples, isNotEmpty);
+        for (final v in l.paceSamples!) {
+          expect(v, closeTo(3.0, 0.1));
+        }
+        expect(
+          isPaceStable(
+            l.paceSamples,
+            const FitnessParameters.v4().sectionSelection,
+          ),
+          isTrue,
+        );
+        // Unter der Mindeststrecke für Vorschläge: keine Wiedergabe.
+        expect(runs.first.distanceMeters, lessThan(3000));
+        expect(runs.first.paceSamples, isNull);
+        expect(runs.first.rpe, isNull);
+      },
+    );
+
+    test('ohne Tempowerte bleibt paceSamples null', () async {
+      await w.seedRun(DateTime.utc(2030, 1, 5, 8), minutes: 20);
+      final runs = await reader.load(withPaceSamples: false);
+      expect(runs.single.paceSamples, isNull);
+      expect(runs.single.movingSeconds, closeTo(1200, 5));
+    });
+
+    test('Datum ist der lokale Kalendertag des Laufendes', () async {
+      // Ende 23:20 UTC + 2 h = nächster Tag lokal.
+      await w.seedRun(
+        DateTime.utc(2030, 1, 5, 23),
+        minutes: 20,
+        utcOffset: const Duration(hours: 2),
+      );
+      final r = (await reader.load()).single;
+      expect(calendarDay(r.date), DateTime.utc(2030, 1, 6));
+    });
+
+    test('unfertiger Lauf und leerer Speicher: keine Läufe', () async {
+      expect(await reader.load(), isEmpty);
+      await w.session.runs.create(startedAt: DateTime.utc(2030, 1, 5, 8));
+      expect(await reader.load(), isEmpty);
+    });
+  });
+}

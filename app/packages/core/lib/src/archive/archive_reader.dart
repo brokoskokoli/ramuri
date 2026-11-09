@@ -7,8 +7,13 @@ import 'archive_errors.dart';
 import 'archive_json.dart';
 import 'archive_schema.dart';
 
-/// Schema der Datenbank, das dieser Leser liest.
-const int archiveSchemaVersion = 4;
+/// Neuestes Schema der Datenbank, das dieser Leser liest und der Schreiber
+/// schreibt.
+const int archiveSchemaVersion = 5;
+
+/// Älteste Schema-Version, die der Leser noch liest (Format 1 beginnt mit
+/// Schema 4). Fehlende Abschnitte eines älteren Schemas gelten als leer.
+const int archiveMinSchemaVersion = 4;
 
 /// Längste Zeile (ohne `\n`), Grenze gegen Speicherbomben (Vertrag 4).
 const int archiveMaxLineBytes = 16 * 1024 * 1024;
@@ -29,6 +34,8 @@ const ArchiveImportException _damaged = ArchiveImportException(
 /// zuerst, Abschnitte vollständig und in Vertragsreihenfolge, Zeilen nach
 /// Spalten und Typen, Endzeile mit Zählern, nichts danach.
 class ArchiveLineValidator {
+  /// Abschnitte des Schemas aus dem Manifest ([archiveSectionsFor]).
+  List<ArchiveSectionSpec> _sections = const [];
   int _nextSection = 0;
   ArchiveSectionSpec? _current;
   int _currentCount = 0;
@@ -87,19 +94,20 @@ class ArchiveLineValidator {
     if (schema > archiveSchemaVersion) {
       throw const ArchiveImportException(ArchiveImportFailure.newerSchema);
     }
-    if (schema < archiveSchemaVersion) {
+    if (schema < archiveMinSchemaVersion) {
       throw const ArchiveImportException(
         ArchiveImportFailure.unsupportedSchema,
       );
     }
     _exactKeys(m, {'type', 'format', 'schema_version', 'created_at_us'});
     if (m['format'] != 1 || m['created_at_us'] is! int) throw _damaged;
+    _sections = archiveSectionsFor(schema);
   }
 
   void _sectionHeader(Map<String, Object?> m) {
     _exactKeys(m, {'type', 'name'});
-    if (_nextSection >= archiveSections.length) throw _damaged;
-    final spec = archiveSections[_nextSection];
+    if (_nextSection >= _sections.length) throw _damaged;
+    final spec = _sections[_nextSection];
     // Unbekannter, doppelter, fehlender (übersprungener) oder verschobener
     // Abschnitt: jeder ist ungleich dem erwarteten Namen.
     if (m['name'] != spec.name) throw _damaged;
@@ -150,15 +158,14 @@ class ArchiveLineValidator {
 
   void _end(Map<String, Object?> m) {
     _exactKeys(m, {'type', 'rows'});
-    if (_nextSection != archiveSections.length) throw _damaged;
+    if (_nextSection != _sections.length) throw _damaged;
     _counts.add(_currentCount);
     final rows = m['rows'];
-    if (rows is! Map<String, Object?> ||
-        rows.length != archiveSections.length) {
+    if (rows is! Map<String, Object?> || rows.length != _sections.length) {
       throw _damaged;
     }
-    for (var i = 0; i < archiveSections.length; i++) {
-      final n = rows[archiveSections[i].name];
+    for (var i = 0; i < _sections.length; i++) {
+      final n = rows[_sections[i].name];
       // `0.0 == 0` gilt in Dart: Zähler müssen Ganzzahlen sein.
       if (n is! int || n != _counts[i]) throw _damaged;
     }
