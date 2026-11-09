@@ -6,8 +6,11 @@ import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/run/live_run_values.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
@@ -16,23 +19,23 @@ import 'history_summary_test.dart' show key, seedRun, showAllRuns;
 /// Einheitswort: nach dem Entfernen der Wortverbinder genau eine Einheit.
 final _unitWord = RegExp(r'^(km|mi|m|ft|min/km|min/mi|bpm|spm|Punkte|points)$');
 
-/// Werte in schmalen Kacheln: Reicht die Spalte für Zahl und Einheit nicht
-/// (Design: drei Spalten auf 360 dp), steht die Einheit als Ganzes unter der
-/// Zahl. Nur diese Schlüssel dürfen so stehen (Befund im Bericht).
-const _tileKeys = {
+/// Pace, Puls und Punkte: Die Einheit steht in der Beschriftung, die Zahl
+/// bleibt groß und ohne Einheit (WP17 B3). Ein Wert ist hier nie samt Einheit
+/// in der Kachel (das Schrumpfen wäre sonst nur versteckt).
+const _unitInLabelKeys = {
   'run_pace',
   'run_avg_pace',
-  'run_ascent',
-  'run_descent',
   'sum_best_pace',
   'sum_avg_hr',
   'sum_max_hr',
   'sum_trimp',
 };
+final _seenUnitInLabel = <String>{};
 
-/// Prüft alle Texte auf dem Bildschirm: Kein Wort (auch keine Zahl, keine
-/// Einheit wie „min/km“) bricht mitten im Wort, und Zahl und Einheit stehen in
-/// einer Zeile, außer in den Kacheln aus [_tileKeys]. Liefert die Zahl der
+/// Prüft alle Texte auf dem Bildschirm: Kein Wort (auch keine Beschriftung,
+/// keine Zahl, keine Einheit wie „min/km“) bricht mitten im Wort, und Zahl und
+/// Einheit stehen in einer Zeile; sonst steht die Einheit in der Beschriftung
+/// (dann folgt keine Zahl mit Einheit im selben Text). Liefert die Zahl der
 /// geprüften Einheiten.
 int expectUnitsStay(WidgetTester tester, String where) {
   var checked = 0;
@@ -58,6 +61,19 @@ int expectUnitsStay(WidgetTester tester, String where) {
     final p = e.renderObject;
     if (p is! RenderParagraph) continue;
     final plain = p.text.toPlainText(includeSemanticsLabels: false);
+    final ownKey = _keyOf(tester, e);
+    if (_unitInLabelKeys.contains(ownKey)) {
+      _seenUnitInLabel.add(ownKey!);
+      // Zahl mit Einheit dahinter (nicht der Satz „kein km am Stück“).
+      final words = plain.replaceAll('\u2060', '').split(RegExp(r'[ \u00A0]'));
+      expect(
+        words.length > 1 &&
+            _unitWord.hasMatch(words.last) &&
+            RegExp(r'\d$').hasMatch(words[words.length - 2]),
+        isFalse,
+        reason: '$where: "$plain" ($ownKey) trägt die Einheit im Wert',
+      );
+    }
     // Wörter: getrennt an gewöhnlichen Leerzeichen (nicht am geschützten).
     final words = RegExp(r'[^ \n]+').allMatches(plain);
     final lineOfWord = <int>[];
@@ -69,11 +85,8 @@ int expectUnitsStay(WidgetTester tester, String where) {
         TextSelection(baseOffset: w.start, extentOffset: w.end),
       );
       if (boxes.isEmpty) continue;
-      // Geprüft werden Zahlen und Einheiten, nicht Beschriftungen („Bewegungs-
-      // zeit“ bricht bei Faktor 1,3 in der halben Live-Kachel; kein Befund
-      // dieses Pakets, im Bericht genannt).
-      final bare = w.group(0)!.replaceAll('\u2060', '');
-      final relevant = RegExp(r'\d').hasMatch(bare) || _unitWord.hasMatch(bare);
+      // Geprüft wird jedes Wort: auch Beschriftungen („Bewegungszeit“).
+      const relevant = true;
       // Ein Wort in einer Zeile: die Kästen laufen von links nach rechts.
       double? left;
       for (final b in boxes) {
@@ -93,17 +106,31 @@ int expectUnitsStay(WidgetTester tester, String where) {
       if (!_unitWord.hasMatch(spans[k].$2)) continue;
       if (!RegExp(r'\d$').hasMatch(spans[k - 1].$2)) continue;
       checked++;
-      if (lineOfWord[k] == lineOfWord[k - 1]) continue;
-      final key = _keyOf(tester, e);
       expect(
-        _tileKeys,
-        contains(key),
-        reason: '$where: "$plain" trennt Zahl und Einheit (key=$key)',
+        lineOfWord[k],
+        lineOfWord[k - 1],
+        reason:
+            '$where: "$plain" trennt Zahl und Einheit '
+            '(key=${_keyOf(tester, e)})',
       );
     }
     expect(p.size.width, lessThanOrEqualTo(360), reason: '$where: "$plain"');
   }
   return checked;
+}
+
+/// Alle Zeichen des Absatzes laufen in einer Zeile von links nach rechts.
+bool _oneLine(RenderParagraph p) {
+  final boxes = p.getBoxesForSelection(
+    TextSelection(
+      baseOffset: 0,
+      extentOffset: p.text.toPlainText(includeSemanticsLabels: false).length,
+    ),
+  );
+  for (var i = 1; i < boxes.length; i++) {
+    if (boxes[i].left < boxes[i - 1].right - 0.5) return false;
+  }
+  return true;
 }
 
 /// Schlüssel des Text-Widgets über dem Absatz.
@@ -233,11 +260,120 @@ void main() {
           await tester.pumpAndSettle();
           await checkScrolled(tester, 'Zusammenfassung');
           expect(tester.takeException(), isNull);
+          expect(
+            _seenUnitInLabel,
+            _unitInLabelKeys,
+            reason: 'alle Werte mit Einheit in der Beschriftung gesehen',
+          );
           semantics.dispose();
         });
       }
     }
   }
+
+  Widget app(Widget body, {double scale = 1.0}) => MaterialApp(
+    theme: RamuriTheme.light,
+    locale: const Locale('de'),
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: MediaQuery(
+      data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+      child: Scaffold(body: Center(child: body)),
+    ),
+  );
+
+  // Anstieg und Gefälle: „+1200 m“ bleibt zusammen und schrumpft nur, wenn
+  // es nicht in die Kachel passt.
+  for (final live in [true, false]) {
+    testWidgets('Zahl mit Einheit schrumpft nur bei Platzmangel '
+        '(${live ? 'LiveValueText' : 'RamuriValueTile'})', (tester) async {
+      await loadManrope(tester);
+      await loadSora(tester);
+      Widget value(double width) => SizedBox(
+        width: width,
+        child: live
+            ? Builder(
+                builder: (context) => LiveValueText(
+                  id: 'v',
+                  value: '+1200',
+                  unit: 'm',
+                  shrink: true,
+                  valueStyle: RamuriType.of(context).valueSmall,
+                  unitStyle: RamuriType.of(context).unit,
+                ),
+              )
+            : const RamuriValueTile(
+                label: 'Anstieg',
+                value: '+1200',
+                unit: 'm',
+                valueKey: Key('v'),
+              ),
+      );
+      Future<(double, double)> measure(double width, double scale) async {
+        await tester.pumpWidget(app(value(width), scale: scale));
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.byKey(const Key('v')),
+        );
+        final box = tester.getRect(find.byKey(const Key('v')));
+        expect(_oneLine(paragraph), isTrue, reason: 'eine Zeile');
+        return (box.width, paragraph.size.width);
+      }
+
+      // Genug Platz: unverändert groß (Schrift wirkt mit dem Faktor weiter).
+      final (shownWide, naturalWide) = await measure(300, 1.0);
+      expect(shownWide, naturalWide);
+      final (shownScaled, naturalScaled) = await measure(300, 1.3);
+      expect(naturalScaled, greaterThan(naturalWide));
+      expect(shownScaled, naturalScaled);
+      // Zu wenig Platz: eine Zeile, kleiner dargestellt als gesetzt.
+      final (shownNarrow, naturalNarrow) = await measure(60, 1.0);
+      expect(naturalNarrow, greaterThan(60));
+      expect(shownNarrow, lessThanOrEqualTo(60));
+    });
+  }
+
+  // Wertkacheln im Raster: Ein langes Wort der Beschriftung zwingt zu weniger
+  // Spalten, statt mitten im Wort zu brechen.
+  testWidgets('Raster: Wort der Beschriftung bricht nicht im Wort', (
+    tester,
+  ) async {
+    await loadManrope(tester);
+    await loadSora(tester);
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const label = 'Durchschnittspuls';
+    await tester.pumpWidget(
+      app(
+        const SingleChildScrollView(
+          padding: EdgeInsets.all(20),
+          child: RamuriTileGrid(
+            children: [
+              RamuriValueTile(label: label, value: '150', labelUnit: 'bpm'),
+              RamuriValueTile(label: 'Ø Pace', value: '5:40'),
+              RamuriValueTile(label: 'Max', value: '187'),
+            ],
+          ),
+        ),
+      ),
+    );
+    final paragraph = tester
+        .renderObjectList<RenderParagraph>(find.byType(RichText))
+        .firstWhere((p) => p.text.toPlainText().startsWith(label));
+    // Das Wort steht ganz in einer Zeile: Kein Kasten springt zurück.
+    final boxes = paragraph.getBoxesForSelection(
+      const TextSelection(baseOffset: 0, extentOffset: label.length),
+    );
+    for (var i = 1; i < boxes.length; i++) {
+      expect(boxes[i].left, greaterThanOrEqualTo(boxes[i - 1].right - 0.5));
+    }
+    expect(paragraph.size.width, lessThanOrEqualTo(360));
+  });
 
   // Im Fließtext (Sätze mit Pace, Puls, Länge) steht die Einheit bei der
   // Zahl, bei jeder Breite: „150“ und „bpm“ nie auf zwei Zeilen.

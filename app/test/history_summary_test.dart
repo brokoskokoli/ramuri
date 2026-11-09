@@ -457,11 +457,11 @@ void main() {
         expect(text('run_done_status'), 'Der Lauf ist gespeichert.');
         expect(text('run_distance'), matches(RegExp(r'^1,[12]\d km$')));
         expect(text('run_moving_time'), '6:40');
-        expect(text('run_avg_pace'), matches(RegExp(r'^5:\d\d min/km$')));
+        expect(text('run_avg_pace'), matches(RegExp(r'^5:\d\d$')));
         // Bestpace: schnellster zusammenhängender Kilometer.
-        expect(text('sum_best_pace'), matches(RegExp(r'^5:\d\d min/km$')));
-        expect(text('sum_avg_hr'), '150 bpm');
-        expect(text('sum_max_hr'), '150 bpm');
+        expect(text('sum_best_pace'), matches(RegExp(r'^5:\d\d$')));
+        expect(text('sum_avg_hr'), '150');
+        expect(text('sum_max_hr'), '150');
         // Ohne Profil: keine Zonen, keine Belastung, mit Grund statt 0.
         // Mit Puls, aber ohne Werte im Profil: der Grund ist das Profil (FR-0057).
         expect(
@@ -573,7 +573,7 @@ void main() {
         text('sum_vo2max'),
         matches(RegExp(r'^\d+,\d ml/kg/min \(Schätzung\)$')),
       );
-      expect(text('sum_avg_hr'), '150 bpm');
+      expect(text('sum_avg_hr'), '150');
     });
 
     testWidgets('erster Lauf, kürzer als der Bestpace-Kilometer', (

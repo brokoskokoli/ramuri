@@ -685,7 +685,7 @@ void main() {
     }
     expect(find.byType(ZoneBar), findsOneWidget);
     expect(find.text('Zone 2: 8:00'), findsOneWidget);
-    expect(text('sum_trimp'), '58 Punkte');
+    expect(text('sum_trimp'), '58');
     expect(find.text('Pace & Puls'), findsOneWidget);
     expect(find.text('Höhenprofil'), findsOneWidget);
     expect(find.text('Kilometer'), findsOneWidget);

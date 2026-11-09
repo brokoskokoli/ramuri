@@ -21,6 +21,8 @@ import 'run_controller.dart';
 
 /// Wert in der Schrift der Zahl, dahinter die Einheit klein und unumbrechbar.
 /// Der Schlüssel [id] sitzt auf dem Text, damit Tests und Hilfen ihn finden.
+/// Mit [shrink] schrumpft Zahl samt Einheit nur dann, wenn beides nicht in die
+/// Breite passt (`scaleDown`), und bleibt in einer Zeile.
 class LiveValueText extends StatelessWidget {
   const LiveValueText({
     super.key,
@@ -30,6 +32,7 @@ class LiveValueText extends StatelessWidget {
     required this.unitStyle,
     this.unit,
     this.textAlign,
+    this.shrink = false,
   });
 
   final String id;
@@ -38,11 +41,12 @@ class LiveValueText extends StatelessWidget {
   final TextStyle valueStyle;
   final TextStyle unitStyle;
   final TextAlign? textAlign;
+  final bool shrink;
 
   @override
   Widget build(BuildContext context) {
     final unit = this.unit;
-    return Text.rich(
+    final text = Text.rich(
       TextSpan(
         children: [
           TextSpan(text: value, style: valueStyle),
@@ -57,6 +61,12 @@ class LiveValueText extends StatelessWidget {
       ),
       key: Key(id),
       textAlign: textAlign,
+    );
+    if (!shrink) return text;
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: AlignmentDirectional.centerStart,
+      child: text,
     );
   }
 }
@@ -195,28 +205,37 @@ class LiveValues extends StatelessWidget {
       String value,
       String? unit, {
       TextStyle? style,
+      bool unitInLabel = false,
     }) => _LiveTile(
       label: label,
+      // Pace: die Einheit steht in der Beschriftung, die Zahl bleibt groß.
+      // Ohne Einheit (Ersatztext) bleibt die Beschriftung, wie sie ist.
+      labelUnit: unitInLabel ? unit : null,
       child: LiveValueText(
         id: id,
         value: value,
-        unit: unit,
+        unit: unitInLabel ? null : unit,
+        shrink: unit != null && !unitInLabel,
         valueStyle: valueStyleOf(value, style),
         unitStyle: unitStyle,
       ),
     );
 
-    /// Zwei Kacheln nebeneinander; passt eine Zahl nicht in die halbe Breite,
-    /// stehen sie untereinander (wie das Raster weniger Spalten nimmt).
+    /// Zwei Kacheln nebeneinander; passt eine Zahl oder ein Wort der
+    /// Beschriftung nicht in die halbe Breite, stehen sie untereinander (wie
+    /// das Raster weniger Spalten nimmt).
     Widget pair(
-      (String, TextStyle?) first,
+      (String, TextStyle?, String, String?) first,
       Widget firstTile,
       Widget? secondTile, [
-      (String, TextStyle?)? second,
+      (String, TextStyle?, String, String?)? second,
     ]) => _TilePair(
       words: [
-        for (final (value, style) in [first, ?second])
+        for (final (value, style, label, labelUnit) in [first, ?second]) ...[
           (value, valueStyleOf(value, style)),
+          for (final word in [...label.split(RegExp(r'\s+')), ?labelUnit])
+            (word, text.labelMedium!),
+        ],
       ],
       first: firstTile,
       second: secondTile,
@@ -285,13 +304,14 @@ class LiveValues extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         pair(
-          (paceValue, numberStyle),
+          (paceValue, numberStyle, l10n.livePaceNow, paceUnit),
           tile(
             l10n.livePaceNow,
             'run_pace',
             paceValue,
             paceUnit,
             style: numberStyle,
+            unitInLabel: true,
           ),
           tile(
             l10n.runAvgPace,
@@ -299,8 +319,9 @@ class LiveValues extends StatelessWidget {
             avgValue,
             avgUnit,
             style: numberStyle,
+            unitInLabel: true,
           ),
-          (avgValue, numberStyle),
+          (avgValue, numberStyle, l10n.runAvgPace, avgUnit),
         ),
         const SizedBox(height: 10),
         _HeartCard(
@@ -312,7 +333,7 @@ class LiveValues extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         pair(
-          (formatClock(s.movingTime), null),
+          (formatClock(s.movingTime), null, l10n.runMovingTime, null),
           tile(
             l10n.runMovingTime,
             'run_moving_time',
@@ -320,12 +341,12 @@ class LiveValues extends StatelessWidget {
             null,
           ),
           tile(l10n.runAscent, 'run_ascent', ascentValue, ascentUnit),
-          (ascentValue, null),
+          (ascentValue, null, l10n.runAscent, null),
         ),
         const SizedBox(height: 10),
         // FR-0202: Wert nur mit Berechtigung und Sensor, sonst „nicht verfügbar“.
         pair(
-          (cadence, null),
+          (cadence, null, l10n.runCadence, null),
           tile(l10n.runCadence, 'run_cadence', cadence, cadenceUnit),
           null,
         ),
@@ -503,10 +524,11 @@ class _LiveCard extends StatelessWidget {
 }
 
 /// Ein oder zwei Kacheln in einer Reihe, je eine halbe Breite. Passt eine Zahl
-/// nicht hinein (sie bräche mitten in der Zahl, „14:5“ / „9“), stehen die
-/// Kacheln untereinander und haben die ganze Breite, wie das Raster der
-/// Zusammenfassung weniger Spalten nimmt. Die Einheit hinter der Zahl darf als
-/// Ganzes darunter stehen (Design), sie bricht nie im Wort.
+/// oder ein Wort der Beschriftung nicht hinein (sie bräche mitten im Wort,
+/// „14:5“ / „9“, „Bewegungszeit“ bei Faktor 1,3), stehen die Kacheln
+/// untereinander und haben die ganze Breite, wie das Raster der Zusammenfassung
+/// weniger Spalten nimmt. Die Einheit der Pace steht in der Beschriftung; die
+/// anderen bleiben bei der Zahl und schrumpfen nur, wenn beides nicht passt.
 class _TilePair extends StatelessWidget {
   const _TilePair({
     required this.words,
@@ -562,9 +584,12 @@ class _TilePair extends StatelessWidget {
 }
 
 class _LiveTile extends StatelessWidget {
-  const _LiveTile({required this.label, required this.child});
+  const _LiveTile({required this.label, required this.child, this.labelUnit});
 
   final String label;
+
+  /// Einheit hinter der Beschriftung („Ø Pace min/km“).
+  final String? labelUnit;
   final Widget child;
 
   @override
@@ -578,8 +603,8 @@ class _LiveTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
+              Text.rich(
+                labelWithUnit(label, labelUnit),
                 style: Theme.of(context).textTheme.labelMedium
                     ?.copyWith(color: c.textMuted),
               ),

@@ -22,6 +22,7 @@ class RamuriValueTile extends StatelessWidget {
     this.tone = RamuriCardTone.surface,
     this.valueKey,
     this.textValue = false,
+    this.labelUnit,
   });
 
   final String label;
@@ -37,6 +38,11 @@ class RamuriValueTile extends StatelessWidget {
   /// [value] ist ein Satz („nicht verfügbar (Grund)“), keine Zahl: gesetzt
   /// klein in der Schrift des Fließtexts, der Grund in einer eigenen Zeile.
   final bool textValue;
+
+  /// Einheit hinter der Beschriftung („Ø Pace min/km“); die Zahl steht dann
+  /// ohne Einheit. Für Werte, deren Zahl samt Einheit in der schmalen Kachel
+  /// nicht in eine Zeile passt (Pace, Puls, Punkte).
+  final String? labelUnit;
 
   /// Innenabstand der Kachel (links und rechts je einmal).
   static const double padding = 12;
@@ -54,6 +60,16 @@ class RamuriValueTile extends StatelessWidget {
     final reason = m.group(2) ?? m.group(3)!;
     return (m.group(1)!, m.group(2) != null ? '($reason)' : reason);
   }
+
+  /// Zahl samt Einheit bleibt in einer Zeile und schrumpft nur dann, wenn sie
+  /// breiter als die Kachel ist (`scaleDown`); sonst gilt die Schrift wie sie ist.
+  static Widget _fitUnit(bool fit, Widget value) => fit
+      ? FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: AlignmentDirectional.centerStart,
+          child: value,
+        )
+      : value;
 
   /// Das längste Wort des Grundes (für die Spaltenwahl im Raster).
   String? get longestReasonWord {
@@ -87,30 +103,36 @@ class RamuriValueTile extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: Theme.of(context).textTheme.labelSmall),
-                const SizedBox(height: 2),
                 Text.rich(
-                  key: valueKey,
-                  TextSpan(
-                    children: [
-                      if (textValue) ...[
-                        TextSpan(text: head, style: text.labelMedium),
-                        // Der Grund steht in einer eigenen Zeile.
-                        if (reason != null)
+                  labelWithUnit(label, labelUnit),
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+                const SizedBox(height: 2),
+                _fitUnit(
+                  unit != null,
+                  Text.rich(
+                    key: valueKey,
+                    TextSpan(
+                      children: [
+                        if (textValue) ...[
+                          TextSpan(text: head, style: text.labelMedium),
+                          // Der Grund steht in einer eigenen Zeile.
+                          if (reason != null)
+                            TextSpan(
+                              text: '\n$reason',
+                              style: reasonStyle(context),
+                            ),
+                        ] else
+                          TextSpan(text: value, style: valueStyle),
+                        if (unit != null)
                           TextSpan(
-                            text: '\n$reason',
-                            style: reasonStyle(context),
+                            text: ' $unit',
+                            // Der Wortverbinder gehört nicht in die Sprachausgabe.
+                            semanticsLabel: ' ${spokenUnit(unit!)}',
+                            style: type.unit,
                           ),
-                      ] else
-                        TextSpan(text: value, style: valueStyle),
-                      if (unit != null)
-                        TextSpan(
-                          text: ' $unit',
-                          // Der Wortverbinder gehört nicht in die Sprachausgabe.
-                          semanticsLabel: ' ${spokenUnit(unit!)}',
-                          style: type.unit,
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 if (estimated) ...[
@@ -179,8 +201,28 @@ class RamuriTileGrid extends StatelessWidget {
     final reasonStyle = RamuriValueTile.reasonStyle(context);
     final numberStyle = RamuriType.of(context).valueSmall;
     final scaler = MediaQuery.textScalerOf(context);
+    final labelStyle = Theme.of(context).textTheme.labelSmall;
+    double widthOf(String word, TextStyle? style) {
+      final painter = TextPainter(
+        text: TextSpan(text: word, style: style),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+      final width = painter.width;
+      painter.dispose();
+      return width;
+    }
+
     for (final child in children) {
       if (child is! RamuriValueTile) continue;
+      // Auch ein Wort der Beschriftung bricht nicht im Wort (die Einheit
+      // dahinter zählt als eigenes Wort).
+      for (final word in [
+        ...child.label.split(RegExp(r'\s+')),
+        ?child.labelUnit,
+      ]) {
+        if (widthOf(word, labelStyle) > inner) return false;
+      }
       // Auch eine Zahl bricht, wenn sie nicht passt („+120 / 0“): sie zählt
       // wie ein Wort. Nur die Zahl wird geprüft; die Einheit steht danach hinter
       // einem normalen Leerzeichen und darf umbrechen.

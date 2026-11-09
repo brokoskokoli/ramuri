@@ -375,8 +375,8 @@ void main() {
 
       expect(text('run_time'), '1:01');
       expect(text('run_distance'), matches(RegExp(r'^0,1\d km$')));
-      expect(text('run_pace'), matches(RegExp(r'^5:\d\d min/km$')));
-      expect(text('run_avg_pace'), matches(RegExp(r'^5:\d\d min/km$')));
+      expect(text('run_pace'), matches(RegExp(r'^5:\d\d$')));
+      expect(text('run_avg_pace'), matches(RegExp(r'^5:\d\d$')));
       expect(text('run_hr'), '150 bpm');
       expect(text('run_zone'), 'Zone 2');
       expect(text('run_sensor_status'), 'Sensor verbunden');
@@ -426,7 +426,7 @@ void main() {
       await walk(d, tester, 120);
       // 119 Schritte zu je rund 3,0 m: rund 357 m = 0.22 mi (0.36 km).
       expect(text('run_distance'), '0.22 mi');
-      expect(text('run_pace'), matches(RegExp(r'^\d+:\d\d min/mi$')));
+      expect(text('run_pace'), matches(RegExp(r'^\d+:\d\d$')));
     });
 
     testWidgets('Meilenmodus: Höhenmeter in Fuß', (tester) async {

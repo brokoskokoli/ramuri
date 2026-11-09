@@ -114,8 +114,8 @@ void main() {
       expectRequired();
       expect(text('run_time'), '1:01');
       expect(text('run_distance'), matches(RegExp(r'^0,1\d km$')));
-      expect(text('run_pace'), matches(RegExp(r'^5:\d\d min/km$')));
-      expect(text('run_avg_pace'), matches(RegExp(r'^5:\d\d min/km$')));
+      expect(text('run_pace'), matches(RegExp(r'^5:\d\d$')));
+      expect(text('run_avg_pace'), matches(RegExp(r'^5:\d\d$')));
       expect(text('run_moving_time'), '1:01');
       expect(text('run_hr'), '150 bpm');
       expect(text('run_zone'), 'Zone 2');

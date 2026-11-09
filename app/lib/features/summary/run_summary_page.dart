@@ -142,6 +142,7 @@ class RunSummaryPage extends StatelessWidget {
     String unavailable, {
     bool estimated = false,
     String prefix = '',
+    bool unitInLabel = false,
   }) {
     if (text == null) {
       return RamuriValueTile(
@@ -154,10 +155,15 @@ class RunSummaryPage extends StatelessWidget {
     final (value, found) = unit == null ? (text, null) : splitUnit(text, unit);
     // Null hat kein Vorzeichen: nicht „+0 m“ oder „−0 m“.
     final signed = prefix.isEmpty ? value : signedElevation(prefix, value);
+    // Pace, Puls und Punkte: die Einheit steht in der Beschriftung, die Zahl
+    // bleibt groß; Anstieg und Gefälle behalten sie und schrumpfen nur, wenn
+    // beides nicht in die Kachel passt. Fehlt der Wert, steht der Grund ohne
+    // Einheit (oben).
     return RamuriValueTile(
       label: label,
       value: signed,
-      unit: found == null ? null : unbreakableUnit(found),
+      labelUnit: unitInLabel ? found : null,
+      unit: found == null || unitInLabel ? null : unbreakableUnit(found),
       estimated: estimated,
       valueKey: Key(id),
     );
@@ -188,6 +194,7 @@ class RunSummaryPage extends StatelessWidget {
         pace == null ? null : formatter.pace(pace),
         formatter.paceLabel,
         na,
+        unitInLabel: true,
       ),
       _tile(
         'sum_best_pace',
@@ -195,6 +202,7 @@ class RunSummaryPage extends StatelessWidget {
         best == null ? null : formatter.pace(best),
         formatter.paceLabel,
         l10n.sumBestPaceNone,
+        unitInLabel: true,
       ),
       _tile(
         'run_ascent',
@@ -218,6 +226,7 @@ class RunSummaryPage extends StatelessWidget {
         avgHr == null ? null : l10n.runBpm(avgHr.round()),
         l10n.liveUnitBpm,
         l10n.sumNoHeartRate,
+        unitInLabel: true,
       ),
       _tile(
         'sum_max_hr',
@@ -225,6 +234,7 @@ class RunSummaryPage extends StatelessWidget {
         maxHr == null ? null : l10n.runBpm(maxHr),
         l10n.liveUnitBpm,
         l10n.sumNoHeartRate,
+        unitInLabel: true,
       ),
       if (trimp == null || f.trimpIncomplete)
         RamuriValueTile(
@@ -244,6 +254,7 @@ class RunSummaryPage extends StatelessWidget {
           l10n.summaryLoadUnit,
           na,
           estimated: true,
+          unitInLabel: true,
         ),
     ];
   }

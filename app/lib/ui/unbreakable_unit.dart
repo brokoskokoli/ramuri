@@ -1,3 +1,5 @@
+import 'package:flutter/painting.dart' show TextSpan;
+
 /// Wortverbinder (U+2060): Eine Einheit wie `min/km` bricht nicht am „/“ um.
 const String _joiner = '\u2060';
 
@@ -31,3 +33,17 @@ String unitTogether(String formatted, String unit) {
   return '${formatted.substring(0, formatted.length - suffix.length)}'
       '$unitSeparator${unbreakableUnit(unit)}';
 }
+
+/// Beschriftung einer Kachel; mit [unit] steht die Einheit hinter dem Namen
+/// („Ø Pace min/km“), die Zahl darunter bleibt groß und ohne Einheit. Die
+/// Einheit bricht nicht in sich um, die Sprachausgabe nennt sie genau einmal.
+TextSpan labelWithUnit(String label, String? unit) => TextSpan(
+  text: label,
+  children: [
+    if (unit != null)
+      TextSpan(
+        text: ' ${unbreakableUnit(unit)}',
+        semanticsLabel: ' ${spokenUnit(unit)}',
+      ),
+  ],
+);
