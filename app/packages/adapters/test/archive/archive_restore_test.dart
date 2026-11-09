@@ -291,7 +291,12 @@ void main() {
       expect(got.keys, sourceDump.keys);
       for (final t in sourceDump.keys) {
         expect(got[t], sourceDump[t], reason: t);
-        if (t != 'settings') expect(got[t], isNotEmpty, reason: t);
+        // Tabellen aus Schema 5 (WP18) sind noch nicht im Archiv (Format 2
+        // folgt in WP18 Auftrag 2) und in der Quelle leer.
+        const notArchivedYet = {'run_feedback', 'manual_trainings'};
+        if (t != 'settings' && !notArchivedYet.contains(t)) {
+          expect(got[t], isNotEmpty, reason: t);
+        }
       }
       // computed_values original + current, unbekannter Schlüssel, Abschnitte.
       final cv = got['computed_values']!;

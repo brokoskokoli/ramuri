@@ -43,6 +43,10 @@ class _Session implements StorageSession {
   @override
   ConsentStore get consents => _s.consents;
   @override
+  RunSubjectiveStore get subjective => _s.subjective;
+  @override
+  ManualTrainingStore get manualTrainings => _s.manualTrainings;
+  @override
   Future<void> deleteRun(int runId) => _s.deleteRun(runId);
   @override
   Future<void> deleteAll() => _s.deleteAll();

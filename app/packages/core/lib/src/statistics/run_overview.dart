@@ -10,6 +10,7 @@ import '../preprocessing/run_preprocessor.dart';
 import '../recalculation/run_analysis.dart';
 import '../recalculation/run_load_values.dart';
 import '../recalculation/value_calculation_service.dart' show dayOfRun;
+import '../subjective/subjective_service.dart' show refreshSrpe;
 import 'best_pace.dart';
 import 'offload.dart';
 import 'run_figures.dart';
@@ -246,6 +247,8 @@ class RunOverviewService {
     final stored = overviewOf(pre, computedAt: clock.now(), lapCount: lapCount);
     try {
       await session.preprocessing.replace(run.id, stored);
+      // Die Bewegungszeit kann sich geändert haben: sRPE des Laufs folgt.
+      await refreshSrpe(session, run.id);
     } on StorageException {
       // Nur das Merken scheitert; die Anzeige gilt.
     }

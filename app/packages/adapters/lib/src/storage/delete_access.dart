@@ -47,6 +47,11 @@ class DriftDeletion {
         '(day IS NOT NULL AND (day, value_key) IN ($dayPairs))',
         [runId, ...bounds],
       );
+      // Angaben zum Lauf samt sRPE-Wert ausdrücklich (WP18), die Kaskade ist
+      // der zweite Boden. Nachgetragene Trainings gehören keinem Lauf.
+      await (_db.delete(
+        _db.runFeedback,
+      )..where((t) => t.runId.equals(runId))).go();
       // Kaskade über die Fremdschlüssel (foreign_keys=ON je Verbindung).
       await (_db.delete(_db.runs)..where((t) => t.id.equals(runId))).go();
     });

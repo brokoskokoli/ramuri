@@ -82,6 +82,10 @@ class _WrapSession implements StorageSession {
   @override
   ConsentStore get consents => inner.consents;
   @override
+  RunSubjectiveStore get subjective => inner.subjective;
+  @override
+  ManualTrainingStore get manualTrainings => inner.manualTrainings;
+  @override
   Future<void> deleteRun(int runId) => inner.deleteRun(runId);
   @override
   Future<void> deleteAll() => inner.deleteAll();
