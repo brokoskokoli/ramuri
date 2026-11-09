@@ -16,7 +16,7 @@ void main() {
   });
 
   Future<void> setCoefficients(LoadCoefficients? c) =>
-      LoadSettings.saveCoefficients(w.session.settings, c, at: w.clock.now());
+      LoadSettings.writeCoefficients(w.session.settings, c, at: w.clock.now());
 
   Future<Map<int, ComputedValue>> trimps({bool original = false}) async => {
     for (final id in ids)
@@ -186,7 +186,7 @@ void main() {
 
     test('ohne Läufe mit Werten gilt die Wahl sofort', () async {
       final fresh = await RecalcWorld.create();
-      await LoadSettings.saveCoefficients(
+      await LoadSettings.writeCoefficients(
         fresh.session.settings,
         LoadCoefficients.male,
         at: fresh.clock.now(),
@@ -262,48 +262,158 @@ void main() {
       expect(v.method, isNot(EdwardsTrimp.methodId));
     });
 
-    test('Zurück bestätigt: Edwards für alle Läufe', () async {
-      await setCoefficients(null);
+    test('Angabe entfernen, bestätigt: Rückweg auf Edwards für alle Läufe, '
+        'Angabe weg', () async {
       final s = w.recalc();
-      final offer = await s.loadBasisChanged();
-      expect(offer!.loadProfile, LoadProfile.edwards);
+      final offer = await s.requestLoadCoefficients(null);
+      expect(offer!.causes, {
+        RecalculationCause.loadCoefficients,
+        RecalculationCause.loadProfile,
+      });
+      expect(offer.loadProfile, LoadProfile.edwards);
+      // Bis zur Bestätigung gilt die alte Angabe.
+      expect(await LoadSettings.coefficients(w.session.settings), isNotNull);
+      expect(await active(), LoadProfile.banister);
       await s.confirm(offer);
       expect(await active(), LoadProfile.edwards);
+      expect(await LoadSettings.coefficients(w.session.settings), isNull);
       expect(
         (await trimps()).values.every((v) => v.method == EdwardsTrimp.methodId),
         isTrue,
       );
+      expect(await s.pendingOffer(), isNull);
+      expect(
+        await LoadSettings.pendingCoefficients(w.session.settings),
+        isNull,
+      );
     });
 
-    test('Zurück abgelehnt: Banister bleibt gewählt, Wahl verfällt', () async {
-      await setCoefficients(null);
+    test('Angabe entfernen, abgelehnt: alte Angabe und Banister bleiben, '
+        'nichts geändert, keine Mischung', () async {
       final s = w.recalc();
-      final offer = await s.loadBasisChanged();
+      final offer = await s.requestLoadCoefficients(null);
       final before = await w.dump();
       await s.decline(offer!);
       expect(await active(), LoadProfile.banister);
       expect(await chosen(), isNull);
+      expect(
+        await LoadSettings.coefficients(w.session.settings),
+        LoadCoefficients.male,
+      );
+      expect(
+        await LoadSettings.pendingCoefficients(w.session.settings),
+        isNull,
+      );
       expect(await w.dump(), before);
       final id = await w.seedRun(DateTime.utc(2030, 3, 3, 8));
       await w.calc().calculateAfterRun(id);
       final v = (await w.session.values.read(ValueOwner.run(id)))
           .firstWhere((p) => p.original.key == trimpRunValueKey)
           .current;
-      expect(v.unavailableReason, UnavailableReason.missingLoadCoefficients);
+      expect(v.method, BanisterTrimp.methodIdMale);
+      expect(v.value, isNotNull);
+    });
+
+    test('andere Koeffizienten: gelten erst nach Bestätigung, neue Läufe '
+        'rechnen bis dahin mit der alten Angabe', () async {
+      final s = w.recalc();
+      final offer = await s.requestLoadCoefficients(LoadCoefficients.female);
+      expect(offer!.causes, {RecalculationCause.loadCoefficients});
+      expect(offer.runIds, unorderedEquals(ids));
+      expect(
+        await LoadSettings.coefficients(w.session.settings),
+        LoadCoefficients.male,
+      );
+      final id = await w.seedRun(DateTime.utc(2030, 3, 3, 8));
+      await w.calc().calculateAfterRun(id);
+      final v = (await w.session.values.read(ValueOwner.run(id)))
+          .firstWhere((p) => p.original.key == trimpRunValueKey)
+          .current;
+      expect(v.method, BanisterTrimp.methodIdMale);
+      // Der Neustart behält das Angebot, Bestätigen rechnet alle um.
+      final restarted = w.recalc();
+      final pending = await restarted.pendingOffer();
+      expect(pending!.causes, {RecalculationCause.loadCoefficients});
+      await restarted.confirm(pending);
+      expect(
+        await LoadSettings.coefficients(w.session.settings),
+        LoadCoefficients.female,
+      );
+      expect(await active(), LoadProfile.banister);
+      var seen = 0;
+      for (final r in await w.session.runs.list()) {
+        for (final p in await w.session.values.read(ValueOwner.run(r.id))) {
+          if (p.original.key != trimpRunValueKey) continue;
+          seen++;
+          expect(p.current.method, BanisterTrimp.methodIdFemale);
+        }
+      }
+      expect(seen, ids.length + 1);
+      expect(await restarted.pendingOffer(), isNull);
+      expect(
+        await LoadSettings.pendingCoefficients(w.session.settings),
+        isNull,
+      );
+    });
+
+    test('andere Koeffizienten abgelehnt: alte Angabe bleibt, alle Läufe '
+        'weiter männlich', () async {
+      final s = w.recalc();
+      final offer = await s.requestLoadCoefficients(LoadCoefficients.female);
+      await s.decline(offer!);
+      expect(
+        await LoadSettings.coefficients(w.session.settings),
+        LoadCoefficients.male,
+      );
+      expect(await s.pendingOffer(), isNull);
+      expect((await trimps()).values.map((v) => v.method).toSet(), {
+        BanisterTrimp.methodIdMale,
+      });
+      // Danach kein Versionsangebot: die Werte passen zur Angabe.
+      expect(await s.checkVersions(), isNull);
+    });
+
+    test('Rückkehr zur alten Angabe lässt die offene Änderung verfallen; '
+        'beim Entfernen auch den Rückweg', () async {
+      final s = w.recalc();
+      await s.requestLoadCoefficients(LoadCoefficients.female);
+      expect(await s.requestLoadCoefficients(LoadCoefficients.male), isNull);
+      expect(await s.pendingOffer(), isNull);
+      await s.requestLoadCoefficients(null);
+      expect(await s.requestLoadCoefficients(LoadCoefficients.male), isNull);
+      expect(await s.pendingOffer(), isNull);
+      expect(await chosen(), isNull);
+      expect(await active(), LoadProfile.banister);
+    });
+
+    test('Banister mit neuer Angabe nicht anwendbar: abgewiesen, nichts '
+        'geändert', () async {
+      // Ruhepuls weg: Banister ist ohnehin nicht mehr anwendbar.
+      await w.session.profile.save(const ProfileRecord(maxHeartRateBpm: 190));
+      final s = w.recalc();
+      final before = await w.dump();
+      await expectLater(
+        s.requestLoadCoefficients(LoadCoefficients.female),
+        throwsA(isA<LoadProfileNotApplicableException>()),
+      );
+      expect(await w.dump(), before);
     });
 
     test(
-      'andere Koeffizienten bei anwendbarem Banister: Versionsangebot',
+      'ohne aktives Banister gilt die Angabe sofort, ohne Angebot',
       () async {
-        await setCoefficients(LoadCoefficients.female);
-        final s = w.recalc();
-        final offer = await s.loadBasisChanged();
-        expect(offer!.causes, {RecalculationCause.algorithmVersion});
-        await s.confirm(offer);
-        expect((await trimps()).values.map((v) => v.method).toSet(), {
-          BanisterTrimp.methodIdFemale,
-        });
-        expect(await active(), LoadProfile.banister);
+        final fresh = await RecalcWorld.create();
+        await fresh.seedFourRunsCalculated();
+        final s = fresh.recalc();
+        expect(
+          await s.requestLoadCoefficients(LoadCoefficients.female),
+          isNull,
+        );
+        expect(
+          await LoadSettings.coefficients(fresh.session.settings),
+          LoadCoefficients.female,
+        );
+        expect(await s.pendingOffer(), isNull);
       },
     );
 
@@ -373,8 +483,7 @@ void main() {
       final s = w.recalc();
       await s.confirm((await s.requestLoadProfile(LoadProfile.banister))!);
       final only = await trimpOnlyRun();
-      await setCoefficients(null);
-      final offer = await s.loadBasisChanged();
+      final offer = await s.requestLoadCoefficients(null);
       expect(offer!.runIds, contains(only));
       await s.confirm(offer);
       await expectOneScale(EdwardsTrimp.methodId);

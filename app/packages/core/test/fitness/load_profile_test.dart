@@ -3,12 +3,14 @@ import 'package:test/test.dart';
 
 LoadProfileResolution res(
   LoadProfile profile, {
+  int? max = 190,
   int? rest,
   LoadCoefficients? c,
 }) => resolveLoadProfile(
   requested: profile,
-  basis: HeartRateBasis(maxBpm: 190, restingBpm: rest),
+  basis: HeartRateBasis(maxBpm: max, restingBpm: rest),
   coefficients: c,
+  fitness: const FitnessParameters.v4(),
 );
 
 void main() {
@@ -44,6 +46,26 @@ void main() {
       LoadProfileIssue.missingRestingHeartRate,
       LoadProfileIssue.missingCoefficients,
     ]);
+  });
+
+  test('Banister nur mit berechenbarem r (PAR-018, PAR-019)', () {
+    const c = LoadCoefficients.male;
+    // HFR 190 - 145 = 45 < 50 (PAR-019).
+    var r = res(LoadProfile.banister, rest: 145, c: c);
+    expect(r.applicable, isFalse);
+    expect(r.model, isNull);
+    expect(r.issues, [LoadProfileIssue.heartRateReserveUnusable]);
+    // HFmax nicht über dem Ruhepuls (PAR-018).
+    r = res(LoadProfile.banister, max: 60, rest: 70, c: c);
+    expect(r.issues, [LoadProfileIssue.heartRateReserveUnusable]);
+    // HFmax fehlt.
+    r = res(LoadProfile.banister, max: null, rest: 50, c: c);
+    expect(r.issues, [LoadProfileIssue.heartRateReserveUnusable]);
+    // Genau an der Grenze: HFR 50 ist brauchbar.
+    r = res(LoadProfile.banister, rest: 140, c: c);
+    expect(r.applicable, isTrue);
+    // Edwards bleibt davon unberührt.
+    expect(res(LoadProfile.edwards, rest: 145).applicable, isTrue);
   });
 
   test('Speicherwert: unbekannt -> Edwards', () {

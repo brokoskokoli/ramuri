@@ -29,6 +29,7 @@ void main() {
   ComputedValue trimpValue(
     double? value, {
     String method = 'edwards-trimp',
+    int version = 1,
     UnavailableReason? reason,
   }) => ComputedValue(
     key: trimpRunValueKey,
@@ -41,7 +42,7 @@ void main() {
     measurementCount: 1,
     sources: const [],
     method: method,
-    methodVersion: 1,
+    methodVersion: version,
     parameterVersion: 1,
     quality: value == null ? ValueQuality.undeterminable : ValueQuality.good,
   );
@@ -228,6 +229,104 @@ void main() {
     });
   });
 
+  group('Eine Skala (FR-0097): nur Methode und Version des aktiven Modells '
+      'zählen als bewertet', () {
+    setUp(() async {
+      await LoadSettings.writeCoefficients(
+        w.session.settings,
+        LoadCoefficients.male,
+        at: recalcNow,
+      );
+      await LoadSettings.writeActiveProfile(
+        w.session.settings,
+        LoadProfile.banister,
+        at: recalcNow,
+      );
+    });
+
+    test('Banister männlich aktiv: weiblicher TRIMP unbewertet, männlicher '
+        'bewertet', () async {
+      await addRun(
+        ago(3).add(const Duration(hours: 9)),
+        trimp: trimpValue(70, method: BanisterTrimp.methodIdMale),
+      );
+      await addRun(
+        ago(2).add(const Duration(hours: 9)),
+        trimp: trimpValue(90, method: BanisterTrimp.methodIdFemale),
+        rpe: 6,
+      );
+      final r = await service.load();
+      expect(r.profileApplicable, isTrue);
+      expect(dayOf(r, ago(3)).load, 70);
+      final mixed = dayOf(r, ago(2));
+      expect(mixed.load, isNull);
+      expect(mixed.flags, contains(LoadDayFlag.unrated));
+      expect(r.series.summary.unratedUnits, 1);
+    });
+
+    test('gleiche Methode, andere Version: unbewertet', () async {
+      await addRun(
+        ago(2).add(const Duration(hours: 9)),
+        trimp: trimpValue(90, method: BanisterTrimp.methodIdMale, version: 2),
+      );
+      final r = await service.load();
+      expect(dayOf(r, ago(2)).load, isNull);
+      expect(dayOf(r, ago(2)).flags, contains(LoadDayFlag.unrated));
+      expect(r.series.summary.unratedUnits, 1);
+    });
+
+    test('Lücke zwischen Tausch und Schreiben der Einstellung: die getauschten '
+        'Läufe zählen nicht in der alten Skala (Bestätigen scheitert nach dem '
+        'Tausch)', () async {
+      final w2 = await RecalcWorld.create();
+      await w2.seedFourRunsCalculated();
+      await LoadSettings.writeCoefficients(
+        w2.session.settings,
+        LoadCoefficients.male,
+        at: recalcNow,
+      );
+      final r2 = w2.recalc();
+      await r2.confirm((await r2.requestLoadProfile(LoadProfile.banister))!);
+      final svc = TrainingLoadService(
+        session: w2.session,
+        clock: w2.clock,
+        calculation: w2.calc(),
+        recalculation: r2,
+      );
+      final ok = await svc.load();
+      expect(ok.series.summary.unratedUnits, 0);
+      expect(ok.series.summary.lastUnitDay, isNotNull);
+
+      final offer = (await r2.requestLoadCoefficients(
+        LoadCoefficients.female,
+      ))!;
+      final values = SwapSignalValues(w2.session.values);
+      final faulty = SettingsFailingSession(
+        w2.session,
+        rawData: w2.session.rawData,
+        values: values,
+        failSettingsWhen: () => values.swapped,
+      );
+      final result = await w2.recalc(over: faulty).confirm(offer);
+      expect(values.swapped, isTrue);
+      expect(result.offerCleared, isFalse);
+      // Werte weiblich, Einstellung noch männlich: keine Mischung, sondern
+      // alle vier Läufe unbewertet.
+      expect(
+        await LoadSettings.coefficients(w2.session.settings),
+        LoadCoefficients.male,
+      );
+      final gap = await svc.load();
+      expect(gap.series.summary.unratedUnits, 4);
+      expect(gap.series.days.every((d) => d.load == null), isTrue);
+      // Erneutes Bestätigen heilt den Zustand.
+      final again = w2.recalc();
+      await again.confirm((await again.pendingOffer())!);
+      final healed = await svc.load();
+      expect(healed.series.summary.unratedUnits, 0);
+    });
+  });
+
   group('Lokaltag', () {
     test('Der Tag eines Laufs ist der lokale Tag des Laufendes', () async {
       // 23:30 UTC am 20.2. mit +2 h = 1:30 am 21.2.
@@ -386,7 +485,8 @@ void main() {
     });
 
     test(
-      'Fällt der berechnete Faktor weg, wird das Angebot zurückgenommen',
+      'Fällt der berechnete Faktor weg, wird das Angebot zurückgenommen; der '
+      'angewandte Faktor bleibt gekennzeichnet',
       () async {
         await seedFactorRuns(2.0);
         await service.load();
@@ -397,11 +497,74 @@ void main() {
           await w.session.subjective.save(run.id, RunSubjective());
         }
         final r = await service.load();
-        expect(r.factor.value, isNull);
+        expect(r.factor.value, closeTo(2.0, 1e-9));
+        expect(r.factor.unsupported, isTrue);
+        expect(r.factor.unavailable, FactorUnavailableReason.tooFewRuns);
+        expect(r.factor.offered, isNull);
         expect(await recalc.pendingOffer(), isNull);
-        expect(await stored(), isNull);
+        expect((await stored())!.value, closeTo(2.0, 1e-9));
       },
     );
+
+    test('Einmal angewandt, später unter der Mindestanzahl (180-Tage-Fenster): '
+        'Faktor bleibt, umgerechnete Tage werden nicht unbewertet', () async {
+      await seedFactorRuns(2.0);
+      // Lauf ohne Puls mit RPE, lange vor dem Fenster-Ende.
+      await addRun(
+        ago(1).add(const Duration(hours: 9)),
+        trimp: trimpValue(null),
+        rpe: 6,
+      );
+      final first = await service.load();
+      expect(first.factor.value, closeTo(2.0, 1e-9));
+      expect(first.factor.unsupported, isFalse);
+      final day = dayOf(first, ago(1));
+      expect(day.load, closeTo(30 * 6 * 2.0, 1e-9));
+
+      // 200 Tage später liegen alle Faktor-Läufe außerhalb der 180 Tage.
+      w.clock.set(recalcNow.add(const Duration(days: 200)));
+      final later = await service.load();
+      expect(later.factor.unavailable, FactorUnavailableReason.tooFewRuns);
+      expect(later.factor.unsupported, isTrue);
+      expect(later.factor.value, closeTo(2.0, 1e-9));
+      expect(later.factor.adoptedDay, today);
+      expect((await stored())!.value, closeTo(2.0, 1e-9));
+      final kept = dayOf(later, ago(1));
+      expect(kept.load, closeTo(30 * 6 * 2.0, 1e-9));
+      expect(kept.flags, contains(LoadDayFlag.converted));
+      expect(kept.flags, isNot(contains(LoadDayFlag.unrated)));
+    });
+
+    group('Vorwert der letzten 6 Monate (PAR-087)', () {
+      Future<TrainingLoadReport> afterDays(int days) async {
+        await seedFactorRuns(2.0);
+        await service.load(); // Faktor 2,0 am Tag `today`
+        w.clock.set(recalcNow.add(Duration(days: days)));
+        // Neue Läufe ab Tag +days-14, Verhältnis 3,0 (+50 %); die alten
+        // liegen außerhalb des 180-Tage-Fensters.
+        await seedFactorRuns(3.0, firstAgo: -(days - 14));
+        return service.load();
+      }
+
+      test(
+        'Vorwert 183 Tage alt: Abweichung über 25 % wird angeboten',
+        () async {
+          final r = await afterDays(183);
+          expect(r.factor.value, closeTo(2.0, 1e-9));
+          expect(r.factor.offered!.value, closeTo(3.0, 1e-9));
+          expect(await recalc.pendingOffer(), isNotNull);
+        },
+      );
+
+      test('Vorwert 184 Tage alt: kein Vorwert, neuer Faktor still '
+          'übernommen', () async {
+        final r = await afterDays(184);
+        expect(r.factor.value, closeTo(3.0, 1e-9));
+        expect(r.factor.offered, isNull);
+        expect(await recalc.pendingOffer(), isNull);
+        expect((await stored())!.value, closeTo(3.0, 1e-9));
+      });
+    });
   });
 
   group('Profilwechsel', () {
@@ -423,7 +586,7 @@ void main() {
           await refreshSrpe(w.session, id);
         }
         w.clock.set(recalcNow);
-        await LoadSettings.saveCoefficients(
+        await LoadSettings.writeCoefficients(
           w.session.settings,
           LoadCoefficients.male,
           at: recalcNow,

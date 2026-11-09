@@ -77,6 +77,22 @@ void main() {
     expect(v.points, closeTo(0.36 * math.exp(1.08) * 25, 1e-6));
   });
 
+  test('Festlegung WP19: Puls unter Ruhepuls trägt 0 bei, nicht negativ', () {
+    // r = (30 - 40) / 160 < 0: ohne die Festlegung wäre das Gewicht negativ.
+    expect(male.weightPerMinute(-0.0625), 0);
+    expect(female.weightPerMinute(-1), 0);
+    expect(points(run(male, bpm: 30)), 0);
+    expect(points(run(male, bpm: 30)), isNot(isNegative));
+    // Ruhepuls selbst: r = 0, ebenfalls 0.
+    expect(points(run(male, bpm: 40)), 0);
+  });
+
+  test('Festlegung WP19: r wird nach oben nicht geklemmt', () {
+    final w = male.weightPerMinute(1.0625);
+    expect(w, closeTo(0.64 * 1.0625 * math.exp(1.92 * 1.0625), 1e-12));
+    expect(w, greaterThan(male.weightPerMinute(1)));
+  });
+
   test('Registry führt beide Varianten', () {
     final ms = AlgorithmRegistry.standard()
         .variants(loadModelFamily)

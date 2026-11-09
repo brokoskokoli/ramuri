@@ -101,5 +101,6 @@ class RecalculationCard extends StatelessWidget {
     RecalculationCause.algorithmVersion => l10n.recalcCauseAlgorithm,
     RecalculationCause.loadProfile => l10n.recalcCauseLoadProfile,
     RecalculationCause.personalFactor => l10n.recalcCauseLoadFactor,
+    RecalculationCause.loadCoefficients => l10n.recalcCauseLoadCoefficients,
   };
 }

@@ -44,6 +44,11 @@ class LoadFactorState {
   /// Ein neuer Faktor wartet auf die Bestätigung (Neuberechnung angeboten).
   final LoadFactorRecord? offered;
 
+  /// Der angewandte Faktor gilt weiter, obwohl die Mindestanzahl PAR-086 im
+  /// 180-Tage-Fenster aktuell nicht erfüllt ist (Festlegung WP19: einmal
+  /// angewandt, bleibt er; „Vorher“ in PAR-086 heißt vor dem ersten Erreichen).
+  bool get unsupported => value != null && unavailable != null;
+
   /// PAR-087: Faktor da, aber unter 20 Läufen „noch wenig gesichert“.
   bool get tentative =>
       value != null && runCount < personalLoadFactorParameters.securedRuns;
@@ -124,7 +129,6 @@ class TrainingLoadService {
     final profile = await LoadSettings.activeProfile(settings);
     final resolution = await _calc.loadResolution(await _calc.profileBasis());
     final model = resolution.model;
-    final method = model?.method;
     final allRecorded = await LoadSettings.allRecorded(settings);
 
     final runs = [
@@ -147,7 +151,9 @@ class TrainingLoadService {
       } else if (trimp.value == null) {
         // Kein gültiger Puls (oder Profil nicht anwendbar): sRPE.
         units.add(LoadUnit.run(day: day, srpePoints: srpe?.points));
-      } else if (method != null && trimp.method == method) {
+      } else if (model != null &&
+          trimp.method == model.method &&
+          trimp.methodVersion == model.methodVersion) {
         units.add(LoadUnit.run(day: day, trimp: trimp.value));
         if (srpe != null && rpe != null) {
           factorRuns.add(
@@ -204,6 +210,9 @@ class TrainingLoadService {
     );
   }
 
+  static int? _ageDays(DateTime today, DateTime? day) =>
+      day == null ? null : today.difference(day).inDays;
+
   static bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
@@ -243,18 +252,19 @@ class TrainingLoadService {
     final eligible = fresh.runCount;
 
     if (!fresh.available) {
-      // PAR-086: ohne die Voraussetzungen kein Faktor.
-      if (stored != null) {
-        await LoadSettings.writeFactor(settings, null, at: now);
-      }
+      // PAR-086 („Vorher“ = vor dem ersten Erreichen der Mindestanzahl): ein
+      // einmal angewandter Faktor bleibt, auch wenn das 180-Tage-Fenster die
+      // Mindestanzahl später nicht mehr hält (Festlegung WP19). Kein
+      // rückwirkendes Unbewertet-Werden; der Zustand trägt den Grund
+      // ([LoadFactorState.unsupported]) und bleibt gekennzeichnet.
       if (pending != null) await _recalc.withdrawPersonalFactor();
       return LoadFactorState(
         profile: profile,
-        value: null,
-        runCount: 0,
+        value: storedHere?.value,
+        runCount: storedHere?.runs ?? 0,
         eligibleRuns: eligible,
         unavailable: fresh.unavailable,
-        adoptedDay: null,
+        adoptedDay: storedHere?.day,
         offered: null,
       );
     }
@@ -267,6 +277,7 @@ class TrainingLoadService {
     );
     final decision = decideFactorAdoption(
       stored: storedHere?.value,
+      storedAgeDays: _ageDays(today, storedHere?.day),
       fresh: candidate.value,
     );
     if (decision == FactorDecision.adopt) {
@@ -294,7 +305,11 @@ class TrainingLoadService {
     final suppressed =
         declined != null &&
         declined.profile == profile &&
-        decideFactorAdoption(stored: declined.value, fresh: candidate.value) ==
+        decideFactorAdoption(
+              stored: declined.value,
+              storedAgeDays: _ageDays(today, declined.day),
+              fresh: candidate.value,
+            ) ==
             FactorDecision.adopt;
     LoadFactorRecord? offered;
     if (!suppressed) {

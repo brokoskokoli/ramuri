@@ -16,7 +16,7 @@ import 'load_view_state.dart';
 /// früheren Stand: kein stilles Stehenlassen), nie den Inhalt des Fehlers
 /// (Gesundheitsdaten).
 class LoadController extends ChangeNotifier {
-  LoadController({required this.service, this.changes}) {
+  LoadController({required this.service, this.changes, this.serialize}) {
     changes?.addListener(reload);
     unawaited(reload());
   }
@@ -25,6 +25,14 @@ class LoadController extends ChangeNotifier {
 
   /// Meldet Änderungen der gespeicherten Daten (`DataChanges`).
   final Listenable? changes;
+
+  /// Reiht das Laden in die Schlange der Neuberechnung ein, denn
+  /// [TrainingLoadService.load] schreibt Einstellungen (Faktor, Angebot) und
+  /// darf nicht parallel zu Bestätigen und Ablehnen laufen. In der App
+  /// `RecalculationController.serialized` (nicht `exclusive`: dessen
+  /// Datenänderungs-Meldung löste das Neuladen immer wieder aus). `null` =
+  /// sofort.
+  final Future<T> Function<T>(Future<T> Function() action)? serialize;
 
   LoadViewState _state = const LoadViewState.loading();
   bool _running = false;
@@ -46,7 +54,10 @@ class LoadController extends ChangeNotifier {
         _again = false;
         LoadViewState next;
         try {
-          next = LoadViewState.ready(await service.load());
+          final s = serialize;
+          next = LoadViewState.ready(
+            s == null ? await service.load() : await s(service.load),
+          );
         } on Object {
           next = const LoadViewState.failed();
         }

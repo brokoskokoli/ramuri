@@ -197,6 +197,22 @@ void main() {
       expect(r.days.last.atl, base.days.last.atl);
       expect(r.days.last.ctl, base.days.last.ctl);
       expect(r.summary.lastUnitDay, _d(0));
+      // Nicht nur über den Index (RangeError), sondern an den Werten: keine
+      // Einheit der Zukunft taucht in Zählern, Lasten oder Kennzeichen auf.
+      expect(r.summary.unratedUnits, 0);
+      expect(r.summary.convertedUnits, 0);
+      expect(r.summary.unratedUnits, base.summary.unratedUnits);
+      expect(r.summary.convertedUnits, base.summary.convertedUnits);
+      expect(
+        [for (final d in r.days) d.load],
+        [for (final d in base.days) d.load],
+      );
+      expect(
+        [for (final d in r.days) d.flags],
+        [for (final d in base.days) d.flags],
+      );
+      expect(r.days.map((d) => d.day), isNot(contains(_d(4))));
+      expect(r.days.map((d) => d.day), isNot(contains(_d(5))));
       // nur Zukunft: keine Aussage
       final only = _calc(
         [LoadUnit.manual(day: _d(4), srpePoints: 9)],

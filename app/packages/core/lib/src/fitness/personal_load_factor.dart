@@ -27,6 +27,11 @@ class PersonalLoadFactorParameters {
 
   /// PAR-087: Abweichung über 25 % -> Neuberechnung anbieten.
   final double adoptTolerance = 0.25;
+
+  /// PAR-087 „Vorwert der letzten 6 Monate“: nur ein gespeicherter Faktor, der
+  /// höchstens so viele Tage alt ist, gilt als Vorwert. Festlegung WP19,
+  /// Spec nennt keine Tageszahl: 6 Monate als 183 Tage (365 / 2, aufgerundet).
+  final int priorValueDays = 183;
 }
 
 const personalLoadFactorParameters = PersonalLoadFactorParameters();
@@ -129,13 +134,21 @@ enum FactorDecision {
 
 /// Übernahmeregel (PAR-087, FR-0199): neuer Faktor innerhalb ±25 % des
 /// gespeicherten (Grenze inklusive) wird übernommen, sonst Angebot. Ohne
-/// gespeicherten (oder mit nicht positivem) Faktor wird übernommen.
+/// gespeicherten (oder mit nicht positivem) Faktor wird übernommen. Ist der
+/// gespeicherte älter als [PersonalLoadFactorParameters.priorValueDays]
+/// ([storedAgeDays], Tage seit der Übernahme), ist er kein Vorwert der letzten
+/// 6 Monate (PAR-087): der neue wird still übernommen. Ohne [storedAgeDays]
+/// gilt das Alter nicht.
 FactorDecision decideFactorAdoption({
   required double? stored,
   required double fresh,
+  int? storedAgeDays,
   PersonalLoadFactorParameters p = personalLoadFactorParameters,
 }) {
   if (stored == null || !stored.isFinite || stored <= 0) {
+    return FactorDecision.adopt;
+  }
+  if (storedAgeDays != null && storedAgeDays > p.priorValueDays) {
     return FactorDecision.adopt;
   }
   final deviation = (fresh - stored).abs() / stored;

@@ -125,6 +125,7 @@
   "recalcCauseAlgorithm": "The app's calculation method has been updated.",
   "recalcCauseLoadProfile": "The load profile is to be changed. The training load of your runs is then recalculated on one scale.",
   "recalcCauseLoadFactor": "Your personal factor for converting perceived effort into training load has changed noticeably. If you confirm, the new factor applies and the load of converted days is recalculated.",
+  "recalcCauseLoadCoefficients": "The coefficient setting for the training load calculation is to be changed. If you confirm, the new setting applies and the training load of your runs is recalculated on one scale. Without confirmation the old setting stays.",
   "recalcKeepsOriginal": "The original values and the raw data are kept. Nothing changes unless you recalculate.",
   "recalcConfirm": "Recalculate",
   "recalcRetry": "Try again",

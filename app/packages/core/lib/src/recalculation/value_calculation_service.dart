@@ -108,14 +108,20 @@ class ValueCalculationService {
   );
 
   /// Aufgelöstes Belastungsprofil (FR-0197): [profile] oder das gespeicherte
-  /// aktive; Banister nur anwendbar mit Ruhepuls und Koeffizienten.
+  /// aktive; Banister nur anwendbar mit Ruhepuls, Koeffizienten und
+  /// berechenbarem `r`. [coefficients] ersetzt die gespeicherte Angabe (die
+  /// Änderung, die ein Angebot erst nach der Bestätigung gültig macht).
   Future<LoadProfileResolution> loadResolution(
     HeartRateBasis basis, {
     LoadProfile? profile,
+    CoefficientChange? coefficients,
   }) async => resolveLoadProfile(
     requested: profile ?? await LoadSettings.activeProfile(session.settings),
     basis: basis,
-    coefficients: await LoadSettings.coefficients(session.settings),
+    coefficients: coefficients != null
+        ? coefficients.value
+        : await LoadSettings.coefficients(session.settings),
+    fitness: fitness,
   );
 
   /// Basis des gespeicherten Profils für die Auflösung des Belastungsprofils.
@@ -368,11 +374,21 @@ class ValueCalculationService {
   /// (Wechsel nach Bestätigung, OQ-0053); ohne Angabe das aktive. Ist das
   /// Profil nicht anwendbar, bleiben die gespeicherten TRIMP-Werte
   /// unverändert (kein stiller Wechsel, nichts Unbrauchbares schreiben).
-  Future<ValueSnapshot> buildSnapshot({LoadProfile? loadProfile}) async {
+  ///
+  /// [coefficients]: die Koeffizienten-Angabe, mit der gerechnet wird (Änderung
+  /// nach Bestätigung); ohne Angabe die gespeicherte.
+  Future<ValueSnapshot> buildSnapshot({
+    LoadProfile? loadProfile,
+    CoefficientChange? coefficients,
+  }) async {
     final now = clock.now();
     final runs = await _finishedRuns();
     final profile = await _profileBasis();
-    final resolution = await loadResolution(profile, profile: loadProfile);
+    final resolution = await loadResolution(
+      profile,
+      profile: loadProfile,
+      coefficients: coefficients,
+    );
     final analyzer = _analyzer(profile);
     final cache = <int, RunAnalysis>{};
     Future<RunAnalysis> analysisOf(StoredRun r, HeartRateBasis _) async =>

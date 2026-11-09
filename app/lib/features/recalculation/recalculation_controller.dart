@@ -85,13 +85,20 @@ class RecalculationController extends ChangeNotifier {
   /// vorher eingereihten Aktionen fertig sind, und nie parallel zu ihnen. Wer
   /// Werte schreibt (Berechnung nach dem Lauf, [confirm]), geht hier durch.
   /// Ein Fehler der Aktion geht an den Aufrufer, die Reihe läuft weiter.
-  Future<T> exclusive<T>(Future<T> Function() action) {
+  Future<T> exclusive<T>(Future<T> Function() action) =>
+      serialized(action).whenComplete(_dataChanged);
+
+  /// Wie [exclusive], aber ohne [onDataChanged] danach. Für Aktionen, die nur
+  /// lesen oder Merker schreiben (Ablehnen, Laden des Belastungsstands): würde
+  /// ihr Ende `onDataChanged` melden, lüde die Oberfläche neu und riefe sie
+  /// wieder auf, ohne Ende.
+  Future<T> serialized<T>(Future<T> Function() action) {
     final result = _queue.then((_) async {
       await _starting;
       return action();
     });
     _queue = result.then((_) {}, onError: (Object _) {});
-    return result.whenComplete(_dataChanged);
+    return result;
   }
 
   /// Nach dem Speichern des Profils. Fehler hier verhindern nichts am
@@ -139,7 +146,9 @@ class RecalculationController extends ChangeNotifier {
     final offer = _offer;
     if (offer == null || busy) return;
     try {
-      await service.decline(offer);
+      // Nicht parallel zu einer Bestätigung, zum Nachholen und zum Laden des
+      // Belastungsstands: alle schreiben Einstellungen.
+      await serialized(() => service.decline(offer));
       _offer = null;
       _phase = RecalculationPhase.idle;
     } on Object {

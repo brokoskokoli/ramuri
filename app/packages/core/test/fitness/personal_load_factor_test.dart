@@ -153,4 +153,41 @@ void main() {
       );
     });
   });
+
+  group(
+    'Vorwert der letzten 6 Monate (PAR-087, Festlegung WP19: 183 Tage)',
+    () {
+      test(
+        'gespeicherter Faktor bis 183 Tage alt: Vergleich, Angebot über 25 %',
+        () {
+          expect(
+            decideFactorAdoption(stored: 1, fresh: 2, storedAgeDays: 0),
+            FactorDecision.offerRecalculation,
+          );
+          expect(
+            decideFactorAdoption(stored: 1, fresh: 2, storedAgeDays: 183),
+            FactorDecision.offerRecalculation,
+          );
+        },
+      );
+
+      test(
+        'älter als 183 Tage: kein Vorwert, neuer Faktor still übernommen',
+        () {
+          expect(
+            decideFactorAdoption(stored: 1, fresh: 2, storedAgeDays: 184),
+            FactorDecision.adopt,
+          );
+          expect(personalLoadFactorParameters.priorValueDays, 183);
+        },
+      );
+
+      test('ohne Altersangabe gilt das Alter nicht', () {
+        expect(
+          decideFactorAdoption(stored: 1, fresh: 2),
+          FactorDecision.offerRecalculation,
+        );
+      });
+    },
+  );
 }

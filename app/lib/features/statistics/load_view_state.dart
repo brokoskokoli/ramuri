@@ -15,6 +15,11 @@ enum LoadFactorStatus {
   /// Faktor aus 20 Läufen.
   secured,
 
+  /// Ein einmal angewandter Faktor gilt weiter, obwohl die Mindestanzahl
+  /// PAR-086 im 180-Tage-Fenster aktuell nicht erfüllt ist; bleibt
+  /// gekennzeichnet (Festlegung WP19).
+  unsupported,
+
   /// Das Profil ist nicht anwendbar (Ruhepuls oder Koeffizienten fehlen);
   /// es gibt weder TRIMP noch Faktor.
   profileNotApplicable,
@@ -81,6 +86,7 @@ class LoadViewState {
     if (r == null) return LoadFactorStatus.missing;
     if (!r.profileApplicable) return LoadFactorStatus.profileNotApplicable;
     if (r.factor.value == null) return LoadFactorStatus.missing;
+    if (r.factor.unsupported) return LoadFactorStatus.unsupported;
     return r.factor.tentative
         ? LoadFactorStatus.tentative
         : LoadFactorStatus.secured;

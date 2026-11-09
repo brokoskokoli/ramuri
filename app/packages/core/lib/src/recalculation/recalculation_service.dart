@@ -5,6 +5,7 @@ import '../../ports/storage.dart';
 import '../../ports/storage_profile.dart';
 import '../../ports/storage_runs.dart';
 import '../../ports/storage_values.dart';
+import '../fitness/banister_trimp.dart';
 import '../fitness/edwards_trimp.dart';
 import '../fitness/load_profile.dart';
 import '../fitness/vo2max_estimator.dart';
@@ -34,6 +35,12 @@ enum RecalculationCause {
   /// gilt erst nach Bestätigung. Ablehnen lässt den alten Faktor. Ändert keine
   /// gespeicherten Werte (der Faktor geht erst in den Belastungsverlauf ein).
   personalFactor,
+
+  /// Änderung der Koeffizienten-Angabe bei aktivem Banister (FR-0002,
+  /// FR-0197): die neue Angabe gilt erst nach Bestätigung, wie der
+  /// Profilwechsel. Bis dahin rechnen neue Läufe mit der alten Angabe, der
+  /// Verlauf bleibt auf einer Skala; Ablehnen lässt die alte Angabe.
+  loadCoefficients,
 }
 
 /// Das gewählte Belastungsprofil ist nicht anwendbar (Ruhepuls oder
@@ -213,16 +220,96 @@ class RecalculationService {
     return offer;
   }
 
-  /// Nach einer Änderung der Koeffizienten-Angabe oder des Ruhepulses
-  /// aufrufen. Ist Banister aktiv und nicht mehr anwendbar, gibt es keinen
-  /// stillen Wechsel der Skala: Die App bietet den Rückweg auf Edwards an
-  /// (Ursache [RecalculationCause.loadProfile]); lehnt der Nutzer ab, bleibt
-  /// Banister gewählt und der TRIMP neuer Läufe steht als nicht verfügbar,
-  /// gespeicherte Werte bleiben. Ist Banister weiter anwendbar, aber mit
-  /// anderen Konstanten gerechnet (andere Koeffizienten), erkennt
-  /// [checkVersions] die Abweichung.
+  /// Nach einer Änderung des Ruhepulses aufrufen (die Koeffizienten-Angabe
+  /// ändert [requestLoadCoefficients]). Ist Banister aktiv und nicht mehr
+  /// anwendbar, gibt es keinen stillen Wechsel der Skala: Die App bietet den
+  /// Rückweg auf Edwards an (Ursache [RecalculationCause.loadProfile]); lehnt
+  /// der Nutzer ab, bleibt Banister gewählt und der TRIMP neuer Läufe steht
+  /// als nicht verfügbar, gespeicherte Werte bleiben. Ist Banister weiter
+  /// anwendbar, aber mit anderen Konstanten gerechnet, erkennt [checkVersions]
+  /// die Abweichung.
   Future<RecalculationOffer?> loadBasisChanged() async =>
       await _offerLoadRevert() ?? await checkVersions();
+
+  /// Ändert die Koeffizienten-Angabe auf [value] (`null` entfernt sie). Ist
+  /// Banister aktiv, gilt die neue Angabe erst nach [confirm] (wie der
+  /// Profilwechsel); bis dahin rechnet alles mit der alten und Ablehnen lässt
+  /// sie bestehen. Das Entfernen bietet zugleich den Rückweg auf Edwards an
+  /// (Ursache [RecalculationCause.loadProfile]). Ohne aktives Banister, bei
+  /// unveränderter Angabe oder ohne Läufe mit Werten gilt die Angabe sofort
+  /// und es gibt kein Angebot. Ist Banister mit der neuen Angabe nicht
+  /// anwendbar, [LoadProfileNotApplicableException] und nichts geändert.
+  Future<RecalculationOffer?> requestLoadCoefficients(
+    LoadCoefficients? value,
+  ) async {
+    final store = session.settings;
+    final current = await LoadSettings.coefficients(store);
+    final active = await LoadSettings.activeProfile(store);
+    if (value == current || active != LoadProfile.banister) {
+      await _dropCoefficientChange();
+      if (value != current) {
+        await LoadSettings.writeCoefficients(store, value, at: clock.now());
+      }
+      return null;
+    }
+    final change = CoefficientChange(value);
+    if (value != null) {
+      final resolution = await _calc.loadResolution(
+        await _calc.profileBasis(),
+        coefficients: change,
+      );
+      if (!resolution.applicable) {
+        throw LoadProfileNotApplicableException(active, resolution.issues);
+      }
+    }
+    await LoadSettings.writePendingCoefficients(store, change, at: clock.now());
+    if (value == null) {
+      await LoadSettings.writePendingProfile(
+        store,
+        LoadProfile.edwards,
+        at: clock.now(),
+      );
+    }
+    final offer = await _offerCauses({
+      RecalculationCause.loadCoefficients,
+      if (value == null) RecalculationCause.loadProfile,
+    });
+    if (offer == null) {
+      // Nichts umzurechnen: sofort wechseln.
+      if (value == null) {
+        await LoadSettings.writeActiveProfile(
+          store,
+          LoadProfile.edwards,
+          at: clock.now(),
+        );
+        await _dropLoadChoice();
+      }
+      await LoadSettings.writeCoefficients(store, value, at: clock.now());
+      await _dropCoefficientChange();
+    }
+    return offer;
+  }
+
+  /// Entfernt eine offene Änderung der Koeffizienten-Angabe samt Ursache. War
+  /// es das Entfernen, fällt auch der dazu angebotene Rückweg auf Edwards weg.
+  Future<void> _dropCoefficientChange() async {
+    final pending = await LoadSettings.pendingCoefficients(session.settings);
+    if (pending == null) return;
+    await LoadSettings.writePendingCoefficients(
+      session.settings,
+      null,
+      at: clock.now(),
+    );
+    final causes = await _pendingCauses();
+    if (causes.remove(RecalculationCause.loadCoefficients)) {
+      await _setPending(causes);
+    }
+    if (pending.value == null &&
+        await LoadSettings.pendingProfile(session.settings) ==
+            LoadProfile.edwards) {
+      await _dropLoadChoice();
+    }
+  }
 
   /// Bietet den Rückweg auf Edwards an, wenn Banister aktiv und nicht mehr
   /// anwendbar ist; sonst `null`.
@@ -363,13 +450,20 @@ class RecalculationService {
     final target = started.contains(RecalculationCause.loadProfile)
         ? await LoadSettings.pendingProfile(session.settings)
         : null;
-    if (target != null) {
+    final change = started.contains(RecalculationCause.loadCoefficients)
+        ? await LoadSettings.pendingCoefficients(session.settings)
+        : null;
+    if (target != null || change != null) {
       final resolution = await _calc.loadResolution(
         await _calc.profileBasis(),
         profile: target,
+        coefficients: change,
       );
       if (!resolution.applicable) {
-        throw LoadProfileNotApplicableException(target, resolution.issues);
+        throw LoadProfileNotApplicableException(
+          resolution.profile,
+          resolution.issues,
+        );
       }
     }
     // Nur der Faktor: es gibt nichts neu zu rechnen.
@@ -378,7 +472,7 @@ class RecalculationService {
         started.contains(RecalculationCause.personalFactor);
     final snapshot = factorOnly
         ? const ValueSnapshot(runValues: {}, dayValues: {})
-        : await _calc.buildSnapshot(loadProfile: target);
+        : await _calc.buildSnapshot(loadProfile: target, coefficients: change);
     if (!factorOnly) {
       await session.values.swapCurrentAll({
         ...snapshot.runValues,
@@ -405,6 +499,22 @@ class RecalculationService {
           );
         }
         await LoadSettings.writePendingProfile(
+          session.settings,
+          null,
+          at: clock.now(),
+        );
+      }
+      if (done.contains(RecalculationCause.loadCoefficients)) {
+        // Erst nach dem Profil: bricht das Schreiben hier ab, ist nur die
+        // alte Angabe geblieben, nie ein Banister ohne Angabe.
+        if (change != null) {
+          await LoadSettings.writeCoefficients(
+            session.settings,
+            change.value,
+            at: clock.now(),
+          );
+        }
+        await LoadSettings.writePendingCoefficients(
           session.settings,
           null,
           at: clock.now(),
@@ -461,13 +571,25 @@ class RecalculationService {
       null,
       at: clock.now(),
     );
+    await LoadSettings.writePendingCoefficients(
+      session.settings,
+      null,
+      at: clock.now(),
+    );
   }
 
-  Future<RecalculationOffer?> _offer(RecalculationCause cause) async {
+  Future<RecalculationOffer?> _offer(RecalculationCause cause) =>
+      _offerCauses({cause});
+
+  Future<RecalculationOffer?> _offerCauses(
+    Set<RecalculationCause> added,
+  ) async {
     final runs = await _affectedRuns();
     if (runs.isEmpty) return null;
-    _offerSeq[cause] = (_offerSeq[cause] ?? 0) + 1;
-    final causes = {...await _pendingCauses(), cause};
+    for (final cause in added) {
+      _offerSeq[cause] = (_offerSeq[cause] ?? 0) + 1;
+    }
+    final causes = {...await _pendingCauses(), ...added};
     await _setPending(causes);
     final offer = RecalculationOffer(
       causes: causes,

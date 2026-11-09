@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -141,6 +143,28 @@ void main() {
       expect(controller.state.phase, LoadPhase.ready);
     },
   );
+
+  test('Laden läuft über die Reihe der Neuberechnung (serialize): nicht '
+      'parallel zu Bestätigen und Ablehnen', () async {
+    await _addRun(session, DateTime.utc(2030, 2, 27, 8), 40);
+    final release = Completer<void>();
+    var calls = 0;
+    Future<T> serialize<T>(Future<T> Function() action) async {
+      calls++;
+      await release.future;
+      return action();
+    }
+
+    controller = LoadController(service: service(), serialize: serialize);
+    await settle();
+    // Die Reihe hält das Laden zurück: noch kein Ergebnis, nichts gelesen.
+    expect(calls, 1);
+    expect(controller.state.phase, LoadPhase.loading);
+    release.complete();
+    await settle();
+    expect(controller.state.phase, LoadPhase.ready);
+    expect(controller.state.dataThrough, DateTime.utc(2030, 2, 27));
+  });
 
   test(
     'Fehler beim Laden: failed, ohne Inhalt; danach erholt sich der Stand',

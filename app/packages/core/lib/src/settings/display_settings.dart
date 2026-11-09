@@ -72,6 +72,11 @@ abstract final class SettingKeys {
   /// bestätigte Belastungsprofil. Nicht im Archiv (Vertrag 4.3).
   static const String loadProfilePending = 'load.profile_pending';
 
+  /// Technischer Merker: die mit einem offenen Angebot geänderte, noch nicht
+  /// bestätigte Koeffizienten-Angabe (`male`, `female` oder `none` für
+  /// „Angabe entfernen“). Nicht im Archiv (Vertrag 4.3).
+  static const String loadCoefficientsPending = 'load.coefficients_pending';
+
   /// Angewandter persönlicher Faktor TRIMP/sRPE (FR-0097, PAR-087) mit Profil,
   /// Zahl der Läufe und Datum: `profil;wert;läufe;JJJJ-MM-TT`. Fehlt der
   /// Eintrag oder ist er unlesbar, gibt es keinen Faktor. Kommt ins Archiv.

@@ -554,6 +554,10 @@
   "@recalcCauseLoadFactor": {
     "description": "Grund: neuer persönlicher Faktor TRIMP/sRPE weicht über 25 % ab (vorläufiger Text, WP19)"
   },
+  "recalcCauseLoadCoefficients": "Die Koeffizienten-Angabe für die Belastungsrechnung soll geändert werden. Mit der Bestätigung gilt die neue Angabe; die Trainingsbelastung der Läufe wird dann in einer Skala neu gerechnet. Ohne Bestätigung bleibt die alte Angabe.",
+  "@recalcCauseLoadCoefficients": {
+    "description": "Grund: Änderung der Koeffizienten-Angabe bei aktivem Banister-Profil (vorläufiger Text, WP19)"
+  },
   "recalcKeepsOriginal": "Die ursprünglichen Werte und die Rohdaten bleiben erhalten. Ohne Neuberechnung ändert sich nichts.",
   "@recalcKeepsOriginal": {
     "description": "Hinweis zum Angebot"

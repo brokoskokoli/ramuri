@@ -16,6 +16,7 @@ const Set<String> archiveExcludedSettingKeys = {
   ValueCalculationService.refreshPendingKey,
   RecalculationService.pendingKey,
   SettingKeys.loadProfilePending,
+  SettingKeys.loadCoefficientsPending,
   SettingKeys.loadFactorPending,
   SettingKeys.loadFactorDeclined,
 };

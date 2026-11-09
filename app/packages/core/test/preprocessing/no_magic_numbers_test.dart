@@ -31,6 +31,7 @@ const perFile = <String, Set<String>>{
   '6': {'personal_load_factor.dart'}, // PAR-086 hohe RPE
   '4': {'personal_load_factor.dart'}, // PAR-086 niedrige RPE
   '0.25': {'personal_load_factor.dart'}, // PAR-087 Toleranz
+  '183': {'personal_load_factor.dart'}, // PAR-087 Vorwert 6 Monate (Festlegung)
   '0.64': {'banister_trimp.dart'}, // k männlich (K43)
   '1.92': {'banister_trimp.dart'}, // b männlich
   '0.86': {'banister_trimp.dart'}, // k weiblich

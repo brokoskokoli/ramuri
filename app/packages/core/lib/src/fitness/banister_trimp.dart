@@ -76,8 +76,13 @@ class BanisterTrimp extends LoadModel {
   AlgorithmCategory get category => AlgorithmCategory.established;
 
   /// Gewicht je Minute bei Reserveanteil [r]: `r · k · e^(b·r)`.
+  ///
+  /// Festlegung WP19, Spec offen: Liegt der Puls unter dem Ruhepuls
+  /// (`r < 0`, FR-0060 klemmt `r` nicht), trägt die Minute 0 bei; sie
+  /// verringert den TRIMP nicht. `r` selbst bleibt ungeklemmt, nach oben
+  /// (`r > 1`) wird nichts begrenzt.
   double weightPerMinute(double r) =>
-      r * coefficients.k * math.exp(coefficients.b * r);
+      r < 0 ? 0 : r * coefficients.k * math.exp(coefficients.b * r);
 
   @override
   FitnessResult<TrimpResult> compute({

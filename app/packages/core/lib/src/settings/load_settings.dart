@@ -64,6 +64,25 @@ class LoadFactorRecord {
   String toString() => 'LoadFactorRecord(…)';
 }
 
+/// Eine noch unbestätigte Änderung der Koeffizienten-Angabe (bei aktivem
+/// Banister erst nach der Neuberechnung gültig): [value] `null` heißt „Angabe
+/// entfernen“.
+class CoefficientChange {
+  const CoefficientChange(this.value);
+  final LoadCoefficients? value;
+
+  static const _removeToken = 'none';
+
+  String get storageValue => value?.storageValue ?? _removeToken;
+
+  /// Unbekannter oder leerer Wert: `null` (keine offene Änderung).
+  static CoefficientChange? fromStorage(String? raw) {
+    if (raw == _removeToken) return const CoefficientChange(null);
+    final c = LoadCoefficients.fromStorage(raw);
+    return c == null ? null : CoefficientChange(c);
+  }
+}
+
 /// Einstellungen des Belastungsprofils (FR-0197, FR-0002, FR-0103), alle mit
 /// Präfix `load.`. Lesen ist tolerant: fehlt ein Eintrag oder ist er
 /// unbekannt, gilt der Start (Edwards, keine Koeffizienten, keine Zusage).
@@ -79,15 +98,35 @@ abstract final class LoadSettings {
         await store.get(SettingKeys.loadCoefficients),
       );
 
-  /// Speichert die Koeffizienten-Angabe; `null` entfernt sie (leerer Wert).
-  /// Ändert nichts an gespeicherten Werten: ein Banister-Profil bietet danach
-  /// `RecalculationService.loadBasisChanged` an.
-  static Future<void> saveCoefficients(
+  /// Schreibt die Koeffizienten-Angabe; `null` entfernt sie (leerer Wert).
+  /// Ändert nichts an gespeicherten Werten. Bei aktivem Banister ändert die
+  /// Oberfläche die Angabe nicht hier, sondern über
+  /// `RecalculationService.requestLoadCoefficients`: sie gilt dann erst nach
+  /// der Bestätigung (wie der Profilwechsel), sonst mischte der Verlauf zwei
+  /// Skalen.
+  static Future<void> writeCoefficients(
     SettingsStore store,
     LoadCoefficients? value, {
     required DateTime at,
   }) => store.set(
     SettingKeys.loadCoefficients,
+    value?.storageValue ?? '',
+    at: at,
+  );
+
+  /// Die offene, unbestätigte Änderung der Angabe; `null` ohne.
+  static Future<CoefficientChange?> pendingCoefficients(
+    SettingsStore store,
+  ) async => CoefficientChange.fromStorage(
+    await store.get(SettingKeys.loadCoefficientsPending),
+  );
+
+  static Future<void> writePendingCoefficients(
+    SettingsStore store,
+    CoefficientChange? value, {
+    required DateTime at,
+  }) => store.set(
+    SettingKeys.loadCoefficientsPending,
     value?.storageValue ?? '',
     at: at,
   );

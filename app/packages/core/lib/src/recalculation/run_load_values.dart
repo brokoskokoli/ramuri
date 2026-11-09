@@ -112,9 +112,17 @@ List<ComputedValue> buildRunLoadValues({
   final FitnessResult<TrimpResult> trimp;
   if (model == null) {
     trimp = unavailable(
-      loadProfile!.issues.contains(LoadProfileIssue.missingRestingHeartRate)
-          ? UnavailableReason.missingRestingHeartRate
-          : UnavailableReason.missingLoadCoefficients,
+      switch (loadProfile!.issues) {
+        final i when i.contains(LoadProfileIssue.missingRestingHeartRate) =>
+          UnavailableReason.missingRestingHeartRate,
+        final i when i.contains(LoadProfileIssue.missingCoefficients) =>
+          UnavailableReason.missingLoadCoefficients,
+        // Ruhepuls und Angabe da, aber die Reserve unbrauchbar: der Grund
+        // des Reservemodells (fehlende HFmax, PAR-018, PAR-019).
+        _ =>
+          const HeartRateReserve().check(basis, fitness) ??
+              UnavailableReason.reserveTooSmall,
+      },
       BanisterTrimp.methodIdUnresolved,
       1,
     );
