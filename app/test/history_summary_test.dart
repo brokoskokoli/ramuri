@@ -461,8 +461,15 @@ void main() {
         expect(text('sum_avg_hr'), '150 bpm');
         expect(text('sum_max_hr'), '150 bpm');
         // Ohne Profil: keine Zonen, keine Belastung, mit Grund statt 0.
-        expect(text('sum_zones_unavailable'), contains('nicht verfügbar'));
-        expect(text('sum_trimp'), contains('nicht verfügbar'));
+        // Mit Puls, aber ohne Werte im Profil: der Grund ist das Profil (FR-0057).
+        expect(
+          text('sum_zones_unavailable'),
+          'nicht verfügbar – Pulswerte im Profil prüfen',
+        );
+        expect(
+          text('sum_trimp'),
+          'nicht verfügbar\nPulswerte im Profil prüfen',
+        );
         // Einordnung mit Anzahl der Vorläufe (Pace, schneller).
         expect(text('sum_class'), contains('schneller'));
         expect(text('sum_class'), contains('letzten 2 Läufe'));
@@ -486,8 +493,9 @@ void main() {
       await runAndFinish(d, tester, 120, heartRate: false);
       expect(text('sum_avg_hr'), 'nicht verfügbar\n(kein Puls)');
       expect(text('sum_max_hr'), 'nicht verfügbar\n(kein Puls)');
-      expect(text('sum_zones_unavailable'), contains('nicht verfügbar'));
-      expect(text('sum_trimp'), contains('nicht verfügbar'));
+      // Ohne Puls ist der Puls der Grund, nicht das Profil (FR-0057).
+      expect(text('sum_zones_unavailable'), 'nicht verfügbar (kein Puls)');
+      expect(text('sum_trimp'), 'nicht verfügbar\n(kein Puls)');
       expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
       expect(text('run_distance'), isNot(contains('nicht')));
     });

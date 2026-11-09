@@ -175,7 +175,11 @@ class RunSummaryPage extends StatelessWidget {
     final trimp = f.trimpPoints;
     final na = l10n.runUnavailable;
     final trimpNone = load.trimpReason != null
-        ? unavailableReasonText(l10n, load.trimpReason!)
+        ? unavailableReasonText(
+            l10n,
+            load.trimpReason!,
+            hasHeartRate: avgHr != null,
+          )
         : (load.trimpStored ? na : l10n.sumLoadNotStored);
     return [
       _tile(
@@ -269,7 +273,11 @@ class RunSummaryPage extends StatelessWidget {
           if (times == null)
             Text(
               load.zonesReason != null
-                  ? unavailableReasonText(l10n, load.zonesReason!)
+                  ? unavailableReasonText(
+                      l10n,
+                      load.zonesReason!,
+                      hasHeartRate: f.heartRateAverageBpm != null,
+                    )
                   : (load.zonesStored
                         ? l10n.runUnavailable
                         : l10n.sumLoadNotStored),

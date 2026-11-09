@@ -69,7 +69,10 @@ Future<void> walk(
 
 /// Alle Pflichtanzeigen der Werte-Seite (FR-0026, FR-0027, FR-0202, FR-0030,
 /// FR-0194) sind da.
+/// Ohne Puls steht die Zone nur als graue Zonenanzeige da („nicht verfügbar“
+/// steht schon am Pulswert); mit Puls gehört der Zonentext dazu.
 void expectRequired() {
+  final zoneText = text('run_hr') != 'nicht verfügbar';
   for (final k in [
     'run_time',
     'run_distance',
@@ -77,7 +80,7 @@ void expectRequired() {
     'run_avg_pace',
     'run_moving_time',
     'run_hr',
-    'run_zone',
+    if (zoneText) 'run_zone',
     'run_ascent',
     'run_cadence',
     'run_laps',
@@ -174,7 +177,7 @@ void main() {
       await walk(d, tester, 5);
       expectRequired();
       expect(text('run_hr'), 'nicht verfügbar');
-      expect(text('run_zone'), contains('nicht verfügbar'));
+      expect(key('run_zone'), findsNothing);
       expect(tester.widget<ZoneMeter>(find.byType(ZoneMeter)).zone, isNull);
       expect(text('live_chip_hr'), 'Kein Puls');
       expect(find.textContaining('0 bpm'), findsNothing);
@@ -472,7 +475,7 @@ void main() {
             'run_pace',
             'run_avg_pace',
             'run_hr',
-            'run_zone',
+            if (key('run_zone').evaluate().isNotEmpty) 'run_zone',
             'run_moving_time',
             'run_ascent',
             'run_cadence',
@@ -495,22 +498,22 @@ void main() {
       );
     }
 
-    testWidgets('ohne Puls: Zone ausgewiesen, ohne Doppelung für die '
-        'Sprachausgabe', (tester) async {
+    testWidgets('ohne Puls: „nicht verfügbar“ nur einmal, keine Zonenzeile', (
+      tester,
+    ) async {
       final semantics = tester.ensureSemantics();
       final d = Device();
       await openRun(d, tester);
       await walk(d, tester, 5);
       expect(text('run_hr'), 'nicht verfügbar');
-      expect(text('run_zone'), 'Zone nicht verfügbar');
+      expect(key('run_zone'), findsNothing);
+      expect(find.textContaining('Zone nicht verfügbar'), findsNothing);
+      expect(find.text('nicht verfügbar'), findsWidgets);
+      // Die Pulskarte sagt es für die Sprachausgabe genau einmal.
       final label = tester
-          .getSemantics(find.bySemanticsLabel(RegExp('Zone nicht verfügbar')))
+          .getSemantics(find.bySemanticsLabel(RegExp('nicht verfügbar')).first)
           .label;
-      expect(
-        'Zone nicht verfügbar'.allMatches(label),
-        hasLength(1),
-        reason: 'Text und Balken sagen die Zone nur einmal: $label',
-      );
+      expect('nicht verfügbar'.allMatches(label), hasLength(1), reason: label);
       semantics.dispose();
     });
   });

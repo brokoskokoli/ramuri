@@ -136,7 +136,8 @@ class LiveValues extends StatelessWidget {
             ? l10n.runZoneAbove(zone.zone!)
             : l10n.runZoneValue(zone.zone!),
       LiveZoneKind.belowZone1 => l10n.runZoneBelow,
-      LiveZoneKind.noHeartRate => l10n.runZoneNoHeartRate,
+      // Ohne Puls steht „nicht verfügbar“ schon am Pulswert; die Zone sagt es nicht noch einmal.
+      LiveZoneKind.noHeartRate => null,
       LiveZoneKind.noBasis => l10n.runZoneNoBasis,
     };
     final gpsState = controller.locationError
@@ -549,7 +550,9 @@ class _HeartCard extends StatelessWidget {
 
   final int? bpm;
   final int? zoneNumber;
-  final String zoneText;
+
+  /// `null`, wenn die Zone nichts zusagen hat (kein Puls, der Pulswert sagt es).
+  final String? zoneText;
   final TextStyle numberStyle;
   final TextStyle unitStyle;
 
@@ -594,14 +597,15 @@ class _HeartCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                Text(
-                  zoneText,
-                  key: const Key('run_zone'),
-                  style: text.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: c.accent,
+                if (zoneText case final zoneText?)
+                  Text(
+                    zoneText,
+                    key: const Key('run_zone'),
+                    style: text.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: c.accent,
+                    ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 6),

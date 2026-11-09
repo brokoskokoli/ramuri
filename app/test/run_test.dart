@@ -342,8 +342,8 @@ void main() {
       final d = Device();
       await openRun(d, tester);
       expect(text('run_hr'), 'nicht verfügbar');
-      expect(text('run_zone'), contains('nicht verfügbar'));
-      expect(text('run_zone'), 'Zone nicht verfügbar');
+      // Ohne Puls steht „nicht verfügbar“ nur am Pulswert, keine zweite Zonenzeile.
+      expect(key('run_zone'), findsNothing);
       expect(text('run_cadence'), 'nicht verfügbar');
       expect(text('run_ascent'), 'nicht verfügbar');
       expect(text('run_distance'), 'noch keine Daten');

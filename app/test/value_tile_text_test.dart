@@ -1,6 +1,8 @@
 // WP16 Runde 4, Punkt 1: Ersatztexte in Wertkacheln stehen klein, der Grund in
 // einer eigenen Zeile, und kein Wort bricht mitten im Wort (echte Schrift).
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -277,4 +279,50 @@ void main() {
       null,
     ));
   });
+
+  // WP17 B: Die Einheit bleibt bei der Zahl ("+1200 m" nie "+1200" / "m").
+  for (final scale in [1.0, 1.15, 1.3]) {
+    for (final (v, u) in [('+1200', 'm'), ('+3937', 'ft')]) {
+      testWidgets('Zahl und Einheit in einer Zeile: $v $u, 360 dp, '
+          'Faktor $scale', (tester) async {
+        await loadManrope(tester);
+        await loadSora(tester);
+        const size = Size(360, 900);
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          _app(
+            RamuriTileGrid(
+              children: [
+                RamuriValueTile(
+                  label: 'Zahl',
+                  value: v,
+                  unit: unbreakableUnit(u),
+                  valueKey: const Key('wert'),
+                ),
+                const RamuriValueTile(label: 'Zahl', value: '5:30', unit: 'km'),
+                const RamuriValueTile(label: 'Zahl', value: '1', unit: 'km'),
+              ],
+            ),
+            scale: scale,
+            size: size,
+          ),
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.byKey(const Key('wert')),
+        );
+        final length = paragraph.text.toPlainText().length;
+        // Echte Zeilenmessung: alle Zeichen (Zahl, Leerraum, Einheit) liegen auf
+        // derselben Zeile.
+        final boxes = paragraph.getBoxesForSelection(
+          TextSelection(baseOffset: 0, extentOffset: length),
+          boxHeightStyle: ui.BoxHeightStyle.max,
+        );
+        final tops = {for (final b in boxes) b.top.round()};
+        expect(tops.length, 1, reason: 'bricht: $tops');
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 }

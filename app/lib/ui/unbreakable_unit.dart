@@ -8,3 +8,8 @@ String unbreakableUnit(String unit) =>
 
 /// Dieselbe Einheit ohne Wortverbinder, für die Sprachausgabe.
 String spokenUnit(String unit) => unit.replaceAll(_joiner, '');
+
+/// Leerraum zwischen Zahl und Einheit, der nicht umbricht: Die Einheit bleibt
+/// bei der Zahl („+1200 m“ nie „+1200“ / „m“). Wortverbinder um das Leerzeichen
+/// sperren den Umbruch davor und danach; in der Sprachausgabe fällt er weg.
+const String unitSeparator = '$_joiner $_joiner';
