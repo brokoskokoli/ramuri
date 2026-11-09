@@ -207,6 +207,7 @@ void main() {
           ),
       files: fl,
       cipherFactory: createArchiveCipherInWorker,
+      clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
       reopen: () async => session = await openActive(),
       serialize:
           serialize ??
@@ -453,7 +454,7 @@ void main() {
       final trainings = await session.manualTrainings.list();
       expect(trainings, hasLength(2));
       // Datum in der Zukunft wurde angenommen.
-      expect(trainings.map((t) => t.training.isoDay), contains('2999-12-31'));
+      expect(trainings.map((t) => t.training.isoDay), contains('2026-11-20'));
     },
   );
 
@@ -626,6 +627,7 @@ void main() {
             password: _password,
             files: files,
             cipherFactory: createArchiveCipherInWorker,
+            clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
           ),
           throwsA(
             isA<ArchiveImportException>().having(
@@ -647,6 +649,7 @@ void main() {
           password: _password,
           files: files,
           cipherFactory: createArchiveCipherInWorker,
+          clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
         );
         expect(appFiles().where((n) => n.contains('.import')), isEmpty);
       },

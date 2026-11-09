@@ -16,8 +16,8 @@ MEM, T, P, KLEN = 65536, 3, 1, 32
 CHUNK = 65536
 
 
-def header(salt: bytes) -> bytes:
-    h = MAGIC + struct.pack(">HIIBB", 1, MEM, T, P, KLEN) + salt
+def header(salt: bytes, version: int = 1) -> bytes:
+    h = MAGIC + struct.pack(">HIIBB", version, MEM, T, P, KLEN) + salt
     assert len(h) == 36
     return h
 
@@ -38,8 +38,8 @@ def split(pt: bytes):
     return [pt[i:i + CHUNK] for i in range(0, len(pt), CHUNK)]
 
 
-def encrypt(pt: bytes, salt: bytes, key: bytes):
-    h = header(salt)
+def encrypt(pt: bytes, salt: bytes, key: bytes, version: int = 1):
+    h = header(salt, version)
     aead = ChaCha20Poly1305(key)
     parts = split(pt)
     cts = [aead.encrypt(nonce(i, i == len(parts) - 1), c, h)
@@ -61,6 +61,14 @@ SECTIONS = ["runs", "laps", "run_gaps", "raw_positions", "raw_heart_rates",
             "preprocessed_samples", "preprocessed_spans", "rated_sections",
             "computed_values", "value_sections", "profile", "settings",
             "known_devices", "goals", "plans", "active_warning"]
+
+
+# Format 2 (Schema 5, WP18): Abschnitte 17 und 18 kommen nach known_devices (Vertrag 4.3).
+SECTIONS_V2 = SECTIONS[:16] + ["run_feedback", "manual_trainings"] + SECTIONS[16:]
+
+# "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
+# manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
+V2_TODAY = "2026-11-20"
 
 
 def archive_rows():
@@ -130,13 +138,36 @@ def archive_rows():
     return r
 
 
-def archive_plaintext():
+def archive_rows_v2(future_training=False):
+    """Format 2: die Zeilen von Format 1 plus run_feedback und manual_trainings."""
     r = archive_rows()
-    lines = [{"type": "manifest", "format": 1, "schema_version": 4, "created_at_us": 1793000000000000}]
-    for s in SECTIONS:
+    r["run_feedback"] = [
+        # Lauf 1: alle Angaben, sRPE = 590 s / 60 * 6 = 59 (srpe_duration_rpe, Version 1)
+        dict(run_id=1, rpe=6, wellbeing=4, complaints="Wade links \u00e4\u00f6", warning_answer="no",
+             note="Notiz \u201eUmlaut\u201c", srpe_points=59.0, srpe_duration_s=590.0,
+             srpe_method="srpe_duration_rpe", srpe_method_version=1),
+        # Lauf 7: nur Beschwerden mit Warnsignal-Antwort, ohne RPE und ohne sRPE
+        dict(run_id=7, rpe=None, wellbeing=None, complaints="Knie", warning_answer="yes", note=None,
+             srpe_points=None, srpe_duration_s=None, srpe_method=None, srpe_method_version=None),
+    ]
+    r["manual_trainings"] = [
+        dict(id=1, day="2026-11-01", kind="other", duration_s=3600, rpe=4),
+        dict(id=2, day=V2_TODAY, kind="run", duration_s=1800, rpe=0),  # Grenzfall: heute, angenommen
+    ]
+    if future_training:  # Tag nach heute: der Leser lehnt das ganze Archiv ab
+        r["manual_trainings"].append(dict(id=3, day="2026-11-21", kind="other", duration_s=600, rpe=3))
+    return r
+
+
+def archive_plaintext(version=1, future_training=False):
+    r = archive_rows_v2(future_training) if version == 2 else archive_rows()
+    sections = SECTIONS_V2 if version == 2 else SECTIONS
+    schema = 5 if version == 2 else 4
+    lines = [{"type": "manifest", "format": version, "schema_version": schema, "created_at_us": 1793000000000000}]
+    for s in sections:
         lines.append({"type": "section", "name": s})
         lines += [{"type": "row", "data": d} for d in r[s]]
-    lines.append({"type": "end", "rows": {s: len(r[s]) for s in SECTIONS}})
+    lines.append({"type": "end", "rows": {s: len(r[s]) for s in sections}})
     jl = b"".join(json.dumps(l, separators=(",", ":"), ensure_ascii=False,
                              allow_nan=False).encode("utf-8") + b"\n" for l in lines)
     return jl, gzip.compress(jl, compresslevel=9, mtime=0)
@@ -164,6 +195,8 @@ def main():
     os.makedirs(out, exist_ok=True)
 
     jl, gz = archive_plaintext()
+    jl2, gz2 = archive_plaintext(2)
+    _, gz2_future = archive_plaintext(2, future_training=True)
     # (name, passwort, salz, klartext)
     pw_uni = "Pässwörd-ünïcode-€-123"
     pw_nfd = unicodedata.normalize("NFD", "Äé-nicht-normalisiert-ok")
@@ -175,11 +208,15 @@ def main():
         ("multi_150k", "synthetisches-Passwort-0005", bytes(range(100, 116)), stream("v5", 150 * 1024)),
         ("exact_131072", "", bytes([0xFF] * 16), stream("v6", 131072)),
         ("archive_small", "archiv-test-passwort-15+", bytes(range(200, 216)), gz),
+        ("archive_v2", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2),
     ]
+    # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
+    v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        h, cts = encrypt(pt, salt, key)
+        ver = 2 if name == "archive_v2" else 1
+        h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
         open(os.path.join(out, f"{name}.plain"), "wb").write(pt)
@@ -189,7 +226,13 @@ def main():
             salt_hex=salt.hex(), key_hex=key.hex(), header_hex=h.hex(),
             plaintext_len=len(pt), plaintext_sha256=hashlib.sha256(pt).hexdigest(),
             chunk_count=len(cts), file_len=len(h) + sum(map(len, cts)),
-            expect="ok"))
+            expect="ok", format=ver))
+        if name == "archive_v2":
+            open(os.path.join(out, "archive_v2.jsonl"), "wb").write(jl2)
+            manifest[-1]["jsonl_file"] = "archive_v2.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl2).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_v2()[s]) for s in SECTIONS_V2}
+            manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)
             manifest[-1]["jsonl_file"] = "archive_small.jsonl"
@@ -222,6 +265,12 @@ def main():
     ct0 = aead.encrypt(nonce(0, False), pt, h)
     ct1 = aead.encrypt(nonce(1, True), b"", h)
     ctx = aead.encrypt(nonce(0, False), pt, h)  # Flag 0 am einzigen Stueck
+    # Format 2, Training am Tag nach V2_TODAY: sonst gueltig, vollstaendig verschluesselt.
+    _, fsalt, fpt = v2_future[1:]
+    fkey = derive(v2_future[1].encode(), fsalt)
+    fh, fcts = encrypt(fpt, fsalt, fkey, 2)
+    neg.append(("neg_v2_training_after_today", fh + b"".join(fcts), "corrupt", "archive_v2",
+                f"Format 2, manual_trainings mit Tag nach heute ({V2_TODAY}): Archiv abgelehnt"))
     for n, data, err, base, note in neg:
         if n == "neg_extra_empty_last": data = h + ct0 + ct1
         if n == "neg_full_chunk_flagged_not_last": data = h + ctx
@@ -230,6 +279,8 @@ def main():
         manifest.append(dict(name=n, file=f"{n}.runarchv", password=b["password"],
                              salt_hex=b["salt_hex"], key_hex=b["key_hex"], expect=err, note=note,
                              file_len=len(data)))
+        if n == "neg_v2_training_after_today":  # Rahmen und Kryptografie gueltig, Inhalt abgelehnt
+            manifest[-1].update(layer="content", today=V2_TODAY)
     json.dump(dict(contract="docs/contracts/archive.md", generator="tool/archive_vectors/make_vectors.py",
                    vectors=manifest), open(os.path.join(out, "vectors.json"), "w"), indent=2, ensure_ascii=False)
     open(os.path.join(out, "vectors.json"), "a").write("\n")

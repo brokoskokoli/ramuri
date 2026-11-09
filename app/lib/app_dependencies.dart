@@ -159,6 +159,7 @@ class AppDependencies {
           files: files,
           cipherFactory: createArchiveCipherInWorker,
           reopen: () => storage.open(key),
+          clock: const SystemClock(),
           serialize: serialize,
         );
         return service.restore;
@@ -171,6 +172,7 @@ class AppDependencies {
             password: password,
             files: FileDatabaseFiles(await databasePath()),
             cipherFactory: createArchiveCipherInWorker,
+            clock: const SystemClock(),
             cancel: cancel,
           ),
       runPorts: RunPorts(

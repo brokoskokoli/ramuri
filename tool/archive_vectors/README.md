@@ -25,6 +25,7 @@ Ein Schlüssel (`short`) wurde zusätzlich mit der Referenzimplementierung `argo
 
 - `vectors.json`: je Vektor Passwort (und UTF-8 hex), Salz, erwarteter Schlüssel (hex), Kopf (hex), Klartextlänge und SHA-256, Stückzahl, Erwartung (`ok` oder Fehlerklasse).
 - `<name>.runarchv`: die Archivdatei; `<name>.plain`: der Klartext (bei `archive_small` das gzip-Element), `archive_small.jsonl`: das entpackte JSON Lines.
+- Format 2 (WP19 C0): `archive_v2` (Kopf Version 2, Manifest Format 2/Schema 5, 21 Abschnitte, `run_feedback` und `manual_trainings` mit einem Training genau auf "heute" 2026-11-20; Feld `today` im `vectors.json`) und `neg_v2_training_after_today` (Rahmen gültig, Training einen Tag später; `layer: content`, erwartet `corrupt` vom Leser, nicht von der Verschlüsselung). Die Format-1-Vektoren bleiben byte-gleich.
 - Positiv: `empty`, `short`, `exact_65536`, `exact_65537`, `multi_150k`, `exact_131072`, `archive_small` (alle 19 Abschnitte, Lauf mit `original` und `current`, unbekannter `value_key`).
 - Negativ (`neg_*`): Abschneiden an Stückgrenze, angehängtes Byte, vertauschte Stücke, gekippte Bits, nur Kopf, volles Stück mit leerem Stück danach, volles Stück mit Flag 0, Formatversion 3, Speicher 1024 KiB, falsches Magic, 20-Byte-Datei. Fehlerklassen: `wrong_password_or_start_damaged`, `corrupt`, `unknown_version`, `unsupported_parameters`, `not_an_archive`.
 - Passwörter: auch Umlaute/€, ein nicht normalisiertes (NFD) und ein leeres (`exact_131072`, nur als Formatvektor).

@@ -111,7 +111,7 @@ Future<void> fillAllTables(AppDatabase db) async {
   );
   await sql(
     db,
-    "INSERT INTO manual_trainings (day, kind, duration_s, rpe) VALUES ('2026-11-01', 'other', 3600, 4), ('2999-12-31', 'run', 1800, 0)",
+    "INSERT INTO manual_trainings (day, kind, duration_s, rpe) VALUES ('2026-11-01', 'other', 3600, 4), ('2026-11-20', 'run', 1800, 0)",
   );
   await sql(
     db,
