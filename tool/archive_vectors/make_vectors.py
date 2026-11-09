@@ -210,7 +210,7 @@ def main():
         ("neg_header_only", m150[:36], "wrong_password_or_start_damaged", "multi_150k", "Datei endet nach Kopf"),
         ("neg_extra_empty_last", None, "corrupt", "exact_65536", "volles Stueck als nicht-letztes + leeres letztes Stueck (Zaehler>0)"),
         ("neg_full_chunk_flagged_not_last", None, "wrong_password_or_start_damaged", "exact_65536", "einziges volles Stueck mit Flag 0 geschrieben: erstes Stueck scheitert"),
-        ("neg_version_2", m64[:8] + b"\x00\x02" + m64[10:], "unknown_version", "exact_65536", "Formatversion 2"),
+        ("neg_version_3", m64[:8] + b"\x00\x03" + m64[10:], "unknown_version", "exact_65536", "Formatversion 3"),
         ("neg_memory_1024", m64[:10] + struct.pack(">I", 1024) + m64[14:], "unsupported_parameters", "exact_65536", "Speicher 1024 KiB (kein Schluessel abgeleitet)"),
         ("neg_bad_magic", b"RUNARCHX" + m64[8:], "not_an_archive", "exact_65536", "Magic falsch"),
         ("neg_short_header", m64[:20], "corrupt", "exact_65536", "20 Byte (Magic+Version ok)"),

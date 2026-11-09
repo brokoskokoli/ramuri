@@ -26,5 +26,7 @@ Ein Schlüssel (`short`) wurde zusätzlich mit der Referenzimplementierung `argo
 - `vectors.json`: je Vektor Passwort (und UTF-8 hex), Salz, erwarteter Schlüssel (hex), Kopf (hex), Klartextlänge und SHA-256, Stückzahl, Erwartung (`ok` oder Fehlerklasse).
 - `<name>.runarchv`: die Archivdatei; `<name>.plain`: der Klartext (bei `archive_small` das gzip-Element), `archive_small.jsonl`: das entpackte JSON Lines.
 - Positiv: `empty`, `short`, `exact_65536`, `exact_65537`, `multi_150k`, `exact_131072`, `archive_small` (alle 19 Abschnitte, Lauf mit `original` und `current`, unbekannter `value_key`).
-- Negativ (`neg_*`): Abschneiden an Stückgrenze, angehängtes Byte, vertauschte Stücke, gekippte Bits, nur Kopf, volles Stück mit leerem Stück danach, volles Stück mit Flag 0, Formatversion 2, Speicher 1024 KiB, falsches Magic, 20-Byte-Datei. Fehlerklassen: `wrong_password_or_start_damaged`, `corrupt`, `unknown_version`, `unsupported_parameters`, `not_an_archive`.
+- Negativ (`neg_*`): Abschneiden an Stückgrenze, angehängtes Byte, vertauschte Stücke, gekippte Bits, nur Kopf, volles Stück mit leerem Stück danach, volles Stück mit Flag 0, Formatversion 3, Speicher 1024 KiB, falsches Magic, 20-Byte-Datei. Fehlerklassen: `wrong_password_or_start_damaged`, `corrupt`, `unknown_version`, `unsupported_parameters`, `not_an_archive`.
 - Passwörter: auch Umlaute/€, ein nicht normalisiertes (NFD) und ein leeres (`exact_131072`, nur als Formatvektor).
+
+Alle Vektoren sind Format 1 (Kopf `0001`, Schema 4, 19 Abschnitte), von der unabhängigen Umsetzung vor WP18 erzeugt. Sie belegen, dass Format 1 nach der Einführung von Format 2 lesbar bleibt (WP18). Bis auf `neg_version_3` (vorher `neg_version_2`, seit Format 2 gültig) unverändert.

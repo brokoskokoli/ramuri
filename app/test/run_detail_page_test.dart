@@ -71,8 +71,10 @@ Future<void> pumpDetail(
   UnitFormatter formatter = _km,
   double scale = 1,
   bool dark = false,
+  String lang = 'de',
+  Size size = const Size(360, 640),
 }) async {
-  tester.view.physicalSize = const Size(360, 640);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
@@ -99,6 +101,8 @@ Future<void> pumpDetail(
       ),
       dark: dark,
       scale: scale,
+      lang: lang,
+      size: size,
     ),
   );
   await tester.pumpAndSettle();
@@ -592,6 +596,71 @@ void main() {
     expect(key('detail_hr_none'), findsOneWidget);
     expect(key('detail_pace'), findsOneWidget);
     expect(find.textContaining(RegExp(r'(^|\s)0 bpm')), findsNothing);
+  });
+
+  // M1-Befund: Die Überschrift des Höhenprofils zeigte bei flachem Lauf
+  // „0 m 0 m“ (zwei Nullen ohne Vorzeichen und ohne Trenner). Das Design setzt
+  // „+48 m / −46 m“: der Schrägstrich trennt Anstieg und Gefälle.
+  for (final lang in ['de', 'en']) {
+    for (final w in [360.0, 320.0]) {
+      testWidgets(
+        'Flacher Lauf: Höhenprofil-Kopf "0 m / 0 m" ($lang, ${w.round()} dp, '
+        'Faktor 1,3)',
+        (tester) async {
+          final d = await started(tester);
+          final id = await seedDetailRun(
+            d.session,
+            DateTime.utc(2030, 1, 1, 8),
+            altitude: (_) => 100,
+          );
+          await pumpDetail(
+            tester,
+            d,
+            id,
+            scale: 1.3,
+            lang: lang,
+            size: Size(w, 640),
+          );
+          final group = key('detail_elevation_values');
+          final texts = find.descendant(of: group, matching: find.byType(Text));
+          expect(
+            tester.widgetList<Text>(texts).map((t) => t.data).join(),
+            '0 m / 0 m',
+          );
+          // Beide Werte und der Trenner stehen in einer Zeile.
+          expect(
+            tester.getSize(group).height,
+            lessThan(tester.getSize(key('detail_ascent')).height * 1.5),
+          );
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
+  // Review 1, Befund 4 / Review 2, Soll 3: bei Schriftfaktor 2,0 lief der Kopf
+  // über. Große Werte passen nicht in eine Zeile: Die Gruppe muss umbrechen
+  // (Wrap); eine Row liefe über.
+  testWidgets('Höhenprofil-Kopf bei Faktor 2,0 bricht um statt überzulaufen', (
+    tester,
+  ) async {
+    final d = await started(tester);
+    final id = await seedDetailRun(
+      d.session,
+      DateTime.utc(2030, 1, 1, 8),
+      altitude: (s) => s.isEven ? 100 : 1500,
+    );
+    await pumpDetail(tester, d, id, scale: 2.0, size: const Size(320, 914));
+    await tester.ensureVisible(key('detail_ascent'));
+    await tester.pump();
+    final up = tester.getRect(key('detail_ascent'));
+    final down = tester.getRect(key('detail_descent'));
+    // Die Werte stehen untereinander und innerhalb der Breite.
+    expect(down.top, greaterThanOrEqualTo(up.bottom - 0.5));
+    expect(up.right, lessThanOrEqualTo(320));
+    expect(down.right, lessThanOrEqualTo(320));
+    expect(find.text(' / '), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Flacher Lauf: Anstieg und Gefälle ohne Vorzeichen, Pace ohne '

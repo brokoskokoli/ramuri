@@ -40,6 +40,7 @@ export 'ports/storage_profile.dart';
 export 'ports/storage_raw.dart';
 export 'ports/storage_runs.dart';
 export 'ports/storage_settings.dart';
+export 'ports/storage_subjective.dart';
 export 'ports/storage_values.dart';
 export 'src/archive/archive_discard_sink.dart';
 export 'src/archive/archive_errors.dart';
@@ -127,6 +128,11 @@ export 'src/statistics/statistics_parameters.dart';
 export 'src/statistics/value_explanation.dart';
 export 'src/statistics/weekly_distance.dart';
 export 'src/storage/storage_key_service.dart';
+export 'src/subjective/manual_training.dart';
+export 'src/subjective/run_subjective.dart';
+export 'src/subjective/srpe.dart';
+export 'src/subjective/subjective_limits.dart';
+export 'src/subjective/subjective_service.dart';
 
 /// Name des Pakets, nur damit das Paket auflösbar und testbar ist.
 const String corePackageName = 'core';

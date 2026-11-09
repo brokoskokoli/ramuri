@@ -113,6 +113,10 @@ class _GatedSession implements StorageSession {
   @override
   ConsentStore get consents => inner.consents;
   @override
+  RunSubjectiveStore get subjective => inner.subjective;
+  @override
+  ManualTrainingStore get manualTrainings => inner.manualTrainings;
+  @override
   Future<void> deleteRun(int runId) async {
     if (gate.failDelete) throw const StorageException(StorageFailure.failed);
     await inner.deleteRun(runId);

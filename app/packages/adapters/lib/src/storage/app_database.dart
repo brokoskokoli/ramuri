@@ -16,11 +16,12 @@ class AppDatabase extends _$AppDatabase {
   /// Version 1: Phase 1 (WP02 Teil B). Version 2: Tempo, Tempo- und
   /// Vertikalgenauigkeit je Rohposition (WP06 Teil C, K12). Version 3: value_sections
   /// und Grund-, Basis- und Versatzspalten (WP09 D1/D2a). Version 4: Bestpace, Rundenzahl und Zeit mit Puls in
-  /// `preprocessing_results` (WP10). Jede spätere Änderung erhöht die
+  /// `preprocessing_results` (WP10). Version 5: Angaben zum Lauf
+  /// (`run_feedback`) und nachgetragene Trainings (`manual_trainings`, WP18). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -72,6 +73,12 @@ class AppDatabase extends _$AppDatabase {
         preprocessingResults,
         preprocessingResults.heartRateTimeS,
       );
+    },
+    // 4 -> 5 (WP18): zwei neue Tabellen, kein Eingriff in bestehende Daten.
+    4: (Migrator m) async {
+      await m.create(runFeedback);
+      await m.create(manualTrainings);
+      await m.create(manualTrainingsDay);
     },
   };
 

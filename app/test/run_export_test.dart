@@ -36,6 +36,8 @@ Future<void> _export(
   String target, {
   bool settle = true,
 }) async {
+  await tester.ensureVisible(key('detail_export'));
+  await tester.pumpAndSettle();
   await tester.tap(key('detail_export'));
   await tester.pumpAndSettle();
   await tester.tap(key('export_format_${format.name}'));
@@ -63,6 +65,8 @@ void main() {
     expect(d.fileHandoff.shared, isEmpty);
     expect(d.fileHandoff.saved, isEmpty);
     // Auch das Öffnen der Formatwahl überträgt nichts.
+    await tester.ensureVisible(key('detail_export'));
+    await tester.pumpAndSettle();
     await tester.tap(key('detail_export'));
     await tester.pumpAndSettle();
     expect(key('export_share'), findsOneWidget);
@@ -200,6 +204,8 @@ void main() {
         return job(arg);
       },
     );
+    await tester.ensureVisible(key('detail_export'));
+    await tester.pumpAndSettle();
     await tester.tap(key('detail_export'));
     await tester.pumpAndSettle();
     await tester.tap(key('export_cancel'));

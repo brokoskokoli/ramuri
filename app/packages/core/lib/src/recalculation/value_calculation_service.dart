@@ -11,6 +11,7 @@ import '../statistics/run_overview.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
 import '../settings/reserve_zone_settings.dart';
 import 'run_analysis.dart';
+import '../subjective/subjective_service.dart' show refreshSrpe;
 import 'run_load_values.dart';
 
 /// Die Werte, die nach einem Lauf entstehen.
@@ -172,6 +173,9 @@ class ValueCalculationService {
           lapCount: (await session.markers.laps(runId)).length,
         ),
       );
+      // Angaben zum Lauf, die schon vor der Berechnung gemacht wurden: sRPE
+      // folgt der jetzt bekannten Bewegungszeit.
+      await refreshSrpe(session, runId);
     }
     await session.values.writeAll(
       create: {

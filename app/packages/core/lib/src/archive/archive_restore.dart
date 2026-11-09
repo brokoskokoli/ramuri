@@ -67,6 +67,7 @@ class ArchiveRestoreService {
       return false;
     }
     if ((await s.devices.list()).isNotEmpty) return false;
+    if ((await s.manualTrainings.list()).isNotEmpty) return false;
     final settings = await s.settings.all();
     return settings.keys.every(archiveExcludedSettingKeys.contains);
   }
