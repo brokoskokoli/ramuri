@@ -501,7 +501,7 @@ void main() {
       tester,
     ) async {
       await withEstimate(tester);
-      for (final word in ['Bestzeit', 'Prognose', 'Readiness', 'ATL', 'CTL']) {
+      for (final word in ['Bestzeit', 'Prognose', 'Readiness']) {
         expect(find.textContaining(word), findsNothing, reason: word);
       }
     });

@@ -28,6 +28,8 @@ class ArchiveRowBatch {
   final List<Map<String, Object?>> rows;
 }
 
+final RegExp _isoDay = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
 const ArchiveImportException _damaged = ArchiveImportException(
   ArchiveImportFailure.damaged,
 );
@@ -38,9 +40,15 @@ const ArchiveImportException _damaged = ArchiveImportException(
 class ArchiveLineValidator {
   /// [headerFormat]: Formatversion aus dem Kopf der Datei, falls bekannt; das
   /// Manifest muss dazu passen (Widerspruch: beschädigt).
-  ArchiveLineValidator({this.headerFormatOf});
+  ArchiveLineValidator({this.headerFormatOf, required this.today});
 
   final int? Function()? headerFormatOf;
+
+  /// Heutiger Ortstag als `JJJJ-MM-TT` (Vertrag 4.1, `manual_trainings`): ein
+  /// nachgetragenes Training mit späterem Tag macht das Archiv ungültig, wie
+  /// die Eingabe (`ManualTraining.requireNotAfter`). Der Leser hat keine Uhr;
+  /// der Aufrufer legt den Tag vor dem ersten Schreiben fest.
+  final String today;
   List<ArchiveSectionSpec> _sections = archiveSectionsFor(1);
   int _nextSection = 0;
   ArchiveSectionSpec? _current;
@@ -176,10 +184,7 @@ class ArchiveLineValidator {
   /// kein Klemmen, kein Runden. Alles Weitere (Art, Datum, Warnsignal-Regel,
   /// sRPE-Spalten gleichzeitig, Fremdschlüssel) prüft die Datenbank. Nichts
   /// davon nennt einen Wert.
-  static void _checkSubjective(
-    ArchiveSectionSpec spec,
-    Map<String, Object?> row,
-  ) {
+  void _checkSubjective(ArchiveSectionSpec spec, Map<String, Object?> row) {
     bool inRange(Object? v, int lo, int hi) =>
         v == null || (v is int && v >= lo && v <= hi);
     switch (spec.name) {
@@ -215,6 +220,14 @@ class ArchiveLineValidator {
       case 'manual_trainings':
         final d = row['duration_s'];
         if (d is! int || d <= 0 || !inRange(row['rpe'], rpeMin, rpeMax)) {
+          throw _damaged;
+        }
+        // Gleiche Form, dann ist der Textvergleich der Tagesvergleich. Andere
+        // Formen lehnt die Datenbank ab (CHECK, Vertrag 4.1).
+        final day = row['day'];
+        if (day is String &&
+            _isoDay.hasMatch(day) &&
+            day.compareTo(today) > 0) {
           throw _damaged;
         }
     }
@@ -328,6 +341,7 @@ Stream<ArchiveRowBatch> readArchive({
   required Stream<List<int>> file,
   required ArchiveCipher cipher,
   required String password,
+  required String today,
   int batchRows = 500,
 }) async* {
   // Formatversion aus dem Kopf (Offset 8): Das Manifest muss dazu passen.
@@ -342,7 +356,10 @@ Stream<ArchiveRowBatch> readArchive({
     return ByteData.sublistView(b).getUint16(8);
   }
 
-  final validator = ArchiveLineValidator(headerFormatOf: headFormat);
+  final validator = ArchiveLineValidator(
+    headerFormatOf: headFormat,
+    today: today,
+  );
   final splitter = _LineSplitter();
   final tail = _Tail8();
   final crc = _Crc32();

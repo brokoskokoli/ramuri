@@ -125,6 +125,7 @@ class _Case {
   }) => ArchiveImporter(
     sink: sink,
     cipherFactory: cipher,
+    clock: _clock,
     batchRows: batchRows,
   ).import(path: write(bytes), password: password, cancel: cancel);
 
@@ -162,6 +163,9 @@ class _Case {
   ) => rejects(_gzip(_jsonl(lines)), failure, cipher: _identity);
 }
 
+/// Heute für die Tests: 2026-11-20 (Ortstag, Versatz 0).
+final Clock _clock = FakeClock(DateTime.utc(2026, 11, 20, 12));
+
 void main() {
   late Directory dir;
   late _Case c;
@@ -181,6 +185,7 @@ void main() {
       await ArchiveImporter(
         sink: DiscardArchiveSink(),
         cipherFactory: _fakeCipher,
+        clock: _clock,
       ).import(path: c.write(bytes), password: _password);
     });
 
@@ -190,6 +195,7 @@ void main() {
         ArchiveImporter(
           sink: DiscardArchiveSink(),
           cipherFactory: _fakeCipher,
+          clock: _clock,
         ).import(path: c.write(bytes), password: 'ganz anderes Passwort'),
         throwsA(
           isA<ArchiveImportException>().having(
@@ -208,6 +214,7 @@ void main() {
         ArchiveImporter(
           sink: DiscardArchiveSink(),
           cipherFactory: _fakeCipher,
+          clock: _clock,
         ).import(path: c.write(await _archive(lines)), password: _password),
         throwsA(isA<ArchiveImportException>()),
       );
@@ -424,6 +431,7 @@ void main() {
         await ArchiveImporter(
           sink: c.sink,
           cipherFactory: _fakeCipher,
+          clock: _clock,
         ).import(path: '${dir.path}/gibt-es-nicht', password: _password);
       } catch (e) {
         error = e;
@@ -1143,7 +1151,7 @@ void main() {
       c = _Case(dir);
     }
 
-    test('gültig, auch ein Datum in der Zukunft (Geräteuhren)', () async {
+    test('gültig, auch heute', () async {
       final lines = v2(
         feedback: [
           fb(),
@@ -1158,14 +1166,55 @@ void main() {
           ),
         ],
         trainings: [
-          mt(day: '2999-01-01'),
+          mt(day: '2026-11-20'),
           mt(id: 2, kind: 'run', rpe: 0),
         ],
       );
       await c.run(await file(lines));
       expect(c.sink.rows['run_feedback'], hasLength(2));
-      expect(c.sink.rows['manual_trainings']![0]['day'], '2999-01-01');
+      expect(c.sink.rows['manual_trainings']![0]['day'], '2026-11-20');
       expect(c.sink.commits, 1);
+    });
+
+    test('Nachgetragenes Training morgen: abgelehnt, nichts bleibt', () async {
+      final lines = v2(
+        trainings: [
+          mt(day: '2026-11-20'),
+          mt(id: 2, day: '2026-11-21'),
+        ],
+      );
+      await rejectsV2(lines);
+    });
+
+    test('Grenze ist der Ortstag, nicht der UTC-Tag', () async {
+      // 23:30 UTC, Versatz +2 h: Ortstag ist schon der 21.
+      final late = FakeClock(
+        DateTime.utc(2026, 11, 20, 23, 30),
+        utcOffset: const Duration(hours: 2),
+      );
+      await ArchiveImporter(
+        sink: c.sink,
+        cipherFactory: _fakeCipher,
+        clock: late,
+      ).import(
+        path: c.write(await file(v2(trainings: [mt(day: '2026-11-21')]))),
+        password: _password,
+      );
+      expect(c.sink.commits, 1);
+      c = _Case(dir);
+      await expectLater(
+        ArchiveImporter(
+          sink: c.sink,
+          cipherFactory: _fakeCipher,
+          clock: late,
+        ).import(
+          path: c.write(await file(v2(trainings: [mt(day: '2026-11-22')]))),
+          password: _password,
+        ),
+        throwsA(isA<ArchiveImportException>()),
+      );
+      expect(c.sink.commits, 0);
+      expect(c.sink.aborts, 1);
     });
 
     test('Format 1 mit den neuen Abschnitten wird abgelehnt', () async {

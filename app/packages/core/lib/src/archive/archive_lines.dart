@@ -5,6 +5,7 @@ import '../../ports/archive_source.dart';
 import '../../ports/clock.dart';
 import '../recalculation/recalculation_service.dart';
 import '../recalculation/value_calculation_service.dart';
+import '../settings/display_settings.dart';
 import 'archive_errors.dart';
 import 'archive_json.dart';
 import 'archive_schema.dart';
@@ -14,6 +15,10 @@ const Set<String> archiveExcludedSettingKeys = {
   ValueCalculationService.calculationPendingKey,
   ValueCalculationService.refreshPendingKey,
   RecalculationService.pendingKey,
+  SettingKeys.loadProfilePending,
+  SettingKeys.loadCoefficientsPending,
+  SettingKeys.loadFactorPending,
+  SettingKeys.loadFactorDeclined,
 };
 
 /// Zeilen je Seite beim Lesen.

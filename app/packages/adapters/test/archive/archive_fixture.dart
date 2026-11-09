@@ -89,6 +89,20 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     'INSERT INTO profile (id, birth_year, body_weight_kg, body_height_m, resting_heart_rate_bpm, max_heart_rate_bpm, weekly_run_minutes, training_days_mask, usual_training_minutes) VALUES (1, 1990, 70.5, 1.8, 50, 190, 120, 5, 45)',
   );
+  // Belastungsprofil (WP19), vor den übrigen in Schlüsselreihenfolge: vier Einstellungen gehören ins Archiv, die
+  // unbestätigte Wahl und die Faktor-Merker sind technische Merker.
+  for (final kv in const [
+    ('load.all_recorded', '1'),
+    ('load.coefficients', 'female'),
+    ('load.coefficients_pending', 'male'),
+    ('load.factor', 'banister;1.5;14;2026-11-07'),
+    ('load.factor_declined', 'banister;3.0;14;2026-11-01'),
+    ('load.factor_pending', 'banister;2.5;14;2026-11-08'),
+    ('load.profile', 'banister'),
+    ('load.profile_pending', 'edwards'),
+  ]) {
+    await sql(db, "INSERT INTO settings VALUES ('${kv.$1}', '${kv.$2}', 1)");
+  }
   await sql(db, "INSERT INTO settings VALUES ('unit.pace', 'min_km', 1)");
   await sql(
     db,
@@ -111,7 +125,7 @@ Future<void> fillAllTables(AppDatabase db) async {
   );
   await sql(
     db,
-    "INSERT INTO manual_trainings (day, kind, duration_s, rpe) VALUES ('2026-11-01', 'other', 3600, 4), ('2999-12-31', 'run', 1800, 0)",
+    "INSERT INTO manual_trainings (day, kind, duration_s, rpe) VALUES ('2026-11-01', 'other', 3600, 4), ('2026-11-20', 'run', 1800, 0)",
   );
   await sql(
     db,

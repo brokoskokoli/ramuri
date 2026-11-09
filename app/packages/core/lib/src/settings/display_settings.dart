@@ -54,4 +54,40 @@ abstract final class SettingKeys {
   /// `1`, wenn die Autopause eingeschaltet ist (FR-0029); fehlt der Eintrag,
   /// gilt sie als aus (OQ-0065).
   static const String autoPause = 'recording.auto_pause';
+
+  /// Aktives Belastungsprofil (FR-0197): `edwards` oder `banister`; fehlt der
+  /// Eintrag, gilt `edwards`. Geschrieben wird er nur von der Neuberechnung
+  /// nach Bestätigung (OQ-0053), siehe `LoadSettings`.
+  static const String loadProfile = 'load.profile';
+
+  /// Koeffizienten-Angabe des Profils (FR-0002): `male` oder `female`; fehlt
+  /// oder leer = keine Angabe.
+  static const String loadCoefficients = 'load.coefficients';
+
+  /// `1`, wenn der Nutzer zusagt, dass alle Trainings erfasst sind (FR-0103);
+  /// fehlt der Eintrag, gilt keine Zusage.
+  static const String loadAllRecorded = 'load.all_recorded';
+
+  /// Technischer Merker: das mit einem offenen Angebot gewählte, noch nicht
+  /// bestätigte Belastungsprofil. Nicht im Archiv (Vertrag 4.3).
+  static const String loadProfilePending = 'load.profile_pending';
+
+  /// Technischer Merker: die mit einem offenen Angebot geänderte, noch nicht
+  /// bestätigte Koeffizienten-Angabe (`male`, `female` oder `none` für
+  /// „Angabe entfernen“). Nicht im Archiv (Vertrag 4.3).
+  static const String loadCoefficientsPending = 'load.coefficients_pending';
+
+  /// Angewandter persönlicher Faktor TRIMP/sRPE (FR-0097, PAR-087) mit Profil,
+  /// Zahl der Läufe und Datum: `profil;wert;läufe;JJJJ-MM-TT`. Fehlt der
+  /// Eintrag oder ist er unlesbar, gibt es keinen Faktor. Kommt ins Archiv.
+  static const String loadFactor = 'load.factor';
+
+  /// Technischer Merker: der zu einem offenen Angebot berechnete neue Faktor
+  /// (gleiches Format wie [loadFactor]). Nicht im Archiv (Vertrag 4.3).
+  static const String loadFactorPending = 'load.factor_pending';
+
+  /// Technischer Merker: der zuletzt abgelehnte neue Faktor; solange der
+  /// berechnete Faktor innerhalb der Toleranz davon liegt, wird er nicht
+  /// erneut angeboten. Nicht im Archiv (Vertrag 4.3).
+  static const String loadFactorDeclined = 'load.factor_declined';
 }

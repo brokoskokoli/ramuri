@@ -207,7 +207,15 @@ void main() {
               ValueCalculationService.calculationPendingKey,
               ValueCalculationService.refreshPendingKey,
               RecalculationService.pendingKey,
+              SettingKeys.loadProfilePending,
+              SettingKeys.loadCoefficientsPending,
+              SettingKeys.loadFactorPending,
+              SettingKeys.loadFactorDeclined,
+              SettingKeys.loadFactor,
               'unit.pace',
+              SettingKeys.loadProfile,
+              SettingKeys.loadCoefficients,
+              SettingKeys.loadAllRecorded,
               'zukunft.unbekannt',
             ])
               {'key': k, 'value': 'x', 'updated_at_us': 5},
@@ -221,9 +229,16 @@ void main() {
         expect(text, isNot(contains(_marker)));
         expect(
           [for (final r in _rowsOf(lines, 'settings')) r['key']],
-          ['unit.pace', 'zukunft.unbekannt'],
+          [
+            SettingKeys.loadAllRecorded,
+            SettingKeys.loadCoefficients,
+            SettingKeys.loadFactor,
+            SettingKeys.loadProfile,
+            'unit.pace',
+            'zukunft.unbekannt',
+          ],
         );
-        expect((lines.last['rows']! as Map)['settings'], 2);
+        expect((lines.last['rows']! as Map)['settings'], 6);
       },
     );
 

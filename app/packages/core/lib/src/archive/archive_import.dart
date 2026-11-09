@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import '../../ports/archive_sink.dart';
+import '../../ports/clock.dart';
 import 'archive_errors.dart';
 import 'archive_export.dart';
 import 'archive_reader.dart';
@@ -21,12 +22,23 @@ class ArchiveImporter {
   ArchiveImporter({
     required this._sink,
     required this._cipherFactory,
+    required this._clock,
     this._batchRows = 500,
   });
 
   final ArchiveSink _sink;
   final ArchiveCipherFactory _cipherFactory;
+  final Clock _clock;
   final int _batchRows;
+
+  /// Heutiger Ortstag (wie die Eingabe nachgetragener Trainings), einmal je
+  /// Einlesen, als `JJJJ-MM-TT`.
+  String _today() {
+    final n = _clock.now();
+    final d = n.toUtc().add(_clock.utcOffsetAt(n));
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${d.year.toString().padLeft(4, '0')}-${two(d.month)}-${two(d.day)}';
+  }
 
   /// Liest die Archivdatei [path] mit [password]. Wirft
   /// [ArchiveImportException]; danach wurde `abort` aufgerufen und nie
@@ -119,6 +131,7 @@ class ArchiveImporter {
           password: password,
           cipherFactory: _cipherFactory,
           batchRows: _batchRows,
+          today: _today(),
         ),
         onError: errors.sendPort,
         onExit: exits.sendPort,
@@ -161,6 +174,7 @@ class _ImportInit {
     required this.password,
     required this.cipherFactory,
     required this.batchRows,
+    required this.today,
   });
 
   final SendPort reply;
@@ -168,6 +182,7 @@ class _ImportInit {
   final String password;
   final ArchiveCipherFactory cipherFactory;
   final int batchRows;
+  final String today;
 }
 
 class _Aborted implements Exception {
@@ -187,6 +202,7 @@ Future<void> _worker(_ImportInit init) async {
       file: File(init.path).openRead(),
       cipher: init.cipherFactory(),
       password: init.password,
+      today: init.today,
       batchRows: init.batchRows,
     )) {
       init.reply.send(<Object>['rows', batch.section.name, batch.rows]);

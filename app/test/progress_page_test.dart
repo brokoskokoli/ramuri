@@ -562,8 +562,10 @@ void main() {
       expect(position(tester).pixels, closeTo(offset, 0.5));
     });
 
-    testWidgets('Scrollposition hinter dem neuen Ende: aufs Ende geklemmt, '
-        'keine Ausnahme', (tester) async {
+    Future<void> shortFirstFrame(
+      WidgetTester tester, {
+      required bool userScrolls,
+    }) async {
       final d = await started(tester);
       d.clock.set(DateTime.utc(2026, 6, 3, 12));
       final id = await seedRun(d.session, DateTime.utc(2026, 6, 1, 8));
@@ -590,16 +592,57 @@ void main() {
       await openStats(d, tester);
       await tester.drag(key('stat_list'), const Offset(0, -9000));
       await tester.pumpAndSettle();
-      final before = position(tester).maxScrollExtent;
-      expect(position(tester).pixels, before);
+      await tester.drag(key('stat_list'), const Offset(0, 390));
+      await tester.pumpAndSettle();
+      // 390 statt 300: Mit dem Lauf nennt die Karte dessen unbewertete Einheit
+      // (eine Zeile mehr); ohne ihn ist die Seite etwas kürzer. Die Position
+      // muss zwischen dem ersten Bild und dem geladenen Ende liegen.
+      final before = position(tester).pixels;
+      expect(before, greaterThan(500));
       await openHistory(d, tester);
       await d.session.deleteRun(id);
-      await openStats(d, tester);
+      // Das erste Bild nach dem Öffnen: die Karte Belastung zeigt noch
+      // „wird berechnet“; der Scrollbereich klemmt die gemerkte Position auf
+      // sein Ende.
+      await tester.tap(key('home_statistics'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      final first = position(tester);
+      final clamped = first.maxScrollExtent;
+      expect(clamped, lessThan(before), reason: 'erstes Bild kürzer');
+      expect(first.pixels, clamped, reason: 'aufs Ende des ersten Bilds');
+      double? userEnd;
+      if (userScrolls) {
+        // Der Nutzer scrollt, solange die Karte noch lädt.
+        await tester.drag(key('stat_list'), const Offset(0, 40));
+        userEnd = position(tester).pixels;
+      }
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       final pos = position(tester);
-      expect(pos.maxScrollExtent, lessThan(before), reason: 'Inhalt kürzer');
-      expect(pos.pixels, pos.maxScrollExtent);
-    });
+      if (userScrolls) {
+        // Das Wiederherstellen überschreibt die Eingabe nicht.
+        expect(userEnd, lessThan(clamped));
+        expect(pos.pixels, userEnd);
+        return;
+      }
+      // Die Karte lädt danach und macht die Seite länger: die gemerkte
+      // Position wird exakt wieder angesteuert (nicht am geklemmten Wert).
+      expect(pos.maxScrollExtent, greaterThan(clamped));
+      expect(pos.maxScrollExtent, greaterThan(before));
+      expect(pos.pixels, before);
+    }
+
+    testWidgets(
+      'Scrollposition hinter dem kürzeren ersten Bild: nach dem Laden '
+      'der Karte exakt wieder da, keine Ausnahme',
+      (tester) => shortFirstFrame(tester, userScrolls: false),
+    );
+
+    testWidgets(
+      'Scrollen des Nutzers während die Karte lädt wird nicht überschrieben',
+      (tester) => shortFirstFrame(tester, userScrolls: true),
+    );
 
     testWidgets('gemerkter Lauf inzwischen gelöscht: neuester Lauf, kein '
         'Absturz', (tester) async {

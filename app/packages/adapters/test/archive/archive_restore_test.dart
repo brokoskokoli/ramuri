@@ -207,6 +207,7 @@ void main() {
           ),
       files: fl,
       cipherFactory: createArchiveCipherInWorker,
+      clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
       reopen: () async => session = await openActive(),
       serialize:
           serialize ??
@@ -301,6 +302,17 @@ void main() {
       // Einwilligungen nicht erteilt, Merker weg.
       expect(await session.consents.all(), isEmpty);
       expect(await session.settings.get('values.refreshPending'), isNull);
+      // Belastungsprofil: Einstellungen kommen mit, die offene Wahl nicht.
+      expect(
+        await LoadSettings.activeProfile(session.settings),
+        LoadProfile.banister,
+      );
+      expect(
+        await LoadSettings.coefficients(session.settings),
+        LoadCoefficients.female,
+      );
+      expect(await LoadSettings.allRecorded(session.settings), isTrue);
+      expect(await LoadSettings.pendingProfile(session.settings), isNull);
       // Danach nur die aktive Datenbank, keine Zwischendatenbank.
       expect(await files.importExists(), isFalse);
       expect(appFiles().where((n) => n.contains('.import')), isEmpty);
@@ -453,7 +465,7 @@ void main() {
       final trainings = await session.manualTrainings.list();
       expect(trainings, hasLength(2));
       // Datum in der Zukunft wurde angenommen.
-      expect(trainings.map((t) => t.training.isoDay), contains('2999-12-31'));
+      expect(trainings.map((t) => t.training.isoDay), contains('2026-11-20'));
     },
   );
 
@@ -626,6 +638,7 @@ void main() {
             password: _password,
             files: files,
             cipherFactory: createArchiveCipherInWorker,
+            clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
           ),
           throwsA(
             isA<ArchiveImportException>().having(
@@ -647,6 +660,7 @@ void main() {
           password: _password,
           files: files,
           cipherFactory: createArchiveCipherInWorker,
+          clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
         );
         expect(appFiles().where((n) => n.contains('.import')), isEmpty);
       },

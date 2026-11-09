@@ -20,6 +20,7 @@ Future<void> verifyArchive({
   required String password,
   required FileDatabaseFiles files,
   required ArchiveCipherFactory cipherFactory,
+  required Clock clock,
   ArchiveCancel? cancel,
   Uint8List Function()? key,
 }) async {
@@ -32,6 +33,7 @@ Future<void> verifyArchive({
         files: files,
       ),
       cipherFactory: cipherFactory,
+      clock: clock,
     ).import(path: path, password: password, cancel: cancel);
   } finally {
     await files.deleteImport();

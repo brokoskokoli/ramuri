@@ -54,7 +54,11 @@ void main() {
   ) as Map<String, dynamic>;
   final vectors = (meta['vectors'] as List).cast<Map<String, dynamic>>();
   final positive = vectors.where((v) => v['expect'] == 'ok').toList();
-  final negative = vectors.where((v) => v['expect'] != 'ok').toList();
+  // `layer: content`: Rahmen und Kryptografie gültig, der Inhalt wird vom Leser
+  // abgelehnt (archive_import_vectors_test.dart), nicht von der Verschlüsselung.
+  final negative = vectors
+      .where((v) => v['expect'] != 'ok' && v['layer'] != 'content')
+      .toList();
 
   test('Fixture ist vollständig (Mindestumfang)', () {
     expect(
@@ -133,6 +137,38 @@ void main() {
     });
   });
 
+  test(
+    'archive_v2: Format 2, Schema 5, 21 Abschnitte inkl. run_feedback',
+    () async {
+      final v = positive.firstWhere((v) => v['name'] == 'archive_v2');
+      final plain = await _collect(
+        createArchiveCipher().decrypt(
+          v['password'] as String,
+          Stream.value(_read(v['file'] as String)),
+        ),
+      );
+      expect(_read(v['file'] as String)[9], 2);
+      final text = utf8.decode(gzip.decode(plain));
+      expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+      final lines = const LineSplitter().convert(text);
+      expect(jsonDecode(lines.first), {
+        'type': 'manifest',
+        'format': 2,
+        'schema_version': 5,
+        'created_at_us': 1793000000000000,
+      });
+      final sections = [
+        for (final l in lines)
+          if ((jsonDecode(l) as Map)['type'] == 'section')
+            (jsonDecode(l) as Map)['name'],
+      ];
+      expect(sections.length, 21);
+      expect(sections.sublist(16, 18), ['run_feedback', 'manual_trainings']);
+      final end = jsonDecode(lines.last) as Map<String, dynamic>;
+      expect(end['rows'], v['row_counts']);
+    },
+  );
+
   group('Dart verschlüsselt byte-gleich mit festem Salz', () {
     // Hook: createArchiveCipher(randomBytes:) liefert das feste Salz; das
     // Salz ist der einzige Zufall des Formats.
@@ -140,7 +176,8 @@ void main() {
       test('${v['name']}', () async {
         final salt = _hex(v['salt_hex'] as String);
         var calls = 0;
-        // Die Vektoren sind Format 1; der Schreiber erzeugt sonst Format 2.
+        // Format 1 ist der Standard der Vektoren (Feld `format` fehlt oder 1);
+        // `archive_v2` trägt Format 2.
         final cipher = FramedArchiveCipher(
           kdf: CryptographyArchiveKdf(),
           aead: CryptographyChunkAead(),
@@ -149,7 +186,7 @@ void main() {
             expect(len, 16);
             return salt;
           },
-          headerFormat: 1,
+          headerFormat: (v['format'] as int?) ?? 1,
         );
         final plain = _read(v['plaintext_file'] as String);
         final out = await _collect(

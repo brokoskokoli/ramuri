@@ -40,6 +40,10 @@ enum UnavailableReason {
 
   /// Das Vergleichsfenster erreicht die Mindestmenge nicht (PAR-046).
   referenceWindowTooSmall,
+
+  /// Das Belastungsprofil Banister braucht die Koeffizienten-Angabe (FR-0002,
+  /// FR-0197), sie fehlt.
+  missingLoadCoefficients,
 }
 
 /// Berechneter Wert oder „nicht verfügbar“ mit Grund; beides nennt die

@@ -65,6 +65,8 @@ void main() {
     expect((res as FitnessAvailable<TrimpResult>).value.points, 42);
     expect(r.variants(loadModelFamily).map((v) => v.method), [
       'edwards-trimp',
+      'banister-trimp-male',
+      'banister-trimp-female',
       'fake-load',
     ]);
   });
@@ -107,6 +109,8 @@ void main() {
         'heart-rate-reserve',
         'reserve-zones',
         'edwards-trimp',
+        'banister-trimp-male',
+        'banister-trimp-female',
         'vo2max-acsm-hrr',
         'vo2max-long-term-ema',
         'aerobic-efficiency-median',

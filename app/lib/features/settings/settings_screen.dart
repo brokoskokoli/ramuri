@@ -9,10 +9,11 @@ import '../recalculation/recalculation_controller.dart';
 import '../../ui/ramuri_card.dart';
 import '../../ui/section_heading.dart';
 import 'app_settings.dart';
+import 'load_settings_section.dart';
 
 /// Einstellungen: Einheit für Strecken (reine Anzeige) und die Neuberechnung.
 /// Sensoren, Zonen, Berechtigungen und Daten liegen in der Übersicht.
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
     required this.session,
@@ -21,6 +22,34 @@ class SettingsScreen extends StatelessWidget {
 
   final StorageSession session;
   final RecalculationController recalculation;
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  /// Die Karte der Neuberechnung steht oben in der Liste; eine lazy gebaute
+  /// Liste kennt ihren Kontext außerhalb des Bildes nicht, daher wird der
+  /// Anfang über die Position angesteuert (WP19 NB4).
+  final ScrollController _scroll = ScrollController();
+
+  StorageSession get session => widget.session;
+  RecalculationController get recalculation => widget.recalculation;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _showOffer() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(
+      0,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,9 +70,15 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: ListView(
+        controller: _scroll,
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
           RecalculationCard(controller: recalculation),
+          LoadSettingsSection(
+            session: session,
+            recalculation: recalculation,
+            onShowOffer: _showOffer,
+          ),
           SectionHeading(l10n.settingsUnits),
           const SizedBox(height: 12),
           RamuriCard(

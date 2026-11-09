@@ -451,6 +451,11 @@ void main() {
       ]) {
         expect(find.byKey(Key(k)), findsNothing, reason: k);
       }
+      // Die Einheit liegt unter dem Abschnitt Belastungsprofil (WP19).
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('settings_unit')),
+        200,
+      );
       expect(
         tester
             .widget<SegmentedButton<DistanceUnit>>(
@@ -462,9 +467,15 @@ void main() {
 
       gate.hold!.complete();
       await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, 3000));
+      await tester.pumpAndSettle();
       expect(find.textContaining('Recalculated: 2 runs'), findsOneWidget);
       expect(tester.takeException(), isNull);
       // Danach ist die Einheit wieder frei.
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('settings_unit')),
+        200,
+      );
       expect(
         tester
             .widget<SegmentedButton<DistanceUnit>>(
