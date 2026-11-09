@@ -594,15 +594,24 @@ void main() {
       expect(position(tester).pixels, before);
       await openHistory(d, tester);
       await d.session.deleteRun(id);
-      await openStats(d, tester);
+      // Das erste Bild nach dem Öffnen: die Karte Belastung zeigt noch
+      // „wird berechnet“; der Scrollbereich klemmt die gemerkte Position auf
+      // sein Ende.
+      await tester.tap(key('home_statistics'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      final first = position(tester);
+      final clamped = first.maxScrollExtent;
+      expect(clamped, lessThan(before), reason: 'Inhalt kürzer');
+      expect(first.pixels, clamped, reason: 'aufs Ende des ersten Bilds');
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       final pos = position(tester);
-      expect(pos.maxScrollExtent, lessThan(before), reason: 'Inhalt kürzer');
-      // Die Karte Belastung lädt nach dem ersten Bild und macht die Seite
-      // danach länger: die Position wurde auf das Ende des ersten Bilds
-      // geklemmt und liegt nun innerhalb des Inhalts, nicht mehr am Ende.
-      expect(pos.pixels, greaterThan(0));
-      expect(pos.pixels, lessThanOrEqualTo(pos.maxScrollExtent));
+      // Die Karte lädt danach und macht die Seite länger. Die Position bleibt
+      // genau, wo sie geklemmt wurde (der Scrollbereich springt nicht); sie
+      // liegt dann nicht mehr am Ende.
+      expect(pos.maxScrollExtent, greaterThan(clamped));
+      expect(pos.pixels, clamped);
     });
 
     testWidgets('gemerkter Lauf inzwischen gelöscht: neuester Lauf, kein '
