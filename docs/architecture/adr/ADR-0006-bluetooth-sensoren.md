@@ -9,7 +9,7 @@
 Phase 1 verlangt kompatible Bluetooth-Pulssensoren ohne herstellerspezifische Einrichtung (FR-0007, FR-0008, CON-0003). Das bevorzugte Gerät hat Vorrang, gewechselt wird manuell oder nach einem Abbruch, mit Herkunft je Zeitabschnitt (OQ-0018), ohne automatischen Rückwechsel im Lauf (OQ-0037). Die Projektlizenz ist GPL-3.0.
 
 ## Entscheidung
-**1. Standardprofil:** Bluetooth LE mit Heart Rate Service `0x180D`, Benachrichtigung auf Heart Rate Measurement `0x2A37`, optional Battery Service `0x180F` mit Battery Level `0x2A19` für FR-0016 [1][2]. Die Suche filtert auf `0x180D` (FR-0008, FR-0011). RR-Intervalle bleiben ungenutzt (FR-0021 ist Phase 4).
+**1. Standardprofil:** Bluetooth LE mit Heart Rate Service `0x180D`, Benachrichtigung auf Heart Rate Measurement `0x2A37`, optional Battery Service `0x180F` mit Battery Level `0x2A19` für FR-0016 [1][2]. Die Suche filtert auf `0x180D` (FR-0008, FR-0011). RR-Intervalle bleiben ungenutzt (FR-0021 ist Phase 4); seit 2026-11-09 werden sie als Rohdaten gespeichert (Nachtrag unten).
 
 **2. Plugin:** `universal_ble` 3.2.0 (BSD-3-Clause, Stand 2026-10-30, Navideck) hinter dem Port aus ADR-0002 [3][4]. Keine zusätzliche native Laufzeitabhängigkeit, dokumentiert Benachrichtigungen, `autoConnect` und den Betrieb ohne Activity bei vorab erteilten Rechten.
 
@@ -27,6 +27,8 @@ Phase 1 verlangt kompatible Bluetooth-Pulssensoren ohne herstellerspezifische Ei
 - **Companion Device Manager:** Laut Android eingeschränkte Filter und keine zufälligen MAC-Adressen [6], und der Dienst wird für GPS ohnehin gebraucht.
 
 **Nachtrag nach R005 (K9):** `universal_ble` zieht `bluez` und `dbus` (MPL-2.0) nach, beim Vertrieb gelten die Pflichten aus der MPL. Einschätzung ohne Rechtsprüfung (OQ-0048).
+
+**Nachtrag 2026-11-09 (Maintainer, DEC-0072, FR-0213):** RR-Intervalle aus `0x2A37` werden als Rohdaten mitgespeichert, ohne Auswertung in Phase 2. Der Parser bleibt in `core`; ein Fehler beim Lesen der RR-Felder darf den Pulswert nicht verwerfen.
 
 ## Konsequenzen
 - CON-0003 gilt für das Standardprofil. Geräte ohne `0x180D` bleiben außen vor; FR-0009 und FR-0010 sind Phase 4.

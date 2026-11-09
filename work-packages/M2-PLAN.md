@@ -1,6 +1,6 @@
 # M2-Plan: Phase 2
 
-Adaptiver Trainingscoach. 8 Pakete, höchstens 2 Sitzungen gleichzeitig. Stand der Pakete nur in [STATUS.md](STATUS.md). Vorgaben zum Start: OQ-0077.
+Adaptiver Trainingscoach. 10 Pakete, höchstens 2 Sitzungen gleichzeitig. Stand der Pakete nur in [STATUS.md](STATUS.md). Vorgaben zum Start: OQ-0077.
 
 ## Wellen
 
@@ -8,6 +8,8 @@ Adaptiver Trainingscoach. 8 Pakete, höchstens 2 Sitzungen gleichzeitig. Stand d
 |---|---|---|
 | 1 | [WP18](WP18-subjektive-angaben-nachtragen.md) ‖ [WP20](WP20-leistungsprognose.md) | M1 |
 | 2 | [WP19](WP19-belastungsverlauf-belastungsprofil.md) ‖ [WP21](WP21-planmodell-planerzeugung.md) | WP19: WP18. WP21: WP18, WP20 |
+| 2b | [WP26](WP26-rr-intervalle-speichern.md) | M1; nach WP20, vor WP24 (nachgereicht am 2026-11-09, DEC-0072) |
+| 2c | [WP27](WP27-ruhepuls-kamera.md) | M1; Screens vor der Umsetzung; Protokoll aus R009 (nachgereicht am 2026-11-09, DEC-0073) |
 | 3 | [WP22](WP22-plan-seite-ziele-kalender.md) ‖ [WP25](WP25-laufband-zusatzmetriken.md) | WP22: WP21. WP25: M1 |
 | 4 | [WP23](WP23-plananpassung-warnsignal-erklaerungen.md) ‖ [WP24](WP24-gefuehrte-einheit-ansagen.md) | WP23: WP19, WP22. WP24: WP22, für den Laufband-Fall WP25 |
 | 5 | Abschlussprüfung M2 | alle |
@@ -19,6 +21,7 @@ flowchart LR
   WP21 --> WP22
   WP19 & WP22 --> WP23
   WP22 & WP25 --> WP24
+  WP26 --> WP24
   WP23 & WP24 --> ABS[Abschlussprüfung]
 ```
 
@@ -27,6 +30,8 @@ flowchart LR
 - **WP18 und WP20:** Texte (`app_*.arb`) je mit eigenem Präfix; `Fortschritt` nur WP20.
 - **WP19 und WP21:** Datenbankschema: Wer später mergt, setzt seine Migration auf die neue Version.
 - **WP22 und WP25:** Navigation nur WP22; `run_flow_screen.dart` nur WP25.
+- **WP26:** `heart_rate_parser.dart`, Aufzeichnung, Schema und Archiv; Schema und Archivabschnitt nach den zuvor gemergten Paketen. WP24 baut darauf auf.
+- **WP27:** eigenes Feature `app/lib/features/measure`, Kamera-Adapter in `adapters`, Algorithmus in `core/src/ppg`; im Profil und in der Einrichtung nur je ein Einstieg. Keine gemeinsamen Dateien mit WP22 außer Texten.
 - **WP23 und WP24:** `home` nur WP23, `run` nur WP24; beide lesen die Einheit über dieselbe Schnittstelle aus WP21.
 
 ## Für alle Pakete
