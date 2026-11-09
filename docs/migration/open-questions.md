@@ -60,7 +60,7 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Betroffene Anforderungen:** FR-0109, FR-0112, FR-0114, FR-0215
 - **Auswirkung:** blocking — Phase 3, erweiterte Readiness.
 - **Status:** Resolved
-- **Entscheidung:** Eine Zahl erscheint nur mit aktueller HRV und Schlaf sowie einer persönlichen Referenz aus mindestens 14 gültigen Messungen in 28 Tagen; sonst eine eingeschränkte Einschätzung ohne Zahl. Die Mengen sind vorläufige Heuristiken. Ziel: FR-0109, FR-0112, DEC-0042. 2026-11-03, SRC-003.
+- **Entscheidung:** 2026-11-09, SRC-003 (E3 aus R009): Eine Zahl erscheint nur mit (1) einer aktuellen HRV, nächtlich aus Health Connect oder als gültiger Kamera-Morgenwert nach bestandener Validierung und eingeschaltetem Opt-in, (2) einer Schlafdauer der letzten Nacht, aus Health Connect oder als Selbstangabe in Stufen, und (3) einer persönlichen Referenz derselben Reihe aus mindestens 14 gültigen Werten in 28 Tagen. Sonst eine eingeschränkte Einschätzung ohne Zahl (PAR-171K). Ohne jede Schlafangabe gibt es keine Zahl; verworfen ist eine Zahl ohne Schlaf mit Kappung 74. Solange Kamera-RMSSD gesperrt ist, gibt es ohne Uhr keine Zahl (E1). Die Mengen sind vorläufige Heuristiken. Ziel: FR-0109, FR-0112, FR-0215, DEC-0042, DEC-0074. Quelle: `research/R009-kamera-ppg-morgenmessung/RESULTS.md`, Abschnitte 5 und 5a. Früher (2026-11-03, SRC-003): Zahl nur mit aktueller HRV und Schlaf sowie einer Referenz aus mindestens 14 gültigen Messungen in 28 Tagen.
 
 ### OQ-0007 — Energiereserve nur mit kontinuierlichen Wearable-Daten?
 - **Frage:** Soll die Energiereserve ausschließlich mit kontinuierlicher Wearable-Datenerfassung angeboten werden?

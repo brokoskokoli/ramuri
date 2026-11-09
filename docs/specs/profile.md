@@ -104,15 +104,18 @@ Die Näherung besitzt eine erhebliche individuelle Streuung. Der Nutzer kann den
 ### FR-0214 — Ruhepuls mit der Handykamera messen
 - **Status:** Approved | **Phase:** 2
 - **Quelle:** SRC-003 (Maintainer 2026-11-09)
-- **Verwandt:** FR-0002, FR-0060, SEC-0001, OQ-0078, DEC-0073
+- **Verwandt:** FR-0002, FR-0060, SEC-0001, OQ-0078, DEC-0073, DEC-0074
 
 Im Profil und bei der Einrichtung kann der Nutzer seinen Ruhepuls messen lassen, statt ihn einzutragen: Finger auf Rückkamera und Blitz, die App erkennt die Schläge im Kamerabild (Photoplethysmografie). Vor der Messung empfiehlt sie eine Ruhephase mit beruhigender Anleitung; wer schon entspannt ist, misst sofort.
 
 **Akzeptanzkriterien:**
 - [ ] Erreichbar über das Profil (Ruheherzfrequenz) und als Knopf bei der Einrichtung.
-- [ ] Ablauf: Erklärung mit Bild, wie der Finger liegt; wählbar Ruhephase (Vorgabe 4 min, Länge einstellbar) oder sofort messen; danach 60 s Messung.
+- [ ] Ablauf: Erklärung mit Bild, wie der Finger liegt; wählbar Ruhephase (Vorgabe 5 min, Länge einstellbar) oder sofort messen; danach 60 s Messung.
+- [ ] Haltung sitzend oder liegend wählbar; sie wird mit dem Wert gespeichert, ebenso der Zeitpunkt.
+- [ ] Die beruhigende Anleitung gibt kein Atemtempo vor; während der 60 s atmet der Nutzer spontan.
+- [ ] Es zählt die erste Messung mit ausreichender Qualität; wiederholt wird nur, wenn die Qualität nicht reicht.
 - [ ] Während der Messung zeigt die App die Pulskurve und den laufenden Puls, damit der Nutzer den Finger justieren kann, sowie den Fortschritt.
-- [ ] Ergebnis nur bei ausreichender Signalqualität; sonst ein Hinweis mit Grund und „noch einmal“. Der Nutzer übernimmt den Wert ausdrücklich ins Profil.
+- [ ] Ergebnis nur bei ausreichender Signalqualität; sonst ein Hinweis mit Grund und „noch einmal“. Der Nutzer übernimmt den Wert ausdrücklich ins Profil. Hat der Kamera-Ruhepuls die Validierung „nicht bestanden“ (Validierungssperre in K-1, FR-0215), trägt der Vorschlag den Hinweis „ungenauer als erwartet“.
 - [ ] Ohne Kamera, Blitz oder Berechtigung bleibt die manuelle Eingabe; die App stürzt nicht ab.
 - [ ] Kamerabilder werden weder gespeichert noch übertragen; die Auswertung läuft auf dem Gerät.
 - [ ] Der Algorithmus folgt der Referenz aus `../puls` (`docs/ALGORITHMUS.md`, Stand `algo-v0.4-frozen`) und ist gegen deren Testvektoren geprüft.

@@ -34,7 +34,7 @@ Die Zahlen werden aus den Dateien erzeugt.
 | Anforderungen gesamt | 242 |
 | davon FR / NFR / SEC / CON | 215 / 6 / 11 / 10 |
 | davon Status Blocked | 0 |
-| Akzeptanzkriterien in Anforderungen | 420 |
+| Akzeptanzkriterien in Anforderungen | 431 |
 | Fragen gesamt (offen blocking / offen non-blocking / entschieden) | 78 (0 / 8 / 70) |
 | Traceability-Zeilen (Teil A / Teil B) | 285 (271 / 14) |
 | davon Duplikat zusammengefasst | 5 |

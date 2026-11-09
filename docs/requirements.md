@@ -117,14 +117,14 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0106 | Basis-Erholungseinschätzung ohne Fitnessuhr | functional | Approved | 2 | [readiness](specs/readiness.md#fr-0106--basis-erholungseinschätzung-ohne-fitnessuhr) | CON-0004, OQ-0029, OQ-0057 |
 | FR-0107 | Kein Anspruch auf vollständige Bestimmung | functional | Approved | 2 | [readiness](specs/readiness.md#fr-0107--kein-anspruch-auf-vollständige-bestimmung) | OQ-0029, OQ-0077 |
 | FR-0108 | Faktoren der erweiterten Training Readiness | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0108--faktoren-der-erweiterten-training-readiness) | FR-0022, SEC-0001 |
-| FR-0109 | Wert von 0 bis 100 mit Einordnung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0109--wert-von-0-bis-100-mit-einordnung) | OQ-0006, OQ-0059 |
+| FR-0109 | Wert von 0 bis 100 mit Einordnung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0109--wert-von-0-bis-100-mit-einordnung) | OQ-0006, OQ-0059, DEC-0074 |
 | FR-0110 | Vorläufige Gewichtung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0110--vorläufige-gewichtung) | NFR-0002, NFR-0003, NFR-0004, OQ-0020, OQ-0029, OQ-0057, OQ-0059 |
 | FR-0111 | Fehlende Faktoren gelten nicht als normal | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0111--fehlende-faktoren-gelten-nicht-als-normal) | ACC-11, OQ-0029, OQ-0059 |
 | FR-0112 | Persönlicher Referenzzeitraum | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0112--persönlicher-referenzzeitraum) | ACC-11, OQ-0006 |
-| FR-0113 | Robuste Abweichungsbewertung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0113--robuste-abweichungsbewertung) | OQ-0059 |
+| FR-0113 | Robuste Abweichungsbewertung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0113--robuste-abweichungsbewertung) | OQ-0059, DEC-0074 |
 | FR-0114 | Keine künstlich präzise Abweichung | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0114--keine-künstlich-präzise-abweichung) | OQ-0006 |
-| FR-0115 | Messmethoden nur konsistent vergleichen | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0115--messmethoden-nur-konsistent-vergleichen) | OQ-0059 |
-| FR-0116 | Mögliche Zustände | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0116--mögliche-zustände) | OQ-0029, OQ-0058, OQ-0059 |
+| FR-0115 | Messmethoden nur konsistent vergleichen | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0115--messmethoden-nur-konsistent-vergleichen) | OQ-0059, DEC-0074 |
+| FR-0116 | Mögliche Zustände | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0116--mögliche-zustände) | OQ-0029, OQ-0058, OQ-0059, DEC-0074 |
 | FR-0117 | Wichtigste Ursachen erklären | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0117--wichtigste-ursachen-erklären) | FR-0181, OQ-0059 |
 | FR-0118 | Keine medizinische Diagnose | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0118--keine-medizinische-diagnose) | OQ-0026 |
 | FR-0119 | Optionale Funktion | functional | Draft | 4 | [energy-reserve](specs/energy-reserve.md#fr-0119--optionale-funktion) | CON-0007, OQ-0007 |
@@ -222,8 +222,8 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0211 | Kilometerwerte in der Detailansicht | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0211--kilometerwerte-in-der-detailansicht) | FR-0041, FR-0056, FR-0204, OQ-0075, OQ-0076 |
 | FR-0212 | Zeitraum in der Historie | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0212--zeitraum-in-der-historie) | FR-0040, FR-0044, OQ-0075 |
 | FR-0213 | RR-Intervalle als Rohdaten speichern | functional | Approved | 2 | [sensors](specs/sensors.md#fr-0213--rr-intervalle-als-rohdaten-speichern) | FR-0021, FR-0019, SEC-0001, DEC-0072 |
-| FR-0214 | Ruhepuls mit der Handykamera messen | functional | Approved | 2 | [profile](specs/profile.md#fr-0214--ruhepuls-mit-der-handykamera-messen) | FR-0002, FR-0060, SEC-0001, OQ-0078, DEC-0073 |
-| FR-0215 | Morgenmessung mit der Handykamera | functional | Draft | 3 | [readiness](specs/readiness.md#fr-0215--morgenmessung-mit-der-handykamera) | FR-0109, FR-0112, FR-0115, FR-0214, OQ-0006, OQ-0078, DEC-0073 |
+| FR-0214 | Ruhepuls mit der Handykamera messen | functional | Approved | 2 | [profile](specs/profile.md#fr-0214--ruhepuls-mit-der-handykamera-messen) | FR-0002, FR-0060, SEC-0001, OQ-0078, DEC-0073, DEC-0074 |
+| FR-0215 | Morgenmessung mit der Handykamera | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0215--morgenmessung-mit-der-handykamera) | FR-0109, FR-0112, FR-0115, FR-0214, OQ-0006, OQ-0078, DEC-0073, DEC-0074 |
 | NFR-0001 | Algorithmen versionierbar und nachvollziehbar | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0001--algorithmen-versionierbar-und-nachvollziehbar) | FR-0053, FR-0058 |
 | NFR-0002 | Einordnung in drei Verfahrenskategorien | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0002--einordnung-in-drei-verfahrenskategorien) | — |
 | NFR-0003 | Heuristiken nicht als validiert darstellen | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0003--heuristiken-nicht-als-validiert-darstellen) | FR-0054 |
