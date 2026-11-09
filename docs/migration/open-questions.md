@@ -636,8 +636,8 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 ### OQ-0076 — Nachschliff der Lauf-Seiten
 - **Frage:** Was zeigt die Kilometertabelle bei einem sehr kurzen Restabschnitt mit unplausibler Pace, und was tut die Zurück-Taste im laufenden Lauf?
 - **Auslöser/Quellen:** WP16 (Review): 2 m in 8,7 s ergeben 72 min/km; die Zurück-Taste hatte im laufenden Lauf keine Wirkung, was wie ein Hänger wirken kann.
-- **Betroffene Anforderungen:** FR-0028, FR-0211
+- **Betroffene Anforderungen:** FR-0028, FR-0205, FR-0211
 - **Auswirkung:** non-blocking, entschieden.
 - **Optionen:** Rest-Pace immer, „–“ unter einer Schwelle oder kurzen Rest weglassen; Zurück-Taste ohne Wirkung, pausieren oder nachfragen.
 - **Status:** Resolved
-- **Entscheidung:** 2026-11-09, SRC-003: Liegt das Tempo eines Abschnitts unter der Stillstandsschwelle (PAR-014, 0,5 m/s), steht statt der Pace „–“; Länge und Zeit bleiben. Die Zurück-Taste soll im laufenden Lauf nicht ohne Wirkung bleiben (Maintainer); ausgelegt vom Orchestrator: Sie fragt, ob der Lauf pausiert werden soll. Ziel: FR-0028, FR-0211, WP17.
+- **Entscheidung:** 2026-11-09, SRC-003: Liegt das Tempo eines Abschnitts unter der Stillstandsschwelle (PAR-014, 0,5 m/s), steht statt der Pace „–“; Länge und Zeit bleiben. Die Zurück-Taste soll im laufenden Lauf nicht ohne Wirkung bleiben (Maintainer); ausgelegt vom Orchestrator: Sie fragt, ob der Lauf pausiert werden soll. Ziel: FR-0028, FR-0211, WP17. Nachtrag 2026-11-09, SRC-003: Bei Pace, Puls und Punkten steht die Einheit in der Beschriftung, die Zahl bleibt groß; Anstieg und Gefälle behalten die Einheit an der Zahl (FR-0205, K40).

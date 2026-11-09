@@ -213,7 +213,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0202 | Schrittfrequenz aus dem Smartphone | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0202--schrittfrequenz-aus-dem-smartphone) | FR-0027, FR-0021, OQ-0052 |
 | FR-0203 | Warnsignal melden und aufheben | functional | Approved | 2 | [plan-adaptation](specs/plan-adaptation.md#fr-0203--warnsignal-melden-und-aufheben) | FR-0163, FR-0118, OQ-0026, OQ-0048, OQ-0055, OQ-0058 |
 | FR-0204 | Karte der Route | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0204--karte-der-route) | FR-0027, FR-0037, FR-0040, FR-0041, FR-0056, SEC-0002, SEC-0007, SEC-0008, SEC-0009, OQ-0074, OQ-0075, ADR-0009 |
-| FR-0205 | Erscheinungsbild nach dem Screen-Design | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0205--erscheinungsbild-nach-dem-screen-design) | NFR-0006, CON-0009, OQ-0075, DEC-0070 |
+| FR-0205 | Erscheinungsbild nach dem Screen-Design | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0205--erscheinungsbild-nach-dem-screen-design) | NFR-0006, CON-0009, OQ-0075, OQ-0076, DEC-0070 |
 | FR-0206 | Name, Icon und Systemsymbole | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0206--name-icon-und-systemsymbole) | FR-0034, OQ-0075, DEC-0070 |
 | FR-0207 | Willkommensbildschirm | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0207--willkommensbildschirm) | FR-0001, OQ-0075 |
 | FR-0208 | Navigation | functional | Approved | 1 | [app-design](specs/app-design.md#fr-0208--navigation) | FR-0209, OQ-0075 |

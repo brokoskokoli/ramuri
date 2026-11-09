@@ -46,6 +46,7 @@ Entschieden in OQ-0075 (Einzelheiten in FR-0205 bis FR-0212):
 - **Navigation:** In Phase 1 nur Heute, Verlauf und Fortschritt; Plan ab Phase 2. Einstellungen, Profil, Sensoren und Daten über das Profil-Symbol.
 - **Heute:** In Phase 1 ohne Erholung, geplante Einheit und Wochenziel.
 - **Start:** Autopause ist standardmäßig aus (OQ-0065).
+- **Einheiten (OQ-0076):** Bei Pace, Puls und Punkten steht die Einheit in der Beschriftung statt an der Zahl.
 - **Live:** Beenden nach Pause mit Rückfrage. Bewegungszeit, Höhe, Schrittfrequenz, Runden, Sensorwechsel und Hinweise bleiben, auch wenn das Design sie nicht zeigt.
 - **Summary:** „Fertig“ statt „Speichern“ (der Lauf ist schon gespeichert); Einordnung gegen die letzten 5 Läufe nach Pace (OQ-0037); Höhenprofil und Runden bleiben. Subjektive Angaben erst in Phase 2.
 - **Fortschritt:** VO₂max ohne „±3“, Datenqualität in den Stufen von FR-0053, Effizienz in % nach FR-0087; Zeitraumwahl und übrige Kennzahlen bleiben.
