@@ -13,8 +13,8 @@
 **Empfehlung:**
 - WP27 übernimmt das Protokoll unten für FR-0214.
 - FR-0215 wird **mit Auflage** freigegeben. Der Kamera-Ruhepuls geht sofort in die eingeschränkte Einschätzung ein und erscheint dort als Tatsache. RMSSD geht erst in die Readiness ein, wenn die Validierung gegen Polar H9 bestanden ist (Abschnitt 6: 28 Morgen mit wochenweiser Kreuzvalidierung, n = 1).
-- **Folge für M3, ausdrücklich:** Nach heutiger OQ-0006 braucht eine Zahl eine HRV. Solange Kamera-RMSSD gesperrt ist, gibt es **ohne Uhr keine Zahl**, nur die eingeschränkte Einschätzung. Fällt die Validierung durch, bleibt das dauerhaft so. Nach der Literatur (Holmes 2020) ist ein Nichtbestehen gut möglich. „Readiness ohne Uhr“ in M3 heißt dann: Morgenmessung, Ruhepuls-Trend und eingeschränkte Einschätzung, keine Zahl.
-- Für M3 eine neue Regelversion (Vorschlag „K-1“, Abschnitt 5) und drei **Entscheidungen des Maintainers** (Abschnitt 5a): E1 was Nutzer ohne Uhr bekommen, solange RMSSD gesperrt ist (Empfehlung: keine Zahl, eingeschränkte Einschätzung); E2 was ein Bestehen mit n = 1 freigibt (Empfehlung: Freigabe nur als „experimentell“ per Opt-in, dazu optional die Prüfung mit dem eigenen Brustgurt); E3 Zahl mit oder ohne Schlaf-Selbstangabe (OQ-0006).
+- **Folge für M3, ausdrücklich:** Nach OQ-0006 (heutige wie neue Fassung) braucht eine Zahl eine HRV. Solange Kamera-RMSSD gesperrt ist, gibt es **ohne Uhr keine Zahl**, nur die eingeschränkte Einschätzung. Fällt die Validierung durch, bleibt das dauerhaft so. Nach der Literatur (Holmes 2020) ist ein Nichtbestehen gut möglich. „Readiness ohne Uhr“ in M3 heißt dann: Morgenmessung, Ruhepuls-Trend und eingeschränkte Einschätzung, keine Zahl.
+- Für M3 eine neue Regelversion (Vorschlag „K-1“, Abschnitt 5). **Der Maintainer hat am 2026-11-09 entschieden** (Abschnitt 5a): E1 ohne Uhr nur die eingeschränkte Einschätzung, solange RMSSD gesperrt ist; E2 nach bestandener Validierung Kamera-RMSSD nur per Opt-in als „experimentell“, eine Prüfung je Nutzer mit Gurt kann später dazukommen; E3 die neue Fassung von OQ-0006, Schlafdauer aus Uhr oder freiwilliger Angabe in Stufen. Das Konzept ändert der Project Supervisor.
 
 ## Lauf
 - **Datum:** 2026-11-09. **Rechner:** Mac, Apple M3 Pro (arm64), macOS, Python 3.15.0, nur Standardbibliothek.
@@ -166,19 +166,19 @@ Nur ein Vorschlag. Das Regelwerk `docs/phase-2-3-rules.md` bleibt unverändert, 
 | PAR-169K | **Option „Schlafgefühl 1–5“** bei der Morgenmessung als Tagesangabe für das Befinden statt der Angabe beim letzten Lauf | Heuristik, Evidenz niedrig | Subjektive Maße reagieren empfindlich [N24 im Regelwerk]. **Konflikt:** PAR-169 hat eine Tagesangabe ausdrücklich abgelehnt. Nur auf Entscheidung des Maintainers. **Doppelzählung:** Geht neben der Schlafdauer (30 %) auch das Schlafgefühl als Befinden (10 %) ein, zählt der Schlaf faktisch doppelt, mit zusammen bis zu 40 %. Wird PAR-169K gewählt, das in der Erklärung offenlegen oder das Gewicht anpassen (Entscheidung). |
 | PAR-170 | unverändert (Kappung 74 ohne Belastungsfaktor) | – | – |
 | Vorrang (neu) | **Health Connect und Kamera am selben Tag:** Beide Reihen bleiben getrennt (FR-0115) und werden nie gemittelt. Für HRV **und** Ruhepuls gilt je Faktor: Hat die Health-Connect-Reihe heute ein gültiges `z`, zählt sie; sonst die Kamerareihe, wenn sie heute ein gültiges `z` hat. Die andere Messung erscheint nur als Tatsache. Die Quelle steht in der Erklärung. | Heuristik, Evidenz keine | Das Regelwerk ist für nächtliche Werte geschrieben und dafür geprüft (R8); Kamera-RMSSD ist im besten Fall „mit einem Brustgurt verglichen“. Ein Wechsel der Quelle von Tag zu Tag ist möglich; er ändert nur, welche Reihe zählt, nie deren Referenz. |
-| PAR-171K | Zahl nur nach der neuen Fassung von OQ-0006 (unten). Sonst „Eingeschränkte Einschätzung“, wenn **eine** frische Messung (Kamera oder Health Connect) oder Schlaf vorliegt, mit den Tatsachen („Ruhepuls heute 3/min über deinem Mittel“). Sonst „Unzureichende Daten“. | abgeleitet | erweitert PAR-171 um den Fall „Kamera ohne Schlaf“ |
-| Validierungssperre | Bis die Validierung (Abschnitt 6) bestanden ist, geht nur der Kamera-Ruhepuls ein. RMSSD wird angezeigt, aber als „noch nicht geprüft“ markiert und nicht gewertet. Fällt die Validierung durch, bleibt das dauerhaft so. **Was ein Bestehen freigibt, entscheidet der Maintainer (E2 unten).** In jedem Fall schützt die RMSSD-Qualitätsgrenze jede einzelne Messung, und die App sagt „mit einem Brustgurt verglichen“, nie „validiert“, auch bei der Zahl. | Entscheidungsvorschlag | Abschnitt 3; Gerät beeinflusst die Güte [B4]; n = 1 (Abschnitt 6) |
+| PAR-171K | Zahl nur nach der neuen Fassung von OQ-0006 (unten): HRV aus Uhr oder Kamera (Kamera nur nach bestandener Validierung **und** Opt-in), Schlafdauer aus Uhr oder Selbstangabe, Referenz ≥ 14 in 28 Tagen. Sonst „Eingeschränkte Einschätzung“, wenn **eine** frische Messung (Kamera oder Health Connect) oder Schlaf (auch Selbstangabe) vorliegt, mit den Tatsachen („Ruhepuls heute 3/min über deinem Mittel“, „Du hast rund 6 Stunden geschlafen“). Gesperrte oder nicht eingeschaltete Kamera-RMSSD erscheint dort höchstens als Tatsache mit „noch nicht geprüft“ bzw. „experimentell“. Ohne Uhr ist das bis zur Freigabe der einzige Zustand mit Inhalt (E1). Sonst „Unzureichende Daten“. | abgeleitet | erweitert PAR-171 um den Fall „Kamera ohne Schlaf“; Entscheidungen E1–E3 |
+| Validierungssperre | Bis die Validierung (Abschnitt 6) bestanden ist, geht nur der Kamera-Ruhepuls ein (in die eingeschränkte Einschätzung bzw. bei Uhr-Nutzern als Faktor). RMSSD wird angezeigt, aber als „noch nicht geprüft“ markiert und nicht gewertet. Fällt die Validierung durch, bleibt das dauerhaft so. **Nach Bestehen: Opt-in experimentell (E2).** Kamera-RMSSD zählt nur, wenn der Nutzer es ausdrücklich einschaltet; Zahl und Wert tragen „experimentell, mit einem Brustgurt verglichen (ein Handy)“, nie „validiert“. Die RMSSD-Qualitätsgrenze schützt jede einzelne Messung. Eine Prüfung je Nutzer mit eigenem Gurt kann später dazukommen. | Entscheidung des Maintainers 2026-11-09 (E2) | Abschnitt 3; Gerät beeinflusst die Güte [B4]; n = 1 (Abschnitt 6) |
 
-**OQ-0006, neue Fassung (Vorschlag):** Eine Zahl erscheint nur mit
-- einer aktuellen HRV, nächtlich aus Health Connect **oder** als gültiger Kamera-Morgenwert nach bestandener Validierung,
+**OQ-0006, neue Fassung (vom Maintainer am 2026-11-09 gewählt, E3; Konzept noch nicht geändert):** Eine Zahl erscheint nur mit
+- einer aktuellen HRV, nächtlich aus Health Connect **oder** als gültiger Kamera-Morgenwert nach bestandener Validierung und eingeschaltetem Opt-in (E2),
 - einer Schlafdauer der letzten Nacht, aus Health Connect **oder** als Selbstangabe,
 - einer persönlichen Referenz derselben Reihe aus mindestens 14 gültigen Werten in 28 Tagen.
 
 Ohne jede Schlafangabe gibt es keine Zahl, sondern die eingeschränkte Einschätzung (PAR-171K). Begründung: Der Schlaf hat das größte Gewicht (30 %, FR-0110). Ein Wert ohne ihn würde nur durch Herausrechnen entstehen, und das soll fehlende Daten nicht verbessern (FR-0111).
 
-**Option B für den Maintainer (E3):** eine Zahl auch ohne Schlaf. Dann gilt die Kappung 74 wie bei fehlender Belastung (PAR-170), „Gut erholt“ ist nicht erreichbar und der Text nennt den fehlenden Faktor. Die Rechnungen sprechen weder für noch gegen eine der beiden Optionen; das ist eine Produktentscheidung.
+Verworfen (E3): Option B, eine Zahl auch ohne Schlaf mit Kappung 74.
 
-**Wichtig:** Beide Fassungen verlangen eine HRV. Solange die Kamera-RMSSD gesperrt ist, hilft keine von beiden Nutzern ohne Uhr zu einer Zahl (siehe E1).
+**Wichtig:** Auch die neue Fassung verlangt eine HRV. Solange die Kamera-RMSSD gesperrt ist, gibt es ohne Uhr keine Zahl (E1).
 
 **Anforderungen, deren Akzeptanzkriterien sich mit K-1 ändern müssten** (nur Hinweis, nicht geändert):
 - FR-0109: „HRV der letzten Nacht“ → nächtliche HRV **oder** gültiger Kamera-Morgenwert; „Schlaf“ → auch Selbstangabe.
@@ -189,41 +189,24 @@ Ohne jede Schlafangabe gibt es keine Zahl, sondern die eingeschränkte Einschät
 - PAR-148: „HRV-Referenz aus 14–17 Messungen“ gilt für die Kamerareihe entsprechend; dazu der Hinweis „wenige Messungen“ aus PAR-161K.
 - FR-0215: Akzeptanzkriterien aus Protokoll, PAR-160K bis PAR-171K und der Validierungssperre.
 
-## 5a. Entscheidungsfragen an den Maintainer
-Diese Fragen sind Produktentscheidungen. Die Analyse legt sie nicht fest, sie empfiehlt nur.
+## 5a. Entscheidungen des Maintainers (2026-11-09)
+Die drei Produktfragen hat der Maintainer am 2026-11-09 entschieden. Das Konzept ist noch nicht geändert; das übernimmt der Project Supervisor.
 
-**E1: Was bekommen Nutzer ohne Uhr, solange Kamera-RMSSD gesperrt ist?** Nach heutiger OQ-0006 und PAR-147 entsteht ohne HRV **keine Zahl**. Ohne Uhr gibt es also bis zur bestandenen Validierung nie eine Zahl, bei Nichtbestehen dauerhaft nicht. Die Basis-Einschätzung aus Trainingsdaten (FR-0106) bleibt in jedem Fall.
+**E1: Was bekommen Nutzer ohne Uhr, solange Kamera-RMSSD gesperrt ist?**
+- **Entscheidung des Maintainers (2026-11-09): „Nur eingeschränkte Einschätzung“ (Option a).** Ohne Uhr gibt es keine Zahl, solange Kamera-RMSSD gesperrt ist. Fällt die Validierung durch, bleibt das dauerhaft so. Der Nutzer sieht die eingeschränkte Einschätzung nach PAR-171K mit den Tatsachen (z. B. „Ruhepuls heute 3/min über deinem Mittel“, Schlafangabe) und die Basis-Hinweise aus Trainingsdaten (FR-0106).
+- Begründung: OQ-0006 verlangt eine HRV; eine Zahl ohne HRV würde das Herausrechnen fehlender Daten zur Hauptquelle machen (FR-0111) und hinge fast nur an Selbstangaben.
+- Verworfen: (b) Zahl aus Ruhepuls und Schlaf ohne HRV mit Kappung (widerspricht OQ-0006 und PAR-147); (c) Zahl nur nach persönlicher Prüfung mit eigenem Brustgurt (als spätere Ergänzung über E2 möglich).
 
-| Option | Was der Nutzer sieht | Für | Gegen |
-| --- | --- | --- | --- |
-| **E1-a (Empfehlung):** keine Zahl, nur die eingeschränkte Einschätzung (PAR-171K) | Tatsachen ohne Zustand: „Ruhepuls heute 3/min über deinem Mittel“, Schlafangabe, Basis-Hinweise | Hält OQ-0006 und FR-0111 ein; keine Scheinpräzision (FR-0114); OQ-0006 bleibt unverändert | M3 liefert ohne Uhr keine Zahl; der Nutzen der Morgenmessung ist schwächer sichtbar |
-| E1-b: Zahl aus Ruhepuls und Schlaf (Selbstangabe), ohne HRV, mit Kappung (z. B. 74 wie PAR-170 oder niedriger) | Zahl mit Hinweis „ohne HRV“ | Nutzer ohne Uhr bekommen eine Zahl | **Widerspricht OQ-0006 und PAR-147** (entschieden). Ruhepuls am Morgen reagiert auf Training nur schwach (Altini: +0,7 % nach intensivem Training [C10]), Schlaf wäre nur geschätzt: Die Zahl hinge fast nur an Selbstangaben |
-| E1-c: Zahl nur nach persönlicher Prüfung mit eigenem Brustgurt (siehe E2-c) | Wer einen Brustgurt hat, kann die Sperre für sich aufheben; alle anderen wie E1-a | Nutzt die vorhandene Brustgurt-Anbindung (Sensoren-Spezifikation); Prüfung am eigenen Gerät | Nur für Brustgurt-Besitzer; hoher Aufwand (Abschnitt 6: unter 14 Prüftagen trennt das Kriterium schlecht) |
+**E2: Was gibt ein Bestehen der Validierung mit n = 1 frei?**
+- **Entscheidung des Maintainers (2026-11-09): „Opt-in experimentell“ (Option b).** Nach bestandener Validierung zählt Kamera-RMSSD nur für Nutzer, die es ausdrücklich einschalten. Die Zahl trägt die Kennzeichnung „experimentell, mit einem Brustgurt verglichen (ein Handy)“, nie „validiert“. Die RMSSD-Qualitätsgrenze schützt jede einzelne Messung.
+- Begründung: Bestanden heißt nur ein Handy, eine Person, eine Haltung, eine Jahreszeit; die Güte hängt am Gerät [B4, B19]. Das Risiko ist gering, weil ein hoher Wert die Belastung nie erhöht (PAR-173).
+- Verworfen: (a) Freigabe für alle Nutzer und Geräte ohne Opt-in. (c) Prüfung je Nutzer mit eigenem Brustgurt ist **zurückgestellt**: Sie kann später dazukommen (nach Rechnung D mindestens 14, besser 22–28 gültige Morgen; braucht RR-Intervalle vom Gurt, WP26/FR-0213).
 
-**Empfehlung E1-a**, als Rückfallebene ergänzt um E1-c, falls E2-c gewählt wird. Begründung: OQ-0006 ist entschieden, und eine Zahl ohne HRV würde gerade das Herausrechnen fehlender Daten zur Hauptquelle machen (FR-0111). Für M3 heißt das ehrlich: ohne Uhr Morgenmessung und Trend, keine Zahl, bis die Validierung bestanden ist.
+**E3: Zahl mit oder ohne Schlaf-Selbstangabe?**
+- **Entscheidung des Maintainers (2026-11-09): „Selbstangabe Schlaf reicht“, also die neue Fassung von OQ-0006** (Abschnitt 5): HRV aus Uhr oder Kamera und Schlafdauer aus Uhr oder freiwilliger Angabe in Stufen (PAR-164K/165K).
+- Verworfen: Option B (Zahl auch ohne jede Schlafangabe, mit Kappung 74).
 
-**E2: Was gibt ein Bestehen der Validierung mit n = 1 frei?** Bestanden heißt: ein Handy, eine Person, eine Haltung, eine Jahreszeit. Die Güte hängt am Gerät [B4]; Holmes 2020 nennt das alte Handy selbst als mögliche Fehlerquelle [B19]. Das Risiko für Nutzer ist gering, weil ein hoher Wert die Belastung nie erhöht (PAR-173); ein falsch niedriger Wert führt höchstens zu einem unnötig lockeren Tag.
-
-| Option | Freigabe | Für | Gegen |
-| --- | --- | --- | --- |
-| E2-a: für alle Nutzer und Geräte | RMSSD zählt überall, geschützt nur durch die Qualitätsgrenze je Messung | Einfach; jeder Nutzer ohne Uhr kann eine Zahl bekommen | Fremde Handys sind ungeprüft; die Qualitätsgrenze fängt grobe Fehler, nicht eine gleichmäßig größere Streuung |
-| **E2-b (Empfehlung):** für alle, aber nur „experimentell“ per Opt-in | RMSSD zählt erst, wenn der Nutzer es ausdrücklich einschaltet; Kennzeichnung „experimentell, mit einem Brustgurt verglichen (ein Handy)“ an der Zahl | Ehrlich gegenüber n = 1; der Nutzer entscheidet; geringes Risiko (PAR-173) | Mehr Text und eine Einstellung; die Zahl bleibt auf fremden Geräten ungeprüft |
-| E2-c: Prüfung je Nutzer mit eigenem Brustgurt | Die App misst an einigen Morgen Kamera und Brustgurt gleichzeitig und wertet das Verhältnis aus Abschnitt 6 für dieses Handy und diesen Nutzer | Prüft genau Gerät und Person; nutzt die vorhandene Brustgurt-Anbindung | Nur mit Brustgurt; braucht nach Rechnung D mindestens 14, besser 22–28 gültige Morgen; die App braucht dafür RR-Intervalle vom Gurt (WP26/FR-0213) |
-
-**Empfehlung E2-b**, mit E2-c als späterer, freiwilliger Weg zu „mit deinem Brustgurt verglichen“. Begründung: Eine Freigabe für alle (E2-a) stützt sich auf ein Handy; eine Pflichtprüfung (E2-c) schlösse alle ohne Brustgurt aus und ist für Nutzer aufwendig. Opt-in mit klarer Kennzeichnung entspricht der Beleglage.
-
-**E3: Zahl mit oder ohne Schlaf-Selbstangabe** (OQ-0006 neue Fassung oder Option B oben). Wird erst wichtig, wenn RMSSD freigegeben ist. Keine Empfehlung aus den Rechnungen.
-
-**Mindestmengen für den Nutzer:**
-- Die erste Zahl kommt nach 14 gültigen Morgenwerten, frühestens nach 2 Wochen.
-- Empfohlen sind 5 oder mehr Messungen pro Woche, mindestens 3.
-- Die Erinnerung bleibt freiwillig (FR-0215).
-
-**Texte (FR-0118, FR-0149):**
-- Kein Vergleich mit Bevölkerungswerten (FR-0112).
-- Der Hinweis „Kamerawerte sind nicht mit Uhrwerten vergleichbar“ steht dabei.
-- Verworfene unregelmäßige Schläge werden **nicht** als Herzrhythmus gedeutet. Die App sagt nur „Messung nicht auswertbar“.
-- Ein hoher Wert erhöht nie die Belastung (PAR-173).
+**Was das für M3 heißt:** Für Nutzer ohne Uhr entsteht eine Zahl erst, wenn (1) die Validierung bestanden ist, (2) der Nutzer Kamera-RMSSD per Opt-in einschaltet, (3) eine Schlafdauer vorliegt (Selbstangabe genügt) und (4) die Kamerareihe 14 gültige Werte in 28 Tagen hat. Bis dahin: Morgenmessung, Ruhepuls-Trend und eingeschränkte Einschätzung.
 
 ## 6. Validierungsplan gegen Polar H9 (n = 1, 4–6 Wochen)
 
@@ -353,10 +336,7 @@ Für lnRMSSD gibt es kein festes Δ; die frühere lnRMSSD-Tabelle in A mit Δ = 
 1. **Validierung durchführen** (Abschnitt 6). Folgeanalyse, z. B. R0xx, mit einer neuen Sammlung `research/input/kamera-h9-morgen-<datum>/` (privat, nur lokal, nie ins Repo).
 2. **RMSSD-Qualitätsgrenze** (Zeitrauschen) aus der Validierung festlegen, mit wochenweiser Kreuzvalidierung (Abschnitt 6).
 3. **Entscheidungen des Maintainers:**
-   - E1: was Nutzer ohne Uhr bekommen, solange RMSSD gesperrt ist (Abschnitt 5a);
-   - E2: was ein Bestehen mit n = 1 freigibt (Abschnitt 5a);
-   - E3: OQ-0006 neue Fassung oder Option B;
-   - Selbstangabe Schlafdauer;
+   - E1–E3 sind am 2026-11-09 entschieden (Abschnitt 5a); offen ist nur die Übernahme ins Konzept (Project Supervisor);
    - Schlafgefühl statt Befinden beim letzten Lauf (Konflikt mit PAR-169);
    - Vorgabe der Haltung (liegend).
 4. FR-0214: Ruhephase 4 min auf 5 min anheben? Anleitung ohne Atemtempo; Profilvorschlag aus dem Median der Morgenwerte.
