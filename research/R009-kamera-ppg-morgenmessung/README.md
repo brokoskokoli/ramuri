@@ -1,6 +1,6 @@
 # R009 – Ruhepuls und HRV-Morgenmessung mit der Handykamera
 
-**Status:** abgeschlossen (Review ausstehend) · **Auftraggeber:** Project Supervisor (für FR-0214, FR-0215, M3), Auftrag mit dem Maintainer geklärt · **Datum:** 2026-11-09
+**Status:** abgeschlossen (Nachbesserung 1 nach Review, erneutes Review ausstehend) · **Auftraggeber:** Project Supervisor (für FR-0214, FR-0215, M3), Auftrag mit dem Maintainer geklärt · **Datum:** 2026-11-09
 
 ## Frage
 Wie misst man Ruhepuls und RMSSD mit der Handykamera (60 s, Finger auf Rückkamera und Blitz), damit die Werte (a) als Ruhepuls im Profil (FR-0214) und (b) als tägliche Morgenmessung für die Erholungseinschätzung (FR-0215) taugen? Wie wertet man die täglichen Werte aus, und wie prüft man die Messung gegen einen EKG-Brustgurt (Polar H9)?
@@ -24,8 +24,9 @@ Zwei Teile, wie mit dem Maintainer vereinbart („Literatur + kleine Rechnungen�
    5. Übertragung auf PAR-160 bis PAR-163, PAR-169 ff. und OQ-0006 als **Vorschlag einer neuen Regelversion** in `RESULTS.md` (das Regelwerk selbst wird nicht geändert).
    6. Validierungsplan gegen Polar H9 (Bland-Altman, Akzeptanzgrenzen, Fallzahl) für 2–4 Wochen täglich morgens, eine Person (n = 1).
 2. **Kleine Rechnungen** (lokal, reproduzierbar, nur synthetische Daten, nur Python-Standardbibliothek, fester Seed):
-   - **A – Fallzahl Bland-Altman:** Wie genau sind Bias und Übereinstimmungsgrenzen (LoA) nach 10–42 Tagen mit je einer gepaarten Messung? Wahrscheinlichkeit, dass das obere Konfidenzende der LoA innerhalb einer Akzeptanzgrenze liegt (Ansatz nach Lu et al. 2016), mit der Näherung `SE(LoA) ≈ √(3/n)·SD` (Bland und Altman 1999) als Gegenprobe. Zusätzlich: Was ändert eine Autokorrelation der Differenzen (z. B. Fingertemperatur über Tage)?
+   - **A – Fallzahl Bland-Altman:** Wie genau sind Bias und Übereinstimmungsgrenzen (LoA) nach 10–42 Tagen mit je einer gepaarten Messung? Wahrscheinlichkeit, dass das obere Konfidenzende der LoA innerhalb einer Akzeptanzgrenze liegt (Ansatz nach Lu et al. 2016), mit der Näherung `SE(LoA) ≈ √(3/n)·SD` (Bland und Altman 1999) als Gegenprobe. Zusätzlich: Was ändert eine Autokorrelation der Differenzen (z. B. Fingertemperatur über Tage)? Seit Nachbesserung 1 nur noch für den Puls; für lnRMSSD gilt das Verhältniskriterium aus D.
    - **B – 7-Tage-Mittel bei fehlenden Tagen und Kamera-Streuung (wie R8):** lnRMSSD und Ruhepuls als AR(1)-Reihe um einen persönlichen Mittelwert, dazu Messfehler der Kamera, fehlende Tage (zufällig, nur Werktage) und gelegentliche Fehlmessungen, die die Qualitätsprüfung passieren. `z` nach PAR-161/162 (Mittel aus `k` gültigen Werten der letzten 7 Tage, Referenz Median/MAD der 28 Tage davor, Nenner `/√k`). Gemessen: Anteil der Tage mit `z` (Verfügbarkeit), Breite von `z` ohne echte Änderung (Fehlalarme), Anteil erkannter echter Abfälle nach 1, 3, 5, 7 Tagen, Wirkung der Regel „MAD unter 1 bpm → kein `z`“ beim Ruhepuls.
+   - **D – Trennschärfe der Akzeptanzkriterien für lnRMSSD (Nachbesserung 1):** H9-Reihe als AR(1) 0,3 in Einheiten der Tages-SD, Differenz Kamera − H9 mit wahrem Verhältnis SD(d)/Tages-SD und proportionalem Bias β. Gemessen: Anteil „bestanden“ (Punktschätzung ≤ 0,5) bzw. „höchstens eingeschränkt“ (≤ 1) für Designs mit 10–28 Prüftagen und 14–42 Tagen für die Tages-SD; Streubereich der Punktschätzung; Trennschärfe der Grenze |b| ≤ 0,2 für die Steigung der Differenz gegen den H9-Wert; Scheinsteigung gegen den Mittelwert; analytisch der proportionale Bias durch Zeitrauschen.
    - **C – Streuung durch das kurze Fenster:** synthetische RR-Reihen (stationär, mit Atmungsschwankung) liefern die Streuung von ln RMSSD über 60 s gegenüber 300 s. Das ist eine Untergrenze für den Fehler eines 60-s-Werts, weil echte Reihen nicht stationär sind; es dient nur der Plausibilität gegenüber der Literatur.
 
 **Warum aussagekräftig:** Das Protokoll und die Auswertungsregeln müssen sich auf Studien stützen, die genau diese Art Messung (kurz, morgens, Smartphone) gegen EKG bzw. gegen Trainingsfolgen geprüft haben. Die Rechnungen zeigen nur, wie empfindlich die vorgeschlagenen Regeln auf Messfehler und Lücken reagieren; sie sagen nichts darüber, wie groß Fehler und Lücken in Wirklichkeit sind. Das klärt erst die Validierung.
@@ -38,19 +39,19 @@ Zwei Teile, wie mit dem Maintainer vereinbart („Literatur + kleine Rechnungen�
 Keine Sammlung aus `research/input/`, keine Downloads, keine Messwerte des Maintainers.
 
 ## Ausführung
-Voraussetzungen: Python ≥ 3.10, nur Standardbibliothek. Laufzeit mit Standardwerten wenige Minuten auf einem Mac.
+Voraussetzungen: Python ≥ 3.10, nur Standardbibliothek. Laufzeit mit Standardwerten rund 1 min auf einem Mac.
 
 ```bash
 ./init.sh            # legt research/data/work/R009/ an (keine Downloads)
-./run.sh [Parameter] # führt A, B und C aus
+./run.sh [Parameter] # führt A, B, C und D aus
 ```
 
 | Parameter | Standard | Bedeutung |
 | --- | --- | --- |
 | `--seed N` | `1` | Zufallsstartwert (wie R8) |
-| `--reps N` | `4000` | Wiederholungen je Fall in A und B |
-| `--part A\|B\|C\|all` | `all` | nur einen Teil rechnen |
+| `--reps N` | `4000` | Wiederholungen je Fall in A, B und D |
+| `--part A\|B\|C\|D\|all` | `all` | nur einen Teil rechnen |
 
 Beispiel: `./run.sh --seed 1 --reps 4000` (vollständig), kurze Probe: `./run.sh --reps 300 --part B`.
 
-Ausgaben: `research/data/work/R009/<datum-zeit>/` (`run.info`, `A.txt`, `B.txt`, `C.txt`), wegwerfbar. Die Tabellen in `RESULTS.md` stammen aus dem dort genannten Lauf.
+Ausgaben: `research/data/work/R009/<datum-zeit>/` (`run.info`, `A.txt`, `B.txt`, `C.txt`, `D.txt`), wegwerfbar. Die Tabellen in `RESULTS.md` stammen aus dem dort genannten Lauf.
