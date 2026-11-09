@@ -639,6 +639,34 @@ void main() {
       handle.dispose();
     });
 
+    for (final scale in [1.0, 1.3]) {
+      testWidgets(
+        'Datumsbeschriftung: Start links, Ende rechts, Schrift $scale',
+        (tester) async {
+          for (final locale in ['de', 'en']) {
+            await pump(
+              tester,
+              LoadCardBody(state: LoadViewState.ready(mixed())),
+              width: 390,
+              height: 844,
+              locale: locale,
+              textScale: scale,
+            );
+            final card = tester.getRect(find.byType(RamuriCard));
+            final start = tester.getRect(k('load_axis_start'));
+            final end = tester.getRect(k('load_axis_end'));
+            expect(start.left - card.left, lessThan(24), reason: 'Start links');
+            expect(card.right - end.right, lessThan(24), reason: 'Ende rechts');
+            expect(
+              end.left,
+              greaterThanOrEqualTo(start.right),
+              reason: 'Abstand',
+            );
+          }
+        },
+      );
+    }
+
     testWidgets('eingeklappt höchstens 560 dp hoch bei 390 dp Breite', (
       tester,
     ) async {

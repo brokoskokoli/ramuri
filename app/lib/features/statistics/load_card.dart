@@ -293,16 +293,26 @@ class LoadCardBody extends StatelessWidget {
         )
         ..add(const SizedBox(height: 4))
         ..add(
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
+          // Row statt Wrap: Ein Wrap ist nur so breit wie sein Inhalt, dort
+          // wirkt spaceBetween nicht und beide Daten klebten links.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                material.formatShortDate(first),
-                style: theme.labelSmall!.copyWith(color: c.textMuted),
+              Flexible(
+                child: Text(
+                  material.formatShortDate(first),
+                  key: const Key('load_axis_start'),
+                  style: theme.labelSmall!.copyWith(color: c.textMuted),
+                ),
               ),
-              Text(
-                material.formatShortDate(last),
-                style: theme.labelSmall!.copyWith(color: c.textMuted),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  material.formatShortDate(last),
+                  key: const Key('load_axis_end'),
+                  textAlign: TextAlign.end,
+                  style: theme.labelSmall!.copyWith(color: c.textMuted),
+                ),
               ),
             ],
           ),

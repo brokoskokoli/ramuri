@@ -552,4 +552,88 @@ void main() {
       await expectOneScale(EdwardsTrimp.methodId);
     });
   });
+
+  group('Profilwechsel und VO2max (E2E-Befund NB7)', () {
+    /// VO2max-Werte aller Läufe und Tage ohne Zeitstempel: Wert, Güte, Grund,
+    /// Anzahl der verwertbaren Messungen.
+    Future<List<String>> vo2() async {
+      final out = <String>[];
+      for (final r in await w.session.runs.list()) {
+        for (final p in await w.session.values.read(ValueOwner.run(r.id))) {
+          if (p.original.key != vo2maxRunValueKey) continue;
+          out.add(_vo2(p.original, 'run ${r.id} o'));
+          out.add(_vo2(p.current, 'run ${r.id} c'));
+        }
+      }
+      final days = await w.daysWithValues('2030-01-01', '2030-04-01');
+      days.forEach((d, pairs) {
+        for (final p in pairs) {
+          if (p.original.key != vo2maxLongTermValueKey) continue;
+          out.add(_vo2(p.original, 'day $d o'));
+          out.add(_vo2(p.current, 'day $d c'));
+        }
+      });
+      return out;
+    }
+
+    Future<void> switchToBanister() async {
+      await setCoefficients(LoadCoefficients.male);
+      final s = w.recalc();
+      await s.confirm((await s.requestLoadProfile(LoadProfile.banister))!);
+    }
+
+    test('Profilwechsel lässt VO2max-Werte und deren Anzahl unverändert '
+        '(Läufe in zeitlicher Reihenfolge berechnet)', () async {
+      final before = await vo2();
+      expect(before, isNotEmpty);
+      await switchToBanister();
+      expect(await vo2(), before);
+    });
+
+    test('Läufe neu zu alt berechnet: Laufwerte bleiben gleich; die Anzahl am '
+        'jüngsten Tag war nur durch die Berechnungsreihenfolge kleiner '
+        '(Seed-Artefakt des E2E, kein Produktfehler)', () async {
+      final w2 = await RecalcWorld.create();
+      final ids2 = <int>[];
+      for (final d in [25, 20, 15, 10, 5]) {
+        final id = await w2.seedRun(DateTime.utc(2030, 2, d, 8));
+        await w2.calc().calculateAfterRun(id);
+        ids2.add(id);
+      }
+      Future<(List<String>, int)> read() async {
+        final runs = <String>[];
+        for (final id in ids2) {
+          for (final p in await w2.session.values.read(ValueOwner.run(id))) {
+            if (p.original.key == vo2maxRunValueKey) {
+              runs.add(_vo2(p.current, '$id'));
+            }
+          }
+        }
+        final latest = (await w2.session.values.read(
+          ValueOwner.day('2030-02-25'),
+        )).firstWhere((p) => p.original.key == vo2maxLongTermValueKey);
+        return (runs, latest.current.measurementCount);
+      }
+
+      final (runsBefore, countBefore) = await read();
+      // Nur der zuerst berechnete (jüngste) Tag kennt zum Zeitpunkt der
+      // Berechnung einen Lauf.
+      expect(countBefore, 1);
+      await LoadSettings.writeCoefficients(
+        w2.session.settings,
+        LoadCoefficients.male,
+        at: w2.clock.now(),
+      );
+      w2.clock.set(recalcNow); // die Uhr geht beim Seeden rückwärts
+      final s = w2.recalc();
+      await s.confirm((await s.requestLoadProfile(LoadProfile.banister))!);
+      final (runsAfter, countAfter) = await read();
+      expect(runsAfter, runsBefore);
+      expect(countAfter, ids2.length);
+    });
+  });
 }
+
+String _vo2(ComputedValue v, String tag) =>
+    '$tag ${v.value}|${v.unavailableReason?.name}|${v.quality.name}|'
+    '${v.measurementCount}|${v.method}';
