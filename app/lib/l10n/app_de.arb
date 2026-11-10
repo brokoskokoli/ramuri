@@ -2241,6 +2241,8 @@
   "@calendarStateDone": {"description": "WP22 Teil E, Kalender"},
   "calendarStateMissed": "ausgefallen",
   "@calendarStateMissed": {"description": "WP22 Teil E, Kalender"},
+  "calendarFreeRun": "Lauf ohne Plan",
+  "@calendarFreeRun": {"description": "WP22 Nachbesserung E, Kalender: absolvierter Lauf ohne Plan-Einheit"},
   "calendarDayLine": "{day}: {state}",
   "@calendarDayLine": {"description": "WP22 Teil E, Kalender", "placeholders": {"day": {"type": "String"}, "state": {"type": "String"}}},
   "calendarDetails": "Details ansehen",

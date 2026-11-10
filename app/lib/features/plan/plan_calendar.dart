@@ -38,8 +38,32 @@ class PlanCalendar extends StatefulWidget {
   State<PlanCalendar> createState() => _PlanCalendarState();
 }
 
-/// Zustand einer Einheit im Kalender (FR-0172).
-enum _DayState { planned, done, missed, rest, none }
+/// Zustand eines Tags im Kalender (FR-0172): [free] ist ein absolvierter
+/// Lauf ohne Einheit (FR-0171), nie ein Ruhetag.
+enum _DayState { planned, done, missed, free, rest, none }
+
+/// Einheiten und beendete Läufe des gezeigten Zeitraums.
+class _CalendarData {
+  const _CalendarData(this.units, this.runs);
+  final List<PlanUnit> units;
+  final List<PlanCalendarRun> runs;
+
+  Map<DateTime, PlanUnit> get byDay => {
+    for (final u in units) planDay(u.day): u,
+  };
+
+  /// Tage mit einem Lauf, der keiner Einheit des Zeitraums zugeordnet ist.
+  Set<DateTime> get freeRunDays {
+    final assigned = {
+      for (final u in units)
+        if (u.runId != null) u.runId,
+    };
+    return {
+      for (final r in runs)
+        if (!assigned.contains(r.id)) r.day,
+    };
+  }
+}
 
 String _dayKey(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-'
@@ -61,7 +85,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
   late final double _restoreTarget;
   bool _userScrolled = false;
 
-  Future<List<PlanUnit>>? _units;
+  Future<_CalendarData>? _units;
   String? _unitsKey;
 
   @override
@@ -139,18 +163,21 @@ class _PlanCalendarState extends State<PlanCalendar> {
     return l == null || _range.$2.isBefore(l);
   }
 
-  Future<List<PlanUnit>> _load() {
+  Future<_CalendarData> _read(DateTime from, DateTime to) async {
+    final units = await widget.controller.unitsBetween(from, to);
+    final runs = await widget.controller.runsBetween(from, to);
+    return _CalendarData(units, runs);
+  }
+
+  Future<_CalendarData> _load() {
     final (from, to) = _range;
     final key = '${_dayKey(from)}/${_dayKey(to)}';
     if (_units != null && _unitsKey == key) return _units!;
     _unitsKey = key;
-    return _units = widget.controller
-        .unitsBetween(from, to)
-        .whenComplete(
-          () => WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _restoreScroll(),
-          ),
-        );
+    return _units = _read(from, to).whenComplete(
+      () =>
+          WidgetsBinding.instance.addPostFrameCallback((_) => _restoreScroll()),
+    );
   }
 
   void _step(int direction) => setState(() {
@@ -163,8 +190,9 @@ class _PlanCalendarState extends State<PlanCalendar> {
 
   void _setMonth(bool month) => setState(() => _view.month = month);
 
-  _DayState _stateOf(DateTime day, PlanUnit? u) {
+  _DayState _stateOf(DateTime day, PlanUnit? u, {bool freeRun = false}) {
     if (u == null || (u.kind == PlanUnitKind.rest && u.runId == null)) {
+      if (freeRun) return _DayState.free;
       return _inPlan(day) ? _DayState.rest : _DayState.none;
     }
     if (u.runId != null) return _DayState.done;
@@ -179,6 +207,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
     _DayState.planned => l.calendarStatePlanned,
     _DayState.done => l.calendarStateDone,
     _DayState.missed => l.calendarStateMissed,
+    _DayState.free => l.calendarFreeRun,
     _DayState.rest => l.planRestDay,
     _DayState.none => null,
   };
@@ -247,8 +276,22 @@ class _PlanCalendarState extends State<PlanCalendar> {
     final today = _today;
     final last = _last ?? today.add(const Duration(days: 365));
     if (last.isBefore(today)) return;
+    final List<PlanUnit> stored;
+    try {
+      stored = await widget.controller.unitsBetween(today, last);
+    } on Object {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            key: const Key('calendar_move_result'),
+            content: Text(l.calendarMoveRejected),
+          ),
+        );
+      }
+      return;
+    }
     final taken = {
-      for (final x in await widget.controller.unitsBetween(today, last))
+      for (final x in stored)
         if (x.id != u.id) planDay(x.day),
     };
     bool free(DateTime d) {
@@ -308,12 +351,18 @@ class _PlanCalendarState extends State<PlanCalendar> {
     final from = _mondayOf(a.isBefore(b) ? a : b)
         .subtract(const Duration(days: 7));
     final to = _mondayOf(a.isBefore(b) ? b : a).add(const Duration(days: 13));
+    final data = await _read(from, to);
     return checkPlanMove(
-      units: await widget.controller.unitsBetween(from, to),
+      units: data.units,
       unit: u,
       newDay: day,
       today: _today,
       weeklyCapSeconds: goal.weeklyCapSeconds,
+      completedIntensiveDays: [
+        for (final r in data.runs)
+          if (r.intensive) r.day,
+      ],
+      runDays: goal.runDays,
       parameters: widget.controller.parameters,
     );
   }
@@ -415,7 +464,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
             ],
           ),
           const SizedBox(height: 8),
-          FutureBuilder<List<PlanUnit>>(
+          FutureBuilder<_CalendarData>(
             key: ValueKey('calendar_${_view.month}_${_dayKey(from)}'),
             future: _load(),
             builder: (context, snap) {
@@ -425,17 +474,18 @@ class _PlanCalendarState extends State<PlanCalendar> {
                   key: const Key('calendar_failed'),
                 );
               }
-              final units = snap.data;
-              if (units == null) {
+              final data = snap.data;
+              if (data == null) {
                 return const Padding(
                   padding: EdgeInsets.all(24),
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
-              final byDay = {for (final u in units) planDay(u.day): u};
+              final byDay = data.byDay;
+              final free = data.freeRunDays;
               return _view.month
-                  ? _monthGrid(l, from, to, byDay)
-                  : _weekList(l, from, byDay);
+                  ? _monthGrid(l, from, to, byDay, free)
+                  : _weekList(l, from, byDay, free);
             },
           ),
           const SizedBox(height: 12),
@@ -449,6 +499,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
     AppLocalizations l,
     DateTime monday,
     Map<DateTime, PlanUnit> byDay,
+    Set<DateTime> free,
   ) {
     final lang = Localizations.localeOf(context).languageCode;
     return Column(
@@ -460,10 +511,15 @@ class _PlanCalendarState extends State<PlanCalendar> {
             builder: (context) {
               final day = monday.add(Duration(days: i));
               final u = byDay[day];
-              final state = _stateOf(day, u);
+              final freeRun = free.contains(day);
+              final state = _stateOf(day, u, freeRun: freeRun);
               final isToday = day == _today;
               final hasUnit =
-                  state != _DayState.rest && state != _DayState.none;
+                  state != _DayState.rest &&
+                  state != _DayState.none &&
+                  state != _DayState.free;
+              // Ein Lauf ohne Einheit neben einer Einheit: eigene Zeile.
+              final extraRun = freeRun && state != _DayState.free;
               final title = hasUnit
                   ? planUnitText(l, u!)
                   : (_stateText(l, state) ?? '');
@@ -497,19 +553,36 @@ class _PlanCalendarState extends State<PlanCalendar> {
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(
-                                title,
-                                style: hasUnit
-                                    ? t.titleSmall
-                                    : t.bodyMedium?.copyWith(
-                                        color: cc.textMuted,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    title,
+                                    style: hasUnit
+                                        ? t.titleSmall
+                                        : state == _DayState.free
+                                        ? t.bodyMedium
+                                        : t.bodyMedium?.copyWith(
+                                            color: cc.textMuted,
+                                          ),
+                                  ),
+                                  if (extraRun)
+                                    Text(
+                                      l.calendarFreeRun,
+                                      key: Key(
+                                        'calendar_free_run_${_dayKey(day)}',
                                       ),
+                                      style: t.bodySmall,
+                                    ),
+                                ],
                               ),
                             ),
-                            if (hasUnit)
+                            if (hasUnit || state == _DayState.free)
                               _StateMark(
                                 state: state,
-                                label: _stateText(l, state)!,
+                                label: state == _DayState.free
+                                    ? l.calendarStateDone
+                                    : _stateText(l, state)!,
                                 showLabel: true,
                               ),
                           ],
@@ -530,6 +603,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
     DateTime from,
     DateTime to,
     Map<DateTime, PlanUnit> byDay,
+    Set<DateTime> free,
   ) {
     final lang = Localizations.localeOf(context).languageCode;
     final c = RamuriColors.of(context);
@@ -563,6 +637,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
                   l,
                   from.add(Duration(days: 7 * w + i)),
                   byDay,
+                  free,
                   month,
                 ),
               ),
@@ -570,21 +645,39 @@ class _PlanCalendarState extends State<PlanCalendar> {
         ),
       );
     }
-    return Column(key: const Key('calendar_month'), children: rows);
+    // Mindestens 48 dp je Tag; auf sehr schmalen Bildschirmen seitlich
+    // scrollbar statt kleinerer Tippflächen.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const minWidth = 7 * 48.0;
+        final grid = Column(key: const Key('calendar_month'), children: rows);
+        if (constraints.maxWidth >= minWidth) return grid;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(width: minWidth, child: grid),
+        );
+      },
+    );
   }
 
   Widget _monthCell(
     AppLocalizations l,
     DateTime day,
     Map<DateTime, PlanUnit> byDay,
+    Set<DateTime> free,
     int month,
   ) {
     final lang = Localizations.localeOf(context).languageCode;
     final c = RamuriColors.of(context);
     final text = Theme.of(context).textTheme;
     final u = byDay[day];
-    final state = _stateOf(day, u);
-    final hasUnit = state != _DayState.rest && state != _DayState.none;
+    final freeRun = free.contains(day);
+    final state = _stateOf(day, u, freeRun: freeRun);
+    final hasUnit =
+        state != _DayState.rest &&
+        state != _DayState.none &&
+        state != _DayState.free;
+    final marked = hasUnit || state == _DayState.free;
     final other = day.month != month;
     final isToday = day == _today;
     final stateLabel = _stateText(l, state);
@@ -592,8 +685,12 @@ class _PlanCalendarState extends State<PlanCalendar> {
       DateFormat.MMMMEEEEd(lang).format(day),
       if (hasUnit) planUnitText(l, u!),
       ?stateLabel,
+      if (freeRun && state != _DayState.free) l.calendarFreeRun,
     ].join(', ');
+    // Jeder Tag ein eigener Knoten, auch ohne Einheit (sonst verschmelzen
+    // Tage ohne Aktion mit Nachbarn).
     return Semantics(
+      container: true,
       button: hasUnit,
       label: semantics,
       excludeSemantics: true,
@@ -620,7 +717,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
               const SizedBox(height: 4),
               SizedBox(
                 height: 18,
-                child: hasUnit
+                child: marked
                     ? _StateMark(state: state, label: stateLabel!)
                     : null,
               ),
@@ -650,6 +747,7 @@ class _StateMark extends StatelessWidget {
     final c = RamuriColors.of(context);
     final (icon, color) = switch (state) {
       _DayState.done => (Icons.check_circle_rounded, c.action),
+      _DayState.free => (Icons.check_circle_outline_rounded, c.action),
       _DayState.missed => (Icons.cancel_outlined, c.textMuted),
       _ => (Icons.radio_button_unchecked_rounded, c.accent),
     };
@@ -686,7 +784,12 @@ class _Legend extends StatelessWidget {
       spacing: 16,
       runSpacing: 4,
       children: [
-        for (final s in [_DayState.planned, _DayState.done, _DayState.missed])
+        for (final s in [
+          _DayState.planned,
+          _DayState.done,
+          _DayState.missed,
+          _DayState.free,
+        ])
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [

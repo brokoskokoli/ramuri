@@ -197,20 +197,26 @@ double? planApproxMeters(PlanInputs inputs, int minutes) {
   return minutes * 60 / pace * 1000;
 }
 
+/// Die Woche der Rechnung, die am Montag [monday] beginnt, oder `null`.
+/// [GeneratedPlan.weeks] beginnt mit der Woche von „heute“, nicht mit dem
+/// Anker; die Position in der Liste ist also nicht die Wochennummer.
+PlanWeek? planWeekOf(List<PlanWeek> weeks, DateTime monday) {
+  final m = planDay(monday);
+  for (final w in weeks) {
+    if (planDay(w.start) == m) return w;
+  }
+  return null;
+}
+
 /// Wochenzeit der Planwoche ab [monday] in Minuten, wie die Plan-Seite sie
 /// zeigt: aus der Rechnung ([GeneratedPlan.weeks]), sonst die Summe der
 /// Lauf-Einheiten in [units].
 int planWeekMinutes({
   required GeneratedPlan? hints,
-  required DateTime anchor,
   required DateTime monday,
   required List<PlanUnit> units,
 }) {
-  final weeks = hints?.weeks ?? const <PlanWeek>[];
-  final index = planDay(monday).difference(planDay(anchor)).inDays ~/ 7;
-  final planned = index >= 0 && index < weeks.length
-      ? weeks[index].minutes
-      : null;
+  final planned = planWeekOf(hints?.weeks ?? const [], monday)?.minutes;
   return planned ??
       units.fold<int>(
         0,

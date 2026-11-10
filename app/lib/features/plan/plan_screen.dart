@@ -71,7 +71,9 @@ class _PlanScreenState extends State<PlanScreen> {
   // Die gemerkte Position; die Woche einer anderen Woche lädt nach dem ersten
   // Bild und verlängert die Seite, dann wird sie einmal wieder angesteuert,
   // außer der Nutzer hat inzwischen selbst gescrollt (wie Fortschritt).
-  late final double _restoreTarget = _view.scrollOffset;
+  // Vor dem ersten Bild festgehalten (wie im Kalender): Der Scroll-Listener
+  // überschreibt die gemerkte Lage, solange die Seite noch kurz ist.
+  late final double _restoreTarget;
   bool _userScrolled = false;
 
   Future<List<PlanUnit>>? _weekFuture;
@@ -80,6 +82,7 @@ class _PlanScreenState extends State<PlanScreen> {
   @override
   void initState() {
     super.initState();
+    _restoreTarget = _view.scrollOffset;
     _controller.addListener(_onState);
     _controller.open();
   }
@@ -635,9 +638,11 @@ class _Week extends StatelessWidget {
     final hints = state.hints;
     final weeks = hints?.weeks ?? const <PlanWeek>[];
     final anchor = state.version!.inputs.anchor;
+    // Nummer ab dem Anker; die Wochen der Rechnung beginnen aber mit der
+    // Woche von „heute“, darum über den Montag suchen.
     final index = planDay(monday).difference(planDay(anchor)).inDays ~/ 7;
-    final inPlan = index >= 0 && index < weeks.length;
-    final week = inPlan ? weeks[index] : null;
+    final week = planWeekOf(weeks, monday);
+    final inPlan = week != null;
     final list = units ?? const <PlanUnit>[];
     final runUnits = [
       for (final u in list)

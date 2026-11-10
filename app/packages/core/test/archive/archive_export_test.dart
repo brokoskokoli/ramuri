@@ -216,6 +216,7 @@ void main() {
               SettingKeys.loadCoefficientsPending,
               SettingKeys.loadFactorPending,
               SettingKeys.loadFactorDeclined,
+              SettingKeys.planStartedUnit,
               SettingKeys.loadFactor,
               'unit.pace',
               SettingKeys.loadProfile,

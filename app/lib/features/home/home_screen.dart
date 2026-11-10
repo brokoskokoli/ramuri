@@ -573,7 +573,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final monday = day.subtract(Duration(days: day.weekday - 1));
     final target = planWeekMinutes(
       hints: s.hints,
-      anchor: s.version!.inputs.anchor,
       monday: monday,
       units: s.weekUnits,
     );

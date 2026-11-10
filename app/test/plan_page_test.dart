@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_screen.dart';
+import 'package:running_app/features/plan/plan_texts.dart';
 import 'package:running_app/features/settings/app_settings.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';
@@ -155,12 +156,16 @@ PlanViewState _state({
   List<PlanUnit> weekUnits = const [],
   double? easyPaceSecondsPerKm,
   int easyRunCount = 0,
+  int anchorWeeksEarlier = 0,
+  List<int>? weekMinutes,
 }) {
   final goal = _goal(type: type);
   final base = PlanInputs.forNewGoal(goal, _today);
   final first = _monday.add(Duration(days: 7 * firstWeekOffset));
+  // Wie die Rechnung: die Wochen beginnen mit [first], der Anker liegt
+  // [anchorWeeksEarlier] Wochen davor (Nummern ab dem Anker).
   final inputs = PlanInputs(
-    anchor: first,
+    anchor: first.subtract(Duration(days: 7 * anchorWeeksEarlier)),
     startWeeklyMinutes: base.startWeeklyMinutes,
     today: _today,
     easyPaceSecondsPerKm: easyPaceSecondsPerKm,
@@ -169,9 +174,9 @@ PlanViewState _state({
   final weeks = [
     for (var i = 0; i < 6; i++)
       PlanWeek(
-        index: i,
+        index: i + anchorWeeksEarlier,
         start: first.add(Duration(days: 7 * i)),
-        minutes: 120,
+        minutes: weekMinutes?[i] ?? 120,
         phase: i < 2
             ? PlanPhase.entry
             : (i < 5 ? PlanPhase.build : PlanPhase.reduction),
@@ -690,6 +695,48 @@ void main() {
       );
       final summary = tester.widget<Text>(key('plan_week_summary')).data!;
       expect(summary, endsWith(' · ca. 20 km'));
+    });
+
+    testWidgets('Wochenkopf ab der dritten Woche nach dem Anker: Zeit und '
+        'Nummer der Woche von heute (Nachbesserung E)', (tester) async {
+      // Anker zwei Wochen vor dieser Woche; die Rechnung beginnt mit dieser
+      // Woche (Nummer 3). Jede Woche hat eine eigene Zeit.
+      await pumpFixed(
+        tester,
+        _state(
+          anchorWeeksEarlier: 2,
+          weekMinutes: [100, 110, 120, 130, 140, 150],
+        ),
+      );
+      expect(tester.widget<Text>(key('plan_week_title')).data, 'Woche 3');
+      final summary = tester.widget<Text>(key('plan_week_summary')).data!;
+      expect(summary, contains('1:40 h'));
+      await tester.tap(key('plan_week_next'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(key('plan_week_title')).data, 'Woche 4');
+      expect(
+        tester.widget<Text>(key('plan_week_summary')).data!,
+        contains('1:50 h'),
+      );
+    });
+
+    test('planWeekMinutes: Woche über den Montag, nicht über die Position ab '
+        'dem Anker (Nachbesserung E)', () {
+      final s = _state(
+        anchorWeeksEarlier: 2,
+        weekMinutes: [100, 110, 120, 130, 140, 150],
+      );
+      int at(int weeks) => planWeekMinutes(
+        hints: s.hints,
+        monday: _monday.add(Duration(days: 7 * weeks)),
+        units: const [],
+      );
+      expect(at(0), 100);
+      expect(at(1), 110);
+      expect(at(5), 150);
+      // Außerhalb der Rechnung: Summe der Einheiten (hier keine).
+      expect(at(6), 0);
+      expect(at(-1), 0);
     });
 
     testWidgets('zu wenige lockere Läufe: keine Kilometer', (tester) async {

@@ -65,6 +65,7 @@ class PlanParameters {
     this.warmUpMinutes = 10,
     this.coolDownMinutes = 5,
     this.minGapDays = 2,
+    this.completedIntensiveMinRpe = 7,
     this.continuousRunMinutes = 30,
     this.peakFallbackShort = 35,
     this.peakFallbackTen = 65,
@@ -166,6 +167,10 @@ class PlanParameters {
   /// PAR-059: Zwischen zwei intensiven Einheiten liegt ein voller Kalendertag,
   /// der Abstand der Tage ist also mindestens 2.
   final int minGapDays;
+
+  /// PAR-058: Ein absolvierter Lauf gilt ab dieser RPE-Angabe als intensiv
+  /// (für den Abstand, PAR-059).
+  final int completedIntensiveMinRpe;
 
   /// PAR-192: „30 min am Stück“; Grenze für die Ableitung aus dem Stand.
   final int continuousRunMinutes;

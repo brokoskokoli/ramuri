@@ -358,6 +358,35 @@ class PlanController extends ChangeNotifier {
   Future<List<PlanUnit>> unitsBetween(DateTime from, DateTime to) =>
       _plans.unitsBetween(from, to);
 
+  /// Beendete Läufe mit Ortstag (Tag des Laufendes, [dayOfRun]) in
+  /// `from <= Tag <= to`, für den Kalender (FR-0171) und die Prüfung beim
+  /// Verschieben: [PlanCalendarRun.intensive] nach PAR-058 aus der
+  /// RPE-Angabe ([PlanParameters.completedIntensiveMinRpe]).
+  Future<List<PlanCalendarRun>> runsBetween(DateTime from, DateTime to) async {
+    final f = planDay(from), t = planDay(to);
+    final rpe = <int, int>{
+      for (final e in (await session.subjective.readAll()).entries)
+        if (e.value.subjective.rpe case final int r) e.key: r,
+    };
+    final result = <PlanCalendarRun>[];
+    for (final r in await session.runs.list()) {
+      if (r.state != RunState.finished || r.endedAt == null) continue;
+      final p = DateTime.parse(dayOfRun(r));
+      final day = DateTime.utc(p.year, p.month, p.day);
+      if (day.isBefore(f) || day.isAfter(t)) continue;
+      final value = rpe[r.id];
+      result.add(
+        PlanCalendarRun(
+          id: r.id,
+          day: day,
+          intensive:
+              value != null && value >= parameters.completedIntensiveMinRpe,
+        ),
+      );
+    }
+    return result;
+  }
+
   /// Die Einheit an [day] oder `null`.
   Future<PlanUnit?> unitOn(DateTime day) => _plans.unitOn(day);
 
@@ -533,4 +562,21 @@ bool weeklyCheckDue(String? lastCheckDay, DateTime today) {
   }
 
   return monday(last).isBefore(monday(today));
+}
+
+/// Ein beendeter Lauf im Kalender ([PlanController.runsBetween]).
+class PlanCalendarRun {
+  const PlanCalendarRun({
+    required this.id,
+    required this.day,
+    required this.intensive,
+  });
+
+  final int id;
+
+  /// Ortstag des Laufendes.
+  final DateTime day;
+
+  /// Gilt nach PAR-058 als intensiv (RPE-Angabe).
+  final bool intensive;
 }

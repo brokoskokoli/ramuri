@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -51,10 +52,32 @@ class _NoCheck extends PlanController {
   Future<void> open() => reload();
 }
 
+/// Wie [_NoCheck]; [gate] hält das Lesen der Einheiten an, [fail] lässt es
+/// scheitern (Speicherfehler).
+class _Gated extends _NoCheck {
+  _Gated(super.session, super.clock);
+  Completer<void>? gate;
+  bool fail = false;
+  @override
+  Future<List<PlanUnit>> unitsBetween(DateTime from, DateTime to) async {
+    if (fail) throw StateError('Speicher nicht lesbar');
+    final g = gate;
+    if (g != null) await g.future;
+    return super.unitsBetween(from, to);
+  }
+}
+
 /// Plan mit festen Einheiten: Mo 9.11. locker (erledigt), Di 10.11. locker
 /// (ausgefallen), Do 12.11. Intervalle, Sa 14.11. lang; Folgewoche Di
 /// locker, Do Intervalle, Sa lang. Mi 11.11. (heute) und So sind frei.
-Future<(StorageSession, FakeClock)> _seed({double capMinutes = 240}) async {
+///
+/// [extra]: weitere Einheiten; [freeRuns]: Läufe ohne Einheit je Tag (ab
+/// Montag 9.11.) mit RPE-Angabe (`null` = keine).
+Future<(StorageSession, FakeClock)> _seed({
+  double capMinutes = 240,
+  List<PlanUnit> extra = const [],
+  Map<int, int?> freeRuns = const {},
+}) async {
   final session = await FakeStorage().open(_key);
   final clock = FakeClock(_now);
   final goal = _goal(capMinutes: capMinutes);
@@ -84,6 +107,7 @@ Future<(StorageSession, FakeClock)> _seed({double capMinutes = 240}) async {
         _u(8, PlanUnitKind.easy, 30),
         _u(10, PlanUnitKind.intervals, 45),
         _u(12, PlanUnitKind.long, 70),
+        ...extra,
       ],
       readState: planUnitsFingerprint(
         await plans.unitsBetween(_mon, planFarFuture),
@@ -100,6 +124,20 @@ Future<(StorageSession, FakeClock)> _seed({double capMinutes = 240}) async {
     endedUtcOffset: Duration.zero,
   );
   await plans.assignRun((await plans.unitOn(_d(0)))!.id!, run.id);
+  for (final MapEntry(key: day, value: rpe) in freeRuns.entries) {
+    final free = await session.runs.create(
+      startedAt: _d(day).add(const Duration(hours: 7)),
+    );
+    await session.runs.setState(
+      free.id,
+      RunState.finished,
+      endedAt: _d(day).add(const Duration(hours: 8)),
+      endedUtcOffset: Duration.zero,
+    );
+    if (rpe != null) {
+      await session.subjective.save(free.id, RunSubjective(rpe: rpe));
+    }
+  }
   return (session, clock);
 }
 
@@ -118,13 +156,15 @@ Future<void> _pump(
   Clock clock, {
   String locale = 'de',
   Brightness brightness = Brightness.light,
+  PlanController? controller,
+  double width = 411,
 }) async {
-  tester.view.physicalSize = const Size(411, 1400);
+  tester.view.physicalSize = Size(width, 1400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final settings = await AppSettings.load(session.settings, clock);
   final holder = AppSettingsHolder()..attach(settings);
-  final controller = _NoCheck(session, clock);
+  controller ??= _NoCheck(session, clock);
   addTearDown(controller.dispose);
   await tester.pumpWidget(
     OffloadScope(
@@ -425,5 +465,130 @@ void main() {
     await tester.pumpAndSettle();
     expect(key('calendar_list'), findsNothing);
     expect(key('plan_list'), findsOneWidget);
+  });
+
+  group('Nachbesserung E', () {
+    testWidgets('Lauf ohne Einheit erscheint als erledigt, der Tag ist kein '
+        'Ruhetag (FR-0171, FR-0172)', (tester) async {
+      // Heute (Mi 11.11.) frei gelaufen, ohne Einheit.
+      final (session, clock) = await _seed(freeRuns: {2: null});
+      await _pump(tester, session, clock);
+      Finder inDay(String text) => find.descendant(
+        of: key('calendar_day_2026-11-11'),
+        matching: find.textContaining(text),
+      );
+      expect(inDay('Lauf ohne Plan'), findsOneWidget);
+      expect(inDay('erledigt'), findsOneWidget);
+      expect(inDay('Ruhetag'), findsNothing);
+      // Sonntag ohne Lauf bleibt Ruhetag.
+      expect(
+        find.descendant(
+          of: key('calendar_day_2026-11-15'),
+          matching: find.textContaining('Ruhetag'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(key('calendar_mode_month'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(key('calendar_day_2026-11-11')).label,
+        allOf(contains('Lauf ohne Plan'), isNot(contains('Ruhetag'))),
+      );
+    });
+
+    testWidgets('Lauf ohne Einheit neben einer offenen Einheit: eigene Zeile', (
+      tester,
+    ) async {
+      // Di 10.11.: Einheit ausgefallen, aber frei gelaufen.
+      final (session, clock) = await _seed(freeRuns: {1: null});
+      await _pump(tester, session, clock);
+      expect(key('calendar_free_run_2026-11-10'), findsOneWidget);
+      // Der Lauf am Mo 9.11. ist der Einheit zugeordnet: keine eigene Zeile.
+      expect(key('calendar_free_run_2026-11-09'), findsNothing);
+    });
+
+    testWidgets('Wochengrenze: intensive Einheit auf einen Montag neben einer '
+        'intensiven am Sonntag davor ist ein Konflikt (PAR-059)', (
+      tester,
+    ) async {
+      final (session, clock) = await _seed(
+        extra: [_u(6, PlanUnitKind.tempo, 40)],
+      );
+      await _pump(tester, session, clock);
+      await tester.tap(key('calendar_next'));
+      await tester.pumpAndSettle();
+      // Intervalle Do 19.11. auf Mo 16.11., Tempo am So 15.11.
+      await _startMove(tester, 10, 7);
+      expect(key('calendar_move_conflict_2026-11-15'), findsOneWidget);
+    });
+
+    testWidgets('absolvierter harter Lauf ohne Einheit zählt für den Abstand '
+        '(PAR-058: RPE ab 7)', (tester) async {
+      // Di 10.11. frei gelaufen mit RPE 8; Intervalle Do 12.11. auf Mi 11.11.
+      final (session, clock) = await _seed(freeRuns: {1: 8});
+      await _pump(tester, session, clock);
+      await _startMove(tester, 3, 2);
+      expect(key('calendar_move_conflict_2026-11-10'), findsOneWidget);
+    });
+
+    testWidgets('lockerer Lauf ohne Einheit (RPE 4) ist kein Konflikt', (
+      tester,
+    ) async {
+      final (session, clock) = await _seed(freeRuns: {1: 4});
+      await _pump(tester, session, clock);
+      await _startMove(tester, 3, 2);
+      expect(key('calendar_move_conflict_2026-11-10'), findsNothing);
+    });
+
+    testWidgets('nach Tipp auf eine Alternative ist Bestätigen gesperrt, bis '
+        'die neue Prüfung fertig ist', (tester) async {
+      final (session, clock) = await _seed();
+      final controller = _Gated(session, clock);
+      await _pump(tester, session, clock, controller: controller);
+      await _startMove(tester, 3, 4);
+      controller.gate = Completer<void>();
+      await tester.tap(key('calendar_alternative_2026-11-11'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      FilledButton confirm() =>
+          tester.widget<FilledButton>(key('calendar_move_confirm'));
+      expect(confirm().onPressed, isNull);
+      controller.gate!.complete();
+      controller.gate = null;
+      await tester.pumpAndSettle();
+      expect(confirm().onPressed, isNotNull);
+    });
+
+    testWidgets('Speicherfehler beim Verschieben: Hinweis, kein Termin '
+        'geändert', (tester) async {
+      final (session, clock) = await _seed();
+      final controller = _Gated(session, clock);
+      await _pump(tester, session, clock, controller: controller);
+      final before = await _schedule(session);
+      await tester.tap(key('calendar_day_2026-11-12'));
+      await tester.pumpAndSettle();
+      controller.fail = true;
+      await tester.tap(key('calendar_move'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(DatePickerDialog), findsNothing);
+      expect(key('calendar_move_result'), findsOneWidget);
+      controller.fail = false;
+      expect(await _schedule(session), before);
+    });
+
+    testWidgets('Monatsraster unter 360 dp: Tage mindestens 48 dp breit', (
+      tester,
+    ) async {
+      final (session, clock) = await _seed();
+      await _pump(tester, session, clock, width: 320);
+      await tester.tap(key('calendar_mode_month'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getSize(key('calendar_day_2026-11-12')).width,
+        greaterThanOrEqualTo(48),
+      );
+    });
   });
 }

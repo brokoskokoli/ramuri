@@ -81,13 +81,20 @@ class PlanMoveCheck {
 /// - Wochensumme über dem Regler: [PlanMoveCheck.overRegulator].
 /// - Bei Konflikt oder Regler: Alternativtage der Woche des neuen und des
 ///   bisherigen Tags (frei, ab heute, nicht der bisherige Tag, ohne Konflikt,
-///   im Regler), dem gewünschten Tag nächster zuerst.
+///   im Regler). Lauftage des Ziels ([runDays], `DateTime.weekday`) zuerst,
+///   danach jeweils dem gewünschten Tag nächster zuerst.
+///
+/// [completedIntensiveDays] sind Ortstage absolvierter Läufe, die nach
+/// PAR-058 als intensiv gelten (auch ohne Einheit); sie zählen für den
+/// Abstand wie intensive Einheiten (PAR-059).
 PlanMoveCheck checkPlanMove({
   required List<PlanUnit> units,
   required PlanUnit unit,
   required DateTime newDay,
   required DateTime today,
   required double weeklyCapSeconds,
+  Iterable<DateTime> completedIntensiveDays = const [],
+  Set<int> runDays = const {},
   PlanParameters parameters = const PlanParameters(),
 }) {
   final t = planDay(today);
@@ -118,12 +125,15 @@ PlanMoveCheck checkPlanMove({
     return PlanMoveCheck(day: day, blocked: blocked, weekCapMinutes: cap);
   }
 
+  final intensiveDays = {
+    for (final u in others)
+      if (u.isIntensive) planDay(u.day),
+    for (final r in completedIntensiveDays) planDay(r),
+  };
   List<DateTime> spacing(DateTime d) => [
     if (unit.isIntensive)
-      for (final u in others)
-        if (u.isIntensive &&
-            planDay(u.day).difference(d).inDays.abs() < parameters.minGapDays)
-          planDay(u.day),
+      for (final x in intensiveDays)
+        if (x.difference(d).inDays.abs() < parameters.minGapDays) x,
   ]..sort();
 
   DateTime monday(DateTime d) =>
@@ -153,6 +163,8 @@ PlanMoveCheck checkPlanMove({
       if (spacing(d).isEmpty && weekSum(d) <= cap) alternatives.add(d);
     }
     alternatives.sort((a, b) {
+      final ra = runDays.contains(a.weekday), rb = runDays.contains(b.weekday);
+      if (ra != rb) return ra ? -1 : 1;
       final da = a.difference(day).inDays.abs();
       final db = b.difference(day).inDays.abs();
       return da != db ? da.compareTo(db) : a.compareTo(b);

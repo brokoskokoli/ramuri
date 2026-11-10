@@ -28,12 +28,16 @@ PlanMoveCheck _check(
   int day, {
   int today = 0,
   double capMinutes = 240,
+  List<int> completedIntensive = const [],
+  Set<int> runDays = const {},
 }) => checkPlanMove(
   units: units,
   unit: unit,
   newDay: _d(day),
   today: _d(today),
   weeklyCapSeconds: capMinutes * 60,
+  completedIntensiveDays: [for (final d in completedIntensive) _d(d)],
+  runDays: runDays,
 );
 
 void main() {
@@ -99,5 +103,52 @@ void main() {
   test('Alternativen nicht vor heute und nicht auf belegten Tagen', () {
     final c = _check(week, hard, 4, today: 1);
     expect(c.alternatives, [_d(2)]);
+  });
+
+  group('Nachbesserung E', () {
+    test('Wochengrenzen beim Regler: Sonntag der Vorwoche und Montag der '
+        'Folgewoche zählen nicht zur Woche', () {
+      final prevSunday = _u(10, -1, minutes: 120);
+      final nextMonday = _u(11, 7, minutes: 120);
+      final units = [prevSunday, ...week, nextMonday];
+      // Lockere Einheit auf den Sonntag: Woche 30 + 45 + 70 = 145 min.
+      final toSunday = _check(units, easy, 6, capMinutes: 200);
+      expect(toSunday.weekMinutes, 145);
+      expect(toSunday.overRegulator, isFalse);
+      // Auf den Montag: ebenso 145 min, der Sonntag davor zählt nicht.
+      final toMonday = _check(units, easy, 0, capMinutes: 200);
+      expect(toMonday.weekMinutes, 145);
+      expect(toMonday.overRegulator, isFalse);
+    });
+
+    test('Abstand über die Wochengrenze: Sonntag der Vorwoche und Montag der '
+        'Folgewoche (PAR-059)', () {
+      final prevSunday = _u(10, -1, kind: PlanUnitKind.tempo, minutes: 40);
+      final nextMonday = _u(11, 7, kind: PlanUnitKind.tempo, minutes: 40);
+      final units = [prevSunday, ...week, nextMonday];
+      expect(_check(units, hard, 0, today: -1).spacingDays, [_d(-1)]);
+      expect(_check(units, hard, 6, today: -1).spacingDays, [_d(5), _d(7)]);
+    });
+
+    test('absolvierter intensiver Lauf ohne Einheit zählt für den Abstand '
+        '(PAR-058)', () {
+      // Intervalle auf Mi: ohne Lauf kein Konflikt (Sa liegt 3 Tage weiter).
+      expect(_check(week, hard, 2).hasSpacingConflict, isFalse);
+      final c = _check(week, hard, 2, completedIntensive: [1]);
+      expect(c.spacingDays, [_d(1)]);
+      // Auch die Alternativen meiden den Tag daneben: Mo (0) liegt neben Di.
+      expect(c.alternatives, isNot(contains(_d(0))));
+      // Lockere Einheiten bleiben ohne Konflikt.
+      expect(
+        _check(week, easy, 2, completedIntensive: [1]).hasSpacingConflict,
+        isFalse,
+      );
+    });
+
+    test('Lauftage des Ziels zuerst, danach dem gewünschten Tag nächster', () {
+      // Wie der erste Fall: ohne Lauftage Mi (2) vor Mo (0).
+      final c = _check(week, hard, 4, runDays: {DateTime.monday});
+      expect(c.alternatives, [_d(0), _d(2)]);
+    });
   });
 }
