@@ -38,7 +38,8 @@ class AlgorithmRegistry {
     ..register(aerobicEfficiencyFamily, const MedianAerobicEfficiency())
     ..register(performancePredictionFamily, const RiegelPrediction())
     ..register(planFamily, const WeeklyTimeCourse())
-    ..register(targetIntensityFamily, const RankedTargetIntensity());
+    ..register(targetIntensityFamily, const RankedTargetIntensity())
+    ..register(walkRunFamily, const WalkRunSequence());
 
   final Map<String, _Entry> _families = {};
 

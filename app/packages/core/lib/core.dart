@@ -93,6 +93,8 @@ export 'src/plan/plan_parameters.dart';
 export 'src/plan/plan_registry.dart';
 export 'src/plan/plan_unit.dart';
 export 'src/plan/target_intensity.dart';
+export 'src/plan/walk_run_program.dart';
+export 'src/plan/walk_run_units.dart';
 export 'src/plan/week_units.dart';
 export 'src/plan/weekly_time.dart';
 export 'src/prediction/goal_prediction.dart';

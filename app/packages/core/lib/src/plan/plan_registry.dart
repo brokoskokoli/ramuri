@@ -1,6 +1,7 @@
 import '../fitness/algorithm_variant.dart';
 import 'plan_parameters.dart';
 import 'target_intensity.dart';
+import 'walk_run_program.dart';
 
 /// Familie Planerzeugung (NFR-0001, NFR-0005). Hier der Verlauf der
 /// Wochenzeit; die Einheiten folgen im selben Verfahren.
@@ -48,3 +49,26 @@ class RankedTargetIntensity extends TargetIntensityMethod {
 const targetIntensityFamily = AlgorithmFamily<TargetIntensityMethod>(
   'target-intensity',
 );
+
+/// Familie Geh-Lauf-Abfolge (PAR-065, PAR-132 bis PAR-139): der Datensatz
+/// mit den Programmwochen. Eine andere Abfolge ist eine neue Version.
+abstract class WalkRunProgramMethod extends AlgorithmVariant {
+  const WalkRunProgramMethod();
+}
+
+class WalkRunSequence extends WalkRunProgramMethod {
+  const WalkRunSequence();
+
+  @override
+  String get method => walkRunMethod;
+
+  @override
+  int get methodVersion => walkRunMethodVersion;
+
+  /// B: Zeiten vorgegeben, Evidenz niedrig; die Ausnahmen (PAR-141) sind
+  /// eigene Wahl.
+  @override
+  AlgorithmCategory get category => AlgorithmCategory.heuristic;
+}
+
+const walkRunFamily = AlgorithmFamily<WalkRunProgramMethod>('walk-run-program');

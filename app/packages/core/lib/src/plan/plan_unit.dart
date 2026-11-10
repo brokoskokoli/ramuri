@@ -47,6 +47,12 @@ enum PlanSegmentKind {
 
   /// Abwärmen (PAR-121).
   coolDown,
+
+  /// Laufphase der Geh-Lauf-Abfolge (PAR-065).
+  run,
+
+  /// Gehphase der Geh-Lauf-Abfolge (PAR-065).
+  walk,
 }
 
 /// Zielintensität eines Abschnitts (ADR-0010 Punkt 11): RPE, Pace-Bereich,
@@ -73,11 +79,21 @@ class PlanSegment {
   const PlanSegment({
     required this.kind,
     required this.minutes,
+    this.seconds,
     this.intensity,
   });
 
   final PlanSegmentKind kind;
+
+  /// Dauer in ganzen Minuten (gerundet, wenn [seconds] gesetzt ist).
   final int minutes;
+
+  /// Genaue Dauer in Sekunden, wo die Minute nicht reicht (Geh-Lauf:
+  /// 1:30 min). `null`: die Dauer ist [minutes].
+  final int? seconds;
+
+  /// Dauer in Sekunden.
+  int get durationSeconds => seconds ?? minutes * 60;
 
   /// Zielintensität; in Teil C1b immer `null` (kommt mit Teil D).
   final PlanTargetIntensity? intensity;
@@ -110,7 +126,8 @@ class PlanUnit {
   /// Nummer der Woche ab dem Anker (wie `PlanWeek.index`).
   final int weekIndex;
 
-  /// Dauer in Minuten; gleich der Summe der [segments].
+  /// Dauer in Minuten; gleich der Summe der [segments] (bei Abschnitten mit
+  /// Sekunden: deren Summe, auf ganze Minuten gerundet).
   final int minutes;
   final List<PlanSegment> segments;
 

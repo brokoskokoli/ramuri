@@ -289,6 +289,8 @@ SegmentTarget? segmentTarget({
       PlanSegmentKind.tempo || PlanSegmentKind.endBlock => _Role.tempo,
       PlanSegmentKind.warmUp ||
       PlanSegmentKind.coolDown ||
+      PlanSegmentKind.run ||
+      PlanSegmentKind.walk ||
       PlanSegmentKind.easy =>
         unitKind == PlanUnitKind.long ? _Role.long : _Role.easy,
     };
@@ -511,6 +513,7 @@ PlanUnit applyTargetIntensity(
         PlanSegment(
           kind: s.kind,
           minutes: s.minutes,
+          seconds: s.seconds,
           intensity: segmentTarget(
             unitKind: unit.kind,
             segment: s.kind,
