@@ -308,13 +308,13 @@ class _PredictionCardState extends State<PredictionCard> {
           _Action(
             key: const Key('prediction_add'),
             label: l10n.predictionAddReference,
-            onPressed: _add,
+            onPressed: _c.busy ? null : _add,
           ),
           if (state.active != null)
             _Action(
               key: const Key('prediction_delete'),
               label: l10n.predictionDeleteReference,
-              onPressed: () => _delete(state.active!),
+              onPressed: _c.busy ? null : () => _delete(state.active!),
             ),
           _Action(
             key: const Key('prediction_explain'),
@@ -360,7 +360,7 @@ class _PredictionCardState extends State<PredictionCard> {
                   minHeight: RamuriTheme.minTarget,
                 ),
                 icon: const Icon(Icons.delete_outline),
-                onPressed: () => _delete(s),
+                onPressed: _c.busy ? null : () => _delete(s),
               ),
             ],
           ),
@@ -420,12 +420,16 @@ class _PredictionCardState extends State<PredictionCard> {
                 _Action(
                   key: const Key('prediction_suggestion_accept'),
                   label: l10n.predictionSuggestionAccept,
-                  onPressed: () => _run(_c.acceptSuggestion(s)),
+                  onPressed: _c.busy
+                      ? null
+                      : () => _run(_c.acceptSuggestion(s)),
                 ),
                 _Action(
                   key: const Key('prediction_suggestion_reject'),
                   label: l10n.predictionSuggestionReject,
-                  onPressed: () => _run(_c.rejectSuggestion(s)),
+                  onPressed: _c.busy
+                      ? null
+                      : () => _run(_c.rejectSuggestion(s)),
                 ),
               ],
             ),
@@ -507,7 +511,7 @@ class _Action extends StatelessWidget {
   const _Action({super.key, required this.label, required this.onPressed});
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -71,6 +73,7 @@ Future<void> pumpCard(
   bool vo2 = false,
   DataChanges? changes,
   DistanceUnit unit = DistanceUnit.kilometers,
+  StorageSession? session,
 }) async {
   tester.view.physicalSize = Size(width, 2600);
   tester.view.devicePixelRatio = 1;
@@ -101,7 +104,7 @@ Future<void> pumpCard(
             body: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: PredictionCard(
-                session: d.session,
+                session: session ?? d.session,
                 clock: d.clock,
                 hasVo2maxEstimate: vo2,
                 changes: changes,
@@ -114,6 +117,89 @@ Future<void> pumpCard(
   );
   await tester.pumpAndSettle();
 }
+
+/// Speicher, dessen Ablehnen und Neuladen der Test anhalten kann.
+class _GatedStore implements PredictionStore {
+  _GatedStore(this._inner);
+  final PredictionStore _inner;
+
+  /// Hält `rejectSuggestion` an, bis es fertig ist.
+  Completer<void>? holdReject;
+
+  /// Hält das Lesen der abgelehnten Läufe an (erster Schritt des Neuladens).
+  Completer<void>? holdReload;
+
+  @override
+  Future<void> rejectSuggestion(int runId) async {
+    await holdReject?.future;
+    await _inner.rejectSuggestion(runId);
+  }
+
+  @override
+  Future<Set<int>> rejectedSuggestions() async {
+    await holdReload?.future;
+    return _inner.rejectedSuggestions();
+  }
+
+  @override
+  Future<int> addReference(ReferencePerformance reference) =>
+      _inner.addReference(reference);
+  @override
+  Future<void> deleteReference(int id) => _inner.deleteReference(id);
+  @override
+  Future<List<StoredReference>> references() => _inner.references();
+  @override
+  Future<ReferencePerformance?> activeReference() => _inner.activeReference();
+}
+
+class _GatedSession implements StorageSession, PredictionStorage {
+  _GatedSession(this._inner)
+    : prediction = _GatedStore((_inner as PredictionStorage).prediction);
+  final StorageSession _inner;
+  @override
+  final _GatedStore prediction;
+
+  @override
+  RunStore get runs => _inner.runs;
+  @override
+  RunMarkerStore get markers => _inner.markers;
+  @override
+  RawDataStore get rawData => _inner.rawData;
+  @override
+  PreprocessingStore get preprocessing => _inner.preprocessing;
+  @override
+  RatedSectionStore get sections => _inner.sections;
+  @override
+  ComputedValueStore get values => _inner.values;
+  @override
+  ProfileStore get profile => _inner.profile;
+  @override
+  SettingsStore get settings => _inner.settings;
+  @override
+  KnownDeviceStore get devices => _inner.devices;
+  @override
+  ConsentStore get consents => _inner.consents;
+  @override
+  RunSubjectiveStore get subjective => _inner.subjective;
+  @override
+  ManualTrainingStore get manualTrainings => _inner.manualTrainings;
+  @override
+  Future<void> deleteRun(int runId) => _inner.deleteRun(runId);
+  @override
+  Future<void> deleteAll() => _inner.deleteAll();
+  @override
+  Future<void> close() => _inner.close();
+}
+
+TextButton _buttonOf(String k) =>
+    find
+            .descendant(of: key(k), matching: find.byType(TextButton))
+            .evaluate()
+            .single
+            .widget
+        as TextButton;
+
+bool _enabled(String k) => _buttonOf(k).onPressed != null;
 
 String txt(String k) {
   final t = key(k).evaluate().single.widget as Text;
@@ -621,6 +707,81 @@ void main() {
       expect(await _store(d).references(), hasLength(2)); // Wettkampf + Lauf
       // Danach ist die nächste Änderung wieder möglich.
       expect(await c.deleteActive(), isTrue);
+    });
+
+    testWidgets('Soll 2: nach einer fehlschlagenden Aktion wird die nächste '
+        'Änderung wieder angenommen', (tester) async {
+      final (d, _) = await withFastRun(tester);
+      final c = PredictionController(
+        session: d.session,
+        clock: d.clock,
+        hasVo2maxEstimate: false,
+      );
+      addTearDown(c.dispose);
+      await tester.pumpAndSettle();
+      expect(await c.deleteReference(9999), isFalse); // unbekannte Kennung
+      expect(c.busy, isFalse);
+      expect(await c.deleteActive(), isTrue);
+    });
+
+    testWidgets('Soll 3: die Sperre hält bis das Neuladen fertig ist', (
+      tester,
+    ) async {
+      final (d, _) = await withFastRun(tester);
+      final g = _GatedSession(d.session);
+      final c = PredictionController(
+        session: g,
+        clock: d.clock,
+        hasVo2maxEstimate: false,
+      );
+      addTearDown(c.dispose);
+      await tester.pumpAndSettle();
+      final s = c.state.suggestion!;
+      g.prediction.holdReload = Completer<void>();
+      final first = c.rejectSuggestion(s);
+      await tester.pump();
+      // Gespeichert, das Neuladen hängt: noch gesperrt, alter Vorschlag da.
+      expect(c.busy, isTrue);
+      expect(c.state.suggestion, isNotNull);
+      expect(await c.rejectSuggestion(s), isFalse);
+      g.prediction.holdReload!.complete();
+      expect(await first, isTrue);
+      expect(c.busy, isFalse);
+      expect(c.state.suggestion, isNull);
+      expect(await _store(d).rejectedSuggestions(), hasLength(1));
+    });
+
+    testWidgets('Soll 1: Knöpfe sind während einer Änderung gesperrt, kein '
+        'falscher Hinweis', (tester) async {
+      final (d, _) = await withFastRun(tester);
+      final g = _GatedSession(d.session);
+      await pumpCard(tester, d, session: g);
+      expect(_enabled('prediction_suggestion_accept'), isTrue);
+      g.prediction.holdReject = Completer<void>();
+      await tester.ensureVisible(key('prediction_suggestion_reject'));
+      await tester.tap(key('prediction_suggestion_reject'));
+      await tester.pump();
+      for (final k in [
+        'prediction_suggestion_accept',
+        'prediction_suggestion_reject',
+        'prediction_add',
+        'prediction_delete',
+      ]) {
+        expect(_enabled(k), isFalse, reason: k);
+      }
+      // Ein Tippen auf den gesperrten Knopf tut nichts und warnt nicht.
+      await tester.tap(
+        key('prediction_suggestion_accept'),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      expect(find.byType(SnackBar), findsNothing);
+      g.prediction.holdReject!.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsNothing);
+      expect(key('prediction_suggestion'), findsNothing);
+      expect(_enabled('prediction_add'), isTrue);
+      expect(await _store(d).references(), hasLength(1)); // nicht übernommen
     });
 
     testWidgets('Lauf älter als 182 Tage wird nicht mehr vorgeschlagen', (

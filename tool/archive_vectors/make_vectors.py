@@ -66,6 +66,9 @@ SECTIONS = ["runs", "laps", "run_gaps", "raw_positions", "raw_heart_rates",
 # Format 2 (Schema 5, WP18): Abschnitte 17 und 18 kommen nach known_devices (Vertrag 4.3).
 SECTIONS_V2 = SECTIONS[:16] + ["run_feedback", "manual_trainings"] + SECTIONS[16:]
 
+# Schema 6 (WP20, weiter Format 2): Abschnitte 22 und 23 ans Ende (Vertrag 4.3).
+SECTIONS_S6 = SECTIONS_V2 + ["reference_performances", "rejected_suggestions"]
+
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
 V2_TODAY = "2026-11-20"
@@ -159,10 +162,29 @@ def archive_rows_v2(future_training=False):
     return r
 
 
-def archive_plaintext(version=1, future_training=False):
-    r = archive_rows_v2(future_training) if version == 2 else archive_rows()
-    sections = SECTIONS_V2 if version == 2 else SECTIONS
-    schema = 5 if version == 2 else 4
+def archive_rows_s6():
+    """Schema 6: die Zeilen von Format 2/Schema 5 plus Referenzleistungen und abgelehnte Vorschlaege."""
+    r = archive_rows_v2()
+    r["reference_performances"] = [
+        dict(id=1, kind="race", distance_m=10000.0, time_s=3000.0, performed_on="2026-10-04",
+             created_at_us=1791100000000000, run_id=None),
+        dict(id=2, kind="test", distance_m=5000.0, time_s=1260.5, performed_on="2026-10-20",
+             created_at_us=1792500000000000, run_id=None),
+        # bestaetigter Lauf: verweist auf Lauf 1 des Archivs
+        dict(id=3, kind="confirmedRun", distance_m=4200.0, time_s=1200.0, performed_on="2026-11-02",
+             created_at_us=1793000000000000, run_id=1),
+    ]
+    r["rejected_suggestions"] = [dict(id=1, run_id=7)]
+    return r
+
+
+def archive_plaintext(version=1, future_training=False, schema=None):
+    if schema == 6:
+        r, sections = archive_rows_s6(), SECTIONS_S6
+    else:
+        r = archive_rows_v2(future_training) if version == 2 else archive_rows()
+        sections = SECTIONS_V2 if version == 2 else SECTIONS
+    schema = schema or (5 if version == 2 else 4)
     lines = [{"type": "manifest", "format": version, "schema_version": schema, "created_at_us": 1793000000000000}]
     for s in sections:
         lines.append({"type": "section", "name": s})
@@ -196,6 +218,7 @@ def main():
 
     jl, gz = archive_plaintext()
     jl2, gz2 = archive_plaintext(2)
+    jl6, gz6 = archive_plaintext(2, schema=6)
     _, gz2_future = archive_plaintext(2, future_training=True)
     # (name, passwort, salz, klartext)
     pw_uni = "Pässwörd-ünïcode-€-123"
@@ -209,13 +232,14 @@ def main():
         ("exact_131072", "", bytes([0xFF] * 16), stream("v6", 131072)),
         ("archive_small", "archiv-test-passwort-15+", bytes(range(200, 216)), gz),
         ("archive_v2", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2),
+        ("archive_v2_s6", "archiv-test-passwort-s6+", bytes(range(232, 248)), gz6),
     ]
     # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
     v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        ver = 2 if name == "archive_v2" else 1
+        ver = 2 if name in ("archive_v2", "archive_v2_s6") else 1
         h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
@@ -232,6 +256,12 @@ def main():
             manifest[-1]["jsonl_file"] = "archive_v2.jsonl"
             manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl2).hexdigest()
             manifest[-1]["row_counts"] = {s: len(archive_rows_v2()[s]) for s in SECTIONS_V2}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s6":
+            open(os.path.join(out, "archive_v2_s6.jsonl"), "wb").write(jl6)
+            manifest[-1]["jsonl_file"] = "archive_v2_s6.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl6).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s6()[s]) for s in SECTIONS_S6}
             manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)

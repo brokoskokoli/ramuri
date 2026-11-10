@@ -209,25 +209,33 @@ class PredictionController extends ChangeNotifier {
 
   bool _mutating = false;
 
-  /// Eine Änderung zur Zeit: Doppeltippen löst keine zweite aus (Soll 8).
+  /// Läuft gerade eine Änderung (bis das Neuladen fertig ist)? Die Karte
+  /// sperrt dann ihre Knöpfe (Soll 1).
+  bool get busy => _mutating;
+
+  /// Eine Änderung zur Zeit: Doppeltippen löst keine zweite aus (Soll 8). Die
+  /// Sperre fällt erst nach dem Neuladen, sonst wäre kurz noch der alte
+  /// Vorschlag zu sehen und anzutippen.
   Future<bool> _mutate(Future<Object?> Function() action) async {
     if (_mutating) return false;
     _mutating = true;
+    notifyListeners();
     try {
       try {
         await action();
       } on Object {
         return false;
       }
+      if (_disposed) return true;
+      // Die App baut den Tab auf die Meldung hin neu auf; das Neuladen hier
+      // hält auch eine Karte aktuell, die nicht neu aufgebaut wird.
+      onChanged?.call();
+      await reload();
+      return true;
     } finally {
       _mutating = false;
+      if (!_disposed) notifyListeners();
     }
-    if (_disposed) return true;
-    // Die App baut den Tab auf die Meldung hin neu auf; das Neuladen hier
-    // hält auch eine Karte aktuell, die nicht neu aufgebaut wird.
-    onChanged?.call();
-    await reload();
-    return true;
   }
 
   @override
