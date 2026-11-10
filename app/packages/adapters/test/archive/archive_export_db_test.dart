@@ -193,6 +193,29 @@ void main() {
     )) {
       expect(_rows(lines, s.name), isNotEmpty, reason: s.name);
     }
+    expect(_rows(lines, 'reference_performances'), [
+      {
+        'id': 1,
+        'kind': 'race',
+        'distance_m': 10000.0,
+        'time_s': 3012.5,
+        'performed_on': '2026-10-01',
+        'created_at_us': 7,
+        'run_id': null,
+      },
+      {
+        'id': 2,
+        'kind': 'confirmedRun',
+        'distance_m': 5000.0,
+        'time_s': 1490.0,
+        'performed_on': '2026-11-02',
+        'created_at_us': 8,
+        'run_id': 1,
+      },
+    ]);
+    expect(_rows(lines, 'rejected_suggestions'), [
+      {'id': 1, 'run_id': 1},
+    ]);
     // Werte bleiben exakt (Typen, NULL, Kennungen).
     expect(_rows(lines, 'runs').single, {
       'id': 1,

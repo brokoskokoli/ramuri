@@ -71,12 +71,12 @@ String _endLine(Map<String, int> counts) =>
 /// Gültige Zeilen für [db] im Format des Vertrags.
 List<String> _validLines(Map<String, List<Map<String, Object?>>> db) => [
   _manifest(),
-  for (final s in archiveSectionsFor(1)) ...[
+  for (final s in archiveSectionsFor(4)) ...[
     _section(s.name),
     for (final r in db[s.name] ?? const <Map<String, Object?>>[]) _rowLine(r),
   ],
   _endLine({
-    for (final s in archiveSectionsFor(1)) s.name: db[s.name]?.length ?? 0,
+    for (final s in archiveSectionsFor(4)) s.name: db[s.name]?.length ?? 0,
   }),
 ];
 
@@ -209,7 +209,7 @@ void main() {
 
     test('Beschädigung erst am Ende (falscher Zähler) scheitert', () async {
       final lines = valid()..removeLast();
-      lines.add(_endLine({for (final s in archiveSectionsFor(1)) s.name: 99}));
+      lines.add(_endLine({for (final s in archiveSectionsFor(4)) s.name: 99}));
       await expectLater(
         ArchiveImporter(
           sink: DiscardArchiveSink(),
@@ -294,7 +294,7 @@ void main() {
           ]
           ..['rated_sections'] = [
             {
-              for (final col in archiveSectionsFor(1)[10].columns)
+              for (final col in archiveSectionsFor(4)[10].columns)
                 col.name: col.name == 'gps_gaps'
                     ? '[{"start_us":1,"end_us":2}]'
                     : _valueFor(col, 1),
@@ -450,13 +450,31 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 5: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 6: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 6);
+        final lines = valid()..[0] = _manifest(schema: 7);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
         lines[0] = '{"type":"manifest","format":1,"schema_version":9,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
+      },
+    );
+
+    test(
+      'Format 1 mit Schema 4 (19 Abschnitte) bleibt lesbar, neuere leer',
+      () async {
+        expect(archiveSectionsFor(4), hasLength(19));
+        await c.run(await _archive(valid()));
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['runs'], isNotEmpty);
+        for (final t in [
+          'run_feedback',
+          'manual_trainings',
+          'reference_performances',
+          'rejected_suggestions',
+        ]) {
+          expect(c.sink.rows[t] ?? const [], isEmpty, reason: t);
+        }
       },
     );
 
@@ -517,7 +535,7 @@ void main() {
       final l = valid(0);
       final i = l.indexOf(_section('laps'));
       final counts = {
-        for (final s in archiveSectionsFor(1))
+        for (final s in archiveSectionsFor(4))
           if (s.name != 'laps') s.name: 0,
       };
       await c.rejectsLines([
@@ -530,7 +548,7 @@ void main() {
     test('letzter Abschnitt fehlt', () async {
       final l = valid(0);
       final counts = {
-        for (final s in archiveSectionsFor(1))
+        for (final s in archiveSectionsFor(4))
           if (s.name != 'active_warning') s.name: 0,
       };
       await c.rejectsLines([
@@ -583,7 +601,7 @@ void main() {
       final l = valid(0);
       await c.rejectsLines([
         l[0],
-        _rowLine(_row(archiveSectionsFor(1)[0], 1)),
+        _rowLine(_row(archiveSectionsFor(4)[0], 1)),
         ...l.skip(1),
       ], ArchiveImportFailure.damaged);
     });
@@ -595,7 +613,7 @@ void main() {
       return [...l.take(2), _rowLine(data), ...l.skip(2)];
     }
 
-    Map<String, Object?> run() => _row(archiveSectionsFor(1)[0], 1);
+    Map<String, Object?> run() => _row(archiveSectionsFor(4)[0], 1);
 
     Future<void> counted(
       Map<String, Object?> data,
@@ -604,7 +622,7 @@ void main() {
       // Mit richtigem Zähler, damit nur die Zeile selbst falsch ist.
       final l = withRunRow(data);
       l[l.length - 1] = _endLine({
-        for (final s in archiveSectionsFor(1)) s.name: s.name == 'runs' ? 1 : 0,
+        for (final s in archiveSectionsFor(4)) s.name: s.name == 'runs' ? 1 : 0,
       });
       await c.rejectsLines(l, f);
     }
@@ -614,7 +632,7 @@ void main() {
       () async {
         final l = withRunRow(run());
         l[l.length - 1] = _endLine({
-          for (final s in archiveSectionsFor(1))
+          for (final s in archiveSectionsFor(4))
             s.name: s.name == 'runs' ? 1 : 0,
         });
         await c.run(await _archive(l));
@@ -661,7 +679,7 @@ void main() {
         expect(json, contains(text), reason: 'Ersetzung hat gegriffen');
         l[2] = json;
         l[l.length - 1] = _endLine({
-          for (final s in archiveSectionsFor(1))
+          for (final s in archiveSectionsFor(4))
             s.name: s.name == 'runs' ? 1 : 0,
         });
         await c.rejectsLines(l, ArchiveImportFailure.damaged);
@@ -671,7 +689,7 @@ void main() {
     test(
       'REAL: nicht endlich abgelehnt, Ganzzahlschreibweise erlaubt',
       () async {
-        final lap = _row(archiveSectionsFor(1)[1], 1);
+        final lap = _row(archiveSectionsFor(4)[1], 1);
         String lapsRow(String time) =>
             _rowLine(lap)
                 .replaceFirst('"lap_time_s":1.25', '"lap_time_s":$time');
@@ -684,7 +702,7 @@ void main() {
             lapsRow(time),
             ...l.skip(i + 1).take(l.length - i - 2),
             _endLine({
-              for (final s in archiveSectionsFor(1))
+              for (final s in archiveSectionsFor(4))
                 s.name: s.name == 'laps' ? 1 : 0,
             }),
           ];
@@ -702,7 +720,7 @@ void main() {
       () async {
         final l = withRunRow(run());
         l[l.length - 1] = _endLine({
-          for (final s in archiveSectionsFor(1))
+          for (final s in archiveSectionsFor(4))
             s.name: s.name == 'runs' ? 1 : 0,
         });
         final lone = [...l]
@@ -723,7 +741,7 @@ void main() {
       await c.rejectsLines(
         l
           ..[l.length - 1] = _endLine({
-            for (final s in archiveSectionsFor(1))
+            for (final s in archiveSectionsFor(4))
               s.name: s.name == 'runs' ? 1 : 0,
           }),
         ArchiveImportFailure.damaged,
@@ -734,7 +752,7 @@ void main() {
       'Zeile mit fremdem Schlüssel neben data / ohne data / data kein Objekt',
       () async {
         final counts = {
-          for (final s in archiveSectionsFor(1))
+          for (final s in archiveSectionsFor(4))
             s.name: s.name == 'runs' ? 1 : 0,
         };
         for (final line in [
@@ -754,7 +772,7 @@ void main() {
     test('Schlüssel nicht aufsteigend oder doppelt', () async {
       final l = valid(0);
       final counts = {
-        for (final s in archiveSectionsFor(1)) s.name: s.name == 'runs' ? 2 : 0,
+        for (final s in archiveSectionsFor(4)) s.name: s.name == 'runs' ? 2 : 0,
       };
       for (final ids in [
         [2, 1],
@@ -763,7 +781,7 @@ void main() {
         c = _Case(dir);
         final rows = [
           for (final id in ids)
-            _rowLine({..._row(archiveSectionsFor(1)[0], 1), 'id': id}),
+            _rowLine({..._row(archiveSectionsFor(4)[0], 1), 'id': id}),
         ];
         await c.rejectsLines([
           ...l.take(2),
@@ -781,7 +799,7 @@ void main() {
         c = _Case(dir);
         final db = _fullDb(rowsPer: 2);
         final counts = {
-          for (final s in archiveSectionsFor(1))
+          for (final s in archiveSectionsFor(4))
             s.name: db[s.name]?.length ?? 0,
         };
         counts['laps'] = counts['laps']! + delta;
@@ -792,7 +810,7 @@ void main() {
     });
 
     test('Zähler fehlt / überzählig / Text statt Zahl', () async {
-      final base = {for (final s in archiveSectionsFor(1)) s.name: 0};
+      final base = {for (final s in archiveSectionsFor(4)) s.name: 0};
       for (final counts in <Map<String, Object?>>[
         {...base}..remove('plans'),
         {...base, 'extra': 0},
@@ -818,7 +836,7 @@ void main() {
       () async {
         final l = valid();
         for (final extra in [
-          _rowLine(_row(archiveSectionsFor(1)[0], 9)),
+          _rowLine(_row(archiveSectionsFor(4)[0], 9)),
           _section('runs'),
           l.last,
           _manifest(),
@@ -903,7 +921,7 @@ void main() {
           settingsRow(n),
           ...l.skip(i + 1).take(l.length - i - 2),
           _endLine({
-            for (final s in archiveSectionsFor(1))
+            for (final s in archiveSectionsFor(4))
               s.name: s.name == 'settings' ? 1 : 0,
           }),
         ];
@@ -1116,24 +1134,27 @@ void main() {
       List<Map<String, Object?>>? feedback,
       List<Map<String, Object?>>? trainings,
       String? manifest,
+      int schema = 5,
+      Map<String, List<Map<String, Object?>>> extra = const {},
     }) {
       final db = <String, List<Map<String, Object?>>>{
         'runs': [_row(archiveSections[0], 1), _row(archiveSections[0], 2)],
         'run_feedback': feedback ?? [fb()],
         'manual_trainings': trainings ?? [mt()],
+        ...extra,
       };
+      final sections = archiveSectionsFor(schema);
       return [
         manifest ??
-            '{"type":"manifest","format":2,"schema_version":5,'
+            '{"type":"manifest","format":2,"schema_version":$schema,'
                 '"created_at_us":1793000000000000}',
-        for (final sec in archiveSections) ...[
+        for (final sec in sections) ...[
           _section(sec.name),
           for (final r in db[sec.name] ?? const <Map<String, Object?>>[])
             _rowLine(r),
         ],
         _endLine({
-          for (final sec in archiveSections)
-            sec.name: db[sec.name]?.length ?? 0,
+          for (final sec in sections) sec.name: db[sec.name]?.length ?? 0,
         }),
       ];
     }
@@ -1240,6 +1261,10 @@ void main() {
         '{"type":"manifest","format":1,"schema_version":5,"created_at_us":1}',
         1,
       ),
+      'Format 1 mit Schema 6': (
+        '{"type":"manifest","format":1,"schema_version":6,"created_at_us":1}',
+        1,
+      ),
       'Format 3': (
         '{"type":"manifest","format":3,"schema_version":5,"created_at_us":1}',
         2,
@@ -1266,6 +1291,121 @@ void main() {
         await rejectsV2(lines, ArchiveImportFailure.damaged, entry.value.$2);
       });
     }
+
+    // Nur das Format/Schema-Paar ist falsch: Kopf und Manifest stimmen
+    // überein und der Inhalt passt zum Schema. Ohne die Paarprüfung im Leser
+    // würde das Archiv gelesen.
+    test(
+      'Paar Format 2 mit Schema 4, Inhalt von Schema 4: beschädigt',
+      () async {
+        final l = valid()
+          ..[0] =
+              '{"type":"manifest","format":2,"schema_version":4,'
+              '"created_at_us":1}';
+        await rejectsV2(l, ArchiveImportFailure.damaged, 2);
+      },
+    );
+
+    test(
+      'Paar Format 1 mit Schema 5, Inhalt von Schema 5: beschädigt',
+      () async {
+        final l = v2()
+          ..[0] =
+              '{"type":"manifest","format":1,"schema_version":5,'
+              '"created_at_us":1}';
+        await rejectsV2(l, ArchiveImportFailure.damaged, 1);
+      },
+    );
+
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 6 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 7, 100]) {
+        expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
+      }
+      expect(archiveSectionsFor(4), hasLength(19));
+      expect(archiveSectionsFor(6), hasLength(23));
+    });
+
+    test(
+      'Format 2 mit Schema 5 (21 Abschnitte, ohne Prognose) bleibt lesbar',
+      () async {
+        expect(archiveSectionsFor(5), hasLength(21));
+        await c.run(await file(v2()));
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['run_feedback'], hasLength(1));
+        expect(c.sink.rows['manual_trainings'], hasLength(1));
+        expect(c.sink.rows['reference_performances'] ?? const [], isEmpty);
+      },
+    );
+
+    test('Format 2 mit Schema 6: Prognose-Abschnitte mit Inhalt', () async {
+      expect(archiveSectionsFor(6), hasLength(23));
+      final refs = [
+        {
+          'id': 1,
+          'kind': 'race',
+          'distance_m': 10000.0,
+          'time_s': 3012.5,
+          'performed_on': '2026-10-01',
+          'created_at_us': 7,
+          'run_id': null,
+        },
+        {
+          'id': 2,
+          'kind': 'confirmedRun',
+          'distance_m': 5000.0,
+          'time_s': 1490.0,
+          'performed_on': '2026-11-02',
+          'created_at_us': 8,
+          'run_id': 1,
+        },
+      ];
+      await c.run(
+        await file(
+          v2(
+            schema: 6,
+            extra: {
+              'reference_performances': refs,
+              'rejected_suggestions': [
+                {'id': 1, 'run_id': 2},
+              ],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['reference_performances'], hasLength(2));
+      expect(c.sink.rows['reference_performances']![0]['time_s'], 3012.5);
+      expect(c.sink.rows['reference_performances']![0]['run_id'], isNull);
+      expect(c.sink.rows['rejected_suggestions']![0]['run_id'], 2);
+      expect(c.sink.rows['run_feedback'], hasLength(1));
+    });
+
+    test('Schema 6 ohne die Prognose-Abschnitte: beschädigt', () async {
+      final l = v2();
+      l[0] = v2(schema: 6)[0];
+      await rejectsV2(l);
+    });
+
+    test('Schema 5 mit Prognose-Abschnitt: beschädigt', () async {
+      final l = v2();
+      final at = l.indexOf(_section('goals'));
+      l.insert(at, _section('reference_performances'));
+      await rejectsV2(l);
+    });
+
+    test('Schema 4 mit Abschnitt aus Schema 6: beschädigt', () async {
+      final l = valid();
+      final at = l.indexOf(_section('goals'));
+      l.insert(at, _section('reference_performances'));
+      await c.rejectsLines(l, ArchiveImportFailure.damaged);
+    });
+
+    test('Schema 7: neueres Archiv', () async {
+      await rejectsV2(
+        v2(schema: 6)..[0] = '{"type":"manifest","format":2,"schema_version":7,"created_at_us":1}',
+        ArchiveImportFailure.newerSchema,
+      );
+    });
 
     test('Kopf Format 3 oder 0: unbekannte Formatversion', () async {
       final bytes = await file(v2());

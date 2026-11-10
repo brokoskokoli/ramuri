@@ -1,5 +1,5 @@
 /// Abschnitte und Spalten des Archivs (`docs/contracts/archive.md` 4.3,
-/// Schema 5, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
+/// Schema 6, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
 /// Adapter-Test mit der Datenbank.
 library;
 
@@ -22,14 +22,14 @@ class ArchiveSectionSpec {
     this.name,
     this.columns,
     this.key,
-    this.sinceFormat,
+    this.sinceSchema,
   );
 
   factory ArchiveSectionSpec(
     String name,
     String columns, {
     String? key,
-    int sinceFormat = 1,
+    int sinceSchema = 4,
   }) {
     final cols = <ArchiveColumn>[];
     if (columns.isNotEmpty) {
@@ -50,7 +50,7 @@ class ArchiveSectionSpec {
       name,
       List.unmodifiable(cols),
       cols.isEmpty ? null : key ?? 'id',
-      sinceFormat,
+      sinceSchema,
     );
   }
 
@@ -58,8 +58,8 @@ class ArchiveSectionSpec {
   final List<ArchiveColumn> columns;
   final String? key;
 
-  /// Erste Formatversion, in der der Abschnitt steht (1 oder 2).
-  final int sinceFormat;
+  /// Erstes Datenbankschema, in dem der Abschnitt steht (4, 5 oder 6).
+  final int sinceSchema;
 
   /// Schlüsselspalte ist Text (nur `settings`).
   bool get keyIsText =>
@@ -70,8 +70,9 @@ class ArchiveSectionSpec {
   bool get isReserved => columns.isEmpty;
 }
 
-/// Die 21 Abschnitte der Formatversion 2 in der Reihenfolge des Vertrags;
-/// Formatversion 1 hat die 19 mit `sinceFormat == 1` ([archiveSectionsFor]).
+/// Die 23 Abschnitte des Schemas 6 in der Reihenfolge des Vertrags;
+/// ältere Schemas haben weniger ([archiveSectionsFor]): Schema 4 die 19 mit
+/// `sinceSchema == 4`, Schema 5 dazu die zwei von WP18.
 final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
   ArchiveSectionSpec(
     'runs',
@@ -155,23 +156,32 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     'known_devices',
     'id I, device_id T, display_name T?, is_preferred B, added_at_us I',
   ),
-  // WP18, Formatversion 2 (Schema 5).
+  // WP18, seit Schema 5 (Formatversion 2).
   ArchiveSectionSpec(
     'run_feedback',
     'run_id I, rpe I?, wellbeing I?, complaints T?, warning_answer T?, '
         'note T?, srpe_points R?, srpe_duration_s R?, srpe_method T?, '
         'srpe_method_version I?',
     key: 'run_id',
-    sinceFormat: 2,
+    sinceSchema: 5,
   ),
   ArchiveSectionSpec(
     'manual_trainings',
     'id I, day T, kind T, duration_s I, rpe I',
-    sinceFormat: 2,
+    sinceSchema: 5,
   ),
   ArchiveSectionSpec('goals', ''),
   ArchiveSectionSpec('plans', ''),
   ArchiveSectionSpec('active_warning', ''),
+  // WP20, seit Schema 6 (Nummern 22 und 23; 19 bis 21 sind reserviert).
+  // Archive mit Schema 4 oder 5 haben diese Abschnitte nicht.
+  ArchiveSectionSpec(
+    'reference_performances',
+    'id I, kind T, distance_m R, time_s R, performed_on T, created_at_us I, '
+        'run_id I?',
+    sinceSchema: 6,
+  ),
+  ArchiveSectionSpec('rejected_suggestions', 'id I, run_id I', sinceSchema: 6),
 ]);
 
 /// Formatversionen, die der Leser kennt.
@@ -180,11 +190,30 @@ const List<int> archiveFormats = [1, 2];
 /// Formatversion, die der Schreiber erzeugt.
 const int archiveWriteFormat = 2;
 
-/// Datenbankschema, das zu einer Formatversion gehört (Format 1: 4, Format 2: 5).
-int archiveSchemaFor(int format) => format == 1 ? 4 : 5;
+/// Neuestes Datenbankschema, das Leser und Schreiber kennen.
+const int archiveSchemaVersion = 6;
 
-/// Die Abschnitte einer Formatversion in Reihenfolge.
-List<ArchiveSectionSpec> archiveSectionsFor(int format) => [
-  for (final s in archiveSections)
-    if (s.sinceFormat <= format) s,
-];
+/// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
+/// Fehlende Abschnitte eines älteren Schemas gelten als leer.
+const int archiveMinSchemaVersion = 4;
+
+/// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 und 6).
+int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
+
+/// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23).
+/// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
+/// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche
+/// Liste zu geben.
+List<ArchiveSectionSpec> archiveSectionsFor(int schema) {
+  RangeError.checkValueInInterval(
+    schema,
+    archiveMinSchemaVersion,
+    archiveSchemaVersion,
+    'schema',
+  );
+  return [
+    for (final s in archiveSections)
+      if (s.sinceSchema <= schema) s,
+  ];
+}

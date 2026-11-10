@@ -4,6 +4,7 @@ import '../ports/storage.dart';
 import '../ports/storage_consents.dart';
 import '../ports/storage_derived.dart';
 import '../ports/storage_devices.dart';
+import '../ports/storage_prediction.dart';
 import '../ports/storage_profile.dart';
 import '../ports/storage_raw.dart';
 import '../ports/storage_runs.dart';
@@ -12,6 +13,7 @@ import '../ports/storage_subjective.dart';
 import '../ports/storage_values.dart';
 import 'fake_storage_data.dart';
 import 'fake_storage_derived.dart';
+import 'fake_storage_prediction.dart';
 import 'fake_storage_runs.dart';
 import 'fake_storage_settings.dart';
 import 'fake_storage_subjective.dart';
@@ -65,7 +67,7 @@ class FakeStorage implements Storage {
   }
 }
 
-class _FakeSession implements StorageSession {
+class _FakeSession implements StorageSession, PredictionStorage {
   _FakeSession(this._owner, this._data)
     : runs = FakeRunStore(_data),
       markers = FakeRunMarkerStore(_data),
@@ -78,7 +80,8 @@ class _FakeSession implements StorageSession {
       devices = FakeKnownDeviceStore(_data),
       consents = FakeConsentStore(_data),
       subjective = FakeRunSubjectiveStore(_data),
-      manualTrainings = FakeManualTrainingStore(_data);
+      manualTrainings = FakeManualTrainingStore(_data),
+      prediction = FakePredictionStore(_data);
 
   final FakeStorage _owner;
   final FakeStorageData _data;
@@ -108,6 +111,8 @@ class _FakeSession implements StorageSession {
   final RunSubjectiveStore subjective;
   @override
   final ManualTrainingStore manualTrainings;
+  @override
+  final PredictionStore prediction;
 
   @override
   Future<void> deleteRun(int runId) async {

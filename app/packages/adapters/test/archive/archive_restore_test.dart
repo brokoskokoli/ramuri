@@ -406,6 +406,61 @@ void main() {
     );
   });
 
+  test('Referenzleistung zählt als Daten: App ist nicht leer', () async {
+    final p = (session as PredictionStorage).prediction;
+    expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+    await p.addReference(
+      ReferencePerformance(
+        kind: ReferenceKind.race,
+        distanceMeters: 10000,
+        seconds: 3000,
+        date: DateTime(2026, 10, 1),
+        createdAt: DateTime.utc(2026, 11, 1),
+      ),
+    );
+    expect(await ArchiveRestoreService.isEmpty(session), isFalse);
+    await expectLater(
+      service().restore(path: archivePath, password: _password),
+      throwsA(
+        isA<ArchiveRestoreException>().having(
+          (e) => e.failure,
+          'failure',
+          ArchiveRestoreFailure.notEmpty,
+        ),
+      ),
+    );
+  });
+
+  test('Rundgang: Referenzen und Ablehnungen kommen mit dem Archiv zurück, '
+      'eine vorhandene Referenz wird beim Ersetzen ersetzt', () async {
+    final p = (session as PredictionStorage).prediction;
+    await addOldData();
+    await p.addReference(
+      ReferencePerformance(
+        kind: ReferenceKind.race,
+        distanceMeters: 21097.5,
+        seconds: 6000,
+        date: DateTime(2026, 9, 1),
+        createdAt: DateTime.utc(2026, 11, 1),
+      ),
+    );
+    session = await service().restore(
+      path: archivePath,
+      password: _password,
+      resetConfirmed: true,
+    );
+    final q = (session as PredictionStorage).prediction;
+    final refs = await q.references();
+    // Jüngste zuerst: der bestätigte Lauf (2026-11-02) vor der Wettkampfzeit.
+    expect(refs.map((r) => r.reference.kind), [
+      ReferenceKind.confirmedRun,
+      ReferenceKind.race,
+    ]);
+    expect(refs.first.reference.runId, '1');
+    expect(refs.last.reference.seconds, 3012.5);
+    expect(await q.rejectedSuggestions(), {1});
+  });
+
   test('archive_small (Vektor der unabhängigen Umsetzung) lässt sich importieren, Zeilen gleich', () async {
     session = await service().restore(
       path: '$_vectors/archive_small.runarchv',
@@ -423,7 +478,17 @@ void main() {
         (expected[cur!] ??= []).add((l['data'] as Map).cast<String, Object?>());
       }
     }
+    // Echter Schema-4-Inhalt (unabhängige Umsetzung): ohne die Abschnitte aus
+    // Schema 5, die neuen Tabellen sind danach leer.
+    expect(lines.first['schema_version'], 4);
+    expect(expected.keys, isNot(contains('reference_performances')));
     final got = await _dump(_dbOf(session));
+    expect(got['reference_performances'], isEmpty);
+    expect(got['rejected_suggestions'], isEmpty);
+    expect(
+      await (session as PredictionStorage).prediction.references(),
+      isEmpty,
+    );
     for (final e in expected.entries) {
       expect(got[e.key]!.length, e.value.length, reason: e.key);
       // Nur Ganzzahl-/Textspalten vergleichbar ohne Gleitkomma-Normalisierung.
@@ -541,6 +606,31 @@ void main() {
           d['unavailable_reason'] = null;
         },
         1,
+      ),
+      'Fremdschlüssel: Referenz verweist auf fehlenden Lauf': (
+        'reference_performances',
+        (d) => d['run_id'] = 99,
+        1,
+      ),
+      'Fremdschlüssel: abgelehnter Vorschlag ohne Lauf': (
+        'rejected_suggestions',
+        (d) => d['run_id'] = 99,
+        0,
+      ),
+      'CHECK: Referenz mit unbekannter Art': (
+        'reference_performances',
+        (d) => d['kind'] = 'marathon',
+        0,
+      ),
+      'CHECK: bestätigter Lauf ohne Lauf-ID': (
+        'reference_performances',
+        (d) => d['run_id'] = null,
+        1,
+      ),
+      'CHECK: Referenz mit ungültigem Datum': (
+        'reference_performances',
+        (d) => d['performed_on'] = '1.10.2026',
+        0,
       ),
       'Fremdschlüssel: Abschnitt ohne Wert': (
         'value_sections',

@@ -6,6 +6,7 @@ import '../preprocessing/run_preprocessor.dart';
 import 'fitness_parameters.dart';
 import 'heart_rate_basis.dart';
 import 'heart_rate_reserve.dart';
+import 'variation_coefficient.dart';
 import 'vo2max_section_types.dart';
 
 export 'vo2max_section_types.dart';
@@ -243,7 +244,7 @@ class Vo2maxSectionSelector {
     if (samples.isEmpty) {
       speedUnavailable = true;
     } else {
-      final cv = _variation(samples);
+      final cv = variationCoefficient(samples);
       if (cv > _p.paceMaxVariation) {
         add(SectionRule.paceVariation, value: cv, limit: _p.paceMaxVariation);
       }
@@ -469,15 +470,6 @@ class Vo2maxSectionSelector {
 
   static double? _mean(List<double> xs) =>
       xs.isEmpty ? null : xs.reduce((a, b) => a + b) / xs.length;
-
-  /// Variationskoeffizient (Standardabweichung der Grundgesamtheit durch
-  /// Mittel); bei Mittel 0 unendlich.
-  static double _variation(List<double> xs) {
-    final m = _mean(xs)!;
-    if (!(m > 0)) return double.infinity;
-    final v = xs.fold<double>(0, (a, x) => a + (x - m) * (x - m)) / xs.length;
-    return math.sqrt(v) / m;
-  }
 
   static double _median(List<double> xs) {
     final v = [...xs]..sort();

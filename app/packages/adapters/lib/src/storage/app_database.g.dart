@@ -10680,6 +10680,656 @@ class ManualTrainingsCompanion extends UpdateCompanion<ManualTrainingRow> {
   }
 }
 
+class ReferencePerformances extends Table
+    with TableInfo<ReferencePerformances, ReferenceRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  ReferencePerformances(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (kind IN (\'race\', \'test\', \'confirmedRun\'))',
+  );
+  static const VerificationMeta _distanceMMeta = const VerificationMeta(
+    'distanceM',
+  );
+  late final GeneratedColumn<double> distanceM = GeneratedColumn<double>(
+    'distance_m',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (distance_m > 0)',
+  );
+  static const VerificationMeta _timeSMeta = const VerificationMeta('timeS');
+  late final GeneratedColumn<double> timeS = GeneratedColumn<double>(
+    'time_s',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (time_s > 0)',
+  );
+  static const VerificationMeta _performedOnMeta = const VerificationMeta(
+    'performedOn',
+  );
+  late final GeneratedColumn<String> performedOn = GeneratedColumn<String>(
+    'performed_on',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (date(performed_on) IS performed_on)',
+  );
+  static const VerificationMeta _createdAtUsMeta = const VerificationMeta(
+    'createdAtUs',
+  );
+  late final GeneratedColumn<int> createdAtUs = GeneratedColumn<int>(
+    'created_at_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
+    'run_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'REFERENCES runs(id)ON DELETE CASCADE',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    kind,
+    distanceM,
+    timeS,
+    performedOn,
+    createdAtUs,
+    runId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'reference_performances';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ReferenceRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('distance_m')) {
+      context.handle(
+        _distanceMMeta,
+        distanceM.isAcceptableOrUnknown(data['distance_m']!, _distanceMMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_distanceMMeta);
+    }
+    if (data.containsKey('time_s')) {
+      context.handle(
+        _timeSMeta,
+        timeS.isAcceptableOrUnknown(data['time_s']!, _timeSMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_timeSMeta);
+    }
+    if (data.containsKey('performed_on')) {
+      context.handle(
+        _performedOnMeta,
+        performedOn.isAcceptableOrUnknown(
+          data['performed_on']!,
+          _performedOnMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_performedOnMeta);
+    }
+    if (data.containsKey('created_at_us')) {
+      context.handle(
+        _createdAtUsMeta,
+        createdAtUs.isAcceptableOrUnknown(
+          data['created_at_us']!,
+          _createdAtUsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtUsMeta);
+    }
+    if (data.containsKey('run_id')) {
+      context.handle(
+        _runIdMeta,
+        runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ReferenceRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ReferenceRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      distanceM: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}distance_m'],
+      )!,
+      timeS: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}time_s'],
+      )!,
+      performedOn: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}performed_on'],
+      )!,
+      createdAtUs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at_us'],
+      )!,
+      runId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}run_id'],
+      ),
+    );
+  }
+
+  @override
+  ReferencePerformances createAlias(String alias) {
+    return ReferencePerformances(attachedDatabase, alias);
+  }
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK(kind <> \'confirmedRun\' OR run_id IS NOT NULL)',
+  ];
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class ReferenceRow extends DataClass implements Insertable<ReferenceRow> {
+  final int id;
+  final String kind;
+  final double distanceM;
+  final double timeS;
+  final String performedOn;
+  final int createdAtUs;
+  final int? runId;
+  const ReferenceRow({
+    required this.id,
+    required this.kind,
+    required this.distanceM,
+    required this.timeS,
+    required this.performedOn,
+    required this.createdAtUs,
+    this.runId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['kind'] = Variable<String>(kind);
+    map['distance_m'] = Variable<double>(distanceM);
+    map['time_s'] = Variable<double>(timeS);
+    map['performed_on'] = Variable<String>(performedOn);
+    map['created_at_us'] = Variable<int>(createdAtUs);
+    if (!nullToAbsent || runId != null) {
+      map['run_id'] = Variable<int>(runId);
+    }
+    return map;
+  }
+
+  ReferencePerformancesCompanion toCompanion(bool nullToAbsent) {
+    return ReferencePerformancesCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      distanceM: Value(distanceM),
+      timeS: Value(timeS),
+      performedOn: Value(performedOn),
+      createdAtUs: Value(createdAtUs),
+      runId: runId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(runId),
+    );
+  }
+
+  factory ReferenceRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ReferenceRow(
+      id: serializer.fromJson<int>(json['id']),
+      kind: serializer.fromJson<String>(json['kind']),
+      distanceM: serializer.fromJson<double>(json['distance_m']),
+      timeS: serializer.fromJson<double>(json['time_s']),
+      performedOn: serializer.fromJson<String>(json['performed_on']),
+      createdAtUs: serializer.fromJson<int>(json['created_at_us']),
+      runId: serializer.fromJson<int?>(json['run_id']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'kind': serializer.toJson<String>(kind),
+      'distance_m': serializer.toJson<double>(distanceM),
+      'time_s': serializer.toJson<double>(timeS),
+      'performed_on': serializer.toJson<String>(performedOn),
+      'created_at_us': serializer.toJson<int>(createdAtUs),
+      'run_id': serializer.toJson<int?>(runId),
+    };
+  }
+
+  ReferenceRow copyWith({
+    int? id,
+    String? kind,
+    double? distanceM,
+    double? timeS,
+    String? performedOn,
+    int? createdAtUs,
+    Value<int?> runId = const Value.absent(),
+  }) => ReferenceRow(
+    id: id ?? this.id,
+    kind: kind ?? this.kind,
+    distanceM: distanceM ?? this.distanceM,
+    timeS: timeS ?? this.timeS,
+    performedOn: performedOn ?? this.performedOn,
+    createdAtUs: createdAtUs ?? this.createdAtUs,
+    runId: runId.present ? runId.value : this.runId,
+  );
+  ReferenceRow copyWithCompanion(ReferencePerformancesCompanion data) {
+    return ReferenceRow(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      distanceM: data.distanceM.present ? data.distanceM.value : this.distanceM,
+      timeS: data.timeS.present ? data.timeS.value : this.timeS,
+      performedOn: data.performedOn.present
+          ? data.performedOn.value
+          : this.performedOn,
+      createdAtUs: data.createdAtUs.present
+          ? data.createdAtUs.value
+          : this.createdAtUs,
+      runId: data.runId.present ? data.runId.value : this.runId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReferenceRow(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('distanceM: $distanceM, ')
+          ..write('timeS: $timeS, ')
+          ..write('performedOn: $performedOn, ')
+          ..write('createdAtUs: $createdAtUs, ')
+          ..write('runId: $runId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, kind, distanceM, timeS, performedOn, createdAtUs, runId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReferenceRow &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.distanceM == this.distanceM &&
+          other.timeS == this.timeS &&
+          other.performedOn == this.performedOn &&
+          other.createdAtUs == this.createdAtUs &&
+          other.runId == this.runId);
+}
+
+class ReferencePerformancesCompanion extends UpdateCompanion<ReferenceRow> {
+  final Value<int> id;
+  final Value<String> kind;
+  final Value<double> distanceM;
+  final Value<double> timeS;
+  final Value<String> performedOn;
+  final Value<int> createdAtUs;
+  final Value<int?> runId;
+  const ReferencePerformancesCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.distanceM = const Value.absent(),
+    this.timeS = const Value.absent(),
+    this.performedOn = const Value.absent(),
+    this.createdAtUs = const Value.absent(),
+    this.runId = const Value.absent(),
+  });
+  ReferencePerformancesCompanion.insert({
+    this.id = const Value.absent(),
+    required String kind,
+    required double distanceM,
+    required double timeS,
+    required String performedOn,
+    required int createdAtUs,
+    this.runId = const Value.absent(),
+  }) : kind = Value(kind),
+       distanceM = Value(distanceM),
+       timeS = Value(timeS),
+       performedOn = Value(performedOn),
+       createdAtUs = Value(createdAtUs);
+  static Insertable<ReferenceRow> custom({
+    Expression<int>? id,
+    Expression<String>? kind,
+    Expression<double>? distanceM,
+    Expression<double>? timeS,
+    Expression<String>? performedOn,
+    Expression<int>? createdAtUs,
+    Expression<int>? runId,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (distanceM != null) 'distance_m': distanceM,
+      if (timeS != null) 'time_s': timeS,
+      if (performedOn != null) 'performed_on': performedOn,
+      if (createdAtUs != null) 'created_at_us': createdAtUs,
+      if (runId != null) 'run_id': runId,
+    });
+  }
+
+  ReferencePerformancesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? kind,
+    Value<double>? distanceM,
+    Value<double>? timeS,
+    Value<String>? performedOn,
+    Value<int>? createdAtUs,
+    Value<int?>? runId,
+  }) {
+    return ReferencePerformancesCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      distanceM: distanceM ?? this.distanceM,
+      timeS: timeS ?? this.timeS,
+      performedOn: performedOn ?? this.performedOn,
+      createdAtUs: createdAtUs ?? this.createdAtUs,
+      runId: runId ?? this.runId,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (distanceM.present) {
+      map['distance_m'] = Variable<double>(distanceM.value);
+    }
+    if (timeS.present) {
+      map['time_s'] = Variable<double>(timeS.value);
+    }
+    if (performedOn.present) {
+      map['performed_on'] = Variable<String>(performedOn.value);
+    }
+    if (createdAtUs.present) {
+      map['created_at_us'] = Variable<int>(createdAtUs.value);
+    }
+    if (runId.present) {
+      map['run_id'] = Variable<int>(runId.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReferencePerformancesCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('distanceM: $distanceM, ')
+          ..write('timeS: $timeS, ')
+          ..write('performedOn: $performedOn, ')
+          ..write('createdAtUs: $createdAtUs, ')
+          ..write('runId: $runId')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class RejectedSuggestions extends Table
+    with TableInfo<RejectedSuggestions, RejectedSuggestion> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  RejectedSuggestions(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
+    'run_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL UNIQUE REFERENCES runs(id)ON DELETE CASCADE',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, runId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'rejected_suggestions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RejectedSuggestion> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('run_id')) {
+      context.handle(
+        _runIdMeta,
+        runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_runIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  RejectedSuggestion map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RejectedSuggestion(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      runId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}run_id'],
+      )!,
+    );
+  }
+
+  @override
+  RejectedSuggestions createAlias(String alias) {
+    return RejectedSuggestions(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class RejectedSuggestion extends DataClass
+    implements Insertable<RejectedSuggestion> {
+  final int id;
+  final int runId;
+  const RejectedSuggestion({required this.id, required this.runId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['run_id'] = Variable<int>(runId);
+    return map;
+  }
+
+  RejectedSuggestionsCompanion toCompanion(bool nullToAbsent) {
+    return RejectedSuggestionsCompanion(id: Value(id), runId: Value(runId));
+  }
+
+  factory RejectedSuggestion.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RejectedSuggestion(
+      id: serializer.fromJson<int>(json['id']),
+      runId: serializer.fromJson<int>(json['run_id']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'run_id': serializer.toJson<int>(runId),
+    };
+  }
+
+  RejectedSuggestion copyWith({int? id, int? runId}) =>
+      RejectedSuggestion(id: id ?? this.id, runId: runId ?? this.runId);
+  RejectedSuggestion copyWithCompanion(RejectedSuggestionsCompanion data) {
+    return RejectedSuggestion(
+      id: data.id.present ? data.id.value : this.id,
+      runId: data.runId.present ? data.runId.value : this.runId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RejectedSuggestion(')
+          ..write('id: $id, ')
+          ..write('runId: $runId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, runId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RejectedSuggestion &&
+          other.id == this.id &&
+          other.runId == this.runId);
+}
+
+class RejectedSuggestionsCompanion extends UpdateCompanion<RejectedSuggestion> {
+  final Value<int> id;
+  final Value<int> runId;
+  const RejectedSuggestionsCompanion({
+    this.id = const Value.absent(),
+    this.runId = const Value.absent(),
+  });
+  RejectedSuggestionsCompanion.insert({
+    this.id = const Value.absent(),
+    required int runId,
+  }) : runId = Value(runId);
+  static Insertable<RejectedSuggestion> custom({
+    Expression<int>? id,
+    Expression<int>? runId,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (runId != null) 'run_id': runId,
+    });
+  }
+
+  RejectedSuggestionsCompanion copyWith({Value<int>? id, Value<int>? runId}) {
+    return RejectedSuggestionsCompanion(
+      id: id ?? this.id,
+      runId: runId ?? this.runId,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (runId.present) {
+      map['run_id'] = Variable<int>(runId.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RejectedSuggestionsCompanion(')
+          ..write('id: $id, ')
+          ..write('runId: $runId')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -10827,6 +11477,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'manual_trainings_day',
     'CREATE INDEX manual_trainings_day ON manual_trainings (day)',
   );
+  late final ReferencePerformances referencePerformances =
+      ReferencePerformances(this);
+  late final Index referencePerformancesRun = Index(
+    'reference_performances_run',
+    'CREATE INDEX reference_performances_run ON reference_performances (run_id)',
+  );
+  late final RejectedSuggestions rejectedSuggestions = RejectedSuggestions(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -10882,6 +11541,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     runFeedback,
     manualTrainings,
     manualTrainingsDay,
+    referencePerformances,
+    referencePerformancesRun,
+    rejectedSuggestions,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -11094,6 +11756,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('run_feedback', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('reference_performances', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('rejected_suggestions', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -11487,6 +12163,48 @@ final class $RunsReferences extends BaseReferences<_$AppDatabase, Runs, Run> {
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<ReferencePerformances, List<ReferenceRow>>
+  _referencePerformancesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.referencePerformances,
+        aliasName: 'runs__id__reference_performances__run_id',
+      );
+
+  $ReferencePerformancesProcessedTableManager get referencePerformancesRefs {
+    final manager = $ReferencePerformancesTableManager(
+      $_db,
+      $_db.referencePerformances,
+    ).filter((f) => f.runId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _referencePerformancesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<RejectedSuggestions, List<RejectedSuggestion>>
+  _rejectedSuggestionsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.rejectedSuggestions,
+        aliasName: 'runs__id__rejected_suggestions__run_id',
+      );
+
+  $RejectedSuggestionsProcessedTableManager get rejectedSuggestionsRefs {
+    final manager = $RejectedSuggestionsTableManager(
+      $_db,
+      $_db.rejectedSuggestions,
+    ).filter((f) => f.runId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _rejectedSuggestionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $RunsFilterComposer extends Composer<_$AppDatabase, Runs> {
@@ -11813,6 +12531,56 @@ class $RunsFilterComposer extends Composer<_$AppDatabase, Runs> {
           }) => $RunFeedbackFilterComposer(
             $db: $db,
             $table: $db.runFeedback,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> referencePerformancesRefs(
+    Expression<bool> Function($ReferencePerformancesFilterComposer f) f,
+  ) {
+    final $ReferencePerformancesFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.referencePerformances,
+      getReferencedColumn: (t) => t.runId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $ReferencePerformancesFilterComposer(
+            $db: $db,
+            $table: $db.referencePerformances,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> rejectedSuggestionsRefs(
+    Expression<bool> Function($RejectedSuggestionsFilterComposer f) f,
+  ) {
+    final $RejectedSuggestionsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.rejectedSuggestions,
+      getReferencedColumn: (t) => t.runId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RejectedSuggestionsFilterComposer(
+            $db: $db,
+            $table: $db.rejectedSuggestions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -12183,6 +12951,56 @@ class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
     );
     return f(composer);
   }
+
+  Expression<T> referencePerformancesRefs<T extends Object>(
+    Expression<T> Function($ReferencePerformancesAnnotationComposer a) f,
+  ) {
+    final $ReferencePerformancesAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.referencePerformances,
+      getReferencedColumn: (t) => t.runId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $ReferencePerformancesAnnotationComposer(
+            $db: $db,
+            $table: $db.referencePerformances,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> rejectedSuggestionsRefs<T extends Object>(
+    Expression<T> Function($RejectedSuggestionsAnnotationComposer a) f,
+  ) {
+    final $RejectedSuggestionsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.rejectedSuggestions,
+      getReferencedColumn: (t) => t.runId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RejectedSuggestionsAnnotationComposer(
+            $db: $db,
+            $table: $db.rejectedSuggestions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $RunsTableManager
@@ -12211,6 +13029,8 @@ class $RunsTableManager
             bool ratedSectionsRefs,
             bool computedValuesRefs,
             bool runFeedbackRefs,
+            bool referencePerformancesRefs,
+            bool rejectedSuggestionsRefs,
           })
         > {
   $RunsTableManager(_$AppDatabase db, Runs table)
@@ -12274,6 +13094,8 @@ class $RunsTableManager
                 ratedSectionsRefs = false,
                 computedValuesRefs = false,
                 runFeedbackRefs = false,
+                referencePerformancesRefs = false,
+                rejectedSuggestionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -12290,6 +13112,8 @@ class $RunsTableManager
                     if (ratedSectionsRefs) db.ratedSections,
                     if (computedValuesRefs) db.computedValues,
                     if (runFeedbackRefs) db.runFeedback,
+                    if (referencePerformancesRefs) db.referencePerformances,
+                    if (rejectedSuggestionsRefs) db.rejectedSuggestions,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -12496,6 +13320,44 @@ class $RunsTableManager
                           referencedColumn: 'run_id',
                           typedResults: items,
                         ),
+                      if (referencePerformancesRefs)
+                        await $_getPrefetchedDataByColumns<
+                          Run,
+                          Runs,
+                          ReferenceRow,
+                          ReferencePerformances
+                        >(
+                          currentTable: table,
+                          referencedTable: $RunsReferences
+                              ._referencePerformancesRefsTable(db),
+                          managerFromTypedResult: (p0) => $RunsReferences(
+                            db,
+                            table,
+                            p0,
+                          ).referencePerformancesRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'run_id',
+                          typedResults: items,
+                        ),
+                      if (rejectedSuggestionsRefs)
+                        await $_getPrefetchedDataByColumns<
+                          Run,
+                          Runs,
+                          RejectedSuggestion,
+                          RejectedSuggestions
+                        >(
+                          currentTable: table,
+                          referencedTable: $RunsReferences
+                              ._rejectedSuggestionsRefsTable(db),
+                          managerFromTypedResult: (p0) => $RunsReferences(
+                            db,
+                            table,
+                            p0,
+                          ).rejectedSuggestionsRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'run_id',
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -12529,6 +13391,8 @@ typedef $RunsProcessedTableManager =
         bool ratedSectionsRefs,
         bool computedValuesRefs,
         bool runFeedbackRefs,
+        bool referencePerformancesRefs,
+        bool rejectedSuggestionsRefs,
       })
     >;
 typedef $LapsCreateCompanionBuilder = LapsCompanion Function({
@@ -19041,6 +19905,606 @@ typedef $ManualTrainingsProcessedTableManager =
       ManualTrainingRow,
       PrefetchHooks Function()
     >;
+typedef $ReferencePerformancesCreateCompanionBuilder =
+    ReferencePerformancesCompanion Function({
+      Value<int> id,
+      required String kind,
+      required double distanceM,
+      required double timeS,
+      required String performedOn,
+      required int createdAtUs,
+      Value<int?> runId,
+    });
+typedef $ReferencePerformancesUpdateCompanionBuilder =
+    ReferencePerformancesCompanion Function({
+      Value<int> id,
+      Value<String> kind,
+      Value<double> distanceM,
+      Value<double> timeS,
+      Value<String> performedOn,
+      Value<int> createdAtUs,
+      Value<int?> runId,
+    });
+
+final class $ReferencePerformancesReferences
+    extends BaseReferences<_$AppDatabase, ReferencePerformances, ReferenceRow> {
+  $ReferencePerformancesReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static Runs _runIdTable(_$AppDatabase db) =>
+      db.runs.createAlias('reference_performances__run_id__runs__id');
+
+  $RunsProcessedTableManager? get runId {
+    final $_column = $_itemColumn<int>('run_id');
+    if ($_column == null) return null;
+    final manager = $RunsTableManager(
+      $_db,
+      $_db.runs,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_runIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $ReferencePerformancesFilterComposer
+    extends Composer<_$AppDatabase, ReferencePerformances> {
+  $ReferencePerformancesFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get distanceM => $composableBuilder(
+    column: $table.distanceM,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get timeS => $composableBuilder(
+    column: $table.timeS,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get performedOn => $composableBuilder(
+    column: $table.performedOn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAtUs => $composableBuilder(
+    column: $table.createdAtUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $RunsFilterComposer get runId {
+    final $RunsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsFilterComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $ReferencePerformancesOrderingComposer
+    extends Composer<_$AppDatabase, ReferencePerformances> {
+  $ReferencePerformancesOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get distanceM => $composableBuilder(
+    column: $table.distanceM,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get timeS => $composableBuilder(
+    column: $table.timeS,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get performedOn => $composableBuilder(
+    column: $table.performedOn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAtUs => $composableBuilder(
+    column: $table.createdAtUs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $RunsOrderingComposer get runId {
+    final $RunsOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsOrderingComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $ReferencePerformancesAnnotationComposer
+    extends Composer<_$AppDatabase, ReferencePerformances> {
+  $ReferencePerformancesAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<double> get distanceM =>
+      $composableBuilder(column: $table.distanceM, builder: (column) => column);
+
+  GeneratedColumn<double> get timeS =>
+      $composableBuilder(column: $table.timeS, builder: (column) => column);
+
+  GeneratedColumn<String> get performedOn => $composableBuilder(
+    column: $table.performedOn,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAtUs => $composableBuilder(
+    column: $table.createdAtUs,
+    builder: (column) => column,
+  );
+
+  $RunsAnnotationComposer get runId {
+    final $RunsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsAnnotationComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $ReferencePerformancesTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          ReferencePerformances,
+          ReferenceRow,
+          $ReferencePerformancesFilterComposer,
+          $ReferencePerformancesOrderingComposer,
+          $ReferencePerformancesAnnotationComposer,
+          $ReferencePerformancesCreateCompanionBuilder,
+          $ReferencePerformancesUpdateCompanionBuilder,
+          (ReferenceRow, $ReferencePerformancesReferences),
+          ReferenceRow,
+          PrefetchHooks Function({bool runId})
+        > {
+  $ReferencePerformancesTableManager(
+    _$AppDatabase db,
+    ReferencePerformances table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $ReferencePerformancesFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $ReferencePerformancesOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $ReferencePerformancesAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<double> distanceM = const Value.absent(),
+                Value<double> timeS = const Value.absent(),
+                Value<String> performedOn = const Value.absent(),
+                Value<int> createdAtUs = const Value.absent(),
+                Value<int?> runId = const Value.absent(),
+              }) => ReferencePerformancesCompanion(
+                id: id,
+                kind: kind,
+                distanceM: distanceM,
+                timeS: timeS,
+                performedOn: performedOn,
+                createdAtUs: createdAtUs,
+                runId: runId,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String kind,
+                required double distanceM,
+                required double timeS,
+                required String performedOn,
+                required int createdAtUs,
+                Value<int?> runId = const Value.absent(),
+              }) => ReferencePerformancesCompanion.insert(
+                id: id,
+                kind: kind,
+                distanceM: distanceM,
+                timeS: timeS,
+                performedOn: performedOn,
+                createdAtUs: createdAtUs,
+                runId: runId,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<ReferencePerformances, ReferenceRow>(table),
+                  $ReferencePerformancesReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({runId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (runId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.runId,
+                        referencedTable: $ReferencePerformancesReferences
+                            ._runIdTable(db),
+                        referencedColumn: $ReferencePerformancesReferences
+                            ._runIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $ReferencePerformancesProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      ReferencePerformances,
+      ReferenceRow,
+      $ReferencePerformancesFilterComposer,
+      $ReferencePerformancesOrderingComposer,
+      $ReferencePerformancesAnnotationComposer,
+      $ReferencePerformancesCreateCompanionBuilder,
+      $ReferencePerformancesUpdateCompanionBuilder,
+      (ReferenceRow, $ReferencePerformancesReferences),
+      ReferenceRow,
+      PrefetchHooks Function({bool runId})
+    >;
+typedef $RejectedSuggestionsCreateCompanionBuilder =
+    RejectedSuggestionsCompanion Function({Value<int> id, required int runId});
+typedef $RejectedSuggestionsUpdateCompanionBuilder =
+    RejectedSuggestionsCompanion Function({Value<int> id, Value<int> runId});
+
+final class $RejectedSuggestionsReferences
+    extends
+        BaseReferences<_$AppDatabase, RejectedSuggestions, RejectedSuggestion> {
+  $RejectedSuggestionsReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static Runs _runIdTable(_$AppDatabase db) =>
+      db.runs.createAlias('rejected_suggestions__run_id__runs__id');
+
+  $RunsProcessedTableManager get runId {
+    final $_column = $_itemColumn<int>('run_id')!;
+
+    final manager = $RunsTableManager(
+      $_db,
+      $_db.runs,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_runIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $RejectedSuggestionsFilterComposer
+    extends Composer<_$AppDatabase, RejectedSuggestions> {
+  $RejectedSuggestionsFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $RunsFilterComposer get runId {
+    final $RunsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsFilterComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $RejectedSuggestionsOrderingComposer
+    extends Composer<_$AppDatabase, RejectedSuggestions> {
+  $RejectedSuggestionsOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $RunsOrderingComposer get runId {
+    final $RunsOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsOrderingComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $RejectedSuggestionsAnnotationComposer
+    extends Composer<_$AppDatabase, RejectedSuggestions> {
+  $RejectedSuggestionsAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  $RunsAnnotationComposer get runId {
+    final $RunsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsAnnotationComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $RejectedSuggestionsTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          RejectedSuggestions,
+          RejectedSuggestion,
+          $RejectedSuggestionsFilterComposer,
+          $RejectedSuggestionsOrderingComposer,
+          $RejectedSuggestionsAnnotationComposer,
+          $RejectedSuggestionsCreateCompanionBuilder,
+          $RejectedSuggestionsUpdateCompanionBuilder,
+          (RejectedSuggestion, $RejectedSuggestionsReferences),
+          RejectedSuggestion,
+          PrefetchHooks Function({bool runId})
+        > {
+  $RejectedSuggestionsTableManager(_$AppDatabase db, RejectedSuggestions table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $RejectedSuggestionsFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $RejectedSuggestionsOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $RejectedSuggestionsAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int> runId = const Value.absent(),
+          }) => RejectedSuggestionsCompanion(id: id, runId: runId),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required int runId,
+          }) => RejectedSuggestionsCompanion.insert(id: id, runId: runId),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<RejectedSuggestions, RejectedSuggestion>(table),
+                  $RejectedSuggestionsReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({runId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (runId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.runId,
+                        referencedTable: $RejectedSuggestionsReferences
+                            ._runIdTable(db),
+                        referencedColumn: $RejectedSuggestionsReferences
+                            ._runIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $RejectedSuggestionsProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      RejectedSuggestions,
+      RejectedSuggestion,
+      $RejectedSuggestionsFilterComposer,
+      $RejectedSuggestionsOrderingComposer,
+      $RejectedSuggestionsAnnotationComposer,
+      $RejectedSuggestionsCreateCompanionBuilder,
+      $RejectedSuggestionsUpdateCompanionBuilder,
+      (RejectedSuggestion, $RejectedSuggestionsReferences),
+      RejectedSuggestion,
+      PrefetchHooks Function({bool runId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -19081,4 +20545,8 @@ class $AppDatabaseManager {
       $RunFeedbackTableManager(_db, _db.runFeedback);
   $ManualTrainingsTableManager get manualTrainings =>
       $ManualTrainingsTableManager(_db, _db.manualTrainings);
+  $ReferencePerformancesTableManager get referencePerformances =>
+      $ReferencePerformancesTableManager(_db, _db.referencePerformances);
+  $RejectedSuggestionsTableManager get rejectedSuggestions =>
+      $RejectedSuggestionsTableManager(_db, _db.rejectedSuggestions);
 }

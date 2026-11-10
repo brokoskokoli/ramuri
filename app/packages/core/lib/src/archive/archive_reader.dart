@@ -10,13 +10,6 @@ import 'archive_header.dart';
 import 'archive_json.dart';
 import 'archive_schema.dart';
 
-/// Neuestes Schema der Datenbank, das dieser Leser liest (Format 2). Format 1
-/// gehört zu Schema 4 ([archiveSchemaFor]).
-const int archiveSchemaVersion = 5;
-
-/// Älteste Schemaversion, die gelesen wird (Format 1).
-const int _oldestSchema = 4;
-
 /// Längste Zeile (ohne `\n`), Grenze gegen Speicherbomben (Vertrag 4).
 const int archiveMaxLineBytes = 16 * 1024 * 1024;
 
@@ -49,7 +42,9 @@ class ArchiveLineValidator {
   /// die Eingabe (`ManualTraining.requireNotAfter`). Der Leser hat keine Uhr;
   /// der Aufrufer legt den Tag vor dem ersten Schreiben fest.
   final String today;
-  List<ArchiveSectionSpec> _sections = archiveSectionsFor(1);
+  List<ArchiveSectionSpec> _sections = archiveSectionsFor(
+    archiveMinSchemaVersion,
+  );
   int _nextSection = 0;
   ArchiveSectionSpec? _current;
   int _currentCount = 0;
@@ -108,23 +103,23 @@ class ArchiveLineValidator {
     if (schema > archiveSchemaVersion) {
       throw const ArchiveImportException(ArchiveImportFailure.newerSchema);
     }
-    if (schema < _oldestSchema) {
+    if (schema < archiveMinSchemaVersion) {
       throw const ArchiveImportException(
         ArchiveImportFailure.unsupportedSchema,
       );
     }
     _exactKeys(m, {'type', 'format', 'schema_version', 'created_at_us'});
     final format = m['format'];
-    // Format 1 gehört zu Schema 4, Format 2 zu Schema 5; alles andere ist ein
-    // Widerspruch, auch zum Kopf.
+    // Format 1 gehört zu Schema 4, Format 2 zu Schema 5 und 6; alles andere
+    // ist ein Widerspruch, auch zum Kopf.
     if (format is! int ||
         !archiveFormats.contains(format) ||
-        schema != archiveSchemaFor(format) ||
+        format != archiveFormatFor(schema) ||
         (headerFormatOf?.call() ?? format) != format ||
         m['created_at_us'] is! int) {
       throw _damaged;
     }
-    _sections = archiveSectionsFor(format);
+    _sections = archiveSectionsFor(schema);
   }
 
   void _sectionHeader(Map<String, Object?> m) {

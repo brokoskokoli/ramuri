@@ -227,7 +227,7 @@ void main() {
   });
 
   group('Migration von Schema 4 mit Bestandsdaten', () {
-    test('Daten bleiben, neue Tabellen leer und benutzbar, Schema = Dump v5', () async {
+    test('Daten bleiben, neue Tabellen leer und benutzbar, Schema = Dump v6', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v4 = await verifier.schemaAt(4);
       v4.rawDatabase
@@ -250,7 +250,7 @@ void main() {
         ..execute("INSERT INTO settings VALUES ('units', 'km', 1)");
       final db = AppDatabase(v4.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 5);
+      await verifier.migrateAndValidate(db, 6);
 
       expect(await count(db, 'runs'), 1);
       final pre = await db
@@ -283,7 +283,7 @@ void main() {
       expect(await count(db, 'manual_trainings'), 1);
     });
 
-    test('Migration läuft über die App-Strategie (Version 4 -> 5) auf verschlüsselter Datei', () async {
+    test('Migration läuft über die App-Strategie (Version 4 -> 6) auf verschlüsselter Datei', () async {
       // Schema 4 aus dem Dump aufbauen: zwei Tabellen der App weglassen.
       final s0 = await EncryptedStorage(path).open(testKey());
       final db0 = (s0 as EncryptedStorageSession).database;
@@ -291,6 +291,8 @@ void main() {
       await s0.runs.setState(r, RunState.finished, endedAt: _at(60));
       await exec(db0, 'DROP TABLE run_feedback');
       await exec(db0, 'DROP TABLE manual_trainings');
+      await exec(db0, 'DROP TABLE reference_performances');
+      await exec(db0, 'DROP TABLE rejected_suggestions');
       await exec(db0, 'PRAGMA user_version = 4');
       await s0.close();
 
@@ -305,7 +307,7 @@ void main() {
             .data
             .values
             .single,
-        5,
+        6,
       );
       await db1.validateDatabaseSchema();
     });

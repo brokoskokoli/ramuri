@@ -17,6 +17,7 @@ Future<void> openStats(Device d, WidgetTester tester) async {
 }
 
 Future<void> choose(WidgetTester tester, String kind) async {
+  await tester.ensureVisible(key('stat_kind_$kind'));
   await tester.tap(key('stat_kind_$kind'));
   await tester.pumpAndSettle();
 }
@@ -497,13 +498,60 @@ void main() {
       expect(key('expl_body'), findsOneWidget);
     });
 
-    testWidgets('keine persönlichen Bestzeiten, keine späteren Kennzahlen', (
+    testWidgets('keine persönlichen Bestzeiten, keine Readiness', (
       tester,
     ) async {
       await withEstimate(tester);
-      for (final word in ['Bestzeit', 'Prognose', 'Readiness']) {
+      for (final word in ['Bestzeit', 'Readiness']) {
         expect(find.textContaining(word), findsNothing, reason: word);
       }
+    });
+
+    testWidgets('ohne VO₂max-Schätzung nennt die Karte die fehlende Referenz', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      d.clock.set(DateTime.utc(2026, 6, 3, 12));
+      await seedRun(d.session, DateTime.utc(2026, 6, 1, 8), minutes: 30);
+      await openStats(d, tester);
+      await tester.ensureVisible(find.byKey(const Key('prediction_card')));
+      await tester.pumpAndSettle();
+      final card = find.byKey(const Key('prediction_card'));
+      expect(
+        find.descendant(
+          of: card,
+          matching: find.textContaining('keine Referenzleistung'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: card, matching: find.textContaining('VO₂max')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('FR-0134: nur VO₂max-Schätzung, keine Zeit auf der Karte', (
+      tester,
+    ) async {
+      await withEstimate(tester);
+      await tester.ensureVisible(find.byKey(const Key('prediction_card')));
+      await tester.pumpAndSettle();
+      // Die Karte heißt allgemeine Schätzung und nennt den Grund.
+      expect(find.text('Allgemeine Schätzung'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('prediction_card')),
+          matching: find.textContaining('nur eine VO₂max-Schätzung'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('prediction_card')),
+          matching: find.textContaining('≈'),
+        ),
+        findsNothing,
+      );
     });
   });
 

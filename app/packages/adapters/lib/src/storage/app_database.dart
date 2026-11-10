@@ -17,11 +17,13 @@ class AppDatabase extends _$AppDatabase {
   /// Vertikalgenauigkeit je Rohposition (WP06 Teil C, K12). Version 3: value_sections
   /// und Grund-, Basis- und Versatzspalten (WP09 D1/D2a). Version 4: Bestpace, Rundenzahl und Zeit mit Puls in
   /// `preprocessing_results` (WP10). Version 5: Angaben zum Lauf
-  /// (`run_feedback`) und nachgetragene Trainings (`manual_trainings`, WP18). Jede spätere Änderung erhöht die
+  /// (`run_feedback`) und nachgetragene Trainings (`manual_trainings`, WP18).
+  /// Version 6: Referenzleistungen und abgelehnte Vorschläge der
+  /// Leistungsprognose (WP20). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -79,6 +81,12 @@ class AppDatabase extends _$AppDatabase {
       await m.create(runFeedback);
       await m.create(manualTrainings);
       await m.create(manualTrainingsDay);
+    },
+    // 5 -> 6 (WP20): zwei neue Tabellen, bestehende Zeilen bleiben unberührt.
+    5: (Migrator m) async {
+      await m.create(referencePerformances);
+      await m.create(referencePerformancesRun);
+      await m.create(rejectedSuggestions);
     },
   };
 
