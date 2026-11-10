@@ -17,6 +17,7 @@ Future<void> openStats(Device d, WidgetTester tester) async {
 }
 
 Future<void> choose(WidgetTester tester, String kind) async {
+  await tester.ensureVisible(key('stat_kind_$kind'));
   await tester.tap(key('stat_kind_$kind'));
   await tester.pumpAndSettle();
 }

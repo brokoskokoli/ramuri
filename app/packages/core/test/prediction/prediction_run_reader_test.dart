@@ -50,6 +50,21 @@ void main() {
       expect(runs.single.movingSeconds, closeTo(1200, 5));
     });
 
+    test(
+      'paceSince: ältere Läufe bekommen keine Tempowerte, Läufe bleiben',
+      () async {
+        await w.seedRun(DateTime.utc(2030, 1, 5, 8), minutes: 20);
+        await w.seedRun(DateTime.utc(2030, 1, 20, 8), minutes: 20);
+        final runs = await reader.load(paceSince: DateTime.utc(2030, 1, 10));
+        expect(runs, hasLength(2));
+        expect(runs.first.paceSamples, isNotEmpty); // 20. Januar
+        expect(runs.last.paceSamples, isNull); // 5. Januar
+        // Der Stichtag selbst zählt noch.
+        final onDay = await reader.load(paceSince: DateTime.utc(2030, 1, 5));
+        expect(onDay.last.paceSamples, isNotEmpty);
+      },
+    );
+
     test('Datum ist der lokale Kalendertag des Laufendes', () async {
       // Ende 23:20 UTC + 2 h = nächster Tag lokal.
       await w.seedRun(

@@ -5,10 +5,12 @@ import 'package:flutter/rendering.dart' show ScrollDirection;
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
+import '../home/data_changes.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
 import 'fitness_section.dart';
 import 'load_card.dart';
+import 'prediction_card.dart';
 import 'progress_header.dart';
 import 'statistics_view.dart';
 import 'statistics_view_state.dart';
@@ -36,6 +38,7 @@ class StatisticsScreen extends StatefulWidget {
     this.onExplain,
     this.viewState,
     this.recalculation,
+    this.changes,
   });
 
   final StorageSession session;
@@ -56,6 +59,9 @@ class StatisticsScreen extends StatefulWidget {
   /// Die eine Neuberechnung der App; die Karte Belastung lädt über ihre Reihe.
   /// Ohne sie fehlt die Karte.
   final RecalculationController? recalculation;
+
+  /// Meldet Änderungen der Daten, die die Karte Prognose auslöst (Referenz).
+  final DataChanges? changes;
 
   @override
   State<StatisticsScreen> createState() => _StatisticsScreenState();
@@ -351,6 +357,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 fitness: data.fitness,
                 session: widget.session,
                 onExplain: widget.onExplain,
+              ),
+              PredictionCard(
+                session: widget.session,
+                clock: widget.clock,
+                hasVo2maxEstimate: data.fitness.longTerm?.value != null,
+                changes: widget.changes,
+                onFirstSettled: _restoreScroll,
               ),
               const SizedBox(height: 14),
               EfficiencyCard(fitness: data.fitness),

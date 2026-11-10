@@ -7,6 +7,7 @@ import '../statistics/offload.dart';
 import '../statistics/run_overview.dart';
 import 'prediction_parameters.dart';
 import 'prediction_run.dart';
+import 'reference_performance.dart' show calendarDay;
 
 /// Baut [PredictionRun] aus den vorhandenen Daten, ohne neue Rechnung:
 /// Bewegungszeit und Distanz aus der Kurzfassung des Laufs
@@ -36,7 +37,15 @@ class PredictionRunReader {
 
   /// Beendete Läufe, neuester Start zuerst. Läufe ohne lesbare Kurzfassung
   /// (Rohdaten nicht lesbar) oder ohne Zeit außerhalb von Positionslücken fehlen.
-  Future<List<PredictionRun>> load({bool withPaceSamples = true}) async {
+  ///
+  /// [paceSince]: Tempowerte (und damit die Wiedergabe) nur für Läufe ab diesem
+  /// Kalendertag; ältere bleiben ohne `paceSamples`. Die Oberfläche setzt hier
+  /// die Grenze der Referenzgültigkeit (182 Tage), ältere Läufe können keinen
+  /// Vorschlag mehr auslösen.
+  Future<List<PredictionRun>> load({
+    bool withPaceSamples = true,
+    DateTime? paceSince,
+  }) async {
     final overviews = await RunOverviewService(
       session: session,
       clock: clock,
@@ -50,8 +59,11 @@ class PredictionRunReader {
       final moving = o.paceTime;
       if (o.readFailed || moving == null || moving <= Duration.zero) continue;
       final meters = o.distanceMeters;
+      final date = DateTime.parse(dayOfRun(o.run));
       List<double>? pace;
       if (withPaceSamples &&
+          (paceSince == null ||
+              !calendarDay(date).isBefore(calendarDay(paceSince))) &&
           meters != null &&
           meters >= parameters.suggestionMinimumMeters) {
         pace = await _paceSamples(o);
@@ -59,7 +71,7 @@ class PredictionRunReader {
       out.add(
         PredictionRun(
           id: '${o.run.id}',
-          date: DateTime.parse(dayOfRun(o.run)),
+          date: date,
           movingSeconds: moving.inMicroseconds / Duration.microsecondsPerSecond,
           distanceMeters: meters,
           paceSamples: pace,

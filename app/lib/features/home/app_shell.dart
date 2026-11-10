@@ -99,6 +99,7 @@ class _AppShellState extends State<AppShell> {
           clock: widget.clock,
           recalculation: widget.recalculation,
           viewState: _progressState,
+          changes: widget.changes,
         );
       default:
         return HomeScreen(
