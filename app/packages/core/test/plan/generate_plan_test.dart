@@ -516,6 +516,148 @@ void main() {
     });
   });
 
+  group('Pinned-Termine (ADR-0010 Punkt 4)', () {
+    final g = goal(date: DateTime.utc(2027, 2, 14));
+    final base = generatePlan(g, inputs(), const [], d0);
+    List<PlanUnit> week1(GeneratedPlan p) => [
+      for (final u in p.units)
+        if (u.weekIndex == 1) u,
+    ];
+    final b1 = week1(base);
+    PlanUnit of(PlanUnitKind k) => b1.firstWhere((u) => u.kind == k);
+    PlanUnit pin(PlanUnit u, int dayOfNov) => PlanUnit(
+      day: DateTime.utc(2026, 11, dayOfNov),
+      kind: u.kind,
+      phase: u.phase,
+      weekIndex: u.weekIndex,
+      minutes: u.minutes + 7, // alter Inhalt, wird neu gerechnet
+      segments: [
+        PlanSegment(kind: PlanSegmentKind.easy, minutes: u.minutes + 7),
+      ],
+      pinned: true,
+    );
+
+    test('Ausgangslage: Woche 1 hat Di hart, Do locker, Sa lang', () {
+      expect([for (final u in b1) u.day.day], [17, 19, 21]);
+      expect(b1.first.isHard, isTrue);
+      expect(b1.last.kind, PlanUnitKind.long);
+    });
+
+    test('lockerer Lauf auf freien Tag: Tag gilt, Inhalt neu, Zahl bleibt', () {
+      final easy = of(PlanUnitKind.easy);
+      final p = generatePlan(
+        g,
+        inputs(),
+        const [],
+        d0,
+        pinnedUnits: [pin(easy, 20)],
+      );
+      final w = week1(p);
+      expect(w.length, b1.length);
+      expect([for (final u in w) u.day.day], [17, 20, 21]);
+      final moved = w.firstWhere((u) => u.day.day == 20);
+      expect(moved.pinned, isTrue);
+      expect(moved.kind, PlanUnitKind.easy);
+      expect(moved.minutes, easy.minutes); // nicht die 7 min mehr des Pinned
+      expect(p.pinnedConflicts, isEmpty);
+      expect(p.units.length, base.units.length);
+    });
+
+    test('harte Einheit auf den Tag des lockeren Laufs: Tausch', () {
+      final hard = b1.first;
+      final p = generatePlan(
+        g,
+        inputs(),
+        const [],
+        d0,
+        pinnedUnits: [pin(hard, 19)],
+      );
+      final w = week1(p);
+      expect(
+        [for (final u in w) '${u.day.day}:${u.kind.name}'],
+        ['17:easy', '19:${hard.kind.name}', '21:long'],
+      );
+      expect(w[1].pinned, isTrue);
+      expect(w[0].pinned, isFalse);
+      expect(w[1].minutes, hard.minutes);
+      expect(p.pinnedConflicts, isEmpty);
+    });
+
+    test('Abstand verletzt: Termin bleibt, Konflikt wird gemeldet', () {
+      final hard = b1.first;
+      final p = generatePlan(
+        g,
+        inputs(),
+        const [],
+        d0,
+        pinnedUnits: [pin(hard, 20)],
+      );
+      final w = week1(p);
+      expect(w.firstWhere((u) => u.isHard).day.day, 20);
+      expect(p.pinnedConflicts, hasLength(1));
+      final c = p.pinnedConflicts.single;
+      expect(c.kind, PinnedConflictKind.spacing);
+      expect(c.day, DateTime.utc(2026, 11, 20));
+      expect(c.otherDay, DateTime.utc(2026, 11, 21));
+    });
+
+    test('langer Lauf auf einen Nicht-Lauftag, Tag davor wird frei', () {
+      final long = of(PlanUnitKind.long);
+      final p = generatePlan(
+        g,
+        inputs(),
+        const [],
+        d0,
+        pinnedUnits: [pin(long, 22)],
+      );
+      final w = week1(p);
+      expect([for (final u in w) u.day.day], [17, 19, 22]);
+      expect(w.last.kind, PlanUnitKind.long);
+      expect(p.pinnedConflicts, isEmpty);
+    });
+
+    test('Pinned auf eingefrorenem Tag: dayTaken, Einheit bleibt', () {
+      final frozen = PlanUnit(
+        day: DateTime.utc(2026, 11, 20),
+        kind: PlanUnitKind.easy,
+        phase: PlanPhase.build,
+        weekIndex: 1,
+        minutes: 30,
+        segments: const [PlanSegment(kind: PlanSegmentKind.easy, minutes: 30)],
+        runId: 5,
+      );
+      final p = generatePlan(
+        g,
+        inputs(),
+        [frozen],
+        d0,
+        pinnedUnits: [pin(of(PlanUnitKind.easy), 20)],
+      );
+      expect(
+        p.pinnedConflicts.map((c) => c.kind),
+        contains(PinnedConflictKind.dayTaken),
+      );
+      expect(p.units.where((u) => u.pinned), isEmpty);
+    });
+
+    test('Pinned vor heute: noMatchingUnit', () {
+      final p = generatePlan(
+        g,
+        inputs(),
+        const [],
+        d0,
+        pinnedUnits: [pin(of(PlanUnitKind.easy), 10)],
+      );
+      expect(p.pinnedConflicts.single.kind, PinnedConflictKind.noMatchingUnit);
+    });
+
+    test('ohne Pinned: Ergebnis unverändert', () {
+      final p = generatePlan(g, inputs(), const [], d0, pinnedUnits: const []);
+      expect(sigs(p.units), sigs(base.units));
+      expect(p.pinnedConflicts, isEmpty);
+    });
+  });
+
   group('summarizeChange (PAR-204)', () {
     PlanUnit u(int day, PlanUnitKind k, int min, {int week = 0}) => PlanUnit(
       day: DateTime.utc(2026, 11, day),

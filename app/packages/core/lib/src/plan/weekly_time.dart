@@ -76,8 +76,25 @@ int peakWeeklyMinutes({
   PlanParameters parameters = const PlanParameters(),
 }) => (longestRunMinutes / parameters.longestRunShare(runDays)).ceil();
 
+/// Kalendertag im Plan als UTC-Mitternacht, die einzige Stelle für `src/plan`.
+/// Ein Wert, der schon UTC-Mitternacht ist, ist ein Kalendertag und bleibt
+/// unverändert; `calendarDay` würde ihn westlich von UTC auf den Vortag
+/// legen. Alles andere (lokale Zeit, UTC-Zeitpunkt) zählt als Zeitpunkt und
+/// wird wie bei `calendarDay` im Ortstag gelesen.
+DateTime planDay(DateTime t) {
+  if (t.isUtc &&
+      t.hour == 0 &&
+      t.minute == 0 &&
+      t.second == 0 &&
+      t.millisecond == 0 &&
+      t.microsecond == 0) {
+    return t;
+  }
+  return calendarDay(t);
+}
+
 DateTime _monday(DateTime day) {
-  final d = calendarDay(day);
+  final d = planDay(day);
   return d.subtract(Duration(days: d.weekday - DateTime.monday));
 }
 

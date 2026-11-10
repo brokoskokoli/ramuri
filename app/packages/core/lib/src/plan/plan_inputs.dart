@@ -1,5 +1,6 @@
 import '../goals/training_goal.dart';
 import 'plan_parameters.dart';
+import 'weekly_time.dart' show planDay;
 
 /// Methode und Version einer Plan-Fassung (ADR-0010 Punkt 1, NFR-0001).
 class PlanVersion {
@@ -60,8 +61,8 @@ class PlanInputs {
     this.easyRunCount = 0,
     this.lastWeekMinutes,
     this.achievedShare,
-  }) : anchor = DateTime.utc(anchor.year, anchor.month, anchor.day),
-       today = DateTime.utc(today.year, today.month, today.day) {
+  }) : anchor = planDay(anchor),
+       today = planDay(today) {
     if (startWeeklyMinutes < 1) {
       throw ArgumentError.value(startWeeklyMinutes, 'startWeeklyMinutes');
     }
@@ -94,7 +95,7 @@ class PlanInputs {
     DateTime today, {
     PlanParameters parameters = const PlanParameters(),
   }) {
-    final t = DateTime.utc(today.year, today.month, today.day);
+    final t = planDay(today);
     final stated = goal.currentWeeklySeconds;
     final minutes = stated != null
         ? (stated / 60).round()

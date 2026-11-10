@@ -31,6 +31,7 @@ List<int> minutes(WeeklyTimeResult r) => [for (final w in r.weeks) w.minutes!];
 int longest(int weekly) => (weekly * 0.4).round();
 
 void main() {
+  zoneTests();
   group('Rechenbeispiele PAR-193 (3 x 30 min, PAR-195 40 %)', () {
     test('rund 10 Wochen bis zu einem längsten Lauf von gut 1 h', () {
       final m = minutes(course());
@@ -330,4 +331,39 @@ void _checkInvariants(WeeklyTimeResult r, int start, int cap) {
       expect(m, lessThanOrEqualTo((prev * (1 + rate)).ceil() + 1));
     }
   }
+}
+
+// Kalendertage als UTC-Mitternacht (so liegen Anker, Einheiten und Zieltag
+// im Plan vor) dürfen in keiner Zeitzone auf den Vortag rutschen. Gilt unter
+// `TZ=America/New_York` (westlich) wie `TZ=Asia/Tokyo` (östlich).
+void zoneTests() {
+  group('Kalendertage als UTC-Mitternacht (Zeitzone)', () {
+    test('Wochenbeginn bleibt der Montag, der Verlauf gleicht dem lokalen', () {
+      final utc = planWeeklyTime(
+        startMinutes: 90,
+        capMinutes: 600,
+        anchor: DateTime.utc(2026, 11, 9),
+        today: DateTime.utc(2026, 11, 16),
+        targetDate: DateTime.utc(2027, 1, 10),
+        distance: GoalDistance.tenKilometers,
+        peakMinutes: 300,
+      );
+      final local = planWeeklyTime(
+        startMinutes: 90,
+        capMinutes: 600,
+        anchor: DateTime(2026, 11, 9),
+        today: DateTime(2026, 11, 16),
+        targetDate: DateTime(2027, 1, 10),
+        distance: GoalDistance.tenKilometers,
+        peakMinutes: 300,
+      );
+      expect(utc.weeks.first.start, DateTime.utc(2026, 11, 16));
+      expect(utc.weeks.first.start.weekday, DateTime.monday);
+      expect(
+        [for (final w in utc.weeks) w.start],
+        [for (final w in local.weeks) w.start],
+      );
+      expect(minutes(utc), minutes(local));
+    });
+  });
 }
