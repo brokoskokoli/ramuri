@@ -9,9 +9,10 @@ TrainingGoal _goal({
   int cap = 240,
   int maxMin = 120,
   Set<int> days = const {2, 4, 6},
+  GoalDistance distance = GoalDistance.fiveKilometers,
 }) => TrainingGoal(
   type: type,
-  distance: GoalDistance.fiveKilometers,
+  distance: distance,
   targetSeconds: type == GoalType.time ? 1800 : null,
   targetDate: DateTime.utc(2027, 6, 1),
   runDays: days,
@@ -91,6 +92,50 @@ void main() {
         expect(p.hardFit, HardFitStatus.neverFits);
         expect(p.units.where((u) => u.isHard), isEmpty);
       }
+    });
+
+    test('NB4: Passform am tatsächlichen Niveau, nicht nur an der kleinsten '
+        'Wochenzeit (Halbmarathon, max. 40 min)', () {
+      // Ab 180 min gilt die lange Form (48 min), sie scheitert an 40 min; die
+      // kleinste Passform (112) liegt unter der Spitze (250), das Niveau
+      // 250 trägt die harte Einheit aber nicht.
+      for (final cap in [400, 200]) {
+        final g = _goal(
+          distance: GoalDistance.halfMarathon,
+          cap: cap,
+          maxMin: 40,
+        );
+        final s = planCourseSetup(g, _inputs());
+        expect(s.targetPeakMinutes, 250);
+        expect(s.hardFit, isNot(HardFitStatus.atPeak));
+        expect(s.hardFit, isNot(HardFitStatus.raised));
+        final p = generatePlan(g, _inputs(), const [], _d0);
+        final a = assessGoal(
+          goal: g,
+          inputs: _inputs(),
+          today: _d0,
+          basis: const TimeGoalBasis(currentSeconds: 9000, runsInWindow: 5),
+        );
+        expect(p.hardFit, s.hardFit);
+        expect(a.hardFit, s.hardFit);
+        // Der Status stimmt mit dem Plan überein: auf dem Niveau der Spitze
+        // fehlt die harte Einheit in mindestens einer Woche.
+        final level = s.course(today: _d0).levelMinutes;
+        expect(
+          p.weeks
+              .where((w) => (w.minutes ?? 0) >= level)
+              .any(
+                (w) => !p.units.any((u) => u.weekIndex == w.index && u.isHard),
+              ),
+          isTrue,
+        );
+      }
+      // Ohne die zu kurze maximale Zeit passt sie am Niveau.
+      final ok = planCourseSetup(
+        _goal(distance: GoalDistance.halfMarathon, cap: 400, maxMin: 120),
+        _inputs(),
+      );
+      expect(ok.hardFit, HardFitStatus.atPeak);
     });
 
     test('Streckenziel bleibt unverändert', () {

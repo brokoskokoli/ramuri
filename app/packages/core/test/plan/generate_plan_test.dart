@@ -363,15 +363,62 @@ void main() {
       );
       final p1 = generatePlan(g1, i0.copyWith(today: t1), frozen, t1);
       final week0 = p1.allUnits.where((u) => monday(u.day) == t0).toList();
-      expect([for (final u in week0) u.day.weekday], [1, 3, 4]);
+      // Es bleibt die noch fehlende (letzte) Einheit der Woche (NB4).
+      expect([for (final u in week0) u.day.weekday], [1, 3, 7]);
       expect(p1.droppedDaysByWeek[0], [
+        DateTime.utc(2026, 11, 12),
         DateTime.utc(2026, 11, 14),
-        DateTime.utc(2026, 11, 15),
       ]);
       final week1 = p1.allUnits
           .where((u) => monday(u.day) == t0.add(const Duration(days: 7)))
           .toList();
       expect(week1.length, 3);
+    });
+
+    test('gekürzte Geh-Lauf-Woche behält die noch fehlenden Einheiten: in '
+        'Woche 5 bleibt der Lauf am Stück (NB4 Soll 1)', () {
+      final t0 = DateTime.utc(2026, 11, 9);
+      final date = t0.add(const Duration(days: 200));
+      final g0 = goal(
+        type: GoalType.distance,
+        distance: GoalDistance.fiveKilometers,
+        days: {1, 3, 5},
+        c30: ContinuousRun30.no,
+        date: date,
+      );
+      final i0 = PlanInputs.forNewGoal(g0, t0);
+      final p0 = generatePlan(g0, i0, const [], t0);
+      final w5 = t0.add(const Duration(days: 28));
+      final orig = p0.allUnits.where((u) => monday(u.day) == w5).toList();
+      expect(orig.length, 3);
+      final t1 = w5.add(const Duration(days: 3)); // Donnerstag
+      final frozen = [
+        for (final u in p0.units)
+          if (u.day.isBefore(t1) && !u.day.isBefore(w5)) u,
+      ];
+      expect(frozen.length, 2);
+      final g1 = goal(
+        type: GoalType.distance,
+        distance: GoalDistance.fiveKilometers,
+        days: {4, 6, 7},
+        c30: ContinuousRun30.no,
+        date: date,
+      );
+      final p1 = generatePlan(g1, i0.copyWith(today: t1), frozen, t1);
+      final week = p1.allUnits.where((u) => monday(u.day) == w5).toList();
+      expect(week.length, 3);
+      final last = week.last;
+      expect(last.day, w5.add(const Duration(days: 6)));
+      // Inhalt wie die dritte Einheit der Abfolge (der längste Dauerlauf).
+      String segs(PlanUnit u) =>
+          [for (final s in u.segments) '${s.kind.name}:${s.durationSeconds}']
+              .join(',');
+      expect(segs(last), segs(orig.last));
+      expect(last.minutes, orig.last.minutes);
+      expect(p1.droppedDaysByWeek[4], [
+        w5.add(const Duration(days: 3)),
+        w5.add(const Duration(days: 5)),
+      ]);
     });
 
     for (final walkRun in [false, true]) {

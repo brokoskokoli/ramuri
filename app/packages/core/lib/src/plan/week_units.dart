@@ -245,22 +245,25 @@ PlannedWeek planWeekUnits({
 
 int _min(int a, int b) => a < b ? a : b;
 
-/// Kleinste Wochenzeit bis [upTo] (einschließlich), bei der die harte Einheit
+/// Kleinste Wochenzeit von [from] bis [upTo] (jeweils einschließlich), bei der die harte Einheit
 /// in einer regulären Woche vorkommt (PAR-197, PAR-198), oder `null`, wenn sie
 /// bis [upTo] nie vorkommt (z. B. weniger als 3 Lauftage oder maximale Zeit
 /// zu kurz). Die einzige Stelle dieser Rechnung: sie fragt [planWeekUnits]
 /// selbst (kürzere oder reguläre Form nach Wochenzeit, langer Lauf, Anteil,
 /// maximale Zeit, Lauftage) und verlangt, dass jede der drei Formen
 /// (Intervalle, Tempodauerlauf, progressiver Lauf; sie wechseln) passt, damit
-/// die harte Einheit in jeder Woche der Spitze erscheint.
+/// die harte Einheit in jeder Woche der Spitze erscheint. Die Passform ist
+/// nicht monoton (ab der längeren Form kann die maximale Zeit scheitern);
+/// `from: t, upTo: t` prüft genau die Wochenzeit [t].
 int? hardFitWeeklyMinutes({
   required Set<int> runDays,
   required int maxSessionMinutes,
   required int upTo,
+  int from = 1,
   PlanParameters parameters = const PlanParameters(),
 }) {
   final monday = DateTime.utc(2001, 1, 1); // ein Montag
-  for (var t = 1; t <= upTo; t++) {
+  for (var t = from < 1 ? 1 : from; t <= upTo; t++) {
     final week = PlanWeek(
       index: 0,
       start: monday,

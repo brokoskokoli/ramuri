@@ -14,14 +14,16 @@ enum HardFitStatus {
   /// dorthin (höchstens bis zum Regler).
   raised,
 
-  /// Die Zielspitze reicht schon, die harte Einheit passt dort.
+  /// Die harte Einheit passt auf dem Niveau der Zielspitze (höchstens der
+  /// Regler), in jeder der drei Formen.
   atPeak,
 
   /// Die Passform-Wochenzeit liegt über dem Regler; keine harte Einheit, die
   /// Zielspitze gilt wie bisher.
   regulatorBelowFit,
 
-  /// Die harte Einheit passt bei keiner Wochenzeit (z. B. weniger als 3
+  /// Die harte Einheit passt bei keiner Wochenzeit über dem Niveau der Spitze
+  /// (z. B. ab 180 min die lange Form über der maximalen Zeit, weniger als 3
   /// Lauftage oder maximale Zeit je Einheit zu kurz); Zielspitze wie bisher.
   neverFits,
 }
@@ -138,23 +140,23 @@ PlanCourseSetup planCourseSetup(
   final capped = cap < 1 ? 1 : cap;
   final maxSession = (goal.maxSessionSeconds / 60).floor();
   if (peak != null && goal.type == GoalType.time && goal.hardSessionEnabled) {
-    hardFitMinutes = hardFitWeeklyMinutes(
+    // Passform am tatsächlichen Niveau (Zielspitze, höchstens der Regler),
+    // nicht an der kleinsten Passform: sie ist nicht monoton (NB4).
+    int? fit(int from, int upTo) => hardFitWeeklyMinutes(
       runDays: goal.runDays,
       maxSessionMinutes: maxSession,
-      upTo: capped,
+      from: from,
+      upTo: upTo,
       parameters: parameters,
     );
-    if (hardFitMinutes != null) {
-      hardFit = hardFitMinutes > peak
-          ? HardFitStatus.raised
-          : HardFitStatus.atPeak;
+    final level = peak < capped ? peak : capped;
+    if (fit(level, level) != null) {
+      hardFitMinutes = fit(1, level);
+      hardFit = HardFitStatus.atPeak;
+    } else if ((hardFitMinutes = fit(level + 1, capped)) != null) {
+      hardFit = HardFitStatus.raised;
     } else {
-      hardFitMinutes = hardFitWeeklyMinutes(
-        runDays: goal.runDays,
-        maxSessionMinutes: maxSession,
-        upTo: _hardFitSearchLimit,
-        parameters: parameters,
-      );
+      hardFitMinutes = fit(capped + 1, _hardFitSearchLimit);
       hardFit = hardFitMinutes == null
           ? HardFitStatus.neverFits
           : HardFitStatus.regulatorBelowFit;

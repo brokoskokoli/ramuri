@@ -323,6 +323,9 @@ Future<void> _staleRead(StorageContractHarness h) async {
   final changes = <String, Future<void> Function()>{
     'Termin bestätigt': () async =>
         p.confirmMove((await p.unitOn(_day(6)))!.id!, _day(7), today: _day(3)),
+    // Gleicher Tag: ändert nur `pinned` (Fingerabdruck, NB4 Soll 2).
+    'am selben Tag bestätigt': () async =>
+        p.confirmMove((await p.unitOn(_day(5)))!.id!, _day(5), today: _day(3)),
     'Lauf zugeordnet': () async =>
         p.assignRun((await p.unitOn(_day(2)))!.id!, run),
     'Lauf entfernt': () => p.assignRun(withRun.id!, null),

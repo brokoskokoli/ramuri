@@ -2,7 +2,11 @@ import '../goals/training_goal.dart';
 
 /// Kennung und Version der Planerzeugung (NFR-0001, NFR-0005).
 const String planMethod = 'weekly-time-course';
-const int planMethodVersion = 1;
+
+/// Steigt bei jeder Änderung der Logik (auch ohne neuen Parameterwert), der
+/// Parameterstand bei jeder Änderung eines Werts. 2: Zeitziel mit harter
+/// Einheit steigert bis zur Passform (T1, NB4).
+const int planMethodVersion = 2;
 
 /// Stand der Parameter (ADR-0010 Punkt 1: `parameter_version`). Steigt, wenn
 /// sich ein Wert in [PlanParameters] ändert.

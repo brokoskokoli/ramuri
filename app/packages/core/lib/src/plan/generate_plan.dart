@@ -293,14 +293,17 @@ GeneratedPlan generatePlan(
     if (walkPlan != null) {
       // Geh-Lauf-Woche: Die Zahl der Einheiten der Abfolge gilt für die ganze
       // Woche, eingefrorene Einheiten (auf anderen Tagen, etwa nach geänderten
-      // Lauftagen) zählen mit; was darüber liegt, entfällt (letzte zuerst).
+      // Lauftagen) zählen mit. Die Abfolge ist schon um die eingefrorenen
+      // Einheiten vorgerückt: Es bleiben die noch fehlenden, also die letzten
+      // der Woche (etwa der Dauerlauf in Woche 5); die ersten entfallen.
       final allowed = walkPlan.units.length - frozenWeek.length;
       if (future.length > allowed) {
         final keep = allowed < 0 ? 0 : allowed;
+        final cut = future.length - keep;
         (dropped[week.index] ??= []).addAll([
-          for (final u in future.skip(keep)) u.day,
+          for (final u in future.take(cut)) u.day,
         ]);
-        future = future.take(keep).toList();
+        future = future.skip(cut).toList();
       }
     }
     final zero = [

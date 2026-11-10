@@ -33,6 +33,23 @@ void main() {
       expect(const PlanVersion(method: 'other').isCurrent, isFalse);
     });
 
+    test('eine Logikänderung erhöht die Methodenversion, nicht nur den '
+        'Parameterstand (NB4 Soll 3)', () {
+      // T1 (Zeitziel steigert bis zur Passform) änderte die Logik, keinen Wert.
+      expect(planMethodVersion, 2);
+      const c = PlanVersion.current;
+      expect(c.methodVersion, 2);
+      expect(c.parameterVersion, planRuleVersion);
+      // Eine Fassung der ersten Methodenversion gilt als veraltet.
+      expect(
+        PlanVersion(
+          methodVersion: 1,
+          parameterVersion: c.parameterVersion,
+        ).isCurrent,
+        isFalse,
+      );
+    });
+
     test('die Methode einer Einheit folgt ihrer Art, nicht der Fassung', () {
       const v = PlanVersion.current;
       expect(v.unitMethod(walkRun: true), (
