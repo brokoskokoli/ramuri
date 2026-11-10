@@ -23,6 +23,10 @@ enum HardOmission {
   /// Die Form passt nicht in den gleichmäßigen Anteil der Wochenzeit nach
   /// dem langen Lauf (PAR-197) oder die Restzeit reicht nicht.
   weekTooShort,
+
+  /// Der Nutzer hat die harte Einheit der Woche durch einen lockeren Lauf
+  /// ersetzt ([PlanUnitFixed.kind]); die Neuberechnung verlegt sie nicht.
+  replacedByUser,
 }
 
 /// Einheiten einer Woche samt benanntem Rest.
@@ -305,9 +309,7 @@ bool planKindFitsMaxSession(
   required int maxSessionMinutes,
   PlanParameters parameters = const PlanParameters(),
 }) => switch (kind) {
-  PlanUnitKind.intervals ||
-  PlanUnitKind.tempo ||
-  PlanUnitKind.progressive =>
+  PlanUnitKind.intervals || PlanUnitKind.tempo || PlanUnitKind.progressive =>
     _hardForm(kind, short, minutes, maxSessionMinutes, parameters) != null,
   _ => maxSessionMinutes >= 1,
 };

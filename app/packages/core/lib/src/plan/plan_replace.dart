@@ -311,8 +311,7 @@ PlanUnit planRestDayUnit({
   return PlanUnit(
     day: d,
     kind: PlanUnitKind.rest,
-    phase:
-        week?.phase ?? (weeks.isEmpty ? PlanPhase.entry : weeks.last.phase),
+    phase: week?.phase ?? (weeks.isEmpty ? PlanPhase.entry : weeks.last.phase),
     weekIndex: week?.index ?? index,
     minutes: 0,
     segments: const [],

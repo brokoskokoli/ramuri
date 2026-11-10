@@ -153,6 +153,7 @@ class DriftPlanRepository implements PlanRepository {
   Future<void> setRestDay(
     PlanUnit rest, {
     required DateTime today,
+    required int? expectedUnitId,
     DateTime? moveUnitTo,
   }) => guarded(() async {
     await _db.transaction(() async {
@@ -178,6 +179,7 @@ class DriftPlanRepository implements PlanRepository {
         today,
         to,
         (_) => takenTo,
+        expectedUnitId: expectedUnitId,
       )) {
         throw const StorageException(StorageFailure.rejected);
       }

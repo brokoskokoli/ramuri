@@ -113,6 +113,7 @@ class FakePlanRepository implements PlanRepository {
   Future<void> setRestDay(
     PlanUnit rest, {
     required DateTime today,
+    required int? expectedUnitId,
     DateTime? moveUnitTo,
   }) async {
     if (_d.planVersions.isEmpty) {
@@ -128,6 +129,7 @@ class FakePlanRepository implements PlanRepository {
       today,
       moveUnitTo,
       (d) => _d.planUnits.values.any((u) => u.day == d),
+      expectedUnitId: expectedUnitId,
     )) {
       throw const StorageException(StorageFailure.rejected);
     }

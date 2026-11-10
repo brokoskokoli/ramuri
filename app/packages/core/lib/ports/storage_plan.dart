@@ -146,12 +146,16 @@ abstract interface class PlanRepository {
   /// `fixed = day`, Fassung = die neueste), in einer Transaktion. Liegt dort
   /// eine offene Einheit, wird sie auf [moveUnitTo] verschoben (`pinned`,
   /// gleiche Woche, freier Tag ab [today]) oder ohne [moveUnitTo] gelöscht.
+  /// [expectedUnitId] ist die Kennung der Einheit, die der Nutzer beim
+  /// Bestätigen auf dem Tag gesehen hat (`null`: Tag frei); liegt jetzt eine
+  /// andere oder keine Einheit dort, wird nichts geändert (FR-0176).
   /// Ohne Fassung: `notFound`. Tag vor [today], Einheit mit Lauf, schon
-  /// Ruhetag, ungültiger [moveUnitTo] oder [moveUnitTo] ohne Einheit:
-  /// `rejected`.
+  /// Ruhetag, abweichende Einheit, ungültiger [moveUnitTo] oder [moveUnitTo]
+  /// ohne Einheit: `rejected`.
   Future<void> setRestDay(
     PlanUnit rest, {
     required DateTime today,
+    required int? expectedUnitId,
     DateTime? moveUnitTo,
   });
 
@@ -233,18 +237,21 @@ bool planReplaceAllowed(
 
 /// Prüfung vor [PlanRepository.setRestDay], gleich für Fake und Datenbank:
 /// `true`, wenn der Ruhetag [rest] mit der Einheit [onDay] des Tags (oder
-/// `null`) und dem Zieltag [moveUnitTo] gesetzt werden darf. [taken] sagt,
-/// ob auf einem Tag schon eine Einheit liegt.
+/// `null`) und dem Zieltag [moveUnitTo] gesetzt werden darf. [onDay] muss
+/// die beim Bestätigen gesehene Einheit [expectedUnitId] sein. [taken]
+/// sagt, ob auf einem Tag schon eine Einheit liegt.
 bool planRestDayAllowed(
   PlanUnit rest,
   PlanUnit? onDay,
   DateTime today,
   DateTime? moveUnitTo,
-  bool Function(DateTime day) taken,
-) {
+  bool Function(DateTime day) taken, {
+  required int? expectedUnitId,
+}) {
   final d = planDay(rest.day);
   final t = planDay(today);
   if (rest.kind != PlanUnitKind.rest || d.isBefore(t)) return false;
+  if (onDay?.id != expectedUnitId) return false;
   if (onDay != null &&
       (onDay.runId != null || onDay.kind == PlanUnitKind.rest)) {
     return false;

@@ -1022,6 +1022,130 @@ void main() {
       expect(sigs(p.units), sigs(base.units));
       expect(p.pinnedConflicts, isEmpty);
     });
+
+    PlanUnit restDay(int dayOfNov) => PlanUnit(
+      day: DateTime.utc(2026, 11, dayOfNov),
+      kind: PlanUnitKind.rest,
+      phase: b1.first.phase,
+      weekIndex: 1,
+      minutes: 0,
+      segments: const [],
+      pinned: true,
+      fixed: PlanUnitFixed.day,
+    );
+    PlanUnit replaced(PlanUnit u, PlanUnitKind kind) => PlanUnit(
+      day: u.day,
+      kind: kind,
+      phase: u.phase,
+      weekIndex: u.weekIndex,
+      minutes: u.minutes,
+      segments: u.segments,
+      pinned: true,
+      fixed: PlanUnitFixed.kind,
+    );
+    List<String> dayKinds(Iterable<PlanUnit> w) => [
+      for (final u in w) '${u.day.day}:${u.kind.name}',
+    ];
+
+    test('verdrängte Einheit rückt nicht auf den Ruhetag (FR-0173)', () {
+      // Ruhetag Di (Tag der harten Einheit), harte Einheit auf Fr, locker
+      // auf Sa: Der lange Lauf vom Sa weicht aus, aber nicht auf den
+      // Ruhetag, sondern auf den frei gewordenen Do.
+      final hard = b1.first;
+      final p = generatePlan(
+        g,
+        inputs(start: 150),
+        const [],
+        d0,
+        pinnedUnits: [
+          restDay(17),
+          pin(hard, 20),
+          pin(of(PlanUnitKind.easy), 21),
+        ],
+      );
+      expect(dayKinds(week1(p)), [
+        '17:rest',
+        '19:long',
+        '20:${hard.kind.name}',
+        '21:easy',
+      ]);
+    });
+
+    test('harte Einheit zum lockeren Lauf ersetzt: Woche ohne harte '
+        'Einheit, nicht verlegt, Hinweis (Festlegung WP22)', () {
+      final hard = b1.first;
+      expect(base.hardOmissions[1], isNull);
+      for (final (what, pins) in [
+        ('nur der Termin', [replaced(hard, PlanUnitKind.easy)]),
+        (
+          'alle Einheiten als Termine (automatisch)',
+          [
+            pin(of(PlanUnitKind.long), 21),
+            pin(of(PlanUnitKind.easy), 19),
+            replaced(hard, PlanUnitKind.easy),
+          ],
+        ),
+      ]) {
+        final p = generatePlan(
+          g,
+          inputs(start: 150),
+          const [],
+          d0,
+          pinnedUnits: pins,
+        );
+        final w = week1(p);
+        expect(dayKinds(w), ['17:easy', '19:easy', '21:long'], reason: what);
+        expect(w.first.fixed, PlanUnitFixed.kind, reason: what);
+        expect(p.hardOmissions[1], HardOmission.replacedByUser, reason: what);
+        // Die übrigen Wochen behalten ihre harte Einheit.
+        expect(
+          p.units.where((u) => u.weekIndex == 2 && u.isHard),
+          isNotEmpty,
+          reason: what,
+        );
+        expect(p.hardOmissions[2], isNull, reason: what);
+      }
+    });
+
+    test('ersetzte harte Art übernimmt die harte Einheit der Woche, die '
+        'andere wird locker', () {
+      final easy = of(PlanUnitKind.easy); // Do
+      final p = generatePlan(
+        g,
+        inputs(start: 150),
+        const [],
+        d0,
+        pinnedUnits: [replaced(easy, PlanUnitKind.tempo)],
+      );
+      expect(dayKinds(week1(p)), ['17:easy', '19:tempo', '21:long']);
+      expect(p.hardOmissions[1], isNull);
+    });
+
+    test('ersetzte harte Art in einer Geh-Lauf-Woche: Abfolge hat Vorrang, '
+        'Hinweis an der Einheit', () {
+      final wg = goal(date: DateTime.utc(2027, 2, 14), c30: ContinuousRun30.no);
+      final wi = PlanInputs.forNewGoal(wg, d0);
+      final wb = generatePlan(wg, wi, const [], d0);
+      final walk = wb.units.firstWhere(
+        (u) => u.weekIndex >= 1 && u.kind == PlanUnitKind.walkRun,
+      );
+      final p = generatePlan(
+        wg,
+        wi,
+        const [],
+        d0,
+        pinnedUnits: [replaced(walk, PlanUnitKind.tempo)],
+      );
+      final u = p.units.firstWhere((u) => u.day == walk.day);
+      expect(u.kind, PlanUnitKind.walkRun);
+      expect(u.fixed, PlanUnitFixed.none);
+      expect(u.pinned, isTrue);
+      expect(sig(u), sig(walk).replaceFirst('|false', '|true'));
+      expect(
+        [for (final c in p.pinnedConflicts) '${c.kind.name}@${c.day.day}'],
+        ['walkRunFirst@${walk.day.day}'],
+      );
+    });
   });
 
   group('summarizeChange (PAR-204)', () {

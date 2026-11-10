@@ -77,7 +77,7 @@ Future<void> _replaceAndRestDay(StorageContractHarness h) async {
   await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
   var p = _p(s);
   await expectFails(
-    () => p.setRestDay(_rest(4), today: _day(1)),
+    () => p.setRestDay(_rest(4), today: _day(1), expectedUnitId: null),
     StorageFailure.notFound,
     'Ruhetag ohne Fassung',
   );
@@ -93,6 +93,7 @@ Future<void> _replaceAndRestDay(StorageContractHarness h) async {
     ]),
   );
   await p.assignRun((await p.unitOn(_day(0)))!.id!, run);
+  Future<int?> idOn(int day) async => (await p.unitOn(_day(day)))?.id;
   final u1 = (await p.unitOn(_day(1)))!;
   final u3 = (await p.unitOn(_day(3)))!;
 
@@ -165,19 +166,24 @@ Future<void> _replaceAndRestDay(StorageContractHarness h) async {
   expectEq(await _fixedState(s), before, 'abgelehntes Ersetzen ändert nichts');
 
   // Ruhetag auf freiem Tag.
-  await p.setRestDay(_rest(4), today: _day(1));
+  await p.setRestDay(_rest(4), today: _day(1), expectedUnitId: null);
   final rest4 = (await p.unitOn(_day(4)))!;
   expectTrue(rest4.isRestDay, 'Ruhetag: rest und pinned');
   expectEq(rest4.fixed, PlanUnitFixed.day, 'Ruhetag: fixed = day');
   expectEq(rest4.minutes, 0, 'Ruhetag: 0 min');
   // Ruhetag auf Tag mit Einheit, Einheit auf freien Tag derselben Woche.
-  await p.setRestDay(_rest(3), today: _day(1), moveUnitTo: _day(6));
+  await p.setRestDay(
+    _rest(3),
+    today: _day(1),
+    expectedUnitId: u3.id,
+    moveUnitTo: _day(6),
+  );
   expectTrue((await p.unitOn(_day(3)))!.isRestDay, 'Ruhetag auf Tag 3');
   final moved = (await p.unitOn(_day(6)))!;
   expectEq(moved.id, u3.id, 'Einheit verschoben, nicht neu');
   expectTrue(moved.pinned, 'verschobene Einheit: pinned');
   // Ohne Zieltag entfällt die Einheit.
-  await p.setRestDay(_rest(5), today: _day(1));
+  await p.setRestDay(_rest(5), today: _day(1), expectedUnitId: await idOn(5));
   expectTrue((await p.unitOn(_day(5)))!.isRestDay, 'Ruhetag auf Tag 5');
   expectTrue(
     !(await _all(s))
@@ -186,45 +192,98 @@ Future<void> _replaceAndRestDay(StorageContractHarness h) async {
   );
 
   before = await _fixedState(s);
+  final u8 = await idOn(8);
+  expectTrue(u8 != null, 'Einheit auf Tag 8');
   for (final (what, call, failure) in [
     (
       'Tag vor heute',
-      () => p.setRestDay(_rest(1), today: _day(2)),
+      () => p.setRestDay(_rest(1), today: _day(2), expectedUnitId: u1.id),
       StorageFailure.rejected,
     ),
     (
       'Einheit mit Lauf',
-      () => p.setRestDay(_rest(0), today: _day(0)),
+      () => p.setRestDay(_rest(0), today: _day(0), expectedUnitId: u0.id),
       StorageFailure.rejected,
     ),
     (
       'schon Ruhetag',
-      () => p.setRestDay(_rest(4), today: _day(1)),
+      () => p.setRestDay(_rest(4), today: _day(1), expectedUnitId: rest4.id),
       StorageFailure.rejected,
     ),
     (
+      // Tag 10 ist frei; abgelehnt wird nur wegen der anderen Woche.
       'Zieltag in anderer Woche',
-      () => p.setRestDay(_rest(8), today: _day(1), moveUnitTo: _day(6)),
+      () => p.setRestDay(
+        _rest(1),
+        today: _day(1),
+        expectedUnitId: u1.id,
+        moveUnitTo: _day(10),
+      ),
       StorageFailure.rejected,
     ),
     (
       'Zieltag belegt',
-      () => p.setRestDay(_rest(1), today: _day(1), moveUnitTo: _day(2)),
+      () => p.setRestDay(
+        _rest(1),
+        today: _day(1),
+        expectedUnitId: u1.id,
+        moveUnitTo: _day(2),
+      ),
       StorageFailure.rejected,
     ),
     (
       'Zieltag vor heute',
-      () => p.setRestDay(_rest(8), today: _day(8), moveUnitTo: _day(7)),
+      () => p.setRestDay(
+        _rest(8),
+        today: _day(8),
+        expectedUnitId: u8,
+        moveUnitTo: _day(7),
+      ),
       StorageFailure.rejected,
     ),
     (
       'Zieltag ohne Einheit',
-      () => p.setRestDay(_rest(12), today: _day(1), moveUnitTo: _day(13)),
+      () => p.setRestDay(
+        _rest(12),
+        today: _day(1),
+        expectedUnitId: null,
+        moveUnitTo: _day(13),
+      ),
       StorageFailure.rejected,
     ),
     (
       'keine Ruhetag-Einheit',
-      () => p.setRestDay(_unit(12, week: 1, pinned: true), today: _day(1)),
+      () => p.setRestDay(
+        _unit(12, week: 1, pinned: true),
+        today: _day(1),
+        expectedUnitId: null,
+      ),
+      StorageFailure.rejected,
+    ),
+    // Der Tag hat sich seit der Prüfung geändert (FR-0176): nichts entfällt
+    // ohne Bestätigung.
+    (
+      'Einheit erwartet, Tag frei',
+      () => p.setRestDay(_rest(12), today: _day(1), expectedUnitId: u8),
+      StorageFailure.rejected,
+    ),
+    (
+      'Tag frei erwartet, Einheit da',
+      () => p.setRestDay(_rest(8), today: _day(1), expectedUnitId: null),
+      StorageFailure.rejected,
+    ),
+    (
+      'andere Einheit erwartet',
+      () => p.setRestDay(_rest(8), today: _day(1), expectedUnitId: u1.id),
+      StorageFailure.rejected,
+    ),
+    (
+      'Ruhetag nicht ersetzbar',
+      () => p.replaceUnit(
+        rest4.id!,
+        _as(rest4, PlanUnitKind.easy, minutes: 30),
+        today: _day(1),
+      ),
       StorageFailure.rejected,
     ),
   ]) {
@@ -576,6 +635,24 @@ Future<void> _staleRead(StorageContractHarness h) async {
       await _draft(p, 3, [_unit(3), _unit(5)], trigger: PlanTrigger.weekly),
     );
   }
+
+  // Ersetzen einer schon gepinnten Einheit ändert nur Art und `fixed`; auch
+  // das macht den Entwurf ungültig (Fingerabdruck).
+  final five = (await p.unitOn(_day(5)))!;
+  await p.confirmMove(five.id!, _day(5), today: _day(3));
+  final stale = await _draft(p, 3, [_unit(3), _unit(5)]);
+  await p.replaceUnit(
+    five.id!,
+    _as((await p.unitOn(_day(5)))!, PlanUnitKind.tempo),
+    today: _day(3),
+  );
+  final before = await _state(s);
+  await expectFails(
+    () => p.writeVersion(stale),
+    StorageFailure.rejected,
+    'Art ersetzt (schon gepinnt)',
+  );
+  expectEq(await _state(s), before, 'alter Plan bleibt (Art ersetzt)');
   await s.close();
 }
 

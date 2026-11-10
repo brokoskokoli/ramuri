@@ -23,6 +23,11 @@ enum PinnedConflictKind {
   /// Woche außerhalb des Plans oder Tag vor heute); der Termin wurde nicht
   /// übernommen.
   noMatchingUnit,
+
+  /// Der Nutzer hat die Art der Einheit ersetzt ([PlanUnitFixed.kind]), die
+  /// Woche ist aber eine Geh-Lauf-Woche: Die Abfolge hat Vorrang, der Termin
+  /// bleibt, die ersetzte Art entfällt.
+  walkRunFirst,
 }
 
 /// Konflikt eines Pinned-Termins, nur gemeldet, nie automatisch gelöst.
@@ -338,6 +343,7 @@ GeneratedPlan generatePlan(
     ];
     pinnedLeft.removeWhere(weekPinned.contains);
     final moved = <DateTime>{};
+    var hardReplaced = false;
     if (weekPinned.isNotEmpty) {
       final r = _applyPinned(
         future,
@@ -350,13 +356,16 @@ GeneratedPlan generatePlan(
       future = r.units;
       conflicts.addAll(r.conflicts);
       moved.addAll(r.movedDays);
+      hardReplaced = r.hardReplaced;
     }
 
     if (future.isNotEmpty) {
       if (planned.unplacedMinutes > 0) {
         unplaced[week.index] = planned.unplacedMinutes;
       }
-      final om = planned.hardOmission;
+      final om = hardReplaced
+          ? HardOmission.replacedByUser
+          : planned.hardOmission;
       if (om != null) omissions[week.index] = om;
     }
     created.addAll(future);
@@ -469,10 +478,19 @@ PlanUnit _withKind(
 }
 
 class _Pinned {
-  const _Pinned(this.units, this.conflicts, this.movedDays);
+  const _Pinned(
+    this.units,
+    this.conflicts,
+    this.movedDays, {
+    this.hardReplaced = false,
+  });
   final List<PlanUnit> units;
   final List<PinnedConflict> conflicts;
   final Set<DateTime> movedDays;
+
+  /// Der Nutzer hat die harte Einheit der Woche durch einen lockeren Lauf
+  /// ersetzt; sie wird nicht auf einen anderen Tag verlegt.
+  final bool hardReplaced;
 }
 
 /// Legt die Pinned-Tage auf die erzeugten Einheiten der Woche: je Pinned-Tag
@@ -485,6 +503,14 @@ class _Pinned {
 /// hat das beim Festlegen bestätigt). Hat der Nutzer die Art ersetzt
 /// ([PlanUnitFixed.kind]), bekommt die Einheit auf dem Tag diese Art; Dauer
 /// und Abschnitte rechnet [planSegmentsForKind] neu.
+///
+/// Hat der Nutzer einen Tag mit der erzeugten harten Einheit zum lockeren
+/// Lauf gemacht ([PlanUnitFixed.kind], Festlegung WP22), nimmt sein Termin
+/// diese harte Einheit auf: Die Woche hat dann keine harte Einheit, sie wird
+/// nicht auf einen anderen Tag verlegt. Eine ersetzte harte Art übernimmt
+/// dagegen über die Rolle die harte Einheit der Woche (deren Tag wird
+/// locker). In einer Geh-Lauf-Woche hat die Abfolge Vorrang: Der Termin
+/// bleibt, die ersetzte Art entfällt ([PinnedConflictKind.walkRunFirst]).
 _Pinned _applyPinned(
   List<PlanUnit> future,
   List<PlanUnit> pinned,
@@ -509,6 +535,18 @@ _Pinned _applyPinned(
     }
   }
   final restDays = {for (final u in restUnits) planDay(u.day)};
+  var hardReplaced = false;
+  for (final u in [...todo]) {
+    if (u.fixed != PlanUnitFixed.kind || u.kind != PlanUnitKind.easy) continue;
+    final i = out.indexWhere(
+      (x) => x.isHard && planDay(x.day) == planDay(u.day),
+    );
+    if (i >= 0 && !assigned.containsKey(i)) {
+      assigned[i] = u;
+      todo.remove(u);
+      hardReplaced = true;
+    }
+  }
   for (var pass = 0; pass < 2; pass++) {
     final rest = <PlanUnit>[];
     for (final u in todo) {
@@ -554,9 +592,22 @@ _Pinned _applyPinned(
     final target = assigned[i];
     if (target != null) {
       final day = planDay(target.day);
-      final placed = _moved(out[i], day, pinned: true, fixed: target.fixed);
+      final walkRunFirst =
+          target.fixed == PlanUnitFixed.kind &&
+          out[i].kind == PlanUnitKind.walkRun;
+      if (walkRunFirst) {
+        conflicts.add(
+          PinnedConflict(kind: PinnedConflictKind.walkRunFirst, day: day),
+        );
+      }
+      final placed = _moved(
+        out[i],
+        day,
+        pinned: true,
+        fixed: walkRunFirst ? PlanUnitFixed.none : target.fixed,
+      );
       kept.add(
-        target.fixed == PlanUnitFixed.kind
+        target.fixed == PlanUnitFixed.kind && !walkRunFirst
             ? _withKind(
                 placed,
                 target.kind,
@@ -595,7 +646,12 @@ _Pinned _applyPinned(
     );
   }
   kept.sort((a, b) => a.day.compareTo(b.day));
-  return _Pinned(kept, conflicts, movedDays);
+  return _Pinned(
+    kept,
+    conflicts,
+    movedDays,
+    hardReplaced: hardReplaced && !kept.any((u) => u.isHard),
+  );
 }
 
 /// Abstandskonflikte der Termine im gespeicherten Plan [units] (für die

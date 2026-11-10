@@ -92,8 +92,14 @@ class _FailingWrite implements PlanRepository {
   Future<void> setRestDay(
     PlanUnit r, {
     required DateTime today,
+    required int? expectedUnitId,
     DateTime? moveUnitTo,
-  }) => _inner.setRestDay(r, today: today, moveUnitTo: moveUnitTo);
+  }) => _inner.setRestDay(
+    r,
+    today: today,
+    expectedUnitId: expectedUnitId,
+    moveUnitTo: moveUnitTo,
+  );
   @override
   Future<void> clearRestDay(DateTime d, {required DateTime today}) =>
       _inner.clearRestDay(d, today: today);
@@ -141,8 +147,14 @@ class _RejectingWrite implements PlanRepository {
   Future<void> setRestDay(
     PlanUnit r, {
     required DateTime today,
+    required int? expectedUnitId,
     DateTime? moveUnitTo,
-  }) => _inner.setRestDay(r, today: today, moveUnitTo: moveUnitTo);
+  }) => _inner.setRestDay(
+    r,
+    today: today,
+    expectedUnitId: expectedUnitId,
+    moveUnitTo: moveUnitTo,
+  );
   @override
   Future<void> clearRestDay(DateTime d, {required DateTime today}) =>
       _inner.clearRestDay(d, today: today);
@@ -572,6 +584,7 @@ void main() {
             today: _day(0),
           ),
           today: _day(0),
+          expectedUnitId: restOn.id,
         );
         return (e, easy.day, restOn.day);
       }
@@ -719,6 +732,67 @@ void main() {
         today: _day(7),
       ),
       isTrue,
+    );
+  });
+
+  test('automatische Rechnung: ersetzte Art in einer Geh-Lauf-Woche gilt '
+      'nicht mehr als vom Nutzer festgelegt (Festlegung WP22)', () async {
+    final e = await _Env.open();
+    final goal = TrainingGoal(
+      type: GoalType.distance,
+      distance: GoalDistance.tenKilometers,
+      targetDate: DateTime(2027, 6, 1),
+      runDays: const {2, 4, 6},
+      maxSessionSeconds: 7200,
+      weeklyCapSeconds: 240 * 60.0,
+      createdAt: DateTime.utc(2026, 11, 1),
+      hardSessionEnabled: true,
+      canRun30: ContinuousRun30.no,
+    );
+    await e.goals.save(goal, today: goal.createdAt);
+    await e.run(PlanTrigger.create, 0);
+    final v = (await e.plans.history()).last;
+    final units = await _all(e.plans);
+    final walk = units.firstWhere(
+      (u) => u.kind == PlanUnitKind.walkRun && u.day.isAfter(_day(8)),
+    );
+    // Gespeichert: an dem Tag ein Tempolauf, den der Nutzer festgelegt hat.
+    await e.plans.writeVersion(
+      PlanVersionDraft(
+        createdAt: _now(0),
+        validFrom: _day(0),
+        trigger: PlanTrigger.manual,
+        reason: 'test',
+        version: v.version,
+        inputs: v.inputs,
+        summary: const {},
+        units: [
+          for (final u in units)
+            u.id == walk.id
+                ? PlanUnit(
+                    day: u.day,
+                    kind: PlanUnitKind.tempo,
+                    phase: u.phase,
+                    weekIndex: u.weekIndex,
+                    minutes: u.minutes,
+                    segments: u.segments,
+                    pinned: true,
+                    fixed: PlanUnitFixed.kind,
+                  )
+                : u,
+        ],
+        readState: planUnitsFingerprint(units),
+      ),
+    );
+    final r = await e.run(PlanTrigger.weekly, 1);
+    expect(r.wasWritten, isTrue);
+    final after = (await e.plans.unitOn(walk.day))!;
+    expect(after.kind, PlanUnitKind.walkRun);
+    expect(after.pinned, isTrue);
+    expect(after.fixed, PlanUnitFixed.none);
+    expect(
+      r.generated!.pinnedConflicts.map((c) => '${c.kind.name}@${c.day}'),
+      contains('walkRunFirst@${walk.day}'),
     );
   });
 

@@ -238,7 +238,15 @@ GeneratedPlan _keepSchedule(GeneratedPlan g, List<PlanUnit> oldFuture) {
     if (!day.isBefore(horizonEnd)) {
       units.add(u);
     } else if (oldByDay[day] case final old?) {
-      units.add(u.copyWith(pinned: old.pinned, fixed: old.fixed));
+      // Eine ersetzte Art, die die Rechnung nicht halten konnte (Geh-Lauf
+      // hat Vorrang), ist nicht mehr vom Nutzer festgelegt.
+      final lost = old.fixed == PlanUnitFixed.kind && u.kind != old.kind;
+      units.add(
+        u.copyWith(
+          pinned: old.pinned,
+          fixed: lost ? PlanUnitFixed.none : old.fixed,
+        ),
+      );
     }
   }
   final realPinned = {

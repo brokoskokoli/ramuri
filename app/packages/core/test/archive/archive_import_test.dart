@@ -1331,7 +1331,10 @@ void main() {
       expect(archiveSectionsFor(7), hasLength(24));
       expect(archiveSectionsFor(8), hasLength(24));
       // `fixed` steht erst ab Schema 8 im Abschnitt 24.
-      expect(archiveSectionsFor(7).last.columns.map((c) => c.name), isNot(contains('fixed')));
+      expect(
+        archiveSectionsFor(7).last.columns.map((c) => c.name),
+        isNot(contains('fixed')),
+      );
       expect(archiveSectionsFor(8).last.columns.last.name, 'fixed');
     });
 
@@ -1569,66 +1572,72 @@ void main() {
       ]);
     });
 
-    test('Schema 8: plan_units mit fixed (none, day, kind) unverändert', () async {
-      final units = [
-        unit(1)..['fixed'] = 'none',
-        unit(2)
-          ..['kind'] = 'rest'
-          ..['pinned'] = 1
-          ..['fixed'] = 'day',
-        unit(3)
-          ..['kind'] = 'tempo'
-          ..['pinned'] = 1
-          ..['fixed'] = 'kind',
-      ];
-      await c.run(
-        await file(
+    test(
+      'Schema 8: plan_units mit fixed (none, day, kind) unverändert',
+      () async {
+        final units = [
+          unit(1)..['fixed'] = 'none',
+          unit(2)
+            ..['kind'] = 'rest'
+            ..['pinned'] = 1
+            ..['fixed'] = 'day',
+          unit(3)
+            ..['kind'] = 'tempo'
+            ..['pinned'] = 1
+            ..['fixed'] = 'kind',
+        ];
+        await c.run(
+          await file(
+            v2(
+              schema: 8,
+              extra: {
+                'goals': [goal()],
+                'plans': [plan()],
+                'plan_units': units,
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['plan_units'], units);
+      },
+    );
+
+    test(
+      'fixed fehlt in Schema 8 oder steht in Schema 7: beschädigt',
+      () async {
+        await rejectsV2(
           v2(
             schema: 8,
             extra: {
               'goals': [goal()],
               'plans': [plan()],
-              'plan_units': units,
+              'plan_units': [unit(1)],
             },
           ),
-        ),
-      );
-      expect(c.sink.commits, 1);
-      expect(c.sink.rows['plan_units'], units);
-    });
-
-    test('fixed fehlt in Schema 8 oder steht in Schema 7: beschädigt', () async {
-      await rejectsV2(
-        v2(
-          schema: 8,
-          extra: {
-            'goals': [goal()],
-            'plans': [plan()],
-            'plan_units': [unit(1)],
-          },
-        ),
-      );
-      await rejectsV2(
-        v2(
-          schema: 7,
-          extra: {
-            'goals': [goal()],
-            'plans': [plan()],
-            'plan_units': [unit(1)..['fixed'] = 'none'],
-          },
-        ),
-      );
-      await rejectsV2(
-        v2(
-          schema: 8,
-          extra: {
-            'goals': [goal()],
-            'plans': [plan()],
-            'plan_units': [unit(1)..['fixed'] = 1],
-          },
-        ),
-      );
-    });
+        );
+        await rejectsV2(
+          v2(
+            schema: 7,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': [unit(1)..['fixed'] = 'none'],
+            },
+          ),
+        );
+        await rejectsV2(
+          v2(
+            schema: 8,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': [unit(1)..['fixed'] = 1],
+            },
+          ),
+        );
+      },
+    );
 
     test(
       'Schema 7: vollständige und leere Zielintensität sind gültig',
