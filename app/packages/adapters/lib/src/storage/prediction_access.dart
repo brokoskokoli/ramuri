@@ -23,6 +23,12 @@ class DriftPredictionStore implements PredictionStore {
         _db.runs,
       )..where((t) => t.id.equals(runId))).getSingleOrNull();
       if (run == null) throw const StorageException(StorageFailure.rejected);
+      // Idempotent je Lauf: Ist der Lauf schon als Referenz gespeichert,
+      // entsteht keine zweite Zeile, die vorhandene Kennung kommt zurück.
+      final existing = await (_db.select(
+        _db.referencePerformances,
+      )..where((t) => t.runId.equals(runId))).get();
+      if (existing.isNotEmpty) return existing.first.id;
     }
     return _db
         .into(_db.referencePerformances)

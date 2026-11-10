@@ -14,17 +14,18 @@ void main() {
     });
 
     test(
-      'Bewegungszeit, Distanz und 30-s-Tempowerte; rpe bleibt null',
+      'Bewegungszeit, Distanz; Tempowerte nur mit RPE; ohne Angabe rpe null',
       () async {
         final long = await w.seedRun(DateTime.utc(2030, 1, 5, 8), minutes: 20);
         final short = await w.seedRun(DateTime.utc(2030, 1, 6, 8), minutes: 5);
+        await w.session.subjective.save(long, RunSubjective(rpe: 8));
         final runs = await reader.load();
         // Neuester Start zuerst; nur beendete Läufe.
         expect(runs.map((r) => r.id), ['$short', '$long']);
         final l = runs.last;
         expect(l.movingSeconds, closeTo(1200, 5));
         expect(l.distanceMeters, closeTo(3600, 40));
-        expect(l.rpe, isNull);
+        expect(l.rpe, 8);
         expect(l.paceSamples, isNotEmpty);
         for (final v in l.paceSamples!) {
           expect(v, closeTo(3.0, 0.1));
@@ -44,7 +45,8 @@ void main() {
     );
 
     test('ohne Tempowerte bleibt paceSamples null', () async {
-      await w.seedRun(DateTime.utc(2030, 1, 5, 8), minutes: 20);
+      final id = await w.seedRun(DateTime.utc(2030, 1, 5, 8), minutes: 20);
+      await w.session.subjective.save(id, RunSubjective(rpe: 8));
       final runs = await reader.load(withPaceSamples: false);
       expect(runs.single.paceSamples, isNull);
       expect(runs.single.movingSeconds, closeTo(1200, 5));
@@ -53,8 +55,10 @@ void main() {
     test(
       'paceSince: ältere Läufe bekommen keine Tempowerte, Läufe bleiben',
       () async {
-        await w.seedRun(DateTime.utc(2030, 1, 5, 8), minutes: 20);
-        await w.seedRun(DateTime.utc(2030, 1, 20, 8), minutes: 20);
+        for (final d in [5, 20]) {
+          final id = await w.seedRun(DateTime.utc(2030, 1, d, 8), minutes: 20);
+          await w.session.subjective.save(id, RunSubjective(rpe: 8));
+        }
         final runs = await reader.load(paceSince: DateTime.utc(2030, 1, 10));
         expect(runs, hasLength(2));
         expect(runs.first.paceSamples, isNotEmpty); // 20. Januar
@@ -113,6 +117,35 @@ void main() {
         );
         // Distanz und Zeit passen zusammen (3 m/s), nicht die lange Zeit.
         expect(r.distanceMeters! / r.movingSeconds, closeTo(3.0, 0.15));
+      },
+    );
+
+    test(
+      'RPE kommt aus den Angaben zum Lauf; Wiedergabe nur ab RPE 8',
+      () async {
+        final hard = await w.seedRun(DateTime.utc(2030, 1, 5, 8), minutes: 20);
+        final easy = await w.seedRun(DateTime.utc(2030, 1, 6, 8), minutes: 20);
+        final none = await w.seedRun(DateTime.utc(2030, 1, 7, 8), minutes: 20);
+        await w.session.subjective.save(hard, RunSubjective(rpe: 8));
+        await w.session.subjective.save(easy, RunSubjective(rpe: 7));
+        final runs = {for (final r in await reader.load()) r.id: r};
+        expect(runs['$hard']!.rpe, 8);
+        expect(runs['$hard']!.paceSamples, isNotEmpty);
+        expect(runs['$easy']!.rpe, 7);
+        expect(runs['$easy']!.paceSamples, isNull);
+        expect(runs['$none']!.rpe, isNull);
+        expect(runs['$none']!.paceSamples, isNull);
+      },
+    );
+
+    test(
+      'noPaceFor: keine Wiedergabe für Referenz- und abgelehnte Läufe',
+      () async {
+        final id = await w.seedRun(DateTime.utc(2030, 1, 5, 8), minutes: 20);
+        await w.session.subjective.save(id, RunSubjective(rpe: 9));
+        final r = (await reader.load(noPaceFor: {'$id'})).single;
+        expect(r.rpe, 9);
+        expect(r.paceSamples, isNull);
       },
     );
 

@@ -25,8 +25,8 @@ class ReferenceSuggestion {
 
 /// Vorschläge für Läufe als Referenz (PAR-185, FR-0131). Nur ein Vorschlag:
 /// Übernommen wird nie automatisch, der Nutzer bestätigt immer. Abgelehnte
-/// Läufe ([rejectedRunIds]) kommen nicht wieder, ebenso Läufe, die schon die
-/// aktive Referenz sind.
+/// Läufe ([rejectedRunIds]) kommen nicht wieder, ebenso Läufe, die schon als
+/// Referenz gespeichert sind ([storedRunIds], auch ältere als die aktive).
 ///
 /// Fail closed: ohne gemessene Distanz gibt es keinen Vorschlag; ist die
 /// Tempostabilität nicht bestimmbar, löst Zweig 1 nicht aus. Zweig 2 braucht
@@ -36,6 +36,7 @@ List<ReferenceSuggestion> suggestReferences({
   required Iterable<PredictionRun> runs,
   required ReferencePerformance? activeReference,
   Set<String> rejectedRunIds = const {},
+  Set<String> storedRunIds = const {},
   PredictionParameters parameters = const PredictionParameters(),
   SectionSelectionParameters? stability,
 }) {
@@ -44,7 +45,9 @@ List<ReferenceSuggestion> suggestReferences({
   final out = <ReferenceSuggestion>[];
   for (final run in runs) {
     if (rejectedRunIds.contains(run.id)) continue;
-    if (activeReference?.runId == run.id) continue;
+    if (activeReference?.runId == run.id || storedRunIds.contains(run.id)) {
+      continue;
+    }
     final meters = run.distanceMeters;
     if (meters == null ||
         !meters.isFinite ||
@@ -59,7 +62,10 @@ List<ReferenceSuggestion> suggestReferences({
         isPaceStable(run.paceSamples, stable) == true) {
       branches.add(SuggestionBranch.hardAndSteady);
     }
+    // Zweig 2 nur für Läufe ab dem Datum der aktiven Referenz: ein älterer
+    // Lauf würde die geltende (jüngste) Referenz nie ablösen.
     if (activeReference != null &&
+        !calendarDay(run.date).isBefore(calendarDay(activeReference.date)) &&
         activeReference.seconds > 0 &&
         activeReference.distanceMeters > 0) {
       final riegel = riegelWithParameters(

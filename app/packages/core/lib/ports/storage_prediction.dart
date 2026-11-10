@@ -17,7 +17,9 @@ abstract interface class PredictionStore {
   /// Legt eine Referenz an und gibt ihre Kennung zurück. Ungültig
   /// ([ReferencePerformance.validate] zum Anlegezeitpunkt `createdAt`, oder ein
   /// bestätigter Lauf ohne Lauf-ID): `rejected`, nichts wird geschrieben. Eine
-  /// Lauf-ID, die es nicht gibt: `rejected`.
+  /// Lauf-ID, die es nicht gibt: `rejected`. Idempotent je Lauf: Ist der Lauf
+  /// schon als Referenz gespeichert, entsteht keine zweite Zeile und die
+  /// vorhandene Kennung kommt zurück.
   Future<int> addReference(ReferencePerformance reference);
 
   /// Löscht eine Referenz. Unbekannte Kennung: `notFound`.

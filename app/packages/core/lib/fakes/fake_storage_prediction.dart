@@ -14,6 +14,12 @@ class FakePredictionStore implements PredictionStore {
     if (runText != null && !_d.runs.containsKey(int.tryParse(runText))) {
       throw const StorageException(StorageFailure.rejected);
     }
+    // Idempotent je Lauf (wie die Datenbank).
+    if (runText != null) {
+      for (final r in _d.references) {
+        if (r.reference.runId == runText) return r.id;
+      }
+    }
     final id = _d.nextReferenceId++;
     _d.references.add(StoredReference(id: id, reference: reference));
     return id;

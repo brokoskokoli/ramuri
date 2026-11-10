@@ -13,6 +13,10 @@ final List<StorageContractCase> predictionContractCases = [
     _invalid,
   ),
   const StorageContractCase(
+    'Referenzleistungen: ein Lauf wird höchstens einmal Referenz',
+    _idempotent,
+  ),
+  const StorageContractCase(
     'Referenz und Ablehnung verschwinden mit dem Lauf',
     _cascade,
   ),
@@ -200,5 +204,22 @@ Future<void> _deleteAll(StorageContractHarness h) async {
   final id = await _p(s)
       .addReference(_ref(date: DateTime(2029, 12, 20), createdAt: at(3)));
   expectEq(id, 1, 'Zähler zurückgesetzt');
+  await s.close();
+}
+
+Future<void> _idempotent(StorageContractHarness h) async {
+  final s = await h.open();
+  final p = _p(s);
+  final run = (await s.runs.create(startedAt: at(0))).id;
+  ReferencePerformance confirmed(int hour) => _ref(
+    kind: ReferenceKind.confirmedRun,
+    date: DateTime(2029, 12, 20),
+    createdAt: at(hour),
+    runId: '$run',
+  );
+  final a = await p.addReference(confirmed(1));
+  final b = await p.addReference(confirmed(2));
+  expectEq(b, a, 'zweites Speichern gibt die vorhandene Kennung');
+  expectEq((await p.references()).length, 1, 'keine Doppelzeile');
   await s.close();
 }

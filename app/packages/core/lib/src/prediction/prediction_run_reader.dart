@@ -13,11 +13,13 @@ import 'reference_performance.dart' show calendarDay;
 /// Bewegungszeit und Distanz aus der Kurzfassung des Laufs
 /// ([RunOverviewService], bei veralteter Kurzfassung neu gerechnet), die
 /// 30-s-Tempowerte aus der Vorverarbeitung (`pace.medianSeries`, PAR-006). Der
-/// `rpe` bleibt `null`, bis WP18 ihn liefert.
+/// `rpe` kommt aus den Angaben zum Lauf (WP18, `session.subjective`, eine
+/// Abfrage); ohne Angabe bleibt er `null`.
 ///
 /// Die Tempowerte brauchen eine Wiedergabe der Rohdaten je Lauf. Sie werden
 /// darum nur für Läufe gelesen, die als Vorschlag in Frage kommen
-/// (Distanz >= [PredictionParameters.suggestionMinimumMeters]); für kürzere
+/// (Distanz >= [PredictionParameters.suggestionMinimumMeters] und RPE >=
+/// [PredictionParameters.suggestionMinimumRpe], PAR-185 Zweig 1); sonst
 /// bleibt `paceSamples` `null`. Mit `withPaceSamples: false` entfällt die
 /// Wiedergabe ganz.
 class PredictionRunReader {
@@ -41,11 +43,14 @@ class PredictionRunReader {
   /// [paceSince]: Tempowerte (und damit die Wiedergabe) nur für Läufe ab diesem
   /// Kalendertag; ältere bleiben ohne `paceSamples`. Die Oberfläche setzt hier
   /// die Grenze der Referenzgültigkeit (182 Tage), ältere Läufe können keinen
-  /// Vorschlag mehr auslösen.
+  /// Vorschlag mehr auslösen. [noPaceFor]: Läufe (Lauf-IDs), die schon Referenz
+  /// sind oder abgelehnt wurden; für sie entfällt die Wiedergabe.
   Future<List<PredictionRun>> load({
     bool withPaceSamples = true,
     DateTime? paceSince,
+    Set<String> noPaceFor = const {},
   }) async {
+    final subjective = await session.subjective.readAll();
     final overviews = await RunOverviewService(
       session: session,
       clock: clock,
@@ -60,8 +65,12 @@ class PredictionRunReader {
       if (o.readFailed || moving == null || moving <= Duration.zero) continue;
       final meters = o.distanceMeters;
       final date = DateTime.parse(dayOfRun(o.run));
+      final rpe = subjective[o.run.id]?.subjective.rpe;
       List<double>? pace;
       if (withPaceSamples &&
+          rpe != null &&
+          rpe >= parameters.suggestionMinimumRpe &&
+          !noPaceFor.contains('${o.run.id}') &&
           (paceSince == null ||
               !calendarDay(date).isBefore(calendarDay(paceSince))) &&
           meters != null &&
@@ -74,6 +83,7 @@ class PredictionRunReader {
           date: date,
           movingSeconds: moving.inMicroseconds / Duration.microsecondsPerSecond,
           distanceMeters: meters,
+          rpe: rpe,
           paceSamples: pace,
         ),
       );

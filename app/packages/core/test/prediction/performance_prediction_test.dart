@@ -648,10 +648,12 @@ void main() {
       List<PredictionRun> runs, {
       ReferencePerformance? ref,
       Set<String> rejected = const {},
+      Set<String> stored = const {},
     }) => suggestReferences(
       runs: runs,
       activeReference: ref,
       rejectedRunIds: rejected,
+      storedRunIds: stored,
     );
 
     test('Zweig 1: RPE 8, 3 km, gleichmäßig', () {
@@ -722,6 +724,20 @@ void main() {
         runId: r.id,
       );
       expect(s([r], ref: asRef), isEmpty);
+    });
+    test('schon gespeicherte Referenz-Läufe kommen nicht wieder (Befund 2)', () {
+      // Ein bestätigter Lauf, der älter ist als die aktive Referenz, ist nicht
+      // die aktive Referenz, aber gespeichert.
+      final r = run(40, seconds: limit - 60, meters: 10000);
+      expect(s([r], ref: active), isEmpty); // älter als die aktive (30 Tage)
+      final h = run(40, seconds: 900, meters: 5000, rpe: 9, pace: steady);
+      expect(s([h], ref: active), hasLength(1)); // Zweig 1 gilt weiter
+      expect(s([h], ref: active, stored: {h.id}), isEmpty);
+    });
+    test('Zweig 2 nur ab dem Datum der aktiven Referenz', () {
+      final onDay = run(30, seconds: limit - 60, meters: 10000);
+      final before = run(31, seconds: limit - 60, meters: 10000);
+      expect(s([onDay, before], ref: active).map((e) => e.run.id), [onDay.id]);
     });
     test('lockerer Lauf wird nie vorgeschlagen (FR-0131)', () {
       expect(

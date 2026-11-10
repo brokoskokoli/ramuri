@@ -1292,6 +1292,39 @@ void main() {
       });
     }
 
+    // Nur das Format/Schema-Paar ist falsch: Kopf und Manifest stimmen
+    // überein und der Inhalt passt zum Schema. Ohne die Paarprüfung im Leser
+    // würde das Archiv gelesen.
+    test(
+      'Paar Format 2 mit Schema 4, Inhalt von Schema 4: beschädigt',
+      () async {
+        final l = valid()
+          ..[0] =
+              '{"type":"manifest","format":2,"schema_version":4,'
+              '"created_at_us":1}';
+        await rejectsV2(l, ArchiveImportFailure.damaged, 2);
+      },
+    );
+
+    test(
+      'Paar Format 1 mit Schema 5, Inhalt von Schema 5: beschädigt',
+      () async {
+        final l = v2()
+          ..[0] =
+              '{"type":"manifest","format":1,"schema_version":5,'
+              '"created_at_us":1}';
+        await rejectsV2(l, ArchiveImportFailure.damaged, 1);
+      },
+    );
+
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 6 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 7, 100]) {
+        expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
+      }
+      expect(archiveSectionsFor(4), hasLength(19));
+      expect(archiveSectionsFor(6), hasLength(23));
+    });
+
     test(
       'Format 2 mit Schema 5 (21 Abschnitte, ohne Prognose) bleibt lesbar',
       () async {

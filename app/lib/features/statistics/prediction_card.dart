@@ -113,13 +113,28 @@ class _PredictionCardState extends State<PredictionCard> {
     if (reference != null) await _run(_c.addReference(reference));
   }
 
-  Future<void> _delete() async {
+  /// Fragt vor dem Löschen und nennt die Referenz, die danach gilt.
+  Future<void> _delete(StoredReference target) async {
     final l10n = AppLocalizations.of(context);
+    final formatter = AppSettingsScope.formatterOf(context);
+    final lang = Localizations.localeOf(context).languageCode;
+    final rest = [
+      for (final s in _c.state.all)
+        if (s.id != target.id) s,
+    ];
+    final body = rest.isEmpty
+        ? l10n.predictionDeleteBodyNone
+        : l10n.predictionDeleteBodyNext(
+            predictionKindText(l10n, rest.first.reference.kind),
+            formatter.distance(rest.first.reference.distanceMeters),
+            clockTimeText(rest.first.reference.seconds),
+            DateFormat.yMMMd(lang).format(rest.first.reference.date),
+          );
     final sure = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.predictionDeleteTitle),
-        content: Text(l10n.predictionDeleteBody),
+        content: Text(body, key: const Key('prediction_delete_body')),
         actions: [
           TextButton(
             key: const Key('prediction_delete_cancel'),
@@ -134,7 +149,7 @@ class _PredictionCardState extends State<PredictionCard> {
         ],
       ),
     );
-    if (sure == true) await _run(_c.deleteActive());
+    if (sure == true) await _run(_c.deleteReference(target.id));
   }
 
   @override
@@ -295,11 +310,11 @@ class _PredictionCardState extends State<PredictionCard> {
             label: l10n.predictionAddReference,
             onPressed: _add,
           ),
-          if (active != null)
+          if (state.active != null)
             _Action(
               key: const Key('prediction_delete'),
               label: l10n.predictionDeleteReference,
-              onPressed: _delete,
+              onPressed: () => _delete(state.active!),
             ),
           _Action(
             key: const Key('prediction_explain'),
@@ -309,6 +324,49 @@ class _PredictionCardState extends State<PredictionCard> {
         ],
       ),
     );
+    if (state.all.length > 1) {
+      out
+        ..add(const SizedBox(height: 8))
+        ..add(
+          Text(
+            l10n.predictionOtherReferences(state.all.length - 1),
+            key: const Key('prediction_others'),
+            style: theme.bodySmall!.copyWith(color: c.textMuted),
+          ),
+        );
+      for (final s in state.all.skip(1)) {
+        final r = s.reference;
+        final summary = l10n.predictionReferenceLine(
+          predictionKindText(l10n, r.kind),
+          formatter.distance(r.distanceMeters),
+          clockTimeText(r.seconds),
+          DateFormat.yMMMd(lang).format(r.date),
+        );
+        out.add(
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  summary,
+                  key: Key('prediction_other_${s.id}'),
+                  style: theme.bodySmall,
+                ),
+              ),
+              IconButton(
+                key: Key('prediction_other_delete_${s.id}'),
+                tooltip: l10n.predictionDeleteOther(summary),
+                constraints: const BoxConstraints(
+                  minWidth: RamuriTheme.minTarget,
+                  minHeight: RamuriTheme.minTarget,
+                ),
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () => _delete(s),
+              ),
+            ],
+          ),
+        );
+      }
+    }
     return out;
   }
 

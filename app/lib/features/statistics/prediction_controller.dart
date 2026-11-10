@@ -11,20 +11,20 @@ class PredictionViewState {
     : phase = PredictionPhase.loading,
       prediction = null,
       showTestHint = false,
-      active = null,
+      all = const [],
       suggestion = null;
 
   const PredictionViewState.failed()
     : phase = PredictionPhase.failed,
       prediction = null,
       showTestHint = false,
-      active = null,
+      all = const [],
       suggestion = null;
 
   const PredictionViewState.ready({
     required PerformancePrediction this.prediction,
     required this.showTestHint,
-    required this.active,
+    required this.all,
     required this.suggestion,
   }) : phase = PredictionPhase.ready;
 
@@ -36,7 +36,10 @@ class PredictionViewState {
 
   /// Die gespeicherte geltende Referenz (mit Kennung zum Löschen), auch wenn
   /// sie die Prognose nicht trägt (zu alt, Pause); `null` ohne Referenz.
-  final StoredReference? active;
+  StoredReference? get active => all.isEmpty ? null : all.first;
+
+  /// Alle gespeicherten Referenzen, jüngste zuerst (die erste ist [active]).
+  final List<StoredReference> all;
 
   /// Der eine Vorschlag, der gerade zur Bestätigung ansteht, oder `null`.
   final ReferenceSuggestion? suggestion;
@@ -111,6 +114,11 @@ class PredictionController extends ChangeNotifier {
     final stored = await _store.references();
     final rejected = await _store.rejectedSuggestions();
     final today = calendarDay(now);
+    final storedRunIds = {
+      for (final s in stored)
+        if (s.reference.runId != null) s.reference.runId!,
+    };
+    final rejectedIds = {for (final id in rejected) '$id'};
     final runs =
         await PredictionRunReader(
           session: session,
@@ -118,6 +126,7 @@ class PredictionController extends ChangeNotifier {
           parameters: parameters,
           offload: offload,
         ).load(
+          noPaceFor: {...storedRunIds, ...rejectedIds},
           paceSince: today.subtract(
             Duration(days: parameters.maxReferenceAgeDays),
           ),
@@ -139,7 +148,8 @@ class PredictionController extends ChangeNotifier {
     final suggestions = suggestReferences(
       runs: recent,
       activeReference: active?.reference,
-      rejectedRunIds: {for (final id in rejected) '$id'},
+      rejectedRunIds: rejectedIds,
+      storedRunIds: storedRunIds,
       parameters: parameters,
     );
     return PredictionViewState.ready(
@@ -150,7 +160,7 @@ class PredictionController extends ChangeNotifier {
         runs: runs,
         parameters: parameters,
       ),
-      active: active,
+      all: stored,
       suggestion: suggestions.isEmpty ? null : suggestions.first,
     );
   }
@@ -164,8 +174,12 @@ class PredictionController extends ChangeNotifier {
   Future<bool> deleteActive() {
     final id = _state.active?.id;
     if (id == null) return Future.value(false);
-    return _mutate(() => _store.deleteReference(id));
+    return deleteReference(id);
   }
+
+  /// Löscht eine gespeicherte Referenz (auch eine ältere, nicht geltende).
+  Future<bool> deleteReference(int id) =>
+      _mutate(() => _store.deleteReference(id));
 
   /// Übernimmt den Vorschlag als bestätigten Lauf (FR-0131).
   Future<bool> acceptSuggestion(ReferenceSuggestion s) {

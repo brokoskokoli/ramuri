@@ -407,7 +407,106 @@ void main() {
     });
   });
 
+  group('Ältere Referenzen (Befund 3)', () {
+    testWidgets(
+      'Liste mit Löschen je Eintrag; Rückfrage nennt die danach geltende',
+      (tester) async {
+        final d = await boot(tester);
+        final oldest = await addRef(
+          d,
+          ReferenceKind.test,
+          5000,
+          1500,
+          daysAgo: 60,
+        );
+        final middle = await addRef(
+          d,
+          ReferenceKind.race,
+          10000,
+          3300,
+          daysAgo: 40,
+        );
+        await addRef(d, ReferenceKind.race, 21097.5, 7200, daysAgo: 10);
+        await pumpCard(tester, d);
+        expect(txt('prediction_others'), 'Weitere gespeicherte Referenzen: 2');
+        expect(key('prediction_other_$middle'), findsOneWidget);
+        expect(key('prediction_other_$oldest'), findsOneWidget);
+
+        // Eine ältere löschen: die geltende bleibt, die Rückfrage nennt sie.
+        await tapKey(tester, 'prediction_other_delete_$oldest');
+        expect(
+          txt('prediction_delete_body'),
+          contains('Danach gilt: Wettkampfzeit, 21,10 km'),
+        );
+        await tapKey(tester, 'prediction_delete_confirm');
+        expect(await _store(d).references(), hasLength(2));
+        expect(txt('prediction_others'), 'Weitere gespeicherte Referenzen: 1');
+
+        // Die geltende löschen: die Rückfrage nennt die nächstältere.
+        await tapKey(tester, 'prediction_delete');
+        expect(
+          txt('prediction_delete_body'),
+          contains('Danach gilt: Wettkampfzeit, 10,00 km'),
+        );
+        await tapKey(tester, 'prediction_delete_confirm');
+        expect(key('prediction_others'), findsNothing);
+        expect(txt('prediction_reference'), contains('10,00 km'));
+
+        // Die letzte löschen: kein Verweis auf eine weitere.
+        await tapKey(tester, 'prediction_delete');
+        expect(txt('prediction_delete_body'), contains('keine Referenz mehr'));
+      },
+    );
+  });
+
   group('Vorschlag (FR-0131)', () {
+    /// Lauf mit RPE 8, gleichmäßig, 20 min bei 3 m/s (3,6 km).
+    Future<int> hardRun(Device d, int daysAgo, {int? rpe = 8}) async {
+      final id = await seedRun(d.session, _at(daysAgo), minutes: 20);
+      if (rpe != null) {
+        await d.session.subjective.save(id, RunSubjective(rpe: rpe));
+      }
+      return id;
+    }
+
+    testWidgets(
+      'Zweig 1 ohne Referenz: RPE 8 und gleichmäßig wird vorgeschlagen',
+      (tester) async {
+        final d = await boot(tester);
+        await hardRun(d, 3);
+        await pumpCard(tester, d);
+        expect(key('prediction_suggestion'), findsOneWidget);
+        expect(await _store(d).references(), isEmpty);
+      },
+    );
+
+    testWidgets('ohne RPE oder mit RPE 7 kein Vorschlag', (tester) async {
+      final d = await boot(tester);
+      await hardRun(d, 3, rpe: null);
+      await hardRun(d, 5, rpe: 7);
+      await pumpCard(tester, d);
+      expect(key('prediction_suggestion'), findsNothing);
+    });
+
+    testWidgets('bestätigter Lauf älter als die Referenz kommt nicht wieder', (
+      tester,
+    ) async {
+      final d = await boot(tester);
+      await addRef(d, ReferenceKind.race, 10000, 3000, daysAgo: 10);
+      final id = await hardRun(d, 40);
+      await pumpCard(tester, d);
+      await tapKey(tester, 'prediction_suggestion_accept');
+      final refs = await _store(d).references();
+      expect(refs, hasLength(2));
+      expect(refs.first.reference.kind, ReferenceKind.race); // jüngere gilt
+      expect(refs.last.reference.runId, '$id');
+      expect(key('prediction_suggestion'), findsNothing);
+      // Nach erneutem Laden bleibt es dabei, und es entsteht keine Doppelzeile.
+      await pumpCard(tester, d);
+      expect(key('prediction_suggestion'), findsNothing);
+      expect(await _store(d).references(), hasLength(2));
+    });
+
     /// Referenz 10 km in 60:00; ein 20-min-Lauf mit 3,5 m/s (4,2 km) ist per
     /// Riegel schneller als erwartet.
     Future<(Device, int)> withFastRun(
@@ -590,12 +689,14 @@ void main() {
       await addRef(d, ReferenceKind.race, 10000, 3600, daysAgo: 30);
       await tester.runAsync(() async {
         for (var i = 0; i < 100; i++) {
-          await seedRun(
+          final id = await seedRun(
             d.session,
             _at(1 + (i * 175) ~/ 100),
             minutes: 20,
             speed: 3.5,
           );
+          // Ungünstigster Fall: alle Läufe mit RPE 8, jeder wird abgespielt.
+          await d.session.subjective.save(id, RunSubjective(rpe: 8));
         }
         final sw = Stopwatch()..start();
         final c = PredictionController(

@@ -202,7 +202,18 @@ const int archiveMinSchemaVersion = 4;
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
 /// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23).
-List<ArchiveSectionSpec> archiveSectionsFor(int schema) => [
-  for (final s in archiveSections)
-    if (s.sinceSchema <= schema) s,
-];
+/// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
+/// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche
+/// Liste zu geben.
+List<ArchiveSectionSpec> archiveSectionsFor(int schema) {
+  RangeError.checkValueInInterval(
+    schema,
+    archiveMinSchemaVersion,
+    archiveSchemaVersion,
+    'schema',
+  );
+  return [
+    for (final s in archiveSections)
+      if (s.sinceSchema <= schema) s,
+  ];
+}
