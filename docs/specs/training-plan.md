@@ -145,7 +145,7 @@ Für jede Woche wird ein geplanter Umfang und eine geplante Intensitätsverteilu
 - [ ] Jede Planwoche enthält Umfang und Intensitätsverteilung.
 - [ ] Gemeldete Beschwerden und Ermüdung fließen in das Wochenbudget ein.
 - [ ] Die Wochenzeit folgt PAR-193, PAR-194 und PAR-199 und bleibt unter dem Regler (PAR-196).
-- [ ] Ist der Regler oder die Zielspitze erreicht, bleibt die Wochenzeit gleich (PAR-196).
+- [ ] Ist der Regler oder die Zielspitze erreicht, bleibt die Wochenzeit gleich (PAR-196); die leichtere Woche nach PAR-194 gilt auch dann (K52).
 
 ### FR-0149 — Keine pauschale Steigerung als garantiert sicher
 - **Status:** Approved | **Phase:** 2
