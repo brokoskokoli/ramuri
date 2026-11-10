@@ -1,6 +1,8 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
+import '../reminders/reminder_controller.dart';
+import '../reminders/reminder_section.dart';
 import '../../l10n/app_localizations.dart';
 import '../map/map_consent_scope.dart';
 import '../map/map_settings_card.dart';
@@ -67,6 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final l10n = AppLocalizations.of(context);
     final settings = AppSettingsScope.of(context);
     final map = MapConsentScope.of(context);
+    final reminders = ReminderScope.maybeOf(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: ListView(
@@ -107,6 +110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+          if (reminders != null) ReminderSection(controller: reminders),
           if (map != null) ...[
             SectionHeading(l10n.mapSettingsTitle),
             const SizedBox(height: 12),

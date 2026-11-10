@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
 
+import '../reminders/reminder_controller.dart';
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
@@ -57,6 +58,8 @@ class _PlanScreenState extends State<PlanScreen> {
       PlanController(
         session: widget.session,
         clock: widget.clock,
+        // FR-0174: Termine, Arten und Ziel ändern die Erinnerungen.
+        onChanged: () => ReminderScope.read(context)?.sync(),
         reader: PlanDataReader(
           session: widget.session,
           clock: widget.clock,

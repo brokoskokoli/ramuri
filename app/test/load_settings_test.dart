@@ -276,6 +276,13 @@ void main() {
       // Der Nutzer liest weiter unten: das Angebot ist aus dem Bild.
       await tester.drag(find.byType(ListView), const Offset(0, -3000));
       await tester.pumpAndSettle();
+      // Unter dem Knopf können weitere Abschnitte folgen (Erinnerungen,
+      // FR-0174): zurück, bis der Knopf gebaut und im Bild ist.
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('load_show_offer')),
+        -100,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(inView(), isFalse, reason: 'Testaufbau: Angebot liegt außerhalb');
       expect(
         tester.getSize(find.byKey(const Key('load_show_offer'))).height,

@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
+import '../reminders/reminder_controller.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_buttons.dart';
 import '../../ui/ramuri_card.dart';
@@ -36,6 +37,7 @@ class DataScreen extends StatelessWidget {
   Future<void> _deleteAll(BuildContext context) async {
     final settings = AppSettingsScope.of(context);
     final navigator = Navigator.of(context);
+    final reminders = ReminderScope.read(context);
     final result = await confirmAndDeleteAll(
       context,
       session,
@@ -45,6 +47,8 @@ class DataScreen extends StatelessWidget {
         result != DeletionResult.deletedNotErased) {
       return;
     }
+    // FR-0174: Nach dem Löschen keine Erinnerung mehr.
+    await reminders?.cancelAll();
     try {
       await sensors.reloadKnown();
     } on Object {

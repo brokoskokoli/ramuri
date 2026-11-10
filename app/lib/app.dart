@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'app_dependencies.dart';
+import 'features/reminders/reminder_controller.dart';
 import 'features/archive/archive_scope.dart';
 import 'features/export/file_handoff_scope.dart';
 import 'features/home/ready_root.dart';
@@ -35,9 +36,17 @@ class _RunningAppState extends State<RunningApp> {
   /// Kartencontroller der aktuellen Sitzung, über dem Navigator (Einstellungen, Karten).
   final MapConsentHolder _map = MapConsentHolder();
 
+  /// Erinnerungen (FR-0174), über den Sitzungen; ReadyRoot bindet die Sitzung an.
+  late final ReminderController _reminders = ReminderController(
+    scheduler: dependencies.reminders,
+    clock: dependencies.clock,
+    debugAdd: dependencies.reminderDebug,
+  );
+
   @override
   void dispose() {
     _settings.dispose();
+    _reminders.dispose();
     super.dispose();
   }
 
@@ -64,7 +73,10 @@ class _RunningAppState extends State<RunningApp> {
               value: ramuriOverlayStyle(Theme.of(context).brightness),
               child: MapConsentScope(
                 holder: _map,
-                child: AppSettingsScope(holder: _settings, child: child!),
+                child: AppSettingsScope(
+                  holder: _settings,
+                  child: ReminderScope(controller: _reminders, child: child!),
+                ),
               ),
             ),
           ),

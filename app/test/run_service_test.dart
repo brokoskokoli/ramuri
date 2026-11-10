@@ -393,7 +393,26 @@ void main() {
     });
 
     test('kein Neustart, keine Hintergrund-Standortberechtigung', () {
-      expect(manifest, isNot(contains('BOOT_COMPLETED')));
+      // ADR-0005 Punkt 6: Die Aufzeichnung startet nie nach dem Neustart.
+      // BOOT_COMPLETED empfängt nur der Wecker der Erinnerungen (FR-0174,
+      // WP22 Teil F); er stellt Wecker und startet keinen Dienst.
+      final boot = RegExp(
+        r'<receiver[^>]*>(?:(?!</receiver>)[\s\S])*BOOT_COMPLETED',
+      );
+      expect(
+        [
+          for (final m in boot.allMatches(manifest))
+            m[0]!.split('\n').take(2).join(),
+        ],
+        [contains('.TrainingReminderReceiver')],
+      );
+      const kt = 'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri';
+      for (final f in ['TrainingReminderReceiver.kt', 'TrainingReminders.kt']) {
+        final src = File('$kt/$f').readAsStringSync();
+        expect(src, isNot(contains('RecordingService')), reason: f);
+        expect(src, isNot(contains('startService')), reason: f);
+        expect(src, isNot(contains('startForegroundService')), reason: f);
+      }
       expect(manifest, isNot(contains('ACCESS_BACKGROUND_LOCATION')));
     });
   });
