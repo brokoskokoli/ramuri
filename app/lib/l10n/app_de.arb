@@ -2196,5 +2196,19 @@
   "planGoalSaved": "Ziel gespeichert, der Plan ist neu berechnet.",
   "@planGoalSaved": {"description": "WP22 Teil C, Zielformular"},
   "planGoalSavedNotPlanned": "Ziel gespeichert. Der Plan ließ sich gerade nicht neu berechnen; das holt die App beim nächsten Öffnen nach.",
-  "@planGoalSavedNotPlanned": {"description": "WP22 Teil C, Zielformular"}
+  "@planGoalSavedNotPlanned": {"description": "WP22 Teil C, Zielformular"},
+  "planTodayTitle": "Heute geplant",
+  "@planTodayTitle": {"description": "WP22 Teil D, Heute"},
+  "planTodayStart": "Einheit starten",
+  "@planTodayStart": {"description": "WP22 Teil D, Heute"},
+  "planTodayRest": "Heute ist Ruhetag.",
+  "@planTodayRest": {"description": "WP22 Teil D, Heute"},
+  "planTodayNone": "Für heute ist keine Einheit geplant.",
+  "@planTodayNone": {"description": "WP22 Teil D, Heute"},
+  "planTodayDone": "Heute erledigt.",
+  "@planTodayDone": {"description": "WP22 Teil D, Heute"},
+  "planWeekGoal": "Wochenziel",
+  "@planWeekGoal": {"description": "WP22 Teil D, Heute"},
+  "planWeekGoalProgress": "{done} von {target}",
+  "@planWeekGoalProgress": {"description": "WP22 Teil D, Heute", "placeholders": {"done": {"type": "String"}, "target": {"type": "String"}}}
 }

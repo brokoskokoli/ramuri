@@ -623,15 +623,8 @@ class _Week extends StatelessWidget {
     ];
     final minutes =
         week?.minutes ?? runUnits.fold<int>(0, (a, u) => a + u.minutes);
-    final inputs = state.version!.inputs;
-    final pace = inputs.easyPaceSecondsPerKm;
-    // Kilometer nur als „ca.“ und nur mit bekanntem lockerem Tempo (FR-0205,
-    // OQ-0077; „bekannt“ wie bei der Zielspitze, PAR-205).
-    final paceKnown =
-        pace != null &&
-        pace.isFinite &&
-        pace > 0 &&
-        inputs.easyRunCount >= const PlanParameters().peakMinEasyRuns;
+    // Kilometer nur als „ca.“ und nur mit bekanntem lockerem Tempo.
+    final approx = planApproxMeters(state.version!.inputs, minutes);
     final sunday = monday.add(const Duration(days: 6));
     final range =
         '${DateFormat.MMMd(lang).format(monday)} – '
@@ -639,9 +632,9 @@ class _Week extends StatelessWidget {
     final summary = [
       range,
       if (minutes > 0) planDurationText(l, minutes),
-      if (minutes > 0 && paceKnown)
+      if (approx != null)
         l.planWeekApprox(
-          '${formatter.unit.distanceFromMeters(minutes * 60 / pace * 1000).round()} '
+          '${formatter.unit.distanceFromMeters(approx).round()} '
           '${formatter.distanceLabel}',
         ),
     ].join(' · ');

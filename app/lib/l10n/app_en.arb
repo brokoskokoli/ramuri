@@ -1474,5 +1474,19 @@
   "planGoalSaved": "Goal saved, the plan has been recalculated.",
   "@planGoalSaved": {"description": "WP22 Teil C, Zielformular"},
   "planGoalSavedNotPlanned": "Goal saved. The plan could not be recalculated just now; the app will catch up the next time you open it.",
-  "@planGoalSavedNotPlanned": {"description": "WP22 Teil C, Zielformular"}
+  "@planGoalSavedNotPlanned": {"description": "WP22 Teil C, Zielformular"},
+  "planTodayTitle": "Planned for today",
+  "@planTodayTitle": {"description": "WP22 Teil D, Heute"},
+  "planTodayStart": "Start session",
+  "@planTodayStart": {"description": "WP22 Teil D, Heute"},
+  "planTodayRest": "Today is a rest day.",
+  "@planTodayRest": {"description": "WP22 Teil D, Heute"},
+  "planTodayNone": "No session is planned for today.",
+  "@planTodayNone": {"description": "WP22 Teil D, Heute"},
+  "planTodayDone": "Done for today.",
+  "@planTodayDone": {"description": "WP22 Teil D, Heute"},
+  "planWeekGoal": "Weekly target",
+  "@planWeekGoal": {"description": "WP22 Teil D, Heute"},
+  "planWeekGoalProgress": "{done} of {target}",
+  "@planWeekGoalProgress": {"description": "WP22 Teil D, Heute", "placeholders": {"done": {"type": "String"}, "target": {"type": "String"}}}
 }

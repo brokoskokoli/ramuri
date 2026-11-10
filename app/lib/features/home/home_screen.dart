@@ -6,6 +6,9 @@ import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
 import '../history/run_detail_screen.dart';
+import '../plan/plan_controller.dart';
+import '../plan/plan_goal_form.dart';
+import '../plan/plan_texts.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/run_flow_screen.dart';
 import '../run/run_ports.dart';
@@ -15,9 +18,14 @@ import '../settings/unit_format.dart';
 import 'data_changes.dart';
 import 'overview_screen.dart';
 
-/// Bereich „Heute“ in der Hülle ([AppShell]) nach FR-0209, Fassung Phase 1:
-/// Logo, Datum, Profil-Symbol, „Frei laufen“, die Woche Montag bis Sonntag
-/// mit Laufhaken und Kilometersumme und der letzte Lauf. Gebaut wird er erst,
+/// Bereich „Heute“ in der Hülle ([AppShell]) nach FR-0209: Logo, Datum,
+/// Profil-Symbol, „Frei laufen“, die Woche Montag bis Sonntag mit Laufhaken
+/// und Kilometersumme und der letzte Lauf. Mit Plan (Phase 2, WP22 Teil D)
+/// zusätzlich die Karte „Heute geplant“ mit „Einheit starten“ und das
+/// Wochenziel als Zeit; ohne Plan der Einstieg „Ziel anlegen“. Ein Lauf aus
+/// „Einheit starten“ wird nach dem Beenden dieser Einheit zugeordnet
+/// ([PlanController.assignRun]); „Frei laufen“ ordnet nichts zu (die Spec
+/// nennt keine Regel dafür). Gebaut wird er erst,
 /// wenn der Speicher bereit ist ([session] ist die offene Sitzung) und die
 /// Ersteinrichtung erledigt oder übersprungen ist. Die Hülle baut ihn bei
 /// jeder Datenmeldung ([DataChanges]) neu; dabei lädt er neu.
@@ -55,6 +63,13 @@ class _Data {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late Future<_Data> _future = _load();
 
+  /// Ziel und Plan (nur lesen; geschrieben wird über das Zielformular und die
+  /// Zuordnung).
+  late final PlanController _plan = PlanController(
+    session: widget.session,
+    clock: widget.clock,
+  );
+
   /// Der Ortstag, für den die Seite zuletzt geladen und gebaut wurde.
   late String _shownDay;
 
@@ -63,12 +78,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     _shownDay = _today;
     WidgetsBinding.instance.addObserver(this);
+    _plan.addListener(_onPlan);
+    _plan.reload();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _plan.removeListener(_onPlan);
+    _plan.dispose();
     super.dispose();
+  }
+
+  void _onPlan() {
+    if (mounted) setState(() {});
   }
 
   /// Bleibt der Prozess über Mitternacht am Leben, steht beim Fortsetzen noch
@@ -92,6 +115,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _shownDay = _today;
       _future = _load();
     });
+    _plan.reload();
   }
 
   /// Heutiger Ortstag nach dem Versatz der Uhr (wie in der Statistik).
@@ -107,6 +131,84 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _push(BuildContext context, WidgetBuilder page) async {
     await Navigator.of(context).push<void>(MaterialPageRoute(builder: page));
     widget.changes.changed();
+  }
+
+  /// Lauf starten: frei ([unit] `null`) oder für die geplante Einheit. Der
+  /// Lauf ist vorerst der normale Lauf (die Führung kommt mit WP24). Wird er
+  /// beendet, gehört er zu [unit]; ein abgebrochener Lauf meldet nichts.
+  /// Die Datenmeldung folgt erst nach der Zuordnung.
+  Future<void> _startRun(BuildContext context, {PlanUnit? unit}) async {
+    final unitId = unit?.id;
+    Future<void>? assigned;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => RunFlowScreen(
+          session: widget.session,
+          clock: widget.clock,
+          ports: widget.runPorts,
+          permissions: widget.permissions,
+          serialize: widget.recalculation.exclusive,
+          sensors: widget.sensors,
+          recalculation: widget.recalculation,
+          onFinished: unitId == null
+              ? null
+              : (runId) => assigned = _assign(unitId, runId),
+        ),
+      ),
+    );
+    await assigned;
+    widget.changes.changed();
+  }
+
+  /// Ordnet den beendeten Lauf [runId] der Einheit [unitId] zu; danach rechnet
+  /// der Plan neu (Auslöser `run`, in der Warteschlange des Controllers). Ein
+  /// eigener Controller, weil die Hülle „Heute“ bei jeder Datenmeldung neu
+  /// baut. Nur ein im Speicher beendeter Lauf zählt. Scheitert es, bleibt die
+  /// Einheit offen (kein Fehlerinhalt nach außen).
+  Future<void> _assign(int unitId, int runId) async {
+    final plan = PlanController(session: widget.session, clock: widget.clock);
+    try {
+      final run = await widget.session.runs.get(runId);
+      if (run == null || run.state != RunState.finished) return;
+      await plan.assignRun(unitId, runId);
+    } on Object {
+      // Die Einheit bleibt offen; der Lauf ist gespeichert.
+    } finally {
+      plan.dispose();
+    }
+  }
+
+  /// Zielformular aus Teil C (Anlegen); danach lädt der Plan neu.
+  Future<void> _createGoal(BuildContext context) async {
+    await Navigator.of(context, rootNavigator: true).push<PlanActionResult>(
+      MaterialPageRoute(
+        builder: (_) => PlanGoalFormScreen(
+          controller: _plan,
+          session: widget.session,
+          clock: widget.clock,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _plan.reload();
+  }
+
+  /// Heute liegt in einer Woche des Plans (ab dem Anker der Fassung).
+  bool _inPlan(PlanViewState s) {
+    final day = _date(_today);
+    final anchor = planDay(s.version!.inputs.anchor);
+    if (day.isBefore(anchor)) return false;
+    final weeks = s.hints?.weeks.length ?? 0;
+    return day.difference(anchor).inDays ~/ 7 < weeks;
+  }
+
+  /// Die Einheit von heute aus der Woche des Plans, sonst `null`.
+  PlanUnit? _unitToday(PlanViewState s) {
+    final today = _today;
+    for (final u in s.weekUnits) {
+      if (isoDay(u.day) == today) return u;
+    }
+    return null;
   }
 
   @override
@@ -164,31 +266,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const SizedBox(height: 16),
             // Der Zugang ist ohne Profil und ohne Freigaben offen (FR-0001,
             // CON-0007); nur der Standort wird geprüft (FR-0195).
-            RamuriCard(
-              tone: RamuriCardTone.panel,
-              radius: 28,
-              padding: const EdgeInsets.all(22),
-              child: SizedBox(
-                width: double.infinity,
-                child: RamuriPrimaryButton(
-                  key: const Key('home_start_run'),
-                  icon: Icons.play_arrow_rounded,
-                  label: l10n.homeStartRun,
-                  onPressed: () => _push(
-                    context,
-                    (_) => RunFlowScreen(
-                      session: widget.session,
-                      clock: widget.clock,
-                      ports: widget.runPorts,
-                      permissions: widget.permissions,
-                      serialize: widget.recalculation.exclusive,
-                      sensors: widget.sensors,
-                      recalculation: widget.recalculation,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            _startCard(context, l10n),
             const SizedBox(height: 16),
             FutureBuilder<_Data>(
               future: _future,
@@ -222,14 +300,251 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Karte oben: ohne Plan „Frei laufen“ (und ohne Ziel „Ziel anlegen“),
+  /// mit Plan „Heute geplant“ (FR-0209, WP22 Teil D).
+  Widget _startCard(BuildContext context, AppLocalizations l10n) {
+    final s = _plan.state;
+    final ready = s.phase == PlanLoadPhase.ready;
+    if (ready && s.hasPlan) return _todayCard(context, l10n, s);
+    return RamuriCard(
+      tone: RamuriCardTone.panel,
+      radius: 28,
+      padding: const EdgeInsets.all(22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          RamuriPrimaryButton(
+            key: const Key('home_start_run'),
+            icon: Icons.play_arrow_rounded,
+            label: l10n.homeStartRun,
+            onPressed: () => _startRun(context),
+          ),
+          if (ready && s.goal == null) ...[
+            const SizedBox(height: 12),
+            RamuriSecondaryButton(
+              key: const Key('home_create_goal'),
+              icon: Icons.flag_outlined,
+              label: l10n.planEmptyCreateGoal,
+              onPressed: () => _createGoal(context),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// „Heute geplant“: Einheit mit Dauer, Ziel und Grundlage, „Einheit
+  /// starten“ und „Frei laufen“. Ruhetag, erledigte oder keine Einheit:
+  /// ein Satz und nur „Frei laufen“.
+  Widget _todayCard(BuildContext context, AppLocalizations l, PlanViewState s) {
+    final unit = _unitToday(s);
+    final open =
+        unit != null && unit.kind != PlanUnitKind.rest && unit.runId == null;
+    final formatter = AppSettingsScope.formatterOf(context);
+    return RamuriCard(
+      key: const Key('home_today_plan'),
+      tone: RamuriCardTone.panel,
+      radius: 28,
+      padding: const EdgeInsets.all(22),
+      child: Builder(
+        builder: (context) {
+          final t = Theme.of(context).textTheme;
+          final c = RamuriColors.of(context);
+          final lines = <Widget>[];
+          if (unit == null && !_inPlan(s)) {
+            lines.add(Text(l.planTodayNone, key: const Key('home_today_none')));
+          } else if (unit == null) {
+            // Tag ohne Einheit innerhalb des Plans: Ruhetag wie auf der
+            // Plan-Seite.
+            lines.add(Text(l.planTodayRest, key: const Key('home_today_rest')));
+          } else if (unit.runId != null) {
+            lines.add(
+              Text(
+                unit.kind == PlanUnitKind.rest
+                    ? l.planRestDay
+                    : planKindName(l, unit.kind),
+                style: t.titleLarge,
+              ),
+            );
+            lines.add(Text(l.planTodayDone, key: const Key('home_today_done')));
+          } else if (!open) {
+            lines.add(Text(l.planTodayRest, key: const Key('home_today_rest')));
+          } else {
+            final approx = planApproxMeters(s.version!.inputs, unit.minutes);
+            String? basis;
+            for (final seg in unit.segments) {
+              basis ??= planBasisText(l, seg.intensity?.basisCode);
+            }
+            lines.addAll([
+              Text(
+                planKindName(l, unit.kind),
+                key: const Key('home_today_unit'),
+                style: t.titleLarge,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                [
+                  planDurationText(l, unit.minutes),
+                  if (approx != null)
+                    l.planWeekApprox(
+                      '${formatter.unit.distanceFromMeters(approx).round()} '
+                      '${formatter.distanceLabel}',
+                    ),
+                ].join(' · '),
+                key: const Key('home_today_duration'),
+                style: t.bodyMedium,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                planKindPurpose(l, unit.kind),
+                key: const Key('home_today_purpose'),
+                style: t.bodySmall?.copyWith(color: c.textMuted),
+              ),
+              if (basis != null)
+                Text(
+                  l.planBasisLine(basis),
+                  key: const Key('home_today_basis'),
+                  style: t.bodySmall?.copyWith(color: c.textMuted),
+                ),
+            ]);
+          }
+          final free = open
+              ? RamuriSecondaryButton(
+                  key: const Key('home_start_run'),
+                  label: l.homeStartRun,
+                  onPressed: () => _startRun(context),
+                )
+              : RamuriPrimaryButton(
+                  key: const Key('home_start_run'),
+                  icon: Icons.play_arrow_rounded,
+                  label: l.homeStartRun,
+                  onPressed: () => _startRun(context),
+                );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      l.planTodayTitle,
+                      style: t.labelMedium?.copyWith(color: c.textMuted),
+                    ),
+                  ),
+                  if (unit != null)
+                    Text(
+                      l.planUnitWeekPhase(
+                        unit.weekIndex + 1,
+                        planPhaseFull(l, unit.phase),
+                      ),
+                      key: const Key('home_today_week'),
+                      style: t.labelMedium?.copyWith(color: c.textMuted),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ...lines,
+              const SizedBox(height: 18),
+              if (open)
+                Row(
+                  children: [
+                    Expanded(
+                      child: RamuriPrimaryButton(
+                        key: const Key('home_start_unit'),
+                        icon: Icons.play_arrow_rounded,
+                        label: l.planTodayStart,
+                        onPressed: () => _startRun(context, unit: unit),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: free),
+                  ],
+                )
+              else
+                free,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Wochenziel als Zeit (FR-0148): gelaufene Zeit dieser Woche gegen die
+  /// Wochenzeit des Plans, Kilometer nur als „ca.“. `null` ohne Plan.
+  Widget? _weekGoal(BuildContext context, AppLocalizations l, Duration done) {
+    final s = _plan.state;
+    if (s.phase != PlanLoadPhase.ready || !s.hasPlan) return null;
+    final day = _date(_today);
+    final monday = day.subtract(Duration(days: day.weekday - 1));
+    final target = planWeekMinutes(
+      hints: s.hints,
+      anchor: s.version!.inputs.anchor,
+      monday: monday,
+      units: s.weekUnits,
+    );
+    if (target <= 0) return null;
+    final c = RamuriColors.of(context);
+    final t = Theme.of(context).textTheme;
+    final formatter = AppSettingsScope.formatterOf(context);
+    final doneMinutes = done.inMinutes;
+    final approx = planApproxMeters(s.version!.inputs, target);
+    return Column(
+      key: const Key('home_week_goal'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text(l.planWeekGoal, style: t.labelMedium)),
+            Text(
+              l.planWeekGoalProgress(
+                planDurationText(l, doneMinutes),
+                planDurationText(l, target),
+              ),
+              key: const Key('home_week_goal_time'),
+              style: t.labelMedium,
+            ),
+          ],
+        ),
+        if (approx != null)
+          Text(
+            l.planWeekApprox(
+              '${formatter.unit.distanceFromMeters(approx).round()} '
+              '${formatter.distanceLabel}',
+            ),
+            key: const Key('home_week_goal_km'),
+            style: t.labelSmall?.copyWith(color: c.textMuted),
+          ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            key: const Key('home_week_goal_bar'),
+            value: (doneMinutes / target).clamp(0, 1).toDouble(),
+            minHeight: 6,
+            color: c.action,
+            backgroundColor: c.tint,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _content(BuildContext context, _Data data) {
     final l10n = AppLocalizations.of(context);
     final c = RamuriColors.of(context);
     final material = MaterialLocalizations.of(context);
     final formatter = AppSettingsScope.formatterOf(context);
     if (data.overviews.isEmpty) {
-      return RamuriCard(
-        child: Text(l10n.homeEmpty, key: const Key('home_empty')),
+      final goal = _weekGoal(context, l10n, Duration.zero);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          RamuriCard(child: Text(l10n.homeEmpty, key: const Key('home_empty'))),
+          if (goal != null) ...[
+            const SizedBox(height: 16),
+            RamuriCard(child: goal),
+          ],
+        ],
       );
     }
     final today = _today;
@@ -245,6 +560,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ? formatter.distance(0)
         : formatter.distance(stats.distanceMeters.value);
     final last = data.overviews.first;
+    final goal = _weekGoal(
+      context,
+      l10n,
+      stats.movingTime.value ?? Duration.zero,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -286,6 +606,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     _weekDay(material, l10n, week.firstDay!, i, today, runDays),
                 ],
               ),
+              if (goal != null) ...[const SizedBox(height: 16), goal],
             ],
           ),
         ),

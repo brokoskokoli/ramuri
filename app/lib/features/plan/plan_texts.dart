@@ -180,3 +180,40 @@ String? planHardFitText(AppLocalizations l, HardFitStatus s) => switch (s) {
   ),
   FeasibilityReason.showRegularity => null,
 };
+
+/// Ungefähre Strecke in Metern für [minutes] mit dem lockeren Tempo aus
+/// [inputs], nur wenn es bekannt ist (FR-0205, OQ-0077; „bekannt“ wie bei der
+/// Zielspitze, PAR-205: aus mindestens `peakMinEasyRuns` Läufen). Sonst
+/// `null`; Kilometer erscheinen dann nicht.
+double? planApproxMeters(PlanInputs inputs, int minutes) {
+  final pace = inputs.easyPaceSecondsPerKm;
+  if (minutes <= 0 ||
+      pace == null ||
+      !pace.isFinite ||
+      pace <= 0 ||
+      inputs.easyRunCount < const PlanParameters().peakMinEasyRuns) {
+    return null;
+  }
+  return minutes * 60 / pace * 1000;
+}
+
+/// Wochenzeit der Planwoche ab [monday] in Minuten, wie die Plan-Seite sie
+/// zeigt: aus der Rechnung ([GeneratedPlan.weeks]), sonst die Summe der
+/// Lauf-Einheiten in [units].
+int planWeekMinutes({
+  required GeneratedPlan? hints,
+  required DateTime anchor,
+  required DateTime monday,
+  required List<PlanUnit> units,
+}) {
+  final weeks = hints?.weeks ?? const <PlanWeek>[];
+  final index = planDay(monday).difference(planDay(anchor)).inDays ~/ 7;
+  final planned = index >= 0 && index < weeks.length
+      ? weeks[index].minutes
+      : null;
+  return planned ??
+      units.fold<int>(
+        0,
+        (a, u) => u.kind == PlanUnitKind.rest ? a : a + u.minutes,
+      );
+}
