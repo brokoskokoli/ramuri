@@ -254,12 +254,15 @@ int _min(int a, int b) => a < b ? a : b;
 /// (Intervalle, Tempodauerlauf, progressiver Lauf; sie wechseln) passt, damit
 /// die harte Einheit in jeder Woche der Spitze erscheint. Die Passform ist
 /// nicht monoton (ab der längeren Form kann die maximale Zeit scheitern);
-/// `from: t, upTo: t` prüft genau die Wochenzeit [t].
+/// `from: t, upTo: t` prüft genau die Wochenzeit [t]. Mit [anyForm] genügt es,
+/// dass mindestens eine der drei Formen vorkommt (gelockerte Regel für
+/// „passt nur in einem Teil der Wochen“).
 int? hardFitWeeklyMinutes({
   required Set<int> runDays,
   required int maxSessionMinutes,
   required int upTo,
   int from = 1,
+  bool anyForm = false,
   PlanParameters parameters = const PlanParameters(),
 }) {
   final monday = DateTime.utc(2001, 1, 1); // ein Montag
@@ -271,8 +274,8 @@ int? hardFitWeeklyMinutes({
       phase: PlanPhase.build,
       kind: WeekKind.holding,
     );
-    var all = true;
-    for (var ordinal = 0; ordinal < 3 && all; ordinal++) {
+    var all = !anyForm;
+    for (var ordinal = 0; ordinal < 3 && (anyForm ? !all : all); ordinal++) {
       final w = planWeekUnits(
         week: week,
         runDays: runDays,
@@ -282,7 +285,8 @@ int? hardFitWeeklyMinutes({
         hardOrdinal: ordinal,
         parameters: parameters,
       );
-      all = w.hardOmission == null && w.units.any((u) => u.isHard);
+      final fits = w.hardOmission == null && w.units.any((u) => u.isHard);
+      all = anyForm ? fits : all && fits;
     }
     if (all) return t;
   }

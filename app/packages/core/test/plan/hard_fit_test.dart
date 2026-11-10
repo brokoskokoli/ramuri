@@ -107,8 +107,9 @@ void main() {
         );
         final s = planCourseSetup(g, _inputs());
         expect(s.targetPeakMinutes, 250);
-        expect(s.hardFit, isNot(HardFitStatus.atPeak));
-        expect(s.hardFit, isNot(HardFitStatus.raised));
+        // Nicht "nie": in einem Teil der Spitzenwochen erscheint sie (Soll 1).
+        expect(s.hardFit, HardFitStatus.partialAtPeak);
+        expect(s.hardFitMinutes, isNotNull);
         final p = generatePlan(g, _inputs(), const [], _d0);
         final a = assessGoal(
           goal: g,
@@ -121,14 +122,13 @@ void main() {
         // Der Status stimmt mit dem Plan überein: auf dem Niveau der Spitze
         // fehlt die harte Einheit in mindestens einer Woche.
         final level = s.course(today: _d0).levelMinutes;
-        expect(
-          p.weeks
-              .where((w) => (w.minutes ?? 0) >= level)
-              .any(
-                (w) => !p.units.any((u) => u.weekIndex == w.index && u.isHard),
-              ),
-          isTrue,
-        );
+        final peakWeeks = p.weeks.where((w) => (w.minutes ?? 0) >= level);
+        bool hasHard(PlanWeek w) =>
+            p.units.any((u) => u.weekIndex == w.index && u.isHard);
+        expect(peakWeeks.any((w) => !hasHard(w)), isTrue);
+        // Die Form wechselt nur nach einer geplanten harten Einheit; ob in den
+        // Spitzenwochen eine erscheint, hängt davon ab (Regler 400: ja).
+        if (cap == 400) expect(peakWeeks.any(hasHard), isTrue);
       }
       // Ohne die zu kurze maximale Zeit passt sie am Niveau.
       final ok = planCourseSetup(

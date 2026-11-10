@@ -97,7 +97,7 @@ class GeneratedPlan {
 
   /// Zeitziel mit harter Einheit: ob der Plan bis zur Passform-Wochenzeit
   /// steigt oder warum nicht ([HardFitStatus.regulatorBelowFit],
-  /// [HardFitStatus.neverFits]); der Aufrufer zeigt den Grund an.
+  /// [HardFitStatus.partialAtPeak], [HardFitStatus.neverFits]); der Aufrufer zeigt den Grund an.
   final HardFitStatus hardFit;
 
   /// Kopie mit anderen neuen Einheiten und Konflikten (für den Dienst, der

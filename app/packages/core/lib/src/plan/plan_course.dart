@@ -22,9 +22,17 @@ enum HardFitStatus {
   /// Zielspitze gilt wie bisher.
   regulatorBelowFit,
 
-  /// Die harte Einheit passt bei keiner Wochenzeit über dem Niveau der Spitze
-  /// (z. B. ab 180 min die lange Form über der maximalen Zeit, weniger als 3
-  /// Lauftage oder maximale Zeit je Einheit zu kurz); Zielspitze wie bisher.
+  /// Die harte Einheit passt auf dem Niveau der Zielspitze (höchstens der
+  /// Regler) nur in einem Teil der Wochen (nicht in allen drei Formen, z. B.
+  /// ab 180 min die lange Form über der maximalen Zeit); mindestens eine Form
+  /// passt, sie erscheint also einzeln im Plan (je nachdem, welche Form an der
+  /// Reihe ist, auch in keiner Spitzenwoche), Zielspitze wie bisher.
+  partialAtPeak,
+
+  /// Die harte Einheit passt auf dem Niveau der Spitze in keiner Woche, auch
+  /// nicht in einer einzelnen Form, und bei keiner Wochenzeit darüber (z. B.
+  /// weniger als 3 Lauftage oder maximale Zeit je Einheit zu kurz); Zielspitze
+  /// wie bisher.
   neverFits,
 }
 
@@ -79,9 +87,13 @@ class PlanCourseSetup {
   /// Wirkung der harten Einheit auf [peakMinutes] (nur Zeitziele).
   final HardFitStatus hardFit;
 
-  /// Kleinste Wochenzeit, bei der die harte Einheit passt; `null`, wenn
-  /// [hardFit] nicht anwendbar ist oder sie nie passt. Bei
-  /// [HardFitStatus.regulatorBelowFit] über dem Regler.
+  /// Wochenzeit der Passform, je Status: [HardFitStatus.atPeak] die kleinste,
+  /// bei der alle drei Formen passen (höchstens das Niveau);
+  /// [HardFitStatus.raised] die kleinste über dem Niveau (= [peakMinutes]);
+  /// [HardFitStatus.partialAtPeak] die kleinste, bei der mindestens eine Form
+  /// passt (höchstens das Niveau); [HardFitStatus.regulatorBelowFit] die
+  /// kleinste über dem Regler. `null` bei [HardFitStatus.notApplicable] und
+  /// [HardFitStatus.neverFits].
   final int? hardFitMinutes;
 
   /// Geh-Lauf-Abfolge; `null`, wenn die Eingaben keine haben.
@@ -142,19 +154,23 @@ PlanCourseSetup planCourseSetup(
   if (peak != null && goal.type == GoalType.time && goal.hardSessionEnabled) {
     // Passform am tatsächlichen Niveau (Zielspitze, höchstens der Regler),
     // nicht an der kleinsten Passform: sie ist nicht monoton (NB4).
-    int? fit(int from, int upTo) => hardFitWeeklyMinutes(
-      runDays: goal.runDays,
-      maxSessionMinutes: maxSession,
-      from: from,
-      upTo: upTo,
-      parameters: parameters,
-    );
+    int? fit(int from, int upTo, {bool anyForm = false}) =>
+        hardFitWeeklyMinutes(
+          runDays: goal.runDays,
+          maxSessionMinutes: maxSession,
+          from: from,
+          upTo: upTo,
+          anyForm: anyForm,
+          parameters: parameters,
+        );
     final level = peak < capped ? peak : capped;
     if (fit(level, level) != null) {
       hardFitMinutes = fit(1, level);
       hardFit = HardFitStatus.atPeak;
     } else if ((hardFitMinutes = fit(level + 1, capped)) != null) {
       hardFit = HardFitStatus.raised;
+    } else if ((hardFitMinutes = fit(1, level, anyForm: true)) != null) {
+      hardFit = HardFitStatus.partialAtPeak;
     } else {
       hardFitMinutes = fit(capped + 1, _hardFitSearchLimit);
       hardFit = hardFitMinutes == null
