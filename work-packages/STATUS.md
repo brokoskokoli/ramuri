@@ -22,8 +22,8 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP18 | Subjektive Angaben und Nachtragen | gemergt (755b39d) | Python-Testvektor für Archivformat 2 fehlt; Reimport nimmt nachgetragene Trainings mit Datum in der Zukunft an (Grenze mit WP19); Speicherfehler beim Schließen der Zusammenfassung verliert die Notiz still; sRPE kann nach fehlgeschlagener Neuberechnung veraltet bleiben; Warnsignal-Antwort ohne Wirkung bis WP23; Bestpace-Ersatztext bei Faktor 1,3 noch 3 Zeilen; Hinweise in `handoff/hinweise/wp18/` | |
 | WP19 | Belastungsverlauf und Belastungsprofil | gemergt (2aa9ec4) | Meldung „Neuberechnet“ bleibt bis zur nächsten Aktion; VO₂max-Tageswerte jüngerer Tage nach Import älterer Läufe bis zur nächsten Neuberechnung veraltet (prüfen, ob gewollt); Reimport-Fehlermeldung ohne Grund; nach abgelehntem Rückweg auf Edwards TRIMP „nicht verfügbar“; ungeprüft auf dem Gerät: Ladefehler, „Banister aktiv, aber nicht anwendbar“ |
 | WP20 | Leistungsprognose | gemergt (9fccb54) | Produktfrage: Löschen einer Referenz aus einem bestätigten Lauf schlägt diesen Lauf wieder vor; Marathon mit 5-km-Referenz nennt „Referenzdistanz zu weit“ statt „immer vorläufig“; Annahme zu PAR-117 ersetzt WP21; „Alles löschen“ und danach Import meldet „App enthält schon Daten“ (M1-Verhalten, isEmpty zählt Profil); ungeprüft auf dem Gerät: Ladezeit, Schrift 2,0 bei Formular und Dialogen |
-| WP21 | Planmodell und Planerzeugung | in Arbeit | |
-| WP22 | Plan-Seite, Ziele und Kalender | geplant | |
+| WP21 | Planmodell und Planerzeugung | gemergt (4b12601) | Oberfläche und Lese-Adapter für `buildPlanInputs` an WP22; PAR-140, PAR-200/201, PAR-202 an WP23; 5-km-Zeitziel mit fernem Datum bekommt harte Einheiten erst spät (PAR-199-Dämpfung, beobachten); `created_day` des Ziels nicht gespeichert; ungeprüft: Migration mit großen Datenmengen und Abbruch mittendrin |
+| WP22 | Plan-Seite, Ziele und Kalender | in Arbeit | |
 | WP23 | Plananpassung, Warnsignal, Erklärungen, Basis-Erholung | geplant | |
 | WP24 | Geführte Einheit und Ansagen | geplant | |
 | WP25 | Laufband und Zusatzmetriken | geplant | |
