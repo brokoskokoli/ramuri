@@ -2269,6 +2269,8 @@
   "@calendarMoveAlternatives": {"description": "WP22 Teil E, Kalender"},
   "calendarMoveNoAlternative": "In diesen Wochen ist kein freier Tag ohne Konflikt.",
   "@calendarMoveNoAlternative": {"description": "WP22 Teil E, Kalender"},
+  "calendarMoveEndsHardReplacement": "Diese Einheit ersetzt die harte Einheit ihrer Woche. In der anderen Woche wird sie ein normaler lockerer Lauf, die harte Einheit dort bleibt. Die bisherige Woche kann bei der nächsten Neuberechnung wieder eine harte Einheit bekommen.",
+  "@calendarMoveEndsHardReplacement": {"description": "WP22 NB4 E2a, Verschieben einer Einheit hart->locker in eine andere Woche"},
   "calendarMoveConfirm": "Verschieben",
   "@calendarMoveConfirm": {"description": "WP22 Teil E, Kalender"},
   "calendarMoveConfirmAnyway": "Trotzdem verschieben",

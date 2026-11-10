@@ -228,7 +228,12 @@ GeneratedPlan generatePlan(
         if (!u.day.isBefore(start) && u.day.isBefore(end)) u,
     ];
     final frozenDays = {for (final u in frozenWeek) u.day};
-    final frozenHard = frozenWeek.any((u) => u.isHard);
+    // Eine vom Nutzer zum lockeren Lauf ersetzte harte Einheit (easyForHard)
+    // zählt auch eingefroren als harte Einheit der Woche.
+    final frozenReplaced = frozenWeek.any(
+      (u) => u.fixed == PlanUnitFixed.easyForHard,
+    );
+    final frozenHard = frozenReplaced || frozenWeek.any((u) => u.isHard);
 
     int? prevWeekday;
     final prevUnits = byWeek[start.subtract(const Duration(days: 7))];
@@ -363,7 +368,7 @@ GeneratedPlan generatePlan(
       if (planned.unplacedMinutes > 0) {
         unplaced[week.index] = planned.unplacedMinutes;
       }
-      final om = hardReplaced
+      final om = hardReplaced || frozenReplaced
           ? HardOmission.replacedByUser
           : planned.hardOmission;
       if (om != null) omissions[week.index] = om;

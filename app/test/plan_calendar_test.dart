@@ -703,6 +703,57 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    // Festlegung WP22 (Review E2a Runde 3, Befund 4).
+    for (final (locale, text) in [
+      ('de', 'Diese Einheit ersetzt die harte Einheit ihrer Woche.'),
+      ('en', 'This run replaces the hard session of its week.'),
+    ]) {
+      testWidgets('hart -> locker verschieben: in der eigenen Woche ohne, in '
+          'eine andere Woche mit Hinweis, danach fixed = kind ($locale)', (
+        tester,
+      ) async {
+        final (session, clock) = await _seed();
+        final plans = (session as PlanStorage).plans;
+        final hard = (await plans.unitOn(_d(3)))!; // Do 12., Intervalle
+        await plans.replaceUnit(
+          hard.id!,
+          PlanUnit(
+            day: hard.day,
+            kind: PlanUnitKind.easy,
+            phase: hard.phase,
+            weekIndex: hard.weekIndex,
+            minutes: 45,
+            segments: const [
+              PlanSegment(kind: PlanSegmentKind.easy, minutes: 45),
+            ],
+          ),
+          today: _d(2),
+        );
+        expect((await plans.unitOn(_d(3)))!.fixed, PlanUnitFixed.easyForHard);
+        await _pump(tester, session, clock, locale: locale);
+
+        await _startMove(tester, 3, 4); // Fr 13., gleiche Woche
+        expect(key('calendar_move_ends_hard_replacement'), findsNothing);
+        await tester.tap(key('calendar_move_cancel'));
+        await tester.pumpAndSettle();
+
+        await _startMove(tester, 3, 7); // Mo 16., nächste Woche
+        expect(key('calendar_move_ends_hard_replacement'), findsOneWidget);
+        expect(find.textContaining(text), findsOneWidget);
+        await tester.tap(key('calendar_move_confirm'));
+        await tester.pumpAndSettle();
+        expect(await plans.unitOn(_d(3)), isNull);
+        final moved = (await plans.unitOn(_d(7)))!;
+        expect(moved.id, hard.id);
+        expect(moved.kind, PlanUnitKind.easy);
+        expect(moved.fixed, PlanUnitFixed.kind);
+        expect(moved.weekIndex, 1);
+        // Die harte Einheit der Zielwoche bleibt.
+        expect((await plans.unitOn(_d(10)))!.kind, PlanUnitKind.intervals);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     for (final (locale, brightness) in [
       ('de', Brightness.light),
       ('en', Brightness.dark),

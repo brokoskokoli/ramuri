@@ -120,7 +120,9 @@ abstract interface class PlanRepository {
   /// Einheit oder Lauf fehlt: `notFound`.
   Future<void> assignRun(int unitId, int? runId);
 
-  /// Verschiebt die Einheit auf [newDay] und setzt `pinned` (OQ-0011). Fehlt
+  /// Verschiebt die Einheit auf [newDay] und setzt `pinned` (OQ-0011);
+  /// `fixed` aus `planMovedFixed` (`easyForHard` wird in einer anderen Woche
+  /// zu `kind`). Fehlt
   /// die Einheit: `notFound`. Mit Lauf, auf einem belegten Tag oder auf einem
   /// Tag vor [today] (Ortstag „heute“, kein Uhr-Zugriff im Speicher):
   /// `rejected`.

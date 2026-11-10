@@ -1162,6 +1162,11 @@ class _MoveDialogState extends State<_MoveDialog> {
                     l.calendarMoveConflict(day(d)),
                     'calendar_move_conflict_${_dayKey(d)}',
                   ),
+                if (c.allowed && c.endsHardReplacement)
+                  _line(
+                    l.calendarMoveEndsHardReplacement,
+                    'calendar_move_ends_hard_replacement',
+                  ),
                 if (c.overRegulator)
                   _line(
                     l.calendarMoveRegulator(

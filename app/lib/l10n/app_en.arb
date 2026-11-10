@@ -1547,6 +1547,8 @@
   "@calendarMoveAlternatives": {"description": "WP22 Teil E, Kalender"},
   "calendarMoveNoAlternative": "No free day without a conflict in these weeks.",
   "@calendarMoveNoAlternative": {"description": "WP22 Teil E, Kalender"},
+  "calendarMoveEndsHardReplacement": "This run replaces the hard session of its week. In the other week it becomes a regular easy run and the hard session there stays. Its current week may get a hard session again at the next recalculation.",
+  "@calendarMoveEndsHardReplacement": {"description": "WP22 NB4 E2a, Verschieben einer Einheit hart->locker in eine andere Woche"},
   "calendarMoveConfirm": "Move",
   "@calendarMoveConfirm": {"description": "WP22 Teil E, Kalender"},
   "calendarMoveConfirmAnyway": "Move anyway",

@@ -166,6 +166,14 @@ void main() {
         _replace(week, easy, PlanUnitKind.long).unit!.fixed,
         PlanUnitFixed.kind,
       );
+      // Nur eine harte Einheit wird easyForHard: lang -> locker und eine
+      // lockere Einheit bleiben kind (Review E2a Runde 3, Befund 2).
+      expect(long.isHard, isFalse);
+      expect(
+        _replace(week, long, PlanUnitKind.easy).unit!.fixed,
+        PlanUnitFixed.kind,
+      );
+      expect(planReplacedFixed(easy, PlanUnitKind.easy), PlanUnitFixed.kind);
       expect(PlanUnitFixed.easyForHard.keepsKind, isTrue);
       expect(PlanUnitFixed.kind.keepsKind, isTrue);
       expect(PlanUnitFixed.day.keepsKind, isFalse);

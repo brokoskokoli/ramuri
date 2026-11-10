@@ -1,6 +1,7 @@
 import '../ports/storage.dart';
 import '../ports/storage_plan.dart';
 import '../src/goals/training_goal.dart';
+import '../src/plan/plan_move.dart' show planMovedFixed;
 import '../src/plan/plan_replace.dart' show planReplacedFixed;
 import '../src/plan/plan_unit.dart';
 import '../src/plan/weekly_time.dart' show planDay;
@@ -83,6 +84,7 @@ class FakePlanRepository implements PlanRepository {
       day: day,
       weekIndex: movedWeekIndex(u, day),
       pinned: true,
+      fixed: planMovedFixed(u, day),
     );
   }
 

@@ -105,6 +105,38 @@ void main() {
     expect(c.alternatives, [_d(2)]);
   });
 
+  test(
+    'hart -> locker (easyForHard) in eine andere Woche: wird kind, '
+    'Hinweis im Dialog; in der eigenen Woche bleibt es (Festlegung WP22)',
+    () {
+      final efh = PlanUnit(
+        id: 1,
+        day: _d(1),
+        kind: PlanUnitKind.easy,
+        phase: PlanPhase.build,
+        weekIndex: 0,
+        minutes: 30,
+        segments: const [],
+        pinned: true,
+        fixed: PlanUnitFixed.easyForHard,
+      );
+      final units = [efh, hard, long];
+      expect(planMovedFixed(efh, _d(2)), PlanUnitFixed.easyForHard);
+      expect(planMovedFixed(efh, _d(6)), PlanUnitFixed.easyForHard); // So
+      expect(planMovedFixed(efh, _d(7)), PlanUnitFixed.kind); // Mo danach
+      expect(planMovedFixed(efh, _d(-1)), PlanUnitFixed.kind); // So davor
+      expect(_check(units, efh, 2).endsHardReplacement, isFalse);
+      final other = _check(units, efh, 8);
+      expect(other.allowed, isTrue);
+      expect(other.endsHardReplacement, isTrue);
+      // Andere Festlegungen bleiben, auch über die Woche.
+      final kindUnit = efh.copyWith(fixed: PlanUnitFixed.kind);
+      expect(planMovedFixed(kindUnit, _d(8)), PlanUnitFixed.kind);
+      expect(_check([kindUnit], kindUnit, 8).endsHardReplacement, isFalse);
+      expect(_check(week, easy, 8).endsHardReplacement, isFalse);
+    },
+  );
+
   group('Nachbesserung E', () {
     test('Wochengrenzen beim Regler: Sonntag der Vorwoche und Montag der '
         'Folgewoche zählen nicht zur Woche', () {

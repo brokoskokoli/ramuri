@@ -1219,6 +1219,78 @@ void main() {
       expect(p.hardOmissions[1], HardOmission.replacedByUser);
     });
 
+    // Befund NB4-1 (Review E2a Runde 3): Auch eingefroren (Tag vorbei oder
+    // Lauf zugeordnet) zählt hart -> locker als harte Einheit der Woche.
+    test('hart -> locker eingefroren (Lauf zugeordnet oder Tag vorbei), '
+        'heute Mi: die Woche bleibt ohne harte Einheit, auch nach anderen '
+        'Lauftagen, mit Hinweis', () {
+      final today = DateTime.utc(2026, 11, 18); // Mi
+      final easyForHard = replaced(b1.first, PlanUnitKind.easy); // Di 17.
+      expect(easyForHard.fixed, PlanUnitFixed.easyForHard);
+      for (final (what, frozen) in [
+        ('Lauf zugeordnet', easyForHard.copyWith(runId: 7)),
+        ('Tag vorbei', easyForHard),
+      ]) {
+        for (final days in const [
+          {2, 4, 6},
+          {3, 5, 7},
+          {4, 6, 7},
+          {3, 6, 7},
+        ]) {
+          final why = '$what, Lauftage $days';
+          final g2 = goal(date: DateTime.utc(2027, 2, 14), days: days);
+          final p = generatePlan(g2, inputs(start: 150, today: today), [
+            frozen,
+          ], today);
+          final w = week1(p);
+          expect(w, isNotEmpty, reason: why);
+          expect(w.where((u) => u.isHard), isEmpty, reason: why);
+          expect(p.hardOmissions[1], HardOmission.replacedByUser, reason: why);
+          // Die nächste Woche hat wieder ihre harte Einheit.
+          expect(
+            p.units.where((u) => u.weekIndex == 2 && u.isHard),
+            isNotEmpty,
+            reason: why,
+          );
+        }
+      }
+    });
+
+    // Festlegung WP22 (Review E2a Runde 3, Befund 4): In eine andere Woche
+    // verschoben wird easyForHard zu kind (planMovedFixed, confirmMove).
+    test('hart -> locker in die nächste Woche verschoben: die Zielwoche '
+        'behält ihre harte Einheit, kein Hinweis', () {
+      final b2 = [
+        for (final u in base.units)
+          if (u.weekIndex == 2) u,
+      ];
+      final hard2 = b2.where((u) => u.isHard).toList();
+      expect(hard2, hasLength(1));
+      final efh = replaced(b1.first, PlanUnitKind.easy); // Di 17.
+      final to = DateTime.utc(2026, 11, 25); // Mi der nächsten Woche, frei
+      expect(b2.any((u) => u.day == to), isFalse);
+      final moved = efh.copyWith(
+        day: to,
+        weekIndex: 2,
+        fixed: planMovedFixed(efh, to),
+      );
+      expect(moved.fixed, PlanUnitFixed.kind);
+      final p = generatePlan(
+        g,
+        inputs(start: 150),
+        const [],
+        d0,
+        pinnedUnits: [moved],
+      );
+      final w2 = [
+        for (final u in p.units)
+          if (u.weekIndex == 2) u,
+      ];
+      expect(w2.where((u) => u.isHard).map((u) => u.kind), [hard2.single.kind]);
+      expect(w2.firstWhere((u) => u.day == to).kind, PlanUnitKind.easy);
+      expect(p.hardOmissions[2], isNull);
+    });
+
     test('hart -> locker und eine andere Einheit -> Tempo in derselben '
         'Woche: die Woche hat eine harte Einheit, kein Hinweis', () {
       final p = generatePlan(
@@ -1276,22 +1348,30 @@ void main() {
       final walk = wb.units.firstWhere(
         (u) => u.weekIndex >= 1 && u.kind == PlanUnitKind.walkRun,
       );
-      final p = generatePlan(
-        wg,
-        wi,
-        const [],
-        d0,
-        pinnedUnits: [replaced(walk, PlanUnitKind.tempo)],
-      );
-      final u = p.units.firstWhere((u) => u.day == walk.day);
-      expect(u.kind, PlanUnitKind.walkRun);
-      expect(u.fixed, PlanUnitFixed.none);
-      expect(u.pinned, isTrue);
-      expect(sig(u), sig(walk).replaceFirst('|false', '|true'));
-      expect(
-        [for (final c in p.pinnedConflicts) '${c.kind.name}@${c.day.day}'],
-        ['walkRunFirst@${walk.day.day}'],
-      );
+      // Auch hart -> locker (easyForHard) hat in der Geh-Lauf-Woche keinen
+      // Vorrang (Review E2a Runde 3, Befund 3).
+      for (final (what, pin) in [
+        ('tempo, fixed = kind', replaced(walk, PlanUnitKind.tempo)),
+        (
+          'easy, fixed = easyForHard',
+          replaced(
+            walk,
+            PlanUnitKind.easy,
+          ).copyWith(fixed: PlanUnitFixed.easyForHard),
+        ),
+      ]) {
+        final p = generatePlan(wg, wi, const [], d0, pinnedUnits: [pin]);
+        final u = p.units.firstWhere((u) => u.day == walk.day);
+        expect(u.kind, PlanUnitKind.walkRun, reason: what);
+        expect(u.fixed, PlanUnitFixed.none, reason: what);
+        expect(u.pinned, isTrue, reason: what);
+        expect(sig(u), sig(walk).replaceFirst('|false', '|true'), reason: what);
+        expect(
+          [for (final c in p.pinnedConflicts) '${c.kind.name}@${c.day.day}'],
+          ['walkRunFirst@${walk.day.day}'],
+          reason: what,
+        );
+      }
     });
   });
 

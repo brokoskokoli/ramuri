@@ -33,6 +33,7 @@ class PlanMoveCheck {
     this.weekMinutes = 0,
     this.weekCapMinutes = 0,
     this.alternatives = const [],
+    this.endsHardReplacement = false,
   });
 
   /// Der geprüfte Tag.
@@ -57,6 +58,12 @@ class PlanMoveCheck {
   /// (FR-0178). Nur bei einem Konflikt oder überschrittenem Regler belegt.
   final List<DateTime> alternatives;
 
+  /// Die Einheit ersetzt die harte Einheit ihrer Woche (hart -> locker,
+  /// [PlanUnitFixed.easyForHard]) und wechselt die Woche: Sie wird ein
+  /// normaler fester lockerer Lauf ([planMovedFixed]), die Zielwoche behält
+  /// ihre harte Einheit (Festlegung WP22). Hinweis im Dialog, keine Sperre.
+  final bool endsHardReplacement;
+
   bool get allowed => blocked == null;
 
   /// Abstandskonflikt (FR-0177): anzeigen, nicht sperren (PAR-060).
@@ -64,6 +71,22 @@ class PlanMoveCheck {
 
   /// Woche über dem Regler: Hinweis statt Sperre (PAR-060).
   bool get overRegulator => weekMinutes > weekCapMinutes;
+}
+
+/// Festlegung einer auf [newDay] verschobenen Einheit, gemeinsam für die
+/// Prüfung ([checkPlanMove]) und den Speicher (`PlanRepository.confirmMove`):
+/// Eine Einheit [PlanUnitFixed.easyForHard] (hart -> locker) bleibt es nur in
+/// ihrer Woche; in einer anderen Woche wird sie [PlanUnitFixed.kind] (ein
+/// normaler fester lockerer Lauf), damit sie dort nicht die harte Einheit
+/// aufnimmt (Festlegung WP22). Sonst bleibt die Festlegung.
+PlanUnitFixed planMovedFixed(PlanUnit unit, DateTime newDay) {
+  if (unit.fixed != PlanUnitFixed.easyForHard) return unit.fixed;
+  DateTime monday(DateTime d) {
+    final x = planDay(d);
+    return x.subtract(Duration(days: x.weekday - DateTime.monday));
+  }
+
+  return monday(newDay) == monday(unit.day) ? unit.fixed : PlanUnitFixed.kind;
 }
 
 /// Prüft, ob [unit] auf [newDay] verschoben werden kann (FR-0177, PAR-060).
@@ -176,5 +199,6 @@ PlanMoveCheck checkPlanMove({
     weekMinutes: minutes,
     weekCapMinutes: cap,
     alternatives: alternatives,
+    endsHardReplacement: planMovedFixed(unit, day) != unit.fixed,
   );
 }

@@ -101,24 +101,15 @@ class DriftPlanRepository implements PlanRepository {
           _parseDay(row.day).isBefore(planDay(today))) {
         throw const StorageException(StorageFailure.rejected);
       }
-      final week = movedWeekIndex(
-        PlanUnit(
-          day: _parseDay(row.day),
-          kind: PlanUnitKind.easy,
-          phase: PlanPhase.entry,
-          weekIndex: row.week,
-          minutes: 0,
-          segments: const [],
-        ),
-        day,
-      );
+      final stored = _light(row);
       await (_db.update(
         _db.planUnits,
       )..where((t) => t.id.equals(unitId))).write(
         d.PlanUnitsCompanion(
           day: Value(text),
-          week: Value(week),
+          week: Value(movedWeekIndex(stored, day)),
           pinned: const Value(true),
+          fixed: Value(planMovedFixed(stored, day).name),
         ),
       );
     });

@@ -38,6 +38,10 @@ final List<StorageContractCase> planContractCases = [
     'Plan: Art ersetzen, Ruhetag festlegen und aufheben (Schema 8)',
     _replaceAndRestDay,
   ),
+  const StorageContractCase(
+    'Plan: hart -> locker in eine andere Woche verschoben wird kind',
+    _moveEasyForHard,
+  ),
   const StorageContractCase('Alles löschen leert den Plan', _deleteAll),
 ];
 
@@ -67,6 +71,53 @@ PlanUnit _rest(int day) => PlanUnit(
   pinned: true,
   fixed: PlanUnitFixed.day,
 );
+
+/// Festlegung WP22 (Review E2a Runde 3, Befund 4): Eine Einheit
+/// easyForHard bleibt es beim Verschieben in ihrer Woche; in einer anderen
+/// Woche wird sie kind (`planMovedFixed`), die Zielwoche behält so ihre harte
+/// Einheit.
+Future<void> _moveEasyForHard(StorageContractHarness h) async {
+  final s = await h.open();
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
+  final p = _p(s);
+  await p.writeVersion(
+    await _draft(p, 0, [
+      _unit(1, kind: PlanUnitKind.tempo),
+      _unit(3),
+      _unit(8, week: 1, kind: PlanUnitKind.tempo),
+      _unit(10, week: 1),
+    ]),
+  );
+  final u1 = (await p.unitOn(_day(1)))!;
+  await p.replaceUnit(u1.id!, _as(u1, PlanUnitKind.easy), today: _day(1));
+  expectEq(
+    (await p.unitOn(_day(1)))!.fixed,
+    PlanUnitFixed.easyForHard,
+    'hart -> locker',
+  );
+  await p.confirmMove(u1.id!, _day(2), today: _day(1));
+  final same = (await p.unitOn(_day(2)))!;
+  expectEq(same.fixed, PlanUnitFixed.easyForHard, 'gleiche Woche: bleibt');
+  await p.confirmMove(u1.id!, _day(9), today: _day(1));
+  final other = (await p.unitOn(_day(9)))!;
+  expectEq(other.id, u1.id, 'andere Woche: gleiche Einheit');
+  expectEq(other.weekIndex, 1, 'andere Woche: Woche folgt dem Tag');
+  expectEq(other.kind, PlanUnitKind.easy, 'andere Woche: locker');
+  expectEq(other.fixed, PlanUnitFixed.kind, 'andere Woche: kind');
+  expectTrue(other.pinned, 'andere Woche: pinned');
+  // Zurück in die alte Woche: bleibt ein normaler fester lockerer Lauf.
+  await p.confirmMove(u1.id!, _day(4), today: _day(1));
+  expectEq(
+    (await p.unitOn(_day(4)))!.fixed,
+    PlanUnitFixed.kind,
+    'zurück: bleibt kind',
+  );
+  // Die harte Einheit der anderen Woche ist unberührt.
+  final u8 = (await p.unitOn(_day(8)))!;
+  expectEq(u8.kind, PlanUnitKind.tempo, 'Zielwoche: harte Einheit bleibt');
+  expectEq(u8.fixed, PlanUnitFixed.none, 'Zielwoche: Festlegung bleibt');
+  await s.close();
+}
 
 /// Zustand samt `fixed` (ändert eine abgelehnte Änderung etwas?).
 Future<String> _fixedState(StorageSession s) async =>
@@ -142,6 +193,24 @@ Future<void> _replaceAndRestDay(StorageContractHarness h) async {
     PlanUnitFixed.kind,
     'locker -> hart: fixed = kind',
   );
+  // Nur eine gespeicherte harte Einheit wird easyForHard: lang -> locker
+  // bleibt kind. Danach wieder Tempo wie oben.
+  await p.replaceUnit(
+    u1.id!,
+    _as(r1, PlanUnitKind.long, minutes: 40),
+    today: _day(1),
+  );
+  await p.replaceUnit(
+    u1.id!,
+    _as(r1, PlanUnitKind.easy, minutes: 40),
+    today: _day(1),
+  );
+  expectEq(
+    (await p.unitOn(_day(1)))!.fixed,
+    PlanUnitFixed.kind,
+    'lang -> locker: fixed = kind',
+  );
+  await p.replaceUnit(u1.id!, tempo, today: _day(1));
 
   var before = await _fixedState(s);
   final u0 = (await p.unitOn(_day(0)))!;
