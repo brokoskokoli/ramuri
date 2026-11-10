@@ -35,7 +35,7 @@ PlanInputs inputs({int start = 90, int walk = 0}) => PlanInputs(
   walkRunWeeks: walk,
 );
 
-GoalAssessment? assess(
+GoalAssessment assess(
   TrainingGoal g, {
   PlanInputs? i,
   TimeGoalBasis basis = const TimeGoalBasis(),
@@ -47,7 +47,7 @@ void main() {
   group('Streckenziel (PAR-206)', () {
     // 10 km ohne Tempo: 65 min längster Lauf, 3 Lauftage: Spitze 163 min.
     test('Spitze rechtzeitig: passt', () {
-      final a = assess(goal(date: inWeeks(60)))!;
+      final a = assess(goal(date: inWeeks(60)));
       expect(a.feasibility, GoalFeasibility.fits);
       expect(a.reason, FeasibilityReason.peakReached);
       expect(a.fitsFrom, isNull);
@@ -55,15 +55,15 @@ void main() {
     });
 
     test('zu knapp: knapp mit Datum, an dem es passt', () {
-      final a = assess(goal(date: inWeeks(10)))!;
+      final a = assess(goal(date: inWeeks(10)));
       expect(a.feasibility, GoalFeasibility.tight);
       expect(a.reason, FeasibilityReason.peakTooLate);
       final from = a.fitsFrom!;
       expect(from.isAfter(inWeeks(10)), isTrue);
       // das Datum passt wirklich, die Woche davor nicht
-      expect(assess(goal(date: from))!.feasibility, GoalFeasibility.fits);
+      expect(assess(goal(date: from)).feasibility, GoalFeasibility.fits);
       expect(
-        assess(goal(date: from.subtract(const Duration(days: 7))))!.feasibility,
+        assess(goal(date: from.subtract(const Duration(days: 7)))).feasibility,
         GoalFeasibility.tight,
       );
       // gleicher Wochentag wie das Ziel
@@ -73,7 +73,7 @@ void main() {
     test('ein späteres Datum ist nie schlechter', () {
       var seenFit = false;
       for (var w = 1; w <= 90; w++) {
-        final f = assess(goal(date: inWeeks(w)))!.feasibility;
+        final f = assess(goal(date: inWeeks(w))).feasibility;
         if (f == GoalFeasibility.fits) seenFit = true;
         if (seenFit) expect(f, GoalFeasibility.fits, reason: 'Woche $w');
       }
@@ -83,16 +83,16 @@ void main() {
     test('Halbmarathon braucht länger als 5 km', () {
       final a5 = assess(
         goal(distance: GoalDistance.fiveKilometers, date: inWeeks(12)),
-      )!;
+      );
       final a21 = assess(
         goal(distance: GoalDistance.halfMarathon, date: inWeeks(12)),
-      )!;
+      );
       expect(a5.feasibility, GoalFeasibility.fits);
       expect(a21.feasibility, GoalFeasibility.tight);
     });
 
     test('Regler unter der Zielspitze: ausgewiesen, kein Datum', () {
-      final a = assess(goal(date: inWeeks(60), capMin: 120))!;
+      final a = assess(goal(date: inWeeks(60), capMin: 120));
       expect(a.feasibility, GoalFeasibility.tight);
       expect(a.reason, FeasibilityReason.peakAboveRegulator);
       expect(a.regulatorTooLow, isTrue);
@@ -100,44 +100,50 @@ void main() {
     });
 
     test('Regler genau auf der Zielspitze: kein Fehlalarm', () {
-      final a = assess(goal(date: inWeeks(60), capMin: 163))!;
+      final a = assess(goal(date: inWeeks(60), capMin: 163));
       expect(a.regulatorTooLow, isFalse);
       expect(a.feasibility, GoalFeasibility.fits);
       expect(
-        assess(goal(date: inWeeks(60), capMin: 162))!.regulatorTooLow,
+        assess(goal(date: inWeeks(60), capMin: 162)).regulatorTooLow,
         isTrue,
       );
     });
 
     test('Stand schon auf der Spitze: passt auch kurz vor dem Termin', () {
-      final a = assess(goal(date: inWeeks(1)), i: inputs(start: 170))!;
+      final a = assess(goal(date: inWeeks(1)), i: inputs(start: 170));
       expect(a.feasibility, GoalFeasibility.fits);
       // Termin in der laufenden Woche: kein Aufbau mehr, nur Reduktion
       final sameWeek = d0.add(const Duration(days: 2));
       expect(
-        assess(goal(date: sameWeek), i: inputs(start: 170))!.feasibility,
+        assess(goal(date: sameWeek), i: inputs(start: 170)).feasibility,
         GoalFeasibility.fits,
       );
       expect(
-        assess(goal(date: sameWeek), i: inputs(start: 160))!.feasibility,
+        assess(goal(date: sameWeek), i: inputs(start: 160)).feasibility,
         GoalFeasibility.tight,
       );
     });
 
     test('maximale Zeit je Einheit unter dem längsten Lauf: Hinweis', () {
       expect(
-        assess(goal(date: inWeeks(60), maxMin: 60))!.sessionLimitsLongestRun,
+        assess(goal(date: inWeeks(60), maxMin: 60)).sessionLimitsLongestRun,
         isTrue,
       );
       expect(
-        assess(goal(date: inWeeks(60), maxMin: 65))!.sessionLimitsLongestRun,
+        assess(goal(date: inWeeks(60), maxMin: 65)).sessionLimitsLongestRun,
         isFalse,
       );
     });
 
-    test('Ziel ohne Datum und offenes Ziel: keine Einschätzung', () {
-      expect(assess(goal()), isNull);
-      expect(assess(goal(type: GoalType.open)), isNull);
+    test('Ziel ohne Datum und offenes Ziel: Regelmäßigkeit zeigen', () {
+      for (final g in [goal(), goal(type: GoalType.open)]) {
+        final a = assess(g);
+        expect(a.reason, FeasibilityReason.showRegularity);
+        expect(a.feasibility, isNull);
+        expect(a.fitsFrom, isNull);
+        expect(a.requiredPercentPerWeek, isNull);
+        expect(a.regulatorTooLow, isFalse);
+      }
     });
   });
 
@@ -149,7 +155,7 @@ void main() {
     GoalAssessment run(double cur, {int weeks = 10, int runs = 3}) => assess(
       goal(type: GoalType.time, date: inWeeks(weeks)),
       basis: basis(cur, runs),
-    )!;
+    );
 
     test('Grenzen 0,25 und 0,5 sind einschließlich', () {
       // cur = 3000/(1-0.025) => 2,5 % gesamt => 0,25 %/Woche
@@ -163,20 +169,23 @@ void main() {
       expect(run(3000 / 0.9749).feasibility, GoalFeasibility.tight);
     });
 
-    test('ab etwa Datum bei knapp und eher später', () {
-      final a = run(3000 / 0.95);
-      // 5 % bei 0,25 %/Woche = 20 Wochen
-      expect(a.fitsFrom, inWeeks(20));
-      final b = run(3000 / 0.9, weeks: 5);
-      expect(b.feasibility, GoalFeasibility.later);
-      expect(b.fitsFrom, inWeeks(40));
-      expect(run(3000 / 0.975).fitsFrom, isNull);
-    });
+    test(
+      'kein „ab etwa“-Datum beim Zeitziel (PAR-206 nur beim Streckenziel)',
+      () {
+        final a = run(3000 / 0.95);
+        expect(a.feasibility, GoalFeasibility.tight);
+        expect(a.fitsFrom, isNull);
+        final b = run(3000 / 0.9, weeks: 5);
+        expect(b.feasibility, GoalFeasibility.later);
+        expect(b.fitsFrom, isNull);
+        expect(run(3000 / 0.975).fitsFrom, isNull);
+      },
+    );
 
     test('ein späteres Datum ist nie schlechter', () {
       var best = -1;
       for (var w = 1; w <= 80; w++) {
-        final f = run(3200, weeks: w).feasibility.index;
+        final f = run(3200, weeks: w).feasibility!.index;
         // fits(0) < tight(1) < later(2) im Enum? Rangfolge ausdrücklich:
         final rank = {
           GoalFeasibility.fits: 0,
@@ -198,14 +207,14 @@ void main() {
       final a = assess(
         goal(type: GoalType.time, date: d0),
         basis: basis(3300),
-      )!;
+      );
       expect(a.feasibility, GoalFeasibility.later);
       expect(a.requiredPercentPerWeek, isNull);
-      expect(a.fitsFrom, isNotNull);
+      expect(a.fitsFrom, isNull);
     });
 
     test('keine Referenz oder zu wenig Läufe: noch nicht genug Daten', () {
-      final none = assess(goal(type: GoalType.time, date: inWeeks(10)))!;
+      final none = assess(goal(type: GoalType.time, date: inWeeks(10)));
       expect(none.feasibility, GoalFeasibility.notEnoughData);
       expect(none.reason, FeasibilityReason.noReference);
       final few = run(3300, runs: 2);
@@ -221,7 +230,7 @@ void main() {
       final a = assess(
         goal(type: GoalType.time, date: inWeeks(10), capMin: 100),
         basis: basis(3000 / 0.975),
-      )!;
+      );
       expect(a.regulatorTooLow, isTrue);
       expect(a.feasibility, GoalFeasibility.fits);
     });
@@ -236,14 +245,14 @@ void main() {
         reason: PredictionReason.none,
         limits: [],
       );
-      final tight = assess(goal(date: inWeeks(10)))!;
+      final tight = assess(goal(date: inWeeks(10)));
       expect(
-        predictGoal(general: good, feasibility: tight.feasibility).level,
+        predictGoal(general: good, feasibility: tight.feasibility!).level,
         PredictionLevel.provisional,
       );
-      final fits = assess(goal(date: inWeeks(60)))!;
+      final fits = assess(goal(date: inWeeks(60)));
       expect(
-        predictGoal(general: good, feasibility: fits.feasibility).level,
+        predictGoal(general: good, feasibility: fits.feasibility!).level,
         PredictionLevel.good,
       );
     });

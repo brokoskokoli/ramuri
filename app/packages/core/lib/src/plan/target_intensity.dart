@@ -224,6 +224,89 @@ class IntensityInputs {
   /// Grenzen der Reservezonen als Anteil (sechs Werte, auch vom Nutzer
   /// angepasst). Maßgeblich ist die Zonennummer (PAR-104).
   final List<double> zoneBounds;
+
+  /// Feste Schlüsselreihenfolge (an der Plan-Fassung gespeichert, ADR-0010
+  /// Punkt 2).
+  Map<String, Object?> toJson() => {
+    'referenceSeconds': referenceSeconds,
+    'referenceMeters': referenceMeters,
+    'referenceAgeDays': referenceAgeDays,
+    'longestPauseSinceReferenceDays': longestPauseSinceReferenceDays,
+    'vo2max': vo2max,
+    'vo2maxGrade': vo2maxGrade?.name,
+    'heartRate': heartRate == null
+        ? null
+        : {
+            'maxBpm': heartRate!.maxBpm,
+            'restingBpm': heartRate!.restingBpm,
+            'maxIsEstimated': heartRate!.maxIsEstimated,
+          },
+    'zoneBounds': zoneBounds,
+  };
+
+  /// Umkehrung von [toJson]; Ungültiges: [FormatException].
+  factory IntensityInputs.fromJson(Map<String, Object?> json) {
+    double? num_(String k) {
+      final v = json[k];
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      throw FormatException('IntensityInputs: "$k" ist keine Zahl');
+    }
+
+    int? int_(String k) {
+      final v = json[k];
+      if (v == null) return null;
+      if (v is int) return v;
+      throw FormatException('IntensityInputs: "$k" ist keine Ganzzahl');
+    }
+
+    Vo2maxGrade? grade;
+    final g = json['vo2maxGrade'];
+    if (g != null) {
+      grade = Vo2maxGrade.values.where((e) => e.name == g).firstOrNull;
+      if (grade == null) {
+        throw const FormatException('IntensityInputs: "vo2maxGrade"');
+      }
+    }
+    HeartRateBasis? hr;
+    final h = json['heartRate'];
+    if (h != null) {
+      if (h is! Map<String, Object?>) {
+        throw const FormatException('IntensityInputs: "heartRate"');
+      }
+      final est = h['maxIsEstimated'];
+      final max = h['maxBpm'], rest = h['restingBpm'];
+      if (est is! bool ||
+          (max != null && max is! int) ||
+          (rest != null && rest is! int)) {
+        throw const FormatException('IntensityInputs: "heartRate"');
+      }
+      hr = HeartRateBasis(
+        maxBpm: max as int?,
+        restingBpm: rest as int?,
+        maxIsEstimated: est,
+      );
+    }
+    final zb = json['zoneBounds'];
+    if (zb is! List || zb.any((e) => e is! num)) {
+      throw const FormatException('IntensityInputs: "zoneBounds"');
+    }
+    try {
+      return IntensityInputs(
+        referenceSeconds: num_('referenceSeconds'),
+        referenceMeters: num_('referenceMeters'),
+        referenceAgeDays: int_('referenceAgeDays'),
+        longestPauseSinceReferenceDays:
+            int_('longestPauseSinceReferenceDays') ?? 0,
+        vo2max: num_('vo2max'),
+        vo2maxGrade: grade,
+        heartRate: hr,
+        zoneBounds: [for (final e in zb) (e as num).toDouble()],
+      );
+    } on ArgumentError {
+      throw const FormatException('IntensityInputs: ungültiger Wert');
+    }
+  }
 }
 
 /// Zielintensität eines Abschnitts. [intensity] ist das Feld des Plans

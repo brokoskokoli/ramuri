@@ -295,29 +295,38 @@ Future<void> _edit(StorageContractHarness h) async {
   expectTrue((await p.unitOn(_day(0)))!.runId == null, 'Zuordnung aufgehoben');
   await p.assignRun(u0.id!, run);
 
-  await p.confirmMove(u2.id!, _day(3));
+  await p.confirmMove(u2.id!, _day(3), today: _day(3));
   final moved = (await p.unitOn(_day(3)))!;
   expectEq(moved.id, u2.id, 'verschoben');
   expectTrue(moved.pinned, 'pinned gesetzt');
   expectEq(moved.weekIndex, 0, 'gleiche Woche');
   expectTrue(await p.unitOn(_day(2)) == null, 'alter Tag frei');
-  await p.confirmMove(u2.id!, _day(9));
+  await p.confirmMove(u2.id!, _day(9), today: _day(0));
   final next = (await p.unitOn(_day(9)))!;
   expectEq(next.weekIndex, 1, 'Woche folgt dem Tag');
   await expectFails(
-    () => p.confirmMove(u8.id!, _day(9)),
+    () => p.confirmMove(u8.id!, _day(9), today: _day(0)),
     StorageFailure.rejected,
     'Tag belegt',
   );
   await expectFails(
-    () => p.confirmMove(u0.id!, _day(1)),
+    () => p.confirmMove(u0.id!, _day(1), today: _day(0)),
     StorageFailure.rejected,
     'Einheit mit Lauf',
   );
   await expectFails(
-    () => p.confirmMove(9999, _day(1)),
+    () => p.confirmMove(9999, _day(1), today: _day(0)),
     StorageFailure.notFound,
     'Einheit fehlt',
+  );
+  await expectFails(
+    () => p.confirmMove(u2.id!, _day(1), today: _day(2)),
+    StorageFailure.rejected,
+    'Tag vor heute',
+  );
+  expectTrue(
+    (await p.unitOn(_day(9))) != null && await p.unitOn(_day(1)) == null,
+    'abgelehnte Verschiebung ändert nichts',
   );
   expectTrue(await p.unitOn(_day(0)) != null, 'Lauf-Einheit blieb');
   await s.close();

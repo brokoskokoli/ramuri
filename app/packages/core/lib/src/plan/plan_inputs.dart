@@ -1,5 +1,8 @@
 import '../goals/training_goal.dart';
 import 'plan_parameters.dart';
+import 'target_intensity.dart' show IntensityInputs;
+import 'walk_run_schedule.dart';
+import 'walk_run_units.dart' show WalkRunPosition;
 import 'weekly_time.dart' show planDay;
 
 /// Methode und Version einer Plan-Fassung (ADR-0010 Punkt 1, NFR-0001).
@@ -61,7 +64,11 @@ class PlanInputs {
     this.easyRunCount = 0,
     this.lastWeekMinutes,
     this.achievedShare,
-  }) : anchor = planDay(anchor),
+    this.walkRunStart,
+    DateTime? walkRunFrom,
+    this.intensity,
+  }) : walkRunFrom = walkRunFrom == null ? null : planDay(walkRunFrom),
+       anchor = planDay(anchor),
        today = planDay(today) {
     if (startWeeklyMinutes < 1) {
       throw ArgumentError.value(startWeeklyMinutes, 'startWeeklyMinutes');
@@ -88,8 +95,10 @@ class PlanInputs {
 
   /// Neues Ziel (PAR-192): Anker ist der Montag der Woche von [today]. Mit
   /// genanntem Stand beginnt der Plan mit dieser Wochenzeit, sonst mit 30 min
-  /// je Lauftag. Die Geh-Lauf-Abfolge für „nein“ kommt mit Teil E
-  /// (`walkRunWeeks` bleibt 0).
+  /// je Lauftag. Bei „30 min am Stück“ = nein ([canRunContinuous30]) steht
+  /// davor die Geh-Lauf-Abfolge (PAR-065) von Position 0: [walkRunStart] und
+  /// ihre Länge in Kalenderwochen; danach beginnt der Plan mit 30 min je
+  /// Lauftag (PAR-192), auch bei genanntem Stand.
   factory PlanInputs.forNewGoal(
     TrainingGoal goal,
     DateTime today, {
@@ -97,13 +106,28 @@ class PlanInputs {
   }) {
     final t = planDay(today);
     final stated = goal.currentWeeklySeconds;
-    final minutes = stated != null
+    final program = !canRunContinuous30(
+      goal,
+      weekIndex: 0,
+      parameters: parameters,
+    );
+    final minutes = stated != null && !program
         ? (stated / 60).round()
         : parameters.continuousRunMinutes * goal.runDays.length;
+    const start = WalkRunPosition(0);
     return PlanInputs(
       anchor: t.subtract(Duration(days: t.weekday - DateTime.monday)),
       startWeeklyMinutes: minutes < 1 ? 1 : minutes,
       today: t,
+      walkRunStart: program ? start : null,
+      walkRunFrom: program ? t : null,
+      walkRunWeeks: program
+          ? WalkRunSchedule.forGoal(
+              goal,
+              anchor: t.subtract(Duration(days: t.weekday - DateTime.monday)),
+              from: t,
+            ).weeks
+          : 0,
     );
   }
 
@@ -131,6 +155,11 @@ class PlanInputs {
     }
     try {
       return PlanInputs(
+        walkRunStart: _parseStart(json['walkRunStart']),
+        walkRunFrom: json['walkRunFrom'] == null
+            ? null
+            : _parseDay(json['walkRunFrom'], 'walkRunFrom'),
+        intensity: _parseIntensity(json['intensity']),
         anchor: _parseDay(json['anchor'], 'anchor'),
         startWeeklyMinutes: intOf('startWeeklyMinutes'),
         walkRunWeeks: intOf('walkRunWeeks'),
@@ -152,9 +181,23 @@ class PlanInputs {
   /// Wochenzeit der ersten Laufwoche in Minuten (PAR-192).
   final int startWeeklyMinutes;
 
-  /// Länge der Geh-Lauf-Abfolge vor der ersten Laufwoche (Startfall „nein“,
-  /// PAR-065); 0 bis Teil E sie belegt.
+  /// Länge der Geh-Lauf-Abfolge in Kalenderwochen vor der ersten Laufwoche
+  /// (Startfall „nein“, PAR-065), bei Anlage aus [WalkRunSchedule] gerechnet.
+  /// Mit [walkRunStart] rechnet die Planung die Länge aus Lauftagen und
+  /// maximaler Zeit neu ([WalkRunSchedule.weeks]); ohne [walkRunStart] gilt
+  /// dieser Wert als Verlauf ohne Einheiten (ältere Eingaben).
   final int walkRunWeeks;
+
+  /// Stelle der Geh-Lauf-Abfolge in der Ankerwoche; `null`: keine Abfolge.
+  /// Wiederholen (PAR-140) setzt eine neue Stelle mit neuem Anker.
+  final WalkRunPosition? walkRunStart;
+
+  /// Erster Tag der Abfolge (Anlage mitten in der Woche): Lauftage davor
+  /// gehören nicht dazu. Nur mit [walkRunStart].
+  final DateTime? walkRunFrom;
+
+  /// Grundlagen der Zielintensität (FR-0153); `null`: nur RPE.
+  final IntensityInputs? intensity;
 
   /// Lockeres Tempo (Median, PAR-205) in s/km und die Zahl der Läufe dahinter.
   final double? easyPaceSecondsPerKm;
@@ -178,6 +221,11 @@ class PlanInputs {
     'easyRunCount': easyRunCount,
     'lastWeekMinutes': lastWeekMinutes,
     'achievedShare': achievedShare,
+    'walkRunStart': walkRunStart == null
+        ? null
+        : {'week': walkRunStart!.week, 'session': walkRunStart!.session},
+    'walkRunFrom': walkRunFrom == null ? null : _dayText(walkRunFrom!),
+    'intensity': intensity?.toJson(),
     'today': _dayText(today),
   };
 
@@ -188,7 +236,13 @@ class PlanInputs {
     double? easyPaceSecondsPerKm,
     int? easyRunCount,
     DateTime? today,
+    WalkRunPosition? walkRunStart,
+    DateTime? walkRunFrom,
+    IntensityInputs? intensity,
   }) => PlanInputs(
+    walkRunStart: walkRunStart ?? this.walkRunStart,
+    walkRunFrom: walkRunFrom ?? this.walkRunFrom,
+    intensity: intensity ?? this.intensity,
     anchor: anchor ?? this.anchor,
     startWeeklyMinutes: startWeeklyMinutes ?? this.startWeeklyMinutes,
     walkRunWeeks: walkRunWeeks ?? this.walkRunWeeks,
@@ -198,6 +252,21 @@ class PlanInputs {
     achievedShare: achievedShare,
     today: today ?? this.today,
   );
+}
+
+WalkRunPosition? _parseStart(Object? v) {
+  if (v == null) return null;
+  if (v is Map<String, Object?>) {
+    final w = v['week'], s = v['session'];
+    if (w is int && s is int && w >= 0 && s >= 0) return WalkRunPosition(w, s);
+  }
+  throw const FormatException('PlanInputs: "walkRunStart"');
+}
+
+IntensityInputs? _parseIntensity(Object? v) {
+  if (v == null) return null;
+  if (v is Map<String, Object?>) return IntensityInputs.fromJson(v);
+  throw const FormatException('PlanInputs: "intensity"');
 }
 
 /// „30 min am Stück“ (PAR-192, PAR-198): die einzige Ableitung. ANNAHME: Die

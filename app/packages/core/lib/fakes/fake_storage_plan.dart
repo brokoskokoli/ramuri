@@ -60,14 +60,18 @@ class FakePlanRepository implements PlanRepository {
   }
 
   @override
-  Future<void> confirmMove(int unitId, DateTime newDay) async {
+  Future<void> confirmMove(
+    int unitId,
+    DateTime newDay, {
+    required DateTime today,
+  }) async {
     final u = _d.planUnits[unitId];
     if (u == null) throw const StorageException(StorageFailure.notFound);
     final day = planDay(newDay);
     final taken = _d.planUnits.entries.any(
       (e) => e.key != unitId && e.value.day == day,
     );
-    if (u.runId != null || taken) {
+    if (u.runId != null || taken || day.isBefore(planDay(today))) {
       throw const StorageException(StorageFailure.rejected);
     }
     _d.planUnits[unitId] = u.copyWith(

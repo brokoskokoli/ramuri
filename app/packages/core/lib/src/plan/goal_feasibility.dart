@@ -1,5 +1,6 @@
 import '../goals/training_goal.dart';
 import '../prediction/goal_prediction.dart' show GoalFeasibility;
+import 'plan_course.dart';
 import 'plan_inputs.dart';
 import 'plan_parameters.dart';
 import 'weekly_time.dart';
@@ -37,6 +38,10 @@ enum FeasibilityReason {
 
   /// Zeitziel: weniger als 3 Läufe in 4 Wochen.
   tooFewRuns,
+
+  /// Offenes Ziel (oder Ziel ohne Datum): keine Machbarkeitsprüfung, die
+  /// Oberfläche zeigt die Regelmäßigkeit (DEC-0036, PAR-206).
+  showRegularity,
 }
 
 /// Zahlen der Einschätzung (PAR-206). Die Suchweite hat keine PAR (Lücke,
@@ -78,12 +83,14 @@ class GoalAssessment {
     this.sessionLimitsLongestRun = false,
   });
 
-  /// Der Wert, den [predictGoal] als Eingabe nimmt.
-  final GoalFeasibility feasibility;
+  /// Der Wert, den [predictGoal] als Eingabe nimmt; `null` bei
+  /// [FeasibilityReason.showRegularity] (keine Prüfung).
+  final GoalFeasibility? feasibility;
   final FeasibilityReason reason;
 
-  /// „Ab etwa“ dieses Datum passt es (Kalendertag, UTC); `null`, wenn es
-  /// passt oder kein Datum zu nennen ist.
+  /// „Ab etwa“ dieses Datum passt es (Kalendertag, UTC); nur beim
+  /// Streckenziel (PAR-206), sonst `null`, auch wenn es passt oder kein Datum
+  /// zu nennen ist.
   final DateTime? fitsFrom;
 
   /// Zeitziel: nötige Verbesserung der Zeit in Prozent je Woche (ohne
@@ -110,8 +117,9 @@ class TimeGoalBasis {
   final int runsInWindow;
 }
 
-/// Einschätzung nach PAR-206 und FR-0154; `null` für ein Ziel ohne Datum
-/// (offene Ziele zeigen die Regelmäßigkeit, OQ-0027).
+/// Einschätzung nach PAR-206 und FR-0154. Ein Ziel ohne Datum (offene Ziele
+/// zeigen die Regelmäßigkeit, OQ-0027, DEC-0036) liefert
+/// [FeasibilityReason.showRegularity] ohne Zahlen.
 ///
 /// Streckenziel: Der Verlauf der Wochenzeit wird mit demselben Aufruf
 /// simuliert wie in `generatePlan`. Passt die Zielspitze zum Datum, ist es
@@ -122,7 +130,7 @@ class TimeGoalBasis {
 ///
 /// Zeitziel: nötige Verbesserung je Woche, linear (Annahme; PAR-206 nennt
 /// keine Form) über die Wochen von [today] bis zum Datum.
-GoalAssessment? assessGoal({
+GoalAssessment assessGoal({
   required TrainingGoal goal,
   required PlanInputs inputs,
   required DateTime today,
@@ -133,27 +141,17 @@ GoalAssessment? assessGoal({
   final date = goal.targetDate;
   final distance = goal.distance;
   if (goal.type == GoalType.open || date == null || distance == null) {
-    return null;
+    return const GoalAssessment(
+      feasibility: null,
+      reason: FeasibilityReason.showRegularity,
+    );
   }
-  final p = parameters;
   final todayDay = planDay(today);
   final target = planDay(date);
-  final n = goal.runDays.length;
-  final cap = (goal.weeklyCapSeconds / 60).floor();
-  final capMinutes = cap < 1 ? 1 : cap;
-  final longest = targetLongestRunMinutes(
-    distance: distance,
-    easyPaceSecondsPerKm: inputs.easyPaceSecondsPerKm,
-    easyRunCount: inputs.easyRunCount,
-    parameters: p,
-  );
-  final peak = peakWeeklyMinutes(
-    longestRunMinutes: longest,
-    runDays: n,
-    parameters: p,
-  );
-  final tooLow = peak > capMinutes;
-  final sessionLimits = longest > (goal.maxSessionSeconds / 60).floor();
+  final setup = planCourseSetup(goal, inputs, parameters: parameters);
+  final peak = setup.peakMinutes!;
+  final tooLow = setup.regulatorTooLow;
+  final sessionLimits = setup.sessionLimitsLongestRun;
 
   if (goal.type == GoalType.time) {
     return _timeGoal(
@@ -168,19 +166,12 @@ GoalAssessment? assessGoal({
   }
 
   bool reached(DateTime d) {
-    if (inputs.startWeeklyMinutes >= peak) return true;
-    final course = planWeeklyTime(
-      startMinutes: inputs.startWeeklyMinutes,
-      capMinutes: capMinutes,
-      anchor: inputs.anchor,
-      today: todayDay,
-      peakMinutes: peak,
-      distance: distance,
-      targetDate: d,
-      walkRunWeeks: inputs.walkRunWeeks,
-      parameters: p,
-    );
-    return course.reachedLevelWeek != null;
+    // Mit Geh-Lauf-Abfolge wird die Spitze erst danach erreicht.
+    if (setup.walkRunWeeks == 0 && inputs.startWeeklyMinutes >= peak) {
+      return true;
+    }
+    return setup.course(today: todayDay, targetDate: d).reachedLevelWeek !=
+        null;
   }
 
   if (tooLow) {
@@ -232,12 +223,10 @@ GoalAssessment _timeGoal({
   GoalAssessment make(
     GoalFeasibility feasibility,
     FeasibilityReason reason, {
-    DateTime? from,
     double? percent,
   }) => GoalAssessment(
     feasibility: feasibility,
     reason: reason,
-    fitsFrom: from,
     requiredPercentPerWeek: percent,
     regulatorTooLow: regulatorTooLow,
     sessionLimitsLongestRun: sessionLimits,
@@ -262,8 +251,6 @@ GoalAssessment _timeGoal({
   final days = target.difference(today).inDays;
   final weeks = days / 7;
   final perWeek = weeks > 0 ? needed / weeks : double.infinity;
-  final daysToFit = (needed / f.fitsUpToPercentPerWeek * 7 - _eps).ceil();
-  final from = today.add(Duration(days: daysToFit));
   final percent = perWeek.isFinite ? perWeek : null;
   if (perWeek <= f.fitsUpToPercentPerWeek + _eps) {
     return make(
@@ -276,14 +263,12 @@ GoalAssessment _timeGoal({
     return make(
       GoalFeasibility.tight,
       FeasibilityReason.improvementMedium,
-      from: from,
       percent: percent,
     );
   }
   return make(
     GoalFeasibility.later,
     FeasibilityReason.improvementLarge,
-    from: from,
     percent: percent,
   );
 }
@@ -303,7 +288,11 @@ bool planAllowsFiveKilometerTest({
   return canRunContinuous30(
     goal,
     weekIndex: week < 0 ? 0 : week,
-    walkRunWeeks: inputs.walkRunWeeks,
+    walkRunWeeks: planCourseSetup(
+      goal,
+      inputs,
+      parameters: parameters,
+    ).walkRunWeeks,
     parameters: parameters,
   );
 }

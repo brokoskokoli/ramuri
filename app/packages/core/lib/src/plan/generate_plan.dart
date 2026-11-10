@@ -1,7 +1,9 @@
 import '../goals/training_goal.dart';
+import 'plan_course.dart';
 import 'plan_inputs.dart';
 import 'plan_parameters.dart';
 import 'plan_unit.dart';
+import 'target_intensity.dart';
 import 'week_units.dart';
 import 'weekly_time.dart';
 
@@ -46,6 +48,8 @@ class GeneratedPlan {
     required this.unplacedByWeek,
     required this.hardOmissions,
     this.pinnedConflicts = const [],
+    this.walkRunStaysAtWeek,
+    this.walkRunNoWeekFits = false,
   });
 
   final PlanVersion version;
@@ -74,6 +78,31 @@ class GeneratedPlan {
   /// Konflikte der übergebenen Pinned-Einheiten (leer, wenn alle ohne
   /// Verletzung übernommen sind).
   final List<PinnedConflict> pinnedConflicts;
+
+  /// Die Geh-Lauf-Abfolge bleibt bei dieser Programmwoche (ab 0), weil die
+  /// nächste nicht in die maximale Zeit je Einheit passt (PAR-141); der
+  /// Aufrufer zeigt das an. `null`: sie läuft durch oder fehlt.
+  final int? walkRunStaysAtWeek;
+
+  /// Zu [walkRunStaysAtWeek]: schon die erste Einheit passt nicht.
+  final bool walkRunNoWeekFits;
+
+  /// Kopie mit anderen neuen Einheiten und Konflikten (für den Dienst, der
+  /// den Zeitplan festhält).
+  GeneratedPlan copyWith({
+    List<PlanUnit>? units,
+    List<PinnedConflict>? pinnedConflicts,
+  }) => GeneratedPlan(
+    version: version,
+    weeks: weeks,
+    units: units ?? this.units,
+    frozenUnits: frozenUnits,
+    unplacedByWeek: unplacedByWeek,
+    hardOmissions: hardOmissions,
+    pinnedConflicts: pinnedConflicts ?? this.pinnedConflicts,
+    walkRunStaysAtWeek: walkRunStaysAtWeek,
+    walkRunNoWeekFits: walkRunNoWeekFits,
+  );
 
   /// Eingefrorene und neue Einheiten, nach Tag sortiert.
   List<PlanUnit> get allUnits => _byDay([...frozenUnits, ...units]);
@@ -115,36 +144,10 @@ GeneratedPlan generatePlan(
 }) {
   final p = parameters;
   final todayDay = planDay(today);
-  final n = goal.runDays.length;
-  final cap = (goal.weeklyCapSeconds / 60).floor();
-  final maxSession = (goal.maxSessionSeconds / 60).floor();
-  final distance = goal.type == GoalType.open ? null : goal.distance;
-
-  int? peak;
-  if (distance != null) {
-    peak = peakWeeklyMinutes(
-      longestRunMinutes: targetLongestRunMinutes(
-        distance: distance,
-        easyPaceSecondsPerKm: inputs.easyPaceSecondsPerKm,
-        easyRunCount: inputs.easyRunCount,
-        parameters: p,
-      ),
-      runDays: n,
-      parameters: p,
-    );
-  }
-
-  final course = planWeeklyTime(
-    startMinutes: inputs.startWeeklyMinutes,
-    capMinutes: cap < 1 ? 1 : cap,
-    anchor: inputs.anchor,
-    today: todayDay,
-    peakMinutes: peak,
-    distance: distance,
-    targetDate: goal.targetDate,
-    walkRunWeeks: inputs.walkRunWeeks,
-    parameters: p,
-  );
+  final setup = planCourseSetup(goal, inputs, parameters: p);
+  final maxSession = setup.maxSessionMinutes;
+  final walkRun = setup.walkRun;
+  final course = setup.course(today: todayDay);
 
   final frozen = _byDay([...frozenUnits]);
   final firstStart = course.weeks.isEmpty ? null : course.weeks.first.start;
@@ -198,21 +201,28 @@ GeneratedPlan generatePlan(
       }
     }
 
-    final planned = planWeekUnits(
-      week: week,
-      runDays: goal.runDays,
-      maxSessionMinutes: maxSession,
-      hardEnabled: goal.hardSessionEnabled,
-      continuous30: canRunContinuous30(
-        goal,
-        weekIndex: week.index,
-        walkRunWeeks: inputs.walkRunWeeks,
-        parameters: p,
-      ),
-      hardOrdinal: hardOrdinal,
-      previousIntensiveWeekday: prevWeekday,
-      parameters: p,
-    );
+    final walkPlan = walkRun?.plan(week.index, week);
+    final planned = walkPlan != null
+        ? PlannedWeek(
+            units: walkPlan.units,
+            unplacedMinutes: 0,
+            hardOmission: null,
+          )
+        : planWeekUnits(
+            week: week,
+            runDays: goal.runDays,
+            maxSessionMinutes: maxSession,
+            hardEnabled: goal.hardSessionEnabled,
+            continuous30: canRunContinuous30(
+              goal,
+              weekIndex: week.index,
+              walkRunWeeks: setup.walkRunWeeks,
+              parameters: p,
+            ),
+            hardOrdinal: hardOrdinal,
+            previousIntensiveWeekday: prevWeekday,
+            parameters: p,
+          );
 
     // Höchstens eine harte Einheit je Woche (PAR-198): Ist schon eine
     // eingefroren, wird die geplante künftige zu einem lockeren Lauf gleicher
@@ -232,7 +242,7 @@ GeneratedPlan generatePlan(
     for (final u in planned.units) {
       if (frozenDays.contains(u.day)) deviation -= u.minutes;
     }
-    if (deviation != 0) {
+    if (deviation != 0 && walkPlan == null) {
       future = _absorb(future, -deviation, maxSession);
     }
 
@@ -282,10 +292,19 @@ GeneratedPlan generatePlan(
     );
   }
 
+  // Zielintensität nur für die neuen Einheiten; eingefrorene behalten ihre
+  // Werte (FR-0153, ADR-0010 Punkt 11).
+  final withIntensity = applyTargetIntensities(
+    _byDay(created),
+    inputs.intensity ?? IntensityInputs(),
+  );
+
   return GeneratedPlan(
     version: PlanVersion.current,
     weeks: course.weeks,
-    units: _byDay(created),
+    units: withIntensity,
+    walkRunStaysAtWeek: walkRun?.stayWeek,
+    walkRunNoWeekFits: walkRun?.noWeekFits ?? false,
     frozenUnits: frozen,
     unplacedByWeek: unplaced,
     hardOmissions: omissions,

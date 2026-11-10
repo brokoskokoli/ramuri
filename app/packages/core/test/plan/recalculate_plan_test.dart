@@ -20,6 +20,16 @@ TrainingGoal _goal({Set<int> days = const {2, 4, 6}, int capMin = 240}) =>
       canRun30: ContinuousRun30.yes,
     );
 
+TrainingGoal _open(Set<int> days) => TrainingGoal(
+  type: GoalType.open,
+  runDays: days,
+  maxSessionSeconds: 7200,
+  weeklyCapSeconds: 240 * 60.0,
+  createdAt: DateTime.utc(2026, 11, 1),
+  hardSessionEnabled: true,
+  canRun30: ContinuousRun30.yes,
+);
+
 String _sig(PlanUnit u) =>
     '${u.day.toIso8601String()}|${u.kind.name}|${u.phase.name}|${u.weekIndex}|'
     '${u.minutes}|${[for (final s in u.segments) '${s.kind.name}:${s.minutes}'].join(',')}|'
@@ -72,7 +82,8 @@ class _FailingWrite implements PlanRepository {
   @override
   Future<void> assignRun(int u, int? r) => _inner.assignRun(u, r);
   @override
-  Future<void> confirmMove(int u, DateTime d) => _inner.confirmMove(u, d);
+  Future<void> confirmMove(int u, DateTime d, {required DateTime today}) =>
+      _inner.confirmMove(u, d, today: today);
 }
 
 void main() {
@@ -185,7 +196,7 @@ void main() {
         )) {
       target = target.add(const Duration(days: 1));
     }
-    await e.plans.confirmMove(moving.id!, target);
+    await e.plans.confirmMove(moving.id!, target, today: _day(0));
     await e.goals.save(_goal(capMin: 200));
     final r = await e.run(PlanTrigger.manual, 0);
     final pinned = (await _all(e.plans)).where((u) => u.pinned).toList();
@@ -229,5 +240,84 @@ void main() {
     expect((await _all(e.plans)).map(_sig), before);
     expect((await e.plans.history()).length, 1);
     expect(await e.settings.get(planLastCheckDayKey), '2026-11-11');
+  });
+
+  group('automatische Auslöser halten den Zeitplan (ADR-0010 Punkt 8)', () {
+    // Offenes Ziel: 26 Wochen ab Montag 9.11.; nach 70 Tagen kommen Wochen
+    // am Ende dazu. Zwischen den Läufen ändern sich die Lauftage.
+    final horizonEnd = DateTime.utc(2026, 11, 9).add(const Duration(days: 182));
+
+    Future<_Env> setup(PlanTrigger second) async {
+      final e = await _Env.open();
+      await e.goals.save(_open({2, 4, 6}));
+      await e.run(PlanTrigger.create, 0);
+      await e.goals.save(_open({1, 3, 5}));
+      await e.run(second, 70);
+      return e;
+    }
+
+    for (final t in [
+      PlanTrigger.weekly,
+      PlanTrigger.feedback,
+      PlanTrigger.run,
+      PlanTrigger.pause,
+      PlanTrigger.ruleVersion,
+    ]) {
+      test('${t.name}: Tage und Zahl der Läufe im alten Zeitraum bleiben, '
+          'neue Wochen am Ende kommen dazu', () async {
+        final e = await setup(t);
+        final units = (await _all(e.plans))
+            .where((u) => !u.day.isBefore(_day(70)))
+            .toList();
+        final inside = units.where((u) => u.day.isBefore(horizonEnd)).toList();
+        final beyond = units.where((u) => !u.day.isBefore(horizonEnd)).toList();
+        expect(
+          inside.every((u) => const {2, 4, 6}.contains(u.day.weekday)),
+          isTrue,
+        );
+        expect(beyond, isNotEmpty);
+        expect(
+          beyond.every((u) => const {1, 3, 5}.contains(u.day.weekday)),
+          isTrue,
+        );
+        // Zahl der Läufe je volle Woche im alten Zeitraum: 3.
+        final perWeek = <DateTime, int>{};
+        for (final u in inside.where((u) => !u.day.isBefore(_day(75)))) {
+          final m = u.day.subtract(Duration(days: u.day.weekday - 1));
+          perWeek[m] = (perWeek[m] ?? 0) + 1;
+        }
+        expect(perWeek.values.toSet(), {3});
+        expect(units.any((u) => u.pinned), isFalse);
+      });
+    }
+
+    for (final t in [PlanTrigger.goalChange, PlanTrigger.manual]) {
+      test('${t.name}: darf Tage ändern', () async {
+        final e = await setup(t);
+        final units = (await _all(e.plans))
+            .where((u) => !u.day.isBefore(_day(70)))
+            .toList();
+        expect(
+          units.every((u) => const {1, 3, 5}.contains(u.day.weekday)),
+          isTrue,
+        );
+      });
+    }
+
+    test('echte Termine (pinned) bleiben pinned, andere nicht', () async {
+      final e = await _Env.open();
+      await e.goals.save(_open({2, 4, 6}));
+      await e.run(PlanTrigger.create, 0);
+      final units = await _all(e.plans);
+      final moving = units.firstWhere((u) => u.day.isAfter(_day(8)));
+      var target = moving.day.add(const Duration(days: 1));
+      while (units.any((u) => u.day == target)) {
+        target = target.add(const Duration(days: 1));
+      }
+      await e.plans.confirmMove(moving.id!, target, today: _day(0));
+      await e.run(PlanTrigger.weekly, 1);
+      final after = await _all(e.plans);
+      expect(after.where((u) => u.pinned).map((u) => u.day), [target]);
+    });
   });
 }

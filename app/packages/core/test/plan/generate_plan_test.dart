@@ -96,6 +96,9 @@ void main() {
         'easyRunCount',
         'lastWeekMinutes',
         'achievedShare',
+        'walkRunStart',
+        'walkRunFrom',
+        'intensity',
         'today',
       ]);
       final text = jsonEncode(i.toJson());
@@ -107,7 +110,8 @@ void main() {
         jsonEncode(inputs().toJson()),
         '{"inputsVersion":1,"anchor":"2026-11-09","startWeeklyMinutes":90,'
         '"walkRunWeeks":0,"easyPaceSecondsPerKm":null,"easyRunCount":0,'
-        '"lastWeekMinutes":null,"achievedShare":null,"today":"2026-11-11"}',
+        '"lastWeekMinutes":null,"achievedShare":null,"walkRunStart":null,'
+        '"walkRunFrom":null,"intensity":null,"today":"2026-11-11"}',
       );
     });
 

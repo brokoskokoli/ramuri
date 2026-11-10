@@ -87,14 +87,20 @@ Future<PlanRecalculation> recalculatePlan({
     }
   }
 
-  final generated = generatePlan(
+  // Automatische Auslöser ändern im bereits geplanten Zeitraum weder Tage
+  // noch Zahl der Läufe (ADR-0010 Punkt 8); neue Wochen am Ende sind frei.
+  final automatic = _isAutomatic(trigger) && oldFuture.isNotEmpty;
+  var generated = generatePlan(
     goal,
     use,
     frozen,
     todayDay,
-    pinnedUnits: pinned,
+    pinnedUnits: automatic ? oldFuture : pinned,
     parameters: parameters,
   );
+  if (automatic) {
+    generated = _keepSchedule(generated, oldFuture);
+  }
   final summary = summarizeChange(
     oldFuture,
     generated.units,
@@ -120,6 +126,46 @@ Future<PlanRecalculation> recalculatePlan({
   );
   await _markChecked(settings, todayDay, now);
   return PlanRecalculation.written(record, generated, summary);
+}
+
+/// Alles außer Anlegen, Zieländerung und ausdrücklicher Neuberechnung.
+bool _isAutomatic(PlanTrigger t) =>
+    t != PlanTrigger.create &&
+    t != PlanTrigger.goalChange &&
+    t != PlanTrigger.manual;
+
+DateTime _mondayOf(DateTime d) =>
+    d.subtract(Duration(days: d.weekday - DateTime.monday));
+
+/// Hält die Tage der bisherigen künftigen Einheiten bis zum Ende der Woche
+/// der letzten fest: `generatePlan` hat sie als Termine bekommen (Inhalt neu,
+/// Tag fest); hier bekommen die Einheiten ihr altes `pinned` zurück, Einheiten
+/// auf anderen Tagen im alten Zeitraum entfallen (die Zahl der Läufe bleibt),
+/// und nur Konflikte echter Termine bleiben gemeldet.
+GeneratedPlan _keepSchedule(GeneratedPlan g, List<PlanUnit> oldFuture) {
+  final oldByDay = {for (final u in oldFuture) planDay(u.day): u};
+  final last = oldByDay.keys.reduce((a, b) => a.isAfter(b) ? a : b);
+  final horizonEnd = _mondayOf(last).add(const Duration(days: 7));
+  final units = <PlanUnit>[];
+  for (final u in g.units) {
+    final day = planDay(u.day);
+    if (!day.isBefore(horizonEnd)) {
+      units.add(u);
+    } else if (oldByDay[day] case final old?) {
+      units.add(u.copyWith(pinned: old.pinned));
+    }
+  }
+  final realPinned = {
+    for (final u in oldFuture)
+      if (u.pinned) planDay(u.day),
+  };
+  return g.copyWith(
+    units: units,
+    pinnedConflicts: [
+      for (final c in g.pinnedConflicts)
+        if (realPinned.contains(c.day)) c,
+    ],
+  );
 }
 
 final DateTime _farFuture = DateTime.utc(9999, 12, 31);

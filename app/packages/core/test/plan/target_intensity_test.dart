@@ -436,7 +436,8 @@ void main() {
           expect(b.kind, a.kind);
           expect(b.segments.length, a.segments.length);
           for (var j = 0; j < a.segments.length; j++) {
-            expect(a.segments[j].intensity, isNull); // Eingabe unverändert
+            // generatePlan ohne Grundlagen: nur RPE (Rang 5)
+            expect(a.segments[j].intensity?.basisCode, 'effort');
             expect(b.segments[j].kind, a.segments[j].kind);
             expect(b.segments[j].minutes, a.segments[j].minutes);
             expect(b.segments[j].intensity?.rpeMin, isNotNull);

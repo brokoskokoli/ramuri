@@ -83,7 +83,11 @@ class DriftPlanRepository implements PlanRepository {
   });
 
   @override
-  Future<void> confirmMove(int unitId, DateTime newDay) => guarded(() async {
+  Future<void> confirmMove(
+    int unitId,
+    DateTime newDay, {
+    required DateTime today,
+  }) => guarded(() async {
     await _db.transaction(() async {
       final row = await _requireUnit(unitId);
       final day = planDay(newDay);
@@ -91,7 +95,9 @@ class DriftPlanRepository implements PlanRepository {
       final taken = await (_db.select(
         _db.planUnits,
       )..where((t) => t.id.isNotValue(unitId) & t.day.equals(text))).get();
-      if (row.runId != null || taken.isNotEmpty) {
+      if (row.runId != null ||
+          taken.isNotEmpty ||
+          day.isBefore(planDay(today))) {
         throw const StorageException(StorageFailure.rejected);
       }
       final week = movedWeekIndex(

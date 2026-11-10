@@ -111,9 +111,14 @@ abstract interface class PlanRepository {
   Future<void> assignRun(int unitId, int? runId);
 
   /// Verschiebt die Einheit auf [newDay] und setzt `pinned` (OQ-0011). Fehlt
-  /// die Einheit: `notFound`. Mit Lauf oder auf einem belegten Tag:
+  /// die Einheit: `notFound`. Mit Lauf, auf einem belegten Tag oder auf einem
+  /// Tag vor [today] (Ortstag „heute“, kein Uhr-Zugriff im Speicher):
   /// `rejected`.
-  Future<void> confirmMove(int unitId, DateTime newDay);
+  Future<void> confirmMove(
+    int unitId,
+    DateTime newDay, {
+    required DateTime today,
+  });
 
   /// In EINER Transaktion: legt die Fassung an, löscht alle offenen
   /// künftigen Einheiten (`Tag >= validFrom`, ohne Lauf) und fügt die neuen
