@@ -215,45 +215,102 @@ class _PlanCalendarState extends State<PlanCalendar> {
   // ---------------------------------------------------------------------
   // Aktionen
 
-  Future<void> _actions(PlanUnit u) async {
+  /// Vom Nutzer festgelegter Ruhetag ohne Lauf ([PlanUnit.isRestDay]).
+  bool _userRest(PlanUnit? u) => u != null && u.isRestDay && u.runId == null;
+
+  /// Ersetzbar: verschiebbar und weder Ruhetag noch Geh-Lauf
+  /// ([checkPlanReplace] sperrt diese ohnehin).
+  bool _replaceable(PlanUnit u) =>
+      _movable(u) &&
+      u.kind != PlanUnitKind.rest &&
+      u.kind != PlanUnitKind.walkRun;
+
+  /// Künftiger Tag im Plan ohne Einheit: kann Ruhetag werden.
+  bool _freeFutureDay(DateTime day, PlanUnit? u) =>
+      u == null && !day.isBefore(_today) && _inPlan(day);
+
+  /// Ob ein Tag ein Blatt mit Aktionen hat.
+  bool _hasActions(DateTime day, PlanUnit? u, _DayState state) {
+    if (state == _DayState.planned ||
+        state == _DayState.done ||
+        state == _DayState.missed) {
+      return true;
+    }
+    if (state != _DayState.rest) return false;
+    return (_userRest(u) && !day.isBefore(_today)) || _freeFutureDay(day, u);
+  }
+
+  Future<void> _actions(DateTime day, PlanUnit? u) async {
     final l = AppLocalizations.of(context);
     final lang = Localizations.localeOf(context).languageCode;
+    final unit = u != null && u.kind != PlanUnitKind.rest ? u : null;
     final action = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
       builder: (context) {
         final text = Theme.of(context).textTheme;
+        void pop(String a) => Navigator.of(context).pop(a);
         return SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
             child: Column(
               key: const Key('calendar_actions'),
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(planUnitText(l, u), style: text.titleMedium),
                 Text(
-                  DateFormat.MMMMEEEEd(lang).format(u.day),
+                  unit != null ? planUnitText(l, unit) : l.planRestDay,
+                  style: text.titleMedium,
+                ),
+                Text(
+                  DateFormat.MMMMEEEEd(lang).format(day),
                   style: text.bodyMedium,
                 ),
                 const SizedBox(height: 12),
-                RamuriSecondaryButton(
-                  key: const Key('calendar_details'),
-                  label: l.calendarDetails,
-                  onPressed: () => Navigator.of(context).pop('details'),
-                ),
-                const SizedBox(height: 8),
-                if (_movable(u))
-                  RamuriPrimaryButton(
-                    key: const Key('calendar_move'),
-                    label: l.calendarMove,
-                    onPressed: () => Navigator.of(context).pop('move'),
+                if (unit != null) ...[
+                  RamuriSecondaryButton(
+                    key: const Key('calendar_details'),
+                    label: l.calendarDetails,
+                    onPressed: () => pop('details'),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_movable(unit)) ...[
+                    RamuriPrimaryButton(
+                      key: const Key('calendar_move'),
+                      label: l.calendarMove,
+                      onPressed: () => pop('move'),
+                    ),
+                    if (_replaceable(unit)) ...[
+                      const SizedBox(height: 8),
+                      RamuriSecondaryButton(
+                        key: const Key('calendar_replace'),
+                        label: l.calendarReplace,
+                        onPressed: () => pop('replace'),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    RamuriSecondaryButton(
+                      key: const Key('calendar_rest_set'),
+                      label: l.calendarRestSet,
+                      onPressed: () => pop('rest'),
+                    ),
+                  ] else
+                    Text(
+                      l.calendarFrozen,
+                      key: const Key('calendar_frozen'),
+                      style: text.bodySmall,
+                    ),
+                ] else if (_userRest(u))
+                  RamuriSecondaryButton(
+                    key: const Key('calendar_rest_clear'),
+                    label: l.calendarRestClear,
+                    onPressed: () => pop('clear'),
                   )
                 else
-                  Text(
-                    l.calendarFrozen,
-                    key: const Key('calendar_frozen'),
-                    style: text.bodySmall,
+                  RamuriSecondaryButton(
+                    key: const Key('calendar_rest_set'),
+                    label: l.calendarRestSet,
+                    onPressed: () => pop('rest'),
                   ),
               ],
             ),
@@ -262,8 +319,131 @@ class _PlanCalendarState extends State<PlanCalendar> {
       },
     );
     if (!mounted) return;
-    if (action == 'details') widget.onOpenUnit(u);
-    if (action == 'move') await _move(u);
+    switch (action) {
+      case 'details':
+        widget.onOpenUnit(unit!);
+      case 'move':
+        await _move(unit!);
+      case 'replace':
+        await _replace(unit!);
+      case 'rest':
+        await _setRest(day);
+      case 'clear':
+        await _clearRest(day);
+    }
+  }
+
+  void _showResult(ScaffoldMessengerState messenger, String message) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          key: const Key('calendar_change_result'),
+          content: Text(message),
+        ),
+      );
+  }
+
+  /// Eine gescheiterte Prüfung zeigt der Dialog wie eine fehlende
+  /// (`null`: Hinweis, Bestätigen gesperrt); der Inhalt des Fehlers wird nie
+  /// gezeigt.
+  static Future<T?> _orNull<T>(Future<T?> check) =>
+      check.then<T?>((c) => c, onError: (Object _) => null);
+
+  /// Ersetzen (FR-0173): Art wählen, Prüfung ansehen, bestätigen. Ohne
+  /// Bestätigung bleibt die Einheit.
+  Future<void> _replace(PlanUnit u) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final kind = await showDialog<PlanUnitKind>(
+      context: context,
+      builder: (_) => _ReplaceDialog(
+        unit: u,
+        check: (k) => _orNull(widget.controller.checkReplace(u, k)),
+      ),
+    );
+    if (kind == null || !mounted) return;
+    final result = await widget.controller.replaceUnit(u.id!, kind);
+    _showResult(
+      messenger,
+      result == PlanActionResult.done
+          ? l.calendarReplaced
+          : l.calendarReplaceRejected,
+    );
+  }
+
+  /// Ruhetag festlegen: Prüfung (Alternativtage für eine Einheit auf dem
+  /// Tag), bestätigen. Ohne Bestätigung bleibt der Plan.
+  Future<void> _setRest(DateTime day) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final choice = await showDialog<_RestChoice>(
+      context: context,
+      builder: (_) => _RestDayDialog(
+        day: day,
+        check: () => _orNull(widget.controller.checkRestDay(day)),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    final result = await widget.controller.setRestDay(
+      day,
+      moveUnitTo: choice.moveTo,
+    );
+    _showResult(
+      messenger,
+      result == PlanActionResult.done
+          ? l.calendarRestSaved
+          : l.calendarRestRejected,
+    );
+  }
+
+  /// Ruhetag aufheben nach Bestätigung (OQ-0011).
+  Future<void> _clearRest(DateTime day) async {
+    final l = AppLocalizations.of(context);
+    final lang = Localizations.localeOf(context).languageCode;
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const Key('calendar_rest_clear_dialog'),
+        title: Text(l.calendarRestClearTitle),
+        scrollable: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l.calendarRestClearText(DateFormat.MMMMEEEEd(lang).format(day)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l.calendarChangeOnlyAfterConfirm,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            key: const Key('calendar_rest_clear_cancel'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(l.calendarMoveCancel),
+          ),
+          FilledButton(
+            key: const Key('calendar_rest_clear_confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l.calendarRestClear),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final result = await widget.controller.clearRestDay(day);
+    _showResult(
+      messenger,
+      result == PlanActionResult.done
+          ? l.calendarRestCleared
+          : l.calendarRestClearRejected,
+    );
   }
 
   /// Verschieben: Tag wählen, prüfen, bestätigen. Ohne Bestätigung bleibt
@@ -489,7 +669,13 @@ class _PlanCalendarState extends State<PlanCalendar> {
             },
           ),
           const SizedBox(height: 12),
-          _Legend(stateText: (s) => _stateText(l, s)!),
+          _Legend(
+            stateText: (s) => _stateText(l, s)!,
+            fixed: [
+              (_restFixedIcon, '${l.planRestDay}, ${l.calendarRestFixedMark}'),
+              (_replacedIcon, l.calendarReplacedMark),
+            ],
+          ),
         ],
       ),
     );
@@ -533,7 +719,9 @@ class _PlanCalendarState extends State<PlanCalendar> {
                     horizontal: 14,
                     vertical: 12,
                   ),
-                  onTap: hasUnit ? () => _actions(u!) : null,
+                  onTap: _hasActions(day, u, state)
+                      ? () => _actions(day, u)
+                      : null,
                   child: Builder(
                     builder: (context) {
                       final t = Theme.of(context).textTheme;
@@ -566,6 +754,22 @@ class _PlanCalendarState extends State<PlanCalendar> {
                                             color: cc.textMuted,
                                           ),
                                   ),
+                                  if (hasUnit && u!.fixed == PlanUnitFixed.kind)
+                                    _FixedMark(
+                                      key: Key(
+                                        'calendar_replaced_${_dayKey(day)}',
+                                      ),
+                                      icon: _replacedIcon,
+                                      label: l.calendarReplacedMark,
+                                    ),
+                                  if (state == _DayState.rest && _userRest(u))
+                                    _FixedMark(
+                                      key: Key(
+                                        'calendar_rest_fixed_${_dayKey(day)}',
+                                      ),
+                                      icon: _restFixedIcon,
+                                      label: l.calendarRestFixedMark,
+                                    ),
                                   if (extraRun)
                                     Text(
                                       l.calendarFreeRun,
@@ -681,23 +885,28 @@ class _PlanCalendarState extends State<PlanCalendar> {
     final other = day.month != month;
     final isToday = day == _today;
     final stateLabel = _stateText(l, state);
+    final actions = _hasActions(day, u, state);
+    final replaced = hasUnit && u!.fixed == PlanUnitFixed.kind;
+    final restFixed = state == _DayState.rest && _userRest(u);
     final semantics = [
       DateFormat.MMMMEEEEd(lang).format(day),
       if (hasUnit) planUnitText(l, u!),
       ?stateLabel,
+      if (replaced) l.calendarReplacedMark,
+      if (restFixed) l.calendarRestFixedMark,
       if (freeRun && state != _DayState.free) l.calendarFreeRun,
     ].join(', ');
     // Jeder Tag ein eigener Knoten, auch ohne Einheit (sonst verschmelzen
     // Tage ohne Aktion mit Nachbarn).
     return Semantics(
       container: true,
-      button: hasUnit,
+      button: actions,
       label: semantics,
       excludeSemantics: true,
       child: InkWell(
         key: Key('calendar_day_${_dayKey(day)}'),
         borderRadius: BorderRadius.circular(12),
-        onTap: hasUnit ? () => _actions(u!) : null,
+        onTap: actions ? () => _actions(day, u) : null,
         child: Container(
           height: 56,
           margin: const EdgeInsets.all(1),
@@ -717,14 +926,65 @@ class _PlanCalendarState extends State<PlanCalendar> {
               const SizedBox(height: 4),
               SizedBox(
                 height: 18,
-                child: marked
-                    ? _StateMark(state: state, label: stateLabel!)
+                child: restFixed
+                    ? Icon(
+                        _restFixedIcon,
+                        key: Key('calendar_rest_fixed_${_dayKey(day)}'),
+                        size: 16,
+                        color: c.textMuted,
+                      )
+                    : marked
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _StateMark(state: state, label: stateLabel!),
+                          if (replaced)
+                            Icon(
+                              _replacedIcon,
+                              key: Key('calendar_replaced_${_dayKey(day)}'),
+                              size: 14,
+                              color: c.accent,
+                            ),
+                        ],
+                      )
                     : null,
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Zeichen der Festlegungen des Nutzers: Ruhetag festgelegt, Art ersetzt.
+const IconData _restFixedIcon = Icons.push_pin_outlined;
+const IconData _replacedIcon = Icons.swap_horiz_rounded;
+
+/// Zeile „von dir festgelegt“ / „Art von dir ersetzt“ in der Wochenansicht.
+class _FixedMark extends StatelessWidget {
+  const _FixedMark({super.key, required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = RamuriColors.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: c.accent),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: c.textMuted),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -769,9 +1029,12 @@ class _StateMark extends StatelessWidget {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend({required this.stateText});
+  const _Legend({required this.stateText, this.fixed = const []});
 
   final String Function(_DayState) stateText;
+
+  /// Zeichen der Festlegungen des Nutzers mit Beschriftung.
+  final List<(IconData, String)> fixed;
 
   @override
   Widget build(BuildContext context) {
@@ -795,7 +1058,16 @@ class _Legend extends StatelessWidget {
             children: [
               _StateMark(state: s, label: stateText(s)),
               const SizedBox(width: 4),
-              Text(stateText(s), style: style),
+              Flexible(child: Text(stateText(s), style: style)),
+            ],
+          ),
+        for (final (icon, label) in fixed)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: c.accent),
+              const SizedBox(width: 4),
+              Flexible(child: Text(label, style: style)),
             ],
           ),
       ],
@@ -934,19 +1206,271 @@ class _MoveDialogState extends State<_MoveDialog> {
     );
   }
 
-  Widget _line(String s, String key) => Padding(
-    padding: const EdgeInsets.only(top: 10),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(
-          Icons.info_outline_rounded,
-          size: 18,
-          color: RamuriColors.of(context).accent,
-        ),
-        const SizedBox(width: 8),
-        Expanded(child: Text(s, key: Key(key))),
-      ],
-    ),
-  );
+  Widget _line(String s, String key) => _hint(context, s, key);
+}
+
+/// Hinweiszeile in den Dialogen des Kalenders.
+Widget _hint(BuildContext context, String s, String key) => Padding(
+  padding: const EdgeInsets.only(top: 10),
+  child: Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(
+        Icons.info_outline_rounded,
+        size: 18,
+        color: RamuriColors.of(context).accent,
+      ),
+      const SizedBox(width: 8),
+      Expanded(child: Text(s, key: Key(key))),
+    ],
+  ),
+);
+
+/// Bestätigungsdialog des Ersetzens (FR-0173): Art wählen, Prüfung
+/// ([PlanController.checkReplace]) mit neuer Dauer und Hinweisen (Abstand
+/// PAR-059/PAR-060, zweite harte Einheit PAR-198) ansehen; gibt nur bei
+/// „Ersetzen“ die Art zurück.
+class _ReplaceDialog extends StatefulWidget {
+  const _ReplaceDialog({required this.unit, required this.check});
+
+  final PlanUnit unit;
+  final Future<PlanReplaceCheck?> Function(PlanUnitKind kind) check;
+
+  @override
+  State<_ReplaceDialog> createState() => _ReplaceDialogState();
+}
+
+class _ReplaceDialogState extends State<_ReplaceDialog> {
+  PlanUnitKind? _kind;
+  Future<PlanReplaceCheck?>? _result;
+
+  void _choose(PlanUnitKind k) => setState(() {
+    _kind = k;
+    _result = widget.check(k);
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final lang = Localizations.localeOf(context).languageCode;
+    String day(DateTime d) => DateFormat.MMMEd(lang).format(d);
+    return FutureBuilder<PlanReplaceCheck?>(
+      future: _result,
+      builder: (context, snap) {
+        final text = Theme.of(context).textTheme;
+        final done =
+            _result != null && snap.connectionState == ConnectionState.done;
+        final c = done && !snap.hasError ? snap.data : null;
+        final ready = c != null && c.kind == _kind;
+        final warn = ready && (c.hasSpacingConflict || c.hasSecondHard);
+        return AlertDialog(
+          key: const Key('calendar_replace_dialog'),
+          title: Text(l.calendarReplaceTitle),
+          scrollable: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l.calendarReplaceIntro(
+                  planUnitText(l, widget.unit),
+                  day(widget.unit.day),
+                ),
+                style: text.bodyLarge,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final k in planReplaceKinds)
+                    if (k != widget.unit.kind)
+                      ChoiceChip(
+                        key: Key('calendar_replace_kind_${k.name}'),
+                        label: Text(planKindName(l, k)),
+                        selected: _kind == k,
+                        onSelected: (_) => _choose(k),
+                      ),
+                ],
+              ),
+              if (_result != null && !done)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (done && !ready)
+                _hint(context, l.calendarCheckFailed, 'calendar_check_failed')
+              else if (ready) ...[
+                if (c.blocked == PlanReplaceBlock.exceedsMaxSession)
+                  _hint(
+                    context,
+                    l.calendarReplaceTooLong,
+                    'calendar_replace_blocked',
+                  )
+                else if (c.blocked != null)
+                  _hint(
+                    context,
+                    l.calendarReplaceBlocked,
+                    'calendar_replace_blocked',
+                  )
+                else
+                  _hint(
+                    context,
+                    l.calendarReplaceNew(planUnitText(l, c.unit!)),
+                    'calendar_replace_new',
+                  ),
+                for (final d in c.spacingDays)
+                  _hint(
+                    context,
+                    l.calendarMoveConflict(day(d)),
+                    'calendar_replace_conflict_${_dayKey(d)}',
+                  ),
+                for (final d in c.otherHardDays)
+                  _hint(
+                    context,
+                    l.calendarReplaceSecondHard(day(d)),
+                    'calendar_replace_second_hard_${_dayKey(d)}',
+                  ),
+              ],
+              const SizedBox(height: 12),
+              Text(l.calendarReplaceKeeps, style: text.bodySmall),
+              Text(l.calendarChangeOnlyAfterConfirm, style: text.bodySmall),
+            ],
+          ),
+          actions: [
+            TextButton(
+              key: const Key('calendar_replace_cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l.calendarMoveCancel),
+            ),
+            FilledButton(
+              key: const Key('calendar_replace_confirm'),
+              onPressed: ready && c.allowed
+                  ? () => Navigator.of(context).pop(c.kind)
+                  : null,
+              child: Text(
+                warn
+                    ? l.calendarReplaceConfirmAnyway
+                    : l.calendarReplaceConfirm,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Auswahl im Ruhetag-Dialog: Zieltag der Einheit oder `null` (entfällt
+/// bzw. keine Einheit auf dem Tag).
+class _RestChoice {
+  const _RestChoice(this.moveTo);
+  final DateTime? moveTo;
+}
+
+/// Bestätigungsdialog „Ruhetag festlegen“: Prüfung
+/// ([PlanController.checkRestDay]); liegt eine Einheit auf dem Tag, wählt
+/// der Nutzer einen Alternativtag derselben Woche, ohne passenden Tag
+/// entfällt sie. Gibt nur bei „Ruhetag festlegen“ eine Auswahl zurück.
+class _RestDayDialog extends StatefulWidget {
+  const _RestDayDialog({required this.day, required this.check});
+
+  final DateTime day;
+  final Future<PlanRestDayCheck?> Function() check;
+
+  @override
+  State<_RestDayDialog> createState() => _RestDayDialogState();
+}
+
+class _RestDayDialogState extends State<_RestDayDialog> {
+  late final Future<PlanRestDayCheck?> _result = widget.check();
+  DateTime? _moveTo;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final lang = Localizations.localeOf(context).languageCode;
+    String day(DateTime d) => DateFormat.MMMEd(lang).format(d);
+    return FutureBuilder<PlanRestDayCheck?>(
+      future: _result,
+      builder: (context, snap) {
+        final text = Theme.of(context).textTheme;
+        final done = snap.connectionState == ConnectionState.done;
+        final c = done && !snap.hasError ? snap.data : null;
+        final alternatives = c?.alternatives ?? const <DateTime>[];
+        final moveTo = c?.unit == null || alternatives.isEmpty
+            ? null
+            : (_moveTo ?? alternatives.first);
+        return AlertDialog(
+          key: const Key('calendar_rest_dialog'),
+          title: Text(l.calendarRestTitle),
+          scrollable: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l.calendarRestIntro(
+                  DateFormat.MMMMEEEEd(lang).format(widget.day),
+                ),
+                style: text.bodyLarge,
+              ),
+              if (!done)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (c == null)
+                _hint(context, l.calendarCheckFailed, 'calendar_check_failed')
+              else if (c.blocked != null)
+                _hint(context, l.calendarRestBlocked, 'calendar_rest_blocked')
+              else if (c.unit != null && alternatives.isEmpty)
+                _hint(
+                  context,
+                  l.calendarRestUnitDrops(planUnitText(l, c.unit!)),
+                  'calendar_rest_unit_drops',
+                )
+              else if (c.unit != null) ...[
+                _hint(
+                  context,
+                  l.calendarRestUnitMoves(planUnitText(l, c.unit!)),
+                  'calendar_rest_unit_moves',
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final d in alternatives)
+                      ChoiceChip(
+                        key: Key('calendar_rest_alternative_${_dayKey(d)}'),
+                        label: Text(day(d)),
+                        selected: d == moveTo,
+                        onSelected: (_) => setState(() => _moveTo = d),
+                      ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 12),
+              Text(l.calendarChangeOnlyAfterConfirm, style: text.bodySmall),
+            ],
+          ),
+          actions: [
+            TextButton(
+              key: const Key('calendar_rest_cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l.calendarMoveCancel),
+            ),
+            FilledButton(
+              key: const Key('calendar_rest_confirm'),
+              onPressed: c != null && c.allowed
+                  ? () => Navigator.of(context).pop(_RestChoice(moveTo))
+                  : null,
+              child: Text(l.calendarRestConfirm),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }

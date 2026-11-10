@@ -67,6 +67,59 @@ class _Gated extends _NoCheck {
   }
 }
 
+/// Wie [_NoCheck], merkt sich die ändernden Aufrufe; [fail] lässt sie
+/// scheitern, ohne den Speicher zu berühren, [failCheck] die Prüfungen.
+class _Spy extends _NoCheck {
+  _Spy(super.session, super.clock);
+  final calls = <String>[];
+  bool fail = false;
+  bool failCheck = false;
+
+  @override
+  Future<PlanReplaceCheck?> checkReplace(PlanUnit unit, PlanUnitKind kind) {
+    if (failCheck) return Future.error(StateError('Prüfung gescheitert'));
+    return super.checkReplace(unit, kind);
+  }
+
+  @override
+  Future<PlanActionResult> replaceUnit(int unitId, PlanUnitKind kind) async {
+    calls.add('replace $unitId ${kind.name}');
+    return fail ? PlanActionResult.failed : super.replaceUnit(unitId, kind);
+  }
+
+  @override
+  Future<PlanActionResult> setRestDay(
+    DateTime day, {
+    DateTime? moveUnitTo,
+  }) async {
+    calls.add(
+      'rest ${_iso(day)} ${moveUnitTo == null ? '-' : _iso(moveUnitTo)}',
+    );
+    return fail
+        ? PlanActionResult.failed
+        : super.setRestDay(day, moveUnitTo: moveUnitTo);
+  }
+
+  @override
+  Future<PlanActionResult> clearRestDay(DateTime day) async {
+    calls.add('clear ${_iso(day)}');
+    return fail ? PlanActionResult.failed : super.clearRestDay(day);
+  }
+}
+
+String _iso(DateTime d) => d.toIso8601String().substring(0, 10);
+
+/// Schlüsselteil des Tags [n] ab Montag, 9.11.
+String _k(int n) => '2026-11-${(9 + n).toString().padLeft(2, '0')}';
+
+/// Tag [n] antippen und im Blatt [action] wählen.
+Future<void> _sheet(WidgetTester tester, int n, String action) async {
+  await tester.tap(key('calendar_day_${_k(n)}'));
+  await tester.pumpAndSettle();
+  await tester.tap(key(action));
+  await tester.pumpAndSettle();
+}
+
 /// Plan mit festen Einheiten: Mo 9.11. locker (erledigt), Di 10.11. locker
 /// (ausgefallen), Do 12.11. Intervalle, Sa 14.11. lang; Folgewoche Di
 /// locker, Do Intervalle, Sa lang. Mi 11.11. (heute) und So sind frei.
@@ -147,7 +200,8 @@ Future<String> _schedule(StorageSession s) async => [
     _mon,
     planFarFuture,
   ))
-    '${u.day.toIso8601String().substring(0, 10)}/${u.kind.name}/${u.pinned}',
+    '${u.day.toIso8601String().substring(0, 10)}/${u.kind.name}/${u.pinned}/'
+        '${u.fixed.name}/${u.minutes}',
 ].join(';');
 
 Future<void> _pump(
@@ -589,6 +643,287 @@ void main() {
         tester.getSize(key('calendar_day_2026-11-12')).width,
         greaterThanOrEqualTo(48),
       );
+    });
+  });
+
+  group('Ersetzen und Ruhetag (FR-0173, Festlegungen WP22)', () {
+    for (final (locale, brightness) in [
+      ('de', Brightness.light),
+      ('en', Brightness.dark),
+    ]) {
+      testWidgets('Ersetzen: Art wählen, Hinweis, bestätigen ersetzt mit '
+          'heute und markiert Woche und Monat ($locale, ${brightness.name})', (
+        tester,
+      ) async {
+        final (session, clock) = await _seed();
+        final spy = _Spy(session, clock);
+        await _pump(
+          tester,
+          session,
+          clock,
+          locale: locale,
+          brightness: brightness,
+          controller: spy,
+        );
+        final de = locale == 'de';
+        final plans = (session as PlanStorage).plans;
+        final easy = (await plans.unitOn(_d(8)))!;
+        // Folgewoche: Di 17.11. locker durch Tempo, Do 19.11. Intervalle.
+        await tester.tap(key('calendar_next'));
+        await tester.pumpAndSettle();
+        await _sheet(tester, 8, 'calendar_replace');
+        expect(key('calendar_replace_dialog'), findsOneWidget);
+        expect(key('calendar_replace_kind_easy'), findsNothing);
+        await tester.tap(key('calendar_replace_kind_tempo'));
+        await tester.pumpAndSettle();
+        expect(key('calendar_replace_new'), findsOneWidget);
+        expect(key('calendar_replace_second_hard_2026-11-19'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: key('calendar_replace_confirm'),
+            matching: find.text(de ? 'Trotzdem ersetzen' : 'Replace anyway'),
+          ),
+          findsOneWidget,
+        );
+        expect(spy.calls, isEmpty);
+        await tester.tap(key('calendar_replace_confirm'));
+        await tester.pumpAndSettle();
+        expect(spy.calls, ['replace ${easy.id} tempo']);
+        final replaced = (await plans.unitOn(_d(8)))!;
+        expect(replaced.kind, PlanUnitKind.tempo);
+        expect(replaced.fixed, PlanUnitFixed.kind);
+        expect(
+          find.text(de ? 'Einheit ersetzt.' : 'Session replaced.'),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: key('calendar_replaced_${_k(8)}'),
+            matching: find.text(
+              de ? 'Art von dir ersetzt' : 'Type replaced by you',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(key('calendar_replaced_${_k(10)}'), findsNothing);
+
+        await tester.tap(key('calendar_mode_month'));
+        await tester.pumpAndSettle();
+        expect(key('calendar_replaced_${_k(8)}'), findsOneWidget);
+        expect(
+          tester.getSemantics(key('calendar_day_${_k(8)}')).label,
+          contains(de ? 'Art von dir ersetzt' : 'Type replaced by you'),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('ohne Bestätigung ändert sich nichts (Abbrechen, Zurück), '
+        'vergangene Tage ohne Aktionen', (tester) async {
+      final (session, clock) = await _seed();
+      final spy = _Spy(session, clock);
+      final before = await _schedule(session);
+      await _pump(tester, session, clock, controller: spy);
+
+      await _sheet(tester, 3, 'calendar_replace');
+      await tester.tap(key('calendar_replace_kind_tempo'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('calendar_replace_cancel'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_replace_dialog'), findsNothing);
+
+      await _sheet(tester, 3, 'calendar_replace');
+      await tester.tap(key('calendar_replace_kind_long'));
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(key('calendar_replace_dialog'), findsNothing);
+      expect(key('calendar_list'), findsOneWidget);
+
+      await _sheet(tester, 3, 'calendar_rest_set');
+      await tester.tap(key('calendar_rest_cancel'));
+      await tester.pumpAndSettle();
+      await _sheet(tester, 6, 'calendar_rest_set');
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(key('calendar_rest_dialog'), findsNothing);
+      expect(key('calendar_list'), findsOneWidget);
+      expect(spy.calls, isEmpty);
+      expect(await _schedule(session), before);
+      expect(key('calendar_change_result'), findsNothing);
+
+      // Vergangen bzw. erledigt: weder Ersetzen noch Ruhetag.
+      for (final day in [0, 1]) {
+        await tester.tap(key('calendar_day_${_k(day)}'));
+        await tester.pumpAndSettle();
+        expect(key('calendar_frozen'), findsOneWidget);
+        expect(key('calendar_replace'), findsNothing);
+        expect(key('calendar_rest_set'), findsNothing);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+      }
+    });
+
+    testWidgets('Ruhetag auf einer Einheit: Alternativtag derselben Woche, '
+        'bestätigen verlegt die Einheit', (tester) async {
+      final (session, clock) = await _seed();
+      final spy = _Spy(session, clock);
+      await _pump(tester, session, clock, controller: spy);
+      // Do 12.11. Intervalle: Mi 11.11. passt; Fr 13. und So 15. liegen
+      // neben dem langen Lauf am Sa 14.11.
+      await _sheet(tester, 3, 'calendar_rest_set');
+      expect(key('calendar_rest_unit_moves'), findsOneWidget);
+      expect(key('calendar_rest_alternative_${_k(2)}'), findsOneWidget);
+      expect(key('calendar_rest_alternative_${_k(4)}'), findsNothing);
+      expect(key('calendar_rest_alternative_${_k(6)}'), findsNothing);
+      expect(spy.calls, isEmpty);
+      await tester.tap(key('calendar_rest_alternative_${_k(2)}'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('calendar_rest_confirm'));
+      await tester.pumpAndSettle();
+      expect(spy.calls, ['rest ${_iso(_d(3))} ${_iso(_d(2))}']);
+      final plans = (session as PlanStorage).plans;
+      final rest = (await plans.unitOn(_d(3)))!;
+      expect(rest.isRestDay, isTrue);
+      expect(rest.fixed, PlanUnitFixed.day);
+      final moved = (await plans.unitOn(_d(2)))!;
+      expect(moved.kind, PlanUnitKind.intervals);
+      expect(moved.pinned, isTrue);
+      expect(find.text('Ruhetag festgelegt.'), findsOneWidget);
+      expect(key('calendar_rest_fixed_${_k(3)}'), findsOneWidget);
+    });
+
+    testWidgets('Ruhetag ohne passenden Tag: die Einheit entfällt erst nach '
+        'Bestätigung', (tester) async {
+      // Höchste Wochenzeit 60 min: jeder andere Tag läge über dem Regler.
+      final (session, clock) = await _seed(capMinutes: 60);
+      final spy = _Spy(session, clock);
+      await _pump(tester, session, clock, controller: spy);
+      await _sheet(tester, 3, 'calendar_rest_set');
+      expect(key('calendar_rest_unit_drops'), findsOneWidget);
+      expect(find.byType(ChoiceChip), findsNothing);
+      final plans = (session as PlanStorage).plans;
+      expect((await plans.unitOn(_d(3)))!.kind, PlanUnitKind.intervals);
+      await tester.tap(key('calendar_rest_confirm'));
+      await tester.pumpAndSettle();
+      expect(spy.calls, ['rest ${_iso(_d(3))} -']);
+      expect((await plans.unitOn(_d(3)))!.isRestDay, isTrue);
+      final week = await plans.unitsBetween(_d(0), _d(6));
+      expect(week.where((u) => u.kind == PlanUnitKind.intervals), isEmpty);
+    });
+
+    for (final (locale, brightness) in [
+      ('de', Brightness.light),
+      ('en', Brightness.dark),
+    ]) {
+      testWidgets('freier Tag wird Ruhetag, markiert, aufheben nur nach '
+          'Bestätigung ($locale, ${brightness.name})', (tester) async {
+        final (session, clock) = await _seed();
+        final spy = _Spy(session, clock);
+        await _pump(
+          tester,
+          session,
+          clock,
+          locale: locale,
+          brightness: brightness,
+          controller: spy,
+        );
+        final de = locale == 'de';
+        final plans = (session as PlanStorage).plans;
+        // So 15.11. ist frei.
+        await _sheet(tester, 6, 'calendar_rest_set');
+        expect(key('calendar_rest_unit_moves'), findsNothing);
+        expect(key('calendar_rest_unit_drops'), findsNothing);
+        await tester.tap(key('calendar_rest_confirm'));
+        await tester.pumpAndSettle();
+        expect(spy.calls, ['rest ${_iso(_d(6))} -']);
+        expect((await plans.unitOn(_d(6)))!.isRestDay, isTrue);
+        final mark = find.descendant(
+          of: key('calendar_rest_fixed_${_k(6)}'),
+          matching: find.text(de ? 'von dir festgelegt' : 'set by you'),
+        );
+        expect(mark, findsOneWidget);
+        expect(
+          tester.widget<Text>(mark).style?.color,
+          RamuriColors.of(tester.element(mark)).textMuted,
+        );
+        expect(key('calendar_rest_fixed_${_k(2)}'), findsNothing);
+
+        await tester.tap(key('calendar_mode_month'));
+        await tester.pumpAndSettle();
+        final icon = key('calendar_rest_fixed_${_k(6)}');
+        expect(icon, findsOneWidget);
+        expect(
+          tester.widget<Icon>(icon).color,
+          RamuriColors.of(tester.element(icon)).textMuted,
+        );
+        expect(
+          tester.getSemantics(key('calendar_day_${_k(6)}')).label,
+          contains(de ? 'von dir festgelegt' : 'set by you'),
+        );
+
+        // Aufheben: Abbrechen ändert nichts, Bestätigen hebt auf.
+        await _sheet(tester, 6, 'calendar_rest_clear');
+        expect(key('calendar_rest_clear_dialog'), findsOneWidget);
+        await tester.tap(key('calendar_rest_clear_cancel'));
+        await tester.pumpAndSettle();
+        expect((await plans.unitOn(_d(6)))!.isRestDay, isTrue);
+        expect(spy.calls, hasLength(1));
+        await _sheet(tester, 6, 'calendar_rest_clear');
+        await tester.tap(key('calendar_rest_clear_confirm'));
+        await tester.pumpAndSettle();
+        expect(spy.calls.last, 'clear ${_iso(_d(6))}');
+        expect(await plans.unitOn(_d(6)), isNull);
+        expect(
+          find.text(de ? 'Ruhetag aufgehoben.' : 'Rest day removed.'),
+          findsOneWidget,
+        );
+        expect(key('calendar_rest_fixed_${_k(6)}'), findsNothing);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('Fehler sind sichtbar und ändern nichts', (tester) async {
+      final (session, clock) = await _seed();
+      final spy = _Spy(session, clock)..failCheck = true;
+      final before = await _schedule(session);
+      await _pump(tester, session, clock, controller: spy);
+
+      await _sheet(tester, 3, 'calendar_replace');
+      await tester.tap(key('calendar_replace_kind_tempo'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_check_failed'), findsOneWidget);
+      expect(
+        tester.widget<FilledButton>(key('calendar_replace_confirm')).onPressed,
+        isNull,
+      );
+      await tester.tap(key('calendar_replace_cancel'));
+      await tester.pumpAndSettle();
+
+      spy
+        ..failCheck = false
+        ..fail = true;
+      await _sheet(tester, 3, 'calendar_replace');
+      await tester.tap(key('calendar_replace_kind_tempo'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('calendar_replace_confirm'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'Die Einheit ließ sich nicht ersetzen. Der Plan ist unverändert.',
+        ),
+        findsOneWidget,
+      );
+      await _sheet(tester, 6, 'calendar_rest_set');
+      await tester.tap(key('calendar_rest_confirm'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'Der Ruhetag ließ sich nicht festlegen. Der Plan ist unverändert.',
+        ),
+        findsOneWidget,
+      );
+      expect(await _schedule(session), before);
     });
   });
 }
