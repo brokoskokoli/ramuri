@@ -65,6 +65,7 @@ class PlanParameters {
     this.peakHalfMarathonKm = 16,
     this.peakMaxMinutes = 120,
     this.peakMinEasyRuns = 3,
+    this.easyWindowWeeks = 6,
     this.largeChangeShare = 0.10,
   });
 
@@ -179,6 +180,10 @@ class PlanParameters {
 
   /// PAR-205: lockeres Tempo = Median aus mindestens 3 lockeren Läufen.
   final int peakMinEasyRuns;
+
+  /// PAR-205: Fenster für lockere Läufe und (PAR-192) für den Stand aus
+  /// vorhandenen Läufen, in Wochen.
+  final int easyWindowWeeks;
 
   /// PAR-204: größere Änderung ab diesem Anteil Änderung der Wochenzeit.
   final double largeChangeShare;

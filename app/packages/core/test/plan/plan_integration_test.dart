@@ -98,7 +98,7 @@ void main() {
         intensity: IntensityInputs(
           referenceSeconds: 1500,
           referenceMeters: 5000,
-          referenceAgeDays: 5,
+          referenceDate: DateTime.utc(2026, 11, 6),
           longestPauseSinceReferenceDays: 3,
           vo2max: 45,
           vo2maxGrade: Vo2maxGrade.good,

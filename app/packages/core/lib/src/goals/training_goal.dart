@@ -144,6 +144,23 @@ class TrainingGoal {
   /// Heutiger Stand (PAR-192): Antwort zu „30 min am Stück“.
   final ContinuousRun30 canRun30;
 
+  /// Kopie mit anderer Wochenzeit als Stand (Sekunden oder `null`); alles
+  /// andere unverändert. Für die Rechnung mit dem Stand aus vorhandenen
+  /// Läufen (PAR-192), nicht zum Speichern.
+  TrainingGoal withStand(double? currentWeeklySeconds) => TrainingGoal(
+    type: type,
+    runDays: runDays,
+    maxSessionSeconds: maxSessionSeconds,
+    weeklyCapSeconds: weeklyCapSeconds,
+    createdAt: createdAt,
+    hardSessionEnabled: hardSessionEnabled,
+    currentWeeklySeconds: currentWeeklySeconds,
+    canRun30: canRun30,
+    distance: distance,
+    targetSeconds: targetSeconds,
+    targetDate: targetDate,
+  );
+
   /// Standard des Schalters „harte Einheit“ beim Anlegen (PAR-198): an bei
   /// Zeitzielen, sonst aus.
   static bool defaultHardSession(GoalType type) => type == GoalType.time;

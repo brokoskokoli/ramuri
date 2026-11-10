@@ -180,6 +180,7 @@ class IntensityInputs {
   IntensityInputs({
     this.referenceSeconds,
     this.referenceMeters,
+    this.referenceDate,
     this.referenceAgeDays,
     this.longestPauseSinceReferenceDays = 0,
     this.vo2max,
@@ -205,8 +206,38 @@ class IntensityInputs {
   final double? referenceSeconds;
   final double? referenceMeters;
 
-  /// Alter der Referenz in Tagen zum Planungsstand.
+  /// Datum der Referenzleistung (lokaler Kalendertag). Gespeichert wird das
+  /// Datum, nicht das Alter: das Alter folgt bei jeder Rechnung aus „heute“
+  /// ([withAgeAt]).
+  final DateTime? referenceDate;
+
+  /// Alter der Referenz in Tagen zum Planungsstand. Nicht gespeichert; mit
+  /// [referenceDate] setzt [withAgeAt] es aus „heute“. Ohne Datum gilt der
+  /// hier gesetzte Wert (direkte Rechnung, Tests).
   final int? referenceAgeDays;
+
+  /// Kopie mit [referenceAgeDays] = Tage von [referenceDate] bis [today];
+  /// ohne Datum unverändert.
+  IntensityInputs withAgeAt(DateTime today) {
+    final d = referenceDate;
+    if (d == null) return this;
+    final age = DateTime.utc(
+      today.year,
+      today.month,
+      today.day,
+    ).difference(DateTime.utc(d.year, d.month, d.day)).inDays;
+    return IntensityInputs(
+      referenceSeconds: referenceSeconds,
+      referenceMeters: referenceMeters,
+      referenceDate: referenceDate,
+      referenceAgeDays: age,
+      longestPauseSinceReferenceDays: longestPauseSinceReferenceDays,
+      vo2max: vo2max,
+      vo2maxGrade: vo2maxGrade,
+      heartRate: heartRate,
+      zoneBounds: zoneBounds,
+    );
+  }
 
   /// Längste Pause seit der Referenz in Tagen (PAR-101, PAR-202).
   final int longestPauseSinceReferenceDays;
@@ -230,7 +261,11 @@ class IntensityInputs {
   Map<String, Object?> toJson() => {
     'referenceSeconds': referenceSeconds,
     'referenceMeters': referenceMeters,
-    'referenceAgeDays': referenceAgeDays,
+    'referenceDate': referenceDate == null
+        ? null
+        : '${referenceDate!.year.toString().padLeft(4, '0')}-'
+              '${referenceDate!.month.toString().padLeft(2, '0')}-'
+              '${referenceDate!.day.toString().padLeft(2, '0')}',
     'longestPauseSinceReferenceDays': longestPauseSinceReferenceDays,
     'vo2max': vo2max,
     'vo2maxGrade': vo2maxGrade?.name,
@@ -260,6 +295,27 @@ class IntensityInputs {
       throw FormatException('IntensityInputs: "$k" ist keine Ganzzahl');
     }
 
+    DateTime? refDate;
+    final rd = json['referenceDate'];
+    if (rd != null) {
+      final m = rd is String
+          ? RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(rd)
+          : null;
+      if (m != null) {
+        refDate = DateTime.utc(
+          int.parse(m[1]!),
+          int.parse(m[2]!),
+          int.parse(m[3]!),
+        );
+      }
+      if (refDate == null ||
+          '${refDate.year.toString().padLeft(4, '0')}-'
+                  '${refDate.month.toString().padLeft(2, '0')}-'
+                  '${refDate.day.toString().padLeft(2, '0')}' !=
+              rd) {
+        throw const FormatException('IntensityInputs: "referenceDate"');
+      }
+    }
     Vo2maxGrade? grade;
     final g = json['vo2maxGrade'];
     if (g != null) {
@@ -295,7 +351,7 @@ class IntensityInputs {
       return IntensityInputs(
         referenceSeconds: num_('referenceSeconds'),
         referenceMeters: num_('referenceMeters'),
-        referenceAgeDays: int_('referenceAgeDays'),
+        referenceDate: refDate,
         longestPauseSinceReferenceDays:
             int_('longestPauseSinceReferenceDays') ?? 0,
         vo2max: num_('vo2max'),

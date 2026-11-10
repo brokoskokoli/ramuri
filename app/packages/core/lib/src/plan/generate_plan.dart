@@ -296,7 +296,7 @@ GeneratedPlan generatePlan(
   // Werte (FR-0153, ADR-0010 Punkt 11).
   final withIntensity = applyTargetIntensities(
     _byDay(created),
-    inputs.intensity ?? IntensityInputs(),
+    (inputs.intensity ?? IntensityInputs()).withAgeAt(todayDay),
   );
 
   return GeneratedPlan(
