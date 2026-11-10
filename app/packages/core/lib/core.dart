@@ -91,6 +91,7 @@ export 'src/plan/generate_plan.dart';
 export 'src/plan/goal_feasibility.dart';
 export 'src/plan/plan_change.dart';
 export 'src/plan/plan_course.dart';
+export 'src/plan/plan_hints.dart';
 export 'src/plan/build_plan_inputs.dart';
 export 'src/plan/plan_inputs.dart';
 export 'src/plan/plan_parameters.dart';

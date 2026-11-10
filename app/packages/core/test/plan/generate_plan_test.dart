@@ -836,16 +836,27 @@ void main() {
       );
     });
 
-    test('Startfall nein ohne Abfolge: keine harte Einheit, 3 Läufe', () {
+    test('Startfall nein ohne Abfolge: keine harte Einheit, 3 Läufe, '
+        'solange die Startwochenzeit keine 30 min am Stück trägt', () {
       final g = goal(c30: ContinuousRun30.no);
+      // 3 Tage: längster Lauf 40 % von 60 min = 24 min.
       final p = generatePlan(
         g,
-        inputs(today: DateTime.utc(2026, 11, 9)),
+        inputs(start: 60, today: DateTime.utc(2026, 11, 9)),
         const [],
         DateTime.utc(2026, 11, 9),
       );
       expect(p.units.where((u) => u.isHard), isEmpty);
       expect(p.hardOmissions[0], HardOmission.notContinuous30);
+      // Stand aus Läufen (PAR-192): 90 min ohne Abfolge ergeben 36 min.
+      final q = generatePlan(
+        g,
+        inputs(today: DateTime.utc(2026, 11, 9)),
+        const [],
+        DateTime.utc(2026, 11, 9),
+      );
+      expect(q.units.where((u) => u.isHard), isNotEmpty);
+      expect(q.hardOmissions[0], isNot(HardOmission.notContinuous30));
     });
 
     test('kein Zugriff auf Uhr, Zufall oder Datenbank in src/plan', () {

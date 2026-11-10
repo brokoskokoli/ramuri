@@ -6,8 +6,10 @@ const String planMethod = 'weekly-time-course';
 /// Steigt bei jeder Änderung der Logik (auch ohne neuen Parameterwert), der
 /// Parameterstand bei jeder Änderung eines Werts. 2: Zeitziel mit harter
 /// Einheit steigert bis zur Passform (T1, NB4); die Rotation der harten Formen
-/// rückt in jeder Woche mit vorgesehener harter Einheit weiter.
-const int planMethodVersion = 2;
+/// rückt in jeder Woche mit vorgesehener harter Einheit weiter. 3: „30 min
+/// am Stück“ ohne Geh-Lauf-Abfolge auch aus der Start-Wochenzeit der
+/// Eingaben (Stand aus Läufen, PAR-192; `planCanRunContinuous30`).
+const int planMethodVersion = 3;
 
 /// Stand der Parameter (ADR-0010 Punkt 1: `parameter_version`). Steigt, wenn
 /// sich ein Wert in [PlanParameters] ändert.

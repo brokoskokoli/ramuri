@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -529,5 +530,174 @@ void main() {
     expect(p.hardOmissions.keys, r.generated!.hardOmissions.keys);
     expect((await _all(e.plans)).map(_sig), before.map(_sig));
     expect(await e.plans.history(), hasLength(1));
+  });
+
+  test('Stand aus Läufen ersetzt „30 min: nein“ des Ziels auch in der '
+      'Neuberechnung: harte Einheiten möglich (PAR-192, PAR-198)', () async {
+    final e = await _Env.open();
+    final goal = TrainingGoal(
+      type: GoalType.distance,
+      distance: GoalDistance.tenKilometers,
+      targetDate: DateTime(2027, 6, 1),
+      runDays: const {2, 4, 6},
+      maxSessionSeconds: 7200,
+      weeklyCapSeconds: 240 * 60.0,
+      createdAt: DateTime.utc(2026, 11, 1),
+      hardSessionEnabled: true,
+      canRun30: ContinuousRun30.no,
+    );
+    await e.goals.save(goal, today: goal.createdAt);
+    String text(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+    // 12 Läufe zu 50 min in den letzten 6 Wochen (2 je Woche).
+    final runs = [
+      for (var i = 0; i < 12; i++)
+        RunFigures(
+          runId: i + 1,
+          endedAt: _day(-1 - 3 * i).add(const Duration(hours: 8)),
+          day: text(_day(-1 - 3 * i)),
+          distanceMeters: 8000,
+          movingTime: const Duration(minutes: 50),
+          totalTime: const Duration(minutes: 50),
+        ),
+    ];
+    final built = buildPlanInputs(goal: goal, today: _day(0), runs: runs);
+    expect(built.inputs.walkRunStart, isNull);
+    expect(built.inputs.startWeeklyMinutes, greaterThanOrEqualTo(100));
+
+    final created = await recalculatePlan(
+      plans: e.plans,
+      settings: e.settings,
+      trigger: PlanTrigger.create,
+      today: _day(0),
+      now: _now(0),
+      inputs: built.inputs,
+    );
+    expect(created.generated!.units.where((u) => u.isHard), isNotEmpty);
+    expect(
+      created.generated!.hardOmissions.values,
+      isNot(contains(HardOmission.notContinuous30)),
+    );
+
+    // Die wöchentliche Prüfung rechnet mit gespeichertem Ziel und den
+    // gespeicherten Eingaben ebenso (ADR-0010 Punkt 6).
+    final weekly = await e.run(PlanTrigger.weekly, 7);
+    expect(weekly.generated!.units.where((u) => u.isHard), isNotEmpty);
+    expect(
+      weekly.generated!.hardOmissions.values,
+      isNot(contains(HardOmission.notContinuous30)),
+    );
+    expect(
+      planAllowsFiveKilometerTest(
+        goal: goal,
+        inputs: (await e.plans.history()).last.inputs,
+        today: _day(7),
+      ),
+      isTrue,
+    );
+  });
+
+  group('Hinweise an der Fassung (summary, WP22)', () {
+    test('die geschriebene Fassung trägt die Hinweise ihrer Rechnung, auch '
+        'nach einer automatischen Neuberechnung', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      for (final (t, day) in [
+        (PlanTrigger.create, 0),
+        (PlanTrigger.weekly, 7),
+      ]) {
+        // Kleinerer Regler: die automatische Rechnung ändert Inhalte.
+        if (day > 0) await e.goals.save(_goal(capMin: 100), today: _day(day));
+        final r = await e.run(t, day);
+        expect(r.wasWritten, isTrue);
+        final v = (await e.plans.history()).last;
+        expect(v.summary[planHintsKey], planHintsToJson(r.generated!));
+        final units = await e.plans.unitsBetween(
+          v.inputs.anchor,
+          planFarFuture,
+        );
+        final read = planHintsFromSummary(
+          v.summary,
+          version: v.version,
+          units: units,
+          today: _day(day),
+        )!;
+        expect(planHintsToJson(read), planHintsToJson(r.generated!));
+        expect(read.units.map(_sig), r.generated!.units.map(_sig));
+      }
+    });
+
+    test('Rundweg aller Felder; fehlende oder fremde Hinweise: null', () {
+      final g = GeneratedPlan(
+        version: PlanVersion.current,
+        weeks: [
+          PlanWeek(
+            index: 2,
+            start: DateTime.utc(2026, 11, 23),
+            minutes: null,
+            phase: PlanPhase.entry,
+            kind: WeekKind.values.last,
+          ),
+        ],
+        units: const [],
+        frozenUnits: const [],
+        unplacedByWeek: const {2: 7},
+        hardOmissions: const {3: HardOmission.notContinuous30},
+        droppedDaysByWeek: {
+          4: [DateTime.utc(2026, 12, 9)],
+        },
+        pinnedConflicts: [
+          PinnedConflict(
+            kind: PinnedConflictKind.spacing,
+            day: DateTime.utc(2026, 12, 1),
+            otherDay: DateTime.utc(2026, 12, 2),
+          ),
+          PinnedConflict(
+            kind: PinnedConflictKind.noMatchingUnit,
+            day: DateTime.utc(2026, 12, 3),
+          ),
+        ],
+        walkRunStaysAtWeek: 5,
+        walkRunNoWeekFits: true,
+        hardFit: HardFitStatus.partialAtPeak,
+      );
+      final json = planHintsToJson(g);
+      final read = planHintsFromSummary(
+        {planHintsKey: jsonDecode(jsonEncode(json))},
+        version: PlanVersion.current,
+        units: const [],
+        today: _day(0),
+      )!;
+      expect(planHintsToJson(read), json);
+      // Wochen vor der Woche von heute fallen weg (wie generatePlan).
+      final later = planHintsFromSummary(
+        {planHintsKey: json},
+        version: PlanVersion.current,
+        units: const [],
+        today: DateTime.utc(2026, 11, 30),
+      )!;
+      expect(later.weeks, isEmpty);
+      expect(
+        planHintsFromSummary(
+          const {},
+          version: PlanVersion.current,
+          units: const [],
+          today: _day(0),
+        ),
+        isNull,
+      );
+      expect(
+        planHintsFromSummary(
+          {
+            planHintsKey: {...json, 'hardFit': 'unbekannt'},
+          },
+          version: PlanVersion.current,
+          units: const [],
+          today: _day(0),
+        ),
+        isNull,
+      );
+    });
   });
 }

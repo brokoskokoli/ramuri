@@ -286,10 +286,11 @@ void main() {
           ContinuousRun30 c, {
           double? stated,
           int walk = 0,
+          int start = 60,
           DateTime? today,
         }) => planAllowsFiveKilometerTest(
           goal: goal(c30: c, stated: stated, date: inWeeks(40)),
-          inputs: inputs(walk: walk),
+          inputs: inputs(start: start, walk: walk),
           today: today ?? d0,
         );
         expect(a(ContinuousRun30.no), isFalse);
@@ -297,6 +298,10 @@ void main() {
         // 3 Tage: längster Lauf 40 % der Wochenzeit; 75 min => 30 min
         expect(a(ContinuousRun30.unknown, stated: 75 * 60), isTrue);
         expect(a(ContinuousRun30.unknown, stated: 74 * 60), isFalse);
+        // Ohne Abfolge trägt die Startwochenzeit den Stand aus Läufen
+        // (PAR-192): 75 min => 30 min, auch bei „nein“ im Ziel.
+        expect(a(ContinuousRun30.no, start: 75), isTrue);
+        expect(a(ContinuousRun30.no, start: 74), isFalse);
         // Geh-Lauf-Abfolge 4 Wochen ab Anker 9.11.: erst ab Woche 4 ja
         expect(a(ContinuousRun30.no, walk: 4, today: inWeeks(3)), isFalse);
         expect(a(ContinuousRun30.no, walk: 4, today: inWeeks(4)), isTrue);

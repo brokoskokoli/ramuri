@@ -22,6 +22,17 @@ enum PlanActionResult {
 
   /// Speicher nicht erreichbar oder Rechnung gescheitert.
   failed,
+
+  /// Nur [PlanController.saveGoal]: das Ziel ist gespeichert, die
+  /// Neuberechnung des Plans scheiterte. Der Plan gehört noch zum alten Ziel;
+  /// die nächste Neuberechnung dieser Sitzung (erneutes Speichern, Öffnen,
+  /// [PlanController.recalculate]) holt die Zieländerung nach.
+  savedNotPlanned,
+}
+
+/// Das Ziel ist gespeichert, die Neuberechnung danach scheiterte.
+class _SavedNotPlanned implements Exception {
+  const _SavedNotPlanned();
 }
 
 /// Stand der Plan-Seite (WP22). Nur Daten, keine Texte.
@@ -66,8 +77,9 @@ class PlanViewState {
   /// [GeneratedPlan.hardFit] (inkl. `partialAtPeak`),
   /// [GeneratedPlan.walkRunStaysAtWeek], [GeneratedPlan.walkRunNoWeekFits],
   /// [GeneratedPlan.weeks]. Nach einer Neuberechnung in dieser Sitzung deren
-  /// Ergebnis, sonst eine Vorschau ([previewPlan]) aus der neuesten Fassung;
-  /// gespeichert werden die Hinweise nicht. `null` ohne Plan.
+  /// Ergebnis, sonst die an der neuesten Fassung gespeicherten
+  /// ([planHintsFromSummary]); nur für Fassungen ohne gespeicherte Hinweise
+  /// eine Vorschau ([previewPlan]). `null` ohne Plan.
   final GeneratedPlan? hints;
 
   /// Alt-Neu-Bild der letzten Neuberechnung dieser Sitzung (PAR-204), sonst
@@ -129,6 +141,10 @@ class PlanController extends ChangeNotifier {
 
   GeneratedPlan? _fresh;
   PlanChangeSummary? _lastChange;
+
+  /// Ein gespeichertes Ziel wartet auf seine Neuberechnung (`goalChange`),
+  /// weil sie nach dem Speichern scheiterte.
+  bool _goalChangePending = false;
   Future<void> _tail = Future.value();
   bool _disposed = false;
 
@@ -177,6 +193,10 @@ class PlanController extends ChangeNotifier {
       return;
     }
     final last = history.last;
+    if (_goalChangePending) {
+      await _recalculate(PlanTrigger.goalChange, goal, last);
+      return;
+    }
     final today = _today();
     final checked = await session.settings.get(planLastCheckDayKey);
     if (!weeklyCheckDue(checked, today)) return;
@@ -211,6 +231,9 @@ class PlanController extends ChangeNotifier {
     );
     _fresh = r.generated;
     _lastChange = r.summary;
+    if (trigger == PlanTrigger.goalChange || trigger == PlanTrigger.create) {
+      _goalChangePending = false;
+    }
     if (r.wasWritten) onChanged?.call();
   }
 
@@ -235,13 +258,21 @@ class PlanController extends ChangeNotifier {
     GeneratedPlan? hints = _fresh;
     if (hints == null && goal != null && version != null) {
       final inputs = version.inputs.copyWith(today: today);
-      hints = previewPlan(
-        goal: goal,
-        inputs: inputs,
-        units: await _plans.unitsBetween(inputs.anchor, planFarFuture),
-        today: today,
-        parameters: parameters,
-      );
+      final units = await _plans.unitsBetween(inputs.anchor, planFarFuture);
+      hints =
+          planHintsFromSummary(
+            version.summary,
+            version: version.version,
+            units: units,
+            today: today,
+          ) ??
+          previewPlan(
+            goal: goal,
+            inputs: inputs,
+            units: units,
+            today: today,
+            parameters: parameters,
+          );
     }
     final monday = today.subtract(Duration(days: today.weekday - 1));
     GoalAssessment? assessment;
@@ -292,21 +323,31 @@ class PlanController extends ChangeNotifier {
   }
 
   /// Speichert das Ziel (Anlegen oder Ändern, PAR-203) mit „heute“ und
-  /// rechnet den Plan ab heute neu (`create` ohne bisheriges Ziel, sonst
-  /// `goalChange`). Ungültiges Ziel: [PlanActionResult.rejected], nichts
-  /// geändert.
+  /// rechnet den Plan ab heute neu (`create` ohne bisheriges Ziel oder ohne
+  /// Fassung, sonst `goalChange`), mit dem gespeicherten Ziel. Ungültiges Ziel:
+  /// [PlanActionResult.rejected], nichts geändert. Scheitert nur die
+  /// Neuberechnung: [PlanActionResult.savedNotPlanned].
   Future<PlanActionResult> saveGoal(TrainingGoal goal) => _act(() async {
     final existed = await _goals.goal() != null;
     await _goals.save(goal, today: _today());
+    _goalChangePending = true;
     onChanged?.call();
-    final history = await _plans.history();
-    await _recalculate(
-      existed && history.isNotEmpty
-          ? PlanTrigger.goalChange
-          : PlanTrigger.create,
-      goal,
-      history.isEmpty ? null : history.last,
-    );
+    try {
+      final saved = await _goals.goal();
+      if (saved == null) {
+        throw const StorageException(StorageFailure.notFound);
+      }
+      final history = await _plans.history();
+      await _recalculate(
+        existed && history.isNotEmpty
+            ? PlanTrigger.goalChange
+            : PlanTrigger.create,
+        saved,
+        history.isEmpty ? null : history.last,
+      );
+    } on Object {
+      throw const _SavedNotPlanned();
+    }
   });
 
   /// Ausdrückliche Neuberechnung durch den Nutzer (`manual`).
@@ -317,7 +358,9 @@ class PlanController extends ChangeNotifier {
     }
     final history = await _plans.history();
     await _recalculate(
-      history.isEmpty ? PlanTrigger.create : PlanTrigger.manual,
+      history.isEmpty
+          ? PlanTrigger.create
+          : (_goalChangePending ? PlanTrigger.goalChange : PlanTrigger.manual),
       goal,
       history.isEmpty ? null : history.last,
     );
@@ -334,7 +377,7 @@ class PlanController extends ChangeNotifier {
     if (goal == null) return;
     final history = await _plans.history();
     await _recalculate(
-      PlanTrigger.run,
+      _goalChangePending ? PlanTrigger.goalChange : PlanTrigger.run,
       goal,
       history.isEmpty ? null : history.last,
     );
@@ -355,6 +398,8 @@ class PlanController extends ChangeNotifier {
         try {
           await action();
           result = PlanActionResult.done;
+        } on _SavedNotPlanned {
+          result = PlanActionResult.savedNotPlanned;
         } on StorageException catch (e) {
           result = switch (e.failure) {
             StorageFailure.rejected => PlanActionResult.rejected,

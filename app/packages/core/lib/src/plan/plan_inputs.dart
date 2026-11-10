@@ -315,6 +315,35 @@ bool canRunContinuous30(
   return walkRunWeeks > 0 && weekIndex >= walkRunWeeks;
 }
 
+/// „30 min am Stück“ in der Planrechnung mit gespeicherten Eingaben
+/// [inputs] (PAR-192, PAR-198): wie [canRunContinuous30] mit dem Ziel; hat
+/// der Plan keine Geh-Lauf-Abfolge, gilt zusätzlich die Start-Wochenzeit der
+/// Eingaben als Stand. Sie trägt den Stand aus Läufen („Vorhandene Läufe in
+/// der App ersetzen die Angabe zum Stand“, [PlanInputs.forNewGoal] mit dem
+/// Ziel aus `buildPlanInputs`), der im gespeicherten Ziel fehlt. Wiederholbar
+/// aus gespeichertem Ziel und Eingaben (ADR-0010 Punkt 6).
+bool planCanRunContinuous30(
+  TrainingGoal goal,
+  PlanInputs inputs, {
+  required int weekIndex,
+  int walkRunWeeks = 0,
+  PlanParameters parameters = const PlanParameters(),
+}) {
+  if (canRunContinuous30(
+    goal,
+    weekIndex: weekIndex,
+    walkRunWeeks: walkRunWeeks,
+    parameters: parameters,
+  )) {
+    return true;
+  }
+  if (walkRunWeeks > 0 || inputs.walkRunStart != null) return false;
+  final longest =
+      inputs.startWeeklyMinutes *
+      parameters.longestRunShare(goal.runDays.length);
+  return longest >= parameters.continuousRunMinutes;
+}
+
 /// Zielspitze: längster Lauf, den das Ziel braucht, in Minuten (PAR-205).
 /// Das Tempo gilt nur ab [PlanParameters.peakMinEasyRuns] Läufen.
 int targetLongestRunMinutes({

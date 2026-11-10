@@ -4,6 +4,7 @@ import '../../ports/storage_settings.dart';
 import '../goals/training_goal.dart';
 import 'generate_plan.dart';
 import 'plan_change.dart';
+import 'plan_hints.dart';
 import 'plan_inputs.dart';
 import 'plan_parameters.dart';
 import 'plan_unit.dart';
@@ -46,6 +47,8 @@ class PlanRecalculation {
 /// künftige `pinned`-Einheiten gehen als Termine in die Rechnung. Gleiche
 /// künftige Einheiten ergeben keine neue Fassung (nur `plan.last_check_day`
 /// wird gesetzt); die erste Fassung eines Ziels wird immer geschrieben.
+/// Das `summary` der Fassung trägt das Alt-Neu-Bild und die Hinweise der
+/// Rechnung ([planHintsToJson], lesbar mit [planHintsFromSummary]).
 /// Scheitert das Schreiben, bleibt der alte Plan ganz bestehen und
 /// `plan.last_check_day` unverändert.
 ///
@@ -145,7 +148,7 @@ Future<PlanRecalculation> _recalculateOnce({
       reason: reason ?? trigger.name,
       version: generated.version,
       inputs: use,
-      summary: summary.toJson(),
+      summary: {...summary.toJson(), planHintsKey: planHintsToJson(generated)},
       units: generated.units,
       readState: planUnitsFingerprint(all),
     ),
@@ -175,10 +178,9 @@ _split(List<PlanUnit> all, DateTime todayDay) {
 /// Hinweise zum gespeicherten Plan ohne Schreiben (für die Anzeige): rechnet
 /// wie eine ausdrückliche Neuberechnung ab [today] mit [inputs] (in der Regel
 /// die Eingaben der letzten Fassung mit `today`) über die gespeicherten
-/// Einheiten [units] ab `inputs.anchor`. Die Felder von [GeneratedPlan]
-/// (Konflikte der Termine, wegfallende Tage, harte Einheit, Geh-Lauf) werden
-/// an der Fassung nicht gespeichert; die neuen Einheiten des Ergebnisses
-/// sind nur eine Vorschau und nicht der gespeicherte Plan.
+/// Einheiten [units] ab `inputs.anchor`. Für Fassungen ohne gespeicherte
+/// Hinweise ([planHintsFromSummary] `null`); die neuen Einheiten des
+/// Ergebnisses sind nur eine Vorschau und nicht der gespeicherte Plan.
 GeneratedPlan previewPlan({
   required TrainingGoal goal,
   required PlanInputs inputs,

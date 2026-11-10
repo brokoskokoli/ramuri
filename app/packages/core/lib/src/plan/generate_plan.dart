@@ -177,8 +177,9 @@ GeneratedPlan generatePlan(
     for (var i = 0; i < course.weeks.first.index; i++) {
       final inProgram = walkRun != null && i < setup.walkRunWeeks;
       if (!inProgram &&
-          canRunContinuous30(
+          planCanRunContinuous30(
             goal,
+            inputs,
             weekIndex: i,
             walkRunWeeks: setup.walkRunWeeks,
             parameters: p,
@@ -247,8 +248,9 @@ GeneratedPlan generatePlan(
             runDays: goal.runDays,
             maxSessionMinutes: maxSession,
             hardEnabled: goal.hardSessionEnabled,
-            continuous30: canRunContinuous30(
+            continuous30: planCanRunContinuous30(
               goal,
+              inputs,
               weekIndex: week.index,
               walkRunWeeks: setup.walkRunWeeks,
               parameters: p,
