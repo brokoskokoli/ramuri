@@ -6,7 +6,7 @@ const int planMethodVersion = 1;
 
 /// Stand der Parameter (ADR-0010 Punkt 1: `parameter_version`). Steigt, wenn
 /// sich ein Wert in [PlanParameters] ändert.
-const int planParameterVersion = 1;
+const int planParameterVersion = 2;
 
 /// Alle Zahlen des Wochenzeit-Verlaufs, jede mit ihrer Regel. Nichts davon
 /// steht außerhalb dieser Klasse. Voreinstellung sind die Werte aus

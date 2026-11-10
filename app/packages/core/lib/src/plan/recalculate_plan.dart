@@ -1,3 +1,4 @@
+import '../../ports/storage.dart' show StorageException, StorageFailure;
 import '../../ports/storage_plan.dart';
 import '../../ports/storage_settings.dart';
 import 'generate_plan.dart';
@@ -52,7 +53,40 @@ class PlanRecalculation {
 /// Eingaben der letzten Fassung mit [today] als „heute“. [now] ist der
 /// Zeitpunkt für `created_at` und `plan.last_check_day`; der Dienst liest
 /// keine Uhr.
+///
+/// Lehnt [PlanRepository.writeVersion] mit `rejected` ab (der Plan hat sich
+/// seit dem Lesen geändert, z. B. Lauf zugeordnet), liest der Dienst genau
+/// einmal neu, rechnet neu und schreibt neu. Ein zweites `rejected` geht an
+/// den Aufrufer.
 Future<PlanRecalculation> recalculatePlan({
+  required PlanRepository plans,
+  required SettingsStore settings,
+  required PlanTrigger trigger,
+  required DateTime today,
+  required DateTime now,
+  String? reason,
+  PlanInputs? inputs,
+  PlanParameters parameters = const PlanParameters(),
+}) async {
+  Future<PlanRecalculation> once() => _recalculateOnce(
+    plans: plans,
+    settings: settings,
+    trigger: trigger,
+    today: today,
+    now: now,
+    reason: reason,
+    inputs: inputs,
+    parameters: parameters,
+  );
+  try {
+    return await once();
+  } on StorageException catch (e) {
+    if (e.failure != StorageFailure.rejected) rethrow;
+    return once();
+  }
+}
+
+Future<PlanRecalculation> _recalculateOnce({
   required PlanRepository plans,
   required SettingsStore settings,
   required PlanTrigger trigger,

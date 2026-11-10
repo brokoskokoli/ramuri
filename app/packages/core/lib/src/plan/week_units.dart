@@ -245,6 +245,47 @@ PlannedWeek planWeekUnits({
 
 int _min(int a, int b) => a < b ? a : b;
 
+/// Kleinste Wochenzeit bis [upTo] (einschließlich), bei der die harte Einheit
+/// in einer regulären Woche vorkommt (PAR-197, PAR-198), oder `null`, wenn sie
+/// bis [upTo] nie vorkommt (z. B. weniger als 3 Lauftage oder maximale Zeit
+/// zu kurz). Die einzige Stelle dieser Rechnung: sie fragt [planWeekUnits]
+/// selbst (kürzere oder reguläre Form nach Wochenzeit, langer Lauf, Anteil,
+/// maximale Zeit, Lauftage) und verlangt, dass jede der drei Formen
+/// (Intervalle, Tempodauerlauf, progressiver Lauf; sie wechseln) passt, damit
+/// die harte Einheit in jeder Woche der Spitze erscheint.
+int? hardFitWeeklyMinutes({
+  required Set<int> runDays,
+  required int maxSessionMinutes,
+  required int upTo,
+  PlanParameters parameters = const PlanParameters(),
+}) {
+  final monday = DateTime.utc(2001, 1, 1); // ein Montag
+  for (var t = 1; t <= upTo; t++) {
+    final week = PlanWeek(
+      index: 0,
+      start: monday,
+      minutes: t,
+      phase: PlanPhase.build,
+      kind: WeekKind.holding,
+    );
+    var all = true;
+    for (var ordinal = 0; ordinal < 3 && all; ordinal++) {
+      final w = planWeekUnits(
+        week: week,
+        runDays: runDays,
+        maxSessionMinutes: maxSessionMinutes,
+        hardEnabled: true,
+        continuous30: true,
+        hardOrdinal: ordinal,
+        parameters: parameters,
+      );
+      all = w.hardOmission == null && w.units.any((u) => u.isHard);
+    }
+    if (all) return t;
+  }
+  return null;
+}
+
 /// Tag für die harte Einheit: mindestens [gap] Tage Abstand zum langen Lauf
 /// und zur Vorwoche, unter den Kandidaten der mit dem größten Abstand, bei
 /// Gleichstand der frühere.

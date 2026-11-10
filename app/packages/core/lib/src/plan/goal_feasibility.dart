@@ -81,6 +81,7 @@ class GoalAssessment {
     this.requiredPercentPerWeek,
     this.regulatorTooLow = false,
     this.sessionLimitsLongestRun = false,
+    this.hardFit = HardFitStatus.notApplicable,
   });
 
   /// Der Wert, den [predictGoal] als Eingabe nimmt; `null` bei
@@ -106,6 +107,10 @@ class GoalAssessment {
   /// Einheit (PAR-195, PAR-205); der Rest bleibt unverplant. Nicht in PAR-206
   /// genannt (Lücke), nur als Hinweis.
   final bool sessionLimitsLongestRun;
+
+  /// Zeitziel mit harter Einheit: derselbe Ziel-Wochenwert wie in
+  /// `generatePlan` (siehe [PlanCourseSetup.hardFit]).
+  final HardFitStatus hardFit;
 }
 
 /// Grundlage eines Zeitziels (FR-0129, FR-0130): aktuelle Leistung auf der
@@ -162,6 +167,7 @@ GoalAssessment assessGoal({
       f: feasibility,
       regulatorTooLow: tooLow,
       sessionLimits: sessionLimits,
+      hardFit: setup.hardFit,
     );
   }
 
@@ -219,6 +225,7 @@ GoalAssessment _timeGoal({
   required FeasibilityParameters f,
   required bool regulatorTooLow,
   required bool sessionLimits,
+  required HardFitStatus hardFit,
 }) {
   GoalAssessment make(
     GoalFeasibility feasibility,
@@ -230,6 +237,7 @@ GoalAssessment _timeGoal({
     requiredPercentPerWeek: percent,
     regulatorTooLow: regulatorTooLow,
     sessionLimitsLongestRun: sessionLimits,
+    hardFit: hardFit,
   );
 
   final current = basis.currentSeconds;

@@ -51,6 +51,7 @@ class GeneratedPlan {
     this.pinnedConflicts = const [],
     this.walkRunStaysAtWeek,
     this.walkRunNoWeekFits = false,
+    this.hardFit = HardFitStatus.notApplicable,
   });
 
   final PlanVersion version;
@@ -94,6 +95,11 @@ class GeneratedPlan {
   /// Zu [walkRunStaysAtWeek]: schon die erste Einheit passt nicht.
   final bool walkRunNoWeekFits;
 
+  /// Zeitziel mit harter Einheit: ob der Plan bis zur Passform-Wochenzeit
+  /// steigt oder warum nicht ([HardFitStatus.regulatorBelowFit],
+  /// [HardFitStatus.neverFits]); der Aufrufer zeigt den Grund an.
+  final HardFitStatus hardFit;
+
   /// Kopie mit anderen neuen Einheiten und Konflikten (für den Dienst, der
   /// den Zeitplan festhält).
   GeneratedPlan copyWith({
@@ -110,6 +116,7 @@ class GeneratedPlan {
     pinnedConflicts: pinnedConflicts ?? this.pinnedConflicts,
     walkRunStaysAtWeek: walkRunStaysAtWeek,
     walkRunNoWeekFits: walkRunNoWeekFits,
+    hardFit: hardFit,
   );
 
   /// Eingefrorene und neue Einheiten, nach Tag sortiert.
@@ -368,6 +375,7 @@ GeneratedPlan generatePlan(
       for (final e in dropped.entries) e.key: (e.value..sort()),
     },
     pinnedConflicts: conflicts,
+    hardFit: setup.hardFit,
   );
 }
 

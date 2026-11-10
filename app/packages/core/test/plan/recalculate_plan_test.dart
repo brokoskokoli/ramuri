@@ -86,7 +86,89 @@ class _FailingWrite implements PlanRepository {
       _inner.confirmMove(u, d, today: today);
 }
 
+/// Lehnt die ersten [rejections] Schreibversuche mit `rejected` ab und zählt
+/// Lesen und Schreiben.
+class _RejectingWrite implements PlanRepository {
+  _RejectingWrite(this._inner, this.rejections, {this.failure});
+  final PlanRepository _inner;
+  final int rejections;
+  final StorageFailure? failure;
+  int writes = 0;
+  int reads = 0;
+  @override
+  Future<PlanVersionRecord> writeVersion(PlanVersionDraft d) {
+    writes++;
+    if (writes <= rejections) {
+      throw StorageException(failure ?? StorageFailure.rejected);
+    }
+    return _inner.writeVersion(d);
+  }
+
+  @override
+  Future<TrainingGoal?> currentGoal() => _inner.currentGoal();
+  @override
+  Future<List<PlanUnit>> unitsBetween(DateTime a, DateTime b) {
+    reads++;
+    return _inner.unitsBetween(a, b);
+  }
+
+  @override
+  Future<PlanUnit?> unitOn(DateTime d) => _inner.unitOn(d);
+  @override
+  Future<List<PlanVersionRecord>> history() => _inner.history();
+  @override
+  Future<void> assignRun(int u, int? r) => _inner.assignRun(u, r);
+  @override
+  Future<void> confirmMove(int u, DateTime d, {required DateTime today}) =>
+      _inner.confirmMove(u, d, today: today);
+}
+
 void main() {
+  group('rejected beim Schreiben (T1)', () {
+    test(
+      'einmal rejected: genau einmal neu lesen, rechnen, schreiben',
+      () async {
+        final e = await _Env.open();
+        await e.goals.save(_goal(), today: _goal().createdAt);
+        final repo = _RejectingWrite(e.plans, 1);
+        final r = await e.run(PlanTrigger.create, 0, repo: repo);
+        expect(r.wasWritten, isTrue);
+        expect(repo.writes, 2);
+        expect(repo.reads, 2);
+        expect((await e.plans.history()).length, 1);
+      },
+    );
+
+    test('zweites rejected wird gemeldet, kein dritter Versuch', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      final repo = _RejectingWrite(e.plans, 5);
+      await expectLater(
+        e.run(PlanTrigger.create, 0, repo: repo),
+        throwsA(
+          isA<StorageException>().having(
+            (x) => x.failure,
+            'failure',
+            StorageFailure.rejected,
+          ),
+        ),
+      );
+      expect(repo.writes, 2);
+      expect(await e.plans.history(), isEmpty);
+    });
+
+    test('anderer Fehler wird nicht wiederholt', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      final repo = _RejectingWrite(e.plans, 5, failure: StorageFailure.failed);
+      await expectLater(
+        e.run(PlanTrigger.create, 0, repo: repo),
+        throwsA(isA<StorageException>()),
+      );
+      expect(repo.writes, 1);
+    });
+  });
+
   test('ohne Ziel: nichts gerechnet, nichts geschrieben', () async {
     final e = await _Env.open();
     final r = await e.run(PlanTrigger.weekly, 0);
