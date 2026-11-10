@@ -4,6 +4,10 @@ import '../goals/training_goal.dart';
 const String planMethod = 'weekly-time-course';
 const int planMethodVersion = 1;
 
+/// Stand der Parameter (ADR-0010 Punkt 1: `parameter_version`). Steigt, wenn
+/// sich ein Wert in [PlanParameters] ändert.
+const int planParameterVersion = 1;
+
 /// Alle Zahlen des Wochenzeit-Verlaufs, jede mit ihrer Regel. Nichts davon
 /// steht außerhalb dieser Klasse. Voreinstellung sind die Werte aus
 /// `planning-rules.md`; ändert sich einer, steigen Methodenversion und
@@ -54,6 +58,14 @@ class PlanParameters {
     this.warmUpMinutes = 10,
     this.coolDownMinutes = 5,
     this.minGapDays = 2,
+    this.continuousRunMinutes = 30,
+    this.peakFallbackShort = 35,
+    this.peakFallbackTen = 65,
+    this.peakFallbackHalf = 100,
+    this.peakHalfMarathonKm = 16,
+    this.peakMaxMinutes = 120,
+    this.peakMinEasyRuns = 3,
+    this.largeChangeShare = 0.10,
   });
 
   /// PAR-193: Steigerung je Woche unter [midThresholdMinutes] (+10 %).
@@ -146,6 +158,30 @@ class PlanParameters {
   /// PAR-059: Zwischen zwei intensiven Einheiten liegt ein voller Kalendertag,
   /// der Abstand der Tage ist also mindestens 2.
   final int minGapDays;
+
+  /// PAR-192: „30 min am Stück“; Grenze für die Ableitung aus dem Stand.
+  final int continuousRunMinutes;
+
+  /// PAR-205: Zielspitze (längster Lauf) ohne lockeres Tempo für 5 km.
+  final int peakFallbackShort;
+
+  /// PAR-205: ohne lockeres Tempo für 10 km.
+  final int peakFallbackTen;
+
+  /// PAR-205: ohne lockeres Tempo für den Halbmarathon.
+  final int peakFallbackHalf;
+
+  /// PAR-205: beim Halbmarathon läuft der längste Lauf 16 km im lockeren Tempo.
+  final int peakHalfMarathonKm;
+
+  /// PAR-205: höchstens 2 h.
+  final int peakMaxMinutes;
+
+  /// PAR-205: lockeres Tempo = Median aus mindestens 3 lockeren Läufen.
+  final int peakMinEasyRuns;
+
+  /// PAR-204: größere Änderung ab diesem Anteil Änderung der Wochenzeit.
+  final double largeChangeShare;
 
   /// PAR-198: harte Einheit ab 3 Läufen je Woche.
   int get hardMinRunDays => 3;
