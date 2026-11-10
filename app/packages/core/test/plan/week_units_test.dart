@@ -37,6 +37,8 @@ PlannedWeek plan(
   previousIntensiveWeekday: prev,
 );
 
+int _min(int a, int b) => a < b ? a : b;
+
 List<int> mins(PlannedWeek w) => [for (final u in w.units) u.minutes];
 List<PlanUnitKind> kinds(PlannedWeek w) => [for (final u in w.units) u.kind];
 int sum(PlannedWeek w) => w.units.fold(0, (a, u) => a + u.minutes);
@@ -55,12 +57,31 @@ void main() {
       expect(w.hardOmission, isNull);
     });
 
-    test('mit Schalter: eine harte Einheit statt des zweiten lockeren', () {
-      final w = plan(90, {2, 4, 6}, hard: true);
+    test(
+      'mit Schalter, Form passt nicht in den Anteil: alles locker (PAR-197)',
+      () {
+        // Intervalle kurz = 36 min, gleichmäßiger Anteil nach dem langen Lauf
+        // = 27 min: keine harte Einheit, Grund gemeldet (M3).
+        final w = plan(90, {2, 4, 6}, hard: true);
+        expect(w.units.any((u) => u.isHard), isFalse);
+        expect(mins(w), [27, 27, 36]);
+        expect(w.hardOmission, HardOmission.weekTooShort);
+      },
+    );
+
+    test('auch in leichterer Woche (72 min): keine Intervalle', () {
+      final w = plan(72, {2, 4, 6}, hard: true, kind: WeekKind.lighter);
+      expect(w.units.any((u) => u.isHard), isFalse);
+      expect(w.hardOmission, HardOmission.weekTooShort);
+      expect(sum(w), 72);
+    });
+
+    test('mit Schalter, Form passt (150 min): eine harte Einheit', () {
+      final w = plan(150, {2, 4, 6}, hard: true);
       expect(w.units.where((u) => u.isHard), hasLength(1));
       expect(w.units.where((u) => u.kind == PlanUnitKind.long), hasLength(1));
       expect(w.units.where((u) => u.kind == PlanUnitKind.easy), hasLength(1));
-      expect(sum(w), 90);
+      expect(sum(w), 150);
       // Intervalle kurz: 10 + (12 + 9) + 5 = 36 min, Lauftage Di/Do/Sa.
       final h = w.units.firstWhere((u) => u.isHard);
       expect(h.kind, PlanUnitKind.intervals);
@@ -214,7 +235,7 @@ void main() {
 
     test('progressiver Lauf: Endblock am Ende, mindestens 30 min', () {
       final h = plan(
-        90,
+        120,
         {1, 3, 5},
         hard: true,
         ordinal: 2,
@@ -310,6 +331,18 @@ void main() {
         final hard = w.units.where((u) => u.isHard);
         if (hard.isNotEmpty) {
           expect(count, greaterThanOrEqualTo(3), reason: ctx);
+          // Keine lockere Einheit kürzer als der gleichmäßige Anteil wegen
+          // der harten Einheit (PAR-197, M3).
+          final long = w.units.firstWhere((u) => u.kind == PlanUnitKind.long);
+          final slot = (total - long.minutes) ~/ (count - 1);
+          for (final u in w.units.where((u) => u.kind == PlanUnitKind.easy)) {
+            expect(
+              u.minutes,
+              greaterThanOrEqualTo(_min(slot, max)),
+              reason: ctx,
+            );
+          }
+          expect(hard.first.minutes, lessThanOrEqualTo(slot), reason: ctx);
         }
         // Abstand: keine zwei intensiven an Nachbartagen (auch zur Vorwoche),
         // außer wenn gemeldet.

@@ -20,7 +20,8 @@ enum HardOmission {
   /// intensiven Einheit der Vorwoche) (FR-0152, PAR-059).
   noRecoveryDay,
 
-  /// Die Wochenzeit reicht nach dem langen Lauf nicht für die Form.
+  /// Die Form passt nicht in den gleichmäßigen Anteil der Wochenzeit nach
+  /// dem langen Lauf (PAR-197) oder die Restzeit reicht nicht.
   weekTooShort,
 }
 
@@ -145,6 +146,10 @@ PlannedWeek planWeekUnits({
       final built = _hardForm(k, short, slot, maxSessionMinutes, p);
       if (built == null) {
         omission = HardOmission.exceedsMaxSession;
+      } else if (built.minutes > slot) {
+        // PAR-197: nur, wenn die Form in den gleichmäßigen Anteil nach dem
+        // langen Lauf passt; sonst lockerer Lauf.
+        omission = HardOmission.weekTooShort;
       } else {
         final day = _hardDay(others, longDay, prev, p.minGapDays);
         final easyCount = n - 2;

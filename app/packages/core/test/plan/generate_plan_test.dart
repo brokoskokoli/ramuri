@@ -683,9 +683,9 @@ void main() {
       // Heute ist der Montag; die geplante harte Einheit liegt auf heute oder
       // danach (nicht vor heute, sonst fiele sie ohnehin weg), die
       // eingefrorene harte Einheit hat einen Lauf an einem anderen Tag.
-      final g = goal(days: {1, 3, 5, 7});
+      final g = goal(days: {1, 3, 5});
       final today = DateTime.utc(2026, 11, 9);
-      final i = inputs(start: 200, today: today);
+      final i = inputs(start: 150, today: today);
       final full = generatePlan(g, i, const [], today);
       final hardUnit = full.units.firstWhere(
         (u) => u.weekIndex == 0 && u.isHard,
@@ -750,7 +750,7 @@ void main() {
 
   group('Pinned-Termine (ADR-0010 Punkt 4)', () {
     final g = goal(date: DateTime.utc(2027, 2, 14));
-    final base = generatePlan(g, inputs(), const [], d0);
+    final base = generatePlan(g, inputs(start: 150), const [], d0);
     List<PlanUnit> week1(GeneratedPlan p) => [
       for (final u in p.units)
         if (u.weekIndex == 1) u,
@@ -779,7 +779,7 @@ void main() {
       final easy = of(PlanUnitKind.easy);
       final p = generatePlan(
         g,
-        inputs(),
+        inputs(start: 150),
         const [],
         d0,
         pinnedUnits: [pin(easy, 20)],
@@ -799,7 +799,7 @@ void main() {
       final hard = b1.first;
       final p = generatePlan(
         g,
-        inputs(),
+        inputs(start: 150),
         const [],
         d0,
         pinnedUnits: [pin(hard, 19)],
@@ -819,7 +819,7 @@ void main() {
       final hard = b1.first;
       final p = generatePlan(
         g,
-        inputs(),
+        inputs(start: 150),
         const [],
         d0,
         pinnedUnits: [pin(hard, 20)],
@@ -837,7 +837,7 @@ void main() {
       final long = of(PlanUnitKind.long);
       final p = generatePlan(
         g,
-        inputs(),
+        inputs(start: 150),
         const [],
         d0,
         pinnedUnits: [pin(long, 22)],
@@ -860,7 +860,7 @@ void main() {
       );
       final p = generatePlan(
         g,
-        inputs(),
+        inputs(start: 150),
         [frozen],
         d0,
         pinnedUnits: [pin(of(PlanUnitKind.easy), 20)],
@@ -875,7 +875,7 @@ void main() {
     test('Pinned vor heute: noMatchingUnit', () {
       final p = generatePlan(
         g,
-        inputs(),
+        inputs(start: 150),
         const [],
         d0,
         pinnedUnits: [pin(of(PlanUnitKind.easy), 10)],
@@ -884,7 +884,13 @@ void main() {
     });
 
     test('ohne Pinned: Ergebnis unverändert', () {
-      final p = generatePlan(g, inputs(), const [], d0, pinnedUnits: const []);
+      final p = generatePlan(
+        g,
+        inputs(start: 150),
+        const [],
+        d0,
+        pinnedUnits: const [],
+      );
       expect(sigs(p.units), sigs(base.units));
       expect(p.pinnedConflicts, isEmpty);
     });

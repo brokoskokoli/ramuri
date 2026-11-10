@@ -166,6 +166,52 @@ void main() {
       }
     });
 
+    test('locker auch ohne Puls: Zuordnung zu lockerer/langer Einheit', () {
+      final runs = [_run(1, 3, 360), _run(2, 4, 360), _run(3, 5, 360)];
+      final b = buildPlanInputs(
+        goal: _goal(),
+        today: _today,
+        runs: runs,
+        easyPlannedRunIds: const {1, 2, 3},
+      );
+      expect(b.inputs.easyRunCount, 3);
+      expect(b.inputs.easyPaceSecondsPerKm, 360);
+    });
+
+    test('locker auch ohne Puls: RPE höchstens 4 (PAR-108/110)', () {
+      final runs = [
+        _run(1, 3, 360, avgHr: null),
+        _run(2, 4, 360, avgHr: null),
+        _run(3, 5, 360, avgHr: null),
+        _run(4, 6, 300, avgHr: null),
+      ];
+      final b = buildPlanInputs(
+        goal: _goal(),
+        today: _today,
+        runs: runs,
+        rpeByRunId: const {1: 4, 2: 1, 3: 3, 4: 5},
+      );
+      expect(b.inputs.easyRunCount, 3, reason: 'RPE 5 zählt nicht');
+      expect(b.inputs.easyPaceSecondsPerKm, 360);
+    });
+
+    test('hoher Puls, RPE 6, keine Zuordnung: nicht locker', () {
+      // Puls 170 (über der Grenze), ohne Zuordnung, RPE 6: nicht locker.
+      final runs = [
+        _run(1, 3, 360, avgHr: 170),
+        _run(2, 4, 360, avgHr: 170),
+        _run(3, 5, 360, avgHr: 170),
+      ];
+      final b = buildPlanInputs(
+        goal: _goal(),
+        today: _today,
+        runs: runs,
+        heartRate: _hr,
+        rpeByRunId: const {1: 6, 2: 6, 3: 6},
+      );
+      expect(b.inputs.easyRunCount, 0);
+    });
+
     test('Fenstergrenze: 6 Wochen = 42 Tage inklusive heute', () {
       // Tag 41 zählt, Tag 42 nicht.
       final inside = _build([

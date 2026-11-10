@@ -51,7 +51,7 @@ void main() {
       );
       final inputs = PlanInputs(
         anchor: DateTime.utc(2026, 11, 9),
-        startWeeklyMinutes: 90,
+        startWeeklyMinutes: 150,
         today: _today,
         intensity: _reference(),
       );
@@ -77,7 +77,7 @@ void main() {
         _goal(),
         PlanInputs(
           anchor: DateTime.utc(2026, 11, 9),
-          startWeeklyMinutes: 90,
+          startWeeklyMinutes: 150,
           today: _today,
         ),
         const [],
@@ -315,7 +315,7 @@ void main() {
       final goal = _goal(distance: GoalDistance.halfMarathon);
       final inputs = PlanInputs(
         anchor: DateTime.utc(2026, 11, 9),
-        startWeeklyMinutes: 90,
+        startWeeklyMinutes: 150,
         today: _today,
       );
       final setup = planCourseSetup(goal, inputs);

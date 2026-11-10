@@ -94,6 +94,7 @@ class IntensityParameters {
     this.vo2maxRestMl = 3.5,
     this.vo2maxSlopeMl = 0.2,
     this.easyMaxShareOfMaxHr = 0.80,
+    this.easyMaxRpe = 4,
     this.minReferenceMeters = 3000,
   });
 
@@ -168,6 +169,10 @@ class IntensityParameters {
 
   /// Obergrenze „locker“ beim Puls: unter 80 % HFmax (PAR-111).
   final double easyMaxShareOfMaxHr;
+
+  /// Höchster RPE-Wert eines lockeren Laufs: PAR-110 nennt RPE 3–4 für den
+  /// längeren Dauerlauf (PAR-108: 1–3 für den Regenerationslauf).
+  final int easyMaxRpe;
 
   /// Kürzeste brauchbare Referenzdistanz (wie die Prognose, PAR-144).
   final double minReferenceMeters;

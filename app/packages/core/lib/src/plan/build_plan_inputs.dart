@@ -18,7 +18,14 @@ class BuiltPlanInputs {
   final TrainingGoal goal;
 }
 
-/// Ob ein Lauf als „locker“ zählt (PAR-111): Durchschnittspuls unter der
+/// Ob ein Lauf als „locker“ zählt (PAR-205). Drei Wege, der erste greift:
+/// 1. [plannedEasy]: der Lauf ist einer lockeren oder langen Plan-Einheit
+///    zugeordnet (wie PAR-182);
+/// 2. [rpe] höchstens [IntensityParameters.easyMaxRpe] (PAR-108, PAR-110);
+/// 3. Durchschnittspuls (PAR-111), siehe unten.
+/// Der Weg über RPE und Zuordnung funktioniert ohne Pulsgurt.
+///
+/// Durchschnittspuls (PAR-111): unter der
 /// Reservegrenze von Zone 2 (`zoneBounds[2]`, Standard 0,70) **und** unter
 /// [IntensityParameters.easyMaxShareOfMaxHr] der HFmax, es gilt der niedrigere
 /// Wert. Ohne Durchschnittspuls, HFmax oder Ruhepuls: nicht bestimmbar,
@@ -29,7 +36,11 @@ bool isEasyRun(
   HeartRateBasis? heartRate,
   List<double> zoneBounds, {
   IntensityParameters intensity = const IntensityParameters(),
+  bool plannedEasy = false,
+  int? rpe,
 }) {
+  if (plannedEasy) return true;
+  if (rpe != null && rpe <= intensity.easyMaxRpe) return true;
   final avg = run.heartRateAverageBpm;
   final max = heartRate?.usableMaxBpm;
   final rest = heartRate?.usableRestingBpm;
@@ -62,6 +73,8 @@ double _median(List<double> v) {
 ///   seit dem Datum der Referenz. Läufe nach [today] zählen nicht.
 /// - [reference]: die aktive Referenzleistung (`activeReference`), falls
 ///   gültig; sie geht mit Datum, nicht mit Alter in die Eingaben.
+/// - [easyPlannedRunIds]: Kennungen der Läufe, die einer lockeren oder langen
+///   Plan-Einheit zugeordnet sind; [rpeByRunId]: RPE je Lauf (Rückmeldung).
 /// - [heartRate], [zoneBounds]: Profil (HFmax, Ruhepuls, Schätzkennzeichen).
 /// - [vo2max], [vo2maxGrade]: Langzeitwert und Güte; die Prüfung nach PAR-081
 ///   liegt beim Aufrufer (`vo2maxGrade == null`: unzureichend).
@@ -77,6 +90,8 @@ BuiltPlanInputs buildPlanInputs({
   required TrainingGoal goal,
   required DateTime today,
   Iterable<RunFigures> runs = const [],
+  Set<int> easyPlannedRunIds = const {},
+  Map<int, int> rpeByRunId = const {},
   ReferencePerformance? reference,
   HeartRateBasis? heartRate,
   List<double>? zoneBounds,
@@ -106,7 +121,14 @@ BuiltPlanInputs buildPlanInputs({
   for (final (r, _) in inWindow) {
     final pace = r.averagePaceSecondsPerKm;
     if (pace == null || !pace.isFinite || pace <= 0) continue;
-    if (!isEasyRun(r, heartRate, bounds, intensity: intensityParameters)) {
+    if (!isEasyRun(
+      r,
+      heartRate,
+      bounds,
+      intensity: intensityParameters,
+      plannedEasy: easyPlannedRunIds.contains(r.runId),
+      rpe: rpeByRunId[r.runId],
+    )) {
       continue;
     }
     paces.add(pace);
