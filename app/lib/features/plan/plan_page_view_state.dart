@@ -9,4 +9,24 @@ class PlanPageViewState {
   /// Scrollposition der Seite; ein kürzerer Inhalt begrenzt sie beim ersten
   /// Layout selbst auf sein Ende.
   double scrollOffset = 0;
+
+  /// Kalender statt Plan-Seite gezeigt (Einstieg von der Plan-Seite).
+  bool calendarOpen = false;
+
+  /// Zeitraum und Lage des Kalenders.
+  final PlanCalendarViewState calendar = PlanCalendarViewState();
+}
+
+/// Zeitraum und Scrollposition des Kalenders über Tab-Wechsel (wie
+/// [PlanPageViewState]).
+class PlanCalendarViewState {
+  /// Monatsübersicht statt Wochenübersicht (FR-0172).
+  bool month = false;
+
+  /// Gezeigte Woche bzw. gezeigter Monat relativ zu heute (0 = aktuell).
+  int weekOffset = 0;
+  int monthOffset = 0;
+
+  /// Scrollposition des Kalenders.
+  double scrollOffset = 0;
 }

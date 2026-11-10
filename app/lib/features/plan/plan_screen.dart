@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
 import '../settings/app_settings.dart';
+import 'plan_calendar.dart';
 import 'plan_controller.dart';
 import 'plan_data_reader.dart';
 import 'plan_goal_form.dart';
@@ -208,7 +209,18 @@ class _PlanScreenState extends State<PlanScreen> {
             ),
           ),
           PlanLoadPhase.ready =>
-            s.hasPlan && s.goal != null ? _plan(l, s) : _empty(l),
+            s.hasPlan && s.goal != null
+                ? (_view.calendarOpen
+                      ? PlanCalendar(
+                          controller: _controller,
+                          clock: widget.clock,
+                          viewState: _view.calendar,
+                          onClose: () =>
+                              setState(() => _view.calendarOpen = false),
+                          onOpenUnit: _openUnit,
+                        )
+                      : _plan(l, s))
+                : _empty(l),
         },
       ),
     );
@@ -294,7 +306,17 @@ class _PlanScreenState extends State<PlanScreen> {
         controller: _scroll,
         padding: _pagePadding,
         children: [
-          _title(l),
+          Row(
+            children: [
+              Expanded(child: _title(l)),
+              TextButton.icon(
+                key: const Key('plan_open_calendar'),
+                onPressed: () => setState(() => _view.calendarOpen = true),
+                icon: const Icon(Icons.calendar_month_rounded),
+                label: Text(l.calendarOpen),
+              ),
+            ],
+          ),
           const SizedBox(height: 14),
           _GoalCard(
             state: s,

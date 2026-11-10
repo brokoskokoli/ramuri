@@ -138,7 +138,15 @@ class _AppShellState extends State<AppShell> {
         // Zurück: aus Plan, Verlauf und Fortschritt zu Heute, von Heute aus der App.
         canPop: _index == 0,
         onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) setState(() => _index = 0);
+          if (didPop) return;
+          // Zurück aus dem Kalender führt zur Plan-Seite.
+          setState(() {
+            if (_tabs[_index].id == 'plan' && _planState.calendarOpen) {
+              _planState.calendarOpen = false;
+            } else {
+              _index = 0;
+            }
+          });
         },
         child: Scaffold(
           body: KeyedSubtree(

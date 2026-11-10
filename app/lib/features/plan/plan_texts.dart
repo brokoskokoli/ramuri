@@ -217,3 +217,9 @@ int planWeekMinutes({
         (a, u) => u.kind == PlanUnitKind.rest ? a : a + u.minutes,
       );
 }
+
+/// Zeile einer Einheit: Art und Dauer, beim Ruhetag nur „Ruhetag“.
+String planUnitText(AppLocalizations l, PlanUnit u) =>
+    u.kind == PlanUnitKind.rest
+    ? l.planRestDay
+    : l.planUnitLine(planKindName(l, u.kind), planDurationText(l, u.minutes));
