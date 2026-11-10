@@ -180,9 +180,26 @@ void main() {
         PlanRestDayBlock.unitHasRun,
       );
       expect(
-        _rest([_u(1, 1, kind: PlanUnitKind.rest, minutes: 0)], 1).blocked,
+        _rest([
+          _u(1, 1, kind: PlanUnitKind.rest, minutes: 0, pinned: true),
+        ], 1).blocked,
         PlanRestDayBlock.alreadyRest,
       );
+    });
+
+    test('nicht festgelegte Ruhe-Einheit: wird Ruhetag, nichts entfällt '
+        '(Festlegung WP22, OQ-0011)', () {
+      final gen = _u(7, 2, kind: PlanUnitKind.rest, minutes: 0);
+      final c = _rest([...week, gen], 2);
+      expect(c.allowed, isTrue);
+      expect(c.unit, isNull);
+      expect(c.generatedRest, gen);
+      expect(c.expectedUnitId, 7);
+      expect(c.alternatives, isEmpty);
+      expect(c.unitDropsWithoutMove, isFalse);
+      // Mit Einheit: die Kennung der Einheit; frei: null.
+      expect(_rest(week, 1).expectedUnitId, 1);
+      expect(_rest(week, 2).expectedUnitId, isNull);
     });
 
     test('freier Tag: keine Einheit, nichts entfällt', () {

@@ -826,6 +826,58 @@ void main() {
       }
     });
 
+    test('entfallener Tag, der jetzt ein Ruhetag des Nutzers ist, zählt '
+        'nicht als entfallen (Befund E2b 1)', () {
+      PlanUnit rest(DateTime d, {bool pinned = true}) => PlanUnit(
+        day: d,
+        kind: PlanUnitKind.rest,
+        phase: PlanPhase.entry,
+        weekIndex: 4,
+        minutes: 0,
+        segments: const [],
+        pinned: pinned,
+        fixed: pinned ? PlanUnitFixed.day : PlanUnitFixed.none,
+      );
+      final g = GeneratedPlan(
+        version: PlanVersion.current,
+        weeks: const [],
+        units: const [],
+        frozenUnits: const [],
+        unplacedByWeek: const {},
+        hardOmissions: const {},
+        pinnedConflicts: const [],
+        walkRunNoWeekFits: false,
+        droppedDaysByWeek: {
+          4: [DateTime.utc(2026, 12, 9), DateTime.utc(2026, 12, 11)],
+          5: [DateTime.utc(2026, 12, 16)],
+        },
+        hardFit: HardFitStatus.notApplicable,
+      );
+      GeneratedPlan read(List<PlanUnit> units) => planHintsFromSummary(
+        {planHintsKey: planHintsToJson(g)},
+        version: PlanVersion.current,
+        units: units,
+        today: _day(0),
+      )!;
+      // Ruhetag des Nutzers am 11.12. und 16.12.: nur der 9.12. bleibt, die
+      // Woche 5 fällt ganz weg.
+      expect(
+        read([
+          rest(DateTime.utc(2026, 12, 11)),
+          rest(DateTime.utc(2026, 12, 16)),
+        ]).droppedDaysByWeek,
+        {
+          4: [DateTime.utc(2026, 12, 9)],
+        },
+      );
+      // Eine erzeugte (nicht festgelegte) Ruhe-Einheit ändert nichts.
+      expect(
+        read([rest(DateTime.utc(2026, 12, 11), pinned: false)])
+            .droppedDaysByWeek,
+        g.droppedDaysByWeek,
+      );
+    });
+
     test('Rundweg aller Felder; fehlende oder fremde Hinweise: null', () {
       final g = GeneratedPlan(
         version: PlanVersion.current,

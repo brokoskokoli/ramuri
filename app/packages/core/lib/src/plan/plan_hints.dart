@@ -125,9 +125,12 @@ GeneratedPlan? planHintsFromSummary(
         h['hardOmissions'],
         (v) => byName(HardOmission.values, v),
       ),
-      droppedDaysByWeek: intMap(h['droppedDaysByWeek'], (v) {
-        return [for (final d in v! as List<Object?>) _parseDay(d)!];
-      }),
+      droppedDaysByWeek: planDroppedWithoutRestDays(
+        intMap(h['droppedDaysByWeek'], (v) {
+          return [for (final d in v! as List<Object?>) _parseDay(d)!];
+        }),
+        units,
+      ),
       pinnedConflicts: conflicts,
       walkRunStaysAtWeek: h['walkRunStaysAtWeek'] as int?,
       walkRunNoWeekFits: h['walkRunNoWeekFits']! as bool,

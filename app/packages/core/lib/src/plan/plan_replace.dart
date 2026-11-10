@@ -200,7 +200,8 @@ enum PlanRestDayBlock {
   /// Die Einheit des Tags hat einen Lauf (absolviert, eingefroren).
   unitHasRun,
 
-  /// Der Tag ist schon Ruhetag.
+  /// Der Tag ist schon ein vom Nutzer festgelegter Ruhetag
+  /// ([PlanUnit.isRestDay]).
   alreadyRest,
 }
 
@@ -213,14 +214,27 @@ class PlanRestDayCheck {
     required this.day,
     this.blocked,
     this.unit,
+    this.generatedRest,
     this.alternatives = const [],
   });
 
   final DateTime day;
   final PlanRestDayBlock? blocked;
 
-  /// Die offene Einheit auf dem Tag oder `null`.
+  /// Die offene Einheit auf dem Tag oder `null` (auch bei einer Ruhe-Einheit,
+  /// siehe [generatedRest]).
   final PlanUnit? unit;
+
+  /// Eine nicht festgelegte Ruhe-Einheit auf dem Tag (`rest`, nicht
+  /// `pinned`, ohne Lauf), etwa aus Altdaten: Sie wird zum festgelegten
+  /// Ruhetag und ist vor der Neuberechnung geschützt (OQ-0011, Festlegung
+  /// WP22). Nichts entfällt, nichts wird verlegt.
+  final PlanUnit? generatedRest;
+
+  /// Die beim Prüfen gesehene Einheit des Tags für
+  /// `PlanRepository.setRestDay` (`expectedUnitId`): [unit] oder
+  /// [generatedRest], ohne beide `null`.
+  int? get expectedUnitId => (unit ?? generatedRest)?.id;
 
   /// Freie Tage derselben Woche ab heute, auf denen [unit] ohne
   /// Abstandskonflikt und innerhalb des Reglers läge ([checkPlanMove]);
@@ -256,8 +270,11 @@ PlanRestDayCheck checkPlanRestDay({
   if (unit != null && unit.runId != null) {
     return PlanRestDayCheck(day: d, blocked: PlanRestDayBlock.unitHasRun);
   }
-  if (unit != null && unit.kind == PlanUnitKind.rest) {
+  if (unit != null && unit.isRestDay) {
     return PlanRestDayCheck(day: d, blocked: PlanRestDayBlock.alreadyRest);
+  }
+  if (unit != null && unit.kind == PlanUnitKind.rest) {
+    return PlanRestDayCheck(day: d, generatedRest: unit);
   }
   if (unit == null) return PlanRestDayCheck(day: d);
 

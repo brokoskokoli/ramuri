@@ -90,6 +90,8 @@ Future<void> _replaceAndRestDay(StorageContractHarness h) async {
       _unit(3),
       _unit(5),
       _unit(8, week: 1),
+      // Nicht festgelegte Ruhe-Einheit (etwa aus Altdaten).
+      _unit(9, week: 1, kind: PlanUnitKind.rest, minutes: 0),
     ]),
   );
   await p.assignRun((await p.unitOn(_day(0)))!.id!, run);
@@ -278,6 +280,17 @@ Future<void> _replaceAndRestDay(StorageContractHarness h) async {
       StorageFailure.rejected,
     ),
     (
+      // Eine Ruhe-Einheit wird zum Ruhetag, sie wird nicht verlegt.
+      'Ruhe-Einheit mit Zieltag',
+      () async => p.setRestDay(
+        _rest(9),
+        today: _day(1),
+        expectedUnitId: await idOn(9),
+        moveUnitTo: _day(10),
+      ),
+      StorageFailure.rejected,
+    ),
+    (
       'Ruhetag nicht ersetzbar',
       () => p.replaceUnit(
         rest4.id!,
@@ -290,6 +303,22 @@ Future<void> _replaceAndRestDay(StorageContractHarness h) async {
     await expectFails(call, failure, 'Ruhetag: $what');
   }
   expectEq(await _fixedState(s), before, 'abgelehnter Ruhetag ändert nichts');
+
+  // Eine nicht festgelegte Ruhe-Einheit lässt sich festlegen (Schutz vor der
+  // Neuberechnung, OQ-0011) und danach aufheben.
+  final gen9 = (await p.unitOn(_day(9)))!;
+  expectTrue(!gen9.isRestDay, 'Ruhe-Einheit Tag 9 nicht festgelegt');
+  await p.setRestDay(_rest(9), today: _day(1), expectedUnitId: gen9.id);
+  final rest9 = (await p.unitOn(_day(9)))!;
+  expectTrue(rest9.isRestDay, 'Ruhe-Einheit festgelegt');
+  expectEq(rest9.fixed, PlanUnitFixed.day, 'Ruhe-Einheit: fixed = day');
+  expectEq(
+    (await _all(s)).where((u) => u.day == _day(9)).length,
+    1,
+    'genau eine Einheit auf Tag 9',
+  );
+  await p.clearRestDay(_day(9), today: _day(1));
+  expectTrue(await p.unitOn(_day(9)) == null, 'festgelegte Ruhe aufgehoben');
 
   // Übersteht Neuöffnen.
   await s.close();

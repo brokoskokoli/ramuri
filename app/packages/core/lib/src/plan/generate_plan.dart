@@ -410,12 +410,38 @@ GeneratedPlan generatePlan(
     frozenUnits: frozen,
     unplacedByWeek: unplaced,
     hardOmissions: omissions,
-    droppedDaysByWeek: {
+    droppedDaysByWeek: planDroppedWithoutRestDays({
       for (final e in dropped.entries) e.key: (e.value..sort()),
-    },
+    }, created),
     pinnedConflicts: conflicts,
     hardFit: setup.hardFit,
   );
+}
+
+/// Die entfallenen Tage je Woche ([GeneratedPlan.droppedDaysByWeek]) ohne
+/// die Tage, die in [units] ein Ruhetag des Nutzers sind
+/// ([PlanUnit.isRestDay]): Dort entfällt kein Lauftag, der Nutzer hat den
+/// Ruhetag festgelegt. Wochen ohne übrige Tage fallen weg. Gilt für die
+/// Rechnung ([generatePlan], der Ruhetag landet erst nach der Kürzung auf
+/// dem Tag) und für gespeicherte Hinweise ([planHintsFromSummary], der
+/// Ruhetag wird ohne Neuberechnung festgelegt).
+Map<int, List<DateTime>> planDroppedWithoutRestDays(
+  Map<int, List<DateTime>> dropped,
+  Iterable<PlanUnit> units,
+) {
+  final rest = {
+    for (final u in units)
+      if (u.isRestDay) planDay(u.day),
+  };
+  if (rest.isEmpty) return dropped;
+  return {
+    for (final e in dropped.entries)
+      if (e.value.any((d) => !rest.contains(planDay(d))))
+        e.key: [
+          for (final d in e.value)
+            if (!rest.contains(planDay(d))) d,
+        ],
+  };
 }
 
 int _role(PlanUnit u) => u.isHard

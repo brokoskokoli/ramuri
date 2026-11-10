@@ -641,6 +641,46 @@ void main() {
       ]);
     });
 
+    test('Ruhetag des Nutzers auf einem entfallenen Tag: nicht als '
+        'entfallen gemeldet (Befund E2b 1)', () {
+      final g = goal(days: {2, 4, 6}, hard: false);
+      final today = DateTime.utc(2026, 11, 12);
+      final frozen = [
+        PlanUnit(
+          day: DateTime.utc(2026, 11, 10),
+          kind: PlanUnitKind.long,
+          phase: PlanPhase.build,
+          weekIndex: 0,
+          minutes: 80,
+          segments: const [
+            PlanSegment(kind: PlanSegmentKind.easy, minutes: 80),
+          ],
+          runId: 5,
+        ),
+      ];
+      final restDay = PlanUnit(
+        day: DateTime.utc(2026, 11, 14),
+        kind: PlanUnitKind.rest,
+        phase: PlanPhase.build,
+        weekIndex: 0,
+        minutes: 0,
+        segments: const [],
+        pinned: true,
+        fixed: PlanUnitFixed.day,
+      );
+      final p = generatePlan(
+        g,
+        inputs(start: 60, today: today),
+        frozen,
+        today,
+        pinnedUnits: [restDay],
+      );
+      expect(p.units.where((u) => u.isRestDay).map((u) => u.day), [
+        DateTime.utc(2026, 11, 14),
+      ]);
+      expect(p.droppedDaysByWeek[0], [DateTime.utc(2026, 11, 12)]);
+    });
+
     test('ohne Überschreitung entfällt nichts', () {
       final p = generatePlan(goal(hard: false), inputs(), const [], d0);
       expect(p.droppedDaysByWeek, isEmpty);

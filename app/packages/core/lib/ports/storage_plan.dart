@@ -149,9 +149,11 @@ abstract interface class PlanRepository {
   /// [expectedUnitId] ist die Kennung der Einheit, die der Nutzer beim
   /// Bestätigen auf dem Tag gesehen hat (`null`: Tag frei); liegt jetzt eine
   /// andere oder keine Einheit dort, wird nichts geändert (FR-0176).
+  /// Eine nicht festgelegte Ruhe-Einheit (`rest`, nicht `pinned`) auf dem
+  /// Tag wird zum Ruhetag (ohne [moveUnitTo]).
   /// Ohne Fassung: `notFound`. Tag vor [today], Einheit mit Lauf, schon
-  /// Ruhetag, abweichende Einheit, ungültiger [moveUnitTo] oder [moveUnitTo]
-  /// ohne Einheit: `rejected`.
+  /// festgelegter Ruhetag, abweichende Einheit, ungültiger [moveUnitTo],
+  /// [moveUnitTo] ohne Einheit oder bei einer Ruhe-Einheit: `rejected`.
   Future<void> setRestDay(
     PlanUnit rest, {
     required DateTime today,
@@ -252,10 +254,12 @@ bool planRestDayAllowed(
   final t = planDay(today);
   if (rest.kind != PlanUnitKind.rest || d.isBefore(t)) return false;
   if (onDay?.id != expectedUnitId) return false;
-  if (onDay != null &&
-      (onDay.runId != null || onDay.kind == PlanUnitKind.rest)) {
+  if (onDay != null && (onDay.runId != null || onDay.isRestDay)) {
     return false;
   }
+  // Eine nicht festgelegte Ruhe-Einheit wird zum Ruhetag, sie wird nicht
+  // verlegt.
+  if (onDay?.kind == PlanUnitKind.rest && moveUnitTo != null) return false;
   if (moveUnitTo == null) return true;
   final m = planDay(moveUnitTo);
   DateTime monday(DateTime x) =>
