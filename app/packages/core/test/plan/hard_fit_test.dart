@@ -47,9 +47,16 @@ void main() {
       expect(_maxWeek(p), lessThanOrEqualTo(s.capMinutes));
       expect(p.units.where((u) => u.isHard), isNotEmpty);
       for (final u in p.units.where((u) => u.isHard)) {
-        // Die harte Einheit liegt in einer Woche der Spitze (>= Passform).
-        final w = p.weeks.firstWhere((w) => w.index == u.weekIndex);
-        expect(w.minutes, greaterThanOrEqualTo(120));
+        expect(u.minutes, greaterThan(0));
+      }
+      // Ab der Passform erscheint sie in jeder Woche; davor nur, wenn die Form
+      // der Rotation schon früher passt (PAR-198: passt sie, wird sie geplant).
+      for (final w in p.weeks.where((w) => (w.minutes ?? 0) >= 120)) {
+        expect(
+          p.units.any((u) => u.weekIndex == w.index && u.isHard),
+          isTrue,
+          reason: 'Woche ${w.index}',
+        );
       }
       expect(p.hardFit, HardFitStatus.raised);
     });
@@ -94,6 +101,63 @@ void main() {
       }
     });
 
+    test('Rotation: Passt die anstehende Form nicht, rückt die Rotation '
+        'trotzdem weiter, die passenden Formen erscheinen reihum', () {
+      final g = _goal(
+        distance: GoalDistance.halfMarathon,
+        cap: 200,
+        maxMin: 40,
+      );
+      final p = generatePlan(g, _inputs(), const [], _d0);
+      final level = planCourseSetup(
+        g,
+        _inputs(),
+      ).course(today: _d0).levelMinutes;
+      final peak = [
+        for (final w in p.weeks)
+          if ((w.minutes ?? 0) >= level) w,
+      ];
+      const order = [
+        PlanUnitKind.intervals,
+        PlanUnitKind.tempo,
+        PlanUnitKind.progressive,
+      ];
+      // Die Rotation hängt an der Woche, nicht an geplanten harten Einheiten:
+      // Jede harte Einheit hat die Form ihres Rotationsplatzes (Woche 0 =
+      // Intervalle); die Wochen mit nicht passender Form haben sie nur
+      // weitergerückt.
+      final hards = p.units.where((u) => u.isHard).toList();
+      expect(hards, isNotEmpty);
+      for (final u in hards) {
+        expect(u.kind, order[u.weekIndex % 3]);
+      }
+      // In den Spitzenwochen (max. 40 min: nur der progressive Lauf passt)
+      // erscheint die harte Einheit reihum, nicht gar nicht.
+      expect(peak.length, greaterThanOrEqualTo(3));
+      expect(
+        peak.where((w) => hards.any((u) => u.weekIndex == w.index)),
+        isNotEmpty,
+      );
+      // Neuberechnung setzt die Rotation fort: eingefroren alles vor Woche
+      // 20, danach dieselben harten Einheiten.
+      final later = p.weeks.firstWhere((w) => w.index == 20).start;
+      final frozen = [
+        for (final u in p.units)
+          if (u.day.isBefore(later)) u,
+      ];
+      final again = generatePlan(g, _inputs(), frozen, later);
+      expect(
+        [
+          for (final u in again.units)
+            if (u.isHard) (u.weekIndex, u.kind),
+        ],
+        [
+          for (final u in p.units)
+            if (u.isHard && u.weekIndex >= 20) (u.weekIndex, u.kind),
+        ],
+      );
+    });
+
     test('NB4: Passform am tatsächlichen Niveau, nicht nur an der kleinsten '
         'Wochenzeit (Halbmarathon, max. 40 min)', () {
       // Ab 180 min gilt die lange Form (48 min), sie scheitert an 40 min; die
@@ -126,9 +190,9 @@ void main() {
         bool hasHard(PlanWeek w) =>
             p.units.any((u) => u.weekIndex == w.index && u.isHard);
         expect(peakWeeks.any((w) => !hasHard(w)), isTrue);
-        // Die Form wechselt nur nach einer geplanten harten Einheit; ob in den
-        // Spitzenwochen eine erscheint, hängt davon ab (Regler 400: ja).
-        if (cap == 400) expect(peakWeeks.any(hasHard), isTrue);
+        // Die Rotation rückt in jeder Woche mit vorgesehener harter Einheit
+        // weiter: Die passenden Formen erscheinen reihum (Rotationstest).
+        expect(peakWeeks.any(hasHard), isTrue);
       }
       // Ohne die zu kurze maximale Zeit passt sie am Niveau.
       final ok = planCourseSetup(

@@ -31,6 +31,7 @@ class PlannedWeek {
     required this.units,
     required this.unplacedMinutes,
     required this.hardOmission,
+    this.hardIntended = false,
     this.droppedDays = const [],
   });
 
@@ -44,6 +45,12 @@ class PlannedWeek {
 
   /// Grund, wenn eine gewünschte harte Einheit fehlt; sonst `null`.
   final HardOmission? hardOmission;
+
+  /// In dieser Woche war eine harte Einheit vorgesehen (Schalter an, genug
+  /// Lauftage, 30 min am Stück, Wochenzeit vorhanden), auch wenn die Form
+  /// wegen der maximalen Zeit zum lockeren Lauf wurde. Nur solche Wochen
+  /// rücken die Rotation der Formen weiter (PAR-198 „im Wechsel“).
+  final bool hardIntended;
 
   /// Lauftage, deren Einheit entfiel, weil die Wochenzeit für sie keine
   /// Minute übrig ließ (keine Einheit mit 0 min). Die Mindestdauer einer
@@ -78,8 +85,8 @@ PlannedWeek planWeekUnitsForGoal({
 /// - [runDays]: Wochentage 1 bis 7 (Montag bis Sonntag).
 /// - [maxSessionMinutes]: keine Einheit ist länger (FR-0136).
 /// - [hardEnabled], [continuous30]: Schalter und Bedingung aus PAR-198.
-/// - [hardOrdinal]: wie viele harte Einheiten zuvor geplant waren; bestimmt
-///   den Wechsel Intervalle, Tempodauerlauf, progressiver Lauf.
+/// - [hardOrdinal]: wie viele Wochen mit vorgesehener harter Einheit zuvor
+///   lagen ([PlannedWeek.hardIntended]); bestimmt den Wechsel Intervalle, Tempodauerlauf, progressiver Lauf.
 /// - [previousIntensiveWeekday]: Wochentag der letzten intensiven Einheit
 ///   der Vorwoche (für den Abstand über den Wochenwechsel).
 PlannedWeek planWeekUnits({
@@ -132,12 +139,14 @@ PlannedWeek planWeekUnits({
   var hardDay = 0;
   var hardMinutes = 0;
   List<PlanSegment>? hardSegments;
+  var hardIntended = false;
   if (hardEnabled) {
     if (n < p.hardMinRunDays) {
       omission = HardOmission.tooFewRunDays;
     } else if (!continuous30) {
       omission = HardOmission.notContinuous30;
     } else {
+      hardIntended = true;
       final short =
           week.kind == WeekKind.lighter ||
           week.kind == WeekKind.reduction ||
@@ -236,6 +245,7 @@ PlannedWeek planWeekUnits({
     units: kept,
     unplacedMinutes: unplaced,
     hardOmission: omission,
+    hardIntended: hardIntended,
     droppedDays: [
       for (final u in units)
         if (u.minutes < 1) u.day,

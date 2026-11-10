@@ -25,8 +25,10 @@ enum HardFitStatus {
   /// Die harte Einheit passt auf dem Niveau der Zielspitze (höchstens der
   /// Regler) nur in einem Teil der Wochen (nicht in allen drei Formen, z. B.
   /// ab 180 min die lange Form über der maximalen Zeit); mindestens eine Form
-  /// passt, sie erscheint also einzeln im Plan (je nachdem, welche Form an der
-  /// Reihe ist, auch in keiner Spitzenwoche), Zielspitze wie bisher.
+  /// passt. Die Rotation rückt in jeder Woche mit vorgesehener harter Einheit
+  /// weiter (PAR-198), die passenden Formen erscheinen also reihum: je passender
+  /// Form in jeder dritten Woche. Bei höchstens zwei Spitzenwochen kann sie in
+  /// den Spitzenwochen trotzdem fehlen. Zielspitze wie bisher.
   partialAtPeak,
 
   /// Die harte Einheit passt auf dem Niveau der Spitze in keiner Woche, auch

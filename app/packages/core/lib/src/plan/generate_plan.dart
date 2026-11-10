@@ -165,10 +165,28 @@ GeneratedPlan generatePlan(
   final course = setup.course(today: todayDay);
 
   final frozen = _byDay([...frozenUnits]);
-  final firstStart = course.weeks.isEmpty ? null : course.weeks.first.start;
-  var hardOrdinal = firstStart == null
-      ? 0
-      : frozen.where((u) => u.isHard && u.day.isBefore(firstStart)).length;
+  // Rotation der harten Formen (PAR-198): Sie rückt in jeder Woche weiter, in
+  // der eine harte Einheit vorgesehen war, auch wenn die Form wegen der
+  // maximalen Zeit zum lockeren Lauf wurde. Für die Wochen vor dem Verlauf
+  // (eingefroren) zählen die Wochen, in denen das Ziel sie vorsieht; so setzt
+  // die Neuberechnung die Rotation des ursprünglichen Plans fort.
+  var hardOrdinal = 0;
+  if (course.weeks.isNotEmpty &&
+      goal.hardSessionEnabled &&
+      goal.runDays.length >= p.hardMinRunDays) {
+    for (var i = 0; i < course.weeks.first.index; i++) {
+      final inProgram = walkRun != null && i < setup.walkRunWeeks;
+      if (!inProgram &&
+          canRunContinuous30(
+            goal,
+            weekIndex: i,
+            walkRunWeeks: setup.walkRunWeeks,
+            parameters: p,
+          )) {
+        hardOrdinal++;
+      }
+    }
+  }
 
   // Einheiten je Woche (Montag -> Einheiten), eingefroren und neu, für den
   // Abstand über den Wochenwechsel.
@@ -334,7 +352,7 @@ GeneratedPlan generatePlan(
     }
     created.addAll(future);
     byWeek[start] = [...frozenWeek, ...future];
-    if (byWeek[start]!.any((u) => u.isHard)) hardOrdinal++;
+    if (planned.hardIntended) hardOrdinal++;
     if (moved.isNotEmpty) {
       conflicts.addAll(
         _spacingConflicts(
