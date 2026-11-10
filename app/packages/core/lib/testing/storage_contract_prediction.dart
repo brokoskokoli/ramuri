@@ -24,6 +24,10 @@ final List<StorageContractCase> predictionContractCases = [
     'Referenz und Ablehnung verschwinden mit dem Lauf',
     _cascade,
   ),
+  const StorageContractCase(
+    'Referenz aus bestätigtem Lauf löschen lehnt den Lauf ab, manuelle nicht',
+    _deleteConfirmed,
+  ),
   const StorageContractCase('Alles löschen leert Prognose-Daten', _deleteAll),
 ];
 
@@ -245,5 +249,37 @@ Future<void> _concurrent(StorageContractHarness h) async {
   ]);
   expectEq(ids[1], ids[0], 'gleichzeitig: dieselbe Kennung');
   expectEq((await p.references()).length, 1, 'gleichzeitig: keine Doppelzeile');
+  await s.close();
+}
+
+Future<void> _deleteConfirmed(StorageContractHarness h) async {
+  var s = await h.open();
+  final p = _p(s);
+  final a = (await s.runs.create(startedAt: at(0))).id;
+  final confirmed = await p.addReference(
+    _ref(
+      kind: ReferenceKind.confirmedRun,
+      date: DateTime(2029, 12, 20),
+      createdAt: at(1),
+      runId: '$a',
+    ),
+  );
+  final manual = await p.addReference(
+    _ref(date: DateTime(2029, 12, 21), createdAt: at(2)),
+  );
+  await p.deleteReference(manual);
+  expectEq(await p.rejectedSuggestions(), <int>{}, 'manuelle: keine Ablehnung');
+  await p.deleteReference(confirmed);
+  expectEq((await p.references()).length, 0, 'Referenz weg');
+  expectEq(await p.rejectedSuggestions(), {a}, 'Lauf abgelehnt');
+  await expectFails(
+    () => p.deleteReference(confirmed),
+    StorageFailure.notFound,
+    'zweites Löschen',
+  );
+  expectEq(await p.rejectedSuggestions(), {a}, 'unverändert');
+  await s.close();
+  s = await h.open();
+  expectEq(await _p(s).rejectedSuggestions(), {a}, 'überlebt Neuöffnen');
   await s.close();
 }

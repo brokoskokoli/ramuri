@@ -13,6 +13,8 @@ import 'package:core/core.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:adapters/src/storage/prediction_access.dart';
+
 import '../storage/support.dart' show testKey;
 import 'archive_fixture.dart';
 
@@ -459,6 +461,43 @@ void main() {
     expect(refs.first.reference.runId, '1');
     expect(refs.last.reference.seconds, 3012.5);
     expect(await q.rejectedSuggestions(), {1});
+  });
+
+  test('Referenz aus bestätigtem Lauf gelöscht: Ablehnung übersteht Export '
+      'und Reimport', () async {
+    final plain = openPlain('${work.path}/del_plain.db');
+    await fillAllTables(plain);
+    // Die Fixture-Ablehnung weg: nur das Löschen soll sie anlegen.
+    await sql(plain, 'DELETE FROM rejected_suggestions');
+    final store = DriftPredictionStore(plain);
+    expect(await store.rejectedSuggestions(), isEmpty);
+    final confirmed = (await store.references()).firstWhere(
+      (r) => r.reference.kind == ReferenceKind.confirmedRun,
+    );
+    await store.deleteReference(confirmed.id);
+    expect(await store.rejectedSuggestions(), {1});
+    final dir = Directory('${work.path}/del_exports')..createSync();
+    final f = await ArchiveExporter(
+      source: DriftArchiveSource(plain),
+      handoff: FakeFileHandoff()..directory = dir.path,
+      clock: FakeClock(DateTime.utc(2026, 11, 7, 12)),
+      cipherFactory: createArchiveCipherInWorker,
+      pageSize: 2,
+    ).export(password: _password);
+    await plain.close();
+    session = await service().restore(
+      path: f.path!,
+      password: _password,
+      resetConfirmed: true,
+    );
+    final q = (session as PredictionStorage).prediction;
+    expect(await q.rejectedSuggestions(), {1});
+    expect(
+      (await q.references()).where(
+        (r) => r.reference.kind == ReferenceKind.confirmedRun,
+      ),
+      isEmpty,
+    );
   });
 
   test('Ziel zählt als Daten: App ist nicht leer', () async {

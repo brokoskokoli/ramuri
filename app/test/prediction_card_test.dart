@@ -669,6 +669,20 @@ void main() {
       expect(key('prediction_suggestion'), findsNothing);
     });
 
+    testWidgets('Referenz aus bestätigtem Lauf löschen: der Lauf wird nicht '
+        'wieder vorgeschlagen', (tester) async {
+      final (d, id) = await withFastRun(tester);
+      await pumpCard(tester, d);
+      await tapKey(tester, 'prediction_suggestion_accept');
+      final stored = (await _store(d).references()).first;
+      expect(stored.reference.runId, '$id');
+      await _store(d).deleteReference(stored.id);
+      expect(await _store(d).references(), hasLength(1)); // Altbestand bleibt
+      await tester.pumpWidget(const SizedBox());
+      await pumpCard(tester, d);
+      expect(key('prediction_suggestion'), findsNothing);
+    });
+
     testWidgets('Zweig 2: bestätigter Lauf kommt nach neuerem Wettkampf am '
         'selben Tag nicht wieder', (tester) async {
       final (d, id) = await withFastRun(tester);

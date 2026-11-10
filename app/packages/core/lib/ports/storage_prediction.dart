@@ -22,7 +22,10 @@ abstract interface class PredictionStore {
   /// vorhandene Kennung kommt zurück.
   Future<int> addReference(ReferencePerformance reference);
 
-  /// Löscht eine Referenz. Unbekannte Kennung: `notFound`.
+  /// Löscht eine Referenz. Unbekannte Kennung: `notFound`. Stammt sie aus
+  /// einem bestätigten Lauf, wird in derselben Transaktion der Vorschlag für
+  /// diesen Lauf abgelehnt (wie [rejectSuggestion]); manuelle Referenzen
+  /// hinterlassen nichts.
   Future<void> deleteReference(int id);
 
   /// Alle Referenzen, jüngste zuerst (nach Datum, bei gleichem Datum die

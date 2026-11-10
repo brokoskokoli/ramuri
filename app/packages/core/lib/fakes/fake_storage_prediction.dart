@@ -27,10 +27,15 @@ class FakePredictionStore implements PredictionStore {
 
   @override
   Future<void> deleteReference(int id) async {
-    final n = _d.references.length;
+    final hit = _d.references.where((r) => r.id == id).toList();
+    if (hit.isEmpty) throw const StorageException(StorageFailure.notFound);
     _d.references.removeWhere((r) => r.id == id);
-    if (_d.references.length == n) {
-      throw const StorageException(StorageFailure.notFound);
+    // Wie die Datenbank: Referenz aus einem bestätigten Lauf hinterlässt eine
+    // Ablehnung für diesen Lauf.
+    final ref = hit.first.reference;
+    final runId = int.tryParse(ref.runId ?? '');
+    if (ref.kind == ReferenceKind.confirmedRun && runId != null) {
+      _d.rejectedSuggestions.add(runId);
     }
   }
 
