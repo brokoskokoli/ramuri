@@ -88,6 +88,8 @@ export 'src/fitness/variation_coefficient.dart';
 export 'src/goals/training_goal.dart';
 export 'src/plan/plan_parameters.dart';
 export 'src/plan/plan_registry.dart';
+export 'src/plan/plan_unit.dart';
+export 'src/plan/week_units.dart';
 export 'src/plan/weekly_time.dart';
 export 'src/prediction/goal_prediction.dart';
 export 'src/prediction/pace_stability.dart';

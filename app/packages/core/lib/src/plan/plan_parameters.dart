@@ -27,6 +27,33 @@ class PlanParameters {
     this.entryWeeks = 4,
     this.openHorizonWeeks = 26,
     this.dampingIterations = 40,
+    this.hardMinContinuousMinutes = 30,
+    this.hardLongFromWeeklyMinutes = 180,
+    this.intervalsShort = const HardBlocks(
+      reps: 4,
+      workMinutes: 3,
+      pauseMinutes: 3,
+    ),
+    this.intervalsLong = const HardBlocks(
+      reps: 6,
+      workMinutes: 3,
+      pauseMinutes: 3,
+    ),
+    this.tempoShort = const HardBlocks(
+      reps: 2,
+      workMinutes: 8,
+      pauseMinutes: 2,
+    ),
+    this.tempoLong = const HardBlocks(
+      reps: 2,
+      workMinutes: 12,
+      pauseMinutes: 2,
+    ),
+    this.progressiveBlockShort = 10,
+    this.progressiveBlockLong = 15,
+    this.warmUpMinutes = 10,
+    this.coolDownMinutes = 5,
+    this.minGapDays = 2,
   });
 
   /// PAR-193: Steigerung je Woche unter [midThresholdMinutes] (+10 %).
@@ -83,6 +110,46 @@ class PlanParameters {
   /// Schritte der Bisektion für die gedämpfte Steigerung (PAR-199). Technisch.
   final int dampingIterations;
 
+  /// PAR-198: harte Einheit nur, wenn 30 min am Stück gehen (und ab 3 Läufen,
+  /// siehe [hardMinRunDays]). Zugleich die Mindestdauer des progressiven Laufs
+  /// (eigene Wahl, gemeldet).
+  final int hardMinContinuousMinutes;
+
+  /// PAR-198: ab 3 h Wochenzeit die längere Form der harten Einheit.
+  final int hardLongFromWeeklyMinutes;
+
+  /// PAR-198: Intervalle 4 × 3 min, Trabpause 3 min (kürzere Form).
+  final HardBlocks intervalsShort;
+
+  /// PAR-198: Intervalle 6 × 3 min ab 3 h Wochenzeit.
+  final HardBlocks intervalsLong;
+
+  /// PAR-198: Tempodauerlauf 2 × 8 min, Trabpause 2 min (kürzere Form).
+  final HardBlocks tempoShort;
+
+  /// PAR-198: Tempodauerlauf 2 × 12 min ab 3 h Wochenzeit.
+  final HardBlocks tempoLong;
+
+  /// PAR-198: progressiver Lauf mit 10 min Endblock (kürzere Form).
+  final int progressiveBlockShort;
+
+  /// PAR-198: 15 min Endblock ab 3 h Wochenzeit.
+  final int progressiveBlockLong;
+
+  /// PAR-120: Aufwärmen 10 min locker (die optionalen Steigerungen entfallen).
+  final int warmUpMinutes;
+
+  /// PAR-121: Abwärmen 5 bis 10 min; gewählt ist der untere Wert (eigene
+  /// Wahl, gemeldet).
+  final int coolDownMinutes;
+
+  /// PAR-059: Zwischen zwei intensiven Einheiten liegt ein voller Kalendertag,
+  /// der Abstand der Tage ist also mindestens 2.
+  final int minGapDays;
+
+  /// PAR-198: harte Einheit ab 3 Läufen je Woche.
+  int get hardMinRunDays => 3;
+
   /// Reduktionswochen vor dem Termin (PAR-199).
   int reductionWeeks(GoalDistance d) =>
       d == GoalDistance.halfMarathon ? reductionWeeksHalf : reductionWeeksShort;
@@ -97,4 +164,22 @@ class PlanParameters {
       : runDays == 2
       ? longestRunShareTwo
       : longestRunShareThreePlus;
+}
+
+/// Aufbau einer harten Einheit aus gleichen Blöcken (PAR-198): [reps]
+/// Wiederholungen zu [workMinutes], dazwischen [pauseMinutes] Trabpause
+/// (zwischen den Wiederholungen, nicht danach; Annahme, gemeldet).
+class HardBlocks {
+  const HardBlocks({
+    required this.reps,
+    required this.workMinutes,
+    required this.pauseMinutes,
+  });
+
+  final int reps;
+  final int workMinutes;
+  final int pauseMinutes;
+
+  /// Hauptteil in Minuten.
+  int get mainMinutes => reps * workMinutes + (reps - 1) * pauseMinutes;
 }
