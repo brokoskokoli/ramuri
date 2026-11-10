@@ -37,7 +37,8 @@ class AlgorithmRegistry {
     ..register(vo2maxLongTermFamily, const SmoothedVo2maxLongTerm())
     ..register(aerobicEfficiencyFamily, const MedianAerobicEfficiency())
     ..register(performancePredictionFamily, const RiegelPrediction())
-    ..register(planFamily, const WeeklyTimeCourse());
+    ..register(planFamily, const WeeklyTimeCourse())
+    ..register(targetIntensityFamily, const RankedTargetIntensity());
 
   final Map<String, _Entry> _families = {};
 

@@ -1,5 +1,6 @@
 import '../fitness/algorithm_variant.dart';
 import 'plan_parameters.dart';
+import 'target_intensity.dart';
 
 /// Familie Planerzeugung (NFR-0001, NFR-0005). Hier der Verlauf der
 /// Wochenzeit; die Einheiten folgen im selben Verfahren.
@@ -22,3 +23,28 @@ class WeeklyTimeCourse extends PlanMethod {
 }
 
 const planFamily = AlgorithmFamily<PlanMethod>('training-plan');
+
+/// Familie Zielintensität (FR-0153, PAR-100 bis PAR-107): Rangfolge der
+/// Grundlagen und Werte je Abschnitt.
+abstract class TargetIntensityMethod extends AlgorithmVariant {
+  const TargetIntensityMethod();
+}
+
+class RankedTargetIntensity extends TargetIntensityMethod {
+  const RankedTargetIntensity();
+
+  @override
+  String get method => targetIntensityMethod;
+
+  @override
+  int get methodVersion => targetIntensityMethodVersion;
+
+  /// B: gesetzte Regeln, Evidenz niedrig (PAR-101 bis PAR-103, PAR-109 bis
+  /// PAR-114).
+  @override
+  AlgorithmCategory get category => AlgorithmCategory.heuristic;
+}
+
+const targetIntensityFamily = AlgorithmFamily<TargetIntensityMethod>(
+  'target-intensity',
+);

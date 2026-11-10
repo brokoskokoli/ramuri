@@ -18,6 +18,23 @@ double riegelSeconds({
   return referenceSeconds * math.pow(targetMeters / referenceMeters, exponent);
 }
 
+/// Umkehrung von [riegelSeconds]: Distanz in Metern, die in [targetSeconds]
+/// gelaufen wird (`D2 = D1 · (T2 / T1)^(1 / 1,06)`).
+double riegelMeters({
+  required double referenceSeconds,
+  required double referenceMeters,
+  required double targetSeconds,
+  double exponent = 1.06,
+}) {
+  for (final v in [referenceSeconds, referenceMeters, targetSeconds]) {
+    if (!(v > 0) || !v.isFinite) {
+      throw ArgumentError.value(v, 'value', 'muss positiv und endlich sein');
+    }
+  }
+  return referenceMeters *
+      math.pow(targetSeconds / referenceSeconds, 1 / exponent);
+}
+
 /// Riegel mit den Parametern der Prognose.
 double riegelWithParameters(
   PredictionParameters p, {
