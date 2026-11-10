@@ -2403,6 +2403,256 @@ class Goals extends Table with TableInfo {
   bool get dontWriteConstraints => true;
 }
 
+class Plans extends Table with TableInfo {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  Plans(this.attachedDatabase, [this._alias]);
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  late final GeneratedColumn<int> goalId = GeneratedColumn<int>(
+    'goal_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL REFERENCES goals(id)ON DELETE CASCADE',
+  );
+  late final GeneratedColumn<int> createdAtUs = GeneratedColumn<int>(
+    'created_at_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  late final GeneratedColumn<String> validFrom = GeneratedColumn<String>(
+    'valid_from',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (date(valid_from) IS valid_from)',
+  );
+  late final GeneratedColumn<String> trigger = GeneratedColumn<String>(
+    'trigger',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK ("trigger" IN (\'create\', \'goalChange\', \'weekly\', \'feedback\', \'run\', \'pause\', \'manual\', \'ruleVersion\'))',
+  );
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (length(reason) > 0)',
+  );
+  late final GeneratedColumn<String> method = GeneratedColumn<String>(
+    'method',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (length(method) > 0)',
+  );
+  late final GeneratedColumn<int> methodVersion = GeneratedColumn<int>(
+    'method_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (method_version >= 1)',
+  );
+  late final GeneratedColumn<int> parameterVersion = GeneratedColumn<int>(
+    'parameter_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (parameter_version >= 1)',
+  );
+  late final GeneratedColumn<String> inputs = GeneratedColumn<String>(
+    'inputs',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (json_valid(inputs))',
+  );
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+    'summary',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (json_valid(summary))',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    goalId,
+    createdAtUs,
+    validFrom,
+    trigger,
+    reason,
+    method,
+    methodVersion,
+    parameterVersion,
+    inputs,
+    summary,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'plans';
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Never map(Map<String, dynamic> data, {String? tablePrefix}) {
+    throw UnsupportedError('TableInfo.map in schema verification code');
+  }
+
+  @override
+  Plans createAlias(String alias) {
+    return Plans(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class PlanUnits extends Table with TableInfo {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  PlanUnits(this.attachedDatabase, [this._alias]);
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  late final GeneratedColumn<int> planId = GeneratedColumn<int>(
+    'plan_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL REFERENCES plans(id)ON DELETE CASCADE',
+  );
+  late final GeneratedColumn<String> day = GeneratedColumn<String>(
+    'day',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (date(day) IS day)',
+  );
+  late final GeneratedColumn<int> week = GeneratedColumn<int>(
+    'week',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (week >= 0)',
+  );
+  late final GeneratedColumn<String> phase = GeneratedColumn<String>(
+    'phase',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (phase IN (\'entry\', \'build\', \'reduction\'))',
+  );
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (kind IN (\'easy\', \'long\', \'intervals\', \'tempo\', \'progressive\', \'walkRun\', \'rest\'))',
+  );
+  late final GeneratedColumn<int> minutes = GeneratedColumn<int>(
+    'minutes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (minutes >= 0)',
+  );
+  late final GeneratedColumn<String> structure = GeneratedColumn<String>(
+    'structure',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (json_valid(structure))',
+  );
+  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
+    'run_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'REFERENCES runs(id)ON DELETE SET NULL',
+  );
+  late final GeneratedColumn<int> pinned = GeneratedColumn<int>(
+    'pinned',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (pinned IN (0, 1))',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    planId,
+    day,
+    week,
+    phase,
+    kind,
+    minutes,
+    structure,
+    runId,
+    pinned,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'plan_units';
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Never map(Map<String, dynamic> data, {String? tablePrefix}) {
+    throw UnsupportedError('TableInfo.map in schema verification code');
+  }
+
+  @override
+  PlanUnits createAlias(String alias) {
+    return PlanUnits(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
 class DatabaseAtV7 extends GeneratedDatabase {
   DatabaseAtV7(QueryExecutor e) : super(e);
   late final StorageMeta storageMeta = StorageMeta(this);
@@ -2559,6 +2809,24 @@ class DatabaseAtV7 extends GeneratedDatabase {
     this,
   );
   late final Goals goals = Goals(this);
+  late final Plans plans = Plans(this);
+  late final Index plansGoal = Index(
+    'plans_goal',
+    'CREATE INDEX plans_goal ON plans (goal_id)',
+  );
+  late final PlanUnits planUnits = PlanUnits(this);
+  late final Index planUnitsDay = Index(
+    'plan_units_day',
+    'CREATE INDEX plan_units_day ON plan_units (day)',
+  );
+  late final Index planUnitsPlan = Index(
+    'plan_units_plan',
+    'CREATE INDEX plan_units_plan ON plan_units (plan_id)',
+  );
+  late final Index planUnitsRun = Index(
+    'plan_units_run',
+    'CREATE INDEX plan_units_run ON plan_units (run_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2618,6 +2886,12 @@ class DatabaseAtV7 extends GeneratedDatabase {
     referencePerformancesRun,
     rejectedSuggestions,
     goals,
+    plans,
+    plansGoal,
+    planUnits,
+    planUnitsDay,
+    planUnitsPlan,
+    planUnitsRun,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2844,6 +3118,27 @@ class DatabaseAtV7 extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('rejected_suggestions', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'goals',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('plans', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'plans',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('plan_units', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('plan_units', kind: UpdateKind.update)],
     ),
   ]);
   @override

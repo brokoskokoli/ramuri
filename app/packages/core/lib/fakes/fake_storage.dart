@@ -5,6 +5,7 @@ import '../ports/storage_consents.dart';
 import '../ports/storage_derived.dart';
 import '../ports/storage_devices.dart';
 import '../ports/storage_goals.dart';
+import '../ports/storage_plan.dart';
 import '../ports/storage_prediction.dart';
 import '../ports/storage_profile.dart';
 import '../ports/storage_raw.dart';
@@ -15,6 +16,7 @@ import '../ports/storage_values.dart';
 import 'fake_storage_data.dart';
 import 'fake_storage_derived.dart';
 import 'fake_storage_goals.dart';
+import 'fake_storage_plan.dart';
 import 'fake_storage_prediction.dart';
 import 'fake_storage_runs.dart';
 import 'fake_storage_settings.dart';
@@ -69,7 +71,8 @@ class FakeStorage implements Storage {
   }
 }
 
-class _FakeSession implements StorageSession, PredictionStorage, GoalStorage {
+class _FakeSession
+    implements StorageSession, PredictionStorage, GoalStorage, PlanStorage {
   _FakeSession(this._owner, this._data)
     : runs = FakeRunStore(_data),
       markers = FakeRunMarkerStore(_data),
@@ -84,7 +87,8 @@ class _FakeSession implements StorageSession, PredictionStorage, GoalStorage {
       subjective = FakeRunSubjectiveStore(_data),
       manualTrainings = FakeManualTrainingStore(_data),
       prediction = FakePredictionStore(_data),
-      goals = FakeGoalStore(_data);
+      goals = FakeGoalStore(_data),
+      plans = FakePlanRepository(_data);
 
   final FakeStorage _owner;
   final FakeStorageData _data;
@@ -119,6 +123,8 @@ class _FakeSession implements StorageSession, PredictionStorage, GoalStorage {
 
   @override
   final GoalStore goals;
+  @override
+  final PlanRepository plans;
 
   @override
   Future<void> deleteRun(int runId) async {

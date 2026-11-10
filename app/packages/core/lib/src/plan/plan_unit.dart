@@ -65,6 +65,11 @@ class PlanTargetIntensity {
     this.paceFastSecondsPerKm,
     this.paceSlowSecondsPerKm,
     this.basisCode,
+    this.hrMinBpm,
+    this.hrMaxBpm,
+    this.estimated = false,
+    this.maxHrEstimated = false,
+    this.paceIsLimit = false,
   });
 
   final int? rpeMin;
@@ -72,6 +77,19 @@ class PlanTargetIntensity {
   final double? paceFastSecondsPerKm;
   final double? paceSlowSecondsPerKm;
   final String? basisCode;
+
+  /// Pulsbereich in bpm (FR-0144), nur bei Grundlage Herzfrequenzzonen.
+  final int? hrMinBpm;
+  final int? hrMaxBpm;
+
+  /// Pace oder Puls kommt aus einer Schätzung (FR-0144, PAR-106).
+  final bool estimated;
+
+  /// HFmax stammt aus einer Altersformel (PAR-104).
+  final bool maxHrEstimated;
+
+  /// Pace ist nur eine Grenze „nicht schneller als“ (PAR-102).
+  final bool paceIsLimit;
 }
 
 /// Abschnitt einer Einheit mit Dauer in Minuten.
@@ -140,6 +158,31 @@ class PlanUnit {
   /// Methode und Version der Fassung, die die Einheit erzeugt hat.
   final String method;
   final int methodVersion;
+
+  /// Kopie mit geänderter Kennung, Tag, Woche, Lauf oder Termin-Markierung.
+  /// [runId] lässt sich über [clearRun] auf `null` setzen.
+  PlanUnit copyWith({
+    int? id,
+    DateTime? day,
+    int? weekIndex,
+    int? runId,
+    bool clearRun = false,
+    bool? pinned,
+    String? method,
+    int? methodVersion,
+  }) => PlanUnit(
+    id: id ?? this.id,
+    day: day ?? this.day,
+    kind: kind,
+    phase: phase,
+    weekIndex: weekIndex ?? this.weekIndex,
+    minutes: minutes,
+    segments: segments,
+    runId: clearRun ? null : (runId ?? this.runId),
+    pinned: pinned ?? this.pinned,
+    method: method ?? this.method,
+    methodVersion: methodVersion ?? this.methodVersion,
+  );
 
   /// Zählt für den Abstand als intensiv (PAR-058): langer Lauf und harte
   /// Einheiten.

@@ -293,6 +293,10 @@ void main() {
       await exec(db0, 'DROP TABLE manual_trainings');
       await exec(db0, 'DROP TABLE reference_performances');
       await exec(db0, 'DROP TABLE rejected_suggestions');
+      // Ziel und Plan (Schema 7): samt Indizes, die die Migration neu anlegt.
+      await exec(db0, 'DROP TABLE plan_units');
+      await exec(db0, 'DROP TABLE plans');
+      await exec(db0, 'DROP TABLE goals');
       await exec(db0, 'PRAGMA user_version = 4');
       await s0.close();
 

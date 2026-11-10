@@ -71,17 +71,35 @@ const _goalSql =
     'hard_session, created_at_us) '
     'VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 99)';
 
+const _planSql =
+    'INSERT INTO plans (id, goal_id, created_at_us, valid_from, "trigger", '
+    'reason, method, method_version, parameter_version, inputs, summary) '
+    "VALUES (1, 1, 99, '2030-01-01', 'create', 'start', 'training-plan', 1, 1, "
+    "'{}', '{}')";
+
+/// Einheit der Fassung 1: Tag und Lauf als Parameter.
+const _unitSql =
+    'INSERT INTO plan_units (plan_id, day, week, phase, kind, minutes, '
+    'structure, run_id, pinned) '
+    "VALUES (1, ?, 0, 'build', 'easy', 30, '[]', ?, 0)";
+
 Future<void> _exec(
   AppDatabase db,
   String sql, [
   List<Object?> args = const [],
 ]) => db.customStatement(sql, args);
 
-Future<int> _count(AppDatabase db, String table, [int? run]) async {
+Future<int> _count(
+  AppDatabase db,
+  String table, [
+  int? run,
+  String? where,
+]) async {
   final rows = await db
       .customSelect(
         'SELECT count(*) c FROM $table'
-        '${run == null ? '' : ' WHERE run_id = $run'}',
+        '${run == null ? '' : ' WHERE run_id = $run'}'
+        '${where == null ? '' : ' WHERE $where'}',
       )
       .get();
   return rows.single.data['c'] as int;
@@ -174,15 +192,17 @@ void main() {
         for (final fk in fks) {
           if (fk.data['table'] == 'runs') {
             dependent.add(t);
+            // Die Plan-Einheit bleibt, nur die Zuordnung endet (ADR-0010
+            // Punkt 8); alles andere kaskadiert mit dem Lauf.
             expect(
               fk.data['on_delete'],
-              'CASCADE',
-              reason: '$t muss mit dem Lauf kaskadieren',
+              t == 'plan_units' ? 'SET NULL' : 'CASCADE',
+              reason: '$t: Verhalten beim Löschen des Laufs',
             );
           }
         }
       }
-      expect(dependent, _rowFor.keys.toSet());
+      expect(dependent, {..._rowFor.keys, 'plan_units'});
     });
 
     test(
@@ -845,6 +865,9 @@ void main() {
       expect(await _count(db, 'reference_performances'), 1);
       expect(await _count(db, 'manual_trainings'), 1);
       expect(await _count(db, 'goals'), 0);
+      expect(await _count(db, 'plans'), 0);
+      expect(await _count(db, 'plan_units'), 0);
+      await _exec(db, 'PRAGMA foreign_keys = ON');
       await _exec(db, _goalSql, [
         'open',
         null,
@@ -858,6 +881,19 @@ void main() {
         0,
       ]);
       expect(await _count(db, 'goals'), 1);
+      // Plan: Fassung und Einheit mit Lauf; Lauf löschen setzt nur run_id NULL,
+      // Ziel löschen kaskadiert über Fassung und Einheiten.
+      await _exec(db, _planSql);
+      await _exec(db, _unitSql, ['2030-01-01', 7]);
+      await _exec(db, _unitSql, ['2030-01-02', null]);
+      expect(await _count(db, 'plans'), 1);
+      expect(await _count(db, 'plan_units'), 2);
+      await _exec(db, 'DELETE FROM runs WHERE id = 7');
+      expect(await _count(db, 'plan_units'), 2);
+      expect(await _count(db, 'plan_units', null, 'run_id IS NULL'), 2);
+      await _exec(db, 'DELETE FROM goals');
+      expect(await _count(db, 'plans'), 0);
+      expect(await _count(db, 'plan_units'), 0);
     });
 
     test('Ziel: CHECKs der Tabelle (Art, Felder je Art, Zahlen, Datum, Tage, '

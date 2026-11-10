@@ -19,6 +19,6 @@ class FakeGoalStore implements GoalStore {
   @override
   Future<void> delete() async {
     if (_d.goal == null) throw const StorageException(StorageFailure.notFound);
-    _d.goal = null;
+    _d.deleteGoal();
   }
 }

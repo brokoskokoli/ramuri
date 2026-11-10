@@ -2953,6 +2953,345 @@
           "CHECK((type = 'open' AND distance IS NULL AND target_s IS NULL AND target_date IS NULL)OR(type = 'distance' AND distance IS NOT NULL AND target_s IS NULL)OR(type = 'time' AND distance IS NOT NULL AND target_s IS NOT NULL))"
         ]
       }
+    },
+    {
+      "id": 54,
+      "references": [
+        53
+      ],
+      "type": "table",
+      "data": {
+        "name": "plans",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "goal_id",
+            "getter_name": "goalId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES goals(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "goals",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "created_at_us",
+            "getter_name": "createdAtUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "valid_from",
+            "getter_name": "validFrom",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (date(valid_from) IS valid_from)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "trigger",
+            "getter_name": "trigger",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (\"trigger\" IN ('create', 'goalChange', 'weekly', 'feedback', 'run', 'pause', 'manual', 'ruleVersion'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "reason",
+            "getter_name": "reason",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (length(reason) > 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "method",
+            "getter_name": "method",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (length(method) > 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "method_version",
+            "getter_name": "methodVersion",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (method_version >= 1)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "parameter_version",
+            "getter_name": "parameterVersion",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (parameter_version >= 1)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "inputs",
+            "getter_name": "inputs",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (json_valid(inputs))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "summary",
+            "getter_name": "summary",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (json_valid(summary))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 55,
+      "references": [
+        54
+      ],
+      "type": "index",
+      "data": {
+        "on": 54,
+        "name": "plans_goal",
+        "sql": "CREATE INDEX plans_goal ON plans (goal_id);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 56,
+      "references": [
+        54,
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "plan_units",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "plan_id",
+            "getter_name": "planId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES plans(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "plans",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "day",
+            "getter_name": "day",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (date(day) IS day)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "week",
+            "getter_name": "week",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (week >= 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "phase",
+            "getter_name": "phase",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (phase IN ('entry', 'build', 'reduction'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "kind",
+            "getter_name": "kind",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (kind IN ('easy', 'long', 'intervals', 'tempo', 'progressive', 'walkRun', 'rest'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "minutes",
+            "getter_name": "minutes",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (minutes >= 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "structure",
+            "getter_name": "structure",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (json_valid(structure))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": true,
+            "customConstraints": "REFERENCES runs(id)ON DELETE SET NULL",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "setNull"
+                }
+              }
+            ]
+          },
+          {
+            "name": "pinned",
+            "getter_name": "pinned",
+            "moor_type": "bool",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (pinned IN (0, 1))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 57,
+      "references": [
+        56
+      ],
+      "type": "index",
+      "data": {
+        "on": 56,
+        "name": "plan_units_day",
+        "sql": "CREATE INDEX plan_units_day ON plan_units (day);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 58,
+      "references": [
+        56
+      ],
+      "type": "index",
+      "data": {
+        "on": 56,
+        "name": "plan_units_plan",
+        "sql": "CREATE INDEX plan_units_plan ON plan_units (plan_id);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 59,
+      "references": [
+        56
+      ],
+      "type": "index",
+      "data": {
+        "on": 56,
+        "name": "plan_units_run",
+        "sql": "CREATE INDEX plan_units_run ON plan_units (run_id);",
+        "unique": false,
+        "columns": []
+      }
     }
   ],
   "fixed_sql": [
@@ -3439,6 +3778,60 @@
         {
           "dialect": "sqlite",
           "sql": "CREATE TABLE IF NOT EXISTS \"goals\" (\"id\" INTEGER NOT NULL PRIMARY KEY CHECK (id = 1), \"type\" TEXT NOT NULL CHECK (type IN ('distance', 'time', 'open')), \"distance\" TEXT CHECK (distance IN ('fiveKilometers', 'tenKilometers', 'halfMarathon')), \"target_s\" REAL CHECK (target_s > 0), \"target_date\" TEXT CHECK (date(target_date) IS target_date), \"run_days\" INTEGER NOT NULL CHECK (run_days BETWEEN 1 AND 127), \"max_session_s\" REAL NOT NULL CHECK (max_session_s > 0), \"weekly_cap_s\" REAL NOT NULL CHECK (weekly_cap_s > 0), \"current_weekly_s\" REAL CHECK (current_weekly_s > 0), \"can_run_30\" TEXT NOT NULL CHECK (can_run_30 IN ('yes', 'no', 'unknown')), \"hard_session\" INTEGER NOT NULL CHECK (hard_session IN (0, 1)), \"created_at_us\" INTEGER NOT NULL, CHECK((type = 'open' AND distance IS NULL AND target_s IS NULL AND target_date IS NULL)OR(type = 'distance' AND distance IS NOT NULL AND target_s IS NULL)OR(type = 'time' AND distance IS NOT NULL AND target_s IS NOT NULL)));"
+        }
+      ]
+    },
+    {
+      "name": "plans",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"plans\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"goal_id\" INTEGER NOT NULL REFERENCES goals(id)ON DELETE CASCADE, \"created_at_us\" INTEGER NOT NULL, \"valid_from\" TEXT NOT NULL CHECK (date(valid_from) IS valid_from), \"trigger\" TEXT NOT NULL CHECK (\"trigger\" IN ('create', 'goalChange', 'weekly', 'feedback', 'run', 'pause', 'manual', 'ruleVersion')), \"reason\" TEXT NOT NULL CHECK (length(reason) > 0), \"method\" TEXT NOT NULL CHECK (length(method) > 0), \"method_version\" INTEGER NOT NULL CHECK (method_version >= 1), \"parameter_version\" INTEGER NOT NULL CHECK (parameter_version >= 1), \"inputs\" TEXT NOT NULL CHECK (json_valid(inputs)), \"summary\" TEXT NOT NULL CHECK (json_valid(summary)));"
+        }
+      ]
+    },
+    {
+      "name": "plans_goal",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX plans_goal ON plans (goal_id)"
+        }
+      ]
+    },
+    {
+      "name": "plan_units",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"plan_units\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"plan_id\" INTEGER NOT NULL REFERENCES plans(id)ON DELETE CASCADE, \"day\" TEXT NOT NULL CHECK (date(day) IS day), \"week\" INTEGER NOT NULL CHECK (week >= 0), \"phase\" TEXT NOT NULL CHECK (phase IN ('entry', 'build', 'reduction')), \"kind\" TEXT NOT NULL CHECK (kind IN ('easy', 'long', 'intervals', 'tempo', 'progressive', 'walkRun', 'rest')), \"minutes\" INTEGER NOT NULL CHECK (minutes >= 0), \"structure\" TEXT NOT NULL CHECK (json_valid(structure)), \"run_id\" INTEGER REFERENCES runs(id)ON DELETE SET NULL, \"pinned\" INTEGER NOT NULL CHECK (pinned IN (0, 1)));"
+        }
+      ]
+    },
+    {
+      "name": "plan_units_day",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX plan_units_day ON plan_units (day)"
+        }
+      ]
+    },
+    {
+      "name": "plan_units_plan",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX plan_units_plan ON plan_units (plan_id)"
+        }
+      ]
+    },
+    {
+      "name": "plan_units_run",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX plan_units_run ON plan_units (run_id)"
         }
       ]
     }

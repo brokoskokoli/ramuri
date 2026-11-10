@@ -110,7 +110,12 @@ bool _sameContent(PlanUnit a, PlanUnit b) {
             ix.rpeMax != iy.rpeMax ||
             ix.paceFastSecondsPerKm != iy.paceFastSecondsPerKm ||
             ix.paceSlowSecondsPerKm != iy.paceSlowSecondsPerKm ||
-            ix.basisCode != iy.basisCode)) {
+            ix.basisCode != iy.basisCode ||
+            ix.hrMinBpm != iy.hrMinBpm ||
+            ix.hrMaxBpm != iy.hrMaxBpm ||
+            ix.estimated != iy.estimated ||
+            ix.maxHrEstimated != iy.maxHrEstimated ||
+            ix.paceIsLimit != iy.paceIsLimit)) {
       return false;
     }
   }
