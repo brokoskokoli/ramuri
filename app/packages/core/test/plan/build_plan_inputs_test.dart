@@ -195,6 +195,34 @@ void main() {
       expect(b.inputs.easyPaceSecondsPerKm, 360);
     });
 
+    test('einer harten/Geh-Lauf-Einheit zugeordnet: nie locker, auch bei '
+        'RPE 3 oder niedrigem Puls (NB3 Muss 2)', () {
+      final runs = [
+        _run(1, 3, 300, avgHr: 130),
+        _run(2, 4, 300, avgHr: 130),
+        _run(3, 5, 300, avgHr: 130),
+        _run(4, 6, 360, avgHr: 130), // ohne Zuordnung: Puls Zone 1-2
+      ];
+      final b = buildPlanInputs(
+        goal: _goal(),
+        today: _today,
+        runs: runs,
+        heartRate: _hr,
+        otherPlannedRunIds: const {1, 2, 3},
+        rpeByRunId: const {1: 3, 2: 3, 3: 3},
+      );
+      expect(b.inputs.easyRunCount, 1);
+      // Gegenprobe: ohne Zuordnung zählen alle vier.
+      final c = buildPlanInputs(
+        goal: _goal(),
+        today: _today,
+        runs: runs,
+        heartRate: _hr,
+        rpeByRunId: const {1: 3, 2: 3, 3: 3},
+      );
+      expect(c.inputs.easyRunCount, 4);
+    });
+
     test('hoher Puls, RPE 6, keine Zuordnung: nicht locker', () {
       // Puls 170 (über der Grenze), ohne Zuordnung, RPE 6: nicht locker.
       final runs = [

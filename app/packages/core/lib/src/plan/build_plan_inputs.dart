@@ -18,11 +18,15 @@ class BuiltPlanInputs {
   final TrainingGoal goal;
 }
 
-/// Ob ein Lauf als „locker“ zählt (PAR-205). Drei Wege, der erste greift:
-/// 1. [plannedEasy]: der Lauf ist einer lockeren oder langen Plan-Einheit
-///    zugeordnet (wie PAR-182);
-/// 2. [rpe] höchstens [IntensityParameters.easyMaxRpe] (PAR-108, PAR-110);
-/// 3. Durchschnittspuls (PAR-111), siehe unten.
+/// Ob ein Lauf als „locker“ zählt (PAR-205). Drei Wege:
+/// 1. [plannedEasy] gesetzt (der Lauf ist einer Plan-Einheit zugeordnet): nur
+///    die Zuordnung zählt, `true` bei lockerer oder langer Einheit (wie
+///    PAR-182), `false` bei harter oder Geh-Lauf-Einheit. RPE und Puls gelten
+///    dann nie (ein Intervalllauf mit niedrigem Durchschnittspuls ist nicht
+///    locker);
+/// 2. ohne Zuordnung ([plannedEasy] `null`): [rpe] höchstens
+///    [IntensityParameters.easyMaxRpe] (PAR-108, PAR-110);
+/// 3. ohne Zuordnung: Durchschnittspuls (PAR-111), siehe unten.
 /// Der Weg über RPE und Zuordnung funktioniert ohne Pulsgurt.
 ///
 /// Durchschnittspuls (PAR-111): unter der
@@ -36,10 +40,10 @@ bool isEasyRun(
   HeartRateBasis? heartRate,
   List<double> zoneBounds, {
   IntensityParameters intensity = const IntensityParameters(),
-  bool plannedEasy = false,
+  bool? plannedEasy,
   int? rpe,
 }) {
-  if (plannedEasy) return true;
+  if (plannedEasy != null) return plannedEasy;
   if (rpe != null && rpe <= intensity.easyMaxRpe) return true;
   final avg = run.heartRateAverageBpm;
   final max = heartRate?.usableMaxBpm;
@@ -74,7 +78,10 @@ double _median(List<double> v) {
 /// - [reference]: die aktive Referenzleistung (`activeReference`), falls
 ///   gültig; sie geht mit Datum, nicht mit Alter in die Eingaben.
 /// - [easyPlannedRunIds]: Kennungen der Läufe, die einer lockeren oder langen
-///   Plan-Einheit zugeordnet sind; [rpeByRunId]: RPE je Lauf (Rückmeldung).
+///   Plan-Einheit zugeordnet sind; [otherPlannedRunIds]: Läufe, die einer
+///   anderen Plan-Einheit (hart, Geh-Lauf) zugeordnet sind. Diese zählen nie
+///   als locker; RPE und Puls gelten nur für Läufe ohne Zuordnung.
+///   [rpeByRunId]: RPE je Lauf (Rückmeldung).
 /// - [heartRate], [zoneBounds]: Profil (HFmax, Ruhepuls, Schätzkennzeichen).
 /// - [vo2max], [vo2maxGrade]: Langzeitwert und Güte; die Prüfung nach PAR-081
 ///   liegt beim Aufrufer (`vo2maxGrade == null`: unzureichend).
@@ -91,6 +98,7 @@ BuiltPlanInputs buildPlanInputs({
   required DateTime today,
   Iterable<RunFigures> runs = const [],
   Set<int> easyPlannedRunIds = const {},
+  Set<int> otherPlannedRunIds = const {},
   Map<int, int> rpeByRunId = const {},
   ReferencePerformance? reference,
   HeartRateBasis? heartRate,
@@ -126,7 +134,9 @@ BuiltPlanInputs buildPlanInputs({
       heartRate,
       bounds,
       intensity: intensityParameters,
-      plannedEasy: easyPlannedRunIds.contains(r.runId),
+      plannedEasy: easyPlannedRunIds.contains(r.runId)
+          ? true
+          : (otherPlannedRunIds.contains(r.runId) ? false : null),
       rpe: rpeByRunId[r.runId],
     )) {
       continue;

@@ -335,6 +335,45 @@ void main() {
       }
     });
 
+    test('Geh-Lauf-Woche mit eingefrorenen Einheiten nach geänderten Tagen '
+        'hat nie mehr Einheiten als die Abfolge (NB3 Muss 1)', () {
+      final t0 = DateTime.utc(2026, 11, 9); // Montag
+      final date = t0.add(const Duration(days: 120));
+      final g0 = goal(
+        type: GoalType.distance,
+        distance: GoalDistance.fiveKilometers,
+        days: {1, 3, 5},
+        c30: ContinuousRun30.no,
+        date: date,
+      );
+      final i0 = PlanInputs.forNewGoal(g0, t0);
+      final p0 = generatePlan(g0, i0, const [], t0);
+      final t1 = DateTime.utc(2026, 11, 12); // Donnerstag
+      final frozen = [
+        for (final u in p0.units)
+          if (u.day.isBefore(t1)) u,
+      ];
+      expect(frozen.length, 2);
+      final g1 = goal(
+        type: GoalType.distance,
+        distance: GoalDistance.fiveKilometers,
+        days: {4, 6, 7},
+        c30: ContinuousRun30.no,
+        date: date,
+      );
+      final p1 = generatePlan(g1, i0.copyWith(today: t1), frozen, t1);
+      final week0 = p1.allUnits.where((u) => monday(u.day) == t0).toList();
+      expect([for (final u in week0) u.day.weekday], [1, 3, 4]);
+      expect(p1.droppedDaysByWeek[0], [
+        DateTime.utc(2026, 11, 14),
+        DateTime.utc(2026, 11, 15),
+      ]);
+      final week1 = p1.allUnits
+          .where((u) => monday(u.day) == t0.add(const Duration(days: 7)))
+          .toList();
+      expect(week1.length, 3);
+    });
+
     for (final walkRun in [false, true]) {
       test(
         'Eigenschaften über den ganzen Plan mit eingefrorenen Einheiten '
@@ -347,7 +386,21 @@ void main() {
               1,
               1,
             ).add(Duration(days: r.nextInt(300)));
-            final g0 = randomGoal(r, t0);
+            var g0 = randomGoal(r, t0);
+            if (r.nextInt(4) == 0) {
+              // Kurze maximale Zeit: keine Woche der Abfolge passt (PAR-141).
+              g0 = goal(
+                type: g0.type,
+                distance: g0.distance,
+                days: g0.runDays,
+                maxMin: 5 + r.nextInt(25),
+                capMin: (g0.weeklyCapSeconds / 60).floor(),
+                hard: g0.hardSessionEnabled,
+                c30: g0.canRun30,
+                stated: g0.currentWeeklySeconds,
+                date: g0.targetDate,
+              );
+            }
             final days1 = <int>{};
             final n1 = 1 + r.nextInt(6);
             while (days1.length < n1) {
@@ -421,16 +474,23 @@ void main() {
             }
             for (final u in p1.units) {
               expect(u.minutes, greaterThanOrEqualTo(1), reason: why);
-              if (u.kind != PlanUnitKind.walkRun) {
-                expect(u.minutes, lessThanOrEqualTo(maxMin), reason: why);
-              }
+              expect(u.minutes, lessThanOrEqualTo(maxMin), reason: why);
               // Nur gewählte Lauftage (hier ohne Pinned).
               expect(g1.runDays.contains(u.day.weekday), isTrue, reason: why);
             }
             for (final w in p1.weeks) {
               final us = byWeek[w.start] ?? [];
-              if (us.where((u) => u.kind == PlanUnitKind.walkRun).isNotEmpty) {
-                continue;
+              final walkUnits = us.where((u) => u.kind == PlanUnitKind.walkRun);
+              if (walkUnits.isNotEmpty) {
+                // Nie mehr Einheiten als die Abfolge je Woche (3) und als
+                // gewählte Lauftage, außer eingefrorene auf anderen Tagen.
+                final nFrozen = us.where(frozenSet.contains).length;
+                final cap = g1.runDays.length < 3 ? g1.runDays.length : 3;
+                expect(
+                  us.length,
+                  lessThanOrEqualTo(nFrozen > cap ? nFrozen : cap),
+                  reason: '$why Woche ${w.index}: Einheiten der Geh-Lauf-Woche',
+                );
               }
               expect(
                 us.where((u) => u.kind == PlanUnitKind.long).length,
