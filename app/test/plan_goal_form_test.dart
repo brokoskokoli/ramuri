@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -69,6 +70,42 @@ class _Scripted extends PlanController {
     saves++;
     return result;
   }
+}
+
+/// Controller mit eigener Einschätzung ([checkGoal]) für Rennen und Fehler.
+class _Checking extends PlanController {
+  _Checking(StorageSession session, Clock clock, this.check)
+    : super(
+        session: session,
+        clock: clock,
+        reader: PlanDataReader(
+          session: session,
+          clock: clock,
+          loadRuns: () async => const [],
+        ),
+      );
+  final Future<GoalDraftCheck> Function(TrainingGoal draft) check;
+  final saved = <TrainingGoal>[];
+  @override
+  Future<GoalDraftCheck> checkGoal(TrainingGoal draft) => check(draft);
+  @override
+  Future<PlanActionResult> saveGoal(TrainingGoal goal) async {
+    saved.add(goal);
+    return PlanActionResult.done;
+  }
+}
+
+/// Lese-Adapter mit fester Grundlage für Zeitziele (Referenz, Läufe).
+class _BasisReader extends PlanDataReader {
+  _BasisReader(StorageSession session, Clock clock, this.basis)
+    : super(session: session, clock: clock, loadRuns: () async => const []);
+  final TimeGoalBasis basis;
+  @override
+  Future<TimeGoalBasis> timeGoalBasis({
+    required TrainingGoal goal,
+    required DateTime today,
+    FeasibilityParameters feasibility = const FeasibilityParameters(),
+  }) async => goal.type == GoalType.time ? basis : const TimeGoalBasis();
 }
 
 Future<void> _pump(
@@ -449,6 +486,247 @@ void main() {
     await fillAndSave(tester);
     expect(find.byKey(const Key('plan_form')), findsOneWidget);
     expect(_error(tester), de.planFormSaveRejected);
+  });
+
+  testWidgets('Ändern: Stand nur Anzeige, keine Frage zu 30 min', (
+    tester,
+  ) async {
+    final clock = FakeClock(_now);
+    final session = await _withPlan(_goal(), clock);
+    final c = _controller(session, clock);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_edit_goal')));
+    expect(
+      tester.widget<Text>(find.byKey(const Key('plan_form_stand_kept'))).data,
+      de.planFormStandKeptYes,
+    );
+    expect(find.byKey(const Key('plan_form_can30')), findsNothing);
+    expect(find.byKey(const Key('plan_form_weekly')), findsNothing);
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    final goal = (await (session as GoalStorage).goals.goal())!;
+    expect(goal.canRun30, ContinuousRun30.yes);
+  });
+
+  test(
+    'Ändern: checkGoal rechnet mit den Eingaben des Speicherns '
+    '(Geh-Lauf der letzten Fassung), Hinweis und Plan stimmen überein',
+    () async {
+      final clock = FakeClock(_now);
+      final session = await _withPlan(_goal(), clock);
+      final c = _controller(session, clock);
+      addTearDown(c.dispose);
+      // Ein Entwurf mit „Nein“: Beim Ändern bleibt der Start der Fassung.
+      final draft = _goal(canRun30: ContinuousRun30.no);
+      final check = await c.checkGoal(draft);
+      expect(check.walkRun, isFalse);
+      expect(await c.saveGoal(draft), PlanActionResult.done);
+      final history = await (session as PlanStorage).plans.history();
+      expect(history.last.trigger, PlanTrigger.goalChange);
+      final units = await (session as PlanStorage).plans.unitsBetween(
+        _today,
+        planFarFuture,
+      );
+      expect(units.any((u) => u.kind == PlanUnitKind.walkRun), check.walkRun);
+    },
+  );
+
+  testWidgets('PAR-115 beim Ändern: Geh-Lauf-Plan verlangt die Bestätigung', (
+    tester,
+  ) async {
+    final clock = FakeClock(_now);
+    final session = await _withPlan(_goal(canRun30: ContinuousRun30.no), clock);
+    final c = _controller(session, clock);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_edit_goal')));
+    expect(
+      tester.widget<Text>(find.byKey(const Key('plan_form_stand_kept'))).data,
+      de.planFormStandKeptNo,
+    );
+    await _tap(tester, find.byKey(const Key('plan_form_day_1')));
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    expect(find.byKey(const Key('plan_form_care')), findsOneWidget);
+    await _tap(tester, find.byKey(const Key('plan_form_care_confirm')));
+    final goal = (await (session as GoalStorage).goals.goal())!;
+    expect(goal.runDays, {1, 2, 4, 6});
+    final units = await (session as PlanStorage).plans.unitsBetween(
+      _today,
+      planFarFuture,
+    );
+    expect(units.any((u) => u.kind == PlanUnitKind.walkRun), isTrue);
+  });
+
+  testWidgets('Rennen: Änderung während der Einschätzung verwirft das '
+      'Ergebnis, gespeichert wird der neu geprüfte Entwurf', (tester) async {
+    final (session, clock) = await _empty();
+    final pending = <Completer<GoalDraftCheck>>[];
+    final c = _Checking(session, clock, (draft) {
+      final done = Completer<GoalDraftCheck>();
+      pending.add(done);
+      return done.future;
+    });
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await _enter(tester, 'plan_form_max_session', '45');
+    await _tap(tester, find.text(de.planFormYes));
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    // Noch in der Rechnung: ein weiterer Lauftag.
+    await _tap(tester, find.byKey(const Key('plan_form_day_4')));
+    const walk = GoalDraftCheck(
+      assessment: GoalAssessment(
+        feasibility: null,
+        reason: FeasibilityReason.showRegularity,
+      ),
+      walkRun: false,
+    );
+    pending.single.complete(walk);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('plan_form_assessment')), findsNothing);
+    expect(find.byKey(const Key('plan_form_save')), findsNothing);
+
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    pending.last.complete(walk);
+    await tester.pumpAndSettle();
+    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    expect(c.saved.single.runDays, {2, 4});
+  });
+
+  testWidgets('Misslungene Einschätzung: Fehlertext, kein Speichern', (
+    tester,
+  ) async {
+    final (session, clock) = await _empty();
+    final c = _Checking(session, clock, (_) async => throw StateError('x'));
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await _enter(tester, 'plan_form_max_session', '45');
+    await _tap(tester, find.text(de.planFormYes));
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    expect(_error(tester), de.planFormAssessFailed);
+    expect(find.byKey(const Key('plan_form_save')), findsNothing);
+    expect(c.saved, isEmpty);
+  });
+
+  testWidgets('Zeitziel mit Referenz: Einschätzung aus der Grundlage', (
+    tester,
+  ) async {
+    final (session, clock) = await _empty();
+    final c = PlanController(
+      session: session,
+      clock: clock,
+      // Aktuell 30:00 auf 5 km aus 6 Läufen; Ziel 29:50 ist eine kleine
+      // Verbesserung.
+      reader: _BasisReader(
+        session,
+        clock,
+        const TimeGoalBasis(currentSeconds: 30 * 60, runsInWindow: 6),
+      ),
+    );
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.text(de.planFormTypeTime));
+    await _enter(tester, 'plan_form_minutes', '29');
+    await _enter(tester, 'plan_form_seconds', '50');
+    await _pickDay(tester, 28);
+    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await _tap(tester, find.byKey(const Key('plan_form_day_4')));
+    await _enter(tester, 'plan_form_max_session', '45');
+    await _tap(tester, find.text(de.planFormYes));
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('plan_form_assessment_main')))
+          .data,
+      de.planAssessFits,
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('plan_form_assessment_basis')))
+          .data,
+      de.planAssessBasisTime,
+    );
+  });
+
+  testWidgets('Regler: geänderter Wert wird gespeichert', (tester) async {
+    final clock = FakeClock(_now);
+    final session = await _withPlan(_goal(), clock);
+    final c = _controller(session, clock);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_edit_goal')));
+    final slider = find.byKey(const Key('plan_form_regulator'));
+    await tester.ensureVisible(slider);
+    tester.widget<Slider>(slider).onChanged!(6.2);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(slider).value, 6);
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    final goal = (await (session as GoalStorage).goals.goal())!;
+    expect(goal.weeklyCapSeconds, 6 * 3600);
+  });
+
+  testWidgets('Regler unter der Zielspitze: Hinweis im Wortlaut', (
+    tester,
+  ) async {
+    final (session, clock) = await _empty();
+    final c = _controller(session, clock);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.text(de.planDistanceHalf));
+    await _pickDay(tester, 28);
+    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await _tap(tester, find.byKey(const Key('plan_form_day_4')));
+    await _tap(tester, find.byKey(const Key('plan_form_day_6')));
+    await _enter(tester, 'plan_form_max_session', '120');
+    await _tap(tester, find.text(de.planFormYes));
+    final slider = find.byKey(const Key('plan_form_regulator'));
+    await tester.ensureVisible(slider);
+    tester.widget<Slider>(slider).onChanged!(1);
+    await tester.pumpAndSettle();
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('plan_form_assessment_regulator')))
+          .data,
+      de.planAssessRegulator,
+    );
+  });
+
+  testWidgets('Streckenziel ohne Datum: kein Text zum offenen Ziel', (
+    tester,
+  ) async {
+    final (session, clock) = await _empty();
+    final c = _controller(session, clock);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await _enter(tester, 'plan_form_max_session', '45');
+    await _tap(tester, find.text(de.planFormYes));
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const Key('plan_form_assessment_regularity')),
+          )
+          .data,
+      de.planFormAssessNoDate,
+    );
+  });
+
+  testWidgets('Fehler beim Speichern bleibt im Formular sichtbar', (
+    tester,
+  ) async {
+    final (session, clock) = await _empty();
+    await _pump(
+      tester,
+      session: session,
+      clock: clock,
+      controller: _Scripted(session, clock, PlanActionResult.failed),
+    );
+    await fillAndSave(tester);
+    expect(find.byKey(const Key('plan_form')), findsOneWidget);
+    expect(_error(tester), de.planFormSaveFailed);
   });
 
   testWidgets('Bisherige Wettkampfzeit steht als Referenz im Formular', (

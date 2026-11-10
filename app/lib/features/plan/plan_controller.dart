@@ -234,9 +234,7 @@ class PlanController extends ChangeNotifier {
   ) async {
     final today = _today();
     final built = await reader.read(goal: goal, today: today);
-    final inputs = (trigger == PlanTrigger.create || last == null)
-        ? built.inputs
-        : refreshMeasuredInputs(last.inputs, built.inputs);
+    final inputs = _inputsFor(trigger, built, last);
     final r = await recalculatePlan(
       plans: _plans,
       settings: session.settings,
@@ -250,6 +248,27 @@ class PlanController extends ChangeNotifier {
     _lastChange = r.summary;
     if (r.wasWritten) onChanged?.call();
   }
+
+  /// Eingaben der Rechnung für [trigger]: beim Anlegen (oder ohne Fassung)
+  /// die frischen aus [buildPlanInputs], sonst die der letzten Fassung mit den
+  /// heute gemessenen Werten ([refreshMeasuredInputs]). Gemeinsam für das
+  /// Speichern ([_recalculate]) und die Einschätzung davor ([checkGoal]).
+  static PlanInputs _inputsFor(
+    PlanTrigger trigger,
+    BuiltPlanInputs built,
+    PlanVersionRecord? last,
+  ) => (trigger == PlanTrigger.create || last == null)
+      ? built.inputs
+      : refreshMeasuredInputs(last.inputs, built.inputs);
+
+  /// Auslöser beim Speichern eines Ziels: `goalChange`, wenn schon ein Ziel
+  /// mit Fassung besteht, sonst `create`.
+  static PlanTrigger _saveTrigger(
+    bool goalExisted,
+    List<PlanVersionRecord> history,
+  ) => goalExisted && history.isNotEmpty
+      ? PlanTrigger.goalChange
+      : PlanTrigger.create;
 
   Future<void> _load() async {
     if (_disposed) return;
@@ -369,25 +388,27 @@ class PlanController extends ChangeNotifier {
     return built.goal.currentWeeklySeconds;
   }
 
-  /// Einschätzung eines noch nicht gespeicherten Ziels (PAR-206) mit den
-  /// Eingaben, die das Anlegen nutzen würde ([buildPlanInputs], Stand ggf.
-  /// aus Läufen), und heute; dazu, ob der Plan mit einer Geh-Lauf-Abfolge
-  /// beginnt (PAR-065, Hinweis PAR-115). Speichert nichts.
+  /// Einschätzung eines noch nicht gespeicherten Ziels (PAR-206) mit genau
+  /// den Eingaben, mit denen [saveGoal] danach rechnen würde: beim Anlegen
+  /// die frischen ([buildPlanInputs], Stand ggf. aus Läufen), beim Ändern die
+  /// der letzten Fassung mit heute gemessenen Werten (Stand und Geh-Lauf-
+  /// Abfolge bleiben, [refreshMeasuredInputs]); dazu, ob der Plan mit einer
+  /// Geh-Lauf-Abfolge beginnt (PAR-065, Hinweis PAR-115). Speichert nichts.
   Future<GoalDraftCheck> checkGoal(TrainingGoal draft) async {
     final today = _today();
+    final existed = await _goals.goal() != null;
+    final history = await _plans.history();
+    final last = history.isEmpty ? null : history.last;
     final built = await reader.read(goal: draft, today: today);
+    final inputs = _inputsFor(_saveTrigger(existed, history), built, last);
     final assessment = assessGoal(
       goal: built.goal,
-      inputs: built.inputs,
+      inputs: inputs,
       today: today,
       basis: await reader.timeGoalBasis(goal: built.goal, today: today),
       parameters: parameters,
     );
-    final setup = planCourseSetup(
-      built.goal,
-      built.inputs,
-      parameters: parameters,
-    );
+    final setup = planCourseSetup(built.goal, inputs, parameters: parameters);
     return GoalDraftCheck(
       assessment: assessment,
       walkRun: setup.walkRunWeeks > 0,
@@ -410,9 +431,7 @@ class PlanController extends ChangeNotifier {
       }
       final history = await _plans.history();
       await _recalculate(
-        existed && history.isNotEmpty
-            ? PlanTrigger.goalChange
-            : PlanTrigger.create,
+        _saveTrigger(existed, history),
         saved,
         history.isEmpty ? null : history.last,
       );

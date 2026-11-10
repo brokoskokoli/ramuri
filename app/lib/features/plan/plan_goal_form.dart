@@ -80,7 +80,13 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   bool _loading = true;
   ReferencePerformance? _reference;
 
-  GoalDraftCheck? _check;
+  /// Die Einschätzung samt genau dem Entwurf, der eingeschätzt wurde;
+  /// gespeichert wird dieser Entwurf.
+  ({TrainingGoal draft, GoalDraftCheck check})? _check;
+
+  /// Zählt Änderungen an den Feldern; eine Einschätzung, während der sich
+  /// etwas geändert hat, ist veraltet und wird verworfen.
+  int _generation = 0;
   bool _busy = false;
   String? _error;
 
@@ -181,6 +187,7 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
 
   void _set(VoidCallback f) => setState(() {
     f();
+    _generation++;
     _check = null;
     _error = null;
   });
@@ -217,13 +224,18 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
       weeklyCapSeconds: _capHours * 3600,
       createdAt: initial?.createdAt ?? widget.clock.now(),
       hardSessionEnabled: _hard,
-      // Mit Läufen entfällt die Frage (PAR-192); ein gespeicherter Stand
-      // bleibt dann unverändert.
-      currentWeeklySeconds: _standFromRuns
-          ? initial?.currentWeeklySeconds
+      // Beim Ändern bleibt der Stand des Ziels (PAR-203 nennt ihn nicht; die
+      // Rechnung behält Start und Geh-Lauf der letzten Fassung). Beim Anlegen
+      // entfällt die Frage mit Läufen (PAR-192).
+      currentWeeklySeconds: initial != null
+          ? initial.currentWeeklySeconds
+          : _standFromRuns
+          ? null
           : (weekly == null ? null : weekly * 60),
-      canRun30: _standFromRuns
-          ? (initial?.canRun30 ?? ContinuousRun30.unknown)
+      canRun30: initial != null
+          ? initial.canRun30
+          : _standFromRuns
+          ? ContinuousRun30.unknown
           : (weekly == null ? _can30 : ContinuousRun30.unknown),
     );
   }
@@ -249,11 +261,13 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   Future<void> _assess() async {
     final l = AppLocalizations.of(context);
     final draft = _draft();
-    final problem = draft.validate(_today, null, !_standFromRuns);
+    // Der Stand ist nur beim Anlegen ohne Läufe gefragt (PAR-192).
+    final problem = draft.validate(_today, null, !_editing && !_standFromRuns);
     if (problem != null) {
       setState(() => _error = _problemText(l, problem));
       return;
     }
+    final generation = _generation;
     setState(() => _busy = true);
     GoalDraftCheck? check;
     try {
@@ -264,7 +278,10 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     if (!mounted) return;
     setState(() {
       _busy = false;
-      _check = check;
+      // Während der Rechnung geändert: Das Ergebnis passt nicht mehr zu den
+      // Feldern und wird verworfen.
+      if (generation != _generation) return;
+      _check = check == null ? null : (draft: draft, check: check);
       _error = check == null ? l.planFormAssessFailed : null;
     });
   }
@@ -273,12 +290,12 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   /// Bestätigung des Hinweises aus PAR-115.
   Future<void> _save() async {
     final l = AppLocalizations.of(context);
-    final check = _check;
-    if (check == null) return;
-    if (check.walkRun && !await _confirmCare(l)) return;
+    final checked = _check;
+    if (checked == null) return;
+    if (checked.check.walkRun && !await _confirmCare(l)) return;
     if (!mounted) return;
     setState(() => _busy = true);
-    final result = await widget.controller.saveGoal(_draft());
+    final result = await widget.controller.saveGoal(checked.draft);
     if (!mounted) return;
     switch (result) {
       case PlanActionResult.done:
@@ -582,11 +599,30 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   List<Widget> _standSection(AppLocalizations l) {
     final text = Theme.of(context).textTheme;
     final runs = _runsStand;
+    final initial = widget.initial;
     return [
       const SizedBox(height: 16),
       SectionHeading(l.planFormStand),
       const SizedBox(height: 8),
-      if (runs != null)
+      // Beim Ändern nur Anzeige: Der Stand bleibt (PAR-203 nennt ihn nicht).
+      if (initial != null) ...[
+        Text(
+          switch ((initial.currentWeeklySeconds, initial.canRun30)) {
+            (final w?, _) => l.planFormStandKeptWeekly((w / 60).round()),
+            (null, ContinuousRun30.yes) => l.planFormStandKeptYes,
+            (null, ContinuousRun30.no) => l.planFormStandKeptNo,
+            (null, ContinuousRun30.unknown) => l.planFormStandKeptRuns,
+          },
+          key: const Key('plan_form_stand_kept'),
+          style: text.bodyMedium,
+        ),
+        Text(
+          l.planFormStandKeptNote,
+          style: text.bodySmall?.copyWith(
+            color: RamuriColors.of(context).textLabel,
+          ),
+        ),
+      ] else if (runs != null)
         Text(
           l.planFormStandFromRuns((runs / 60).round()),
           key: const Key('plan_form_stand_runs'),
@@ -648,10 +684,10 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     final c = RamuriColors.of(context);
     final text = Theme.of(context).textTheme;
     final lang = Localizations.localeOf(context).languageCode;
-    final check = _check;
+    final checked = _check;
     final widgets = <Widget>[const SizedBox(height: 16)];
-    if (check != null) {
-      final a = check.assessment;
+    if (checked != null) {
+      final a = checked.check.assessment;
       final texts = planAssessmentTexts(
         l,
         a,
@@ -671,7 +707,13 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
               ),
               const SizedBox(height: 4),
               if (texts == null)
-                Text(l.planFormAssessOpen, style: text.bodyMedium)
+                Text(
+                  checked.draft.type == GoalType.open
+                      ? l.planFormAssessOpen
+                      : l.planFormAssessNoDate,
+                  key: const Key('plan_form_assessment_regularity'),
+                  style: text.bodyMedium,
+                )
               else ...[
                 Text(
                   texts.main,
@@ -681,6 +723,7 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
                 if (a.regulatorTooLow)
                   Text(
                     l.planAssessRegulator,
+                    key: const Key('plan_form_assessment_regulator'),
                     style: text.bodySmall?.copyWith(color: c.textLabel),
                   ),
                 if (texts.extra case final e?)
@@ -733,7 +776,7 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     widgets.add(
       SizedBox(
         width: double.infinity,
-        child: check == null
+        child: checked == null
             ? RamuriPrimaryButton(
                 key: const Key('plan_form_check'),
                 label: l.planFormCheck,
