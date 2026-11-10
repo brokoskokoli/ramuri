@@ -37,6 +37,19 @@ class _SavedNotPlanned implements Exception {
   const _SavedNotPlanned();
 }
 
+/// Prüfung eines Ziels vor dem Speichern ([PlanController.checkGoal]).
+class GoalDraftCheck {
+  const GoalDraftCheck({required this.assessment, required this.walkRun});
+
+  /// Einschätzung nach PAR-206; [GoalAssessment.fitsFrom] ist das Angebot
+  /// eines Datums.
+  final GoalAssessment assessment;
+
+  /// Der Plan beginnt mit der Geh-Lauf-Abfolge (PAR-065); vor dem Speichern
+  /// steht der Hinweis aus PAR-115.
+  final bool walkRun;
+}
+
 /// Stand der Plan-Seite (WP22). Nur Daten, keine Texte.
 class PlanViewState {
   const PlanViewState.loading()
@@ -336,6 +349,49 @@ class PlanController extends ChangeNotifier {
     final g = goal ?? await _goals.goal();
     if (g == null) return null;
     return reader.read(goal: g, today: _today());
+  }
+
+  /// Stand aus vorhandenen Läufen (PAR-192: „Vorhandene Läufe in der App
+  /// ersetzen die Angabe zum Stand“) als Wochenzeit in Sekunden, `null` ohne
+  /// Läufe im Fenster. Für das Zielformular: Mit Läufen entfällt die Frage
+  /// nach dem Stand. Gelesen wie bei der Planrechnung ([buildPlanInputs]);
+  /// das Ziel dafür ist ein Platzhalter ohne eigenen Stand.
+  Future<double?> standFromRuns() async {
+    final probe = TrainingGoal(
+      type: GoalType.open,
+      runDays: const {DateTime.monday},
+      maxSessionSeconds: 1,
+      weeklyCapSeconds: 1,
+      createdAt: clock.now(),
+      hardSessionEnabled: false,
+    );
+    final built = await reader.read(goal: probe, today: _today());
+    return built.goal.currentWeeklySeconds;
+  }
+
+  /// Einschätzung eines noch nicht gespeicherten Ziels (PAR-206) mit den
+  /// Eingaben, die das Anlegen nutzen würde ([buildPlanInputs], Stand ggf.
+  /// aus Läufen), und heute; dazu, ob der Plan mit einer Geh-Lauf-Abfolge
+  /// beginnt (PAR-065, Hinweis PAR-115). Speichert nichts.
+  Future<GoalDraftCheck> checkGoal(TrainingGoal draft) async {
+    final today = _today();
+    final built = await reader.read(goal: draft, today: today);
+    final assessment = assessGoal(
+      goal: built.goal,
+      inputs: built.inputs,
+      today: today,
+      basis: await reader.timeGoalBasis(goal: built.goal, today: today),
+      parameters: parameters,
+    );
+    final setup = planCourseSetup(
+      built.goal,
+      built.inputs,
+      parameters: parameters,
+    );
+    return GoalDraftCheck(
+      assessment: assessment,
+      walkRun: setup.walkRunWeeks > 0,
+    );
   }
 
   /// Speichert das Ziel (Anlegen oder Ändern, PAR-203) mit „heute“ und

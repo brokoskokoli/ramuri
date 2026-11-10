@@ -127,3 +127,56 @@ String? planHardFitText(AppLocalizations l, HardFitStatus s) => switch (s) {
   HardFitStatus.raised ||
   HardFitStatus.atPeak => null,
 };
+
+/// Texte der Einschätzung (PAR-206): Hauptzeile, ggf. Zusatz und Grundlage
+/// (PAR-106). `null` bei [FeasibilityReason.showRegularity]; die Regelmäßigkeit
+/// zählt die Seite aus ihren Einheiten. [date] formatiert das Angebot.
+({String main, String? extra, String basis})? planAssessmentTexts(
+  AppLocalizations l,
+  GoalAssessment a,
+  String Function(DateTime) date,
+) => switch (a.reason) {
+  FeasibilityReason.peakReached => (
+    main: l.planAssessFits,
+    extra: null,
+    basis: l.planAssessBasisCourse,
+  ),
+  FeasibilityReason.peakTooLate => (
+    main: a.fitsFrom == null
+        ? l.planAssessTight
+        : l.planAssessTightFrom(date(a.fitsFrom!)),
+    extra: null,
+    basis: l.planAssessBasisCourse,
+  ),
+  FeasibilityReason.peakAboveRegulator => (
+    main: l.planAssessTight,
+    extra: null,
+    basis: l.planAssessBasisCourse,
+  ),
+  FeasibilityReason.peakNotWithinHorizon => (
+    main: l.planAssessTight,
+    extra: l.planAssessNoDate,
+    basis: l.planAssessBasisCourse,
+  ),
+  FeasibilityReason.improvementSmall => (
+    main: l.planAssessFits,
+    extra: null,
+    basis: l.planAssessBasisTime,
+  ),
+  FeasibilityReason.improvementMedium => (
+    main: l.planAssessTight,
+    extra: null,
+    basis: l.planAssessBasisTime,
+  ),
+  FeasibilityReason.improvementLarge => (
+    main: l.planAssessLater,
+    extra: null,
+    basis: l.planAssessBasisTime,
+  ),
+  FeasibilityReason.noReference || FeasibilityReason.tooFewRuns => (
+    main: l.planAssessNoData,
+    extra: null,
+    basis: l.planAssessBasisTime,
+  ),
+  FeasibilityReason.showRegularity => null,
+};

@@ -100,8 +100,6 @@ class _AppShellState extends State<AppShell> {
           session: widget.session,
           clock: widget.clock,
           viewState: _planState,
-          // Das Zielformular kommt mit WP22 Teil C.
-          onCreateGoal: () {},
         );
       case 'history':
         return HistoryScreen(

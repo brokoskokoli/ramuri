@@ -9,6 +9,7 @@ import '../../ui/ui.dart';
 import '../settings/app_settings.dart';
 import 'plan_controller.dart';
 import 'plan_data_reader.dart';
+import 'plan_goal_form.dart';
 import 'plan_page_view_state.dart';
 import 'plan_texts.dart';
 import 'plan_unit_screen.dart';
@@ -37,7 +38,8 @@ class PlanScreen extends StatefulWidget {
   /// Seite ein eigenes Objekt an.
   final PlanPageViewState? viewState;
 
-  /// Einstieg „Ziel anlegen“ (das Formular kommt mit Teil C).
+  /// Ersetzt den Einstieg „Ziel anlegen“ im leeren Zustand; ohne Angabe
+  /// öffnet die Seite das Zielformular ([PlanGoalFormScreen]).
   final VoidCallback? onCreateGoal;
 
   /// Für Tests: ein vorhandener Controller; die Seite ruft dann `open()`,
@@ -148,6 +150,35 @@ class _PlanScreenState extends State<PlanScreen> {
         );
   }
 
+  /// Zielformular zum Anlegen (ohne [initial]) oder Ändern (vorbelegt,
+  /// PAR-203). Das Ergebnis des Speicherns steht danach als Meldung da.
+  Future<void> _openGoalForm([TrainingGoal? initial]) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await Navigator.of(context, rootNavigator: true)
+        .push<PlanActionResult>(
+          MaterialPageRoute(
+            builder: (_) => PlanGoalFormScreen(
+              controller: _controller,
+              session: widget.session,
+              clock: widget.clock,
+              initial: initial,
+            ),
+          ),
+        );
+    if (!mounted || result == null) return;
+    messenger.showSnackBar(
+      SnackBar(
+        key: const Key('plan_goal_saved'),
+        content: Text(
+          result == PlanActionResult.savedNotPlanned
+              ? l.planGoalSavedNotPlanned
+              : l.planGoalSaved,
+        ),
+      ),
+    );
+  }
+
   void _openUnit(PlanUnit unit) {
     Navigator.of(
       context,
@@ -214,7 +245,7 @@ class _PlanScreenState extends State<PlanScreen> {
               RamuriPrimaryButton(
                 key: const Key('plan_create_goal'),
                 label: l.planEmptyCreateGoal,
-                onPressed: widget.onCreateGoal,
+                onPressed: widget.onCreateGoal ?? _openGoalForm,
               ),
             ],
           ),
@@ -265,7 +296,11 @@ class _PlanScreenState extends State<PlanScreen> {
         children: [
           _title(l),
           const SizedBox(height: 14),
-          _GoalCard(state: s, today: _today),
+          _GoalCard(
+            state: s,
+            today: _today,
+            onEdit: () => _openGoalForm(s.goal),
+          ),
           for (final h in global) ...[const SizedBox(height: 10), h],
           const SizedBox(height: 16),
           FutureBuilder<List<PlanUnit>>(
@@ -313,10 +348,17 @@ class _Hint extends StatelessWidget {
 
 /// Zielkarte: Ziel, Datum, Phasenbalken und Einschätzung mit Grundlage.
 class _GoalCard extends StatelessWidget {
-  const _GoalCard({required this.state, required this.today});
+  const _GoalCard({
+    required this.state,
+    required this.today,
+    required this.onEdit,
+  });
 
   final PlanViewState state;
   final DateTime today;
+
+  /// Einstieg „Ziel ändern“ (PAR-203).
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -372,6 +414,16 @@ class _GoalCard extends StatelessWidget {
             _PhaseBar(weeks: weeks, today: today),
           ],
           ..._assessment(context, l),
+          const SizedBox(height: 4),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              key: const Key('plan_edit_goal'),
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_rounded, size: 18),
+              label: Text(l.planEditGoal),
+            ),
+          ),
         ],
       ),
     );
@@ -383,53 +435,31 @@ class _GoalCard extends StatelessWidget {
     final c = RamuriColors.of(context);
     final text = Theme.of(context).textTheme;
     final lang = Localizations.localeOf(context).languageCode;
-    final String main;
-    final String basis;
+    String main;
+    String basis;
     String? extra;
-    switch (a.reason) {
-      case FeasibilityReason.peakReached:
-        main = l.planAssessFits;
-        basis = l.planAssessBasisCourse;
-      case FeasibilityReason.peakTooLate:
-        main = a.fitsFrom == null
-            ? l.planAssessTight
-            : l.planAssessTightFrom(DateFormat.yMMMd(lang).format(a.fitsFrom!));
-        basis = l.planAssessBasisCourse;
-      case FeasibilityReason.peakAboveRegulator:
-        main = l.planAssessTight;
-        basis = l.planAssessBasisCourse;
-      case FeasibilityReason.peakNotWithinHorizon:
-        main = l.planAssessTight;
-        extra = l.planAssessNoDate;
-        basis = l.planAssessBasisCourse;
-      case FeasibilityReason.improvementSmall:
-        main = l.planAssessFits;
-        basis = l.planAssessBasisTime;
-      case FeasibilityReason.improvementMedium:
-        main = l.planAssessTight;
-        basis = l.planAssessBasisTime;
-      case FeasibilityReason.improvementLarge:
-        main = l.planAssessLater;
-        basis = l.planAssessBasisTime;
-      case FeasibilityReason.noReference:
-      case FeasibilityReason.tooFewRuns:
-        main = l.planAssessNoData;
-        basis = l.planAssessBasisTime;
-      case FeasibilityReason.showRegularity:
-        // Nur Einheiten bis heute: künftige Tage der Woche sind noch kein
-        // Rückstand („0 von 3“ am Montag).
-        final runDays = state.weekUnits
-            .where(
-              (u) =>
-                  u.kind != PlanUnitKind.rest &&
-                  !planDay(u.day).isAfter(planDay(today)),
-            )
-            .toList();
-        main = l.planAssessRegularity(
-          runDays.where((u) => u.runId != null).length,
-          runDays.length,
-        );
-        basis = l.planAssessBasisRegularity;
+    final texts = planAssessmentTexts(
+      l,
+      a,
+      (d) => DateFormat.yMMMd(lang).format(d),
+    );
+    if (texts != null) {
+      (:main, :extra, :basis) = texts;
+    } else {
+      // Nur Einheiten bis heute: künftige Tage der Woche sind noch kein
+      // Rückstand („0 von 3“ am Montag).
+      final runDays = state.weekUnits
+          .where(
+            (u) =>
+                u.kind != PlanUnitKind.rest &&
+                !planDay(u.day).isAfter(planDay(today)),
+          )
+          .toList();
+      main = l.planAssessRegularity(
+        runDays.where((u) => u.runId != null).length,
+        runDays.length,
+      );
+      basis = l.planAssessBasisRegularity;
     }
     return [
       const SizedBox(height: 12),
