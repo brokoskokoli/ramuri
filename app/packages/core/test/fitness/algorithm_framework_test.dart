@@ -115,6 +115,7 @@ void main() {
         'vo2max-long-term-ema',
         'aerobic-efficiency-median',
         'riegel-prediction',
+        'weekly-time-course',
       });
       for (final v in all) {
         expect(v.method.trim(), isNotEmpty);
