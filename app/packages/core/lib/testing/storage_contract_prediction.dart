@@ -255,6 +255,10 @@ Future<void> _concurrent(StorageContractHarness h) async {
 Future<void> _deleteConfirmed(StorageContractHarness h) async {
   var s = await h.open();
   final p = _p(s);
+  // Wegwerf-Läufe vorher: Lauf- und Referenzkennung laufen auseinander, damit
+  // eine Verwechslung von Referenz-Id und Lauf-Id auffällt.
+  await s.runs.create(startedAt: at(0));
+  await s.runs.create(startedAt: at(0));
   final a = (await s.runs.create(startedAt: at(0))).id;
   final confirmed = await p.addReference(
     _ref(
@@ -269,6 +273,7 @@ Future<void> _deleteConfirmed(StorageContractHarness h) async {
   );
   await p.deleteReference(manual);
   expectEq(await p.rejectedSuggestions(), <int>{}, 'manuelle: keine Ablehnung');
+  expectTrue(a != confirmed && a != manual, 'Kennungen laufen auseinander');
   await p.deleteReference(confirmed);
   expectEq((await p.references()).length, 0, 'Referenz weg');
   expectEq(await p.rejectedSuggestions(), {a}, 'Lauf abgelehnt');

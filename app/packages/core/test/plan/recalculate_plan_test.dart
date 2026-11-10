@@ -641,11 +641,12 @@ void main() {
           final g = _goal(capMin: cap);
           await e.goals.save(g, today: g.createdAt);
           final r = await e.run(t, offset);
-          expect(
-            r.version,
-            isNotNull,
-            reason: '${t.name}: Fassung geschrieben',
-          );
+          // Automatisch ohne geänderte Einheiten entsteht keine Fassung
+          // (Ausnahme zu P3 nur für Ziel-/Nutzerauslöser); geprüft werden
+          // dann Rechnung und gespeicherter Plan.
+          if (t == PlanTrigger.manual) {
+            expect(r.version, isNotNull, reason: '${t.name}: Fassung');
+          }
           final w = [
             for (final u in await _all(e.plans))
               if (monday(u.day) == week) u,
@@ -1113,6 +1114,10 @@ void main() {
       );
       await e.goals.save(stand, today: _day(0));
       expect(planGoalChangedSince(h.single.summary, stand), isTrue);
+      // Automatisch bei gleichen Einheiten: keine Fassung, die Änderung
+      // bleibt ausstehend (Ausnahme zu P3 nur für Ziel-/Nutzerauslöser).
+      expect((await e.run(PlanTrigger.weekly, 0)).wasWritten, isFalse);
+      expect(await e.plans.history(), hasLength(1));
       final r = await e.run(PlanTrigger.goalChange, 0);
       expect(r.summary!.isEmpty, isTrue);
       expect(r.wasWritten, isTrue);
@@ -1121,5 +1126,35 @@ void main() {
       expect(planGoalChangedSince(h.last.summary, stand), isFalse);
       expect((await e.run(PlanTrigger.weekly, 0)).wasWritten, isFalse);
     });
+
+    test(
+      'automatische Auslöser rechnen eine ausstehende Zieländerung nicht: '
+      'sie bleibt ausstehend, bis ein Ziel- oder Nutzerauslöser rechnet',
+      () async {
+        final e = await _Env.open();
+        await e.goals.save(_open({2, 4, 6}), today: _open({2, 4, 6}).createdAt);
+        await e.run(PlanTrigger.create, 0);
+        final changed = _open({1, 2, 3, 4, 5, 6});
+        await e.goals.save(changed, today: changed.createdAt);
+        // Neue Fassung mit gehaltenen Tagen: trägt den alten Fingerabdruck.
+        for (final (t, day) in [
+          (PlanTrigger.ruleVersion, 0),
+          (PlanTrigger.weekly, 7),
+          (PlanTrigger.run, 7),
+        ]) {
+          await e.run(t, day);
+          final h = await e.plans.history();
+          expect(
+            planGoalChangedSince(h.last.summary, changed),
+            isTrue,
+            reason: t.name,
+          );
+        }
+        expect((await e.plans.history()).length, greaterThan(1));
+        await e.run(PlanTrigger.goalChange, 7);
+        final h = await e.plans.history();
+        expect(planGoalChangedSince(h.last.summary, changed), isFalse);
+      },
+    );
   });
 }

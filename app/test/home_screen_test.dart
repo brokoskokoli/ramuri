@@ -594,5 +594,9 @@ class _Runs implements RunStore {
   }
 
   @override
+  Future<List<StoredRun>> finishedBetween(DateTime from, DateTime to) =>
+      inner.finishedBetween(from, to);
+
+  @override
   Future<List<StoredRun>> unfinished() => inner.unfinished();
 }

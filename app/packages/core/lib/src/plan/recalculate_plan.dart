@@ -139,12 +139,17 @@ Future<PlanRecalculation> _recalculateOnce({
     parameters: parameters,
   );
 
-  // Gleiche Einheiten ergeben keine Fassung, außer das Ziel weicht von dem
-  // der letzten Fassung ab: Dann hält die neue Fassung fest, dass die
-  // Zieländerung gerechnet ist (sonst bliebe sie über einen Neustart offen).
+  // Gleiche Einheiten ergeben keine Fassung, außer bei einem Ziel- oder
+  // Nutzerauslöser weicht das Ziel von dem der letzten Fassung ab: Dann hält
+  // die neue Fassung fest, dass die Zieländerung gerechnet ist (sonst bliebe
+  // sie über einen Neustart offen). Automatische Auslöser halten die Tage
+  // ([_keepSchedule]) und rechnen eine ausstehende Zieländerung nicht: Sie
+  // übernehmen den Fingerabdruck der letzten Fassung, die Änderung bleibt
+  // ausstehend ([planGoalChangedSince]).
+  final keepsGoalPending = _isAutomatic(trigger) && last != null;
   if (last != null &&
       summary.isEmpty &&
-      !planGoalChangedSince(last.summary, goal)) {
+      (keepsGoalPending || !planGoalChangedSince(last.summary, goal))) {
     await _markChecked(settings, todayDay, now);
     return PlanRecalculation.unchanged(generated, summary);
   }
@@ -160,7 +165,11 @@ Future<PlanRecalculation> _recalculateOnce({
       summary: {
         ...summary.toJson(),
         planHintsKey: planHintsToJson(generated),
-        planGoalFingerprintKey: planGoalFingerprint(goal),
+        if (keepsGoalPending
+                ? last.summary[planGoalFingerprintKey]
+                : planGoalFingerprint(goal)
+            case final Object fingerprint)
+          planGoalFingerprintKey: fingerprint,
       },
       units: generated.units,
       readState: planUnitsFingerprint(all),

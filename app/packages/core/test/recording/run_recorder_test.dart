@@ -91,6 +91,10 @@ class Probe implements RawDataStore, RunStore {
   @override
   Future<List<StoredRun>> list() => runs.list();
   @override
+  Future<List<StoredRun>> finishedBetween(DateTime from, DateTime to) =>
+      runs.finishedBetween(from, to);
+
+  @override
   Future<List<StoredRun>> unfinished() => runs.unfinished();
 }
 

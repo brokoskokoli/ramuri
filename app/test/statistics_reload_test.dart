@@ -83,6 +83,10 @@ class _Runs implements RunStore {
   @override
   Future<StoredRun?> get(int runId) => _s.get(runId);
   @override
+  Future<List<StoredRun>> finishedBetween(DateTime from, DateTime to) =>
+      _s.finishedBetween(from, to);
+
+  @override
   Future<List<StoredRun>> unfinished() => _s.unfinished();
 }
 

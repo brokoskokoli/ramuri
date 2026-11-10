@@ -607,6 +607,60 @@ void main() {
   });
 
   group('Nachbesserung 2', () {
+    test('runsBetween: RPE 7 ist intensiv, 6 nicht (PAR-058); nur beendete '
+        'Läufe, Tag nach Ortszeit des Endes, Grenzen eingeschlossen', () async {
+      final e = await _Env.open();
+      Future<int> run(
+        DateTime end, {
+        int? rpe,
+        Duration? offset,
+        bool finish = true,
+      }) async {
+        final r = await e.session.runs.create(
+          startedAt: end.subtract(const Duration(hours: 1)),
+        );
+        if (finish) {
+          await e.session.runs.setState(
+            r.id,
+            RunState.finished,
+            endedAt: end,
+            endedUtcOffset: offset,
+          );
+        }
+        if (rpe != null) {
+          await e.session.subjective.save(r.id, RunSubjective(rpe: rpe));
+        }
+        return r.id;
+      }
+
+      final seven = await run(_day(1).add(const Duration(hours: 9)), rpe: 7);
+      final six = await run(_day(2).add(const Duration(hours: 9)), rpe: 6);
+      // UTC am Vortag des Zeitraums, Ortszeit (+10 h) am ersten Tag.
+      final east = await run(
+        _day(0).subtract(const Duration(hours: 4)),
+        offset: const Duration(hours: 10),
+      );
+      // UTC im Zeitraum, Ortszeit (-10 h) am Tag davor: fällt weg.
+      await run(
+        _day(0).add(const Duration(hours: 4)),
+        offset: const Duration(hours: -10),
+      );
+      // Letzter Tag, kurz vor Mitternacht.
+      final last = await run(_day(3).add(const Duration(hours: 23)), rpe: 9);
+      await run(_day(4).add(const Duration(hours: 1)), rpe: 9); // danach
+      await run(_day(1), rpe: 8, finish: false); // nicht beendet
+      final runs = await e.controller.runsBetween(_day(0), _day(3));
+      expect(
+        {for (final r in runs) r.id: (r.day, r.intensive)},
+        {
+          east: (_day(0), false),
+          seven: (_day(1), true),
+          six: (_day(2), false),
+          last: (_day(3), true),
+        },
+      );
+    });
+
     test('confirmMove: Abstandskonflikt der Verschiebung ist ohne '
         'Neuberechnung sichtbar, Konflikte vor heute nicht', () async {
       final e = await _Env.open();

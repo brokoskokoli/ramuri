@@ -362,19 +362,21 @@ class PlanController extends ChangeNotifier {
   /// `from <= Tag <= to`, für den Kalender (FR-0171) und die Prüfung beim
   /// Verschieben: [PlanCalendarRun.intensive] nach PAR-058 aus der
   /// RPE-Angabe ([PlanParameters.completedIntensiveMinRpe]).
+  ///
+  /// Liest nur die Läufe, deren Ende höchstens den größten UTC-Versatz
+  /// ([maxRunEndUtcOffset]) außerhalb des Zeitraums liegt, und nur deren
+  /// subjektive Angaben (Befund E2-6).
   Future<List<PlanCalendarRun>> runsBetween(DateTime from, DateTime to) async {
     final f = planDay(from), t = planDay(to);
-    final rpe = <int, int>{
-      for (final e in (await session.subjective.readAll()).entries)
-        if (e.value.subjective.rpe case final int r) e.key: r,
-    };
     final result = <PlanCalendarRun>[];
-    for (final r in await session.runs.list()) {
-      if (r.state != RunState.finished || r.endedAt == null) continue;
+    for (final r in await session.runs.finishedBetween(
+      f.subtract(maxRunEndUtcOffset),
+      t.add(const Duration(days: 1) + maxRunEndUtcOffset),
+    )) {
       final p = DateTime.parse(dayOfRun(r));
       final day = DateTime.utc(p.year, p.month, p.day);
       if (day.isBefore(f) || day.isAfter(t)) continue;
-      final value = rpe[r.id];
+      final value = (await session.subjective.read(r.id))?.subjective.rpe;
       result.add(
         PlanCalendarRun(
           id: r.id,

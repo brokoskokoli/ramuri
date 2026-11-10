@@ -51,6 +51,10 @@ abstract interface class RunStore {
   /// Alle Läufe, neuester Start zuerst (Historie, WP10).
   Future<List<StoredRun>> list();
 
+  /// Beendete Läufe mit `from <= endedAt < to` (Zeitpunkte), frühestes Ende
+  /// zuerst. Liest nur den Zeitraum, z. B. für den Kalender (FR-0171).
+  Future<List<StoredRun>> finishedBetween(DateTime from, DateTime to);
+
   /// Läufe, die nicht beendet sind (`active` oder `paused`), ältester zuerst.
   /// Für die Wiederaufnahme nach einem Abbruch (FR-0193, WP08).
   Future<List<StoredRun>> unfinished();
@@ -106,6 +110,9 @@ abstract interface class RunMarkerStore {
   Future<List<StoredGap>> gaps(int runId);
 }
 
+/// Größter erlaubter UTC-Versatz der Ortszeit zum Laufende ([requireRunEnd]).
+const maxRunEndUtcOffset = Duration(hours: 18);
+
 /// Prüft Zustand, Ende und UTC-Versatz vor dem Speichern (Adapter und Fake
 /// rufen dieselbe Regel). `rejected`, wenn das Ende nicht genau bei `finished`
 /// steht, der Versatz ohne Ende genannt wird, nicht aus ganzen Sekunden besteht
@@ -121,6 +128,6 @@ void requireRunEnd(
           (endedAt == null ||
               endedUtcOffset.inMicroseconds % Duration.microsecondsPerSecond !=
                   0 ||
-              endedUtcOffset.abs() > const Duration(hours: 18)));
+              endedUtcOffset.abs() > maxRunEndUtcOffset));
   if (bad) throw const StorageException(StorageFailure.rejected);
 }

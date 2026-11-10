@@ -1375,6 +1375,39 @@ void main() {
     });
   });
 
+  group('planSpacingConflicts (Anzeige, FR-0152)', () {
+    PlanUnit u(int day, PlanUnitKind kind, {bool pinned = false, int? runId}) =>
+        PlanUnit(
+          day: d0.add(Duration(days: day)),
+          kind: kind,
+          phase: PlanPhase.build,
+          weekIndex: 0,
+          minutes: 40,
+          segments: const [],
+          pinned: pinned,
+          runId: runId,
+        );
+
+    test('nur offene künftige Termine: nicht vor heute, nicht mit Lauf', () {
+      final units = [
+        // Termin gestern neben einem langen Lauf heute: vorbei, kein Konflikt.
+        u(-1, PlanUnitKind.long, pinned: true),
+        u(0, PlanUnitKind.long),
+        // Termin mit Lauf neben einer intensiven Einheit: gelaufen, keiner.
+        u(5, PlanUnitKind.tempo, pinned: true, runId: 7),
+        u(6, PlanUnitKind.intervals),
+        // Künftiger offener Termin neben einem langen Lauf: Konflikt.
+        u(10, PlanUnitKind.tempo, pinned: true),
+        u(11, PlanUnitKind.long),
+      ];
+      final c = planSpacingConflicts(units, d0);
+      expect(c, hasLength(1));
+      expect(c.single.kind, PinnedConflictKind.spacing);
+      expect(c.single.day, d0.add(const Duration(days: 10)));
+      expect(c.single.otherDay, d0.add(const Duration(days: 11)));
+    });
+  });
+
   group('summarizeChange (PAR-204)', () {
     PlanUnit u(int day, PlanUnitKind k, int min, {int week = 0}) => PlanUnit(
       day: DateTime.utc(2026, 11, day),
