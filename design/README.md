@@ -30,6 +30,7 @@ Die Dateien stammen aus einem Claude-Design-Canvas. Sie brauchen dessen Laufzeit
 | `Detail.dc.html` | Lauf-Detail: Route (Linie oder Karte), Pace und Puls mit GPS-Lücke, Höhe, Kilometer, Export | FR-0041, FR-0042, FR-0194 |
 | `Fortschritt.dc.html` | Wochenkilometer, VO₂max-Schätzung, Prognose, Belastung | FR-0043, FR-0067 |
 | `Plan.dc.html` | Ziel mit Phasen, angepasste Woche | FR-0141, CON-0006 |
+| `ruhepuls/*.dc.html` | Ruhepuls mit der Handykamera: Einstieg (`Main`), Ruhephase, Messung, Ergebnis, kein Wert; je hell und `-dunkel`, eigener `canvas.json` | FR-0214 |
 
 ## Gestaltung
 
@@ -53,3 +54,4 @@ Entschieden in OQ-0075 (Einzelheiten in FR-0205 bis FR-0212):
 - **Splash:** Text ohne das Versprechen, dass alle Daten auf dem Handy bleiben (Kartenkacheln nach Einwilligung).
 - **Intervall, Plan, Erholung (OQ-0077):** Es gilt die Spec in der Optik des Designs. Ziele als Zeit, Kilometer nur als „ca.“; Phasen Einstieg, Grundlage, Aufbau, Spezifisch, Reduktion, Ziel; RPE-Wörter nach PAR-105; Befinden in 5 Stufen; Pulshinweise nach PAR-107. Die Karte „Erholung“ zeigt ohne Gesundheitsdaten nur einen Texthinweis, keine Zahl und keinen Zustand.
 - **Dunkelmodus:** kommt dazu, abgeleitet aus den Markenfarben.
+- **Ruhepuls (WP27, Maintainer 2026-11-10):** Die 60 s laufen bei schlechtem Signal weiter (zusammenhängendes Messfenster wie die Referenz); nach einem gültigen Ergebnis „Übernehmen“ oder „Verwerfen“, kein „Noch einmal“ (FR-0214: es zählt die erste Messung mit ausreichender Qualität). Beides ist in `ruhepuls/` schon eingearbeitet.

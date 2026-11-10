@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Ruhepuls messen</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 900px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; padding: 28px 20px 24px; display: flex; flex-direction: column; gap: 16px">
+  <header style="display: flex; align-items: center; gap: 8px">
+    <a href="{{backHref}}" aria-label="Zurück zum Profil" style="width: 44px; height: 44px; border-radius: 22px; background: {{t.card}}; border: 1px solid {{t.border}}; display: flex; align-items: center; justify-content: center; color: {{t.text}}; box-sizing: border-box">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+    <h1 style="margin: 0; font-family: Sora, sans-serif; letter-spacing: -0.03em; font-size: 22px; font-weight: 700">Ruhepuls messen</h1>
+  </header>
+
+  <section aria-label="So liegt der Finger" style="background: {{t.card}}; border-radius: 24px; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px">
+    <svg viewBox="0 0 350 178" width="100%" height="178" role="img" aria-label="Rückseite des Handys: die Fingerkuppe liegt locker auf Kamera und Blitz und deckt beide ganz ab">
+      <rect x="92" y="14" width="170" height="200" rx="30" fill="{{t.soft}}" stroke="{{t.text}}" stroke-width="2"></rect>
+      <rect x="106" y="30" width="62" height="96" rx="18" fill="{{t.module}}"></rect>
+      <circle cx="128" cy="100" r="13" fill="{{t.lens}}"></circle>
+      <circle cx="128" cy="100" r="6" fill="{{t.module}}"></circle>
+      <circle cx="140" cy="62" r="40" fill="{{t.glut}}" opacity="0.16"></circle>
+      <line x1="140" y1="62" x2="330" y2="-40" stroke="{{t.text}}" stroke-width="58" stroke-linecap="round"></line>
+      <line x1="140" y1="62" x2="330" y2="-40" stroke="{{t.finger}}" stroke-width="54" stroke-linecap="round"></line>
+      <path d="M128 50 q 8 -10 20 -6" fill="none" stroke="{{t.text}}" stroke-width="1.5" stroke-linecap="round" opacity="0.5"></path>
+      <circle cx="128" cy="62" r="13" fill="none" stroke="{{t.text}}" stroke-width="1.5" stroke-dasharray="3 3"></circle>
+      <circle cx="154" cy="56" r="6" fill="none" stroke="{{t.text}}" stroke-width="1.5" stroke-dasharray="2 2"></circle>
+      <line x1="114" y1="62" x2="70" y2="62" stroke="{{t.muted}}" stroke-width="1.5"></line>
+      <text x="64" y="66" text-anchor="end" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="{{t.muted}}">Kamera</text>
+      <line x1="160" y1="60" x2="196" y2="104" stroke="{{t.muted}}" stroke-width="1.5"></line>
+      <line x1="196" y1="104" x2="276" y2="104" stroke="{{t.muted}}" stroke-width="1.5"></line>
+      <text x="282" y="108" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="{{t.muted}}">Blitz</text>
+    </svg>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <span style="font-size: 16px; font-weight: 800">Fingerkuppe locker auflegen</span>
+      <span style="font-size: 14px; line-height: 1.45; color: {{t.muted}}">Deck Rückkamera und Blitz ganz ab, aber drück nicht. Hand und Handy ruhig auf Bein oder Tisch ablegen.</span>
+    </div>
+  </section>
+
+  <section aria-label="Haltung" style="display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Haltung, wird mit dem Wert gespeichert</span>
+    <div role="tablist" aria-label="Haltung" style="background: {{t.chip}}; border-radius: 22px; padding: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+      <button role="tab" aria-selected="{{sitSel}}" onClick="{{pickSit}}" style="height: 44px; border: 0; border-radius: 18px; font-family: Manrope, sans-serif; font-size: 15px; font-weight: 800; cursor: pointer; background: {{sitBg}}; color: {{t.text}}">Sitzend</button>
+      <button role="tab" aria-selected="{{lieSel}}" onClick="{{pickLie}}" style="height: 44px; border: 0; border-radius: 18px; font-family: Manrope, sans-serif; font-size: 15px; font-weight: 800; cursor: pointer; background: {{lieBg}}; color: {{t.text}}">Liegend</button>
+    </div>
+  </section>
+
+  <section aria-label="Vor der Messung" style="background: {{t.card}}; border-radius: 24px; padding: 6px 16px; display: flex; flex-direction: column">
+    <div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 0 12px; border-bottom: 1px solid {{t.div}}">
+      <label style="display: flex; align-items: flex-start; gap: 12px; min-height: 44px; cursor: pointer">
+        <input type="radio" name="vorher" checked="{{isRelax}}" onChange="{{pickRelax}}" style="width: 22px; height: 22px; margin: 2px 0 0; accent-color: {{t.link}}">
+        <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 800">Erst entspannen</span><span style="font-size: 13px; line-height: 1.4; color: {{t.muted}}">Empfohlen. Ruhige Anleitung, danach 60 s Messung.</span></span>
+      </label>
+      <sc-if value="{{isRelax}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; align-items: center; gap: 10px; padding-left: 34px">
+          <span style="flex: 1; font-size: 14px; font-weight: 700">Dauer</span>
+          <button aria-label="Kürzer" onClick="{{minus}}" style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: {{t.text}}; font-size: 22px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center">−</button>
+          <span style="min-width: 64px; text-align: center; font-family: Sora, sans-serif; font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700">{{mins}} min</span>
+          <button aria-label="Länger" onClick="{{plus}}" style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: {{t.text}}; font-size: 22px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center">+</button>
+        </div>
+      </sc-if>
+    </div>
+    <label style="display: flex; align-items: flex-start; gap: 12px; min-height: 44px; padding: 12px 0; cursor: pointer">
+      <input type="radio" name="vorher" checked="{{isNow}}" onChange="{{pickNow}}" style="width: 22px; height: 22px; margin: 2px 0 0; accent-color: {{t.link}}">
+      <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 800">Ich bin entspannt, sofort messen</span><span style="font-size: 13px; line-height: 1.4; color: {{t.muted}}">Gleich 60 s Messung, ohne Anleitung.</span></span>
+    </label>
+  </section>
+
+  <div style="flex-grow: 1"></div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <a href="{{startHref}}" style="height: 56px; border-radius: 28px; background: {{t.mint}}; color: {{t.onMint}}; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800; text-decoration: none">{{startLabel}}</a>
+    <div style="display: flex; gap: 10px; align-items: flex-start">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.muted}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 1px"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>
+      <span style="font-size: 13px; line-height: 1.45; color: {{t.muted}}">Beim Start fragt die App nach der Kamera-Berechtigung. Bilder werden nicht gespeichert und nicht übertragen; die Auswertung läuft auf dem Handy.</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { pose: 'sit', mode: 'relax', mins: 5 }; }
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', muted: '#A3B8B4', border: '#2A4140', div: '#223636', link: '#7FD6C6', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#1C3836', chip: '#1F3333', sel: '#2E4A48', module: '#0E1A1A', lens: '#3B5553', finger: '#24403D', glut: '#FF7A45' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', muted: '#4F6361', border: '#DAE4E1', div: '#EBF1EF', link: '#0F5E5A', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#DDF2EE', chip: '#E2EAE8', sel: '#FFFFFF', module: '#0E1A1A', lens: '#4F6361', finger: '#F3F6F5', glut: '#E0561F' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const t = this.theme(dark);
+    const sfx = dark ? '-dunkel' : '';
+    const sit = this.state.pose === 'sit';
+    const relax = this.state.mode === 'relax';
+    return {
+      t,
+      backHref: 'Main' + sfx + '.dc.html',
+      sitSel: sit ? 'true' : 'false', lieSel: sit ? 'false' : 'true',
+      sitBg: sit ? t.sel : 'transparent', lieBg: sit ? 'transparent' : t.sel,
+      pickSit: () => this.setState({ pose: 'sit' }),
+      pickLie: () => this.setState({ pose: 'lie' }),
+      isRelax: relax, isNow: !relax,
+      pickRelax: () => this.setState({ mode: 'relax' }),
+      pickNow: () => this.setState({ mode: 'now' }),
+      mins: this.state.mins,
+      minus: () => this.setState({ mins: Math.max(1, this.state.mins - 1) }),
+      plus: () => this.setState({ mins: Math.min(15, this.state.mins + 1) }),
+      startLabel: relax ? 'Entspannen und messen' : 'Messung starten',
+      startHref: (relax ? 'Ruhephase' : 'Messung') + sfx + '.dc.html'
+    };
+  }
+}
+</script>
+</body>
+</html>
