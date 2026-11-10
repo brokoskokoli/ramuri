@@ -678,6 +678,16 @@ void main() {
         today: DateTime.utc(2026, 11, 30),
       )!;
       expect(later.weeks, isEmpty);
+      // Konflikte von Terminen vor heute fallen weg.
+      final dec2 = planHintsFromSummary(
+        {planHintsKey: json},
+        version: PlanVersion.current,
+        units: const [],
+        today: DateTime.utc(2026, 12, 2),
+      )!;
+      expect(dec2.pinnedConflicts.map((c) => c.day), [
+        DateTime.utc(2026, 12, 3),
+      ]);
       expect(
         planHintsFromSummary(
           const {},
@@ -698,6 +708,107 @@ void main() {
         ),
         isNull,
       );
+    });
+  });
+
+  group('Ziel-Fingerabdruck an der Fassung (WP22 NB2)', () {
+    TrainingGoal g({
+      GoalType type = GoalType.time,
+      double? target = 3000,
+      DateTime? date,
+      Set<int> days = const {2, 4, 6},
+      double maxS = 7200,
+      double cap = 14400,
+      double? stand,
+      ContinuousRun30 c30 = ContinuousRun30.yes,
+      bool hard = true,
+      DateTime? created,
+    }) => TrainingGoal(
+      type: type,
+      distance: GoalDistance.tenKilometers,
+      targetSeconds: type == GoalType.time ? target : null,
+      targetDate: date ?? DateTime.utc(2027, 6, 1),
+      runDays: days,
+      maxSessionSeconds: maxS,
+      weeklyCapSeconds: cap,
+      createdAt: created ?? DateTime.utc(2026, 11, 1),
+      hardSessionEnabled: hard,
+      currentWeeklySeconds: stand,
+      canRun30: c30,
+    );
+
+    test('jedes planrelevante Feld ändert ihn, createdAt nicht; ohne oder '
+        'mit fremder Version: keine Änderung angenommen', () {
+      final base = {planGoalFingerprintKey: planGoalFingerprint(g())};
+      expect(planGoalChangedSince(base, g()), isFalse);
+      expect(
+        planGoalChangedSince(base, g(created: DateTime.utc(2026, 11, 5))),
+        isFalse,
+      );
+      final changed = {
+        'Art': g(type: GoalType.distance),
+        'Zielzeit': g(target: 2900),
+        'Zieldatum': g(date: DateTime.utc(2027, 5, 1)),
+        'Lauftage': g(days: const {1, 3, 5}),
+        'max. Zeit je Einheit': g(maxS: 3600),
+        'Regler': g(cap: 12000),
+        'Stand Wochenzeit': g(stand: 5400),
+        'Stand 30 min': g(c30: ContinuousRun30.no),
+        'harte Einheit': g(hard: false),
+      };
+      for (final e in changed.entries) {
+        expect(planGoalChangedSince(base, e.value), isTrue, reason: e.key);
+      }
+      // Lauftage in anderer Reihenfolge: gleich.
+      expect(planGoalFingerprint(g(days: {6, 2, 4})), planGoalFingerprint(g()));
+      expect(planGoalChangedSince(const {}, g(hard: false)), isFalse);
+      expect(
+        planGoalChangedSince({
+          planGoalFingerprintKey: planGoalFingerprint(g())
+              .replaceFirst('"v":1', '"v":99'),
+        }, g(hard: false)),
+        isFalse,
+      );
+      expect(
+        planGoalChangedSince({planGoalFingerprintKey: 'kaputt'}, g()),
+        isFalse,
+      );
+    });
+
+    test('die Fassung trägt den Fingerabdruck; geändertes Ziel bei gleichen '
+        'Einheiten schreibt trotzdem, gleiches Ziel nicht', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      await e.run(PlanTrigger.create, 0);
+      var h = await e.plans.history();
+      expect(
+        h.single.summary[planGoalFingerprintKey],
+        planGoalFingerprint((await e.goals.goal())!),
+      );
+      // Gleiches Ziel, gleiche Einheiten: keine Fassung.
+      expect((await e.run(PlanTrigger.manual, 0)).wasWritten, isFalse);
+      // Stand geändert: wirkt nur beim Anlegen, die Einheiten bleiben gleich.
+      final stand = TrainingGoal(
+        type: GoalType.distance,
+        distance: GoalDistance.tenKilometers,
+        targetDate: DateTime(2027, 6, 1),
+        runDays: const {2, 4, 6},
+        maxSessionSeconds: 7200,
+        weeklyCapSeconds: 240 * 60.0,
+        createdAt: DateTime.utc(2026, 11, 1),
+        hardSessionEnabled: true,
+        currentWeeklySeconds: 5400,
+        canRun30: ContinuousRun30.yes,
+      );
+      await e.goals.save(stand, today: _day(0));
+      expect(planGoalChangedSince(h.single.summary, stand), isTrue);
+      final r = await e.run(PlanTrigger.goalChange, 0);
+      expect(r.summary!.isEmpty, isTrue);
+      expect(r.wasWritten, isTrue);
+      h = await e.plans.history();
+      expect(h, hasLength(2));
+      expect(planGoalChangedSince(h.last.summary, stand), isFalse);
+      expect((await e.run(PlanTrigger.weekly, 0)).wasWritten, isFalse);
     });
   });
 }

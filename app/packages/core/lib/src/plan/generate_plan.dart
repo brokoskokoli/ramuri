@@ -501,6 +501,23 @@ _Pinned _applyPinned(
   return _Pinned(out, conflicts, movedDays);
 }
 
+/// Abstandskonflikte der Termine im gespeicherten Plan [units] (für die
+/// Anzeige, ohne Rechnung): wie in [generatePlan] je offener künftiger
+/// Termin (`pinned`, Tag ab [today], ohne Lauf), der als intensive Einheit
+/// näher als `minGapDays` an der vorigen oder nächsten intensiven Einheit
+/// liegt (FR-0152, PAR-060), ein [PinnedConflictKind.spacing].
+List<PinnedConflict> planSpacingConflicts(
+  List<PlanUnit> units,
+  DateTime today, {
+  PlanParameters parameters = const PlanParameters(),
+}) {
+  final t = planDay(today);
+  return _spacingConflicts(units, {
+    for (final u in units)
+      if (u.pinned && u.runId == null && !planDay(u.day).isBefore(t)) u.day,
+  }, parameters.minGapDays);
+}
+
 /// Meldet aufeinanderfolgende intensive Einheiten (langer Lauf, harte
 /// Einheit) mit weniger als [gap] Tagen Abstand, wenn eine davon ein
 /// übernommener Pinned-Termin ist (FR-0152, PAR-060).

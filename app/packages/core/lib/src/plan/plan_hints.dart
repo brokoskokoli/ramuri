@@ -69,9 +69,9 @@ Map<String, Object?> planHintsToJson(GeneratedPlan g) => {
 /// setzt sie mit den gespeicherten Einheiten [units] der Fassung zu einem
 /// [GeneratedPlan] zusammen (künftig ab [today] und ohne Lauf: `units`,
 /// sonst `frozenUnits`); der Verlauf beginnt wie bei [generatePlan] mit der
-/// Woche von [today]. `null`, wenn die Fassung keine (lesbaren) Hinweise
-/// trägt, etwa eine Fassung von vor WP22; der Aufrufer rechnet dann eine
-/// Vorschau.
+/// Woche von [today], Konflikte von Terminen vor [today] fallen weg. `null`,
+/// wenn die Fassung keine (lesbaren) Hinweise trägt, etwa eine Fassung von
+/// vor WP22; der Aufrufer rechnet dann eine Vorschau.
 GeneratedPlan? planHintsFromSummary(
   Map<String, Object?> summary, {
   required PlanVersion version,
@@ -109,7 +109,7 @@ GeneratedPlan? planHintsFromSummary(
           day: _parseDay(c['day'])!,
           otherDay: c['otherDay'] == null ? null : _parseDay(c['otherDay'])!,
         ),
-    ];
+    ]..removeWhere((c) => c.day.isBefore(t));
     final future = <PlanUnit>[];
     final frozen = <PlanUnit>[];
     for (final u in units) {

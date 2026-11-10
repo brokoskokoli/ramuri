@@ -477,4 +477,167 @@ void main() {
       expect(hints.units.single.day, _day(1));
     });
   });
+
+  group('Nachbesserung 2', () {
+    test('confirmMove: Abstandskonflikt der Verschiebung ist ohne '
+        'Neuberechnung sichtbar, Konflikte vor heute nicht', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      const empty = GeneratedPlan(
+        version: PlanVersion.current,
+        weeks: [],
+        units: [],
+        frozenUnits: [],
+        unplacedByWeek: {},
+        hardOmissions: {},
+      );
+      await _writeVersion(
+        e,
+        PlanVersion.current,
+        _today,
+        units: [
+          _unit(PlanUnitKind.long, _day(1)),
+          _unit(PlanUnitKind.long, _day(5)),
+        ],
+        summary: {
+          planHintsKey: planHintsToJson(
+            empty.copyWith(
+              pinnedConflicts: [
+                // Aus der letzten Rechnung, Termin vor heute: fällt weg.
+                PinnedConflict(
+                  kind: PinnedConflictKind.noMatchingUnit,
+                  day: _day(-1),
+                ),
+                // Gespeicherter Abstandskonflikt, den es nicht mehr gibt.
+                PinnedConflict(
+                  kind: PinnedConflictKind.spacing,
+                  day: _day(5),
+                  otherDay: _day(4),
+                ),
+              ],
+            ),
+          ),
+        },
+      );
+      await e.session.settings.set(
+        planLastCheckDayKey,
+        _dayText(_today),
+        at: _now,
+      );
+      await e.controller.open();
+      expect(e.controller.state.hints!.pinnedConflicts, isEmpty);
+      final later = await e.plans.unitOn(_day(5));
+      expect(
+        await e.controller.confirmMove(later!.id!, _day(2)),
+        PlanActionResult.done,
+      );
+      expect(await e.plans.history(), hasLength(1));
+      final c = e.controller.state.hints!.pinnedConflicts.single;
+      expect(c.kind, PinnedConflictKind.spacing);
+      expect(c.day, _day(2));
+      expect(c.otherDay, _day(1));
+    });
+    RunFigures fig(int id, int ago) => RunFigures(
+      runId: id,
+      endedAt: _day(-ago).add(const Duration(hours: 8)),
+      day: _dayText(_day(-ago)),
+      distanceMeters: 5000,
+      movingTime: const Duration(minutes: 30),
+      totalTime: const Duration(minutes: 30),
+      paceTime: const Duration(minutes: 30),
+    );
+
+    /// Ziel gespeichert, Neuberechnung danach gescheitert; [restart]: neuer
+    /// Controller über demselben Speicher (Neustart). Danach wird über
+    /// [path] nachgeholt, dann ein Lauf zugeordnet.
+    Future<void> catchUp(String path, {required bool restart}) async {
+      var fail = false;
+      var runs = <RunFigures>[];
+      Future<List<RunFigures>> load() async {
+        if (fail) throw StateError('Lesen gescheitert');
+        return runs;
+      }
+
+      final first = await _Env.open(loadRuns: load);
+      expect(await first.controller.saveGoal(_goal()), PlanActionResult.done);
+      fail = true;
+      final changed = _goal(days: const {1, 3, 5});
+      expect(
+        await first.controller.saveGoal(changed),
+        PlanActionResult.savedNotPlanned,
+      );
+      expect(await first.plans.history(), hasLength(1));
+      fail = false;
+      final e = restart ? _Env(first.session, loadRuns: load) : first;
+      final runId = await _finishedRun(e.session, 0);
+      final next = (await e.plans.unitsBetween(_today, _day(13))).first;
+      switch (path) {
+        case 'open':
+          await e.controller.open();
+        case 'assignRun':
+          expect(
+            await e.controller.assignRun(next.id!, runId),
+            PlanActionResult.done,
+          );
+        case 'recalculate':
+          expect(await e.controller.recalculate(), PlanActionResult.done);
+      }
+      var h = await e.plans.history();
+      expect(h, hasLength(2), reason: path);
+      expect(h.last.trigger, PlanTrigger.goalChange, reason: path);
+      expect(
+        {
+          for (final u in await e.plans.unitsBetween(_day(1), _day(14)))
+            if (u.runId == null) u.day.weekday,
+        },
+        {1, 3, 5},
+      );
+      expect(planGoalChangedSince(h.last.summary, changed), isFalse);
+      // Danach wieder der normale Auslöser. Damit er sichtbar wird, liegen
+      // die künftigen Einheiten (ohne pinned) auf Tagen außerhalb der
+      // Lauftage; das summary der nachholenden Fassung bleibt. `run` hält
+      // die Tage (automatisch), `goalChange` legte sie auf Mo/Mi/Fr.
+      final last = h.last;
+      await e.plans.writeVersion(
+        PlanVersionDraft(
+          createdAt: _now,
+          validFrom: _today,
+          trigger: last.trigger,
+          reason: 'test',
+          version: last.version,
+          inputs: last.inputs,
+          summary: last.summary,
+          units: [
+            _unit(PlanUnitKind.easy, _day(6)),
+            _unit(PlanUnitKind.easy, _day(8)),
+          ],
+          readState: planUnitsFingerprint(
+            await e.plans.unitsBetween(DateTime.utc(2000), planFarFuture),
+          ),
+        ),
+      );
+      runs = [fig(runId, 0)];
+      final tue = await e.plans.unitOn(_day(6));
+      expect(
+        await e.controller.assignRun(tue!.id!, null),
+        PlanActionResult.done,
+      );
+      h = await e.plans.history();
+      expect(h, hasLength(4), reason: path);
+      expect(h.last.trigger, PlanTrigger.run, reason: path);
+      expect((await e.plans.unitOn(_day(6)))?.id, isNotNull);
+      expect(await e.plans.unitOn(_day(5)), isNull);
+    }
+
+    for (final restart in [false, true]) {
+      for (final path in ['open', 'assignRun', 'recalculate']) {
+        test(
+          'savedNotPlanned: Nachholen über $path '
+          '${restart ? 'nach Neustart' : 'in der Sitzung'}, danach wieder '
+          'run',
+          () => catchUp(path, restart: restart),
+        );
+      }
+    }
+  });
 }

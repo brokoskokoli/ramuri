@@ -4,6 +4,7 @@ import '../../ports/storage_settings.dart';
 import '../goals/training_goal.dart';
 import 'generate_plan.dart';
 import 'plan_change.dart';
+import 'plan_goal_fingerprint.dart';
 import 'plan_hints.dart';
 import 'plan_inputs.dart';
 import 'plan_parameters.dart';
@@ -47,8 +48,11 @@ class PlanRecalculation {
 /// künftige `pinned`-Einheiten gehen als Termine in die Rechnung. Gleiche
 /// künftige Einheiten ergeben keine neue Fassung (nur `plan.last_check_day`
 /// wird gesetzt); die erste Fassung eines Ziels wird immer geschrieben.
-/// Das `summary` der Fassung trägt das Alt-Neu-Bild und die Hinweise der
-/// Rechnung ([planHintsToJson], lesbar mit [planHintsFromSummary]).
+/// Das `summary` der Fassung trägt das Alt-Neu-Bild, die Hinweise der
+/// Rechnung ([planHintsToJson], lesbar mit [planHintsFromSummary]) und den
+/// Fingerabdruck des Ziels ([planGoalFingerprint]); weicht das Ziel von dem
+/// der letzten Fassung ab ([planGoalChangedSince]), wird auch bei gleichen
+/// Einheiten geschrieben.
 /// Scheitert das Schreiben, bleibt der alte Plan ganz bestehen und
 /// `plan.last_check_day` unverändert.
 ///
@@ -135,7 +139,12 @@ Future<PlanRecalculation> _recalculateOnce({
     parameters: parameters,
   );
 
-  if (last != null && summary.isEmpty) {
+  // Gleiche Einheiten ergeben keine Fassung, außer das Ziel weicht von dem
+  // der letzten Fassung ab: Dann hält die neue Fassung fest, dass die
+  // Zieländerung gerechnet ist (sonst bliebe sie über einen Neustart offen).
+  if (last != null &&
+      summary.isEmpty &&
+      !planGoalChangedSince(last.summary, goal)) {
     await _markChecked(settings, todayDay, now);
     return PlanRecalculation.unchanged(generated, summary);
   }
@@ -148,7 +157,11 @@ Future<PlanRecalculation> _recalculateOnce({
       reason: reason ?? trigger.name,
       version: generated.version,
       inputs: use,
-      summary: {...summary.toJson(), planHintsKey: planHintsToJson(generated)},
+      summary: {
+        ...summary.toJson(),
+        planHintsKey: planHintsToJson(generated),
+        planGoalFingerprintKey: planGoalFingerprint(goal),
+      },
       units: generated.units,
       readState: planUnitsFingerprint(all),
     ),

@@ -305,6 +305,12 @@ void main() {
         // Geh-Lauf-Abfolge 4 Wochen ab Anker 9.11.: erst ab Woche 4 ja
         expect(a(ContinuousRun30.no, walk: 4, today: inWeeks(3)), isFalse);
         expect(a(ContinuousRun30.no, walk: 4, today: inWeeks(4)), isTrue);
+        // Ältere Eingaben ohne walkRunStart (Start = 30 min je Lauftag): In
+        // der Abfolge trägt die Startwochenzeit nicht, auch wenn sie reicht.
+        expect(
+          a(ContinuousRun30.no, walk: 4, start: 90, today: inWeeks(3)),
+          isFalse,
+        );
       },
     );
     test('Hinweis: Planlage entscheidet, ohne Plan die WP20-Ersatzregel', () {

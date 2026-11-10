@@ -25,8 +25,10 @@ enum PlanActionResult {
 
   /// Nur [PlanController.saveGoal]: das Ziel ist gespeichert, die
   /// Neuberechnung des Plans scheiterte. Der Plan gehört noch zum alten Ziel;
-  /// die nächste Neuberechnung dieser Sitzung (erneutes Speichern, Öffnen,
-  /// [PlanController.recalculate]) holt die Zieländerung nach.
+  /// die nächste Neuberechnung (erneutes Speichern, Öffnen, auch nach einem
+  /// Neustart, [PlanController.recalculate], [PlanController.assignRun]) holt
+  /// die Zieländerung nach: Das Ziel weicht vom Fingerabdruck der neuesten
+  /// Fassung ab ([planGoalChangedSince]).
   savedNotPlanned,
 }
 
@@ -79,7 +81,9 @@ class PlanViewState {
   /// [GeneratedPlan.weeks]. Nach einer Neuberechnung in dieser Sitzung deren
   /// Ergebnis, sonst die an der neuesten Fassung gespeicherten
   /// ([planHintsFromSummary]); nur für Fassungen ohne gespeicherte Hinweise
-  /// eine Vorschau ([previewPlan]). `null` ohne Plan.
+  /// eine Vorschau ([previewPlan]). Abstandskonflikte kommen immer aus den
+  /// gespeicherten Einheiten ([planSpacingConflicts]), damit eine bestätigte
+  /// Verschiebung sofort sichtbar ist. `null` ohne Plan.
   final GeneratedPlan? hints;
 
   /// Alt-Neu-Bild der letzten Neuberechnung dieser Sitzung (PAR-204), sonst
@@ -142,9 +146,6 @@ class PlanController extends ChangeNotifier {
   GeneratedPlan? _fresh;
   PlanChangeSummary? _lastChange;
 
-  /// Ein gespeichertes Ziel wartet auf seine Neuberechnung (`goalChange`),
-  /// weil sie nach dem Speichern scheiterte.
-  bool _goalChangePending = false;
   Future<void> _tail = Future.value();
   bool _disposed = false;
 
@@ -170,6 +171,9 @@ class PlanController extends ChangeNotifier {
   /// Auslöser `ruleVersion`, sonst `weekly`; außerhalb der fälligen Prüfung
   /// rechnet das Öffnen nicht (ADR-0010 Punkt 7: keine stille Neuberechnung
   /// beim Start). Ein Ziel ohne Fassung bekommt seine erste (`create`).
+  /// Weicht das Ziel von dem der neuesten Fassung ab (Neuberechnung nach dem
+  /// Speichern gescheitert, [PlanActionResult.savedNotPlanned]), rechnet das
+  /// Öffnen sofort mit `goalChange`.
   Future<void> open() => _serial(() async {
     _fresh = null;
     try {
@@ -193,7 +197,7 @@ class PlanController extends ChangeNotifier {
       return;
     }
     final last = history.last;
-    if (_goalChangePending) {
+    if (planGoalChangedSince(last.summary, goal)) {
       await _recalculate(PlanTrigger.goalChange, goal, last);
       return;
     }
@@ -231,9 +235,6 @@ class PlanController extends ChangeNotifier {
     );
     _fresh = r.generated;
     _lastChange = r.summary;
-    if (trigger == PlanTrigger.goalChange || trigger == PlanTrigger.create) {
-      _goalChangePending = false;
-    }
     if (r.wasWritten) onChanged?.call();
   }
 
@@ -256,9 +257,11 @@ class PlanController extends ChangeNotifier {
     final history = await _plans.history();
     final version = history.isEmpty ? null : history.last;
     GeneratedPlan? hints = _fresh;
+    final units = version == null
+        ? const <PlanUnit>[]
+        : await _plans.unitsBetween(version.inputs.anchor, planFarFuture);
     if (hints == null && goal != null && version != null) {
       final inputs = version.inputs.copyWith(today: today);
-      final units = await _plans.unitsBetween(inputs.anchor, planFarFuture);
       hints =
           planHintsFromSummary(
             version.summary,
@@ -273,6 +276,19 @@ class PlanController extends ChangeNotifier {
             today: today,
             parameters: parameters,
           );
+    }
+    // Abstandskonflikte immer aus den gespeicherten Einheiten: Eine bestätigte
+    // Verschiebung ändert sie ohne neue Fassung. Die übrigen Konflikte
+    // stammen aus der letzten Rechnung, die vor heute fallen weg.
+    if (hints != null) {
+      hints = hints.copyWith(
+        pinnedConflicts: [
+          for (final c in hints.pinnedConflicts)
+            if (c.kind != PinnedConflictKind.spacing && !c.day.isBefore(today))
+              c,
+          ...planSpacingConflicts(units, today, parameters: parameters),
+        ],
+      );
     }
     final monday = today.subtract(Duration(days: today.weekday - 1));
     GoalAssessment? assessment;
@@ -330,7 +346,6 @@ class PlanController extends ChangeNotifier {
   Future<PlanActionResult> saveGoal(TrainingGoal goal) => _act(() async {
     final existed = await _goals.goal() != null;
     await _goals.save(goal, today: _today());
-    _goalChangePending = true;
     onChanged?.call();
     try {
       final saved = await _goals.goal();
@@ -360,7 +375,9 @@ class PlanController extends ChangeNotifier {
     await _recalculate(
       history.isEmpty
           ? PlanTrigger.create
-          : (_goalChangePending ? PlanTrigger.goalChange : PlanTrigger.manual),
+          : (planGoalChangedSince(history.last.summary, goal)
+                ? PlanTrigger.goalChange
+                : PlanTrigger.manual),
       goal,
       history.isEmpty ? null : history.last,
     );
@@ -376,10 +393,13 @@ class PlanController extends ChangeNotifier {
     final goal = await _goals.goal();
     if (goal == null) return;
     final history = await _plans.history();
+    final last = history.isEmpty ? null : history.last;
     await _recalculate(
-      _goalChangePending ? PlanTrigger.goalChange : PlanTrigger.run,
+      last != null && planGoalChangedSince(last.summary, goal)
+          ? PlanTrigger.goalChange
+          : PlanTrigger.run,
       goal,
-      history.isEmpty ? null : history.last,
+      last,
     );
   });
 
