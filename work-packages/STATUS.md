@@ -13,7 +13,7 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | M0 ADRs | Architekturentscheidungen; ADR-0002 bis ADR-0008 freigegeben | erledigt |
 | M1 Phase 1 | Laufaufzeichnung und grundlegende Fitnessanalyse | Plan: [M1-PLAN.md](M1-PLAN.md), WP01 bis WP12 gemergt, Abschlussprüfung bestanden (2026-11-08); WP13 (Karte) und WP14 bis WP17 (Screen-Design) gemergt, Abschlussprüfung für Netz und Oberfläche wiederholt (2026-11-09) |
 | M2 Phase 2 | Adaptiver Trainingscoach | Go am 2026-11-09, in Arbeit; Plan: [M2-PLAN.md](M2-PLAN.md) |
-| M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | wird nach M2 geplant; Grundlage R009/K-1 (DEC-0074, K46), Morgenmessung per Handykamera als Datenquelle (OQ-0078); RMSSD bis zur Validierung gegen H9 gesperrt. Health Connect und Pulsgurt bleiben Ergänzungen; DFA α1 später als eigener Research-Auftrag |
+| M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | wird nach M2 geplant; Grundlage R009/K-1 (DEC-0074, K46), Morgenmessung per Handykamera als Datenquelle (OQ-0078); RMSSD bis zur Validierung gegen H9 gesperrt (H9 gehört dem Maintainer, 28 Referenzmorgen in M3 einplanen). Health Connect und Pulsgurt bleiben Ergänzungen; DFA α1 später als eigener Research-Auftrag |
 
 ## M2 im Detail
 
