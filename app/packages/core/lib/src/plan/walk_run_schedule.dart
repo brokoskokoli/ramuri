@@ -158,13 +158,26 @@ class WalkRunSchedule {
     final days = calendarWeek < _entries.length
         ? e.days
         : _daysOfWeek(_runDays, calendarWeek, _anchor, _from);
-    return planWalkRunWeek(
+    final full = planWalkRunWeek(
       week: week,
       runDays: days,
       position: e.position,
       repeatWeek: e.repeat,
       maxSessionMinutes: _maxSession,
       program: _program,
+    );
+    final max = _maxSession;
+    if (!noWeekFits || max == null) return full;
+    // Schon die erste Einheit passt nicht: die maximale Zeit geht vor
+    // (PAR-141), Einheiten darüber entfallen; der Aufrufer zeigt den Hinweis.
+    return WalkRunWeekPlan(
+      units: [
+        for (final u in full.units)
+          if (u.minutes <= max) u,
+      ],
+      next: full.next,
+      finished: full.finished,
+      exceedsMaxSession: full.exceedsMaxSession,
     );
   }
 }

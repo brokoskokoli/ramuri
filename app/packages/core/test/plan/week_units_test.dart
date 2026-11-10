@@ -367,6 +367,14 @@ void main() {
       }
     });
 
+    test('keine Einheit mit 0 min: sie entfällt und wird gemeldet', () {
+      final w = plan(6, {1, 2, 3, 4, 5, 6});
+      expect(w.units.every((u) => u.minutes >= 1), isTrue);
+      expect(sum(w), 6);
+      expect(w.droppedDays, isNotEmpty);
+      expect(w.units.length + w.droppedDays.length, 6);
+    });
+
     test('Woche ohne Minuten (Geh-Lauf) liefert keine Einheiten', () {
       final w = planWeekUnits(
         week: PlanWeek(

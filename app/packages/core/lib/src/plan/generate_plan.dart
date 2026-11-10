@@ -47,6 +47,7 @@ class GeneratedPlan {
     required this.frozenUnits,
     required this.unplacedByWeek,
     required this.hardOmissions,
+    this.droppedDaysByWeek = const {},
     this.pinnedConflicts = const [],
     this.walkRunStaysAtWeek,
     this.walkRunNoWeekFits = false,
@@ -75,6 +76,12 @@ class GeneratedPlan {
   /// Wochen (Nummer ab Anker), in denen eine gewünschte harte Einheit fehlt.
   final Map<int, HardOmission> hardOmissions;
 
+  /// Tage geplanter Einheiten, die still entfielen, je Woche (Nummer ab
+  /// Anker): die Wochenzeit ließ nach den eingefrorenen Einheiten keinen
+  /// Platz, oder eine Einheit wäre 0 min lang gewesen. Der Aufrufer zeigt
+  /// das an; die Zahl der Läufe der Woche sinkt dann.
+  final Map<int, List<DateTime>> droppedDaysByWeek;
+
   /// Konflikte der übergebenen Pinned-Einheiten (leer, wenn alle ohne
   /// Verletzung übernommen sind).
   final List<PinnedConflict> pinnedConflicts;
@@ -99,6 +106,7 @@ class GeneratedPlan {
     frozenUnits: frozenUnits,
     unplacedByWeek: unplacedByWeek,
     hardOmissions: hardOmissions,
+    droppedDaysByWeek: droppedDaysByWeek,
     pinnedConflicts: pinnedConflicts ?? this.pinnedConflicts,
     walkRunStaysAtWeek: walkRunStaysAtWeek,
     walkRunNoWeekFits: walkRunNoWeekFits,
@@ -179,6 +187,7 @@ GeneratedPlan generatePlan(
   final created = <PlanUnit>[];
   final omissions = <int, HardOmission>{};
   final unplaced = <int, int>{};
+  final dropped = <int, List<DateTime>>{};
 
   for (final week in course.weeks) {
     final start = week.start;
@@ -268,8 +277,17 @@ GeneratedPlan generatePlan(
     // entfallen die letzten lockeren, zuletzt die langen und harten.
     final weekMinutes = week.minutes;
     if (weekMinutes != null && walkPlan == null) {
-      future = _fitBudget(future, weekMinutes - frozenMinutes);
+      final fitted = _fitBudget(future, weekMinutes - frozenMinutes);
+      future = fitted.kept;
+      if (fitted.droppedDays.isNotEmpty) {
+        (dropped[week.index] ??= []).addAll(fitted.droppedDays);
+      }
     }
+    final zero = [
+      for (final d in planned.droppedDays)
+        if (!d.isBefore(todayDay) && !frozenDays.contains(d)) d,
+    ];
+    if (zero.isNotEmpty) (dropped[week.index] ??= []).addAll(zero);
 
     final weekPinned = [
       for (final u in pinnedLeft)
@@ -333,6 +351,9 @@ GeneratedPlan generatePlan(
     frozenUnits: frozen,
     unplacedByWeek: unplaced,
     hardOmissions: omissions,
+    droppedDaysByWeek: {
+      for (final e in dropped.entries) e.key: (e.value..sort()),
+    },
     pinnedConflicts: conflicts,
   );
 }
@@ -476,8 +497,12 @@ List<PinnedConflict> _spacingConflicts(
 
 /// Lässt Einheiten entfallen (zuerst lockere, dann lange, zuletzt harte; je
 /// Rolle die späteste), bis ihre Summe höchstens [budget] ist.
-List<PlanUnit> _fitBudget(List<PlanUnit> units, int budget) {
+({List<PlanUnit> kept, List<DateTime> droppedDays}) _fitBudget(
+  List<PlanUnit> units,
+  int budget,
+) {
   final out = [...units];
+  final droppedDays = <DateTime>[];
   int sum() => out.fold(0, (a, u) => a + u.minutes);
   while (out.isNotEmpty && sum() > budget) {
     var drop = 0;
@@ -485,9 +510,9 @@ List<PlanUnit> _fitBudget(List<PlanUnit> units, int budget) {
       final a = _role(out[i]), b = _role(out[drop]);
       if (a < b || (a == b && out[i].day.isAfter(out[drop].day))) drop = i;
     }
-    out.removeAt(drop);
+    droppedDays.add(out.removeAt(drop).day);
   }
-  return out;
+  return (kept: out, droppedDays: droppedDays);
 }
 
 PlanUnit _asEasy(PlanUnit u) => PlanUnit(

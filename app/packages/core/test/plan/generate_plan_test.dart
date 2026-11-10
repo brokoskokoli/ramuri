@@ -527,6 +527,16 @@ void main() {
       final total = week0.fold(0, (a, u) => a + u.minutes) + 80;
       expect(total, lessThanOrEqualTo(80), reason: '80 min eingefroren > 60');
       expect(week0, isEmpty);
+      // Still entfallende Einheiten werden benannt gemeldet.
+      expect(p.droppedDaysByWeek[0], [
+        DateTime.utc(2026, 11, 12),
+        DateTime.utc(2026, 11, 14),
+      ]);
+    });
+
+    test('ohne Überschreitung entfällt nichts', () {
+      final p = generatePlan(goal(hard: false), inputs(), const [], d0);
+      expect(p.droppedDaysByWeek, isEmpty);
     });
 
     test('Pinned-Termin vor heute oder mit Lauf wird nicht übernommen', () {

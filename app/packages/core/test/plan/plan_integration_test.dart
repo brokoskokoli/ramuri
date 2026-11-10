@@ -289,7 +289,8 @@ void main() {
       );
       expect(plan.walkRunStaysAtWeek, 0);
       expect(plan.walkRunNoWeekFits, isTrue);
-      expect(plan.units, isNotEmpty);
+      // Die maximale Zeit geht vor (PAR-141): keine Einheit darüber.
+      expect(plan.units.every((u) => u.minutes <= 10), isTrue);
     });
   });
 

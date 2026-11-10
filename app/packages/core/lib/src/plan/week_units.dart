@@ -31,6 +31,7 @@ class PlannedWeek {
     required this.units,
     required this.unplacedMinutes,
     required this.hardOmission,
+    this.droppedDays = const [],
   });
 
   /// Einheiten nach Tag sortiert; nur Lauftage (Ruhetage werden nicht
@@ -43,6 +44,11 @@ class PlannedWeek {
 
   /// Grund, wenn eine gewünschte harte Einheit fehlt; sonst `null`.
   final HardOmission? hardOmission;
+
+  /// Lauftage, deren Einheit entfiel, weil die Wochenzeit für sie keine
+  /// Minute übrig ließ (keine Einheit mit 0 min). Die Mindestdauer einer
+  /// Einheit ist eine Spec-Lücke (gemeldet).
+  final List<DateTime> droppedDays;
 }
 
 /// Wie [planWeekUnits], mit den Angaben aus dem Ziel.
@@ -221,10 +227,19 @@ PlannedWeek planWeekUnits({
     if (hardKind != null) unit(hardDay, hardKind, hardMinutes, hardSegments!),
   ]..sort((a, b) => a.day.compareTo(b.day));
 
+  // Keine Einheit mit 0 min: sie entfällt und wird gemeldet.
+  final kept = [
+    for (final u in units)
+      if (u.minutes >= 1) u,
+  ];
   return PlannedWeek(
-    units: units,
+    units: kept,
     unplacedMinutes: unplaced,
     hardOmission: omission,
+    droppedDays: [
+      for (final u in units)
+        if (u.minutes < 1) u.day,
+    ],
   );
 }
 
