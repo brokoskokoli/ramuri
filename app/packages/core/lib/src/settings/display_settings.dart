@@ -90,4 +90,10 @@ abstract final class SettingKeys {
   /// berechnete Faktor innerhalb der Toleranz davon liegt, wird er nicht
   /// erneut angeboten. Nicht im Archiv (Vertrag 4.3).
   static const String loadFactorDeclined = 'load.factor_declined';
+
+  /// Technischer Merker (WP22): die über „Einheit starten“ gestartete
+  /// Plan-Einheit, bis ihr Lauf zugeordnet ist, `einheit;JJJJ-MM-TT;sekunden`
+  /// (Kennung der Einheit, Ortstag des Starts, Startzeit in Sekunden seit
+  /// 1970, UTC). Leer = keine. Überlebt Absturz und Wiederaufnahme (FR-0193).
+  static const String planStartedUnit = 'plan.started_unit';
 }

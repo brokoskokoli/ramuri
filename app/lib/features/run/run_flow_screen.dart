@@ -51,8 +51,10 @@ class RunFlowScreen extends StatefulWidget {
   final Future<void> Function(Future<void> Function() action)? serialize;
 
   /// Wird genau einmal mit der Nummer des Laufs gerufen, sobald er beendet
-  /// und seine Berechnung abgeschlossen ist (WP22: Zuordnung zur gestarteten
-  /// Plan-Einheit). Ein Lauf, der nicht beendet wird, meldet nichts.
+  /// ist; seine Berechnung kann noch laufen (sie steht in [serialize] an).
+  /// So geht die Meldung nicht verloren, wenn der Bildschirm vor dem Ende der
+  /// Berechnung schließt (WP22: Zuordnung zur Plan-Einheit). Ein Lauf, der
+  /// nicht beendet wird, meldet nichts.
   final void Function(int runId)? onFinished;
 
   @override
@@ -310,8 +312,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
         final id = controller.runId;
         if (reported ||
             id == null ||
-            controller.phase != RecordingPhase.finished ||
-            !controller.calculationSettled) {
+            controller.phase != RecordingPhase.finished) {
           return;
         }
         reported = true;

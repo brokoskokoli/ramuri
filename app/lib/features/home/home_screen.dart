@@ -8,6 +8,7 @@ import '../../ui/ui.dart';
 import '../history/run_detail_screen.dart';
 import '../plan/plan_controller.dart';
 import '../plan/plan_goal_form.dart';
+import '../plan/plan_started_unit.dart';
 import '../plan/plan_texts.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/run_flow_screen.dart';
@@ -24,8 +25,8 @@ import 'overview_screen.dart';
 /// zusätzlich die Karte „Heute geplant“ mit „Einheit starten“ und das
 /// Wochenziel als Zeit; ohne Plan der Einstieg „Ziel anlegen“. Ein Lauf aus
 /// „Einheit starten“ wird nach dem Beenden dieser Einheit zugeordnet
-/// ([PlanController.assignRun]); „Frei laufen“ ordnet nichts zu (die Spec
-/// nennt keine Regel dafür). Gebaut wird er erst,
+/// ([PlanStartedUnitStore]); nach „Frei laufen“ fragt die App, wenn heute
+/// eine Einheit offen ist. Gebaut wird er erst,
 /// wenn der Speicher bereit ist ([session] ist die offene Sitzung) und die
 /// Ersteinrichtung erledigt oder übersprungen ist. Die Hülle baut ihn bei
 /// jeder Datenmeldung ([DataChanges]) neu; dabei lädt er neu.
@@ -134,13 +135,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// Lauf starten: frei ([unit] `null`) oder für die geplante Einheit. Der
-  /// Lauf ist vorerst der normale Lauf (die Führung kommt mit WP24). Wird er
-  /// beendet, gehört er zu [unit]; ein abgebrochener Lauf meldet nichts.
-  /// Die Datenmeldung folgt erst nach der Zuordnung.
+  /// Lauf ist vorerst der normale Lauf (die Führung kommt mit WP24).
+  ///
+  /// „Einheit starten“ merkt die Einheit vorher in `settings`
+  /// ([PlanStartedUnitStore]); so überlebt sie Absturz und Wiederaufnahme.
+  /// Nach dem Schließen wird ein beendeter Lauf ihr zugeordnet, eingereiht
+  /// hinter die Wertberechnung des Laufs (auch wenn „Fertig“ vor deren Ende
+  /// getippt wurde). „Frei laufen“ löscht den Merker; ist am Starttag eine
+  /// Einheit offen, fragt die App nach dem Ende, ob der Lauf zu ihr zählt.
+  /// Termine ändern sich nie. Die Datenmeldung folgt erst nach der Zuordnung.
   Future<void> _startRun(BuildContext context, {PlanUnit? unit}) async {
+    final day = _today;
     final unitId = unit?.id;
-    Future<void>? assigned;
-    await Navigator.of(context).push<void>(
+    final started = PlanStartedUnitStore(
+      session: widget.session,
+      clock: widget.clock,
+    );
+    try {
+      if (unitId != null) {
+        await started.remember(unitId, day);
+      } else {
+        await started.forget();
+      }
+    } on Object {
+      // Ohne Merker ordnet nur der normale Weg zu (nach dem Schließen).
+    }
+    if (!context.mounted) return;
+    // Die Hülle baut „Heute“ bei jeder Datenmeldung neu (neuer Zustand); die
+    // Nachfrage und der Hinweis nach dem Lauf brauchen darum Navigator und
+    // Messenger der App, nicht diesen Zustand.
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    int? finishedId;
+    await navigator.push<void>(
       MaterialPageRoute(
         builder: (_) => RunFlowScreen(
           session: widget.session,
@@ -150,32 +177,96 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           serialize: widget.recalculation.exclusive,
           sensors: widget.sensors,
           recalculation: widget.recalculation,
-          onFinished: unitId == null
-              ? null
-              : (runId) => assigned = _assign(unitId, runId),
+          onFinished: (runId) => finishedId = runId,
         ),
       ),
     );
-    await assigned;
+    PlanActionResult? result;
+    try {
+      if (unitId != null) {
+        result = await started.settle(
+          serialize: widget.recalculation.exclusive,
+          runId: finishedId,
+          forgetWithoutRun: true,
+        );
+      } else if (finishedId != null) {
+        result = await _askFreeRun(navigator, finishedId!, day);
+      }
+    } on Object {
+      result = PlanActionResult.failed;
+    }
+    if (result != null && navigator.mounted) {
+      _showAssignResult(navigator.context, messenger, result);
+    }
     widget.changes.changed();
   }
 
-  /// Ordnet den beendeten Lauf [runId] der Einheit [unitId] zu; danach rechnet
-  /// der Plan neu (Auslöser `run`, in der Warteschlange des Controllers). Ein
-  /// eigener Controller, weil die Hülle „Heute“ bei jeder Datenmeldung neu
-  /// baut. Nur ein im Speicher beendeter Lauf zählt. Scheitert es, bleibt die
-  /// Einheit offen (kein Fehlerinhalt nach außen).
-  Future<void> _assign(int unitId, int runId) async {
-    final plan = PlanController(session: widget.session, clock: widget.clock);
-    try {
-      final run = await widget.session.runs.get(runId);
-      if (run == null || run.state != RunState.finished) return;
-      await plan.assignRun(unitId, runId);
-    } on Object {
-      // Die Einheit bleibt offen; der Lauf ist gespeichert.
-    } finally {
-      plan.dispose();
+  /// Nach „Frei laufen“: Ist am Ortstag [day] eine Einheit offen, fragt die
+  /// App, ob der Lauf zu ihr zählt (Entscheidung des Maintainers
+  /// 2026-11-10). Ja ordnet zu, Nein lässt die Einheit offen. `null`: keine
+  /// Frage oder Nein.
+  Future<PlanActionResult?> _askFreeRun(
+    NavigatorState navigator,
+    int runId,
+    String day,
+  ) async {
+    final unit = await openPlanUnitOn(widget.session, day);
+    if (unit == null || !navigator.mounted) return null;
+    final yes = await showDialog<bool>(
+      context: navigator.context,
+      builder: (context) {
+        final l = AppLocalizations.of(context);
+        return AlertDialog(
+          key: const Key('home_assign_ask'),
+          title: Text(
+            l.planTodayAskTitle,
+            key: const Key('home_assign_ask_title'),
+          ),
+          content: Text(l.planTodayAskBody),
+          actions: [
+            TextButton(
+              key: const Key('home_assign_no'),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l.planTodayAskNo),
+            ),
+            FilledButton(
+              key: const Key('home_assign_yes'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l.planTodayAskYes),
+            ),
+          ],
+        );
+      },
+    );
+    if (yes != true) return null;
+    return widget.recalculation.exclusive(
+      () => assignRunToUnit(
+        session: widget.session,
+        clock: widget.clock,
+        unitId: unit.id!,
+        day: day,
+        runId: runId,
+      ),
+    );
+  }
+
+  /// Ein Fehlschlag der Zuordnung bleibt nicht stumm: Der Lauf ist
+  /// gespeichert, die Einheit bleibt offen (kein Fehlerinhalt nach außen).
+  static void _showAssignResult(
+    BuildContext context,
+    ScaffoldMessengerState messenger,
+    PlanActionResult result,
+  ) {
+    if (result == PlanActionResult.done ||
+        result == PlanActionResult.savedNotPlanned) {
+      return;
     }
+    messenger.showSnackBar(
+      SnackBar(
+        key: const Key('home_assign_failed'),
+        content: Text(AppLocalizations.of(context).planTodayAssignFailed),
+      ),
+    );
   }
 
   /// Zielformular aus Teil C (Anlegen); danach lädt der Plan neu.
@@ -193,13 +284,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _plan.reload();
   }
 
-  /// Heute liegt in einer Woche des Plans (ab dem Anker der Fassung).
+  /// Heute liegt in einer Woche des Plans (ab dem Anker der Fassung bis zum
+  /// Ende der letzten Planwoche). Die Wochen der Rechnung beginnen mit der
+  /// Woche von „heute“ ([GeneratedPlan.weeks]), nicht mit dem Anker: das Ende
+  /// steht darum am Montag der letzten Woche, nicht an ihrer Zahl.
   bool _inPlan(PlanViewState s) {
     final day = _date(_today);
     final anchor = planDay(s.version!.inputs.anchor);
     if (day.isBefore(anchor)) return false;
-    final weeks = s.hints?.weeks.length ?? 0;
-    return day.difference(anchor).inDays ~/ 7 < weeks;
+    final weeks = s.hints?.weeks ?? const <PlanWeek>[];
+    if (weeks.isEmpty) return false;
+    return day.isBefore(planDay(weeks.last.start).add(const Duration(days: 7)));
   }
 
   /// Die Einheit von heute aus der Woche des Plans, sonst `null`.

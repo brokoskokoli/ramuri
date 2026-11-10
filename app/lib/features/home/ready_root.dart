@@ -8,6 +8,7 @@ import '../../ui/ui.dart';
 import '../map/map_consent_controller.dart';
 import '../map/map_consent_scope.dart';
 import '../map/map_services.dart';
+import '../plan/plan_started_unit.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../storage/deletion.dart';
 import '../sensors/sensor_manager.dart';
@@ -128,7 +129,11 @@ class _ReadyRootState extends State<ReadyRoot> {
       } on Object {
         return;
       }
-      if (run == null || !mounted) return;
+      if (!mounted) return;
+      if (run == null) {
+        await _settleStartedUnit();
+        return;
+      }
       var clockBehind = false;
       try {
         clockBehind = await _recovery.clockBehind(run);
@@ -188,6 +193,23 @@ class _ReadyRootState extends State<ReadyRoot> {
       // Scheitert das Speichern, wird erneut angeboten: Der Nutzer muss
       // speichern können, ohne dass der Prozess endet.
       await _saveRecovered(run.id);
+    }
+  }
+
+  /// Kein unterbrochener Lauf (mehr): Gehört ein beendeter Lauf zu einer
+  /// über „Einheit starten“ gestarteten Einheit (nach Wiederaufnahme, nach
+  /// dem Speichern hier oder nach einem Ende der App zwischen Lauf-Ende und
+  /// Zuordnung), wird er ihr jetzt zugeordnet (WP22). Ein Fehler hier holt der
+  /// nächste Start nach; der Merker bleibt dann stehen.
+  Future<void> _settleStartedUnit() async {
+    try {
+      final result = await PlanStartedUnitStore(
+        session: widget.session,
+        clock: widget.clock,
+      ).settle(serialize: _recalculation.exclusive);
+      if (result != null) _changes.changed();
+    } on Object {
+      // Siehe oben.
     }
   }
 
