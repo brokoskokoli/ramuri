@@ -387,6 +387,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
     if (choice == null || !mounted) return;
     final result = await widget.controller.setRestDay(
       day,
+      expectedUnitId: choice.unitId,
       moveUnitTo: choice.moveTo,
     );
     _showResult(
@@ -1331,6 +1332,14 @@ class _ReplaceDialogState extends State<_ReplaceDialog> {
                     l.calendarReplaceSecondHard(day(d)),
                     'calendar_replace_second_hard_${_dayKey(d)}',
                   ),
+                // Eine lockere Einheit wird hart: Die Neuberechnung macht die
+                // andere harte Einheit der Woche zum lockeren Lauf (PAR-198).
+                if (c.hasSecondHard)
+                  _hint(
+                    context,
+                    l.calendarReplaceOtherHardEasy,
+                    'calendar_replace_other_hard_easy',
+                  ),
               ],
               const SizedBox(height: 12),
               Text(l.calendarReplaceKeeps, style: text.bodySmall),
@@ -1364,8 +1373,11 @@ class _ReplaceDialogState extends State<_ReplaceDialog> {
 /// Auswahl im Ruhetag-Dialog: Zieltag der Einheit oder `null` (entfällt
 /// bzw. keine Einheit auf dem Tag).
 class _RestChoice {
-  const _RestChoice(this.moveTo);
+  const _RestChoice(this.moveTo, this.unitId);
   final DateTime? moveTo;
+
+  /// Die Einheit, die der Dialog auf dem Tag gezeigt hat (`null`: frei).
+  final int? unitId;
 }
 
 /// Bestätigungsdialog „Ruhetag festlegen“: Prüfung
@@ -1464,7 +1476,9 @@ class _RestDayDialogState extends State<_RestDayDialog> {
             FilledButton(
               key: const Key('calendar_rest_confirm'),
               onPressed: c != null && c.allowed
-                  ? () => Navigator.of(context).pop(_RestChoice(moveTo))
+                  ? () =>
+                        Navigator.of(context)
+                            .pop(_RestChoice(moveTo, c.unit?.id))
                   : null,
               child: Text(l.calendarRestConfirm),
             ),

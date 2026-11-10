@@ -237,19 +237,38 @@ void main() {
       expect(rc.alternatives, isNotEmpty);
       final alt = rc.alternatives.first;
       expect(
-        await e.controller.setRestDay(first.day, moveUnitTo: alt),
+        await e.controller.setRestDay(
+          first.day,
+          expectedUnitId: first.id,
+          moveUnitTo: alt,
+        ),
         PlanActionResult.done,
       );
       expect((await e.plans.unitOn(first.day))!.isRestDay, isTrue);
       expect((await e.plans.unitOn(first.day))!.fixed, PlanUnitFixed.day);
       expect((await e.plans.unitOn(alt))?.id, first.id);
       expect(
-        await e.controller.setRestDay(first.day),
+        await e.controller.setRestDay(
+          first.day,
+          expectedUnitId: (await e.plans.unitOn(first.day))!.id,
+        ),
         PlanActionResult.rejected,
         reason: 'schon Ruhetag',
       );
       final second = units.last;
-      expect(await e.controller.setRestDay(second.day), PlanActionResult.done);
+      // Der Tag weicht von der Prüfung ab (FR-0176): nichts entfällt.
+      for (final seen in [null, first.id]) {
+        expect(
+          await e.controller.setRestDay(second.day, expectedUnitId: seen),
+          PlanActionResult.rejected,
+          reason: 'gesehen: $seen',
+        );
+        expect((await e.plans.unitOn(second.day))?.id, second.id);
+      }
+      expect(
+        await e.controller.setRestDay(second.day, expectedUnitId: second.id),
+        PlanActionResult.done,
+      );
       expect((await e.plans.unitOn(second.day))!.isRestDay, isTrue);
       expect(
         (await e.plans.unitsBetween(
@@ -268,7 +287,7 @@ void main() {
           if (!taken.contains(_day(i))) _day(i),
       ].first;
       final results = [
-        await e.controller.setRestDay(free),
+        await e.controller.setRestDay(free, expectedUnitId: null),
         await e.controller.clearRestDay(free),
         await e.controller.clearRestDay(free),
       ];

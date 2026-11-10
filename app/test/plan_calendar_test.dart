@@ -72,6 +72,9 @@ class _Gated extends _NoCheck {
 class _Spy extends _NoCheck {
   _Spy(super.session, super.clock);
   final calls = <String>[];
+
+  /// Die beim Ruhetag übergebene gesehene Einheit (FR-0176).
+  final seenUnitIds = <int?>[];
   bool fail = false;
   bool failCheck = false;
 
@@ -90,14 +93,20 @@ class _Spy extends _NoCheck {
   @override
   Future<PlanActionResult> setRestDay(
     DateTime day, {
+    required int? expectedUnitId,
     DateTime? moveUnitTo,
   }) async {
     calls.add(
       'rest ${_iso(day)} ${moveUnitTo == null ? '-' : _iso(moveUnitTo)}',
     );
+    seenUnitIds.add(expectedUnitId);
     return fail
         ? PlanActionResult.failed
-        : super.setRestDay(day, moveUnitTo: moveUnitTo);
+        : super.setRestDay(
+            day,
+            expectedUnitId: expectedUnitId,
+            moveUnitTo: moveUnitTo,
+          );
   }
 
   @override
@@ -674,10 +683,22 @@ void main() {
         await _sheet(tester, 8, 'calendar_replace');
         expect(key('calendar_replace_dialog'), findsOneWidget);
         expect(key('calendar_replace_kind_easy'), findsNothing);
+        // Lockere Art: keine zweite harte Einheit, kein Hinweis.
+        await tester.tap(key('calendar_replace_kind_long'));
+        await tester.pumpAndSettle();
+        expect(key('calendar_replace_new'), findsOneWidget);
+        expect(key('calendar_replace_other_hard_easy'), findsNothing);
         await tester.tap(key('calendar_replace_kind_tempo'));
         await tester.pumpAndSettle();
         expect(key('calendar_replace_new'), findsOneWidget);
         expect(key('calendar_replace_second_hard_2026-11-19'), findsOneWidget);
+        // Die andere harte Einheit wird zum lockeren Lauf (Festlegung WP22).
+        expect(
+          tester.widget<Text>(key('calendar_replace_other_hard_easy')).data,
+          de
+              ? 'Die andere harte Einheit dieser Woche wird zum lockeren Lauf.'
+              : 'The other hard session this week becomes an easy run.',
+        );
         expect(
           find.descendant(
             of: key('calendar_replace_confirm'),
@@ -783,6 +804,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(spy.calls, ['rest ${_iso(_d(3))} ${_iso(_d(2))}']);
       final plans = (session as PlanStorage).plans;
+      expect(spy.seenUnitIds, [(await plans.unitOn(_d(2)))!.id]);
       final rest = (await plans.unitOn(_d(3)))!;
       expect(rest.isRestDay, isTrue);
       expect(rest.fixed, PlanUnitFixed.day);
@@ -803,10 +825,12 @@ void main() {
       expect(key('calendar_rest_unit_drops'), findsOneWidget);
       expect(find.byType(ChoiceChip), findsNothing);
       final plans = (session as PlanStorage).plans;
-      expect((await plans.unitOn(_d(3)))!.kind, PlanUnitKind.intervals);
+      final unit = (await plans.unitOn(_d(3)))!;
+      expect(unit.kind, PlanUnitKind.intervals);
       await tester.tap(key('calendar_rest_confirm'));
       await tester.pumpAndSettle();
       expect(spy.calls, ['rest ${_iso(_d(3))} -']);
+      expect(spy.seenUnitIds, [unit.id]);
       expect((await plans.unitOn(_d(3)))!.isRestDay, isTrue);
       final week = await plans.unitsBetween(_d(0), _d(6));
       expect(week.where((u) => u.kind == PlanUnitKind.intervals), isEmpty);
@@ -837,6 +861,7 @@ void main() {
         await tester.tap(key('calendar_rest_confirm'));
         await tester.pumpAndSettle();
         expect(spy.calls, ['rest ${_iso(_d(6))} -']);
+        expect(spy.seenUnitIds, [null]);
         expect((await plans.unitOn(_d(6)))!.isRestDay, isTrue);
         final mark = find.descendant(
           of: key('calendar_rest_fixed_${_k(6)}'),

@@ -614,31 +614,37 @@ class PlanController extends ChangeNotifier {
   /// Legt [day] nach Bestätigung als Ruhetag fest ([planRestDayUnit] mit Ziel
   /// und Eingaben der neuesten Fassung). Eine Einheit auf dem Tag geht auf
   /// [moveUnitTo] (gewählter Alternativtag aus [checkRestDay]) oder entfällt
-  /// ohne ihn. Keine Neuberechnung. Ohne Ziel oder Fassung: `notFound`;
-  /// Tag vor heute, Einheit mit Lauf, schon Ruhetag, ungültiger Zieltag:
-  /// `rejected`.
-  Future<PlanActionResult> setRestDay(DateTime day, {DateTime? moveUnitTo}) =>
-      _act(() async {
-        final today = _today();
-        final goal = await _goals.goal();
-        final history = await _plans.history();
-        if (goal == null || history.isEmpty) {
-          throw const StorageException(StorageFailure.notFound);
-        }
-        await _plans.setRestDay(
-          planRestDayUnit(
-            day: day,
-            goal: goal,
-            inputs: history.last.inputs,
-            today: today,
-            parameters: parameters,
-          ),
-          today: today,
-          moveUnitTo: moveUnitTo,
-        );
-        _fresh = null;
-        onChanged?.call();
-      });
+  /// ohne ihn. [expectedUnitId] ist die Einheit, die [checkRestDay] auf dem
+  /// Tag gezeigt hat (`null`: Tag frei); liegt jetzt eine andere dort, ändert
+  /// sich nichts (FR-0176). Keine Neuberechnung. Ohne Ziel oder Fassung:
+  /// `notFound`; Tag vor heute, Einheit mit Lauf, schon Ruhetag, abweichende
+  /// Einheit, ungültiger Zieltag: `rejected`.
+  Future<PlanActionResult> setRestDay(
+    DateTime day, {
+    required int? expectedUnitId,
+    DateTime? moveUnitTo,
+  }) => _act(() async {
+    final today = _today();
+    final goal = await _goals.goal();
+    final history = await _plans.history();
+    if (goal == null || history.isEmpty) {
+      throw const StorageException(StorageFailure.notFound);
+    }
+    await _plans.setRestDay(
+      planRestDayUnit(
+        day: day,
+        goal: goal,
+        inputs: history.last.inputs,
+        today: today,
+        parameters: parameters,
+      ),
+      today: today,
+      expectedUnitId: expectedUnitId,
+      moveUnitTo: moveUnitTo,
+    );
+    _fresh = null;
+    onChanged?.call();
+  });
 
   /// Hebt den Ruhetag an [day] nach Bestätigung auf; die App plant dort erst
   /// bei der nächsten Neuberechnung wieder (OQ-0011). Kein Ruhetag:

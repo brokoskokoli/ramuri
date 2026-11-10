@@ -107,6 +107,7 @@ String planConflictText(
   ),
   PinnedConflictKind.dayTaken => l.planHintDayTaken(day(c.day)),
   PinnedConflictKind.noMatchingUnit => l.planHintNoMatchingUnit(day(c.day)),
+  PinnedConflictKind.walkRunFirst => l.planHintWalkRunFirst(day(c.day)),
 };
 
 String planHardOmissionText(AppLocalizations l, HardOmission o) => switch (o) {
@@ -115,6 +116,7 @@ String planHardOmissionText(AppLocalizations l, HardOmission o) => switch (o) {
   HardOmission.exceedsMaxSession => l.planHintHardExceedsMax,
   HardOmission.noRecoveryDay => l.planHintHardNoRestDay,
   HardOmission.weekTooShort => l.planHintHardWeekTooShort,
+  HardOmission.replacedByUser => l.planHintHardReplacedByUser,
 };
 
 /// Grund für eine fehlende oder seltene harte Einheit über den ganzen Plan;
