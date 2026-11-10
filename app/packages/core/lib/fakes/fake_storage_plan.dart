@@ -89,6 +89,11 @@ class FakePlanRepository implements PlanRepository {
   Future<PlanVersionRecord> writeVersion(PlanVersionDraft draft) async {
     if (_d.goal == null) throw const StorageException(StorageFailure.notFound);
     checkPlanDraftForStorage(draft);
+    // Hat sich der Plan seit dem Lesen geändert, rechnet der Aufrufer neu.
+    final now = await unitsBetween(draft.inputs.anchor, planFarFuture);
+    if (planUnitsFingerprint(now) != draft.readState) {
+      throw const StorageException(StorageFailure.rejected);
+    }
     // Ein Tag, der schon eine Einheit mit Lauf trägt (Lauf kam nach dem Lesen
     // des Dienstes dazu), darf keine zweite bekommen.
     final runDays = {

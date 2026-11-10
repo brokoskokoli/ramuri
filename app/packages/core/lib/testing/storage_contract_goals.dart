@@ -55,7 +55,7 @@ Future<void> _lifecycle(StorageContractHarness h) async {
   var s = await h.open();
   expectTrue(await _g(s).goal() == null, 'ohne Ziel null');
   final time = _goal();
-  await _g(s).save(time);
+  await _g(s).save(time, today: time.createdAt);
   expectEq(_d(await _g(s).goal()), _d(time), 'Zeitziel gelesen');
   // Offenes Ziel ohne Zielzeit und Datum (FR-0137) ersetzt das Ziel.
   final openOk = TrainingGoal(
@@ -67,7 +67,7 @@ Future<void> _lifecycle(StorageContractHarness h) async {
     weeklyCapSeconds: 7200,
     createdAt: at(9),
   );
-  await _g(s).save(openOk);
+  await _g(s).save(openOk, today: openOk.createdAt);
   expectEq(_d(await _g(s).goal()), _d(openOk), 'offenes Ziel ersetzt');
   final dist = _goal(
     type: GoalType.distance,
@@ -78,7 +78,7 @@ Future<void> _lifecycle(StorageContractHarness h) async {
     canRun30: ContinuousRun30.no,
     hard: false,
   );
-  await _g(s).save(dist);
+  await _g(s).save(dist, today: dist.createdAt);
   await s.close();
   s = await h.open();
   expectEq(_d(await _g(s).goal()), _d(dist), 'nach Neuöffnen');
@@ -90,7 +90,7 @@ Future<void> _lifecycle(StorageContractHarness h) async {
 Future<void> _invalid(StorageContractHarness h) async {
   final s = await h.open();
   final good = _goal();
-  await _g(s).save(good);
+  await _g(s).save(good, today: good.createdAt);
   final bad = <String, TrainingGoal>{
     'Zeitziel ohne Zeit': _goal(targetSeconds: null),
     'Datum vor Anlegen': _goal(targetDate: DateTime(2029, 12, 31)),
@@ -103,7 +103,7 @@ Future<void> _invalid(StorageContractHarness h) async {
   };
   for (final e in bad.entries) {
     await expectFails(
-      () => _g(s).save(e.value),
+      () => _g(s).save(e.value, today: e.value.createdAt),
       StorageFailure.rejected,
       e.key,
     );
@@ -127,7 +127,7 @@ Future<void> _none(StorageContractHarness h) async {
 
 Future<void> _deleteAll(StorageContractHarness h) async {
   var s = await h.open();
-  await _g(s).save(_goal());
+  await _g(s).save(_goal(), today: _goal().createdAt);
   await s.deleteAll();
   expectTrue(await _g(s).goal() == null, 'Ziel nach Alles löschen');
   await s.close();

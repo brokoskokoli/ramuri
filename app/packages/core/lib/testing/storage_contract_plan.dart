@@ -30,15 +30,19 @@ final List<StorageContractCase> planContractCases = [
     'Plan: Einheit trägt beim Lesen ihre Methode, Geh-Lauf-Einheit die der Abfolge',
     _unitMethods,
   ),
+  const StorageContractCase(
+    'Plan: Änderung zwischen Lesen und Schreiben lehnt die Fassung ab (Rennen)',
+    _staleRead,
+  ),
   const StorageContractCase('Alles löschen leert den Plan', _deleteAll),
 ];
 
 Future<void> _unitMethods(StorageContractHarness h) async {
   final s = await h.open();
-  await (s as GoalStorage).goals.save(_goal());
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
   final p = _p(s);
   await p.writeVersion(
-    _draft(0, [_unit(1), _unit(2, kind: PlanUnitKind.walkRun)]),
+    await _draft(p, 0, [_unit(1), _unit(2, kind: PlanUnitKind.walkRun)]),
   );
   Future<void> check(StorageSession s, String when) async {
     final q = _p(s);
@@ -124,12 +128,14 @@ PlanInputs _inputs(int day) => PlanInputs(
   easyRunCount: 4,
 );
 
-PlanVersionDraft _draft(
+/// Entwurf auf dem jetzigen Stand des Plans (wie der Dienst nach dem Lesen).
+Future<PlanVersionDraft> _draft(
+  PlanRepository p,
   int validFrom,
   List<PlanUnit> units, {
   PlanTrigger trigger = PlanTrigger.create,
   String reason = 'start',
-}) => PlanVersionDraft(
+}) async => PlanVersionDraft(
   createdAt: at(100 + validFrom, 3),
   validFrom: _day(validFrom),
   trigger: trigger,
@@ -138,6 +144,9 @@ PlanVersionDraft _draft(
   inputs: _inputs(validFrom),
   summary: {'larger': false, 'changedUnitCount': units.length},
   units: units,
+  readState: planUnitsFingerprint(
+    await p.unitsBetween(_inputs(validFrom).anchor, planFarFuture),
+  ),
 );
 
 String _u(PlanUnit u) =>
@@ -161,7 +170,7 @@ Future<String> _state(StorageSession s) async {
 Future<void> _roundTrip(StorageContractHarness h) async {
   var s = await h.open();
   expectTrue(await _p(s).currentGoal() == null, 'ohne Ziel null');
-  await (s as GoalStorage).goals.save(_goal());
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
   expectEq((await _p(s).currentGoal())?.runDays, {1, 3, 6}, 'currentGoal');
   expectEq((await _p(s).history()).length, 0, 'noch keine Fassung');
 
@@ -171,7 +180,7 @@ Future<void> _roundTrip(StorageContractHarness h) async {
     _unit(5, kind: PlanUnitKind.long, minutes: 60, week: 0),
     _unit(7, week: 1),
   ];
-  final rec = await _p(s).writeVersion(_draft(0, units));
+  final rec = await _p(s).writeVersion(await _draft(_p(s), 0, units));
   expectEq(rec.id, 1, 'Kennung der Fassung');
   expectEq(rec.goalId, 1, 'Ziel');
   expectEq(rec.trigger.name, 'create', 'Auslöser');
@@ -212,11 +221,11 @@ Future<void> _roundTrip(StorageContractHarness h) async {
 
 Future<void> _replaceOpenFuture(StorageContractHarness h) async {
   final s = await h.open();
-  await (s as GoalStorage).goals.save(_goal());
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
   final p = _p(s);
   final run = (await s.runs.create(startedAt: at(0))).id;
   await p.writeVersion(
-    _draft(0, [for (var d = 0; d < 8; d++) _unit(d, week: d ~/ 7)]),
+    await _draft(p, 0, [for (var d = 0; d < 8; d++) _unit(d, week: d ~/ 7)]),
   );
   // Tag 1: Vergangenheit (heute = 3); Tag 5: künftig, aber mit Lauf.
   final past = (await p.unitOn(_day(1)))!;
@@ -225,7 +234,7 @@ Future<void> _replaceOpenFuture(StorageContractHarness h) async {
   final before = {for (final u in await _all(s)) u.day.day: _u(u)};
 
   await p.writeVersion(
-    _draft(3, [
+    await _draft(p, 3, [
       _unit(3, kind: PlanUnitKind.tempo, minutes: 45),
       _unit(4, minutes: 25),
       _unit(6, minutes: 20, week: 0),
@@ -253,20 +262,24 @@ Future<void> _replaceOpenFuture(StorageContractHarness h) async {
 
 Future<void> _invalid(StorageContractHarness h) async {
   final s = await h.open();
-  await (s as GoalStorage).goals.save(_goal());
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
   final p = _p(s);
   final run = (await s.runs.create(startedAt: at(0))).id;
-  await p.writeVersion(_draft(0, [_unit(0), _unit(2), _unit(4)]));
+  await p.writeVersion(await _draft(p, 0, [_unit(0), _unit(2), _unit(4)]));
   // Ein Lauf kam nach dem Lesen des Dienstes dazu: Tag 4 trägt jetzt einen
   // Lauf; ein Entwurf mit einer neuen Einheit auf Tag 4 wäre ein Doppel.
   await p.assignRun((await p.unitOn(_day(4)))!.id!, run);
   final good = await _state(s);
 
   final bad = <String, PlanVersionDraft>{
-    'negative Dauer': _draft(1, [_unit(1), _unit(2), _unit(3, minutes: -1)]),
-    'Woche -1': _draft(1, [_unit(1), _unit(3, week: -1)]),
-    'Tag vor Beginn': _draft(2, [_unit(2), _unit(1)]),
-    'neue Einheit mit Lauf': _draft(1, [
+    'negative Dauer': await _draft(p, 1, [
+      _unit(1),
+      _unit(2),
+      _unit(3, minutes: -1),
+    ]),
+    'Woche -1': await _draft(p, 1, [_unit(1), _unit(3, week: -1)]),
+    'Tag vor Beginn': await _draft(p, 2, [_unit(2), _unit(1)]),
+    'neue Einheit mit Lauf': await _draft(p, 1, [
       _unit(1),
       PlanUnit(
         day: _day(3),
@@ -278,8 +291,11 @@ Future<void> _invalid(StorageContractHarness h) async {
         runId: run,
       ),
     ]),
-    'Tag trägt schon eine Einheit mit Lauf': _draft(1, [_unit(1), _unit(4)]),
-    'leerer Grund': _draft(1, [_unit(1)], reason: ''),
+    'Tag trägt schon eine Einheit mit Lauf': await _draft(p, 1, [
+      _unit(1),
+      _unit(4),
+    ]),
+    'leerer Grund': await _draft(p, 1, [_unit(1)], reason: ''),
   };
   for (final e in bad.entries) {
     await expectFails(
@@ -292,10 +308,52 @@ Future<void> _invalid(StorageContractHarness h) async {
   await s.close();
 }
 
+Future<void> _staleRead(StorageContractHarness h) async {
+  final s = await h.open();
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
+  final p = _p(s);
+  final run = (await s.runs.create(startedAt: at(0))).id;
+  await p.writeVersion(
+    await _draft(p, 0, [_unit(0), _unit(2), _unit(4), _unit(6)]),
+  );
+  final withRun = (await p.unitOn(_day(0)))!;
+  await p.assignRun(withRun.id!, run);
+
+  // Jede Änderung nach dem Lesen macht den Entwurf ungültig.
+  final changes = <String, Future<void> Function()>{
+    'Termin bestätigt': () async =>
+        p.confirmMove((await p.unitOn(_day(6)))!.id!, _day(7), today: _day(3)),
+    'Lauf zugeordnet': () async =>
+        p.assignRun((await p.unitOn(_day(2)))!.id!, run),
+    'Lauf entfernt': () => p.assignRun(withRun.id!, null),
+    'andere Fassung': () async {
+      await p.writeVersion(
+        await _draft(p, 3, [_unit(3)], trigger: PlanTrigger.weekly),
+      );
+    },
+  };
+  for (final c in changes.entries) {
+    final stale = await _draft(p, 3, [_unit(3), _unit(5)]);
+    await c.value();
+    final before = await _state(s);
+    await expectFails(
+      () => p.writeVersion(stale),
+      StorageFailure.rejected,
+      c.key,
+    );
+    expectEq(await _state(s), before, 'alter Plan bleibt (${c.key})');
+    // Neu gelesen gelingt es.
+    await p.writeVersion(
+      await _draft(p, 3, [_unit(3), _unit(5)], trigger: PlanTrigger.weekly),
+    );
+  }
+  await s.close();
+}
+
 Future<void> _noGoal(StorageContractHarness h) async {
   final s = await h.open();
   await expectFails(
-    () => _p(s).writeVersion(_draft(0, [_unit(0)])),
+    () async => _p(s).writeVersion(await _draft(_p(s), 0, [_unit(0)])),
     StorageFailure.notFound,
     'ohne Ziel',
   );
@@ -305,10 +363,12 @@ Future<void> _noGoal(StorageContractHarness h) async {
 
 Future<void> _edit(StorageContractHarness h) async {
   final s = await h.open();
-  await (s as GoalStorage).goals.save(_goal());
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
   final p = _p(s);
   final run = (await s.runs.create(startedAt: at(0))).id;
-  await p.writeVersion(_draft(0, [_unit(0), _unit(2), _unit(4), _unit(8)]));
+  await p.writeVersion(
+    await _draft(p, 0, [_unit(0), _unit(2), _unit(4), _unit(8)]),
+  );
   final u0 = (await p.unitOn(_day(0)))!;
   final u2 = (await p.unitOn(_day(2)))!;
   final u8 = (await p.unitOn(_day(8)))!;
@@ -373,13 +433,13 @@ Future<void> _edit(StorageContractHarness h) async {
 
 Future<void> _goalCascade(StorageContractHarness h) async {
   var s = await h.open();
-  await (s as GoalStorage).goals.save(_goal());
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
   final run = (await s.runs.create(startedAt: at(0))).id;
-  await _p(s).writeVersion(_draft(0, [_unit(0), _unit(2)]));
+  await _p(s).writeVersion(await _draft(_p(s), 0, [_unit(0), _unit(2)]));
   await _p(s).assignRun((await _p(s).unitOn(_day(0)))!.id!, run);
 
   // Ziel ändern (ersetzen) lässt den Plan stehen.
-  await (s as GoalStorage).goals.save(_goal());
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
   expectEq((await _all(s)).length, 2, 'Ziel ersetzt: Einheiten bleiben');
   expectEq((await _p(s).history()).length, 1, 'Ziel ersetzt: Fassung bleibt');
 
@@ -395,10 +455,11 @@ Future<void> _goalCascade(StorageContractHarness h) async {
 
 Future<void> _runDeleted(StorageContractHarness h) async {
   final s = await h.open();
-  await (s as GoalStorage).goals.save(_goal());
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
   final run = (await s.runs.create(startedAt: at(0))).id;
   final other = (await s.runs.create(startedAt: at(1))).id;
-  await _p(s).writeVersion(_draft(0, [_unit(0), _unit(2), _unit(4)]));
+  await _p(s)
+      .writeVersion(await _draft(_p(s), 0, [_unit(0), _unit(2), _unit(4)]));
   await _p(s).assignRun((await _p(s).unitOn(_day(0)))!.id!, run);
   await _p(s).assignRun((await _p(s).unitOn(_day(2)))!.id!, other);
   await s.deleteRun(run);
@@ -411,8 +472,8 @@ Future<void> _runDeleted(StorageContractHarness h) async {
 
 Future<void> _deleteAll(StorageContractHarness h) async {
   var s = await h.open();
-  await (s as GoalStorage).goals.save(_goal());
-  await _p(s).writeVersion(_draft(0, [_unit(0), _unit(2)]));
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
+  await _p(s).writeVersion(await _draft(_p(s), 0, [_unit(0), _unit(2)]));
   await s.settings.set(planLastCheckDayKey, '2030-03-04', at: at(1));
   await s.deleteAll();
   expectTrue(await _p(s).currentGoal() == null, 'Ziel weg');
@@ -422,8 +483,8 @@ Future<void> _deleteAll(StorageContractHarness h) async {
   s = await h.open();
   expectEq((await _all(s)).length, 0, 'nach Neuöffnen');
   // Zähler beginnen neu (wie bei den Läufen).
-  await (s as GoalStorage).goals.save(_goal());
-  final rec = await _p(s).writeVersion(_draft(0, [_unit(0)]));
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
+  final rec = await _p(s).writeVersion(await _draft(_p(s), 0, [_unit(0)]));
   expectEq(rec.id, 1, 'Fassungszähler neu');
   expectEq((await _p(s).unitOn(_day(0)))!.id, 1, 'Einheitenzähler neu');
   await s.close();

@@ -472,6 +472,7 @@ void main() {
         hardSessionEnabled: false,
         createdAt: DateTime.utc(2026, 11, 1),
       ),
+      today: DateTime.utc(2026, 11, 1),
     );
     expect(await ArchiveRestoreService.isEmpty(session), isFalse);
     await expectLater(
@@ -498,6 +499,7 @@ void main() {
         hardSessionEnabled: false,
         createdAt: DateTime.utc(2026, 11, 1),
       ),
+      today: DateTime.utc(2026, 11, 1),
     );
     session = await service().restore(
       path: archivePath,

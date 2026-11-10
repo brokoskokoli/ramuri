@@ -73,6 +73,7 @@ class PlanVersionDraft {
     required this.inputs,
     required this.summary,
     required this.units,
+    required this.readState,
   }) : validFrom = planDay(validFrom);
 
   final DateTime createdAt;
@@ -85,6 +86,13 @@ class PlanVersionDraft {
 
   /// Neue Einheiten (Tag ab [validFrom], ohne Lauf).
   final List<PlanUnit> units;
+
+  /// Fingerabdruck ([planUnitsFingerprint]) der Einheiten ab
+  /// `inputs.anchor`, auf denen die Rechnung beruht. Hat sich der Plan
+  /// zwischen Lesen und Schreiben geändert (Lauf zugeordnet oder entfernt,
+  /// Termin bestätigt, andere Fassung), lehnt [PlanRepository.writeVersion]
+  /// mit `rejected` ab; der Aufrufer liest neu und rechnet noch einmal.
+  final String readState;
 
   String get inputsJson => jsonEncode(inputs.toJson());
   String get summaryJson => jsonEncode(summary);
@@ -123,9 +131,21 @@ abstract interface class PlanRepository {
   /// In EINER Transaktion: legt die Fassung an, löscht alle offenen
   /// künftigen Einheiten (`Tag >= validFrom`, ohne Lauf) und fügt die neuen
   /// ein. Scheitert etwas, bleibt der alte Plan ganz bestehen. Ohne Ziel:
-  /// `notFound`; ungültige Fassung: `rejected`.
+  /// `notFound`; ungültige Fassung oder geänderter Plan seit dem Lesen
+  /// ([PlanVersionDraft.readState]): `rejected`.
   Future<PlanVersionRecord> writeVersion(PlanVersionDraft draft);
 }
+
+/// Letzter möglicher Ortstag für „alle Einheiten ab Beginn“.
+final DateTime planFarFuture = DateTime.utc(9999, 12, 31);
+
+/// Fingerabdruck der gelesenen Einheiten (Kennung, Tag, Lauf, `pinned`), nach
+/// Tag und Kennung wie `unitsBetween` sie liefert. Gleich nur, wenn kein
+/// Schreiber (Fassung, Zuordnung, Bestätigung) dazwischen lag.
+String planUnitsFingerprint(Iterable<PlanUnit> units) => [
+  for (final u in units)
+    '${u.id}|${planDay(u.day).toIso8601String()}|${u.runId}|${u.pinned}',
+].join(';');
 
 /// Ein Speicher, der den Plan führt (wie [GoalStorage]).
 abstract interface class PlanStorage {

@@ -31,28 +31,31 @@ class DriftGoalStore implements GoalStore {
   });
 
   @override
-  Future<void> save(TrainingGoal goal, {DateTime? today}) => guarded(() async {
-    checkGoalForStorage(goal, today: today);
-    final date = goal.targetDate;
-    await _db
-        .into(_db.goals)
-        .insertOnConflictUpdate(
-          d.GoalsCompanion.insert(
-            id: const Value(1),
-            type: goal.type.name,
-            distance: Value(goal.distance?.name),
-            targetS: Value(goal.targetSeconds),
-            targetDate: Value(date == null ? null : isoDay(calendarDay(date))),
-            runDays: maskOfDays(goal.runDays),
-            maxSessionS: goal.maxSessionSeconds,
-            weeklyCapS: goal.weeklyCapSeconds,
-            currentWeeklyS: Value(goal.currentWeeklySeconds),
-            canRun30: goal.canRun30.name,
-            hardSession: goal.hardSessionEnabled,
-            createdAtUs: usOf(goal.createdAt),
-          ),
-        );
-  });
+  Future<void> save(TrainingGoal goal, {required DateTime today}) =>
+      guarded(() async {
+        checkGoalForStorage(goal, today: today);
+        final date = goal.targetDate;
+        await _db
+            .into(_db.goals)
+            .insertOnConflictUpdate(
+              d.GoalsCompanion.insert(
+                id: const Value(1),
+                type: goal.type.name,
+                distance: Value(goal.distance?.name),
+                targetS: Value(goal.targetSeconds),
+                targetDate: Value(
+                  date == null ? null : isoDay(calendarDay(date)),
+                ),
+                runDays: maskOfDays(goal.runDays),
+                maxSessionS: goal.maxSessionSeconds,
+                weeklyCapS: goal.weeklyCapSeconds,
+                currentWeeklyS: Value(goal.currentWeeklySeconds),
+                canRun30: goal.canRun30.name,
+                hardSession: goal.hardSessionEnabled,
+                createdAtUs: usOf(goal.createdAt),
+              ),
+            );
+      });
 
   @override
   Future<void> delete() => guarded(() async {

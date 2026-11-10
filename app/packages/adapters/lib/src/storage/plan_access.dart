@@ -157,6 +157,13 @@ class DriftPlanRepository implements PlanRepository {
                 summary: draft.summaryJson,
               ),
             );
+        // Hat sich der Plan seit dem Lesen geändert (Lauf zugeordnet oder
+        // entfernt, Termin bestätigt, andere Fassung): ablehnen.
+        final anchor = isoDay(planDay(draft.inputs.anchor));
+        final now = await _units((u, p) => u.day.isBiggerOrEqualValue(anchor));
+        if (planUnitsFingerprint(now) != draft.readState) {
+          throw const StorageException(StorageFailure.rejected);
+        }
         // Kam nach dem Lesen des Dienstes ein Lauf auf eine Einheit, bliebe
         // sie stehen, und ein Entwurfstag wäre doppelt: ablehnen.
         final kept =

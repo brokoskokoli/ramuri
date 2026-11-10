@@ -74,7 +74,7 @@ Future<PlanRecalculation> recalculatePlan({
           ? PlanInputs.forNewGoal(goal, todayDay, parameters: parameters)
           : last.inputs.copyWith(today: todayDay));
 
-  final all = await plans.unitsBetween(use.anchor, _farFuture);
+  final all = await plans.unitsBetween(use.anchor, planFarFuture);
   final frozen = <PlanUnit>[];
   final pinned = <PlanUnit>[];
   final oldFuture = <PlanUnit>[];
@@ -122,6 +122,7 @@ Future<PlanRecalculation> recalculatePlan({
       inputs: use,
       summary: summary.toJson(),
       units: generated.units,
+      readState: planUnitsFingerprint(all),
     ),
   );
   await _markChecked(settings, todayDay, now);
@@ -167,8 +168,6 @@ GeneratedPlan _keepSchedule(GeneratedPlan g, List<PlanUnit> oldFuture) {
     ],
   );
 }
-
-final DateTime _farFuture = DateTime.utc(9999, 12, 31);
 
 Future<void> _markChecked(
   SettingsStore settings,

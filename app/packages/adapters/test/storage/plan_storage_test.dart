@@ -52,7 +52,7 @@ void main() {
       'verlustfrei (Rundreise)', () async {
     final s = await open();
     addTearDown(s.close);
-    await s.goals.save(_goal());
+    await s.goals.save(_goal(), today: _goal().createdAt);
     final week = planWalkRunWeek(
       week: PlanWeek(
         index: 0,
@@ -87,6 +87,7 @@ void main() {
         ),
         summary: const {},
         units: week.units,
+        readState: planUnitsFingerprint(const []),
       ),
     );
     final got = await all(s.plans);
@@ -103,7 +104,7 @@ void main() {
         'alter Plan und Prüftag unverändert', () async {
       final s = await open();
       addTearDown(s.close);
-      await s.goals.save(_goal());
+      await s.goals.save(_goal(), today: _goal().createdAt);
       final settings = s.settings;
       await recalculatePlan(
         plans: s.plans,
@@ -116,7 +117,10 @@ void main() {
       final versions = (await s.plans.history()).length;
       expect(before.length, greaterThan(4));
 
-      await s.goals.save(_goal(days: {1, 3, 5, 7}));
+      await s.goals.save(
+        _goal(days: {1, 3, 5, 7}),
+        today: _goal(days: {1, 3, 5, 7}).createdAt,
+      );
       final failing = DriftPlanRepository(
         s.database,
         beforeUnitInsert: (i) async {
@@ -153,7 +157,7 @@ void main() {
         'künftigen Einheiten', () async {
       final s = await open();
       addTearDown(s.close);
-      await s.goals.save(_goal());
+      await s.goals.save(_goal(), today: _goal().createdAt);
       await recalculatePlan(
         plans: s.plans,
         settings: s.settings,
@@ -161,7 +165,10 @@ void main() {
         today: _day(0),
         now: _d0,
       );
-      await s.goals.save(_goal(days: {1, 3, 5, 7}));
+      await s.goals.save(
+        _goal(days: {1, 3, 5, 7}),
+        today: _goal(days: {1, 3, 5, 7}).createdAt,
+      );
       await recalculatePlan(
         plans: s.plans,
         settings: s.settings,
@@ -187,7 +194,7 @@ void main() {
 
     test('Nach Neuöffnen: gleiche Einheiten, keine neue Fassung', () async {
       var s = await open();
-      await s.goals.save(_goal());
+      await s.goals.save(_goal(), today: _goal().createdAt);
       await recalculatePlan(
         plans: s.plans,
         settings: s.settings,
@@ -217,7 +224,7 @@ void main() {
     setUp(() async {
       s = await open();
       db = s.database;
-      await s.goals.save(_goal());
+      await s.goals.save(_goal(), today: _goal().createdAt);
       await exec(
         db,
         "INSERT INTO runs (id, state, started_at_us) VALUES (1, 'active', 1)",

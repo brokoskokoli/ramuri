@@ -99,7 +99,7 @@ void main() {
   test('erste Fassung: Einheiten wie generatePlan, Eingaben und Version '
       'gespeichert, Prüftag gesetzt', () async {
     final e = await _Env.open();
-    await e.goals.save(_goal());
+    await e.goals.save(_goal(), today: _goal().createdAt);
     final r = await e.run(PlanTrigger.create, 0);
     expect(r.wasWritten, isTrue);
     final goal = (await e.plans.currentGoal())!;
@@ -126,7 +126,7 @@ void main() {
   test('gleiche Einheiten: keine neue Fassung, nur der Prüftag wandert '
       '(auch am Folgetag, wenn die Vergangenheit einfriert)', () async {
     final e = await _Env.open();
-    await e.goals.save(_goal());
+    await e.goals.save(_goal(), today: _goal().createdAt);
     await e.run(PlanTrigger.create, 0);
     final before = (await _all(e.plans)).map(_sig).toList();
     for (final offset in [0, 1, 2, 5]) {
@@ -145,7 +145,7 @@ void main() {
   test('Zieländerung: neue Fassung, Vergangenheit und Lauf-Einheiten bleiben, '
       'offene Zukunft ersetzt', () async {
     final e = await _Env.open();
-    await e.goals.save(_goal());
+    await e.goals.save(_goal(), today: _goal().createdAt);
     await e.run(PlanTrigger.create, 0);
     final run = (await e.session.runs.create(startedAt: _now(0))).id;
     final first = await _all(e.plans);
@@ -158,7 +158,10 @@ void main() {
     ];
     expect(frozenBefore, isNotEmpty);
 
-    await e.goals.save(_goal(days: {1, 3, 5, 7}));
+    await e.goals.save(
+      _goal(days: {1, 3, 5, 7}),
+      today: _goal(days: {1, 3, 5, 7}).createdAt,
+    );
     final r = await e.run(PlanTrigger.goalChange, 7);
     expect(r.wasWritten, isTrue);
     final after = await _all(e.plans);
@@ -180,7 +183,7 @@ void main() {
 
   test('pinned: der bestätigte Termin bleibt bei der Neuberechnung', () async {
     final e = await _Env.open();
-    await e.goals.save(_goal());
+    await e.goals.save(_goal(), today: _goal().createdAt);
     await e.run(PlanTrigger.create, 0);
     final units = await _all(e.plans);
     // Nächste Woche: erste Einheit auf einen freien Tag legen.
@@ -197,7 +200,7 @@ void main() {
       target = target.add(const Duration(days: 1));
     }
     await e.plans.confirmMove(moving.id!, target, today: _day(0));
-    await e.goals.save(_goal(capMin: 200));
+    await e.goals.save(_goal(capMin: 200), today: _goal(capMin: 200).createdAt);
     final r = await e.run(PlanTrigger.manual, 0);
     final pinned = (await _all(e.plans)).where((u) => u.pinned).toList();
     expect(pinned, hasLength(1), reason: '${r.generated?.pinnedConflicts}');
@@ -207,9 +210,12 @@ void main() {
   test('Wiederholung mit den gespeicherten Eingaben ergibt dieselben '
       'künftigen Einheiten (Determinismus über den Speicher)', () async {
     final e = await _Env.open();
-    await e.goals.save(_goal());
+    await e.goals.save(_goal(), today: _goal().createdAt);
     await e.run(PlanTrigger.create, 0);
-    await e.goals.save(_goal(days: {1, 3, 5, 7}));
+    await e.goals.save(
+      _goal(days: {1, 3, 5, 7}),
+      today: _goal(days: {1, 3, 5, 7}).createdAt,
+    );
     await e.run(PlanTrigger.goalChange, 7);
     final rec = (await e.plans.history()).last;
     final goal = (await e.plans.currentGoal())!;
@@ -229,10 +235,13 @@ void main() {
 
   test('Abbruch beim Schreiben: alter Plan und Prüftag bleiben', () async {
     final e = await _Env.open();
-    await e.goals.save(_goal());
+    await e.goals.save(_goal(), today: _goal().createdAt);
     await e.run(PlanTrigger.create, 0);
     final before = (await _all(e.plans)).map(_sig).toList();
-    await e.goals.save(_goal(days: {1, 3, 5, 7}));
+    await e.goals.save(
+      _goal(days: {1, 3, 5, 7}),
+      today: _goal(days: {1, 3, 5, 7}).createdAt,
+    );
     await expectLater(
       e.run(PlanTrigger.goalChange, 7, repo: _FailingWrite(e.plans)),
       throwsA(isA<StorageException>()),
@@ -247,14 +256,17 @@ void main() {
       'Einheit mit Lauf bleibt eingefroren, am Tag entsteht keine zweite',
       () async {
         final e = await _Env.open();
-        await e.goals.save(_goal());
+        await e.goals.save(_goal(), today: _goal().createdAt);
         await e.run(PlanTrigger.create, 0);
         final target = (await _all(e.plans))
             .firstWhere((u) => u.day.difference(_day(0)).inDays >= 70);
         final run = (await e.session.runs.create(startedAt: _now(0))).id;
         await e.plans.assignRun(target.id!, run);
         // Niedrigere Wochengrenze: alle künftigen Einheiten ändern ihre Dauer.
-        await e.goals.save(_goal(capMin: 100));
+        await e.goals.save(
+          _goal(capMin: 100),
+          today: _goal(capMin: 100).createdAt,
+        );
         final r = await e.run(PlanTrigger.goalChange, 1);
         expect(r.wasWritten, isTrue);
         expect(
@@ -273,9 +285,12 @@ void main() {
     test('automatisch: bei mehr Lauftagen bleiben nur die alten Tage im '
         'alten Zeitraum', () async {
       final e = await _Env.open();
-      await e.goals.save(_open({2, 4, 6}));
+      await e.goals.save(_open({2, 4, 6}), today: _open({2, 4, 6}).createdAt);
       await e.run(PlanTrigger.create, 0);
-      await e.goals.save(_open({1, 2, 3, 4, 5, 6}));
+      await e.goals.save(
+        _open({1, 2, 3, 4, 5, 6}),
+        today: _open({1, 2, 3, 4, 5, 6}).createdAt,
+      );
       final r = await e.run(PlanTrigger.weekly, 7);
       final horizonEnd = DateTime.utc(
         2026,
@@ -300,7 +315,7 @@ void main() {
 
     test('reine Intensitätsänderung schreibt eine neue Fassung', () async {
       final e = await _Env.open();
-      await e.goals.save(_goal());
+      await e.goals.save(_goal(), today: _goal().createdAt);
       await e.run(PlanTrigger.create, 0);
       final before = await e.plans.history();
       final base = before.last.inputs;
@@ -342,9 +357,9 @@ void main() {
 
     Future<_Env> setup(PlanTrigger second) async {
       final e = await _Env.open();
-      await e.goals.save(_open({2, 4, 6}));
+      await e.goals.save(_open({2, 4, 6}), today: _open({2, 4, 6}).createdAt);
       await e.run(PlanTrigger.create, 0);
-      await e.goals.save(_open({1, 3, 5}));
+      await e.goals.save(_open({1, 3, 5}), today: _open({1, 3, 5}).createdAt);
       await e.run(second, 70);
       return e;
     }
@@ -399,7 +414,7 @@ void main() {
 
     test('echte Termine (pinned) bleiben pinned, andere nicht', () async {
       final e = await _Env.open();
-      await e.goals.save(_open({2, 4, 6}));
+      await e.goals.save(_open({2, 4, 6}), today: _open({2, 4, 6}).createdAt);
       await e.run(PlanTrigger.create, 0);
       final units = await _all(e.plans);
       final moving = units.firstWhere((u) => u.day.isAfter(_day(8)));

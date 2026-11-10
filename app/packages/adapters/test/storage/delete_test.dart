@@ -206,6 +206,7 @@ void main() {
         weeklyCapSeconds: 10800,
         createdAt: at(11),
       ),
+      today: DateTime.utc(2026, 11, 1),
     );
     final tables =
         (await db
