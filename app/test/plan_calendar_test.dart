@@ -78,10 +78,29 @@ class _Spy extends _NoCheck {
   bool fail = false;
   bool failCheck = false;
 
+  /// Hält die Prüfung des Ersetzens je Art an (Rennen beim Artwechsel).
+  final replaceGates = <PlanUnitKind, Completer<void>>{};
+
+  /// Ersetzt das Ergebnis der Prüfungen (gesperrte Fälle).
+  PlanReplaceCheck Function(PlanUnitKind kind)? replaceResult;
+  PlanRestDayCheck Function(DateTime day)? restResult;
+
   @override
-  Future<PlanReplaceCheck?> checkReplace(PlanUnit unit, PlanUnitKind kind) {
-    if (failCheck) return Future.error(StateError('Prüfung gescheitert'));
-    return super.checkReplace(unit, kind);
+  Future<PlanReplaceCheck?> checkReplace(
+    PlanUnit unit,
+    PlanUnitKind kind,
+  ) async {
+    if (failCheck) throw StateError('Prüfung gescheitert');
+    final gate = replaceGates[kind];
+    if (gate != null) await gate.future;
+    final r = replaceResult;
+    return r != null ? r(kind) : super.checkReplace(unit, kind);
+  }
+
+  @override
+  Future<PlanRestDayCheck?> checkRestDay(DateTime day) async {
+    final r = restResult;
+    return r != null ? r(day) : super.checkRestDay(day);
   }
 
   @override
@@ -907,6 +926,207 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    for (final aLast in [true, false]) {
+      testWidgets('Artwechsel während der Prüfung: Bestätigen liefert die '
+          'zuletzt gewählte Art (${aLast ? 'erste' : 'zweite'} Prüfung '
+          'endet zuletzt, R1)', (tester) async {
+        final (session, clock) = await _seed();
+        final spy = _Spy(session, clock);
+        final long = spy.replaceGates[PlanUnitKind.long] = Completer<void>();
+        final tempo = spy.replaceGates[PlanUnitKind.tempo] = Completer<void>();
+        await _pump(tester, session, clock, controller: spy);
+        final unit = (await (session as PlanStorage).plans.unitOn(_d(3)))!;
+        await _sheet(tester, 3, 'calendar_replace');
+        await tester.tap(key('calendar_replace_kind_long'));
+        await tester.pump();
+        await tester.tap(key('calendar_replace_kind_tempo'));
+        await tester.pump();
+        final order = aLast ? [tempo, long] : [long, tempo];
+        order.first.complete();
+        await tester.pump();
+        await tester.pump();
+        order.last.complete();
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<Text>(key('calendar_replace_new')).data,
+          contains('Tempodauerlauf'),
+        );
+        await tester.tap(key('calendar_replace_confirm'));
+        await tester.pumpAndSettle();
+        expect(spy.calls, ['replace ${unit.id} tempo']);
+      });
+    }
+
+    testWidgets('gesperrte Prüfung: Bestätigen bleibt aus, nichts ändert '
+        'sich (Ersetzen R2, Ruhetag R3)', (tester) async {
+      final (session, clock) = await _seed();
+      final spy = _Spy(session, clock)
+        ..replaceResult = ((k) => PlanReplaceCheck(
+          kind: k,
+          blocked: PlanReplaceBlock.exceedsMaxSession,
+        ))
+        ..restResult = ((d) =>
+            PlanRestDayCheck(day: d, blocked: PlanRestDayBlock.unitHasRun));
+      final before = await _schedule(session);
+      await _pump(tester, session, clock, controller: spy);
+
+      await _sheet(tester, 3, 'calendar_replace');
+      await tester.tap(key('calendar_replace_kind_tempo'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_replace_blocked'), findsOneWidget);
+      expect(
+        tester.widget<FilledButton>(key('calendar_replace_confirm')).onPressed,
+        isNull,
+      );
+      await tester.tap(key('calendar_replace_confirm'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_replace_dialog'), findsOneWidget);
+      await tester.tap(key('calendar_replace_cancel'));
+      await tester.pumpAndSettle();
+
+      await _sheet(tester, 6, 'calendar_rest_set');
+      expect(key('calendar_rest_blocked'), findsOneWidget);
+      expect(
+        tester.widget<FilledButton>(key('calendar_rest_confirm')).onPressed,
+        isNull,
+      );
+      await tester.tap(key('calendar_rest_confirm'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_rest_dialog'), findsOneWidget);
+      expect(spy.calls, isEmpty);
+      expect(await _schedule(session), before);
+    });
+
+    testWidgets('vergangener Ruhetag des Nutzers: kein Blatt, kein Aufheben '
+        '(R4)', (tester) async {
+      final (session, clock) = await _seed(
+        extra: [
+          PlanUnit(
+            day: _d(2),
+            kind: PlanUnitKind.rest,
+            phase: PlanPhase.build,
+            weekIndex: 0,
+            minutes: 0,
+            segments: const [],
+            pinned: true,
+            fixed: PlanUnitFixed.day,
+          ),
+        ],
+      );
+      // Heute ist Freitag, 13.11.: der Ruhetag am Mi 11.11. ist vergangen.
+      clock.set(DateTime.utc(2026, 11, 13, 12));
+      final spy = _Spy(session, clock);
+      await _pump(tester, session, clock, controller: spy);
+      expect(key('calendar_rest_fixed_${_k(2)}'), findsOneWidget);
+      await tester.tap(key('calendar_day_${_k(2)}'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_actions'), findsNothing);
+      expect(key('calendar_rest_clear'), findsNothing);
+      // Gegenprobe: ein künftiger freier Tag hat das Blatt.
+      await tester.tap(key('calendar_day_${_k(6)}'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_rest_set'), findsOneWidget);
+      expect(spy.calls, isEmpty);
+    });
+
+    testWidgets('freier Tag nach dem Plan: keine Aktion (R5)', (tester) async {
+      final (session, clock) = await _seed();
+      final spy = _Spy(session, clock);
+      await _pump(tester, session, clock, controller: spy);
+      await tester.tap(key('calendar_mode_month'));
+      await tester.pumpAndSettle();
+      // Zieldatum So 14.03.2027: die letzte Planwoche endet an dem Tag.
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(key('calendar_next'));
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(key('calendar_day_2027-03-20'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_actions'), findsNothing);
+      expect(key('calendar_rest_set'), findsNothing);
+      // Gegenprobe: ein freier Tag in der letzten Planwoche.
+      await tester.tap(key('calendar_day_2027-03-10'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_rest_set'), findsOneWidget);
+      expect(spy.calls, isEmpty);
+    });
+
+    testWidgets('Ruhe-Einheit mit Lauf: kein „Ruhetag festlegen“ '
+        '(Befund 3)', (tester) async {
+      final (session, clock) = await _seed(
+        extra: [
+          PlanUnit(
+            day: _d(2),
+            kind: PlanUnitKind.rest,
+            phase: PlanPhase.build,
+            weekIndex: 0,
+            minutes: 0,
+            segments: const [],
+          ),
+        ],
+      );
+      final plans = (session as PlanStorage).plans;
+      final run = await session.runs.create(
+        startedAt: _d(2).add(const Duration(hours: 7)),
+      );
+      await session.runs.setState(
+        run.id,
+        RunState.finished,
+        endedAt: _d(2).add(const Duration(hours: 8)),
+        endedUtcOffset: Duration.zero,
+      );
+      await plans.assignRun((await plans.unitOn(_d(2)))!.id!, run.id);
+      final spy = _Spy(session, clock);
+      await _pump(tester, session, clock, controller: spy);
+      await tester.tap(key('calendar_day_${_k(2)}'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_actions'), findsOneWidget);
+      expect(key('calendar_frozen'), findsOneWidget);
+      expect(key('calendar_rest_set'), findsNothing);
+      expect(key('calendar_rest_clear'), findsNothing);
+      expect(spy.calls, isEmpty);
+    });
+
+    testWidgets('nicht festgelegte Ruhe-Einheit lässt sich festlegen und '
+        'wieder aufheben (Festlegung WP22, OQ-0011)', (tester) async {
+      final (session, clock) = await _seed(
+        extra: [
+          PlanUnit(
+            day: _d(6),
+            kind: PlanUnitKind.rest,
+            phase: PlanPhase.build,
+            weekIndex: 0,
+            minutes: 0,
+            segments: const [],
+          ),
+        ],
+      );
+      final plans = (session as PlanStorage).plans;
+      final gen = (await plans.unitOn(_d(6)))!;
+      expect(gen.isRestDay, isFalse);
+      final spy = _Spy(session, clock);
+      await _pump(tester, session, clock, controller: spy);
+      expect(key('calendar_rest_fixed_${_k(6)}'), findsNothing);
+      await _sheet(tester, 6, 'calendar_rest_set');
+      expect(key('calendar_rest_unit_moves'), findsNothing);
+      expect(key('calendar_rest_unit_drops'), findsNothing);
+      expect(key('calendar_rest_blocked'), findsNothing);
+      await tester.tap(key('calendar_rest_confirm'));
+      await tester.pumpAndSettle();
+      expect(spy.calls, ['rest ${_iso(_d(6))} -']);
+      expect(spy.seenUnitIds, [gen.id]);
+      final rest = (await plans.unitOn(_d(6)))!;
+      expect(rest.isRestDay, isTrue);
+      expect(rest.fixed, PlanUnitFixed.day);
+      expect(find.text('Ruhetag festgelegt.'), findsOneWidget);
+      expect(key('calendar_rest_fixed_${_k(6)}'), findsOneWidget);
+      await _sheet(tester, 6, 'calendar_rest_clear');
+      await tester.tap(key('calendar_rest_clear_confirm'));
+      await tester.pumpAndSettle();
+      expect(spy.calls.last, 'clear ${_iso(_d(6))}');
+      expect(await plans.unitOn(_d(6)), isNull);
+    });
 
     testWidgets('Fehler sind sichtbar und ändern nichts', (tester) async {
       final (session, clock) = await _seed();

@@ -501,6 +501,68 @@ void main() {
       });
     }
 
+    testWidgets('entfallener Tag als Ruhetag festgelegt: „Ruhetag“, kein '
+        '„Lauftag entfällt“ (Befund E2b 1)', (tester) async {
+      final friday = DateTime.utc(2026, 11, 13);
+      final (session, clock) = await tester.runAsync(() async {
+        final (session, clock) = await _withPlan(_goal());
+        // Fassung, deren Hinweise den freien Freitag als entfallen melden
+        // (wie nach einer Budgetkürzung).
+        final plans = (session as PlanStorage).plans;
+        final v = (await plans.history()).last;
+        final units = await plans.unitsBetween(v.inputs.anchor, planFarFuture);
+        final summary = Map<String, Object?>.of(v.summary);
+        final hints = Map<String, Object?>.of(
+          summary[planHintsKey]! as Map<String, Object?>,
+        );
+        hints['droppedDaysByWeek'] = {
+          '0': ['2026-11-13'],
+        };
+        summary[planHintsKey] = hints;
+        await plans.writeVersion(
+          PlanVersionDraft(
+            createdAt: _now,
+            validFrom: _today,
+            trigger: PlanTrigger.manual,
+            reason: 'test',
+            version: v.version,
+            inputs: v.inputs,
+            summary: summary,
+            units: [
+              for (final u in units)
+                if (!u.day.isBefore(_today) && u.runId == null) u,
+            ],
+            readState: planUnitsFingerprint(units),
+          ),
+        );
+        return (session, clock);
+      }) as (StorageSession, FakeClock);
+      Finder dayText(String t) => find.descendant(
+        of: key('plan_day_2026-11-13'),
+        matching: find.text(t),
+      );
+
+      await _pump(tester, session: session, clock: clock);
+      expect(dayText('Lauftag entfällt'), findsOneWidget);
+      expect(key('plan_hint_dropped'), findsOneWidget);
+
+      await tester.runAsync(() async {
+        final c = PlanController(session: session, clock: clock);
+        expect(
+          await c.setRestDay(friday, expectedUnitId: null),
+          PlanActionResult.done,
+        );
+        c.dispose();
+      });
+      await tester.pumpWidget(const SizedBox());
+      await _pump(tester, session: session, clock: clock);
+      expect(dayText('Ruhetag'), findsOneWidget);
+      expect(dayText('Lauftag entfällt'), findsNothing);
+      // Die Wochenzahl zählt den Ruhetag des Nutzers nicht mit.
+      expect(key('plan_hint_dropped'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('aktuelle Regelversion: kein Hinweis darauf', (tester) async {
       final session = await FakeStorage().open(_key);
       final clock = FakeClock(_now);

@@ -617,7 +617,7 @@ class PlanController extends ChangeNotifier {
   /// ohne ihn. [expectedUnitId] ist die Einheit, die [checkRestDay] auf dem
   /// Tag gezeigt hat (`null`: Tag frei); liegt jetzt eine andere dort, ändert
   /// sich nichts (FR-0176). Keine Neuberechnung. Ohne Ziel oder Fassung:
-  /// `notFound`; Tag vor heute, Einheit mit Lauf, schon Ruhetag, abweichende
+  /// `notFound`; Tag vor heute, Einheit mit Lauf, schon festgelegter Ruhetag, abweichende
   /// Einheit, ungültiger Zieltag: `rejected`.
   Future<PlanActionResult> setRestDay(
     DateTime day, {

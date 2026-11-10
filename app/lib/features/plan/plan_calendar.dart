@@ -225,9 +225,14 @@ class _PlanCalendarState extends State<PlanCalendar> {
       u.kind != PlanUnitKind.rest &&
       u.kind != PlanUnitKind.walkRun;
 
-  /// Künftiger Tag im Plan ohne Einheit: kann Ruhetag werden.
+  /// Künftiger Tag im Plan ohne Einheit oder mit einer nicht festgelegten
+  /// Ruhe-Einheit ohne Lauf: kann Ruhetag werden (auch von der App
+  /// erzeugte Ruhetage, Schutz vor der Neuberechnung, OQ-0011).
   bool _freeFutureDay(DateTime day, PlanUnit? u) =>
-      u == null && !day.isBefore(_today) && _inPlan(day);
+      (u == null ||
+          (u.kind == PlanUnitKind.rest && !u.pinned && u.runId == null)) &&
+      !day.isBefore(_today) &&
+      _inPlan(day);
 
   /// Ob ein Tag ein Blatt mit Aktionen hat.
   bool _hasActions(DateTime day, PlanUnit? u, _DayState state) {
@@ -300,17 +305,24 @@ class _PlanCalendarState extends State<PlanCalendar> {
                       key: const Key('calendar_frozen'),
                       style: text.bodySmall,
                     ),
-                ] else if (_userRest(u))
+                ] else if (_userRest(u) && !day.isBefore(_today))
                   RamuriSecondaryButton(
                     key: const Key('calendar_rest_clear'),
                     label: l.calendarRestClear,
                     onPressed: () => pop('clear'),
                   )
-                else
+                else if (_freeFutureDay(day, u))
                   RamuriSecondaryButton(
                     key: const Key('calendar_rest_set'),
                     label: l.calendarRestSet,
                     onPressed: () => pop('rest'),
+                  )
+                else
+                  // Ruhe-Einheit mit Lauf oder vergangen: nichts änderbar.
+                  Text(
+                    l.calendarFrozen,
+                    key: const Key('calendar_frozen'),
+                    style: text.bodySmall,
                   ),
               ],
             ),
@@ -1478,7 +1490,7 @@ class _RestDayDialogState extends State<_RestDayDialog> {
               onPressed: c != null && c.allowed
                   ? () =>
                         Navigator.of(context)
-                            .pop(_RestChoice(moveTo, c.unit?.id))
+                            .pop(_RestChoice(moveTo, c.expectedUnitId))
                   : null,
               child: Text(l.calendarRestConfirm),
             ),
