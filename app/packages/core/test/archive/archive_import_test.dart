@@ -1328,19 +1328,23 @@ void main() {
       expect(archiveSectionsFor(7), hasLength(23));
     });
 
-    test('Abschnitt 19 goals: bis Schema 6 reserviert, ab Schema 7 mit Spalten', () {
-      for (final schema in [4, 5, 6]) {
-        final g = archiveSectionsFor(schema).firstWhere((s) => s.name == 'goals');
-        expect(g.isReserved, isTrue, reason: '$schema');
-        expect(g.columns, isEmpty, reason: '$schema');
-      }
-      final g = archiveSectionsFor(7).firstWhere((s) => s.name == 'goals');
-      expect(g.isReserved, isFalse);
-      expect(g.columns, hasLength(12));
-      // Reihenfolge der Abschnitte bleibt über die Schemata gleich.
-      expect(archiveSectionsFor(7)[18].name, 'goals');
-      expect(archiveSectionsFor(6)[18].name, 'goals');
-    });
+    test(
+      'Abschnitt 19 goals: bis Schema 6 reserviert, ab Schema 7 mit Spalten',
+      () {
+        for (final schema in [4, 5, 6]) {
+          final g = archiveSectionsFor(schema)
+              .firstWhere((s) => s.name == 'goals');
+          expect(g.isReserved, isTrue, reason: '$schema');
+          expect(g.columns, isEmpty, reason: '$schema');
+        }
+        final g = archiveSectionsFor(7).firstWhere((s) => s.name == 'goals');
+        expect(g.isReserved, isFalse);
+        expect(g.columns, hasLength(12));
+        // Reihenfolge der Abschnitte bleibt über die Schemata gleich.
+        expect(archiveSectionsFor(7)[18].name, 'goals');
+        expect(archiveSectionsFor(6)[18].name, 'goals');
+      },
+    );
 
     test(
       'Format 2 mit Schema 5 (21 Abschnitte, ohne Prognose) bleibt lesbar',
@@ -1436,40 +1440,61 @@ void main() {
 
     test('Ziel mit falschem Typ oder fehlender Spalte: beschädigt', () async {
       await rejectsV2(
-        v2(schema: 7, extra: {'goals': [goal(runDays: '21')]}),
+        v2(
+          schema: 7,
+          extra: {
+            'goals': [goal(runDays: '21')],
+          },
+        ),
       );
       await rejectsV2(
-        v2(schema: 7, extra: {'goals': [goal()..remove('hard_session')]}),
+        v2(
+          schema: 7,
+          extra: {
+            'goals': [goal()..remove('hard_session')],
+          },
+        ),
       );
       await rejectsV2(
-        v2(schema: 7, extra: {'goals': [goal()..['can_run_30'] = null]}),
+        v2(
+          schema: 7,
+          extra: {
+            'goals': [goal()..['can_run_30'] = null],
+          },
+        ),
       );
     });
 
-    test('Ziel in Schema 6 oder 5 (reservierter Abschnitt): beschädigt', () async {
-      for (final schema in [5, 6]) {
-        final l = v2(schema: schema);
-        final at = l.indexOf(_section('goals'));
-        l.insert(at + 1, _rowLine(goal()));
-        // Zähler der Endzeile angepasst, damit nur die Zeile selbst stört.
-        l[l.length - 1] = _endLine({
-          for (final sec in archiveSectionsFor(schema))
-            sec.name: switch (sec.name) {
-              'runs' => 2,
-              'run_feedback' || 'manual_trainings' || 'goals' => 1,
-              _ => 0,
-            },
-        });
+    test(
+      'Ziel in Schema 6 oder 5 (reservierter Abschnitt): beschädigt',
+      () async {
+        for (final schema in [5, 6]) {
+          final l = v2(schema: schema);
+          final at = l.indexOf(_section('goals'));
+          l.insert(at + 1, _rowLine(goal()));
+          // Zähler der Endzeile angepasst, damit nur die Zeile selbst stört.
+          l[l.length - 1] = _endLine({
+            for (final sec in archiveSectionsFor(schema))
+              sec.name: switch (sec.name) {
+                'runs' => 2,
+                'run_feedback' || 'manual_trainings' || 'goals' => 1,
+                _ => 0,
+              },
+          });
+          await rejectsV2(l);
+        }
+      },
+    );
+
+    test(
+      'Plan-Zeile in Schema 7 (Abschnitt 20 bleibt reserviert): beschädigt',
+      () async {
+        final l = v2(schema: 7);
+        final at = l.indexOf(_section('plans'));
+        l.insert(at + 1, _rowLine({'id': 1}));
         await rejectsV2(l);
-      }
-    });
-
-    test('Plan-Zeile in Schema 7 (Abschnitt 20 bleibt reserviert): beschädigt', () async {
-      final l = v2(schema: 7);
-      final at = l.indexOf(_section('plans'));
-      l.insert(at + 1, _rowLine({'id': 1}));
-      await rejectsV2(l);
-    });
+      },
+    );
 
     test('Schema 6 ohne die Prognose-Abschnitte: beschädigt', () async {
       final l = v2();
