@@ -528,7 +528,7 @@ CREATE TABLE plan_units (
   minutes INTEGER NOT NULL CHECK (minutes >= 0),
   structure TEXT NOT NULL CHECK (json_valid(structure)),
   run_id INTEGER REFERENCES runs (id) ON DELETE SET NULL,
-  pinned BOOLEAN NOT NULL CHECK (pinned IN (0, 1)),
+  pinned BOOLEAN NOT NULL CHECK (pinned IN (0, 1))
 ) AS PlanUnitRow;
 
 CREATE INDEX plan_units_day ON plan_units (day);
