@@ -88,6 +88,7 @@ export 'src/load/training_load_service.dart';
 export 'src/fitness/variation_coefficient.dart';
 export 'src/goals/training_goal.dart';
 export 'src/plan/generate_plan.dart';
+export 'src/plan/goal_feasibility.dart';
 export 'src/plan/plan_change.dart';
 export 'src/plan/plan_inputs.dart';
 export 'src/plan/plan_parameters.dart';
