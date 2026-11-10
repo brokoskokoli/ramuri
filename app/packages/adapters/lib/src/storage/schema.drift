@@ -460,3 +460,77 @@ CREATE TABLE rejected_suggestions (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   run_id INTEGER NOT NULL UNIQUE REFERENCES runs (id) ON DELETE CASCADE
 );
+
+-- Trainingsziel (WP21 Teil B, FR-0135 bis FR-0137, Schema 7): höchstens eine
+-- Zeile (id = 1). Zahlen sind hier nur positiv, die Regeln (Lauftage
+-- PAR-197, Datum) prüft `core`. Lauftage als Bitmaske, Bit 0 = Montag bis
+-- Bit 6 = Sonntag; 1..127 heißt mindestens ein Tag. Ein Zeitziel trägt Strecke
+-- und Zielzeit, ein Streckenziel nur die Strecke, ein offenes Ziel weder
+-- Strecke, Zeit noch Datum (FR-0137, PAR-196). Heutiger Stand (PAR-192):
+-- `current_weekly_s` und `can_run_30` dürfen beide leer/unbekannt sein, wenn
+-- Läufe vorhanden sind; das prüft `core`, nicht das Schema. `hard_session` ist
+-- der gespeicherte Schalter (PAR-198).
+CREATE TABLE goals (
+  id INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
+  type TEXT NOT NULL CHECK (type IN ('distance', 'time', 'open')),
+  distance TEXT CHECK (distance IN ('fiveKilometers', 'tenKilometers', 'halfMarathon')),
+  target_s REAL CHECK (target_s > 0),
+  target_date TEXT CHECK (date(target_date) IS target_date),
+  run_days INTEGER NOT NULL CHECK (run_days BETWEEN 1 AND 127),
+  max_session_s REAL NOT NULL CHECK (max_session_s > 0),
+  weekly_cap_s REAL NOT NULL CHECK (weekly_cap_s > 0),
+  current_weekly_s REAL CHECK (current_weekly_s > 0),
+  can_run_30 TEXT NOT NULL CHECK (can_run_30 IN ('yes', 'no', 'unknown')),
+  hard_session BOOLEAN NOT NULL CHECK (hard_session IN (0, 1)),
+  created_at_us INTEGER NOT NULL,
+  CHECK (
+    (type = 'open' AND distance IS NULL AND target_s IS NULL AND target_date IS NULL) OR
+    (type = 'distance' AND distance IS NOT NULL AND target_s IS NULL) OR
+    (type = 'time' AND distance IS NOT NULL AND target_s IS NOT NULL)
+  )
+) AS GoalRow;
+
+-- Fassungen des Trainingsplans (WP21 Teil C, ADR-0010 Punkt 1, 3, 5, 8,
+-- Schema 7). Eine Zeile je echter Änderung; die Reihe ist der Verlauf.
+-- `trigger` ist der Auslöser, `reason` der Grund-Code (der Satz entsteht in
+-- der Oberfläche). `inputs` und `summary` sind JSON-Text. Hängt am Ziel
+-- (ON DELETE CASCADE).
+CREATE TABLE plans (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  goal_id INTEGER NOT NULL REFERENCES goals (id) ON DELETE CASCADE,
+  created_at_us INTEGER NOT NULL,
+  valid_from TEXT NOT NULL CHECK (date(valid_from) IS valid_from),
+  "trigger" TEXT NOT NULL CHECK ("trigger" IN ('create', 'goalChange', 'weekly', 'feedback', 'run', 'pause', 'manual', 'ruleVersion')),
+  reason TEXT NOT NULL CHECK (length(reason) > 0),
+  method TEXT NOT NULL CHECK (length(method) > 0),
+  method_version INTEGER NOT NULL CHECK (method_version >= 1),
+  parameter_version INTEGER NOT NULL CHECK (parameter_version >= 1),
+  inputs TEXT NOT NULL CHECK (json_valid(inputs)),
+  summary TEXT NOT NULL CHECK (json_valid(summary))
+) AS PlanRow;
+
+CREATE INDEX plans_goal ON plans (goal_id);
+
+-- Einheiten des Plans. `plan_id` ist die Fassung, die die Einheit erzeugt hat
+-- (ON DELETE CASCADE). `week` zählt ab dem Anker der Fassung. `structure`
+-- ist JSON-Text: Abschnitte mit Dauer und Zielintensität (RPE, Pace-Bereich,
+-- Pulsbereich, Grundlage-Code, Kennzeichnung Schätzung; FR-0144, FR-0153).
+-- Die Zielintensität steht nur dort, nicht in eigenen Spalten. `run_id` ordnet einen Lauf zu
+-- (ON DELETE SET NULL: ein gelöschter Lauf löscht keine Plangeschichte, die
+-- Einheit gilt dann als ausgefallen).
+CREATE TABLE plan_units (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER NOT NULL REFERENCES plans (id) ON DELETE CASCADE,
+  day TEXT NOT NULL CHECK (date(day) IS day),
+  week INTEGER NOT NULL CHECK (week >= 0),
+  phase TEXT NOT NULL CHECK (phase IN ('entry', 'build', 'reduction')),
+  kind TEXT NOT NULL CHECK (kind IN ('easy', 'long', 'intervals', 'tempo', 'progressive', 'walkRun', 'rest')),
+  minutes INTEGER NOT NULL CHECK (minutes >= 0),
+  structure TEXT NOT NULL CHECK (json_valid(structure)),
+  run_id INTEGER REFERENCES runs (id) ON DELETE SET NULL,
+  pinned BOOLEAN NOT NULL CHECK (pinned IN (0, 1))
+) AS PlanUnitRow;
+
+CREATE INDEX plan_units_day ON plan_units (day);
+CREATE INDEX plan_units_plan ON plan_units (plan_id);
+CREATE INDEX plan_units_run ON plan_units (run_id);

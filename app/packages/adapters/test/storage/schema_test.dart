@@ -65,17 +65,41 @@ const _rawTables = [
   'raw_steps',
 ];
 
+const _goalSql =
+    'INSERT INTO goals (id, type, distance, target_s, target_date, '
+    'run_days, max_session_s, weekly_cap_s, current_weekly_s, can_run_30, '
+    'hard_session, created_at_us) '
+    'VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 99)';
+
+const _planSql =
+    'INSERT INTO plans (id, goal_id, created_at_us, valid_from, "trigger", '
+    'reason, method, method_version, parameter_version, inputs, summary) '
+    "VALUES (1, 1, 99, '2030-01-01', 'create', 'start', 'training-plan', 1, 1, "
+    "'{}', '{}')";
+
+/// Einheit der Fassung 1: Tag und Lauf als Parameter.
+const _unitSql =
+    'INSERT INTO plan_units (plan_id, day, week, phase, kind, minutes, '
+    'structure, run_id, pinned) '
+    "VALUES (1, ?, 0, 'build', 'easy', 30, '[]', ?, 0)";
+
 Future<void> _exec(
   AppDatabase db,
   String sql, [
   List<Object?> args = const [],
 ]) => db.customStatement(sql, args);
 
-Future<int> _count(AppDatabase db, String table, [int? run]) async {
+Future<int> _count(
+  AppDatabase db,
+  String table, [
+  int? run,
+  String? where,
+]) async {
   final rows = await db
       .customSelect(
         'SELECT count(*) c FROM $table'
-        '${run == null ? '' : ' WHERE run_id = $run'}',
+        '${run == null ? '' : ' WHERE run_id = $run'}'
+        '${where == null ? '' : ' WHERE $where'}',
       )
       .get();
   return rows.single.data['c'] as int;
@@ -113,11 +137,11 @@ void main() {
 
   group('Schema und Dump', () {
     test(
-      'erzeugtes Schema der verschlüsselten Datenbank = Dump Version 6',
+      'erzeugtes Schema der verschlüsselten Datenbank = Dump Version 7',
       () async {
         final db = await openDb();
         addTearDown(db.close);
-        await SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 6);
+        await SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 7);
       },
     );
 
@@ -132,19 +156,19 @@ void main() {
       addTearDown(db.close);
       await _exec(db, 'DROP TRIGGER raw_steps_no_update');
       await expectLater(
-        SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 6),
+        SchemaVerifier(GeneratedHelper()).migrateAndValidate(db, 7),
         throwsA(isA<SchemaMismatch>()),
       );
     });
 
-    test('Meta-Tabelle aus Teil A ist Teil von Version 6', () async {
+    test('Meta-Tabelle aus Teil A ist Teil von Version 7', () async {
       final db = await openDb();
       addTearDown(db.close);
       await _exec(db, "INSERT INTO storage_meta VALUES ('k', 'v')");
       expect(await _count(db, 'storage_meta'), 1);
-      expect(db.schemaVersion, 6);
+      expect(db.schemaVersion, 7);
       final v = await db.customSelect('PRAGMA user_version').get();
-      expect(v.single.data.values.single, 6);
+      expect(v.single.data.values.single, 7);
     });
   });
 
@@ -168,15 +192,17 @@ void main() {
         for (final fk in fks) {
           if (fk.data['table'] == 'runs') {
             dependent.add(t);
+            // Die Plan-Einheit bleibt, nur die Zuordnung endet (ADR-0010
+            // Punkt 8); alles andere kaskadiert mit dem Lauf.
             expect(
               fk.data['on_delete'],
-              'CASCADE',
-              reason: '$t muss mit dem Lauf kaskadieren',
+              t == 'plan_units' ? 'SET NULL' : 'CASCADE',
+              reason: '$t: Verhalten beim Löschen des Laufs',
             );
           }
         }
       }
-      expect(dependent, _rowFor.keys.toSet());
+      expect(dependent, {..._rowFor.keys, 'plan_units'});
     });
 
     test(
@@ -604,8 +630,8 @@ void main() {
   });
 
   group('Migrationen', () {
-    test('echte Migration v1 -> v6 auf befüllter v1-Datenbank (alle Schritte): Daten bleiben, '
-        'neue Spalten NULL (nie 0), Schema = Dump v6', () async {
+    test('echte Migration v1 -> v7 auf befüllter v1-Datenbank (alle Schritte): Daten bleiben, '
+        'neue Spalten NULL (nie 0), Schema = Dump v7', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v1 = await verifier.schemaAt(1);
       v1.rawDatabase
@@ -625,7 +651,7 @@ void main() {
       _fillComputedV2(v1.rawDatabase);
       final db = AppDatabase(v1.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 6);
+      await verifier.migrateAndValidate(db, 7);
       final rows = await db
           .customSelect(
             'SELECT latitude_deg, accuracy_m, speed_mps, speed_accuracy_mps, '
@@ -656,8 +682,8 @@ void main() {
     });
 
     test(
-      'echte Migration v2 -> v6 auf befüllter v2-Datenbank: Daten bleiben, '
-      'Grund für Zeilen ohne Wert, neue Spalten NULL, Schema = Dump v6',
+      'echte Migration v2 -> v7 auf befüllter v2-Datenbank: Daten bleiben, '
+      'Grund für Zeilen ohne Wert, neue Spalten NULL, Schema = Dump v7',
       () async {
         final verifier = SchemaVerifier(GeneratedHelper());
         final v2 = await verifier.schemaAt(2);
@@ -673,7 +699,7 @@ void main() {
         );
         final db = AppDatabase(v2.newConnection());
         addTearDown(db.close);
-        await verifier.migrateAndValidate(db, 6);
+        await verifier.migrateAndValidate(db, 7);
         final speed = await db
             .customSelect('SELECT speed_mps FROM raw_positions')
             .getSingle();
@@ -682,8 +708,8 @@ void main() {
       },
     );
 
-    test('echte Migration v3 -> v6 auf befüllter v3-Datenbank: Kurzfassung bleibt, '
-        'neue Spalten NULL (nie 0), Schema = Dump v6', () async {
+    test('echte Migration v3 -> v7 auf befüllter v3-Datenbank: Kurzfassung bleibt, '
+        'neue Spalten NULL (nie 0), Schema = Dump v7', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v3 = await verifier.schemaAt(3);
       v3.rawDatabase
@@ -699,7 +725,7 @@ void main() {
         );
       final db = AppDatabase(v3.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 6);
+      await verifier.migrateAndValidate(db, 7);
       final row = await db
           .customSelect('SELECT * FROM preprocessing_results')
           .getSingle();
@@ -810,14 +836,177 @@ void main() {
       );
     });
 
-    test('Dump Version 6 liegt vor, genau fünf Schritte (1 -> 2, 2 -> 3, 3 -> 4, 4 -> 5, 5 -> 6)', () async {
+    test('echte Migration v6 -> v7 auf befüllter v6-Datenbank: Zeilen bleiben, '
+        'Tabelle goals leer und nimmt ein Ziel an, Schema = Dump v7', () async {
+      final verifier = SchemaVerifier(GeneratedHelper());
+      final v6 = await verifier.schemaAt(6);
+      v6.rawDatabase
+        ..execute(
+          "INSERT INTO runs (id, state, started_at_us, ended_at_us) "
+          "VALUES (7, 'finished', 1, 9)",
+        )
+        ..execute("INSERT INTO settings VALUES ('units', 'km', 1)")
+        ..execute("INSERT INTO profile (id, birth_year) VALUES (1, 1990)")
+        ..execute(
+          "INSERT INTO reference_performances (kind, distance_m, time_s, "
+          "performed_on, created_at_us, run_id) "
+          "VALUES ('race', 5000.0, 1500.0, '2030-01-01', 99, NULL)",
+        )
+        ..execute(
+          "INSERT INTO manual_trainings (day, kind, duration_s, rpe) "
+          "VALUES ('2026-11-01', 'run', 1800, 4)",
+        );
+      final db = AppDatabase(v6.newConnection());
+      addTearDown(db.close);
+      await verifier.migrateAndValidate(db, 7);
+      expect(await _count(db, 'runs'), 1);
+      expect(await _count(db, 'settings'), 1);
+      expect(await _count(db, 'profile'), 1);
+      expect(await _count(db, 'reference_performances'), 1);
+      expect(await _count(db, 'manual_trainings'), 1);
+      expect(await _count(db, 'goals'), 0);
+      expect(await _count(db, 'plans'), 0);
+      expect(await _count(db, 'plan_units'), 0);
+      await _exec(db, 'PRAGMA foreign_keys = ON');
+      await _exec(db, _goalSql, [
+        'open',
+        null,
+        null,
+        null,
+        5,
+        3600.0,
+        18000.0,
+        null,
+        'unknown',
+        0,
+      ]);
+      expect(await _count(db, 'goals'), 1);
+      // Plan: Fassung und Einheit mit Lauf; Lauf löschen setzt nur run_id NULL,
+      // Ziel löschen kaskadiert über Fassung und Einheiten.
+      await _exec(db, _planSql);
+      await _exec(db, _unitSql, ['2030-01-01', 7]);
+      await _exec(db, _unitSql, ['2030-01-02', null]);
+      expect(await _count(db, 'plans'), 1);
+      expect(await _count(db, 'plan_units'), 2);
+      await _exec(db, 'DELETE FROM runs WHERE id = 7');
+      expect(await _count(db, 'plan_units'), 2);
+      expect(await _count(db, 'plan_units', null, 'run_id IS NULL'), 2);
+      await _exec(db, 'DELETE FROM goals');
+      expect(await _count(db, 'plans'), 0);
+      expect(await _count(db, 'plan_units'), 0);
+    });
+
+    test('Ziel: CHECKs der Tabelle (Art, Felder je Art, Zahlen, Datum, Tage, '
+        'nur eine Zeile)', () async {
       final db = await openDb();
       addTearDown(db.close);
-      expect(db.migrationSteps.keys, [1, 2, 3, 4, 5]);
+      Future<void> add(
+        Object type,
+        Object? dist,
+        Object? time,
+        Object? date,
+        Object days,
+        Object session,
+        Object cap, [
+        int id = 1,
+        Object? weekly,
+        Object can30 = 'unknown',
+        Object hard = 0,
+      ]) => _exec(db, _goalSql.replaceFirst('VALUES (1,', 'VALUES ($id,'), [
+        type,
+        dist,
+        time,
+        date,
+        days,
+        session,
+        cap,
+        weekly,
+        can30,
+        hard,
+      ]);
+      // Gültige Zeilen je Art (jeweils die einzige Zeile, danach geleert).
+      for (final ok in <List<Object?>>[
+        ['open', null, null, null, 127, 1.0, 1.0],
+        ['distance', 'tenKilometers', null, '2030-01-01', 1, 1.0, 1.0],
+        ['distance', 'halfMarathon', null, null, 64, 1.0, 1.0],
+        ['time', 'fiveKilometers', 1500.0, '2030-01-01', 5, 1.0, 1.0],
+        ['open', null, null, null, 5, 1.0, 1.0, 3600.0, 'yes', 1],
+        ['open', null, null, null, 5, 1.0, 1.0, null, 'no', 0],
+      ]) {
+        await add(
+          ok[0]!,
+          ok[1],
+          ok[2],
+          ok[3],
+          ok[4]!,
+          ok[5]!,
+          ok[6]!,
+          1,
+          ok.length > 7 ? ok[7] : null,
+          ok.length > 8 ? ok[8]! : 'unknown',
+          ok.length > 9 ? ok[9]! : 0,
+        );
+        await _exec(db, 'DELETE FROM goals');
+      }
+      for (final bad in <List<Object?>>[
+        ['marathon', 'tenKilometers', null, null, 5, 1.0, 1.0],
+        ['distance', 'marathon', null, null, 5, 1.0, 1.0],
+        ['open', 'fiveKilometers', null, null, 5, 1.0, 1.0],
+        ['open', null, 1500.0, null, 5, 1.0, 1.0],
+        ['open', null, null, '2030-01-01', 5, 1.0, 1.0],
+        ['distance', null, null, null, 5, 1.0, 1.0],
+        ['distance', 'fiveKilometers', 1500.0, null, 5, 1.0, 1.0],
+        ['time', 'fiveKilometers', null, null, 5, 1.0, 1.0],
+        ['time', null, 1500.0, null, 5, 1.0, 1.0],
+        ['time', 'fiveKilometers', 0.0, null, 5, 1.0, 1.0],
+        ['distance', 'fiveKilometers', null, '1.1.2030', 5, 1.0, 1.0],
+        ['distance', 'fiveKilometers', null, '2030-02-30', 5, 1.0, 1.0],
+        ['open', null, null, null, 0, 1.0, 1.0],
+        ['open', null, null, null, 128, 1.0, 1.0],
+        ['open', null, null, null, 5, 0.0, 1.0],
+        ['open', null, null, null, 5, 1.0, 0.0],
+        ['open', null, null, null, 5, 1.0, 1.0, 0.0],
+        ['open', null, null, null, 5, 1.0, 1.0, -5.0],
+        ['open', null, null, null, 5, 1.0, 1.0, null, 'maybe'],
+        ['open', null, null, null, 5, 1.0, 1.0, null, 'yes', 2],
+      ]) {
+        await expectLater(
+          add(
+            bad[0]!,
+            bad[1],
+            bad[2],
+            bad[3],
+            bad[4]!,
+            bad[5]!,
+            bad[6]!,
+            1,
+            bad.length > 7 ? bad[7] : null,
+            bad.length > 8 ? bad[8]! : 'unknown',
+            bad.length > 9 ? bad[9]! : 0,
+          ),
+          throwsA(anything),
+          reason: '$bad',
+        );
+      }
+      await add('open', null, null, null, 5, 1.0, 1.0);
+      await expectLater(
+        add('open', null, null, null, 5, 1.0, 1.0, 2),
+        throwsA(anything),
+        reason: 'höchstens eine Zeile (id = 1)',
+      );
     });
 
     test(
-      'synthetischer Schritt v6 -> v7 auf verschlüsselter Datei erhält Daten',
+      'Dump Version 7 liegt vor, genau sechs Schritte (1 -> 2 bis 6 -> 7)',
+      () async {
+        final db = await openDb();
+        addTearDown(db.close);
+        expect(db.migrationSteps.keys, [1, 2, 3, 4, 5, 6]);
+      },
+    );
+
+    test(
+      'synthetischer Schritt v7 -> v8 auf verschlüsselter Datei erhält Daten',
       () async {
         final v1 = await openDb();
         await _insertRun(v1, 7);
@@ -840,7 +1029,7 @@ void main() {
               .data
               .values
               .single,
-          7,
+          8,
         );
         // Schritt wirkte, alte Daten, Trigger und Kaskade bleiben.
         await _exec(v2, "UPDATE settings SET note = 'neu'");
@@ -855,7 +1044,7 @@ void main() {
     );
 
     test(
-      'fehlender Schritt: Datenbank öffnet nicht und bleibt Version 6',
+      'fehlender Schritt: Datenbank öffnet nicht und bleibt Version 7',
       () async {
         await (await openDb()).close();
         final storage = EncryptedStorage(
@@ -880,7 +1069,7 @@ void main() {
               .data
               .values
               .single,
-          6,
+          7,
         );
       },
     );
@@ -891,7 +1080,7 @@ void main() {
         databaseBuilder: (e) => _SyntheticV2(e, onStep: () {}),
       );
       await (await storage.open(testKey())).close();
-      // Datei ist jetzt Version 7, die App kennt nur 6.
+      // Datei ist jetzt Version 8, die App kennt nur 7.
       await expectLater(
         EncryptedStorage(path).open(testKey()),
         throwsA(
@@ -922,7 +1111,7 @@ void main() {
       },
     );
 
-    test('Schritt 2 von 2 scheitert: Schritt 6 ist zurückgerollt, Version 6, '
+    test('Schritt 2 von 2 scheitert: Schritt 7 ist zurückgerollt, Version 7, '
         'Erneut versuchen läuft sauber', () async {
       await (await openDb()).close();
       final failing = EncryptedStorage(
@@ -946,7 +1135,7 @@ void main() {
       expect(
         columns.map((r) => r.data['name']),
         isNot(contains('note')),
-        reason: 'Schritt 6 muss mit zurückgerollt sein',
+        reason: 'Schritt 7 muss mit zurückgerollt sein',
       );
       expect(
         (await v1.customSelect('PRAGMA user_version').get())
@@ -954,10 +1143,10 @@ void main() {
             .data
             .values
             .single,
-        6,
+        7,
       );
       await v1.close();
-      // Erneut versuchen mit einem funktionierenden Schritt 6.
+      // Erneut versuchen mit einem funktionierenden Schritt 7.
       final retry = EncryptedStorage(
         path,
         databaseBuilder: (e) => _SyntheticV2(e, onStep: () {}),
@@ -971,12 +1160,12 @@ void main() {
             .data
             .values
             .single,
-        7,
+        8,
       );
     });
 
     test(
-      'Version steht in beforeOpen schon auf 7, also vor drifts eigenem '
+      'Version steht in beforeOpen schon auf 8, also vor drifts eigenem '
       'Versionsschreiben (Reihenfolge PRAGMA/COMMIT: siehe nächster Test)',
       () async {
         await (await openDb()).close();
@@ -987,7 +1176,7 @@ void main() {
               _SyntheticV2(e, onStep: () {}, onBeforeOpenVersion: observed.add),
         );
         await (await storage.open(testKey())).close();
-        expect(observed, [7]);
+        expect(observed, [8]);
       },
     );
 
@@ -1005,7 +1194,7 @@ void main() {
       final lines = (await logs.text()).split('\n');
       final step = lines.indexWhere((l) => l.contains('ADD COLUMN note'));
       final pragma = lines.indexWhere(
-        (l) => l.contains('PRAGMA user_version = 7'),
+        (l) => l.contains('PRAGMA user_version = 8'),
       );
       final commit = lines.indexWhere((l) => l.contains('COMMIT'), step);
       expect(step, isNonNegative, reason: '$lines');
@@ -1015,7 +1204,7 @@ void main() {
   });
 }
 
-/// Test-Datenbank "Version 7" mit einem Schritt, der nur im Test existiert.
+/// Test-Datenbank "Version 8" mit einem Schritt, der nur im Test existiert.
 class _SyntheticV2 extends AppDatabase {
   _SyntheticV2(super.e, {required this.onStep, this.onBeforeOpenVersion});
   final void Function() onStep;
@@ -1038,12 +1227,12 @@ class _SyntheticV2 extends AppDatabase {
   }
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   Map<int, MigrationStep> get migrationSteps => {
     ...super.migrationSteps,
-    6: (Migrator m) async {
+    7: (Migrator m) async {
       onStep();
       await m.database.customStatement(
         'ALTER TABLE settings ADD COLUMN note TEXT',
@@ -1056,29 +1245,11 @@ class _NoStepV2 extends AppDatabase {
   _NoStepV2(super.e);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 }
 
 class _FailingStepV2 extends AppDatabase {
   _FailingStepV2(super.e);
-
-  @override
-  int get schemaVersion => 7;
-
-  @override
-  Map<int, MigrationStep> get migrationSteps => {
-    ...super.migrationSteps,
-    6: (Migrator m) async {
-      await m.database.customStatement(
-        "INSERT INTO no_such_table VALUES ('$marker')",
-      );
-    },
-  };
-}
-
-/// Version 8 mit zwei Schritten: Schritt 6 gelingt, Schritt 7 wirft.
-class _TwoStepsSecondFails extends AppDatabase {
-  _TwoStepsSecondFails(super.e);
 
   @override
   int get schemaVersion => 8;
@@ -1086,12 +1257,30 @@ class _TwoStepsSecondFails extends AppDatabase {
   @override
   Map<int, MigrationStep> get migrationSteps => {
     ...super.migrationSteps,
-    6: (Migrator m) async {
+    7: (Migrator m) async {
+      await m.database.customStatement(
+        "INSERT INTO no_such_table VALUES ('$marker')",
+      );
+    },
+  };
+}
+
+/// Version 9 mit zwei Schritten: Schritt 7 gelingt, Schritt 8 wirft.
+class _TwoStepsSecondFails extends AppDatabase {
+  _TwoStepsSecondFails(super.e);
+
+  @override
+  int get schemaVersion => 9;
+
+  @override
+  Map<int, MigrationStep> get migrationSteps => {
+    ...super.migrationSteps,
+    7: (Migrator m) async {
       await m.database.customStatement(
         'ALTER TABLE settings ADD COLUMN note TEXT',
       );
     },
-    7: (Migrator m) async {
+    8: (Migrator m) async {
       await m.database.customStatement(
         "INSERT INTO no_such_table VALUES ('x')",
       );

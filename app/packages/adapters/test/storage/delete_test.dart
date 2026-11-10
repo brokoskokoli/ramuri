@@ -195,6 +195,19 @@ void main() {
       );
     }
     await s.prediction.rejectSuggestion(a);
+    // Trainingsziel (Schema 7): hängt an keinem Lauf, nur die Löschschleife
+    // erreicht es.
+    await s.goals.save(
+      TrainingGoal(
+        hardSessionEnabled: false,
+        type: GoalType.open,
+        runDays: const {1, 3},
+        maxSessionSeconds: 3600,
+        weeklyCapSeconds: 10800,
+        createdAt: at(11),
+      ),
+      today: DateTime.utc(2026, 11, 1),
+    );
     final tables =
         (await db
                 .customSelect(

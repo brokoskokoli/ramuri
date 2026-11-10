@@ -205,6 +205,40 @@ void main() {
     },
   );
 
+  test('archive_v2_s7: Format 2, Schema 7, 24 Abschnitte, Ziel, Plan und Einheiten', () async {
+    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s7');
+    final plain = await _collect(
+      createArchiveCipher().decrypt(
+        v['password'] as String,
+        Stream.value(_read(v['file'] as String)),
+      ),
+    );
+    expect(_read(v['file'] as String)[9], 2);
+    final text = utf8.decode(gzip.decode(plain));
+    expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+    final lines = const LineSplitter().convert(text);
+    expect(jsonDecode(lines.first), {
+      'type': 'manifest',
+      'format': 2,
+      'schema_version': 7,
+      'created_at_us': 1793000000000000,
+    });
+    final sections = [
+      for (final l in lines)
+        if ((jsonDecode(l) as Map)['type'] == 'section')
+          (jsonDecode(l) as Map)['name'],
+    ];
+    expect(sections.length, 24);
+    expect(sections.sublist(18, 21), ['goals', 'plans', 'active_warning']);
+    expect(sections.last, 'plan_units');
+    final end = jsonDecode(lines.last) as Map<String, dynamic>;
+    expect(end['rows'], v['row_counts']);
+    expect(end['rows']['goals'], 1);
+    expect(end['rows']['plans'], 1);
+    expect(end['rows']['plan_units'], 2);
+    expect(end['rows']['active_warning'], 0);
+  });
+
   group('Dart verschlüsselt byte-gleich mit festem Salz', () {
     // Hook: createArchiveCipher(randomBytes:) liefert das feste Salz; das
     // Salz ist der einzige Zufall des Formats.

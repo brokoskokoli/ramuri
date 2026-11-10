@@ -283,7 +283,7 @@ void main() {
       expect(await count(db, 'manual_trainings'), 1);
     });
 
-    test('Migration läuft über die App-Strategie (Version 4 -> 6) auf verschlüsselter Datei', () async {
+    test('Migration läuft über die App-Strategie (Version 4 -> 7) auf verschlüsselter Datei', () async {
       // Schema 4 aus dem Dump aufbauen: zwei Tabellen der App weglassen.
       final s0 = await EncryptedStorage(path).open(testKey());
       final db0 = (s0 as EncryptedStorageSession).database;
@@ -293,6 +293,10 @@ void main() {
       await exec(db0, 'DROP TABLE manual_trainings');
       await exec(db0, 'DROP TABLE reference_performances');
       await exec(db0, 'DROP TABLE rejected_suggestions');
+      // Ziel und Plan (Schema 7): samt Indizes, die die Migration neu anlegt.
+      await exec(db0, 'DROP TABLE plan_units');
+      await exec(db0, 'DROP TABLE plans');
+      await exec(db0, 'DROP TABLE goals');
       await exec(db0, 'PRAGMA user_version = 4');
       await s0.close();
 
@@ -307,7 +311,7 @@ void main() {
             .data
             .values
             .single,
-        6,
+        7,
       );
       await db1.validateDatabaseSchema();
     });

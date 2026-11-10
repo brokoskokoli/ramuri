@@ -216,6 +216,46 @@ void main() {
     expect(_rows(lines, 'rejected_suggestions'), [
       {'id': 1, 'run_id': 1},
     ]);
+    expect(_rows(lines, 'goals'), [
+      {
+        'id': 1,
+        'type': 'time',
+        'distance': 'tenKilometers',
+        'target_s': 3000.0,
+        'target_date': '2027-03-20',
+        'run_days': 21,
+        'max_session_s': 3600.0,
+        'weekly_cap_s': 14400.0,
+        'current_weekly_s': 7200.0,
+        'can_run_30': 'yes',
+        'hard_session': 1,
+        'created_at_us': 9,
+      },
+    ]);
+    expect(_rows(lines, 'plans'), [
+      {
+        'id': 1,
+        'goal_id': 1,
+        'created_at_us': 10,
+        'valid_from': '2026-11-02',
+        'trigger': 'create',
+        'reason': 'goalCreated',
+        'method': 'plan-rules',
+        'method_version': 1,
+        'parameter_version': 1,
+        'inputs': '{"inputsVersion":1,"anchor":"2026-11-02","startWeeklyMinutes":120,"walkRunWeeks":0,"easyPaceSecondsPerKm":null,"easyRunCount":0,"lastWeekMinutes":null,"achievedShare":null,"walkRunStart":null,"walkRunFrom":null,"intensity":null,"today":"2026-11-02"}',
+        'summary': '{"weeks":12,"estimated":true}',
+      },
+    ]);
+    final units = _rows(lines, 'plan_units');
+    expect(units, hasLength(2));
+    expect(units[0]['run_id'], 1);
+    expect(units[0]['pinned'], 1);
+    expect(units[0]['kind'], 'walkRun');
+    expect(units[1]['run_id'], isNull);
+    expect(units[1]['structure'], '[]');
+    // Platzhalter ohne Tabelle bleiben leer.
+    expect(_rows(lines, 'active_warning'), isEmpty);
     // Werte bleiben exakt (Typen, NULL, Kennungen).
     expect(_rows(lines, 'runs').single, {
       'id': 1,

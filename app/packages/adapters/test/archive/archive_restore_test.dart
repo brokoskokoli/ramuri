@@ -461,6 +461,147 @@ void main() {
     expect(await q.rejectedSuggestions(), {1});
   });
 
+  test('Ziel zählt als Daten: App ist nicht leer', () async {
+    expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+    await (session as GoalStorage).goals.save(
+      TrainingGoal(
+        type: GoalType.open,
+        runDays: const {1, 3},
+        maxSessionSeconds: 3600,
+        weeklyCapSeconds: 7200,
+        hardSessionEnabled: false,
+        createdAt: DateTime.utc(2026, 11, 1),
+      ),
+      today: DateTime.utc(2026, 11, 1),
+    );
+    expect(await ArchiveRestoreService.isEmpty(session), isFalse);
+    await expectLater(
+      service().restore(path: archivePath, password: _password),
+      throwsA(
+        isA<ArchiveRestoreException>().having(
+          (e) => e.failure,
+          'failure',
+          ArchiveRestoreFailure.notEmpty,
+        ),
+      ),
+    );
+  });
+
+  test('Rundgang: das Ziel kommt mit dem Archiv zurück, ein vorhandenes wird '
+      'beim Ersetzen ersetzt', () async {
+    await addOldData();
+    await (session as GoalStorage).goals.save(
+      TrainingGoal(
+        type: GoalType.open,
+        runDays: const {1, 3},
+        maxSessionSeconds: 3600,
+        weeklyCapSeconds: 7200,
+        hardSessionEnabled: false,
+        createdAt: DateTime.utc(2026, 11, 1),
+      ),
+      today: DateTime.utc(2026, 11, 1),
+    );
+    session = await service().restore(
+      path: archivePath,
+      password: _password,
+      resetConfirmed: true,
+    );
+    final g = (await (session as GoalStorage).goals.goal())!;
+    expect(g.type, GoalType.time);
+    expect(g.distance, GoalDistance.tenKilometers);
+    expect(g.targetSeconds, 3000.0);
+    expect(g.runDays, {1, 3, 5});
+    expect(g.hardSessionEnabled, isTrue);
+    expect((await _dump(_dbOf(session)))['goals'], sourceDump['goals']);
+  });
+
+  test('Rundgang: Plan und Einheiten kommen über den Port zurück, '
+      'Lauf-Zuordnung und Sekunden bleiben', () async {
+    session = await service().restore(path: archivePath, password: _password);
+    final repo = (session as PlanStorage).plans;
+    final history = await repo.history();
+    expect(history, hasLength(1));
+    expect(history.single.trigger, PlanTrigger.create);
+    expect(history.single.inputsJson, contains('"startWeeklyMinutes":120'));
+    final u = (await repo.unitOn(DateTime.utc(2026, 11, 2)))!;
+    expect(u.kind, PlanUnitKind.walkRun);
+    expect(u.runId, 1);
+    expect(u.pinned, isTrue);
+    expect(u.segments.map((x) => x.kind), [
+      PlanSegmentKind.walk,
+      PlanSegmentKind.run,
+    ]);
+    expect(u.segments.map((x) => x.seconds), [300, 90]);
+    expect(u.segments.last.intensity!.paceFastSecondsPerKm, 360.0);
+    final rest = (await repo.unitOn(DateTime.utc(2026, 11, 3)))!;
+    expect(rest.kind, PlanUnitKind.rest);
+    expect(rest.runId, isNull);
+  });
+
+  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5, 6 und 7). Format 1
+  // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
+  // kennt, sind danach leer.
+  for (final (name, schema) in [
+    ('archive_v2', 5),
+    ('archive_v2_s6', 6),
+    ('archive_v2_s7', 7),
+  ]) {
+    test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
+        'importieren', () async {
+      final v =
+          ((jsonDecode(File('$_vectors/vectors.json').readAsStringSync())
+                      as Map)['vectors']
+                  as List)
+              .cast<Map>()
+              .firstWhere((v) => v['name'] == name);
+      session = await service().restore(
+        path: '$_vectors/$name.runarchv',
+        password: v['password'] as String,
+      );
+      final lines = [
+        for (final l in File('$_vectors/$name.jsonl').readAsLinesSync())
+          jsonDecode(l) as Map<String, dynamic>,
+      ];
+      expect(lines.first['format'], 2);
+      expect(lines.first['schema_version'], schema);
+      String? cur;
+      final expected = <String, List<Map<String, Object?>>>{};
+      for (final l in lines) {
+        if (l['type'] == 'section') cur = l['name'] as String;
+        if (l['type'] == 'row') {
+          (expected[cur!] ??= []).add(
+            (l['data'] as Map).cast<String, Object?>(),
+          );
+        }
+      }
+      final got = await _dump(_dbOf(session));
+      for (final e in expected.entries) {
+        expect(got[e.key]!.length, e.value.length, reason: e.key);
+      }
+      expect(got['runs'], hasLength(2));
+      final goal = await (session as GoalStorage).goals.goal();
+      if (schema >= 7) {
+        expect(got['goals'], hasLength(1));
+        expect(got['goals']!.single['run_days'], 21);
+        expect(got['goals']!.single['target_s'], 3000.0);
+        expect(goal!.distance, GoalDistance.tenKilometers);
+        expect(got['plans'], hasLength(1));
+        expect(got['plans']!.single['goal_id'], 1);
+        expect(got['plan_units'], hasLength(2));
+        expect(got['plan_units']![0]['run_id'], 1);
+        expect(got['plan_units']![0]['structure'], contains('"seconds":300'));
+        expect(got['plan_units']![1]['run_id'], isNull);
+      } else {
+        expect(got['plans'], isEmpty);
+        expect(got['plan_units'], isEmpty);
+        expect(got['goals'], isEmpty);
+        expect(goal, isNull);
+      }
+      expect(got['reference_performances'], hasLength(schema >= 6 ? 3 : 0));
+      expect(got['run_feedback'], hasLength(2));
+    });
+  }
+
   test('archive_small (Vektor der unabhängigen Umsetzung) lässt sich importieren, Zeilen gleich', () async {
     session = await service().restore(
       path: '$_vectors/archive_small.runarchv',
@@ -632,6 +773,40 @@ void main() {
         (d) => d['performed_on'] = '1.10.2026',
         0,
       ),
+      // WP21 (Schema 7): das Ziel; Wertemengen und Zieltyp-Regeln der Datenbank.
+      'Leser: Ziel mit Zeichenkette statt Lauftage-Maske': (
+        'goals',
+        (d) => d['run_days'] = '21',
+        0,
+      ),
+      'CHECK: Ziel mit unbekanntem Typ': (
+        'goals',
+        (d) => d['type'] = 'marathon',
+        0,
+      ),
+      'CHECK: Ziel ohne Lauftage': ('goals', (d) => d['run_days'] = 0, 0),
+      'CHECK: Zeitziel ohne Zielzeit': (
+        'goals',
+        (d) => d['target_s'] = null,
+        0,
+      ),
+      'CHECK: Ziel mit unbekannter Strecke': (
+        'goals',
+        (d) => d['distance'] = '42k',
+        0,
+      ),
+      'CHECK: Ziel mit ungültigem Datum': (
+        'goals',
+        (d) => d['target_date'] = '2027-02-30',
+        0,
+      ),
+      'CHECK: Ziel mit unbekanntem Stand zum 30-Minuten-Lauf': (
+        'goals',
+        (d) => d['can_run_30'] = 'maybe',
+        0,
+      ),
+      'CHECK: Ziel mit Schalter 2': ('goals', (d) => d['hard_session'] = 2, 0),
+      'CHECK: zweites Ziel (id 2)': ('goals', (d) => d['id'] = 2, 0),
       'Fremdschlüssel: Abschnitt ohne Wert': (
         'value_sections',
         (d) => d['computed_value_id'] = 999,
@@ -667,6 +842,42 @@ void main() {
       'CHECK: Warnsignal-Antwort unbekannt': (
         'run_feedback',
         (d) => d['warning_answer'] = 'vielleicht',
+        0,
+      ),
+      'Fremdschlüssel: Plan ohne Ziel': ('plans', (d) => d['goal_id'] = 99, 0),
+      'Fremdschlüssel: Einheit ohne Plan': (
+        'plan_units',
+        (d) => d['plan_id'] = 99,
+        0,
+      ),
+      'Fremdschlüssel: Einheit ohne Lauf': (
+        'plan_units',
+        (d) => d['run_id'] = 99,
+        0,
+      ),
+      'CHECK: Plan unbekannter Auslöser': (
+        'plans',
+        (d) => d['trigger'] = 'sometimes',
+        0,
+      ),
+      'CHECK: Einheit unbekannte Art': (
+        'plan_units',
+        (d) => d['kind'] = 'swim',
+        0,
+      ),
+      'Leser: Plan-Eingaben kein JSON': (
+        'plans',
+        (d) => d['inputs'] = '{nope',
+        0,
+      ),
+      'Leser: Einheit-Struktur kein JSON': (
+        'plan_units',
+        (d) => d['structure'] = '[1,',
+        1,
+      ),
+      'Leser: Einheit mit ungültigem Tag': (
+        'plan_units',
+        (d) => d['day'] = '2026-02-30',
         0,
       ),
       'Fremdschlüssel: Angabe ohne Lauf': (
