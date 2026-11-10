@@ -4,6 +4,7 @@ import '../ports/storage_consents.dart';
 import '../ports/storage_derived.dart';
 import '../ports/storage_devices.dart';
 import '../ports/storage_prediction.dart';
+import '../src/goals/training_goal.dart';
 import '../ports/storage_profile.dart';
 import '../ports/storage_raw.dart';
 import '../ports/storage_runs.dart';
@@ -37,6 +38,7 @@ class FakeStorageData {
   final references = <StoredReference>[];
   final rejectedSuggestions = <int>{};
   int nextReferenceId = 1;
+  TrainingGoal? goal;
 
   void requireRun(int runId) {
     if (!runs.containsKey(runId)) {
@@ -106,5 +108,6 @@ class FakeStorageData {
     references.clear();
     rejectedSuggestions.clear();
     nextReferenceId = 1;
+    goal = null;
   }
 }

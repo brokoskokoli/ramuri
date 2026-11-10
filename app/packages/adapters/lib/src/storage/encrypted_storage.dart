@@ -17,6 +17,7 @@ import 'connection_setup.dart';
 import 'database_files.dart';
 import 'delete_access.dart';
 import 'derived_access.dart';
+import 'goal_access.dart';
 import 'prediction_access.dart';
 import 'raw_access.dart';
 import 'run_access.dart';
@@ -26,7 +27,7 @@ import 'value_access.dart';
 
 /// Offene, verschlüsselte Datenbank mit den Zugriffen des Ports. Jeder
 /// Zugriff läuft über `guarded` und damit über [translateStorageError].
-class EncryptedStorageSession implements StorageSession, PredictionStorage {
+class EncryptedStorageSession implements StorageSession, PredictionStorage, GoalStorage {
   EncryptedStorageSession(this.database, {this.onDeleteAll})
     : runs = DriftRunStore(database),
       markers = DriftRunMarkerStore(database),
@@ -40,7 +41,8 @@ class EncryptedStorageSession implements StorageSession, PredictionStorage {
       consents = DriftConsentStore(database),
       subjective = DriftRunSubjectiveStore(database),
       manualTrainings = DriftManualTrainingStore(database),
-      prediction = DriftPredictionStore(database);
+      prediction = DriftPredictionStore(database),
+      goals = DriftGoalStore(database);
 
   final AppDatabase database;
 
@@ -75,6 +77,9 @@ class EncryptedStorageSession implements StorageSession, PredictionStorage {
   final ManualTrainingStore manualTrainings;
   @override
   final PredictionStore prediction;
+
+  @override
+  final GoalStore goals;
 
   @override
   Future<void> deleteRun(int runId) => _deletion.deleteRun(runId);

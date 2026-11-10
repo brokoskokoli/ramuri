@@ -460,3 +460,26 @@ CREATE TABLE rejected_suggestions (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   run_id INTEGER NOT NULL UNIQUE REFERENCES runs (id) ON DELETE CASCADE
 );
+
+-- Trainingsziel (WP21 Teil B, FR-0135 bis FR-0137, Schema 7): höchstens eine
+-- Zeile (id = 1). Zahlen sind hier nur positiv, die Regeln (Lauftage
+-- PAR-197, Datum) prüft `core`. Lauftage als Bitmaske, Bit 0 = Montag bis
+-- Bit 6 = Sonntag; 1..127 heißt mindestens ein Tag. Ein Zeitziel trägt Strecke
+-- und Zielzeit, ein Streckenziel nur die Strecke, ein offenes Ziel weder
+-- Strecke, Zeit noch Datum (FR-0137, PAR-196).
+CREATE TABLE training_goals (
+  id INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
+  type TEXT NOT NULL CHECK (type IN ('distance', 'time', 'open')),
+  distance TEXT CHECK (distance IN ('fiveKilometers', 'tenKilometers', 'halfMarathon')),
+  target_s REAL CHECK (target_s > 0),
+  target_date TEXT CHECK (date(target_date) IS target_date),
+  run_days INTEGER NOT NULL CHECK (run_days BETWEEN 1 AND 127),
+  max_session_s REAL NOT NULL CHECK (max_session_s > 0),
+  weekly_cap_s REAL NOT NULL CHECK (weekly_cap_s > 0),
+  created_at_us INTEGER NOT NULL,
+  CHECK (
+    (type = 'open' AND distance IS NULL AND target_s IS NULL AND target_date IS NULL) OR
+    (type = 'distance' AND distance IS NOT NULL AND target_s IS NULL) OR
+    (type = 'time' AND distance IS NOT NULL AND target_s IS NOT NULL)
+  )
+) AS GoalRow;

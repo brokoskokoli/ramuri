@@ -19,11 +19,12 @@ class AppDatabase extends _$AppDatabase {
   /// `preprocessing_results` (WP10). Version 5: Angaben zum Lauf
   /// (`run_feedback`) und nachgetragene Trainings (`manual_trainings`, WP18).
   /// Version 6: Referenzleistungen und abgelehnte Vorschläge der
-  /// Leistungsprognose (WP20). Jede spätere Änderung erhöht die
+  /// Leistungsprognose (WP20). Version 7: Trainingsziel (`training_goals`,
+  /// WP21 Teil B; Teil C ergänzt den Plan in derselben Version). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -87,6 +88,10 @@ class AppDatabase extends _$AppDatabase {
       await m.create(referencePerformances);
       await m.create(referencePerformancesRun);
       await m.create(rejectedSuggestions);
+    },
+    // 6 -> 7 (WP21): Trainingsziel; bestehende Zeilen bleiben unberührt.
+    6: (Migrator m) async {
+      await m.create(trainingGoals);
     },
   };
 

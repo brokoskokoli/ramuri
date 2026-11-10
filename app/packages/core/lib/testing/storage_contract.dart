@@ -3,6 +3,7 @@ import 'contract_support.dart';
 import 'contract_samples.dart';
 import 'storage_contract_data.dart';
 import 'storage_contract_derived.dart';
+import 'storage_contract_goals.dart';
 import 'storage_contract_prediction.dart';
 import 'storage_contract_settings.dart';
 import 'storage_contract_subjective.dart';
@@ -21,6 +22,7 @@ List<StorageContractCase> storageContractCases() => [
   ...settingsContractCases,
   ...subjectiveContractCases,
   ...predictionContractCases,
+  ...goalContractCases,
   const StorageContractCase('Löschen eines Laufs kaskadiert', _cascade),
   const StorageContractCase('Tageswerte beim Löschen eines Laufs', _dayValues),
   const StorageContractCase('Löschen: Fehlerarten', _deleteFailures),
