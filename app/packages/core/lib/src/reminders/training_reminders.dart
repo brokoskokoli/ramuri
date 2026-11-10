@@ -160,9 +160,25 @@ List<TrainingReminder> planTrainingReminders({
 abstract interface class ReminderTexts {
   /// Name des Benachrichtigungskanals in den Systemeinstellungen.
   String get channelName;
-  String title(TrainingReminder reminder);
-  String body(TrainingReminder reminder);
+  String get title;
+
+  /// Text für eine Einheit der Art [kind] zur Trainingszeit [minuteOfDay]
+  /// (Minuten ab Mitternacht): nur Art und Uhrzeit.
+  String body(PlanUnitKind kind, int minuteOfDay);
 }
+
+/// Die Texte für alle Lauf-Arten (ohne Ruhetag) zur Trainingszeit aus
+/// [settings]; unabhängig davon, welche Arten der Plan enthält.
+ReminderLabels reminderLabels(ReminderTexts texts, ReminderSettings settings) =>
+    ReminderLabels(
+      channelName: texts.channelName,
+      title: texts.title,
+      bodies: {
+        for (final k in PlanUnitKind.values)
+          if (k != PlanUnitKind.rest)
+            k.name: texts.body(k, settings.minuteOfDay),
+      },
+    );
 
 /// Ergebnis von [syncTrainingReminders].
 enum ReminderSyncResult {
@@ -217,8 +233,7 @@ Future<ReminderSyncResult> syncTrainingReminders({
     planEnd: goal.targetDate,
   );
   await scheduler.replaceAll([
-    for (final r in reminders)
-      ScheduledReminder(at: r.at, title: texts.title(r), body: texts.body(r)),
-  ], channelName: texts.channelName);
+    for (final r in reminders) ScheduledReminder(at: r.at, kind: r.kind.name),
+  ], labels: reminderLabels(texts, s));
   return ReminderSyncResult.scheduled;
 }

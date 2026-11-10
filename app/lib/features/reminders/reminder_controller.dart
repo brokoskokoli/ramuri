@@ -10,7 +10,7 @@ import '../plan/plan_texts.dart' show planKindName;
 /// über denselben Weg wie die echten (E2E-Test der Benachrichtigung).
 typedef ReminderDebugAdd = Future<void> Function(
   ScheduledReminder reminder, {
-  required String channelName,
+  required ReminderLabels labels,
 });
 
 /// Texte der Benachrichtigung in der App-Sprache: Titel und „Art um Uhrzeit“,
@@ -29,13 +29,13 @@ class AppReminderTexts implements ReminderTexts {
   String get channelName => l10n.reminderChannelName;
 
   @override
-  String title(TrainingReminder r) => l10n.reminderTitle;
+  String get title => l10n.reminderTitle;
 
   @override
-  String body(TrainingReminder r) => l10n.reminderBody(
-    planKindName(l10n, r.kind),
+  String body(PlanUnitKind kind, int minuteOfDay) => l10n.reminderBody(
+    planKindName(l10n, kind),
     material.formatTimeOfDay(
-      TimeOfDay.fromDateTime(r.trainingAt),
+      TimeOfDay(hour: minuteOfDay ~/ 60, minute: minuteOfDay % 60),
       alwaysUse24HourFormat: use24h,
     ),
   );
@@ -124,6 +124,11 @@ class ReminderController extends ChangeNotifier with WidgetsBindingObserver {
       var granted = false;
       try {
         granted = await scheduler.requestPermission();
+        // API 31/32 kennen keine Laufzeitberechtigung: Die Anfrage meldet
+        // immer „erteilt“, auch wenn Benachrichtigungen im System aus sind.
+        // Dann ehrlich als abgelehnt zeigen statt eines Schalters, der nichts
+        // plant.
+        if (granted) granted = await scheduler.permitted();
       } on Object {
         granted = false;
       }
@@ -150,31 +155,20 @@ class ReminderController extends ChangeNotifier with WidgetsBindingObserver {
     await _sync();
   });
 
-  /// Debug-Einstieg: eine Erinnerung zur nächsten Lauf-Einheit (oder einem
-  /// lockeren Lauf) in [delay] über denselben Weg.
+  /// Debug-Einstieg: eine Erinnerung an einen lockeren Lauf in [delay] über
+  /// denselben Weg.
   Future<void> debugFireSoon({
     Duration delay = const Duration(seconds: 10),
   }) async {
     final add = debugAdd;
     final texts = _texts;
     if (add == null || texts == null) return;
-    final now = clock.now().toLocal();
-    final day = DateTime.utc(now.year, now.month, now.day);
-    final r = TrainingReminder(
-      day: day,
-      kind: PlanUnitKind.easy,
-      trainingAt: DateTime(
-        now.year,
-        now.month,
-        now.day,
-        _settings.hour,
-        _settings.minute,
-      ),
-      at: now.add(delay),
-    );
     await add(
-      ScheduledReminder(at: r.at, title: texts.title(r), body: texts.body(r)),
-      channelName: texts.channelName,
+      ScheduledReminder(
+        at: clock.now().add(delay),
+        kind: PlanUnitKind.easy.name,
+      ),
+      labels: reminderLabels(texts, _settings),
     );
   }
 

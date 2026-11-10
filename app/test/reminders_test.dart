@@ -110,6 +110,23 @@ void main() {
     expect(find.byKey(const Key('reminder_denied')), findsOneWidget);
   });
 
+  testWidgets(
+    'API 31/32: Anfrage meldet erteilt, im System aus: Schalter aus mit Erklärung',
+    (tester) async {
+      scheduler
+        ..grantOnRequest = true
+        ..blockedBySystem = true;
+      await pump(tester);
+      await tester.tap(find.byKey(const Key('reminder_switch')));
+      await tester.pumpAndSettle();
+      expect(scheduler.requestCount, 1);
+      expect(switchValue(tester), isFalse);
+      expect(find.byKey(const Key('reminder_denied')), findsOneWidget);
+      expect(await session.settings.get(SettingKeys.reminderEnabled), '0');
+      expect(scheduler.scheduled, isEmpty);
+    },
+  );
+
   testWidgets('Trainingszeit und Vorlauf werden gespeichert', (tester) async {
     scheduler.grantOnRequest = true;
     await pump(tester);
@@ -173,14 +190,8 @@ void main() {
           ),
         ),
       );
-      final r = TrainingReminder(
-        day: DateTime.utc(2026, 11, 12),
-        kind: PlanUnitKind.long,
-        trainingAt: DateTime(2026, 11, 12, 18),
-        at: DateTime(2026, 11, 12, 17, 30),
-      );
-      expect(texts.title(r), title);
-      expect(texts.body(r), body);
+      expect(texts.title, title);
+      expect(texts.body(PlanUnitKind.long, 18 * 60), body);
     }
   });
 }

@@ -393,27 +393,76 @@ void main() {
     });
 
     test('kein Neustart, keine Hintergrund-Standortberechtigung', () {
-      // ADR-0005 Punkt 6: Die Aufzeichnung startet nie nach dem Neustart.
-      // BOOT_COMPLETED empfängt nur der Wecker der Erinnerungen (FR-0174,
-      // WP22 Teil F); er stellt Wecker und startet keinen Dienst.
-      final boot = RegExp(
-        r'<receiver[^>]*>(?:(?!</receiver>)[\s\S])*BOOT_COMPLETED',
+      // ADR-0005 Punkt 6 mit Nachtrag WP22 (Maintainer 2026-11-10): Die
+      // Aufzeichnung startet nie nach dem Neustart. BOOT_COMPLETED empfängt
+      // nur genau ein nicht exportierter Empfänger der Erinnerungen
+      // (FR-0174); er stellt Wecker und startet keinen Dienst. Das Gate
+      // prüft dasselbe am gemergten Manifest des Release-APK.
+      // Genau zweimal: das Recht und die Aktion im Filter des Empfängers,
+      // nirgends sonst (kein Dienst, keine Activity mit Boot-Filter).
+      expect(
+        RegExp('BOOT_COMPLETED').allMatches(manifest).length,
+        2,
+        reason: 'BOOT_COMPLETED nur als Recht und im Erinnerungs-Empfänger',
       );
       expect(
-        [
-          for (final m in boot.allMatches(manifest))
-            m[0]!.split('\n').take(2).join(),
-        ],
-        [contains('.TrainingReminderReceiver')],
+        manifest,
+        contains(
+          '<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>',
+        ),
       );
+      final receivers = RegExp(r'<receiver\b[\s\S]*?</receiver>')
+          .allMatches(manifest)
+          .map((m) => m[0]!)
+          .toList();
+      expect(receivers, hasLength(1));
+      // Auch selbstschließende Empfänger zählen: genau einer im Manifest.
+      expect(RegExp(r'<receiver\b').allMatches(manifest).length, 1);
+      final receiver = receivers.single;
+      expect(receiver, contains('android:name=".TrainingReminderReceiver"'));
+      expect(receiver, contains('android:exported="false"'));
+      expect(receiver, contains('android.intent.action.BOOT_COMPLETED'));
+      // Nur inexakte Wecker (Auflage zum Boot-Empfänger).
+      expect(manifest, isNot(contains('SCHEDULE_EXACT_ALARM')));
+      expect(manifest, isNot(contains('USE_EXACT_ALARM')));
+      expect(manifest, isNot(contains('ACCESS_BACKGROUND_LOCATION')));
+    });
+
+    test('Boot-Empfänger plant nur Wecker: kein Dienst, keine Aufzeichnung, '
+        'keine Datenbank', () {
       const kt = 'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri';
+      final receiver = File('$kt/TrainingReminderReceiver.kt')
+          .readAsStringSync()
+          .replaceAll(RegExp(r'/\*[\s\S]*?\*/|//.*'), '');
+      // Der Empfänger ruft nur TrainingReminders.fire auf.
+      expect(
+        RegExp(r'\b[A-Za-z_]+\.[a-z][A-Za-z_]*\(')
+            .allMatches(receiver)
+            .map((m) => m[0])
+            .toSet(),
+        {'TrainingReminders.fire('},
+      );
       for (final f in ['TrainingReminderReceiver.kt', 'TrainingReminders.kt']) {
         final src = File('$kt/$f').readAsStringSync();
-        expect(src, isNot(contains('RecordingService')), reason: f);
-        expect(src, isNot(contains('startService')), reason: f);
-        expect(src, isNot(contains('startForegroundService')), reason: f);
+        for (final banned in [
+          'RecordingService',
+          'RecordingLifecycle',
+          'startService',
+          'startForegroundService',
+          'startActivity',
+          'bindService',
+          'FlutterEngine',
+          'WorkManager',
+          'JobScheduler',
+          'SQLite',
+          'sqlite',
+          'Database',
+          'setExact',
+          'setAlarmClock',
+        ]) {
+          expect(src, isNot(contains(banned)), reason: '$f: $banned');
+        }
       }
-      expect(manifest, isNot(contains('ACCESS_BACKGROUND_LOCATION')));
     });
   });
 }

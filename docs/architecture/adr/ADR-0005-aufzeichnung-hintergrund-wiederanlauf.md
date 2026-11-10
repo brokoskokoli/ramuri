@@ -34,6 +34,8 @@ Ein Lauf muss bei ausgeschaltetem Bildschirm durchgehend weiterlaufen (FR-0034).
 - **Punkt 2:** Ob der Typ `health` nötig wird, bleibt offen: Der Schrittsensor fehlt auf beiden Images, die Prüfung gehört in den Feldtest.
 - **Rückfallweg:** `flutter_foreground_task` verhindert mit `allowAutoRestart: false` den Neustart nicht (`START_STICKY`, Alarm in `onTaskRemoved`). Ohne Patch oder Prüfung mit `stopWithTask` verletzt er Punkt 6.
 
+**Nachtrag WP22 zu Punkt 6 (Erinnerungen, FR-0174; Entscheidung des Maintainers 2026-11-10):** Punkt 6 verbietet einen Boot-Empfänger, der einen Dienst oder die Aufzeichnung startet. Erlaubt ist genau ein Empfänger `TrainingReminderReceiver`, nicht exportiert (`android:exported="false"`), mit `BOOT_COMPLETED`-Filter, der nur die Wecker der Erinnerungen neu plant. Er startet keinen Dienst und keine Aufzeichnung und liest außer den gespeicherten Erinnerungszeitpunkten samt Art der Einheit keine Daten. Wecker nur inexakt: `SCHEDULE_EXACT_ALARM` und `USE_EXACT_ALARM` sind ausgeschlossen. Das Gate (`release_rechte`, `tool/check_release_manifest.py`) prüft das am Release-APK; eine Wiederaufnahme der Aufzeichnung bietet die App weiterhin nur beim nächsten Start an (Punkt 5).
+
 ## Konsequenzen
 - Eigener Kotlin-Code wird nötig und braucht später für iOS ein Gegenstück.
 - Der Dienst hält für die Dauer des Laufs einen Partial Wake Lock. Das ist eine Entscheidung des Maintainers vom 2026-11-04 und nicht durch Messung belegt: Verlorene Laufdaten kommen nicht wieder, Mehrverbrauch und Android Vitals werden in Kauf genommen. Googles Dokumentation spricht eher dagegen und Wake Locks kosten deutlich Akku [11]. Zeigt der Feldtest den Lock als überflüssig, entfällt er (R005, Abschnitt „Wake Lock“).

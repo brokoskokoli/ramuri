@@ -15,10 +15,11 @@ import org.json.JSONObject
 
 /**
  * Lokale Erinnerungen vor geplanten Einheiten (FR-0174, WP22 Teil F). Kein Netz, keine
- * Bibliothek. Dart plant (Zeitpunkte und fertige Texte in der App-Sprache) und ersetzt
- * die Liste nach jeder Änderung; sie liegt in SharedPreferences (kein Backup,
+ * Bibliothek. Dart plant (Zeitpunkte, Art-Schlüssel und die Texte je Art in der App-Sprache)
+ * und ersetzt die Liste nach jeder Änderung; sie liegt in SharedPreferences (kein Backup,
  * allowBackup=false), damit [TrainingReminderReceiver] sie nach einem Neustart ohne Dart
- * neu planen kann. Ein Wecker zur Zeit, inexakt (setAndAllowWhileIdle, kein
+ * neu planen kann. Bewusste Ausnahme zu SEC-0009, minimiert: je Erinnerung nur Zeitpunkt
+ * und Art-Schlüssel ([ReminderQueue.encode]), dazu die planunabhängigen Texte je Art. Ein Wecker zur Zeit, inexakt (setAndAllowWhileIdle, kein
  * SCHEDULE_EXACT_ALARM); beim Klingeln zeigt der Empfänger die fälligen und stellt den
  * nächsten.
  */
@@ -27,8 +28,8 @@ object TrainingReminders {
     const val NOTIFICATION_CHANNEL_ID = "training_reminders"
     const val ACTION_FIRE = "io.github.brokoskokoli.ramuri.TRAINING_REMINDER"
     private const val PREFS = "training_reminders"
-    private const val KEY_ITEMS = "items"
-    private const val KEY_CHANNEL_NAME = "channel_name"
+    private const val KEY_ITEMS = "due"
+    private const val KEY_LABELS = "labels"
     private const val ALARM_REQUEST = 7001
 
     fun register(messenger: BinaryMessenger, context: Context) {
@@ -39,7 +40,7 @@ object TrainingReminders {
                     "permitted" -> result.success(permitted(app))
                     "replaceAll" -> {
                         val raw = call.argument<List<Map<String, Any?>>>("reminders") ?: emptyList()
-                        replaceAll(app, call.argument<String>("channelName"), raw.map(::parse))
+                        replaceAll(app, call.argument<Map<String, Any?>>("labels"), raw.map(::parse))
                         result.success(null)
                     }
                     "cancelAll" -> {
@@ -51,7 +52,7 @@ object TrainingReminders {
                         result.notImplemented()
                     } else {
                         val item = parse(call.argument<Map<String, Any?>>("reminder") ?: emptyMap())
-                        replaceAll(app, call.argument<String>("channelName"), load(app) + item)
+                        replaceAll(app, call.argument<Map<String, Any?>>("labels"), load(app) + item)
                         result.success(null)
                     }
                     else -> result.notImplemented()
@@ -71,36 +72,50 @@ object TrainingReminders {
 
     private fun parse(m: Map<String, Any?>): ReminderQueue.Item = ReminderQueue.Item(
         at = (m["at"] as Number).toLong(),
-        title = m["title"] as String,
-        body = m["body"] as String,
+        kind = m["kind"] as String,
     )
+
+    /** Texte der App-Sprache: Kanalname, Titel und Text je Art-Schlüssel. */
+    private class Labels(val channelName: String?, val title: String?, val bodies: Map<String, String>)
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    private fun load(context: Context): List<ReminderQueue.Item> {
-        val raw = prefs(context).getString(KEY_ITEMS, null) ?: return emptyList()
+    private fun load(context: Context): List<ReminderQueue.Item> =
+        ReminderQueue.decode(prefs(context).getString(KEY_ITEMS, null))
+
+    private fun loadLabels(context: Context): Labels {
+        val raw = prefs(context).getString(KEY_LABELS, null) ?: return Labels(null, null, emptyMap())
         return try {
-            val a = JSONArray(raw)
-            (0 until a.length()).map { i ->
-                val o = a.getJSONObject(i)
-                ReminderQueue.Item(o.getLong("at"), o.getString("title"), o.getString("body"))
-            }
+            val o = JSONObject(raw)
+            val b = o.optJSONObject("bodies")
+            val bodies = b?.keys()?.asSequence()?.associateWith { b.getString(it) } ?: emptyMap()
+            Labels(o.optString("channelName").ifBlank { null }, o.optString("title").ifBlank { null }, bodies)
         } catch (e: org.json.JSONException) {
-            emptyList()
+            Labels(null, null, emptyMap())
         }
     }
 
-    private fun save(context: Context, items: List<ReminderQueue.Item>, channelName: String?) {
-        val a = JSONArray()
-        for (i in items) a.put(JSONObject().put("at", i.at).put("title", i.title).put("body", i.body))
-        val e = prefs(context).edit().putString(KEY_ITEMS, a.toString())
-        if (!channelName.isNullOrBlank()) e.putString(KEY_CHANNEL_NAME, channelName)
+    private fun save(context: Context, items: List<ReminderQueue.Item>, labels: Map<String, Any?>?) {
+        val e = prefs(context).edit().putString(KEY_ITEMS, ReminderQueue.encode(items))
+        if (labels != null) {
+            val bodies = JSONObject()
+            (labels["bodies"] as? Map<*, *>)?.forEach { (k, v) -> if (k is String && v is String) bodies.put(k, v) }
+            e.putString(
+                KEY_LABELS,
+                JSONObject()
+                    .put("channelName", labels["channelName"] as? String ?: "")
+                    .put("title", labels["title"] as? String ?: "")
+                    .put("bodies", bodies)
+                    .toString(),
+            )
+        }
         e.apply()
     }
 
-    private fun replaceAll(context: Context, channelName: String?, items: List<ReminderQueue.Item>) {
+    private fun replaceAll(context: Context, labels: Map<String, Any?>?, items: List<ReminderQueue.Item>) {
         val split = ReminderQueue.split(items, System.currentTimeMillis())
-        save(context, split.keep, channelName)
+        save(context, split.keep, labels)
+        val channelName = labels?.get("channelName") as? String
         if (!channelName.isNullOrBlank()) ensureChannel(context, channelName)
         schedule(context, split.next)
     }
@@ -120,10 +135,12 @@ object TrainingReminders {
         val split = ReminderQueue.split(load(context), System.currentTimeMillis())
         save(context, split.keep, null)
         if (split.show.isNotEmpty() && permitted(context)) {
-            val name = prefs(context).getString(KEY_CHANNEL_NAME, null)
-            ensureChannel(context, name ?: context.getString(R.string.app_name))
+            val labels = loadLabels(context)
+            ensureChannel(context, labels.channelName ?: context.getString(R.string.app_name))
             val manager = context.getSystemService(NotificationManager::class.java)
-            for (item in split.show) manager.notify(ReminderQueue.notificationId(item), notification(context, item))
+            for (item in split.show) {
+                manager.notify(ReminderQueue.notificationId(item), notification(context, item, labels))
+            }
         }
         schedule(context, split.next)
     }
@@ -134,7 +151,7 @@ object TrainingReminders {
         )
     }
 
-    private fun notification(context: Context, item: ReminderQueue.Item): Notification {
+    private fun notification(context: Context, item: ReminderQueue.Item, labels: Labels): Notification {
         val open = PendingIntent.getActivity(
             context,
             0,
@@ -143,8 +160,8 @@ object TrainingReminders {
         )
         return Notification.Builder(context, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_ramuri)
-            .setContentTitle(item.title)
-            .setContentText(item.body)
+            .setContentTitle(labels.title ?: context.getString(R.string.app_name))
+            .setContentText(labels.bodies[item.kind])
             .setContentIntent(open)
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_REMINDER)

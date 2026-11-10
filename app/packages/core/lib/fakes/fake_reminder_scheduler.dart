@@ -2,7 +2,11 @@ import '../ports/reminder_scheduler.dart';
 
 /// Fake: Berechtigung frei setzbar, merkt sich die geplanten Erinnerungen.
 class FakeReminderScheduler implements ReminderScheduler {
-  FakeReminderScheduler({this.granted = false, this.grantOnRequest = false});
+  FakeReminderScheduler({
+    this.granted = false,
+    this.grantOnRequest = false,
+    this.blockedBySystem = false,
+  });
 
   /// Stand der Berechtigung.
   bool granted;
@@ -10,16 +14,22 @@ class FakeReminderScheduler implements ReminderScheduler {
   /// Ergebnis der Anfrage: erteilt der Nutzer sie im Dialog?
   bool grantOnRequest;
 
+  /// Benachrichtigungen im System ausgeschaltet (API 31/32: die Anfrage
+  /// meldet trotzdem „erteilt“, [permitted] aber `false`).
+  bool blockedBySystem;
+
   int requestCount = 0;
   int cancelCount = 0;
   int replaceCount = 0;
 
   /// Zuletzt geplant (leer nach [cancelAll]).
   List<ScheduledReminder> scheduled = const [];
-  String? channelName;
+  ReminderLabels? labels;
+
+  String? get channelName => labels?.channelName;
 
   @override
-  Future<bool> permitted() async => granted;
+  Future<bool> permitted() async => granted && !blockedBySystem;
 
   @override
   Future<bool> requestPermission() async {
@@ -31,11 +41,11 @@ class FakeReminderScheduler implements ReminderScheduler {
   @override
   Future<void> replaceAll(
     List<ScheduledReminder> reminders, {
-    required String channelName,
+    required ReminderLabels labels,
   }) async {
     replaceCount++;
     scheduled = List.unmodifiable(reminders);
-    this.channelName = channelName;
+    this.labels = labels;
   }
 
   @override

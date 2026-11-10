@@ -40,9 +40,10 @@ class _Texts implements ReminderTexts {
   @override
   String get channelName => 'Erinnerungen';
   @override
-  String title(TrainingReminder r) => 'Geplantes Training';
+  String get title => 'Geplantes Training';
   @override
-  String body(TrainingReminder r) => '${r.kind.name} ${r.trainingAt.hour}';
+  String body(PlanUnitKind kind, int minuteOfDay) =>
+      '${kind.name} ${minuteOfDay ~/ 60}';
 }
 
 TrainingGoal _goal(DateTime? target) => TrainingGoal(
@@ -62,6 +63,22 @@ void main() {
   final now = DateTime(2026, 11, 9, 8);
 
   group('planTrainingReminders (FR-0174)', () {
+    test('Vorlauf über Mitternacht: 00:15 minus 30 min = 23:45 am Vortag', () {
+      final r = planTrainingReminders(
+        units: [_unit(_d(11, 12), PlanUnitKind.easy)],
+        settings: const ReminderSettings(
+          enabled: true,
+          minuteOfDay: 15,
+          leadMinutes: 30,
+        ),
+        now: now,
+      );
+      expect(r, hasLength(1));
+      expect(r.single.at, DateTime(2026, 11, 11, 23, 45));
+      expect(r.single.trainingAt, DateTime(2026, 11, 12, 0, 15));
+      expect(r.single.day, _d(11, 12));
+    });
+
     test('Tag der Einheit zur Trainingszeit minus Vorlauf, sortiert', () {
       final r = planTrainingReminders(
         units: [
@@ -263,22 +280,33 @@ void main() {
       texts: _Texts(),
     );
 
-    test('eingeschaltet und erlaubt: ersetzt alle mit Texten', () async {
+    test('eingeschaltet und erlaubt: ersetzt alle, je Erinnerung nur '
+        'Zeitpunkt und Art-Schlüssel; Texte getrennt', () async {
       await _on.save(settings, at: DateTime.utc(2026, 11, 9));
       expect(await sync(), ReminderSyncResult.scheduled);
       expect(scheduler.scheduled, [
         ScheduledReminder(
           at: DateTime(2026, 11, 10, 17, 30),
-          title: 'Geplantes Training',
-          body: 'intervals 18',
+          kind: 'intervals',
         ),
-        ScheduledReminder(
-          at: DateTime(2026, 11, 12, 17, 30),
-          title: 'Geplantes Training',
-          body: 'long 18',
-        ),
+        ScheduledReminder(at: DateTime(2026, 11, 12, 17, 30), kind: 'long'),
       ]);
-      expect(scheduler.channelName, 'Erinnerungen');
+      // Texte für jede Lauf-Art, unabhängig vom Plan, ohne Ruhetag.
+      expect(
+        scheduler.labels,
+        const ReminderLabels(
+          channelName: 'Erinnerungen',
+          title: 'Geplantes Training',
+          bodies: {
+            'easy': 'easy 18',
+            'long': 'long 18',
+            'intervals': 'intervals 18',
+            'tempo': 'tempo 18',
+            'progressive': 'progressive 18',
+            'walkRun': 'walkRun 18',
+          },
+        ),
+      );
       expect(plans.asked.single.$1, _d(11, 9));
     });
 

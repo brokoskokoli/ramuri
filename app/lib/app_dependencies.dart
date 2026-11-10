@@ -347,7 +347,7 @@ class _NoReminders implements ReminderScheduler {
   @override
   Future<void> replaceAll(
     List<ScheduledReminder> reminders, {
-    required String channelName,
+    required ReminderLabels labels,
   }) async {}
 
   @override

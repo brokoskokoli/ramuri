@@ -36,40 +36,39 @@ void main() {
   });
 
   final at = DateTime.utc(2026, 11, 10, 16, 30);
-  final reminder = ScheduledReminder(
-    at: at,
+  final reminder = ScheduledReminder(at: at, kind: 'long');
+  const labels = ReminderLabels(
+    channelName: 'Trainingserinnerungen',
     title: 'Geplantes Training',
-    body: 'Langer Lauf um 18:00',
+    bodies: {'long': 'Langer Lauf um 18:00'},
   );
 
-  test(
-    'replaceAll sendet Zeitpunkt in ms, Titel, Text und Kanalnamen',
-    () async {
-      await MethodChannelReminderScheduler().replaceAll([
-        reminder,
-      ], channelName: 'Trainingserinnerungen');
-      final c = calls.single;
-      expect(c.method, 'replaceAll');
-      final args = c.arguments as Map;
-      expect(args['channelName'], 'Trainingserinnerungen');
-      expect(args['reminders'], [
-        {
-          'at': at.millisecondsSinceEpoch,
-          'title': 'Geplantes Training',
-          'body': 'Langer Lauf um 18:00',
-        },
-      ]);
-    },
-  );
+  test('replaceAll sendet je Erinnerung nur Zeitpunkt in ms und '
+      'Art-Schlüssel, die Texte getrennt', () async {
+    await MethodChannelReminderScheduler().replaceAll([
+      reminder,
+    ], labels: labels);
+    final c = calls.single;
+    expect(c.method, 'replaceAll');
+    final args = c.arguments as Map;
+    expect(args['labels'], {
+      'channelName': 'Trainingserinnerungen',
+      'title': 'Geplantes Training',
+      'bodies': {'long': 'Langer Lauf um 18:00'},
+    });
+    expect(args['reminders'], [
+      {'at': at.millisecondsSinceEpoch, 'kind': 'long'},
+    ]);
+  });
 
   test('cancelAll und debugAdd', () async {
     final s = MethodChannelReminderScheduler();
     await s.cancelAll();
-    await s.debugAdd(reminder, channelName: 'K');
+    await s.debugAdd(reminder, labels: labels);
     expect(calls.map((c) => c.method), ['cancelAll', 'debugAdd']);
     final args = calls.last.arguments as Map;
-    expect(args['channelName'], 'K');
-    expect((args['reminder'] as Map)['at'], at.millisecondsSinceEpoch);
+    expect((args['labels'] as Map)['channelName'], 'Trainingserinnerungen');
+    expect(args['reminder'], {'at': at.millisecondsSinceEpoch, 'kind': 'long'});
   });
 
   test('permitted liest nur, ohne Antwort: nicht erlaubt', () async {
@@ -102,12 +101,14 @@ void main() {
       'replaceAll',
       'cancelAll',
       'debugAdd',
+      'labels',
       'channelName',
       'reminders',
       'reminder',
       'at',
+      'kind',
       'title',
-      'body',
+      'bodies',
     ]) {
       expect(kt, contains('"$m"'), reason: m);
     }

@@ -65,6 +65,9 @@ class Device {
   /// Kartenanbieter (WP13); `null`: nicht verdrahtet.
   MapServices? map;
 
+  /// Erinnerungen (FR-0174); `null`: nicht verdrahtet.
+  ReminderScheduler? reminders;
+
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
   /// [heartRate] (Gerät 'hr1', ohne Verwaltung); [lastRun] ist die Pulsquelle
   /// des jüngsten Laufs.
@@ -130,6 +133,7 @@ class Device {
           archiveExport: archiveExport,
           archiveRestore: archiveRestore,
           map: map,
+          reminders: reminders,
           permissions: permissions,
           runPorts: RunPorts(
             access: locationAccessOverride ?? locationAccess,

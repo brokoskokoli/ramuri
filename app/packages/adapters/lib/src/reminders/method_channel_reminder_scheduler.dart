@@ -35,9 +35,9 @@ class MethodChannelReminderScheduler implements ReminderScheduler {
   @override
   Future<void> replaceAll(
     List<ScheduledReminder> reminders, {
-    required String channelName,
+    required ReminderLabels labels,
   }) => _channel.invokeMethod<void>('replaceAll', {
-    'channelName': channelName,
+    'labels': _labels(labels),
     'reminders': [for (final r in reminders) _encode(r)],
   });
 
@@ -50,15 +50,22 @@ class MethodChannelReminderScheduler implements ReminderScheduler {
   /// debugfähigen App an.
   Future<void> debugAdd(
     ScheduledReminder reminder, {
-    required String channelName,
+    required ReminderLabels labels,
   }) => _channel.invokeMethod<void>('debugAdd', {
-    'channelName': channelName,
+    'labels': _labels(labels),
     'reminder': _encode(reminder),
   });
 
+  /// Je Erinnerung nur Zeitpunkt und Art-Schlüssel (Kotlin legt sie außerhalb
+  /// der verschlüsselten Datenbank ab, SEC-0009-Ausnahme WP22 Teil F).
   static Map<String, Object> _encode(ScheduledReminder r) => {
     'at': r.at.millisecondsSinceEpoch,
-    'title': r.title,
-    'body': r.body,
+    'kind': r.kind,
+  };
+
+  static Map<String, Object> _labels(ReminderLabels l) => {
+    'channelName': l.channelName,
+    'title': l.title,
+    'bodies': l.bodies,
   };
 }
