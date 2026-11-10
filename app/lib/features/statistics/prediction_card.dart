@@ -515,10 +515,10 @@ class _Action extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = RamuriColors.of(context);
+    // Vordergrund aus dem Textknopf-Theme (`accent`): `action` ist für dunkle
+    // Flächen und gefüllte Knöpfe, auf der hellen Karte unlesbar.
     return TextButton(
       style: TextButton.styleFrom(
-        foregroundColor: c.action,
         minimumSize: const Size(0, RamuriTheme.minTarget),
         padding: const EdgeInsets.symmetric(horizontal: 4),
         textStyle: RamuriType.of(context).link,

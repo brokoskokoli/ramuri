@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
@@ -865,6 +866,44 @@ void main() {
         await tapKey(tester, 'prediction_delete');
         await tapKey(tester, 'prediction_delete_confirm');
         expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
+  group('Kontrast der Kartenknöpfe', () {
+    double lum(Color c) {
+      double f(double v) =>
+          v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4) * 1.0;
+      return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+    }
+
+    double ratio(Color a, Color b) {
+      final l1 = lum(a), l2 = lum(b);
+      return (math.max(l1, l2) + 0.05) / (math.min(l1, l2) + 0.05);
+    }
+
+    for (final brightness in Brightness.values) {
+      testWidgets('$brightness: Vordergrund gegen Kartenfläche >= 4,5:1', (
+        tester,
+      ) async {
+        final d = await boot(tester);
+        await addRef(d, ReferenceKind.race, 10000, 3600);
+        await seedRun(d.session, _at(3), minutes: 20, speed: 3.5);
+        await pumpCard(tester, d, brightness: brightness);
+        final c = RamuriColors.of(tester.element(find.byType(PredictionCard)));
+        for (final k in [
+          'prediction_add',
+          'prediction_delete',
+          'prediction_explain',
+          'prediction_suggestion_accept',
+          'prediction_suggestion_reject',
+        ]) {
+          final text = find.descendant(of: key(k), matching: find.byType(Text));
+          final fg = DefaultTextStyle.of(tester.element(text.first))
+              .style
+              .color!;
+          expect(ratio(fg, c.surface), greaterThanOrEqualTo(4.5), reason: k);
+        }
       });
     }
   });
