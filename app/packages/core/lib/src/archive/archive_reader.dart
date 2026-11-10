@@ -287,12 +287,32 @@ class ArchiveLineValidator {
       if (e is! Map ||
           !kinds.contains(e['kind']) ||
           e['minutes'] is! int ||
-          (e['seconds'] != null && e['seconds'] is! int) ||
-          (e['intensity'] != null && e['intensity'] is! Map)) {
+          (e['minutes'] as int) < 0 ||
+          (e['seconds'] != null &&
+              (e['seconds'] is! int || (e['seconds'] as int) < 0)) ||
+          (e['intensity'] != null && !_isTargetIntensity(e['intensity']))) {
         return false;
       }
     }
     return true;
+  }
+
+  /// Zielintensität eines Segments wie `plan_access` sie liest: ganze Zahlen
+  /// für RPE und Puls, Zahlen für das Tempo, Text für die Grundlage, Wahrheits-
+  /// werte für die Kennzeichen; jedes Feld darf fehlen oder `null` sein.
+  static bool _isTargetIntensity(Object? v) {
+    if (v is! Map) return false;
+    bool optional<T>(String key) => v[key] == null || v[key] is T;
+    return optional<int>('rpeMin') &&
+        optional<int>('rpeMax') &&
+        optional<num>('paceFast') &&
+        optional<num>('paceSlow') &&
+        optional<String>('basis') &&
+        optional<int>('hrMin') &&
+        optional<int>('hrMax') &&
+        optional<bool>('estimated') &&
+        optional<bool>('maxHrEstimated') &&
+        optional<bool>('paceIsLimit');
   }
 
   /// Ein Kalendertag in der Form `JJJJ-MM-TT`, den es gibt (kein 30. Februar).

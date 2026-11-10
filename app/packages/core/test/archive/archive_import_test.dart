@@ -1561,6 +1561,31 @@ void main() {
       expect(c.sink.rows['plan_units'], [unit(1), unit(2, runId: 1)]);
     });
 
+    test(
+      'Schema 7: vollständige und leere Zielintensität sind gültig',
+      () async {
+        final full =
+            '[{"kind":"easy","minutes":5,"seconds":300,"intensity":{'
+            '"rpeMin":3,"rpeMax":4,"paceFast":330,"paceSlow":360.5,"basis":"x",'
+            '"hrMin":120,"hrMax":140,"estimated":true,"maxHrEstimated":false,'
+            '"paceIsLimit":false}},'
+            '{"kind":"walk","minutes":0,"intensity":{"rpeMin":null}}]';
+        await c.run(
+          await file(
+            v2(
+              schema: 7,
+              extra: {
+                'goals': [goal()],
+                'plans': [plan()],
+                'plan_units': [unit(1)..['structure'] = full],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+      },
+    );
+
     test('Schema 7 ohne Plan (0 Zeilen) ist gültig', () async {
       await c.run(await file(v2(schema: 7)));
       expect(c.sink.commits, 1);
@@ -1622,6 +1647,28 @@ void main() {
         await bad([unit(1)..['structure'] = '[1]']);
         await bad([unit(1)..['structure'] = '[{"kind":"x","minutes":5}]']);
         await bad([unit(1)..['structure'] = '[{"kind":"walk","minutes":"5"}]']);
+        await bad([unit(1)..['structure'] = '[{"kind":"walk","minutes":-1}]']);
+        await bad([
+          unit(1)..['structure'] = '[{"kind":"walk","minutes":5,"seconds":-1}]',
+        ]);
+        for (final f in [
+          '"rpeMin":"x"',
+          '"rpeMax":1.5',
+          '"paceFast":"5"',
+          '"paceSlow":true',
+          '"basis":3',
+          '"hrMin":"1"',
+          '"hrMax":2.5',
+          '"estimated":"yes"',
+          '"maxHrEstimated":1',
+          '"paceIsLimit":"no"',
+        ]) {
+          await bad([
+            unit(
+              1,
+            )..['structure'] = '[{"kind":"walk","minutes":5,"intensity":{$f}}]',
+          ]);
+        }
         await bad([unit(1)..['day'] = '2026-13-01']);
         await bad([unit(1)..['day'] = '2026-11-9']);
         await bad([unit(1)..['week'] = -1]);
