@@ -767,7 +767,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
                                             color: cc.textMuted,
                                           ),
                                   ),
-                                  if (hasUnit && u!.fixed == PlanUnitFixed.kind)
+                                  if (hasUnit && u!.fixed.keepsKind)
                                     _FixedMark(
                                       key: Key(
                                         'calendar_replaced_${_dayKey(day)}',
@@ -899,7 +899,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
     final isToday = day == _today;
     final stateLabel = _stateText(l, state);
     final actions = _hasActions(day, u, state);
-    final replaced = hasUnit && u!.fixed == PlanUnitFixed.kind;
+    final replaced = hasUnit && u!.fixed.keepsKind;
     final restFixed = state == _DayState.rest && _userRest(u);
     final semantics = [
       DateFormat.MMMMEEEEd(lang).format(day),

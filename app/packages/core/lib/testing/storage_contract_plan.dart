@@ -125,6 +125,24 @@ Future<void> _replaceAndRestDay(StorageContractHarness h) async {
   expectEq(r1.fixed, PlanUnitFixed.kind, 'ersetzt: fixed = kind');
   expectEq(r1.weekIndex, u1.weekIndex, 'Woche bleibt');
 
+  // Harte Einheit wird locker: fixed = easyForHard aus der gespeicherten
+  // Einheit (planReplacedFixed), nicht aus dem Ersatz; locker wird wieder
+  // hart: fixed = kind.
+  await p.replaceUnit(
+    u1.id!,
+    _as(r1, PlanUnitKind.easy, minutes: 40).copyWith(fixed: PlanUnitFixed.kind),
+    today: _day(1),
+  );
+  final e1 = (await p.unitOn(_day(1)))!;
+  expectEq(e1.kind, PlanUnitKind.easy, 'hart -> locker: Art');
+  expectEq(e1.fixed, PlanUnitFixed.easyForHard, 'hart -> locker: easyForHard');
+  await p.replaceUnit(u1.id!, tempo, today: _day(1));
+  expectEq(
+    (await p.unitOn(_day(1)))!.fixed,
+    PlanUnitFixed.kind,
+    'locker -> hart: fixed = kind',
+  );
+
   var before = await _fixedState(s);
   final u0 = (await p.unitOn(_day(0)))!;
   final u2 = (await p.unitOn(_day(2)))!;

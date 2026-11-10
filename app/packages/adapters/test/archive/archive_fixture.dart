@@ -165,7 +165,9 @@ Future<void> fillAllTables(AppDatabase db) async {
     '"rpeMax":4,"paceFast":360.0,"paceSlow":420.0,"basis":"estimate",'
     '"hrMin":null,"hrMax":null,"estimated":true,"maxHrEstimated":false,'
     '"paceIsLimit":false}}]\', 1, 1, \'none\'), '
-    "(2, 1, '2026-11-03', 0, 'entry', 'rest', 0, '[]', NULL, 1, 'day')",
+    "(2, 1, '2026-11-03', 0, 'entry', 'rest', 0, '[]', NULL, 1, 'day'), "
+    "(3, 1, '2026-11-04', 0, 'entry', 'easy', 30, "
+    '\'[{"kind":"easy","minutes":30}]\', NULL, 1, \'easyForHard\')',
   );
   await sql(
     db,

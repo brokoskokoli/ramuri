@@ -40,6 +40,18 @@ enum PlanUnitFixed {
   /// Art vom Nutzer ersetzt: Die Art bleibt bei jeder Neuberechnung, Dauer
   /// und Intensität rechnet die App.
   kind,
+
+  /// Wie [kind], die Art ist locker ([PlanUnitKind.easy]) und ersetzt die
+  /// harte Einheit der Woche (Festlegung WP22): Die Einheit nimmt bei jeder
+  /// Neuberechnung die harte Einheit ihrer Woche auf, unabhängig vom Tag
+  /// (auch nach Verschieben oder geänderten Lauftagen); die Woche hat dann
+  /// keine harte Einheit (`HardOmission.replacedByUser`). Gesetzt beim
+  /// Ersetzen einer harten Einheit durch einen lockeren Lauf
+  /// (`planReplacedFixed`).
+  easyForHard;
+
+  /// Die Art hat der Nutzer festgelegt ([kind] oder [easyForHard]).
+  bool get keepsKind => this == kind || this == easyForHard;
 }
 
 /// Teil einer Einheit (FR-0143).

@@ -22,7 +22,7 @@ class AppDatabase extends _$AppDatabase {
   /// Leistungsprognose (WP20). Version 7: Trainingsziel (`goals`,
   /// WP21 Teil B) und Plan (`plans`, `plan_units`, WP21 Teil C).
   /// Version 8: Festlegung des Nutzers je Einheit (`plan_units.fixed`, WP22:
-  /// Art ersetzt, Ruhetag). Jede spätere Änderung erhöht die
+  /// Art ersetzt, harte Einheit locker ersetzt, Ruhetag). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override

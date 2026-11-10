@@ -2625,7 +2625,7 @@ class PlanUnits extends Table with TableInfo {
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    $customConstraints: 'NOT NULL DEFAULT \'none\' CHECK (fixed IN (\'none\', \'day\', \'kind\') AND(fixed = \'none\' OR(pinned = 1 AND(fixed = \'day\')=(kind = \'rest\'))))',
+    $customConstraints: 'NOT NULL DEFAULT \'none\' CHECK (fixed IN (\'none\', \'day\', \'kind\', \'easyForHard\') AND(fixed = \'none\' OR(pinned = 1 AND(fixed = \'day\')=(kind = \'rest\')AND(fixed <> \'easyForHard\' OR kind = \'easy\'))))',
     defaultValue: const CustomExpression('\'none\''),
   );
   @override

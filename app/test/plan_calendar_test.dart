@@ -675,6 +675,34 @@ void main() {
   });
 
   group('Ersetzen und Ruhetag (FR-0173, Festlegungen WP22)', () {
+    testWidgets('harte Einheit locker ersetzt (fixed = easyForHard): '
+        'Markierung „Art ersetzt“ wie bei kind', (tester) async {
+      final (session, clock) = await _seed();
+      final plans = (session as PlanStorage).plans;
+      final hard = (await plans.unitOn(_d(10)))!;
+      expect(hard.isHard, isTrue);
+      await plans.replaceUnit(
+        hard.id!,
+        PlanUnit(
+          day: hard.day,
+          kind: PlanUnitKind.easy,
+          phase: hard.phase,
+          weekIndex: hard.weekIndex,
+          minutes: 45,
+          segments: const [
+            PlanSegment(kind: PlanSegmentKind.easy, minutes: 45),
+          ],
+        ),
+        today: _d(2),
+      );
+      expect((await plans.unitOn(_d(10)))!.fixed, PlanUnitFixed.easyForHard);
+      await _pump(tester, session, clock);
+      await tester.tap(key('calendar_next'));
+      await tester.pumpAndSettle();
+      expect(key('calendar_replaced_${_k(10)}'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     for (final (locale, brightness) in [
       ('de', Brightness.light),
       ('en', Brightness.dark),

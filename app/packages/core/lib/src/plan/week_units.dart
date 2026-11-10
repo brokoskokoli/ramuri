@@ -25,7 +25,8 @@ enum HardOmission {
   weekTooShort,
 
   /// Der Nutzer hat die harte Einheit der Woche durch einen lockeren Lauf
-  /// ersetzt ([PlanUnitFixed.kind]); die Neuberechnung verlegt sie nicht.
+  /// ersetzt ([PlanUnitFixed.easyForHard]); die Neuberechnung verlegt sie
+  /// nicht.
   replacedByUser,
 }
 
@@ -267,7 +268,7 @@ bool planWeekHasShortHardForm(
     (week.minutes ?? 0) < parameters.hardLongFromWeeklyMinutes;
 
 /// Abschnitte einer Einheit, deren Art der Nutzer festgelegt hat
-/// ([PlanUnitFixed.kind]): Die Art bleibt, Dauer und Abschnitte rechnet die
+/// ([PlanUnitFixed.keepsKind]): Die Art bleibt, Dauer und Abschnitte rechnet die
 /// App. Locker und lang: ein lockerer Abschnitt mit [minutes] (1 bis
 /// [maxSessionMinutes]). Harte Formen: wie in der Woche erzeugt (PAR-198,
 /// kurze Form bei [short]); progressiv füllt [minutes]. Passt die Form nicht

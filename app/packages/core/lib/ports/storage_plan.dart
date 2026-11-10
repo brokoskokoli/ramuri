@@ -132,8 +132,9 @@ abstract interface class PlanRepository {
 
   /// Ersetzt die Art der Einheit nach Bestätigung des Nutzers (FR-0173,
   /// Schema 8): Art, Dauer und Abschnitte aus [replacement] (aus
-  /// `checkPlanReplace`), `pinned` und `fixed = kind` gesetzt, in einer
-  /// Transaktion. Fehlt die Einheit: `notFound`. Mit Lauf, vor [today],
+  /// `checkPlanReplace`), `pinned` und `fixed` aus `planReplacedFixed` der
+  /// gespeicherten Einheit (`easyForHard`, wenn eine harte Einheit locker
+  /// wird, sonst `kind`) gesetzt, in einer Transaktion. Fehlt die Einheit: `notFound`. Mit Lauf, vor [today],
   /// Ruhetag oder Geh-Lauf, eine Art außerhalb von `planReplaceKinds` oder
   /// ein anderer Tag in [replacement]: `rejected`.
   Future<void> replaceUnit(

@@ -74,6 +74,19 @@ class PlanReplaceCheck {
   bool get hasSecondHard => otherHardDays.isNotEmpty;
 }
 
+/// Die Festlegung, die eine gespeicherte Einheit [stored] beim Ersetzen durch
+/// die Art [kind] bekommt: [PlanUnitFixed.easyForHard], wenn eine harte
+/// Einheit locker wird (die Woche hat dann keine harte Einheit, auch nach
+/// Verschieben und Neuberechnung), sonst [PlanUnitFixed.kind]. Eine harte
+/// Einheit, die zum langen Lauf wird, bleibt [PlanUnitFixed.kind]: Sie nimmt
+/// den langen Lauf der Woche auf, die harte Einheit liegt danach auf dessen
+/// Tag. Gemeinsam für die Prüfung ([checkPlanReplace]) und den Speicher
+/// (`PlanRepository.replaceUnit`).
+PlanUnitFixed planReplacedFixed(PlanUnit stored, PlanUnitKind kind) =>
+    stored.isHard && kind == PlanUnitKind.easy
+    ? PlanUnitFixed.easyForHard
+    : PlanUnitFixed.kind;
+
 DateTime _monday(DateTime d) =>
     d.subtract(Duration(days: d.weekday - DateTime.monday));
 
@@ -146,7 +159,7 @@ PlanReplaceCheck checkPlanReplace({
     minutes: c.minutes,
     segments: c.segments,
     pinned: true,
-    fixed: PlanUnitFixed.kind,
+    fixed: planReplacedFixed(unit, kind),
     method: unit.method,
     methodVersion: unit.methodVersion,
   );

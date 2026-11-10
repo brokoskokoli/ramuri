@@ -225,7 +225,9 @@ def archive_rows_s7():
 
 def archive_rows_s8():
     """Schema 8: die Zeilen von Schema 7, Plan-Einheiten mit `fixed`; dazu eine ersetzte Einheit
-    (Art vom Nutzer, fixed = "kind", pinned) neben dem Ruhetag (fixed = "day")."""
+    (Art vom Nutzer, fixed = "kind", pinned) neben dem Ruhetag (fixed = "day") und eine harte
+    Einheit, die der Nutzer durch einen lockeren Lauf ersetzt hat (fixed = "easyForHard", nur mit
+    kind = "easy" und pinned)."""
     r = archive_rows_s7()
     units = [dict(u, fixed="day" if u["kind"] == "rest" else "none") for u in r["plan_units"]]
     tempo = [{"kind": "warmUp", "minutes": 10}, {"kind": "tempo", "minutes": 15},
@@ -233,6 +235,10 @@ def archive_rows_s8():
     units.append(dict(id=3, plan_id=1, day="2026-11-11", week=0, phase="entry", kind="tempo",
                       minutes=30, structure=json.dumps(tempo, separators=(",", ":")), run_id=None,
                       pinned=1, fixed="kind"))
+    easy = [{"kind": "easy", "minutes": 30}]
+    units.append(dict(id=4, plan_id=1, day="2026-11-12", week=0, phase="entry", kind="easy",
+                      minutes=30, structure=json.dumps(easy, separators=(",", ":")), run_id=None,
+                      pinned=1, fixed="easyForHard"))
     r["plan_units"] = units
     return r
 

@@ -3250,7 +3250,7 @@
             "getter_name": "fixed",
             "moor_type": "string",
             "nullable": false,
-            "customConstraints": "NOT NULL DEFAULT 'none' CHECK (fixed IN ('none', 'day', 'kind') AND(fixed = 'none' OR(pinned = 1 AND(fixed = 'day')=(kind = 'rest'))))",
+            "customConstraints": "NOT NULL DEFAULT 'none' CHECK (fixed IN ('none', 'day', 'kind', 'easyForHard') AND(fixed = 'none' OR(pinned = 1 AND(fixed = 'day')=(kind = 'rest')AND(fixed <> 'easyForHard' OR kind = 'easy'))))",
             "default_dart": "const CustomExpression('\\'none\\'')",
             "default_client_dart": null,
             "dsl_features": []
@@ -3814,7 +3814,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"plan_units\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"plan_id\" INTEGER NOT NULL REFERENCES plans(id)ON DELETE CASCADE, \"day\" TEXT NOT NULL CHECK (date(day) IS day), \"week\" INTEGER NOT NULL CHECK (week >= 0), \"phase\" TEXT NOT NULL CHECK (phase IN ('entry', 'build', 'reduction')), \"kind\" TEXT NOT NULL CHECK (kind IN ('easy', 'long', 'intervals', 'tempo', 'progressive', 'walkRun', 'rest')), \"minutes\" INTEGER NOT NULL CHECK (minutes >= 0), \"structure\" TEXT NOT NULL CHECK (json_valid(structure)), \"run_id\" INTEGER REFERENCES runs(id)ON DELETE SET NULL, \"pinned\" INTEGER NOT NULL CHECK (pinned IN (0, 1)), \"fixed\" TEXT NOT NULL DEFAULT 'none' CHECK (fixed IN ('none', 'day', 'kind') AND(fixed = 'none' OR(pinned = 1 AND(fixed = 'day')=(kind = 'rest')))));"
+          "sql": "CREATE TABLE IF NOT EXISTS \"plan_units\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"plan_id\" INTEGER NOT NULL REFERENCES plans(id)ON DELETE CASCADE, \"day\" TEXT NOT NULL CHECK (date(day) IS day), \"week\" INTEGER NOT NULL CHECK (week >= 0), \"phase\" TEXT NOT NULL CHECK (phase IN ('entry', 'build', 'reduction')), \"kind\" TEXT NOT NULL CHECK (kind IN ('easy', 'long', 'intervals', 'tempo', 'progressive', 'walkRun', 'rest')), \"minutes\" INTEGER NOT NULL CHECK (minutes >= 0), \"structure\" TEXT NOT NULL CHECK (json_valid(structure)), \"run_id\" INTEGER REFERENCES runs(id)ON DELETE SET NULL, \"pinned\" INTEGER NOT NULL CHECK (pinned IN (0, 1)), \"fixed\" TEXT NOT NULL DEFAULT 'none' CHECK (fixed IN ('none', 'day', 'kind', 'easyForHard') AND(fixed = 'none' OR(pinned = 1 AND(fixed = 'day')=(kind = 'rest')AND(fixed <> 'easyForHard' OR kind = 'easy')))));"
         }
       ]
     },

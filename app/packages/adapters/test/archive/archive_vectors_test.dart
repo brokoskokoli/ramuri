@@ -260,9 +260,12 @@ void main() {
         if (l['type'] == 'row' && (l['data'] as Map).containsKey('pinned'))
           l['data'] as Map,
     ];
-    expect([for (final u in units) u['fixed']], ['none', 'day', 'kind']);
+    expect(
+      [for (final u in units) u['fixed']],
+      ['none', 'day', 'kind', 'easyForHard'],
+    );
     expect(lines.last['rows'], v['row_counts']);
-    expect(lines.last['rows']['plan_units'], 3);
+    expect(lines.last['rows']['plan_units'], 4);
   });
 
   group('Dart verschlüsselt byte-gleich mit festem Salz', () {

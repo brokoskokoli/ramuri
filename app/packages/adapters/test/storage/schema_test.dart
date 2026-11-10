@@ -923,12 +923,17 @@ void main() {
       addTearDown(db.close);
       await verifier.migrateAndValidate(db, 8);
       final rows = await db
-          .customSelect('SELECT kind, pinned, fixed FROM plan_units ORDER BY day')
+          .customSelect(
+            'SELECT kind, pinned, fixed FROM plan_units ORDER BY day',
+          )
           .get();
-      expect([for (final r in rows) r.data], [
-        {'kind': 'easy', 'pinned': 0, 'fixed': 'none'},
-        {'kind': 'rest', 'pinned': 1, 'fixed': 'none'},
-      ]);
+      expect(
+        [for (final r in rows) r.data],
+        [
+          {'kind': 'easy', 'pinned': 0, 'fixed': 'none'},
+          {'kind': 'rest', 'pinned': 1, 'fixed': 'none'},
+        ],
+      );
       Future<void> unit(String day, String kind, int pinned, String fixed) =>
           _exec(
             db,
@@ -939,12 +944,17 @@ void main() {
           );
       await unit('2030-01-03', 'rest', 1, 'day');
       await unit('2030-01-04', 'tempo', 1, 'kind');
+      await unit('2030-01-05', 'easy', 1, 'easyForHard');
       for (final (kind, pinned, fixed) in [
         ('tempo', 1, 'other'),
         ('tempo', 0, 'kind'), // Art fest ohne Termin
         ('rest', 0, 'day'), // Ruhetag ohne Termin
         ('easy', 1, 'day'), // Ruhetag ohne rest
         ('rest', 1, 'kind'), // ersetzt durch rest
+        ('easy', 0, 'easyForHard'), // hart -> locker ohne Termin
+        ('tempo', 1, 'easyForHard'), // hart -> locker, aber nicht locker
+        ('long', 1, 'easyForHard'),
+        ('rest', 1, 'easyForHard'),
       ]) {
         await expectLater(
           unit('2030-02-01', kind, pinned, fixed),

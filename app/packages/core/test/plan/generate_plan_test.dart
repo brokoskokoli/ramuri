@@ -1081,7 +1081,8 @@ void main() {
       minutes: u.minutes,
       segments: u.segments,
       pinned: true,
-      fixed: PlanUnitFixed.kind,
+      // Wie beim Ersetzen im Speicher: hart -> locker ist easyForHard.
+      fixed: planReplacedFixed(u, kind),
     );
     List<String> dayKinds(Iterable<PlanUnit> w) => [
       for (final u in w) '${u.day.day}:${u.kind.name}',
@@ -1135,7 +1136,7 @@ void main() {
         );
         final w = week1(p);
         expect(dayKinds(w), ['17:easy', '19:easy', '21:long'], reason: what);
-        expect(w.first.fixed, PlanUnitFixed.kind, reason: what);
+        expect(w.first.fixed, PlanUnitFixed.easyForHard, reason: what);
         expect(p.hardOmissions[1], HardOmission.replacedByUser, reason: what);
         // Die übrigen Wochen behalten ihre harte Einheit.
         expect(
@@ -1145,6 +1146,112 @@ void main() {
         );
         expect(p.hardOmissions[2], isNull, reason: what);
       }
+    });
+
+    // Befund NB3-1: Das Merkmal hängt an der Einheit, nicht am Tag.
+    test('hart -> locker, danach verschoben: Woche bleibt ohne harte '
+        'Einheit, manuell und mit allen Einheiten als Termine', () {
+      final hard = b1.first; // Di 17.
+      final moved = replaced(
+        hard,
+        PlanUnitKind.easy,
+      ).copyWith(day: DateTime.utc(2026, 11, 18)); // auf Mi (confirmMove)
+      for (final (what, pins, days) in [
+        (
+          'manuell (nur der Termin)',
+          [moved],
+          ['18:easy', '19:easy', '21:long'],
+        ),
+        (
+          'automatisch (alle Einheiten als Termine)',
+          [
+            moved,
+            pin(of(PlanUnitKind.easy), 19),
+            pin(of(PlanUnitKind.long), 21),
+          ],
+          ['18:easy', '19:easy', '21:long'],
+        ),
+      ]) {
+        final p = generatePlan(
+          g,
+          inputs(start: 150),
+          const [],
+          d0,
+          pinnedUnits: pins,
+        );
+        final w = week1(p);
+        expect(dayKinds(w), days, reason: what);
+        expect(w.where((u) => u.isHard), isEmpty, reason: what);
+        expect(
+          w.firstWhere((u) => u.day.day == 18).fixed,
+          PlanUnitFixed.easyForHard,
+          reason: what,
+        );
+        expect(p.hardOmissions[1], HardOmission.replacedByUser, reason: what);
+      }
+    });
+
+    test('hart -> locker, danach andere Lauftage (Mo, Mi, Fr): die Woche '
+        'bleibt ohne harte Einheit', () {
+      final g2 = goal(date: DateTime.utc(2027, 2, 14), days: const {1, 3, 5});
+      final base2 = generatePlan(g2, inputs(start: 150), const [], d0);
+      final w2 = [
+        for (final u in base2.units)
+          if (u.weekIndex == 1) u,
+      ];
+      // Die Rechnung legt die harte Einheit auf einen anderen Tag als den
+      // der ersetzten Einheit (Di 17.).
+      expect(w2.where((u) => u.isHard).map((u) => u.day.day), isNot([17]));
+      expect(w2.where((u) => u.isHard), isNotEmpty);
+      final p = generatePlan(
+        g2,
+        inputs(start: 150),
+        const [],
+        d0,
+        pinnedUnits: [replaced(b1.first, PlanUnitKind.easy)],
+      );
+      final w = week1(p);
+      expect(w.where((u) => u.isHard), isEmpty);
+      expect(w.length, w2.length);
+      final e = w.firstWhere((u) => u.day.day == 17);
+      expect(e.kind, PlanUnitKind.easy);
+      expect(e.fixed, PlanUnitFixed.easyForHard);
+      expect(p.hardOmissions[1], HardOmission.replacedByUser);
+    });
+
+    test('hart -> locker und eine andere Einheit -> Tempo in derselben '
+        'Woche: die Woche hat eine harte Einheit, kein Hinweis', () {
+      final p = generatePlan(
+        g,
+        inputs(start: 150),
+        const [],
+        d0,
+        pinnedUnits: [
+          replaced(b1.first, PlanUnitKind.easy), // Di
+          replaced(of(PlanUnitKind.easy), PlanUnitKind.tempo), // Do
+        ],
+      );
+      final w = week1(p);
+      expect(dayKinds(w), ['17:easy', '19:tempo', '21:long']);
+      expect(w.where((u) => u.isHard), hasLength(1));
+      expect(p.hardOmissions[1], isNull);
+    });
+
+    test('hart -> lang: fixed = kind, die Einheit übernimmt den langen Lauf '
+        'der Woche, die harte Einheit liegt danach auf dessen Tag', () {
+      final hard = b1.first;
+      final r = replaced(hard, PlanUnitKind.long);
+      expect(r.fixed, PlanUnitFixed.kind);
+      final p = generatePlan(
+        g,
+        inputs(start: 150),
+        const [],
+        d0,
+        pinnedUnits: [r],
+      );
+      final w = week1(p);
+      expect(dayKinds(w), ['17:long', '19:easy', '21:${hard.kind.name}']);
+      expect(p.hardOmissions[1], isNull);
     });
 
     test('ersetzte harte Art übernimmt die harte Einheit der Woche, die '

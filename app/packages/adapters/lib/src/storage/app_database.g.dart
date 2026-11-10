@@ -12819,7 +12819,7 @@ class PlanUnits extends Table with TableInfo<PlanUnits, PlanUnitRow> {
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    $customConstraints: 'NOT NULL DEFAULT \'none\' CHECK (fixed IN (\'none\', \'day\', \'kind\') AND(fixed = \'none\' OR(pinned = 1 AND(fixed = \'day\')=(kind = \'rest\'))))',
+    $customConstraints: 'NOT NULL DEFAULT \'none\' CHECK (fixed IN (\'none\', \'day\', \'kind\', \'easyForHard\') AND(fixed = \'none\' OR(pinned = 1 AND(fixed = \'day\')=(kind = \'rest\')AND(fixed <> \'easyForHard\' OR kind = \'easy\'))))',
     defaultValue: const CustomExpression('\'none\''),
   );
   @override
@@ -13006,8 +13006,10 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
 
   /// Schema 8 (WP22): vom Nutzer Festgelegtes über den Termin hinaus. 'kind':
   /// Art ersetzt (bleibt bei jeder Neuberechnung), 'day': Ruhetag (nur mit
-  /// kind = 'rest'). Beides nur mit bestätigtem Termin (pinned = 1). Zeilen
-  /// aus Schema 7 und Archive mit Schema <= 7 bekommen 'none'.
+  /// kind = 'rest'), 'easyForHard': Art ersetzt, eine harte Einheit wurde
+  /// locker (nur mit kind = 'easy'; die Woche hat dann keine harte Einheit).
+  /// Alle nur mit bestätigtem Termin (pinned = 1). Zeilen aus Schema 7 und
+  /// Archive mit Schema <= 7 bekommen 'none'.
   final String fixed;
   const PlanUnitRow({
     required this.id,

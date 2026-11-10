@@ -132,7 +132,8 @@ class DriftPlanRepository implements PlanRepository {
   }) => guarded(() async {
     await _db.transaction(() async {
       final row = await _requireUnit(unitId);
-      if (!planReplaceAllowed(_light(row), replacement, today)) {
+      final stored = _light(row);
+      if (!planReplaceAllowed(stored, replacement, today)) {
         throw const StorageException(StorageFailure.rejected);
       }
       await (_db.update(
@@ -143,7 +144,7 @@ class DriftPlanRepository implements PlanRepository {
           minutes: Value(replacement.minutes),
           structure: Value(jsonEncode(_structure(replacement.segments))),
           pinned: const Value(true),
-          fixed: Value(PlanUnitFixed.kind.name),
+          fixed: Value(planReplacedFixed(stored, replacement.kind).name),
         ),
       );
     });

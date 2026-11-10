@@ -143,6 +143,35 @@ void main() {
       expect(u.segments.any((s) => s.kind == PlanSegmentKind.tempo), isTrue);
     });
 
+    test('Festlegung beim Ersetzen: hart -> locker easyForHard, sonst kind '
+        '(planReplacedFixed)', () {
+      expect(hard.isHard, isTrue);
+      expect(
+        _replace(week, hard, PlanUnitKind.easy).unit!.fixed,
+        PlanUnitFixed.easyForHard,
+      );
+      for (final k in [
+        PlanUnitKind.long,
+        PlanUnitKind.tempo,
+        PlanUnitKind.progressive,
+      ]) {
+        if (k == hard.kind) continue;
+        expect(
+          _replace(week, hard, k).unit!.fixed,
+          PlanUnitFixed.kind,
+          reason: k.name,
+        );
+      }
+      expect(
+        _replace(week, easy, PlanUnitKind.long).unit!.fixed,
+        PlanUnitFixed.kind,
+      );
+      expect(PlanUnitFixed.easyForHard.keepsKind, isTrue);
+      expect(PlanUnitFixed.kind.keepsKind, isTrue);
+      expect(PlanUnitFixed.day.keepsKind, isFalse);
+      expect(PlanUnitFixed.none.keepsKind, isFalse);
+    });
+
     test('Hinweise: Abstand (PAR-059/060, auch absolvierte Läufe) und zweite '
         'harte Einheit derselben Woche (PAR-198), keine Sperre', () {
       // Tempo am Di: Do (Intervalle) liegt 2 Tage weiter -> kein Konflikt;

@@ -1,6 +1,7 @@
 import '../ports/storage.dart';
 import '../ports/storage_plan.dart';
 import '../src/goals/training_goal.dart';
+import '../src/plan/plan_replace.dart' show planReplacedFixed;
 import '../src/plan/plan_unit.dart';
 import '../src/plan/weekly_time.dart' show planDay;
 import 'fake_storage_data.dart';
@@ -105,7 +106,7 @@ class FakePlanRepository implements PlanRepository {
       minutes: replacement.minutes,
       segments: replacement.segments,
       pinned: true,
-      fixed: PlanUnitFixed.kind,
+      fixed: planReplacedFixed(u, replacement.kind),
     );
   }
 

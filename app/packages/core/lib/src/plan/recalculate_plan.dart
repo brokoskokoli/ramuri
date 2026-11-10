@@ -240,7 +240,7 @@ GeneratedPlan _keepSchedule(GeneratedPlan g, List<PlanUnit> oldFuture) {
     } else if (oldByDay[day] case final old?) {
       // Eine ersetzte Art, die die Rechnung nicht halten konnte (Geh-Lauf
       // hat Vorrang), ist nicht mehr vom Nutzer festgelegt.
-      final lost = old.fixed == PlanUnitFixed.kind && u.kind != old.kind;
+      final lost = old.fixed.keepsKind && u.kind != old.kind;
       units.add(
         u.copyWith(
           pinned: old.pinned,

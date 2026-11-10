@@ -602,6 +602,67 @@ void main() {
             '${u.day.toIso8601String()}|${u.kind.name}',
       ];
 
+      // Befund NB3-1: hart -> locker hängt an der Einheit
+      // (fixed = easyForHard), nicht am Tag der erzeugten harten Einheit.
+      test('hart -> locker, danach verschoben: manuell und automatisch '
+          'bleibt die Woche ohne harte Einheit, Hinweis „vom Nutzer '
+          'ersetzt“', () async {
+        final e = await _Env.open();
+        await e.goals.save(_goal(), today: _goal().createdAt);
+        await e.run(PlanTrigger.create, 0);
+        final units = await _all(e.plans);
+        final hardUnit = units.firstWhere(
+          (u) => u.isHard && u.day.isAfter(_day(14)),
+        );
+        final check = checkPlanReplace(
+          units: units,
+          unit: hardUnit,
+          kind: PlanUnitKind.easy,
+          goal: (await e.plans.currentGoal())!,
+          inputs: (await e.plans.history()).last.inputs,
+          today: _day(0),
+        );
+        expect(check.unit!.fixed, PlanUnitFixed.easyForHard);
+        await e.plans.replaceUnit(hardUnit.id!, check.unit!, today: _day(0));
+        final week = monday(hardUnit.day);
+        final taken = {for (final u in units) u.day};
+        final to = [for (var i = 0; i < 7; i++) week.add(Duration(days: i))]
+            .firstWhere((d) => !taken.contains(d));
+        await e.plans.confirmMove(hardUnit.id!, to, today: _day(0));
+        // Andere Wochenzeit je Lauf, damit jede Rechnung eine Fassung
+        // schreibt (gleiche Einheiten schreiben keine).
+        var offset = 0;
+        for (final (t, cap) in [
+          (PlanTrigger.manual, 200),
+          (PlanTrigger.weekly, 260),
+          (PlanTrigger.manual, 220),
+        ]) {
+          offset += 1;
+          final g = _goal(capMin: cap);
+          await e.goals.save(g, today: g.createdAt);
+          final r = await e.run(t, offset);
+          expect(
+            r.version,
+            isNotNull,
+            reason: '${t.name}: Fassung geschrieben',
+          );
+          final w = [
+            for (final u in await _all(e.plans))
+              if (monday(u.day) == week) u,
+          ];
+          expect(w.where((u) => u.isHard), isEmpty, reason: t.name);
+          final m = w.singleWhere((u) => u.day == to);
+          expect(m.kind, PlanUnitKind.easy, reason: t.name);
+          expect(m.fixed, PlanUnitFixed.easyForHard, reason: t.name);
+          expect(m.pinned, isTrue, reason: t.name);
+          expect(
+            r.generated?.hardOmissions[m.weekIndex],
+            HardOmission.replacedByUser,
+            reason: t.name,
+          );
+        }
+      });
+
       test('über manual, goalChange und weekly: Art bleibt (Dauer neu '
           'gerechnet), Ruhetag bleibt ohne Lauf, die übrigen harten Formen '
           'rotieren wie ohne Ersetzen (PAR-198)', () async {

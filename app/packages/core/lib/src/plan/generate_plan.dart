@@ -24,7 +24,7 @@ enum PinnedConflictKind {
   /// übernommen.
   noMatchingUnit,
 
-  /// Der Nutzer hat die Art der Einheit ersetzt ([PlanUnitFixed.kind]), die
+  /// Der Nutzer hat die Art der Einheit ersetzt ([PlanUnitFixed.keepsKind]), die
   /// Woche ist aber eine Geh-Lauf-Woche: Die Abfolge hat Vorrang, der Termin
   /// bleibt, die ersetzte Art entfällt.
   walkRunFirst,
@@ -479,6 +479,7 @@ PlanUnit _withKind(
   required bool short,
   required int maxSession,
   required PlanParameters parameters,
+  PlanUnitFixed fixed = PlanUnitFixed.kind,
 }) {
   final c = planSegmentsForKind(
     kind,
@@ -497,7 +498,7 @@ PlanUnit _withKind(
     id: u.id,
     runId: u.runId,
     pinned: u.pinned,
-    fixed: PlanUnitFixed.kind,
+    fixed: fixed,
     method: u.method,
     methodVersion: u.methodVersion,
   );
@@ -530,10 +531,12 @@ class _Pinned {
 /// ([PlanUnitFixed.kind]), bekommt die Einheit auf dem Tag diese Art; Dauer
 /// und Abschnitte rechnet [planSegmentsForKind] neu.
 ///
-/// Hat der Nutzer einen Tag mit der erzeugten harten Einheit zum lockeren
-/// Lauf gemacht ([PlanUnitFixed.kind], Festlegung WP22), nimmt sein Termin
-/// diese harte Einheit auf: Die Woche hat dann keine harte Einheit, sie wird
-/// nicht auf einen anderen Tag verlegt. Eine ersetzte harte Art übernimmt
+/// Hat der Nutzer eine harte Einheit zum lockeren Lauf gemacht
+/// ([PlanUnitFixed.easyForHard], Festlegung WP22), nimmt diese Einheit die
+/// harte Einheit ihrer Woche auf, unabhängig vom Tag (auch nach Verschieben,
+/// geänderten Lauftagen oder wenn die Rechnung die harte Einheit anders
+/// legt): Die Woche hat dann keine harte Einheit, sie wird nicht auf einen
+/// anderen Tag verlegt. Eine ersetzte harte Art übernimmt
 /// dagegen über die Rolle die harte Einheit der Woche (deren Tag wird
 /// locker). In einer Geh-Lauf-Woche hat die Abfolge Vorrang: Der Termin
 /// bleibt, die ersetzte Art entfällt ([PinnedConflictKind.walkRunFirst]).
@@ -563,11 +566,12 @@ _Pinned _applyPinned(
   final restDays = {for (final u in restUnits) planDay(u.day)};
   var hardReplaced = false;
   for (final u in [...todo]) {
-    if (u.fixed != PlanUnitFixed.kind || u.kind != PlanUnitKind.easy) continue;
-    final i = out.indexWhere(
-      (x) => x.isHard && planDay(x.day) == planDay(u.day),
-    );
-    if (i >= 0 && !assigned.containsKey(i)) {
+    if (u.fixed != PlanUnitFixed.easyForHard) continue;
+    final i = out.indexed
+        .where((e) => e.$2.isHard && !assigned.containsKey(e.$1))
+        .firstOrNull
+        ?.$1;
+    if (i != null) {
       assigned[i] = u;
       todo.remove(u);
       hardReplaced = true;
@@ -619,8 +623,7 @@ _Pinned _applyPinned(
     if (target != null) {
       final day = planDay(target.day);
       final walkRunFirst =
-          target.fixed == PlanUnitFixed.kind &&
-          out[i].kind == PlanUnitKind.walkRun;
+          target.fixed.keepsKind && out[i].kind == PlanUnitKind.walkRun;
       if (walkRunFirst) {
         conflicts.add(
           PinnedConflict(kind: PinnedConflictKind.walkRunFirst, day: day),
@@ -633,13 +636,14 @@ _Pinned _applyPinned(
         fixed: walkRunFirst ? PlanUnitFixed.none : target.fixed,
       );
       kept.add(
-        target.fixed == PlanUnitFixed.kind && !walkRunFirst
+        target.fixed.keepsKind && !walkRunFirst
             ? _withKind(
                 placed,
                 target.kind,
                 short: short,
                 maxSession: maxSession,
                 parameters: parameters,
+                fixed: target.fixed,
               )
             : placed,
       );

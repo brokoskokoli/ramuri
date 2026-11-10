@@ -578,6 +578,11 @@ void main() {
     expect(rest.fixed, PlanUnitFixed.day);
     expect(rest.isRestDay, isTrue);
     expect(u.fixed, PlanUnitFixed.none);
+    // Harte Einheit locker ersetzt: das Merkmal kommt über den Port zurück.
+    final easy = (await repo.unitOn(DateTime.utc(2026, 11, 4)))!;
+    expect(easy.kind, PlanUnitKind.easy);
+    expect(easy.fixed, PlanUnitFixed.easyForHard);
+    expect(easy.pinned, isTrue);
   });
 
   // Ältere Archive bleiben lesbar (Format 2 mit Schema 5, 6 und 7; 8 ist
@@ -631,7 +636,7 @@ void main() {
         expect(goal!.distance, GoalDistance.tenKilometers);
         expect(got['plans'], hasLength(1));
         expect(got['plans']!.single['goal_id'], 1);
-        expect(got['plan_units'], hasLength(schema >= 8 ? 3 : 2));
+        expect(got['plan_units'], hasLength(schema >= 8 ? 4 : 2));
         expect(got['plan_units']![0]['run_id'], 1);
         expect(got['plan_units']![0]['structure'], contains('"seconds":300'));
         expect(got['plan_units']![1]['run_id'], isNull);
@@ -639,7 +644,9 @@ void main() {
         // (auch der gepinnte Ruhetag); Schema 8 trägt die Festlegung.
         expect(
           [for (final u in got['plan_units']!) u['fixed']],
-          schema >= 8 ? ['none', 'day', 'kind'] : ['none', 'none'],
+          schema >= 8
+              ? ['none', 'day', 'kind', 'easyForHard']
+              : ['none', 'none'],
         );
         if (schema >= 8) {
           final replaced = (await (session as PlanStorage).plans.unitOn(
@@ -648,6 +655,11 @@ void main() {
           expect(replaced.kind, PlanUnitKind.tempo);
           expect(replaced.fixed, PlanUnitFixed.kind);
           expect(replaced.pinned, isTrue);
+          final easy = (await (session as PlanStorage).plans.unitOn(
+            DateTime.utc(2026, 11, 12),
+          ))!;
+          expect(easy.kind, PlanUnitKind.easy);
+          expect(easy.fixed, PlanUnitFixed.easyForHard);
         }
       } else {
         expect(got['plans'], isEmpty);
@@ -917,6 +929,21 @@ void main() {
         'plans',
         (d) => d['trigger'] = 'sometimes',
         0,
+      ),
+      'CHECK: Einheit unbekannte Festlegung': (
+        'plan_units',
+        (d) => d['fixed'] = 'other',
+        0,
+      ),
+      'CHECK: Einheit easyForHard nicht locker': (
+        'plan_units',
+        (d) => d['kind'] = 'tempo',
+        2,
+      ),
+      'CHECK: Einheit easyForHard ohne Termin': (
+        'plan_units',
+        (d) => d['pinned'] = 0,
+        2,
       ),
       'CHECK: Einheit unbekannte Art': (
         'plan_units',

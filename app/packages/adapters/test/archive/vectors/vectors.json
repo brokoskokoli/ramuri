@@ -277,14 +277,14 @@
       "salt_hex": "08090a0b0c0d0e0f1011121314151617",
       "key_hex": "594c0c46181ace8f40cb8e933d8cdb4193edaa4d91fe737cb25f66367dd2e160",
       "header_hex": "52554e415243485600020001000000000003012008090a0b0c0d0e0f1011121314151617",
-      "plaintext_len": 2598,
-      "plaintext_sha256": "22e7e2a24f85950e11c719a009cacf2ff803a85bf1db24976ae82a0b3eb1da96",
+      "plaintext_len": 2629,
+      "plaintext_sha256": "edf988a05bd7b0c01e6687d6db57cbacc49bc8b0f2f3b97038b986281a3fc2b0",
       "chunk_count": 1,
-      "file_len": 2650,
+      "file_len": 2681,
       "expect": "ok",
       "format": 2,
       "jsonl_file": "archive_v2_s8.jsonl",
-      "jsonl_sha256": "a0d64ffe0f43e8388c6b75e1800433439f23e5528e12045afc726067e2a4d3b2",
+      "jsonl_sha256": "ab7a9cafc78f8975c589d2b2c0bfd25b57675514444ebc62b5673ee10b7c0976",
       "row_counts": {
         "runs": 2,
         "laps": 1,
@@ -309,7 +309,7 @@
         "active_warning": 0,
         "reference_performances": 3,
         "rejected_suggestions": 1,
-        "plan_units": 3
+        "plan_units": 4
       },
       "today": "2026-11-20"
     },
