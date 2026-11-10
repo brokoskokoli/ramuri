@@ -1,6 +1,6 @@
 # Vertrag: Verschlüsseltes Archiv (Gesamtexport)
 
-**Status:** Vorschlag des Pakets (WP12 Teil A, OQ-0032). Formatversion 1 vom Maintainer bestätigt (2026-11-07); Schema der Datenbank: Version 4. **WP18: Formatversion 2 mit Schema 5** (zusätzliche Abschnitte `run_feedback` und `manual_trainings`, Kopf und Parameter unverändert); Format 1 mit Schema 4 bleibt lesbar. **WP20: Schema 6 bleibt Formatversion 2** (zusätzliche Abschnitte 22 und 23 für Referenzleistungen und abgelehnte Vorschläge; Format 2 ist noch nicht ausgeliefert, eine eigene Formatversion brächte keinen Nutzen); Format 2 mit Schema 5 und Format 1 mit Schema 4 bleiben lesbar. Der Schreiber erzeugt nur Format 2 mit Schema 6. Die Zeilen- und Abschnittsregeln (Inhalt unter der Verschlüsselung) sind Vorschläge des Pakets und umkehrbar, solange kein Archiv der Version 1 ausgeliefert ist.
+**Status:** Vorschlag des Pakets (WP12 Teil A, OQ-0032). Formatversion 1 vom Maintainer bestätigt (2026-11-07); Schema der Datenbank: Version 4. **WP18: Formatversion 2 mit Schema 5** (zusätzliche Abschnitte `run_feedback` und `manual_trainings`, Kopf und Parameter unverändert); Format 1 mit Schema 4 bleibt lesbar. **WP20: Schema 6 bleibt Formatversion 2** (zusätzliche Abschnitte 22 und 23 für Referenzleistungen und abgelehnte Vorschläge; Format 2 ist noch nicht ausgeliefert, eine eigene Formatversion brächte keinen Nutzen); Format 2 mit Schema 5 und Format 1 mit Schema 4 bleiben lesbar. **WP21: Schema 7 bleibt Formatversion 2** (der Abschnitt 19 `goals` trägt ab Schema 7 Zeilen, die Abschnitte 20 und 21 bleiben vorerst leer); Format 2 mit Schema 5 und 6 sowie Format 1 mit Schema 4 bleiben lesbar. Der Schreiber erzeugt nur Format 2 mit Schema 7. Die Zeilen- und Abschnittsregeln (Inhalt unter der Verschlüsselung) sind Vorschläge des Pakets und umkehrbar, solange kein Archiv der Version 1 ausgeliefert ist.
 **Anforderungen:** FR-0192, FR-0198, SEC-0011, ACC-15; Entscheidungen in [ADR-0008](../architecture/adr/ADR-0008-verschluesselung-des-archivs.md) (Verfahren, Parameter), ADR-0004 Punkt 6 (Kennungen).
 **Code:** `app/packages/core/lib/src/archive/` (Kopf, Rahmen, Export, Leser), Ports `app/packages/core/lib/ports/archive_cipher.dart`, `archive_source.dart` (Export) und `archive_sink.dart` (Import), Adapter `app/packages/adapters/lib/src/archive/`. Zwischendatenbank und Tausch beim Import sowie die Oberfläche folgen in späteren Teilen von WP12; dieser Vertrag legt sie fest.
 
@@ -76,8 +76,8 @@ Dekomprimiert ist es ein JSON-Lines-Text (UTF-8 ohne BOM): Jede Zeile ist **ein*
 
 ### 4.1 Zeilenfolge
 
-1. **Manifest** (genau eine, erste Zeile): `{"type":"manifest","format":2,"schema_version":6,"created_at_us":<int>}` (Format 2 mit Schema 5 oder Format 1 mit Schema 4 beim Lesen). `format` ist die Formatversion des Kopfes (gleich), `schema_version` das Datenbankschema der Zeilen, `created_at_us` der Erstellzeitpunkt in Mikrosekunden seit Epoch (UTC). Format 1 gehört zu Schema 4, Format 2 zu Schema 5 und 6; jede andere Paarung (Format 3 oder 0, Format 2 mit Schema 4, Format 1 mit Schema 5 oder 6) ist ein Widerspruch (beschädigt). Ein Schema größer als 6 ist „neueres Archiv“ (ohne Änderung), ein Schema kleiner als 4 „Schema nicht unterstützt“, solange es keine Migration gibt. Unbekannte weitere Schlüssel im Manifest sind ein Fehler, **außer** bei einem größeren Schema: Der Leser wertet `schema_version` zuerst aus, ein größeres Schema ist „neueres Archiv“, auch wenn das Manifest weitere Schlüssel trägt. `format` im Manifest ungleich der Formatversion des Kopfes ist ein Widerspruch (beschädigt).
-2. **Abschnitte** in der festen Reihenfolge der Tabelle in 4.3, **alle** Abschnitte des Schemas (Schema 6: 23; Schema 5: die 21 ohne die Nummern 22 und 23; Schema 4: die 19 ohne `run_feedback` und `manual_trainings` sowie ohne 22 und 23), auch leere. Ein Abschnitt, den das Schema nicht kennt, und ein fehlender sind Fehler: ein älteres Schema mit den neueren Abschnitten und ein neueres ohne sie werden abgelehnt. Jeder Abschnitt beginnt mit `{"type":"section","name":"<Abschnittsname>"}`, darauf folgen seine Zeilen `{"type":"row","data":{<Spalte>:<Wert>,...}}`. Eine Zeile gehört zum zuletzt begonnenen Abschnitt.
+1. **Manifest** (genau eine, erste Zeile): `{"type":"manifest","format":2,"schema_version":7,"created_at_us":<int>}` (Format 2 mit Schema 5 oder 6 oder Format 1 mit Schema 4 beim Lesen). `format` ist die Formatversion des Kopfes (gleich), `schema_version` das Datenbankschema der Zeilen, `created_at_us` der Erstellzeitpunkt in Mikrosekunden seit Epoch (UTC). Format 1 gehört zu Schema 4, Format 2 zu Schema 5 bis 7; jede andere Paarung (Format 3 oder 0, Format 2 mit Schema 4, Format 1 mit Schema 5 bis 7) ist ein Widerspruch (beschädigt). Ein Schema größer als 7 ist „neueres Archiv“ (ohne Änderung), ein Schema kleiner als 4 „Schema nicht unterstützt“, solange es keine Migration gibt. Unbekannte weitere Schlüssel im Manifest sind ein Fehler, **außer** bei einem größeren Schema: Der Leser wertet `schema_version` zuerst aus, ein größeres Schema ist „neueres Archiv“, auch wenn das Manifest weitere Schlüssel trägt. `format` im Manifest ungleich der Formatversion des Kopfes ist ein Widerspruch (beschädigt).
+2. **Abschnitte** in der festen Reihenfolge der Tabelle in 4.3, **alle** Abschnitte des Schemas (Schema 7 und 6: 23; Schema 5: die 21 ohne die Nummern 22 und 23; Schema 4: die 19 ohne `run_feedback` und `manual_trainings` sowie ohne 22 und 23), auch leere. Ein Abschnitt, den das Schema nicht kennt, und ein fehlender sind Fehler: ein älteres Schema mit den neueren Abschnitten und ein neueres ohne sie werden abgelehnt. Jeder Abschnitt beginnt mit `{"type":"section","name":"<Abschnittsname>"}`, darauf folgen seine Zeilen `{"type":"row","data":{<Spalte>:<Wert>,...}}`. Eine Zeile gehört zum zuletzt begonnenen Abschnitt.
 3. **Ende** (genau eine, letzte Zeile): `{"type":"end","rows":{"runs":<n>,"laps":<n>,...}}` mit der Zeilenzahl **jedes** Abschnitts der Formatversion (auch 0), in der Reihenfolge der Abschnitte. Der Leser zählt mit und lehnt jede Abweichung ab. Jeder Zähler ist eine Ganzzahl (`0.0` ist keine); die Reihenfolge der Schlüssel in `rows` ist beliebig, der Schlüsselsatz muss genau die Abschnitte der Formatversion sein.
 
 Abweichungen sind Fehler: fehlender oder doppelter Abschnitt, falsche Reihenfolge, Zeile außerhalb eines Abschnitts, Zeile nach der Endzeile, fehlende Endzeile, unbekannter `type`, unbekannter Abschnittsname.
@@ -115,9 +115,9 @@ Abweichungen sind Fehler: fehlender oder doppelter Abschnitt, falsche Reihenfolg
   Zahlenbereiche (zum Beispiel `ended_utc_offset_s` −64800 bis 64800, `training_days_mask` 0 bis 127, positive Werte in `profile`, `end_us >= start_us`) stehen ebenfalls als CHECK in `schema.drift`. Fehlende Werte sind `null`, nie 0.
 - Laufwerte (`computed_values`) tragen **beide** Rollen (`original`, `current`) mit `unavailable_reason`, Basis (`hr_max_bpm`, `hr_rest_bpm`, `hr_max_is_estimated`), Quellen, Versionen und Qualität. Zonenzeiten und `trimp_run` sind Laufwerte und stehen hier; sie sind nicht aus den Rohdaten rekonstruierbar.
 
-### 4.3 Abschnitte und Spalten (Schema 6)
+### 4.3 Abschnitte und Spalten (Schema 7)
 
-Quelle der Spalten: `app/packages/adapters/lib/src/storage/schema.drift` (Schemaversion 5). Typen: I = INTEGER, R = REAL, T = TEXT, B = BOOLEAN (0/1). `?` = darf `null` sein.
+Quelle der Spalten: `app/packages/adapters/lib/src/storage/schema.drift` (Schemaversion 7). Typen: I = INTEGER, R = REAL, T = TEXT, B = BOOLEAN (0/1). `?` = darf `null` sein.
 
 | # | Abschnitt | Spalten |
 |--:|---|---|
@@ -139,7 +139,7 @@ Quelle der Spalten: `app/packages/adapters/lib/src/storage/schema.drift` (Schema
 | 16 | `known_devices` | id I, device_id T, display_name T?, is_preferred B, added_at_us I |
 | 17 | `run_feedback` | run_id I, rpe I?, wellbeing I?, complaints T?, warning_answer T?, note T?, srpe_points R?, srpe_duration_s R?, srpe_method T?, srpe_method_version I? |
 | 18 | `manual_trainings` | id I, day T, kind T, duration_s I, rpe I |
-| 19 | `goals` | (leer, siehe unten) |
+| 19 | `goals` | id I, type T, distance T?, target_s R?, target_date T?, run_days I, max_session_s R, weekly_cap_s R, current_weekly_s R?, can_run_30 T, hard_session B, created_at_us I |
 | 20 | `plans` | (leer, siehe unten) |
 | 21 | `active_warning` | (leer, siehe unten) |
 | 22 | `reference_performances` | id I, kind T, distance_m R, time_s R, performed_on T, created_at_us I, run_id I? |
@@ -151,14 +151,16 @@ Nicht im Archiv: die Tabellen `storage_meta` (technisch), `consents` (Einwilligu
 
 **Referenzleistungen (22, 23), seit Schema 6 (WP20):** `reference_performances` trägt die Referenzleistungen (Art `race`, `test` oder `confirmedRun`, Distanz und Zeit größer 0, `performed_on` als Ortstag `JJJJ-MM-TT`, `run_id` nur beim bestätigten Lauf), `rejected_suggestions` die abgelehnten Vorschläge (ein Lauf höchstens einmal). `run_id` verweist auf einen Lauf des Archivs; ein Verweis auf einen Lauf, den das Archiv nicht enthält, ist beschädigt (Fremdschlüssel der Zwischendatenbank). Die Wertemengen und Grenzen prüft die Datenbank (CHECK in `schema.drift`). Ein Archiv mit Schema 4 oder 5 kennt die Abschnitte nicht; die Tabellen bleiben dann leer.
 
-**Leere Abschnitte (Schema 5 und 6: 19 bis 21; Schema 4: 17 bis 19):** `goals`, `plans`, `active_warning` sind für spätere Phasen vorgesehen (FR-0192, L13). In allen Schemata haben sie **0 Zeilen**; der Leser lehnt einen Abschnitt mit Zeilen ab, weil er sie nicht speichern kann (nicht stillschweigend verwerfen). Ihre Spalten legt das Schema fest, das sie einführt (mit neuem `schema_version`, nötigenfalls neuer Formatversion).
+**Ziel (19), seit Schema 7 (WP21):** `goals` trägt das Trainingsziel (FR-0135 bis FR-0137, ADR-0010): höchstens eine Zeile mit `id` 1. `type` ist `distance`, `time` oder `open`; `distance` (`fiveKilometers`, `tenKilometers`, `halfMarathon`) fehlt nur beim offenen Ziel; `target_s` (Zielzeit in Sekunden, größer 0) steht nur beim Zeitziel; `target_date` ist ein Ortstag `JJJJ-MM-TT` und fehlt beim offenen Ziel; `run_days` ist die Bitmaske der Lauftage (Bit 0 = Montag, 1 bis 127), `max_session_s` und `weekly_cap_s` sind größer 0, `current_weekly_s` (Stand, PAR-192) ist leer oder größer 0, `can_run_30` ist `yes`, `no` oder `unknown`, `hard_session` ist der Schalter der harten Einheit (PAR-198). Der Leser prüft Spalten und Typen; Wertemengen und die Regeln je Zieltyp prüft die Datenbank (CHECK in `schema.drift`, Zwischendatenbank). Ein Archiv mit Schema 4 bis 6 hat den Abschnitt als leeren Platzhalter und darf keine Zeile darin tragen (beschädigt); die Tabelle bleibt dann leer.
+
+**Leere Abschnitte (Schema 7: 20 und 21; Schema 5 und 6: 19 bis 21; Schema 4: 17 bis 19):** `plans`, `active_warning` (und bis Schema 6 auch `goals`) sind für spätere Phasen vorgesehen (FR-0192, L13). In diesen Schemata haben sie **0 Zeilen**; der Leser lehnt einen Abschnitt mit Zeilen ab, weil er sie nicht speichern kann (nicht stillschweigend verwerfen). Ihre Spalten legt das Schema fest, das sie einführt (mit neuem `schema_version`, nötigenfalls neuer Formatversion).
 
 **Technische Merker in `settings`:** Der Schreiber lässt die Schlüssel `values.calculationPending`, `values.refreshPending`, `recalculation.pending`, `load.profile_pending` (die noch unbestätigte Profilwahl zu einem offenen Angebot), `load.coefficients_pending` (die noch unbestätigte Änderung der Koeffizienten-Angabe), `load.factor_pending` (der angebotene neue persönliche Faktor) und `load.factor_declined` (der zuletzt abgelehnte Faktor) weg. Sie sind Merker für unterbrochene Hintergrundarbeit oder ein offenes Angebot der Quellinstallation (`core/lib/src/recalculation/`) und gehören nicht in einen Wiederherstellungsstand; sie würden nach dem Import auf Zustände zeigen, die dort nicht gelten. Alle anderen Schlüssel (auch unbekannte) werden übernommen. Der Leser nimmt jeden Schlüssel an, den er findet. (Die Liste ist an den Quelltext gebunden: Kommt ein neuer technischer Merker hinzu, ist sie hier und im Schreiber zu ergänzen; der Schreiber-Teil von WP12 soll sie per Test gegen die Konstanten prüfen.)
 
 ### 4.4 Beispiel (Klartext, bevor gzip angewendet wird; Werte synthetisch, gekürzt)
 
 ```
-{"type":"manifest","format":2,"schema_version":6,"created_at_us":1793000000000000}
+{"type":"manifest","format":2,"schema_version":7,"created_at_us":1793000000000000}
 {"type":"section","name":"runs"}
 {"type":"row","data":{"id":1,"state":"finished","started_at_us":1792000000000000,"ended_at_us":1792000600000000,"ended_utc_offset_s":3600}}
 {"type":"section","name":"laps"}
@@ -166,18 +168,19 @@ Nicht im Archiv: die Tabellen `storage_meta` (technisch), `consents` (Einwilligu
 {"type":"section","name":"run_feedback"}
 {"type":"section","name":"manual_trainings"}
 {"type":"section","name":"goals"}
+{"type":"row","data":{"id":1,"type":"open","distance":null,"target_s":null,"target_date":null,"run_days":21,"max_session_s":3600.0,"weekly_cap_s":14400.0,"current_weekly_s":null,"can_run_30":"unknown","hard_session":0,"created_at_us":1793000000000000}}
 {"type":"section","name":"plans"}
 {"type":"section","name":"active_warning"}
 {"type":"section","name":"reference_performances"}
 {"type":"section","name":"rejected_suggestions"}
-{"type":"end","rows":{"runs":1,"laps":0,...,"goals":0,"plans":0,"active_warning":0}}
+{"type":"end","rows":{"runs":1,"laps":0,...,"goals":1,"plans":0,"active_warning":0,...}}
 ```
 
 ### 4.5 Leser: Ablauf, Ziel und Fehlerarten
 
 Der Leser (`ArchiveImporter`, `readArchive`) arbeitet als Strom in einem Arbeits-Isolate: Datei lesen → Kopf prüfen → entschlüsseln (Port `ArchiveCipher`) → gunzip → in Zeilen an `\n` teilen → je Zeile JSON strikt lesen und prüfen → geprüfte Zeilen in Stapeln an das Ziel (Port `ArchiveSink`: `begin`, `insert`, `commit`, `abort`). Es entsteht keine Datei und kein Klartext auf dem Datenträger.
 
-**Prüfungen je Zeile (jede Verletzung: „beschädigt“):** Manifest zuerst; Abschnitt nur mit dem als nächstes erwarteten Namen (damit sind doppelte, fehlende, vertauschte und unbekannte Abschnitte ausgeschlossen); Zeile nur innerhalb eines Abschnitts und nie in einem der drei reservierten; genau die Schlüssel `type`/`name` (Abschnitt), `type`/`data` (Zeile), `type`/`rows` (Ende); genau die Spalten laut 4.3 mit passendem Typ; `id` je Abschnitt streng aufsteigend; Endzeile erst nach allen Abschnitten der Formatversion, Zähler gleich den gelesenen Zeilen; nach der Endzeile nichts, auch keine Zeile und kein Byte; Ende des Stroms ohne halbe Zeile; Zeile höchstens 16 MiB, nicht leer.
+**Prüfungen je Zeile (jede Verletzung: „beschädigt“):** Manifest zuerst; Abschnitt nur mit dem als nächstes erwarteten Namen (damit sind doppelte, fehlende, vertauschte und unbekannte Abschnitte ausgeschlossen); Zeile nur innerhalb eines Abschnitts und nie in einem reservierten (Schema 7: 20 und 21; Schema 4 bis 6: 19 bis 21); genau die Schlüssel `type`/`name` (Abschnitt), `type`/`data` (Zeile), `type`/`rows` (Ende); genau die Spalten laut 4.3 mit passendem Typ; `id` je Abschnitt streng aufsteigend; Endzeile erst nach allen Abschnitten der Formatversion, Zähler gleich den gelesenen Zeilen; nach der Endzeile nichts, auch keine Zeile und kein Byte; Ende des Stroms ohne halbe Zeile; Zeile höchstens 16 MiB, nicht leer.
 
 **Wann `commit` kommt:** Erst wenn der entschlüsselte Strom ohne Fehler bis zum letzten Stück geendet hat (Tags aller Stücke, Zähler, Endmarke im Nonce), das gzip-Element samt CRC32 und ISIZE vollständig und ohne Byte danach ist **und** die Endzeile mit den Zählern stimmt. Eine gültige Endzeile allein genügt nicht: Sie kann in einem früheren Stück stehen als das letzte. Bei **jedem** anderen Ausgang (Fehler, Abbruch, Fehler des Ziels) folgt `abort` und nie `commit`. Das Ziel bekommt Zeilen schon vor dem `commit` und muss sie bis dahin verwerfbar halten (Zwischendatenbank).
 
@@ -190,7 +193,7 @@ Der Leser (`ArchiveImporter`, `readArchive`) arbeitet als Strom in einem Arbeits
 | Parameter im Kopf ungleich Version 1 und 2 | nicht unterstützte Parameter |
 | erstes Stück scheitert, Datei endet nach dem Kopf | falsches Passwort oder beschädigter Anfang (eine Meldung) |
 | späteres Stück, Datei zwischen 10 und 35 Byte, gzip, UTF-8, JSON, Zeilen-, Abschnitts-, Spalten-, Typ- oder Zählerverletzung, Endzeile fehlt, Inhalt nach der Endzeile | beschädigt |
-| `schema_version` größer als 6 | neueres Archiv (Datenbank unverändert) |
+| `schema_version` größer als 7 | neueres Archiv (Datenbank unverändert) |
 | `schema_version` kleiner als 4 | Schema nicht unterstützt |
 | Format und Schema passen nicht zusammen, Format im Manifest ungleich Kopf, Abschnitte nicht die der Formatversion, Angaben außerhalb der Grenzen (4.3) | beschädigt |
 | Datei nicht lesbar | Lesefehler |
@@ -224,11 +227,13 @@ Die Reihenfolge der Wiederherstellung (`value_sections` hinter `computed_values`
 
 ## 6. Testvektoren
 
-Feste Vektoren (Kopf, Schlüssel, einzelne Stücke, ganze Dateien, Negativfälle) aus einer unabhängigen Umsetzung in Python: Erzeuger `tool/archive_vectors/make_vectors.py`, Dateien in `app/packages/adapters/test/archive/vectors/`. Dieser Text bleibt die Definition. Die Vektoren `archive_small` (Format 1, Schema 4) und `archive_v2` (Format 2, Schema 5, 21 Abschnitte mit `run_feedback` und `manual_trainings`, ein Training genau auf „heute“ 2026-11-20) sowie `neg_v2_training_after_today` (Rahmen gültig, Training am Tag danach: abgelehnt) tragen im `vectors.json` Feld `format` und `today`. Die Zeilen von `archive_small` prüfen Format und Zähler; ihre Werte sind seit aefdf32 DB-gültig (Wertemengen nach 4.2, `original` und `current` je Wert) und werden im Test gegen die echte Datenbank importiert (`archive_restore_test.dart`, Anzahl und `id`s je Tabelle).
+Feste Vektoren (Kopf, Schlüssel, einzelne Stücke, ganze Dateien, Negativfälle) aus einer unabhängigen Umsetzung in Python: Erzeuger `tool/archive_vectors/make_vectors.py`, Dateien in `app/packages/adapters/test/archive/vectors/`. Dieser Text bleibt die Definition. Die Vektoren `archive_small` (Format 1, Schema 4) und `archive_v2` (Format 2, Schema 5, 21 Abschnitte mit `run_feedback` und `manual_trainings`, ein Training genau auf „heute“ 2026-11-20) `archive_v2_s6` (Format 2, Schema 6) und `archive_v2_s7` (Format 2, Schema 7, 23 Abschnitte, `goals` mit einer Zeile) sowie `neg_v2_training_after_today` (Rahmen gültig, Training am Tag danach: abgelehnt) tragen im `vectors.json` Feld `format` und `today`. Die Zeilen von `archive_small` prüfen Format und Zähler; ihre Werte sind seit aefdf32 DB-gültig (Wertemengen nach 4.2, `original` und `current` je Wert) und werden im Test gegen die echte Datenbank importiert (`archive_restore_test.dart`, Anzahl und `id`s je Tabelle).
 
 ## 7. Änderungen am Format
 
 Ein anderes Schema oder andere Parameter bedeuten eine neue Formatversion (Kopf Offset 8). Eine App liest nur ihr bekannte Versionen und lehnt andere ab, ohne Daten zu ändern. Wächst das Datenbankschema (zum Beispiel um Ziele und Pläne), wächst dieser Vertrag mit: neuer `schema_version`, neue Spalten in 4.3, Leseregeln für ältere Schemata.
+
+**Änderungsvermerk WP21 (Schema 7, Formatversion 2):** Schema 7 belegt den bisher reservierten Abschnitt 19 `goals` mit Spalten (4.3); 20 und 21 bleiben vorerst reserviert (ADR-0010 belegt 20 `plans` und ergänzt `plan_units` als Abschnitt 24 mit dem Plan in einem späteren Teil von WP21; dieser Vermerk wird dann ergänzt). Die Formatversion bleibt 2 (Kopf und Parameter unverändert; Format 2 ist unveröffentlicht, OQ-0048). Der Leser kennt die Paare Format 1/Schema 4 und Format 2/Schema 5, 6 und 7; in Schema 4 bis 6 muss Abschnitt 19 weiter 0 Zeilen haben. Der Schreiber erzeugt Format 2/Schema 7. Die Abschnittsliste hängt am Schema (`archiveSectionsFor`), die Form des Abschnitts 19 am Schema (`ArchiveSectionSpec.forSchema`). Vektor `archive_v2_s7` (Abschnitt 6).
 
 **Änderungsvermerk WP20 (Schema 6, Formatversion 2):** Schema 6 fügt die Abschnitte 22 (`reference_performances`) und 23 (`rejected_suggestions`) ans Ende an; die reservierten Abschnitte 19 bis 21 behalten ihre Nummern. Die Formatversion bleibt 2 (Kopf und Parameter unverändert), weil Format 2 noch nicht ausgeliefert ist; der Leser kennt die Paare Format 1/Schema 4, Format 2/Schema 5 und Format 2/Schema 6. Der Schreiber erzeugt Format 2/Schema 6. Die Abschnittsliste hängt am Schema (`archiveSectionsFor`).
 

@@ -216,6 +216,25 @@ void main() {
     expect(_rows(lines, 'rejected_suggestions'), [
       {'id': 1, 'run_id': 1},
     ]);
+    expect(_rows(lines, 'goals'), [
+      {
+        'id': 1,
+        'type': 'time',
+        'distance': 'tenKilometers',
+        'target_s': 3000.0,
+        'target_date': '2027-03-20',
+        'run_days': 21,
+        'max_session_s': 3600.0,
+        'weekly_cap_s': 14400.0,
+        'current_weekly_s': 7200.0,
+        'can_run_30': 'yes',
+        'hard_session': 1,
+        'created_at_us': 9,
+      },
+    ]);
+    // Platzhalter ohne Tabelle bleiben leer.
+    expect(_rows(lines, 'plans'), isEmpty);
+    expect(_rows(lines, 'active_warning'), isEmpty);
     // Werte bleiben exakt (Typen, NULL, Kennungen).
     expect(_rows(lines, 'runs').single, {
       'id': 1,

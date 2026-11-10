@@ -136,6 +136,15 @@ Future<void> fillAllTables(AppDatabase db) async {
     "('confirmedRun', 5000.0, 1490.0, '2026-11-02', 8, 1)",
   );
   await sql(db, 'INSERT INTO rejected_suggestions (run_id) VALUES (1)');
+  // Ziel (Schema 7): Zeitziel über 10 km, Lauftage Mo, Mi, Fr (Maske 21).
+  await sql(
+    db,
+    'INSERT INTO goals (id, type, distance, target_s, target_date, run_days, '
+    'max_session_s, weekly_cap_s, current_weekly_s, can_run_30, hard_session, '
+    'created_at_us) '
+    "VALUES (1, 'time', 'tenKilometers', 3000.0, '2027-03-20', 21, 3600.0, "
+    "14400.0, 7200.0, 'yes', 1, 9)",
+  );
   await sql(
     db,
     "INSERT INTO consents VALUES ('$fixtureConsentMarker', 'granted', 5)",

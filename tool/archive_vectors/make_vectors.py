@@ -69,6 +69,10 @@ SECTIONS_V2 = SECTIONS[:16] + ["run_feedback", "manual_trainings"] + SECTIONS[16
 # Schema 6 (WP20, weiter Format 2): Abschnitte 22 und 23 ans Ende (Vertrag 4.3).
 SECTIONS_S6 = SECTIONS_V2 + ["reference_performances", "rejected_suggestions"]
 
+# Schema 7 (WP21, weiter Format 2): Abschnitt 19 `goals` traegt Zeilen, 20 und 21 bleiben leer;
+# die Reihenfolge der Abschnitte ist die von Schema 6 (Vertrag 4.3).
+SECTIONS_S7 = SECTIONS_S6
+
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
 V2_TODAY = "2026-11-20"
@@ -178,8 +182,21 @@ def archive_rows_s6():
     return r
 
 
+def archive_rows_s7():
+    """Schema 7: die Zeilen von Schema 6 plus das Trainingsziel (Singleton, id 1)."""
+    r = archive_rows_s6()
+    # Zeitziel ueber 10 km; Lauftage Mo, Mi, Fr (Bitmaske 1+4+16 = 21, Bit 0 = Montag).
+    r["goals"] = [dict(id=1, type="time", distance="tenKilometers", target_s=3000.0,
+                       target_date="2027-03-20", run_days=21, max_session_s=3600.0,
+                       weekly_cap_s=14400.0, current_weekly_s=7200.0, can_run_30="yes",
+                       hard_session=1, created_at_us=1793000000000000)]
+    return r
+
+
 def archive_plaintext(version=1, future_training=False, schema=None):
-    if schema == 6:
+    if schema == 7:
+        r, sections = archive_rows_s7(), SECTIONS_S7
+    elif schema == 6:
         r, sections = archive_rows_s6(), SECTIONS_S6
     else:
         r = archive_rows_v2(future_training) if version == 2 else archive_rows()
@@ -219,6 +236,7 @@ def main():
     jl, gz = archive_plaintext()
     jl2, gz2 = archive_plaintext(2)
     jl6, gz6 = archive_plaintext(2, schema=6)
+    jl7, gz7 = archive_plaintext(2, schema=7)
     _, gz2_future = archive_plaintext(2, future_training=True)
     # (name, passwort, salz, klartext)
     pw_uni = "Pässwörd-ünïcode-€-123"
@@ -233,13 +251,14 @@ def main():
         ("archive_small", "archiv-test-passwort-15+", bytes(range(200, 216)), gz),
         ("archive_v2", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2),
         ("archive_v2_s6", "archiv-test-passwort-s6+", bytes(range(232, 248)), gz6),
+        ("archive_v2_s7", "archiv-test-passwort-s7+", bytes(range(248, 256)) + bytes(range(8)), gz7),
     ]
     # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
     v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        ver = 2 if name in ("archive_v2", "archive_v2_s6") else 1
+        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7") else 1
         h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
@@ -262,6 +281,12 @@ def main():
             manifest[-1]["jsonl_file"] = "archive_v2_s6.jsonl"
             manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl6).hexdigest()
             manifest[-1]["row_counts"] = {s: len(archive_rows_s6()[s]) for s in SECTIONS_S6}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s7":
+            open(os.path.join(out, "archive_v2_s7.jsonl"), "wb").write(jl7)
+            manifest[-1]["jsonl_file"] = "archive_v2_s7.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl7).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s7()[s]) for s in SECTIONS_S7}
             manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)

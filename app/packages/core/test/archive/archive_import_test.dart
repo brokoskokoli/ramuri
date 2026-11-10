@@ -52,8 +52,10 @@ Map<String, Object?> _row(ArchiveSectionSpec s, int i) => {
 };
 
 Map<String, List<Map<String, Object?>>> _fullDb({int rowsPer = 1}) => {
+  // `goals` trägt erst ab Schema 7 Zeilen; die Hilfsfunktionen schreiben Schema 4.
   for (final s in archiveSections)
-    if (!s.isReserved) s.name: [for (var i = 1; i <= rowsPer; i++) _row(s, i)],
+    if (!s.isReserved && s.name != 'goals')
+      s.name: [for (var i = 1; i <= rowsPer; i++) _row(s, i)],
 };
 
 String _manifest({int schema = 4}) =>
@@ -259,7 +261,7 @@ void main() {
       ];
       final names = [
         for (final s in archiveSections)
-          if (!s.isReserved) s.name,
+          if (!s.isReserved && s.name != 'goals') s.name,
       ];
       expect([
         ...{...order},
@@ -450,9 +452,9 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 6: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 7: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 7);
+        final lines = valid()..[0] = _manifest(schema: 8);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
         lines[0] = '{"type":"manifest","format":1,"schema_version":9,"created_at_us":1,"neu":true}';
@@ -1317,12 +1319,27 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 6 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 7, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 7 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 8, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
       expect(archiveSectionsFor(6), hasLength(23));
+      expect(archiveSectionsFor(7), hasLength(23));
+    });
+
+    test('Abschnitt 19 goals: bis Schema 6 reserviert, ab Schema 7 mit Spalten', () {
+      for (final schema in [4, 5, 6]) {
+        final g = archiveSectionsFor(schema).firstWhere((s) => s.name == 'goals');
+        expect(g.isReserved, isTrue, reason: '$schema');
+        expect(g.columns, isEmpty, reason: '$schema');
+      }
+      final g = archiveSectionsFor(7).firstWhere((s) => s.name == 'goals');
+      expect(g.isReserved, isFalse);
+      expect(g.columns, hasLength(12));
+      // Reihenfolge der Abschnitte bleibt über die Schemata gleich.
+      expect(archiveSectionsFor(7)[18].name, 'goals');
+      expect(archiveSectionsFor(6)[18].name, 'goals');
     });
 
     test(
@@ -1380,6 +1397,80 @@ void main() {
       expect(c.sink.rows['run_feedback'], hasLength(1));
     });
 
+    Map<String, Object?> goal({Object? runDays = 21}) => {
+      'id': 1,
+      'type': 'time',
+      'distance': 'tenKilometers',
+      'target_s': 3000.0,
+      'target_date': '2027-03-20',
+      'run_days': runDays,
+      'max_session_s': 3600.0,
+      'weekly_cap_s': 14400.0,
+      'current_weekly_s': null,
+      'can_run_30': 'yes',
+      'hard_session': 1,
+      'created_at_us': 7,
+    };
+
+    test('Format 2 mit Schema 7: Ziel in Abschnitt 19', () async {
+      await c.run(
+        await file(
+          v2(
+            schema: 7,
+            extra: {
+              'goals': [goal()],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['goals'], [goal()]);
+      expect(c.sink.rows['run_feedback'], hasLength(1));
+    });
+
+    test('Format 2 mit Schema 7 ohne Ziel (0 Zeilen) ist gültig', () async {
+      await c.run(await file(v2(schema: 7)));
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['goals'] ?? const [], isEmpty);
+    });
+
+    test('Ziel mit falschem Typ oder fehlender Spalte: beschädigt', () async {
+      await rejectsV2(
+        v2(schema: 7, extra: {'goals': [goal(runDays: '21')]}),
+      );
+      await rejectsV2(
+        v2(schema: 7, extra: {'goals': [goal()..remove('hard_session')]}),
+      );
+      await rejectsV2(
+        v2(schema: 7, extra: {'goals': [goal()..['can_run_30'] = null]}),
+      );
+    });
+
+    test('Ziel in Schema 6 oder 5 (reservierter Abschnitt): beschädigt', () async {
+      for (final schema in [5, 6]) {
+        final l = v2(schema: schema);
+        final at = l.indexOf(_section('goals'));
+        l.insert(at + 1, _rowLine(goal()));
+        // Zähler der Endzeile angepasst, damit nur die Zeile selbst stört.
+        l[l.length - 1] = _endLine({
+          for (final sec in archiveSectionsFor(schema))
+            sec.name: switch (sec.name) {
+              'runs' => 2,
+              'run_feedback' || 'manual_trainings' || 'goals' => 1,
+              _ => 0,
+            },
+        });
+        await rejectsV2(l);
+      }
+    });
+
+    test('Plan-Zeile in Schema 7 (Abschnitt 20 bleibt reserviert): beschädigt', () async {
+      final l = v2(schema: 7);
+      final at = l.indexOf(_section('plans'));
+      l.insert(at + 1, _rowLine({'id': 1}));
+      await rejectsV2(l);
+    });
+
     test('Schema 6 ohne die Prognose-Abschnitte: beschädigt', () async {
       final l = v2();
       l[0] = v2(schema: 6)[0];
@@ -1400,9 +1491,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 7: neueres Archiv', () async {
+    test('Schema 8: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 6)..[0] = '{"type":"manifest","format":2,"schema_version":7,"created_at_us":1}',
+        v2(schema: 7)..[0] = '{"type":"manifest","format":2,"schema_version":8,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });

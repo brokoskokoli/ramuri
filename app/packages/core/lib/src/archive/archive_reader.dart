@@ -110,7 +110,7 @@ class ArchiveLineValidator {
     }
     _exactKeys(m, {'type', 'format', 'schema_version', 'created_at_us'});
     final format = m['format'];
-    // Format 1 gehört zu Schema 4, Format 2 zu Schema 5 und 6; alles andere
+    // Format 1 gehört zu Schema 4, Format 2 zu Schema 5 bis 7; alles andere
     // ist ein Widerspruch, auch zum Kopf.
     if (format is! int ||
         !archiveFormats.contains(format) ||

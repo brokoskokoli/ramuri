@@ -117,7 +117,7 @@ void main() {
 
   group('Rundgang über den Entschlüssler', () {
     test(
-      'v6 vollständig: jeder Abschnitt, Reihenfolge, Zeilen, Endzeile',
+      'v7 vollständig: jeder Abschnitt, Reihenfolge, Zeilen, Endzeile',
       () async {
         final db = _fullDb(rowsPer: 2);
         final file = await exporter(FakeArchiveSource(db))
@@ -130,7 +130,7 @@ void main() {
         expect(lines.first, {
           'type': 'manifest',
           'format': 2,
-          'schema_version': 6,
+          'schema_version': 7,
           'created_at_us': DateTime.utc(2026, 11, 7, 12).microsecondsSinceEpoch,
         });
         final sections = [
@@ -146,14 +146,17 @@ void main() {
           expect(rows.first, db[s.name]!.first, reason: s.name);
           expect(rows.first.keys.toList(), [for (final c in s.columns) c.name]);
         }
-        for (final n in ['goals', 'plans', 'active_warning']) {
+        // Ab Schema 7 trägt `goals` Zeilen; `plans` (Teil C) und die
+        // Warnmeldung sind noch leer.
+        for (final n in ['plans', 'active_warning']) {
           expect(_rowsOf(lines, n), isEmpty);
         }
         final end = lines.last;
         expect(end['type'], 'end');
         expect((end['rows']! as Map).keys.toList(), sections);
         expect((end['rows']! as Map)['runs'], 2);
-        expect((end['rows']! as Map)['goals'], 0);
+        expect((end['rows']! as Map)['goals'], 2);
+        expect((end['rows']! as Map)['plans'], 0);
       },
     );
 
