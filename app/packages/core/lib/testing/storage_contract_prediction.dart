@@ -17,6 +17,10 @@ final List<StorageContractCase> predictionContractCases = [
     _idempotent,
   ),
   const StorageContractCase(
+    'Referenzleistungen: gleichzeitige Aufrufe für einen Lauf ergeben eine Zeile',
+    _concurrent,
+  ),
+  const StorageContractCase(
     'Referenz und Ablehnung verschwinden mit dem Lauf',
     _cascade,
   ),
@@ -221,5 +225,25 @@ Future<void> _idempotent(StorageContractHarness h) async {
   final b = await p.addReference(confirmed(2));
   expectEq(b, a, 'zweites Speichern gibt die vorhandene Kennung');
   expectEq((await p.references()).length, 1, 'keine Doppelzeile');
+  await s.close();
+}
+
+/// Doppeltippen: zwei gleichzeitige Aufrufe für denselben Lauf (Soll 8).
+Future<void> _concurrent(StorageContractHarness h) async {
+  final s = await h.open();
+  final p = _p(s);
+  final run = (await s.runs.create(startedAt: at(0))).id;
+  ReferencePerformance confirmed(int hour) => _ref(
+    kind: ReferenceKind.confirmedRun,
+    date: DateTime(2029, 12, 20),
+    createdAt: at(hour),
+    runId: '$run',
+  );
+  final ids = await Future.wait([
+    p.addReference(confirmed(1)),
+    p.addReference(confirmed(2)),
+  ]);
+  expectEq(ids[1], ids[0], 'gleichzeitig: dieselbe Kennung');
+  expectEq((await p.references()).length, 1, 'gleichzeitig: keine Doppelzeile');
   await s.close();
 }

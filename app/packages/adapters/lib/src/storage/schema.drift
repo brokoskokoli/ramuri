@@ -1,4 +1,4 @@
--- Schema Phase 1 (Version 1; Version 2 ergänzt Rohwerte des Standortgebers, Version 3 value_sections, Version 5 Referenzleistungen und abgelehnte Vorschläge). Zeiten: Mikrosekunden seit Epoch (UTC), Spalten
+-- Schema Phase 1 (Version 1; Version 2 ergänzt Rohwerte des Standortgebers, Version 3 value_sections, Version 5 Referenzen von Rückmeldung und manuellem Training, Version 6 Referenzleistungen und abgelehnte Vorschläge). Zeiten: Mikrosekunden seit Epoch (UTC), Spalten
 -- `*_us`. Einheiten SI: Meter `_m`, Sekunden `_s`, Grad `_deg`, Schläge je
 -- Minute `_bpm`, Kilogramm `_kg`. Alles unter `runs` hängt per ON DELETE CASCADE
 -- am Lauf (SEC-0004). Fremdschlüssel gelten nur bei `PRAGMA foreign_keys=ON`

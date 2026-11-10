@@ -207,11 +207,20 @@ class PredictionController extends ChangeNotifier {
     return _mutate(() => _store.rejectSuggestion(id));
   }
 
+  bool _mutating = false;
+
+  /// Eine Änderung zur Zeit: Doppeltippen löst keine zweite aus (Soll 8).
   Future<bool> _mutate(Future<Object?> Function() action) async {
+    if (_mutating) return false;
+    _mutating = true;
     try {
-      await action();
-    } on Object {
-      return false;
+      try {
+        await action();
+      } on Object {
+        return false;
+      }
+    } finally {
+      _mutating = false;
     }
     if (_disposed) return true;
     // Die App baut den Tab auf die Meldung hin neu auf; das Neuladen hier

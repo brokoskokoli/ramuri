@@ -1109,7 +1109,7 @@
   "@predictionExplainMethod": {"description": "WP20 Teil C, Prognosekarte"},
   "predictionExplainMethodValue": "{method}, version {version}",
   "@predictionExplainMethodValue": {"description": "WP20 Teil C, Prognosekarte", "placeholders": {"method": {"type": "String"}, "version": {"type": "int"}}},
-  "predictionExplainLevel": "Level",
+  "predictionExplainLevel": "Best level (per distance: see the card)",
   "@predictionExplainLevel": {"description": "WP20 Teil C, Prognosekarte"},
   "predictionExplainClose": "Close",
   "@predictionExplainClose": {"description": "WP20 Teil C, Prognosekarte"},

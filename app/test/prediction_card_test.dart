@@ -426,11 +426,19 @@ void main() {
           3300,
           daysAgo: 40,
         );
-        await addRef(d, ReferenceKind.race, 21097.5, 7200, daysAgo: 10);
+        final active = await addRef(
+          d,
+          ReferenceKind.race,
+          21097.5,
+          7200,
+          daysAgo: 10,
+        );
         await pumpCard(tester, d);
         expect(txt('prediction_others'), 'Weitere gespeicherte Referenzen: 2');
         expect(key('prediction_other_$middle'), findsOneWidget);
         expect(key('prediction_other_$oldest'), findsOneWidget);
+        // Die geltende Referenz steht nicht zusätzlich in der Liste.
+        expect(key('prediction_other_$active'), findsNothing);
 
         // Eine ältere löschen: die geltende bleibt, die Rückfrage nennt sie.
         await tapKey(tester, 'prediction_other_delete_$oldest');
@@ -501,7 +509,9 @@ void main() {
       expect(refs.first.reference.kind, ReferenceKind.race); // jüngere gilt
       expect(refs.last.reference.runId, '$id');
       expect(key('prediction_suggestion'), findsNothing);
-      // Nach erneutem Laden bleibt es dabei, und es entsteht keine Doppelzeile.
+      // Karte neu aufbauen (neuer State, lädt neu): es bleibt dabei, und es
+      // entsteht keine Doppelzeile.
+      await tester.pumpWidget(const SizedBox());
       await pumpCard(tester, d);
       expect(key('prediction_suggestion'), findsNothing);
       expect(await _store(d).references(), hasLength(2));
@@ -570,6 +580,47 @@ void main() {
       // Neu aufgebaut: weiter kein Vorschlag.
       await pumpCard(tester, d);
       expect(key('prediction_suggestion'), findsNothing);
+    });
+
+    testWidgets('Zweig 2: bestätigter Lauf kommt nach neuerem Wettkampf am '
+        'selben Tag nicht wieder', (tester) async {
+      final (d, id) = await withFastRun(tester);
+      await pumpCard(tester, d);
+      await tapKey(tester, 'prediction_suggestion_accept');
+      expect((await _store(d).references()).first.reference.runId, '$id');
+      // Wettkampf am selben Tag wie der Lauf, später angelegt: er gilt jetzt.
+      // Der Lauf schlägt ihn per Riegel (10 km in 60:00), wäre also ohne die
+      // Sperre für gespeicherte Läufe wieder ein Vorschlag (Zweig 2).
+      await addRef(d, ReferenceKind.race, 10000, 3600, daysAgo: 3);
+      expect(
+        (await _store(d).references()).first.reference.kind,
+        ReferenceKind.race,
+      );
+      // Karte neu aufbauen, damit sie wirklich neu lädt.
+      await tester.pumpWidget(const SizedBox());
+      await pumpCard(tester, d);
+      expect(key('prediction_suggestion'), findsNothing);
+    });
+
+    testWidgets('Doppeltippen: die zweite Änderung wird abgewiesen, solange '
+        'die erste läuft', (tester) async {
+      final (d, _) = await withFastRun(tester);
+      final c = PredictionController(
+        session: d.session,
+        clock: d.clock,
+        hasVo2maxEstimate: false,
+      );
+      addTearDown(c.dispose);
+      await tester.pumpAndSettle();
+      final s = c.state.suggestion!;
+      final results = await Future.wait([
+        c.acceptSuggestion(s),
+        c.acceptSuggestion(s),
+      ]);
+      expect(results, [true, false]);
+      expect(await _store(d).references(), hasLength(2)); // Wettkampf + Lauf
+      // Danach ist die nächste Änderung wieder möglich.
+      expect(await c.deleteActive(), isTrue);
     });
 
     testWidgets('Lauf älter als 182 Tage wird nicht mehr vorgeschlagen', (
