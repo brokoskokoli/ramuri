@@ -11,7 +11,7 @@ class DriftGoalStore implements GoalStore {
 
   @override
   Future<TrainingGoal?> goal() => guarded(() async {
-    final r = await _db.select(_db.trainingGoals).getSingleOrNull();
+    final r = await _db.select(_db.goals).getSingleOrNull();
     if (r == null) return null;
     return TrainingGoal(
       type: enumOf(GoalType.values, r.type, (v) => v.name),
@@ -24,6 +24,9 @@ class DriftGoalStore implements GoalStore {
       maxSessionSeconds: r.maxSessionS,
       weeklyCapSeconds: r.weeklyCapS,
       createdAt: timeOf(r.createdAtUs),
+      hardSessionEnabled: r.hardSession,
+      currentWeeklySeconds: r.currentWeeklyS,
+      canRun30: enumOf(ContinuousRun30.values, r.canRun30, (v) => v.name),
     );
   });
 
@@ -32,9 +35,9 @@ class DriftGoalStore implements GoalStore {
     checkGoalForStorage(goal);
     final date = goal.targetDate;
     await _db
-        .into(_db.trainingGoals)
+        .into(_db.goals)
         .insertOnConflictUpdate(
-          d.TrainingGoalsCompanion.insert(
+          d.GoalsCompanion.insert(
             id: const Value(1),
             type: goal.type.name,
             distance: Value(goal.distance?.name),
@@ -43,6 +46,9 @@ class DriftGoalStore implements GoalStore {
             runDays: maskOfDays(goal.runDays),
             maxSessionS: goal.maxSessionSeconds,
             weeklyCapS: goal.weeklyCapSeconds,
+            currentWeeklyS: Value(goal.currentWeeklySeconds),
+            canRun30: goal.canRun30.name,
+            hardSession: goal.hardSessionEnabled,
             createdAtUs: usOf(goal.createdAt),
           ),
         );
@@ -50,7 +56,7 @@ class DriftGoalStore implements GoalStore {
 
   @override
   Future<void> delete() => guarded(() async {
-    final n = await _db.delete(_db.trainingGoals).go();
+    final n = await _db.delete(_db.goals).go();
     if (n == 0) throw const StorageException(StorageFailure.notFound);
   });
 }

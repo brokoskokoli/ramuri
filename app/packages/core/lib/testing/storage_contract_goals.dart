@@ -26,7 +26,13 @@ TrainingGoal _goal({
   Set<int> runDays = const {1, 3, 6},
   double maxSession = 5400,
   double weeklyCap = 18000,
+  double? currentWeekly = 7200,
+  ContinuousRun30 canRun30 = ContinuousRun30.unknown,
+  bool hard = true,
 }) => TrainingGoal(
+  hardSessionEnabled: hard,
+  currentWeeklySeconds: currentWeekly,
+  canRun30: canRun30,
   type: type,
   distance: distance,
   targetSeconds: targetSeconds,
@@ -42,7 +48,8 @@ String _d(TrainingGoal? g) => g == null
     : '${g.type.name}/${g.distance?.name}/${g.targetSeconds}/'
           '${g.targetDate == null ? null : calendarDay(g.targetDate!)}/'
           '${(g.runDays.toList()..sort())}/${g.maxSessionSeconds}/'
-          '${g.weeklyCapSeconds}/${us(g.createdAt)}';
+          '${g.weeklyCapSeconds}/${us(g.createdAt)}/${g.hardSessionEnabled}/'
+          '${g.currentWeeklySeconds}/${g.canRun30.name}';
 
 Future<void> _lifecycle(StorageContractHarness h) async {
   var s = await h.open();
@@ -52,6 +59,8 @@ Future<void> _lifecycle(StorageContractHarness h) async {
   expectEq(_d(await _g(s).goal()), _d(time), 'Zeitziel gelesen');
   // Offenes Ziel ohne Zielzeit und Datum (FR-0137) ersetzt das Ziel.
   final openOk = TrainingGoal(
+    hardSessionEnabled: false,
+    canRun30: ContinuousRun30.yes,
     type: GoalType.open,
     runDays: const {1, 2, 3, 4, 5, 6, 7},
     maxSessionSeconds: 1800,
@@ -65,6 +74,9 @@ Future<void> _lifecycle(StorageContractHarness h) async {
     targetSeconds: null,
     distance: GoalDistance.halfMarathon,
     runDays: const {7},
+    currentWeekly: null,
+    canRun30: ContinuousRun30.no,
+    hard: false,
   );
   await _g(s).save(dist);
   await s.close();
@@ -86,6 +98,8 @@ Future<void> _invalid(StorageContractHarness h) async {
     'Tag 8': _goal(runDays: const {8}),
     'Zeit 0': _goal(maxSession: 0),
     'Regler 0': _goal(weeklyCap: 0),
+    'Wochenzeit 0': _goal(currentWeekly: 0),
+    'Wochenzeit NaN': _goal(currentWeekly: double.nan),
   };
   for (final e in bad.entries) {
     await expectFails(

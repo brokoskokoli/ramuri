@@ -66,9 +66,10 @@ const _rawTables = [
 ];
 
 const _goalSql =
-    'INSERT INTO training_goals (id, type, distance, target_s, target_date, '
-    'run_days, max_session_s, weekly_cap_s, created_at_us) '
-    'VALUES (1, ?, ?, ?, ?, ?, ?, ?, 99)';
+    'INSERT INTO goals (id, type, distance, target_s, target_date, '
+    'run_days, max_session_s, weekly_cap_s, current_weekly_s, can_run_30, '
+    'hard_session, created_at_us) '
+    'VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 99)';
 
 Future<void> _exec(
   AppDatabase db,
@@ -815,49 +816,49 @@ void main() {
       );
     });
 
-    test(
-      'echte Migration v6 -> v7 auf befüllter v6-Datenbank: Zeilen bleiben, '
-      'Tabelle training_goals leer und nimmt ein Ziel an, Schema = Dump v7',
-      () async {
-        final verifier = SchemaVerifier(GeneratedHelper());
-        final v6 = await verifier.schemaAt(6);
-        v6.rawDatabase
-          ..execute(
-            "INSERT INTO runs (id, state, started_at_us, ended_at_us) "
-            "VALUES (7, 'finished', 1, 9)",
-          )
-          ..execute("INSERT INTO settings VALUES ('units', 'km', 1)")
-          ..execute("INSERT INTO profile (id, birth_year) VALUES (1, 1990)")
-          ..execute(
-            "INSERT INTO reference_performances (kind, distance_m, time_s, "
-            "performed_on, created_at_us, run_id) "
-            "VALUES ('race', 5000.0, 1500.0, '2030-01-01', 99, NULL)",
-          )
-          ..execute(
-            "INSERT INTO manual_trainings (day, kind, duration_s, rpe) "
-            "VALUES ('2026-11-01', 'run', 1800, 4)",
-          );
-        final db = AppDatabase(v6.newConnection());
-        addTearDown(db.close);
-        await verifier.migrateAndValidate(db, 7);
-        expect(await _count(db, 'runs'), 1);
-        expect(await _count(db, 'settings'), 1);
-        expect(await _count(db, 'profile'), 1);
-        expect(await _count(db, 'reference_performances'), 1);
-        expect(await _count(db, 'manual_trainings'), 1);
-        expect(await _count(db, 'training_goals'), 0);
-        await _exec(db, _goalSql, [
-          'open',
-          null,
-          null,
-          null,
-          5,
-          3600.0,
-          18000.0,
-        ]);
-        expect(await _count(db, 'training_goals'), 1);
-      },
-    );
+    test('echte Migration v6 -> v7 auf befüllter v6-Datenbank: Zeilen bleiben, '
+        'Tabelle goals leer und nimmt ein Ziel an, Schema = Dump v7', () async {
+      final verifier = SchemaVerifier(GeneratedHelper());
+      final v6 = await verifier.schemaAt(6);
+      v6.rawDatabase
+        ..execute(
+          "INSERT INTO runs (id, state, started_at_us, ended_at_us) "
+          "VALUES (7, 'finished', 1, 9)",
+        )
+        ..execute("INSERT INTO settings VALUES ('units', 'km', 1)")
+        ..execute("INSERT INTO profile (id, birth_year) VALUES (1, 1990)")
+        ..execute(
+          "INSERT INTO reference_performances (kind, distance_m, time_s, "
+          "performed_on, created_at_us, run_id) "
+          "VALUES ('race', 5000.0, 1500.0, '2030-01-01', 99, NULL)",
+        )
+        ..execute(
+          "INSERT INTO manual_trainings (day, kind, duration_s, rpe) "
+          "VALUES ('2026-11-01', 'run', 1800, 4)",
+        );
+      final db = AppDatabase(v6.newConnection());
+      addTearDown(db.close);
+      await verifier.migrateAndValidate(db, 7);
+      expect(await _count(db, 'runs'), 1);
+      expect(await _count(db, 'settings'), 1);
+      expect(await _count(db, 'profile'), 1);
+      expect(await _count(db, 'reference_performances'), 1);
+      expect(await _count(db, 'manual_trainings'), 1);
+      expect(await _count(db, 'goals'), 0);
+      await _exec(db, _goalSql, [
+        'open',
+        null,
+        null,
+        null,
+        5,
+        3600.0,
+        18000.0,
+        null,
+        'unknown',
+        0,
+      ]);
+      expect(await _count(db, 'goals'), 1);
+    });
 
     test('Ziel: CHECKs der Tabelle (Art, Felder je Art, Zahlen, Datum, Tage, '
         'nur eine Zeile)', () async {
@@ -872,6 +873,9 @@ void main() {
         Object session,
         Object cap, [
         int id = 1,
+        Object? weekly,
+        Object can30 = 'unknown',
+        Object hard = 0,
       ]) => _exec(db, _goalSql.replaceFirst('VALUES (1,', 'VALUES ($id,'), [
         type,
         dist,
@@ -880,6 +884,9 @@ void main() {
         days,
         session,
         cap,
+        weekly,
+        can30,
+        hard,
       ]);
       // Gültige Zeilen je Art (jeweils die einzige Zeile, danach geleert).
       for (final ok in <List<Object?>>[
@@ -887,9 +894,23 @@ void main() {
         ['distance', 'tenKilometers', null, '2030-01-01', 1, 1.0, 1.0],
         ['distance', 'halfMarathon', null, null, 64, 1.0, 1.0],
         ['time', 'fiveKilometers', 1500.0, '2030-01-01', 5, 1.0, 1.0],
+        ['open', null, null, null, 5, 1.0, 1.0, 3600.0, 'yes', 1],
+        ['open', null, null, null, 5, 1.0, 1.0, null, 'no', 0],
       ]) {
-        await add(ok[0]!, ok[1], ok[2], ok[3], ok[4]!, ok[5]!, ok[6]!);
-        await _exec(db, 'DELETE FROM training_goals');
+        await add(
+          ok[0]!,
+          ok[1],
+          ok[2],
+          ok[3],
+          ok[4]!,
+          ok[5]!,
+          ok[6]!,
+          1,
+          ok.length > 7 ? ok[7] : null,
+          ok.length > 8 ? ok[8]! : 'unknown',
+          ok.length > 9 ? ok[9]! : 0,
+        );
+        await _exec(db, 'DELETE FROM goals');
       }
       for (final bad in <List<Object?>>[
         ['marathon', 'tenKilometers', null, null, 5, 1.0, 1.0],
@@ -908,9 +929,25 @@ void main() {
         ['open', null, null, null, 128, 1.0, 1.0],
         ['open', null, null, null, 5, 0.0, 1.0],
         ['open', null, null, null, 5, 1.0, 0.0],
+        ['open', null, null, null, 5, 1.0, 1.0, 0.0],
+        ['open', null, null, null, 5, 1.0, 1.0, -5.0],
+        ['open', null, null, null, 5, 1.0, 1.0, null, 'maybe'],
+        ['open', null, null, null, 5, 1.0, 1.0, null, 'yes', 2],
       ]) {
         await expectLater(
-          add(bad[0]!, bad[1], bad[2], bad[3], bad[4]!, bad[5]!, bad[6]!),
+          add(
+            bad[0]!,
+            bad[1],
+            bad[2],
+            bad[3],
+            bad[4]!,
+            bad[5]!,
+            bad[6]!,
+            1,
+            bad.length > 7 ? bad[7] : null,
+            bad.length > 8 ? bad[8]! : 'unknown',
+            bad.length > 9 ? bad[9]! : 0,
+          ),
           throwsA(anything),
           reason: '$bad',
         );

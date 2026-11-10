@@ -199,6 +199,7 @@ void main() {
     // erreicht es.
     await s.goals.save(
       TrainingGoal(
+        hardSessionEnabled: false,
         type: GoalType.open,
         runDays: const {1, 3},
         maxSessionSeconds: 3600,

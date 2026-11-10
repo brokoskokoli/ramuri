@@ -11,7 +11,13 @@ TrainingGoal goal({
   Set<int> runDays = const {2, 4, 6},
   double maxSession = 5400,
   double weeklyCap = 14400,
+  double? currentWeekly = 7200,
+  ContinuousRun30 canRun30 = ContinuousRun30.unknown,
+  bool? hard,
 }) => TrainingGoal(
+  hardSessionEnabled: hard ?? TrainingGoal.defaultHardSession(type),
+  currentWeeklySeconds: currentWeekly,
+  canRun30: canRun30,
   type: type,
   distance: distance,
   targetSeconds: targetSeconds,
@@ -149,6 +155,58 @@ void main() {
         GoalProblem.runDayInvalid,
       );
     });
+  });
+
+  group('heutiger Stand (PAR-192)', () {
+    test('Wochenzeit allein oder Ja/Nein allein genügt', () {
+      expect(goal(currentWeekly: 7200).validate(today), isNull);
+      for (final a in [ContinuousRun30.yes, ContinuousRun30.no]) {
+        expect(
+          goal(currentWeekly: null, canRun30: a).validate(today),
+          isNull,
+          reason: '$a',
+        );
+      }
+    });
+    test(
+      'weder noch: standMissing, mit Läufen (standRequired false) gültig',
+      () {
+        final g = goal(currentWeekly: null);
+        expect(g.validate(today), GoalProblem.standMissing);
+        expect(g.validate(today, null, false), isNull);
+      },
+    );
+    test('Wochenzeit 0, negativ, NaN, unendlich ist ungültig', () {
+      for (final v in [0.0, -1.0, double.nan, double.infinity]) {
+        expect(
+          goal(currentWeekly: v).validate(today),
+          GoalProblem.currentWeeklyInvalid,
+          reason: '$v',
+        );
+        expect(
+          goal(currentWeekly: v).validate(today, null, false),
+          GoalProblem.currentWeeklyInvalid,
+        );
+      }
+    });
+  });
+
+  test('Standard harte Einheit: an bei Zeitzielen, sonst aus (PAR-198)', () {
+    expect(TrainingGoal.defaultHardSession(GoalType.time), isTrue);
+    expect(TrainingGoal.defaultHardSession(GoalType.distance), isFalse);
+    expect(TrainingGoal.defaultHardSession(GoalType.open), isFalse);
+  });
+
+  test('gespeicherter Schalter wird nicht vom Standard überschrieben', () {
+    expect(goal(type: GoalType.time, hard: false).hardSessionEnabled, isFalse);
+    expect(
+      goal(
+        type: GoalType.distance,
+        targetSeconds: null,
+        hard: true,
+      ).hardSessionEnabled,
+      isTrue,
+    );
   });
 
   test('reine Funktion: gleiche Eingabe, gleiches Ergebnis, kein Ablauf', () {

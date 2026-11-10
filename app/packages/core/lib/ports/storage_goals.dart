@@ -24,9 +24,10 @@ abstract interface class GoalStorage {
 
 /// Prüfung vor dem Speichern, gleich für Fake und Datenbank. Gültig wird zum
 /// Anlegezeitpunkt beurteilt: Ein Datum von heute ist gültig, ein früheres
-/// nicht.
+/// nicht. Der Stand (PAR-192) wird nicht verlangt: Läufe ersetzen ihn, die
+/// Planung prüft ihn.
 void checkGoalForStorage(TrainingGoal g) {
-  if (g.validate(g.createdAt) != null) {
+  if (g.validate(g.createdAt, null, false) != null) {
     throw const StorageException(StorageFailure.rejected);
   }
 }

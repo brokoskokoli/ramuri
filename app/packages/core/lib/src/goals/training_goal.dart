@@ -28,6 +28,9 @@ enum GoalDistance {
   };
 }
 
+/// Antwort auf „Kannst du 30 min am Stück laufen?“ (PAR-192).
+enum ContinuousRun30 { yes, no, unknown }
+
 /// Warum ein Ziel nicht gültig ist (FR-0135 bis FR-0137).
 enum GoalProblem {
   /// Strecken- oder Zeitziel ohne Strecke.
@@ -62,6 +65,13 @@ enum GoalProblem {
 
   /// Regler (höchste Wochenzeit) nicht endlich oder nicht positiv.
   weeklyCapInvalid,
+
+  /// Genannte aktuelle Wochenzeit nicht endlich oder nicht positiv.
+  currentWeeklyInvalid,
+
+  /// Weder Wochenzeit noch Antwort zu „30 min am Stück“ (PAR-192). Gilt nur,
+  /// wenn keine Läufe vorhanden sind, die die Angabe ersetzen.
+  standMissing,
 }
 
 /// Die Zahlen der Zielprüfung, jede mit ihrer Regel.
@@ -91,6 +101,9 @@ class TrainingGoal {
     required this.maxSessionSeconds,
     required this.weeklyCapSeconds,
     required this.createdAt,
+    required this.hardSessionEnabled,
+    this.currentWeeklySeconds,
+    this.canRun30 = ContinuousRun30.unknown,
     this.distance,
     this.targetSeconds,
     this.targetDate,
@@ -121,9 +134,30 @@ class TrainingGoal {
   /// Zeitpunkt des Anlegens.
   final DateTime createdAt;
 
+  /// Schalter „harte Einheit“ (PAR-198) als gespeicherter Wert. Der Standard
+  /// ([defaultHardSession]) gilt nur beim Anlegen; Speichern ändert ihn nicht.
+  final bool hardSessionEnabled;
+
+  /// Heutiger Stand (PAR-192): genannte Wochenzeit in Sekunden oder `null`.
+  final double? currentWeeklySeconds;
+
+  /// Heutiger Stand (PAR-192): Antwort zu „30 min am Stück“.
+  final ContinuousRun30 canRun30;
+
+  /// Standard des Schalters „harte Einheit“ beim Anlegen (PAR-198): an bei
+  /// Zeitzielen, sonst aus.
+  static bool defaultHardSession(GoalType type) => type == GoalType.time;
+
   /// Erstes Problem oder `null`. `today` wird übergeben; ein Datum von heute
-  /// ist gültig.
-  GoalProblem? validate(DateTime today, [GoalParameters? p]) {
+  /// ist gültig. [standRequired]: ohne Wochenzeit und ohne Ja/Nein zu „30 min
+  /// am Stück“ ist das Ziel unvollständig (PAR-192). Mit vorhandenen Läufen
+  /// ersetzen diese die Angabe, dann `false`; beim Speichern des Ziels wird
+  /// nicht danach gefragt.
+  GoalProblem? validate(
+    DateTime today, [
+    GoalParameters? p,
+    bool standRequired = true,
+  ]) {
     final params = p ?? const GoalParameters();
     final dist = distance, secs = targetSeconds, date = targetDate;
     if (type == GoalType.open) {
@@ -151,6 +185,13 @@ class TrainingGoal {
     }
     if (!weeklyCapSeconds.isFinite || !(weeklyCapSeconds > 0)) {
       return GoalProblem.weeklyCapInvalid;
+    }
+    final cur = currentWeeklySeconds;
+    if (cur != null && (!cur.isFinite || !(cur > 0))) {
+      return GoalProblem.currentWeeklyInvalid;
+    }
+    if (standRequired && cur == null && canRun30 == ContinuousRun30.unknown) {
+      return GoalProblem.standMissing;
     }
     return null;
   }

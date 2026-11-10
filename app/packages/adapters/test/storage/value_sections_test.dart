@@ -83,7 +83,7 @@ class _V1 extends AppDatabase {
       await customStatement('DROP TABLE reference_performances');
       await customStatement('DROP TABLE rejected_suggestions');
       // Trainingsziel (Schema 7, WP21).
-      await customStatement('DROP TABLE training_goals');
+      await customStatement('DROP TABLE goals');
       if (version < 2) {
         for (final c in [
           'speed_mps',

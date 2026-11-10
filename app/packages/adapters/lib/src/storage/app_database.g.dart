@@ -11330,11 +11330,11 @@ class RejectedSuggestionsCompanion extends UpdateCompanion<RejectedSuggestion> {
   }
 }
 
-class TrainingGoals extends Table with TableInfo<TrainingGoals, GoalRow> {
+class Goals extends Table with TableInfo<Goals, GoalRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  TrainingGoals(this.attachedDatabase, [this._alias]);
+  Goals(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
     'id',
@@ -11420,6 +11420,40 @@ class TrainingGoals extends Table with TableInfo<TrainingGoals, GoalRow> {
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL CHECK (weekly_cap_s > 0)',
   );
+  static const VerificationMeta _currentWeeklySMeta = const VerificationMeta(
+    'currentWeeklyS',
+  );
+  late final GeneratedColumn<double> currentWeeklyS = GeneratedColumn<double>(
+    'current_weekly_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (current_weekly_s > 0)',
+  );
+  static const VerificationMeta _canRun30Meta = const VerificationMeta(
+    'canRun30',
+  );
+  late final GeneratedColumn<String> canRun30 = GeneratedColumn<String>(
+    'can_run_30',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (can_run_30 IN (\'yes\', \'no\', \'unknown\'))',
+  );
+  static const VerificationMeta _hardSessionMeta = const VerificationMeta(
+    'hardSession',
+  );
+  late final GeneratedColumn<bool> hardSession = GeneratedColumn<bool>(
+    'hard_session',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (hard_session IN (0, 1))',
+  );
   static const VerificationMeta _createdAtUsMeta = const VerificationMeta(
     'createdAtUs',
   );
@@ -11441,13 +11475,16 @@ class TrainingGoals extends Table with TableInfo<TrainingGoals, GoalRow> {
     runDays,
     maxSessionS,
     weeklyCapS,
+    currentWeeklyS,
+    canRun30,
+    hardSession,
     createdAtUs,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'training_goals';
+  static const String $name = 'goals';
   @override
   VerificationContext validateIntegrity(
     Insertable<GoalRow> instance, {
@@ -11514,6 +11551,34 @@ class TrainingGoals extends Table with TableInfo<TrainingGoals, GoalRow> {
     } else if (isInserting) {
       context.missing(_weeklyCapSMeta);
     }
+    if (data.containsKey('current_weekly_s')) {
+      context.handle(
+        _currentWeeklySMeta,
+        currentWeeklyS.isAcceptableOrUnknown(
+          data['current_weekly_s']!,
+          _currentWeeklySMeta,
+        ),
+      );
+    }
+    if (data.containsKey('can_run_30')) {
+      context.handle(
+        _canRun30Meta,
+        canRun30.isAcceptableOrUnknown(data['can_run_30']!, _canRun30Meta),
+      );
+    } else if (isInserting) {
+      context.missing(_canRun30Meta);
+    }
+    if (data.containsKey('hard_session')) {
+      context.handle(
+        _hardSessionMeta,
+        hardSession.isAcceptableOrUnknown(
+          data['hard_session']!,
+          _hardSessionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_hardSessionMeta);
+    }
     if (data.containsKey('created_at_us')) {
       context.handle(
         _createdAtUsMeta,
@@ -11566,6 +11631,18 @@ class TrainingGoals extends Table with TableInfo<TrainingGoals, GoalRow> {
         DriftSqlType.double,
         data['${effectivePrefix}weekly_cap_s'],
       )!,
+      currentWeeklyS: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}current_weekly_s'],
+      ),
+      canRun30: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}can_run_30'],
+      )!,
+      hardSession: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}hard_session'],
+      )!,
       createdAtUs: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}created_at_us'],
@@ -11574,8 +11651,8 @@ class TrainingGoals extends Table with TableInfo<TrainingGoals, GoalRow> {
   }
 
   @override
-  TrainingGoals createAlias(String alias) {
-    return TrainingGoals(attachedDatabase, alias);
+  Goals createAlias(String alias) {
+    return Goals(attachedDatabase, alias);
   }
 
   @override
@@ -11595,6 +11672,9 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
   final int runDays;
   final double maxSessionS;
   final double weeklyCapS;
+  final double? currentWeeklyS;
+  final String canRun30;
+  final bool hardSession;
   final int createdAtUs;
   const GoalRow({
     required this.id,
@@ -11605,6 +11685,9 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
     required this.runDays,
     required this.maxSessionS,
     required this.weeklyCapS,
+    this.currentWeeklyS,
+    required this.canRun30,
+    required this.hardSession,
     required this.createdAtUs,
   });
   @override
@@ -11624,12 +11707,17 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
     map['run_days'] = Variable<int>(runDays);
     map['max_session_s'] = Variable<double>(maxSessionS);
     map['weekly_cap_s'] = Variable<double>(weeklyCapS);
+    if (!nullToAbsent || currentWeeklyS != null) {
+      map['current_weekly_s'] = Variable<double>(currentWeeklyS);
+    }
+    map['can_run_30'] = Variable<String>(canRun30);
+    map['hard_session'] = Variable<bool>(hardSession);
     map['created_at_us'] = Variable<int>(createdAtUs);
     return map;
   }
 
-  TrainingGoalsCompanion toCompanion(bool nullToAbsent) {
-    return TrainingGoalsCompanion(
+  GoalsCompanion toCompanion(bool nullToAbsent) {
+    return GoalsCompanion(
       id: Value(id),
       type: Value(type),
       distance: distance == null && nullToAbsent
@@ -11644,6 +11732,11 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
       runDays: Value(runDays),
       maxSessionS: Value(maxSessionS),
       weeklyCapS: Value(weeklyCapS),
+      currentWeeklyS: currentWeeklyS == null && nullToAbsent
+          ? const Value.absent()
+          : Value(currentWeeklyS),
+      canRun30: Value(canRun30),
+      hardSession: Value(hardSession),
       createdAtUs: Value(createdAtUs),
     );
   }
@@ -11662,6 +11755,9 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
       runDays: serializer.fromJson<int>(json['run_days']),
       maxSessionS: serializer.fromJson<double>(json['max_session_s']),
       weeklyCapS: serializer.fromJson<double>(json['weekly_cap_s']),
+      currentWeeklyS: serializer.fromJson<double?>(json['current_weekly_s']),
+      canRun30: serializer.fromJson<String>(json['can_run_30']),
+      hardSession: serializer.fromJson<bool>(json['hard_session']),
       createdAtUs: serializer.fromJson<int>(json['created_at_us']),
     );
   }
@@ -11677,6 +11773,9 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
       'run_days': serializer.toJson<int>(runDays),
       'max_session_s': serializer.toJson<double>(maxSessionS),
       'weekly_cap_s': serializer.toJson<double>(weeklyCapS),
+      'current_weekly_s': serializer.toJson<double?>(currentWeeklyS),
+      'can_run_30': serializer.toJson<String>(canRun30),
+      'hard_session': serializer.toJson<bool>(hardSession),
       'created_at_us': serializer.toJson<int>(createdAtUs),
     };
   }
@@ -11690,6 +11789,9 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
     int? runDays,
     double? maxSessionS,
     double? weeklyCapS,
+    Value<double?> currentWeeklyS = const Value.absent(),
+    String? canRun30,
+    bool? hardSession,
     int? createdAtUs,
   }) => GoalRow(
     id: id ?? this.id,
@@ -11700,9 +11802,14 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
     runDays: runDays ?? this.runDays,
     maxSessionS: maxSessionS ?? this.maxSessionS,
     weeklyCapS: weeklyCapS ?? this.weeklyCapS,
+    currentWeeklyS: currentWeeklyS.present
+        ? currentWeeklyS.value
+        : this.currentWeeklyS,
+    canRun30: canRun30 ?? this.canRun30,
+    hardSession: hardSession ?? this.hardSession,
     createdAtUs: createdAtUs ?? this.createdAtUs,
   );
-  GoalRow copyWithCompanion(TrainingGoalsCompanion data) {
+  GoalRow copyWithCompanion(GoalsCompanion data) {
     return GoalRow(
       id: data.id.present ? data.id.value : this.id,
       type: data.type.present ? data.type.value : this.type,
@@ -11718,6 +11825,13 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
       weeklyCapS: data.weeklyCapS.present
           ? data.weeklyCapS.value
           : this.weeklyCapS,
+      currentWeeklyS: data.currentWeeklyS.present
+          ? data.currentWeeklyS.value
+          : this.currentWeeklyS,
+      canRun30: data.canRun30.present ? data.canRun30.value : this.canRun30,
+      hardSession: data.hardSession.present
+          ? data.hardSession.value
+          : this.hardSession,
       createdAtUs: data.createdAtUs.present
           ? data.createdAtUs.value
           : this.createdAtUs,
@@ -11735,6 +11849,9 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
           ..write('runDays: $runDays, ')
           ..write('maxSessionS: $maxSessionS, ')
           ..write('weeklyCapS: $weeklyCapS, ')
+          ..write('currentWeeklyS: $currentWeeklyS, ')
+          ..write('canRun30: $canRun30, ')
+          ..write('hardSession: $hardSession, ')
           ..write('createdAtUs: $createdAtUs')
           ..write(')'))
         .toString();
@@ -11750,6 +11867,9 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
     runDays,
     maxSessionS,
     weeklyCapS,
+    currentWeeklyS,
+    canRun30,
+    hardSession,
     createdAtUs,
   );
   @override
@@ -11764,10 +11884,13 @@ class GoalRow extends DataClass implements Insertable<GoalRow> {
           other.runDays == this.runDays &&
           other.maxSessionS == this.maxSessionS &&
           other.weeklyCapS == this.weeklyCapS &&
+          other.currentWeeklyS == this.currentWeeklyS &&
+          other.canRun30 == this.canRun30 &&
+          other.hardSession == this.hardSession &&
           other.createdAtUs == this.createdAtUs);
 }
 
-class TrainingGoalsCompanion extends UpdateCompanion<GoalRow> {
+class GoalsCompanion extends UpdateCompanion<GoalRow> {
   final Value<int> id;
   final Value<String> type;
   final Value<String?> distance;
@@ -11776,8 +11899,11 @@ class TrainingGoalsCompanion extends UpdateCompanion<GoalRow> {
   final Value<int> runDays;
   final Value<double> maxSessionS;
   final Value<double> weeklyCapS;
+  final Value<double?> currentWeeklyS;
+  final Value<String> canRun30;
+  final Value<bool> hardSession;
   final Value<int> createdAtUs;
-  const TrainingGoalsCompanion({
+  const GoalsCompanion({
     this.id = const Value.absent(),
     this.type = const Value.absent(),
     this.distance = const Value.absent(),
@@ -11786,9 +11912,12 @@ class TrainingGoalsCompanion extends UpdateCompanion<GoalRow> {
     this.runDays = const Value.absent(),
     this.maxSessionS = const Value.absent(),
     this.weeklyCapS = const Value.absent(),
+    this.currentWeeklyS = const Value.absent(),
+    this.canRun30 = const Value.absent(),
+    this.hardSession = const Value.absent(),
     this.createdAtUs = const Value.absent(),
   });
-  TrainingGoalsCompanion.insert({
+  GoalsCompanion.insert({
     this.id = const Value.absent(),
     required String type,
     this.distance = const Value.absent(),
@@ -11797,11 +11926,16 @@ class TrainingGoalsCompanion extends UpdateCompanion<GoalRow> {
     required int runDays,
     required double maxSessionS,
     required double weeklyCapS,
+    this.currentWeeklyS = const Value.absent(),
+    required String canRun30,
+    required bool hardSession,
     required int createdAtUs,
   }) : type = Value(type),
        runDays = Value(runDays),
        maxSessionS = Value(maxSessionS),
        weeklyCapS = Value(weeklyCapS),
+       canRun30 = Value(canRun30),
+       hardSession = Value(hardSession),
        createdAtUs = Value(createdAtUs);
   static Insertable<GoalRow> custom({
     Expression<int>? id,
@@ -11812,6 +11946,9 @@ class TrainingGoalsCompanion extends UpdateCompanion<GoalRow> {
     Expression<int>? runDays,
     Expression<double>? maxSessionS,
     Expression<double>? weeklyCapS,
+    Expression<double>? currentWeeklyS,
+    Expression<String>? canRun30,
+    Expression<bool>? hardSession,
     Expression<int>? createdAtUs,
   }) {
     return RawValuesInsertable({
@@ -11823,11 +11960,14 @@ class TrainingGoalsCompanion extends UpdateCompanion<GoalRow> {
       if (runDays != null) 'run_days': runDays,
       if (maxSessionS != null) 'max_session_s': maxSessionS,
       if (weeklyCapS != null) 'weekly_cap_s': weeklyCapS,
+      if (currentWeeklyS != null) 'current_weekly_s': currentWeeklyS,
+      if (canRun30 != null) 'can_run_30': canRun30,
+      if (hardSession != null) 'hard_session': hardSession,
       if (createdAtUs != null) 'created_at_us': createdAtUs,
     });
   }
 
-  TrainingGoalsCompanion copyWith({
+  GoalsCompanion copyWith({
     Value<int>? id,
     Value<String>? type,
     Value<String?>? distance,
@@ -11836,9 +11976,12 @@ class TrainingGoalsCompanion extends UpdateCompanion<GoalRow> {
     Value<int>? runDays,
     Value<double>? maxSessionS,
     Value<double>? weeklyCapS,
+    Value<double?>? currentWeeklyS,
+    Value<String>? canRun30,
+    Value<bool>? hardSession,
     Value<int>? createdAtUs,
   }) {
-    return TrainingGoalsCompanion(
+    return GoalsCompanion(
       id: id ?? this.id,
       type: type ?? this.type,
       distance: distance ?? this.distance,
@@ -11847,6 +11990,9 @@ class TrainingGoalsCompanion extends UpdateCompanion<GoalRow> {
       runDays: runDays ?? this.runDays,
       maxSessionS: maxSessionS ?? this.maxSessionS,
       weeklyCapS: weeklyCapS ?? this.weeklyCapS,
+      currentWeeklyS: currentWeeklyS ?? this.currentWeeklyS,
+      canRun30: canRun30 ?? this.canRun30,
+      hardSession: hardSession ?? this.hardSession,
       createdAtUs: createdAtUs ?? this.createdAtUs,
     );
   }
@@ -11878,6 +12024,15 @@ class TrainingGoalsCompanion extends UpdateCompanion<GoalRow> {
     if (weeklyCapS.present) {
       map['weekly_cap_s'] = Variable<double>(weeklyCapS.value);
     }
+    if (currentWeeklyS.present) {
+      map['current_weekly_s'] = Variable<double>(currentWeeklyS.value);
+    }
+    if (canRun30.present) {
+      map['can_run_30'] = Variable<String>(canRun30.value);
+    }
+    if (hardSession.present) {
+      map['hard_session'] = Variable<bool>(hardSession.value);
+    }
     if (createdAtUs.present) {
       map['created_at_us'] = Variable<int>(createdAtUs.value);
     }
@@ -11886,7 +12041,7 @@ class TrainingGoalsCompanion extends UpdateCompanion<GoalRow> {
 
   @override
   String toString() {
-    return (StringBuffer('TrainingGoalsCompanion(')
+    return (StringBuffer('GoalsCompanion(')
           ..write('id: $id, ')
           ..write('type: $type, ')
           ..write('distance: $distance, ')
@@ -11895,6 +12050,9 @@ class TrainingGoalsCompanion extends UpdateCompanion<GoalRow> {
           ..write('runDays: $runDays, ')
           ..write('maxSessionS: $maxSessionS, ')
           ..write('weeklyCapS: $weeklyCapS, ')
+          ..write('currentWeeklyS: $currentWeeklyS, ')
+          ..write('canRun30: $canRun30, ')
+          ..write('hardSession: $hardSession, ')
           ..write('createdAtUs: $createdAtUs')
           ..write(')'))
         .toString();
@@ -12057,7 +12215,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final RejectedSuggestions rejectedSuggestions = RejectedSuggestions(
     this,
   );
-  late final TrainingGoals trainingGoals = TrainingGoals(this);
+  late final Goals goals = Goals(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -12116,7 +12274,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     referencePerformances,
     referencePerformancesRun,
     rejectedSuggestions,
-    trainingGoals,
+    goals,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -21078,7 +21236,7 @@ typedef $RejectedSuggestionsProcessedTableManager =
       RejectedSuggestion,
       PrefetchHooks Function({bool runId})
     >;
-typedef $TrainingGoalsCreateCompanionBuilder = TrainingGoalsCompanion Function({
+typedef $GoalsCreateCompanionBuilder = GoalsCompanion Function({
   Value<int> id,
   required String type,
   Value<String?> distance,
@@ -21087,9 +21245,12 @@ typedef $TrainingGoalsCreateCompanionBuilder = TrainingGoalsCompanion Function({
   required int runDays,
   required double maxSessionS,
   required double weeklyCapS,
+  Value<double?> currentWeeklyS,
+  required String canRun30,
+  required bool hardSession,
   required int createdAtUs,
 });
-typedef $TrainingGoalsUpdateCompanionBuilder = TrainingGoalsCompanion Function({
+typedef $GoalsUpdateCompanionBuilder = GoalsCompanion Function({
   Value<int> id,
   Value<String> type,
   Value<String?> distance,
@@ -21098,12 +21259,14 @@ typedef $TrainingGoalsUpdateCompanionBuilder = TrainingGoalsCompanion Function({
   Value<int> runDays,
   Value<double> maxSessionS,
   Value<double> weeklyCapS,
+  Value<double?> currentWeeklyS,
+  Value<String> canRun30,
+  Value<bool> hardSession,
   Value<int> createdAtUs,
 });
 
-class $TrainingGoalsFilterComposer
-    extends Composer<_$AppDatabase, TrainingGoals> {
-  $TrainingGoalsFilterComposer({
+class $GoalsFilterComposer extends Composer<_$AppDatabase, Goals> {
+  $GoalsFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -21150,15 +21313,29 @@ class $TrainingGoalsFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<double> get currentWeeklyS => $composableBuilder(
+    column: $table.currentWeeklyS,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get canRun30 => $composableBuilder(
+    column: $table.canRun30,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hardSession => $composableBuilder(
+    column: $table.hardSession,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get createdAtUs => $composableBuilder(
     column: $table.createdAtUs,
     builder: (column) => ColumnFilters(column),
   );
 }
 
-class $TrainingGoalsOrderingComposer
-    extends Composer<_$AppDatabase, TrainingGoals> {
-  $TrainingGoalsOrderingComposer({
+class $GoalsOrderingComposer extends Composer<_$AppDatabase, Goals> {
+  $GoalsOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -21205,15 +21382,29 @@ class $TrainingGoalsOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get currentWeeklyS => $composableBuilder(
+    column: $table.currentWeeklyS,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get canRun30 => $composableBuilder(
+    column: $table.canRun30,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hardSession => $composableBuilder(
+    column: $table.hardSession,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get createdAtUs => $composableBuilder(
     column: $table.createdAtUs,
     builder: (column) => ColumnOrderings(column),
   );
 }
 
-class $TrainingGoalsAnnotationComposer
-    extends Composer<_$AppDatabase, TrainingGoals> {
-  $TrainingGoalsAnnotationComposer({
+class $GoalsAnnotationComposer extends Composer<_$AppDatabase, Goals> {
+  $GoalsAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -21250,38 +21441,51 @@ class $TrainingGoalsAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get currentWeeklyS => $composableBuilder(
+    column: $table.currentWeeklyS,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get canRun30 =>
+      $composableBuilder(column: $table.canRun30, builder: (column) => column);
+
+  GeneratedColumn<bool> get hardSession => $composableBuilder(
+    column: $table.hardSession,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get createdAtUs => $composableBuilder(
     column: $table.createdAtUs,
     builder: (column) => column,
   );
 }
 
-class $TrainingGoalsTableManager
+class $GoalsTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          TrainingGoals,
+          Goals,
           GoalRow,
-          $TrainingGoalsFilterComposer,
-          $TrainingGoalsOrderingComposer,
-          $TrainingGoalsAnnotationComposer,
-          $TrainingGoalsCreateCompanionBuilder,
-          $TrainingGoalsUpdateCompanionBuilder,
-          (GoalRow, BaseReferences<_$AppDatabase, TrainingGoals, GoalRow>),
+          $GoalsFilterComposer,
+          $GoalsOrderingComposer,
+          $GoalsAnnotationComposer,
+          $GoalsCreateCompanionBuilder,
+          $GoalsUpdateCompanionBuilder,
+          (GoalRow, BaseReferences<_$AppDatabase, Goals, GoalRow>),
           GoalRow,
           PrefetchHooks Function()
         > {
-  $TrainingGoalsTableManager(_$AppDatabase db, TrainingGoals table)
+  $GoalsTableManager(_$AppDatabase db, Goals table)
     : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $TrainingGoalsFilterComposer($db: db, $table: table),
+              $GoalsFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $TrainingGoalsOrderingComposer($db: db, $table: table),
+              $GoalsOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $TrainingGoalsAnnotationComposer($db: db, $table: table),
+              $GoalsAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
@@ -21292,8 +21496,11 @@ class $TrainingGoalsTableManager
                 Value<int> runDays = const Value.absent(),
                 Value<double> maxSessionS = const Value.absent(),
                 Value<double> weeklyCapS = const Value.absent(),
+                Value<double?> currentWeeklyS = const Value.absent(),
+                Value<String> canRun30 = const Value.absent(),
+                Value<bool> hardSession = const Value.absent(),
                 Value<int> createdAtUs = const Value.absent(),
-              }) => TrainingGoalsCompanion(
+              }) => GoalsCompanion(
                 id: id,
                 type: type,
                 distance: distance,
@@ -21302,6 +21509,9 @@ class $TrainingGoalsTableManager
                 runDays: runDays,
                 maxSessionS: maxSessionS,
                 weeklyCapS: weeklyCapS,
+                currentWeeklyS: currentWeeklyS,
+                canRun30: canRun30,
+                hardSession: hardSession,
                 createdAtUs: createdAtUs,
               ),
           createCompanionCallback:
@@ -21314,8 +21524,11 @@ class $TrainingGoalsTableManager
                 required int runDays,
                 required double maxSessionS,
                 required double weeklyCapS,
+                Value<double?> currentWeeklyS = const Value.absent(),
+                required String canRun30,
+                required bool hardSession,
                 required int createdAtUs,
-              }) => TrainingGoalsCompanion.insert(
+              }) => GoalsCompanion.insert(
                 id: id,
                 type: type,
                 distance: distance,
@@ -21324,17 +21537,16 @@ class $TrainingGoalsTableManager
                 runDays: runDays,
                 maxSessionS: maxSessionS,
                 weeklyCapS: weeklyCapS,
+                currentWeeklyS: currentWeeklyS,
+                canRun30: canRun30,
+                hardSession: hardSession,
                 createdAtUs: createdAtUs,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable<TrainingGoals, GoalRow>(table),
-                  BaseReferences<_$AppDatabase, TrainingGoals, GoalRow>(
-                    db,
-                    table,
-                    e,
-                  ),
+                  e.readTable<Goals, GoalRow>(table),
+                  BaseReferences<_$AppDatabase, Goals, GoalRow>(db, table, e),
                 ),
               )
               .toList(),
@@ -21343,17 +21555,17 @@ class $TrainingGoalsTableManager
       );
 }
 
-typedef $TrainingGoalsProcessedTableManager =
+typedef $GoalsProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      TrainingGoals,
+      Goals,
       GoalRow,
-      $TrainingGoalsFilterComposer,
-      $TrainingGoalsOrderingComposer,
-      $TrainingGoalsAnnotationComposer,
-      $TrainingGoalsCreateCompanionBuilder,
-      $TrainingGoalsUpdateCompanionBuilder,
-      (GoalRow, BaseReferences<_$AppDatabase, TrainingGoals, GoalRow>),
+      $GoalsFilterComposer,
+      $GoalsOrderingComposer,
+      $GoalsAnnotationComposer,
+      $GoalsCreateCompanionBuilder,
+      $GoalsUpdateCompanionBuilder,
+      (GoalRow, BaseReferences<_$AppDatabase, Goals, GoalRow>),
       GoalRow,
       PrefetchHooks Function()
     >;
@@ -21401,6 +21613,5 @@ class $AppDatabaseManager {
       $ReferencePerformancesTableManager(_db, _db.referencePerformances);
   $RejectedSuggestionsTableManager get rejectedSuggestions =>
       $RejectedSuggestionsTableManager(_db, _db.rejectedSuggestions);
-  $TrainingGoalsTableManager get trainingGoals =>
-      $TrainingGoalsTableManager(_db, _db.trainingGoals);
+  $GoalsTableManager get goals => $GoalsTableManager(_db, _db.goals);
 }

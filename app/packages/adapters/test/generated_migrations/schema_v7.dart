@@ -2260,11 +2260,11 @@ class RejectedSuggestions extends Table with TableInfo {
   bool get dontWriteConstraints => true;
 }
 
-class TrainingGoals extends Table with TableInfo {
+class Goals extends Table with TableInfo {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  TrainingGoals(this.attachedDatabase, [this._alias]);
+  Goals(this.attachedDatabase, [this._alias]);
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
     'id',
     aliasedName,
@@ -2330,6 +2330,31 @@ class TrainingGoals extends Table with TableInfo {
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL CHECK (weekly_cap_s > 0)',
   );
+  late final GeneratedColumn<double> currentWeeklyS = GeneratedColumn<double>(
+    'current_weekly_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (current_weekly_s > 0)',
+  );
+  late final GeneratedColumn<String> canRun30 = GeneratedColumn<String>(
+    'can_run_30',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (can_run_30 IN (\'yes\', \'no\', \'unknown\'))',
+  );
+  late final GeneratedColumn<int> hardSession = GeneratedColumn<int>(
+    'hard_session',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (hard_session IN (0, 1))',
+  );
   late final GeneratedColumn<int> createdAtUs = GeneratedColumn<int>(
     'created_at_us',
     aliasedName,
@@ -2348,13 +2373,16 @@ class TrainingGoals extends Table with TableInfo {
     runDays,
     maxSessionS,
     weeklyCapS,
+    currentWeeklyS,
+    canRun30,
+    hardSession,
     createdAtUs,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'training_goals';
+  static const String $name = 'goals';
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
@@ -2363,8 +2391,8 @@ class TrainingGoals extends Table with TableInfo {
   }
 
   @override
-  TrainingGoals createAlias(String alias) {
-    return TrainingGoals(attachedDatabase, alias);
+  Goals createAlias(String alias) {
+    return Goals(attachedDatabase, alias);
   }
 
   @override
@@ -2530,7 +2558,7 @@ class DatabaseAtV7 extends GeneratedDatabase {
   late final RejectedSuggestions rejectedSuggestions = RejectedSuggestions(
     this,
   );
-  late final TrainingGoals trainingGoals = TrainingGoals(this);
+  late final Goals goals = Goals(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2589,7 +2617,7 @@ class DatabaseAtV7 extends GeneratedDatabase {
     referencePerformances,
     referencePerformancesRun,
     rejectedSuggestions,
-    trainingGoals,
+    goals,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([

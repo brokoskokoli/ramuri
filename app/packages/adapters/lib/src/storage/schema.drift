@@ -466,8 +466,11 @@ CREATE TABLE rejected_suggestions (
 -- PAR-197, Datum) prüft `core`. Lauftage als Bitmaske, Bit 0 = Montag bis
 -- Bit 6 = Sonntag; 1..127 heißt mindestens ein Tag. Ein Zeitziel trägt Strecke
 -- und Zielzeit, ein Streckenziel nur die Strecke, ein offenes Ziel weder
--- Strecke, Zeit noch Datum (FR-0137, PAR-196).
-CREATE TABLE training_goals (
+-- Strecke, Zeit noch Datum (FR-0137, PAR-196). Heutiger Stand (PAR-192):
+-- `current_weekly_s` und `can_run_30` dürfen beide leer/unbekannt sein, wenn
+-- Läufe vorhanden sind; das prüft `core`, nicht das Schema. `hard_session` ist
+-- der gespeicherte Schalter (PAR-198).
+CREATE TABLE goals (
   id INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
   type TEXT NOT NULL CHECK (type IN ('distance', 'time', 'open')),
   distance TEXT CHECK (distance IN ('fiveKilometers', 'tenKilometers', 'halfMarathon')),
@@ -476,6 +479,9 @@ CREATE TABLE training_goals (
   run_days INTEGER NOT NULL CHECK (run_days BETWEEN 1 AND 127),
   max_session_s REAL NOT NULL CHECK (max_session_s > 0),
   weekly_cap_s REAL NOT NULL CHECK (weekly_cap_s > 0),
+  current_weekly_s REAL CHECK (current_weekly_s > 0),
+  can_run_30 TEXT NOT NULL CHECK (can_run_30 IN ('yes', 'no', 'unknown')),
+  hard_session BOOLEAN NOT NULL CHECK (hard_session IN (0, 1)),
   created_at_us INTEGER NOT NULL,
   CHECK (
     (type = 'open' AND distance IS NULL AND target_s IS NULL AND target_date IS NULL) OR

@@ -2821,7 +2821,7 @@
       "references": [],
       "type": "table",
       "data": {
-        "name": "training_goals",
+        "name": "goals",
         "was_declared_in_moor": true,
         "columns": [
           {
@@ -2902,6 +2902,36 @@
             "moor_type": "double",
             "nullable": false,
             "customConstraints": "NOT NULL CHECK (weekly_cap_s > 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "current_weekly_s",
+            "getter_name": "currentWeeklyS",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "CHECK (current_weekly_s > 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "can_run_30",
+            "getter_name": "canRun30",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (can_run_30 IN ('yes', 'no', 'unknown'))",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "hard_session",
+            "getter_name": "hardSession",
+            "moor_type": "bool",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (hard_session IN (0, 1))",
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
@@ -3404,11 +3434,11 @@
       ]
     },
     {
-      "name": "training_goals",
+      "name": "goals",
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"training_goals\" (\"id\" INTEGER NOT NULL PRIMARY KEY CHECK (id = 1), \"type\" TEXT NOT NULL CHECK (type IN ('distance', 'time', 'open')), \"distance\" TEXT CHECK (distance IN ('fiveKilometers', 'tenKilometers', 'halfMarathon')), \"target_s\" REAL CHECK (target_s > 0), \"target_date\" TEXT CHECK (date(target_date) IS target_date), \"run_days\" INTEGER NOT NULL CHECK (run_days BETWEEN 1 AND 127), \"max_session_s\" REAL NOT NULL CHECK (max_session_s > 0), \"weekly_cap_s\" REAL NOT NULL CHECK (weekly_cap_s > 0), \"created_at_us\" INTEGER NOT NULL, CHECK((type = 'open' AND distance IS NULL AND target_s IS NULL AND target_date IS NULL)OR(type = 'distance' AND distance IS NOT NULL AND target_s IS NULL)OR(type = 'time' AND distance IS NOT NULL AND target_s IS NOT NULL)));"
+          "sql": "CREATE TABLE IF NOT EXISTS \"goals\" (\"id\" INTEGER NOT NULL PRIMARY KEY CHECK (id = 1), \"type\" TEXT NOT NULL CHECK (type IN ('distance', 'time', 'open')), \"distance\" TEXT CHECK (distance IN ('fiveKilometers', 'tenKilometers', 'halfMarathon')), \"target_s\" REAL CHECK (target_s > 0), \"target_date\" TEXT CHECK (date(target_date) IS target_date), \"run_days\" INTEGER NOT NULL CHECK (run_days BETWEEN 1 AND 127), \"max_session_s\" REAL NOT NULL CHECK (max_session_s > 0), \"weekly_cap_s\" REAL NOT NULL CHECK (weekly_cap_s > 0), \"current_weekly_s\" REAL CHECK (current_weekly_s > 0), \"can_run_30\" TEXT NOT NULL CHECK (can_run_30 IN ('yes', 'no', 'unknown')), \"hard_session\" INTEGER NOT NULL CHECK (hard_session IN (0, 1)), \"created_at_us\" INTEGER NOT NULL, CHECK((type = 'open' AND distance IS NULL AND target_s IS NULL AND target_date IS NULL)OR(type = 'distance' AND distance IS NOT NULL AND target_s IS NULL)OR(type = 'time' AND distance IS NOT NULL AND target_s IS NOT NULL)));"
         }
       ]
     }
