@@ -179,6 +179,115 @@ void main() {
       expect(moved?.id, u.id);
       expect(moved?.pinned, isTrue);
     });
+
+    test('replaceUnit: Inhalt wie checkReplace, fixed = kind, keine '
+        'Neuberechnung; gesperrt rejected, fehlend notFound, vergangen '
+        'rejected (heute aus der Uhr)', () async {
+      final e = await _Env.open();
+      await e.controller.saveGoal(_goal());
+      final easy = (await e.plans.unitsBetween(
+        _day(1),
+        _day(28),
+      )).firstWhere((u) => u.kind == PlanUnitKind.easy);
+      final check = await e.controller.checkReplace(easy, PlanUnitKind.tempo);
+      expect(check?.allowed, isTrue);
+      final versions = (await e.plans.history()).length;
+      expect(
+        await e.controller.replaceUnit(easy.id!, PlanUnitKind.easy),
+        PlanActionResult.rejected,
+        reason: 'gleiche Art: gesperrt',
+      );
+      expect((await e.plans.unitOn(easy.day))?.fixed, PlanUnitFixed.none);
+      expect(
+        await e.controller.replaceUnit(9999, PlanUnitKind.tempo),
+        PlanActionResult.notFound,
+      );
+      expect(
+        await e.controller.replaceUnit(easy.id!, PlanUnitKind.tempo),
+        PlanActionResult.done,
+      );
+      final r = (await e.plans.unitOn(easy.day))!;
+      expect(r.id, easy.id);
+      expect(r.kind, PlanUnitKind.tempo);
+      expect(r.fixed, PlanUnitFixed.kind);
+      expect(r.pinned, isTrue);
+      expect(r.minutes, check!.unit!.minutes);
+      expect(
+        [for (final s in r.segments) s.kind],
+        [for (final s in check.unit!.segments) s.kind],
+      );
+      expect((await e.plans.history()).length, versions);
+      // Am Tag nach der Einheit ist sie vergangen.
+      e.clock.set(easy.day.add(const Duration(days: 1, hours: 12)));
+      expect(
+        await e.controller.replaceUnit(easy.id!, PlanUnitKind.long),
+        PlanActionResult.rejected,
+      );
+    });
+
+    test('setRestDay/clearRestDay: Einheit auf Alternativtag oder entfällt, '
+        'Ruhetag aufheben, keine Neuberechnung', () async {
+      final e = await _Env.open();
+      await e.controller.saveGoal(_goal());
+      final units = await e.plans.unitsBetween(_day(7), _day(27));
+      final versions = (await e.plans.history()).length;
+      final first = units.first;
+      final rc = (await e.controller.checkRestDay(first.day))!;
+      expect(rc.unit?.id, first.id);
+      expect(rc.alternatives, isNotEmpty);
+      final alt = rc.alternatives.first;
+      expect(
+        await e.controller.setRestDay(first.day, moveUnitTo: alt),
+        PlanActionResult.done,
+      );
+      expect((await e.plans.unitOn(first.day))!.isRestDay, isTrue);
+      expect((await e.plans.unitOn(first.day))!.fixed, PlanUnitFixed.day);
+      expect((await e.plans.unitOn(alt))?.id, first.id);
+      expect(
+        await e.controller.setRestDay(first.day),
+        PlanActionResult.rejected,
+        reason: 'schon Ruhetag',
+      );
+      final second = units.last;
+      expect(await e.controller.setRestDay(second.day), PlanActionResult.done);
+      expect((await e.plans.unitOn(second.day))!.isRestDay, isTrue);
+      expect(
+        (await e.plans.unitsBetween(
+          _day(7),
+          _day(27),
+        )).where((u) => u.id == second.id),
+        isEmpty,
+        reason: 'ohne Zieltag entfällt die Einheit',
+      );
+      // Ruhetag auf freiem Tag, aufheben, zweites Aufheben findet nichts.
+      final taken = {
+        for (final u in await e.plans.unitsBetween(_day(7), _day(27))) u.day,
+      };
+      final free = [
+        for (var i = 7; i < 28; i++)
+          if (!taken.contains(_day(i))) _day(i),
+      ].first;
+      final results = [
+        await e.controller.setRestDay(free),
+        await e.controller.clearRestDay(free),
+        await e.controller.clearRestDay(free),
+      ];
+      expect(results, [
+        PlanActionResult.done,
+        PlanActionResult.done,
+        PlanActionResult.notFound,
+      ]);
+      expect(await e.plans.unitOn(free), isNull);
+      expect(await e.controller.clearRestDay(first.day), PlanActionResult.done);
+      expect(await e.plans.unitOn(first.day), isNull);
+      // Vergangene Ruhetage bleiben (heute aus der Uhr).
+      e.clock.set(second.day.add(const Duration(days: 1, hours: 12)));
+      expect(
+        await e.controller.clearRestDay(second.day),
+        PlanActionResult.rejected,
+      );
+      expect((await e.plans.history()).length, versions);
+    });
   });
 
   group('Öffnen: wöchentliche Prüfung und Regelversion', () {

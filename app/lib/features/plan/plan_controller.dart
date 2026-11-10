@@ -516,6 +516,139 @@ class PlanController extends ChangeNotifier {
         onChanged?.call();
       });
 
+  /// Prüft vor der Bestätigung, ob [unit] die Art [kind] bekommen kann
+  /// ([checkPlanReplace] mit Ziel und Eingaben der neuesten Fassung, Einheiten
+  /// und absolvierten intensiven Läufen um die Woche, „heute“). `null` ohne
+  /// Ziel oder Fassung.
+  Future<PlanReplaceCheck?> checkReplace(PlanUnit unit, PlanUnitKind kind) =>
+      _serial(() => _replaceCheck(unit, kind, _today()));
+
+  Future<PlanReplaceCheck?> _replaceCheck(
+    PlanUnit unit,
+    PlanUnitKind kind,
+    DateTime today,
+  ) async {
+    final goal = await _goals.goal();
+    final history = await _plans.history();
+    if (goal == null || history.isEmpty) return null;
+    final w = await _weekAround(unit.day);
+    return checkPlanReplace(
+      units: w.units,
+      unit: unit,
+      kind: kind,
+      goal: goal,
+      inputs: history.last.inputs,
+      today: today,
+      completedIntensiveDays: w.intensive,
+      parameters: parameters,
+    );
+  }
+
+  /// Prüft vor der Bestätigung, ob [day] Ruhetag werden kann
+  /// ([checkPlanRestDay]: Alternativtage derselben Woche für eine Einheit
+  /// auf dem Tag). `null` ohne Ziel oder Fassung.
+  Future<PlanRestDayCheck?> checkRestDay(DateTime day) => _serial(() async {
+    final goal = await _goals.goal();
+    if (goal == null || (await _plans.history()).isEmpty) return null;
+    final w = await _weekAround(day);
+    return checkPlanRestDay(
+      units: w.units,
+      day: day,
+      today: _today(),
+      weeklyCapSeconds: goal.weeklyCapSeconds,
+      completedIntensiveDays: w.intensive,
+      runDays: goal.runDays,
+      parameters: parameters,
+    );
+  });
+
+  /// Einheiten und absolvierte intensive Läufe von einer Woche vor bis eine
+  /// Woche nach der Woche von [day] (Abstand PAR-059/PAR-060 über die
+  /// Wochengrenze).
+  Future<({List<PlanUnit> units, List<DateTime> intensive})> _weekAround(
+    DateTime day,
+  ) async {
+    final d = planDay(day);
+    final monday = d.subtract(Duration(days: d.weekday - DateTime.monday));
+    final from = monday.subtract(const Duration(days: 7));
+    final to = monday.add(const Duration(days: 13));
+    return (
+      units: await _plans.unitsBetween(from, to),
+      intensive: [
+        for (final r in await runsBetween(from, to))
+          if (r.intensive) r.day,
+      ],
+    );
+  }
+
+  /// Ersetzt die Art der Einheit nach Bestätigung des Nutzers durch [kind]
+  /// (FR-0173, `fixed = kind`): Dauer, Abschnitte und Zielintensität rechnet
+  /// [checkPlanReplace] mit „heute“ neu, wie beim Bestätigen gezeigt. Keine
+  /// Neuberechnung (wie [confirmMove]). Fehlt die Einheit, das Ziel oder die
+  /// Fassung: `notFound`; sperrt die Prüfung (eingefroren, vergangen,
+  /// Geh-Lauf, Art passt nicht in die maximale Zeit, …): `rejected`.
+  Future<PlanActionResult> replaceUnit(int unitId, PlanUnitKind kind) =>
+      _act(() async {
+        final today = _today();
+        final history = await _plans.history();
+        if (history.isEmpty) {
+          throw const StorageException(StorageFailure.notFound);
+        }
+        final unit = (await _plans.unitsBetween(
+          history.last.inputs.anchor,
+          planFarFuture,
+        )).where((u) => u.id == unitId).firstOrNull;
+        if (unit == null) throw const StorageException(StorageFailure.notFound);
+        final check = await _replaceCheck(unit, kind, today);
+        if (check == null) {
+          throw const StorageException(StorageFailure.notFound);
+        }
+        if (!check.allowed) {
+          throw const StorageException(StorageFailure.rejected);
+        }
+        await _plans.replaceUnit(unitId, check.unit!, today: today);
+        _fresh = null;
+        onChanged?.call();
+      });
+
+  /// Legt [day] nach Bestätigung als Ruhetag fest ([planRestDayUnit] mit Ziel
+  /// und Eingaben der neuesten Fassung). Eine Einheit auf dem Tag geht auf
+  /// [moveUnitTo] (gewählter Alternativtag aus [checkRestDay]) oder entfällt
+  /// ohne ihn. Keine Neuberechnung. Ohne Ziel oder Fassung: `notFound`;
+  /// Tag vor heute, Einheit mit Lauf, schon Ruhetag, ungültiger Zieltag:
+  /// `rejected`.
+  Future<PlanActionResult> setRestDay(DateTime day, {DateTime? moveUnitTo}) =>
+      _act(() async {
+        final today = _today();
+        final goal = await _goals.goal();
+        final history = await _plans.history();
+        if (goal == null || history.isEmpty) {
+          throw const StorageException(StorageFailure.notFound);
+        }
+        await _plans.setRestDay(
+          planRestDayUnit(
+            day: day,
+            goal: goal,
+            inputs: history.last.inputs,
+            today: today,
+            parameters: parameters,
+          ),
+          today: today,
+          moveUnitTo: moveUnitTo,
+        );
+        _fresh = null;
+        onChanged?.call();
+      });
+
+  /// Hebt den Ruhetag an [day] nach Bestätigung auf; die App plant dort erst
+  /// bei der nächsten Neuberechnung wieder (OQ-0011). Kein Ruhetag:
+  /// `notFound`; Tag vor heute: `rejected`.
+  Future<PlanActionResult> clearRestDay(DateTime day) => _act(() async {
+    await _plans.clearRestDay(day, today: _today());
+    _fresh = null;
+    onChanged?.call();
+  });
+
   Future<PlanActionResult> _act(Future<void> Function() action) =>
       _serial(() async {
         PlanActionResult result;
