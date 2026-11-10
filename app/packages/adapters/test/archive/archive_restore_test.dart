@@ -513,6 +513,29 @@ void main() {
     expect((await _dump(_dbOf(session)))['goals'], sourceDump['goals']);
   });
 
+  test('Rundgang: Plan und Einheiten kommen über den Port zurück, '
+      'Lauf-Zuordnung und Sekunden bleiben', () async {
+    session = await service().restore(path: archivePath, password: _password);
+    final repo = (session as PlanStorage).plans;
+    final history = await repo.history();
+    expect(history, hasLength(1));
+    expect(history.single.trigger, PlanTrigger.create);
+    expect(history.single.inputsJson, contains('"weeklyRunMinutes":120'));
+    final u = (await repo.unitOn(DateTime.utc(2026, 11, 2)))!;
+    expect(u.kind, PlanUnitKind.walkRun);
+    expect(u.runId, 1);
+    expect(u.pinned, isTrue);
+    expect(u.segments.map((x) => x.kind), [
+      PlanSegmentKind.walk,
+      PlanSegmentKind.run,
+    ]);
+    expect(u.segments.map((x) => x.seconds), [300, 90]);
+    expect(u.segments.last.intensity!.paceFastSecondsPerKm, 360.0);
+    final rest = (await repo.unitOn(DateTime.utc(2026, 11, 3)))!;
+    expect(rest.kind, PlanUnitKind.rest);
+    expect(rest.runId, isNull);
+  });
+
   // Ältere Archive bleiben lesbar (Format 2 mit Schema 5, 6 und 7). Format 1
   // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
   // kennt, sind danach leer.
@@ -523,11 +546,12 @@ void main() {
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
-      final v = ((jsonDecode(File('$_vectors/vectors.json').readAsStringSync())
-                  as Map)['vectors']
-              as List)
-          .cast<Map>()
-          .firstWhere((v) => v['name'] == name);
+      final v =
+          ((jsonDecode(File('$_vectors/vectors.json').readAsStringSync())
+                      as Map)['vectors']
+                  as List)
+              .cast<Map>()
+              .firstWhere((v) => v['name'] == name);
       session = await service().restore(
         path: '$_vectors/$name.runarchv',
         password: v['password'] as String,
@@ -559,7 +583,15 @@ void main() {
         expect(got['goals']!.single['run_days'], 21);
         expect(got['goals']!.single['target_s'], 3000.0);
         expect(goal!.distance, GoalDistance.tenKilometers);
+        expect(got['plans'], hasLength(1));
+        expect(got['plans']!.single['goal_id'], 1);
+        expect(got['plan_units'], hasLength(2));
+        expect(got['plan_units']![0]['run_id'], 1);
+        expect(got['plan_units']![0]['structure'], contains('"seconds":300'));
+        expect(got['plan_units']![1]['run_id'], isNull);
       } else {
+        expect(got['plans'], isEmpty);
+        expect(got['plan_units'], isEmpty);
         expect(got['goals'], isEmpty);
         expect(goal, isNull);
       }
@@ -808,6 +840,42 @@ void main() {
       'CHECK: Warnsignal-Antwort unbekannt': (
         'run_feedback',
         (d) => d['warning_answer'] = 'vielleicht',
+        0,
+      ),
+      'Fremdschlüssel: Plan ohne Ziel': ('plans', (d) => d['goal_id'] = 99, 0),
+      'Fremdschlüssel: Einheit ohne Plan': (
+        'plan_units',
+        (d) => d['plan_id'] = 99,
+        0,
+      ),
+      'Fremdschlüssel: Einheit ohne Lauf': (
+        'plan_units',
+        (d) => d['run_id'] = 99,
+        0,
+      ),
+      'CHECK: Plan unbekannter Auslöser': (
+        'plans',
+        (d) => d['trigger'] = 'sometimes',
+        0,
+      ),
+      'CHECK: Einheit unbekannte Art': (
+        'plan_units',
+        (d) => d['kind'] = 'swim',
+        0,
+      ),
+      'Leser: Plan-Eingaben kein JSON': (
+        'plans',
+        (d) => d['inputs'] = '{nope',
+        0,
+      ),
+      'Leser: Einheit-Struktur kein JSON': (
+        'plan_units',
+        (d) => d['structure'] = '[1,',
+        1,
+      ),
+      'Leser: Einheit mit ungültigem Tag': (
+        'plan_units',
+        (d) => d['day'] = '2026-02-30',
         0,
       ),
       'Fremdschlüssel: Angabe ohne Lauf': (

@@ -138,7 +138,7 @@ void main() {
             if (l['type'] == 'section') l['name'],
         ];
         expect(sections, [for (final s in archiveSections) s.name]);
-        expect(sections, hasLength(23));
+        expect(sections, hasLength(24));
         // Jede Tabelle mit mindestens einer Zeile.
         for (final s in archiveSections.where((s) => !s.isReserved)) {
           final rows = _rowsOf(lines, s.name);
@@ -146,9 +146,9 @@ void main() {
           expect(rows.first, db[s.name]!.first, reason: s.name);
           expect(rows.first.keys.toList(), [for (final c in s.columns) c.name]);
         }
-        // Ab Schema 7 trägt `goals` Zeilen; `plans` (Teil C) und die
-        // Warnmeldung sind noch leer.
-        for (final n in ['plans', 'active_warning']) {
+        // Ab Schema 7 tragen `goals`, `plans` und `plan_units` Zeilen; die
+        // Warnmeldung ist noch leer.
+        for (final n in ['active_warning']) {
           expect(_rowsOf(lines, n), isEmpty);
         }
         final end = lines.last;
@@ -156,7 +156,9 @@ void main() {
         expect((end['rows']! as Map).keys.toList(), sections);
         expect((end['rows']! as Map)['runs'], 2);
         expect((end['rows']! as Map)['goals'], 2);
-        expect((end['rows']! as Map)['plans'], 0);
+        expect((end['rows']! as Map)['plans'], 2);
+        expect((end['rows']! as Map)['plan_units'], 2);
+        expect((end['rows']! as Map)['active_warning'], 0);
       },
     );
 
@@ -280,7 +282,7 @@ void main() {
         r'^\| (\d+) \| `(\w+)` \| (.+) \|$',
         multiLine: true,
       ).allMatches(doc).toList();
-      expect(rows, hasLength(23));
+      expect(rows, hasLength(24));
       for (final m in rows) {
         final spec = archiveSections[int.parse(m.group(1)!) - 1];
         expect(spec.name, m.group(2));

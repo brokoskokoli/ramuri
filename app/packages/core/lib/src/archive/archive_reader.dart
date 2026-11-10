@@ -175,7 +175,8 @@ class ArchiveLineValidator {
     return out;
   }
 
-  /// Grenzen der Angaben zum Lauf und der nachgetragenen Trainings (WP18):
+  /// Grenzen der Angaben zum Lauf und der nachgetragenen Trainings (WP18) und
+  /// Form der Plan-Texte (WP21):
   /// kein Klemmen, kein Runden. Alles Weitere (Art, Datum, Warnsignal-Regel,
   /// sRPE-Spalten gleichzeitig, Fremdschlüssel) prüft die Datenbank. Nichts
   /// davon nennt einen Wert.
@@ -212,6 +213,25 @@ class ArchiveLineValidator {
             }
           }
         }
+      case 'plans':
+        // Eingaben und Zusammenfassung sind JSON-Text, `valid_from` ein
+        // Ortstag. Art des Auslösers, Fremdschlüssel und Rest prüft die
+        // Datenbank (CHECK).
+        if (!_isJson(row['inputs']) ||
+            !_isJson(row['summary']) ||
+            !_isCalendarDay(row['valid_from'])) {
+          throw _damaged;
+        }
+      case 'plan_units':
+        // `structure` ist JSON-Text, `day` ein gültiger Ortstag, `week` und
+        // `minutes` sind nicht negativ. Art, Phase, `run_id` und Plan prüft
+        // die Datenbank (CHECK, Fremdschlüssel).
+        if (!_isJson(row['structure']) ||
+            !_isCalendarDay(row['day']) ||
+            (row['week']! as int) < 0 ||
+            (row['minutes']! as int) < 0) {
+          throw _damaged;
+        }
       case 'manual_trainings':
         final d = row['duration_s'];
         if (d is! int || d <= 0 || !inRange(row['rpe'], rpeMin, rpeMax)) {
@@ -226,6 +246,26 @@ class ArchiveLineValidator {
           throw _damaged;
         }
     }
+  }
+
+  static bool _isJson(Object? text) {
+    if (text is! String) return false;
+    try {
+      jsonDecode(text);
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  /// Ein Kalendertag in der Form `JJJJ-MM-TT`, den es gibt (kein 30. Februar).
+  static bool _isCalendarDay(Object? day) {
+    if (day is! String || !_isoDay.hasMatch(day)) return false;
+    final y = int.parse(day.substring(0, 4));
+    final mo = int.parse(day.substring(5, 7));
+    final d = int.parse(day.substring(8, 10));
+    final t = DateTime.utc(y, mo, d);
+    return t.year == y && t.month == mo && t.day == d;
   }
 
   void _end(Map<String, Object?> m) {

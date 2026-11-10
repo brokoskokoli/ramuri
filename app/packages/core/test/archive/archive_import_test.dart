@@ -51,10 +51,13 @@ Map<String, Object?> _row(ArchiveSectionSpec s, int i) => {
     c.name: c.name == s.key && s.keyIsText ? 'key$i' : _valueFor(c, i),
 };
 
+const _fromSchema7 = {'goals', 'plans', 'plan_units'};
+
 Map<String, List<Map<String, Object?>>> _fullDb({int rowsPer = 1}) => {
-  // `goals` trägt erst ab Schema 7 Zeilen; die Hilfsfunktionen schreiben Schema 4.
+  // `goals`, `plans` und `plan_units` gibt es erst ab Schema 7; die
+  // Hilfsfunktionen schreiben Schema 4.
   for (final s in archiveSections)
-    if (!s.isReserved && s.name != 'goals')
+    if (!s.isReserved && !_fromSchema7.contains(s.name))
       s.name: [for (var i = 1; i <= rowsPer; i++) _row(s, i)],
 };
 
@@ -261,7 +264,7 @@ void main() {
       ];
       final names = [
         for (final s in archiveSections)
-          if (!s.isReserved && s.name != 'goals') s.name,
+          if (!s.isReserved && !_fromSchema7.contains(s.name)) s.name,
       ];
       expect([
         ...{...order},
@@ -1325,7 +1328,7 @@ void main() {
       }
       expect(archiveSectionsFor(4), hasLength(19));
       expect(archiveSectionsFor(6), hasLength(23));
-      expect(archiveSectionsFor(7), hasLength(23));
+      expect(archiveSectionsFor(7), hasLength(24));
     });
 
     test(
@@ -1416,6 +1419,33 @@ void main() {
       'created_at_us': 7,
     };
 
+    Map<String, Object?> plan() => {
+      'id': 1,
+      'goal_id': 1,
+      'created_at_us': 8,
+      'valid_from': '2026-11-09',
+      'trigger': 'create',
+      'reason': 'goalCreated',
+      'method': 'plan-rules',
+      'method_version': 1,
+      'parameter_version': 1,
+      'inputs': '{"today":"2026-11-09"}',
+      'summary': '{"weeks":12}',
+    };
+
+    Map<String, Object?> unit(int id, {int? runId}) => {
+      'id': id,
+      'plan_id': 1,
+      'day': '2026-11-${(id + 8).toString().padLeft(2, '0')}',
+      'week': 0,
+      'phase': 'entry',
+      'kind': 'walkRun',
+      'minutes': 30,
+      'structure': '[{"kind":"walk","minutes":5,"seconds":300}]',
+      'run_id': runId,
+      'pinned': 0,
+    };
+
     test('Format 2 mit Schema 7: Ziel in Abschnitt 19', () async {
       await c.run(
         await file(
@@ -1487,12 +1517,103 @@ void main() {
     );
 
     test(
-      'Plan-Zeile in Schema 7 (Abschnitt 20 bleibt reserviert): beschädigt',
+      'Plan-Zeile in Schema 5 oder 6 (reservierter Abschnitt 20): beschädigt',
       () async {
-        final l = v2(schema: 7);
-        final at = l.indexOf(_section('plans'));
-        l.insert(at + 1, _rowLine({'id': 1}));
-        await rejectsV2(l);
+        for (final schema in [5, 6]) {
+          final l = v2(schema: schema);
+          final at = l.indexOf(_section('plans'));
+          l.insert(at + 1, _rowLine(plan()));
+          // Zähler der Endzeile stimmt, damit nur die Reservierung stört.
+          l[l.length - 1] = _endLine({
+            for (final sec in archiveSectionsFor(schema))
+              sec.name: switch (sec.name) {
+                'runs' => 2,
+                'run_feedback' || 'manual_trainings' || 'plans' => 1,
+                _ => 0,
+              },
+          });
+          await rejectsV2(l);
+        }
+      },
+    );
+
+    test('Schema 7: Plan und Einheiten (Abschnitte 20 und 24)', () async {
+      await c.run(
+        await file(
+          v2(
+            schema: 7,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': [unit(1), unit(2, runId: 1)],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['plans'], [plan()]);
+      expect(c.sink.rows['plan_units'], [unit(1), unit(2, runId: 1)]);
+    });
+
+    test('Schema 7 ohne Plan (0 Zeilen) ist gültig', () async {
+      await c.run(await file(v2(schema: 7)));
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['plans'] ?? const [], isEmpty);
+      expect(c.sink.rows['plan_units'] ?? const [], isEmpty);
+    });
+
+    test('Abschnitt plan_units gehört nur zu Schema 7', () async {
+      expect(archiveSectionsFor(7).map((s) => s.name).last, 'plan_units');
+      expect(archiveSectionsFor(7), hasLength(24));
+      expect(archiveSectionsFor(6), hasLength(23));
+      final l = v2(schema: 6);
+      l.insert(l.length - 1, _section('plan_units'));
+      await rejectsV2(l);
+    });
+
+    test(
+      'Plan: JSON ungültig, Tag ungültig, falscher Typ: beschädigt',
+      () async {
+        Future<void> badPlan(Map<String, Object?> p) => rejectsV2(
+          v2(
+            schema: 7,
+            extra: {
+              'goals': [goal()],
+              'plans': [p],
+            },
+          ),
+        );
+        await badPlan(plan()..['inputs'] = '{kaputt');
+        await badPlan(plan()..['summary'] = '');
+        await badPlan(plan()..['valid_from'] = '2026-02-30');
+        await badPlan(plan()..['valid_from'] = '9.11.2026');
+        await badPlan(plan()..['method_version'] = '1');
+        await badPlan(plan()..remove('reason'));
+      },
+    );
+
+    test(
+      'Plan-Einheit: JSON, Tag, Zahlen, run_id-Typ, id: beschädigt',
+      () async {
+        Future<void> bad(List<Map<String, Object?>> units) => rejectsV2(
+          v2(
+            schema: 7,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': units,
+            },
+          ),
+        );
+        await bad([unit(1)..['structure'] = '[{']);
+        await bad([unit(1)..['day'] = '2026-13-01']);
+        await bad([unit(1)..['day'] = '2026-11-9']);
+        await bad([unit(1)..['week'] = -1]);
+        await bad([unit(1)..['minutes'] = -5]);
+        await bad([unit(1)..['pinned'] = 2]);
+        await bad([unit(1)..['run_id'] = '1']);
+        await bad([unit(2), unit(1)]);
+        await bad([unit(1), unit(1)]);
       },
     );
 

@@ -183,6 +183,20 @@ void main() {
                         : switch (c.type) {
                             ArchiveType.integer => i,
                             ArchiveType.real => i + 0.25,
+                            // Plan: JSON-Texte und Ortstage prüft der Leser.
+                            ArchiveType.text
+                                when const {
+                                  'inputs',
+                                  'summary',
+                                  'structure',
+                                }.contains(c.name) =>
+                              '{"t":"ä$i\u{1F3C3}"}',
+                            ArchiveType.text
+                                when const {
+                                  'valid_from',
+                                  'day',
+                                }.contains(c.name) =>
+                              '2026-11-0$i',
                             ArchiveType.text => 'ä$i\u{1F3C3}',
                             ArchiveType.boolean => i % 2,
                           },

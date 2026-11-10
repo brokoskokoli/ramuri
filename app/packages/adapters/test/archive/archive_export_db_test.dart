@@ -232,8 +232,29 @@ void main() {
         'created_at_us': 9,
       },
     ]);
+    expect(_rows(lines, 'plans'), [
+      {
+        'id': 1,
+        'goal_id': 1,
+        'created_at_us': 10,
+        'valid_from': '2026-11-02',
+        'trigger': 'create',
+        'reason': 'goalCreated',
+        'method': 'plan-rules',
+        'method_version': 1,
+        'parameter_version': 1,
+        'inputs': '{"today":"2026-11-02","weeklyRunMinutes":120}',
+        'summary': '{"weeks":12,"estimated":true}',
+      },
+    ]);
+    final units = _rows(lines, 'plan_units');
+    expect(units, hasLength(2));
+    expect(units[0]['run_id'], 1);
+    expect(units[0]['pinned'], 1);
+    expect(units[0]['kind'], 'walkRun');
+    expect(units[1]['run_id'], isNull);
+    expect(units[1]['structure'], '[]');
     // Platzhalter ohne Tabelle bleiben leer.
-    expect(_rows(lines, 'plans'), isEmpty);
     expect(_rows(lines, 'active_warning'), isEmpty);
     // Werte bleiben exakt (Typen, NULL, Kennungen).
     expect(_rows(lines, 'runs').single, {

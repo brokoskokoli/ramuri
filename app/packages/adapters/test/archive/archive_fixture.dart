@@ -145,6 +145,28 @@ Future<void> fillAllTables(AppDatabase db) async {
     "VALUES (1, 'time', 'tenKilometers', 3000.0, '2027-03-20', 21, 3600.0, "
     "14400.0, 7200.0, 'yes', 1, 9)",
   );
+  // Plan (Schema 7): eine Fassung mit zwei Einheiten; die erste mit Lauf und
+  // Geh-Lauf-Segmenten in Sekunden, die zweite ein Ruhetag. Synthetisch.
+  await sql(
+    db,
+    'INSERT INTO plans (id, goal_id, created_at_us, valid_from, "trigger", '
+    'reason, method, method_version, parameter_version, inputs, summary) '
+    "VALUES (1, 1, 10, '2026-11-02', 'create', 'goalCreated', 'plan-rules', "
+    '1, 1, \'{"today":"2026-11-02","weeklyRunMinutes":120}\', '
+    '\'{"weeks":12,"estimated":true}\')',
+  );
+  await sql(
+    db,
+    'INSERT INTO plan_units (id, plan_id, day, week, phase, kind, minutes, '
+    'structure, run_id, pinned) VALUES '
+    "(1, 1, '2026-11-02', 0, 'entry', 'walkRun', 30, "
+    '\'[{"kind":"walk","minutes":5,"seconds":300},'
+    '{"kind":"run","minutes":2,"seconds":90,"intensity":{"rpeMin":3,'
+    '"rpeMax":4,"paceFast":360.0,"paceSlow":420.0,"basis":"estimate",'
+    '"hrMin":null,"hrMax":null,"estimated":true,"maxHrEstimated":false,'
+    '"paceIsLimit":false}}]\', 1, 1), '
+    "(2, 1, '2026-11-03', 0, 'entry', 'rest', 0, '[]', NULL, 0)",
+  );
   await sql(
     db,
     "INSERT INTO consents VALUES ('$fixtureConsentMarker', 'granted', 5)",

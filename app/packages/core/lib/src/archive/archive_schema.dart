@@ -16,8 +16,8 @@ class ArchiveColumn {
 
 /// Ein Abschnitt des Archivs. [key] ist die Spalte der Reihenfolge und des
 /// seitenweisen Lesens (Primärschlüssel); [keyIsText] nur bei `settings`.
-/// Reservierte Abschnitte (Pläne, Warnmeldung) haben keine Spalten. Ein
-/// Abschnitt mit [columnsSinceSchema] (Ziele, seit Schema 7) ist in älteren
+/// Reservierte Abschnitte (Warnmeldung) haben keine Spalten. Ein
+/// Abschnitt mit [columnsSinceSchema] (Ziele und Pläne, seit Schema 7) ist in älteren
 /// Schemas reserviert: [forSchema] gibt dann die Form ohne Spalten.
 class ArchiveSectionSpec {
   const ArchiveSectionSpec._(
@@ -63,11 +63,11 @@ class ArchiveSectionSpec {
   final List<ArchiveColumn> columns;
   final String? key;
 
-  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 6).
+  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 7).
   final int sinceSchema;
 
   /// Erstes Schema, in dem der Abschnitt Zeilen trägt, wenn er schon früher
-  /// als leerer Platzhalter im Archiv stand (`goals` ab 7); sonst `null`.
+  /// als leerer Platzhalter im Archiv stand (`goals`, `plans` ab 7); sonst `null`.
   final int? columnsSinceSchema;
 
   /// Der Abschnitt, wie ihn ein Archiv mit [schema] führt: vor
@@ -87,7 +87,7 @@ class ArchiveSectionSpec {
   bool get isReserved => columns.isEmpty;
 }
 
-/// Die 23 Abschnitte des Schemas 7 in der Reihenfolge des Vertrags;
+/// Die 24 Abschnitte des Schemas 7 in der Reihenfolge des Vertrags;
 /// ältere Schemas haben weniger ([archiveSectionsFor]): Schema 4 die 19 mit
 /// `sinceSchema == 4`, Schema 5 dazu die zwei von WP18.
 final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
@@ -188,7 +188,7 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     sinceSchema: 5,
   ),
   // WP21, Nummer 19: bis Schema 6 reservierter Platzhalter (0 Zeilen), ab
-  // Schema 7 das Ziel (Teil C belegt ebenso `plans`, 20).
+  // Schema 7 das Ziel.
   ArchiveSectionSpec(
     'goals',
     'id I, type T, distance T?, target_s R?, target_date T?, run_days I, '
@@ -196,7 +196,14 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
         'hard_session B, created_at_us I',
     columnsSinceSchema: 7,
   ),
-  ArchiveSectionSpec('plans', ''),
+  // WP21, Nummer 20: ebenso bis Schema 6 reserviert, ab Schema 7 die
+  // Plan-Fassungen (`inputs`, `summary` sind JSON-Text).
+  ArchiveSectionSpec(
+    'plans',
+    'id I, goal_id I, created_at_us I, valid_from T, trigger T, reason T, '
+        'method T, method_version I, parameter_version I, inputs T, summary T',
+    columnsSinceSchema: 7,
+  ),
   ArchiveSectionSpec('active_warning', ''),
   // WP20, seit Schema 6 (Nummern 22 und 23; 19 bis 21 sind reserviert).
   // Archive mit Schema 4 oder 5 haben diese Abschnitte nicht.
@@ -207,6 +214,14 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     sinceSchema: 6,
   ),
   ArchiveSectionSpec('rejected_suggestions', 'id I, run_id I', sinceSchema: 6),
+  // WP21, Nummer 24, nur Schema 7: Einheiten der Plan-Fassungen
+  // (`structure` ist JSON-Text, `run_id` ordnet einen Lauf zu).
+  ArchiveSectionSpec(
+    'plan_units',
+    'id I, plan_id I, day T, week I, phase T, kind T, minutes I, '
+        'structure T, run_id I?, pinned B',
+    sinceSchema: 7,
+  ),
 ]);
 
 /// Formatversionen, die der Leser kennt.
@@ -226,8 +241,9 @@ const int archiveMinSchemaVersion = 4;
 /// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 7).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
-/// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7: 23;
-/// ab 7 trägt Abschnitt 19 Zeilen). Teil C ergänzt `plans` und `plan_units`.
+/// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7: 24;
+/// ab 7 tragen die Abschnitte 19 und 20 Zeilen, 24 `plan_units` gibt es nur
+/// ab 7).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche
 /// Liste zu geben.

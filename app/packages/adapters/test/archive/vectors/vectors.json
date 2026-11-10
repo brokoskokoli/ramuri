@@ -232,14 +232,14 @@
       "salt_hex": "f8f9fafbfcfdfeff0001020304050607",
       "key_hex": "2f04f524dbfbcc6898a3323b0cdf5b42cfe6ca68fc13369de72b3ff9e6ba8d3d",
       "header_hex": "52554e4152434856000200010000000000030120f8f9fafbfcfdfeff0001020304050607",
-      "plaintext_len": 2137,
-      "plaintext_sha256": "738d4d64310fe987111cb46a73b845bf97626c1e2cdeb98ff56d882021ff0693",
+      "plaintext_len": 2453,
+      "plaintext_sha256": "72f920cddb1374f3e344468ea682e4f8f78ee2e4eedf606e24ffd9a9e6f30eb3",
       "chunk_count": 1,
-      "file_len": 2189,
+      "file_len": 2505,
       "expect": "ok",
       "format": 2,
       "jsonl_file": "archive_v2_s7.jsonl",
-      "jsonl_sha256": "6cd9c0f6f10e606c996b08a26a66b2743cc84e37c678fb269c58acf475ef7a33",
+      "jsonl_sha256": "7e5487fba3f685338db0ca8dea559ec8a4fff2282ab2c483abdc0df4544c1627",
       "row_counts": {
         "runs": 2,
         "laps": 1,
@@ -260,10 +260,11 @@
         "run_feedback": 2,
         "manual_trainings": 2,
         "goals": 1,
-        "plans": 0,
+        "plans": 1,
         "active_warning": 0,
         "reference_performances": 3,
-        "rejected_suggestions": 1
+        "rejected_suggestions": 1,
+        "plan_units": 2
       },
       "today": "2026-11-20"
     },

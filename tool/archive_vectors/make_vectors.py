@@ -69,9 +69,9 @@ SECTIONS_V2 = SECTIONS[:16] + ["run_feedback", "manual_trainings"] + SECTIONS[16
 # Schema 6 (WP20, weiter Format 2): Abschnitte 22 und 23 ans Ende (Vertrag 4.3).
 SECTIONS_S6 = SECTIONS_V2 + ["reference_performances", "rejected_suggestions"]
 
-# Schema 7 (WP21, weiter Format 2): Abschnitt 19 `goals` traegt Zeilen, 20 und 21 bleiben leer;
-# die Reihenfolge der Abschnitte ist die von Schema 6 (Vertrag 4.3).
-SECTIONS_S7 = SECTIONS_S6
+# Schema 7 (WP21, weiter Format 2): Abschnitte 19 `goals` und 20 `plans` tragen Zeilen, 21 bleibt
+# leer; `plan_units` kommt als Nummer 24 ans Ende (Vertrag 4.3).
+SECTIONS_S7 = SECTIONS_S6 + ["plan_units"]
 
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
@@ -183,13 +183,35 @@ def archive_rows_s6():
 
 
 def archive_rows_s7():
-    """Schema 7: die Zeilen von Schema 6 plus das Trainingsziel (Singleton, id 1)."""
+    """Schema 7: die Zeilen von Schema 6 plus Trainingsziel (Singleton, id 1), Plan und Plan-Einheiten."""
     r = archive_rows_s6()
     # Zeitziel ueber 10 km; Lauftage Mo, Mi, Fr (Bitmaske 1+4+16 = 21, Bit 0 = Montag).
     r["goals"] = [dict(id=1, type="time", distance="tenKilometers", target_s=3000.0,
                        target_date="2027-03-20", run_days=21, max_session_s=3600.0,
                        weekly_cap_s=14400.0, current_weekly_s=7200.0, can_run_30="yes",
                        hard_session=1, created_at_us=1793000000000000)]
+    # Eine Fassung des Plans (inputs, summary: JSON-Text) und zwei Einheiten: ein Geh-Lauf mit
+    # Segmenten in Sekunden und Zuordnung zu Lauf 1, ein Ruhetag (pinned, ohne Lauf).
+    r["plans"] = [dict(id=1, goal_id=1, created_at_us=1793000100000000, valid_from="2026-11-09",
+                       trigger="create", reason="goalCreated", method="plan-rules", method_version=1,
+                       parameter_version=1,
+                       inputs=json.dumps({"today": "2026-11-09", "weeklyRunMinutes": 120},
+                                         separators=(",", ":")),
+                       summary=json.dumps({"weeks": 12, "estimated": True},
+                                          separators=(",", ":")))]
+    walk_run = [
+        {"kind": "walk", "minutes": 5, "seconds": 300},
+        {"kind": "run", "minutes": 2, "seconds": 90,
+         "intensity": {"rpeMin": 3, "rpeMax": 4, "paceFast": 360.0, "paceSlow": 420.0,
+                       "basis": "estimate", "hrMin": None, "hrMax": None, "estimated": True,
+                       "maxHrEstimated": False, "paceIsLimit": False}},
+    ]
+    r["plan_units"] = [
+        dict(id=1, plan_id=1, day="2026-11-09", week=0, phase="entry", kind="walkRun", minutes=30,
+             structure=json.dumps(walk_run, separators=(",", ":")), run_id=1, pinned=0),
+        dict(id=2, plan_id=1, day="2026-11-10", week=0, phase="entry", kind="rest", minutes=0,
+             structure="[]", run_id=None, pinned=1),
+    ]
     return r
 
 
