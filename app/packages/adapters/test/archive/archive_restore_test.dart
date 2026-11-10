@@ -575,15 +575,20 @@ void main() {
     final rest = (await repo.unitOn(DateTime.utc(2026, 11, 3)))!;
     expect(rest.kind, PlanUnitKind.rest);
     expect(rest.runId, isNull);
+    expect(rest.fixed, PlanUnitFixed.day);
+    expect(rest.isRestDay, isTrue);
+    expect(u.fixed, PlanUnitFixed.none);
   });
 
-  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5, 6 und 7). Format 1
+  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5, 6 und 7; 8 ist
+  // das aktuelle). Format 1
   // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
   // kennt, sind danach leer.
   for (final (name, schema) in [
     ('archive_v2', 5),
     ('archive_v2_s6', 6),
     ('archive_v2_s7', 7),
+    ('archive_v2_s8', 8),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -626,10 +631,24 @@ void main() {
         expect(goal!.distance, GoalDistance.tenKilometers);
         expect(got['plans'], hasLength(1));
         expect(got['plans']!.single['goal_id'], 1);
-        expect(got['plan_units'], hasLength(2));
+        expect(got['plan_units'], hasLength(schema >= 8 ? 3 : 2));
         expect(got['plan_units']![0]['run_id'], 1);
         expect(got['plan_units']![0]['structure'], contains('"seconds":300'));
         expect(got['plan_units']![1]['run_id'], isNull);
+        // Schema 7 kennt `fixed` nicht: jede Einheit liest sich mit 'none'
+        // (auch der gepinnte Ruhetag); Schema 8 trägt die Festlegung.
+        expect(
+          [for (final u in got['plan_units']!) u['fixed']],
+          schema >= 8 ? ['none', 'day', 'kind'] : ['none', 'none'],
+        );
+        if (schema >= 8) {
+          final replaced = (await (session as PlanStorage).plans.unitOn(
+            DateTime.utc(2026, 11, 11),
+          ))!;
+          expect(replaced.kind, PlanUnitKind.tempo);
+          expect(replaced.fixed, PlanUnitFixed.kind);
+          expect(replaced.pinned, isTrue);
+        }
       } else {
         expect(got['plans'], isEmpty);
         expect(got['plan_units'], isEmpty);

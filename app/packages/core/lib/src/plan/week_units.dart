@@ -147,10 +147,7 @@ PlannedWeek planWeekUnits({
       omission = HardOmission.notContinuous30;
     } else {
       hardIntended = true;
-      final short =
-          week.kind == WeekKind.lighter ||
-          week.kind == WeekKind.reduction ||
-          total < p.hardLongFromWeeklyMinutes;
+      final short = planWeekHasShortHardForm(week, parameters: p);
       final kinds = [
         PlanUnitKind.intervals,
         PlanUnitKind.tempo,
@@ -254,6 +251,66 @@ PlannedWeek planWeekUnits({
 }
 
 int _min(int a, int b) => a < b ? a : b;
+
+/// Kurze Form der harten Einheit in dieser Woche (PAR-198): leichtere Woche,
+/// Reduktion oder Wochenzeit unter `hardLongFromWeeklyMinutes`.
+bool planWeekHasShortHardForm(
+  PlanWeek week, {
+  PlanParameters parameters = const PlanParameters(),
+}) =>
+    week.kind == WeekKind.lighter ||
+    week.kind == WeekKind.reduction ||
+    (week.minutes ?? 0) < parameters.hardLongFromWeeklyMinutes;
+
+/// Abschnitte einer Einheit, deren Art der Nutzer festgelegt hat
+/// ([PlanUnitFixed.kind]): Die Art bleibt, Dauer und Abschnitte rechnet die
+/// App. Locker und lang: ein lockerer Abschnitt mit [minutes] (1 bis
+/// [maxSessionMinutes]). Harte Formen: wie in der Woche erzeugt (PAR-198,
+/// kurze Form bei [short]); progressiv füllt [minutes]. Passt die Form nicht
+/// in die maximale Zeit, gilt sie trotzdem (die Art hat der Nutzer
+/// festgelegt; die Prüfung beim Ersetzen, [checkPlanReplace], lässt das nicht
+/// zu). `walkRun` und `rest` sind keine wählbaren Arten: [ArgumentError].
+({int minutes, List<PlanSegment> segments}) planSegmentsForKind(
+  PlanUnitKind kind, {
+  required int minutes,
+  required bool short,
+  required int maxSessionMinutes,
+  PlanParameters parameters = const PlanParameters(),
+}) {
+  switch (kind) {
+    case PlanUnitKind.easy || PlanUnitKind.long:
+      final m = minutes.clamp(1, maxSessionMinutes < 1 ? 1 : maxSessionMinutes);
+      return (
+        minutes: m,
+        segments: [PlanSegment(kind: PlanSegmentKind.easy, minutes: m)],
+      );
+    case PlanUnitKind.intervals ||
+        PlanUnitKind.tempo ||
+        PlanUnitKind.progressive:
+      final built =
+          _hardForm(kind, short, minutes, maxSessionMinutes, parameters) ??
+          _hardForm(kind, short, minutes, 1 << 20, parameters)!;
+      return (minutes: built.minutes, segments: built.segments);
+    case PlanUnitKind.walkRun || PlanUnitKind.rest:
+      throw ArgumentError.value(kind, 'kind');
+  }
+}
+
+/// Passt die harte Form [kind] in [maxSessionMinutes] (PAR-198)? Locker und
+/// lang immer.
+bool planKindFitsMaxSession(
+  PlanUnitKind kind, {
+  required int minutes,
+  required bool short,
+  required int maxSessionMinutes,
+  PlanParameters parameters = const PlanParameters(),
+}) => switch (kind) {
+  PlanUnitKind.intervals ||
+  PlanUnitKind.tempo ||
+  PlanUnitKind.progressive =>
+    _hardForm(kind, short, minutes, maxSessionMinutes, parameters) != null,
+  _ => maxSessionMinutes >= 1,
+};
 
 /// Kleinste Wochenzeit von [from] bis [upTo] (jeweils einschließlich), bei der die harte Einheit
 /// in einer regulären Woche vorkommt (PAR-197, PAR-198), oder `null`, wenn sie

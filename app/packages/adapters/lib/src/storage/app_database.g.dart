@@ -12812,6 +12812,16 @@ class PlanUnits extends Table with TableInfo<PlanUnits, PlanUnitRow> {
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL CHECK (pinned IN (0, 1))',
   );
+  static const VerificationMeta _fixedMeta = const VerificationMeta('fixed');
+  late final GeneratedColumn<String> fixed = GeneratedColumn<String>(
+    'fixed',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT \'none\' CHECK (fixed IN (\'none\', \'day\', \'kind\') AND(fixed = \'none\' OR(pinned = 1 AND(fixed = \'day\')=(kind = \'rest\'))))',
+    defaultValue: const CustomExpression('\'none\''),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -12824,6 +12834,7 @@ class PlanUnits extends Table with TableInfo<PlanUnits, PlanUnitRow> {
     structure,
     runId,
     pinned,
+    fixed,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -12910,6 +12921,12 @@ class PlanUnits extends Table with TableInfo<PlanUnits, PlanUnitRow> {
     } else if (isInserting) {
       context.missing(_pinnedMeta);
     }
+    if (data.containsKey('fixed')) {
+      context.handle(
+        _fixedMeta,
+        fixed.isAcceptableOrUnknown(data['fixed']!, _fixedMeta),
+      );
+    }
     return context;
   }
 
@@ -12959,6 +12976,10 @@ class PlanUnits extends Table with TableInfo<PlanUnits, PlanUnitRow> {
         DriftSqlType.bool,
         data['${effectivePrefix}pinned'],
       )!,
+      fixed: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fixed'],
+      )!,
     );
   }
 
@@ -12982,6 +13003,12 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
   final String structure;
   final int? runId;
   final bool pinned;
+
+  /// Schema 8 (WP22): vom Nutzer Festgelegtes über den Termin hinaus. 'kind':
+  /// Art ersetzt (bleibt bei jeder Neuberechnung), 'day': Ruhetag (nur mit
+  /// kind = 'rest'). Beides nur mit bestätigtem Termin (pinned = 1). Zeilen
+  /// aus Schema 7 und Archive mit Schema <= 7 bekommen 'none'.
+  final String fixed;
   const PlanUnitRow({
     required this.id,
     required this.planId,
@@ -12993,6 +13020,7 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
     required this.structure,
     this.runId,
     required this.pinned,
+    required this.fixed,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -13009,6 +13037,7 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
       map['run_id'] = Variable<int>(runId);
     }
     map['pinned'] = Variable<bool>(pinned);
+    map['fixed'] = Variable<String>(fixed);
     return map;
   }
 
@@ -13026,6 +13055,7 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
           ? const Value.absent()
           : Value(runId),
       pinned: Value(pinned),
+      fixed: Value(fixed),
     );
   }
 
@@ -13045,6 +13075,7 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
       structure: serializer.fromJson<String>(json['structure']),
       runId: serializer.fromJson<int?>(json['run_id']),
       pinned: serializer.fromJson<bool>(json['pinned']),
+      fixed: serializer.fromJson<String>(json['fixed']),
     );
   }
   @override
@@ -13061,6 +13092,7 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
       'structure': serializer.toJson<String>(structure),
       'run_id': serializer.toJson<int?>(runId),
       'pinned': serializer.toJson<bool>(pinned),
+      'fixed': serializer.toJson<String>(fixed),
     };
   }
 
@@ -13075,6 +13107,7 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
     String? structure,
     Value<int?> runId = const Value.absent(),
     bool? pinned,
+    String? fixed,
   }) => PlanUnitRow(
     id: id ?? this.id,
     planId: planId ?? this.planId,
@@ -13086,6 +13119,7 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
     structure: structure ?? this.structure,
     runId: runId.present ? runId.value : this.runId,
     pinned: pinned ?? this.pinned,
+    fixed: fixed ?? this.fixed,
   );
   PlanUnitRow copyWithCompanion(PlanUnitsCompanion data) {
     return PlanUnitRow(
@@ -13099,6 +13133,7 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
       structure: data.structure.present ? data.structure.value : this.structure,
       runId: data.runId.present ? data.runId.value : this.runId,
       pinned: data.pinned.present ? data.pinned.value : this.pinned,
+      fixed: data.fixed.present ? data.fixed.value : this.fixed,
     );
   }
 
@@ -13114,7 +13149,8 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
           ..write('minutes: $minutes, ')
           ..write('structure: $structure, ')
           ..write('runId: $runId, ')
-          ..write('pinned: $pinned')
+          ..write('pinned: $pinned, ')
+          ..write('fixed: $fixed')
           ..write(')'))
         .toString();
   }
@@ -13131,6 +13167,7 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
     structure,
     runId,
     pinned,
+    fixed,
   );
   @override
   bool operator ==(Object other) =>
@@ -13145,7 +13182,8 @@ class PlanUnitRow extends DataClass implements Insertable<PlanUnitRow> {
           other.minutes == this.minutes &&
           other.structure == this.structure &&
           other.runId == this.runId &&
-          other.pinned == this.pinned);
+          other.pinned == this.pinned &&
+          other.fixed == this.fixed);
 }
 
 class PlanUnitsCompanion extends UpdateCompanion<PlanUnitRow> {
@@ -13159,6 +13197,7 @@ class PlanUnitsCompanion extends UpdateCompanion<PlanUnitRow> {
   final Value<String> structure;
   final Value<int?> runId;
   final Value<bool> pinned;
+  final Value<String> fixed;
   const PlanUnitsCompanion({
     this.id = const Value.absent(),
     this.planId = const Value.absent(),
@@ -13170,6 +13209,7 @@ class PlanUnitsCompanion extends UpdateCompanion<PlanUnitRow> {
     this.structure = const Value.absent(),
     this.runId = const Value.absent(),
     this.pinned = const Value.absent(),
+    this.fixed = const Value.absent(),
   });
   PlanUnitsCompanion.insert({
     this.id = const Value.absent(),
@@ -13182,6 +13222,7 @@ class PlanUnitsCompanion extends UpdateCompanion<PlanUnitRow> {
     required String structure,
     this.runId = const Value.absent(),
     required bool pinned,
+    this.fixed = const Value.absent(),
   }) : planId = Value(planId),
        day = Value(day),
        week = Value(week),
@@ -13201,6 +13242,7 @@ class PlanUnitsCompanion extends UpdateCompanion<PlanUnitRow> {
     Expression<String>? structure,
     Expression<int>? runId,
     Expression<bool>? pinned,
+    Expression<String>? fixed,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -13213,6 +13255,7 @@ class PlanUnitsCompanion extends UpdateCompanion<PlanUnitRow> {
       if (structure != null) 'structure': structure,
       if (runId != null) 'run_id': runId,
       if (pinned != null) 'pinned': pinned,
+      if (fixed != null) 'fixed': fixed,
     });
   }
 
@@ -13227,6 +13270,7 @@ class PlanUnitsCompanion extends UpdateCompanion<PlanUnitRow> {
     Value<String>? structure,
     Value<int?>? runId,
     Value<bool>? pinned,
+    Value<String>? fixed,
   }) {
     return PlanUnitsCompanion(
       id: id ?? this.id,
@@ -13239,6 +13283,7 @@ class PlanUnitsCompanion extends UpdateCompanion<PlanUnitRow> {
       structure: structure ?? this.structure,
       runId: runId ?? this.runId,
       pinned: pinned ?? this.pinned,
+      fixed: fixed ?? this.fixed,
     );
   }
 
@@ -13275,6 +13320,9 @@ class PlanUnitsCompanion extends UpdateCompanion<PlanUnitRow> {
     if (pinned.present) {
       map['pinned'] = Variable<bool>(pinned.value);
     }
+    if (fixed.present) {
+      map['fixed'] = Variable<String>(fixed.value);
+    }
     return map;
   }
 
@@ -13290,7 +13338,8 @@ class PlanUnitsCompanion extends UpdateCompanion<PlanUnitRow> {
           ..write('minutes: $minutes, ')
           ..write('structure: $structure, ')
           ..write('runId: $runId, ')
-          ..write('pinned: $pinned')
+          ..write('pinned: $pinned, ')
+          ..write('fixed: $fixed')
           ..write(')'))
         .toString();
   }
@@ -23557,6 +23606,7 @@ typedef $PlanUnitsCreateCompanionBuilder = PlanUnitsCompanion Function({
   required String structure,
   Value<int?> runId,
   required bool pinned,
+  Value<String> fixed,
 });
 typedef $PlanUnitsUpdateCompanionBuilder = PlanUnitsCompanion Function({
   Value<int> id,
@@ -23569,6 +23619,7 @@ typedef $PlanUnitsUpdateCompanionBuilder = PlanUnitsCompanion Function({
   Value<String> structure,
   Value<int?> runId,
   Value<bool> pinned,
+  Value<String> fixed,
 });
 
 final class $PlanUnitsReferences
@@ -23655,6 +23706,11 @@ class $PlanUnitsFilterComposer extends Composer<_$AppDatabase, PlanUnits> {
 
   ColumnFilters<bool> get pinned => $composableBuilder(
     column: $table.pinned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fixed => $composableBuilder(
+    column: $table.fixed,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -23753,6 +23809,11 @@ class $PlanUnitsOrderingComposer extends Composer<_$AppDatabase, PlanUnits> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get fixed => $composableBuilder(
+    column: $table.fixed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $PlansOrderingComposer get planId {
     final $PlansOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -23831,6 +23892,9 @@ class $PlanUnitsAnnotationComposer extends Composer<_$AppDatabase, PlanUnits> {
 
   GeneratedColumn<bool> get pinned =>
       $composableBuilder(column: $table.pinned, builder: (column) => column);
+
+  GeneratedColumn<String> get fixed =>
+      $composableBuilder(column: $table.fixed, builder: (column) => column);
 
   $PlansAnnotationComposer get planId {
     final $PlansAnnotationComposer composer = $composerBuilder(
@@ -23917,6 +23981,7 @@ class $PlanUnitsTableManager
                 Value<String> structure = const Value.absent(),
                 Value<int?> runId = const Value.absent(),
                 Value<bool> pinned = const Value.absent(),
+                Value<String> fixed = const Value.absent(),
               }) => PlanUnitsCompanion(
                 id: id,
                 planId: planId,
@@ -23928,6 +23993,7 @@ class $PlanUnitsTableManager
                 structure: structure,
                 runId: runId,
                 pinned: pinned,
+                fixed: fixed,
               ),
           createCompanionCallback:
               ({
@@ -23941,6 +24007,7 @@ class $PlanUnitsTableManager
                 required String structure,
                 Value<int?> runId = const Value.absent(),
                 required bool pinned,
+                Value<String> fixed = const Value.absent(),
               }) => PlanUnitsCompanion.insert(
                 id: id,
                 planId: planId,
@@ -23952,6 +24019,7 @@ class $PlanUnitsTableManager
                 structure: structure,
                 runId: runId,
                 pinned: pinned,
+                fixed: fixed,
               ),
           withReferenceMapper: (p0) => p0
               .map(

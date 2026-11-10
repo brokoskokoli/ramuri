@@ -124,6 +124,123 @@ class DriftPlanRepository implements PlanRepository {
     });
   });
 
+  @override
+  Future<void> replaceUnit(
+    int unitId,
+    PlanUnit replacement, {
+    required DateTime today,
+  }) => guarded(() async {
+    await _db.transaction(() async {
+      final row = await _requireUnit(unitId);
+      if (!planReplaceAllowed(_light(row), replacement, today)) {
+        throw const StorageException(StorageFailure.rejected);
+      }
+      await (_db.update(
+        _db.planUnits,
+      )..where((t) => t.id.equals(unitId))).write(
+        d.PlanUnitsCompanion(
+          kind: Value(replacement.kind.name),
+          minutes: Value(replacement.minutes),
+          structure: Value(jsonEncode(_structure(replacement.segments))),
+          pinned: const Value(true),
+          fixed: Value(PlanUnitFixed.kind.name),
+        ),
+      );
+    });
+  });
+
+  @override
+  Future<void> setRestDay(
+    PlanUnit rest, {
+    required DateTime today,
+    DateTime? moveUnitTo,
+  }) => guarded(() async {
+    await _db.transaction(() async {
+      final latest =
+          await (_db.select(_db.plans)
+                ..orderBy([(t) => OrderingTerm.desc(t.id)])
+                ..limit(1))
+              .getSingleOrNull();
+      if (latest == null) throw const StorageException(StorageFailure.notFound);
+      final day = planDay(rest.day);
+      final onDay = await (_db.select(
+        _db.planUnits,
+      )..where((t) => t.day.equals(isoDay(day)))).getSingleOrNull();
+      final to = moveUnitTo == null ? null : planDay(moveUnitTo);
+      final takenTo = to == null
+          ? false
+          : (await (_db.select(
+              _db.planUnits,
+            )..where((t) => t.day.equals(isoDay(to)))).get()).isNotEmpty;
+      if (!planRestDayAllowed(
+        rest,
+        onDay == null ? null : _light(onDay),
+        today,
+        to,
+        (_) => takenTo,
+      )) {
+        throw const StorageException(StorageFailure.rejected);
+      }
+      if (onDay != null) {
+        final q = _db.update(_db.planUnits)
+          ..where((t) => t.id.equals(onDay.id));
+        if (to != null) {
+          await q.write(
+            d.PlanUnitsCompanion(
+              day: Value(isoDay(to)),
+              week: Value(movedWeekIndex(_light(onDay), to)),
+              pinned: const Value(true),
+            ),
+          );
+        } else {
+          await (_db.delete(
+            _db.planUnits,
+          )..where((t) => t.id.equals(onDay.id))).go();
+        }
+      }
+      await _db
+          .into(_db.planUnits)
+          .insert(
+            d.PlanUnitsCompanion.insert(
+              planId: latest.id,
+              day: isoDay(day),
+              week: rest.weekIndex,
+              phase: rest.phase.name,
+              kind: PlanUnitKind.rest.name,
+              minutes: 0,
+              structure: '[]',
+              pinned: true,
+              fixed: Value(PlanUnitFixed.day.name),
+            ),
+          );
+    });
+  });
+
+  @override
+  Future<void> clearRestDay(DateTime day, {required DateTime today}) =>
+      guarded(() async {
+        await _db.transaction(() async {
+          final d0 = planDay(day);
+          final row =
+              await (_db.select(_db.planUnits)..where(
+                    (t) =>
+                        t.day.equals(isoDay(d0)) &
+                        t.kind.equals(PlanUnitKind.rest.name) &
+                        t.pinned.equals(true),
+                  ))
+                  .getSingleOrNull();
+          if (row == null) {
+            throw const StorageException(StorageFailure.notFound);
+          }
+          if (d0.isBefore(planDay(today))) {
+            throw const StorageException(StorageFailure.rejected);
+          }
+          await (_db.delete(
+            _db.planUnits,
+          )..where((t) => t.id.equals(row.id))).go();
+        });
+      });
+
   Future<d.PlanUnitRow> _requireUnit(int unitId) async {
     final row = await (_db.select(
       _db.planUnits,
@@ -200,6 +317,7 @@ class DriftPlanRepository implements PlanRepository {
                   minutes: u.minutes,
                   structure: jsonEncode(_structure(u.segments)),
                   pinned: u.pinned,
+                  fixed: Value(u.fixed.name),
                 ),
               );
         }
@@ -291,10 +409,26 @@ PlanUnit _unit(d.PlanUnitRow u, d.PlanRow p) {
     segments: _segments(u.structure),
     runId: u.runId,
     pinned: u.pinned,
+    fixed: enumOf(PlanUnitFixed.values, u.fixed, (v) => v.name),
     method: method,
     methodVersion: methodVersion,
   );
 }
+
+/// Die Felder einer Zeile, die die Prüfungen vor dem Schreiben brauchen
+/// (Tag, Woche, Art, Lauf, Termin, Festlegung), ohne Abschnitte.
+PlanUnit _light(d.PlanUnitRow u) => PlanUnit(
+  id: u.id,
+  day: _parseDay(u.day),
+  kind: enumOf(PlanUnitKind.values, u.kind, (v) => v.name),
+  phase: enumOf(PlanPhase.values, u.phase, (v) => v.name),
+  weekIndex: u.week,
+  minutes: u.minutes,
+  segments: const [],
+  runId: u.runId,
+  pinned: u.pinned,
+  fixed: enumOf(PlanUnitFixed.values, u.fixed, (v) => v.name),
+);
 
 PlanVersionRecord _record(d.PlanRow r) => PlanVersionRecord(
   id: r.id,

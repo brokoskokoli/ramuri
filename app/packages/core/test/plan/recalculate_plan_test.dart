@@ -85,6 +85,18 @@ class _FailingWrite implements PlanRepository {
   @override
   Future<void> confirmMove(int u, DateTime d, {required DateTime today}) =>
       _inner.confirmMove(u, d, today: today);
+  @override
+  Future<void> replaceUnit(int u, PlanUnit r, {required DateTime today}) =>
+      _inner.replaceUnit(u, r, today: today);
+  @override
+  Future<void> setRestDay(
+    PlanUnit r, {
+    required DateTime today,
+    DateTime? moveUnitTo,
+  }) => _inner.setRestDay(r, today: today, moveUnitTo: moveUnitTo);
+  @override
+  Future<void> clearRestDay(DateTime d, {required DateTime today}) =>
+      _inner.clearRestDay(d, today: today);
 }
 
 /// Lehnt die ersten [rejections] Schreibversuche mit `rejected` ab und zählt
@@ -122,6 +134,18 @@ class _RejectingWrite implements PlanRepository {
   @override
   Future<void> confirmMove(int u, DateTime d, {required DateTime today}) =>
       _inner.confirmMove(u, d, today: today);
+  @override
+  Future<void> replaceUnit(int u, PlanUnit r, {required DateTime today}) =>
+      _inner.replaceUnit(u, r, today: today);
+  @override
+  Future<void> setRestDay(
+    PlanUnit r, {
+    required DateTime today,
+    DateTime? moveUnitTo,
+  }) => _inner.setRestDay(r, today: today, moveUnitTo: moveUnitTo);
+  @override
+  Future<void> clearRestDay(DateTime d, {required DateTime today}) =>
+      _inner.clearRestDay(d, today: today);
 }
 
 void main() {
@@ -511,6 +535,106 @@ void main() {
       expect(after.where((u) => u.pinned).map((u) => u.day), [target]);
     });
   });
+
+  group(
+    'Ersetzen und Ruhetag bleiben über Neuberechnungen (WP22, Schema 8)',
+    () {
+      DateTime monday(DateTime d) => d.subtract(Duration(days: d.weekday - 1));
+
+      /// Ersetzt eine lockere Einheit ab Tag +14 durch tempo und legt eine
+      /// Woche später einen Ruhetag auf den Tag einer Einheit (sie entfällt).
+      Future<(_Env, DateTime, DateTime)> setup() async {
+        final e = await _Env.open();
+        await e.goals.save(_goal(), today: _goal().createdAt);
+        await e.run(PlanTrigger.create, 0);
+        final units = await _all(e.plans);
+        final easy = units.firstWhere(
+          (u) => u.kind == PlanUnitKind.easy && u.day.isAfter(_day(14)),
+        );
+        final check = checkPlanReplace(
+          units: units,
+          unit: easy,
+          kind: PlanUnitKind.tempo,
+          goal: (await e.plans.currentGoal())!,
+          inputs: (await e.plans.history()).last.inputs,
+          today: _day(0),
+        );
+        expect(check.blocked, isNull);
+        await e.plans.replaceUnit(easy.id!, check.unit!, today: _day(0));
+        final restOn = units.firstWhere(
+          (u) => u.day.isAfter(easy.day.add(const Duration(days: 7))),
+        );
+        await e.plans.setRestDay(
+          planRestDayUnit(
+            day: restOn.day,
+            goal: (await e.plans.currentGoal())!,
+            inputs: (await e.plans.history()).last.inputs,
+            today: _day(0),
+          ),
+          today: _day(0),
+        );
+        return (e, easy.day, restOn.day);
+      }
+
+      /// Harte Einheiten (Tag|Art) ab [from] außerhalb der Wochen von [skip].
+      Future<List<String>> hard(
+        _Env e,
+        DateTime from,
+        Set<DateTime> skip,
+      ) async => [
+        for (final u in await _all(e.plans))
+          if (u.isHard &&
+              !u.day.isBefore(from) &&
+              !skip.contains(monday(u.day)))
+            '${u.day.toIso8601String()}|${u.kind.name}',
+      ];
+
+      test('über manual, goalChange und weekly: Art bleibt (Dauer neu '
+          'gerechnet), Ruhetag bleibt ohne Lauf, die übrigen harten Formen '
+          'rotieren wie ohne Ersetzen (PAR-198)', () async {
+        final (e, replaced, rest) = await setup();
+        final ref = await _Env.open();
+        await ref.goals.save(_goal(), today: _goal().createdAt);
+        await ref.run(PlanTrigger.create, 0);
+        final skip = {monday(replaced), monday(rest)};
+
+        var offset = 0;
+        for (final (t, goal) in [
+          (PlanTrigger.manual, _goal(capMin: 200)),
+          (PlanTrigger.goalChange, _goal(capMin: 260)),
+          (PlanTrigger.weekly, null),
+          (PlanTrigger.manual, null),
+        ]) {
+          offset += 1;
+          for (final x in [e, ref]) {
+            if (goal != null) await x.goals.save(goal, today: goal.createdAt);
+            await x.run(t, offset);
+          }
+          final units = await _all(e.plans);
+          final r = units.where((u) => u.day == replaced).single;
+          expect(r.kind, PlanUnitKind.tempo, reason: t.name);
+          expect(r.fixed, PlanUnitFixed.kind, reason: t.name);
+          expect(r.pinned, isTrue, reason: t.name);
+          expect(
+            r.segments.fold<int>(0, (a, s) => a + s.minutes),
+            r.minutes,
+            reason: 'Dauer und Abschnitte neu gerechnet (${t.name})',
+          );
+          final onRest = units.where((u) => u.day == rest).toList();
+          expect(onRest, hasLength(1), reason: t.name);
+          expect(onRest.single.isRestDay, isTrue, reason: t.name);
+          expect(onRest.single.fixed, PlanUnitFixed.day, reason: t.name);
+          final h = await hard(e, _day(offset), skip);
+          expect(h, await hard(ref, _day(offset), skip), reason: t.name);
+          expect(
+            {for (final x in h) x.split('|')[1]}.length,
+            greaterThan(1),
+            reason: 'Rotation läuft weiter (${t.name})',
+          );
+        }
+      });
+    },
+  );
 
   test('previewPlan: gleiche Hinweise und Einheiten wie die Rechnung, '
       'ohne zu schreiben (WP22)', () async {

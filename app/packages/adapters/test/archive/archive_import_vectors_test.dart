@@ -61,9 +61,13 @@ void main() {
           if (m['type'] == 'section') {
             section = m['name'] as String;
           } else if (m['type'] == 'row') {
-            (expected[section!] ??= []).add(
-              (m['data'] as Map<String, dynamic>).cast<String, Object?>(),
-            );
+            final row = {
+              ...(m['data'] as Map<String, dynamic>).cast<String, Object?>(),
+            };
+            // Vertrag archive.md 4.3: Zeilen aus Schema 7 haben kein `fixed`,
+            // der Leser setzt 'none' (Schema 8 bringt die Spalte selbst mit).
+            if (section == 'plan_units') row.putIfAbsent('fixed', () => 'none');
+            (expected[section!] ??= []).add(row);
           }
         }
         expect(sink.rows, expected);

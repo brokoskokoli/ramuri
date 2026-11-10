@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../src/goals/training_goal.dart';
 import '../src/plan/plan_inputs.dart';
+import '../src/plan/plan_replace.dart' show planReplaceKinds;
 import '../src/plan/plan_unit.dart';
 import '../src/plan/weekly_time.dart' show planDay;
 import 'storage.dart' show StorageException, StorageFailure;
@@ -100,7 +101,8 @@ class PlanVersionDraft {
 
 /// Der gespeicherte Plan (ADR-0010 Punkt 11). Gelesen wird frei; geschrieben
 /// wird nur über [writeVersion] (aus dem Dienst `recalculatePlan`), über
-/// [assignRun] und über [confirmMove].
+/// [assignRun], [confirmMove], [replaceUnit], [setRestDay] und
+/// [clearRestDay].
 abstract interface class PlanRepository {
   /// Das Ziel, zu dem der Plan gehört (das einzige Ziel), oder `null`.
   Future<TrainingGoal?> currentGoal();
@@ -128,6 +130,36 @@ abstract interface class PlanRepository {
     required DateTime today,
   });
 
+  /// Ersetzt die Art der Einheit nach Bestätigung des Nutzers (FR-0173,
+  /// Schema 8): Art, Dauer und Abschnitte aus [replacement] (aus
+  /// `checkPlanReplace`), `pinned` und `fixed = kind` gesetzt, in einer
+  /// Transaktion. Fehlt die Einheit: `notFound`. Mit Lauf, vor [today],
+  /// Ruhetag oder Geh-Lauf, eine Art außerhalb von `planReplaceKinds` oder
+  /// ein anderer Tag in [replacement]: `rejected`.
+  Future<void> replaceUnit(
+    int unitId,
+    PlanUnit replacement, {
+    required DateTime today,
+  });
+
+  /// Legt den Tag von [rest] (`kind = rest`) als Ruhetag fest (`pinned`,
+  /// `fixed = day`, Fassung = die neueste), in einer Transaktion. Liegt dort
+  /// eine offene Einheit, wird sie auf [moveUnitTo] verschoben (`pinned`,
+  /// gleiche Woche, freier Tag ab [today]) oder ohne [moveUnitTo] gelöscht.
+  /// Ohne Fassung: `notFound`. Tag vor [today], Einheit mit Lauf, schon
+  /// Ruhetag, ungültiger [moveUnitTo] oder [moveUnitTo] ohne Einheit:
+  /// `rejected`.
+  Future<void> setRestDay(
+    PlanUnit rest, {
+    required DateTime today,
+    DateTime? moveUnitTo,
+  });
+
+  /// Hebt den Ruhetag an [day] auf (löscht die Ruhetag-Einheit); die App
+  /// plant dort erst bei der nächsten Neuberechnung wieder (OQ-0011). Kein
+  /// Ruhetag an dem Tag: `notFound`; Tag vor [today]: `rejected`.
+  Future<void> clearRestDay(DateTime day, {required DateTime today});
+
   /// In EINER Transaktion: legt die Fassung an, löscht alle offenen
   /// künftigen Einheiten (`Tag >= validFrom`, ohne Lauf) und fügt die neuen
   /// ein. Scheitert etwas, bleibt der alte Plan ganz bestehen. Ohne Ziel:
@@ -139,12 +171,14 @@ abstract interface class PlanRepository {
 /// Letzter möglicher Ortstag für „alle Einheiten ab Beginn“.
 final DateTime planFarFuture = DateTime.utc(9999, 12, 31);
 
-/// Fingerabdruck der gelesenen Einheiten (Kennung, Tag, Lauf, `pinned`), nach
+/// Fingerabdruck der gelesenen Einheiten (Kennung, Tag, Lauf, `pinned`, Art,
+/// `fixed`), nach
 /// Tag und Kennung wie `unitsBetween` sie liefert. Gleich nur, wenn kein
 /// Schreiber (Fassung, Zuordnung, Bestätigung) dazwischen lag.
 String planUnitsFingerprint(Iterable<PlanUnit> units) => [
   for (final u in units)
-    '${u.id}|${planDay(u.day).toIso8601String()}|${u.runId}|${u.pinned}',
+    '${u.id}|${planDay(u.day).toIso8601String()}|${u.runId}|${u.pinned}|'
+        '${u.kind.name}|${u.fixed.name}',
 ].join(';');
 
 /// Ein Speicher, der den Plan führt (wie [GoalStorage]).
@@ -181,4 +215,47 @@ int movedWeekIndex(PlanUnit unit, DateTime newDay) {
 
   final weeks = monday(newDay).difference(monday(unit.day)).inDays ~/ 7;
   return unit.weekIndex + weeks;
+}
+
+/// Prüfung vor [PlanRepository.replaceUnit], gleich für Fake und Datenbank:
+/// `true`, wenn [stored] mit [replacement] ersetzt werden darf.
+bool planReplaceAllowed(
+  PlanUnit stored,
+  PlanUnit replacement,
+  DateTime today,
+) =>
+    stored.runId == null &&
+    !planDay(stored.day).isBefore(planDay(today)) &&
+    stored.kind != PlanUnitKind.rest &&
+    stored.kind != PlanUnitKind.walkRun &&
+    planReplaceKinds.contains(replacement.kind) &&
+    planDay(replacement.day) == planDay(stored.day);
+
+/// Prüfung vor [PlanRepository.setRestDay], gleich für Fake und Datenbank:
+/// `true`, wenn der Ruhetag [rest] mit der Einheit [onDay] des Tags (oder
+/// `null`) und dem Zieltag [moveUnitTo] gesetzt werden darf. [taken] sagt,
+/// ob auf einem Tag schon eine Einheit liegt.
+bool planRestDayAllowed(
+  PlanUnit rest,
+  PlanUnit? onDay,
+  DateTime today,
+  DateTime? moveUnitTo,
+  bool Function(DateTime day) taken,
+) {
+  final d = planDay(rest.day);
+  final t = planDay(today);
+  if (rest.kind != PlanUnitKind.rest || d.isBefore(t)) return false;
+  if (onDay != null &&
+      (onDay.runId != null || onDay.kind == PlanUnitKind.rest)) {
+    return false;
+  }
+  if (moveUnitTo == null) return true;
+  final m = planDay(moveUnitTo);
+  DateTime monday(DateTime x) =>
+      x.subtract(Duration(days: x.weekday - DateTime.monday));
+  return onDay != null &&
+      m != d &&
+      !m.isBefore(t) &&
+      monday(m) == monday(d) &&
+      !taken(m);
 }

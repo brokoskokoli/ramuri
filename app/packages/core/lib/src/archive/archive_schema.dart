@@ -1,5 +1,5 @@
 /// Abschnitte und Spalten des Archivs (`docs/contracts/archive.md` 4.3,
-/// Schema 7, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
+/// Schema 8, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
 /// Adapter-Test mit der Datenbank.
 library;
 
@@ -7,11 +7,24 @@ library;
 enum ArchiveType { integer, real, text, boolean }
 
 class ArchiveColumn {
-  const ArchiveColumn(this.name, this.type, {this.nullable = false});
+  const ArchiveColumn(
+    this.name,
+    this.type, {
+    this.nullable = false,
+    this.sinceSchema,
+    this.olderValue,
+  });
 
   final String name;
   final ArchiveType type;
   final bool nullable;
+
+  /// Erstes Schema, in dem die Spalte im Archiv steht, wenn sie nach dem
+  /// Abschnitt dazukam (`plan_units.fixed` ab 8); sonst `null`.
+  final int? sinceSchema;
+
+  /// Wert der Spalte für Zeilen aus einem Archiv vor [sinceSchema].
+  final Object? olderValue;
 }
 
 /// Ein Abschnitt des Archivs. [key] ist die Spalte der Reihenfolge und des
@@ -34,6 +47,7 @@ class ArchiveSectionSpec {
     String? key,
     int sinceSchema = 4,
     int? columnsSinceSchema,
+    Map<String, (int, Object?)> addedColumns = const {},
   }) {
     final cols = <ArchiveColumn>[];
     if (columns.isNotEmpty) {
@@ -47,7 +61,16 @@ class ArchiveSectionSpec {
           'B' => ArchiveType.boolean,
           _ => throw ArgumentError.value(part),
         };
-        cols.add(ArchiveColumn(bits[0], t, nullable: nullable));
+        final added = addedColumns[bits[0]];
+        cols.add(
+          ArchiveColumn(
+            bits[0],
+            t,
+            nullable: nullable,
+            sinceSchema: added?.$1,
+            olderValue: added?.$2,
+          ),
+        );
       }
     }
     return ArchiveSectionSpec._(
@@ -63,7 +86,7 @@ class ArchiveSectionSpec {
   final List<ArchiveColumn> columns;
   final String? key;
 
-  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 7).
+  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 8).
   final int sinceSchema;
 
   /// Erstes Schema, in dem der Abschnitt Zeilen trägt, wenn er schon früher
@@ -71,11 +94,25 @@ class ArchiveSectionSpec {
   final int? columnsSinceSchema;
 
   /// Der Abschnitt, wie ihn ein Archiv mit [schema] führt: vor
-  /// [columnsSinceSchema] reserviert (keine Spalten, immer leer).
+  /// [columnsSinceSchema] reserviert (keine Spalten, immer leer); Spalten mit
+  /// späterem [ArchiveColumn.sinceSchema] fehlen (der Leser setzt dafür
+  /// [ArchiveColumn.olderValue]).
   ArchiveSectionSpec forSchema(int schema) {
     final c = columnsSinceSchema;
-    if (c == null || schema >= c) return this;
-    return ArchiveSectionSpec._(name, const [], null, sinceSchema, c);
+    if (c != null && schema < c) {
+      return ArchiveSectionSpec._(name, const [], null, sinceSchema, c);
+    }
+    if (!columns.any((col) => (col.sinceSchema ?? 0) > schema)) return this;
+    return ArchiveSectionSpec._(
+      name,
+      List.unmodifiable([
+        for (final col in columns)
+          if ((col.sinceSchema ?? 0) <= schema) col,
+      ]),
+      key,
+      sinceSchema,
+      columnsSinceSchema,
+    );
   }
 
   /// Schlüsselspalte ist Text (nur `settings`).
@@ -87,7 +124,7 @@ class ArchiveSectionSpec {
   bool get isReserved => columns.isEmpty;
 }
 
-/// Die 24 Abschnitte des Schemas 7 in der Reihenfolge des Vertrags;
+/// Die 24 Abschnitte des Schemas 8 in der Reihenfolge des Vertrags;
 /// ältere Schemas haben weniger ([archiveSectionsFor]): Schema 4 die 19 mit
 /// `sinceSchema == 4`, Schema 5 dazu die zwei von WP18.
 final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
@@ -214,13 +251,15 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     sinceSchema: 6,
   ),
   ArchiveSectionSpec('rejected_suggestions', 'id I, run_id I', sinceSchema: 6),
-  // WP21, Nummer 24, nur Schema 7: Einheiten der Plan-Fassungen
-  // (`structure` ist JSON-Text, `run_id` ordnet einen Lauf zu).
+  // WP21, Nummer 24, ab Schema 7: Einheiten der Plan-Fassungen
+  // (`structure` ist JSON-Text, `run_id` ordnet einen Lauf zu). WP22,
+  // Schema 8: Spalte `fixed`; Archive mit Schema 7 lesen sich mit 'none'.
   ArchiveSectionSpec(
     'plan_units',
     'id I, plan_id I, day T, week I, phase T, kind T, minutes I, '
-        'structure T, run_id I?, pinned B',
+        'structure T, run_id I?, pinned B, fixed T',
     sinceSchema: 7,
+    addedColumns: {'fixed': (8, 'none')},
   ),
 ]);
 
@@ -231,19 +270,19 @@ const List<int> archiveFormats = [1, 2];
 const int archiveWriteFormat = 2;
 
 /// Neuestes Datenbankschema, das Leser und Schreiber kennen.
-const int archiveSchemaVersion = 7;
+const int archiveSchemaVersion = 8;
 
 /// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
 /// Fehlende Abschnitte eines älteren Schemas gelten als leer.
 const int archiveMinSchemaVersion = 4;
 
 /// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
-/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 7).
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 8).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
-/// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7: 24;
-/// ab 7 tragen die Abschnitte 19 und 20 Zeilen, 24 `plan_units` gibt es nur
-/// ab 7).
+/// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, ab 7:
+/// 24; ab 7 tragen die Abschnitte 19 und 20 Zeilen, 24 `plan_units` gibt es
+/// nur ab 7, seine Spalte `fixed` ab 8).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche
 /// Liste zu geben.

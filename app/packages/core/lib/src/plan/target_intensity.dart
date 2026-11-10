@@ -673,6 +673,7 @@ PlanUnit applyTargetIntensity(
     ],
     runId: unit.runId,
     pinned: unit.pinned,
+    fixed: unit.fixed,
     method: unit.method,
     methodVersion: unit.methodVersion,
   );

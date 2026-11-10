@@ -224,7 +224,8 @@ DateTime _mondayOf(DateTime d) =>
 
 /// Hält die Tage der bisherigen künftigen Einheiten bis zum Ende der Woche
 /// der letzten fest: `generatePlan` hat sie als Termine bekommen (Inhalt neu,
-/// Tag fest); hier bekommen die Einheiten ihr altes `pinned` zurück, Einheiten
+/// Tag fest); hier bekommen die Einheiten ihr altes `pinned` und `fixed`
+/// zurück, Einheiten
 /// auf anderen Tagen im alten Zeitraum entfallen (die Zahl der Läufe bleibt),
 /// und nur Konflikte echter Termine bleiben gemeldet.
 GeneratedPlan _keepSchedule(GeneratedPlan g, List<PlanUnit> oldFuture) {
@@ -237,7 +238,7 @@ GeneratedPlan _keepSchedule(GeneratedPlan g, List<PlanUnit> oldFuture) {
     if (!day.isBefore(horizonEnd)) {
       units.add(u);
     } else if (oldByDay[day] case final old?) {
-      units.add(u.copyWith(pinned: old.pinned));
+      units.add(u.copyWith(pinned: old.pinned, fixed: old.fixed));
     }
   }
   final realPinned = {

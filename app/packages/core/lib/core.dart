@@ -94,6 +94,7 @@ export 'src/plan/plan_course.dart';
 export 'src/plan/plan_goal_fingerprint.dart';
 export 'src/plan/plan_hints.dart';
 export 'src/plan/plan_move.dart';
+export 'src/plan/plan_replace.dart';
 export 'src/plan/build_plan_inputs.dart';
 export 'src/plan/plan_inputs.dart';
 export 'src/plan/plan_parameters.dart';

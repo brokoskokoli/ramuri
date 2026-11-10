@@ -20,11 +20,13 @@ class AppDatabase extends _$AppDatabase {
   /// (`run_feedback`) und nachgetragene Trainings (`manual_trainings`, WP18).
   /// Version 6: Referenzleistungen und abgelehnte Vorschläge der
   /// Leistungsprognose (WP20). Version 7: Trainingsziel (`goals`,
-  /// WP21 Teil B) und Plan (`plans`, `plan_units`, WP21 Teil C). Jede spätere Änderung erhöht die
+  /// WP21 Teil B) und Plan (`plans`, `plan_units`, WP21 Teil C).
+  /// Version 8: Festlegung des Nutzers je Einheit (`plan_units.fixed`, WP22:
+  /// Art ersetzt, Ruhetag). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -99,6 +101,18 @@ class AppDatabase extends _$AppDatabase {
       await m.create(planUnitsDay);
       await m.create(planUnitsPlan);
       await m.create(planUnitsRun);
+    },
+    // 7 -> 8 (WP22): Spalte `fixed`; bestehende Einheiten bekommen 'none'
+    // (Standardwert der Spalte), Termine (`pinned`) bleiben.
+    // Kommt die Datei von Version 6 oder älter, hat Schritt 6 `plan_units`
+    // schon mit der aktuellen Definition (samt `fixed`) angelegt: `m.create`
+    // nutzt immer den Stand der App. Dann fehlt nichts mehr.
+    7: (Migrator m) async {
+      final columns = await m.database
+          .customSelect("SELECT name FROM pragma_table_info('plan_units')")
+          .get();
+      if (columns.any((r) => r.data['name'] == 'fixed')) return;
+      await m.addColumn(planUnits, planUnits.fixed);
     },
   };
 

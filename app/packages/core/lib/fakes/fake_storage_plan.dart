@@ -86,6 +86,94 @@ class FakePlanRepository implements PlanRepository {
   }
 
   @override
+  Future<void> replaceUnit(
+    int unitId,
+    PlanUnit replacement, {
+    required DateTime today,
+  }) async {
+    final u = _d.planUnits[unitId];
+    if (u == null) throw const StorageException(StorageFailure.notFound);
+    if (!planReplaceAllowed(u, replacement, today)) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    _d.planUnits[unitId] = PlanUnit(
+      id: unitId,
+      day: u.day,
+      kind: replacement.kind,
+      phase: u.phase,
+      weekIndex: u.weekIndex,
+      minutes: replacement.minutes,
+      segments: replacement.segments,
+      pinned: true,
+      fixed: PlanUnitFixed.kind,
+    );
+  }
+
+  @override
+  Future<void> setRestDay(
+    PlanUnit rest, {
+    required DateTime today,
+    DateTime? moveUnitTo,
+  }) async {
+    if (_d.planVersions.isEmpty) {
+      throw const StorageException(StorageFailure.notFound);
+    }
+    final day = planDay(rest.day);
+    final onDay = _d.planUnits.entries
+        .where((e) => e.value.day == day)
+        .firstOrNull;
+    if (!planRestDayAllowed(
+      rest,
+      onDay?.value,
+      today,
+      moveUnitTo,
+      (d) => _d.planUnits.values.any((u) => u.day == d),
+    )) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    if (onDay != null) {
+      if (moveUnitTo != null) {
+        final to = planDay(moveUnitTo);
+        _d.planUnits[onDay.key] = onDay.value.copyWith(
+          day: to,
+          weekIndex: movedWeekIndex(onDay.value, to),
+          pinned: true,
+        );
+      } else {
+        _d.planUnits.remove(onDay.key);
+        _d.planUnitPlan.remove(onDay.key);
+      }
+    }
+    final id = _d.nextPlanUnitId++;
+    _d.planUnits[id] = PlanUnit(
+      id: id,
+      day: day,
+      kind: PlanUnitKind.rest,
+      phase: rest.phase,
+      weekIndex: rest.weekIndex,
+      minutes: 0,
+      segments: const [],
+      pinned: true,
+      fixed: PlanUnitFixed.day,
+    );
+    _d.planUnitPlan[id] = _d.planVersions.keys.reduce((a, b) => a > b ? a : b);
+  }
+
+  @override
+  Future<void> clearRestDay(DateTime day, {required DateTime today}) async {
+    final d = planDay(day);
+    final hit = _d.planUnits.entries
+        .where((e) => e.value.day == d && e.value.isRestDay)
+        .firstOrNull;
+    if (hit == null) throw const StorageException(StorageFailure.notFound);
+    if (d.isBefore(planDay(today))) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    _d.planUnits.remove(hit.key);
+    _d.planUnitPlan.remove(hit.key);
+  }
+
+  @override
   Future<PlanVersionRecord> writeVersion(PlanVersionDraft draft) async {
     if (_d.goal == null) throw const StorageException(StorageFailure.notFound);
     checkPlanDraftForStorage(draft);

@@ -239,6 +239,32 @@ void main() {
     expect(end['rows']['active_warning'], 0);
   });
 
+  test('archive_v2_s8: Format 2, Schema 8, plan_units mit fixed', () async {
+    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s8');
+    final plain = await _collect(
+      createArchiveCipher().decrypt(
+        v['password'] as String,
+        Stream.value(_read(v['file'] as String)),
+      ),
+    );
+    expect(_read(v['file'] as String)[9], 2);
+    final text = utf8.decode(gzip.decode(plain));
+    expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+    final lines = [
+      for (final l in const LineSplitter().convert(text))
+        jsonDecode(l) as Map<String, dynamic>,
+    ];
+    expect(lines.first['schema_version'], 8);
+    final units = [
+      for (final l in lines)
+        if (l['type'] == 'row' && (l['data'] as Map).containsKey('pinned'))
+          l['data'] as Map,
+    ];
+    expect([for (final u in units) u['fixed']], ['none', 'day', 'kind']);
+    expect(lines.last['rows'], v['row_counts']);
+    expect(lines.last['rows']['plan_units'], 3);
+  });
+
   group('Dart verschlüsselt byte-gleich mit festem Salz', () {
     // Hook: createArchiveCipher(randomBytes:) liefert das feste Salz; das
     // Salz ist der einzige Zufall des Formats.

@@ -528,7 +528,12 @@ CREATE TABLE plan_units (
   minutes INTEGER NOT NULL CHECK (minutes >= 0),
   structure TEXT NOT NULL CHECK (json_valid(structure)),
   run_id INTEGER REFERENCES runs (id) ON DELETE SET NULL,
-  pinned BOOLEAN NOT NULL CHECK (pinned IN (0, 1))
+  pinned BOOLEAN NOT NULL CHECK (pinned IN (0, 1)),
+  -- Schema 8 (WP22): vom Nutzer Festgelegtes über den Termin hinaus. 'kind':
+  -- Art ersetzt (bleibt bei jeder Neuberechnung), 'day': Ruhetag (nur mit
+  -- kind = 'rest'). Beides nur mit bestätigtem Termin (pinned = 1). Zeilen
+  -- aus Schema 7 und Archive mit Schema <= 7 bekommen 'none'.
+  fixed TEXT NOT NULL DEFAULT 'none' CHECK (fixed IN ('none', 'day', 'kind') AND (fixed = 'none' OR (pinned = 1 AND (fixed = 'day') = (kind = 'rest'))))
 ) AS PlanUnitRow;
 
 CREATE INDEX plan_units_day ON plan_units (day);
