@@ -276,6 +276,7 @@ class _PlanScreenState extends State<PlanScreen> {
               monday: _monday(_view.weekOffset),
               today: _today,
               units: snap.data,
+              hasError: snap.hasError,
               onStep: _step,
               onOpen: _openUnit,
             ),
@@ -415,8 +416,14 @@ class _GoalCard extends StatelessWidget {
         main = l.planAssessNoData;
         basis = l.planAssessBasisTime;
       case FeasibilityReason.showRegularity:
+        // Nur Einheiten bis heute: künftige Tage der Woche sind noch kein
+        // Rückstand („0 von 3“ am Montag).
         final runDays = state.weekUnits
-            .where((u) => u.kind != PlanUnitKind.rest)
+            .where(
+              (u) =>
+                  u.kind != PlanUnitKind.rest &&
+                  !planDay(u.day).isAfter(planDay(today)),
+            )
             .toList();
         main = l.planAssessRegularity(
           runDays.where((u) => u.runId != null).length,
@@ -551,6 +558,7 @@ class _Week extends StatelessWidget {
     required this.units,
     required this.onStep,
     required this.onOpen,
+    this.hasError = false,
   });
 
   final PlanViewState state;
@@ -559,6 +567,9 @@ class _Week extends StatelessWidget {
 
   /// `null`, solange die Woche lädt.
   final List<PlanUnit>? units;
+
+  /// Laden der Woche ist fehlgeschlagen (statt ewig zu laden).
+  final bool hasError;
   final void Function(int direction) onStep;
   final void Function(PlanUnit unit) onOpen;
 
@@ -669,7 +680,16 @@ class _Week extends StatelessWidget {
         ),
         for (final h in weekHints) ...[const SizedBox(height: 8), h],
         const SizedBox(height: 10),
-        if (units == null)
+        if (hasError)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Text(
+              l.planLoadFailed,
+              key: const Key('plan_week_failed'),
+              style: text.bodyMedium,
+            ),
+          )
+        else if (units == null)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(child: CircularProgressIndicator()),

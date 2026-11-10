@@ -27,6 +27,7 @@ TrainingGoal _goal({
   DateTime? target,
   Set<int> days = const {2, 4, 6},
   DateTime? createdAt,
+  ContinuousRun30 canRun30 = ContinuousRun30.yes,
 }) => TrainingGoal(
   type: type,
   distance: type == GoalType.open ? null : GoalDistance.tenKilometers,
@@ -39,7 +40,7 @@ TrainingGoal _goal({
   weeklyCapSeconds: 240 * 60.0,
   createdAt: createdAt ?? DateTime.utc(2026, 11, 1),
   hardSessionEnabled: type == GoalType.time,
-  canRun30: ContinuousRun30.yes,
+  canRun30: canRun30,
 );
 
 /// Controller mit festem Stand (für Hinweise, die ein echter Plan selten
@@ -119,14 +120,57 @@ Future<(StorageSession, FakeClock)> _withPlan(TrainingGoal goal) async {
   return (session, clock);
 }
 
-PlanViewState _hintState({required bool ruleVersionOld}) {
-  final goal = _goal(type: GoalType.time);
-  final inputs = PlanInputs.forNewGoal(goal, _today);
+PlanViewState _hintState({required bool ruleVersionOld}) => _state(
+  ruleVersionOld: ruleVersionOld,
+  unplacedByWeek: const {0: 15},
+  hardOmissions: const {0: HardOmission.noRecoveryDay},
+  droppedDaysByWeek: {
+    0: [_monday.add(const Duration(days: 4))],
+  },
+  pinnedConflicts: [
+    PinnedConflict(
+      kind: PinnedConflictKind.spacing,
+      day: _today,
+      otherDay: _today.add(const Duration(days: 1)),
+    ),
+  ],
+  walkRunStaysAtWeek: 3,
+  hardFit: HardFitStatus.partialAtPeak,
+);
+
+/// Fester Stand mit 6 Planwochen (2 Einstieg, 3 Aufbau, 1 Reduktion), die
+/// [firstWeekOffset] Wochen vor (negativ) oder nach dieser Woche beginnen.
+PlanViewState _state({
+  bool ruleVersionOld = false,
+  GoalType type = GoalType.time,
+  int firstWeekOffset = 0,
+  Map<int, int> unplacedByWeek = const {},
+  Map<int, HardOmission> hardOmissions = const {},
+  Map<int, List<DateTime>> droppedDaysByWeek = const {},
+  List<PinnedConflict> pinnedConflicts = const [],
+  int? walkRunStaysAtWeek,
+  bool walkRunNoWeekFits = false,
+  HardFitStatus hardFit = HardFitStatus.notApplicable,
+  GoalAssessment? assessment,
+  List<PlanUnit> weekUnits = const [],
+  double? easyPaceSecondsPerKm,
+  int easyRunCount = 0,
+}) {
+  final goal = _goal(type: type);
+  final base = PlanInputs.forNewGoal(goal, _today);
+  final first = _monday.add(Duration(days: 7 * firstWeekOffset));
+  final inputs = PlanInputs(
+    anchor: first,
+    startWeeklyMinutes: base.startWeeklyMinutes,
+    today: _today,
+    easyPaceSecondsPerKm: easyPaceSecondsPerKm,
+    easyRunCount: easyRunCount,
+  );
   final weeks = [
     for (var i = 0; i < 6; i++)
       PlanWeek(
         index: i,
-        start: _monday.add(Duration(days: 7 * i)),
+        start: first.add(Duration(days: 7 * i)),
         minutes: 120,
         phase: i < 2
             ? PlanPhase.entry
@@ -152,27 +196,21 @@ PlanViewState _hintState({required bool ruleVersionOld}) {
     weeks: weeks,
     units: const [],
     frozenUnits: const [],
-    unplacedByWeek: const {0: 15},
-    hardOmissions: const {0: HardOmission.noRecoveryDay},
-    droppedDaysByWeek: {
-      0: [_monday.add(const Duration(days: 4))],
-    },
-    pinnedConflicts: [
-      PinnedConflict(
-        kind: PinnedConflictKind.spacing,
-        day: _today,
-        otherDay: _today.add(const Duration(days: 1)),
-      ),
-    ],
-    walkRunStaysAtWeek: 3,
-    hardFit: HardFitStatus.partialAtPeak,
+    unplacedByWeek: unplacedByWeek,
+    hardOmissions: hardOmissions,
+    droppedDaysByWeek: droppedDaysByWeek,
+    pinnedConflicts: pinnedConflicts,
+    walkRunStaysAtWeek: walkRunStaysAtWeek,
+    walkRunNoWeekFits: walkRunNoWeekFits,
+    hardFit: hardFit,
   );
   return PlanViewState.ready(
     goal: goal,
     version: version,
     hints: hints,
     lastChange: null,
-    weekUnits: const [],
+    weekUnits: weekUnits,
+    assessment: assessment,
   );
 }
 
@@ -382,7 +420,7 @@ void main() {
       );
       expect(
         find.text(
-          'Grundlage: deine Referenzzeit und deine Läufe der letzten 4 Wochen',
+          'Grundlage: deine Referenzzeit oder deine Läufe der letzten 4 Wochen',
         ),
         findsOneWidget,
       );
@@ -471,4 +509,299 @@ void main() {
       expect(key('plan_hint_conflict_0'), findsOneWidget);
     });
   });
+
+  group('Nachbesserung Teil B', () {
+    PlanUnit unit(DateTime day, {int? runId}) => PlanUnit(
+      day: day,
+      kind: PlanUnitKind.easy,
+      phase: PlanPhase.entry,
+      weekIndex: 0,
+      minutes: 30,
+      segments: const [],
+      runId: runId,
+    );
+
+    Future<void> pumpFixed(
+      WidgetTester tester,
+      PlanViewState state, {
+      String locale = 'de',
+      Brightness brightness = Brightness.light,
+    }) async {
+      final session = await FakeStorage().open(_key);
+      final clock = FakeClock(_now);
+      await _pump(
+        tester,
+        session: session,
+        clock: clock,
+        locale: locale,
+        brightness: brightness,
+        controller: _Fixed(session, clock, state),
+      );
+    }
+
+    for (final locale in ['de', 'en']) {
+      testWidgets('Geh-Lauf-Plan: Hinweis nach PAR-115 im Wortlaut ($locale)', (
+        tester,
+      ) async {
+        final (session, clock) = await tester.runAsync(
+          () => _withPlan(_goal(canRun30: ContinuousRun30.no)),
+        ) as (StorageSession, FakeClock);
+        await _pump(tester, session: session, clock: clock, locale: locale);
+        expect(
+          find.descendant(
+            of: key('plan_hint_walk_run_care'),
+            matching: find.text(
+              locale == 'de'
+                  ? 'Hör auf, wenn sich etwas nicht richtig anfühlt. Wenn du '
+                        'dir Sorgen um deine Gesundheit machst, sprich vorher '
+                        'mit einer Ärztin oder einem Arzt.'
+                  : "Stop if something doesn't feel right. If you are "
+                        'worried about your health, talk to a doctor first.',
+            ),
+          ),
+          findsOneWidget,
+        );
+      });
+    }
+
+    testWidgets('Plan ohne Geh-Lauf: kein PAR-115-Hinweis', (tester) async {
+      final (session, clock) = await tester.runAsync(
+        () => _withPlan(_goal()),
+      ) as (StorageSession, FakeClock);
+      await _pump(tester, session: session, clock: clock);
+      expect(key('plan_hint_walk_run_care'), findsNothing);
+    });
+
+    testWidgets('keine Geh-Lauf-Woche passt: eigener Hinweis, kein „bleibt“', (
+      tester,
+    ) async {
+      await pumpFixed(
+        tester,
+        _state(walkRunNoWeekFits: true, walkRunStaysAtWeek: 3),
+      );
+      expect(
+        find.text(
+          'Schon die erste Woche der Geh-Lauf-Abfolge passt nicht in deine '
+          'maximale Zeit je Einheit.',
+        ),
+        findsOneWidget,
+      );
+      expect(key('plan_hint_walk_run_no_week'), findsOneWidget);
+      expect(key('plan_hint_walk_run_stays'), findsNothing);
+    });
+
+    testWidgets('fehlende harte Einheit: Grund im Wortlaut', (tester) async {
+      await pumpFixed(
+        tester,
+        _state(hardOmissions: const {0: HardOmission.noRecoveryDay}),
+      );
+      expect(
+        find.descendant(
+          of: key('plan_hint_hard_omission'),
+          matching: find.text(
+            'Keine harte Einheit diese Woche: Kein Lauftag hat einen vollen '
+            'Tag Abstand zum langen Lauf.',
+          ),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    for (final (status, text) in [
+      (
+        HardFitStatus.regulatorBelowFit,
+        'Für die harte Einheit reicht deine maximale Wochenzeit nicht; der '
+            'Plan bleibt ohne sie.',
+      ),
+      (
+        HardFitStatus.neverFits,
+        'Mit deinen Lauftagen und deiner maximalen Zeit je Einheit passt die '
+            'harte Einheit in keine Woche.',
+      ),
+    ]) {
+      testWidgets('harte Einheit ${status.name}: Wortlaut', (tester) async {
+        await pumpFixed(tester, _state(hardFit: status));
+        expect(
+          find.descendant(
+            of: key('plan_hint_hard_fit'),
+            matching: find.text(text),
+          ),
+          findsOneWidget,
+        );
+      });
+    }
+
+    testWidgets('Einschätzung „passt“ mit Grundlage im Wortlaut', (
+      tester,
+    ) async {
+      await pumpFixed(
+        tester,
+        _state(
+          type: GoalType.distance,
+          assessment: const GoalAssessment(
+            feasibility: GoalFeasibility.fits,
+            reason: FeasibilityReason.peakReached,
+          ),
+        ),
+      );
+      expect(
+        tester.widget<Text>(key('plan_assessment')).data,
+        'Passt zum Zieldatum',
+      );
+      expect(
+        tester.widget<Text>(key('plan_assessment_basis')).data,
+        'Grundlage: deine Wochenzeit, so wie der Plan sie steigert',
+      );
+    });
+
+    for (final locale in ['de', 'en']) {
+      testWidgets('Einschätzung „knapp“ mit Datum ($locale)', (tester) async {
+        await pumpFixed(
+          tester,
+          locale: locale,
+          _state(
+            type: GoalType.distance,
+            assessment: GoalAssessment(
+              feasibility: GoalFeasibility.tight,
+              reason: FeasibilityReason.peakTooLate,
+              fitsFrom: DateTime.utc(2027, 4, 4),
+            ),
+          ),
+        );
+        expect(
+          tester.widget<Text>(key('plan_assessment')).data,
+          locale == 'de'
+              ? 'Das wird knapp, ab etwa 4. Apr. 2027 passt es'
+              : 'This will be tight; from about Apr 4, 2027 it fits',
+        );
+      });
+    }
+
+    testWidgets('Wochenziel „ca. N km“ mit bekanntem lockerem Tempo', (
+      tester,
+    ) async {
+      // 6:00 min/km, genug lockere Läufe (PAR-205): 120 min = ca. 20 km.
+      await pumpFixed(
+        tester,
+        _state(
+          easyPaceSecondsPerKm: 360,
+          easyRunCount: const PlanParameters().peakMinEasyRuns,
+        ),
+      );
+      final summary = tester.widget<Text>(key('plan_week_summary')).data!;
+      expect(summary, endsWith(' · ca. 20 km'));
+    });
+
+    testWidgets('zu wenige lockere Läufe: keine Kilometer', (tester) async {
+      await pumpFixed(
+        tester,
+        _state(
+          easyPaceSecondsPerKm: 360,
+          easyRunCount: const PlanParameters().peakMinEasyRuns - 1,
+        ),
+      );
+      final summary = tester.widget<Text>(key('plan_week_summary')).data!;
+      expect(summary, isNot(contains('km')));
+    });
+
+    for (final locale in ['de', 'en']) {
+      testWidgets(
+        'Phasenbalken: voller Phasenname für Screenreader ($locale)',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          // Diese Woche ist die sechste und letzte: Reduktion.
+          await pumpFixed(tester, locale: locale, _state(firstWeekOffset: -5));
+          // Die Karte fasst ihre Semantik zusammen; der Balken steht darin.
+          expect(
+            tester.getSemantics(key('plan_phase_bar')).label,
+            contains(
+              locale == 'de'
+                  ? 'Phase Reduktion vor Wettkampf, Woche 6 von 6'
+                  : 'Phase Taper before the race, week 6 of 6',
+            ),
+          );
+          handle.dispose();
+        },
+      );
+    }
+
+    testWidgets('heutige Einheit hebt sich ab (dunkel)', (tester) async {
+      await pumpFixed(
+        tester,
+        brightness: Brightness.dark,
+        _state(
+          weekUnits: [unit(_today), unit(_today.add(const Duration(days: 1)))],
+        ),
+      );
+      RamuriCardTone tone(String k) => tester.widget<RamuriCard>(key(k)).tone;
+      expect(tone('plan_day_2026-11-11'), RamuriCardTone.panel);
+      expect(tone('plan_day_2026-11-12'), RamuriCardTone.surface);
+    });
+
+    testWidgets('Regelmäßigkeit zählt nur Einheiten bis heute', (tester) async {
+      // Mo gelaufen, Mi (heute) offen, Fr und So noch nicht dran.
+      await pumpFixed(
+        tester,
+        _state(
+          type: GoalType.open,
+          assessment: const GoalAssessment(
+            feasibility: null,
+            reason: FeasibilityReason.showRegularity,
+          ),
+          weekUnits: [
+            unit(_monday, runId: 1),
+            unit(_today),
+            unit(_monday.add(const Duration(days: 4))),
+            unit(_monday.add(const Duration(days: 6))),
+          ],
+        ),
+      );
+      expect(
+        tester.widget<Text>(key('plan_assessment')).data,
+        'Diese Woche: 1 von 2 Einheiten gelaufen',
+      );
+    });
+
+    testWidgets('Woche lässt sich nicht laden: Fehlerzeile statt Spinner', (
+      tester,
+    ) async {
+      final session = await FakeStorage().open(_key);
+      final clock = FakeClock(_now);
+      await _pump(
+        tester,
+        session: session,
+        clock: clock,
+        controller: _Failing(session, clock, _state()),
+      );
+      await tester.tap(key('plan_week_next'));
+      await tester.pumpAndSettle();
+      expect(key('plan_week_failed'), findsOneWidget);
+      expect(find.text('Der Plan ließ sich nicht laden.'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    for (final locale in ['de', 'en']) {
+      testWidgets('Ziel der Einheit nach PAR-109 ($locale)', (tester) async {
+        await pumpFixed(
+          tester,
+          locale: locale,
+          _state(weekUnits: [unit(_today.add(const Duration(days: 1)))]),
+        );
+        await tester.tap(key('plan_day_2026-11-12'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<Text>(key('plan_unit_purpose')).data,
+          locale == 'de' ? 'Aerobe Grundlage.' : 'Aerobic base.',
+        );
+      });
+    }
+  });
+}
+
+/// Wie [_Fixed], aber andere Wochen lassen sich nicht laden.
+class _Failing extends _Fixed {
+  _Failing(super.session, super.clock, super.fixed);
+  @override
+  Future<List<PlanUnit>> unitsBetween(DateTime from, DateTime to) =>
+      Future.error(const StorageException(StorageFailure.notFound));
 }
