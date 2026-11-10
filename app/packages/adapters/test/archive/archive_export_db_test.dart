@@ -243,7 +243,7 @@ void main() {
         'method': 'plan-rules',
         'method_version': 1,
         'parameter_version': 1,
-        'inputs': '{"today":"2026-11-02","weeklyRunMinutes":120}',
+        'inputs': '{"inputsVersion":1,"anchor":"2026-11-02","startWeeklyMinutes":120,"walkRunWeeks":0,"easyPaceSecondsPerKm":null,"easyRunCount":0,"lastWeekMinutes":null,"achievedShare":null,"walkRunStart":null,"walkRunFrom":null,"intensity":null,"today":"2026-11-02"}',
         'summary': '{"weeks":12,"estimated":true}',
       },
     ]);

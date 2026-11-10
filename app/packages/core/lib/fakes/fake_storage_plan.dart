@@ -72,7 +72,10 @@ class FakePlanRepository implements PlanRepository {
     final taken = _d.planUnits.entries.any(
       (e) => e.key != unitId && e.value.day == day,
     );
-    if (u.runId != null || taken || day.isBefore(planDay(today))) {
+    if (u.runId != null ||
+        taken ||
+        day.isBefore(planDay(today)) ||
+        u.day.isBefore(planDay(today))) {
       throw const StorageException(StorageFailure.rejected);
     }
     _d.planUnits[unitId] = u.copyWith(
@@ -86,6 +89,15 @@ class FakePlanRepository implements PlanRepository {
   Future<PlanVersionRecord> writeVersion(PlanVersionDraft draft) async {
     if (_d.goal == null) throw const StorageException(StorageFailure.notFound);
     checkPlanDraftForStorage(draft);
+    // Ein Tag, der schon eine Einheit mit Lauf trägt (Lauf kam nach dem Lesen
+    // des Dienstes dazu), darf keine zweite bekommen.
+    final runDays = {
+      for (final u in _d.planUnits.values)
+        if (u.runId != null && !u.day.isBefore(draft.validFrom)) u.day,
+    };
+    if (draft.units.any((u) => runDays.contains(planDay(u.day)))) {
+      throw const StorageException(StorageFailure.rejected);
+    }
     // Alles in dieser Methode ist ab hier ohne Fehlerquelle; die Prüfung
     // steht davor, damit der alte Plan bei Ablehnung unverändert bleibt.
     final record = PlanVersionRecord(

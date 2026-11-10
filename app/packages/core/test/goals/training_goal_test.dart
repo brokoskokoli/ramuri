@@ -152,7 +152,7 @@ void main() {
       expect(goal(runDays: const {1, 2, 3, 4, 5}).validate(today, p), isNull);
       expect(
         goal(runDays: const {1, 2, 3, 4, 5, 6}).validate(today, p),
-        GoalProblem.runDayInvalid,
+        GoalProblem.runDaysTooMany,
       );
     });
   });

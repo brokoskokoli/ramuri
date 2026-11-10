@@ -520,7 +520,7 @@ void main() {
     final history = await repo.history();
     expect(history, hasLength(1));
     expect(history.single.trigger, PlanTrigger.create);
-    expect(history.single.inputsJson, contains('"weeklyRunMinutes":120'));
+    expect(history.single.inputsJson, contains('"startWeeklyMinutes":120'));
     final u = (await repo.unitOn(DateTime.utc(2026, 11, 2)))!;
     expect(u.kind, PlanUnitKind.walkRun);
     expect(u.runId, 1);

@@ -1429,7 +1429,13 @@ void main() {
       'method': 'plan-rules',
       'method_version': 1,
       'parameter_version': 1,
-      'inputs': '{"today":"2026-11-09"}',
+      'inputs': jsonEncode(
+        PlanInputs(
+          anchor: DateTime.utc(2026, 11, 9),
+          startWeeklyMinutes: 90,
+          today: DateTime.utc(2026, 11, 9),
+        ).toJson(),
+      ),
       'summary': '{"weeks":12}',
     };
 
@@ -1585,6 +1591,12 @@ void main() {
         );
         await badPlan(plan()..['inputs'] = '{kaputt');
         await badPlan(plan()..['summary'] = '');
+        // Gültiges JSON, aber nicht die Form von PlanInputs/Zusammenfassung:
+        // sonst scheiterte jede spätere Neuberechnung dauerhaft.
+        await badPlan(plan()..['inputs'] = '{}');
+        await badPlan(plan()..['inputs'] = '[]');
+        await badPlan(plan()..['inputs'] = '{"inputsVersion":2}');
+        await badPlan(plan()..['summary'] = '[]');
         await badPlan(plan()..['valid_from'] = '2026-02-30');
         await badPlan(plan()..['valid_from'] = '9.11.2026');
         await badPlan(plan()..['method_version'] = '1');
@@ -1606,6 +1618,10 @@ void main() {
           ),
         );
         await bad([unit(1)..['structure'] = '[{']);
+        await bad([unit(1)..['structure'] = '{}']);
+        await bad([unit(1)..['structure'] = '[1]']);
+        await bad([unit(1)..['structure'] = '[{"kind":"x","minutes":5}]']);
+        await bad([unit(1)..['structure'] = '[{"kind":"walk","minutes":"5"}]']);
         await bad([unit(1)..['day'] = '2026-13-01']);
         await bad([unit(1)..['day'] = '2026-11-9']);
         await bad([unit(1)..['week'] = -1]);

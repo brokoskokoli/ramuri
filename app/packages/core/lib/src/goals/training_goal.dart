@@ -54,8 +54,11 @@ enum GoalProblem {
   /// Zieldatum vor heute.
   targetDateInPast,
 
-  /// Keine Lauftage gewählt.
+  /// Keine Lauftage gewählt (oder weniger als [GoalParameters.minRunDays]).
   runDaysEmpty,
+
+  /// Mehr Lauftage als [GoalParameters.maxRunDays].
+  runDaysTooMany,
 
   /// Ein Wochentag außerhalb 1 (Montag) bis 7 (Sonntag).
   runDayInvalid,
@@ -128,7 +131,9 @@ class TrainingGoal {
   /// Maximale Trainingszeit je Einheit in Sekunden (FR-0136, PAR-195).
   final double maxSessionSeconds;
 
-  /// Regler: höchste Wochenzeit in Sekunden (PAR-196).
+  /// Regler: höchste Wochenzeit in **Sekunden** (PAR-196). ADR-0010 nennt
+  /// Minuten; gespeichert (`weekly_cap_s`) und im Code gerechnet wird in
+  /// Sekunden, die Oberfläche rechnet um.
   final double weeklyCapSeconds;
 
   /// Zeitpunkt des Anlegens.
@@ -196,7 +201,7 @@ class TrainingGoal {
       return GoalProblem.runDayInvalid;
     }
     if (runDays.length < params.minRunDays) return GoalProblem.runDaysEmpty;
-    if (runDays.length > params.maxRunDays) return GoalProblem.runDayInvalid;
+    if (runDays.length > params.maxRunDays) return GoalProblem.runDaysTooMany;
     if (!maxSessionSeconds.isFinite || !(maxSessionSeconds > 0)) {
       return GoalProblem.maxSessionInvalid;
     }

@@ -97,7 +97,8 @@ class DriftPlanRepository implements PlanRepository {
       )..where((t) => t.id.isNotValue(unitId) & t.day.equals(text))).get();
       if (row.runId != null ||
           taken.isNotEmpty ||
-          day.isBefore(planDay(today))) {
+          day.isBefore(planDay(today)) ||
+          _parseDay(row.day).isBefore(planDay(today))) {
         throw const StorageException(StorageFailure.rejected);
       }
       final week = movedWeekIndex(
@@ -132,62 +133,76 @@ class DriftPlanRepository implements PlanRepository {
   }
 
   @override
-  Future<PlanVersionRecord> writeVersion(PlanVersionDraft draft) =>
-      guarded(() async {
-        checkPlanDraftForStorage(draft);
-        return _db.transaction(() async {
-          final goal = await _db.select(_db.goals).getSingleOrNull();
-          if (goal == null) {
-            throw const StorageException(StorageFailure.notFound);
-          }
-          final id = await _db
-              .into(_db.plans)
+  Future<PlanVersionRecord> writeVersion(PlanVersionDraft draft) => guarded(
+    () async {
+      checkPlanDraftForStorage(draft);
+      return _db.transaction(() async {
+        final goal = await _db.select(_db.goals).getSingleOrNull();
+        if (goal == null) {
+          throw const StorageException(StorageFailure.notFound);
+        }
+        final id = await _db
+            .into(_db.plans)
+            .insert(
+              d.PlansCompanion.insert(
+                goalId: goal.id,
+                createdAtUs: usOf(draft.createdAt),
+                validFrom: isoDay(draft.validFrom),
+                trigger: draft.trigger.name,
+                reason: draft.reason,
+                method: draft.version.method,
+                methodVersion: draft.version.methodVersion,
+                parameterVersion: draft.version.parameterVersion,
+                inputs: draft.inputsJson,
+                summary: draft.summaryJson,
+              ),
+            );
+        // Kam nach dem Lesen des Dienstes ein Lauf auf eine Einheit, bliebe
+        // sie stehen, und ein Entwurfstag wäre doppelt: ablehnen.
+        final kept =
+            await (_db.select(_db.planUnits)..where(
+                  (t) =>
+                      t.day.isBiggerOrEqualValue(isoDay(draft.validFrom)) &
+                      t.runId.isNotNull(),
+                ))
+                .get();
+        final keptDays = {for (final r in kept) r.day};
+        if (draft.units.any((u) => keptDays.contains(isoDay(planDay(u.day))))) {
+          throw const StorageException(StorageFailure.rejected);
+        }
+        // Offen und künftig: ab dem Beginn der Fassung und ohne Lauf. Alles
+        // andere bleibt unter seiner alten Fassung (FR-0158, PAR-203).
+        await (_db.delete(_db.planUnits)..where(
+              (t) =>
+                  t.day.isBiggerOrEqualValue(isoDay(draft.validFrom)) &
+                  t.runId.isNull(),
+            ))
+            .go();
+        for (var i = 0; i < draft.units.length; i++) {
+          await beforeUnitInsert?.call(i);
+          final u = draft.units[i];
+          await _db
+              .into(_db.planUnits)
               .insert(
-                d.PlansCompanion.insert(
-                  goalId: goal.id,
-                  createdAtUs: usOf(draft.createdAt),
-                  validFrom: isoDay(draft.validFrom),
-                  trigger: draft.trigger.name,
-                  reason: draft.reason,
-                  method: draft.version.method,
-                  methodVersion: draft.version.methodVersion,
-                  parameterVersion: draft.version.parameterVersion,
-                  inputs: draft.inputsJson,
-                  summary: draft.summaryJson,
+                d.PlanUnitsCompanion.insert(
+                  planId: id,
+                  day: isoDay(planDay(u.day)),
+                  week: u.weekIndex,
+                  phase: u.phase.name,
+                  kind: u.kind.name,
+                  minutes: u.minutes,
+                  structure: jsonEncode(_structure(u.segments)),
+                  pinned: u.pinned,
                 ),
               );
-          // Offen und künftig: ab dem Beginn der Fassung und ohne Lauf. Alles
-          // andere bleibt unter seiner alten Fassung (FR-0158, PAR-203).
-          await (_db.delete(_db.planUnits)..where(
-                (t) =>
-                    t.day.isBiggerOrEqualValue(isoDay(draft.validFrom)) &
-                    t.runId.isNull(),
-              ))
-              .go();
-          for (var i = 0; i < draft.units.length; i++) {
-            await beforeUnitInsert?.call(i);
-            final u = draft.units[i];
-            await _db
-                .into(_db.planUnits)
-                .insert(
-                  d.PlanUnitsCompanion.insert(
-                    planId: id,
-                    day: isoDay(planDay(u.day)),
-                    week: u.weekIndex,
-                    phase: u.phase.name,
-                    kind: u.kind.name,
-                    minutes: u.minutes,
-                    structure: jsonEncode(_structure(u.segments)),
-                    pinned: u.pinned,
-                  ),
-                );
-          }
-          final row = await (_db.select(
-            _db.plans,
-          )..where((t) => t.id.equals(id))).getSingle();
-          return _record(row);
-        });
+        }
+        final row = await (_db.select(
+          _db.plans,
+        )..where((t) => t.id.equals(id))).getSingle();
+        return _record(row);
       });
+    },
+  );
 }
 
 DateTime _parseDay(String s) {

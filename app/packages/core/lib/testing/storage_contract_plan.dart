@@ -257,6 +257,9 @@ Future<void> _invalid(StorageContractHarness h) async {
   final p = _p(s);
   final run = (await s.runs.create(startedAt: at(0))).id;
   await p.writeVersion(_draft(0, [_unit(0), _unit(2), _unit(4)]));
+  // Ein Lauf kam nach dem Lesen des Dienstes dazu: Tag 4 trägt jetzt einen
+  // Lauf; ein Entwurf mit einer neuen Einheit auf Tag 4 wäre ein Doppel.
+  await p.assignRun((await p.unitOn(_day(4)))!.id!, run);
   final good = await _state(s);
 
   final bad = <String, PlanVersionDraft>{
@@ -275,6 +278,7 @@ Future<void> _invalid(StorageContractHarness h) async {
         runId: run,
       ),
     ]),
+    'Tag trägt schon eine Einheit mit Lauf': _draft(1, [_unit(1), _unit(4)]),
     'leerer Grund': _draft(1, [_unit(1)], reason: ''),
   };
   for (final e in bad.entries) {
@@ -325,7 +329,7 @@ Future<void> _edit(StorageContractHarness h) async {
   expectTrue((await p.unitOn(_day(0)))!.runId == null, 'Zuordnung aufgehoben');
   await p.assignRun(u0.id!, run);
 
-  await p.confirmMove(u2.id!, _day(3), today: _day(3));
+  await p.confirmMove(u2.id!, _day(3), today: _day(2));
   final moved = (await p.unitOn(_day(3)))!;
   expectEq(moved.id, u2.id, 'verschoben');
   expectTrue(moved.pinned, 'pinned gesetzt');
@@ -353,6 +357,11 @@ Future<void> _edit(StorageContractHarness h) async {
     () => p.confirmMove(u2.id!, _day(1), today: _day(2)),
     StorageFailure.rejected,
     'Tag vor heute',
+  );
+  await expectFails(
+    () => p.confirmMove(u8.id!, _day(12), today: _day(10)),
+    StorageFailure.rejected,
+    'Einheit liegt vor heute (Geschichte)',
   );
   expectTrue(
     (await p.unitOn(_day(9))) != null && await p.unitOn(_day(1)) == null,

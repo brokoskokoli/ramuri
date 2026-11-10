@@ -152,7 +152,7 @@ Future<void> fillAllTables(AppDatabase db) async {
     'INSERT INTO plans (id, goal_id, created_at_us, valid_from, "trigger", '
     'reason, method, method_version, parameter_version, inputs, summary) '
     "VALUES (1, 1, 10, '2026-11-02', 'create', 'goalCreated', 'plan-rules', "
-    '1, 1, \'{"today":"2026-11-02","weeklyRunMinutes":120}\', '
+    '1, 1, \'{"inputsVersion":1,"anchor":"2026-11-02","startWeeklyMinutes":120,"walkRunWeeks":0,"easyPaceSecondsPerKm":null,"easyRunCount":0,"lastWeekMinutes":null,"achievedShare":null,"walkRunStart":null,"walkRunFrom":null,"intensity":null,"today":"2026-11-02"}\', '
     '\'{"weeks":12,"estimated":true}\')',
   );
   await sql(

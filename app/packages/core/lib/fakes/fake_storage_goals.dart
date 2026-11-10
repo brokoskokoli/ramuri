@@ -11,8 +11,8 @@ class FakeGoalStore implements GoalStore {
   Future<TrainingGoal?> goal() async => _d.goal;
 
   @override
-  Future<void> save(TrainingGoal goal) async {
-    checkGoalForStorage(goal);
+  Future<void> save(TrainingGoal goal, {DateTime? today}) async {
+    checkGoalForStorage(goal, today: today);
     _d.goal = goal;
   }
 

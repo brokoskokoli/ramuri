@@ -8,9 +8,13 @@ abstract interface class GoalStore {
   Future<TrainingGoal?> goal();
 
   /// Legt das Ziel an oder ersetzt es (Ändern, PAR-203). Ungültig
-  /// ([TrainingGoal.validate] zum Anlegezeitpunkt `createdAt`):
-  /// `rejected`, das bisherige Ziel bleibt.
-  Future<void> save(TrainingGoal goal);
+  /// ([TrainingGoal.validate]): `rejected`, das bisherige Ziel bleibt.
+  ///
+  /// [today] (Ortstag „heute“, kein Uhr-Zugriff im Speicher): Beim **Ändern**
+  /// muss der Aufrufer es angeben, damit ein Zieldatum in der Vergangenheit
+  /// abgelehnt wird, auch wenn `createdAt` älter ist. Ohne Angabe gilt
+  /// `createdAt` (Anlegen).
+  Future<void> save(TrainingGoal goal, {DateTime? today});
 
   /// Löscht das Ziel. Kein Ziel: `notFound`.
   Future<void> delete();
@@ -24,10 +28,10 @@ abstract interface class GoalStorage {
 
 /// Prüfung vor dem Speichern, gleich für Fake und Datenbank. Gültig wird zum
 /// Anlegezeitpunkt beurteilt: Ein Datum von heute ist gültig, ein früheres
-/// nicht. Der Stand (PAR-192) wird nicht verlangt: Läufe ersetzen ihn, die
-/// Planung prüft ihn.
-void checkGoalForStorage(TrainingGoal g) {
-  if (g.validate(g.createdAt, null, false) != null) {
+/// nicht. Beim Ändern gilt [today] statt `createdAt`. Der Stand (PAR-192)
+/// wird nicht verlangt: Läufe ersetzen ihn, die Planung prüft ihn.
+void checkGoalForStorage(TrainingGoal g, {DateTime? today}) {
+  if (g.validate(today ?? g.createdAt, null, false) != null) {
     throw const StorageException(StorageFailure.rejected);
   }
 }

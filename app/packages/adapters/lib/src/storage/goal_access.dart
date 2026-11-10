@@ -31,8 +31,8 @@ class DriftGoalStore implements GoalStore {
   });
 
   @override
-  Future<void> save(TrainingGoal goal) => guarded(() async {
-    checkGoalForStorage(goal);
+  Future<void> save(TrainingGoal goal, {DateTime? today}) => guarded(() async {
+    checkGoalForStorage(goal, today: today);
     final date = goal.targetDate;
     await _db
         .into(_db.goals)

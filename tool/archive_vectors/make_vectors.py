@@ -195,8 +195,12 @@ def archive_rows_s7():
     r["plans"] = [dict(id=1, goal_id=1, created_at_us=1793000100000000, valid_from="2026-11-09",
                        trigger="create", reason="goalCreated", method="plan-rules", method_version=1,
                        parameter_version=1,
-                       inputs=json.dumps({"today": "2026-11-09", "weeklyRunMinutes": 120},
-                                         separators=(",", ":")),
+                       inputs=json.dumps(
+                           {"inputsVersion": 1, "anchor": "2026-11-09", "startWeeklyMinutes": 120,
+                            "walkRunWeeks": 0, "easyPaceSecondsPerKm": None, "easyRunCount": 0,
+                            "lastWeekMinutes": None, "achievedShare": None, "walkRunStart": None,
+                            "walkRunFrom": None, "intensity": None, "today": "2026-11-09"},
+                           separators=(",", ":")),
                        summary=json.dumps({"weeks": 12, "estimated": True},
                                           separators=(",", ":")))]
     walk_run = [

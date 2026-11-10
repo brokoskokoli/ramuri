@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../../ports/archive_cipher.dart';
+import '../plan/plan_inputs.dart';
+import '../plan/plan_unit.dart';
 import '../subjective/srpe.dart';
 import '../subjective/subjective_limits.dart';
 import 'archive_errors.dart';
@@ -217,8 +219,10 @@ class ArchiveLineValidator {
         // Eingaben und Zusammenfassung sind JSON-Text, `valid_from` ein
         // Ortstag. Art des Auslösers, Fremdschlüssel und Rest prüft die
         // Datenbank (CHECK).
-        if (!_isJson(row['inputs']) ||
-            !_isJson(row['summary']) ||
+        // Die Form der Eingaben prüft der Leser, sonst scheiterte jede spätere
+        // Neuberechnung dauerhaft (`PlanInputs.fromJson`).
+        if (!_isPlanInputs(row['inputs']) ||
+            !_isJsonObject(row['summary']) ||
             !_isCalendarDay(row['valid_from'])) {
           throw _damaged;
         }
@@ -226,7 +230,7 @@ class ArchiveLineValidator {
         // `structure` ist JSON-Text, `day` ein gültiger Ortstag, `week` und
         // `minutes` sind nicht negativ. Art, Phase, `run_id` und Plan prüft
         // die Datenbank (CHECK, Fremdschlüssel).
-        if (!_isJson(row['structure']) ||
+        if (!_isPlanStructure(row['structure']) ||
             !_isCalendarDay(row['day']) ||
             (row['week']! as int) < 0 ||
             (row['minutes']! as int) < 0) {
@@ -248,14 +252,47 @@ class ArchiveLineValidator {
     }
   }
 
-  static bool _isJson(Object? text) {
-    if (text is! String) return false;
+  static Object? _decode(Object? text) {
+    if (text is! String) return null;
     try {
-      jsonDecode(text);
+      return jsonDecode(text);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static bool _isJsonObject(Object? text) => _decode(text) is Map;
+
+  /// Eingaben einer Plan-Fassung: das Format, das `PlanInputs.toJson` schreibt.
+  static bool _isPlanInputs(Object? text) {
+    final json = _decode(text);
+    if (json is! Map<String, Object?>) return false;
+    try {
+      PlanInputs.fromJson(json);
       return true;
     } on FormatException {
       return false;
+    } on TypeError {
+      return false;
     }
+  }
+
+  /// Aufbau einer Einheit: Liste von Segmenten mit bekannter Art und ganzen
+  /// Minuten (`seconds` und `intensity` optional, wie der Speicher sie liest).
+  static bool _isPlanStructure(Object? text) {
+    final json = _decode(text);
+    if (json is! List) return false;
+    final kinds = {for (final k in PlanSegmentKind.values) k.name};
+    for (final e in json) {
+      if (e is! Map ||
+          !kinds.contains(e['kind']) ||
+          e['minutes'] is! int ||
+          (e['seconds'] != null && e['seconds'] is! int) ||
+          (e['intensity'] != null && e['intensity'] is! Map)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// Ein Kalendertag in der Form `JJJJ-MM-TT`, den es gibt (kein 30. Februar).

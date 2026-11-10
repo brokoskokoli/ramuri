@@ -108,6 +108,13 @@ Future<void> _invalid(StorageContractHarness h) async {
       e.key,
     );
   }
+  // Ändern: das Datum liegt nach `createdAt`, aber vor heute.
+  await expectFails(
+    () => _g(s).save(good, today: DateTime(2031, 1, 1)),
+    StorageFailure.rejected,
+    'Datum vor heute beim Ändern',
+  );
+  await _g(s).save(good, today: DateTime(2030, 6, 1));
   expectEq(_d(await _g(s).goal()), _d(good), 'bisheriges Ziel bleibt');
   await s.close();
 }
