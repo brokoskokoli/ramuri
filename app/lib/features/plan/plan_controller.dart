@@ -32,7 +32,8 @@ class PlanViewState {
       version = null,
       hints = null,
       lastChange = null,
-      weekUnits = const [];
+      weekUnits = const [],
+      assessment = null;
 
   const PlanViewState.failed()
     : phase = PlanLoadPhase.failed,
@@ -40,7 +41,8 @@ class PlanViewState {
       version = null,
       hints = null,
       lastChange = null,
-      weekUnits = const [];
+      weekUnits = const [],
+      assessment = null;
 
   const PlanViewState.ready({
     required this.goal,
@@ -48,6 +50,7 @@ class PlanViewState {
     required this.hints,
     required this.lastChange,
     required this.weekUnits,
+    this.assessment,
   }) : phase = PlanLoadPhase.ready;
 
   final PlanLoadPhase phase;
@@ -73,6 +76,11 @@ class PlanViewState {
 
   /// Einheiten der Kalenderwoche (Montag bis Sonntag) von heute.
   final List<PlanUnit> weekUnits;
+
+  /// Einschätzung des Ziels nach PAR-206 ([assessGoal]) mit den Eingaben der
+  /// neuesten Fassung und heute; nie gespeichert. `null` ohne Plan oder wenn
+  /// sie sich nicht rechnen ließ (die Seite lässt die Zeile dann weg).
+  final GoalAssessment? assessment;
 
   bool get hasPlan => version != null;
 
@@ -236,7 +244,24 @@ class PlanController extends ChangeNotifier {
       );
     }
     final monday = today.subtract(Duration(days: today.weekday - 1));
+    GoalAssessment? assessment;
+    if (goal != null && version != null) {
+      try {
+        assessment = assessGoal(
+          goal: goal,
+          inputs: version.inputs.copyWith(today: today),
+          today: today,
+          basis: await reader.timeGoalBasis(goal: goal, today: today),
+          parameters: parameters,
+        );
+      } on Object {
+        // Ohne Einschätzung bleibt die Seite benutzbar; der Inhalt eines
+        // Fehlers wird nie gezeigt.
+        assessment = null;
+      }
+    }
     return PlanViewState.ready(
+      assessment: assessment,
       goal: goal,
       version: version,
       hints: version == null ? null : hints,

@@ -83,6 +83,53 @@ class PlanDataReader {
     );
   }
 
+  /// Grundlage der Einschätzung eines Zeitziels (PAR-206, FR-0129,
+  /// FR-0130): die allgemeine Schätzung der Zielstrecke aus Referenz und
+  /// letzten Läufen ([predictPerformance], wie die Prognosekarte) und die
+  /// Zahl der Läufe in den letzten 4 Wochen bis [today]. Andere Ziele: leer.
+  Future<TimeGoalBasis> timeGoalBasis({
+    required TrainingGoal goal,
+    required DateTime today,
+    FeasibilityParameters feasibility = const FeasibilityParameters(),
+  }) async {
+    final distance = goal.distance;
+    if (goal.type != GoalType.time || distance == null) {
+      return const TimeGoalBasis();
+    }
+    final references = [
+      for (final s
+          in await (session as PredictionStorage).prediction.references())
+        s.reference,
+    ];
+    final runs = await PredictionRunReader(
+      session: session,
+      clock: clock,
+      offload: offload,
+    ).load(withPaceSamples: false);
+    final prediction = predictPerformance(
+      now: clock.now(),
+      references: references,
+      runs: runs,
+    );
+    final target = switch (distance) {
+      GoalDistance.fiveKilometers => PredictionDistance.fiveKilometers,
+      GoalDistance.tenKilometers => PredictionDistance.tenKilometers,
+      GoalDistance.halfMarathon => PredictionDistance.halfMarathon,
+    };
+    final day = planDay(today);
+    final inWindow = runs.where((r) {
+      // Beide sind Kalendertage (UTC-Mitternacht), ohne Ortszeit-Umrechnung.
+      final d = day
+          .difference(DateTime.utc(r.date.year, r.date.month, r.date.day))
+          .inDays;
+      return d >= 0 && d < feasibility.runWindowDays;
+    }).length;
+    return TimeGoalBasis(
+      currentSeconds: prediction.of(target).seconds,
+      runsInWindow: inWindow,
+    );
+  }
+
   /// Langzeitwert des Tages des neuesten Laufs (wie die Statistik) und Güte
   /// nach PAR-081 mit dem letzten Lauf, der einen Wert hat.
   Future<(double?, Vo2maxGrade?)> _vo2max(DateTime today) async {
