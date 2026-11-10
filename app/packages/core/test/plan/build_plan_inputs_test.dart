@@ -439,4 +439,114 @@ void main() {
       );
     });
   });
+
+  group('WP22: Zuordnung, Auffrischen, VO2max-Güte', () {
+    PlanUnit unit(PlanUnitKind k, int? runId) => PlanUnit(
+      day: _today,
+      kind: k,
+      phase: PlanPhase.build,
+      weekIndex: 0,
+      minutes: 30,
+      segments: const [],
+      runId: runId,
+    );
+
+    test('plannedRunIds: locker und lang = locker, alles andere = andere', () {
+      final r = plannedRunIds([
+        unit(PlanUnitKind.easy, 1),
+        unit(PlanUnitKind.long, 2),
+        unit(PlanUnitKind.intervals, 3),
+        unit(PlanUnitKind.tempo, 4),
+        unit(PlanUnitKind.progressive, 5),
+        unit(PlanUnitKind.walkRun, 6),
+        unit(PlanUnitKind.easy, null),
+      ]);
+      expect(r.easy, {1, 2});
+      expect(r.other, {3, 4, 5, 6});
+    });
+
+    test('refreshMeasuredInputs: Zählung bleibt, Gemessenes ist neu', () {
+      final stored = PlanInputs(
+        anchor: DateTime.utc(2026, 10, 5),
+        startWeeklyMinutes: 77,
+        today: DateTime.utc(2026, 10, 7),
+        walkRunWeeks: 3,
+        walkRunStart: const WalkRunPosition(1, 2),
+        walkRunFrom: DateTime.utc(2026, 10, 7),
+        lastWeekMinutes: 50,
+        achievedShare: 0.5,
+        easyPaceSecondsPerKm: 400,
+        easyRunCount: 5,
+      );
+      final measured = PlanInputs(
+        anchor: DateTime.utc(2026, 11, 9),
+        startWeeklyMinutes: 90,
+        today: _today,
+        easyRunCount: 2,
+        intensity: IntensityInputs(vo2max: 44),
+      );
+      final r = refreshMeasuredInputs(stored, measured);
+      expect(r.anchor, stored.anchor);
+      expect(r.startWeeklyMinutes, 77);
+      expect(r.walkRunWeeks, 3);
+      expect(r.walkRunStart, const WalkRunPosition(1, 2));
+      expect(r.walkRunFrom, stored.walkRunFrom);
+      expect(r.lastWeekMinutes, 50);
+      expect(r.achievedShare, 0.5);
+      expect(r.today, _today);
+      expect(r.easyPaceSecondsPerKm, isNull, reason: 'Tempo neu bestimmt');
+      expect(r.easyRunCount, 2);
+      expect(r.intensity?.vo2max, 44);
+    });
+
+    ComputedValue v(ValueQuality q, {double? value = 45}) => ComputedValue(
+      key: 'k',
+      value: value,
+      unit: 'ml/kg/min',
+      computedAt: _today,
+      measurementCount: 3,
+      sources: const ['test'],
+      method: 'm',
+      methodVersion: 1,
+      parameterVersion: 1,
+      quality: q,
+    );
+
+    test('vo2maxGradeFor nach PAR-081', () {
+      Vo2maxGrade? g(
+        ValueQuality lt,
+        ValueQuality run, {
+        int ago = 10,
+        double? value = 45,
+      }) => vo2maxGradeFor(
+        longTerm: v(lt, value: value),
+        lastRun: v(run),
+        lastRunDay: _today.subtract(Duration(days: ago)),
+        today: _today,
+      );
+      expect(g(ValueQuality.good, ValueQuality.sufficient), Vo2maxGrade.good);
+      expect(
+        g(ValueQuality.sufficient, ValueQuality.good),
+        Vo2maxGrade.sufficient,
+      );
+      expect(g(ValueQuality.provisional, ValueQuality.good), isNull);
+      expect(g(ValueQuality.good, ValueQuality.provisional), isNull);
+      expect(g(ValueQuality.good, ValueQuality.undeterminable), isNull);
+      expect(g(ValueQuality.good, ValueQuality.good, value: null), isNull);
+      expect(
+        g(ValueQuality.good, ValueQuality.good, ago: 42),
+        Vo2maxGrade.good,
+      );
+      expect(g(ValueQuality.good, ValueQuality.good, ago: 43), isNull);
+      expect(
+        vo2maxGradeFor(
+          longTerm: v(ValueQuality.good),
+          lastRun: null,
+          lastRunDay: null,
+          today: _today,
+        ),
+        isNull,
+      );
+    });
+  });
 }

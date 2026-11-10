@@ -96,6 +96,7 @@ class IntensityParameters {
     this.easyMaxShareOfMaxHr = 0.80,
     this.easyMaxRpe = 4,
     this.minReferenceMeters = 3000,
+    this.vo2maxLastRunMaxDays = 42,
   });
 
   /// Lockerer Dauerlauf, Auf- und Abwärmen (PAR-109, PAR-119 bis PAR-121).
@@ -176,6 +177,10 @@ class IntensityParameters {
 
   /// Kürzeste brauchbare Referenzdistanz (wie die Prognose, PAR-144).
   final double minReferenceMeters;
+
+  /// Höchstes Alter des letzten verwertbaren Laufs für Pace aus der VO₂max:
+  /// „höchstens 6 Wochen alt“ (PAR-081), in Tagen.
+  final int vo2maxLastRunMaxDays;
 }
 
 /// Daten, aus denen die Zielintensität folgt. Fehlt etwas, gilt die nächste

@@ -1,9 +1,11 @@
 import '../fitness/heart_rate_basis.dart';
+import '../../ports/storage_values.dart' show ComputedValue, ValueQuality;
 import '../goals/training_goal.dart';
 import '../prediction/reference_performance.dart';
 import '../statistics/run_figures.dart';
 import 'plan_inputs.dart';
 import 'plan_parameters.dart';
+import 'plan_unit.dart';
 import 'target_intensity.dart';
 import 'weekly_time.dart' show planDay;
 
@@ -198,4 +200,72 @@ BuiltPlanInputs buildPlanInputs({
     intensity: intensity,
   );
   return BuiltPlanInputs(inputs: inputs, goal: effective);
+}
+
+/// Läufe, die einer Plan-Einheit zugeordnet sind, getrennt nach der
+/// Definition „locker“ (wp21-Festlegungen, PAR-205 wie PAR-182): [easy] sind
+/// Läufe lockerer oder langer Einheiten, [other] Läufe jeder anderen Einheit
+/// (harte Formen, Geh-Lauf, Ruhetag). Einheiten ohne Lauf fehlen.
+({Set<int> easy, Set<int> other}) plannedRunIds(Iterable<PlanUnit> units) {
+  final easy = <int>{};
+  final other = <int>{};
+  for (final u in units) {
+    final id = u.runId;
+    if (id == null) continue;
+    switch (u.kind) {
+      case PlanUnitKind.easy || PlanUnitKind.long:
+        easy.add(id);
+      default:
+        other.add(id);
+    }
+  }
+  return (easy: easy, other: other);
+}
+
+/// Eingaben einer automatischen Neuberechnung: Wochenzählung, Stand,
+/// Geh-Lauf-Abfolge, letzte Woche und erreichter Anteil bleiben aus der
+/// gespeicherten Fassung [stored]; „heute“, lockeres Tempo samt Zahl der
+/// Läufe (PAR-205: „wird bei jeder Neuberechnung neu bestimmt“) und die
+/// Grundlage der Zielintensität (Referenz, VO₂max, Puls) kommen aus
+/// [measured] (Ergebnis von [buildPlanInputs] für heute).
+PlanInputs refreshMeasuredInputs(PlanInputs stored, PlanInputs measured) =>
+    PlanInputs(
+      anchor: stored.anchor,
+      startWeeklyMinutes: stored.startWeeklyMinutes,
+      today: measured.today,
+      walkRunWeeks: stored.walkRunWeeks,
+      walkRunStart: stored.walkRunStart,
+      walkRunFrom: stored.walkRunFrom,
+      lastWeekMinutes: stored.lastWeekMinutes,
+      achievedShare: stored.achievedShare,
+      easyPaceSecondsPerKm: measured.easyPaceSecondsPerKm,
+      easyRunCount: measured.easyRunCount,
+      intensity: measured.intensity,
+    );
+
+/// Güte der VO₂max für Pace-Vorgaben (PAR-081): der Langzeitwert
+/// [longTerm] und der letzte verwertbare Laufwert [lastRun] (vom Tag
+/// [lastRunDay]) sind beide mindestens „ausreichend“, und der Lauf ist
+/// höchstens [IntensityParameters.vo2maxLastRunMaxDays] Tage alt.
+/// „Vorläufig“ und „nicht bestimmbar“ sind unzureichend: `null`. Die Güte
+/// (für die Bandbreite, PAR-082) ist die des Langzeitwerts.
+Vo2maxGrade? vo2maxGradeFor({
+  required ComputedValue? longTerm,
+  required ComputedValue? lastRun,
+  required DateTime? lastRunDay,
+  required DateTime today,
+  IntensityParameters parameters = const IntensityParameters(),
+}) {
+  bool usable(ComputedValue? v) =>
+      v != null &&
+      v.value != null &&
+      (v.quality == ValueQuality.sufficient || v.quality == ValueQuality.good);
+  if (!usable(longTerm) || !usable(lastRun) || lastRunDay == null) {
+    return null;
+  }
+  final age = planDay(today).difference(planDay(lastRunDay)).inDays;
+  if (age < 0 || age > parameters.vo2maxLastRunMaxDays) return null;
+  return longTerm!.quality == ValueQuality.good
+      ? Vo2maxGrade.good
+      : Vo2maxGrade.sufficient;
 }

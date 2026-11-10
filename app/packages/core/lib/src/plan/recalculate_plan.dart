@@ -1,6 +1,7 @@
 import '../../ports/storage.dart' show StorageException, StorageFailure;
 import '../../ports/storage_plan.dart';
 import '../../ports/storage_settings.dart';
+import '../goals/training_goal.dart';
 import 'generate_plan.dart';
 import 'plan_change.dart';
 import 'plan_inputs.dart';
@@ -109,17 +110,7 @@ Future<PlanRecalculation> _recalculateOnce({
           : last.inputs.copyWith(today: todayDay));
 
   final all = await plans.unitsBetween(use.anchor, planFarFuture);
-  final frozen = <PlanUnit>[];
-  final pinned = <PlanUnit>[];
-  final oldFuture = <PlanUnit>[];
-  for (final u in all) {
-    if (u.day.isBefore(todayDay) || u.runId != null) {
-      frozen.add(u);
-    } else {
-      oldFuture.add(u);
-      if (u.pinned) pinned.add(u);
-    }
-  }
+  final (:frozen, :pinned, :oldFuture) = _split(all, todayDay);
 
   // Automatische Auslöser ändern im bereits geplanten Zeitraum weder Tage
   // noch Zahl der Läufe (ADR-0010 Punkt 8); neue Wochen am Ende sind frei.
@@ -161,6 +152,50 @@ Future<PlanRecalculation> _recalculateOnce({
   );
   await _markChecked(settings, todayDay, now);
   return PlanRecalculation.written(record, generated, summary);
+}
+
+/// Eingefroren (Tag vor heute oder mit Lauf), künftige `pinned` und alle
+/// offenen künftigen Einheiten.
+({List<PlanUnit> frozen, List<PlanUnit> pinned, List<PlanUnit> oldFuture})
+_split(List<PlanUnit> all, DateTime todayDay) {
+  final frozen = <PlanUnit>[];
+  final pinned = <PlanUnit>[];
+  final oldFuture = <PlanUnit>[];
+  for (final u in all) {
+    if (u.day.isBefore(todayDay) || u.runId != null) {
+      frozen.add(u);
+    } else {
+      oldFuture.add(u);
+      if (u.pinned) pinned.add(u);
+    }
+  }
+  return (frozen: frozen, pinned: pinned, oldFuture: oldFuture);
+}
+
+/// Hinweise zum gespeicherten Plan ohne Schreiben (für die Anzeige): rechnet
+/// wie eine ausdrückliche Neuberechnung ab [today] mit [inputs] (in der Regel
+/// die Eingaben der letzten Fassung mit `today`) über die gespeicherten
+/// Einheiten [units] ab `inputs.anchor`. Die Felder von [GeneratedPlan]
+/// (Konflikte der Termine, wegfallende Tage, harte Einheit, Geh-Lauf) werden
+/// an der Fassung nicht gespeichert; die neuen Einheiten des Ergebnisses
+/// sind nur eine Vorschau und nicht der gespeicherte Plan.
+GeneratedPlan previewPlan({
+  required TrainingGoal goal,
+  required PlanInputs inputs,
+  required List<PlanUnit> units,
+  required DateTime today,
+  PlanParameters parameters = const PlanParameters(),
+}) {
+  final todayDay = planDay(today);
+  final (:frozen, :pinned, oldFuture: _) = _split(units, todayDay);
+  return generatePlan(
+    goal,
+    inputs,
+    frozen,
+    todayDay,
+    pinnedUnits: pinned,
+    parameters: parameters,
+  );
 }
 
 /// Alles außer Anlegen, Zieländerung und ausdrücklicher Neuberechnung.

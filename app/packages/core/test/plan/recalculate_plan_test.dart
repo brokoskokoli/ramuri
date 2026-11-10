@@ -510,4 +510,24 @@ void main() {
       expect(after.where((u) => u.pinned).map((u) => u.day), [target]);
     });
   });
+
+  test('previewPlan: gleiche Hinweise und Einheiten wie die Rechnung, '
+      'ohne zu schreiben (WP22)', () async {
+    final e = await _Env.open();
+    await e.goals.save(_goal(), today: _goal().createdAt);
+    final r = await e.run(PlanTrigger.create, 0);
+    final last = (await e.plans.history()).last;
+    final before = await _all(e.plans);
+    final p = previewPlan(
+      goal: _goal(),
+      inputs: last.inputs.copyWith(today: _day(0)),
+      units: before,
+      today: _day(0),
+    );
+    expect(p.units.map(_sig), r.generated!.units.map(_sig));
+    expect(p.hardFit, r.generated!.hardFit);
+    expect(p.hardOmissions.keys, r.generated!.hardOmissions.keys);
+    expect((await _all(e.plans)).map(_sig), before.map(_sig));
+    expect(await e.plans.history(), hasLength(1));
+  });
 }
