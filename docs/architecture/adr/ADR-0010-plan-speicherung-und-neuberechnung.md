@@ -1,6 +1,6 @@
 # ADR-0010 — Speicherung und Neuberechnung des Trainingsplans
 
-- **Status:** Proposed (WP21 Teil A, wartet auf den Maintainer)
+- **Status:** Accepted (Maintainer, 2026-11-10; Empfehlung Option B, offene Fragen siehe „Entscheidungen des Maintainers“)
 - **Datum:** 2026-11-10
 - **Quellen:** DEC-0061, OQ-0011, OQ-0038, OQ-0048
 - **Betroffene Anforderungen:** FR-0135, FR-0136, FR-0138, FR-0143, FR-0147, FR-0156, FR-0157, FR-0158, FR-0168, FR-0169, FR-0170, FR-0176, NFR-0001, SEC-0001 bis SEC-0010, FR-0192; PAR-192 bis PAR-206; ADR-0003, ADR-0004, [Archivvertrag](../../contracts/archive.md)
@@ -61,7 +61,15 @@ Zum Archiv: **Format 2 mit Schema 7** (empfohlen, ein Schema-Sprung wie bei WP18
 ## Im Emulator nicht belegbar
 Die Migration 6→7 auf einem echten Bestand der Version 6 und die Dauer von Neuberechnung und Archivimport mit Jahresplan auf einem schwachen Gerät. Alles andere ist in Unit-Tests prüfbar.
 
-## Offene Fragen an den Maintainer
+## Entscheidungen des Maintainers (2026-11-10)
+- Option B freigegeben, Archiv Format 2 mit Schema 7.
+- Frage 1: eingefroren ist `day < heute` oder `run_id` gesetzt; der heutige Tag ohne Lauf wird neu gerechnet.
+- Frage 2: Abschnitte 19 `goals` und 20 `plans` werden belegt, `plan_units` wird 24.
+- Frage 3 und 4: Eine automatische Neuberechnung ändert nur den Inhalt (Art, Dauer, Struktur, Intensität); Tage, `pinned`-Termine und die Zahl der Läufe bleiben.
+- Fragen 5 bis 9: Entwurf gilt (Ziel überschrieben, Profilwerte beim Anlegen kopiert, Auslöser `ruleVersion` bei der nächsten wöchentlichen Prüfung, gelöschter Lauf hebt nur die Zuordnung auf, Anker in `inputs`, Schalter bleibt bei Zieländerung, nach 8 Wochen Pause fragt die App neu). Vom Paket-Orchestrator als Default gesetzt, nicht ausdrücklich vom Maintainer.
+- Frage 10: Reihenfolge der Schemata legt der Project Supervisor beim Merge fest.
+
+## Offene Fragen an den Maintainer (Stand des Vorschlags)
 1. **Eingefroren heißt ab wann?** Vorschlag: `day < heute` oder `run_id` gesetzt; der heutige Tag ohne Lauf wird neu gerechnet. Alternative: der heutige Tag ist ab 00:00 fest. Spec: PAR-203 „ab heute neu“ meint heute einschließlich (Annahme dieses Entwurfs, nicht ausdrücklich geschrieben).
 2. **Archivabschnitte 19/20 wiederverwenden oder ab 24 neu?** Empfohlen: 19 und 20 belegen (der Vertrag sieht das vor), `plan_units` als 24. Alternative laut Paket-Vorgabe: 19/20 leer lassen und `goals`/`plans`/`plan_units` als 24 bis 26 neu anlegen (zwei Platzhalter bleiben dauerhaft leer). Die Festlegung des Orchestrators („neue Abschnitte ab 24“) und der Vertrag („19 bis 21 für spätere Phasen“) widersprechen sich leicht; ich bitte um Entscheidung.
 3. **Bleiben Termine, die der Nutzer verschoben hat (`pinned`), bei einer automatischen Neuberechnung erhalten?** Empfohlen ja (OQ-0011, FR-0169). Alternative: Sie gelten nur, solange die Fassung gilt, und die Neuberechnung darf sie nach Bestätigung (FR-0176) ersetzen. Die Spec sagt dazu nichts Genaues.
