@@ -242,6 +242,99 @@ void main() {
     expect(await e.settings.get(planLastCheckDayKey), '2026-11-11');
   });
 
+  group('Einfrieren und Inhaltsänderungen (Nachbesserung NB1)', () {
+    test(
+      'Einheit mit Lauf bleibt eingefroren, am Tag entsteht keine zweite',
+      () async {
+        final e = await _Env.open();
+        await e.goals.save(_goal());
+        await e.run(PlanTrigger.create, 0);
+        final target = (await _all(e.plans))
+            .firstWhere((u) => u.day.difference(_day(0)).inDays >= 70);
+        final run = (await e.session.runs.create(startedAt: _now(0))).id;
+        await e.plans.assignRun(target.id!, run);
+        // Niedrigere Wochengrenze: alle künftigen Einheiten ändern ihre Dauer.
+        await e.goals.save(_goal(capMin: 100));
+        final r = await e.run(PlanTrigger.goalChange, 1);
+        expect(r.wasWritten, isTrue);
+        expect(
+          r.generated!.units.any((u) => u.day == target.day),
+          isFalse,
+          reason: 'nicht neu erzeugt',
+        );
+        final onDay = (await _all(e.plans)).where((u) => u.day == target.day);
+        expect(onDay.length, 1);
+        expect(onDay.single.id, target.id);
+        expect(onDay.single.runId, run);
+        expect(onDay.single.minutes, target.minutes);
+      },
+    );
+
+    test('automatisch: bei mehr Lauftagen bleiben nur die alten Tage im '
+        'alten Zeitraum', () async {
+      final e = await _Env.open();
+      await e.goals.save(_open({2, 4, 6}));
+      await e.run(PlanTrigger.create, 0);
+      await e.goals.save(_open({1, 2, 3, 4, 5, 6}));
+      final r = await e.run(PlanTrigger.weekly, 7);
+      final horizonEnd = DateTime.utc(
+        2026,
+        11,
+        9,
+      ).add(const Duration(days: 182));
+      final inside = r.generated!.units.where(
+        (u) => u.day.isBefore(horizonEnd),
+      );
+      expect(inside, isNotEmpty);
+      expect(
+        inside.every((u) => const {2, 4, 6}.contains(u.day.weekday)),
+        isTrue,
+      );
+      final stored = (await _all(e.plans))
+          .where((u) => !u.day.isBefore(_day(7)) && u.day.isBefore(horizonEnd));
+      expect(
+        stored.every((u) => const {2, 4, 6}.contains(u.day.weekday)),
+        isTrue,
+      );
+    });
+
+    test('reine Intensitätsänderung schreibt eine neue Fassung', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal());
+      await e.run(PlanTrigger.create, 0);
+      final before = await e.plans.history();
+      final base = before.last.inputs;
+      final r = await recalculatePlan(
+        plans: e.plans,
+        settings: e.settings,
+        trigger: PlanTrigger.run,
+        today: _day(7),
+        now: _now(7),
+        inputs: base.copyWith(
+          today: _day(7),
+          intensity: IntensityInputs(
+            referenceSeconds: 3000,
+            referenceMeters: 10000,
+            referenceDate: _day(-10),
+          ),
+        ),
+      );
+      expect(r.wasWritten, isTrue);
+      expect((await e.plans.history()).length, before.length + 1);
+      final changed = r.summary!.changedUnits;
+      expect(changed, isNotEmpty);
+      expect(
+        changed.every(
+          (c) =>
+              c.oldUnit!.kind == c.newUnit!.kind &&
+              c.oldUnit!.minutes == c.newUnit!.minutes,
+        ),
+        isTrue,
+        reason: 'nur die Intensität unterscheidet sich',
+      );
+    });
+  });
+
   group('automatische Auslöser halten den Zeitplan (ADR-0010 Punkt 8)', () {
     // Offenes Ziel: 26 Wochen ab Montag 9.11.; nach 70 Tagen kommen Wochen
     // am Ende dazu. Zwischen den Läufen ändern sich die Lauftage.

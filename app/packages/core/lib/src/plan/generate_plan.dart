@@ -224,26 +224,51 @@ GeneratedPlan generatePlan(
             parameters: p,
           );
 
-    // Höchstens eine harte Einheit je Woche (PAR-198): Ist schon eine
-    // eingefroren, wird die geplante künftige zu einem lockeren Lauf gleicher
-    // Dauer.
+    // Eingefrorene Einheiten der Woche haben Vorrang (FR-0152, PAR-196,
+    // PAR-198): Höchstens eine harte Einheit und ein langer Lauf je Woche, und
+    // zu einer eingefrorenen intensiven Einheit hält jede neue intensive den
+    // Abstand ([PlanParameters.minGapDays]). Sonst wird die geplante Einheit
+    // ein lockerer Lauf gleicher Dauer. Das gilt auch, wenn der Nutzer die
+    // Lauftage geändert hat und die eingefrorenen Einheiten auf anderen Tagen
+    // liegen als die neu geplanten.
+    final frozenLong = frozenWeek.any((u) => u.kind == PlanUnitKind.long);
+    final frozenIntensive = [
+      for (final u in frozenWeek)
+        if (u.isIntensive) u.day,
+    ];
+    bool tooClose(PlanUnit u) => frozenIntensive.any(
+      (d) => u.day.difference(d).inDays.abs() < p.minGapDays,
+    );
     var future = <PlanUnit>[
       for (final u in planned.units)
         if (!u.day.isBefore(todayDay) && !frozenDays.contains(u.day))
-          frozenHard && u.isHard ? _asEasy(u) : u,
+          (frozenHard && u.isHard) ||
+                  (frozenLong && u.kind == PlanUnitKind.long) ||
+                  (u.isIntensive && tooClose(u))
+              ? _asEasy(u)
+              : u,
     ];
 
     // Wochenminuten der eingefrorenen Einheiten anrechnen: Unterschied zur
     // Planung auf diesen Tagen.
     var deviation = 0;
+    var frozenMinutes = 0;
     for (final u in frozenWeek) {
       deviation += u.minutes;
+      frozenMinutes += u.minutes;
     }
     for (final u in planned.units) {
       if (frozenDays.contains(u.day)) deviation -= u.minutes;
     }
     if (deviation != 0 && walkPlan == null) {
       future = _absorb(future, -deviation, maxSession);
+    }
+    // Die Woche liegt nie über der Wochenzeit (Regler): Reicht der Rest nach
+    // den eingefrorenen Einheiten nicht für jede Einheit mindestens 1 min,
+    // entfallen die letzten lockeren, zuletzt die langen und harten.
+    final weekMinutes = week.minutes;
+    if (weekMinutes != null && walkPlan == null) {
+      future = _fitBudget(future, weekMinutes - frozenMinutes);
     }
 
     final weekPinned = [
@@ -445,6 +470,22 @@ List<PinnedConflict> _spacingConflicts(
         ),
       );
     }
+  }
+  return out;
+}
+
+/// Lässt Einheiten entfallen (zuerst lockere, dann lange, zuletzt harte; je
+/// Rolle die späteste), bis ihre Summe höchstens [budget] ist.
+List<PlanUnit> _fitBudget(List<PlanUnit> units, int budget) {
+  final out = [...units];
+  int sum() => out.fold(0, (a, u) => a + u.minutes);
+  while (out.isNotEmpty && sum() > budget) {
+    var drop = 0;
+    for (var i = 1; i < out.length; i++) {
+      final a = _role(out[i]), b = _role(out[drop]);
+      if (a < b || (a == b && out[i].day.isAfter(out[drop].day))) drop = i;
+    }
+    out.removeAt(drop);
   }
   return out;
 }

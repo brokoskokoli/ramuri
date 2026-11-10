@@ -72,3 +72,14 @@ class WalkRunSequence extends WalkRunProgramMethod {
 }
 
 const walkRunFamily = AlgorithmFamily<WalkRunProgramMethod>('walk-run-program');
+
+/// Gesamtversion der Regeln einer Fassung (NFR-0001, ADR-0010 Punkt 2 und 7):
+/// trägt den Parameterstand ([planParameterVersion], Wochenzeit und Einheiten
+/// gehören zur Methode `weekly-time-course`), die Version der Geh-Lauf-Abfolge
+/// und die der Zielintensität in einer Zahl, die sich bei jeder Änderung einer
+/// Teilmethode ändert. Aufbau: `parameter * 10^6 + gehLauf * 10^3 +
+/// zielintensität`; jede Teilversion bleibt unter 1000.
+const int planRuleVersion =
+    planParameterVersion * 1000000 +
+    walkRunMethodVersion * 1000 +
+    targetIntensityMethodVersion;

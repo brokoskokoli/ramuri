@@ -26,8 +26,38 @@ final List<StorageContractCase> planContractCases = [
     'Plan: Lauf löschen hebt nur die Zuordnung auf',
     _runDeleted,
   ),
+  const StorageContractCase(
+    'Plan: Einheit trägt beim Lesen ihre Methode, Geh-Lauf-Einheit die der Abfolge',
+    _unitMethods,
+  ),
   const StorageContractCase('Alles löschen leert den Plan', _deleteAll),
 ];
+
+Future<void> _unitMethods(StorageContractHarness h) async {
+  final s = await h.open();
+  await (s as GoalStorage).goals.save(_goal());
+  final p = _p(s);
+  await p.writeVersion(
+    _draft(0, [_unit(1), _unit(2, kind: PlanUnitKind.walkRun)]),
+  );
+  Future<void> check(StorageSession s, String when) async {
+    final q = _p(s);
+    final easy = (await q.unitOn(_day(1)))!;
+    final walk = (await q.unitOn(_day(2)))!;
+    expectEq(easy.method, planMethod, 'Methode locker $when');
+    expectEq(easy.methodVersion, planMethodVersion, 'Version locker $when');
+    expectEq(walk.method, walkRunMethod, 'Methode Geh-Lauf $when');
+    expectEq(walk.methodVersion, walkRunMethodVersion, 'Version GL $when');
+    final v = (await q.history()).single.version;
+    expectEq(v.parameterVersion, planRuleVersion, 'Gesamtversion $when');
+  }
+
+  await check(s, 'direkt');
+  await s.close();
+  final again = await h.open();
+  await check(again, 'nach Neuöffnen');
+  await again.close();
+}
 
 PlanRepository _p(StorageSession s) => (s as PlanStorage).plans;
 

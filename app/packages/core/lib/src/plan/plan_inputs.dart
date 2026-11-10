@@ -1,5 +1,7 @@
 import '../goals/training_goal.dart';
 import 'plan_parameters.dart';
+import 'plan_registry.dart' show planRuleVersion;
+import 'walk_run_program.dart' show walkRunMethod;
 import 'target_intensity.dart' show IntensityInputs;
 import 'walk_run_schedule.dart';
 import 'walk_run_units.dart' show WalkRunPosition;
@@ -10,7 +12,7 @@ class PlanVersion {
   const PlanVersion({
     this.method = planMethod,
     this.methodVersion = planMethodVersion,
-    this.parameterVersion = planParameterVersion,
+    this.parameterVersion = planRuleVersion,
   });
 
   /// Die Fassung dieses Codes.
@@ -18,7 +20,30 @@ class PlanVersion {
 
   final String method;
   final int methodVersion;
+
+  /// Gesamtversion der Regeln ([planRuleVersion]); trägt die Versionen von
+  /// Parametersatz, Geh-Lauf-Abfolge und Zielintensität.
   final int parameterVersion;
+
+  /// Stand des Parametersatzes (Wochenzeit, Einheiten) in [parameterVersion].
+  int get parametersPart => parameterVersion ~/ 1000000;
+
+  /// Version der Geh-Lauf-Abfolge in [parameterVersion].
+  int get walkRunPart => (parameterVersion ~/ 1000) % 1000;
+
+  /// Version der Zielintensität in [parameterVersion].
+  int get targetIntensityPart => parameterVersion % 1000;
+
+  /// Methode und Version, mit der eine Einheit der Art [walkRun] dieser Fassung
+  /// entstanden ist: die Einheit der Abfolge trägt die Geh-Lauf-Methode, jede
+  /// andere die der Fassung (ADR-0010 Punkt 2). Beim Lesen gebraucht.
+  (String, int) unitMethod({required bool walkRun}) =>
+      walkRun ? (walkRunMethod, walkRunPart) : (method, methodVersion);
+
+  /// Gilt diese Fassung unter den Regeln dieses Codes? `false` löst
+  /// `ruleVersion` aus (ADR-0010 Punkt 7), sobald sich eine Teilmethode
+  /// geändert hat.
+  bool get isCurrent => this == current;
 
   Map<String, Object?> toJson() => {
     'method': method,

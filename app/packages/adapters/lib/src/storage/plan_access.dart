@@ -252,19 +252,27 @@ List<PlanSegment> _segments(String text) {
   ];
 }
 
-PlanUnit _unit(d.PlanUnitRow u, d.PlanRow p) => PlanUnit(
-  id: u.id,
-  day: _parseDay(u.day),
-  kind: enumOf(PlanUnitKind.values, u.kind, (v) => v.name),
-  phase: enumOf(PlanPhase.values, u.phase, (v) => v.name),
-  weekIndex: u.week,
-  minutes: u.minutes,
-  segments: _segments(u.structure),
-  runId: u.runId,
-  pinned: u.pinned,
-  method: p.method,
-  methodVersion: p.methodVersion,
-);
+PlanUnit _unit(d.PlanUnitRow u, d.PlanRow p) {
+  final kind = enumOf(PlanUnitKind.values, u.kind, (v) => v.name);
+  final (method, methodVersion) = PlanVersion(
+    method: p.method,
+    methodVersion: p.methodVersion,
+    parameterVersion: p.parameterVersion,
+  ).unitMethod(walkRun: kind == PlanUnitKind.walkRun);
+  return PlanUnit(
+    id: u.id,
+    day: _parseDay(u.day),
+    kind: kind,
+    phase: enumOf(PlanPhase.values, u.phase, (v) => v.name),
+    weekIndex: u.week,
+    minutes: u.minutes,
+    segments: _segments(u.structure),
+    runId: u.runId,
+    pinned: u.pinned,
+    method: method,
+    methodVersion: methodVersion,
+  );
+}
 
 PlanVersionRecord _record(d.PlanRow r) => PlanVersionRecord(
   id: r.id,

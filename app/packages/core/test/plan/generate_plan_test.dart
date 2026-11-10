@@ -335,6 +335,236 @@ void main() {
       }
     });
 
+    for (final walkRun in [false, true]) {
+      test(
+        'Eigenschaften über den ganzen Plan mit eingefrorenen Einheiten '
+        'und geänderten Lauftagen${walkRun ? ' (Geh-Lauf-Abfolge)' : ''}',
+        () {
+          final r = Random(walkRun ? 31 : 29);
+          for (var k = 0; k < 400; k++) {
+            final t0 = DateTime.utc(
+              2026,
+              1,
+              1,
+            ).add(Duration(days: r.nextInt(300)));
+            final g0 = randomGoal(r, t0);
+            final days1 = <int>{};
+            final n1 = 1 + r.nextInt(6);
+            while (days1.length < n1) {
+              days1.add(1 + r.nextInt(7));
+            }
+            final g1 = goal(
+              type: g0.type,
+              distance: g0.distance,
+              days: days1,
+              maxMin: (g0.maxSessionSeconds / 60).floor(),
+              capMin: (g0.weeklyCapSeconds / 60).floor(),
+              hard: g0.hardSessionEnabled,
+              c30: g0.canRun30,
+              stated: g0.currentWeeklySeconds,
+              date: g0.targetDate,
+            );
+            final i0 = walkRun
+                ? PlanInputs.forNewGoal(g0, t0)
+                : randomInputs(r, t0);
+            final p0 = generatePlan(g0, i0, const [], t0);
+            if (p0.units.length < 3) continue;
+            final t1 = t0.add(Duration(days: 1 + r.nextInt(60)));
+            final t1Week = monday(t1);
+            final frozen = <PlanUnit>[];
+            for (final u in p0.units) {
+              if (u.day.isBefore(t1)) {
+                frozen.add(u);
+              } else if (monday(u.day) == t1Week && r.nextInt(3) == 0) {
+                frozen.add(_withRun(u));
+              }
+            }
+            // Ein Lauf an einem beliebigen Tag der laufenden Woche, als harte
+            // oder lange Einheit eingetragen (der Nutzer lief anders geplant).
+            final extraDay = t1.add(Duration(days: r.nextInt(8 - t1.weekday)));
+            final kind = r.nextBool() ? PlanUnitKind.tempo : PlanUnitKind.long;
+            final sameRole = kind == PlanUnitKind.long
+                ? (PlanUnit u) => u.kind == PlanUnitKind.long
+                : (PlanUnit u) => u.isHard;
+            if (r.nextBool() &&
+                !frozen.any(
+                  (u) =>
+                      u.day == extraDay ||
+                      (monday(u.day) == t1Week && sameRole(u)),
+                )) {
+              final m = 20 + r.nextInt(40);
+              frozen.add(
+                PlanUnit(
+                  day: extraDay,
+                  kind: kind,
+                  phase: PlanPhase.build,
+                  weekIndex: 0,
+                  minutes: m,
+                  segments: [
+                    PlanSegment(kind: PlanSegmentKind.easy, minutes: m),
+                  ],
+                  runId: 98,
+                ),
+              );
+            }
+            final i1 = i0.copyWith(today: t1);
+            final p1 = generatePlan(g1, i1, frozen, t1);
+            final maxMin = (g1.maxSessionSeconds / 60).floor();
+            final why =
+                'Lauf $k walkRun=$walkRun $t0 -> $t1 '
+                '${g0.runDays} -> ${g1.runDays}';
+            final frozenSet = frozen.toSet();
+            final all = p1.allUnits;
+            final byWeek = <DateTime, List<PlanUnit>>{};
+            for (final u in all) {
+              (byWeek[monday(u.day)] ??= []).add(u);
+            }
+            for (final u in p1.units) {
+              expect(u.minutes, greaterThanOrEqualTo(1), reason: why);
+              if (u.kind != PlanUnitKind.walkRun) {
+                expect(u.minutes, lessThanOrEqualTo(maxMin), reason: why);
+              }
+              // Nur gewählte Lauftage (hier ohne Pinned).
+              expect(g1.runDays.contains(u.day.weekday), isTrue, reason: why);
+            }
+            for (final w in p1.weeks) {
+              final us = byWeek[w.start] ?? [];
+              if (us.where((u) => u.kind == PlanUnitKind.walkRun).isNotEmpty) {
+                continue;
+              }
+              expect(
+                us.where((u) => u.kind == PlanUnitKind.long).length,
+                lessThanOrEqualTo(1),
+                reason: '$why Woche ${w.index}: langer Lauf',
+              );
+              expect(
+                us.where((u) => u.isHard).length,
+                lessThanOrEqualTo(1),
+                reason: '$why Woche ${w.index}: hart',
+              );
+              final minutes = w.minutes;
+              if (minutes != null) {
+                final frozenSum = us
+                    .where(frozenSet.contains)
+                    .fold(0, (a, u) => a + u.minutes);
+                final sum = us.fold(0, (a, u) => a + u.minutes);
+                expect(
+                  sum,
+                  lessThanOrEqualTo(minutes > frozenSum ? minutes : frozenSum),
+                  reason: '$why Woche ${w.index}: über der Wochenzeit',
+                );
+              }
+            }
+            final intensive = [
+              for (final u in all)
+                if (u.isIntensive) u,
+            ];
+            for (var a = 1; a < intensive.length; a++) {
+              final x = intensive[a - 1], y = intensive[a];
+              if (frozenSet.contains(x) && frozenSet.contains(y)) continue;
+              expect(
+                y.day.difference(x.day).inDays,
+                greaterThanOrEqualTo(2),
+                reason: '$why: Abstand ${x.day} ${y.day}',
+              );
+            }
+          }
+        },
+      );
+    }
+
+    test('eingefrorene harte Einheit: neuer langer Lauf hält den Abstand', () {
+      // Lauftage Di, Do, So; die harte Einheit lief am Samstag (Lauf
+      // zugeordnet). Der lange Lauf am Sonntag läge nur 1 Tag danach.
+      final g = goal(days: {2, 4, 7}, hard: false);
+      final today = DateTime.utc(2026, 11, 9);
+      final frozen = [
+        PlanUnit(
+          day: DateTime.utc(2026, 11, 14),
+          kind: PlanUnitKind.tempo,
+          phase: PlanPhase.build,
+          weekIndex: 0,
+          minutes: 40,
+          segments: const [
+            PlanSegment(kind: PlanSegmentKind.tempo, minutes: 40),
+          ],
+          runId: 5,
+        ),
+      ];
+      final p = generatePlan(
+        g,
+        inputs(start: 120, today: today),
+        frozen,
+        today,
+      );
+      final week0 = p.units.where((u) => u.weekIndex == 0).toList();
+      expect(week0.map((u) => u.day.weekday), [2, 4, 7]);
+      expect(week0.any((u) => u.kind == PlanUnitKind.long), isFalse);
+      expect(week0.last.kind, PlanUnitKind.easy);
+    });
+
+    test('eingefrorener langer Lauf: kein zweiter, Woche nie über der '
+        'Wochenzeit', () {
+      final g = goal(days: {2, 4, 6}, hard: false);
+      final today = DateTime.utc(2026, 11, 12);
+      final frozen = [
+        PlanUnit(
+          day: DateTime.utc(2026, 11, 10),
+          kind: PlanUnitKind.long,
+          phase: PlanPhase.build,
+          weekIndex: 0,
+          minutes: 80,
+          segments: const [
+            PlanSegment(kind: PlanSegmentKind.easy, minutes: 80),
+          ],
+          runId: 5,
+        ),
+      ];
+      final i = inputs(start: 60, today: today);
+      final p = generatePlan(g, i, frozen, today);
+      final week0 = p.units.where((u) => u.weekIndex == 0).toList();
+      expect(week0.where((u) => u.kind == PlanUnitKind.long), isEmpty);
+      final total = week0.fold(0, (a, u) => a + u.minutes) + 80;
+      expect(total, lessThanOrEqualTo(80), reason: '80 min eingefroren > 60');
+      expect(week0, isEmpty);
+    });
+
+    test('Pinned-Termin vor heute oder mit Lauf wird nicht übernommen', () {
+      final g = goal(days: {2, 4, 6}, hard: false);
+      final today = DateTime.utc(2026, 11, 12); // Donnerstag
+      final i = inputs(start: 90, today: today);
+      PlanUnit pin(int day, {int? runId}) => PlanUnit(
+        day: DateTime.utc(2026, 11, day),
+        kind: PlanUnitKind.easy,
+        phase: PlanPhase.build,
+        weekIndex: 0,
+        minutes: 30,
+        segments: const [PlanSegment(kind: PlanSegmentKind.easy, minutes: 30)],
+        pinned: true,
+        runId: runId,
+      );
+      final past = pin(10);
+      final withRun = pin(14, runId: 4);
+      final p = generatePlan(
+        g,
+        i,
+        const [],
+        today,
+        pinnedUnits: [past, withRun],
+      );
+      expect(p.pinnedConflicts.map((c) => (c.kind, c.day)), [
+        (PinnedConflictKind.noMatchingUnit, past.day),
+        (PinnedConflictKind.noMatchingUnit, withRun.day),
+      ]);
+      expect(p.units.any((u) => u.pinned), isFalse);
+      expect(p.units.any((u) => u.day.isBefore(today)), isFalse);
+      expect(
+        sigs(p.units),
+        sigs(generatePlan(g, i, const [], today).units),
+        reason: 'der Plan bleibt, wie er ohne Termine wäre',
+      );
+    });
+
     test('Neuberechnung ändert keine vergangenen Tage', () {
       final g = goal(date: DateTime.utc(2027, 3, 1));
       final p0 = generatePlan(g, inputs(), const [], d0);
@@ -450,19 +680,21 @@ void main() {
     });
 
     test('eingefrorene harte Einheit: keine zweite in der Woche', () {
+      // Heute ist der Montag; die geplante harte Einheit liegt auf heute oder
+      // danach (nicht vor heute, sonst fiele sie ohnehin weg), die
+      // eingefrorene harte Einheit hat einen Lauf an einem anderen Tag.
       final g = goal(days: {1, 3, 5, 7});
-      final i = inputs(start: 200, today: DateTime.utc(2026, 11, 9));
-      final full = generatePlan(g, i, const [], DateTime.utc(2026, 11, 9));
+      final today = DateTime.utc(2026, 11, 9);
+      final i = inputs(start: 200, today: today);
+      final full = generatePlan(g, i, const [], today);
       final hardUnit = full.units.firstWhere(
         (u) => u.weekIndex == 0 && u.isHard,
         orElse: () => throw StateError('keine harte Einheit'),
       );
-      // Eine andere harte Einheit schon gelaufen: Montag (nicht dort geplant).
-      final other = hardUnit.day.weekday == 1
-          ? full.units.firstWhere((u) => u.weekIndex == 0 && !u.isHard)
-          : full.units.firstWhere(
-              (u) => u.weekIndex == 0 && u.day.weekday == 1,
-            );
+      expect(hardUnit.day.isBefore(today), isFalse, reason: 'Probe nicht leer');
+      final other = full.units.firstWhere(
+        (u) => u.weekIndex == 0 && u.day.weekday == 3,
+      );
       final frozen = [
         PlanUnit(
           day: other.day,
@@ -476,18 +708,14 @@ void main() {
           runId: 3,
         ),
       ];
-      final p = generatePlan(g, i, frozen, DateTime.utc(2026, 11, 10));
-      expect(p.units.where((u) => u.weekIndex == 0 && u.isHard), isEmpty);
+      final p = generatePlan(g, i, frozen, today);
+      final week0 = p.units.where((u) => u.weekIndex == 0).toList();
+      expect(week0.where((u) => u.isHard), isEmpty);
+      final replaced = week0.firstWhere((u) => u.day == hardUnit.day);
+      expect(replaced.kind, PlanUnitKind.easy);
       expect(
-        p.units.where((u) => u.weekIndex == 0).length,
-        full.units
-            .where(
-              (u) =>
-                  u.weekIndex == 0 &&
-                  u.day.isAfter(DateTime.utc(2026, 11, 9)) &&
-                  u.day != other.day,
-            )
-            .length,
+        week0.length,
+        full.units.where((u) => u.weekIndex == 0 && u.day != other.day).length,
       );
     });
 

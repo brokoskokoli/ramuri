@@ -11,10 +11,11 @@ class FakePlanRepository implements PlanRepository {
 
   PlanUnit _read(int id) {
     final v = _d.planVersions[_d.planUnitPlan[id]]!;
-    return _d.planUnits[id]!.copyWith(
-      method: v.version.method,
-      methodVersion: v.version.methodVersion,
+    final u = _d.planUnits[id]!;
+    final (method, methodVersion) = v.version.unitMethod(
+      walkRun: u.kind == PlanUnitKind.walkRun,
     );
+    return u.copyWith(method: method, methodVersion: methodVersion);
   }
 
   List<PlanUnit> _sorted(Iterable<int> ids) {
