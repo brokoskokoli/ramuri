@@ -88,11 +88,11 @@ class ArchiveSectionSpec {
   final List<ArchiveColumn> columns;
   final String? key;
 
-  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 9).
+  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 10).
   final int sinceSchema;
 
   /// Erstes Schema, in dem der Abschnitt Zeilen trägt, wenn er schon früher
-  /// als leerer Platzhalter im Archiv stand (`goals`, `plans` ab 7); sonst `null`.
+  /// als leerer Platzhalter im Archiv stand (`goals`, `plans` ab 7, `active_warning` ab 10); sonst `null`.
   final int? columnsSinceSchema;
 
   /// Der Abschnitt, wie ihn ein Archiv mit [schema] führt: vor
@@ -126,7 +126,7 @@ class ArchiveSectionSpec {
   bool get isReserved => columns.isEmpty;
 }
 
-/// Die 25 Abschnitte des Schemas 9 in der Reihenfolge des Vertrags;
+/// Die 25 Abschnitte des Schemas 9 und 10 in der Reihenfolge des Vertrags;
 /// ältere Schemas haben weniger ([archiveSectionsFor]): Schema 4 die 19 mit
 /// `sinceSchema == 4`, Schema 5 dazu die zwei von WP18.
 final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
@@ -243,7 +243,13 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
         'method T, method_version I, parameter_version I, inputs T, summary T',
     columnsSinceSchema: 7,
   ),
-  ArchiveSectionSpec('active_warning', ''),
+  // WP23, Nummer 21: bis Schema 9 reservierter Platzhalter (0 Zeilen), ab
+  // Schema 10 das Warnsignal (höchstens eine Zeile, `id` = 1).
+  ArchiveSectionSpec(
+    'active_warning',
+    'id I, reported_on T, source T, run_id I?',
+    columnsSinceSchema: 10,
+  ),
   // WP20, seit Schema 6 (Nummern 22 und 23; 19 bis 21 sind reserviert).
   // Archive mit Schema 4 oder 5 haben diese Abschnitte nicht.
   ArchiveSectionSpec(
@@ -278,18 +284,18 @@ const List<int> archiveFormats = [1, 2];
 const int archiveWriteFormat = 2;
 
 /// Neuestes Datenbankschema, das Leser und Schreiber kennen.
-const int archiveSchemaVersion = 9;
+const int archiveSchemaVersion = 10;
 
 /// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
 /// Fehlende Abschnitte eines älteren Schemas gelten als leer.
 const int archiveMinSchemaVersion = 4;
 
 /// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
-/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 9).
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 10).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
 /// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7 und 8:
-/// 24, ab 9: 25 mit `raw_rr_packets`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, 24 `plan_units` gibt es
+/// 24, ab 9: 25 mit `raw_rr_packets`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 10 auch 21 `active_warning`, 24 `plan_units` gibt es
 /// nur ab 7, seine Spalte `fixed` ab 8).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche

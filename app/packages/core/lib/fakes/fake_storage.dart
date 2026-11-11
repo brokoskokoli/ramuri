@@ -13,6 +13,7 @@ import '../ports/storage_runs.dart';
 import '../ports/storage_settings.dart';
 import '../ports/storage_subjective.dart';
 import '../ports/storage_values.dart';
+import '../ports/storage_warning.dart';
 import 'fake_storage_data.dart';
 import 'fake_storage_derived.dart';
 import 'fake_storage_goals.dart';
@@ -21,6 +22,7 @@ import 'fake_storage_prediction.dart';
 import 'fake_storage_runs.dart';
 import 'fake_storage_settings.dart';
 import 'fake_storage_subjective.dart';
+import 'fake_storage_warning.dart';
 
 /// Speicher im Arbeitsspeicher. Der erste Schlüssel legt die "Datei" an.
 class FakeStorage implements Storage {
@@ -72,7 +74,12 @@ class FakeStorage implements Storage {
 }
 
 class _FakeSession
-    implements StorageSession, PredictionStorage, GoalStorage, PlanStorage {
+    implements
+        StorageSession,
+        PredictionStorage,
+        GoalStorage,
+        PlanStorage,
+        WarningStorage {
   _FakeSession(this._owner, this._data)
     : runs = FakeRunStore(_data),
       markers = FakeRunMarkerStore(_data),
@@ -88,7 +95,8 @@ class _FakeSession
       manualTrainings = FakeManualTrainingStore(_data),
       prediction = FakePredictionStore(_data),
       goals = FakeGoalStore(_data),
-      plans = FakePlanRepository(_data);
+      plans = FakePlanRepository(_data),
+      warning = FakeWarningStore(_data);
 
   final FakeStorage _owner;
   final FakeStorageData _data;
@@ -125,6 +133,8 @@ class _FakeSession
   final GoalStore goals;
   @override
   final PlanRepository plans;
+  @override
+  final WarningStore warning;
 
   @override
   Future<void> deleteRun(int runId) async {

@@ -260,8 +260,15 @@ void main() {
     expect(units[1]['pinned'], 1);
     expect(units[2]['kind'], 'easy');
     expect(units[2]['fixed'], 'easyForHard');
-    // Platzhalter ohne Tabelle bleiben leer.
-    expect(_rows(lines, 'active_warning'), isEmpty);
+    // Warnsignal (Schema 10): die eine Zeile, `run_id` ohne Fremdschlüssel.
+    expect(_rows(lines, 'active_warning'), [
+      {
+        'id': 1,
+        'reported_on': '2026-11-18',
+        'source': 'run_feedback',
+        'run_id': 1,
+      },
+    ]);
     // Werte bleiben exakt (Typen, NULL, Kennungen).
     expect(_rows(lines, 'runs').single, {
       'id': 1,

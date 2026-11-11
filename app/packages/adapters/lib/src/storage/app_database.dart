@@ -23,11 +23,12 @@ class AppDatabase extends _$AppDatabase {
   /// WP21 Teil B) und Plan (`plans`, `plan_units`, WP21 Teil C).
   /// Version 8: Festlegung des Nutzers je Einheit (`plan_units.fixed`, WP22:
   /// Art ersetzt, harte Einheit locker ersetzt, Ruhetag). Version 9:
-  /// RR-Intervalle je BLE-Paket (`raw_rr_packets`, WP26). Jede spätere Änderung erhöht die
+  /// RR-Intervalle je BLE-Paket (`raw_rr_packets`, WP26). Version 10:
+  /// aktives Warnsignal (`active_warning`, WP23). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -122,6 +123,11 @@ class AppDatabase extends _$AppDatabase {
       await m.create(rawRrPacketsRunTime);
       await m.create(rawRrPacketsNoUpdate);
       await m.create(rawRrPacketsNoDirectDelete);
+    },
+    // 9 -> 10 (WP23): neue Tabelle `active_warning`, leer (nie ein Warnsignal
+    // erfunden).
+    9: (Migrator m) async {
+      await m.create(activeWarning);
     },
   };
 

@@ -88,6 +88,8 @@ class _V1 extends AppDatabase {
       await customStatement('DROP TABLE goals');
       // RR-Pakete (Schema 9, WP26), samt Index und Triggern.
       await customStatement('DROP TABLE raw_rr_packets');
+      // Warnsignal (Schema 10, WP23).
+      await customStatement('DROP TABLE active_warning');
       if (version < 2) {
         for (final c in [
           'speed_mps',
@@ -599,7 +601,7 @@ void main() {
   });
 
   for (final from in [1, 2]) {
-    group('Migration $from -> 9 auf befüllter v$from-Datenbank', () {
+    group('Migration $from -> 10 auf befüllter v$from-Datenbank', () {
       test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
         final v1 = await open((e) => _V1(e, from));
         Future<List<Object?>> master(String type) async => [
@@ -657,7 +659,7 @@ void main() {
               .data
               .values
               .single,
-          9,
+          10,
         );
         await s.database.validateDatabaseSchema();
         expect(await count(s, 'computed_values'), 6);

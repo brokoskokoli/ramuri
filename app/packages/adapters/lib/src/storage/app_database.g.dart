@@ -13683,6 +13683,307 @@ class PlanUnitsCompanion extends UpdateCompanion<PlanUnitRow> {
   }
 }
 
+class ActiveWarning extends Table
+    with TableInfo<ActiveWarning, ActiveWarningRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  ActiveWarning(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY CHECK (id = 1)',
+  );
+  static const VerificationMeta _reportedOnMeta = const VerificationMeta(
+    'reportedOn',
+  );
+  late final GeneratedColumn<String> reportedOn = GeneratedColumn<String>(
+    'reported_on',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (reported_on GLOB \'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\' AND date(reported_on) IS reported_on)',
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (source IN (\'manual\', \'run_feedback\'))',
+  );
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
+    'run_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (run_id IS NULL OR typeof(run_id) = \'integer\')',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, reportedOn, source, runId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'active_warning';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ActiveWarningRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('reported_on')) {
+      context.handle(
+        _reportedOnMeta,
+        reportedOn.isAcceptableOrUnknown(data['reported_on']!, _reportedOnMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reportedOnMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('run_id')) {
+      context.handle(
+        _runIdMeta,
+        runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ActiveWarningRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ActiveWarningRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      reportedOn: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reported_on'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      runId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}run_id'],
+      ),
+    );
+  }
+
+  @override
+  ActiveWarning createAlias(String alias) {
+    return ActiveWarning(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class ActiveWarningRow extends DataClass
+    implements Insertable<ActiveWarningRow> {
+  final int id;
+  final String reportedOn;
+  final String source;
+  final int? runId;
+  const ActiveWarningRow({
+    required this.id,
+    required this.reportedOn,
+    required this.source,
+    this.runId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['reported_on'] = Variable<String>(reportedOn);
+    map['source'] = Variable<String>(source);
+    if (!nullToAbsent || runId != null) {
+      map['run_id'] = Variable<int>(runId);
+    }
+    return map;
+  }
+
+  ActiveWarningCompanion toCompanion(bool nullToAbsent) {
+    return ActiveWarningCompanion(
+      id: Value(id),
+      reportedOn: Value(reportedOn),
+      source: Value(source),
+      runId: runId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(runId),
+    );
+  }
+
+  factory ActiveWarningRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ActiveWarningRow(
+      id: serializer.fromJson<int>(json['id']),
+      reportedOn: serializer.fromJson<String>(json['reported_on']),
+      source: serializer.fromJson<String>(json['source']),
+      runId: serializer.fromJson<int?>(json['run_id']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'reported_on': serializer.toJson<String>(reportedOn),
+      'source': serializer.toJson<String>(source),
+      'run_id': serializer.toJson<int?>(runId),
+    };
+  }
+
+  ActiveWarningRow copyWith({
+    int? id,
+    String? reportedOn,
+    String? source,
+    Value<int?> runId = const Value.absent(),
+  }) => ActiveWarningRow(
+    id: id ?? this.id,
+    reportedOn: reportedOn ?? this.reportedOn,
+    source: source ?? this.source,
+    runId: runId.present ? runId.value : this.runId,
+  );
+  ActiveWarningRow copyWithCompanion(ActiveWarningCompanion data) {
+    return ActiveWarningRow(
+      id: data.id.present ? data.id.value : this.id,
+      reportedOn: data.reportedOn.present
+          ? data.reportedOn.value
+          : this.reportedOn,
+      source: data.source.present ? data.source.value : this.source,
+      runId: data.runId.present ? data.runId.value : this.runId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ActiveWarningRow(')
+          ..write('id: $id, ')
+          ..write('reportedOn: $reportedOn, ')
+          ..write('source: $source, ')
+          ..write('runId: $runId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, reportedOn, source, runId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ActiveWarningRow &&
+          other.id == this.id &&
+          other.reportedOn == this.reportedOn &&
+          other.source == this.source &&
+          other.runId == this.runId);
+}
+
+class ActiveWarningCompanion extends UpdateCompanion<ActiveWarningRow> {
+  final Value<int> id;
+  final Value<String> reportedOn;
+  final Value<String> source;
+  final Value<int?> runId;
+  const ActiveWarningCompanion({
+    this.id = const Value.absent(),
+    this.reportedOn = const Value.absent(),
+    this.source = const Value.absent(),
+    this.runId = const Value.absent(),
+  });
+  ActiveWarningCompanion.insert({
+    this.id = const Value.absent(),
+    required String reportedOn,
+    required String source,
+    this.runId = const Value.absent(),
+  }) : reportedOn = Value(reportedOn),
+       source = Value(source);
+  static Insertable<ActiveWarningRow> custom({
+    Expression<int>? id,
+    Expression<String>? reportedOn,
+    Expression<String>? source,
+    Expression<int>? runId,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (reportedOn != null) 'reported_on': reportedOn,
+      if (source != null) 'source': source,
+      if (runId != null) 'run_id': runId,
+    });
+  }
+
+  ActiveWarningCompanion copyWith({
+    Value<int>? id,
+    Value<String>? reportedOn,
+    Value<String>? source,
+    Value<int?>? runId,
+  }) {
+    return ActiveWarningCompanion(
+      id: id ?? this.id,
+      reportedOn: reportedOn ?? this.reportedOn,
+      source: source ?? this.source,
+      runId: runId ?? this.runId,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (reportedOn.present) {
+      map['reported_on'] = Variable<String>(reportedOn.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (runId.present) {
+      map['run_id'] = Variable<int>(runId.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ActiveWarningCompanion(')
+          ..write('id: $id, ')
+          ..write('reportedOn: $reportedOn, ')
+          ..write('source: $source, ')
+          ..write('runId: $runId')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -13871,6 +14172,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'plan_units_run',
     'CREATE INDEX plan_units_run ON plan_units (run_id)',
   );
+  late final ActiveWarning activeWarning = ActiveWarning(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -13940,6 +14242,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     planUnitsDay,
     planUnitsPlan,
     planUnitsRun,
+    activeWarning,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -24867,6 +25170,190 @@ typedef $PlanUnitsProcessedTableManager =
       PlanUnitRow,
       PrefetchHooks Function({bool planId, bool runId})
     >;
+typedef $ActiveWarningCreateCompanionBuilder = ActiveWarningCompanion Function({
+  Value<int> id,
+  required String reportedOn,
+  required String source,
+  Value<int?> runId,
+});
+typedef $ActiveWarningUpdateCompanionBuilder = ActiveWarningCompanion Function({
+  Value<int> id,
+  Value<String> reportedOn,
+  Value<String> source,
+  Value<int?> runId,
+});
+
+class $ActiveWarningFilterComposer
+    extends Composer<_$AppDatabase, ActiveWarning> {
+  $ActiveWarningFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reportedOn => $composableBuilder(
+    column: $table.reportedOn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get runId => $composableBuilder(
+    column: $table.runId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $ActiveWarningOrderingComposer
+    extends Composer<_$AppDatabase, ActiveWarning> {
+  $ActiveWarningOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reportedOn => $composableBuilder(
+    column: $table.reportedOn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get runId => $composableBuilder(
+    column: $table.runId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $ActiveWarningAnnotationComposer
+    extends Composer<_$AppDatabase, ActiveWarning> {
+  $ActiveWarningAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get reportedOn => $composableBuilder(
+    column: $table.reportedOn,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<int> get runId =>
+      $composableBuilder(column: $table.runId, builder: (column) => column);
+}
+
+class $ActiveWarningTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          ActiveWarning,
+          ActiveWarningRow,
+          $ActiveWarningFilterComposer,
+          $ActiveWarningOrderingComposer,
+          $ActiveWarningAnnotationComposer,
+          $ActiveWarningCreateCompanionBuilder,
+          $ActiveWarningUpdateCompanionBuilder,
+          (
+            ActiveWarningRow,
+            BaseReferences<_$AppDatabase, ActiveWarning, ActiveWarningRow>,
+          ),
+          ActiveWarningRow,
+          PrefetchHooks Function()
+        > {
+  $ActiveWarningTableManager(_$AppDatabase db, ActiveWarning table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $ActiveWarningFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $ActiveWarningOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $ActiveWarningAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> reportedOn = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<int?> runId = const Value.absent(),
+              }) => ActiveWarningCompanion(
+                id: id,
+                reportedOn: reportedOn,
+                source: source,
+                runId: runId,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String reportedOn,
+                required String source,
+                Value<int?> runId = const Value.absent(),
+              }) => ActiveWarningCompanion.insert(
+                id: id,
+                reportedOn: reportedOn,
+                source: source,
+                runId: runId,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<ActiveWarning, ActiveWarningRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    ActiveWarning,
+                    ActiveWarningRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $ActiveWarningProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      ActiveWarning,
+      ActiveWarningRow,
+      $ActiveWarningFilterComposer,
+      $ActiveWarningOrderingComposer,
+      $ActiveWarningAnnotationComposer,
+      $ActiveWarningCreateCompanionBuilder,
+      $ActiveWarningUpdateCompanionBuilder,
+      (
+        ActiveWarningRow,
+        BaseReferences<_$AppDatabase, ActiveWarning, ActiveWarningRow>,
+      ),
+      ActiveWarningRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -24917,4 +25404,6 @@ class $AppDatabaseManager {
   $PlansTableManager get plans => $PlansTableManager(_db, _db.plans);
   $PlanUnitsTableManager get planUnits =>
       $PlanUnitsTableManager(_db, _db.planUnits);
+  $ActiveWarningTableManager get activeWarning =>
+      $ActiveWarningTableManager(_db, _db.activeWarning);
 }

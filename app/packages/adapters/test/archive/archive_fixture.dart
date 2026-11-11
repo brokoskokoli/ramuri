@@ -43,6 +43,11 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     "INSERT INTO raw_rr_packets (run_id, time_us, source, rr) VALUES (1, 1, 'strap', x'0004ffff00000a03'), (1, 2, 'strap2', x'0004')",
   );
+  // Warnsignal (WP23): eine Zeile, kein Fremdschlüssel auf den Lauf.
+  await sql(
+    db,
+    "INSERT INTO active_warning (id, reported_on, source, run_id) VALUES (1, '2026-11-18', 'run_feedback', 1)",
+  );
   await sql(
     db,
     "INSERT INTO raw_altitudes (run_id, time_us, source, state, altitude_m, vertical_accuracy_m) VALUES (1, 1, 'gps', 'present', 35.5, 2.0)",

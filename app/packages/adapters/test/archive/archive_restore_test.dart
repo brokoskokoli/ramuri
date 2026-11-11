@@ -546,6 +546,19 @@ void main() {
     );
   });
 
+  test('Warnsignal zählt als Daten: App ist nicht leer', () async {
+    expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+    await (session as WarningStorage).warning.set(
+      WarningSignal(
+        reportedOn: DateTime.utc(2026, 11, 1),
+        source: WarningSource.manual,
+      ),
+    );
+    expect(await ArchiveRestoreService.isEmpty(session), isFalse);
+    await (session as WarningStorage).warning.lift();
+    expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+  });
+
   test('Ziel zählt als Daten: App ist nicht leer', () async {
     expect(await ArchiveRestoreService.isEmpty(session), isTrue);
     await (session as GoalStorage).goals.save(
@@ -631,7 +644,7 @@ void main() {
     expect(easy.pinned, isTrue);
   });
 
-  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 8; 9 ist
+  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 9; 10 ist
   // das aktuelle). Format 1
   // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
   // kennt, sind danach leer.
@@ -641,6 +654,7 @@ void main() {
     ('archive_v2_s7', 7),
     ('archive_v2_s8', 8),
     ('archive_v2_s9', 9),
+    ('archive_v2_s10', 10),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -742,6 +756,16 @@ void main() {
       }
       expect(got['reference_performances'], hasLength(schema >= 6 ? 3 : 0));
       expect(got['run_feedback'], hasLength(2));
+      // Warnsignal (WP23): Abschnitt 21 trägt ab Schema 10 eine Zeile.
+      expect(got['active_warning'], hasLength(schema >= 10 ? 1 : 0));
+      final warning = await (session as WarningStorage).warning.read();
+      if (schema >= 10) {
+        expect(warning!.source, WarningSource.runFeedback);
+        expect(warning.runId, 7);
+        expect(warning.reportedOn, DateTime.utc(2026, 11, 18));
+      } else {
+        expect(warning, isNull);
+      }
     });
   }
 
