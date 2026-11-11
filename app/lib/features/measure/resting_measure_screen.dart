@@ -19,8 +19,12 @@ enum RestingMeasureOutcome {
   /// Vom Nutzer abgebrochen.
   cancelled,
 
-  /// Geschlossen ohne Übernahme (Zurück, Schließen, „Selbst eintragen“).
+  /// Geschlossen ohne Übernahme (Zurück, Schließen).
   dismissed,
+
+  /// „Selbst eintragen“: geschlossen ohne Übernahme, der Nutzer trägt den Wert
+  /// selbst ein (das Formular setzt den Fokus aufs Feld).
+  manual,
 }
 
 /// Die Screens der Ruhepuls-Messung mit der Kamera (FR-0214, Design
@@ -149,6 +153,7 @@ class _RestingMeasureScreenState extends State<RestingMeasureScreen>
           _ => RestingNoValueView(
             controller: _c,
             onClose: () => _close(RestingMeasureOutcome.dismissed),
+            onManual: () => _close(RestingMeasureOutcome.manual),
           ),
         };
         // Zurück während Ruhephase und Messung bricht ab, statt die Seite

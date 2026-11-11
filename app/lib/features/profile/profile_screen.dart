@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../measure/resting_measure_launcher.dart';
+import '../measure/resting_measure_screen.dart';
 import '../recalculation/recalculation_controller.dart';
 import 'profile_form.dart';
 
@@ -49,6 +50,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  /// Rückmeldung nach dem Speichern, von Hand wie nach der Übernahme eines
+  /// Messwerts: das Angebot der Neuberechnung steht schon, wenn der Dienst
+  /// gespeichert hat.
+  void _showSaved() {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          widget.recalculation.offer == null
+              ? l10n.profileSaved
+              : '${l10n.profileSaved}\n${l10n.recalcOffered}',
+        ),
+      ),
+    );
+  }
+
+  /// Die Messung mit demselben Dienst wie das Speichern (Zonen und
+  /// Neuberechnung laufen wie bei manueller Eingabe) und derselben Rückmeldung
+  /// nach der Übernahme.
+  RestingMeasureLauncher _launcher() {
+    final launch = restingMeasureLauncher(
+      camera: _camera!,
+      profile: _service,
+      settings: widget.session.settings,
+      clock: widget.clock,
+      evaluate: PpgCameraScope.evaluateOf(context),
+    );
+    return (context) async {
+      final outcome = await launch(context);
+      if (outcome == RestingMeasureOutcome.adopted) _showSaved();
+      return outcome;
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -64,28 +100,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             clock: widget.clock,
             // Gleicher Dienst wie beim Speichern: Zonen und Neuberechnung
             // laufen wie bei manueller Eingabe.
-            restingMeasure: _camera == null
-                ? null
-                : restingMeasureLauncher(
-                    camera: _camera!,
-                    profile: _service,
-                    settings: widget.session.settings,
-                    clock: widget.clock,
-                    evaluate: PpgCameraScope.evaluateOf(context),
-                  ),
+            restingMeasure: _camera == null ? null : _launcher(),
             coefficients: _Coefficients(widget.session, widget.recalculation),
-            onSaved: (_) {
-              final messenger = ScaffoldMessenger.of(context);
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    widget.recalculation.offer == null
-                        ? l10n.profileSaved
-                        : '${l10n.profileSaved}\n${l10n.recalcOffered}',
-                  ),
-                ),
-              );
-            },
+            onSaved: (_) => _showSaved(),
           ),
         ],
       ),

@@ -570,6 +570,64 @@ void main() {
       },
     );
 
+    test('Gesamtfrist bindet sich an das Messfenster und die Teilfristen', () {
+      expect(
+        restingTotalTimeoutSeconds,
+        greaterThanOrEqualTo(
+          ppgStandardWindow.dataEnd +
+              restingStartTimeoutSeconds +
+              restingNoImageTimeoutSeconds +
+              5,
+        ),
+      );
+    });
+
+    test('echter Ablauf mit tickender Uhr: langer Start, dann ganze Messung bis '
+        'zum Ergebnis, ohne dass der Wächter abbricht', () async {
+      final r = await Rig.make(
+        evaluate: (f, w) async => const PpgMeasurement(
+          quality: PpgQuality.good,
+          reasons: [],
+          bpm: 55,
+          rmssdMs: 40,
+        ),
+      );
+      r.cam.sendStarted = false; // Kamera braucht lange zum Öffnen
+      await r.c.startNow();
+      // 4 s ohne Started (unter der Startfrist), der Wächter tickt alle 250 ms.
+      for (var i = 0; i < 16; i++) {
+        r.clock.advance(const Duration(milliseconds: 250));
+        r.c.checkFrameGap();
+      }
+      await pump();
+      expect(r.c.phase, RestingMeasurePhase.measuring);
+      // Bilder alle 0,5 s Sensorzeit; die Uhr läuft mit, je Schritt zwei Prüfungen.
+      var t = 0.0;
+      while (t <= ppgStandardWindow.dataEnd) {
+        r.cam.emitFrame(
+          PpgFrame(
+            t: t,
+            r: 200,
+            g: 40,
+            r16: List.filled(16, 200),
+            g16: List.filled(16, 40),
+          ),
+        );
+        await pump();
+        t += 0.5;
+        for (var i = 0; i < 2; i++) {
+          r.clock.advance(const Duration(milliseconds: 250));
+          r.c.checkFrameGap();
+        }
+        expect(r.c.stopCause, isNull, reason: 'abgebrochen bei Sensorzeit $t');
+      }
+      await pump();
+      await pump();
+      expect(r.c.phase, RestingMeasurePhase.result);
+      expect(r.c.stopCause, isNull);
+      await r.cam.stop();
+    });
+
     test('Lücke in der Sensorzeit zwischen zwei Bildern', () async {
       final r = await Rig.make();
       await r.c.startNow();

@@ -154,7 +154,7 @@ class _ProfileFormState extends State<ProfileForm> {
       } on StorageException {
         // Wert ist gespeichert; das Feld zeigt dann noch den alten Stand.
       }
-    } else if (outcome == RestingMeasureOutcome.dismissed) {
+    } else if (outcome == RestingMeasureOutcome.manual) {
       _restingFocus.requestFocus();
     }
   }

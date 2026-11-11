@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/measure/resting_measure_controller.dart';
 import 'package:running_app/features/measure/resting_measure_launcher.dart';
 import 'package:running_app/features/measure/resting_measure_screen.dart';
 import 'package:running_app/features/profile/profile_screen.dart';
@@ -24,10 +27,28 @@ class _Spy extends RecalculationService {
 
   int basisChanged = 0;
 
+  /// Angebot, das [profileChanged] liefert (Stellvertreter für Läufe, die
+  /// neu gerechnet werden könnten).
+  RecalculationOffer? offerOnChange;
+
+  @override
+  Future<RecalculationOffer?> profileChanged({
+    required ProfileRecord before,
+    required ProfileRecord after,
+  }) async =>
+      offerOnChange ?? await super.profileChanged(before: before, after: after);
+
   @override
   Future<RecalculationOffer?> loadBasisChanged() {
     basisChanged++;
-    return super.loadBasisChanged();
+    final o = offerOnChange;
+    return o != null ? Future.value(o) : super.loadBasisChanged();
+  }
+
+  @override
+  Future<RecalculationOffer?> pendingOffer() {
+    final o = offerOnChange;
+    return o != null ? Future.value(o) : super.pendingOffer();
   }
 }
 
@@ -114,6 +135,18 @@ Future<void> tapKey(WidgetTester tester, String key) async {
   await tester.tap(f);
   await settle(tester);
 }
+
+/// Lässt eine Rückmeldung (SnackBar) ablaufen, bevor der Test den Baum abbaut.
+Future<void> _expireSnackBar(WidgetTester tester) async {
+  await tester.pumpAndSettle();
+  await tester.pump(const Duration(seconds: 10));
+  await tester.pumpAndSettle();
+}
+
+bool _hasFocus(WidgetTester tester) => tester
+    .widget<TextField>(find.byKey(const Key('profile_resting')))
+    .focusNode!
+    .hasFocus;
 
 String _fieldText(WidgetTester tester) => tester
     .widget<TextField>(find.byKey(const Key('profile_resting')))
@@ -203,6 +236,8 @@ void main() {
         expect(find.byKey(const Key('measure_start')), findsNothing);
         expect(_fieldText(tester), '52');
         expect((await e.session.profile.read()).restingHeartRateBpm, 52);
+        expect(_hasFocus(tester), isFalse);
+        await _expireSnackBar(tester);
       });
 
       testWidgets('Verwerfen lässt das Feld unverändert', (tester) async {
@@ -302,6 +337,7 @@ void main() {
       expect(find.byKey(const Key('profile_resting')), findsOneWidget);
       expect(_fieldText(tester), '60');
       expect((await e.session.profile.read()).restingHeartRateBpm, 60);
+      expect(_hasFocus(tester), isFalse);
     });
   });
 
@@ -314,5 +350,158 @@ void main() {
     await _measureUntilResult(tester, e);
     await tapKey(tester, 'measure_adopt');
     expect(e.spy.basisChanged, 1);
+    await _expireSnackBar(tester);
+  });
+
+  group('Rückmeldung und Fokus im Profil', () {
+    testWidgets('Übernahme: Profil gespeichert wie beim manuellen Speichern', (
+      tester,
+    ) async {
+      final e = await _Env.make();
+      await e.pump(tester, _profile);
+      await tapKey(tester, 'profile_resting_measure');
+      await _measureUntilResult(tester, e);
+      await tapKey(tester, 'measure_adopt');
+      await tester.pumpAndSettle();
+      expect(find.text('Profil gespeichert.'), findsOneWidget);
+      expect(find.textContaining('Neuberechnung ist möglich'), findsNothing);
+      await _expireSnackBar(tester);
+    });
+
+    testWidgets('Übernahme mit Angebot: Neuberechnung wird genannt', (
+      tester,
+    ) async {
+      final e = await _Env.make();
+      e.spy.offerOnChange = RecalculationOffer(
+        causes: {RecalculationCause.heartRateBasis},
+        runIds: [1],
+      );
+      await e.pump(tester, _profile);
+      await tapKey(tester, 'profile_resting_measure');
+      await _measureUntilResult(tester, e);
+      await tapKey(tester, 'measure_adopt');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Profil gespeichert.'), findsOneWidget);
+      expect(find.textContaining('Neuberechnung ist möglich'), findsOneWidget);
+      await _expireSnackBar(tester);
+    });
+
+    testWidgets('Verwerfen: keine Rückmeldung', (tester) async {
+      final e = await _Env.make();
+      await e.pump(tester, _profile);
+      await tapKey(tester, 'profile_resting_measure');
+      await _measureUntilResult(tester, e);
+      await tapKey(tester, 'measure_discard');
+      await tester.pumpAndSettle();
+      expect(find.text('Profil gespeichert.'), findsNothing);
+    });
+
+    testWidgets('Schließen bei Kein Wert: kein Fokus aufs Feld', (
+      tester,
+    ) async {
+      final e = await _Env.make();
+      e.cam.availabilityState = PpgCameraAvailability.noCamera;
+      await e.pump(tester, _profile);
+      await tapKey(tester, 'profile_resting_measure');
+      await tapKey(tester, 'measure_mode_now');
+      await tapKey(tester, 'measure_start');
+      await tapKey(tester, 'measure_close');
+      expect(find.byKey(const Key('measure_manual')), findsNothing);
+      expect(_hasFocus(tester), isFalse);
+    });
+
+    testWidgets('Zurück-Pfeil auf dem Einstieg: kein Fokus aufs Feld', (
+      tester,
+    ) async {
+      final e = await _Env.make();
+      await e.pump(tester, _profile);
+      await tapKey(tester, 'profile_resting_measure');
+      await tapKey(tester, 'measure_back');
+      await settle(tester);
+      expect(find.byKey(const Key('measure_start')), findsNothing);
+      expect(_hasFocus(tester), isFalse);
+    });
+  });
+
+  group('Seite wird mitten in der Messung aus dem Baum genommen', () {
+    Future<RestingMeasureController> openHost(
+      WidgetTester tester,
+      _Env e,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('de'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: RamuriTheme.light,
+          home: RestingMeasureHost(
+            camera: e.cam,
+            profile: ProfileService(
+              e.session.profile,
+              e.clock,
+              settings: e.session.settings,
+            ),
+            settings: e.session.settings,
+            clock: e.clock,
+            evaluate: _good,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tapKey(tester, 'measure_mode_now');
+      return tester
+          .widget<RestingMeasureScreen>(find.byType(RestingMeasureScreen))
+          .controller;
+    }
+
+    Future<void> removeHost(WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox());
+      await settle(tester);
+    }
+
+    testWidgets(
+      'während der Messung: Kamera gestoppt, Controller freigegeben',
+      (tester) async {
+        final e = await _Env.make();
+        final c = await openHost(tester, e);
+        await tapKey(tester, 'measure_start');
+        for (var i = 0; i < 6; i++) {
+          e.cam.emitFrame(
+            PpgFrame(
+              t: i * 0.5,
+              r: 200,
+              g: 40,
+              r16: List.filled(16, 200),
+              g16: List.filled(16, 40),
+            ),
+          );
+        }
+        await settle(tester);
+        expect(c.phase, RestingMeasurePhase.measuring);
+        expect(e.cam.torchOn, isTrue);
+        await removeHost(tester);
+        expect(e.cam.torchOn, isFalse);
+        expect(e.cam.stopCount, greaterThan(0));
+        expect(() => c.addListener(() {}), throwsFlutterError);
+      },
+    );
+
+    testWidgets(
+      'beim Starten (Rechteanfrage offen): Kamera startet nicht mehr',
+      (tester) async {
+        final e = await _Env.make();
+        final hold = Completer<PpgCameraAvailability>();
+        e.cam.hold = hold;
+        final c = await openHost(tester, e);
+        await tapKey(tester, 'measure_start');
+        expect(c.phase, RestingMeasurePhase.starting);
+        await removeHost(tester);
+        hold.complete(PpgCameraAvailability.available);
+        await settle(tester);
+        expect(e.cam.startCount, 0);
+        expect(e.cam.torchOn, isFalse);
+        expect(() => c.addListener(() {}), throwsFlutterError);
+      },
+    );
   });
 }

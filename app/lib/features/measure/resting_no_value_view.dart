@@ -15,10 +15,14 @@ class RestingNoValueView extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onClose,
+    required this.onManual,
   });
 
   final RestingMeasureController controller;
   final VoidCallback onClose;
+
+  /// „Selbst eintragen“.
+  final VoidCallback onManual;
 
   /// Titel, Text und ob die Tipps zum Auflegen des Fingers passen.
   static (String, String, bool) reason(
@@ -211,7 +215,7 @@ class RestingNoValueView extends StatelessWidget {
             key: const Key('measure_manual'),
             label: l10n.measureManualAction,
             alignment: Alignment.centerLeft,
-            onPressed: onClose,
+            onPressed: onManual,
           ),
         ],
       ),

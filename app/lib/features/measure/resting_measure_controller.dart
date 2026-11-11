@@ -43,12 +43,15 @@ const double restingStallToleranceSeconds = 1.0;
 
 /// Gesamtfrist der Messung in Sekunden Wanduhr ab dem Abonnieren des
 /// Kamerastroms: Aufnahme bis zum letzten Bild ([PpgWindow.dataEnd]) plus
-/// Startfrist plus 15 s Reserve für Verzögerungen. Wer sie überschreitet, hängt
+/// Startfrist plus Bildfrist plus 12 s Reserve für Verzögerungen. Wer sie überschreitet, hängt
 /// (z. B. weil Stillstände der App die Bildfrist immer wieder aufschieben) und
 /// wird als unterbrochen beendet. Eine Sicherung gegen ein Hängen, kein
 /// Messparameter.
-const double restingTotalTimeoutSeconds =
-    66.5 + restingStartTimeoutSeconds + 15;
+final double restingTotalTimeoutSeconds =
+    ppgStandardWindow.dataEnd +
+    restingStartTimeoutSeconds +
+    restingNoImageTimeoutSeconds +
+    12;
 
 /// Ablaufphase der Ruhepuls-Messung (FR-0214).
 enum RestingMeasurePhase {
