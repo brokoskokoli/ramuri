@@ -16,8 +16,24 @@ class MethodChannelRecordingService implements RecordingServicePort {
 
   /// Kehrt zurück, sobald der Dienst `startForeground` erreicht hat; sonst
   /// eine [PlatformException] (`start_failed`, Detail: Klassenname des Fehlers).
+  /// Fehlt im Laufbandmodus ACTIVITY_RECOGNITION, meldet Kotlin vor dem Start
+  /// `start_denied` (Detail `activity_recognition`); das wird zu
+  /// [RecordingStartDenied].
   @override
-  Future<void> start() => _channel.invokeMethod<void>('start');
+  Future<void> start({
+    RecordingServiceMode mode = RecordingServiceMode.gps,
+  }) async {
+    try {
+      await _channel.invokeMethod<void>('start', {'mode': mode.wire});
+    } on PlatformException catch (e) {
+      if (e.code == 'start_denied' && e.details == 'activity_recognition') {
+        throw const RecordingStartDenied(
+          RecordingStartDeniedReason.activityRecognition,
+        );
+      }
+      rethrow;
+    }
+  }
 
   @override
   Future<void> stop() => _channel.invokeMethod<void>('stop');

@@ -15,6 +15,11 @@ Regeln:
   exportierter Empfänger, der nur Erinnerungs-Wecker neu plant; ein Boot-Empfänger, der einen Dienst oder die
   Aufzeichnung startet, bleibt verboten).
 - Ein Boot-Filter an einer anderen Komponente (Dienst, Activity, zweiter Empfänger) ist immer rot.
+- Typ health (ADR-0005 Nachtrag WP25, K57; nur Laufbandmodus): Ein Dienst mit foregroundServiceType health braucht
+  FOREGROUND_SERVICE_HEALTH und ACTIVITY_RECOGNITION. Das Recht FOREGROUND_SERVICE_HEALTH ist nur zusammen mit
+  ACTIVITY_RECOGNITION erlaubt und nur, wenn der Aufzeichnungsdienst (RecordingService) den Typ health trägt, und zwar
+  zusammen mit location (GPS-Läufe bleiben location). Kein anderer Dienst darf health tragen. Ein unlesbarer
+  Diensttyp ist rot.
 Der Selbsttest tool/check_release_manifest_test.py belegt jede Regel als rot."""
 import re, sys
 
@@ -26,6 +31,12 @@ FORBIDDEN = (
     "android.permission.USE_EXACT_ALARM",
 )
 BOOT_PERMISSION = "android.permission.RECEIVE_BOOT_COMPLETED"
+RECORDING_SERVICE = PACKAGE + ".RecordingService"
+HEALTH_SERVICE_PERMISSION = "android.permission.FOREGROUND_SERVICE_HEALTH"
+ACTIVITY_PERMISSION = "android.permission.ACTIVITY_RECOGNITION"
+# ServiceInfo.FOREGROUND_SERVICE_TYPE_*
+TYPE_LOCATION = 0x8
+TYPE_HEALTH = 0x100
 
 _ELEMENT = re.compile(r"^(\s*)E: (\S+) \(line=\d+\)$")
 _ATTR = re.compile(r"^(\s*)A: (?:([\w-]+):)?([\w-]+)(?:\(0x[0-9a-f]+\))?=(.*)$")
@@ -75,8 +86,47 @@ def is_false(raw):
     return raw is not None and re.fullmatch(r"\(type 0x12\)0x0", raw) is not None
 
 
+def int_value(raw):
+    """Ganzzahl aus `(type 0x11)0x108` (aapt-Ausgabe für Flags); None, wenn nicht lesbar."""
+    m = re.fullmatch(r"\(type 0x1[0-9a-f]\)0x([0-9a-f]+)", raw or "")
+    return int(m.group(1), 16) if m else None
+
+
 def is_boot_action(name):
     return name is not None and (name.endswith("BOOT_COMPLETED") or "QUICKBOOT_POWERON" in name)
+
+
+def check_health(perms, application):
+    """Typ health und FOREGROUND_SERVICE_HEALTH nur zusammen, nur mit ACTIVITY_RECOGNITION, nur am Aufzeichnungsdienst."""
+    errors = []
+    health_services = []
+    for comp in application.children:
+        if comp.tag != "service":
+            continue
+        name = string_value(comp.attrs.get("name"))
+        raw = comp.attrs.get("foregroundServiceType")
+        if raw is None:
+            continue
+        types = int_value(raw)
+        if types is None:
+            errors.append(f"service {name}: foregroundServiceType nicht lesbar ({raw})")
+            continue
+        if types & TYPE_HEALTH:
+            health_services.append((name, types))
+    for name, types in health_services:
+        if name != RECORDING_SERVICE:
+            errors.append(f"Typ health an service {name} (nur der Aufzeichnungsdienst darf ihn tragen)")
+        elif not types & TYPE_LOCATION:
+            errors.append(f"{RECORDING_SERVICE} trägt health ohne location (GPS-Läufe starten mit location)")
+        for p in (HEALTH_SERVICE_PERMISSION, ACTIVITY_PERMISSION):
+            if p not in perms:
+                errors.append(f"Typ health an service {name} ohne {p}")
+    if HEALTH_SERVICE_PERMISSION in perms:
+        if ACTIVITY_PERMISSION not in perms:
+            errors.append(f"{HEALTH_SERVICE_PERMISSION} ohne {ACTIVITY_PERMISSION}")
+        if not any(n == RECORDING_SERVICE for n, _ in health_services):
+            errors.append(f"{HEALTH_SERVICE_PERMISSION} ohne Typ health am Aufzeichnungsdienst")
+    return errors
 
 
 def check(perms_text, tree_text):
@@ -120,6 +170,7 @@ def check(perms_text, tree_text):
                           f"gefunden: {len(receivers)}")
     elif boot:
         errors.append(f"Boot-Filter ohne {BOOT_PERMISSION}")
+    errors += check_health(perms, apps[0])
     same = [c for c in apps[0].children if string_value(c.attrs.get("name")) == BOOT_RECEIVER]
     if len(same) > 1:
         errors.append(f"{BOOT_RECEIVER} ist {len(same)}-mal deklariert")

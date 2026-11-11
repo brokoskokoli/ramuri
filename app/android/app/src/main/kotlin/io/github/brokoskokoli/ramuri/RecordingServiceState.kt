@@ -26,9 +26,11 @@ object RecordingServiceState {
 
     /** Wirkungen auf Android; die Entscheidungen liegen in [RecordingServiceController]. */
     private val effects = object : ServiceEffects<MethodChannel.Result> {
-        override fun startService() {
+        override fun startService(mode: RecordingMode) {
             val c = appContext ?: throw IllegalStateException("no_context")
-            c.startForegroundService(Intent(c, RecordingService::class.java))
+            c.startForegroundService(
+                Intent(c, RecordingService::class.java).putExtra(RecordingService.EXTRA_MODE, mode.wire),
+            )
         }
         override fun stopService() {
             val c = appContext ?: return
@@ -54,11 +56,21 @@ object RecordingServiceState {
                 "isRunning" -> result.success(running)
                 // Sensor im Lauf verbunden: Typ connectedDevice nachziehen, wenn BLUETOOTH_CONNECT da ist.
                 "updateType" -> result.success(service?.retype() ?: false)
-                "start" -> controller.start(
-                    result,
-                    context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
-                        PackageManager.PERMISSION_GRANTED,
-                )
+                "start" -> {
+                    val mode = RecordingMode.fromWire(call.argument<String>("mode"))
+                    if (mode == null) {
+                        result.error("bad_mode", null, null)
+                    } else {
+                        controller.start(
+                            result,
+                            context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+                                PackageManager.PERMISSION_GRANTED,
+                            mode,
+                            context.checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) ==
+                                PackageManager.PERMISSION_GRANTED,
+                        )
+                    }
+                }
                 "stop" -> {
                     controller.stop()
                     result.success(null)

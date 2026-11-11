@@ -20,10 +20,63 @@ class RecordingLifecycleTest {
     }
 
     @Test fun withoutFineLocationServiceMayNotStart() {
-        val denied = RecordingLifecycle.mayStart(false)
+        // Regression: GPS-Lauf unverändert; ACTIVITY_RECOGNITION spielt dort keine Rolle.
+        for (activity in listOf(false, true)) {
+            val denied = RecordingLifecycle.mayStart(RecordingMode.GPS, false, activity)
+            assertTrue(denied.isFailure)
+            assertTrue(denied.exceptionOrNull() is SecurityException)
+            assertEquals("location_denied", denied.exceptionOrNull()?.message)
+            assertTrue(RecordingLifecycle.mayStart(RecordingMode.GPS, true, activity).isSuccess)
+        }
+    }
+
+    @Test fun treadmillNeedsActivityRecognitionAndNoLocation() {
+        val denied = RecordingLifecycle.mayStart(RecordingMode.TREADMILL, true, false)
         assertTrue(denied.isFailure)
         assertTrue(denied.exceptionOrNull() is SecurityException)
-        assertTrue(RecordingLifecycle.mayStart(true).isSuccess)
+        assertEquals("activity_recognition_denied", denied.exceptionOrNull()?.message)
+        assertTrue(RecordingLifecycle.mayStart(RecordingMode.TREADMILL, false, false).isFailure)
+        assertTrue(RecordingLifecycle.mayStart(RecordingMode.TREADMILL, false, true).isSuccess)
+    }
+
+    @Test fun treadmillStartTypeIsHealthNeverLocation() {
+        val type = RecordingLifecycle.startType(false, RecordingMode.TREADMILL)
+        assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH, type)
+        assertEquals(0, type and ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        val withBt = RecordingLifecycle.startType(true, RecordingMode.TREADMILL)
+        assertEquals(
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+            withBt,
+        )
+        assertEquals(0, withBt and ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+    }
+
+    @Test fun gpsStartTypeNeverContainsHealth() {
+        for (bt in listOf(false, true)) {
+            assertEquals(0, RecordingLifecycle.startType(bt) and ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
+            assertEquals(RecordingLifecycle.startType(bt), RecordingLifecycle.startType(bt, RecordingMode.GPS))
+        }
+    }
+
+    @Test fun treadmillServiceEntersForegroundWithHealthAndRetypesKeepingIt() {
+        var granted = false
+        val types = mutableListOf<Int>()
+        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, { types.add(it) }, RecordingMode.TREADMILL)
+        assertTrue(lc.start().isSuccess)
+        assertEquals(listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH), types)
+        granted = true
+        assertTrue(lc.retype())
+        assertEquals(
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+            types.last(),
+        )
+    }
+
+    @Test fun modeWireValues() {
+        assertEquals(RecordingMode.GPS, RecordingMode.fromWire(null))
+        assertEquals(RecordingMode.GPS, RecordingMode.fromWire("gps"))
+        assertEquals(RecordingMode.TREADMILL, RecordingMode.fromWire("treadmill"))
+        assertEquals(null, RecordingMode.fromWire("swim"))
     }
 
     @Test fun startTypeWithoutBluetoothConnectIsLocationOnly() {

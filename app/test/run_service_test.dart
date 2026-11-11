@@ -196,16 +196,19 @@ void main() {
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     const channel = MethodChannel(recordingServiceChannelName);
     final calls = <String>[];
+    final args = <Object?>[];
     Object? error;
     tearDown(() {
       messenger.setMockMethodCallHandler(channel, null);
       calls.clear();
+      args.clear();
       error = null;
     });
 
     void mock({Object? answer}) =>
         messenger.setMockMethodCallHandler(channel, (call) async {
           calls.add(call.method);
+          args.add(call.arguments);
           if (error != null) throw error!;
           return answer;
         });
@@ -218,6 +221,57 @@ void main() {
       expect(await s.isRunning(), isTrue);
       expect(calls, ['start', 'stop', 'isRunning']);
     });
+
+    test('start nennt die Laufart, Vorgabe gps', () async {
+      mock();
+      final s = MethodChannelRecordingService();
+      await s.start();
+      await s.start(mode: RecordingServiceMode.treadmill);
+      expect(args, [
+        {'mode': 'gps'},
+        {'mode': 'treadmill'},
+      ]);
+    });
+
+    test(
+      'Laufband ohne ACTIVITY_RECOGNITION: eigener Grund, kein Systemfehler',
+      () async {
+        error = PlatformException(
+          code: 'start_denied',
+          details: 'activity_recognition',
+        );
+        mock();
+        await expectLater(
+          MethodChannelRecordingService().start(
+            mode: RecordingServiceMode.treadmill,
+          ),
+          throwsA(
+            isA<RecordingStartDenied>().having(
+              (e) => e.reason,
+              'reason',
+              RecordingStartDeniedReason.activityRecognition,
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'anderer Startfehler bleibt PlatformException (auch im Laufband)',
+      () async {
+        error = PlatformException(
+          code: 'start_failed',
+          details: 'SecurityException',
+        );
+        mock();
+        await expectLater(
+          MethodChannelRecordingService().start(
+            mode: RecordingServiceMode.treadmill,
+          ),
+          throwsA(isA<PlatformException>()),
+        );
+      },
+    );
 
     test('Fehler des Dienststarts erreicht den Aufrufer', () async {
       error = PlatformException(code: 'start_failed', message: 'x');
@@ -345,10 +399,12 @@ void main() {
     );
 
     test('connectedDevice nur hinter BLUETOOTH_CONNECT', () {
-      // Der Typ entsteht allein in startType(bluetoothConnectGranted) ...
+      // Der Typ entsteht allein in startType(bluetoothConnectGranted, mode) ...
       expect(
         lifecycle,
-        contains('fun startType(bluetoothConnectGranted: Boolean): Int'),
+        contains(
+          'fun startType(bluetoothConnectGranted: Boolean, mode: RecordingMode = RecordingMode.GPS): Int',
+        ),
       );
       final body = lifecycle.substring(
         lifecycle.indexOf('fun startType('),
@@ -358,20 +414,35 @@ void main() {
         body,
         matches(
           RegExp(
-            r'if \(bluetoothConnectGranted\) \{[^}]*CONNECTED_DEVICE[^}]*\} else \{\s*ServiceInfo\.FOREGROUND_SERVICE_TYPE_LOCATION\s*\}',
+            r'return if \(bluetoothConnectGranted\) base or ServiceInfo\.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else base',
+          ),
+        ),
+      );
+      // Basistyp: location im GPS-Lauf, health nur im Laufbandlauf (ADR-0005 Nachtrag WP25).
+      expect(
+        body,
+        matches(
+          RegExp(
+            r'RecordingMode\.GPS -> ServiceInfo\.FOREGROUND_SERVICE_TYPE_LOCATION\s*'
+            r'RecordingMode\.TREADMILL -> ServiceInfo\.FOREGROUND_SERVICE_TYPE_HEALTH',
           ),
         ),
       );
       // ... start und Nachziehen fragen das Recht ab, der Dienst liest es am System.
-      expect(lifecycle, contains('startType(bluetoothConnectGranted())'));
+      expect(lifecycle, contains('startType(bluetoothConnectGranted(), mode)'));
       expect(
         service,
         contains(
           'checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==',
         ),
       );
-      // Kein Typ health (Entscheidung des Maintainers).
-      expect(service + lifecycle + state, isNot(contains('HEALTH')));
+      // health nur an der einen Stelle im Laufbandzweig von startType (K57).
+      expect(
+        'FOREGROUND_SERVICE_TYPE_HEALTH'.allMatches(
+          service + lifecycle + state,
+        ),
+        hasLength(1),
+      );
     });
 
     test('Verdrahtung: Standortrecht und Timeout gehen an den Controller', () {
@@ -379,8 +450,10 @@ void main() {
       expect(state, contains('Runnable { controller.onTimeout() }'));
       expect(
         RegExp(
-          r'"start" -> controller\.start\(\s*result,\s*'
+          r'controller\.start\(\s*result,\s*'
           r'context\.checkSelfPermission\(Manifest\.permission\.ACCESS_FINE_LOCATION\) ==\s*'
+          r'PackageManager\.PERMISSION_GRANTED,\s*mode,\s*'
+          r'context\.checkSelfPermission\(Manifest\.permission\.ACTIVITY_RECOGNITION\) ==\s*'
           r'PackageManager\.PERMISSION_GRANTED,\s*\)',
         ).hasMatch(state),
         isTrue,
@@ -416,13 +489,16 @@ void main() {
         'FOREGROUND_SERVICE_LOCATION',
         'FOREGROUND_SERVICE_CONNECTED_DEVICE',
         'WAKE_LOCK',
+        'FOREGROUND_SERVICE_HEALTH',
         'POST_NOTIFICATIONS',
       ]) {
         expect(manifest, contains('android.permission.$p"'));
       }
       expect(
         manifest,
-        contains('android:foregroundServiceType="location|connectedDevice"'),
+        contains(
+          'android:foregroundServiceType="location|connectedDevice|health"',
+        ),
       );
     });
 

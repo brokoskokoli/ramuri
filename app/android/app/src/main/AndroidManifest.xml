@@ -18,6 +18,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
+    <!-- ADR-0005 Nachtrag WP25: Typ health nur im Laufbandmodus (ohne Standort). Das Gate prüft, dass dieses Recht
+         nur zusammen mit ACTIVITY_RECOGNITION und nur am Aufzeichnungsdienst vorkommt. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <!-- FR-0202: Schrittsensor des Telefons für die Schrittfrequenz. Eigene Laufzeitberechtigung;
          ohne sie ist die Schrittfrequenz "nicht verfügbar" und der Lauf wird normal aufgezeichnet. -->
@@ -69,11 +72,12 @@
             </intent-filter>
         </activity>
         <!-- connectedDevice nennt startForeground nur mit BLUETOOTH_CONNECT (RecordingLifecycle.startType),
-             sonst wirft Android 14 eine SecurityException. Kein Typ health. -->
+             sonst wirft Android 14 eine SecurityException. health nur im Laufbandmodus (verlangt
+             ACTIVITY_RECOGNITION, RecordingLifecycle.mayStart); GPS-Läufe starten weiter mit location. -->
         <service
             android:name=".RecordingService"
             android:exported="false"
-            android:foregroundServiceType="location|connectedDevice"/>
+            android:foregroundServiceType="location|connectedDevice|health"/>
         <!-- FR-0174: Wecker der Erinnerungen (explizites Intent) und Neuplanung nach Neustart oder
              Update. Nicht exportiert: Andere Apps können ihn nicht auslösen. -->
         <receiver
