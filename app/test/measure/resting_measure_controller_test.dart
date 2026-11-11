@@ -267,6 +267,38 @@ void main() {
       },
     );
 
+    test(
+      'Live: Szene ohne Finger (R/G unter 1,5) gibt den Hinweis noFinger',
+      () async {
+        // Echte Auswertung (evaluatePpg) auf dem Live-Fenster, keine Schwelle im Controller.
+        Future<RestingLiveHint?> hintFor(double green) async {
+          final r = await Rig.make(
+            evaluate: (f, w) async => evaluatePpg(f, window: w),
+          );
+          await r.c.startNow();
+          for (var i = 0; i <= 20 * 30; i++) {
+            final t = i / 30;
+            final red = 167 + (t * 2 % 1 < 0.5 ? 2.25 : -2.25);
+            r.cam.emitFrame(
+              PpgFrame(
+                t: t,
+                r: red,
+                g: green,
+                r16: List.filled(16, red),
+                g16: List.filled(16, green),
+              ),
+            );
+            if (i % 60 == 0) await pump();
+          }
+          await pump();
+          return r.c.liveHint;
+        }
+
+        expect(await hintFor(194), RestingLiveHint.noFinger);
+        expect(await hintFor(100), isNot(RestingLiveHint.noFinger)); // R/G 1,67
+      },
+    );
+
     test('Hinweise nur aus den Gründen der Auswertung', () async {
       var reasons = [PpgQualityReason.weakSignal];
       var quality = PpgQuality.unusable;

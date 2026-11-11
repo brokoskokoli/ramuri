@@ -35,6 +35,9 @@ class RestingNoValueView extends StatelessWidget {
       if (r.contains(PpgQualityReason.frameGap)) {
         return (l.measureWhyGapTitle, l.measureWhyGapBody, true);
       }
+      if (r.contains(PpgQualityReason.noFinger)) {
+        return (l.measureWhyNoFingerTitle, l.measureWhyNoFingerBody, true);
+      }
       if (r.contains(PpgQualityReason.flatSignal)) {
         return (l.measureWhyFlatTitle, l.measureWhyFlatBody, true);
       }

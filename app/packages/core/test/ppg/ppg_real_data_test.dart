@@ -57,6 +57,7 @@ void main() {
     final problems = <String>[];
     var withGap = 0;
     var tooShort = 0;
+    var noFinger = 0;
     for (var n = 0; n < files.length; n++) {
       final lines = files[n].readAsLinesSync();
       final head = lines.first.split(',');
@@ -95,6 +96,7 @@ void main() {
           ),
       ], window: window);
       if (evaluated.reasons.contains(PpgQualityReason.frameGap)) withGap++;
+      if (evaluated.reasons.contains(PpgQualityReason.noFinger)) noFinger++;
       if (evaluated.reasons.contains(PpgQualityReason.insufficientData)) {
         tooShort++; // dann wurde die Lückenprüfung nicht erreicht
       }
@@ -126,6 +128,9 @@ void main() {
     print(
       'Dateien mit Bildlücke über ${ppgMaxFrameGapSeconds}s: $withGap von ${files.length}, zu kurz für die Prüfung: $tooShort',
     );
+    // Fingerprüfung (Rot/Grün, ppgMinRedGreenRatio): Echte Messungen mit Finger müssen bestehen.
+    print('Dateien ohne Finger erkannt: $noFinger von ${files.length}');
+    if (noFinger > 0) problems.add('Fingerprüfung lehnt $noFinger Dateien ab');
     // Nur Abweichungen ausgeben, nie Werte.
     if (problems.isNotEmpty) print(problems.join('\n'));
     expect(problems, isEmpty);

@@ -255,9 +255,9 @@ void main() {
         PpgFrame flat(double t, double v) => PpgFrame(
           t: t,
           r: v,
-          g: v,
+          g: v / 4, // mit Finger (R/G 4), sonst käme die Fingerprüfung zuerst
           r16: List.filled(16, v),
-          g16: List.filled(16, v),
+          g16: List.filled(16, v / 4),
         );
         for (final v in [255.0, 128.3, 0.0]) {
           final m = evaluatePpg([
@@ -273,14 +273,14 @@ void main() {
     test('konstanter Kanal gewinnt nicht gegen einen echten (Quellenwahl)', () {
       final s = synth(0.85, 0.05, 0.03, 0.3, 30.0, 1);
       final base = frames(s);
-      // Rot gesättigt (konstant), Grün trägt den Puls; Teilbereiche folgen Grün
+      // Rot konstant (400, damit die Fingerprüfung besteht), Grün trägt den Puls; Teilbereiche folgen Grün
       final fr = [
         for (final f in base)
           PpgFrame(
             t: f.t,
-            r: 255,
+            r: 400,
             g: f.r,
-            r16: List.filled(16, 255.0),
+            r16: List.filled(16, 400.0),
             g16: f.r16,
           ),
       ];
@@ -297,9 +297,9 @@ void main() {
           PpgFrame(
             t: i / 30,
             r: 200 + (i.isEven ? 0 : 3e-14),
-            g: 200,
+            g: 50,
             r16: List.filled(16, 200.0),
-            g16: List.filled(16, 200.0),
+            g16: List.filled(16, 50.0),
           ),
       ];
       expect(evaluatePpg(noisy).reasons, [PpgQualityReason.flatSignal]);
@@ -662,9 +662,9 @@ void main() {
             PpgFrame(
               t: f.t,
               r: (f.t < 5 || f.t > 65) ? f.r : 120,
-              g: (f.t < 5 || f.t > 65) ? f.g : 120,
+              g: (f.t < 5 || f.t > 65) ? f.g : 30,
               r16: List.filled(16, (f.t < 5 || f.t > 65) ? f.r : 120.0),
-              g16: List.filled(16, (f.t < 5 || f.t > 65) ? f.g : 120.0),
+              g16: List.filled(16, (f.t < 5 || f.t > 65) ? f.g : 30.0),
             ),
         ];
         expect(evaluatePpg(fr).reasons, [PpgQualityReason.flatSignal]);
@@ -689,6 +689,106 @@ void main() {
       final set = PpgAnalyzer.analyze(t, [PpgSeries('Rot', s.red)], blocks, w);
       // nur die 4 lebenden Teilbereiche werden bewertet
       expect(set.blocksScored, 4);
+    });
+  });
+
+  group('Fingerprüfung (Rot/Grün im Messfenster)', () {
+    /// Gutes Signal, Grün so skaliert, dass Mittel Rot / Mittel Grün im Messfenster [ratio] ist.
+    List<PpgFrame> withRatio(double ratio) {
+      final s = synth(0.85, 0.05, 0.03, 0.3, 30.0, 1);
+      var sr = 0.0, sg = 0.0;
+      for (var i = 0; i < s.t.length; i++) {
+        if (s.t[i] >= 5 && s.t[i] <= 65) {
+          sr += s.red[i];
+          sg += s.green[i];
+        }
+      }
+      final k = sr / (ratio * sg);
+      return [
+        for (var i = 0; i < s.t.length; i++)
+          PpgFrame(
+            t: s.t[i],
+            r: s.red[i],
+            g: s.green[i] * k,
+            r16: List.filled(16, s.red[i]),
+            g16: List.filled(16, s.green[i] * k),
+          ),
+      ];
+    }
+
+    test('Grenze 1,5: knapp darüber gilt, knapp darunter ist kein Finger', () {
+      expect(ppgMinRedGreenRatio, 1.5);
+      final over = evaluatePpg(withRatio(1.501));
+      expect(over.reasons, isNot(contains(PpgQualityReason.noFinger)));
+      expect(over.quality, PpgQuality.good);
+      final under = evaluatePpg(withRatio(1.499));
+      expect(under.quality, PpgQuality.unusable);
+      expect(under.reasons, [PpgQualityReason.noFinger]);
+    });
+
+    test('kein Finger: keine Zahlen, auch keine Diagnose', () {
+      final m = evaluatePpg(withRatio(0.86));
+      expect(m.quality, PpgQuality.unusable);
+      expect(m.reasons, [PpgQualityReason.noFinger]);
+      expect(m.hasResult, isFalse);
+      expect(m.bpm, isNull);
+      expect(m.rmssdMs, isNull);
+      expect(m.signalQuality, isNull);
+      expect(m.channel, isNull);
+    });
+
+    test('nur das Messfenster zählt (Einschwingen davor und danach nicht)', () {
+      // Vor 5 s und nach 65 s extrem hohes Grün (R/G 0,02), im Fenster mit Finger.
+      final good = withRatio(5);
+      final mixed = [
+        for (final f in good)
+          (f.t < 5 || f.t > 65)
+              ? PpgFrame(
+                  t: f.t,
+                  r: f.r,
+                  g: f.r * 50,
+                  r16: f.r16,
+                  g16: List.filled(16, f.r * 50),
+                )
+              : f,
+      ];
+      expect(
+        evaluatePpg(mixed).reasons,
+        isNot(contains(PpgQualityReason.noFinger)),
+      );
+    });
+
+    test('Emulator-Szene (2-Hz-Rechteck, R/G ca. 0,86): kein Finger', () {
+      // Synthetischer Testvektor der Emulator-Szene: ohne die Prüfung „gut, 120/min“.
+      final frames = [
+        for (var i = 0; i < 2000; i++)
+          () {
+            final t = i / 30;
+            final r = 167 + (t * 2 % 1 < 0.5 ? 2.25 : -2.25);
+            return PpgFrame(
+              t: t,
+              r: r,
+              g: 194,
+              r16: List.filled(16, r),
+              g16: List.filled(16, 194.0),
+            );
+          }(),
+      ];
+      final m = evaluatePpg(frames);
+      expect(m.quality, PpgQuality.unusable);
+      expect(m.reasons, [PpgQualityReason.noFinger]);
+      expect(m.bpm, isNull);
+      // Kontrolle: Der Analysator allein hält das Signal für einen sauberen 120er Puls.
+      final set = PpgAnalyzer.analyze(
+        [for (final f in frames) f.t],
+        [
+          PpgSeries('Rot', [for (final f in frames) f.r]),
+          PpgSeries('Grün', [for (final f in frames) f.g]),
+        ],
+        const [],
+        ppgStandardWindow,
+      );
+      expect(ratePpg(set.best).quality, PpgQuality.good);
     });
   });
 }

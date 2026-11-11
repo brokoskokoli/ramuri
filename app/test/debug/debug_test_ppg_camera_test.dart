@@ -33,6 +33,57 @@ void main() {
     expect(m.hasResult, isFalse);
   });
 
+  test(
+    'Szenario noFinger: R/G unter 1,5, Auswertung „kein Finger“ ohne Zahlen',
+    () async {
+      final cam = DebugTestPpgCamera(
+        scenario: DebugPpgScenario.noFinger,
+        speed: 100000,
+      );
+      final frames = _frames(await _run(cam));
+      final meanR =
+          frames.map((f) => f.r).reduce((a, b) => a + b) / frames.length;
+      final meanG =
+          frames.map((f) => f.g).reduce((a, b) => a + b) / frames.length;
+      expect(meanR / meanG, lessThan(1.5));
+      final m = evaluatePpg(frames);
+      expect(m.quality, PpgQuality.unusable);
+      expect(m.reasons, [PpgQualityReason.noFinger]);
+      expect(m.hasResult, isFalse);
+    },
+  );
+
+  test(
+    'guter Puls und schwaches Signal haben R/G über 1,5 (Finger erkannt)',
+    () async {
+      for (final s in [
+        DebugPpgScenario.goodPulse,
+        DebugPpgScenario.weakSignal,
+      ]) {
+        final frames = _frames(
+          await _run(DebugTestPpgCamera(scenario: s, speed: 100000)),
+        );
+        expect(
+          evaluatePpg(frames).reasons,
+          isNot(contains(PpgQualityReason.noFinger)),
+        );
+      }
+    },
+  );
+
+  test('Zeitraffer gilt ab dem Start: Umschalten mitten in der Messung ändert nichts', () async {
+    var wall = Duration.zero;
+    final cam = DebugTestPpgCamera(speed: 1, wallClock: () => wall);
+    final sub = cam.start().listen((_) {});
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    cam.speed = 100000; // Panel: gilt erst ab dem nächsten Start
+    wall = const Duration(seconds: 1);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await sub.cancel();
+    // Echtzeit: nach 1 s Wanduhr höchstens etwa 30 Bilder, nicht die ganze Messung (ca. 2000).
+    expect(cam.framesGenerated, lessThan(100));
+  });
+
   test('Kamera belegt: Abbruch mit Grund, ohne Bilder', () async {
     final events = await _run(
       DebugTestPpgCamera(scenario: DebugPpgScenario.busy),

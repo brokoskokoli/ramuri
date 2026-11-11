@@ -99,7 +99,7 @@ enum RestingStopCause {
 /// Hinweis während der Messung. Nur das, was die Auswertung in `core` als Grund
 /// liefert (kein Hinweis auf „zu fest“, „verrutscht“ oder „zu dunkel“: dafür
 /// gibt es in `core` keine Regel).
-enum RestingLiveHint { weakSignal, flatSignal, disturbances }
+enum RestingLiveHint { noFinger, weakSignal, flatSignal, disturbances }
 
 /// Ergebnis einer ausgewerteten Messung.
 class RestingMeasureResult {
@@ -561,6 +561,9 @@ class RestingMeasureController extends ChangeNotifier {
 
   RestingLiveHint? _hintOf(PpgMeasurement m) {
     if (m.quality != PpgQuality.unusable) return null;
+    if (m.reasons.contains(PpgQualityReason.noFinger)) {
+      return RestingLiveHint.noFinger;
+    }
     if (m.reasons.contains(PpgQualityReason.flatSignal)) {
       return RestingLiveHint.flatSignal;
     }

@@ -139,3 +139,10 @@ class PpgWindow {
 /// folgt). Wer länger kein Bild bekommt, dessen Messung ist unbrauchbar: `evaluatePpg` meldet
 /// `PpgQualityReason.frameGap` (geprüft zwischen den Bildern ab `filterStart` bis `dataEnd`).
 const double ppgMaxFrameGapSeconds = 1.0;
+
+/// Fingerprüfung (Maintainer 2026-11-11, WP27, Evidenz niedrig: 10 Messungen eines Handys einer
+/// Person und eine Emulator-Szene, PAR-Nummer folgt): Mittel von Rot geteilt durch Mittel von Grün
+/// über die Bilder im Messfenster (Mitte) unter diesem Wert ergibt „unbrauchbar, kein Finger“
+/// (`PpgQualityReason.noFinger`). Mit Blitz auf der Haut absorbiert das Blut Grün weit stärker
+/// als Rot; eine freie Szene hat Rot/Grün um 1 und darunter. Die Referenz prüft nur die Anzeige.
+const double ppgMinRedGreenRatio = 1.5;

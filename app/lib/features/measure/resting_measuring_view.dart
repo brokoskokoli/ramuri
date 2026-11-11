@@ -37,6 +37,12 @@ class RestingMeasuringView extends StatelessWidget {
     };
 
     final (hintTitle, hintBody, hintIcon, warn) = switch (hint) {
+      RestingLiveHint.noFinger => (
+        l10n.measureHintNoFingerTitle,
+        l10n.measureHintNoFingerBody,
+        Icons.error_outline,
+        true,
+      ),
       RestingLiveHint.weakSignal => (
         l10n.measureHintWeakTitle,
         l10n.measureHintWeakBody,

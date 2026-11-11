@@ -43,6 +43,10 @@ enum PpgQualityReason {
   /// Zwischen zwei Bildern im Messfenster liegt mehr als [ppgMaxFrameGapSeconds] (Unterbrechung).
   frameGap,
 
+  /// Mittel Rot geteilt durch Mittel Grün im Messfenster unter [ppgMinRedGreenRatio]: kein Finger
+  /// auf Kamera und Blitz (Maintainer 2026-11-11).
+  noFinger,
+
   /// Alle Signalquellen sind im Messfenster konstant (z. B. übersteuert).
   flatSignal,
 
@@ -151,6 +155,19 @@ PpgMeasurement evaluatePpg(
       return _unusable(PpgQualityReason.frameGap);
     }
     prev = f.t;
+  }
+  // Fingerprüfung auf den Bildern des Messfensters (wie die Zählung oben). Ohne Finger kann ein
+  // regelmäßig bewegtes Bild (z. B. Emulator, 2 Hz) als „gut, 120/min“ durchgehen (Abschn. 11).
+  var sumR = 0.0;
+  var sumG = 0.0;
+  for (final f in frames) {
+    if (f.t >= window.start && f.t <= window.end) {
+      sumR += f.r;
+      sumG += f.g;
+    }
+  }
+  if (sumR < ppgMinRedGreenRatio * sumG) {
+    return _unusable(PpgQualityReason.noFinger);
   }
   final t = [for (final f in frames) f.t];
   final signals = [

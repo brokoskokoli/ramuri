@@ -16,6 +16,11 @@ enum DebugPpgScenario {
   /// Nur Rauschen, kein Puls: Auswertung „unbrauchbar“.
   weakSignal,
 
+  /// Kein Finger: eine Szene mit Rot unter Grün (R/G < 1,5) und regelmäßigem 2-Hz-Wechsel
+  /// (wie die Emulator-Szene). Ohne Fingerprüfung ergäbe das „gut, 120/min“; erwartet wird
+  /// „unbrauchbar, kein Finger“.
+  noFinger,
+
   /// Kamera belegt: Abbruch gleich zu Beginn.
   busy,
 
@@ -107,9 +112,16 @@ class DebugTestPpgCamera implements PpgCamera {
         final end = scenario == DebugPpgScenario.disconnected
             ? 3.0
             : ppgStandardWindow.dataEnd + 0.5;
-        final gen = _Generator(fps, weak);
+        final gen = _Generator(
+          fps,
+          weak,
+          scenario == DebugPpgScenario.noFinger,
+        );
         var locked = false;
-        final delay = Duration(microseconds: (1e6 / fps / speed).round());
+        // Zeitraffer beim Start festhalten: eine Umschaltung im Panel gilt erst ab dem nächsten
+        // Start (sonst spränge `due` und der Rest der Messung käme in einem Schwall).
+        final sp = speed;
+        final delay = Duration(microseconds: (1e6 / fps / sp).round());
         // Die Sensorzeit folgt der Wanduhr (mal [speed]) wie bei einer echten Kamera:
         // Kommt die App zeitweise nicht zum Zug, kommen die versäumten Bilder
         // gebündelt nach, statt die Messung zu verlängern (sonst liefe sie bei hoher
@@ -117,7 +129,7 @@ class DebugTestPpgCamera implements PpgCamera {
         final startedAt = _wall();
         var t = 0.0;
         while (t < end && !cancelled) {
-          final due = (_wall() - startedAt).inMicroseconds / 1e6 * speed;
+          final due = (_wall() - startedAt).inMicroseconds / 1e6 * sp;
           do {
             framesGenerated++;
             c.add(PpgCameraFrame(gen.frame(t)));
@@ -157,10 +169,13 @@ class DebugTestPpgCamera implements PpgCamera {
 
 /// Synthetische Bildstatistik: Pulsform mit dikroter Welle auf Grundlinie, deterministisches Rauschen.
 class _Generator {
-  _Generator(this.fps, this.weak);
+  _Generator(this.fps, this.weak, this.noFinger);
 
   final int fps;
   final bool weak;
+
+  /// Szene ohne Finger: Rot 167 und Grün 194 (R/G ca. 0,86), 2-Hz-Rechteck auf Rot.
+  final bool noFinger;
   int _n = 0;
 
   double nextTime() => ++_n / fps;
@@ -191,6 +206,17 @@ class _Generator {
 
   PpgFrame frame(double t) {
     final i = _n;
+    if (noFinger) {
+      final red = 167 + (t * 2 % 1 < 0.5 ? 2.25 : -2.25);
+      const green = 194.0;
+      return PpgFrame(
+        t: t,
+        r: red,
+        g: green,
+        r16: List.filled(16, red),
+        g16: List.filled(16, green),
+      );
+    }
     final red = weak
         ? 200 + 30 * _noise(i)
         : 200 - 3 * _pulse(t) + 0.3 * _noise(i);

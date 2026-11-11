@@ -352,6 +352,10 @@ void main() {
           'Signal schwach',
           'Deck Kamera und Blitz',
         ),
+        PpgQualityReason.noFinger: (
+          'Finger nicht erkannt',
+          'Leg die Fingerkuppe auf Kamera und Blitz',
+        ),
         PpgQualityReason.flatSignal: (
           'Kaum Schwankung im Signal',
           'Prüf, ob Kamera und Blitz',
@@ -522,6 +526,7 @@ void main() {
 
       final reasons = {
         PpgQualityReason.frameGap: 'Die Messung wurde unterbrochen',
+        PpgQualityReason.noFinger: 'Es wurde kein Finger erkannt',
         PpgQualityReason.flatSignal: 'Das Signal blieb gleich',
         PpgQualityReason.tooManyDisturbances: 'Das Signal war zu unruhig',
         PpgQualityReason.insufficientData: 'Es kamen zu wenige Daten zusammen',
