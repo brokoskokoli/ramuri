@@ -152,6 +152,8 @@ class PlanController extends ChangeNotifier {
 
   GoalStore get _goals => (session as GoalStorage).goals;
   PlanRepository get _plans => (session as PlanStorage).plans;
+  WarningStore? get _warning =>
+      session is WarningStorage ? (session as WarningStorage).warning : null;
 
   PlanViewState _state = const PlanViewState.loading();
   PlanViewState get state => _state;
@@ -243,6 +245,7 @@ class PlanController extends ChangeNotifier {
       now: clock.now(),
       inputs: inputs,
       parameters: parameters,
+      warning: _warning,
     );
     _fresh = r.generated;
     _lastChange = r.summary;

@@ -8,6 +8,7 @@ import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
 import '../storage/deletion.dart';
 import '../summary/run_summary_body.dart';
+import '../summary/warning_entry.dart';
 import 'run_detail_page.dart';
 
 /// Detailansicht eines Laufs (FR-0041, FR-0042, FR-0211) nach `Detail.dc.html`:
@@ -104,6 +105,11 @@ class _RunDetailScreenState extends State<RunDetailScreen> {
             session: session,
             runId: runId,
             subjective: SubjectiveService(session: session, clock: clock),
+            onWarningYes: warningEntry(
+              session: session,
+              clock: clock,
+              runId: runId,
+            ),
             exportBusy: _exportBusy,
           ),
         ),

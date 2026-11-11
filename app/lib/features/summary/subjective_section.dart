@@ -46,11 +46,16 @@ class SubjectiveSection extends StatefulWidget {
     required this.service,
     required this.runId,
     this.showSrpe = false,
+    this.onWarningYes,
   });
 
   final SubjectiveService service;
   final int runId;
   final bool showSrpe;
+
+  /// Antwort „ja“ auf die Warnfrage: meldet das Warnsignal (FR-0203, WP23);
+  /// wird nach dem Speichern der Antwort gerufen. Ohne Wert nur speichern.
+  final Future<void> Function()? onWarningYes;
 
   @override
   State<SubjectiveSection> createState() => _SubjectiveSectionState();
@@ -246,7 +251,22 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
 
   void _pickWarning(WarningAnswer a) {
     setState(() => _warning = _warning == a ? null : a);
-    unawaited(_save({_Field.warning}));
+    final saved = _save({_Field.warning});
+    final report = widget.onWarningYes;
+    if (_warning == WarningAnswer.yes && report != null) {
+      unawaited(
+        saved.then((_) async {
+          try {
+            await report();
+          } on Object {
+            // Weder Inhalte noch Ausnahmetext weitergeben.
+            if (mounted) setState(() => _failed = true);
+          }
+        }),
+      );
+    } else {
+      unawaited(saved);
+    }
   }
 
   void _toggleComplaints() {
