@@ -65,9 +65,11 @@ void main() {
       mit.every((r) => r.rrIntervals.length == 1 && r.rrIntervals[0] > 400),
       isTrue,
     );
+    // Timer-Werte ausschließen: ohne sendRr kommt der Wert nur vom Rohpaket.
+    sensor.sendRr = false;
     sensor.sendRaw('fake-gurt-1', [0x10, 60, 0x00, 0x04]);
     await Future<void>.delayed(Duration.zero);
-    expect(ev.whereType<HeartRateReading>().last.rrIntervals.length, 1);
+    expect(ev.whereType<HeartRateReading>().last.rrIntervals, [1024]);
     await sub.cancel();
   });
 }

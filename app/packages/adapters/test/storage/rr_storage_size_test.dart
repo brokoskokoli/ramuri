@@ -86,6 +86,10 @@ void main() {
     expect(rrOnly, greaterThan(empty));
     // Untergrenze: mindestens die Nutzdaten (2 Byte je Wert).
     expect(rrOnly - empty, greaterThan(packets * perPacket * 2));
+    // Obergrenze (Ziel FR-0213: deutlich unter 1 MB): Gemessen ca. 446 KB
+    // (eine Zeile je Paket samt Index, etwa das Zehnfache der Nutzdaten);
+    // 700 KB lässt Raum für SQLite-Seitenüberhang und fängt eine Verdopplung ab.
+    expect(rrOnly - empty, lessThan(700 * 1024));
     expect(both, greaterThan(hrOnly));
   }, timeout: const Timeout(Duration(minutes: 3)));
 }

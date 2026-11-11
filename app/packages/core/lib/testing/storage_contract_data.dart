@@ -34,6 +34,10 @@ final rawContractCases = <StorageContractCase>[
     _rawRrRules,
   ),
   const StorageContractCase(
+    'Rohdaten: Löschen entfernt die RR-Pakete des Laufs, Alles löschen alle',
+    _rawRrDelete,
+  ),
+  const StorageContractCase(
     'Rohdaten: fehlendes Tempo bleibt null, nie 0 (K12)',
     _rawSpeedNullNotZero,
   ),
@@ -529,6 +533,34 @@ Future<void> _rawRr(StorageContractHarness h) async {
     'gleiche Zeit: nach Id',
   );
   expectEq({...d.rrPackets.map((p) => p.id)}.length, 3, 'Ids verschieden');
+  await s.close();
+}
+
+Future<void> _rawRrDelete(StorageContractHarness h) async {
+  final s = await h.open();
+  final a = (await s.runs.create(startedAt: at(0))).id;
+  final b = (await s.runs.create(startedAt: at(0))).id;
+  for (final r in [a, b]) {
+    await s.rawData.append(
+      r,
+      RawBatch(
+        rrPackets: [
+          RrPacket(time: at(1), source: 's', intervals: [1024, 900]),
+        ],
+      ),
+    );
+  }
+  await s.deleteRun(a);
+  expectEq((await s.rawData.read(a)).rrPackets.length, 0, 'RR des Laufs weg');
+  expectEq(
+    (await s.rawData.read(b)).rrPackets.length,
+    1,
+    'RR des anderen Laufs bleibt',
+  );
+  await s.deleteAll();
+  final c = (await s.runs.create(startedAt: at(0))).id;
+  expectEq((await s.rawData.read(c)).rrPackets.length, 0, 'nach Alles löschen');
+  expectEq((await s.rawData.read(b)).rrPackets.length, 0, 'RR von b weg');
   await s.close();
 }
 
