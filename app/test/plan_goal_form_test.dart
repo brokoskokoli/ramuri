@@ -406,6 +406,67 @@ void main() {
     );
   });
 
+  testWidgets('Nach dem Referenzdialog bleibt die Tastatur zu (kein Fokus '
+      'zurück ins zuletzt bearbeitete Feld)', (tester) async {
+    final (session, clock) = await _empty();
+    final c = _Scripted(session, clock, PlanActionResult.done);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.text(de.planFormTypeTime));
+    await _tap(tester, find.byKey(const Key('plan_form_minutes')));
+    await tester.enterText(find.byKey(const Key('plan_form_minutes')), '30');
+    await tester.pumpAndSettle();
+    final minutes = find.descendant(
+      of: find.byKey(const Key('plan_form_minutes')),
+      matching: find.byType(EditableText),
+    );
+    expect(tester.widget<EditableText>(minutes).focusNode.hasFocus, isTrue);
+    await _tap(tester, find.byKey(const Key('plan_form_reference_add')));
+    await tester.enterText(
+      find.byKey(const Key('prediction_form_minutes')),
+      '50',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('prediction_form_save')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('prediction_form')), findsNothing);
+    expect(tester.widget<EditableText>(minutes).focusNode.hasFocus, isFalse);
+    expect(tester.testTextInput.isVisible, isFalse);
+    final refs = await (session as PredictionStorage).prediction.references();
+    expect(refs, hasLength(1));
+  });
+
+  testWidgets('Nach dem Hinweisdialog (Geh-Lauf) bleibt die Tastatur zu', (
+    tester,
+  ) async {
+    final (session, clock) = await _empty();
+    final c = _controller(session, clock);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await _tap(tester, find.byKey(const Key('plan_form_day_4')));
+    await _tap(tester, find.byKey(const Key('plan_form_day_6')));
+    await _tap(tester, find.text(de.planFormNo));
+    await _tap(tester, find.byKey(const Key('plan_form_max_session')));
+    await tester.enterText(
+      find.byKey(const Key('plan_form_max_session')),
+      '45',
+    );
+    await tester.pumpAndSettle();
+    final field = find.descendant(
+      of: find.byKey(const Key('plan_form_max_session')),
+      matching: find.byType(EditableText),
+    );
+    expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
+    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    expect(find.byKey(const Key('plan_form_care')), findsOneWidget);
+    await _tap(tester, find.byKey(const Key('plan_form_care_cancel')));
+    expect(tester.widget<EditableText>(field).focusNode.hasFocus, isFalse);
+    expect(tester.testTextInput.isVisible, isFalse);
+  });
+
   testWidgets('Zieldatum vor heute wird mit heute geprüft, nicht mit dem '
       'Anlegetag', (tester) async {
     // Angelegt am 1.11. mit Zieldatum 5.11.; heute ist der 11.11.

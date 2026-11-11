@@ -328,7 +328,13 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     }
   }
 
+  /// Löst den Fokus vor einem Dialog. Sonst gibt der Navigator beim Schließen
+  /// den Fokus an das zuletzt bearbeitete Feld zurück, und die Tastatur geht
+  /// auf (E2E API 36).
+  void _releaseFocus() => FocusManager.instance.primaryFocus?.unfocus();
+
   Future<bool> _confirmCare(AppLocalizations l) async {
+    _releaseFocus();
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -359,9 +365,7 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     final initial = current == null || calendarDay(current).isBefore(t)
         ? first
         : DateTime(current.year, current.month, current.day);
-    // Ohne das gibt der Navigator beim Schließen des Dialogs den Fokus an das
-    // zuletzt bearbeitete Feld zurück, und die Tastatur geht auf (E2E API 36).
-    FocusManager.instance.primaryFocus?.unfocus();
+    _releaseFocus();
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -386,6 +390,7 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
 
   Future<void> _addReference() async {
     final l = AppLocalizations.of(context);
+    _releaseFocus();
     final reference = await showReferenceForm(
       context,
       now: widget.clock.now(),
