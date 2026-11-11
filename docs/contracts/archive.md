@@ -90,7 +90,7 @@ Abweichungen sind Fehler: fehlender oder doppelter Abschnitt, falsche Reihenfolg
 - **Kennungen bleiben erhalten:** Alle `id`-Spalten und Verweise (`run_id`, `computed_value_id`, `raw_id`) tragen die Werte der Quelldatenbank. Der Leser stellt die Zeilen unter diesen Kennungen wieder her (die Verweise in `preprocessed_samples.raw_id` hängen daran) und lässt die Datenbank Fremdschlüssel, CHECKs und Trigger prüfen; jede Verletzung lehnt das ganze Archiv ab.
 - **Zeilenreihenfolge:** innerhalb eines Abschnitts aufsteigend nach dem Primärschlüssel (`id`, bei `settings` nach `key`, bei `run_feedback` nach `run_id`). Der Leser lehnt nicht aufsteigende oder doppelte `id`s ab (Abschnitt 4.5); die Reihenfolge der Schlüssel in `settings` und doppelte Schlüssel dort prüft die Datenbank (Primärschlüssel). Der Schreiber vergibt die `id`s so, dass sie in jedem Abschnitt in der Dateireihenfolge wachsen, auch `value_sections.id` mit der Reihenfolge der `computed_values`-Zeilen, zu denen sie gehören. Die Datenbank-Trigger verlangen beim Wiederherstellen: erst `runs`, dann deren Rohdaten (nur anhängen); bei Laufwerten je `computed_values`-Zeile `original`, dann dessen `value_sections`, dann `current`, jeweils in aufsteigender `id` (Trigger `value_sections_original_no_late_insert` prüft, dass die Zeile des Werts die zuletzt vergebene ist). Weil `value_sections` hinter `computed_values` steht, MUSS der Leser dafür zwischenspeichern oder die Reihenfolge herstellen; der Zwischenspeicher darf nicht der Klartext auf dem Datenträger sein (ADR-0008 Punkt 5).
 - **Unbekannte `value_key`s** (und unbekannte `method`-Namen, `unavailable_reason`-Codes, `source`-Namen) werden unverändert durchgereicht: Der Leser prüft sie nicht gegen eine Liste. Ein Code, den die App beim späteren Lesen nicht versteht, ist dort ein Datenfehler wie im bisherigen Schema.
-- **Zulässige Werte der TEXT-Spalten:** Der Leser prüft Typ und Form, nicht diese Mengen; sie prüft die Datenbank beim Wiederherstellen (CHECK in `schema.drift`, Schema 4 bis 6), und jede Verletzung lehnt das ganze Archiv ab. Maßgeblich ist `schema.drift`; zur Orientierung:
+- **Zulässige Werte der TEXT-Spalten:** Der Leser prüft Typ und Form, nicht diese Mengen; sie prüft die Datenbank beim Wiederherstellen (CHECK in `schema.drift`, Schema 4 bis 9), und jede Verletzung lehnt das ganze Archiv ab. Maßgeblich ist `schema.drift`; zur Orientierung:
 
   | Spalte | Zulässig |
   |---|---|
@@ -166,7 +166,7 @@ Nicht im Archiv: die Tabellen `storage_meta` (technisch), `consents` (Einwilligu
 ### 4.4 Beispiel (Klartext, bevor gzip angewendet wird; Werte synthetisch, gekürzt)
 
 ```
-{"type":"manifest","format":2,"schema_version":7,"created_at_us":1793000000000000}
+{"type":"manifest","format":2,"schema_version":9,"created_at_us":1793000000000000}
 {"type":"section","name":"runs"}
 {"type":"row","data":{"id":1,"state":"finished","started_at_us":1792000000000000,"ended_at_us":1792000600000000,"ended_utc_offset_s":3600}}
 {"type":"section","name":"laps"}
