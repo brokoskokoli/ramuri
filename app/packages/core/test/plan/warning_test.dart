@@ -221,6 +221,59 @@ void main() {
       expect(after[other.day]!.kind, other.kind);
     });
 
+    test('Aufheben mit gemessenen Eingaben: die nächste wöchentliche Prüfung '
+        'erzeugt keine zusätzliche Fassung (Befund 4)', () async {
+      // Gemessene Werte von heute (langsames lockeres Tempo, 3 Läufe).
+      PlanInputs measuredFor(PlanInputs stored, DateTime today) => PlanInputs(
+        anchor: stored.anchor,
+        startWeeklyMinutes: stored.startWeeklyMinutes,
+        today: today,
+        easyPaceSecondsPerKm: 600,
+        easyRunCount: 3,
+      );
+      Future<(bool, int)> run({required bool measured}) async {
+        final e = await _Env.withFixed();
+        PlanInputs? lastMeasured;
+        final service = WarningService(
+          plans: e.plans,
+          settings: e.session.settings,
+          warning: e.warning,
+          measuredInputs: measured
+              ? (goal, today) async => lastMeasured = measuredFor(
+                  (await e.plans.history()).last.inputs,
+                  today,
+                )
+              : null,
+        );
+        await service.report(
+          source: WarningSource.manual,
+          today: _day(3),
+          now: _now(3),
+        );
+        await service.lift(today: _day(3), now: _now(3));
+        final n = (await e.plans.history()).length;
+        final stored = (await e.plans.history()).last.inputs;
+        final weekly = await recalculatePlan(
+          plans: e.plans,
+          settings: e.session.settings,
+          trigger: PlanTrigger.weekly,
+          today: _day(4),
+          now: _now(4),
+          inputs: refreshMeasuredInputs(
+            stored,
+            lastMeasured ?? measuredFor(stored, _day(4)),
+          ),
+          warning: e.warning,
+        );
+        return (weekly.wasWritten, n);
+      }
+
+      // Ohne gemessene Eingaben ist der Plan veraltet: Kontrolle, dass der
+      // Test die Wirkung sieht.
+      expect((await run(measured: false)).$1, isTrue);
+      expect((await run(measured: true)).$1, isFalse);
+    });
+
     test('Neuberechnung unter Warnsignal (manual, weekly, run, '
         'goalChange): bleibt Ruhe, nach Aufheben wie ohne Warnsignal', () async {
       final e = await _Env.withFixed();

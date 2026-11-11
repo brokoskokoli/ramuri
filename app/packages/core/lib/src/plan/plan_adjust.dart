@@ -273,7 +273,6 @@ PauseRestart planPauseRestart({
     final fresh = PlanInputs.forNewGoal(goal, t, parameters: p);
     var start = fresh.startWeeklyMinutes;
     if (start > week.minutes!) start = week.minutes!;
-    if (start > setup.capMinutes) start = setup.capMinutes;
     if (start < 1) start = 1;
     return PauseRestart(
       PauseRestartKind.newStart,
