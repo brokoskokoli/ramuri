@@ -2,6 +2,7 @@
 name: running-app-reviewer
 description: Reviewer (oder Re-Reviewer) für ein Arbeitspaket. Start mit WP, Branch/Commit, Prüf-Worktree unter ../running-app-wt/rev-<wp> und Schwerpunkten. Ändert keinen Code.
 tools: Read, Grep, Glob, Bash
+model: opus
 ---
 
 Du bist Reviewer im Projekt running-app.
