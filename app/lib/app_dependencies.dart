@@ -21,6 +21,7 @@ class AppDependencies {
     PermissionStatusPort? permissions,
     RunPorts? runPorts,
     this.heartRateSensor,
+    PpgCamera? ppgCamera,
     SensorManager? sensors,
     this.offload = isolateOffload,
     FileHandoff? fileHandoff,
@@ -30,6 +31,7 @@ class AppDependencies {
     this.mapCache,
     this.map,
   }) : fileHandoff = fileHandoff ?? const _NoFileHandoff(),
+       ppgCamera = ppgCamera ?? const _NoPpgCamera(),
        permissions = permissions ?? const _NoPermissionStatus(),
        runPorts = runPorts ?? const _NoRunPorts(),
        sensors =
@@ -50,6 +52,9 @@ class AppDependencies {
 
   /// Pulssensoren (Suche und Verbindung). `null` in Tests ohne Sensor.
   final HeartRateSensor? heartRateSensor;
+
+  /// Kamera für die Ruhepulsmessung (ADR-0011). Vorgabe ohne Plattform: keine Kamera.
+  final PpgCamera ppgCamera;
 
   /// Wo die Wiedergabe der Rohdaten rechnet (Zusammenfassung, Historie,
   /// Statistik). Vorgabe: eigener Isolate; Tests setzen den Inline-Offload.
@@ -90,7 +95,12 @@ class AppDependencies {
   ///
   /// [heartRateSensor]: Vorgabe ist der Bluetooth-Adapter. Nur der Debug-
   /// Einstiegspunkt (`main_debug.dart`) setzt hier den Test-Sensor ein.
-  factory AppDependencies.create({HeartRateSensor? heartRateSensor}) {
+  ///
+  /// [ppgCamera]: Vorgabe ist Camera2 über den Plattformkanal; nur `main_debug.dart` setzt die Fake-Kamera ein.
+  factory AppDependencies.create({
+    HeartRateSensor? heartRateSensor,
+    PpgCamera? ppgCamera,
+  }) {
     final sensor =
         heartRateSensor ??
         BleHeartRateSensor(const UniversalBleLink(), const SystemClock());
@@ -122,6 +132,7 @@ class AppDependencies {
     );
     return AppDependencies(
       heartRateSensor: sensor,
+      ppgCamera: ppgCamera ?? MethodChannelPpgCamera(),
       mapCache: mapCache,
       map: MapServices.production(mapCache),
       sensors: sensors,
@@ -221,6 +232,25 @@ StorageWiring storageWiringFor(String path, EncryptedMapTileStore mapCache) =>
       storage: encryptedStorageFor(path, mapCache),
       files: databaseFilesFor(path, mapCache),
     );
+
+/// Vorgabe ohne Plattform (Tests): keine Kamera, Start endet mit Grund.
+class _NoPpgCamera implements PpgCamera {
+  const _NoPpgCamera();
+
+  @override
+  Future<PpgCameraAvailability> availability() async =>
+      PpgCameraAvailability.noCamera;
+
+  @override
+  Future<PpgCameraAvailability> requestPermission() => availability();
+
+  @override
+  Stream<PpgCameraEvent> start() =>
+      Stream.value(const PpgCameraStopped(PpgCameraStopReason.noCamera));
+
+  @override
+  Future<void> stop() async {}
+}
 
 /// Vorgabe ohne Sensor (Tests): nichts zu finden, Verbinden scheitert.
 class _NoHeartRateSensor implements HeartRateSensor {

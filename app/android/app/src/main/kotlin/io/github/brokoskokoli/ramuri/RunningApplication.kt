@@ -42,6 +42,8 @@ class RunningApplication : Application() {
         RecordingServiceState.register(messenger, this)
         // FR-0202: Schrittsensor des Telefons, ohne Activity erreichbar.
         StepSensor.register(messenger, this)
+        // ADR-0011: Kamera für das Kamera-PPG; das Recht fragt MainActivity erst beim Messbeginn.
+        PpgCamera.register(messenger, this)
     }
 
     companion object {

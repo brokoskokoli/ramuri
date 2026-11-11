@@ -25,6 +25,8 @@ class MainActivity : FlutterActivity() {
         pendingNotifications = null
         pendingActivity?.error("detached", null, null)
         pendingActivity = null
+        pendingCamera?.error("detached", null, null)
+        pendingCamera = null
         fileHandoff?.detach()
         fileHandoff = null
         super.cleanUpFlutterEngine(flutterEngine)
@@ -36,6 +38,12 @@ class MainActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         fileHandoff?.onResume()
+    }
+
+    /** ADR-0011 Punkt 6: Nicht mehr sichtbar (Hintergrund, Bildschirm aus): die Kamera-Messung bricht ab. */
+    override fun onStop() {
+        PpgCamera.onAppBackground()
+        super.onStop()
     }
 
     override fun onPause() {
@@ -77,6 +85,8 @@ class MainActivity : FlutterActivity() {
                     "requestNotifications" -> requestNotifications(result)
                     // FR-0202: eigene Berechtigung, fragt nie, wenn es keinen Sensor gibt.
                     "requestActivityRecognition" -> requestActivityRecognition(result)
+                    // ADR-0011 Punkt 5: erst beim Start der Kamera-Messung; Antwort wie PpgCamera.availability.
+                    "requestCamera" -> requestCamera(result)
                     "gpsEnabled" -> result.success(
                         (getSystemService(LOCATION_SERVICE) as LocationManager)
                             .isProviderEnabled(LocationManager.GPS_PROVIDER),
@@ -97,6 +107,21 @@ class MainActivity : FlutterActivity() {
     private var pendingLocation: MethodChannel.Result? = null
     private var pendingNotifications: MethodChannel.Result? = null
     private var pendingActivity: MethodChannel.Result? = null
+    private var pendingCamera: MethodChannel.Result? = null
+
+    private fun requestCamera(result: MethodChannel.Result) {
+        val state = PpgCamera.availability(this)
+        if (state != "permission_denied") {
+            result.success(state)
+            return
+        }
+        if (pendingCamera != null) {
+            result.error("busy", null, null)
+            return
+        }
+        pendingCamera = result
+        requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_REQUEST)
+    }
 
     private fun requestActivityRecognition(result: MethodChannel.Result) {
         val state = StepSensor.availability(this)
@@ -163,6 +188,10 @@ class MainActivity : FlutterActivity() {
             pendingActivity?.success(StepSensor.availability(this))
             pendingActivity = null
         }
+        if (requestCode == CAMERA_REQUEST) {
+            pendingCamera?.success(PpgCamera.availability(this))
+            pendingCamera = null
+        }
         if (requestCode == NOTIFICATION_REQUEST) {
             pendingNotifications?.success(if (notificationsGranted()) "granted" else "denied")
             pendingNotifications = null
@@ -193,5 +222,6 @@ class MainActivity : FlutterActivity() {
         const val LOCATION_REQUEST = 6001
         const val NOTIFICATION_REQUEST = 6002
         const val ACTIVITY_REQUEST = 6003
+        const val CAMERA_REQUEST = 6004
     }
 }
