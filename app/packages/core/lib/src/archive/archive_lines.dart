@@ -128,10 +128,11 @@ Map<String, Object?> encodeArchiveRow(
         ArchiveType.real => v is num && v.isFinite,
         ArchiveType.text => v is String && isValidArchiveText(v),
         ArchiveType.boolean => v is int && (v == 0 || v == 1),
+        ArchiveType.blob => v is Uint8List,
       };
       if (!ok) throw bad;
     }
-    out[c.name] = v;
+    out[c.name] = v is Uint8List ? encodeArchiveBlob(v) : v;
   }
   return out;
 }

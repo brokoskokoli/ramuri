@@ -77,6 +77,10 @@ SECTIONS_S7 = SECTIONS_S6 + ["plan_units"]
 # (Vertrag 4.3); Archive mit Schema 7 lesen sich mit fixed = "none".
 SECTIONS_S8 = SECTIONS_S7
 
+# Schema 9 (WP26, weiter Format 2): Abschnitt 25 `raw_rr_packets` am Ende; `rr` ist ein BLOB
+# (uint16 little-endian, 1/1024 s), in der Datei als kleingeschriebener Hex-Text.
+SECTIONS_S9 = SECTIONS_S8 + ["raw_rr_packets"]
+
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
 V2_TODAY = "2026-11-20"
@@ -243,8 +247,28 @@ def archive_rows_s8():
     return r
 
 
+def archive_rows_s9():
+    """Schema 9: die Zeilen von Schema 8 und RR-Pakete (synthetisch) mit den Randwerten 0 und
+    65535, zwei Quellen (source) und einem Paket des zweiten Laufs. `rr` ist hex(uint16 LE)."""
+    import struct
+    t0 = 1792000000000000
+    r = archive_rows_s8()
+
+    def rr(*values):
+        return struct.pack("<%dH" % len(values), *values).hex()
+
+    r["raw_rr_packets"] = [
+        dict(id=1, run_id=1, time_us=t0 + 1_000_000, source="ble", rr=rr(1024, 0, 65535, 512)),
+        dict(id=2, run_id=1, time_us=t0 + 2_000_000, source="ble2", rr=rr(65535)),
+        dict(id=3, run_id=7, time_us=t0 + 86_400_000_000 + 1_000_000, source="ble", rr=rr(0, 1, 255, 256)),
+    ]
+    return r
+
+
 def archive_plaintext(version=1, future_training=False, schema=None):
-    if schema == 8:
+    if schema == 9:
+        r, sections = archive_rows_s9(), SECTIONS_S9
+    elif schema == 8:
         r, sections = archive_rows_s8(), SECTIONS_S8
     elif schema == 7:
         r, sections = archive_rows_s7(), SECTIONS_S7
@@ -290,6 +314,7 @@ def main():
     jl6, gz6 = archive_plaintext(2, schema=6)
     jl7, gz7 = archive_plaintext(2, schema=7)
     jl8, gz8 = archive_plaintext(2, schema=8)
+    jl9, gz9 = archive_plaintext(2, schema=9)
     _, gz2_future = archive_plaintext(2, future_training=True)
     # (name, passwort, salz, klartext)
     pw_uni = "Pässwörd-ünïcode-€-123"
@@ -306,13 +331,14 @@ def main():
         ("archive_v2_s6", "archiv-test-passwort-s6+", bytes(range(232, 248)), gz6),
         ("archive_v2_s7", "archiv-test-passwort-s7+", bytes(range(248, 256)) + bytes(range(8)), gz7),
         ("archive_v2_s8", "archiv-test-passwort-s8+", bytes(range(8, 24)), gz8),
+        ("archive_v2_s9", "archiv-test-passwort-s9+", bytes(range(24, 40)), gz9),
     ]
     # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
     v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8") else 1
+        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9") else 1
         h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
@@ -347,6 +373,12 @@ def main():
             manifest[-1]["jsonl_file"] = "archive_v2_s8.jsonl"
             manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl8).hexdigest()
             manifest[-1]["row_counts"] = {s: len(archive_rows_s8()[s]) for s in SECTIONS_S8}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s9":
+            open(os.path.join(out, "archive_v2_s9.jsonl"), "wb").write(jl9)
+            manifest[-1]["jsonl_file"] = "archive_v2_s9.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl9).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s9()[s]) for s in SECTIONS_S9}
             manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)
