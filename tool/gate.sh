@@ -318,7 +318,7 @@ if [ -f app/pubspec.yaml ]; then
     done
     step "drift schema" drift_aktuell
     step "kotlin test" kotlin_tests
-    step "release: INTERNET, CAMERA, uses-feature, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, keine Debug-Quellen" release_rechte
+    step "release: INTERNET, CAMERA, VIBRATE, uses-feature, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, keine Debug-Quellen" release_rechte
     step "lock unverändert" lock_unveraendert
   fi
 fi

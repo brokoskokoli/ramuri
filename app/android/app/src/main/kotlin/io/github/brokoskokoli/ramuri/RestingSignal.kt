@@ -3,6 +3,7 @@ package io.github.brokoskokoli.ramuri
 import android.content.Context
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.app.NotificationManager
 import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
@@ -28,6 +29,16 @@ object RestingSignal {
     /** Wartezeit, bis Ton und Vibration vorbei sind (ms): Muster 0-250-150-250. */
     private const val TONE_MS = 400
     private val PATTERN = longArrayOf(0, 250, 150, 250)
+
+    /**
+     * Ton an heißt: es kommt immer ein spürbares Signal. Ist der Klingelmodus nicht normal (stumm, Vibration) oder
+     * „Nicht stören“ aktiv (Filter weder ALL noch UNKNOWN), kommt zum Ton zusätzlich die Vibration. Beides ohne
+     * Recht lesbar (AudioManager.getRingerMode, NotificationManager.getCurrentInterruptionFilter).
+     */
+    fun vibrateWithTone(ringerMode: Int, interruptionFilter: Int): Boolean =
+        ringerMode != AudioManager.RINGER_MODE_NORMAL ||
+            (interruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL &&
+                interruptionFilter != NotificationManager.INTERRUPTION_FILTER_UNKNOWN)
 
     /** true, wenn [method] bekannt ist und ausgeführt wurde. */
     fun dispatch(method: String, out: RestingSignalOutput): Boolean = when (method) {
@@ -55,6 +66,13 @@ object RestingSignal {
             gen.startTone(ToneGenerator.TONE_PROP_BEEP2, TONE_MS)
             // Der Generator hält Systemressourcen: nach dem Ton freigeben.
             main.postDelayed({ gen.release() }, TONE_MS + 200L)
+            val audio = context.getSystemService(AudioManager::class.java)
+            val nm = context.getSystemService(NotificationManager::class.java)
+            if (vibrateWithTone(
+                    audio?.ringerMode ?: AudioManager.RINGER_MODE_NORMAL,
+                    nm?.currentInterruptionFilter ?: NotificationManager.INTERRUPTION_FILTER_UNKNOWN,
+                )
+            ) vibrate()
         }
 
         override fun vibrate() {
