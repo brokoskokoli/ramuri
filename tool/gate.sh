@@ -272,6 +272,8 @@ release_rechte() {
   # vorhanden und required=false, sonst wäre die App ohne Kamera nicht installierbar. Kommt ein Feature mehrfach vor
   # (Manifest-Merge), zählt es als Pflicht, sobald ein Eintrag required=true hat.
   echo "$perms" | grep -q 'android.permission.CAMERA' || { echo "Release-APK fordert android.permission.CAMERA nicht (WP27)"; return 1; }
+  # WP27: VIBRATE (normales Recht) für das Signal am Ende der Ruhephase; fehlt es, bleibt das Signal stumm.
+  echo "$perms" | grep -q 'android.permission.VIBRATE' || { echo "Release-APK fordert android.permission.VIBRATE nicht (WP27)"; return 1; }
   for feature in android.hardware.camera android.hardware.camera.flash; do
     req=$(echo "$tree" | awk -v want="$feature" '
       function fin() { if (name == want) { found = 1; if (req != "0x0") anytrue = 1 } name = ""; req = "true" }

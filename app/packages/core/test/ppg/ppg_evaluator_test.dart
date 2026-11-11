@@ -593,6 +593,29 @@ void main() {
       expect(evaluatePpg(grid({40, 41})).reasons, [PpgQualityReason.frameGap]);
     });
 
+    test('doppelte und rückläufige Zeitstempel erzeugen keine Lücke', () {
+      // Wie die Auswertung zählt nur, was streng steigt: ein Bild bei 19,6 s nach 20,5 s darf den
+      // Abstand zum nächsten Bild (21,0 s) nicht auf 1,4 s dehnen; ein doppeltes Bild bei 30 s ändert nichts.
+      PpgFrame at(double t) => PpgFrame(
+        t: t,
+        r: 100,
+        g: 50,
+        r16: List.filled(16, 100.0),
+        g16: List.filled(16, 50.0),
+      );
+      final frames = <PpgFrame>[
+        for (var i = 6; i <= 133; i++) ...[
+          at(i * 0.5),
+          if (i == 41) at(19.6),
+          if (i == 60) at(30.0),
+        ],
+      ];
+      expect(
+        evaluatePpg(frames).reasons,
+        isNot(contains(PpgQualityReason.frameGap)),
+      );
+    });
+
     test('Grenze knapp unter und über 1 s (Zeiten verschoben)', () {
       // Bilder nach t=30 um so viel verschoben, dass der Abstand um 30 s herum g beträgt
       List<PpgFrame> withGap(double g) {

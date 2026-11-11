@@ -64,24 +64,26 @@ RestingMeasureLauncher restingMeasureLauncher({
   return outcome ?? RestingMeasureOutcome.discarded;
 };
 
-/// Ton oder Vibration am Ende der Ruhephase: Flutter-Bordmittel, ohne neue
-/// Abhängigkeit. Ton an: Systemton; Ton aus: Vibration (nur wenn das Gerät
-/// Rückmeldung per Vibration zulässt).
+/// Kanal zum Signal am Ende der Ruhephase (Kotlin: RestingSignal.kt).
+const String restingSignalChannelName = 'ramuri/resting_signal';
+
+/// Ton oder Vibration am Ende der Ruhephase über einen kleinen Kanal (Android:
+/// Benachrichtigungston bzw. Vibrator mit einmaligem Muster). Flutters
+/// SystemSound ist auf Android wirkungslos und die Haptik hängt an der
+/// Berührungsfeedback-Einstellung. Ton an: Ton; Ton aus: Vibration.
 class SystemRestingSignal implements RestingMeasureSignal {
-  SystemRestingSignal(this._soundOn);
+  SystemRestingSignal(this._soundOn, {MethodChannel? channel})
+    : _channel = channel ?? const MethodChannel(restingSignalChannelName);
 
   final ValueNotifier<bool> _soundOn;
+  final MethodChannel _channel;
 
   @override
   Future<void> restEnded() async {
     try {
-      if (_soundOn.value) {
-        await SystemSound.play(SystemSoundType.alert);
-      } else {
-        await HapticFeedback.vibrate();
-      }
+      await _channel.invokeMethod<void>(_soundOn.value ? 'tone' : 'vibrate');
     } catch (_) {
-      // Ohne Ton oder Vibration läuft die Messung trotzdem weiter.
+      // Ohne Ton oder Vibration (Kanal fehlt, Gerät ohne Vibrator) läuft die Messung trotzdem weiter.
     }
   }
 }

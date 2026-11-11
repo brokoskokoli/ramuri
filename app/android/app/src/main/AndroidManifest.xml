@@ -27,6 +27,8 @@
          beim Start der Messung. Kamera und Blitz sind nicht Pflicht (required=false): ohne sie bleibt
          die App installierbar und die manuelle Eingabe bleibt. Das Gate prüft beides am Release-APK. -->
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- WP27: Vibration am Ende der Ruhephase der Ruhepuls-Messung (normales Recht, ohne Abfrage). -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.flash" android:required="false"/>
     <!-- FR-0174: Erinnerungen vor geplanten Einheiten. POST_NOTIFICATIONS fragt die App erst beim

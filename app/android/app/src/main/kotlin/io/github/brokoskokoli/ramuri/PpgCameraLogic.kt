@@ -93,6 +93,49 @@ class PpgCameraThread(private val onThread: () -> Boolean, private val post: (Ru
     }
 }
 
+/**
+ * Beendet den Kamerathread erst, wenn kein openCamera mehr aussteht. Wird die Aufnahme beendet, bevor
+ * onOpened kam, läge der Callback sonst auf einem toten Handler: das Gerät bliebe bis zum Prozessende offen.
+ * [openRequested] vor openCamera; [openSettled] in onOpened, onError, onDisconnected und wenn openCamera
+ * selbst scheitert; [quitWhenIdle] beim Freigeben. Der Thread wird genau einmal beendet, von wem zuletzt kommt.
+ */
+class PpgThreadGuard(private val quit: () -> Unit) {
+    private var openPending = false
+    private var quitRequested = false
+    private var quitDone = false
+
+    @Synchronized
+    fun openRequested() {
+        openPending = true
+    }
+
+    fun openSettled() {
+        if (settle()) quit()
+    }
+
+    fun quitWhenIdle() {
+        if (request()) quit()
+    }
+
+    @Synchronized
+    private fun settle(): Boolean {
+        openPending = false
+        return mayQuit()
+    }
+
+    @Synchronized
+    private fun request(): Boolean {
+        quitRequested = true
+        return mayQuit()
+    }
+
+    private fun mayQuit(): Boolean {
+        if (!quitRequested || openPending || quitDone) return false
+        quitDone = true
+        return true
+    }
+}
+
 /** Wohin der Controller meldet (Android: EventChannel auf dem Hauptthread; Test: Liste). */
 interface PpgSink {
     fun event(map: Map<String, Any>)

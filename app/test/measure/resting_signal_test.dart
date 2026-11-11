@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,30 +12,33 @@ void main() {
 
   group('Signal am Ende der Ruhephase', () {
     final calls = <String>[];
+    const channel = MethodChannel(restingSignalChannelName);
+    Object? failure;
 
     setUp(() {
       calls.clear();
+      failure = null;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, (c) async {
-            if (c.method == 'SystemSound.play') calls.add('ton ${c.arguments}');
-            if (c.method == 'HapticFeedback.vibrate') calls.add('vibration');
+          .setMockMethodCallHandler(channel, (c) async {
+            calls.add(c.method);
+            if (failure != null) throw failure!;
             return null;
           });
     });
 
     tearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, null);
+          .setMockMethodCallHandler(channel, null);
     });
 
-    test('Ton an: Systemton, keine Vibration', () async {
+    test('Ton an: Ton über den Kanal, keine Vibration', () async {
       await SystemRestingSignal(ValueNotifier(true)).restEnded();
-      expect(calls, ['ton SystemSoundType.alert']);
+      expect(calls, ['tone']);
     });
 
-    test('Ton aus: Vibration, kein Ton', () async {
+    test('Ton aus: Vibration über den Kanal, kein Ton', () async {
       await SystemRestingSignal(ValueNotifier(false)).restEnded();
-      expect(calls, ['vibration']);
+      expect(calls, ['vibrate']);
     });
 
     test('liest den Schalter bei jedem Signal neu', () async {
@@ -42,7 +47,28 @@ void main() {
       await s.restEnded();
       on.value = false;
       await s.restEnded();
-      expect(calls, ['ton SystemSoundType.alert', 'vibration']);
+      expect(calls, ['tone', 'vibrate']);
+    });
+
+    test('Fehler des Kanals werden verschluckt', () async {
+      failure = PlatformException(code: 'signal_failed');
+      await SystemRestingSignal(ValueNotifier(true)).restEnded();
+      expect(calls, ['tone']);
+    });
+
+    test('fehlender Kanal (kein Handler) wird verschluckt', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+      await SystemRestingSignal(ValueNotifier(false)).restEnded();
+    });
+
+    test('Kanalname und Methoden stimmen mit RestingSignal.kt überein', () {
+      final kt = File(
+        'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri/RestingSignal.kt',
+      ).readAsStringSync();
+      expect(kt, contains('"$restingSignalChannelName"'));
+      expect(kt, contains('"tone" ->'));
+      expect(kt, contains('"vibrate" ->'));
     });
   });
 

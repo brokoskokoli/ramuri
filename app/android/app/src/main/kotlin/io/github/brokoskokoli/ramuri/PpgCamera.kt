@@ -120,6 +120,7 @@ object PpgCamera {
             onThread = { Looper.myLooper() == thread.looper },
             post = { handler.post(it) },
         )
+        private val threadGuard = PpgThreadGuard { thread.quitSafely() }
         private var device: CameraDevice? = null
         private var session: CameraCaptureSession? = null
         private var reader: ImageReader? = null
@@ -146,7 +147,13 @@ object PpgCamera {
                 val r = ImageReader.newInstance(w, h, ImageFormat.YUV_420_888, 2)
                 reader = r
                 r.setOnImageAvailableListener({ onImage(it) }, handler)
-                manager.openCamera(id, deviceCallback, handler)
+                threadGuard.openRequested()
+                try {
+                    manager.openCamera(id, deviceCallback, handler)
+                } catch (e: Throwable) {
+                    threadGuard.openSettled()
+                    throw e
+                }
             } catch (e: Throwable) {
                 controller.abort(PpgCameraLogic.fromException(e))
             }
@@ -156,9 +163,16 @@ object PpgCamera {
             override fun onOpened(d: CameraDevice) {
                 device = d
                 if (controller.isFinished) {
-                    d.close()
+                    // Beendet, bevor das Gerät aufging: jetzt schließen (der Torch war nie an), dann erst den Thread beenden.
+                    try {
+                        d.close()
+                    } finally {
+                        device = null
+                        threadGuard.openSettled()
+                    }
                     return
                 }
+                threadGuard.openSettled()
                 try {
                     val surface = reader!!.surface
                     d.createCaptureSession(
@@ -174,10 +188,25 @@ object PpgCamera {
                 }
             }
 
-            override fun onDisconnected(d: CameraDevice) = controller.abort("disconnected")
+            override fun onDisconnected(d: CameraDevice) {
+                settleAndClose(d)
+                controller.abort("disconnected")
+            }
 
-            override fun onError(d: CameraDevice, error: Int) =
+            override fun onError(d: CameraDevice, error: Int) {
+                settleAndClose(d)
                 controller.abort(PpgCameraLogic.fromDeviceError(error))
+            }
+
+            /** Das Gerät ist unbrauchbar (auch vor onOpened): schließen, dann darf der Thread enden. */
+            private fun settleAndClose(d: CameraDevice) {
+                try {
+                    d.close()
+                } catch (_: Exception) {
+                } finally {
+                    threadGuard.openSettled()
+                }
+            }
         }
 
         private val sessionCallback = object : CameraCaptureSession.StateCallback() {
@@ -248,7 +277,7 @@ object PpgCamera {
         }
 
         // Zuletzt: Gerät und Reader schließen, dann den Thread beenden (quitSafely arbeitet die vorher
-        // gestellten Schritte noch ab).
+        // gestellten Schritte noch ab); steht openCamera noch aus, beendet ihn erst onOpened/onError.
         override fun closeDevice() = cameraThread.run {
             try {
                 device?.close()
@@ -258,7 +287,7 @@ object PpgCamera {
                     reader?.close()
                 } finally {
                     reader = null
-                    thread.quitSafely()
+                    threadGuard.quitWhenIdle()
                 }
             }
         }

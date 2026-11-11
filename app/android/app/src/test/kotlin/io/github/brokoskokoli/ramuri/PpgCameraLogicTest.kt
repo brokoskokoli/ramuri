@@ -199,4 +199,38 @@ class PpgCameraLogicTest {
         queue.forEach { it.run() }
         assertEquals(listOf("next"), log)
     }
+
+    // --- Kamerathread bei Abbruch vor onOpened ---
+
+    @Test fun threadQuitsAtOnceWhenNoOpenIsPending() {
+        var quits = 0
+        val g = PpgThreadGuard { quits++ }
+        g.quitWhenIdle()
+        assertEquals(1, quits)
+        g.quitWhenIdle()
+        g.openSettled()
+        assertEquals(1, quits)
+    }
+
+    @Test fun threadWaitsForPendingOpenThenQuitsOnce() {
+        var quits = 0
+        val g = PpgThreadGuard { quits++ }
+        g.openRequested()
+        g.quitWhenIdle()
+        assertEquals(0, quits)
+        g.openSettled()
+        assertEquals(1, quits)
+        g.openSettled()
+        assertEquals(1, quits)
+    }
+
+    @Test fun settledOpenDoesNotQuitWithoutRequest() {
+        var quits = 0
+        val g = PpgThreadGuard { quits++ }
+        g.openRequested()
+        g.openSettled()
+        assertEquals(0, quits)
+        g.quitWhenIdle()
+        assertEquals(1, quits)
+    }
 }

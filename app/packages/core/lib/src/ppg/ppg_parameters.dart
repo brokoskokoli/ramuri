@@ -136,5 +136,6 @@ class PpgWindow {
 }
 
 /// Größte erlaubte Lücke zwischen zwei Bildern in Sekunden (Maintainer 2026-11-11, WP27, PAR-Nummer
-/// folgt). Wer länger kein Bild bekommt, bricht die Messung ab; die Prüfung im Evaluator kommt später.
+/// folgt). Wer länger kein Bild bekommt, dessen Messung ist unbrauchbar: `evaluatePpg` meldet
+/// `PpgQualityReason.frameGap` (geprüft zwischen den Bildern ab `filterStart` bis `dataEnd`).
 const double ppgMaxFrameGapSeconds = 1.0;
