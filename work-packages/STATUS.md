@@ -29,6 +29,7 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP25 | Laufband und Zusatzmetriken | geplant | |
 | WP26 | RR-Intervalle speichern | gemergt (c3bedc3) | Schema 9 (`raw_rr_packets`, ein BLOB je BLE-Paket), Archivabschnitt 25; 2 h bei 180 bpm ≈ 0,44 MB (synthetisch). Offen: Feldtest mit Polar H9 (Paketlänge, Artefakte, Lücken); Archivexport/-import nicht auf dem Gerät geprüft; nur RR der aktiven Pulsquelle (K55); Laufzeit nach Wiederanlauf zählt tote Prozesszeit mit (Beobachtung, nicht WP26); Vektor-Erzeuger braucht venv mit `cryptography`; E2E-Vorlage `run.sh` räumt `tail -F` nicht auf; Exportvorschlag RR für M3 in `handoff/hinweise/wp26/wp26-supervisor.md` |
 | WP27 | Ruhepuls mit der Handykamera | in Arbeit | Erst Screens (Claude Design), dann Umsetzung; Messprotokoll aus R009 in FR-0214 übernommen |
+| WP29 | Werkzeuge: Gate in Stufen, Locks, Testhilfen, Mutationsskript, Plan-Dateien teilen | in Arbeit | Aus der Prozessanalyse 2026-11-11; vor WP23 |
 
 ## M1 im Detail
 

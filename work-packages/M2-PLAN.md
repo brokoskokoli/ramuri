@@ -11,6 +11,7 @@ Adaptiver Trainingscoach. 10 Pakete, höchstens 2 Sitzungen gleichzeitig. Stand 
 | 2b | [WP26](WP26-rr-intervalle-speichern.md) | M1; nach WP20, vor WP24 (nachgereicht am 2026-11-09, DEC-0072) |
 | 2c | [WP27](WP27-ruhepuls-kamera.md) | M1; Screens vor der Umsetzung; Protokoll aus R009 (nachgereicht am 2026-11-09, DEC-0073) |
 | 3 | [WP22](WP22-plan-seite-ziele-kalender.md) ‖ [WP25](WP25-laufband-zusatzmetriken.md) | WP22: WP21. WP25: M1 |
+| 3b | [WP29](WP29-werkzeuge-gate-testhilfen.md) | WP26; vor WP23 (Prozessanalyse 2026-11-11) |
 | 4 | [WP23](WP23-plananpassung-warnsignal-erklaerungen.md) ‖ [WP24](WP24-gefuehrte-einheit-ansagen.md) | WP23: WP19, WP22. WP24: WP22, für den Laufband-Fall WP25 |
 | 5 | Abschlussprüfung M2 | alle |
 
@@ -20,6 +21,7 @@ flowchart LR
   WP20 --> WP21
   WP21 --> WP22
   WP19 & WP22 --> WP23
+  WP29 --> WP23
   WP22 & WP25 --> WP24
   WP26 --> WP24
   WP23 & WP24 --> ABS[Abschlussprüfung]
@@ -32,6 +34,7 @@ flowchart LR
 - **WP22 und WP25:** Navigation nur WP22; `run_flow_screen.dart` nur WP25.
 - **WP26:** `heart_rate_parser.dart`, Aufzeichnung, Schema und Archiv; Schema und Archivabschnitt nach den zuvor gemergten Paketen. WP24 baut darauf auf.
 - **WP27:** eigenes Feature `app/lib/features/measure`, Kamera-Adapter in `adapters`, Algorithmus in `core/src/ppg`; im Profil und in der Einrichtung nur je ein Einstieg. Keine gemeinsamen Dateien mit WP22 außer Texten.
+- **WP29:** `tool/gate.sh` (nur Ablauf und Optionen; WP27 ändert dort `release_rechte()`), neues `tool/emu.sh` und `tool/mutate.sh`, `app/test/helpers/`, Plan-Dateien in `features/plan`, `docs/agents/`. Nichts aus WP27.
 - **WP23 und WP24:** `home` nur WP23, `run` nur WP24; beide lesen die Einheit über dieselbe Schnittstelle aus WP21.
 
 ## Für alle Pakete

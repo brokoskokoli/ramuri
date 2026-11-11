@@ -184,6 +184,8 @@ Sendet der Pulssensor RR-Intervalle in der Heart Rate Measurement (`0x2A37`), sp
 - [ ] Die Daten sind Gesundheitsdaten (SEC-0001): verschlüsselt gespeichert, im Gesamtexport und Reimport enthalten, beim Löschen entfernt, nie in Logs.
 - [ ] Die App zeigt in Phase 2 keine aus RR-Intervallen abgeleiteten Werte an.
 
+Gespeichert werden nur die RR-Intervalle der aktiven Pulsquelle (wie der Puls, FR-0020); ein verbundener, nicht aktiver Gurt liefert keine. Bestätigt vom Maintainer am 2026-11-11 (K55).
+
 ## Abhängigkeiten
 - Geräteschnittstelle: siehe [Verträge](../contracts/README.md)
 
