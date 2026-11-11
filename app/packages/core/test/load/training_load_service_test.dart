@@ -861,6 +861,30 @@ void main() {
       },
     );
 
+    test('heute geplant und noch ohne Lauf: heute ist nicht vorbei, die '
+        'Einheit fehlt nicht', () async {
+      fs = FakeStorage();
+      w = await RecalcWorld.create(storage: fs);
+      for (var a = 5; a >= 1; a--) {
+        await addRun(
+          ago(a).add(const Duration(hours: 9)),
+          trimp: trimpValue(80),
+        );
+      }
+      // Heute ein unbewerteter Lauf (zählt als Einheit, Verlauf endet heute).
+      await addRun(today.add(const Duration(hours: 8)));
+      plan([for (var a = 5; a >= 0; a--) planned(a)]);
+      final svc = TrainingLoadService(
+        session: w.session,
+        clock: w.clock,
+        calculation: w.calc(),
+        recalculation: w.recalc(),
+      );
+      final r = await svc.load();
+      expect(r.series.days.last.day, today);
+      expect(missing(r), isFalse);
+    });
+
     test('bestätigte Pause (ja): Tage ohne Einheit sind bekannt leer, nichts '
         'fehlt', () async {
       final svc = await world();
