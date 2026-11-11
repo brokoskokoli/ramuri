@@ -14,6 +14,8 @@ import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';
 import 'package:running_app/ui/ui.dart';
 
+import 'helpers/widget_helpers.dart';
+
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 
 /// Mittwoch, 11.11.2026, mittags.
@@ -163,13 +165,6 @@ Future<StorageSession> _withPlan(TrainingGoal goal, FakeClock clock) async {
   return session;
 }
 
-Future<void> _tap(WidgetTester tester, Finder f) async {
-  await tester.ensureVisible(f);
-  await tester.pumpAndSettle();
-  await tester.tap(f);
-  await tester.pumpAndSettle();
-}
-
 Future<void> _enter(WidgetTester tester, String key, String text) async {
   final f = find.byKey(Key(key));
   await tester.ensureVisible(f);
@@ -179,7 +174,10 @@ Future<void> _enter(WidgetTester tester, String key, String text) async {
 
 /// Trägt im Datumsdialog den Tag [day] des gezeigten Monats ein.
 Future<void> _pickDay(WidgetTester tester, int day) async {
-  await _tap(tester, find.byKey(const Key('plan_form_date_pick')));
+  await tapFinderAfterSettle(
+    tester,
+    find.byKey(const Key('plan_form_date_pick')),
+  );
   await tester.tap(find.text('$day'));
   await tester.pumpAndSettle();
   await tester.tap(find.text('OK'));
@@ -213,7 +211,10 @@ void main() {
     );
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
 
     expect(find.text(de.planFormTitleNew), findsOneWidget);
     // OQ-0038: Lauftage, Minuten je Einheit und Stand aus dem Profil.
@@ -226,14 +227,17 @@ void main() {
     // Stand genannt: die Frage zu 30 min entfällt (PAR-192).
     expect(find.byKey(const Key('plan_form_can30')), findsNothing);
 
-    await _tap(tester, find.text(de.planDistance10k));
+    await tapFinderAfterSettle(tester, find.text(de.planDistance10k));
     await _pickDay(tester, 28);
     // Erst prüfen, dann speichern.
     expect(find.byKey(const Key('plan_form_save')), findsNothing);
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(find.byKey(const Key('plan_form_assessment')), findsOneWidget);
     expect(find.byKey(const Key('plan_form_assessment_basis')), findsOneWidget);
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
 
     // Zurück auf der Plan-Seite mit Meldung.
     expect(find.byKey(const Key('plan_form')), findsNothing);
@@ -259,7 +263,7 @@ void main() {
     final session = await _withPlan(_goal(), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_edit_goal')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_edit_goal')));
 
     expect(find.text(de.planFormTitleEdit), findsOneWidget);
     expect(
@@ -274,9 +278,15 @@ void main() {
     expect(find.text(de.planFormRegulatorValue('4')), findsWidgets);
     expect(tester.widget<Slider>(find.byType(Slider)).value, 4);
 
-    await _tap(tester, find.byKey(const Key('plan_form_day_1')));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_1')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
 
     final goal = (await (session as GoalStorage).goals.goal())!;
     expect(goal.runDays, {1, 2, 4, 6});
@@ -292,26 +302,32 @@ void main() {
     final (session, clock) = await _empty();
     final c = _Scripted(session, clock, PlanActionResult.done);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
     final check = find.byKey(const Key('plan_form_check'));
 
-    await _tap(tester, check);
+    await tapFinderAfterSettle(tester, check);
     expect(_error(tester), de.planFormErrorRunDays);
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
-    await _tap(tester, check);
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
+    await tapFinderAfterSettle(tester, check);
     expect(_error(tester), de.planFormErrorMaxSession);
     await _enter(tester, 'plan_form_max_session', '45');
-    await _tap(tester, check);
+    await tapFinderAfterSettle(tester, check);
     expect(_error(tester), de.planFormErrorStand);
     await _enter(tester, 'plan_form_weekly', '60');
-    await _tap(tester, find.text(de.planFormTypeTime));
-    await _tap(tester, check);
+    await tapFinderAfterSettle(tester, find.text(de.planFormTypeTime));
+    await tapFinderAfterSettle(tester, check);
     expect(_error(tester), de.planFormErrorTime);
     expect(find.byKey(const Key('plan_form_save')), findsNothing);
     expect(c.saves, 0);
 
     await _enter(tester, 'plan_form_minutes', '28');
-    await _tap(tester, check);
+    await tapFinderAfterSettle(tester, check);
     expect(find.byKey(const Key('plan_form_error')), findsNothing);
     expect(find.byKey(const Key('plan_form_save')), findsOneWidget);
   });
@@ -321,14 +337,23 @@ void main() {
     final (session, clock) = await _empty();
     final c = _Scripted(session, clock, PlanActionResult.done);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
     String? fieldError() => tester
         .widget<TextField>(find.byKey(const Key('plan_form_max_session')))
         .decoration!
         .errorText;
     expect(fieldError(), isNull);
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(fieldError(), de.planFormErrorMaxSession);
     expect(
       find.descendant(
@@ -345,12 +370,21 @@ void main() {
     final (session, clock) = await _empty();
     final c = _Scripted(session, clock, PlanActionResult.done);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.text(de.planFormTypeTime));
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(tester, find.text(de.planFormTypeTime));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
     await _enter(tester, 'plan_form_max_session', '45');
     expect(find.byKey(const Key('plan_form_time_error')), findsNothing);
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     final error = find.byKey(const Key('plan_form_time_error'));
     expect(error, findsOneWidget);
     expect(tester.widget<Text>(error).data, de.planFormErrorTime);
@@ -368,15 +402,24 @@ void main() {
     final (session, clock) = await _empty();
     final c = _Scripted(session, clock, PlanActionResult.done);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
     await _enter(tester, 'plan_form_max_session', '45');
     await _enter(tester, 'plan_form_weekly', '0');
     String? fieldError() => tester
         .widget<TextField>(find.byKey(const Key('plan_form_weekly')))
         .decoration!
         .errorText;
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(fieldError(), de.planFormErrorWeekly);
     await _enter(tester, 'plan_form_weekly', '60');
     expect(fieldError(), isNull);
@@ -387,9 +430,15 @@ void main() {
     final (session, clock) = await _empty();
     final c = _Scripted(session, clock, PlanActionResult.done);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.text(de.planFormTypeTime));
-    await _tap(tester, find.byKey(const Key('plan_form_seconds')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(tester, find.text(de.planFormTypeTime));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_seconds')),
+    );
     await tester.enterText(find.byKey(const Key('plan_form_seconds')), '0');
     await tester.pumpAndSettle();
     final seconds = find.descendant(
@@ -411,9 +460,15 @@ void main() {
     final (session, clock) = await _empty();
     final c = _Scripted(session, clock, PlanActionResult.done);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.text(de.planFormTypeTime));
-    await _tap(tester, find.byKey(const Key('plan_form_minutes')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(tester, find.text(de.planFormTypeTime));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_minutes')),
+    );
     await tester.enterText(find.byKey(const Key('plan_form_minutes')), '30');
     await tester.pumpAndSettle();
     final minutes = find.descendant(
@@ -421,7 +476,10 @@ void main() {
       matching: find.byType(EditableText),
     );
     expect(tester.widget<EditableText>(minutes).focusNode.hasFocus, isTrue);
-    await _tap(tester, find.byKey(const Key('plan_form_reference_add')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_reference_add')),
+    );
     await tester.enterText(
       find.byKey(const Key('prediction_form_minutes')),
       '50',
@@ -442,12 +500,27 @@ void main() {
     final (session, clock) = await _empty();
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_4')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_6')));
-    await _tap(tester, find.text(de.planFormNo));
-    await _tap(tester, find.byKey(const Key('plan_form_max_session')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_4')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_6')),
+    );
+    await tapFinderAfterSettle(tester, find.text(de.planFormNo));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_max_session')),
+    );
     await tester.enterText(
       find.byKey(const Key('plan_form_max_session')),
       '45',
@@ -458,11 +531,17 @@ void main() {
       matching: find.byType(EditableText),
     );
     expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
     expect(find.byKey(const Key('plan_form_care')), findsOneWidget);
-    await _tap(tester, find.byKey(const Key('plan_form_care_cancel')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_care_cancel')),
+    );
     expect(tester.widget<EditableText>(field).focusNode.hasFocus, isFalse);
     expect(tester.testTextInput.isVisible, isFalse);
   });
@@ -481,8 +560,11 @@ void main() {
     clock.set(_now);
     final c = _Scripted(session, clock, PlanActionResult.done);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_edit_goal')));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_edit_goal')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(_error(tester), de.planFormErrorDatePast);
     expect(c.saves, 0);
   });
@@ -492,23 +574,44 @@ void main() {
     final (session, clock) = await _empty();
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_4')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_6')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_4')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_6')),
+    );
     await _enter(tester, 'plan_form_max_session', '45');
-    await _tap(tester, find.text(de.planFormNo));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(tester, find.text(de.planFormNo));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
 
     expect(find.byKey(const Key('plan_form_care')), findsOneWidget);
     expect(find.text(de.planHintWalkRunCare), findsOneWidget);
-    await _tap(tester, find.byKey(const Key('plan_form_care_cancel')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_care_cancel')),
+    );
     expect(await (session as GoalStorage).goals.goal(), isNull);
     expect(find.byKey(const Key('plan_form')), findsOneWidget);
 
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
-    await _tap(tester, find.byKey(const Key('plan_form_care_confirm')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_care_confirm')),
+    );
     final goal = (await (session as GoalStorage).goals.goal())!;
     expect(goal.canRun30, ContinuousRun30.no);
     final units = await (session as PlanStorage).plans.unitsBetween(
@@ -522,13 +625,25 @@ void main() {
     final (session, clock) = await _empty();
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_4')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_4')),
+    );
     await _enter(tester, 'plan_form_max_session', '45');
-    await _tap(tester, find.text(de.planFormYes));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(tester, find.text(de.planFormYes));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
     expect(find.byKey(const Key('plan_form_care')), findsNothing);
     expect(await (session as GoalStorage).goals.goal(), isNotNull);
   });
@@ -542,8 +657,11 @@ void main() {
     );
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_edit_goal')));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_edit_goal')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
 
     final check = await c.checkGoal(
       (await (session as GoalStorage).goals.goal())!,
@@ -556,7 +674,10 @@ void main() {
           .data,
       de.planAssessTightFrom(offerText),
     );
-    await _tap(tester, find.byKey(const Key('plan_form_accept_date')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_accept_date')),
+    );
     expect(
       tester.widget<Text>(find.byKey(const Key('plan_form_date'))).data,
       offerText,
@@ -591,24 +712,42 @@ void main() {
     ];
     final c = _controller(session, clock, runs: runs);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
     expect(find.byKey(const Key('plan_form_stand_runs')), findsOneWidget);
     expect(find.byKey(const Key('plan_form_weekly')), findsNothing);
     expect(find.byKey(const Key('plan_form_can30')), findsNothing);
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
     await _enter(tester, 'plan_form_max_session', '45');
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(find.byKey(const Key('plan_form_error')), findsNothing);
     expect(find.byKey(const Key('plan_form_save')), findsOneWidget);
   });
 
   Future<void> fillAndSave(WidgetTester tester) async {
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
     await _enter(tester, 'plan_form_max_session', '45');
-    await _tap(tester, find.text(de.planFormYes));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(tester, find.text(de.planFormYes));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
   }
 
   testWidgets('Ergebnis savedNotPlanned steht als Meldung da', (tester) async {
@@ -646,15 +785,18 @@ void main() {
     final session = await _withPlan(_goal(), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_edit_goal')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_edit_goal')));
     expect(
       tester.widget<Text>(find.byKey(const Key('plan_form_stand_kept'))).data,
       de.planFormStandKeptYes,
     );
     expect(find.byKey(const Key('plan_form_can30')), findsNothing);
     expect(find.byKey(const Key('plan_form_weekly')), findsNothing);
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
     final goal = (await (session as GoalStorage).goals.goal())!;
     expect(goal.canRun30, ContinuousRun30.yes);
   });
@@ -689,16 +831,25 @@ void main() {
     final session = await _withPlan(_goal(canRun30: ContinuousRun30.no), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_edit_goal')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_edit_goal')));
     expect(
       tester.widget<Text>(find.byKey(const Key('plan_form_stand_kept'))).data,
       de.planFormStandKeptNo,
     );
-    await _tap(tester, find.byKey(const Key('plan_form_day_1')));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_1')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
     expect(find.byKey(const Key('plan_form_care')), findsOneWidget);
-    await _tap(tester, find.byKey(const Key('plan_form_care_confirm')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_care_confirm')),
+    );
     final goal = (await (session as GoalStorage).goals.goal())!;
     expect(goal.runDays, {1, 2, 4, 6});
     final units = await (session as PlanStorage).plans.unitsBetween(
@@ -718,13 +869,25 @@ void main() {
       return done.future;
     });
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
     await _enter(tester, 'plan_form_max_session', '45');
-    await _tap(tester, find.text(de.planFormYes));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(tester, find.text(de.planFormYes));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     // Noch in der Rechnung: ein weiterer Lauftag.
-    await _tap(tester, find.byKey(const Key('plan_form_day_4')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_4')),
+    );
     const walk = GoalDraftCheck(
       assessment: GoalAssessment(
         feasibility: null,
@@ -737,10 +900,13 @@ void main() {
     expect(find.byKey(const Key('plan_form_assessment')), findsNothing);
     expect(find.byKey(const Key('plan_form_save')), findsNothing);
 
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     pending.last.complete(walk);
     await tester.pumpAndSettle();
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
     expect(c.saved.single.runDays, {2, 4});
   });
 
@@ -750,11 +916,20 @@ void main() {
     final (session, clock) = await _empty();
     final c = _Checking(session, clock, (_) async => throw StateError('x'));
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
     await _enter(tester, 'plan_form_max_session', '45');
-    await _tap(tester, find.text(de.planFormYes));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(tester, find.text(de.planFormYes));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(_error(tester), de.planFormAssessFailed);
     expect(find.byKey(const Key('plan_form_save')), findsNothing);
     expect(c.saved, isEmpty);
@@ -776,16 +951,28 @@ void main() {
       ),
     );
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.text(de.planFormTypeTime));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(tester, find.text(de.planFormTypeTime));
     await _enter(tester, 'plan_form_minutes', '29');
     await _enter(tester, 'plan_form_seconds', '50');
     await _pickDay(tester, 28);
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_4')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_4')),
+    );
     await _enter(tester, 'plan_form_max_session', '45');
-    await _tap(tester, find.text(de.planFormYes));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(tester, find.text(de.planFormYes));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(
       tester
           .widget<Text>(find.byKey(const Key('plan_form_assessment_main')))
@@ -805,14 +992,17 @@ void main() {
     final session = await _withPlan(_goal(), clock);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_edit_goal')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_edit_goal')));
     final slider = find.byKey(const Key('plan_form_regulator'));
     await tester.ensureVisible(slider);
     tester.widget<Slider>(slider).onChanged!(6.2);
     await tester.pumpAndSettle();
     expect(tester.widget<Slider>(slider).value, 6);
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
     final goal = (await (session as GoalStorage).goals.goal())!;
     expect(goal.weeklyCapSeconds, 6 * 3600);
   });
@@ -823,19 +1013,34 @@ void main() {
     final (session, clock) = await _empty();
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.text(de.planDistanceHalf));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(tester, find.text(de.planDistanceHalf));
     await _pickDay(tester, 28);
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_4')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_6')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_4')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_6')),
+    );
     await _enter(tester, 'plan_form_max_session', '120');
-    await _tap(tester, find.text(de.planFormYes));
+    await tapFinderAfterSettle(tester, find.text(de.planFormYes));
     final slider = find.byKey(const Key('plan_form_regulator'));
     await tester.ensureVisible(slider);
     tester.widget<Slider>(slider).onChanged!(1);
     await tester.pumpAndSettle();
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(
       tester
           .widget<Text>(find.byKey(const Key('plan_form_assessment_regulator')))
@@ -850,11 +1055,20 @@ void main() {
     final (session, clock) = await _empty();
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
     await _enter(tester, 'plan_form_max_session', '45');
-    await _tap(tester, find.text(de.planFormYes));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(tester, find.text(de.planFormYes));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(
       tester
           .widget<Text>(
@@ -871,12 +1085,21 @@ void main() {
     final (session, clock) = await _empty();
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.text(de.planFormTypeOpen));
-    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(tester, find.text(de.planFormTypeOpen));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_2')),
+    );
     await _enter(tester, 'plan_form_max_session', '45');
-    await _tap(tester, find.text(de.planFormYes));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(tester, find.text(de.planFormYes));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(find.byKey(const Key('plan_form_error')), findsNothing);
     expect(
       tester
@@ -901,15 +1124,24 @@ void main() {
     expect(stored.canRun30, ContinuousRun30.unknown);
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_edit_goal')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_edit_goal')));
     expect(find.byKey(const Key('plan_form_stand_runs')), findsNothing);
-    await _tap(tester, find.byKey(const Key('plan_form_day_1')));
-    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_day_1')),
+    );
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_check')),
+    );
     expect(find.byKey(const Key('plan_form_error')), findsNothing);
-    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    await tapFinderAfterSettle(tester, find.byKey(const Key('plan_form_save')));
     // Ohne Stand beginnt der Plan mit Geh-Lauf (PAR-115): erst bestätigen.
     expect(find.byKey(const Key('plan_form_care')), findsOneWidget);
-    await _tap(tester, find.byKey(const Key('plan_form_care_confirm')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_form_care_confirm')),
+    );
     final goal = (await (session as GoalStorage).goals.goal())!;
     expect(goal.runDays, {1, 2, 4, 6});
     final history = await (session as PlanStorage).plans.history();
@@ -953,7 +1185,10 @@ void main() {
     );
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
     final text = tester
         .widget<Text>(find.byKey(const Key('plan_form_reference')))
         .data!;
@@ -977,7 +1212,10 @@ void main() {
     );
     final c = _controller(session, clock);
     await _pump(tester, session: session, clock: clock, controller: c);
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
     final text = tester
         .widget<Text>(find.byKey(const Key('plan_form_reference')))
         .data!;
@@ -1005,13 +1243,19 @@ void main() {
         brightness: brightness,
       );
       expect(find.text(en.planEditGoal), findsOneWidget);
-      await _tap(tester, find.byKey(const Key('plan_edit_goal')));
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_edit_goal')),
+      );
       expect(find.text(en.planFormTitleEdit), findsOneWidget);
       expect(find.text(en.planFormRunDays), findsOneWidget);
       expect(find.text(en.planFormRegulatorRelaxed), findsOneWidget);
       expect(find.text(en.planFormHard), findsOneWidget);
       expect(find.text(en.planFormReferences), findsOneWidget);
-      await _tap(tester, find.byKey(const Key('plan_form_check')));
+      await tapFinderAfterSettle(
+        tester,
+        find.byKey(const Key('plan_form_check')),
+      );
       expect(find.text(en.planFormAssessment.toUpperCase()), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -1027,8 +1271,11 @@ void main() {
       controller: c,
       brightness: Brightness.dark,
     );
-    await _tap(tester, find.byKey(const Key('plan_create_goal')));
-    await _tap(tester, find.text(de.planFormTypeTime));
+    await tapFinderAfterSettle(
+      tester,
+      find.byKey(const Key('plan_create_goal')),
+    );
+    await tapFinderAfterSettle(tester, find.text(de.planFormTypeTime));
     expect(find.byKey(const Key('plan_form_hours')), findsOneWidget);
     expect(
       tester

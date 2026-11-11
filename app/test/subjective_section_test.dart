@@ -19,6 +19,7 @@ import 'package:running_app/ui/ui.dart';
 
 import 'history_summary_test.dart' show started;
 import 'run_detail_test.dart' show seedDetailRun;
+import 'helpers/widget_helpers.dart';
 
 /// Wortlaut nach PAR-105 (`docs/phase-2-3-rules.md`), unabhängig von der arb.
 const _rpeDe = [
@@ -207,15 +208,8 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
-Finder _k(String key) => find.byKey(Key(key));
 String _t(WidgetTester tester, String key) =>
-    tester.widget<Text>(_k(key)).data!;
-
-Future<void> _tap(WidgetTester tester, String key) async {
-  await tester.ensureVisible(_k(key));
-  await tester.tap(_k(key));
-  await tester.pumpAndSettle();
-}
+    tester.widget<Text>(keyed(key)).data!;
 
 void main() {
   for (final (lang, words) in [('de', _rpeDe), ('en', _rpeEn)]) {
@@ -225,7 +219,7 @@ void main() {
       final w = await _World.create();
       await _pump(tester, w, lang: lang);
       for (var n = 0; n <= 10; n++) {
-        await _tap(tester, 'subjective_rpe_$n');
+        await tapKey(tester, 'subjective_rpe_$n');
         expect(_t(tester, 'subjective_rpe_label'), '$n · ${words[n]}');
         expect((await w.stored())!.rpe, n);
       }
@@ -239,17 +233,17 @@ void main() {
     ) async {
       final w = await _World.create();
       await _pump(tester, w, lang: lang);
-      expect(_k('subjective_wellbeing_0'), findsNothing);
-      expect(_k('subjective_wellbeing_6'), findsNothing);
+      expect(keyed('subjective_wellbeing_0'), findsNothing);
+      expect(keyed('subjective_wellbeing_6'), findsNothing);
       for (var n = 1; n <= 5; n++) {
         expect(
           find.descendant(
-            of: _k('subjective_wellbeing_$n'),
+            of: keyed('subjective_wellbeing_$n'),
             matching: find.text(words[n - 1]),
           ),
           findsOneWidget,
         );
-        await _tap(tester, 'subjective_wellbeing_$n');
+        await tapKey(tester, 'subjective_wellbeing_$n');
         expect((await w.stored())!.wellbeing, n);
       }
     });
@@ -264,18 +258,18 @@ void main() {
     expect(_t(tester, 'subjective_rpe_label'), 'Keine Angabe');
     for (var n = 0; n <= 10; n++) {
       expect(
-        tester.getSemantics(_k('subjective_rpe_$n')),
+        tester.getSemantics(keyed('subjective_rpe_$n')),
         isSemantics(isButton: true, hasSelectedState: true, isSelected: false),
         reason: 'RPE $n',
       );
     }
     for (var n = 1; n <= 5; n++) {
       expect(
-        tester.getSemantics(_k('subjective_wellbeing_$n')),
+        tester.getSemantics(keyed('subjective_wellbeing_$n')),
         isSemantics(isButton: true, hasSelectedState: true, isSelected: false),
       );
     }
-    expect(_k('subjective_warn_question'), findsNothing);
+    expect(keyed('subjective_warn_question'), findsNothing);
     // Schließen wie mit "Fertig": nichts wird geschrieben.
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
@@ -290,27 +284,27 @@ void main() {
     final w = await _World.create();
     final handle = tester.ensureSemantics();
     await _pump(tester, w);
-    await _tap(tester, 'subjective_rpe_4');
+    await tapKey(tester, 'subjective_rpe_4');
     expect((await w.stored())!.rpe, 4);
     expect(
-      tester.getSemantics(_k('subjective_rpe_4')),
+      tester.getSemantics(keyed('subjective_rpe_4')),
       isSemantics(isButton: true, hasSelectedState: true, isSelected: true),
     );
-    await _tap(tester, 'subjective_rpe_7');
+    await tapKey(tester, 'subjective_rpe_7');
     expect((await w.stored())!.rpe, 7);
     expect(
-      tester.getSemantics(_k('subjective_rpe_4')),
+      tester.getSemantics(keyed('subjective_rpe_4')),
       isSemantics(isButton: true, hasSelectedState: true, isSelected: false),
     );
-    await _tap(tester, 'subjective_wellbeing_4');
-    await _tap(tester, 'subjective_wellbeing_2');
+    await tapKey(tester, 'subjective_wellbeing_4');
+    await tapKey(tester, 'subjective_wellbeing_2');
     expect((await w.stored())!.wellbeing, 2);
     expect((await w.stored())!.rpe, 7);
     // Erneutes Tippen hebt auf.
-    await _tap(tester, 'subjective_rpe_7');
+    await tapKey(tester, 'subjective_rpe_7');
     expect((await w.stored())!.rpe, isNull);
     expect((await w.stored())!.wellbeing, 2);
-    await _tap(tester, 'subjective_wellbeing_2');
+    await tapKey(tester, 'subjective_wellbeing_2');
     expect(await w.session.subjective.read(w.runId), isNull);
     handle.dispose();
   });
@@ -320,28 +314,28 @@ void main() {
   ) async {
     final w = await _World.create();
     await _pump(tester, w);
-    expect(_k('subjective_warn_question'), findsNothing);
-    await _tap(tester, 'subjective_complaints_button');
+    expect(keyed('subjective_warn_question'), findsNothing);
+    await tapKey(tester, 'subjective_complaints_button');
     // Textfeld offen, aber noch nichts getippt: keine Frage.
-    expect(_k('subjective_complaints'), findsOneWidget);
-    expect(_k('subjective_warn_question'), findsNothing);
-    await tester.enterText(_k('subjective_complaints'), 'Knie links');
+    expect(keyed('subjective_complaints'), findsOneWidget);
+    expect(keyed('subjective_warn_question'), findsNothing);
+    await tester.enterText(keyed('subjective_complaints'), 'Knie links');
     await tester.pumpAndSettle();
-    expect(_k('subjective_warn_question'), findsOneWidget);
+    expect(keyed('subjective_warn_question'), findsOneWidget);
     expect(find.text('Als Warnsignal melden?'), findsOneWidget);
-    await _tap(tester, 'subjective_warn_yes');
+    await tapKey(tester, 'subjective_warn_yes');
     var s = (await w.stored())!;
     expect(s.complaints, 'Knie links');
     expect(s.warningAnswer, WarningAnswer.yes);
-    await _tap(tester, 'subjective_warn_no');
+    await tapKey(tester, 'subjective_warn_no');
     expect((await w.stored())!.warningAnswer, WarningAnswer.no);
-    await _tap(tester, 'subjective_warn_no');
+    await tapKey(tester, 'subjective_warn_no');
     expect((await w.stored())!.warningAnswer, isNull);
-    await _tap(tester, 'subjective_warn_yes');
+    await tapKey(tester, 'subjective_warn_yes');
     // Beschwerden entfernt: Frage weg, Antwort zurückgesetzt.
-    await tester.enterText(_k('subjective_complaints'), '');
+    await tester.enterText(keyed('subjective_complaints'), '');
     await tester.pumpAndSettle();
-    expect(_k('subjective_warn_question'), findsNothing);
+    expect(keyed('subjective_warn_question'), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
     expect(await w.stored(), isNull);
@@ -352,8 +346,8 @@ void main() {
   ) async {
     final w = await _World.create();
     await _pump(tester, w);
-    await _tap(tester, 'subjective_complaints_button');
-    await tester.enterText(_k('subjective_complaints'), 'Wade');
+    await tapKey(tester, 'subjective_complaints_button');
+    await tester.enterText(keyed('subjective_complaints'), 'Wade');
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
     final s = (await w.stored())!;
@@ -366,7 +360,7 @@ void main() {
     (tester) async {
       final w = await _World.create(moving: const Duration(seconds: 96));
       await _pump(tester, w, srpe: true);
-      await _tap(tester, 'subjective_rpe_7');
+      await tapKey(tester, 'subjective_rpe_7');
       // 96 s = 1,6 min; 1,6 * 7 = 11,2 -> 11 Punkte, Dauer nicht auf 2 min gerundet.
       expect(_t(tester, 'subjective_srpe_value'), '11 Punkte');
       expect(
@@ -382,10 +376,10 @@ void main() {
     final w = await _World.create(moving: const Duration(minutes: 45));
     await _pump(tester, w, srpe: true);
     // Ohne RPE kein Wert und keine 0.
-    expect(_k('subjective_srpe_none'), findsOneWidget);
-    expect(_k('subjective_srpe_value'), findsNothing);
+    expect(keyed('subjective_srpe_none'), findsOneWidget);
+    expect(keyed('subjective_srpe_value'), findsNothing);
     expect(find.textContaining('0 Punkte'), findsNothing);
-    await _tap(tester, 'subjective_rpe_5');
+    await tapKey(tester, 'subjective_rpe_5');
     expect(_t(tester, 'subjective_srpe_value'), '225 Punkte');
     expect(
       _t(tester, 'subjective_srpe_basis'),
@@ -393,20 +387,20 @@ void main() {
     );
     expect(find.textContaining('Schätzung'), findsOneWidget);
     // Das Ergebnis folgt der Angabe und steht nicht bei den Laufwerten (TRIMP).
-    await _tap(tester, 'subjective_rpe_6');
+    await tapKey(tester, 'subjective_rpe_6');
     expect(_t(tester, 'subjective_srpe_value'), '270 Punkte');
     expect((await w.session.subjective.read(w.runId))!.srpe!.points, 270);
-    await _tap(tester, 'subjective_rpe_6');
-    expect(_k('subjective_srpe_value'), findsNothing);
-    expect(_k('subjective_srpe_none'), findsOneWidget);
+    await tapKey(tester, 'subjective_rpe_6');
+    expect(keyed('subjective_srpe_value'), findsNothing);
+    expect(keyed('subjective_srpe_none'), findsOneWidget);
   });
 
   testWidgets('sRPE ohne Bewegungszeit: kein Wert', (tester) async {
     final w = await _World.create();
     await _pump(tester, w, srpe: true);
-    await _tap(tester, 'subjective_rpe_5');
-    expect(_k('subjective_srpe_value'), findsNothing);
-    expect(_k('subjective_srpe_none'), findsOneWidget);
+    await tapKey(tester, 'subjective_rpe_5');
+    expect(keyed('subjective_srpe_value'), findsNothing);
+    expect(keyed('subjective_srpe_none'), findsOneWidget);
     expect((await w.stored())!.rpe, 5);
   });
 
@@ -421,12 +415,12 @@ void main() {
     await _pump(tester, w, srpe: true);
     expect(_t(tester, 'subjective_rpe_label'), '3 · ${_rpeDe[3]}');
     expect(_t(tester, 'subjective_srpe_value'), '90 Punkte');
-    expect(_k('subjective_warn_question'), findsOneWidget);
+    expect(keyed('subjective_warn_question'), findsOneWidget);
     expect(
-      tester.widget<TextField>(_k('subjective_note')).controller!.text,
+      tester.widget<TextField>(keyed('subjective_note')).controller!.text,
       'ok',
     );
-    await _tap(tester, 'subjective_rpe_8');
+    await tapKey(tester, 'subjective_rpe_8');
     final s = (await w.stored())!;
     expect((s.rpe, s.wellbeing, s.complaints, s.note), (8, 5, 'Fuß', 'ok'));
   });
@@ -467,14 +461,14 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await _tap(tester, 'details');
-      await _tap(tester, 'subjective_rpe_6');
+      await tapKey(tester, 'details');
+      await tapKey(tester, 'subjective_rpe_6');
       tester.state<NavigatorState>(find.byType(Navigator)).pop();
       await tester.pumpAndSettle();
       // Der Stand der Zusammenfassung ist neu geladen.
       expect(_t(tester, 'subjective_rpe_label'), '6 · ${_rpeDe[6]}');
-      await _tap(tester, 'subjective_wellbeing_4');
-      await tester.enterText(_k('subjective_note'), 'Beine frisch');
+      await tapKey(tester, 'subjective_wellbeing_4');
+      await tester.enterText(keyed('subjective_note'), 'Beine frisch');
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.pumpAndSettle();
       final s = (await w.stored())!;
@@ -524,18 +518,18 @@ void main() {
     'Tippen während des Neuladens: Eingabe bleibt, wird gespeichert',
     (tester) async {
       final w = await reloadWorld(tester, note: 'alt');
-      await _tap(tester, 'details');
+      await tapKey(tester, 'details');
       w.session.gate = Completer<void>();
       tester.state<NavigatorState>(find.byType(Navigator)).pop();
       await tester.pumpAndSettle();
       // Das Neuladen hängt; die Notiz wird getippt.
-      await tester.enterText(_k('subjective_note'), 'neu getippt');
+      await tester.enterText(keyed('subjective_note'), 'neu getippt');
       final gate = w.session.gate!;
       w.session.gate = null;
       gate.complete();
       await tester.pumpAndSettle();
       expect(
-        tester.widget<TextField>(_k('subjective_note')).controller!.text,
+        tester.widget<TextField>(keyed('subjective_note')).controller!.text,
         'neu getippt',
       );
       FocusManager.instance.primaryFocus?.unfocus();
@@ -552,10 +546,10 @@ void main() {
   ) async {
     final w = await reloadWorld(tester, note: 'abcdef');
     final controller = tester
-        .widget<TextField>(_k('subjective_note'))
+        .widget<TextField>(keyed('subjective_note'))
         .controller!;
     controller.selection = const TextSelection.collapsed(offset: 2);
-    await _tap(tester, 'details');
+    await tapKey(tester, 'details');
     tester.state<NavigatorState>(find.byType(Navigator)).pop();
     await tester.pumpAndSettle();
     expect(w.session.gate, isNull);
@@ -570,7 +564,7 @@ void main() {
     final w = await _World.create();
     await _pump(tester, w);
     await w.service.save(w.runId, RunSubjective(rpe: 7, note: 'anderswo'));
-    await _tap(tester, 'subjective_wellbeing_2');
+    await tapKey(tester, 'subjective_wellbeing_2');
     final s = (await w.stored())!;
     expect((s.rpe, s.wellbeing, s.note), (7, 2, 'anderswo'));
   });
@@ -605,21 +599,21 @@ void main() {
         find.text('Die Angaben konnten nicht geladen werden.'),
         findsOneWidget,
       );
-      expect(_k('subjective_save_failed'), findsNothing);
-      expect(_k('subjective_rpe_5'), findsNothing);
-      expect(_k('subjective_note'), findsNothing);
+      expect(keyed('subjective_save_failed'), findsNothing);
+      expect(keyed('subjective_rpe_5'), findsNothing);
+      expect(keyed('subjective_note'), findsNothing);
       // Erneut versuchen, weiter kaputt: bleibt gesperrt.
-      await _tap(tester, 'subjective_load_retry');
-      expect(_k('subjective_load_failed'), findsOneWidget);
-      expect(_k('subjective_rpe_5'), findsNothing);
+      await tapKey(tester, 'subjective_load_retry');
+      expect(keyed('subjective_load_failed'), findsOneWidget);
+      expect(keyed('subjective_rpe_5'), findsNothing);
       expect((await base.subjective.read(run.id))!.subjective, saved);
       // Lesen geht wieder: Felder mit den gespeicherten Werten.
       session.failRead = false;
-      await _tap(tester, 'subjective_load_retry');
-      expect(_k('subjective_load_failed'), findsNothing);
+      await tapKey(tester, 'subjective_load_retry');
+      expect(keyed('subjective_load_failed'), findsNothing);
       expect(_t(tester, 'subjective_rpe_label'), '4 · ${_rpeDe[4]}');
       expect(
-        tester.widget<TextField>(_k('subjective_note')).controller!.text,
+        tester.widget<TextField>(keyed('subjective_note')).controller!.text,
         'ALT',
       );
     },
@@ -649,9 +643,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.enterText(_k('subjective_note'), 'Beine frisch');
+    await tester.enterText(keyed('subjective_note'), 'Beine frisch');
     // Kein Fokuswechsel vorher: gespeichert wird beim Schließen.
-    await _tap(tester, 'done');
+    await tapKey(tester, 'done');
     expect((await w.stored())!.note, 'Beine frisch');
   });
 
@@ -660,7 +654,7 @@ void main() {
   ) async {
     final w = await _World.create();
     await _pump(tester, w);
-    await tester.enterText(_k('subjective_note'), 'abc');
+    await tester.enterText(keyed('subjective_note'), 'abc');
     expect(await w.stored(), isNull);
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pumpAndSettle();
@@ -694,12 +688,12 @@ void main() {
           'subjective_warn_no',
         ];
         for (final k in keys) {
-          final box = tester.getSize(_k(k));
+          final box = tester.getSize(keyed(k));
           expect(box.height, greaterThanOrEqualTo(48), reason: k);
           expect(box.width, greaterThanOrEqualTo(48), reason: k);
         }
         // Alles liegt innerhalb der Breite.
-        final right = _k('subjective_section');
+        final right = keyed('subjective_section');
         expect(tester.getRect(right).right, lessThanOrEqualTo(size.width));
         expect(find.byType(Scrollable), findsWidgets);
       });
@@ -770,9 +764,12 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(_k('subjective_section'), findsOneWidget);
-        expect(_k('subjective_srpe'), detail ? findsOneWidget : findsNothing);
-        await _tap(tester, 'subjective_rpe_5');
+        expect(keyed('subjective_section'), findsOneWidget);
+        expect(
+          keyed('subjective_srpe'),
+          detail ? findsOneWidget : findsNothing,
+        );
+        await tapKey(tester, 'subjective_rpe_5');
         expect((await d.session.subjective.read(id))!.subjective.rpe, 5);
         if (detail) {
           // 10 min Bewegung, RPE 5: 50 Punkte, getrennt von TRIMP.

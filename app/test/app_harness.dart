@@ -13,6 +13,8 @@ import 'package:running_app/features/sensors/run_heart_rate.dart';
 import 'package:running_app/features/sensors/sensor_manager.dart';
 import 'package:running_app/features/storage/storage_start.dart';
 
+export 'helpers/widget_helpers.dart';
+
 /// "Gerät" für App-Tests: Speicher und Schlüsselablage bleiben über mehrere
 /// App-Starts erhalten, wie auf dem Telefon.
 class Device {

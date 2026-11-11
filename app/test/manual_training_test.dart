@@ -29,24 +29,18 @@ Future<void> _all(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _tap(WidgetTester tester, String k) async {
-  await tester.ensureVisible(key(k));
-  await tester.tap(key(k));
-  await tester.pumpAndSettle();
-}
-
 Future<void> _fill(
   WidgetTester tester, {
   String? minutes,
   int? rpe,
   String? kind,
 }) async {
-  if (kind != null) await _tap(tester, 'manual_kind_$kind');
+  if (kind != null) await tapKey(tester, 'manual_kind_$kind');
   if (minutes != null) {
     await tester.enterText(key('manual_minutes'), minutes);
     await tester.pump();
   }
-  if (rpe != null) await _tap(tester, 'manual_rpe_$rpe');
+  if (rpe != null) await tapKey(tester, 'manual_rpe_$rpe');
 }
 
 Future<List<StoredManualTraining>> _stored(Device d) =>
@@ -63,7 +57,7 @@ void main() {
       await tester.tap(key('manual_add'));
       await tester.pumpAndSettle();
       await _fill(tester, kind: 'other', minutes: '45', rpe: 5);
-      await _tap(tester, 'manual_save');
+      await tapKey(tester, 'manual_save');
 
       final list = await _stored(d);
       expect(list, hasLength(1));
@@ -98,7 +92,7 @@ void main() {
         await tester.tap(key('manual_add'));
         await tester.pumpAndSettle();
         // Alles leer.
-        await _tap(tester, 'manual_save');
+        await tapKey(tester, 'manual_save');
         expect(find.text('Bitte die Anstrengung wählen.'), findsOneWidget);
         expect(
           find.text('Bitte eine Dauer über 0 Minuten angeben.'),
@@ -106,14 +100,14 @@ void main() {
         );
         // Dauer 0 mit RPE.
         await _fill(tester, minutes: '0', rpe: 4);
-        await _tap(tester, 'manual_save');
+        await tapKey(tester, 'manual_save');
         expect(
           find.text('Bitte eine Dauer über 0 Minuten angeben.'),
           findsOneWidget,
         );
         // Gültige Dauer, RPE bleibt gewählt.
         await _fill(tester, minutes: '30');
-        await _tap(tester, 'manual_save');
+        await tapKey(tester, 'manual_save');
         expect(await _stored(d), hasLength(1), reason: 'jetzt gültig');
       },
     );
@@ -126,7 +120,7 @@ void main() {
       await tester.tap(key('manual_add'));
       await tester.pumpAndSettle();
       await _fill(tester, minutes: '30');
-      await _tap(tester, 'manual_save');
+      await tapKey(tester, 'manual_save');
       expect(key('manual_rpe_error'), findsOneWidget);
       expect(key('manual_form'), findsOneWidget, reason: 'bleibt offen');
       expect(await _stored(d), isEmpty);
@@ -148,7 +142,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(text('manual_rpe_label'), contains('5'));
       await _fill(tester, rpe: 7);
-      await _tap(tester, 'manual_save');
+      await tapKey(tester, 'manual_save');
       final now = (await _stored(d)).single;
       expect(now.id, s.id);
       expect(now.training.rpe, 7);
@@ -194,7 +188,7 @@ void main() {
       // Die Uhr springt zurück: Der gewählte Tag (heute) liegt nun in der
       // Zukunft, der Dienst lehnt ab.
       d.clock.set(DateTime.utc(2026, 6, 10, 12));
-      await _tap(tester, 'manual_save');
+      await tapKey(tester, 'manual_save');
       expect(
         text('manual_save_failed'),
         'Das Training konnte nicht gespeichert werden.',
@@ -245,7 +239,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(shown(), isNot(before));
         await _fill(tester, minutes: '30', rpe: 3);
-        await _tap(tester, 'manual_save');
+        await tapKey(tester, 'manual_save');
         expect((await _stored(d)).single.training.isoDay, '2026-06-16');
       });
     });
@@ -463,7 +457,7 @@ void main() {
               reason: k,
             );
           }
-          await _tap(tester, 'manual_save');
+          await tapKey(tester, 'manual_save');
           expect(tester.takeException(), isNull);
         },
       );
