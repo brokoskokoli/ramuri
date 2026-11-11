@@ -11,8 +11,6 @@ import 'package:running_app/features/reminders/reminder_controller.dart';
 
 import 'app_harness.dart';
 
-Finder key(String k) => find.byKey(Key(k));
-
 String _iso(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-'
     '${d.day.toString().padLeft(2, '0')}';

@@ -9,8 +9,6 @@ import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
 
-Finder key(String k) => find.byKey(Key(k));
-
 /// Text eines Werts der Lauf-Seite; Zahl und Einheit stehen in Teilen, der
 /// Wortverbinder (U+2060) ist unsichtbar.
 String text(String k) {

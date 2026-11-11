@@ -9,8 +9,6 @@ import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
 
-Finder key(String k) => find.byKey(Key(k));
-
 /// Speicher, dessen Einstellung der Autopause sich nicht lesen und/oder nicht
 /// schreiben lässt; alle anderen Einstellungen laufen normal.
 class _AutoPauseFailStorage implements Storage {

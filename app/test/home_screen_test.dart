@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/history/run_detail_screen.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key, seedRun, text;
+import 'history_summary_test.dart' show seedRun, text;
 import 'run_recovery_test.dart' show crash;
 import 'settings_gate_storage.dart';
 

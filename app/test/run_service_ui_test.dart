@@ -9,8 +9,6 @@ import 'package:running_app/features/run/run_ports.dart';
 
 import 'app_harness.dart';
 
-Finder key(String k) => find.byKey(Key(k));
-
 Future<void> openRun(Device d, WidgetTester tester) async {
   await d.start(tester, const Locale('de'));
   await d.skipSetup(tester);

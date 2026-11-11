@@ -2,12 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:running_app/features/storage/storage_gate.dart';
 import 'package:running_app/features/storage/storage_start.dart';
 import 'package:running_app/features/transparency/value_explanation_screen.dart';
-import 'package:running_app/l10n/app_localizations.dart';
-import 'package:running_app/ui/ui.dart';
 
 import '../app_harness.dart';
 
@@ -89,18 +86,7 @@ void main() {
     }.entries) {
       testWidgets('${screen.key}, 360 dp, Skalierung 1,5, $l', (tester) async {
         await tester.pumpWidget(
-          MaterialApp(
-            theme: RamuriTheme.light,
-            locale: locale,
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: screen.value(),
-          ),
+          localizedApp(locale: locale, home: screen.value()),
         );
         await _narrow(tester);
         await _scan(tester, screen.key);

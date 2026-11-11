@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/home/app_shell.dart';
 import 'package:running_app/features/home/data_changes.dart';
@@ -11,12 +10,11 @@ import 'package:running_app/features/settings/app_settings.dart';
 import 'package:running_app/features/statistics/prediction_card.dart';
 import 'package:running_app/features/statistics/prediction_controller.dart';
 import 'package:running_app/features/statistics/progress_header.dart';
-import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';
 import 'package:running_app/ui/ui.dart';
 
-import 'app_harness.dart' show Device;
-import 'history_summary_test.dart' show key, seedRun, started;
+import 'app_harness.dart';
+import 'history_summary_test.dart' show seedRun, started;
 import 'statistics_test.dart' show openStats;
 
 /// Karte „Prognose“ auf Fortschritt (WP20 Teil C): Anzeige je Stufe, Eintragen,
@@ -89,18 +87,9 @@ Future<void> pumpCard(
       offload: inlineOffload,
       child: AppSettingsScope(
         holder: holder,
-        child: MaterialApp(
-          theme: brightness == Brightness.light
-              ? RamuriTheme.light
-              : RamuriTheme.dark,
+        child: localizedApp(
           locale: Locale(locale),
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: AppLocalizations.supportedLocales,
+          brightness: brightness,
           home: Scaffold(
             body: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20),

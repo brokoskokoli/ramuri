@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart'
-    show key, openHistory, seedRun, started, text;
+import 'history_summary_test.dart' show openHistory, seedRun, started, text;
 
 const ProfileRecord _profile = ProfileRecord(
   maxHeartRateBpm: 190,

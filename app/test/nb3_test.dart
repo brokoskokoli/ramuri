@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key;
 
 /// Letzter Stil, den die Region unter [finder] liefert (wie ihn Flutter
 /// für die Systemleiste an der Stelle wählt).

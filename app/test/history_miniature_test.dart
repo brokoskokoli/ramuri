@@ -23,8 +23,6 @@ import 'package:running_app/features/map/route_map_section.dart'
 import 'app_harness.dart';
 import 'history_summary_test.dart' show seedRun, showAllRuns;
 
-Finder key(String k) => find.byKey(Key(k));
-
 class _Cache implements MapCacheAdmin {
   @override
   Future<int> sizeBytes() async => 0;
@@ -140,23 +138,13 @@ Future<void> _openHistory(WidgetTester tester) async {
   await tester.tap(key('home_history'));
   await tester.pumpAndSettle();
   await showAllRuns(tester);
-  await _settle(tester);
+  await settleRealTimeFixed(tester);
 }
 
 Future<void> _closeHistory(WidgetTester tester) async {
   await tester.tap(key('home_today'));
   await tester.pumpAndSettle();
-  await _settle(tester);
-}
-
-/// Lässt Lesen, Aufnahme und Speichern (echte Zeit) zur Ruhe kommen.
-Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 12; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 30)),
-    );
-    await tester.pump(const Duration(milliseconds: 100));
-  }
+  await settleRealTimeFixed(tester);
 }
 
 void main() {
@@ -245,14 +233,14 @@ void main() {
       final id = (await d.session.runs.list()).first.id;
       await tester.tap(key('history_run_$id'));
       await tester.pumpAndSettle();
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       expect(w.sawCancelled, 1, reason: 'verdeckte Route: Aufnahme gibt auf');
       expect(w.thumbs.writtenKeys, isEmpty);
       expect(w.captures, 1);
       tester.state<NavigatorState>(find.byType(Navigator).first).pop();
       await tester.pumpAndSettle();
       w.hold!.complete();
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       expect(w.captures, 2, reason: 'nach der Rückkehr neu aufgenommen');
       expect(w.thumbs.writtenKeys.length, 1);
     },
@@ -272,7 +260,7 @@ void main() {
       tester.state<NavigatorState>(find.byType(Navigator).first).pop();
       await tester.pumpAndSettle();
       w.hold!.complete();
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       expect(w.captures, 2, reason: 'die unterbrochene Aufnahme zählt nicht');
       expect(
         w.thumbs.writtenKeys.length,
@@ -289,7 +277,7 @@ void main() {
     await _openHistory(tester);
     expect(key('miniature_image'), findsNWidgets(2));
     await _controller(tester).revoke();
-    await _settle(tester);
+    await settleRealTimeFixed(tester);
     expect(key('miniature_image'), findsNothing);
     expect(key('miniature_line'), findsNWidgets(2));
     final reads = w.thumbs.reads;
@@ -325,7 +313,7 @@ void main() {
           .position
           .jumpTo(5000);
       await tester.pump();
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       expect(
         service.shownImages.value,
         find
@@ -347,7 +335,7 @@ void main() {
       expect(key('miniature_image'), findsNothing);
       expect(w.thumbs.writtenKeys, isEmpty);
       expect(w.captures, 1);
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       expect(w.captures, 1, reason: 'kein Dauerversuch');
       await _closeHistory(tester);
       w.captureFails = false;
@@ -366,7 +354,7 @@ void main() {
       expect(key('miniature_line'), findsNWidgets(2));
       expect(key('history_attribution'), findsNothing);
       await _controller(tester).revoke();
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       expect(key('history_attribution'), findsNothing);
     },
   );
@@ -378,13 +366,13 @@ void main() {
       final (_, w) = await _start(tester, consent: true, runs: [2]);
       w.pngOverride = Uint8List.fromList([1, 2, 3, 4, 5]); // kein PNG
       await _openHistory(tester);
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       expect(find.bySemanticsLabel(RegExp('Kleine Karte')), findsNothing);
       expect(find.bySemanticsLabel(RegExp('Kleine Zeichnung')), findsOneWidget);
       expect(key('history_attribution'), findsNothing);
       expect(key('miniature_line'), findsOneWidget);
       expect(w.captures, 2, reason: 'einmal neu erzeugt, kein Dauerversuch');
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       expect(w.captures, 2);
       handle.dispose();
     },
@@ -398,7 +386,7 @@ void main() {
       w.thumbs.data[thumbnailKey(miniatureVariant(_styleOf(tester)), id)] =
           Uint8List.fromList([9, 9, 9]);
       await _openHistory(tester);
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       expect(w.captures, 1, reason: 'neu erzeugt');
       expect(key('miniature_image'), findsOneWidget);
       expect(key('history_attribution'), findsOneWidget);
@@ -426,7 +414,7 @@ void main() {
       expect(key('miniature_image'), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('Kleine Karte')), findsNothing);
       expect(key('history_attribution'), findsNothing);
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       expect(
         find.bySemanticsLabel(RegExp('Kleine Karte der Route')),
         findsOneWidget,
@@ -458,7 +446,7 @@ void main() {
         var last = -1;
         while (w.captures != last) {
           last = w.captures;
-          await _settle(tester);
+          await settleRealTimeFixed(tester);
         }
       }
 
@@ -518,7 +506,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Lauf löschen').last);
     await tester.pumpAndSettle();
-    await _settle(tester);
+    await settleRealTimeFixed(tester);
     expect(w.thumbs.deletedRuns, [gone]);
     expect(w.thumbs.data.keys.any((k) => k.endsWith(':$gone')), isFalse);
     expect(w.thumbs.data.keys.any((k) => k.endsWith(':${ids.last}')), isTrue);
@@ -538,7 +526,7 @@ void main() {
       await tester.tap(find.text('Lauf löschen').last);
       await tester.pumpAndSettle();
       w.hold!.complete();
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       expect(
         w.thumbs.writtenKeys.where((k) => k.endsWith(':$gone')),
         isEmpty,
@@ -569,7 +557,7 @@ void main() {
         await tester.pump();
       }
       w.hold!.complete();
-      await _settle(tester);
+      await settleRealTimeFixed(tester);
       final ids = (await d.session.runs.list()).map((r) => r.id).toList();
       final captured = w.thumbs.writtenKeys
           .map((k) => int.parse(k.split(':').last))
@@ -667,7 +655,7 @@ void main() {
           i < 10 && key('miniature_image').evaluate().length < 4;
           i++
         ) {
-          await _settle(tester);
+          await settleRealTimeFixed(tester);
         }
         expect(key('miniature_image'), findsNWidgets(4));
         final dir = Platform.environment['SHOT_DIR'];

@@ -7,8 +7,8 @@ import 'package:running_app/features/statistics/statistics_screen.dart';
 import 'package:running_app/features/statistics/statistics_view_state.dart';
 import 'package:running_app/ui/ui.dart';
 
-import 'app_harness.dart' show Device;
-import 'history_summary_test.dart' show key, openHistory, seedRun, started;
+import 'app_harness.dart';
+import 'history_summary_test.dart' show openHistory, seedRun, started;
 import 'statistics_test.dart' show calc, choose, openStats;
 
 /// Fortschritt als Seite (WP15 Teil B): Wochenbalken gegen die Wochenstatistik,

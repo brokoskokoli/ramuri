@@ -3,7 +3,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/l10n/app_localizations_de.dart';
@@ -13,16 +12,7 @@ import 'package:running_app/ui/ui.dart';
 import 'app_harness.dart';
 
 Widget _app(Widget body, {required double scale, required Size size}) =>
-    MaterialApp(
-      theme: RamuriTheme.light,
-      locale: const Locale('de'),
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
+    localizedApp(
       home: MediaQuery(
         data: MediaQueryData(size: size, textScaler: TextScaler.linear(scale)),
         child: Scaffold(

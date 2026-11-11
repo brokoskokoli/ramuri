@@ -1,11 +1,74 @@
 #!/bin/sh
-# Gate: tool/gate.sh [--changed]. Spec-Prüfung, Datenschutz und, sobald app/ existiert, Flutter.
-# --changed lässt Flutter nur aus, wenn app/, tool/gate.sh und die von Tests gelesenen Dokumente (getrackt, ungetrackt,
-# committet) gegenüber main unverändert sind; auf main gegenüber dem Stand vor dem letzten Commit.
+# Gate: tool/gate.sh [--fast | --changed]. Spec-Prüfung, Datenschutz und, sobald app/ existiert, Flutter.
+#   (ohne Option)  voll: alle Schritte, Pflicht vor Review-Abgabe und Fertigmeldung. Nimmt den Gate-Lock.
+#   --fast         Zwischenstand: spec, privat, Netz, Format und Analyse aller Pakete, Tests nur der gegenüber
+#                  der Basis (merge-base main) geänderten Pakete und der von ihnen abhängigen (app ← adapters ← core); kein Release/Drift/Kotlin, kein Lock;
+#                  pub get nur bei geändertem pubspec.* (oder fehlender Paketauflösung). Ersetzt nie das volle Gate.
+#   --changed      wie voll, lässt aber Flutter aus, wenn app/, tool/gate.sh und die von Tests gelesenen Dokumente
+#                  (getrackt, ungetrackt, committet) gegenüber main unverändert sind (auf main gegenüber dem Stand vor
+#                  dem letzten Commit), und Drift/Kotlin/Release nur, wenn sich ihre Eingaben (Listen unten) geändert haben.
+#                  Nimmt den Gate-Lock.
 # Im Zweifel (kein main, Fehler beim Vergleich) wird geprüft statt ausgelassen.
+# Ablauf: Stufe "schnell" (billige Prüfungen, Format und Analyse aller Pakete) zeigt alle Ergebnisse; ist dort etwas
+# rot, endet das Gate danach. Danach (Tests, drift, kotlin, release, lock) bricht es beim ersten roten Schritt ab.
+# Jede Zeile nennt die Dauer des Schritts in Sekunden.
+# Lock: über alle Worktrees höchstens ein volles/--changed-Gate gleichzeitig (/usr/bin/lockf auf $(git-common-dir)/gate.lock,
+# der Lock hängt am Prozess und wird bei Ende, Absturz oder Signal frei). Grenze: kill -9 an lockf lässt das Gate ohne
+# Lock weiterlaufen; abbrechen per TERM/Ctrl-C an die PID aus gate.lock.info.
+
+# Eingaben der Schritte bei --changed (Git-Pfadangaben, durch Leerzeichen getrennt, ohne Leerzeichen in Pfaden).
+# Alle Listen enthalten tool/gate.sh (die Schrittfunktionen stehen dort) und pubspec.* samt pubspec.lock.
+GATE_DRIFT_PATHS="app/packages/adapters/lib/src/storage app/packages/adapters/drift_schemas tool/gate.sh :(glob)app/**/pubspec.*"
+GATE_KOTLIN_PATHS="app/android tool/gate.sh :(glob)app/**/pubspec.*"
+GATE_RELEASE_PATHS="app/android app/lib app/packages app/assets app/l10n.yaml tool/check_release_manifest.py tool/gate.sh :(glob)app/**/pubspec.*"
+GATE_RELEASE_NAME="release: INTERNET, CAMERA, VIBRATE, uses-feature, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, keine Debug-Quellen"
+
+mode=full
+case "${1:-}" in
+  "") ;;
+  --fast) mode=fast ;;
+  --changed) mode=changed ;;
+  *) echo "Aufruf: sh tool/gate.sh [--fast | --changed]"; exit 2 ;;
+esac
+
+self=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
 cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# Lock (nicht bei --fast): das Skript startet sich einmal unter lockf neu. Erst ein nicht blockierender Versuch
+# (Exit 75 = belegt), dann ein einmaliger Hinweis und blockierendes Warten.
+if [ "$mode" != fast ] && [ -z "${GATE_LOCK_HELD:-}" ]; then
+  gdir=$(git rev-parse --path-format=absolute --git-common-dir) || exit 1
+  lock=$gdir/gate.lock
+  /usr/bin/lockf -t 0 "$lock" env GATE_LOCK_HELD="$lock" sh "$self" "$@"; rc=$?
+  if [ $rc -eq 75 ]; then
+    echo "wartet auf Gate von $(cat "$lock.info" 2>/dev/null || echo unbekannt)"
+    exec /usr/bin/lockf "$lock" env GATE_LOCK_HELD="$lock" sh "$self" "$@"
+  fi
+  exit $rc
+fi
+[ -n "${GATE_LOCK_HELD:-}" ] && echo "$(pwd) PID $$" > "$GATE_LOCK_HELD.info"
+
 fail=0
-step() { name=$1; shift; log=$(mktemp); if "$@" >"$log" 2>&1; then echo "OK    $name"; else echo "ROT   $name"; tail -30 "$log"; fail=1; fi; rm -f "$log"; }
+failfast=0
+cur=
+t_start=$(date +%s)
+set -m   # jeder Schritt läuft in eigener Prozessgruppe, damit ein Signal auch Flutter, Gradle usw. beendet
+abbruch() { [ -n "$cur" ] && kill -TERM -- "-$cur" 2>/dev/null; echo "GATE ABGEBROCHEN"; exit 143; }
+trap abbruch INT TERM
+step() {
+  name=$1; shift; log=$(mktemp); t0=$(date +%s)
+  "$@" </dev/null >"$log" 2>&1 & cur=$!
+  wait "$cur"; rc=$?; cur=
+  dt=$(( $(date +%s) - t0 ))
+  if [ $rc -eq 0 ]; then echo "OK    $name ($dt s)"; else echo "ROT   $name ($dt s)"; tail -30 "$log"; fail=1; fi
+  rm -f "$log"
+  if [ $fail -ne 0 ] && [ $failfast -eq 1 ]; then echo "GATE ROT ($(( $(date +%s) - t_start )) s gesamt)"; exit 1; fi
+}
+# Nach der schnellen Stufe: bei Rot enden, ab jetzt bricht jeder rote Schritt sofort ab.
+ende_schnelle_stufe() {
+  [ $fail -eq 0 ] || { echo "GATE ROT ($(( $(date +%s) - t_start )) s gesamt, nach der schnellen Stufe)"; exit 1; }
+  failfast=1
+}
 # Generierte Abschnitte müssen aktuell sein: build darf den Stand von docs/ nicht verändern.
 spec() {
   before=$(git ls-files -m -o --exclude-standard docs | xargs -I{} shasum {} | shasum; git ls-files docs | xargs shasum | shasum)
@@ -45,6 +108,45 @@ app_changed() {
   # shellcheck disable=SC2086
   [ -z "$(git ls-files -o --exclude-standard -- $paths)" ] || return 0   # ungetrackte Dateien
   return 1
+}
+
+# Wie app_changed, aber für eine Liste von Git-Pfadangaben (ein String, durch Leerzeichen getrennt): 0 = geändert
+# oder unklar, 1 = unverändert. Gleiche Basis wie app_changed.
+paths_changed() {
+  if [ "$(git symbolic-ref -q --short HEAD)" = main ]; then
+    pbase=$(git rev-parse -q --verify HEAD^1) || return 0
+  else
+    pbase=$(git merge-base HEAD main 2>/dev/null) || return 0
+  fi
+  [ -n "$pbase" ] || return 0
+  set -f   # Pfadangaben wie :(glob)app/**/pubspec.* nicht von der Shell expandieren lassen
+  # shellcheck disable=SC2086
+  git diff --quiet "$pbase" -- $1 || { set +f; return 0; }
+  # shellcheck disable=SC2086
+  [ -z "$(git ls-files -o --exclude-standard -- $1)" ] || { set +f; return 0; }
+  set +f
+  return 1
+}
+
+# Für --changed: Schritt nur bei geänderten Eingaben (Liste siehe oben im Skript), sonst SKIP.
+step_wenn_geaendert() {   # <Eingaben> <Name> <Funktion>
+  if paths_changed "$1"; then step "$2" "$3"; else echo "SKIP  $2 (Eingaben unverändert: $1)"; fi
+}
+
+# Pfade der Pakete in app/packages, von denen <Paket> über path-Abhängigkeiten (auch transitiv) abhängt.
+pkg_deps() {
+  acc=; todo=$1
+  while [ -n "$todo" ]; do
+    next=
+    for q in $todo; do
+      for n in $(grep -oE "path:[[:space:]]*[\"']?(\.\./|packages/)[A-Za-z0-9_]+" "$q/pubspec.yaml" 2>/dev/null | sed -E "s,path:[[:space:]]*[\"']?(\.\./|packages/),,"); do
+        c=app/packages/$n
+        case " $acc " in *" $c "*) ;; *) acc="$acc $c"; next="$next $c" ;; esac
+      done
+    done
+    todo=$next
+  done
+  echo $acc
 }
 
 # Verzeichnisse, die Format und Analyse prüfen (im Paketverzeichnis aufrufen): lib, test und, falls vorhanden, integration_test.
@@ -303,23 +405,54 @@ release_rechte() {
 }
 
 if [ -f app/pubspec.yaml ]; then
-  if [ "${1:-}" = --changed ] && ! app_changed; then
+  if [ "$mode" = changed ] && ! app_changed; then
     echo "SKIP  flutter (app/, tool/gate.sh und von Tests gelesene Dokumente unverändert)"
   else
-    step "flutter version" flutter_version
+    # --- Stufe schnell: alle Schritte laufen, auch nach einem roten ---
+    if [ "$mode" != fast ]; then
+      step "flutter version" flutter_version
+    fi
     lock_before=$(lock_hash)
-    step "pub get" sh -c 'cd app && flutter pub get --enforce-lockfile'
-    step "core flutterfrei" core_flutterfrei
+    if [ "$mode" != fast ] || paths_changed ":(glob)app/**/pubspec.*" || [ ! -f app/.dart_tool/package_config.json ]; then
+      step "pub get" sh -c 'cd app && flutter pub get --enforce-lockfile'
+    else
+      echo "SKIP  pub get (pubspec.* unverändert)"
+    fi
+    if [ "$mode" != fast ]; then
+      step "core flutterfrei" core_flutterfrei
+    fi
     for p in app app/packages/*; do
       if [ ! -f "$p/pubspec.yaml" ]; then step "$p pubspec" sh -c "echo 'pubspec.yaml fehlt in $p'; exit 1"; continue; fi
       step "$p format" pkg_format "$p"
       step "$p analyze" pkg_analyze "$p"
+    done
+    ende_schnelle_stufe
+    # --- Stufe schwer: Tests, Drift, Kotlin, Release, Lock; erster roter Schritt beendet das Gate ---
+    for p in app app/packages/*; do
+      if [ "$mode" = fast ]; then
+        if [ "$p" = app ]; then spec_p="app :(exclude)app/packages $(watched_paths | tail -n +2 | tr '\n' ' ')"; else spec_p=$p; fi
+        # Hängt das Paket (transitiv, per path-Abhängigkeit) von einem geänderten ab, laufen seine Tests mit.
+        # (getrennt geprüft: das ":(exclude)app/packages" von app würde sonst die Abhängigkeiten ausschließen)
+        deps_p=$(pkg_deps "$p")
+        paths_changed "$spec_p" || { [ -n "$deps_p" ] && paths_changed "$deps_p"; } || { echo "SKIP  $p test (Paket und Abhängigkeiten gegenüber der Basis unverändert)"; continue; }
+      fi
       step "$p test" pkg_test "$p"
     done
-    step "drift schema" drift_aktuell
-    step "kotlin test" kotlin_tests
-    step "release: INTERNET, CAMERA, VIBRATE, uses-feature, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, keine Debug-Quellen" release_rechte
-    step "lock unverändert" lock_unveraendert
+    if [ "$mode" = fast ]; then
+      echo "FAST  ohne drift schema, kotlin test, release, lock unverändert (nur das volle Gate gilt vor der Fertigmeldung)"
+    else
+      if [ "$mode" = changed ]; then
+        step_wenn_geaendert "$GATE_DRIFT_PATHS" "drift schema" drift_aktuell
+        step_wenn_geaendert "$GATE_KOTLIN_PATHS" "kotlin test" kotlin_tests
+        step_wenn_geaendert "$GATE_RELEASE_PATHS" "$GATE_RELEASE_NAME" release_rechte
+      else
+        step "drift schema" drift_aktuell
+        step "kotlin test" kotlin_tests
+        step "$GATE_RELEASE_NAME" release_rechte
+      fi
+      step "lock unverändert" lock_unveraendert
+    fi
   fi
 fi
-[ $fail -eq 0 ] && echo "GATE GRÜN" || { echo "GATE ROT"; exit 1; }
+total=$(( $(date +%s) - t_start ))
+[ $fail -eq 0 ] && echo "GATE GRÜN ($total s gesamt)" || { echo "GATE ROT ($total s gesamt)"; exit 1; }

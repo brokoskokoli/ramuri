@@ -3,19 +3,17 @@
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/history/run_detail_page.dart';
 import 'package:running_app/features/settings/unit_format.dart';
 import 'package:running_app/features/summary/kilometer_table.dart';
 import 'package:running_app/features/summary/run_charts.dart';
 import 'package:running_app/features/summary/run_summary_body.dart';
-import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key, openHistory, started, text;
+import 'history_summary_test.dart' show openHistory, started, text;
 import 'run_detail_test.dart' show seedDetailRun;
 import 'run_summary_page_test.dart' show seedLoad;
 
@@ -41,16 +39,9 @@ Widget _app(
   Size? size,
   bool bold = false,
   String lang = 'de',
-}) => MaterialApp(
-  theme: dark ? RamuriTheme.dark : RamuriTheme.light,
+}) => localizedApp(
   locale: Locale(lang),
-  localizationsDelegates: const [
-    AppLocalizations.delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-  ],
-  supportedLocales: AppLocalizations.supportedLocales,
+  brightness: dark ? Brightness.dark : Brightness.light,
   home: MediaQuery(
     data: MediaQueryData(
       size: size ?? const Size(360, 640),

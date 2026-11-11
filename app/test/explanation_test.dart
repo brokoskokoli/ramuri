@@ -5,8 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/transparency/value_explanation_screen.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart'
-    show key, openHistory, seedRun, started, text;
+import 'history_summary_test.dart' show openHistory, seedRun, started, text;
 import 'statistics_test.dart' show calc, openStats;
 
 const ProfileRecord _profile = ProfileRecord(

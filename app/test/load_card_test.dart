@@ -4,7 +4,6 @@ import 'dart:ui' show Tristate;
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/statistics/fitness_section.dart'
     show fitnessNumber;
@@ -16,6 +15,8 @@ import 'package:running_app/ui/ui.dart';
 
 import 'history_summary_test.dart' show seedRun, started;
 import 'statistics_test.dart' show openStats;
+
+import 'app_harness.dart';
 
 /// Karte „Belastung“ (WP19 C4b): Verlauf ATL/CTL, aktuelle Werte, TSB ohne
 /// Wertung, Vorläufigkeit, Kennzeichen, Grundlage, Leerzustand. Keine
@@ -98,18 +99,9 @@ Future<void> pump(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    MaterialApp(
-      theme: brightness == Brightness.light
-          ? RamuriTheme.light
-          : RamuriTheme.dark,
+    localizedApp(
       locale: Locale(locale),
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
+      brightness: brightness,
       home: MediaQuery.withClampedTextScaling(
         minScaleFactor: textScale,
         maxScaleFactor: textScale,

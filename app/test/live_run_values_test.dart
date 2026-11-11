@@ -10,8 +10,6 @@ import 'app_harness.dart';
 // Werte-Seite des Laufs nach Live.dc.html (WP16 B): Pflichtanzeigen laufend und
 // pausiert, Beenden nur pausiert, Einheiten, Überlauf.
 
-Finder key(String k) => find.byKey(Key(k));
-
 String text(String k) {
   final w = key(k).evaluate().single.widget as Text;
   return (w.data ?? w.textSpan!.toPlainText())

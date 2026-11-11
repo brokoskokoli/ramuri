@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key;
 import 'settings_gate_storage.dart';
 
 // Willkommen (FR-0207): vor der ersten Einrichtung, einmal.
