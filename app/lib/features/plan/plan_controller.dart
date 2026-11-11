@@ -751,6 +751,8 @@ class PlanController extends ChangeNotifier {
     settings: session.settings,
     warning: w,
     parameters: parameters,
+    measuredInputs: (goal, today) async =>
+        (await reader.read(goal: goal, today: today)).inputs,
   );
 
   /// Antwort auf die Nachfrage (PAR-200). „Passt“ und „zu leicht“ am Regler

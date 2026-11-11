@@ -40,11 +40,7 @@ void main() {
             child: SubjectiveSection(
               service: SubjectiveService(session: s, clock: clock),
               runId: runId,
-              onWarningYes: warningEntry(
-                session: s,
-                clock: clock,
-                runId: runId,
-              ),
+              onWarning: warningEntry(session: s, clock: clock, runId: runId),
             ),
           ),
         ),
@@ -89,4 +85,42 @@ void main() {
       isTrue,
     );
   });
+
+  testWidgets(
+    'Antwort ja zurücknehmen (nein oder abwählen) hebt das Warnsignal '
+    'dieses Laufs auf; ein anderes bleibt',
+    (tester) async {
+      final (s, runId) = await world();
+      await pump(tester, s, runId);
+      final warning = (s as WarningStorage).warning;
+      await tap(tester, 'subjective_complaints_button');
+      await tester.enterText(
+        find.byKey(const ValueKey('subjective_complaints')),
+        'Knie',
+      );
+      await tester.pumpAndSettle();
+      await tap(tester, 'subjective_warn_yes');
+      expect((await warning.read())!.runId, runId);
+      await tap(tester, 'subjective_warn_no');
+      expect(await warning.read(), isNull);
+      final versions = await (s as PlanStorage).plans.history();
+      expect(versions.last.reason, 'warningLifted');
+      // Erneut ja, dann abwählen.
+      await tap(tester, 'subjective_warn_yes');
+      expect(await warning.read(), isNotNull);
+      await tap(tester, 'subjective_warn_yes');
+      expect(await warning.read(), isNull);
+
+      // Ein Warnsignal einer anderen Quelle bleibt.
+      await warning.set(
+        WarningSignal(
+          reportedOn: DateTime.utc(2030, 1, 2),
+          source: WarningSource.manual,
+        ),
+      );
+      await tap(tester, 'subjective_warn_yes');
+      await tap(tester, 'subjective_warn_no');
+      expect((await warning.read())!.source, WarningSource.manual);
+    },
+  );
 }

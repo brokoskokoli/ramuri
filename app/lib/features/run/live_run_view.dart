@@ -234,7 +234,7 @@ class LiveRunView extends StatelessWidget {
             session: controller.storage,
             clock: clock,
           ),
-          onWarningYes: warningEntry(
+          onWarning: warningEntry(
             session: controller.storage,
             clock: clock,
             runId: id,
