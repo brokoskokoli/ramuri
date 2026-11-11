@@ -2,7 +2,7 @@
 # Gate: tool/gate.sh [--fast | --changed]. Spec-Prüfung, Datenschutz und, sobald app/ existiert, Flutter.
 #   (ohne Option)  voll: alle Schritte, Pflicht vor Review-Abgabe und Fertigmeldung. Nimmt den Gate-Lock.
 #   --fast         Zwischenstand: spec, privat, Netz, Format und Analyse aller Pakete, Tests nur der gegenüber
-#                  der Basis (merge-base main) geänderten Pakete; kein Release/Drift/Kotlin, kein Lock;
+#                  der Basis (merge-base main) geänderten Pakete und der von ihnen abhängigen (app ← adapters ← core); kein Release/Drift/Kotlin, kein Lock;
 #                  pub get nur bei geändertem pubspec.* (oder fehlender Paketauflösung). Ersetzt nie das volle Gate.
 #   --changed      wie voll, lässt aber Flutter aus, wenn app/, tool/gate.sh und die von Tests gelesenen Dokumente
 #                  (getrackt, ungetrackt, committet) gegenüber main unverändert sind (auf main gegenüber dem Stand vor
@@ -13,12 +13,15 @@
 # rot, endet das Gate danach. Danach (Tests, drift, kotlin, release, lock) bricht es beim ersten roten Schritt ab.
 # Jede Zeile nennt die Dauer des Schritts in Sekunden.
 # Lock: über alle Worktrees höchstens ein volles/--changed-Gate gleichzeitig (/usr/bin/lockf auf $(git-common-dir)/gate.lock,
-# der Lock hängt am Prozess und wird bei Ende, Absturz oder Signal frei).
+# der Lock hängt am Prozess und wird bei Ende, Absturz oder Signal frei). Grenze: kill -9 an lockf lässt das Gate ohne
+# Lock weiterlaufen; abbrechen per TERM/Ctrl-C an die PID aus gate.lock.info.
 
 # Eingaben der Schritte bei --changed (Git-Pfadangaben, durch Leerzeichen getrennt, ohne Leerzeichen in Pfaden).
-GATE_DRIFT_PATHS="app/packages/adapters/lib/src/storage app/packages/adapters/drift_schemas"
-GATE_KOTLIN_PATHS="app/android"
-GATE_RELEASE_PATHS="app/android app/lib app/packages :(glob)app/**/pubspec.*"
+# Alle Listen enthalten tool/gate.sh (die Schrittfunktionen stehen dort) und pubspec.* samt pubspec.lock.
+GATE_DRIFT_PATHS="app/packages/adapters/lib/src/storage app/packages/adapters/drift_schemas tool/gate.sh :(glob)app/**/pubspec.*"
+GATE_KOTLIN_PATHS="app/android tool/gate.sh :(glob)app/**/pubspec.*"
+GATE_RELEASE_PATHS="app/android app/lib app/packages app/assets app/l10n.yaml tool/check_release_manifest.py tool/gate.sh :(glob)app/**/pubspec.*"
+GATE_RELEASE_NAME="release: INTERNET, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, kein Test-Sensor"
 
 mode=full
 case "${1:-}" in
@@ -128,6 +131,22 @@ paths_changed() {
 # Für --changed: Schritt nur bei geänderten Eingaben (Liste siehe oben im Skript), sonst SKIP.
 step_wenn_geaendert() {   # <Eingaben> <Name> <Funktion>
   if paths_changed "$1"; then step "$2" "$3"; else echo "SKIP  $2 (Eingaben unverändert: $1)"; fi
+}
+
+# Pfade der Pakete in app/packages, von denen <Paket> über path-Abhängigkeiten (auch transitiv) abhängt.
+pkg_deps() {
+  acc=; todo=$1
+  while [ -n "$todo" ]; do
+    next=
+    for q in $todo; do
+      for n in $(grep -oE 'path:[[:space:]]*(\.\./|packages/)[A-Za-z0-9_]+' "$q/pubspec.yaml" 2>/dev/null | sed -E 's,path:[[:space:]]*(\.\./|packages/),,'); do
+        c=app/packages/$n
+        case " $acc " in *" $c "*) ;; *) acc="$acc $c"; next="$next $c" ;; esac
+      done
+    done
+    todo=$next
+  done
+  echo $acc
 }
 
 # Verzeichnisse, die Format und Analyse prüfen (im Paketverzeichnis aufrufen): lib, test und, falls vorhanden, integration_test.
@@ -387,7 +406,10 @@ if [ -f app/pubspec.yaml ]; then
     for p in app app/packages/*; do
       if [ "$mode" = fast ]; then
         if [ "$p" = app ]; then spec_p="app :(exclude)app/packages $(watched_paths | tail -n +2 | tr '\n' ' ')"; else spec_p=$p; fi
-        paths_changed "$spec_p" || { echo "SKIP  $p test (Paket gegenüber der Basis unverändert)"; continue; }
+        # Hängt das Paket (transitiv, per path-Abhängigkeit) von einem geänderten ab, laufen seine Tests mit.
+        # (getrennt geprüft: das ":(exclude)app/packages" von app würde sonst die Abhängigkeiten ausschließen)
+        deps_p=$(pkg_deps "$p")
+        paths_changed "$spec_p" || { [ -n "$deps_p" ] && paths_changed "$deps_p"; } || { echo "SKIP  $p test (Paket und Abhängigkeiten gegenüber der Basis unverändert)"; continue; }
       fi
       step "$p test" pkg_test "$p"
     done
@@ -397,11 +419,11 @@ if [ -f app/pubspec.yaml ]; then
       if [ "$mode" = changed ]; then
         step_wenn_geaendert "$GATE_DRIFT_PATHS" "drift schema" drift_aktuell
         step_wenn_geaendert "$GATE_KOTLIN_PATHS" "kotlin test" kotlin_tests
-        step_wenn_geaendert "$GATE_RELEASE_PATHS" "release: INTERNET, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, kein Test-Sensor" release_rechte
+        step_wenn_geaendert "$GATE_RELEASE_PATHS" "$GATE_RELEASE_NAME" release_rechte
       else
         step "drift schema" drift_aktuell
         step "kotlin test" kotlin_tests
-        step "release: INTERNET, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, kein Test-Sensor" release_rechte
+        step "$GATE_RELEASE_NAME" release_rechte
       fi
       step "lock unverändert" lock_unveraendert
     fi

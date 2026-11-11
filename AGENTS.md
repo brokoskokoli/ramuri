@@ -30,8 +30,8 @@ Gate (Spec-Prüfung, private Daten, Netz nur im Kartenadapter (`tool/check_net.p
 
 ```sh
 sh tool/gate.sh            # alles (Pflicht vor Review-Abgabe und Fertigmeldung)
-sh tool/gate.sh --fast     # Zwischenstand: Format, Analyse, Tests der geänderten Pakete; ersetzt nie das volle Gate
-sh tool/gate.sh --changed  # Flutter nur auslassen, wenn app/ und tool/gate.sh gegenüber main unverändert sind
+sh tool/gate.sh --fast     # Zwischenstand: Format, Analyse, Tests der geänderten und der von ihnen abhängigen Pakete; ersetzt nie das volle Gate
+sh tool/gate.sh --changed  # Flutter nur auslassen, wenn app/, tool/gate.sh und von Tests gelesene Dokumente gegenüber main unverändert sind; drift/kotlin/release nur bei geänderten Eingaben
 ```
 
 Weitere Befehle ergänzt du erst, wenn sie funktionieren.

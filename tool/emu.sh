@@ -25,6 +25,8 @@ die() { echo "emu.sh: $*" >&2; exit 1; }
 valid_serial() { case $1 in emulator-[0-9]*) case ${1#emulator-} in *[!0-9]*) return 1 ;; esac; return 0 ;; *) return 1 ;; esac; }
 valid_avd() { case $1 in ""|*[!A-Za-z0-9_.-]*) return 1 ;; esac; return 0; }
 alive() { [ -n "$1" ] && kill -0 "$1" 2>/dev/null; }
+# Die PID gehört noch zu unserem Prozess (PID-Wiederverwendung): Kommandozeile enthält alle übrigen Argumente.
+own() { c=$(ps -o command= -p "$1" 2>/dev/null) || return 1; shift; for a in "$@"; do case "$c" in *"$a"*) ;; *) return 1 ;; esac; done; }
 
 # Wrapper (läuft unter lockf, hält also den AVD-Lock): wählt einen Port, startet den Emulator, schreibt Zustand.
 # Aufruf: emu.sh _run <avd> <runfile>
@@ -98,14 +100,18 @@ cmd_stop() {
   info=$state/serial/$serial
   [ -f "$info" ] || die "$serial wurde nicht mit tool/emu.sh gestartet (stop nur für selbst gestartete)"
   read -r avd wpid epid < "$info"
+  port=${serial#emulator-}
   alive "$wpid" || { rm -f "$info"; die "$serial: Wrapper läuft nicht mehr (Eintrag entfernt)"; }
+  own "$wpid" "_run $avd" || { rm -f "$info"; die "$serial: PID $wpid ist nicht mehr der eigene Wrapper (Eintrag entfernt, nichts beendet)"; }
   kill -TERM "$wpid"
   t=0
   while alive "$wpid" && [ $t -lt 30 ]; do sleep 1; t=$((t+1)); done
   if alive "$wpid"; then
     "$ADB" -s "$serial" emu kill >/dev/null 2>&1
     sleep 3
-    alive "$wpid" && { kill -KILL "$epid" 2>/dev/null; kill -KILL "$wpid" 2>/dev/null; }
+    alive "$wpid" && {
+      own "$epid" "-avd $avd" "-port $port" && kill -KILL "$epid" 2>/dev/null
+      own "$wpid" "_run $avd" && kill -KILL "$wpid" 2>/dev/null; }
   fi
   rm -f "$info"
   echo "$serial beendet"
