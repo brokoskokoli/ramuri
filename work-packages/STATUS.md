@@ -23,11 +23,11 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP19 | Belastungsverlauf und Belastungsprofil | gemergt (2aa9ec4) | Meldung „Neuberechnet“ bleibt bis zur nächsten Aktion; VO₂max-Tageswerte jüngerer Tage nach Import älterer Läufe bis zur nächsten Neuberechnung veraltet (prüfen, ob gewollt); Reimport-Fehlermeldung ohne Grund; nach abgelehntem Rückweg auf Edwards TRIMP „nicht verfügbar“; ungeprüft auf dem Gerät: Ladefehler, „Banister aktiv, aber nicht anwendbar“ |
 | WP20 | Leistungsprognose | gemergt (9fccb54) | Produktfrage: Löschen einer Referenz aus einem bestätigten Lauf schlägt diesen Lauf wieder vor; Marathon mit 5-km-Referenz nennt „Referenzdistanz zu weit“ statt „immer vorläufig“; Annahme zu PAR-117 ersetzt WP21; „Alles löschen“ und danach Import meldet „App enthält schon Daten“ (M1-Verhalten, isEmpty zählt Profil); ungeprüft auf dem Gerät: Ladezeit, Schrift 2,0 bei Formular und Dialogen |
 | WP21 | Planmodell und Planerzeugung | gemergt (4b12601) | Oberfläche und Lese-Adapter für `buildPlanInputs` an WP22; PAR-140, PAR-200/201, PAR-202 an WP23; 5-km-Zeitziel mit fernem Datum bekommt harte Einheiten erst spät (PAR-199-Dämpfung, beobachten); `created_day` des Ziels nicht gespeichert; ungeprüft: Migration mit großen Datenmengen und Abbruch mittendrin |
-| WP22 | Plan-Seite, Ziele und Kalender | in Arbeit | |
+| WP22 | Plan-Seite, Ziele und Kalender | gemergt (bf842a3) | Korrektur der Prognosekarte (nur unbrauchbare Referenz) nur per Widget-Test; Erinnerungen im Hintergrund und nach Neustart des Geräts nur im Emulator; nach „Neu berechnen“ wurde die heutige unbestätigte Einheit zum Ruhetag (vermutlich Abstandsregel, ungeprüft, an WP23); dunkles Theme bei schmaler Breite nicht geprüft; Folge-Soll: Tests für den Wochenschritt und die +18-h-Grenze der Erinnerungen, Meilenrundung an der Grenze 4:01 min/mi, Prognosekarte mit gemischten Referenzen, Lage der Zeile „ungültig“; OQ-0079, OQ-0080; Hinweise in `handoff/hinweise/wp22/` |
 | WP23 | Plananpassung, Warnsignal, Erklärungen, Basis-Erholung | geplant | |
 | WP24 | Geführte Einheit und Ansagen | geplant | |
 | WP25 | Laufband und Zusatzmetriken | geplant | |
-| WP26 | RR-Intervalle speichern | geplant | Start nach WP20 |
+| WP26 | RR-Intervalle speichern | in Arbeit | Start nach WP20 |
 | WP27 | Ruhepuls mit der Handykamera | in Arbeit | Erst Screens (Claude Design), dann Umsetzung; Messprotokoll aus R009 in FR-0214 übernommen |
 
 ## M1 im Detail

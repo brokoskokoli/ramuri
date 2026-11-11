@@ -11,6 +11,7 @@ Bezug: FR-0039, FR-0105 bis FR-0107, FR-0156 bis FR-0170, FR-0179 bis FR-0181, F
 4. **Begründungen und Erklärungen (Teil D, FR-0159, FR-0170, FR-0179 bis FR-0181):** Größere Änderung nach PAR-204 mit einem Satz Grund, wie „Plan angepasst“ im Design; Verlauf der Änderungen. Erklärungen nur aus tatsächlichen Daten.
 5. **Basis-Erholung (Teil E, FR-0105 bis FR-0107):** Karte auf „Heute“ in der Optik von `Main.dc.html`, nur mit Texthinweis nach PAR-172 ff., ohne Zahl und ohne Zustand (OQ-0077).
 6. **Aus WP21:** PAR-140 (Wiederholungsvorschlag Geh-Lauf), PAR-200/201 (Felder in `PlanInputs` nur vorbereitet) und der Neustart nach einer Pause (PAR-202) gehören hierher.
+7. **Aus WP22:** Die Karten „Plan angepasst“ und „Erholung“ auf „Heute“ gehören hierher. Beobachtet im E2E: Nach „Neu berechnen“ wurde die heutige unbestätigte Einheit zum Ruhetag (vermutlich Abstandsregel PAR-059, ungeprüft). Ursache klären und, falls ungewollt, beheben (Test).
 
 ## Umsetzung
 - Teile je ein Coder-Auftrag. Mutationsbelege für jede Regel aus PAR-200 bis PAR-204 und für den Vorrang des Warnsignals.

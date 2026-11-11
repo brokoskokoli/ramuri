@@ -182,7 +182,7 @@ Bei drei Trainingstagen pro Woche wäre beispielsweise möglich: ein lockerer Da
 ### FR-0152 — Intensive Einheiten nicht ohne Erholung hintereinander
 - **Status:** Approved | **Phase:** 2
 - **Quelle:** SRC-001 §16.2, Z. 1015
-- **Verwandt:** FR-0177, OQ-0028
+- **Verwandt:** FR-0177, OQ-0028, OQ-0079
 
 Intensive Trainingseinheiten sollen normalerweise nicht ohne ausreichende Erholung direkt aufeinanderfolgen.
 
@@ -255,6 +255,7 @@ Die konkreten Werte stehen in [planning-rules.md](../planning-rules.md) und [pha
 - [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
 - [OQ-0060](../migration/open-questions.md#oq-0060--einfacher-trainingsplan) (entschieden): Einfacher Trainingsplan
 - [OQ-0077](../migration/open-questions.md#oq-0077--vorgaben-zum-start-von-phase-2) (entschieden): Vorgaben zum Start von Phase 2
+- [OQ-0079](../migration/open-questions.md#oq-0079--pulskriterium-für-absolvierte-intensive-einheiten) (non-blocking): Pulskriterium für absolvierte intensive Einheiten
 <!-- END OQ -->
 
 ## Quellen

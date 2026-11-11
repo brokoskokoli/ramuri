@@ -659,3 +659,21 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Optionen:** Kamera-Messung für Ruhepuls (Phase 2) und Morgenmessung (Phase 3); Phase 3 weiter nur über Health Connect.
 - **Status:** Resolved
 - **Entscheidung:** 2026-11-09, SRC-003: Ruhepuls lässt sich in Profil und Einrichtung mit der Kamera messen, mit beruhigender Ruhephase (überspringbar), Pulskurve zum Justieren und Erklärbild (FR-0214, Phase 2). Für Phase 3 misst der Nutzer morgens 60 s Ruhepuls und RMSSD mit der Kamera, auf Wunsch mit Erinnerung (FR-0215). Phase 3 wird nach M2 auf dieser Grundlage geplant und nicht mehr zurückgestellt; Protokoll, Literatur und Regeln klärt R009. Neue Screens entwirft Claude Design im Stil von `design/`. Ziel: FR-0214, FR-0215, DEC-0073.
+
+### OQ-0079 — Pulskriterium für absolvierte intensive Einheiten
+- **Frage:** PAR-058 wertet einen absolvierten Lauf als intensiv bei mindestens 10 min über 80 % HFmax oder RPE ≥ 7. WP22 prüft beim Verschieben nur RPE ≥ 7, weil je Lauf keine Zeit über 80 % HFmax gespeichert ist; die Zonen laufen über die Reserve (PAR-111). Soll das Pulskriterium nachgezogen werden, und auf welcher Grundlage?
+- **Auslöser/Quellen:** WP22, Nachbesserung E (Abstand beim Verschieben); PAR-058, PAR-111.
+- **Betroffene Anforderungen:** FR-0152, FR-0177
+- **Auswirkung:** non-blocking, bis zur Antwort zählt nur RPE ≥ 7; ein harter Lauf ohne RPE-Angabe löst keinen Abstandskonflikt aus.
+- **Optionen:** Zeit über 80 % HFmax je Lauf speichern oder aus den Pulsdaten nachrechnen; Kriterium auf Zone 4–5 der Reserve umstellen (Anpassung von PAR-058); nur RPE und PAR-058 angleichen. Empfehlung: Zeit über 80 % HFmax je Lauf als abgeleiteten Wert berechnen (ADR-0004) und das Kriterium dann nachziehen; ohne Puls gilt weiter RPE.
+- **Status:** Open
+- **Entscheidung:** —
+
+### OQ-0080 — Bedeutung von „verbleibende Trainingszeit“ beim Verschieben
+- **Frage:** FR-0177 verlangt beim Verschieben eine Prüfung der „verbleibenden Trainingszeit“. Gemeint sein kann die Zeit bis zum Ziel oder Planende oder die restliche Wochenzeit unter dem Regler. Was soll die App prüfen?
+- **Auslöser/Quellen:** SRC-001 §18.2, Z. 1157 (ohne Kontext); WP22, Teil E und Review E. WP22 prüft Abstand, Wochenbelastung gegen den Regler und Alternativtage; hinter das Planende lässt sich nicht verschieben.
+- **Betroffene Anforderungen:** FR-0177
+- **Auswirkung:** non-blocking, das Akzeptanzkriterium von FR-0177 ist ohne Klärung erfüllt.
+- **Optionen:** Zeit bis zum Ziel (Hinweis, wenn eine Einheit in die letzte Woche oder hinter das Zieldatum fällt); restliche Wochenzeit (deckt die Prüfung der Wochenbelastung schon ab); Begriff streichen. Empfehlung: Zeit bis zum Ziel, als Hinweis ohne Sperre, wenn eine Verschiebung in die Reduktion oder auf den Zieltag fällt.
+- **Status:** Open
+- **Entscheidung:** —

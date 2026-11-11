@@ -56,7 +56,7 @@ Das Profil umfasst die folgenden Felder.
 **Akzeptanzkriterien:**
 - [ ] Alle als „Optional“ markierten Felder können leer bleiben, ohne dass die Grundfunktionen gesperrt werden.
 - [ ] Trainingstage und Trainingsdauer im Profil sind Standardwerte für neue Ziele (OQ-0038).
-- [ ] Beim Erstellen eines Plans fragt die App fehlende Angaben ab. Pflicht sind nur die verfügbaren Trainingstage; ohne die übrigen Angaben entsteht ein konservativer Einstiegsplan (OQ-0010).
+- [ ] Beim Erstellen eines Plans fragt die App fehlende Angaben ab. Pflicht sind die verfügbaren Trainingstage und die maximale Trainingszeit je Einheit (K53); ohne die übrigen Angaben entsteht ein konservativer Einstiegsplan (OQ-0010).
 
 ### FR-0003 — Gemessene maximale Herzfrequenz hat Vorrang
 - **Status:** Approved | **Phase:** 1
