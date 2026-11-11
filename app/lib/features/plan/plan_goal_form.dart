@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../settings/app_settings.dart';
+import '../statistics/prediction_card.dart';
 import '../statistics/reference_form.dart';
 import 'plan_controller.dart';
 import 'plan_texts.dart';
@@ -79,6 +80,8 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   double? _runsStand;
   bool _loading = true;
   ReferencePerformance? _reference;
+  // Gespeicherte, aber unbrauchbare Referenz (nur Anzeige, K49).
+  ReferencePerformance? _unusedReference;
 
   /// Die Einschätzung samt genau dem Entwurf, der eingeschätzt wurde;
   /// gespeichert wird dieser Entwurf.
@@ -147,6 +150,7 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     } on Object {
       reference = null;
     }
+    final unused = reference == null ? await _unusedReferenceOf() : null;
     if (!_editing) {
       try {
         profile = await widget.session.profile.read();
@@ -158,6 +162,7 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     setState(() {
       _runsStand = stand;
       _reference = reference;
+      _unusedReference = unused;
       // OQ-0038: Werte aus dem Profil vorausfüllen, für den Plan gilt der
       // Wert am Ziel.
       if (profile != null) {
@@ -368,6 +373,17 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     }
   }
 
+  /// Die jüngste gespeicherte Referenz, wenn keine gilt (nur zur Anzeige).
+  Future<ReferencePerformance?> _unusedReferenceOf() async {
+    try {
+      final all = await (widget.session as PredictionStorage).prediction
+          .references();
+      return newestReference(all.map((s) => s.reference));
+    } on Object {
+      return null;
+    }
+  }
+
   Future<void> _addReference() async {
     final l = AppLocalizations.of(context);
     final reference = await showReferenceForm(
@@ -380,9 +396,13 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     try {
       await store.addReference(reference);
       final active = await store.activeReference();
+      final unused = active == null ? await _unusedReferenceOf() : null;
       if (!mounted) return;
       // Die Referenz geht in die Einschätzung eines Zeitziels ein.
-      _set(() => _reference = active);
+      _set(() {
+        _reference = active;
+        _unusedReference = unused;
+      });
     } on Object {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -689,16 +709,31 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     final text = Theme.of(context).textTheme;
     final lang = Localizations.localeOf(context).languageCode;
     final ref = _reference;
+    final unused = _unusedReference;
+    final unusedProblem = ref == null && unused != null
+        ? unused.validate(widget.clock.now(), const PredictionParameters())
+        : null;
+    final formatter = AppSettingsScope.formatterOf(context);
     return [
       const SizedBox(height: 16),
       SectionHeading(l.planFormReferences),
       const SizedBox(height: 4),
       Text(
         ref == null
-            ? l.planFormReferenceNone
+            ? (unused != null && unusedProblem != null
+                  // Keine Referenz gilt, aber eine ist gespeichert (K49).
+                  ? l.planReferenceInvalid(
+                      l.predictionReferenceLine(
+                        predictionKindText(l, unused.kind),
+                        formatter.distance(unused.distanceMeters),
+                        clockTimeText(unused.seconds),
+                        DateFormat.yMMMd(lang).format(unused.date),
+                      ),
+                      referenceProblemText(l, unusedProblem, formatter),
+                    )
+                  : l.planFormReferenceNone)
             : l.planFormReferenceActive(
-                AppSettingsScope.formatterOf(context)
-                    .distance(ref.distanceMeters),
+                formatter.distance(ref.distanceMeters),
                 planGoalTimeText(l, ref.seconds),
                 DateFormat.yMMMd(lang).format(ref.date),
               ),

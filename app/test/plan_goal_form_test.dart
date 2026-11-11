@@ -870,6 +870,37 @@ void main() {
     expect(_error(tester), de.planFormSaveFailed);
   });
 
+  testWidgets('Nur unbrauchbare Referenz gespeichert: ungueltig mit Grund', (
+    tester,
+  ) async {
+    // Importiert (Speicher-Prüfung umgangen): 10 km in 10 Minuten, Tempo
+    // außerhalb der Spanne.
+    final storage = FakeStorage();
+    final session = await storage.open(_key);
+    final clock = FakeClock(_now);
+    storage.data.references.add(
+      StoredReference(
+        id: 1,
+        reference: ReferencePerformance(
+          kind: ReferenceKind.race,
+          distanceMeters: 10000,
+          seconds: 10 * 60,
+          date: DateTime.utc(2026, 10, 4),
+          createdAt: _now,
+        ),
+      ),
+    );
+    final c = _controller(session, clock);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    final text = tester
+        .widget<Text>(find.byKey(const Key('plan_form_reference')))
+        .data!;
+    expect(text, isNot(contains('Noch keine')));
+    expect(text, contains('ungültig'));
+    expect(text, contains('wird nicht verwendet'));
+  });
+
   testWidgets('Bisherige Wettkampfzeit steht als Referenz im Formular', (
     tester,
   ) async {
