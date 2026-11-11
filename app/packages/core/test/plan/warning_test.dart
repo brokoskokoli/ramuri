@@ -6,7 +6,6 @@ import 'package:test/test.dart';
 final _d0 = DateTime.utc(2026, 11, 11); // Mittwoch
 DateTime _day(int n) => _d0.add(Duration(days: n));
 DateTime _now(int n) => DateTime.utc(2026, 11, 11, 8).add(Duration(days: n));
-DateTime _monday(DateTime d) => d.subtract(Duration(days: d.weekday - 1));
 
 TrainingGoal _goal({int capMin = 240}) => TrainingGoal(
   type: GoalType.distance,
@@ -269,6 +268,28 @@ void main() {
       await e.recalc(PlanTrigger.weekly, 0);
       expect(await e.sigs(), before);
     });
+  });
+
+  test('applyWarningRest: Einheit mit Lauf und vergangene bleiben', () {
+    PlanUnit u(int n, {int? runId}) => PlanUnit(
+      day: _day(n),
+      kind: PlanUnitKind.easy,
+      phase: PlanPhase.entry,
+      weekIndex: 0,
+      minutes: 30,
+      segments: const [],
+      runId: runId,
+      fixed: PlanUnitFixed.kind,
+      pinned: true,
+    );
+    final out = applyWarningRest([u(0), u(1, runId: 3), u(2)], _day(1));
+    expect(out.map((x) => x.kind), [
+      PlanUnitKind.easy,
+      PlanUnitKind.easy,
+      PlanUnitKind.rest,
+    ]);
+    expect(out[2].fixed, PlanUnitFixed.kind);
+    expect(out[2].pinned, isTrue);
   });
 
   group('Erinnerung (reine Funktion)', () {
