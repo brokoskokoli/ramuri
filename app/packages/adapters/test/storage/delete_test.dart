@@ -46,6 +46,15 @@ Future<void> fill(EncryptedStorageSession s, int runId, String m) async {
         for (var i = 0; i < 5; i++)
           RrPacket(time: at(i), source: m, intervals: [1000 + i, 1010]),
       ],
+      // Laufbandeinstellungen (WP25), synthetisch.
+      beltSettings: [
+        for (var i = 0; i < 3; i++)
+          BeltSetting(
+            offset: Duration(seconds: i * 60),
+            speedMetersPerSecond: 2.5 + i,
+            inclinePercent: i.isEven ? 1.5 : null,
+          ),
+      ],
     ),
   );
 }
@@ -196,6 +205,30 @@ void main() {
       await s.close();
     },
   );
+
+  test('Laufbandeinstellungen: deleteRun entfernt nur die des Laufs, deleteAll alle', () async {
+    final (s, a, b) = await setup();
+    Future<int> count(int runId) async =>
+        (await s.rawData.read(runId)).beltSettings.length;
+    Future<int> total() async =>
+        (await s.database
+                    .customSelect(
+                      'SELECT COUNT(*) AS n FROM treadmill_settings',
+                    )
+                    .get())
+                .single
+                .data['n']
+            as int;
+    expect(await count(a), 3, reason: 'Positivkontrolle');
+    expect(await count(b), 3);
+    await s.deleteRun(a);
+    expect(await count(a), 0);
+    expect(await count(b), 3, reason: 'anderer Lauf bleibt');
+    expect(await total(), 3, reason: 'keine verwaisten Zeilen');
+    await s.deleteAll();
+    expect(await total(), 0);
+    await s.close();
+  });
 
   test('Alles löschen entfernt die Karteneinwilligung', () async {
     final (s, _, _) = await setup();

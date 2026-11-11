@@ -81,6 +81,10 @@ SECTIONS_S8 = SECTIONS_S7
 # (uint16 little-endian, 1/1024 s), in der Datei als kleingeschriebener Hex-Text.
 SECTIONS_S9 = SECTIONS_S8 + ["raw_rr_packets"]
 
+# Schema 10 (WP25, weiter Format 2): `runs` bekommt am Ende die Spalte `mode` (`gps`/`treadmill`),
+# Abschnitt 26 `treadmill_settings` kommt ans Ende. Archive bis Schema 9 lesen sich mit mode = "gps".
+SECTIONS_S10 = SECTIONS_S9 + ["treadmill_settings"]
+
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
 V2_TODAY = "2026-11-20"
@@ -265,8 +269,25 @@ def archive_rows_s9():
     return r
 
 
+def archive_rows_s10():
+    """Schema 10: die Zeilen von Schema 9, `runs.mode` (Lauf 1 gps, Lauf 7 treadmill) und
+    Laufbandeinstellungen des Laufs 7: Start mit Steigung, Aenderung ohne Steigung (unbekannt,
+    nicht 0), Stillstand (0 m/s). offset_us = Zeit ab Laufbeginn."""
+    r = archive_rows_s9()
+    for row in r["runs"]:
+        row["mode"] = "treadmill" if row["id"] == 7 else "gps"
+    r["treadmill_settings"] = [
+        dict(id=1, run_id=7, offset_us=0, speed_mps=2.5, incline_percent=1.5),
+        dict(id=2, run_id=7, offset_us=300_000_000, speed_mps=3.0, incline_percent=None),
+        dict(id=3, run_id=7, offset_us=600_000_000, speed_mps=0.0, incline_percent=0.0),
+    ]
+    return r
+
+
 def archive_plaintext(version=1, future_training=False, schema=None):
-    if schema == 9:
+    if schema == 10:
+        r, sections = archive_rows_s10(), SECTIONS_S10
+    elif schema == 9:
         r, sections = archive_rows_s9(), SECTIONS_S9
     elif schema == 8:
         r, sections = archive_rows_s8(), SECTIONS_S8
@@ -315,6 +336,7 @@ def main():
     jl7, gz7 = archive_plaintext(2, schema=7)
     jl8, gz8 = archive_plaintext(2, schema=8)
     jl9, gz9 = archive_plaintext(2, schema=9)
+    jl10, gz10 = archive_plaintext(2, schema=10)
     _, gz2_future = archive_plaintext(2, future_training=True)
     # (name, passwort, salz, klartext)
     pw_uni = "Pässwörd-ünïcode-€-123"
@@ -332,13 +354,14 @@ def main():
         ("archive_v2_s7", "archiv-test-passwort-s7+", bytes(range(248, 256)) + bytes(range(8)), gz7),
         ("archive_v2_s8", "archiv-test-passwort-s8+", bytes(range(8, 24)), gz8),
         ("archive_v2_s9", "archiv-test-passwort-s9+", bytes(range(24, 40)), gz9),
+        ("archive_v2_s10", "archiv-test-passwort-s10+", bytes(range(40, 56)), gz10),
     ]
     # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
     v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9") else 1
+        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10") else 1
         h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
@@ -379,6 +402,12 @@ def main():
             manifest[-1]["jsonl_file"] = "archive_v2_s9.jsonl"
             manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl9).hexdigest()
             manifest[-1]["row_counts"] = {s: len(archive_rows_s9()[s]) for s in SECTIONS_S9}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s10":
+            open(os.path.join(out, "archive_v2_s10.jsonl"), "wb").write(jl10)
+            manifest[-1]["jsonl_file"] = "archive_v2_s10.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl10).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s10()[s]) for s in SECTIONS_S10}
             manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)

@@ -104,8 +104,10 @@ class _Runs implements RunStore {
   final RunStore i;
   final _Counting c;
   @override
-  Future<StoredRun> create({required DateTime startedAt}) =>
-      i.create(startedAt: startedAt);
+  Future<StoredRun> create({
+    required DateTime startedAt,
+    RunMode mode = RunMode.gps,
+  }) => i.create(startedAt: startedAt, mode: mode);
   @override
   Future<void> setState(
     int runId,

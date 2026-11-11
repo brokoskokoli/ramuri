@@ -19,7 +19,14 @@ Future<void> sql(AppDatabase db, String sql, [List<Object?> a = const []]) =>
 Future<void> fillAllTables(AppDatabase db) async {
   await sql(
     db,
-    "INSERT INTO runs VALUES (1, 'finished', 1000, 2000000000, 3600)",
+    // mode `treadmill` (Schema 10); die Rohdaten darunter sind nur Füllwerte.
+    "INSERT INTO runs VALUES (1, 'finished', 1000, 2000000000, 3600, 'treadmill')",
+  );
+  // Laufbandeinstellungen (WP25): Steigung angegeben, unbekannt (NULL), Stillstand.
+  await sql(
+    db,
+    'INSERT INTO treadmill_settings (run_id, offset_us, speed_mps, incline_percent) '
+    'VALUES (1, 0, 2.5, 1.5), (1, 300000000, 3.0, NULL), (1, 600000000, 0.0, 0.0)',
   );
   await sql(
     db,

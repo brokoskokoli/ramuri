@@ -47,19 +47,25 @@ Object _valueFor(ArchiveColumn c, int i) => switch (c.type) {
   ArchiveType.blob => Uint8List.fromList([i, 0, 255, 255]),
 };
 
-Map<String, Object?> _row(ArchiveSectionSpec s, int i) => {
+/// Eine Zeile für ein Archiv mit [schema]: Spalten, die erst ein späteres
+/// Schema hat (`runs.mode` ab 10), fehlen davor.
+Map<String, Object?> _row(ArchiveSectionSpec s, int i, {int schema = 4}) => {
   for (final c in s.columns)
-    c.name: c.name == s.key && s.keyIsText ? 'key$i' : _valueFor(c, i),
+    if ((c.sinceSchema ?? 0) <= schema)
+      c.name: c.name == s.key && s.keyIsText ? 'key$i' : _valueFor(c, i),
 };
 
 const _fromSchema7 = {'goals', 'plans', 'plan_units'};
 
-Map<String, List<Map<String, Object?>>> _fullDb({int rowsPer = 1}) => {
+Map<String, List<Map<String, Object?>>> _fullDb({
+  int rowsPer = 1,
+  int schema = 4,
+}) => {
   // `goals`, `plans` und `plan_units` gibt es erst ab Schema 7; die
   // Hilfsfunktionen schreiben Schema 4.
   for (final s in archiveSections)
     if (!s.isReserved && !_fromSchema7.contains(s.name))
-      s.name: [for (var i = 1; i <= rowsPer; i++) _row(s, i)],
+      s.name: [for (var i = 1; i <= rowsPer; i++) _row(s, i, schema: schema)],
 };
 
 String _manifest({int schema = 4}) =>
@@ -237,7 +243,8 @@ void main() {
 
   group('Rundgang Export -> Leser', () {
     test('alle Zeilen gleich, commit genau einmal am Ende', () async {
-      final db = _fullDb(rowsPer: 3);
+      // Der Schreiber erzeugt das neueste Schema (mit `runs.mode`).
+      final db = _fullDb(rowsPer: 3, schema: archiveSchemaVersion);
       db['settings']!.add({
         'key': 'values.calculationPending',
         'value': 'x',
@@ -290,53 +297,56 @@ void main() {
       expect(c.sink.calls, ['begin', 'commit']);
     });
 
-    test(
-      'mehrere Stücke, Werte unverändert (Texte, Zahlen, NULL, JSON als Text)',
-      () async {
-        final rnd = Random(7);
-        String noise() =>
-            base64.encode(List.generate(150, (_) => rnd.nextInt(256)));
-        final db = _fullDb(rowsPer: 0)
-          ..['runs'] = [
+    test('mehrere Stücke, Werte unverändert (Texte, Zahlen, NULL, JSON als Text)', () async {
+      final rnd = Random(7);
+      String noise() =>
+          base64.encode(List.generate(150, (_) => rnd.nextInt(256)));
+      final db = _fullDb(rowsPer: 0)
+        ..['runs'] = [
+          {
+            'id': 1,
+            'state': 'finished',
+            'started_at_us': 9223372036854775807,
+            'ended_at_us': null,
+            'ended_utc_offset_s': -64800,
+          },
+        ]
+        ..['rated_sections'] = [
+          {
+            for (final col in archiveSectionsFor(4)[10].columns)
+              col.name: col.name == 'gps_gaps'
+                  ? '[{"start_us":1,"end_us":2}]'
+                  : _valueFor(col, 1),
+          },
+        ]
+        ..['settings'] = [
+          for (var i = 0; i < 4000; i++)
             {
-              'id': 1,
-              'state': 'finished',
-              'started_at_us': 9223372036854775807,
-              'ended_at_us': null,
-              'ended_utc_offset_s': -64800,
+              'key': 'k${i.toString().padLeft(5, '0')}',
+              'value': noise(),
+              'updated_at_us': i,
             },
-          ]
-          ..['rated_sections'] = [
-            {
-              for (final col in archiveSectionsFor(4)[10].columns)
-                col.name: col.name == 'gps_gaps'
-                    ? '[{"start_us":1,"end_us":2}]'
-                    : _valueFor(col, 1),
-            },
-          ]
-          ..['settings'] = [
-            for (var i = 0; i < 4000; i++)
-              {
-                'key': 'k${i.toString().padLeft(5, '0')}',
-                'value': noise(),
-                'updated_at_us': i,
-              },
-            {'key': 'z', 'value': 'ä\u{1F3C3}"\\\n', 'updated_at_us': 5},
-          ];
-        final bytes = await _archive(_validLines(db));
-        expect(
-          bytes.length,
-          greaterThan(36 + 3 * 65552),
-          reason: 'Mehrstück-Datei',
-        );
-        await c.run(bytes);
-        expect(c.sink.rows, {
-          for (final e in db.entries)
-            if (e.value.isNotEmpty) e.key: e.value,
-        });
-        expect(c.sink.commits, 1);
-      },
-    );
+          {'key': 'z', 'value': 'ä\u{1F3C3}"\\\n', 'updated_at_us': 5},
+        ];
+      final bytes = await _archive(_validLines(db));
+      expect(
+        bytes.length,
+        greaterThan(36 + 3 * 65552),
+        reason: 'Mehrstück-Datei',
+      );
+      await c.run(bytes);
+      // Schema 4 kennt `runs.mode` nicht: Der Leser setzt `gps` (Vertrag 4.3).
+      expect(c.sink.rows, {
+        for (final e in db.entries)
+          if (e.value.isNotEmpty)
+            e.key: e.key == 'runs'
+                ? [
+                    for (final r in e.value) {...r, 'mode': 'gps'},
+                  ]
+                : e.value,
+      });
+      expect(c.sink.commits, 1);
+    });
 
     test('große Datei: Zeilen kommen vor dem Ende, bei Schaden in einem '
         'späteren Stück trotzdem abort ohne commit', () async {
@@ -464,12 +474,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 9: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 10: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 10);
+        final lines = valid()..[0] = _manifest(schema: 11);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":10,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":11,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -650,7 +660,9 @@ void main() {
             s.name: s.name == 'runs' ? 1 : 0,
         });
         await c.run(await _archive(l));
-        expect(c.sink.rows['runs'], [run()]);
+        expect(c.sink.rows['runs'], [
+          {...run(), 'mode': 'gps'},
+        ]);
       },
     );
 
@@ -1152,7 +1164,10 @@ void main() {
       Map<String, List<Map<String, Object?>>> extra = const {},
     }) {
       final db = <String, List<Map<String, Object?>>>{
-        'runs': [_row(archiveSections[0], 1), _row(archiveSections[0], 2)],
+        'runs': [
+          _row(archiveSections[0], 1, schema: schema),
+          _row(archiveSections[0], 2, schema: schema),
+        ],
         'run_feedback': feedback ?? [fb()],
         'manual_trainings': trainings ?? [mt()],
         ...extra,
@@ -1331,8 +1346,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 9 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 10, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 10 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 11, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -1340,6 +1355,18 @@ void main() {
       expect(archiveSectionsFor(7), hasLength(24));
       expect(archiveSectionsFor(8), hasLength(24));
       expect(archiveSectionsFor(9), hasLength(25));
+      expect(archiveSectionsFor(10), hasLength(26));
+      expect(archiveSectionsFor(10).last.name, 'treadmill_settings');
+      expect(
+        archiveSectionsFor(9).map((s) => s.name),
+        isNot(contains('treadmill_settings')),
+      );
+      // `mode` steht erst ab Schema 10 im Abschnitt 1.
+      expect(
+        archiveSectionsFor(9).first.columns.map((c) => c.name),
+        isNot(contains('mode')),
+      );
+      expect(archiveSectionsFor(10).first.columns.last.name, 'mode');
       expect(
         archiveSectionsFor(8).map((s) => s.name),
         isNot(contains('raw_rr_packets')),
@@ -1672,6 +1699,102 @@ void main() {
       },
     );
 
+    Map<String, Object?> tmRow(
+      int id, {
+      Object? incline = 1.5,
+      Object? speed = 2.5,
+    }) => {
+      'id': id,
+      'run_id': 1,
+      'offset_us': id * 1000000,
+      'speed_mps': speed,
+      'incline_percent': incline,
+    };
+
+    test(
+      'Schema 10: mode und treadmill_settings, Steigung unbekannt (null)',
+      () async {
+        final runs = [
+          _row(archiveSections[0], 1, schema: 10)..['mode'] = 'gps',
+          _row(archiveSections[0], 2, schema: 10)..['mode'] = 'treadmill',
+        ];
+        await c.run(
+          await file(
+            v2(
+              schema: 10,
+              extra: {
+                'runs': runs,
+                'treadmill_settings': [
+                  tmRow(1),
+                  tmRow(2, incline: null),
+                  tmRow(3, speed: 0),
+                ],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        expect(
+          [for (final r in c.sink.rows['runs']!) r['mode']],
+          ['gps', 'treadmill'],
+        );
+        final t = c.sink.rows['treadmill_settings']!;
+        expect(t, hasLength(3));
+        expect(t[0]['incline_percent'], 1.5);
+        expect(t[1]['incline_percent'], isNull);
+        expect(t[2]['speed_mps'], 0);
+      },
+    );
+
+    test(
+      'Schema 9: runs ohne mode lesen sich mit gps, Abschnitt 26 gibt es nicht',
+      () async {
+        await c.run(await file(v2(schema: 9)));
+        expect(c.sink.commits, 1);
+        expect({for (final r in c.sink.rows['runs']!) r['mode']}, {'gps'});
+        expect(c.sink.rows['treadmill_settings'] ?? const [], isEmpty);
+        c = _Case(dir);
+        final l = v2(schema: 9);
+        l.insert(l.length - 1, _section('treadmill_settings'));
+        await rejectsV2(l);
+      },
+    );
+
+    test('mode: Schema 9 mit mode oder Schema 10 ohne mode sowie falscher Typ in treadmill_settings: beschädigt', () async {
+      await rejectsV2(
+        v2(
+          schema: 9,
+          extra: {
+            'runs': [_row(archiveSections[0], 1, schema: 10)],
+          },
+        ),
+      );
+      await rejectsV2(
+        v2(
+          schema: 10,
+          extra: {
+            'runs': [_row(archiveSections[0], 1, schema: 9)],
+          },
+        ),
+      );
+      for (final bad in <Map<String, Object?>>[
+        tmRow(1, speed: 'schnell'),
+        tmRow(1, speed: null),
+        tmRow(1, incline: 'steil'),
+        tmRow(1)..remove('offset_us'),
+        tmRow(1)..['extra'] = 1,
+      ]) {
+        await rejectsV2(
+          v2(
+            schema: 10,
+            extra: {
+              'treadmill_settings': [bad],
+            },
+          ),
+        );
+      }
+    });
+
     test(
       'fixed fehlt in Schema 8 oder steht in Schema 7: beschädigt',
       () async {
@@ -1847,9 +1970,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 10: neueres Archiv', () async {
+    test('Schema 11: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":10,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":11,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });
@@ -1924,7 +2047,7 @@ void main() {
     });
 
     test('Rundgang: Export schreibt Format 2 mit beiden Abschnitten', () async {
-      final db = _fullDb(rowsPer: 2);
+      final db = _fullDb(rowsPer: 2, schema: archiveSchemaVersion);
       db['run_feedback'] = [fb(), fb(run: 2)];
       db['manual_trainings'] = [mt(), mt(id: 2)];
       final handoff = FakeFileHandoff()..directory = dir.path;

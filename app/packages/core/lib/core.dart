@@ -163,6 +163,7 @@ export 'src/recording/recording_session.dart';
 export 'src/recording/run_recorder.dart';
 export 'src/recording/run_recovery.dart';
 export 'src/recording/start_gate.dart';
+export 'src/recording/treadmill.dart';
 export 'src/statistics/best_pace.dart';
 export 'src/statistics/classification.dart';
 export 'src/statistics/fitness_overview.dart';

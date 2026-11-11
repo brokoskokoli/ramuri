@@ -88,6 +88,9 @@ class _V1 extends AppDatabase {
       await customStatement('DROP TABLE goals');
       // RR-Pakete (Schema 9, WP26), samt Index und Triggern.
       await customStatement('DROP TABLE raw_rr_packets');
+      // Laufart und Laufbandeinstellungen (Schema 10, WP25).
+      await customStatement('DROP TABLE treadmill_settings');
+      await customStatement('ALTER TABLE runs DROP COLUMN mode');
       if (version < 2) {
         for (final c in [
           'speed_mps',
@@ -599,7 +602,7 @@ void main() {
   });
 
   for (final from in [1, 2]) {
-    group('Migration $from -> 9 auf befüllter v$from-Datenbank', () {
+    group('Migration $from -> 10 auf befüllter v$from-Datenbank', () {
       test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
         final v1 = await open((e) => _V1(e, from));
         Future<List<Object?>> master(String type) async => [
@@ -616,8 +619,13 @@ void main() {
           await master('trigger'),
           isNot(contains('value_sections_original_immutable')),
         );
-        final r = (await v1.runs.create(startedAt: _at(0))).id;
-        // Der Store der aktuellen App kennt die v1-Spalten nicht: per SQL beenden.
+        // Der Store der aktuellen App kennt die alten Spalten nicht (auch `mode`
+        // fehlt hier): Lauf per SQL anlegen und beenden.
+        await v1.database.customStatement(
+          "INSERT INTO runs (state, started_at_us) VALUES ('active', ?)",
+          [_at(0).microsecondsSinceEpoch],
+        );
+        const r = 1;
         await v1.database.customStatement(
           "UPDATE runs SET state = 'finished', ended_at_us = ? WHERE id = ?",
           [_at(100).microsecondsSinceEpoch, r],
@@ -657,7 +665,7 @@ void main() {
               .data
               .values
               .single,
-          9,
+          10,
         );
         await s.database.validateDatabaseSchema();
         expect(await count(s, 'computed_values'), 6);

@@ -38,6 +38,22 @@ final rawContractCases = <StorageContractCase>[
     _rawRrDelete,
   ),
   const StorageContractCase(
+    'Läufe: Laufart gps (Vorgabe) oder treadmill, unverändert über Zustände',
+    _runMode,
+  ),
+  const StorageContractCase(
+    'Laufband: Einstellungen anhängen, lesen, Steigung unbekannt bleibt null',
+    _treadmill,
+  ),
+  const StorageContractCase(
+    'Laufband: ungültige Werte, unbekannter Lauf, ganz oder gar nicht',
+    _treadmillRules,
+  ),
+  const StorageContractCase(
+    'Laufband: Löschen entfernt die Einstellungen des Laufs, Alles löschen alle',
+    _treadmillDelete,
+  ),
+  const StorageContractCase(
     'Rohdaten: fehlendes Tempo bleibt null, nie 0 (K12)',
     _rawSpeedNullNotZero,
   ),
@@ -598,6 +614,203 @@ Future<void> _rawRrRules(StorageContractHarness h) async {
     ),
     StorageFailure.notFound,
     'unbekannter Lauf',
+  );
+  await s.close();
+}
+
+Future<void> _runMode(StorageContractHarness h) async {
+  final s = await h.open();
+  final g = await s.runs.create(startedAt: at(0));
+  final t = await s.runs.create(startedAt: at(5), mode: RunMode.treadmill);
+  expectEq(g.mode, RunMode.gps, 'Vorgabe gps');
+  expectEq(t.mode, RunMode.treadmill, 'angelegter Bandlauf');
+  expectEq((await s.runs.get(g.id))!.mode, RunMode.gps, 'gelesen gps');
+  expectEq((await s.runs.get(t.id))!.mode, RunMode.treadmill, 'gelesen Band');
+  await s.runs.setState(t.id, RunState.paused);
+  await s.runs.setState(
+    t.id,
+    RunState.finished,
+    endedAt: at(60),
+    endedUtcOffset: const Duration(hours: 1),
+  );
+  expectEq((await s.runs.get(t.id))!.mode, RunMode.treadmill, 'nach Ende');
+  expectEq(
+    [for (final r in await s.runs.list()) '${r.id}:${r.mode.name}'],
+    ['${t.id}:treadmill', '${g.id}:gps'],
+    'Liste (neuester Start zuerst)',
+  );
+  expectEq(
+    {for (final r in await s.runs.unfinished()) r.id: r.mode},
+    {g.id: RunMode.gps},
+    'nicht beendete',
+  );
+  await s.close();
+}
+
+String _tm(StoredBeltSetting t) =>
+    '${t.value.offset.inMicroseconds}|${t.value.speedMetersPerSecond}|'
+    '${t.value.inclinePercent}';
+
+Future<void> _treadmill(StorageContractHarness h) async {
+  final s = await h.open();
+  final r = (await s.runs.create(startedAt: at(0), mode: RunMode.treadmill)).id;
+  final other = (await s.runs.create(startedAt: at(0))).id;
+  expectEq(
+    (await s.rawData.read(r)).beltSettings.length,
+    0,
+    'ohne Einstellungen leer',
+  );
+  // Absichtlich nicht nach Zeit sortiert; Steigung unbekannt (null) und 0.
+  await s.rawData.append(
+    r,
+    const RawBatch(
+      beltSettings: [
+        BeltSetting(
+          offset: Duration(seconds: 300, microseconds: 7),
+          speedMetersPerSecond: 3.0,
+        ),
+        BeltSetting(
+          offset: Duration.zero,
+          speedMetersPerSecond: 2.5,
+          inclinePercent: 1.5,
+        ),
+      ],
+    ),
+  );
+  await s.rawData.append(
+    other,
+    const RawBatch(
+      beltSettings: [
+        BeltSetting(offset: Duration.zero, speedMetersPerSecond: 9),
+      ],
+    ),
+  );
+  var d = await s.rawData.read(r);
+  expectEq(d.beltSettings.map(_tm), [
+    '0|2.5|1.5',
+    '300000007|3.0|null',
+  ], 'nach Zeit ab Laufbeginn, Steigung unbekannt bleibt null (nie 0)');
+  expectEq(
+    (await s.rawData.read(other)).beltSettings.length,
+    1,
+    'anderer Lauf getrennt',
+  );
+  // Stillstand (0 m/s) und Steigung 0 sind gültig und bleiben 0.
+  await s.rawData.append(
+    r,
+    const RawBatch(
+      beltSettings: [
+        BeltSetting(
+          offset: Duration(seconds: 300, microseconds: 7),
+          speedMetersPerSecond: 0,
+          inclinePercent: 0,
+        ),
+      ],
+    ),
+  );
+  d = await s.rawData.read(r);
+  expectEq(d.beltSettings.map(_tm), [
+    '0|2.5|1.5',
+    '300000007|3.0|null',
+    '300000007|0.0|0.0',
+  ], 'zweiter Stapel hängt an, gleiche Zeit nach Id');
+  expectEq({...d.beltSettings.map((x) => x.id)}.length, 3, 'Ids verschieden');
+  expectEq(d.positions.length, 0, 'keine Rohposition erzeugt');
+  await s.close();
+}
+
+Future<void> _treadmillRules(StorageContractHarness h) async {
+  final s = await h.open();
+  final r = (await s.runs.create(startedAt: at(0), mode: RunMode.treadmill)).id;
+  for (final bad in [
+    const BeltSetting(offset: Duration.zero, speedMetersPerSecond: -0.1),
+    const BeltSetting(offset: Duration.zero, speedMetersPerSecond: double.nan),
+    const BeltSetting(
+      offset: Duration.zero,
+      speedMetersPerSecond: double.infinity,
+    ),
+    const BeltSetting(
+      offset: Duration.zero,
+      speedMetersPerSecond: 1,
+      inclinePercent: -0.5,
+    ),
+    const BeltSetting(
+      offset: Duration.zero,
+      speedMetersPerSecond: 1,
+      inclinePercent: double.nan,
+    ),
+    const BeltSetting(offset: Duration(seconds: -1), speedMetersPerSecond: 1),
+  ]) {
+    await expectFails(
+      () => s.rawData.append(
+        r,
+        RawBatch(
+          steps: [RawSteps(time: at(1), source: 'phone', count: 1)],
+          beltSettings: [bad],
+        ),
+      ),
+      StorageFailure.rejected,
+      'ungültige Einstellung',
+    );
+  }
+  final d = await s.rawData.read(r);
+  expectEq(d.beltSettings.length, 0, 'nichts aus dem fehlerhaften Stapel');
+  expectEq(d.steps.length, 0, 'auch keine Schritte aus dem Stapel');
+  await expectFails(
+    () => s.rawData.append(
+      999,
+      const RawBatch(
+        beltSettings: [
+          BeltSetting(offset: Duration.zero, speedMetersPerSecond: 1),
+        ],
+      ),
+    ),
+    StorageFailure.notFound,
+    'unbekannter Lauf',
+  );
+  await s.close();
+}
+
+Future<void> _treadmillDelete(StorageContractHarness h) async {
+  final s = await h.open();
+  final a = (await s.runs.create(startedAt: at(0), mode: RunMode.treadmill)).id;
+  final b = (await s.runs.create(startedAt: at(0), mode: RunMode.treadmill)).id;
+  for (final r in [a, b]) {
+    await s.rawData.append(
+      r,
+      const RawBatch(
+        beltSettings: [
+          BeltSetting(
+            offset: Duration.zero,
+            speedMetersPerSecond: 2,
+            inclinePercent: 1,
+          ),
+        ],
+      ),
+    );
+  }
+  await s.deleteRun(a);
+  expectEq(
+    (await s.rawData.read(a)).beltSettings.length,
+    0,
+    'Einstellungen des Laufs weg',
+  );
+  expectEq(
+    (await s.rawData.read(b)).beltSettings.length,
+    1,
+    'Einstellungen des anderen Laufs bleiben',
+  );
+  await s.deleteAll();
+  final c = (await s.runs.create(startedAt: at(0))).id;
+  expectEq(
+    (await s.rawData.read(c)).beltSettings.length,
+    0,
+    'nach Alles löschen',
+  );
+  expectEq(
+    (await s.rawData.read(b)).beltSettings.length,
+    0,
+    'Einstellungen von b weg',
   );
   await s.close();
 }

@@ -1,5 +1,5 @@
 /// Abschnitte und Spalten des Archivs (`docs/contracts/archive.md` 4.3,
-/// Schema 9, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
+/// Schema 10, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
 /// Adapter-Test mit der Datenbank.
 library;
 
@@ -88,7 +88,7 @@ class ArchiveSectionSpec {
   final List<ArchiveColumn> columns;
   final String? key;
 
-  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 9).
+  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 10).
   final int sinceSchema;
 
   /// Erstes Schema, in dem der Abschnitt Zeilen trägt, wenn er schon früher
@@ -126,13 +126,16 @@ class ArchiveSectionSpec {
   bool get isReserved => columns.isEmpty;
 }
 
-/// Die 25 Abschnitte des Schemas 9 in der Reihenfolge des Vertrags;
+/// Die 26 Abschnitte des Schemas 10 in der Reihenfolge des Vertrags;
 /// ältere Schemas haben weniger ([archiveSectionsFor]): Schema 4 die 19 mit
 /// `sinceSchema == 4`, Schema 5 dazu die zwei von WP18.
 final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
   ArchiveSectionSpec(
     'runs',
-    'id I, state T, started_at_us I, ended_at_us I?, ended_utc_offset_s I?',
+    'id I, state T, started_at_us I, ended_at_us I?, ended_utc_offset_s I?, '
+        'mode T',
+    // WP25, Schema 10: Laufart; Archive bis Schema 9 lesen sich mit 'gps'.
+    addedColumns: {'mode': (10, 'gps')},
   ),
   ArchiveSectionSpec(
     'laps',
@@ -269,6 +272,12 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     'id I, run_id I, time_us I, source T, rr X',
     sinceSchema: 9,
   ),
+  // WP25, Nummer 26, ab Schema 10: Einstellungen des Laufbands (nur anhängen).
+  ArchiveSectionSpec(
+    'treadmill_settings',
+    'id I, run_id I, offset_us I, speed_mps R, incline_percent R?',
+    sinceSchema: 10,
+  ),
 ]);
 
 /// Formatversionen, die der Leser kennt.
@@ -278,18 +287,18 @@ const List<int> archiveFormats = [1, 2];
 const int archiveWriteFormat = 2;
 
 /// Neuestes Datenbankschema, das Leser und Schreiber kennen.
-const int archiveSchemaVersion = 9;
+const int archiveSchemaVersion = 10;
 
 /// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
 /// Fehlende Abschnitte eines älteren Schemas gelten als leer.
 const int archiveMinSchemaVersion = 4;
 
 /// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
-/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 9).
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 10).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
 /// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7 und 8:
-/// 24, ab 9: 25 mit `raw_rr_packets`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, 24 `plan_units` gibt es
+/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, 24 `plan_units` gibt es
 /// nur ab 7, seine Spalte `fixed` ab 8).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche
