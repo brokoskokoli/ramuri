@@ -4,6 +4,7 @@ import '../../ports/database_files.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_goals.dart';
 import '../../ports/storage_prediction.dart';
+import '../../ports/storage_warning.dart';
 import 'archive_errors.dart';
 import 'archive_export.dart';
 import 'archive_import.dart';
@@ -83,6 +84,11 @@ class ArchiveRestoreService {
     }
     // Ein Trainingsziel ist ein eigenes Datum, auch ohne Läufe.
     if (s is GoalStorage && (await (s as GoalStorage).goals.goal()) != null) {
+      return false;
+    }
+    // Ein Warnsignal ist ein eigenes Datum, auch ohne Läufe.
+    if (s is WarningStorage &&
+        (await (s as WarningStorage).warning.read()) != null) {
       return false;
     }
     final settings = await s.settings.all();

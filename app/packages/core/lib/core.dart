@@ -42,6 +42,7 @@ export 'ports/storage_derived.dart';
 export 'ports/storage_devices.dart';
 export 'ports/storage_goals.dart';
 export 'ports/storage_plan.dart';
+export 'ports/storage_warning.dart';
 export 'ports/storage_prediction.dart';
 export 'ports/storage_profile.dart';
 export 'ports/storage_raw.dart';

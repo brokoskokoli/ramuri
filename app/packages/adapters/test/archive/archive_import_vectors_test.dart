@@ -226,6 +226,15 @@ void main() {
                 },
             ],
       };
+      // Warnsignal (ab Schema 10): höchstens eine Zeile mit id 1, Ortstag.
+      db['active_warning'] = [
+        {
+          'id': 1,
+          'reported_on': '2026-11-05',
+          'source': 'manual',
+          'run_id': null,
+        },
+      ];
       final handoff = FakeFileHandoff()..directory = dir.path;
       const password = 'synthetisches Testpasswort';
       final file = await ArchiveExporter(
