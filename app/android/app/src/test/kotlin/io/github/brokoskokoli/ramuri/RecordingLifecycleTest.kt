@@ -61,7 +61,7 @@ class RecordingLifecycleTest {
     @Test fun treadmillServiceEntersForegroundWithHealthAndRetypesKeepingIt() {
         var granted = false
         val types = mutableListOf<Int>()
-        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, { types.add(it) }, RecordingMode.TREADMILL)
+        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, RecordingMode.TREADMILL) { types.add(it) }
         assertTrue(lc.start().isSuccess)
         assertEquals(listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH), types)
         granted = true
@@ -97,7 +97,7 @@ class RecordingLifecycleTest {
     @Test fun serviceEntersForegroundWithTypeFromPermissionAtStart() {
         for (granted in listOf(false, true)) {
             val types = mutableListOf<Int>()
-            val lc = RecordingLifecycle(FakeLock(), { granted }, {}, { types.add(it) })
+            val lc = RecordingLifecycle(FakeLock(), { granted }, {}, enterForeground = { types.add(it) })
             assertTrue(lc.start().isSuccess)
             assertEquals(listOf(RecordingLifecycle.startType(granted)), types)
             assertEquals(RecordingLifecycle.startType(granted), lc.currentType)
@@ -107,7 +107,7 @@ class RecordingLifecycleTest {
     @Test fun retypeAddsConnectedDeviceWhenPermissionArrivesLater() {
         var granted = false
         val types = mutableListOf<Int>()
-        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, { types.add(it) })
+        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, enterForeground = { types.add(it) })
         lc.start()
         assertFalse(lc.retype()) // Recht fehlt weiter: kein zweiter startForeground
         assertEquals(1, types.size)
@@ -122,7 +122,7 @@ class RecordingLifecycleTest {
     @Test fun retypeFailureKeepsOldTypeAndService() {
         var granted = false
         var calls = 0
-        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, { calls++; if (calls > 1) throw SecurityException("x") })
+        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, enterForeground = { calls++; if (calls > 1) throw SecurityException("x") })
         lc.start()
         granted = true
         assertFalse(lc.retype())
@@ -132,7 +132,7 @@ class RecordingLifecycleTest {
 
     @Test fun retypeWithoutForegroundDoesNothing() {
         var calls = 0
-        val lc = RecordingLifecycle(FakeLock(), { true }, {}, { calls++ })
+        val lc = RecordingLifecycle(FakeLock(), { true }, {}, enterForeground = { calls++ })
         assertFalse(lc.retype())
         assertEquals(0, calls)
         lc.start()

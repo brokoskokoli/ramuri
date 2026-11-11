@@ -38,10 +38,10 @@ class RecordingLifecycle(
     private val bluetoothConnectGranted: () -> Boolean = { false },
     /** Beendet den Dienst (`stopSelf`); nur nach `startForeground` oder nach dessen Scheitern. */
     private val stopSelf: () -> Unit = {},
-    /** Ruft `startForeground` mit dem Typ auf; wirft, wenn das System ablehnt. */
-    private val enterForeground: (type: Int) -> Unit,
     /** Laufart; bestimmt den Basistyp von `startForeground`. */
     private val mode: RecordingMode = RecordingMode.GPS,
+    /** Ruft `startForeground` mit dem Typ auf; wirft, wenn das System ablehnt. */
+    private val enterForeground: (type: Int) -> Unit,
 ) {
     var running: Boolean = false
         private set

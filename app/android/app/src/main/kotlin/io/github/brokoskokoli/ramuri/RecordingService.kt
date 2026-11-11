@@ -28,10 +28,10 @@ class RecordingService : Service() {
             PowerLock(this),
             { checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED },
             { stopSelf() },
-            { type -> startForeground(NOTIFICATION_ID, notification(), type) },
             // Ohne lesbare Laufart (null-Intent, unbekannter Wert) GPS: Fehlt dann das Standortrecht, scheitert
             // startForeground sauber und der Start meldet den Fehler.
             RecordingMode.fromWire(intent?.getStringExtra(EXTRA_MODE)) ?: RecordingMode.GPS,
+            { type -> startForeground(NOTIFICATION_ID, notification(), type) },
         ).also { lifecycle = it }
         val outcome = lc.onStartCommand(RecordingServiceState.takeStopRequest())
         outcome.onSuccess {
