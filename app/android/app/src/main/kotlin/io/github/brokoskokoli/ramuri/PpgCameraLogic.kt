@@ -71,6 +71,28 @@ interface PpgHardware {
     fun closeDevice()
 }
 
+/**
+ * Führt Zugriffe auf Gerät, Sitzung, Anfrage und Reader auf dem Kamerathread aus. Camera2-Callbacks
+ * und Bildabruf laufen dort; Freigabe und Stop kommen vom Hauptthread. Auf dem Kamerathread selbst läuft
+ * der Schritt sofort (Fehler gehen an den Aufrufer), von anderen Threads wird er in die Warteschlange
+ * gestellt, in der Reihenfolge der Aufrufe; ein Fehler dort wird verschluckt, weil niemand mehr
+ * zuhört (Gerät schon weg) und ein Absturz des Threads die App beenden würde.
+ */
+class PpgCameraThread(private val onThread: () -> Boolean, private val post: (Runnable) -> Unit) {
+    fun run(step: () -> Unit) {
+        if (onThread()) {
+            step()
+        } else {
+            post(Runnable {
+                try {
+                    step()
+                } catch (_: Exception) {
+                }
+            })
+        }
+    }
+}
+
 /** Wohin der Controller meldet (Android: EventChannel auf dem Hauptthread; Test: Liste). */
 interface PpgSink {
     fun event(map: Map<String, Any>)

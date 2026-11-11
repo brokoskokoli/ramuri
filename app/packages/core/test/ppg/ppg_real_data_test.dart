@@ -55,6 +55,8 @@ void main() {
       reason: 'Referenz passt nicht zu den Dateien',
     );
     final problems = <String>[];
+    var withGap = 0;
+    var tooShort = 0;
     for (var n = 0; n < files.length; n++) {
       final lines = files[n].readAsLinesSync();
       final head = lines.first.split(',');
@@ -80,6 +82,22 @@ void main() {
         end: math.min(65.0, end - 1.5),
         dataEnd: end,
       );
+      // Bildlücke (evaluatePpg): fehlende Teilbereiche werden durch den Rot-Wert ersetzt, geprüft wird
+      // nur, ob die Lücke gemeldet wird. Nur die Anzahl wird ausgegeben.
+      final evaluated = evaluatePpg([
+        for (var i = 0; i < rows.length; i++)
+          PpgFrame(
+            t: t[i],
+            r: col('r')[i],
+            g: col('g')[i],
+            r16: [for (var k = 0; k < 16; k++) col('r')[i]],
+            g16: [for (var k = 0; k < 16; k++) col('g')[i]],
+          ),
+      ], window: window);
+      if (evaluated.reasons.contains(PpgQualityReason.frameGap)) withGap++;
+      if (evaluated.reasons.contains(PpgQualityReason.insufficientData)) {
+        tooShort++; // dann wurde die Lückenprüfung nicht erreicht
+      }
       final ref = refs[n];
       if (ref['error'] == true) {
         try {
@@ -105,6 +123,9 @@ void main() {
         problems.add('Datei $n: $d');
       }
     }
+    print(
+      'Dateien mit Bildlücke über ${ppgMaxFrameGapSeconds}s: $withGap von ${files.length}, zu kurz für die Prüfung: $tooShort',
+    );
     // Nur Abweichungen ausgeben, nie Werte.
     if (problems.isNotEmpty) print(problems.join('\n'));
     expect(problems, isEmpty);

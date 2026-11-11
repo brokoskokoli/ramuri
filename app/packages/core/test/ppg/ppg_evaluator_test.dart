@@ -201,9 +201,10 @@ void main() {
         for (var i = 0; i < 60; i++) at(5.0 + i * 1e-5),
         at(65.5),
       ];
-      // Messfenster formal abgedeckt, aber kein verwertbares Signal: keine Ausnahme, kein Zahl
+      // Messfenster formal abgedeckt, aber 60 s ohne Bild: keine Ausnahme, keine Zahlen
       final m = evaluatePpg(few);
       expect(m.quality, PpgQuality.unusable);
+      expect(m.reasons, [PpgQualityReason.frameGap]);
       expect(m.bpm, isNull);
       // Grenze: genau 50 Bilder im Fenster reichen nicht, 51 schon (Kotlin: > 50)
       List<PpgFrame> grid(int n) => [
@@ -214,10 +215,20 @@ void main() {
       expect(evaluatePpg(grid(50)).reasons, [
         PpgQualityReason.insufficientData,
       ]);
-      expect(
-        evaluatePpg(grid(51)).reasons,
-        isNot(contains(PpgQualityReason.insufficientData)),
-      );
+      // 51 Bilder reichen für die Mindestzahl; die Lücken von 1,2 s sind dann der Grund
+      expect(evaluatePpg(grid(51)).reasons, [PpgQualityReason.frameGap]);
+      // gebündelt, aber ohne Lücke (alle 0,5 s ein Bild): keine Ausnahme und kein Programmfehler
+      // (das periodische Testsignal darf ein Ergebnis liefern, es geht nur um die Gründe)
+      final bundled = [
+        at(4.0),
+        for (var i = 0; i < 60; i++) at(5.0 + i * 1e-5),
+        for (var i = 1; i <= 120; i++) at(5.0 + i * 0.5),
+        at(65.5),
+      ];
+      final b = evaluatePpg(bundled);
+      expect(b.reasons, isNot(contains(PpgQualityReason.analysisFailed)));
+      expect(b.reasons, isNot(contains(PpgQualityReason.frameGap)));
+      expect(b.reasons, isNot(contains(PpgQualityReason.insufficientData)));
     });
 
     test('extreme Werte: keine Ausnahme, unbrauchbar ohne Zahlen', () {
@@ -323,6 +334,7 @@ void main() {
       ];
       final m = evaluatePpg(fr);
       expect(m.quality, PpgQuality.unusable);
+      expect(m.reasons, [PpgQualityReason.tooManyDisturbances]);
       expect(m.bpm, isNull);
     });
   });
@@ -483,7 +495,7 @@ void main() {
       );
       expect(
         () => PpgAnalyzer.analyzeChannel('x', tt(51), vv(51), w),
-        isNot(throwsA(isA<PpgInsufficientDataException>())),
+        returnsNormally,
       );
     });
   });
@@ -509,6 +521,151 @@ void main() {
       );
       final peaks = PpgAnalyzer.detectPeaks(x, 100, 1.2);
       expect(PpgAnalyzer.detectArtifacts(x, 100, peaks, 1.2), isEmpty);
+    });
+  });
+
+  group('Lücke zwischen Bildern im Messfenster (Abschn. 2, Maintainer 2026-11-11)', () {
+    final all = frames(synth(0.85, 0.05, 0.03, 0.3, 30.0, 1));
+
+    /// Entfernt die Bilder in (from, to). Die Lücke ist dann der Abstand der Nachbarn.
+    List<PpgFrame> hole(double from, double to) => [
+      for (final f in all)
+        if (f.t <= from || f.t >= to) f,
+    ];
+
+    test(
+      'Ausgangslage ohne Lücke ist „gut“ (Kontrolle für die Tests unten)',
+      () {
+        expect(evaluatePpg(all).quality, PpgQuality.good);
+      },
+    );
+
+    test('Lücke 20 bis 40 s und 10 bis 55 s: unbrauchbar, keine Zahlen', () {
+      for (final (a, b) in [(20.0, 40.0), (10.0, 55.0), (15.0, 25.0)]) {
+        final m = evaluatePpg(hole(a, b));
+        expect(m.quality, PpgQuality.unusable, reason: '$a-$b');
+        expect(m.reasons, [PpgQualityReason.frameGap]);
+        expect((m.bpm, m.rmssdMs, m.signalQuality), (null, null, null));
+      }
+    });
+
+    test(
+      'Lücke im Filter-Vorlauf (3 bis 5 s) und am Ende (65 bis 66,5 s) zählt',
+      () {
+        // die Auswertung nutzt alle Bilder von 3 bis 66,5 s, also auch dort
+        expect(evaluatePpg(hole(3.2, 4.6)).reasons, [
+          PpgQualityReason.frameGap,
+        ]);
+        expect(evaluatePpg(hole(65.2, 66.4)).reasons, [
+          PpgQualityReason.frameGap,
+        ]);
+      },
+    );
+
+    test('Lücke im Einschwingbereich (vor 3 s, nach 66,5 s) zählt nicht', () {
+      final m = evaluatePpg([
+        for (final f in all)
+          if (f.t < 0.5 || f.t > 2.9) f,
+      ]);
+      expect(m.reasons, isNot(contains(PpgQualityReason.frameGap)));
+      expect(m.quality, PpgQuality.good);
+    });
+
+    test('Grenze: genau 1,0 s ist erlaubt, darüber nicht (exakte Zeiten)', () {
+      // alle 0,5 s ein Bild (exakt darstellbar), an einer Stelle fehlen Bilder
+      List<PpgFrame> grid(Set<int> missing) => [
+        for (var i = 6; i <= 133; i++)
+          if (!missing.contains(i))
+            PpgFrame(
+              t: i * 0.5,
+              r: 100 + (i * 37 % 11),
+              g: 50 + (i * 17 % 7),
+              r16: List.filled(16, 100 + (i * 37 % 11).toDouble()),
+              g16: List.filled(16, 50 + (i * 17 % 7).toDouble()),
+            ),
+      ];
+      // fehlt ein Bild: Abstand 1,0 s -> keine Lücke
+      expect(
+        evaluatePpg(grid({40})).reasons,
+        isNot(contains(PpgQualityReason.frameGap)),
+      );
+      // fehlen zwei Bilder: Abstand 1,5 s -> Lücke
+      expect(evaluatePpg(grid({40, 41})).reasons, [PpgQualityReason.frameGap]);
+    });
+
+    test('Grenze knapp unter und über 1 s (Zeiten verschoben)', () {
+      // Bilder nach t=30 um so viel verschoben, dass der Abstand um 30 s herum g beträgt
+      List<PpgFrame> withGap(double g) {
+        final before = all.where((f) => f.t <= 30).toList();
+        final after = all.where((f) => f.t > 30).toList();
+        final shift = before.last.t + g - after.first.t;
+        return [
+          ...before,
+          for (final f in after)
+            PpgFrame(t: f.t + shift, r: f.r, g: f.g, r16: f.r16, g16: f.g16),
+        ];
+      }
+
+      expect(
+        evaluatePpg(withGap(0.99)).reasons,
+        isNot(contains(PpgQualityReason.frameGap)),
+      );
+      expect(evaluatePpg(withGap(1.01)).reasons, [PpgQualityReason.frameGap]);
+    });
+  });
+
+  group('konstante Quellen: Fenster und Blöcke (Abschn. 2)', () {
+    const w = PpgWindow(filterStart: 3, start: 5, end: 65, dataEnd: 66.5);
+    final tt = [for (var i = 0; i < 2000; i++) 3 + i / 30.0];
+
+    test(
+      'isFlat betrachtet nur das Messfenster, nicht Einschwingen und Ende',
+      () {
+        // konstant in [5, 65], aber andere Werte bei 4 s und 66 s
+        final v = [for (final t in tt) (t < 5 || t > 65) ? 50.0 : 200.0];
+        expect(PpgAnalyzer.isFlat(tt, v, w), isTrue);
+        // verändert sich im Fenster: nicht flach
+        final w2 = [for (final t in tt) (t > 30 && t < 31) ? 201.0 : 200.0];
+        expect(PpgAnalyzer.isFlat(tt, w2, w), isFalse);
+      },
+    );
+
+    test(
+      'Rot/Grün nur im Messfenster flach: flatSignal trotz Ausschlag davor',
+      () {
+        final all = frames(synth(0.85, 0.05, 0.03, 0.3, 30.0, 1));
+        final fr = [
+          for (final f in all)
+            PpgFrame(
+              t: f.t,
+              r: (f.t < 5 || f.t > 65) ? f.r : 120,
+              g: (f.t < 5 || f.t > 65) ? f.g : 120,
+              r16: List.filled(16, (f.t < 5 || f.t > 65) ? f.r : 120.0),
+              g16: List.filled(16, (f.t < 5 || f.t > 65) ? f.g : 120.0),
+            ),
+        ];
+        expect(evaluatePpg(fr).reasons, [PpgQualityReason.flatSignal]);
+      },
+    );
+
+    test('flache Teilbereiche (Rundungsrauschen) gehen nicht in die Kombination ein', () {
+      final s = synth(0.85, 0.05, 0.03, 0.3, 30.0, 1);
+      final t = s.t;
+      final rnd = KotlinRandom(5);
+      PpgSeries live(String n) => PpgSeries(n, s.red);
+      // numerisch flach, aber mit Rundungsrauschen (relativ 1e-16): Streuung nach dem Filter > 0
+      PpgSeries flat(String n) => PpgSeries(n, [
+        for (var i = 0; i < t.length; i++)
+          200 + (rnd.nextDouble(-1.0, 1.0) > 0 ? 3e-14 : 0.0),
+      ]);
+      final blocks = [
+        for (var k = 0; k < 4; k++) live('r$k'),
+        for (var k = 0; k < 12; k++) flat('x$k'),
+      ];
+      const w = PpgWindow(filterStart: 3, start: 5, end: 65, dataEnd: 66.5);
+      final set = PpgAnalyzer.analyze(t, [PpgSeries('Rot', s.red)], blocks, w);
+      // nur die 4 lebenden Teilbereiche werden bewertet
+      expect(set.blocksScored, 4);
     });
   });
 }

@@ -40,6 +40,9 @@ enum PpgQualityReason {
   /// Weniger als 50 % gültige Schlagintervalle (zu viele Störungen).
   tooManyDisturbances,
 
+  /// Zwischen zwei Bildern im Messfenster liegt mehr als [ppgMaxFrameGapSeconds] (Unterbrechung).
+  frameGap,
+
   /// Alle Signalquellen sind im Messfenster konstant (z. B. übersteuert).
   flatSignal,
 
@@ -135,6 +138,19 @@ PpgMeasurement evaluatePpg(
   }
   if (first > window.start || last < window.end || inWindow <= ppgMinFrames) {
     return _unusable(PpgQualityReason.insufficientData);
+  }
+  // Lücke im Fenster: Die Spline-Interpolation würde sie sonst stumm überbrücken und eine
+  // unterbrochene Messung als „gut“ oder „eingeschränkt“ bewerten (Maintainer 2026-11-11).
+  // Wie die Auswertung: nur streng steigende Zeitstempel im Bereich.
+  var prev = double.negativeInfinity;
+  for (final f in frames) {
+    if (f.t < window.filterStart || f.t > window.dataEnd || f.t <= prev) {
+      continue;
+    }
+    if (prev.isFinite && f.t - prev > ppgMaxFrameGapSeconds) {
+      return _unusable(PpgQualityReason.frameGap);
+    }
+    prev = f.t;
   }
   final t = [for (final f in frames) f.t];
   final signals = [

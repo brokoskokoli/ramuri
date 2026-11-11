@@ -112,6 +112,14 @@ object PpgCamera {
             },
         )
 
+        // Gerät, Sitzung, Anfrage und Reader gehören dem Kamerathread: Callbacks und onImage laufen
+        // dort, die Freigabe (Hauptthread: stop, Hintergrund) wird per PpgCameraThread dorthin gestellt.
+        // So schließt reader.close() nie ein gerade gelesenes Bild und die Felder brauchen kein
+        // @Volatile. Vor openCamera (Hauptthread) gesetzte Felder werden durch Handler-Post sichtbar.
+        private val cameraThread = PpgCameraThread(
+            onThread = { Looper.myLooper() == thread.looper },
+            post = { handler.post(it) },
+        )
         private var device: CameraDevice? = null
         private var session: CameraCaptureSession? = null
         private var reader: ImageReader? = null
@@ -221,25 +229,27 @@ object PpgCamera {
             }
         }
 
-        override fun lockExposure() {
-            val b = request ?: return
+        override fun lockExposure() = cameraThread.run {
+            val b = request ?: return@run
             b.set(CaptureRequest.CONTROL_AE_LOCK, true)
             b.set(CaptureRequest.CONTROL_AWB_LOCK, true)
             session?.setRepeatingRequest(b.build(), null, handler)
         }
 
-        override fun torchOff() {
-            val b = request ?: return
+        override fun torchOff() = cameraThread.run {
+            val b = request ?: return@run
             b.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF)
             session?.setRepeatingRequest(b.build(), null, handler)
         }
 
-        override fun closeSession() {
+        override fun closeSession() = cameraThread.run {
             session?.close()
             session = null
         }
 
-        override fun closeDevice() {
+        // Zuletzt: Gerät und Reader schließen, dann den Thread beenden (quitSafely arbeitet die vorher
+        // gestellten Schritte noch ab).
+        override fun closeDevice() = cameraThread.run {
             try {
                 device?.close()
             } finally {

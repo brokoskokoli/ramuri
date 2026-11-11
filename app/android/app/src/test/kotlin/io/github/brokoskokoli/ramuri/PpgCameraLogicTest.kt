@@ -160,4 +160,43 @@ class PpgCameraLogicTest {
         assertEquals(listOf("event:stopped", "torchOff", "closeSession", "closeDevice", "end"), log)
         assertEquals(1, sink.ended)
     }
+
+    // --- Kamerathread ---
+
+    @Test fun stepsFromOtherThreadsArePostedInOrderAndNotRunInline() {
+        val queue = mutableListOf<Runnable>()
+        val log = mutableListOf<String>()
+        val t = PpgCameraThread(onThread = { false }, post = { queue += it })
+        t.run { log += "a" }
+        t.run { log += "b" }
+        assertTrue("noch nichts ausgeführt", log.isEmpty())
+        queue.forEach { it.run() }
+        assertEquals(listOf("a", "b"), log)
+    }
+
+    @Test fun stepsOnTheCameraThreadRunInlineAndKeepTheirErrors() {
+        val queue = mutableListOf<Runnable>()
+        val log = mutableListOf<String>()
+        val t = PpgCameraThread(onThread = { true }, post = { queue += it })
+        t.run { log += "a" }
+        assertEquals(listOf("a"), log)
+        assertTrue(queue.isEmpty())
+        var caught = false
+        try {
+            t.run { throw IllegalStateException("zu") }
+        } catch (_: IllegalStateException) {
+            caught = true
+        }
+        assertTrue("Fehler geht an den Aufrufer (der Controller fängt ihn je Schritt)", caught)
+    }
+
+    @Test fun aFailingPostedStepDoesNotStopTheNextOne() {
+        val queue = mutableListOf<Runnable>()
+        val log = mutableListOf<String>()
+        val t = PpgCameraThread(onThread = { false }, post = { queue += it })
+        t.run { throw IllegalStateException("zu") }
+        t.run { log += "next" }
+        queue.forEach { it.run() }
+        assertEquals(listOf("next"), log)
+    }
 }

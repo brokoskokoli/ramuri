@@ -266,17 +266,18 @@ release_rechte() {
     fi
   done
   # WP27 (ADR-0011 Punkt 5): CAMERA ist erlaubt und Pflicht (Kamera-PPG); Kamera und Blitz sind als uses-feature
-  # vorhanden und required=false, sonst wäre die App ohne Kamera nicht installierbar.
+  # vorhanden und required=false, sonst wäre die App ohne Kamera nicht installierbar. Kommt ein Feature mehrfach vor
+  # (Manifest-Merge), zählt es als Pflicht, sobald ein Eintrag required=true hat.
   echo "$perms" | grep -q 'android.permission.CAMERA' || { echo "Release-APK fordert android.permission.CAMERA nicht (WP27)"; return 1; }
   for feature in android.hardware.camera android.hardware.camera.flash; do
     req=$(echo "$tree" | awk -v want="$feature" '
-      function fin() { if (name == want) { print (req == "0x0" ? "false" : "true"); found = 1 } name = ""; req = "true" }
+      function fin() { if (name == want) { found = 1; if (req != "0x0") anytrue = 1 } name = ""; req = "true" }
       /^ *E: / { fin() }
       /E: uses-feature/ { infeat = 1; next }
       /^ *E: / { infeat = 0 }
       infeat && /android:name\(/ { n = $0; sub(/^[^"]*"/, "", n); sub(/".*$/, "", n); name = n }
       infeat && /android:required\(/ { r = $0; sub(/^.*\)/, "", r); req = r }
-      END { fin() }')
+      END { fin(); if (found) print (anytrue ? "true" : "false") }')
     case "$req" in
       false) ;;
       true) echo "Release-APK: uses-feature $feature ist Pflicht (required muss false sein)"; return 1 ;;
