@@ -46,7 +46,13 @@ class _DebugPpgPanelState extends State<DebugPpgPanel> {
                   children: [
                     _Tile(
                       id: 'debug_ppg_toggle',
-                      label: _open ? 'PPG x' : 'PPG',
+                      // Zugeklappt zeigt der Knopf den Zeitraffer, damit man ihn vor einem Lauf
+                      // sieht, ohne das Panel zu öffnen.
+                      label: _open
+                          ? 'PPG x'
+                          : (cam.speed == 1
+                                ? 'PPG'
+                                : 'PPG x${cam.speed.round()}'),
                       onTap: () => setState(() => _open = !_open),
                     ),
                     if (_open) ...[

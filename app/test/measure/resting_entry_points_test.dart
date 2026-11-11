@@ -251,6 +251,23 @@ void main() {
         expect((await e.session.profile.read()).restingHeartRateBpm, 60);
       });
 
+      testWidgets('Verwerfen nach Eingabe im Feld: Fokus bleibt weg', (
+        tester,
+      ) async {
+        final e = await _Env.make();
+        await e.pump(tester, home);
+        // Wie im Gerätetest: Wert von Hand getippt, danach die Messung.
+        await tester.tap(find.byKey(const Key('profile_resting')));
+        await tester.pump();
+        expect(_hasFocus(tester), isTrue);
+        await tapKey(tester, 'profile_resting_measure');
+        await _measureUntilResult(tester, e);
+        await tapKey(tester, 'measure_discard');
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('profile_resting')), findsOneWidget);
+        expect(_hasFocus(tester), isFalse);
+      });
+
       testWidgets('ohne Kamera: Selbst eintragen führt zum Feld', (
         tester,
       ) async {

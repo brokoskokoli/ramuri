@@ -283,7 +283,14 @@ class FingerIllustration extends StatelessWidget {
             height: _h,
             child: Stack(
               children: [
-                Positioned.fill(child: CustomPaint(painter: _FingerPainter(c))),
+                // Der Finger beginnt bei y = -40, das Handy endet bei y = 214: Wie das
+                // SVG im Design wird alles an der Bildfläche abgeschnitten. Ohne
+                // Zuschnitt malt es über die Karte auf Überschrift und Text.
+                Positioned.fill(
+                  child: ClipRect(
+                    child: CustomPaint(painter: _FingerPainter(c)),
+                  ),
+                ),
                 Positioned(
                   left: 0,
                   width: 64,

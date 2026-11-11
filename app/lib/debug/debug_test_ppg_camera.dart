@@ -40,7 +40,10 @@ class DebugTestPpgCamera implements PpgCamera {
     /// Zeitraffer: 1 = Echtzeit, 30 = 60 s Messung in 2 s.
     this.speed = 1,
     this.fps = 30,
-  }) {
+
+    /// Wanduhr (nur Tests); Vorgabe: eine laufende Stoppuhr.
+    Duration Function()? wallClock,
+  }) : _wall = wallClock ?? _stopwatchClock() {
     // Zeigt im Debug-Log, dass nicht die echte Kamera läuft (und ist die Positivkontrolle am Artefakt).
     debugPrint('$testPpgCameraMarker aktiv: Kamerabilder sind simuliert');
   }
@@ -50,6 +53,12 @@ class DebugTestPpgCamera implements PpgCamera {
   /// Zeitraffer; über das Debug-Panel umschaltbar (gilt ab dem nächsten Start).
   double speed;
   final int fps;
+  final Duration Function() _wall;
+
+  static Duration Function() _stopwatchClock() {
+    final w = Stopwatch()..start();
+    return () => w.elapsed;
+  }
 
   /// Aufnahme läuft (Torch an).
   bool torchOn = false;
@@ -101,13 +110,23 @@ class DebugTestPpgCamera implements PpgCamera {
         final gen = _Generator(fps, weak);
         var locked = false;
         final delay = Duration(microseconds: (1e6 / fps / speed).round());
-        for (var t = 0.0; t < end && !cancelled; t = gen.nextTime()) {
-          framesGenerated++;
-          c.add(PpgCameraFrame(gen.frame(t)));
-          if (!locked && t >= 2.5) {
-            locked = true;
-            c.add(const PpgCameraExposureLocked());
-          }
+        // Die Sensorzeit folgt der Wanduhr (mal [speed]) wie bei einer echten Kamera:
+        // Kommt die App zeitweise nicht zum Zug, kommen die versäumten Bilder
+        // gebündelt nach, statt die Messung zu verlängern (sonst liefe sie bei hoher
+        // Last in die Gesamtfrist des Wächters). Je Takt mindestens ein Bild.
+        final startedAt = _wall();
+        var t = 0.0;
+        while (t < end && !cancelled) {
+          final due = (_wall() - startedAt).inMicroseconds / 1e6 * speed;
+          do {
+            framesGenerated++;
+            c.add(PpgCameraFrame(gen.frame(t)));
+            if (!locked && t >= 2.5) {
+              locked = true;
+              c.add(const PpgCameraExposureLocked());
+            }
+            t = gen.nextTime();
+          } while (t < end && t <= due && !cancelled);
           await Future<void>.delayed(delay);
         }
         if (cancelled) return;

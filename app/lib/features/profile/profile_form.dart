@@ -138,6 +138,9 @@ class _ProfileFormState extends State<ProfileForm> {
   Future<void> _measureResting() async {
     final launch = widget.restingMeasure;
     if (launch == null) return;
+    // Sonst merkt sich der Fokusbereich das getippte Feld und gibt ihm den
+    // Fokus (samt Tastatur) beim Zurückkehren wieder, auch nach „Verwerfen“.
+    FocusManager.instance.primaryFocus?.unfocus();
     final outcome = await launch(context);
     if (!mounted) return;
     if (outcome == RestingMeasureOutcome.adopted) {
