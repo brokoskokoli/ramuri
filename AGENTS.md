@@ -29,7 +29,8 @@ python3 docs/migration/tools/spec_tool.py check
 Gate (Spec-Prüfung, private Daten, Netz nur im Kartenadapter (`tool/check_net.py`, Freigabeliste `tool/net_allowed_packages.txt`), Flutter-Version, Lockfile, `core` flutterfrei (Auflösung außerhalb des Workspace), je Paket in `app/` und `app/packages/*` Format, Analyse und Tests), volle Fassung in CI. Details: [docs/quality/testing.md](docs/quality/testing.md#ci-gates).
 
 ```sh
-sh tool/gate.sh            # alles
+sh tool/gate.sh            # alles (Pflicht vor Review-Abgabe und Fertigmeldung)
+sh tool/gate.sh --fast     # Zwischenstand: Format, Analyse, Tests der geänderten Pakete; ersetzt nie das volle Gate
 sh tool/gate.sh --changed  # Flutter nur auslassen, wenn app/ und tool/gate.sh gegenüber main unverändert sind
 ```
 
