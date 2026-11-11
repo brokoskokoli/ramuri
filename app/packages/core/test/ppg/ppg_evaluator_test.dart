@@ -237,7 +237,8 @@ void main() {
         for (var i = 0; i < all.length; i++)
           PpgFrame(
             t: all[i].t,
-            r: i.isEven ? 1e300 : -1e300,
+            // Rot-Summe positiv (sonst käme die Fingerprüfung zuerst), Grün hebt sich auf
+            r: i.isEven ? 3e300 : 1e300,
             g: i.isEven ? 1e300 : -1e300,
             r16: List.filled(16, i.isEven ? 1e300 : -1e300),
             g16: List.filled(16, i.isEven ? 1e300 : -1e300),
@@ -259,7 +260,7 @@ void main() {
           r16: List.filled(16, v),
           g16: List.filled(16, v / 4),
         );
-        for (final v in [255.0, 128.3, 0.0]) {
+        for (final v in [255.0, 128.3, 1.0]) {
           final m = evaluatePpg([
             for (var i = 0; i < 2100; i++) flat(i / 30, v),
           ]);
@@ -735,6 +736,46 @@ void main() {
       expect(m.rmssdMs, isNull);
       expect(m.signalQuality, isNull);
       expect(m.channel, isNull);
+    });
+
+    /// 2-Hz-Rechteck auf Rot, 2000 Bilder: ohne Rot-Positiv-Prüfung ginge das als „gut, 120“ durch.
+    List<PpgFrame> square(double rBase, double rAmp, double g) => [
+      for (var i = 0; i < 2000; i++)
+        () {
+          final t = i / 30;
+          final r = rBase + (t * 2 % 1 < 0.5 ? rAmp : -rAmp);
+          return PpgFrame(
+            t: t,
+            r: r,
+            g: g,
+            r16: List.filled(16, r),
+            g16: List.filled(16, g),
+          );
+        }(),
+    ];
+
+    test('Rot nicht positiv (R=G=0): kein Finger', () {
+      final m = evaluatePpg(square(0, 0, 0));
+      expect(m.reasons, [PpgQualityReason.noFinger]);
+      expect(m.hasResult, isFalse);
+    });
+
+    test('negative Summen (R=-1,4, G=-3,4, 2-Hz-Rechteck): kein Finger', () {
+      final m = evaluatePpg(square(-1.4, 0.2, -3.4));
+      expect(m.quality, PpgQuality.unusable);
+      expect(m.reasons, [PpgQualityReason.noFinger]);
+      expect(m.bpm, isNull);
+    });
+
+    test('Rot knapp unter 0 (R=-0,005 ± 0,01, G=0): kein Finger', () {
+      final m = evaluatePpg(square(-0.005, 0.01, 0));
+      expect(m.reasons, [PpgQualityReason.noFinger]);
+      expect(m.bpm, isNull);
+    });
+
+    test('Rot positiv, Grün 0: „sehr rot“, besteht die Fingerprüfung', () {
+      final m = evaluatePpg(square(1, 0.5, 0));
+      expect(m.reasons, isNot(contains(PpgQualityReason.noFinger)));
     });
 
     test('nur das Messfenster zählt (Einschwingen davor und danach nicht)', () {

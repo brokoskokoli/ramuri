@@ -166,7 +166,9 @@ PpgMeasurement evaluatePpg(
       sumG += f.g;
     }
   }
-  if (sumR < ppgMinRedGreenRatio * sumG) {
+  // Rot muss im Fenster positiv sein: R und G sind ungeklemmt (BT.601) und können bei dunklem Bild
+  // negativ oder 0 werden; dann wäre `sumR < 1,5 * sumG` kein Quotient mehr (fail open).
+  if (!(sumR > 0) || sumR < ppgMinRedGreenRatio * sumG) {
     return _unusable(PpgQualityReason.noFinger);
   }
   final t = [for (final f in frames) f.t];
