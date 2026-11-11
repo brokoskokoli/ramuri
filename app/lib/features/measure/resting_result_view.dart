@@ -79,7 +79,7 @@ class RestingResultView extends StatelessWidget {
             key: const Key('measure_close'),
             icon: Icons.close,
             label: l10n.measureCloseNoAdopt,
-            onPressed: onClose,
+            onPressed: ctrl.adopting ? null : onClose,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -147,13 +147,15 @@ class RestingResultView extends StatelessWidget {
                     children: [
                       SignalBars(level: limited ? 2 : 3),
                       const SizedBox(width: 8),
-                      Text(
-                        limited
-                            ? l10n.measureQualityLimited
-                            : l10n.measureQualityGood,
-                        key: const Key('measure_result_quality'),
-                        style: theme.textTheme.titleSmall!.copyWith(
-                          color: limited ? c.text : c.accent,
+                      Flexible(
+                        child: Text(
+                          limited
+                              ? l10n.measureQualityLimited
+                              : l10n.measureQualityGood,
+                          key: const Key('measure_result_quality'),
+                          style: theme.textTheme.titleSmall!.copyWith(
+                            color: limited ? c.text : c.accent,
+                          ),
                         ),
                       ),
                     ],

@@ -41,6 +41,15 @@ const double restingStartTimeoutSeconds = 5.0;
 /// Stillstand der Ereignisschleife der App, nicht als Bildlücke.
 const double restingStallToleranceSeconds = 1.0;
 
+/// Gesamtfrist der Messung in Sekunden Wanduhr ab dem Abonnieren des
+/// Kamerastroms: Aufnahme bis zum letzten Bild ([PpgWindow.dataEnd]) plus
+/// Startfrist plus 15 s Reserve für Verzögerungen. Wer sie überschreitet, hängt
+/// (z. B. weil Stillstände der App die Bildfrist immer wieder aufschieben) und
+/// wird als unterbrochen beendet. Eine Sicherung gegen ein Hängen, kein
+/// Messparameter.
+const double restingTotalTimeoutSeconds =
+    66.5 + restingStartTimeoutSeconds + 15;
+
 /// Ablaufphase der Ruhepuls-Messung (FR-0214).
 enum RestingMeasurePhase {
   /// Haltung und Ruhephase wählen.
@@ -175,6 +184,7 @@ class RestingMeasureController extends ChangeNotifier {
   Timer? _gapTimer;
   Duration? _lastImageAt;
   Duration? _lastCheckAt;
+  Duration? _subscribedAt;
   bool _cameraStarted = false;
   double? _lastImageT;
 
@@ -350,8 +360,10 @@ class RestingMeasureController extends ChangeNotifier {
   /// [restingStartTimeoutSeconds] ist ein Kamerafehler, danach länger als
   /// [restingNoImageTimeoutSeconds] kein Bild eine Unterbrechung. Die
   /// Bildlücke zwischen zwei Bildern prüft [_onFrame] in Sensorzeit. Ein
-  /// langer Abstand zur vorigen Prüfung ist ein Stillstand der App: Die Frist
-  /// beginnt dann neu, weil wartende Bilder erst nach der Prüfung eintreffen.
+  /// langer Abstand zur vorigen Prüfung ist ein Stillstand der App: Seine
+  /// Dauer wird von der Frist abgezogen (wartende Bilder treffen erst nach der
+  /// Prüfung ein); die Zeit zwischen den Stillständen zählt weiter. Insgesamt
+  /// darf die Messung [restingTotalTimeoutSeconds] ab dem Abonnieren dauern.
   void checkFrameGap() {
     final last = _lastImageAt;
     if (_phase != RestingMeasurePhase.measuring ||
@@ -362,9 +374,15 @@ class RestingMeasureController extends ChangeNotifier {
     final now = clock.monotonic();
     final prevCheck = _lastCheckAt;
     _lastCheckAt = now;
+    final subscribed = _subscribedAt;
+    if (subscribed != null &&
+        (now - subscribed).inMicroseconds > restingTotalTimeoutSeconds * 1e6) {
+      unawaited(_fail(_run, RestingStopCause.interrupted));
+      return;
+    }
     if (prevCheck != null &&
         (now - prevCheck).inMicroseconds > restingStallToleranceSeconds * 1e6) {
-      _lastImageAt = now;
+      _lastImageAt = last + (now - prevCheck);
       return;
     }
     final limit = _cameraStarted
@@ -417,6 +435,7 @@ class RestingMeasureController extends ChangeNotifier {
     _notify();
     // Die Startfrist läuft ab dem Abonnieren, auch wenn „gestartet“ ausbleibt.
     _lastImageAt = clock.monotonic();
+    _subscribedAt = _lastImageAt;
     if (autoTick) {
       _lastCheckAt = _lastImageAt;
       _gapTimer = Timer.periodic(
@@ -436,6 +455,7 @@ class RestingMeasureController extends ChangeNotifier {
     _frames.clear();
     _lastImageAt = null;
     _lastCheckAt = null;
+    _subscribedAt = null;
     _cameraStarted = false;
     _lastImageT = null;
     _elapsed = 0;

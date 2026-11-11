@@ -20,8 +20,16 @@ class RestingPage extends StatelessWidget {
   final List<Widget> sections;
   final Widget? footer;
 
+  /// Ab dieser Schriftgröße (Faktor) geht die Fußzeile in den Scrollbereich:
+  /// Angeheftet braucht sie bei großer Schrift mehr Platz, als der Bildschirm
+  /// neben der Kopfzeile lässt.
+  static const double footerScrollsFromScale = 1.15;
+
   @override
   Widget build(BuildContext context) {
+    final footer = this.footer;
+    final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
+    final pinned = footer != null && scale <= footerScrollsFromScale;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -40,11 +48,15 @@ class RestingPage extends StatelessWidget {
                         if (i > 0) const SizedBox(height: 16),
                         sections[i],
                       ],
+                      if (footer != null && !pinned) ...[
+                        const SizedBox(height: 16),
+                        footer,
+                      ],
                     ],
                   ),
                 ),
               ),
-              if (footer != null) ...[const SizedBox(height: 12), footer!],
+              if (pinned) ...[const SizedBox(height: 12), footer],
             ],
           ),
         ),

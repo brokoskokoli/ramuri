@@ -521,6 +521,55 @@ void main() {
       },
     );
 
+    test('Stillstand wird abgezogen, nicht die Frist neu gesetzt: danach ohne Bild gilt die Restfrist', () async {
+      final r = await Rig.make();
+      await r.c.startNow();
+      await FrameSource().emitUntil(r.cam, 10);
+      r.clock.advance(const Duration(milliseconds: 250));
+      r.c.checkFrameGap();
+      r.clock.advance(const Duration(seconds: 8)); // Stillstand
+      r.c.checkFrameGap();
+      // Eine normale Prüfung ohne Bild: noch keine Lücke, die Frist läuft
+      // aber ab dem Stillstand weiter (nicht bei der Messung vor ihm).
+      r.clock.advance(const Duration(milliseconds: 250));
+      r.c.checkFrameGap();
+      await pump();
+      expect(r.c.phase, RestingMeasurePhase.measuring);
+      // Wiederholte Stillstände dazwischen schieben die Frist nicht ewig auf:
+      // 0,5 s zählen je Runde, nach 12 Runden sind es mehr als 3 s.
+      for (var k = 0; k < 12; k++) {
+        r.clock.advance(const Duration(milliseconds: 1500));
+        r.c.checkFrameGap(); // Stillstand
+        r.clock.advance(const Duration(milliseconds: 250));
+        r.c.checkFrameGap();
+        r.clock.advance(const Duration(milliseconds: 250));
+        r.c.checkFrameGap();
+      }
+      await pump();
+      expect(r.c.stopCause, RestingStopCause.interrupted);
+      expect(r.cam.torchOn, isFalse);
+    });
+
+    test(
+      'Gesamtfrist: Stillstände können die Messung nicht ewig am Leben halten',
+      () async {
+        final r = await Rig.make();
+        await r.c.startNow();
+        await FrameSource().emitUntil(r.cam, 10);
+        r.clock.advance(const Duration(milliseconds: 250));
+        r.c.checkFrameGap();
+        r.clock.advance(
+          Duration(
+            milliseconds: (restingTotalTimeoutSeconds * 1000).round() + 1000,
+          ),
+        );
+        r.c.checkFrameGap(); // ein einziger langer Stillstand
+        await pump();
+        expect(r.c.stopCause, RestingStopCause.interrupted);
+        expect(r.cam.torchOn, isFalse);
+      },
+    );
+
     test('Lücke in der Sensorzeit zwischen zwei Bildern', () async {
       final r = await Rig.make();
       await r.c.startNow();

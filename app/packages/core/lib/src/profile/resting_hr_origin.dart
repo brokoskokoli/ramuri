@@ -65,8 +65,12 @@ class RestingHrOrigin {
     return RestingHrOrigin(posture: posture, measuredAt: at, source: source);
   }
 
-  /// Schreibt alle drei Schlüssel; [at] ist der Schreibzeitpunkt der Zeilen.
+  /// Schreibt alle drei Schlüssel. Ohne Transaktion: zuerst die Quelle leeren,
+  /// zuletzt schreiben; sie ist der Commit-Marker. Scheitert ein Schritt,
+  /// liefert [read] `null` (nie eine Mischung aus alter und neuer Herkunft).
+  /// [at] ist der Schreibzeitpunkt der Zeilen.
   Future<void> write(SettingsStore store, {required DateTime at}) async {
+    await store.set(SettingKeys.restingHrSource, '', at: at);
     await store.set(SettingKeys.restingHrPosture, posture.storageValue, at: at);
     await store.set(
       SettingKeys.restingHrMeasuredAt,

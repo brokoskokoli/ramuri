@@ -41,7 +41,15 @@ PpgMeasurement unusable(PpgQualityReason r) =>
     PpgMeasurement(quality: PpgQuality.unusable, reasons: [r]);
 
 class Rig {
-  Rig._(this.cam, this.session, this.clock, this.script, this.c, this.sound);
+  Rig._(
+    this.cam,
+    this.session,
+    this.clock,
+    this.script,
+    this.c,
+    this.sound,
+    this.store,
+  );
 
   final HoldingCamera cam;
   final StorageSession session;
@@ -49,6 +57,7 @@ class Rig {
   final Script script;
   final RestingMeasureController c;
   final ValueNotifier<bool> sound;
+  final FailingProfileStore store;
   final List<RestingMeasureOutcome> closed = [];
   double _t = 0;
 
@@ -58,22 +67,25 @@ class Rig {
     final clock = FakeClock(DateTime.utc(2026, 11, 10, 12, 0));
     if (start != null) await session.profile.save(start);
     final script = Script();
+    final store = FailingProfileStore(session.profile);
     final c = RestingMeasureController(
       camera: cam,
-      profile: ProfileService(
-        session.profile,
-        clock,
-        settings: session.settings,
-      ),
+      profile: ProfileService(store, clock, settings: session.settings),
       settings: session.settings,
       clock: clock,
       evaluate: script.call,
       autoTick: false,
     );
-    return Rig._(cam, session, clock, script, c, ValueNotifier(true));
+    return Rig._(cam, session, clock, script, c, ValueNotifier(true), store);
   }
 
-  Future<void> show(WidgetTester tester, {required bool dark}) async {
+  Future<void> show(
+    WidgetTester tester, {
+    required bool dark,
+    String lang = 'de',
+    double textScale = 1.0,
+    bool pushed = false,
+  }) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -81,16 +93,40 @@ class Rig {
     await tester.pumpWidget(
       MaterialApp(
         theme: dark ? RamuriTheme.dark : RamuriTheme.light,
-        locale: const Locale('de'),
+        locale: Locale(lang),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: RestingMeasureScreen(
-          controller: c,
-          soundOn: sound,
-          onClose: closed.add,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
         ),
+        home: pushed
+            ? const SizedBox()
+            : RestingMeasureScreen(
+                controller: c,
+                soundOn: sound,
+                onClose: closed.add,
+              ),
       ),
     );
+    if (pushed) {
+      // Als eigene Route über einer Startseite, damit „Zurück“ beobachtbar ist.
+      unawaited(
+        tester
+            .state<NavigatorState>(find.byType(Navigator))
+            .push(
+              MaterialPageRoute<void>(
+                builder: (_) => RestingMeasureScreen(
+                  controller: c,
+                  soundOn: sound,
+                  onClose: closed.add,
+                ),
+              ),
+            ),
+      );
+      await tester.pumpAndSettle();
+    }
   }
 
   /// Spielt Bilder bis Sensorzeit [until] ein (alle 0,5 s).
@@ -549,6 +585,158 @@ void main() {
       });
     });
   }
+
+  group('Übernahme: Fehlerweg und Sperre', () {
+    testWidgets(
+      'Speichern scheitert: Hinweis, Ergebnis bleibt, nichts übernommen',
+      (tester) async {
+        final r = await Rig.make(
+          start: const ProfileRecord(restingHeartRateBpm: 64, birthYear: 1986),
+        );
+        await r.show(tester, dark: false);
+        await r.measure(tester, 67);
+        expect(find.byKey(const Key('measure_adopt_error')), findsNothing);
+        r.store.failSave = true;
+        await tapKey(tester, 'measure_adopt');
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('measure_adopt_error')),
+            matching: text(
+              'Der Wert konnte nicht gespeichert werden. Bitte versuch es noch einmal.',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(r.c.phase, RestingMeasurePhase.result);
+        expect(r.closed, isEmpty);
+        expect((await r.session.profile.read()).restingHeartRateBpm, 64);
+        expect(await RestingHrOrigin.read(r.session.settings), isNull);
+        // Erneut möglich.
+        r.store.failSave = false;
+        await tapKey(tester, 'measure_adopt');
+        expect(r.closed, [RestingMeasureOutcome.adopted]);
+        expect(find.byKey(const Key('measure_adopt_error')), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'Profil lehnt den Wert ab: eigener Hinweis, nichts gespeichert',
+      (tester) async {
+        final r = await Rig.make(
+          start: const ProfileRecord(
+            restingHeartRateBpm: 40,
+            maxHeartRateBpm: 55,
+            birthYear: 1986,
+          ),
+        );
+        await r.show(tester, dark: false);
+        await r.measure(tester, 67);
+        await tapKey(tester, 'measure_adopt');
+        expect(r.c.adoptRejection, isNotNull);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('measure_adopt_error')),
+            matching: text(
+              'Das Profil hat den Wert nicht angenommen. Es wurde nichts gespeichert.',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(r.c.phase, RestingMeasurePhase.result);
+        expect(r.closed, isEmpty);
+        expect((await r.session.profile.read()).restingHeartRateBpm, 40);
+      },
+    );
+
+    testWidgets(
+      'während der Übernahme: Schließen, Verwerfen und Zurück gesperrt',
+      (tester) async {
+        final r = await Rig.make(
+          start: const ProfileRecord(restingHeartRateBpm: 64, birthYear: 1986),
+        );
+        await r.show(tester, dark: false, pushed: true);
+        await r.measure(tester, 67);
+        final hold = Completer<void>();
+        r.store.holdSave = hold;
+        await tester.tap(find.byKey(const Key('measure_adopt')));
+        await settle(tester);
+        expect(r.c.adopting, isTrue);
+
+        await tester.tap(find.byKey(const Key('measure_close')));
+        await tester.tap(find.byKey(const Key('measure_discard')));
+        await tester.pump();
+        await tester.binding.handlePopRoute();
+        await settle(tester);
+        await tester.pump(const Duration(seconds: 1)); // Seitenanimation
+        expect(r.closed, isEmpty);
+        expect(r.c.phase, RestingMeasurePhase.result);
+        expect(find.byKey(const Key('measure_adopt')), findsOneWidget);
+
+        hold.complete();
+        await settle(tester);
+        expect(r.closed, [RestingMeasureOutcome.adopted]);
+        expect((await r.session.profile.read()).restingHeartRateBpm, 61);
+      },
+    );
+
+    testWidgets(
+      'Zurück nach dem Ergebnis (nicht übernehmend) verlässt die Seite',
+      (tester) async {
+        final r = await Rig.make();
+        await r.show(tester, dark: false, pushed: true);
+        await r.measure(tester, 67);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('measure_adopt')), findsNothing);
+      },
+    );
+  });
+
+  group('Ruhephase im Hintergrund', () {
+    testWidgets('Zeit um, App nicht vorn: Hinweis, Start bei Rückkehr', (
+      tester,
+    ) async {
+      final r = await Rig.make();
+      await r.show(tester, dark: false);
+      r.c.setRestMinutes(3);
+      r.c.startRest();
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await settle(tester);
+      r.clock.advance(const Duration(minutes: 3, seconds: 1));
+      r.c.tick();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      expect(r.c.waitingForForeground, isTrue);
+      expect(
+        text('Die Messung beginnt, sobald du wieder in der App bist.'),
+        findsOneWidget,
+      );
+      expect(r.c.phase, RestingMeasurePhase.resting);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await settle(tester);
+      expect(r.c.phase, RestingMeasurePhase.measuring);
+    });
+  });
+
+  group('Englisch', () {
+    testWidgets('Einstieg, Ergebnis und Hinweis erscheinen auf Englisch', (
+      tester,
+    ) async {
+      final r = await Rig.make();
+      await r.show(tester, dark: false, lang: 'en');
+      expect(text('Measure resting heart rate'), findsOneWidget);
+      await r.measure(tester, 67);
+      expect(text('Measurement done'), findsOneWidget);
+      expect(text('Adopt into profile'), findsOneWidget);
+      r.store.failSave = true;
+      await tapKey(tester, 'measure_adopt');
+      expect(
+        text('The value could not be saved. Please try again.'),
+        findsOneWidget,
+      );
+    });
+  });
 
   group('Lebenszyklus', () {
     void lifecycle(WidgetTester tester, AppLifecycleState s) {

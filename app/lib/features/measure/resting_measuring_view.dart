@@ -146,10 +146,12 @@ class RestingMeasuringView extends StatelessWidget {
                     children: [
                       SignalBars(level: signal.$2),
                       const SizedBox(width: 8),
-                      Text(
-                        signal.$1,
-                        key: const Key('measure_signal'),
-                        style: theme.textTheme.titleSmall,
+                      Flexible(
+                        child: Text(
+                          signal.$1,
+                          key: const Key('measure_signal'),
+                          style: theme.textTheme.titleSmall,
+                        ),
                       ),
                     ],
                   ),
@@ -197,19 +199,17 @@ class RestingMeasuringView extends StatelessWidget {
       footer: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              Flexible(
-                child: Text(
-                  progressLabel,
-                  key: const Key('measure_progress_label'),
-                  style: theme.textTheme.labelMedium,
-                ),
+              Text(
+                progressLabel,
+                key: const Key('measure_progress_label'),
+                style: theme.textTheme.labelMedium,
               ),
-              const SizedBox(width: 8),
               Text(
                 l10n.measureProgressValue(done, seconds),
                 key: const Key('measure_progress_value'),

@@ -136,11 +136,15 @@ class FailingProfileStore implements ProfileStore {
   final ProfileStore inner;
   bool failSave = false;
 
+  /// Hält das Speichern an, bis der Completer erfüllt ist.
+  Completer<void>? holdSave;
+
   @override
   Future<ProfileRecord> read() => inner.read();
 
   @override
   Future<void> save(ProfileRecord profile) async {
+    await holdSave?.future;
     if (failSave) throw StateError('Speichern scheitert');
     await inner.save(profile);
   }

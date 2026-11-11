@@ -17,6 +17,7 @@ class _FailingSettings implements SettingsStore {
   _FailingSettings(this.inner);
   final SettingsStore inner;
   bool failSet = false;
+  String? failKey;
 
   @override
   Future<String?> get(String key) => inner.get(key);
@@ -26,7 +27,7 @@ class _FailingSettings implements SettingsStore {
 
   @override
   Future<void> set(String key, String value, {required DateTime at}) async {
-    if (failSet) throw StateError('Schreiben scheitert');
+    if (failSet || key == failKey) throw StateError('Schreiben scheitert');
     await inner.set(key, value, at: at);
   }
 }
@@ -143,5 +144,25 @@ void main() {
     );
     expect((await s.profile.read()).restingHeartRateBpm, 60);
     expect(await RestingHrOrigin.read(s.settings), isNotNull);
+  });
+
+  test('erneutes Schreiben scheitert mittendrin: keine Mischung aus alter und neuer Herkunft', () async {
+    final s = await FakeStorage().open(_key);
+    final failing = _FailingSettings(s.settings);
+    await RestingHrOrigin(
+      posture: RestingPosture.sitting,
+      measuredAt: _t0,
+    ).write(failing, at: _t0);
+    failing.failKey = 'resting_hr.measured_at';
+    await expectLater(
+      RestingHrOrigin(
+        posture: RestingPosture.lying,
+        measuredAt: _t0.add(const Duration(days: 1)),
+      ).write(failing, at: _t0),
+      throwsStateError,
+    );
+    // Haltung ist schon neu, der Zeitpunkt noch alt: ohne Quelle gilt das
+    // als keine Herkunft.
+    expect(await RestingHrOrigin.read(s.settings), isNull);
   });
 }

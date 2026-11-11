@@ -152,11 +152,13 @@ class _RestingMeasureScreenState extends State<RestingMeasureScreen>
           ),
         };
         // Zurück während Ruhephase und Messung bricht ab, statt die Seite
-        // mit laufender Kamera zu verlassen.
+        // mit laufender Kamera zu verlassen. Während der Übernahme geht Zurück
+        // nicht (Schließen und Verwerfen sind dann auch gesperrt): Sonst
+        // erführe der Aufrufer „geschlossen“, obwohl der Wert danach gespeichert wird.
         return PopScope(
-          canPop: !_active,
+          canPop: !_active && !_c.adopting,
           onPopInvokedWithResult: (didPop, _) {
-            if (!didPop) _c.cancel();
+            if (!didPop && _active) _c.cancel();
           },
           child: view,
         );
