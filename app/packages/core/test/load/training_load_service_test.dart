@@ -771,4 +771,112 @@ void main() {
       },
     );
   });
+
+  group('Plan und Pause im Belastungsdienst (K58, PAR-090, PAR-202)', () {
+    late FakeStorage fs;
+
+    PlanUnit planned(
+      int agoDays, {
+      int? runId,
+      PlanUnitKind kind = PlanUnitKind.easy,
+    }) => PlanUnit(
+      id: 100 + agoDays,
+      day: ago(agoDays),
+      kind: kind,
+      phase: PlanPhase.build,
+      weekIndex: 0,
+      minutes: 30,
+      runId: runId,
+      segments: const [],
+    );
+
+    void plan(Iterable<PlanUnit> units) {
+      fs.data.planVersions[1] = PlanVersionRecord(
+        id: 1,
+        goalId: 1,
+        createdAt: recalcNow,
+        validFrom: ago(30),
+        trigger: PlanTrigger.create,
+        reason: 'start',
+        version: const PlanVersion(),
+        inputsJson: '{}',
+        summaryJson: '{}',
+      );
+      for (final u in units) {
+        fs.data.planUnits[u.id!] = u;
+        fs.data.planUnitPlan[u.id!] = 1;
+      }
+    }
+
+    // 6 Läufe vor 30 bis 25 Tagen, danach nichts; Plan erwartet 20 Tage lang
+    // täglich einen Lauf.
+    Future<TrainingLoadService> world() async {
+      fs = FakeStorage();
+      w = await RecalcWorld.create(storage: fs);
+      for (var a = 30; a >= 25; a--) {
+        await addRun(
+          ago(a).add(const Duration(hours: 9)),
+          trimp: trimpValue(80),
+          rpe: 5,
+        );
+      }
+      plan([for (var a = 20; a >= 1; a--) planned(a)]);
+      return TrainingLoadService(
+        session: w.session,
+        clock: w.clock,
+        calculation: w.calc(),
+        recalculation: w.recalc(),
+      );
+    }
+
+    bool missing(TrainingLoadReport r) => r
+        .series
+        .days
+        .last
+        .ctlProvisionalReasons
+        .contains(LoadProvisionalReason.missingUnits);
+
+    test('erwartete Einheiten aus dem Plan: ausgefallene Läufe machen CTL '
+        'vorläufig (missingUnits)', () async {
+      final svc = await world();
+      expect(missing(await svc.load()), isTrue);
+    });
+
+    test('ohne Plan gelten alle erfassten Einheiten als erwartet', () async {
+      final svc = await world();
+      fs.data.planUnits.clear();
+      expect(missing(await svc.load()), isFalse);
+    });
+
+    test(
+      'Ruhetage im Plan und der heutige offene Tag sind nicht erwartet',
+      () async {
+        final svc = await world();
+        fs.data.planUnits.clear();
+        plan([
+          for (var a = 20; a >= 1; a--) planned(a, kind: PlanUnitKind.rest),
+          planned(0),
+        ]);
+        expect(missing(await svc.load()), isFalse);
+      },
+    );
+
+    test('bestätigte Pause (ja): Tage ohne Einheit sind bekannt leer, nichts '
+        'fehlt', () async {
+      final svc = await world();
+      await WarningState(w.session.settings)
+          .setPauseAnswer(PauseAnswer(paused: true, on: ago(1)), at: recalcNow);
+      final r = await svc.load();
+      expect(missing(r), isFalse);
+      expect(r.series.days.last.load, 0);
+    });
+
+    test('Antwort nein ändert nichts', () async {
+      final svc = await world();
+      await WarningState(
+        w.session.settings,
+      ).setPauseAnswer(PauseAnswer(paused: false, on: ago(1)), at: recalcNow);
+      expect(missing(await svc.load()), isTrue);
+    });
+  });
 }

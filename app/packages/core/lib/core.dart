@@ -187,6 +187,11 @@ export 'src/subjective/run_subjective.dart';
 export 'src/subjective/srpe.dart';
 export 'src/subjective/subjective_limits.dart';
 export 'src/subjective/subjective_service.dart';
+export 'src/hints/explanations.dart';
+export 'src/hints/hint_selection.dart';
+export 'src/hints/hint_service.dart';
+export 'src/hints/recovery_card.dart';
+export 'src/load/pause_days.dart';
 
 /// Name des Pakets, nur damit das Paket auflösbar und testbar ist.
 const String corePackageName = 'core';
