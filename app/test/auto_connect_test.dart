@@ -4,8 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'app_harness.dart';
 
-Finder key(String k) => find.byKey(Key(k));
-
 /// Zwei bekannte Geräte (h2 bevorzugt), beide getrennt; Neustart wie ein
 /// frischer Prozess auf demselben Speicher.
 Future<Device> knownAndDisconnected(

@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/export/run_export_action.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key, openHistory;
+import 'history_summary_test.dart' show openHistory;
 import 'run_detail_test.dart' show seedDetailRun;
 
 final DateTime _start = DateTime.utc(2030, 1, 1, 8);

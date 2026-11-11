@@ -26,7 +26,7 @@ valid_serial() { case $1 in emulator-[0-9]*) case ${1#emulator-} in *[!0-9]*) re
 valid_avd() { case $1 in ""|*[!A-Za-z0-9_.-]*) return 1 ;; esac; return 0; }
 alive() { [ -n "$1" ] && kill -0 "$1" 2>/dev/null; }
 # Die PID gehört noch zu unserem Prozess (PID-Wiederverwendung): Kommandozeile enthält alle übrigen Argumente.
-own() { c=$(ps -o command= -p "$1" 2>/dev/null) || return 1; shift; for a in "$@"; do case "$c" in *"$a"*) ;; *) return 1 ;; esac; done; }
+own() { c=$(ps -o command= -p "$1" 2>/dev/null) || return 1; shift; for a in "$@"; do case " $c " in *" $a "*) ;; *) return 1 ;; esac; done; }
 
 # Wrapper (läuft unter lockf, hält also den AVD-Lock): wählt einen Port, startet den Emulator, schreibt Zustand.
 # Aufruf: emu.sh _run <avd> <runfile>

@@ -5,7 +5,7 @@ import 'package:running_app/features/home/app_shell.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart'
-    show key, openHistory, seedRun, started, text, walk;
+    show openHistory, seedRun, started, text, walk;
 
 /// Zählt die Aufrufe von `SystemNavigator.pop` (App verlassen).
 List<int> _exits(WidgetTester tester) {

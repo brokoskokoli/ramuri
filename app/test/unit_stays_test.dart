@@ -14,7 +14,7 @@ import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key, seedRun, showAllRuns;
+import 'history_summary_test.dart' show seedRun, showAllRuns;
 
 /// Einheitswort: nach dem Entfernen der Wortverbinder genau eine Einheit.
 final _unitWord = RegExp(r'^(km|mi|m|ft|min/km|min/mi|bpm|spm|Punkte|points)$');

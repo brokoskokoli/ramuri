@@ -18,7 +18,7 @@ import 'package:running_app/features/settings/unit_format.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
-import 'helpers/widget_helpers.dart';
+import 'app_harness.dart';
 
 class _Consents implements ConsentStore {
   final Map<String, ConsentState> data = {};
@@ -204,7 +204,7 @@ void main() {
   testWidgets('Weiterlaufen: Lauf läuft, kein Befehl', (tester) async {
     await open(tester);
     await back(tester);
-    await tester.tap(keyed('run_pause_ask_stay'));
+    await tester.tap(key('run_pause_ask_stay'));
     await tester.pumpAndSettle();
     expect(find.text('Lauf pausieren?'), findsNothing);
     expect(w.recorder.commands, isEmpty);
@@ -254,7 +254,7 @@ void main() {
       final hold = Completer<void>();
       w.recorder.holdPause = hold;
       await back(tester);
-      await tester.tap(keyed('run_pause_ask_confirm'));
+      await tester.tap(key('run_pause_ask_confirm'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       // Der Pause-Befehl ist unterwegs, die Phase noch „laufend“: Der Dialog ist
@@ -277,11 +277,11 @@ void main() {
   ) async {
     await open(tester);
     await back(tester);
-    await tester.tap(keyed('run_pause_ask_confirm'));
+    await tester.tap(key('run_pause_ask_confirm'));
     await tester.pumpAndSettle();
     expect(w.recorder.commands, ['pause']);
     expect(w.run.phase, RecordingPhase.paused);
-    expect(keyed('run_resume'), findsOneWidget);
+    expect(key('run_resume'), findsOneWidget);
     await end(tester);
   });
 
@@ -294,7 +294,7 @@ void main() {
     await back(tester);
     expect(find.text('Lauf pausieren?'), findsOneWidget);
     expect(w.recorder.commands, isEmpty);
-    await tester.tap(keyed('run_pause_ask_confirm'));
+    await tester.tap(key('run_pause_ask_confirm'));
     await tester.pumpAndSettle();
     expect(w.recorder.commands, ['pause']);
     expect(w.run.phase, RecordingPhase.paused);
@@ -310,7 +310,7 @@ void main() {
     await w.step(tester, n: 10); // der Läufer läuft wieder los
     expect(w.run.phase, RecordingPhase.running);
     expect(find.text('Lauf pausieren?'), findsOneWidget);
-    await tester.tap(keyed('run_pause_ask_confirm'));
+    await tester.tap(key('run_pause_ask_confirm'));
     await tester.pumpAndSettle();
     expect(w.recorder.commands, ['pause']);
     expect(w.run.phase, RecordingPhase.paused);
@@ -345,13 +345,13 @@ void main() {
   testWidgets('Pausiert unverändert: Zurück fragt nach dem Beenden, nicht '
       'nach der Pause', (tester) async {
     await open(tester);
-    await tester.tap(keyed('run_pause'));
+    await tester.tap(key('run_pause'));
     await tester.pump();
     expect(w.recorder.commands, ['pause']);
     await back(tester);
     expect(find.text('Lauf beenden?'), findsOneWidget);
     expect(find.text('Lauf pausieren?'), findsNothing);
-    await tester.tap(keyed('run_finish_cancel'));
+    await tester.tap(key('run_finish_cancel'));
     await tester.pumpAndSettle();
     expect(w.recorder.commands, ['pause']);
     await end(tester);
@@ -362,12 +362,12 @@ void main() {
     tester,
   ) async {
     await open(tester, consent: ConsentState.granted);
-    await tester.tap(keyed('run_tab_1'));
+    await tester.tap(key('run_tab_1'));
     await tester.pumpAndSettle();
     await back(tester);
     expect(find.text('Lauf pausieren?'), findsOneWidget);
     expect(w.recorder.commands, isEmpty);
-    await tester.tap(keyed('run_pause_ask_stay'));
+    await tester.tap(key('run_pause_ask_stay'));
     await tester.pumpAndSettle();
     expect(w.recorder.commands, isEmpty);
     expect(w.run.phase, RecordingPhase.running);
@@ -377,7 +377,7 @@ void main() {
   testWidgets('Kartenseite, Einwilligungsfrage offen: Zurück schließt nur die '
       'Frage, kein Befehl, keine Pause-Rückfrage', (tester) async {
     await open(tester);
-    await tester.tap(keyed('run_tab_1'));
+    await tester.tap(key('run_tab_1'));
     await tester.pumpAndSettle();
     expect(find.byType(Dialog).evaluate().length, 1);
     await back(tester);

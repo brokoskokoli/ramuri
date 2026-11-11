@@ -15,7 +15,7 @@ import 'package:running_app/offload_scope.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key, openHistory, started, text;
+import 'history_summary_test.dart' show openHistory, started, text;
 import 'run_detail_test.dart' show seedDetailRun;
 import 'run_summary_page_test.dart' show seedLoad;
 

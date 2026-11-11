@@ -22,7 +22,7 @@ import 'package:running_app/features/settings/unit_format.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
-import 'helpers/widget_helpers.dart';
+import 'app_harness.dart';
 
 class _Consents implements ConsentStore {
   final Map<String, ConsentState> data = {};
@@ -157,17 +157,17 @@ void _testRun(String name, Future<void> Function(WidgetTester) body) {
 }
 
 Future<void> _toMap(WidgetTester tester) async {
-  await tester.tap(keyed('run_tab_1'));
+  await tester.tap(key('run_tab_1'));
   await tester.pumpAndSettle();
 }
 
 Future<void> _toValues(WidgetTester tester) async {
-  await tester.tap(keyed('run_tab_0'));
+  await tester.tap(key('run_tab_0'));
   await tester.pumpAndSettle();
 }
 
 ({double lat, double lon, double zoom}) _camera(WidgetTester tester) =>
-    mapCameraOf(tester.element(keyed('live_route_map')));
+    mapCameraOf(tester.element(key('live_route_map')));
 
 /// Kachel (x, y) der Position bei Zoom z.
 (int, int) _tileOf(double lat, double lon, int z) {
@@ -191,11 +191,11 @@ void main() {
       await tester.pumpWidget(_app(w));
       await tester.pump(const Duration(seconds: 1));
       await w.step(tester, n: 3);
-      expect(keyed('map_consent_dialog'), findsNothing, reason: 'Werte-Seite');
+      expect(key('map_consent_dialog'), findsNothing, reason: 'Werte-Seite');
       expect(w.requests, 0);
-      await tester.tap(keyed('run_tab_1'));
+      await tester.tap(key('run_tab_1'));
       await tester.pumpAndSettle();
-      expect(keyed('map_consent_dialog'), findsOneWidget);
+      expect(key('map_consent_dialog'), findsOneWidget);
       expect(w.requests, 0, reason: 'vor der Antwort keine Anfrage');
     });
 
@@ -205,9 +205,9 @@ void main() {
         final w = _World();
         await w.startRun();
         await tester.pumpWidget(_app(w));
-        await tester.tap(keyed('run_tab_1'));
+        await tester.tap(key('run_tab_1'));
         await tester.pumpAndSettle();
-        expect(keyed('map_consent_dialog'), findsOneWidget);
+        expect(key('map_consent_dialog'), findsOneWidget);
         // Der Lauf läuft hinter dem Dialog weiter: Zeit und Punkte kommen an.
         final before = w.run.snapshot.totalTime!;
         await w.step(tester, n: 5);
@@ -216,11 +216,11 @@ void main() {
         // Tippen neben den Dialog schließt ihn ("Nicht jetzt"); dann ist Pause erreichbar.
         await tester.tapAt(const Offset(4, 4));
         await tester.pumpAndSettle();
-        expect(keyed('map_consent_dialog'), findsNothing);
-        await tester.tap(keyed('live_map_pause'));
+        expect(key('map_consent_dialog'), findsNothing);
+        await tester.tap(key('live_map_pause'));
         await tester.pump();
         expect(w.run.phase, RecordingPhase.paused);
-        expect(keyed('live_map_resume'), findsOneWidget);
+        expect(key('live_map_resume'), findsOneWidget);
         expect(w.requests, 0, reason: 'ohne Einwilligung keine Anfrage');
       },
     );
@@ -234,10 +234,10 @@ void main() {
       await w.step(tester, n: 20);
       await _toMap(tester);
       await w.step(tester, n: 2);
-      expect(keyed('map_consent_dialog'), findsNothing);
-      expect(keyed('live_route_map'), findsNothing);
-      expect(keyed('live_map_line'), findsOneWidget);
-      expect(keyed('live_map_sheet'), findsOneWidget);
+      expect(key('map_consent_dialog'), findsNothing);
+      expect(key('live_route_map'), findsNothing);
+      expect(key('live_map_line'), findsOneWidget);
+      expect(key('live_map_sheet'), findsOneWidget);
       expect(find.text(formatClock(w.run.snapshot.totalTime)), findsWidgets);
       expect(w.requests, 0);
     });
@@ -250,8 +250,8 @@ void main() {
       await tester.pumpWidget(_app(w));
       await _toMap(tester);
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('live_route_map'), findsNothing);
-      expect(keyed('live_map_waiting'), findsOneWidget);
+      expect(key('live_route_map'), findsNothing);
+      expect(key('live_map_waiting'), findsOneWidget);
       expect(w.tiles, isEmpty);
       await w.silence(tester, 5);
       await settleUntilRequestsStable(tester, () => w.requests);
@@ -269,7 +269,7 @@ void main() {
       expect(w.tiles, isEmpty);
       await w.step(tester);
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('live_route_map'), findsOneWidget);
+      expect(key('live_route_map'), findsOneWidget);
       expect(w.tiles, isNotEmpty);
       for (final u in w.tiles) {
         final seg = u.pathSegments;
@@ -301,7 +301,7 @@ void main() {
       await _toMap(tester);
       await w.step(tester);
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('live_map_center'), findsNothing, reason: 'folgt noch');
+      expect(key('live_map_center'), findsNothing, reason: 'folgt noch');
       final c0 = _camera(tester);
       expect(c0.lat, closeTo(50, 1e-6));
 
@@ -311,11 +311,11 @@ void main() {
       expect(_camera(tester).lat, closeTo(w.lat, 1e-5));
 
       // Ein Finger verschiebt die Karte: Folgen endet, der Knopf erscheint, die Seite bleibt.
-      await tester.drag(keyed('live_route_map'), const Offset(-120, 0));
+      await tester.drag(key('live_route_map'), const Offset(-120, 0));
       await tester.pumpAndSettle();
-      expect(keyed('live_map_center'), findsOneWidget);
+      expect(key('live_map_center'), findsOneWidget);
       expect(
-        tester.getTopLeft(keyed('run_page_map')).dx,
+        tester.getTopLeft(key('run_page_map')).dx,
         0,
         reason: 'die Seite wischt nicht mit',
       );
@@ -332,10 +332,10 @@ void main() {
       expect(_camera(tester).lon, closeTo(moved.lon, 1e-9));
 
       // Tippen stellt das Folgen wieder her.
-      await tester.tap(keyed('live_map_center'));
+      await tester.tap(key('live_map_center'));
       await tester.pump();
       await tester.pump();
-      expect(keyed('live_map_center'), findsNothing);
+      expect(key('live_map_center'), findsNothing);
       expect(_camera(tester).lat, closeTo(w.lat, 1e-5));
       expect(_camera(tester).lon, closeTo(8, 1e-5));
     });
@@ -348,36 +348,36 @@ void main() {
         await tester.pumpWidget(_app(w));
         await w.step(tester, n: 3);
         // Werte-Seite: Wisch nach links öffnet die Karte.
-        await tester.fling(keyed('run_pages'), const Offset(-300, 0), 1500);
+        await tester.fling(key('run_pages'), const Offset(-300, 0), 1500);
         await tester.pumpAndSettle();
-        expect(keyed('run_page_map'), findsOneWidget);
-        expect(tester.getTopLeft(keyed('run_page_map')).dx, 0);
+        expect(key('run_page_map'), findsOneWidget);
+        expect(tester.getTopLeft(key('run_page_map')).dx, 0);
         await settleUntilRequestsStable(tester, () => w.requests);
         final before = _camera(tester);
         // Ein Zug von rechts nach links verschiebt die Karte, die Seite wechselt nicht.
         // Langsam wie ein Finger (kleine Schritte): so entscheiden die Erkennungen den Streit um den Zug.
         final g = await tester.startGesture(
-          tester.getCenter(keyed('live_route_map')),
+          tester.getCenter(key('live_route_map')),
         );
         for (var i = 0; i < 40; i++) {
           await g.moveBy(const Offset(-5, 0));
           await tester.pump(const Duration(milliseconds: 16));
         }
         expect(
-          tester.getTopLeft(keyed('run_page_map')).dx,
+          tester.getTopLeft(key('run_page_map')).dx,
           0,
           reason: 'während des Zugs wischt die Seite nicht',
         );
         await g.up();
         await tester.pumpAndSettle();
-        expect(tester.getTopLeft(keyed('run_page_map')).dx, 0);
+        expect(tester.getTopLeft(key('run_page_map')).dx, 0);
         expect(_camera(tester).lon, isNot(closeTo(before.lon, 1e-7)));
         // Ein Zug von links nach rechts in der Mitte verschiebt ebenfalls (kein Rückwisch).
-        await tester.fling(keyed('live_route_map'), const Offset(200, 0), 1500);
+        await tester.fling(key('live_route_map'), const Offset(200, 0), 1500);
         await tester.pumpAndSettle();
-        expect(tester.getTopLeft(keyed('run_page_map')).dx, 0);
+        expect(tester.getTopLeft(key('run_page_map')).dx, 0);
         // Vom linken Rand zurück zur Werte-Seite.
-        final map = tester.getRect(keyed('live_route_map'));
+        final map = tester.getRect(key('live_route_map'));
         await tester.flingFrom(
           Offset(6, map.center.dy),
           const Offset(300, 0),
@@ -389,8 +389,8 @@ void main() {
           findsOneWidget,
           reason: 'die Kartenseite behält ihren Zustand (Quelle, Folgen)',
         );
-        expect(keyed('live_route_map'), findsNothing, reason: 'nicht sichtbar');
-        expect(keyed('run_pause'), findsOneWidget, reason: 'Werte-Seite');
+        expect(key('live_route_map'), findsNothing, reason: 'nicht sichtbar');
+        expect(key('run_pause'), findsOneWidget, reason: 'Werte-Seite');
       },
     );
   });
@@ -404,14 +404,14 @@ void main() {
         await tester.pumpWidget(_app(w));
         await w.step(tester, n: 10);
         await _toMap(tester);
-        await tester.tap(keyed('live_map_pause'));
+        await tester.tap(key('live_map_pause'));
         await tester.pump();
         expect(w.run.phase, RecordingPhase.paused);
         final time = w.run.snapshot.totalTime;
-        await tester.fling(keyed('live_map_sheet'), const Offset(300, 0), 1500);
+        await tester.fling(key('live_map_sheet'), const Offset(300, 0), 1500);
         await tester.pumpAndSettle();
         expect(
-          keyed('run_resume'),
+          key('run_resume'),
           findsOneWidget,
           reason: 'Werte-Seite, pausiert',
         );
@@ -421,11 +421,11 @@ void main() {
           reason: 'Seitenwechsel ändert nichts',
         );
         expect(w.run.snapshot.totalTime, time);
-        expect(keyed('run_banner_paused'), findsOneWidget);
+        expect(key('run_banner_paused'), findsOneWidget);
         // Und wieder hin: der Zustand der Pause steht auch auf dem Blatt.
-        await tester.fling(keyed('run_pages'), const Offset(-300, 0), 1500);
+        await tester.fling(key('run_pages'), const Offset(-300, 0), 1500);
         await tester.pumpAndSettle();
-        expect(keyed('live_map_resume'), findsOneWidget);
+        expect(key('live_map_resume'), findsOneWidget);
       },
     );
   });
@@ -440,17 +440,17 @@ void main() {
       await w.step(tester, n: 3);
       await _toMap(tester);
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('live_route_map'), findsOneWidget);
+      expect(key('live_route_map'), findsOneWidget);
       await _toValues(tester);
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('live_route_map'), findsNothing);
+      expect(key('live_route_map'), findsNothing);
       final requests = w.requests;
       final builds = liveMapRouteBuilds;
       await w.step(tester, n: 120);
       await settleUntilRequestsStable(tester, () => w.requests);
       expect(w.requests, requests, reason: 'keine Anfrage auf der Werte-Seite');
       expect(liveMapRouteBuilds, builds, reason: 'Strecke nicht neu berechnet');
-      expect(keyed('live_route_map'), findsNothing);
+      expect(key('live_route_map'), findsNothing);
       // Zurück: einmal aufholen, Karte steht auf der aktuellen Position.
       await _toMap(tester);
       await settleUntilRequestsStable(tester, () => w.requests);
@@ -461,7 +461,7 @@ void main() {
         reason: 'die Quelle bleibt offen, kein neuer Stil',
       );
       expect(_camera(tester).lat, closeTo(w.lat, 1e-5));
-      final live = tester.widget<LiveRouteMap>(keyed('live_route_map'));
+      final live = tester.widget<LiveRouteMap>(key('live_route_map'));
       expect(live.route.expand((p) => p).length, greaterThan(100));
     });
 
@@ -474,12 +474,12 @@ void main() {
       await w.step(tester, n: 3);
       await _toMap(tester);
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('live_route_map'), findsOneWidget);
+      expect(key('live_route_map'), findsOneWidget);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump();
-      expect(keyed('live_route_map'), findsNothing);
+      expect(key('live_route_map'), findsNothing);
       final requests = w.requests;
       final builds = liveMapRouteBuilds;
       await w.step(tester, n: 120);
@@ -491,7 +491,7 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('live_route_map'), findsOneWidget);
+      expect(key('live_route_map'), findsOneWidget);
       expect(liveMapRouteBuilds, builds + 1);
       expect(_camera(tester).lat, closeTo(w.lat, 1e-5));
     });
@@ -506,13 +506,13 @@ void main() {
       await w.step(tester, n: 30);
       await settleUntilRequestsStable(tester, () => w.requests);
       List<List<RoutePoint>> parts() =>
-          tester.widget<LiveRouteMap>(keyed('live_route_map')).route;
+          tester.widget<LiveRouteMap>(key('live_route_map')).route;
       expect(parts(), hasLength(1));
       // Pause über das Blatt.
-      await tester.tap(keyed('live_map_pause'));
+      await tester.tap(key('live_map_pause'));
       await tester.pump();
       await w.silence(tester, 20);
-      await tester.tap(keyed('live_map_resume'));
+      await tester.tap(key('live_map_resume'));
       await tester.pump();
       await w.step(tester, n: 30);
       expect(parts(), hasLength(2), reason: 'Pause trennt');
@@ -551,7 +551,7 @@ void main() {
       }
       await tester.pump(const Duration(seconds: 1));
       await settleUntilRequestsStable(tester, () => w.requests);
-      final live = tester.widget<LiveRouteMap>(keyed('live_route_map'));
+      final live = tester.widget<LiveRouteMap>(key('live_route_map'));
       final shown = live.route.fold<int>(0, (n, p) => n + p.length);
       expect(shown, lessThanOrEqualTo(liveMapMaxPoints + live.route.length));
       expect(
@@ -572,8 +572,8 @@ void main() {
       await _toMap(tester);
       await w.step(tester, n: 20);
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('live_route_map'), findsNothing, reason: 'Quelle fehlt');
-      expect(keyed('live_map_line'), findsOneWidget, reason: 'Linie bleibt');
+      expect(key('live_route_map'), findsNothing, reason: 'Quelle fehlt');
+      expect(key('live_map_line'), findsOneWidget, reason: 'Linie bleibt');
       expect(w.run.phase, RecordingPhase.running);
       expect(w.run.writeFailure, isNull);
       expect(w.run.serviceFailed, isFalse);
@@ -601,10 +601,10 @@ void main() {
           await settleUntilRequestsStable(tester, () => w.requests);
           expect(w.tiles, isNotEmpty, reason: 'Kacheln wurden versucht');
           // Rückfall (FR-0204): Linie mit Position und Blatt, keine Karte, keine Quellenangabe.
-          expect(keyed('live_route_map'), findsNothing);
-          expect(keyed('live_map_line'), findsOneWidget);
+          expect(key('live_route_map'), findsNothing);
+          expect(key('live_map_line'), findsOneWidget);
           expect(find.text(MapProvider.openFreeMap.attribution), findsNothing);
-          expect(keyed('live_map_sheet'), findsOneWidget);
+          expect(key('live_map_sheet'), findsOneWidget);
           expect(w.run.phase, RecordingPhase.running);
           expect(w.run.writeFailure, isNull);
         },
@@ -627,11 +627,11 @@ void main() {
         await w.step(tester, n: 20);
         await settleUntilRequestsStable(tester, () => w.requests);
         expect(
-          keyed('live_route_map'),
+          key('live_route_map'),
           findsNothing,
           reason: 'Rückfall auf die Linie',
         );
-        expect(keyed('live_map_line'), findsOneWidget);
+        expect(key('live_map_line'), findsOneWidget);
         net.failWhere = null; // Netz wieder da
         for (final st in [
           AppLifecycleState.inactive,
@@ -645,7 +645,7 @@ void main() {
         await w.step(tester, n: 5);
         await settleUntilRequestsStable(tester, () => w.requests);
         expect(
-          keyed('live_route_map'),
+          key('live_route_map'),
           findsOneWidget,
           reason: 'neuer Versuch bei Rückkehr',
         );
@@ -662,12 +662,12 @@ void main() {
       await _toMap(tester);
       await w.step(tester, n: 20);
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('live_route_map'), findsOneWidget);
+      expect(key('live_route_map'), findsOneWidget);
       await tester.runAsync(w.map.revoke);
       await tester.pump();
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('live_route_map'), findsNothing);
-      expect(keyed('live_map_line'), findsOneWidget);
+      expect(key('live_route_map'), findsNothing);
+      expect(key('live_map_line'), findsOneWidget);
       final requests = w.requests;
       await w.step(tester, n: 60);
       await settleUntilRequestsStable(tester, () => w.requests);
@@ -722,18 +722,18 @@ void main() {
       await settleUntilRequestsStable(tester, () => w.requests);
       // Blatt unten, Reiter oben links, Quellenangabe in der Karte, nichts ragt über den Rand.
       final screen = tester.getRect(find.byType(Scaffold).first);
-      final sheet = tester.getRect(keyed('live_map_sheet'));
+      final sheet = tester.getRect(key('live_map_sheet'));
       expect(sheet.bottom, lessThanOrEqualTo(screen.bottom));
       final attr = tester.getRect(
         find.text(MapProvider.openFreeMap.attribution),
       );
       expect(attr.bottom, lessThanOrEqualTo(sheet.top + 0.5));
-      expect(tester.getRect(keyed('run_tab_1')).left, greaterThanOrEqualTo(0));
+      expect(tester.getRect(key('run_tab_1')).left, greaterThanOrEqualTo(0));
       final dir = Platform.environment['SHOT_DIR'];
       if (dir != null) {
         await tester.runAsync(() async {
           final boundary = tester.renderObject<RenderRepaintBoundary>(
-            keyed('shot'),
+            key('shot'),
           );
           final image = await boundary.toImage(pixelRatio: 1);
           final bytes = await image.toByteData(format: ui.ImageByteFormat.png);

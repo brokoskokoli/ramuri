@@ -17,7 +17,7 @@ import 'package:running_app/features/summary/run_charts.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
-import 'helpers/widget_helpers.dart';
+import 'app_harness.dart';
 
 class _Consents implements ConsentStore {
   final Map<String, ConsentState> data = {};
@@ -124,9 +124,9 @@ void main() {
   ) async {
     await tester.pumpWidget(_app(null, _route));
     await tester.pump(const Duration(seconds: 1));
-    expect(keyed('route_paint'), findsOneWidget);
-    expect(keyed('route_view_toggle'), findsNothing);
-    expect(keyed('route_map'), findsNothing);
+    expect(key('route_paint'), findsOneWidget);
+    expect(key('route_view_toggle'), findsNothing);
+    expect(key('route_map'), findsNothing);
   });
 
   testWidgets('erteilt: Karte mit Quellenangabe, Umschalter Linie/Karte', (
@@ -135,24 +135,24 @@ void main() {
     final w = _World(consent: ConsentState.granted);
     await tester.pumpWidget(_app(w, _route));
     await settleUntilRequestsStable(tester, () => w.requests);
-    expect(keyed('route_map'), findsOneWidget);
-    expect(keyed('route_paint'), findsNothing);
+    expect(key('route_map'), findsOneWidget);
+    expect(key('route_paint'), findsNothing);
     expect(find.text(MapProvider.openFreeMap.attribution), findsOneWidget);
-    expect(keyed('route_view_toggle'), findsOneWidget);
+    expect(key('route_view_toggle'), findsOneWidget);
     expect(w.tileRequests, greaterThan(0));
     // Legende bleibt, Start und Ende der Karte.
-    expect(keyed('route_legend_start'), findsOneWidget);
+    expect(key('route_legend_start'), findsOneWidget);
 
     await tester.tap(find.text('Linie'));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(keyed('route_paint'), findsOneWidget);
-    expect(keyed('route_map'), findsNothing);
+    expect(key('route_paint'), findsOneWidget);
+    expect(key('route_map'), findsNothing);
     // Ohne Karte keine Quellenangabe.
     expect(find.text(MapProvider.openFreeMap.attribution), findsNothing);
 
     await tester.tap(find.text('Karte'));
     await settleUntilRequestsStable(tester, () => w.requests);
-    expect(keyed('route_map'), findsOneWidget);
+    expect(key('route_map'), findsOneWidget);
     expect(find.text(MapProvider.openFreeMap.attribution), findsOneWidget);
   });
 
@@ -163,13 +163,13 @@ void main() {
       await tester.pumpWidget(_app(w, _route));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
-      expect(keyed('map_consent_dialog'), findsOneWidget);
+      expect(key('map_consent_dialog'), findsOneWidget);
       expect(w.requests, 0, reason: 'vor der Antwort keine Anfrage');
-      await tester.tap(keyed('map_consent_not_now'));
+      await tester.tap(key('map_consent_not_now'));
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('route_paint'), findsOneWidget);
-      expect(keyed('route_view_toggle'), findsNothing);
-      expect(keyed('route_map'), findsNothing);
+      expect(key('route_paint'), findsOneWidget);
+      expect(key('route_view_toggle'), findsNothing);
+      expect(key('route_map'), findsNothing);
       expect(w.requests, 0);
     },
   );
@@ -179,19 +179,19 @@ void main() {
     await tester.pumpWidget(_app(w, _route));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(keyed('map_consent_load'));
+    await tester.tap(key('map_consent_load'));
     await settleUntilRequestsStable(tester, () => w.requests);
-    expect(keyed('route_map'), findsOneWidget);
-    expect(keyed('route_view_toggle'), findsOneWidget);
+    expect(key('route_map'), findsOneWidget);
+    expect(key('route_view_toggle'), findsOneWidget);
   });
 
   testWidgets('widerrufen: keine Frage, Linie, 0 Anfragen', (tester) async {
     final w = _World(consent: ConsentState.revoked);
     await tester.pumpWidget(_app(w, _route));
     await settleUntilRequestsStable(tester, () => w.requests);
-    expect(keyed('map_consent_dialog'), findsNothing);
-    expect(keyed('route_paint'), findsOneWidget);
-    expect(keyed('route_view_toggle'), findsNothing);
+    expect(key('map_consent_dialog'), findsNothing);
+    expect(key('route_paint'), findsOneWidget);
+    expect(key('route_view_toggle'), findsNothing);
     expect(w.requests, 0);
   });
 
@@ -200,17 +200,17 @@ void main() {
     final w = _World(net: inner, consent: ConsentState.granted);
     await tester.pumpWidget(_app(w, _route));
     await settleUntilRequestsStable(tester, () => w.requests);
-    expect(keyed('route_paint'), findsOneWidget);
-    expect(keyed('route_map'), findsNothing);
-    expect(keyed('route_view_toggle'), findsNothing);
+    expect(key('route_paint'), findsOneWidget);
+    expect(key('route_map'), findsNothing);
+    expect(key('route_view_toggle'), findsNothing);
   });
 
   testWidgets('Netz wirft: Linie, kein Umschalter', (tester) async {
     final w = _World(net: ThrowingInner(), consent: ConsentState.granted);
     await tester.pumpWidget(_app(w, _route));
     await settleUntilRequestsStable(tester, () => w.requests);
-    expect(keyed('route_paint'), findsOneWidget);
-    expect(keyed('route_map'), findsNothing);
+    expect(key('route_paint'), findsOneWidget);
+    expect(key('route_map'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -220,13 +220,13 @@ void main() {
     final w = _World(consent: ConsentState.granted);
     await tester.pumpWidget(_app(w, _route));
     await settleUntilRequestsStable(tester, () => w.requests);
-    expect(keyed('route_map'), findsOneWidget);
+    expect(key('route_map'), findsOneWidget);
     final before = w.requests;
     await tester.runAsync(w.controller.revoke);
     await settleUntilRequestsStable(tester, () => w.requests);
-    expect(keyed('route_paint'), findsOneWidget);
-    expect(keyed('route_map'), findsNothing);
-    expect(keyed('route_view_toggle'), findsNothing);
+    expect(key('route_paint'), findsOneWidget);
+    expect(key('route_map'), findsNothing);
+    expect(key('route_view_toggle'), findsNothing);
     expect(w.requests, before);
   });
 
@@ -236,7 +236,7 @@ void main() {
     final w = _World();
     await tester.pumpWidget(_app(w, const []));
     await settleUntilRequestsStable(tester, () => w.requests);
-    expect(keyed('map_consent_dialog'), findsNothing);
+    expect(key('map_consent_dialog'), findsNothing);
     expect(w.requests, 0);
   });
 
@@ -259,8 +259,8 @@ void main() {
       ),
     );
     await settleUntilRequestsStable(tester, () => w.requests);
-    expect(keyed('route_map'), findsOneWidget);
-    expect(keyed('route_paint'), findsNothing);
+    expect(key('route_map'), findsOneWidget);
+    expect(key('route_paint'), findsNothing);
   });
 
   final marks = [
@@ -279,10 +279,10 @@ void main() {
       ),
     );
     await settleUntilRequestsStable(tester, () => w.requests);
-    final map = tester.widget<RouteMap>(keyed('route_map'));
+    final map = tester.widget<RouteMap>(key('route_map'));
     expect([for (final m in map.marks) m.index], [1, 2]);
     expect(find.text('2'), findsWidgets);
-    expect(keyed('route_legend_marks'), findsOneWidget);
+    expect(key('route_legend_marks'), findsOneWidget);
   });
 
   testWidgets('Kilometermarken: auch im Rückfall ohne Karte gezeichnet', (
@@ -295,19 +295,18 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(keyed('route_map'), findsNothing);
+    expect(key('route_map'), findsNothing);
     final painter =
-        tester.widget<CustomPaint>(keyed('route_paint')).painter!
-            as RoutePainter;
-    final shapes = painter.shapes(tester.getSize(keyed('route_paint')));
+        tester.widget<CustomPaint>(key('route_paint')).painter! as RoutePainter;
+    final shapes = painter.shapes(tester.getSize(key('route_paint')));
     expect([for (final m in shapes.marks) m.index], [1, 2]);
     // Die Marken liegen in der Zeichnung innerhalb der Fläche.
-    final box = Offset.zero & tester.getSize(keyed('route_paint'));
+    final box = Offset.zero & tester.getSize(key('route_paint'));
     for (final m in shapes.marks) {
       expect(box.contains(m.at), isTrue);
     }
     expect(
-      tester.widget<Text>(keyed('route_legend_marks')).data,
+      tester.widget<Text>(key('route_legend_marks')).data,
       'Nummern: volle mi',
     );
   });
@@ -330,9 +329,9 @@ void main() {
           greaterThan(0),
           reason: 'Kacheln wurden versucht',
         );
-        expect(keyed('route_map'), findsNothing);
-        expect(keyed('route_paint'), findsOneWidget);
-        expect(keyed('route_view_toggle'), findsNothing);
+        expect(key('route_map'), findsNothing);
+        expect(key('route_paint'), findsOneWidget);
+        expect(key('route_view_toggle'), findsNothing);
         expect(find.text(MapProvider.openFreeMap.attribution), findsNothing);
       },
     );
@@ -350,7 +349,7 @@ void main() {
       final w = _World(net: net, consent: ConsentState.granted);
       await tester.pumpWidget(_app(w, _route));
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('route_map'), findsNothing, reason: 'Rückfall aktiv');
+      expect(key('route_map'), findsNothing, reason: 'Rückfall aktiv');
       for (final st in [
         AppLifecycleState.inactive,
         AppLifecycleState.hidden,
@@ -367,7 +366,7 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('route_map'), findsOneWidget);
+      expect(key('route_map'), findsOneWidget);
     },
   );
 
@@ -382,7 +381,7 @@ void main() {
       final w = _World(consent: ConsentState.granted);
       await tester.pumpWidget(_app(w, _route));
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('route_map'), findsOneWidget);
+      expect(key('route_map'), findsOneWidget);
       // App im Hintergrund
       for (final st in [
         AppLifecycleState.inactive,
@@ -392,15 +391,15 @@ void main() {
         tester.binding.handleAppLifecycleStateChanged(st);
       }
       await tester.pump();
-      expect(keyed('route_map'), findsNothing);
-      expect(keyed('route_paint'), findsOneWidget);
+      expect(key('route_map'), findsNothing);
+      expect(key('route_paint'), findsOneWidget);
       final n = w.requests;
       await settleUntilRequestsStable(tester, () => w.requests);
       expect(w.requests, n);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('route_map'), findsOneWidget);
+      expect(key('route_map'), findsOneWidget);
       // Route verdeckt
       final nav = tester.state<NavigatorState>(find.byType(Navigator));
       nav.push(
@@ -421,7 +420,7 @@ void main() {
       nav.pop();
       await tester.pumpAndSettle();
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('route_map'), findsOneWidget);
+      expect(key('route_map'), findsOneWidget);
     },
   );
 
@@ -437,7 +436,7 @@ void main() {
       final w = _World(net: net, consent: ConsentState.granted);
       await tester.pumpWidget(_app(w, _route));
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('route_map'), findsNothing, reason: 'Öffnen gescheitert');
+      expect(key('route_map'), findsNothing, reason: 'Öffnen gescheitert');
       final nav = tester.state<NavigatorState>(find.byType(Navigator));
       nav.push(
         MaterialPageRoute<void>(
@@ -474,8 +473,8 @@ void main() {
       final w = _World(consent: ConsentState.granted);
       await tester.pumpWidget(_app(w, _route));
       await settleUntilRequestsStable(tester, () => w.requests);
-      expect(keyed('route_map'), findsOneWidget);
-      final before = tester.element(keyed('route_map'));
+      expect(key('route_map'), findsOneWidget);
+      final before = tester.element(key('route_map'));
       final n = w.requests;
       final nav = tester.state<NavigatorState>(find.byType(Navigator));
       showDialog<void>(
@@ -484,12 +483,12 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Frage'), findsOneWidget);
-      expect(keyed('route_map'), findsOneWidget);
-      expect(identical(tester.element(keyed('route_map')), before), isTrue);
+      expect(key('route_map'), findsOneWidget);
+      expect(identical(tester.element(key('route_map')), before), isTrue);
       expect(w.requests, n, reason: 'keine neuen Anfragen durch den Dialog');
       nav.pop();
       await tester.pumpAndSettle();
-      expect(identical(tester.element(keyed('route_map')), before), isTrue);
+      expect(identical(tester.element(key('route_map')), before), isTrue);
     },
   );
 
@@ -502,8 +501,8 @@ void main() {
     final w = _World(net: net, consent: ConsentState.granted);
     await tester.pumpWidget(_app(w, _route));
     await settleUntilRequestsStable(tester, () => w.requests);
-    expect(keyed('route_map'), findsOneWidget);
-    expect(keyed('route_view_toggle'), findsOneWidget);
+    expect(key('route_map'), findsOneWidget);
+    expect(key('route_view_toggle'), findsOneWidget);
   });
 
   // Bildschirmfoto hell und dunkel (Layout statt Emulator). Nur mit SHOT_DIR, sonst nur die Prüfung.
@@ -526,10 +525,10 @@ void main() {
           ),
         );
         await settleUntilRequestsStable(tester, () => w.requests);
-        expect(keyed('route_map'), findsOneWidget);
+        expect(key('route_map'), findsOneWidget);
         expect(find.text(MapProvider.openFreeMap.attribution), findsOneWidget);
         // Die Quellenangabe liegt vollständig im Bild der Karte.
-        final map = tester.getRect(keyed('route_map'));
+        final map = tester.getRect(key('route_map'));
         final attr = tester.getRect(
           find.text(MapProvider.openFreeMap.attribution),
         );
@@ -539,7 +538,7 @@ void main() {
         if (dir != null) {
           await tester.runAsync(() async {
             final boundary = tester.renderObject<RenderRepaintBoundary>(
-              keyed('shot'),
+              key('shot'),
             );
             final image = await boundary.toImage(pixelRatio: 1);
             final bytes = await image.toByteData(

@@ -15,7 +15,8 @@ import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';
 import 'package:running_app/ui/ui.dart';
 
-import 'history_summary_test.dart' show key, started;
+import 'app_harness.dart';
+import 'history_summary_test.dart' show started;
 
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 

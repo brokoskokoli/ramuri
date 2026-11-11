@@ -14,7 +14,7 @@ import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';
 import 'package:running_app/ui/ui.dart';
 
-import 'helpers/widget_helpers.dart';
+import 'app_harness.dart';
 
 final Uint8List _key = Uint8List.fromList(List.generate(32, (i) => i));
 

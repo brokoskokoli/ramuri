@@ -6,7 +6,7 @@ import 'package:running_app/features/run/run_ports.dart';
 import 'dart:typed_data';
 
 import 'app_harness.dart';
-import 'run_test.dart' show key, openRun, walk;
+import 'run_test.dart' show openRun, walk;
 
 /// Speicher, dessen Lauf sich nicht als beendet speichern lässt, solange
 /// [failFinish] gesetzt ist.

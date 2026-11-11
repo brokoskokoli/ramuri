@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key, seedRun, started, text;
+import 'history_summary_test.dart' show seedRun, started, text;
 
 /// Training nachtragen (WP18, FR-0199). Heute ist Mittwoch, der 17. Juni 2026.
 final DateTime _now = DateTime.utc(2026, 6, 17, 12);

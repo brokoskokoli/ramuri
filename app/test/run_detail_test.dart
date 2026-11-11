@@ -7,7 +7,7 @@ import 'package:running_app/features/summary/run_charts.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key, openHistory, started, text;
+import 'history_summary_test.dart' show openHistory, started, text;
 
 const double _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
 

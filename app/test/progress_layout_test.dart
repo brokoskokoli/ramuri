@@ -8,10 +8,10 @@ import 'package:running_app/features/statistics/progress_header.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
-import 'history_summary_test.dart' show key, started;
+import 'history_summary_test.dart' show started;
 import 'progress_cards_test.dart' show overview, stored;
 import 'statistics_test.dart' show openStats;
-import 'helpers/widget_helpers.dart';
+import 'app_harness.dart';
 
 /// Layout der Fortschrittskarten gegen das Design (WP15 Nachbesserung 4):
 /// Positionen statt nur Texte.
@@ -92,19 +92,19 @@ void main() {
           scale: scale,
         );
         expect(tester.takeException(), isNull);
-        final bars = tester.getRect(keyed('progress_week_bars'));
+        final bars = tester.getRect(key('progress_week_bars'));
         expect(
-          tester.getRect(keyed('progress_week_range')).right,
+          tester.getRect(key('progress_week_range')).right,
           closeTo(bars.right, 0.5),
           reason: '„letzte 8 Wochen“ rechts bündig mit den Balken',
         );
         expect(
-          tester.getRect(keyed('progress_week_now')).right,
+          tester.getRect(key('progress_week_now')).right,
           closeTo(bars.right, 0.5),
           reason: '„jetzt“ rechts bündig unter der letzten Säule',
         );
         expect(
-          tester.getRect(keyed('progress_week_first')).left,
+          tester.getRect(key('progress_week_first')).left,
           closeTo(bars.left, 0.5),
           reason: '„KW“ linksbündig',
         );
@@ -115,18 +115,18 @@ void main() {
       tester,
     ) async {
       await _pump(tester, _week([_run(1, '2026-06-01', 5000)]));
-      final first = tester.getRect(keyed('progress_week_first'));
-      final last = tester.getRect(keyed('progress_week_last'));
-      final now = tester.getRect(keyed('progress_week_now'));
+      final first = tester.getRect(key('progress_week_first'));
+      final last = tester.getRect(key('progress_week_last'));
+      final now = tester.getRect(key('progress_week_now'));
       expect(last.left, greaterThan(first.right + 8));
       expect(now.left, greaterThan(last.right + 8));
     });
 
     testWidgets('ohne jeden Lauf: Hinweis „Noch keine Läufe“', (tester) async {
       await _pump(tester, _week(const []));
-      expect(keyed('progress_week_no_runs'), findsOneWidget);
+      expect(key('progress_week_no_runs'), findsOneWidget);
       expect(
-        (tester.widget(keyed('progress_week_no_runs')) as Text).data,
+        (tester.widget(key('progress_week_no_runs')) as Text).data,
         'Noch keine Läufe aufgezeichnet.',
       );
     });
@@ -135,7 +135,7 @@ void main() {
       tester,
     ) async {
       await _pump(tester, _week([_run(1, '2026-03-25', 5000)]));
-      expect(keyed('progress_week_no_runs'), findsNothing);
+      expect(key('progress_week_no_runs'), findsNothing);
       expect(
         weeklyDistanceSeries('2026-06-03', [
           _run(1, '2026-03-25', 5000),
@@ -146,7 +146,7 @@ void main() {
 
     testWidgets('mit einem Lauf kein Hinweis', (tester) async {
       await _pump(tester, _week([_run(1, '2026-06-01', 5000)]));
-      expect(keyed('progress_week_no_runs'), findsNothing);
+      expect(key('progress_week_no_runs'), findsNothing);
     });
   });
 
@@ -168,10 +168,10 @@ void main() {
         'über die volle Breite', (tester) async {
       await pumpVo2(tester, withValue);
       final card = tester.getRect(find.byType(RamuriCard));
-      final hero = tester.getRect(keyed('progress_vo2'));
-      final spark = tester.getRect(keyed('progress_vo2_sparkline'));
-      final current = tester.getRect(keyed('progress_vo2_current'));
-      final asOf = tester.getRect(keyed('progress_vo2_asof'));
+      final hero = tester.getRect(key('progress_vo2'));
+      final spark = tester.getRect(key('progress_vo2_sparkline'));
+      final current = tester.getRect(key('progress_vo2_current'));
+      final asOf = tester.getRect(key('progress_vo2_asof'));
       expect(spark.bottom, closeTo(hero.bottom, 2), reason: 'unten bündig');
       expect(spark.top, lessThan(hero.bottom), reason: 'gleiche Zeile');
       expect(spark.right, lessThanOrEqualTo(card.right));
@@ -180,7 +180,7 @@ void main() {
       expect(asOf.top, greaterThanOrEqualTo(current.bottom - 0.5));
       // Volle Breite: die Beschriftung bricht nicht neben dem Verlauf um.
       expect(
-        tester.getSize(keyed('progress_vo2_current')).width,
+        tester.getSize(key('progress_vo2_current')).width,
         greaterThan(spark.left - current.left),
       );
     });
@@ -191,14 +191,14 @@ void main() {
       await pumpVo2(tester, withValue);
       final p = tester.renderObject<RenderParagraph>(
         find.descendant(
-          of: keyed('progress_vo2_explain'),
+          of: key('progress_vo2_explain'),
           matching: find.byType(RichText),
         ),
       );
       expect(p.text.style!.fontSize, 14);
       expect(p.text.style!.fontWeight, FontWeight.w800);
       expect(
-        tester.getSize(keyed('progress_vo2_explain')).height,
+        tester.getSize(key('progress_vo2_explain')).height,
         greaterThanOrEqualTo(48),
       );
     });
@@ -211,7 +211,7 @@ void main() {
         overview(longTerm: stored(vo2maxLongTermValueKey, null)),
       );
       expect(find.text('Schätzung'), findsNothing);
-      expect(keyed('progress_vo2_reason'), findsOneWidget);
+      expect(key('progress_vo2_reason'), findsOneWidget);
     });
 
     testWidgets('mit Wert steht der Chip „Schätzung“', (tester) async {

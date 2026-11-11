@@ -79,8 +79,6 @@ class _FailingRaw implements RawDataStore {
   Future<StoredRawData> read(int runId) => inner.read(runId);
 }
 
-Finder key(String k) => find.byKey(Key(k));
-
 /// Text eines Werts der Lauf-Seite; Zahl und Einheit stehen in Teilen, der
 /// Wortverbinder (U+2060) ist unsichtbar.
 String text(String k) {

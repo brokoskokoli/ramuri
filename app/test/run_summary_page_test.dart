@@ -10,7 +10,7 @@ import 'package:running_app/offload_scope.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key, started, text;
+import 'history_summary_test.dart' show started, text;
 import 'run_detail_test.dart' show seedDetailRun;
 
 const _km = UnitFormatter(

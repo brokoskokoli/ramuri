@@ -23,8 +23,6 @@ import 'package:running_app/features/map/route_map_section.dart'
 import 'app_harness.dart';
 import 'history_summary_test.dart' show seedRun, showAllRuns;
 
-Finder key(String k) => find.byKey(Key(k));
-
 class _Cache implements MapCacheAdmin {
   @override
   Future<int> sizeBytes() async => 0;

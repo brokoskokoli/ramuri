@@ -8,8 +8,7 @@ import 'package:running_app/features/run/live_run_view.dart' show formatClock;
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart'
-    show key, seedRun, showAllRuns, started, text;
+import 'history_summary_test.dart' show seedRun, showAllRuns, started, text;
 
 /// Verlauf nach Verlauf.dc.html (WP16 D, FR-0040, FR-0212).
 ///

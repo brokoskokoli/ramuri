@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/ui/ramuri_card.dart';
 import 'package:running_app/ui/ramuri_colors.dart';
 
+import 'app_harness.dart';
 import 'explanation_test.dart' show explainFromStats, seeded;
-import 'history_summary_test.dart' show key;
 import 'statistics_test.dart' show openStats;
 
 void main() {

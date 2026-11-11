@@ -15,8 +15,8 @@ import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';
 import 'package:running_app/ui/ui.dart';
 
-import 'app_harness.dart' show Device;
-import 'history_summary_test.dart' show key, seedRun, started;
+import 'app_harness.dart';
+import 'history_summary_test.dart' show seedRun, started;
 import 'statistics_test.dart' show openStats;
 
 /// Karte „Prognose“ auf Fortschritt (WP20 Teil C): Anzeige je Stufe, Eintragen,

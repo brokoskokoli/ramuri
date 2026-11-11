@@ -139,7 +139,7 @@ pkg_deps() {
   while [ -n "$todo" ]; do
     next=
     for q in $todo; do
-      for n in $(grep -oE 'path:[[:space:]]*(\.\./|packages/)[A-Za-z0-9_]+' "$q/pubspec.yaml" 2>/dev/null | sed -E 's,path:[[:space:]]*(\.\./|packages/),,'); do
+      for n in $(grep -oE "path:[[:space:]]*[\"']?(\.\./|packages/)[A-Za-z0-9_]+" "$q/pubspec.yaml" 2>/dev/null | sed -E "s,path:[[:space:]]*[\"']?(\.\./|packages/),,"); do
         c=app/packages/$n
         case " $acc " in *" $c "*) ;; *) acc="$acc $c"; next="$next $c" ;; esac
       done

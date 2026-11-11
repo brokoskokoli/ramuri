@@ -11,7 +11,7 @@ import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/run/run_flow_screen.dart';
 
 import 'app_harness.dart';
-import 'history_summary_test.dart' show key, seedRun, text;
+import 'history_summary_test.dart' show seedRun, text;
 import 'run_test.dart' show walk;
 
 // Heute mit Plan (FR-0209, WP22 Teil D): Karte „Heute geplant“, Wochenziel

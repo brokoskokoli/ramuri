@@ -5,13 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// anderem Verhalten haben eigene Namen, keine Schalter.
 
 /// Finder für das Widget mit `Key(k)`.
-Finder keyed(String k) => find.byKey(Key(k));
+Finder key(String k) => find.byKey(Key(k));
 
-/// Scrollt das Widget mit `Key(key)` sichtbar, tippt es an und wartet mit
+/// Scrollt das Widget mit `Key(k)` sichtbar, tippt es an und wartet mit
 /// `pumpAndSettle`.
-Future<void> tapKey(WidgetTester tester, String key) async {
-  await tester.ensureVisible(keyed(key));
-  await tester.tap(keyed(key));
+Future<void> tapKey(WidgetTester tester, String k) async {
+  await tester.ensureVisible(key(k));
+  await tester.tap(key(k));
   await tester.pumpAndSettle();
 }
 
