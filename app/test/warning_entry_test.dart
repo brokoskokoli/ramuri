@@ -121,6 +121,23 @@ void main() {
       await tap(tester, 'subjective_warn_yes');
       await tap(tester, 'subjective_warn_no');
       expect((await warning.read())!.source, WarningSource.manual);
+      // Gleiche Quelle, anderer Lauf; andere Quelle, gleicher Lauf: bleibt.
+      for (final (source, id) in [
+        (WarningSource.runFeedback, runId + 1),
+        (WarningSource.manual, runId),
+      ]) {
+        await warning.lift();
+        await warning.set(
+          WarningSignal(
+            reportedOn: DateTime.utc(2030, 1, 2),
+            source: source,
+            runId: id,
+          ),
+        );
+        await tap(tester, 'subjective_warn_yes');
+        await tap(tester, 'subjective_warn_no');
+        expect(await warning.read(), isNotNull, reason: '$source $id');
+      }
     },
   );
 }
