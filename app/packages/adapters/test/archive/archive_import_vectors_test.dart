@@ -67,6 +67,14 @@ void main() {
             // Vertrag archive.md 4.3: Zeilen aus Schema 7 haben kein `fixed`,
             // der Leser setzt 'none' (Schema 8 bringt die Spalte selbst mit).
             if (section == 'plan_units') row.putIfAbsent('fixed', () => 'none');
+            // BLOB (Schema 9): Hex-Text der Datei, im Ziel als Bytes.
+            if (section == 'raw_rr_packets') {
+              final hex = row['rr']! as String;
+              row['rr'] = Uint8List.fromList([
+                for (var k = 0; k < hex.length; k += 2)
+                  int.parse(hex.substring(k, k + 2), radix: 16),
+              ]);
+            }
             (expected[section!] ??= []).add(row);
           }
         }
@@ -208,6 +216,12 @@ void main() {
                               '2026-11-0$i',
                             ArchiveType.text => 'ä$i\u{1F3C3}',
                             ArchiveType.boolean => i % 2,
+                            ArchiveType.blob => Uint8List.fromList([
+                              i,
+                              0,
+                              255,
+                              255,
+                            ]),
                           },
                 },
             ],

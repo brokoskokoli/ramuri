@@ -268,6 +268,42 @@ void main() {
     expect(lines.last['rows']['plan_units'], 4);
   });
 
+  test(
+    'archive_v2_s9: Format 2, Schema 9, raw_rr_packets (Abschnitt 25)',
+    () async {
+      final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s9');
+      final plain = await _collect(
+        createArchiveCipher().decrypt(
+          v['password'] as String,
+          Stream.value(_read(v['file'] as String)),
+        ),
+      );
+      expect(_read(v['file'] as String)[9], 2);
+      final text = utf8.decode(gzip.decode(plain));
+      expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+      final lines = [
+        for (final l in const LineSplitter().convert(text))
+          jsonDecode(l) as Map<String, dynamic>,
+      ];
+      expect(lines.first['schema_version'], 9);
+      final sections = [
+        for (final l in lines)
+          if (l['type'] == 'section') l['name'],
+      ];
+      expect(sections.length, 25);
+      expect(sections.last, 'raw_rr_packets');
+      final rr = [
+        for (final l in lines)
+          if (l['type'] == 'row' && (l['data'] as Map).containsKey('rr'))
+            l['data'] as Map,
+      ];
+      expect(rr.length, 3);
+      expect({for (final r in rr) r['source']}, {'ble', 'ble2'});
+      expect(lines.last['rows'], v['row_counts']);
+      expect(lines.last['rows']['raw_rr_packets'], 3);
+    },
+  );
+
   group('Dart verschlüsselt byte-gleich mit festem Salz', () {
     // Hook: createArchiveCipher(randomBytes:) liefert das feste Salz; das
     // Salz ist der einzige Zufall des Formats.

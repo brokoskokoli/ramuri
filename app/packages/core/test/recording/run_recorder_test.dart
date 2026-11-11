@@ -38,14 +38,17 @@ class Probe implements RawDataStore, RunStore {
   StorageFailure? failNext;
   int appends = 0;
   int maxBatchRows = 0;
+  int rrPacketsSeen = 0;
 
   @override
   Future<void> append(int runId, RawBatch batch) async {
     appends++;
+    rrPacketsSeen += batch.rrPackets.length;
     final rows =
         batch.positions.length +
         batch.altitudes.length +
-        batch.heartRates.length;
+        batch.heartRates.length +
+        batch.rrPackets.length;
     if (rows > maxBatchRows) maxBatchRows = rows;
     log.add('append:${batch.positions.length}');
     final g = gate;
@@ -766,5 +769,88 @@ void main() {
         expect(await r.recorder.start(), CommandResult.ok);
       },
     );
+  });
+
+  group('RR-Pakete (FR-0213)', () {
+    HeartRateReading hr(Rig r, String id, int bpm, List<int> rr) =>
+        HeartRateReading(id, r.clock.now(), bpm, rrIntervals: rr);
+
+    test('Puls mit RR: Paket mit Gerät und Empfangszeit, Puls unverändert; '
+        'leere RR: kein Paket', () async {
+      final r = await Rig.make();
+      await r.recorder.start();
+      r.clock.advance(const Duration(seconds: 1));
+      final t1 = r.clock.now();
+      r.recorder.addHeartRate(hr(r, 'a', 140, [800, 790]));
+      r.clock.advance(const Duration(seconds: 1));
+      r.recorder.addHeartRate(hr(r, 'a', 141, const []));
+      await r.recorder.flush();
+      final raw = await r.raw();
+      expect(raw.heartRates.map((h) => h.value.bpm), [140, 141]);
+      expect(raw.rrPackets, hasLength(1), reason: 'leere RR: kein Paket');
+      expect(r.probe.rrPacketsSeen, 1, reason: 'auch nicht versucht');
+      expect(r.recorder.lastWriteFailure, isNull);
+      final p = raw.rrPackets.single.value;
+      expect(p.source, 'a');
+      expect(p.time, t1);
+      expect(p.intervals, [800, 790]);
+    });
+
+    test('ohne jede RR: Stapel ohne Pakete, Pulszeilen wie vorher', () async {
+      final r = await Rig.make();
+      await r.recorder.start();
+      for (var i = 0; i < 5; i++) {
+        r.clock.advance(const Duration(seconds: 1));
+        r.recorder.addHeartRate(hr(r, 'a', 100 + i, const []));
+      }
+      await r.recorder.flush();
+      final raw = await r.raw();
+      expect(raw.rrPackets, isEmpty);
+      expect(r.probe.rrPacketsSeen, 0);
+      expect(r.recorder.lastWriteFailure, isNull);
+      expect(raw.heartRates.map((h) => h.value.bpm), [100, 101, 102, 103, 104]);
+    });
+
+    test('Sensorwechsel: Pakete beider Geräte bleiben getrennt', () async {
+      final r = await Rig.make();
+      await r.recorder.start();
+      r.clock.advance(const Duration(seconds: 1));
+      r.recorder.addHeartRate(hr(r, 'a', 140, [800]));
+      r.clock.advance(const Duration(seconds: 1));
+      r.recorder.addHeartRate(hr(r, 'b', 142, [700, 710]));
+      r.clock.advance(const Duration(seconds: 1));
+      r.recorder.addHeartRate(hr(r, 'a', 141, [810]));
+      await r.recorder.flush();
+      final rr = (await r.raw()).rrPackets.map((e) => e.value).toList();
+      expect(rr.map((p) => p.source), ['a', 'b', 'a']);
+      expect(rr.map((p) => p.intervals), [
+        [800],
+        [700, 710],
+        [810],
+      ]);
+    });
+
+    test('RR zählen zum Stapel; scheiternder Stapel kommt unverändert '
+        'zurück', () async {
+      final r = await Rig.make(batchRows: 5);
+      await r.recorder.start();
+      r.probe.failNext = StorageFailure.failed;
+      for (var i = 0; i < 4; i++) {
+        r.clock.advance(const Duration(seconds: 1));
+        r.recorder.addHeartRate(hr(r, 'a', 100 + i, [800 + i]));
+      }
+      await r.recorder.flush();
+      expect(r.recorder.lastWriteFailure, StorageFailure.failed);
+      await r.recorder.flush();
+      final raw = await r.raw();
+      expect(raw.heartRates, hasLength(4));
+      expect(raw.rrPackets.map((e) => e.value.intervals.single), [
+        800,
+        801,
+        802,
+        803,
+      ]);
+      expect(r.probe.maxBatchRows, lessThanOrEqualTo(5));
+    });
   });
 }

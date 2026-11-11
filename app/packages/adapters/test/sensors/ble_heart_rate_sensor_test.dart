@@ -140,6 +140,19 @@ void main() {
       expect(r.contact, SensorContact.good);
       expect(r.time, t0);
       expect((events[3] as HeartRateReading).beatsPerMinute, 300);
+      // Gerät ohne RR: Ereignisse wie zuvor, rrIntervals leer.
+      expect(r.rrIntervals, isEmpty);
+      expect((events[3] as HeartRateReading).rrIntervals, isEmpty);
+      await sub.cancel();
+    });
+
+    test('RR-Intervalle laufen roh durch (FR-0213)', () async {
+      final (events, sub) = await open();
+      link.hrValues.add([0x16 | 0x10, 72, 0x00, 0x04, 0x20, 0x03]);
+      await pump();
+      final r = events.whereType<HeartRateReading>().single;
+      expect(r.beatsPerMinute, 72);
+      expect(r.rrIntervals, [1024, 800]);
       await sub.cancel();
     });
 

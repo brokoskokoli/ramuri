@@ -208,6 +208,20 @@ class FakeRawDataStore implements RawDataStore {
         ),
       );
     }
+    for (final p in batch.rrPackets) {
+      _d.rrPackets
+          .putIfAbsent(runId, () => [])
+          .add(
+            StoredRrPacket(
+              _d.nextRrId++,
+              RrPacket(
+                time: _utc(p.time),
+                source: p.source,
+                intervals: List.unmodifiable(p.intervals),
+              ),
+            ),
+          );
+    }
     for (final u in batch.unavailable) {
       add(
         u.channel,
@@ -242,6 +256,11 @@ class FakeRawDataStore implements RawDataStore {
       altitudes: of<RawAltitude>(RawChannel.altitude),
       steps: of<RawSteps>(RawChannel.steps),
       unavailable: unavailable,
+      rrPackets: [...?_d.rrPackets[runId]]
+        ..sort((a, b) {
+          final t = a.value.time.compareTo(b.value.time);
+          return t != 0 ? t : a.id.compareTo(b.id);
+        }),
     );
   }
 
