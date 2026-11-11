@@ -12,7 +12,11 @@ const String testSensorMarker = 'RUNAPP-DEBUG-TEST-SENSOR-7c1e9b';
 /// Zwei Fake-Geräte, Pulswerte, Abbruch und Neuverbinden simulierbar. Kein
 /// Code der Release-Einstiegsdatei importiert diese Datei.
 class DebugTestSensor implements HeartRateSensor {
-  DebugTestSensor(this._clock, {this.interval = const Duration(seconds: 1)}) {
+  DebugTestSensor(
+    this._clock, {
+    this.interval = const Duration(seconds: 1),
+    this.sendRr = false,
+  }) {
     // Hält den Marker im Code, sobald der Test-Sensor erzeugt wird (Positivkontrolle
     // am Artefakt) und zeigt im Debug-Log, dass nicht der echte Sensor läuft.
     debugPrint('$testSensorMarker aktiv: Pulswerte sind simuliert');
@@ -20,6 +24,10 @@ class DebugTestSensor implements HeartRateSensor {
 
   final Clock _clock;
   final Duration interval;
+
+  /// Sendet mit jedem Pulswert ein synthetisches RR-Intervall (FR-0213);
+  /// aus = Gerät ohne RR. Zur Laufzeit umschaltbar, gilt für neue Werte.
+  bool sendRr;
 
   /// Bekannte Fake-Geräte: Kennung -> Name.
   static const devices = <String, String>{
@@ -48,6 +56,7 @@ class DebugTestSensor implements HeartRateSensor {
       _clock,
       interval,
       () => _base[deviceId] ?? 120,
+      () => sendRr,
       onClose: () {
         if (identical(_sessions[deviceId], s)) _sessions.remove(deviceId);
       },
@@ -72,7 +81,8 @@ class _FakeSession {
     this.id,
     this._clock,
     Duration interval,
-    this._base, {
+    this._base,
+    this._sendRr, {
     required this.onClose,
   }) {
     _ctl = StreamController<HeartRateEvent>(
@@ -91,6 +101,7 @@ class _FakeSession {
   final String id;
   final Clock _clock;
   final int Function() _base;
+  final bool Function() _sendRr;
   final void Function() onClose;
   late final StreamController<HeartRateEvent> _ctl;
   Timer? _timer;
@@ -100,8 +111,16 @@ class _FakeSession {
 
   void _tick() {
     final bpm = _base() + (_n++ % 7) - 3;
+    // Synthetisch: ein Schlagabstand passend zum simulierten Puls, 1/1024 s.
+    final rr = _sendRr() && bpm > 0 ? [(1024 * 60 / bpm).round()] : <int>[];
     _ctl.add(
-      HeartRateReading(id, _clock.now(), bpm, contact: SensorContact.good),
+      HeartRateReading(
+        id,
+        _clock.now(),
+        bpm,
+        contact: SensorContact.good,
+        rrIntervals: rr,
+      ),
     );
   }
 
@@ -109,7 +128,13 @@ class _FakeSession {
     final m = HeartRateParser.parseMeasurement(bytes);
     if (m == null) return;
     _ctl.add(
-      HeartRateReading(id, _clock.now(), m.beatsPerMinute, contact: m.contact),
+      HeartRateReading(
+        id,
+        _clock.now(),
+        m.beatsPerMinute,
+        contact: m.contact,
+        rrIntervals: m.rrIntervals,
+      ),
     );
   }
 
