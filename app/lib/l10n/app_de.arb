@@ -2221,6 +2221,8 @@
   "@planTodayAskNo": {"description": "WP22 Teil D, Heute (Nachbesserung)"},
   "planTodayAssignFailed": "Der Lauf ist gespeichert, konnte der Einheit aber nicht zugeordnet werden.",
   "@planTodayAssignFailed": {"description": "WP22 Teil D, Heute (Nachbesserung)"},
+  "planTodayAssignNotRecalculated": "Der Lauf ist der Einheit zugeordnet, der Plan ließ sich aber noch nicht neu berechnen.",
+  "@planTodayAssignNotRecalculated": {"description": "WP22 Teil D, Heute: Zuordnung gespeichert, Neuberechnung gescheitert"},
   "planWeekGoal": "Wochenziel",
   "@planWeekGoal": {"description": "WP22 Teil D, Heute"},
   "planWeekGoalProgress": "{done} von {target}",

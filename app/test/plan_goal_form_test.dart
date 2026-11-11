@@ -714,6 +714,57 @@ void main() {
     );
   });
 
+  testWidgets('Offenes Ziel: Einschätzung nennt das offene Ziel', (
+    tester,
+  ) async {
+    final (session, clock) = await _empty();
+    final c = _controller(session, clock);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.text(de.planFormTypeOpen));
+    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await _enter(tester, 'plan_form_max_session', '45');
+    await _tap(tester, find.text(de.planFormYes));
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    expect(find.byKey(const Key('plan_form_error')), findsNothing);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const Key('plan_form_assessment_regularity')),
+          )
+          .data,
+      de.planFormAssessOpen,
+    );
+  });
+
+  testWidgets('Ändern ohne Stand am Ziel und ohne Läufe: Einschätzen und '
+      'Speichern gehen', (tester) async {
+    final clock = FakeClock(_now);
+    // Angelegt mit Stand aus Läufen: weder Wochenumfang noch 30 min.
+    final session = await _withPlan(
+      _goal(canRun30: ContinuousRun30.unknown),
+      clock,
+    );
+    final stored = (await (session as GoalStorage).goals.goal())!;
+    expect(stored.currentWeeklySeconds, isNull);
+    expect(stored.canRun30, ContinuousRun30.unknown);
+    final c = _controller(session, clock);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_edit_goal')));
+    expect(find.byKey(const Key('plan_form_stand_runs')), findsNothing);
+    await _tap(tester, find.byKey(const Key('plan_form_day_1')));
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    expect(find.byKey(const Key('plan_form_error')), findsNothing);
+    await _tap(tester, find.byKey(const Key('plan_form_save')));
+    // Ohne Stand beginnt der Plan mit Geh-Lauf (PAR-115): erst bestätigen.
+    expect(find.byKey(const Key('plan_form_care')), findsOneWidget);
+    await _tap(tester, find.byKey(const Key('plan_form_care_confirm')));
+    final goal = (await (session as GoalStorage).goals.goal())!;
+    expect(goal.runDays, {1, 2, 4, 6});
+    final history = await (session as PlanStorage).plans.history();
+    expect(history.last.trigger, PlanTrigger.goalChange);
+  });
+
   testWidgets('Fehler beim Speichern bleibt im Formular sichtbar', (
     tester,
   ) async {

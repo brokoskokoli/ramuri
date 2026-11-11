@@ -539,6 +539,11 @@ class _PhaseBar extends StatelessWidget {
     var current = weeks.lastIndexWhere((w) => !planDay(w.start).isAfter(t));
     if (current < 0) current = 0;
     final total = weeks.length;
+    // Die Wochen der Rechnung beginnen mit der Woche von „heute“; die Nummer
+    // für den Screenreader zählt wie der Wochenkopf ab dem Anker.
+    final week =
+        planWeekOf(weeks, t.subtract(Duration(days: t.weekday - 1))) ??
+        weeks[current];
     // Schmale Phasen bekommen genug Platz für ihre Kurzform.
     final minFlex = (total / 6).ceil();
     int flex(int n) => n < minFlex ? minFlex : n;
@@ -548,7 +553,11 @@ class _PhaseBar extends StatelessWidget {
     );
     return Semantics(
       key: const Key('plan_phase_bar'),
-      label: l.planPhaseSemantics(planPhaseFull(l, now.$1), current + 1, total),
+      label: l.planPhaseSemantics(
+        planPhaseFull(l, now.$1),
+        week.index + 1,
+        weeks.last.index + 1,
+      ),
       excludeSemantics: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

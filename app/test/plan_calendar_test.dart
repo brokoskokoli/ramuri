@@ -578,6 +578,35 @@ void main() {
       );
     });
 
+    testWidgets('Lauf ohne Einheit an einem Tag mit gespeicherter Ruhe-'
+        'Einheit: Lauf ohne Plan, nie Ruhetag', (tester) async {
+      // Heute (Mi 11.11.) ist als Ruhetag gespeichert und frei gelaufen.
+      final (session, clock) = await _seed(
+        extra: [
+          PlanUnit(
+            day: _d(2),
+            kind: PlanUnitKind.rest,
+            phase: PlanPhase.build,
+            weekIndex: 0,
+            minutes: 0,
+            segments: const [],
+          ),
+        ],
+        freeRuns: {2: null},
+      );
+      expect(
+        (await (session as PlanStorage).plans.unitOn(_d(2)))!.kind,
+        PlanUnitKind.rest,
+      );
+      await _pump(tester, session, clock);
+      Finder inDay(String text) => find.descendant(
+        of: key('calendar_day_2026-11-11'),
+        matching: find.textContaining(text),
+      );
+      expect(inDay('Lauf ohne Plan'), findsOneWidget);
+      expect(inDay('Ruhetag'), findsNothing);
+    });
+
     testWidgets('Lauf ohne Einheit neben einer offenen Einheit: eigene Zeile', (
       tester,
     ) async {
@@ -733,6 +762,33 @@ void main() {
         await _pump(tester, session, clock, locale: locale);
 
         await _startMove(tester, 3, 4); // Fr 13., gleiche Woche
+        expect(key('calendar_move_ends_hard_replacement'), findsNothing);
+        await tester.tap(key('calendar_move_cancel'));
+        await tester.pumpAndSettle();
+
+        // Mi 18., andere Woche: im Datumsdialog frei, bis zur Prüfung aber
+        // belegt (Di 17. dorthin verschoben). Gesperrt, kein Hinweis.
+        await tester.tap(key('calendar_day_2026-11-12'));
+        await tester.pumpAndSettle();
+        await tester.tap(key('calendar_move'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('18'));
+        await tester.pumpAndSettle();
+        await plans.confirmMove(
+          (await plans.unitOn(_d(8)))!.id!,
+          _d(9),
+          today: _d(2),
+        );
+        await tester.tap(
+          find.text(
+            MaterialLocalizations.of(
+              tester.element(find.byType(DatePickerDialog)),
+            ).okButtonLabel,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(key('calendar_move_dialog'), findsOneWidget);
+        expect(key('calendar_move_taken'), findsOneWidget);
         expect(key('calendar_move_ends_hard_replacement'), findsNothing);
         await tester.tap(key('calendar_move_cancel'));
         await tester.pumpAndSettle();

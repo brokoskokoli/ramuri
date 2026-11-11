@@ -172,3 +172,19 @@ Future<PlanUnit?> openPlanUnitOn(StorageSession session, String day) async {
   }
   return unit;
 }
+
+/// Trägt die Einheit am Ortstag [day] schon einen Lauf ([runId], bei `null`
+/// irgendeinen)? `assignRun` schreibt die Zuordnung vor der Neuberechnung;
+/// scheitert nur die Rechnung, ist der Lauf trotz `failed` zugeordnet.
+Future<bool> planRunAssignedOn(
+  StorageSession session,
+  String day,
+  int? runId,
+) async {
+  if (session is! PlanStorage) return false;
+  final unit = await (session as PlanStorage).plans.unitOn(
+    DateTime.parse('${day}T00:00:00Z'),
+  );
+  final assigned = unit?.runId;
+  return assigned != null && (runId == null || assigned == runId);
+}

@@ -560,6 +560,51 @@ void main() {
       );
     }
 
+    testWidgets('Zuordnung gespeichert, nur die Neuberechnung scheitert: '
+        'Hinweis nennt die Zuordnung, Merker bleibt', (tester) async {
+      final d = Device();
+      await _preopen(d, days: {1, 3, 5});
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('home_start_unit'));
+      await tester.pumpAndSettle();
+      // Eingaben der letzten Fassung unlesbar: `assignRun` schreibt die
+      // Zuordnung, die Neuberechnung danach scheitert (`failed`).
+      final versions = d.storage.data.planVersions;
+      final last = versions.values.reduce((a, b) => a.id > b.id ? a : b);
+      versions[last.id] = PlanVersionRecord(
+        id: last.id,
+        goalId: last.goalId,
+        createdAt: last.createdAt,
+        validFrom: last.validFrom,
+        trigger: last.trigger,
+        reason: last.reason,
+        version: last.version,
+        inputsJson: 'kaputt',
+        summaryJson: last.summaryJson,
+      );
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
+      await walk(d, tester, 30);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      await tester.tap(key('run_finish'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_finish_confirm'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_done_close'));
+      await tester.pumpAndSettle();
+      final run = (await d.session.runs.list()).single;
+      expect((await _unitToday(d.session))!.runId, run.id);
+      expect(key('home_assign_failed'), findsNothing);
+      expect(key('home_assign_not_recalculated'), findsOneWidget);
+      expect(find.textContaining('ist der Einheit zugeordnet'), findsOneWidget);
+      // `failed` lässt den Merker stehen: der nächste Start rechnet nach.
+      expect(
+        await d.session.settings.get(SettingKeys.planStartedUnit),
+        isNotEmpty,
+      );
+    });
+
     testWidgets('onFinished meldet genau einmal, schon beim Ende', (
       tester,
     ) async {

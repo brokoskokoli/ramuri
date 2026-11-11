@@ -195,8 +195,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } on Object {
       result = PlanActionResult.failed;
     }
+    // Scheitert nur die Neuberechnung, ist der Lauf trotzdem zugeordnet.
+    var assigned = false;
+    if (result == PlanActionResult.failed) {
+      try {
+        assigned = await planRunAssignedOn(widget.session, day, finishedId);
+      } on Object {
+        assigned = false;
+      }
+    }
     if (result != null && navigator.mounted) {
-      _showAssignResult(navigator.context, messenger, result);
+      _showAssignResult(
+        navigator.context,
+        messenger,
+        result,
+        assigned: assigned,
+      );
     }
     widget.changes.changed();
   }
@@ -252,20 +266,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// Ein Fehlschlag der Zuordnung bleibt nicht stumm: Der Lauf ist
   /// gespeichert, die Einheit bleibt offen (kein Fehlerinhalt nach außen).
+  /// Ist der Lauf zugeordnet ([assigned]) und nur die Neuberechnung
+  /// gescheitert, sagt der Hinweis genau das.
   static void _showAssignResult(
     BuildContext context,
     ScaffoldMessengerState messenger,
-    PlanActionResult result,
-  ) {
+    PlanActionResult result, {
+    bool assigned = false,
+  }) {
     if (result == PlanActionResult.done ||
         result == PlanActionResult.savedNotPlanned) {
       return;
     }
+    final l = AppLocalizations.of(context);
     messenger.showSnackBar(
-      SnackBar(
-        key: const Key('home_assign_failed'),
-        content: Text(AppLocalizations.of(context).planTodayAssignFailed),
-      ),
+      assigned
+          ? SnackBar(
+              key: const Key('home_assign_not_recalculated'),
+              content: Text(l.planTodayAssignNotRecalculated),
+            )
+          : SnackBar(
+              key: const Key('home_assign_failed'),
+              content: Text(l.planTodayAssignFailed),
+            ),
     );
   }
 

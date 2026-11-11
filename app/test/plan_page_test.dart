@@ -834,6 +834,23 @@ void main() {
       );
     }
 
+    testWidgets('Phasenbalken: Screenreader zählt die Woche ab dem Anker wie '
+        'der Wochenkopf', (tester) async {
+      final handle = tester.ensureSemantics();
+      // Anker drei Wochen vor dieser Woche; die Rechnung beginnt eine Woche
+      // vor heute (Nummern 3 bis 8, diese Woche ist die vierte von acht).
+      await pumpFixed(
+        tester,
+        _state(firstWeekOffset: -1, anchorWeeksEarlier: 2),
+      );
+      expect(tester.widget<Text>(key('plan_week_title')).data, 'Woche 4');
+      expect(
+        tester.getSemantics(key('plan_phase_bar')).label,
+        contains('Phase Einstieg, Woche 4 von 8'),
+      );
+      handle.dispose();
+    });
+
     testWidgets('heutige Einheit hebt sich ab (dunkel)', (tester) async {
       await pumpFixed(
         tester,
@@ -904,6 +921,39 @@ void main() {
         );
       });
     }
+
+    test('Ziel je Einheitentyp nach dem Wortlaut von PAR-109 bis PAR-115', () {
+      final de = lookupAppLocalizations(const Locale('de'));
+      // Wortlaut „Ziel: …“ aus docs/phase-2-3-rules.md als Satz mit Punkt.
+      const expected = {
+        PlanUnitKind.easy: 'Aerobe Grundlage.', // PAR-109
+        PlanUnitKind.long:
+            'Ausdauer und Gewöhnung an längere Dauer.', // PAR-110
+        PlanUnitKind.intervals: 'Hohe aerobe Beanspruchung.', // PAR-112
+        PlanUnitKind.tempo:
+            'Anhaltend hohes Tempo unterhalb der Intervallintensität.',
+        PlanUnitKind.progressive:
+            'Kontrollierte Steigerung am Ende einer lockeren Einheit.',
+        PlanUnitKind.walkRun: 'Gewöhnung und Datenbasis.', // PAR-115
+        // Kein PAR-Ziel für den Ruhetag, eigener Text.
+        PlanUnitKind.rest: 'Ein Tag ohne Lauf.',
+      };
+      expect(expected.keys.toSet(), PlanUnitKind.values.toSet());
+      for (final k in PlanUnitKind.values) {
+        expect(planKindPurpose(de, k), expected[k], reason: k.name);
+      }
+      // en gibt dieselben Aussagen wieder: je Typ ein eigener Text.
+      final en = lookupAppLocalizations(const Locale('en'));
+      final enTexts = PlanUnitKind.values
+          .map((k) => planKindPurpose(en, k))
+          .toSet();
+      expect(enTexts, hasLength(PlanUnitKind.values.length));
+      expect(
+        enTexts.intersection(expected.values.toSet()),
+        isEmpty,
+        reason: 'en darf nicht den deutschen Text tragen',
+      );
+    });
   });
 }
 

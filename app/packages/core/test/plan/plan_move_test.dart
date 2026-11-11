@@ -129,6 +129,19 @@ void main() {
       final other = _check(units, efh, 8);
       expect(other.allowed, isTrue);
       expect(other.endsHardReplacement, isTrue);
+      // Gesperrt (belegter Tag einer anderen Woche): kein Hinweis.
+      final taken = PlanUnit(
+        id: 9,
+        day: _d(9),
+        kind: PlanUnitKind.easy,
+        phase: PlanPhase.build,
+        weekIndex: 1,
+        minutes: 30,
+        segments: const [],
+      );
+      final blocked = _check([...units, taken], efh, 9);
+      expect(blocked.blocked, PlanMoveBlock.dayTaken);
+      expect(blocked.endsHardReplacement, isFalse);
       // Andere Festlegungen bleiben, auch über die Woche.
       final kindUnit = efh.copyWith(fixed: PlanUnitFixed.kind);
       expect(planMovedFixed(kindUnit, _d(8)), PlanUnitFixed.kind);

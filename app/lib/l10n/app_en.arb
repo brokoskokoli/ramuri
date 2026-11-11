@@ -1499,6 +1499,8 @@
   "@planTodayAskNo": {"description": "WP22 Teil D, Heute (Nachbesserung)"},
   "planTodayAssignFailed": "The run is saved but could not be assigned to the session.",
   "@planTodayAssignFailed": {"description": "WP22 Teil D, Heute (Nachbesserung)"},
+  "planTodayAssignNotRecalculated": "The run is assigned to the session, but the plan could not be recalculated yet.",
+  "@planTodayAssignNotRecalculated": {"description": "WP22 Teil D, Heute: Zuordnung gespeichert, Neuberechnung gescheitert"},
   "planWeekGoal": "Weekly target",
   "@planWeekGoal": {"description": "WP22 Teil D, Heute"},
   "planWeekGoalProgress": "{done} of {target}",
