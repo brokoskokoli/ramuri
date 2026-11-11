@@ -19,6 +19,13 @@ Bezug: FR-0039, FR-0105 bis FR-0107, FR-0156 bis FR-0170, FR-0179 bis FR-0181, F
 - Simulation mehrerer Wochen mit Ausfällen, Pause und hoher RPE als Testfall.
 - **Parallel:** `home` nur hier, `run` nur WP24.
 
+## Vorprüfung und Entscheidungen (2026-11-11)
+Bericht: `../running-app-wt/handoff/vorpruefung-wp23.md`; Entscheidungen des Maintainers: K58. Wo der Bericht „Empfehlung“ sagt, ist sie entschieden.
+- **Schema und Archiv:** Schema 10 mit Tabelle `active_warning`, Archivabschnitt 21 (reserviert). Läuft parallel zu WP25, das ebenfalls Schema 10 braucht: Wer später mergt, zieht auf 11 nach. Weiterer Zustand (letzte Nachfrage, Pausenantwort, Hinweissperre, „gesehen“) in `settings`, mit Archiv und Löschen.
+- **Fehlende Verdrahtung aus Vorgängern:** Belastungsdienst übergibt weder erwartete Einheiten noch bestätigte Pausen (`training_load_service.dart`); die wöchentliche Prüfung läuft nur auf der Plan-Seite (auch beim Öffnen von „Heute“ auslösen); Vorschlag nach PAR-140 fehlt (`walk_run_units.dart`); Ruhetag nach „Neu berechnen“ bei Auslöser `manual` prüfen (`recalculate_plan.dart`). `planMethodVersion` 3 → 4.
+- **Teile:** A Anpassung in `core` (PAR-200 bis -202, PAR-140, Eigenschaftstest, Ruhetag-Fehler); B Warnsignal-Daten (Schema 10, Abschnitt 21, Migration, Archiv, Löschen, Vektor, Port, Dienst, Vorrang in `core`); C Plan-Seite (melden, aufheben, Nachfrage, Pausenfrage, Verlauf); D Hinweise und „Heute“ (PAR-174 bis -184, Belastungsdienst, Karten „Erholung“ und „Plan angepasst“, Erklärungen FR-0179 bis -0181, Einstieg auf „Fortschritt“). A und B zuerst, dann C und D.
+- **Einstiege:** siehe Abschnitt 7 des Berichts; die Antwort „ja“ in der Zusammenfassung (WP18) setzt das Warnsignal über den Dienst.
+
 ## Abnahmekriterien
 - [ ] Akzeptanzkriterien von FR-0039, FR-0105 bis FR-0107, FR-0156 bis FR-0170, FR-0179 bis FR-0181 und FR-0203.
 - [ ] Die Karte „Erholung“ zeigt nie Zahl oder Zustand (Test), und kein Text formuliert einen festgestellten Erholungszustand.
