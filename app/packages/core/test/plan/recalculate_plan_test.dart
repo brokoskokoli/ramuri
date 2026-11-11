@@ -161,6 +161,54 @@ class _RejectingWrite implements PlanRepository {
 }
 
 void main() {
+  // WP22 E2E: Nach „Neu berechnen“ sei die heutige unbestätigte Einheit zum
+  // Ruhetag geworden. Im Kern nicht reproduzierbar (WP23 A): Die Einheit von
+  // heute bleibt nach `manual` bestehen, auch nach Ersetzen und mit
+  // zugeordneten Läufen der Tage davor. Absicherung, kein Fix.
+  test('manual: die heutige offene Einheit bleibt (Art und Dauer), auch nach '
+      'Ersetzen hart -> locker und mit Läufen an den Tagen davor', () async {
+    for (final days in [
+      {1, 3, 5},
+      {2, 4, 6},
+    ]) {
+      for (var t = 0; t < 21; t++) {
+        for (final replace in [false, true]) {
+          final e = await _Env.open();
+          final g = _goal(days: days);
+          await e.goals.save(g, today: g.createdAt);
+          await e.run(PlanTrigger.create, 0);
+          final planned = await e.plans.unitOn(_day(t));
+          if (planned == null) continue;
+          final earlier = await e.plans.unitsBetween(_day(0), _day(t - 1));
+          for (final u in earlier) {
+            final r = (await e.session.runs.create(startedAt: u.day)).id;
+            await e.plans.assignRun(u.id!, r);
+          }
+          if (replace && planned.isHard) {
+            final check = checkPlanReplace(
+              units: await _all(e.plans),
+              unit: planned,
+              kind: PlanUnitKind.easy,
+              goal: g,
+              inputs: (await e.plans.history()).last.inputs,
+              today: _day(t),
+            );
+            if (check.blocked != null) continue;
+            await e.plans.replaceUnit(planned.id!, check.unit!, today: _day(t));
+          }
+          final before = await e.plans.unitOn(_day(t));
+          await e.run(PlanTrigger.manual, t);
+          final after = await e.plans.unitOn(_day(t));
+          expect(
+            [after?.kind, after?.minutes],
+            [before!.kind, before.minutes],
+            reason: 'Lauftage $days, heute +$t, ersetzt $replace',
+          );
+        }
+      }
+    }
+  });
+
   group('rejected beim Schreiben (T1)', () {
     test(
       'einmal rejected: genau einmal neu lesen, rechnen, schreiben',

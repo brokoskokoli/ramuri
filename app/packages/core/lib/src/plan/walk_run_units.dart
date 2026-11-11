@@ -1,3 +1,4 @@
+import 'plan_parameters.dart';
 import 'plan_unit.dart';
 import 'walk_run_program.dart';
 import 'weekly_time.dart';
@@ -185,4 +186,83 @@ List<int> _spread(List<int> days, int count) {
     ),
     exceeds: exceeds,
   );
+}
+
+/// Ergebnis einer Einheit der Abfolge für [suggestWalkRunRepeat]: [done]
+/// absolviert, [rpe] die Anstrengung (`null`: keine Angabe).
+class WalkRunOutcome {
+  const WalkRunOutcome({required this.done, this.rpe});
+
+  final bool done;
+  final int? rpe;
+}
+
+/// Was die App zu wiederholen vorschlägt (PAR-140): die ganze Programmwoche
+/// oder eine einzelne Einheit; [position] ist die Stelle, an der die Abfolge
+/// danach wieder beginnt.
+enum WalkRunRepeatScope { week, session }
+
+class WalkRunRepeatSuggestion {
+  const WalkRunRepeatSuggestion(this.scope, this.position);
+
+  final WalkRunRepeatScope scope;
+  final WalkRunPosition position;
+
+  @override
+  bool operator ==(Object other) =>
+      other is WalkRunRepeatSuggestion &&
+      other.scope == scope &&
+      other.position == position;
+
+  @override
+  int get hashCode => Object.hash(scope, position);
+}
+
+/// Vorschlag „Woche wiederholen“ in der Geh-Lauf-Abfolge (PAR-140). In dieser
+/// Phase gilt nur PAR-140, nicht PAR-201. Die App schlägt vor, der Nutzer
+/// entscheidet.
+///
+/// - Ist die Programmwoche [programWeek] (ab 0) vorbei ([weekOver]) und sind
+///   weniger als [PlanParameters.walkRunRepeatMinDone] Einheiten absolviert
+///   oder haben mindestens so viele davon RPE >= [PlanParameters.walkRunRepeatRpe]:
+///   die Woche wiederholen.
+/// - Vor Woche 5, Lauf 3 ([programWeek] 4, Einheit 3 noch nicht absolviert):
+///   hatte Lauf 2 RPE >= 6, die Einheit 2 wiederholen.
+///
+/// [outcomes] sind die Einheiten der Programmwoche in der Reihenfolge der
+/// Abfolge (fehlende Einheiten fehlen oder sind nicht absolviert). Die
+/// Programmwoche hat so viele Einheiten wie die Abfolge ([program]).
+WalkRunRepeatSuggestion? suggestWalkRunRepeat({
+  required int programWeek,
+  required List<WalkRunOutcome> outcomes,
+  required bool weekOver,
+  WalkRunProgram? program,
+  PlanParameters parameters = const PlanParameters(),
+}) {
+  final prog = program ?? walkRunProgram;
+  if (programWeek < 0 || programWeek >= prog.weeks.length) return null;
+  final p = parameters;
+  bool hard(WalkRunOutcome o) => o.done && (o.rpe ?? 0) >= p.walkRunRepeatRpe;
+  if (weekOver) {
+    final done = outcomes.where((o) => o.done).length;
+    final hardCount = outcomes.where(hard).length;
+    if (done < p.walkRunRepeatMinDone || hardCount >= p.walkRunRepeatMinDone) {
+      return WalkRunRepeatSuggestion(
+        WalkRunRepeatScope.week,
+        WalkRunPosition(programWeek),
+      );
+    }
+    return null;
+  }
+  const beforeSession = 2; // Lauf 3 der Woche 5
+  if (programWeek == 4 &&
+      outcomes.length > 1 &&
+      !(outcomes.length > beforeSession && outcomes[beforeSession].done) &&
+      hard(outcomes[1])) {
+    return WalkRunRepeatSuggestion(
+      WalkRunRepeatScope.session,
+      WalkRunPosition(programWeek, 1),
+    );
+  }
+  return null;
 }

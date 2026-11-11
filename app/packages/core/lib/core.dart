@@ -100,6 +100,7 @@ export 'src/plan/plan_hints.dart';
 export 'src/plan/plan_move.dart';
 export 'src/plan/plan_replace.dart';
 export 'src/plan/build_plan_inputs.dart';
+export 'src/plan/plan_adjust.dart';
 export 'src/plan/plan_inputs.dart';
 export 'src/plan/plan_parameters.dart';
 export 'src/plan/plan_registry.dart';

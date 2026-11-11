@@ -285,12 +285,18 @@ GeneratedPlan generatePlan(
     bool tooClose(PlanUnit u) => frozenIntensive.any(
       (d) => u.day.difference(d).inDays.abs() < p.minGapDays,
     );
+    // Nach Ermüdung (PAR-201) oder Pause (PAR-202) keine harte Einheit bis
+    // [PlanInputs.noHardUntil]: sie wird ein lockerer Lauf gleicher Dauer.
+    final noHardUntil = inputs.noHardUntil;
+    bool noHard(PlanUnit u) =>
+        noHardUntil != null && !u.day.isAfter(noHardUntil);
     var future = <PlanUnit>[
       for (final u in planned.units)
         if (!u.day.isBefore(todayDay) && !frozenDays.contains(u.day))
           (frozenHard && u.isHard) ||
                   (frozenLong && u.kind == PlanUnitKind.long) ||
-                  (u.isIntensive && tooClose(u))
+                  (u.isIntensive && tooClose(u)) ||
+                  (u.isHard && noHard(u))
               ? _asEasy(u)
               : u,
     ];

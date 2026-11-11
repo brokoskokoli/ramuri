@@ -226,25 +226,40 @@ BuiltPlanInputs buildPlanInputs({
 }
 
 /// Eingaben einer automatischen Neuberechnung: Wochenzählung, Stand,
-/// Geh-Lauf-Abfolge, letzte Woche und erreichter Anteil bleiben aus der
+/// Geh-Lauf-Abfolge, Zählung der leichteren Wochen, „keine harte Einheit bis“,
+/// letzte Woche und erreichter Anteil (geprüft) bleiben aus der
 /// gespeicherten Fassung [stored]; „heute“, lockeres Tempo samt Zahl der
 /// Läufe (PAR-205: „wird bei jeder Neuberechnung neu bestimmt“) und die
 /// Grundlage der Zielintensität (Referenz, VO₂max, Puls) kommen aus
 /// [measured] (Ergebnis von [buildPlanInputs] für heute).
-PlanInputs refreshMeasuredInputs(PlanInputs stored, PlanInputs measured) =>
-    PlanInputs(
-      anchor: stored.anchor,
-      startWeeklyMinutes: stored.startWeeklyMinutes,
-      today: measured.today,
-      walkRunWeeks: stored.walkRunWeeks,
-      walkRunStart: stored.walkRunStart,
-      walkRunFrom: stored.walkRunFrom,
-      lastWeekMinutes: stored.lastWeekMinutes,
-      achievedShare: stored.achievedShare,
-      easyPaceSecondsPerKm: measured.easyPaceSecondsPerKm,
-      easyRunCount: measured.easyRunCount,
-      intensity: measured.intensity,
-    );
+PlanInputs refreshMeasuredInputs(PlanInputs stored, PlanInputs measured) {
+  // Beleg der letzten Anpassung (PAR-201): nur ein gültiger Anteil (0 bis 1)
+  // und nicht negative Minuten bleiben; sonst entfallen beide Felder.
+  final share = stored.achievedShare;
+  final minutes = stored.lastWeekMinutes;
+  final valid =
+      share != null &&
+      minutes != null &&
+      share.isFinite &&
+      share >= 0 &&
+      share <= 1 &&
+      minutes >= 0;
+  return PlanInputs(
+    anchor: stored.anchor,
+    startWeeklyMinutes: stored.startWeeklyMinutes,
+    today: measured.today,
+    walkRunWeeks: stored.walkRunWeeks,
+    walkRunStart: stored.walkRunStart,
+    walkRunFrom: stored.walkRunFrom,
+    lastWeekMinutes: valid ? minutes : null,
+    achievedShare: valid ? share : null,
+    weekCountOffset: stored.weekCountOffset,
+    noHardUntil: stored.noHardUntil,
+    easyPaceSecondsPerKm: measured.easyPaceSecondsPerKm,
+    easyRunCount: measured.easyRunCount,
+    intensity: measured.intensity,
+  );
+}
 
 /// Güte der VO₂max für Pace-Vorgaben (PAR-081): der Langzeitwert
 /// [longTerm] und der letzte verwertbare Laufwert [lastRun] (vom Tag
