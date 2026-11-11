@@ -865,8 +865,77 @@ void main() {
       expect(txt('prediction_reference'), contains('10,00 km in'));
       expect(txt('prediction_other_999'), contains('ungültig'));
       expect(txt('prediction_other_999'), contains('5,00 km'));
+      // Grund wie K49: Tempo außerhalb der Spanne.
+      expect(
+        txt('prediction_other_999'),
+        contains('(Tempo außerhalb von 2:30 min/km bis 15:00 min/km)'),
+      );
       expect(key('prediction_other_delete_999'), findsOneWidget);
       expect(txt('prediction_value_1'), startsWith('≈'));
+    });
+
+    for (final (name, meters, seconds, cause) in [
+      ('zu kurz', 2000.0, 600.0, 'Distanz unter 3,00 km'),
+      ('Zeit null', 5000.0, 0.0, 'Zeit nicht größer als null'),
+      (
+        'Tempo außerhalb',
+        5000.0,
+        999 * 3600.0,
+        'Tempo außerhalb von 2:30 min/km bis 15:00 min/km',
+      ),
+    ]) {
+      testWidgets('nur unbrauchbare Referenz ($name): „Referenz ungültig“ mit '
+          'Grund statt „keine Referenz“ (K49)', (tester) async {
+        final d = await boot(tester);
+        await regularRuns(d);
+        final g = _GatedSession(d.session);
+        final n = d.clock.now().toLocal();
+        g.prediction.imported = [
+          StoredReference(
+            id: 998,
+            reference: ReferencePerformance(
+              kind: ReferenceKind.race,
+              distanceMeters: meters,
+              seconds: seconds,
+              date: DateTime(n.year, n.month, n.day - 2),
+              createdAt: d.clock.now(),
+            ),
+          ),
+        ];
+        await pumpCard(tester, d, session: g);
+        expect(
+          txt('prediction_reason'),
+          'Nicht bestimmbar: Die Referenz ist ungültig ($cause).',
+        );
+        expect(txt('prediction_reason'), isNot(contains('keine Referenz')));
+        expect(txt('prediction_other_998'), contains('ungültig ($cause'));
+        expect(key('prediction_delete'), findsNothing);
+      });
+    }
+
+    testWidgets('Vorschlag beruht auf der geltenden Referenz, nicht auf einer '
+        'jüngeren unbrauchbaren', (tester) async {
+      // Gültig: 10 km in 60:00 vor 20 Tagen; schneller Lauf vor 3 Tagen.
+      final (d, _) = await withFastRun(tester);
+      final g = _GatedSession(d.session);
+      final n = d.clock.now().toLocal();
+      // Jünger als der Lauf, aber zu schnell (2:24 min/km): gilt nicht. Wäre
+      // sie die Grundlage, fiele der Vorschlag weg (Lauf vor ihrem Datum).
+      g.prediction.imported = [
+        StoredReference(
+          id: 997,
+          reference: ReferencePerformance(
+            kind: ReferenceKind.race,
+            distanceMeters: 5000,
+            seconds: 720,
+            date: DateTime(n.year, n.month, n.day - 1),
+            createdAt: d.clock.now(),
+          ),
+        ),
+      ];
+      await pumpCard(tester, d, session: g);
+      expect(key('prediction_suggestion'), findsOneWidget);
+      expect(txt('prediction_reference'), contains('10,00 km in'));
     });
 
     testWidgets('Soll 1: Knöpfe sind während einer Änderung gesperrt, kein '

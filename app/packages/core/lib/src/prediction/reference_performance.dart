@@ -103,10 +103,17 @@ bool isUsableReference(
 ReferencePerformance? activeReference(
   Iterable<ReferencePerformance> all, [
   PredictionParameters p = const PredictionParameters(),
-]) {
+]) => _newest(all.where((r) => isUsableReference(r, p)));
+
+/// Die jüngste gespeicherte Referenz ohne Prüfung (gleiche Reihenfolge wie
+/// [activeReference]); nur für die Anzeige des Grundes „Referenz ungültig“,
+/// nie als Grundlage einer Rechnung.
+ReferencePerformance? newestReference(Iterable<ReferencePerformance> all) =>
+    _newest(all);
+
+ReferencePerformance? _newest(Iterable<ReferencePerformance> all) {
   ReferencePerformance? best;
   for (final r in all) {
-    if (!isUsableReference(r, p)) continue;
     if (best == null) {
       best = r;
       continue;

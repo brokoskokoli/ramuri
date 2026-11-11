@@ -225,18 +225,23 @@ void main() {
       },
     );
 
-    test('ungültige Referenz', () {
-      // Zu kurz oder Zeit null: unbrauchbar, wird ignoriert (wie keine
-      // Referenz, Festlegung WP22); künftiges Datum: ungültig.
-      for (final (bad, reason) in [
-        (ref(meters: 2999), PredictionReason.noReference),
-        (ref(seconds: 0), PredictionReason.noReference),
-        (ref(age: -1), PredictionReason.invalidReference),
+    test('ungültige Referenz: „Referenz ungültig“ mit Grund (K49)', () {
+      for (final (bad, problem) in [
+        (ref(meters: 2999), ReferenceProblem.distanceTooShort),
+        (ref(seconds: 0), ReferenceProblem.nonPositiveTime),
+        (ref(age: -1), ReferenceProblem.dateInFuture),
       ]) {
-        final p = predict10k(bad, dense(10));
+        final all = predictPerformance(
+          now: now,
+          references: [bad],
+          runs: dense(10),
+        );
+        final p = all.of(PredictionDistance.tenKilometers);
         expect(p.level, PredictionLevel.notDeterminable);
-        expect(p.reason, reason);
+        expect(p.reason, PredictionReason.invalidReference);
         expect(p.seconds, isNull);
+        expect(all.referenceProblem, problem);
+        expect(all.reference, isNull);
       }
       expect(ref(meters: 3000, seconds: 900).validate(now), isNull);
       expect(
@@ -268,10 +273,27 @@ void main() {
         ReferenceProblem.distanceTooShort,
       );
       // Prognose: eine unplausible Referenz (gespeichert oder importiert)
-      // wird ignoriert, als gäbe es sie nicht (Festlegung WP22, E2E API 36).
-      final p = predict10k(ref(seconds: 999 * 3600), dense(10));
-      expect(p.reason, PredictionReason.noReference);
+      // trägt nicht, die Anzeige nennt sie „ungültig“ mit Grund (K49).
+      final all = predictPerformance(
+        now: now,
+        references: [ref(seconds: 999 * 3600)],
+        runs: dense(10),
+      );
+      final p = all.of(PredictionDistance.tenKilometers);
+      expect(p.reason, PredictionReason.invalidReference);
+      expect(all.referenceProblem, ReferenceProblem.paceOutOfRange);
       expect(p.seconds, isNull);
+      // Ohne gespeicherte Referenz: keine Referenz, kein Grund.
+      final none = predictPerformance(
+        now: now,
+        references: [],
+        runs: dense(10),
+      );
+      expect(
+        none.of(PredictionDistance.tenKilometers).reason,
+        PredictionReason.noReference,
+      );
+      expect(none.referenceProblem, isNull);
     });
 
     test('Referenz außerhalb der Tempospanne gilt nirgends: activeReference '
@@ -296,6 +318,15 @@ void main() {
         p.seconds,
         predict10k(valid, dense(30)).seconds,
         reason: 'Grundlage ist die ältere gültige Referenz',
+      );
+      expect(
+        predictPerformance(
+          now: now,
+          references: [valid, slow],
+          runs: dense(30),
+        ).referenceProblem,
+        isNull,
+        reason: 'gilt eine ältere, ist nichts ungültig',
       );
     });
   });

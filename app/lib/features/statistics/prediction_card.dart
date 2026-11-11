@@ -271,11 +271,20 @@ class _PredictionCardState extends State<PredictionCard> {
     }
     if (allUndetermined) {
       final reason = prediction.distances.first.reason;
+      final problem = prediction.referenceProblem;
+      // „Referenz ungültig“ mit Grund (K49), auch wenn die Referenz nur
+      // gespeichert oder importiert ist und nicht gilt.
+      final reasonText =
+          reason == PredictionReason.invalidReference && problem != null
+          ? l10n.planReasonInvalidWithCause(
+              referenceProblemText(l10n, problem, formatter, state.parameters),
+            )
+          : predictionReasonText(l10n, reason);
       out
         ..add(const SizedBox(height: 6))
         ..add(
           Text(
-            l10n.predictionNoneForAll(predictionReasonText(l10n, reason)),
+            l10n.predictionNoneForAll(reasonText),
             key: const Key('prediction_reason'),
             style: theme.bodyMedium,
           ),
@@ -345,9 +354,18 @@ class _PredictionCardState extends State<PredictionCard> {
         );
         // Unbrauchbare Referenz (z. B. importiert außerhalb der Tempospanne):
         // sichtbar und löschbar, aber als ungültig gekennzeichnet.
-        final summary = isUsableReference(r)
+        final problem = r.validate(r.date, state.parameters);
+        final summary = problem == null
             ? line
-            : l10n.planReferenceInvalid(line);
+            : l10n.planReferenceInvalid(
+                line,
+                referenceProblemText(
+                  l10n,
+                  problem,
+                  formatter,
+                  state.parameters,
+                ),
+              );
         out.add(
           Row(
             children: [
@@ -670,6 +688,25 @@ String predictionSourceText(AppLocalizations l10n, PredictionSource s) =>
       PredictionSource.runHistory => l10n.predictionSourceHistory,
       PredictionSource.vo2max => l10n.predictionSourceVo2max,
     };
+
+/// Kurzer Grund, warum eine Referenz ungültig ist (K49), mit den Grenzen aus
+/// [PredictionParameters].
+String referenceProblemText(
+  AppLocalizations l10n,
+  ReferenceProblem problem,
+  UnitFormatter formatter, [
+  PredictionParameters p = const PredictionParameters(),
+]) => switch (problem) {
+  ReferenceProblem.distanceTooShort => l10n.planReferenceProblemDistance(
+    formatter.distance(p.minimumReferenceMeters),
+  ),
+  ReferenceProblem.nonPositiveTime => l10n.planReferenceProblemTime,
+  ReferenceProblem.paceOutOfRange => l10n.planReferenceProblemPace(
+    formatter.pace(p.fastestReferencePaceSecondsPerKm),
+    formatter.pace(p.slowestReferencePaceSecondsPerKm),
+  ),
+  ReferenceProblem.dateInFuture => l10n.planReferenceProblemDate,
+};
 
 String predictionReasonText(AppLocalizations l10n, PredictionReason r) =>
     switch (r) {

@@ -194,14 +194,42 @@ class _PlanScreenState extends State<PlanScreen> {
 
   bool _recalculating = false;
 
-  /// „Neu berechnen“ (Auslöser `manual`, bei geändertem Ziel `goalChange`):
-  /// rechnet Inhalte ab heute neu; bestätigte Termine bleiben (ADR-0010).
-  /// Ergebnis oder Fehler steht danach als Meldung da.
+  /// „Neu berechnen“ (Auslöser `manual`, bei geändertem Ziel `goalChange`)
+  /// nach Rückfrage: rechnet ab heute neu; bestätigte Termine und erledigte
+  /// Einheiten bleiben (ADR-0010), andere Einheiten können Tag und Inhalt
+  /// ändern. Abbrechen ändert nichts. Ergebnis oder Fehler steht danach als
+  /// Meldung da.
   Future<void> _recalculate() async {
     if (_recalculating) return;
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _recalculating = true);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const Key('plan_recalculate_dialog'),
+        title: Text(l.planRecalculateConfirmTitle),
+        scrollable: true,
+        content: Text(l.planRecalculateConfirmText),
+        actions: [
+          TextButton(
+            key: const Key('plan_recalculate_cancel'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l.planFormCancel),
+          ),
+          FilledButton(
+            key: const Key('plan_recalculate_confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l.planRecalculateConfirm),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (ok != true) {
+      setState(() => _recalculating = false);
+      return;
+    }
     final result = await _controller.recalculate();
     if (!mounted) return;
     setState(() => _recalculating = false);

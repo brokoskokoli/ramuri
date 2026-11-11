@@ -8,14 +8,16 @@ enum PredictionPhase { loading, ready, failed }
 /// Stand der Prognosekarte (WP20 Teil C).
 class PredictionViewState {
   const PredictionViewState.loading()
-    : phase = PredictionPhase.loading,
+    : parameters = const PredictionParameters(),
+      phase = PredictionPhase.loading,
       prediction = null,
       showTestHint = false,
       all = const [],
       suggestion = null;
 
   const PredictionViewState.failed()
-    : phase = PredictionPhase.failed,
+    : parameters = const PredictionParameters(),
+      phase = PredictionPhase.failed,
       prediction = null,
       showTestHint = false,
       all = const [],
@@ -26,7 +28,12 @@ class PredictionViewState {
     required this.showTestHint,
     required this.all,
     required this.suggestion,
+    this.parameters = const PredictionParameters(),
   }) : phase = PredictionPhase.ready;
+
+  /// Grenzen, mit denen die Prognose gerechnet hat (auch für [active] und die
+  /// Gründe ungültiger Referenzen).
+  final PredictionParameters parameters;
 
   final PredictionPhase phase;
   final PerformancePrediction? prediction;
@@ -40,7 +47,7 @@ class PredictionViewState {
   /// brauchbare Referenz.
   StoredReference? get active {
     for (final s in all) {
-      if (isUsableReference(s.reference)) return s;
+      if (isUsableReference(s.reference, parameters)) return s;
     }
     return null;
   }
@@ -151,7 +158,9 @@ class PredictionController extends ChangeNotifier {
       hasVo2maxEstimate: hasVo2maxEstimate,
       parameters: parameters,
     );
-    final active = activeReference([for (final s in stored) s.reference]);
+    final active = activeReference([
+      for (final s in stored) s.reference,
+    ], parameters);
     // Nur Läufe der letzten 182 Tage kommen als Vorschlag in Frage; ältere
     // haben keine Tempowerte und die Referenz wäre schon zu alt.
     final recent = [
@@ -175,6 +184,7 @@ class PredictionController extends ChangeNotifier {
       ),
       all: stored,
       suggestion: suggestions.isEmpty ? null : suggestions.first,
+      parameters: parameters,
     );
   }
 

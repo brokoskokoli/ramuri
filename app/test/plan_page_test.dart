@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -660,6 +661,29 @@ void main() {
       expect(key('plan_day_start'), findsNothing);
     });
 
+    testWidgets('Wochenzeile: nach „Start“ lädt der Plan neu', (tester) async {
+      final session = await FakeStorage().open(_key);
+      final clock = FakeClock(_now);
+      final c = _CountingReload(
+        session,
+        clock,
+        _state(weekUnits: [unit(_today)]),
+      );
+      var started = 0;
+      await _pump(
+        tester,
+        session: session,
+        clock: clock,
+        controller: c,
+        onStartUnit: (_, _) async => started++,
+      );
+      final before = c.reloads;
+      await tester.tap(key('plan_day_start'));
+      await tester.pumpAndSettle();
+      expect(started, 1);
+      expect(c.reloads, before + 1);
+    });
+
     for (final locale in ['de', 'en']) {
       testWidgets('Einschätzung: Zeit bekannt, zu wenige Läufe nennt die '
           'fehlenden Läufe (PAR-206, $locale)', (tester) async {
@@ -1078,44 +1102,58 @@ void main() {
   });
 
   group('E2E-Nachbesserung 2', () {
-    testWidgets('„Neu berechnen“: Auslöser manual, Meldung, bestätigter '
-        'Termin bleibt (ADR-0010)', (tester) async {
-      final (session, clock) = await tester.runAsync(() async {
-        final (session, clock) = await _withPlan(_goal());
-        // Do 12.11. (Lauftag) auf Fr 13.11. verschieben: bestätigter Termin.
-        final c = PlanController(
+    /// Plan mit Ziel, darin Sa 14.11. auf So 15.11. verschoben (ohne
+    /// Bestätigung, wie eine abweichende ältere Fassung), und bestätigter
+    /// Termin Do 12.11. → Fr 13.11. Eine Neuberechnung muss damit eine neue
+    /// Fassung schreiben (die Einheit vom So kehrt auf den Lauftag zurück).
+    Future<(StorageSession, FakeClock)> stalePlan() async {
+      final (session, clock) = await _withPlan(_goal());
+      final plans = (session as PlanStorage).plans;
+      final last = (await plans.history()).last;
+      final future = await plans.unitsBetween(_today, planFarFuture);
+      final sat = DateTime.utc(2026, 11, 14);
+      expect(future.where((u) => u.day == sat), hasLength(1));
+      await plans.writeVersion(
+        PlanVersionDraft(
+          createdAt: _now,
+          validFrom: _today,
+          trigger: PlanTrigger.run,
+          reason: 'run',
+          version: last.version,
+          inputs: last.inputs,
+          summary: last.summary,
+          units: [
+            for (final u in future)
+              u.day == sat ? u.copyWith(day: DateTime.utc(2026, 11, 15)) : u,
+          ],
+          readState: planUnitsFingerprint(
+            await plans.unitsBetween(last.inputs.anchor, planFarFuture),
+          ),
+        ),
+      );
+      final c = PlanController(
+        session: session,
+        clock: clock,
+        reader: PlanDataReader(
           session: session,
           clock: clock,
-          reader: PlanDataReader(
-            session: session,
-            clock: clock,
-            loadRuns: () async => const [],
-          ),
-        );
-        await c.open();
-        final thu = (await c.unitsBetween(
-          DateTime.utc(2026, 11, 12),
-          DateTime.utc(2026, 11, 12),
-        )).single;
-        expect(
-          await c.confirmMove(thu.id!, DateTime.utc(2026, 11, 13)),
-          PlanActionResult.done,
-        );
-        c.dispose();
-        return (session, clock);
-      }) as (StorageSession, FakeClock);
-      Future<List<PlanUnit>> fri() => (session as PlanStorage).plans
-          .unitsBetween(DateTime.utc(2026, 11, 13), DateTime.utc(2026, 11, 13));
-      final before = (await tester.runAsync(fri))!;
-      expect(before.single.pinned, isTrue);
-      final versions = (await tester.runAsync(
-        (session as PlanStorage).plans.history,
-      ))!.length;
-      // Andere Regelversion erzwingt eine neue Fassung.
-      await _pump(tester, session: session, clock: clock);
-      await tester.ensureVisible(key('plan_recalculate'));
-      expect(find.text('Neu berechnen'), findsOneWidget);
-      await tester.tap(key('plan_recalculate'));
+          loadRuns: () async => const [],
+        ),
+      );
+      await c.open();
+      final thu = (await c.unitsBetween(
+        DateTime.utc(2026, 11, 12),
+        DateTime.utc(2026, 11, 12),
+      )).single;
+      expect(
+        await c.confirmMove(thu.id!, DateTime.utc(2026, 11, 13)),
+        PlanActionResult.done,
+      );
+      c.dispose();
+      return (session, clock);
+    }
+
+    Future<void> settle(WidgetTester tester) async {
       for (var i = 0; i < 5; i++) {
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 100)),
@@ -1123,20 +1161,116 @@ void main() {
         await tester.pump();
       }
       await tester.pumpAndSettle();
+    }
+
+    testWidgets('„Neu berechnen“ nach Rückfrage: neue Fassung mit Auslöser '
+        'manual, bestätigter Termin bleibt (ADR-0010)', (tester) async {
+      final (session, clock) =
+          await tester.runAsync(stalePlan) as (StorageSession, FakeClock);
+      final plans = (session as PlanStorage).plans;
+      Future<List<PlanUnit>> fri() => plans.unitsBetween(
+        DateTime.utc(2026, 11, 13),
+        DateTime.utc(2026, 11, 13),
+      );
+      final before = (await tester.runAsync(fri))!.single;
+      expect(before.pinned, isTrue);
+      final versions = (await tester.runAsync(plans.history))!.length;
+      await _pump(tester, session: session, clock: clock);
+      await tester.ensureVisible(key('plan_recalculate'));
+      expect(find.text('Neu berechnen'), findsOneWidget);
+      await tester.tap(key('plan_recalculate'));
+      await tester.pumpAndSettle();
+      // Rückfrage sagt ehrlich, was bleibt und was sich ändern kann.
+      expect(key('plan_recalculate_dialog'), findsOneWidget);
+      expect(find.text('Plan neu berechnen?'), findsOneWidget);
       expect(
-        find.text('Plan neu berechnet. Deine Termine bleiben, wie sie sind.'),
+        find.text(
+          'Die App rechnet den Plan ab heute neu. Termine, die du bestätigt '
+          'hast, und erledigte Einheiten bleiben. Andere Einheiten können auf '
+          'andere Tage rücken, und ihre Art, Dauer und Intensität können sich '
+          'ändern.',
+        ),
         findsOneWidget,
       );
-      final after = (await tester.runAsync(fri))!;
-      expect(after.single.pinned, isTrue);
-      expect(after.single.kind, before.single.kind);
-      final history = (await tester.runAsync(
-        (session as PlanStorage).plans.history,
+      await tester.tap(key('plan_recalculate_confirm'));
+      await settle(tester);
+      expect(
+        find.text('Plan neu berechnet. Bestätigte Termine bleiben.'),
+        findsOneWidget,
+      );
+      final history = (await tester.runAsync(plans.history))!;
+      expect(history, hasLength(versions + 1));
+      expect(history.last.trigger, PlanTrigger.manual);
+      final after = (await tester.runAsync(fri))!.single;
+      expect(after.pinned, isTrue);
+      expect(after.day, before.day);
+      expect(after.kind, before.kind);
+      // Die nicht bestätigte Einheit vom So kehrt auf den Lauftag zurück.
+      final sun = (await tester.runAsync(
+        () => plans.unitsBetween(
+          DateTime.utc(2026, 11, 14),
+          DateTime.utc(2026, 11, 15),
+        ),
       ))!;
-      expect(history.length, greaterThanOrEqualTo(versions));
-      if (history.length > versions) {
-        expect(history.last.trigger, PlanTrigger.manual);
-      }
+      expect(sun.map((u) => u.day), [DateTime.utc(2026, 11, 14)]);
+    });
+
+    testWidgets('„Neu berechnen“: Abbrechen ändert nichts', (tester) async {
+      final (session, clock) =
+          await tester.runAsync(stalePlan) as (StorageSession, FakeClock);
+      final plans = (session as PlanStorage).plans;
+      Future<String> state() async => planUnitsFingerprint(
+        await plans.unitsBetween(DateTime.utc(2000), planFarFuture),
+      );
+      final before = (await tester.runAsync(state))!;
+      final versions = (await tester.runAsync(plans.history))!.length;
+      await _pump(tester, session: session, clock: clock);
+      await tester.ensureVisible(key('plan_recalculate'));
+      await tester.tap(key('plan_recalculate'));
+      await tester.pumpAndSettle();
+      expect(key('plan_recalculate_dialog'), findsOneWidget);
+      await tester.tap(key('plan_recalculate_cancel'));
+      await settle(tester);
+      expect(key('plan_recalculate_dialog'), findsNothing);
+      expect(key('plan_recalculated'), findsNothing);
+      expect((await tester.runAsync(plans.history))!, hasLength(versions));
+      expect((await tester.runAsync(state))!, before);
+      // Danach ist der Knopf wieder bereit: die Rückfrage kommt erneut.
+      await tester.tap(key('plan_recalculate'));
+      await tester.pumpAndSettle();
+      expect(key('plan_recalculate_dialog'), findsOneWidget);
+    });
+
+    testWidgets('„Neu berechnen“: Doppeltipp rechnet nur einmal', (
+      tester,
+    ) async {
+      final (session, clock) = await tester.runAsync(
+        () => _withPlan(_goal()),
+      ) as (StorageSession, FakeClock);
+      final c = _HeldRecalc(session, clock);
+      addTearDown(c.dispose);
+      await _pump(tester, session: session, clock: clock, controller: c);
+      await tester.ensureVisible(key('plan_recalculate'));
+      // Zweimal tippen, bevor die Rückfrage steht.
+      await tester.tap(key('plan_recalculate'));
+      await tester.tap(key('plan_recalculate'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(key('plan_recalculate_dialog'), findsOneWidget);
+      await tester.tap(key('plan_recalculate_confirm'));
+      await tester.pump();
+      expect(c.calls, 1);
+      // Während der Rechnung ist der Knopf gesperrt.
+      await tester.tap(key('plan_recalculate'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(key('plan_recalculate_dialog'), findsNothing);
+      expect(c.calls, 1);
+      c.hold.complete();
+      await tester.pumpAndSettle();
+      expect(c.calls, 1);
+      expect(
+        find.text('Plan neu berechnet. Bestätigte Termine bleiben.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('„Neu berechnen“ scheitert: Meldung, alter Plan bleibt', (
@@ -1150,6 +1284,8 @@ void main() {
       await _pump(tester, session: session, clock: clock, controller: c);
       await tester.ensureVisible(key('plan_recalculate'));
       await tester.tap(key('plan_recalculate'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('plan_recalculate_confirm'));
       await tester.pumpAndSettle();
       expect(c.calls, 1);
       expect(
@@ -1215,6 +1351,36 @@ class _Failing extends _Fixed {
 }
 
 /// Controller, dessen „Neu berechnen“ scheitert.
+/// Rechnet erst nach [hold] fertig (Doppeltipp-Schutz).
+class _HeldRecalc extends PlanController {
+  _HeldRecalc(StorageSession session, Clock clock)
+    : super(
+        session: session,
+        clock: clock,
+        reader: PlanDataReader(
+          session: session,
+          clock: clock,
+          loadRuns: () async => const [],
+        ),
+      );
+  int calls = 0;
+  final hold = Completer<void>();
+  @override
+  Future<PlanActionResult> recalculate() async {
+    calls++;
+    await hold.future;
+    return PlanActionResult.done;
+  }
+}
+
+/// Fester Stand, zählt [reload] (Neuladen nach „Start“).
+class _CountingReload extends _Fixed {
+  _CountingReload(super.session, super.clock, super.fixed);
+  int reloads = 0;
+  @override
+  Future<void> reload() async => reloads++;
+}
+
 class _FailingRecalc extends PlanController {
   _FailingRecalc(StorageSession session, Clock clock)
     : super(
