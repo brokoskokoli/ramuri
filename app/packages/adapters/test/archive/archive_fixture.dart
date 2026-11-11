@@ -105,6 +105,9 @@ Future<void> fillAllTables(AppDatabase db) async {
     ('load.factor_pending', 'banister;2.5;14;2026-11-08'),
     ('load.profile', 'banister'),
     ('load.profile_pending', 'edwards'),
+    ('resting_hr.measured_at', '2026-11-10T07:12:00.000Z'),
+    ('resting_hr.posture', 'lying'),
+    ('resting_hr.source', 'camera'),
   ]) {
     await sql(db, "INSERT INTO settings VALUES ('${kv.$1}', '${kv.$2}', 1)");
   }

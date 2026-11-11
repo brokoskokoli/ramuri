@@ -268,13 +268,38 @@ release_rechte() {
   python3 tool/check_release_manifest.py "$rdir/perms.txt" "$rdir/tree.txt"; rc=$?
   rm -rf "$rdir"
   [ $rc -eq 0 ] || return 1
-  # WP07: Der Test-Sensor gehört nur in den Debug-Einstieg. Sein Marker darf in keiner Datei des Release-APK stehen.
-  marker=$(sed -n "s/^const String testSensorMarker = '\(.*\)';$/\1/p" app/lib/debug/debug_test_sensor.dart)
-  [ -n "$marker" ] || { echo "testSensorMarker in app/lib/debug/debug_test_sensor.dart nicht gefunden"; return 1; }
-  if unzip -p "$apk" | LC_ALL=C grep -a -q -F "$marker"; then
-    echo "Release-APK enthält den Test-Sensor ($marker)"; return 1
-  fi
-  echo "Test-Sensor nicht im Release-APK"
+  # WP27 (ADR-0011 Punkt 5): CAMERA ist erlaubt und Pflicht (Kamera-PPG); Kamera und Blitz sind als uses-feature
+  # vorhanden und required=false, sonst wäre die App ohne Kamera nicht installierbar. Kommt ein Feature mehrfach vor
+  # (Manifest-Merge), zählt es als Pflicht, sobald ein Eintrag required=true hat.
+  echo "$perms" | grep -q 'android.permission.CAMERA' || { echo "Release-APK fordert android.permission.CAMERA nicht (WP27)"; return 1; }
+  # WP27: VIBRATE (normales Recht) für das Signal am Ende der Ruhephase; fehlt es, bleibt das Signal stumm.
+  echo "$perms" | grep -q 'android.permission.VIBRATE' || { echo "Release-APK fordert android.permission.VIBRATE nicht (WP27)"; return 1; }
+  for feature in android.hardware.camera android.hardware.camera.flash; do
+    req=$(echo "$tree" | awk -v want="$feature" '
+      function fin() { if (name == want) { found = 1; if (req != "0x0") anytrue = 1 } name = ""; req = "true" }
+      /^ *E: / { fin() }
+      /E: uses-feature/ { infeat = 1; next }
+      /^ *E: / { infeat = 0 }
+      infeat && /android:name\(/ { n = $0; sub(/^[^"]*"/, "", n); sub(/".*$/, "", n); name = n }
+      infeat && /android:required\(/ { r = $0; sub(/^.*\)/, "", r); req = r }
+      END { fin(); if (found) print (anytrue ? "true" : "false") }')
+    case "$req" in
+      false) ;;
+      true) echo "Release-APK: uses-feature $feature ist Pflicht (required muss false sein)"; return 1 ;;
+      *) echo "Release-APK: uses-feature $feature fehlt"; return 1 ;;
+    esac
+  done
+  # WP07, WP27: Test-Sensor und Fake-Kamera gehören nur in den Debug-Einstieg. Ihre Marker dürfen in keiner Datei
+  # des Release-APK stehen.
+  for quelle in "testSensorMarker app/lib/debug/debug_test_sensor.dart" "testPpgCameraMarker app/lib/debug/debug_test_ppg_camera.dart"; do
+    pq_name=${quelle%% *}; pq_datei=${quelle#* }
+    marker=$(sed -n "s/^const String $pq_name = '\(.*\)';$/\1/p" "$pq_datei")
+    [ -n "$marker" ] || { echo "$pq_name in $pq_datei nicht gefunden"; return 1; }
+    if unzip -p "$apk" | LC_ALL=C grep -a -q -F "$marker"; then
+      echo "Release-APK enthält die Debug-Quelle $pq_name ($marker)"; return 1
+    fi
+  done
+  echo "Test-Sensor und Fake-Kamera nicht im Release-APK; CAMERA und uses-feature required=false vorhanden"
 }
 
 if [ -f app/pubspec.yaml ]; then
@@ -293,7 +318,7 @@ if [ -f app/pubspec.yaml ]; then
     done
     step "drift schema" drift_aktuell
     step "kotlin test" kotlin_tests
-    step "release: INTERNET, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, kein Test-Sensor" release_rechte
+    step "release: INTERNET, CAMERA, VIBRATE, uses-feature, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, keine Debug-Quellen" release_rechte
     step "lock unverändert" lock_unveraendert
   fi
 fi

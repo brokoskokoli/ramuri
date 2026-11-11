@@ -1,0 +1,19 @@
+{"v":3,"createdOnFiles":{"v":1,"at":"2026-11-10T09:00:00Z"},"title":"ramuri Ruhepuls","launch":{"view":"canvas"},"pages":[],
+"boards":{
+"Main.dc.html":{"x":0,"y":0,"w":390,"h":900,"title":"1 Einstieg · hell","is_interactive":true},
+"Ruhephase.dc.html":{"x":470,"y":0,"w":390,"h":844,"title":"2 Ruhephase · hell","is_interactive":true},
+"Messung.dc.html":{"x":940,"y":0,"w":390,"h":844,"title":"3 Messung · hell","is_interactive":true},
+"Ergebnis.dc.html":{"x":1410,"y":0,"w":390,"h":900,"title":"4a Ergebnis · hell","is_interactive":true},
+"KeinWert.dc.html":{"x":1880,"y":0,"w":390,"h":844,"title":"4b Kein Wert · hell","is_interactive":true},
+"Main-dunkel.dc.html":{"x":0,"y":1260,"w":390,"h":900,"title":"1 Einstieg · dunkel","is_interactive":true},
+"Ruhephase-dunkel.dc.html":{"x":470,"y":1260,"w":390,"h":844,"title":"2 Ruhephase · dunkel","is_interactive":true},
+"Messung-dunkel.dc.html":{"x":940,"y":1260,"w":390,"h":844,"title":"3 Messung · dunkel","is_interactive":true},
+"Ergebnis-dunkel.dc.html":{"x":1410,"y":1260,"w":390,"h":900,"title":"4a Ergebnis · dunkel","is_interactive":true},
+"KeinWert-dunkel.dc.html":{"x":1880,"y":1260,"w":390,"h":844,"title":"4b Kein Wert · dunkel","is_interactive":true}
+},
+"order":["Main.dc.html","Ruhephase.dc.html","Messung.dc.html","Ergebnis.dc.html","KeinWert.dc.html","Main-dunkel.dc.html","Ruhephase-dunkel.dc.html","Messung-dunkel.dc.html","Ergebnis-dunkel.dc.html","KeinWert-dunkel.dc.html"],
+"notes":{
+"hell":{"x":0,"y":-280,"text":"Ruhepuls mit der Kamera · hell","kind":"title1","maxW":2270},
+"dunkel":{"x":0,"y":980,"text":"Ruhepuls mit der Kamera · dunkel","kind":"title1","maxW":2270}
+},
+"designSystems":[]}

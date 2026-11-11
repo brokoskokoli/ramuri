@@ -8,6 +8,7 @@ import 'features/archive/archive_scope.dart';
 import 'features/export/file_handoff_scope.dart';
 import 'features/home/ready_root.dart';
 import 'features/map/map_consent_scope.dart';
+import 'features/measure/resting_measure_launcher.dart';
 import 'features/home/welcome_screen.dart';
 import 'features/settings/app_settings.dart';
 import 'features/storage/storage_gate.dart';
@@ -73,9 +74,12 @@ class _RunningAppState extends State<RunningApp> {
               value: ramuriOverlayStyle(Theme.of(context).brightness),
               child: MapConsentScope(
                 holder: _map,
-                child: AppSettingsScope(
-                  holder: _settings,
-                  child: ReminderScope(controller: _reminders, child: child!),
+                child: PpgCameraScope(
+                  camera: dependencies.ppgCamera,
+                  child: AppSettingsScope(
+                    holder: _settings,
+                    child: ReminderScope(controller: _reminders, child: child!),
+                  ),
                 ),
               ),
             ),

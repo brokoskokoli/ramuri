@@ -63,6 +63,7 @@ Bisher entschieden: [ADR-0001](adr/ADR-0001-nur-lokale-datenhaltung.md). Am 2026
 | Verschlüsselung des passwortgeschützten Archivs | SEC-0011, FR-0192, FR-0198 | [ADR-0008](adr/ADR-0008-verschluesselung-des-archivs.md) |
 | Kartenkacheln aus dem Netz nach Einwilligung | FR-0204, SEC-0008, OQ-0074 | [ADR-0009](adr/ADR-0009-kartenkacheln-nach-einwilligung.md) |
 | Speicherung und Neuberechnung des Trainingsplans | FR-0156, PAR-203, NFR-0001 | [ADR-0010](adr/ADR-0010-plan-speicherung-und-neuberechnung.md) |
+| Puls mit der Handykamera (Kamera-PPG) | FR-0214, FR-0215, OQ-0078 | [ADR-0011](adr/ADR-0011-kamera-ppg.md) |
 
 Die Einordnung der Berechnungsverfahren in die Kategorien aus NFR-0002 steht in [algorithm-categories.md](algorithm-categories.md).
 

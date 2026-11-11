@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Ruhepuls, kein Wert</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; padding: 28px 20px 28px; display: flex; flex-direction: column; gap: 16px">
+  <header style="display: flex; align-items: center; gap: 8px">
+    <a href="{{backHref}}" aria-label="Schließen" style="width: 44px; height: 44px; border-radius: 22px; background: {{t.card}}; border: 1px solid {{t.border}}; display: flex; align-items: center; justify-content: center; color: {{t.text}}; box-sizing: border-box">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+    </a>
+    <h1 style="margin: 0; font-family: Sora, sans-serif; letter-spacing: -0.03em; font-size: 22px; font-weight: 700">Kein Wert diesmal</h1>
+  </header>
+
+  <section aria-label="Grund" style="background: {{t.warnBg}}; color: {{t.warnText}}; border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5M12 16v.5"></path></svg>
+      <span style="font-size: 17px; font-weight: 800">Das Signal war zu schwach</span>
+    </div>
+    <span style="font-size: 15px; line-height: 1.5">Über weite Strecken waren keine klaren Schläge zu sehen. Meist lag der Finger nicht ganz auf Kamera und Blitz oder wurde zu fest gedrückt.</span>
+  </section>
+
+  <section aria-label="So klappt es eher" style="background: {{t.card}}; border-radius: 24px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px">
+    <span style="font-size: 15px; font-weight: 800">So klappt es eher</span>
+    <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.45">
+      <li style="display: flex; gap: 10px"><span aria-hidden="true" style="flex: none; width: 8px; height: 8px; border-radius: 4px; background: {{t.dot}}; margin-top: 6px"></span><span>Fingerkuppe locker auflegen, Kamera und Blitz ganz abdecken.</span></li>
+      <li style="display: flex; gap: 10px"><span aria-hidden="true" style="flex: none; width: 8px; height: 8px; border-radius: 4px; background: {{t.dot}}; margin-top: 6px"></span><span>Hand und Handy ablegen, damit nichts wackelt.</span></li>
+      <li style="display: flex; gap: 10px"><span aria-hidden="true" style="flex: none; width: 8px; height: 8px; border-radius: 4px; background: {{t.dot}}; margin-top: 6px"></span><span>Kalte Finger vorher kurz warm reiben.</span></li>
+    </ul>
+  </section>
+
+  <div style="flex-grow: 1"></div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <a href="{{againHref}}" style="height: 56px; border-radius: 28px; background: {{t.mint}}; color: {{t.onMint}}; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800; text-decoration: none">Noch einmal</a>
+    <span style="font-size: 13px; color: {{t.muted}}; text-align: center">Startet gleich die Messung, ohne neue Ruhephase.</span>
+  </div>
+
+  <section style="border-top: 1px solid {{t.border}}; padding-top: 14px; display: flex; flex-direction: column; gap: 4px">
+    <span style="font-size: 14px; line-height: 1.45; color: {{t.muted}}">Du kannst deinen Ruhepuls auch weiterhin selbst im Profil eintragen.</span>
+    <a href="{{backHref}}" style="min-height: 44px; display: flex; align-items: center; font-size: 15px; font-weight: 800; color: {{t.link}}; text-decoration: none">Selbst eintragen</a>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', muted: '#A3B8B4', border: '#2A4140', link: '#7FD6C6', mint: '#7FD6C6', onMint: '#0E1A1A', warnBg: '#3A221A', warnText: '#FFB89A', dot: '#7FD6C6' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', muted: '#4F6361', border: '#DAE4E1', link: '#0F5E5A', mint: '#7FD6C6', onMint: '#0E1A1A', warnBg: '#FCE6DB', warnText: '#7A2A0C', dot: '#0F5E5A' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const sfx = dark ? '-dunkel' : '';
+    return {
+      t: this.theme(dark),
+      backHref: 'Main' + sfx + '.dc.html',
+      againHref: 'Messung' + sfx + '.dc.html'
+    };
+  }
+}
+</script>
+</body>
+</html>

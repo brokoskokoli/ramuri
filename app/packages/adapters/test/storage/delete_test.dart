@@ -139,17 +139,35 @@ void main() {
       final (s, a, b) = await setup();
       await s.profile.save(const ProfileRecord(birthYear: 1990));
       await s.settings.set('k', markerAll, at: at(0));
+      await RestingHrOrigin(
+        posture: RestingPosture.sitting,
+        measuredAt: at(0),
+      ).write(s.settings, at: at(0));
       await s.devices.upsert('dev', displayName: markerAll, at: at(0));
       await s.consents.set(markerAll, ConsentState.granted, at: at(0));
       final f = Files(path);
-      for (final m in [marker, markerB, markerDay, markerAll]) {
+      for (final m in [
+        marker,
+        markerB,
+        markerDay,
+        markerAll,
+        SettingKeys.restingHrMeasuredAt,
+      ]) {
         expect(f.has(m), isTrue, reason: 'Positivkontrolle $m');
       }
       expect(f.walSize, greaterThan(0));
       await s.deleteAll();
-      for (final m in [marker, markerB, markerDay, markerAll]) {
+      for (final m in [
+        marker,
+        markerB,
+        markerDay,
+        markerAll,
+        SettingKeys.restingHrMeasuredAt,
+      ]) {
         expect(f.has(m), isFalse, reason: m);
       }
+      expect(await RestingHrOrigin.read(s.settings), isNull);
+      expect(await s.settings.all(), isEmpty);
       await s.close();
     });
   });

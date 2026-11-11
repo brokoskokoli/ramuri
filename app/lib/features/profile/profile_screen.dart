@@ -2,6 +2,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../measure/resting_measure_launcher.dart';
+import '../measure/resting_measure_screen.dart';
 import '../recalculation/recalculation_controller.dart';
 import 'profile_form.dart';
 
@@ -24,11 +26,19 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   ScaffoldMessengerState? _messenger;
+  PpgCamera? _camera;
+  late final ProfileService _service = _NotifyingProfileService(
+    widget.session.profile,
+    widget.clock,
+    widget.recalculation,
+    settings: widget.session.settings,
+  );
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _messenger = ScaffoldMessenger.of(context);
+    _camera = PpgCameraScope.maybeOf(context);
   }
 
   @override
@@ -38,6 +48,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Besuch den Speichern-Knopf.
     _messenger?.clearSnackBars();
     super.dispose();
+  }
+
+  /// Rückmeldung nach dem Speichern, von Hand wie nach der Übernahme eines
+  /// Messwerts: das Angebot der Neuberechnung steht schon, wenn der Dienst
+  /// gespeichert hat.
+  void _showSaved() {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          widget.recalculation.offer == null
+              ? l10n.profileSaved
+              : '${l10n.profileSaved}\n${l10n.recalcOffered}',
+        ),
+      ),
+    );
+  }
+
+  /// Die Messung mit demselben Dienst wie das Speichern (Zonen und
+  /// Neuberechnung laufen wie bei manueller Eingabe) und derselben Rückmeldung
+  /// nach der Übernahme.
+  RestingMeasureLauncher _launcher() {
+    final launch = restingMeasureLauncher(
+      camera: _camera!,
+      profile: _service,
+      settings: widget.session.settings,
+      clock: widget.clock,
+      evaluate: PpgCameraScope.evaluateOf(context),
+    );
+    return (context) async {
+      final outcome = await launch(context);
+      if (outcome == RestingMeasureOutcome.adopted) _showSaved();
+      return outcome;
+    };
   }
 
   @override
@@ -51,25 +96,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Text(l10n.profileIntro, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 16),
           ProfileForm(
-            service: _NotifyingProfileService(
-              widget.session.profile,
-              widget.clock,
-              widget.recalculation,
-            ),
+            service: _service,
             clock: widget.clock,
+            // Gleicher Dienst wie beim Speichern: Zonen und Neuberechnung
+            // laufen wie bei manueller Eingabe.
+            restingMeasure: _camera == null ? null : _launcher(),
             coefficients: _Coefficients(widget.session, widget.recalculation),
-            onSaved: (_) {
-              final messenger = ScaffoldMessenger.of(context);
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    widget.recalculation.offer == null
-                        ? l10n.profileSaved
-                        : '${l10n.profileSaved}\n${l10n.recalcOffered}',
-                  ),
-                ),
-              );
-            },
+            onSaved: (_) => _showSaved(),
           ),
         ],
       ),
@@ -81,7 +114,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 /// neu), damit er eine geänderte Herzfrequenzbasis anbieten kann. Das Angebot
 /// ist fertig, bevor die Seite die Rückmeldung zeigt.
 class _NotifyingProfileService extends ProfileService {
-  _NotifyingProfileService(super.store, super.clock, this._recalc);
+  _NotifyingProfileService(
+    super.store,
+    super.clock,
+    this._recalc, {
+    super.settings,
+  });
 
   final RecalculationController _recalc;
 

@@ -1,0 +1,105 @@
+// Harness, der reference_synthetic.json aus der Kotlin-Referenz erzeugt (nur synthetische Daten).
+// Kein Teil des Dart-Pakets, daher als Text (.kt.txt). Aufruf siehe ALGORITHMUS.md Abschn. 12.
+//
+//   1. PpgAnalyzer.kt aus Tag algo-v0.4-frozen des Referenzprojekts (package de.puls.test)
+//   2. diese Datei in ReferenceHarness.kt umbenennen (gleiches Package)
+//   3. kotlinc PpgAnalyzer.kt ReferenceHarness.kt -include-runtime -d harness.jar
+//   4. java -jar harness.jar > reference_synthetic.json
+//
+// Die Szenarien und der Generator sind PpgAnalyzerTest.kt (gleiches Tag) nachgebildet; der
+// Dart-Generator in ppg_synth.dart muss dieselben Vektoren erzeugen (der Test prüft das).
+package de.puls.test
+
+import kotlin.math.PI
+import kotlin.math.exp
+import kotlin.math.sin
+import kotlin.math.sqrt
+import kotlin.random.Random
+
+class Synth(val t: DoubleArray, val red: DoubleArray, val green: DoubleArray, val beats: List<Double>)
+
+fun synth(
+    meanIbi: Double, rsaAmp: Double, jitterIbi: Double, noise: Double, fps: Double, seed: Int,
+    artifacts: List<Double> = emptyList(),
+): Synth {
+    val rnd = Random(seed)
+    val beats = ArrayList<Double>()
+    var tb = 0.2
+    while (tb < 70) {
+        beats.add(tb)
+        tb += meanIbi + rsaAmp * sin(2 * PI * tb / 4.5) + jitterIbi * rnd.nextDouble(-1.0, 1.0)
+    }
+    fun pulse(t: Double): Double {
+        var s = 0.0
+        for (b in beats) {
+            val d = t - b
+            if (d < -0.3 || d > 1.2) continue
+            s += exp(-((d - 0.12) * (d - 0.12)) / (2 * 0.05 * 0.05)) + 0.35 * exp(-((d - 0.38) * (d - 0.38)) / (2 * 0.07 * 0.07))
+        }
+        return s
+    }
+    val ts = ArrayList<Double>()
+    var t = 0.0
+    while (t < 70) { ts.add(t); t += 1 / fps + rnd.nextDouble(-0.004, 0.004) }
+    val tArr = ts.toDoubleArray()
+    fun art(t: Double) = artifacts.sumOf { a ->
+        val d = t - a
+        when {
+            d < -0.8 || d > 0.15 -> 0.0
+            d < 0 -> 8 * (d + 0.8) / 0.8
+            else -> 8 * (1 - d / 0.15)
+        }
+    }
+    val red = DoubleArray(tArr.size) { 200 - 3 * pulse(tArr[it]) - art(tArr[it]) + 4 * sin(2 * PI * tArr[it] / 25) + noise * rnd.nextDouble(-1.0, 1.0) }
+    val green = DoubleArray(tArr.size) { 40 + noise * 2 * rnd.nextDouble(-1.0, 1.0) }
+    return Synth(tArr, red, green, beats)
+}
+
+fun truth(beats: List<Double>, a: Double, b: Double): Pair<Double, Double> {
+    val ibi = (1 until beats.size).filter { beats[it] >= a && beats[it] < b }.map { (beats[it] - beats[it - 1]) * 1000 }
+    val d = (1 until ibi.size).map { ibi[it] - ibi[it - 1] }
+    return 60000 / ibi.average() to sqrt(d.sumOf { it * it } / d.size)
+}
+
+fun num(v: Double) = if (v.isFinite()) v.toString() else "null"
+fun stats(s: HrvStats) =
+    """{"beats":${s.beats},"ibis":${s.ibis},"validIbis":${s.validIbis},"bpm":${num(s.bpm)},"meanIbiMs":${num(s.meanIbiMs)},"sdnnMs":${num(s.sdnnMs)},"rmssdMs":${num(s.rmssdMs)},"pnn50":${num(s.pnn50)},"minBpm":${num(s.minBpm)},"maxBpm":${num(s.maxBpm)}}"""
+
+fun channel(r: AnalysisResult): String {
+    val verdict = when {
+        r.verdict.startsWith("unbrauchbar") -> "unbrauchbar"
+        r.verdict.startsWith("eingeschränkt") -> "eingeschränkt"
+        else -> "gut"
+    }
+    val art = r.artifacts.joinToString(",") { "[${num(it[0])},${num(it[1])}]" }
+    val ms = r.methods.joinToString(",") {
+        """{"name":"${it.name}","total":${stats(it.total)},"first":${stats(it.first)},"second":${stats(it.second)}}"""
+    }
+    return """{"channel":"${r.channel}","quality":${num(r.quality)},"spectralBpm":${num(r.spectralBpm)},"meanFps":${num(r.meanFps)},"frameJitterMs":${num(r.frameJitterMs)},"timingNoiseMs":${num(r.timingNoiseMs)},"verdict":"$verdict","artifacts":[$art],"methods":[$ms]}"""
+}
+
+fun entry(name: String, s: Synth, blocks: List<Pair<String, DoubleArray>> = emptyList()): String {
+    val set = PpgAnalyzer.analyze(s.t, listOf("Rot" to s.red, "Grün" to s.green), blocks, 3.0, 5.0, 65.0, 66.5)
+    val (bpm, rmssd) = truth(s.beats.map { it + 0.12 }, 5.0, 65.0)
+    val n = s.t.size
+    fun first3(a: DoubleArray) = a.take(3).joinToString(",") { num(it) }
+    val gen = """{"n":$n,"t":[${first3(s.t)}],"red":[${first3(s.red)}],"green":[${first3(s.green)}],"redLast":${num(s.red[n - 1])},"tLast":${num(s.t[n - 1])}}"""
+    return """{"name":"$name","gen":$gen,"truthBpm":${num(bpm)},"truthRmssd":${num(rmssd)},"result":{"best":"${set.best.channel}","channels":[${set.all.joinToString(",") { channel(it) }}]}}"""
+}
+
+fun main() {
+    val ev = listOf(15.3, 28.7, 48.1)
+    val out = ArrayList<String>()
+    for (seed in 1..5) out.add(entry("t1_seed$seed", synth(0.85, 0.05, 0.03, 0.3, 30.0, seed)))
+    out.add(entry("t2_high_pulse", synth(0.5, 0.01, 0.01, 0.3, 30.0, 9)))
+    out.add(entry("t3_halves", synth(0.8, 0.03, 0.02, 0.3, 30.0, 3)))
+    out.add(entry("t4_60fps", synth(0.85, 0.05, 0.03, 0.3, 60.0, 11)))
+    for (seed in 21..25) out.add(entry("t5_artifacts_seed$seed", synth(0.85, 0.05, 0.03, 0.3, 30.0, seed, ev)))
+    val s = synth(0.85, 0.05, 0.03, 1.5, 30.0, 31)
+    val rnd = Random(5)
+    val blocks = (0 until 4).map { k ->
+        "B$k" to DoubleArray(s.t.size) { i -> if (k < 2) s.red[i] + 1.5 * rnd.nextDouble(-1.0, 1.0) else 100 + 3 * rnd.nextDouble(-1.0, 1.0) }
+    }
+    out.add(entry("t6_blocks", s, blocks))
+    println("[\n" + out.joinToString(",\n") + "\n]")
+}

@@ -27,6 +27,7 @@ export 'src/reminders/method_channel_reminder_scheduler.dart';
 export 'src/sensors/ble_heart_rate_sensor.dart';
 export 'src/sensors/ble_link.dart';
 export 'src/sensors/method_channel_cadence.dart';
+export 'src/sensors/method_channel_ppg_camera.dart';
 export 'src/sensors/universal_ble_link.dart';
 export 'src/storage/app_database.dart';
 export 'src/storage/connection_setup.dart';

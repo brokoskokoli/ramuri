@@ -91,6 +91,17 @@ abstract final class SettingKeys {
   /// erneut angeboten. Nicht im Archiv (Vertrag 4.3).
   static const String loadFactorDeclined = 'load.factor_declined';
 
+  /// Haltung bei der Kamera-Messung des gespeicherten Ruhepulses (FR-0214):
+  /// `sitting` oder `lying`. Fehlt oder leer: der Ruhepuls wurde nicht mit der
+  /// Kamera gemessen. Kommt ins Archiv (ADR-0011 Punkt 8).
+  static const String restingHrPosture = 'resting_hr.posture';
+
+  /// Zeitpunkt dieser Messung, UTC im ISO-8601-Format. Kommt ins Archiv.
+  static const String restingHrMeasuredAt = 'resting_hr.measured_at';
+
+  /// Quelle des Ruhepulses: `camera`. Kommt ins Archiv.
+  static const String restingHrSource = 'resting_hr.source';
+
   /// Technischer Merker (WP22): die über „Einheit starten“ gestartete
   /// Plan-Einheit, bis ihr Lauf zugeordnet ist, `einheit;JJJJ-MM-TT;sekunden`
   /// (Kennung der Einheit, Ortstag des Starts, Startzeit in Sekunden seit

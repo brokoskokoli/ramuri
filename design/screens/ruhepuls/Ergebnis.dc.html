@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Ruhepuls, Ergebnis</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 900px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; padding: 28px 20px 24px; display: flex; flex-direction: column; gap: 16px">
+  <header style="display: flex; align-items: center; gap: 8px">
+    <a href="{{backHref}}" aria-label="Schließen, ohne zu übernehmen" style="width: 44px; height: 44px; border-radius: 22px; background: {{t.card}}; border: 1px solid {{t.border}}; display: flex; align-items: center; justify-content: center; color: {{t.text}}; box-sizing: border-box">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+    </a>
+    <h1 style="margin: 0; font-family: Sora, sans-serif; letter-spacing: -0.03em; font-size: 22px; font-weight: 700">Messung fertig</h1>
+  </header>
+
+  <section aria-label="Ruhepuls" style="background: {{t.hero}}; border-radius: 28px; padding: 22px 20px; display: flex; flex-direction: column; gap: 10px">
+    <span style="font-size: 14px; font-weight: 700; color: {{t.heroMuted}}">Ruhepuls (bpm)</span>
+    <div style="display: flex; align-items: baseline; gap: 12px">
+      <span style="font-family: Sora, sans-serif; font-variant-numeric: tabular-nums; font-size: 80px; font-weight: 700; letter-spacing: -0.04em; line-height: 1">61</span>
+      <span style="font-size: 14px; font-weight: 700; color: {{t.heroMuted}}"><span aria-hidden="true" style="display: inline-block; width: 8px; height: 8px; border-radius: 4px; background: {{t.glut}}; margin-right: 5px; vertical-align: middle"></span>geschätzt</span>
+    </div>
+    <span style="font-size: 14px; line-height: 1.45; color: {{t.heroMuted}}">Aus 60 s Kamerasignal. Bisher im Profil: 64, von Hand eingetragen.</span>
+  </section>
+
+  <section aria-label="Signalqualität" style="background: {{t.card}}; border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; align-items: center; justify-content: space-between">
+      <span style="font-size: 15px; font-weight: 700">Signalqualität</span>
+      <span style="display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; color: {{qColor}}">
+        <span aria-hidden="true" style="display: flex; align-items: flex-end; gap: 3px; height: 16px">
+          <span style="width: 5px; height: 6px; border-radius: 2px; background: {{t.barOn}}"></span>
+          <span style="width: 5px; height: 11px; border-radius: 2px; background: {{t.barOn}}"></span>
+          <span style="width: 5px; height: 16px; border-radius: 2px; background: {{bar3}}"></span>
+        </span>
+        {{qWord}}
+      </span>
+    </div>
+    <sc-if value="{{limited}}" hint-placeholder-val="{{ false }}">
+      <span style="font-size: 14px; line-height: 1.45; color: {{t.muted}}">Das Signal war zeitweise schwach. Der Wert reicht, ist aber unsicherer als sonst.</span>
+    </sc-if>
+  </section>
+
+  <section aria-label="Angaben zur Messung" style="background: {{t.card}}; border-radius: 20px; padding: 4px 16px; display: flex; flex-direction: column">
+    <div style="display: flex; justify-content: space-between; align-items: center; min-height: 48px; border-bottom: 1px solid {{t.div}}; font-size: 15px"><span style="color: {{t.muted}}; font-weight: 600">Haltung</span><span style="font-weight: 700">Sitzend</span></div>
+    <div style="display: flex; justify-content: space-between; align-items: center; min-height: 48px; border-bottom: 1px solid {{t.div}}; font-size: 15px"><span style="color: {{t.muted}}; font-weight: 600">Zeitpunkt</span><span style="font-weight: 700">Di, 10. Nov · 07:12</span></div>
+    <div style="display: flex; justify-content: space-between; align-items: center; min-height: 48px; font-size: 15px"><span style="color: {{t.muted}}; font-weight: 600">Vorher</span><span style="font-weight: 700">5 min Ruhephase</span></div>
+  </section>
+
+  <div style="flex-grow: 1"></div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <a href="{{backHref}}" style="height: 56px; border-radius: 28px; background: {{t.mint}}; color: {{t.onMint}}; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800; text-decoration: none">Ins Profil übernehmen</a>
+    <a href="{{againHref}}" style="height: 52px; border-radius: 26px; border: 1px solid {{t.border}}; background: {{t.card}}; color: {{t.text}}; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; text-decoration: none; box-sizing: border-box">Verwerfen</a>
+    <span style="font-size: 13px; line-height: 1.45; color: {{t.muted}}; text-align: center">Kamerawerte schwanken von Messung zu Messung. Die App nutzt den Ruhepuls für Intensität und VO₂max-Schätzung.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"qualitaet":{"editor":"enum","options":["gut","eingeschränkt"],"default":"gut"},"$preview":{"width":390,"height":900}}'>
+class Component extends DCLogic {
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', muted: '#A3B8B4', border: '#2A4140', div: '#223636', hero: '#173B38', heroMuted: '#B9CCC8', mint: '#7FD6C6', onMint: '#0E1A1A', glut: '#FF7A45', link: '#7FD6C6', barOn: '#7FD6C6', barOff: '#2A4140' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', muted: '#4F6361', border: '#DAE4E1', div: '#EBF1EF', hero: '#CBEDE6', heroMuted: '#2A3F3D', mint: '#7FD6C6', onMint: '#0E1A1A', glut: '#E0561F', link: '#0F5E5A', barOn: '#0F5E5A', barOff: '#C9D6D3' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const t = this.theme(dark);
+    const sfx = dark ? '-dunkel' : '';
+    const limited = (this.props.qualitaet ?? 'gut') === 'eingeschränkt';
+    return {
+      t,
+      backHref: 'Main' + sfx + '.dc.html',
+      againHref: 'Main' + sfx + '.dc.html',
+      limited,
+      qWord: limited ? 'eingeschränkt' : 'gut',
+      qColor: limited ? t.text : t.link,
+      bar3: limited ? t.barOff : t.barOn
+    };
+  }
+}
+</script>
+</body>
+</html>

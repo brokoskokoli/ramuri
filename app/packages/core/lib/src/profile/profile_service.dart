@@ -1,8 +1,10 @@
 import '../../ports/clock.dart';
 import '../../ports/storage_profile.dart';
+import '../../ports/storage_settings.dart';
 import 'heart_rate_resolution.dart';
 import 'profile_parameters.dart';
 import 'profile_validation.dart';
+import 'resting_hr_origin.dart';
 
 /// Ergebnis von [ProfileService.save].
 class ProfileSaveResult {
@@ -16,12 +18,19 @@ class ProfileSaveResult {
 /// Profil laden, prüfen, speichern (FR-0002) über den Port [ProfileStore].
 /// Alle Felder dürfen leer sein; ein leeres Profil sperrt nichts.
 class ProfileService {
-  ProfileService(this._store, this._clock, {ProfileParameters? parameters})
-    : _params = parameters ?? const ProfileParameters.v4();
+  /// Mit [settings] entfernt jedes Speichern, das den Ruhepuls ändert, dessen
+  /// Kamera-Herkunft (Haltung, Zeitpunkt, Quelle; FR-0214, ADR-0011 Punkt 8).
+  ProfileService(
+    this._store,
+    this._clock, {
+    ProfileParameters? parameters,
+    this.settings,
+  }) : _params = parameters ?? const ProfileParameters.v4();
 
   final ProfileStore _store;
   final Clock _clock;
   final ProfileParameters _params;
+  final SettingsStore? settings;
 
   int get _year => _clock.now().year;
 
@@ -36,6 +45,15 @@ class ProfileService {
       params: _params,
     );
     if (!v.canSave) return ProfileSaveResult(saved: false, validation: v);
+    final settings = this.settings;
+    final before = settings == null ? null : await _store.read();
+    // Zuerst die Herkunft entfernen, dann den Wert speichern: Scheitert eines
+    // der beiden, bleibt nie ein neuer Wert mit der Herkunft des alten stehen
+    // (schlimmstenfalls fehlt die Herkunft zu einem unveränderten Wert).
+    if (settings != null &&
+        before!.restingHeartRateBpm != profile.restingHeartRateBpm) {
+      await RestingHrOrigin.clear(settings, at: _clock.now());
+    }
     await _store.save(profile);
     return ProfileSaveResult(saved: true, validation: v);
   }
