@@ -18,6 +18,7 @@ import 'plan_unit_screen.dart';
 
 part 'plan_screen_goal.dart';
 part 'plan_screen_week.dart';
+part 'plan_screen_warning.dart';
 
 /// Plan-Seite (FR-0208, WP22 Teil B) nach `design/screens/Plan.dc.html`:
 /// Zielkarte mit Phasenbalken (Kurzformen, OQ-0077) und Einschätzung
@@ -250,6 +251,129 @@ class _PlanScreenState extends State<PlanScreen> {
       );
   }
 
+  bool _busy = false;
+
+  /// „Beschwerden melden“ (FR-0203) nach Rückfrage; Abbrechen ändert nichts.
+  Future<void> _reportWarning() async {
+    if (_busy) return;
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const Key('plan_warning_dialog'),
+        title: Text(l.planWarnReportTitle),
+        scrollable: true,
+        content: Text(l.planWarnReportText),
+        actions: [
+          TextButton(
+            key: const Key('plan_warning_cancel'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l.planFormCancel),
+          ),
+          FilledButton(
+            key: const Key('plan_warning_confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l.planWarnReportConfirm),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || ok != true) return;
+    setState(() => _busy = true);
+    final result = await _controller.reportWarning();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    _snack(
+      messenger,
+      'plan_warning_reported',
+      result == PlanActionResult.done ? l.planWarnReported : l.planWarnFailed,
+    );
+  }
+
+  /// „Meldung aufheben“ (FR-0203): die Meldung endet nur durch den Nutzer.
+  Future<void> _liftWarning() async {
+    if (_busy) return;
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    final result = await _controller.liftWarning();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    _snack(
+      messenger,
+      'plan_warning_lifted',
+      result == PlanActionResult.done ? l.planWarnLifted : l.planWarnFailed,
+    );
+  }
+
+  /// Nachfrage nach PAR-200 (Karte und Menü). Ist die Wochenzeit schon am
+  /// Regler, fragt die App, ob das Ziel steigt; geändert wird nur nach
+  /// Bestätigung (Zielformular).
+  Future<void> _answerFeedback(PlanFeedback answer) async {
+    if (_busy) return;
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    final out = await _controller.answerFeedback(answer);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (out.result != PlanActionResult.done) {
+      _snack(messenger, 'plan_feedback_failed', l.planFeedbackFailed);
+      return;
+    }
+    if (out.raiseGoalSignal) {
+      final yes = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          key: const Key('plan_feedback_raise_dialog'),
+          title: Text(l.planFeedbackRaiseTitle),
+          scrollable: true,
+          content: Text(l.planFeedbackRaiseText),
+          actions: [
+            TextButton(
+              key: const Key('plan_feedback_raise_no'),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l.planFeedbackRaiseNo),
+            ),
+            FilledButton(
+              key: const Key('plan_feedback_raise_yes'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l.planFeedbackRaiseYes),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (yes == true) await _openGoalForm(_controller.state.goal);
+      return;
+    }
+    final changed = answer != PlanFeedback.fits;
+    _snack(
+      messenger,
+      'plan_feedback_done',
+      changed ? l.planFeedbackChanged : l.planFeedbackSame,
+    );
+  }
+
+  void _snack(ScaffoldMessengerState m, String key, String text) => m
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(key: Key(key), content: Text(text)));
+
+  /// Nachfrage jederzeit aus dem Menü (PAR-200): dieselbe Karte als Blatt.
+  Future<void> _showFeedbackSheet() async {
+    final answer = await showModalBottomSheet<PlanFeedback>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => Padding(
+        key: const Key('plan_feedback_sheet'),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: _FeedbackCard(onAnswer: (a) => Navigator.of(context).pop(a)),
+      ),
+    );
+    if (answer != null && mounted) await _answerFeedback(answer);
+  }
+
   Future<void> _startUnit(PlanUnit unit) async {
     final start = widget.onStartUnit;
     if (start == null) return;
@@ -392,9 +516,41 @@ class _PlanScreenState extends State<PlanScreen> {
                 icon: const Icon(Icons.calendar_month_rounded),
                 label: Text(l.calendarOpen),
               ),
+              PopupMenuButton<String>(
+                key: const Key('plan_menu'),
+                tooltip: MaterialLocalizations.of(context).showMenuTooltip,
+                enabled: !_busy,
+                onSelected: (v) {
+                  if (v == 'report') _reportWarning();
+                  if (v == 'feedback') _showFeedbackSheet();
+                },
+                itemBuilder: (context) => [
+                  if (s.warning == null)
+                    PopupMenuItem(
+                      key: const Key('plan_menu_report'),
+                      value: 'report',
+                      height: RamuriTheme.minTarget,
+                      child: Text(l.planWarnReport),
+                    ),
+                  PopupMenuItem(
+                    key: const Key('plan_menu_feedback'),
+                    value: 'feedback',
+                    height: RamuriTheme.minTarget,
+                    child: Text(l.planFeedbackMenu),
+                  ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 14),
+          if (s.warning != null) ...[
+            _WarningBanner(
+              state: s,
+              today: _today,
+              onLift: _busy ? null : _liftWarning,
+            ),
+            const SizedBox(height: 10),
+          ],
           _GoalCard(
             state: s,
             today: _today,
@@ -402,6 +558,10 @@ class _PlanScreenState extends State<PlanScreen> {
             onRecalculate: _recalculating ? null : _recalculate,
           ),
           for (final h in global) ...[const SizedBox(height: 10), h],
+          if (s.feedbackDue) ...[
+            const SizedBox(height: 10),
+            _FeedbackCard(onAnswer: _busy ? null : _answerFeedback),
+          ],
           const SizedBox(height: 16),
           FutureBuilder<List<PlanUnit>>(
             key: ValueKey('plan_week_${_view.weekOffset}'),

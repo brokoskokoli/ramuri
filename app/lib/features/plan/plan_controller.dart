@@ -7,6 +7,33 @@ import 'plan_data_reader.dart';
 
 enum PlanLoadPhase { loading, ready, failed }
 
+/// Einstellungsschlüssel: Ortstag (`JJJJ-MM-TT`) der letzten Antwort auf die
+/// Nachfrage nach PAR-200. Fehlt er, zählt die Anlage des Plans.
+const String planFeedbackKey = 'plan.feedback_answered_on';
+
+/// Ergebnis von [PlanController.answerFeedback].
+class PlanFeedbackOutcome {
+  const PlanFeedbackOutcome(this.result, {this.raiseGoalSignal = false});
+
+  final PlanActionResult result;
+
+  /// „Zu leicht“ am Regler: Die App fragt, ob das Ziel steigen soll; der Plan
+  /// ist unverändert.
+  final bool raiseGoalSignal;
+}
+
+String _dayText(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
+
+DateTime? _parseDay(String? v) {
+  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(v ?? '');
+  if (m == null) return null;
+  final d = DateTime.utc(int.parse(m[1]!), int.parse(m[2]!), int.parse(m[3]!));
+  return _dayText(d) == v ? d : null;
+}
+
 /// Ergebnis einer Aktion des [PlanController]. Der Inhalt eines Fehlers wird
 /// nie gezeigt (Gesundheitsdaten).
 enum PlanActionResult {
@@ -59,7 +86,10 @@ class PlanViewState {
       hints = null,
       lastChange = null,
       weekUnits = const [],
-      assessment = null;
+      assessment = null,
+      warning = null,
+      warningReminderDue = false,
+      feedbackDue = false;
 
   const PlanViewState.failed()
     : phase = PlanLoadPhase.failed,
@@ -68,7 +98,10 @@ class PlanViewState {
       hints = null,
       lastChange = null,
       weekUnits = const [],
-      assessment = null;
+      assessment = null,
+      warning = null,
+      warningReminderDue = false,
+      feedbackDue = false;
 
   const PlanViewState.ready({
     required this.goal,
@@ -77,6 +110,9 @@ class PlanViewState {
     required this.lastChange,
     required this.weekUnits,
     this.assessment,
+    this.warning,
+    this.warningReminderDue = false,
+    this.feedbackDue = false,
   }) : phase = PlanLoadPhase.ready;
 
   final PlanLoadPhase phase;
@@ -110,6 +146,19 @@ class PlanViewState {
   /// neuesten Fassung und heute; nie gespeichert. `null` ohne Plan oder wenn
   /// sie sich nicht rechnen ließ (die Seite lässt die Zeile dann weg).
   final GoalAssessment? assessment;
+
+  /// Das aktive Warnsignal (FR-0203) oder `null`. Solange es besteht, zeigt
+  /// der Plan nur Ruhetage; gehaltene festgelegte Ruhetage sind dann keine
+  /// Festlegung des Nutzers.
+  final WarningSignal? warning;
+
+  /// Die Meldung besteht seit mindestens 7 Tagen (nur Karte, keine
+  /// Benachrichtigung).
+  final bool warningReminderDue;
+
+  /// Die Nachfrage nach PAR-200 ist fällig (2 Wochen ab der letzten Antwort
+  /// bzw. Anlage des Plans); ohne Warnsignal.
+  final bool feedbackDue;
 
   bool get hasPlan => version != null;
 
@@ -342,7 +391,22 @@ class PlanController extends ChangeNotifier {
         assessment = null;
       }
     }
+    final warning = await _warning?.read();
+    final reminderDue =
+        warning != null &&
+        warningReminderDue(reportedOn: warning.reportedOn, today: today);
+    var feedbackDue = false;
+    if (warning == null && version != null && history.isNotEmpty) {
+      feedbackDue = planFeedbackDue(
+        created: calendarDay(history.first.createdAt),
+        lastAnswer: _parseDay(await session.settings.get(planFeedbackKey)),
+        today: today,
+      );
+    }
     return PlanViewState.ready(
+      warning: warning,
+      warningReminderDue: reminderDue,
+      feedbackDue: feedbackDue,
       assessment: assessment,
       goal: goal,
       version: version,
@@ -659,6 +723,87 @@ class PlanController extends ChangeNotifier {
     _fresh = null;
     onChanged?.call();
   });
+
+  /// Meldet Beschwerden, Krankheit oder Überlastung (FR-0203, Quelle
+  /// `manual`): Warnsignal setzen, Plan zeigt nur Ruhetage. Doppeltes
+  /// Melden ändert nichts.
+  Future<PlanActionResult> reportWarning() => _act(() async {
+    final w = _warning;
+    if (w == null) throw StateError('kein Warnspeicher');
+    final r = await _warningService(
+      w,
+    ).report(source: WarningSource.manual, today: _today(), now: clock.now());
+    _fresh = null;
+    if (r.wasWritten) onChanged?.call();
+  });
+
+  /// Hebt das Warnsignal auf; die Festlegungen des Nutzers gelten wieder.
+  Future<PlanActionResult> liftWarning() => _act(() async {
+    final w = _warning;
+    if (w == null) throw StateError('kein Warnspeicher');
+    final r = await _warningService(w).lift(today: _today(), now: clock.now());
+    _fresh = null;
+    if (r.wasWritten) onChanged?.call();
+  });
+
+  WarningService _warningService(WarningStore w) => WarningService(
+    plans: _plans,
+    settings: session.settings,
+    warning: w,
+    parameters: parameters,
+  );
+
+  /// Antwort auf die Nachfrage (PAR-200). „Passt“ und „zu leicht“ am Regler
+  /// ändern den Plan nicht; „zu leicht“ davor und „zu schwer“ legen einen
+  /// neuen Anker an (`feedback`). Die Antwort zählt erst, wenn alles
+  /// geschrieben ist (sonst bleibt die Nachfrage fällig). Ohne Antwort
+  /// ändert sich nichts.
+  Future<PlanFeedbackOutcome> answerFeedback(PlanFeedback answer) async {
+    var raise = false;
+    final r = await _act(() async {
+      final goal = await _goals.goal();
+      if (goal == null) throw const StorageException(StorageFailure.notFound);
+      final history = await _plans.history();
+      if (history.isEmpty) {
+        throw const StorageException(StorageFailure.notFound);
+      }
+      final today = _today();
+      final built = await reader.read(goal: goal, today: today);
+      final inputs = _inputsFor(PlanTrigger.feedback, built, history.last);
+      final result = applyPlanFeedback(
+        goal: goal,
+        inputs: inputs,
+        answer: answer,
+        today: today,
+      );
+      raise = result.raiseGoalSignal;
+      final next = result.inputs;
+      if (next != null) {
+        final w = await recalculatePlan(
+          plans: _plans,
+          settings: session.settings,
+          trigger: PlanTrigger.feedback,
+          today: today,
+          now: clock.now(),
+          inputs: next,
+          parameters: parameters,
+          warning: _warning,
+        );
+        _fresh = w.generated;
+        _lastChange = w.summary;
+        if (w.wasWritten) onChanged?.call();
+      }
+      await session.settings.set(
+        planFeedbackKey,
+        _dayText(today),
+        at: clock.now(),
+      );
+    });
+    return PlanFeedbackOutcome(
+      r,
+      raiseGoalSignal: r == PlanActionResult.done && raise,
+    );
+  }
 
   Future<PlanActionResult> _act(Future<void> Function() action) =>
       _serial(() async {
