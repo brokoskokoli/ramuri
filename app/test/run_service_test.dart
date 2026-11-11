@@ -279,6 +279,40 @@ void main() {
       expect(c.phase, RecordingPhase.running);
       expect(c.heartRateSourceSeen, isTrue);
     });
+
+    test('RR (FR-0213): nur die aktive Quelle, Herkunft je Paket, Wechsel '
+        'trennt die Pakete', () async {
+      final w = await _world();
+      final hr = _hrRun(w.clock);
+      hr.handle(const HeartRateConnected('t'));
+      final c = RunController(
+        clock: w.clock,
+        storage: w.session,
+        location: w.location,
+        service: w.service,
+        sensors: hr,
+        tickEvery: const Duration(hours: 1),
+      );
+      addTearDown(c.dispose);
+      await c.start();
+      HeartRateReading rd(String id, int bpm, List<int> rr) =>
+          HeartRateReading(id, w.clock.now(), bpm, rrIntervals: rr);
+      hr.handle(rd('s', 120, const [800, 810]));
+      hr.handle(rd('t', 121, const [500])); // nicht aktiv: nicht gespeichert
+      hr.handle(rd('s', 122, const []));
+      expect(hr.select('t'), isTrue);
+      hr.handle(rd('t', 123, const [700]));
+      await Future<void>.delayed(Duration.zero);
+      await c.finish();
+      final raw = await w.session.rawData.read(c.runId!);
+      final rr = raw.rrPackets.map((p) => p.value).toList();
+      expect(rr.map((p) => p.source), ['s', 't']);
+      expect(rr.map((p) => p.intervals), [
+        [800, 810],
+        [700],
+      ]);
+      expect(raw.heartRates.map((h) => h.value.source), ['s', 's', 't']);
+    });
   });
 
   group('Quelltext des Dienstes (ADR-0005 Punkt 6, Wake Lock)', () {
