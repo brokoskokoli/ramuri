@@ -93,9 +93,11 @@ Externe Daten dürfen nicht ohne Einwilligung an Dritte übertragen werden.
 ### SEC-0009 — Verschlüsselte Speicherung
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §21, Z. 1235; SRC-003 (OQ-0024, OQ-0062)
-- **Verwandt:** FR-0185, OQ-0024, OQ-0062, OQ-0072
+- **Verwandt:** FR-0185, FR-0174, OQ-0024, OQ-0062, OQ-0072, ADR-0005
 
 Datenbank und Zugangsdaten werden auf dem Gerät verschlüsselt gespeichert. Lässt sich die Datenbank nicht mehr öffnen, erklärt die App das Problem und bietet einen Neubeginn mit leerer Datenbank und den Reimport aus dem Archiv an; die alte Datei wird erst nach ausdrücklicher Bestätigung gelöscht.
+
+**Ausnahme (Entscheidung des Maintainers 2026-11-11, K53):** Für die Erinnerungen (FR-0174) liegen außerhalb der Datenbank unverschlüsselt in den App-eigenen SharedPreferences nur: je geplanter Einheit Zeitpunkt und Art, höchstens 60 Tage voraus, und die Benachrichtigungstexte je Art. Sonst keine Plan- oder Gesundheitsdaten. Grund: Der Boot-Empfänger hat keinen Datenbankschlüssel. Einzelheiten im Nachtrag zu ADR-0005. Die Datenbank selbst bleibt ohne Ausnahme verschlüsselt.
 
 **Akzeptanzkriterien:**
 - [ ] Die Datenbankdatei ist ohne Schlüssel nicht lesbar.

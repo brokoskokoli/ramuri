@@ -117,7 +117,7 @@ void main() {
 
   group('Rundgang über den Entschlüssler', () {
     test(
-      'v4 vollständig: jeder Abschnitt, Reihenfolge, Zeilen, Endzeile',
+      'v7 vollständig: jeder Abschnitt, Reihenfolge, Zeilen, Endzeile',
       () async {
         final db = _fullDb(rowsPer: 2);
         final file = await exporter(FakeArchiveSource(db))
@@ -130,7 +130,7 @@ void main() {
         expect(lines.first, {
           'type': 'manifest',
           'format': 2,
-          'schema_version': 5,
+          'schema_version': 8,
           'created_at_us': DateTime.utc(2026, 11, 7, 12).microsecondsSinceEpoch,
         });
         final sections = [
@@ -138,7 +138,7 @@ void main() {
             if (l['type'] == 'section') l['name'],
         ];
         expect(sections, [for (final s in archiveSections) s.name]);
-        expect(sections, hasLength(21));
+        expect(sections, hasLength(24));
         // Jede Tabelle mit mindestens einer Zeile.
         for (final s in archiveSections.where((s) => !s.isReserved)) {
           final rows = _rowsOf(lines, s.name);
@@ -146,14 +146,19 @@ void main() {
           expect(rows.first, db[s.name]!.first, reason: s.name);
           expect(rows.first.keys.toList(), [for (final c in s.columns) c.name]);
         }
-        for (final n in ['goals', 'plans', 'active_warning']) {
+        // Ab Schema 7 tragen `goals`, `plans` und `plan_units` Zeilen; die
+        // Warnmeldung ist noch leer.
+        for (final n in ['active_warning']) {
           expect(_rowsOf(lines, n), isEmpty);
         }
         final end = lines.last;
         expect(end['type'], 'end');
         expect((end['rows']! as Map).keys.toList(), sections);
         expect((end['rows']! as Map)['runs'], 2);
-        expect((end['rows']! as Map)['goals'], 0);
+        expect((end['rows']! as Map)['goals'], 2);
+        expect((end['rows']! as Map)['plans'], 2);
+        expect((end['rows']! as Map)['plan_units'], 2);
+        expect((end['rows']! as Map)['active_warning'], 0);
       },
     );
 
@@ -211,6 +216,7 @@ void main() {
               SettingKeys.loadCoefficientsPending,
               SettingKeys.loadFactorPending,
               SettingKeys.loadFactorDeclined,
+              SettingKeys.planStartedUnit,
               SettingKeys.loadFactor,
               'unit.pace',
               SettingKeys.loadProfile,
@@ -277,7 +283,7 @@ void main() {
         r'^\| (\d+) \| `(\w+)` \| (.+) \|$',
         multiLine: true,
       ).allMatches(doc).toList();
-      expect(rows, hasLength(21));
+      expect(rows, hasLength(24));
       for (final m in rows) {
         final spec = archiveSections[int.parse(m.group(1)!) - 1];
         expect(spec.name, m.group(2));

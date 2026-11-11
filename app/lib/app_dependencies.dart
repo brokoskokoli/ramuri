@@ -1,6 +1,7 @@
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
 
+import 'features/reminders/reminder_controller.dart';
 import 'features/archive/archive_wiring.dart';
 import 'features/map/map_services.dart';
 import 'features/run/method_channel_recording_service.dart';
@@ -30,7 +31,10 @@ class AppDependencies {
     this.archiveVerify,
     this.mapCache,
     this.map,
-  }) : fileHandoff = fileHandoff ?? const _NoFileHandoff(),
+    ReminderScheduler? reminders,
+    this.reminderDebug,
+  }) : reminders = reminders ?? const _NoReminders(),
+       fileHandoff = fileHandoff ?? const _NoFileHandoff(),
        ppgCamera = ppgCamera ?? const _NoPpgCamera(),
        permissions = permissions ?? const _NoPermissionStatus(),
        runPorts = runPorts ?? const _NoRunPorts(),
@@ -87,6 +91,13 @@ class AppDependencies {
   /// App-weiter Sensordienst: Verbindungen, bekannte Geräte, Puls (WP07).
   final SensorManager sensors;
 
+  /// Erinnerungen vor geplanten Einheiten (FR-0174); ohne Plattform: keine.
+  final ReminderScheduler reminders;
+
+  /// Nur Debug-Einstieg (`main_debug.dart`): Erinnerung sofort über denselben
+  /// Weg auslösen (E2E-Test). Im normalen Start `null`.
+  final ReminderDebugAdd? reminderDebug;
+
   /// App-Start der Speicherung: Schlüssel, Datei, Öffnen.
   final StorageStartController storageStart;
 
@@ -100,12 +111,14 @@ class AppDependencies {
   factory AppDependencies.create({
     HeartRateSensor? heartRateSensor,
     PpgCamera? ppgCamera,
+    bool debugReminders = false,
   }) {
     final sensor =
         heartRateSensor ??
         BleHeartRateSensor(const UniversalBleLink(), const SystemClock());
     final permissions = MethodChannelPermissionStatus();
     final fileHandoff = MethodChannelFileHandoff();
+    final reminders = MethodChannelReminderScheduler();
     final keyStore = SecureKeyStore();
     // WP13: Kartenspeicher mit dem Schlüssel der Datenbank; geöffnet wird er erst beim ersten Zugriff.
     final mapCache = EncryptedMapTileStore(
@@ -138,6 +151,8 @@ class AppDependencies {
       sensors: sensors,
       permissions: permissions,
       fileHandoff: fileHandoff,
+      reminders: reminders,
+      reminderDebug: debugReminders ? reminders.debugAdd : null,
       archiveExport: (session) {
         // Nur die echte Sitzung hat eine Datenbank, die das Archiv liest.
         final exporter = ArchiveExporter(
@@ -346,4 +361,23 @@ class _DeniedAccess implements LocationAccessPort {
 class _EmptySource implements LocationSource {
   @override
   Stream<LocationSample> samples() => const Stream.empty();
+}
+
+class _NoReminders implements ReminderScheduler {
+  const _NoReminders();
+
+  @override
+  Future<bool> permitted() async => false;
+
+  @override
+  Future<bool> requestPermission() async => false;
+
+  @override
+  Future<void> replaceAll(
+    List<ScheduledReminder> reminders, {
+    required ReminderLabels labels,
+  }) async {}
+
+  @override
+  Future<void> cancelAll() async {}
 }

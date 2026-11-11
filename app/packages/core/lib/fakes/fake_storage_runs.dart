@@ -52,6 +52,24 @@ class FakeRunStore implements RunStore {
     );
 
   @override
+  Future<List<StoredRun>> finishedBetween(DateTime from, DateTime to) async {
+    final f = _utc(from), t = _utc(to);
+    return _d.runs.values
+        .where(
+          (r) =>
+              r.state == RunState.finished &&
+              !r.endedAt!.isBefore(f) &&
+              r.endedAt!.isBefore(t),
+        )
+        .toList()
+      ..sort(
+        (a, b) => a.endedAt != b.endedAt
+            ? a.endedAt!.compareTo(b.endedAt!)
+            : a.id.compareTo(b.id),
+      );
+  }
+
+  @override
   Future<List<StoredRun>> unfinished() async =>
       _d.runs.values.where((r) => r.state != RunState.finished).toList()..sort(
         (a, b) => a.startedAt != b.startedAt

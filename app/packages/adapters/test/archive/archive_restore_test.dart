@@ -13,6 +13,8 @@ import 'package:core/core.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:adapters/src/storage/prediction_access.dart';
+
 import '../storage/support.dart' show testKey;
 import 'archive_fixture.dart';
 
@@ -411,6 +413,309 @@ void main() {
     );
   });
 
+  test('Referenzleistung zählt als Daten: App ist nicht leer', () async {
+    final p = (session as PredictionStorage).prediction;
+    expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+    await p.addReference(
+      ReferencePerformance(
+        kind: ReferenceKind.race,
+        distanceMeters: 10000,
+        seconds: 3000,
+        date: DateTime(2026, 10, 1),
+        createdAt: DateTime.utc(2026, 11, 1),
+      ),
+    );
+    expect(await ArchiveRestoreService.isEmpty(session), isFalse);
+    await expectLater(
+      service().restore(path: archivePath, password: _password),
+      throwsA(
+        isA<ArchiveRestoreException>().having(
+          (e) => e.failure,
+          'failure',
+          ArchiveRestoreFailure.notEmpty,
+        ),
+      ),
+    );
+  });
+
+  test('Rundgang: Referenzen und Ablehnungen kommen mit dem Archiv zurück, '
+      'eine vorhandene Referenz wird beim Ersetzen ersetzt', () async {
+    final p = (session as PredictionStorage).prediction;
+    await addOldData();
+    await p.addReference(
+      ReferencePerformance(
+        kind: ReferenceKind.race,
+        distanceMeters: 21097.5,
+        seconds: 6000,
+        date: DateTime(2026, 9, 1),
+        createdAt: DateTime.utc(2026, 11, 1),
+      ),
+    );
+    session = await service().restore(
+      path: archivePath,
+      password: _password,
+      resetConfirmed: true,
+    );
+    final q = (session as PredictionStorage).prediction;
+    final refs = await q.references();
+    // Jüngste zuerst: der bestätigte Lauf (2026-11-02) vor der Wettkampfzeit.
+    expect(refs.map((r) => r.reference.kind), [
+      ReferenceKind.confirmedRun,
+      ReferenceKind.race,
+    ]);
+    expect(refs.first.reference.runId, '1');
+    expect(refs.last.reference.seconds, 3012.5);
+    expect(await q.rejectedSuggestions(), {1});
+  });
+
+  test('Referenz außerhalb der Tempospanne: Import nimmt sie an, sie bleibt '
+      'sichtbar, gilt aber nicht (Festlegung WP22, E2E API 36)', () async {
+    final plain = openPlain('${work.path}/slow_plain.db');
+    await fillAllTables(plain);
+    // 5 km in 999 h, jünger als alle Fixture-Referenzen; die App weist so
+    // etwas ab, ein Archiv kann es trotzdem enthalten.
+    await sql(
+      plain,
+      "INSERT INTO reference_performances (kind, distance_m, time_s, "
+      "performed_on, created_at_us, run_id) VALUES "
+      "('race', 5000, 3596400, '2026-11-05', 1762300800000000, NULL)",
+    );
+    final dir = Directory('${work.path}/slow_exports')..createSync();
+    final f = await ArchiveExporter(
+      source: DriftArchiveSource(plain),
+      handoff: FakeFileHandoff()..directory = dir.path,
+      clock: FakeClock(DateTime.utc(2026, 11, 7, 12)),
+      cipherFactory: createArchiveCipherInWorker,
+      pageSize: 2,
+    ).export(password: _password);
+    await plain.close();
+    session = await service().restore(
+      path: f.path!,
+      password: _password,
+      resetConfirmed: true,
+    );
+    final q = (session as PredictionStorage).prediction;
+    final refs = await q.references();
+    // Kein Datenverlust: die Zeile ist da und steht als jüngste vorn.
+    expect(refs.length, 3);
+    expect(refs.first.reference.seconds, 3596400);
+    expect(isUsableReference(refs.first.reference), isFalse);
+    // Geltend ist die jüngste brauchbare.
+    final active = await q.activeReference();
+    expect(active, isNotNull);
+    expect(active!.seconds, isNot(3596400));
+    expect(active.kind, ReferenceKind.confirmedRun);
+  });
+
+  test('Referenz aus bestätigtem Lauf gelöscht: Ablehnung übersteht Export '
+      'und Reimport', () async {
+    final plain = openPlain('${work.path}/del_plain.db');
+    await fillAllTables(plain);
+    // Die Fixture-Ablehnung weg: nur das Löschen soll sie anlegen.
+    await sql(plain, 'DELETE FROM rejected_suggestions');
+    final store = DriftPredictionStore(plain);
+    expect(await store.rejectedSuggestions(), isEmpty);
+    final confirmed = (await store.references()).firstWhere(
+      (r) => r.reference.kind == ReferenceKind.confirmedRun,
+    );
+    await store.deleteReference(confirmed.id);
+    expect(await store.rejectedSuggestions(), {1});
+    final dir = Directory('${work.path}/del_exports')..createSync();
+    final f = await ArchiveExporter(
+      source: DriftArchiveSource(plain),
+      handoff: FakeFileHandoff()..directory = dir.path,
+      clock: FakeClock(DateTime.utc(2026, 11, 7, 12)),
+      cipherFactory: createArchiveCipherInWorker,
+      pageSize: 2,
+    ).export(password: _password);
+    await plain.close();
+    session = await service().restore(
+      path: f.path!,
+      password: _password,
+      resetConfirmed: true,
+    );
+    final q = (session as PredictionStorage).prediction;
+    expect(await q.rejectedSuggestions(), {1});
+    expect(
+      (await q.references()).where(
+        (r) => r.reference.kind == ReferenceKind.confirmedRun,
+      ),
+      isEmpty,
+    );
+  });
+
+  test('Ziel zählt als Daten: App ist nicht leer', () async {
+    expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+    await (session as GoalStorage).goals.save(
+      TrainingGoal(
+        type: GoalType.open,
+        runDays: const {1, 3},
+        maxSessionSeconds: 3600,
+        weeklyCapSeconds: 7200,
+        hardSessionEnabled: false,
+        createdAt: DateTime.utc(2026, 11, 1),
+      ),
+      today: DateTime.utc(2026, 11, 1),
+    );
+    expect(await ArchiveRestoreService.isEmpty(session), isFalse);
+    await expectLater(
+      service().restore(path: archivePath, password: _password),
+      throwsA(
+        isA<ArchiveRestoreException>().having(
+          (e) => e.failure,
+          'failure',
+          ArchiveRestoreFailure.notEmpty,
+        ),
+      ),
+    );
+  });
+
+  test('Rundgang: das Ziel kommt mit dem Archiv zurück, ein vorhandenes wird '
+      'beim Ersetzen ersetzt', () async {
+    await addOldData();
+    await (session as GoalStorage).goals.save(
+      TrainingGoal(
+        type: GoalType.open,
+        runDays: const {1, 3},
+        maxSessionSeconds: 3600,
+        weeklyCapSeconds: 7200,
+        hardSessionEnabled: false,
+        createdAt: DateTime.utc(2026, 11, 1),
+      ),
+      today: DateTime.utc(2026, 11, 1),
+    );
+    session = await service().restore(
+      path: archivePath,
+      password: _password,
+      resetConfirmed: true,
+    );
+    final g = (await (session as GoalStorage).goals.goal())!;
+    expect(g.type, GoalType.time);
+    expect(g.distance, GoalDistance.tenKilometers);
+    expect(g.targetSeconds, 3000.0);
+    expect(g.runDays, {1, 3, 5});
+    expect(g.hardSessionEnabled, isTrue);
+    expect((await _dump(_dbOf(session)))['goals'], sourceDump['goals']);
+  });
+
+  test('Rundgang: Plan und Einheiten kommen über den Port zurück, '
+      'Lauf-Zuordnung und Sekunden bleiben', () async {
+    session = await service().restore(path: archivePath, password: _password);
+    final repo = (session as PlanStorage).plans;
+    final history = await repo.history();
+    expect(history, hasLength(1));
+    expect(history.single.trigger, PlanTrigger.create);
+    expect(history.single.inputsJson, contains('"startWeeklyMinutes":120'));
+    final u = (await repo.unitOn(DateTime.utc(2026, 11, 2)))!;
+    expect(u.kind, PlanUnitKind.walkRun);
+    expect(u.runId, 1);
+    expect(u.pinned, isTrue);
+    expect(u.segments.map((x) => x.kind), [
+      PlanSegmentKind.walk,
+      PlanSegmentKind.run,
+    ]);
+    expect(u.segments.map((x) => x.seconds), [300, 90]);
+    expect(u.segments.last.intensity!.paceFastSecondsPerKm, 360.0);
+    final rest = (await repo.unitOn(DateTime.utc(2026, 11, 3)))!;
+    expect(rest.kind, PlanUnitKind.rest);
+    expect(rest.runId, isNull);
+    expect(rest.fixed, PlanUnitFixed.day);
+    expect(rest.isRestDay, isTrue);
+    expect(u.fixed, PlanUnitFixed.none);
+    // Harte Einheit locker ersetzt: das Merkmal kommt über den Port zurück.
+    final easy = (await repo.unitOn(DateTime.utc(2026, 11, 4)))!;
+    expect(easy.kind, PlanUnitKind.easy);
+    expect(easy.fixed, PlanUnitFixed.easyForHard);
+    expect(easy.pinned, isTrue);
+  });
+
+  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5, 6 und 7; 8 ist
+  // das aktuelle). Format 1
+  // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
+  // kennt, sind danach leer.
+  for (final (name, schema) in [
+    ('archive_v2', 5),
+    ('archive_v2_s6', 6),
+    ('archive_v2_s7', 7),
+    ('archive_v2_s8', 8),
+  ]) {
+    test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
+        'importieren', () async {
+      final v =
+          ((jsonDecode(File('$_vectors/vectors.json').readAsStringSync())
+                      as Map)['vectors']
+                  as List)
+              .cast<Map>()
+              .firstWhere((v) => v['name'] == name);
+      session = await service().restore(
+        path: '$_vectors/$name.runarchv',
+        password: v['password'] as String,
+      );
+      final lines = [
+        for (final l in File('$_vectors/$name.jsonl').readAsLinesSync())
+          jsonDecode(l) as Map<String, dynamic>,
+      ];
+      expect(lines.first['format'], 2);
+      expect(lines.first['schema_version'], schema);
+      String? cur;
+      final expected = <String, List<Map<String, Object?>>>{};
+      for (final l in lines) {
+        if (l['type'] == 'section') cur = l['name'] as String;
+        if (l['type'] == 'row') {
+          (expected[cur!] ??= []).add(
+            (l['data'] as Map).cast<String, Object?>(),
+          );
+        }
+      }
+      final got = await _dump(_dbOf(session));
+      for (final e in expected.entries) {
+        expect(got[e.key]!.length, e.value.length, reason: e.key);
+      }
+      expect(got['runs'], hasLength(2));
+      final goal = await (session as GoalStorage).goals.goal();
+      if (schema >= 7) {
+        expect(got['goals'], hasLength(1));
+        expect(got['goals']!.single['run_days'], 21);
+        expect(got['goals']!.single['target_s'], 3000.0);
+        expect(goal!.distance, GoalDistance.tenKilometers);
+        expect(got['plans'], hasLength(1));
+        expect(got['plans']!.single['goal_id'], 1);
+        expect(got['plan_units'], hasLength(schema >= 8 ? 4 : 2));
+        expect(got['plan_units']![0]['run_id'], 1);
+        expect(got['plan_units']![0]['structure'], contains('"seconds":300'));
+        expect(got['plan_units']![1]['run_id'], isNull);
+        // Schema 7 kennt `fixed` nicht: jede Einheit liest sich mit 'none'
+        // (auch der gepinnte Ruhetag); Schema 8 trägt die Festlegung.
+        expect(
+          [for (final u in got['plan_units']!) u['fixed']],
+          schema >= 8
+              ? ['none', 'day', 'kind', 'easyForHard']
+              : ['none', 'none'],
+        );
+        if (schema >= 8) {
+          final replaced = (await (session as PlanStorage).plans.unitOn(
+            DateTime.utc(2026, 11, 11),
+          ))!;
+          expect(replaced.kind, PlanUnitKind.tempo);
+          expect(replaced.fixed, PlanUnitFixed.kind);
+          expect(replaced.pinned, isTrue);
+          final easy = (await (session as PlanStorage).plans.unitOn(
+            DateTime.utc(2026, 11, 12),
+          ))!;
+          expect(easy.kind, PlanUnitKind.easy);
+          expect(easy.fixed, PlanUnitFixed.easyForHard);
+        }
+      } else {
+        expect(got['plans'], isEmpty);
+        expect(got['plan_units'], isEmpty);
+        expect(got['goals'], isEmpty);
+        expect(goal, isNull);
+      }
+      expect(got['reference_performances'], hasLength(schema >= 6 ? 3 : 0));
+      expect(got['run_feedback'], hasLength(2));
+    });
+  }
+
   test('archive_small (Vektor der unabhängigen Umsetzung) lässt sich importieren, Zeilen gleich', () async {
     session = await service().restore(
       path: '$_vectors/archive_small.runarchv',
@@ -428,7 +733,17 @@ void main() {
         (expected[cur!] ??= []).add((l['data'] as Map).cast<String, Object?>());
       }
     }
+    // Echter Schema-4-Inhalt (unabhängige Umsetzung): ohne die Abschnitte aus
+    // Schema 5, die neuen Tabellen sind danach leer.
+    expect(lines.first['schema_version'], 4);
+    expect(expected.keys, isNot(contains('reference_performances')));
     final got = await _dump(_dbOf(session));
+    expect(got['reference_performances'], isEmpty);
+    expect(got['rejected_suggestions'], isEmpty);
+    expect(
+      await (session as PredictionStorage).prediction.references(),
+      isEmpty,
+    );
     for (final e in expected.entries) {
       expect(got[e.key]!.length, e.value.length, reason: e.key);
       // Nur Ganzzahl-/Textspalten vergleichbar ohne Gleitkomma-Normalisierung.
@@ -547,6 +862,65 @@ void main() {
         },
         1,
       ),
+      'Fremdschlüssel: Referenz verweist auf fehlenden Lauf': (
+        'reference_performances',
+        (d) => d['run_id'] = 99,
+        1,
+      ),
+      'Fremdschlüssel: abgelehnter Vorschlag ohne Lauf': (
+        'rejected_suggestions',
+        (d) => d['run_id'] = 99,
+        0,
+      ),
+      'CHECK: Referenz mit unbekannter Art': (
+        'reference_performances',
+        (d) => d['kind'] = 'marathon',
+        0,
+      ),
+      'CHECK: bestätigter Lauf ohne Lauf-ID': (
+        'reference_performances',
+        (d) => d['run_id'] = null,
+        1,
+      ),
+      'CHECK: Referenz mit ungültigem Datum': (
+        'reference_performances',
+        (d) => d['performed_on'] = '1.10.2026',
+        0,
+      ),
+      // WP21 (Schema 7): das Ziel; Wertemengen und Zieltyp-Regeln der Datenbank.
+      'Leser: Ziel mit Zeichenkette statt Lauftage-Maske': (
+        'goals',
+        (d) => d['run_days'] = '21',
+        0,
+      ),
+      'CHECK: Ziel mit unbekanntem Typ': (
+        'goals',
+        (d) => d['type'] = 'marathon',
+        0,
+      ),
+      'CHECK: Ziel ohne Lauftage': ('goals', (d) => d['run_days'] = 0, 0),
+      'CHECK: Zeitziel ohne Zielzeit': (
+        'goals',
+        (d) => d['target_s'] = null,
+        0,
+      ),
+      'CHECK: Ziel mit unbekannter Strecke': (
+        'goals',
+        (d) => d['distance'] = '42k',
+        0,
+      ),
+      'CHECK: Ziel mit ungültigem Datum': (
+        'goals',
+        (d) => d['target_date'] = '2027-02-30',
+        0,
+      ),
+      'CHECK: Ziel mit unbekanntem Stand zum 30-Minuten-Lauf': (
+        'goals',
+        (d) => d['can_run_30'] = 'maybe',
+        0,
+      ),
+      'CHECK: Ziel mit Schalter 2': ('goals', (d) => d['hard_session'] = 2, 0),
+      'CHECK: zweites Ziel (id 2)': ('goals', (d) => d['id'] = 2, 0),
       'Fremdschlüssel: Abschnitt ohne Wert': (
         'value_sections',
         (d) => d['computed_value_id'] = 999,
@@ -582,6 +956,57 @@ void main() {
       'CHECK: Warnsignal-Antwort unbekannt': (
         'run_feedback',
         (d) => d['warning_answer'] = 'vielleicht',
+        0,
+      ),
+      'Fremdschlüssel: Plan ohne Ziel': ('plans', (d) => d['goal_id'] = 99, 0),
+      'Fremdschlüssel: Einheit ohne Plan': (
+        'plan_units',
+        (d) => d['plan_id'] = 99,
+        0,
+      ),
+      'Fremdschlüssel: Einheit ohne Lauf': (
+        'plan_units',
+        (d) => d['run_id'] = 99,
+        0,
+      ),
+      'CHECK: Plan unbekannter Auslöser': (
+        'plans',
+        (d) => d['trigger'] = 'sometimes',
+        0,
+      ),
+      'CHECK: Einheit unbekannte Festlegung': (
+        'plan_units',
+        (d) => d['fixed'] = 'other',
+        0,
+      ),
+      'CHECK: Einheit easyForHard nicht locker': (
+        'plan_units',
+        (d) => d['kind'] = 'tempo',
+        2,
+      ),
+      'CHECK: Einheit easyForHard ohne Termin': (
+        'plan_units',
+        (d) => d['pinned'] = 0,
+        2,
+      ),
+      'CHECK: Einheit unbekannte Art': (
+        'plan_units',
+        (d) => d['kind'] = 'swim',
+        0,
+      ),
+      'Leser: Plan-Eingaben kein JSON': (
+        'plans',
+        (d) => d['inputs'] = '{nope',
+        0,
+      ),
+      'Leser: Einheit-Struktur kein JSON': (
+        'plan_units',
+        (d) => d['structure'] = '[1,',
+        1,
+      ),
+      'Leser: Einheit mit ungültigem Tag': (
+        'plan_units',
+        (d) => d['day'] = '2026-02-30',
         0,
       ),
       'Fremdschlüssel: Angabe ohne Lauf': (

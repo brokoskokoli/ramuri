@@ -62,6 +62,19 @@ Future<void> _runs(StorageContractHarness h) async {
   expectEq((await s.runs.unfinished()).map((r) => r.id), [
     b.id,
   ], 'beendeter fehlt bei nicht beendeten');
+  // Zeitraum: from einschließlich, to ausschließlich, nur beendete,
+  // frühestes Ende zuerst.
+  final c = await s.runs.create(startedAt: at(30));
+  await s.runs.setState(c.id, RunState.finished, endedAt: at(50));
+  final e = await s.runs.create(startedAt: at(31));
+  await s.runs.setState(e.id, RunState.finished, endedAt: at(120));
+  Future<List<int>> between(int from, int to) async => [
+    for (final r in await s.runs.finishedBetween(at(from), at(to))) r.id,
+  ];
+  expectEq(await between(0, 200), [c.id, a.id, e.id], 'Zeitraum: alle');
+  expectEq(await between(50, 120), [c.id, a.id], 'Zeitraum: Grenzen');
+  expectEq(await between(51, 99), <int>[], 'Zeitraum: leer');
+  expectEq(await between(99, 121), [a.id, e.id], 'Zeitraum: Ende');
   await s.close();
 }
 

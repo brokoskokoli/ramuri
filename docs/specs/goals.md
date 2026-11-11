@@ -41,7 +41,7 @@ Der Nutzer kann ein persönliches Trainingsziel definieren.
 - **Quelle:** SRC-001 §14.2, Z. 891–900
 - **Verwandt:** FR-0002, OQ-0013, OQ-0027, OQ-0038, OQ-0060
 
-Für die Planung kann der Nutzer festlegen: gewünschtes Zieldatum, verfügbare Wochentage, maximale Trainingszeit pro Einheit, gewünschte Anzahl Trainingstage pro Woche, bevorzugte Trainingstage, bekannte Einschränkungen, aktuelles Leistungsniveau und optional bisherige Wettkampfzeiten.
+Für die Planung kann der Nutzer festlegen: gewünschtes Zieldatum, die Lauftage (Wochentage; ihre Anzahl ist die Zahl der Trainingstage), maximale Trainingszeit pro Einheit und seinen aktuellen Stand (PAR-192). Bisherige Wettkampfzeiten gehen als Referenzleistung ein (FR-0129). Bevorzugte Tage neben den Lauftagen und bekannte Einschränkungen werden nicht abgefragt (K52).
 
 **Akzeptanzkriterien:**
 - [ ] Der erzeugte Plan hält die verfügbaren Wochentage und die maximale Trainingszeit pro Einheit ein.

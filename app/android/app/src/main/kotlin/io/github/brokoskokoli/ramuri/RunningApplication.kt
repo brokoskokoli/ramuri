@@ -44,6 +44,8 @@ class RunningApplication : Application() {
         StepSensor.register(messenger, this)
         // ADR-0011: Kamera für das Kamera-PPG; das Recht fragt MainActivity erst beim Messbeginn.
         PpgCamera.register(messenger, this)
+        // FR-0174: Erinnerungen vor geplanten Einheiten, ohne Activity erreichbar.
+        TrainingReminders.register(messenger, this)
     }
 
     companion object {

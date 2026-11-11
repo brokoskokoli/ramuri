@@ -51,9 +51,14 @@ Map<String, Object?> _row(ArchiveSectionSpec s, int i) => {
     c.name: c.name == s.key && s.keyIsText ? 'key$i' : _valueFor(c, i),
 };
 
+const _fromSchema7 = {'goals', 'plans', 'plan_units'};
+
 Map<String, List<Map<String, Object?>>> _fullDb({int rowsPer = 1}) => {
+  // `goals`, `plans` und `plan_units` gibt es erst ab Schema 7; die
+  // Hilfsfunktionen schreiben Schema 4.
   for (final s in archiveSections)
-    if (!s.isReserved) s.name: [for (var i = 1; i <= rowsPer; i++) _row(s, i)],
+    if (!s.isReserved && !_fromSchema7.contains(s.name))
+      s.name: [for (var i = 1; i <= rowsPer; i++) _row(s, i)],
 };
 
 String _manifest({int schema = 4}) =>
@@ -71,12 +76,12 @@ String _endLine(Map<String, int> counts) =>
 /// Gültige Zeilen für [db] im Format des Vertrags.
 List<String> _validLines(Map<String, List<Map<String, Object?>>> db) => [
   _manifest(),
-  for (final s in archiveSectionsFor(1)) ...[
+  for (final s in archiveSectionsFor(4)) ...[
     _section(s.name),
     for (final r in db[s.name] ?? const <Map<String, Object?>>[]) _rowLine(r),
   ],
   _endLine({
-    for (final s in archiveSectionsFor(1)) s.name: db[s.name]?.length ?? 0,
+    for (final s in archiveSectionsFor(4)) s.name: db[s.name]?.length ?? 0,
   }),
 ];
 
@@ -209,7 +214,7 @@ void main() {
 
     test('Beschädigung erst am Ende (falscher Zähler) scheitert', () async {
       final lines = valid()..removeLast();
-      lines.add(_endLine({for (final s in archiveSectionsFor(1)) s.name: 99}));
+      lines.add(_endLine({for (final s in archiveSectionsFor(4)) s.name: 99}));
       await expectLater(
         ArchiveImporter(
           sink: DiscardArchiveSink(),
@@ -259,7 +264,7 @@ void main() {
       ];
       final names = [
         for (final s in archiveSections)
-          if (!s.isReserved) s.name,
+          if (!s.isReserved && !_fromSchema7.contains(s.name)) s.name,
       ];
       expect([
         ...{...order},
@@ -294,7 +299,7 @@ void main() {
           ]
           ..['rated_sections'] = [
             {
-              for (final col in archiveSectionsFor(1)[10].columns)
+              for (final col in archiveSectionsFor(4)[10].columns)
                 col.name: col.name == 'gps_gaps'
                     ? '[{"start_us":1,"end_us":2}]'
                     : _valueFor(col, 1),
@@ -450,13 +455,31 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 5: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 8: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 6);
+        final lines = valid()..[0] = _manifest(schema: 9);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
         lines[0] = '{"type":"manifest","format":1,"schema_version":9,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
+      },
+    );
+
+    test(
+      'Format 1 mit Schema 4 (19 Abschnitte) bleibt lesbar, neuere leer',
+      () async {
+        expect(archiveSectionsFor(4), hasLength(19));
+        await c.run(await _archive(valid()));
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['runs'], isNotEmpty);
+        for (final t in [
+          'run_feedback',
+          'manual_trainings',
+          'reference_performances',
+          'rejected_suggestions',
+        ]) {
+          expect(c.sink.rows[t] ?? const [], isEmpty, reason: t);
+        }
       },
     );
 
@@ -517,7 +540,7 @@ void main() {
       final l = valid(0);
       final i = l.indexOf(_section('laps'));
       final counts = {
-        for (final s in archiveSectionsFor(1))
+        for (final s in archiveSectionsFor(4))
           if (s.name != 'laps') s.name: 0,
       };
       await c.rejectsLines([
@@ -530,7 +553,7 @@ void main() {
     test('letzter Abschnitt fehlt', () async {
       final l = valid(0);
       final counts = {
-        for (final s in archiveSectionsFor(1))
+        for (final s in archiveSectionsFor(4))
           if (s.name != 'active_warning') s.name: 0,
       };
       await c.rejectsLines([
@@ -583,7 +606,7 @@ void main() {
       final l = valid(0);
       await c.rejectsLines([
         l[0],
-        _rowLine(_row(archiveSectionsFor(1)[0], 1)),
+        _rowLine(_row(archiveSectionsFor(4)[0], 1)),
         ...l.skip(1),
       ], ArchiveImportFailure.damaged);
     });
@@ -595,7 +618,7 @@ void main() {
       return [...l.take(2), _rowLine(data), ...l.skip(2)];
     }
 
-    Map<String, Object?> run() => _row(archiveSectionsFor(1)[0], 1);
+    Map<String, Object?> run() => _row(archiveSectionsFor(4)[0], 1);
 
     Future<void> counted(
       Map<String, Object?> data,
@@ -604,7 +627,7 @@ void main() {
       // Mit richtigem Zähler, damit nur die Zeile selbst falsch ist.
       final l = withRunRow(data);
       l[l.length - 1] = _endLine({
-        for (final s in archiveSectionsFor(1)) s.name: s.name == 'runs' ? 1 : 0,
+        for (final s in archiveSectionsFor(4)) s.name: s.name == 'runs' ? 1 : 0,
       });
       await c.rejectsLines(l, f);
     }
@@ -614,7 +637,7 @@ void main() {
       () async {
         final l = withRunRow(run());
         l[l.length - 1] = _endLine({
-          for (final s in archiveSectionsFor(1))
+          for (final s in archiveSectionsFor(4))
             s.name: s.name == 'runs' ? 1 : 0,
         });
         await c.run(await _archive(l));
@@ -661,7 +684,7 @@ void main() {
         expect(json, contains(text), reason: 'Ersetzung hat gegriffen');
         l[2] = json;
         l[l.length - 1] = _endLine({
-          for (final s in archiveSectionsFor(1))
+          for (final s in archiveSectionsFor(4))
             s.name: s.name == 'runs' ? 1 : 0,
         });
         await c.rejectsLines(l, ArchiveImportFailure.damaged);
@@ -671,7 +694,7 @@ void main() {
     test(
       'REAL: nicht endlich abgelehnt, Ganzzahlschreibweise erlaubt',
       () async {
-        final lap = _row(archiveSectionsFor(1)[1], 1);
+        final lap = _row(archiveSectionsFor(4)[1], 1);
         String lapsRow(String time) =>
             _rowLine(lap)
                 .replaceFirst('"lap_time_s":1.25', '"lap_time_s":$time');
@@ -684,7 +707,7 @@ void main() {
             lapsRow(time),
             ...l.skip(i + 1).take(l.length - i - 2),
             _endLine({
-              for (final s in archiveSectionsFor(1))
+              for (final s in archiveSectionsFor(4))
                 s.name: s.name == 'laps' ? 1 : 0,
             }),
           ];
@@ -702,7 +725,7 @@ void main() {
       () async {
         final l = withRunRow(run());
         l[l.length - 1] = _endLine({
-          for (final s in archiveSectionsFor(1))
+          for (final s in archiveSectionsFor(4))
             s.name: s.name == 'runs' ? 1 : 0,
         });
         final lone = [...l]
@@ -723,7 +746,7 @@ void main() {
       await c.rejectsLines(
         l
           ..[l.length - 1] = _endLine({
-            for (final s in archiveSectionsFor(1))
+            for (final s in archiveSectionsFor(4))
               s.name: s.name == 'runs' ? 1 : 0,
           }),
         ArchiveImportFailure.damaged,
@@ -734,7 +757,7 @@ void main() {
       'Zeile mit fremdem Schlüssel neben data / ohne data / data kein Objekt',
       () async {
         final counts = {
-          for (final s in archiveSectionsFor(1))
+          for (final s in archiveSectionsFor(4))
             s.name: s.name == 'runs' ? 1 : 0,
         };
         for (final line in [
@@ -754,7 +777,7 @@ void main() {
     test('Schlüssel nicht aufsteigend oder doppelt', () async {
       final l = valid(0);
       final counts = {
-        for (final s in archiveSectionsFor(1)) s.name: s.name == 'runs' ? 2 : 0,
+        for (final s in archiveSectionsFor(4)) s.name: s.name == 'runs' ? 2 : 0,
       };
       for (final ids in [
         [2, 1],
@@ -763,7 +786,7 @@ void main() {
         c = _Case(dir);
         final rows = [
           for (final id in ids)
-            _rowLine({..._row(archiveSectionsFor(1)[0], 1), 'id': id}),
+            _rowLine({..._row(archiveSectionsFor(4)[0], 1), 'id': id}),
         ];
         await c.rejectsLines([
           ...l.take(2),
@@ -781,7 +804,7 @@ void main() {
         c = _Case(dir);
         final db = _fullDb(rowsPer: 2);
         final counts = {
-          for (final s in archiveSectionsFor(1))
+          for (final s in archiveSectionsFor(4))
             s.name: db[s.name]?.length ?? 0,
         };
         counts['laps'] = counts['laps']! + delta;
@@ -792,7 +815,7 @@ void main() {
     });
 
     test('Zähler fehlt / überzählig / Text statt Zahl', () async {
-      final base = {for (final s in archiveSectionsFor(1)) s.name: 0};
+      final base = {for (final s in archiveSectionsFor(4)) s.name: 0};
       for (final counts in <Map<String, Object?>>[
         {...base}..remove('plans'),
         {...base, 'extra': 0},
@@ -818,7 +841,7 @@ void main() {
       () async {
         final l = valid();
         for (final extra in [
-          _rowLine(_row(archiveSectionsFor(1)[0], 9)),
+          _rowLine(_row(archiveSectionsFor(4)[0], 9)),
           _section('runs'),
           l.last,
           _manifest(),
@@ -903,7 +926,7 @@ void main() {
           settingsRow(n),
           ...l.skip(i + 1).take(l.length - i - 2),
           _endLine({
-            for (final s in archiveSectionsFor(1))
+            for (final s in archiveSectionsFor(4))
               s.name: s.name == 'settings' ? 1 : 0,
           }),
         ];
@@ -1116,24 +1139,27 @@ void main() {
       List<Map<String, Object?>>? feedback,
       List<Map<String, Object?>>? trainings,
       String? manifest,
+      int schema = 5,
+      Map<String, List<Map<String, Object?>>> extra = const {},
     }) {
       final db = <String, List<Map<String, Object?>>>{
         'runs': [_row(archiveSections[0], 1), _row(archiveSections[0], 2)],
         'run_feedback': feedback ?? [fb()],
         'manual_trainings': trainings ?? [mt()],
+        ...extra,
       };
+      final sections = archiveSectionsFor(schema);
       return [
         manifest ??
-            '{"type":"manifest","format":2,"schema_version":5,'
+            '{"type":"manifest","format":2,"schema_version":$schema,'
                 '"created_at_us":1793000000000000}',
-        for (final sec in archiveSections) ...[
+        for (final sec in sections) ...[
           _section(sec.name),
           for (final r in db[sec.name] ?? const <Map<String, Object?>>[])
             _rowLine(r),
         ],
         _endLine({
-          for (final sec in archiveSections)
-            sec.name: db[sec.name]?.length ?? 0,
+          for (final sec in sections) sec.name: db[sec.name]?.length ?? 0,
         }),
       ];
     }
@@ -1240,6 +1266,10 @@ void main() {
         '{"type":"manifest","format":1,"schema_version":5,"created_at_us":1}',
         1,
       ),
+      'Format 1 mit Schema 6': (
+        '{"type":"manifest","format":1,"schema_version":6,"created_at_us":1}',
+        1,
+      ),
       'Format 3': (
         '{"type":"manifest","format":3,"schema_version":5,"created_at_us":1}',
         2,
@@ -1266,6 +1296,494 @@ void main() {
         await rejectsV2(lines, ArchiveImportFailure.damaged, entry.value.$2);
       });
     }
+
+    // Nur das Format/Schema-Paar ist falsch: Kopf und Manifest stimmen
+    // überein und der Inhalt passt zum Schema. Ohne die Paarprüfung im Leser
+    // würde das Archiv gelesen.
+    test(
+      'Paar Format 2 mit Schema 4, Inhalt von Schema 4: beschädigt',
+      () async {
+        final l = valid()
+          ..[0] =
+              '{"type":"manifest","format":2,"schema_version":4,'
+              '"created_at_us":1}';
+        await rejectsV2(l, ArchiveImportFailure.damaged, 2);
+      },
+    );
+
+    test(
+      'Paar Format 1 mit Schema 5, Inhalt von Schema 5: beschädigt',
+      () async {
+        final l = v2()
+          ..[0] =
+              '{"type":"manifest","format":1,"schema_version":5,'
+              '"created_at_us":1}';
+        await rejectsV2(l, ArchiveImportFailure.damaged, 1);
+      },
+    );
+
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 8 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 9, 100]) {
+        expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
+      }
+      expect(archiveSectionsFor(4), hasLength(19));
+      expect(archiveSectionsFor(6), hasLength(23));
+      expect(archiveSectionsFor(7), hasLength(24));
+      expect(archiveSectionsFor(8), hasLength(24));
+      // `fixed` steht erst ab Schema 8 im Abschnitt 24.
+      expect(
+        archiveSectionsFor(7).last.columns.map((c) => c.name),
+        isNot(contains('fixed')),
+      );
+      expect(archiveSectionsFor(8).last.columns.last.name, 'fixed');
+    });
+
+    test(
+      'Abschnitt 19 goals: bis Schema 6 reserviert, ab Schema 7 mit Spalten',
+      () {
+        for (final schema in [4, 5, 6]) {
+          final g = archiveSectionsFor(schema)
+              .firstWhere((s) => s.name == 'goals');
+          expect(g.isReserved, isTrue, reason: '$schema');
+          expect(g.columns, isEmpty, reason: '$schema');
+        }
+        final g = archiveSectionsFor(7).firstWhere((s) => s.name == 'goals');
+        expect(g.isReserved, isFalse);
+        expect(g.columns, hasLength(12));
+        // Reihenfolge der Abschnitte bleibt über die Schemata gleich.
+        expect(archiveSectionsFor(7)[18].name, 'goals');
+        expect(archiveSectionsFor(6)[18].name, 'goals');
+      },
+    );
+
+    test(
+      'Format 2 mit Schema 5 (21 Abschnitte, ohne Prognose) bleibt lesbar',
+      () async {
+        expect(archiveSectionsFor(5), hasLength(21));
+        await c.run(await file(v2()));
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['run_feedback'], hasLength(1));
+        expect(c.sink.rows['manual_trainings'], hasLength(1));
+        expect(c.sink.rows['reference_performances'] ?? const [], isEmpty);
+      },
+    );
+
+    test('Format 2 mit Schema 6: Prognose-Abschnitte mit Inhalt', () async {
+      expect(archiveSectionsFor(6), hasLength(23));
+      final refs = [
+        {
+          'id': 1,
+          'kind': 'race',
+          'distance_m': 10000.0,
+          'time_s': 3012.5,
+          'performed_on': '2026-10-01',
+          'created_at_us': 7,
+          'run_id': null,
+        },
+        {
+          'id': 2,
+          'kind': 'confirmedRun',
+          'distance_m': 5000.0,
+          'time_s': 1490.0,
+          'performed_on': '2026-11-02',
+          'created_at_us': 8,
+          'run_id': 1,
+        },
+      ];
+      await c.run(
+        await file(
+          v2(
+            schema: 6,
+            extra: {
+              'reference_performances': refs,
+              'rejected_suggestions': [
+                {'id': 1, 'run_id': 2},
+              ],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['reference_performances'], hasLength(2));
+      expect(c.sink.rows['reference_performances']![0]['time_s'], 3012.5);
+      expect(c.sink.rows['reference_performances']![0]['run_id'], isNull);
+      expect(c.sink.rows['rejected_suggestions']![0]['run_id'], 2);
+      expect(c.sink.rows['run_feedback'], hasLength(1));
+    });
+
+    Map<String, Object?> goal({Object? runDays = 21}) => {
+      'id': 1,
+      'type': 'time',
+      'distance': 'tenKilometers',
+      'target_s': 3000.0,
+      'target_date': '2027-03-20',
+      'run_days': runDays,
+      'max_session_s': 3600.0,
+      'weekly_cap_s': 14400.0,
+      'current_weekly_s': null,
+      'can_run_30': 'yes',
+      'hard_session': 1,
+      'created_at_us': 7,
+    };
+
+    Map<String, Object?> plan() => {
+      'id': 1,
+      'goal_id': 1,
+      'created_at_us': 8,
+      'valid_from': '2026-11-09',
+      'trigger': 'create',
+      'reason': 'goalCreated',
+      'method': 'plan-rules',
+      'method_version': 1,
+      'parameter_version': 1,
+      'inputs': jsonEncode(
+        PlanInputs(
+          anchor: DateTime.utc(2026, 11, 9),
+          startWeeklyMinutes: 90,
+          today: DateTime.utc(2026, 11, 9),
+        ).toJson(),
+      ),
+      'summary': '{"weeks":12}',
+    };
+
+    Map<String, Object?> unit(int id, {int? runId}) => {
+      'id': id,
+      'plan_id': 1,
+      'day': '2026-11-${(id + 8).toString().padLeft(2, '0')}',
+      'week': 0,
+      'phase': 'entry',
+      'kind': 'walkRun',
+      'minutes': 30,
+      'structure': '[{"kind":"walk","minutes":5,"seconds":300}]',
+      'run_id': runId,
+      'pinned': 0,
+    };
+
+    test('Format 2 mit Schema 7: Ziel in Abschnitt 19', () async {
+      await c.run(
+        await file(
+          v2(
+            schema: 7,
+            extra: {
+              'goals': [goal()],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['goals'], [goal()]);
+      expect(c.sink.rows['run_feedback'], hasLength(1));
+    });
+
+    test('Format 2 mit Schema 7 ohne Ziel (0 Zeilen) ist gültig', () async {
+      await c.run(await file(v2(schema: 7)));
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['goals'] ?? const [], isEmpty);
+    });
+
+    test('Ziel mit falschem Typ oder fehlender Spalte: beschädigt', () async {
+      await rejectsV2(
+        v2(
+          schema: 7,
+          extra: {
+            'goals': [goal(runDays: '21')],
+          },
+        ),
+      );
+      await rejectsV2(
+        v2(
+          schema: 7,
+          extra: {
+            'goals': [goal()..remove('hard_session')],
+          },
+        ),
+      );
+      await rejectsV2(
+        v2(
+          schema: 7,
+          extra: {
+            'goals': [goal()..['can_run_30'] = null],
+          },
+        ),
+      );
+    });
+
+    test(
+      'Ziel in Schema 6 oder 5 (reservierter Abschnitt): beschädigt',
+      () async {
+        for (final schema in [5, 6]) {
+          final l = v2(schema: schema);
+          final at = l.indexOf(_section('goals'));
+          l.insert(at + 1, _rowLine(goal()));
+          // Zähler der Endzeile angepasst, damit nur die Zeile selbst stört.
+          l[l.length - 1] = _endLine({
+            for (final sec in archiveSectionsFor(schema))
+              sec.name: switch (sec.name) {
+                'runs' => 2,
+                'run_feedback' || 'manual_trainings' || 'goals' => 1,
+                _ => 0,
+              },
+          });
+          await rejectsV2(l);
+        }
+      },
+    );
+
+    test(
+      'Plan-Zeile in Schema 5 oder 6 (reservierter Abschnitt 20): beschädigt',
+      () async {
+        for (final schema in [5, 6]) {
+          final l = v2(schema: schema);
+          final at = l.indexOf(_section('plans'));
+          l.insert(at + 1, _rowLine(plan()));
+          // Zähler der Endzeile stimmt, damit nur die Reservierung stört.
+          l[l.length - 1] = _endLine({
+            for (final sec in archiveSectionsFor(schema))
+              sec.name: switch (sec.name) {
+                'runs' => 2,
+                'run_feedback' || 'manual_trainings' || 'plans' => 1,
+                _ => 0,
+              },
+          });
+          await rejectsV2(l);
+        }
+      },
+    );
+
+    test('Schema 7: Plan und Einheiten (Abschnitte 20 und 24)', () async {
+      await c.run(
+        await file(
+          v2(
+            schema: 7,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': [unit(1), unit(2, runId: 1)],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['plans'], [plan()]);
+      // Schema 7 kennt `fixed` nicht: Der Leser setzt 'none' (Schema 8).
+      expect(c.sink.rows['plan_units'], [
+        unit(1)..['fixed'] = 'none',
+        unit(2, runId: 1)..['fixed'] = 'none',
+      ]);
+    });
+
+    test(
+      'Schema 8: plan_units mit fixed (none, day, kind) unverändert',
+      () async {
+        final units = [
+          unit(1)..['fixed'] = 'none',
+          unit(2)
+            ..['kind'] = 'rest'
+            ..['pinned'] = 1
+            ..['fixed'] = 'day',
+          unit(3)
+            ..['kind'] = 'tempo'
+            ..['pinned'] = 1
+            ..['fixed'] = 'kind',
+        ];
+        await c.run(
+          await file(
+            v2(
+              schema: 8,
+              extra: {
+                'goals': [goal()],
+                'plans': [plan()],
+                'plan_units': units,
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['plan_units'], units);
+      },
+    );
+
+    test(
+      'fixed fehlt in Schema 8 oder steht in Schema 7: beschädigt',
+      () async {
+        await rejectsV2(
+          v2(
+            schema: 8,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': [unit(1)],
+            },
+          ),
+        );
+        await rejectsV2(
+          v2(
+            schema: 7,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': [unit(1)..['fixed'] = 'none'],
+            },
+          ),
+        );
+        await rejectsV2(
+          v2(
+            schema: 8,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': [unit(1)..['fixed'] = 1],
+            },
+          ),
+        );
+      },
+    );
+
+    test(
+      'Schema 7: vollständige und leere Zielintensität sind gültig',
+      () async {
+        final full =
+            '[{"kind":"easy","minutes":5,"seconds":300,"intensity":{'
+            '"rpeMin":3,"rpeMax":4,"paceFast":330,"paceSlow":360.5,"basis":"x",'
+            '"hrMin":120,"hrMax":140,"estimated":true,"maxHrEstimated":false,'
+            '"paceIsLimit":false}},'
+            '{"kind":"walk","minutes":0,"intensity":{"rpeMin":null}}]';
+        await c.run(
+          await file(
+            v2(
+              schema: 7,
+              extra: {
+                'goals': [goal()],
+                'plans': [plan()],
+                'plan_units': [unit(1)..['structure'] = full],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+      },
+    );
+
+    test('Schema 7 ohne Plan (0 Zeilen) ist gültig', () async {
+      await c.run(await file(v2(schema: 7)));
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['plans'] ?? const [], isEmpty);
+      expect(c.sink.rows['plan_units'] ?? const [], isEmpty);
+    });
+
+    test('Abschnitt plan_units gehört nur zu Schema 7', () async {
+      expect(archiveSectionsFor(7).map((s) => s.name).last, 'plan_units');
+      expect(archiveSectionsFor(7), hasLength(24));
+      expect(archiveSectionsFor(6), hasLength(23));
+      final l = v2(schema: 6);
+      l.insert(l.length - 1, _section('plan_units'));
+      await rejectsV2(l);
+    });
+
+    test(
+      'Plan: JSON ungültig, Tag ungültig, falscher Typ: beschädigt',
+      () async {
+        Future<void> badPlan(Map<String, Object?> p) => rejectsV2(
+          v2(
+            schema: 7,
+            extra: {
+              'goals': [goal()],
+              'plans': [p],
+            },
+          ),
+        );
+        await badPlan(plan()..['inputs'] = '{kaputt');
+        await badPlan(plan()..['summary'] = '');
+        // Gültiges JSON, aber nicht die Form von PlanInputs/Zusammenfassung:
+        // sonst scheiterte jede spätere Neuberechnung dauerhaft.
+        await badPlan(plan()..['inputs'] = '{}');
+        await badPlan(plan()..['inputs'] = '[]');
+        await badPlan(plan()..['inputs'] = '{"inputsVersion":2}');
+        await badPlan(plan()..['summary'] = '[]');
+        await badPlan(plan()..['valid_from'] = '2026-02-30');
+        await badPlan(plan()..['valid_from'] = '9.11.2026');
+        await badPlan(plan()..['method_version'] = '1');
+        await badPlan(plan()..remove('reason'));
+      },
+    );
+
+    test(
+      'Plan-Einheit: JSON, Tag, Zahlen, run_id-Typ, id: beschädigt',
+      () async {
+        Future<void> bad(List<Map<String, Object?>> units) => rejectsV2(
+          v2(
+            schema: 7,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': units,
+            },
+          ),
+        );
+        await bad([unit(1)..['structure'] = '[{']);
+        await bad([unit(1)..['structure'] = '{}']);
+        await bad([unit(1)..['structure'] = '[1]']);
+        await bad([unit(1)..['structure'] = '[{"kind":"x","minutes":5}]']);
+        await bad([unit(1)..['structure'] = '[{"kind":"walk","minutes":"5"}]']);
+        await bad([unit(1)..['structure'] = '[{"kind":"walk","minutes":-1}]']);
+        await bad([
+          unit(1)..['structure'] = '[{"kind":"walk","minutes":5,"seconds":-1}]',
+        ]);
+        for (final f in [
+          '"rpeMin":"x"',
+          '"rpeMax":1.5',
+          '"paceFast":"5"',
+          '"paceSlow":true',
+          '"basis":3',
+          '"hrMin":"1"',
+          '"hrMax":2.5',
+          '"estimated":"yes"',
+          '"maxHrEstimated":1',
+          '"paceIsLimit":"no"',
+        ]) {
+          await bad([
+            unit(
+              1,
+            )..['structure'] = '[{"kind":"walk","minutes":5,"intensity":{$f}}]',
+          ]);
+        }
+        await bad([unit(1)..['day'] = '2026-13-01']);
+        await bad([unit(1)..['day'] = '2026-11-9']);
+        await bad([unit(1)..['week'] = -1]);
+        await bad([unit(1)..['minutes'] = -5]);
+        await bad([unit(1)..['pinned'] = 2]);
+        await bad([unit(1)..['run_id'] = '1']);
+        await bad([unit(2), unit(1)]);
+        await bad([unit(1), unit(1)]);
+      },
+    );
+
+    test('Schema 6 ohne die Prognose-Abschnitte: beschädigt', () async {
+      final l = v2();
+      l[0] = v2(schema: 6)[0];
+      await rejectsV2(l);
+    });
+
+    test('Schema 5 mit Prognose-Abschnitt: beschädigt', () async {
+      final l = v2();
+      final at = l.indexOf(_section('goals'));
+      l.insert(at, _section('reference_performances'));
+      await rejectsV2(l);
+    });
+
+    test('Schema 4 mit Abschnitt aus Schema 6: beschädigt', () async {
+      final l = valid();
+      final at = l.indexOf(_section('goals'));
+      l.insert(at, _section('reference_performances'));
+      await c.rejectsLines(l, ArchiveImportFailure.damaged);
+    });
+
+    test('Schema 9: neueres Archiv', () async {
+      await rejectsV2(
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":9,"created_at_us":1}',
+        ArchiveImportFailure.newerSchema,
+      );
+    });
 
     test('Kopf Format 3 oder 0: unbekannte Formatversion', () async {
       final bytes = await file(v2());

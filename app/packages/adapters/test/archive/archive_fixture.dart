@@ -130,6 +130,48 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     "INSERT INTO manual_trainings (day, kind, duration_s, rpe) VALUES ('2026-11-01', 'other', 3600, 4), ('2026-11-20', 'run', 1800, 0)",
   );
+  // Leistungsprognose (Schema 6): eine Wettkampfzeit ohne Lauf, ein
+  // bestätigter Lauf mit Verweis, ein abgelehnter Vorschlag.
+  await sql(
+    db,
+    'INSERT INTO reference_performances (kind, distance_m, time_s, performed_on, created_at_us, run_id) '
+    "VALUES ('race', 10000.0, 3012.5, '2026-10-01', 7, NULL), "
+    "('confirmedRun', 5000.0, 1490.0, '2026-11-02', 8, 1)",
+  );
+  await sql(db, 'INSERT INTO rejected_suggestions (run_id) VALUES (1)');
+  // Ziel (Schema 7): Zeitziel über 10 km, Lauftage Mo, Mi, Fr (Maske 21).
+  await sql(
+    db,
+    'INSERT INTO goals (id, type, distance, target_s, target_date, run_days, '
+    'max_session_s, weekly_cap_s, current_weekly_s, can_run_30, hard_session, '
+    'created_at_us) '
+    "VALUES (1, 'time', 'tenKilometers', 3000.0, '2027-03-20', 21, 3600.0, "
+    "14400.0, 7200.0, 'yes', 1, 9)",
+  );
+  // Plan (Schema 7): eine Fassung mit zwei Einheiten; die erste mit Lauf und
+  // Geh-Lauf-Segmenten in Sekunden, die zweite ein Ruhetag. Synthetisch.
+  await sql(
+    db,
+    'INSERT INTO plans (id, goal_id, created_at_us, valid_from, "trigger", '
+    'reason, method, method_version, parameter_version, inputs, summary) '
+    "VALUES (1, 1, 10, '2026-11-02', 'create', 'goalCreated', 'plan-rules', "
+    '1, 1, \'{"inputsVersion":1,"anchor":"2026-11-02","startWeeklyMinutes":120,"walkRunWeeks":0,"easyPaceSecondsPerKm":null,"easyRunCount":0,"lastWeekMinutes":null,"achievedShare":null,"walkRunStart":null,"walkRunFrom":null,"intensity":null,"today":"2026-11-02"}\', '
+    '\'{"weeks":12,"estimated":true}\')',
+  );
+  await sql(
+    db,
+    'INSERT INTO plan_units (id, plan_id, day, week, phase, kind, minutes, '
+    'structure, run_id, pinned, fixed) VALUES '
+    "(1, 1, '2026-11-02', 0, 'entry', 'walkRun', 30, "
+    '\'[{"kind":"walk","minutes":5,"seconds":300},'
+    '{"kind":"run","minutes":2,"seconds":90,"intensity":{"rpeMin":3,'
+    '"rpeMax":4,"paceFast":360.0,"paceSlow":420.0,"basis":"estimate",'
+    '"hrMin":null,"hrMax":null,"estimated":true,"maxHrEstimated":false,'
+    '"paceIsLimit":false}}]\', 1, 1, \'none\'), '
+    "(2, 1, '2026-11-03', 0, 'entry', 'rest', 0, '[]', NULL, 1, 'day'), "
+    "(3, 1, '2026-11-04', 0, 'entry', 'easy', 30, "
+    '\'[{"kind":"easy","minutes":30}]\', NULL, 1, \'easyForHard\')',
+  );
   await sql(
     db,
     "INSERT INTO consents VALUES ('$fixtureConsentMarker', 'granted', 5)",

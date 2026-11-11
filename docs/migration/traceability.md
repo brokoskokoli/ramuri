@@ -143,7 +143,7 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-001 | §12.5, Z. 805 | Keine Fortschreibung über Datenlücken | FR-0126 | [energy-reserve.md](../specs/energy-reserve.md) | 2 AK | Übernommen |
 | SRC-001 | §12.5, Z. 807 | Getrennt von der Training Readiness | FR-0127 | [energy-reserve.md](../specs/energy-reserve.md) | 1 AK | Übernommen |
 | SRC-001 | §13, Z. 811–818 | Prognose für mögliche Distanzen | FR-0128 | [performance-prediction.md](../specs/performance-prediction.md) | 1 AK | Übernommen |
-| SRC-001 | §13, Z. 820 | Bevorzugt tatsächliche Leistungen als Grundlage | FR-0129 | [performance-prediction.md](../specs/performance-prediction.md) | 4 AK | Übernommen |
+| SRC-001 | §13, Z. 820 | Bevorzugt tatsächliche Leistungen als Grundlage | FR-0129 | [performance-prediction.md](../specs/performance-prediction.md) | 5 AK | Übernommen |
 | SRC-001 | §13.1, Z. 824–838 | Riegel-Modell | FR-0130 | [performance-prediction.md](../specs/performance-prediction.md) | 1 AK | Übernommen |
 | SRC-001 | §13.1, Z. 840–842 | Voraussetzungen der Referenzleistung | FR-0131 | [performance-prediction.md](../specs/performance-prediction.md) | 1 AK | Übernommen |
 | SRC-001 | §13.2, Z. 846–852 | Einflussgrößen der Prognosequalität | FR-0132 | [performance-prediction.md](../specs/performance-prediction.md) | 1 AK | Übernommen |
@@ -191,12 +191,12 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-001 | §25 Nr. 10, Z. 1405 | Größere Änderungen begründen | FR-0170 | [plan-adaptation.md](../specs/plan-adaptation.md) | 2 AK, ACC-10 | Übernommen |
 | SRC-001 | §18, Z. 1130 | Kalender mit geplanten und absolvierten Einheiten | FR-0171 | [calendar.md](../specs/calendar.md) | 1 AK | Übernommen |
 | SRC-001 | §18.1, Z. 1134–1137 | Ansichten und Kennzeichnungen | FR-0172 | [calendar.md](../specs/calendar.md) | 2 AK | Übernommen |
-| SRC-001 | §18.1, Z. 1138–1140 | Training verschieben, ersetzen, Ruhetage festlegen | FR-0173 | [calendar.md](../specs/calendar.md) | 2 AK | Übernommen |
+| SRC-001 | §18.1, Z. 1138–1140 | Training verschieben, ersetzen, Ruhetage festlegen | FR-0173 | [calendar.md](../specs/calendar.md) | 3 AK | Übernommen |
 | SRC-001 | §18.1, Z. 1141–1142 | Trainingszeiten und Erinnerungen | FR-0174 | [calendar.md](../specs/calendar.md) | 1 AK | Übernommen |
 | SRC-001 | §18.1, Z. 1144–1148 | Termine empfehlen | FR-0175 | [calendar.md](../specs/calendar.md) | 1 AK | Übernommen |
-| SRC-001 | §18.1, Z. 1150 | Bestätigung vor Kalenderänderungen | FR-0176 | [calendar.md](../specs/calendar.md) | 2 AK | Übernommen |
+| SRC-001 | §18.1, Z. 1150 | Bestätigung vor Kalenderänderungen | FR-0176 | [calendar.md](../specs/calendar.md) | 3 AK | Übernommen |
 | SRC-001 | §18.2, Z. 1154–1159 | Prüfung beim Verschieben | FR-0177 | [calendar.md](../specs/calendar.md) | 1 AK | Übernommen |
-| SRC-001 | §18.2, Z. 1161 | Alternativen bei Konflikten | FR-0178 | [calendar.md](../specs/calendar.md) | 1 AK | Übernommen |
+| SRC-001 | §18.2, Z. 1161 | Alternativen bei Konflikten | FR-0178 | [calendar.md](../specs/calendar.md) | 2 AK | Übernommen |
 | SRC-001 | §19, Z. 1165 | Bedeutung erklären | FR-0179 | [explanations.md](../specs/explanations.md) | 1 AK | Übernommen |
 | SRC-001 | §19, Z. 1167–1183 | Erklärungsarten | FR-0180 | [explanations.md](../specs/explanations.md) | 1 AK | Übernommen |
 | SRC-001 | §19, Z. 1185 | Erklärungen beruhen auf tatsächlichen Daten | FR-0181 | [explanations.md](../specs/explanations.md) | 2 AK | Übernommen |

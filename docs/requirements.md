@@ -160,7 +160,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0149 | Keine pauschale Steigerung als garantiert sicher | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0149--keine-pauschale-steigerung-als-garantiert-sicher) | OQ-0028 |
 | FR-0150 | Wochen mit reduziertem Umfang | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0150--wochen-mit-reduziertem-umfang) | OQ-0028 |
 | FR-0151 | Verteilung der Einheiten | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0151--verteilung-der-einheiten) | OQ-0028, OQ-0059, OQ-0060 |
-| FR-0152 | Intensive Einheiten nicht ohne Erholung hintereinander | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0152--intensive-einheiten-nicht-ohne-erholung-hintereinander) | FR-0177, OQ-0028 |
+| FR-0152 | Intensive Einheiten nicht ohne Erholung hintereinander | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0152--intensive-einheiten-nicht-ohne-erholung-hintereinander) | FR-0177, OQ-0028, OQ-0079 |
 | FR-0153 | Rangfolge für die Ableitung der Zielintensität | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0153--rangfolge-für-die-ableitung-der-zielintensität) | FR-0145, OQ-0003, OQ-0057, OQ-0059 |
 | FR-0154 | Machbarkeit des Ziels beurteilen | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0154--machbarkeit-des-ziels-beurteilen) | FR-0137, OQ-0027, OQ-0059, OQ-0060 |
 | FR-0155 | Einfache Trainingsplanung nur mit dem Smartphone | functional | Approved | 2 | [training-plan](specs/training-plan.md#fr-0155--einfache-trainingsplanung-nur-mit-dem-smartphone) | CON-0004, OQ-0028 |
@@ -181,11 +181,11 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0170 | Größere Änderungen begründen | functional | Approved | 2 | [plan-adaptation](specs/plan-adaptation.md#fr-0170--größere-änderungen-begründen) | FR-0180, ACC-10, OQ-0028, OQ-0060 |
 | FR-0171 | Kalender mit geplanten und absolvierten Einheiten | functional | Approved | 2 | [calendar](specs/calendar.md#fr-0171--kalender-mit-geplanten-und-absolvierten-einheiten) | — |
 | FR-0172 | Ansichten und Kennzeichnungen | functional | Approved | 2 | [calendar](specs/calendar.md#fr-0172--ansichten-und-kennzeichnungen) | — |
-| FR-0173 | Training verschieben, ersetzen, Ruhetage festlegen | functional | Approved | 2 | [calendar](specs/calendar.md#fr-0173--training-verschieben-ersetzen-ruhetage-festlegen) | OQ-0011 |
+| FR-0173 | Training verschieben, ersetzen, Ruhetage festlegen | functional | Approved | 2 | [calendar](specs/calendar.md#fr-0173--training-verschieben-ersetzen-ruhetage-festlegen) | OQ-0011, ADR-0010 |
 | FR-0174 | Trainingszeiten und Erinnerungen | functional | Approved | 2 | [calendar](specs/calendar.md#fr-0174--trainingszeiten-und-erinnerungen) | — |
 | FR-0175 | Termine empfehlen | functional | Approved | 2 | [calendar](specs/calendar.md#fr-0175--termine-empfehlen) | FR-0176 |
 | FR-0176 | Bestätigung vor Kalenderänderungen | functional | Approved | 2 | [calendar](specs/calendar.md#fr-0176--bestätigung-vor-kalenderänderungen) | FR-0156, FR-0169, OQ-0011, OQ-0005 |
-| FR-0177 | Prüfung beim Verschieben | functional | Approved | 2 | [calendar](specs/calendar.md#fr-0177--prüfung-beim-verschieben) | FR-0152 |
+| FR-0177 | Prüfung beim Verschieben | functional | Approved | 2 | [calendar](specs/calendar.md#fr-0177--prüfung-beim-verschieben) | FR-0152, OQ-0079, OQ-0080 |
 | FR-0178 | Alternativen bei Konflikten | functional | Approved | 2 | [calendar](specs/calendar.md#fr-0178--alternativen-bei-konflikten) | — |
 | FR-0179 | Bedeutung erklären | functional | Approved | 2 | [explanations](specs/explanations.md#fr-0179--bedeutung-erklären) | CON-0005 |
 | FR-0180 | Erklärungsarten | functional | Approved | 2 | [explanations](specs/explanations.md#fr-0180--erklärungsarten) | FR-0170, OQ-0011, OQ-0039 |
@@ -238,7 +238,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | SEC-0006 | Berechnungen ohne zwingende externe Übertragung | non-functional | Approved | 1 | [security](quality/security.md#sec-0006--berechnungen-ohne-zwingende-externe-übertragung) | CON-0008, OQ-0017, OQ-0023 |
 | SEC-0007 | Berechtigungen widerrufen | non-functional | Approved | 1 | [security](quality/security.md#sec-0007--berechtigungen-widerrufen) | FR-0191, OQ-0017, OQ-0025 |
 | SEC-0008 | Keine Übertragung an Dritte ohne Einwilligung | non-functional | Approved | 1 | [security](quality/security.md#sec-0008--keine-übertragung-an-dritte-ohne-einwilligung) | FR-0185, FR-0186, FR-0187, FR-0204, OQ-0017, OQ-0025, OQ-0074, ADR-0009 |
-| SEC-0009 | Verschlüsselte Speicherung | non-functional | Approved | 1 | [security](quality/security.md#sec-0009--verschlüsselte-speicherung) | FR-0185, OQ-0024, OQ-0062, OQ-0072 |
+| SEC-0009 | Verschlüsselte Speicherung | non-functional | Approved | 1 | [security](quality/security.md#sec-0009--verschlüsselte-speicherung) | FR-0185, FR-0174, OQ-0024, OQ-0062, OQ-0072, ADR-0005 |
 | SEC-0010 | System-Backups immer aus | non-functional | Approved | 1 | [security](quality/security.md#sec-0010--system-backups-immer-aus) | SEC-0008, FR-0192, OQ-0024, OQ-0056 |
 | SEC-0011 | Verschlüsseltes Archiv | non-functional | Approved | 1 | [security](quality/security.md#sec-0011--verschlüsseltes-archiv) | SEC-0009, FR-0192, FR-0198, OQ-0050 |
 | CON-0001 | Zielplattformen | constraint | Approved | 1 | [product](product.md#con-0001--zielplattformen) | OQ-0035, OQ-0063 |

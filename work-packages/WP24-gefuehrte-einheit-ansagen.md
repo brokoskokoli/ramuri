@@ -10,6 +10,7 @@ Bezug: FR-0025, FR-0027, FR-0031 bis FR-0033, FR-0146, FR-0210; PAR-107, PAR-119
 3. **Intervall-Seite (Teil C, FR-0027, FR-0146):** Nach `Intervall.dc.html`, in beiden Modi dunkel (FR-0205): Abschnitt, Rest, Soll- und Ist-Wert, nächster Abschnitt. Pulshinweise nur nach PAR-107, also nie in Blöcken unter 4 min. Pflichtanzeigen aus WP16 bleiben erreichbar.
 4. **Warnung und Ansagen (Teil D, FR-0031, FR-0032):** Einzeln schaltbare Sprachansagen: je Kilometer mit Zeit und Pace, Überschreitung des Pulsbereichs, Intervallwechsel. Über die Sprachausgabe des Systems, auch bei ausgeschaltetem Bildschirm. Texte auf Deutsch und Englisch.
 5. **Zuordnung (Teil E):** Der fertige Lauf gehört zur Einheit („Aus dem Plan“ in der Zusammenfassung), zählt aber wie jeder andere Lauf.
+6. **Aus WP22:** Ein Neustart nach PAR-202 senkt die Start-Wochenzeit; bei „nein“ fallen die harten Einheiten weg. Nach „Einheit starten“ zeigt „Lauf vorbereiten“ noch „Ohne Vorgabe“ (Teil A).
 
 ## Umsetzung
 - **Vorab klären und in die Fertigmeldung:** Kommt die Sprachausgabe ohne neue Abhängigkeit aus, und sendet sie aus der App heraus nichts ins Netz (ADR-0009)? Die App darf für Ansagen kein Netz nutzen; ob eine vom Nutzer gewählte Stimme des Systems online arbeitet, liegt außerhalb der App und wird dokumentiert. Neue Abhängigkeit vorher beim Orchestrator anmelden.

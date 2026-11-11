@@ -66,6 +66,17 @@ SECTIONS = ["runs", "laps", "run_gaps", "raw_positions", "raw_heart_rates",
 # Format 2 (Schema 5, WP18): Abschnitte 17 und 18 kommen nach known_devices (Vertrag 4.3).
 SECTIONS_V2 = SECTIONS[:16] + ["run_feedback", "manual_trainings"] + SECTIONS[16:]
 
+# Schema 6 (WP20, weiter Format 2): Abschnitte 22 und 23 ans Ende (Vertrag 4.3).
+SECTIONS_S6 = SECTIONS_V2 + ["reference_performances", "rejected_suggestions"]
+
+# Schema 7 (WP21, weiter Format 2): Abschnitte 19 `goals` und 20 `plans` tragen Zeilen, 21 bleibt
+# leer; `plan_units` kommt als Nummer 24 ans Ende (Vertrag 4.3).
+SECTIONS_S7 = SECTIONS_S6 + ["plan_units"]
+
+# Schema 8 (WP22, weiter Format 2): gleiche Abschnitte, `plan_units` hat die Spalte `fixed` am Ende
+# (Vertrag 4.3); Archive mit Schema 7 lesen sich mit fixed = "none".
+SECTIONS_S8 = SECTIONS_S7
+
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
 V2_TODAY = "2026-11-20"
@@ -159,10 +170,90 @@ def archive_rows_v2(future_training=False):
     return r
 
 
-def archive_plaintext(version=1, future_training=False):
-    r = archive_rows_v2(future_training) if version == 2 else archive_rows()
-    sections = SECTIONS_V2 if version == 2 else SECTIONS
-    schema = 5 if version == 2 else 4
+def archive_rows_s6():
+    """Schema 6: die Zeilen von Format 2/Schema 5 plus Referenzleistungen und abgelehnte Vorschlaege."""
+    r = archive_rows_v2()
+    r["reference_performances"] = [
+        dict(id=1, kind="race", distance_m=10000.0, time_s=3000.0, performed_on="2026-10-04",
+             created_at_us=1791100000000000, run_id=None),
+        dict(id=2, kind="test", distance_m=5000.0, time_s=1260.5, performed_on="2026-10-20",
+             created_at_us=1792500000000000, run_id=None),
+        # bestaetigter Lauf: verweist auf Lauf 1 des Archivs
+        dict(id=3, kind="confirmedRun", distance_m=4200.0, time_s=1200.0, performed_on="2026-11-02",
+             created_at_us=1793000000000000, run_id=1),
+    ]
+    r["rejected_suggestions"] = [dict(id=1, run_id=7)]
+    return r
+
+
+def archive_rows_s7():
+    """Schema 7: die Zeilen von Schema 6 plus Trainingsziel (Singleton, id 1), Plan und Plan-Einheiten."""
+    r = archive_rows_s6()
+    # Zeitziel ueber 10 km; Lauftage Mo, Mi, Fr (Bitmaske 1+4+16 = 21, Bit 0 = Montag).
+    r["goals"] = [dict(id=1, type="time", distance="tenKilometers", target_s=3000.0,
+                       target_date="2027-03-20", run_days=21, max_session_s=3600.0,
+                       weekly_cap_s=14400.0, current_weekly_s=7200.0, can_run_30="yes",
+                       hard_session=1, created_at_us=1793000000000000)]
+    # Eine Fassung des Plans (inputs, summary: JSON-Text) und zwei Einheiten: ein Geh-Lauf mit
+    # Segmenten in Sekunden und Zuordnung zu Lauf 1, ein Ruhetag (pinned, ohne Lauf).
+    r["plans"] = [dict(id=1, goal_id=1, created_at_us=1793000100000000, valid_from="2026-11-09",
+                       trigger="create", reason="goalCreated", method="plan-rules", method_version=1,
+                       parameter_version=1,
+                       inputs=json.dumps(
+                           {"inputsVersion": 1, "anchor": "2026-11-09", "startWeeklyMinutes": 120,
+                            "walkRunWeeks": 0, "easyPaceSecondsPerKm": None, "easyRunCount": 0,
+                            "lastWeekMinutes": None, "achievedShare": None, "walkRunStart": None,
+                            "walkRunFrom": None, "intensity": None, "today": "2026-11-09"},
+                           separators=(",", ":")),
+                       summary=json.dumps({"weeks": 12, "estimated": True},
+                                          separators=(",", ":")))]
+    walk_run = [
+        {"kind": "walk", "minutes": 5, "seconds": 300},
+        {"kind": "run", "minutes": 2, "seconds": 90,
+         "intensity": {"rpeMin": 3, "rpeMax": 4, "paceFast": 360.0, "paceSlow": 420.0,
+                       "basis": "estimate", "hrMin": None, "hrMax": None, "estimated": True,
+                       "maxHrEstimated": False, "paceIsLimit": False}},
+    ]
+    r["plan_units"] = [
+        dict(id=1, plan_id=1, day="2026-11-09", week=0, phase="entry", kind="walkRun", minutes=30,
+             structure=json.dumps(walk_run, separators=(",", ":")), run_id=1, pinned=0),
+        dict(id=2, plan_id=1, day="2026-11-10", week=0, phase="entry", kind="rest", minutes=0,
+             structure="[]", run_id=None, pinned=1),
+    ]
+    return r
+
+
+def archive_rows_s8():
+    """Schema 8: die Zeilen von Schema 7, Plan-Einheiten mit `fixed`; dazu eine ersetzte Einheit
+    (Art vom Nutzer, fixed = "kind", pinned) neben dem Ruhetag (fixed = "day") und eine harte
+    Einheit, die der Nutzer durch einen lockeren Lauf ersetzt hat (fixed = "easyForHard", nur mit
+    kind = "easy" und pinned)."""
+    r = archive_rows_s7()
+    units = [dict(u, fixed="day" if u["kind"] == "rest" else "none") for u in r["plan_units"]]
+    tempo = [{"kind": "warmUp", "minutes": 10}, {"kind": "tempo", "minutes": 15},
+             {"kind": "coolDown", "minutes": 5}]
+    units.append(dict(id=3, plan_id=1, day="2026-11-11", week=0, phase="entry", kind="tempo",
+                      minutes=30, structure=json.dumps(tempo, separators=(",", ":")), run_id=None,
+                      pinned=1, fixed="kind"))
+    easy = [{"kind": "easy", "minutes": 30}]
+    units.append(dict(id=4, plan_id=1, day="2026-11-12", week=0, phase="entry", kind="easy",
+                      minutes=30, structure=json.dumps(easy, separators=(",", ":")), run_id=None,
+                      pinned=1, fixed="easyForHard"))
+    r["plan_units"] = units
+    return r
+
+
+def archive_plaintext(version=1, future_training=False, schema=None):
+    if schema == 8:
+        r, sections = archive_rows_s8(), SECTIONS_S8
+    elif schema == 7:
+        r, sections = archive_rows_s7(), SECTIONS_S7
+    elif schema == 6:
+        r, sections = archive_rows_s6(), SECTIONS_S6
+    else:
+        r = archive_rows_v2(future_training) if version == 2 else archive_rows()
+        sections = SECTIONS_V2 if version == 2 else SECTIONS
+    schema = schema or (5 if version == 2 else 4)
     lines = [{"type": "manifest", "format": version, "schema_version": schema, "created_at_us": 1793000000000000}]
     for s in sections:
         lines.append({"type": "section", "name": s})
@@ -196,6 +287,9 @@ def main():
 
     jl, gz = archive_plaintext()
     jl2, gz2 = archive_plaintext(2)
+    jl6, gz6 = archive_plaintext(2, schema=6)
+    jl7, gz7 = archive_plaintext(2, schema=7)
+    jl8, gz8 = archive_plaintext(2, schema=8)
     _, gz2_future = archive_plaintext(2, future_training=True)
     # (name, passwort, salz, klartext)
     pw_uni = "Pässwörd-ünïcode-€-123"
@@ -209,13 +303,16 @@ def main():
         ("exact_131072", "", bytes([0xFF] * 16), stream("v6", 131072)),
         ("archive_small", "archiv-test-passwort-15+", bytes(range(200, 216)), gz),
         ("archive_v2", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2),
+        ("archive_v2_s6", "archiv-test-passwort-s6+", bytes(range(232, 248)), gz6),
+        ("archive_v2_s7", "archiv-test-passwort-s7+", bytes(range(248, 256)) + bytes(range(8)), gz7),
+        ("archive_v2_s8", "archiv-test-passwort-s8+", bytes(range(8, 24)), gz8),
     ]
     # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
     v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        ver = 2 if name == "archive_v2" else 1
+        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8") else 1
         h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
@@ -232,6 +329,24 @@ def main():
             manifest[-1]["jsonl_file"] = "archive_v2.jsonl"
             manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl2).hexdigest()
             manifest[-1]["row_counts"] = {s: len(archive_rows_v2()[s]) for s in SECTIONS_V2}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s6":
+            open(os.path.join(out, "archive_v2_s6.jsonl"), "wb").write(jl6)
+            manifest[-1]["jsonl_file"] = "archive_v2_s6.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl6).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s6()[s]) for s in SECTIONS_S6}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s7":
+            open(os.path.join(out, "archive_v2_s7.jsonl"), "wb").write(jl7)
+            manifest[-1]["jsonl_file"] = "archive_v2_s7.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl7).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s7()[s]) for s in SECTIONS_S7}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s8":
+            open(os.path.join(out, "archive_v2_s8.jsonl"), "wb").write(jl8)
+            manifest[-1]["jsonl_file"] = "archive_v2_s8.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl8).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s8()[s]) for s in SECTIONS_S8}
             manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)

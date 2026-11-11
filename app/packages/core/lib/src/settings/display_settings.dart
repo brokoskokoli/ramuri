@@ -101,4 +101,23 @@ abstract final class SettingKeys {
 
   /// Quelle des Ruhepulses: `camera`. Kommt ins Archiv.
   static const String restingHrSource = 'resting_hr.source';
+
+  /// Technischer Merker (WP22): die über „Einheit starten“ gestartete
+  /// Plan-Einheit, bis ihr Lauf zugeordnet ist, `einheit;JJJJ-MM-TT;sekunden`
+  /// (Kennung der Einheit, Ortstag des Starts, Startzeit in Sekunden seit
+  /// 1970, UTC). Leer = keine. Überlebt Absturz und Wiederaufnahme (FR-0193).
+  static const String planStartedUnit = 'plan.started_unit';
+
+  /// `1`, wenn Erinnerungen vor geplanten Einheiten eingeschaltet sind
+  /// (FR-0174); fehlt der Eintrag, sind sie aus. Nutzereinstellung, kommt ins
+  /// Archiv; nach einem Import plant die App nur mit erteilter Berechtigung.
+  static const String reminderEnabled = 'reminder.enabled';
+
+  /// Trainingszeit `HH:MM` (Ortszeit, für alle Tage gleich); fehlt der
+  /// Eintrag, gilt 18:00 (Vorschlag WP22).
+  static const String reminderTime = 'reminder.time';
+
+  /// Vorlauf der Erinnerung in Minuten: 15, 30 oder 60; fehlt der Eintrag,
+  /// gilt 30 (Vorschlag WP22).
+  static const String reminderLeadMinutes = 'reminder.lead_minutes';
 }

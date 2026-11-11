@@ -35,6 +35,7 @@ Die Prognose soll bevorzugt auf geeigneten tatsächlichen Leistungen basieren.
 - [ ] Referenz ist eine eingetragene Wettkampf- oder Testzeit oder ein bestätigter schneller Lauf (OQ-0034).
 - [ ] Ohne Referenz gibt es keine Prognose, sondern den Grund und einen Hinweis auf einen 5-km-Test, sobald der Plan ihn nach PAR-117 enthalten dürfte (OQ-0034, OQ-0057, DEC-0059).
 - [ ] Ein schneller Lauf wird nach PAR-185 vorgeschlagen und zählt erst nach Bestätigung.
+- [ ] Eine Referenz mit Tempo außerhalb von PAR-208 geht in keine Berechnung ein und wird als „ungültig“ mit Grund angezeigt (K53).
 
 ### FR-0130 — Riegel-Modell
 - **Status:** Approved | **Phase:** 2

@@ -19,6 +19,7 @@ step "privat" sh tool/check_private.sh
 # SEC-0002, SEC-0008, ADR-0009: Netz-APIs und Kartenbibliotheken nur im Kartenadapter (fail-closed mit Freigabeliste tool/net_allowed_packages.txt, siehe tool/check_net.py; der Selbsttest tool/check_net_test.py belegt jede Umgehung als rot).
 [ -f app/pubspec.yaml ] && step "Netz nur im Kartenadapter" python3 tool/check_net.py
 [ -f app/pubspec.yaml ] && step "Netz-Prüfung Selbsttest" python3 tool/check_net_test.py
+[ -f app/pubspec.yaml ] && step "Release-Manifest-Prüfung Selbsttest" python3 tool/check_release_manifest_test.py
 
 # --- Flutter und Dart: je Paket (app und app/packages/*) ---
 is_flutter() { grep -Eq '^[[:space:]]+sdk:[[:space:]]*flutter[[:space:]]*$' "$1/pubspec.yaml"; }
@@ -227,7 +228,7 @@ paket_id_pruefen() {
 }
 
 # SEC-0008 (WP13): Das Release-APK fordert INTERNET (nur für Kartenkacheln, Einwilligung, Gate-Schritt "net"), aber keine
-# Hintergrund-Standortberechtigung und kein BOOT_COMPLETED. Geprüft am gebauten APK (aapt), nicht am Quell-Manifest,
+# Hintergrund-Standortberechtigung, keine exakten Wecker und BOOT_COMPLETED nur für den Erinnerungs-Empfänger. Geprüft am gebauten APK (aapt), nicht am Quell-Manifest,
 # weil Plugins per Manifest-Merge Berechtigungen hinzufügen können. Fail-closed: fehlt aapt oder die Ausgabe, ist der
 # Schritt rot. Auch Klartext-Verkehr (usesCleartextTraffic, Netzwerk-Sicherheitskonfiguration) wird am APK geprüft.
 release_rechte() {
@@ -259,12 +260,14 @@ release_rechte() {
   if echo "$nsc" | grep 'cleartextTrafficPermitted' | grep -qv ')0x0$'; then
     echo "Release-APK: Klartext-Verkehr in der Netzwerk-Sicherheitskonfiguration erlaubt"; return 1
   fi
-  # WP08: keine Hintergrund-Standortberechtigung und kein Start nach dem Booten (ADR-0005).
-  for verboten in android.permission.ACCESS_BACKGROUND_LOCATION android.permission.RECEIVE_BOOT_COMPLETED; do
-    if echo "$perms" | grep -q "$verboten"; then
-      echo "Release-APK fordert $verboten (ADR-0005)"; return 1
-    fi
-  done
+  # WP08/WP22: keine Hintergrund-Standortberechtigung, keine exakten Wecker; RECEIVE_BOOT_COMPLETED nur mit genau einem
+  # Empfänger TrainingReminderReceiver, exported=false, der nur Erinnerungs-Wecker neu plant (ADR-0005 Punkt 6 mit
+  # Nachtrag, Maintainer 2026-11-10). Am gemergten Manifest des APK; Selbsttest tool/check_release_manifest_test.py.
+  rdir=$(mktemp -d) || return 1
+  echo "$perms" >"$rdir/perms.txt"; echo "$tree" >"$rdir/tree.txt"
+  python3 tool/check_release_manifest.py "$rdir/perms.txt" "$rdir/tree.txt"; rc=$?
+  rm -rf "$rdir"
+  [ $rc -eq 0 ] || return 1
   # WP27 (ADR-0011 Punkt 5): CAMERA ist erlaubt und Pflicht (Kamera-PPG); Kamera und Blitz sind als uses-feature
   # vorhanden und required=false, sonst wäre die App ohne Kamera nicht installierbar. Kommt ein Feature mehrfach vor
   # (Manifest-Merge), zählt es als Pflicht, sobald ein Eintrag required=true hat.
@@ -313,7 +316,7 @@ if [ -f app/pubspec.yaml ]; then
     done
     step "drift schema" drift_aktuell
     step "kotlin test" kotlin_tests
-    step "release: INTERNET, CAMERA, uses-feature, keine verbotenen Rechte, nur HTTPS, keine Debug-Quellen" release_rechte
+    step "release: INTERNET, CAMERA, uses-feature, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, keine Debug-Quellen" release_rechte
     step "lock unverändert" lock_unveraendert
   fi
 fi

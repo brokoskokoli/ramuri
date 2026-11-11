@@ -36,13 +36,16 @@ Der Kalender bietet eine Wochen- und Monatsübersicht und zeigt geplante Trainin
 ### FR-0173 — Training verschieben, ersetzen, Ruhetage festlegen
 - **Status:** Approved | **Phase:** 2
 - **Quelle:** SRC-001 §18.1, Z. 1138–1140
-- **Verwandt:** OQ-0011
+- **Verwandt:** OQ-0011, ADR-0010
 
 Der Nutzer kann Trainings verschieben und ersetzen sowie Ruhetage festlegen.
+
+**Festlegung (K53):** Ersetzen setzt die gewählte Art fest; sie bleibt bei jeder Neuberechnung, Dauer, Struktur und Intensität rechnet die App (ADR-0010, Nachtrag WP22). Liegt auf dem neuen Ruhetag eine Einheit, bietet die App das Verschieben auf einen Alternativtag derselben Woche an oder lässt die Einheit nach Bestätigung entfallen.
 
 **Akzeptanzkriterien:**
 - [ ] Jede der drei Aktionen ist im Kalender ausführbar und bleibt gespeichert.
 - [ ] Auf einem festgelegten Ruhetag plant die App nur nach Bestätigung ein Training (OQ-0011).
+- [ ] Eine ersetzte Einheit behält ihre Art nach einer Neuberechnung (K53).
 
 ### FR-0174 — Trainingszeiten und Erinnerungen
 - **Status:** Approved | **Phase:** 2
@@ -75,11 +78,12 @@ Der Nutzer bestätigt Änderungen, bevor bestehende Kalendereinträge verändert
 **Akzeptanzkriterien:**
 - [ ] Ohne Bestätigung bleibt der Termin eines bestehenden Eintrags unverändert (OQ-0011).
 - [ ] Art, Dauer, Distanz und Intensität künftiger Einheiten, auch die Umwandlung in einen Ruhetag, ändern sich ohne Bestätigung (OQ-0005, OQ-0011).
+- [ ] Ein festgelegter Ruhetag wird nur nach Bestätigung aufgehoben (K53).
 
 ### FR-0177 — Prüfung beim Verschieben
 - **Status:** Approved | **Phase:** 2
 - **Quelle:** SRC-001 §18.2, Z. 1154–1159
-- **Verwandt:** FR-0152
+- **Verwandt:** FR-0152, OQ-0079, OQ-0080
 
 Wenn der Nutzer einen Termin verschiebt, prüft die App: Abstand zu intensiven Einheiten, verbleibende Trainingszeit, Belastung der betreffenden Woche und verfügbare Alternativtage.
 
@@ -94,11 +98,14 @@ Bei Konflikten werden Alternativen vorgeschlagen.
 
 **Akzeptanzkriterien:**
 - [ ] Bei einem Konflikt erscheint mindestens eine Alternative, sofern ein Alternativtag verfügbar ist.
+- [ ] Wird ein Ruhetag auf einen Tag mit Einheit gelegt, bietet die App einen Alternativtag derselben Woche zum Verschieben an, sofern einer verfügbar ist (K53).
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
 - [OQ-0005](../migration/open-questions.md#oq-0005--welche-parameter-darf-das-modell-automatisch-ändern) (entschieden): Welche Parameter darf das Modell automatisch ändern?
 - [OQ-0011](../migration/open-questions.md#oq-0011--automatische-plananpassung-oder-bestätigung) (entschieden): Automatische Plananpassung oder Bestätigung?
+- [OQ-0079](../migration/open-questions.md#oq-0079--pulskriterium-für-absolvierte-intensive-einheiten) (non-blocking): Pulskriterium für absolvierte intensive Einheiten
+- [OQ-0080](../migration/open-questions.md#oq-0080--bedeutung-von-verbleibende-trainingszeit-beim-verschieben) (non-blocking): Bedeutung von „verbleibende Trainingszeit“ beim Verschieben
 <!-- END OQ -->
 
 ## Quellen

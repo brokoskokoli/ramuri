@@ -3,19 +3,14 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../../ports/archive_cipher.dart';
+import '../plan/plan_inputs.dart';
+import '../plan/plan_unit.dart';
 import '../subjective/srpe.dart';
 import '../subjective/subjective_limits.dart';
 import 'archive_errors.dart';
 import 'archive_header.dart';
 import 'archive_json.dart';
 import 'archive_schema.dart';
-
-/// Neuestes Schema der Datenbank, das dieser Leser liest (Format 2). Format 1
-/// gehört zu Schema 4 ([archiveSchemaFor]).
-const int archiveSchemaVersion = 5;
-
-/// Älteste Schemaversion, die gelesen wird (Format 1).
-const int _oldestSchema = 4;
 
 /// Längste Zeile (ohne `\n`), Grenze gegen Speicherbomben (Vertrag 4).
 const int archiveMaxLineBytes = 16 * 1024 * 1024;
@@ -49,7 +44,9 @@ class ArchiveLineValidator {
   /// die Eingabe (`ManualTraining.requireNotAfter`). Der Leser hat keine Uhr;
   /// der Aufrufer legt den Tag vor dem ersten Schreiben fest.
   final String today;
-  List<ArchiveSectionSpec> _sections = archiveSectionsFor(1);
+  List<ArchiveSectionSpec> _sections = archiveSectionsFor(
+    archiveMinSchemaVersion,
+  );
   int _nextSection = 0;
   ArchiveSectionSpec? _current;
   int _currentCount = 0;
@@ -108,23 +105,23 @@ class ArchiveLineValidator {
     if (schema > archiveSchemaVersion) {
       throw const ArchiveImportException(ArchiveImportFailure.newerSchema);
     }
-    if (schema < _oldestSchema) {
+    if (schema < archiveMinSchemaVersion) {
       throw const ArchiveImportException(
         ArchiveImportFailure.unsupportedSchema,
       );
     }
     _exactKeys(m, {'type', 'format', 'schema_version', 'created_at_us'});
     final format = m['format'];
-    // Format 1 gehört zu Schema 4, Format 2 zu Schema 5; alles andere ist ein
-    // Widerspruch, auch zum Kopf.
+    // Format 1 gehört zu Schema 4, Format 2 zu Schema 5 bis 7; alles andere
+    // ist ein Widerspruch, auch zum Kopf.
     if (format is! int ||
         !archiveFormats.contains(format) ||
-        schema != archiveSchemaFor(format) ||
+        format != archiveFormatFor(schema) ||
         (headerFormatOf?.call() ?? format) != format ||
         m['created_at_us'] is! int) {
       throw _damaged;
     }
-    _sections = archiveSectionsFor(format);
+    _sections = archiveSectionsFor(schema);
   }
 
   void _sectionHeader(Map<String, Object?> m) {
@@ -166,6 +163,18 @@ class ArchiveLineValidator {
       }
       out[c.name] = v;
     }
+    // Spalten, die erst ein späteres Schema hat (`plan_units.fixed` ab 8),
+    // bekommen ihren Wert für ältere Archive; die Zeile hat dann die Form
+    // des aktuellen Schemas.
+    if (spec.columns.length != _full(spec).columns.length) {
+      final full = <String, Object?>{};
+      for (final c in _full(spec).columns) {
+        full[c.name] = out.containsKey(c.name) ? out[c.name] : c.olderValue;
+      }
+      out
+        ..clear()
+        ..addAll(full);
+    }
     _checkSubjective(spec, out);
     // Aufsteigend nach dem Schlüssel (Vertrag 4.2); Textschlüssel
     // (`settings`) prüft die Datenbank als Primärschlüssel.
@@ -180,7 +189,11 @@ class ArchiveLineValidator {
     return out;
   }
 
-  /// Grenzen der Angaben zum Lauf und der nachgetragenen Trainings (WP18):
+  static ArchiveSectionSpec _full(ArchiveSectionSpec spec) =>
+      archiveSections.firstWhere((s) => s.name == spec.name);
+
+  /// Grenzen der Angaben zum Lauf und der nachgetragenen Trainings (WP18) und
+  /// Form der Plan-Texte (WP21):
   /// kein Klemmen, kein Runden. Alles Weitere (Art, Datum, Warnsignal-Regel,
   /// sRPE-Spalten gleichzeitig, Fremdschlüssel) prüft die Datenbank. Nichts
   /// davon nennt einen Wert.
@@ -217,6 +230,27 @@ class ArchiveLineValidator {
             }
           }
         }
+      case 'plans':
+        // Eingaben und Zusammenfassung sind JSON-Text, `valid_from` ein
+        // Ortstag. Art des Auslösers, Fremdschlüssel und Rest prüft die
+        // Datenbank (CHECK).
+        // Die Form der Eingaben prüft der Leser, sonst scheiterte jede spätere
+        // Neuberechnung dauerhaft (`PlanInputs.fromJson`).
+        if (!_isPlanInputs(row['inputs']) ||
+            !_isJsonObject(row['summary']) ||
+            !_isCalendarDay(row['valid_from'])) {
+          throw _damaged;
+        }
+      case 'plan_units':
+        // `structure` ist JSON-Text, `day` ein gültiger Ortstag, `week` und
+        // `minutes` sind nicht negativ. Art, Phase, `run_id` und Plan prüft
+        // die Datenbank (CHECK, Fremdschlüssel).
+        if (!_isPlanStructure(row['structure']) ||
+            !_isCalendarDay(row['day']) ||
+            (row['week']! as int) < 0 ||
+            (row['minutes']! as int) < 0) {
+          throw _damaged;
+        }
       case 'manual_trainings':
         final d = row['duration_s'];
         if (d is! int || d <= 0 || !inRange(row['rpe'], rpeMin, rpeMax)) {
@@ -231,6 +265,79 @@ class ArchiveLineValidator {
           throw _damaged;
         }
     }
+  }
+
+  static Object? _decode(Object? text) {
+    if (text is! String) return null;
+    try {
+      return jsonDecode(text);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static bool _isJsonObject(Object? text) => _decode(text) is Map;
+
+  /// Eingaben einer Plan-Fassung: das Format, das `PlanInputs.toJson` schreibt.
+  static bool _isPlanInputs(Object? text) {
+    final json = _decode(text);
+    if (json is! Map<String, Object?>) return false;
+    try {
+      PlanInputs.fromJson(json);
+      return true;
+    } on FormatException {
+      return false;
+    } on TypeError {
+      return false;
+    }
+  }
+
+  /// Aufbau einer Einheit: Liste von Segmenten mit bekannter Art und ganzen
+  /// Minuten (`seconds` und `intensity` optional, wie der Speicher sie liest).
+  static bool _isPlanStructure(Object? text) {
+    final json = _decode(text);
+    if (json is! List) return false;
+    final kinds = {for (final k in PlanSegmentKind.values) k.name};
+    for (final e in json) {
+      if (e is! Map ||
+          !kinds.contains(e['kind']) ||
+          e['minutes'] is! int ||
+          (e['minutes'] as int) < 0 ||
+          (e['seconds'] != null &&
+              (e['seconds'] is! int || (e['seconds'] as int) < 0)) ||
+          (e['intensity'] != null && !_isTargetIntensity(e['intensity']))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Zielintensität eines Segments wie `plan_access` sie liest: ganze Zahlen
+  /// für RPE und Puls, Zahlen für das Tempo, Text für die Grundlage, Wahrheits-
+  /// werte für die Kennzeichen; jedes Feld darf fehlen oder `null` sein.
+  static bool _isTargetIntensity(Object? v) {
+    if (v is! Map) return false;
+    bool optional<T>(String key) => v[key] == null || v[key] is T;
+    return optional<int>('rpeMin') &&
+        optional<int>('rpeMax') &&
+        optional<num>('paceFast') &&
+        optional<num>('paceSlow') &&
+        optional<String>('basis') &&
+        optional<int>('hrMin') &&
+        optional<int>('hrMax') &&
+        optional<bool>('estimated') &&
+        optional<bool>('maxHrEstimated') &&
+        optional<bool>('paceIsLimit');
+  }
+
+  /// Ein Kalendertag in der Form `JJJJ-MM-TT`, den es gibt (kein 30. Februar).
+  static bool _isCalendarDay(Object? day) {
+    if (day is! String || !_isoDay.hasMatch(day)) return false;
+    final y = int.parse(day.substring(0, 4));
+    final mo = int.parse(day.substring(5, 7));
+    final d = int.parse(day.substring(8, 10));
+    final t = DateTime.utc(y, mo, d);
+    return t.year == y && t.month == mo && t.day == d;
   }
 
   void _end(Map<String, Object?> m) {

@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
+import '../reminders/reminder_controller.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../map/map_consent_controller.dart';
 import '../map/map_consent_scope.dart';
 import '../map/map_services.dart';
+import '../plan/plan_started_unit.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../storage/deletion.dart';
 import '../sensors/sensor_manager.dart';
@@ -128,7 +130,11 @@ class _ReadyRootState extends State<ReadyRoot> {
       } on Object {
         return;
       }
-      if (run == null || !mounted) return;
+      if (!mounted) return;
+      if (run == null) {
+        await _settleStartedUnit();
+        return;
+      }
       var clockBehind = false;
       try {
         clockBehind = await _recovery.clockBehind(run);
@@ -191,6 +197,23 @@ class _ReadyRootState extends State<ReadyRoot> {
     }
   }
 
+  /// Kein unterbrochener Lauf (mehr): Gehört ein beendeter Lauf zu einer
+  /// über „Einheit starten“ gestarteten Einheit (nach Wiederaufnahme, nach
+  /// dem Speichern hier oder nach einem Ende der App zwischen Lauf-Ende und
+  /// Zuordnung), wird er ihr jetzt zugeordnet (WP22). Ein Fehler hier holt der
+  /// nächste Start nach; der Merker bleibt dann stehen.
+  Future<void> _settleStartedUnit() async {
+    try {
+      final result = await PlanStartedUnitStore(
+        session: widget.session,
+        clock: widget.clock,
+      ).settle(serialize: _recalculation.exclusive);
+      if (result != null) _changes.changed();
+    } on Object {
+      // Siehe oben.
+    }
+  }
+
   Future<bool> _saveRecovered(int runId) async {
     final messenger = ScaffoldMessenger.of(context);
     final failed = AppLocalizations.of(context).recoverSaveFailed;
@@ -214,8 +237,33 @@ class _ReadyRootState extends State<ReadyRoot> {
     }
   }
 
+  /// Erinnerungen (FR-0174): Sitzung und Texte der App-Sprache anbinden; jede
+  /// gemeldete Datenänderung (Lauf, Neuberechnung, Zuordnung) plant neu.
+  ReminderController? _reminders;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reminders = ReminderScope.read(context);
+    if (reminders != null && !identical(reminders, _reminders)) {
+      _reminders = reminders;
+      reminders.attach(widget.session);
+      _changes.addListener(reminders.sync);
+    }
+    reminders?.texts = AppReminderTexts(
+      AppLocalizations.of(context),
+      MaterialLocalizations.of(context),
+      use24h: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
+  }
+
   @override
   void dispose() {
+    final reminders = _reminders;
+    if (reminders != null) {
+      _changes.removeListener(reminders.sync);
+      reminders.detach(widget.session);
+    }
     final mapConsent = _mapConsent;
     if (mapConsent != null) {
       widget.mapHolder?.unbind(mapConsent);

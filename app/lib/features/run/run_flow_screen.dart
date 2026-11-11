@@ -29,6 +29,7 @@ class RunFlowScreen extends StatefulWidget {
     this.resumeRunId,
     this.sensors,
     this.recalculation,
+    this.onFinished,
   });
 
   final StorageSession session;
@@ -48,6 +49,13 @@ class RunFlowScreen extends StatefulWidget {
 
   /// Siehe [RunController.serialize].
   final Future<void> Function(Future<void> Function() action)? serialize;
+
+  /// Wird genau einmal mit der Nummer des Laufs gerufen, sobald er beendet
+  /// ist; seine Berechnung kann noch laufen (sie steht in [serialize] an).
+  /// So geht die Meldung nicht verloren, wenn der Bildschirm vor dem Ende der
+  /// Berechnung schließt (WP22: Zuordnung zur Plan-Einheit). Ein Lauf, der
+  /// nicht beendet wird, meldet nichts.
+  final void Function(int runId)? onFinished;
 
   @override
   State<RunFlowScreen> createState() => _RunFlowScreenState();
@@ -285,7 +293,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   }
 
   RunController _newController() {
-    return RunController(
+    final controller = RunController(
       clock: widget.clock,
       storage: widget.session,
       location: widget.ports.location,
@@ -297,6 +305,21 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       tickEvery: widget.tickEvery,
       serialize: widget.serialize,
     );
+    final onFinished = widget.onFinished;
+    if (onFinished != null) {
+      var reported = false;
+      controller.addListener(() {
+        final id = controller.runId;
+        if (reported ||
+            id == null ||
+            controller.phase != RecordingPhase.finished) {
+          return;
+        }
+        reported = true;
+        onFinished(id);
+      });
+    }
+    return controller;
   }
 
   /// ADR-0005 Punkt 2: fragen, aber nie blockieren (Ablehnung, Fehler, Abbruch).

@@ -16,7 +16,7 @@ Bezug: FR-0213, FR-0021, FR-0019, FR-0020, SEC-0001 bis SEC-0010; ADR-0004, ADR-
 - Aufzeichnungsdienst nach ADR-0005: Die RR-Werte laufen auf demselben Weg wie der Puls; der Kern des Dienstes bleibt unverändert. Muss er geändert werden, vorher beim Orchestrator melden.
 - Virtueller Sensor im Emulator (aus WP07/R006, falls vorhanden) sendet für den E2E auch RR-Werte; sonst Test auf Ebene der Adapter.
 - Teile je ein Coder-Auftrag. Mutationsbelege für das Flag-Bit, die Längenprüfung, die Herkunft bei Sensorwechsel und das Löschen.
-- **Parallel:** Schema und Archivabschnitt nach den zuvor gemergten Paketen (WP19, WP20, ggf. WP21); ich melde den Stand.
+- **Parallel:** Start nach dem Merge von WP22. Schema 9 (7: WP21, 8: WP22), Archivabschnitte ab 25, sofern WP22 keine belegt; ich melde den Stand.
 
 ## Abnahmekriterien
 - [ ] Akzeptanzkriterien von FR-0213.

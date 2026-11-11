@@ -61,9 +61,13 @@ void main() {
           if (m['type'] == 'section') {
             section = m['name'] as String;
           } else if (m['type'] == 'row') {
-            (expected[section!] ??= []).add(
-              (m['data'] as Map<String, dynamic>).cast<String, Object?>(),
-            );
+            final row = {
+              ...(m['data'] as Map<String, dynamic>).cast<String, Object?>(),
+            };
+            // Vertrag archive.md 4.3: Zeilen aus Schema 7 haben kein `fixed`,
+            // der Leser setzt 'none' (Schema 8 bringt die Spalte selbst mit).
+            if (section == 'plan_units') row.putIfAbsent('fixed', () => 'none');
+            (expected[section!] ??= []).add(row);
           }
         }
         expect(sink.rows, expected);
@@ -183,6 +187,25 @@ void main() {
                         : switch (c.type) {
                             ArchiveType.integer => i,
                             ArchiveType.real => i + 0.25,
+                            // Plan: JSON-Texte und Ortstage prüft der Leser.
+                            ArchiveType.text when c.name == 'inputs' =>
+                              jsonEncode(
+                                PlanInputs(
+                                  anchor: DateTime.utc(2026, 11, 2),
+                                  startWeeklyMinutes: 60 + i,
+                                  today: DateTime.utc(2026, 11, 2),
+                                ).toJson(),
+                              ),
+                            ArchiveType.text when c.name == 'summary' =>
+                              '{"t":"ä$i\u{1F3C3}"}',
+                            ArchiveType.text when c.name == 'structure' =>
+                              '[{"kind":"easy","minutes":$i}]',
+                            ArchiveType.text
+                                when const {
+                                  'valid_from',
+                                  'day',
+                                }.contains(c.name) =>
+                              '2026-11-0$i',
                             ArchiveType.text => 'ä$i\u{1F3C3}',
                             ArchiveType.boolean => i % 2,
                           },

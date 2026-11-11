@@ -3,6 +3,10 @@ import '../ports/storage.dart';
 import '../ports/storage_consents.dart';
 import '../ports/storage_derived.dart';
 import '../ports/storage_devices.dart';
+import '../ports/storage_plan.dart';
+import '../ports/storage_prediction.dart';
+import '../src/goals/training_goal.dart';
+import '../src/plan/plan_unit.dart';
 import '../ports/storage_profile.dart';
 import '../ports/storage_raw.dart';
 import '../ports/storage_runs.dart';
@@ -33,6 +37,26 @@ class FakeStorageData {
   final settings = <String, String>{};
   final devices = <KnownDevice>[];
   final consents = <String, ConsentState>{};
+  final references = <StoredReference>[];
+  final rejectedSuggestions = <int>{};
+  int nextReferenceId = 1;
+  TrainingGoal? goal;
+
+  /// Plan-Fassungen und -Einheiten nach Kennung (wie `plans`, `plan_units`).
+  /// Die Einheit trägt Methode und Version ihrer Fassung erst beim Lesen.
+  final planVersions = <int, PlanVersionRecord>{};
+  final planUnits = <int, PlanUnit>{};
+  final planUnitPlan = <int, int>{};
+  int nextPlanId = 1;
+  int nextPlanUnitId = 1;
+
+  /// `ON DELETE CASCADE` vom Ziel: Fassungen und Einheiten.
+  void deleteGoal() {
+    goal = null;
+    planVersions.clear();
+    planUnits.clear();
+    planUnitPlan.clear();
+  }
 
   void requireRun(int runId) {
     if (!runs.containsKey(runId)) {
@@ -66,6 +90,14 @@ class FakeStorageData {
     sections.remove(runId);
     subjective.remove(runId);
     values.remove(ValueOwner.run(runId));
+    references.removeWhere((r) => r.reference.runId == '$runId');
+    rejectedSuggestions.remove(runId);
+    // `ON DELETE SET NULL`: Die Einheit bleibt, die Zuordnung endet.
+    for (final id in planUnits.keys.toList()) {
+      if (planUnits[id]!.runId == runId) {
+        planUnits[id] = planUnits[id]!.copyWith(clearRun: true);
+      }
+    }
   }
 
   static bool _overlaps(ComputedValue v, int runStart, int? runEnd) {
@@ -97,5 +129,11 @@ class FakeStorageData {
     settings.clear();
     devices.clear();
     consents.clear();
+    references.clear();
+    rejectedSuggestions.clear();
+    nextReferenceId = 1;
+    nextPlanId = 1;
+    nextPlanUnitId = 1;
+    deleteGoal();
   }
 }
