@@ -26,6 +26,14 @@ final rawContractCases = <StorageContractCase>[
   ),
   const StorageContractCase('Rohdaten: Stapel ganz oder gar nicht', _rawAtomic),
   const StorageContractCase(
+    'Rohdaten: RR-Pakete bitgenau, Quelle und Empfangszeit (FR-0213)',
+    _rawRr,
+  ),
+  const StorageContractCase(
+    'Rohdaten: RR-Pakete ungültig, unbekannter Lauf, ganz oder gar nicht',
+    _rawRrRules,
+  ),
+  const StorageContractCase(
     'Rohdaten: fehlendes Tempo bleibt null, nie 0 (K12)',
     _rawSpeedNullNotZero,
   ),
@@ -460,6 +468,104 @@ Future<void> _rawAtomic(StorageContractHarness h) async {
     (await s.rawData.read(999)).positions.length,
     0,
     'Lesen eines unbekannten Laufs ist leer',
+  );
+  await s.close();
+}
+
+String _rr(StoredRrPacket p) =>
+    '${us(p.value.time)}|${p.value.source}|${p.value.intervals.join(',')}';
+
+Future<void> _rawRr(StorageContractHarness h) async {
+  final s = await h.open();
+  final r = (await s.runs.create(startedAt: at(0))).id;
+  final other = (await s.runs.create(startedAt: at(0))).id;
+  expectEq((await s.rawData.read(r)).rrPackets.length, 0, 'ohne RR leer');
+  // Absichtlich nicht nach Zeit sortiert, 0 und 65535 und 256 (Byte-Reihenfolge).
+  await s.rawData.append(
+    r,
+    RawBatch(
+      rrPackets: [
+        RrPacket(
+          time: at(2, 123457),
+          source: 'strapB',
+          intervals: [0, 65535, 256, 1],
+        ),
+        RrPacket(time: at(1), source: 'strapA', intervals: [1024]),
+      ],
+    ),
+  );
+  await s.rawData.append(
+    other,
+    RawBatch(
+      rrPackets: [
+        RrPacket(time: at(1), source: 'x', intervals: [5]),
+      ],
+    ),
+  );
+  var d = await s.rawData.read(r);
+  expectEq(d.rrPackets.map(_rr), [
+    '${us(at(1))}|strapA|1024',
+    '${us(at(2, 123457))}|strapB|0,65535,256,1',
+  ], 'nach Empfangszeit, Quelle und Werte bitgenau');
+  expectEq(d.heartRates.length, 0, 'RR erzeugt keine Pulszeile');
+  expectEq(
+    (await s.rawData.read(other)).rrPackets.length,
+    1,
+    'anderer Lauf getrennt',
+  );
+  await s.rawData.append(
+    r,
+    RawBatch(
+      rrPackets: [
+        RrPacket(time: at(1), source: 'strapA', intervals: [7, 8]),
+      ],
+    ),
+  );
+  d = await s.rawData.read(r);
+  expectEq(d.rrPackets.length, 3, 'zweiter Stapel hängt an');
+  expectEq(
+    d.rrPackets.map((x) => x.value.intervals.join(',')).toList().sublist(0, 2),
+    ['1024', '7,8'],
+    'gleiche Zeit: nach Id',
+  );
+  expectEq({...d.rrPackets.map((p) => p.id)}.length, 3, 'Ids verschieden');
+  await s.close();
+}
+
+Future<void> _rawRrRules(StorageContractHarness h) async {
+  final s = await h.open();
+  final r = (await s.runs.create(startedAt: at(0))).id;
+  for (final bad in [
+    [65536],
+    [-1],
+    <int>[],
+  ]) {
+    await expectFails(
+      () => s.rawData.append(
+        r,
+        RawBatch(
+          steps: [RawSteps(time: at(1), source: 'phone', count: 1)],
+          rrPackets: [RrPacket(time: at(1), source: 's', intervals: bad)],
+        ),
+      ),
+      StorageFailure.rejected,
+      'ungültiges RR-Paket',
+    );
+  }
+  final d = await s.rawData.read(r);
+  expectEq(d.rrPackets.length, 0, 'nichts aus dem fehlerhaften Stapel (RR)');
+  expectEq(d.steps.length, 0, 'nichts aus dem fehlerhaften Stapel (Schritte)');
+  await expectFails(
+    () => s.rawData.append(
+      999,
+      RawBatch(
+        rrPackets: [
+          RrPacket(time: at(1), source: 's', intervals: [1]),
+        ],
+      ),
+    ),
+    StorageFailure.notFound,
+    'unbekannter Lauf',
   );
   await s.close();
 }

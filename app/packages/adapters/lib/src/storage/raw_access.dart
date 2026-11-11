@@ -71,6 +71,17 @@ class DriftRawDataStore implements RawDataStore {
             ),
           );
         }
+        for (final p in batch.rrPackets) {
+          b.insert(
+            _db.rawRrPackets,
+            d.RawRrPacketsCompanion.insert(
+              runId: runId,
+              timeUs: usOf(p.time),
+              source: p.source,
+              rr: encodeRrIntervals(p.intervals),
+            ),
+          );
+        }
         for (final u in batch.unavailable) {
           final time = usOf(u.time);
           final state = MeasurementState.unavailable.name;
@@ -241,6 +252,26 @@ class DriftRawDataStore implements RawDataStore {
         ),
       );
     }
+    final rrPackets = <StoredRrPacket>[];
+    for (final r
+        in await (_db.select(_db.rawRrPackets)
+              ..where((t) => t.runId.equals(runId))
+              ..orderBy([
+                (t) => OrderingTerm.asc(t.timeUs),
+                (t) => OrderingTerm.asc(t.id),
+              ]))
+            .get()) {
+      rrPackets.add(
+        StoredRrPacket(
+          r.id,
+          RrPacket(
+            time: timeOf(r.timeUs),
+            source: r.source,
+            intervals: decodeRrIntervals(r.rr),
+          ),
+        ),
+      );
+    }
     unavailable.sort((a, b) {
       final t = a.value.time.compareTo(b.value.time);
       if (t != 0) return t;
@@ -253,6 +284,7 @@ class DriftRawDataStore implements RawDataStore {
       altitudes: altitudes,
       steps: steps,
       unavailable: unavailable,
+      rrPackets: rrPackets,
     );
   });
 }

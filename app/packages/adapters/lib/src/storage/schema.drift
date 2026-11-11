@@ -116,10 +116,23 @@ CREATE TABLE raw_steps (
   CHECK (state = 'unavailable' OR step_count IS NOT NULL)
 );
 
+-- Ab Version 9 (WP26, FR-0213): RR-Intervalle, eine Zeile je BLE-Paket.
+-- rr = uint16 little endian je Wert (Rohwert 1/1024 s, bitgenau, 0 und 65535
+-- ungefiltert), also 2 Byte je Wert. time_us = Empfangszeitpunkt des Pakets,
+-- source = Quellgerät (FR-0020).
+CREATE TABLE raw_rr_packets (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+  time_us INTEGER NOT NULL,
+  source TEXT NOT NULL,
+  rr BLOB NOT NULL CHECK (length(rr) > 0 AND length(rr) % 2 = 0)
+);
+
 CREATE INDEX raw_positions_run_time ON raw_positions (run_id, time_us);
 CREATE INDEX raw_heart_rates_run_time ON raw_heart_rates (run_id, time_us);
 CREATE INDEX raw_altitudes_run_time ON raw_altitudes (run_id, time_us);
 CREATE INDEX raw_steps_run_time ON raw_steps (run_id, time_us);
+CREATE INDEX raw_rr_packets_run_time ON raw_rr_packets (run_id, time_us);
 
 -- UPDATE auf Rohdaten: immer abbrechen (ADR-0004 Punkt 1).
 CREATE TRIGGER raw_positions_no_update BEFORE UPDATE ON raw_positions
@@ -129,6 +142,9 @@ BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
 CREATE TRIGGER raw_altitudes_no_update BEFORE UPDATE ON raw_altitudes
 BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
 CREATE TRIGGER raw_steps_no_update BEFORE UPDATE ON raw_steps
+BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
+
+CREATE TRIGGER raw_rr_packets_no_update BEFORE UPDATE ON raw_rr_packets
 BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
 
 -- DELETE auf Rohdaten nur über die Kaskade des Laufs: Dort ist die Lauf-Zeile
@@ -143,6 +159,10 @@ CREATE TRIGGER raw_altitudes_no_direct_delete BEFORE DELETE ON raw_altitudes
 WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)
 BEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;
 CREATE TRIGGER raw_steps_no_direct_delete BEFORE DELETE ON raw_steps
+WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)
+BEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;
+
+CREATE TRIGGER raw_rr_packets_no_direct_delete BEFORE DELETE ON raw_rr_packets
 WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)
 BEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;
 

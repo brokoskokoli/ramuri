@@ -27,6 +27,8 @@ class FakeStorageData {
 
   /// Je Lauf und Kanal Zeilen mit Wert (typisiert) oder ohne ([RawUnavailable]).
   final raw = <int, Map<RawChannel, List<StoredRaw<RawSample>>>>{};
+  final rrPackets = <int, List<StoredRrPacket>>{};
+  int nextRrId = 1;
   final preprocessing = <int, StoredPreprocessing>{};
   final sections = <int, List<RatedSection>>{};
   final values = <ValueOwner, Map<String, ValuePair>>{};
@@ -86,6 +88,7 @@ class FakeStorageData {
     laps.remove(runId);
     gaps.remove(runId);
     raw.remove(runId);
+    rrPackets.remove(runId);
     preprocessing.remove(runId);
     sections.remove(runId);
     subjective.remove(runId);
@@ -120,6 +123,8 @@ class FakeStorageData {
     laps.clear();
     gaps.clear();
     raw.clear();
+    rrPackets.clear();
+    nextRrId = 1;
     preprocessing.clear();
     sections.clear();
     values.clear();

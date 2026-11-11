@@ -163,7 +163,13 @@ void main() {
         if (!s.isReserved) s.name,
     };
     // Nicht im Archiv: technische Tabelle und Einwilligungen (SEC-0011).
-    expect(tables.difference(specTables), {'storage_meta', 'consents'});
+    // raw_rr_packets (Schema 9, WP26 Teil B) kommt mit Teil D in einen Abschnitt;
+    // bis dahin fehlt sie im Archiv (Teil D entfernt diese Ausnahme).
+    expect(tables.difference(specTables), {
+      'storage_meta',
+      'consents',
+      'raw_rr_packets',
+    });
     expect(specTables.difference(tables), isEmpty);
     for (final s in archiveSections.where((s) => !s.isReserved)) {
       final info = await db.customSelect('PRAGMA table_info(${s.name})').get();

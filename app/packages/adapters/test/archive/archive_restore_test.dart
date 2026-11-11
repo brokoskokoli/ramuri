@@ -294,7 +294,10 @@ void main() {
       expect(got.keys, sourceDump.keys);
       for (final t in sourceDump.keys) {
         expect(got[t], sourceDump[t], reason: t);
-        if (t != 'settings') expect(got[t], isNotEmpty, reason: t);
+        // raw_rr_packets: noch nicht im Archiv (WP26 Teil D).
+        if (t != 'settings' && t != 'raw_rr_packets') {
+          expect(got[t], isNotEmpty, reason: t);
+        }
       }
       // computed_values original + current, unbekannter Schlüssel, Abschnitte.
       final cv = got['computed_values']!;
