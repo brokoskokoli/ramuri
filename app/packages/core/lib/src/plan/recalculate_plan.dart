@@ -1,6 +1,7 @@
 import '../../ports/storage.dart' show StorageException, StorageFailure;
 import '../../ports/storage_plan.dart';
 import '../../ports/storage_settings.dart';
+import '../../ports/storage_warning.dart';
 import '../goals/training_goal.dart';
 import 'generate_plan.dart';
 import 'plan_change.dart';
@@ -9,6 +10,7 @@ import 'plan_hints.dart';
 import 'plan_inputs.dart';
 import 'plan_parameters.dart';
 import 'plan_unit.dart';
+import 'plan_warning.dart';
 import 'weekly_time.dart' show planDay;
 
 /// Ergebnis von [recalculatePlan].
@@ -70,6 +72,12 @@ class PlanRecalculation {
 /// seit dem Lesen geändert, z. B. Lauf zugeordnet), liest der Dienst genau
 /// einmal neu, rechnet neu und schreibt neu. Ein zweites `rejected` geht an
 /// den Aufrufer.
+///
+/// [warning]: Besteht ein Warnsignal (FR-0203, K58), sind alle künftigen,
+/// nicht absolvierten Einheiten Ruhetage ([applyWarningRest]); Art, `fixed`
+/// und `pinned` bleiben im `summary` der Fassung gehalten ([planWarningKey])
+/// und kehren zurück, sobald das Warnsignal fehlt (Ausnahme zu ADR-0010).
+/// Aufrufer, die ein Warnsignal führen, müssen den Speicher übergeben.
 Future<PlanRecalculation> recalculatePlan({
   required PlanRepository plans,
   required SettingsStore settings,
@@ -79,6 +87,7 @@ Future<PlanRecalculation> recalculatePlan({
   String? reason,
   PlanInputs? inputs,
   PlanParameters parameters = const PlanParameters(),
+  WarningStore? warning,
 }) async {
   Future<PlanRecalculation> once() => _recalculateOnce(
     plans: plans,
@@ -89,6 +98,7 @@ Future<PlanRecalculation> recalculatePlan({
     reason: reason,
     inputs: inputs,
     parameters: parameters,
+    warning: warning,
   );
   try {
     return await once();
@@ -107,6 +117,7 @@ Future<PlanRecalculation> _recalculateOnce({
   String? reason,
   PlanInputs? inputs,
   PlanParameters parameters = const PlanParameters(),
+  WarningStore? warning,
 }) async {
   final todayDay = planDay(today);
   final goal = await plans.currentGoal();
@@ -121,21 +132,43 @@ Future<PlanRecalculation> _recalculateOnce({
           : last.inputs.copyWith(today: todayDay));
 
   final all = await plans.unitsBetween(use.anchor, planFarFuture);
-  final (:frozen, :pinned, :oldFuture) = _split(all, todayDay);
+  final (:frozen, pinned: shownPinned, :oldFuture) = _split(all, todayDay);
+
+  // Warnsignal (FR-0203, K58): Die letzte Fassung unter Warnsignal hat die
+  // Festlegungen des Nutzers gehalten; die Rechnung geht von der Fassung
+  // ohne Warnsignal aus (Art, `fixed`, `pinned` zurück) und legt es danach
+  // wieder darüber. Der Vergleich (`summary`) gilt dem gezeigten Plan.
+  final warned = warning != null && await warning.read() != null;
+  final lastHeld = last == null ? null : warningHeldFromSummary(last.summary);
+  final base = lastHeld == null
+      ? oldFuture
+      : restoreWarningHeld(oldFuture, lastHeld);
+  final pinned = lastHeld == null
+      ? shownPinned
+      : [
+          for (final u in base)
+            if (u.pinned) u,
+        ];
 
   // Automatische Auslöser ändern im bereits geplanten Zeitraum weder Tage
   // noch Zahl der Läufe (ADR-0010 Punkt 8); neue Wochen am Ende sind frei.
-  final automatic = _isAutomatic(trigger) && oldFuture.isNotEmpty;
+  final automatic = _isAutomatic(trigger) && base.isNotEmpty;
   var generated = generatePlan(
     goal,
     use,
     frozen,
     todayDay,
-    pinnedUnits: automatic ? oldFuture : pinned,
+    pinnedUnits: automatic ? base : pinned,
     parameters: parameters,
   );
   if (automatic) {
-    generated = _keepSchedule(generated, oldFuture);
+    generated = _keepSchedule(generated, base);
+  }
+  final held = warned ? warningHeldOf(generated.units, todayDay) : null;
+  if (warned) {
+    generated = generated.copyWith(
+      units: applyWarningRest(generated.units, todayDay),
+    );
   }
   final summary = summarizeChange(
     oldFuture,
@@ -168,6 +201,7 @@ Future<PlanRecalculation> _recalculateOnce({
       inputs: use,
       summary: {
         ...summary.toJson(),
+        if (held != null) planWarningKey: [for (final h in held) h.toJson()],
         planHintsKey: planHintsToJson(generated),
         if (keepsGoalPending
                 ? last.summary[planGoalFingerprintKey]
