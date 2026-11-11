@@ -4,14 +4,12 @@ import 'dart:typed_data';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_screen.dart';
 import 'package:running_app/features/settings/app_settings.dart';
-import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';
 import 'package:running_app/ui/ui.dart';
 
@@ -256,18 +254,9 @@ Future<void> _pump(
       offload: inlineOffload,
       child: AppSettingsScope(
         holder: holder,
-        child: MaterialApp(
-          theme: brightness == Brightness.light
-              ? RamuriTheme.light
-              : RamuriTheme.dark,
+        child: localizedApp(
           locale: Locale(locale),
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: AppLocalizations.supportedLocales,
+          brightness: brightness,
           home: PlanScreen(
             session: session,
             clock: clock,

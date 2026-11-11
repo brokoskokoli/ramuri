@@ -1,11 +1,9 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/settings/unit_format.dart';
 import 'package:running_app/features/statistics/progress_header.dart';
-import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'history_summary_test.dart' show started;
@@ -49,16 +47,7 @@ Future<void> _pump(
   addTearDown(tester.view.reset);
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
   await tester.pumpWidget(
-    MaterialApp(
-      theme: RamuriTheme.light,
-      locale: const Locale('de'),
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
+    localizedApp(
       home: Scaffold(body: SingleChildScrollView(child: child)),
     ),
   );

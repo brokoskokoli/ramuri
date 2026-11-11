@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/l10n/app_localizations.dart';
+import 'package:running_app/ui/ui.dart';
 
 /// Gemeinsame Hilfen für Widget-Tests. Ein Name je Bedeutung: Varianten mit
 /// anderem Verhalten haben eigene Namen, keine Schalter.
@@ -52,3 +55,24 @@ Future<void> settleRealTimeFixed(WidgetTester tester) async {
     await tester.pump(const Duration(milliseconds: 100));
   }
 }
+
+/// MaterialApp mit App-Theme (hell oder dunkel), Sprache und den
+/// Lokalisierungen der App, so wie die Widget-Tests sie brauchen. Varianten
+/// mit anderem Verhalten (zweites Theme, andere Delegates, Navigator, Router)
+/// bleiben im jeweiligen Test.
+Widget localizedApp({
+  required Widget home,
+  Locale locale = const Locale('de'),
+  Brightness brightness = Brightness.light,
+}) => MaterialApp(
+  theme: brightness == Brightness.light ? RamuriTheme.light : RamuriTheme.dark,
+  locale: locale,
+  localizationsDelegates: const [
+    AppLocalizations.delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  supportedLocales: AppLocalizations.supportedLocales,
+  home: home,
+);

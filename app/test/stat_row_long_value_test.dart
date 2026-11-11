@@ -3,11 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/statistics/statistics_view.dart';
 import 'package:running_app/l10n/app_localizations.dart';
-import 'package:running_app/ui/ui.dart';
+
+import 'app_harness.dart';
 
 /// Lange Ersatztexte in `StatRow` (WP18, M1 Fehler 1): Der Satz „nicht
 /// verfügbar (…)“ brach neben dem Label in 7 Zeilen. Jetzt steht der Wert
@@ -38,16 +38,8 @@ Future<void> _pump(
   addTearDown(t.view.reset);
   addTearDown(t.platformDispatcher.clearTextScaleFactorTestValue);
   await t.pumpWidget(
-    MaterialApp(
-      theme: RamuriTheme.light,
+    localizedApp(
       locale: Locale(locale),
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: Builder(
           builder: (context) {

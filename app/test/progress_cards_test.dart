@@ -1,11 +1,11 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/statistics/fitness_section.dart';
 import 'package:running_app/features/statistics/progress_header.dart';
-import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
+
+import 'app_harness.dart';
 
 /// Karten des Fortschrittskopfs einzeln, in Hell und Dunkel, Deutsch und
 /// Englisch (WP15 Teil B): VO₂max ohne „±“ und ohne Genauigkeitsangabe,
@@ -78,18 +78,9 @@ Future<void> pumpCards(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    MaterialApp(
-      theme: brightness == Brightness.light
-          ? RamuriTheme.light
-          : RamuriTheme.dark,
+    localizedApp(
       locale: Locale(locale),
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
+      brightness: brightness,
       home: Scaffold(
         body: SingleChildScrollView(
           child: Column(
@@ -590,16 +581,7 @@ void main() {
   group('FitnessSection bei Lesefehler', () {
     testWidgets('Hinweis bleibt und keine Zahl erfunden', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          theme: RamuriTheme.light,
-          locale: const Locale('de'),
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: AppLocalizations.supportedLocales,
+        localizedApp(
           home: Scaffold(
             body: SingleChildScrollView(
               child: FitnessSection(

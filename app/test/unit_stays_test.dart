@@ -6,11 +6,9 @@ import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/run/live_run_values.dart';
-import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
@@ -368,16 +366,7 @@ void main() {
     }
   }
 
-  Widget app(Widget body, {double scale = 1.0}) => MaterialApp(
-    theme: RamuriTheme.light,
-    locale: const Locale('de'),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
-    supportedLocales: AppLocalizations.supportedLocales,
+  Widget app(Widget body, {double scale = 1.0}) => localizedApp(
     home: MediaQuery(
       data: MediaQueryData(textScaler: TextScaler.linear(scale)),
       child: Scaffold(body: Center(child: body)),
