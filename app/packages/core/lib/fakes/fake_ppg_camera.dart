@@ -17,6 +17,9 @@ class FakePpgCamera implements PpgCamera {
   int stopCount = 0;
   int permissionRequests = 0;
 
+  /// `false`: der Strom sendet nie [PpgCameraStarted] (Kamera hängt beim Öffnen).
+  bool sendStarted = true;
+
   set availabilityState(PpgCameraAvailability a) => _availability = a;
 
   /// Antwort auf die Rechteanfrage; vorgabe: unverändert.
@@ -51,7 +54,7 @@ class FakePpgCamera implements PpgCamera {
           return;
         }
         torchOn = true;
-        c.add(const PpgCameraStarted(60));
+        if (sendStarted) c.add(const PpgCameraStarted(60));
       },
       onCancel: () => _release(c),
     );

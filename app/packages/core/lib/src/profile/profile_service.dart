@@ -47,11 +47,14 @@ class ProfileService {
     if (!v.canSave) return ProfileSaveResult(saved: false, validation: v);
     final settings = this.settings;
     final before = settings == null ? null : await _store.read();
-    await _store.save(profile);
+    // Zuerst die Herkunft entfernen, dann den Wert speichern: Scheitert eines
+    // der beiden, bleibt nie ein neuer Wert mit der Herkunft des alten stehen
+    // (schlimmstenfalls fehlt die Herkunft zu einem unveränderten Wert).
     if (settings != null &&
         before!.restingHeartRateBpm != profile.restingHeartRateBpm) {
       await RestingHrOrigin.clear(settings, at: _clock.now());
     }
+    await _store.save(profile);
     return ProfileSaveResult(saved: true, validation: v);
   }
 

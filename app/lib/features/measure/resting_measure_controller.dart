@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:isolate';
+import 'dart:math' as math;
 
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
@@ -16,6 +18,28 @@ const double restingCurveSeconds = 5.0;
 /// Sensorzeit. Nur die Aktualisierungsrate der Anzeige, keine Schwelle der
 /// Auswertung.
 const double restingLiveIntervalSeconds = 1.0;
+
+/// Länge des gleitenden Fensters der Zwischenauswertung in Sekunden Sensorzeit
+/// (nur die Anzeige des laufenden Pulses; keine Schwelle der Auswertung). Das
+/// Endergebnis wertet das volle Messfenster aus. Begrenzt die Rechenzeit je
+/// Zwischenauswertung, die sonst mit der Messdauer wächst.
+const double restingLiveWindowSeconds = 12.0;
+
+/// Wanduhr-Frist in Sekunden, nach der ein Strom ohne jedes Bild als
+/// unterbrochen gilt. Die Bildlücke selbst zählt allein in Sensorzeit
+/// ([ppgMaxFrameGapSeconds]); die Wanduhr fängt nur ab, dass gar keine Bilder
+/// mehr kommen, und ist deshalb großzügig: Sie darf nicht schon bei kurzen
+/// Verzögerungen der App (Garbage Collection, Last) anschlagen.
+const double restingNoImageTimeoutSeconds = 3.0;
+
+/// Wanduhr-Frist in Sekunden vom Abonnieren des Kamerastroms bis zum
+/// Ereignis „gestartet“ (oder dem ersten Bild). Kamera öffnen und Blitz
+/// einschalten können auf manchen Geräten länger dauern als eine Bildlücke.
+const double restingStartTimeoutSeconds = 5.0;
+
+/// Ein Abstand der Wächter-Prüfungen über dieser Dauer (Wanduhr) gilt als
+/// Stillstand der Ereignisschleife der App, nicht als Bildlücke.
+const double restingStallToleranceSeconds = 1.0;
 
 /// Ablaufphase der Ruhepuls-Messung (FR-0214).
 enum RestingMeasurePhase {
@@ -96,18 +120,18 @@ abstract interface class RestingMeasureSignal {
   Future<void> restEnded();
 }
 
-/// Auswertung der gesammelten Bilder; Vorgabe ist [evaluatePpg] auf dem
-/// aufrufenden Isolate. Die Oberfläche kann eine Fassung auf einem anderen
-/// Isolate übergeben.
+/// Auswertung der gesammelten Bilder; Vorgabe ist [evaluatePpg] auf einem
+/// eigenen Isolate (Eingabe und Ergebnis nur Zahlen und Aufzählungen), damit
+/// die Oberfläche nicht stillsteht.
 typedef PpgEvaluate = Future<PpgMeasurement> Function(
   List<PpgFrame> frames,
   PpgWindow window,
 );
 
-Future<PpgMeasurement> _evaluateHere(
+Future<PpgMeasurement> _evaluateInIsolate(
   List<PpgFrame> frames,
   PpgWindow window,
-) async => evaluatePpg(frames, window: window);
+) => Isolate.run(() => evaluatePpg(frames, window: window));
 
 /// Steuert den Ablauf der Ruhepuls-Messung mit der Kamera (FR-0214) ohne
 /// Widgets: Einstieg, Ruhephase, Messung, Ergebnis, Übernahme. Alles Rechnen
@@ -123,7 +147,7 @@ class RestingMeasureController extends ChangeNotifier {
     this.signal,
     PpgEvaluate? evaluate,
     this.autoTick = true,
-  }) : _evaluate = evaluate ?? _evaluateHere;
+  }) : _evaluate = evaluate ?? _evaluateInIsolate;
 
   final PpgCamera camera;
 
@@ -150,6 +174,8 @@ class RestingMeasureController extends ChangeNotifier {
   Timer? _ticker;
   Timer? _gapTimer;
   Duration? _lastImageAt;
+  Duration? _lastCheckAt;
+  bool _cameraStarted = false;
   double? _lastImageT;
 
   int _run = 0;
@@ -171,6 +197,7 @@ class RestingMeasureController extends ChangeNotifier {
   bool _adopting = false;
   ProfileValidation? _adoptRejection;
   bool _adoptFailed = false;
+  bool _originMissing = false;
 
   RestingMeasurePhase get phase => _phase;
   RestingPosture get posture => _posture;
@@ -220,8 +247,12 @@ class RestingMeasureController extends ChangeNotifier {
   /// Bereichs); es wurde nichts gespeichert.
   ProfileValidation? get adoptRejection => _adoptRejection;
 
-  /// Speichern scheiterte; nichts wurde übernommen, erneut möglich.
+  /// Speichern des Werts scheiterte; nichts wurde übernommen, erneut möglich.
   bool get adoptFailed => _adoptFailed;
+
+  /// Der Wert ist übernommen, aber die Herkunft (Haltung, Zeitpunkt, Quelle)
+  /// konnte nicht gespeichert werden; er gilt dann als von Hand eingetragen.
+  bool get originMissing => _originMissing;
   bool get adopting => _adopting;
 
   /// „Noch einmal“: nur ohne Wert (kein Wert, oder Abbruch durch Kamera oder
@@ -314,9 +345,13 @@ class RestingMeasureController extends ChangeNotifier {
 
   // Messung ----------------------------------------------------------------
 
-  /// Bricht die Messung ab, wenn seit dem letzten Bild (oder dem Start der
-  /// Kamera) länger als [ppgMaxFrameGapSeconds] keines kam (Wanduhr). Läuft
-  /// im Viertelsekundentakt; Tests rufen es selbst.
+  /// Wanduhr-Wächter gegen einen Strom ohne Bilder (läuft ab dem Abonnieren
+  /// im Viertelsekundentakt; Tests rufen es selbst): kein „gestartet“ binnen
+  /// [restingStartTimeoutSeconds] ist ein Kamerafehler, danach länger als
+  /// [restingNoImageTimeoutSeconds] kein Bild eine Unterbrechung. Die
+  /// Bildlücke zwischen zwei Bildern prüft [_onFrame] in Sensorzeit. Ein
+  /// langer Abstand zur vorigen Prüfung ist ein Stillstand der App: Die Frist
+  /// beginnt dann neu, weil wartende Bilder erst nach der Prüfung eintreffen.
   void checkFrameGap() {
     final last = _lastImageAt;
     if (_phase != RestingMeasurePhase.measuring ||
@@ -324,9 +359,26 @@ class RestingMeasureController extends ChangeNotifier {
         last == null) {
       return;
     }
-    final gap = clock.monotonic() - last;
-    if (gap.inMicroseconds > ppgMaxFrameGapSeconds * 1e6) {
-      unawaited(_fail(_run, RestingStopCause.interrupted));
+    final now = clock.monotonic();
+    final prevCheck = _lastCheckAt;
+    _lastCheckAt = now;
+    if (prevCheck != null &&
+        (now - prevCheck).inMicroseconds > restingStallToleranceSeconds * 1e6) {
+      _lastImageAt = now;
+      return;
+    }
+    final limit = _cameraStarted
+        ? restingNoImageTimeoutSeconds
+        : restingStartTimeoutSeconds;
+    if ((now - last).inMicroseconds > limit * 1e6) {
+      unawaited(
+        _fail(
+          _run,
+          _cameraStarted
+              ? RestingStopCause.interrupted
+              : RestingStopCause.cameraError,
+        ),
+      );
     }
   }
 
@@ -363,6 +415,15 @@ class RestingMeasureController extends ChangeNotifier {
     }
     _phase = RestingMeasurePhase.measuring;
     _notify();
+    // Die Startfrist läuft ab dem Abonnieren, auch wenn „gestartet“ ausbleibt.
+    _lastImageAt = clock.monotonic();
+    if (autoTick) {
+      _lastCheckAt = _lastImageAt;
+      _gapTimer = Timer.periodic(
+        const Duration(milliseconds: 250),
+        (_) => checkFrameGap(),
+      );
+    }
     _sub = camera.start().listen(
       (e) => _onEvent(run, e),
       onError: (Object _) =>
@@ -374,6 +435,8 @@ class RestingMeasureController extends ChangeNotifier {
   void _resetMeasurement() {
     _frames.clear();
     _lastImageAt = null;
+    _lastCheckAt = null;
+    _cameraStarted = false;
     _lastImageT = null;
     _elapsed = 0;
     _evaluating = false;
@@ -387,6 +450,7 @@ class RestingMeasureController extends ChangeNotifier {
     _previousOrigin = null;
     _adoptRejection = null;
     _adoptFailed = false;
+    _originMissing = false;
   }
 
   void _onEvent(int run, PpgCameraEvent e) {
@@ -395,13 +459,8 @@ class RestingMeasureController extends ChangeNotifier {
     }
     switch (e) {
       case PpgCameraStarted():
+        _cameraStarted = true;
         _lastImageAt = clock.monotonic();
-        if (autoTick && _gapTimer == null) {
-          _gapTimer = Timer.periodic(
-            const Duration(milliseconds: 250),
-            (_) => checkFrameGap(),
-          );
-        }
       case PpgCameraExposureLocked():
         break;
       case PpgCameraStopped(:final reason):
@@ -414,6 +473,7 @@ class RestingMeasureController extends ChangeNotifier {
   void _onFrame(int run, PpgFrame f) {
     final w = ppgStandardWindow;
     final prevT = _lastImageT;
+    _cameraStarted = true;
     _lastImageAt = clock.monotonic();
     _lastImageT = f.t;
     if (prevT != null && f.t - prevT > ppgMaxFrameGapSeconds) {
@@ -449,16 +509,21 @@ class RestingMeasureController extends ChangeNotifier {
     _liveBusy = true;
     _lastLiveT = t;
     final w = ppgStandardWindow;
+    // Gleitendes Fenster der letzten [restingLiveWindowSeconds]; der Vorlauf
+    // für das Filter (Abstand filterStart zu start) bleibt wie im Standard.
+    final lead = w.start - w.filterStart;
+    final start = math.max(w.start, t - restingLiveWindowSeconds);
+    final window = PpgWindow(
+      filterStart: start - lead,
+      start: start,
+      end: math.min(t, w.end),
+      dataEnd: math.min(t, w.dataEnd),
+    );
     try {
-      final m = await _evaluate(
-        List.of(_frames),
-        PpgWindow(
-          filterStart: w.filterStart,
-          start: w.start,
-          end: t < w.end ? t : w.end,
-          dataEnd: t < w.dataEnd ? t : w.dataEnd,
-        ),
-      );
+      final m = await _evaluate([
+        for (final f in _frames)
+          if (f.t >= window.filterStart) f,
+      ], window);
       if (run != _run || _phase != RestingMeasurePhase.measuring) return;
       _livePulse = m.hasResult ? m.bpm!.round() : null;
       _liveQuality = m.quality;
@@ -599,6 +664,7 @@ class RestingMeasureController extends ChangeNotifier {
     _adopting = true;
     _adoptRejection = null;
     _adoptFailed = false;
+    _originMissing = false;
     _notify();
     try {
       final p = await profile.load();
@@ -618,11 +684,18 @@ class RestingMeasureController extends ChangeNotifier {
         _adoptRejection = saved.validation;
         return false;
       }
-      await RestingHrOrigin(
-        posture: r.posture,
-        measuredAt: r.measuredAt,
-      ).write(settings, at: clock.now());
+      // Der Wert steht jetzt im Profil (save hat eine ältere Herkunft schon
+      // vorher entfernt). Scheitert nur die Herkunft, gilt der Wert als
+      // übernommen, aber von Hand: nie eine Kamera-Herkunft ohne diesen Wert.
       _phase = RestingMeasurePhase.adopted;
+      try {
+        await RestingHrOrigin(
+          posture: r.posture,
+          measuredAt: r.measuredAt,
+        ).write(settings, at: clock.now());
+      } catch (_) {
+        _originMissing = true;
+      }
       return true;
     } catch (_) {
       _adoptFailed = true;

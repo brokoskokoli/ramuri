@@ -18,28 +18,30 @@ class Rig {
   final SpyProfileService profile;
   final RecordingSignal signal;
   final RestingMeasureController c;
+  late FailingSettingsStore settings;
+  late FailingProfileStore store;
 
   static Future<Rig> make({PpgEvaluate? evaluate, ProfileRecord? start}) async {
     final cam = HoldingCamera();
     final session = await FakeStorage().open(testKey);
     final clock = FakeClock(DateTime.utc(2026, 11, 10, 7, 0));
     if (start != null) await session.profile.save(start);
-    final profile = SpyProfileService(
-      session.profile,
-      clock,
-      settings: session.settings,
-    );
+    final store = FailingProfileStore(session.profile);
+    final settings = FailingSettingsStore(session.settings);
+    final profile = SpyProfileService(store, clock, settings: settings);
     final signal = RecordingSignal();
     final c = RestingMeasureController(
       camera: cam,
       profile: profile,
-      settings: session.settings,
+      settings: settings,
       clock: clock,
       signal: signal,
       evaluate: evaluate ?? evalFinalOnly,
       autoTick: false,
     );
-    return Rig._(cam, session, clock, profile, signal, c);
+    return (Rig._(cam, session, clock, profile, signal, c)
+      ..settings = settings
+      ..store = store);
   }
 
   /// Misst sofort und spielt eine vollständige Aufnahme ein.
@@ -419,51 +421,105 @@ void main() {
     });
   });
 
-  group('Bildlücke (Maintainer 2026-11-11: höchstens 1 s)', () {
+  group('Bildlücke (Maintainer 2026-11-11: höchstens 1 s Sensorzeit)', () {
+    test('länger als die Wanduhr-Frist gar kein Bild: Messung unterbrochen, Kamera gestoppt', () async {
+      final r = await Rig.make();
+      await r.c.startNow();
+      final src = FrameSource();
+      await src.emitUntil(r.cam, 10);
+      r.clock.advance(const Duration(milliseconds: 3000));
+      r.c.checkFrameGap(); // genau die Frist ist erlaubt
+      await pump();
+      expect(r.c.phase, RestingMeasurePhase.measuring);
+      r.clock.advance(const Duration(milliseconds: 1));
+      r.c.checkFrameGap();
+      await pump();
+      expect(r.c.phase, RestingMeasurePhase.stopped);
+      expect(r.c.stopCause, RestingStopCause.interrupted);
+      expect(r.cam.torchOn, isFalse);
+      expect(r.c.canRetry, isTrue);
+    });
+
     test(
-      'länger als 1 s kein Bild: Messung unterbrochen, Kamera gestoppt',
+      'Bilder setzen die Frist zurück (Wächter im Viertelsekundentakt)',
       () async {
         final r = await Rig.make();
         await r.c.startNow();
         final src = FrameSource();
-        await src.emitUntil(r.cam, 10);
-        r.clock.advance(const Duration(milliseconds: 1000));
-        r.c.checkFrameGap(); // genau 1 s ist erlaubt
+        for (var t = 1.0; t <= 4; t++) {
+          await src.emitUntil(r.cam, t);
+          for (var k = 0; k < 8; k++) {
+            r.clock.advance(const Duration(milliseconds: 250));
+            r.c.checkFrameGap(); // 2 s je Runde, 8 s insgesamt
+          }
+        }
         await pump();
         expect(r.c.phase, RestingMeasurePhase.measuring);
-        r.clock.advance(const Duration(milliseconds: 1));
-        r.c.checkFrameGap();
-        await pump();
-        expect(r.c.phase, RestingMeasurePhase.stopped);
-        expect(r.c.stopCause, RestingStopCause.interrupted);
-        expect(r.cam.torchOn, isFalse);
-        expect(r.c.canRetry, isTrue);
       },
     );
-
-    test('Bilder setzen die Frist zurück', () async {
-      final r = await Rig.make();
-      await r.c.startNow();
-      final src = FrameSource();
-      for (var t = 1.0; t <= 6; t++) {
-        await src.emitUntil(r.cam, t);
-        r.clock.advance(const Duration(milliseconds: 900));
-        r.c.checkFrameGap();
-      }
-      await pump();
-      expect(r.c.phase, RestingMeasurePhase.measuring);
-    });
 
     test('nach dem Start kommt gar kein Bild', () async {
       final r = await Rig.make();
       await r.c.startNow();
       await pump();
-      r.clock.advance(const Duration(milliseconds: 1500));
+      r.clock.advance(const Duration(milliseconds: 3001));
       r.c.checkFrameGap();
       await pump();
       expect(r.c.stopCause, RestingStopCause.interrupted);
       expect(r.cam.torchOn, isFalse);
     });
+
+    test(
+      'Kamera meldet nie „gestartet“: Startfrist, Endzustand, Kamera gestoppt',
+      () async {
+        final r = await Rig.make();
+        r.cam.sendStarted = false;
+        await r.c.startNow();
+        await pump();
+        expect(r.cam.torchOn, isTrue);
+        for (var k = 0; k < 20; k++) {
+          r.clock.advance(const Duration(milliseconds: 250));
+          r.c.checkFrameGap(); // 5 s genau: noch erlaubt
+        }
+        await pump();
+        expect(r.c.phase, RestingMeasurePhase.measuring);
+        r.clock.advance(const Duration(milliseconds: 250));
+        r.c.checkFrameGap();
+        await pump();
+        expect(r.c.phase, RestingMeasurePhase.stopped);
+        expect(r.c.stopCause, RestingStopCause.cameraError);
+        expect(r.cam.torchOn, isFalse);
+        expect(r.cam.stopCount, greaterThan(0));
+        expect(r.c.canRetry, isTrue);
+      },
+    );
+
+    test(
+      'Stillstand der App (lange Pause zwischen Prüfungen) ist keine Bildlücke',
+      () async {
+        final r = await Rig.make();
+        await r.c.startNow();
+        final src = FrameSource();
+        await src.emitUntil(r.cam, 10);
+        r.clock.advance(const Duration(milliseconds: 250));
+        r.c.checkFrameGap();
+        r.clock.advance(
+          const Duration(seconds: 8),
+        ); // Ereignisschleife stand still
+        r.c.checkFrameGap();
+        await pump();
+        expect(r.c.phase, RestingMeasurePhase.measuring);
+        await src.emitUntil(r.cam, 12); // die wartenden Bilder kommen danach
+        expect(r.c.phase, RestingMeasurePhase.measuring);
+        // Bleiben die Bilder danach wirklich aus, greift die Frist wieder.
+        for (var k = 0; k < 13; k++) {
+          r.clock.advance(const Duration(milliseconds: 250));
+          r.c.checkFrameGap();
+        }
+        await pump();
+        expect(r.c.stopCause, RestingStopCause.interrupted);
+      },
+    );
 
     test('Lücke in der Sensorzeit zwischen zwei Bildern', () async {
       final r = await Rig.make();
@@ -610,6 +666,190 @@ void main() {
         ProfileRecord(restingHeartRateBpm: p.restingHeartRateBpm! + 3),
       );
       expect(await RestingHrOrigin.read(r.session.settings), isNull);
+    });
+  });
+
+  group('Zwischenauswertung und Auswertung', () {
+    test(
+      'live nur über das gleitende Fenster, am Ende das volle Fenster',
+      () async {
+        final calls = <(List<PpgFrame>, PpgWindow)>[];
+        final r = await Rig.make(
+          evaluate: (f, w) async {
+            calls.add((f, w));
+            return evalFinalOnly(f, w);
+          },
+        );
+        await r.measureFully();
+        final live = calls.where((c) => !identical(c.$2, ppgStandardWindow));
+        expect(live, isNotEmpty);
+        for (final (frames, w) in live) {
+          expect(
+            w.dataEnd - w.start,
+            lessThanOrEqualTo(restingLiveWindowSeconds + 1e-9),
+          );
+          expect(frames.first.t, greaterThanOrEqualTo(w.filterStart));
+          // höchstens Fenster plus Vorlauf, nicht das wachsende Fenster
+          expect(frames.length, lessThan(30 * (restingLiveWindowSeconds + 3)));
+        }
+        final last = live.last;
+        expect(
+          last.$2.start,
+          closeTo(last.$2.dataEnd - restingLiveWindowSeconds, 0.1),
+        );
+        final fin = calls.singleWhere(
+          (c) => identical(c.$2, ppgStandardWindow),
+        );
+        expect(fin.$1.first.t, 0);
+        expect(fin.$1.length, greaterThan(30 * 66));
+      },
+    );
+
+    test(
+      'Standardauswertung läuft auf eigenem Isolate und liefert einen Wert',
+      () async {
+        final cam = HoldingCamera();
+        final session = await FakeStorage().open(testKey);
+        final clock = FakeClock(DateTime.utc(2026, 11, 10, 7, 0));
+        final c = RestingMeasureController(
+          camera: cam,
+          profile: ProfileService(session.profile, clock),
+          settings: session.settings,
+          clock: clock,
+          autoTick: false,
+        );
+        await c.startNow();
+        await FrameSource().emitUntil(cam, 66.6);
+        for (
+          var i = 0;
+          i < 400 && c.phase == RestingMeasurePhase.measuring;
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 25));
+        }
+        for (var i = 0; i < 400 && c.phase != RestingMeasurePhase.result; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 25));
+        }
+        expect(c.phase, RestingMeasurePhase.result);
+        expect(c.result!.bpm!, inInclusiveRange(66, 75));
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
+  });
+
+  group('Alte Bilder und veraltete Ergebnisse', () {
+    test('„Noch einmal“ verwirft die Bilder des abgebrochenen Laufs', () async {
+      List<PpgFrame>? finalFrames;
+      final r = await Rig.make(
+        evaluate: (f, w) async {
+          if (identical(w, ppgStandardWindow)) finalFrames = f;
+          return evalFinalOnly(f, w);
+        },
+      );
+      await r.c.startNow();
+      await FrameSource().emitUntil(r.cam, 30);
+      await r.cam.abort(PpgCameraStopReason.disconnected);
+      await pump();
+      expect(r.c.canRetry, isTrue);
+      await r.c.retry();
+      final src = FrameSource();
+      await src.emitUntil(r.cam, 66.6);
+      await pump();
+      expect(r.c.phase, RestingMeasurePhase.result);
+      final f = finalFrames!;
+      // nur Bilder des zweiten Laufs: Sensorzeit streng aufsteigend ab 0
+      expect(f.first.t, 0);
+      for (var i = 1; i < f.length; i++) {
+        expect(f[i].t, greaterThan(f[i - 1].t));
+      }
+    });
+
+    test('Zwischenergebnis eines alten Laufs erscheint nach Abbruch und Neustart nicht', () async {
+      final holds = <Completer<PpgMeasurement>>[];
+      final r = await Rig.make(
+        evaluate: (f, w) {
+          if (identical(w, ppgStandardWindow)) return evalFinalOnly(f, w);
+          final c = Completer<PpgMeasurement>();
+          holds.add(c);
+          return c.future;
+        },
+      );
+      await r.c.startNow();
+      await FrameSource().emitUntil(r.cam, 10);
+      expect(holds, hasLength(1));
+      await r.cam.abort(PpgCameraStopReason.disconnected);
+      await pump();
+      await r.c.retry(); // neuer Lauf, Phase wieder „measuring“
+      expect(r.c.phase, RestingMeasurePhase.measuring);
+      holds.single.complete(
+        const PpgMeasurement(quality: PpgQuality.good, reasons: [], bpm: 70),
+      );
+      await pump();
+      expect(r.c.livePulse, isNull);
+      expect(r.c.liveQuality, isNull);
+    });
+  });
+
+  group('Übernahme und Herkunft bei Speicherfehlern', () {
+    test('Wert gespeichert, Herkunft scheitert: übernommen (von Hand), kein „nicht übernommen“', () async {
+      final r = await Rig.make(
+        start: const ProfileRecord(restingHeartRateBpm: 64),
+      );
+      await r.measureFully();
+      final bpm = r.c.result!.bpm!;
+      r.settings.failSet = (key) => key == SettingKeys.restingHrSource;
+      expect(await r.c.adopt(), isTrue);
+      expect(r.c.phase, RestingMeasurePhase.adopted);
+      expect(r.c.adoptFailed, isFalse);
+      expect(r.c.originMissing, isTrue);
+      expect((await r.session.profile.read()).restingHeartRateBpm, bpm);
+      expect(await RestingHrOrigin.read(r.session.settings), isNull);
+    });
+
+    test('Wert wird nicht gespeichert: nichts übernommen, keine Herkunft, erneut möglich', () async {
+      final r = await Rig.make(
+        start: const ProfileRecord(restingHeartRateBpm: 64),
+      );
+      await r.measureFully();
+      r.store.failSave = true;
+      expect(await r.c.adopt(), isFalse);
+      expect(r.c.adoptFailed, isTrue);
+      expect(r.c.phase, RestingMeasurePhase.result);
+      expect((await r.session.profile.read()).restingHeartRateBpm, 64);
+      expect(await RestingHrOrigin.read(r.session.settings), isNull);
+      r.store.failSave = false;
+      expect(await r.c.adopt(), isTrue);
+    });
+
+    test('alte Herkunft lässt sich nicht entfernen: nichts übernommen, alter Wert samt Herkunft', () async {
+      final r = await Rig.make(
+        start: const ProfileRecord(restingHeartRateBpm: 64),
+      );
+      await r.measureFully();
+      expect(await r.c.adopt(), isTrue);
+      final first = (await r.session.profile.read()).restingHeartRateBpm;
+      final c2 = RestingMeasureController(
+        camera: r.cam,
+        profile: r.profile,
+        settings: r.settings,
+        clock: r.clock,
+        evaluate: (f, w) async => identical(w, ppgStandardWindow)
+            ? const PpgMeasurement(
+                quality: PpgQuality.good,
+                reasons: [],
+                bpm: 58,
+              )
+            : evalFinalOnly(f, w),
+        autoTick: false,
+      );
+      await c2.startNow();
+      await FrameSource().emitUntil(r.cam, 66.6);
+      await pump();
+      r.settings.failSet = (_) => true;
+      expect(await c2.adopt(), isFalse);
+      expect(c2.adoptFailed, isTrue);
+      expect((await r.session.profile.read()).restingHeartRateBpm, first);
+      expect(await RestingHrOrigin.read(r.session.settings), isNotNull);
     });
   });
 }

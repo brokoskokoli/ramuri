@@ -12,6 +12,25 @@ Future<(StorageSession, ProfileService)> _setup() async {
   return (s, ProfileService(s.profile, FakeClock(_t0), settings: s.settings));
 }
 
+/// Einstellungen, deren Schreiben auf Wunsch scheitert.
+class _FailingSettings implements SettingsStore {
+  _FailingSettings(this.inner);
+  final SettingsStore inner;
+  bool failSet = false;
+
+  @override
+  Future<String?> get(String key) => inner.get(key);
+
+  @override
+  Future<Map<String, String>> all() => inner.all();
+
+  @override
+  Future<void> set(String key, String value, {required DateTime at}) async {
+    if (failSet) throw StateError('Schreiben scheitert');
+    await inner.set(key, value, at: at);
+  }
+}
+
 void main() {
   test('schreiben und lesen: Haltung, Zeitpunkt, Quelle', () async {
     final (s, _) = await _setup();
@@ -105,6 +124,24 @@ void main() {
       measuredAt: _t0,
     ).write(s.settings, at: _t0);
     await svc.save(const ProfileRecord(restingHeartRateBpm: 58));
+    expect(await RestingHrOrigin.read(s.settings), isNotNull);
+  });
+
+  test('Entfernen der Herkunft scheitert: Wert bleibt unverändert, nie neuer Wert mit alter Herkunft', () async {
+    final s = await FakeStorage().open(_key);
+    final settings = _FailingSettings(s.settings);
+    final svc = ProfileService(s.profile, FakeClock(_t0), settings: settings);
+    await svc.save(const ProfileRecord(restingHeartRateBpm: 60));
+    await RestingHrOrigin(
+      posture: RestingPosture.sitting,
+      measuredAt: _t0,
+    ).write(settings, at: _t0);
+    settings.failSet = true;
+    await expectLater(
+      svc.save(const ProfileRecord(restingHeartRateBpm: 58)),
+      throwsStateError,
+    );
+    expect((await s.profile.read()).restingHeartRateBpm, 60);
     expect(await RestingHrOrigin.read(s.settings), isNotNull);
   });
 }

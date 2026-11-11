@@ -109,3 +109,39 @@ class SpyProfileService extends ProfileService {
 }
 
 final Uint8List testKey = Uint8List.fromList(List.filled(32, 7));
+
+/// Einstellungen, deren Schreiben scheitert, wenn [failSet] für den Schlüssel
+/// `true` liefert.
+class FailingSettingsStore implements SettingsStore {
+  FailingSettingsStore(this.inner);
+  final SettingsStore inner;
+  bool Function(String key)? failSet;
+
+  @override
+  Future<String?> get(String key) => inner.get(key);
+
+  @override
+  Future<Map<String, String>> all() => inner.all();
+
+  @override
+  Future<void> set(String key, String value, {required DateTime at}) async {
+    if (failSet?.call(key) ?? false) throw StateError('Schreiben scheitert');
+    await inner.set(key, value, at: at);
+  }
+}
+
+/// Profilspeicher, dessen Speichern auf Wunsch scheitert.
+class FailingProfileStore implements ProfileStore {
+  FailingProfileStore(this.inner);
+  final ProfileStore inner;
+  bool failSave = false;
+
+  @override
+  Future<ProfileRecord> read() => inner.read();
+
+  @override
+  Future<void> save(ProfileRecord profile) async {
+    if (failSave) throw StateError('Speichern scheitert');
+    await inner.save(profile);
+  }
+}
