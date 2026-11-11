@@ -12,6 +12,16 @@ class PpgInsufficientDataException implements Exception {
   String toString() => 'PpgInsufficientDataException: $message';
 }
 
+/// Alle Signalquellen haben im Messfenster konstante (numerisch flache) Rohwerte, z. B. ein
+/// übersteuerter Kanal. Es gibt nichts auszuwerten (kein Programmfehler).
+class PpgFlatSignalException implements Exception {
+  const PpgFlatSignalException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'PpgFlatSignalException: $message';
+}
+
 /// Kennwerte über einen Zeitabschnitt. Zeiten in ms, Puls in 1/min; NaN = nicht berechenbar.
 class HrvStats {
   const HrvStats({
@@ -162,13 +172,30 @@ abstract final class PpgAnalyzer {
     List<PpgSeries> blocks,
     PpgWindow w,
   ) {
+    // Abweichung von der Referenz (Methode camera-ppg v1, nur Fehlerfall): Quellen mit
+    // konstanten Rohwerten im Messfenster werden nicht ausgewertet. Sonst würde Rundungsrauschen
+    // als Signal gelten und ein gesättigter Kanal mit Zeitrauschen ≈ 0 jede echte Quelle
+    // schlagen (chooseBest). Die Fixture der Referenz enthält keine solche Quelle.
+    final live = [
+      for (final s in signals)
+        if (!isFlat(tSec, s.values, w)) s,
+    ];
+    if (live.isEmpty) {
+      throw const PpgFlatSignalException(
+        'Alle Signalquellen sind im Messfenster konstant',
+      );
+    }
+    final liveBlocks = [
+      for (final b in blocks)
+        if (!isFlat(tSec, b.values, w)) b,
+    ];
     final all = [
-      for (final s in signals) analyzeChannel(s.name, tSec, s.values, w),
+      for (final s in live) analyzeChannel(s.name, tSec, s.values, w),
     ];
     var used = 0;
     var scored = 0;
-    if (blocks.isNotEmpty) {
-      final c = combineBlocks(tSec, blocks, w);
+    if (liveBlocks.isNotEmpty) {
+      final c = combineBlocks(tSec, liveBlocks, w);
       used = c.used;
       scored = c.scored;
       if (c.combo != null) all.add(analyzeChannel('Kombi', tSec, c.combo!, w));
@@ -179,6 +206,22 @@ abstract final class PpgAnalyzer {
       blocksUsed: used,
       blocksScored: scored,
     );
+  }
+
+  /// Konstante Rohwerte im Messfenster: Spannweite höchstens [ppgFlatRelativeTolerance] des
+  /// größten Betrags (ein einzelner Wert, auch ein leeres Fenster, zählt als flach).
+  static bool isFlat(List<double> tSec, List<double> values, PpgWindow w) {
+    var lo = double.infinity;
+    var hi = double.negativeInfinity;
+    for (var i = 0; i < tSec.length; i++) {
+      final t = tSec[i];
+      if (t < w.start || t > w.end) continue;
+      final v = values[i];
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    if (!(hi > lo)) return true;
+    return hi - lo <= ppgFlatRelativeTolerance * math.max(hi.abs(), lo.abs());
   }
 
   /// Wahl der Signalquelle (Abschn. 9): unter den Quellen mit brauchbarem Puls die mit dem

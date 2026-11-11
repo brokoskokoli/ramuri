@@ -40,6 +40,12 @@ enum PpgQualityReason {
   /// Weniger als 50 % gültige Schlagintervalle (zu viele Störungen).
   tooManyDisturbances,
 
+  /// Alle Signalquellen sind im Messfenster konstant (z. B. übersteuert).
+  flatSignal,
+
+  /// Die Auswertung ist an unerwarteten Werten gescheitert (Sicherung, kein Ergebnis).
+  analysisFailed,
+
   /// Q unter 0,3.
   lowSignalQuality,
 
@@ -71,8 +77,8 @@ class PpgMeasurement {
   /// Alle zutreffenden Gründe der Stufe; bei „gut“ leer.
   final List<PpgQualityReason> reasons;
 
-  /// Puls (1/min) und RMSSD (ms) über das Messfenster; null bei „unbrauchbar“ oder wenn nicht
-  /// berechenbar. Welche Werte gelten (RMSSD nur bei „gut“), regelt PAR-160K beim Verwender.
+  /// Puls (1/min) und RMSSD (ms) über das Messfenster. Puls null bei „unbrauchbar“, RMSSD null
+  /// außer bei „gut“ (PAR-160K), jeweils auch wenn nicht berechenbar.
   final double? bpm;
   final double? rmssdMs;
 
@@ -115,6 +121,21 @@ PpgMeasurement evaluatePpg(
       return _unusable(PpgQualityReason.invalidInput);
     }
   }
+  // Referenz (MainActivity) wertet nur vollständige Aufnahmen aus; ohne Bilder am Anfang und
+  // am Ende des Messfensters würde sonst eine Teilmessung als „gut“ gelten (Abschn. 2).
+  var first = double.infinity;
+  var last = double.negativeInfinity;
+  var inWindow = 0;
+  for (final f in frames) {
+    if (f.t >= window.filterStart && f.t <= window.dataEnd) {
+      if (f.t < first) first = f.t;
+      if (f.t > last) last = f.t;
+    }
+    if (f.t >= window.start && f.t <= window.end) inWindow++;
+  }
+  if (first > window.start || last < window.end || inWindow <= ppgMinFrames) {
+    return _unusable(PpgQualityReason.insufficientData);
+  }
   final t = [for (final f in frames) f.t];
   final signals = [
     PpgSeries('Rot', [for (final f in frames) f.r]),
@@ -131,6 +152,12 @@ PpgMeasurement evaluatePpg(
     set = PpgAnalyzer.analyze(t, signals, blocks, window);
   } on PpgInsufficientDataException {
     return _unusable(PpgQualityReason.insufficientData);
+  } on PpgFlatSignalException {
+    return _unusable(PpgQualityReason.flatSignal);
+  } catch (_) {
+    // Fail closed: Bei extremen Werten kann die Rechenkette scheitern (z. B. NaN beim
+    // Runden). Nach außen gibt es nie eine Ausnahme, nur „unbrauchbar“ ohne Zahlen.
+    return _unusable(PpgQualityReason.analysisFailed);
   }
   return ratePpg(set.best);
 }
@@ -157,7 +184,8 @@ PpgMeasurement ratePpg(PpgChannelResult r) {
     quality: quality,
     reasons: unusable ? unusableReasons : limitedReasons,
     bpm: unusable ? null : _finite(m.bpm),
-    rmssdMs: unusable ? null : _finite(m.rmssdMs),
+    // PAR-160K: RMSSD nur bei „gut“ (fail closed, der Verwender muss nichts filtern).
+    rmssdMs: quality == PpgQuality.good ? _finite(m.rmssdMs) : null,
     signalQuality: r.quality,
     timingNoiseMs: _finite(r.timingNoiseMs),
     validIntervals: m.validIbis,

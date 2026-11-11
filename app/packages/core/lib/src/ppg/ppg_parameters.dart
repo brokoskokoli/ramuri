@@ -31,6 +31,13 @@ const double ppgFilterPadSeconds = 3.0;
 /// Mindestzahl an Bildern im Auswertebereich, sonst „zu wenige Bilder“, Abschn. 2.
 const int ppgMinFrames = 50;
 
+/// Konstante Rohwerte (Abschn. 2): Spannweite im Messfenster höchstens 1e-12 des größten
+/// Betrags. Numerisch begründet, keine Amplitudenschwelle: Ein Bildmittelwert über N ≤ 2^24
+/// Pixeln mit 8 Bit hat Stufen von mindestens 1/N, relativ zu 255 also über 2e-10; 1e-12
+/// liegt darunter und über dem Rundungsrauschen von Summe und Mittel in Double (~1e-16 je
+/// Operation).
+const double ppgFlatRelativeTolerance = 1e-12;
+
 /// Goertzel-Suche der Grundfrequenz, Abschn. 4: Raster 0,5 bis 4 Hz in 0,01-Hz-Schritten,
 /// Grundton nur zwischen 0,7 und 3,5 Hz, Signalleistung bei f0 ± 0,08 Hz und 2·f0 ± 0,12 Hz.
 const double ppgSpectrumStartHz = 0.5;

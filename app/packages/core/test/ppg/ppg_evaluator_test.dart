@@ -18,6 +18,7 @@ List<PpgFrame> frames(Synth s) => [
 
 /// Hauptkanal mit festen Kennzahlen, um die Bewertung an den Grenzen zu prüfen.
 PpgChannelResult channel({
+  String name = 'Rot',
   double quality = 0.8,
   int valid = 70,
   int total = 70,
@@ -48,7 +49,7 @@ PpgChannelResult channel({
     second: stats(),
   );
   return PpgChannelResult(
-    channel: 'Rot',
+    channel: name,
     methods: [m],
     artifacts: const [],
     spectralBpm: bpm,
@@ -166,6 +167,148 @@ void main() {
       },
     );
 
+    test(
+      'Aufnahme bricht früh ab: unbrauchbar, nicht „gut“ aus Teilmessung',
+      () {
+        final all = frames(synth(0.85, 0.05, 0.03, 0.3, 30.0, 1));
+        final cut = evaluatePpg([...all.where((f) => f.t <= 12)]);
+        expect(cut.quality, PpgQuality.unusable);
+        expect(cut.reasons, [PpgQualityReason.insufficientData]);
+        expect(cut.bpm, isNull);
+        // Ende knapp vor 65 s, Anfang knapp nach 5 s
+        expect(evaluatePpg([...all.where((f) => f.t <= 64.9)]).reasons, [
+          PpgQualityReason.insufficientData,
+        ]);
+        expect(evaluatePpg([...all.where((f) => f.t >= 5.1)]).reasons, [
+          PpgQualityReason.insufficientData,
+        ]);
+        expect(evaluatePpg(all).quality, PpgQuality.good);
+      },
+    );
+
+    test('Bilder im Messfenster: gebündelt ohne Ausnahme, Mindestzahl 51', () {
+      final all = frames(synth(0.85, 0.05, 0.03, 0.3, 30.0, 1));
+      PpgFrame at(double t) => PpgFrame(
+        t: t,
+        r: 100 + (t * 1000).round() % 7,
+        g: 50,
+        r16: all[0].r16,
+        g16: all[0].g16,
+      );
+      // 60 Bilder innerhalb von 1 ms um 5 s, dazu je ein Bild an den Rändern des Fensters
+      final few = [
+        at(4.0),
+        for (var i = 0; i < 60; i++) at(5.0 + i * 1e-5),
+        at(65.5),
+      ];
+      // Messfenster formal abgedeckt, aber kein verwertbares Signal: keine Ausnahme, kein Zahl
+      final m = evaluatePpg(few);
+      expect(m.quality, PpgQuality.unusable);
+      expect(m.bpm, isNull);
+      // Grenze: genau 50 Bilder im Fenster reichen nicht, 51 schon (Kotlin: > 50)
+      List<PpgFrame> grid(int n) => [
+        at(4.0),
+        for (var i = 0; i < n; i++) at(5.0 + 60.0 * i / (n - 1)),
+        at(65.5),
+      ];
+      expect(evaluatePpg(grid(50)).reasons, [
+        PpgQualityReason.insufficientData,
+      ]);
+      expect(
+        evaluatePpg(grid(51)).reasons,
+        isNot(contains(PpgQualityReason.insufficientData)),
+      );
+    });
+
+    test('extreme Werte: keine Ausnahme, unbrauchbar ohne Zahlen', () {
+      final all = frames(synth(0.85, 0.05, 0.03, 0.3, 30.0, 1));
+      final big = [
+        for (var i = 0; i < all.length; i++)
+          PpgFrame(
+            t: all[i].t,
+            r: i.isEven ? 1e300 : -1e300,
+            g: i.isEven ? 1e300 : -1e300,
+            r16: List.filled(16, i.isEven ? 1e300 : -1e300),
+            g16: List.filled(16, i.isEven ? 1e300 : -1e300),
+          ),
+      ];
+      final m = evaluatePpg(big);
+      expect(m.quality, PpgQuality.unusable);
+      expect(m.reasons, [PpgQualityReason.analysisFailed]);
+      expect((m.bpm, m.rmssdMs), (null, null));
+    });
+
+    test(
+      'konstanter Kanal (z. B. übersteuert) ist unbrauchbar, nicht „gut“',
+      () {
+        PpgFrame flat(double t, double v) => PpgFrame(
+          t: t,
+          r: v,
+          g: v,
+          r16: List.filled(16, v),
+          g16: List.filled(16, v),
+        );
+        for (final v in [255.0, 128.3, 0.0]) {
+          final m = evaluatePpg([
+            for (var i = 0; i < 2100; i++) flat(i / 30, v),
+          ]);
+          expect(m.quality, PpgQuality.unusable, reason: '$v');
+          expect(m.reasons, [PpgQualityReason.flatSignal]);
+          expect((m.bpm, m.rmssdMs), (null, null));
+        }
+      },
+    );
+
+    test('konstanter Kanal gewinnt nicht gegen einen echten (Quellenwahl)', () {
+      final s = synth(0.85, 0.05, 0.03, 0.3, 30.0, 1);
+      final base = frames(s);
+      // Rot gesättigt (konstant), Grün trägt den Puls; Teilbereiche folgen Grün
+      final fr = [
+        for (final f in base)
+          PpgFrame(
+            t: f.t,
+            r: 255,
+            g: f.r,
+            r16: List.filled(16, 255.0),
+            g16: f.r16,
+          ),
+      ];
+      final m = evaluatePpg(fr);
+      expect(m.channel, isNot('Rot'));
+      expect(m.quality, PpgQuality.good);
+      expect(
+        m.bpm,
+        closeTo(truth([for (final b in s.beats) b + 0.12], 5.0, 65.0).bpm, 0.5),
+      );
+      // numerisch flach (Rundungsrauschen 1e-14 relativ) zählt ebenfalls als konstant
+      final noisy = [
+        for (var i = 0; i < 2100; i++)
+          PpgFrame(
+            t: i / 30,
+            r: 200 + (i.isEven ? 0 : 3e-14),
+            g: 200,
+            r16: List.filled(16, 200.0),
+            g16: List.filled(16, 200.0),
+          ),
+      ];
+      expect(evaluatePpg(noisy).reasons, [PpgQualityReason.flatSignal]);
+    });
+
+    test('nicht endliche Zeit ist ungültige Eingabe', () {
+      final all = frames(synth(0.85, 0.05, 0.03, 0.3, 30.0, 1));
+      for (final bad in [double.nan, double.infinity]) {
+        final x = [...all];
+        x[100] = PpgFrame(
+          t: bad,
+          r: 1,
+          g: 1,
+          r16: all[100].r16,
+          g16: all[100].g16,
+        );
+        expect(evaluatePpg(x).reasons, [PpgQualityReason.invalidInput]);
+      }
+    });
+
     test('Rauschen ohne Puls ergibt kein Ergebnis', () {
       final rnd = KotlinRandom(77);
       final fr = [
@@ -235,6 +378,25 @@ void main() {
       expect(rate(channel(bpm: double.nan)).bpm, isNull);
     });
 
+    test('RMSSD nur bei „gut“ (PAR-160K), Puls auch bei „eingeschränkt“', () {
+      final lim = rate(channel(quality: 0.28, bpm: 62, rmssd: 33));
+      expect(lim.quality, PpgQuality.limited);
+      expect((lim.bpm, lim.rmssdMs), (62, null));
+      final noisy = rate(channel(noise: 30, bpm: 62, rmssd: 33));
+      expect(
+        (noisy.quality, noisy.bpm, noisy.rmssdMs),
+        (PpgQuality.limited, 62, null),
+      );
+      expect(rate(channel(bpm: 62, rmssd: 33)).rmssdMs, 33);
+    });
+
+    test('Quellenwahl: nicht schätzbares Zeitrauschen verliert immer', () {
+      final nan = channel(name: 'A', noise: double.nan);
+      final ok = channel(name: 'B', noise: 20);
+      expect(PpgAnalyzer.chooseBest([nan, ok]).channel, 'B');
+      expect(PpgAnalyzer.chooseBest([ok, nan]).channel, 'B');
+    });
+
     test('mehrere Gründe werden alle genannt', () {
       final r = rate(channel(quality: 0.28, valid: 45, noise: 30));
       expect(r.quality, PpgQuality.limited);
@@ -302,6 +464,26 @@ void main() {
             if (!iv.valid[i]) i,
         ],
         [30],
+      );
+    });
+  });
+
+  group('Mindestzahl Bilder (Abschn. 2)', () {
+    // 30 Hz, Fenster 0 bis 1,7 s: n Bilder im Auswertebereich
+    const w = PpgWindow(filterStart: 0, start: 0, end: 1.7, dataEnd: 1.7);
+    List<double> tt(int n) => [for (var i = 0; i < n; i++) i * 1.7 / (n - 1)];
+    List<double> vv(int n) => [
+      for (final t in tt(n)) math.sin(2 * math.pi * 1.2 * t),
+    ];
+
+    test('50 Bilder sind zu wenig, 51 genügen', () {
+      expect(
+        () => PpgAnalyzer.analyzeChannel('x', tt(50), vv(50), w),
+        throwsA(isA<PpgInsufficientDataException>()),
+      );
+      expect(
+        () => PpgAnalyzer.analyzeChannel('x', tt(51), vv(51), w),
+        isNot(throwsA(isA<PpgInsufficientDataException>())),
       );
     });
   });
