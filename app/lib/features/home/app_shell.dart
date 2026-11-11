@@ -13,6 +13,7 @@ import '../statistics/statistics_screen.dart';
 import '../statistics/statistics_view_state.dart';
 import 'data_changes.dart';
 import 'home_screen.dart';
+import 'run_starter.dart';
 
 /// Hülle mit der unteren Navigation (FR-0208): Heute, Plan, Verlauf,
 /// Fortschritt.
@@ -100,6 +101,15 @@ class _AppShellState extends State<AppShell> {
           session: widget.session,
           clock: widget.clock,
           viewState: _planState,
+          onStartUnit: (context, unit) => RunStarter(
+            session: widget.session,
+            clock: widget.clock,
+            permissions: widget.permissions,
+            recalculation: widget.recalculation,
+            runPorts: widget.runPorts,
+            sensors: widget.sensors,
+            changes: widget.changes,
+          ).start(context, unit: unit),
         );
       case 'history':
         return HistoryScreen(

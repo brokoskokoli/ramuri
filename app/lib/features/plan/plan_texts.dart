@@ -175,9 +175,19 @@ String? planHardFitText(AppLocalizations l, HardFitStatus s) => switch (s) {
     extra: null,
     basis: l.planAssessBasisTime,
   ),
-  FeasibilityReason.noReference || FeasibilityReason.tooFewRuns => (
+  FeasibilityReason.noReference => (
     main: l.planAssessNoData,
     extra: null,
+    basis: l.planAssessBasisTime,
+  ),
+  // Referenz oder Zeit vorhanden, aber zu wenige Läufe (PAR-206): sagen,
+  // was fehlt (E2E API 36).
+  FeasibilityReason.tooFewRuns => (
+    main: l.planAssessNoData,
+    extra: l.planAssessTooFewRuns(
+      const FeasibilityParameters().minRuns,
+      const FeasibilityParameters().runWindowDays ~/ 7,
+    ),
     basis: l.planAssessBasisTime,
   ),
   FeasibilityReason.showRegularity => null,

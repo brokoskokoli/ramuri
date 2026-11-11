@@ -485,6 +485,18 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
             ),
           ],
         ),
+        // Fehler am Feld (wie Minuten je Einheit), unter den drei Zeitfeldern.
+        if (_problem == GoalProblem.targetTimeMissing ||
+            _problem == GoalProblem.targetTimeInvalid)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 12),
+            child: Text(
+              l.planFormErrorTime,
+              key: const Key('plan_form_time_error'),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
       ],
       if (_type != GoalType.open) ...[
         const SizedBox(height: 16),
@@ -647,7 +659,14 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
           style: text.bodyMedium,
         )
       else ...[
-        _numberField('plan_form_weekly', _weekly, l.planFormWeekly),
+        _numberField(
+          'plan_form_weekly',
+          _weekly,
+          l.planFormWeekly,
+          errorText: _problem == GoalProblem.currentWeeklyInvalid
+              ? l.planFormErrorWeekly
+              : null,
+        ),
         if (_weekly.text.trim().isEmpty) ...[
           const SizedBox(height: 12),
           Text(l.planFormCan30, style: text.bodyMedium),

@@ -226,10 +226,16 @@ void main() {
     );
 
     test('ungültige Referenz', () {
-      for (final bad in [ref(meters: 2999), ref(seconds: 0), ref(age: -1)]) {
+      // Zu kurz oder Zeit null: unbrauchbar, wird ignoriert (wie keine
+      // Referenz, Festlegung WP22); künftiges Datum: ungültig.
+      for (final (bad, reason) in [
+        (ref(meters: 2999), PredictionReason.noReference),
+        (ref(seconds: 0), PredictionReason.noReference),
+        (ref(age: -1), PredictionReason.invalidReference),
+      ]) {
         final p = predict10k(bad, dense(10));
         expect(p.level, PredictionLevel.notDeterminable);
-        expect(p.reason, PredictionReason.invalidReference);
+        expect(p.reason, reason);
         expect(p.seconds, isNull);
       }
       expect(ref(meters: 3000, seconds: 900).validate(now), isNull);
@@ -261,10 +267,36 @@ void main() {
         ref(meters: 2999, seconds: 99999).validate(now),
         ReferenceProblem.distanceTooShort,
       );
-      // Prognose: unplausible Referenz ist ungültig.
+      // Prognose: eine unplausible Referenz (gespeichert oder importiert)
+      // wird ignoriert, als gäbe es sie nicht (Festlegung WP22, E2E API 36).
       final p = predict10k(ref(seconds: 999 * 3600), dense(10));
-      expect(p.reason, PredictionReason.invalidReference);
+      expect(p.reason, PredictionReason.noReference);
       expect(p.seconds, isNull);
+    });
+
+    test('Referenz außerhalb der Tempospanne gilt nirgends: activeReference '
+        'überspringt sie, die Prognose nimmt die ältere gültige', () {
+      final valid = ref(age: 20);
+      final slow = ref(age: 5, meters: 5000, seconds: 999 * 3600);
+      final fast = ref(age: 3, meters: 5000, seconds: 749);
+      expect(isUsableReference(valid), isTrue);
+      expect(isUsableReference(slow), isFalse);
+      expect(isUsableReference(fast), isFalse);
+      // Künftiges Datum ist kein Ausschlussgrund (die Prognose meldet es).
+      expect(isUsableReference(ref(age: -1)), isTrue);
+      expect(activeReference([valid, slow, fast]), same(valid));
+      expect(activeReference([slow, fast]), isNull);
+      final p = predictPerformance(
+        now: now,
+        references: [valid, slow],
+        runs: dense(30),
+      ).of(PredictionDistance.tenKilometers);
+      expect(p.seconds, isNotNull);
+      expect(
+        p.seconds,
+        predict10k(valid, dense(30)).seconds,
+        reason: 'Grundlage ist die ältere gültige Referenz',
+      );
     });
   });
 

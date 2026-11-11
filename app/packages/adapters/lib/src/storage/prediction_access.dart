@@ -1,4 +1,5 @@
 import 'package:core/core.dart';
+import 'package:core/core.dart' as core show activeReference;
 import 'package:drift/drift.dart' show InsertMode, Value;
 
 import 'access_support.dart';
@@ -96,7 +97,7 @@ class DriftPredictionStore implements PredictionStore {
   @override
   Future<ReferencePerformance?> activeReference() async {
     final all = await references();
-    return all.isEmpty ? null : all.first.reference;
+    return core.activeReference([for (final s in all) s.reference]);
   }
 
   @override

@@ -31,6 +31,7 @@ class PlanScreen extends StatefulWidget {
     this.viewState,
     this.onCreateGoal,
     this.controller,
+    this.onStartUnit,
   });
 
   final StorageSession session;
@@ -47,6 +48,11 @@ class PlanScreen extends StatefulWidget {
   /// Für Tests: ein vorhandener Controller; die Seite ruft dann `open()`,
   /// gibt ihn aber nicht frei. Ohne: die Seite legt ihren eigenen an.
   final PlanController? controller;
+
+  /// „Start“ an der heutigen offenen Einheit: derselbe Weg wie „Einheit
+  /// starten“ auf „Heute“ (Merker, Zuordnung nach dem Lauf, `RunStarter`).
+  /// Ohne Angabe kein Knopf.
+  final Future<void> Function(BuildContext context, PlanUnit unit)? onStartUnit;
 
   @override
   State<PlanScreen> createState() => _PlanScreenState();
@@ -184,6 +190,40 @@ class _PlanScreenState extends State<PlanScreen> {
         ),
       ),
     );
+  }
+
+  bool _recalculating = false;
+
+  /// „Neu berechnen“ (Auslöser `manual`, bei geändertem Ziel `goalChange`):
+  /// rechnet Inhalte ab heute neu; bestätigte Termine bleiben (ADR-0010).
+  /// Ergebnis oder Fehler steht danach als Meldung da.
+  Future<void> _recalculate() async {
+    if (_recalculating) return;
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _recalculating = true);
+    final result = await _controller.recalculate();
+    if (!mounted) return;
+    setState(() => _recalculating = false);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          key: const Key('plan_recalculated'),
+          content: Text(
+            result == PlanActionResult.done
+                ? l.planRecalculateDone
+                : l.planRecalculateFailed,
+          ),
+        ),
+      );
+  }
+
+  Future<void> _startUnit(PlanUnit unit) async {
+    final start = widget.onStartUnit;
+    if (start == null) return;
+    await start(context, unit);
+    if (mounted) await _controller.reload();
   }
 
   void _openUnit(PlanUnit unit) {
@@ -328,6 +368,7 @@ class _PlanScreenState extends State<PlanScreen> {
             state: s,
             today: _today,
             onEdit: () => _openGoalForm(s.goal),
+            onRecalculate: _recalculating ? null : _recalculate,
           ),
           for (final h in global) ...[const SizedBox(height: 10), h],
           const SizedBox(height: 16),
@@ -342,6 +383,7 @@ class _PlanScreenState extends State<PlanScreen> {
               hasError: snap.hasError,
               onStep: _step,
               onOpen: _openUnit,
+              onStart: widget.onStartUnit == null ? null : _startUnit,
             ),
           ),
         ],
@@ -380,6 +422,7 @@ class _GoalCard extends StatelessWidget {
     required this.state,
     required this.today,
     required this.onEdit,
+    required this.onRecalculate,
   });
 
   final PlanViewState state;
@@ -387,6 +430,9 @@ class _GoalCard extends StatelessWidget {
 
   /// Einstieg „Ziel ändern“ (PAR-203).
   final VoidCallback onEdit;
+
+  /// „Neu berechnen“ (`manual`); `null`, solange eine Rechnung läuft.
+  final VoidCallback? onRecalculate;
 
   @override
   Widget build(BuildContext context) {
@@ -443,14 +489,22 @@ class _GoalCard extends StatelessWidget {
           ],
           ..._assessment(context, l),
           const SizedBox(height: 4),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton.icon(
-              key: const Key('plan_edit_goal'),
-              onPressed: onEdit,
-              icon: const Icon(Icons.edit_rounded, size: 18),
-              label: Text(l.planEditGoal),
-            ),
+          Wrap(
+            spacing: 4,
+            children: [
+              TextButton.icon(
+                key: const Key('plan_edit_goal'),
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_rounded, size: 18),
+                label: Text(l.planEditGoal),
+              ),
+              TextButton.icon(
+                key: const Key('plan_recalculate'),
+                onPressed: onRecalculate,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: Text(l.planRecalculate),
+              ),
+            ],
           ),
         ],
       ),
@@ -542,18 +596,37 @@ class _PhaseBar extends StatelessWidget {
     final t = planDay(today);
     var current = weeks.lastIndexWhere((w) => !planDay(w.start).isAfter(t));
     if (current < 0) current = 0;
-    final total = weeks.length;
     // Die Wochen der Rechnung beginnen mit der Woche von „heute“; die Nummer
     // für den Screenreader zählt wie der Wochenkopf ab dem Anker.
     final week =
         planWeekOf(weeks, t.subtract(Duration(days: t.weekday - 1))) ??
         weeks[current];
-    // Schmale Phasen bekommen genug Platz für ihre Kurzform.
-    final minFlex = (total / 6).ceil();
-    int flex(int n) => n < minFlex ? minFlex : n;
     final now = groups.firstWhere(
       (g) => current >= g.$2 && current < g.$2 + g.$3,
       orElse: () => groups.last,
+    );
+    final style = Theme.of(context).textTheme.labelSmall
+        ?.copyWith(color: c.textLabel);
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    Widget bar(int i) => ClipRRect(
+      borderRadius: BorderRadius.circular(5),
+      child: SizedBox(
+        height: 10,
+        child: LinearProgressIndicator(
+          value: _fill(groups[i], current),
+          backgroundColor: c.surface,
+          color: c.text,
+          minHeight: 10,
+        ),
+      ),
+    );
+    Widget label(int i) => Text(
+      planPhaseShort(l, groups[i].$1),
+      key: Key('plan_phase_${groups[i].$1.name}'),
+      maxLines: 1,
+      softWrap: false,
+      style: style,
     );
     return Semantics(
       key: const Key('plan_phase_bar'),
@@ -563,53 +636,103 @@ class _PhaseBar extends StatelessWidget {
         weeks.last.index + 1,
       ),
       excludeSemantics: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              for (var i = 0; i < groups.length; i++) ...[
-                if (i > 0) const SizedBox(width: 4),
-                Expanded(
-                  flex: flex(groups[i].$3),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
-                    child: SizedBox(
-                      height: 10,
-                      child: LinearProgressIndicator(
-                        value: _fill(groups[i], current),
-                        backgroundColor: c.surface,
-                        color: c.text,
-                        minHeight: 10,
-                      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Jede Kurzform (OQ-0077) ganz lesbar, auch bei schmaler Phase und
+          // großer Schrift: Stücke mindestens so breit wie ihre Beschriftung,
+          // der Rest nach Zahl der Wochen. Passt das nicht in die Breite,
+          // stehen die Beschriftungen nebeneinander unter dem Balken.
+          final needed = [
+            for (var i = 0; i < groups.length; i++)
+              (TextPainter(
+                    text: TextSpan(
+                      text: planPhaseShort(l, groups[i].$1),
+                      style: style,
                     ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              for (var i = 0; i < groups.length; i++) ...[
-                if (i > 0) const SizedBox(width: 4),
-                Expanded(
-                  flex: flex(groups[i].$3),
-                  child: Text(
-                    planPhaseShort(l, groups[i].$1),
-                    key: Key('plan_phase_${groups[i].$1.name}'),
+                    textDirection: direction,
+                    textScaler: scaler,
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall
-                        ?.copyWith(color: c.textLabel),
-                  ),
+                  )..layout()).width.ceilToDouble() +
+                  1,
+          ];
+          final widths = _segmentWidths(
+            needed,
+            [for (final g in groups) g.$3],
+            // Etwas Luft gegen Rundung beim Aufsummieren.
+            constraints.maxWidth - _gap * (groups.length - 1) - 1,
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  for (var i = 0; i < groups.length; i++) ...[
+                    if (i > 0) const SizedBox(width: _gap),
+                    if (widths == null)
+                      Expanded(flex: groups[i].$3, child: bar(i))
+                    else
+                      SizedBox(width: widths[i], child: bar(i)),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 6),
+              if (widths == null)
+                Wrap(
+                  spacing: 12,
+                  children: [for (var i = 0; i < groups.length; i++) label(i)],
+                )
+              else
+                Row(
+                  children: [
+                    for (var i = 0; i < groups.length; i++) ...[
+                      if (i > 0) const SizedBox(width: _gap),
+                      SizedBox(width: widths[i], child: label(i)),
+                    ],
+                  ],
                 ),
-              ],
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
+  }
+
+  static const double _gap = 4;
+
+  /// Breiten der Stücke: nach Zahl der Wochen ([weeks]), aber mindestens
+  /// [needed]. `null`, wenn die Beschriftungen zusammen nicht in [available]
+  /// passen.
+  static List<double>? _segmentWidths(
+    List<double> needed,
+    List<int> weeks,
+    double available,
+  ) {
+    if (needed.fold<double>(0, (a, b) => a + b) > available) return null;
+    final fixed = List<bool>.filled(needed.length, false);
+    while (true) {
+      var freeWeeks = 0;
+      var freeSpace = available;
+      for (var i = 0; i < needed.length; i++) {
+        if (fixed[i]) {
+          freeSpace -= needed[i];
+        } else {
+          freeWeeks += weeks[i];
+        }
+      }
+      var changed = false;
+      for (var i = 0; i < needed.length; i++) {
+        if (!fixed[i] && freeSpace * weeks[i] / freeWeeks < needed[i]) {
+          fixed[i] = true;
+          changed = true;
+        }
+      }
+      if (!changed) {
+        return [
+          for (var i = 0; i < needed.length; i++)
+            fixed[i] ? needed[i] : freeSpace * weeks[i] / freeWeeks,
+        ];
+      }
+    }
   }
 
   static double _fill((PlanPhase, int, int) g, int current) {
@@ -629,6 +752,7 @@ class _Week extends StatelessWidget {
     required this.units,
     required this.onStep,
     required this.onOpen,
+    this.onStart,
     this.hasError = false,
   });
 
@@ -643,6 +767,9 @@ class _Week extends StatelessWidget {
   final bool hasError;
   final void Function(int direction) onStep;
   final void Function(PlanUnit unit) onOpen;
+
+  /// „Start“ an der heutigen offenen Einheit; `null`: kein Knopf.
+  final void Function(PlanUnit unit)? onStart;
 
   @override
   Widget build(BuildContext context) {
@@ -771,6 +898,7 @@ class _Week extends StatelessWidget {
               ),
               isToday: planDay(monday.add(Duration(days: d))) == planDay(today),
               onOpen: onOpen,
+              onStart: onStart,
               colors: c,
             ),
           ],
@@ -794,6 +922,7 @@ class _Day extends StatelessWidget {
     required this.isToday,
     required this.onOpen,
     required this.colors,
+    this.onStart,
   });
 
   final DateTime day;
@@ -802,6 +931,9 @@ class _Day extends StatelessWidget {
   final bool isToday;
   final void Function(PlanUnit unit) onOpen;
   final RamuriColors colors;
+
+  /// „Start“ (nur heute, offen, kein Ruhetag; wie im Design Plan.dc.html).
+  final void Function(PlanUnit unit)? onStart;
 
   @override
   Widget build(BuildContext context) {
@@ -843,6 +975,8 @@ class _Day extends StatelessWidget {
       );
     }
     final done = u.runId != null;
+    final canStart =
+        isToday && !done && u.kind != PlanUnitKind.rest && onStart != null;
     final label = u.kind == PlanUnitKind.rest
         ? l.planRestDay
         : l.planUnitLine(
@@ -880,6 +1014,24 @@ class _Day extends StatelessWidget {
                   ],
                 ),
               ),
+              if (canStart)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 8),
+                  child: FilledButton(
+                    key: const Key('plan_day_start'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(
+                        RamuriTheme.minTarget,
+                        RamuriTheme.minTarget,
+                      ),
+                    ),
+                    onPressed: () => onStart!(u),
+                    child: Text(
+                      l.planDayStart,
+                      semanticsLabel: l.planDayStartSemantics(label),
+                    ),
+                  ),
+                ),
               if (done)
                 Semantics(
                   label: l.planUnitDone,

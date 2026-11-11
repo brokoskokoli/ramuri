@@ -314,6 +314,23 @@ void main() {
   });
 
   group('Referenz mit Datum (ADR-0010 Punkt 2)', () {
+    test('Referenz außerhalb der Tempospanne geht nicht in die Eingaben', () {
+      final slow = ReferencePerformance(
+        kind: ReferenceKind.race,
+        distanceMeters: 5000,
+        seconds: 999 * 3600,
+        date: DateTime.utc(2026, 11, 1),
+        createdAt: DateTime.utc(2026, 11, 1),
+      );
+      final b = _build(const [], reference: slow);
+      expect(b.inputs.intensity?.referenceSeconds, isNull);
+      expect(b.inputs.intensity?.referenceMeters, isNull);
+      expect(b.inputs.intensity?.referenceDate, isNull);
+      // Gegenprobe: die gültige Referenz geht ein.
+      final ok = _build(const [], reference: _ref(DateTime.utc(2026, 11, 1)));
+      expect(ok.inputs.intensity!.referenceSeconds, 1500);
+    });
+
     test('Datum statt Alter, JSON-Rundreise', () {
       final b = _build(const [], reference: _ref(DateTime.utc(2026, 11, 1)));
       final json = b.inputs.toJson();

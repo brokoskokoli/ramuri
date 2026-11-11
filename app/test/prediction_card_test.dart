@@ -147,11 +147,23 @@ class _GatedStore implements PredictionStore {
       _inner.addReference(reference);
   @override
   Future<void> deleteReference(int id) => _inner.deleteReference(id);
+
+  /// Zusätzliche, am Speicher vorbei „importierte“ Referenzen (jüngste zuerst
+  /// vor den gespeicherten).
+  List<StoredReference> imported = [];
+
   @override
-  Future<List<StoredReference>> references() => _inner.references();
+  Future<List<StoredReference>> references() async => [
+    ...imported,
+    ...await _inner.references(),
+  ];
   @override
-  Future<ReferencePerformance?> activeReference() => _inner.activeReference();
+  Future<ReferencePerformance?> activeReference() async =>
+      _coreActive([for (final s in await references()) s.reference]);
 }
+
+ReferencePerformance? _coreActive(Iterable<ReferencePerformance> all) =>
+    activeReference(all);
 
 class _GatedSession implements StorageSession, PredictionStorage {
   _GatedSession(this._inner)
@@ -450,6 +462,30 @@ void main() {
         expect((await _store(d).references()).single.reference.seconds, 750);
       });
     }
+
+    testWidgets('Nach dem Datumsdialog bleibt die Tastatur zu', (tester) async {
+      final d = await boot(tester);
+      await pumpCard(tester, d);
+      await tapKey(tester, 'prediction_add');
+      await tester.tap(key('prediction_form_seconds'));
+      await tester.enterText(key('prediction_form_seconds'), '5');
+      await tester.pumpAndSettle();
+      final seconds = find.descendant(
+        of: key('prediction_form_seconds'),
+        matching: find.byType(EditableText),
+      );
+      expect(tester.widget<EditableText>(seconds).focusNode.hasFocus, isTrue);
+      await tester.ensureVisible(key('prediction_form_date'));
+      await tester.tap(key('prediction_form_date'));
+      await tester.pumpAndSettle();
+      final ok = MaterialLocalizations.of(
+        tester.element(find.byType(DatePickerDialog)),
+      ).okButtonLabel;
+      await tester.tap(find.text(ok));
+      await tester.pumpAndSettle();
+      expect(tester.widget<EditableText>(seconds).focusNode.hasFocus, isFalse);
+      expect(tester.testTextInput.isVisible, isFalse);
+    });
 
     testWidgets('freie Distanz in Kilometern mit Komma', (tester) async {
       final d = await boot(tester);
@@ -803,6 +839,34 @@ void main() {
       expect(c.busy, isFalse);
       expect(c.state.suggestion, isNull);
       expect(await _store(d).rejectedSuggestions(), hasLength(1));
+    });
+
+    testWidgets('importierte Referenz außerhalb der Tempospanne: sichtbar '
+        'als ungültig, die Prognose beruht auf der gültigen', (tester) async {
+      final d = await boot(tester);
+      await regularRuns(d);
+      await addRef(d, ReferenceKind.race, 10000, 3000);
+      final g = _GatedSession(d.session);
+      final n = d.clock.now().toLocal();
+      g.prediction.imported = [
+        StoredReference(
+          id: 999,
+          reference: ReferencePerformance(
+            kind: ReferenceKind.race,
+            distanceMeters: 5000,
+            seconds: 999 * 3600,
+            date: DateTime(n.year, n.month, n.day - 2),
+            createdAt: d.clock.now(),
+          ),
+        ),
+      ];
+      await pumpCard(tester, d, session: g);
+      // Grundlage ist die gültige (10 km in 50:00), nicht die jüngere.
+      expect(txt('prediction_reference'), contains('10,00 km in'));
+      expect(txt('prediction_other_999'), contains('ungültig'));
+      expect(txt('prediction_other_999'), contains('5,00 km'));
+      expect(key('prediction_other_delete_999'), findsOneWidget);
+      expect(txt('prediction_value_1'), startsWith('≈'));
     });
 
     testWidgets('Soll 1: Knöpfe sind während einer Änderung gesperrt, kein '

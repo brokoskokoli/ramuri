@@ -324,24 +324,30 @@ class _PredictionCardState extends State<PredictionCard> {
         ],
       ),
     );
-    if (state.all.length > 1) {
+    final others = state.others;
+    if (others.isNotEmpty) {
       out
         ..add(const SizedBox(height: 8))
         ..add(
           Text(
-            l10n.predictionOtherReferences(state.all.length - 1),
+            l10n.predictionOtherReferences(others.length),
             key: const Key('prediction_others'),
             style: theme.bodySmall!.copyWith(color: c.textMuted),
           ),
         );
-      for (final s in state.all.skip(1)) {
+      for (final s in others) {
         final r = s.reference;
-        final summary = l10n.predictionReferenceLine(
+        final line = l10n.predictionReferenceLine(
           predictionKindText(l10n, r.kind),
           formatter.distance(r.distanceMeters),
           clockTimeText(r.seconds),
           DateFormat.yMMMd(lang).format(r.date),
         );
+        // Unbrauchbare Referenz (z. B. importiert außerhalb der Tempospanne):
+        // sichtbar und löschbar, aber als ungültig gekennzeichnet.
+        final summary = isUsableReference(r)
+            ? line
+            : l10n.planReferenceInvalid(line);
         out.add(
           Row(
             children: [

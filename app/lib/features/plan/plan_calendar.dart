@@ -492,13 +492,19 @@ class _PlanCalendarState extends State<PlanCalendar> {
       return day != planDay(u.day) && !taken.contains(day);
     }
 
-    DateTime? initial;
-    for (var d = today; !d.isAfter(last); d = d.add(const Duration(days: 1))) {
-      if (free(d)) {
-        initial = d;
-        break;
+    // Der Dialog beginnt beim nächsten freien Tag nach der Einheit (nicht
+    // ab heute, E2E API 36); gibt es danach keinen, beim ersten ab heute.
+    DateTime? firstFree(DateTime from) {
+      for (var d = from; !d.isAfter(last); d = d.add(const Duration(days: 1))) {
+        if (free(d)) return d;
       }
+      return null;
     }
+
+    final unitDay = planDay(u.day);
+    final initial =
+        (unitDay.isBefore(today) ? null : firstFree(unitDay)) ??
+        firstFree(today);
     if (!mounted) return;
     if (initial == null) {
       messenger.showSnackBar(SnackBar(content: Text(l.calendarMoveDayTaken)));

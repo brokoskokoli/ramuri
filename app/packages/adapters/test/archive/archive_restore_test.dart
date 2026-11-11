@@ -463,6 +463,45 @@ void main() {
     expect(await q.rejectedSuggestions(), {1});
   });
 
+  test('Referenz außerhalb der Tempospanne: Import nimmt sie an, sie bleibt '
+      'sichtbar, gilt aber nicht (Festlegung WP22, E2E API 36)', () async {
+    final plain = openPlain('${work.path}/slow_plain.db');
+    await fillAllTables(plain);
+    // 5 km in 999 h, jünger als alle Fixture-Referenzen; die App weist so
+    // etwas ab, ein Archiv kann es trotzdem enthalten.
+    await sql(
+      plain,
+      "INSERT INTO reference_performances (kind, distance_m, time_s, "
+      "performed_on, created_at_us, run_id) VALUES "
+      "('race', 5000, 3596400, '2026-11-05', 1762300800000000, NULL)",
+    );
+    final dir = Directory('${work.path}/slow_exports')..createSync();
+    final f = await ArchiveExporter(
+      source: DriftArchiveSource(plain),
+      handoff: FakeFileHandoff()..directory = dir.path,
+      clock: FakeClock(DateTime.utc(2026, 11, 7, 12)),
+      cipherFactory: createArchiveCipherInWorker,
+      pageSize: 2,
+    ).export(password: _password);
+    await plain.close();
+    session = await service().restore(
+      path: f.path!,
+      password: _password,
+      resetConfirmed: true,
+    );
+    final q = (session as PredictionStorage).prediction;
+    final refs = await q.references();
+    // Kein Datenverlust: die Zeile ist da und steht als jüngste vorn.
+    expect(refs.length, 3);
+    expect(refs.first.reference.seconds, 3596400);
+    expect(isUsableReference(refs.first.reference), isFalse);
+    // Geltend ist die jüngste brauchbare.
+    final active = await q.activeReference();
+    expect(active, isNotNull);
+    expect(active!.seconds, isNot(3596400));
+    expect(active.kind, ReferenceKind.confirmedRun);
+  });
+
   test('Referenz aus bestätigtem Lauf gelöscht: Ablehnung übersteht Export '
       'und Reimport', () async {
     final plain = openPlain('${work.path}/del_plain.db');

@@ -77,8 +77,8 @@ double _median(List<double> v) {
 /// - [runs]: Zusammenfassungen beendeter Läufe; mindestens die letzten
 ///   `easyWindowWeeks` Wochen, für die Pause seit der Referenz (PAR-101) alle
 ///   seit dem Datum der Referenz. Läufe nach [today] zählen nicht.
-/// - [reference]: die aktive Referenzleistung (`activeReference`), falls
-///   gültig; sie geht mit Datum, nicht mit Alter in die Eingaben.
+/// - [reference]: die aktive Referenzleistung (`activeReference`); eine
+///   unbrauchbare ([isUsableReference]) wird ignoriert; sie geht mit Datum, nicht mit Alter in die Eingaben.
 /// - [easyPlannedRunIds]: Kennungen der Läufe, die einer lockeren oder langen
 ///   Plan-Einheit zugeordnet sind; [otherPlannedRunIds]: Läufe, die einer
 ///   anderen Plan-Einheit (hart, Geh-Lauf) zugeordnet sind. Diese zählen nie
@@ -162,8 +162,11 @@ BuiltPlanInputs buildPlanInputs({
       : goal.withStand(seconds.values.reduce((a, b) => a + b) / seconds.length);
 
   // Referenz mit Datum; längste Pause seit der Referenz (PAR-101, PAR-202).
+  // Eine unbrauchbare Referenz (z. B. importiert außerhalb der Tempospanne)
+  // gilt nicht: dieselbe Regel wie `activeReference`.
+  final usable = activeReference([?reference]);
   IntensityInputs? intensity;
-  final refDay = reference == null ? null : planDay(reference.date);
+  final refDay = usable == null ? null : planDay(usable.date);
   var pause = 0;
   if (refDay != null) {
     final days = [refDay, ...allDays.where((d) => !d.isBefore(refDay)), t]
@@ -174,10 +177,10 @@ BuiltPlanInputs buildPlanInputs({
     }
   }
   final hasHr = heartRate != null;
-  if (reference != null || vo2max != null || hasHr || zoneBounds != null) {
+  if (usable != null || vo2max != null || hasHr || zoneBounds != null) {
     intensity = IntensityInputs(
-      referenceSeconds: reference?.seconds,
-      referenceMeters: reference?.distanceMeters,
+      referenceSeconds: usable?.seconds,
+      referenceMeters: usable?.distanceMeters,
       referenceDate: refDay,
       longestPauseSinceReferenceDays: pause,
       vo2max: vo2max,

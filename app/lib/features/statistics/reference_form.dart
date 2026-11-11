@@ -124,6 +124,10 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
   }
 
   Future<void> _pickDate() async {
+    // Ohne das stellt der Navigator nach dem Dialog den Fokus des zuletzt
+    // benutzten Zeitfelds wieder her, und die Tastatur springt auf (wie im
+    // Zielformular, E2E API 36).
+    FocusManager.instance.primaryFocus?.unfocus();
     final picked = await showDatePicker(
       context: context,
       initialDate: _date,

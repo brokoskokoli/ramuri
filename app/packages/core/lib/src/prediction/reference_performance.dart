@@ -84,11 +84,29 @@ bool referencePaceInRange(
       pace <= p.slowestReferencePaceSecondsPerKm;
 }
 
-/// Die geltende Referenz: die jüngste nach Datum, bei gleichem Datum die
-/// zuletzt angelegte (Annahme WP20). `null` ohne Referenzen.
-ReferencePerformance? activeReference(Iterable<ReferencePerformance> all) {
+/// Kann die Referenz überhaupt gelten? Distanz, Zeit und Tempospanne nach
+/// [ReferencePerformance.validate]; das Datum zählt hier nicht (eine Referenz
+/// mit künftigem Datum bleibt die geltende, die Prognose meldet sie dann als
+/// ungültig). Eine gespeicherte oder importierte Referenz außerhalb der
+/// Tempospanne (Festlegung WP22, E2E API 36) gilt überall als ungültig: Sie
+/// bleibt gespeichert und sichtbar, wird aber für Prognose, Einschätzung und
+/// Plan ignoriert.
+bool isUsableReference(
+  ReferencePerformance r, [
+  PredictionParameters p = const PredictionParameters(),
+]) => r.validate(r.date, p) == null;
+
+/// Die geltende Referenz: unter den brauchbaren ([isUsableReference]) die
+/// jüngste nach Datum, bei gleichem Datum die zuletzt angelegte (Annahme
+/// WP20). `null` ohne brauchbare Referenz. Die einzige Stelle, an der die
+/// geltende Referenz bestimmt wird (Speicher, Prognose, Plan).
+ReferencePerformance? activeReference(
+  Iterable<ReferencePerformance> all, [
+  PredictionParameters p = const PredictionParameters(),
+]) {
   ReferencePerformance? best;
   for (final r in all) {
+    if (!isUsableReference(r, p)) continue;
     if (best == null) {
       best = r;
       continue;

@@ -1,6 +1,9 @@
 import '../ports/storage.dart';
 import '../ports/storage_prediction.dart';
 import '../src/prediction/reference_performance.dart';
+import '../src/prediction/reference_performance.dart'
+    as rp
+    show activeReference;
 import 'fake_storage_data.dart';
 
 class FakePredictionStore implements PredictionStore {
@@ -46,7 +49,7 @@ class FakePredictionStore implements PredictionStore {
   @override
   Future<ReferencePerformance?> activeReference() async {
     final all = await references();
-    return all.isEmpty ? null : all.first.reference;
+    return rp.activeReference([for (final s in all) s.reference]);
   }
 
   @override

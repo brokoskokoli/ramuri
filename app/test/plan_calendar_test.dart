@@ -402,6 +402,28 @@ void main() {
       expect(key('calendar_move_result'), findsNothing);
     });
 
+    testWidgets('Verschieben: Datumsdialog beginnt beim nächsten freien Tag '
+        'nach der Einheit, nicht ab heute', (tester) async {
+      final (session, clock) = await _seed();
+      await _pump(tester, session, clock);
+      await tester.tap(key('calendar_day_2026-11-14'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('calendar_move'));
+      await tester.pumpAndSettle();
+      final dialog = tester.widget<DatePickerDialog>(
+        find.byType(DatePickerDialog),
+      );
+      // Sa 14.11. ist die Einheit; der Dialog steht danach, nicht am
+      // ersten freien Tag ab heute (Fr 13.11.).
+      expect(dialog.initialDate!.isAfter(DateTime(2026, 11, 14)), isTrue);
+      expect(dialog.selectableDayPredicate!(dialog.initialDate!), isTrue);
+      final cancel = MaterialLocalizations.of(
+        tester.element(find.byType(DatePickerDialog)),
+      ).cancelButtonLabel;
+      await tester.tap(find.text(cancel));
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('Konflikt: kein voller Tag zur langen Einheit, Alternative '
         'genannt, trotzdem bestätigen verschiebt', (tester) async {
       final (session, clock) = await _seed();

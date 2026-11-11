@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
@@ -67,10 +68,15 @@ Future<void> _pump(
   String locale = 'de',
   Brightness brightness = Brightness.light,
   VoidCallback? onCreateGoal,
+  Future<void> Function(BuildContext, PlanUnit)? onStartUnit,
+  double width = 411,
+  double scale = 1,
 }) async {
-  tester.view.physicalSize = const Size(411, 2400);
+  tester.view.physicalSize = Size(width, 2400);
   tester.view.devicePixelRatio = 1;
+  tester.platformDispatcher.textScaleFactorTestValue = scale;
   addTearDown(tester.view.reset);
+  addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
   final settings = await AppSettings.load(session.settings, clock);
   final holder = AppSettingsHolder()..attach(settings);
   await tester.pumpWidget(
@@ -95,6 +101,7 @@ Future<void> _pump(
             clock: clock,
             controller: controller,
             onCreateGoal: onCreateGoal,
+            onStartUnit: onStartUnit,
           ),
         ),
       ),
@@ -599,6 +606,7 @@ void main() {
       PlanViewState state, {
       String locale = 'de',
       Brightness brightness = Brightness.light,
+      Future<void> Function(BuildContext, PlanUnit)? onStartUnit,
     }) async {
       final session = await FakeStorage().open(_key);
       final clock = FakeClock(_now);
@@ -609,8 +617,88 @@ void main() {
         locale: locale,
         brightness: brightness,
         controller: _Fixed(session, clock, state),
+        onStartUnit: onStartUnit,
       );
     }
+
+    testWidgets('Wochenzeile: „Start“ nur an der heutigen offenen Einheit, '
+        'derselbe Weg wie auf „Heute“', (tester) async {
+      final started = <PlanUnit>[];
+      final tomorrow = _today.add(const Duration(days: 1));
+      await pumpFixed(
+        tester,
+        _state(weekUnits: [unit(_today), unit(tomorrow)]),
+        onStartUnit: (_, u) async => started.add(u),
+      );
+      final start = find.descendant(
+        of: key('plan_day_2026-11-11'),
+        matching: key('plan_day_start'),
+      );
+      expect(start, findsOneWidget);
+      expect(key('plan_day_start'), findsOneWidget);
+      expect(find.text('Start'), findsOneWidget);
+      expect(tester.getSize(start).height, greaterThanOrEqualTo(48));
+      await tester.tap(start);
+      await tester.pumpAndSettle();
+      expect(started.map((u) => u.day), [_today]);
+    });
+
+    testWidgets('Wochenzeile: kein „Start“ an erledigter Einheit oder ohne '
+        'Weg', (tester) async {
+      await pumpFixed(
+        tester,
+        _state(weekUnits: [unit(_today, runId: 7)]),
+        onStartUnit: (_, _) async {},
+      );
+      expect(key('plan_day_start'), findsNothing);
+    });
+
+    testWidgets('Wochenzeile: ohne Weg (Seite ohne Hülle) kein „Start“', (
+      tester,
+    ) async {
+      await pumpFixed(tester, _state(weekUnits: [unit(_today)]));
+      expect(key('plan_day_start'), findsNothing);
+    });
+
+    for (final locale in ['de', 'en']) {
+      testWidgets('Einschätzung: Zeit bekannt, zu wenige Läufe nennt die '
+          'fehlenden Läufe (PAR-206, $locale)', (tester) async {
+        await pumpFixed(
+          tester,
+          locale: locale,
+          _state(
+            assessment: const GoalAssessment(
+              feasibility: GoalFeasibility.notEnoughData,
+              reason: FeasibilityReason.tooFewRuns,
+            ),
+          ),
+        );
+        expect(
+          find.text(
+            locale == 'de'
+                ? 'Es fehlen noch Läufe: Nötig sind mindestens 3 Läufe in den '
+                      'letzten 4 Wochen.'
+                : 'More runs are needed: at least 3 runs in the last 4 weeks.',
+          ),
+          findsOneWidget,
+        );
+      });
+    }
+
+    testWidgets('Einschätzung ohne Referenz: kein Hinweis auf Läufe', (
+      tester,
+    ) async {
+      await pumpFixed(
+        tester,
+        _state(
+          assessment: const GoalAssessment(
+            feasibility: GoalFeasibility.notEnoughData,
+            reason: FeasibilityReason.noReference,
+          ),
+        ),
+      );
+      expect(find.textContaining('Es fehlen noch Läufe'), findsNothing);
+    });
 
     for (final locale in ['de', 'en']) {
       testWidgets('Geh-Lauf-Plan: Hinweis nach PAR-115 im Wortlaut ($locale)', (
@@ -988,6 +1076,134 @@ void main() {
       );
     });
   });
+
+  group('E2E-Nachbesserung 2', () {
+    testWidgets('„Neu berechnen“: Auslöser manual, Meldung, bestätigter '
+        'Termin bleibt (ADR-0010)', (tester) async {
+      final (session, clock) = await tester.runAsync(() async {
+        final (session, clock) = await _withPlan(_goal());
+        // Do 12.11. (Lauftag) auf Fr 13.11. verschieben: bestätigter Termin.
+        final c = PlanController(
+          session: session,
+          clock: clock,
+          reader: PlanDataReader(
+            session: session,
+            clock: clock,
+            loadRuns: () async => const [],
+          ),
+        );
+        await c.open();
+        final thu = (await c.unitsBetween(
+          DateTime.utc(2026, 11, 12),
+          DateTime.utc(2026, 11, 12),
+        )).single;
+        expect(
+          await c.confirmMove(thu.id!, DateTime.utc(2026, 11, 13)),
+          PlanActionResult.done,
+        );
+        c.dispose();
+        return (session, clock);
+      }) as (StorageSession, FakeClock);
+      Future<List<PlanUnit>> fri() => (session as PlanStorage).plans
+          .unitsBetween(DateTime.utc(2026, 11, 13), DateTime.utc(2026, 11, 13));
+      final before = (await tester.runAsync(fri))!;
+      expect(before.single.pinned, isTrue);
+      final versions = (await tester.runAsync(
+        (session as PlanStorage).plans.history,
+      ))!.length;
+      // Andere Regelversion erzwingt eine neue Fassung.
+      await _pump(tester, session: session, clock: clock);
+      await tester.ensureVisible(key('plan_recalculate'));
+      expect(find.text('Neu berechnen'), findsOneWidget);
+      await tester.tap(key('plan_recalculate'));
+      for (var i = 0; i < 5; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)),
+        );
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Plan neu berechnet. Deine Termine bleiben, wie sie sind.'),
+        findsOneWidget,
+      );
+      final after = (await tester.runAsync(fri))!;
+      expect(after.single.pinned, isTrue);
+      expect(after.single.kind, before.single.kind);
+      final history = (await tester.runAsync(
+        (session as PlanStorage).plans.history,
+      ))!;
+      expect(history.length, greaterThanOrEqualTo(versions));
+      if (history.length > versions) {
+        expect(history.last.trigger, PlanTrigger.manual);
+      }
+    });
+
+    testWidgets('„Neu berechnen“ scheitert: Meldung, alter Plan bleibt', (
+      tester,
+    ) async {
+      final (session, clock) = await tester.runAsync(
+        () => _withPlan(_goal()),
+      ) as (StorageSession, FakeClock);
+      final c = _FailingRecalc(session, clock);
+      addTearDown(c.dispose);
+      await _pump(tester, session: session, clock: clock, controller: c);
+      await tester.ensureVisible(key('plan_recalculate'));
+      await tester.tap(key('plan_recalculate'));
+      await tester.pumpAndSettle();
+      expect(c.calls, 1);
+      expect(
+        find.text(
+          'Der Plan ließ sich gerade nicht neu berechnen. Dein bisheriger '
+          'Plan bleibt.',
+        ),
+        findsOneWidget,
+      );
+      expect(key('plan_goal_card'), findsOneWidget);
+    });
+
+    for (final locale in ['de', 'en']) {
+      for (final width in [320.0, 360.0, 411.0]) {
+        for (final scale in [1.0, 1.3, 2.0]) {
+          testWidgets('Phasenleiste: jede Kurzform ganz lesbar ($locale, '
+              '$width dp, Schrift $scale)', (tester) async {
+            final (session, clock) = await tester.runAsync(
+              () => _withPlan(_goal()),
+            ) as (StorageSession, FakeClock);
+            await _pump(
+              tester,
+              session: session,
+              clock: clock,
+              locale: locale,
+              width: width,
+              scale: scale,
+            );
+            for (final phase in PlanPhase.values) {
+              final label = find.descendant(
+                of: key('plan_phase_${phase.name}'),
+                matching: find.byType(RichText),
+              );
+              expect(label, findsOneWidget, reason: phase.name);
+              final paragraph = tester.renderObject<RenderParagraph>(label);
+              expect(
+                paragraph.didExceedMaxLines,
+                isFalse,
+                reason: '${phase.name} abgeschnitten',
+              );
+              expect(
+                paragraph.size.width,
+                greaterThanOrEqualTo(
+                  paragraph.getMaxIntrinsicWidth(double.infinity) - 0.01,
+                ),
+                reason: '${phase.name} zu schmal',
+              );
+            }
+            expect(tester.takeException(), isNull);
+          });
+        }
+      }
+    }
+  });
 }
 
 /// Wie [_Fixed], aber andere Wochen lassen sich nicht laden.
@@ -996,4 +1212,24 @@ class _Failing extends _Fixed {
   @override
   Future<List<PlanUnit>> unitsBetween(DateTime from, DateTime to) =>
       Future.error(const StorageException(StorageFailure.notFound));
+}
+
+/// Controller, dessen „Neu berechnen“ scheitert.
+class _FailingRecalc extends PlanController {
+  _FailingRecalc(StorageSession session, Clock clock)
+    : super(
+        session: session,
+        clock: clock,
+        reader: PlanDataReader(
+          session: session,
+          clock: clock,
+          loadRuns: () async => const [],
+        ),
+      );
+  int calls = 0;
+  @override
+  Future<PlanActionResult> recalculate() async {
+    calls++;
+    return PlanActionResult.failed;
+  }
 }

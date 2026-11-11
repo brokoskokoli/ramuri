@@ -93,7 +93,7 @@ PerformancePrediction predictPerformance({
   PredictionParameters parameters = const PredictionParameters(),
 }) {
   final p = parameters;
-  final ref = activeReference(references);
+  final ref = activeReference(references, p);
   final problem = ref?.validate(now, p);
   final valid = problem == null ? ref : null;
   final today = calendarDay(now);

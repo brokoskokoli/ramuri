@@ -341,6 +341,47 @@ void main() {
     expect(fieldError(), isNull);
   });
 
+  testWidgets('Zielzeit fehlt: Fehler unter den Zeitfeldern', (tester) async {
+    final (session, clock) = await _empty();
+    final c = _Scripted(session, clock, PlanActionResult.done);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.text(de.planFormTypeTime));
+    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await _enter(tester, 'plan_form_max_session', '45');
+    expect(find.byKey(const Key('plan_form_time_error')), findsNothing);
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    final error = find.byKey(const Key('plan_form_time_error'));
+    expect(error, findsOneWidget);
+    expect(tester.widget<Text>(error).data, de.planFormErrorTime);
+    expect(
+      tester.getTopLeft(error).dy,
+      greaterThan(
+        tester.getBottomLeft(find.byKey(const Key('plan_form_hours'))).dy,
+      ),
+    );
+    await _enter(tester, 'plan_form_minutes', '25');
+    expect(error, findsNothing);
+  });
+
+  testWidgets('Wochenminuten ungültig: Fehler steht am Feld', (tester) async {
+    final (session, clock) = await _empty();
+    final c = _Scripted(session, clock, PlanActionResult.done);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    await _enter(tester, 'plan_form_max_session', '45');
+    await _enter(tester, 'plan_form_weekly', '0');
+    String? fieldError() => tester
+        .widget<TextField>(find.byKey(const Key('plan_form_weekly')))
+        .decoration!
+        .errorText;
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    expect(fieldError(), de.planFormErrorWeekly);
+    await _enter(tester, 'plan_form_weekly', '60');
+    expect(fieldError(), isNull);
+  });
+
   testWidgets('Nach dem Datumsdialog bleibt die Tastatur zu (kein Fokus '
       'zurück ins zuletzt bearbeitete Feld)', (tester) async {
     final (session, clock) = await _empty();
