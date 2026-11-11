@@ -222,26 +222,38 @@ class PauseRestart {
   final PlanInputs? inputs;
 }
 
+/// Montag der Basiswoche für [planPauseRestart] (PAR-202): die letzte
+/// vollständige Kalenderwoche (Montag bis Sonntag) vor Beginn der Pause, also
+/// vor dem Tag nach dem letzten erfassten Training [lastTrainingDay]. War das
+/// Training ein Sonntag, ist es die Woche dieses Sonntags, sonst die Woche
+/// davor (die angebrochene Woche zählt nicht).
+DateTime pauseBaseWeek(DateTime lastTrainingDay) =>
+    _monday(planDay(lastTrainingDay).add(const Duration(days: 1)))
+        .subtract(const Duration(days: 7));
+
 /// Neustart nach einer Pause (PAR-202, FR-0164, FR-0167), wenn die Pause
 /// feststeht (der Nutzer erfasst alles oder hat sie bestätigt; das prüft der
 /// Aufrufer). Jedes erfasste Training zählt: [lastTrainingDay] ist der
-/// Tag des letzten erfassten Trainings, [ranWeekMinutes] die Minuten der
-/// gelaufenen Woche (Kalenderwoche des letzten Trainings), nicht der
-/// geplanten.
+/// Tag des letzten erfassten Trainings, [baseWeekMinutes] die gelaufenen
+/// Minuten der Basiswoche ([pauseBaseWeek]: letzte vollständige
+/// Kalenderwoche vor Pausenbeginn, nicht die angebrochene), nicht die
+/// geplanten; unter 1 Minute (keine vollständige Woche vor der Pause) gilt
+/// der bisherige Plan dieser Woche als Basis.
 ///
-/// 7 bis 13 Tage: 80 % von [ranWeekMinutes] ab dieser Woche, keine harte
+/// 7 bis 13 Tage: 80 % von [baseWeekMinutes] ab dieser Woche, keine harte
 /// Einheit in dieser Woche. 14 bis 55 Tage: 50 %, 2 Wochen ohne harte
 /// Einheit. Ab 56 Tagen: neuer Start nach PAR-192 ([PlanInputs.forNewGoal],
-/// mit Tempo und Intensitätsgrundlage der alten Eingaben). Nie höher als der
-/// bisherige Plan dieser Woche und nie über dem Regler; die Zählung nach
-/// PAR-194 beginnt neu. In der Geh-Lauf-Abfolge, in der Reduktion und wenn
-/// der Neustart in dieser Woche schon gilt: [PauseRestartKind.none].
+/// mit Tempo und Intensitätsgrundlage der alten Eingaben). Alle Stufen: nie
+/// höher als der bisherige Plan dieser Woche und nie über dem Regler; die
+/// Zählung nach PAR-194 beginnt neu. In der Geh-Lauf-Abfolge, in der
+/// Reduktion vor dem Termin und wenn der Neustart in dieser Woche schon
+/// gilt: [PauseRestartKind.none].
 PauseRestart planPauseRestart({
   required TrainingGoal goal,
   required PlanInputs inputs,
   required DateTime today,
   required DateTime lastTrainingDay,
-  required double ranWeekMinutes,
+  required double baseWeekMinutes,
   PlanParameters parameters = const PlanParameters(),
 }) {
   final p = parameters;
@@ -252,13 +264,22 @@ PauseRestart planPauseRestart({
   if (!inputs.anchor.isBefore(monday)) {
     return const PauseRestart(PauseRestartKind.none);
   }
+  final setup = planCourseSetup(goal, inputs, parameters: p);
+  final week = _weekAt(setup, monday);
+  if (week == null || !_adjustable(week)) {
+    return const PauseRestart(PauseRestartKind.none);
+  }
   if (gap >= p.pauseNewStartDays) {
     final fresh = PlanInputs.forNewGoal(goal, t, parameters: p);
+    var start = fresh.startWeeklyMinutes;
+    if (start > week.minutes!) start = week.minutes!;
+    if (start > setup.capMinutes) start = setup.capMinutes;
+    if (start < 1) start = 1;
     return PauseRestart(
       PauseRestartKind.newStart,
       PlanInputs(
         anchor: fresh.anchor,
-        startWeeklyMinutes: fresh.startWeeklyMinutes,
+        startWeeklyMinutes: start,
         today: t,
         walkRunWeeks: fresh.walkRunWeeks,
         walkRunStart: fresh.walkRunStart,
@@ -269,15 +290,13 @@ PauseRestart planPauseRestart({
       ),
     );
   }
-  final setup = planCourseSetup(goal, inputs, parameters: p);
-  final week = _weekAt(setup, monday);
-  if (week == null || !_adjustable(week)) {
-    return const PauseRestart(PauseRestartKind.none);
-  }
   final long = gap >= p.pauseLongDays;
   final share = long ? p.pauseLongShare : p.pauseShortShare;
   final noHardWeeks = long ? p.pauseLongNoHardWeeks : p.pauseShortNoHardWeeks;
-  var target = (ranWeekMinutes * share).round();
+  // Ohne Basis (keine vollständige Woche vor der Pause erfasst, z. B. das
+  // erste Training erst in der Woche davor): der bisherige Plan dieser Woche.
+  final base = baseWeekMinutes >= 1 ? baseWeekMinutes : week.minutes!;
+  var target = (base * share).round();
   if (target > week.minutes!) target = week.minutes!;
   if (target > setup.capMinutes) target = setup.capMinutes;
   if (target < 1) target = 1;

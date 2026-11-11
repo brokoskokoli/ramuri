@@ -295,7 +295,7 @@ void main() {
           inputs: inputs ?? i,
           today: today,
           lastTrainingDay: today.subtract(Duration(days: gapDays)),
-          ranWeekMinutes: ran,
+          baseWeekMinutes: ran,
         );
 
     test('Grenzen 6/7/13/14/55/56 Tage', () {
@@ -318,7 +318,7 @@ void main() {
       expect(l.noHardUntil, today.add(const Duration(days: 13)));
     });
 
-    test('Basis ist die gelaufene Woche, nicht die geplante; nie über dem '
+    test('Basis sind die gelaufenen Minuten, nicht die geplanten; nie über dem '
         'bisherigen Plan und dem Regler', () {
       expect(run(10, ran: 40).inputs!.startWeeklyMinutes, 32);
       expect(
@@ -330,7 +330,12 @@ void main() {
         run(10, ran: 5000).inputs!.startWeeklyMinutes,
         lessThanOrEqualTo(weeks.first.minutes!),
       );
-      expect(run(10, ran: 0).inputs!.startWeeklyMinutes, 1);
+      // Ohne Basiswoche gilt der bisherige Plan (kein Zusammenfallen auf 1).
+      final planned = weeks.first.minutes!;
+      expect(
+        run(10, ran: 0).inputs!.startWeeklyMinutes,
+        (planned * 0.8).round(),
+      );
     });
 
     test(
@@ -349,6 +354,111 @@ void main() {
       expect(run(10, inputs: s).kind, PauseRestartKind.none);
     });
 
+    test('Basiswoche: letzte vollständige Kalenderwoche vor Pausenbeginn', () {
+      final mon = DateTime.utc(2026, 11, 23);
+      // Sonntag: seine Woche ist vollständig, sonst die Woche davor.
+      expect(pauseBaseWeek(DateTime.utc(2026, 11, 29)), mon);
+      expect(pauseBaseWeek(DateTime.utc(2026, 11, 28)), _mon(1));
+      expect(pauseBaseWeek(mon), _mon(1));
+      expect(pauseBaseWeek(DateTime.utc(2026, 11, 22)), _mon(1));
+    });
+
+    test('ab 8 Wochen gedeckelt wie die anderen Stufen: nie über dem '
+        'bisherigen Plan dieser Woche und dem Regler', () {
+      final small = _goal(capMin: 60);
+      final si = _inputs(small).copyWith(startWeeklyMinutes: 30);
+      final r = planPauseRestart(
+        goal: small,
+        inputs: si,
+        today: today,
+        lastTrainingDay: today.subtract(const Duration(days: 60)),
+        baseWeekMinutes: 100,
+      );
+      expect(r.kind, PauseRestartKind.newStart);
+      final week = planCourseSetup(
+        small,
+        si,
+      ).course(today: today).weeks.firstWhere((w) => w.start == today);
+      expect(r.inputs!.startWeeklyMinutes, lessThanOrEqualTo(week.minutes!));
+      expect(r.inputs!.startWeeklyMinutes, lessThanOrEqualTo(60));
+      expect(run(60).inputs!.startWeeklyMinutes, 90);
+    });
+
+    test(
+      'ab 8 Wochen in der Geh-Lauf-Abfolge und in der Reduktion: nichts',
+      () {
+        final w = _goal(canRun30: ContinuousRun30.no);
+        expect(
+          planPauseRestart(
+            goal: w,
+            inputs: _inputs(w),
+            today: today,
+            lastTrainingDay: today.subtract(const Duration(days: 60)),
+            baseWeekMinutes: 100,
+          ).kind,
+          PauseRestartKind.none,
+        );
+        final red = planCourseSetup(g, i)
+            .course(today: _mon(0))
+            .weeks
+            .firstWhere((x) => x.kind == WeekKind.reduction);
+        expect(
+          planPauseRestart(
+            goal: g,
+            inputs: i,
+            today: red.start,
+            lastTrainingDay: red.start.subtract(const Duration(days: 60)),
+            baseWeekMinutes: 100,
+          ).kind,
+          PauseRestartKind.none,
+        );
+        // Auch 7 bis 55 Tage greifen in der Reduktion nicht.
+        expect(
+          planPauseRestart(
+            goal: g,
+            inputs: i,
+            today: red.start,
+            lastTrainingDay: red.start.subtract(const Duration(days: 10)),
+            baseWeekMinutes: 100,
+          ).kind,
+          PauseRestartKind.none,
+        );
+      },
+    );
+
+    test('Plan nach der Pause: Basis ist die vollständige Vorwoche, nicht die '
+        'angebrochene; der Plan fällt nicht zusammen', () {
+      // Wochen 0 bis 7 voll gelaufen, Pause danach, Neustart in Woche 11.
+      final sums = <double>[
+        for (var k = 0; k < 8; k++) _minutes(g, i, k).toDouble(),
+      ];
+      final restart = _mon(11);
+      // Letztes Training Mittwoch der Woche 7 (angebrochen, 20 Minuten):
+      // Basis ist Woche 6.
+      final lastTrained = _mon(7).add(const Duration(days: 2));
+      final baseIdx = pauseBaseWeek(lastTrained).difference(_m0).inDays ~/ 7;
+      expect(baseIdx, 6);
+      final r = planPauseRestart(
+        goal: g,
+        inputs: i,
+        today: restart,
+        lastTrainingDay: lastTrained,
+        baseWeekMinutes: sums[baseIdx],
+      );
+      expect(r.kind, PauseRestartKind.long);
+      expect(r.inputs!.startWeeklyMinutes, (sums[6] * 0.5).round());
+      final plan = generatePlan(g, r.inputs!, const [], restart);
+      int wk(int k) => plan.units
+          .where((u) => !u.day.isBefore(_mon(k)) && u.day.isBefore(_mon(k + 1)))
+          .fold(0, (a, u) => a + u.minutes);
+      expect(wk(11), greaterThanOrEqualTo((sums[6] * 0.4).round()));
+      // Leichtere Woche (PAR-194) eingerechnet: kein Absturz, der Plan steigt.
+      for (var k = 12; k < 16; k++) {
+        expect(wk(k), greaterThan((sums[6] * 0.4).round()), reason: 'Woche $k');
+      }
+      expect(wk(15), greaterThan(wk(11)));
+    });
+
     test('Geh-Lauf-Abfolge: nichts', () {
       final w = _goal(canRun30: ContinuousRun30.no);
       expect(
@@ -357,7 +467,7 @@ void main() {
           inputs: _inputs(w),
           today: today,
           lastTrainingDay: today.subtract(const Duration(days: 10)),
-          ranWeekMinutes: 100,
+          baseWeekMinutes: 100,
         ).kind,
         PauseRestartKind.none,
       );
@@ -367,6 +477,7 @@ void main() {
   group('PAR-140 Wiederholen in der Geh-Lauf-Phase', () {
     WalkRunOutcome d(int? rpe) => WalkRunOutcome(done: true, rpe: rpe);
     const miss = WalkRunOutcome(done: false);
+    WalkRunOutcome missRpe(int rpe) => WalkRunOutcome(done: false, rpe: rpe);
     WalkRunRepeatSuggestion? s(
       List<WalkRunOutcome> o, {
       int week = 1,
@@ -389,6 +500,10 @@ void main() {
       expect(s([d(6), d(7), d(2)]), isNotNull);
       expect(s([d(5), d(5), d(9)]), isNull);
       expect(s([d(6), d(5), d(5)]), isNull);
+    });
+
+    test('nicht absolvierte Einheit mit RPE zählt nicht als anstrengend', () {
+      expect(s([d(3), d(7), missRpe(7)]), isNull);
     });
 
     test('Woche läuft noch: kein Vorschlag (außer Woche 5, Lauf 3)', () {
@@ -492,7 +607,7 @@ void main() {
         final pauseFrom = 7 + rnd.nextInt(3);
         final pauseLen = 1 + rnd.nextInt(4);
         DateTime? lastTrained;
-        var ranWeek = 0.0;
+        final doneByWeek = <int, double>{};
         var restarts = 0, adjusts = 0;
         for (var k = 0; k < 22; k++) {
           // Wochenende der Vorwoche: bewerten.
@@ -506,9 +621,9 @@ void main() {
                       ? const [0.0, 0.3, 0.6]
                       : const [0.9, 1.0, 1.4])[rnd.nextInt(3)];
             final done = prev * frac;
+            doneByWeek[k - 1] = done;
             if (done > 0) {
               lastTrained = _mon(k).subtract(const Duration(days: 2));
-              ranWeek = done;
             }
             // Pause nur mit einem früheren erfassten Training (der Aufrufer
             // fragt sonst nicht).
@@ -519,10 +634,14 @@ void main() {
                     inputs: inputs,
                     today: _mon(k),
                     lastTrainingDay: lastTrained,
-                    ranWeekMinutes: ranWeek,
+                    baseWeekMinutes:
+                        doneByWeek[pauseBaseWeek(lastTrained)
+                                .difference(_m0)
+                                .inDays ~/
+                            7] ??
+                        0,
                   );
-            if (pause.inputs != null &&
-                pause.kind != PauseRestartKind.newStart) {
+            if (pause.inputs != null) {
               inputs = pause.inputs!;
               restarts++;
             } else {

@@ -192,8 +192,7 @@ void main() {
             u.kind == PlanUnitKind.rest &&
             !u.pinned &&
             before.any(
-              (b) =>
-                  b.day == u.day && b.kind != PlanUnitKind.rest && !b.pinned,
+              (b) => b.day == u.day && b.kind != PlanUnitKind.rest && !b.pinned,
             ),
       );
       await e.plans.setRestDay(
