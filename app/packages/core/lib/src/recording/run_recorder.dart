@@ -73,6 +73,7 @@ class RunRecorder {
   final List<RawPosition> _positions = [];
   final List<RawAltitude> _altitudes = [];
   final List<RawHeartRate> _heartRates = [];
+  final List<RrPacket> _rrPackets = [];
 
   StorageFailure? _lastWriteFailure;
 
@@ -266,6 +267,17 @@ class RunRecorder {
         contact: r.contact,
       ),
     );
+    // RR (FR-0213): nur gespeichert, nie ausgewertet. Derselbe Weg und Puffer
+    // wie der Puls; ohne RR kein Paket. Herkunft = Gerät des Readings.
+    if (r.rrIntervals.isNotEmpty) {
+      _rrPackets.add(
+        RrPacket(
+          time: r.time,
+          source: r.deviceId,
+          intervals: List.unmodifiable(r.rrIntervals),
+        ),
+      );
+    }
     _flushIfFull();
     return intake;
   }
@@ -296,7 +308,10 @@ class RunRecorder {
   static double? _finite(double? v) => v != null && v.isFinite ? v : null;
 
   int get _pendingRows =>
-      _positions.length + _altitudes.length + _heartRates.length;
+      _positions.length +
+      _altitudes.length +
+      _heartRates.length +
+      _rrPackets.length;
 
   void _flushIfFull() {
     if (_pendingRows >= _batchRows) {
@@ -322,6 +337,7 @@ class RunRecorder {
         positions: take(_positions),
         altitudes: take(_altitudes),
         heartRates: take(_heartRates),
+        rrPackets: take(_rrPackets),
       );
       try {
         await _raw.append(_runId!, batch);
@@ -331,6 +347,7 @@ class RunRecorder {
           _positions.insertAll(0, batch.positions);
           _altitudes.insertAll(0, batch.altitudes);
           _heartRates.insertAll(0, batch.heartRates);
+          _rrPackets.insertAll(0, batch.rrPackets);
         }
         rethrow;
       }

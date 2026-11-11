@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../src/preprocessing/measurement.dart';
 import 'storage.dart';
 
@@ -32,6 +34,7 @@ class RawBatch {
     this.altitudes = const [],
     this.steps = const [],
     this.unavailable = const [],
+    this.rrPackets = const [],
   });
 
   final List<RawPosition> positions;
@@ -40,12 +43,16 @@ class RawBatch {
   final List<RawSteps> steps;
   final List<RawUnavailable> unavailable;
 
+  /// RR-Intervalle je BLE-Paket (FR-0213), eigene Tabelle, kein [RawChannel].
+  final List<RrPacket> rrPackets;
+
   bool get isEmpty =>
       positions.isEmpty &&
       heartRates.isEmpty &&
       altitudes.isEmpty &&
       steps.isEmpty &&
-      unavailable.isEmpty;
+      unavailable.isEmpty &&
+      rrPackets.isEmpty;
 }
 
 /// Gelesene Rohwerte eines Laufs, je Kanal nach Zeit, dann Id sortiert. Die
@@ -57,6 +64,7 @@ class StoredRawData {
     required this.altitudes,
     required this.steps,
     required this.unavailable,
+    this.rrPackets = const [],
   });
 
   final List<StoredRaw<RawPosition>> positions;
@@ -64,6 +72,38 @@ class StoredRawData {
   final List<StoredRaw<RawAltitude>> altitudes;
   final List<StoredRaw<RawSteps>> steps;
   final List<StoredRaw<RawUnavailable>> unavailable;
+
+  /// Nach Empfangszeit, dann Id sortiert.
+  final List<StoredRrPacket> rrPackets;
+}
+
+/// Gespeichertes RR-Paket samt Id.
+class StoredRrPacket {
+  const StoredRrPacket(this.id, this.value);
+
+  final int id;
+  final RrPacket value;
+}
+
+/// Packt RR-Werte als uint16 little endian (Spalte `rr`, ein Wert 2 Byte).
+Uint8List encodeRrIntervals(List<int> intervals) {
+  final out = Uint8List(intervals.length * 2);
+  final view = ByteData.sublistView(out);
+  for (var i = 0; i < intervals.length; i++) {
+    view.setUint16(i * 2, intervals[i], Endian.little);
+  }
+  return out;
+}
+
+/// Umkehrung von [encodeRrIntervals]. Ungerade Länge ist ein Fehler.
+List<int> decodeRrIntervals(List<int> bytes) {
+  if (bytes.length.isOdd) {
+    throw const StorageException(StorageFailure.failed);
+  }
+  final view = ByteData.sublistView(Uint8List.fromList(bytes));
+  return List.unmodifiable([
+    for (var i = 0; i < bytes.length; i += 2) view.getUint16(i, Endian.little),
+  ]);
 }
 
 /// Rohdaten (ADR-0004 Punkt 1): nur anhängen und lesen. Zeit ist UTC mit
@@ -92,5 +132,8 @@ void validateRawBatch(RawBatch b) {
             bad(p.verticalAccuracyMeters),
       ) ||
       b.altitudes.any((a) => bad(a.meters) || bad(a.verticalAccuracyMeters));
-  if (invalid) throw const StorageException(StorageFailure.rejected);
+  final badRr = b.rrPackets.any(
+    (p) => p.intervals.isEmpty || p.intervals.any((v) => v < 0 || v > 0xFFFF),
+  );
+  if (invalid || badRr) throw const StorageException(StorageFailure.rejected);
 }

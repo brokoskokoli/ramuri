@@ -44,6 +44,7 @@ Object _valueFor(ArchiveColumn c, int i) => switch (c.type) {
   ArchiveType.real => i + 0.25,
   ArchiveType.text => 's$i',
   ArchiveType.boolean => i % 2,
+  ArchiveType.blob => Uint8List.fromList([i, 0, 255, 255]),
 };
 
 Map<String, Object?> _row(ArchiveSectionSpec s, int i) => {
@@ -67,8 +68,16 @@ String _manifest({int schema = 4}) =>
 
 String _section(String name) => '{"type":"section","name":"$name"}';
 
-String _rowLine(Map<String, Object?> data) =>
-    jsonEncode({'type': 'row', 'data': data});
+String _rowLine(Map<String, Object?> data) => jsonEncode({
+  'type': 'row',
+  // BLOB-Werte stehen in der Datei als Hex-Text (Vertrag 4.2).
+  'data': {
+    for (final e in data.entries)
+      e.key: e.value is Uint8List
+          ? encodeArchiveBlob(e.value! as Uint8List)
+          : e.value,
+  },
+});
 
 String _endLine(Map<String, int> counts) =>
     jsonEncode({'type': 'end', 'rows': counts});
@@ -455,12 +464,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 8: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 9: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 9);
+        final lines = valid()..[0] = _manifest(schema: 10);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":9,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":10,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -1322,14 +1331,19 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 8 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 9, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 9 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 10, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
       expect(archiveSectionsFor(6), hasLength(23));
       expect(archiveSectionsFor(7), hasLength(24));
       expect(archiveSectionsFor(8), hasLength(24));
+      expect(archiveSectionsFor(9), hasLength(25));
+      expect(
+        archiveSectionsFor(8).map((s) => s.name),
+        isNot(contains('raw_rr_packets')),
+      );
       // `fixed` steht erst ab Schema 8 im Abschnitt 24.
       expect(
         archiveSectionsFor(7).last.columns.map((c) => c.name),
@@ -1603,6 +1617,61 @@ void main() {
       },
     );
 
+    Map<String, Object?> rrRow(int id, Object? rr) => {
+      'id': id,
+      'run_id': 1,
+      'time_us': id,
+      'source': 'ble',
+      'rr': rr,
+    };
+
+    test('Schema 9: raw_rr_packets, BLOB bitgleich (0, 65535)', () async {
+      final bytes = Uint8List.fromList([0, 0, 255, 255, 0, 4]);
+      await c.run(
+        await file(
+          v2(
+            schema: 9,
+            extra: {
+              'raw_rr_packets': [rrRow(1, bytes), rrRow(2, Uint8List(2))],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      final rows = c.sink.rows['raw_rr_packets']!;
+      expect(rows, hasLength(2));
+      expect(rows[0]['rr'], isA<Uint8List>());
+      expect(rows[0]['rr'], bytes);
+      expect(rows[1]['rr'], [0, 0]);
+    });
+
+    test(
+      'raw_rr_packets: kein Hex-Text, Großschreibung, ungerade Länge, '
+      'NULL, Zahl, Liste: beschädigt; in Schema 8 gibt es den Abschnitt nicht',
+      () async {
+        for (final bad in <Object?>[
+          '0g00',
+          '00FF',
+          '000',
+          null,
+          5,
+          [0, 1],
+        ]) {
+          await rejectsV2(
+            v2(
+              schema: 9,
+              extra: {
+                'raw_rr_packets': [rrRow(1, bad)],
+              },
+            ),
+          );
+        }
+        final l = v2(schema: 8);
+        l.insert(l.length - 1, _section('raw_rr_packets'));
+        await rejectsV2(l);
+      },
+    );
+
     test(
       'fixed fehlt in Schema 8 oder steht in Schema 7: beschädigt',
       () async {
@@ -1778,9 +1847,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 9: neueres Archiv', () async {
+    test('Schema 10: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":9,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":10,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });

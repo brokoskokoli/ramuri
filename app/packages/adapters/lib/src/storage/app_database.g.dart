@@ -3260,6 +3260,342 @@ class RawStepsCompanion extends UpdateCompanion<RawStep> {
   }
 }
 
+class RawRrPackets extends Table with TableInfo<RawRrPackets, RawRrPacket> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  RawRrPackets(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
+    'run_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL REFERENCES runs(id)ON DELETE CASCADE',
+  );
+  static const VerificationMeta _timeUsMeta = const VerificationMeta('timeUs');
+  late final GeneratedColumn<int> timeUs = GeneratedColumn<int>(
+    'time_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _rrMeta = const VerificationMeta('rr');
+  late final GeneratedColumn<Uint8List> rr = GeneratedColumn<Uint8List>(
+    'rr',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (length(rr) > 0 AND length(rr) % 2 = 0)',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, runId, timeUs, source, rr];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'raw_rr_packets';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RawRrPacket> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('run_id')) {
+      context.handle(
+        _runIdMeta,
+        runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_runIdMeta);
+    }
+    if (data.containsKey('time_us')) {
+      context.handle(
+        _timeUsMeta,
+        timeUs.isAcceptableOrUnknown(data['time_us']!, _timeUsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_timeUsMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('rr')) {
+      context.handle(_rrMeta, rr.isAcceptableOrUnknown(data['rr']!, _rrMeta));
+    } else if (isInserting) {
+      context.missing(_rrMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  RawRrPacket map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RawRrPacket(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      runId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}run_id'],
+      )!,
+      timeUs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}time_us'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      rr: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}rr'],
+      )!,
+    );
+  }
+
+  @override
+  RawRrPackets createAlias(String alias) {
+    return RawRrPackets(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class RawRrPacket extends DataClass implements Insertable<RawRrPacket> {
+  final int id;
+  final int runId;
+  final int timeUs;
+  final String source;
+  final Uint8List rr;
+  const RawRrPacket({
+    required this.id,
+    required this.runId,
+    required this.timeUs,
+    required this.source,
+    required this.rr,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['run_id'] = Variable<int>(runId);
+    map['time_us'] = Variable<int>(timeUs);
+    map['source'] = Variable<String>(source);
+    map['rr'] = Variable<Uint8List>(rr);
+    return map;
+  }
+
+  RawRrPacketsCompanion toCompanion(bool nullToAbsent) {
+    return RawRrPacketsCompanion(
+      id: Value(id),
+      runId: Value(runId),
+      timeUs: Value(timeUs),
+      source: Value(source),
+      rr: Value(rr),
+    );
+  }
+
+  factory RawRrPacket.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RawRrPacket(
+      id: serializer.fromJson<int>(json['id']),
+      runId: serializer.fromJson<int>(json['run_id']),
+      timeUs: serializer.fromJson<int>(json['time_us']),
+      source: serializer.fromJson<String>(json['source']),
+      rr: serializer.fromJson<Uint8List>(json['rr']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'run_id': serializer.toJson<int>(runId),
+      'time_us': serializer.toJson<int>(timeUs),
+      'source': serializer.toJson<String>(source),
+      'rr': serializer.toJson<Uint8List>(rr),
+    };
+  }
+
+  RawRrPacket copyWith({
+    int? id,
+    int? runId,
+    int? timeUs,
+    String? source,
+    Uint8List? rr,
+  }) => RawRrPacket(
+    id: id ?? this.id,
+    runId: runId ?? this.runId,
+    timeUs: timeUs ?? this.timeUs,
+    source: source ?? this.source,
+    rr: rr ?? this.rr,
+  );
+  RawRrPacket copyWithCompanion(RawRrPacketsCompanion data) {
+    return RawRrPacket(
+      id: data.id.present ? data.id.value : this.id,
+      runId: data.runId.present ? data.runId.value : this.runId,
+      timeUs: data.timeUs.present ? data.timeUs.value : this.timeUs,
+      source: data.source.present ? data.source.value : this.source,
+      rr: data.rr.present ? data.rr.value : this.rr,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RawRrPacket(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('timeUs: $timeUs, ')
+          ..write('source: $source, ')
+          ..write('rr: $rr')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, runId, timeUs, source, $driftBlobEquality.hash(rr));
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RawRrPacket &&
+          other.id == this.id &&
+          other.runId == this.runId &&
+          other.timeUs == this.timeUs &&
+          other.source == this.source &&
+          $driftBlobEquality.equals(other.rr, this.rr));
+}
+
+class RawRrPacketsCompanion extends UpdateCompanion<RawRrPacket> {
+  final Value<int> id;
+  final Value<int> runId;
+  final Value<int> timeUs;
+  final Value<String> source;
+  final Value<Uint8List> rr;
+  const RawRrPacketsCompanion({
+    this.id = const Value.absent(),
+    this.runId = const Value.absent(),
+    this.timeUs = const Value.absent(),
+    this.source = const Value.absent(),
+    this.rr = const Value.absent(),
+  });
+  RawRrPacketsCompanion.insert({
+    this.id = const Value.absent(),
+    required int runId,
+    required int timeUs,
+    required String source,
+    required Uint8List rr,
+  }) : runId = Value(runId),
+       timeUs = Value(timeUs),
+       source = Value(source),
+       rr = Value(rr);
+  static Insertable<RawRrPacket> custom({
+    Expression<int>? id,
+    Expression<int>? runId,
+    Expression<int>? timeUs,
+    Expression<String>? source,
+    Expression<Uint8List>? rr,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (runId != null) 'run_id': runId,
+      if (timeUs != null) 'time_us': timeUs,
+      if (source != null) 'source': source,
+      if (rr != null) 'rr': rr,
+    });
+  }
+
+  RawRrPacketsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? runId,
+    Value<int>? timeUs,
+    Value<String>? source,
+    Value<Uint8List>? rr,
+  }) {
+    return RawRrPacketsCompanion(
+      id: id ?? this.id,
+      runId: runId ?? this.runId,
+      timeUs: timeUs ?? this.timeUs,
+      source: source ?? this.source,
+      rr: rr ?? this.rr,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (runId.present) {
+      map['run_id'] = Variable<int>(runId.value);
+    }
+    if (timeUs.present) {
+      map['time_us'] = Variable<int>(timeUs.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (rr.present) {
+      map['rr'] = Variable<Uint8List>(rr.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RawRrPacketsCompanion(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('timeUs: $timeUs, ')
+          ..write('source: $source, ')
+          ..write('rr: $rr')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class PreprocessingResults extends Table
     with TableInfo<PreprocessingResults, PreprocessingResult> {
   @override
@@ -13374,6 +13710,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final RawHeartRates rawHeartRates = RawHeartRates(this);
   late final RawAltitudes rawAltitudes = RawAltitudes(this);
   late final RawSteps rawSteps = RawSteps(this);
+  late final RawRrPackets rawRrPackets = RawRrPackets(this);
   late final Index rawPositionsRunTime = Index(
     'raw_positions_run_time',
     'CREATE INDEX raw_positions_run_time ON raw_positions (run_id, time_us)',
@@ -13389,6 +13726,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Index rawStepsRunTime = Index(
     'raw_steps_run_time',
     'CREATE INDEX raw_steps_run_time ON raw_steps (run_id, time_us)',
+  );
+  late final Index rawRrPacketsRunTime = Index(
+    'raw_rr_packets_run_time',
+    'CREATE INDEX raw_rr_packets_run_time ON raw_rr_packets (run_id, time_us)',
   );
   late final Trigger rawPositionsNoUpdate = Trigger(
     'CREATE TRIGGER raw_positions_no_update BEFORE UPDATE ON raw_positions BEGIN SELECT RAISE (ABORT, \'raw data is append-only\');END',
@@ -13406,6 +13747,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'CREATE TRIGGER raw_steps_no_update BEFORE UPDATE ON raw_steps BEGIN SELECT RAISE (ABORT, \'raw data is append-only\');END',
     'raw_steps_no_update',
   );
+  late final Trigger rawRrPacketsNoUpdate = Trigger(
+    'CREATE TRIGGER raw_rr_packets_no_update BEFORE UPDATE ON raw_rr_packets BEGIN SELECT RAISE (ABORT, \'raw data is append-only\');END',
+    'raw_rr_packets_no_update',
+  );
   late final Trigger rawPositionsNoDirectDelete = Trigger(
     'CREATE TRIGGER raw_positions_no_direct_delete BEFORE DELETE ON raw_positions WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, \'raw data is deleted only with its run\');END',
     'raw_positions_no_direct_delete',
@@ -13421,6 +13766,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Trigger rawStepsNoDirectDelete = Trigger(
     'CREATE TRIGGER raw_steps_no_direct_delete BEFORE DELETE ON raw_steps WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, \'raw data is deleted only with its run\');END',
     'raw_steps_no_direct_delete',
+  );
+  late final Trigger rawRrPacketsNoDirectDelete = Trigger(
+    'CREATE TRIGGER raw_rr_packets_no_direct_delete BEFORE DELETE ON raw_rr_packets WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, \'raw data is deleted only with its run\');END',
+    'raw_rr_packets_no_direct_delete',
   );
   late final PreprocessingResults preprocessingResults = PreprocessingResults(
     this,
@@ -13539,18 +13888,22 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     rawHeartRates,
     rawAltitudes,
     rawSteps,
+    rawRrPackets,
     rawPositionsRunTime,
     rawHeartRatesRunTime,
     rawAltitudesRunTime,
     rawStepsRunTime,
+    rawRrPacketsRunTime,
     rawPositionsNoUpdate,
     rawHeartRatesNoUpdate,
     rawAltitudesNoUpdate,
     rawStepsNoUpdate,
+    rawRrPacketsNoUpdate,
     rawPositionsNoDirectDelete,
     rawHeartRatesNoDirectDelete,
     rawAltitudesNoDirectDelete,
     rawStepsNoDirectDelete,
+    rawRrPacketsNoDirectDelete,
     preprocessingResults,
     preprocessedSamples,
     preprocessedSamplesRunTime,
@@ -13648,6 +14001,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('raw_rr_packets', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'raw_positions',
         limitUpdateKind: UpdateKind.update,
       ),
@@ -13676,6 +14036,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'raw_rr_packets',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'raw_positions',
         limitUpdateKind: UpdateKind.delete,
       ),
@@ -13698,6 +14065,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'raw_steps',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'raw_rr_packets',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [],
@@ -14111,6 +14485,24 @@ final class $RunsReferences extends BaseReferences<_$AppDatabase, Runs, Run> {
     );
   }
 
+  static MultiTypedResultKey<RawRrPackets, List<RawRrPacket>>
+  _rawRrPacketsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.rawRrPackets,
+    aliasName: 'runs__id__raw_rr_packets__run_id',
+  );
+
+  $RawRrPacketsProcessedTableManager get rawRrPacketsRefs {
+    final manager = $RawRrPacketsTableManager(
+      $_db,
+      $_db.rawRrPackets,
+    ).filter((f) => f.runId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_rawRrPacketsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<PreprocessingResults, List<PreprocessingResult>>
   _preprocessingResultsRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
@@ -14464,6 +14856,31 @@ class $RunsFilterComposer extends Composer<_$AppDatabase, Runs> {
           }) => $RawStepsFilterComposer(
             $db: $db,
             $table: $db.rawSteps,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> rawRrPacketsRefs(
+    Expression<bool> Function($RawRrPacketsFilterComposer f) f,
+  ) {
+    final $RawRrPacketsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.rawRrPackets,
+      getReferencedColumn: (t) => t.runId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RawRrPacketsFilterComposer(
+            $db: $db,
+            $table: $db.rawRrPackets,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14910,6 +15327,31 @@ class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
     return f(composer);
   }
 
+  Expression<T> rawRrPacketsRefs<T extends Object>(
+    Expression<T> Function($RawRrPacketsAnnotationComposer a) f,
+  ) {
+    final $RawRrPacketsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.rawRrPackets,
+      getReferencedColumn: (t) => t.runId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RawRrPacketsAnnotationComposer(
+            $db: $db,
+            $table: $db.rawRrPackets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> preprocessingResultsRefs<T extends Object>(
     Expression<T> Function($PreprocessingResultsAnnotationComposer a) f,
   ) {
@@ -15156,6 +15598,7 @@ class $RunsTableManager
             bool rawHeartRatesRefs,
             bool rawAltitudesRefs,
             bool rawStepsRefs,
+            bool rawRrPacketsRefs,
             bool preprocessingResultsRefs,
             bool preprocessedSamplesRefs,
             bool preprocessedSpansRefs,
@@ -15222,6 +15665,7 @@ class $RunsTableManager
                 rawHeartRatesRefs = false,
                 rawAltitudesRefs = false,
                 rawStepsRefs = false,
+                rawRrPacketsRefs = false,
                 preprocessingResultsRefs = false,
                 preprocessedSamplesRefs = false,
                 preprocessedSpansRefs = false,
@@ -15241,6 +15685,7 @@ class $RunsTableManager
                     if (rawHeartRatesRefs) db.rawHeartRates,
                     if (rawAltitudesRefs) db.rawAltitudes,
                     if (rawStepsRefs) db.rawSteps,
+                    if (rawRrPacketsRefs) db.rawRrPackets,
                     if (preprocessingResultsRefs) db.preprocessingResults,
                     if (preprocessedSamplesRefs) db.preprocessedSamples,
                     if (preprocessedSpansRefs) db.preprocessedSpans,
@@ -15347,6 +15792,22 @@ class $RunsTableManager
                           ),
                           managerFromTypedResult: (p0) =>
                               $RunsReferences(db, table, p0).rawStepsRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'run_id',
+                          typedResults: items,
+                        ),
+                      if (rawRrPacketsRefs)
+                        await $_getPrefetchedDataByColumns<
+                          Run,
+                          Runs,
+                          RawRrPacket,
+                          RawRrPackets
+                        >(
+                          currentTable: table,
+                          referencedTable: $RunsReferences
+                              ._rawRrPacketsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $RunsReferences(db, table, p0).rawRrPacketsRefs,
                           currentColumn: 'id',
                           referencedColumn: 'run_id',
                           typedResults: items,
@@ -15538,6 +15999,7 @@ typedef $RunsProcessedTableManager =
         bool rawHeartRatesRefs,
         bool rawAltitudesRefs,
         bool rawStepsRefs,
+        bool rawRrPacketsRefs,
         bool preprocessingResultsRefs,
         bool preprocessedSamplesRefs,
         bool preprocessedSpansRefs,
@@ -17596,6 +18058,314 @@ typedef $RawStepsProcessedTableManager =
       $RawStepsUpdateCompanionBuilder,
       (RawStep, $RawStepsReferences),
       RawStep,
+      PrefetchHooks Function({bool runId})
+    >;
+typedef $RawRrPacketsCreateCompanionBuilder = RawRrPacketsCompanion Function({
+  Value<int> id,
+  required int runId,
+  required int timeUs,
+  required String source,
+  required Uint8List rr,
+});
+typedef $RawRrPacketsUpdateCompanionBuilder = RawRrPacketsCompanion Function({
+  Value<int> id,
+  Value<int> runId,
+  Value<int> timeUs,
+  Value<String> source,
+  Value<Uint8List> rr,
+});
+
+final class $RawRrPacketsReferences
+    extends BaseReferences<_$AppDatabase, RawRrPackets, RawRrPacket> {
+  $RawRrPacketsReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static Runs _runIdTable(_$AppDatabase db) =>
+      db.runs.createAlias('raw_rr_packets__run_id__runs__id');
+
+  $RunsProcessedTableManager get runId {
+    final $_column = $_itemColumn<int>('run_id')!;
+
+    final manager = $RunsTableManager(
+      $_db,
+      $_db.runs,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_runIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $RawRrPacketsFilterComposer
+    extends Composer<_$AppDatabase, RawRrPackets> {
+  $RawRrPacketsFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get timeUs => $composableBuilder(
+    column: $table.timeUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get rr => $composableBuilder(
+    column: $table.rr,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $RunsFilterComposer get runId {
+    final $RunsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsFilterComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $RawRrPacketsOrderingComposer
+    extends Composer<_$AppDatabase, RawRrPackets> {
+  $RawRrPacketsOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get timeUs => $composableBuilder(
+    column: $table.timeUs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get rr => $composableBuilder(
+    column: $table.rr,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $RunsOrderingComposer get runId {
+    final $RunsOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsOrderingComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $RawRrPacketsAnnotationComposer
+    extends Composer<_$AppDatabase, RawRrPackets> {
+  $RawRrPacketsAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get timeUs =>
+      $composableBuilder(column: $table.timeUs, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get rr =>
+      $composableBuilder(column: $table.rr, builder: (column) => column);
+
+  $RunsAnnotationComposer get runId {
+    final $RunsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsAnnotationComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $RawRrPacketsTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          RawRrPackets,
+          RawRrPacket,
+          $RawRrPacketsFilterComposer,
+          $RawRrPacketsOrderingComposer,
+          $RawRrPacketsAnnotationComposer,
+          $RawRrPacketsCreateCompanionBuilder,
+          $RawRrPacketsUpdateCompanionBuilder,
+          (RawRrPacket, $RawRrPacketsReferences),
+          RawRrPacket,
+          PrefetchHooks Function({bool runId})
+        > {
+  $RawRrPacketsTableManager(_$AppDatabase db, RawRrPackets table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $RawRrPacketsFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $RawRrPacketsOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $RawRrPacketsAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> runId = const Value.absent(),
+                Value<int> timeUs = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<Uint8List> rr = const Value.absent(),
+              }) => RawRrPacketsCompanion(
+                id: id,
+                runId: runId,
+                timeUs: timeUs,
+                source: source,
+                rr: rr,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int runId,
+                required int timeUs,
+                required String source,
+                required Uint8List rr,
+              }) => RawRrPacketsCompanion.insert(
+                id: id,
+                runId: runId,
+                timeUs: timeUs,
+                source: source,
+                rr: rr,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<RawRrPackets, RawRrPacket>(table),
+                  $RawRrPacketsReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({runId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (runId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.runId,
+                        referencedTable: $RawRrPacketsReferences._runIdTable(
+                          db,
+                        ),
+                        referencedColumn: $RawRrPacketsReferences
+                            ._runIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $RawRrPacketsProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      RawRrPackets,
+      RawRrPacket,
+      $RawRrPacketsFilterComposer,
+      $RawRrPacketsOrderingComposer,
+      $RawRrPacketsAnnotationComposer,
+      $RawRrPacketsCreateCompanionBuilder,
+      $RawRrPacketsUpdateCompanionBuilder,
+      (RawRrPacket, $RawRrPacketsReferences),
+      RawRrPacket,
       PrefetchHooks Function({bool runId})
     >;
 typedef $PreprocessingResultsCreateCompanionBuilder =
@@ -24114,6 +24884,8 @@ class $AppDatabaseManager {
       $RawAltitudesTableManager(_db, _db.rawAltitudes);
   $RawStepsTableManager get rawSteps =>
       $RawStepsTableManager(_db, _db.rawSteps);
+  $RawRrPacketsTableManager get rawRrPackets =>
+      $RawRrPacketsTableManager(_db, _db.rawRrPackets);
   $PreprocessingResultsTableManager get preprocessingResults =>
       $PreprocessingResultsTableManager(_db, _db.preprocessingResults);
   $PreprocessedSamplesTableManager get preprocessedSamples =>

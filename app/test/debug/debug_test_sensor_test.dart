@@ -43,6 +43,35 @@ void main() {
     expect(ev.whereType<HeartRateReading>().single.beatsPerMinute, 88);
     await sub.cancel();
   });
+
+  test('RR schaltbar: aus = keine, an = synthetisch (FR-0213)', () async {
+    final sensor = DebugTestSensor(
+      FakeClock(DateTime.utc(2030)),
+      interval: const Duration(milliseconds: 5),
+    );
+    final ev = <HeartRateEvent>[];
+    final sub = sensor.connect('fake-gurt-1').listen(ev.add);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    final ohne = ev.whereType<HeartRateReading>().toList();
+    expect(ohne, isNotEmpty);
+    expect(ohne.every((r) => r.rrIntervals.isEmpty), isTrue);
+    ev.clear();
+    sensor.sendRr = true;
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    final mit = ev.whereType<HeartRateReading>().toList();
+    expect(mit, isNotEmpty);
+    // Puls um 120: ca. 512 (1/1024 s).
+    expect(
+      mit.every((r) => r.rrIntervals.length == 1 && r.rrIntervals[0] > 400),
+      isTrue,
+    );
+    // Timer-Werte ausschließen: ohne sendRr kommt der Wert nur vom Rohpaket.
+    sensor.sendRr = false;
+    sensor.sendRaw('fake-gurt-1', [0x10, 60, 0x00, 0x04]);
+    await Future<void>.delayed(Duration.zero);
+    expect(ev.whereType<HeartRateReading>().last.rrIntervals, [1024]);
+    await sub.cancel();
+  });
 }
 
 void debugWiringTests() {

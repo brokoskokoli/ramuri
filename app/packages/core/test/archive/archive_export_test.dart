@@ -54,6 +54,7 @@ Object _valueFor(ArchiveColumn c, int i) => switch (c.type) {
   ArchiveType.real => i + 0.25,
   ArchiveType.text => 's$i',
   ArchiveType.boolean => i % 2,
+  ArchiveType.blob => Uint8List.fromList([i, 0, 255, 255]),
 };
 
 /// Eine Zeile mit Werten in allen Spalten (kein NULL).
@@ -130,7 +131,7 @@ void main() {
         expect(lines.first, {
           'type': 'manifest',
           'format': 2,
-          'schema_version': 8,
+          'schema_version': 9,
           'created_at_us': DateTime.utc(2026, 11, 7, 12).microsecondsSinceEpoch,
         });
         final sections = [
@@ -138,12 +139,17 @@ void main() {
             if (l['type'] == 'section') l['name'],
         ];
         expect(sections, [for (final s in archiveSections) s.name]);
-        expect(sections, hasLength(24));
+        expect(sections, hasLength(25));
         // Jede Tabelle mit mindestens einer Zeile.
         for (final s in archiveSections.where((s) => !s.isReserved)) {
           final rows = _rowsOf(lines, s.name);
           expect(rows, hasLength(2), reason: s.name);
-          expect(rows.first, db[s.name]!.first, reason: s.name);
+          expect(rows.first, {
+            for (final e in db[s.name]!.first.entries)
+              e.key: e.value is Uint8List
+                  ? encodeArchiveBlob(e.value! as Uint8List)
+                  : e.value,
+          }, reason: s.name);
           expect(rows.first.keys.toList(), [for (final c in s.columns) c.name]);
         }
         // Ab Schema 7 tragen `goals`, `plans` und `plan_units` Zeilen; die
@@ -283,7 +289,7 @@ void main() {
         r'^\| (\d+) \| `(\w+)` \| (.+) \|$',
         multiLine: true,
       ).allMatches(doc).toList();
-      expect(rows, hasLength(24));
+      expect(rows, hasLength(25));
       for (final m in rows) {
         final spec = archiveSections[int.parse(m.group(1)!) - 1];
         expect(spec.name, m.group(2));
@@ -488,6 +494,7 @@ String _t(ArchiveColumn c) =>
       ArchiveType.real => 'R',
       ArchiveType.text => 'T',
       ArchiveType.boolean => 'B',
+      ArchiveType.blob => 'X',
     }}${c.nullable ? '?' : ''}';
 
 List<Map<String, Object?>> _rowsOf(

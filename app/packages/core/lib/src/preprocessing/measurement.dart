@@ -74,6 +74,25 @@ class RawHeartRate extends RawSample {
   final SensorContact contact;
 }
 
+/// RR-Intervalle eines BLE-Pakets (FR-0213): Rohwerte in 1/1024 s, bitgenau
+/// wie gesendet (0 und 65535 gültig, nichts gefiltert, nichts umgerechnet).
+/// [time] ist der Empfangszeitpunkt des Pakets, [source] das Quellgerät
+/// (FR-0020). Kein [RawSample]: Ein Paket hat keinen Messzustand und keinen
+/// Platz in der Vorverarbeitung (Phase 2 speichert nur).
+class RrPacket {
+  const RrPacket({
+    required this.time,
+    required this.source,
+    required this.intervals,
+  });
+
+  final DateTime time;
+  final String source;
+
+  /// Je Wert 0..65535 (uint16), nicht leer.
+  final List<int> intervals;
+}
+
 class RawAltitude extends RawSample {
   const RawAltitude({
     required super.time,

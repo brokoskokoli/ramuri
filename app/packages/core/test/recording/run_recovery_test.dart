@@ -292,4 +292,45 @@ void main() {
       },
     );
   });
+
+  group('RR-Pakete beim Wiederanlauf (FR-0213)', () {
+    test('nach Absturz fehlt höchstens der ungeflushte Puffer', () async {
+      final w = await World.open();
+      // Grosser Stapel: Zeilen bleiben bis zum flush() im Puffer.
+      final r = RunRecorder(
+        clock: w.clock,
+        runs: w.session.runs,
+        rawData: w.session.rawData,
+        markers: w.session.markers,
+        batchRows: 1000,
+      );
+      await r.start();
+      for (var s = 1; s <= 5; s++) {
+        w.feed(r, s, 3.0 * s);
+      }
+      r.addHeartRate(
+        HeartRateReading('hr', w.clock.now(), 140, rrIntervals: const [800]),
+      );
+      await r.flush(); // geflusht
+      w.clock.set(t0.add(const Duration(seconds: 7)));
+      r.addHeartRate(
+        HeartRateReading('hr', w.clock.now(), 141, rrIntervals: const [790]),
+      ); // nur im Puffer, Prozess stirbt
+      final id = r.runId!;
+
+      final raw = await w.session.rawData.read(id);
+      expect(raw.rrPackets.map((p) => p.value.intervals), [
+        [800],
+      ]);
+      expect(raw.heartRates, hasLength(1), reason: 'wie beim Puls');
+
+      final saved = await w.recovery().saveFinished(id);
+      expect(saved, isNotNull);
+      expect(
+        (await w.session.rawData.read(id)).rrPackets.map((p) => p.value.source),
+        ['hr'],
+        reason: 'gespeicherter Lauf behält das geflushte Paket',
+      );
+    });
+  });
 }

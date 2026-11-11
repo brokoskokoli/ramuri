@@ -38,6 +38,11 @@ Future<void> fillAllTables(AppDatabase db) async {
     db,
     "INSERT INTO raw_heart_rates (run_id, time_us, source, state, bpm, contact) VALUES (1, 1, 'strap', 'present', 140, 'good')",
   );
+  // RR-Pakete (WP26): Randwerte 0 und 65535, zwei Quellen (synthetisch).
+  await sql(
+    db,
+    "INSERT INTO raw_rr_packets (run_id, time_us, source, rr) VALUES (1, 1, 'strap', x'0004ffff00000a03'), (1, 2, 'strap2', x'0004')",
+  );
   await sql(
     db,
     "INSERT INTO raw_altitudes (run_id, time_us, source, state, altitude_m, vertical_accuracy_m) VALUES (1, 1, 'gps', 'present', 35.5, 2.0)",

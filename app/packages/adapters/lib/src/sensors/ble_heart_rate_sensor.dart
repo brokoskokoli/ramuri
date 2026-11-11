@@ -176,7 +176,13 @@ class _Session {
     final m = HeartRateParser.parseMeasurement(bytes);
     if (m == null) return;
     _emit(
-      HeartRateReading(_id, _clock.now(), m.beatsPerMinute, contact: m.contact),
+      HeartRateReading(
+        _id,
+        _clock.now(),
+        m.beatsPerMinute,
+        contact: m.contact,
+        rrIntervals: m.rrIntervals,
+      ),
     );
   }
 

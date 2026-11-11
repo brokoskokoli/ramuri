@@ -158,10 +158,13 @@ class ArchiveLineValidator {
           ArchiveType.real => v is num && v.isFinite,
           ArchiveType.text => v is String && isValidArchiveText(v),
           ArchiveType.boolean => v is int && (v == 0 || v == 1),
+          ArchiveType.blob => v is String && decodeArchiveBlob(v) != null,
         };
         if (!ok) throw _damaged;
       }
-      out[c.name] = v;
+      out[c.name] = v is String && c.type == ArchiveType.blob
+          ? decodeArchiveBlob(v)
+          : v;
     }
     // Spalten, die erst ein späteres Schema hat (`plan_units.fixed` ab 8),
     // bekommen ihren Wert für ältere Archive; die Zeile hat dann die Form

@@ -24,7 +24,11 @@ void main() {
       camera: camera,
       child: RunningApp(
         dependencies: AppDependencies.create(
-          heartRateSensor: DebugTestSensor(const SystemClock()),
+          // E2E FR-0213: `--dart-define=TEST_SENSOR_RR=true` sendet synthetische RR.
+          heartRateSensor: DebugTestSensor(
+            const SystemClock(),
+            sendRr: const bool.fromEnvironment('TEST_SENSOR_RR'),
+          ),
           ppgCamera: camera,
           // E2E-Test der Erinnerung (FR-0174): Auslösen in 10 s aus den Einstellungen.
           debugReminders: true,

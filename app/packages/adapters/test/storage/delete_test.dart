@@ -41,6 +41,11 @@ Future<void> fill(EncryptedStorageSession s, int runId, String m) async {
       steps: [
         for (var i = 0; i < 20; i++) RawSteps(time: at(i), source: m, count: i),
       ],
+      // RR-Pakete (WP26): Quelle trägt die Marke, Werte sind synthetisch.
+      rrPackets: [
+        for (var i = 0; i < 5; i++)
+          RrPacket(time: at(i), source: m, intervals: [1000 + i, 1010]),
+      ],
     ),
   );
 }
@@ -166,6 +171,31 @@ void main() {
       await s.close();
     });
   });
+
+  test(
+    'RR-Pakete: deleteRun entfernt nur die des Laufs, deleteAll alle',
+    () async {
+      final (s, a, b) = await setup();
+      Future<int> count(int runId) async =>
+          (await s.rawData.read(runId)).rrPackets.length;
+      Future<int> total() async =>
+          (await s.database
+                      .customSelect('SELECT COUNT(*) AS n FROM raw_rr_packets')
+                      .get())
+                  .single
+                  .data['n']
+              as int;
+      expect(await count(a), 5, reason: 'Positivkontrolle');
+      expect(await count(b), 5);
+      await s.deleteRun(a);
+      expect(await count(a), 0);
+      expect(await count(b), 5, reason: 'anderer Lauf bleibt');
+      expect(await total(), 5, reason: 'keine verwaisten Zeilen');
+      await s.deleteAll();
+      expect(await total(), 0);
+      await s.close();
+    },
+  );
 
   test('Alles löschen entfernt die Karteneinwilligung', () async {
     final (s, _, _) = await setup();

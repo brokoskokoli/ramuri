@@ -26,6 +26,7 @@ class HeartRateReading extends HeartRateEvent {
     this.time,
     this.beatsPerMinute, {
     this.contact = SensorContact.unsupported,
+    this.rrIntervals = const [],
   });
 
   final DateTime time;
@@ -33,6 +34,10 @@ class HeartRateReading extends HeartRateEvent {
 
   /// Hautkontakt laut Statusbit von 0x2A37 (PAR-008).
   final SensorContact contact;
+
+  /// RR-Intervalle dieses Pakets, roh in 1/1024 s, in Sendereihenfolge
+  /// (FR-0213). Leer, wenn das Gerät keine sendet. Zeitbezug: [time].
+  final List<int> rrIntervals;
 }
 
 /// Akkustand in Prozent (optional, FR-0016).

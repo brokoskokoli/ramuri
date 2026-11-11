@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 /// Strenger JSON-Leser für eine Zeile des Archivs (RFC 8259).
 ///
 /// `dart:convert` genügt nicht: Es meldet doppelte Schlüssel nicht, liest zu
@@ -211,4 +213,33 @@ bool isValidArchiveText(String s) {
     if (c >= 0xDC00 && c <= 0xDFFF) return false;
   }
   return true;
+}
+
+/// BLOB-Wert als kleingeschriebener Hex-Text (zwei Zeichen je Byte).
+String encodeArchiveBlob(Uint8List bytes) {
+  final b = StringBuffer();
+  for (final x in bytes) {
+    b.write(x.toRadixString(16).padLeft(2, '0'));
+  }
+  return b.toString();
+}
+
+/// Gegenstück zu [encodeArchiveBlob]; `null` bei ungerader Länge oder anderen
+/// Zeichen als `0-9a-f`.
+Uint8List? decodeArchiveBlob(String s) {
+  if (s.length.isOdd) return null;
+  final out = Uint8List(s.length ~/ 2);
+  for (var i = 0; i < out.length; i++) {
+    final hi = _hexDigit(s.codeUnitAt(2 * i));
+    final lo = _hexDigit(s.codeUnitAt(2 * i + 1));
+    if (hi < 0 || lo < 0) return null;
+    out[i] = hi << 4 | lo;
+  }
+  return out;
+}
+
+int _hexDigit(int c) {
+  if (c >= 0x30 && c <= 0x39) return c - 0x30;
+  if (c >= 0x61 && c <= 0x66) return c - 0x57;
+  return -1;
 }

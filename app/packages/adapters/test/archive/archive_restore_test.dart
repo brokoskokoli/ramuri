@@ -294,7 +294,9 @@ void main() {
       expect(got.keys, sourceDump.keys);
       for (final t in sourceDump.keys) {
         expect(got[t], sourceDump[t], reason: t);
-        if (t != 'settings') expect(got[t], isNotEmpty, reason: t);
+        if (t != 'settings') {
+          expect(got[t], isNotEmpty, reason: t);
+        }
       }
       // Ruhepuls-Herkunft kommt mit dem Reimport zurück (FR-0214).
       final origin = (await RestingHrOrigin.read(session.settings))!;
@@ -629,7 +631,7 @@ void main() {
     expect(easy.pinned, isTrue);
   });
 
-  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5, 6 und 7; 8 ist
+  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 8; 9 ist
   // das aktuelle). Format 1
   // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
   // kennt, sind danach leer.
@@ -638,6 +640,7 @@ void main() {
     ('archive_v2_s6', 6),
     ('archive_v2_s7', 7),
     ('archive_v2_s8', 8),
+    ('archive_v2_s9', 9),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -710,6 +713,32 @@ void main() {
         expect(got['plan_units'], isEmpty);
         expect(got['goals'], isEmpty);
         expect(goal, isNull);
+      }
+      // RR-Pakete (WP26): ab Schema 9, BLOBs bitgleich zum Vektor (Hex, Python).
+      final rr = got['raw_rr_packets']!;
+      if (schema >= 9) {
+        final want = expected['raw_rr_packets']!;
+        expect(rr, hasLength(3));
+        for (var i = 0; i < want.length; i++) {
+          final hex = want[i]['rr']! as String;
+          expect(rr[i]['rr'], [
+            for (var k = 0; k < hex.length; k += 2)
+              int.parse(hex.substring(k, k + 2), radix: 16),
+          ]);
+          expect(rr[i]['id'], want[i]['id']);
+          expect(rr[i]['run_id'], want[i]['run_id']);
+          expect(rr[i]['source'], want[i]['source']);
+        }
+        // Randwerte 0 und 65535 (uint16 LE) sind darin enthalten.
+        expect(decodeRrIntervals(rr[0]['rr']! as Uint8List), [
+          1024,
+          0,
+          65535,
+          512,
+        ]);
+        expect(decodeRrIntervals(rr[2]['rr']! as Uint8List).first, 0);
+      } else {
+        expect(rr, isEmpty);
       }
       expect(got['reference_performances'], hasLength(schema >= 6 ? 3 : 0));
       expect(got['run_feedback'], hasLength(2));

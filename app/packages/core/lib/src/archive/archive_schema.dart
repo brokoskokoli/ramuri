@@ -1,10 +1,11 @@
 /// Abschnitte und Spalten des Archivs (`docs/contracts/archive.md` 4.3,
-/// Schema 8, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
+/// Schema 9, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
 /// Adapter-Test mit der Datenbank.
 library;
 
-/// Typ einer Spalte: I = INTEGER, R = REAL, T = TEXT, B = BOOLEAN (0/1).
-enum ArchiveType { integer, real, text, boolean }
+/// Typ einer Spalte: I = INTEGER, R = REAL, T = TEXT, B = BOOLEAN (0/1),
+/// X = BLOB (im Speicher `Uint8List`, in der Datei Hex-Text).
+enum ArchiveType { integer, real, text, boolean, blob }
 
 class ArchiveColumn {
   const ArchiveColumn(
@@ -59,6 +60,7 @@ class ArchiveSectionSpec {
           'R' => ArchiveType.real,
           'T' => ArchiveType.text,
           'B' => ArchiveType.boolean,
+          'X' => ArchiveType.blob,
           _ => throw ArgumentError.value(part),
         };
         final added = addedColumns[bits[0]];
@@ -86,7 +88,7 @@ class ArchiveSectionSpec {
   final List<ArchiveColumn> columns;
   final String? key;
 
-  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 8).
+  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 9).
   final int sinceSchema;
 
   /// Erstes Schema, in dem der Abschnitt Zeilen trägt, wenn er schon früher
@@ -124,7 +126,7 @@ class ArchiveSectionSpec {
   bool get isReserved => columns.isEmpty;
 }
 
-/// Die 24 Abschnitte des Schemas 8 in der Reihenfolge des Vertrags;
+/// Die 25 Abschnitte des Schemas 9 in der Reihenfolge des Vertrags;
 /// ältere Schemas haben weniger ([archiveSectionsFor]): Schema 4 die 19 mit
 /// `sinceSchema == 4`, Schema 5 dazu die zwei von WP18.
 final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
@@ -261,6 +263,12 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     sinceSchema: 7,
     addedColumns: {'fixed': (8, 'none')},
   ),
+  // WP26, Nummer 25, ab Schema 9: RR-Pakete (`rr` ist BLOB, uint16 LE).
+  ArchiveSectionSpec(
+    'raw_rr_packets',
+    'id I, run_id I, time_us I, source T, rr X',
+    sinceSchema: 9,
+  ),
 ]);
 
 /// Formatversionen, die der Leser kennt.
@@ -270,18 +278,18 @@ const List<int> archiveFormats = [1, 2];
 const int archiveWriteFormat = 2;
 
 /// Neuestes Datenbankschema, das Leser und Schreiber kennen.
-const int archiveSchemaVersion = 8;
+const int archiveSchemaVersion = 9;
 
 /// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
 /// Fehlende Abschnitte eines älteren Schemas gelten als leer.
 const int archiveMinSchemaVersion = 4;
 
 /// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
-/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 8).
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 9).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
-/// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, ab 7:
-/// 24; ab 7 tragen die Abschnitte 19 und 20 Zeilen, 24 `plan_units` gibt es
+/// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7 und 8:
+/// 24, ab 9: 25 mit `raw_rr_packets`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, 24 `plan_units` gibt es
 /// nur ab 7, seine Spalte `fixed` ab 8).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche
