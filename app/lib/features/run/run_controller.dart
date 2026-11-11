@@ -36,6 +36,9 @@ class RunController extends ChangeNotifier {
     this.cadence,
     this.resumeRunId,
     this.initialAutoPause,
+    this.mode = RunMode.gps,
+    this.startBeltSpeedMetersPerSecond,
+    this.startInclinePercent,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
     RunRecorder? recorder,
@@ -74,6 +77,15 @@ class RunController extends ChangeNotifier {
   /// gemerkte Wert aus dem Speicher gilt (Fortsetzen, FR-0193).
   final bool? initialAutoPause;
 
+  /// Art des neuen Laufs (FR-0196). Beim Fortsetzen gilt die gespeicherte Art
+  /// des Laufs, nicht dieser Wert.
+  final RunMode mode;
+
+  /// Startgeschwindigkeit des Bands in m/s (Pflicht im Modus `treadmill`,
+  /// FR-0196, K57) und optionale Steigung in %.
+  final double? startBeltSpeedMetersPerSecond;
+  final double? startInclinePercent;
+
   /// Reiht Schreiben von Werten hinter den Start und andere Neuberechnungen
   /// ein (siehe `RecalculationController.exclusive`); `null` = sofort.
   final Future<void> Function(Future<void> Function() action)? serialize;
@@ -98,6 +110,7 @@ class RunController extends ChangeNotifier {
   bool _starting = false;
   bool _locationError = false;
   bool _serviceFailed = false;
+  RecordingStartDeniedReason? _startDenied;
   bool _serviceWanted = false;
   bool _heartRateSeen = false;
   ResolvedHeartRate? _basis;
@@ -112,6 +125,36 @@ class RunController extends ChangeNotifier {
 
   /// Anlegen des Laufs scheiterte; ein erneuter [start] ist möglich.
   bool get startFailed => _startFailed;
+
+  /// Der Laufbandlauf startete nicht, weil dem Dienst ein Recht fehlt (FR-0196,
+  /// K57: ACTIVITY_RECOGNITION). Es wurde kein Lauf angelegt; ein erneuter
+  /// [start] ist nach Erteilen des Rechts möglich. Sonst `null`.
+  RecordingStartDeniedReason? get startDenied => _startDenied;
+
+  /// Art des Laufs (nach dem Start die gespeicherte Art).
+  RunMode get runMode =>
+      _snapshot.phase == RecordingPhase.idle ? mode : _snapshot.mode;
+
+  /// Ändert die Bandgeschwindigkeit (m/s) ab jetzt (FR-0196); gespeichert als
+  /// Einstellung des Laufs. Gibt `false` zurück, wenn abgelehnt (kein
+  /// Laufbandlauf, nicht aktiv, unzulässiger Wert).
+  Future<bool> setBeltSpeed(double metersPerSecond) =>
+      _belt(() => _recorder.setBeltSpeed(metersPerSecond));
+
+  /// Ändert die Steigung (%) ab jetzt; `null` = nicht angegeben.
+  Future<bool> setIncline(double? percent) =>
+      _belt(() => _recorder.setIncline(percent));
+
+  Future<bool> _belt(Future<CommandResult> Function() change) async {
+    var ok = false;
+    try {
+      ok = await change() == CommandResult.ok;
+    } on Object {
+      ok = true; // Sitzung hat die Änderung; Speicherfehler in writeFailure
+    }
+    _update();
+    return ok;
+  }
 
   /// Die Standortquelle meldete einen Fehler und seitdem keinen Punkt mehr.
   bool get locationError => _locationError;
@@ -186,6 +229,7 @@ class RunController extends ChangeNotifier {
     if (_starting || phase != RecordingPhase.idle) return;
     _starting = true;
     _startFailed = false;
+    _startDenied = null;
     notifyListeners();
     try {
       final chosen = initialAutoPause;
@@ -212,29 +256,52 @@ class RunController extends ChangeNotifier {
         _basis = null;
       }
       _recorder.setAutoPause(_autoPause);
+      final resume = resumeRunId;
+      var runMode = mode;
+      if (resume != null) {
+        try {
+          runMode = (await storage.runs.get(resume))?.mode ?? RunMode.gps;
+        } on Object {
+          runMode = RunMode.gps;
+        }
+      }
+      // Laufband: der Dienst zuerst, denn ohne sein Recht startet der Lauf
+      // nicht (K57) und es soll kein leerer Lauf entstehen.
+      if (runMode == RunMode.treadmill) {
+        await _startService(runMode);
+        if (_startDenied != null) return;
+      }
       try {
-        final resume = resumeRunId;
         final r = resume == null
-            ? await _recorder.start()
+            ? await _recorder.start(
+                mode: runMode,
+                beltSpeedMetersPerSecond: startBeltSpeedMetersPerSecond,
+                inclinePercent: startInclinePercent,
+              )
             : await _recorder.restore(resume);
         if (r == CommandResult.rejected) {
           _startFailed = true;
+          if (runMode == RunMode.treadmill) _stopService();
           return;
         }
       } on Object {
         _startFailed = true;
+        if (runMode == RunMode.treadmill) _stopService();
         return;
       }
-      _locationSub = location.samples().listen(
-        (s) {
-          _locationError = false;
-          _recorder.addPosition(s);
-        },
-        onError: (Object _) {
-          _locationError = true;
-          _update();
-        },
-      );
+      // Das Laufband hat keine Positionen und braucht keinen Standort.
+      if (runMode == RunMode.gps) {
+        _locationSub = location.samples().listen(
+          (s) {
+            _locationError = false;
+            _recorder.addPosition(s);
+          },
+          onError: (Object _) {
+            _locationError = true;
+            _update();
+          },
+        );
+      }
       final hrStream = sensors?.readings;
       if (hrStream != null) {
         _heartSub = hrStream.listen((r) {
@@ -248,7 +315,7 @@ class RunController extends ChangeNotifier {
         _update();
       });
       unawaited(_startCadence());
-      await _startService();
+      if (runMode == RunMode.gps) await _startService(runMode);
     } finally {
       _starting = false;
       _update();
@@ -257,13 +324,22 @@ class RunController extends ChangeNotifier {
 
   /// Startet den Dienst nach dem Anlegen des Laufs. Scheitert er, geht der Lauf
   /// nicht verloren: Er läuft im Vordergrund weiter und [serviceFailed] meldet es.
-  Future<void> _startService() async {
+  Future<void> _startService(RunMode runMode) async {
     final s = service;
     if (s == null) return;
     _serviceWanted = true;
     try {
-      await s.start();
+      await s.start(
+        mode: runMode == RunMode.treadmill
+            ? RecordingServiceMode.treadmill
+            : RecordingServiceMode.gps,
+      );
       _serviceFailed = false;
+    } on RecordingStartDenied catch (e) {
+      // Kein Lauf ohne das Recht (Laufband): eigener Zustand statt Fehler.
+      _startDenied = e.reason;
+      _serviceWanted = false;
+      return;
     } on Object {
       _serviceFailed = true;
     }

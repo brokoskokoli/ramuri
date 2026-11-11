@@ -11,6 +11,7 @@ import '../preprocessing/measurement.dart';
 import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
+import 'treadmill.dart';
 
 /// Zustand der Aufzeichnung (FR-0028, FR-0029).
 ///
@@ -103,6 +104,9 @@ class RecordingSnapshot {
     required this.standstillDetected,
     required this.laps,
     required this.gaps,
+    this.mode = RunMode.gps,
+    this.beltSpeedMetersPerSecond,
+    this.inclinePercent,
   });
 
   final RecordingPhase phase;
@@ -135,6 +139,17 @@ class RecordingSnapshot {
   final bool standstillDetected;
   final List<RecordedLap> laps;
   final List<RecordedGap> gaps;
+
+  /// Art des Laufs (FR-0196). Im Modus `treadmill` ist [distanceMeters] das
+  /// Integral der eingestellten Bandgeschwindigkeit über die aktive Zeit und
+  /// [movingTime] die aktive Zeit mit Geschwindigkeit über 0.
+  final RunMode mode;
+
+  /// Aktuell eingestellte Bandgeschwindigkeit (m/s); nur im Laufbandmodus.
+  final double? beltSpeedMetersPerSecond;
+
+  /// Aktuell eingestellte Steigung (%); `null` = nicht angegeben oder GPS-Lauf.
+  final double? inclinePercent;
 }
 
 /// Aufzeichnungssitzung ohne Flutter und ohne Host (ADR-0005 Punkt 3).
@@ -184,8 +199,21 @@ class RecordingSession {
   final List<RecordedGap> _gaps = [];
   final List<RecordingEvent> _events = [];
 
+  // Laufbandmodus (FR-0196, K57): Einstellungen in zeitlicher Reihenfolge,
+  // Zeit ab Laufbeginn. Eine Einstellung gilt ab ihrem Zeitpunkt bis zur
+  // nächsten.
+  RunMode _mode = RunMode.gps;
+  final List<BeltSetting> _belts = [];
+
+  RunMode get mode => _mode;
+  bool get _treadmill => _mode == RunMode.treadmill;
+
+  /// Alle Einstellungen des Bands seit dem Start (auch die wiederhergestellten),
+  /// in der Reihenfolge ihres Entstehens. Der Host speichert neue Einträge.
+  List<BeltSetting> get beltSettings => List.unmodifiable(_belts);
+
   RecordingPhase get phase => _phase;
-  bool get autoPauseEnabled => _autoPause;
+  bool get autoPauseEnabled => _autoPause && !_treadmill;
   List<RecordingEvent> get events => List.unmodifiable(_events);
   bool get _active =>
       _phase == RecordingPhase.running || _phase == RecordingPhase.autoPaused;
@@ -208,8 +236,27 @@ class RecordingSession {
     }
   }
 
-  CommandResult start() {
+  /// Startet die Aufzeichnung. Im Modus `treadmill` ist die Startgeschwindigkeit
+  /// ([beltSpeedMetersPerSecond], m/s, Pflicht) die erste Einstellung ab dem
+  /// Start; ohne sie oder mit einem unzulässigen Wert wird abgelehnt.
+  CommandResult start({
+    RunMode mode = RunMode.gps,
+    double? beltSpeedMetersPerSecond,
+    double? inclinePercent,
+  }) {
     if (_phase != RecordingPhase.idle) return CommandResult.rejected;
+    final first = mode == RunMode.treadmill
+        ? BeltSetting(
+            offset: Duration.zero,
+            speedMetersPerSecond: beltSpeedMetersPerSecond ?? double.nan,
+            inclinePercent: inclinePercent,
+          )
+        : null;
+    if (first != null && !isStorableBeltSetting(first)) {
+      return CommandResult.rejected;
+    }
+    _mode = mode;
+    if (first != null) _belts.add(first);
     final now = _clock.now();
     _startedAt = now;
     _activeSince = now;
@@ -229,7 +276,12 @@ class RecordingSession {
   /// Strecke) und ihre Zeit zählt zur Gesamtzeit, nicht zur Bewegungszeit.
   /// Alle Lücken müssen geschlossen sein. Nur im Zustand `idle`; erzeugt keine
   /// Ereignisse, denn alles Wiederhergestellte steht schon im Speicher.
+  ///
+  /// Im Modus `treadmill` ([mode]) kommen Geschwindigkeit und Steigung aus
+  /// `raw.beltSettings`; die Strecke ergibt sich wie im Lauf (die Unterbrechung
+  /// zählt nicht). Ohne gespeicherte Einstellung gilt Geschwindigkeit 0.
   CommandResult restore({
+    RunMode mode = RunMode.gps,
     required DateTime startedAt,
     required StoredRawData raw,
     required List<StoredGap> gaps,
@@ -238,6 +290,16 @@ class RecordingSession {
   }) {
     if (_phase != RecordingPhase.idle) return CommandResult.rejected;
     final pre = RunPreprocessor(start: startedAt, parameters: parameters);
+    _mode = mode;
+    if (_treadmill) {
+      final sorted = [for (final b in raw.beltSettings) b]
+        ..sort((a, b) {
+          final c = a.value.offset.compareTo(b.value.offset);
+          return c != 0 ? c : a.id.compareTo(b.id);
+        });
+      _belts.addAll(sorted.map((b) => b.value));
+    }
+    _startedAt = startedAt; // für die Rundenzeiten unten
     final events = <({DateTime at, int rank, void Function() apply})>[];
     void add(DateTime at, int rank, void Function() apply) =>
         events.add((at: at, rank: rank, apply: apply));
@@ -258,7 +320,7 @@ class RecordingSession {
     var lastMarkMoving = Duration.zero;
     for (final l in laps) {
       add(l.markedAt, 1, () {
-        final moving = pre.result(at: l.markedAt).movement.movingTime;
+        final moving = _movingAt(pre, l.markedAt);
         _laps.add(
           RecordedLap(
             index: l.index,
@@ -343,7 +405,7 @@ class RecordingSession {
   CommandResult lap() {
     if (!_active) return CommandResult.rejected;
     final now = _clock.now();
-    final moving = _pre!.result(at: now).movement.movingTime;
+    final moving = _movingAt(_pre!, now);
     final lap = RecordedLap(
       index: _laps.length + 1,
       markedAt: now,
@@ -383,6 +445,13 @@ class RecordingSession {
   DateTime? get lastPointTime => _lastPointTime;
 
   Intake addPosition(LocationSample s) {
+    // Das Laufband hat keine Positionen (FR-0196): nichts annehmen, nichts
+    // speichern, keine Lücke, keine Autopause.
+    if (_treadmill) {
+      return _phase == RecordingPhase.finished
+          ? Intake.ignoredFinished
+          : Intake.ignoredNotActive;
+    }
     final now = _clock.now();
     final age = Duration(milliseconds: math.max(0, s.ageMs ?? 0));
     final time = now.subtract(age);
@@ -487,20 +556,29 @@ class RecordingSession {
     final now = _endedAt ?? _clock.now();
     if (_active) _checkLoss(now);
     final r = _finalResult ?? pre.result(at: now);
+    final belt = _treadmill ? _beltTotals(now) : null;
     final snapshot = RecordingSnapshot(
+      mode: _mode,
+      beltSpeedMetersPerSecond: _treadmill
+          ? _belts.lastOrNull?.speedMetersPerSecond ?? 0
+          : null,
+      inclinePercent: _treadmill ? _belts.lastOrNull?.inclinePercent : null,
       phase: _phase,
-      autoPauseEnabled: _autoPause,
+      autoPauseEnabled: autoPauseEnabled,
       startedAt: _startedAt,
       endedAt: _endedAt,
       totalTime: r.movement.totalTime,
-      movingTime: r.movement.movingTime,
-      distanceMeters: r.position.distanceMeters,
+      movingTime: belt?.moving ?? r.movement.movingTime,
+      distanceMeters: belt?.meters ?? r.position.distanceMeters,
       heartRateBpm: _phase == RecordingPhase.finished
           ? null
           : pre.heartRateAt(now).value?.bpm,
       positionLost: _lossOpen,
-      positionLossMovingTime: movingTimeInPositionGaps(r),
+      positionLossMovingTime: _treadmill
+          ? Duration.zero
+          : movingTimeInPositionGaps(r),
       standstillDetected:
+          !_treadmill &&
           r.movement.autoPauseState == AutoPauseState.standstillPause,
       laps: List.unmodifiable(_laps),
       gaps: List.unmodifiable(_gaps),
@@ -514,6 +592,87 @@ class RecordingSession {
     final pre = _pre;
     if (pre == null) return null;
     return _finalResult ?? pre.result(at: _clock.now());
+  }
+
+  /// Ändert die Bandgeschwindigkeit (m/s) ab jetzt (FR-0196). Auch in der
+  /// Pause möglich (gilt ab dem Zeitpunkt der Änderung, zählt aber erst nach
+  /// dem Weiterlaufen). Abgelehnt: kein Laufbandlauf, nicht gestartet oder
+  /// beendet, unzulässiger Wert.
+  CommandResult setBeltSpeed(double metersPerSecond) =>
+      _addBelt(metersPerSecond, null, keepSpeed: false);
+
+  /// Ändert die Steigung (%) ab jetzt; `null` = nicht angegeben.
+  CommandResult setIncline(double? percent) =>
+      _addBelt(null, percent, keepSpeed: true);
+
+  CommandResult _addBelt(
+    double? speed,
+    double? incline, {
+    required bool keepSpeed,
+  }) {
+    if (!_treadmill || !(_active || _phase == RecordingPhase.paused)) {
+      return CommandResult.rejected;
+    }
+    final cur = _belts.last;
+    final next = BeltSetting(
+      offset: _offsetNow(),
+      speedMetersPerSecond: keepSpeed ? cur.speedMetersPerSecond : speed!,
+      inclinePercent: keepSpeed ? incline : cur.inclinePercent,
+    );
+    if (!isStorableBeltSetting(next)) return CommandResult.rejected;
+    if (next.speedMetersPerSecond == cur.speedMetersPerSecond &&
+        next.inclinePercent == cur.inclinePercent) {
+      return CommandResult.ok; // keine Änderung, keine Zeile
+    }
+    _belts.add(next);
+    return CommandResult.ok;
+  }
+
+  /// Zeit ab Laufbeginn; springt die Uhr zurück, bleibt die Reihenfolge der
+  /// Einstellungen erhalten (nie vor der letzten).
+  Duration _offsetNow() {
+    final off = _clock.now().difference(_startedAt!);
+    final last = _belts.last.offset;
+    return off < last ? last : off;
+  }
+
+  /// Bewegungszeit bis [at] für Runden: im Laufbandmodus die Bandzeit.
+  Duration _movingAt(RunPreprocessor pre, DateTime at) => _treadmill
+      ? _beltTotals(at).moving
+      : pre.result(at: at).movement.movingTime;
+
+  /// Strecke und Bewegungszeit des Bands bis [to] (FR-0196): Integral der
+  /// eingestellten Geschwindigkeit über die aktive Zeit, also ohne manuelle
+  /// Pausen und ohne die Unterbrechung nach einem Absturz. Zeit mit
+  /// Geschwindigkeit 0 zählt nicht als Bewegungszeit.
+  ({double meters, Duration moving}) _beltTotals(DateTime to) {
+    final start = _startedAt!;
+    final pauses = [
+      for (final g in _gaps)
+        if (g.kind == RunGapKind.manualPause ||
+            g.kind == RunGapKind.interruption)
+          (g.start, g.end ?? to),
+    ];
+    var meters = 0.0;
+    var movingUs = 0;
+    for (var i = 0; i < _belts.length; i++) {
+      final b = _belts[i];
+      var a = start.add(b.offset);
+      var e = i + 1 < _belts.length ? start.add(_belts[i + 1].offset) : to;
+      if (e.isAfter(to)) e = to;
+      if (!e.isAfter(a)) continue;
+      var us = e.difference(a).inMicroseconds;
+      for (final (ps, pe) in pauses) {
+        final lo = ps.isAfter(a) ? ps : a;
+        final hi = pe.isBefore(e) ? pe : e;
+        if (hi.isAfter(lo)) us -= hi.difference(lo).inMicroseconds;
+      }
+      if (b.speedMetersPerSecond > 0) {
+        meters += b.speedMetersPerSecond * us / Duration.microsecondsPerSecond;
+        movingUs += us;
+      }
+    }
+    return (meters: meters, moving: Duration(microseconds: movingUs));
   }
 
   Intake? _gate(DateTime t) {
@@ -552,7 +711,7 @@ class RecordingSession {
   // PAR-004: Lücke ab "länger als" gapMaxDuration; löst nie eine Pause aus.
   void _checkLoss(DateTime now) {
     final ref = _gapRef;
-    if (_lossOpen || ref == null) return;
+    if (_treadmill || _lossOpen || ref == null) return;
     if (now.difference(ref) > parameters.gapMaxDuration) {
       _openLoss(ref);
     }
