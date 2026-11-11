@@ -163,6 +163,18 @@ class ArchiveLineValidator {
       }
       out[c.name] = v;
     }
+    // Spalten, die erst ein späteres Schema hat (`plan_units.fixed` ab 8),
+    // bekommen ihren Wert für ältere Archive; die Zeile hat dann die Form
+    // des aktuellen Schemas.
+    if (spec.columns.length != _full(spec).columns.length) {
+      final full = <String, Object?>{};
+      for (final c in _full(spec).columns) {
+        full[c.name] = out.containsKey(c.name) ? out[c.name] : c.olderValue;
+      }
+      out
+        ..clear()
+        ..addAll(full);
+    }
     _checkSubjective(spec, out);
     // Aufsteigend nach dem Schlüssel (Vertrag 4.2); Textschlüssel
     // (`settings`) prüft die Datenbank als Primärschlüssel.
@@ -176,6 +188,9 @@ class ArchiveLineValidator {
     _currentCount++;
     return out;
   }
+
+  static ArchiveSectionSpec _full(ArchiveSectionSpec spec) =>
+      archiveSections.firstWhere((s) => s.name == spec.name);
 
   /// Grenzen der Angaben zum Lauf und der nachgetragenen Trainings (WP18) und
   /// Form der Plan-Texte (WP21):

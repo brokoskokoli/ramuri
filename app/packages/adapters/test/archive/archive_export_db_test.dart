@@ -248,12 +248,18 @@ void main() {
       },
     ]);
     final units = _rows(lines, 'plan_units');
-    expect(units, hasLength(2));
+    expect(units, hasLength(3));
     expect(units[0]['run_id'], 1);
     expect(units[0]['pinned'], 1);
     expect(units[0]['kind'], 'walkRun');
     expect(units[1]['run_id'], isNull);
     expect(units[1]['structure'], '[]');
+    // Schema 8: Festlegung des Nutzers (Ruhetag) geht mit ins Archiv.
+    expect(units[0]['fixed'], 'none');
+    expect(units[1]['fixed'], 'day');
+    expect(units[1]['pinned'], 1);
+    expect(units[2]['kind'], 'easy');
+    expect(units[2]['fixed'], 'easyForHard');
     // Platzhalter ohne Tabelle bleiben leer.
     expect(_rows(lines, 'active_warning'), isEmpty);
     // Werte bleiben exakt (Typen, NULL, Kennungen).

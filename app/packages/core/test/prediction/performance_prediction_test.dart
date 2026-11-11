@@ -225,14 +225,25 @@ void main() {
       },
     );
 
-    test('ungültige Referenz', () {
-      for (final bad in [ref(meters: 2999), ref(seconds: 0), ref(age: -1)]) {
-        final p = predict10k(bad, dense(10));
+    test('ungültige Referenz: „Referenz ungültig“ mit Grund (K49)', () {
+      for (final (bad, problem) in [
+        (ref(meters: 2999), ReferenceProblem.distanceTooShort),
+        (ref(seconds: 0), ReferenceProblem.nonPositiveTime),
+        (ref(age: -1), ReferenceProblem.dateInFuture),
+      ]) {
+        final all = predictPerformance(
+          now: now,
+          references: [bad],
+          runs: dense(10),
+        );
+        final p = all.of(PredictionDistance.tenKilometers);
         expect(p.level, PredictionLevel.notDeterminable);
         expect(p.reason, PredictionReason.invalidReference);
         expect(p.seconds, isNull);
+        expect(all.referenceProblem, problem);
+        expect(all.reference, isNull);
       }
-      expect(ref(meters: 3000).validate(now), isNull);
+      expect(ref(meters: 3000, seconds: 900).validate(now), isNull);
       expect(
         ref(meters: 2999).validate(now),
         ReferenceProblem.distanceTooShort,
@@ -240,6 +251,83 @@ void main() {
       expect(ref(seconds: -1).validate(now), ReferenceProblem.nonPositiveTime);
       expect(ref(age: 0).validate(now), isNull);
       expect(ref(age: -1).validate(now), ReferenceProblem.dateInFuture);
+    });
+
+    test('Tempospanne 2:30 bis 15:00 min/km, Grenzen eingeschlossen', () {
+      // 5 km: 12:30 (2:30 min/km) und 75:00 (15:00 min/km) gelten.
+      expect(ref(meters: 5000, seconds: 750).validate(now), isNull);
+      expect(ref(meters: 5000, seconds: 4500).validate(now), isNull);
+      for (final seconds in [749.0, 4501.0, 999 * 3600.0]) {
+        expect(
+          ref(meters: 5000, seconds: seconds).validate(now),
+          ReferenceProblem.paceOutOfRange,
+          reason: '$seconds s',
+        );
+      }
+      // Benannte Parameter wirken.
+      const wide = PredictionParameters(slowestReferencePaceSecondsPerKm: 1000);
+      expect(ref(meters: 5000, seconds: 4600).validate(now, wide), isNull);
+      // Vorrang: zu kurz und Zeit null vor dem Tempo.
+      expect(
+        ref(meters: 2999, seconds: 99999).validate(now),
+        ReferenceProblem.distanceTooShort,
+      );
+      // Prognose: eine unplausible Referenz (gespeichert oder importiert)
+      // trägt nicht, die Anzeige nennt sie „ungültig“ mit Grund (K49).
+      final all = predictPerformance(
+        now: now,
+        references: [ref(seconds: 999 * 3600)],
+        runs: dense(10),
+      );
+      final p = all.of(PredictionDistance.tenKilometers);
+      expect(p.reason, PredictionReason.invalidReference);
+      expect(all.referenceProblem, ReferenceProblem.paceOutOfRange);
+      expect(p.seconds, isNull);
+      // Ohne gespeicherte Referenz: keine Referenz, kein Grund.
+      final none = predictPerformance(
+        now: now,
+        references: [],
+        runs: dense(10),
+      );
+      expect(
+        none.of(PredictionDistance.tenKilometers).reason,
+        PredictionReason.noReference,
+      );
+      expect(none.referenceProblem, isNull);
+    });
+
+    test('Referenz außerhalb der Tempospanne gilt nirgends: activeReference '
+        'überspringt sie, die Prognose nimmt die ältere gültige', () {
+      final valid = ref(age: 20);
+      final slow = ref(age: 5, meters: 5000, seconds: 999 * 3600);
+      final fast = ref(age: 3, meters: 5000, seconds: 749);
+      expect(isUsableReference(valid), isTrue);
+      expect(isUsableReference(slow), isFalse);
+      expect(isUsableReference(fast), isFalse);
+      // Künftiges Datum ist kein Ausschlussgrund (die Prognose meldet es).
+      expect(isUsableReference(ref(age: -1)), isTrue);
+      expect(activeReference([valid, slow, fast]), same(valid));
+      expect(activeReference([slow, fast]), isNull);
+      final p = predictPerformance(
+        now: now,
+        references: [valid, slow],
+        runs: dense(30),
+      ).of(PredictionDistance.tenKilometers);
+      expect(p.seconds, isNotNull);
+      expect(
+        p.seconds,
+        predict10k(valid, dense(30)).seconds,
+        reason: 'Grundlage ist die ältere gültige Referenz',
+      );
+      expect(
+        predictPerformance(
+          now: now,
+          references: [valid, slow],
+          runs: dense(30),
+        ).referenceProblem,
+        isNull,
+        reason: 'gilt eine ältere, ist nichts ungültig',
+      );
     });
   });
 
@@ -269,7 +357,8 @@ void main() {
         (10000 / 3, PredictionLevel.sufficient),
         (3300.0, PredictionLevel.provisional),
       ]) {
-        final p = predict10k(ref(meters: m), runs);
+        // 5:00 min/km: im Tempobereich, nur das Verhältnis zählt.
+        final p = predict10k(ref(meters: m, seconds: m * 0.3), runs);
         expect(p.level, level, reason: '$m');
         if (level == PredictionLevel.provisional) {
           expect(p.reason, PredictionReason.distanceRatio);
@@ -279,14 +368,17 @@ void main() {
 
     test('Verhältnis 2,2 gut, darüber ausreichend', () {
       final runs = dense(10, seconds: 5000);
-      final at = predict10k(ref(meters: 22000), runs);
+      final at = predict10k(ref(meters: 22000, seconds: 6600), runs);
       expect(at.level, PredictionLevel.good, reason: '${at.limits}');
-      expect(predict10k(ref(meters: 4546), runs).level, PredictionLevel.good);
-      final p = predict10k(ref(meters: 22100), runs);
+      expect(
+        predict10k(ref(meters: 4546, seconds: 1364), runs).level,
+        PredictionLevel.good,
+      );
+      final p = predict10k(ref(meters: 22100, seconds: 6630), runs);
       expect(p.level, PredictionLevel.sufficient);
       expect(p.reason, PredictionReason.distanceRatio);
       expect(
-        predict10k(ref(meters: 4500), runs).level,
+        predict10k(ref(meters: 4500, seconds: 1350), runs).level,
         PredictionLevel.sufficient,
       );
     });
@@ -661,8 +753,28 @@ void main() {
       expect(s([r]).single.branches, [SuggestionBranch.hardAndSteady]);
     });
     test('RPE 7 kein Vorschlag, RPE 9 ja', () {
-      expect(s([run(1, meters: 5000, rpe: 7, pace: steady)]), isEmpty);
-      expect(s([run(1, meters: 5000, rpe: 9, pace: steady)]), hasLength(1));
+      expect(
+        s([run(1, seconds: 1500, meters: 5000, rpe: 7, pace: steady)]),
+        isEmpty,
+      );
+      expect(
+        s([run(1, seconds: 1500, meters: 5000, rpe: 9, pace: steady)]),
+        hasLength(1),
+      );
+    });
+    test('Tempo außerhalb 2:30 bis 15:00 min/km: kein Vorschlag', () {
+      // 5 km in 12:29 (zu schnell) und 75:01 (zu langsam); Grenzen ja.
+      for (final (seconds, n) in [(749.0, 0), (750.0, 1), (4500.0, 1)]) {
+        expect(
+          s([run(1, seconds: seconds, meters: 5000, rpe: 9, pace: steady)]),
+          hasLength(n),
+          reason: '$seconds s',
+        );
+      }
+      expect(
+        s([run(1, seconds: 4501, meters: 5000, rpe: 9, pace: steady)]),
+        isEmpty,
+      );
     });
     test('2999 m kein Vorschlag, 3000 m ja', () {
       expect(s([run(1, meters: 2999, rpe: 8, pace: steady)]), isEmpty);
@@ -671,14 +783,20 @@ void main() {
     test('ungleichmäßig oder Stabilität unbekannt: kein Vorschlag', () {
       expect(
         s([
-          run(1, meters: 5000, rpe: 9, pace: [3, 3.6, 2.4, 3.5, 2.5]),
+          run(
+            1,
+            seconds: 1500,
+            meters: 5000,
+            rpe: 9,
+            pace: [3, 3.6, 2.4, 3.5, 2.5],
+          ),
         ]),
         isEmpty,
       );
-      expect(s([run(1, meters: 5000, rpe: 9)]), isEmpty);
+      expect(s([run(1, seconds: 1500, meters: 5000, rpe: 9)]), isEmpty);
     });
     test('RPE fehlt: Zweig 1 löst nicht aus', () {
-      expect(s([run(1, meters: 5000, pace: steady)]), isEmpty);
+      expect(s([run(1, seconds: 1500, meters: 5000, pace: steady)]), isEmpty);
     });
     test('Distanz nicht gemessen: kein Vorschlag, auch bei Zweig 2', () {
       expect(
@@ -694,10 +812,10 @@ void main() {
       expect(out.single.branches, [SuggestionBranch.beatsReference]);
     });
     test('Zweig 2 braucht eine Referenz und 3 km', () {
-      expect(s([run(1, seconds: 10, meters: 10000)]), isEmpty);
-      expect(s([run(1, seconds: 300, meters: 2999)], ref: active), isEmpty);
+      expect(s([run(1, seconds: 3000, meters: 10000)]), isEmpty);
+      expect(s([run(1, seconds: 800, meters: 2999)], ref: active), isEmpty);
       expect(
-        s([run(1, seconds: 400, meters: 3000)], ref: active),
+        s([run(1, seconds: 800, meters: 3000)], ref: active),
         hasLength(1),
       );
     });

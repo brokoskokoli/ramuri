@@ -19,6 +19,8 @@ void main() {
     RunningApp(
       dependencies: AppDependencies.create(
         heartRateSensor: DebugTestSensor(const SystemClock()),
+        // E2E-Test der Erinnerung (FR-0174): Auslösen in 10 s aus den Einstellungen.
+        debugReminders: true,
       ),
     ),
   );

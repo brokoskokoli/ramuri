@@ -24,6 +24,10 @@ final List<StorageContractCase> predictionContractCases = [
     'Referenz und Ablehnung verschwinden mit dem Lauf',
     _cascade,
   ),
+  const StorageContractCase(
+    'Referenz aus bestätigtem Lauf löschen lehnt den Lauf ab, manuelle nicht',
+    _deleteConfirmed,
+  ),
   const StorageContractCase('Alles löschen leert Prognose-Daten', _deleteAll),
 ];
 
@@ -123,6 +127,15 @@ Future<void> _invalid(StorageContractHarness h) async {
   await rejects(
     _ref(seconds: 0, date: ok.date, createdAt: ok.createdAt),
     'Zeit 0',
+  );
+  await rejects(
+    _ref(
+      meters: 5000,
+      seconds: 999 * 3600,
+      date: ok.date,
+      createdAt: ok.createdAt,
+    ),
+    'Tempo außerhalb der Spanne (5 km in 999 h)',
   );
   await rejects(
     _ref(date: DateTime(2030, 1, 3), createdAt: at(0)),
@@ -245,5 +258,42 @@ Future<void> _concurrent(StorageContractHarness h) async {
   ]);
   expectEq(ids[1], ids[0], 'gleichzeitig: dieselbe Kennung');
   expectEq((await p.references()).length, 1, 'gleichzeitig: keine Doppelzeile');
+  await s.close();
+}
+
+Future<void> _deleteConfirmed(StorageContractHarness h) async {
+  var s = await h.open();
+  final p = _p(s);
+  // Wegwerf-Läufe vorher: Lauf- und Referenzkennung laufen auseinander, damit
+  // eine Verwechslung von Referenz-Id und Lauf-Id auffällt.
+  await s.runs.create(startedAt: at(0));
+  await s.runs.create(startedAt: at(0));
+  final a = (await s.runs.create(startedAt: at(0))).id;
+  final confirmed = await p.addReference(
+    _ref(
+      kind: ReferenceKind.confirmedRun,
+      date: DateTime(2029, 12, 20),
+      createdAt: at(1),
+      runId: '$a',
+    ),
+  );
+  final manual = await p.addReference(
+    _ref(date: DateTime(2029, 12, 21), createdAt: at(2)),
+  );
+  await p.deleteReference(manual);
+  expectEq(await p.rejectedSuggestions(), <int>{}, 'manuelle: keine Ablehnung');
+  expectTrue(a != confirmed && a != manual, 'Kennungen laufen auseinander');
+  await p.deleteReference(confirmed);
+  expectEq((await p.references()).length, 0, 'Referenz weg');
+  expectEq(await p.rejectedSuggestions(), {a}, 'Lauf abgelehnt');
+  await expectFails(
+    () => p.deleteReference(confirmed),
+    StorageFailure.notFound,
+    'zweites Löschen',
+  );
+  expectEq(await p.rejectedSuggestions(), {a}, 'unverändert');
+  await s.close();
+  s = await h.open();
+  expectEq(await _p(s).rejectedSuggestions(), {a}, 'überlebt Neuöffnen');
   await s.close();
 }

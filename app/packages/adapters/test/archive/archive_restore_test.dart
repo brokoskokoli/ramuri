@@ -13,6 +13,8 @@ import 'package:core/core.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:adapters/src/storage/prediction_access.dart';
+
 import '../storage/support.dart' show testKey;
 import 'archive_fixture.dart';
 
@@ -461,6 +463,82 @@ void main() {
     expect(await q.rejectedSuggestions(), {1});
   });
 
+  test('Referenz außerhalb der Tempospanne: Import nimmt sie an, sie bleibt '
+      'sichtbar, gilt aber nicht (Festlegung WP22, E2E API 36)', () async {
+    final plain = openPlain('${work.path}/slow_plain.db');
+    await fillAllTables(plain);
+    // 5 km in 999 h, jünger als alle Fixture-Referenzen; die App weist so
+    // etwas ab, ein Archiv kann es trotzdem enthalten.
+    await sql(
+      plain,
+      "INSERT INTO reference_performances (kind, distance_m, time_s, "
+      "performed_on, created_at_us, run_id) VALUES "
+      "('race', 5000, 3596400, '2026-11-05', 1762300800000000, NULL)",
+    );
+    final dir = Directory('${work.path}/slow_exports')..createSync();
+    final f = await ArchiveExporter(
+      source: DriftArchiveSource(plain),
+      handoff: FakeFileHandoff()..directory = dir.path,
+      clock: FakeClock(DateTime.utc(2026, 11, 7, 12)),
+      cipherFactory: createArchiveCipherInWorker,
+      pageSize: 2,
+    ).export(password: _password);
+    await plain.close();
+    session = await service().restore(
+      path: f.path!,
+      password: _password,
+      resetConfirmed: true,
+    );
+    final q = (session as PredictionStorage).prediction;
+    final refs = await q.references();
+    // Kein Datenverlust: die Zeile ist da und steht als jüngste vorn.
+    expect(refs.length, 3);
+    expect(refs.first.reference.seconds, 3596400);
+    expect(isUsableReference(refs.first.reference), isFalse);
+    // Geltend ist die jüngste brauchbare.
+    final active = await q.activeReference();
+    expect(active, isNotNull);
+    expect(active!.seconds, isNot(3596400));
+    expect(active.kind, ReferenceKind.confirmedRun);
+  });
+
+  test('Referenz aus bestätigtem Lauf gelöscht: Ablehnung übersteht Export '
+      'und Reimport', () async {
+    final plain = openPlain('${work.path}/del_plain.db');
+    await fillAllTables(plain);
+    // Die Fixture-Ablehnung weg: nur das Löschen soll sie anlegen.
+    await sql(plain, 'DELETE FROM rejected_suggestions');
+    final store = DriftPredictionStore(plain);
+    expect(await store.rejectedSuggestions(), isEmpty);
+    final confirmed = (await store.references()).firstWhere(
+      (r) => r.reference.kind == ReferenceKind.confirmedRun,
+    );
+    await store.deleteReference(confirmed.id);
+    expect(await store.rejectedSuggestions(), {1});
+    final dir = Directory('${work.path}/del_exports')..createSync();
+    final f = await ArchiveExporter(
+      source: DriftArchiveSource(plain),
+      handoff: FakeFileHandoff()..directory = dir.path,
+      clock: FakeClock(DateTime.utc(2026, 11, 7, 12)),
+      cipherFactory: createArchiveCipherInWorker,
+      pageSize: 2,
+    ).export(password: _password);
+    await plain.close();
+    session = await service().restore(
+      path: f.path!,
+      password: _password,
+      resetConfirmed: true,
+    );
+    final q = (session as PredictionStorage).prediction;
+    expect(await q.rejectedSuggestions(), {1});
+    expect(
+      (await q.references()).where(
+        (r) => r.reference.kind == ReferenceKind.confirmedRun,
+      ),
+      isEmpty,
+    );
+  });
+
   test('Ziel zählt als Daten: App ist nicht leer', () async {
     expect(await ArchiveRestoreService.isEmpty(session), isTrue);
     await (session as GoalStorage).goals.save(
@@ -536,15 +614,25 @@ void main() {
     final rest = (await repo.unitOn(DateTime.utc(2026, 11, 3)))!;
     expect(rest.kind, PlanUnitKind.rest);
     expect(rest.runId, isNull);
+    expect(rest.fixed, PlanUnitFixed.day);
+    expect(rest.isRestDay, isTrue);
+    expect(u.fixed, PlanUnitFixed.none);
+    // Harte Einheit locker ersetzt: das Merkmal kommt über den Port zurück.
+    final easy = (await repo.unitOn(DateTime.utc(2026, 11, 4)))!;
+    expect(easy.kind, PlanUnitKind.easy);
+    expect(easy.fixed, PlanUnitFixed.easyForHard);
+    expect(easy.pinned, isTrue);
   });
 
-  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5, 6 und 7). Format 1
+  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5, 6 und 7; 8 ist
+  // das aktuelle). Format 1
   // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
   // kennt, sind danach leer.
   for (final (name, schema) in [
     ('archive_v2', 5),
     ('archive_v2_s6', 6),
     ('archive_v2_s7', 7),
+    ('archive_v2_s8', 8),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -587,10 +675,31 @@ void main() {
         expect(goal!.distance, GoalDistance.tenKilometers);
         expect(got['plans'], hasLength(1));
         expect(got['plans']!.single['goal_id'], 1);
-        expect(got['plan_units'], hasLength(2));
+        expect(got['plan_units'], hasLength(schema >= 8 ? 4 : 2));
         expect(got['plan_units']![0]['run_id'], 1);
         expect(got['plan_units']![0]['structure'], contains('"seconds":300'));
         expect(got['plan_units']![1]['run_id'], isNull);
+        // Schema 7 kennt `fixed` nicht: jede Einheit liest sich mit 'none'
+        // (auch der gepinnte Ruhetag); Schema 8 trägt die Festlegung.
+        expect(
+          [for (final u in got['plan_units']!) u['fixed']],
+          schema >= 8
+              ? ['none', 'day', 'kind', 'easyForHard']
+              : ['none', 'none'],
+        );
+        if (schema >= 8) {
+          final replaced = (await (session as PlanStorage).plans.unitOn(
+            DateTime.utc(2026, 11, 11),
+          ))!;
+          expect(replaced.kind, PlanUnitKind.tempo);
+          expect(replaced.fixed, PlanUnitFixed.kind);
+          expect(replaced.pinned, isTrue);
+          final easy = (await (session as PlanStorage).plans.unitOn(
+            DateTime.utc(2026, 11, 12),
+          ))!;
+          expect(easy.kind, PlanUnitKind.easy);
+          expect(easy.fixed, PlanUnitFixed.easyForHard);
+        }
       } else {
         expect(got['plans'], isEmpty);
         expect(got['plan_units'], isEmpty);
@@ -859,6 +968,21 @@ void main() {
         'plans',
         (d) => d['trigger'] = 'sometimes',
         0,
+      ),
+      'CHECK: Einheit unbekannte Festlegung': (
+        'plan_units',
+        (d) => d['fixed'] = 'other',
+        0,
+      ),
+      'CHECK: Einheit easyForHard nicht locker': (
+        'plan_units',
+        (d) => d['kind'] = 'tempo',
+        2,
+      ),
+      'CHECK: Einheit easyForHard ohne Termin': (
+        'plan_units',
+        (d) => d['pinned'] = 0,
+        2,
       ),
       'CHECK: Einheit unbekannte Art': (
         'plan_units',

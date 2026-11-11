@@ -55,6 +55,8 @@ List<ReferenceSuggestion> suggestReferences({
       continue;
     }
     if (!(run.movingSeconds > 0) || !run.movingSeconds.isFinite) continue;
+    // Ein Vorschlag, den die Prüfung beim Speichern ablehnt, ist keiner.
+    if (!referencePaceInRange(meters, run.movingSeconds, p)) continue;
     final branches = <SuggestionBranch>[];
     final rpe = run.rpe;
     if (rpe != null &&

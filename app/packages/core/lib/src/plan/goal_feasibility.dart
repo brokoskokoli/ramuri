@@ -293,8 +293,9 @@ bool planAllowsFiveKilometerTest({
   if (goal.runDays.length < parameters.hardMinRunDays) return false;
   final anchorMonday = planDay(inputs.anchor);
   final week = planDay(today).difference(anchorMonday).inDays ~/ 7;
-  return canRunContinuous30(
+  return planCanRunContinuous30(
     goal,
+    inputs,
     weekIndex: week < 0 ? 0 : week,
     walkRunWeeks: planCourseSetup(
       goal,

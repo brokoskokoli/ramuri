@@ -1,6 +1,6 @@
 import 'package:core/core.dart';
 import 'package:drift/drift.dart'
-    show BooleanExpressionOperators, OrderingTerm, Value;
+    show BooleanExpressionOperators, ComparableExpr, OrderingTerm, Value;
 
 import 'access_support.dart';
 import 'app_database.dart' as d;
@@ -73,6 +73,25 @@ class DriftRunStore implements RunStore {
             .get();
     return rows.map(_run).toList();
   });
+
+  @override
+  Future<List<StoredRun>> finishedBetween(DateTime from, DateTime to) =>
+      guarded(() async {
+        final rows =
+            await (_db.select(_db.runs)
+                  ..where(
+                    (t) =>
+                        t.state.equals(RunState.finished.name) &
+                        t.endedAtUs.isBiggerOrEqualValue(usOf(from)) &
+                        t.endedAtUs.isSmallerThanValue(usOf(to)),
+                  )
+                  ..orderBy([
+                    (t) => OrderingTerm.asc(t.endedAtUs),
+                    (t) => OrderingTerm.asc(t.id),
+                  ]))
+                .get();
+        return rows.map(_run).toList();
+      });
 
   @override
   Future<List<StoredRun>> unfinished() => guarded(() async {

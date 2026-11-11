@@ -8,14 +8,16 @@ enum PredictionPhase { loading, ready, failed }
 /// Stand der Prognosekarte (WP20 Teil C).
 class PredictionViewState {
   const PredictionViewState.loading()
-    : phase = PredictionPhase.loading,
+    : parameters = const PredictionParameters(),
+      phase = PredictionPhase.loading,
       prediction = null,
       showTestHint = false,
       all = const [],
       suggestion = null;
 
   const PredictionViewState.failed()
-    : phase = PredictionPhase.failed,
+    : parameters = const PredictionParameters(),
+      phase = PredictionPhase.failed,
       prediction = null,
       showTestHint = false,
       all = const [],
@@ -26,7 +28,12 @@ class PredictionViewState {
     required this.showTestHint,
     required this.all,
     required this.suggestion,
+    this.parameters = const PredictionParameters(),
   }) : phase = PredictionPhase.ready;
+
+  /// Grenzen, mit denen die Prognose gerechnet hat (auch für [active] und die
+  /// Gründe ungültiger Referenzen).
+  final PredictionParameters parameters;
 
   final PredictionPhase phase;
   final PerformancePrediction? prediction;
@@ -35,11 +42,24 @@ class PredictionViewState {
   final bool showTestHint;
 
   /// Die gespeicherte geltende Referenz (mit Kennung zum Löschen), auch wenn
-  /// sie die Prognose nicht trägt (zu alt, Pause); `null` ohne Referenz.
-  StoredReference? get active => all.isEmpty ? null : all.first;
+  /// sie die Prognose nicht trägt (zu alt, Pause): die jüngste brauchbare
+  /// ([isUsableReference], wie `activeReference` in `core`); `null` ohne
+  /// brauchbare Referenz.
+  StoredReference? get active {
+    for (final s in all) {
+      if (isUsableReference(s.reference, parameters)) return s;
+    }
+    return null;
+  }
 
-  /// Alle gespeicherten Referenzen, jüngste zuerst (die erste ist [active]).
+  /// Alle gespeicherten Referenzen, jüngste zuerst, auch unbrauchbare.
   final List<StoredReference> all;
+
+  /// Alle außer [active]; unbrauchbare zeigt die Karte als ungültig.
+  List<StoredReference> get others => [
+    for (final s in all)
+      if (!identical(s, active)) s,
+  ];
 
   /// Der eine Vorschlag, der gerade zur Bestätigung ansteht, oder `null`.
   final ReferenceSuggestion? suggestion;
@@ -138,7 +158,9 @@ class PredictionController extends ChangeNotifier {
       hasVo2maxEstimate: hasVo2maxEstimate,
       parameters: parameters,
     );
-    final active = stored.isEmpty ? null : stored.first;
+    final active = activeReference([
+      for (final s in stored) s.reference,
+    ], parameters);
     // Nur Läufe der letzten 182 Tage kommen als Vorschlag in Frage; ältere
     // haben keine Tempowerte und die Referenz wäre schon zu alt.
     final recent = [
@@ -147,7 +169,7 @@ class PredictionController extends ChangeNotifier {
     ];
     final suggestions = suggestReferences(
       runs: recent,
-      activeReference: active?.reference,
+      activeReference: active,
       rejectedRunIds: rejectedIds,
       storedRunIds: storedRunIds,
       parameters: parameters,
@@ -162,6 +184,7 @@ class PredictionController extends ChangeNotifier {
       ),
       all: stored,
       suggestion: suggestions.isEmpty ? null : suggestions.first,
+      parameters: parameters,
     );
   }
 

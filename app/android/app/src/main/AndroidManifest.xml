@@ -13,7 +13,7 @@
         tools:targetApi="s"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <!-- ADR-0005 Punkt 2: Foreground Service der Aufzeichnung. Keine Hintergrund-Standortberechtigung,
-         kein BOOT_COMPLETED. POST_NOTIFICATIONS fragt die App vor dem Laufstart; ohne sie
+         kein BOOT_COMPLETED für den Dienst. POST_NOTIFICATIONS fragt die App vor dem Laufstart; ohne sie
          (abgelehnt) läuft der Dienst, nur die Benachrichtigung ist nicht sichtbar. Der Wake Lock gilt nur für die Laufdauer. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
@@ -23,6 +23,10 @@
          ohne sie ist die Schrittfrequenz "nicht verfügbar" und der Lauf wird normal aufgezeichnet. -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- FR-0174: Erinnerungen vor geplanten Einheiten. POST_NOTIFICATIONS fragt die App erst beim
+         Einschalten. Wecker inexakt (kein SCHEDULE_EXACT_ALARM); nach Neustart plant
+         TrainingReminderReceiver die gespeicherten Erinnerungen neu (nur Wecker, kein Dienst). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <!-- SEC-0002, SEC-0008, ADR-0009: Netz nur für Kartenkacheln, nur mit Einwilligung, nur über den
          Kartenadapter (Gate-Schritt "Netz nur im Kartenadapter"), nur HTTPS (network_security_config). -->
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -62,6 +66,16 @@
             android:name=".RecordingService"
             android:exported="false"
             android:foregroundServiceType="location|connectedDevice"/>
+        <!-- FR-0174: Wecker der Erinnerungen (explizites Intent) und Neuplanung nach Neustart oder
+             Update. Nicht exportiert: Andere Apps können ihn nicht auslösen. -->
+        <receiver
+            android:name=".TrainingReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
         <!-- FR-0201: Teilen von Exportdateien. Nicht exportiert; Empfänger bekommen nur ein
              Leserecht auf die eine URI (FLAG_GRANT_READ_URI_PERMISSION, FileHandoffChannel.kt).
              Freigegeben ist nur cacheDir/exports/ (res/xml/file_paths.xml). -->

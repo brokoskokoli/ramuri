@@ -23,6 +23,11 @@ enum PinnedConflictKind {
   /// Woche außerhalb des Plans oder Tag vor heute); der Termin wurde nicht
   /// übernommen.
   noMatchingUnit,
+
+  /// Der Nutzer hat die Art der Einheit ersetzt ([PlanUnitFixed.keepsKind]), die
+  /// Woche ist aber eine Geh-Lauf-Woche: Die Abfolge hat Vorrang, der Termin
+  /// bleibt, die ersetzte Art entfällt.
+  walkRunFirst,
 }
 
 /// Konflikt eines Pinned-Termins, nur gemeldet, nie automatisch gelöst.
@@ -177,8 +182,9 @@ GeneratedPlan generatePlan(
     for (var i = 0; i < course.weeks.first.index; i++) {
       final inProgram = walkRun != null && i < setup.walkRunWeeks;
       if (!inProgram &&
-          canRunContinuous30(
+          planCanRunContinuous30(
             goal,
+            inputs,
             weekIndex: i,
             walkRunWeeks: setup.walkRunWeeks,
             parameters: p,
@@ -222,7 +228,12 @@ GeneratedPlan generatePlan(
         if (!u.day.isBefore(start) && u.day.isBefore(end)) u,
     ];
     final frozenDays = {for (final u in frozenWeek) u.day};
-    final frozenHard = frozenWeek.any((u) => u.isHard);
+    // Eine vom Nutzer zum lockeren Lauf ersetzte harte Einheit (easyForHard)
+    // zählt auch eingefroren als harte Einheit der Woche.
+    final frozenReplaced = frozenWeek.any(
+      (u) => u.fixed == PlanUnitFixed.easyForHard,
+    );
+    final frozenHard = frozenReplaced || frozenWeek.any((u) => u.isHard);
 
     int? prevWeekday;
     final prevUnits = byWeek[start.subtract(const Duration(days: 7))];
@@ -247,8 +258,9 @@ GeneratedPlan generatePlan(
             runDays: goal.runDays,
             maxSessionMinutes: maxSession,
             hardEnabled: goal.hardSessionEnabled,
-            continuous30: canRunContinuous30(
+            continuous30: planCanRunContinuous30(
               goal,
+              inputs,
               weekIndex: week.index,
               walkRunWeeks: setup.walkRunWeeks,
               parameters: p,
@@ -336,18 +348,29 @@ GeneratedPlan generatePlan(
     ];
     pinnedLeft.removeWhere(weekPinned.contains);
     final moved = <DateTime>{};
+    var hardReplaced = false;
     if (weekPinned.isNotEmpty) {
-      final r = _applyPinned(future, weekPinned, frozenDays);
+      final r = _applyPinned(
+        future,
+        weekPinned,
+        frozenDays,
+        short: planWeekHasShortHardForm(week, parameters: p),
+        maxSession: maxSession,
+        parameters: p,
+      );
       future = r.units;
       conflicts.addAll(r.conflicts);
       moved.addAll(r.movedDays);
+      hardReplaced = r.hardReplaced;
     }
 
     if (future.isNotEmpty) {
       if (planned.unplacedMinutes > 0) {
         unplaced[week.index] = planned.unplacedMinutes;
       }
-      final om = planned.hardOmission;
+      final om = hardReplaced || frozenReplaced
+          ? HardOmission.replacedByUser
+          : planned.hardOmission;
       if (om != null) omissions[week.index] = om;
     }
     created.addAll(future);
@@ -392,12 +415,38 @@ GeneratedPlan generatePlan(
     frozenUnits: frozen,
     unplacedByWeek: unplaced,
     hardOmissions: omissions,
-    droppedDaysByWeek: {
+    droppedDaysByWeek: planDroppedWithoutRestDays({
       for (final e in dropped.entries) e.key: (e.value..sort()),
-    },
+    }, created),
     pinnedConflicts: conflicts,
     hardFit: setup.hardFit,
   );
+}
+
+/// Die entfallenen Tage je Woche ([GeneratedPlan.droppedDaysByWeek]) ohne
+/// die Tage, die in [units] ein Ruhetag des Nutzers sind
+/// ([PlanUnit.isRestDay]): Dort entfällt kein Lauftag, der Nutzer hat den
+/// Ruhetag festgelegt. Wochen ohne übrige Tage fallen weg. Gilt für die
+/// Rechnung ([generatePlan], der Ruhetag landet erst nach der Kürzung auf
+/// dem Tag) und für gespeicherte Hinweise ([planHintsFromSummary], der
+/// Ruhetag wird ohne Neuberechnung festgelegt).
+Map<int, List<DateTime>> planDroppedWithoutRestDays(
+  Map<int, List<DateTime>> dropped,
+  Iterable<PlanUnit> units,
+) {
+  final rest = {
+    for (final u in units)
+      if (u.isRestDay) planDay(u.day),
+  };
+  if (rest.isEmpty) return dropped;
+  return {
+    for (final e in dropped.entries)
+      if (e.value.any((d) => !rest.contains(planDay(d))))
+        e.key: [
+          for (final d in e.value)
+            if (!rest.contains(planDay(d))) d,
+        ],
+  };
 }
 
 int _role(PlanUnit u) => u.isHard
@@ -406,7 +455,12 @@ int _role(PlanUnit u) => u.isHard
     ? 1
     : 0;
 
-PlanUnit _moved(PlanUnit u, DateTime day, {required bool pinned}) => PlanUnit(
+PlanUnit _moved(
+  PlanUnit u,
+  DateTime day, {
+  required bool pinned,
+  PlanUnitFixed? fixed,
+}) => PlanUnit(
   day: day,
   kind: u.kind,
   phase: u.phase,
@@ -416,37 +470,116 @@ PlanUnit _moved(PlanUnit u, DateTime day, {required bool pinned}) => PlanUnit(
   id: u.id,
   runId: u.runId,
   pinned: pinned,
+  fixed: fixed ?? u.fixed,
   method: u.method,
   methodVersion: u.methodVersion,
 );
 
+/// Die erzeugte Einheit [u] mit der vom Nutzer festgelegten Art [kind]
+/// ([PlanUnitFixed.kind]): Dauer und Abschnitte neu, ohne Zielintensität
+/// (die setzt [applyTargetIntensities] danach).
+PlanUnit _withKind(
+  PlanUnit u,
+  PlanUnitKind kind, {
+  required bool short,
+  required int maxSession,
+  required PlanParameters parameters,
+  PlanUnitFixed fixed = PlanUnitFixed.kind,
+}) {
+  final c = planSegmentsForKind(
+    kind,
+    minutes: u.minutes,
+    short: short,
+    maxSessionMinutes: maxSession,
+    parameters: parameters,
+  );
+  return PlanUnit(
+    day: u.day,
+    kind: kind,
+    phase: u.phase,
+    weekIndex: u.weekIndex,
+    minutes: c.minutes,
+    segments: c.segments,
+    id: u.id,
+    runId: u.runId,
+    pinned: u.pinned,
+    fixed: fixed,
+    method: u.method,
+    methodVersion: u.methodVersion,
+  );
+}
+
 class _Pinned {
-  const _Pinned(this.units, this.conflicts, this.movedDays);
+  const _Pinned(
+    this.units,
+    this.conflicts,
+    this.movedDays, {
+    this.hardReplaced = false,
+  });
   final List<PlanUnit> units;
   final List<PinnedConflict> conflicts;
   final Set<DateTime> movedDays;
+
+  /// Der Nutzer hat die harte Einheit der Woche durch einen lockeren Lauf
+  /// ersetzt; sie wird nicht auf einen anderen Tag verlegt.
+  final bool hardReplaced;
 }
 
 /// Legt die Pinned-Tage auf die erzeugten Einheiten der Woche: je Pinned-Tag
 /// die Einheit derselben Rolle (sonst eine übrige). Erzeugte Einheiten auf
 /// einem Pinned-Tag weichen auf die frei gewordenen Tage aus.
+///
+/// Ruhetage des Nutzers ([PlanUnit.isRestDay]) nehmen keine erzeugte Einheit
+/// auf: Sie bleiben als Ruhetag im Plan, und eine erzeugte Einheit auf dem
+/// Tag weicht auf einen frei gewordenen Tag aus oder entfällt (der Nutzer
+/// hat das beim Festlegen bestätigt). Hat der Nutzer die Art ersetzt
+/// ([PlanUnitFixed.kind]), bekommt die Einheit auf dem Tag diese Art; Dauer
+/// und Abschnitte rechnet [planSegmentsForKind] neu.
+///
+/// Hat der Nutzer eine harte Einheit zum lockeren Lauf gemacht
+/// ([PlanUnitFixed.easyForHard], Festlegung WP22), nimmt diese Einheit die
+/// harte Einheit ihrer Woche auf, unabhängig vom Tag (auch nach Verschieben,
+/// geänderten Lauftagen oder wenn die Rechnung die harte Einheit anders
+/// legt): Die Woche hat dann keine harte Einheit, sie wird nicht auf einen
+/// anderen Tag verlegt. Eine ersetzte harte Art übernimmt
+/// dagegen über die Rolle die harte Einheit der Woche (deren Tag wird
+/// locker). In einer Geh-Lauf-Woche hat die Abfolge Vorrang: Der Termin
+/// bleibt, die ersetzte Art entfällt ([PinnedConflictKind.walkRunFirst]).
 _Pinned _applyPinned(
   List<PlanUnit> future,
   List<PlanUnit> pinned,
-  Set<DateTime> frozenDays,
-) {
+  Set<DateTime> frozenDays, {
+  required bool short,
+  required int maxSession,
+  required PlanParameters parameters,
+}) {
   final conflicts = <PinnedConflict>[];
   final out = [...future];
-  final assigned = <int, DateTime>{}; // Index -> Pinned-Tag
+  final assigned = <int, PlanUnit>{}; // Index -> Pinned-Einheit
   final byDay = [...pinned]..sort((a, b) => a.day.compareTo(b.day));
   final todo = <PlanUnit>[];
+  final restUnits = <PlanUnit>[];
   final seenDays = <DateTime>{};
   for (final u in byDay) {
     final d = planDay(u.day);
     if (frozenDays.contains(d)) {
       conflicts.add(PinnedConflict(kind: PinnedConflictKind.dayTaken, day: d));
     } else if (seenDays.add(d)) {
-      todo.add(u);
+      (u.isRestDay ? restUnits : todo).add(u);
+    }
+  }
+  final restDays = {for (final u in restUnits) planDay(u.day)};
+  var hardReplaced = false;
+  for (final u in [...todo]) {
+    if (u.fixed != PlanUnitFixed.easyForHard) continue;
+    final i = out.indexed
+        .where((e) => e.$2.isHard && !assigned.containsKey(e.$1))
+        .firstOrNull
+        ?.$1;
+    if (i != null) {
+      assigned[i] = u;
+      todo.remove(u);
+      hardReplaced = true;
     }
   }
   for (var pass = 0; pass < 2; pass++) {
@@ -463,7 +596,7 @@ _Pinned _applyPinned(
       if (hit < 0) {
         rest.add(u);
       } else {
-        assigned[hit] = planDay(u.day);
+        assigned[hit] = u;
       }
     }
     todo
@@ -478,25 +611,99 @@ _Pinned _applyPinned(
       ),
     );
   }
-  if (assigned.isEmpty) return _Pinned(out, conflicts, const {});
+  if (assigned.isEmpty && restUnits.isEmpty) {
+    return _Pinned(out, conflicts, const {});
+  }
 
-  final pinnedDays = assigned.values.toSet();
+  final pinnedDays = {for (final u in assigned.values) planDay(u.day)};
   final freed = [
     for (final i in assigned.keys)
-      if (!pinnedDays.contains(out[i].day)) out[i].day,
+      if (!pinnedDays.contains(out[i].day) && !restDays.contains(out[i].day))
+        out[i].day,
   ]..sort();
   final movedDays = <DateTime>{};
+  final kept = <PlanUnit>[];
   for (var i = 0; i < out.length; i++) {
     final target = assigned[i];
     if (target != null) {
-      out[i] = _moved(out[i], target, pinned: true);
-      movedDays.add(target);
-    } else if (pinnedDays.contains(out[i].day) && freed.isNotEmpty) {
-      out[i] = _moved(out[i], freed.removeAt(0), pinned: out[i].pinned);
+      final day = planDay(target.day);
+      final walkRunFirst =
+          target.fixed.keepsKind && out[i].kind == PlanUnitKind.walkRun;
+      if (walkRunFirst) {
+        conflicts.add(
+          PinnedConflict(kind: PinnedConflictKind.walkRunFirst, day: day),
+        );
+      }
+      final placed = _moved(
+        out[i],
+        day,
+        pinned: true,
+        fixed: walkRunFirst ? PlanUnitFixed.none : target.fixed,
+      );
+      kept.add(
+        target.fixed.keepsKind && !walkRunFirst
+            ? _withKind(
+                placed,
+                target.kind,
+                short: short,
+                maxSession: maxSession,
+                parameters: parameters,
+                fixed: target.fixed,
+              )
+            : placed,
+      );
+      movedDays.add(day);
+    } else if (pinnedDays.contains(out[i].day) ||
+        restDays.contains(out[i].day)) {
+      // Weicht auf einen frei gewordenen Tag aus. Ohne Ruhetag gibt es immer
+      // einen (jede zugeordnete Einheit macht ihren Tag frei); ein Ruhetag
+      // macht keinen Tag frei, dann entfällt die Einheit (eine Einheit
+      // weniger in der Woche, wie beim Festlegen bestätigt).
+      if (freed.isNotEmpty) {
+        kept.add(_moved(out[i], freed.removeAt(0), pinned: out[i].pinned));
+      }
+    } else {
+      kept.add(out[i]);
     }
   }
-  out.sort((a, b) => a.day.compareTo(b.day));
-  return _Pinned(out, conflicts, movedDays);
+  for (final u in restUnits) {
+    kept.add(
+      PlanUnit(
+        day: planDay(u.day),
+        kind: PlanUnitKind.rest,
+        phase: u.phase,
+        weekIndex: u.weekIndex,
+        minutes: 0,
+        segments: const [],
+        pinned: true,
+        fixed: PlanUnitFixed.day,
+      ),
+    );
+  }
+  kept.sort((a, b) => a.day.compareTo(b.day));
+  return _Pinned(
+    kept,
+    conflicts,
+    movedDays,
+    hardReplaced: hardReplaced && !kept.any((u) => u.isHard),
+  );
+}
+
+/// Abstandskonflikte der Termine im gespeicherten Plan [units] (für die
+/// Anzeige, ohne Rechnung): wie in [generatePlan] je offener künftiger
+/// Termin (`pinned`, Tag ab [today], ohne Lauf), der als intensive Einheit
+/// näher als `minGapDays` an der vorigen oder nächsten intensiven Einheit
+/// liegt (FR-0152, PAR-060), ein [PinnedConflictKind.spacing].
+List<PinnedConflict> planSpacingConflicts(
+  List<PlanUnit> units,
+  DateTime today, {
+  PlanParameters parameters = const PlanParameters(),
+}) {
+  final t = planDay(today);
+  return _spacingConflicts(units, {
+    for (final u in units)
+      if (u.pinned && u.runId == null && !planDay(u.day).isBefore(t)) u.day,
+  }, parameters.minGapDays);
 }
 
 /// Meldet aufeinanderfolgende intensive Einheiten (langer Lauf, harte
@@ -565,6 +772,7 @@ PlanUnit _asEasy(PlanUnit u) => PlanUnit(
   minutes: u.minutes,
   segments: [PlanSegment(kind: PlanSegmentKind.easy, minutes: u.minutes)],
   pinned: u.pinned,
+  fixed: u.fixed,
   method: u.method,
   methodVersion: u.methodVersion,
 );

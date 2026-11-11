@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../history/history_screen.dart';
 import '../history/history_view_state.dart';
+import '../plan/plan_page_view_state.dart';
+import '../plan/plan_screen.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/run_ports.dart';
 import '../sensors/sensor_manager.dart';
@@ -11,16 +13,19 @@ import '../statistics/statistics_screen.dart';
 import '../statistics/statistics_view_state.dart';
 import 'data_changes.dart';
 import 'home_screen.dart';
+import 'run_starter.dart';
 
-/// Hülle mit der unteren Navigation (FR-0208): Heute, Verlauf, Fortschritt.
+/// Hülle mit der unteren Navigation (FR-0208): Heute, Plan, Verlauf,
+/// Fortschritt.
 /// Lauf, Lauf vorbereiten, Detail und Zusammenfassung werden über den
 /// Root-Navigator gelegt und decken die Leiste damit ab (Vollbild).
 ///
 /// Der gewählte Bereich wird bei jedem Wechsel und bei jeder Meldung von
 /// [changes] neu aufgebaut (kein `IndexedStack`), damit nichts Veraltetes
 /// stehen bleibt. Die Daten werden dabei frisch geladen; die Auswahl des
-/// Zeitraums und die Scrollposition von Fortschritt hält die Hülle in einem
-/// Zustandsobjekt über den Neuaufbau hinweg.
+/// Zeitraums und die Scrollposition von Fortschritt und die gezeigte Woche und
+/// Scrollposition von Plan hält die Hülle in je einem Zustandsobjekt über den
+/// Neuaufbau hinweg.
 class AppShell extends StatefulWidget {
   const AppShell({
     super.key,
@@ -55,9 +60,10 @@ class _Tab {
 }
 
 class _AppShellState extends State<AppShell> {
-  // Ab Phase 2 kommt „Plan“ an zweiter Stelle dazu (FR-0208).
+  // Ab Phase 2 steht „Plan“ an zweiter Stelle (FR-0208).
   static const _tabs = [
     _Tab('today', Key('home_today'), Icons.home_rounded, _today),
+    _Tab('plan', Key('home_plan'), Icons.calendar_month_rounded, _plan),
     _Tab(
       'history',
       Key('home_history'),
@@ -73,6 +79,7 @@ class _AppShellState extends State<AppShell> {
   ];
 
   static String _today(AppLocalizations l) => l.homeToday;
+  static String _plan(AppLocalizations l) => l.homePlan;
   static String _history(AppLocalizations l) => l.homeHistory;
   static String _progress(AppLocalizations l) => l.homeProgress;
 
@@ -84,8 +91,26 @@ class _AppShellState extends State<AppShell> {
   /// Zeitraum des Verlaufs über Tab-Wechsel.
   final HistoryViewState _historyState = HistoryViewState();
 
+  /// Gezeigte Woche und Scrollposition des Plans über Tab-Wechsel.
+  final PlanPageViewState _planState = PlanPageViewState();
+
   Widget _body(String id) {
     switch (id) {
+      case 'plan':
+        return PlanScreen(
+          session: widget.session,
+          clock: widget.clock,
+          viewState: _planState,
+          onStartUnit: (context, unit) => RunStarter(
+            session: widget.session,
+            clock: widget.clock,
+            permissions: widget.permissions,
+            recalculation: widget.recalculation,
+            runPorts: widget.runPorts,
+            sensors: widget.sensors,
+            changes: widget.changes,
+          ).start(context, unit: unit),
+        );
       case 'history':
         return HistoryScreen(
           session: widget.session,
@@ -120,10 +145,18 @@ class _AppShellState extends State<AppShell> {
     return ListenableBuilder(
       listenable: widget.changes,
       builder: (context, _) => PopScope(
-        // Zurück: aus Verlauf und Fortschritt zu Heute, von Heute aus der App.
+        // Zurück: aus Plan, Verlauf und Fortschritt zu Heute, von Heute aus der App.
         canPop: _index == 0,
         onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) setState(() => _index = 0);
+          if (didPop) return;
+          // Zurück aus dem Kalender führt zur Plan-Seite.
+          setState(() {
+            if (_tabs[_index].id == 'plan' && _planState.calendarOpen) {
+              _planState.calendarOpen = false;
+            } else {
+              _index = 0;
+            }
+          });
         },
         child: Scaffold(
           body: KeyedSubtree(

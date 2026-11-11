@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -84,6 +85,24 @@ class _FailingWrite implements PlanRepository {
   @override
   Future<void> confirmMove(int u, DateTime d, {required DateTime today}) =>
       _inner.confirmMove(u, d, today: today);
+  @override
+  Future<void> replaceUnit(int u, PlanUnit r, {required DateTime today}) =>
+      _inner.replaceUnit(u, r, today: today);
+  @override
+  Future<void> setRestDay(
+    PlanUnit r, {
+    required DateTime today,
+    required int? expectedUnitId,
+    DateTime? moveUnitTo,
+  }) => _inner.setRestDay(
+    r,
+    today: today,
+    expectedUnitId: expectedUnitId,
+    moveUnitTo: moveUnitTo,
+  );
+  @override
+  Future<void> clearRestDay(DateTime d, {required DateTime today}) =>
+      _inner.clearRestDay(d, today: today);
 }
 
 /// Lehnt die ersten [rejections] Schreibversuche mit `rejected` ab und zählt
@@ -121,6 +140,24 @@ class _RejectingWrite implements PlanRepository {
   @override
   Future<void> confirmMove(int u, DateTime d, {required DateTime today}) =>
       _inner.confirmMove(u, d, today: today);
+  @override
+  Future<void> replaceUnit(int u, PlanUnit r, {required DateTime today}) =>
+      _inner.replaceUnit(u, r, today: today);
+  @override
+  Future<void> setRestDay(
+    PlanUnit r, {
+    required DateTime today,
+    required int? expectedUnitId,
+    DateTime? moveUnitTo,
+  }) => _inner.setRestDay(
+    r,
+    today: today,
+    expectedUnitId: expectedUnitId,
+    moveUnitTo: moveUnitTo,
+  );
+  @override
+  Future<void> clearRestDay(DateTime d, {required DateTime today}) =>
+      _inner.clearRestDay(d, today: today);
 }
 
 void main() {
@@ -509,5 +546,615 @@ void main() {
       final after = await _all(e.plans);
       expect(after.where((u) => u.pinned).map((u) => u.day), [target]);
     });
+  });
+
+  group(
+    'Ersetzen und Ruhetag bleiben über Neuberechnungen (WP22, Schema 8)',
+    () {
+      DateTime monday(DateTime d) => d.subtract(Duration(days: d.weekday - 1));
+
+      /// Ersetzt eine lockere Einheit ab Tag +14 durch tempo und legt eine
+      /// Woche später einen Ruhetag auf den Tag einer Einheit (sie entfällt).
+      Future<(_Env, DateTime, DateTime)> setup() async {
+        final e = await _Env.open();
+        await e.goals.save(_goal(), today: _goal().createdAt);
+        await e.run(PlanTrigger.create, 0);
+        final units = await _all(e.plans);
+        final easy = units.firstWhere(
+          (u) => u.kind == PlanUnitKind.easy && u.day.isAfter(_day(14)),
+        );
+        final check = checkPlanReplace(
+          units: units,
+          unit: easy,
+          kind: PlanUnitKind.tempo,
+          goal: (await e.plans.currentGoal())!,
+          inputs: (await e.plans.history()).last.inputs,
+          today: _day(0),
+        );
+        expect(check.blocked, isNull);
+        await e.plans.replaceUnit(easy.id!, check.unit!, today: _day(0));
+        final restOn = units.firstWhere(
+          (u) => u.day.isAfter(easy.day.add(const Duration(days: 7))),
+        );
+        await e.plans.setRestDay(
+          planRestDayUnit(
+            day: restOn.day,
+            goal: (await e.plans.currentGoal())!,
+            inputs: (await e.plans.history()).last.inputs,
+            today: _day(0),
+          ),
+          today: _day(0),
+          expectedUnitId: restOn.id,
+        );
+        return (e, easy.day, restOn.day);
+      }
+
+      /// Harte Einheiten (Tag|Art) ab [from] außerhalb der Wochen von [skip].
+      Future<List<String>> hard(
+        _Env e,
+        DateTime from,
+        Set<DateTime> skip,
+      ) async => [
+        for (final u in await _all(e.plans))
+          if (u.isHard &&
+              !u.day.isBefore(from) &&
+              !skip.contains(monday(u.day)))
+            '${u.day.toIso8601String()}|${u.kind.name}',
+      ];
+
+      // Befund NB3-1: hart -> locker hängt an der Einheit
+      // (fixed = easyForHard), nicht am Tag der erzeugten harten Einheit.
+      test('hart -> locker, danach verschoben: manuell und automatisch '
+          'bleibt die Woche ohne harte Einheit, Hinweis „vom Nutzer '
+          'ersetzt“', () async {
+        final e = await _Env.open();
+        await e.goals.save(_goal(), today: _goal().createdAt);
+        await e.run(PlanTrigger.create, 0);
+        final units = await _all(e.plans);
+        final hardUnit = units.firstWhere(
+          (u) => u.isHard && u.day.isAfter(_day(14)),
+        );
+        final check = checkPlanReplace(
+          units: units,
+          unit: hardUnit,
+          kind: PlanUnitKind.easy,
+          goal: (await e.plans.currentGoal())!,
+          inputs: (await e.plans.history()).last.inputs,
+          today: _day(0),
+        );
+        expect(check.unit!.fixed, PlanUnitFixed.easyForHard);
+        await e.plans.replaceUnit(hardUnit.id!, check.unit!, today: _day(0));
+        final week = monday(hardUnit.day);
+        final taken = {for (final u in units) u.day};
+        final to = [for (var i = 0; i < 7; i++) week.add(Duration(days: i))]
+            .firstWhere((d) => !taken.contains(d));
+        await e.plans.confirmMove(hardUnit.id!, to, today: _day(0));
+        // Andere Wochenzeit je Lauf, damit jede Rechnung eine Fassung
+        // schreibt (gleiche Einheiten schreiben keine).
+        var offset = 0;
+        for (final (t, cap) in [
+          (PlanTrigger.manual, 200),
+          (PlanTrigger.weekly, 260),
+          (PlanTrigger.manual, 220),
+        ]) {
+          offset += 1;
+          final g = _goal(capMin: cap);
+          await e.goals.save(g, today: g.createdAt);
+          final r = await e.run(t, offset);
+          // Automatisch ohne geänderte Einheiten entsteht keine Fassung
+          // (Ausnahme zu P3 nur für Ziel-/Nutzerauslöser); geprüft werden
+          // dann Rechnung und gespeicherter Plan.
+          if (t == PlanTrigger.manual) {
+            expect(r.version, isNotNull, reason: '${t.name}: Fassung');
+          }
+          final w = [
+            for (final u in await _all(e.plans))
+              if (monday(u.day) == week) u,
+          ];
+          expect(w.where((u) => u.isHard), isEmpty, reason: t.name);
+          final m = w.singleWhere((u) => u.day == to);
+          expect(m.kind, PlanUnitKind.easy, reason: t.name);
+          expect(m.fixed, PlanUnitFixed.easyForHard, reason: t.name);
+          expect(m.pinned, isTrue, reason: t.name);
+          expect(
+            r.generated?.hardOmissions[m.weekIndex],
+            HardOmission.replacedByUser,
+            reason: t.name,
+          );
+        }
+      });
+
+      test('über manual, goalChange und weekly: Art bleibt (Dauer neu '
+          'gerechnet), Ruhetag bleibt ohne Lauf, die übrigen harten Formen '
+          'rotieren wie ohne Ersetzen (PAR-198)', () async {
+        final (e, replaced, rest) = await setup();
+        final ref = await _Env.open();
+        await ref.goals.save(_goal(), today: _goal().createdAt);
+        await ref.run(PlanTrigger.create, 0);
+        final skip = {monday(replaced), monday(rest)};
+
+        var offset = 0;
+        for (final (t, goal) in [
+          (PlanTrigger.manual, _goal(capMin: 200)),
+          (PlanTrigger.goalChange, _goal(capMin: 260)),
+          (PlanTrigger.weekly, null),
+          (PlanTrigger.manual, null),
+        ]) {
+          offset += 1;
+          for (final x in [e, ref]) {
+            if (goal != null) await x.goals.save(goal, today: goal.createdAt);
+            await x.run(t, offset);
+          }
+          final units = await _all(e.plans);
+          final r = units.where((u) => u.day == replaced).single;
+          expect(r.kind, PlanUnitKind.tempo, reason: t.name);
+          expect(r.fixed, PlanUnitFixed.kind, reason: t.name);
+          expect(r.pinned, isTrue, reason: t.name);
+          expect(
+            r.segments.fold<int>(0, (a, s) => a + s.minutes),
+            r.minutes,
+            reason: 'Dauer und Abschnitte neu gerechnet (${t.name})',
+          );
+          final onRest = units.where((u) => u.day == rest).toList();
+          expect(onRest, hasLength(1), reason: t.name);
+          expect(onRest.single.isRestDay, isTrue, reason: t.name);
+          expect(onRest.single.fixed, PlanUnitFixed.day, reason: t.name);
+          final h = await hard(e, _day(offset), skip);
+          expect(h, await hard(ref, _day(offset), skip), reason: t.name);
+          expect(
+            {for (final x in h) x.split('|')[1]}.length,
+            greaterThan(1),
+            reason: 'Rotation läuft weiter (${t.name})',
+          );
+        }
+      });
+    },
+  );
+
+  test('previewPlan: gleiche Hinweise und Einheiten wie die Rechnung, '
+      'ohne zu schreiben (WP22)', () async {
+    final e = await _Env.open();
+    await e.goals.save(_goal(), today: _goal().createdAt);
+    final r = await e.run(PlanTrigger.create, 0);
+    final last = (await e.plans.history()).last;
+    final before = await _all(e.plans);
+    final p = previewPlan(
+      goal: _goal(),
+      inputs: last.inputs.copyWith(today: _day(0)),
+      units: before,
+      today: _day(0),
+    );
+    expect(p.units.map(_sig), r.generated!.units.map(_sig));
+    expect(p.hardFit, r.generated!.hardFit);
+    expect(p.hardOmissions.keys, r.generated!.hardOmissions.keys);
+    expect((await _all(e.plans)).map(_sig), before.map(_sig));
+    expect(await e.plans.history(), hasLength(1));
+  });
+
+  test('Stand aus Läufen ersetzt „30 min: nein“ des Ziels auch in der '
+      'Neuberechnung: harte Einheiten möglich (PAR-192, PAR-198)', () async {
+    final e = await _Env.open();
+    final goal = TrainingGoal(
+      type: GoalType.distance,
+      distance: GoalDistance.tenKilometers,
+      targetDate: DateTime(2027, 6, 1),
+      runDays: const {2, 4, 6},
+      maxSessionSeconds: 7200,
+      weeklyCapSeconds: 240 * 60.0,
+      createdAt: DateTime.utc(2026, 11, 1),
+      hardSessionEnabled: true,
+      canRun30: ContinuousRun30.no,
+    );
+    await e.goals.save(goal, today: goal.createdAt);
+    String text(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+    // 12 Läufe zu 50 min in den letzten 6 Wochen (2 je Woche).
+    final runs = [
+      for (var i = 0; i < 12; i++)
+        RunFigures(
+          runId: i + 1,
+          endedAt: _day(-1 - 3 * i).add(const Duration(hours: 8)),
+          day: text(_day(-1 - 3 * i)),
+          distanceMeters: 8000,
+          movingTime: const Duration(minutes: 50),
+          totalTime: const Duration(minutes: 50),
+        ),
+    ];
+    final built = buildPlanInputs(goal: goal, today: _day(0), runs: runs);
+    expect(built.inputs.walkRunStart, isNull);
+    expect(built.inputs.startWeeklyMinutes, greaterThanOrEqualTo(100));
+
+    final created = await recalculatePlan(
+      plans: e.plans,
+      settings: e.settings,
+      trigger: PlanTrigger.create,
+      today: _day(0),
+      now: _now(0),
+      inputs: built.inputs,
+    );
+    expect(created.generated!.units.where((u) => u.isHard), isNotEmpty);
+    expect(
+      created.generated!.hardOmissions.values,
+      isNot(contains(HardOmission.notContinuous30)),
+    );
+
+    // Die wöchentliche Prüfung rechnet mit gespeichertem Ziel und den
+    // gespeicherten Eingaben ebenso (ADR-0010 Punkt 6).
+    final weekly = await e.run(PlanTrigger.weekly, 7);
+    expect(weekly.generated!.units.where((u) => u.isHard), isNotEmpty);
+    expect(
+      weekly.generated!.hardOmissions.values,
+      isNot(contains(HardOmission.notContinuous30)),
+    );
+    expect(
+      planAllowsFiveKilometerTest(
+        goal: goal,
+        inputs: (await e.plans.history()).last.inputs,
+        today: _day(7),
+      ),
+      isTrue,
+    );
+  });
+
+  test('automatische Rechnung: ersetzte Art in einer Geh-Lauf-Woche gilt '
+      'nicht mehr als vom Nutzer festgelegt (Festlegung WP22)', () async {
+    final e = await _Env.open();
+    final goal = TrainingGoal(
+      type: GoalType.distance,
+      distance: GoalDistance.tenKilometers,
+      targetDate: DateTime(2027, 6, 1),
+      runDays: const {2, 4, 6},
+      maxSessionSeconds: 7200,
+      weeklyCapSeconds: 240 * 60.0,
+      createdAt: DateTime.utc(2026, 11, 1),
+      hardSessionEnabled: true,
+      canRun30: ContinuousRun30.no,
+    );
+    await e.goals.save(goal, today: goal.createdAt);
+    await e.run(PlanTrigger.create, 0);
+    final v = (await e.plans.history()).last;
+    final units = await _all(e.plans);
+    final walk = units.firstWhere(
+      (u) => u.kind == PlanUnitKind.walkRun && u.day.isAfter(_day(8)),
+    );
+    // Gespeichert: an dem Tag ein Tempolauf, den der Nutzer festgelegt hat.
+    await e.plans.writeVersion(
+      PlanVersionDraft(
+        createdAt: _now(0),
+        validFrom: _day(0),
+        trigger: PlanTrigger.manual,
+        reason: 'test',
+        version: v.version,
+        inputs: v.inputs,
+        summary: const {},
+        units: [
+          for (final u in units)
+            u.id == walk.id
+                ? PlanUnit(
+                    day: u.day,
+                    kind: PlanUnitKind.tempo,
+                    phase: u.phase,
+                    weekIndex: u.weekIndex,
+                    minutes: u.minutes,
+                    segments: u.segments,
+                    pinned: true,
+                    fixed: PlanUnitFixed.kind,
+                  )
+                : u,
+        ],
+        readState: planUnitsFingerprint(units),
+      ),
+    );
+    final r = await e.run(PlanTrigger.weekly, 1);
+    expect(r.wasWritten, isTrue);
+    final after = (await e.plans.unitOn(walk.day))!;
+    expect(after.kind, PlanUnitKind.walkRun);
+    expect(after.pinned, isTrue);
+    expect(after.fixed, PlanUnitFixed.none);
+    expect(
+      r.generated!.pinnedConflicts.map((c) => '${c.kind.name}@${c.day}'),
+      contains('walkRunFirst@${walk.day}'),
+    );
+  });
+
+  group('Hinweise an der Fassung (summary, WP22)', () {
+    test('die geschriebene Fassung trägt die Hinweise ihrer Rechnung, auch '
+        'nach einer automatischen Neuberechnung', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      for (final (t, day) in [
+        (PlanTrigger.create, 0),
+        (PlanTrigger.weekly, 7),
+      ]) {
+        // Kleinerer Regler: die automatische Rechnung ändert Inhalte.
+        if (day > 0) await e.goals.save(_goal(capMin: 100), today: _day(day));
+        final r = await e.run(t, day);
+        expect(r.wasWritten, isTrue);
+        final v = (await e.plans.history()).last;
+        expect(v.summary[planHintsKey], planHintsToJson(r.generated!));
+        final units = await e.plans.unitsBetween(
+          v.inputs.anchor,
+          planFarFuture,
+        );
+        final read = planHintsFromSummary(
+          v.summary,
+          version: v.version,
+          units: units,
+          today: _day(day),
+        )!;
+        expect(planHintsToJson(read), planHintsToJson(r.generated!));
+        expect(read.units.map(_sig), r.generated!.units.map(_sig));
+      }
+    });
+
+    test('entfallener Tag, der jetzt ein Ruhetag des Nutzers ist, zählt '
+        'nicht als entfallen (Befund E2b 1)', () {
+      PlanUnit rest(DateTime d, {bool pinned = true}) => PlanUnit(
+        day: d,
+        kind: PlanUnitKind.rest,
+        phase: PlanPhase.entry,
+        weekIndex: 4,
+        minutes: 0,
+        segments: const [],
+        pinned: pinned,
+        fixed: pinned ? PlanUnitFixed.day : PlanUnitFixed.none,
+      );
+      final g = GeneratedPlan(
+        version: PlanVersion.current,
+        weeks: const [],
+        units: const [],
+        frozenUnits: const [],
+        unplacedByWeek: const {},
+        hardOmissions: const {},
+        pinnedConflicts: const [],
+        walkRunNoWeekFits: false,
+        droppedDaysByWeek: {
+          4: [DateTime.utc(2026, 12, 9), DateTime.utc(2026, 12, 11)],
+          5: [DateTime.utc(2026, 12, 16)],
+        },
+        hardFit: HardFitStatus.notApplicable,
+      );
+      GeneratedPlan read(List<PlanUnit> units) => planHintsFromSummary(
+        {planHintsKey: planHintsToJson(g)},
+        version: PlanVersion.current,
+        units: units,
+        today: _day(0),
+      )!;
+      // Ruhetag des Nutzers am 11.12. und 16.12.: nur der 9.12. bleibt, die
+      // Woche 5 fällt ganz weg.
+      expect(
+        read([
+          rest(DateTime.utc(2026, 12, 11)),
+          rest(DateTime.utc(2026, 12, 16)),
+        ]).droppedDaysByWeek,
+        {
+          4: [DateTime.utc(2026, 12, 9)],
+        },
+      );
+      // Eine erzeugte (nicht festgelegte) Ruhe-Einheit ändert nichts.
+      expect(
+        read([rest(DateTime.utc(2026, 12, 11), pinned: false)])
+            .droppedDaysByWeek,
+        g.droppedDaysByWeek,
+      );
+    });
+
+    test('Rundweg aller Felder; fehlende oder fremde Hinweise: null', () {
+      final g = GeneratedPlan(
+        version: PlanVersion.current,
+        weeks: [
+          PlanWeek(
+            index: 2,
+            start: DateTime.utc(2026, 11, 23),
+            minutes: null,
+            phase: PlanPhase.entry,
+            kind: WeekKind.values.last,
+          ),
+        ],
+        units: const [],
+        frozenUnits: const [],
+        unplacedByWeek: const {2: 7},
+        hardOmissions: const {3: HardOmission.notContinuous30},
+        droppedDaysByWeek: {
+          4: [DateTime.utc(2026, 12, 9)],
+        },
+        pinnedConflicts: [
+          PinnedConflict(
+            kind: PinnedConflictKind.spacing,
+            day: DateTime.utc(2026, 12, 1),
+            otherDay: DateTime.utc(2026, 12, 2),
+          ),
+          PinnedConflict(
+            kind: PinnedConflictKind.noMatchingUnit,
+            day: DateTime.utc(2026, 12, 3),
+          ),
+        ],
+        walkRunStaysAtWeek: 5,
+        walkRunNoWeekFits: true,
+        hardFit: HardFitStatus.partialAtPeak,
+      );
+      final json = planHintsToJson(g);
+      final read = planHintsFromSummary(
+        {planHintsKey: jsonDecode(jsonEncode(json))},
+        version: PlanVersion.current,
+        units: const [],
+        today: _day(0),
+      )!;
+      expect(planHintsToJson(read), json);
+      // Wochen vor der Woche von heute fallen weg (wie generatePlan).
+      final later = planHintsFromSummary(
+        {planHintsKey: json},
+        version: PlanVersion.current,
+        units: const [],
+        today: DateTime.utc(2026, 11, 30),
+      )!;
+      expect(later.weeks, isEmpty);
+      // Konflikte von Terminen vor heute fallen weg.
+      final dec2 = planHintsFromSummary(
+        {planHintsKey: json},
+        version: PlanVersion.current,
+        units: const [],
+        today: DateTime.utc(2026, 12, 2),
+      )!;
+      expect(dec2.pinnedConflicts.map((c) => c.day), [
+        DateTime.utc(2026, 12, 3),
+      ]);
+      expect(
+        planHintsFromSummary(
+          const {},
+          version: PlanVersion.current,
+          units: const [],
+          today: _day(0),
+        ),
+        isNull,
+      );
+      expect(
+        planHintsFromSummary(
+          {
+            planHintsKey: {...json, 'hardFit': 'unbekannt'},
+          },
+          version: PlanVersion.current,
+          units: const [],
+          today: _day(0),
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('Ziel-Fingerabdruck an der Fassung (WP22 NB2)', () {
+    TrainingGoal g({
+      GoalType type = GoalType.time,
+      double? target = 3000,
+      DateTime? date,
+      Set<int> days = const {2, 4, 6},
+      double maxS = 7200,
+      double cap = 14400,
+      double? stand,
+      ContinuousRun30 c30 = ContinuousRun30.yes,
+      bool hard = true,
+      DateTime? created,
+    }) => TrainingGoal(
+      type: type,
+      distance: GoalDistance.tenKilometers,
+      targetSeconds: type == GoalType.time ? target : null,
+      targetDate: date ?? DateTime.utc(2027, 6, 1),
+      runDays: days,
+      maxSessionSeconds: maxS,
+      weeklyCapSeconds: cap,
+      createdAt: created ?? DateTime.utc(2026, 11, 1),
+      hardSessionEnabled: hard,
+      currentWeeklySeconds: stand,
+      canRun30: c30,
+    );
+
+    test('jedes planrelevante Feld ändert ihn, createdAt nicht; ohne oder '
+        'mit fremder Version: keine Änderung angenommen', () {
+      final base = {planGoalFingerprintKey: planGoalFingerprint(g())};
+      expect(planGoalChangedSince(base, g()), isFalse);
+      expect(
+        planGoalChangedSince(base, g(created: DateTime.utc(2026, 11, 5))),
+        isFalse,
+      );
+      final changed = {
+        'Art': g(type: GoalType.distance),
+        'Zielzeit': g(target: 2900),
+        'Zieldatum': g(date: DateTime.utc(2027, 5, 1)),
+        'Lauftage': g(days: const {1, 3, 5}),
+        'max. Zeit je Einheit': g(maxS: 3600),
+        'Regler': g(cap: 12000),
+        'Stand Wochenzeit': g(stand: 5400),
+        'Stand 30 min': g(c30: ContinuousRun30.no),
+        'harte Einheit': g(hard: false),
+      };
+      for (final e in changed.entries) {
+        expect(planGoalChangedSince(base, e.value), isTrue, reason: e.key);
+      }
+      // Lauftage in anderer Reihenfolge: gleich.
+      expect(planGoalFingerprint(g(days: {6, 2, 4})), planGoalFingerprint(g()));
+      expect(planGoalChangedSince(const {}, g(hard: false)), isFalse);
+      expect(
+        planGoalChangedSince({
+          planGoalFingerprintKey: planGoalFingerprint(g())
+              .replaceFirst('"v":1', '"v":99'),
+        }, g(hard: false)),
+        isFalse,
+      );
+      expect(
+        planGoalChangedSince({planGoalFingerprintKey: 'kaputt'}, g()),
+        isFalse,
+      );
+    });
+
+    test('die Fassung trägt den Fingerabdruck; geändertes Ziel bei gleichen '
+        'Einheiten schreibt trotzdem, gleiches Ziel nicht', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      await e.run(PlanTrigger.create, 0);
+      var h = await e.plans.history();
+      expect(
+        h.single.summary[planGoalFingerprintKey],
+        planGoalFingerprint((await e.goals.goal())!),
+      );
+      // Gleiches Ziel, gleiche Einheiten: keine Fassung.
+      expect((await e.run(PlanTrigger.manual, 0)).wasWritten, isFalse);
+      // Stand geändert: wirkt nur beim Anlegen, die Einheiten bleiben gleich.
+      final stand = TrainingGoal(
+        type: GoalType.distance,
+        distance: GoalDistance.tenKilometers,
+        targetDate: DateTime(2027, 6, 1),
+        runDays: const {2, 4, 6},
+        maxSessionSeconds: 7200,
+        weeklyCapSeconds: 240 * 60.0,
+        createdAt: DateTime.utc(2026, 11, 1),
+        hardSessionEnabled: true,
+        currentWeeklySeconds: 5400,
+        canRun30: ContinuousRun30.yes,
+      );
+      await e.goals.save(stand, today: _day(0));
+      expect(planGoalChangedSince(h.single.summary, stand), isTrue);
+      // Automatisch bei gleichen Einheiten: keine Fassung, die Änderung
+      // bleibt ausstehend (Ausnahme zu P3 nur für Ziel-/Nutzerauslöser).
+      expect((await e.run(PlanTrigger.weekly, 0)).wasWritten, isFalse);
+      expect(await e.plans.history(), hasLength(1));
+      final r = await e.run(PlanTrigger.goalChange, 0);
+      expect(r.summary!.isEmpty, isTrue);
+      expect(r.wasWritten, isTrue);
+      h = await e.plans.history();
+      expect(h, hasLength(2));
+      expect(planGoalChangedSince(h.last.summary, stand), isFalse);
+      expect((await e.run(PlanTrigger.weekly, 0)).wasWritten, isFalse);
+    });
+
+    test(
+      'automatische Auslöser rechnen eine ausstehende Zieländerung nicht: '
+      'sie bleibt ausstehend, bis ein Ziel- oder Nutzerauslöser rechnet',
+      () async {
+        final e = await _Env.open();
+        await e.goals.save(_open({2, 4, 6}), today: _open({2, 4, 6}).createdAt);
+        await e.run(PlanTrigger.create, 0);
+        final changed = _open({1, 2, 3, 4, 5, 6});
+        await e.goals.save(changed, today: changed.createdAt);
+        // Neue Fassung mit gehaltenen Tagen: trägt den alten Fingerabdruck.
+        for (final (t, day) in [
+          (PlanTrigger.ruleVersion, 0),
+          (PlanTrigger.weekly, 7),
+          (PlanTrigger.run, 7),
+        ]) {
+          await e.run(t, day);
+          final h = await e.plans.history();
+          expect(
+            planGoalChangedSince(h.last.summary, changed),
+            isTrue,
+            reason: t.name,
+          );
+        }
+        expect((await e.plans.history()).length, greaterThan(1));
+        await e.run(PlanTrigger.goalChange, 7);
+        final h = await e.plans.history();
+        expect(planGoalChangedSince(h.last.summary, changed), isFalse);
+      },
+    );
   });
 }

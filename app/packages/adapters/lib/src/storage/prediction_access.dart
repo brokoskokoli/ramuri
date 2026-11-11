@@ -1,4 +1,5 @@
 import 'package:core/core.dart';
+import 'package:core/core.dart' as core show activeReference;
 import 'package:drift/drift.dart' show InsertMode, Value;
 
 import 'access_support.dart';
@@ -50,10 +51,28 @@ class DriftPredictionStore implements PredictionStore {
 
   @override
   Future<void> deleteReference(int id) => guarded(() async {
-    final n = await (_db.delete(
-      _db.referencePerformances,
-    )..where((t) => t.id.equals(id))).go();
-    if (n == 0) throw const StorageException(StorageFailure.notFound);
+    // Eine Referenz aus einem bestätigten Lauf hinterlässt eine Ablehnung für
+    // diesen Lauf (wie rejectSuggestion), in derselben Transaktion: Sonst
+    // würde der Lauf sofort wieder vorgeschlagen. Die Ablehnung ist Teil des
+    // Archivs und überlebt Export und Reimport.
+    await _db.transaction(() async {
+      final row = await (_db.select(
+        _db.referencePerformances,
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
+      if (row == null) throw const StorageException(StorageFailure.notFound);
+      await (_db.delete(
+        _db.referencePerformances,
+      )..where((t) => t.id.equals(id))).go();
+      final runId = row.runId;
+      if (row.kind == ReferenceKind.confirmedRun.name && runId != null) {
+        await _db
+            .into(_db.rejectedSuggestions)
+            .insert(
+              d.RejectedSuggestionsCompanion.insert(runId: runId),
+              mode: InsertMode.insertOrIgnore,
+            );
+      }
+    });
   });
 
   @override
@@ -78,7 +97,7 @@ class DriftPredictionStore implements PredictionStore {
   @override
   Future<ReferencePerformance?> activeReference() async {
     final all = await references();
-    return all.isEmpty ? null : all.first.reference;
+    return core.activeReference([for (final s in all) s.reference]);
   }
 
   @override

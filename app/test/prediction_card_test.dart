@@ -147,11 +147,23 @@ class _GatedStore implements PredictionStore {
       _inner.addReference(reference);
   @override
   Future<void> deleteReference(int id) => _inner.deleteReference(id);
+
+  /// Zusätzliche, am Speicher vorbei „importierte“ Referenzen (jüngste zuerst
+  /// vor den gespeicherten).
+  List<StoredReference> imported = [];
+
   @override
-  Future<List<StoredReference>> references() => _inner.references();
+  Future<List<StoredReference>> references() async => [
+    ...imported,
+    ...await _inner.references(),
+  ];
   @override
-  Future<ReferencePerformance?> activeReference() => _inner.activeReference();
+  Future<ReferencePerformance?> activeReference() async =>
+      _coreActive([for (final s in await references()) s.reference]);
 }
+
+ReferencePerformance? _coreActive(Iterable<ReferencePerformance> all) =>
+    activeReference(all);
 
 class _GatedSession implements StorageSession, PredictionStorage {
   _GatedSession(this._inner)
@@ -412,6 +424,69 @@ void main() {
       expect(txt('prediction_value_1'), '≈ 52 min');
     });
 
+    for (final locale in ['de', 'en']) {
+      testWidgets('Tempo außerhalb 2:30 bis 15:00 min/km: Fehler an der Zeit, '
+          'nichts gespeichert; Grenze 2:30 gilt ($locale)', (tester) async {
+        final d = await boot(tester);
+        await pumpCard(tester, d, locale: locale);
+        await tapKey(tester, 'prediction_add');
+        // Voreinstellung 5 km; 999 h wie im E2E.
+        await tester.enterText(key('prediction_form_hours'), '999');
+        await tester.pump();
+        await tapKey(tester, 'prediction_form_save');
+        expect(
+          txt('prediction_form_error'),
+          locale == 'de'
+              ? 'Distanz und Zeit ergeben ein Tempo außerhalb von '
+                    '2:30 min/km bis 15:00 min/km. Prüf die Angaben.'
+              : 'Distance and time give a pace outside 2:30 min/km to '
+                    '15:00 min/km. Please check your entries.',
+        );
+        // Am Feld: direkt unter den Zeitfeldern, über dem Datum.
+        final error = tester.getTopLeft(key('prediction_form_error')).dy;
+        expect(
+          error,
+          greaterThan(tester.getBottomLeft(key('prediction_form_hours')).dy),
+        );
+        expect(
+          error,
+          lessThan(tester.getTopLeft(key('prediction_form_date')).dy),
+        );
+        expect(await _store(d).references(), isEmpty);
+        // 5 km in 12:30 = 2:30 min/km: gilt.
+        await tester.enterText(key('prediction_form_hours'), '0');
+        await tester.enterText(key('prediction_form_minutes'), '12');
+        await tester.enterText(key('prediction_form_seconds'), '30');
+        await tester.pump();
+        await tapKey(tester, 'prediction_form_save');
+        expect((await _store(d).references()).single.reference.seconds, 750);
+      });
+    }
+
+    testWidgets('Nach dem Datumsdialog bleibt die Tastatur zu', (tester) async {
+      final d = await boot(tester);
+      await pumpCard(tester, d);
+      await tapKey(tester, 'prediction_add');
+      await tester.tap(key('prediction_form_seconds'));
+      await tester.enterText(key('prediction_form_seconds'), '5');
+      await tester.pumpAndSettle();
+      final seconds = find.descendant(
+        of: key('prediction_form_seconds'),
+        matching: find.byType(EditableText),
+      );
+      expect(tester.widget<EditableText>(seconds).focusNode.hasFocus, isTrue);
+      await tester.ensureVisible(key('prediction_form_date'));
+      await tester.tap(key('prediction_form_date'));
+      await tester.pumpAndSettle();
+      final ok = MaterialLocalizations.of(
+        tester.element(find.byType(DatePickerDialog)),
+      ).okButtonLabel;
+      await tester.tap(find.text(ok));
+      await tester.pumpAndSettle();
+      expect(tester.widget<EditableText>(seconds).focusNode.hasFocus, isFalse);
+      expect(tester.testTextInput.isVisible, isFalse);
+    });
+
     testWidgets('freie Distanz in Kilometern mit Komma', (tester) async {
       final d = await boot(tester);
       await pumpCard(tester, d);
@@ -669,6 +744,20 @@ void main() {
       expect(key('prediction_suggestion'), findsNothing);
     });
 
+    testWidgets('Referenz aus bestätigtem Lauf löschen: der Lauf wird nicht '
+        'wieder vorgeschlagen', (tester) async {
+      final (d, id) = await withFastRun(tester);
+      await pumpCard(tester, d);
+      await tapKey(tester, 'prediction_suggestion_accept');
+      final stored = (await _store(d).references()).first;
+      expect(stored.reference.runId, '$id');
+      await _store(d).deleteReference(stored.id);
+      expect(await _store(d).references(), hasLength(1)); // Altbestand bleibt
+      await tester.pumpWidget(const SizedBox());
+      await pumpCard(tester, d);
+      expect(key('prediction_suggestion'), findsNothing);
+    });
+
     testWidgets('Zweig 2: bestätigter Lauf kommt nach neuerem Wettkampf am '
         'selben Tag nicht wieder', (tester) async {
       final (d, id) = await withFastRun(tester);
@@ -750,6 +839,131 @@ void main() {
       expect(c.busy, isFalse);
       expect(c.state.suggestion, isNull);
       expect(await _store(d).rejectedSuggestions(), hasLength(1));
+    });
+
+    testWidgets('importierte Referenz außerhalb der Tempospanne: sichtbar '
+        'als ungültig, die Prognose beruht auf der gültigen', (tester) async {
+      final d = await boot(tester);
+      await regularRuns(d);
+      await addRef(d, ReferenceKind.race, 10000, 3000);
+      final g = _GatedSession(d.session);
+      final n = d.clock.now().toLocal();
+      g.prediction.imported = [
+        StoredReference(
+          id: 999,
+          reference: ReferencePerformance(
+            kind: ReferenceKind.race,
+            distanceMeters: 5000,
+            seconds: 999 * 3600,
+            date: DateTime(n.year, n.month, n.day - 2),
+            createdAt: d.clock.now(),
+          ),
+        ),
+      ];
+      await pumpCard(tester, d, session: g);
+      // Grundlage ist die gültige (10 km in 50:00), nicht die jüngere.
+      expect(txt('prediction_reference'), contains('10,00 km in'));
+      expect(txt('prediction_other_999'), contains('ungültig'));
+      expect(txt('prediction_other_999'), contains('5,00 km'));
+      // Grund wie K49: Tempo außerhalb der Spanne.
+      expect(
+        txt('prediction_other_999'),
+        contains('(Tempo außerhalb von 2:30 min/km bis 15:00 min/km)'),
+      );
+      expect(key('prediction_other_delete_999'), findsOneWidget);
+      expect(txt('prediction_value_1'), startsWith('≈'));
+    });
+
+    for (final (name, meters, seconds, cause) in [
+      ('zu kurz', 2000.0, 600.0, 'Distanz unter 3,00 km'),
+      ('Zeit null', 5000.0, 0.0, 'Zeit nicht größer als null'),
+      (
+        'Tempo außerhalb',
+        5000.0,
+        999 * 3600.0,
+        'Tempo außerhalb von 2:30 min/km bis 15:00 min/km',
+      ),
+    ]) {
+      testWidgets('nur unbrauchbare Referenz ($name): „Referenz ungültig“ mit '
+          'Grund statt „keine Referenz“ (K49)', (tester) async {
+        final d = await boot(tester);
+        await regularRuns(d);
+        final g = _GatedSession(d.session);
+        final n = d.clock.now().toLocal();
+        g.prediction.imported = [
+          StoredReference(
+            id: 998,
+            reference: ReferencePerformance(
+              kind: ReferenceKind.race,
+              distanceMeters: meters,
+              seconds: seconds,
+              date: DateTime(n.year, n.month, n.day - 2),
+              createdAt: d.clock.now(),
+            ),
+          ),
+        ];
+        await pumpCard(tester, d, session: g);
+        expect(
+          txt('prediction_reason'),
+          'Nicht bestimmbar: Die Referenz ist ungültig ($cause).',
+        );
+        expect(txt('prediction_reason'), isNot(contains('keine Referenz')));
+        expect(txt('prediction_other_998'), contains('ungültig ($cause'));
+        expect(key('prediction_delete'), findsNothing);
+        // Kein Widerspruch: weder „Keine Referenz“ noch „Weitere: 1“.
+        expect(key('prediction_reference'), findsNothing);
+        expect(find.text('Keine Referenz eingetragen.'), findsNothing);
+        expect(key('prediction_others'), findsNothing);
+      });
+    }
+
+    testWidgets('zwei unbrauchbare Referenzen: die jüngste als Zeile, '
+        '„Weitere“ zählt nur die andere', (tester) async {
+      final d = await boot(tester);
+      await regularRuns(d);
+      final g = _GatedSession(d.session);
+      final n = d.clock.now().toLocal();
+      StoredReference bad(int id, int daysAgo) => StoredReference(
+        id: id,
+        reference: ReferencePerformance(
+          kind: ReferenceKind.race,
+          distanceMeters: 5000,
+          seconds: 999 * 3600,
+          date: DateTime(n.year, n.month, n.day - daysAgo),
+          createdAt: d.clock.now(),
+        ),
+      );
+      g.prediction.imported = [bad(997, 2), bad(996, 5)];
+      await pumpCard(tester, d, session: g);
+      expect(key('prediction_reference'), findsNothing);
+      expect(key('prediction_other_997'), findsOneWidget);
+      expect(key('prediction_other_996'), findsOneWidget);
+      expect(txt('prediction_others'), 'Weitere gespeicherte Referenzen: 1');
+    });
+
+    testWidgets('Vorschlag beruht auf der geltenden Referenz, nicht auf einer '
+        'jüngeren unbrauchbaren', (tester) async {
+      // Gültig: 10 km in 60:00 vor 20 Tagen; schneller Lauf vor 3 Tagen.
+      final (d, _) = await withFastRun(tester);
+      final g = _GatedSession(d.session);
+      final n = d.clock.now().toLocal();
+      // Jünger als der Lauf, aber zu schnell (2:24 min/km): gilt nicht. Wäre
+      // sie die Grundlage, fiele der Vorschlag weg (Lauf vor ihrem Datum).
+      g.prediction.imported = [
+        StoredReference(
+          id: 997,
+          reference: ReferencePerformance(
+            kind: ReferenceKind.race,
+            distanceMeters: 5000,
+            seconds: 720,
+            date: DateTime(n.year, n.month, n.day - 1),
+            createdAt: d.clock.now(),
+          ),
+        ),
+      ];
+      await pumpCard(tester, d, session: g);
+      expect(key('prediction_suggestion'), findsOneWidget);
+      expect(txt('prediction_reference'), contains('10,00 km in'));
     });
 
     testWidgets('Soll 1: Knöpfe sind während einer Änderung gesperrt, kein '

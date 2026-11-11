@@ -70,10 +70,18 @@ class PerformancePrediction {
     required this.reference,
     required this.distances,
     required this.metadata,
+    this.referenceProblem,
   });
 
   /// Die verwendete Referenz (FR-0129); `null` ohne gültige Referenz.
   final ReferencePerformance? reference;
+
+  /// Grund für „Referenz ungültig“ (K49) zur Anzeige: Problem der geltenden
+  /// Referenz (künftiges Datum) oder, wenn keine gespeicherte Referenz
+  /// brauchbar ist, das der jüngsten gespeicherten (zu kurz, Zeit ≤ 0, Tempo
+  /// außerhalb der Spanne). `null`, wenn die Referenz gilt oder keine
+  /// gespeichert ist.
+  final ReferenceProblem? referenceProblem;
 
   final List<DistancePrediction> distances;
   final PredictionMetadata metadata;
@@ -93,8 +101,13 @@ PerformancePrediction predictPerformance({
   PredictionParameters parameters = const PredictionParameters(),
 }) {
   final p = parameters;
-  final ref = activeReference(references);
-  final problem = ref?.validate(now, p);
+  // Gerechnet wird nur mit einer brauchbaren Referenz (isUsableReference).
+  // Ist keine brauchbar, aber eine gespeichert, zeigt die Prognose wie K49
+  // „Referenz ungültig“ mit dem Grund der jüngsten gespeicherten.
+  final ref = activeReference(references, p);
+  final problem = ref != null
+      ? ref.validate(now, p)
+      : newestReference(references)?.validate(now, p);
   final valid = problem == null ? ref : null;
   final today = calendarDay(now);
   final pastRuns = [
@@ -103,12 +116,12 @@ PerformancePrediction predictPerformance({
   ];
 
   PredictionReason? blocker;
-  if (ref == null) {
+  if (problem != null) {
+    blocker = PredictionReason.invalidReference;
+  } else if (ref == null) {
     blocker = hasVo2maxEstimate
         ? PredictionReason.onlyVo2max
         : PredictionReason.noReference;
-  } else if (problem != null) {
-    blocker = PredictionReason.invalidReference;
   } else if (daysBetween(ref.date, now) > p.maxReferenceAgeDays) {
     blocker = PredictionReason.referenceTooOld;
   } else if (_longestGap(ref.date, pastRuns, today) >=
@@ -143,6 +156,7 @@ PerformancePrediction predictPerformance({
       .length;
   return PerformancePrediction(
     reference: valid,
+    referenceProblem: problem,
     distances: results,
     metadata: PredictionMetadata(
       calculatedAt: now,

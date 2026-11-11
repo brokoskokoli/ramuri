@@ -42,6 +42,8 @@ class RunningApplication : Application() {
         RecordingServiceState.register(messenger, this)
         // FR-0202: Schrittsensor des Telefons, ohne Activity erreichbar.
         StepSensor.register(messenger, this)
+        // FR-0174: Erinnerungen vor geplanten Einheiten, ohne Activity erreichbar.
+        TrainingReminders.register(messenger, this)
     }
 
     companion object {

@@ -34,8 +34,409 @@ final List<StorageContractCase> planContractCases = [
     'Plan: Änderung zwischen Lesen und Schreiben lehnt die Fassung ab (Rennen)',
     _staleRead,
   ),
+  const StorageContractCase(
+    'Plan: Art ersetzen, Ruhetag festlegen und aufheben (Schema 8)',
+    _replaceAndRestDay,
+  ),
+  const StorageContractCase(
+    'Plan: hart -> locker in eine andere Woche verschoben wird kind',
+    _moveEasyForHard,
+  ),
   const StorageContractCase('Alles löschen leert den Plan', _deleteAll),
 ];
+
+/// [u] mit Art [kind] (wie ein Ersatz aus `checkPlanReplace`).
+PlanUnit _as(
+  PlanUnit u,
+  PlanUnitKind kind, {
+  int? minutes,
+  List<PlanSegment>? segments,
+}) => PlanUnit(
+  id: u.id,
+  day: u.day,
+  kind: kind,
+  phase: u.phase,
+  weekIndex: u.weekIndex,
+  minutes: minutes ?? u.minutes,
+  segments: segments ?? u.segments,
+);
+
+PlanUnit _rest(int day) => PlanUnit(
+  day: _day(day),
+  kind: PlanUnitKind.rest,
+  phase: PlanPhase.build,
+  weekIndex: day ~/ 7,
+  minutes: 0,
+  segments: const [],
+  pinned: true,
+  fixed: PlanUnitFixed.day,
+);
+
+/// Festlegung WP22 (Review E2a Runde 3, Befund 4): Eine Einheit
+/// easyForHard bleibt es beim Verschieben in ihrer Woche; in einer anderen
+/// Woche wird sie kind (`planMovedFixed`), die Zielwoche behält so ihre harte
+/// Einheit.
+Future<void> _moveEasyForHard(StorageContractHarness h) async {
+  final s = await h.open();
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
+  final p = _p(s);
+  await p.writeVersion(
+    await _draft(p, 0, [
+      _unit(1, kind: PlanUnitKind.tempo),
+      _unit(3),
+      _unit(8, week: 1, kind: PlanUnitKind.tempo),
+      _unit(10, week: 1),
+    ]),
+  );
+  final u1 = (await p.unitOn(_day(1)))!;
+  await p.replaceUnit(u1.id!, _as(u1, PlanUnitKind.easy), today: _day(1));
+  expectEq(
+    (await p.unitOn(_day(1)))!.fixed,
+    PlanUnitFixed.easyForHard,
+    'hart -> locker',
+  );
+  await p.confirmMove(u1.id!, _day(2), today: _day(1));
+  final same = (await p.unitOn(_day(2)))!;
+  expectEq(same.fixed, PlanUnitFixed.easyForHard, 'gleiche Woche: bleibt');
+  await p.confirmMove(u1.id!, _day(9), today: _day(1));
+  final other = (await p.unitOn(_day(9)))!;
+  expectEq(other.id, u1.id, 'andere Woche: gleiche Einheit');
+  expectEq(other.weekIndex, 1, 'andere Woche: Woche folgt dem Tag');
+  expectEq(other.kind, PlanUnitKind.easy, 'andere Woche: locker');
+  expectEq(other.fixed, PlanUnitFixed.kind, 'andere Woche: kind');
+  expectTrue(other.pinned, 'andere Woche: pinned');
+  // Zurück in die alte Woche: bleibt ein normaler fester lockerer Lauf.
+  await p.confirmMove(u1.id!, _day(4), today: _day(1));
+  expectEq(
+    (await p.unitOn(_day(4)))!.fixed,
+    PlanUnitFixed.kind,
+    'zurück: bleibt kind',
+  );
+  // Die harte Einheit der anderen Woche ist unberührt.
+  final u8 = (await p.unitOn(_day(8)))!;
+  expectEq(u8.kind, PlanUnitKind.tempo, 'Zielwoche: harte Einheit bleibt');
+  expectEq(u8.fixed, PlanUnitFixed.none, 'Zielwoche: Festlegung bleibt');
+  await s.close();
+}
+
+/// Zustand samt `fixed` (ändert eine abgelehnte Änderung etwas?).
+Future<String> _fixedState(StorageSession s) async =>
+    '${await _state(s)}|${[for (final u in await _all(s)) '${u.id}:${u.fixed.name}']}';
+
+Future<void> _replaceAndRestDay(StorageContractHarness h) async {
+  var s = await h.open();
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
+  var p = _p(s);
+  await expectFails(
+    () => p.setRestDay(_rest(4), today: _day(1), expectedUnitId: null),
+    StorageFailure.notFound,
+    'Ruhetag ohne Fassung',
+  );
+  final run = (await s.runs.create(startedAt: at(0))).id;
+  await p.writeVersion(
+    await _draft(p, 0, [
+      _unit(0),
+      _unit(1),
+      _unit(2, kind: PlanUnitKind.walkRun),
+      _unit(3),
+      _unit(5),
+      _unit(8, week: 1),
+      // Nicht festgelegte Ruhe-Einheit (etwa aus Altdaten).
+      _unit(9, week: 1, kind: PlanUnitKind.rest, minutes: 0),
+    ]),
+  );
+  await p.assignRun((await p.unitOn(_day(0)))!.id!, run);
+  Future<int?> idOn(int day) async => (await p.unitOn(_day(day)))?.id;
+  final u1 = (await p.unitOn(_day(1)))!;
+  final u3 = (await p.unitOn(_day(3)))!;
+
+  // Ersetzen: Art, Dauer, Abschnitte aus dem Ersatz; pinned und fixed = kind
+  // setzt der Speicher, Tag, Woche und Phase bleiben.
+  final tempo = _as(
+    u1,
+    PlanUnitKind.tempo,
+    minutes: 40,
+    segments: const [
+      PlanSegment(kind: PlanSegmentKind.warmUp, minutes: 10),
+      PlanSegment(kind: PlanSegmentKind.tempo, minutes: 20),
+      PlanSegment(kind: PlanSegmentKind.coolDown, minutes: 10),
+    ],
+  );
+  await p.replaceUnit(u1.id!, tempo, today: _day(1));
+  final r1 = (await p.unitOn(_day(1)))!;
+  expectEq(r1.id, u1.id, 'gleiche Einheit');
+  expectEq(r1.kind, PlanUnitKind.tempo, 'Art ersetzt');
+  expectEq(r1.minutes, 40, 'Dauer aus dem Ersatz');
+  expectEq(
+    [for (final x in r1.segments) x.kind],
+    [PlanSegmentKind.warmUp, PlanSegmentKind.tempo, PlanSegmentKind.coolDown],
+    'Abschnitte aus dem Ersatz',
+  );
+  expectTrue(r1.pinned, 'ersetzt: pinned');
+  expectEq(r1.fixed, PlanUnitFixed.kind, 'ersetzt: fixed = kind');
+  expectEq(r1.weekIndex, u1.weekIndex, 'Woche bleibt');
+
+  // Harte Einheit wird locker: fixed = easyForHard aus der gespeicherten
+  // Einheit (planReplacedFixed), nicht aus dem Ersatz; locker wird wieder
+  // hart: fixed = kind.
+  await p.replaceUnit(
+    u1.id!,
+    _as(r1, PlanUnitKind.easy, minutes: 40).copyWith(fixed: PlanUnitFixed.kind),
+    today: _day(1),
+  );
+  final e1 = (await p.unitOn(_day(1)))!;
+  expectEq(e1.kind, PlanUnitKind.easy, 'hart -> locker: Art');
+  expectEq(e1.fixed, PlanUnitFixed.easyForHard, 'hart -> locker: easyForHard');
+  await p.replaceUnit(u1.id!, tempo, today: _day(1));
+  expectEq(
+    (await p.unitOn(_day(1)))!.fixed,
+    PlanUnitFixed.kind,
+    'locker -> hart: fixed = kind',
+  );
+  // Nur eine gespeicherte harte Einheit wird easyForHard: lang -> locker
+  // bleibt kind. Danach wieder Tempo wie oben.
+  await p.replaceUnit(
+    u1.id!,
+    _as(r1, PlanUnitKind.long, minutes: 40),
+    today: _day(1),
+  );
+  await p.replaceUnit(
+    u1.id!,
+    _as(r1, PlanUnitKind.easy, minutes: 40),
+    today: _day(1),
+  );
+  expectEq(
+    (await p.unitOn(_day(1)))!.fixed,
+    PlanUnitFixed.kind,
+    'lang -> locker: fixed = kind',
+  );
+  await p.replaceUnit(u1.id!, tempo, today: _day(1));
+
+  var before = await _fixedState(s);
+  final u0 = (await p.unitOn(_day(0)))!;
+  final u2 = (await p.unitOn(_day(2)))!;
+  final u3tempo = _as(u3, PlanUnitKind.tempo);
+  for (final (what, call, failure) in [
+    (
+      'Einheit mit Lauf (eingefroren)',
+      () => p.replaceUnit(u0.id!, _as(u0, PlanUnitKind.tempo), today: _day(0)),
+      StorageFailure.rejected,
+    ),
+    (
+      'Einheit vor heute',
+      () => p.replaceUnit(u3.id!, u3tempo, today: _day(4)),
+      StorageFailure.rejected,
+    ),
+    (
+      'Geh-Lauf nicht ersetzbar',
+      () => p.replaceUnit(u2.id!, _as(u2, PlanUnitKind.tempo), today: _day(1)),
+      StorageFailure.rejected,
+    ),
+    (
+      'Art außerhalb der Auswahl',
+      () =>
+          p.replaceUnit(u3.id!, _as(u3, PlanUnitKind.walkRun), today: _day(1)),
+      StorageFailure.rejected,
+    ),
+    (
+      'anderer Tag im Ersatz',
+      () =>
+          p.replaceUnit(u3.id!, u3tempo.copyWith(day: _day(4)), today: _day(1)),
+      StorageFailure.rejected,
+    ),
+    (
+      'Einheit fehlt',
+      () => p.replaceUnit(9999, u3tempo, today: _day(1)),
+      StorageFailure.notFound,
+    ),
+  ]) {
+    await expectFails(call, failure, 'Ersetzen: $what');
+  }
+  expectEq(await _fixedState(s), before, 'abgelehntes Ersetzen ändert nichts');
+
+  // Ruhetag auf freiem Tag.
+  await p.setRestDay(_rest(4), today: _day(1), expectedUnitId: null);
+  final rest4 = (await p.unitOn(_day(4)))!;
+  expectTrue(rest4.isRestDay, 'Ruhetag: rest und pinned');
+  expectEq(rest4.fixed, PlanUnitFixed.day, 'Ruhetag: fixed = day');
+  expectEq(rest4.minutes, 0, 'Ruhetag: 0 min');
+  // Ruhetag auf Tag mit Einheit, Einheit auf freien Tag derselben Woche.
+  await p.setRestDay(
+    _rest(3),
+    today: _day(1),
+    expectedUnitId: u3.id,
+    moveUnitTo: _day(6),
+  );
+  expectTrue((await p.unitOn(_day(3)))!.isRestDay, 'Ruhetag auf Tag 3');
+  final moved = (await p.unitOn(_day(6)))!;
+  expectEq(moved.id, u3.id, 'Einheit verschoben, nicht neu');
+  expectTrue(moved.pinned, 'verschobene Einheit: pinned');
+  // Ohne Zieltag entfällt die Einheit.
+  await p.setRestDay(_rest(5), today: _day(1), expectedUnitId: await idOn(5));
+  expectTrue((await p.unitOn(_day(5)))!.isRestDay, 'Ruhetag auf Tag 5');
+  expectTrue(
+    !(await _all(s))
+        .any((u) => u.kind == PlanUnitKind.easy && u.day == _day(5)),
+    'Einheit entfällt',
+  );
+
+  before = await _fixedState(s);
+  final u8 = await idOn(8);
+  expectTrue(u8 != null, 'Einheit auf Tag 8');
+  for (final (what, call, failure) in [
+    (
+      'Tag vor heute',
+      () => p.setRestDay(_rest(1), today: _day(2), expectedUnitId: u1.id),
+      StorageFailure.rejected,
+    ),
+    (
+      'Einheit mit Lauf',
+      () => p.setRestDay(_rest(0), today: _day(0), expectedUnitId: u0.id),
+      StorageFailure.rejected,
+    ),
+    (
+      'schon Ruhetag',
+      () => p.setRestDay(_rest(4), today: _day(1), expectedUnitId: rest4.id),
+      StorageFailure.rejected,
+    ),
+    (
+      // Tag 10 ist frei; abgelehnt wird nur wegen der anderen Woche.
+      'Zieltag in anderer Woche',
+      () => p.setRestDay(
+        _rest(1),
+        today: _day(1),
+        expectedUnitId: u1.id,
+        moveUnitTo: _day(10),
+      ),
+      StorageFailure.rejected,
+    ),
+    (
+      'Zieltag belegt',
+      () => p.setRestDay(
+        _rest(1),
+        today: _day(1),
+        expectedUnitId: u1.id,
+        moveUnitTo: _day(2),
+      ),
+      StorageFailure.rejected,
+    ),
+    (
+      'Zieltag vor heute',
+      () => p.setRestDay(
+        _rest(8),
+        today: _day(8),
+        expectedUnitId: u8,
+        moveUnitTo: _day(7),
+      ),
+      StorageFailure.rejected,
+    ),
+    (
+      'Zieltag ohne Einheit',
+      () => p.setRestDay(
+        _rest(12),
+        today: _day(1),
+        expectedUnitId: null,
+        moveUnitTo: _day(13),
+      ),
+      StorageFailure.rejected,
+    ),
+    (
+      'keine Ruhetag-Einheit',
+      () => p.setRestDay(
+        _unit(12, week: 1, pinned: true),
+        today: _day(1),
+        expectedUnitId: null,
+      ),
+      StorageFailure.rejected,
+    ),
+    // Der Tag hat sich seit der Prüfung geändert (FR-0176): nichts entfällt
+    // ohne Bestätigung.
+    (
+      'Einheit erwartet, Tag frei',
+      () => p.setRestDay(_rest(12), today: _day(1), expectedUnitId: u8),
+      StorageFailure.rejected,
+    ),
+    (
+      'Tag frei erwartet, Einheit da',
+      () => p.setRestDay(_rest(8), today: _day(1), expectedUnitId: null),
+      StorageFailure.rejected,
+    ),
+    (
+      'andere Einheit erwartet',
+      () => p.setRestDay(_rest(8), today: _day(1), expectedUnitId: u1.id),
+      StorageFailure.rejected,
+    ),
+    (
+      // Eine Ruhe-Einheit wird zum Ruhetag, sie wird nicht verlegt.
+      'Ruhe-Einheit mit Zieltag',
+      () async => p.setRestDay(
+        _rest(9),
+        today: _day(1),
+        expectedUnitId: await idOn(9),
+        moveUnitTo: _day(10),
+      ),
+      StorageFailure.rejected,
+    ),
+    (
+      'Ruhetag nicht ersetzbar',
+      () => p.replaceUnit(
+        rest4.id!,
+        _as(rest4, PlanUnitKind.easy, minutes: 30),
+        today: _day(1),
+      ),
+      StorageFailure.rejected,
+    ),
+  ]) {
+    await expectFails(call, failure, 'Ruhetag: $what');
+  }
+  expectEq(await _fixedState(s), before, 'abgelehnter Ruhetag ändert nichts');
+
+  // Eine nicht festgelegte Ruhe-Einheit lässt sich festlegen (Schutz vor der
+  // Neuberechnung, OQ-0011) und danach aufheben.
+  final gen9 = (await p.unitOn(_day(9)))!;
+  expectTrue(!gen9.isRestDay, 'Ruhe-Einheit Tag 9 nicht festgelegt');
+  await p.setRestDay(_rest(9), today: _day(1), expectedUnitId: gen9.id);
+  final rest9 = (await p.unitOn(_day(9)))!;
+  expectTrue(rest9.isRestDay, 'Ruhe-Einheit festgelegt');
+  expectEq(rest9.fixed, PlanUnitFixed.day, 'Ruhe-Einheit: fixed = day');
+  expectEq(
+    (await _all(s)).where((u) => u.day == _day(9)).length,
+    1,
+    'genau eine Einheit auf Tag 9',
+  );
+  await p.clearRestDay(_day(9), today: _day(1));
+  expectTrue(await p.unitOn(_day(9)) == null, 'festgelegte Ruhe aufgehoben');
+
+  // Übersteht Neuöffnen.
+  await s.close();
+  s = await h.open();
+  p = _p(s);
+  expectEq((await p.unitOn(_day(1)))!.fixed, PlanUnitFixed.kind, 'kind neu');
+  expectEq((await p.unitOn(_day(4)))!.fixed, PlanUnitFixed.day, 'day neu');
+
+  // Aufheben.
+  before = await _fixedState(s);
+  await expectFails(
+    () => p.clearRestDay(_day(1), today: _day(1)),
+    StorageFailure.notFound,
+    'Aufheben: kein Ruhetag',
+  );
+  await expectFails(
+    () => p.clearRestDay(_day(3), today: _day(4)),
+    StorageFailure.rejected,
+    'Aufheben: Tag vor heute',
+  );
+  expectEq(await _fixedState(s), before, 'abgelehntes Aufheben ändert nichts');
+  await p.clearRestDay(_day(4), today: _day(1));
+  expectTrue(await p.unitOn(_day(4)) == null, 'Ruhetag aufgehoben, Tag frei');
+  expectTrue((await p.unitOn(_day(3)))!.isRestDay, 'anderer Ruhetag bleibt');
+  await expectFails(
+    () => p.clearRestDay(_day(4), today: _day(1)),
+    StorageFailure.notFound,
+    'Aufheben: schon aufgehoben',
+  );
+  await s.close();
+}
 
 Future<void> _unitMethods(StorageContractHarness h) async {
   final s = await h.open();
@@ -350,6 +751,24 @@ Future<void> _staleRead(StorageContractHarness h) async {
       await _draft(p, 3, [_unit(3), _unit(5)], trigger: PlanTrigger.weekly),
     );
   }
+
+  // Ersetzen einer schon gepinnten Einheit ändert nur Art und `fixed`; auch
+  // das macht den Entwurf ungültig (Fingerabdruck).
+  final five = (await p.unitOn(_day(5)))!;
+  await p.confirmMove(five.id!, _day(5), today: _day(3));
+  final stale = await _draft(p, 3, [_unit(3), _unit(5)]);
+  await p.replaceUnit(
+    five.id!,
+    _as((await p.unitOn(_day(5)))!, PlanUnitKind.tempo),
+    today: _day(3),
+  );
+  final before = await _state(s);
+  await expectFails(
+    () => p.writeVersion(stale),
+    StorageFailure.rejected,
+    'Art ersetzt (schon gepinnt)',
+  );
+  expectEq(await _state(s), before, 'alter Plan bleibt (Art ersetzt)');
   await s.close();
 }
 

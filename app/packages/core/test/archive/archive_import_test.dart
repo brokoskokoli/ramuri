@@ -455,9 +455,9 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 7: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 8: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 8);
+        final lines = valid()..[0] = _manifest(schema: 9);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
         lines[0] = '{"type":"manifest","format":1,"schema_version":9,"created_at_us":1,"neu":true}';
@@ -1322,13 +1322,20 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 7 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 8, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 8 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 9, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
       expect(archiveSectionsFor(6), hasLength(23));
       expect(archiveSectionsFor(7), hasLength(24));
+      expect(archiveSectionsFor(8), hasLength(24));
+      // `fixed` steht erst ab Schema 8 im Abschnitt 24.
+      expect(
+        archiveSectionsFor(7).last.columns.map((c) => c.name),
+        isNot(contains('fixed')),
+      );
+      expect(archiveSectionsFor(8).last.columns.last.name, 'fixed');
     });
 
     test(
@@ -1558,8 +1565,79 @@ void main() {
       );
       expect(c.sink.commits, 1);
       expect(c.sink.rows['plans'], [plan()]);
-      expect(c.sink.rows['plan_units'], [unit(1), unit(2, runId: 1)]);
+      // Schema 7 kennt `fixed` nicht: Der Leser setzt 'none' (Schema 8).
+      expect(c.sink.rows['plan_units'], [
+        unit(1)..['fixed'] = 'none',
+        unit(2, runId: 1)..['fixed'] = 'none',
+      ]);
     });
+
+    test(
+      'Schema 8: plan_units mit fixed (none, day, kind) unverändert',
+      () async {
+        final units = [
+          unit(1)..['fixed'] = 'none',
+          unit(2)
+            ..['kind'] = 'rest'
+            ..['pinned'] = 1
+            ..['fixed'] = 'day',
+          unit(3)
+            ..['kind'] = 'tempo'
+            ..['pinned'] = 1
+            ..['fixed'] = 'kind',
+        ];
+        await c.run(
+          await file(
+            v2(
+              schema: 8,
+              extra: {
+                'goals': [goal()],
+                'plans': [plan()],
+                'plan_units': units,
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        expect(c.sink.rows['plan_units'], units);
+      },
+    );
+
+    test(
+      'fixed fehlt in Schema 8 oder steht in Schema 7: beschädigt',
+      () async {
+        await rejectsV2(
+          v2(
+            schema: 8,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': [unit(1)],
+            },
+          ),
+        );
+        await rejectsV2(
+          v2(
+            schema: 7,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': [unit(1)..['fixed'] = 'none'],
+            },
+          ),
+        );
+        await rejectsV2(
+          v2(
+            schema: 8,
+            extra: {
+              'goals': [goal()],
+              'plans': [plan()],
+              'plan_units': [unit(1)..['fixed'] = 1],
+            },
+          ),
+        );
+      },
+    );
 
     test(
       'Schema 7: vollständige und leere Zielintensität sind gültig',
@@ -1700,9 +1778,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 8: neueres Archiv', () async {
+    test('Schema 9: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 7)..[0] = '{"type":"manifest","format":2,"schema_version":8,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":9,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });

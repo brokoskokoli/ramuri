@@ -22,14 +22,19 @@ abstract interface class PredictionStore {
   /// vorhandene Kennung kommt zurück.
   Future<int> addReference(ReferencePerformance reference);
 
-  /// Löscht eine Referenz. Unbekannte Kennung: `notFound`.
+  /// Löscht eine Referenz. Unbekannte Kennung: `notFound`. Stammt sie aus
+  /// einem bestätigten Lauf, wird in derselben Transaktion der Vorschlag für
+  /// diesen Lauf abgelehnt (wie [rejectSuggestion]); manuelle Referenzen
+  /// hinterlassen nichts.
   Future<void> deleteReference(int id);
 
   /// Alle Referenzen, jüngste zuerst (nach Datum, bei gleichem Datum die
-  /// zuletzt angelegte; [activeReference] ist die erste).
+  /// zuletzt angelegte), auch unbrauchbare (z. B. importiert außerhalb der
+  /// Tempospanne); [activeReference] ist die erste brauchbare.
   Future<List<StoredReference>> references();
 
-  /// Die geltende Referenz nach der Festlegung WP20 oder `null`.
+  /// Die geltende Referenz nach `activeReference` in `core` (jüngste
+  /// brauchbare, [isUsableReference]) oder `null`.
   Future<ReferencePerformance?> activeReference();
 
   /// Lehnt den Vorschlag für den Lauf ab (idempotent). Unbekannter Lauf:

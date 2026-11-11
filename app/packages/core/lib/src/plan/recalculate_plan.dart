@@ -1,8 +1,11 @@
 import '../../ports/storage.dart' show StorageException, StorageFailure;
 import '../../ports/storage_plan.dart';
 import '../../ports/storage_settings.dart';
+import '../goals/training_goal.dart';
 import 'generate_plan.dart';
 import 'plan_change.dart';
+import 'plan_goal_fingerprint.dart';
+import 'plan_hints.dart';
 import 'plan_inputs.dart';
 import 'plan_parameters.dart';
 import 'plan_unit.dart';
@@ -45,6 +48,15 @@ class PlanRecalculation {
 /// künftige `pinned`-Einheiten gehen als Termine in die Rechnung. Gleiche
 /// künftige Einheiten ergeben keine neue Fassung (nur `plan.last_check_day`
 /// wird gesetzt); die erste Fassung eines Ziels wird immer geschrieben.
+/// Das `summary` der Fassung trägt das Alt-Neu-Bild, die Hinweise der
+/// Rechnung ([planHintsToJson], lesbar mit [planHintsFromSummary]) und den
+/// Fingerabdruck des Ziels ([planGoalFingerprint]); weicht das Ziel von dem
+/// der letzten Fassung ab ([planGoalChangedSince]), wird bei gleichen
+/// Einheiten nur für die Auslöser `create`, `goalChange` und `manual`
+/// geschrieben. Automatische Auslöser (z. B. `run`) rechnen eine
+/// ausstehende Zieländerung nicht: Sie schreiben bei gleichen Einheiten
+/// nichts und übernehmen sonst den Fingerabdruck der letzten Fassung, die
+/// Änderung bleibt ausstehend.
 /// Scheitert das Schreiben, bleibt der alte Plan ganz bestehen und
 /// `plan.last_check_day` unverändert.
 ///
@@ -109,17 +121,7 @@ Future<PlanRecalculation> _recalculateOnce({
           : last.inputs.copyWith(today: todayDay));
 
   final all = await plans.unitsBetween(use.anchor, planFarFuture);
-  final frozen = <PlanUnit>[];
-  final pinned = <PlanUnit>[];
-  final oldFuture = <PlanUnit>[];
-  for (final u in all) {
-    if (u.day.isBefore(todayDay) || u.runId != null) {
-      frozen.add(u);
-    } else {
-      oldFuture.add(u);
-      if (u.pinned) pinned.add(u);
-    }
-  }
+  final (:frozen, :pinned, :oldFuture) = _split(all, todayDay);
 
   // Automatische Auslöser ändern im bereits geplanten Zeitraum weder Tage
   // noch Zahl der Läufe (ADR-0010 Punkt 8); neue Wochen am Ende sind frei.
@@ -141,7 +143,17 @@ Future<PlanRecalculation> _recalculateOnce({
     parameters: parameters,
   );
 
-  if (last != null && summary.isEmpty) {
+  // Gleiche Einheiten ergeben keine Fassung, außer bei einem Ziel- oder
+  // Nutzerauslöser weicht das Ziel von dem der letzten Fassung ab: Dann hält
+  // die neue Fassung fest, dass die Zieländerung gerechnet ist (sonst bliebe
+  // sie über einen Neustart offen). Automatische Auslöser halten die Tage
+  // ([_keepSchedule]) und rechnen eine ausstehende Zieländerung nicht: Sie
+  // übernehmen den Fingerabdruck der letzten Fassung, die Änderung bleibt
+  // ausstehend ([planGoalChangedSince]).
+  final keepsGoalPending = _isAutomatic(trigger) && last != null;
+  if (last != null &&
+      summary.isEmpty &&
+      (keepsGoalPending || !planGoalChangedSince(last.summary, goal))) {
     await _markChecked(settings, todayDay, now);
     return PlanRecalculation.unchanged(generated, summary);
   }
@@ -154,13 +166,64 @@ Future<PlanRecalculation> _recalculateOnce({
       reason: reason ?? trigger.name,
       version: generated.version,
       inputs: use,
-      summary: summary.toJson(),
+      summary: {
+        ...summary.toJson(),
+        planHintsKey: planHintsToJson(generated),
+        if (keepsGoalPending
+                ? last.summary[planGoalFingerprintKey]
+                : planGoalFingerprint(goal)
+            case final Object fingerprint)
+          planGoalFingerprintKey: fingerprint,
+      },
       units: generated.units,
       readState: planUnitsFingerprint(all),
     ),
   );
   await _markChecked(settings, todayDay, now);
   return PlanRecalculation.written(record, generated, summary);
+}
+
+/// Eingefroren (Tag vor heute oder mit Lauf), künftige `pinned` und alle
+/// offenen künftigen Einheiten.
+({List<PlanUnit> frozen, List<PlanUnit> pinned, List<PlanUnit> oldFuture})
+_split(List<PlanUnit> all, DateTime todayDay) {
+  final frozen = <PlanUnit>[];
+  final pinned = <PlanUnit>[];
+  final oldFuture = <PlanUnit>[];
+  for (final u in all) {
+    if (u.day.isBefore(todayDay) || u.runId != null) {
+      frozen.add(u);
+    } else {
+      oldFuture.add(u);
+      if (u.pinned) pinned.add(u);
+    }
+  }
+  return (frozen: frozen, pinned: pinned, oldFuture: oldFuture);
+}
+
+/// Hinweise zum gespeicherten Plan ohne Schreiben (für die Anzeige): rechnet
+/// wie eine ausdrückliche Neuberechnung ab [today] mit [inputs] (in der Regel
+/// die Eingaben der letzten Fassung mit `today`) über die gespeicherten
+/// Einheiten [units] ab `inputs.anchor`. Für Fassungen ohne gespeicherte
+/// Hinweise ([planHintsFromSummary] `null`); die neuen Einheiten des
+/// Ergebnisses sind nur eine Vorschau und nicht der gespeicherte Plan.
+GeneratedPlan previewPlan({
+  required TrainingGoal goal,
+  required PlanInputs inputs,
+  required List<PlanUnit> units,
+  required DateTime today,
+  PlanParameters parameters = const PlanParameters(),
+}) {
+  final todayDay = planDay(today);
+  final (:frozen, :pinned, oldFuture: _) = _split(units, todayDay);
+  return generatePlan(
+    goal,
+    inputs,
+    frozen,
+    todayDay,
+    pinnedUnits: pinned,
+    parameters: parameters,
+  );
 }
 
 /// Alles außer Anlegen, Zieländerung und ausdrücklicher Neuberechnung.
@@ -174,7 +237,8 @@ DateTime _mondayOf(DateTime d) =>
 
 /// Hält die Tage der bisherigen künftigen Einheiten bis zum Ende der Woche
 /// der letzten fest: `generatePlan` hat sie als Termine bekommen (Inhalt neu,
-/// Tag fest); hier bekommen die Einheiten ihr altes `pinned` zurück, Einheiten
+/// Tag fest); hier bekommen die Einheiten ihr altes `pinned` und `fixed`
+/// zurück, Einheiten
 /// auf anderen Tagen im alten Zeitraum entfallen (die Zahl der Läufe bleibt),
 /// und nur Konflikte echter Termine bleiben gemeldet.
 GeneratedPlan _keepSchedule(GeneratedPlan g, List<PlanUnit> oldFuture) {
@@ -187,7 +251,15 @@ GeneratedPlan _keepSchedule(GeneratedPlan g, List<PlanUnit> oldFuture) {
     if (!day.isBefore(horizonEnd)) {
       units.add(u);
     } else if (oldByDay[day] case final old?) {
-      units.add(u.copyWith(pinned: old.pinned));
+      // Eine ersetzte Art, die die Rechnung nicht halten konnte (Geh-Lauf
+      // hat Vorrang), ist nicht mehr vom Nutzer festgelegt.
+      final lost = old.fixed.keepsKind && u.kind != old.kind;
+      units.add(
+        u.copyWith(
+          pinned: old.pinned,
+          fixed: lost ? PlanUnitFixed.none : old.fixed,
+        ),
+      );
     }
   }
   final realPinned = {

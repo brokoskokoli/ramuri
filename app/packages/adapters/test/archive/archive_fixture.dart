@@ -158,14 +158,16 @@ Future<void> fillAllTables(AppDatabase db) async {
   await sql(
     db,
     'INSERT INTO plan_units (id, plan_id, day, week, phase, kind, minutes, '
-    'structure, run_id, pinned) VALUES '
+    'structure, run_id, pinned, fixed) VALUES '
     "(1, 1, '2026-11-02', 0, 'entry', 'walkRun', 30, "
     '\'[{"kind":"walk","minutes":5,"seconds":300},'
     '{"kind":"run","minutes":2,"seconds":90,"intensity":{"rpeMin":3,'
     '"rpeMax":4,"paceFast":360.0,"paceSlow":420.0,"basis":"estimate",'
     '"hrMin":null,"hrMax":null,"estimated":true,"maxHrEstimated":false,'
-    '"paceIsLimit":false}}]\', 1, 1), '
-    "(2, 1, '2026-11-03', 0, 'entry', 'rest', 0, '[]', NULL, 0)",
+    '"paceIsLimit":false}}]\', 1, 1, \'none\'), '
+    "(2, 1, '2026-11-03', 0, 'entry', 'rest', 0, '[]', NULL, 1, 'day'), "
+    "(3, 1, '2026-11-04', 0, 'entry', 'easy', 30, "
+    '\'[{"kind":"easy","minutes":30}]\', NULL, 1, \'easyForHard\')',
   );
   await sql(
     db,
