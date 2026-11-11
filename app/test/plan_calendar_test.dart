@@ -3,8 +3,10 @@ import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_screen.dart';
@@ -710,6 +712,36 @@ void main() {
       expect(await _schedule(session), before);
     });
 
+    for (final locale in ['de', 'en']) {
+      testWidgets('Wochenkalender: Datum bricht bei Schrift 1.0 nicht um, '
+          'Zeilen gleich hoch ($locale)', (tester) async {
+        final (session, clock) = await _seed();
+        await _pump(tester, session, clock, locale: locale, width: 600);
+        final heights = <double>{};
+        for (var i = 0; i < 7; i++) {
+          final label = DateFormat.MEd(locale)
+              .format(DateTime(2026, 11, 9 + i));
+          final f = find.descendant(
+            of: key(
+              'calendar_day_2026-11-${(9 + i).toString().padLeft(2, '0')}',
+            ),
+            matching: find.text(label),
+          );
+          expect(f, findsOneWidget, reason: label);
+          expect(
+            tester
+                .renderObject<RenderParagraph>(f)
+                .getBoxesForSelection(
+                  TextSelection(baseOffset: 0, extentOffset: label.length),
+                ),
+            hasLength(1),
+            reason: label,
+          );
+          heights.add(tester.getSize(f).height);
+        }
+        expect(heights, hasLength(1));
+      });
+    }
     testWidgets('Monatsraster unter 360 dp: Tage mindestens 48 dp breit', (
       tester,
     ) async {

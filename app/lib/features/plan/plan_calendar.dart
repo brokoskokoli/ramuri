@@ -700,6 +700,27 @@ class _PlanCalendarState extends State<PlanCalendar> {
     );
   }
 
+  /// Einheitliche Breite der Datumsspalte: die breiteste Beschriftung der
+  /// Woche bei der eingestellten Schriftgröße, höchstens 30 % der Breite
+  /// (darüber bricht das Datum um, der Titel behält Platz).
+  double _dateColumnWidth(List<String> labels, TextStyle? style) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final dir = Directionality.of(context);
+    var w = 0.0;
+    for (final label in labels) {
+      final p = TextPainter(
+        text: TextSpan(text: label, style: style),
+        textDirection: dir,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      if (p.width > w) w = p.width;
+      p.dispose();
+    }
+    final cap = MediaQuery.sizeOf(context).width * 0.3;
+    return (w.ceilToDouble() + 1).clamp(0, cap).toDouble();
+  }
+
   Widget _weekList(
     AppLocalizations l,
     DateTime monday,
@@ -707,6 +728,10 @@ class _PlanCalendarState extends State<PlanCalendar> {
     Set<DateTime> free,
   ) {
     final lang = Localizations.localeOf(context).languageCode;
+    final dateWidth = _dateColumnWidth([
+      for (var i = 0; i < 7; i++)
+        DateFormat.MEd(lang).format(monday.add(Duration(days: i))),
+    ], Theme.of(context).textTheme.labelMedium);
     return Column(
       key: const Key('calendar_week'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -750,7 +775,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
                         child: Row(
                           children: [
                             SizedBox(
-                              width: 64,
+                              width: dateWidth,
                               child: Text(
                                 DateFormat.MEd(lang).format(day),
                                 style: t.labelMedium?.copyWith(
