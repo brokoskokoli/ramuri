@@ -293,6 +293,20 @@ void main() {
       await _pump(tester, session, clock);
       await openCalendar();
       expect(key('calendar_rest_fixed_2026-11-13'), findsNothing);
+      // Keine Aktionen auf dem überlagerten Tag: Tippen öffnet kein Blatt,
+      // nichts lässt sich aufheben, ersetzen, verschieben oder festlegen.
+      await tester.tap(key('calendar_day_2026-11-13'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      for (final k in [
+        'calendar_rest_clear',
+        'calendar_rest_set',
+        'calendar_move',
+        'calendar_replace',
+      ]) {
+        expect(key(k), findsNothing, reason: k);
+      }
+      final held = (await tester.runAsync(() => plans.unitOn(fri)))!;
+      expect(held.pinned, isTrue);
       // Die Festlegung ist nicht gelöscht: Nach dem Aufheben gilt sie wieder.
       await tester.runAsync(
         () => WarningService(
