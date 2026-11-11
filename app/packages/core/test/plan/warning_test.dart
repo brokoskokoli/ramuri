@@ -175,6 +175,53 @@ void main() {
       expect((await e.plans.history()).length, n);
     });
 
+    test('Ruhetag, den der Nutzer unter Warnsignal festlegt, übersteht das '
+        'Aufheben (ADR-0010)', () async {
+      final e = await _Env.withFixed();
+      final before = await e.all();
+      await e.service.report(
+        source: WarningSource.manual,
+        today: _day(3),
+        now: _now(3),
+      );
+      final goal = (await e.plans.currentGoal())!;
+      final inputs = (await e.plans.history()).last.inputs;
+      final target = (await e.all()).firstWhere(
+        (u) =>
+            u.day.isAfter(_day(10)) &&
+            u.kind == PlanUnitKind.rest &&
+            !u.pinned &&
+            before.any(
+              (b) =>
+                  b.day == u.day && b.kind != PlanUnitKind.rest && !b.pinned,
+            ),
+      );
+      await e.plans.setRestDay(
+        planRestDayUnit(
+          day: target.day,
+          goal: goal,
+          inputs: inputs,
+          today: _day(3),
+        ),
+        today: _day(3),
+        expectedUnitId: target.id,
+      );
+      await e.service.lift(today: _day(3), now: _now(3));
+      final after = {for (final u in await e.all()) u.day: u};
+      final kept = after[target.day]!;
+      expect(kept.kind, PlanUnitKind.rest);
+      expect(kept.pinned, isTrue);
+      expect(kept.fixed, PlanUnitFixed.day);
+      // Die übrigen gehaltenen Tage kehren zurück.
+      final other = before.firstWhere(
+        (b) =>
+            b.day.isAfter(_day(3)) &&
+            b.day != target.day &&
+            b.kind != PlanUnitKind.rest,
+      );
+      expect(after[other.day]!.kind, other.kind);
+    });
+
     test('Neuberechnung unter Warnsignal (manual, weekly, run, '
         'goalChange): bleibt Ruhe, nach Aufheben wie ohne Warnsignal', () async {
       final e = await _Env.withFixed();
