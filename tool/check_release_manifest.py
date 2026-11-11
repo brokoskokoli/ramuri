@@ -83,7 +83,7 @@ def check(perms_text, tree_text):
     errors = []
     if not re.search(r"^package: " + re.escape(PACKAGE) + r"$", perms_text, re.M):
         return ["aapt dump permissions: unerwartete Ausgabe (package-Zeile fehlt)"]
-    perms = set(re.findall(r"^uses-permission: name='([^']+)'", perms_text, re.M))
+    perms = set(re.findall(r"^uses-permission(?:-sdk-23|-sdk-m)?: name='([^']+)'", perms_text, re.M))
     for p in FORBIDDEN:
         if p in perms:
             errors.append(f"Release-APK fordert {p}")
@@ -99,6 +99,10 @@ def check(perms_text, tree_text):
     for comp in apps[0].children:
         actions = [string_value(a.attrs.get("name")) for f in comp.children if f.tag == "intent-filter"
                    for a in f.children if a.tag == "action"]
+        if any(a is None for a in actions):
+            # Ressourcenverweis oder unlesbar: fail-closed, sonst könnte ein Boot-Filter unerkannt bleiben.
+            errors.append(f"{comp.tag} {string_value(comp.attrs.get('name'))}: action ohne lesbaren Namen "
+                          "(Ressourcenverweis?)")
         if any(is_boot_action(a) for a in actions):
             boot.append(comp)
     for comp in boot:
