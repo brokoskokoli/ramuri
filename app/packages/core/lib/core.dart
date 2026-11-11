@@ -106,6 +106,7 @@ export 'src/ppg/ppg_parameters.dart';
 export 'src/profile/heart_rate_resolution.dart';
 export 'src/profile/profile_parameters.dart';
 export 'src/profile/profile_service.dart';
+export 'src/profile/resting_hr_origin.dart';
 export 'src/profile/profile_validation.dart';
 export 'src/recalculation/recalculation_service.dart';
 export 'src/recalculation/run_analysis.dart';

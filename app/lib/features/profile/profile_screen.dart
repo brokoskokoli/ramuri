@@ -55,6 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               widget.session.profile,
               widget.clock,
               widget.recalculation,
+              settings: widget.session.settings,
             ),
             clock: widget.clock,
             coefficients: _Coefficients(widget.session, widget.recalculation),
@@ -81,7 +82,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 /// neu), damit er eine geänderte Herzfrequenzbasis anbieten kann. Das Angebot
 /// ist fertig, bevor die Seite die Rückmeldung zeigt.
 class _NotifyingProfileService extends ProfileService {
-  _NotifyingProfileService(super.store, super.clock, this._recalc);
+  _NotifyingProfileService(
+    super.store,
+    super.clock,
+    this._recalc, {
+    super.settings,
+  });
 
   final RecalculationController _recalc;
 

@@ -75,7 +75,11 @@ class _SetupScreenState extends State<SetupScreen> {
           ),
           const SizedBox(height: 16),
           ProfileForm(
-            service: ProfileService(widget.session.profile, widget.clock),
+            service: ProfileService(
+              widget.session.profile,
+              widget.clock,
+              settings: widget.session.settings,
+            ),
             clock: widget.clock,
             onSaved: (v) {
               // Mit Hinweisen bleibt das Formular stehen, damit der Nutzer sie

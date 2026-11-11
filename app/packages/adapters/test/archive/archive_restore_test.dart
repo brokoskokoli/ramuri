@@ -294,6 +294,11 @@ void main() {
         expect(got[t], sourceDump[t], reason: t);
         if (t != 'settings') expect(got[t], isNotEmpty, reason: t);
       }
+      // Ruhepuls-Herkunft kommt mit dem Reimport zurück (FR-0214).
+      final origin = (await RestingHrOrigin.read(session.settings))!;
+      expect(origin.posture, RestingPosture.lying);
+      expect(origin.measuredAt, DateTime.utc(2026, 11, 10, 7, 12));
+      expect(origin.source, RestingHrSource.camera);
       // computed_values original + current, unbekannter Schlüssel, Abschnitte.
       final cv = got['computed_values']!;
       expect(cv.map((r) => r['role']).toSet(), {'original', 'current'});

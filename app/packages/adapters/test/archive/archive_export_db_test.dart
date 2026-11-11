@@ -226,6 +226,10 @@ void main() {
         'load.coefficients',
         'load.factor',
         'load.profile',
+        // Ruhepuls-Herkunft (FR-0214): Haltung, Zeitpunkt, Quelle.
+        'resting_hr.measured_at',
+        'resting_hr.posture',
+        'resting_hr.source',
         'unit.pace',
       ],
     );
