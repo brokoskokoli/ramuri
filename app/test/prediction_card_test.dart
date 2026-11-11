@@ -412,6 +412,45 @@ void main() {
       expect(txt('prediction_value_1'), '≈ 52 min');
     });
 
+    for (final locale in ['de', 'en']) {
+      testWidgets('Tempo außerhalb 2:30 bis 15:00 min/km: Fehler an der Zeit, '
+          'nichts gespeichert; Grenze 2:30 gilt ($locale)', (tester) async {
+        final d = await boot(tester);
+        await pumpCard(tester, d, locale: locale);
+        await tapKey(tester, 'prediction_add');
+        // Voreinstellung 5 km; 999 h wie im E2E.
+        await tester.enterText(key('prediction_form_hours'), '999');
+        await tester.pump();
+        await tapKey(tester, 'prediction_form_save');
+        expect(
+          txt('prediction_form_error'),
+          locale == 'de'
+              ? 'Distanz und Zeit ergeben ein Tempo außerhalb von '
+                    '2:30 min/km bis 15:00 min/km. Prüf die Angaben.'
+              : 'Distance and time give a pace outside 2:30 min/km to '
+                    '15:00 min/km. Please check your entries.',
+        );
+        // Am Feld: direkt unter den Zeitfeldern, über dem Datum.
+        final error = tester.getTopLeft(key('prediction_form_error')).dy;
+        expect(
+          error,
+          greaterThan(tester.getBottomLeft(key('prediction_form_hours')).dy),
+        );
+        expect(
+          error,
+          lessThan(tester.getTopLeft(key('prediction_form_date')).dy),
+        );
+        expect(await _store(d).references(), isEmpty);
+        // 5 km in 12:30 = 2:30 min/km: gilt.
+        await tester.enterText(key('prediction_form_hours'), '0');
+        await tester.enterText(key('prediction_form_minutes'), '12');
+        await tester.enterText(key('prediction_form_seconds'), '30');
+        await tester.pump();
+        await tapKey(tester, 'prediction_form_save');
+        expect((await _store(d).references()).single.reference.seconds, 750);
+      });
+    }
+
     testWidgets('freie Distanz in Kilometern mit Komma', (tester) async {
       final d = await boot(tester);
       await pumpCard(tester, d);

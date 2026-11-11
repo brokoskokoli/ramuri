@@ -463,7 +463,7 @@ class _GoalCard extends StatelessWidget {
     final c = RamuriColors.of(context);
     final text = Theme.of(context).textTheme;
     final lang = Localizations.localeOf(context).languageCode;
-    String main;
+    String? main;
     String basis;
     String? extra;
     final texts = planAssessmentTexts(
@@ -475,7 +475,8 @@ class _GoalCard extends StatelessWidget {
       (:main, :extra, :basis) = texts;
     } else {
       // Nur Einheiten bis heute: künftige Tage der Woche sind noch kein
-      // Rückstand („0 von 3“ am Montag).
+      // Rückstand („0 von 3“ am Montag). War bis heute keine Einheit fällig,
+      // entfällt die Zeile („0 von 0“, E2E API 36); die Grundlage bleibt.
       final runDays = state.weekUnits
           .where(
             (u) =>
@@ -483,19 +484,22 @@ class _GoalCard extends StatelessWidget {
                 !planDay(u.day).isAfter(planDay(today)),
           )
           .toList();
-      main = l.planAssessRegularity(
-        runDays.where((u) => u.runId != null).length,
-        runDays.length,
-      );
+      main = runDays.isEmpty
+          ? null
+          : l.planAssessRegularity(
+              runDays.where((u) => u.runId != null).length,
+              runDays.length,
+            );
       basis = l.planAssessBasisRegularity;
     }
     return [
       const SizedBox(height: 12),
-      Text(
-        main,
-        key: const Key('plan_assessment'),
-        style: text.labelMedium?.copyWith(color: c.accent),
-      ),
+      if (main != null)
+        Text(
+          main,
+          key: const Key('plan_assessment'),
+          style: text.labelMedium?.copyWith(color: c.accent),
+        ),
       if (a.regulatorTooLow)
         Text(
           l.planAssessRegulator,

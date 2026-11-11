@@ -316,6 +316,55 @@ void main() {
     expect(find.byKey(const Key('plan_form_save')), findsOneWidget);
   });
 
+  testWidgets('Minuten je Einheit: Fehler steht am Feld und verschwindet '
+      'mit der Eingabe', (tester) async {
+    final (session, clock) = await _empty();
+    final c = _Scripted(session, clock, PlanActionResult.done);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.byKey(const Key('plan_form_day_2')));
+    String? fieldError() => tester
+        .widget<TextField>(find.byKey(const Key('plan_form_max_session')))
+        .decoration!
+        .errorText;
+    expect(fieldError(), isNull);
+    await _tap(tester, find.byKey(const Key('plan_form_check')));
+    expect(fieldError(), de.planFormErrorMaxSession);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('plan_form_max_session')),
+        matching: find.text(de.planFormErrorMaxSession),
+      ),
+      findsOneWidget,
+    );
+    await _enter(tester, 'plan_form_max_session', '45');
+    expect(fieldError(), isNull);
+  });
+
+  testWidgets('Nach dem Datumsdialog bleibt die Tastatur zu (kein Fokus '
+      'zurück ins zuletzt bearbeitete Feld)', (tester) async {
+    final (session, clock) = await _empty();
+    final c = _Scripted(session, clock, PlanActionResult.done);
+    await _pump(tester, session: session, clock: clock, controller: c);
+    await _tap(tester, find.byKey(const Key('plan_create_goal')));
+    await _tap(tester, find.text(de.planFormTypeTime));
+    await _tap(tester, find.byKey(const Key('plan_form_seconds')));
+    await tester.enterText(find.byKey(const Key('plan_form_seconds')), '0');
+    await tester.pumpAndSettle();
+    final seconds = find.descendant(
+      of: find.byKey(const Key('plan_form_seconds')),
+      matching: find.byType(EditableText),
+    );
+    expect(tester.widget<EditableText>(seconds).focusNode.hasFocus, isTrue);
+    await _pickDay(tester, 20);
+    expect(tester.widget<EditableText>(seconds).focusNode.hasFocus, isFalse);
+    expect(tester.testTextInput.isVisible, isFalse);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('plan_form_date'))).data,
+      DateFormat.yMMMd('de').format(DateTime(2026, 11, 20)),
+    );
+  });
+
   testWidgets('Zieldatum vor heute wird mit heute geprüft, nicht mit dem '
       'Anlegetag', (tester) async {
     // Angelegt am 1.11. mit Zieldatum 5.11.; heute ist der 11.11.

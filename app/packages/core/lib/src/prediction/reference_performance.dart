@@ -13,7 +13,16 @@ enum ReferenceKind {
 }
 
 /// Warum eine Referenz nicht gültig ist.
-enum ReferenceProblem { distanceTooShort, nonPositiveTime, dateInFuture }
+enum ReferenceProblem {
+  distanceTooShort,
+  nonPositiveTime,
+
+  /// Tempo außerhalb von [PredictionParameters.fastestReferencePaceSecondsPerKm]
+  /// bis [PredictionParameters.slowestReferencePaceSecondsPerKm] (Grenzen
+  /// eingeschlossen).
+  paceOutOfRange,
+  dateInFuture,
+}
 
 /// Referenzleistung: Distanz, Zeit, Datum (FR-0129).
 ///
@@ -42,7 +51,8 @@ class ReferencePerformance {
   /// Lauf-ID bei [ReferenceKind.confirmedRun].
   final String? runId;
 
-  /// Erstes Problem nach FR-0129 und Festlegung WP20 oder `null`.
+  /// Erstes Problem nach FR-0129, Festlegung WP20 und Tempospanne
+  /// (Maintainer 2026-11-11) oder `null`.
   ReferenceProblem? validate(DateTime now, [PredictionParameters? p]) {
     final params = p ?? const PredictionParameters();
     if (!(distanceMeters >= params.minimumReferenceMeters) ||
@@ -52,11 +62,26 @@ class ReferencePerformance {
     if (!(seconds > 0) || !seconds.isFinite) {
       return ReferenceProblem.nonPositiveTime;
     }
+    if (!referencePaceInRange(distanceMeters, seconds, params)) {
+      return ReferenceProblem.paceOutOfRange;
+    }
     if (calendarDay(date).isAfter(calendarDay(now))) {
       return ReferenceProblem.dateInFuture;
     }
     return null;
   }
+}
+
+/// Liegt das Tempo aus [meters] und [seconds] in der plausiblen Spanne einer
+/// Referenz (Grenzen eingeschlossen)? `false` bei ungültigen Zahlen.
+bool referencePaceInRange(
+  double meters,
+  double seconds,
+  PredictionParameters p,
+) {
+  final pace = seconds / (meters / 1000);
+  return pace >= p.fastestReferencePaceSecondsPerKm &&
+      pace <= p.slowestReferencePaceSecondsPerKm;
 }
 
 /// Die geltende Referenz: die jüngste nach Datum, bei gleichem Datum die

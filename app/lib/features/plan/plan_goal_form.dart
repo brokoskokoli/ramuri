@@ -90,6 +90,10 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   bool _busy = false;
   String? _error;
 
+  /// Das Problem der letzten Prüfung; Felder zeigen ihren Fehler selbst
+  /// (E2E API 36: Minuten je Einheit nicht nur über dem Knopf).
+  GoalProblem? _problem;
+
   bool get _editing => widget.initial != null;
   DateTime get _today => calendarDay(widget.clock.now());
 
@@ -190,6 +194,7 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     _generation++;
     _check = null;
     _error = null;
+    _problem = null;
   });
 
   double? _number(TextEditingController c) {
@@ -264,7 +269,10 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     // Der Stand ist nur beim Anlegen ohne Läufe gefragt (PAR-192).
     final problem = draft.validate(_today, null, !_editing && !_standFromRuns);
     if (problem != null) {
-      setState(() => _error = _problemText(l, problem));
+      setState(() {
+        _error = _problemText(l, problem);
+        _problem = problem;
+      });
       return;
     }
     final generation = _generation;
@@ -346,6 +354,9 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     final initial = current == null || calendarDay(current).isBefore(t)
         ? first
         : DateTime(current.year, current.month, current.day);
+    // Ohne das gibt der Navigator beim Schließen des Dialogs den Fokus an das
+    // zuletzt bearbeitete Feld zurück, und die Tastatur geht auf (E2E API 36).
+    FocusManager.instance.primaryFocus?.unfocus();
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -547,7 +558,14 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
         ],
       ),
       const SizedBox(height: 16),
-      _numberField('plan_form_max_session', _maxSession, l.planFormMaxSession),
+      _numberField(
+        'plan_form_max_session',
+        _maxSession,
+        l.planFormMaxSession,
+        errorText: _problem == GoalProblem.maxSessionInvalid
+            ? l.planFormErrorMaxSession
+            : null,
+      ),
       const SizedBox(height: 16),
       SectionHeading(l.planFormRegulator),
       Text(
@@ -792,14 +810,16 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     return widgets;
   }
 
-  Widget _numberField(String key, TextEditingController c, String label) =>
-      TextField(
-        key: Key(key),
-        controller: c,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-        ],
-        decoration: InputDecoration(labelText: label),
-      );
+  Widget _numberField(
+    String key,
+    TextEditingController c,
+    String label, {
+    String? errorText,
+  }) => TextField(
+    key: Key(key),
+    controller: c,
+    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+    decoration: InputDecoration(labelText: label, errorText: errorText),
+  );
 }

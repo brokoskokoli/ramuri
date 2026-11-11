@@ -129,6 +129,15 @@ Future<void> _invalid(StorageContractHarness h) async {
     'Zeit 0',
   );
   await rejects(
+    _ref(
+      meters: 5000,
+      seconds: 999 * 3600,
+      date: ok.date,
+      createdAt: ok.createdAt,
+    ),
+    'Tempo außerhalb der Spanne (5 km in 999 h)',
+  );
+  await rejects(
     _ref(date: DateTime(2030, 1, 3), createdAt: at(0)),
     'Datum nach dem Anlegen',
   );

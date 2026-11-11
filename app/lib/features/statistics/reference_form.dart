@@ -49,6 +49,9 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
   late DateTime _date = _today;
   String? _error;
 
+  /// Betrifft [_error] die Zeit? Dann steht er direkt unter den Zeitfeldern.
+  bool _timeError = false;
+
   DateTime get _today {
     final l = widget.now.toLocal();
     return DateTime(l.year, l.month, l.day);
@@ -80,7 +83,10 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
     final l10n = AppLocalizations.of(context);
     final meters = _meters();
     if (meters == null) {
-      setState(() => _error = l10n.predictionErrorDistanceMissing);
+      setState(() {
+        _error = l10n.predictionErrorDistanceMissing;
+        _timeError = false;
+      });
       return;
     }
     final seconds =
@@ -92,17 +98,23 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
       date: _date,
       createdAt: widget.now,
     );
-    final problem = reference.validate(widget.now);
+    const params = PredictionParameters();
+    final problem = reference.validate(widget.now, params);
     if (problem != null) {
       setState(() {
+        _timeError =
+            problem == ReferenceProblem.nonPositiveTime ||
+            problem == ReferenceProblem.paceOutOfRange;
         _error = switch (problem) {
           ReferenceProblem.distanceTooShort =>
             l10n.predictionErrorDistanceShort(
-              widget.formatter.distance(
-                const PredictionParameters().minimumReferenceMeters,
-              ),
+              widget.formatter.distance(params.minimumReferenceMeters),
             ),
           ReferenceProblem.nonPositiveTime => l10n.predictionErrorTime,
+          ReferenceProblem.paceOutOfRange => l10n.predictionErrorPace(
+            widget.formatter.pace(params.fastestReferencePaceSecondsPerKm),
+            widget.formatter.pace(params.slowestReferencePaceSecondsPerKm),
+          ),
           ReferenceProblem.dateInFuture => l10n.predictionErrorDate,
         };
       });
@@ -156,6 +168,15 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
             decoration: InputDecoration(labelText: text),
           ),
         );
+
+    Widget errorText() => Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Text(
+        _error!,
+        key: const Key('prediction_form_error'),
+        style: theme.bodyMedium!.copyWith(color: c.danger),
+      ),
+    );
 
     return AlertDialog(
       key: const Key('prediction_form'),
@@ -231,20 +252,14 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
               ),
             ],
           ),
+          if (_timeError) errorText(),
           label(l10n.predictionFormDate),
           OutlinedButton(
             key: const Key('prediction_form_date'),
             onPressed: _pickDate,
             child: Text(DateFormat.yMMMd(lang).format(_date)),
           ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _error!,
-              key: const Key('prediction_form_error'),
-              style: theme.bodyMedium!.copyWith(color: c.danger),
-            ),
-          ],
+          if (_error != null && !_timeError) errorText(),
         ],
       ),
       actions: [

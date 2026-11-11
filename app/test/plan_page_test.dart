@@ -439,7 +439,13 @@ void main() {
       ) as (StorageSession, FakeClock);
       await _pump(tester, session: session, clock: clock);
       expect(find.text('Fitter werden'), findsOneWidget);
-      expect(find.textContaining('Diese Woche: 0 von'), findsOneWidget);
+      // Bis heute ist keine Einheit fällig: keine „0 von 0“-Zeile, aber die
+      // Grundlage der Regelmäßigkeit.
+      expect(find.textContaining('0 von 0'), findsNothing);
+      expect(
+        find.textContaining('hier zählt, dass du regelmäßig läufst'),
+        findsOneWidget,
+      );
     });
   });
 
@@ -885,6 +891,33 @@ void main() {
       expect(
         tester.widget<Text>(key('plan_assessment')).data,
         'Diese Woche: 1 von 2 Einheiten gelaufen',
+      );
+    });
+
+    testWidgets('Regelmäßigkeit: ohne fällige Einheit keine „0 von 0“-Zeile', (
+      tester,
+    ) async {
+      // E2E API 36: Do und Sa geplant, heute ist Mi; bis heute nichts fällig.
+      await pumpFixed(
+        tester,
+        _state(
+          type: GoalType.open,
+          assessment: const GoalAssessment(
+            feasibility: null,
+            reason: FeasibilityReason.showRegularity,
+          ),
+          weekUnits: [
+            unit(_today.add(const Duration(days: 1))),
+            unit(_today.add(const Duration(days: 3))),
+          ],
+        ),
+      );
+      expect(key('plan_assessment'), findsNothing);
+      expect(find.textContaining('0 von 0'), findsNothing);
+      expect(
+        tester.widget<Text>(key('plan_assessment_basis')).data,
+        'Ohne Zieldatum gibt es keine Einschätzung; hier zählt, dass du '
+        'regelmäßig läufst.',
       );
     });
 

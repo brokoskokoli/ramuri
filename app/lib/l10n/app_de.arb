@@ -1871,6 +1871,8 @@
   "@predictionErrorDistanceShort": {"description": "WP20 Teil C, Prognosekarte", "placeholders": {"minimum": {"type": "String"}}},
   "predictionErrorTime": "Die Zeit muss größer als null sein.",
   "@predictionErrorTime": {"description": "WP20 Teil C, Prognosekarte"},
+  "predictionErrorPace": "Distanz und Zeit ergeben ein Tempo außerhalb von {fastest} bis {slowest}. Prüf die Angaben.",
+  "@predictionErrorPace": {"description": "WP22 E2E API 36, Referenzformular", "placeholders": {"fastest": {"type": "String"}, "slowest": {"type": "String"}}},
   "predictionErrorDate": "Das Datum darf nicht in der Zukunft liegen.",
   "@predictionErrorDate": {"description": "WP20 Teil C, Prognosekarte"},
   "homePlan": "Plan",

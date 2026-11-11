@@ -20,6 +20,8 @@ class PredictionParameters {
   const PredictionParameters({
     this.riegelExponent = 1.06,
     this.minimumReferenceMeters = 3000,
+    this.fastestReferencePaceSecondsPerKm = 150,
+    this.slowestReferencePaceSecondsPerKm = 900,
     this.maxReferenceAgeDays = 182,
     this.maxPauseDaysExclusive = 56,
     this.provisionalCapAgeDays = 84,
@@ -40,6 +42,9 @@ class PredictionParameters {
     this.testHintMinimumRuns = 12,
     this.testHintMinimumContinuousMinutes = 30,
   }) : assert(riegelExponent > 0),
+       assert(
+         fastestReferencePaceSecondsPerKm < slowestReferencePaceSecondsPerKm,
+       ),
        assert(regularityWeeks >= goodRegularWeeks),
        assert(goodRegularWeeks >= sufficientRegularWeeks);
 
@@ -48,6 +53,16 @@ class PredictionParameters {
 
   /// FR-0129 / Festlegung WP20: Mindestdistanz einer Referenz.
   final double minimumReferenceMeters;
+
+  /// Vorschlag (Maintainer-Entscheidung 2026-11-11, E2E API 36), PAR-Nummer
+  /// vergibt der Orchestrator: schnellstes plausibles Tempo einer Referenz,
+  /// Sekunden je km (2:30 min/km). Schneller ist ungültig.
+  final double fastestReferencePaceSecondsPerKm;
+
+  /// Vorschlag (Maintainer-Entscheidung 2026-11-11, E2E API 36), PAR-Nummer
+  /// vergibt der Orchestrator: langsamstes plausibles Tempo einer Referenz,
+  /// Sekunden je km (15:00 min/km). Langsamer ist ungültig.
+  final double slowestReferencePaceSecondsPerKm;
 
   /// PAR-143, PAR-144: älter (Tage) ist „nicht bestimmbar“ (26 Wochen).
   final int maxReferenceAgeDays;
