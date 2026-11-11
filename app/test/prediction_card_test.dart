@@ -910,8 +910,36 @@ void main() {
         expect(txt('prediction_reason'), isNot(contains('keine Referenz')));
         expect(txt('prediction_other_998'), contains('ungültig ($cause'));
         expect(key('prediction_delete'), findsNothing);
+        // Kein Widerspruch: weder „Keine Referenz“ noch „Weitere: 1“.
+        expect(key('prediction_reference'), findsNothing);
+        expect(find.text('Keine Referenz eingetragen.'), findsNothing);
+        expect(key('prediction_others'), findsNothing);
       });
     }
+
+    testWidgets('zwei unbrauchbare Referenzen: die jüngste als Zeile, '
+        '„Weitere“ zählt nur die andere', (tester) async {
+      final d = await boot(tester);
+      await regularRuns(d);
+      final g = _GatedSession(d.session);
+      final n = d.clock.now().toLocal();
+      StoredReference bad(int id, int daysAgo) => StoredReference(
+        id: id,
+        reference: ReferencePerformance(
+          kind: ReferenceKind.race,
+          distanceMeters: 5000,
+          seconds: 999 * 3600,
+          date: DateTime(n.year, n.month, n.day - daysAgo),
+          createdAt: d.clock.now(),
+        ),
+      );
+      g.prediction.imported = [bad(997, 2), bad(996, 5)];
+      await pumpCard(tester, d, session: g);
+      expect(key('prediction_reference'), findsNothing);
+      expect(key('prediction_other_997'), findsOneWidget);
+      expect(key('prediction_other_996'), findsOneWidget);
+      expect(txt('prediction_others'), 'Weitere gespeicherte Referenzen: 1');
+    });
 
     testWidgets('Vorschlag beruht auf der geltenden Referenz, nicht auf einer '
         'jüngeren unbrauchbaren', (tester) async {

@@ -51,8 +51,12 @@ class PlanRecalculation {
 /// Das `summary` der Fassung trägt das Alt-Neu-Bild, die Hinweise der
 /// Rechnung ([planHintsToJson], lesbar mit [planHintsFromSummary]) und den
 /// Fingerabdruck des Ziels ([planGoalFingerprint]); weicht das Ziel von dem
-/// der letzten Fassung ab ([planGoalChangedSince]), wird auch bei gleichen
-/// Einheiten geschrieben.
+/// der letzten Fassung ab ([planGoalChangedSince]), wird bei gleichen
+/// Einheiten nur für die Auslöser `create`, `goalChange` und `manual`
+/// geschrieben. Automatische Auslöser (z. B. `run`) rechnen eine
+/// ausstehende Zieländerung nicht: Sie schreiben bei gleichen Einheiten
+/// nichts und übernehmen sonst den Fingerabdruck der letzten Fassung, die
+/// Änderung bleibt ausstehend.
 /// Scheitert das Schreiben, bleibt der alte Plan ganz bestehen und
 /// `plan.last_check_day` unverändert.
 ///

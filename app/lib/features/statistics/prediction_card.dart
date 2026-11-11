@@ -241,22 +241,26 @@ class _PredictionCardState extends State<PredictionCard> {
     );
     final out = <Widget>[];
 
-    // Die Referenz, auf der die Zeiten beruhen, immer sichtbar.
+    // Die Referenz, auf der die Zeiten beruhen, immer sichtbar. Gibt es nur
+    // unbrauchbare, steht an ihrer Stelle deren Zeile „ungültig (Grund)“
+    // (unten); „Keine Referenz eingetragen“ wäre dann falsch.
     final active = state.active?.reference;
-    out.add(
-      Text(
-        active == null
-            ? l10n.predictionNoReference
-            : l10n.predictionReferenceLine(
-                predictionKindText(l10n, active.kind),
-                formatter.distance(active.distanceMeters),
-                clockTimeText(active.seconds),
-                DateFormat.yMMMd(lang).format(active.date),
-              ),
-        key: const Key('prediction_reference'),
-        style: theme.bodySmall!.copyWith(color: c.textMuted),
-      ),
-    );
+    if (active != null || state.others.isEmpty) {
+      out.add(
+        Text(
+          active == null
+              ? l10n.predictionNoReference
+              : l10n.predictionReferenceLine(
+                  predictionKindText(l10n, active.kind),
+                  formatter.distance(active.distanceMeters),
+                  clockTimeText(active.seconds),
+                  DateFormat.yMMMd(lang).format(active.date),
+                ),
+          key: const Key('prediction_reference'),
+          style: theme.bodySmall!.copyWith(color: c.textMuted),
+        ),
+      );
+    }
     out.add(const SizedBox(height: 8));
 
     for (var i = 0; i < prediction.distances.length; i++) {
@@ -334,61 +338,65 @@ class _PredictionCardState extends State<PredictionCard> {
       ),
     );
     final others = state.others;
-    if (others.isNotEmpty) {
+    // Ohne geltende Referenz ist die jüngste (unbrauchbare) die Grundlage-
+    // Zeile; „Weitere“ zählt sie nicht mit.
+    final lead = state.active == null && others.isNotEmpty
+        ? others.first
+        : null;
+    final rest = lead == null ? others : others.sublist(1);
+    Widget otherRow(StoredReference s) {
+      final r = s.reference;
+      final line = l10n.predictionReferenceLine(
+        predictionKindText(l10n, r.kind),
+        formatter.distance(r.distanceMeters),
+        clockTimeText(r.seconds),
+        DateFormat.yMMMd(lang).format(r.date),
+      );
+      // Unbrauchbare Referenz (z. B. importiert außerhalb der Tempospanne):
+      // sichtbar und löschbar, aber als ungültig gekennzeichnet.
+      final problem = r.validate(r.date, state.parameters);
+      final summary = problem == null
+          ? line
+          : l10n.planReferenceInvalid(
+              line,
+              referenceProblemText(l10n, problem, formatter, state.parameters),
+            );
+      return Row(
+        children: [
+          Expanded(
+            child: Text(
+              summary,
+              key: Key('prediction_other_${s.id}'),
+              style: theme.bodySmall,
+            ),
+          ),
+          IconButton(
+            key: Key('prediction_other_delete_${s.id}'),
+            tooltip: l10n.predictionDeleteOther(summary),
+            constraints: const BoxConstraints(
+              minWidth: RamuriTheme.minTarget,
+              minHeight: RamuriTheme.minTarget,
+            ),
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _c.busy ? null : () => _delete(s),
+          ),
+        ],
+      );
+    }
+
+    if (lead != null) out.add(otherRow(lead));
+    if (rest.isNotEmpty) {
       out
         ..add(const SizedBox(height: 8))
         ..add(
           Text(
-            l10n.predictionOtherReferences(others.length),
+            l10n.predictionOtherReferences(rest.length),
             key: const Key('prediction_others'),
             style: theme.bodySmall!.copyWith(color: c.textMuted),
           ),
         );
-      for (final s in others) {
-        final r = s.reference;
-        final line = l10n.predictionReferenceLine(
-          predictionKindText(l10n, r.kind),
-          formatter.distance(r.distanceMeters),
-          clockTimeText(r.seconds),
-          DateFormat.yMMMd(lang).format(r.date),
-        );
-        // Unbrauchbare Referenz (z. B. importiert außerhalb der Tempospanne):
-        // sichtbar und löschbar, aber als ungültig gekennzeichnet.
-        final problem = r.validate(r.date, state.parameters);
-        final summary = problem == null
-            ? line
-            : l10n.planReferenceInvalid(
-                line,
-                referenceProblemText(
-                  l10n,
-                  problem,
-                  formatter,
-                  state.parameters,
-                ),
-              );
-        out.add(
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  summary,
-                  key: Key('prediction_other_${s.id}'),
-                  style: theme.bodySmall,
-                ),
-              ),
-              IconButton(
-                key: Key('prediction_other_delete_${s.id}'),
-                tooltip: l10n.predictionDeleteOther(summary),
-                constraints: const BoxConstraints(
-                  minWidth: RamuriTheme.minTarget,
-                  minHeight: RamuriTheme.minTarget,
-                ),
-                icon: const Icon(Icons.delete_outline),
-                onPressed: _c.busy ? null : () => _delete(s),
-              ),
-            ],
-          ),
-        );
+      for (final s in rest) {
+        out.add(otherRow(s));
       }
     }
     return out;
