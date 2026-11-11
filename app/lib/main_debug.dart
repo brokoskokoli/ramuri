@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 
 import 'app.dart';
 import 'app_dependencies.dart';
+import 'debug/debug_ppg_panel.dart';
 import 'debug/debug_test_ppg_camera.dart';
 import 'debug/debug_test_sensor.dart';
 import 'system_clock.dart';
@@ -16,11 +17,16 @@ import 'ui/font_licenses.dart';
 void main() {
   if (kReleaseMode) throw StateError('main_debug nur im Debug-Build');
   registerFontLicenses();
+  final camera = DebugTestPpgCamera();
   runApp(
-    RunningApp(
-      dependencies: AppDependencies.create(
-        heartRateSensor: DebugTestSensor(const SystemClock()),
-        ppgCamera: DebugTestPpgCamera(),
+    // Szenario der Fake-Kamera wählbar (E2E), siehe DebugPpgPanel.
+    DebugPpgPanel(
+      camera: camera,
+      child: RunningApp(
+        dependencies: AppDependencies.create(
+          heartRateSensor: DebugTestSensor(const SystemClock()),
+          ppgCamera: camera,
+        ),
       ),
     ),
   );

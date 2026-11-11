@@ -1230,5 +1230,7 @@
   "measureStopBackgroundTitle": "The measurement was stopped",
   "@measureStopBackgroundTitle": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
   "measureStopBackgroundBody": "The app was no longer in the foreground.",
-  "@measureStopBackgroundBody": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"}
+  "@measureStopBackgroundBody": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214)"},
+  "measureProfileAction": "Measure with the camera",
+  "@measureProfileAction": {"description": "Ruhepuls-Messung mit der Kamera (FR-0214): Einstieg unter dem Ruhepuls im Profil und in der Einrichtung"}
 }

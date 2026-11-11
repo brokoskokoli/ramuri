@@ -6,6 +6,7 @@ import '../archive/archive_import_action.dart';
 import '../archive/archive_wiring.dart';
 import '../../ui/ramuri_buttons.dart';
 import '../../ui/ramuri_card.dart';
+import '../measure/resting_measure_launcher.dart';
 import '../profile/profile_form.dart';
 
 /// Ersteinrichtung beim ersten Start (FR-0001, OQ-0010): Profilformular, das
@@ -33,9 +34,15 @@ class SetupScreen extends StatefulWidget {
 
 class _SetupScreenState extends State<SetupScreen> {
   bool _savedWithHints = false;
+  late final ProfileService _service = ProfileService(
+    widget.session.profile,
+    widget.clock,
+    settings: widget.session.settings,
+  );
 
   @override
   Widget build(BuildContext context) {
+    final camera = PpgCameraScope.maybeOf(context);
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
@@ -75,12 +82,17 @@ class _SetupScreenState extends State<SetupScreen> {
           ),
           const SizedBox(height: 16),
           ProfileForm(
-            service: ProfileService(
-              widget.session.profile,
-              widget.clock,
-              settings: widget.session.settings,
-            ),
+            service: _service,
             clock: widget.clock,
+            restingMeasure: camera == null
+                ? null
+                : restingMeasureLauncher(
+                    camera: camera,
+                    profile: _service,
+                    settings: widget.session.settings,
+                    clock: widget.clock,
+                    evaluate: PpgCameraScope.evaluateOf(context),
+                  ),
             onSaved: (v) {
               // Mit Hinweisen bleibt das Formular stehen, damit der Nutzer sie
               // sieht; sonst geht es direkt weiter.

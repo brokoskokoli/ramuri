@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../measure/resting_measure_launcher.dart';
 import '../recalculation/recalculation_controller.dart';
 import 'profile_form.dart';
 
@@ -24,11 +25,19 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   ScaffoldMessengerState? _messenger;
+  PpgCamera? _camera;
+  late final ProfileService _service = _NotifyingProfileService(
+    widget.session.profile,
+    widget.clock,
+    widget.recalculation,
+    settings: widget.session.settings,
+  );
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _messenger = ScaffoldMessenger.of(context);
+    _camera = PpgCameraScope.maybeOf(context);
   }
 
   @override
@@ -51,13 +60,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Text(l10n.profileIntro, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 16),
           ProfileForm(
-            service: _NotifyingProfileService(
-              widget.session.profile,
-              widget.clock,
-              widget.recalculation,
-              settings: widget.session.settings,
-            ),
+            service: _service,
             clock: widget.clock,
+            // Gleicher Dienst wie beim Speichern: Zonen und Neuberechnung
+            // laufen wie bei manueller Eingabe.
+            restingMeasure: _camera == null
+                ? null
+                : restingMeasureLauncher(
+                    camera: _camera!,
+                    profile: _service,
+                    settings: widget.session.settings,
+                    clock: widget.clock,
+                    evaluate: PpgCameraScope.evaluateOf(context),
+                  ),
             coefficients: _Coefficients(widget.session, widget.recalculation),
             onSaved: (_) {
               final messenger = ScaffoldMessenger.of(context);

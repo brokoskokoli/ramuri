@@ -5,6 +5,8 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_buttons.dart';
 import '../../ui/ramuri_card.dart';
 import '../../ui/section_heading.dart';
+import '../measure/resting_measure_launcher.dart';
+import '../measure/resting_measure_screen.dart';
 import 'profile_messages.dart';
 
 /// Zugriff auf das optionale Profilfeld „Koeffizienten des Banister-Modells“
@@ -32,6 +34,7 @@ class ProfileForm extends StatefulWidget {
     required this.clock,
     required this.onSaved,
     this.coefficients,
+    this.restingMeasure,
   });
 
   final ProfileService service;
@@ -43,6 +46,10 @@ class ProfileForm extends StatefulWidget {
   /// Das Feld „Koeffizienten des Banister-Modells“; ohne Zugriff kein Feld.
   final LoadCoefficientsAccess? coefficients;
 
+  /// Einstieg „Mit der Kamera messen“ unter dem Ruhepuls (WP27); ohne ihn
+  /// (keine Kamera in der Umgebung) bleibt nur die manuelle Eingabe.
+  final RestingMeasureLauncher? restingMeasure;
+
   @override
   State<ProfileForm> createState() => _ProfileFormState();
 }
@@ -52,6 +59,7 @@ class _ProfileFormState extends State<ProfileForm> {
   final _weight = TextEditingController();
   final _height = TextEditingController();
   final _resting = TextEditingController();
+  final _restingFocus = FocusNode();
   final _max = TextEditingController();
   final _weekly = TextEditingController();
   final _usual = TextEditingController();
@@ -124,8 +132,36 @@ class _ProfileFormState extends State<ProfileForm> {
     });
   }
 
+  /// Öffnet die Messung. Nach der Übernahme steht der gespeicherte Wert im
+  /// Feld (die übrigen Eingaben bleiben, wie sie sind); sonst bleibt das Feld
+  /// unverändert, nach „Selbst eintragen“ beginnt dort die Eingabe.
+  Future<void> _measureResting() async {
+    final launch = widget.restingMeasure;
+    if (launch == null) return;
+    final outcome = await launch(context);
+    if (!mounted) return;
+    if (outcome == RestingMeasureOutcome.adopted) {
+      try {
+        final p = await widget.service.load();
+        if (!mounted) return;
+        setState(() {
+          _resting.text = p.restingHeartRateBpm?.toString() ?? '';
+          _unreadable.remove(_resting);
+          _validation = null;
+          _banner = null;
+          _savedNote = null;
+        });
+      } on StorageException {
+        // Wert ist gespeichert; das Feld zeigt dann noch den alten Stand.
+      }
+    } else if (outcome == RestingMeasureOutcome.dismissed) {
+      _restingFocus.requestFocus();
+    }
+  }
+
   @override
   void dispose() {
+    _restingFocus.dispose();
     for (final c in _all) {
       c.dispose();
     }
@@ -254,6 +290,7 @@ class _ProfileFormState extends State<ProfileForm> {
     AppLocalizations l10n, {
     ProfileField? field,
     bool decimal = false,
+    FocusNode? focusNode,
   }) {
     final issue = field == null ? null : _issueText(field, l10n);
     final unreadable = _unreadable.contains(controller);
@@ -266,6 +303,7 @@ class _ProfileFormState extends State<ProfileForm> {
       child: TextField(
         key: Key(key),
         controller: controller,
+        focusNode: focusNode,
         keyboardType: TextInputType.numberWithOptions(decimal: decimal),
         decoration: InputDecoration(
           labelText: label,
@@ -457,7 +495,18 @@ class _ProfileFormState extends State<ProfileForm> {
                 l10n.profileRestingHr,
                 l10n,
                 field: ProfileField.restingHeartRate,
+                focusNode: _restingFocus,
               ),
+              if (widget.restingMeasure != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: RamuriSecondaryButton(
+                    key: const Key('profile_resting_measure'),
+                    icon: Icons.photo_camera_outlined,
+                    label: l10n.measureProfileAction,
+                    onPressed: _saving ? null : _measureResting,
+                  ),
+                ),
               _field(
                 'profile_max',
                 _max,

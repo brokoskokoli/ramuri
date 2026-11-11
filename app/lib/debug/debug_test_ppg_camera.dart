@@ -46,7 +46,9 @@ class DebugTestPpgCamera implements PpgCamera {
   }
 
   DebugPpgScenario scenario;
-  final double speed;
+
+  /// Zeitraffer; über das Debug-Panel umschaltbar (gilt ab dem nächsten Start).
+  double speed;
   final int fps;
 
   /// Aufnahme läuft (Torch an).
