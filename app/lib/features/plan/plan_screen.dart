@@ -510,11 +510,13 @@ class _PlanScreenState extends State<PlanScreen> {
           Row(
             children: [
               Expanded(child: _title(l)),
-              TextButton.icon(
-                key: const Key('plan_open_calendar'),
-                onPressed: () => setState(() => _view.calendarOpen = true),
-                icon: const Icon(Icons.calendar_month_rounded),
-                label: Text(l.calendarOpen),
+              Flexible(
+                child: TextButton.icon(
+                  key: const Key('plan_open_calendar'),
+                  onPressed: () => setState(() => _view.calendarOpen = true),
+                  icon: const Icon(Icons.calendar_month_rounded),
+                  label: Text(l.calendarOpen),
+                ),
               ),
               PopupMenuButton<String>(
                 key: const Key('plan_menu'),

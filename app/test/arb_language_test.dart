@@ -53,6 +53,10 @@ final Map<String, RegExp> negated = {
   'explQualityNote': RegExp(
     r'keine Angabe zur Genauigkeit|not a statement about the accuracy',
   ),
+  // FR-0203: fester Text, Wortlaut vorbehaltlich OQ-0048.
+  'planWarnBannerText': RegExp(
+    r'Diese App stellt keine Diagnose|This app does not provide a diagnosis',
+  ),
 };
 
 Map<String, String> load(String locale) {
