@@ -8,7 +8,7 @@ Das Dokument beschreibt das Format so, dass es ohne den Dart-Code umgesetzt oder
 
 ## 1. Überblick
 
-Eine Datei `running-metriken-JJJJMMTT.csv` (MIME `text/csv`) enthält je gespeichertem berechnetem Wert und je Rolle (`original`, `current`; ADR-0004 Punkt 4) genau eine Zeile: Laufwerte (`owner` = `run`) und Tageswerte (`owner` = `day`, etwa `vo2max_long_term`, `aerobic_efficiency_change`; sie gehören zu dem Tag, an dem ein Lauf endete). Ein Tag mit mehreren Läufen erscheint einmal. Die Datei ist ein Export, kein Archiv: Es gibt keinen Reimport (dafür gilt [archive.md](archive.md)).
+Eine Datei `running-metriken-JJJJMMTT.csv` (MIME `text/csv`) enthält je gespeichertem berechnetem Wert und je Rolle (`original`, `current`; ADR-0004 Punkt 4) genau eine Zeile: Laufwerte (`owner` = `run`) und Tageswerte (`owner` = `day`, etwa `vo2max_long_term`, `aerobic_efficiency_change`; jeder Tag mit gespeichertem Tageswert, auch wenn sein Lauf gelöscht ist). Ein Tag mit mehreren Läufen erscheint einmal. Die Datei ist ein Export, kein Archiv: Es gibt keinen Reimport (dafür gilt [archive.md](archive.md)).
 
 ## 2. Kodierung und Aufbau (RFC 4180)
 

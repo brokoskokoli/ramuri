@@ -254,4 +254,31 @@ void main() {
       contains('1,day,2030-01-01,,,,current,vo2max_long_term,47.0,'),
     );
   });
+
+  test('Tageswert ohne Lauf (Lauf gelöscht) bleibt in der Datei', () async {
+    final s = await xSession();
+    final run = await s.runs.create(startedAt: xStart);
+    await s.runs.setState(
+      run.id,
+      RunState.finished,
+      endedAt: xStart.add(const Duration(minutes: 30)),
+    );
+    final later = xStart.add(const Duration(days: 4));
+    await s.values.createOriginals(const ValueOwner.day('2030-01-05'), [
+      _v('vo2max_long_term', 44.0, from: later),
+    ]);
+    await s.deleteRun(run.id);
+    expect(await s.runs.list(), isEmpty);
+    final text = utf8.decode(
+      (await buildMetricsCsvFile(s, now: DateTime.utc(2031, 2, 3))).bytes!,
+    );
+    expect(
+      text,
+      contains('1,day,2030-01-05,,,,original,vo2max_long_term,44.0,'),
+    );
+    expect(
+      text,
+      contains('1,day,2030-01-05,,,,current,vo2max_long_term,44.0,'),
+    );
+  });
 }

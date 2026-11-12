@@ -610,6 +610,10 @@ class _DayPlan {
     String day,
     List<ComputedValue> values,
   ) async {
+    assert(
+      values.every((v) => dayValueKeys.contains(v.key)),
+      'Tagesschlüssel fehlt in dayValueKeys (Export, run_analysis.dart)',
+    );
     final owner = ValueOwner.day(day);
     final existing = {
       for (final p in await session.values.read(owner)) p.original.key,

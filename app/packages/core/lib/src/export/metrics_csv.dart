@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import '../../ports/file_handoff.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_values.dart';
+import '../recalculation/run_analysis.dart' show dayValueKeys;
 import '../recalculation/value_calculation_service.dart' show dayOfRun;
 import '../recording/treadmill.dart';
 
@@ -136,8 +137,9 @@ Future<ExportFile> buildMetricsCsvFile(
   StorageSession session, {
   required DateTime now,
 }) async {
+  final stored = await session.runs.list();
   final runs = <MetricsCsvRun>[];
-  for (final run in await session.runs.list()) {
+  for (final run in stored) {
     runs.add(
       MetricsCsvRun(
         id: run.id,
@@ -147,9 +149,12 @@ Future<ExportFile> buildMetricsCsvFile(
       ),
     );
   }
+  // Tage beendeter Läufe plus alle Tage mit gespeichertem Tageswert, auch wenn
+  // ihr Lauf gelöscht ist (der Export zeigt, was gespeichert ist).
   final dayKeys = <String>{
-    for (final r in await session.runs.list())
+    for (final r in stored)
       if (r.endedAt != null) dayOfRun(r),
+    ...(await session.values.readDayValues(dayValueKeys)).keys,
   };
   final days = [
     for (final d in dayKeys)

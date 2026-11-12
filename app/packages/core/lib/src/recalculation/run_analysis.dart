@@ -17,6 +17,15 @@ const String vo2maxRunValueKey = 'vo2max_run';
 const String vo2maxLongTermValueKey = 'vo2max_long_term';
 const String aerobicEfficiencyValueKey = 'aerobic_efficiency_change';
 
+/// ALLE Schlüssel, die als Tageswert (`ValueOwner.day`) gespeichert werden.
+/// Der Export (`readDayValues`) findet Tage nur über diese Menge; die Schreiber
+/// in `value_calculation_service.dart` prüfen gegen sie. Ein neuer Tagesschlüssel
+/// gehört hier hinein.
+const Set<String> dayValueKeys = {
+  vo2maxLongTermValueKey,
+  aerobicEfficiencyValueKey,
+};
+
 const String vo2maxUnit = 'ml/kg/min';
 const String percentUnit = '%';
 
