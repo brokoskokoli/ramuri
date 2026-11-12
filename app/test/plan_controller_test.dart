@@ -1356,4 +1356,60 @@ void main() {
       expect(check.walkRun, isTrue);
     });
   });
+
+  group('Öffnen: Warnsignal-Zeile und Plan stimmen überein (NB11 2)', () {
+    String sig(PlanUnit u) =>
+        '${u.day}|${u.kind.name}|${u.minutes}|${u.pinned}|${u.fixed.name}';
+    Future<List<String>> sigs(_Env e) async => [
+      for (final u in await e.plans.unitsBetween(_day(0), planFarFuture))
+        sig(u),
+    ];
+
+    /// Plan angelegt und geprüft (Prüftag heute: die Wochenprüfung ist nicht
+    /// fällig, nur die Übereinstimmung kann hier neu rechnen).
+    Future<_Env> opened() async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      await e.controller.open();
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        _dayText(_today),
+      );
+      return e;
+    }
+
+    WarningStore warningOf(_Env e) => (e.session as WarningStorage).warning;
+
+    test('Aufheben scheiterte nach dem Löschen der Zeile: das nächste Öffnen '
+        'stellt den Plan her', () async {
+      final e = await opened();
+      final before = await sigs(e);
+      await e.controller.reportWarning();
+      expect(await sigs(e), isNot(before));
+      await warningOf(e).lift(); // Schreiben der Fassung scheiterte
+      final reopened = _Env(e.session);
+      await reopened.controller.open();
+      expect(await sigs(e), before);
+      final last = (await e.plans.history()).last;
+      expect(last.reason, planReasonWarningLifted);
+      expect(last.trigger, PlanTrigger.feedback);
+    });
+
+    test('Rücknahme der Zeile in report scheiterte: das nächste Öffnen '
+        'überlagert den Plan', () async {
+      final e = await opened();
+      final before = await sigs(e);
+      await warningOf(e).set(
+        WarningSignal(reportedOn: _today, source: WarningSource.manual),
+      ); // Plan nicht geschrieben, Rücknahme scheiterte
+      expect(await sigs(e), before);
+      final reopened = _Env(e.session);
+      await reopened.controller.open();
+      final after = await e.plans.unitsBetween(_day(0), planFarFuture);
+      expect(after.every((u) => u.kind == PlanUnitKind.rest), isTrue);
+      final last = (await e.plans.history()).last;
+      expect(last.reason, planReasonWarning);
+      expect(warningHeldFromSummary(last.summary), isNotNull);
+    });
+  });
 }

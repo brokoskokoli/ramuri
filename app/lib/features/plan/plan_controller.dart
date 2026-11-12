@@ -286,6 +286,24 @@ class PlanController extends ChangeNotifier {
       await _recalculate(PlanTrigger.goalChange, goal, last);
       return;
     }
+    // Warnsignal-Zeile und letzte Fassung müssen zueinander passen: Scheiterte
+    // das Schreiben nach dem Setzen oder Aufheben der Zeile (und auch deren
+    // Rücknahme), stellt das Öffnen den Plan her, ohne die Wochenprüfung
+    // abzuwarten.
+    final warning = _warning;
+    if (warning != null) {
+      final warned = await warning.read() != null;
+      final held = warningHeldFromSummary(last.summary) != null;
+      if (warned != held) {
+        await _recalculate(
+          PlanTrigger.feedback,
+          goal,
+          last,
+          reason: warned ? planReasonWarning : planReasonWarningLifted,
+        );
+        return;
+      }
+    }
     final today = _today();
     final checked = await session.settings.get(planLastCheckDayKey);
     if (!weeklyCheckDue(checked, today)) return;
@@ -319,11 +337,11 @@ class PlanController extends ChangeNotifier {
     TrainingGoal goal,
     PlanVersionRecord? last, {
     bool? adjust,
+    String? reason,
   }) async {
     final today = _today();
     final built = await reader.read(goal: goal, today: today);
     var inputs = _inputsFor(trigger, built, last);
-    String? reason;
     // Eine Zieländerung setzt den Prüftag; eine fällige Wochenbewertung der
     // Vorwoche fällt dadurch nicht weg (NB7 6), sie geht in dieselbe Fassung
     // ein (Grund bleibt `goalChange`).
