@@ -33,8 +33,13 @@ String recoveryHintText(AppLocalizations l, Hint hint) {
       n(EvidenceKey.lastIntensiveDaysAgo),
     ),
     HintCode.steepIncrease => l.recoverySteepIncrease,
-    HintCode.pause => l.recoveryPause(n(EvidenceKey.daysSinceTraining)),
-    HintCode.longPause => l.recoveryLongPause(n(EvidenceKey.daysSinceTraining)),
+    HintCode.pause || HintCode.longPause =>
+      hint.evidenceOf(EvidenceKey.planRestarted) != true
+          // Der Plan blieb (z. B. Geh-Lauf-Abfolge): keine Aussage über ihn.
+          ? l.recoveryPauseKept(n(EvidenceKey.daysSinceTraining))
+          : hint.code == HintCode.pause
+          ? l.recoveryPause(n(EvidenceKey.daysSinceTraining))
+          : l.recoveryLongPause(n(EvidenceKey.daysSinceTraining)),
     HintCode.effortAbovePlan => l.recoveryEffort,
     HintCode.lowWellbeing => l.recoveryLowWellbeing,
   };

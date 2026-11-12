@@ -44,6 +44,15 @@ class HintService {
   Future<RecoveryCard?> recoveryCard() async =>
       RecoveryCard.from(await today());
 
+  /// Der Neustart, der wegen der Zusage „alles erfasst“ fällig ist
+  /// (PAR-202); `null`, wenn keiner fällig ist.
+  Future<PauseQuestion?> pauseRestartDue() async {
+    final now = clock.now();
+    final local = now.add(clock.utcOffsetAt(now));
+    final today = DateTime.utc(local.year, local.month, local.day);
+    return selectPauseRestart(await _inputs(today));
+  }
+
   /// Die Pausenfrage von heute (PAR-202); `null`, wenn keine zu stellen ist.
   Future<PauseQuestion?> pauseQuestion() async {
     final now = clock.now();
@@ -111,6 +120,9 @@ class HintService {
       easyPlanned: easy,
       allRecorded: await LoadSettings.allRecorded(settings),
       pauseAnswer: await WarningState(settings).pauseAnswer(),
+      pauseRestart: PauseRestartMark.parse(
+        await settings.get(planPauseRestartKey),
+      ),
       shown: _parse(await settings.get(hintShownKey)),
     );
   }

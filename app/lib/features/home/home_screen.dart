@@ -89,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _plan.addListener(_onPlan);
     // Wie die Plan-Seite: wöchentliche Prüfung beim Öffnen (FR-0158), dann
     // laden; derselbe Aufruf, keine zweite Fassung der Prüfung.
-    _plan.open();
+    _openPlan();
   }
 
   @override
@@ -126,7 +126,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _future = _load();
       _hints = _loadHints();
     });
-    _plan.open();
+    _openPlan();
+  }
+
+  /// Prüfung beim Öffnen; danach die Hinweise neu laden, weil sie vom Plan
+  /// abhängen (der Neustart zur Pause ändert den Text, PAR-202).
+  Future<void> _openPlan() async {
+    await _plan.open();
+    _reloadHints();
   }
 
   Future<HomeHints> _loadHints() => HomeHints.load(

@@ -47,6 +47,7 @@ enum EvidenceKey {
   lastTrainingDay,
   allRecorded,
   pauseConfirmed,
+  planRestarted,
   easyRunsConsidered,
   easyRunsAboveRpe,
   wellbeing,
@@ -151,6 +152,34 @@ class EasyPlanFeedback {
   final int? rpe;
 }
 
+/// Merker: Der Neustart zur Pause nach dem Training vom Tag [day] wurde
+/// bearbeitet; [restarted] = dabei entstand eine Fassung `pause` (sonst blieb
+/// der Plan, z. B. in der Geh-Lauf-Abfolge). Gespeichert als Text.
+class PauseRestartMark {
+  PauseRestartMark({required DateTime day, required this.restarted})
+    : day = warningDay(day);
+  final DateTime day;
+  final bool restarted;
+
+  /// `JJJJ-MM-TT restart` oder `JJJJ-MM-TT none`; sonst `null`.
+  static PauseRestartMark? parse(String? text) {
+    if (text == null) return null;
+    final parts = text.split(' ');
+    if (parts.length != 2 || (parts[1] != 'restart' && parts[1] != 'none')) {
+      return null;
+    }
+    final day = DateTime.tryParse('${parts[0]}T00:00:00Z');
+    if (day == null) return null;
+    return PauseRestartMark(day: day, restarted: parts[1] == 'restart');
+  }
+
+  String format() {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${day.year.toString().padLeft(4, '0')}-${two(day.month)}-'
+        '${two(day.day)} ${restarted ? 'restart' : 'none'}';
+  }
+}
+
 /// Ein an einem Tag gezeigter Hinweis (für die Sperre nach PAR-175).
 class ShownHint {
   ShownHint(DateTime day, this.code) : day = warningDay(day);
@@ -169,6 +198,7 @@ class HintInputs {
     this.easyPlanned = const [],
     this.allRecorded = false,
     this.pauseAnswer,
+    this.pauseRestart,
     this.shown = const [],
   }) : today = warningDay(today);
 
@@ -185,6 +215,9 @@ class HintInputs {
   final List<EasyPlanFeedback> easyPlanned;
   final bool allRecorded;
   final PauseAnswer? pauseAnswer;
+
+  /// Ob der Neustart zur Pause (nach dem letzten Training) bearbeitet wurde.
+  final PauseRestartMark? pauseRestart;
 
   /// Früher gezeigte Hinweise (ohne [HintCode.warning]).
   final List<ShownHint> shown;
@@ -253,12 +286,35 @@ PauseQuestion? selectPauseQuestion(
   HintParameters parameters = hintParameters,
 }) {
   if (input.warningReportedOn != null || input.allRecorded) return null;
+  final q = _pauseSpan(input, parameters);
+  if (q == null) return null;
+  final answer = input.pauseAnswer;
+  if (answer != null && !answer.on.isBefore(q.lastTrainingDay)) return null;
+  return q;
+}
+
+/// Steht eine Pause ohne Frage fest, weil der Nutzer zugesagt hat, alles zu
+/// erfassen (PAR-202), und wurde sie noch nicht bearbeitet ([PauseRestartMark]
+/// für dieses letzte Training)? Dann ist der Plan-Neustart fällig (einmal je
+/// Pause). Nein bei Warnsignal und ohne die Zusage. Reine Funktion.
+PauseQuestion? selectPauseRestart(
+  HintInputs input, {
+  HintParameters parameters = hintParameters,
+}) {
+  if (input.warningReportedOn != null || !input.allRecorded) return null;
+  final q = _pauseSpan(input, parameters);
+  if (q == null) return null;
+  if (input.pauseRestart?.day == q.lastTrainingDay) return null;
+  return q;
+}
+
+/// Eine Pause von mindestens [HintParameters.pauseMinDays] Tagen seit dem
+/// letzten Training mit der Basiswoche (ohne Prüfung von Zusage und Antwort).
+PauseQuestion? _pauseSpan(HintInputs input, HintParameters parameters) {
   final last = _lastTrainingDay(input);
   if (last == null) return null;
   final days = _daysBetween(last, input.today);
   if (days < parameters.pauseMinDays) return null;
-  final answer = input.pauseAnswer;
-  if (answer != null && !answer.on.isBefore(last)) return null;
   final monday = pauseBaseWeek(last);
   final end = monday.add(const Duration(days: 7));
   var minutes = 0.0;
@@ -431,6 +487,10 @@ Hint? _pause(HintInputs i, HintParameters p) {
       Evidence(EvidenceKey.lastTrainingDay, last),
       Evidence(EvidenceKey.allRecorded, i.allRecorded),
       Evidence(EvidenceKey.pauseConfirmed, pauseConfirmed),
+      Evidence(
+        EvidenceKey.planRestarted,
+        i.pauseRestart?.restarted == true && i.pauseRestart?.day == last,
+      ),
     ],
   );
 }

@@ -20,17 +20,18 @@ final Uint8List _appKey = Uint8List.fromList(List.filled(32, 7));
 final _now = DateTime.utc(2026, 11, 11, 12);
 final _created = DateTime.utc(2026, 11, 2, 12); // Montag der Vorwoche
 
-TrainingGoal _goal() => TrainingGoal(
-  type: GoalType.distance,
-  distance: GoalDistance.tenKilometers,
-  targetDate: DateTime.utc(2027, 3, 14),
-  runDays: const {1, 3, 5},
-  maxSessionSeconds: 7200,
-  weeklyCapSeconds: 240 * 60.0,
-  createdAt: DateTime.utc(2026, 11, 1),
-  hardSessionEnabled: false,
-  canRun30: ContinuousRun30.yes,
-);
+TrainingGoal _goal([ContinuousRun30 canRun30 = ContinuousRun30.yes]) =>
+    TrainingGoal(
+      type: GoalType.distance,
+      distance: GoalDistance.tenKilometers,
+      targetDate: DateTime.utc(2027, 3, 14),
+      runDays: const {1, 3, 5},
+      maxSessionSeconds: 7200,
+      weeklyCapSeconds: 240 * 60.0,
+      createdAt: DateTime.utc(2026, 11, 1),
+      hardSessionEnabled: false,
+      canRun30: canRun30,
+    );
 
 PlanController _controller(Device d, StorageSession s) => PlanController(
   session: s,
@@ -49,13 +50,14 @@ Future<StorageSession> _preopen(
   Device d, {
   bool plan = true,
   bool checked = true,
+  ContinuousRun30 canRun30 = ContinuousRun30.yes,
 }) async {
   d.clock.set(_created);
   final s = await d.storage.open(_appKey);
   await s.settings.set(SettingKeys.setupDone, '1', at: DateTime.utc(2026));
   if (plan) {
     final c = _controller(d, s);
-    expect(await c.saveGoal(_goal()), PlanActionResult.done);
+    expect(await c.saveGoal(_goal(canRun30)), PlanActionResult.done);
     c.dispose();
   }
   d.clock.set(_now);
@@ -249,6 +251,50 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Du hast zugesagt, alles zu erfassen.'), findsOneWidget);
     });
+
+    testWidgets(
+      'Zusage „alles erfasst“: Neustart beim Öffnen, einmal je Pause, '
+      'Text nennt ihn',
+      (tester) async {
+        final d = Device();
+        final s = await _preopen(d);
+        await _run(s, 12, minutes: 30);
+        await LoadSettings.saveAllRecorded(s.settings, true, at: _now);
+        final before = (await _history(s)).length;
+        await d.start(tester, const Locale('de'));
+        final h = await _history(s);
+        expect(h.length, before + 1);
+        expect(h.last.trigger, PlanTrigger.pause);
+        expect(
+          text('home_recovery_text'),
+          contains('Der Plan beginnt deshalb ruhiger'),
+        );
+        // Erneutes Öffnen (Heute und Plan): keine weitere Fassung.
+        final c = _controller(d, s);
+        await c.open();
+        c.dispose();
+        expect((await _history(s)).length, before + 1);
+      },
+    );
+
+    testWidgets(
+      'Zusage „alles erfasst“ in der Geh-Lauf-Abfolge: kein Neustart, '
+      'Text ohne Aussage über den Plan',
+      (tester) async {
+        final d = Device();
+        final s = await _preopen(d, canRun30: ContinuousRun30.no);
+        await _run(s, 12, minutes: 30);
+        await LoadSettings.saveAllRecorded(s.settings, true, at: _now);
+        final before = (await _history(s)).length;
+        await d.start(tester, const Locale('de'));
+        expect((await _history(s)).length, before);
+        expect(
+          text('home_recovery_text'),
+          'Dein letztes erfasstes Training liegt 12 Tage zurück. '
+          'Starte ruhig und hole Ausgefallenes nicht nach.',
+        );
+      },
+    );
 
     testWidgets(
       '„Locker laufen“ ersetzt die heutige Einheit nach Bestätigung',

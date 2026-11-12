@@ -561,11 +561,13 @@ void pauseQuestionTests() {
     bool allRecorded = false,
     PauseAnswer? answer,
     DateTime? warning,
+    PauseRestartMark? mark,
   }) => HintInputs(
     today: today,
     trainings: trainings,
     allRecorded: allRecorded,
     pauseAnswer: answer,
+    pauseRestart: mark,
     warningReportedOn: warning,
   );
 
@@ -599,6 +601,48 @@ void pauseQuestionTests() {
       expect(ask(inputs(trainings: [run(10)], answer: a)), isNull);
       final old = PauseAnswer(paused: true, on: ago(20));
       expect(ask(inputs(trainings: [run(10)], answer: old)), isNotNull);
+    });
+  });
+
+  group('Neustart bei Zusage alles erfasst (PAR-202)', () {
+    PauseQuestion? due(HintInputs i) => selectPauseRestart(i);
+
+    test('fällig ab 7 Tagen mit der Zusage, sonst nicht', () {
+      final q = due(inputs(trainings: [run(7)], allRecorded: true))!;
+      expect(q.lastTrainingDay, ago(7));
+      expect(due(inputs(trainings: [run(6)], allRecorded: true)), isNull);
+      expect(due(inputs(trainings: [run(10)])), isNull);
+      expect(due(inputs(allRecorded: true)), isNull);
+      expect(
+        due(inputs(trainings: [run(10)], allRecorded: true, warning: ago(1))),
+        isNull,
+      );
+    });
+
+    test('einmal je Pause: der Merker zum letzten Training sperrt', () {
+      final mark = PauseRestartMark(day: ago(10), restarted: false);
+      expect(
+        due(inputs(trainings: [run(10)], allRecorded: true, mark: mark)),
+        isNull,
+      );
+      final old = PauseRestartMark(day: ago(30), restarted: true);
+      expect(
+        due(inputs(trainings: [run(10)], allRecorded: true, mark: old)),
+        isNotNull,
+      );
+    });
+
+    test('Merker als Text: Rundlauf und Fehlformen', () {
+      final m = PauseRestartMark(
+        day: DateTime.utc(2030, 2, 20),
+        restarted: true,
+      );
+      expect(m.format(), '2030-02-20 restart');
+      expect(PauseRestartMark.parse(m.format())!.restarted, isTrue);
+      expect(PauseRestartMark.parse('2030-02-20 none')!.restarted, isFalse);
+      expect(PauseRestartMark.parse('2030-02-20'), isNull);
+      expect(PauseRestartMark.parse('x none'), isNull);
+      expect(PauseRestartMark.parse(null), isNull);
     });
   });
 }

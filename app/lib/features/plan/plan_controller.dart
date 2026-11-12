@@ -260,6 +260,7 @@ class PlanController extends ChangeNotifier {
     _fresh = null;
     try {
       await _checkDue();
+      await _checkPauseRestart();
     } on Object {
       // Die Prüfung holt der nächste Start nach; die Seite zeigt den
       // gespeicherten Plan.
@@ -860,43 +861,70 @@ class PlanController extends ChangeNotifier {
     final today = _today();
     final q = await HintService(session: session, clock: clock).pauseQuestion();
     if (q == null) throw const StorageException(StorageFailure.rejected);
-    if (paused) {
-      final goal = await _goals.goal();
-      final history = await _plans.history();
-      if (goal != null && history.isNotEmpty) {
-        final built = await reader.read(goal: goal, today: today);
-        final base = refreshMeasuredInputs(history.last.inputs, built.inputs);
-        final restart = planPauseRestart(
-          goal: goal,
-          inputs: base,
-          today: today,
-          lastTrainingDay: q.lastTrainingDay,
-          baseWeekMinutes: q.baseWeekMinutes,
-          parameters: parameters,
-        );
-        final next = restart.inputs;
-        if (next != null) {
-          final r = await recalculatePlan(
-            plans: _plans,
-            settings: session.settings,
-            trigger: PlanTrigger.pause,
-            today: today,
-            now: clock.now(),
-            inputs: next,
-            parameters: parameters,
-            warning: _warning,
-          );
-          _fresh = r.generated;
-          _lastChange = r.summary;
-          if (r.wasWritten) onChanged?.call();
-        }
-      }
-    }
+    if (paused) await _restartForPause(q);
     await WarningState(session.settings).setPauseAnswer(
       PauseAnswer(paused: paused, on: today),
       at: clock.now(),
     );
   });
+
+  /// Neustart zur Pause (PAR-202, Auslöser `pause`), einmal je Pause: Der
+  /// Merker [planPauseRestartKey] trägt den Tag des letzten Trainings und ob
+  /// eine Fassung entstand. Ohne Plan oder Ziel geschieht nichts (kein Merker).
+  Future<void> _restartForPause(PauseQuestion q) async {
+    final today = _today();
+    final goal = await _goals.goal();
+    final history = await _plans.history();
+    if (goal == null || history.isEmpty) return;
+    final mark = PauseRestartMark.parse(
+      await session.settings.get(planPauseRestartKey),
+    );
+    if (mark?.day == warningDay(q.lastTrainingDay)) return;
+    final built = await reader.read(goal: goal, today: today);
+    final base = refreshMeasuredInputs(history.last.inputs, built.inputs);
+    final restart = planPauseRestart(
+      goal: goal,
+      inputs: base,
+      today: today,
+      lastTrainingDay: q.lastTrainingDay,
+      baseWeekMinutes: q.baseWeekMinutes,
+      parameters: parameters,
+    );
+    final next = restart.inputs;
+    if (next != null) {
+      final r = await recalculatePlan(
+        plans: _plans,
+        settings: session.settings,
+        trigger: PlanTrigger.pause,
+        today: today,
+        now: clock.now(),
+        inputs: next,
+        parameters: parameters,
+        warning: _warning,
+      );
+      _fresh = r.generated;
+      _lastChange = r.summary;
+      if (r.wasWritten) onChanged?.call();
+    }
+    await session.settings.set(
+      planPauseRestartKey,
+      PauseRestartMark(
+        day: q.lastTrainingDay,
+        restarted: next != null,
+      ).format(),
+      at: clock.now(),
+    );
+  }
+
+  /// Steht die Pause durch die Zusage „alles erfasst“ ohne Frage fest, startet
+  /// der Plan beim Öffnen neu (PAR-202), einmal je Pause.
+  Future<void> _checkPauseRestart() async {
+    final q = await HintService(
+      session: session,
+      clock: clock,
+    ).pauseRestartDue();
+    if (q != null) await _restartForPause(q);
+  }
 
   /// Alle Fassungen, älteste zuerst (Verlauf der Änderungen, FR-0170).
   Future<List<PlanVersionRecord>> changeHistory() => _plans.history();

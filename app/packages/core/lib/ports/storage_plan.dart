@@ -24,6 +24,11 @@ enum PlanTrigger {
 /// ins Archiv.
 const String planLastCheckDayKey = 'plan.last_check_day';
 
+/// Schlüssel in den Einstellungen: Merker des Neustarts zur Pause (PAR-202),
+/// Wert `JJJJ-MM-TT restart|none` (Tag des letzten Trainings). Nur Tag und
+/// Code, geht ins Archiv.
+const String planPauseRestartKey = 'plan.pause_restart';
+
 /// Eine gespeicherte Fassung des Plans (Zeile von `plans`).
 class PlanVersionRecord {
   PlanVersionRecord({
