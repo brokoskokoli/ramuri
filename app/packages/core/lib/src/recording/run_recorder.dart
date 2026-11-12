@@ -11,12 +11,17 @@ import '../preprocessing/measurement.dart';
 import '../preprocessing/run_preprocessor.dart';
 import 'recording_session.dart';
 import 'run_recovery.dart';
+import 'treadmill.dart';
 
 /// Höchstzahl Zeilen je Transaktion (ADR-0005 Punkt 5; R005: eine Zeile, WP08
 /// bestätigt). Sie gilt für Position, Höhe und Puls zusammen; ein Messpunkt mit
 /// Höhe sind also zwei Transaktionen. Mit `synchronous = FULL` (WP02) bleibt
 /// bei einem Kill höchstens die laufende Zeile aus.
 const int rawBatchRows = 1;
+
+/// Abstand der Lebenszeichen im Laufbandmodus: die aktuelle Einstellung wird
+/// unverändert erneut angehängt (FR-0193/FR-0196).
+const Duration beltHeartbeatInterval = Duration(seconds: 30);
 
 /// Verbindet [RecordingSession] mit dem Speicherzugriff (WP06 Teil C).
 ///
@@ -74,6 +79,9 @@ class RunRecorder {
   final List<RawAltitude> _altitudes = [];
   final List<RawHeartRate> _heartRates = [];
   final List<RrPacket> _rrPackets = [];
+  int _beltCursor = 0; // Einstellungen der Sitzung, die schon im Puffer sind
+  final List<BeltSetting> _belts = [];
+  DateTime? _lastBeltAt; // letztes Anhängen einer Einstellung (Lebenszeichen)
 
   StorageFailure? _lastWriteFailure;
 
@@ -94,16 +102,50 @@ class RunRecorder {
   /// bleibt ungestartet; ein erneuter Aufruf ist möglich. Die Startzeit des
   /// Laufs im Speicher ist die Uhr beim Anlegen, die der Sitzung die Uhr
   /// unmittelbar danach (gleich bei fester Uhr).
-  Future<CommandResult> start() async {
+  /// Startet den Lauf. Im Modus `treadmill` ist die Startgeschwindigkeit
+  /// ([beltSpeedMetersPerSecond], m/s) Pflicht; ohne sie oder mit einem
+  /// unzulässigen Wert wird abgelehnt, bevor ein Lauf angelegt wird.
+  Future<CommandResult> start({
+    RunMode mode = RunMode.gps,
+    double? beltSpeedMetersPerSecond,
+    double? inclinePercent,
+  }) async {
     if (_starting || _session.phase != RecordingPhase.idle) {
       return CommandResult.rejected;
     }
     _starting = true;
     try {
-      final run = await _runs.create(startedAt: _clock.now());
+      if (mode == RunMode.treadmill &&
+          !isStorableBeltSetting(
+            BeltSetting(
+              offset: Duration.zero,
+              speedMetersPerSecond: beltSpeedMetersPerSecond ?? double.nan,
+              inclinePercent: inclinePercent,
+            ),
+          )) {
+        return CommandResult.rejected;
+      }
+      final run = await _runs.create(startedAt: _clock.now(), mode: mode);
       _runId = run.id;
-      _session.start();
+      final r = _session.start(
+        mode: mode,
+        beltSpeedMetersPerSecond: beltSpeedMetersPerSecond,
+        inclinePercent: inclinePercent,
+      );
+      if (r == CommandResult.rejected) return r;
       _processEvents();
+      _takeBelts();
+      if (_belts.isNotEmpty) {
+        // Die erste Einstellung ist Pflicht (K57): erst melden, wenn der
+        // Versuch beendet ist. Scheitert das Speichern, läuft der Lauf weiter:
+        // der Fehler steht in lastWriteFailure, die Zeile bleibt im Puffer
+        // (failed) und kommt mit dem nächsten Flush.
+        try {
+          await _write(_flush);
+        } on StorageException {
+          // gemerkt in _lastWriteFailure
+        }
+      }
       return CommandResult.ok;
     } finally {
       _starting = false;
@@ -144,6 +186,7 @@ class RunRecorder {
       }
       final gaps = await _markers.gaps(runId);
       final r = _session.restore(
+        mode: run.mode,
         startedAt: run.startedAt,
         raw: raw0,
         gaps: gaps,
@@ -153,10 +196,37 @@ class RunRecorder {
       if (r == CommandResult.ok) {
         _runId = runId;
         _eventCursor = _session.events.length;
+        _beltCursor = _session.beltSettings.length; // schon gespeichert
+        _lastBeltAt = now;
       }
       return r;
     } finally {
       _starting = false;
+    }
+  }
+
+  /// Ändert die Bandgeschwindigkeit (m/s) ab jetzt und speichert die Änderung.
+  Future<CommandResult> setBeltSpeed(double metersPerSecond) =>
+      _belt(() => _session.setBeltSpeed(metersPerSecond));
+
+  /// Ändert die Steigung (%) ab jetzt; `null` = nicht angegeben.
+  Future<CommandResult> setIncline(double? percent) =>
+      _belt(() => _session.setIncline(percent));
+
+  Future<CommandResult> _belt(CommandResult Function() change) async {
+    final r = change();
+    if (r == CommandResult.rejected) return r;
+    _takeBelts();
+    // Sofort schreiben (die Änderung ist selten und bestimmt die Strecke).
+    await _write(_flush);
+    return r;
+  }
+
+  void _takeBelts() {
+    final all = _session.beltSettings;
+    while (_beltCursor < all.length) {
+      _belts.add(all[_beltCursor++]);
+      _lastBeltAt = _clock.now();
     }
   }
 
@@ -286,6 +356,20 @@ class RunRecorder {
   void tick() {
     _session.tick();
     _processEvents();
+    _beltHeartbeat();
+  }
+
+  /// Im Laufbandmodus alle [beltHeartbeatInterval] die aktuelle Einstellung
+  /// erneut anhängen, damit der letzte belegte Zeitpunkt nach einem Absturz
+  /// nahe am Ende liegt (die Strecke bleibt bis dahin erhalten).
+  void _beltHeartbeat() {
+    if (_runId == null) return;
+    final now = _clock.now();
+    final since = _lastBeltAt;
+    if (since == null || now.difference(since) < beltHeartbeatInterval) return;
+    if (_session.beltHeartbeat() == CommandResult.rejected) return;
+    _takeBelts();
+    unawaited(_write(_flush).catchError((Object _) {}));
   }
 
   RecordingSnapshot snapshot() => observe().snapshot;
@@ -311,7 +395,8 @@ class RunRecorder {
       _positions.length +
       _altitudes.length +
       _heartRates.length +
-      _rrPackets.length;
+      _rrPackets.length +
+      _belts.length;
 
   void _flushIfFull() {
     if (_pendingRows >= _batchRows) {
@@ -338,6 +423,7 @@ class RunRecorder {
         altitudes: take(_altitudes),
         heartRates: take(_heartRates),
         rrPackets: take(_rrPackets),
+        beltSettings: take(_belts),
       );
       try {
         await _raw.append(_runId!, batch);
@@ -348,6 +434,7 @@ class RunRecorder {
           _altitudes.insertAll(0, batch.altitudes);
           _heartRates.insertAll(0, batch.heartRates);
           _rrPackets.insertAll(0, batch.rrPackets);
+          _belts.insertAll(0, batch.beltSettings);
         }
         rethrow;
       }

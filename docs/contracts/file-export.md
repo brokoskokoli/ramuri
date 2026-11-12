@@ -1,7 +1,7 @@
 # Vertrag: Dateiexport GPX, TCX, FIT
 
 **Status:** Vorschläge (WP11, OQ-0032). Formatversionen vom Maintainer bestätigt (2026-11-06); die Abbildungsregeln sind Vorschläge des Pakets und umkehrbar.
-**Anforderungen:** [FR-0182, FR-0183](../specs/export-sync.md), FR-0201, SEC-0003, CON-0008, CON-0010, ACC-13.
+**Anforderungen:** [FR-0182, FR-0183](../specs/export-sync.md), FR-0196, FR-0201, SEC-0003, CON-0008, CON-0010, ACC-13.
 **Code:** `app/packages/core/lib/src/export/` (`export_run.dart` Abbildung, `gpx_encoder.dart`, `tcx_encoder.dart`, `xml_text.dart`, `fit_encoder.dart`, `fit_crc.dart`).
 
 ## Formatversionen
@@ -63,6 +63,14 @@ Nicht ausgegeben: `total_calories`, Durchschnitts- und Höchstwerte, `distance` 
 **FIT-Zeit und Zusammenführung:** Der Lauf wird mit Auflösung 1 s abgebildet (`exportSecond`); Zeiten mit Bruchteilen lehnt der Kodierer ab. Fallen nach dem Abrunden zwei Abschnitte in dieselbe Sekunde (Pause unter einer Sekunde), entsteht dort ein `record`, der die Werte des früheren Punkts trägt und nur fehlende Kanäle aus dem späteren ergänzt (erster Wert je Kanal und Sekunde). Ein Punkt gehört zur letzten Runde, deren Start nicht nach ihm liegt; ein Abschnittsende zur Runde davor.
 
 **FIT-Wertebereiche:** Höhe außerhalb −500 … 12 606,8 m und Puls 255 (Invalid-Wert von uint8) fehlen. Länge: Der Rundungswert 2³¹ (= 180°) wird −2³¹ (= −180°); der Wert 2³¹ − 1 fiele mit dem Invalid-Wert zusammen und wird 2³¹ − 2 (eine Einheit, unter 1 cm).
+
+**Bandläufe (FR-0196, WP25):** Ein Lauf im Laufbandmodus hat keine Position und keine Höhe; Strecke und Tempo sind die eingestellten Werte (Integral der Bandgeschwindigkeit über die aktive Zeit), nicht gemessen. Abweichend von Regel 1 und 2 gilt für sie:
+
+- **GPX gesperrt:** GPX hat nichts zu tragen (kein `trkpt` ohne Position, Regel 4). Der Kodierer lehnt den Lauf ab (`ArgumentError`); das Exportfenster blendet GPX mit Grund aus und wählt TCX vor.
+- **Punkte:** Aus den Bandeinstellungen entsteht je volle Sekunde ab Abschnittsbeginn und am Abschnittsende ein Punkt (1-s-Raster, kein Messwert); Puls-Punkte tragen ebenfalls die Strecke. Jeder Punkt trägt die kumulierte Strecke und die eingestellte Geschwindigkeit; Pausen und Unterbrechungen bleiben Abschnittsgrenzen (Regel 5).
+- **TCX:** `Trackpoint` ohne `Position` und ohne `AltitudeMeters`, mit `DistanceMeters` (kumuliert, Meter). `Lap/DistanceMeters` ist der Zuwachs der Punktstrecke in der Runde (statt Haversine). Sport `Running`; TCX kennt keine Laufbandkennzeichnung, keine Speed-Extension.
+- **FIT:** eigene `record`-Definition mit `timestamp`, `heart_rate`, `distance` (uint32, Zentimeter, Feld 5), `speed` (uint16, Millimeter je Sekunde, Feld 6; über 65,5 m/s fehlt der Wert) und ohne `position_lat`, `position_long`, `altitude`; `session.sub_sport` = treadmill (1). `lap.total_distance` und `session.total_distance` sind der Streckenzuwachs. Alle übrigen Nachrichten wie oben.
+- GPS-Läufe bleiben byte-gleich (Goldens).
 
 **Bekannte Verluste:** GPX trägt Puls und Höhe ohne gleichzeitige Position nicht; GPX hat keine Runden und kein Laufende. TCX hat kein Namensfeld. FIT hat kein Namensfeld (nur der Dateiname), Zeit nur in ganzen Sekunden und Höhe in 0,2 m.
 

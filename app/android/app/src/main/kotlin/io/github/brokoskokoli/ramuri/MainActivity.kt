@@ -83,8 +83,11 @@ class MainActivity : FlutterActivity() {
                     "requestLocation" -> requestLocation(result)
                     // ADR-0005 Punkt 2: Die App fragt, läuft aber auch ohne; Antwort blockiert nichts.
                     "requestNotifications" -> requestNotifications(result)
-                    // FR-0202: eigene Berechtigung, fragt nie, wenn es keinen Sensor gibt.
-                    "requestActivityRecognition" -> requestActivityRecognition(result)
+                    // FR-0202: eigene Berechtigung, fragt ohne Sensor nur im Bandmodus (der Dienst braucht sie dort).
+                    "requestActivityRecognition" -> requestActivityRecognition(
+                        result,
+                        call.argument<Boolean>("treadmill") == true,
+                    )
                     // ADR-0011 Punkt 5: erst beim Start der Kamera-Messung; Antwort wie PpgCamera.availability.
                     "requestCamera" -> requestCamera(result)
                     "gpsEnabled" -> result.success(
@@ -123,10 +126,9 @@ class MainActivity : FlutterActivity() {
         requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_REQUEST)
     }
 
-    private fun requestActivityRecognition(result: MethodChannel.Result) {
-        val state = StepSensor.availability(this)
-        if (state != "permission_denied") {
-            result.success(state)
+    private fun requestActivityRecognition(result: MethodChannel.Result, treadmill: Boolean) {
+        if (!StepSensor.shouldAsk(StepSensor.hasSensor(this), StepSensor.granted(this), treadmill)) {
+            result.success(StepSensor.availability(this))
             return
         }
         if (pendingActivity != null) {

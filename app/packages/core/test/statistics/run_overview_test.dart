@@ -104,8 +104,10 @@ class _Runs implements RunStore {
   final RunStore i;
   final _Counting c;
   @override
-  Future<StoredRun> create({required DateTime startedAt}) =>
-      i.create(startedAt: startedAt);
+  Future<StoredRun> create({
+    required DateTime startedAt,
+    RunMode mode = RunMode.gps,
+  }) => i.create(startedAt: startedAt, mode: mode);
   @override
   Future<void> setState(
     int runId,
@@ -610,6 +612,43 @@ void main() {
         final again = _Counting(w.session);
         await RunOverviewService(session: again, clock: w.clock).load();
         expect(again.rawReads, 0);
+      },
+    );
+
+    test(
+      'Kurzfassung der Vorgängerversion (vor Laufband) wird neu gerechnet',
+      () async {
+        final w = await RecalcWorld.create();
+        final id = await w.seedRun(DateTime.utc(2030, 2, 3, 8), minutes: 10);
+        await w.calc().calculateAfterRun(id);
+        final good = (await w.session.preprocessing.read(id))!;
+        await w.session.preprocessing.replace(
+          id,
+          StoredPreprocessing(
+            summary: PreprocessingSummary(
+              method: runOverviewMethod,
+              methodVersion: 2, // Stand vor WP25
+              parameterVersion: good.summary.parameterVersion,
+              computedAt: good.summary.computedAt,
+              totalTime: good.summary.totalTime,
+              movingTime: good.summary.movingTime,
+              distanceMeters: good.summary.distanceMeters,
+              averageBpm: good.summary.averageBpm,
+              maxBpm: good.summary.maxBpm,
+              lapCount: good.summary.lapCount,
+              heartRateTime: good.summary.heartRateTime,
+              bestPaceSecondsPerKm: good.summary.bestPaceSecondsPerKm,
+            ),
+            spans: good.spans,
+          ),
+        );
+        final c = _Counting(w.session);
+        await RunOverviewService(session: c, clock: w.clock).load();
+        expect(c.rawReads, 1, reason: 'neu gerechnet');
+        expect(
+          (await w.session.preprocessing.read(id))!.summary.methodVersion,
+          runOverviewMethodVersion,
+        );
       },
     );
 

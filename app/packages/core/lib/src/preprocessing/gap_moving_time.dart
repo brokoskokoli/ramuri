@@ -17,13 +17,20 @@ Duration movingTimeInPositionGaps(RunPreprocessing r) => overlapDuration(
 /// akzeptierten Puls hat (nie 0). Das Gewicht des Durchschnittspulses im Mittel
 /// über mehrere Läufe: Ein Lauf mit Pulslücken zählt nur mit der Zeit, in der
 /// der Puls bekannt war.
-Duration? movingTimeWithHeartRate(RunPreprocessing r) {
+///
+/// [movingIntervals]: statt der Bewegungsspannen der Vorverarbeitung (Bandlauf,
+/// FR-0196: die bewegten Stücke aus den Bandeinstellungen).
+Duration? movingTimeWithHeartRate(
+  RunPreprocessing r, {
+  List<TimeSpan>? movingIntervals,
+}) {
   if (r.heartRate.averageBpm == null) return null;
+  final spans = movingIntervals ?? r.movement.movingIntervals;
   var moving = Duration.zero;
-  for (final m in r.movement.movingIntervals) {
+  for (final m in spans) {
     moving += m.end.difference(m.start);
   }
-  final lost = overlapDuration(r.movement.movingIntervals, [
+  final lost = overlapDuration(spans, [
     for (final g in r.heartRate.gaps) TimeSpan(start: g.start, end: g.end),
   ]);
   final t = moving - lost;

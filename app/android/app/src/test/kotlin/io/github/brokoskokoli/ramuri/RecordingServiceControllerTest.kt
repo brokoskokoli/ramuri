@@ -8,7 +8,9 @@ import org.junit.Test
 class RecordingServiceControllerTest {
     private class Fx(var startThrows: Boolean = false) : ServiceEffects<String> {
         val log = mutableListOf<String>()
-        override fun startService() {
+        var lastMode: RecordingMode? = null
+        override fun startService(mode: RecordingMode) {
+            lastMode = mode
             if (startThrows) throw IllegalStateException("nein")
             log.add("startService")
         }
@@ -26,6 +28,35 @@ class RecordingServiceControllerTest {
         c.start("a", false)
         assertEquals(listOf("err:a:start_failed:SecurityException"), fx.log)
         assertFalse(c.hasPending)
+    }
+
+    @Test fun channelErrorCarriesDetailInDetailsFieldWhichDartReads() {
+        val (code, message, details) = channelErrorArgs("start_denied", "activity_recognition")
+        assertEquals("start_denied", code)
+        assertEquals("activity_recognition", message)
+        assertEquals("activity_recognition", details)
+    }
+
+    @Test fun treadmillWithoutActivityRecognitionGivesOwnReasonAndStartsNothing() {
+        val (fx, c) = make()
+        // Standortrecht allein genügt im Laufbandmodus nicht.
+        c.start("a", true, RecordingMode.TREADMILL, false)
+        assertEquals(listOf("err:a:start_denied:activity_recognition"), fx.log)
+        assertFalse(c.hasPending)
+        assertEquals(null, fx.lastMode)
+    }
+
+    @Test fun treadmillWithActivityRecognitionStartsWithoutLocation() {
+        val (fx, c) = make()
+        c.start("a", false, RecordingMode.TREADMILL, true)
+        assertEquals(listOf("startService", "schedule"), fx.log)
+        assertEquals(RecordingMode.TREADMILL, fx.lastMode)
+    }
+
+    @Test fun gpsStartPassesGpsMode() {
+        val (fx, c) = make()
+        c.start("a", true)
+        assertEquals(RecordingMode.GPS, fx.lastMode)
     }
 
     @Test fun startWithPermissionStartsServiceOnceAndAnswersAllWaitersOnStarted() {

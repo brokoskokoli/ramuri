@@ -23,6 +23,11 @@ enum ExportFormat {
 
   /// Zeitauflösung des Formats (FIT: ganze Sekunden).
   final Duration resolution;
+
+  /// Ob das Format für einen Bandlauf (ohne Positionen) möglich ist: GPX
+  /// nicht (FR-0196, K57).
+  bool availableFor({required bool treadmill}) =>
+      !(treadmill && this == ExportFormat.gpx);
 }
 
 /// Baut aus einem gespeicherten Lauf die Datei eines Formats; die Übergabe

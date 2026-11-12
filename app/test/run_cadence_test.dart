@@ -174,7 +174,7 @@ void main() {
       (tester) async {
         var asked = 0;
         final d = Device()
-          ..requestActivityRecognition = () async {
+          ..requestActivityRecognition = (_) async {
             asked++;
             throw StateError('abgelehnt');
           };
@@ -234,12 +234,14 @@ void main() {
     );
   });
 
-  test('Quelltext: Berechtigung im Manifest, Typ health fehlt', () {
+  test('Quelltext: Berechtigung im Manifest, Typ health nur mit FOREGROUND_SERVICE_HEALTH (ADR-0005 Nachtrag WP25)', () {
     final manifest = File('android/app/src/main/AndroidManifest.xml')
         .readAsStringSync()
         .replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
     expect(manifest, contains('android.permission.ACTIVITY_RECOGNITION"'));
-    expect(manifest, isNot(contains('health')));
+    // health kommt nur als Diensttyp des Aufzeichnungsdienstes und mit dem zugehörigen Recht vor (Laufbandmodus, K57).
+    expect(manifest, contains('android.permission.FOREGROUND_SERVICE_HEALTH"'));
+    expect(manifest, contains('|health"'));
   });
 }
 

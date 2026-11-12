@@ -99,6 +99,25 @@ void main() {
       expect(await d.session.runs.list(), hasLength(1));
     });
 
+    test('Kanal ACTIVITY_RECOGNITION nennt den Bandmodus', () async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const channel = MethodChannel('ramuri/permissions');
+      final args = <Object?>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        expect(call.method, 'requestActivityRecognition');
+        args.add(call.arguments);
+        return 'available';
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      expect(await requestActivityRecognitionPermission(true), isTrue);
+      await requestActivityRecognitionPermission(false);
+      expect(args, [
+        {'treadmill': true},
+        {'treadmill': false},
+      ]);
+    });
+
     test(
       'Kanal: abgelehnt ist false, erteilt true; Kotlin kennt die Methode',
       () async {

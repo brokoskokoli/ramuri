@@ -9,6 +9,7 @@ import 'package:running_app/features/export/run_export_action.dart';
 import 'app_harness.dart';
 import 'history_summary_test.dart' show openHistory;
 import 'run_detail_test.dart' show seedDetailRun;
+import 'run_treadmill_display_test.dart' show seedBeltRun;
 
 final DateTime _start = DateTime.utc(2030, 1, 1, 8);
 
@@ -57,6 +58,41 @@ String? _snackText() {
 late WidgetTester tester_;
 
 void main() {
+  testWidgets('Bandlauf: GPX ausgegraut mit Grund, TCX Vorgabe und teilbar', (
+    tester,
+  ) async {
+    tester_ = tester;
+    final d = Device();
+    await d.start(tester, const Locale('de'));
+    await d.skipSetup(tester);
+    final id = await seedBeltRun(d.session, _start);
+    await openHistory(d, tester);
+    await tester.tap(key('history_run_$id'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(key('detail_export'));
+    await tester.pumpAndSettle();
+    await tester.tap(key('detail_export'));
+    await tester.pumpAndSettle();
+    expect(key('export_no_gpx'), findsOneWidget);
+    // GPX reagiert nicht: die Wahl bleibt TCX.
+    await tester.tap(key('export_format_gpx'));
+    await tester.pumpAndSettle();
+    await tester.tap(key('export_share'));
+    await tester.pumpAndSettle();
+    expect(d.fileHandoff.shared, hasLength(1));
+    expect(d.fileHandoff.shared.single.fileName, endsWith('.tcx'));
+  });
+
+  testWidgets('GPS-Lauf: GPX wählbar, kein Hinweis auf Sperre', (tester) async {
+    tester_ = tester;
+    await _openDetail(tester);
+    await tester.ensureVisible(key('detail_export'));
+    await tester.pumpAndSettle();
+    await tester.tap(key('detail_export'));
+    await tester.pumpAndSettle();
+    expect(key('export_no_gpx'), findsNothing);
+  });
+
   testWidgets('Detail eines beendeten Laufs: Aktion sichtbar, nichts '
       'übertragen ohne Tippen', (tester) async {
     tester_ = tester;

@@ -2,6 +2,7 @@ import '../../ports/storage.dart';
 import '../../ports/storage_raw.dart';
 import '../../ports/storage_runs.dart';
 import '../preprocessing/geo.dart';
+import '../recording/belt_track.dart';
 import '../preprocessing/measurement.dart';
 import '../../ports/file_handoff.dart';
 
@@ -22,12 +23,21 @@ class ExportPoint {
     this.position,
     this.altitudeMeters,
     this.heartRateBpm,
+    this.distanceMeters,
+    this.speedMetersPerSecond,
   });
 
   final DateTime time;
   final ExportPosition? position;
   final double? altitudeMeters;
   final int? heartRateBpm;
+
+  /// Nur Bandläufe (FR-0196): kumulierte Strecke seit Laufbeginn aus den
+  /// eingestellten Bandwerten, nicht gemessen.
+  final double? distanceMeters;
+
+  /// Nur Bandläufe: eingestellte Geschwindigkeit in m/s.
+  final double? speedMetersPerSecond;
 }
 
 /// Zusammenhängender Abschnitt zwischen zwei Pausen bzw. Unterbrechungen
@@ -70,7 +80,12 @@ class ExportRun {
     required this.endedAt,
     required this.segments,
     required this.laps,
+    this.isTreadmill = false,
   });
+
+  /// Bandlauf (FR-0196): keine Positionen, Strecke und Geschwindigkeit je
+  /// Punkt aus den Bandeinstellungen; GPX gibt es dafür nicht.
+  final bool isTreadmill;
 
   /// Anzeigename, ohne Erweiterung (`run-YYYYMMDD-HHMMSS`).
   final String name;
@@ -108,8 +123,22 @@ class ExportRun {
   /// Strecke je Runde in Metern: Großkreisabstand aufeinanderfolgender
   /// Positionen desselben Abschnitts, der Runde des späteren Punkts
   /// zugerechnet (Vertrag, Pflichtfelder der Runde).
+  ///
+  /// Bandlauf: Zuwachs der kumulierten Strecke der Punkte je Runde.
   List<double> lapDistancesMeters() {
     final out = List<double>.filled(laps.length, 0);
+    if (isTreadmill) {
+      var previous = 0.0;
+      for (final s in segments) {
+        for (final p in s.points) {
+          final d = p.distanceMeters;
+          if (d == null) continue;
+          out[lapIndexAt(p.time)] += d - previous;
+          previous = d;
+        }
+      }
+      return out;
+    }
     for (final s in segments) {
       ExportPosition? previous;
       for (final p in s.points) {
@@ -254,6 +283,21 @@ ExportRun buildExportRun({
     (b, h) => b.heartRate = h.bpm,
   );
 
+  // Bandlauf: je volle Sekunde ab Abschnittsbeginn und am Abschnittsende ein
+  // Punkt; jeder Punkt (auch ein Pulspunkt) trägt Strecke und Geschwindigkeit
+  // aus den Bandeinstellungen.
+  final belt = beltTrackOfRun(run, at(endUs), raw, gaps);
+  if (belt != null) {
+    for (var i = 0; i < bounds.length; i++) {
+      final (a, b) = bounds[i];
+      for (var us = a; us < b; us += Duration.microsecondsPerSecond) {
+        builders[i].putIfAbsent(floor(us), _PointBuilder.new);
+      }
+      builders[i].putIfAbsent(floor(b), _PointBuilder.new);
+      builders[i].forEach((key, point) => point.setBelt(belt, at(key)));
+    }
+  }
+
   final segments = [
     for (var i = 0; i < bounds.length; i++)
       ExportSegment(
@@ -296,6 +340,7 @@ ExportRun buildExportRun({
     endedAt: at(floor(endUs)),
     segments: segments,
     laps: exportLaps,
+    isTreadmill: belt != null,
   );
 }
 
@@ -312,12 +357,23 @@ class _PointBuilder {
   ExportPosition? position;
   double? altitude;
   int? heartRate;
+  double? distance;
+  double? speed;
+
+  void setBelt(BeltTrack belt, DateTime t) {
+    distance = belt.metersAt(t);
+    // Am Abschnittsende gilt noch die Einstellung des letzten Stücks.
+    speed = (belt.pieceAt(t) ?? belt.pieceAt(t.subtract(exportMillisecond)))
+        ?.speedMetersPerSecond;
+  }
 
   ExportPoint build(DateTime time) => ExportPoint(
     time: time,
     position: position,
     altitudeMeters: altitude,
     heartRateBpm: heartRate,
+    distanceMeters: distance,
+    speedMetersPerSecond: speed,
   );
 }
 

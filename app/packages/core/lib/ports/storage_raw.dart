@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../src/preprocessing/measurement.dart';
+import '../src/recording/treadmill.dart';
 import 'storage.dart';
 
 enum RawChannel { position, heartRate, altitude, steps }
@@ -35,6 +36,7 @@ class RawBatch {
     this.steps = const [],
     this.unavailable = const [],
     this.rrPackets = const [],
+    this.beltSettings = const [],
   });
 
   final List<RawPosition> positions;
@@ -46,13 +48,17 @@ class RawBatch {
   /// RR-Intervalle je BLE-Paket (FR-0213), eigene Tabelle, kein [RawChannel].
   final List<RrPacket> rrPackets;
 
+  /// Einstellungen des Laufbands (FR-0196, nur Laufbandläufe), eigene Tabelle `treadmill_settings`.
+  final List<BeltSetting> beltSettings;
+
   bool get isEmpty =>
       positions.isEmpty &&
       heartRates.isEmpty &&
       altitudes.isEmpty &&
       steps.isEmpty &&
       unavailable.isEmpty &&
-      rrPackets.isEmpty;
+      rrPackets.isEmpty &&
+      beltSettings.isEmpty;
 }
 
 /// Gelesene Rohwerte eines Laufs, je Kanal nach Zeit, dann Id sortiert. Die
@@ -65,6 +71,7 @@ class StoredRawData {
     required this.steps,
     required this.unavailable,
     this.rrPackets = const [],
+    this.beltSettings = const [],
   });
 
   final List<StoredRaw<RawPosition>> positions;
@@ -75,6 +82,9 @@ class StoredRawData {
 
   /// Nach Empfangszeit, dann Id sortiert.
   final List<StoredRrPacket> rrPackets;
+
+  /// Nach Zeit ab Laufbeginn, dann Id sortiert.
+  final List<StoredBeltSetting> beltSettings;
 }
 
 /// Gespeichertes RR-Paket samt Id.
@@ -135,5 +145,8 @@ void validateRawBatch(RawBatch b) {
   final badRr = b.rrPackets.any(
     (p) => p.intervals.isEmpty || p.intervals.any((v) => v < 0 || v > 0xFFFF),
   );
-  if (invalid || badRr) throw const StorageException(StorageFailure.rejected);
+  final badTreadmill = b.beltSettings.any((t) => !isStorableBeltSetting(t));
+  if (invalid || badRr || badTreadmill) {
+    throw const StorageException(StorageFailure.rejected);
+  }
 }

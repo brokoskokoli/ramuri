@@ -84,15 +84,14 @@ class RunDetailPage extends StatelessWidget {
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 8),
-        _route(context, l10n),
+        _route(context, l10n, base),
         gap,
         _card(
           SectionHeading(l10n.detailPaceHeart),
           RunPaceHeartChart(data: detail, formatter: formatter),
         ),
         gap,
-        _altitude(context, l10n),
-        gap,
+        if (!summary.isTreadmill) ...[_altitude(context, l10n), gap],
         _splits(l10n),
         gap,
         RamuriTileGrid(children: base.tiles(l10n)),
@@ -128,7 +127,11 @@ class RunDetailPage extends StatelessWidget {
 
   /// Route (Karte oder Zeichnung, mit Kilometermarken) und darunter Strecke und
   /// die beiden Zeiten.
-  Widget _route(BuildContext context, AppLocalizations l10n) {
+  Widget _route(
+    BuildContext context,
+    AppLocalizations l10n,
+    RunSummaryPage base,
+  ) {
     final f = summary.figures;
     final type = RamuriType.of(context);
     final text = Theme.of(context).textTheme;
@@ -146,11 +149,14 @@ class RunDetailPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          RunRouteSection(
-            route: detail.route,
-            marks: splits?.marks ?? const [],
-            markUnitLabel: formatter.distanceLabel,
-          ),
+          if (summary.isTreadmill)
+            base.treadmillNote(context, l10n)
+          else
+            RunRouteSection(
+              route: detail.route,
+              marks: splits?.marks ?? const [],
+              markUnitLabel: formatter.distanceLabel,
+            ),
           const SizedBox(height: 14),
           Wrap(
             spacing: 24,

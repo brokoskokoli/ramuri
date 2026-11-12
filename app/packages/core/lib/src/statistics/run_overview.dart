@@ -8,6 +8,7 @@ import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
 import '../recalculation/run_analysis.dart';
+import '../recording/belt_track.dart';
 import '../recalculation/run_load_values.dart';
 import '../recalculation/value_calculation_service.dart' show dayOfRun;
 import '../subjective/subjective_service.dart' show refreshSrpe;
@@ -23,7 +24,10 @@ const String runOverviewMethod = 'run-overview';
 /// Puls; gespeicherte Kurzfassungen der Version 1 werden beim Lesen neu
 /// gerechnet. Ändert sich ein Parameter der Bestpace
 /// ([StatisticsParameters.bestPaceDistanceMeters]), ist die Version anzuheben.
-const int runOverviewMethodVersion = 2;
+///
+/// Version 3 (WP25): Laufbandläufe tragen Strecke und Bewegungszeit aus den
+/// Bandeinstellungen; ältere Kurzfassungen (Strecke 0 m) werden neu gerechnet.
+const int runOverviewMethodVersion = 3;
 
 /// Die Kurzfassung eines Laufs für Listen und Vergleiche, abgeleitet aus der
 /// Vorverarbeitung (ADR-0004 Punkt 1: jederzeit aus den Rohdaten neu
@@ -33,37 +37,52 @@ StoredPreprocessing overviewOf(
   RunPreprocessing pre, {
   required DateTime computedAt,
   int? lapCount,
-}) => StoredPreprocessing(
-  summary: PreprocessingSummary(
-    method: runOverviewMethod,
-    methodVersion: runOverviewMethodVersion,
-    parameterVersion: pre.parameterVersion,
-    computedAt: computedAt,
-    totalTime: pre.movement.totalTime,
-    movingTime: pre.movement.movingTime,
-    distanceMeters: pre.position.distanceMeters,
-    bridgedDistanceMeters: pre.position.bridgedDistanceMeters,
-    averageBpm: pre.heartRate.averageBpm,
-    maxBpm: pre.heartRate.maxBpm,
-    bestPaceSecondsPerKm: bestPace(pre.pace.segments).secondsPerKm,
-    lapCount: lapCount,
-    heartRateTime: movingTimeWithHeartRate(pre),
-  ),
-  spans: [
-    for (final m in pre.movement.movingIntervals)
-      PreprocessedSpan(
-        kind: PreprocessedSpanKind.moving,
-        start: m.start,
-        end: m.end,
-      ),
-    for (final g in pre.position.gaps)
-      PreprocessedSpan(
-        kind: PreprocessedSpanKind.positionGap,
-        start: g.start,
-        end: g.end,
-      ),
-  ],
-);
+  BeltTrack? belt,
+}) {
+  final beltSpans = belt == null
+      ? null
+      : [
+          for (final p in belt.pieces)
+            if (p.isMoving) p.span,
+        ];
+  return StoredPreprocessing(
+    summary: PreprocessingSummary(
+      method: runOverviewMethod,
+      methodVersion: runOverviewMethodVersion,
+      parameterVersion: pre.parameterVersion,
+      computedAt: computedAt,
+      totalTime: pre.movement.totalTime,
+      // Bandlauf (FR-0196): Strecke und Bewegungszeit aus den Einstellungen,
+      // keine überbrückte Strecke, keine Bestpace (nur eingestellt, K57).
+      movingTime: belt?.moving ?? pre.movement.movingTime,
+      distanceMeters: belt?.meters ?? pre.position.distanceMeters,
+      bridgedDistanceMeters: belt == null
+          ? pre.position.bridgedDistanceMeters
+          : 0,
+      averageBpm: pre.heartRate.averageBpm,
+      maxBpm: pre.heartRate.maxBpm,
+      bestPaceSecondsPerKm: belt != null
+          ? null
+          : bestPace(pre.pace.segments).secondsPerKm,
+      lapCount: lapCount,
+      heartRateTime: movingTimeWithHeartRate(pre, movingIntervals: beltSpans),
+    ),
+    spans: [
+      for (final m in beltSpans ?? pre.movement.movingIntervals)
+        PreprocessedSpan(
+          kind: PreprocessedSpanKind.moving,
+          start: m.start,
+          end: m.end,
+        ),
+      for (final g in belt == null ? pre.position.gaps : const [])
+        PreprocessedSpan(
+          kind: PreprocessedSpanKind.positionGap,
+          start: g.start,
+          end: g.end,
+        ),
+    ],
+  );
+}
 
 /// Kennzahlen eines beendeten Laufs für die Liste. Was fehlt, ist `null`
 /// (nie 0).
@@ -230,13 +249,17 @@ class RunOverviewService {
     if (!end.isAfter(run.startedAt)) return RunOverview(run: run, load: load);
     final RunPreprocessing pre;
     final int lapCount;
+    final BeltTrack? belt;
     try {
       lapCount = (await session.markers.laps(run.id)).length;
+      final raw = await session.rawData.read(run.id);
+      final gaps = await session.markers.gaps(run.id);
+      belt = beltTrackOfRun(run, end, raw, gaps);
       pre = await offload(replayJob, (
         run: run,
         end: end,
-        raw: await session.rawData.read(run.id),
-        gaps: await session.markers.gaps(run.id),
+        raw: raw,
+        gaps: gaps,
         parameters: parameters,
       ));
     } on Object {
@@ -244,7 +267,12 @@ class RunOverviewService {
       // aus dem Isolate), lässt die Historie nicht scheitern.
       return RunOverview(run: run, readFailed: true, load: load);
     }
-    final stored = overviewOf(pre, computedAt: clock.now(), lapCount: lapCount);
+    final stored = overviewOf(
+      pre,
+      computedAt: clock.now(),
+      lapCount: lapCount,
+      belt: belt,
+    );
     try {
       await session.preprocessing.replace(run.id, stored);
       // Die Bewegungszeit kann sich geändert haben: sRPE des Laufs folgt.

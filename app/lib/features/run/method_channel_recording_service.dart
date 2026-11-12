@@ -16,8 +16,24 @@ class MethodChannelRecordingService implements RecordingServicePort {
 
   /// Kehrt zurück, sobald der Dienst `startForeground` erreicht hat; sonst
   /// eine [PlatformException] (`start_failed`, Detail: Klassenname des Fehlers).
+  /// Fehlt im Laufbandmodus ACTIVITY_RECOGNITION, meldet Kotlin vor dem Start
+  /// `start_denied` (Detail `activity_recognition`); das wird zu
+  /// [RecordingStartDenied].
   @override
-  Future<void> start() => _channel.invokeMethod<void>('start');
+  Future<void> start({
+    RecordingServiceMode mode = RecordingServiceMode.gps,
+  }) async {
+    try {
+      await _channel.invokeMethod<void>('start', {'mode': mode.wire});
+    } on PlatformException catch (e) {
+      if (e.code == 'start_denied' && e.details == 'activity_recognition') {
+        throw const RecordingStartDenied(
+          RecordingStartDeniedReason.activityRecognition,
+        );
+      }
+      rethrow;
+    }
+  }
 
   @override
   Future<void> stop() => _channel.invokeMethod<void>('stop');
@@ -32,13 +48,17 @@ class MethodChannelRecordingService implements RecordingServicePort {
 }
 
 /// Fragt ACTIVITY_RECOGNITION über den Berechtigungskanal (`MainActivity.kt`,
-/// FR-0202). Liefert, ob der Schrittsensor jetzt nutzbar ist; Ablehnung oder
+/// FR-0202). Im Bandmodus (`treadmill`) fragt Kotlin auch ohne Schrittsensor,
+/// weil der Dienst das Recht braucht. Liefert, ob der Schrittsensor jetzt nutzbar ist; Ablehnung oder
 /// fehlender Sensor sind kein Fehler.
-Future<bool> requestActivityRecognitionPermission([
+Future<bool> requestActivityRecognitionPermission(
+  bool treadmill, [
   MethodChannel? channel,
 ]) async {
   final c = channel ?? const MethodChannel('ramuri/permissions');
-  return await c.invokeMethod<String>('requestActivityRecognition') ==
+  return await c.invokeMethod<String>('requestActivityRecognition', {
+        'treadmill': treadmill,
+      }) ==
       'available';
 }
 

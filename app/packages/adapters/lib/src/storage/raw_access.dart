@@ -82,6 +82,17 @@ class DriftRawDataStore implements RawDataStore {
             ),
           );
         }
+        for (final t in batch.beltSettings) {
+          b.insert(
+            _db.treadmillSettings,
+            d.TreadmillSettingsCompanion.insert(
+              runId: runId,
+              offsetUs: t.offset.inMicroseconds,
+              speedMps: t.speedMetersPerSecond,
+              inclinePercent: Value(t.inclinePercent),
+            ),
+          );
+        }
         for (final u in batch.unavailable) {
           final time = usOf(u.time);
           final state = MeasurementState.unavailable.name;
@@ -272,6 +283,24 @@ class DriftRawDataStore implements RawDataStore {
         ),
       );
     }
+    final beltSettings = <StoredBeltSetting>[
+      for (final t
+          in await (_db.select(_db.treadmillSettings)
+                ..where((t) => t.runId.equals(runId))
+                ..orderBy([
+                  (t) => OrderingTerm.asc(t.offsetUs),
+                  (t) => OrderingTerm.asc(t.id),
+                ]))
+              .get())
+        StoredBeltSetting(
+          t.id,
+          BeltSetting(
+            offset: Duration(microseconds: t.offsetUs),
+            speedMetersPerSecond: t.speedMps,
+            inclinePercent: t.inclinePercent,
+          ),
+        ),
+    ];
     unavailable.sort((a, b) {
       final t = a.value.time.compareTo(b.value.time);
       if (t != 0) return t;
@@ -285,6 +314,7 @@ class DriftRawDataStore implements RawDataStore {
       steps: steps,
       unavailable: unavailable,
       rrPackets: rrPackets,
+      beltSettings: beltSettings,
     );
   });
 }

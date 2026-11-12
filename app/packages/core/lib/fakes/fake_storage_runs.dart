@@ -2,6 +2,7 @@ import '../src/preprocessing/measurement.dart';
 import '../ports/storage.dart';
 import '../ports/storage_raw.dart';
 import '../ports/storage_runs.dart';
+import '../src/recording/treadmill.dart';
 import 'fake_storage_data.dart';
 
 DateTime _utc(DateTime t) => t.toUtc();
@@ -11,11 +12,15 @@ class FakeRunStore implements RunStore {
   final FakeStorageData _d;
 
   @override
-  Future<StoredRun> create({required DateTime startedAt}) async {
+  Future<StoredRun> create({
+    required DateTime startedAt,
+    RunMode mode = RunMode.gps,
+  }) async {
     final run = StoredRun(
       id: _d.nextRunId++,
       state: RunState.active,
       startedAt: _utc(startedAt),
+      mode: mode,
     );
     _d.runs[run.id] = run;
     return run;
@@ -37,6 +42,7 @@ class FakeRunStore implements RunStore {
       startedAt: old.startedAt,
       endedAt: endedAt == null ? null : _utc(endedAt),
       endedUtcOffset: endedUtcOffset,
+      mode: old.mode,
     );
   }
 
@@ -222,6 +228,11 @@ class FakeRawDataStore implements RawDataStore {
             ),
           );
     }
+    for (final t in batch.beltSettings) {
+      _d.beltSettings
+          .putIfAbsent(runId, () => [])
+          .add(StoredBeltSetting(_d.nextTreadmillId++, t));
+    }
     for (final u in batch.unavailable) {
       add(
         u.channel,
@@ -259,6 +270,11 @@ class FakeRawDataStore implements RawDataStore {
       rrPackets: [...?_d.rrPackets[runId]]
         ..sort((a, b) {
           final t = a.value.time.compareTo(b.value.time);
+          return t != 0 ? t : a.id.compareTo(b.id);
+        }),
+      beltSettings: [...?_d.beltSettings[runId]]
+        ..sort((a, b) {
+          final t = a.value.offset.compareTo(b.value.offset);
           return t != 0 ? t : a.id.compareTo(b.id);
         }),
     );

@@ -10,6 +10,7 @@ import '../src/plan/plan_unit.dart';
 import '../ports/storage_profile.dart';
 import '../ports/storage_raw.dart';
 import '../ports/storage_runs.dart';
+import '../src/recording/treadmill.dart';
 import '../ports/storage_values.dart';
 import '../src/subjective/manual_training.dart';
 import '../src/subjective/run_subjective.dart';
@@ -29,6 +30,8 @@ class FakeStorageData {
   final raw = <int, Map<RawChannel, List<StoredRaw<RawSample>>>>{};
   final rrPackets = <int, List<StoredRrPacket>>{};
   int nextRrId = 1;
+  final beltSettings = <int, List<StoredBeltSetting>>{};
+  int nextTreadmillId = 1;
   final preprocessing = <int, StoredPreprocessing>{};
   final sections = <int, List<RatedSection>>{};
   final values = <ValueOwner, Map<String, ValuePair>>{};
@@ -89,6 +92,7 @@ class FakeStorageData {
     gaps.remove(runId);
     raw.remove(runId);
     rrPackets.remove(runId);
+    beltSettings.remove(runId);
     preprocessing.remove(runId);
     sections.remove(runId);
     subjective.remove(runId);
@@ -125,6 +129,8 @@ class FakeStorageData {
     raw.clear();
     rrPackets.clear();
     nextRrId = 1;
+    beltSettings.clear();
+    nextTreadmillId = 1;
     preprocessing.clear();
     sections.clear();
     values.clear();

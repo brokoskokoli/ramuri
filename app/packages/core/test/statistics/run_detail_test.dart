@@ -87,6 +87,48 @@ RunDetailData _detail(
 );
 
 void main() {
+  test(
+    'Bandlauf: Pace als Stufenreihe, Stillstand und Lücke trennen (FR-0196)',
+    () {
+      BeltPiece piece(int a, int b, double v) => BeltPiece(
+        span: TimeSpan(
+          start: _start.add(Duration(seconds: a)),
+          end: _start.add(Duration(seconds: b)),
+        ),
+        speedMetersPerSecond: v,
+        inclinePercent: 0,
+      );
+      final belt = BeltTrack([
+        piece(0, 20, 3),
+        piece(20, 30, 4),
+        piece(30, 40, 0), // Stillstand
+        piece(40, 50, 2.5),
+        piece(55, 60, 2.5), // nach einer Pause: neuer Teil
+      ]);
+      final d = buildRunDetail(
+        _run(60),
+        start: _start,
+        end: _start.add(const Duration(seconds: 60)),
+        belt: belt,
+      );
+      List<double> secs(List<DetailPoint> p) => [for (final q in p) q.seconds];
+      List<double> vals(List<DetailPoint> p) => [for (final q in p) q.value];
+      expect(d.pace, hasLength(3));
+      expect(secs(d.pace[0]), [0, 20, 20, 30]);
+      expect(vals(d.pace[0]), [
+        closeTo(1000 / 3, 1e-9),
+        closeTo(1000 / 3, 1e-9),
+        250,
+        250,
+      ]);
+      expect(secs(d.pace[1]), [40, 50]);
+      expect(vals(d.pace[1]), [400, 400]);
+      expect(secs(d.pace[2]), [55, 60]);
+      expect(vals(d.pace[2]), [400, 400]);
+      expect(d.hasPace, isTrue);
+    },
+  );
+
   test('Pulsreihe nennt das Glättungsfenster aus den Parametern (PAR-006)', () {
     expect(
       _detail(_run(60), 60).heartRateSmoothing,
@@ -494,6 +536,7 @@ void main() {
           start: summary.run.startedAt,
           end: summary.run.endedAt!,
           pauses: summary.manualPauses,
+          belt: summary.belt,
         ));
         return (summary, detail);
       }

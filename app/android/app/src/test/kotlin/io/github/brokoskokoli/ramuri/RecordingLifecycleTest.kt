@@ -20,10 +20,63 @@ class RecordingLifecycleTest {
     }
 
     @Test fun withoutFineLocationServiceMayNotStart() {
-        val denied = RecordingLifecycle.mayStart(false)
+        // Regression: GPS-Lauf unverändert; ACTIVITY_RECOGNITION spielt dort keine Rolle.
+        for (activity in listOf(false, true)) {
+            val denied = RecordingLifecycle.mayStart(RecordingMode.GPS, false, activity)
+            assertTrue(denied.isFailure)
+            assertTrue(denied.exceptionOrNull() is SecurityException)
+            assertEquals("location_denied", denied.exceptionOrNull()?.message)
+            assertTrue(RecordingLifecycle.mayStart(RecordingMode.GPS, true, activity).isSuccess)
+        }
+    }
+
+    @Test fun treadmillNeedsActivityRecognitionAndNoLocation() {
+        val denied = RecordingLifecycle.mayStart(RecordingMode.TREADMILL, true, false)
         assertTrue(denied.isFailure)
         assertTrue(denied.exceptionOrNull() is SecurityException)
-        assertTrue(RecordingLifecycle.mayStart(true).isSuccess)
+        assertEquals("activity_recognition_denied", denied.exceptionOrNull()?.message)
+        assertTrue(RecordingLifecycle.mayStart(RecordingMode.TREADMILL, false, false).isFailure)
+        assertTrue(RecordingLifecycle.mayStart(RecordingMode.TREADMILL, false, true).isSuccess)
+    }
+
+    @Test fun treadmillStartTypeIsHealthNeverLocation() {
+        val type = RecordingLifecycle.startType(false, RecordingMode.TREADMILL)
+        assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH, type)
+        assertEquals(0, type and ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        val withBt = RecordingLifecycle.startType(true, RecordingMode.TREADMILL)
+        assertEquals(
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+            withBt,
+        )
+        assertEquals(0, withBt and ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+    }
+
+    @Test fun gpsStartTypeNeverContainsHealth() {
+        for (bt in listOf(false, true)) {
+            assertEquals(0, RecordingLifecycle.startType(bt) and ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
+            assertEquals(RecordingLifecycle.startType(bt), RecordingLifecycle.startType(bt, RecordingMode.GPS))
+        }
+    }
+
+    @Test fun treadmillServiceEntersForegroundWithHealthAndRetypesKeepingIt() {
+        var granted = false
+        val types = mutableListOf<Int>()
+        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, RecordingMode.TREADMILL) { types.add(it) }
+        assertTrue(lc.start().isSuccess)
+        assertEquals(listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH), types)
+        granted = true
+        assertTrue(lc.retype())
+        assertEquals(
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+            types.last(),
+        )
+    }
+
+    @Test fun modeWireValues() {
+        assertEquals(RecordingMode.GPS, RecordingMode.fromWire(null))
+        assertEquals(RecordingMode.GPS, RecordingMode.fromWire("gps"))
+        assertEquals(RecordingMode.TREADMILL, RecordingMode.fromWire("treadmill"))
+        assertEquals(null, RecordingMode.fromWire("swim"))
     }
 
     @Test fun startTypeWithoutBluetoothConnectIsLocationOnly() {
@@ -44,7 +97,7 @@ class RecordingLifecycleTest {
     @Test fun serviceEntersForegroundWithTypeFromPermissionAtStart() {
         for (granted in listOf(false, true)) {
             val types = mutableListOf<Int>()
-            val lc = RecordingLifecycle(FakeLock(), { granted }, {}, { types.add(it) })
+            val lc = RecordingLifecycle(FakeLock(), { granted }, {}, enterForeground = { types.add(it) })
             assertTrue(lc.start().isSuccess)
             assertEquals(listOf(RecordingLifecycle.startType(granted)), types)
             assertEquals(RecordingLifecycle.startType(granted), lc.currentType)
@@ -54,7 +107,7 @@ class RecordingLifecycleTest {
     @Test fun retypeAddsConnectedDeviceWhenPermissionArrivesLater() {
         var granted = false
         val types = mutableListOf<Int>()
-        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, { types.add(it) })
+        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, enterForeground = { types.add(it) })
         lc.start()
         assertFalse(lc.retype()) // Recht fehlt weiter: kein zweiter startForeground
         assertEquals(1, types.size)
@@ -69,7 +122,7 @@ class RecordingLifecycleTest {
     @Test fun retypeFailureKeepsOldTypeAndService() {
         var granted = false
         var calls = 0
-        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, { calls++; if (calls > 1) throw SecurityException("x") })
+        val lc = RecordingLifecycle(FakeLock(), { granted }, {}, enterForeground = { calls++; if (calls > 1) throw SecurityException("x") })
         lc.start()
         granted = true
         assertFalse(lc.retype())
@@ -79,7 +132,7 @@ class RecordingLifecycleTest {
 
     @Test fun retypeWithoutForegroundDoesNothing() {
         var calls = 0
-        val lc = RecordingLifecycle(FakeLock(), { true }, {}, { calls++ })
+        val lc = RecordingLifecycle(FakeLock(), { true }, {}, enterForeground = { calls++ })
         assertFalse(lc.retype())
         assertEquals(0, calls)
         lc.start()

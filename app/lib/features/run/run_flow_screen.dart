@@ -12,6 +12,7 @@ import '../settings/app_settings.dart';
 import 'live_run_view.dart';
 import 'run_controller.dart';
 import 'run_ports.dart';
+import 'treadmill_units.dart';
 
 /// Ablauf „Lauf starten“: Seite „Lauf vorbereiten“ (FR-0210) mit Startprüfung
 /// (FR-0195), Live-Bildschirm
@@ -80,6 +81,23 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   bool _autoPauseTouched = false;
   late Future<void> _autoPauseLoaded;
 
+  /// Laufart der Seite (FR-0196): zuletzt gewählt, sonst GPS. Beim Fortsetzen
+  /// gilt die Art des gespeicherten Laufs.
+  RunMode _mode = RunMode.gps;
+  bool _modeTouched = false;
+  late Future<void> _modeLoaded;
+  final _speedField = TextEditingController();
+  final _inclineField = TextEditingController();
+
+  bool get _treadmill => _mode == RunMode.treadmill;
+
+  /// Eingaben des Bands (PAR-209, PAR-210): Los braucht eine gültige
+  /// Geschwindigkeit; die Steigung ist freiwillig, aber wenn angegeben gültig.
+  double? get _beltSpeed => TreadmillUnits.parseSpeed(_unit, _speedField.text);
+  (bool, double?) get _incline =>
+      TreadmillUnits.parseIncline(_inclineField.text);
+  DistanceUnit get _unit => AppSettingsScope.of(context).distanceUnit;
+
   /// GPS-Zustand der Seite (FR-0210): Genauigkeit des letzten Punkts. Nur eine
   /// Anzeige; es wird nichts gespeichert und nie gesperrt. Der Strom läuft nur,
   /// solange die Seite bereit ist (Recht und Dienst vorhanden).
@@ -106,6 +124,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     // Bekannte Pulssensoren verbinden sich still (nur mit erteilten Rechten).
     unawaited(_connectSensors());
     _autoPauseLoaded = _loadAutoPause();
+    _modeLoaded = _loadMode();
     unawaited(_loadCadence());
     _check(askUser: false, autoStart: !_preparing);
   }
@@ -120,6 +139,46 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     }
     if (!mounted || _autoPauseTouched) return;
     setState(() => _autoPause = value);
+  }
+
+  /// Fehler beim Lesen: GPS (FR-0196). Fortsetzen liest die Art aus dem Lauf.
+  Future<void> _loadMode() async {
+    var value = RunMode.gps;
+    try {
+      final resume = widget.resumeRunId;
+      if (resume != null) {
+        value = (await widget.session.runs.get(resume))?.mode ?? RunMode.gps;
+      } else {
+        final saved = await widget.session.settings.get(SettingKeys.runMode);
+        value = saved == RunMode.treadmill.wire
+            ? RunMode.treadmill
+            : RunMode.gps;
+      }
+    } on Object {
+      value = RunMode.gps;
+    }
+    if (!mounted || _modeTouched) return;
+    _mode = value;
+  }
+
+  /// Merkt die Wahl dauerhaft (wie die Autopause); ein Speicherfehler ändert
+  /// die Wahl nicht. Danach gilt die Prüfung der neuen Art.
+  Future<void> _setMode(RunMode mode) async {
+    if (mode == _mode) return;
+    setState(() {
+      _mode = mode;
+      _modeTouched = true;
+    });
+    unawaited(_check(askUser: false, autoStart: false));
+    try {
+      await widget.session.settings.set(
+        SettingKeys.runMode,
+        mode.wire,
+        at: widget.clock.now(),
+      );
+    } on Object {
+      // Nur das Merken scheitert.
+    }
   }
 
   Future<void> _loadCadence() async {
@@ -178,6 +237,8 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stopGps();
+    _speedField.dispose();
+    _inclineField.dispose();
     _controller?.dispose();
     super.dispose();
   }
@@ -250,8 +311,13 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     if (autoStart && _starting) return;
     final gen = ++_generation;
     setState(() => _checking = true);
-    final result = await RecordingStartGate(widget.ports.access)
-        .check(askUser: askUser);
+    await _modeLoaded;
+    if (!mounted || gen != _generation) return;
+    // Laufband: kein Standort, weder Recht noch GPS-Schalter (FR-0196). Das
+    // Recht für die Aktivität prüft der Start (`startDenied`).
+    final result = _treadmill
+        ? const StartReadiness(null)
+        : await RecordingStartGate(widget.ports.access).check(askUser: askUser);
     if (!mounted || gen != _generation) return;
     if (!result.canStart) {
       _stopGps();
@@ -268,7 +334,16 @@ class _RunFlowScreenState extends State<RunFlowScreen>
         _ready = true;
         _checking = false;
       });
-      _startGps();
+      if (_treadmill) {
+        _stopGps();
+      } else {
+        _startGps();
+      }
+      return;
+    }
+    // Laufband neu: Ohne gültige Startgeschwindigkeit startet nichts.
+    if (_preparing && _treadmill && (_beltSpeed == null || !_incline.$1)) {
+      setState(() => _checking = false);
       return;
     }
     _starting = true;
@@ -301,7 +376,12 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       service: widget.ports.recordingService,
       cadence: widget.ports.cadence,
       resumeRunId: widget.resumeRunId,
-      initialAutoPause: _preparing ? _autoPause : null,
+      initialAutoPause: _preparing && !_treadmill ? _autoPause : null,
+      mode: _mode,
+      startBeltSpeedMetersPerSecond: _preparing && _treadmill
+          ? _beltSpeed
+          : null,
+      startInclinePercent: _preparing && _treadmill ? _incline.$2 : null,
       tickEvery: widget.tickEvery,
       serialize: widget.serialize,
     );
@@ -334,13 +414,15 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   /// FR-0202: fragen, aber nie blockieren; ohne Recht fehlt nur die Schrittfrequenz.
   Future<void> _askActivityRecognition() async {
     try {
-      await widget.ports.requestActivityRecognition?.call();
+      await widget.ports.requestActivityRecognition?.call(_treadmill);
     } catch (_) {
       // Ohne Berechtigung ist die Schrittfrequenz nicht verfügbar.
     }
   }
 
   Future<void> _retryStart() async {
+    // Nach dem Erteilen des Rechts fragt der Start nicht mehr, er prüft nur.
+    await _askActivityRecognition();
     await _controller?.start();
   }
 
@@ -368,13 +450,36 @@ class _RunFlowScreenState extends State<RunFlowScreen>
         if (controller.startFailed) {
           return Scaffold(
             appBar: AppBar(title: Text(l10n.homeStartRun)),
-            body: _explanation(l10n, l10n.runStartFailed, [
+            body: _explanation(
+              l10n,
+              controller.startFailedResume
+                  ? l10n.treadmillStartFailedResume
+                  : l10n.runStartFailed,
+              [
+                FilledButton(
+                  key: const Key('run_start_retry'),
+                  onPressed: _retryStart,
+                  child: Text(l10n.notOpenableRetry),
+                ),
+              ],
+            ),
+          );
+        }
+        if (controller.startDenied != null) {
+          return Scaffold(
+            appBar: AppBar(title: Text(l10n.homeStartRun)),
+            body: _explanation(l10n, l10n.treadmillDeniedActivity, [
               FilledButton(
-                key: const Key('run_start_retry'),
+                key: const Key('treadmill_denied_retry'),
                 onPressed: _retryStart,
-                child: Text(l10n.notOpenableRetry),
+                child: Text(l10n.runActionAsk),
               ),
-            ]),
+              OutlinedButton(
+                key: const Key('treadmill_denied_settings'),
+                onPressed: () => widget.permissions.openSystemSettings(),
+                child: Text(l10n.runActionSettings),
+              ),
+            ], blockKey: const Key('treadmill_denied')),
           );
         }
         return LiveRunView(
@@ -456,6 +561,93 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     return (text, actions, Key('run_block_${block.name}'));
   }
 
+  bool get _beltInputValid => _beltSpeed != null && _incline.$1;
+
+  /// Wahl der Laufart (FR-0196): GPS oder Laufband, gemerkt wie die Autopause.
+  Widget _modeCard(AppLocalizations l10n, TextTheme text) => RamuriCard(
+    padding: const EdgeInsets.all(18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.treadmillModeTitle, style: text.titleMedium),
+        const SizedBox(height: 10),
+        SegmentedButton<RunMode>(
+          key: const Key('treadmill_mode'),
+          showSelectedIcon: false,
+          segments: [
+            ButtonSegment(
+              value: RunMode.gps,
+              label: Text(
+                l10n.treadmillModeGps,
+                key: const Key('treadmill_mode_gps'),
+              ),
+            ),
+            ButtonSegment(
+              value: RunMode.treadmill,
+              label: Text(
+                l10n.treadmillModeBelt,
+                key: const Key('treadmill_mode_belt'),
+              ),
+            ),
+          ],
+          selected: {_mode},
+          onSelectionChanged: (v) => _setMode(v.first),
+        ),
+      ],
+    ),
+  );
+
+  /// Startgeschwindigkeit (Pflicht) und Steigung (freiwillig) des Bands.
+  Widget _beltCard(AppLocalizations l10n, TextTheme text) {
+    final unit = _unit;
+    final unitLabel = unit == DistanceUnit.miles
+        ? l10n.treadmillUnitMph
+        : l10n.treadmillUnitKmh;
+    final lang = Localizations.localeOf(context).languageCode;
+    String t(int tenths) => TreadmillUnits.speedText(
+      unit,
+      TreadmillUnits.mpsFromDisplay(unit, tenths / 10),
+      lang,
+    );
+    final min = t(TreadmillUnits.minTenths(unit));
+    final max = t(TreadmillUnits.maxTenths(unit));
+    final speedEmpty = _speedField.text.trim().isEmpty;
+    final inclineOk = _incline.$1;
+    const keyboard = TextInputType.numberWithOptions(decimal: true);
+    return RamuriCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        children: [
+          TextField(
+            key: const Key('treadmill_start_speed'),
+            controller: _speedField,
+            keyboardType: keyboard,
+            decoration: InputDecoration(
+              labelText: l10n.treadmillSpeedLabel(unitLabel),
+              helperText: l10n.treadmillSpeedHelper(min, max, unitLabel),
+              errorText: speedEmpty || _beltSpeed != null
+                  ? null
+                  : l10n.treadmillSpeedError(min, max, unitLabel),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            key: const Key('treadmill_start_incline'),
+            controller: _inclineField,
+            keyboardType: keyboard,
+            decoration: InputDecoration(
+              labelText: l10n.treadmillInclineLabel,
+              helperText: l10n.treadmillInclineHelper,
+              errorText: inclineOk ? null : l10n.treadmillInclineError,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Seite „Lauf vorbereiten“ (FR-0210, Design `Start`). Der GPS-Zustand ist
   /// eine Anzeige; gesperrt wird nur nach FR-0195, dann steht der Grund da und
   /// „Los“ tut nichts.
@@ -519,6 +711,12 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                 ),
                 const SizedBox(height: 18),
               ],
+              _modeCard(l10n, text),
+              const SizedBox(height: 18),
+              if (_treadmill) ...[
+                _beltCard(l10n, text),
+                const SizedBox(height: 18),
+              ],
               RamuriCard(
                 padding: const EdgeInsets.all(18),
                 child: Column(
@@ -527,7 +725,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                     Text(l10n.startFreeTitle, style: text.titleMedium),
                     const SizedBox(height: 6),
                     Text(
-                      l10n.startFreeBody,
+                      _treadmill ? l10n.treadmillBody : l10n.startFreeBody,
                       style: text.bodySmall!.copyWith(height: 1.45),
                     ),
                   ],
@@ -544,11 +742,12 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                   ),
                   child: Column(
                     children: [
-                      RamuriReadinessRow(
-                        icon: Icons.place_outlined,
-                        title: l10n.startGps,
-                        trailing: gps,
-                      ),
+                      if (!_treadmill)
+                        RamuriReadinessRow(
+                          icon: Icons.place_outlined,
+                          title: l10n.startGps,
+                          trailing: gps,
+                        ),
                       ListenableBuilder(
                         listenable: widget.sensors ?? _noChange,
                         builder: (context, _) {
@@ -601,17 +800,18 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                 ),
               ),
               const SizedBox(height: 18),
-              RamuriCard(
-                radius: 18,
-                padding: EdgeInsets.zero,
-                child: SwitchListTile(
-                  key: const Key('start_autopause'),
-                  title: Text(l10n.startAutoPause, style: text.labelMedium),
-                  subtitle: Text(l10n.startAutoPauseHint),
-                  value: _autoPause,
-                  onChanged: _setAutoPause,
+              if (!_treadmill)
+                RamuriCard(
+                  radius: 18,
+                  padding: EdgeInsets.zero,
+                  child: SwitchListTile(
+                    key: const Key('start_autopause'),
+                    title: Text(l10n.startAutoPause, style: text.labelMedium),
+                    subtitle: Text(l10n.startAutoPauseHint),
+                    value: _autoPause,
+                    onChanged: _setAutoPause,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -623,7 +823,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                 key: const Key('run_start_ready'),
                 label: l10n.startGo,
                 semanticLabel: l10n.startGoSemantics,
-                onPressed: _ready
+                onPressed: _ready && (!_treadmill || _beltInputValid)
                     ? () => _check(askUser: false, autoStart: true)
                     : null,
               ),

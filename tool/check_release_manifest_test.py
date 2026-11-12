@@ -12,6 +12,8 @@ RECV = PKG + ".TrainingReminderReceiver"
 
 PERMS = f"""package: {PKG}
 uses-permission: name='android.permission.ACCESS_FINE_LOCATION'
+uses-permission: name='android.permission.ACTIVITY_RECOGNITION'
+uses-permission: name='android.permission.FOREGROUND_SERVICE_HEALTH'
 uses-permission: name='android.permission.POST_NOTIFICATIONS'
 uses-permission: name='android.permission.RECEIVE_BOOT_COMPLETED'
 uses-permission: name='android.permission.INTERNET'
@@ -30,10 +32,12 @@ FALSE, TRUE = "(type 0x12)0x0", "(type 0x12)0xffffffff"
 
 
 def component(tag, name, exported=FALSE, actions=("android.intent.action.BOOT_COMPLETED",
-                                                  "android.intent.action.MY_PACKAGE_REPLACED")):
+                                                  "android.intent.action.MY_PACKAGE_REPLACED"), fgtype=None):
     out = f"      E: {tag} (line=100)\n" + a(8, "name", s(name))
     if exported is not None:
         out += a(8, "exported", exported)
+    if fgtype is not None:
+        out += a(8, "foregroundServiceType", fgtype)
     if actions:
         out += "        E: intent-filter (line=101)\n"
         for act in actions:
@@ -43,7 +47,14 @@ def component(tag, name, exported=FALSE, actions=("android.intent.action.BOOT_CO
 
 ACTIVITY = component("activity", PKG + ".MainActivity", TRUE,
                      ("android.intent.action.MAIN",))
-SERVICE = component("service", PKG + ".RecordingService", FALSE, ())
+LOC, CONN, HEALTH = 0x8, 0x10, 0x100
+
+
+def ftype(v):
+    return f"(type 0x11)0x{v:x}"
+
+
+SERVICE = component("service", PKG + ".RecordingService", FALSE, (), ftype(LOC | CONN | HEALTH))
 PROFILE = component("receiver", "androidx.profileinstaller.ProfileInstallReceiver", TRUE,
                     ("androidx.profileinstaller.action.INSTALL_PROFILE",))
 REMINDER = component("receiver", RECV)
@@ -105,6 +116,36 @@ CASES = [
     ("Action als Ressourcenverweis", PERMS,
      tree(ACTIVITY, SERVICE, PROFILE, REMINDER.replace(s("android.intent.action.BOOT_COMPLETED"), "@0x7f0a0001")),
      "action ohne lesbaren Namen"),
+    # Typ health (ADR-0005 Nachtrag WP25)
+    ("Aufzeichnungsdienst ohne health, ohne Recht und ohne ACTIVITY_RECOGNITION grün (nur GPS)",
+     PERMS.replace("uses-permission: name='android.permission.FOREGROUND_SERVICE_HEALTH'\n", "")
+     .replace("uses-permission: name='android.permission.ACTIVITY_RECOGNITION'\n", ""),
+     tree(component("service", PKG + ".RecordingService", FALSE, (), ftype(LOC | CONN)), ACTIVITY, REMINDER, PROFILE),
+     None),
+    ("health ohne FOREGROUND_SERVICE_HEALTH",
+     PERMS.replace("uses-permission: name='android.permission.FOREGROUND_SERVICE_HEALTH'\n", ""), tree(*BASE),
+     "ohne android.permission.FOREGROUND_SERVICE_HEALTH"),
+    ("health ohne ACTIVITY_RECOGNITION",
+     PERMS.replace("uses-permission: name='android.permission.ACTIVITY_RECOGNITION'\n", ""), tree(*BASE),
+     "Typ health an service " + PKG + ".RecordingService ohne android.permission.ACTIVITY_RECOGNITION"),
+    ("FOREGROUND_SERVICE_HEALTH ohne ACTIVITY_RECOGNITION",
+     PERMS.replace("uses-permission: name='android.permission.ACTIVITY_RECOGNITION'\n", ""),
+     tree(*BASE), "FOREGROUND_SERVICE_HEALTH ohne android.permission.ACTIVITY_RECOGNITION"),
+    ("FOREGROUND_SERVICE_HEALTH ohne Typ health am Aufzeichnungsdienst", PERMS,
+     tree(component("service", PKG + ".RecordingService", FALSE, (), ftype(LOC | CONN)), ACTIVITY, REMINDER, PROFILE),
+     "ohne Typ health am Aufzeichnungsdienst"),
+    ("FOREGROUND_SERVICE_HEALTH ohne foregroundServiceType am Dienst", PERMS,
+     tree(component("service", PKG + ".RecordingService", FALSE, ()), ACTIVITY, REMINDER, PROFILE),
+     "ohne Typ health am Aufzeichnungsdienst"),
+    ("health an einem anderen Dienst", PERMS,
+     tree(*BASE, component("service", "com.example.OtherService", FALSE, (), ftype(HEALTH))),
+     "Typ health an service com.example.OtherService"),
+    ("Aufzeichnungsdienst mit health ohne location", PERMS,
+     tree(component("service", PKG + ".RecordingService", FALSE, (), ftype(HEALTH | CONN)), ACTIVITY, REMINDER,
+          PROFILE), "health ohne location"),
+    ("foregroundServiceType als Ressourcenverweis", PERMS,
+     tree(component("service", PKG + ".RecordingService", FALSE, (), "@0x7f0a0001"), ACTIVITY, REMINDER, PROFILE),
+     "foregroundServiceType nicht lesbar"),
     ("leere Rechte-Ausgabe", "", tree(*BASE), "unerwartete Ausgabe"),
     ("leere xmltree-Ausgabe", PERMS, "", "kein manifest-Element"),
 ]
