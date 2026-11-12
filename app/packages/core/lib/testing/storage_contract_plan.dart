@@ -575,8 +575,10 @@ PlanUnit _unit(
   int week = 0,
   bool withIntensity = false,
   bool pinned = false,
+  PlanUnitFixed fixed = PlanUnitFixed.none,
 }) => PlanUnit(
   day: _day(day),
+  fixed: fixed,
   kind: kind,
   phase: PlanPhase.build,
   weekIndex: week,
@@ -826,6 +828,25 @@ Future<void> _invalid(StorageContractHarness h) async {
       _unit(4),
     ]),
     'leerer Grund': await _draft(p, 1, [_unit(1)], reason: ''),
+    // CHECK von plan_units: fixed = day nur bei Ruhe, easyForHard nur bei
+    // locker (E2E 4: Der Fake lehnt wie die Datenbank ab).
+    'Ruhetag mit fixed = kind': await _draft(p, 1, [
+      _unit(
+        1,
+        kind: PlanUnitKind.rest,
+        minutes: 0,
+        pinned: true,
+        fixed: PlanUnitFixed.kind,
+      ),
+    ]),
+    'Tempo mit fixed = easyForHard': await _draft(p, 1, [
+      _unit(
+        1,
+        kind: PlanUnitKind.tempo,
+        pinned: true,
+        fixed: PlanUnitFixed.easyForHard,
+      ),
+    ]),
   };
   for (final e in bad.entries) {
     await expectFails(
