@@ -7,6 +7,94 @@ import 'package:running_app/features/run/run_ports.dart';
 
 final _t0 = DateTime.utc(2030, 3, 1, 10);
 
+/// Sitzung mit steuerbarem Rohdatenspeicher und Laufspeicher (nur Fehlerwege).
+class _FaultySession implements StorageSession {
+  _FaultySession(this.s);
+  final StorageSession s;
+  Object? appendError; // wird beim nächsten append geworfen (solange gesetzt)
+  Object? getError; // wird bei runs.get geworfen (solange gesetzt)
+  @override
+  RawDataStore get rawData => _Raw(this);
+  @override
+  RunStore get runs => _Runs(this);
+  @override
+  SettingsStore get settings => s.settings;
+  @override
+  ProfileStore get profile => s.profile;
+  @override
+  RunMarkerStore get markers => s.markers;
+  @override
+  PreprocessingStore get preprocessing => s.preprocessing;
+  @override
+  RatedSectionStore get sections => s.sections;
+  @override
+  ComputedValueStore get values => s.values;
+  @override
+  KnownDeviceStore get devices => s.devices;
+  @override
+  ConsentStore get consents => s.consents;
+  @override
+  RunSubjectiveStore get subjective => s.subjective;
+  @override
+  ManualTrainingStore get manualTrainings => s.manualTrainings;
+  @override
+  Future<void> deleteRun(int runId) => s.deleteRun(runId);
+  @override
+  Future<void> deleteAll() => s.deleteAll();
+  @override
+  Future<void> close() => s.close();
+}
+
+class _Raw implements RawDataStore {
+  _Raw(this.f);
+  final _FaultySession f;
+  @override
+  Future<void> append(int runId, RawBatch batch) {
+    final e = f.appendError;
+    if (e != null) return Future.error(e);
+    return f.s.rawData.append(runId, batch);
+  }
+
+  @override
+  Future<StoredRawData> read(int runId) => f.s.rawData.read(runId);
+}
+
+class _Runs implements RunStore {
+  _Runs(this.f);
+  final _FaultySession f;
+  @override
+  Future<StoredRun?> get(int id) {
+    final e = f.getError;
+    if (e != null) return Future.error(e);
+    return f.s.runs.get(id);
+  }
+
+  @override
+  Future<StoredRun> create({
+    required DateTime startedAt,
+    RunMode mode = RunMode.gps,
+  }) => f.s.runs.create(startedAt: startedAt, mode: mode);
+  @override
+  Future<void> setState(
+    int runId,
+    RunState state, {
+    DateTime? endedAt,
+    Duration? endedUtcOffset,
+  }) => f.s.runs.setState(
+    runId,
+    state,
+    endedAt: endedAt,
+    endedUtcOffset: endedUtcOffset,
+  );
+  @override
+  Future<List<StoredRun>> list() => f.s.runs.list();
+  @override
+  Future<List<StoredRun>> finishedBetween(DateTime from, DateTime to) =>
+      f.s.runs.finishedBetween(from, to);
+  @override
+  Future<List<StoredRun>> unfinished() => f.s.runs.unfinished();
+}
+
 Future<
   ({
     FakeClock clock,
@@ -159,6 +247,54 @@ void main() {
         b.snapshot.distanceMeters,
         closeTo(120, 1e-6),
       ); // bis zur Einstellung belegt
+    });
+
+    test('Speicherfehler beim Ändern: Sitzung hat sie (true); andere Ausnahme: false', () async {
+      final w = await _world();
+      final fs = _FaultySession(w.session);
+      final c = RunController(
+        clock: w.clock,
+        storage: fs,
+        location: w.location,
+        service: w.service,
+        mode: RunMode.treadmill,
+        startBeltSpeedMetersPerSecond: 2,
+        tickEvery: const Duration(hours: 1),
+      );
+      addTearDown(c.dispose);
+      await c.start();
+      expect(c.phase, RecordingPhase.running);
+      w.clock.advance(const Duration(seconds: 10));
+      fs.appendError = const StorageException(StorageFailure.failed);
+      expect(await c.setBeltSpeed(3), isTrue);
+      expect(c.snapshot.beltSpeedMetersPerSecond, 3);
+      fs.appendError = StateError('unerwartet');
+      expect(await c.setBeltSpeed(4), isFalse);
+    });
+
+    test('Fortsetzen: nicht lesbare Laufart bricht ab, kein GPS-Dienst', () async {
+      final w = await _world();
+      final a = _belt(w);
+      await a.start();
+      final id = (await w.session.runs.unfinished()).single.id;
+      a.dispose();
+      final fs = _FaultySession(w.session)
+        ..getError = const StorageException(StorageFailure.failed);
+      final w2 = FakeRecordingServicePort();
+      final b = RunController(
+        clock: w.clock,
+        storage: fs,
+        location: w.location,
+        service: w2,
+        resumeRunId: id,
+        tickEvery: const Duration(hours: 1),
+      );
+      addTearDown(b.dispose);
+      await b.start();
+      expect(b.startFailed, isTrue);
+      expect(w2.startModes, isEmpty);
+      expect(w.location.hasListeners, isFalse);
+      expect(b.phase, RecordingPhase.idle);
     });
   });
 }

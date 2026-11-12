@@ -19,6 +19,10 @@ import 'treadmill.dart';
 /// bei einem Kill höchstens die laufende Zeile aus.
 const int rawBatchRows = 1;
 
+/// Abstand der Lebenszeichen im Laufbandmodus: die aktuelle Einstellung wird
+/// unverändert erneut angehängt (FR-0193/FR-0196).
+const Duration beltHeartbeatInterval = Duration(seconds: 30);
+
 /// Verbindet [RecordingSession] mit dem Speicherzugriff (WP06 Teil C).
 ///
 /// Die Sitzung entscheidet sofort und synchron; alle Schreibvorgänge laufen
@@ -77,6 +81,7 @@ class RunRecorder {
   final List<RrPacket> _rrPackets = [];
   int _beltCursor = 0; // Einstellungen der Sitzung, die schon im Puffer sind
   final List<BeltSetting> _belts = [];
+  DateTime? _lastBeltAt; // letztes Anhängen einer Einstellung (Lebenszeichen)
 
   StorageFailure? _lastWriteFailure;
 
@@ -131,7 +136,9 @@ class RunRecorder {
       _processEvents();
       _takeBelts();
       if (_belts.isNotEmpty) {
-        unawaited(_write(_flush).catchError((Object _) {}));
+        // Die erste Einstellung ist Pflicht (K57): erst melden, wenn sie
+        // gespeichert ist; Fehler gehen an den Aufrufer.
+        await _write(_flush);
       }
       return CommandResult.ok;
     } finally {
@@ -184,6 +191,7 @@ class RunRecorder {
         _runId = runId;
         _eventCursor = _session.events.length;
         _beltCursor = _session.beltSettings.length; // schon gespeichert
+        _lastBeltAt = now;
       }
       return r;
     } finally {
@@ -212,6 +220,7 @@ class RunRecorder {
     final all = _session.beltSettings;
     while (_beltCursor < all.length) {
       _belts.add(all[_beltCursor++]);
+      _lastBeltAt = _clock.now();
     }
   }
 
@@ -341,6 +350,20 @@ class RunRecorder {
   void tick() {
     _session.tick();
     _processEvents();
+    _beltHeartbeat();
+  }
+
+  /// Im Laufbandmodus alle [beltHeartbeatInterval] die aktuelle Einstellung
+  /// erneut anhängen, damit der letzte belegte Zeitpunkt nach einem Absturz
+  /// nahe am Ende liegt (die Strecke bleibt bis dahin erhalten).
+  void _beltHeartbeat() {
+    if (_runId == null) return;
+    final now = _clock.now();
+    final since = _lastBeltAt;
+    if (since == null || now.difference(since) < beltHeartbeatInterval) return;
+    if (_session.beltHeartbeat() == CommandResult.rejected) return;
+    _takeBelts();
+    unawaited(_write(_flush).catchError((Object _) {}));
   }
 
   RecordingSnapshot snapshot() => observe().snapshot;

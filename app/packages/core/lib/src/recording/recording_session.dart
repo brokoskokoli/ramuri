@@ -613,14 +613,19 @@ class RecordingSession {
     if (!_treadmill || !(_active || _phase == RecordingPhase.paused)) {
       return CommandResult.rejected;
     }
-    final cur = _belts.last;
+    // Ohne Vorgänger (nach dem Wiederanlauf ohne gespeicherte Einstellung):
+    // Geschwindigkeit 0 bzw. die angegebene, Steigung nur wenn angegeben.
+    final cur = _belts.lastOrNull;
     final next = BeltSetting(
       offset: _offsetNow(),
-      speedMetersPerSecond: keepSpeed ? cur.speedMetersPerSecond : speed!,
-      inclinePercent: keepSpeed ? incline : cur.inclinePercent,
+      speedMetersPerSecond: keepSpeed
+          ? (cur?.speedMetersPerSecond ?? 0)
+          : speed!,
+      inclinePercent: keepSpeed ? incline : cur?.inclinePercent,
     );
     if (!isStorableBeltSetting(next)) return CommandResult.rejected;
-    if (next.speedMetersPerSecond == cur.speedMetersPerSecond &&
+    if (cur != null &&
+        next.speedMetersPerSecond == cur.speedMetersPerSecond &&
         next.inclinePercent == cur.inclinePercent) {
       return CommandResult.ok; // keine Änderung, keine Zeile
     }
@@ -628,11 +633,27 @@ class RecordingSession {
     return CommandResult.ok;
   }
 
+  /// Lebenszeichen im Laufbandmodus: hängt die aktuelle Einstellung
+  /// unverändert mit dem jetzigen Offset erneut an (Strecke und Bewegungszeit
+  /// bleiben gleich). Nur im aktiven Lauf mit vorhandener Einstellung.
+  CommandResult beltHeartbeat() {
+    final cur = _belts.lastOrNull;
+    if (!_treadmill || !_active || cur == null) return CommandResult.rejected;
+    _belts.add(
+      BeltSetting(
+        offset: _offsetNow(),
+        speedMetersPerSecond: cur.speedMetersPerSecond,
+        inclinePercent: cur.inclinePercent,
+      ),
+    );
+    return CommandResult.ok;
+  }
+
   /// Zeit ab Laufbeginn; springt die Uhr zurück, bleibt die Reihenfolge der
   /// Einstellungen erhalten (nie vor der letzten).
   Duration _offsetNow() {
     final off = _clock.now().difference(_startedAt!);
-    final last = _belts.last.offset;
+    final last = _belts.lastOrNull?.offset ?? Duration.zero;
     return off < last ? last : off;
   }
 

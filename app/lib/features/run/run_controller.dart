@@ -149,8 +149,12 @@ class RunController extends ChangeNotifier {
     var ok = false;
     try {
       ok = await change() == CommandResult.ok;
+    } on StorageException {
+      // Nur ein Speicherfehler: die Sitzung hat die Änderung schon, der Fehler
+      // steht in writeFailure. Jede andere Ausnahme gilt als nicht ausgeführt.
+      ok = true;
     } on Object {
-      ok = true; // Sitzung hat die Änderung; Speicherfehler in writeFailure
+      ok = false;
     }
     _update();
     return ok;
@@ -262,7 +266,10 @@ class RunController extends ChangeNotifier {
         try {
           runMode = (await storage.runs.get(resume))?.mode ?? RunMode.gps;
         } on Object {
-          runMode = RunMode.gps;
+          // Art unbekannt: nicht GPS annehmen (der Dienst passte nicht zur
+          // Sitzung), sondern abbrechen; ein erneutes Fortsetzen ist möglich.
+          _startFailed = true;
+          return;
         }
       }
       // Laufband: der Dienst zuerst, denn ohne sein Recht startet der Lauf
