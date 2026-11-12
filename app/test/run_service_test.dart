@@ -375,7 +375,9 @@ void main() {
     const dir = 'android/app/src/main/kotlin/io/github/brokoskokoli/ramuri';
     final service = File('$dir/RecordingService.kt').readAsStringSync();
     final lifecycle = File('$dir/RecordingLifecycle.kt').readAsStringSync();
-    final state = File('$dir/RecordingServiceState.kt').readAsStringSync();
+    final stateSource = File('$dir/RecordingServiceState.kt')
+        .readAsStringSync();
+    final state = stateSource;
 
     test('START_NOT_STICKY, kein onTaskRemoved', () {
       expect(service, contains('return RecordingLifecycle.START_MODE'));
@@ -466,8 +468,10 @@ void main() {
       'Verdrahtung: Fehlerantwort trägt das Detail in message und details',
       () {
         // Dart liest details; die Form prüft der JVM-Test, hier der Aufruf.
-        final controller = File('$dir/RecordingServiceController.kt')
-            .readAsStringSync();
+        final controller = _code(
+          File('$dir/RecordingServiceController.kt').readAsStringSync(),
+        );
+        final state = _code(stateSource);
         expect(controller, contains('= Triple(code, detail, detail)'));
         expect(
           state,
@@ -481,7 +485,7 @@ void main() {
     );
 
     test('Verdrahtung: Bandmodus-Argument erreicht die Rechteabfrage', () {
-      final main = File('$dir/MainActivity.kt').readAsStringSync();
+      final main = _code(File('$dir/MainActivity.kt').readAsStringSync());
       expect(main, contains('call.argument<Boolean>("treadmill") == true'));
       expect(
         main,
@@ -639,3 +643,9 @@ class _FailingStart extends RunRecorder {
     double? inclinePercent,
   }) async => throw StateError('kein Speicher');
 }
+
+/// Kotlin-Quelltext ohne Kommentare, damit ein auskommentierter Aufruf eine
+/// Verdrahtungsprüfung nicht erfüllt (Review 4b).
+String _code(String kotlin) => kotlin
+    .replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '')
+    .replaceAll(RegExp(r'(^|[ \t])//[^\n]*', multiLine: true), '');
