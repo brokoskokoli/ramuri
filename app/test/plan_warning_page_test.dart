@@ -321,6 +321,52 @@ void main() {
     });
   });
 
+  group('Überlagerter Tag ohne Festlegung (FR-0203)', () {
+    testWidgets(
+      'unter Warnsignal wird dort kein „Ruhetag festlegen“ angeboten',
+      (tester) async {
+        final (session, clock) =
+            await tester.runAsync(_withPlan) as (StorageSession, FakeClock);
+        final plans = (session as PlanStorage).plans;
+        final store = (session as WarningStorage).warning;
+        await tester.runAsync(
+          () =>
+              WarningService(
+                plans: plans,
+                settings: session.settings,
+                warning: store,
+              ).report(
+                source: WarningSource.manual,
+                today: _today,
+                now: clock.now(),
+              ),
+        );
+        // Ein künftiger Tag, den das Warnsignal zur Ruhe-Einheit gemacht hat,
+        // ohne Festlegung des Nutzers.
+        final units = (await tester.runAsync(
+          () => plans.unitsBetween(_today, DateTime.utc(2026, 12, 31)),
+        ))!;
+        final over = units.firstWhere(
+          (u) =>
+              u.kind == PlanUnitKind.rest &&
+              !u.pinned &&
+              u.runId == null &&
+              !u.day.isBefore(_today) &&
+              u.day.isBefore(_today.add(const Duration(days: 6))),
+        );
+        await _pump(tester, session, clock);
+        await tester.tap(key('plan_open_calendar'));
+        await tester.pumpAndSettle();
+        final id = over.day.toIso8601String().substring(0, 10);
+        await tester.tap(key('calendar_day_$id'), warnIfMissed: false);
+        await tester.pumpAndSettle();
+        for (final k in ['calendar_rest_set', 'calendar_rest_clear']) {
+          expect(key(k), findsNothing, reason: k);
+        }
+      },
+    );
+  });
+
   group('Nachfrage nach PAR-200', () {
     Future<(StorageSession, FakeClock)> due(int days, {double cap = 240}) =>
         _withPlan(
