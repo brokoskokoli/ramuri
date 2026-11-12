@@ -2017,7 +2017,7 @@
   "@planChangeReasonNoIncrease": {"description": "WP23 NB7, Plan-Seite: Grund der Wochenanpassung"},
   "planChangeReasonNoIncreaseShare": "You completed {percent} % of the planned weekly time, so the weekly time is not increased for now.",
   "@planChangeReasonNoIncreaseShare": {"description": "WP23 NB7, Plan-Seite: Grund der Wochenanpassung", "placeholders": {"percent": {"type": "int"}}},
-  "planChangeReasonFatigue": "The last runs felt demanding, so the weekly time is lower and there is no hard session this week.",
+  "planChangeReasonFatigue": "Based on your latest notes on effort or how you felt, the weekly time is lower and there is no hard session this week.",
   "@planChangeReasonFatigue": {"description": "WP23 NB7, Plan-Seite: Grund der Wochenanpassung"},
   "planChangeReasonFeedback": "You answered how the training feels, so the weekly time was adjusted.",
   "@planChangeReasonFeedback": {"description": "WP23 Teil C2, Plan-Seite: Grund"},

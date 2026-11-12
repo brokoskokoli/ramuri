@@ -1006,12 +1006,36 @@ void main() {
         0,
         rpeOf: (u, i) {
           if (!easy(u)) return 3;
-          return n++ == 0 ? 7 : 7;
+          return n++ < 2 ? 7 : 4;
         },
       );
       final v = await opened();
       expect(v?.reason, 'fatigue');
     });
+
+    test('RPE: nur 1 von 3 lockeren Läufen mit RPE >= 6 -> keine Ermüdung '
+        '(NB8 5)', () async {
+      await prepare();
+      var n = 0;
+      await runWeek(0, rpeOf: (u, i) => easy(u) ? (n++ == 0 ? 7 : 4) : 3);
+      expect(await opened(), isNull);
+    });
+
+    test(
+      'Öffnen erst am Samstag: ein lockerer Lauf der laufenden Woche '
+      'verdrängt die bewertete Woche nicht aus dem RPE-Fenster (NB8 5)',
+      () async {
+        await prepare();
+        var n = 0;
+        await runWeek(0, rpeOf: (u, i) => easy(u) ? (n++ < 2 ? 7 : 4) : 3);
+        // Samstag der laufenden Woche; ein lockerer Lauf (RPE 3) am Dienstag.
+        final current = (await week(1)).firstWhere(easy);
+        await addRun(current.day, current.minutes, unit: current, rpe: 3);
+        e.clock.set(DateTime.utc(2026, 11, 28, 12));
+        final v = await opened();
+        expect(v?.reason, 'fatigue');
+      },
+    );
 
     test('RPE zählt nur lockere Läufe: ein freier Lauf mit RPE 8 macht aus '
         'einem lockeren mit RPE 7 keine Ermüdung', () async {
@@ -1059,7 +1083,7 @@ void main() {
 
   group('Zieländerung am Prüftag (NB7 6)', () {
     test('goalChange am Montag bewertet die Vorwoche mit '
-        '(Grund bleibt goalChange)', () async {
+        '(Grund goalChange mit Gründen, NB8 6)', () async {
       final e = await _Env.open();
       e.clock.set(_day(-21));
       await e.controller.saveGoal(_goal());
@@ -1069,7 +1093,7 @@ void main() {
       await e.controller.saveGoal(_goal(target: DateTime.utc(2027, 5, 1)));
       final h = await e.plans.history();
       expect(h.last.trigger, PlanTrigger.goalChange);
-      expect(h.last.reason, 'goalChange');
+      expect(h.last.reason, 'goalChange,repeatWeek');
       // Die Bewertung der Vorwoche (0 % geschafft) ist in die Fassung
       // eingegangen.
       expect(h.last.inputs.achievedShare, 0);
@@ -1212,6 +1236,24 @@ void main() {
       expect(h.last.inputs.noHardUntil, isNotNull);
       await e.controller.open();
       expect((await e.plans.history()).length, before + 1);
+    });
+
+    test('Ziel speichern am Prüftag bei offener Pausenfrage, dann „Ja“ -> '
+        'Fassung pause, 80 % der Basiswoche, noHardUntil (NB8 1)', () async {
+      final e = await prepared(10, recorded: false);
+      final service = HintService(session: e.session, clock: e.clock);
+      final q = await service.pauseQuestion();
+      expect(q, isNotNull);
+      await e.controller.saveGoal(_goal(target: DateTime.utc(2027, 5, 1)));
+      expect(await service.pauseQuestion(), isNotNull);
+      expect(await e.controller.answerPause(true), PlanActionResult.done);
+      final last = (await e.plans.history()).last;
+      expect(last.trigger, PlanTrigger.pause);
+      expect(
+        last.inputs.startWeeklyMinutes,
+        (q!.baseWeekMinutes * 0.8).round(),
+      );
+      expect(last.inputs.noHardUntil, isNotNull);
     });
 
     test('offene Pausenfrage, Antwort „Nein“: die nächste Wochenprüfung läuft '

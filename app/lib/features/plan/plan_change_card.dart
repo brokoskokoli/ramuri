@@ -41,6 +41,15 @@ String planChangeReasonText(
     case 'create':
       return l.planChangeReasonCreate;
     default:
+      // Zieländerung mit Wochenbewertung (NB8 6): `goalChange,<Gründe>`.
+      const prefix = 'goalChange,';
+      if (e.code.startsWith(prefix)) {
+        final weekly = _weeklyReasons(l, e.code.substring(prefix.length), v);
+        if (weekly != null) {
+          return '${l.planChangeReasonGoalChange} $weekly';
+        }
+        return l.planChangeReasonGoalChange;
+      }
       return _weeklyReasons(l, e.code, v) ?? l.planChangeReasonOther;
   }
 }

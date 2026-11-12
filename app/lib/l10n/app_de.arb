@@ -2739,7 +2739,7 @@
   "@planChangeReasonNoIncrease": {"description": "WP23 NB7, Plan-Seite: Grund der Wochenanpassung"},
   "planChangeReasonNoIncreaseShare": "Du hast {percent} % der geplanten Wochenzeit geschafft, deshalb wird die Wochenzeit vorerst nicht gesteigert.",
   "@planChangeReasonNoIncreaseShare": {"description": "WP23 NB7, Plan-Seite: Grund der Wochenanpassung", "placeholders": {"percent": {"type": "int"}}},
-  "planChangeReasonFatigue": "Die letzten Läufe waren anstrengend, deshalb ist die Wochenzeit niedriger und diese Woche gibt es keine harte Einheit.",
+  "planChangeReasonFatigue": "Nach deinen letzten Angaben zu Anstrengung oder Befinden ist die Wochenzeit niedriger und diese Woche gibt es keine harte Einheit.",
   "@planChangeReasonFatigue": {"description": "WP23 NB7, Plan-Seite: Grund der Wochenanpassung"},
   "planChangeReasonFeedback": "Du hast zur Belastung geantwortet, deshalb wurde die Wochenzeit angepasst.",
   "@planChangeReasonFeedback": {"description": "WP23 Teil C2, Plan-Seite: Grund"},

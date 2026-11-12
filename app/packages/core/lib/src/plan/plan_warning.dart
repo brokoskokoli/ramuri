@@ -207,6 +207,51 @@ List<PlanUnit> restoreWarningHeld(
   ];
 }
 
+/// Einheiten [restored] (aus [restoreWarningHeld]) ohne Dauer und Abschnitte
+/// (Einträge alter Fassungen, die beides noch nicht hielten) bekommen beides
+/// von der ersten Einheit gleicher Art aus [generated] (der Rechnung ohne
+/// Warnsignal); gibt es keine, bleibt die Einheit unverändert. Frühere
+/// Fassungen speichern ihre Einheiten nicht, daher kommt der Ersatz aus der
+/// neuen Rechnung.
+List<PlanUnit> fillEmptyRestored(
+  List<PlanUnit> restored,
+  List<PlanUnit> generated,
+) {
+  PlanUnit? template(PlanUnitKind kind) {
+    for (final g in generated) {
+      if (g.kind == kind && g.runId == null && g.minutes > 0) return g;
+    }
+    return null;
+  }
+
+  return [
+    for (final u in restored)
+      if (u.kind == PlanUnitKind.rest ||
+          u.minutes != 0 ||
+          u.segments.isNotEmpty)
+        u
+      else
+        _withTemplate(u, template(u.kind)),
+  ];
+}
+
+PlanUnit _withTemplate(PlanUnit u, PlanUnit? t) => t == null
+    ? u
+    : PlanUnit(
+        id: u.id,
+        day: u.day,
+        kind: u.kind,
+        phase: u.phase,
+        weekIndex: u.weekIndex,
+        minutes: t.minutes,
+        segments: t.segments,
+        runId: u.runId,
+        pinned: u.pinned,
+        fixed: u.fixed,
+        method: u.method,
+        methodVersion: u.methodVersion,
+      );
+
 bool _isOverlay(PlanUnit u, WarningHeld? h) =>
     h != null &&
     u.kind == PlanUnitKind.rest &&

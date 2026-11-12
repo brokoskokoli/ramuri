@@ -167,8 +167,11 @@ class PlanDataReader {
     final byTime = [...runs]..sort((a, b) => a.endedAt.compareTo(b.endedAt));
     final easyRuns = [
       for (final r in byTime)
-        if (easyIds.contains(r.runId)) r,
+        if (easyIds.contains(r.runId) && _before(r, thisMonday)) r,
     ];
+    // Läufe der laufenden Woche zählen nicht (NB8 5): Die Prüfung bewertet
+    // die Woche davor, ein früher Lauf dieser Woche verdrängte sonst die
+    // Läufe der bewerteten Woche aus dem Fenster.
     // Die RPE-Regel zählt nur, wenn mindestens einer der letzten lockeren
     // Läufe (Fenster der Regel) in der bewerteten Woche liegt: Dieselbe alte
     // Bewertung löst nicht jede Woche erneut aus.
@@ -199,6 +202,11 @@ class PlanDataReader {
       recentEasyRpe: easyRpe,
       fatigueReported: fatigue,
     );
+  }
+
+  bool _before(RunFigures r, DateTime monday) {
+    final d = _parseDay(r.day);
+    return d != null && d.isBefore(monday);
   }
 
   /// Langzeitwert des Tages des neuesten Laufs (wie die Statistik) und Güte

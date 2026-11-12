@@ -327,13 +327,17 @@ class PlanController extends ChangeNotifier {
     // Eine Zieländerung setzt den Prüftag; eine fällige Wochenbewertung der
     // Vorwoche fällt dadurch nicht weg (NB7 6), sie geht in dieselbe Fassung
     // ein (Grund bleibt `goalChange`).
+    // Bei offener Pausenfrage (PAR-202) nicht: Die Bewertung setzte den
+    // Anker auf den Montag und die Pausenregel liefe danach ins Leere (NB8 1).
     final doAdjust =
         adjust ??
         (trigger == PlanTrigger.goalChange &&
             weeklyCheckDue(
               await session.settings.get(planLastCheckDayKey),
               today,
-            ));
+            ) &&
+            await HintService(session: session, clock: clock).pauseQuestion() ==
+                null);
     if (doAdjust && last != null) {
       final evidence = await reader.weekEvidence(today);
       final a = evaluateWeekAdjustment(
@@ -348,10 +352,15 @@ class PlanController extends ChangeNotifier {
       );
       if (a != null) {
         inputs = refreshMeasuredInputs(a.inputs, built.inputs);
+        // Bei `goalChange` bleibt der Grund-Code vorn, die Gründe der
+        // Bewertung folgen (NB8 6): `goalChange,repeatWeek`.
+        final codes = ([
+          ...a.reasons,
+        ]..sort((x, y) => x.index - y.index)).map((r) => r.name).join(',');
         if (trigger == PlanTrigger.weekly) {
-          reason = ([
-            ...a.reasons,
-          ]..sort((x, y) => x.index - y.index)).map((r) => r.name).join(',');
+          reason = codes;
+        } else if (trigger == PlanTrigger.goalChange) {
+          reason = 'goalChange,$codes';
         }
       }
     }
