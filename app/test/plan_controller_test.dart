@@ -992,5 +992,32 @@ void main() {
       await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
       expect(await e.controller.newStartPossible(), isFalse);
     });
+
+    test('Einschätzung des neuen Einstiegs rechnet mit dem neuen Stand, auch '
+        'nach der vorläufigen Vorgabe', () async {
+      final e = await _Env.open();
+      e.clock.set(_day(-80));
+      await e.controller.saveGoal(_goal());
+      e.clock.set(_now);
+      await _finishedRun(e.session, 70);
+      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.map((r) => r.trigger), contains(PlanTrigger.pause));
+      // Neuer Stand: nicht 30 min am Stück -> Geh-Lauf-Abfolge im Neustart.
+      final draft = TrainingGoal(
+        type: GoalType.distance,
+        distance: GoalDistance.tenKilometers,
+        targetDate: DateTime.utc(2027, 6, 1),
+        runDays: const {2, 4, 6},
+        maxSessionSeconds: 7200,
+        weeklyCapSeconds: 240 * 60.0,
+        createdAt: DateTime.utc(2026, 11, 1),
+        hardSessionEnabled: true,
+        canRun30: ContinuousRun30.no,
+      );
+      final check = await e.controller.checkGoal(draft, newStart: true);
+      expect(check.walkRun, isTrue);
+    });
   });
 }
