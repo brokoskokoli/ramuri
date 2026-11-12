@@ -68,6 +68,7 @@ export 'src/export/export_run.dart';
 export 'src/export/fit_crc.dart';
 export 'src/export/fit_encoder.dart';
 export 'src/export/gpx_encoder.dart';
+export 'src/export/metrics_csv.dart';
 export 'src/export/run_file_export.dart';
 export 'src/export/tcx_encoder.dart';
 export 'src/export/xml_text.dart';

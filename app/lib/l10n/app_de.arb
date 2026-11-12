@@ -2716,5 +2716,11 @@
   "treadmillHistoryBadge": "Laufband",
   "@treadmillHistoryBadge": {"description": "WP25 B2, Laufband (FR-0196)"},
   "treadmillExportNoGpx": "GPX ist für Laufbandläufe nicht verfügbar, weil sie keine Strecke auf der Karte haben. TCX und FIT enthalten Zeit, Strecke und Puls.",
-  "@treadmillExportNoGpx": {"description": "WP25 C2, Exportfenster: Grund, warum GPX bei Laufbandläufen gesperrt ist (FR-0196, K57)"}
+  "@treadmillExportNoGpx": {"description": "WP25 C2, Exportfenster: Grund, warum GPX bei Laufbandläufen gesperrt ist (FR-0196, K57)"},
+  "metricsExportAction": "Zusatzmetriken exportieren (CSV)",
+  "@metricsExportAction": {"description": "WP25 D, Schaltfläche im Daten-Bildschirm (FR-0184)"},
+  "metricsExportTitle": "Zusatzmetriken exportieren",
+  "@metricsExportTitle": {"description": "WP25 D, Titel des Dialogs"},
+  "metricsExportIntro": "Eine CSV-Datei mit allen berechneten Werten aller Läufe samt Stufe, Methode und Version. Die Datei ist nicht verschlüsselt. Übertragen wird erst, wenn du ein Ziel wählst.",
+  "@metricsExportIntro": {"description": "WP25 D, Erklärung im Dialog"}
 }
