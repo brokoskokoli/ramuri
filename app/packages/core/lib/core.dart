@@ -158,6 +158,7 @@ export 'src/reminders/training_reminders.dart';
 export 'src/settings/display_settings.dart';
 export 'src/settings/load_settings.dart';
 export 'src/settings/reserve_zone_settings.dart';
+export 'src/recording/belt_track.dart';
 export 'src/recording/cadence_estimator.dart';
 export 'src/recording/recording_session.dart';
 export 'src/recording/run_recorder.dart';

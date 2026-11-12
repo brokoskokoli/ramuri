@@ -11,6 +11,7 @@ import '../preprocessing/measurement.dart';
 import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
+import 'belt_track.dart';
 import 'treadmill.dart';
 
 /// Zustand der Aufzeichnung (FR-0028, FR-0029).
@@ -667,33 +668,18 @@ class RecordingSession {
   /// Pausen und ohne die Unterbrechung nach einem Absturz. Zeit mit
   /// Geschwindigkeit 0 zählt nicht als Bewegungszeit.
   ({double meters, Duration moving}) _beltTotals(DateTime to) {
-    final start = _startedAt!;
-    final pauses = [
-      for (final g in _gaps)
-        if (g.kind == RunGapKind.manualPause ||
-            g.kind == RunGapKind.interruption)
-          (g.start, g.end ?? to),
-    ];
-    var meters = 0.0;
-    var movingUs = 0;
-    for (var i = 0; i < _belts.length; i++) {
-      final b = _belts[i];
-      var a = start.add(b.offset);
-      var e = i + 1 < _belts.length ? start.add(_belts[i + 1].offset) : to;
-      if (e.isAfter(to)) e = to;
-      if (!e.isAfter(a)) continue;
-      var us = e.difference(a).inMicroseconds;
-      for (final (ps, pe) in pauses) {
-        final lo = ps.isAfter(a) ? ps : a;
-        final hi = pe.isBefore(e) ? pe : e;
-        if (hi.isAfter(lo)) us -= hi.difference(lo).inMicroseconds;
-      }
-      if (b.speedMetersPerSecond > 0) {
-        meters += b.speedMetersPerSecond * us / Duration.microsecondsPerSecond;
-        movingUs += us;
-      }
-    }
-    return (meters: meters, moving: Duration(microseconds: movingUs));
+    final track = computeBeltTrack(
+      start: _startedAt!,
+      to: to,
+      settings: _belts,
+      pauses: [
+        for (final g in _gaps)
+          if (g.kind == RunGapKind.manualPause ||
+              g.kind == RunGapKind.interruption)
+            (g.start, g.end ?? to),
+      ],
+    );
+    return (meters: track.meters, moving: track.moving);
   }
 
   Intake? _gate(DateTime t) {

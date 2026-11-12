@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../preprocessing/measurement.dart';
 import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/run_preprocessor.dart';
+import '../recording/belt_track.dart';
 import 'fitness_parameters.dart';
 import 'heart_rate_basis.dart';
 import 'heart_rate_reserve.dart';
@@ -43,6 +44,11 @@ class Vo2maxSectionSelector {
   /// die Vorverarbeitung abgefragt wurde. Die Minuten für PAR-024 zählen ab
   /// [runStart] (Wanduhrzeit, Pausen eingeschlossen).
   ///
+  /// Bei einem Bandlauf ([belt], FR-0196) kommen die Phasen aus den Stücken
+  /// gleichbleibender Einstellung (jede Änderung trennt, ihr Beginn ist
+  /// Einschwingzeit), Tempo, Strecke und Steigung aus den eingestellten Werten
+  /// statt aus Positionen; GPS-Regeln entfallen.
+  ///
   /// Wirft [ArgumentError], wenn die Parameterversion von der der
   /// Vorverarbeitung abweicht.
   SectionSelection select({
@@ -50,6 +56,7 @@ class Vo2maxSectionSelector {
     required HeartRateBasis basis,
     required DateTime runStart,
     required DateTime until,
+    BeltTrack? belt,
   }) {
     if (run.parameterVersion != parameters.parameterVersion) {
       throw ArgumentError(
@@ -60,8 +67,20 @@ class Vo2maxSectionSelector {
     if (!until.isAfter(runStart)) {
       throw ArgumentError.value(until, 'until', 'muss nach runStart liegen');
     }
-    final settling = _clip(run.settling.intervals, runStart, until);
-    final moving = _clip(run.movement.movingIntervals, runStart, until);
+    final settling = _clip(
+      belt == null
+          ? run.settling.intervals
+          : _beltSettling(belt, run.parameters.settlingDuration),
+      runStart,
+      until,
+    );
+    final moving = _clip(
+      belt == null
+          ? run.movement.movingIntervals
+          : [for (final p in belt.constantPhases) p.span],
+      runStart,
+      until,
+    );
     final excluded = <ExcludedSpan>[
       for (final s in settling)
         ExcludedSpan(span: s, kind: ExclusionKind.settling),
@@ -72,7 +91,7 @@ class Vo2maxSectionSelector {
     final sections = <EvaluatedSection>[];
     for (final phase in _subtract(moving, settling)) {
       for (final part in _split(phase)) {
-        sections.add(_evaluate(part, run, basis, runStart));
+        sections.add(_evaluate(part, run, basis, runStart, belt));
       }
     }
     return SectionSelection(
@@ -157,6 +176,7 @@ class Vo2maxSectionSelector {
     RunPreprocessing run,
     HeartRateBasis basis,
     DateTime runStart,
+    BeltTrack? belt,
   ) {
     final from = span.start;
     final to = span.end;
@@ -212,7 +232,7 @@ class Vo2maxSectionSelector {
         );
       }
     }
-    if (quality.gpsGaps.isNotEmpty) {
+    if (belt == null && quality.gpsGaps.isNotEmpty) {
       add(
         SectionRule.gpsGap,
         value: quality.gpsGaps.fold<double>(
@@ -223,8 +243,19 @@ class Vo2maxSectionSelector {
     }
 
     // Tempo: PAR-006 (Strecke durch Zeit), PAR-030, PAR-031, PAR-022.
-    final distance = _distance(run, from, to);
-    final speed = _speedPerMinute(run, from, to);
+    final piece = belt?.pieceAt(mid);
+    final distance = belt == null
+        ? _distance(run, from, to)
+        : piece == null
+        ? null
+        : piece.speedMetersPerSecond *
+              span.duration.inMicroseconds /
+              Duration.microsecondsPerSecond;
+    final speed = belt == null
+        ? _speedPerMinute(run, from, to)
+        : piece?.speedMetersPerSecond == null
+        ? null
+        : piece!.speedMetersPerSecond * 60;
     var speedUnavailable = speed == null;
     if (speed != null) {
       if (speed < _p.limitedSpeedMetersPerMinute) {
@@ -237,10 +268,15 @@ class Vo2maxSectionSelector {
         caveats.add(SectionCaveat.limitedSpeed);
       }
     }
-    final samples = [
-      for (final s in run.pace.medianSeries)
-        if (!s.time.isBefore(from) && !s.time.isAfter(to)) s.metersPerSecond,
-    ];
+    // Bandlauf: Die eingestellte Geschwindigkeit ist im Abschnitt konstant,
+    // Streuung und Hälftenvergleich entfallen.
+    final samples = belt != null
+        ? const <double>[1]
+        : [
+            for (final s in run.pace.medianSeries)
+              if (!s.time.isBefore(from) && !s.time.isAfter(to))
+                s.metersPerSecond,
+          ];
     if (samples.isEmpty) {
       speedUnavailable = true;
     } else {
@@ -249,8 +285,8 @@ class Vo2maxSectionSelector {
         add(SectionRule.paceVariation, value: cv, limit: _p.paceMaxVariation);
       }
     }
-    final first = _speedPerMinute(run, from, mid);
-    final second = _speedPerMinute(run, mid, to);
+    final first = belt != null ? speed : _speedPerMinute(run, from, mid);
+    final second = belt != null ? speed : _speedPerMinute(run, mid, to);
     if (first == null || second == null) {
       speedUnavailable = true;
     } else {
@@ -311,10 +347,12 @@ class Vo2maxSectionSelector {
     }
 
     // PAR-025: GPS-Genauigkeit.
-    final gpsMedian = _gpsAccuracy(run, from, to, add);
+    final gpsMedian = belt != null ? null : _gpsAccuracy(run, from, to, add);
 
     // PAR-026, PAR-027: Steigung.
-    final (gradient, gradientBasis) = _gradient(run, from, to, distance);
+    final (gradient, gradientBasis) = belt != null
+        ? _beltGradient(piece)
+        : _gradient(run, from, to, distance);
     switch (gradientBasis) {
       case GradientBasis.noAltitude:
         caveats.add(SectionCaveat.noAltitude);
@@ -388,6 +426,27 @@ class Vo2maxSectionSelector {
     }
     return median;
   }
+
+  /// Steigung des Bands: eingestellt in %, als Anteil (nicht gemessen).
+  /// Ohne Angabe 0 mit dem Hinweis „keine Höhendaten“ (nie 0 statt unbekannt).
+  static (double, GradientBasis) _beltGradient(BeltPiece? piece) {
+    final g = piece?.inclinePercent;
+    return g == null
+        ? (0, GradientBasis.noAltitude)
+        : (g / 100, GradientBasis.measured);
+  }
+
+  /// Einschwingzeit am Beginn jedes bewegten Stücks (Start, Fortsetzen nach
+  /// Pause, jede Änderung von Geschwindigkeit oder Steigung).
+  List<TimeSpan> _beltSettling(BeltTrack belt, Duration settle) => [
+    for (final p in belt.constantPhases)
+      TimeSpan(
+        start: p.span.start,
+        end: p.span.start.add(settle).isAfter(p.span.end)
+            ? p.span.end
+            : p.span.start.add(settle),
+      ),
+  ];
 
   /// PAR-027: `G` nur einrechnen, wenn |G| ≥ 1 % und |Δh| ≥ 2 · Vertikal-
   /// genauigkeit (größte gemeldete im Abschnitt); sonst 0. Δh ist die Differenz

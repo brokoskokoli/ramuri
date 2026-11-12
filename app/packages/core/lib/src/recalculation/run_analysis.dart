@@ -9,6 +9,7 @@ import '../fitness/vo2max_estimator.dart';
 import '../fitness/vo2max_section_selection.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
+import '../recording/belt_track.dart';
 
 /// Schlüssel der gespeicherten Werte (`ComputedValue.key`).
 const String vo2maxRunValueKey = 'vo2max_run';
@@ -28,6 +29,7 @@ class RunAnalysis {
     required this.basis,
     required Set<String> sources,
     this.preprocessing,
+    this.belt,
   }) : sources = Set.unmodifiable(sources);
 
   final StoredRun run;
@@ -43,6 +45,10 @@ class RunAnalysis {
   /// Vorverarbeitung, aus der die Auswahl kam; `null` bei einem Lauf ohne
   /// Dauer.
   final RunPreprocessing? preprocessing;
+
+  /// Strecke, Bewegungszeit und Abschnitte eines Bandlaufs aus den
+  /// Bandeinstellungen (FR-0196); `null` bei einem GPS-Lauf.
+  final BeltTrack? belt;
 
   DateTime get endedAt => run.endedAt!;
 
@@ -197,6 +203,7 @@ class RunAnalyzer {
     };
     final SectionSelection selection;
     RunPreprocessing? replayed;
+    final belt = beltTrackOfRun(run, end, raw, gaps);
     if (!end.isAfter(run.startedAt)) {
       // Lauf ohne Dauer: nichts auszuwählen, der Schätzer meldet den Grund.
       selection = SectionSelection(
@@ -214,8 +221,13 @@ class RunAnalyzer {
         parameters: preprocessing,
       );
       replayed = pre;
-      selection = Vo2maxSectionSelector(parameters: fitness)
-          .select(run: pre, basis: basis, runStart: run.startedAt, until: end);
+      selection = Vo2maxSectionSelector(parameters: fitness).select(
+        run: pre,
+        basis: basis,
+        runStart: run.startedAt,
+        until: end,
+        belt: belt,
+      );
     }
     final estimate = const AcsmReserveVo2maxEstimator().estimate(
       selection: selection,
@@ -225,6 +237,7 @@ class RunAnalyzer {
       runStart: run.startedAt,
       runEnd: end,
       dataSources: sources,
+      treadmill: belt != null,
     );
     return RunAnalysis(
       run: run,
@@ -233,6 +246,7 @@ class RunAnalyzer {
       basis: basis,
       sources: sources,
       preprocessing: replayed,
+      belt: belt,
     );
   }
 }

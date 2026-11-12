@@ -8,6 +8,7 @@ import '../fitness/heart_rate_basis.dart';
 import '../fitness/load_profile.dart';
 import '../fitness/vo2max_long_term.dart';
 import '../preprocessing/preprocessing_parameters.dart';
+import '../recording/treadmill.dart' show RunMode;
 import '../statistics/run_overview.dart' show overviewOf;
 import '../profile/heart_rate_resolution.dart';
 import '../settings/load_settings.dart';
@@ -194,6 +195,7 @@ class ValueCalculationService {
           pre,
           computedAt: now,
           lapCount: (await session.markers.laps(runId)).length,
+          belt: analysis.belt,
         ),
       );
       // Angaben zum Lauf, die schon vor der Berechnung gemacht wurden: sRPE
@@ -529,6 +531,8 @@ class ValueCalculationService {
     for (final r in await _finishedRuns()) {
       final end = r.endedAt!;
       if (end.isBefore(from) || end.isAfter(asOf)) continue;
+      // Bandläufe nicht: das Tempo ist eingestellt, nicht gemessen (FR-0196).
+      if (r.mode == RunMode.treadmill) continue;
       final stored = runValues[r.id];
       // Ein Laufwert braucht eine Basis (nach Schlüssel, nicht nach Inhalt):
       // fehlt sie am Wert, ist sie unbekannt und wird nie ersetzt.
