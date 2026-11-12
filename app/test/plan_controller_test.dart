@@ -1001,6 +1001,9 @@ void main() {
       e.clock.set(_now);
       await _finishedRun(e.session, 70);
       await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      // Die wöchentliche Prüfung gilt als erledigt (sonst käme ihre Fassung
+      // mit dem Anker dieser Woche zuerst und der Neustart entfiele).
+      await e.session.settings.set(planLastCheckDayKey, '2026-11-11', at: _now);
       await e.controller.open();
       final h = await e.plans.history();
       expect(h.map((r) => r.trigger), contains(PlanTrigger.pause));
