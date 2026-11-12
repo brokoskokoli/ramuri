@@ -892,4 +892,72 @@ void main() {
       expect(h.length, 1);
     });
   });
+
+  group('Geh-Lauf wiederholen: Annahme am Donnerstag (NB5 2)', () {
+    test('die Abfolge beginnt heute, frühere Läufe bleiben und zählen nicht '
+        'als Lauf 2 und 3', () async {
+      final e = await _Env.open();
+      final monday = _day(-2); // 9.11.
+      final thursday = _day(1); // 12.11.
+      final ids = [
+        for (final ago in [3, 1]) await _finishedRun(e.session, ago),
+      ];
+      for (final id in ids) {
+        await e.session.subjective.save(id, RunSubjective(rpe: 7));
+      }
+      await e.goals.save(_goal(), today: monday);
+      final start = const WalkRunPosition(4);
+      await e.plans.writeVersion(
+        PlanVersionDraft(
+          createdAt: monday,
+          validFrom: monday,
+          trigger: PlanTrigger.create,
+          reason: 'create',
+          version: const PlanVersion(),
+          inputs: PlanInputs.forNewGoal(_goal(), monday).copyWith(
+            walkRunStart: start,
+            walkRunFrom: monday,
+            walkRunWeeks: 8,
+            startWeeklyMinutes: 90,
+          ),
+          summary: const {},
+          units: [
+            for (final (i, d) in [monday, _day(0), _day(2)].indexed)
+              PlanUnit(
+                day: d,
+                kind: PlanUnitKind.walkRun,
+                phase: PlanPhase.build,
+                weekIndex: 4,
+                minutes: 30,
+                segments: const [],
+              ),
+          ],
+          readState: planUnitsFingerprint(const []),
+        ),
+      );
+      final units = await e.plans.unitsBetween(monday, _day(2));
+      await e.plans.assignRun(units[0].id!, ids[0]);
+      await e.plans.assignRun(units[1].id!, ids[1]);
+
+      e.clock.set(thursday.add(const Duration(hours: 12)));
+      await e.controller.open();
+      final proposal = e.controller.state.walkRunProposal;
+      expect(proposal?.suggestion.position, const WalkRunPosition(4, 1));
+
+      final opened = (await e.plans.history()).length;
+      await e.controller.acceptWalkRunRepeat();
+      final h = await e.plans.history();
+      expect(h, hasLength(opened + 1));
+      expect(h.last.inputs.walkRunFrom, thursday);
+      expect(h.last.inputs.walkRunStart, const WalkRunPosition(4, 1));
+      // Mo und Mi bleiben, ab Donnerstag kommen die Läufe 2 und 3.
+      final all = await e.plans.unitsBetween(monday, _day(8));
+      final days = [for (final u in all) u.day];
+      expect(days.take(2), [monday, _day(0)]);
+      expect(days.skip(2).every((d) => !d.isBefore(thursday)), isTrue);
+      expect(days.length, greaterThanOrEqualTo(4));
+      // Kein sofortiger neuer Vorschlag: die früheren Läufe zählen nicht.
+      expect(e.controller.state.walkRunProposal, isNull);
+    });
+  });
 }

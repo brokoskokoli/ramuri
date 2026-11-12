@@ -466,6 +466,7 @@ class PlanController extends ChangeNotifier {
       proposal = walkRunWeekProposal(
         units: units,
         start: walkStart,
+        from: version?.inputs.walkRunFrom,
         rpeByRunId: {
           for (final e in (await session.subjective.readAll()).entries)
             if (e.value.subjective.rpe case final int r) e.key: r,
