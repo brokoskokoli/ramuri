@@ -572,13 +572,15 @@ void pauseQuestionTests() {
   PauseQuestion? ask(HintInputs i) => selectPauseQuestion(i);
 
   group('Pausenfrage (PAR-202)', () {
-    test('ab 7 Tagen ohne Training, gelaufene Woche als Grundlage', () {
+    test('ab 7 Tagen ohne Training, letzte volle Woche als Grundlage', () {
       final q = ask(
         inputs(trainings: [run(7), run(9, minutes: 20), run(12, minutes: 99)]),
       )!;
       expect(q.daysSinceTraining, 7);
       expect(q.lastTrainingDay, ago(7));
-      expect(q.ranWeekMinutes, 50);
+      // Letztes Training Fr 2030-02-22: angebrochene Woche (50 min) zählt
+      // nicht, Basis ist die Woche davor (11.–17.2.: 99 min).
+      expect(q.baseWeekMinutes, 99);
     });
 
     test('Grenze: 6 Tage nein, 7 Tage ja', () {

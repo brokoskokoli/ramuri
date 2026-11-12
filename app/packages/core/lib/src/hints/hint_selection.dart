@@ -1,4 +1,5 @@
 import '../../ports/storage_warning.dart' show PauseAnswer, warningDay;
+import '../plan/plan_adjust.dart' show pauseBaseWeek;
 import '../plan/plan_unit.dart';
 
 /// Hinweise der Basisstufe (PAR-174 bis PAR-184). Die Auswahl liefert nur
@@ -230,18 +231,18 @@ class HintParameters {
 const hintParameters = HintParameters();
 
 /// Die Pausenfrage (PAR-202): Ab [HintParameters.pauseMinDays] Tagen ohne
-/// erfasstes Training fragt die App, ob eine Pause war. [ranWeekMinutes] ist
-/// die Summe der erfassten Minuten in der Kalenderwoche des letzten Trainings
-/// (die gelaufene Woche, Grundlage des Neustarts).
+/// erfasstes Training fragt die App, ob eine Pause war. [baseWeekMinutes] ist
+/// die Summe der erfassten Minuten der Basiswoche ([pauseBaseWeek]: letzte
+/// vollständige Kalenderwoche vor Beginn der Pause, Grundlage des Neustarts).
 class PauseQuestion {
   const PauseQuestion({
     required this.daysSinceTraining,
     required this.lastTrainingDay,
-    required this.ranWeekMinutes,
+    required this.baseWeekMinutes,
   });
   final int daysSinceTraining;
   final DateTime lastTrainingDay;
-  final double ranWeekMinutes;
+  final double baseWeekMinutes;
 }
 
 /// Fragt die App nach einer Pause? Nein bei Warnsignal, bei der Zusage „alles
@@ -258,7 +259,7 @@ PauseQuestion? selectPauseQuestion(
   if (days < parameters.pauseMinDays) return null;
   final answer = input.pauseAnswer;
   if (answer != null && !answer.on.isBefore(last)) return null;
-  final monday = last.subtract(Duration(days: last.weekday - 1));
+  final monday = pauseBaseWeek(last);
   final end = monday.add(const Duration(days: 7));
   var minutes = 0.0;
   for (final t in input.trainings) {
@@ -267,7 +268,7 @@ PauseQuestion? selectPauseQuestion(
   return PauseQuestion(
     daysSinceTraining: days,
     lastTrainingDay: last,
-    ranWeekMinutes: minutes,
+    baseWeekMinutes: minutes,
   );
 }
 

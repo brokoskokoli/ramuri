@@ -871,7 +871,7 @@ class PlanController extends ChangeNotifier {
           inputs: base,
           today: today,
           lastTrainingDay: q.lastTrainingDay,
-          ranWeekMinutes: q.ranWeekMinutes,
+          baseWeekMinutes: q.baseWeekMinutes,
           parameters: parameters,
         );
         final next = restart.inputs;
