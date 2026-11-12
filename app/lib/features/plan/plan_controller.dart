@@ -300,6 +300,9 @@ class PlanController extends ChangeNotifier {
           goal,
           last,
           reason: warned ? planReasonWarning : planReasonWarningLifted,
+          // Die Heilung ist keine Wochenprüfung: der Prüftag bleibt, damit
+          // eine fällige Bewertung der Vorwoche beim nächsten Öffnen läuft.
+          markChecked: false,
         );
         return;
       }
@@ -338,6 +341,7 @@ class PlanController extends ChangeNotifier {
     PlanVersionRecord? last, {
     bool? adjust,
     String? reason,
+    bool markChecked = true,
   }) async {
     final today = _today();
     final built = await reader.read(goal: goal, today: today);
@@ -394,7 +398,7 @@ class PlanController extends ChangeNotifier {
       inputs: inputs,
       parameters: parameters,
       warning: _warning,
-      markChecked: !skippedForPause,
+      markChecked: markChecked && !skippedForPause,
     );
     _fresh = r.generated;
     _lastChange = r.summary;

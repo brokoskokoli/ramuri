@@ -1411,5 +1411,26 @@ void main() {
       expect(last.reason, planReasonWarning);
       expect(warningHeldFromSummary(last.summary), isNotNull);
     });
+
+    test('Heilung setzt den Prüftag nicht: eine fällige Wochenprüfung bleibt '
+        'fällig', () async {
+      final e = await opened();
+      final lastCheck = _dayText(_day(-7));
+      await e.session.settings.set(planLastCheckDayKey, lastCheck, at: _now);
+      await warningOf(e)
+          .set(WarningSignal(reportedOn: _today, source: WarningSource.manual));
+      final reopened = _Env(e.session);
+      await reopened.controller.open();
+      expect(
+        (await e.plans.history()).last.reason,
+        planReasonWarning,
+        reason: 'die Heilung hat neu gerechnet',
+      );
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        lastCheck,
+        reason: 'der Prüftag bleibt in der Vorwoche',
+      );
+    });
   });
 }
