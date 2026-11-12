@@ -133,6 +133,19 @@ Future<PlanRecalculation> _recalculateOnce({
 
   final all = await plans.unitsBetween(use.anchor, planFarFuture);
   final (:frozen, pinned: shownPinned, :oldFuture) = _split(all, todayDay);
+  // Liegt der Anker nach heute (Antwort auf die Nachfrage, PAR-200: Wirkung
+  // ab der nächsten Woche), bleiben die offenen Einheiten bis dahin
+  // unverändert stehen. Die Rechnung beginnt erst am Anker, das Schreiben
+  // ersetzt aber alles ab heute.
+  final bridge = use.anchor.isAfter(todayDay)
+      ? [
+          for (final u in await plans.unitsBetween(todayDay, use.anchor))
+            if (u.runId == null &&
+                !u.day.isBefore(todayDay) &&
+                u.day.isBefore(use.anchor))
+              u,
+        ]
+      : const <PlanUnit>[];
 
   // Warnsignal (FR-0203, K58): Die letzte Fassung unter Warnsignal hat die
   // Festlegungen des Nutzers gehalten; die Rechnung geht von der Fassung
@@ -143,6 +156,9 @@ Future<PlanRecalculation> _recalculateOnce({
   final base = lastHeld == null
       ? oldFuture
       : restoreWarningHeld(oldFuture, lastHeld);
+  final bridgeKept = lastHeld == null
+      ? bridge
+      : restoreWarningHeld(bridge, lastHeld);
   final pinned = lastHeld == null
       ? shownPinned
       : [
@@ -164,6 +180,9 @@ Future<PlanRecalculation> _recalculateOnce({
   if (automatic) {
     generated = _keepSchedule(generated, base);
   }
+  if (bridge.isNotEmpty) {
+    generated = generated.copyWith(units: [...bridgeKept, ...generated.units]);
+  }
   final held = warned ? warningHeldOf(generated.units, todayDay) : null;
   if (warned) {
     generated = generated.copyWith(
@@ -171,7 +190,7 @@ Future<PlanRecalculation> _recalculateOnce({
     );
   }
   final summary = summarizeChange(
-    oldFuture,
+    [...bridge, ...oldFuture],
     generated.units,
     parameters: parameters,
   );
