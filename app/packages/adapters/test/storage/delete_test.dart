@@ -258,6 +258,9 @@ void main() {
     ]);
     await s.profile.save(const ProfileRecord(birthYear: 1990));
     await s.settings.set('k', 'v', at: at(0));
+    await s.warning.set(
+      WarningSignal(reportedOn: at(0), source: WarningSource.manual),
+    );
     await s.devices.upsert('dev', displayName: 'x', at: at(0));
     await s.consents.set('c', ConsentState.granted, at: at(0));
     await db.customStatement("INSERT INTO storage_meta VALUES ('k', 'v')");
