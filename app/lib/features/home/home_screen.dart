@@ -558,6 +558,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   key: const Key('home_today_basis'),
                   style: t.bodySmall?.copyWith(color: c.textMuted),
                 ),
+              if (trainingBasisLines(l, unit) case final lines?)
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton(
+                    key: const Key('home_today_why'),
+                    onPressed: () => showBasisDialog(context, lines),
+                    child: Text(l.recoveryBasis),
+                  ),
+                ),
             ]);
           }
           final free = open

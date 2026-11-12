@@ -2834,5 +2834,7 @@
   "progressExplainQualityProvisional": "{label}: Der Wert ist vorläufig eingestuft. Die Stufe ist eine interne Einteilung nach festen Regeln. Er beruht auf {n} Messwerten (Methode {method}, Version {version}).",
   "@progressExplainQualityProvisional": {"description": "WP23 Teil D2, Fortschritt: Datenqualität", "placeholders": {"label": {"type": "String"}, "n": {"type": "int"}, "method": {"type": "String"}, "version": {"type": "String"}}},
   "progressExplainQualityMissing": "{label}: Es gibt keinen Wert. {reason}",
-  "@progressExplainQualityMissing": {"description": "WP23 Teil D2, Fortschritt: Datenqualität, der Grund steht schon in der Statistik", "placeholders": {"label": {"type": "String"}, "reason": {"type": "String"}}}
+  "@progressExplainQualityMissing": {"description": "WP23 Teil D2, Fortschritt: Datenqualität, der Grund steht schon in der Statistik", "placeholders": {"label": {"type": "String"}, "reason": {"type": "String"}}},
+  "homeTodayBasisText": "Die Einheit „{kind}“ steht für heute in deinem Plan. Sie ergibt sich aus deinem Ziel, deinen Lauftagen und deinen erfassten Läufen.",
+  "@homeTodayBasisText": {"description": "WP23 NB2, Heute: Worauf beruht das? zur heutigen Einheit (FR-0179, FR-0180)", "placeholders": {"kind": {"type": "String"}}}
 }

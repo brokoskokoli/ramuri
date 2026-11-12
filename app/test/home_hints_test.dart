@@ -347,6 +347,39 @@ void main() {
     });
   });
 
+  group('Worauf beruht die heutige Einheit (FR-0179)', () {
+    testWidgets('Heute zeigt die Belege zur geplanten Einheit', (tester) async {
+      final d = Device();
+      await _preopen(d);
+      await d.start(tester, const Locale('de'));
+      expect(key('home_today_unit'), findsOneWidget);
+      await tester.ensureVisible(key('home_today_why'));
+      expect(
+        tester.getSize(key('home_today_why')).height,
+        greaterThanOrEqualTo(48),
+      );
+      await tester.tap(key('home_today_why'));
+      await tester.pumpAndSettle();
+      expect(
+        text('home_recovery_basis_0'),
+        allOf(
+          startsWith('Die Einheit „'),
+          contains('steht für heute in deinem Plan'),
+        ),
+      );
+      await tester.tap(key('home_recovery_basis_close'));
+      await tester.pumpAndSettle();
+      expect(key('home_recovery_basis_dialog'), findsNothing);
+    });
+
+    testWidgets('ohne Plan kein Einstieg', (tester) async {
+      final d = Device();
+      await _preopen(d, plan: false);
+      await d.start(tester, const Locale('de'));
+      expect(key('home_today_why'), findsNothing);
+    });
+  });
+
   group('Pausenfrage (PAR-202)', () {
     testWidgets('unter 7 Tagen keine Frage', (tester) async {
       final d = Device();

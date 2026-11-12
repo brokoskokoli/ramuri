@@ -2112,5 +2112,7 @@
   "progressExplainQualityProvisional": "{label}: The value is rated provisional. The level is an internal grading by fixed rules. It is based on {n} measurements (method {method}, version {version}).",
   "@progressExplainQualityProvisional": {"description": "WP23 Teil D2, Fortschritt: Datenqualität", "placeholders": {"label": {"type": "String"}, "n": {"type": "int"}, "method": {"type": "String"}, "version": {"type": "String"}}},
   "progressExplainQualityMissing": "{label}: There is no value. {reason}",
-  "@progressExplainQualityMissing": {"description": "WP23 Teil D2, Fortschritt: Datenqualität, der Grund steht schon in der Statistik", "placeholders": {"label": {"type": "String"}, "reason": {"type": "String"}}}
+  "@progressExplainQualityMissing": {"description": "WP23 Teil D2, Fortschritt: Datenqualität, der Grund steht schon in der Statistik", "placeholders": {"label": {"type": "String"}, "reason": {"type": "String"}}},
+  "homeTodayBasisText": "The unit \"{kind}\" is in your plan for today. It follows from your goal, your run days and your recorded runs.",
+  "@homeTodayBasisText": {"description": "WP23 NB2, Heute: Worauf beruht das? zur heutigen Einheit (FR-0179, FR-0180)", "placeholders": {"kind": {"type": "String"}}}
 }

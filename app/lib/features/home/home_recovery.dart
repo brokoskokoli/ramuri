@@ -189,7 +189,24 @@ class RecoveryCardView extends StatelessWidget {
 /// „Worauf beruht das?“: die Datenbelege des Hinweises.
 Future<void> showRecoveryBasis(BuildContext context, RecoveryCard card) {
   final l = AppLocalizations.of(context);
-  final lines = recoveryBasisLines(context, l, card.hint);
+  return showBasisDialog(context, recoveryBasisLines(context, l, card.hint));
+}
+
+/// Die Belege zur heutigen Einheit (FR-0179, FR-0180): nur die geplante
+/// Einheit aus dem Plan; `null`, wenn es keine Erklärung gibt (Ruhetag, keine
+/// Einheit). Belastungswerte stehen hier nicht, weil Heute sie nicht lädt.
+List<String>? trainingBasisLines(AppLocalizations l, PlanUnit? unit) {
+  final e = explainTrainingRecommendation(plannedUnit: unit);
+  if (e == null) return null;
+  final kind = PlanUnitKind.values.byName(
+    e.evidenceOf(EvidenceKey.plannedKind)! as String,
+  );
+  return [l.homeTodayBasisText(planKindName(l, kind))];
+}
+
+/// Dialog mit den Belegen als Zeilen.
+Future<void> showBasisDialog(BuildContext context, List<String> lines) {
+  final l = AppLocalizations.of(context);
   return showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
