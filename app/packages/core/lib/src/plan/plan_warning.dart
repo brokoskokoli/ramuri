@@ -26,6 +26,8 @@ class WarningHeld {
     required this.kind,
     required this.fixed,
     required this.pinned,
+    this.minutes = 0,
+    this.segments = const [],
   });
 
   final DateTime day;
@@ -33,11 +35,19 @@ class WarningHeld {
   final PlanUnitFixed fixed;
   final bool pinned;
 
+  /// Dauer und Abschnitte der Einheit vor dem Warnsignal: Die Brücke vor dem
+  /// Anker rechnet die Neuberechnung nicht neu, sie bekommt sie von hier
+  /// zurück.
+  final int minutes;
+  final List<PlanSegment> segments;
+
   Map<String, Object?> toJson() => {
     'day': _iso(day),
     'kind': kind.name,
     'fixed': fixed.name,
     'pinned': pinned,
+    'minutes': minutes,
+    'segments': [for (final s in segments) _segmentToJson(s)],
   };
 
   static WarningHeld? fromJson(Object? json) {
@@ -49,13 +59,66 @@ class WarningHeld {
     if (day == null || kind == null || fixed == null || pinned is! bool) {
       return null;
     }
+    final minutes = json['minutes'];
+    final rawSegments = json['segments'];
     return WarningHeld(
       day: planDay(day),
       kind: kind,
       fixed: fixed,
       pinned: pinned,
+      minutes: minutes is int ? minutes : 0,
+      segments: rawSegments is List
+          ? [for (final e in rawSegments) ?_segmentFromJson(e)]
+          : const [],
     );
   }
+}
+
+Map<String, Object?> _segmentToJson(PlanSegment s) => {
+  'kind': s.kind.name,
+  'minutes': s.minutes,
+  if (s.seconds != null) 'seconds': s.seconds,
+  if (s.intensity case final i?)
+    'intensity': {
+      'rpeMin': i.rpeMin,
+      'rpeMax': i.rpeMax,
+      'paceFast': i.paceFastSecondsPerKm,
+      'paceSlow': i.paceSlowSecondsPerKm,
+      'basis': i.basisCode,
+      'hrMin': i.hrMinBpm,
+      'hrMax': i.hrMaxBpm,
+      'estimated': i.estimated,
+      'maxHrEstimated': i.maxHrEstimated,
+      'paceIsLimit': i.paceIsLimit,
+    },
+};
+
+PlanSegment? _segmentFromJson(Object? json) {
+  if (json is! Map) return null;
+  final kind = PlanSegmentKind.values.asNameMap()[json['kind']];
+  final minutes = json['minutes'];
+  if (kind == null || minutes is! int) return null;
+  final seconds = json['seconds'];
+  final i = json['intensity'];
+  return PlanSegment(
+    kind: kind,
+    minutes: minutes,
+    seconds: seconds is int ? seconds : null,
+    intensity: i is Map
+        ? PlanTargetIntensity(
+            rpeMin: i['rpeMin'] as int?,
+            rpeMax: i['rpeMax'] as int?,
+            paceFastSecondsPerKm: (i['paceFast'] as num?)?.toDouble(),
+            paceSlowSecondsPerKm: (i['paceSlow'] as num?)?.toDouble(),
+            basisCode: i['basis'] as String?,
+            hrMinBpm: i['hrMin'] as int?,
+            hrMaxBpm: i['hrMax'] as int?,
+            estimated: i['estimated'] == true,
+            maxHrEstimated: i['maxHrEstimated'] == true,
+            paceIsLimit: i['paceIsLimit'] == true,
+          )
+        : null,
+  );
 }
 
 String _iso(DateTime d) =>
@@ -108,6 +171,8 @@ List<WarningHeld> warningHeldOf(List<PlanUnit> units, DateTime today) {
           kind: u.kind,
           fixed: u.fixed,
           pinned: u.pinned,
+          minutes: u.minutes,
+          segments: u.segments,
         ),
   ];
 }
@@ -123,8 +188,8 @@ List<WarningHeld>? warningHeldFromSummary(Map<String, Object?> summary) {
 
 /// Stellt in [units] (eine Fassung unter Warnsignal) die Art der gehaltenen
 /// Festlegungen [held] wieder her: Einheiten auf deren Tagen, die ein
-/// Ruhetag ersetzt hat, bekommen Art, `fixed` und `pinned` zurück (Dauer und
-/// Abschnitte rechnet die Neuberechnung). Nur Ruhetage, die noch die
+/// Ruhetag ersetzt hat, bekommen Art, `fixed`, `pinned`, Dauer und Abschnitte
+/// zurück (die Rechnung ersetzt sie, außer bei der Brücke vor dem Anker). Nur Ruhetage, die noch die
 /// Überlagerung sind (`pinned` und `fixed` wie gehalten): Eine Festlegung, die
 /// der Nutzer unter dem Warnsignal neu getroffen hat (z. B. Ruhetag), gilt
 /// weiter (ADR-0010).
@@ -154,8 +219,8 @@ PlanUnit _restored(PlanUnit u, WarningHeld h) => PlanUnit(
   kind: h.kind,
   phase: u.phase,
   weekIndex: u.weekIndex,
-  minutes: 0,
-  segments: const [],
+  minutes: h.minutes,
+  segments: h.segments,
   runId: u.runId,
   pinned: h.pinned,
   fixed: h.fixed,

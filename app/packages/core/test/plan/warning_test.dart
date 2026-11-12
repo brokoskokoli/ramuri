@@ -391,6 +391,63 @@ void main() {
     expect(out[2].pinned, isTrue);
   });
 
+  group('Warnsignal und Brücke vor dem Anker (NB7 1)', () {
+    test('zu schwer Do, Warnsignal Do, Aufheben Fr: Sa hat wieder Dauer und '
+        'Abschnitte', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      await e.recalc(PlanTrigger.create, -2);
+      final goal = (await e.plans.currentGoal())!;
+      final last = (await e.plans.history()).last;
+      final r = applyPlanFeedback(
+        goal: goal,
+        inputs: last.inputs.copyWith(today: _day(15)),
+        answer: PlanFeedback.tooHard,
+        today: _day(15),
+      );
+      await recalculatePlan(
+        plans: e.plans,
+        settings: e.session.settings,
+        trigger: PlanTrigger.feedback,
+        today: _day(15),
+        now: _now(15),
+        inputs: r.inputs,
+        warning: e.warning,
+      );
+      final anchor = r.inputs!.anchor;
+      Future<PlanUnit> bridgeDay() async => (await e.plans.unitsBetween(
+        _day(15),
+        anchor,
+      )).lastWhere((u) => u.day.isAfter(_day(15)));
+      final planned = await bridgeDay();
+      expect(planned.minutes, greaterThan(0));
+      expect(planned.segments, isNotEmpty);
+
+      await e.service.report(
+        source: WarningSource.manual,
+        today: _day(15),
+        now: _now(15).add(const Duration(hours: 1)),
+      );
+      expect((await bridgeDay()).kind, PlanUnitKind.rest);
+      await e.service.lift(today: _day(16), now: _now(16));
+
+      final back = await bridgeDay();
+      expect(back.day, planned.day);
+      expect(back.kind, planned.kind);
+      expect(back.minutes, planned.minutes);
+      expect(
+        [
+          for (final s in back.segments)
+            '${s.kind.name}:${s.minutes}:${s.seconds}',
+        ],
+        [
+          for (final s in planned.segments)
+            '${s.kind.name}:${s.minutes}:${s.seconds}',
+        ],
+      );
+    });
+  });
+
   group('Erinnerung (reine Funktion)', () {
     test('fällig nach 7 Tagen', () {
       final on = DateTime.utc(2026, 11, 1);
