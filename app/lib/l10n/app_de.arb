@@ -2714,5 +2714,7 @@
   "treadmillVo2Provisional": "vorläufig (Laufband)",
   "@treadmillVo2Provisional": {"description": "WP25 B2, Laufband (FR-0196)"},
   "treadmillHistoryBadge": "Laufband",
-  "@treadmillHistoryBadge": {"description": "WP25 B2, Laufband (FR-0196)"}
+  "@treadmillHistoryBadge": {"description": "WP25 B2, Laufband (FR-0196)"},
+  "treadmillExportNoGpx": "GPX ist für Laufbandläufe nicht verfügbar, weil sie keine Strecke auf der Karte haben. TCX und FIT enthalten Zeit, Strecke und Puls.",
+  "@treadmillExportNoGpx": {"description": "WP25 C2, Exportfenster: Grund, warum GPX bei Laufbandläufen gesperrt ist (FR-0196, K57)"}
 }

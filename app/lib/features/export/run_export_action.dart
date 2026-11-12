@@ -42,11 +42,15 @@ class RunExportAction extends StatefulWidget {
 class _RunExportActionState extends State<RunExportAction> {
   /// Nur beendete Läufe sind exportierbar; Lesefehler blenden die Aktion aus.
   late final Future<bool> _exportable = _isFinished();
+
+  /// Bandlauf (FR-0196): GPX ist im Exportfenster gesperrt.
+  bool _treadmill = false;
   late final ValueNotifier<bool> _busy = widget.busy ?? ValueNotifier(false);
 
   Future<bool> _isFinished() async {
     try {
       final run = await widget.session.runs.get(widget.runId);
+      _treadmill = run?.mode == RunMode.treadmill;
       return run != null &&
           run.state == RunState.finished &&
           run.endedAt != null;
@@ -68,7 +72,7 @@ class _RunExportActionState extends State<RunExportAction> {
     final offload = OffloadScope.of(context);
     final choice = await showDialog<(ExportFormat, ExportTarget)>(
       context: context,
-      builder: (_) => const ExportDialog(),
+      builder: (_) => ExportDialog(treadmill: _treadmill),
     );
     if (choice == null || !mounted || _busy.value) return;
     final (format, target) = choice;
@@ -180,14 +184,19 @@ class _RunExportActionState extends State<RunExportAction> {
 /// Formatwahl (GPX, TCX, FIT) und Ziel. Liefert die Wahl oder `null` bei
 /// Abbruch; nur „Teilen“ und „Speichern“ lösen etwas aus.
 class ExportDialog extends StatefulWidget {
-  const ExportDialog({super.key});
+  const ExportDialog({super.key, this.treadmill = false});
+
+  /// Bandlauf: GPX ist ausgegraut, der Grund steht darunter (FR-0196, K57).
+  final bool treadmill;
 
   @override
   State<ExportDialog> createState() => _ExportDialogState();
 }
 
 class _ExportDialogState extends State<ExportDialog> {
-  ExportFormat _format = ExportFormat.gpx;
+  late ExportFormat _format = widget.treadmill
+      ? ExportFormat.tcx
+      : ExportFormat.gpx;
 
   @override
   Widget build(BuildContext context) {
@@ -206,6 +215,7 @@ class _ExportDialogState extends State<ExportDialog> {
               for (final f in ExportFormat.values)
                 ButtonSegment(
                   value: f,
+                  enabled: f.availableFor(treadmill: widget.treadmill),
                   // Formatnamen sind Eigennamen, in jeder Sprache gleich.
                   label: Text(
                     f.extension.toUpperCase(),
@@ -216,6 +226,10 @@ class _ExportDialogState extends State<ExportDialog> {
             selected: {_format},
             onSelectionChanged: (s) => setState(() => _format = s.single),
           ),
+          if (widget.treadmill) ...[
+            const SizedBox(height: 8),
+            Text(l10n.treadmillExportNoGpx, key: const Key('export_no_gpx')),
+          ],
           const SizedBox(height: 12),
           Text(l10n.exportHint),
         ],

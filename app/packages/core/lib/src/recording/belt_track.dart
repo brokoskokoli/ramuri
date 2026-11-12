@@ -90,6 +90,21 @@ class BeltTrack {
     return micros == 0 ? null : weighted / micros;
   }
 
+  /// Kumulierte Strecke in Metern bis [t] (Pausen und Stillstand fügen nichts
+  /// hinzu); vor dem ersten Stück 0, nach dem letzten die Gesamtstrecke.
+  double metersAt(DateTime t) {
+    var m = 0.0;
+    for (final p in pieces) {
+      if (!p.isMoving || !t.isAfter(p.span.start)) continue;
+      final until = t.isBefore(p.span.end) ? t : p.span.end;
+      m +=
+          p.speedMetersPerSecond *
+          until.difference(p.span.start).inMicroseconds /
+          Duration.microsecondsPerSecond;
+    }
+    return m;
+  }
+
   /// Stück, das [t] enthält (Anfang eingeschlossen), sonst `null`.
   BeltPiece? pieceAt(DateTime t) {
     for (final p in pieces) {

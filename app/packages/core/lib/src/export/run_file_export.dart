@@ -4,6 +4,7 @@ import '../../ports/file_handoff.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_raw.dart';
 import '../../ports/storage_runs.dart';
+import '../recording/treadmill.dart' show RunMode;
 import '../statistics/offload.dart';
 import 'export_run.dart';
 import 'fit_encoder.dart';
@@ -23,6 +24,11 @@ enum ExportFormat {
 
   /// Zeitauflösung des Formats (FIT: ganze Sekunden).
   final Duration resolution;
+
+  /// Ob das Format für einen Bandlauf (ohne Positionen) möglich ist: GPX
+  /// nicht (FR-0196, K57).
+  bool availableFor({required bool treadmill}) =>
+      !(treadmill && this == ExportFormat.gpx);
 }
 
 /// Baut aus einem gespeicherten Lauf die Datei eines Formats; die Übergabe
@@ -42,6 +48,9 @@ class RunFileExportService {
     final run = await session.runs.get(runId);
     if (run == null || run.state != RunState.finished || run.endedAt == null) {
       return null;
+    }
+    if (!format.availableFor(treadmill: run.mode == RunMode.treadmill)) {
+      throw ArgumentError('Ein Laufbandlauf lässt sich nicht als GPX ausgeben');
     }
     return offload(exportFileJob, (
       run: run,

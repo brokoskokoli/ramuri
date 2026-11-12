@@ -9,7 +9,11 @@ const String _tcxNs =
 /// `Trackpoint` trägt nur die an seinem Zeitstempel gemessenen Werte. Die
 /// Pflichtfelder der Runde sind minimal gefüllt: `TotalTimeSeconds` =
 /// Zeit ohne Pausen, `DistanceMeters` = Summe der Großkreisabstände
-/// aufeinanderfolgender Positionen je Abschnitt, `Calories` = 0.
+/// aufeinanderfolgender Positionen je Abschnitt, `Calories` = 0. Bandlauf
+/// (FR-0196): Trackpoints ohne `Position`, mit der kumulierten
+/// `DistanceMeters` aus den Bandeinstellungen; die Rundenstrecke ist deren
+/// Zuwachs. TCX kennt keine Laufbandkennzeichnung (Sport nur Running, Biking,
+/// Other).
 String encodeTcx(ExportRun run) {
   final distances = run.lapDistancesMeters();
   final b = StringBuffer()
@@ -69,6 +73,12 @@ String encodeTcx(ExportRun run) {
         if (ele != null) {
           b.writeln(
             '            <AltitudeMeters>${xmlDecimal(ele)}</AltitudeMeters>',
+          );
+        }
+        final dist = p.distanceMeters;
+        if (dist != null) {
+          b.writeln(
+            '            <DistanceMeters>${xmlDecimal(dist)}</DistanceMeters>',
           );
         }
         final hr = p.heartRateBpm;

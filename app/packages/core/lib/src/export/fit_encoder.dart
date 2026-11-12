@@ -58,6 +58,15 @@ const List<_Field> _recordFields = [
   (2, _uint16), // altitude (scale 5, offset 500, m)
   (3, _uint8), // heart_rate (bpm)
 ];
+
+/// Record eines Bandlaufs: keine Position und Höhe, dafür Strecke und
+/// Geschwindigkeit der Bandeinstellung.
+const List<_Field> _beltRecordFields = [
+  (253, _uint32), // timestamp
+  (3, _uint8), // heart_rate (bpm)
+  (5, _uint32), // distance (scale 100, m)
+  (6, _uint16), // speed (scale 1000, m/s)
+];
 const List<_Field> _lapFields = [
   (254, _uint16), // message_index
   (253, _uint32), // timestamp
@@ -108,6 +117,7 @@ const int _lapTriggerManual = 0;
 const int _lapTriggerSessionEnd = 7;
 const int _sportRunning = 1;
 const int _subSportGeneric = 0;
+const int _subSportTreadmill = 1;
 const int _sessionTriggerActivityEnd = 0;
 const int _activityManual = 0;
 
@@ -165,13 +175,24 @@ Uint8List encodeFit(ExportRun run) {
     for (final p in points) {
       item(
         run.lapIndexAt(p.time),
-        () => w.message(_recordMsg, _recordFields, [
-          _time(p.time),
-          p.position == null ? null : _semicircles(p.position!.latitude),
-          p.position == null ? null : _semicircles(p.position!.longitude),
-          _altitude(p.altitudeMeters),
-          _heartRate(p.heartRateBpm),
-        ]),
+        () => run.isTreadmill
+            ? w.message(_recordMsg, _beltRecordFields, [
+                _time(p.time),
+                _heartRate(p.heartRateBpm),
+                p.distanceMeters == null
+                    ? null
+                    : _centimeters(p.distanceMeters!),
+                p.speedMetersPerSecond == null
+                    ? null
+                    : _speed(p.speedMetersPerSecond!),
+              ])
+            : w.message(_recordMsg, _recordFields, [
+                _time(p.time),
+                p.position == null ? null : _semicircles(p.position!.latitude),
+                p.position == null ? null : _semicircles(p.position!.longitude),
+                _altitude(p.altitudeMeters),
+                _heartRate(p.heartRateBpm),
+              ]),
       );
     }
     item(
@@ -191,7 +212,7 @@ Uint8List encodeFit(ExportRun run) {
     _eventTypeStop,
     start,
     _sportRunning,
-    _subSportGeneric,
+    run.isTreadmill ? _subSportTreadmill : _subSportGeneric,
     _millis(run.endedAt.difference(run.startedAt)),
     _millis(timer),
     _centimeters(distance),
@@ -256,6 +277,9 @@ List<(ExportSegment, List<ExportPoint>)> _mergeSeconds(ExportRun run) {
           position: first.position ?? p.position,
           altitudeMeters: first.altitudeMeters ?? p.altitudeMeters,
           heartRateBpm: first.heartRateBpm ?? p.heartRateBpm,
+          distanceMeters: first.distanceMeters ?? p.distanceMeters,
+          speedMetersPerSecond:
+              first.speedMetersPerSecond ?? p.speedMetersPerSecond,
         );
       }
     }
@@ -299,6 +323,12 @@ int? _altitude(double? meters) {
 
 /// Puls 1…254; 255 ist der Invalid-Wert von `uint8` und fehlt.
 int? _heartRate(int? bpm) => bpm == null || bpm < 1 || bpm > 254 ? null : bpm;
+
+/// Geschwindigkeit in mm/s; außerhalb von uint16 (< 65,535 m/s) fehlt sie.
+int? _speed(double metersPerSecond) {
+  final v = (metersPerSecond * 1000).round();
+  return v < 0 || v >= 0xFFFF ? null : v;
+}
 
 int _millis(Duration d) => (d.inMicroseconds / 1000).round();
 
