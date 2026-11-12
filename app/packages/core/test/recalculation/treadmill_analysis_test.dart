@@ -135,6 +135,43 @@ void main() {
     );
 
     test(
+      'unbekannte Steigung: „ohne Höhe“ am Abschnitt, bekannte nicht',
+      () async {
+        Future<List<EvaluatedSection>> sections(double? incline) async {
+          final w = await RecalcWorld.create();
+          final id = await _seedBelt(
+            w,
+            _t0,
+            seconds: 1800,
+            belts: [_b(0, 3.0, incline)],
+          );
+          final a =
+              await RunAnalyzer(
+                fitness: const FitnessParameters.v4(),
+                preprocessing: const PreprocessingParameters.v4(),
+                basis: const HeartRateBasis(maxBpm: 190, restingBpm: 60),
+              ).analyze(
+                w.session,
+                (await w.session.runs.get(id))!,
+                calculatedAt: w.clock.now(),
+              );
+          return a.selection.sections;
+        }
+
+        final unknown = await sections(null);
+        expect(unknown, isNotEmpty);
+        for (final e in unknown) {
+          expect(e.caveats, contains(SectionCaveat.noAltitude));
+        }
+        final known = await sections(0);
+        expect(known, isNotEmpty);
+        for (final e in known) {
+          expect(e.caveats, isNot(contains(SectionCaveat.noAltitude)));
+        }
+      },
+    );
+
+    test(
       'Geschwindigkeitswechsel trennt Abschnitte, Einschwingzeit danach',
       () async {
         final w = await RecalcWorld.create();

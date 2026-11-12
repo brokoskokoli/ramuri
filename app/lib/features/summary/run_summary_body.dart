@@ -144,6 +144,7 @@ class _RunSummaryBodyState extends State<RunSummaryBody> {
         start: summary.run.startedAt,
         end: summary.run.endedAt!,
         pauses: summary.manualPauses,
+        belt: summary.belt,
       ));
       final unit = widget.splitUnitMeters;
       final splits = unit == null

@@ -147,8 +147,12 @@ class RunController extends ChangeNotifier {
 
   Future<bool> _belt(Future<CommandResult> Function() change) async {
     var ok = false;
+    // Die Sitzung ändert sich synchron beim Aufruf; die Ansicht (und damit der
+    // Ausgangswert des nächsten Tipps) darf nicht auf das Speichern warten.
+    final pending = change();
+    _update();
     try {
-      ok = await change() == CommandResult.ok;
+      ok = await pending == CommandResult.ok;
     } on StorageException {
       // Nur ein Speicherfehler: die Sitzung hat die Änderung schon, der Fehler
       // steht in writeFailure. Jede andere Ausnahme gilt als nicht ausgeführt.

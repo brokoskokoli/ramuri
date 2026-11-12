@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -12,6 +13,7 @@ class _FaultySession implements StorageSession {
   _FaultySession(this.s);
   final StorageSession s;
   Object? appendError; // wird beim nächsten append geworfen (solange gesetzt)
+  Completer<void>? appendGate; // hält append an, bis es abgeschlossen ist
   Object? getError; // wird beim nächsten runs.get geworfen (einmalig)
   @override
   RawDataStore get rawData => _Raw(this);
@@ -49,9 +51,11 @@ class _Raw implements RawDataStore {
   _Raw(this.f);
   final _FaultySession f;
   @override
-  Future<void> append(int runId, RawBatch batch) {
+  Future<void> append(int runId, RawBatch batch) async {
+    final gate = f.appendGate;
+    if (gate != null) await gate.future;
     final e = f.appendError;
-    if (e != null) return Future.error(e);
+    if (e != null) throw e;
     return f.s.rawData.append(runId, batch);
   }
 
@@ -249,6 +253,36 @@ void main() {
         closeTo(120, 1e-6),
       ); // bis zur Einstellung belegt
     });
+
+    test(
+      'zwei schnelle Änderungen während des Speicherns: zwei Schritte',
+      () async {
+        final w = await _world();
+        final fs = _FaultySession(w.session);
+        final c = RunController(
+          clock: w.clock,
+          storage: fs,
+          location: w.location,
+          service: w.service,
+          mode: RunMode.treadmill,
+          startBeltSpeedMetersPerSecond: 2,
+          tickEvery: const Duration(hours: 1),
+        );
+        addTearDown(c.dispose);
+        await c.start();
+        w.clock.advance(const Duration(seconds: 10));
+        final gate = fs.appendGate = Completer<void>();
+        final first = c.setBeltSpeed(3);
+        // Der Speichervorgang läuft noch, die Ansicht hat den Wert schon.
+        expect(c.snapshot.beltSpeedMetersPerSecond, 3);
+        final second = c.setBeltSpeed(c.snapshot.beltSpeedMetersPerSecond! + 1);
+        expect(c.snapshot.beltSpeedMetersPerSecond, 4);
+        gate.complete();
+        expect(await first, isTrue);
+        expect(await second, isTrue);
+        expect(c.snapshot.beltSpeedMetersPerSecond, 4);
+      },
+    );
 
     test('Speicherfehler beim Ändern: Sitzung hat sie (true); andere Ausnahme: false', () async {
       final w = await _world();

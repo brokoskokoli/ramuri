@@ -14,6 +14,14 @@ import 'app_harness.dart';
 import 'history_summary_test.dart' show openHistory, started, text;
 import 'run_detail_test.dart' show seedDetailRun;
 
+const _kmEn = UnitFormatter(
+  unit: DistanceUnit.kilometers,
+  languageCode: 'en',
+  distanceLabel: 'km',
+  paceLabel: 'min/km',
+  elevationLabel: 'm',
+);
+
 const _km = UnitFormatter(
   unit: DistanceUnit.kilometers,
   languageCode: 'de',
@@ -77,6 +85,7 @@ Future<void> _pump(
   required bool detail,
   bool dark = false,
   String lang = 'de',
+  UnitFormatter formatter = _km,
 }) async {
   const size = Size(360, 640);
   tester.view.physicalSize = size;
@@ -103,14 +112,14 @@ Future<void> _pump(
                         summary: summary,
                         detail: data,
                         splits: splits,
-                        formatter: _km,
+                        formatter: formatter,
                         session: d.session,
                         runId: runId,
                       )
                     : RunSummaryPage(
                         summary: summary,
                         detail: data,
-                        formatter: _km,
+                        formatter: formatter,
                         session: d.session,
                         runId: runId,
                       ),
@@ -175,6 +184,9 @@ void main() {
       expect(text('detail_km_pace_1'), '5:33');
       expect(key('detail_km_index_2'), findsOneWidget);
       expect(key('detail_km_none'), findsNothing);
+      // Pace-Diagramm aus der Bandgeschwindigkeit (Stufenreihe), nicht leer.
+      expect(key('detail_compare'), findsOneWidget);
+      expect(key('detail_pace_none'), findsNothing);
       expect(tester.takeException(), isNull);
     });
   }
@@ -209,7 +221,7 @@ void main() {
   testWidgets('Englisch: Hinweis übersetzt', (tester) async {
     final d = await started(tester, locale: 'en');
     final id = await seedBeltRun(d.session, DateTime.utc(2030, 1, 1, 8));
-    await _pump(tester, d, id, detail: false, lang: 'en');
-    expect(find.textContaining('Treadmill · avg 10,8 km/h'), findsOneWidget);
+    await _pump(tester, d, id, detail: false, lang: 'en', formatter: _kmEn);
+    expect(find.textContaining('Treadmill · avg 10.8 km/h'), findsOneWidget);
   });
 }

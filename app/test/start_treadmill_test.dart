@@ -147,6 +147,9 @@ void main() {
       expect(key('run_pages'), findsNothing);
       expect(key('run_tab_1'), findsNothing);
       expect(key('live_chip_gps'), findsNothing);
+      // Im Bandmodus steht nie „GPS sucht“ oder eine GPS-Lücke.
+      expect(key('run_gps'), findsNothing);
+      expect(key('run_gaps'), findsNothing);
       // Keine Aufstieg-Kachel ohne Höhe (FR-0196).
       expect(key('run_ascent'), findsNothing);
       expect(text('treadmill_speed'), '10,0 km/h');
