@@ -13,6 +13,11 @@ final List<StorageContractCase> planContractCases = [
     _replaceOpenFuture,
   ),
   const StorageContractCase(
+    'Plan: Einheiten zwischen heute und Anker ersetzt die Fassung, die sie '
+    'nicht enthält; die übernommenen (Brücke) bleiben',
+    _bridge,
+  ),
+  const StorageContractCase(
     'Plan: ungültige Fassung wird abgelehnt, der alte Plan bleibt',
     _invalid,
   ),
@@ -658,6 +663,49 @@ Future<void> _replaceOpenFuture(StorageContractHarness h) async {
   final hist = await p.history();
   expectEq(hist.map((x) => x.id), [1, 2], 'Verlauf');
   expectEq(hist.last.trigger.name, 'weekly', 'Auslöser der zweiten Fassung');
+  await s.close();
+}
+
+/// NB5 6: Liegt der Anker der neuen Fassung nach „heute“ (nach „zu schwer“,
+/// PAR-200), ersetzt `writeVersion` alle offenen Einheiten ab `validFrom`,
+/// auch die zwischen heute und Anker. Was die Fassung nicht mitbringt, ist weg;
+/// die Brücke von `recalculatePlan` muss sie also im Entwurf tragen.
+Future<void> _bridge(StorageContractHarness h) async {
+  final s = await h.open();
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
+  final p = _p(s);
+  await p.writeVersion(
+    await _draft(p, 0, [
+      for (final d in [1, 3, 5, 8, 10]) _unit(d),
+    ]),
+  );
+  Future<PlanVersionDraft> next(List<PlanUnit> units) async => PlanVersionDraft(
+    createdAt: at(103, 3),
+    validFrom: _day(3),
+    trigger: PlanTrigger.weekly,
+    reason: 'noIncrease',
+    version: const PlanVersion(),
+    inputs: _inputs(3).copyWith(anchor: _day(7)),
+    summary: const {},
+    units: units,
+    readState: planUnitsFingerprint(
+      await p.unitsBetween(_day(7), planFarFuture),
+    ),
+  );
+  // Mit Brücke (Tag 3 und 5 unverändert im Entwurf): beide bleiben.
+  final bridge = [for (final u in await p.unitsBetween(_day(3), _day(6))) u];
+  expectEq(bridge.map((u) => u.day.day), [_day(3).day, _day(5).day], 'Brücke');
+  await p.writeVersion(await next([...bridge, _unit(8, minutes: 20)]));
+  var days = [for (final u in await _all(s)) u.day.day];
+  expectEq(days, [
+    for (final d in [1, 3, 5, 8]) _day(d).day,
+  ], 'mit Brücke');
+  // Ohne Brücke fehlen Tag 3 und 5 danach; Tag 1 (vor heute) bleibt.
+  await p.writeVersion(await next([_unit(8, minutes: 25)]));
+  days = [for (final u in await _all(s)) u.day.day];
+  expectEq(days, [
+    for (final d in [1, 8]) _day(d).day,
+  ], 'ohne Brücke');
   await s.close();
 }
 
