@@ -287,7 +287,8 @@ void main() {
     );
 
     test(
-      'Start meldet ok erst nach dem Speichern der ersten Einstellung',
+      'Start meldet ok erst nach dem Speichern der ersten Einstellung; '
+      'scheitert es, läuft der Lauf weiter und die Zeile kommt später',
       () async {
         final failing = _FailAppend(store.rawData);
         final rec = RunRecorder(
@@ -297,11 +298,17 @@ void main() {
           markers: store.markers,
         );
         failing.fail = true;
-        await expectLater(
-          rec.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2),
-          throwsA(isA<StorageException>()),
+        expect(
+          await rec.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2),
+          CommandResult.ok,
         );
+        expect(rec.lastWriteFailure, StorageFailure.failed);
+        expect(rec.snapshot().phase, RecordingPhase.running);
+        expect((await store.rawData.read(rec.runId!)).beltSettings, isEmpty);
         failing.fail = false;
+        await rec.flush();
+        expect((await store.rawData.read(rec.runId!)).beltSettings.length, 1);
+        // Gelingt das Speichern, steht die Zeile schon nach start.
         final ok = RunRecorder(
           clock: clock,
           runs: store.runs,
@@ -309,10 +316,47 @@ void main() {
           markers: store.markers,
         );
         await ok.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2);
-        // Sofort nach dem Rückgabewert steht die Zeile in der DB.
         expect((await store.rawData.read(ok.runId!)).beltSettings.length, 1);
       },
     );
+
+    test(
+      'Wiederanlauf: Lebenszeichen läuft weiter, auch ohne Bandänderung',
+      () async {
+        final a = make();
+        await a.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2);
+        clock.advance(s(100));
+        await a.flush();
+        final id = a.runId!;
+        clock.advance(s(600)); // Absturz
+        final b = make();
+        await b.restore(id);
+        expect((await store.rawData.read(id)).beltSettings.length, 1);
+        clock.advance(beltHeartbeatInterval);
+        b.tick();
+        await b.flush();
+        final raw = await store.rawData.read(id);
+        expect(raw.beltSettings.length, 2);
+        final last = lastRecordedTime(
+          (await store.runs.get(id))!,
+          raw,
+          await store.markers.gaps(id),
+          await store.markers.laps(id),
+        );
+        expect(last, t0.add(s(700) + beltHeartbeatInterval));
+      },
+    );
+
+    test('In der Pause kein Lebenszeichen', () async {
+      final a = make();
+      await a.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2);
+      clock.advance(s(10));
+      await a.pause();
+      clock.advance(s(60));
+      a.tick();
+      await a.flush();
+      expect((await store.rawData.read(a.runId!)).beltSettings.length, 1);
+    });
 
     test('Lebenszeichen: Absturz 5 min nach der letzten Änderung behält die Strecke', () async {
       final a = make();

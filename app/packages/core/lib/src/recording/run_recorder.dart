@@ -136,9 +136,15 @@ class RunRecorder {
       _processEvents();
       _takeBelts();
       if (_belts.isNotEmpty) {
-        // Die erste Einstellung ist Pflicht (K57): erst melden, wenn sie
-        // gespeichert ist; Fehler gehen an den Aufrufer.
-        await _write(_flush);
+        // Die erste Einstellung ist Pflicht (K57): erst melden, wenn der
+        // Versuch beendet ist. Scheitert das Speichern, läuft der Lauf weiter:
+        // der Fehler steht in lastWriteFailure, die Zeile bleibt im Puffer
+        // (failed) und kommt mit dem nächsten Flush.
+        try {
+          await _write(_flush);
+        } on StorageException {
+          // gemerkt in _lastWriteFailure
+        }
       }
       return CommandResult.ok;
     } finally {

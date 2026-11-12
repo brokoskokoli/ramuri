@@ -12,7 +12,7 @@ class _FaultySession implements StorageSession {
   _FaultySession(this.s);
   final StorageSession s;
   Object? appendError; // wird beim nächsten append geworfen (solange gesetzt)
-  Object? getError; // wird bei runs.get geworfen (solange gesetzt)
+  Object? getError; // wird beim nächsten runs.get geworfen (einmalig)
   @override
   RawDataStore get rawData => _Raw(this);
   @override
@@ -65,6 +65,7 @@ class _Runs implements RunStore {
   @override
   Future<StoredRun?> get(int id) {
     final e = f.getError;
+    f.getError = null;
     if (e != null) return Future.error(e);
     return f.s.runs.get(id);
   }
@@ -297,6 +298,36 @@ void main() {
         expect(w2.startModes, isEmpty);
         expect(w.location.hasListeners, isFalse);
         expect(b.phase, RecordingPhase.idle);
+      },
+    );
+
+    test(
+      'Erste Einstellung nicht speicherbar: Lauf läuft, Fehler sichtbar',
+      () async {
+        final w = await _world();
+        final fs = _FaultySession(w.session)
+          ..appendError = const StorageException(StorageFailure.failed);
+        final c = RunController(
+          clock: w.clock,
+          storage: fs,
+          location: w.location,
+          service: w.service,
+          mode: RunMode.treadmill,
+          startBeltSpeedMetersPerSecond: 2,
+          tickEvery: const Duration(hours: 1),
+        );
+        addTearDown(c.dispose);
+        await c.start();
+        expect(c.startFailed, isFalse);
+        expect(c.phase, RecordingPhase.running);
+        expect(c.writeFailure, StorageFailure.failed);
+        expect(w.service.startModes, [RecordingServiceMode.treadmill]);
+        // Erholt sich der Speicher, geht die Bedienung weiter.
+        fs.appendError = null;
+        expect(await c.setBeltSpeed(3), isTrue);
+        final run = (await w.session.runs.unfinished()).single;
+        final rows = (await w.session.rawData.read(run.id)).beltSettings;
+        expect(rows.map((r) => r.value.speedMetersPerSecond), [2, 3]);
       },
     );
   });

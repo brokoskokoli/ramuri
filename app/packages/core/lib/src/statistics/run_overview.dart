@@ -24,7 +24,10 @@ const String runOverviewMethod = 'run-overview';
 /// Puls; gespeicherte Kurzfassungen der Version 1 werden beim Lesen neu
 /// gerechnet. Ändert sich ein Parameter der Bestpace
 /// ([StatisticsParameters.bestPaceDistanceMeters]), ist die Version anzuheben.
-const int runOverviewMethodVersion = 2;
+///
+/// Version 3 (WP25): Laufbandläufe tragen Strecke und Bewegungszeit aus den
+/// Bandeinstellungen; ältere Kurzfassungen (Strecke 0 m) werden neu gerechnet.
+const int runOverviewMethodVersion = 3;
 
 /// Die Kurzfassung eines Laufs für Listen und Vergleiche, abgeleitet aus der
 /// Vorverarbeitung (ADR-0004 Punkt 1: jederzeit aus den Rohdaten neu
