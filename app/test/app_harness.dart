@@ -49,7 +49,7 @@ class Device {
   CadenceSensor? cadence;
 
   /// Abfrage von ACTIVITY_RECOGNITION vor dem Laufstart; `null` wie ohne Plattform.
-  Future<void> Function()? requestActivityRecognition;
+  Future<void> Function(bool treadmill)? requestActivityRecognition;
 
   /// Wo die Wiedergabe rechnet. Ein Isolate läuft nicht in der Test-Uhr
   /// (pumpAndSettle), darum standardmäßig inline; Tests setzen einen Fake.

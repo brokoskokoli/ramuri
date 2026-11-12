@@ -39,8 +39,10 @@ object RecordingServiceState {
         override fun scheduleTimeout() { handler.postDelayed(timeout, START_TIMEOUT_MS) }
         override fun cancelTimeout() { handler.removeCallbacks(timeout) }
         override fun success(result: MethodChannel.Result) = result.success(null)
-        // Detail nur der Klassenname: keine Inhalte, keine Gesundheitsdaten.
-        override fun error(result: MethodChannel.Result, code: String, detail: String?) = result.error(code, detail, null)
+        override fun error(result: MethodChannel.Result, code: String, detail: String?) {
+            val (c, message, details) = channelErrorArgs(code, detail)
+            result.error(c, message, details)
+        }
     }
     private val controller: RecordingServiceController<MethodChannel.Result> = RecordingServiceController(effects)
 

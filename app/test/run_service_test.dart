@@ -236,8 +236,10 @@ void main() {
     test(
       'Laufband ohne ACTIVITY_RECOGNITION: eigener Grund, kein Systemfehler',
       () async {
+        // Form wie Kotlin sie sendet (channelErrorArgs: Detail in message und details).
         error = PlatformException(
           code: 'start_denied',
+          message: 'activity_recognition',
           details: 'activity_recognition',
         );
         mock();

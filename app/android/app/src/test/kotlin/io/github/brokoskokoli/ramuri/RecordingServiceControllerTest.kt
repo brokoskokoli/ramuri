@@ -30,6 +30,13 @@ class RecordingServiceControllerTest {
         assertFalse(c.hasPending)
     }
 
+    @Test fun channelErrorCarriesDetailInDetailsFieldWhichDartReads() {
+        val (code, message, details) = channelErrorArgs("start_denied", "activity_recognition")
+        assertEquals("start_denied", code)
+        assertEquals("activity_recognition", message)
+        assertEquals("activity_recognition", details)
+    }
+
     @Test fun treadmillWithoutActivityRecognitionGivesOwnReasonAndStartsNothing() {
         val (fx, c) = make()
         // Standortrecht allein genügt im Laufbandmodus nicht.

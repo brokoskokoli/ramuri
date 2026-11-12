@@ -346,7 +346,7 @@ class _NoRunPorts implements RunPorts {
   CadenceSensor? get cadence => null;
 
   @override
-  Future<void> Function()? get requestActivityRecognition => null;
+  Future<void> Function(bool treadmill)? get requestActivityRecognition => null;
 }
 
 class _DeniedAccess implements LocationAccessPort {

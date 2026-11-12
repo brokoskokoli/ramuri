@@ -281,6 +281,14 @@ class RunController extends ChangeNotifier {
       if (runMode == RunMode.treadmill) {
         await _startService(runMode);
         if (_startDenied != null) return;
+        if (_serviceFailed) {
+          // Ohne Dienst endet der Bandlauf im Hintergrund unbemerkt: lieber
+          // gar kein Lauf als einer ohne Schutz. Erneut starten ist möglich.
+          _serviceFailed = false;
+          _serviceWanted = false;
+          _startFailed = true;
+          return;
+        }
       }
       try {
         final r = resume == null

@@ -174,6 +174,22 @@ void main() {
       },
     );
 
+    test(
+      'Dienst scheitert (kein Recht-Grund): startFailed, kein Lauf, kein Banner',
+      () async {
+        final w = await _world();
+        w.service.startError = StateError('start_timeout');
+        final c = _belt(w);
+        addTearDown(c.dispose);
+        await c.start();
+        expect(c.startFailed, isTrue);
+        expect(c.serviceFailed, isFalse);
+        expect(c.phase, RecordingPhase.idle);
+        expect(await w.session.runs.list(), isEmpty);
+        expect(w.location.hasListeners, isFalse);
+      },
+    );
+
     test('ohne Startgeschwindigkeit: startFailed, kein Lauf, Dienst wieder gestoppt', () async {
       final w = await _world();
       final c = _belt(w, speed: null);

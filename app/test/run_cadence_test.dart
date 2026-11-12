@@ -174,7 +174,7 @@ void main() {
       (tester) async {
         var asked = 0;
         final d = Device()
-          ..requestActivityRecognition = () async {
+          ..requestActivityRecognition = (_) async {
             asked++;
             throw StateError('abgelehnt');
           };

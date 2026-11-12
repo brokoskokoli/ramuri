@@ -92,9 +92,10 @@ void main() {
     testWidgets('kein Standortdialog und keine Standortsperre im Bandmodus', (
       tester,
     ) async {
+      final asked = <bool>[];
       final d = Device()
         ..recordingService = FakeRecordingServicePort()
-        ..requestActivityRecognition = () async {};
+        ..requestActivityRecognition = (t) async => asked.add(t);
       d.locationAccess
         ..current = LocationAccess.denied
         ..gps = false;
@@ -107,6 +108,7 @@ void main() {
       await tester.tap(key('run_start_ready'));
       await tester.pumpAndSettle();
       expect(find.byType(LiveRunView), findsOneWidget);
+      expect(asked, [true]); // Bandmodus: Recht auch ohne Schrittsensor fragen
       expect(d.locationAccess.requestCount, 0);
       expect(d.location.hasListeners, isFalse);
       final snap = liveController(tester).snapshot;

@@ -414,7 +414,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   /// FR-0202: fragen, aber nie blockieren; ohne Recht fehlt nur die Schrittfrequenz.
   Future<void> _askActivityRecognition() async {
     try {
-      await widget.ports.requestActivityRecognition?.call();
+      await widget.ports.requestActivityRecognition?.call(_treadmill);
     } catch (_) {
       // Ohne Berechtigung ist die Schrittfrequenz nicht verfügbar.
     }

@@ -17,6 +17,13 @@ class StepSensorTest {
         assertEquals("available", StepSensor.decide(hasSensor = true, permissionGranted = true))
     }
 
+    @Test fun treadmillAsksWithoutSensorGpsDoesNot() {
+        assertEquals(true, StepSensor.shouldAsk(hasSensor = false, permissionGranted = false, treadmill = true))
+        assertEquals(false, StepSensor.shouldAsk(hasSensor = false, permissionGranted = false, treadmill = false))
+        assertEquals(true, StepSensor.shouldAsk(hasSensor = true, permissionGranted = false, treadmill = false))
+        assertEquals(false, StepSensor.shouldAsk(hasSensor = false, permissionGranted = true, treadmill = true))
+    }
+
     @Test fun stepEventUsesSensorClockForElapsedAndAgeForWallTime() {
         // Ereignis vor 2 s (Sensorzeit 10_000 s), Wanduhr 1_000_000 ms.
         val e = StepSensor.stepEvent(wallMs = 1_000_000L, nowNs = 12_000_000_000_000L, eventNs = 10_000_000_000_000L)

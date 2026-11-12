@@ -46,8 +46,9 @@ class RunPorts {
 
   /// Fragt vor dem Laufstart nach ACTIVITY_RECOGNITION. Wie bei den
   /// Benachrichtigungen blockiert die Antwort nichts: ohne Recht ist nur die
-  /// Schrittfrequenz nicht verfügbar. `null` ohne Plattform (Tests).
-  final Future<void> Function()? requestActivityRecognition;
+  /// Schrittfrequenz nicht verfügbar, im Bandmodus (`treadmill`) startet der
+  /// Lauf nicht. `null` ohne Plattform (Tests).
+  final Future<void> Function(bool treadmill)? requestActivityRecognition;
 }
 
 /// Laufart für den Dienst (ADR-0005 Nachtrag WP25). [gps] startet mit Diensttyp

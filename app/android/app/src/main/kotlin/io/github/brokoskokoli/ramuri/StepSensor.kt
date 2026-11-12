@@ -43,9 +43,21 @@ object StepSensor {
         "elapsedMs" to eventNs / 1_000_000L,
     )
 
+    /**
+     * Ob die Berechtigungsabfrage erscheint. Im Bandmodus braucht der Dienst das Recht
+     * (Diensttyp health) auch ohne Schrittsensor; sonst fragt nur, wer einen Sensor hat (FR-0202).
+     */
+    fun shouldAsk(hasSensor: Boolean, permissionGranted: Boolean, treadmill: Boolean): Boolean =
+        !permissionGranted && (hasSensor || treadmill)
+
+    fun hasSensor(context: Context): Boolean = context.getSystemService(SensorManager::class.java)
+        ?.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) != null
+
+    fun granted(context: Context): Boolean =
+        context.checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
+
     fun availability(context: Context): String = decide(
-        hasSensor = context.getSystemService(SensorManager::class.java)
-            ?.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR) != null,
+        hasSensor = hasSensor(context),
         permissionGranted = context.checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) ==
             PackageManager.PERMISSION_GRANTED,
     )
