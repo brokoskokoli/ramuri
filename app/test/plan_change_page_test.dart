@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/plan/plan_change_card.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_screen.dart';
@@ -403,5 +404,64 @@ void main() {
       await _pump(tester, s2, c2);
       expect(key('plan_walk_repeat_card'), findsNothing);
     });
+
+    for (final (lang, dark, scale) in [('de', false, 1.0), ('en', true, 2.0)]) {
+      testWidgets('vor Woche 5, Lauf 3: Karte nennt Lauf 2 ($lang)', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(320, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final proposal = WalkRunWeekProposal(
+          suggestion: const WalkRunRepeatSuggestion(
+            WalkRunRepeatScope.session,
+            WalkRunPosition(4, 1),
+          ),
+          lastDay: DateTime.utc(2026, 11, 14),
+          doneCount: 2,
+          sessionCount: 3,
+        );
+        await tester.pumpWidget(
+          MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+            child: localizedApp(
+              locale: Locale(lang),
+              brightness: dark ? Brightness.dark : Brightness.light,
+              home: Scaffold(
+                body: SingleChildScrollView(
+                  child: PlanWalkRepeatCard(
+                    proposal: proposal,
+                    onAccept: () {},
+                    onDecline: () {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.text(lang == 'de' ? 'Lauf 2 wiederholen?' : 'Repeat run 2?'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            lang == 'de'
+                ? 'Woche 5 der Geh-Lauf-Abfolge: Dein zweiter Lauf'
+                : 'Week 5 of the walk-run programme: Your second run',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.text(lang == 'de' ? 'Lauf 2 wiederholen' : 'Repeat run 2'),
+          findsOneWidget,
+        );
+        expect(
+          tester.getSize(key('plan_walk_repeat_yes')).height,
+          greaterThanOrEqualTo(48),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }

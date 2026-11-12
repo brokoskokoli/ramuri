@@ -2114,5 +2114,13 @@
   "progressExplainQualityMissing": "{label}: There is no value. {reason}",
   "@progressExplainQualityMissing": {"description": "WP23 Teil D2, Fortschritt: Datenqualität, der Grund steht schon in der Statistik", "placeholders": {"label": {"type": "String"}, "reason": {"type": "String"}}},
   "homeTodayBasisText": "The unit \"{kind}\" is in your plan for today. It follows from your goal, your run days and your recorded runs.",
-  "@homeTodayBasisText": {"description": "WP23 NB2, Heute: Worauf beruht das? zur heutigen Einheit (FR-0179, FR-0180)", "placeholders": {"kind": {"type": "String"}}}
+  "@homeTodayBasisText": {"description": "WP23 NB2, Heute: Worauf beruht das? zur heutigen Einheit (FR-0179, FR-0180)", "placeholders": {"kind": {"type": "String"}}},
+  "planWalkRepeatSessionTitle": "Repeat run 2?",
+  "@planWalkRepeatSessionTitle": {"description": "WP23 NB2, Plan-Seite: Vorschlag PAR-140 vor Woche 5, Lauf 3"},
+  "planWalkRepeatSessionText": "Week {week} of the walk-run programme: Your second run felt hard. You can run it once more before run 3. You decide.",
+  "@planWalkRepeatSessionText": {"description": "WP23 NB2, Plan-Seite: Vorschlag PAR-140 vor Woche 5, Lauf 3", "placeholders": {"week": {"type": "int"}}},
+  "planWalkRepeatSessionYes": "Repeat run 2",
+  "@planWalkRepeatSessionYes": {"description": "WP23 NB2, Plan-Seite: Vorschlag annehmen (Lauf)"},
+  "planWalkRepeatSessionDone": "Run 2 will be repeated.",
+  "@planWalkRepeatSessionDone": {"description": "WP23 NB2, Plan-Seite: Rückmeldung (Lauf)"}
 }

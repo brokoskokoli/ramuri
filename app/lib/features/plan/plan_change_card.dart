@@ -143,6 +143,8 @@ class PlanWalkRepeatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final text = Theme.of(context).textTheme;
+    // Vor Woche 5, Lauf 3 gilt der Vorschlag nur Lauf 2 (PAR-140).
+    final session = proposal.suggestion.scope == WalkRunRepeatScope.session;
     return RamuriCard(
       tone: RamuriCardTone.surface,
       child: Column(
@@ -150,15 +152,20 @@ class PlanWalkRepeatCard extends StatelessWidget {
         children: [
           Semantics(
             header: true,
-            child: Text(l.planWalkRepeatTitle, style: text.titleSmall),
+            child: Text(
+              session ? l.planWalkRepeatSessionTitle : l.planWalkRepeatTitle,
+              style: text.titleSmall,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
-            l.planWalkRepeatText(
-              proposal.programWeek + 1,
-              proposal.doneCount,
-              proposal.sessionCount,
-            ),
+            session
+                ? l.planWalkRepeatSessionText(proposal.programWeek + 1)
+                : l.planWalkRepeatText(
+                    proposal.programWeek + 1,
+                    proposal.doneCount,
+                    proposal.sessionCount,
+                  ),
             style: text.bodyMedium,
           ),
           const SizedBox(height: 10),
@@ -172,7 +179,9 @@ class PlanWalkRepeatCard extends StatelessWidget {
                   minimumSize: const Size(0, RamuriTheme.minTarget),
                 ),
                 onPressed: onAccept,
-                child: Text(l.planWalkRepeatYes),
+                child: Text(
+                  session ? l.planWalkRepeatSessionYes : l.planWalkRepeatYes,
+                ),
               ),
               OutlinedButton(
                 key: const Key('plan_walk_repeat_no'),

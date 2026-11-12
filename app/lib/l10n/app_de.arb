@@ -2836,5 +2836,13 @@
   "progressExplainQualityMissing": "{label}: Es gibt keinen Wert. {reason}",
   "@progressExplainQualityMissing": {"description": "WP23 Teil D2, Fortschritt: Datenqualität, der Grund steht schon in der Statistik", "placeholders": {"label": {"type": "String"}, "reason": {"type": "String"}}},
   "homeTodayBasisText": "Die Einheit „{kind}“ steht für heute in deinem Plan. Sie ergibt sich aus deinem Ziel, deinen Lauftagen und deinen erfassten Läufen.",
-  "@homeTodayBasisText": {"description": "WP23 NB2, Heute: Worauf beruht das? zur heutigen Einheit (FR-0179, FR-0180)", "placeholders": {"kind": {"type": "String"}}}
+  "@homeTodayBasisText": {"description": "WP23 NB2, Heute: Worauf beruht das? zur heutigen Einheit (FR-0179, FR-0180)", "placeholders": {"kind": {"type": "String"}}},
+  "planWalkRepeatSessionTitle": "Lauf 2 wiederholen?",
+  "@planWalkRepeatSessionTitle": {"description": "WP23 NB2, Plan-Seite: Vorschlag PAR-140 vor Woche 5, Lauf 3"},
+  "planWalkRepeatSessionText": "Woche {week} der Geh-Lauf-Abfolge: Dein zweiter Lauf hat sich anstrengend angefühlt. Du kannst ihn noch einmal laufen, bevor Lauf 3 kommt. Du entscheidest.",
+  "@planWalkRepeatSessionText": {"description": "WP23 NB2, Plan-Seite: Vorschlag PAR-140 vor Woche 5, Lauf 3", "placeholders": {"week": {"type": "int"}}},
+  "planWalkRepeatSessionYes": "Lauf 2 wiederholen",
+  "@planWalkRepeatSessionYes": {"description": "WP23 NB2, Plan-Seite: Vorschlag annehmen (Lauf)"},
+  "planWalkRepeatSessionDone": "Lauf 2 wird wiederholt.",
+  "@planWalkRepeatSessionDone": {"description": "WP23 NB2, Plan-Seite: Rückmeldung (Lauf)"}
 }

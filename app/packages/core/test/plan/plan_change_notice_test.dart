@@ -165,5 +165,53 @@ void main() {
       );
       expect(p?.programWeek, 1);
     });
+
+    // Woche 5 (Programmwoche 4): drei Läufe an den Tagen 2, 4 und 6.
+    WalkRunWeekProposal? week5(
+      List<int?> runIds, {
+      required Map<int, int> rpe,
+      int today = 5,
+      WalkRunPosition start = const WalkRunPosition(4),
+    }) => walkRunWeekProposal(
+      units: [
+        for (var i = 0; i < runIds.length; i++)
+          _unit(2 + 2 * i, PlanUnitKind.walkRun, 30, runId: runIds[i]),
+      ],
+      start: start,
+      rpeByRunId: rpe,
+      today: _d(today),
+    );
+
+    test('vor Woche 5, Lauf 3: Lauf 2 mit RPE >= 6 wiederholen', () {
+      final p = week5([1, 2, null], rpe: {1: 4, 2: 6})!;
+      expect(p.suggestion.scope, WalkRunRepeatScope.session);
+      expect(p.suggestion.position, const WalkRunPosition(4, 1));
+      expect(p.programWeek, 4);
+      expect(p.lastDay, _d(4));
+    });
+
+    test('kein Vorschlag bei RPE 5, bei Lauf 3 schon absolviert, ohne Lauf 2 '
+        'und in anderen Wochen', () {
+      expect(week5([1, 2, null], rpe: {2: 5}), isNull);
+      expect(week5([1, 2, 3], rpe: {2: 8}), isNull);
+      expect(week5([1, null, null], rpe: {1: 8}), isNull);
+      expect(
+        week5([1, 2, null], rpe: {2: 8}, start: const WalkRunPosition(1)),
+        isNull,
+      );
+    });
+
+    test('nach dem Wiederholen (Abfolge beginnt bei Lauf 2): kein neuer '
+        'Vorschlag, bis wieder Lauf 2 gelaufen ist', () {
+      final start = const WalkRunPosition(4, 1);
+      expect(
+        week5([null, null], rpe: const {}, start: start, today: 1),
+        isNull,
+      );
+      // Lauf 2 gelaufen (erste Einheit), schwer: wieder der Vorschlag.
+      final p = week5([7, null], rpe: {7: 7}, start: start, today: 3)!;
+      expect(p.suggestion.position, const WalkRunPosition(4, 1));
+      expect(p.lastDay, _d(2));
+    });
   });
 }

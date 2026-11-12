@@ -102,28 +102,77 @@ WalkRunWeekProposal? walkRunWeekProposal({
   for (final w in weeks) {
     if (byWeek[w]!.every((u) => planDay(u.day).isBefore(t))) finished = w;
   }
-  if (finished == null) return null;
-  for (final w in weeks) {
-    if (w > finished && byWeek[w]!.any((u) => u.runId != null)) return null;
+  if (finished == null) {
+    return _sessionProposal(weeks, byWeek, start, null, prog, rpeByRunId);
   }
-  final us = byWeek[finished]!;
-  final s = suggestWalkRunRepeat(
-    programWeek: finished,
-    outcomes: [
-      for (final u in us)
-        WalkRunOutcome(
-          done: u.runId != null,
-          rpe: u.runId == null ? null : rpeByRunId[u.runId],
-        ),
-    ],
-    weekOver: true,
-    program: prog,
+  final laterRun = weeks.any(
+    (w) => w > finished! && byWeek[w]!.any((u) => u.runId != null),
   );
-  if (s == null) return null;
+  final us = byWeek[finished]!;
+  final s = laterRun
+      ? null
+      : suggestWalkRunRepeat(
+          programWeek: finished,
+          outcomes: [
+            for (final u in us)
+              WalkRunOutcome(
+                done: u.runId != null,
+                rpe: u.runId == null ? null : rpeByRunId[u.runId],
+              ),
+          ],
+          weekOver: true,
+          program: prog,
+        );
+  if (s == null) {
+    return _sessionProposal(weeks, byWeek, start, finished, prog, rpeByRunId);
+  }
   return WalkRunWeekProposal(
     suggestion: s,
     lastDay: planDay(us.last.day),
     doneCount: us.where((u) => u.runId != null).length,
     sessionCount: us.length,
+  );
+}
+
+/// Vor Woche 5, Lauf 3 (PAR-140): Lauf 2 hatte RPE >= 6, dann schlägt die App
+/// vor, Lauf 2 zu wiederholen. Betrachtet wird die erste Woche nach der zuletzt
+/// beendeten [finished] (ohne beendete Woche die erste). Beginnt die Abfolge
+/// mitten in der Woche (nach einem Wiederholen), fehlen die früheren
+/// Einheiten und gelten als nicht absolviert. `null` ohne Vorschlag.
+WalkRunWeekProposal? _sessionProposal(
+  List<int> weeks,
+  Map<int, List<PlanUnit>> byWeek,
+  WalkRunPosition start,
+  int? finished,
+  WalkRunProgram prog,
+  Map<int, int> rpeByRunId,
+) {
+  final next = weeks.where((w) => finished == null || w > finished);
+  if (next.isEmpty) return null;
+  final w = next.first;
+  final units = byWeek[w]!;
+  final lead = w == start.week ? start.session : 0;
+  final outcomes = [
+    for (var i = 0; i < lead; i++) const WalkRunOutcome(done: false),
+    for (final u in units)
+      WalkRunOutcome(
+        done: u.runId != null,
+        rpe: u.runId == null ? null : rpeByRunId[u.runId],
+      ),
+  ];
+  final s = suggestWalkRunRepeat(
+    programWeek: w,
+    outcomes: outcomes,
+    weekOver: false,
+    program: prog,
+  );
+  if (s == null) return null;
+  final at = s.position.session - lead;
+  if (at < 0 || at >= units.length) return null;
+  return WalkRunWeekProposal(
+    suggestion: s,
+    lastDay: planDay(units[at].day),
+    doneCount: units.where((u) => u.runId != null).length,
+    sessionCount: units.length,
   );
 }

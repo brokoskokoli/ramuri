@@ -408,6 +408,9 @@ class _PlanScreenState extends State<PlanScreen> {
     if (_busy) return;
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    final session =
+        _controller.state.walkRunProposal?.suggestion.scope ==
+        WalkRunRepeatScope.session;
     setState(() => _busy = true);
     final result = accept
         ? await _controller.acceptWalkRunRepeat()
@@ -419,7 +422,7 @@ class _PlanScreenState extends State<PlanScreen> {
       messenger,
       'plan_walk_repeat_result',
       result == PlanActionResult.done
-          ? l.planWalkRepeatDone
+          ? (session ? l.planWalkRepeatSessionDone : l.planWalkRepeatDone)
           : l.planWalkRepeatFailed,
     );
   }
