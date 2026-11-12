@@ -1,6 +1,9 @@
 import '../../ports/storage_plan.dart';
 import '../../ports/storage_settings.dart';
 import '../../ports/storage_warning.dart';
+import '../goals/training_goal.dart';
+import 'build_plan_inputs.dart' show refreshMeasuredInputs;
+import 'plan_inputs.dart';
 import 'plan_parameters.dart';
 import 'plan_warning.dart';
 import 'recalculate_plan.dart';
@@ -16,12 +19,22 @@ class WarningService {
     required this.settings,
     required this.warning,
     this.parameters = const PlanParameters(),
+    this.measuredInputs,
   });
 
   final PlanRepository plans;
   final SettingsStore settings;
   final WarningStore warning;
   final PlanParameters parameters;
+
+  /// Gemessene Eingaben für heute (Ergebnis von [buildPlanInputs]); ohne
+  /// Funktion rechnet der Dienst mit den gespeicherten Werten. Mit ihr
+  /// entsteht die Fassung wie die einer automatischen Neuberechnung
+  /// ([refreshMeasuredInputs]): Nach dem Aufheben erzeugt die nächste
+  /// wöchentliche Prüfung keine zusätzliche Fassung nur wegen veralteter
+  /// Messwerte.
+  final Future<PlanInputs> Function(TrainingGoal goal, DateTime today)?
+  measuredInputs;
 
   /// Das aktive Warnsignal oder `null`.
   Future<WarningSignal?> current() => warning.read();
@@ -69,14 +82,29 @@ class WarningService {
     DateTime today,
     DateTime now,
     String reason,
-  ) => recalculatePlan(
-    plans: plans,
-    settings: settings,
-    trigger: PlanTrigger.feedback,
-    today: today,
-    now: now,
-    reason: reason,
-    parameters: parameters,
-    warning: warning,
-  );
+  ) async {
+    PlanInputs? inputs;
+    final measure = measuredInputs;
+    final goal = measure == null ? null : await plans.currentGoal();
+    if (measure != null && goal != null) {
+      final history = await plans.history();
+      if (history.isNotEmpty) {
+        inputs = refreshMeasuredInputs(
+          history.last.inputs,
+          await measure(goal, today),
+        );
+      }
+    }
+    return recalculatePlan(
+      plans: plans,
+      settings: settings,
+      trigger: PlanTrigger.feedback,
+      today: today,
+      now: now,
+      reason: reason,
+      inputs: inputs,
+      parameters: parameters,
+      warning: warning,
+    );
+  }
 }

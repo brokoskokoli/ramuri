@@ -124,7 +124,10 @@ List<WarningHeld>? warningHeldFromSummary(Map<String, Object?> summary) {
 /// Stellt in [units] (eine Fassung unter Warnsignal) die Art der gehaltenen
 /// Festlegungen [held] wieder her: Einheiten auf deren Tagen, die ein
 /// Ruhetag ersetzt hat, bekommen Art, `fixed` und `pinned` zurück (Dauer und
-/// Abschnitte rechnet die Neuberechnung).
+/// Abschnitte rechnet die Neuberechnung). Nur Ruhetage, die noch die
+/// Überlagerung sind (`pinned` und `fixed` wie gehalten): Eine Festlegung, die
+/// der Nutzer unter dem Warnsignal neu getroffen hat (z. B. Ruhetag), gilt
+/// weiter (ADR-0010).
 List<PlanUnit> restoreWarningHeld(
   List<PlanUnit> units,
   List<WarningHeld> held,
@@ -132,12 +135,18 @@ List<PlanUnit> restoreWarningHeld(
   final byDay = {for (final h in held) h.day: h};
   return [
     for (final u in units)
-      if (u.kind != PlanUnitKind.rest || !byDay.containsKey(planDay(u.day)))
-        u
+      if (_isOverlay(u, byDay[planDay(u.day)]))
+        _restored(u, byDay[planDay(u.day)]!)
       else
-        _restored(u, byDay[planDay(u.day)]!),
+        u,
   ];
 }
+
+bool _isOverlay(PlanUnit u, WarningHeld? h) =>
+    h != null &&
+    u.kind == PlanUnitKind.rest &&
+    u.pinned == h.pinned &&
+    u.fixed == h.fixed;
 
 PlanUnit _restored(PlanUnit u, WarningHeld h) => PlanUnit(
   id: u.id,

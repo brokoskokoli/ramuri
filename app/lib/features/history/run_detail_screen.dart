@@ -105,7 +105,7 @@ class _RunDetailScreenState extends State<RunDetailScreen> {
             session: session,
             runId: runId,
             subjective: SubjectiveService(session: session, clock: clock),
-            onWarningYes: warningEntry(
+            onWarning: warningEntry(
               session: session,
               clock: clock,
               runId: runId,
