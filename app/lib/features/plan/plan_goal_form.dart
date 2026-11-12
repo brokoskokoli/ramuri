@@ -38,6 +38,11 @@ abstract final class PlanGoalFormDefaults {
 /// [PlanController.saveGoal] zurück (`done` oder `savedNotPlanned`); bei
 /// Ablehnung oder Fehler bleibt das Formular mit einer Meldung offen.
 ///
+/// Mit [newStart] (neuer Einstieg nach langer Pause, PAR-181) gilt das
+/// gespeicherte Ziel, nur der Stand wird neu gefragt (PAR-192): heutige
+/// Wochenzeit oder „Kannst du 30 min am Stück laufen?“; Speichern startet den
+/// Plan neu ([PlanController.restartAfterLongPause]).
+///
 /// Gerechnet und geprüft wird in `core` ([TrainingGoal.validate],
 /// [assessGoal] über [PlanController.checkGoal]); „heute“ ist der Ortstag der
 /// [clock].
@@ -48,6 +53,7 @@ class PlanGoalFormScreen extends StatefulWidget {
     required this.session,
     required this.clock,
     this.initial,
+    this.newStart = false,
   });
 
   final PlanController controller;
@@ -56,6 +62,9 @@ class PlanGoalFormScreen extends StatefulWidget {
 
   /// Das gespeicherte Ziel beim Ändern (vorbelegt), `null` beim Anlegen.
   final TrainingGoal? initial;
+
+  /// Neuer Einstieg nach langer Pause; mit [initial].
+  final bool newStart;
 
   @override
   State<PlanGoalFormScreen> createState() => _PlanGoalFormScreenState();
@@ -97,12 +106,25 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   /// (E2E API 36: Minuten je Einheit nicht nur über dem Knopf).
   GoalProblem? _problem;
 
+  /// Beim neuen Einstieg: Ist ein Neustart des Plans möglich? Nur dann sagt
+  /// der Text zum Stand, dass der Plan damit neu beginnt.
+  bool _restartPossible = false;
+
   bool get _editing => widget.initial != null;
+
+  /// Der Stand wird gefragt: beim Anlegen ohne Läufe (PAR-192) und beim neuen
+  /// Einstieg nach langer Pause (auch mit Läufen: der Nutzer wählt, PAR-181).
+  bool get _askStand => widget.newStart || (!_editing && !_standFromRuns);
   DateTime get _today => calendarDay(widget.clock.now());
 
   @override
   void initState() {
     super.initState();
+    if (widget.newStart) {
+      widget.controller.newStartPossible().then((v) {
+        if (mounted && v) setState(() => _restartPossible = true);
+      });
+    }
     final g = widget.initial;
     if (g != null) {
       _type = g.type;
@@ -116,10 +138,13 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
       _date = g.targetDate;
       _days = {...g.runDays};
       _maxSession.text = _minutesText(g.maxSessionSeconds);
-      if (g.currentWeeklySeconds case final w?) {
-        _weekly.text = _minutesText(w);
+      // Beim neuen Einstieg wird der heutige Stand neu genannt.
+      if (!widget.newStart) {
+        if (g.currentWeeklySeconds case final w?) {
+          _weekly.text = _minutesText(w);
+        }
+        _can30 = g.canRun30;
       }
-      _can30 = g.canRun30;
       _capHours = g.weeklyCapSeconds / 3600;
       _hard = g.hardSessionEnabled;
       _hardTouched = true;
@@ -237,14 +262,14 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
       // Beim Ändern bleibt der Stand des Ziels (PAR-203 nennt ihn nicht; die
       // Rechnung behält Start und Geh-Lauf der letzten Fassung). Beim Anlegen
       // entfällt die Frage mit Läufen (PAR-192).
-      currentWeeklySeconds: initial != null
+      currentWeeklySeconds: initial != null && !widget.newStart
           ? initial.currentWeeklySeconds
-          : _standFromRuns
+          : _standFromRuns && !widget.newStart
           ? null
           : (weekly == null ? null : weekly * 60),
-      canRun30: initial != null
+      canRun30: initial != null && !widget.newStart
           ? initial.canRun30
-          : _standFromRuns
+          : _standFromRuns && !widget.newStart
           ? ContinuousRun30.unknown
           : (weekly == null ? _can30 : ContinuousRun30.unknown),
     );
@@ -271,8 +296,9 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   Future<void> _assess() async {
     final l = AppLocalizations.of(context);
     final draft = _draft();
-    // Der Stand ist nur beim Anlegen ohne Läufe gefragt (PAR-192).
-    final problem = draft.validate(_today, null, !_editing && !_standFromRuns);
+    // Der Stand ist nur beim Anlegen ohne Läufe und beim neuen Einstieg
+    // gefragt (PAR-192, PAR-181).
+    final problem = draft.validate(_today, null, _askStand);
     if (problem != null) {
       setState(() {
         _error = _problemText(l, problem);
@@ -284,7 +310,10 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     setState(() => _busy = true);
     GoalDraftCheck? check;
     try {
-      check = await widget.controller.checkGoal(draft);
+      check = await widget.controller.checkGoal(
+        draft,
+        newStart: widget.newStart,
+      );
     } on Object {
       check = null;
     }
@@ -308,7 +337,9 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
     if (checked.check.walkRun && !await _confirmCare(l)) return;
     if (!mounted) return;
     setState(() => _busy = true);
-    final result = await widget.controller.saveGoal(checked.draft);
+    final result = widget.newStart
+        ? await widget.controller.restartAfterLongPause(checked.draft)
+        : await widget.controller.saveGoal(checked.draft);
     if (!mounted) return;
     switch (result) {
       case PlanActionResult.done:
@@ -429,7 +460,11 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
                 Semantics(
                   header: true,
                   child: Text(
-                    _editing ? l.planFormTitleEdit : l.planFormTitleNew,
+                    widget.newStart
+                        ? l.planFormTitleNewStart
+                        : _editing
+                        ? l.planFormTitleEdit
+                        : l.planFormTitleNew,
                     key: const Key('plan_form_title'),
                     style: RamuriType.of(context).pageTitle,
                   ),
@@ -660,7 +695,7 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
       SectionHeading(l.planFormStand),
       const SizedBox(height: 8),
       // Beim Ändern nur Anzeige: Der Stand bleibt (PAR-203 nennt ihn nicht).
-      if (initial != null) ...[
+      if (initial != null && !widget.newStart) ...[
         Text(
           switch ((initial.currentWeeklySeconds, initial.canRun30)) {
             (final w?, _) => l.planFormStandKeptWeekly((w / 60).round()),
@@ -677,13 +712,23 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
             color: RamuriColors.of(context).textLabel,
           ),
         ),
-      ] else if (runs != null)
+      ] else if (runs != null && !widget.newStart)
         Text(
           l.planFormStandFromRuns((runs / 60).round()),
           key: const Key('plan_form_stand_runs'),
           style: text.bodyMedium,
         )
       else ...[
+        if (widget.newStart)
+          Text(
+            _restartPossible
+                ? l.planFormStandNewStart
+                : l.planFormStandNewStartNeutral,
+            key: const Key('plan_form_stand_new_start'),
+            style: text.bodySmall?.copyWith(
+              color: RamuriColors.of(context).textLabel,
+            ),
+          ),
         _numberField(
           'plan_form_weekly',
           _weekly,

@@ -33,13 +33,17 @@ String recoveryHintText(AppLocalizations l, Hint hint) {
       n(EvidenceKey.lastIntensiveDaysAgo),
     ),
     HintCode.steepIncrease => l.recoverySteepIncrease,
-    HintCode.pause || HintCode.longPause =>
+    // Ab 8 Wochen bietet der Hinweis die Wahl des Einstiegs an (PAR-181),
+    // bis sie getroffen ist; danach keine Aussage über den Plan.
+    HintCode.longPause =>
+      hint.action == HintAction.newStart
+          ? l.recoveryLongPause(n(EvidenceKey.daysSinceTraining))
+          : l.recoveryPauseKept(n(EvidenceKey.daysSinceTraining)),
+    HintCode.pause =>
       hint.evidenceOf(EvidenceKey.planRestarted) != true
           // Der Plan blieb (z. B. Geh-Lauf-Abfolge): keine Aussage über ihn.
           ? l.recoveryPauseKept(n(EvidenceKey.daysSinceTraining))
-          : hint.code == HintCode.pause
-          ? l.recoveryPause(n(EvidenceKey.daysSinceTraining))
-          : l.recoveryLongPause(n(EvidenceKey.daysSinceTraining)),
+          : l.recoveryPause(n(EvidenceKey.daysSinceTraining)),
     HintCode.effortAbovePlan => l.recoveryEffort,
     HintCode.lowWellbeing => l.recoveryLowWellbeing,
   };
@@ -121,13 +125,22 @@ List<String> recoveryBasisLines(
 /// Ring, kein Zustand (FR-0107, PAR-184). Das Modell ist `null` ohne
 /// Auslöser; dann gibt es die Karte nicht.
 class RecoveryCardView extends StatelessWidget {
-  const RecoveryCardView({super.key, required this.card, this.onEasyRun});
+  const RecoveryCardView({
+    super.key,
+    required this.card,
+    this.onEasyRun,
+    this.onNewStart,
+  });
 
   final RecoveryCard card;
 
   /// Knopf „Locker laufen“ (nur Hinweise mit Aktion, mit heute offener
   /// Einheit); `null` ohne Knopf.
   final VoidCallback? onEasyRun;
+
+  /// Knopf „Einstieg wählen“ (Hinweis lange Pause, PAR-181); `null` ohne
+  /// Knopf.
+  final VoidCallback? onNewStart;
 
   @override
   Widget build(BuildContext context) {
@@ -170,6 +183,15 @@ class RecoveryCardView extends StatelessWidget {
                   onPressed: onEasyRun,
                   child: Text(l.recoveryEasyRun),
                 ),
+              if (onNewStart != null)
+                FilledButton(
+                  key: const Key('home_recovery_new_start'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, RamuriTheme.minTarget),
+                  ),
+                  onPressed: onNewStart,
+                  child: Text(l.recoveryNewStart),
+                ),
               TextButton(
                 key: const Key('home_recovery_basis'),
                 style: TextButton.styleFrom(
@@ -195,13 +217,20 @@ Future<void> showRecoveryBasis(BuildContext context, RecoveryCard card) {
 /// Die Belege zur heutigen Einheit (FR-0179, FR-0180): nur die geplante
 /// Einheit aus dem Plan; `null`, wenn es keine Erklärung gibt (Ruhetag, keine
 /// Einheit). Belastungswerte stehen hier nicht, weil Heute sie nicht lädt.
-List<String>? trainingBasisLines(AppLocalizations l, PlanUnit? unit) {
+List<String>? trainingBasisLines(
+  AppLocalizations l,
+  PlanUnit? unit, {
+  required bool withRuns,
+}) {
   final e = explainTrainingRecommendation(plannedUnit: unit);
   if (e == null) return null;
   final kind = PlanUnitKind.values.byName(
     e.evidenceOf(EvidenceKey.plannedKind)! as String,
   );
-  return [l.homeTodayBasisText(planKindName(l, kind))];
+  final name = planKindName(l, kind);
+  return [
+    withRuns ? l.homeTodayBasisTextRuns(name) : l.homeTodayBasisText(name),
+  ];
 }
 
 /// Dialog mit den Belegen als Zeilen.

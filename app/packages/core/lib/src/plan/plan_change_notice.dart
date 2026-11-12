@@ -74,13 +74,16 @@ class WalkRunWeekProposal {
 /// Betrachtet wird die letzte Programmwoche, deren Einheiten alle vor [today]
 /// liegen und nach der noch keine Einheit der nächsten Woche absolviert ist.
 /// [rpeByRunId]: Anstrengung je Lauf. Nur aus gespeicherten Einheiten und
-/// Läufen, `null` ohne Vorschlag.
+/// Läufen, `null` ohne Vorschlag. [from]: erster Tag der Abfolge
+/// (`walkRunFrom` der Fassung); frühere Geh-Lauf-Einheiten der Woche gehören
+/// nicht zur Abfolge und zählen nicht als [start].
 WalkRunWeekProposal? walkRunWeekProposal({
   required List<PlanUnit> units,
   required WalkRunPosition start,
   required Map<int, int> rpeByRunId,
   required DateTime today,
   WalkRunProgram? program,
+  DateTime? from,
 }) {
   final prog = program ?? walkRunProgram;
   final order = prog.orderedSessions;
@@ -90,7 +93,9 @@ WalkRunWeekProposal? walkRunWeekProposal({
   if (first < 0) return null;
   final seq = [
     for (final u in units)
-      if (u.kind == PlanUnitKind.walkRun) u,
+      if (u.kind == PlanUnitKind.walkRun &&
+          (from == null || !planDay(u.day).isBefore(planDay(from))))
+        u,
   ]..sort((a, b) => a.day.compareTo(b.day));
   final t = planDay(today);
   final byWeek = <int, List<PlanUnit>>{};

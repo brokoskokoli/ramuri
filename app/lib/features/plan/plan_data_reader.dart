@@ -130,6 +130,63 @@ class PlanDataReader {
     );
   }
 
+  /// Belege der Wochenprüfung (PAR-201) am Ortstag [today] für die Woche vor
+  /// der von [today]: Minuten aller Läufe dieser Woche (zugeordnete und
+  /// freie), die geplanten Minuten der Woche (`null` ohne gespeicherte
+  /// Einheiten), die RPE der lockeren Läufe (zugeordnet zu lockerer oder
+  /// langer Einheit, ältester zuerst, `null` ohne Angabe) und gemeldete
+  /// Ermüdung (PAR-188: Befinden 1 oder 2 beim letzten Lauf, höchstens
+  /// 3 Tage alt).
+  Future<WeekEvidence> weekEvidence(DateTime today) async {
+    final t = planDay(today);
+    final thisMonday = t.subtract(Duration(days: t.weekday - DateTime.monday));
+    final lastMonday = thisMonday.subtract(const Duration(days: 7));
+    final runs = await _runs();
+    final units = await _plans.unitsBetween(
+      DateTime.utc(1, 1, 1),
+      planFarFuture,
+    );
+    final easyIds = plannedRunIds(units).easy;
+    final subjective = await session.subjective.readAll();
+
+    var done = 0.0;
+    for (final r in runs) {
+      final d = _parseDay(r.day);
+      if (d == null || d.isBefore(lastMonday) || !d.isBefore(thisMonday)) {
+        continue;
+      }
+      final time = r.movingTime ?? r.totalTime;
+      if (time != null && time > Duration.zero) {
+        done += time.inMicroseconds / 6e7;
+      }
+    }
+    final week = [
+      for (final u in units)
+        if (!u.day.isBefore(lastMonday) && u.day.isBefore(thisMonday)) u,
+    ];
+    final byTime = [...runs]..sort((a, b) => a.endedAt.compareTo(b.endedAt));
+    final easyRpe = <int?>[
+      for (final r in byTime)
+        if (easyIds.contains(r.runId)) subjective[r.runId]?.subjective.rpe,
+    ];
+    var fatigue = false;
+    if (byTime.isNotEmpty) {
+      final last = byTime.last;
+      final day = _parseDay(last.day);
+      final w = subjective[last.runId]?.subjective.wellbeing;
+      fatigue =
+          day != null && w != null && w <= 2 && t.difference(day).inDays <= 3;
+    }
+    return WeekEvidence(
+      doneMinutes: done,
+      plannedMinutes: week.isEmpty
+          ? null
+          : week.fold<int>(0, (a, u) => a + u.minutes),
+      recentEasyRpe: easyRpe,
+      fatigueReported: fatigue,
+    );
+  }
+
   /// Langzeitwert des Tages des neuesten Laufs (wie die Statistik) und Güte
   /// nach PAR-081 mit dem letzten Lauf, der einen Wert hat.
   Future<(double?, Vo2maxGrade?)> _vo2max(DateTime today) async {
@@ -156,6 +213,21 @@ class PlanDataReader {
     );
     return (longTerm?.value, grade);
   }
+}
+
+/// Belege der Wochenprüfung ([PlanDataReader.weekEvidence]).
+class WeekEvidence {
+  const WeekEvidence({
+    required this.doneMinutes,
+    required this.plannedMinutes,
+    required this.recentEasyRpe,
+    required this.fatigueReported,
+  });
+
+  final double doneMinutes;
+  final int? plannedMinutes;
+  final List<int?> recentEasyRpe;
+  final bool fatigueReported;
 }
 
 DateTime? _parseDay(String day) {

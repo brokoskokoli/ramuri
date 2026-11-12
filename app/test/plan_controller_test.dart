@@ -822,4 +822,259 @@ void main() {
       }
     }
   });
+
+  group('Wochenprüfung PAR-201 beim Öffnen (NB4 2)', () {
+    // Plan seit Mittwoch 21.10.; geöffnet wird am Mittwoch 25.11., geprüft
+    // wird die Woche 16.-22.11. (monday(0)), die Folgewoche ist monday(1).
+    DateTime monday(int n) =>
+        DateTime.utc(2026, 11, 16).add(Duration(days: 7 * n));
+
+    Future<int> week(_Env e, DateTime from) async => [
+      for (final u in await e.plans.unitsBetween(
+        from,
+        from.add(const Duration(days: 6)),
+      ))
+        u.minutes,
+    ].fold<int>(0, (a, b) => a + b);
+
+    Future<(_Env, int)> prepare({double share = 0}) async {
+      final planned = <int>[0];
+      final runs = <RunFigures>[];
+      final e = await _Env.open(loadRuns: () async => runs);
+      e.clock.set(_day(-21));
+      await e.controller.saveGoal(_goal());
+      planned[0] = await week(e, monday(0));
+      if (share > 0) {
+        runs.add(
+          RunFigures(
+            runId: 1,
+            endedAt: monday(0).add(const Duration(days: 2, hours: 9)),
+            day: '2026-11-18',
+            movingTime: Duration(minutes: (planned[0] * share).round()),
+          ),
+        );
+      }
+      e.clock.set(_day(14));
+      return (e, planned[0]);
+    }
+
+    test('Woche ohne Läufe: beim Öffnen neue Fassung, Wochenzeit nicht höher '
+        '(wiederholen)', () async {
+      final (e, planned) = await prepare();
+      final before = await week(e, monday(1));
+      expect(before, greaterThan(planned), reason: 'sonst belegt es nichts');
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h, hasLength(2));
+      expect(h.last.trigger, PlanTrigger.weekly);
+      expect(h.last.reason, 'repeatWeek');
+      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
+      // idempotent: zweites Öffnen schreibt nichts
+      await e.controller.open();
+      expect(await e.plans.history(), hasLength(2));
+    });
+
+    test('Hälfte bis 80 %: keine Steigerung', () async {
+      final (e, planned) = await prepare(share: 0.65);
+      final before = await week(e, monday(1));
+      expect(before, greaterThan(planned), reason: 'sonst belegt es nichts');
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h, hasLength(2));
+      expect(h.last.reason, 'noIncrease');
+      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
+    });
+
+    test('mehr als 80 %: keine Änderung', () async {
+      final (e, _) = await prepare(share: 0.9);
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.length, 1);
+    });
+  });
+
+  group('Geh-Lauf wiederholen: Annahme am Donnerstag (NB5 2)', () {
+    test('die Abfolge beginnt heute, frühere Läufe bleiben und zählen nicht '
+        'als Lauf 2 und 3', () async {
+      final e = await _Env.open();
+      final monday = _day(-2); // 9.11.
+      final thursday = _day(1); // 12.11.
+      final ids = [
+        for (final ago in [3, 1]) await _finishedRun(e.session, ago),
+      ];
+      for (final id in ids) {
+        await e.session.subjective.save(id, RunSubjective(rpe: 7));
+      }
+      await e.goals.save(_goal(), today: monday);
+      final start = const WalkRunPosition(4);
+      await e.plans.writeVersion(
+        PlanVersionDraft(
+          createdAt: monday,
+          validFrom: monday,
+          trigger: PlanTrigger.create,
+          reason: 'create',
+          version: const PlanVersion(),
+          inputs: PlanInputs.forNewGoal(_goal(), monday).copyWith(
+            walkRunStart: start,
+            walkRunFrom: monday,
+            walkRunWeeks: 8,
+            startWeeklyMinutes: 90,
+          ),
+          summary: const {},
+          units: [
+            for (final d in [monday, _day(0), _day(2)])
+              PlanUnit(
+                day: d,
+                kind: PlanUnitKind.walkRun,
+                phase: PlanPhase.build,
+                weekIndex: 4,
+                minutes: 30,
+                segments: const [],
+              ),
+          ],
+          readState: planUnitsFingerprint(const []),
+        ),
+      );
+      final units = await e.plans.unitsBetween(monday, _day(2));
+      await e.plans.assignRun(units[0].id!, ids[0]);
+      await e.plans.assignRun(units[1].id!, ids[1]);
+
+      e.clock.set(thursday.add(const Duration(hours: 12)));
+      await e.controller.open();
+      final proposal = e.controller.state.walkRunProposal;
+      expect(proposal?.suggestion.position, const WalkRunPosition(4, 1));
+
+      final opened = (await e.plans.history()).length;
+      await e.controller.acceptWalkRunRepeat();
+      final h = await e.plans.history();
+      expect(h, hasLength(opened + 1));
+      expect(h.last.inputs.walkRunFrom, thursday);
+      expect(h.last.inputs.walkRunStart, const WalkRunPosition(4, 1));
+      // Mo und Mi bleiben, ab Donnerstag kommen die Läufe 2 und 3.
+      final all = await e.plans.unitsBetween(monday, _day(8));
+      final days = [for (final u in all) u.day];
+      expect(days.take(2), [monday, _day(0)]);
+      expect(days.skip(2).every((d) => !d.isBefore(thursday)), isTrue);
+      expect(days.length, greaterThanOrEqualTo(4));
+      // Kein sofortiger neuer Vorschlag: die früheren Läufe zählen nicht.
+      expect(e.controller.state.walkRunProposal, isNull);
+    });
+  });
+
+  group('Öffnen: Pausenregel vor Wochenprüfung (NB6)', () {
+    Future<_Env> prepared(int pauseDays) async {
+      final e = await _Env.open();
+      e.clock.set(_day(-80));
+      await e.controller.saveGoal(_goal());
+      e.clock.set(_now);
+      await _finishedRun(e.session, pauseDays);
+      // Basiswoche vor der Pause (volle Kalenderwoche, 2 Läufe zu 60 min).
+      await _finishedRun(e.session, pauseDays + 7);
+      await _finishedRun(e.session, pauseDays + 8);
+      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      // Wochenprüfung fällig (frühere Kalenderwoche), diese Woche ohne Läufe.
+      await e.session.settings.set(planLastCheckDayKey, '2026-11-02', at: _now);
+      return e;
+    }
+
+    test(
+      'Pause 10 Tage: genau eine Fassung (pause), 80 % der Basiswoche, '
+      'keine harte Einheit; die Wochenprüfung schreibt keine zweite',
+      () async {
+        final e = await prepared(10);
+        final before = (await e.plans.history()).length;
+        final q = await HintService(
+          session: e.session,
+          clock: e.clock,
+        ).pauseRestartDue();
+        expect(q, isNotNull);
+        expect(q!.baseWeekMinutes, greaterThan(0));
+        await e.controller.open();
+        final h = await e.plans.history();
+        expect(h.length, before + 1);
+        expect(h.last.trigger, PlanTrigger.pause);
+        expect(h.last.inputs.noHardUntil, isNotNull);
+        expect(
+          h.last.inputs.startWeeklyMinutes,
+          (q.baseWeekMinutes * 0.8).round(),
+        );
+        expect(h.last.inputs.anchor, DateTime.utc(2026, 11, 9));
+        // Zweites Öffnen: weiterhin nichts Neues.
+        await e.controller.open();
+        expect((await e.plans.history()).length, before + 1);
+      },
+    );
+
+    test('ohne Pause greift die Wochenprüfung wie bisher', () async {
+      final e = await prepared(2);
+      final before = (await e.plans.history()).length;
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.length, before + 1);
+      expect(h.last.trigger, PlanTrigger.weekly);
+    });
+  });
+
+  group('Neuer Einstieg: Neustart möglich (NB5 5)', () {
+    Future<bool> possible(DateTime target) async {
+      final e = await _Env.open();
+      e.clock.set(_day(-80));
+      expect(
+        await e.controller.saveGoal(_goal(target: target)),
+        PlanActionResult.done,
+      );
+      e.clock.set(_now);
+      await _finishedRun(e.session, 70);
+      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      return e.controller.newStartPossible();
+    }
+
+    test(
+      'ja bei langer Pause und weitem Termin, nein kurz vor dem Termin',
+      () async {
+        expect(await possible(DateTime.utc(2027, 6, 1)), isTrue);
+        expect(await possible(DateTime.utc(2026, 11, 14)), isFalse);
+      },
+    );
+
+    test('nein ohne anstehenden Einstieg (keine lange Pause)', () async {
+      final e = await _Env.open();
+      e.clock.set(_day(-80));
+      await e.controller.saveGoal(_goal());
+      e.clock.set(_now);
+      await _finishedRun(e.session, 20);
+      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      expect(await e.controller.newStartPossible(), isFalse);
+    });
+
+    test('Einschätzung des neuen Einstiegs rechnet mit dem neuen Stand, auch '
+        'nach der vorläufigen Vorgabe', () async {
+      final e = await _Env.open();
+      e.clock.set(_day(-80));
+      await e.controller.saveGoal(_goal());
+      e.clock.set(_now);
+      await _finishedRun(e.session, 70);
+      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      // Die wöchentliche Prüfung gilt als erledigt (sonst käme ihre Fassung
+      // mit dem Anker dieser Woche zuerst und der Neustart entfiele).
+      await e.session.settings.set(planLastCheckDayKey, '2026-11-11', at: _now);
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.map((r) => r.trigger), contains(PlanTrigger.pause));
+      // Neuer Stand: nicht 30 min am Stück -> Geh-Lauf-Abfolge im Neustart.
+      final draft = TrainingGoal(
+        type: GoalType.distance,
+        distance: GoalDistance.tenKilometers,
+        targetDate: DateTime.utc(2027, 6, 1),
+        runDays: const {2, 4, 6},
+        maxSessionSeconds: 7200,
+        weeklyCapSeconds: 240 * 60.0,
+        createdAt: DateTime.utc(2026, 11, 1),
+        hardSessionEnabled: true,
+        canRun30: ContinuousRun30.no,
+      );
+      final check = await e.controller.checkGoal(draft, newStart: true);
+      expect(check.walkRun, isTrue);
+    });
+  });
 }

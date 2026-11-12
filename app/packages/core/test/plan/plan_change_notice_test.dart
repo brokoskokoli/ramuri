@@ -213,5 +213,37 @@ void main() {
       expect(p.suggestion.position, const WalkRunPosition(4, 1));
       expect(p.lastDay, _d(2));
     });
+
+    test('vor walkRunFrom gelaufene Läufe zählen nicht als Lauf 2 und 3 '
+        '(Annahme am Do)', () {
+      final start = const WalkRunPosition(4, 1);
+      final from = _d(5);
+      WalkRunWeekProposal? at(int today, List<PlanUnit> u, Map<int, int> rpe) =>
+          walkRunWeekProposal(
+            units: u,
+            start: start,
+            from: from,
+            rpeByRunId: rpe,
+            today: _d(today),
+          );
+      // Mo und Mi gelaufen (RPE 7), Fr steht als Lauf 2 aus.
+      final before = [
+        _unit(2, PlanUnitKind.walkRun, 30, runId: 1),
+        _unit(4, PlanUnitKind.walkRun, 30, runId: 2),
+        _unit(6, PlanUnitKind.walkRun, 30),
+        _unit(8, PlanUnitKind.walkRun, 30),
+      ];
+      expect(at(5, before, {1: 7, 2: 7}), isNull);
+      // Der wiederholte Lauf 2 (Fr) ist wieder schwer: erneuter Vorschlag.
+      final after = [
+        before[0],
+        before[1],
+        _unit(6, PlanUnitKind.walkRun, 30, runId: 3),
+        before[3],
+      ];
+      final p = at(7, after, {1: 7, 2: 7, 3: 7})!;
+      expect(p.suggestion.position, const WalkRunPosition(4, 1));
+      expect(p.lastDay, _d(6));
+    });
   });
 }

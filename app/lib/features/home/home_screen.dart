@@ -235,68 +235,73 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// Karten über der Startkarte: Hinweis „Erholung“ (nur mit Auslöser),
   /// Pausenfrage, Erinnerung unter Warnsignal und „Plan angepasst“.
-  Widget _cards(BuildContext context, PlanViewState s) =>
-      FutureBuilder<HomeHints>(
-        future: _hints,
-        builder: (context, snap) {
-          final hints = snap.data;
-          final ready = s.phase == PlanLoadPhase.ready;
-          final unit = ready && s.hasPlan ? _unitToday(s) : null;
-          final canEasy =
-              unit != null &&
-              unit.id != null &&
-              unit.kind != PlanUnitKind.rest &&
-              unit.kind != PlanUnitKind.easy &&
-              unit.runId == null;
-          final card = hints?.card;
-          final pause = hints?.pause;
-          final notice = ready ? s.changeNotice : null;
-          final reminder = ready && s.warning != null && s.warningReminderDue
-              ? planDay(_date(_today))
-                    .difference(planDay(s.warning!.reportedOn))
-                    .inDays
-              : null;
-          final children = <Widget>[
-            if (card != null)
-              RecoveryCardView(
-                card: card,
-                onEasyRun:
-                    card.action == HintAction.easyRun && canEasy && !_busy
-                    ? () => _easyRun(unit)
-                    : null,
-              ),
-            if (pause != null)
-              PauseQuestionCard(
-                question: pause,
-                onAnswer: _busy ? null : _answerPause,
-              ),
-            if (reminder != null)
-              WarningReminderCard(
-                days: reminder,
-                onLift: _busy ? null : _liftWarning,
-              ),
-            if (notice != null)
-              PlanChangeCard(
-                notice: notice,
-                onSeen: _busy ? null : () => _seeChange(notice),
-                onHistory: _openHistory,
-              ),
-          ];
-          if (children.isEmpty) return const SizedBox.shrink();
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < children.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 10),
-                  children[i],
-                ],
-              ],
-            ),
-          );
-        },
+  Widget _cards(
+    BuildContext context,
+    PlanViewState s,
+  ) => FutureBuilder<HomeHints>(
+    future: _hints,
+    builder: (context, snap) {
+      final hints = snap.data;
+      final ready = s.phase == PlanLoadPhase.ready;
+      final unit = ready && s.hasPlan ? _unitToday(s) : null;
+      final canEasy =
+          unit != null &&
+          unit.id != null &&
+          unit.kind != PlanUnitKind.rest &&
+          unit.kind != PlanUnitKind.easy &&
+          unit.runId == null;
+      final card = hints?.card;
+      final pause = hints?.pause;
+      final notice = ready ? s.changeNotice : null;
+      final reminder = ready && s.warning != null && s.warningReminderDue
+          ? planDay(_date(_today))
+                .difference(planDay(s.warning!.reportedOn))
+                .inDays
+          : null;
+      final children = <Widget>[
+        if (card != null)
+          RecoveryCardView(
+            card: card,
+            onEasyRun: card.action == HintAction.easyRun && canEasy && !_busy
+                ? () => _easyRun(unit)
+                : null,
+            onNewStart:
+                card.action == HintAction.newStart && s.goal != null && !_busy
+                ? () => _newStart(s.goal!)
+                : null,
+          ),
+        if (pause != null)
+          PauseQuestionCard(
+            question: pause,
+            onAnswer: _busy ? null : _answerPause,
+          ),
+        if (reminder != null)
+          WarningReminderCard(
+            days: reminder,
+            onLift: _busy ? null : _liftWarning,
+          ),
+        if (notice != null)
+          PlanChangeCard(
+            notice: notice,
+            onSeen: _busy ? null : () => _seeChange(notice),
+            onHistory: _openHistory,
+          ),
+      ];
+      if (children.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              children[i],
+            ],
+          ],
+        ),
       );
+    },
+  );
 
   /// Heutiger Ortstag nach dem Versatz der Uhr (wie in der Statistik).
   String get _today {
@@ -324,6 +329,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     sensors: widget.sensors,
     changes: widget.changes,
   ).start(context, unit: unit);
+
+  /// Gingen erfasste Läufe in die Fassung ein (Pace, Wochenzeit)? Nur dann
+  /// nennt „Worauf beruht das?“ sie.
+  bool _planUsesRuns(PlanViewState s) {
+    final i = s.version?.inputs;
+    return i != null && (i.easyRunCount > 0 || i.lastWeekMinutes != null);
+  }
+
+  /// Neuer Einstieg nach langer Pause (PAR-181): das Zielformular fragt den
+  /// Stand neu (PAR-192); Speichern startet den Plan neu.
+  Future<void> _newStart(TrainingGoal goal) async {
+    if (_busy) return;
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    final result = await Navigator.of(context, rootNavigator: true)
+        .push<PlanActionResult>(
+          MaterialPageRoute(
+            builder: (_) => PlanGoalFormScreen(
+              controller: _plan,
+              session: widget.session,
+              clock: widget.clock,
+              initial: goal,
+              newStart: true,
+            ),
+          ),
+        );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    await _plan.reload();
+    _reloadHints();
+    if (result == null) return;
+    widget.changes.changed();
+    messenger.showSnackBar(
+      SnackBar(
+        key: const Key('home_new_start_saved'),
+        content: Text(
+          result == PlanActionResult.savedNotPlanned
+              ? l.planGoalSavedNotPlanned
+              : l.planGoalSaved,
+        ),
+      ),
+    );
+  }
 
   /// Zielformular aus Teil C (Anlegen); danach lädt der Plan neu.
   Future<void> _createGoal(BuildContext context) async {
@@ -558,7 +607,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   key: const Key('home_today_basis'),
                   style: t.bodySmall?.copyWith(color: c.textMuted),
                 ),
-              if (trainingBasisLines(l, unit) case final lines?)
+              if (trainingBasisLines(l, unit, withRuns: _planUsesRuns(s))
+                  case final lines?)
                 Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: TextButton(

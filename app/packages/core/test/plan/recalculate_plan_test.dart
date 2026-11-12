@@ -1205,4 +1205,53 @@ void main() {
       },
     );
   });
+
+  group(
+    'Anker in der nächsten Woche lässt die laufende Woche stehen (NB4)',
+    () {
+      // Plan ab Montag 9.11. (Di/Do/Sa); Antwort am Donnerstag der 4. Woche.
+      Future<(_Env, List<PlanUnit>)> prepare() async {
+        final e = await _Env.open();
+        await e.goals.save(_goal(), today: _goal().createdAt);
+        await e.run(PlanTrigger.create, -2);
+        final today = _day(22); // Donnerstag
+        final before = (await _all(e.plans))
+            .where((u) => !u.day.isBefore(today) && u.day.isBefore(_day(26)))
+            .toList();
+        return (e, before);
+      }
+
+      test(
+        'zu schwer am Donnerstag: offene Einheiten der Woche bleiben',
+        () async {
+          final (e, before) = await prepare();
+          expect(before.length, 2, reason: 'Do und Sa');
+          final goal = (await e.plans.currentGoal())!;
+          final last = (await e.plans.history()).last;
+          final r = applyPlanFeedback(
+            goal: goal,
+            inputs: last.inputs.copyWith(today: _day(22)),
+            answer: PlanFeedback.tooHard,
+            today: _day(22),
+          );
+          expect(r.inputs, isNotNull);
+          final w = await recalculatePlan(
+            plans: e.plans,
+            settings: e.settings,
+            trigger: PlanTrigger.feedback,
+            today: _day(22),
+            now: _now(22),
+            inputs: r.inputs,
+          );
+          expect(w.wasWritten, isTrue);
+          final after = (await _all(e.plans))
+              .where(
+                (u) => !u.day.isBefore(_day(22)) && u.day.isBefore(_day(26)),
+              )
+              .toList();
+          expect(after.map(_sig).toList(), before.map(_sig).toList());
+        },
+      );
+    },
+  );
 }

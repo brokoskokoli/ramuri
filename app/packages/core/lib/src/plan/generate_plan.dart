@@ -332,7 +332,13 @@ GeneratedPlan generatePlan(
       // Lauftagen) zählen mit. Die Abfolge ist schon um die eingefrorenen
       // Einheiten vorgerückt: Es bleiben die noch fehlenden, also die letzten
       // der Woche (etwa der Dauerlauf in Woche 5); die ersten entfallen.
-      final allowed = walkPlan.units.length - frozenWeek.length;
+      // Einheiten vor dem Start der Abfolge ([PlanInputs.walkRunFrom], etwa
+      // nach „Lauf wiederholen“ mitten in der Woche) gehören nicht zu ihr.
+      final from = inputs.walkRunFrom;
+      final inSequence = frozenWeek
+          .where((u) => from == null || !planDay(u.day).isBefore(from))
+          .length;
+      final allowed = walkPlan.units.length - inSequence;
       if (future.length > allowed) {
         final keep = allowed < 0 ? 0 : allowed;
         final cut = future.length - keep;

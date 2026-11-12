@@ -3,7 +3,10 @@ import 'dart:typed_data';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/home/home_recovery.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
+import 'package:running_app/features/plan/plan_goal_form.dart';
+import 'package:running_app/l10n/app_localizations_de.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 
 import 'app_harness.dart';
@@ -20,18 +23,20 @@ final Uint8List _appKey = Uint8List.fromList(List.filled(32, 7));
 final _now = DateTime.utc(2026, 11, 11, 12);
 final _created = DateTime.utc(2026, 11, 2, 12); // Montag der Vorwoche
 
-TrainingGoal _goal([ContinuousRun30 canRun30 = ContinuousRun30.yes]) =>
-    TrainingGoal(
-      type: GoalType.distance,
-      distance: GoalDistance.tenKilometers,
-      targetDate: DateTime.utc(2027, 3, 14),
-      runDays: const {1, 3, 5},
-      maxSessionSeconds: 7200,
-      weeklyCapSeconds: 240 * 60.0,
-      createdAt: DateTime.utc(2026, 11, 1),
-      hardSessionEnabled: false,
-      canRun30: canRun30,
-    );
+TrainingGoal _goal([
+  ContinuousRun30 canRun30 = ContinuousRun30.yes,
+  DateTime? target,
+]) => TrainingGoal(
+  type: GoalType.distance,
+  distance: GoalDistance.tenKilometers,
+  targetDate: target ?? DateTime.utc(2027, 3, 14),
+  runDays: const {1, 3, 5},
+  maxSessionSeconds: 7200,
+  weeklyCapSeconds: 240 * 60.0,
+  createdAt: DateTime.utc(2026, 11, 1),
+  hardSessionEnabled: false,
+  canRun30: canRun30,
+);
 
 PlanController _controller(Device d, StorageSession s) => PlanController(
   session: s,
@@ -51,13 +56,15 @@ Future<StorageSession> _preopen(
   bool plan = true,
   bool checked = true,
   ContinuousRun30 canRun30 = ContinuousRun30.yes,
+  DateTime? target,
+  DateTime? createdAt,
 }) async {
-  d.clock.set(_created);
+  d.clock.set(createdAt ?? _created);
   final s = await d.storage.open(_appKey);
   await s.settings.set(SettingKeys.setupDone, '1', at: DateTime.utc(2026));
   if (plan) {
     final c = _controller(d, s);
-    expect(await c.saveGoal(_goal(canRun30)), PlanActionResult.done);
+    expect(await c.saveGoal(_goal(canRun30, target)), PlanActionResult.done);
     c.dispose();
   }
   d.clock.set(_now);
@@ -297,6 +304,114 @@ void main() {
     );
 
     testWidgets(
+      'lange Pause (PAR-181): vorläufig Stufe 2 statt altem Plan, Wortlaut der '
+      'Spezifikation, Knopf zur Wahl; die Wahl ersetzt die Vorgabe',
+      (tester) async {
+        final d = Device();
+        final s = await _preopen(d);
+        await _run(s, 70, minutes: 30);
+        await LoadSettings.saveAllRecorded(s.settings, true, at: _now);
+        final before = (await _history(s)).length;
+        await d.start(tester, const Locale('de'));
+        // Sichere Vorgabe bis zur Wahl: Stufe 2 (2 Wochen ohne harte Einheit).
+        var h = await _history(s);
+        expect(h.length, before + 1);
+        expect(h.last.trigger, PlanTrigger.pause);
+        final noHard = h.last.inputs.noHardUntil!;
+        expect(noHard.difference(h.last.inputs.anchor).inDays, 13);
+        expect(
+          text('home_recovery_text'),
+          'Dein letztes erfasstes Training liegt 70 Tage zurück. '
+          'Wir schlagen dir einen neuen Einstieg vor. '
+          'Du kannst dabei wählen, wie du startest.',
+        );
+        expect(
+          tester.getSize(key('home_recovery_new_start')).height,
+          greaterThanOrEqualTo(48),
+        );
+        // Doppeltipp öffnet das Formular nur einmal.
+        final open = tester
+            .widget<RecoveryCardView>(find.byType(RecoveryCardView))
+            .onNewStart!;
+        open();
+        open();
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(PlanGoalFormScreen, skipOffstage: false),
+          findsOneWidget,
+        );
+        expect(text('plan_form_title'), 'Neuer Einstieg');
+        expect(
+          text('plan_form_stand_new_start'),
+          'Nach der langen Pause: Wie ist dein heutiger Stand? '
+          'Der Plan beginnt damit neu.',
+        );
+        // Der Stand wird neu gefragt, nicht übernommen.
+        expect(key('plan_form_weekly'), findsOneWidget);
+        expect(
+          tester.widget<TextField>(key('plan_form_weekly')).controller!.text,
+          isEmpty,
+        );
+        await tester.enterText(key('plan_form_weekly'), '75');
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(key('plan_form_check'));
+        await tester.tap(key('plan_form_check'));
+        await _pumpSettle(tester);
+        await tester.ensureVisible(key('plan_form_save'));
+        await tester.tap(key('plan_form_save'));
+        await _pumpSettle(tester);
+        h = await _history(s);
+        expect(h.length, before + 2);
+        expect(h.last.trigger, PlanTrigger.goalChange);
+        expect(h.last.inputs.startWeeklyMinutes, 75);
+        // Die Wahl ersetzt die Vorgabe: keine Sperre für harte Einheiten mehr.
+        expect(h.last.inputs.noHardUntil, isNull);
+        final goal = (await (s as GoalStorage).goals.goal())!;
+        expect(goal.currentWeeklySeconds, 75 * 60);
+        // Gewählt: kein Knopf mehr, keine Aussage über den Plan.
+        expect(key('home_recovery_new_start'), findsNothing);
+        expect(
+          text('home_recovery_text'),
+          'Dein letztes erfasstes Training liegt 70 Tage zurück. '
+          'Starte ruhig und hole Ausgefallenes nicht nach.',
+        );
+      },
+    );
+
+    testWidgets(
+      'neuer Einstieg ohne möglichen Neustart (Plan beginnt in dieser Woche): '
+      'der Text zum Stand sagt nichts über den Plan',
+      (tester) async {
+        final d = Device();
+        final s = await _preopen(d, createdAt: _now);
+        await _run(s, 70, minutes: 30);
+        await LoadSettings.saveAllRecorded(s.settings, true, at: _now);
+        await d.start(tester, const Locale('de'));
+        await tester.tap(key('home_recovery_new_start'));
+        await tester.pumpAndSettle();
+        expect(
+          text('plan_form_stand_new_start'),
+          'Nach der langen Pause: Wie ist dein heutiger Stand?',
+        );
+      },
+    );
+
+    testWidgets('lange Pause: „Ja“ der Pausenfrage setzt die vorläufige '
+        'Vorgabe, der Einstieg bleibt wählbar', (tester) async {
+      final d = Device();
+      final s = await _preopen(d);
+      await _run(s, 70, minutes: 30);
+      final before = (await _history(s)).length;
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('home_pause_yes'));
+      await _pumpSettle(tester);
+      final h = await _history(s);
+      expect(h.length, before + 1);
+      expect(h.last.trigger, PlanTrigger.pause);
+      expect(key('home_recovery_new_start'), findsOneWidget);
+    });
+
+    testWidgets(
       '„Locker laufen“ ersetzt die heutige Einheit nach Bestätigung',
       (tester) async {
         final d = Device();
@@ -365,11 +480,33 @@ void main() {
         allOf(
           startsWith('Die Einheit „'),
           contains('steht für heute in deinem Plan'),
+          // Keine Läufe in der Fassung: sie werden nicht genannt.
+          isNot(contains('erfassten Läufen')),
         ),
       );
       await tester.tap(key('home_recovery_basis_close'));
       await tester.pumpAndSettle();
       expect(key('home_recovery_basis_dialog'), findsNothing);
+    });
+
+    test('mit Läufen in der Fassung nennt der Text sie', () {
+      final unit = PlanUnit(
+        day: DateTime.utc(2026, 11, 11),
+        kind: PlanUnitKind.easy,
+        phase: PlanPhase.build,
+        weekIndex: 0,
+        minutes: 30,
+        segments: const [],
+      );
+      final l = AppLocalizationsDe();
+      expect(
+        trainingBasisLines(l, unit, withRuns: true)!.single,
+        contains('erfassten Läufen'),
+      );
+      expect(
+        trainingBasisLines(l, unit, withRuns: false)!.single,
+        isNot(contains('Läufen')),
+      );
     });
 
     testWidgets('ohne Plan kein Einstieg', (tester) async {

@@ -307,6 +307,69 @@ void main() {
       expect(run(56).kind, PauseRestartKind.newStart);
     });
 
+    test(
+      'ab 8 Wochen vorläufig: Stufe 2 (50 %, 2 Wochen ohne harte Einheit)',
+      () {
+        PauseRestart prov(int gap) => planPauseRestart(
+          goal: g,
+          inputs: i,
+          today: today,
+          lastTrainingDay: today.subtract(Duration(days: gap)),
+          baseWeekMinutes: 100,
+          provisional: true,
+        );
+        for (final gap in [56, 120]) {
+          final r = prov(gap);
+          expect(r.kind, PauseRestartKind.long);
+          expect(r.inputs!.startWeeklyMinutes, 50);
+          expect(r.inputs!.anchor, today);
+          expect(r.inputs!.noHardUntil, today.add(const Duration(days: 13)));
+        }
+        // Unter 8 Wochen ändert der Schalter nichts.
+        expect(prov(30).kind, PauseRestartKind.long);
+        expect(prov(10).kind, PauseRestartKind.short);
+      },
+    );
+
+    test('gewählter Einstieg ersetzt die vorläufige Vorgabe der laufenden '
+        'Woche, ohne Kappung auf deren Minuten', () {
+      final p = planPauseRestart(
+        goal: g,
+        inputs: i,
+        today: today,
+        lastTrainingDay: today.subtract(const Duration(days: 60)),
+        baseWeekMinutes: 100,
+        provisional: true,
+      ).inputs!;
+      // Die vorläufige Fassung gilt schon in dieser Woche: ein weiterer
+      // Neustart wäre sonst `none`.
+      expect(
+        planPauseRestart(
+          goal: g,
+          inputs: p,
+          today: today,
+          lastTrainingDay: today.subtract(const Duration(days: 60)),
+          baseWeekMinutes: 100,
+        ).kind,
+        PauseRestartKind.none,
+      );
+      final low = p.copyWith(startWeeklyMinutes: 5);
+      final r = planPauseRestart(
+        goal: g,
+        inputs: low,
+        today: today,
+        lastTrainingDay: today.subtract(const Duration(days: 60)),
+        baseWeekMinutes: 100,
+        replacesProvisional: true,
+      );
+      expect(r.kind, PauseRestartKind.newStart);
+      expect(r.inputs!.noHardUntil, isNull);
+      expect(
+        r.inputs!.startWeeklyMinutes,
+        PlanInputs.forNewGoal(g, today).startWeeklyMinutes,
+      );
+    });
+
     test('80 % bzw. 50 % der gelaufenen Woche, keine harte Einheit '
         '1 bzw. 2 Wochen', () {
       final s = run(10).inputs!;
@@ -556,6 +619,79 @@ void main() {
         plan.units.firstWhere((u) => u.kind == PlanUnitKind.walkRun).day,
         isNot(isNull),
       );
+    });
+  });
+
+  group('PAR-140 Annahme mitten in der Woche', () {
+    // Woche 5 (Index 4), Lauftage Mo/Mi/Fr, Lauf 2 am Mittwoch gelaufen,
+    // Annahme am Donnerstag: Lauf 2 liegt wieder auf dem Freitag.
+    final g = _goal(canRun30: ContinuousRun30.no, days: {1, 3, 5});
+    final base = PlanInputs.forNewGoal(g, _m0).copyWith(
+      walkRunStart: const WalkRunPosition(4),
+      walkRunFrom: _m0,
+      anchor: _m0,
+    );
+    final thu = _m0.add(const Duration(days: 3));
+    final fri = _m0.add(const Duration(days: 4));
+
+    PlanUnit unit(GeneratedPlan p, DateTime day) =>
+        p.allUnits.firstWhere((u) => u.day == day);
+
+    List<int> shape(PlanUnit u) => [
+      u.minutes,
+      for (final s in u.segments) s.minutes,
+    ];
+
+    test('Lauf 2 wiederholen: der erste künftige Tag trägt Lauf 2', () {
+      final p0 = generatePlan(g, base, const [], _m0);
+      final lauf2 = unit(p0, _m0.add(const Duration(days: 2)));
+      final frozen = [
+        for (final u in p0.units)
+          if (u.day.isBefore(thu)) u,
+      ];
+      final n = applyWalkRunRepeat(
+        base,
+        const WalkRunRepeatSuggestion(
+          WalkRunRepeatScope.session,
+          WalkRunPosition(4, 1),
+        ),
+        from: thu,
+      ).copyWith(today: thu);
+      final p1 = generatePlan(g, n, frozen, thu);
+      expect(p1.units.first.day, fri);
+      expect(shape(p1.units.first), shape(lauf2));
+      // Danach geht die Abfolge mit Lauf 3 weiter.
+      expect(
+        shape(p1.units[1]),
+        shape(unit(p0, _m0.add(const Duration(days: 4)))),
+      );
+    });
+
+    test('erster Tag: heute, nach einem Lauf von heute erst morgen', () {
+      final wed = _m0.add(const Duration(days: 2));
+      expect(walkRunRepeatFrom(thu, wed), thu);
+      expect(walkRunRepeatFrom(thu, thu), fri);
+    });
+
+    test('Woche wiederholen: ab dem ersten künftigen Tag, nichts davor', () {
+      final p0 = generatePlan(g, base, const [], _m0);
+      final lauf1 = unit(p0, _m0);
+      final frozen = [
+        for (final u in p0.units)
+          if (u.day.isBefore(thu)) u,
+      ];
+      final n = applyWalkRunRepeat(
+        base,
+        const WalkRunRepeatSuggestion(
+          WalkRunRepeatScope.week,
+          WalkRunPosition(4),
+        ),
+        from: thu,
+      ).copyWith(today: thu);
+      final p1 = generatePlan(g, n, frozen, thu);
+      expect(p1.units.first.day, fri);
+      expect(shape(p1.units.first), shape(lauf1));
+      expect(p1.units.where((u) => u.day.isBefore(thu)), isEmpty);
     });
   });
 

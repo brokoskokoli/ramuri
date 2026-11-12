@@ -243,7 +243,12 @@ DateTime pauseBaseWeek(DateTime lastTrainingDay) =>
 /// 7 bis 13 Tage: 80 % von [baseWeekMinutes] ab dieser Woche, keine harte
 /// Einheit in dieser Woche. 14 bis 55 Tage: 50 %, 2 Wochen ohne harte
 /// Einheit. Ab 56 Tagen: neuer Start nach PAR-192 ([PlanInputs.forNewGoal],
-/// mit Tempo und Intensitätsgrundlage der alten Eingaben). Alle Stufen: nie
+/// mit Tempo und Intensitätsgrundlage der alten Eingaben). Mit [provisional]
+/// gilt ab 56 Tagen vorläufig die Stufe 14 bis 55 Tage (sichere Vorgabe bis
+/// der Nutzer den Einstieg wählt, PAR-181), Art [PauseRestartKind.long].
+/// Mit [replacesProvisional] ersetzt der neue Start (gewählter Einstieg) eine
+/// solche vorläufige Fassung: ohne Prüfung der laufenden Woche und ohne die
+/// Kappung auf die Minuten der vorläufigen Woche. Alle Stufen: nie
 /// höher als der bisherige Plan dieser Woche und nie über dem Regler; die
 /// Zählung nach PAR-194 beginnt neu. In der Geh-Lauf-Abfolge, in der
 /// Reduktion vor dem Termin und wenn der Neustart in dieser Woche schon
@@ -255,11 +260,20 @@ PauseRestart planPauseRestart({
   required DateTime lastTrainingDay,
   required double baseWeekMinutes,
   PlanParameters parameters = const PlanParameters(),
+  bool provisional = false,
+  bool replacesProvisional = false,
 }) {
   final p = parameters;
   final t = planDay(today);
   final gap = t.difference(planDay(lastTrainingDay)).inDays;
   if (gap < p.pauseMinDays) return const PauseRestart(PauseRestartKind.none);
+  final restartsFresh = gap >= p.pauseNewStartDays && !provisional;
+  if (restartsFresh && replacesProvisional) {
+    return PauseRestart(
+      PauseRestartKind.newStart,
+      _freshStart(goal, inputs, t, p, cap: null),
+    );
+  }
   final monday = _monday(t);
   if (!inputs.anchor.isBefore(monday)) {
     return const PauseRestart(PauseRestartKind.none);
@@ -269,24 +283,10 @@ PauseRestart planPauseRestart({
   if (week == null || !_adjustable(week)) {
     return const PauseRestart(PauseRestartKind.none);
   }
-  if (gap >= p.pauseNewStartDays) {
-    final fresh = PlanInputs.forNewGoal(goal, t, parameters: p);
-    var start = fresh.startWeeklyMinutes;
-    if (start > week.minutes!) start = week.minutes!;
-    if (start < 1) start = 1;
+  if (restartsFresh) {
     return PauseRestart(
       PauseRestartKind.newStart,
-      PlanInputs(
-        anchor: fresh.anchor,
-        startWeeklyMinutes: start,
-        today: t,
-        walkRunWeeks: fresh.walkRunWeeks,
-        walkRunStart: fresh.walkRunStart,
-        walkRunFrom: fresh.walkRunFrom,
-        easyPaceSecondsPerKm: inputs.easyPaceSecondsPerKm,
-        easyRunCount: inputs.easyRunCount,
-        intensity: inputs.intensity,
-      ),
+      _freshStart(goal, inputs, t, p, cap: week.minutes!),
     );
   }
   final long = gap >= p.pauseLongDays;
@@ -313,6 +313,32 @@ PauseRestart planPauseRestart({
   return PauseRestart(
     long ? PauseRestartKind.long : PauseRestartKind.short,
     out,
+  );
+}
+
+/// Eingaben des neuen Starts nach PAR-192 mit Tempo und Intensitätsgrundlage
+/// der alten [inputs]; [cap]: höchstens die Minuten des bisherigen Plans.
+PlanInputs _freshStart(
+  TrainingGoal goal,
+  PlanInputs inputs,
+  DateTime t,
+  PlanParameters p, {
+  required int? cap,
+}) {
+  final fresh = PlanInputs.forNewGoal(goal, t, parameters: p);
+  var start = fresh.startWeeklyMinutes;
+  if (cap != null && start > cap) start = cap;
+  if (start < 1) start = 1;
+  return PlanInputs(
+    anchor: fresh.anchor,
+    startWeeklyMinutes: start,
+    today: t,
+    walkRunWeeks: fresh.walkRunWeeks,
+    walkRunStart: fresh.walkRunStart,
+    walkRunFrom: fresh.walkRunFrom,
+    easyPaceSecondsPerKm: inputs.easyPaceSecondsPerKm,
+    easyRunCount: inputs.easyRunCount,
+    intensity: inputs.intensity,
   );
 }
 
@@ -356,8 +382,18 @@ PlanInputs _reanchor(
   );
 }
 
+/// Erster Tag, an dem nach Annahme von „Wiederholen“ (PAR-140) die Abfolge
+/// geplant wird: heute, nach einem Lauf von heute ([lastDay]) erst morgen.
+DateTime walkRunRepeatFrom(DateTime today, DateTime lastDay) {
+  final t = planDay(today);
+  final next = planDay(lastDay).add(const Duration(days: 1));
+  return next.isAfter(t) ? next : t;
+}
+
 /// Wendet einen angenommenen Vorschlag nach PAR-140 an: die Abfolge beginnt
-/// ab dem Montag [from] wieder an der Stelle von [suggestion] (neuer Anker).
+/// ab dem Tag [from] (dem ersten Tag, an dem noch geplant wird) wieder an der
+/// Stelle von [suggestion]. Der Anker ist der Montag dieser Woche, Lauftage
+/// davor gehören nicht mehr zur Abfolge.
 /// PAR-194 zählt erst nach der Abfolge, die Wochenzeit danach bleibt wie in
 /// den Eingaben.
 PlanInputs applyWalkRunRepeat(
@@ -372,7 +408,7 @@ PlanInputs applyWalkRunRepeat(
     today: inputs.today,
     walkRunWeeks: inputs.walkRunWeeks,
     walkRunStart: suggestion.position,
-    walkRunFrom: monday,
+    walkRunFrom: from,
     easyPaceSecondsPerKm: inputs.easyPaceSecondsPerKm,
     easyRunCount: inputs.easyRunCount,
     intensity: inputs.intensity,
