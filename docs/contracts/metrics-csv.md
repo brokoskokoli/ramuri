@@ -8,7 +8,7 @@ Das Dokument beschreibt das Format so, dass es ohne den Dart-Code umgesetzt oder
 
 ## 1. Überblick
 
-Eine Datei `running-metriken-JJJJMMTT.csv` (MIME `text/csv`) enthält je berechnetem Wert eines Laufs und je Rolle (`original`, `current`; ADR-0004 Punkt 4) genau eine Zeile. Tageswerte (etwa ATL/CTL) gehören nicht dazu, nur Werte, die zu einem Lauf gehören. Die Datei ist ein Export, kein Archiv: Es gibt keinen Reimport (dafür gilt [archive.md](archive.md)).
+Eine Datei `running-metriken-JJJJMMTT.csv` (MIME `text/csv`) enthält je gespeichertem berechnetem Wert und je Rolle (`original`, `current`; ADR-0004 Punkt 4) genau eine Zeile: Laufwerte (`owner` = `run`) und Tageswerte (`owner` = `day`, etwa `vo2max_long_term`, `aerobic_efficiency_change`; sie gehören zu dem Tag, an dem ein Lauf endete). Ein Tag mit mehreren Läufen erscheint einmal. Die Datei ist ein Export, kein Archiv: Es gibt keinen Reimport (dafür gilt [archive.md](archive.md)).
 
 ## 2. Kodierung und Aufbau (RFC 4180)
 
@@ -17,26 +17,28 @@ Eine Datei `running-metriken-JJJJMMTT.csv` (MIME `text/csv`) enthält je berechn
 - Trennzeichen Komma. Ein Feld wird in Anführungszeichen gesetzt, wenn es Komma, Anführungszeichen, CR oder LF enthält; ein Anführungszeichen im Feld wird verdoppelt (`""`). Andere Felder stehen ohne Anführungszeichen.
 - Die erste Zeile ist die Kopfzeile aus Abschnitt 3. Sie steht immer, auch ohne Daten (dann besteht die Datei nur aus ihr).
 - **Dezimaltrenner ist immer der Punkt**, unabhängig von der Sprache und Region des Geräts. Kein Tausendertrenner, keine Einheit im Feld.
-- Zahlen sind die kürzeste Darstellung, die den Wert wieder genau ergibt (Dart `double.toString`, z. B. `52.3`, `0.0`; sehr kleine oder große Werte KÖNNEN die Exponentenschreibweise `1e-7` tragen).
+- Zahlen sind die kürzeste Darstellung, die den Wert wieder genau ergibt (Dart `double.toString`, z. B. `52.3`, `0.0`; sehr kleine oder große Werte KÖNNEN die Exponentenschreibweise tragen, kleine als `1e-7`, große mit Vorzeichen im Exponenten als `1.2345678901234569e+23`).
 - Zeitpunkte sind ISO 8601 in UTC mit `Z` (z. B. `2030-01-01T08:00:00.000Z`).
-- Die Felder werden unverändert geschrieben; ein Leser, der die Datei in einer Tabellenkalkulation öffnet, muss Felder, die mit `=`, `+`, `-` oder `@` beginnen (Freitext in `sources`), selbst als Text behandeln.
+- Die Felder werden unverändert geschrieben; ein Leser, der die Datei in einer Tabellenkalkulation öffnet, muss Textfelder, die mit `=`, `+`, `-` oder `@` beginnen, selbst als Text behandeln. Bei den Zahlen kann nur `value` mit `-` beginnen (negativer Wert), das ist eine Zahl und keine Formel. `sources` beginnt immer mit `[`.
 
 ## 3. Formatversion und Spalten
 
-Die Formatversion steht in der ersten Spalte `format_version` jeder Zeile (Formatversion 1: `1`). Eine neue Version ändert die Spalten und erhöht diese Zahl; ein Leser lehnt eine ihm unbekannte Version ab. Eine Datei ohne Daten trägt nur die Kopfzeile, deren Spaltenfolge die Version festlegt.
+Die Formatversion steht in der ersten Spalte `format_version` jeder Zeile (Formatversion 1: `1`). Eine neue Version ändert die Spalten und erhöht diese Zahl; ein Leser lehnt eine ihm unbekannte Version ab. Eine Datei ohne Daten trägt nur die Kopfzeile, deren Spaltenfolge die Version festlegt; ein Leser lehnt daher auch eine Datei ab, deren Kopfzeile nicht genau der ihm bekannten entspricht.
 
 Kopfzeile (Formatversion 1, genau diese Namen und Reihenfolge):
 
 ```
-format_version,run_id,run_started_at,run_mode,role,value_key,value,unit,quality,unavailable_reason,method,method_version,parameter_version,computed_at,data_from,data_to,measurement_count,sources
+format_version,owner,day,run_id,run_started_at,run_mode,role,value_key,value,unit,quality,unavailable_reason,method,method_version,parameter_version,computed_at,data_from,data_to,measurement_count,sources
 ```
 
 | Spalte | Inhalt | Einheit / Wertebereich | Leer, wenn |
 |---|---|---|---|
 | `format_version` | Formatversion | ganze Zahl, `1` | nie |
-| `run_id` | Kennung des Laufs im Speicher | ganze Zahl | nie |
-| `run_started_at` | Start des Laufs | UTC-Zeitpunkt | nie |
-| `run_mode` | Art des Laufs | `gps` oder `treadmill` | nie |
+| `owner` | Besitzer des Werts | `run` oder `day` | nie |
+| `day` | Tag des Tageswerts | Datum `JJJJ-MM-TT` | `owner` = `run` |
+| `run_id` | Kennung des Laufs im Speicher | ganze Zahl | `owner` = `day` |
+| `run_started_at` | Start des Laufs | UTC-Zeitpunkt | `owner` = `day` |
+| `run_mode` | Art des Laufs | `gps` oder `treadmill` | `owner` = `day` |
 | `role` | Rolle des Werts | `original` oder `current` | nie |
 | `value_key` | Schlüssel des Werts | Text | nie |
 | `value` | Wert | Zahl in der Einheit der Spalte `unit` | der Wert nicht bestimmbar ist (dann steht `unavailable_reason`) |
@@ -55,7 +57,7 @@ Ein fehlender Wert ist ein **leeres** Feld, nie `0` und nie `NaN` (FR-0068).
 
 ## 4. Sortierung
 
-Aufsteigend nach `run_id`, dann `value_key` (Unicode-Codepunkte), dann `role` mit `original` vor `current`. Die Reihenfolge ist damit unabhängig von der Speicherreihenfolge und wiederholbar.
+Zuerst die Laufzeilen aufsteigend nach `run_id`, danach die Tageszeilen aufsteigend nach `day`; je Besitzer dann `value_key` (Unicode-Codepunkte), dann `role` mit `original` vor `current`. Die Reihenfolge ist damit unabhängig von der Speicherreihenfolge und wiederholbar.
 
 ## 5. Datenschutz
 
