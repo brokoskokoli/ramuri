@@ -89,6 +89,9 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
   /// Speichern der Reihe nach: Die letzte Änderung gewinnt.
   Future<void> _queue = Future.value();
 
+  /// Kette der Aufrufe von [SubjectiveSection.onWarning] (Melden/Aufheben).
+  Future<void> _hookQueue = Future.value();
+
   @override
   void initState() {
     super.initState();
@@ -258,16 +261,17 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
     // „ja“ meldet, die Rücknahme (nein oder abwählen) hebt ein von diesem
     // Lauf gesetztes Warnsignal wieder auf (Fehltipp).
     if (hook != null && (yes || was == WarningAnswer.yes)) {
-      unawaited(
-        saved.then((_) async {
-          try {
-            await hook(yes);
-          } on Object {
-            // Weder Inhalte noch Ausnahmetext weitergeben.
-            if (mounted) setState(() => _failed = true);
-          }
-        }),
-      );
+      // Die Aufrufe laufen der Reihe nach: Ein schnelles „ja“, dann „nein“
+      // darf Melden und Aufheben nicht überlappen lassen.
+      _hookQueue = _hookQueue.then((_) => saved).then((_) async {
+        try {
+          await hook(yes);
+        } on Object {
+          // Weder Inhalte noch Ausnahmetext weitergeben.
+          if (mounted) setState(() => _failed = true);
+        }
+      });
+      unawaited(_hookQueue);
     } else {
       unawaited(saved);
     }

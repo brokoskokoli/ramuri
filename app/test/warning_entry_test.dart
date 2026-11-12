@@ -1,6 +1,7 @@
 // WP23 Teil B2: Einstieg Warnsignal aus der Zusammenfassung (FR-0203, K58).
 // Synthetische Daten.
 
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -84,6 +85,50 @@ void main() {
       )).every((u) => u.kind == PlanUnitKind.rest),
       isTrue,
     );
+  });
+
+  testWidgets('schnelles ja, dann nein: Melden und Aufheben überlappen nicht', (
+    tester,
+  ) async {
+    final (s, runId) = await world();
+    final clock = FakeClock(DateTime.utc(2030, 1, 2, 9));
+    final log = <String>[];
+    final firstDone = Completer<void>();
+    await tester.pumpWidget(
+      localizedApp(
+        locale: const Locale('de'),
+        brightness: Brightness.light,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SubjectiveSection(
+              service: SubjectiveService(session: s, clock: clock),
+              runId: runId,
+              onWarning: (yes) async {
+                log.add(yes ? 'ja:start' : 'nein:start');
+                if (yes) await firstDone.future;
+                log.add(yes ? 'ja:ende' : 'nein:ende');
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tap(tester, 'subjective_complaints_button');
+    await tester.enterText(
+      find.byKey(const ValueKey('subjective_complaints')),
+      'Knie',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('subjective_warn_yes')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('subjective_warn_no')));
+    await tester.pumpAndSettle();
+    // Das Melden läuft noch: Das Aufheben hat nicht begonnen.
+    expect(log, ['ja:start']);
+    firstDone.complete();
+    await tester.pumpAndSettle();
+    expect(log, ['ja:start', 'ja:ende', 'nein:start', 'nein:ende']);
   });
 
   testWidgets(
