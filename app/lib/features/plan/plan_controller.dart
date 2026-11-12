@@ -289,6 +289,15 @@ class PlanController extends ChangeNotifier {
     final today = _today();
     final checked = await session.settings.get(planLastCheckDayKey);
     if (!weeklyCheckDue(checked, today)) return;
+    // Solange die Pausenfrage offen ist (PAR-202), rechnet das Öffnen keine
+    // Wochenprüfung: Nach der Antwort greift erst die Pausenregel, die
+    // Prüfung gilt dann für die Woche (Prüftag) oder läuft beim nächsten
+    // Öffnen normal. Die Wochenfassung würde sonst den Anker auf den Montag
+    // setzen und die Pausenregel ins Leere laufen lassen.
+    if (await HintService(session: session, clock: clock).pauseQuestion() !=
+        null) {
+      return;
+    }
     if (!last.version.isCurrent) {
       await _recalculate(PlanTrigger.ruleVersion, goal, last);
       return;

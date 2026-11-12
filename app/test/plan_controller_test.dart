@@ -962,7 +962,7 @@ void main() {
   });
 
   group('Öffnen: Pausenregel vor Wochenprüfung (NB6)', () {
-    Future<_Env> prepared(int pauseDays) async {
+    Future<_Env> prepared(int pauseDays, {bool recorded = true}) async {
       final e = await _Env.open();
       e.clock.set(_day(-80));
       await e.controller.saveGoal(_goal());
@@ -971,7 +971,9 @@ void main() {
       // Basiswoche vor der Pause (volle Kalenderwoche, 2 Läufe zu 60 min).
       await _finishedRun(e.session, pauseDays + 7);
       await _finishedRun(e.session, pauseDays + 8);
-      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      if (recorded) {
+        await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      }
       // Wochenprüfung fällig (frühere Kalenderwoche), diese Woche ohne Läufe.
       await e.session.settings.set(planLastCheckDayKey, '2026-11-02', at: _now);
       return e;
@@ -1004,6 +1006,42 @@ void main() {
         expect((await e.plans.history()).length, before + 1);
       },
     );
+
+    test('offene Pausenfrage: Öffnen rechnet keine Wochenprüfung; nach „Ja“ '
+        'gilt die Pausenregel, danach nichts Neues (NB7 2)', () async {
+      final e = await prepared(10, recorded: false);
+      final before = (await e.plans.history()).length;
+      final service = HintService(session: e.session, clock: e.clock);
+      final q = await service.pauseQuestion();
+      expect(q, isNotNull);
+      await e.controller.open();
+      expect((await e.plans.history()).length, before);
+      expect(await service.pauseQuestion(), isNotNull);
+      expect(await e.controller.answerPause(true), PlanActionResult.done);
+      final h = await e.plans.history();
+      expect(h.length, before + 1);
+      expect(h.last.trigger, PlanTrigger.pause);
+      expect(
+        h.last.inputs.startWeeklyMinutes,
+        (q!.baseWeekMinutes * 0.8).round(),
+      );
+      expect(h.last.inputs.noHardUntil, isNotNull);
+      await e.controller.open();
+      expect((await e.plans.history()).length, before + 1);
+    });
+
+    test('offene Pausenfrage, Antwort „Nein“: die nächste Wochenprüfung läuft '
+        'normal (NB7 2)', () async {
+      final e = await prepared(10, recorded: false);
+      final before = (await e.plans.history()).length;
+      await e.controller.open();
+      expect((await e.plans.history()).length, before);
+      await e.controller.answerPause(false);
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.length, before + 1);
+      expect(h.last.trigger, PlanTrigger.weekly);
+    });
 
     test('ohne Pause greift die Wochenprüfung wie bisher', () async {
       final e = await prepared(2);
