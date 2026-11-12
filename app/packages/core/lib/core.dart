@@ -194,6 +194,7 @@ export 'src/hints/hint_selection.dart';
 export 'src/hints/hint_service.dart';
 export 'src/hints/recovery_card.dart';
 export 'src/load/pause_days.dart';
+export 'src/plan/plan_change_notice.dart';
 
 /// Name des Pakets, nur damit das Paket auflösbar und testbar ist.
 const String corePackageName = 'core';

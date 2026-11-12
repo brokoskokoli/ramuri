@@ -9,6 +9,7 @@ import '../../offload_scope.dart';
 import '../../ui/ui.dart';
 import '../settings/app_settings.dart';
 import 'plan_calendar.dart';
+import 'plan_change_card.dart';
 import 'plan_controller.dart';
 import 'plan_data_reader.dart';
 import 'plan_goal_form.dart';
@@ -381,6 +382,48 @@ class _PlanScreenState extends State<PlanScreen> {
     if (mounted) await _controller.reload();
   }
 
+  /// Verlauf der Änderungen (FR-0170); wer ihn öffnet, hat die Karte gesehen.
+  Future<void> _openHistory() async {
+    final notice = _controller.state.changeNotice;
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PlanHistoryScreen(load: _controller.changeHistory),
+      ),
+    );
+    if (!mounted || notice == null) return;
+    await _controller.markChangeSeen(notice.planId);
+  }
+
+  /// „Verstanden“ auf der Karte „Plan angepasst“.
+  Future<void> _seeChange(PlanChangeNotice notice) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await _controller.markChangeSeen(notice.planId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+  }
+
+  /// Vorschlag „Woche wiederholen“ (PAR-140) annehmen oder ablehnen.
+  Future<void> _answerWalkRepeat(bool accept) async {
+    if (_busy) return;
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    final result = accept
+        ? await _controller.acceptWalkRunRepeat()
+        : await _controller.declineWalkRunRepeat();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (!accept && result == PlanActionResult.done) return;
+    _snack(
+      messenger,
+      'plan_walk_repeat_result',
+      result == PlanActionResult.done
+          ? l.planWalkRepeatDone
+          : l.planWalkRepeatFailed,
+    );
+  }
+
   void _openUnit(PlanUnit unit) {
     Navigator.of(
       context,
@@ -525,6 +568,7 @@ class _PlanScreenState extends State<PlanScreen> {
                 onSelected: (v) {
                   if (v == 'report') _reportWarning();
                   if (v == 'feedback') _showFeedbackSheet();
+                  if (v == 'history') _openHistory();
                 },
                 itemBuilder: (context) => [
                   if (s.warning == null)
@@ -540,6 +584,12 @@ class _PlanScreenState extends State<PlanScreen> {
                     height: RamuriTheme.minTarget,
                     child: Text(l.planFeedbackMenu),
                   ),
+                  PopupMenuItem(
+                    key: const Key('plan_menu_history'),
+                    value: 'history',
+                    height: RamuriTheme.minTarget,
+                    child: Text(l.planHistoryOpen),
+                  ),
                 ],
               ),
             ],
@@ -550,6 +600,22 @@ class _PlanScreenState extends State<PlanScreen> {
               state: s,
               today: _today,
               onLift: _busy ? null : _liftWarning,
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (s.changeNotice case final notice?) ...[
+            PlanChangeCard(
+              notice: notice,
+              onSeen: _busy ? null : () => _seeChange(notice),
+              onHistory: _openHistory,
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (s.walkRunProposal case final proposal?) ...[
+            PlanWalkRepeatCard(
+              proposal: proposal,
+              onAccept: _busy ? null : () => _answerWalkRepeat(true),
+              onDecline: _busy ? null : () => _answerWalkRepeat(false),
             ),
             const SizedBox(height: 10),
           ],

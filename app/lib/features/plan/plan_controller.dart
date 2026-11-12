@@ -11,6 +11,10 @@ enum PlanLoadPhase { loading, ready, failed }
 /// Nachfrage nach PAR-200. Fehlt er, zählt die Anlage des Plans.
 const String planFeedbackKey = 'plan.feedback_answered_on';
 
+/// Einstellungsschlüssel: letzter Tag (`JJJJ-MM-TT`) der Programmwoche, deren
+/// Vorschlag „Woche wiederholen“ der Nutzer abgelehnt hat (PAR-140).
+const String planWalkRunRepeatDeclinedKey = 'plan.walk_run_repeat_declined';
+
 /// Ergebnis von [PlanController.answerFeedback].
 class PlanFeedbackOutcome {
   const PlanFeedbackOutcome(this.result, {this.raiseGoalSignal = false});
@@ -89,7 +93,9 @@ class PlanViewState {
       assessment = null,
       warning = null,
       warningReminderDue = false,
-      feedbackDue = false;
+      feedbackDue = false,
+      changeNotice = null,
+      walkRunProposal = null;
 
   const PlanViewState.failed()
     : phase = PlanLoadPhase.failed,
@@ -101,7 +107,9 @@ class PlanViewState {
       assessment = null,
       warning = null,
       warningReminderDue = false,
-      feedbackDue = false;
+      feedbackDue = false,
+      changeNotice = null,
+      walkRunProposal = null;
 
   const PlanViewState.ready({
     required this.goal,
@@ -113,6 +121,8 @@ class PlanViewState {
     this.warning,
     this.warningReminderDue = false,
     this.feedbackDue = false,
+    this.changeNotice,
+    this.walkRunProposal,
   }) : phase = PlanLoadPhase.ready;
 
   final PlanLoadPhase phase;
@@ -159,6 +169,14 @@ class PlanViewState {
   /// Die Nachfrage nach PAR-200 ist fällig (2 Wochen ab der letzten Antwort
   /// bzw. Anlage des Plans); ohne Warnsignal.
   final bool feedbackDue;
+
+  /// Größere Änderung, die der Nutzer noch nicht gesehen hat (PAR-204,
+  /// FR-0170): Karte „Plan angepasst“ bis [PlanController.markChangeSeen].
+  final PlanChangeNotice? changeNotice;
+
+  /// Vorschlag „Woche wiederholen“ in der Geh-Lauf-Phase (PAR-140); die App
+  /// fragt, der Nutzer entscheidet. Nicht unter Warnsignal.
+  final WalkRunWeekProposal? walkRunProposal;
 
   bool get hasPlan => version != null;
 
@@ -403,7 +421,27 @@ class PlanController extends ChangeNotifier {
         today: today,
       );
     }
+    final seen = await WarningState(session.settings).planChangeSeen();
+    WalkRunWeekProposal? proposal;
+    final walkStart = version?.inputs.walkRunStart;
+    if (warning == null && walkStart != null) {
+      final declined = _parseDay(
+        await session.settings.get(planWalkRunRepeatDeclinedKey),
+      );
+      proposal = walkRunWeekProposal(
+        units: units,
+        start: walkStart,
+        rpeByRunId: {
+          for (final e in (await session.subjective.readAll()).entries)
+            if (e.value.subjective.rpe case final int r) e.key: r,
+        },
+        today: today,
+      );
+      if (proposal != null && declined == proposal.lastDay) proposal = null;
+    }
     return PlanViewState.ready(
+      changeNotice: planChangeNotice(history, seenPlanId: seen),
+      walkRunProposal: proposal,
       warning: warning,
       warningReminderDue: reminderDue,
       feedbackDue: feedbackDue,
@@ -804,6 +842,62 @@ class PlanController extends ChangeNotifier {
       raiseGoalSignal: r == PlanActionResult.done && raise,
     );
   }
+
+  /// Alle Fassungen, älteste zuerst (Verlauf der Änderungen, FR-0170).
+  Future<List<PlanVersionRecord>> changeHistory() => _plans.history();
+
+  /// Die Karte „Plan angepasst“ gilt bis zur Plan-ID [planId] als gesehen.
+  Future<PlanActionResult> markChangeSeen(int planId) => _act(() async {
+    await WarningState(session.settings)
+        .setPlanChangeSeen(planId, at: clock.now());
+  });
+
+  /// Nimmt „Woche wiederholen“ an (PAR-140): neue Fassung ab dem Montag von
+  /// heute, die Abfolge beginnt an der Stelle des Vorschlags wieder. Ändert
+  /// nur nach dieser Entscheidung des Nutzers.
+  Future<PlanActionResult> acceptWalkRunRepeat() => _act(() async {
+    final proposal = _state.walkRunProposal;
+    if (proposal == null) throw const StorageException(StorageFailure.notFound);
+    final goal = await _goals.goal();
+    final history = await _plans.history();
+    if (goal == null || history.isEmpty) {
+      throw const StorageException(StorageFailure.notFound);
+    }
+    final today = _today();
+    final built = await reader.read(goal: goal, today: today);
+    final base = refreshMeasuredInputs(history.last.inputs, built.inputs);
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+    final inputs = applyWalkRunRepeat(
+      base,
+      proposal.suggestion,
+      from: monday,
+    ).copyWith(today: today);
+    final r = await recalculatePlan(
+      plans: _plans,
+      settings: session.settings,
+      trigger: PlanTrigger.manual,
+      reason: walkRunRepeatReason,
+      today: today,
+      now: clock.now(),
+      inputs: inputs,
+      parameters: parameters,
+      warning: _warning,
+    );
+    _fresh = r.generated;
+    _lastChange = r.summary;
+    if (r.wasWritten) onChanged?.call();
+  });
+
+  /// Lehnt „Woche wiederholen“ für diese Programmwoche ab; nichts ändert sich.
+  Future<PlanActionResult> declineWalkRunRepeat() => _act(() async {
+    final proposal = _state.walkRunProposal;
+    if (proposal == null) return;
+    await session.settings.set(
+      planWalkRunRepeatDeclinedKey,
+      _dayText(proposal.lastDay),
+      at: clock.now(),
+    );
+  });
 
   Future<PlanActionResult> _act(Future<void> Function() action) =>
       _serial(() async {
