@@ -4,6 +4,7 @@ import 'package:test/test.dart';
 /// Hinweise der Basisstufe (PAR-174 bis PAR-184, FR-0106, FR-0107): jeder
 /// Hinweis aus den Eingangsdaten belegt, ohne Auslöser nichts, Sperre PAR-175.
 void main() {
+  pauseQuestionTests();
   final today = DateTime.utc(2030, 3, 1);
   DateTime ago(int n) => today.subtract(Duration(days: n));
 
@@ -543,6 +544,59 @@ void main() {
         for (final n in [1, 2, 3]) ShownHint(ago(n), HintCode.warning),
       ];
       expect(code(inputs(warning: ago(5), shown: shown)), HintCode.warning);
+    });
+  });
+}
+
+/// Pausenfrage (PAR-202).
+void pauseQuestionTests() {
+  final today = DateTime.utc(2030, 3, 1);
+  DateTime ago(int n) => today.subtract(Duration(days: n));
+
+  HintTraining run(int daysAgo, {int minutes = 30}) =>
+      HintTraining(day: ago(daysAgo), minutes: minutes, isRun: true);
+
+  HintInputs inputs({
+    List<HintTraining> trainings = const [],
+    bool allRecorded = false,
+    PauseAnswer? answer,
+    DateTime? warning,
+  }) => HintInputs(
+    today: today,
+    trainings: trainings,
+    allRecorded: allRecorded,
+    pauseAnswer: answer,
+    warningReportedOn: warning,
+  );
+
+  PauseQuestion? ask(HintInputs i) => selectPauseQuestion(i);
+
+  group('Pausenfrage (PAR-202)', () {
+    test('ab 7 Tagen ohne Training, gelaufene Woche als Grundlage', () {
+      final q = ask(
+        inputs(trainings: [run(7), run(9, minutes: 20), run(12, minutes: 99)]),
+      )!;
+      expect(q.daysSinceTraining, 7);
+      expect(q.lastTrainingDay, ago(7));
+      expect(q.ranWeekMinutes, 50);
+    });
+
+    test('Grenze: 6 Tage nein, 7 Tage ja', () {
+      expect(ask(inputs(trainings: [run(6)])), isNull);
+      expect(ask(inputs(trainings: [run(7)])), isNotNull);
+    });
+
+    test('nicht bei Zusage alles erfasst, ohne Training, unter Warnsignal', () {
+      expect(ask(inputs(trainings: [run(10)], allRecorded: true)), isNull);
+      expect(ask(inputs()), isNull);
+      expect(ask(inputs(trainings: [run(10)], warning: ago(1))), isNull);
+    });
+
+    test('nach einer Antwort seit dem letzten Training nicht erneut', () {
+      final a = PauseAnswer(paused: false, on: ago(2));
+      expect(ask(inputs(trainings: [run(10)], answer: a)), isNull);
+      final old = PauseAnswer(paused: true, on: ago(20));
+      expect(ask(inputs(trainings: [run(10)], answer: old)), isNotNull);
     });
   });
 }

@@ -8,6 +8,7 @@ import '../../ui/ui.dart';
 import '../home/data_changes.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
+import 'fitness_explanations.dart';
 import 'fitness_section.dart';
 import 'load_card.dart';
 import 'prediction_card.dart';
@@ -367,6 +368,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               ),
               const SizedBox(height: 14),
               EfficiencyCard(fitness: data.fitness),
+              FitnessExplanationCard(
+                fitness: data.fitness,
+                today: DateTime.parse('${_today}T00:00:00Z'),
+              ),
               LoadCard(
                 session: widget.session,
                 clock: widget.clock,

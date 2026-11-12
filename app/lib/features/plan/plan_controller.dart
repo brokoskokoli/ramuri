@@ -422,6 +422,12 @@ class PlanController extends ChangeNotifier {
       );
     }
     final seen = await WarningState(session.settings).planChangeSeen();
+    // Unter Warnsignal zeigt das Banner den Grund; die Karte „Plan angepasst“
+    // mit dem Grund `warning` käme doppelt (K58, D2).
+    var notice = planChangeNotice(history, seenPlanId: seen);
+    if (warning != null && notice?.explanation.code == planReasonWarning) {
+      notice = null;
+    }
     WalkRunWeekProposal? proposal;
     final walkStart = version?.inputs.walkRunStart;
     if (warning == null && walkStart != null) {
@@ -440,7 +446,7 @@ class PlanController extends ChangeNotifier {
       if (proposal != null && declined == proposal.lastDay) proposal = null;
     }
     return PlanViewState.ready(
-      changeNotice: planChangeNotice(history, seenPlanId: seen),
+      changeNotice: notice,
       walkRunProposal: proposal,
       warning: warning,
       warningReminderDue: reminderDue,
@@ -842,6 +848,53 @@ class PlanController extends ChangeNotifier {
       raiseGoalSignal: r == PlanActionResult.done && raise,
     );
   }
+
+  /// Antwort auf die Pausenfrage (PAR-202, „Heute“). „Ja“ startet den Plan
+  /// neu ([planPauseRestart], Auslöser `pause`), sofern ein Plan besteht und
+  /// der Neustart nötig ist; „Nein“ ändert nichts. Die Antwort wird erst nach
+  /// dem Schreiben gespeichert: Scheitert der Neustart, bleibt die Frage
+  /// offen. Ohne offene Frage ([HintService.pauseQuestion]): `rejected`.
+  Future<PlanActionResult> answerPause(bool paused) => _act(() async {
+    final today = _today();
+    final q = await HintService(session: session, clock: clock).pauseQuestion();
+    if (q == null) throw const StorageException(StorageFailure.rejected);
+    if (paused) {
+      final goal = await _goals.goal();
+      final history = await _plans.history();
+      if (goal != null && history.isNotEmpty) {
+        final built = await reader.read(goal: goal, today: today);
+        final base = refreshMeasuredInputs(history.last.inputs, built.inputs);
+        final restart = planPauseRestart(
+          goal: goal,
+          inputs: base,
+          today: today,
+          lastTrainingDay: q.lastTrainingDay,
+          ranWeekMinutes: q.ranWeekMinutes,
+          parameters: parameters,
+        );
+        final next = restart.inputs;
+        if (next != null) {
+          final r = await recalculatePlan(
+            plans: _plans,
+            settings: session.settings,
+            trigger: PlanTrigger.pause,
+            today: today,
+            now: clock.now(),
+            inputs: next,
+            parameters: parameters,
+            warning: _warning,
+          );
+          _fresh = r.generated;
+          _lastChange = r.summary;
+          if (r.wasWritten) onChanged?.call();
+        }
+      }
+    }
+    await WarningState(session.settings).setPauseAnswer(
+      PauseAnswer(paused: paused, on: today),
+      at: clock.now(),
+    );
+  });
 
   /// Alle Fassungen, älteste zuerst (Verlauf der Änderungen, FR-0170).
   Future<List<PlanVersionRecord>> changeHistory() => _plans.history();

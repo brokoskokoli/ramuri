@@ -229,6 +229,48 @@ class HintParameters {
 
 const hintParameters = HintParameters();
 
+/// Die Pausenfrage (PAR-202): Ab [HintParameters.pauseMinDays] Tagen ohne
+/// erfasstes Training fragt die App, ob eine Pause war. [ranWeekMinutes] ist
+/// die Summe der erfassten Minuten in der Kalenderwoche des letzten Trainings
+/// (die gelaufene Woche, Grundlage des Neustarts).
+class PauseQuestion {
+  const PauseQuestion({
+    required this.daysSinceTraining,
+    required this.lastTrainingDay,
+    required this.ranWeekMinutes,
+  });
+  final int daysSinceTraining;
+  final DateTime lastTrainingDay;
+  final double ranWeekMinutes;
+}
+
+/// Fragt die App nach einer Pause? Nein bei Warnsignal, bei der Zusage „alles
+/// erfasst“, ohne erfasstes Training, unter 7 Tagen und wenn seit dem letzten
+/// Training schon geantwortet wurde (ja oder nein). Reine Funktion.
+PauseQuestion? selectPauseQuestion(
+  HintInputs input, {
+  HintParameters parameters = hintParameters,
+}) {
+  if (input.warningReportedOn != null || input.allRecorded) return null;
+  final last = _lastTrainingDay(input);
+  if (last == null) return null;
+  final days = _daysBetween(last, input.today);
+  if (days < parameters.pauseMinDays) return null;
+  final answer = input.pauseAnswer;
+  if (answer != null && !answer.on.isBefore(last)) return null;
+  final monday = last.subtract(Duration(days: last.weekday - 1));
+  final end = monday.add(const Duration(days: 7));
+  var minutes = 0.0;
+  for (final t in input.trainings) {
+    if (!t.day.isBefore(monday) && t.day.isBefore(end)) minutes += t.minutes;
+  }
+  return PauseQuestion(
+    daysSinceTraining: days,
+    lastTrainingDay: last,
+    ranWeekMinutes: minutes,
+  );
+}
+
 /// Wählt den Hinweis des Tages (PAR-175): höchstens einer, Vorrang Warnsignal,
 /// PAR-179, PAR-178, PAR-180, PAR-181, PAR-182, PAR-183. Derselbe Hinweis wird
 /// nicht gezeigt, wenn er an den [HintParameters.maxDaysInRow] Tagen davor

@@ -44,6 +44,14 @@ class HintService {
   Future<RecoveryCard?> recoveryCard() async =>
       RecoveryCard.from(await today());
 
+  /// Die Pausenfrage von heute (PAR-202); `null`, wenn keine zu stellen ist.
+  Future<PauseQuestion?> pauseQuestion() async {
+    final now = clock.now();
+    final local = now.add(clock.utcOffsetAt(now));
+    final today = DateTime.utc(local.year, local.month, local.day);
+    return selectPauseQuestion(await _inputs(today));
+  }
+
   Future<HintInputs> _inputs(DateTime today) async {
     final s = session;
     final settings = s.settings;

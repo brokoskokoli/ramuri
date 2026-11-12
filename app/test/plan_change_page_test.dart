@@ -104,6 +104,17 @@ Future<void> _report(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Meldet und hebt wieder auf: Die Karte zeigt dann den Grund `warningLifted`
+/// (unter Warnsignal ist der Grund `warning` ausgeblendet, K58 D2).
+Future<void> _reportAndLift(WidgetTester tester) async {
+  await _report(tester);
+  await tester.ensureVisible(key('plan_warning_lift'));
+  await tester.tap(key('plan_warning_lift'));
+  await _settle(tester);
+  await tester.pump(const Duration(seconds: 8));
+  await tester.pumpAndSettle();
+}
+
 /// Eine kleinere Fassung (ohne „larger“) direkt im Speicher.
 Future<PlanVersionRecord> _writeMinor(
   PlanRepository plans, {
@@ -143,11 +154,18 @@ void main() {
       expect(key('plan_change_card'), findsNothing);
 
       await _report(tester);
+      // Unter Warnsignal trägt das Banner den Grund: keine zweite Karte.
+      expect(key('plan_warning_banner'), findsOneWidget);
+      expect(key('plan_change_card'), findsNothing);
+      await tester.ensureVisible(key('plan_warning_lift'));
+      await tester.tap(key('plan_warning_lift'));
+      await _settle(tester);
+      await tester.pump(const Duration(seconds: 8));
+      await tester.pumpAndSettle();
       expect(key('plan_change_card'), findsOneWidget);
       expect(
         find.text(
-          'Du hast Beschwerden gemeldet, deshalb sind die kommenden Tage '
-          'vorerst Ruhetage.',
+          'Du hast die Meldung aufgehoben, deshalb gilt dein Plan wieder.',
         ),
         findsOneWidget,
       );
@@ -170,15 +188,12 @@ void main() {
       await _pump(tester, session, clock);
       expect(key('plan_change_card'), findsNothing);
 
-      // Eine neue größere Änderung (Aufheben) zeigt sie wieder.
-      await tester.ensureVisible(key('plan_warning_lift'));
-      await tester.tap(key('plan_warning_lift'));
-      await _settle(tester);
+      // Eine neue größere Änderung zeigt sie wieder.
+      await tester.runAsync(() => _writeMinor(plans, at: _now, larger: true));
+      await _pump(tester, session, clock);
       expect(key('plan_change_card'), findsOneWidget);
       expect(
-        find.text(
-          'Du hast die Meldung aufgehoben, deshalb gilt dein Plan wieder.',
-        ),
+        find.text('Die wöchentliche Prüfung hat den Plan angepasst.'),
         findsOneWidget,
       );
     });
@@ -216,7 +231,7 @@ void main() {
       final (session, clock) =
           await tester.runAsync(_withPlan) as (StorageSession, FakeClock);
       await _pump(tester, session, clock);
-      await _report(tester);
+      await _reportAndLift(tester);
       expect(key('plan_change_card'), findsOneWidget);
       await tester.tap(key('plan_change_history'));
       await _settle(tester);
@@ -283,7 +298,7 @@ void main() {
           scale: scale,
           width: width,
         );
-        await _report(tester);
+        await _reportAndLift(tester);
         expect(key('plan_change_card'), findsOneWidget);
         await tester.ensureVisible(key('plan_change_history'));
         for (final k in ['plan_change_seen', 'plan_change_history']) {
