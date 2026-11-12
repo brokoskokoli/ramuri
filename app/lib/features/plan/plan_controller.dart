@@ -953,7 +953,7 @@ class PlanController extends ChangeNotifier {
       baseWeekMinutes: q.baseWeekMinutes,
       parameters: parameters,
       provisional: longPause && !chosen,
-      replacesProvisional: chosen && wasProvisional && mark!.restarted,
+      replacesProvisional: chosen && wasProvisional && mark.restarted,
     );
     final next = restart.inputs;
     if (next == null && chosen) {
