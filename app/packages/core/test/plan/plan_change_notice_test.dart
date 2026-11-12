@@ -53,7 +53,7 @@ void main() {
 
     test('Wechsel hart/locker/Ruhetag und Entfallen, Verlängern nicht', () {
       bool l(PlanUnit a, PlanUnit? b) =>
-          summarizeChange([a], [if (b != null) b]).isLarger;
+          summarizeChange([a], [?b]).isLarger;
       final easy = _unit(10, PlanUnitKind.easy, 50);
       expect(l(easy, _unit(10, PlanUnitKind.rest, 0)), isTrue);
       expect(l(easy, null), isTrue);
