@@ -632,6 +632,20 @@ void main() {
       expect(filled.single.kind, PlanUnitKind.easy);
       expect(filled.single.minutes, 33);
       expect(filled.single.segments, hasLength(1));
+      // Vorlage braucht Dauer und keinen Lauf: Einheiten gleicher Art mit
+      // 0 min oder mit runId davor werden übergangen.
+      final noMinutes = unit(PlanUnitKind.easy, 8);
+      final withRun = unit(PlanUnitKind.easy, 9, min: 40).copyWith(runId: 7);
+      final skipped = fillEmptyRestored(restored, [
+        noMinutes,
+        withRun,
+        generated.last,
+      ]);
+      expect(skipped.single.minutes, 33);
+      expect(
+        fillEmptyRestored(restored, [noMinutes, withRun]).single.minutes,
+        0,
+      );
       // Ohne Einheit gleicher Art bleibt es unverändert.
       expect(fillEmptyRestored(restored, [generated.first]).single.minutes, 0);
       // Einheiten mit Dauer bleiben.
