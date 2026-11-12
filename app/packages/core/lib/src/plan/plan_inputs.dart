@@ -92,7 +92,10 @@ class PlanInputs {
     this.walkRunStart,
     DateTime? walkRunFrom,
     this.intensity,
-  }) : walkRunFrom = walkRunFrom == null ? null : planDay(walkRunFrom),
+    this.weekCountOffset = 0,
+    DateTime? noHardUntil,
+  }) : noHardUntil = noHardUntil == null ? null : planDay(noHardUntil),
+       walkRunFrom = walkRunFrom == null ? null : planDay(walkRunFrom),
        anchor = planDay(anchor),
        today = planDay(today) {
     if (startWeeklyMinutes < 1) {
@@ -100,6 +103,9 @@ class PlanInputs {
     }
     if (walkRunWeeks < 0) {
       throw ArgumentError.value(walkRunWeeks, 'walkRunWeeks');
+    }
+    if (weekCountOffset < 0) {
+      throw ArgumentError.value(weekCountOffset, 'weekCountOffset');
     }
     if (easyRunCount < 0) {
       throw ArgumentError.value(easyRunCount, 'easyRunCount');
@@ -193,6 +199,10 @@ class PlanInputs {
         lastWeekMinutes: last as int?,
         achievedShare: doubleOf('achievedShare'),
         today: _parseDay(json['today'], 'today'),
+        weekCountOffset: intOf('weekCountOffset', optional: true),
+        noHardUntil: json['noHardUntil'] == null
+            ? null
+            : _parseDay(json['noHardUntil'], 'noHardUntil'),
       );
     } on ArgumentError catch (e) {
       throw FormatException('PlanInputs: ungültiger Wert (${e.name})');
@@ -228,10 +238,22 @@ class PlanInputs {
   final double? easyPaceSecondsPerKm;
   final int easyRunCount;
 
-  /// Nur vorbereitet (PAR-201): Wochenzeit der letzten abgeschlossenen Woche
-  /// und erreichter Anteil. Die Rechnung liest sie noch nicht.
+  /// Beleg der letzten Anpassung von selbst (PAR-201): Wochenzeit der
+  /// abgeschlossenen Woche vor dem Anker und erreichter Anteil (0 bis 1).
+  /// [evaluateWeekAdjustment] liest sie: Die Woche vor dem Anker ist schon
+  /// bewertet. [refreshMeasuredInputs] prüft sie.
   final int? lastWeekMinutes;
   final double? achievedShare;
+
+  /// Wochen, die PAR-194 (jede 4. Woche leichter) vor [anchor] schon gezählt
+  /// hat. Ein neuer Anker nach einer Anpassung (PAR-200, PAR-201) oder dem
+  /// Wiederholen lässt die Zählung weiterlaufen; ein Neustart nach Pause
+  /// (PAR-202) beginnt bei 0.
+  final int weekCountOffset;
+
+  /// Letzter Tag ohne harte Einheit (einschließlich): nach Ermüdung
+  /// (PAR-201) und nach einer Pause (PAR-202). Danach wieder wie geplant.
+  final DateTime? noHardUntil;
 
   /// „Heute“ der Rechnung als Ortstag (Aufzeichnung; [generatePlan] rechnet
   /// mit seinem Argument `today`).
@@ -246,6 +268,8 @@ class PlanInputs {
     'easyRunCount': easyRunCount,
     'lastWeekMinutes': lastWeekMinutes,
     'achievedShare': achievedShare,
+    if (weekCountOffset != 0) 'weekCountOffset': weekCountOffset,
+    if (noHardUntil != null) 'noHardUntil': _dayText(noHardUntil!),
     'walkRunStart': walkRunStart == null
         ? null
         : {'week': walkRunStart!.week, 'session': walkRunStart!.session},
@@ -264,6 +288,12 @@ class PlanInputs {
     WalkRunPosition? walkRunStart,
     DateTime? walkRunFrom,
     IntensityInputs? intensity,
+    int? lastWeekMinutes,
+    double? achievedShare,
+    int? weekCountOffset,
+    DateTime? noHardUntil,
+    bool clearNoHardUntil = false,
+    bool clearLastWeek = false,
   }) => PlanInputs(
     walkRunStart: walkRunStart ?? this.walkRunStart,
     walkRunFrom: walkRunFrom ?? this.walkRunFrom,
@@ -273,8 +303,12 @@ class PlanInputs {
     walkRunWeeks: walkRunWeeks ?? this.walkRunWeeks,
     easyPaceSecondsPerKm: easyPaceSecondsPerKm ?? this.easyPaceSecondsPerKm,
     easyRunCount: easyRunCount ?? this.easyRunCount,
-    lastWeekMinutes: lastWeekMinutes,
-    achievedShare: achievedShare,
+    lastWeekMinutes: clearLastWeek
+        ? null
+        : (lastWeekMinutes ?? this.lastWeekMinutes),
+    achievedShare: clearLastWeek ? null : (achievedShare ?? this.achievedShare),
+    weekCountOffset: weekCountOffset ?? this.weekCountOffset,
+    noHardUntil: clearNoHardUntil ? null : (noHardUntil ?? this.noHardUntil),
     today: today ?? this.today,
   );
 }

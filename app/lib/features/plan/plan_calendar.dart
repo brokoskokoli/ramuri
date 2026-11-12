@@ -219,8 +219,14 @@ class _PlanCalendarState extends State<PlanCalendar> {
   // ---------------------------------------------------------------------
   // Aktionen
 
-  /// Vom Nutzer festgelegter Ruhetag ohne Lauf ([PlanUnit.isRestDay]).
-  bool _userRest(PlanUnit? u) => u != null && u.isRestDay && u.runId == null;
+  /// Unter einem Warnsignal gehaltene Ruhetage (FR-0203) sind keine
+  /// Festlegung des Nutzers und nicht änderbar.
+  bool get _warned => widget.controller.state.warning != null;
+
+  /// Vom Nutzer festgelegter Ruhetag ohne Lauf ([PlanUnit.isRestDay]), nicht
+  /// unter einem Warnsignal.
+  bool _userRest(PlanUnit? u) =>
+      !_warned && u != null && u.isRestDay && u.runId == null;
 
   /// Ersetzbar: verschiebbar und weder Ruhetag noch Geh-Lauf
   /// ([checkPlanReplace] sperrt diese ohnehin).
@@ -233,6 +239,7 @@ class _PlanCalendarState extends State<PlanCalendar> {
   /// Ruhe-Einheit ohne Lauf: kann Ruhetag werden (auch von der App
   /// erzeugte Ruhetage, Schutz vor der Neuberechnung, OQ-0011).
   bool _freeFutureDay(DateTime day, PlanUnit? u) =>
+      !_warned &&
       (u == null ||
           (u.kind == PlanUnitKind.rest && !u.pinned && u.runId == null)) &&
       !day.isBefore(_today) &&

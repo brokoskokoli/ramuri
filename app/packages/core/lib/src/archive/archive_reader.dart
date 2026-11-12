@@ -254,6 +254,13 @@ class ArchiveLineValidator {
             (row['minutes']! as int) < 0) {
           throw _damaged;
         }
+      case 'active_warning':
+        // Höchstens eine Zeile mit `id` = 1 (die Schlüsselreihenfolge schließt
+        // Doppelte aus), `reported_on` ein Ortstag. Quelle und Lauf prüft
+        // die Datenbank (CHECK).
+        if (row['id'] != 1 || !_isCalendarDay(row['reported_on'])) {
+          throw _damaged;
+        }
       case 'manual_trainings':
         final d = row['duration_s'];
         if (d is! int || d <= 0 || !inRange(row['rpe'], rpeMin, rpeMax)) {

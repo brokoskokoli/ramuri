@@ -123,6 +123,7 @@ class PlanCourseSetup {
         distance: distance,
         targetDate: targetDate ?? goal.targetDate,
         walkRunWeeks: walkRunWeeks,
+        lighterOffset: inputs.weekCountOffset,
         parameters: parameters,
       );
 }

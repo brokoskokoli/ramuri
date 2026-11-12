@@ -6,6 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
 import '../history/run_detail_screen.dart';
+import '../plan/plan_change_card.dart';
 import '../plan/plan_controller.dart';
 import '../plan/plan_goal_form.dart';
 import '../plan/plan_started_unit.dart';
@@ -16,6 +17,7 @@ import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
 import '../settings/unit_format.dart';
 import 'data_changes.dart';
+import 'home_recovery.dart';
 import 'overview_screen.dart';
 import 'run_starter.dart';
 
@@ -64,6 +66,11 @@ class _Data {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late Future<_Data> _future = _load();
 
+  /// Hinweis des Tages und Pausenfrage (WP23 D2); Fehler bleiben still, die
+  /// Karten fehlen dann.
+  late Future<HomeHints> _hints = _loadHints();
+  bool _busy = false;
+
   /// Ziel und Plan (nur lesen; geschrieben wird über das Zielformular und die
   /// Zuordnung).
   late final PlanController _plan = PlanController(
@@ -80,7 +87,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _shownDay = _today;
     WidgetsBinding.instance.addObserver(this);
     _plan.addListener(_onPlan);
-    _plan.reload();
+    // Wie die Plan-Seite: wöchentliche Prüfung beim Öffnen (FR-0158), dann
+    // laden; derselbe Aufruf, keine zweite Fassung der Prüfung.
+    _openPlan();
   }
 
   @override
@@ -115,9 +124,184 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() {
       _shownDay = _today;
       _future = _load();
+      _hints = _loadHints();
     });
-    _plan.reload();
+    _openPlan();
   }
+
+  /// Prüfung beim Öffnen; danach die Hinweise neu laden, weil sie vom Plan
+  /// abhängen (der Neustart zur Pause ändert den Text, PAR-202).
+  Future<void> _openPlan() async {
+    await _plan.open();
+    _reloadHints();
+  }
+
+  Future<HomeHints> _loadHints() => HomeHints.load(
+    widget.session,
+    widget.clock,
+  ).catchError((Object _) => const HomeHints());
+
+  void _reloadHints() {
+    if (!mounted) return;
+    setState(() {
+      _hints = _loadHints();
+    });
+  }
+
+  void _snack(String key, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(key: Key(key), content: Text(message)));
+  }
+
+  /// Pausenfrage beantworten (PAR-202); „Ja“ startet den Plan neu.
+  Future<void> _answerPause(bool paused) async {
+    if (_busy) return;
+    final l = AppLocalizations.of(context);
+    setState(() => _busy = true);
+    final r = await _plan.answerPause(paused);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (r != PlanActionResult.done) {
+      _snack('home_pause_failed', l.homePauseFailed);
+    } else if (paused) {
+      widget.changes.changed();
+    }
+    _reloadHints();
+  }
+
+  Future<void> _liftWarning() async {
+    if (_busy) return;
+    final l = AppLocalizations.of(context);
+    setState(() => _busy = true);
+    final r = await _plan.liftWarning();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    _snack(
+      'home_warning_lifted',
+      r == PlanActionResult.done ? l.planWarnLifted : l.planWarnFailed,
+    );
+    _reloadHints();
+  }
+
+  Future<void> _seeChange(PlanChangeNotice notice) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await _plan.markChangeSeen(notice.planId);
+    if (mounted) setState(() => _busy = false);
+  }
+
+  Future<void> _openHistory() async {
+    final notice = _plan.state.changeNotice;
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PlanHistoryScreen(load: _plan.changeHistory),
+      ),
+    );
+    if (!mounted || notice == null) return;
+    await _plan.markChangeSeen(notice.planId);
+  }
+
+  /// „Locker laufen“: die heutige Einheit nach Bestätigung durch einen
+  /// lockeren Lauf ersetzen (Ersetzen aus WP22); ohne Bestätigung bleibt der
+  /// Plan.
+  Future<void> _easyRun(PlanUnit unit) async {
+    if (_busy) return;
+    final l = AppLocalizations.of(context);
+    PlanReplaceCheck? check;
+    try {
+      check = await _plan.checkReplace(unit, PlanUnitKind.easy);
+    } on Object {
+      check = null;
+    }
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => EasyRunDialog(check: check),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    final r = await _plan.replaceUnit(unit.id!, PlanUnitKind.easy);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    _snack(
+      'home_easy_result',
+      r == PlanActionResult.done
+          ? l.calendarReplaced
+          : l.calendarReplaceRejected,
+    );
+    widget.changes.changed();
+  }
+
+  /// Karten über der Startkarte: Hinweis „Erholung“ (nur mit Auslöser),
+  /// Pausenfrage, Erinnerung unter Warnsignal und „Plan angepasst“.
+  Widget _cards(
+    BuildContext context,
+    PlanViewState s,
+  ) => FutureBuilder<HomeHints>(
+    future: _hints,
+    builder: (context, snap) {
+      final hints = snap.data;
+      final ready = s.phase == PlanLoadPhase.ready;
+      final unit = ready && s.hasPlan ? _unitToday(s) : null;
+      final canEasy =
+          unit != null &&
+          unit.id != null &&
+          unit.kind != PlanUnitKind.rest &&
+          unit.kind != PlanUnitKind.easy &&
+          unit.runId == null;
+      final card = hints?.card;
+      final pause = hints?.pause;
+      final notice = ready ? s.changeNotice : null;
+      final reminder = ready && s.warning != null && s.warningReminderDue
+          ? planDay(_date(_today))
+                .difference(planDay(s.warning!.reportedOn))
+                .inDays
+          : null;
+      final children = <Widget>[
+        if (card != null)
+          RecoveryCardView(
+            card: card,
+            onEasyRun: card.action == HintAction.easyRun && canEasy && !_busy
+                ? () => _easyRun(unit)
+                : null,
+            onNewStart:
+                card.action == HintAction.newStart && s.goal != null && !_busy
+                ? () => _newStart(s.goal!)
+                : null,
+          ),
+        if (pause != null)
+          PauseQuestionCard(
+            question: pause,
+            onAnswer: _busy ? null : _answerPause,
+          ),
+        if (reminder != null)
+          WarningReminderCard(
+            days: reminder,
+            onLift: _busy ? null : _liftWarning,
+          ),
+        if (notice != null)
+          PlanChangeCard(
+            notice: notice,
+            onSeen: _busy ? null : () => _seeChange(notice),
+            onHistory: _openHistory,
+          ),
+      ];
+      if (children.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              children[i],
+            ],
+          ],
+        ),
+      );
+    },
+  );
 
   /// Heutiger Ortstag nach dem Versatz der Uhr (wie in der Statistik).
   String get _today {
@@ -145,6 +329,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     sensors: widget.sensors,
     changes: widget.changes,
   ).start(context, unit: unit);
+
+  /// Gingen erfasste Läufe in die Fassung ein (Pace, Wochenzeit)? Nur dann
+  /// nennt „Worauf beruht das?“ sie.
+  bool _planUsesRuns(PlanViewState s) {
+    final i = s.version?.inputs;
+    return i != null && (i.easyRunCount > 0 || i.lastWeekMinutes != null);
+  }
+
+  /// Neuer Einstieg nach langer Pause (PAR-181): das Zielformular fragt den
+  /// Stand neu (PAR-192); Speichern startet den Plan neu.
+  Future<void> _newStart(TrainingGoal goal) async {
+    if (_busy) return;
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    final result = await Navigator.of(context, rootNavigator: true)
+        .push<PlanActionResult>(
+          MaterialPageRoute(
+            builder: (_) => PlanGoalFormScreen(
+              controller: _plan,
+              session: widget.session,
+              clock: widget.clock,
+              initial: goal,
+              newStart: true,
+            ),
+          ),
+        );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    await _plan.reload();
+    _reloadHints();
+    if (result == null) return;
+    widget.changes.changed();
+    messenger.showSnackBar(
+      SnackBar(
+        key: const Key('home_new_start_saved'),
+        content: Text(
+          result == PlanActionResult.savedNotPlanned
+              ? l.planGoalSavedNotPlanned
+              : l.planGoalSaved,
+        ),
+      ),
+    );
+  }
 
   /// Zielformular aus Teil C (Anlegen); danach lädt der Plan neu.
   Future<void> _createGoal(BuildContext context) async {
@@ -236,6 +464,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
             ),
             const SizedBox(height: 16),
+            _cards(context, _plan.state),
             // Der Zugang ist ohne Profil und ohne Freigaben offen (FR-0001,
             // CON-0007); nur der Standort wird geprüft (FR-0195).
             _startCard(context, l10n),
@@ -377,6 +606,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   l.planBasisLine(basis),
                   key: const Key('home_today_basis'),
                   style: t.bodySmall?.copyWith(color: c.textMuted),
+                ),
+              if (trainingBasisLines(l, unit, withRuns: _planUsesRuns(s))
+                  case final lines?)
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton(
+                    key: const Key('home_today_why'),
+                    onPressed: () => showBasisDialog(context, lines),
+                    child: Text(l.recoveryBasis),
+                  ),
                 ),
             ]);
           }

@@ -1375,6 +1375,45 @@ void main() {
     });
   });
 
+  group('Neues Geh-Lauf-Ziel mitten in der Woche (NB5 4)', () {
+    // Lauftage Mo, Di, Do, Sa. Das Ziel entsteht am Donnerstag; Montag und
+    // Dienstag sind schon eingefroren (Geh-Lauf-Einheiten eines früheren
+    // Plans). Die Abfolge des neuen Ziels beginnt heute: die Einheiten davor
+    // gehören nicht zu ihr, Donnerstag und Samstag bleiben beide.
+    test('die ersten Geh-Lauf-Einheiten ab heute bleiben', () {
+      final wg = goal(
+        date: DateTime.utc(2027, 2, 14),
+        c30: ContinuousRun30.no,
+        days: {1, 2, 4, 6},
+      );
+      final thu = DateTime.utc(2026, 11, 12);
+      final wi = PlanInputs.forNewGoal(wg, thu);
+      expect(wi.walkRunFrom, thu);
+      final frozen = [
+        for (final day in [9, 10])
+          PlanUnit(
+            day: DateTime.utc(2026, 11, day),
+            kind: PlanUnitKind.walkRun,
+            phase: PlanPhase.build,
+            weekIndex: 0,
+            minutes: 30,
+            segments: const [],
+            runId: day,
+          ),
+      ];
+      final p = generatePlan(wg, wi, frozen, thu);
+      final week = [
+        for (final u in p.units)
+          if (u.day.isBefore(DateTime.utc(2026, 11, 16))) u,
+      ];
+      expect([for (final u in week) u.day.day], [12, 14]);
+      expect(week.every((u) => u.kind == PlanUnitKind.walkRun), isTrue);
+      // Die erste Einheit ist Lauf 1 der Abfolge (wie ohne eingefrorene).
+      final clean = generatePlan(wg, wi, const [], thu);
+      expect(sig(week.first), sig(clean.units.first));
+    });
+  });
+
   group('planSpacingConflicts (Anzeige, FR-0152)', () {
     PlanUnit u(int day, PlanUnitKind kind, {bool pinned = false, int? runId}) =>
         PlanUnit(

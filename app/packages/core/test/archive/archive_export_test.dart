@@ -131,7 +131,7 @@ void main() {
         expect(lines.first, {
           'type': 'manifest',
           'format': 2,
-          'schema_version': 10,
+          'schema_version': 11,
           'created_at_us': DateTime.utc(2026, 11, 7, 12).microsecondsSinceEpoch,
         });
         final sections = [
@@ -152,11 +152,8 @@ void main() {
           }, reason: s.name);
           expect(rows.first.keys.toList(), [for (final c in s.columns) c.name]);
         }
-        // Ab Schema 7 tragen `goals`, `plans` und `plan_units` Zeilen; die
-        // Warnmeldung ist noch leer.
-        for (final n in ['active_warning']) {
-          expect(_rowsOf(lines, n), isEmpty);
-        }
+        // Ab Schema 7 tragen `goals`, `plans` und `plan_units` Zeilen, ab
+        // Schema 11 auch `active_warning`.
         final end = lines.last;
         expect(end['type'], 'end');
         expect((end['rows']! as Map).keys.toList(), sections);
@@ -164,7 +161,7 @@ void main() {
         expect((end['rows']! as Map)['goals'], 2);
         expect((end['rows']! as Map)['plans'], 2);
         expect((end['rows']! as Map)['plan_units'], 2);
-        expect((end['rows']! as Map)['active_warning'], 0);
+        expect((end['rows']! as Map)['active_warning'], 2);
       },
     );
 

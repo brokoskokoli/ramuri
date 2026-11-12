@@ -8,6 +8,7 @@ import '../history/run_detail_screen.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../summary/run_summary_body.dart';
 import '../summary/run_summary_page.dart';
+import '../summary/warning_entry.dart';
 import 'live_map_page.dart';
 import 'live_run_values.dart';
 import 'run_controller.dart';
@@ -241,6 +242,11 @@ class LiveRunView extends StatelessWidget {
           subjective: SubjectiveService(
             session: controller.storage,
             clock: clock,
+          ),
+          onWarning: warningEntry(
+            session: controller.storage,
+            clock: clock,
+            runId: id,
           ),
         ),
       ),

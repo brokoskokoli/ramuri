@@ -31,7 +31,8 @@ class PlanWeek {
     required this.minutes,
     required this.phase,
     required this.kind,
-  });
+    int? baseMinutes,
+  }) : baseMinutes = baseMinutes ?? minutes;
 
   /// Nummer der Woche ab dem Anker (0 = Ankerwoche).
   final int index;
@@ -43,6 +44,11 @@ class PlanWeek {
   final int? minutes;
   final PlanPhase phase;
   final WeekKind kind;
+
+  /// Wochenzeit ohne die Verringerung einer leichteren Woche (PAR-194): der
+  /// Wert, von dem es danach weitergeht; sonst gleich [minutes]. `null` in
+  /// der Geh-Lauf-Abfolge.
+  final int? baseMinutes;
 }
 
 /// Verlauf der Wochenzeit ab der Woche von „heute“.
@@ -120,6 +126,8 @@ int _toMinutes(double value) => value.round();
 ///   Woche des Termins, die letzten Wochen sind die Reduktion (PAR-199).
 ///   Ohne Datum läuft der Plan [PlanParameters.openHorizonWeeks] Wochen
 ///   fort.
+/// - [lighterOffset]: Wochen, die PAR-194 schon vor dem Anker gezählt hat
+///   (Neustart nach Anpassung: die Zählung läuft weiter).
 WeeklyTimeResult planWeeklyTime({
   required int startMinutes,
   required int capMinutes,
@@ -129,8 +137,12 @@ WeeklyTimeResult planWeeklyTime({
   GoalDistance? distance,
   DateTime? targetDate,
   int walkRunWeeks = 0,
+  int lighterOffset = 0,
   PlanParameters parameters = const PlanParameters(),
 }) {
+  if (lighterOffset < 0) {
+    throw ArgumentError.value(lighterOffset, 'lighterOffset', 'nicht negativ');
+  }
   if (startMinutes < 1) {
     throw ArgumentError.value(startMinutes, 'startMinutes', 'mindestens 1');
   }
@@ -176,12 +188,28 @@ WeeklyTimeResult planWeeklyTime({
   var damping = 1.0;
   if (reductionStart != null && peakMinutes != null) {
     final peakWeek = reductionStart - p.peakLeadWeeks;
-    final undamped = _arrival(start, level, first, buildEnd, 1, p);
+    final undamped = _arrival(
+      start,
+      level,
+      first,
+      buildEnd,
+      1,
+      p,
+      lighterOffset,
+    );
     if (undamped != null && undamped < peakWeek) {
       var lo = 0.0, hi = 1.0;
       for (var i = 0; i < p.dampingIterations; i++) {
         final mid = (lo + hi) / 2;
-        final a = _arrival(start, level, first, buildEnd, mid, p);
+        final a = _arrival(
+          start,
+          level,
+          first,
+          buildEnd,
+          mid,
+          p,
+          lighterOffset,
+        );
         if (a != null && a <= peakWeek) {
           hi = mid;
         } else {
@@ -192,7 +220,7 @@ WeeklyTimeResult planWeeklyTime({
     }
   }
 
-  final base = _bases(start, level, first, buildEnd, damping, p);
+  final base = _bases(start, level, first, buildEnd, damping, p, lighterOffset);
   final reached = _firstReached(base, level, first);
   final entryEnd = walkRunWeeks > 0 ? walkRunWeeks : p.entryWeeks;
   // Wochenzeit der Reduktion: Bezug ist der letzte Aufbauwert (PAR-199).
@@ -221,7 +249,7 @@ WeeklyTimeResult planWeeklyTime({
       kind = WeekKind.reduction;
     } else {
       final b = base[i - first];
-      final lighter = (i - first + 1) % p.lighterWeekEvery == 0;
+      final lighter = (i - first + 1 + lighterOffset) % p.lighterWeekEvery == 0;
       if (lighter) {
         minutes = _toMinutes(b * (1 - p.lighterWeekReduction));
         kind = WeekKind.lighter;
@@ -235,6 +263,7 @@ WeeklyTimeResult planWeeklyTime({
         index: i,
         start: monday,
         minutes: minutes,
+        baseMinutes: inReduction ? minutes : _toMinutes(base[i - first]),
         phase: inReduction
             ? PlanPhase.reduction
             : i < entryEnd
@@ -272,8 +301,9 @@ List<double> _bases(
   int first,
   int buildEnd,
   double damping,
-  PlanParameters p,
-) {
+  PlanParameters p, [
+  int lighterOffset = 0,
+]) {
   final out = <double>[];
   for (var i = first; i <= buildEnd; i++) {
     if (i == first) {
@@ -281,7 +311,7 @@ List<double> _bases(
       continue;
     }
     final prev = out.last;
-    final lighter = (i - first + 1) % p.lighterWeekEvery == 0;
+    final lighter = (i - first + 1 + lighterOffset) % p.lighterWeekEvery == 0;
     if (lighter || prev >= level) {
       out.add(prev);
     } else {
@@ -298,9 +328,10 @@ int? _arrival(
   int first,
   int buildEnd,
   double damping,
-  PlanParameters p,
-) => _firstReached(
-  _bases(start, level, first, buildEnd, damping, p),
+  PlanParameters p, [
+  int lighterOffset = 0,
+]) => _firstReached(
+  _bases(start, level, first, buildEnd, damping, p, lighterOffset),
   level,
   first,
 );

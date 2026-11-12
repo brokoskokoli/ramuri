@@ -29,6 +29,7 @@ class RunDetailPage extends StatelessWidget {
     required this.session,
     required this.runId,
     this.subjective,
+    this.onWarning,
     this.exportBusy,
   });
 
@@ -43,6 +44,9 @@ class RunDetailPage extends StatelessWidget {
 
   /// Dienst für die Angaben zum Lauf; im Detail änderbar, mit sRPE.
   final SubjectiveService? subjective;
+
+  /// Einstieg Warnsignal: Antwort „ja“ meldet, ihre Rücknahme hebt auf ([warningEntry]).
+  final Future<void> Function(bool yes)? onWarning;
 
   /// Gemeinsamer Zustand „Export läuft“ mit dem Symbol der Kopfzeile.
   final ValueNotifier<bool>? exportBusy;
@@ -70,6 +74,7 @@ class RunDetailPage extends StatelessWidget {
       session: session,
       runId: runId,
       subjective: subjective,
+      onWarning: onWarning,
     );
     const gap = SizedBox(height: 16);
     return Column(

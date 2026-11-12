@@ -85,6 +85,10 @@ SECTIONS_S9 = SECTIONS_S8 + ["raw_rr_packets"]
 # Abschnitt 26 `treadmill_settings` kommt ans Ende. Archive bis Schema 9 lesen sich mit mode = "gps".
 SECTIONS_S10 = SECTIONS_S9 + ["treadmill_settings"]
 
+# Schema 11 (WP23, weiter Format 2): gleiche 26 Abschnitte; Abschnitt 21 `active_warning` traegt
+# ab jetzt Zeilen (hoechstens eine, id = 1; Vertrag 4.3), davor 0.
+SECTIONS_S11 = SECTIONS_S10
+
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
 V2_TODAY = "2026-11-20"
@@ -284,9 +288,20 @@ def archive_rows_s10():
     return r
 
 
-def archive_plaintext(version=1, future_training=False, schema=None):
-    if schema == 10:
+def archive_rows_s11():
+    """Schema 11: die Zeilen von Schema 10 und ein Warnsignal (Quelle run_feedback, Lauf 7)."""
+    r = archive_rows_s10()
+    r["active_warning"] = [dict(id=1, reported_on="2026-11-18", source="run_feedback", run_id=7)]
+    return r
+
+
+def archive_plaintext(version=1, future_training=False, schema=None, reserved_row=False):
+    if schema == 11:
+        r, sections = archive_rows_s11(), SECTIONS_S11
+    elif schema == 10:
         r, sections = archive_rows_s10(), SECTIONS_S10
+        if reserved_row:  # Abschnitt 21 ist bis Schema 10 reserviert: eine Zeile ist beschaedigt
+            r["active_warning"] = archive_rows_s11()["active_warning"]
     elif schema == 9:
         r, sections = archive_rows_s9(), SECTIONS_S9
     elif schema == 8:
@@ -337,7 +352,9 @@ def main():
     jl8, gz8 = archive_plaintext(2, schema=8)
     jl9, gz9 = archive_plaintext(2, schema=9)
     jl10, gz10 = archive_plaintext(2, schema=10)
+    jl11, gz11 = archive_plaintext(2, schema=11)
     _, gz2_future = archive_plaintext(2, future_training=True)
+    _, gz10_warn = archive_plaintext(2, schema=10, reserved_row=True)
     # (name, passwort, salz, klartext)
     pw_uni = "Pässwörd-ünïcode-€-123"
     pw_nfd = unicodedata.normalize("NFD", "Äé-nicht-normalisiert-ok")
@@ -355,13 +372,15 @@ def main():
         ("archive_v2_s8", "archiv-test-passwort-s8+", bytes(range(8, 24)), gz8),
         ("archive_v2_s9", "archiv-test-passwort-s9+", bytes(range(24, 40)), gz9),
         ("archive_v2_s10", "archiv-test-passwort-s10+", bytes(range(40, 56)), gz10),
+        ("archive_v2_s11", "archiv-test-passwort-s11+", bytes(range(56, 72)), gz11),
     ]
     # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
     v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
+    s10_warn = ("s10_warning_row_src", "archiv-test-passwort-s10w+", bytes(range(72, 88)), gz10_warn)
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10") else 1
+        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10", "archive_v2_s11") else 1
         h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
@@ -409,6 +428,12 @@ def main():
             manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl10).hexdigest()
             manifest[-1]["row_counts"] = {s: len(archive_rows_s10()[s]) for s in SECTIONS_S10}
             manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s11":
+            open(os.path.join(out, "archive_v2_s11.jsonl"), "wb").write(jl11)
+            manifest[-1]["jsonl_file"] = "archive_v2_s11.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl11).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s11()[s]) for s in SECTIONS_S11}
+            manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)
             manifest[-1]["jsonl_file"] = "archive_small.jsonl"
@@ -447,6 +472,10 @@ def main():
     fh, fcts = encrypt(fpt, fsalt, fkey, 2)
     neg.append(("neg_v2_training_after_today", fh + b"".join(fcts), "corrupt", "archive_v2",
                 f"Format 2, manual_trainings mit Tag nach heute ({V2_TODAY}): Archiv abgelehnt"))
+    # Schema 10 mit einer Zeile in Abschnitt 21 (erst ab Schema 11 erlaubt): Rahmen gueltig, Inhalt abgelehnt.
+    wh, wcts = encrypt(s10_warn[3], s10_warn[2], derive(s10_warn[1].encode(), s10_warn[2]), 2)
+    neg.append(("neg_s10_active_warning_row", wh + b"".join(wcts), "corrupt", "archive_v2_s10",
+                "Schema 10, Abschnitt 21 active_warning mit einer Zeile (erst ab Schema 11): Archiv abgelehnt"))
     for n, data, err, base, note in neg:
         if n == "neg_extra_empty_last": data = h + ct0 + ct1
         if n == "neg_full_chunk_flagged_not_last": data = h + ctx
@@ -455,6 +484,10 @@ def main():
         manifest.append(dict(name=n, file=f"{n}.runarchv", password=b["password"],
                              salt_hex=b["salt_hex"], key_hex=b["key_hex"], expect=err, note=note,
                              file_len=len(data)))
+        if n == "neg_s10_active_warning_row":
+            manifest[-1].update(layer="content", today=V2_TODAY,
+                                password=s10_warn[1], salt_hex=s10_warn[2].hex(),
+                                key_hex=derive(s10_warn[1].encode(), s10_warn[2]).hex())
         if n == "neg_v2_training_after_today":  # Rahmen und Kryptografie gueltig, Inhalt abgelehnt
             manifest[-1].update(layer="content", today=V2_TODAY)
     json.dump(dict(contract="docs/contracts/archive.md", generator="tool/archive_vectors/make_vectors.py",

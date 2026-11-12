@@ -1,12 +1,16 @@
 import '../../ports/clock.dart';
 import '../../ports/storage.dart';
+import '../../ports/storage_plan.dart';
 import '../../ports/storage_runs.dart';
+import '../../ports/storage_warning.dart';
 import '../fitness/load_profile.dart';
 import '../fitness/personal_load_factor.dart';
 import '../recalculation/recalculation_service.dart';
 import '../recalculation/run_load_values.dart';
 import '../recalculation/value_calculation_service.dart';
+import '../plan/plan_unit.dart';
 import '../settings/load_settings.dart';
+import 'pause_days.dart';
 import 'training_load.dart';
 
 /// Stand des persönlichen Faktors TRIMP/sRPE für das aktive Profil
@@ -191,12 +195,19 @@ class TrainingLoadService {
     // gestern, außer heute gibt es Einheiten (auch unbewertete).
     final todayEmpty = !units.any((u) => _sameDay(u.day, today));
     final end = todayEmpty ? today.subtract(const Duration(days: 1)) : today;
+    final expected = await _expectedUnitsPerDay(units, today);
+    final pauseAnswer = await WarningState(settings).pauseAnswer();
     final series = computeTrainingLoad(
       profile: profile,
       units: units,
       factor: factor.value,
       confirmsAllRecorded: allRecorded,
       today: end,
+      expectedUnitsPerDay: expected,
+      confirmedPauseDays: confirmedPauseDays(
+        answer: pauseAnswer,
+        unitDays: [for (final u in units) u.day],
+      ),
     );
     return TrainingLoadReport(
       series: series,
@@ -208,6 +219,30 @@ class TrainingLoadService {
       todayEmpty: todayEmpty,
       calculatedAt: now,
     );
+  }
+
+  /// Erwartete Einheiten je Tag aus dem aktuellen Plan (FR-0103, PAR-090):
+  /// geplante Läufe (ohne Ruhetage) der Tage vor heute, heute nur mit
+  /// zugeordnetem Lauf (der Tag ist nicht vorbei). `null` ohne Plan oder ohne
+  /// Einheiten: dann gelten alle erfassten Einheiten als erwartet.
+  Future<Map<DateTime, int>?> _expectedUnitsPerDay(
+    List<LoadUnit> units,
+    DateTime today,
+  ) async {
+    final s = session;
+    if (s is! PlanStorage || units.isEmpty) return null;
+    var first = units.first.day;
+    for (final u in units) {
+      if (u.day.isBefore(first)) first = u.day;
+    }
+    final planned = await (s as PlanStorage).plans.unitsBetween(first, today);
+    final expected = <DateTime, int>{};
+    for (final u in planned) {
+      if (u.kind == PlanUnitKind.rest) continue;
+      if (_sameDay(u.day, today) && u.runId == null) continue;
+      expected[u.day] = (expected[u.day] ?? 0) + 1;
+    }
+    return expected.isEmpty ? null : expected;
   }
 
   static int? _ageDays(DateTime today, DateTime? day) =>

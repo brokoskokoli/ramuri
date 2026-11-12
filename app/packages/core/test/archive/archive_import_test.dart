@@ -55,14 +55,14 @@ Map<String, Object?> _row(ArchiveSectionSpec s, int i, {int schema = 4}) => {
       c.name: c.name == s.key && s.keyIsText ? 'key$i' : _valueFor(c, i),
 };
 
-const _fromSchema7 = {'goals', 'plans', 'plan_units'};
+const _fromSchema7 = {'goals', 'plans', 'plan_units', 'active_warning'};
 
 Map<String, List<Map<String, Object?>>> _fullDb({
   int rowsPer = 1,
   int schema = 4,
 }) => {
-  // `goals`, `plans` und `plan_units` gibt es erst ab Schema 7; die
-  // Hilfsfunktionen schreiben Schema 4.
+  // `goals`, `plans` und `plan_units` gibt es erst ab Schema 7, Zeilen in
+  // `active_warning` ab Schema 11; die Hilfsfunktionen schreiben Schema 4.
   for (final s in archiveSections)
     if (!s.isReserved && !_fromSchema7.contains(s.name))
       s.name: [for (var i = 1; i <= rowsPer; i++) _row(s, i, schema: schema)],
@@ -474,12 +474,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 10: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 11: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 11);
+        final lines = valid()..[0] = _manifest(schema: 12);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":11,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":12,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -1346,8 +1346,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 10 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 11, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 11 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 12, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -1367,6 +1367,21 @@ void main() {
         isNot(contains('mode')),
       );
       expect(archiveSectionsFor(10).first.columns.last.name, 'mode');
+      expect(archiveSectionsFor(11), hasLength(26));
+      expect(archiveSectionsFor(11).last.name, 'treadmill_settings');
+      // `active_warning` (21) ist bis Schema 10 reserviert, ab 11 mit Spalten.
+      expect(
+        archiveSectionsFor(10)
+            .firstWhere((s) => s.name == 'active_warning')
+            .isReserved,
+        isTrue,
+      );
+      expect(
+        archiveSectionsFor(11)
+            .firstWhere((s) => s.name == 'active_warning')
+            .columns,
+        hasLength(4),
+      );
       expect(
         archiveSectionsFor(8).map((s) => s.name),
         isNot(contains('raw_rr_packets')),
@@ -1651,6 +1666,71 @@ void main() {
       'source': 'ble',
       'rr': rr,
     };
+
+    Map<String, Object?> warn({
+      Object? id = 1,
+      Object? day = '2026-11-18',
+      Object? source = 'run_feedback',
+      Object? run = 7,
+    }) => {'id': id, 'reported_on': day, 'source': source, 'run_id': run};
+
+    test('Schema 11: active_warning trägt eine Zeile (Abschnitt 21)', () async {
+      await c.run(
+        await file(
+          v2(
+            schema: 11,
+            extra: {
+              'active_warning': [warn()],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      expect(c.sink.rows['active_warning'], [warn()]);
+      // Ohne Lauf (leer) und ohne Zeile sind gültig.
+      c = _Case(dir);
+      await c.run(
+        await file(
+          v2(
+            schema: 11,
+            extra: {
+              'active_warning': [warn(run: null)],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.rows['active_warning'], [warn(run: null)]);
+      c = _Case(dir);
+      await c.run(await file(v2(schema: 11)));
+      expect(c.sink.commits, 1);
+    });
+
+    test(
+      'active_warning: Zeile in Schema 10 (Abschnitt 21 reserviert), zweite '
+      'Zeile, falsche id, kein Kalendertag, falscher Typ: beschädigt',
+      () async {
+        await rejectsV2(
+          v2(
+            schema: 10,
+            extra: {
+              'active_warning': [warn()],
+            },
+          ),
+        );
+        for (final bad in <List<Map<String, Object?>>>[
+          [warn(), warn(id: 2)],
+          [warn(), warn()],
+          [warn(id: 2)],
+          [warn(day: '2026-02-30')],
+          [warn(day: '18.11.2026')],
+          [warn(day: 20261118)],
+          [warn(source: null)],
+          [warn(run: '7')],
+        ]) {
+          await rejectsV2(v2(schema: 11, extra: {'active_warning': bad}));
+        }
+      },
+    );
 
     test('Schema 9: raw_rr_packets, BLOB bitgleich (0, 65535)', () async {
       final bytes = Uint8List.fromList([0, 0, 255, 255, 0, 4]);
@@ -1970,9 +2050,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 11: neueres Archiv', () async {
+    test('Schema 12: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":11,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":12,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });

@@ -285,12 +285,18 @@ GeneratedPlan generatePlan(
     bool tooClose(PlanUnit u) => frozenIntensive.any(
       (d) => u.day.difference(d).inDays.abs() < p.minGapDays,
     );
+    // Nach Ermüdung (PAR-201) oder Pause (PAR-202) keine harte Einheit bis
+    // [PlanInputs.noHardUntil]: sie wird ein lockerer Lauf gleicher Dauer.
+    final noHardUntil = inputs.noHardUntil;
+    bool noHard(PlanUnit u) =>
+        noHardUntil != null && !u.day.isAfter(noHardUntil);
     var future = <PlanUnit>[
       for (final u in planned.units)
         if (!u.day.isBefore(todayDay) && !frozenDays.contains(u.day))
           (frozenHard && u.isHard) ||
                   (frozenLong && u.kind == PlanUnitKind.long) ||
-                  (u.isIntensive && tooClose(u))
+                  (u.isIntensive && tooClose(u)) ||
+                  (u.isHard && noHard(u))
               ? _asEasy(u)
               : u,
     ];
@@ -326,7 +332,13 @@ GeneratedPlan generatePlan(
       // Lauftagen) zählen mit. Die Abfolge ist schon um die eingefrorenen
       // Einheiten vorgerückt: Es bleiben die noch fehlenden, also die letzten
       // der Woche (etwa der Dauerlauf in Woche 5); die ersten entfallen.
-      final allowed = walkPlan.units.length - frozenWeek.length;
+      // Einheiten vor dem Start der Abfolge ([PlanInputs.walkRunFrom], etwa
+      // nach „Lauf wiederholen“ mitten in der Woche) gehören nicht zu ihr.
+      final from = inputs.walkRunFrom;
+      final inSequence = frozenWeek
+          .where((u) => from == null || !planDay(u.day).isBefore(from))
+          .length;
+      final allowed = walkPlan.units.length - inSequence;
       if (future.length > allowed) {
         final keep = allowed < 0 ? 0 : allowed;
         final cut = future.length - keep;

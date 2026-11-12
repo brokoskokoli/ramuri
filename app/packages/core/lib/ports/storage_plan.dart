@@ -24,6 +24,11 @@ enum PlanTrigger {
 /// ins Archiv.
 const String planLastCheckDayKey = 'plan.last_check_day';
 
+/// Schlüssel in den Einstellungen: Merker des Neustarts zur Pause (PAR-202),
+/// Wert `JJJJ-MM-TT restart|none` (Tag des letzten Trainings). Nur Tag und
+/// Code, geht ins Archiv.
+const String planPauseRestartKey = 'plan.pause_restart';
+
 /// Eine gespeicherte Fassung des Plans (Zeile von `plans`).
 class PlanVersionRecord {
   PlanVersionRecord({
@@ -208,11 +213,22 @@ void checkPlanDraftForStorage(PlanVersionDraft d) {
     if (u.runId != null ||
         u.minutes < 0 ||
         u.weekIndex < 0 ||
-        day.isBefore(d.validFrom)) {
+        day.isBefore(d.validFrom) ||
+        !planUnitFixedValid(u)) {
       throw const StorageException(StorageFailure.rejected);
     }
   }
 }
+
+/// Die Festlegung [PlanUnit.fixed] einer Einheit gegen die CHECK-Regel von
+/// `plan_units` (schema.drift): jede Festlegung nur mit bestätigtem Termin,
+/// `day` genau bei Ruhetagen, `easyForHard` nur bei lockeren Läufen. Der Fake
+/// lehnt dasselbe ab wie die Datenbank.
+bool planUnitFixedValid(PlanUnit u) =>
+    u.fixed == PlanUnitFixed.none ||
+    (u.pinned &&
+        (u.fixed == PlanUnitFixed.day) == (u.kind == PlanUnitKind.rest) &&
+        (u.fixed != PlanUnitFixed.easyForHard || u.kind == PlanUnitKind.easy));
 
 /// Neue Wochennummer einer auf [newDay] verschobenen Einheit (die Nummer
 /// zählt ab dem Anker; Wochen beginnen am Montag).

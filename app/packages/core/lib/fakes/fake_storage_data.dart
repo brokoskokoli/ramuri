@@ -5,6 +5,7 @@ import '../ports/storage_derived.dart';
 import '../ports/storage_devices.dart';
 import '../ports/storage_plan.dart';
 import '../ports/storage_prediction.dart';
+import '../ports/storage_warning.dart';
 import '../src/goals/training_goal.dart';
 import '../src/plan/plan_unit.dart';
 import '../ports/storage_profile.dart';
@@ -46,6 +47,10 @@ class FakeStorageData {
   final rejectedSuggestions = <int>{};
   int nextReferenceId = 1;
   TrainingGoal? goal;
+
+  /// Aktives Warnsignal (`active_warning`): kein Fremdschlüssel, übersteht
+  /// [deleteRun]; nur [deleteAll] löscht es.
+  WarningSignal? warning;
 
   /// Plan-Fassungen und -Einheiten nach Kennung (wie `plans`, `plan_units`).
   /// Die Einheit trägt Methode und Version ihrer Fassung erst beim Lesen.
@@ -146,5 +151,6 @@ class FakeStorageData {
     nextPlanId = 1;
     nextPlanUnitId = 1;
     deleteGoal();
+    warning = null;
   }
 }

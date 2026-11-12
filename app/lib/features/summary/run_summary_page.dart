@@ -25,6 +25,7 @@ class RunSummaryPage extends StatelessWidget {
     required this.session,
     required this.runId,
     this.subjective,
+    this.onWarning,
   });
 
   final RunSummary summary;
@@ -36,6 +37,9 @@ class RunSummaryPage extends StatelessWidget {
   /// Dienst für die Angaben zum Lauf (FR-0038); ohne ihn entfällt der Abschnitt.
   final SubjectiveService? subjective;
 
+  /// Einstieg Warnsignal: Antwort „ja“ meldet, ihre Rücknahme hebt auf ([warningEntry]).
+  final Future<void> Function(bool yes)? onWarning;
+
   /// Abschnitt „Angaben zum Lauf“, falls ein Dienst da ist.
   Widget subjectiveSection({bool showSrpe = false}) {
     final service = subjective;
@@ -46,6 +50,7 @@ class RunSummaryPage extends StatelessWidget {
         service: service,
         runId: runId,
         showSrpe: showSrpe,
+        onWarning: onWarning,
       ),
     );
   }

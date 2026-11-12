@@ -587,3 +587,17 @@ CREATE TABLE plan_units (
 CREATE INDEX plan_units_day ON plan_units (day);
 CREATE INDEX plan_units_plan ON plan_units (plan_id);
 CREATE INDEX plan_units_run ON plan_units (run_id);
+
+-- ------------------------------------------------ Warnsignal (Version 11, WP23)
+-- Das aktive Warnsignal (FR-0203, K58): höchstens eine Zeile (`id = 1`).
+-- `reported_on` ist der Ortstag der Meldung (ISO-Datum), `source` 'manual'
+-- (Plan-Seite) oder 'run_feedback' (Antwort "ja" der Zusammenfassung). `run_id`
+-- nennt den Lauf der Meldung, ist aber bewusst KEIN Fremdschlüssel: Die Zeile
+-- überlebt das Löschen des Laufs (Warnsignal ist kein Teil der Lauf-Angaben).
+-- Aufheben löscht die Zeile. Abschnitt 21 des Archivs.
+CREATE TABLE active_warning (
+  id INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
+  reported_on TEXT NOT NULL CHECK (reported_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND date(reported_on) IS reported_on),
+  source TEXT NOT NULL CHECK (source IN ('manual', 'run_feedback')),
+  run_id INTEGER CHECK (run_id IS NULL OR typeof(run_id) = 'integer')
+) AS ActiveWarningRow;

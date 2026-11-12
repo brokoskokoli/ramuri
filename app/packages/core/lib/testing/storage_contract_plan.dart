@@ -13,6 +13,11 @@ final List<StorageContractCase> planContractCases = [
     _replaceOpenFuture,
   ),
   const StorageContractCase(
+    'Plan: Einheiten zwischen heute und Anker ersetzt die Fassung, die sie '
+    'nicht enthält; die übernommenen (Brücke) bleiben',
+    _bridge,
+  ),
+  const StorageContractCase(
     'Plan: ungültige Fassung wird abgelehnt, der alte Plan bleibt',
     _invalid,
   ),
@@ -41,6 +46,11 @@ final List<StorageContractCase> planContractCases = [
   const StorageContractCase(
     'Plan: hart -> locker in eine andere Woche verschoben wird kind',
     _moveEasyForHard,
+  ),
+  const StorageContractCase(
+    'Plan: Warnsignal melden und aufheben bei fixed = kind und easyForHard '
+    '(Ruhetage in gültiger Form, Festlegung kehrt zurück)',
+    _warningFixed,
   ),
   const StorageContractCase('Alles löschen leert den Plan', _deleteAll),
 ];
@@ -118,6 +128,82 @@ Future<void> _moveEasyForHard(StorageContractHarness h) async {
   expectEq(u8.fixed, PlanUnitFixed.none, 'Zielwoche: Festlegung bleibt');
   await s.close();
 }
+
+/// Review E2E 4: Ein Warnsignal über Tagen mit `fixed = kind` und
+/// `easyForHard` schreibt Ruhetage, die die Speicherregeln (`fixed = day` nur
+/// bei Ruhe, `easyForHard` nur bei locker) erfüllen; Aufheben stellt Art und
+/// Festlegung wieder her.
+Future<void> _warningFixed(StorageContractHarness h) async {
+  final s = await h.open();
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
+  final p = _p(s);
+  final today = _day(0);
+  final now = today.add(const Duration(hours: 8));
+  final settings = s.settings;
+  final warning = (s as WarningStorage).warning;
+  await recalculatePlan(
+    plans: p,
+    settings: settings,
+    trigger: PlanTrigger.create,
+    today: today,
+    now: now,
+    warning: warning,
+  );
+  final goal = (await p.currentGoal())!;
+  final inputs = (await p.history()).last.inputs;
+  Future<void> replace(bool Function(PlanUnit) pick, PlanUnitKind kind) async {
+    final units = await _all(s);
+    final c = checkPlanReplace(
+      units: units,
+      unit: units.firstWhere(pick),
+      kind: kind,
+      goal: goal,
+      inputs: inputs,
+      today: today,
+    );
+    expectTrue(c.blocked == null, 'Ersatz erlaubt');
+    await p.replaceUnit(units.firstWhere(pick).id!, c.unit!, today: today);
+  }
+
+  await replace(
+    (u) => u.kind == PlanUnitKind.easy && u.day.isAfter(_day(14)),
+    PlanUnitKind.tempo,
+  );
+  await replace((u) => u.isHard && u.day.isAfter(_day(30)), PlanUnitKind.easy);
+  final fixedKinds = {
+    for (final u in await _all(s))
+      if (u.fixed != PlanUnitFixed.none) u.fixed,
+  };
+  expectEq(fixedKinds.map((f) => f.name).toList()..sort(), [
+    'easyForHard',
+    'kind',
+  ], 'Ausgangsplan: kind und easyForHard');
+  final before = [for (final u in await _all(s)) _fixedSig(u)];
+  final service = WarningService(
+    plans: p,
+    settings: settings,
+    warning: warning,
+  );
+  await service.report(source: WarningSource.manual, today: today, now: now);
+  expectTrue(await warning.read() != null, 'Warnsignal gesetzt');
+  expectTrue(
+    (await _all(s))
+        .where((u) => !u.day.isBefore(today))
+        .every((u) => u.kind == PlanUnitKind.rest),
+    'ab heute nur Ruhetage',
+  );
+  await service.lift(today: today, now: now);
+  expectEq(
+    [for (final u in await _all(s)) _fixedSig(u)],
+    before,
+    'nach dem Aufheben: Art und Festlegung wie vorher',
+  );
+  await s.close();
+}
+
+String _fixedSig(PlanUnit u) =>
+    '${u.day.toIso8601String()}/${u.kind.name}/${u.fixed.name}/${u.pinned}/'
+    '${u.minutes}';
 
 /// Zustand samt `fixed` (ändert eine abgelehnte Änderung etwas?).
 Future<String> _fixedState(StorageSession s) async =>
@@ -489,8 +575,10 @@ PlanUnit _unit(
   int week = 0,
   bool withIntensity = false,
   bool pinned = false,
+  PlanUnitFixed fixed = PlanUnitFixed.none,
 }) => PlanUnit(
   day: _day(day),
+  fixed: fixed,
   kind: kind,
   phase: PlanPhase.build,
   weekIndex: week,
@@ -661,6 +749,49 @@ Future<void> _replaceOpenFuture(StorageContractHarness h) async {
   await s.close();
 }
 
+/// NB5 6: Liegt der Anker der neuen Fassung nach „heute“ (nach „zu schwer“,
+/// PAR-200), ersetzt `writeVersion` alle offenen Einheiten ab `validFrom`,
+/// auch die zwischen heute und Anker. Was die Fassung nicht mitbringt, ist weg;
+/// die Brücke von `recalculatePlan` muss sie also im Entwurf tragen.
+Future<void> _bridge(StorageContractHarness h) async {
+  final s = await h.open();
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
+  final p = _p(s);
+  await p.writeVersion(
+    await _draft(p, 0, [
+      for (final d in [1, 3, 5, 8, 10]) _unit(d),
+    ]),
+  );
+  Future<PlanVersionDraft> next(List<PlanUnit> units) async => PlanVersionDraft(
+    createdAt: at(103, 3),
+    validFrom: _day(3),
+    trigger: PlanTrigger.weekly,
+    reason: 'noIncrease',
+    version: const PlanVersion(),
+    inputs: _inputs(3).copyWith(anchor: _day(7)),
+    summary: const {},
+    units: units,
+    readState: planUnitsFingerprint(
+      await p.unitsBetween(_day(7), planFarFuture),
+    ),
+  );
+  // Mit Brücke (Tag 3 und 5 unverändert im Entwurf): beide bleiben.
+  final bridge = [for (final u in await p.unitsBetween(_day(3), _day(6))) u];
+  expectEq(bridge.map((u) => u.day.day), [_day(3).day, _day(5).day], 'Brücke');
+  await p.writeVersion(await next([...bridge, _unit(8, minutes: 20)]));
+  var days = [for (final u in await _all(s)) u.day.day];
+  expectEq(days, [
+    for (final d in [1, 3, 5, 8]) _day(d).day,
+  ], 'mit Brücke');
+  // Ohne Brücke fehlen Tag 3 und 5 danach; Tag 1 (vor heute) bleibt.
+  await p.writeVersion(await next([_unit(8, minutes: 25)]));
+  days = [for (final u in await _all(s)) u.day.day];
+  expectEq(days, [
+    for (final d in [1, 8]) _day(d).day,
+  ], 'ohne Brücke');
+  await s.close();
+}
+
 Future<void> _invalid(StorageContractHarness h) async {
   final s = await h.open();
   await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
@@ -697,6 +828,33 @@ Future<void> _invalid(StorageContractHarness h) async {
       _unit(4),
     ]),
     'leerer Grund': await _draft(p, 1, [_unit(1)], reason: ''),
+    // CHECK von plan_units: fixed = day nur bei Ruhe, easyForHard nur bei
+    // locker (E2E 4: Der Fake lehnt wie die Datenbank ab).
+    'Ruhetag mit fixed = kind': await _draft(p, 1, [
+      _unit(
+        1,
+        kind: PlanUnitKind.rest,
+        minutes: 0,
+        pinned: true,
+        fixed: PlanUnitFixed.kind,
+      ),
+    ]),
+    'nicht bestätigt (pinned = false) mit fixed = kind': await _draft(p, 1, [
+      _unit(
+        1,
+        kind: PlanUnitKind.easy,
+        pinned: false,
+        fixed: PlanUnitFixed.kind,
+      ),
+    ]),
+    'Tempo mit fixed = easyForHard': await _draft(p, 1, [
+      _unit(
+        1,
+        kind: PlanUnitKind.tempo,
+        pinned: true,
+        fixed: PlanUnitFixed.easyForHard,
+      ),
+    ]),
   };
   for (final e in bad.entries) {
     await expectFails(

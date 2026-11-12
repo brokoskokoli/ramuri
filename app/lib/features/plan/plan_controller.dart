@@ -7,6 +7,37 @@ import 'plan_data_reader.dart';
 
 enum PlanLoadPhase { loading, ready, failed }
 
+/// Einstellungsschlüssel: Ortstag (`JJJJ-MM-TT`) der letzten Antwort auf die
+/// Nachfrage nach PAR-200. Fehlt er, zählt die Anlage des Plans.
+const String planFeedbackKey = 'plan.feedback_answered_on';
+
+/// Einstellungsschlüssel: letzter Tag (`JJJJ-MM-TT`) der Programmwoche, deren
+/// Vorschlag „Woche wiederholen“ der Nutzer abgelehnt hat (PAR-140).
+const String planWalkRunRepeatDeclinedKey = 'plan.walk_run_repeat_declined';
+
+/// Ergebnis von [PlanController.answerFeedback].
+class PlanFeedbackOutcome {
+  const PlanFeedbackOutcome(this.result, {this.raiseGoalSignal = false});
+
+  final PlanActionResult result;
+
+  /// „Zu leicht“ am Regler: Die App fragt, ob das Ziel steigen soll; der Plan
+  /// ist unverändert.
+  final bool raiseGoalSignal;
+}
+
+String _dayText(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
+
+DateTime? _parseDay(String? v) {
+  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(v ?? '');
+  if (m == null) return null;
+  final d = DateTime.utc(int.parse(m[1]!), int.parse(m[2]!), int.parse(m[3]!));
+  return _dayText(d) == v ? d : null;
+}
+
 /// Ergebnis einer Aktion des [PlanController]. Der Inhalt eines Fehlers wird
 /// nie gezeigt (Gesundheitsdaten).
 enum PlanActionResult {
@@ -59,7 +90,12 @@ class PlanViewState {
       hints = null,
       lastChange = null,
       weekUnits = const [],
-      assessment = null;
+      assessment = null,
+      warning = null,
+      warningReminderDue = false,
+      feedbackDue = false,
+      changeNotice = null,
+      walkRunProposal = null;
 
   const PlanViewState.failed()
     : phase = PlanLoadPhase.failed,
@@ -68,7 +104,12 @@ class PlanViewState {
       hints = null,
       lastChange = null,
       weekUnits = const [],
-      assessment = null;
+      assessment = null,
+      warning = null,
+      warningReminderDue = false,
+      feedbackDue = false,
+      changeNotice = null,
+      walkRunProposal = null;
 
   const PlanViewState.ready({
     required this.goal,
@@ -77,6 +118,11 @@ class PlanViewState {
     required this.lastChange,
     required this.weekUnits,
     this.assessment,
+    this.warning,
+    this.warningReminderDue = false,
+    this.feedbackDue = false,
+    this.changeNotice,
+    this.walkRunProposal,
   }) : phase = PlanLoadPhase.ready;
 
   final PlanLoadPhase phase;
@@ -110,6 +156,27 @@ class PlanViewState {
   /// neuesten Fassung und heute; nie gespeichert. `null` ohne Plan oder wenn
   /// sie sich nicht rechnen ließ (die Seite lässt die Zeile dann weg).
   final GoalAssessment? assessment;
+
+  /// Das aktive Warnsignal (FR-0203) oder `null`. Solange es besteht, zeigt
+  /// der Plan nur Ruhetage; gehaltene festgelegte Ruhetage sind dann keine
+  /// Festlegung des Nutzers.
+  final WarningSignal? warning;
+
+  /// Die Meldung besteht seit mindestens 7 Tagen (nur Karte, keine
+  /// Benachrichtigung).
+  final bool warningReminderDue;
+
+  /// Die Nachfrage nach PAR-200 ist fällig (2 Wochen ab der letzten Antwort
+  /// bzw. Anlage des Plans); ohne Warnsignal.
+  final bool feedbackDue;
+
+  /// Größere Änderung, die der Nutzer noch nicht gesehen hat (PAR-204,
+  /// FR-0170): Karte „Plan angepasst“ bis [PlanController.markChangeSeen].
+  final PlanChangeNotice? changeNotice;
+
+  /// Vorschlag „Woche wiederholen“ in der Geh-Lauf-Phase (PAR-140); die App
+  /// fragt, der Nutzer entscheidet. Nicht unter Warnsignal.
+  final WalkRunWeekProposal? walkRunProposal;
 
   bool get hasPlan => version != null;
 
@@ -152,6 +219,8 @@ class PlanController extends ChangeNotifier {
 
   GoalStore get _goals => (session as GoalStorage).goals;
   PlanRepository get _plans => (session as PlanStorage).plans;
+  WarningStore? get _warning =>
+      session is WarningStorage ? (session as WarningStorage).warning : null;
 
   PlanViewState _state = const PlanViewState.loading();
   PlanViewState get state => _state;
@@ -190,6 +259,9 @@ class PlanController extends ChangeNotifier {
   Future<void> open() => _serial(() async {
     _fresh = null;
     try {
+      // Pause hat Vorrang (PAR-202): ihre Fassung gilt für diese Woche und
+      // setzt den Prüftag, die Wochenprüfung schreibt danach keine zweite.
+      await _checkPauseRestart();
       await _checkDue();
     } on Object {
       // Die Prüfung holt der nächste Start nach; die Seite zeigt den
@@ -214,35 +286,119 @@ class PlanController extends ChangeNotifier {
       await _recalculate(PlanTrigger.goalChange, goal, last);
       return;
     }
+    // Warnsignal-Zeile und letzte Fassung müssen zueinander passen: Scheiterte
+    // das Schreiben nach dem Setzen oder Aufheben der Zeile (und auch deren
+    // Rücknahme), stellt das Öffnen den Plan her, ohne die Wochenprüfung
+    // abzuwarten.
+    final warning = _warning;
+    if (warning != null) {
+      final warned = await warning.read() != null;
+      final held = warningHeldFromSummary(last.summary) != null;
+      if (warned != held) {
+        await _recalculate(
+          PlanTrigger.feedback,
+          goal,
+          last,
+          reason: warned ? planReasonWarning : planReasonWarningLifted,
+          // Die Heilung ist keine Wochenprüfung: der Prüftag bleibt, damit
+          // eine fällige Bewertung der Vorwoche beim nächsten Öffnen läuft.
+          markChecked: false,
+        );
+        return;
+      }
+    }
     final today = _today();
     final checked = await session.settings.get(planLastCheckDayKey);
     if (!weeklyCheckDue(checked, today)) return;
-    await _recalculate(
-      last.version.isCurrent ? PlanTrigger.weekly : PlanTrigger.ruleVersion,
-      goal,
-      last,
-    );
+    // Solange die Pausenfrage offen ist (PAR-202), rechnet das Öffnen keine
+    // Wochenprüfung: Nach der Antwort greift erst die Pausenregel, die
+    // Prüfung gilt dann für die Woche (Prüftag) oder läuft beim nächsten
+    // Öffnen normal. Die Wochenfassung würde sonst den Anker auf den Montag
+    // setzen und die Pausenregel ins Leere laufen lassen.
+    if (await HintService(session: session, clock: clock).pauseQuestion() !=
+        null) {
+      return;
+    }
+    if (!last.version.isCurrent) {
+      await _recalculate(PlanTrigger.ruleVersion, goal, last);
+      return;
+    }
+    await _recalculate(PlanTrigger.weekly, goal, last, adjust: true);
   }
 
   /// Rechnet mit Eingaben aus dem Speicher. Anlegen: neue Eingaben aus
   /// [buildPlanInputs]; sonst die der letzten Fassung mit den heute
   /// gemessenen Werten ([refreshMeasuredInputs]).
+  ///
+  /// [adjust]: die wöchentliche Prüfung bewertet zuerst die letzte Woche
+  /// (PAR-201, [evaluateWeekAdjustment]); ergibt sie eine Anpassung, gilt ihr
+  /// neuer Anker, der Grund-Code der Fassung nennt die Gründe. Einmal je
+  /// Woche (die Prüfung merkt sich den Tag), und die bewertete Woche liegt
+  /// danach vor dem Anker.
   Future<void> _recalculate(
     PlanTrigger trigger,
     TrainingGoal goal,
-    PlanVersionRecord? last,
-  ) async {
+    PlanVersionRecord? last, {
+    bool? adjust,
+    String? reason,
+    bool markChecked = true,
+  }) async {
     final today = _today();
     final built = await reader.read(goal: goal, today: today);
-    final inputs = _inputsFor(trigger, built, last);
+    var inputs = _inputsFor(trigger, built, last);
+    // Eine Zieländerung setzt den Prüftag; eine fällige Wochenbewertung der
+    // Vorwoche fällt dadurch nicht weg (NB7 6), sie geht in dieselbe Fassung
+    // ein (Grund bleibt `goalChange`).
+    // Bei offener Pausenfrage (PAR-202) nicht: Die Bewertung setzte den
+    // Anker auf den Montag und die Pausenregel liefe danach ins Leere (NB8 1).
+    // Dann bleibt auch der Prüftag unberührt: Nach „Nein“ läuft die
+    // Wochenprüfung beim nächsten Öffnen (NB9 1).
+    final dueOnGoalChange =
+        adjust == null &&
+        trigger == PlanTrigger.goalChange &&
+        weeklyCheckDue(await session.settings.get(planLastCheckDayKey), today);
+    final skippedForPause =
+        dueOnGoalChange &&
+        await HintService(session: session, clock: clock).pauseQuestion() !=
+            null;
+    final doAdjust = adjust ?? (dueOnGoalChange && !skippedForPause);
+    if (doAdjust && last != null) {
+      final evidence = await reader.weekEvidence(today);
+      final a = evaluateWeekAdjustment(
+        goal: goal,
+        inputs: inputs,
+        today: today,
+        doneMinutes: evidence.doneMinutes,
+        plannedMinutes: evidence.plannedMinutes,
+        recentEasyRpe: evidence.recentEasyRpe,
+        fatigueReported: evidence.fatigueReported,
+        parameters: parameters,
+      );
+      if (a != null) {
+        inputs = refreshMeasuredInputs(a.inputs, built.inputs);
+        // Bei `goalChange` bleibt der Grund-Code vorn, die Gründe der
+        // Bewertung folgen (NB8 6): `goalChange,repeatWeek`.
+        final codes = ([
+          ...a.reasons,
+        ]..sort((x, y) => x.index - y.index)).map((r) => r.name).join(',');
+        if (trigger == PlanTrigger.weekly) {
+          reason = codes;
+        } else if (trigger == PlanTrigger.goalChange) {
+          reason = 'goalChange,$codes';
+        }
+      }
+    }
     final r = await recalculatePlan(
       plans: _plans,
       settings: session.settings,
       trigger: trigger,
       today: today,
       now: clock.now(),
+      reason: reason,
       inputs: inputs,
       parameters: parameters,
+      warning: _warning,
+      markChecked: markChecked && !skippedForPause,
     );
     _fresh = r.generated;
     _lastChange = r.summary;
@@ -339,7 +495,49 @@ class PlanController extends ChangeNotifier {
         assessment = null;
       }
     }
+    final warning = await _warning?.read();
+    final reminderDue =
+        warning != null &&
+        warningReminderDue(reportedOn: warning.reportedOn, today: today);
+    var feedbackDue = false;
+    if (warning == null && version != null && history.isNotEmpty) {
+      feedbackDue = planFeedbackDue(
+        created: calendarDay(history.first.createdAt),
+        lastAnswer: _parseDay(await session.settings.get(planFeedbackKey)),
+        today: today,
+      );
+    }
+    final seen = await WarningState(session.settings).planChangeSeen();
+    // Unter Warnsignal zeigt das Banner den Grund; die Karte „Plan angepasst“
+    // mit dem Grund `warning` käme doppelt (K58, D2).
+    var notice = planChangeNotice(history, seenPlanId: seen);
+    if (warning != null && notice?.explanation.code == planReasonWarning) {
+      notice = null;
+    }
+    WalkRunWeekProposal? proposal;
+    final walkStart = version?.inputs.walkRunStart;
+    if (warning == null && walkStart != null) {
+      final declined = _parseDay(
+        await session.settings.get(planWalkRunRepeatDeclinedKey),
+      );
+      proposal = walkRunWeekProposal(
+        units: units,
+        start: walkStart,
+        from: version?.inputs.walkRunFrom,
+        rpeByRunId: {
+          for (final e in (await session.subjective.readAll()).entries)
+            if (e.value.subjective.rpe case final int r) e.key: r,
+        },
+        today: today,
+      );
+      if (proposal != null && declined == proposal.lastDay) proposal = null;
+    }
     return PlanViewState.ready(
+      changeNotice: notice,
+      walkRunProposal: proposal,
+      warning: warning,
+      warningReminderDue: reminderDue,
+      feedbackDue: feedbackDue,
       assessment: assessment,
       goal: goal,
       version: version,
@@ -425,21 +623,46 @@ class PlanController extends ChangeNotifier {
   /// der letzten Fassung mit heute gemessenen Werten (Stand und Geh-Lauf-
   /// Abfolge bleiben, [refreshMeasuredInputs]); dazu, ob der Plan mit einer
   /// Geh-Lauf-Abfolge beginnt (PAR-065, Hinweis PAR-115). Speichert nichts.
-  Future<GoalDraftCheck> checkGoal(TrainingGoal draft) async {
+  ///
+  /// Mit [newStart] (neuer Einstieg nach langer Pause, PAR-181) rechnet die
+  /// Einschätzung mit den Eingaben des Neustarts mit dem Stand aus [draft].
+  Future<GoalDraftCheck> checkGoal(
+    TrainingGoal draft, {
+    bool newStart = false,
+  }) async {
     final today = _today();
     final existed = await _goals.goal() != null;
     final history = await _plans.history();
     final last = history.isEmpty ? null : history.last;
     final built = await reader.read(goal: draft, today: today);
-    final inputs = _inputsFor(_saveTrigger(existed, history), built, last);
+    var inputs = _inputsFor(_saveTrigger(existed, history), built, last);
+    var goal = built.goal;
+    if (newStart && last != null) {
+      final q = await HintService(session: session, clock: clock).newStartDue();
+      final restart = q == null
+          ? null
+          : planPauseRestart(
+              goal: draft,
+              inputs: inputs,
+              today: today,
+              lastTrainingDay: q.lastTrainingDay,
+              baseWeekMinutes: q.baseWeekMinutes,
+              parameters: parameters,
+              replacesProvisional: await _pauseProvisional(q),
+            ).inputs;
+      if (restart != null) {
+        inputs = restart;
+        goal = draft;
+      }
+    }
     final assessment = assessGoal(
-      goal: built.goal,
+      goal: goal,
       inputs: inputs,
       today: today,
-      basis: await reader.timeGoalBasis(goal: built.goal, today: today),
+      basis: await reader.timeGoalBasis(goal: goal, today: today),
       parameters: parameters,
     );
-    final setup = planCourseSetup(built.goal, inputs, parameters: parameters);
+    final setup = planCourseSetup(goal, inputs, parameters: parameters);
     return GoalDraftCheck(
       assessment: assessment,
       walkRun: setup.walkRunWeeks > 0,
@@ -655,6 +878,304 @@ class PlanController extends ChangeNotifier {
     await _plans.clearRestDay(day, today: _today());
     _fresh = null;
     onChanged?.call();
+  });
+
+  /// Meldet Beschwerden, Krankheit oder Überlastung (FR-0203, Quelle
+  /// `manual`): Warnsignal setzen, Plan zeigt nur Ruhetage. Doppeltes
+  /// Melden ändert nichts.
+  Future<PlanActionResult> reportWarning() => _act(() async {
+    final w = _warning;
+    if (w == null) throw StateError('kein Warnspeicher');
+    final r = await _warningService(
+      w,
+    ).report(source: WarningSource.manual, today: _today(), now: clock.now());
+    _fresh = null;
+    if (r.wasWritten) onChanged?.call();
+  });
+
+  /// Hebt das Warnsignal auf; die Festlegungen des Nutzers gelten wieder.
+  Future<PlanActionResult> liftWarning() => _act(() async {
+    final w = _warning;
+    if (w == null) throw StateError('kein Warnspeicher');
+    final r = await _warningService(w).lift(today: _today(), now: clock.now());
+    _fresh = null;
+    if (r.wasWritten) onChanged?.call();
+  });
+
+  WarningService _warningService(WarningStore w) => WarningService(
+    plans: _plans,
+    settings: session.settings,
+    warning: w,
+    parameters: parameters,
+    measuredInputs: (goal, today) async =>
+        (await reader.read(goal: goal, today: today)).inputs,
+  );
+
+  /// Antwort auf die Nachfrage (PAR-200). „Passt“ und „zu leicht“ am Regler
+  /// ändern den Plan nicht; „zu leicht“ davor und „zu schwer“ legen einen
+  /// neuen Anker an (`feedback`). Die Antwort zählt erst, wenn alles
+  /// geschrieben ist (sonst bleibt die Nachfrage fällig). Ohne Antwort
+  /// ändert sich nichts.
+  Future<PlanFeedbackOutcome> answerFeedback(PlanFeedback answer) async {
+    var raise = false;
+    final r = await _act(() async {
+      final goal = await _goals.goal();
+      if (goal == null) throw const StorageException(StorageFailure.notFound);
+      final history = await _plans.history();
+      if (history.isEmpty) {
+        throw const StorageException(StorageFailure.notFound);
+      }
+      final today = _today();
+      final built = await reader.read(goal: goal, today: today);
+      final inputs = _inputsFor(PlanTrigger.feedback, built, history.last);
+      final result = applyPlanFeedback(
+        goal: goal,
+        inputs: inputs,
+        answer: answer,
+        today: today,
+      );
+      raise = result.raiseGoalSignal;
+      final next = result.inputs;
+      if (next != null) {
+        final w = await recalculatePlan(
+          plans: _plans,
+          settings: session.settings,
+          trigger: PlanTrigger.feedback,
+          today: today,
+          now: clock.now(),
+          inputs: next,
+          parameters: parameters,
+          warning: _warning,
+        );
+        _fresh = w.generated;
+        _lastChange = w.summary;
+        if (w.wasWritten) onChanged?.call();
+      }
+      await session.settings.set(
+        planFeedbackKey,
+        _dayText(today),
+        at: clock.now(),
+      );
+    });
+    return PlanFeedbackOutcome(
+      r,
+      raiseGoalSignal: r == PlanActionResult.done && raise,
+    );
+  }
+
+  /// Antwort auf die Pausenfrage (PAR-202, „Heute“). „Ja“ startet den Plan
+  /// neu ([planPauseRestart], Auslöser `pause`), sofern ein Plan besteht und
+  /// der Neustart nötig ist; „Nein“ ändert nichts. Die Antwort wird erst nach
+  /// dem Schreiben gespeichert: Scheitert der Neustart, bleibt die Frage
+  /// offen. Ohne offene Frage ([HintService.pauseQuestion]): `rejected`.
+  Future<PlanActionResult> answerPause(bool paused) => _act(() async {
+    final today = _today();
+    final q = await HintService(session: session, clock: clock).pauseQuestion();
+    if (q == null) throw const StorageException(StorageFailure.rejected);
+    if (paused) await _restartForPause(q);
+    await WarningState(session.settings).setPauseAnswer(
+      PauseAnswer(paused: paused, on: today),
+      at: clock.now(),
+    );
+  });
+
+  /// Neustart zur Pause (PAR-202, Auslöser `pause`), einmal je Pause: Der
+  /// Merker [planPauseRestartKey] trägt den Tag des letzten Trainings und ob
+  /// eine Fassung entstand. Ohne Plan oder Ziel geschieht nichts (kein Merker).
+  ///
+  /// Ab 8 Wochen ([PlanParameters.pauseNewStartDays]) gilt ohne Wahl
+  /// vorläufig die Stufe 2 (sichere Vorgabe, Merker `provisional`); der
+  /// Nutzer wählt den Einstieg ([restartAfterLongPause], PAR-181) und ersetzt
+  /// sie damit. Mit [chosen] hat der Nutzer den Einstieg gewählt; sein Ziel mit
+  /// dem neuen Stand ist schon gespeichert.
+  Future<void> _restartForPause(PauseQuestion q, {bool chosen = false}) async {
+    final today = _today();
+    final history = await _plans.history();
+    final goal = await _goals.goal();
+    if (goal == null || history.isEmpty) return;
+    final mark = PauseRestartMark.parse(
+      await session.settings.get(planPauseRestartKey),
+    );
+    final marked = mark?.day == warningDay(q.lastTrainingDay);
+    final wasProvisional = marked && mark!.provisional;
+    if (marked && !(chosen && wasProvisional)) return;
+    final longPause = q.daysSinceTraining >= parameters.pauseNewStartDays;
+    final built = await reader.read(goal: goal, today: today);
+    final base = refreshMeasuredInputs(history.last.inputs, built.inputs);
+    final restart = planPauseRestart(
+      goal: goal,
+      inputs: base,
+      today: today,
+      lastTrainingDay: q.lastTrainingDay,
+      baseWeekMinutes: q.baseWeekMinutes,
+      parameters: parameters,
+      provisional: longPause && !chosen,
+      replacesProvisional: chosen && wasProvisional && mark.restarted,
+    );
+    final next = restart.inputs;
+    if (next == null && chosen) {
+      // Kein Neustart möglich: das neue Ziel gilt trotzdem für den Plan.
+      await _recalculate(
+        PlanTrigger.goalChange,
+        goal,
+        history.last,
+        adjust: false,
+      );
+    }
+    if (next != null) {
+      final r = await recalculatePlan(
+        plans: _plans,
+        settings: session.settings,
+        // Der gewählte Einstieg ist eine Zieländerung des Nutzers (Stand neu):
+        // `goalChange` hält sie fest, sonst bliebe sie ausstehend.
+        trigger: chosen ? PlanTrigger.goalChange : PlanTrigger.pause,
+        today: today,
+        now: clock.now(),
+        inputs: next,
+        parameters: parameters,
+        warning: _warning,
+      );
+      _fresh = r.generated;
+      _lastChange = r.summary;
+      if (r.wasWritten) onChanged?.call();
+    }
+    await session.settings.set(
+      planPauseRestartKey,
+      PauseRestartMark(
+        day: q.lastTrainingDay,
+        restarted: next != null,
+        provisional: longPause && !chosen,
+      ).format(),
+      at: clock.now(),
+    );
+  }
+
+  /// Würde der Plan beim neuen Einstieg nach langer Pause neu beginnen
+  /// (PAR-181)? `false` ohne anstehenden Einstieg, ohne Plan und wenn kein
+  /// Neustart möglich ist ([planPauseRestart] liefert nichts).
+  Future<bool> newStartPossible() async {
+    try {
+      final q = await HintService(session: session, clock: clock).newStartDue();
+      final goal = await _goals.goal();
+      final history = await _plans.history();
+      if (q == null || goal == null || history.isEmpty) return false;
+      final today = _today();
+      final built = await reader.read(goal: goal, today: today);
+      return planPauseRestart(
+            goal: goal,
+            inputs: refreshMeasuredInputs(history.last.inputs, built.inputs),
+            today: today,
+            lastTrainingDay: q.lastTrainingDay,
+            baseWeekMinutes: q.baseWeekMinutes,
+            parameters: parameters,
+            replacesProvisional: await _pauseProvisional(q),
+          ).inputs !=
+          null;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Gilt für die Pause nach [q] schon die vorläufige Vorgabe (als Fassung)?
+  Future<bool> _pauseProvisional(PauseQuestion q) async {
+    final mark = PauseRestartMark.parse(
+      await session.settings.get(planPauseRestartKey),
+    );
+    return mark != null &&
+        mark.provisional &&
+        mark.restarted &&
+        mark.day == warningDay(q.lastTrainingDay);
+  }
+
+  /// Steht die Pause durch die Zusage „alles erfasst“ ohne Frage fest, startet
+  /// der Plan beim Öffnen neu (PAR-202), einmal je Pause.
+  Future<void> _checkPauseRestart() async {
+    final q = await HintService(
+      session: session,
+      clock: clock,
+    ).pauseRestartDue();
+    if (q != null) await _restartForPause(q);
+  }
+
+  /// Neuer Einstieg nach langer Pause (PAR-181, PAR-192): speichert [goal]
+  /// (mit dem vom Nutzer genannten Stand) und startet den Plan neu. Ohne
+  /// anstehenden Einstieg ([HintService.newStartDue]): `rejected`. Scheitert
+  /// nur die Neuberechnung: [PlanActionResult.savedNotPlanned].
+  Future<PlanActionResult> restartAfterLongPause(TrainingGoal goal) => _act(
+    () async {
+      final q = await HintService(session: session, clock: clock).newStartDue();
+      if (q == null) throw const StorageException(StorageFailure.rejected);
+      if ((await _plans.history()).isEmpty) {
+        throw const StorageException(StorageFailure.notFound);
+      }
+      final today = _today();
+      if (goal.validate(today, null, true) != null) {
+        throw const StorageException(StorageFailure.rejected);
+      }
+      await _goals.save(goal, today: today);
+      onChanged?.call();
+      try {
+        await _restartForPause(q, chosen: true);
+      } on Object {
+        throw const _SavedNotPlanned();
+      }
+    },
+  );
+
+  /// Alle Fassungen, älteste zuerst (Verlauf der Änderungen, FR-0170).
+  Future<List<PlanVersionRecord>> changeHistory() => _plans.history();
+
+  /// Die Karte „Plan angepasst“ gilt bis zur Plan-ID [planId] als gesehen.
+  Future<PlanActionResult> markChangeSeen(int planId) => _act(() async {
+    await WarningState(session.settings)
+        .setPlanChangeSeen(planId, at: clock.now());
+  });
+
+  /// Nimmt „Wiederholen“ an (PAR-140): neue Fassung, die Abfolge beginnt ab
+  /// heute (nach einem Lauf heute ab morgen) an der Stelle des Vorschlags
+  /// wieder; vergangene Tage bleiben unverändert. Ändert
+  /// nur nach dieser Entscheidung des Nutzers.
+  Future<PlanActionResult> acceptWalkRunRepeat() => _act(() async {
+    final proposal = _state.walkRunProposal;
+    if (proposal == null) throw const StorageException(StorageFailure.notFound);
+    final goal = await _goals.goal();
+    final history = await _plans.history();
+    if (goal == null || history.isEmpty) {
+      throw const StorageException(StorageFailure.notFound);
+    }
+    final today = _today();
+    final built = await reader.read(goal: goal, today: today);
+    final base = refreshMeasuredInputs(history.last.inputs, built.inputs);
+    final inputs = applyWalkRunRepeat(
+      base,
+      proposal.suggestion,
+      from: walkRunRepeatFrom(today, proposal.lastDay),
+    ).copyWith(today: today);
+    final r = await recalculatePlan(
+      plans: _plans,
+      settings: session.settings,
+      trigger: PlanTrigger.manual,
+      reason: walkRunRepeatReason,
+      today: today,
+      now: clock.now(),
+      inputs: inputs,
+      parameters: parameters,
+      warning: _warning,
+    );
+    _fresh = r.generated;
+    _lastChange = r.summary;
+    if (r.wasWritten) onChanged?.call();
+  });
+
+  /// Lehnt „Woche wiederholen“ für diese Programmwoche ab; nichts ändert sich.
+  Future<PlanActionResult> declineWalkRunRepeat() => _act(() async {
+    final proposal = _state.walkRunProposal;
+    if (proposal == null) return;
+    await session.settings.set(
+      planWalkRunRepeatDeclinedKey,
+      _dayText(proposal.lastDay),
+      at: clock.now(),
+    );
   });
 
   Future<PlanActionResult> _act(Future<void> Function() action) =>

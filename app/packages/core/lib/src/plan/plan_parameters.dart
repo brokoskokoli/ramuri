@@ -8,8 +8,12 @@ const String planMethod = 'weekly-time-course';
 /// Einheit steigert bis zur Passform (T1, NB4); die Rotation der harten Formen
 /// rückt in jeder Woche mit vorgesehener harter Einheit weiter. 3: „30 min
 /// am Stück“ ohne Geh-Lauf-Abfolge auch aus der Start-Wochenzeit der
-/// Eingaben (Stand aus Läufen, PAR-192; `planCanRunContinuous30`).
-const int planMethodVersion = 3;
+/// Eingaben (Stand aus Läufen, PAR-192; `planCanRunContinuous30`). 4: Anpassung
+/// von selbst nur nach unten und Nachfrage (PAR-200, PAR-201), Neustart nach
+/// Pause (PAR-202), „keine harte Einheit bis“ und Zählung der leichteren
+/// Wochen über einen Neustart hinweg (PAR-194; `PlanInputs.weekCountOffset`),
+/// Vorschlag „Woche wiederholen“ in der Geh-Lauf-Phase (PAR-140).
+const int planMethodVersion = 4;
 
 /// Stand der Parameter (ADR-0010 Punkt 1: `parameter_version`). Steigt, wenn
 /// sich ein Wert in [PlanParameters] ändert.
@@ -75,6 +79,23 @@ class PlanParameters {
     this.peakMinEasyRuns = 3,
     this.easyWindowWeeks = 6,
     this.largeChangeShare = 0.10,
+    this.feedbackIntervalDays = 14,
+    this.feedbackStep = 0.10,
+    this.repeatBelowShare = 0.5,
+    this.holdBelowShare = 0.8,
+    this.fatigueRpe = 6,
+    this.fatigueRuns = 2,
+    this.fatigueWindowRuns = 3,
+    this.fatigueReduction = 0.10,
+    this.pauseMinDays = 7,
+    this.pauseLongDays = 14,
+    this.pauseNewStartDays = 56,
+    this.pauseShortShare = 0.8,
+    this.pauseLongShare = 0.5,
+    this.pauseShortNoHardWeeks = 1,
+    this.pauseLongNoHardWeeks = 2,
+    this.walkRunRepeatRpe = 6,
+    this.walkRunRepeatMinDone = 2,
   });
 
   /// PAR-193: Steigerung je Woche unter [midThresholdMinutes] (+10 %).
@@ -199,6 +220,43 @@ class PlanParameters {
 
   /// PAR-204: größere Änderung ab diesem Anteil Änderung der Wochenzeit.
   final double largeChangeShare;
+
+  /// PAR-200: Nachfrage alle 14 Tage ab der letzten Antwort bzw. Anlage.
+  final int feedbackIntervalDays;
+
+  /// PAR-200: „zu leicht“ +10 %, „zu schwer“ −10 %.
+  final double feedbackStep;
+
+  /// PAR-201: unter der Hälfte geschafft: Woche wiederholen.
+  final double repeatBelowShare;
+
+  /// PAR-201: von der Hälfte bis unter 80 %: keine Steigerung.
+  final double holdBelowShare;
+
+  /// PAR-201: Ermüdung, wenn mindestens [fatigueRuns] der letzten
+  /// [fatigueWindowRuns] lockeren Läufe RPE >= [fatigueRpe] hatten; dann
+  /// −[fatigueReduction] und keine harte Einheit in der nächsten Woche.
+  final int fatigueRpe;
+  final int fatigueRuns;
+  final int fatigueWindowRuns;
+  final double fatigueReduction;
+
+  /// PAR-202: Pause ab 7 Tagen; ab 14 Tagen die zweite Stufe; ab 56 Tagen
+  /// neuer Start (PAR-192).
+  final int pauseMinDays;
+  final int pauseLongDays;
+  final int pauseNewStartDays;
+
+  /// PAR-202: Anteil der gelaufenen Woche und Wochen ohne harte Einheit.
+  final double pauseShortShare;
+  final double pauseLongShare;
+  final int pauseShortNoHardWeeks;
+  final int pauseLongNoHardWeeks;
+
+  /// PAR-140: Wiederholung vorschlagen bei RPE >= 6 oder weniger als 2
+  /// absolvierten Einheiten der Woche.
+  final int walkRunRepeatRpe;
+  final int walkRunRepeatMinDone;
 
   /// PAR-198: harte Einheit ab 3 Läufen je Woche.
   int get hardMinRunDays => 3;

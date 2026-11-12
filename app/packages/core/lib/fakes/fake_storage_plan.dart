@@ -80,12 +80,17 @@ class FakePlanRepository implements PlanRepository {
         u.day.isBefore(planDay(today))) {
       throw const StorageException(StorageFailure.rejected);
     }
-    _d.planUnits[unitId] = u.copyWith(
+    final moved = u.copyWith(
       day: day,
       weekIndex: movedWeekIndex(u, day),
       pinned: true,
       fixed: planMovedFixed(u, day),
     );
+    // Wie die CHECK-Regel von plan_units: kein Schreiben ohne gültige Festlegung.
+    if (!planUnitFixedValid(moved)) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    _d.planUnits[unitId] = moved;
   }
 
   @override
@@ -99,7 +104,7 @@ class FakePlanRepository implements PlanRepository {
     if (!planReplaceAllowed(u, replacement, today)) {
       throw const StorageException(StorageFailure.rejected);
     }
-    _d.planUnits[unitId] = PlanUnit(
+    final replaced = PlanUnit(
       id: unitId,
       day: u.day,
       kind: replacement.kind,
@@ -110,6 +115,10 @@ class FakePlanRepository implements PlanRepository {
       pinned: true,
       fixed: planReplacedFixed(u, replacement.kind),
     );
+    if (!planUnitFixedValid(replaced)) {
+      throw const StorageException(StorageFailure.rejected);
+    }
+    _d.planUnits[unitId] = replaced;
   }
 
   @override
@@ -139,11 +148,15 @@ class FakePlanRepository implements PlanRepository {
     if (onDay != null) {
       if (moveUnitTo != null) {
         final to = planDay(moveUnitTo);
-        _d.planUnits[onDay.key] = onDay.value.copyWith(
+        final moved = onDay.value.copyWith(
           day: to,
           weekIndex: movedWeekIndex(onDay.value, to),
           pinned: true,
         );
+        if (!planUnitFixedValid(moved)) {
+          throw const StorageException(StorageFailure.rejected);
+        }
+        _d.planUnits[onDay.key] = moved;
       } else {
         _d.planUnits.remove(onDay.key);
         _d.planUnitPlan.remove(onDay.key);
