@@ -4,6 +4,8 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/plan/plan_change_card.dart';
+import 'package:running_app/l10n/app_localizations_de.dart';
+import 'package:running_app/l10n/app_localizations_en.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_screen.dart';
@@ -406,10 +408,10 @@ void main() {
         1.0,
         2,
         'fatigue',
-        'Die letzten Läufe waren anstrengend, deshalb ist die Wochenzeit '
-            'niedriger und diese Woche gibt es keine harte Einheit.',
-        'The last runs felt demanding, so the weekly time is lower and there '
-            'is no hard session this week.',
+        'Nach deinen letzten Angaben zu Anstrengung oder Befinden ist die '
+            'Wochenzeit niedriger und diese Woche gibt es keine harte Einheit.',
+        'Based on your latest notes on effort or how you felt, the weekly '
+            'time is lower and there is no hard session this week.',
       ),
     ]) {
       for (final (locale, text) in [('de', de), ('en', en)]) {
@@ -444,6 +446,40 @@ void main() {
         });
       }
     }
+  });
+
+  test('Zieländerung mit Wochenbewertung: Satz nennt Ziel und Gründe '
+      '(NB8 6)', () async {
+    final (session, clock) = await _withPlan();
+    final plans = (session as PlanStorage).plans;
+    clock.set(DateTime.utc(2026, 11, 24, 12));
+    final c = PlanController(
+      session: session,
+      clock: clock,
+      reader: PlanDataReader(
+        session: session,
+        clock: clock,
+        loadRuns: () async => const [],
+      ),
+    );
+    await c.open();
+    c.dispose();
+    final v = (await plans.history()).last;
+    const e = Explanation(
+      kind: ExplanationKind.planChange,
+      code: 'goalChange,repeatWeek',
+      evidence: [],
+    );
+    expect(
+      planChangeReasonText(AppLocalizationsDe(), e, v),
+      'Dein Ziel hat sich geändert, deshalb wurde der Plan neu berechnet. '
+      'Du hast 0 % der geplanten Wochenzeit geschafft, deshalb bleibt die '
+      'Wochenzeit auf dem Stand der letzten Woche.',
+    );
+    expect(
+      planChangeReasonText(AppLocalizationsEn(), e, v),
+      startsWith('Your goal changed'),
+    );
   });
 
   group('Geh-Lauf: Woche wiederholen (PAR-140)', () {
