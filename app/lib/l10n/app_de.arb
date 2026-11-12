@@ -2703,6 +2703,8 @@
   "@treadmillFlatter": {"description": "WP25 B1, Laufband (FR-0196)"},
   "treadmillBeltStopped": "Band steht (0)",
   "@treadmillBeltStopped": {"description": "WP25 B1, Laufband (FR-0196)"},
+  "treadmillSpeedMissing": "Gib die Bandgeschwindigkeit ein. Bis dahin wird keine Strecke gezählt.",
+  "@treadmillSpeedMissing": {"description": "WP25 NB4, Laufband ohne gespeicherte Einstellung (FR-0196)"},
   "treadmillDeniedActivity": "Ein Laufbandlauf braucht die Berechtigung für körperliche Aktivität. Erlaube sie und versuche es erneut. Der Lauf wurde nicht gestartet.",
   "@treadmillDeniedActivity": {"description": "WP25 B1, Laufband (FR-0196)"},
   "treadmillSummaryNote": "Laufband · Ø {speed}",

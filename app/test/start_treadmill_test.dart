@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -181,6 +183,75 @@ void main() {
       await tester.tap(key('treadmill_speed_up'));
       await tester.pumpAndSettle();
       expect(text('treadmill_speed'), '1,0 km/h');
+    });
+
+    testWidgets('hängender Start im Bandmodus: im ersten Frame kein GPS', (
+      tester,
+    ) async {
+      final gate = Completer<void>();
+      final service = FakeRecordingServicePort()..startGate = gate.future;
+      final d = Device()..recordingService = service;
+      await openStart(d, tester);
+      await chooseBelt(tester);
+      await enterSpeed(tester, '10');
+      await tester.tap(key('run_start_ready'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(LiveRunView), findsOneWidget);
+      expect(key('run_gps'), findsNothing);
+      expect(key('live_chip_gps'), findsNothing);
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(key('run_gps'), findsNothing);
+    });
+
+    Future<void> crashedBeltRun(Device d, WidgetTester tester) async {
+      await d.start(tester, const Locale('de'));
+      await d.skipSetup(tester);
+      await d.session.runs.create(
+        startedAt: d.clock.now(),
+        mode: RunMode.treadmill,
+      );
+      await d.stop(tester);
+    }
+
+    testWidgets('Fortsetzen eines Bandlaufs: im ersten Frame kein GPS', (
+      tester,
+    ) async {
+      final d = Device();
+      await crashedBeltRun(d, tester);
+      final gate = Completer<void>();
+      d.recordingService = FakeRecordingServicePort()..startGate = gate.future;
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('recover_resume'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(LiveRunView), findsOneWidget);
+      expect(key('run_gps'), findsNothing);
+      expect(key('live_chip_gps'), findsNothing);
+      expect(key('run_pages'), findsNothing);
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(key('run_gps'), findsNothing);
+    });
+
+    testWidgets('Fortsetzen ohne gespeicherte Einstellung: Aufforderung, '
+        'kein stilles 0 km/h, Strecke 0', (tester) async {
+      final d = Device()..recordingService = FakeRecordingServicePort();
+      await crashedBeltRun(d, tester);
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('recover_resume'));
+      await tester.pumpAndSettle();
+      expect(key('treadmill_speed_missing'), findsOneWidget);
+      expect(text('treadmill_speed'), '–');
+      final c = liveController(tester);
+      expect(c.snapshot.beltSpeedMetersPerSecond, isNull);
+      expect(c.snapshot.distanceMeters, 0);
+      // Eine Eingabe nimmt die Aufforderung weg.
+      await tester.tap(key('treadmill_speed_up'));
+      await tester.pumpAndSettle();
+      expect(key('treadmill_speed_missing'), findsNothing);
+      expect(c.snapshot.beltSpeedMetersPerSecond, isNotNull);
     });
 
     testWidgets('GPS-Weg unverändert: Standortsperre, Karte, Autopause', (

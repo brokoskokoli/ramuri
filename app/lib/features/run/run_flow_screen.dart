@@ -377,7 +377,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       cadence: widget.ports.cadence,
       resumeRunId: widget.resumeRunId,
       initialAutoPause: _preparing && !_treadmill ? _autoPause : null,
-      mode: _preparing ? _mode : RunMode.gps,
+      mode: _mode,
       startBeltSpeedMetersPerSecond: _preparing && _treadmill
           ? _beltSpeed
           : null,

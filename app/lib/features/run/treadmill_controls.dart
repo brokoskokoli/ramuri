@@ -74,8 +74,9 @@ class TreadmillControls extends StatelessWidget {
           row(
             label: l10n.treadmillSpeedNow,
             valueId: 'treadmill_speed',
-            value:
-                '${TreadmillUnits.speedText(unit, speed ?? 0, lang)} $unitLabel',
+            value: speed == null
+                ? UnitFormatter.noValue
+                : '${TreadmillUnits.speedText(unit, speed, lang)} $unitLabel',
             minus: step(
               'treadmill_speed_down',
               l10n.treadmillSlower,
@@ -101,6 +102,15 @@ class TreadmillControls extends StatelessWidget {
               ),
             ),
           ),
+          if (speed == null && s.phase != RecordingPhase.idle) ...[
+            const SizedBox(height: 6),
+            Text(
+              l10n.treadmillSpeedMissing,
+              key: const Key('treadmill_speed_missing'),
+              style: text.bodyMedium?.copyWith(color: c.action),
+              textAlign: TextAlign.center,
+            ),
+          ],
           const SizedBox(height: 6),
           TextButton(
             key: const Key('treadmill_stop_belt'),

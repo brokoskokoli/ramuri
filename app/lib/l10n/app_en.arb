@@ -1962,6 +1962,7 @@
   "treadmillSteeper": "Steeper",
   "treadmillFlatter": "Flatter",
   "treadmillBeltStopped": "Belt stopped (0)",
+  "treadmillSpeedMissing": "Enter the belt speed. Until then, no distance is counted.",
   "treadmillDeniedActivity": "A treadmill run needs the physical activity permission. Allow it and try again. The run has not started.",
   "treadmillSummaryNote": "Treadmill · avg {speed}",
   "@treadmillSummaryNote": {"description": "WP25 B2, Laufband (FR-0196)", "placeholders": {"speed": {"type": "String"}}},

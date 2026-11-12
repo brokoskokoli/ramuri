@@ -147,6 +147,7 @@ class RecordingSnapshot {
   final RunMode mode;
 
   /// Aktuell eingestellte Bandgeschwindigkeit (m/s); nur im Laufbandmodus.
+  /// `null` im Laufbandmodus: noch keine Einstellung gespeichert (Wiederanlauf).
   final double? beltSpeedMetersPerSecond;
 
   /// Aktuell eingestellte Steigung (%); `null` = nicht angegeben oder GPS-Lauf.
@@ -561,7 +562,7 @@ class RecordingSession {
     final snapshot = RecordingSnapshot(
       mode: _mode,
       beltSpeedMetersPerSecond: _treadmill
-          ? _belts.lastOrNull?.speedMetersPerSecond ?? 0
+          ? _belts.lastOrNull?.speedMetersPerSecond
           : null,
       inclinePercent: _treadmill ? _belts.lastOrNull?.inclinePercent : null,
       phase: _phase,
