@@ -183,21 +183,24 @@ void main() {
       expect(o.movingTime, const Duration(minutes: 25));
     });
 
-    test(
-      'Belastung zählt normal: TRIMP und Zonenzeiten aus der Bandzeit',
-      () async {
-        final w = await RecalcWorld.create();
-        final id = await _seedBelt(w, _t0, seconds: 1800, belts: [_b(0, 3.0)]);
-        await w.calc().calculateAfterRun(id);
-        final byKey = {
-          for (final p in await w.session.values.read(ValueOwner.run(id)))
-            p.original.key: p.original,
-        };
-        // 30 min Puls 150 (Reserve 0,69): ganze Bandzeit in Zone 2, TRIMP 90.
-        expect(byKey[trimpRunValueKey]!.value, closeTo(90, 1e-6));
-        expect(byKey['zone_time_2']!.value, closeTo(1800, 1e-6));
-      },
-    );
+    test('Belastung zählt normal: Zonen und TRIMP aus der Bandzeit', () async {
+      final w = await RecalcWorld.create();
+      // 10 min Stillstand (0 m/s), dann 20 min mit 3 m/s, Puls 150.
+      final id = await _seedBelt(
+        w,
+        _t0,
+        seconds: 1800,
+        belts: [_b(0, 0), _b(600, 3.0)],
+      );
+      await w.calc().calculateAfterRun(id);
+      final byKey = {
+        for (final p in await w.session.values.read(ValueOwner.run(id)))
+          p.original.key: p.original,
+      };
+      // Stillstand ist keine Bewegungszeit (K57): nur 20 min in Zone 2, TRIMP 60.
+      expect(byKey['zone_time_2']!.value, closeTo(1200, 1e-6));
+      expect(byKey[trimpRunValueKey]!.value, closeTo(60, 1e-6));
+    });
 
     test(
       'GPS-Lauf unverändert: kein Bandergebnis, Strecke und Bestpace aus GPS',
