@@ -601,5 +601,9 @@ class _FailingStart extends RunRecorder {
       );
 
   @override
-  Future<CommandResult> start() async => throw StateError('kein Speicher');
+  Future<CommandResult> start({
+    RunMode mode = RunMode.gps,
+    double? beltSpeedMetersPerSecond,
+    double? inclinePercent,
+  }) async => throw StateError('kein Speicher');
 }
