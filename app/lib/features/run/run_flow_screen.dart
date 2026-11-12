@@ -450,13 +450,19 @@ class _RunFlowScreenState extends State<RunFlowScreen>
         if (controller.startFailed) {
           return Scaffold(
             appBar: AppBar(title: Text(l10n.homeStartRun)),
-            body: _explanation(l10n, l10n.runStartFailed, [
-              FilledButton(
-                key: const Key('run_start_retry'),
-                onPressed: _retryStart,
-                child: Text(l10n.notOpenableRetry),
-              ),
-            ]),
+            body: _explanation(
+              l10n,
+              controller.startFailedResume
+                  ? l10n.treadmillStartFailedResume
+                  : l10n.runStartFailed,
+              [
+                FilledButton(
+                  key: const Key('run_start_retry'),
+                  onPressed: _retryStart,
+                  child: Text(l10n.notOpenableRetry),
+                ),
+              ],
+            ),
           );
         }
         if (controller.startDenied != null) {

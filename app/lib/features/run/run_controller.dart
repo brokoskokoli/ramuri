@@ -107,6 +107,7 @@ class RunController extends ChangeNotifier {
   RunPreprocessing? _pre;
   bool _autoPause = false;
   bool _startFailed = false;
+  bool _startFailedResume = false;
   bool _starting = false;
   bool _locationError = false;
   bool _serviceFailed = false;
@@ -125,6 +126,9 @@ class RunController extends ChangeNotifier {
 
   /// Anlegen des Laufs scheiterte; ein erneuter [start] ist möglich.
   bool get startFailed => _startFailed;
+
+  /// Fortsetzen eines Bandlaufs scheiterte am Dienst: der bisherige Teil ist gespeichert.
+  bool get startFailedResume => _startFailedResume;
 
   /// Der Laufbandlauf startete nicht, weil dem Dienst ein Recht fehlt (FR-0196,
   /// K57: ACTIVITY_RECOGNITION). Es wurde kein Lauf angelegt; ein erneuter
@@ -237,6 +241,7 @@ class RunController extends ChangeNotifier {
     if (_starting || phase != RecordingPhase.idle) return;
     _starting = true;
     _startFailed = false;
+    _startFailedResume = false;
     _startDenied = null;
     notifyListeners();
     try {
@@ -287,6 +292,7 @@ class RunController extends ChangeNotifier {
           _serviceFailed = false;
           _serviceWanted = false;
           _startFailed = true;
+          _startFailedResume = resume != null;
           return;
         }
       }

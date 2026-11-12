@@ -1943,6 +1943,7 @@
   "@reminderTitle": {"description": "WP22 Teil F, Erinnerungen (FR-0174)"},
   "reminderBody": "{kind} at {time}",
   "@reminderBody": {"description": "WP22 Teil F, Text der Benachrichtigung: nur Art der Einheit und Trainingszeit (SEC-0001)", "placeholders": {"kind": {"type": "String"}, "time": {"type": "String"}}},
+  "treadmillStartFailedResume": "The background service could not be started. The part recorded so far is saved. Try resuming again.",
   "treadmillModeTitle": "Run type",
   "treadmillModeGps": "Outdoors (GPS)",
   "treadmillModeBelt": "Treadmill",

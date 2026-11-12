@@ -187,6 +187,38 @@ void main() {
       expect(w.location.hasListeners, isFalse);
     });
 
+    test(
+      'Fortsetzen mit Dienstfehler: startFailedResume, Lauf bleibt',
+      () async {
+        final w = await _world();
+        final a = _belt(w);
+        await a.start();
+        final id = (await w.session.runs.unfinished()).single.id;
+        a.dispose();
+        final b = RunController(
+          clock: w.clock,
+          storage: w.session,
+          location: w.location,
+          service: FakeRecordingServicePort(startError: StateError('x')),
+          resumeRunId: id,
+          tickEvery: const Duration(hours: 1),
+        );
+        addTearDown(b.dispose);
+        await b.start();
+        expect(b.startFailed, isTrue);
+        expect(b.startFailedResume, isTrue);
+        expect((await w.session.runs.unfinished()).single.id, id);
+        // Neuer Lauf: Text bleibt der allgemeine.
+        final w2 = await _world();
+        w2.service.startError = StateError('x');
+        final c = _belt(w2);
+        addTearDown(c.dispose);
+        await c.start();
+        expect(c.startFailed, isTrue);
+        expect(c.startFailedResume, isFalse);
+      },
+    );
+
     test('ohne Startgeschwindigkeit: startFailed, kein Lauf, Dienst wieder gestoppt', () async {
       final w = await _world();
       final c = _belt(w, speed: null);

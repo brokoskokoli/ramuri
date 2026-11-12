@@ -237,6 +237,27 @@ void main() {
       expect(key('run_gps'), findsNothing);
     });
 
+    testWidgets(
+      'Fortsetzen mit Dienstfehler: Text nennt den gespeicherten Teil',
+      (tester) async {
+        final d = Device();
+        await crashedBeltRun(d, tester);
+        d.recordingService = FakeRecordingServicePort(
+          startError: StateError('start_timeout'),
+        );
+        await d.start(tester, const Locale('de'));
+        await tester.tap(key('recover_resume'));
+        await tester.pumpAndSettle();
+        expect(find.byType(LiveRunView), findsNothing);
+        expect(
+          find.textContaining('bisher aufgezeichnete Teil'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('nichts aufgezeichnet'), findsNothing);
+        expect(key('run_start_retry'), findsOneWidget);
+      },
+    );
+
     testWidgets('Fortsetzen ohne gespeicherte Einstellung: Aufforderung, '
         'kein stilles 0 km/h, Strecke 0', (tester) async {
       final d = Device()..recordingService = FakeRecordingServicePort();
@@ -259,7 +280,9 @@ void main() {
     testWidgets('GPS-Weg unverändert: Standortsperre, Karte, Autopause', (
       tester,
     ) async {
-      final d = Device();
+      final asked = <bool>[];
+      final d = Device()
+        ..requestActivityRecognition = (t) async => asked.add(t);
       await openStart(d, tester);
       expect(key('start_autopause'), findsOneWidget);
       expect(key('treadmill_start_speed'), findsNothing);
@@ -270,6 +293,7 @@ void main() {
       expect(key('treadmill_speed'), findsNothing);
       expect(key('run_ascent'), findsOneWidget);
       expect(d.location.hasListeners, isTrue);
+      expect(asked, [false]); // GPS: ohne Sensor keine Abfrage (FR-0202)
     });
   });
 

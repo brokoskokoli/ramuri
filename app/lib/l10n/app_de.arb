@@ -2665,6 +2665,7 @@
   "@reminderTitle": {"description": "WP22 Teil F, Erinnerungen (FR-0174)"},
   "reminderBody": "{kind} um {time}",
   "@reminderBody": {"description": "WP22 Teil F, Text der Benachrichtigung: nur Art der Einheit und Trainingszeit (SEC-0001)", "placeholders": {"kind": {"type": "String"}, "time": {"type": "String"}}},
+  "treadmillStartFailedResume": "Der Hintergrunddienst konnte nicht gestartet werden. Der bisher aufgezeichnete Teil ist gespeichert. Versuche das Fortsetzen erneut.",
   "treadmillModeTitle": "Laufart",
   "@treadmillModeTitle": {"description": "WP25 B1, Laufband (FR-0196)"},
   "treadmillModeGps": "Draußen (GPS)",

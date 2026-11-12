@@ -462,6 +462,36 @@ void main() {
       );
     });
 
+    test(
+      'Verdrahtung: Fehlerantwort trägt das Detail in message und details',
+      () {
+        // Dart liest details; die Form prüft der JVM-Test, hier der Aufruf.
+        final controller = File('$dir/RecordingServiceController.kt')
+            .readAsStringSync();
+        expect(controller, contains('= Triple(code, detail, detail)'));
+        expect(
+          state,
+          contains(
+            'val (c, message, details) = channelErrorArgs(code, detail)',
+          ),
+        );
+        expect(state, contains('result.error(c, message, details)'));
+        expect(state, isNot(contains('result.error(code, detail, null)')));
+      },
+    );
+
+    test('Verdrahtung: Bandmodus-Argument erreicht die Rechteabfrage', () {
+      final main = File('$dir/MainActivity.kt').readAsStringSync();
+      expect(main, contains('call.argument<Boolean>("treadmill") == true'));
+      expect(
+        main,
+        contains(
+          'StepSensor.shouldAsk(StepSensor.hasSensor(this), '
+          'StepSensor.granted(this), treadmill)',
+        ),
+      );
+    });
+
     test('kein stopService vor dem Vordergrund', () {
       // Nur bei laufendem Dienst (Entscheidung per JVM-Test des Controllers).
       final controller = File('$dir/RecordingServiceController.kt')
