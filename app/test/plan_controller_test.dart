@@ -961,6 +961,60 @@ void main() {
     });
   });
 
+  group('Öffnen: Pausenregel vor Wochenprüfung (NB6)', () {
+    Future<_Env> prepared(int pauseDays) async {
+      final e = await _Env.open();
+      e.clock.set(_day(-80));
+      await e.controller.saveGoal(_goal());
+      e.clock.set(_now);
+      await _finishedRun(e.session, pauseDays);
+      // Basiswoche vor der Pause (volle Kalenderwoche, 2 Läufe zu 60 min).
+      await _finishedRun(e.session, pauseDays + 7);
+      await _finishedRun(e.session, pauseDays + 8);
+      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      // Wochenprüfung fällig (frühere Kalenderwoche), diese Woche ohne Läufe.
+      await e.session.settings.set(planLastCheckDayKey, '2026-11-02', at: _now);
+      return e;
+    }
+
+    test(
+      'Pause 10 Tage: genau eine Fassung (pause), 80 % der Basiswoche, '
+      'keine harte Einheit; die Wochenprüfung schreibt keine zweite',
+      () async {
+        final e = await prepared(10);
+        final before = (await e.plans.history()).length;
+        final q = await HintService(
+          session: e.session,
+          clock: e.clock,
+        ).pauseRestartDue();
+        expect(q, isNotNull);
+        expect(q!.baseWeekMinutes, greaterThan(0));
+        await e.controller.open();
+        final h = await e.plans.history();
+        expect(h.length, before + 1);
+        expect(h.last.trigger, PlanTrigger.pause);
+        expect(h.last.inputs.noHardUntil, isNotNull);
+        expect(
+          h.last.inputs.startWeeklyMinutes,
+          (q.baseWeekMinutes * 0.8).round(),
+        );
+        expect(h.last.inputs.anchor, DateTime.utc(2026, 11, 9));
+        // Zweites Öffnen: weiterhin nichts Neues.
+        await e.controller.open();
+        expect((await e.plans.history()).length, before + 1);
+      },
+    );
+
+    test('ohne Pause greift die Wochenprüfung wie bisher', () async {
+      final e = await prepared(2);
+      final before = (await e.plans.history()).length;
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.length, before + 1);
+      expect(h.last.trigger, PlanTrigger.weekly);
+    });
+  });
+
   group('Neuer Einstieg: Neustart möglich (NB5 5)', () {
     Future<bool> possible(DateTime target) async {
       final e = await _Env.open();

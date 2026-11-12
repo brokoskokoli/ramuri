@@ -259,8 +259,10 @@ class PlanController extends ChangeNotifier {
   Future<void> open() => _serial(() async {
     _fresh = null;
     try {
-      await _checkDue();
+      // Pause hat Vorrang (PAR-202): ihre Fassung gilt für diese Woche und
+      // setzt den Prüftag, die Wochenprüfung schreibt danach keine zweite.
       await _checkPauseRestart();
+      await _checkDue();
     } on Object {
       // Die Prüfung holt der nächste Start nach; die Seite zeigt den
       // gespeicherten Plan.
