@@ -1,6 +1,9 @@
 # R009 – Ergebnis
 
 ## Kurzfassung
+Ja, den Ruhepuls kann die App mit der Handykamera messen: Finger auf Kamera und Blitz, 60 Sekunden, und in Ruhe liegt das Ergebnis nur etwa 2 Schläge pro Minute neben einem EKG. Bei der Herzratenvariabilität (HRV, wie stark die Abstände zwischen den Herzschlägen schwanken) ist das unsicher; die Studie, die genau diesen Aufbau geprüft hat, fand deutlich zu hohe Werte. Empfehlung: Der Kamera-Ruhepuls kommt sofort in die App, gemessen morgens nach dem Aufstehen, vor dem Kaffee, liegend und nach zwei Minuten Ruhe. Bewertet werden nicht einzelne Tage, sondern das Mittel über sieben Tage. Die HRV aus der Kamera bleibt gesperrt, bis ein eigener Vergleich mit dem Brustgurt Polar H9 über 28 Morgen sie bestätigt, und auch dann nur, wenn der Nutzer sie ausdrücklich einschaltet. Wichtigste Folge: Ohne Uhr zeigt die App bis dahin keine Erholungszahl, sondern nur eine eingeschränkte Einschätzung. Nach der Literatur ist gut möglich, dass die HRV-Prüfung scheitert.
+
+## Ergebnis im Überblick
 **Ruhepuls mit der Kamera (FR-0214) ist gut gedeckt.** In Ruhe stimmt der Fingerpuls aus der Kamera auf etwa ±2/min mit dem EKG überein [B7, B2, B8]. 60 s reichen dafür. Ruhepuls heißt hier: Ruhe vorher, immer dieselbe Haltung, kein Koffein vorher. Er ist nicht der Schlafpuls einer Uhr [A10].
 
 **RMSSD aus 60 s Kamera ist gemischt belegt, die direkteste Studie spricht eher dagegen.** Das Messfenster an sich trägt: 60 s gegen 5 min ergibt lnRMSSD mit LoA ±0,22, gemessen liegend mit EKG [A5]. Zur Kamera selbst:
