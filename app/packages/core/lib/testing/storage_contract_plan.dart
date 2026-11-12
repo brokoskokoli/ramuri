@@ -839,6 +839,14 @@ Future<void> _invalid(StorageContractHarness h) async {
         fixed: PlanUnitFixed.kind,
       ),
     ]),
+    'nicht bestätigt (pinned = false) mit fixed = kind': await _draft(p, 1, [
+      _unit(
+        1,
+        kind: PlanUnitKind.easy,
+        pinned: false,
+        fixed: PlanUnitFixed.kind,
+      ),
+    ]),
     'Tempo mit fixed = easyForHard': await _draft(p, 1, [
       _unit(
         1,
