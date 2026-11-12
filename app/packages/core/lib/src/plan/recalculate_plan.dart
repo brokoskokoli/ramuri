@@ -78,6 +78,9 @@ class PlanRecalculation {
 /// und `pinned` bleiben im `summary` der Fassung gehalten ([planWarningKey])
 /// und kehren zurück, sobald das Warnsignal fehlt (Ausnahme zu ADR-0010).
 /// Aufrufer, die ein Warnsignal führen, müssen den Speicher übergeben.
+///
+/// [markChecked] `false`: `plan.last_check_day` bleibt unverändert (die
+/// Wochenprüfung ist noch nicht gelaufen und bleibt fällig).
 Future<PlanRecalculation> recalculatePlan({
   required PlanRepository plans,
   required SettingsStore settings,
@@ -88,6 +91,7 @@ Future<PlanRecalculation> recalculatePlan({
   PlanInputs? inputs,
   PlanParameters parameters = const PlanParameters(),
   WarningStore? warning,
+  bool markChecked = true,
 }) async {
   Future<PlanRecalculation> once() => _recalculateOnce(
     plans: plans,
@@ -99,6 +103,7 @@ Future<PlanRecalculation> recalculatePlan({
     inputs: inputs,
     parameters: parameters,
     warning: warning,
+    markChecked: markChecked,
   );
   try {
     return await once();
@@ -118,6 +123,7 @@ Future<PlanRecalculation> _recalculateOnce({
   PlanInputs? inputs,
   PlanParameters parameters = const PlanParameters(),
   WarningStore? warning,
+  bool markChecked = true,
 }) async {
   final todayDay = planDay(today);
   final goal = await plans.currentGoal();
@@ -211,7 +217,7 @@ Future<PlanRecalculation> _recalculateOnce({
   if (last != null &&
       summary.isEmpty &&
       (keepsGoalPending || !planGoalChangedSince(last.summary, goal))) {
-    await _markChecked(settings, todayDay, now);
+    if (markChecked) await _markChecked(settings, todayDay, now);
     return PlanRecalculation.unchanged(generated, summary);
   }
 
@@ -237,7 +243,7 @@ Future<PlanRecalculation> _recalculateOnce({
       readState: planUnitsFingerprint(all),
     ),
   );
-  await _markChecked(settings, todayDay, now);
+  if (markChecked) await _markChecked(settings, todayDay, now);
   return PlanRecalculation.written(record, generated, summary);
 }
 

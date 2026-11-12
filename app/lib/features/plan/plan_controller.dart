@@ -329,15 +329,17 @@ class PlanController extends ChangeNotifier {
     // ein (Grund bleibt `goalChange`).
     // Bei offener Pausenfrage (PAR-202) nicht: Die Bewertung setzte den
     // Anker auf den Montag und die Pausenregel liefe danach ins Leere (NB8 1).
-    final doAdjust =
-        adjust ??
-        (trigger == PlanTrigger.goalChange &&
-            weeklyCheckDue(
-              await session.settings.get(planLastCheckDayKey),
-              today,
-            ) &&
-            await HintService(session: session, clock: clock).pauseQuestion() ==
-                null);
+    // Dann bleibt auch der Prüftag unberührt: Nach „Nein“ läuft die
+    // Wochenprüfung beim nächsten Öffnen (NB9 1).
+    final dueOnGoalChange =
+        adjust == null &&
+        trigger == PlanTrigger.goalChange &&
+        weeklyCheckDue(await session.settings.get(planLastCheckDayKey), today);
+    final skippedForPause =
+        dueOnGoalChange &&
+        await HintService(session: session, clock: clock).pauseQuestion() !=
+            null;
+    final doAdjust = adjust ?? (dueOnGoalChange && !skippedForPause);
     if (doAdjust && last != null) {
       final evidence = await reader.weekEvidence(today);
       final a = evaluateWeekAdjustment(
@@ -374,6 +376,7 @@ class PlanController extends ChangeNotifier {
       inputs: inputs,
       parameters: parameters,
       warning: _warning,
+      markChecked: !skippedForPause,
     );
     _fresh = r.generated;
     _lastChange = r.summary;

@@ -1256,6 +1256,21 @@ void main() {
       expect(last.inputs.noHardUntil, isNotNull);
     });
 
+    test('Ziel speichern bei offener Pausenfrage, dann „Nein“ -> '
+        'Wochenprüfung greift beim nächsten Öffnen (NB9 1)', () async {
+      final e = await prepared(10, recorded: false);
+      final service = HintService(session: e.session, clock: e.clock);
+      expect(await service.pauseQuestion(), isNotNull);
+      await e.controller.saveGoal(_goal(target: DateTime.utc(2027, 5, 1)));
+      expect(await service.pauseQuestion(), isNotNull);
+      final before = (await e.plans.history()).length;
+      await e.controller.answerPause(false);
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.length, before + 1);
+      expect(h.last.trigger, PlanTrigger.weekly);
+    });
+
     test('offene Pausenfrage, Antwort „Nein“: die nächste Wochenprüfung läuft '
         'normal (NB7 2)', () async {
       final e = await prepared(10, recorded: false);

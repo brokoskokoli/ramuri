@@ -478,7 +478,9 @@ void main() {
     );
     expect(
       planChangeReasonText(AppLocalizationsEn(), e, v),
-      startsWith('Your goal changed'),
+      'Your goal changed, so the plan was recalculated. You completed 0 % '
+      "of the planned weekly time, so the weekly time stays at last week's "
+      'level.',
     );
   });
 
