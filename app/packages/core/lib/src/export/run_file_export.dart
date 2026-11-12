@@ -4,7 +4,6 @@ import '../../ports/file_handoff.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_raw.dart';
 import '../../ports/storage_runs.dart';
-import '../recording/treadmill.dart' show RunMode;
 import '../statistics/offload.dart';
 import 'export_run.dart';
 import 'fit_encoder.dart';
@@ -48,9 +47,6 @@ class RunFileExportService {
     final run = await session.runs.get(runId);
     if (run == null || run.state != RunState.finished || run.endedAt == null) {
       return null;
-    }
-    if (!format.availableFor(treadmill: run.mode == RunMode.treadmill)) {
-      throw ArgumentError('Ein Laufbandlauf lässt sich nicht als GPX ausgeben');
     }
     return offload(exportFileJob, (
       run: run,
