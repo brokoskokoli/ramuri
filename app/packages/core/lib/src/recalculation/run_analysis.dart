@@ -8,6 +8,7 @@ import '../fitness/heart_rate_basis.dart';
 import '../fitness/vo2max_estimator.dart';
 import '../fitness/vo2max_section_selection.dart';
 import '../preprocessing/preprocessing_parameters.dart';
+import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/run_preprocessor.dart';
 import '../recording/belt_track.dart';
 
@@ -220,7 +221,24 @@ class RunAnalyzer {
         gaps: gaps,
         parameters: preprocessing,
       );
-      replayed = pre;
+      // Bandlauf: Bewegungszeit aus den Einstellungen; Belastung (Zonen,
+      // TRIMP) und alles Weitere folgen dieser Zeit wie beim GPS-Lauf.
+      replayed = belt == null
+          ? pre
+          : pre.withMovement(
+              MovementResult(
+                parameterVersion: pre.movement.parameterVersion,
+                totalTime: pre.movement.totalTime,
+                movingTime: belt.moving,
+                movingIntervals: [
+                  for (final p in belt.pieces)
+                    if (p.isMoving) p.span,
+                ],
+                autoPauseState: pre.movement.autoPauseState,
+                manuallyPaused: pre.movement.manuallyPaused,
+                resumedAt: pre.movement.resumedAt,
+              ),
+            );
       selection = Vo2maxSectionSelector(parameters: fitness).select(
         run: pre,
         basis: basis,

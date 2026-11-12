@@ -34,6 +34,19 @@ class RunPreprocessing {
   final SettlingResult settling;
   final AltitudeResult altitude;
   final StepsResult steps;
+
+  /// Dasselbe Ergebnis mit anderer Bewegungszeit (Bandlauf, FR-0196: sie
+  /// kommt aus den Bandeinstellungen, nicht aus Positionen).
+  RunPreprocessing withMovement(MovementResult movement) => RunPreprocessing(
+    parameters: parameters,
+    position: position,
+    pace: pace,
+    movement: movement,
+    heartRate: heartRate,
+    settling: settling,
+    altitude: altitude,
+    steps: steps,
+  );
 }
 
 /// Fasst die Kanalprozessoren zusammen. Keine Uhr: Zeiten kommen von außen.

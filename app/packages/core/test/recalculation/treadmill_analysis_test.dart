@@ -165,6 +165,46 @@ void main() {
       },
     );
 
+    test('manuelle Pause: nicht in Strecke und Bewegungszeit', () async {
+      final w = await RecalcWorld.create();
+      final id = await _seedBelt(
+        w,
+        _t0,
+        seconds: 1800,
+        belts: [_b(0, 3.0)],
+        pauses: [(600, 900)],
+      );
+      await w.calc().calculateAfterRun(id);
+      final o = (await RunOverviewService(
+        session: w.session,
+        clock: w.clock,
+      ).load()).single;
+      expect(o.distanceMeters, closeTo(4500, 1e-6));
+      expect(o.movingTime, const Duration(minutes: 25));
+    });
+
+    test(
+      'Belastung zählt normal: TRIMP und Zonenzeiten aus der Bandzeit',
+      () async {
+        final w = await RecalcWorld.create();
+        final id = await _seedBelt(w, _t0, seconds: 1800, belts: [_b(0, 3.0)]);
+        await w.calc().calculateAfterRun(id);
+        final byKey = {
+          for (final p in await w.session.values.read(ValueOwner.run(id)))
+            p.original.key: p.original,
+        };
+        final trimp = byKey[trimpRunValueKey]!;
+        expect(trimp.value, isNotNull);
+        expect(trimp.value!, greaterThan(0));
+        final zoneSeconds = [
+          for (final p in byKey.values)
+            if (p.key != vo2maxRunValueKey && p.key != trimpRunValueKey)
+              p.value,
+        ].whereType<num>().fold<num>(0, (a, b) => a + b);
+        expect(zoneSeconds, greaterThan(0));
+      },
+    );
+
     test(
       'GPS-Lauf unverändert: kein Bandergebnis, Strecke und Bestpace aus GPS',
       () async {
