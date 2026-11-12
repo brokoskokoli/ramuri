@@ -822,4 +822,74 @@ void main() {
       }
     }
   });
+
+  group('Wochenprüfung PAR-201 beim Öffnen (NB4 2)', () {
+    // Plan seit Mittwoch 21.10.; geöffnet wird am Mittwoch 25.11., geprüft
+    // wird die Woche 16.-22.11. (monday(0)), die Folgewoche ist monday(1).
+    DateTime monday(int n) =>
+        DateTime.utc(2026, 11, 16).add(Duration(days: 7 * n));
+
+    Future<int> week(_Env e, DateTime from) async => [
+      for (final u in await e.plans.unitsBetween(
+        from,
+        from.add(const Duration(days: 6)),
+      ))
+        u.minutes,
+    ].fold<int>(0, (a, b) => a + b);
+
+    Future<(_Env, int)> prepare({double share = 0}) async {
+      final planned = <int>[0];
+      final runs = <RunFigures>[];
+      final e = await _Env.open(loadRuns: () async => runs);
+      e.clock.set(_day(-21));
+      await e.controller.saveGoal(_goal());
+      planned[0] = await week(e, monday(0));
+      if (share > 0) {
+        runs.add(
+          RunFigures(
+            runId: 1,
+            endedAt: monday(0).add(const Duration(days: 2, hours: 9)),
+            day: '2026-11-18',
+            movingTime: Duration(minutes: (planned[0] * share).round()),
+          ),
+        );
+      }
+      e.clock.set(_day(14));
+      return (e, planned[0]);
+    }
+
+    test('Woche ohne Läufe: beim Öffnen neue Fassung, Wochenzeit nicht höher '
+        '(wiederholen)', () async {
+      final (e, planned) = await prepare();
+      final before = await week(e, monday(1));
+      expect(before, greaterThan(planned), reason: 'sonst belegt es nichts');
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h, hasLength(2));
+      expect(h.last.trigger, PlanTrigger.weekly);
+      expect(h.last.reason, 'repeatWeek');
+      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
+      // idempotent: zweites Öffnen schreibt nichts
+      await e.controller.open();
+      expect(await e.plans.history(), hasLength(2));
+    });
+
+    test('Hälfte bis 80 %: keine Steigerung', () async {
+      final (e, planned) = await prepare(share: 0.65);
+      final before = await week(e, monday(1));
+      expect(before, greaterThan(planned), reason: 'sonst belegt es nichts');
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h, hasLength(2));
+      expect(h.last.reason, 'noIncrease');
+      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
+    });
+
+    test('mehr als 80 %: keine Änderung', () async {
+      final (e, _) = await prepare(share: 0.9);
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.length, 1);
+    });
+  });
 }

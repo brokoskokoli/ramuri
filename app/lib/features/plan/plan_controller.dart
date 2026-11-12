@@ -287,30 +287,58 @@ class PlanController extends ChangeNotifier {
     final today = _today();
     final checked = await session.settings.get(planLastCheckDayKey);
     if (!weeklyCheckDue(checked, today)) return;
-    await _recalculate(
-      last.version.isCurrent ? PlanTrigger.weekly : PlanTrigger.ruleVersion,
-      goal,
-      last,
-    );
+    if (!last.version.isCurrent) {
+      await _recalculate(PlanTrigger.ruleVersion, goal, last);
+      return;
+    }
+    await _recalculate(PlanTrigger.weekly, goal, last, adjust: true);
   }
 
   /// Rechnet mit Eingaben aus dem Speicher. Anlegen: neue Eingaben aus
   /// [buildPlanInputs]; sonst die der letzten Fassung mit den heute
   /// gemessenen Werten ([refreshMeasuredInputs]).
+  ///
+  /// [adjust]: die wöchentliche Prüfung bewertet zuerst die letzte Woche
+  /// (PAR-201, [evaluateWeekAdjustment]); ergibt sie eine Anpassung, gilt ihr
+  /// neuer Anker, der Grund-Code der Fassung nennt die Gründe. Einmal je
+  /// Woche (die Prüfung merkt sich den Tag), und die bewertete Woche liegt
+  /// danach vor dem Anker.
   Future<void> _recalculate(
     PlanTrigger trigger,
     TrainingGoal goal,
-    PlanVersionRecord? last,
-  ) async {
+    PlanVersionRecord? last, {
+    bool adjust = false,
+  }) async {
     final today = _today();
     final built = await reader.read(goal: goal, today: today);
-    final inputs = _inputsFor(trigger, built, last);
+    var inputs = _inputsFor(trigger, built, last);
+    String? reason;
+    if (adjust && last != null) {
+      final evidence = await reader.weekEvidence(today);
+      final a = evaluateWeekAdjustment(
+        goal: goal,
+        inputs: inputs,
+        today: today,
+        doneMinutes: evidence.doneMinutes,
+        plannedMinutes: evidence.plannedMinutes,
+        recentEasyRpe: evidence.recentEasyRpe,
+        fatigueReported: evidence.fatigueReported,
+        parameters: parameters,
+      );
+      if (a != null) {
+        inputs = refreshMeasuredInputs(a.inputs, built.inputs);
+        reason = ([
+          ...a.reasons,
+        ]..sort((x, y) => x.index - y.index)).map((r) => r.name).join(',');
+      }
+    }
     final r = await recalculatePlan(
       plans: _plans,
       settings: session.settings,
       trigger: trigger,
       today: today,
       now: clock.now(),
+      reason: reason,
       inputs: inputs,
       parameters: parameters,
       warning: _warning,
