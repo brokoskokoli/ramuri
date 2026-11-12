@@ -660,9 +660,58 @@ void pauseQuestionTests() {
       );
     });
 
-    test('ab 56 Tagen kein stiller Neustart, auch nicht mit der Zusage', () {
+    test('ab 56 Tagen mit der Zusage fällig (vorläufige Vorgabe), ohne sie '
+        'nicht; nach dem Merker einmal je Pause', () {
       expect(due(inputs(trainings: [run(55)], allRecorded: true)), isNotNull);
-      expect(due(inputs(trainings: [run(56)], allRecorded: true)), isNull);
+      expect(due(inputs(trainings: [run(56)], allRecorded: true)), isNotNull);
+      expect(due(inputs(trainings: [run(60)])), isNull);
+      expect(
+        due(
+          inputs(
+            trainings: [run(60)],
+            allRecorded: true,
+            mark: PauseRestartMark(
+              day: ago(60),
+              restarted: true,
+              provisional: true,
+            ),
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    test('Merker: vorläufig bleibt lesbar; der Einstieg bleibt wählbar, bis '
+        'er gewählt ist', () {
+      for (final restarted in [true, false]) {
+        final m = PauseRestartMark(
+          day: ago(60),
+          restarted: restarted,
+          provisional: true,
+        );
+        final back = PauseRestartMark.parse(m.format())!;
+        expect(back.provisional, isTrue);
+        expect(back.restarted, restarted);
+      }
+      expect(
+        PauseRestartMark.parse('2026-01-01 restart')!.provisional,
+        isFalse,
+      );
+      final prov = PauseRestartMark(
+        day: ago(60),
+        restarted: true,
+        provisional: true,
+      );
+      expect(
+        selectNewStart(
+          inputs(trainings: [run(60)], allRecorded: true, mark: prov),
+        ),
+        isNotNull,
+      );
+      final hint = selectHint(
+        inputs(trainings: [run(60)], allRecorded: true, mark: prov),
+      );
+      expect(hint.hint?.action, HintAction.newStart);
     });
 
     test('neuer Einstieg ab 56 Tagen: Zusage oder bestätigte Pause', () {

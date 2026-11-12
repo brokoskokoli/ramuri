@@ -299,8 +299,8 @@ void main() {
     );
 
     testWidgets(
-      'lange Pause (PAR-181): kein stiller Neustart, Wortlaut der Spezifikation, '
-      'Knopf zur Wahl; die Wahl fragt den Stand und startet neu',
+      'lange Pause (PAR-181): vorläufig Stufe 2 statt altem Plan, Wortlaut der '
+      'Spezifikation, Knopf zur Wahl; die Wahl ersetzt die Vorgabe',
       (tester) async {
         final d = Device();
         final s = await _preopen(d);
@@ -308,7 +308,12 @@ void main() {
         await LoadSettings.saveAllRecorded(s.settings, true, at: _now);
         final before = (await _history(s)).length;
         await d.start(tester, const Locale('de'));
-        expect((await _history(s)).length, before);
+        // Sichere Vorgabe bis zur Wahl: Stufe 2 (2 Wochen ohne harte Einheit).
+        var h = await _history(s);
+        expect(h.length, before + 1);
+        expect(h.last.trigger, PlanTrigger.pause);
+        final noHard = h.last.inputs.noHardUntil!;
+        expect(noHard.difference(h.last.inputs.anchor).inDays, 13);
         expect(
           text('home_recovery_text'),
           'Dein letztes erfasstes Training liegt 70 Tage zurück. '
@@ -336,10 +341,12 @@ void main() {
         await tester.ensureVisible(key('plan_form_save'));
         await tester.tap(key('plan_form_save'));
         await _pumpSettle(tester);
-        final h = await _history(s);
-        expect(h.length, before + 1);
+        h = await _history(s);
+        expect(h.length, before + 2);
         expect(h.last.trigger, PlanTrigger.goalChange);
         expect(h.last.inputs.startWeeklyMinutes, 75);
+        // Die Wahl ersetzt die Vorgabe: keine Sperre für harte Einheiten mehr.
+        expect(h.last.inputs.noHardUntil, isNull);
         final goal = (await (s as GoalStorage).goals.goal())!;
         expect(goal.currentWeeklySeconds, 75 * 60);
         // Gewählt: kein Knopf mehr, keine Aussage über den Plan.
@@ -352,9 +359,8 @@ void main() {
       },
     );
 
-    testWidgets('lange Pause: „Ja“ der Pausenfrage startet nicht still neu', (
-      tester,
-    ) async {
+    testWidgets('lange Pause: „Ja“ der Pausenfrage setzt die vorläufige '
+        'Vorgabe, der Einstieg bleibt wählbar', (tester) async {
       final d = Device();
       final s = await _preopen(d);
       await _run(s, 70, minutes: 30);
@@ -362,7 +368,9 @@ void main() {
       await d.start(tester, const Locale('de'));
       await tester.tap(key('home_pause_yes'));
       await _pumpSettle(tester);
-      expect((await _history(s)).length, before);
+      final h = await _history(s);
+      expect(h.length, before + 1);
+      expect(h.last.trigger, PlanTrigger.pause);
       expect(key('home_recovery_new_start'), findsOneWidget);
     });
 

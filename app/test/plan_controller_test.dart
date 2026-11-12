@@ -922,7 +922,7 @@ void main() {
           ),
           summary: const {},
           units: [
-            for (final (i, d) in [monday, _day(0), _day(2)].indexed)
+            for (final d in [monday, _day(0), _day(2)])
               PlanUnit(
                 day: d,
                 kind: PlanUnitKind.walkRun,

@@ -158,29 +158,50 @@ class EasyPlanFeedback {
 
 /// Merker: Der Neustart zur Pause nach dem Training vom Tag [day] wurde
 /// bearbeitet; [restarted] = dabei entstand eine Fassung `pause` (sonst blieb
-/// der Plan, z. B. in der Geh-Lauf-Abfolge). Gespeichert als Text.
+/// der Plan, z. B. in der Geh-Lauf-Abfolge). [provisional]: Bei einer Pause ab
+/// 8 Wochen gilt vorläufig die sichere Vorgabe (Stufe 2) bis der Nutzer den
+/// Einstieg wählt (PAR-181); der Einstieg bleibt dann wählbar. Gespeichert als
+/// Text.
 class PauseRestartMark {
-  PauseRestartMark({required DateTime day, required this.restarted})
-    : day = warningDay(day);
+  PauseRestartMark({
+    required DateTime day,
+    required this.restarted,
+    this.provisional = false,
+  }) : day = warningDay(day);
   final DateTime day;
   final bool restarted;
+  final bool provisional;
 
-  /// `JJJJ-MM-TT restart` oder `JJJJ-MM-TT none`; sonst `null`.
+  static const _tokens = {
+    'restart': (true, false),
+    'none': (false, false),
+    'provisional': (true, true),
+    'provisional-none': (false, true),
+  };
+
+  /// `JJJJ-MM-TT restart`, `… none`, `… provisional` oder
+  /// `… provisional-none`; sonst `null`.
   static PauseRestartMark? parse(String? text) {
     if (text == null) return null;
     final parts = text.split(' ');
-    if (parts.length != 2 || (parts[1] != 'restart' && parts[1] != 'none')) {
-      return null;
-    }
+    final token = parts.length == 2 ? _tokens[parts[1]] : null;
+    if (token == null) return null;
     final day = DateTime.tryParse('${parts[0]}T00:00:00Z');
     if (day == null) return null;
-    return PauseRestartMark(day: day, restarted: parts[1] == 'restart');
+    return PauseRestartMark(
+      day: day,
+      restarted: token.$1,
+      provisional: token.$2,
+    );
   }
 
   String format() {
     String two(int v) => v.toString().padLeft(2, '0');
+    final token = _tokens.entries
+        .firstWhere((e) => e.value == (restarted, provisional))
+        .key;
     return '${day.year.toString().padLeft(4, '0')}-${two(day.month)}-'
-        '${two(day.day)} ${restarted ? 'restart' : 'none'}';
+        '${two(day.day)} $token';
   }
 }
 
@@ -300,7 +321,8 @@ PauseQuestion? selectPauseQuestion(
 /// Steht eine Pause ohne Frage fest, weil der Nutzer zugesagt hat, alles zu
 /// erfassen (PAR-202), und wurde sie noch nicht bearbeitet ([PauseRestartMark]
 /// für dieses letzte Training)? Dann ist der Plan-Neustart fällig (einmal je
-/// Pause). Nein bei Warnsignal und ohne die Zusage. Reine Funktion.
+/// Pause); ab 8 Wochen als vorläufige sichere Vorgabe bis zur Wahl des
+/// Einstiegs (PAR-181, [selectNewStart]). Nein bei Warnsignal und ohne die Zusage. Reine Funktion.
 PauseQuestion? selectPauseRestart(
   HintInputs input, {
   HintParameters parameters = hintParameters,
@@ -308,8 +330,6 @@ PauseQuestion? selectPauseRestart(
   if (input.warningReportedOn != null || !input.allRecorded) return null;
   final q = _pauseSpan(input, parameters);
   if (q == null) return null;
-  // Ab 8 Wochen wählt der Nutzer den Einstieg (PAR-181): kein stiller Neustart.
-  if (q.daysSinceTraining >= parameters.longPauseDays) return null;
   if (input.pauseRestart?.day == q.lastTrainingDay) return null;
   return q;
 }
@@ -329,7 +349,8 @@ PauseQuestion? selectNewStart(
   final confirmed =
       answer != null && answer.paused && !answer.on.isBefore(q.lastTrainingDay);
   if (!input.allRecorded && !confirmed) return null;
-  if (input.pauseRestart?.day == q.lastTrainingDay) return null;
+  final mark = input.pauseRestart;
+  if (mark?.day == q.lastTrainingDay && !mark!.provisional) return null;
   return q;
 }
 
@@ -496,6 +517,11 @@ Hint? _steepIncrease(HintInputs i, HintParameters p) {
   );
 }
 
+/// Hat der Nutzer den Einstieg für die Pause nach [last] gewählt (Merker ohne
+/// die vorläufige Vorgabe)?
+bool _startChosen(PauseRestartMark? mark, DateTime last) =>
+    mark != null && mark.day == last && !mark.provisional;
+
 Hint? _pause(HintInputs i, HintParameters p) {
   final last = _lastTrainingDay(i);
   if (last == null) return null;
@@ -511,7 +537,9 @@ Hint? _pause(HintInputs i, HintParameters p) {
   return Hint(
     code: long ? HintCode.longPause : HintCode.pause,
     // Ab 8 Wochen bietet der Hinweis den neuen Einstieg an, bis er gewählt ist.
-    action: long && i.pauseRestart?.day != last ? HintAction.newStart : null,
+    action: long && !_startChosen(i.pauseRestart, last)
+        ? HintAction.newStart
+        : null,
     evidence: [
       Evidence(EvidenceKey.daysSinceTraining, days),
       Evidence(EvidenceKey.lastTrainingDay, last),

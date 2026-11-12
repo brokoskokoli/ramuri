@@ -591,6 +591,7 @@ class PlanController extends ChangeNotifier {
               lastTrainingDay: q.lastTrainingDay,
               baseWeekMinutes: q.baseWeekMinutes,
               parameters: parameters,
+              replacesProvisional: await _pauseProvisional(q),
             ).inputs;
       if (restart != null) {
         inputs = restart;
@@ -925,14 +926,12 @@ class PlanController extends ChangeNotifier {
   /// Merker [planPauseRestartKey] trägt den Tag des letzten Trainings und ob
   /// eine Fassung entstand. Ohne Plan oder Ziel geschieht nichts (kein Merker).
   ///
-  /// Ab 8 Wochen ([PlanParameters.pauseNewStartDays]) startet nichts von
-  /// selbst: Der Nutzer wählt den Einstieg ([restartAfterLongPause], PAR-181).
-  /// Mit [chosen] hat der Nutzer den Einstieg gewählt; sein Ziel mit dem neuen
-  /// Stand ist schon gespeichert.
+  /// Ab 8 Wochen ([PlanParameters.pauseNewStartDays]) gilt ohne Wahl
+  /// vorläufig die Stufe 2 (sichere Vorgabe, Merker `provisional`); der
+  /// Nutzer wählt den Einstieg ([restartAfterLongPause], PAR-181) und ersetzt
+  /// sie damit. Mit [chosen] hat der Nutzer den Einstieg gewählt; sein Ziel mit
+  /// dem neuen Stand ist schon gespeichert.
   Future<void> _restartForPause(PauseQuestion q, {bool chosen = false}) async {
-    if (!chosen && q.daysSinceTraining >= parameters.pauseNewStartDays) {
-      return;
-    }
     final today = _today();
     final history = await _plans.history();
     final goal = await _goals.goal();
@@ -940,7 +939,10 @@ class PlanController extends ChangeNotifier {
     final mark = PauseRestartMark.parse(
       await session.settings.get(planPauseRestartKey),
     );
-    if (mark?.day == warningDay(q.lastTrainingDay)) return;
+    final marked = mark?.day == warningDay(q.lastTrainingDay);
+    final wasProvisional = marked && mark!.provisional;
+    if (marked && !(chosen && wasProvisional)) return;
+    final longPause = q.daysSinceTraining >= parameters.pauseNewStartDays;
     final built = await reader.read(goal: goal, today: today);
     final base = refreshMeasuredInputs(history.last.inputs, built.inputs);
     final restart = planPauseRestart(
@@ -950,6 +952,8 @@ class PlanController extends ChangeNotifier {
       lastTrainingDay: q.lastTrainingDay,
       baseWeekMinutes: q.baseWeekMinutes,
       parameters: parameters,
+      provisional: longPause && !chosen,
+      replacesProvisional: chosen && wasProvisional,
     );
     final next = restart.inputs;
     if (next == null && chosen) {
@@ -978,9 +982,20 @@ class PlanController extends ChangeNotifier {
       PauseRestartMark(
         day: q.lastTrainingDay,
         restarted: next != null,
+        provisional: longPause && !chosen,
       ).format(),
       at: clock.now(),
     );
+  }
+
+  /// Gilt für die Pause nach [q] schon die vorläufige Vorgabe?
+  Future<bool> _pauseProvisional(PauseQuestion q) async {
+    final mark = PauseRestartMark.parse(
+      await session.settings.get(planPauseRestartKey),
+    );
+    return mark != null &&
+        mark.provisional &&
+        mark.day == warningDay(q.lastTrainingDay);
   }
 
   /// Steht die Pause durch die Zusage „alles erfasst“ ohne Frage fest, startet

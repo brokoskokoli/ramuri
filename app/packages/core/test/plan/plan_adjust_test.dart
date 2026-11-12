@@ -307,6 +307,69 @@ void main() {
       expect(run(56).kind, PauseRestartKind.newStart);
     });
 
+    test(
+      'ab 8 Wochen vorläufig: Stufe 2 (50 %, 2 Wochen ohne harte Einheit)',
+      () {
+        PauseRestart prov(int gap) => planPauseRestart(
+          goal: g,
+          inputs: i,
+          today: today,
+          lastTrainingDay: today.subtract(Duration(days: gap)),
+          baseWeekMinutes: 100,
+          provisional: true,
+        );
+        for (final gap in [56, 120]) {
+          final r = prov(gap);
+          expect(r.kind, PauseRestartKind.long);
+          expect(r.inputs!.startWeeklyMinutes, 50);
+          expect(r.inputs!.anchor, today);
+          expect(r.inputs!.noHardUntil, today.add(const Duration(days: 13)));
+        }
+        // Unter 8 Wochen ändert der Schalter nichts.
+        expect(prov(30).kind, PauseRestartKind.long);
+        expect(prov(10).kind, PauseRestartKind.short);
+      },
+    );
+
+    test('gewählter Einstieg ersetzt die vorläufige Vorgabe der laufenden '
+        'Woche, ohne Kappung auf deren Minuten', () {
+      final p = planPauseRestart(
+        goal: g,
+        inputs: i,
+        today: today,
+        lastTrainingDay: today.subtract(const Duration(days: 60)),
+        baseWeekMinutes: 100,
+        provisional: true,
+      ).inputs!;
+      // Die vorläufige Fassung gilt schon in dieser Woche: ein weiterer
+      // Neustart wäre sonst `none`.
+      expect(
+        planPauseRestart(
+          goal: g,
+          inputs: p,
+          today: today,
+          lastTrainingDay: today.subtract(const Duration(days: 60)),
+          baseWeekMinutes: 100,
+        ).kind,
+        PauseRestartKind.none,
+      );
+      final low = p.copyWith(startWeeklyMinutes: 5);
+      final r = planPauseRestart(
+        goal: g,
+        inputs: low,
+        today: today,
+        lastTrainingDay: today.subtract(const Duration(days: 60)),
+        baseWeekMinutes: 100,
+        replacesProvisional: true,
+      );
+      expect(r.kind, PauseRestartKind.newStart);
+      expect(r.inputs!.noHardUntil, isNull);
+      expect(
+        r.inputs!.startWeeklyMinutes,
+        PlanInputs.forNewGoal(g, today).startWeeklyMinutes,
+      );
+    });
+
     test('80 % bzw. 50 % der gelaufenen Woche, keine harte Einheit '
         '1 bzw. 2 Wochen', () {
       final s = run(10).inputs!;
