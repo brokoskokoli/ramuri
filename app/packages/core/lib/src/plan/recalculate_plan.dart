@@ -181,7 +181,12 @@ Future<PlanRecalculation> _recalculateOnce({
     generated = _keepSchedule(generated, base);
   }
   if (bridge.isNotEmpty) {
-    generated = generated.copyWith(units: [...bridgeKept, ...generated.units]);
+    generated = generated.copyWith(
+      units: [
+        ...fillEmptyRestored(bridgeKept, generated.units),
+        ...generated.units,
+      ],
+    );
   }
   final held = warned ? warningHeldOf(generated.units, todayDay) : null;
   if (warned) {

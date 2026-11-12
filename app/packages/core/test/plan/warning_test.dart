@@ -448,6 +448,198 @@ void main() {
     });
   });
 
+  test('Brücke aus altem Fassungseintrag ohne Dauer und Abschnitte wird '
+      'gefüllt (NB8 3)', () async {
+    final e = await _Env.open();
+    await e.goals.save(_goal(), today: _goal().createdAt);
+    await e.recalc(PlanTrigger.create, -2);
+    final goal = (await e.plans.currentGoal())!;
+    final last = (await e.plans.history()).last;
+    final r = applyPlanFeedback(
+      goal: goal,
+      inputs: last.inputs.copyWith(today: _day(15)),
+      answer: PlanFeedback.tooHard,
+      today: _day(15),
+    );
+    await recalculatePlan(
+      plans: e.plans,
+      settings: e.session.settings,
+      trigger: PlanTrigger.feedback,
+      today: _day(15),
+      now: _now(15),
+      inputs: r.inputs,
+      warning: e.warning,
+    );
+    final anchor = r.inputs!.anchor;
+    Future<PlanUnit> bridgeDay() async => (await e.plans.unitsBetween(
+      _day(15),
+      anchor,
+    )).lastWhere((u) => u.day.isAfter(_day(15)));
+    expect((await bridgeDay()).minutes, greaterThan(0));
+    await e.service.report(
+      source: WarningSource.manual,
+      today: _day(15),
+      now: _now(15).add(const Duration(hours: 1)),
+    );
+    // Zustand einer alten Fassung: Einträge ohne Dauer und Abschnitte.
+    final warned = (await e.plans.history()).last;
+    final held = (warned.summary[planWarningKey]! as List).cast<Map>();
+    final legacy = {
+      ...warned.summary,
+      planWarningKey: [
+        for (final h in held)
+          {
+            for (final k in ['day', 'kind', 'fixed', 'pinned']) k: h[k],
+          },
+      ],
+    };
+    await e.plans.writeVersion(
+      PlanVersionDraft(
+        createdAt: _now(15),
+        validFrom: _day(15),
+        trigger: warned.trigger,
+        reason: warned.reason,
+        version: warned.version,
+        inputs: warned.inputs,
+        summary: legacy,
+        units: await e.plans.unitsBetween(_day(15), planFarFuture),
+        readState: planUnitsFingerprint(
+          await e.plans.unitsBetween(warned.inputs.anchor, planFarFuture),
+        ),
+      ),
+    );
+    await e.service.lift(today: _day(16), now: _now(16));
+    final back = await bridgeDay();
+    expect(back.kind, isNot(PlanUnitKind.rest));
+    expect(back.minutes, greaterThan(0));
+    expect(back.segments, isNotEmpty);
+  });
+
+  group('WarningHeld: Speichern und Lesen (NB8 2, 3)', () {
+    String sig(PlanSegment s) {
+      final i = s.intensity;
+      return [
+        s.kind.name,
+        s.minutes,
+        s.seconds,
+        if (i == null)
+          'ohne'
+        else ...[
+          i.rpeMin,
+          i.rpeMax,
+          i.paceFastSecondsPerKm,
+          i.paceSlowSecondsPerKm,
+          i.basisCode,
+          i.hrMinBpm,
+          i.hrMaxBpm,
+          i.estimated,
+          i.maxHrEstimated,
+          i.paceIsLimit,
+        ],
+      ].join('|');
+    }
+
+    const intensity = PlanTargetIntensity(
+      rpeMin: 3,
+      rpeMax: 4,
+      paceFastSecondsPerKm: 345.5,
+      paceSlowSecondsPerKm: 372,
+      basisCode: 'hrZones',
+      hrMinBpm: 128,
+      hrMaxBpm: 142,
+      estimated: true,
+      maxHrEstimated: true,
+      paceIsLimit: true,
+    );
+
+    test('Hin und zurück: Abschnitte mit Intensität, Sekunden, Dauer', () {
+      final held = WarningHeld(
+        day: _day(3),
+        kind: PlanUnitKind.easy,
+        fixed: PlanUnitFixed.kind,
+        pinned: true,
+        minutes: 41,
+        segments: const [
+          PlanSegment(
+            kind: PlanSegmentKind.warmUp,
+            minutes: 5,
+            seconds: 290,
+            intensity: intensity,
+          ),
+          PlanSegment(kind: PlanSegmentKind.easy, minutes: 36),
+        ],
+      );
+      final back = WarningHeld.fromJson(held.toJson())!;
+      expect(back.day, held.day);
+      expect(back.kind, held.kind);
+      expect(back.fixed, held.fixed);
+      expect(back.pinned, isTrue);
+      expect(back.minutes, 41);
+      expect(
+        [for (final x in back.segments) sig(x)],
+        [for (final x in held.segments) sig(x)],
+      );
+      expect(back.segments.first.intensity, isNotNull);
+    });
+
+    test('alter Eintrag ohne Dauer und Abschnitte: lesbar, Brückentag wird '
+        'aus der Rechnung gefüllt', () {
+      final old = WarningHeld.fromJson({
+        'day': '2026-11-14',
+        'kind': 'easy',
+        'fixed': 'none',
+        'pinned': false,
+      })!;
+      expect(old.minutes, 0);
+      expect(old.segments, isEmpty);
+      PlanUnit unit(
+        PlanUnitKind k,
+        int day, {
+        int min = 0,
+        List<PlanSegment> seg = const [],
+      }) => PlanUnit(
+        day: _day(day),
+        kind: k,
+        phase: PlanPhase.build,
+        weekIndex: 0,
+        minutes: min,
+        segments: seg,
+      );
+      final rest = unit(PlanUnitKind.rest, 3);
+      final restored = restoreWarningHeld(
+        [rest],
+        [
+          WarningHeld(
+            day: _day(3),
+            kind: old.kind,
+            fixed: old.fixed,
+            pinned: old.pinned,
+          ),
+        ],
+      );
+      expect(restored.single.kind, PlanUnitKind.easy);
+      expect(restored.single.minutes, 0);
+      final generated = [
+        unit(PlanUnitKind.tempo, 10, min: 50),
+        unit(
+          PlanUnitKind.easy,
+          12,
+          min: 33,
+          seg: const [PlanSegment(kind: PlanSegmentKind.easy, minutes: 33)],
+        ),
+      ];
+      final filled = fillEmptyRestored(restored, generated);
+      expect(filled.single.kind, PlanUnitKind.easy);
+      expect(filled.single.minutes, 33);
+      expect(filled.single.segments, hasLength(1));
+      // Ohne Einheit gleicher Art bleibt es unverändert.
+      expect(fillEmptyRestored(restored, [generated.first]).single.minutes, 0);
+      // Einheiten mit Dauer bleiben.
+      final kept = unit(PlanUnitKind.easy, 3, min: 20);
+      expect(fillEmptyRestored([kept], generated).single.minutes, 20);
+    });
+  });
+
   group('Erinnerung (reine Funktion)', () {
     test('fällig nach 7 Tagen', () {
       final on = DateTime.utc(2026, 11, 1);
