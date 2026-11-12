@@ -41,8 +41,32 @@ String planChangeReasonText(
     case 'create':
       return l.planChangeReasonCreate;
     default:
-      return l.planChangeReasonOther;
+      return _weeklyReasons(l, e.code, v) ?? l.planChangeReasonOther;
   }
+}
+
+/// Gründe der Wochenprüfung (PAR-201): kommagetrennte Codes
+/// ([WeekAdjustmentReason]), je ein Satz; der Anteil steht nur dabei, wenn
+/// diese Fassung ihn trägt. `null`, wenn der Code keiner davon ist.
+String? _weeklyReasons(AppLocalizations l, String code, PlanVersionRecord v) {
+  final names = {for (final r in WeekAdjustmentReason.values) r.name: r};
+  final parts = code.split(',');
+  if (parts.isEmpty || !parts.every(names.containsKey)) return null;
+  final reasons = {for (final p in parts) names[p]!};
+  final share = _ownShare(v);
+  final percent = share == null ? null : (share * 100).round();
+  return [
+    if (reasons.contains(WeekAdjustmentReason.repeatWeek))
+      percent == null
+          ? l.planChangeReasonRepeatWeek
+          : l.planChangeReasonRepeatWeekShare(percent),
+    if (reasons.contains(WeekAdjustmentReason.noIncrease))
+      percent == null
+          ? l.planChangeReasonNoIncrease
+          : l.planChangeReasonNoIncreaseShare(percent),
+    if (reasons.contains(WeekAdjustmentReason.fatigue))
+      l.planChangeReasonFatigue,
+  ].join(' ');
 }
 
 double? _ownShare(PlanVersionRecord v) {

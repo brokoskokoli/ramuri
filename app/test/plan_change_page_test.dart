@@ -317,6 +317,135 @@ void main() {
     }
   });
 
+  group('Grund der Wochenanpassung in Karte und Verlauf (NB7 3)', () {
+    // Echte Fassung der Wochenprüfung aus dem Controller: Plan seit 11.11.,
+    // geöffnet Dienstag 24.11., bewertet wird die Woche 16.-22.11.
+    final tuesday = DateTime.utc(2026, 11, 24, 12);
+
+    /// [share]: Anteil der geplanten Wochenzeit als freier Lauf am Sa 21.11.
+    /// (`null`: kein Lauf); [wellbeing]: Befinden dieses Laufs.
+    Future<(StorageSession, FakeClock, PlanVersionRecord)> weekly({
+      double? share,
+      int? wellbeing,
+    }) async {
+      final (session, clock) = await _withPlan();
+      final runs = <RunFigures>[];
+      final c = PlanController(
+        session: session,
+        clock: clock,
+        reader: PlanDataReader(
+          session: session,
+          clock: clock,
+          loadRuns: () async => runs,
+        ),
+      );
+      final plans = (session as PlanStorage).plans;
+      if (share != null) {
+        final monday = DateTime.utc(2026, 11, 16);
+        final planned = (await plans.unitsBetween(
+          monday,
+          monday.add(const Duration(days: 6)),
+        )).fold<int>(0, (a, u) => a + u.minutes);
+        final start = DateTime.utc(2026, 11, 21, 8);
+        final minutes = (planned * share).round();
+        final r = await session.runs.create(startedAt: start);
+        await session.runs.setState(
+          r.id,
+          RunState.finished,
+          endedAt: start.add(Duration(minutes: minutes)),
+          endedUtcOffset: Duration.zero,
+        );
+        if (wellbeing != null) {
+          await session.subjective.save(
+            r.id,
+            RunSubjective(wellbeing: wellbeing),
+          );
+        }
+        runs.add(
+          RunFigures(
+            runId: r.id,
+            endedAt: start.add(Duration(minutes: minutes)),
+            day: '2026-11-21',
+            movingTime: Duration(minutes: minutes),
+          ),
+        );
+      }
+      clock.set(tuesday);
+      final before = (await plans.history()).length;
+      await c.open();
+      c.dispose();
+      final h = await plans.history();
+      expect(h, hasLength(before + 1));
+      expect(h.last.trigger, PlanTrigger.weekly);
+      return (session, clock, h.last);
+    }
+
+    for (final (name, share, wellbeing, reason, de, en) in [
+      (
+        'repeatWeek',
+        null,
+        null,
+        'repeatWeek',
+        'Du hast 0 % der geplanten Wochenzeit geschafft, deshalb bleibt die '
+            'Wochenzeit auf dem Stand der letzten Woche.',
+        'You completed 0 % of the planned weekly time, so the weekly time '
+            'stays at last week\'s level.',
+      ),
+      (
+        'noIncrease',
+        0.65,
+        null,
+        'noIncrease',
+        'Du hast 65 % der geplanten Wochenzeit geschafft, deshalb wird die '
+            'Wochenzeit vorerst nicht gesteigert.',
+        'You completed 65 % of the planned weekly time, so the weekly time '
+            'is not increased for now.',
+      ),
+      (
+        'fatigue',
+        1.0,
+        2,
+        'fatigue',
+        'Die letzten Läufe waren anstrengend, deshalb ist die Wochenzeit '
+            'niedriger und diese Woche gibt es keine harte Einheit.',
+        'The last runs felt demanding, so the weekly time is lower and there '
+            'is no hard session this week.',
+      ),
+    ]) {
+      for (final (locale, text) in [('de', de), ('en', en)]) {
+        testWidgets('$name ($locale): eigener Text in Karte und Verlauf', (
+          tester,
+        ) async {
+          final (session, clock, v) = await tester.runAsync(
+            () => weekly(share: share, wellbeing: wellbeing),
+          ) as (StorageSession, FakeClock, PlanVersionRecord);
+          expect(v.reason, reason);
+          await _pump(tester, session, clock, locale: locale);
+          expect(key('plan_change_card'), findsOneWidget);
+          expect(
+            find.descendant(
+              of: key('plan_change_card'),
+              matching: find.text(text),
+            ),
+            findsOneWidget,
+          );
+          await tester.ensureVisible(key('plan_change_history'));
+          await tester.tap(key('plan_change_history'));
+          await _settle(tester);
+          expect(find.text(text), findsWidgets);
+          expect(
+            find.text(
+              locale == 'de'
+                  ? 'Der Plan wurde neu berechnet.'
+                  : 'The plan was recalculated.',
+            ),
+            findsNothing,
+          );
+        });
+      }
+    }
+  });
+
   group('Geh-Lauf: Woche wiederholen (PAR-140)', () {
     Future<(StorageSession, FakeClock)> walkRun(WidgetTester tester) async {
       final r = await tester.runAsync(
