@@ -147,6 +147,8 @@ void main() {
       expect(key('run_pages'), findsNothing);
       expect(key('run_tab_1'), findsNothing);
       expect(key('live_chip_gps'), findsNothing);
+      // Keine Aufstieg-Kachel ohne Höhe (FR-0196).
+      expect(key('run_ascent'), findsNothing);
       expect(text('treadmill_speed'), '10,0 km/h');
       expect(text('treadmill_incline'), '–');
       final c = liveController(tester);
@@ -190,6 +192,7 @@ void main() {
       expect(find.byType(LiveRunView), findsOneWidget);
       expect(key('run_pages'), findsOneWidget);
       expect(key('treadmill_speed'), findsNothing);
+      expect(key('run_ascent'), findsOneWidget);
       expect(d.location.hasListeners, isTrue);
     });
   });

@@ -1,5 +1,6 @@
 import '../../ports/storage_runs.dart';
 import '../preprocessing/run_preprocessor.dart';
+import '../recording/belt_track.dart';
 import '../recalculation/run_load_values.dart';
 import '../recalculation/value_calculation_service.dart' show dayOfRun;
 import '../preprocessing/gap_moving_time.dart';
@@ -82,6 +83,7 @@ class RunFigures {
     required List<StoredLap> laps,
     StoredRunLoad load = StoredRunLoad.none,
     StatisticsParameters parameters = const StatisticsParameters(),
+    BeltTrack? belt,
   }) {
     final end = run.endedAt;
     if (run.state != RunState.finished || end == null) {
@@ -89,24 +91,39 @@ class RunFigures {
     }
     final movement = preprocessing.movement;
     final hr = preprocessing.heartRate;
-    final distance = preprocessing.position.distanceMeters;
-    final lossTime = movingTimeInPositionGaps(preprocessing);
-    final paceTime = movement.movingTime - lossTime;
+    // Bandlauf (FR-0196): Strecke und Bewegungszeit aus den Einstellungen,
+    // keine Positionslücken, keine Bestpace (nur eingestellt, K57).
+    final distance = belt?.meters ?? preprocessing.position.distanceMeters;
+    final movingTime = belt?.moving ?? movement.movingTime;
+    final lossTime = belt != null
+        ? Duration.zero
+        : movingTimeInPositionGaps(preprocessing);
+    final paceTime = movingTime - lossTime;
     return RunFigures(
       runId: run.id,
       endedAt: end,
       day: dayOfRun(run),
       distanceMeters: distance,
-      movingTime: movement.movingTime,
+      movingTime: movingTime,
       totalTime: movement.totalTime,
       paceTime: paceTime > Duration.zero ? paceTime : null,
-      bestPaceSecondsPerKm: bestPace(
-        preprocessing.pace.segments,
-        parameters: parameters,
-      ).secondsPerKm,
+      bestPaceSecondsPerKm: belt != null
+          ? null
+          : bestPace(
+              preprocessing.pace.segments,
+              parameters: parameters,
+            ).secondsPerKm,
       lapCount: laps.length,
       heartRateAverageBpm: hr.averageBpm,
-      heartRateTime: movingTimeWithHeartRate(preprocessing),
+      heartRateTime: movingTimeWithHeartRate(
+        preprocessing,
+        movingIntervals: belt == null
+            ? null
+            : [
+                for (final p in belt.pieces)
+                  if (p.isMoving) p.span,
+              ],
+      ),
       heartRateMaxBpm: hr.maxBpm,
       trimpPoints: load.trimpPoints,
       trimpIncomplete: load.trimpIncomplete,

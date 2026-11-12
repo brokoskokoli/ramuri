@@ -1962,5 +1962,15 @@
   "treadmillSteeper": "Steeper",
   "treadmillFlatter": "Flatter",
   "treadmillBeltStopped": "Belt stopped (0)",
-  "treadmillDeniedActivity": "A treadmill run needs the physical activity permission. Allow it and try again. The run has not started."
+  "treadmillDeniedActivity": "A treadmill run needs the physical activity permission. Allow it and try again. The run has not started.",
+  "treadmillSummaryNote": "Treadmill · avg {speed}",
+  "@treadmillSummaryNote": {"description": "WP25 B2, Laufband (FR-0196)", "placeholders": {"speed": {"type": "String"}}},
+  "treadmillSummaryNoteIncline": "Treadmill · avg {speed} · avg incline {incline} %",
+  "@treadmillSummaryNoteIncline": {"description": "WP25 B2, Laufband (FR-0196)", "placeholders": {"speed": {"type": "String"}, "incline": {"type": "String"}}},
+  "treadmillSummaryHint": "Distance and pace come from the belt speed you set, not measured. No map, route or elevation.",
+  "@treadmillSummaryHint": {"description": "WP25 B2, Laufband (FR-0196)"},
+  "treadmillVo2Provisional": "provisional (treadmill)",
+  "@treadmillVo2Provisional": {"description": "WP25 B2, Laufband (FR-0196)"},
+  "treadmillHistoryBadge": "Treadmill",
+  "@treadmillHistoryBadge": {"description": "WP25 B2, Laufband (FR-0196)"}
 }

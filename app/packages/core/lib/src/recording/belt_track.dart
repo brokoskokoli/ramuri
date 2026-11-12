@@ -64,6 +64,32 @@ class BeltTrack {
     return moving.inMicroseconds / Duration.microsecondsPerSecond / (m / 1000);
   }
 
+  /// Durchschnittsgeschwindigkeit in m/s über die Bewegungszeit; `null` ohne
+  /// Strecke.
+  double? get averageSpeedMetersPerSecond {
+    final m = meters;
+    final secs = moving.inMicroseconds / Duration.microsecondsPerSecond;
+    if (!(m > 0) || !(secs > 0)) return null;
+    return m / secs;
+  }
+
+  /// Mittlere Steigung in Prozent, gewichtet nach der Bewegungszeit; `null`,
+  /// wenn in einem bewegten Stück die Steigung unbekannt ist (nie 0 statt
+  /// unbekannt) oder nichts bewegt war.
+  double? get averageInclinePercent {
+    var weighted = 0.0;
+    var micros = 0;
+    for (final p in pieces) {
+      if (!p.isMoving) continue;
+      final i = p.inclinePercent;
+      if (i == null) return null;
+      final t = p.span.duration.inMicroseconds;
+      weighted += i * t;
+      micros += t;
+    }
+    return micros == 0 ? null : weighted / micros;
+  }
+
   /// Stück, das [t] enthält (Anfang eingeschlossen), sonst `null`.
   BeltPiece? pieceAt(DateTime t) {
     for (final p in pieces) {

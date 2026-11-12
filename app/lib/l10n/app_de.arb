@@ -2704,5 +2704,15 @@
   "treadmillBeltStopped": "Band steht (0)",
   "@treadmillBeltStopped": {"description": "WP25 B1, Laufband (FR-0196)"},
   "treadmillDeniedActivity": "Ein Laufbandlauf braucht die Berechtigung für körperliche Aktivität. Erlaube sie und versuche es erneut. Der Lauf wurde nicht gestartet.",
-  "@treadmillDeniedActivity": {"description": "WP25 B1, Laufband (FR-0196)"}
+  "@treadmillDeniedActivity": {"description": "WP25 B1, Laufband (FR-0196)"},
+  "treadmillSummaryNote": "Laufband · Ø {speed}",
+  "@treadmillSummaryNote": {"description": "WP25 B2, Laufband (FR-0196)", "placeholders": {"speed": {"type": "String"}}},
+  "treadmillSummaryNoteIncline": "Laufband · Ø {speed} · Steigung Ø {incline} %",
+  "@treadmillSummaryNoteIncline": {"description": "WP25 B2, Laufband (FR-0196)", "placeholders": {"speed": {"type": "String"}, "incline": {"type": "String"}}},
+  "treadmillSummaryHint": "Strecke und Pace aus der eingestellten Bandgeschwindigkeit, nicht gemessen. Keine Karte, Route oder Höhe.",
+  "@treadmillSummaryHint": {"description": "WP25 B2, Laufband (FR-0196)"},
+  "treadmillVo2Provisional": "vorläufig (Laufband)",
+  "@treadmillVo2Provisional": {"description": "WP25 B2, Laufband (FR-0196)"},
+  "treadmillHistoryBadge": "Laufband",
+  "@treadmillHistoryBadge": {"description": "WP25 B2, Laufband (FR-0196)"}
 }

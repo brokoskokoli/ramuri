@@ -377,8 +377,10 @@ class LiveValues extends StatelessWidget {
             formatClock(s.movingTime),
             null,
           ),
-          tile(l10n.runAscent, 'run_ascent', ascentValue, ascentUnit),
-          ('+8888', null, l10n.runAscent, null),
+          belt
+              ? null
+              : tile(l10n.runAscent, 'run_ascent', ascentValue, ascentUnit),
+          belt ? null : ('+8888', null, l10n.runAscent, null),
         ),
         const SizedBox(height: 10),
         // FR-0202: Wert nur mit Berechtigung und Sensor, sonst „nicht verfügbar“.

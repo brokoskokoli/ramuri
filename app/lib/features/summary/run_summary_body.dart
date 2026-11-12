@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../run/live_run_view.dart' show formatClock;
+import '../run/treadmill_units.dart';
 import '../settings/unit_format.dart';
 import '../../offload_scope.dart';
 import '../../ui/unbreakable_unit.dart';
@@ -34,6 +35,29 @@ String unavailableReasonText(
 /// Dezimalzahl in der Schreibweise der Sprache.
 String decimalText(UnitFormatter formatter, String text) =>
     formatter.languageCode == 'de' ? text.replaceAll('.', ',') : text;
+
+/// Hinweis „Laufband“ mit Durchschnittsgeschwindigkeit und, wenn bekannt,
+/// mittlerer Steigung (FR-0196); `null` ohne Bandstrecke.
+String? treadmillNoteText(
+  AppLocalizations l10n,
+  UnitFormatter formatter,
+  BeltTrack belt,
+) {
+  final mps = belt.averageSpeedMetersPerSecond;
+  if (mps == null) return null;
+  final unitLabel = formatter.unit == DistanceUnit.miles
+      ? l10n.treadmillUnitMph
+      : l10n.treadmillUnitKmh;
+  final speed =
+      '${decimalText(formatter, TreadmillUnits.displayFromMps(formatter.unit, mps).toStringAsFixed(1))} $unitLabel';
+  final incline = belt.averageInclinePercent;
+  return incline == null
+      ? l10n.treadmillSummaryNote(speed)
+      : l10n.treadmillSummaryNoteIncline(
+          speed,
+          decimalText(formatter, incline.toStringAsFixed(1)),
+        );
+}
 
 /// Einordnung gegenüber den letzten Läufen (OQ-0037: Pace, nur der
 /// Unterschied, unter 1 s/km gleich).
@@ -127,6 +151,7 @@ class _RunSummaryBodyState extends State<RunSummaryBody> {
           : await offload(kilometerSplitsJob, (
               pre: summary.preprocessing,
               unitMeters: unit,
+              belt: summary.belt,
             ));
       return _Loaded(summary, detail, splits);
     } on Object {
