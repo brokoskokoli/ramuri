@@ -260,53 +260,59 @@ void main() {
       expect(last, t0.add(s(100)));
     });
 
-    test('Wiederanlauf ohne gespeicherte Einstellung: Band bleibt bedienbar', () async {
-      final a = make();
-      await a.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2);
-      final id = a.runId!;
-      // Die erste Einstellung kam nie in der DB an.
-      final raw = await store.rawData.read(id);
-      expect(raw.beltSettings.length, 1);
-      await store.deleteRun(id);
-      final run = await store.runs.create(
-        startedAt: t0,
-        mode: RunMode.treadmill,
-      );
-      clock.advance(s(100));
-      final b = make();
-      expect(await b.restore(run.id), CommandResult.ok);
-      expect(await b.setBeltSpeed(3), CommandResult.ok);
-      clock.advance(s(10));
-      expect(b.snapshot().distanceMeters, closeTo(30, 1e-9));
-      expect(await b.setIncline(2), CommandResult.ok);
-      final belts = (await store.rawData.read(run.id)).beltSettings;
-      expect(belts.map((x) => x.value.speedMetersPerSecond), [3, 3]);
-    });
+    test(
+      'Wiederanlauf ohne gespeicherte Einstellung: Band bleibt bedienbar',
+      () async {
+        final a = make();
+        await a.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2);
+        final id = a.runId!;
+        // Die erste Einstellung kam nie in der DB an.
+        final raw = await store.rawData.read(id);
+        expect(raw.beltSettings.length, 1);
+        await store.deleteRun(id);
+        final run = await store.runs.create(
+          startedAt: t0,
+          mode: RunMode.treadmill,
+        );
+        clock.advance(s(100));
+        final b = make();
+        expect(await b.restore(run.id), CommandResult.ok);
+        expect(await b.setBeltSpeed(3), CommandResult.ok);
+        clock.advance(s(10));
+        expect(b.snapshot().distanceMeters, closeTo(30, 1e-9));
+        expect(await b.setIncline(2), CommandResult.ok);
+        final belts = (await store.rawData.read(run.id)).beltSettings;
+        expect(belts.map((x) => x.value.speedMetersPerSecond), [3, 3]);
+      },
+    );
 
-    test('Start meldet ok erst nach dem Speichern der ersten Einstellung', () async {
-      final failing = _FailAppend(store.rawData);
-      final rec = RunRecorder(
-        clock: clock,
-        runs: store.runs,
-        rawData: failing,
-        markers: store.markers,
-      );
-      failing.fail = true;
-      await expectLater(
-        rec.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2),
-        throwsA(isA<StorageException>()),
-      );
-      failing.fail = false;
-      final ok = RunRecorder(
-        clock: clock,
-        runs: store.runs,
-        rawData: failing,
-        markers: store.markers,
-      );
-      await ok.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2);
-      // Sofort nach dem Rückgabewert steht die Zeile in der DB.
-      expect((await store.rawData.read(ok.runId!)).beltSettings.length, 1);
-    });
+    test(
+      'Start meldet ok erst nach dem Speichern der ersten Einstellung',
+      () async {
+        final failing = _FailAppend(store.rawData);
+        final rec = RunRecorder(
+          clock: clock,
+          runs: store.runs,
+          rawData: failing,
+          markers: store.markers,
+        );
+        failing.fail = true;
+        await expectLater(
+          rec.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2),
+          throwsA(isA<StorageException>()),
+        );
+        failing.fail = false;
+        final ok = RunRecorder(
+          clock: clock,
+          runs: store.runs,
+          rawData: failing,
+          markers: store.markers,
+        );
+        await ok.start(mode: RunMode.treadmill, beltSpeedMetersPerSecond: 2);
+        // Sofort nach dem Rückgabewert steht die Zeile in der DB.
+        expect((await store.rawData.read(ok.runId!)).beltSettings.length, 1);
+      },
+    );
 
     test('Lebenszeichen: Absturz 5 min nach der letzten Änderung behält die Strecke', () async {
       final a = make();

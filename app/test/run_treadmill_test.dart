@@ -272,29 +272,32 @@ void main() {
       expect(await c.setBeltSpeed(4), isFalse);
     });
 
-    test('Fortsetzen: nicht lesbare Laufart bricht ab, kein GPS-Dienst', () async {
-      final w = await _world();
-      final a = _belt(w);
-      await a.start();
-      final id = (await w.session.runs.unfinished()).single.id;
-      a.dispose();
-      final fs = _FaultySession(w.session)
-        ..getError = const StorageException(StorageFailure.failed);
-      final w2 = FakeRecordingServicePort();
-      final b = RunController(
-        clock: w.clock,
-        storage: fs,
-        location: w.location,
-        service: w2,
-        resumeRunId: id,
-        tickEvery: const Duration(hours: 1),
-      );
-      addTearDown(b.dispose);
-      await b.start();
-      expect(b.startFailed, isTrue);
-      expect(w2.startModes, isEmpty);
-      expect(w.location.hasListeners, isFalse);
-      expect(b.phase, RecordingPhase.idle);
-    });
+    test(
+      'Fortsetzen: nicht lesbare Laufart bricht ab, kein GPS-Dienst',
+      () async {
+        final w = await _world();
+        final a = _belt(w);
+        await a.start();
+        final id = (await w.session.runs.unfinished()).single.id;
+        a.dispose();
+        final fs = _FaultySession(w.session)
+          ..getError = const StorageException(StorageFailure.failed);
+        final w2 = FakeRecordingServicePort();
+        final b = RunController(
+          clock: w.clock,
+          storage: fs,
+          location: w.location,
+          service: w2,
+          resumeRunId: id,
+          tickEvery: const Duration(hours: 1),
+        );
+        addTearDown(b.dispose);
+        await b.start();
+        expect(b.startFailed, isTrue);
+        expect(w2.startModes, isEmpty);
+        expect(w.location.hasListeners, isFalse);
+        expect(b.phase, RecordingPhase.idle);
+      },
+    );
   });
 }
