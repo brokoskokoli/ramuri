@@ -193,15 +193,9 @@ void main() {
           for (final p in await w.session.values.read(ValueOwner.run(id)))
             p.original.key: p.original,
         };
-        final trimp = byKey[trimpRunValueKey]!;
-        expect(trimp.value, isNotNull);
-        expect(trimp.value!, greaterThan(0));
-        final zoneSeconds = [
-          for (final p in byKey.values)
-            if (p.key != vo2maxRunValueKey && p.key != trimpRunValueKey)
-              p.value,
-        ].whereType<num>().fold<num>(0, (a, b) => a + b);
-        expect(zoneSeconds, greaterThan(0));
+        // 30 min Puls 150 (Reserve 0,69): ganze Bandzeit in Zone 2, TRIMP 90.
+        expect(byKey[trimpRunValueKey]!.value, closeTo(90, 1e-6));
+        expect(byKey['zone_time_2']!.value, closeTo(1800, 1e-6));
       },
     );
 
