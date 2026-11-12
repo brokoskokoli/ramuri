@@ -267,6 +267,10 @@ void main() {
     await s.values.createOriginals(const ValueOwner.day('2030-01-05'), [
       _v('vo2max_long_term', 44.0, from: later),
     ]);
+    // Jeder Tagesschlüssel aus dayValueKeys an einem eigenen Tag ohne Lauf.
+    await s.values.createOriginals(const ValueOwner.day('2030-01-06'), [
+      _v('aerobic_efficiency_change', 1.5, from: later),
+    ]);
     await s.deleteRun(run.id);
     expect(await s.runs.list(), isEmpty);
     final text = utf8.decode(
@@ -279,6 +283,10 @@ void main() {
     expect(
       text,
       contains('1,day,2030-01-05,,,,current,vo2max_long_term,44.0,'),
+    );
+    expect(
+      text,
+      contains('1,day,2030-01-06,,,,original,aerobic_efficiency_change,1.5,'),
     );
   });
 }
