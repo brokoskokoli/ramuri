@@ -67,6 +67,9 @@ void main() {
             // Vertrag archive.md 4.3: Zeilen aus Schema 7 haben kein `fixed`,
             // der Leser setzt 'none' (Schema 8 bringt die Spalte selbst mit).
             if (section == 'plan_units') row.putIfAbsent('fixed', () => 'none');
+            // Vertrag archive.md 4.3: Läufe aus Schema 9 und früher haben kein
+            // `mode`, der Leser setzt 'gps' (Schema 10 bringt die Spalte mit).
+            if (section == 'runs') row.putIfAbsent('mode', () => 'gps');
             // BLOB (Schema 9): Hex-Text der Datei, im Ziel als Bytes.
             if (section == 'raw_rr_packets') {
               final hex = row['rr']! as String;
@@ -226,7 +229,7 @@ void main() {
                 },
             ],
       };
-      // Warnsignal (ab Schema 10): höchstens eine Zeile mit id 1, Ortstag.
+      // Warnsignal (ab Schema 11): höchstens eine Zeile mit id 1, Ortstag.
       db['active_warning'] = [
         {
           'id': 1,

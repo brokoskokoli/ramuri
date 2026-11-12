@@ -271,6 +271,17 @@ class Runs extends Table with TableInfo<Runs, Run> {
     requiredDuringInsert: false,
     $customConstraints: 'CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800)',
   );
+  static const VerificationMeta _modeMeta = const VerificationMeta('mode');
+  late final GeneratedColumn<String> mode = GeneratedColumn<String>(
+    'mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'NOT NULL DEFAULT \'gps\' CHECK (mode IN (\'gps\', \'treadmill\'))',
+    defaultValue: const CustomExpression('\'gps\''),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -278,6 +289,7 @@ class Runs extends Table with TableInfo<Runs, Run> {
     startedAtUs,
     endedAtUs,
     endedUtcOffsetS,
+    mode,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -328,6 +340,12 @@ class Runs extends Table with TableInfo<Runs, Run> {
         ),
       );
     }
+    if (data.containsKey('mode')) {
+      context.handle(
+        _modeMeta,
+        mode.isAcceptableOrUnknown(data['mode']!, _modeMeta),
+      );
+    }
     return context;
   }
 
@@ -357,6 +375,10 @@ class Runs extends Table with TableInfo<Runs, Run> {
         DriftSqlType.int,
         data['${effectivePrefix}ended_utc_offset_s'],
       ),
+      mode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mode'],
+      )!,
     );
   }
 
@@ -382,12 +404,17 @@ class Run extends DataClass implements Insertable<Run> {
   /// Kalendertag des Laufendes). NULL = unbekannt: Läufe aus Version 1, oder
   /// der Aufrufer hat ihn nicht genannt; nur bei beendetem Lauf (Trigger).
   final int? endedUtcOffsetS;
+
+  /// Seit Version 10 (WP25, FR-0196, K57): Art des Laufs. Läufe aus früheren
+  /// Versionen sind GPS-Läufe (Vorgabe). Nach dem Anlegen nicht mehr geändert.
+  final String mode;
   const Run({
     required this.id,
     required this.state,
     required this.startedAtUs,
     this.endedAtUs,
     this.endedUtcOffsetS,
+    required this.mode,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -401,6 +428,7 @@ class Run extends DataClass implements Insertable<Run> {
     if (!nullToAbsent || endedUtcOffsetS != null) {
       map['ended_utc_offset_s'] = Variable<int>(endedUtcOffsetS);
     }
+    map['mode'] = Variable<String>(mode);
     return map;
   }
 
@@ -415,6 +443,7 @@ class Run extends DataClass implements Insertable<Run> {
       endedUtcOffsetS: endedUtcOffsetS == null && nullToAbsent
           ? const Value.absent()
           : Value(endedUtcOffsetS),
+      mode: Value(mode),
     );
   }
 
@@ -429,6 +458,7 @@ class Run extends DataClass implements Insertable<Run> {
       startedAtUs: serializer.fromJson<int>(json['started_at_us']),
       endedAtUs: serializer.fromJson<int?>(json['ended_at_us']),
       endedUtcOffsetS: serializer.fromJson<int?>(json['ended_utc_offset_s']),
+      mode: serializer.fromJson<String>(json['mode']),
     );
   }
   @override
@@ -440,6 +470,7 @@ class Run extends DataClass implements Insertable<Run> {
       'started_at_us': serializer.toJson<int>(startedAtUs),
       'ended_at_us': serializer.toJson<int?>(endedAtUs),
       'ended_utc_offset_s': serializer.toJson<int?>(endedUtcOffsetS),
+      'mode': serializer.toJson<String>(mode),
     };
   }
 
@@ -449,6 +480,7 @@ class Run extends DataClass implements Insertable<Run> {
     int? startedAtUs,
     Value<int?> endedAtUs = const Value.absent(),
     Value<int?> endedUtcOffsetS = const Value.absent(),
+    String? mode,
   }) => Run(
     id: id ?? this.id,
     state: state ?? this.state,
@@ -457,6 +489,7 @@ class Run extends DataClass implements Insertable<Run> {
     endedUtcOffsetS: endedUtcOffsetS.present
         ? endedUtcOffsetS.value
         : this.endedUtcOffsetS,
+    mode: mode ?? this.mode,
   );
   Run copyWithCompanion(RunsCompanion data) {
     return Run(
@@ -469,6 +502,7 @@ class Run extends DataClass implements Insertable<Run> {
       endedUtcOffsetS: data.endedUtcOffsetS.present
           ? data.endedUtcOffsetS.value
           : this.endedUtcOffsetS,
+      mode: data.mode.present ? data.mode.value : this.mode,
     );
   }
 
@@ -479,14 +513,15 @@ class Run extends DataClass implements Insertable<Run> {
           ..write('state: $state, ')
           ..write('startedAtUs: $startedAtUs, ')
           ..write('endedAtUs: $endedAtUs, ')
-          ..write('endedUtcOffsetS: $endedUtcOffsetS')
+          ..write('endedUtcOffsetS: $endedUtcOffsetS, ')
+          ..write('mode: $mode')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode =>
-      Object.hash(id, state, startedAtUs, endedAtUs, endedUtcOffsetS);
+      Object.hash(id, state, startedAtUs, endedAtUs, endedUtcOffsetS, mode);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -495,7 +530,8 @@ class Run extends DataClass implements Insertable<Run> {
           other.state == this.state &&
           other.startedAtUs == this.startedAtUs &&
           other.endedAtUs == this.endedAtUs &&
-          other.endedUtcOffsetS == this.endedUtcOffsetS);
+          other.endedUtcOffsetS == this.endedUtcOffsetS &&
+          other.mode == this.mode);
 }
 
 class RunsCompanion extends UpdateCompanion<Run> {
@@ -504,12 +540,14 @@ class RunsCompanion extends UpdateCompanion<Run> {
   final Value<int> startedAtUs;
   final Value<int?> endedAtUs;
   final Value<int?> endedUtcOffsetS;
+  final Value<String> mode;
   const RunsCompanion({
     this.id = const Value.absent(),
     this.state = const Value.absent(),
     this.startedAtUs = const Value.absent(),
     this.endedAtUs = const Value.absent(),
     this.endedUtcOffsetS = const Value.absent(),
+    this.mode = const Value.absent(),
   });
   RunsCompanion.insert({
     this.id = const Value.absent(),
@@ -517,6 +555,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
     required int startedAtUs,
     this.endedAtUs = const Value.absent(),
     this.endedUtcOffsetS = const Value.absent(),
+    this.mode = const Value.absent(),
   }) : state = Value(state),
        startedAtUs = Value(startedAtUs);
   static Insertable<Run> custom({
@@ -525,6 +564,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
     Expression<int>? startedAtUs,
     Expression<int>? endedAtUs,
     Expression<int>? endedUtcOffsetS,
+    Expression<String>? mode,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -532,6 +572,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
       if (startedAtUs != null) 'started_at_us': startedAtUs,
       if (endedAtUs != null) 'ended_at_us': endedAtUs,
       if (endedUtcOffsetS != null) 'ended_utc_offset_s': endedUtcOffsetS,
+      if (mode != null) 'mode': mode,
     });
   }
 
@@ -541,6 +582,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
     Value<int>? startedAtUs,
     Value<int?>? endedAtUs,
     Value<int?>? endedUtcOffsetS,
+    Value<String>? mode,
   }) {
     return RunsCompanion(
       id: id ?? this.id,
@@ -548,6 +590,7 @@ class RunsCompanion extends UpdateCompanion<Run> {
       startedAtUs: startedAtUs ?? this.startedAtUs,
       endedAtUs: endedAtUs ?? this.endedAtUs,
       endedUtcOffsetS: endedUtcOffsetS ?? this.endedUtcOffsetS,
+      mode: mode ?? this.mode,
     );
   }
 
@@ -569,6 +612,9 @@ class RunsCompanion extends UpdateCompanion<Run> {
     if (endedUtcOffsetS.present) {
       map['ended_utc_offset_s'] = Variable<int>(endedUtcOffsetS.value);
     }
+    if (mode.present) {
+      map['mode'] = Variable<String>(mode.value);
+    }
     return map;
   }
 
@@ -579,7 +625,8 @@ class RunsCompanion extends UpdateCompanion<Run> {
           ..write('state: $state, ')
           ..write('startedAtUs: $startedAtUs, ')
           ..write('endedAtUs: $endedAtUs, ')
-          ..write('endedUtcOffsetS: $endedUtcOffsetS')
+          ..write('endedUtcOffsetS: $endedUtcOffsetS, ')
+          ..write('mode: $mode')
           ..write(')'))
         .toString();
   }
@@ -3591,6 +3638,366 @@ class RawRrPacketsCompanion extends UpdateCompanion<RawRrPacket> {
           ..write('timeUs: $timeUs, ')
           ..write('source: $source, ')
           ..write('rr: $rr')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class TreadmillSettings extends Table
+    with TableInfo<TreadmillSettings, TreadmillSetting> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  TreadmillSettings(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
+    'run_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL REFERENCES runs(id)ON DELETE CASCADE',
+  );
+  static const VerificationMeta _offsetUsMeta = const VerificationMeta(
+    'offsetUs',
+  );
+  late final GeneratedColumn<int> offsetUs = GeneratedColumn<int>(
+    'offset_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (offset_us >= 0)',
+  );
+  static const VerificationMeta _speedMpsMeta = const VerificationMeta(
+    'speedMps',
+  );
+  late final GeneratedColumn<double> speedMps = GeneratedColumn<double>(
+    'speed_mps',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (speed_mps >= 0)',
+  );
+  static const VerificationMeta _inclinePercentMeta = const VerificationMeta(
+    'inclinePercent',
+  );
+  late final GeneratedColumn<double> inclinePercent = GeneratedColumn<double>(
+    'incline_percent',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (incline_percent >= 0)',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    runId,
+    offsetUs,
+    speedMps,
+    inclinePercent,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'treadmill_settings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TreadmillSetting> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('run_id')) {
+      context.handle(
+        _runIdMeta,
+        runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_runIdMeta);
+    }
+    if (data.containsKey('offset_us')) {
+      context.handle(
+        _offsetUsMeta,
+        offsetUs.isAcceptableOrUnknown(data['offset_us']!, _offsetUsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_offsetUsMeta);
+    }
+    if (data.containsKey('speed_mps')) {
+      context.handle(
+        _speedMpsMeta,
+        speedMps.isAcceptableOrUnknown(data['speed_mps']!, _speedMpsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_speedMpsMeta);
+    }
+    if (data.containsKey('incline_percent')) {
+      context.handle(
+        _inclinePercentMeta,
+        inclinePercent.isAcceptableOrUnknown(
+          data['incline_percent']!,
+          _inclinePercentMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TreadmillSetting map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TreadmillSetting(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      runId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}run_id'],
+      )!,
+      offsetUs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}offset_us'],
+      )!,
+      speedMps: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}speed_mps'],
+      )!,
+      inclinePercent: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}incline_percent'],
+      ),
+    );
+  }
+
+  @override
+  TreadmillSettings createAlias(String alias) {
+    return TreadmillSettings(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class TreadmillSetting extends DataClass
+    implements Insertable<TreadmillSetting> {
+  final int id;
+  final int runId;
+  final int offsetUs;
+  final double speedMps;
+  final double? inclinePercent;
+  const TreadmillSetting({
+    required this.id,
+    required this.runId,
+    required this.offsetUs,
+    required this.speedMps,
+    this.inclinePercent,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['run_id'] = Variable<int>(runId);
+    map['offset_us'] = Variable<int>(offsetUs);
+    map['speed_mps'] = Variable<double>(speedMps);
+    if (!nullToAbsent || inclinePercent != null) {
+      map['incline_percent'] = Variable<double>(inclinePercent);
+    }
+    return map;
+  }
+
+  TreadmillSettingsCompanion toCompanion(bool nullToAbsent) {
+    return TreadmillSettingsCompanion(
+      id: Value(id),
+      runId: Value(runId),
+      offsetUs: Value(offsetUs),
+      speedMps: Value(speedMps),
+      inclinePercent: inclinePercent == null && nullToAbsent
+          ? const Value.absent()
+          : Value(inclinePercent),
+    );
+  }
+
+  factory TreadmillSetting.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TreadmillSetting(
+      id: serializer.fromJson<int>(json['id']),
+      runId: serializer.fromJson<int>(json['run_id']),
+      offsetUs: serializer.fromJson<int>(json['offset_us']),
+      speedMps: serializer.fromJson<double>(json['speed_mps']),
+      inclinePercent: serializer.fromJson<double?>(json['incline_percent']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'run_id': serializer.toJson<int>(runId),
+      'offset_us': serializer.toJson<int>(offsetUs),
+      'speed_mps': serializer.toJson<double>(speedMps),
+      'incline_percent': serializer.toJson<double?>(inclinePercent),
+    };
+  }
+
+  TreadmillSetting copyWith({
+    int? id,
+    int? runId,
+    int? offsetUs,
+    double? speedMps,
+    Value<double?> inclinePercent = const Value.absent(),
+  }) => TreadmillSetting(
+    id: id ?? this.id,
+    runId: runId ?? this.runId,
+    offsetUs: offsetUs ?? this.offsetUs,
+    speedMps: speedMps ?? this.speedMps,
+    inclinePercent: inclinePercent.present
+        ? inclinePercent.value
+        : this.inclinePercent,
+  );
+  TreadmillSetting copyWithCompanion(TreadmillSettingsCompanion data) {
+    return TreadmillSetting(
+      id: data.id.present ? data.id.value : this.id,
+      runId: data.runId.present ? data.runId.value : this.runId,
+      offsetUs: data.offsetUs.present ? data.offsetUs.value : this.offsetUs,
+      speedMps: data.speedMps.present ? data.speedMps.value : this.speedMps,
+      inclinePercent: data.inclinePercent.present
+          ? data.inclinePercent.value
+          : this.inclinePercent,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TreadmillSetting(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('offsetUs: $offsetUs, ')
+          ..write('speedMps: $speedMps, ')
+          ..write('inclinePercent: $inclinePercent')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, runId, offsetUs, speedMps, inclinePercent);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TreadmillSetting &&
+          other.id == this.id &&
+          other.runId == this.runId &&
+          other.offsetUs == this.offsetUs &&
+          other.speedMps == this.speedMps &&
+          other.inclinePercent == this.inclinePercent);
+}
+
+class TreadmillSettingsCompanion extends UpdateCompanion<TreadmillSetting> {
+  final Value<int> id;
+  final Value<int> runId;
+  final Value<int> offsetUs;
+  final Value<double> speedMps;
+  final Value<double?> inclinePercent;
+  const TreadmillSettingsCompanion({
+    this.id = const Value.absent(),
+    this.runId = const Value.absent(),
+    this.offsetUs = const Value.absent(),
+    this.speedMps = const Value.absent(),
+    this.inclinePercent = const Value.absent(),
+  });
+  TreadmillSettingsCompanion.insert({
+    this.id = const Value.absent(),
+    required int runId,
+    required int offsetUs,
+    required double speedMps,
+    this.inclinePercent = const Value.absent(),
+  }) : runId = Value(runId),
+       offsetUs = Value(offsetUs),
+       speedMps = Value(speedMps);
+  static Insertable<TreadmillSetting> custom({
+    Expression<int>? id,
+    Expression<int>? runId,
+    Expression<int>? offsetUs,
+    Expression<double>? speedMps,
+    Expression<double>? inclinePercent,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (runId != null) 'run_id': runId,
+      if (offsetUs != null) 'offset_us': offsetUs,
+      if (speedMps != null) 'speed_mps': speedMps,
+      if (inclinePercent != null) 'incline_percent': inclinePercent,
+    });
+  }
+
+  TreadmillSettingsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? runId,
+    Value<int>? offsetUs,
+    Value<double>? speedMps,
+    Value<double?>? inclinePercent,
+  }) {
+    return TreadmillSettingsCompanion(
+      id: id ?? this.id,
+      runId: runId ?? this.runId,
+      offsetUs: offsetUs ?? this.offsetUs,
+      speedMps: speedMps ?? this.speedMps,
+      inclinePercent: inclinePercent ?? this.inclinePercent,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (runId.present) {
+      map['run_id'] = Variable<int>(runId.value);
+    }
+    if (offsetUs.present) {
+      map['offset_us'] = Variable<int>(offsetUs.value);
+    }
+    if (speedMps.present) {
+      map['speed_mps'] = Variable<double>(speedMps.value);
+    }
+    if (inclinePercent.present) {
+      map['incline_percent'] = Variable<double>(inclinePercent.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TreadmillSettingsCompanion(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('offsetUs: $offsetUs, ')
+          ..write('speedMps: $speedMps, ')
+          ..write('inclinePercent: $inclinePercent')
           ..write(')'))
         .toString();
   }
@@ -14032,6 +14439,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'raw_rr_packets_run_time',
     'CREATE INDEX raw_rr_packets_run_time ON raw_rr_packets (run_id, time_us)',
   );
+  late final TreadmillSettings treadmillSettings = TreadmillSettings(this);
+  late final Index treadmillSettingsRunTime = Index(
+    'treadmill_settings_run_time',
+    'CREATE INDEX treadmill_settings_run_time ON treadmill_settings (run_id, offset_us)',
+  );
   late final Trigger rawPositionsNoUpdate = Trigger(
     'CREATE TRIGGER raw_positions_no_update BEFORE UPDATE ON raw_positions BEGIN SELECT RAISE (ABORT, \'raw data is append-only\');END',
     'raw_positions_no_update',
@@ -14052,6 +14464,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'CREATE TRIGGER raw_rr_packets_no_update BEFORE UPDATE ON raw_rr_packets BEGIN SELECT RAISE (ABORT, \'raw data is append-only\');END',
     'raw_rr_packets_no_update',
   );
+  late final Trigger treadmillSettingsNoUpdate = Trigger(
+    'CREATE TRIGGER treadmill_settings_no_update BEFORE UPDATE ON treadmill_settings BEGIN SELECT RAISE (ABORT, \'raw data is append-only\');END',
+    'treadmill_settings_no_update',
+  );
   late final Trigger rawPositionsNoDirectDelete = Trigger(
     'CREATE TRIGGER raw_positions_no_direct_delete BEFORE DELETE ON raw_positions WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, \'raw data is deleted only with its run\');END',
     'raw_positions_no_direct_delete',
@@ -14071,6 +14487,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Trigger rawRrPacketsNoDirectDelete = Trigger(
     'CREATE TRIGGER raw_rr_packets_no_direct_delete BEFORE DELETE ON raw_rr_packets WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, \'raw data is deleted only with its run\');END',
     'raw_rr_packets_no_direct_delete',
+  );
+  late final Trigger treadmillSettingsNoDirectDelete = Trigger(
+    'CREATE TRIGGER treadmill_settings_no_direct_delete BEFORE DELETE ON treadmill_settings WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, \'raw data is deleted only with its run\');END',
+    'treadmill_settings_no_direct_delete',
   );
   late final PreprocessingResults preprocessingResults = PreprocessingResults(
     this,
@@ -14196,16 +14616,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     rawAltitudesRunTime,
     rawStepsRunTime,
     rawRrPacketsRunTime,
+    treadmillSettings,
+    treadmillSettingsRunTime,
     rawPositionsNoUpdate,
     rawHeartRatesNoUpdate,
     rawAltitudesNoUpdate,
     rawStepsNoUpdate,
     rawRrPacketsNoUpdate,
+    treadmillSettingsNoUpdate,
     rawPositionsNoDirectDelete,
     rawHeartRatesNoDirectDelete,
     rawAltitudesNoDirectDelete,
     rawStepsNoDirectDelete,
     rawRrPacketsNoDirectDelete,
+    treadmillSettingsNoDirectDelete,
     preprocessingResults,
     preprocessedSamples,
     preprocessedSamplesRunTime,
@@ -14311,6 +14735,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('treadmill_settings', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'raw_positions',
         limitUpdateKind: UpdateKind.update,
       ),
@@ -14346,6 +14777,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'treadmill_settings',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'raw_positions',
         limitUpdateKind: UpdateKind.delete,
       ),
@@ -14375,6 +14813,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'raw_rr_packets',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'treadmill_settings',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [],
@@ -14665,6 +15110,7 @@ typedef $RunsCreateCompanionBuilder = RunsCompanion Function({
   required int startedAtUs,
   Value<int?> endedAtUs,
   Value<int?> endedUtcOffsetS,
+  Value<String> mode,
 });
 typedef $RunsUpdateCompanionBuilder = RunsCompanion Function({
   Value<int> id,
@@ -14672,6 +15118,7 @@ typedef $RunsUpdateCompanionBuilder = RunsCompanion Function({
   Value<int> startedAtUs,
   Value<int?> endedAtUs,
   Value<int?> endedUtcOffsetS,
+  Value<String> mode,
 });
 
 final class $RunsReferences extends BaseReferences<_$AppDatabase, Runs, Run> {
@@ -14801,6 +15248,27 @@ final class $RunsReferences extends BaseReferences<_$AppDatabase, Runs, Run> {
     ).filter((f) => f.runId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_rawRrPacketsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<TreadmillSettings, List<TreadmillSetting>>
+  _treadmillSettingsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.treadmillSettings,
+        aliasName: 'runs__id__treadmill_settings__run_id',
+      );
+
+  $TreadmillSettingsProcessedTableManager get treadmillSettingsRefs {
+    final manager = $TreadmillSettingsTableManager(
+      $_db,
+      $_db.treadmillSettings,
+    ).filter((f) => f.runId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _treadmillSettingsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -15018,6 +15486,11 @@ class $RunsFilterComposer extends Composer<_$AppDatabase, Runs> {
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get mode => $composableBuilder(
+    column: $table.mode,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> lapsRefs(
     Expression<bool> Function($LapsFilterComposer f) f,
   ) {
@@ -15184,6 +15657,31 @@ class $RunsFilterComposer extends Composer<_$AppDatabase, Runs> {
           }) => $RawRrPacketsFilterComposer(
             $db: $db,
             $table: $db.rawRrPackets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> treadmillSettingsRefs(
+    Expression<bool> Function($TreadmillSettingsFilterComposer f) f,
+  ) {
+    final $TreadmillSettingsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.treadmillSettings,
+      getReferencedColumn: (t) => t.runId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $TreadmillSettingsFilterComposer(
+            $db: $db,
+            $table: $db.treadmillSettings,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15451,6 +15949,11 @@ class $RunsOrderingComposer extends Composer<_$AppDatabase, Runs> {
     column: $table.endedUtcOffsetS,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get mode => $composableBuilder(
+    column: $table.mode,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
@@ -15479,6 +15982,9 @@ class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
     column: $table.endedUtcOffsetS,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get mode =>
+      $composableBuilder(column: $table.mode, builder: (column) => column);
 
   Expression<T> lapsRefs<T extends Object>(
     Expression<T> Function($LapsAnnotationComposer a) f,
@@ -15646,6 +16152,31 @@ class $RunsAnnotationComposer extends Composer<_$AppDatabase, Runs> {
           }) => $RawRrPacketsAnnotationComposer(
             $db: $db,
             $table: $db.rawRrPackets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> treadmillSettingsRefs<T extends Object>(
+    Expression<T> Function($TreadmillSettingsAnnotationComposer a) f,
+  ) {
+    final $TreadmillSettingsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.treadmillSettings,
+      getReferencedColumn: (t) => t.runId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $TreadmillSettingsAnnotationComposer(
+            $db: $db,
+            $table: $db.treadmillSettings,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15902,6 +16433,7 @@ class $RunsTableManager
             bool rawAltitudesRefs,
             bool rawStepsRefs,
             bool rawRrPacketsRefs,
+            bool treadmillSettingsRefs,
             bool preprocessingResultsRefs,
             bool preprocessedSamplesRefs,
             bool preprocessedSpansRefs,
@@ -15931,12 +16463,14 @@ class $RunsTableManager
                 Value<int> startedAtUs = const Value.absent(),
                 Value<int?> endedAtUs = const Value.absent(),
                 Value<int?> endedUtcOffsetS = const Value.absent(),
+                Value<String> mode = const Value.absent(),
               }) => RunsCompanion(
                 id: id,
                 state: state,
                 startedAtUs: startedAtUs,
                 endedAtUs: endedAtUs,
                 endedUtcOffsetS: endedUtcOffsetS,
+                mode: mode,
               ),
           createCompanionCallback:
               ({
@@ -15945,12 +16479,14 @@ class $RunsTableManager
                 required int startedAtUs,
                 Value<int?> endedAtUs = const Value.absent(),
                 Value<int?> endedUtcOffsetS = const Value.absent(),
+                Value<String> mode = const Value.absent(),
               }) => RunsCompanion.insert(
                 id: id,
                 state: state,
                 startedAtUs: startedAtUs,
                 endedAtUs: endedAtUs,
                 endedUtcOffsetS: endedUtcOffsetS,
+                mode: mode,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -15969,6 +16505,7 @@ class $RunsTableManager
                 rawAltitudesRefs = false,
                 rawStepsRefs = false,
                 rawRrPacketsRefs = false,
+                treadmillSettingsRefs = false,
                 preprocessingResultsRefs = false,
                 preprocessedSamplesRefs = false,
                 preprocessedSpansRefs = false,
@@ -15989,6 +16526,7 @@ class $RunsTableManager
                     if (rawAltitudesRefs) db.rawAltitudes,
                     if (rawStepsRefs) db.rawSteps,
                     if (rawRrPacketsRefs) db.rawRrPackets,
+                    if (treadmillSettingsRefs) db.treadmillSettings,
                     if (preprocessingResultsRefs) db.preprocessingResults,
                     if (preprocessedSamplesRefs) db.preprocessedSamples,
                     if (preprocessedSpansRefs) db.preprocessedSpans,
@@ -16111,6 +16649,25 @@ class $RunsTableManager
                               ._rawRrPacketsRefsTable(db),
                           managerFromTypedResult: (p0) =>
                               $RunsReferences(db, table, p0).rawRrPacketsRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'run_id',
+                          typedResults: items,
+                        ),
+                      if (treadmillSettingsRefs)
+                        await $_getPrefetchedDataByColumns<
+                          Run,
+                          Runs,
+                          TreadmillSetting,
+                          TreadmillSettings
+                        >(
+                          currentTable: table,
+                          referencedTable: $RunsReferences
+                              ._treadmillSettingsRefsTable(db),
+                          managerFromTypedResult: (p0) => $RunsReferences(
+                            db,
+                            table,
+                            p0,
+                          ).treadmillSettingsRefs,
                           currentColumn: 'id',
                           referencedColumn: 'run_id',
                           typedResults: items,
@@ -16303,6 +16860,7 @@ typedef $RunsProcessedTableManager =
         bool rawAltitudesRefs,
         bool rawStepsRefs,
         bool rawRrPacketsRefs,
+        bool treadmillSettingsRefs,
         bool preprocessingResultsRefs,
         bool preprocessedSamplesRefs,
         bool preprocessedSpansRefs,
@@ -18669,6 +19227,317 @@ typedef $RawRrPacketsProcessedTableManager =
       $RawRrPacketsUpdateCompanionBuilder,
       (RawRrPacket, $RawRrPacketsReferences),
       RawRrPacket,
+      PrefetchHooks Function({bool runId})
+    >;
+typedef $TreadmillSettingsCreateCompanionBuilder =
+    TreadmillSettingsCompanion Function({
+      Value<int> id,
+      required int runId,
+      required int offsetUs,
+      required double speedMps,
+      Value<double?> inclinePercent,
+    });
+typedef $TreadmillSettingsUpdateCompanionBuilder =
+    TreadmillSettingsCompanion Function({
+      Value<int> id,
+      Value<int> runId,
+      Value<int> offsetUs,
+      Value<double> speedMps,
+      Value<double?> inclinePercent,
+    });
+
+final class $TreadmillSettingsReferences
+    extends BaseReferences<_$AppDatabase, TreadmillSettings, TreadmillSetting> {
+  $TreadmillSettingsReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static Runs _runIdTable(_$AppDatabase db) =>
+      db.runs.createAlias('treadmill_settings__run_id__runs__id');
+
+  $RunsProcessedTableManager get runId {
+    final $_column = $_itemColumn<int>('run_id')!;
+
+    final manager = $RunsTableManager(
+      $_db,
+      $_db.runs,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_runIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $TreadmillSettingsFilterComposer
+    extends Composer<_$AppDatabase, TreadmillSettings> {
+  $TreadmillSettingsFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get offsetUs => $composableBuilder(
+    column: $table.offsetUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get speedMps => $composableBuilder(
+    column: $table.speedMps,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get inclinePercent => $composableBuilder(
+    column: $table.inclinePercent,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $RunsFilterComposer get runId {
+    final $RunsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsFilterComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $TreadmillSettingsOrderingComposer
+    extends Composer<_$AppDatabase, TreadmillSettings> {
+  $TreadmillSettingsOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get offsetUs => $composableBuilder(
+    column: $table.offsetUs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get speedMps => $composableBuilder(
+    column: $table.speedMps,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get inclinePercent => $composableBuilder(
+    column: $table.inclinePercent,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $RunsOrderingComposer get runId {
+    final $RunsOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsOrderingComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $TreadmillSettingsAnnotationComposer
+    extends Composer<_$AppDatabase, TreadmillSettings> {
+  $TreadmillSettingsAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get offsetUs =>
+      $composableBuilder(column: $table.offsetUs, builder: (column) => column);
+
+  GeneratedColumn<double> get speedMps =>
+      $composableBuilder(column: $table.speedMps, builder: (column) => column);
+
+  GeneratedColumn<double> get inclinePercent => $composableBuilder(
+    column: $table.inclinePercent,
+    builder: (column) => column,
+  );
+
+  $RunsAnnotationComposer get runId {
+    final $RunsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.runId,
+      referencedTable: $db.runs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $RunsAnnotationComposer(
+            $db: $db,
+            $table: $db.runs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $TreadmillSettingsTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          TreadmillSettings,
+          TreadmillSetting,
+          $TreadmillSettingsFilterComposer,
+          $TreadmillSettingsOrderingComposer,
+          $TreadmillSettingsAnnotationComposer,
+          $TreadmillSettingsCreateCompanionBuilder,
+          $TreadmillSettingsUpdateCompanionBuilder,
+          (TreadmillSetting, $TreadmillSettingsReferences),
+          TreadmillSetting,
+          PrefetchHooks Function({bool runId})
+        > {
+  $TreadmillSettingsTableManager(_$AppDatabase db, TreadmillSettings table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $TreadmillSettingsFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $TreadmillSettingsOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $TreadmillSettingsAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> runId = const Value.absent(),
+                Value<int> offsetUs = const Value.absent(),
+                Value<double> speedMps = const Value.absent(),
+                Value<double?> inclinePercent = const Value.absent(),
+              }) => TreadmillSettingsCompanion(
+                id: id,
+                runId: runId,
+                offsetUs: offsetUs,
+                speedMps: speedMps,
+                inclinePercent: inclinePercent,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int runId,
+                required int offsetUs,
+                required double speedMps,
+                Value<double?> inclinePercent = const Value.absent(),
+              }) => TreadmillSettingsCompanion.insert(
+                id: id,
+                runId: runId,
+                offsetUs: offsetUs,
+                speedMps: speedMps,
+                inclinePercent: inclinePercent,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<TreadmillSettings, TreadmillSetting>(table),
+                  $TreadmillSettingsReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({runId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (runId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.runId,
+                        referencedTable: $TreadmillSettingsReferences
+                            ._runIdTable(db),
+                        referencedColumn: $TreadmillSettingsReferences
+                            ._runIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $TreadmillSettingsProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      TreadmillSettings,
+      TreadmillSetting,
+      $TreadmillSettingsFilterComposer,
+      $TreadmillSettingsOrderingComposer,
+      $TreadmillSettingsAnnotationComposer,
+      $TreadmillSettingsCreateCompanionBuilder,
+      $TreadmillSettingsUpdateCompanionBuilder,
+      (TreadmillSetting, $TreadmillSettingsReferences),
+      TreadmillSetting,
       PrefetchHooks Function({bool runId})
     >;
 typedef $PreprocessingResultsCreateCompanionBuilder =
@@ -25373,6 +26242,8 @@ class $AppDatabaseManager {
       $RawStepsTableManager(_db, _db.rawSteps);
   $RawRrPacketsTableManager get rawRrPackets =>
       $RawRrPacketsTableManager(_db, _db.rawRrPackets);
+  $TreadmillSettingsTableManager get treadmillSettings =>
+      $TreadmillSettingsTableManager(_db, _db.treadmillSettings);
   $PreprocessingResultsTableManager get preprocessingResults =>
       $PreprocessingResultsTableManager(_db, _db.preprocessingResults);
   $PreprocessedSamplesTableManager get preprocessedSamples =>

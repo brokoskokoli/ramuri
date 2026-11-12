@@ -102,6 +102,16 @@
             "default_dart": null,
             "default_client_dart": null,
             "dsl_features": []
+          },
+          {
+            "name": "mode",
+            "getter_name": "mode",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": "NOT NULL DEFAULT 'gps' CHECK (mode IN ('gps', 'treadmill'))",
+            "default_dart": "const CustomExpression('\\'gps\\'')",
+            "default_client_dart": null,
+            "dsl_features": []
           }
         ],
         "is_virtual": false,
@@ -926,6 +936,100 @@
     {
       "id": 18,
       "references": [
+        1
+      ],
+      "type": "table",
+      "data": {
+        "name": "treadmill_settings",
+        "was_declared_in_moor": true,
+        "columns": [
+          {
+            "name": "id",
+            "getter_name": "id",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL PRIMARY KEY AUTOINCREMENT",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              "auto-increment"
+            ]
+          },
+          {
+            "name": "run_id",
+            "getter_name": "runId",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL REFERENCES runs(id)ON DELETE CASCADE",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "runs",
+                    "column": "id"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": "cascade"
+                }
+              }
+            ]
+          },
+          {
+            "name": "offset_us",
+            "getter_name": "offsetUs",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (offset_us >= 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "speed_mps",
+            "getter_name": "speedMps",
+            "moor_type": "double",
+            "nullable": false,
+            "customConstraints": "NOT NULL CHECK (speed_mps >= 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "incline_percent",
+            "getter_name": "inclinePercent",
+            "moor_type": "double",
+            "nullable": true,
+            "customConstraints": "CHECK (incline_percent >= 0)",
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": []
+      }
+    },
+    {
+      "id": 19,
+      "references": [
+        18
+      ],
+      "type": "index",
+      "data": {
+        "on": 18,
+        "name": "treadmill_settings_run_time",
+        "sql": "CREATE INDEX treadmill_settings_run_time ON treadmill_settings (run_id, offset_us);",
+        "unique": false,
+        "columns": []
+      }
+    },
+    {
+      "id": 20,
+      "references": [
         8
       ],
       "type": "trigger",
@@ -939,7 +1043,7 @@
       }
     },
     {
-      "id": 19,
+      "id": 21,
       "references": [
         9
       ],
@@ -954,7 +1058,7 @@
       }
     },
     {
-      "id": 20,
+      "id": 22,
       "references": [
         10
       ],
@@ -969,7 +1073,7 @@
       }
     },
     {
-      "id": 21,
+      "id": 23,
       "references": [
         11
       ],
@@ -984,7 +1088,7 @@
       }
     },
     {
-      "id": 22,
+      "id": 24,
       "references": [
         12
       ],
@@ -999,7 +1103,22 @@
       }
     },
     {
-      "id": 23,
+      "id": 25,
+      "references": [
+        18
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 18,
+        "references_in_body": [
+          18
+        ],
+        "name": "treadmill_settings_no_update",
+        "sql": "CREATE TRIGGER treadmill_settings_no_update BEFORE UPDATE ON treadmill_settings\nBEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;"
+      }
+    },
+    {
+      "id": 26,
       "references": [
         8,
         1
@@ -1016,7 +1135,7 @@
       }
     },
     {
-      "id": 24,
+      "id": 27,
       "references": [
         9,
         1
@@ -1033,7 +1152,7 @@
       }
     },
     {
-      "id": 25,
+      "id": 28,
       "references": [
         10,
         1
@@ -1050,7 +1169,7 @@
       }
     },
     {
-      "id": 26,
+      "id": 29,
       "references": [
         11,
         1
@@ -1067,7 +1186,7 @@
       }
     },
     {
-      "id": 27,
+      "id": 30,
       "references": [
         12,
         1
@@ -1084,7 +1203,24 @@
       }
     },
     {
-      "id": 28,
+      "id": 31,
+      "references": [
+        18,
+        1
+      ],
+      "type": "trigger",
+      "data": {
+        "on": 18,
+        "references_in_body": [
+          18,
+          1
+        ],
+        "name": "treadmill_settings_no_direct_delete",
+        "sql": "CREATE TRIGGER treadmill_settings_no_direct_delete BEFORE DELETE ON treadmill_settings\nWHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)\nBEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;"
+      }
+    },
+    {
+      "id": 32,
       "references": [
         1
       ],
@@ -1275,7 +1411,7 @@
       }
     },
     {
-      "id": 29,
+      "id": 33,
       "references": [
         1
       ],
@@ -1375,13 +1511,13 @@
       }
     },
     {
-      "id": 30,
+      "id": 34,
       "references": [
-        29
+        33
       ],
       "type": "index",
       "data": {
-        "on": 29,
+        "on": 33,
         "name": "preprocessed_samples_run_time",
         "sql": "CREATE INDEX preprocessed_samples_run_time\n  ON preprocessed_samples (run_id, channel, time_us);",
         "unique": false,
@@ -1389,7 +1525,7 @@
       }
     },
     {
-      "id": 31,
+      "id": 35,
       "references": [
         1
       ],
@@ -1469,13 +1605,13 @@
       }
     },
     {
-      "id": 32,
+      "id": 36,
       "references": [
-        31
+        35
       ],
       "type": "index",
       "data": {
-        "on": 31,
+        "on": 35,
         "name": "preprocessed_spans_run_time",
         "sql": "CREATE INDEX preprocessed_spans_run_time\n  ON preprocessed_spans (run_id, kind, start_us);",
         "unique": false,
@@ -1483,7 +1619,7 @@
       }
     },
     {
-      "id": 33,
+      "id": 37,
       "references": [
         1
       ],
@@ -1733,13 +1869,13 @@
       }
     },
     {
-      "id": 34,
+      "id": 38,
       "references": [
-        33
+        37
       ],
       "type": "index",
       "data": {
-        "on": 33,
+        "on": 37,
         "name": "rated_sections_run_time",
         "sql": "CREATE INDEX rated_sections_run_time ON rated_sections (run_id, start_us);",
         "unique": false,
@@ -1747,7 +1883,7 @@
       }
     },
     {
-      "id": 35,
+      "id": 39,
       "references": [
         1
       ],
@@ -1979,13 +2115,13 @@
       }
     },
     {
-      "id": 36,
+      "id": 40,
       "references": [
-        35
+        39
       ],
       "type": "index",
       "data": {
-        "on": 35,
+        "on": 39,
         "name": "computed_values_run_unique",
         "sql": "CREATE UNIQUE INDEX computed_values_run_unique\n  ON computed_values (run_id, value_key, role) WHERE run_id IS NOT NULL;",
         "unique": true,
@@ -1993,13 +2129,13 @@
       }
     },
     {
-      "id": 37,
+      "id": 41,
       "references": [
-        35
+        39
       ],
       "type": "index",
       "data": {
-        "on": 35,
+        "on": 39,
         "name": "computed_values_day_unique",
         "sql": "CREATE UNIQUE INDEX computed_values_day_unique\n  ON computed_values (day, value_key, role) WHERE day IS NOT NULL;",
         "unique": true,
@@ -2007,84 +2143,84 @@
       }
     },
     {
-      "id": 38,
+      "id": 42,
       "references": [
-        35
+        39
       ],
       "type": "trigger",
       "data": {
-        "on": 35,
+        "on": 39,
         "references_in_body": [
-          35
+          39
         ],
         "name": "computed_values_original_immutable",
         "sql": "CREATE TRIGGER computed_values_original_immutable BEFORE UPDATE ON computed_values\nWHEN OLD.role = 'original' OR NEW.role = 'original'\nBEGIN SELECT RAISE(ABORT, 'original value is immutable'); END;"
       }
     },
     {
-      "id": 39,
+      "id": 43,
       "references": [
-        35
+        39
       ],
       "type": "trigger",
       "data": {
-        "on": 35,
+        "on": 39,
         "references_in_body": [
-          35
+          39
         ],
         "name": "computed_values_reason_insert",
         "sql": "CREATE TRIGGER computed_values_reason_insert BEFORE INSERT ON computed_values\nWHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)\nBEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;"
       }
     },
     {
-      "id": 40,
+      "id": 44,
       "references": [
-        35
+        39
       ],
       "type": "trigger",
       "data": {
-        "on": 35,
+        "on": 39,
         "references_in_body": [
-          35
+          39
         ],
         "name": "computed_values_reason_update",
         "sql": "CREATE TRIGGER computed_values_reason_update BEFORE UPDATE ON computed_values\nWHEN (NEW.value_real IS NULL) = (NEW.unavailable_reason IS NULL)\nBEGIN SELECT RAISE(ABORT, 'value and unavailable_reason are exclusive'); END;"
       }
     },
     {
-      "id": 41,
+      "id": 45,
       "references": [
-        35
+        39
       ],
       "type": "trigger",
       "data": {
-        "on": 35,
+        "on": 39,
         "references_in_body": [
-          35
+          39
         ],
         "name": "computed_values_basis_insert",
         "sql": "CREATE TRIGGER computed_values_basis_insert BEFORE INSERT ON computed_values\nWHEN NEW.hr_max_is_estimated IS NULL\n  AND (NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)\nBEGIN SELECT RAISE(ABORT, 'basis values without snapshot flag'); END;"
       }
     },
     {
-      "id": 42,
+      "id": 46,
       "references": [
-        35
+        39
       ],
       "type": "trigger",
       "data": {
-        "on": 35,
+        "on": 39,
         "references_in_body": [
-          35
+          39
         ],
         "name": "computed_values_basis_update",
         "sql": "CREATE TRIGGER computed_values_basis_update BEFORE UPDATE ON computed_values\nWHEN NEW.hr_max_is_estimated IS NULL\n  AND (NEW.hr_max_bpm IS NOT NULL OR NEW.hr_rest_bpm IS NOT NULL)\nBEGIN SELECT RAISE(ABORT, 'basis values without snapshot flag'); END;"
       }
     },
     {
-      "id": 43,
+      "id": 47,
       "references": [
-        35
+        39
       ],
       "type": "table",
       "data": {
@@ -2250,41 +2386,41 @@
       }
     },
     {
-      "id": 44,
+      "id": 48,
       "references": [
-        43,
-        35
+        47,
+        39
       ],
       "type": "trigger",
       "data": {
-        "on": 43,
+        "on": 47,
         "references_in_body": [
-          43,
-          35
+          47,
+          39
         ],
         "name": "value_sections_original_immutable",
         "sql": "CREATE TRIGGER value_sections_original_immutable BEFORE UPDATE ON value_sections\nWHEN (SELECT role FROM computed_values WHERE id = OLD.computed_value_id) = 'original'\n  OR (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original'\nBEGIN SELECT RAISE(ABORT, 'original value sections are immutable'); END;"
       }
     },
     {
-      "id": 45,
+      "id": 49,
       "references": [
-        43,
-        35
+        47,
+        39
       ],
       "type": "trigger",
       "data": {
-        "on": 43,
+        "on": 47,
         "references_in_body": [
-          43,
-          35
+          47,
+          39
         ],
         "name": "value_sections_original_no_late_insert",
         "sql": "CREATE TRIGGER value_sections_original_no_late_insert BEFORE INSERT ON value_sections\nWHEN (SELECT role FROM computed_values WHERE id = NEW.computed_value_id) = 'original'\n  AND NEW.computed_value_id <> (SELECT MAX(id) FROM computed_values)\nBEGIN SELECT RAISE(ABORT, 'original value sections are immutable'); END;"
       }
     },
     {
-      "id": 46,
+      "id": 50,
       "references": [],
       "type": "table",
       "data": {
@@ -2390,7 +2526,7 @@
       }
     },
     {
-      "id": 47,
+      "id": 51,
       "references": [],
       "type": "table",
       "data": {
@@ -2436,7 +2572,7 @@
       }
     },
     {
-      "id": 48,
+      "id": 52,
       "references": [],
       "type": "table",
       "data": {
@@ -2504,13 +2640,13 @@
       }
     },
     {
-      "id": 49,
+      "id": 53,
       "references": [
-        48
+        52
       ],
       "type": "index",
       "data": {
-        "on": 48,
+        "on": 52,
         "name": "known_devices_one_preferred",
         "sql": "CREATE UNIQUE INDEX known_devices_one_preferred\n  ON known_devices (is_preferred) WHERE is_preferred = 1;",
         "unique": true,
@@ -2518,7 +2654,7 @@
       }
     },
     {
-      "id": 50,
+      "id": 54,
       "references": [],
       "type": "table",
       "data": {
@@ -2564,7 +2700,7 @@
       }
     },
     {
-      "id": 51,
+      "id": 55,
       "references": [
         1
       ],
@@ -2696,7 +2832,7 @@
       }
     },
     {
-      "id": 52,
+      "id": 56,
       "references": [],
       "type": "table",
       "data": {
@@ -2762,13 +2898,13 @@
       }
     },
     {
-      "id": 53,
+      "id": 57,
       "references": [
-        52
+        56
       ],
       "type": "index",
       "data": {
-        "on": 52,
+        "on": 56,
         "name": "manual_trainings_day",
         "sql": "CREATE INDEX manual_trainings_day ON manual_trainings (day);",
         "unique": false,
@@ -2776,7 +2912,7 @@
       }
     },
     {
-      "id": 54,
+      "id": 58,
       "references": [
         1
       ],
@@ -2878,13 +3014,13 @@
       }
     },
     {
-      "id": 55,
+      "id": 59,
       "references": [
-        54
+        58
       ],
       "type": "index",
       "data": {
-        "on": 54,
+        "on": 58,
         "name": "reference_performances_run",
         "sql": "CREATE INDEX reference_performances_run ON reference_performances (run_id);",
         "unique": false,
@@ -2892,7 +3028,7 @@
       }
     },
     {
-      "id": 56,
+      "id": 60,
       "references": [
         1
       ],
@@ -2943,7 +3079,7 @@
       }
     },
     {
-      "id": 57,
+      "id": 61,
       "references": [],
       "type": "table",
       "data": {
@@ -3081,9 +3217,9 @@
       }
     },
     {
-      "id": 58,
+      "id": 62,
       "references": [
-        57
+        61
       ],
       "type": "table",
       "data": {
@@ -3221,13 +3357,13 @@
       }
     },
     {
-      "id": 59,
+      "id": 63,
       "references": [
-        58
+        62
       ],
       "type": "index",
       "data": {
-        "on": 58,
+        "on": 62,
         "name": "plans_goal",
         "sql": "CREATE INDEX plans_goal ON plans (goal_id);",
         "unique": false,
@@ -3235,9 +3371,9 @@
       }
     },
     {
-      "id": 60,
+      "id": 64,
       "references": [
-        58,
+        62,
         1
       ],
       "type": "table",
@@ -3388,13 +3524,13 @@
       }
     },
     {
-      "id": 61,
+      "id": 65,
       "references": [
-        60
+        64
       ],
       "type": "index",
       "data": {
-        "on": 60,
+        "on": 64,
         "name": "plan_units_day",
         "sql": "CREATE INDEX plan_units_day ON plan_units (day);",
         "unique": false,
@@ -3402,13 +3538,13 @@
       }
     },
     {
-      "id": 62,
+      "id": 66,
       "references": [
-        60
+        64
       ],
       "type": "index",
       "data": {
-        "on": 60,
+        "on": 64,
         "name": "plan_units_plan",
         "sql": "CREATE INDEX plan_units_plan ON plan_units (plan_id);",
         "unique": false,
@@ -3416,73 +3552,17 @@
       }
     },
     {
-      "id": 63,
+      "id": 67,
       "references": [
-        60
+        64
       ],
       "type": "index",
       "data": {
-        "on": 60,
+        "on": 64,
         "name": "plan_units_run",
         "sql": "CREATE INDEX plan_units_run ON plan_units (run_id);",
         "unique": false,
         "columns": []
-      }
-    },
-    {
-      "id": 64,
-      "references": [],
-      "type": "table",
-      "data": {
-        "name": "active_warning",
-        "was_declared_in_moor": true,
-        "columns": [
-          {
-            "name": "id",
-            "getter_name": "id",
-            "moor_type": "int",
-            "nullable": false,
-            "customConstraints": "NOT NULL PRIMARY KEY CHECK (id = 1)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": [
-              "primary-key"
-            ]
-          },
-          {
-            "name": "reported_on",
-            "getter_name": "reportedOn",
-            "moor_type": "string",
-            "nullable": false,
-            "customConstraints": "NOT NULL CHECK (reported_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND date(reported_on) IS reported_on)",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "source",
-            "getter_name": "source",
-            "moor_type": "string",
-            "nullable": false,
-            "customConstraints": "NOT NULL CHECK (source IN ('manual', 'run_feedback'))",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          },
-          {
-            "name": "run_id",
-            "getter_name": "runId",
-            "moor_type": "int",
-            "nullable": true,
-            "customConstraints": "CHECK (run_id IS NULL OR typeof(run_id) = 'integer')",
-            "default_dart": null,
-            "default_client_dart": null,
-            "dsl_features": []
-          }
-        ],
-        "is_virtual": false,
-        "without_rowid": false,
-        "constraints": []
       }
     }
   ],
@@ -3501,7 +3581,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"runs\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"state\" TEXT NOT NULL CHECK (state IN ('active', 'paused', 'finished')), \"started_at_us\" INTEGER NOT NULL, \"ended_at_us\" INTEGER, \"ended_utc_offset_s\" INTEGER CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800));"
+          "sql": "CREATE TABLE IF NOT EXISTS \"runs\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"state\" TEXT NOT NULL CHECK (state IN ('active', 'paused', 'finished')), \"started_at_us\" INTEGER NOT NULL, \"ended_at_us\" INTEGER, \"ended_utc_offset_s\" INTEGER CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800), \"mode\" TEXT NOT NULL DEFAULT 'gps' CHECK (mode IN ('gps', 'treadmill')));"
         }
       ]
     },
@@ -3650,6 +3730,24 @@
       ]
     },
     {
+      "name": "treadmill_settings",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"treadmill_settings\" (\"id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"run_id\" INTEGER NOT NULL REFERENCES runs(id)ON DELETE CASCADE, \"offset_us\" INTEGER NOT NULL CHECK (offset_us >= 0), \"speed_mps\" REAL NOT NULL CHECK (speed_mps >= 0), \"incline_percent\" REAL CHECK (incline_percent >= 0));"
+        }
+      ]
+    },
+    {
+      "name": "treadmill_settings_run_time",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE INDEX treadmill_settings_run_time ON treadmill_settings (run_id, offset_us)"
+        }
+      ]
+    },
+    {
       "name": "raw_positions_no_update",
       "sql": [
         {
@@ -3695,6 +3793,15 @@
       ]
     },
     {
+      "name": "treadmill_settings_no_update",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER treadmill_settings_no_update BEFORE UPDATE ON treadmill_settings BEGIN SELECT RAISE (ABORT, 'raw data is append-only');END"
+        }
+      ]
+    },
+    {
       "name": "raw_positions_no_direct_delete",
       "sql": [
         {
@@ -3736,6 +3843,15 @@
         {
           "dialect": "sqlite",
           "sql": "CREATE TRIGGER raw_rr_packets_no_direct_delete BEFORE DELETE ON raw_rr_packets WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, 'raw data is deleted only with its run');END"
+        }
+      ]
+    },
+    {
+      "name": "treadmill_settings_no_direct_delete",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TRIGGER treadmill_settings_no_direct_delete BEFORE DELETE ON treadmill_settings WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, 'raw data is deleted only with its run');END"
         }
       ]
     },
@@ -4060,15 +4176,6 @@
         {
           "dialect": "sqlite",
           "sql": "CREATE INDEX plan_units_run ON plan_units (run_id)"
-        }
-      ]
-    },
-    {
-      "name": "active_warning",
-      "sql": [
-        {
-          "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"active_warning\" (\"id\" INTEGER NOT NULL PRIMARY KEY CHECK (id = 1), \"reported_on\" TEXT NOT NULL CHECK (reported_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND date(reported_on) IS reported_on), \"source\" TEXT NOT NULL CHECK (source IN ('manual', 'run_feedback')), \"run_id\" INTEGER CHECK (run_id IS NULL OR typeof(run_id) = 'integer'));"
         }
       ]
     }

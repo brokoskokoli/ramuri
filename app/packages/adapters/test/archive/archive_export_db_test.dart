@@ -260,7 +260,7 @@ void main() {
     expect(units[1]['pinned'], 1);
     expect(units[2]['kind'], 'easy');
     expect(units[2]['fixed'], 'easyForHard');
-    // Warnsignal (Schema 10): die eine Zeile, `run_id` ohne Fremdschlüssel.
+    // Warnsignal (Schema 11): die eine Zeile, `run_id` ohne Fremdschlüssel.
     expect(_rows(lines, 'active_warning'), [
       {
         'id': 1,
@@ -276,7 +276,33 @@ void main() {
       'started_at_us': 1000,
       'ended_at_us': 2000000000,
       'ended_utc_offset_s': 3600,
+      'mode': 'treadmill',
     });
+    // Laufbandeinstellungen (WP25, Abschnitt 26): Werte exakt, Steigung unbekannt
+    // bleibt null, Stillstand 0.
+    expect(_rows(lines, 'treadmill_settings'), [
+      {
+        'id': 1,
+        'run_id': 1,
+        'offset_us': 0,
+        'speed_mps': 2.5,
+        'incline_percent': 1.5,
+      },
+      {
+        'id': 2,
+        'run_id': 1,
+        'offset_us': 300000000,
+        'speed_mps': 3.0,
+        'incline_percent': null,
+      },
+      {
+        'id': 3,
+        'run_id': 1,
+        'offset_us': 600000000,
+        'speed_mps': 0.0,
+        'incline_percent': 0.0,
+      },
+    ]);
     final cv = _rows(lines, 'computed_values');
     expect(cv.map((r) => r['role']), ['original', 'current', 'original']);
     expect(cv[0]['value_real'], isNull);
@@ -518,7 +544,10 @@ class _LateInsertSource implements ArchiveSource {
       _db,
       'INSERT INTO laps (run_id, lap_index, marked_at_us, lap_time_s) VALUES (1, 2, 11, 301.0)',
     );
-    await sql(_db, "INSERT INTO runs VALUES (2, 'active', 5000, NULL, NULL)");
+    await sql(
+      _db,
+      "INSERT INTO runs VALUES (2, 'active', 5000, NULL, NULL, 'gps')",
+    );
     return s;
   }
 }

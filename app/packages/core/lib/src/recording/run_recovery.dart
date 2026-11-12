@@ -32,6 +32,9 @@ DateTime lastRecordedTime(
   for (final r in raw.unavailable) {
     see(r.value.time);
   }
+  for (final b in raw.beltSettings) {
+    see(run.startedAt.add(b.value.offset));
+  }
   for (final l in laps) {
     see(l.markedAt);
   }

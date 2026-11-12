@@ -13,6 +13,7 @@ StoredRun _run(d.Run r) => StoredRun(
   endedUtcOffset: r.endedUtcOffsetS == null
       ? null
       : Duration(seconds: r.endedUtcOffsetS!),
+  mode: enumOf(RunMode.values, r.mode, (v) => v.wire),
 );
 
 class DriftRunStore implements RunStore {
@@ -20,19 +21,24 @@ class DriftRunStore implements RunStore {
   final d.AppDatabase _db;
 
   @override
-  Future<StoredRun> create({required DateTime startedAt}) => guarded(() async {
+  Future<StoredRun> create({
+    required DateTime startedAt,
+    RunMode mode = RunMode.gps,
+  }) => guarded(() async {
     final id = await _db
         .into(_db.runs)
         .insert(
           d.RunsCompanion.insert(
             state: RunState.active.name,
             startedAtUs: usOf(startedAt),
+            mode: Value(mode.wire),
           ),
         );
     return StoredRun(
       id: id,
       state: RunState.active,
       startedAt: timeOf(usOf(startedAt)),
+      mode: mode,
     );
   });
 

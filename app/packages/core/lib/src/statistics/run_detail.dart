@@ -1,6 +1,7 @@
 import '../preprocessing/movement_time_processor.dart' show TimeSpan;
 import '../preprocessing/pace.dart';
 import '../preprocessing/run_preprocessor.dart';
+import '../recording/belt_track.dart';
 
 /// Ein Punkt eines Verlaufs: Sekunden seit Laufstart (Uhrzeit, mit Pausen)
 /// und Messwert.
@@ -62,9 +63,21 @@ class RunDetailData {
 
 /// [buildRunDetail] als Auftrag für einen anderen Isolate.
 RunDetailData buildRunDetailJob(
-  ({RunPreprocessing pre, DateTime start, DateTime end, List<TimeSpan> pauses})
+  ({
+    RunPreprocessing pre,
+    DateTime start,
+    DateTime end,
+    List<TimeSpan> pauses,
+    BeltTrack? belt,
+  })
   a,
-) => buildRunDetail(a.pre, start: a.start, end: a.end, pauses: a.pauses);
+) => buildRunDetail(
+  a.pre,
+  start: a.start,
+  end: a.end,
+  pauses: a.pauses,
+  belt: a.belt,
+);
 
 /// Baut die Zeichendaten. [pauses] sind die manuellen Pausen des Laufs.
 /// Übersteigt eine Reihe [maxPoints] Punkte, wird sie je Teil ausgedünnt: erster
@@ -72,11 +85,17 @@ RunDetailData buildRunDetailJob(
 /// jedem Abschnitt bleiben der kleinste und der größte Wert erhalten (kurze
 /// Spitzen gehen nicht verloren; Kleinst- und Größtwert der Reihe bleiben
 /// exakt).
+///
+/// Bei einem Bandlauf ([belt] gesetzt, FR-0196) ist die Pace die eingestellte
+/// Geschwindigkeit als Stufenreihe: je bewegtem Stück zwei Punkte (Anfang und
+/// Ende), Stillstand und Pausen trennen die Teile. Die Vorverarbeitung hat
+/// dort keine Pace.
 RunDetailData buildRunDetail(
   RunPreprocessing pre, {
   required DateTime start,
   required DateTime end,
   List<TimeSpan> pauses = const [],
+  BeltTrack? belt,
   int maxPoints = 2000,
 }) {
   double x(DateTime t) => t.difference(start).inMicroseconds / 1e6;
@@ -101,7 +120,9 @@ RunDetailData buildRunDetail(
 
   return RunDetailData(
     route: _thinRoute(route, maxPoints),
-    pace: _thin(_splitNullable(paceSamples, positionBreaks), maxPoints),
+    pace: belt != null
+        ? _beltPace(belt, x)
+        : _thin(_splitNullable(paceSamples, positionBreaks), maxPoints),
     heartRate: _thin(
       _split<DetailPoint>([
         for (final s in pre.heartRate.medianSeries)
@@ -277,4 +298,26 @@ List<List<RoutePoint>> _thinRoute(List<List<RoutePoint>> parts, int maxPoints) {
             p[i],
         ],
   ];
+}
+
+/// Stufenreihe der Bandpace (s/km): zusammenhängende bewegte Stücke bilden
+/// einen Teil, Stillstand und Lücken (Pausen) beenden ihn.
+List<List<DetailPoint>> _beltPace(BeltTrack belt, double Function(DateTime) x) {
+  final parts = <List<DetailPoint>>[];
+  DateTime? previousEnd;
+  for (final piece in belt.pieces) {
+    if (!piece.isMoving) {
+      previousEnd = null;
+      continue;
+    }
+    final value = 1000 / piece.speedMetersPerSecond;
+    if (previousEnd == null || previousEnd != piece.span.start) {
+      parts.add([]);
+    }
+    parts.last
+      ..add(DetailPoint(x(piece.span.start), value))
+      ..add(DetailPoint(x(piece.span.end), value));
+    previousEnd = piece.span.end;
+  }
+  return parts;
 }

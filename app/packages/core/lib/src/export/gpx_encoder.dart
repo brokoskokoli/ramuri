@@ -13,7 +13,13 @@ const Duration gpxAttachWindow = Duration(seconds: 1);
 /// gemessenen Position; Höhe und Puls kommen vom nächsten Wert desselben
 /// Abschnitts innerhalb von [gpxAttachWindow], sonst fehlen sie. Jeder Abschnitt
 /// mit Positionen wird ein `trkseg`.
+///
+/// Ein Bandlauf hat keine Positionen und wird nicht als GPX ausgegeben
+/// (FR-0196, K57): [ArgumentError].
 String encodeGpx(ExportRun run) {
+  if (run.isTreadmill) {
+    throw ArgumentError('Ein Laufbandlauf lässt sich nicht als GPX ausgeben');
+  }
   final name = xmlText(run.name);
   final b = StringBuffer()
     ..writeln('<?xml version="1.0" encoding="UTF-8"?>')

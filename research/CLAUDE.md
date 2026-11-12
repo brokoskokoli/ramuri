@@ -94,7 +94,7 @@ Pflichtabschnitte:
 
 ## RESULTS.md (das Ergebnis)
 Pflichtabschnitte:
-1. **Kurzfassung:** Antwort auf die Frage in 3–5 Sätzen und die **Empfehlung**.
+1. **Kurzfassung (ganz oben):** ein Absatz in Alltagssprache, höchstens ~10 Sätze, für jemanden, der nur diesen Absatz liest. Erst die Antwort auf die Frage, auch wenn sie nur „Ja, mit Verfahren X geht es“ heißt, dann die **Empfehlung** und die wichtigste Einschränkung. Keine Abkürzungen ohne Erklärung, keine Tabellen, keine Befundnummern und keine Nachbesserungsgeschichte (die steht weiter unten). Nach jeder Nachbesserung neu schreiben, nicht ergänzen.
 2. **Lauf:** Datum, exaktes Kommando mit Parametern, Commit, Umgebung (Rechner, Versionen), Laufzeit.
 3. **Ergebnisse:** Zahlen als Tabelle, mit Stichprobengröße und Unsicherheit (Intervalle, Streuung). Grafiken als Datei in den Ordner, wenn sie helfen.
 4. **Bewertung und Zweifel:** Wie belastbar ist das? Was könnte das Ergebnis verfälschen (Datenleck, zu kleine Stichprobe, ungleiche Bedingungen, Messfehler)? Was wurde geprüft (Stichproben selbst angesehen)?

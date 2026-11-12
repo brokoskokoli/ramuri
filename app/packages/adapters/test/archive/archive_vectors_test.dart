@@ -268,8 +268,8 @@ void main() {
     expect(lines.last['rows']['plan_units'], 4);
   });
 
-  test('archive_v2_s10: Format 2, Schema 10, active_warning mit einer Zeile (Abschnitt 21)', () async {
-    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s10');
+  test('archive_v2_s11: Format 2, Schema 11, active_warning mit einer Zeile (Abschnitt 21)', () async {
+    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s11');
     final plain = await _collect(
       createArchiveCipher().decrypt(
         v['password'] as String,
@@ -283,12 +283,12 @@ void main() {
       for (final l in const LineSplitter().convert(text))
         jsonDecode(l) as Map<String, dynamic>,
     ];
-    expect(lines.first['schema_version'], 10);
+    expect(lines.first['schema_version'], 11);
     final sections = [
       for (final l in lines)
         if (l['type'] == 'section') l['name'],
     ];
-    expect(sections.length, 25);
+    expect(sections.length, 26);
     expect(sections[20], 'active_warning');
     final rows = [
       for (final l in lines)
@@ -342,6 +342,51 @@ void main() {
       expect(lines.last['rows']['raw_rr_packets'], 3);
     },
   );
+
+  test('archive_v2_s10: Format 2, Schema 10, runs.mode und treadmill_settings (Abschnitt 26)', () async {
+    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s10');
+    final plain = await _collect(
+      createArchiveCipher().decrypt(
+        v['password'] as String,
+        Stream.value(_read(v['file'] as String)),
+      ),
+    );
+    expect(_read(v['file'] as String)[9], 2);
+    final text = utf8.decode(gzip.decode(plain));
+    expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+    final lines = [
+      for (final l in const LineSplitter().convert(text))
+        jsonDecode(l) as Map<String, dynamic>,
+    ];
+    expect(lines.first['schema_version'], 10);
+    final sections = [
+      for (final l in lines)
+        if (l['type'] == 'section') l['name'],
+    ];
+    expect(sections.length, 26);
+    expect(sections.last, 'treadmill_settings');
+    Iterable<Map> rowsOf(String name) sync* {
+      String? cur;
+      for (final l in lines) {
+        if (l['type'] == 'section') cur = l['name'] as String;
+        if (l['type'] == 'row' && cur == name) yield l['data'] as Map;
+      }
+    }
+
+    // `runs.mode` steht am Ende der Spalten (Lauf 1 gps, Lauf 7 treadmill).
+    expect(
+      [for (final r in rowsOf('runs')) '${r['id']}:${r['mode']}'],
+      ['1:gps', '7:treadmill'],
+    );
+    expect(rowsOf('runs').first.keys.last, 'mode');
+    final tm = rowsOf('treadmill_settings').toList();
+    expect(tm.length, 3);
+    expect(tm.map((r) => r['incline_percent']), [1.5, null, 0.0]);
+    expect(tm.map((r) => r['speed_mps']), [2.5, 3.0, 0.0]);
+    expect(tm.every((r) => r['run_id'] == 7), isTrue);
+    expect(lines.last['rows'], v['row_counts']);
+    expect(lines.last['rows']['treadmill_settings'], 3);
+  });
 
   group('Dart verschlüsselt byte-gleich mit festem Salz', () {
     // Hook: createArchiveCipher(randomBytes:) liefert das feste Salz; das

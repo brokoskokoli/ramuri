@@ -60,7 +60,10 @@ AppDatabase _dbOf(StorageSession s) => (s as EncryptedStorageSession).database;
 
 Future<void> _extra(AppDatabase db) async {
   // Zweiter Lauf: Original mit zwei Abschnitten, current mit einem.
-  await sql(db, "INSERT INTO runs VALUES (2, 'finished', 5000, 9000, NULL)");
+  await sql(
+    db,
+    "INSERT INTO runs VALUES (2, 'finished', 5000, 9000, NULL, 'gps')",
+  );
   const cv =
       'INSERT INTO computed_values (run_id, value_key, role, value_real, unit, computed_at_us, measurement_count, sources, method, method_version, parameter_version, quality) ';
   const vs =
@@ -221,9 +224,9 @@ void main() {
   }
 
   Future<void> addOldData() async {
-    await _dbOf(
-      session,
-    ).customStatement("INSERT INTO runs VALUES (77, 'finished', 1, 2, NULL)");
+    await _dbOf(session).customStatement(
+      "INSERT INTO runs VALUES (77, 'finished', 1, 2, NULL, 'gps')",
+    );
     await _dbOf(session)
         .customStatement("INSERT INTO settings VALUES ('alt', 'bleibt', 1)");
   }
@@ -328,7 +331,7 @@ void main() {
       expect(serialized, 1);
       // Neu geöffnete Datenbank ist benutzbar (Schema 4, Schreiben geht).
       await _dbOf(session).customStatement(
-        "INSERT INTO runs VALUES (99, 'active', 1, NULL, NULL)",
+        "INSERT INTO runs VALUES (99, 'active', 1, NULL, NULL, 'gps')",
       );
     },
   );
@@ -359,9 +362,9 @@ void main() {
 
   group('nicht leere App', () {
     final cases = <String, Future<void> Function(StorageSession)>{
-      'Lauf': (s) async => _dbOf(
-        s,
-      ).customStatement("INSERT INTO runs VALUES (77, 'finished', 1, 2, NULL)"),
+      'Lauf': (s) async => _dbOf(s).customStatement(
+        "INSERT INTO runs VALUES (77, 'finished', 1, 2, NULL, 'gps')",
+      ),
       'Profil': (s) async =>
           s.profile.save(const ProfileRecord(birthYear: 1990)),
       'Einstellung': (s) =>
@@ -644,7 +647,7 @@ void main() {
     expect(easy.pinned, isTrue);
   });
 
-  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 9; 10 ist
+  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 10; 11 ist
   // das aktuelle). Format 1
   // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
   // kennt, sind danach leer.
@@ -655,6 +658,7 @@ void main() {
     ('archive_v2_s8', 8),
     ('archive_v2_s9', 9),
     ('archive_v2_s10', 10),
+    ('archive_v2_s11', 11),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -754,12 +758,44 @@ void main() {
       } else {
         expect(rr, isEmpty);
       }
+      // Laufart und Laufbandeinstellungen (WP25): bis Schema 9 sind alle Läufe
+      // gps; Schema 10 trägt mode (Lauf 7 treadmill) und Abschnitt 26.
+      expect(
+        {for (final r in got['runs']!) r['id']: r['mode']},
+        {1: 'gps', 7: schema >= 10 ? 'treadmill' : 'gps'},
+      );
+      final tm = got['treadmill_settings']!;
+      if (schema >= 10) {
+        expect(
+          [
+            for (final t in tm)
+              [
+                t['run_id'],
+                t['offset_us'],
+                t['speed_mps'],
+                t['incline_percent'],
+              ],
+          ],
+          [
+            [7, 0, 2.5, 1.5],
+            [7, 300000000, 3.0, null],
+            [7, 600000000, 0.0, 0.0],
+          ],
+        );
+        expect((await session.runs.get(7))!.mode, RunMode.treadmill);
+        final settings = (await session.rawData.read(7)).beltSettings;
+        expect(settings.map((s) => s.value.inclinePercent), [1.5, null, 0.0]);
+        expect(settings[2].value.speedMetersPerSecond, 0.0);
+      } else {
+        expect(tm, isEmpty);
+        expect((await session.runs.get(7))!.mode, RunMode.gps);
+      }
       expect(got['reference_performances'], hasLength(schema >= 6 ? 3 : 0));
       expect(got['run_feedback'], hasLength(2));
-      // Warnsignal (WP23): Abschnitt 21 trägt ab Schema 10 eine Zeile.
-      expect(got['active_warning'], hasLength(schema >= 10 ? 1 : 0));
+      // Warnsignal (WP23): Abschnitt 21 trägt ab Schema 11 eine Zeile.
+      expect(got['active_warning'], hasLength(schema >= 11 ? 1 : 0));
       final warning = await (session as WarningStorage).warning.read();
-      if (schema >= 10) {
+      if (schema >= 11) {
         expect(warning!.source, WarningSource.runFeedback);
         expect(warning.runId, 7);
         expect(warning.reportedOn, DateTime.utc(2026, 11, 18));

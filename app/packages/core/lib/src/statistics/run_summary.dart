@@ -5,6 +5,7 @@ import '../../ports/storage_values.dart';
 import '../preprocessing/movement_time_processor.dart' show TimeSpan;
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
+import '../recording/belt_track.dart';
 import '../recalculation/run_analysis.dart';
 import '../recalculation/run_load_values.dart';
 import 'best_pace.dart';
@@ -27,6 +28,7 @@ class RunSummary {
     required this.classification,
     required this.vo2max,
     this.manualPauses = const [],
+    this.belt,
   });
 
   final StoredRun run;
@@ -50,14 +52,23 @@ class RunSummary {
   /// Manuelle Pausen des Laufs (für die Zeichnung der Lücken).
   final List<TimeSpan> manualPauses;
 
+  /// Bandauswertung (FR-0196); `null` bei einem GPS-Lauf. Bei Band stammen
+  /// Strecke, Pace und Bewegungszeit der [figures] daraus.
+  final BeltTrack? belt;
+
+  /// Laufband: keine Karte, keine Route, keine Höhe (FR-0196).
+  bool get isTreadmill => belt != null;
+
   /// Anstieg in Metern; `null` ohne Höhendaten.
   double? get ascentMeters => preprocessing.altitude.ascentMeters;
 
   /// Abstieg in Metern (FR-0211); `null` ohne Höhendaten.
   double? get descentMeters => preprocessing.altitude.descentMeters;
 
-  /// Anzahl Positionslücken (FR-0194).
-  int get positionGapCount => preprocessing.position.gaps.length;
+  /// Anzahl Positionslücken (FR-0194); bei Band 0: ohne GPS gibt es keine
+  /// Lücken (der ganze Lauf hätte sonst eine).
+  int get positionGapCount =>
+      belt != null ? 0 : preprocessing.position.gaps.length;
 }
 
 /// Liest und rechnet alles für die Zusammenfassung eines beendeten Laufs aus
@@ -104,7 +115,9 @@ class RunSummaryService {
       for (final v in values)
         if (runLoadValueKeys.contains(v.current.key)) v.current.key: v.current,
     });
+    final belt = beltTrackOfRun(run, end, raw, gaps);
     final figures = RunFigures.fromRun(
+      belt: belt,
       run: run,
       preprocessing: pre,
       laps: laps,
@@ -130,7 +143,10 @@ class RunSummaryService {
       preprocessing: pre,
       laps: laps,
       load: load,
-      bestPace: bestPace(pre.pace.segments, parameters: statistics),
+      belt: belt,
+      bestPace: belt != null
+          ? const BestPace.unavailable(BestPaceUnavailable.noQualifyingSection)
+          : bestPace(pre.pace.segments, parameters: statistics),
       classification: classifyRun(figures, others, parameters: statistics),
       vo2max: vo2,
       manualPauses: [

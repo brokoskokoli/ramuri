@@ -131,7 +131,7 @@ void main() {
         expect(lines.first, {
           'type': 'manifest',
           'format': 2,
-          'schema_version': 10,
+          'schema_version': 11,
           'created_at_us': DateTime.utc(2026, 11, 7, 12).microsecondsSinceEpoch,
         });
         final sections = [
@@ -139,7 +139,7 @@ void main() {
             if (l['type'] == 'section') l['name'],
         ];
         expect(sections, [for (final s in archiveSections) s.name]);
-        expect(sections, hasLength(25));
+        expect(sections, hasLength(26));
         // Jede Tabelle mit mindestens einer Zeile.
         for (final s in archiveSections.where((s) => !s.isReserved)) {
           final rows = _rowsOf(lines, s.name);
@@ -153,7 +153,7 @@ void main() {
           expect(rows.first.keys.toList(), [for (final c in s.columns) c.name]);
         }
         // Ab Schema 7 tragen `goals`, `plans` und `plan_units` Zeilen, ab
-        // Schema 10 auch `active_warning`.
+        // Schema 11 auch `active_warning`.
         final end = lines.last;
         expect(end['type'], 'end');
         expect((end['rows']! as Map).keys.toList(), sections);
@@ -286,7 +286,7 @@ void main() {
         r'^\| (\d+) \| `(\w+)` \| (.+) \|$',
         multiLine: true,
       ).allMatches(doc).toList();
-      expect(rows, hasLength(25));
+      expect(rows, hasLength(26));
       for (final m in rows) {
         final spec = archiveSections[int.parse(m.group(1)!) - 1];
         expect(spec.name, m.group(2));

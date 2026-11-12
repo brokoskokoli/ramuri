@@ -46,8 +46,38 @@ class RunPorts {
 
   /// Fragt vor dem Laufstart nach ACTIVITY_RECOGNITION. Wie bei den
   /// Benachrichtigungen blockiert die Antwort nichts: ohne Recht ist nur die
-  /// Schrittfrequenz nicht verfügbar. `null` ohne Plattform (Tests).
-  final Future<void> Function()? requestActivityRecognition;
+  /// Schrittfrequenz nicht verfügbar, im Bandmodus (`treadmill`) startet der
+  /// Lauf nicht. `null` ohne Plattform (Tests).
+  final Future<void> Function(bool treadmill)? requestActivityRecognition;
+}
+
+/// Laufart für den Dienst (ADR-0005 Nachtrag WP25). [gps] startet mit Diensttyp
+/// `location` und verlangt das Standortrecht, [treadmill] mit `health` und
+/// verlangt ACTIVITY_RECOGNITION (kein Standort nötig). [wire] ist der Wert im
+/// Kanal `ramuri/recording_service`.
+enum RecordingServiceMode {
+  gps('gps'),
+  treadmill('treadmill');
+
+  const RecordingServiceMode(this.wire);
+  final String wire;
+}
+
+/// Grund, aus dem der Dienst nicht startet, bevor er gestartet wurde.
+enum RecordingStartDeniedReason {
+  /// Laufband ohne ACTIVITY_RECOGNITION: Die App zeigt den Grund und startet
+  /// nicht (K57), wie FR-0195 beim GPS-Lauf ohne Standortrecht.
+  activityRecognition,
+}
+
+/// Der Dienst wurde nicht gestartet, weil ein Recht für die Laufart fehlt. Kein
+/// Systemfehler: Die Oberfläche erklärt das Recht.
+class RecordingStartDenied implements Exception {
+  const RecordingStartDenied(this.reason);
+  final RecordingStartDeniedReason reason;
+
+  @override
+  String toString() => 'RecordingStartDenied($reason)';
 }
 
 /// Der Dienst, der den Prozess für die Dauer eines Laufs am Leben hält.
@@ -55,8 +85,9 @@ class RunPorts {
 abstract interface class RecordingServicePort {
   /// Startet den Dienst und kehrt zurück, wenn er läuft. Wirft, wenn er nicht
   /// starten konnte (z. B. das System lehnt ab). Ein laufender Dienst bleibt
-  /// unberührt.
-  Future<void> start();
+  /// unberührt. Fehlt für [mode] ein Recht (Laufband ohne ACTIVITY_RECOGNITION),
+  /// wirft er [RecordingStartDenied] und startet nichts.
+  Future<void> start({RecordingServiceMode mode = RecordingServiceMode.gps});
 
   /// Beendet den Dienst; ohne laufenden Dienst ohne Wirkung.
   Future<void> stop();
@@ -82,14 +113,28 @@ class FakeRecordingServicePort implements RecordingServicePort {
   /// Hält [start] an, bis diese Future fertig ist.
   Future<void>? startGate;
 
+  /// Hat das Telefon ACTIVITY_RECOGNITION? Nur für [RecordingServiceMode.treadmill].
+  bool activityRecognitionGranted = true;
+
+  /// Laufart je [start]-Aufruf, auch bei abgelehntem Start.
+  final List<RecordingServiceMode> startModes = [];
+
   int startCalls = 0;
   int stopCalls = 0;
   int updateTypeCalls = 0;
   bool running = false;
 
   @override
-  Future<void> start() async {
+  Future<void> start({
+    RecordingServiceMode mode = RecordingServiceMode.gps,
+  }) async {
     startCalls++;
+    startModes.add(mode);
+    if (mode == RecordingServiceMode.treadmill && !activityRecognitionGranted) {
+      throw const RecordingStartDenied(
+        RecordingStartDeniedReason.activityRecognition,
+      );
+    }
     await startGate;
     final e = startError;
     if (e != null) throw e;

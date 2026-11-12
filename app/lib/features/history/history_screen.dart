@@ -597,12 +597,16 @@ class _RunTile extends StatelessWidget {
     final pace = overview.averagePaceSecondsPerKm;
     final bpm = overview.averageHeartRateBpm;
     final time = overview.totalTime;
-    final miniature = RunMiniature(
-      key: Key('history_miniature_$id'),
-      session: session,
-      runId: id,
-      service: miniatures,
-    );
+    final belt = overview.run.mode == RunMode.treadmill;
+    // Bandlauf: keine Karte, keine Miniatur, kein leerer Platz (FR-0196).
+    final miniature = belt
+        ? const SizedBox.shrink()
+        : RunMiniature(
+            key: Key('history_miniature_$id'),
+            session: session,
+            runId: id,
+            service: miniatures,
+          );
     final delete = IconButton(
       key: Key('history_delete_$id'),
       tooltip: l10n.histDeleteRun,
@@ -618,6 +622,12 @@ class _RunTile extends StatelessWidget {
           key: Key('history_date_$id'),
           style: text.titleSmall,
         ),
+        if (belt)
+          Text(
+            l10n.treadmillHistoryBadge,
+            key: Key('history_treadmill_$id'),
+            style: text.labelMedium,
+          ),
         const SizedBox(height: 3),
         Wrap(
           spacing: 10,
@@ -679,7 +689,7 @@ class _RunTile extends StatelessWidget {
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [miniature, const Spacer(), delete],
+                  children: [if (!belt) miniature, const Spacer(), delete],
                 ),
                 const SizedBox(height: 6),
                 Padding(
@@ -691,8 +701,7 @@ class _RunTile extends StatelessWidget {
           : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                miniature,
-                const SizedBox(width: 12),
+                if (!belt) ...[miniature, const SizedBox(width: 12)],
                 Expanded(child: texts),
                 delete,
               ],

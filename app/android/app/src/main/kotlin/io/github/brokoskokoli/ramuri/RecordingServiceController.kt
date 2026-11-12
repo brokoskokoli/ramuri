@@ -3,13 +3,20 @@ package io.github.brokoskokoli.ramuri
 /** Seiteneffekte des [RecordingServiceController] (in Tests ersetzt). */
 interface ServiceEffects<R> {
     /** `startForegroundService`; darf RuntimeException werfen. */
-    fun startService()
+    fun startService(mode: RecordingMode)
     fun stopService()
     fun scheduleTimeout()
     fun cancelTimeout()
     fun success(result: R)
     fun error(result: R, code: String, detail: String?)
 }
+
+/**
+ * Argumente von `result.error(code, message, details)` auf dem Kanal. Dart liest `details`
+ * (MethodChannelRecordingService), daher steht das Detail in beiden Feldern: Nur Klassenname
+ * bzw. Grund, keine Inhalte, keine Gesundheitsdaten.
+ */
+fun channelErrorArgs(code: String, detail: String?): Triple<String, String?, Any?> = Triple(code, detail, detail)
 
 /**
  * Entscheidungen hinter dem Kanal `ramuri/recording_service` ohne Android-Objekte
@@ -32,15 +39,25 @@ class RecordingServiceController<R>(private val fx: ServiceEffects<R>) {
 
     val hasPending: Boolean get() = pending.isNotEmpty()
 
-    fun start(result: R, fineLocationGranted: Boolean) {
+    fun start(
+        result: R,
+        fineLocationGranted: Boolean,
+        mode: RecordingMode = RecordingMode.GPS,
+        activityRecognitionGranted: Boolean = false,
+    ) {
         if (running) {
             fx.success(result)
             return
         }
         // Vor startForegroundService: danach lässt sich ein Scheitern von
         // startForeground nicht mehr abfangen (siehe RecordingLifecycle.mayStart).
-        if (RecordingLifecycle.mayStart(fineLocationGranted).isFailure) {
-            fx.error(result, "start_failed", SecurityException::class.java.simpleName)
+        if (RecordingLifecycle.mayStart(mode, fineLocationGranted, activityRecognitionGranted).isFailure) {
+            if (mode == RecordingMode.TREADMILL) {
+                // Eigener Grund, damit die Oberfläche das Recht erklären kann (FR-0195 entsprechend).
+                fx.error(result, "start_denied", "activity_recognition")
+            } else {
+                fx.error(result, "start_failed", SecurityException::class.java.simpleName)
+            }
             return
         }
         val first = pending.isEmpty()
@@ -48,7 +65,7 @@ class RecordingServiceController<R>(private val fx: ServiceEffects<R>) {
         if (!first) return
         stopRequested = false
         try {
-            fx.startService()
+            fx.startService(mode)
             fx.scheduleTimeout()
         } catch (e: RuntimeException) {
             failed(e)

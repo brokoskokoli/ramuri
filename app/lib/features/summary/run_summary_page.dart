@@ -72,8 +72,7 @@ class RunSummaryPage extends StatelessWidget {
         compare(context, l10n),
         gap,
         subjectiveSection(),
-        _altitude(context, l10n),
-        gap,
+        if (!summary.isTreadmill) ...[_altitude(context, l10n), gap],
         laps(context, l10n),
         notes(context, l10n),
         explain(
@@ -143,7 +142,10 @@ class RunSummaryPage extends StatelessWidget {
             unitStyle: type.unitLarge,
           ),
           const SizedBox(height: 14),
-          RunRouteSection(route: detail.route),
+          if (summary.isTreadmill)
+            treadmillNote(context, l10n)
+          else
+            RunRouteSection(route: detail.route),
           const SizedBox(height: 14),
           Wrap(
             spacing: 24,
@@ -155,6 +157,25 @@ class RunSummaryPage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// Hinweis „Laufband“ statt der Karte: Ø-Geschwindigkeit, ggf. Steigung.
+  Widget treadmillNote(BuildContext context, AppLocalizations l10n) {
+    final text = Theme.of(context).textTheme;
+    final note = treadmillNoteText(l10n, formatter, summary.belt!);
+    return Column(
+      key: const Key('sum_treadmill'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (note != null)
+          Text(
+            note,
+            key: const Key('sum_treadmill_note'),
+            style: text.titleSmall,
+          ),
+        Text(l10n.treadmillSummaryHint, style: text.bodySmall),
+      ],
     );
   }
 
@@ -202,6 +223,7 @@ class RunSummaryPage extends StatelessWidget {
     final ascent = summary.ascentMeters;
     final descent = summary.descentMeters;
     final pace = f.averagePaceSecondsPerKm;
+    final treadmill = summary.isTreadmill;
     final best = summary.bestPace.secondsPerKm;
     final trimp = f.trimpPoints;
     final na = l10n.runUnavailable;
@@ -221,30 +243,33 @@ class RunSummaryPage extends StatelessWidget {
         na,
         unitInLabel: true,
       ),
-      _tile(
-        'sum_best_pace',
-        l10n.summaryBestPace,
-        best == null ? null : formatter.pace(best),
-        formatter.paceLabel,
-        l10n.sumBestPaceNone,
-        unitInLabel: true,
-      ),
-      _tile(
-        'run_ascent',
-        l10n.summaryAscent,
-        ascent == null ? null : formatter.elevation(ascent),
-        formatter.elevationLabel,
-        na,
-        prefix: '+',
-      ),
-      _tile(
-        'run_descent',
-        l10n.summaryDescent,
-        descent == null ? null : formatter.elevation(descent),
-        formatter.elevationLabel,
-        na,
-        prefix: '−',
-      ),
+      if (!treadmill)
+        _tile(
+          'sum_best_pace',
+          l10n.summaryBestPace,
+          best == null ? null : formatter.pace(best),
+          formatter.paceLabel,
+          l10n.sumBestPaceNone,
+          unitInLabel: true,
+        ),
+      if (!treadmill)
+        _tile(
+          'run_ascent',
+          l10n.summaryAscent,
+          ascent == null ? null : formatter.elevation(ascent),
+          formatter.elevationLabel,
+          na,
+          prefix: '+',
+        ),
+      if (!treadmill)
+        _tile(
+          'run_descent',
+          l10n.summaryDescent,
+          descent == null ? null : formatter.elevation(descent),
+          formatter.elevationLabel,
+          na,
+          prefix: '−',
+        ),
       _tile(
         'sum_avg_hr',
         l10n.summaryAvgHr,
@@ -390,6 +415,12 @@ class RunSummaryPage extends StatelessWidget {
                     key: const Key('sum_vo2max'),
                     style: text.titleSmall,
                   ),
+                  if (summary.isTreadmill && vo2?.value != null)
+                    Text(
+                      l10n.treadmillVo2Provisional,
+                      key: const Key('sum_vo2max_provisional'),
+                      style: text.bodySmall,
+                    ),
                 ],
               ),
               explain(context, 'sum_explain_vo2max', vo2maxRunValueKey),

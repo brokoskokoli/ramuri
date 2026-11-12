@@ -1,6 +1,7 @@
 import '../../ports/clock.dart';
 import '../../ports/storage.dart';
 import '../preprocessing/preprocessing_parameters.dart';
+import '../recording/treadmill.dart' show RunMode;
 import '../recalculation/run_analysis.dart' show replayJob;
 import '../recalculation/value_calculation_service.dart' show dayOfRun;
 import '../statistics/offload.dart';
@@ -59,6 +60,9 @@ class PredictionRunReader {
     ).load();
     final out = <PredictionRun>[];
     for (final o in overviews) {
+      // Bandläufe nicht: Bestleistungen, Referenzvorschläge und Prognose
+      // brauchen gemessene Strecke und Zeit (FR-0196, K57).
+      if (o.run.mode == RunMode.treadmill) continue;
       // Zeit ohne Positionslücken (`paceTime`): Die Distanz enthält die
       // überbrückte Strecke nicht, die Bewegungszeit ihre Zeit schon.
       final moving = o.paceTime;

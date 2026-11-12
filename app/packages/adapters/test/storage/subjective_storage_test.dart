@@ -298,7 +298,10 @@ void main() {
       await exec(db0, 'DROP TABLE plans');
       await exec(db0, 'DROP TABLE goals');
       await exec(db0, 'DROP TABLE raw_rr_packets'); // Schema 9 (WP26)
-      await exec(db0, 'DROP TABLE active_warning'); // Schema 10 (WP23)
+      await exec(db0, 'DROP TABLE active_warning'); // Schema 11 (WP23)
+      // Schema 10 (WP25): Laufbandeinstellungen und Spalte runs.mode.
+      await exec(db0, 'DROP TABLE treadmill_settings');
+      await exec(db0, 'ALTER TABLE runs DROP COLUMN mode');
       await exec(db0, 'PRAGMA user_version = 4');
       await s0.close();
 
@@ -313,7 +316,7 @@ void main() {
             .data
             .values
             .single,
-        10,
+        11,
       );
       await db1.validateDatabaseSchema();
     });

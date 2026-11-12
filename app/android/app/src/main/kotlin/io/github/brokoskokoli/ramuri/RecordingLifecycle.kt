@@ -3,6 +3,21 @@ package io.github.brokoskokoli.ramuri
 import android.app.Service
 import android.content.pm.ServiceInfo
 
+/**
+ * Art des Laufs für den Dienst (ADR-0005 Nachtrag WP25). `GPS` ist der bisherige Lauf mit Typ `location`;
+ * `TREADMILL` hat keine Position und läuft mit Typ `health`. [wire] ist der Wert im Kanal `ramuri/recording_service`.
+ */
+enum class RecordingMode(val wire: String) {
+    GPS("gps"),
+    TREADMILL("treadmill");
+
+    companion object {
+        /** Ohne Angabe `GPS` (alter Aufrufer); ein unbekannter Wert ist null und wird abgelehnt. */
+        fun fromWire(value: String?): RecordingMode? =
+            if (value == null) GPS else entries.firstOrNull { it.wire == value }
+    }
+}
+
 /** Was [RecordingLifecycle] vom Wake Lock braucht (in Tests ersetzt). */
 interface WakeLockHandle {
     val isHeld: Boolean
@@ -23,6 +38,8 @@ class RecordingLifecycle(
     private val bluetoothConnectGranted: () -> Boolean = { false },
     /** Beendet den Dienst (`stopSelf`); nur nach `startForeground` oder nach dessen Scheitern. */
     private val stopSelf: () -> Unit = {},
+    /** Laufart; bestimmt den Basistyp von `startForeground`. */
+    private val mode: RecordingMode = RecordingMode.GPS,
     /** Ruft `startForeground` mit dem Typ auf; wirft, wenn das System ablehnt. */
     private val enterForeground: (type: Int) -> Unit,
 ) {
@@ -38,7 +55,7 @@ class RecordingLifecycle(
         if (running) return Result.success(Unit)
         return try {
             lock.acquire()
-            val type = startType(bluetoothConnectGranted())
+            val type = startType(bluetoothConnectGranted(), mode)
             enterForeground(type)
             currentType = type
             running = true
@@ -59,7 +76,7 @@ class RecordingLifecycle(
      */
     fun retype(): Boolean {
         val old = currentType ?: return false
-        val wanted = startType(bluetoothConnectGranted())
+        val wanted = startType(bluetoothConnectGranted(), mode)
         if (wanted == old) return hasConnectedDevice(old)
         return try {
             enterForeground(wanted)
@@ -117,24 +134,35 @@ class RecordingLifecycle(
          * dann schon gelaufen ist, kann das System den Prozess beenden. Deshalb wird
          * vor `startForegroundService` geprüft und sonst gar nicht gestartet.
          */
-        fun mayStart(fineLocationGranted: Boolean): Result<Unit> =
-            if (fineLocationGranted) Result.success(Unit)
-            else Result.failure(SecurityException("location_denied"))
+        fun mayStart(
+            mode: RecordingMode,
+            fineLocationGranted: Boolean,
+            activityRecognitionGranted: Boolean,
+        ): Result<Unit> = when (mode) {
+            RecordingMode.GPS ->
+                if (fineLocationGranted) Result.success(Unit)
+                else Result.failure(SecurityException("location_denied"))
+            // Laufband: kein Standort nötig, aber Typ `health` verlangt ACTIVITY_RECOGNITION (Android 14).
+            RecordingMode.TREADMILL ->
+                if (activityRecognitionGranted) Result.success(Unit)
+                else Result.failure(SecurityException("activity_recognition_denied"))
+        }
 
         /** ADR-0005 Punkt 6: kein Neustart durch das System. */
         const val START_MODE: Int = Service.START_NOT_STICKY
 
         /**
-         * Diensttyp (ADR-0005 Punkt 2): immer `location`, `connectedDevice` nur mit
-         * BLUETOOTH_CONNECT. Ohne das Recht wirft `startForeground` mit diesem Typ
+         * Diensttyp (ADR-0005 Punkt 2 und Nachtrag WP25): im GPS-Lauf `location`, im Laufbandlauf `health`;
+         * `connectedDevice` nur mit BLUETOOTH_CONNECT. Ohne das Recht wirft `startForeground` mit diesem Typ
          * eine SecurityException (Android 14), deshalb dann gar nicht nennen.
          */
-        fun startType(bluetoothConnectGranted: Boolean): Int =
-            if (bluetoothConnectGranted) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-            } else {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        fun startType(bluetoothConnectGranted: Boolean, mode: RecordingMode = RecordingMode.GPS): Int {
+            val base = when (mode) {
+                RecordingMode.GPS -> ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                RecordingMode.TREADMILL -> ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
             }
+            return if (bluetoothConnectGranted) base or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else base
+        }
 
         fun hasConnectedDevice(type: Int): Boolean =
             type and ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE != 0

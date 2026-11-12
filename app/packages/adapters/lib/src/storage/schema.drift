@@ -1,4 +1,4 @@
--- Schema Phase 1 (Version 1; Version 2 ergänzt Rohwerte des Standortgebers, Version 3 value_sections, Version 5 Referenzen von Rückmeldung und manuellem Training, Version 6 Referenzleistungen und abgelehnte Vorschläge). Zeiten: Mikrosekunden seit Epoch (UTC), Spalten
+-- Schema Phase 1 (Version 1; Version 2 ergänzt Rohwerte des Standortgebers, Version 3 value_sections, Version 5 Referenzen von Rückmeldung und manuellem Training, Version 6 Referenzleistungen und abgelehnte Vorschläge, Version 10 Laufart und Laufbandeinstellungen). Zeiten: Mikrosekunden seit Epoch (UTC), Spalten
 -- `*_us`. Einheiten SI: Meter `_m`, Sekunden `_s`, Grad `_deg`, Schläge je
 -- Minute `_bpm`, Kilogramm `_kg`. Alles unter `runs` hängt per ON DELETE CASCADE
 -- am Lauf (SEC-0004). Fremdschlüssel gelten nur bei `PRAGMA foreign_keys=ON`
@@ -22,7 +22,10 @@ CREATE TABLE runs (
   -- Sekunden (Zeitzone zum Laufzeitpunkt; Tageswerte hängen am lokalen
   -- Kalendertag des Laufendes). NULL = unbekannt: Läufe aus Version 1, oder
   -- der Aufrufer hat ihn nicht genannt; nur bei beendetem Lauf (Trigger).
-  ended_utc_offset_s INTEGER CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800)
+  ended_utc_offset_s INTEGER CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800),
+  -- Seit Version 10 (WP25, FR-0196, K57): Art des Laufs. Läufe aus früheren
+  -- Versionen sind GPS-Läufe (Vorgabe). Nach dem Anlegen nicht mehr geändert.
+  mode TEXT NOT NULL DEFAULT 'gps' CHECK (mode IN ('gps', 'treadmill'))
 );
 
 CREATE TRIGGER runs_offset_insert BEFORE INSERT ON runs
@@ -134,6 +137,22 @@ CREATE INDEX raw_altitudes_run_time ON raw_altitudes (run_id, time_us);
 CREATE INDEX raw_steps_run_time ON raw_steps (run_id, time_us);
 CREATE INDEX raw_rr_packets_run_time ON raw_rr_packets (run_id, time_us);
 
+-- Ab Version 10 (WP25, FR-0196, K57): Einstellungen des Laufbands, eine Zeile je
+-- Änderung (nur anhängen wie die Rohdaten). offset_us = Zeit ab Laufbeginn
+-- (runs.started_at_us) in Mikrosekunden; die Einstellung gilt bis zur nächsten.
+-- speed_mps = eingestellte Geschwindigkeit in m/s (0 = Stillstand), vom Nutzer
+-- eingestellt und nicht gemessen; incline_percent = Steigung in %, NULL = nicht
+-- angegeben (nie 0 statt unbekannt). Die Bereiche der Eingabe (PAR-209, PAR-210)
+-- prüft die Oberfläche, die Tabelle nur Vorzeichen.
+CREATE TABLE treadmill_settings (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+  offset_us INTEGER NOT NULL CHECK (offset_us >= 0),
+  speed_mps REAL NOT NULL CHECK (speed_mps >= 0),
+  incline_percent REAL CHECK (incline_percent >= 0)
+);
+CREATE INDEX treadmill_settings_run_time ON treadmill_settings (run_id, offset_us);
+
 -- UPDATE auf Rohdaten: immer abbrechen (ADR-0004 Punkt 1).
 CREATE TRIGGER raw_positions_no_update BEFORE UPDATE ON raw_positions
 BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
@@ -145,6 +164,9 @@ CREATE TRIGGER raw_steps_no_update BEFORE UPDATE ON raw_steps
 BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
 
 CREATE TRIGGER raw_rr_packets_no_update BEFORE UPDATE ON raw_rr_packets
+BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
+
+CREATE TRIGGER treadmill_settings_no_update BEFORE UPDATE ON treadmill_settings
 BEGIN SELECT RAISE(ABORT, 'raw data is append-only'); END;
 
 -- DELETE auf Rohdaten nur über die Kaskade des Laufs: Dort ist die Lauf-Zeile
@@ -163,6 +185,10 @@ WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)
 BEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;
 
 CREATE TRIGGER raw_rr_packets_no_direct_delete BEFORE DELETE ON raw_rr_packets
+WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)
+BEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;
+
+CREATE TRIGGER treadmill_settings_no_direct_delete BEFORE DELETE ON treadmill_settings
 WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id)
 BEGIN SELECT RAISE(ABORT, 'raw data is deleted only with its run'); END;
 
@@ -562,7 +588,7 @@ CREATE INDEX plan_units_day ON plan_units (day);
 CREATE INDEX plan_units_plan ON plan_units (plan_id);
 CREATE INDEX plan_units_run ON plan_units (run_id);
 
--- ------------------------------------------------ Warnsignal (Version 10, WP23)
+-- ------------------------------------------------ Warnsignal (Version 11, WP23)
 -- Das aktive Warnsignal (FR-0203, K58): höchstens eine Zeile (`id = 1`).
 -- `reported_on` ist der Ortstag der Meldung (ISO-Datum), `source` 'manual'
 -- (Plan-Seite) oder 'run_feedback' (Antwort "ja" der Zusammenfassung). `run_id`

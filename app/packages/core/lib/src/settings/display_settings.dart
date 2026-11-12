@@ -55,6 +55,10 @@ abstract final class SettingKeys {
   /// gilt sie als aus (OQ-0065).
   static const String autoPause = 'recording.auto_pause';
 
+  /// Zuletzt gewählte Laufart der Seite „Lauf vorbereiten“ (FR-0196):
+  /// `treadmill` oder `gps`; fehlt der Eintrag, gilt `gps`.
+  static const String runMode = 'recording.run_mode';
+
   /// Aktives Belastungsprofil (FR-0197): `edwards` oder `banister`; fehlt der
   /// Eintrag, gilt `edwards`. Geschrieben wird er nur von der Neuberechnung
   /// nach Bestätigung (OQ-0053), siehe `LoadSettings`.

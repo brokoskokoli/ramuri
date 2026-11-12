@@ -12,6 +12,7 @@ import '../summary/warning_entry.dart';
 import 'live_map_page.dart';
 import 'live_run_values.dart';
 import 'run_controller.dart';
+import 'treadmill_units.dart';
 
 /// Zeit als `h:mm:ss`, unter einer Stunde `m:ss`; `null` ergibt „–“.
 String formatClock(Duration? d) {
@@ -45,6 +46,13 @@ String livePaceText(
   UnitFormatter formatter,
   AppLocalizations l10n,
 ) {
+  // Laufband: Die aktuelle Pace folgt der eingestellten Bandgeschwindigkeit.
+  if (controller.runMode == RunMode.treadmill) {
+    final pace = TreadmillUnits.paceSecondsPerKm(
+      controller.snapshot.beltSpeedMetersPerSecond,
+    );
+    return pace == null ? UnitFormatter.noValue : formatter.pace(pace);
+  }
   switch (controller.preprocessing?.pace.livePace) {
     case PaceValue(:final secondsPerKm):
       return formatter.pace(secondsPerKm);
@@ -93,7 +101,8 @@ class LiveRunView extends StatelessWidget {
             ? c.segmentTrack
             : c.accentPanel,
         body: SafeArea(
-          child: finished
+          // Laufband: keine Kartenseite (FR-0196), nur die Werte.
+          child: finished || controller.runMode == RunMode.treadmill
               ? _valuesPage(context, l10n, finished)
               : _LiveRunPager(
                   values: _valuesPage(context, l10n, finished),

@@ -97,6 +97,16 @@ class Runs extends Table with TableInfo {
     requiredDuringInsert: false,
     $customConstraints: 'CHECK (ended_utc_offset_s BETWEEN -64800 AND 64800)',
   );
+  late final GeneratedColumn<String> mode = GeneratedColumn<String>(
+    'mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'NOT NULL DEFAULT \'gps\' CHECK (mode IN (\'gps\', \'treadmill\'))',
+    defaultValue: const CustomExpression('\'gps\''),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -104,6 +114,7 @@ class Runs extends Table with TableInfo {
     startedAtUs,
     endedAtUs,
     endedUtcOffsetS,
+    mode,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -758,6 +769,81 @@ class RawRrPackets extends Table with TableInfo {
   @override
   RawRrPackets createAlias(String alias) {
     return RawRrPackets(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class TreadmillSettings extends Table with TableInfo {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  TreadmillSettings(this.attachedDatabase, [this._alias]);
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
+    'run_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL REFERENCES runs(id)ON DELETE CASCADE',
+  );
+  late final GeneratedColumn<int> offsetUs = GeneratedColumn<int>(
+    'offset_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (offset_us >= 0)',
+  );
+  late final GeneratedColumn<double> speedMps = GeneratedColumn<double>(
+    'speed_mps',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (speed_mps >= 0)',
+  );
+  late final GeneratedColumn<double> inclinePercent = GeneratedColumn<double>(
+    'incline_percent',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (incline_percent >= 0)',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    runId,
+    offsetUs,
+    speedMps,
+    inclinePercent,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'treadmill_settings';
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Never map(Map<String, dynamic> data, {String? tablePrefix}) {
+    throw UnsupportedError('TableInfo.map in schema verification code');
+  }
+
+  @override
+  TreadmillSettings createAlias(String alias) {
+    return TreadmillSettings(attachedDatabase, alias);
   }
 
   @override
@@ -2735,68 +2821,6 @@ class PlanUnits extends Table with TableInfo {
   bool get dontWriteConstraints => true;
 }
 
-class ActiveWarning extends Table with TableInfo {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  ActiveWarning(this.attachedDatabase, [this._alias]);
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    $customConstraints: 'NOT NULL PRIMARY KEY CHECK (id = 1)',
-  );
-  late final GeneratedColumn<String> reportedOn = GeneratedColumn<String>(
-    'reported_on',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (reported_on GLOB \'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\' AND date(reported_on) IS reported_on)',
-  );
-  late final GeneratedColumn<String> source = GeneratedColumn<String>(
-    'source',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    $customConstraints:
-        'NOT NULL CHECK (source IN (\'manual\', \'run_feedback\'))',
-  );
-  late final GeneratedColumn<int> runId = GeneratedColumn<int>(
-    'run_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    $customConstraints:
-        'CHECK (run_id IS NULL OR typeof(run_id) = \'integer\')',
-  );
-  @override
-  List<GeneratedColumn> get $columns => [id, reportedOn, source, runId];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'active_warning';
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  Never map(Map<String, dynamic> data, {String? tablePrefix}) {
-    throw UnsupportedError('TableInfo.map in schema verification code');
-  }
-
-  @override
-  ActiveWarning createAlias(String alias) {
-    return ActiveWarning(attachedDatabase, alias);
-  }
-
-  @override
-  bool get dontWriteConstraints => true;
-}
-
 class DatabaseAtV10 extends GeneratedDatabase {
   DatabaseAtV10(QueryExecutor e) : super(e);
   late final StorageMeta storageMeta = StorageMeta(this);
@@ -2844,6 +2868,11 @@ class DatabaseAtV10 extends GeneratedDatabase {
     'raw_rr_packets_run_time',
     'CREATE INDEX raw_rr_packets_run_time ON raw_rr_packets (run_id, time_us)',
   );
+  late final TreadmillSettings treadmillSettings = TreadmillSettings(this);
+  late final Index treadmillSettingsRunTime = Index(
+    'treadmill_settings_run_time',
+    'CREATE INDEX treadmill_settings_run_time ON treadmill_settings (run_id, offset_us)',
+  );
   late final Trigger rawPositionsNoUpdate = Trigger(
     'CREATE TRIGGER raw_positions_no_update BEFORE UPDATE ON raw_positions BEGIN SELECT RAISE (ABORT, \'raw data is append-only\');END',
     'raw_positions_no_update',
@@ -2864,6 +2893,10 @@ class DatabaseAtV10 extends GeneratedDatabase {
     'CREATE TRIGGER raw_rr_packets_no_update BEFORE UPDATE ON raw_rr_packets BEGIN SELECT RAISE (ABORT, \'raw data is append-only\');END',
     'raw_rr_packets_no_update',
   );
+  late final Trigger treadmillSettingsNoUpdate = Trigger(
+    'CREATE TRIGGER treadmill_settings_no_update BEFORE UPDATE ON treadmill_settings BEGIN SELECT RAISE (ABORT, \'raw data is append-only\');END',
+    'treadmill_settings_no_update',
+  );
   late final Trigger rawPositionsNoDirectDelete = Trigger(
     'CREATE TRIGGER raw_positions_no_direct_delete BEFORE DELETE ON raw_positions WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, \'raw data is deleted only with its run\');END',
     'raw_positions_no_direct_delete',
@@ -2883,6 +2916,10 @@ class DatabaseAtV10 extends GeneratedDatabase {
   late final Trigger rawRrPacketsNoDirectDelete = Trigger(
     'CREATE TRIGGER raw_rr_packets_no_direct_delete BEFORE DELETE ON raw_rr_packets WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, \'raw data is deleted only with its run\');END',
     'raw_rr_packets_no_direct_delete',
+  );
+  late final Trigger treadmillSettingsNoDirectDelete = Trigger(
+    'CREATE TRIGGER treadmill_settings_no_direct_delete BEFORE DELETE ON treadmill_settings WHEN EXISTS (SELECT 1 FROM runs WHERE id = OLD.run_id) BEGIN SELECT RAISE (ABORT, \'raw data is deleted only with its run\');END',
+    'treadmill_settings_no_direct_delete',
   );
   late final PreprocessingResults preprocessingResults = PreprocessingResults(
     this,
@@ -2984,7 +3021,6 @@ class DatabaseAtV10 extends GeneratedDatabase {
     'plan_units_run',
     'CREATE INDEX plan_units_run ON plan_units (run_id)',
   );
-  late final ActiveWarning activeWarning = ActiveWarning(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3008,16 +3044,20 @@ class DatabaseAtV10 extends GeneratedDatabase {
     rawAltitudesRunTime,
     rawStepsRunTime,
     rawRrPacketsRunTime,
+    treadmillSettings,
+    treadmillSettingsRunTime,
     rawPositionsNoUpdate,
     rawHeartRatesNoUpdate,
     rawAltitudesNoUpdate,
     rawStepsNoUpdate,
     rawRrPacketsNoUpdate,
+    treadmillSettingsNoUpdate,
     rawPositionsNoDirectDelete,
     rawHeartRatesNoDirectDelete,
     rawAltitudesNoDirectDelete,
     rawStepsNoDirectDelete,
     rawRrPacketsNoDirectDelete,
+    treadmillSettingsNoDirectDelete,
     preprocessingResults,
     preprocessedSamples,
     preprocessedSamplesRunTime,
@@ -3054,7 +3094,6 @@ class DatabaseAtV10 extends GeneratedDatabase {
     planUnitsDay,
     planUnitsPlan,
     planUnitsRun,
-    activeWarning,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -3123,6 +3162,13 @@ class DatabaseAtV10 extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'runs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('treadmill_settings', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'raw_positions',
         limitUpdateKind: UpdateKind.update,
       ),
@@ -3158,6 +3204,13 @@ class DatabaseAtV10 extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'treadmill_settings',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'raw_positions',
         limitUpdateKind: UpdateKind.delete,
       ),
@@ -3187,6 +3240,13 @@ class DatabaseAtV10 extends GeneratedDatabase {
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'raw_rr_packets',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'treadmill_settings',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [],

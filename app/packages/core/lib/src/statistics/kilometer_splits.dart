@@ -3,6 +3,7 @@ import '../preprocessing/measurement.dart';
 import '../preprocessing/movement_time_processor.dart' show TimeSpan;
 import '../preprocessing/motion_segments.dart';
 import '../preprocessing/run_preprocessor.dart';
+import '../recording/belt_track.dart';
 import 'run_detail.dart' show RoutePoint;
 
 /// Kennung und Version der Kilometerrechnung (NFR-0001, NFR-0005).
@@ -111,8 +112,10 @@ class KilometerSplits {
 KilometerSplits computeKilometerSplits(
   RunPreprocessing pre, {
   double unitMeters = kilometerMeters,
+  BeltTrack? belt,
 }) {
   assert(unitMeters > 0);
+  if (belt != null) return computeBeltSplits(pre, belt, unitMeters: unitMeters);
   final moving = pre.movement.movingIntervals;
   final totalMicros = pre.movement.movingTime.inMicroseconds;
 
@@ -253,10 +256,97 @@ KilometerSplits computeKilometerSplits(
   );
 }
 
-/// [computeKilometerSplits] als Auftrag für einen anderen Isolate.
+/// Abschnitte eines Bandlaufs (FR-0196, K57) aus dem Bandverlauf statt aus
+/// Positionen: die Grenzen liegen dort, wo die eingestellte Geschwindigkeit,
+/// über die Bewegungszeit summiert, ein Vielfaches von [unitMeters] erreicht.
+/// Zeit eines Abschnitts ist seine Bewegungszeit (Stillstand und Pausen zählen
+/// nicht), die Summe ist die Bewegungszeit des Bandes. Keine Lücken, keine
+/// Marken, kein Anstieg (die Höhe ist unbekannt). Puls: Mittel der
+/// akzeptierten Werte in der Bewegungszeit des Abschnitts.
+KilometerSplits computeBeltSplits(
+  RunPreprocessing pre,
+  BeltTrack belt, {
+  double unitMeters = kilometerMeters,
+}) {
+  assert(unitMeters > 0);
+  final heart = pre.heartRate.acceptedValues;
+  final splits = <KilometerSplit>[];
+  var micros = 0;
+  var meters = 0.0; // im laufenden Abschnitt
+  var sum = 0;
+  var n = 0;
+
+  void heartIn(DateTime from, DateTime to) {
+    for (final h in heart) {
+      if (!h.time.isBefore(from) && h.time.isBefore(to)) {
+        sum += h.bpm;
+        n++;
+      }
+    }
+  }
+
+  void close(double length, {required bool partial}) {
+    final time = Duration(microseconds: micros);
+    final speed = time > Duration.zero ? length / (micros / 1e6) : null;
+    splits.add(
+      KilometerSplit(
+        index: splits.length + 1,
+        lengthMeters: length,
+        isPartial: partial,
+        time: time,
+        positionGapTime: Duration.zero,
+        paceSecondsPerKm:
+            speed == null || speed < pre.parameters.standstillBelow
+            ? null
+            : micros / 1e6 / (length / 1000),
+        heartRateAverageBpm: n == 0 ? null : sum / n,
+      ),
+    );
+    micros = 0;
+    meters = 0;
+    sum = 0;
+    n = 0;
+  }
+
+  for (final p in belt.pieces) {
+    if (!p.isMoving) continue;
+    final v = p.speedMetersPerSecond;
+    var from = p.span.start;
+    final end = p.span.end;
+    while (true) {
+      final toGo = unitMeters - meters;
+      final remainingMeters = v * end.difference(from).inMicroseconds / 1e6;
+      if (remainingMeters + _lengthEpsilonMeters < toGo) {
+        micros += end.difference(from).inMicroseconds;
+        meters += remainingMeters;
+        heartIn(from, end);
+        break;
+      }
+      final cut = from.add(Duration(microseconds: (toGo / v * 1e6).round()));
+      final at = cut.isAfter(end) ? end : cut;
+      micros += at.difference(from).inMicroseconds;
+      heartIn(from, at);
+      close(unitMeters, partial: false);
+      from = at;
+      if (!from.isBefore(end)) break;
+    }
+  }
+  if (meters > _lengthEpsilonMeters) close(meters, partial: true);
+
+  return KilometerSplits(
+    unitMeters: unitMeters,
+    splits: splits,
+    marks: const [],
+    ascentMeters: null,
+    descentMeters: null,
+  );
+}
+
+/// [computeKilometerSplits] als Auftrag für einen anderen Isolate; [belt] nur
+/// bei einem Bandlauf.
 KilometerSplits kilometerSplitsJob(
-  ({RunPreprocessing pre, double unitMeters}) a,
-) => computeKilometerSplits(a.pre, unitMeters: a.unitMeters);
+  ({RunPreprocessing pre, double unitMeters, BeltTrack? belt}) a,
+) => computeKilometerSplits(a.pre, unitMeters: a.unitMeters, belt: a.belt);
 
 RoutePoint? _between(
   Map<DateTime, RawPosition> points,

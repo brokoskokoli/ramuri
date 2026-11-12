@@ -1,3 +1,4 @@
+import '../src/recording/treadmill.dart';
 import 'storage.dart' show StorageException, StorageFailure;
 
 /// Zustand eines Laufs. `paused` und `finished` sind aus FR-0028 und FR-0193
@@ -11,6 +12,7 @@ class StoredRun {
     required this.startedAt,
     this.endedAt,
     this.endedUtcOffset,
+    this.mode = RunMode.gps,
   });
 
   final int id;
@@ -25,12 +27,19 @@ class StoredRun {
   /// unbekannt (Läufe aus Schema 1, oder beim Beenden nicht genannt). Nur bei
   /// [RunState.finished].
   final Duration? endedUtcOffset;
+
+  /// Art des Laufs (ab Schema 10; frühere Läufe sind `gps`).
+  final RunMode mode;
 }
 
 /// Läufe anlegen, Zustand ändern, lesen.
 abstract interface class RunStore {
-  /// Legt einen Lauf im Zustand `active` an.
-  Future<StoredRun> create({required DateTime startedAt});
+  /// Legt einen Lauf im Zustand `active` an. [mode] ist danach nicht mehr
+  /// änderbar.
+  Future<StoredRun> create({
+    required DateTime startedAt,
+    RunMode mode = RunMode.gps,
+  });
 
   /// Ändert den Zustand. [endedAt] ist genau bei `finished` Pflicht und sonst
   /// verboten (`rejected`); ein unbekannter Lauf ist `notFound`. Die Reihenfolge
