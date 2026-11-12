@@ -318,13 +318,23 @@ class PlanController extends ChangeNotifier {
     PlanTrigger trigger,
     TrainingGoal goal,
     PlanVersionRecord? last, {
-    bool adjust = false,
+    bool? adjust,
   }) async {
     final today = _today();
     final built = await reader.read(goal: goal, today: today);
     var inputs = _inputsFor(trigger, built, last);
     String? reason;
-    if (adjust && last != null) {
+    // Eine Zieländerung setzt den Prüftag; eine fällige Wochenbewertung der
+    // Vorwoche fällt dadurch nicht weg (NB7 6), sie geht in dieselbe Fassung
+    // ein (Grund bleibt `goalChange`).
+    final doAdjust =
+        adjust ??
+        (trigger == PlanTrigger.goalChange &&
+            weeklyCheckDue(
+              await session.settings.get(planLastCheckDayKey),
+              today,
+            ));
+    if (doAdjust && last != null) {
       final evidence = await reader.weekEvidence(today);
       final a = evaluateWeekAdjustment(
         goal: goal,
@@ -338,9 +348,11 @@ class PlanController extends ChangeNotifier {
       );
       if (a != null) {
         inputs = refreshMeasuredInputs(a.inputs, built.inputs);
-        reason = ([
-          ...a.reasons,
-        ]..sort((x, y) => x.index - y.index)).map((r) => r.name).join(',');
+        if (trigger == PlanTrigger.weekly) {
+          reason = ([
+            ...a.reasons,
+          ]..sort((x, y) => x.index - y.index)).map((r) => r.name).join(',');
+        }
       }
     }
     final r = await recalculatePlan(
@@ -969,7 +981,12 @@ class PlanController extends ChangeNotifier {
     final next = restart.inputs;
     if (next == null && chosen) {
       // Kein Neustart möglich: das neue Ziel gilt trotzdem für den Plan.
-      await _recalculate(PlanTrigger.goalChange, goal, history.last);
+      await _recalculate(
+        PlanTrigger.goalChange,
+        goal,
+        history.last,
+        adjust: false,
+      );
     }
     if (next != null) {
       final r = await recalculatePlan(

@@ -165,9 +165,23 @@ class PlanDataReader {
         if (!u.day.isBefore(lastMonday) && u.day.isBefore(thisMonday)) u,
     ];
     final byTime = [...runs]..sort((a, b) => a.endedAt.compareTo(b.endedAt));
-    final easyRpe = <int?>[
+    final easyRuns = [
       for (final r in byTime)
-        if (easyIds.contains(r.runId)) subjective[r.runId]?.subjective.rpe,
+        if (easyIds.contains(r.runId)) r,
+    ];
+    // Die RPE-Regel zählt nur, wenn mindestens einer der letzten lockeren
+    // Läufe (Fenster der Regel) in der bewerteten Woche liegt: Dieselbe alte
+    // Bewertung löst nicht jede Woche erneut aus.
+    final window = easyRuns.length > parameters.fatigueWindowRuns
+        ? easyRuns.sublist(easyRuns.length - parameters.fatigueWindowRuns)
+        : easyRuns;
+    final windowInWeek = window.any((r) {
+      final d = _parseDay(r.day);
+      return d != null && !d.isBefore(lastMonday) && d.isBefore(thisMonday);
+    });
+    final easyRpe = <int?>[
+      if (windowInWeek)
+        for (final r in easyRuns) subjective[r.runId]?.subjective.rpe,
     ];
     var fatigue = false;
     if (byTime.isNotEmpty) {

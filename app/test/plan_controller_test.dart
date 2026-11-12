@@ -893,6 +893,190 @@ void main() {
     });
   });
 
+  group('Wochenprüfung: Belege aus dem Speicher (NB7 4 bis 6)', () {
+    // Plan seit Mittwoch 21.10.; bewertet wird die Woche 16.-22.11., geöffnet
+    // wird Dienstag 24.11. (letzter Lauf höchstens 3 Tage her).
+    DateTime monday(int n) =>
+        DateTime.utc(2026, 11, 16).add(Duration(days: 7 * n));
+
+    late _Env e;
+    late List<RunFigures> runs;
+
+    Future<void> prepare() async {
+      runs = <RunFigures>[];
+      e = await _Env.open(loadRuns: () async => runs);
+      e.clock.set(_day(-21));
+      await e.controller.saveGoal(_goal());
+      e.clock.set(DateTime.utc(2026, 11, 24, 12));
+    }
+
+    Future<List<PlanUnit>> week(int n) async => [
+      for (final u in await e.plans.unitsBetween(
+        monday(n),
+        monday(n).add(const Duration(days: 6)),
+      ))
+        if (u.kind != PlanUnitKind.rest) u,
+    ];
+
+    /// Lauf am Tag [day] (UTC), [minutes] lang; mit [unit] der Einheit
+    /// zugeordnet.
+    Future<void> addRun(
+      DateTime day,
+      int minutes, {
+      PlanUnit? unit,
+      int? rpe,
+      int? wellbeing,
+    }) async {
+      final start = day.add(const Duration(hours: 8));
+      final r = await e.session.runs.create(startedAt: start);
+      await e.session.runs.setState(
+        r.id,
+        RunState.finished,
+        endedAt: start.add(Duration(minutes: minutes)),
+        endedUtcOffset: Duration.zero,
+      );
+      if (rpe != null || wellbeing != null) {
+        await e.session.subjective.save(
+          r.id,
+          RunSubjective(rpe: rpe, wellbeing: wellbeing),
+        );
+      }
+      if (unit != null) await e.plans.assignRun(unit.id!, r.id);
+      runs.add(
+        RunFigures(
+          runId: r.id,
+          endedAt: start.add(Duration(minutes: minutes)),
+          day: _dayText(day),
+          movingTime: Duration(minutes: minutes),
+        ),
+      );
+    }
+
+    /// Alle Einheiten der Woche voll gelaufen; RPE nach [rpeOf].
+    Future<void> runWeek(
+      int n, {
+      int? Function(PlanUnit u, int index)? rpeOf,
+      int? lastWellbeing,
+    }) async {
+      final units = await week(n);
+      for (var i = 0; i < units.length; i++) {
+        final u = units[i];
+        await addRun(
+          u.day,
+          u.minutes,
+          unit: u,
+          rpe: rpeOf?.call(u, i),
+          wellbeing: i == units.length - 1 ? lastWellbeing : null,
+        );
+      }
+    }
+
+    bool easy(PlanUnit u) =>
+        u.kind == PlanUnitKind.easy || u.kind == PlanUnitKind.long;
+
+    Future<PlanVersionRecord?> opened() async {
+      final before = (await e.plans.history()).length;
+      await e.controller.open();
+      final h = await e.plans.history();
+      return h.length > before ? h.last : null;
+    }
+
+    test('Ermüdung: Befinden 2 beim letzten Lauf (3 Tage alt) -> fatigue, '
+        'Befinden 3 -> keine Anpassung (PAR-188)', () async {
+      await prepare();
+      await runWeek(0, lastWellbeing: 2);
+      final v = await opened();
+      expect(v?.reason, 'fatigue');
+      expect(v?.inputs.noHardUntil, isNotNull);
+    });
+
+    test('Befinden 3 beim letzten Lauf: keine Anpassung', () async {
+      await prepare();
+      await runWeek(0, lastWellbeing: 3);
+      expect(await opened(), isNull);
+    });
+
+    test('RPE: 2 von 3 lockeren Läufen mit RPE >= 6, harter Lauf dazwischen '
+        '-> fatigue', () async {
+      await prepare();
+      final units = await week(0);
+      expect(units.where(easy).length, greaterThanOrEqualTo(2));
+      var n = 0;
+      await runWeek(
+        0,
+        rpeOf: (u, i) {
+          if (!easy(u)) return 3;
+          return n++ == 0 ? 7 : 7;
+        },
+      );
+      final v = await opened();
+      expect(v?.reason, 'fatigue');
+    });
+
+    test('RPE zählt nur lockere Läufe: ein freier Lauf mit RPE 8 macht aus '
+        'einem lockeren mit RPE 7 keine Ermüdung', () async {
+      await prepare();
+      final units = await week(0);
+      expect(units.where(easy).length, 3);
+      final rpe = [4, 7, 4];
+      for (var i = 0; i < units.length; i++) {
+        await addRun(
+          units[i].day,
+          units[i].minutes,
+          unit: units[i],
+          rpe: rpe[i],
+        );
+        if (i == 1) {
+          // Freier Lauf (keiner Einheit zugeordnet) zwischen den lockeren.
+          await addRun(units[i].day.add(const Duration(days: 1)), 20, rpe: 8);
+        }
+      }
+      expect(await opened(), isNull);
+    });
+
+    test('Wochengrenze: ein Lauf der laufenden Woche zählt nicht zur '
+        'bewerteten Woche', () async {
+      await prepare();
+      final planned = (await week(0)).fold<int>(0, (a, u) => a + u.minutes);
+      await addRun(monday(1), planned);
+      final v = await opened();
+      expect(v?.reason, 'repeatWeek');
+    });
+
+    test('RPE-Fenster: alte Bewertung ohne lockeren Lauf in der bewerteten '
+        'Woche löst nicht erneut aus (NB7 5)', () async {
+      await prepare();
+      // Vorwoche: lockere Läufe mit RPE 8 (zählten damals).
+      await runWeek(-1, rpeOf: (u, i) => easy(u) ? 8 : 3);
+      // Bewertete Woche: voll gelaufen, aber nur freie Läufe (keiner
+      // einer lockeren Einheit zugeordnet).
+      for (final u in await week(0)) {
+        await addRun(u.day, u.minutes);
+      }
+      expect(await opened(), isNull);
+    });
+  });
+
+  group('Zieländerung am Prüftag (NB7 6)', () {
+    test('goalChange am Montag bewertet die Vorwoche mit '
+        '(Grund bleibt goalChange)', () async {
+      final e = await _Env.open();
+      e.clock.set(_day(-21));
+      await e.controller.saveGoal(_goal());
+      final mon1 = DateTime.utc(2026, 11, 23);
+      // Montag der Folgewoche: Ziel geändert, Vorwoche ohne Läufe.
+      e.clock.set(mon1.add(const Duration(hours: 12)));
+      await e.controller.saveGoal(_goal(target: DateTime.utc(2027, 5, 1)));
+      final h = await e.plans.history();
+      expect(h.last.trigger, PlanTrigger.goalChange);
+      expect(h.last.reason, 'goalChange');
+      // Die Bewertung der Vorwoche (0 % geschafft) ist in die Fassung
+      // eingegangen.
+      expect(h.last.inputs.achievedShare, 0);
+      expect(h.last.inputs.lastWeekMinutes, isNotNull);
+    });
+  });
+
   group('Geh-Lauf wiederholen: Annahme am Donnerstag (NB5 2)', () {
     test('die Abfolge beginnt heute, frühere Läufe bleiben und zählen nicht '
         'als Lauf 2 und 3', () async {
