@@ -7,6 +7,7 @@ import '../sensors/run_heart_rate.dart';
 import '../settings/unit_format.dart';
 import 'live_run_view.dart';
 import 'run_controller.dart';
+import 'treadmill_controls.dart';
 
 /// Zahl und Einheit eines fertig formatierten Werts: Hat [text] die [unit] als
 /// Endung, steht sie getrennt; sonst (etwa „–“ oder „noch keine Daten“) ist der
@@ -138,6 +139,7 @@ class LiveValues extends StatelessWidget {
     final pre = controller.preprocessing;
     final na = l10n.runUnavailable;
     final paused = s.phase == RecordingPhase.paused;
+    final belt = controller.runMode == RunMode.treadmill;
 
     final avg = averagePaceSecondsPerKm(s);
     final ascent = pre?.altitude.ascentMeters;
@@ -260,7 +262,12 @@ class LiveValues extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Header(controller: controller, paused: paused, gps: gpsState),
+        _Header(
+          controller: controller,
+          paused: paused,
+          gps: gpsState,
+          showGps: !belt,
+        ),
         const SizedBox(height: 12),
         if (s.phase == RecordingPhase.autoPaused)
           LiveBanner(
@@ -279,7 +286,7 @@ class LiveValues extends StatelessWidget {
             Text(l10n.runStorageFailed, key: const Key('run_banner_storage')),
             error: true,
           ),
-        if (gpsState != _GpsState.good)
+        if (!belt && gpsState != _GpsState.good)
           LiveBanner(
             Text(switch (gpsState) {
               _GpsState.error => l10n.runGpsError,
@@ -318,6 +325,10 @@ class LiveValues extends StatelessWidget {
             unitStyle: type.unitLarge,
           ),
         ),
+        if (belt) ...[
+          const SizedBox(height: 10),
+          TreadmillControls(controller: controller, formatter: formatter),
+        ],
         const SizedBox(height: 14),
         pair(
           (
@@ -376,7 +387,7 @@ class LiveValues extends StatelessWidget {
           tile(l10n.runCadence, 'run_cadence', cadence, cadenceUnit),
           null,
         ),
-        if (gapCount > 0) ...[
+        if (!belt && gapCount > 0) ...[
           const SizedBox(height: 10),
           Text(
             l10n.runGpsGaps(gapCount),
@@ -403,11 +414,15 @@ class _Header extends StatelessWidget {
     required this.controller,
     required this.paused,
     required this.gps,
+    required this.showGps,
   });
 
   final RunController controller;
   final bool paused;
   final _GpsState gps;
+
+  /// Im Laufbandmodus gibt es kein GPS und keinen GPS-Chip.
+  final bool showGps;
 
   @override
   Widget build(BuildContext context) {
@@ -433,16 +448,17 @@ class _Header extends StatelessWidget {
         spacing: 6,
         runSpacing: 6,
         children: [
-          _StatusChip(
-            id: 'live_chip_gps',
-            label: switch (gps) {
-              _GpsState.good => l10n.liveGpsGood,
-              _GpsState.searching => l10n.liveGpsSearching,
-              _GpsState.lost => l10n.liveGpsLost,
-              _GpsState.error => l10n.liveGpsError,
-            },
-            good: gps == _GpsState.good,
-          ),
+          if (showGps)
+            _StatusChip(
+              id: 'live_chip_gps',
+              label: switch (gps) {
+                _GpsState.good => l10n.liveGpsGood,
+                _GpsState.searching => l10n.liveGpsSearching,
+                _GpsState.lost => l10n.liveGpsLost,
+                _GpsState.error => l10n.liveGpsError,
+              },
+              good: gps == _GpsState.good,
+            ),
           _StatusChip(id: 'live_chip_hr', label: pulse.$1, good: pulse.$2),
         ],
       );
