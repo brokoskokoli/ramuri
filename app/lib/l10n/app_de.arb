@@ -2384,6 +2384,8 @@
   "@planFormTitleNewStart": {"description": "NB3, Zielformular: neuer Einstieg nach langer Pause (PAR-181)"},
   "planFormStandNewStart": "Nach der langen Pause: Wie ist dein heutiger Stand? Der Plan beginnt damit neu.",
   "@planFormStandNewStart": {"description": "NB3, Zielformular: Stand beim neuen Einstieg (PAR-192)"},
+  "planFormStandNewStartNeutral": "Nach der langen Pause: Wie ist dein heutiger Stand?",
+  "@planFormStandNewStartNeutral": {"description": "NB5, Zielformular: Stand beim neuen Einstieg ohne Aussage über den Plan"},
   "@planFormTitleEdit": {"description": "WP22 Teil C, Zielformular"},
   "planFormType": "Was ist dein Ziel?",
   "@planFormType": {"description": "WP22 Teil C, Zielformular"},

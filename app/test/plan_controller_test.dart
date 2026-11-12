@@ -960,4 +960,37 @@ void main() {
       expect(e.controller.state.walkRunProposal, isNull);
     });
   });
+
+  group('Neuer Einstieg: Neustart möglich (NB5 5)', () {
+    Future<bool> possible(DateTime target) async {
+      final e = await _Env.open();
+      e.clock.set(_day(-80));
+      expect(
+        await e.controller.saveGoal(_goal(target: target)),
+        PlanActionResult.done,
+      );
+      e.clock.set(_now);
+      await _finishedRun(e.session, 70);
+      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      return e.controller.newStartPossible();
+    }
+
+    test(
+      'ja bei langer Pause und weitem Termin, nein kurz vor dem Termin',
+      () async {
+        expect(await possible(DateTime.utc(2027, 6, 1)), isTrue);
+        expect(await possible(DateTime.utc(2026, 11, 14)), isFalse);
+      },
+    );
+
+    test('nein ohne anstehenden Einstieg (keine lange Pause)', () async {
+      final e = await _Env.open();
+      e.clock.set(_day(-80));
+      await e.controller.saveGoal(_goal());
+      e.clock.set(_now);
+      await _finishedRun(e.session, 20);
+      await LoadSettings.saveAllRecorded(e.session.settings, true, at: _now);
+      expect(await e.controller.newStartPossible(), isFalse);
+    });
+  });
 }

@@ -953,7 +953,7 @@ class PlanController extends ChangeNotifier {
       baseWeekMinutes: q.baseWeekMinutes,
       parameters: parameters,
       provisional: longPause && !chosen,
-      replacesProvisional: chosen && wasProvisional,
+      replacesProvisional: chosen && wasProvisional && mark!.restarted,
     );
     final next = restart.inputs;
     if (next == null && chosen) {
@@ -988,13 +988,40 @@ class PlanController extends ChangeNotifier {
     );
   }
 
-  /// Gilt für die Pause nach [q] schon die vorläufige Vorgabe?
+  /// Würde der Plan beim neuen Einstieg nach langer Pause neu beginnen
+  /// (PAR-181)? `false` ohne anstehenden Einstieg, ohne Plan und wenn kein
+  /// Neustart möglich ist ([planPauseRestart] liefert nichts).
+  Future<bool> newStartPossible() async {
+    try {
+      final q = await HintService(session: session, clock: clock).newStartDue();
+      final goal = await _goals.goal();
+      final history = await _plans.history();
+      if (q == null || goal == null || history.isEmpty) return false;
+      final today = _today();
+      final built = await reader.read(goal: goal, today: today);
+      return planPauseRestart(
+            goal: goal,
+            inputs: refreshMeasuredInputs(history.last.inputs, built.inputs),
+            today: today,
+            lastTrainingDay: q.lastTrainingDay,
+            baseWeekMinutes: q.baseWeekMinutes,
+            parameters: parameters,
+            replacesProvisional: await _pauseProvisional(q),
+          ).inputs !=
+          null;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Gilt für die Pause nach [q] schon die vorläufige Vorgabe (als Fassung)?
   Future<bool> _pauseProvisional(PauseQuestion q) async {
     final mark = PauseRestartMark.parse(
       await session.settings.get(planPauseRestartKey),
     );
     return mark != null &&
         mark.provisional &&
+        mark.restarted &&
         mark.day == warningDay(q.lastTrainingDay);
   }
 

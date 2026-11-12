@@ -106,6 +106,10 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   /// (E2E API 36: Minuten je Einheit nicht nur über dem Knopf).
   GoalProblem? _problem;
 
+  /// Beim neuen Einstieg: Ist ein Neustart des Plans möglich? Nur dann sagt
+  /// der Text zum Stand, dass der Plan damit neu beginnt.
+  bool _restartPossible = false;
+
   bool get _editing => widget.initial != null;
 
   /// Der Stand wird gefragt: beim Anlegen ohne Läufe (PAR-192) und beim neuen
@@ -116,6 +120,11 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.newStart) {
+      widget.controller.newStartPossible().then((v) {
+        if (mounted && v) setState(() => _restartPossible = true);
+      });
+    }
     final g = widget.initial;
     if (g != null) {
       _type = g.type;
@@ -712,7 +721,9 @@ class _PlanGoalFormScreenState extends State<PlanGoalFormScreen> {
       else ...[
         if (widget.newStart)
           Text(
-            l.planFormStandNewStart,
+            _restartPossible
+                ? l.planFormStandNewStart
+                : l.planFormStandNewStartNeutral,
             key: const Key('plan_form_stand_new_start'),
             style: text.bodySmall?.copyWith(
               color: RamuriColors.of(context).textLabel,

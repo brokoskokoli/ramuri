@@ -1662,6 +1662,8 @@
   "@planFormTitleNewStart": {"description": "NB3, goal form: new start after a long break (PAR-181)"},
   "planFormStandNewStart": "After the long break: where do you stand today? The plan starts again from this.",
   "@planFormStandNewStart": {"description": "NB3, goal form: current level for the new start (PAR-192)"},
+  "planFormStandNewStartNeutral": "After the long break: where do you stand today?",
+  "@planFormStandNewStartNeutral": {"description": "NB5, goal form: current level for the new start without a statement about the plan"},
   "@planFormTitleEdit": {"description": "WP22 Teil C, Zielformular"},
   "planFormType": "What is your goal?",
   "@planFormType": {"description": "WP22 Teil C, Zielformular"},

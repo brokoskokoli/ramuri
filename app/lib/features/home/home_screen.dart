@@ -340,8 +340,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// Neuer Einstieg nach langer Pause (PAR-181): das Zielformular fragt den
   /// Stand neu (PAR-192); Speichern startet den Plan neu.
   Future<void> _newStart(TrainingGoal goal) async {
+    if (_busy) return;
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
     final result = await Navigator.of(context, rootNavigator: true)
         .push<PlanActionResult>(
           MaterialPageRoute(
@@ -355,6 +357,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         );
     if (!mounted) return;
+    setState(() => _busy = false);
     await _plan.reload();
     _reloadHints();
     if (result == null) return;
