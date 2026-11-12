@@ -255,7 +255,7 @@ class Vo2maxSectionSelector {
         ? _speedPerMinute(run, from, to)
         : piece?.speedMetersPerSecond == null
         ? null
-        : piece!.speedMetersPerSecond * 60;
+        : piece!.speedMetersPerSecond * Duration.secondsPerMinute;
     var speedUnavailable = speed == null;
     if (speed != null) {
       if (speed < _p.limitedSpeedMetersPerMinute) {
@@ -433,7 +433,7 @@ class Vo2maxSectionSelector {
     final g = piece?.inclinePercent;
     return g == null
         ? (0, GradientBasis.noAltitude)
-        : (g / 100, GradientBasis.measured);
+        : (g / FitnessParameters.percent, GradientBasis.measured);
   }
 
   /// Einschwingzeit am Beginn jedes bewegten Stücks (Start, Fortsetzen nach
