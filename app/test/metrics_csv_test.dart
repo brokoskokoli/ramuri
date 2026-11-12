@@ -49,7 +49,7 @@ void main() {
       expect(file.mimeType, 'text/csv');
       expect(file.fileName, startsWith('running-metriken-'));
       final text = utf8.decode(file.bytes!);
-      expect(text, startsWith('format_version,run_id,'));
+      expect(text, startsWith('format_version,owner,day,run_id,'));
       expect(text, contains(',original,aerobic_efficiency,1.5,m/beat,good,'));
       expect(text, contains(',current,aerobic_efficiency,1.5,'));
       expect(text, isNot(contains('1,5')));
