@@ -110,6 +110,27 @@ class _Env {
 Future<PlanUnit> _single(_Env e, bool Function(PlanUnit) f) async =>
     (await e.all()).firstWhere(f);
 
+/// Plan-Speicher, dessen Schreiben der Fassung scheitert (Platte voll u. Ä.).
+class _FailingWrite implements PlanRepository {
+  _FailingWrite(this.inner);
+  final PlanRepository inner;
+
+  @override
+  Future<TrainingGoal?> currentGoal() => inner.currentGoal();
+  @override
+  Future<List<PlanUnit>> unitsBetween(DateTime from, DateTime to) =>
+      inner.unitsBetween(from, to);
+  @override
+  Future<PlanUnit?> unitOn(DateTime day) => inner.unitOn(day);
+  @override
+  Future<List<PlanVersionRecord>> history() => inner.history();
+  @override
+  Future<PlanVersionRecord> writeVersion(PlanVersionDraft draft) =>
+      throw const StorageException(StorageFailure.rejected);
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   group('Warnsignal: Vorrang und Wiederherstellung (FR-0203, K58)', () {
     test('Ruhetage ab heute auch bei fixed=kind/easyForHard; nach dem '
@@ -141,12 +162,14 @@ void main() {
       for (final u in during.where((u) => !u.day.isBefore(_day(3)))) {
         expect(u.kind, PlanUnitKind.rest, reason: '${u.day}');
       }
-      // Festlegung bleibt (fixed, pinned), nur die Art ruht.
+      // Die Überlagerung ist in gültiger Form gespeichert (keine Festlegung,
+      // nicht bestätigt; die Festlegung steckt in der Fassung), außer dem
+      // Ruhetag des Nutzers.
       final byDay = {for (final u in during) u.day: u};
       for (final u in await _beforeUnits(before)) {
-        if (!u.day.isBefore(_day(3)) && u.fixed != PlanUnitFixed.none) {
-          expect(byDay[u.day]!.fixed, u.fixed);
-          expect(byDay[u.day]!.pinned, u.pinned);
+        if (!u.day.isBefore(_day(3)) && u.fixed != PlanUnitFixed.day) {
+          expect(byDay[u.day]!.fixed, PlanUnitFixed.none, reason: '${u.day}');
+          expect(byDay[u.day]!.pinned, isFalse, reason: '${u.day}');
         }
       }
 
@@ -369,6 +392,56 @@ void main() {
     });
   });
 
+  group('Melden scheitert beim Schreiben des Plans (E2E 4)', () {
+    Future<(_Env, WarningService)> failing() async {
+      final e = await _Env.withFixed();
+      return (
+        e,
+        WarningService(
+          plans: _FailingWrite(e.plans),
+          settings: e.session.settings,
+          warning: e.warning,
+        ),
+      );
+    }
+
+    test('die eben gesetzte Zeile wird zurückgenommen: Warnsignal und Plan '
+        'gelten beide oder keines', () async {
+      final (e, service) = await failing();
+      final before = await e.sigs();
+      await expectLater(
+        service.report(
+          source: WarningSource.manual,
+          today: _day(3),
+          now: _now(3),
+        ),
+        throwsA(isA<StorageException>()),
+      );
+      expect(await e.warning.read(), isNull);
+      expect(await e.sigs(), before);
+    });
+
+    test('ein früheres Warnsignal bleibt stehen', () async {
+      final (e, service) = await failing();
+      await e.warning.set(
+        WarningSignal(
+          reportedOn: _day(1),
+          source: WarningSource.runFeedback,
+          runId: 4,
+        ),
+      );
+      await expectLater(
+        service.report(
+          source: WarningSource.manual,
+          today: _day(3),
+          now: _now(3),
+        ),
+        throwsA(isA<StorageException>()),
+      );
+      expect((await e.warning.read())!.reportedOn, _day(1));
+    });
+  });
+
   test('applyWarningRest: Einheit mit Lauf und vergangene bleiben', () {
     PlanUnit u(int n, {int? runId}) => PlanUnit(
       day: _day(n),
@@ -387,8 +460,8 @@ void main() {
       PlanUnitKind.easy,
       PlanUnitKind.rest,
     ]);
-    expect(out[2].fixed, PlanUnitFixed.kind);
-    expect(out[2].pinned, isTrue);
+    expect(out[2].fixed, PlanUnitFixed.none);
+    expect(out[2].pinned, isFalse);
   });
 
   group('Warnsignal und Brücke vor dem Anker (NB7 1)', () {

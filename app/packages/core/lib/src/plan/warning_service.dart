@@ -50,20 +50,35 @@ class WarningService {
   /// eines, bleibt es mit Tag, Quelle und Lauf unverändert und es entsteht
   /// keine weitere Fassung (idempotent); der Plan wird trotzdem geprüft, ein
   /// früher gescheiterter Schreibversuch holt sich so nach. [today] ist der
-  /// Ortstag. Scheitert das Schreiben des Plans, bleibt das Warnsignal
-  /// gesetzt (jede spätere Neuberechnung legt es über den Plan).
+  /// Ortstag. Scheitert das Schreiben des Plans, nimmt der Dienst die eben
+  /// gesetzte Zeile zurück und wirft den Fehler weiter: Warnsignal und Plan
+  /// gelten beide oder keines (die App zeigt sonst ein Banner über einem Plan
+  /// mit Läufen). Ein schon früher gesetztes Warnsignal bleibt.
   Future<PlanRecalculation> report({
     required WarningSource source,
     required DateTime today,
     required DateTime now,
     int? runId,
   }) async {
-    if (await warning.read() == null) {
+    final created = await warning.read() == null;
+    if (created) {
       await warning.set(
         WarningSignal(reportedOn: planDay(today), source: source, runId: runId),
       );
     }
-    return _recalculate(today, now, planReasonWarning);
+    try {
+      return await _recalculate(today, now, planReasonWarning);
+    } catch (_) {
+      if (created) {
+        try {
+          await warning.lift();
+        } catch (_) {
+          // Der ursprüngliche Fehler zählt; die nächste Neuberechnung legt
+          // die gesetzte Zeile über den Plan.
+        }
+      }
+      rethrow;
+    }
   }
 
   /// Hebt das Warnsignal auf und schreibt die Fassung mit den Festlegungen

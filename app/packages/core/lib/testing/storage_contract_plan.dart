@@ -47,6 +47,11 @@ final List<StorageContractCase> planContractCases = [
     'Plan: hart -> locker in eine andere Woche verschoben wird kind',
     _moveEasyForHard,
   ),
+  const StorageContractCase(
+    'Plan: Warnsignal melden und aufheben bei fixed = kind und easyForHard '
+    '(Ruhetage in gültiger Form, Festlegung kehrt zurück)',
+    _warningFixed,
+  ),
   const StorageContractCase('Alles löschen leert den Plan', _deleteAll),
 ];
 
@@ -123,6 +128,82 @@ Future<void> _moveEasyForHard(StorageContractHarness h) async {
   expectEq(u8.fixed, PlanUnitFixed.none, 'Zielwoche: Festlegung bleibt');
   await s.close();
 }
+
+/// Review E2E 4: Ein Warnsignal über Tagen mit `fixed = kind` und
+/// `easyForHard` schreibt Ruhetage, die die Speicherregeln (`fixed = day` nur
+/// bei Ruhe, `easyForHard` nur bei locker) erfüllen; Aufheben stellt Art und
+/// Festlegung wieder her.
+Future<void> _warningFixed(StorageContractHarness h) async {
+  final s = await h.open();
+  await (s as GoalStorage).goals.save(_goal(), today: _goal().createdAt);
+  final p = _p(s);
+  final today = _day(0);
+  final now = today.add(const Duration(hours: 8));
+  final settings = s.settings;
+  final warning = (s as WarningStorage).warning;
+  await recalculatePlan(
+    plans: p,
+    settings: settings,
+    trigger: PlanTrigger.create,
+    today: today,
+    now: now,
+    warning: warning,
+  );
+  final goal = (await p.currentGoal())!;
+  final inputs = (await p.history()).last.inputs;
+  Future<void> replace(bool Function(PlanUnit) pick, PlanUnitKind kind) async {
+    final units = await _all(s);
+    final c = checkPlanReplace(
+      units: units,
+      unit: units.firstWhere(pick),
+      kind: kind,
+      goal: goal,
+      inputs: inputs,
+      today: today,
+    );
+    expectTrue(c.blocked == null, 'Ersatz erlaubt');
+    await p.replaceUnit(units.firstWhere(pick).id!, c.unit!, today: today);
+  }
+
+  await replace(
+    (u) => u.kind == PlanUnitKind.easy && u.day.isAfter(_day(14)),
+    PlanUnitKind.tempo,
+  );
+  await replace((u) => u.isHard && u.day.isAfter(_day(30)), PlanUnitKind.easy);
+  final fixedKinds = {
+    for (final u in await _all(s))
+      if (u.fixed != PlanUnitFixed.none) u.fixed,
+  };
+  expectEq(fixedKinds.map((f) => f.name).toList()..sort(), [
+    'easyForHard',
+    'kind',
+  ], 'Ausgangsplan: kind und easyForHard');
+  final before = [for (final u in await _all(s)) _fixedSig(u)];
+  final service = WarningService(
+    plans: p,
+    settings: settings,
+    warning: warning,
+  );
+  await service.report(source: WarningSource.manual, today: today, now: now);
+  expectTrue(await warning.read() != null, 'Warnsignal gesetzt');
+  expectTrue(
+    (await _all(s))
+        .where((u) => !u.day.isBefore(today))
+        .every((u) => u.kind == PlanUnitKind.rest),
+    'ab heute nur Ruhetage',
+  );
+  await service.lift(today: today, now: now);
+  expectEq(
+    [for (final u in await _all(s)) _fixedSig(u)],
+    before,
+    'nach dem Aufheben: Art und Festlegung wie vorher',
+  );
+  await s.close();
+}
+
+String _fixedSig(PlanUnit u) =>
+    '${u.day.toIso8601String()}/${u.kind.name}/${u.fixed.name}/${u.pinned}/'
+    '${u.minutes}';
 
 /// Zustand samt `fixed` (ändert eine abgelehnte Änderung etwas?).
 Future<String> _fixedState(StorageSession s) async =>

@@ -127,8 +127,12 @@ String _iso(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}';
 
 /// Alle künftigen, nicht absolvierten Einheiten [future] (Tag ab [today],
-/// ohne Lauf) als Ruhetage; Tag, Woche, Phase, `pinned` und `fixed` bleiben
-/// (die Festlegung wird nicht gelöscht, [warningHeldOf] hält die Art).
+/// ohne Lauf) als Ruhetage; Tag, Woche und Phase bleiben. Die Ruhetage sind
+/// weder festgelegt noch bestätigt (`pinned` falsch, `fixed` none): Nur so
+/// erfüllen sie die Speicherregel (`fixed = day` nur bei Ruhe, `kind` und
+/// `easyForHard` hielten nicht) und sind vom Ruhetag des Nutzers (`pinned`,
+/// `fixed = day`) zu unterscheiden. Art, `pinned` und `fixed` hält
+/// [warningHeldOf].
 /// Eingefrorene Einheiten (Tag vor [today] oder mit Lauf) bleiben unverändert.
 List<PlanUnit> applyWarningRest(List<PlanUnit> future, DateTime today) {
   final todayDay = planDay(today);
@@ -147,8 +151,6 @@ List<PlanUnit> applyWarningRest(List<PlanUnit> future, DateTime today) {
           weekIndex: u.weekIndex,
           minutes: 0,
           segments: const [],
-          pinned: u.pinned,
-          fixed: u.fixed,
           method: u.method,
           methodVersion: u.methodVersion,
         ),
@@ -190,7 +192,7 @@ List<WarningHeld>? warningHeldFromSummary(Map<String, Object?> summary) {
 /// Festlegungen [held] wieder her: Einheiten auf deren Tagen, die ein
 /// Ruhetag ersetzt hat, bekommen Art, `fixed`, `pinned`, Dauer und Abschnitte
 /// zurück (die Rechnung ersetzt sie, außer bei der Brücke vor dem Anker). Nur Ruhetage, die noch die
-/// Überlagerung sind (`pinned` und `fixed` wie gehalten): Eine Festlegung, die
+/// Überlagerung sind (nicht `pinned`, `fixed` none, siehe [applyWarningRest]): Eine Festlegung, die
 /// der Nutzer unter dem Warnsignal neu getroffen hat (z. B. Ruhetag), gilt
 /// weiter (ADR-0010).
 List<PlanUnit> restoreWarningHeld(
@@ -255,8 +257,8 @@ PlanUnit _withTemplate(PlanUnit u, PlanUnit? t) => t == null
 bool _isOverlay(PlanUnit u, WarningHeld? h) =>
     h != null &&
     u.kind == PlanUnitKind.rest &&
-    u.pinned == h.pinned &&
-    u.fixed == h.fixed;
+    !u.pinned &&
+    u.fixed == PlanUnitFixed.none;
 
 PlanUnit _restored(PlanUnit u, WarningHeld h) => PlanUnit(
   id: u.id,
