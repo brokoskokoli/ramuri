@@ -356,8 +356,18 @@ PlanInputs _reanchor(
   );
 }
 
+/// Erster Tag, an dem nach Annahme von „Wiederholen“ (PAR-140) die Abfolge
+/// geplant wird: heute, nach einem Lauf von heute ([lastDay]) erst morgen.
+DateTime walkRunRepeatFrom(DateTime today, DateTime lastDay) {
+  final t = planDay(today);
+  final next = planDay(lastDay).add(const Duration(days: 1));
+  return next.isAfter(t) ? next : t;
+}
+
 /// Wendet einen angenommenen Vorschlag nach PAR-140 an: die Abfolge beginnt
-/// ab dem Montag [from] wieder an der Stelle von [suggestion] (neuer Anker).
+/// ab dem Tag [from] (dem ersten Tag, an dem noch geplant wird) wieder an der
+/// Stelle von [suggestion]. Der Anker ist der Montag dieser Woche, Lauftage
+/// davor gehören nicht mehr zur Abfolge.
 /// PAR-194 zählt erst nach der Abfolge, die Wochenzeit danach bleibt wie in
 /// den Eingaben.
 PlanInputs applyWalkRunRepeat(
@@ -372,7 +382,7 @@ PlanInputs applyWalkRunRepeat(
     today: inputs.today,
     walkRunWeeks: inputs.walkRunWeeks,
     walkRunStart: suggestion.position,
-    walkRunFrom: monday,
+    walkRunFrom: from,
     easyPaceSecondsPerKm: inputs.easyPaceSecondsPerKm,
     easyRunCount: inputs.easyRunCount,
     intensity: inputs.intensity,

@@ -935,8 +935,9 @@ class PlanController extends ChangeNotifier {
         .setPlanChangeSeen(planId, at: clock.now());
   });
 
-  /// Nimmt „Woche wiederholen“ an (PAR-140): neue Fassung ab dem Montag von
-  /// heute, die Abfolge beginnt an der Stelle des Vorschlags wieder. Ändert
+  /// Nimmt „Wiederholen“ an (PAR-140): neue Fassung, die Abfolge beginnt ab
+  /// heute (nach einem Lauf heute ab morgen) an der Stelle des Vorschlags
+  /// wieder; vergangene Tage bleiben unverändert. Ändert
   /// nur nach dieser Entscheidung des Nutzers.
   Future<PlanActionResult> acceptWalkRunRepeat() => _act(() async {
     final proposal = _state.walkRunProposal;
@@ -949,11 +950,10 @@ class PlanController extends ChangeNotifier {
     final today = _today();
     final built = await reader.read(goal: goal, today: today);
     final base = refreshMeasuredInputs(history.last.inputs, built.inputs);
-    final monday = today.subtract(Duration(days: today.weekday - 1));
     final inputs = applyWalkRunRepeat(
       base,
       proposal.suggestion,
-      from: monday,
+      from: walkRunRepeatFrom(today, proposal.lastDay),
     ).copyWith(today: today);
     final r = await recalculatePlan(
       plans: _plans,

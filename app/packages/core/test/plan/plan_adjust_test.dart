@@ -559,6 +559,79 @@ void main() {
     });
   });
 
+  group('PAR-140 Annahme mitten in der Woche', () {
+    // Woche 5 (Index 4), Lauftage Mo/Mi/Fr, Lauf 2 am Mittwoch gelaufen,
+    // Annahme am Donnerstag: Lauf 2 liegt wieder auf dem Freitag.
+    final g = _goal(canRun30: ContinuousRun30.no, days: {1, 3, 5});
+    final base = PlanInputs.forNewGoal(g, _m0).copyWith(
+      walkRunStart: const WalkRunPosition(4),
+      walkRunFrom: _m0,
+      anchor: _m0,
+    );
+    final thu = _m0.add(const Duration(days: 3));
+    final fri = _m0.add(const Duration(days: 4));
+
+    PlanUnit unit(GeneratedPlan p, DateTime day) =>
+        p.allUnits.firstWhere((u) => u.day == day);
+
+    List<int> shape(PlanUnit u) => [
+      u.minutes,
+      for (final s in u.segments) s.minutes,
+    ];
+
+    test('Lauf 2 wiederholen: der erste künftige Tag trägt Lauf 2', () {
+      final p0 = generatePlan(g, base, const [], _m0);
+      final lauf2 = unit(p0, _m0.add(const Duration(days: 2)));
+      final frozen = [
+        for (final u in p0.units)
+          if (u.day.isBefore(thu)) u,
+      ];
+      final n = applyWalkRunRepeat(
+        base,
+        const WalkRunRepeatSuggestion(
+          WalkRunRepeatScope.session,
+          WalkRunPosition(4, 1),
+        ),
+        from: thu,
+      ).copyWith(today: thu);
+      final p1 = generatePlan(g, n, frozen, thu);
+      expect(p1.units.first.day, fri);
+      expect(shape(p1.units.first), shape(lauf2));
+      // Danach geht die Abfolge mit Lauf 3 weiter.
+      expect(
+        shape(p1.units[1]),
+        shape(unit(p0, _m0.add(const Duration(days: 4)))),
+      );
+    });
+
+    test('erster Tag: heute, nach einem Lauf von heute erst morgen', () {
+      final wed = _m0.add(const Duration(days: 2));
+      expect(walkRunRepeatFrom(thu, wed), thu);
+      expect(walkRunRepeatFrom(thu, thu), fri);
+    });
+
+    test('Woche wiederholen: ab dem ersten künftigen Tag, nichts davor', () {
+      final p0 = generatePlan(g, base, const [], _m0);
+      final lauf1 = unit(p0, _m0);
+      final frozen = [
+        for (final u in p0.units)
+          if (u.day.isBefore(thu)) u,
+      ];
+      final n = applyWalkRunRepeat(
+        base,
+        const WalkRunRepeatSuggestion(
+          WalkRunRepeatScope.week,
+          WalkRunPosition(4),
+        ),
+        from: thu,
+      ).copyWith(today: thu);
+      final p1 = generatePlan(g, n, frozen, thu);
+      expect(p1.units.first.day, fri);
+      expect(shape(p1.units.first), shape(lauf1));
+      expect(p1.units.where((u) => u.day.isBefore(thu)), isEmpty);
+    });
+  });
+
   group('refreshMeasuredInputs', () {
     test('übernimmt gültigen Beleg, verwirft ungültigen; Zählung und '
         '„keine harte Einheit“ bleiben', () {
