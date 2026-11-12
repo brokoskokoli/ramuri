@@ -330,8 +330,11 @@ void main() {
           greaterThanOrEqualTo(48),
         );
         // Doppeltipp öffnet das Formular nur einmal.
-        await tester.tap(key('home_recovery_new_start'));
-        await tester.tap(key('home_recovery_new_start'), warnIfMissed: false);
+        final open = tester
+            .widget<RecoveryCardView>(find.byType(RecoveryCardView))
+            .onNewStart!;
+        open();
+        open();
         await tester.pumpAndSettle();
         expect(
           find.byType(PlanGoalFormScreen, skipOffstage: false),
