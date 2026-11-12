@@ -32,6 +32,10 @@ enum HintCode {
 enum HintAction {
   /// Die heutige Einheit locker laufen (Ersetzen aus WP22, nach Bestätigung).
   easyRun,
+
+  /// Neuer Einstieg nach langer Pause wählen (PAR-181, PAR-192); die App
+  /// öffnet das Startformular, es ändert sich nichts von selbst.
+  newStart,
 }
 
 /// Datenbeleg eines Hinweises oder einer Erklärung („Worauf beruht das?“).
@@ -304,6 +308,27 @@ PauseQuestion? selectPauseRestart(
   if (input.warningReportedOn != null || !input.allRecorded) return null;
   final q = _pauseSpan(input, parameters);
   if (q == null) return null;
+  // Ab 8 Wochen wählt der Nutzer den Einstieg (PAR-181): kein stiller Neustart.
+  if (q.daysSinceTraining >= parameters.longPauseDays) return null;
+  if (input.pauseRestart?.day == q.lastTrainingDay) return null;
+  return q;
+}
+
+/// Steht nach einer langen Pause (ab [HintParameters.longPauseDays], PAR-181)
+/// der Neustart mit Wahl des Einstiegs (PAR-192) an? Wie der Hinweis `_pause`:
+/// der Nutzer erfasst alles oder hat die Pause bestätigt; nein bei Warnsignal
+/// und nach dem Neustart für dieses letzte Training ([PauseRestartMark]).
+PauseQuestion? selectNewStart(
+  HintInputs input, {
+  HintParameters parameters = hintParameters,
+}) {
+  if (input.warningReportedOn != null) return null;
+  final q = _pauseSpan(input, parameters);
+  if (q == null || q.daysSinceTraining < parameters.longPauseDays) return null;
+  final answer = input.pauseAnswer;
+  final confirmed =
+      answer != null && answer.paused && !answer.on.isBefore(q.lastTrainingDay);
+  if (!input.allRecorded && !confirmed) return null;
   if (input.pauseRestart?.day == q.lastTrainingDay) return null;
   return q;
 }
@@ -480,17 +505,19 @@ Hint? _pause(HintInputs i, HintParameters p) {
   final pauseConfirmed =
       answer != null && answer.paused && !answer.on.isBefore(last);
   if (!i.allRecorded && !pauseConfirmed) return null;
+  final restarted =
+      i.pauseRestart?.restarted == true && i.pauseRestart?.day == last;
+  final long = days >= p.longPauseDays;
   return Hint(
-    code: days >= p.longPauseDays ? HintCode.longPause : HintCode.pause,
+    code: long ? HintCode.longPause : HintCode.pause,
+    // Ab 8 Wochen bietet der Hinweis den neuen Einstieg an, bis er gewählt ist.
+    action: long && i.pauseRestart?.day != last ? HintAction.newStart : null,
     evidence: [
       Evidence(EvidenceKey.daysSinceTraining, days),
       Evidence(EvidenceKey.lastTrainingDay, last),
       Evidence(EvidenceKey.allRecorded, i.allRecorded),
       Evidence(EvidenceKey.pauseConfirmed, pauseConfirmed),
-      Evidence(
-        EvidenceKey.planRestarted,
-        i.pauseRestart?.restarted == true && i.pauseRestart?.day == last,
-      ),
+      Evidence(EvidenceKey.planRestarted, restarted),
     ],
   );
 }

@@ -53,6 +53,15 @@ class HintService {
     return selectPauseRestart(await _inputs(today));
   }
 
+  /// Die lange Pause, für die der Nutzer den Einstieg wählen kann (PAR-181);
+  /// `null`, wenn keine ansteht.
+  Future<PauseQuestion?> newStartDue() async {
+    final now = clock.now();
+    final local = now.add(clock.utcOffsetAt(now));
+    final today = DateTime.utc(local.year, local.month, local.day);
+    return selectNewStart(await _inputs(today));
+  }
+
   /// Die Pausenfrage von heute (PAR-202); `null`, wenn keine zu stellen ist.
   Future<PauseQuestion?> pauseQuestion() async {
     final now = clock.now();

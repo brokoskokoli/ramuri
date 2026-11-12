@@ -36,6 +36,7 @@ void main() {
     PauseAnswer? answer,
     List<ShownHint> shown = const [],
     DateTime? warning,
+    PauseRestartMark? mark,
   }) => HintInputs(
     today: today,
     plannedToday: planned,
@@ -43,6 +44,7 @@ void main() {
     easyPlanned: easy,
     allRecorded: allRecorded,
     pauseAnswer: answer,
+    pauseRestart: mark,
     shown: shown,
     warningReportedOn: warning,
   );
@@ -247,6 +249,45 @@ void main() {
       expect(
         code(inputs(trainings: [run(56)], allRecorded: true)),
         HintCode.longPause,
+      );
+    });
+
+    test(
+      'Beleg planRestarted: nur mit Merker „restart“ zum letzten Training',
+      () {
+        Object? restarted(PauseRestartMark? mark, {int days = 10}) =>
+            selectHint(
+              inputs(trainings: [run(days)], allRecorded: true, mark: mark),
+            ).hint!.evidenceOf(EvidenceKey.planRestarted);
+        expect(restarted(null), false);
+        expect(
+          restarted(PauseRestartMark(day: ago(10), restarted: true)),
+          true,
+        );
+        expect(
+          restarted(PauseRestartMark(day: ago(10), restarted: false)),
+          false,
+        );
+        expect(
+          restarted(PauseRestartMark(day: ago(30), restarted: true)),
+          false,
+        );
+      },
+    );
+
+    test('ab 56 Tagen bietet der Hinweis den neuen Einstieg an (PAR-181)', () {
+      HintAction? action(int days, {PauseRestartMark? mark}) => selectHint(
+        inputs(trainings: [run(days)], allRecorded: true, mark: mark),
+      ).hint!.action;
+      expect(action(55), isNull);
+      expect(action(56), HintAction.newStart);
+      expect(
+        action(56, mark: PauseRestartMark(day: ago(56), restarted: true)),
+        isNull,
+      );
+      expect(
+        action(56, mark: PauseRestartMark(day: ago(80), restarted: true)),
+        HintAction.newStart,
       );
     });
 
@@ -615,6 +656,42 @@ void pauseQuestionTests() {
       expect(due(inputs(allRecorded: true)), isNull);
       expect(
         due(inputs(trainings: [run(10)], allRecorded: true, warning: ago(1))),
+        isNull,
+      );
+    });
+
+    test('ab 56 Tagen kein stiller Neustart, auch nicht mit der Zusage', () {
+      expect(due(inputs(trainings: [run(55)], allRecorded: true)), isNotNull);
+      expect(due(inputs(trainings: [run(56)], allRecorded: true)), isNull);
+    });
+
+    test('neuer Einstieg ab 56 Tagen: Zusage oder bestätigte Pause', () {
+      PauseQuestion? start(HintInputs i) => selectNewStart(i);
+      expect(start(inputs(trainings: [run(55)], allRecorded: true)), isNull);
+      final q = start(inputs(trainings: [run(56)], allRecorded: true))!;
+      expect(q.lastTrainingDay, ago(56));
+      expect(start(inputs(trainings: [run(60)])), isNull);
+      expect(
+        start(
+          inputs(
+            trainings: [run(60)],
+            answer: PauseAnswer(paused: true, on: ago(1)),
+          ),
+        ),
+        isNotNull,
+      );
+      expect(
+        start(inputs(trainings: [run(60)], allRecorded: true, warning: ago(1))),
+        isNull,
+      );
+      expect(
+        start(
+          inputs(
+            trainings: [run(60)],
+            allRecorded: true,
+            mark: PauseRestartMark(day: ago(60), restarted: true),
+          ),
+        ),
         isNull,
       );
     });

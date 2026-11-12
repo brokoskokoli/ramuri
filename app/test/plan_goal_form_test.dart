@@ -87,7 +87,10 @@ class _Checking extends PlanController {
   final Future<GoalDraftCheck> Function(TrainingGoal draft) check;
   final saved = <TrainingGoal>[];
   @override
-  Future<GoalDraftCheck> checkGoal(TrainingGoal draft) => check(draft);
+  Future<GoalDraftCheck> checkGoal(
+    TrainingGoal draft, {
+    bool newStart = false,
+  }) => check(draft);
   @override
   Future<PlanActionResult> saveGoal(TrainingGoal goal) async {
     saved.add(goal);

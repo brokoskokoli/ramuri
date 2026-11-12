@@ -537,21 +537,45 @@ class PlanController extends ChangeNotifier {
   /// der letzten Fassung mit heute gemessenen Werten (Stand und Geh-Lauf-
   /// Abfolge bleiben, [refreshMeasuredInputs]); dazu, ob der Plan mit einer
   /// Geh-Lauf-Abfolge beginnt (PAR-065, Hinweis PAR-115). Speichert nichts.
-  Future<GoalDraftCheck> checkGoal(TrainingGoal draft) async {
+  ///
+  /// Mit [newStart] (neuer Einstieg nach langer Pause, PAR-181) rechnet die
+  /// Einschätzung mit den Eingaben des Neustarts mit dem Stand aus [draft].
+  Future<GoalDraftCheck> checkGoal(
+    TrainingGoal draft, {
+    bool newStart = false,
+  }) async {
     final today = _today();
     final existed = await _goals.goal() != null;
     final history = await _plans.history();
     final last = history.isEmpty ? null : history.last;
     final built = await reader.read(goal: draft, today: today);
-    final inputs = _inputsFor(_saveTrigger(existed, history), built, last);
+    var inputs = _inputsFor(_saveTrigger(existed, history), built, last);
+    var goal = built.goal;
+    if (newStart && last != null) {
+      final q = await HintService(session: session, clock: clock).newStartDue();
+      final restart = q == null
+          ? null
+          : planPauseRestart(
+              goal: draft,
+              inputs: inputs,
+              today: today,
+              lastTrainingDay: q.lastTrainingDay,
+              baseWeekMinutes: q.baseWeekMinutes,
+              parameters: parameters,
+            ).inputs;
+      if (restart != null) {
+        inputs = restart;
+        goal = draft;
+      }
+    }
     final assessment = assessGoal(
-      goal: built.goal,
+      goal: goal,
       inputs: inputs,
       today: today,
-      basis: await reader.timeGoalBasis(goal: built.goal, today: today),
+      basis: await reader.timeGoalBasis(goal: goal, today: today),
       parameters: parameters,
     );
-    final setup = planCourseSetup(built.goal, inputs, parameters: parameters);
+    final setup = planCourseSetup(goal, inputs, parameters: parameters);
     return GoalDraftCheck(
       assessment: assessment,
       walkRun: setup.walkRunWeeks > 0,
@@ -871,10 +895,18 @@ class PlanController extends ChangeNotifier {
   /// Neustart zur Pause (PAR-202, Auslöser `pause`), einmal je Pause: Der
   /// Merker [planPauseRestartKey] trägt den Tag des letzten Trainings und ob
   /// eine Fassung entstand. Ohne Plan oder Ziel geschieht nichts (kein Merker).
-  Future<void> _restartForPause(PauseQuestion q) async {
+  ///
+  /// Ab 8 Wochen ([PlanParameters.pauseNewStartDays]) startet nichts von
+  /// selbst: Der Nutzer wählt den Einstieg ([restartAfterLongPause], PAR-181).
+  /// Mit [chosen] hat der Nutzer den Einstieg gewählt; sein Ziel mit dem neuen
+  /// Stand ist schon gespeichert.
+  Future<void> _restartForPause(PauseQuestion q, {bool chosen = false}) async {
+    if (!chosen && q.daysSinceTraining >= parameters.pauseNewStartDays) {
+      return;
+    }
     final today = _today();
-    final goal = await _goals.goal();
     final history = await _plans.history();
+    final goal = await _goals.goal();
     if (goal == null || history.isEmpty) return;
     final mark = PauseRestartMark.parse(
       await session.settings.get(planPauseRestartKey),
@@ -891,11 +923,17 @@ class PlanController extends ChangeNotifier {
       parameters: parameters,
     );
     final next = restart.inputs;
+    if (next == null && chosen) {
+      // Kein Neustart möglich: das neue Ziel gilt trotzdem für den Plan.
+      await _recalculate(PlanTrigger.goalChange, goal, history.last);
+    }
     if (next != null) {
       final r = await recalculatePlan(
         plans: _plans,
         settings: session.settings,
-        trigger: PlanTrigger.pause,
+        // Der gewählte Einstieg ist eine Zieländerung des Nutzers (Stand neu):
+        // `goalChange` hält sie fest, sonst bliebe sie ausstehend.
+        trigger: chosen ? PlanTrigger.goalChange : PlanTrigger.pause,
         today: today,
         now: clock.now(),
         inputs: next,
@@ -925,6 +963,31 @@ class PlanController extends ChangeNotifier {
     ).pauseRestartDue();
     if (q != null) await _restartForPause(q);
   }
+
+  /// Neuer Einstieg nach langer Pause (PAR-181, PAR-192): speichert [goal]
+  /// (mit dem vom Nutzer genannten Stand) und startet den Plan neu. Ohne
+  /// anstehenden Einstieg ([HintService.newStartDue]): `rejected`. Scheitert
+  /// nur die Neuberechnung: [PlanActionResult.savedNotPlanned].
+  Future<PlanActionResult> restartAfterLongPause(TrainingGoal goal) => _act(
+    () async {
+      final q = await HintService(session: session, clock: clock).newStartDue();
+      if (q == null) throw const StorageException(StorageFailure.rejected);
+      if ((await _plans.history()).isEmpty) {
+        throw const StorageException(StorageFailure.notFound);
+      }
+      final today = _today();
+      if (goal.validate(today, null, true) != null) {
+        throw const StorageException(StorageFailure.rejected);
+      }
+      await _goals.save(goal, today: today);
+      onChanged?.call();
+      try {
+        await _restartForPause(q, chosen: true);
+      } on Object {
+        throw const _SavedNotPlanned();
+      }
+    },
+  );
 
   /// Alle Fassungen, älteste zuerst (Verlauf der Änderungen, FR-0170).
   Future<List<PlanVersionRecord>> changeHistory() => _plans.history();
