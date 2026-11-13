@@ -188,7 +188,10 @@ Future<void> _changeMax(WidgetTester tester, String v) async {
   log(
     'CM max_field=${(tester.widget<TextField>(find.byKey(const Key('profile_max'))).controller?.text)}',
   );
-  await tester.tap(find.byKey(const Key('profile_save')), warnIfMissed: false);
+  // Auf kleinen Bildschirmen liegt der Knopf unter dem Rand der Liste.
+  await tester.ensureVisible(find.byKey(const Key('profile_save')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('profile_save')));
   await tester.pumpAndSettle();
   log(
     'CM banner=${find.byKey(const Key('profile_banner')).evaluate().length} note=${find.byKey(const Key('profile_saved_note')).evaluate().length} snack=${find.byType(SnackBar).evaluate().length}',
