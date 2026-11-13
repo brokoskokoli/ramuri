@@ -362,6 +362,24 @@ void main() {
       expect(c.phase, RecordingPhase.finished);
     });
 
+    guided('Beenden stoppt die Sprachausgabe, Pause nicht (E2E-Befund NB9)', (
+      tester,
+    ) async {
+      final w = await _World.create();
+      final c = w.controller(segments: _twoParts);
+      await c.start();
+      await w.seconds(tester, 5);
+      await c.pause();
+      expect(c.phase, RecordingPhase.paused);
+      expect(w.voice.stopCalls, 0); // Pause lässt die Ansage ausklingen
+      await c.resume();
+      await c.finish();
+      expect(c.phase, RecordingPhase.finished);
+      // Schon vor dem Schließen der Seite (dispose): laufende Ansage und
+      // Warteschlange sind verworfen.
+      expect(w.voice.stopCalls, 1);
+    });
+
     guided('Fehler der Textbildung oder beim Stoppen stört nicht', (
       tester,
     ) async {

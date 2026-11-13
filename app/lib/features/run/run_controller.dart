@@ -661,6 +661,7 @@ class RunController extends ChangeNotifier {
     await _command(_recorder.finish);
     if (phase == RecordingPhase.finished) {
       _stopInputs();
+      _stopVoice();
       await _closeGuidance();
       final id = _recorder.runId;
       if (id != null && _calculation == null) {
@@ -727,18 +728,23 @@ class RunController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Bricht eine laufende Ansage samt Warteschlange ab (Beenden, Schließen).
+  /// Eine Pause tut das nicht. Fehler der Sprachausgabe sind folgenlos.
+  void _stopVoice() {
+    final v = voice;
+    if (v == null) return;
+    try {
+      unawaited(v.stop().then((_) {}, onError: (Object _) {}));
+    } on Object {
+      // Folgenlos.
+    }
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _stopInputs();
-    final v = voice;
-    if (v != null) {
-      try {
-        unawaited(v.stop().then((_) {}, onError: (Object _) {}));
-      } on Object {
-        // Folgenlos.
-      }
-    }
+    _stopVoice();
     super.dispose();
   }
 }
