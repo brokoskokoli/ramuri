@@ -41,13 +41,17 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ matrix.api }}-x86_64-v1
+          key: avd-${{ matrix.api }}-x86_64-pixel6-v1
+      # Festes Geraeteprofil pixel_6 (1080x2400): Der Standard des Runners ist ein
+      # winziger Bildschirm (320x640), auf dem Tests wegen abgeschnittener
+      # Bedienelemente scheitern, die auf einem echten Geraet sichtbar sind.
       - name: AVD und Snapshot erzeugen (nur bei Cache-Miss)
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ matrix.api }}
           target: google_apis
+          profile: pixel_6
           arch: x86_64
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
@@ -60,6 +64,7 @@ jobs:
         with:
           api-level: ${{ matrix.api }}
           target: google_apis
+          profile: pixel_6
           arch: x86_64
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none

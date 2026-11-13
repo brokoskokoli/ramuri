@@ -188,10 +188,7 @@ Future<void> _changeMax(WidgetTester tester, String v) async {
   log(
     'CM max_field=${(tester.widget<TextField>(find.byKey(const Key('profile_max'))).controller?.text)}',
   );
-  // Auf kleinen Bildschirmen liegt der Knopf unter dem Rand der Liste.
-  await tester.ensureVisible(find.byKey(const Key('profile_save')));
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('profile_save')));
+  await tester.tap(find.byKey(const Key('profile_save')), warnIfMissed: false);
   await tester.pumpAndSettle();
   log(
     'CM banner=${find.byKey(const Key('profile_banner')).evaluate().length} note=${find.byKey(const Key('profile_saved_note')).evaluate().length} snack=${find.byType(SnackBar).evaluate().length}',
@@ -223,78 +220,92 @@ String _texts(WidgetTester tester, String key) => tester
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets('WP09 Neuberechnung E2E', (tester) async {
-    await tester.runAsync(() => _seed());
-    final base = await tester.runAsync(() => _dump('S0')) as String;
-
-    await _startApp(tester);
-    expect(find.byKey(const Key('home_screen')), findsOneWidget);
-    await _openSettings(tester);
-    expect(find.byKey(const Key('recalc_dialog')), findsNothing);
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
-
-    // Szenario 1
-    await _changeMax(tester, '180');
-    await _openSettings(tester);
-    expect(find.byKey(const Key('recalc_dialog')), findsOneWidget);
-    expect(find.byKey(const Key('recalc_cause_heartRateBasis')), findsOne);
-    log('S1 card=${_texts(tester, 'recalc_dialog')}');
-    final s1 = await tester.runAsync(() => _dump('S1')) as String;
-    expect(_vals(s1), _vals(base));
-    expect(s1, contains('profile max=180'));
-    expect(s1, isNot(contains('pending=\n')));
-
-    // Szenario 2
-    await tester.tap(find.byKey(const Key('recalc_decline')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('recalc_dialog')), findsNothing);
-    final s2 = await tester.runAsync(() => _dump('S2')) as String;
-    expect(_vals(s2), _vals(base));
-    expect(s2, contains('profile max=180'));
-    expect(s2, contains('pending=\n'));
-    log('S2 card gone');
-
-    // Szenario 3
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
-    log(
-      'S3 home_visible=${find.byKey(const Key('home_profile')).evaluate().isNotEmpty}',
-    );
-    await _changeMax(tester, '175');
-    await tester.runAsync(() => _dump('S3pre'));
-    await _openSettings(tester);
-    expect(find.byKey(const Key('recalc_confirm')), findsOneWidget);
-    final s3a = await tester.runAsync(() => _dump('S3a')) as String;
-    await tester.tap(find.byKey(const Key('recalc_confirm')));
-    await tester.pump();
-    log(
-      'S3 progress_visible=${find.byKey(const Key('recalc_progress')).evaluate().isNotEmpty}',
-    );
-    await tester.pumpAndSettle(const Duration(seconds: 1));
-    expect(find.byKey(const Key('recalc_confirm')), findsNothing);
-    log(
-      'S3 status=${tester.widget<Text>(find.byKey(const Key('recalc_status'))).data}',
-    );
-    final s3 = await tester.runAsync(() => _dump('S3')) as String;
-    expect(s3, isNot(s3a));
-    expect(s3, contains('cur='));
-    expect(s3.contains('cur=') && s3.contains('@175'), isTrue);
-    // Originale (Basis 190, Qualitaet) und Rohdaten bleiben wie im Ausgangszustand.
-    expect(_originals(s3), _originals(base));
-    expect(_originals(s3), contains('@190/'));
-    expect(_originals(s3), isNot(contains('@175')));
-
-    // Szenario 4: Basis erneut aendern, nicht beantworten, App neu starten
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
-    await _changeMax(tester, '170');
-    await _startApp(tester);
-    await _openSettings(tester);
-    expect(find.byKey(const Key('recalc_dialog')), findsOneWidget);
-    log('S4 card_after_restart=${_texts(tester, 'recalc_dialog')}');
-    final s4 = await tester.runAsync(() => _dump('S4')) as String;
-    expect(s4, contains('pending='));
-    expect(s4, isNot(contains('pending=\n')));
-    expect(_originals(s4), _originals(base));
+    try {
+      await _scenario(tester);
+    } catch (_) {
+      // Fuer das CI-Bildschirmfoto bei Rot (tool/ci_e2e.sh): Die App bleibt kurz
+      // offen und zeigt den Fehlerzustand, dann wird der Fehler neu geworfen.
+      log('CI_FAIL_HOLD');
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(seconds: 20)),
+      );
+      rethrow;
+    }
   }, timeout: const Timeout(Duration(minutes: 10)));
+}
+
+Future<void> _scenario(WidgetTester tester) async {
+  await tester.runAsync(() => _seed());
+  final base = await tester.runAsync(() => _dump('S0')) as String;
+
+  await _startApp(tester);
+  expect(find.byKey(const Key('home_screen')), findsOneWidget);
+  await _openSettings(tester);
+  expect(find.byKey(const Key('recalc_dialog')), findsNothing);
+  await tester.tap(find.byType(BackButton));
+  await tester.pumpAndSettle();
+
+  // Szenario 1
+  await _changeMax(tester, '180');
+  await _openSettings(tester);
+  expect(find.byKey(const Key('recalc_dialog')), findsOneWidget);
+  expect(find.byKey(const Key('recalc_cause_heartRateBasis')), findsOne);
+  log('S1 card=${_texts(tester, 'recalc_dialog')}');
+  final s1 = await tester.runAsync(() => _dump('S1')) as String;
+  expect(_vals(s1), _vals(base));
+  expect(s1, contains('profile max=180'));
+  expect(s1, isNot(contains('pending=\n')));
+
+  // Szenario 2
+  await tester.tap(find.byKey(const Key('recalc_decline')));
+  await tester.pumpAndSettle();
+  expect(find.byKey(const Key('recalc_dialog')), findsNothing);
+  final s2 = await tester.runAsync(() => _dump('S2')) as String;
+  expect(_vals(s2), _vals(base));
+  expect(s2, contains('profile max=180'));
+  expect(s2, contains('pending=\n'));
+  log('S2 card gone');
+
+  // Szenario 3
+  await tester.tap(find.byType(BackButton));
+  await tester.pumpAndSettle();
+  log(
+    'S3 home_visible=${find.byKey(const Key('home_profile')).evaluate().isNotEmpty}',
+  );
+  await _changeMax(tester, '175');
+  await tester.runAsync(() => _dump('S3pre'));
+  await _openSettings(tester);
+  expect(find.byKey(const Key('recalc_confirm')), findsOneWidget);
+  final s3a = await tester.runAsync(() => _dump('S3a')) as String;
+  await tester.tap(find.byKey(const Key('recalc_confirm')));
+  await tester.pump();
+  log(
+    'S3 progress_visible=${find.byKey(const Key('recalc_progress')).evaluate().isNotEmpty}',
+  );
+  await tester.pumpAndSettle(const Duration(seconds: 1));
+  expect(find.byKey(const Key('recalc_confirm')), findsNothing);
+  log(
+    'S3 status=${tester.widget<Text>(find.byKey(const Key('recalc_status'))).data}',
+  );
+  final s3 = await tester.runAsync(() => _dump('S3')) as String;
+  expect(s3, isNot(s3a));
+  expect(s3, contains('cur='));
+  expect(s3.contains('cur=') && s3.contains('@175'), isTrue);
+  // Originale (Basis 190, Qualitaet) und Rohdaten bleiben wie im Ausgangszustand.
+  expect(_originals(s3), _originals(base));
+  expect(_originals(s3), contains('@190/'));
+  expect(_originals(s3), isNot(contains('@175')));
+
+  // Szenario 4: Basis erneut aendern, nicht beantworten, App neu starten
+  await tester.tap(find.byType(BackButton));
+  await tester.pumpAndSettle();
+  await _changeMax(tester, '170');
+  await _startApp(tester);
+  await _openSettings(tester);
+  expect(find.byKey(const Key('recalc_dialog')), findsOneWidget);
+  log('S4 card_after_restart=${_texts(tester, 'recalc_dialog')}');
+  final s4 = await tester.runAsync(() => _dump('S4')) as String;
+  expect(s4, contains('pending='));
+  expect(s4, isNot(contains('pending=\n')));
+  expect(_originals(s4), _originals(base));
 }
