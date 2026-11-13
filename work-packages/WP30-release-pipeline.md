@@ -12,7 +12,7 @@ Der Maintainer will signierte Builds per Tag: `v0.1.0` baut eine Version, `v0.1.
 - **Tag-Format:** `v<MAJOR>.<MINOR>.<PATCH>` oder `v<MAJOR>.<MINOR>.<PATCH>-rc<N>` mit N von 1 bis 98. Andere Tags `v*` bricht der Workflow mit klarer Meldung ab. Ein RC wird als Pre-Release markiert.
 - **Version:** `versionName` = Tag ohne `v`. `versionCode` = MAJOR·1 000 000 + MINOR·10 000 + PATCH·100 + (N beim RC, 99 bei der Version), damit jeder RC unter seiner Version liegt und jede neue Version darüber. Übergabe per `flutter build --build-name/--build-number`; `pubspec.yaml` bleibt unverändert.
 - **Schlüssel (vom Orchestrator angelegt, nicht Teil des Codes):**
-  - Keystore PKCS12 lokal in `~/.ramuri-android-keys/release.jks`, Alias `ramuri`, Store- und Schlüsselpasswort gleich.
+  - Keystore PKCS12 nur im macOS-Schlüsselbund (keine Datei; Sicherung beim Maintainer), Alias `ramuri`, Store- und Schlüsselpasswort gleich.
   - Im macOS-Schlüsselbund unter Dienst `ramuri-release-signing`, Konten `store-password` und `keystore-base64`.
   - Auf GitHub in der Umgebung `release` (nur Tags `v*` dürfen sie nutzen): `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_PASSWORD`, `SIGNING_KEY_ALIAS`.
   - SHA-256 des Zertifikats: `1c7e8472f5e705814fe65808ad7f506f903e198f4ba8543a97bbb0f4d4b602c5`.

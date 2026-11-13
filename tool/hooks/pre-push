@@ -5,13 +5,26 @@
 # <git-common-dir>/running-app-merge-ok als „<tree> <commit>“; Zeilen, deren Commit schon
 # in origin/main liegt, räumt der nächste Push weg; übersteht ein Amend der Nachricht; die
 # Commits, die er mitbringt, gelten mit) oder ändert nur Dokumentation (docs/, work-packages/,
-# PROJECT.md, AGENTS.md, README.md). wp/*- und alle anderen Pushes (auch Löschungen) bleiben frei.
+# PROJECT.md, AGENTS.md, README.md). Ein Tag refs/tags/v* (auch annotiert) nur, wenn sein Commit schon in
+# refs/remotes/origin/main liegt (Release-Pipeline, WP30); Tag-Löschungen sind frei.
+# wp/*- und alle anderen Pushes (auch Löschungen) bleiben frei.
 # Einrichtung: core.hooksPath=tool/hooks. Eingabe (stdin) wie bei Git:
 #   <lokale ref> <lokaler sha> <remote ref> <remote sha>
 zero=0000000000000000000000000000000000000000
 ok_file="$(git rev-parse --path-format=absolute --git-common-dir)/running-app-merge-ok"
 rc=0
 while read -r lref lsha rref rsha; do
+  case "$rref" in
+    refs/tags/v*)
+      [ "$lsha" = "$zero" ] && continue
+      tcommit=$(git rev-parse -q --verify "$lsha^{commit}" 2>/dev/null) || tcommit=
+      if [ -z "$tcommit" ] || ! git rev-parse -q --verify refs/remotes/origin/main >/dev/null \
+         || ! git merge-base --is-ancestor "$tcommit" refs/remotes/origin/main 2>/dev/null; then
+        echo "pre-push: Tag ${rref#refs/tags/} zeigt auf ${tcommit:-$lsha}, der nicht in origin/main liegt; Release-Tags nur auf Commits aus origin/main (erst main pushen, dann taggen)." >&2
+        rc=1
+      fi
+      continue ;;
+  esac
   [ "$rref" = refs/heads/main ] || continue
   if [ "${RUNNING_APP_PUSH_MAIN:-}" != 1 ]; then
     echo "pre-push: Push auf main nur mit RUNNING_APP_PUSH_MAIN=1 (Orchestrator: nach tool/merge_wp.sh bzw. für reine Doku-Commits). Arbeitsbranches: wp/<nr>-<slug>." >&2
