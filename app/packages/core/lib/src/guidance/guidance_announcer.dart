@@ -60,6 +60,18 @@ class GuidanceAnnouncer {
   int _previewedIndex = -1;
   Duration? _aboveSince;
   bool _armed = true;
+  Duration _lastTime = Duration.zero;
+  bool _lastRunning = false;
+
+  /// Der Puls liegt nach dem letzten Tick im Lauf (nicht in Pause) seit
+  /// mindestens [pulseAnnounceMinOverrun] über der oberen Grenze des
+  /// Abschnitts, im Fenster nach `pulseHintAllowed` (PAR-107). Unabhängig von
+  /// den Schaltern und vom Gehpausen-Zustand; Grundlage des Hinweises auf der
+  /// Live-Seite.
+  bool get pulseOverrunSustained =>
+      _lastRunning &&
+      _aboveSince != null &&
+      _lastTime - _aboveSince! >= pulseAnnounceMinOverrun;
 
   List<GuidanceEvent> onTick(GuidanceTick tick) {
     final t = tick.movingTime.isNegative ? Duration.zero : tick.movingTime;
@@ -75,7 +87,9 @@ class GuidanceAnnouncer {
       // Erster Tick: nichts nachsagen.
       return const [];
     }
-    if (tick.phase != RecordingPhase.running) return const [];
+    _lastTime = t;
+    _lastRunning = tick.phase == RecordingPhase.running;
+    if (!_lastRunning) return const [];
 
     final out = <GuidanceEvent>[];
     void emit(GuidanceEvent e) {

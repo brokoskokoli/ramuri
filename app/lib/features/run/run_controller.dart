@@ -45,6 +45,7 @@ class RunController extends ChangeNotifier {
     this.voice,
     this.voiceTexts,
     this.guidedSegments,
+    this.guidedKind,
     this.recentEasyRuns = recentEasyRunExposures,
     RunRecorder? recorder,
   }) : _recorder =
@@ -76,6 +77,9 @@ class RunController extends ChangeNotifier {
   /// kopiert, Festlegung 3); `null` oder leer: freier Lauf. Beim Fortsetzen
   /// gilt der gespeicherte Schnappschuss.
   final List<PlanSegment>? guidedSegments;
+
+  /// Art der Einheit eines neuen Laufs (für die Kopfzeile der Live-Seite).
+  final PlanUnitKind? guidedKind;
 
   /// Die letzten lockeren Läufe für den Gehpausen-Hinweis (PAR-107); Vorgabe
   /// liest sie aus dem Speicher, Tests setzen eine Quelle.
@@ -232,10 +236,27 @@ class RunController extends ChangeNotifier {
     return null;
   }
 
+  /// Art der geführten Einheit (Schnappschuss oder Übergabe), `null` unbekannt.
+  PlanUnitKind? get guidedUnitKind {
+    final name =
+        _guided?.kind ?? (resumeRunId == null ? guidedKind?.name : null);
+    for (final k in PlanUnitKind.values) {
+      if (k.name == name) return k;
+    }
+    return null;
+  }
+
   /// Die Pulsansagen sind zugunsten des Gehpausen-Hinweises abgeschaltet
   /// (PAR-107); dann zeigt auch die Live-Seite keinen Pulshinweis.
   bool get guidedPulseHintsSuppressed =>
       _announcer?.suppressHeartRateForWalkBreaks ?? false;
+
+  /// Der Pulshinweis der Live-Seite ist fällig (PAR-107): seit 30 s über der
+  /// Grenze, im Lauf, ohne Gehpausen-Umstellung. Rechnet der Ereignisgeber.
+  bool get guidedPulseHintDue =>
+      !guidedPulseHintsSuppressed &&
+      (_announcer?.pulseOverrunSustained ?? false);
+  bool _hintDue = false;
 
   /// Die Werte des beendeten Laufs konnten nicht berechnet werden. Der Lauf
   /// ist gespeichert; die Berechnung wird beim nächsten Start nachgeholt.
@@ -358,6 +379,19 @@ class RunController extends ChangeNotifier {
         if (runMode == RunMode.treadmill) _stopService();
         return;
       }
+      // Der Schnappschuss der geführten Einheit sofort, vor Dienst und
+      // Einstellungen, ohne Warten: ein Absturz danach führt trotzdem weiter
+      // (Review 2, S4).
+      final id = _recorder.runId;
+      final given = guidedSegments;
+      if (resume == null && given != null && given.isNotEmpty && id != null) {
+        _guided = GuidedUnitSnapshot(
+          runId: id,
+          segments: given,
+          kind: guidedKind?.name,
+        );
+        unawaited(_saveGuided());
+      }
       // Das Laufband hat keine Positionen und braucht keinen Standort.
       if (runMode == RunMode.gps) {
         _locationSub = location.samples().listen(
@@ -402,7 +436,7 @@ class RunController extends ChangeNotifier {
   /// Vorgaben weiter; nie ein Fehler für den Start.
   Future<void> _prepareGuidance(int? resume) async {
     try {
-      if (voice == null || voiceTexts == null || _guidanceClosed) return;
+      if (_guidanceClosed) return;
       var switches = const GuidanceSwitches();
       try {
         switches = await GuidanceSettings(storage.settings).load();
@@ -416,15 +450,10 @@ class RunController extends ChangeNotifier {
       } on Object {
         _distanceUnit = DistanceUnit.kilometers;
       }
-      final id = _recorder.runId;
       var segments = const <PlanSegment>[];
       var hintGiven = false;
       if (resume == null) {
         segments = guidedSegments ?? const [];
-        if (segments.isNotEmpty && id != null) {
-          _guided = GuidedUnitSnapshot(runId: id, segments: segments);
-          await _saveGuided();
-        }
       } else {
         try {
           final stored = GuidedUnitSnapshot.decode(
@@ -513,6 +542,11 @@ class RunController extends ChangeNotifier {
       );
       for (final e in events) {
         _say(e);
+      }
+      final due = guidedPulseHintDue;
+      if (due != _hintDue) {
+        _hintDue = due;
+        notifyListeners();
       }
       final g = _guided;
       if (g != null && a.walkBreakHintGiven && !g.walkBreakHintGiven) {

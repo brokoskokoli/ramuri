@@ -109,6 +109,21 @@ void main() {
   test('lockere Einheit: keine Auf-/Abwärmabschnitte (PAR-119)', () {
     final s = guidedSegmentsOf(_easyWithWarm());
     expect(s.map((e) => e.kind), [PlanSegmentKind.easy]);
+    // PAR-119: Auf- und Abwärmen zählen zur Dauer (10 + 25 + 5 = 40 min).
+    expect(s.fold<int>(0, (a, e) => a + e.durationSeconds), 40 * 60);
+    expect(s.single.intensity?.hrMaxBpm, 145);
+    // Lange Einheit wie die lockere.
+    final long = PlanUnit(
+      day: _today,
+      kind: PlanUnitKind.long,
+      phase: PlanPhase.build,
+      weekIndex: 0,
+      minutes: 40,
+      segments: _easyWithWarm().segments,
+    );
+    final l = guidedSegmentsOf(long);
+    expect(l.map((e) => e.kind), [PlanSegmentKind.easy]);
+    expect(l.single.durationSeconds, 40 * 60);
     // Intensive Einheit behält sie.
     final hard = PlanUnit(
       day: _today,
@@ -129,6 +144,40 @@ void main() {
       segments: const [],
     );
     expect(guidedSegmentsOf(empty).single.minutes, 40);
+  });
+
+  group('Ablauf bis zur Zusammenfassung', () {
+    testWidgets('„Einheit starten“, Lauf, Beenden: Zusammenfassung zeigt '
+        '„Aus dem Plan“ sofort (Review 2, M2)', (tester) async {
+      final d = Device();
+      await _open(d);
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('home_start_unit'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
+      for (var i = 0; i < 40; i++) {
+        d.clock.advance(const Duration(seconds: 10));
+        d.location.emit(
+          LocationSample(
+            time: d.clock.now(),
+            latitude: 50 + i * 0.0001,
+            longitude: 8,
+            accuracyMeters: 5,
+          ),
+        );
+        await tester.pump(const Duration(seconds: 1));
+      }
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      await tester.tap(key('run_finish'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_finish_confirm'));
+      await tester.pumpAndSettle();
+      expect(key('sum_trimp'), findsOneWidget);
+      expect(key('sum_from_plan'), findsOneWidget);
+      expect(_text('sum_from_plan_unit'), isNotEmpty);
+    });
   });
 
   group('Umschalter auf „Lauf vorbereiten“', () {
@@ -225,6 +274,28 @@ void main() {
       await tester.pumpAndSettle();
       expect(key('guided_no_unit'), findsOneWidget);
       expect(_planSelected(tester), isFalse);
+    });
+
+    testWidgets('Warnsignal gemeldet: eigener Satz statt „ohne Plan“', (
+      tester,
+    ) async {
+      final d = Device();
+      final s = await _open(d);
+      final w = WarningService(
+        plans: (s as PlanStorage).plans,
+        settings: s.settings,
+        warning: (s as WarningStorage).warning,
+      );
+      await w.report(
+        source: WarningSource.runFeedback,
+        today: _today,
+        now: _now,
+      );
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('home_start_run'));
+      await tester.pumpAndSettle();
+      expect(_planSelected(tester), isFalse);
+      expect(_text('guided_no_unit'), contains('Warnsignal'));
     });
 
     testWidgets('lockere Einheit zeigt nur den Hauptteil, Ziel Puls', (

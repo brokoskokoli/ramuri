@@ -6,13 +6,23 @@ import '../../ui/ui.dart';
 import '../plan/plan_texts.dart';
 
 /// „Aus dem Plan“ (WP24 Teil E): zeigt in der Zusammenfassung, zu welcher
-/// Plan-Einheit der Lauf zugeordnet ist (`plan_units.run_id`). Ohne Zuordnung,
-/// ohne Plan oder bei einem Lesefehler bleibt die Stelle leer. Nur Anzeige.
+/// Plan-Einheit der Lauf zugeordnet ist (`plan_units.run_id`). Ohne Zuordnung
+/// (und ohne ausstehende Wahl), ohne Plan oder bei einem Lesefehler bleibt die Stelle leer. Nur Anzeige.
 class PlanOriginNote extends StatefulWidget {
-  const PlanOriginNote({super.key, required this.session, required this.runId});
+  const PlanOriginNote({
+    super.key,
+    required this.session,
+    required this.runId,
+    this.pendingUnit,
+  });
 
   final StorageSession session;
   final int runId;
+
+  /// Die für diesen Lauf gewählte Einheit, solange die Zuordnung noch aussteht
+  /// (sie geschieht erst nach dem Schließen des Laufs, `run_starter`). Gilt nur,
+  /// wenn in der Datenbank noch keine Einheit dem Lauf zugeordnet ist.
+  final PlanUnit? pendingUnit;
 
   @override
   State<PlanOriginNote> createState() => _PlanOriginNoteState();
@@ -47,7 +57,7 @@ class _PlanOriginNoteState extends State<PlanOriginNote> {
   Widget build(BuildContext context) => FutureBuilder<PlanUnit?>(
     future: _unit,
     builder: (context, snap) {
-      final unit = snap.data;
+      final unit = snap.data ?? widget.pendingUnit;
       if (unit == null) return const SizedBox.shrink();
       final l10n = AppLocalizations.of(context);
       final text = Theme.of(context).textTheme;

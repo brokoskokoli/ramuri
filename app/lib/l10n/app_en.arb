@@ -2241,6 +2241,8 @@
   "@guidedFree": {"description": "WP24 Lauf vorbereiten"},
   "guidedNoUnit": "No session is open today. You can run freely.",
   "@guidedNoUnit": {"description": "WP24 Lauf vorbereiten"},
+  "guidedNoUnitWarning": "You reported a warning signal, today is a rest day. You can run freely.",
+  "@guidedNoUnitWarning": {"description": "WP24 Lauf vorbereiten, Warnsignal aktiv"},
   "guidedTarget": "Target: {range}",
   "@guidedTarget": {"description": "WP24 Lauf vorbereiten", "placeholders": {"range": {"type": "String"}}},
   "guidedVoiceTitle": "Announcements",

@@ -117,6 +117,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   bool get _treadmill => _mode == RunMode.treadmill;
 
   /// „Geplante Einheit“ gewählt (nur mit [RunFlowScreen.plannedUnit]).
+  bool _warningActive = false;
   late bool _planned = widget.startPlanned && widget.plannedUnit != null;
 
   /// Hauptschalter „Ansagen“ (gemerkt, Vorgabe an) und das Schreiben davon.
@@ -160,6 +161,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     _autoPauseLoaded = _loadAutoPause();
     _modeLoaded = _loadMode();
     _voiceLoaded = _loadVoice();
+    if (_preparing && widget.plannedUnit == null) unawaited(_loadWarning());
     unawaited(_loadCadence());
     _check(askUser: false, autoStart: !_preparing);
   }
@@ -174,6 +176,22 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     }
     if (!mounted || _autoPauseTouched) return;
     setState(() => _autoPause = value);
+  }
+
+  /// Ein Warnsignal ist aktiv: Dann fehlt die Einheit wegen des Ruhetags, und
+  /// der Satz sagt das statt „keine Einheit offen“. Fehler beim Lesen: wie ohne.
+  Future<void> _loadWarning() async {
+    var active = false;
+    try {
+      final s = widget.session;
+      if (s is WarningStorage) {
+        active = await (s as WarningStorage).warning.read() != null;
+      }
+    } on Object {
+      active = false;
+    }
+    if (!mounted || !active) return;
+    setState(() => _warningActive = true);
   }
 
   /// Fehler beim Lesen: Ansagen an (Vorgabe, FR-0031).
@@ -479,6 +497,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       voice: widget.ports.voice,
       voiceTexts: VoiceTexts(AppLocalizations.of(context)),
       guidedSegments: _segmentsForRun,
+      guidedKind: _planned && _preparing ? widget.plannedUnit?.kind : null,
     );
     final onFinished = widget.onFinished;
     if (onFinished != null) {
@@ -582,6 +601,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
           formatter: AppSettingsScope.formatterOf(context),
           clock: widget.clock,
           recalculation: widget.recalculation,
+          pendingPlanUnit: _planned && widget.resumeRunId == null
+              ? widget.plannedUnit
+              : null,
         );
       },
     );
@@ -733,7 +755,7 @@ class _RunFlowScreenState extends State<RunFlowScreen>
           if (!hasUnit) ...[
             const SizedBox(height: 10),
             Text(
-              l10n.guidedNoUnit,
+              _warningActive ? l10n.guidedNoUnitWarning : l10n.guidedNoUnit,
               key: const Key('guided_no_unit'),
               style: Theme.of(context).textTheme.bodySmall,
             ),

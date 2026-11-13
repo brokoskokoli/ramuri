@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/run/live_map_page.dart'
+    show liveMapRouteBuilds;
 import 'package:running_app/features/run/live_run_view.dart';
 import 'package:running_app/features/run/run_controller.dart';
 import 'package:running_app/features/sensors/run_heart_rate.dart';
@@ -57,8 +59,15 @@ const _short = [
 ];
 
 class _World {
-  _World({List<PlanSegment>? segments, bool belt = false, bool withHr = false})
-    : clock = FakeClock(DateTime.utc(2031, 3, 1, 10)) {
+  _World({
+    List<PlanSegment>? segments,
+    bool belt = false,
+    bool withHr = false,
+    this.kind,
+    this.easy = const [],
+    this.autoPause,
+    this.still = false,
+  }) : clock = FakeClock(DateTime.utc(2031, 3, 1, 10)) {
     if (withHr) {
       hr = SensorManager(sensor: FakeHeartRateSensor(), clock: clock).beginRun()
         ..handle(const HeartRateConnected('s'));
@@ -68,6 +77,12 @@ class _World {
   }
 
   final FakeClock clock;
+  final PlanUnitKind? kind;
+  final List<EasyRunExposure> easy;
+  final bool? autoPause;
+
+  /// Der Läufer steht: immer derselbe Punkt (löst die Autopause aus).
+  final bool still;
   final location = FakeLocationSource();
   RunHeartRate? hr;
   late final RunController run;
@@ -83,6 +98,9 @@ class _World {
       location: location,
       sensors: hr,
       guidedSegments: _segments,
+      guidedKind: kind,
+      initialAutoPause: autoPause,
+      recentEasyRuns: (s, {required today}) async => easy,
       mode: _belt ? RunMode.treadmill : RunMode.gps,
       startBeltSpeedMetersPerSecond: _belt ? 3 : null,
     );
@@ -96,7 +114,7 @@ class _World {
         location.emit(
           LocationSample(
             time: clock.now(),
-            latitude: 50 + _i++ * 0.000027,
+            latitude: 50 + (still ? 0 : _i++) * 0.000027,
             longitude: 8,
             accuracyMeters: 5,
           ),
@@ -115,10 +133,22 @@ Future<_World> _show(
   String lang = 'de',
   bool belt = false,
   bool withHr = false,
+  PlanUnitKind? kind,
+  List<EasyRunExposure> easy = const [],
+  bool? autoPause,
+  bool still = false,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
-  final w = _World(segments: segments, belt: belt, withHr: withHr);
+  final w = _World(
+    segments: segments,
+    belt: belt,
+    withHr: withHr,
+    kind: kind,
+    easy: easy,
+    autoPause: autoPause,
+    still: still,
+  );
   _worlds.add(w);
   await w.start();
   await tester.pumpWidget(
@@ -222,16 +252,91 @@ void main() {
     expect(_k('guided_remaining'), findsNothing);
   });
 
-  _test('Pulshinweis erst nach 3 min im Abschnitt und nur über der Grenze', (
+  _test('Pulshinweis erst nach 3 min im Abschnitt und 30 s über der Grenze', (
     tester,
   ) async {
     final w = await _show(tester, withHr: true);
     await w.seconds(tester, 60 + 179, bpm: 175); // 2:59 im Block
     expect(_k('guided_hr_hint'), findsNothing);
-    await w.seconds(tester, 1, bpm: 175); // 3:00
+    await w.seconds(tester, 1, bpm: 175); // 3:00: über der Grenze seit 0 s
+    expect(_k('guided_hr_hint'), findsNothing);
+    await w.seconds(tester, 29, bpm: 175); // 29 s darüber
+    expect(_k('guided_hr_hint'), findsNothing);
+    await w.seconds(tester, 1, bpm: 175); // 30 s darüber (PAR-107)
     expect(_t(tester, 'guided_hr_hint'), contains('175 bpm'));
     await w.seconds(tester, 1, bpm: 165); // im Bereich
     expect(_k('guided_hr_hint'), findsNothing);
+  });
+
+  // Obere Grenze 170, Block ab 1:00; ab 4:00 darf der Hinweis kommen, 30 s
+  // darüber ab 4:30. Danach jeweils ein Hinweis zeigen, dann den Fall ändern.
+  Future<_World> hinted(
+    WidgetTester tester, {
+    List<EasyRunExposure>? easy,
+  }) async {
+    final w = await _show(tester, withHr: true, easy: easy ?? const []);
+    await w.seconds(tester, 60 + 179, bpm: 175);
+    return w;
+  }
+
+  _test('Puls genau auf der Grenze: kein Hinweis (PAR-107)', (tester) async {
+    final w = await hinted(tester);
+    await w.seconds(tester, 40, bpm: 170); // bpm == max
+    expect(_k('guided_hr_hint'), findsNothing);
+    await w.seconds(tester, 40, bpm: 171);
+    expect(_k('guided_hr_hint'), findsOneWidget);
+  });
+
+  _test('Pause: kein Pulshinweis, auch bei hohem Puls (PAR-107)', (
+    tester,
+  ) async {
+    final w = await hinted(tester);
+    await w.seconds(tester, 40, bpm: 175);
+    expect(_k('guided_hr_hint'), findsOneWidget);
+    await tester.tap(_k('run_pause').hitTestable());
+    await tester.pump();
+    await w.seconds(tester, 5, bpm: 175);
+    expect(_k('guided_paused'), findsOneWidget);
+    expect(_k('guided_hr_hint'), findsNothing);
+  });
+
+  _test('Gehpausen-Umstellung: Seite zeigt keinen Pulshinweis (PAR-107)', (
+    tester,
+  ) async {
+    const above = EasyRunExposure(
+      aboveUpper: Duration(minutes: 30),
+      known: Duration(minutes: 30),
+    );
+    final w = await hinted(tester, easy: const [above, above, above]);
+    await w.seconds(tester, 60, bpm: 175);
+    expect(w.run.guidedPulseHintsSuppressed, isTrue);
+    expect(_k('guided_hr_hint'), findsNothing);
+  });
+
+  _test('Karte zeichnet nur auf der Karten-Seite, nicht auf der Werte-Seite', (
+    tester,
+  ) async {
+    final w = await _show(tester);
+    await tester.tap(_k('run_tab_1')); // Werte
+    await tester.pumpAndSettle();
+    final builds = liveMapRouteBuilds;
+    await w.seconds(tester, 30);
+    expect(liveMapRouteBuilds, builds, reason: 'Werte-Seite: keine Strecke');
+    await tester.tap(_k('run_tab_2')); // Karte
+    await tester.pumpAndSettle();
+    expect(liveMapRouteBuilds, greaterThan(builds));
+  });
+
+  _test('Kopfzeile nennt die Art der Einheit', (tester) async {
+    await _show(tester, kind: PlanUnitKind.tempo);
+    expect(_t(tester, 'guided_title'), 'TEMPODAUERLAUF');
+  });
+
+  _test('Autopause: Seite sagt, warum die Restzeit steht', (tester) async {
+    final w = await _show(tester, autoPause: true, still: true);
+    await w.seconds(tester, 20);
+    expect(w.run.phase, RecordingPhase.autoPaused);
+    expect(_k('guided_paused'), findsOneWidget);
   });
 
   _test('Block unter 4 min: nie ein Pulshinweis (PAR-107)', (tester) async {

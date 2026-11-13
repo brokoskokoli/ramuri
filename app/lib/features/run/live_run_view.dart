@@ -72,6 +72,7 @@ class LiveRunView extends StatelessWidget {
     required this.formatter,
     this.clock,
     this.recalculation,
+    this.pendingPlanUnit,
   });
 
   final RunController controller;
@@ -83,6 +84,10 @@ class LiveRunView extends StatelessWidget {
 
   /// Für „Details“ nach dem Lauf; ohne sie fehlt der Knopf.
   final RecalculationController? recalculation;
+
+  /// Die gewählte Plan-Einheit; „Aus dem Plan“ zeigt sie in der Zusammenfassung,
+  /// bevor die Zuordnung nach dem Lauf gespeichert ist.
+  final PlanUnit? pendingPlanUnit;
 
   @override
   Widget build(BuildContext context) {
@@ -253,6 +258,7 @@ class LiveRunView extends StatelessWidget {
           formatter: formatter,
           session: controller.storage,
           runId: id,
+          pendingPlanUnit: pendingPlanUnit,
           subjective: SubjectiveService(
             session: controller.storage,
             clock: clock,

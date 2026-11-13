@@ -2984,6 +2984,8 @@
   "@guidedFree": {"description": "WP24 Lauf vorbereiten"},
   "guidedNoUnit": "Heute ist keine Einheit offen. Du kannst frei laufen.",
   "@guidedNoUnit": {"description": "WP24 Lauf vorbereiten"},
+  "guidedNoUnitWarning": "Du hast ein Warnsignal gemeldet, heute ist Ruhetag. Du kannst frei laufen.",
+  "@guidedNoUnitWarning": {"description": "WP24 Lauf vorbereiten, Warnsignal aktiv"},
   "guidedTarget": "Ziel: {range}",
   "@guidedTarget": {"description": "WP24 Lauf vorbereiten", "placeholders": {"range": {"type": "String"}}},
   "guidedVoiceTitle": "Ansagen",

@@ -6,6 +6,7 @@ import 'package:core/core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/run/run_controller.dart';
+import 'package:running_app/features/run/run_ports.dart';
 import 'package:running_app/features/run/voice_texts.dart';
 import 'package:running_app/features/sensors/run_heart_rate.dart';
 import 'package:running_app/features/sensors/sensor_manager.dart';
@@ -69,6 +70,7 @@ class _World {
     List<PlanSegment>? segments,
     int? resume,
     RunHeartRate? sensors,
+    RecordingServicePort? service,
     VoicePort? voicePort,
     List<EasyRunExposure> easy = const [],
     Future<List<EasyRunExposure>> Function(
@@ -82,6 +84,7 @@ class _World {
       storage: session,
       location: location,
       sensors: sensors,
+      service: service,
       resumeRunId: resume,
       voice: voicePort ?? voice,
       voiceTexts: VoiceTexts(lookupAppLocalizations(const Locale('de'))),
@@ -184,6 +187,53 @@ void main() {
     expect(c.snapshot.distanceMeters, isNotNull);
     await c.finish();
     expect(c.phase, RecordingPhase.finished);
+  });
+
+  guided('Schnappschuss steht vor dem Dienststart (Review 2, S4)', (
+    tester,
+  ) async {
+    final w = await _World.create();
+    final gate = Completer<void>();
+    final c = w.controller(
+      segments: _twoParts,
+      service: FakeRecordingServicePort()..startGate = gate.future,
+    );
+    unawaited(c.start()); // hängt im Dienststart
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(c.runId, isNotNull);
+    final stored = GuidedUnitSnapshot.decode(
+      await w.session.settings.get(SettingKeys.guidedUnitSnapshot),
+    );
+    expect(stored?.runId, c.runId);
+    gate.complete();
+    await tester.pump();
+  });
+
+  guided('Ende vor der Vorbereitung: kein Ereignisgeber, kein Schnappschuss '
+      '(Review 2, M3)', (tester) async {
+    final w = await _World.create();
+    final late = Completer<List<EasyRunExposure>>();
+    const above = EasyRunExposure(
+      aboveUpper: Duration(minutes: 30),
+      known: Duration(minutes: 30),
+    );
+    final c = w.controller(
+      segments: _withLimit,
+      easyFn: (s, {required today}) => late.future,
+    );
+    await c.start();
+    await w.seconds(tester, 3);
+    await c.finish(); // die Vorbereitung hängt noch
+    late.complete(const [above, above, above]);
+    await tester.pump(const Duration(milliseconds: 10));
+    // Mit Ereignisgeber wäre die Pulsumstellung aktiv (drei Läufe über Grenze).
+    expect(c.guidedPulseHintsSuppressed, isFalse);
+    expect(
+      GuidedUnitSnapshot.decode(
+        await w.session.settings.get(SettingKeys.guidedUnitSnapshot),
+      ),
+      isNull,
+    );
   });
 
   group('Schnappschuss am Laufende (Review 1, S5)', () {
@@ -324,7 +374,9 @@ void main() {
     });
   });
 
-  guided('ohne Sprachausgabe oder Schnappschuss: Lauf normal', (tester) async {
+  guided('ohne Sprachausgabe: Lauf normal, Schnappschuss trotzdem da', (
+    tester,
+  ) async {
     final w = await _World.create();
     final c = RunController(
       clock: w.clock,
@@ -336,9 +388,10 @@ void main() {
     await c.start();
     await w.seconds(tester, 61);
     expect(c.phase, RecordingPhase.running);
+    // Die Führung (Seite, Wiederanlauf) hängt nicht an der Sprachausgabe.
     expect(
       await w.session.settings.get(SettingKeys.guidedUnitSnapshot),
-      isNull,
+      isNotNull,
     );
   });
 

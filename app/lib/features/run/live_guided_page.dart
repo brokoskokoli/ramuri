@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../plan/plan_texts.dart' show planKindName;
 import '../settings/unit_format.dart';
 import 'live_run_values.dart' show splitUnit;
 import 'live_run_view.dart' show formatClock, livePaceText;
@@ -49,7 +50,10 @@ class LiveGuidedPage extends StatelessWidget {
     final s = controller.snapshot;
     final moving = s.movingTime ?? Duration.zero;
     final pos = guidedPosition(segments, moving);
-    final paused = s.phase == RecordingPhase.paused;
+    final paused =
+        s.phase == RecordingPhase.paused ||
+        s.phase == RecordingPhase.autoPaused;
+    final kind = controller.guidedUnitKind;
     final timed = [
       for (final g in segments)
         if (g.durationSeconds > 0) g,
@@ -71,7 +75,10 @@ class LiveGuidedPage extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      l10n.guidedLiveTitle.toUpperCase(),
+                      (kind == null
+                              ? l10n.guidedLiveTitle
+                              : planKindName(l10n, kind))
+                          .toUpperCase(),
                       key: const Key('guided_title'),
                       style: text.labelLarge?.copyWith(color: c.accent),
                     ),
@@ -132,7 +139,7 @@ class LiveGuidedPage extends StatelessWidget {
                 ],
                 const SizedBox(height: 20),
                 _targetIs(context, l10n, pos),
-                _hint(context, l10n, pos, moving),
+                _hint(context, l10n),
                 if (pos.next != null) ...[
                   const SizedBox(height: 12),
                   _next(c, l10n, text, pos.next!),
@@ -292,23 +299,13 @@ class LiveGuidedPage extends StatelessWidget {
     ];
   }
 
-  /// Pulshinweis nur nach den Regeln der Ansage (PAR-107): `pulseHintAllowed`
-  /// aus `core` (Abschnitt ab 4 min, nach 3 min darin, bis Minute 60), obere
-  /// Grenze gesetzt, Puls darüber, keine Gehpausen-Umstellung.
-  Widget _hint(
-    BuildContext context,
-    AppLocalizations l10n,
-    GuidedPosition pos,
-    Duration moving,
-  ) {
+  /// Pulshinweis nur nach den Regeln der Ansage (PAR-107), die der Controller
+  /// aus dem Ereignisgeber liefert (`guidedPulseHintDue`): Abschnitt ab 4 min,
+  /// nach 3 min darin, 30 s über der oberen Grenze, im Lauf, keine
+  /// Gehpausen-Umstellung. Die Seite rechnet nicht selbst.
+  Widget _hint(BuildContext context, AppLocalizations l10n) {
     final bpm = controller.snapshot.heartRateBpm;
-    final max = pos.target?.hrMaxBpm;
-    if (bpm == null ||
-        max == null ||
-        bpm <= max ||
-        controller.phase != RecordingPhase.running ||
-        controller.guidedPulseHintsSuppressed ||
-        !pulseHintAllowed(pos, moving)) {
+    if (bpm == null || !controller.guidedPulseHintDue) {
       return const SizedBox.shrink();
     }
     final c = RamuriColors.of(context);

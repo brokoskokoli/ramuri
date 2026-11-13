@@ -12,6 +12,7 @@ class GuidedUnitSnapshot {
     required this.runId,
     required this.segments,
     this.walkBreakHintGiven = false,
+    this.kind,
   });
 
   /// Lauf, zu dem der Schnappschuss gehört; ein fremder Lauf ignoriert ihn.
@@ -19,16 +20,22 @@ class GuidedUnitSnapshot {
   final List<PlanSegment> segments;
   final bool walkBreakHintGiven;
 
+  /// Art der Einheit (Name von `PlanUnitKind`) für die Kopfzeile der Live-Seite;
+  /// optional, ein Schnappschuss ohne sie bleibt gültig (Version 1 tolerant).
+  final String? kind;
+
   GuidedUnitSnapshot withWalkBreakHintGiven() => GuidedUnitSnapshot(
     runId: runId,
     segments: segments,
     walkBreakHintGiven: true,
+    kind: kind,
   );
 
   String encode() => jsonEncode({
     'v': 1,
     'run': runId,
     'hint': walkBreakHintGiven,
+    if (kind != null) 'kind': kind,
     'seg': [for (final s in segments) _segment(s)],
   });
 
@@ -47,6 +54,7 @@ class GuidedUnitSnapshot {
           for (final s in seg) _readSegment(s as Map<String, dynamic>),
         ],
         walkBreakHintGiven: j['hint'] == true,
+        kind: j['kind'] is String ? j['kind'] as String : null,
       );
     } on Object {
       return null;
