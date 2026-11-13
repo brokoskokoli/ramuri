@@ -2,7 +2,7 @@
 # Laeuft im Emulator-Schritt von .github/workflows/e2e.yml (Argument: Ausgabeordner).
 # Startet die Integrationstests und sammelt bei Rot Logcat (gefiltert), ein
 # Bildschirmfoto und die Fehlermeldung. Bei einem Fehler haelt der Test die App
-# 20 s offen und gibt "E2E_CI_FAIL_HOLD" aus; in dieser Zeit entsteht das Foto.
+# 20 s offen und gibt "E2E_CI_FAIL_HOLD" aus; das letzte Foto mit App im Vordergrund bleibt liegen.
 set -u
 out="${1:-e2e-out}"
 mkdir -p "$out"
@@ -10,19 +10,15 @@ log="$out/flutter-test.log"
 adb logcat -c
 (cd app && flutter test integration_test/e2e_recalc_test.dart -d emulator-5554) >"$log" 2>&1 &
 pid=$!
-shot=0
+# Die Testausgabe erreicht den Host erst am Testende (die App ist dann schon
+# geschlossen). Darum alle 2 s ein Foto, solange die App im Vordergrund ist; das
+# letzte bleibt liegen (der Test haelt die App bei Rot 20 s offen).
+pkg=io.github.brokoskokoli.ramuri
 while kill -0 "$pid" 2>/dev/null; do
-  if [ "$shot" = 0 ] && grep -q 'E2E_CI_FAIL_HOLD' "$log" 2>/dev/null; then
-    # Drei Fotos im Abstand von 4 s (die Haltezeit des Tests ist 20 s) und der
-    # Vordergrund-Fokus dazu, falls die App nicht mehr oben liegt.
-    for n in 1 2 3; do
-      adb exec-out screencap -p >"$out/screen$n.png" 2>/dev/null
-      echo "foto $n: $(adb shell dumpsys window | grep -m1 mCurrentFocus)"
-      sleep 4
-    done
-    shot=1
+  if adb shell dumpsys window 2>/dev/null | grep -m1 mCurrentFocus | grep -q "$pkg"; then
+    adb exec-out screencap -p >"$out/screen.tmp" 2>/dev/null && mv "$out/screen.tmp" "$out/screen-last.png"
   fi
-  sleep 1
+  sleep 2
 done
 wait "$pid"
 rc=$?
