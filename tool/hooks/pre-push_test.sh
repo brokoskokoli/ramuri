@@ -85,6 +85,23 @@ git tag -a -m "Notiz zzgeheimzz" foo-ann "$cleanhead"
 check rejected "Scan: Begriff in Tag-Annotation" "refs/tags/foo-ann $(git rev-parse foo-ann) refs/tags/foo-ann $zero"
 git tag -a -m "Notiz harmlos" foo-ok "$cleanhead"
 check ok       "Scan: Tag-Annotation sauber frei" "refs/tags/foo-ok $(git rev-parse foo-ok) refs/tags/foo-ok $zero"
+# Nicht auswertbarer Bereich (unbekannte SHA) wird abgelehnt.
+check rejected "Scan: unbekannte SHA (rev-list schlägt fehl)" "refs/heads/feat 1234567890123456789012345678901234567890 refs/heads/feat $zero"
+# Autor/Committer und Ref-Name.
+GIT_AUTHOR_NAME=zzgeheimzz git commit -q --allow-empty -m autor || exit 1
+check rejected "Scan: Begriff im Autornamen" "refs/heads/feat $(git rev-parse HEAD) refs/heads/feat $zero"
+git reset -q --hard "$cleanhead"
+GIT_COMMITTER_EMAIL=zzgeheimzz@example.invalid git commit -q --allow-empty -m committer || exit 1
+check rejected "Scan: Begriff in der Committer-Mail" "refs/heads/feat $(git rev-parse HEAD) refs/heads/feat $zero"
+git reset -q --hard "$cleanhead"
+check rejected "Scan: Begriff im Ref-Namen" "refs/heads/zzgeheimzz $cleanhead refs/heads/zzgeheimzz $zero"
+# Nur die Refs des Push-Ziels zählen als veröffentlicht: Leck liegt auf einem anderen Remote.
+git remote add other /nonexistent; git remote add origin /nonexistent 2>/dev/null
+git update-ref refs/remotes/other/feat "$leak"
+check rejected "Scan: Leck nur auf anderem Remote -> Push an origin abgelehnt" "refs/heads/feat $leak refs/heads/feat2 $zero"
+printf '%s\n' "refs/heads/feat $leak refs/heads/feat2 $zero" | sh "$hook" other url >/dev/null 2>&1 \
+  && echo "OK   Scan: Push an den Remote, der das Leck schon hat, frei" || { echo "FAIL Scan: Push an other"; fails=$((fails + 1)); }
+git update-ref -d refs/remotes/other/feat
 # Plausibilität: der Scan sieht einen nicht leeren Bereich (sonst wären die Treffer-Fälle oben wirkungslos).
 [ "$(git rev-list "$leak" --not --remotes | wc -l | tr -d ' ')" -ge 2 ] && echo "OK   Scan-Bereich nicht leer" || { echo "FAIL Scan-Bereich leer"; fails=$((fails + 1)); }
 [ $fails -eq 0 ] && echo "pre-push-Test GRÜN" || { echo "pre-push-Test ROT"; exit 1; }

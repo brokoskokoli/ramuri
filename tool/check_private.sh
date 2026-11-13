@@ -1,7 +1,8 @@
 #!/bin/sh
 # Sucht private Daten und Geheimnisse: --staged prüft den Index, sonst alle versionierten Dateien.
-# --push <rev-list-Argumente> (Pre-Push-Hook) prüft die neuen Commits des Bereichs: Dateinamen, Commit-Nachricht und
-# hinzugefügte Zeilen jedes Nicht-Merge-Commits, nicht den Arbeitsbaum. Die Ausgabe nennt nur Commit und Datei,
+# --push <rev-list-Argumente> (Pre-Push-Hook) prüft die neuen Commits des Bereichs: Autor/Committer (Name, Mail),
+# Commit-Nachricht, Dateinamen und hinzugefügte Zeilen (bei Merges die Konfliktauflösung), nicht den Arbeitsbaum.
+# --stdin prüft den Text von stdin (Tag-Annotation, Ref-Name). Die Ausgabe nennt nur Commit und Datei,
 # nie die Fundstelle (die Logs sind öffentlich); ein nicht auswertbarer Bereich gilt als Treffer.
 # Verbotene Begriffe stehen nur lokal in ~/.config/running-app/forbidden-terms (fehlt in CI);
 # RUNNING_APP_FORBIDDEN_TERMS überschreibt den Pfad (Tests).
@@ -29,6 +30,7 @@ if [ "$mode" = --push ]; then
   while IFS= read -r c; do
     s=$(git rev-parse --short "$c")
     git log -n 1 --format=%B "$c" | matches && { echo "check_private: Commit $s: Treffer in der Commit-Nachricht" >&2; rc=1; }
+    git log -n 1 --format='%an%n%ae%n%cn%n%ce' "$c" | matches && { echo "check_private: Commit $s: Treffer bei Autor/Committer" >&2; rc=1; }
     # Merge: Dateien mit Konfliktauflösung (--cc/-c), geprüft werden nur die gegen alle Eltern neuen Zeilen ("++").
     if [ "$(git rev-list --parents -n 1 "$c" | wc -w)" -gt 2 ]; then merge=1; cdiff=-c; else merge=; cdiff=; fi
     git diff-tree $cdiff --root -r --no-renames --name-only --no-commit-id -z "$c" | tr '\0' '\n' > "$tmp.f"

@@ -18,8 +18,10 @@ rc=0
 here=$(cd "$(dirname "$0")" && pwd)
 while read -r lref lsha rref rsha; do
   if [ "$lsha" != "$zero" ]; then
-    pexcl="--remotes"
-    [ "$rsha" != "$zero" ] && git cat-file -e "$rsha^{commit}" 2>/dev/null && pexcl="--remotes $rsha"
+    # Nur Refs des Push-Ziels ($1 = Remote-Name) gelten als schon veröffentlicht; Ziel-URL/unbekannt: alle Remotes.
+    if git remote | grep -qxF -- "$1"; then pexcl="--remotes=$1/*"; else pexcl="--remotes"; fi
+    [ "$rsha" != "$zero" ] && git cat-file -e "$rsha^{commit}" 2>/dev/null && pexcl="$pexcl $rsha"
+    printf '%s\n' "$rref" | sh "$here/../check_private.sh" --stdin || { echo "pre-push: Privat-Scan abgelehnt (Ref-Name)." >&2; rc=1; }
     # shellcheck disable=SC2086
     sh "$here/../check_private.sh" --push "$lsha" --not $pexcl </dev/null || { echo "pre-push: Privat-Scan abgelehnt ($rref); Treffer bereinigen (Verlauf umschreiben, nicht nur löschen)." >&2; rc=1; }
     if [ "$(git cat-file -t "$lsha" 2>/dev/null)" = tag ]; then
