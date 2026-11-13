@@ -259,6 +259,19 @@ void main() {
           .map((b) => (b.decoration as BoxDecoration).color);
       expect(capsule, contains(RamuriColors.night.surface));
       expect(capsule, isNot(contains(RamuriColors.light.surface)));
+      // Werte-Seite: Inhalt und Reiter unter der Statusleiste, Steuerung über
+      // der Navigationsleiste (SafeArea um die Werte, Abstand der Reiter).
+      await tester.tap(_k('run_tab_1'));
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(_k('run_time')).dy, greaterThanOrEqualTo(30));
+      expect(
+        tester.getTopLeft(_k('run_tab_1')).dy,
+        greaterThanOrEqualTo(30 + 16),
+      );
+      expect(
+        tester.getBottomLeft(_k('run_pause')).dy,
+        lessThanOrEqualTo(844 - 40),
+      );
     });
   }
 

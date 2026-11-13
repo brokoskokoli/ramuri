@@ -187,7 +187,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
         return;
       }
       final unit = await openPlanUnitOn(session, started.day);
-      if (unit == null || unit.id != started.unitId || !mounted) return;
+      // Auch eine durch Neuberechnung ersetzte Einheit (neue Kennung): Die
+      // Zuordnung in der Datenbank nimmt die offene Einheit desselben Tags.
+      if (unit == null || !mounted) return;
       setState(() => _resumedUnit = unit);
     } on Object {
       // Nur die Anzeige fehlt.

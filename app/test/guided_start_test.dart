@@ -8,6 +8,7 @@ import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/run/guided_segments.dart';
 import 'package:running_app/features/run/live_run_view.dart';
+import 'package:running_app/features/plan/plan_started_unit.dart';
 import 'package:running_app/features/run/run_flow_screen.dart';
 import 'package:running_app/features/summary/plan_origin_note.dart';
 
@@ -213,6 +214,110 @@ void main() {
       final run = (await d.session.runs.list()).single;
       final unit = await (d.session as PlanStorage).plans.unitOn(_today);
       expect(unit!.runId, run.id);
+    });
+
+    // Absturz, Fortsetzen und Beenden; [beforeResume] richtet den Merker her.
+    // Gibt zurück, ob „Aus dem Plan“ in der Zusammenfassung steht.
+    Future<bool> crashResumeFinish(
+      WidgetTester tester,
+      Device d, {
+      required Finder start,
+      Future<void> Function()? beforeResume,
+    }) async {
+      await tester.tap(start);
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
+      await walk(d, tester, 20);
+      await d.stop(tester);
+      await d.start(tester, const Locale('de'));
+      await beforeResume?.call();
+      await tester.tap(key('recover_resume'));
+      await tester.pumpAndSettle();
+      await walk(d, tester, 10, from: 20);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      await tester.tap(key('run_finish'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_finish_confirm'));
+      await tester.pumpAndSettle();
+      expect(key('sum_trimp'), findsOneWidget);
+      return key('sum_from_plan').evaluate().isNotEmpty;
+    }
+
+    testWidgets('Freier Lauf, Absturz, Fortsetzen: kein „Aus dem Plan“ (NB5)', (
+      tester,
+    ) async {
+      final d = Device();
+      await _open(d);
+      await d.start(tester, const Locale('de'));
+      expect(
+        await crashResumeFinish(tester, d, start: key('home_start_run')),
+        isFalse,
+      );
+    });
+
+    testWidgets('Lauf begann vor dem Merker: kein „Aus dem Plan“ (NB5)', (
+      tester,
+    ) async {
+      final d = Device();
+      await _open(d);
+      await d.start(tester, const Locale('de'));
+      final unit = (await (d.session as PlanStorage).plans.unitOn(_today))!;
+      final shown = await crashResumeFinish(
+        tester,
+        d,
+        start: key('home_start_run'),
+        beforeResume: () async {
+          // Ein Merker, der jünger ist als der offene Lauf (z. B. weil das
+          // Löschen bei „Frei laufen“ scheiterte und später neu gemerkt wurde).
+          d.clock.advance(const Duration(minutes: 5));
+          await PlanStartedUnitStore(
+            session: d.session,
+            clock: d.clock,
+          ).remember(unit.id!, '2026-11-11');
+        },
+      );
+      expect(shown, isFalse);
+    });
+
+    testWidgets('Einheit durch Neuberechnung ersetzt (neue Kennung): '
+        '„Aus dem Plan“ wie die Zuordnung in der Datenbank (NB5)', (
+      tester,
+    ) async {
+      final d = Device();
+      await _open(d);
+      await d.start(tester, const Locale('de'));
+      final unit = (await (d.session as PlanStorage).plans.unitOn(_today))!;
+      final shown = await crashResumeFinish(
+        tester,
+        d,
+        start: key('home_start_unit'),
+        beforeResume: () async {
+          // Der Merker trägt die alte Kennung, am Tag steht die neue Einheit.
+          final old = (await PlanStartedUnitStore(
+            session: d.session,
+            clock: d.clock,
+          ).read())!;
+          await d.session.settings.set(
+            SettingKeys.planStartedUnit,
+            PlanStartedUnit(
+              unitId: unit.id! + 1000,
+              day: old.day,
+              since: old.since,
+            ).encode(),
+            at: d.clock.now(),
+          );
+        },
+      );
+      expect(shown, isTrue);
+      await tester.tap(key('run_done_close'));
+      await tester.pumpAndSettle();
+      final run = (await d.session.runs.list()).single;
+      expect(
+        (await (d.session as PlanStorage).plans.unitOn(_today))!.runId,
+        run.id,
+      );
     });
   });
 
