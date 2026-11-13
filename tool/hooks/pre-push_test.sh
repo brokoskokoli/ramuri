@@ -1,5 +1,5 @@
 #!/bin/sh
-# Test für die Tag-Regel von tool/hooks/pre-push (WP30): Aufruf: sh tool/hooks/pre-push_test.sh
+# Test für tool/hooks/pre-push: Tag-Regel (WP30) und Privat-Scan jedes Pushes (WP31): Aufruf: sh tool/hooks/pre-push_test.sh
 # Legt ein temporäres Repo mit refs/remotes/origin/main an und ruft den Hook mit stdin wie Git auf.
 hook=$(cd "$(dirname "$0")" && pwd)/pre-push
 tmp=$(mktemp -d) || exit 1
@@ -37,4 +37,35 @@ check ok       "Nicht-Release-Tag außerhalb origin/main" "refs/tags/foo $outsid
 check ok       "wp-Branch unverändert frei" "refs/heads/wp/1-x $outside refs/heads/wp/1-x $zero"
 git update-ref -d refs/remotes/origin/main
 check rejected "Release-Tag ohne origin/main" "refs/tags/v0.1.0 $inmain refs/tags/v0.1.0 $zero"
-[ $fails -eq 0 ] && echo "pre-push Tag-Test GRÜN" || { echo "pre-push Tag-Test ROT"; exit 1; }
+# Privat-Scan (WP31): temporäre Termliste mit harmlosem Testbegriff, Hook-Scan auf die neuen Commits.
+export RUNNING_APP_FORBIDDEN_TERMS="$tmp/terms"
+printf 'zzgeheimzz\n' > "$tmp/terms"
+git update-ref refs/remotes/origin/main "$inmain"
+git checkout -q -b feat "$inmain"
+base=$(git rev-parse HEAD)
+echo "harmlos" > clean.txt && git add clean.txt && git commit -q -m clean || exit 1
+cleanhead=$(git rev-parse HEAD)
+check ok       "Scan: sauberer Push frei" "refs/heads/feat $cleanhead refs/heads/feat $zero"
+echo "Text ZZGeheimZZ Text" > leak.txt && git add leak.txt && git commit -q -m leak || exit 1
+leak=$(git rev-parse HEAD)
+git rm -q leak.txt && git commit -q -m "kein Leck mehr" || exit 1
+removed=$(git rev-parse HEAD)
+check rejected "Scan: Begriff in älterem Commit des Ranges, später entfernt" "refs/heads/feat $removed refs/heads/feat $zero"
+check rejected "Scan: Treffer, Remote-Stand bekannt" "refs/heads/feat $leak refs/heads/feat $cleanhead"
+check ok       "Scan: Range ab dem Treffer (Leck liegt auf dem Remote) frei" "refs/heads/feat $removed refs/heads/feat $leak"
+git reset -q --hard "$cleanhead"
+echo "x" > zzgeheimzz.txt && git add zzgeheimzz.txt && git commit -q -m name || exit 1
+check rejected "Scan: Begriff im Dateinamen" "refs/heads/feat $(git rev-parse HEAD) refs/heads/feat $zero"
+git reset -q --hard "$cleanhead"
+git commit -q --allow-empty -m "zzgeheimzz in Nachricht" || exit 1
+check rejected "Scan: Begriff in Commit-Nachricht" "refs/heads/feat $(git rev-parse HEAD) refs/heads/feat $zero"
+git reset -q --hard "$cleanhead"
+echo "pfad /Users""/abc/x" > p.txt && git add p.txt && git commit -q -m pfad || exit 1
+check rejected "Scan: Standardmuster (Nutzerpfad)" "refs/heads/feat $(git rev-parse HEAD) refs/heads/feat $zero"
+git reset -q --hard "$cleanhead"
+check ok       "Scan: Löschung einer Ref frei" "(delete) $zero refs/heads/feat $leak"
+check rejected "Scan: Treffer trifft auch Tag-Push" "refs/tags/foo $leak refs/tags/foo $zero"
+check rejected "Scan: main-Regel bleibt (sauber, ohne Freigabe)" "refs/heads/feat $cleanhead refs/heads/main $inmain"
+# Plausibilität: der Scan sieht einen nicht leeren Bereich (sonst wären die Treffer-Fälle oben wirkungslos).
+[ "$(git rev-list "$leak" --not --remotes | wc -l | tr -d ' ')" -ge 2 ] && echo "OK   Scan-Bereich nicht leer" || { echo "FAIL Scan-Bereich leer"; fails=$((fails + 1)); }
+[ $fails -eq 0 ] && echo "pre-push-Test GRÜN" || { echo "pre-push-Test ROT"; exit 1; }

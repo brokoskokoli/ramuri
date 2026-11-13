@@ -7,13 +7,22 @@
 # Commits, die er mitbringt, gelten mit) oder ändert nur Dokumentation (docs/, work-packages/,
 # PROJECT.md, AGENTS.md, README.md). Ein Tag refs/tags/v* (auch annotiert) nur, wenn sein Commit schon in
 # refs/remotes/origin/main liegt (Release-Pipeline, WP30); Tag-Löschungen sind frei.
+# Vor allen Regeln scannt jeder Push (jede Ref außer Löschungen) die neuen Commits mit
+# tool/check_private.sh --push (Dateinamen, Nachrichten, hinzugefügte Zeilen; Treffer lehnen ab; Umgehen nur --no-verify).
 # wp/*- und alle anderen Pushes (auch Löschungen) bleiben frei.
 # Einrichtung: core.hooksPath=tool/hooks. Eingabe (stdin) wie bei Git:
 #   <lokale ref> <lokaler sha> <remote ref> <remote sha>
 zero=0000000000000000000000000000000000000000
 ok_file="$(git rev-parse --path-format=absolute --git-common-dir)/running-app-merge-ok"
 rc=0
+here=$(cd "$(dirname "$0")" && pwd)
 while read -r lref lsha rref rsha; do
+  if [ "$lsha" != "$zero" ]; then
+    pexcl="--remotes"
+    [ "$rsha" != "$zero" ] && git cat-file -e "$rsha^{commit}" 2>/dev/null && pexcl="--remotes $rsha"
+    # shellcheck disable=SC2086
+    sh "$here/../check_private.sh" --push "$lsha" --not $pexcl </dev/null || { echo "pre-push: Privat-Scan abgelehnt ($rref); Treffer bereinigen (Verlauf umschreiben, nicht nur löschen)." >&2; rc=1; }
+  fi
   case "$rref" in
     refs/tags/v*)
       [ "$lsha" = "$zero" ] && continue
