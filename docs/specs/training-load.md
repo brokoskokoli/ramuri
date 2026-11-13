@@ -177,7 +177,7 @@ Ein zunächst fehlender Datenbestand darf nicht automatisch als niedriges Fitnes
 ### FR-0199 — Training manuell nachtragen
 - **Status:** Approved | **Phase:** 2
 - **Quelle:** SRC-001 §17.1, Z. 1063; SRC-003 (OQ-0022)
-- **Verwandt:** FR-0157, FR-0095, OQ-0022, OQ-0058
+- **Verwandt:** FR-0157, FR-0095, FR-0023, OQ-0022, OQ-0058
 
 Der Nutzer kann ein Training mit Datum, Art, Dauer und RPE nachtragen. Es geht in Belastung und Plan ein, erzeugt aber keine GPS- oder VO₂max-Werte. Andere Sportarten lassen sich als „Sonstiges“ erfassen.
 
@@ -185,6 +185,7 @@ Der Nutzer kann ein Training mit Datum, Art, Dauer und RPE nachtragen. Es geht i
 - [ ] Ein nachgetragenes Training erscheint in der Belastung als gekennzeichneter umgerechneter sRPE-Wert, solange der Faktor nach PAR-086 fehlt als „nicht bewertet“.
 - [ ] Es erzeugt keine VO₂max-Schätzung.
 - [ ] „Sonstiges“ zählt für Belastung und Pausenende, aber nicht für Trainingsstand und längste Einheit (OQ-0058).
+- [ ] Ein aus Health Connect importiertes Training lässt sich „als Training übernehmen“: Das legt einen Nachtrag mit vorausgefüllter Dauer an, die RPE fragt die App. Erst dann zählt es in Belastung und Pausenregel; vorher wird es nur angezeigt (FR-0023, K62 Punkt 2).
 
 ## Später wählbares Belastungsprofil
 

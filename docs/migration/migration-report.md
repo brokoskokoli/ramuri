@@ -31,12 +31,12 @@ Die Zahlen werden aus den Dateien erzeugt.
 |---|---|
 | Quellen im Inventar | 3 |
 | Feature-Spezifikationen | 20 |
-| Anforderungen gesamt | 242 |
-| davon FR / NFR / SEC / CON | 215 / 6 / 11 / 10 |
+| Anforderungen gesamt | 244 |
+| davon FR / NFR / SEC / CON | 217 / 6 / 11 / 10 |
 | davon Status Blocked | 0 |
-| Akzeptanzkriterien in Anforderungen | 435 |
+| Akzeptanzkriterien in Anforderungen | 453 |
 | Fragen gesamt (offen blocking / offen non-blocking / entschieden) | 80 (0 / 10 / 70) |
-| Traceability-Zeilen (Teil A / Teil B) | 285 (271 / 14) |
+| Traceability-Zeilen (Teil A / Teil B) | 287 (273 / 14) |
 | davon Duplikat zusammengefasst | 5 |
 | davon begründet nicht übernommen | 1 |
 <!-- END STATS -->

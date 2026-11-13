@@ -186,9 +186,11 @@ Die App stellt daraus keine medizinische Diagnose.
 ### FR-0215 — Morgenmessung mit der Handykamera
 - **Status:** Approved | **Phase:** 3
 - **Quelle:** SRC-003 (Maintainer 2026-11-09)
-- **Verwandt:** FR-0109, FR-0112, FR-0115, FR-0214, OQ-0006, OQ-0078, DEC-0073, DEC-0074
+- **Verwandt:** FR-0109, FR-0112, FR-0115, FR-0214, FR-0216, FR-0217, OQ-0006, OQ-0078, DEC-0073, DEC-0074, DEC-0075, DEC-0076
 
 Für die erweiterte Einschätzung ohne Uhr misst der Nutzer morgens 60 s mit der Kamera wie in FR-0214. Daraus entstehen Ruhepuls und RMSSD als eigene Reihe (nicht gemischt mit Werten aus Health Connect, FR-0115). Eine morgendliche Erinnerung ist freiwillig. Protokoll und Regeln stammen aus R009 (`research/R009-kamera-ppg-morgenmessung/RESULTS.md`, Abschnitte 1, 5 und 5a); es gilt die Regelversion K-1 in [phase-2-3-rules.md](../phase-2-3-rules.md#7-regelversion-k-1-kamera-morgenmessung-phase-3). Freigegeben mit Auflage: RMSSD zählt erst nach bestandener Validierung gegen Polar H9 (R009, Abschnitt 6) und Opt-in des Nutzers.
+
+**Entwicklermodus (Entscheidung des Maintainers 2026-11-13, K61, K62):** Bis zur bestandenen Validierung ist die Morgenmessung nur im Entwicklermodus (FR-0217) nutzbar; dort gelten Ruhepuls und RMSSD vollständig als gültig, als wäre die Validierung bestanden, ohne Kennzeichnung. Nach dem Bestehen gilt K-1 für alle. Ob der Plan auf die Werte reagiert, regelt FR-0216.
 
 **Akzeptanzkriterien:**
 - [ ] Protokoll: morgens nach dem Aufwachen, erst Toilette, dann messen, vor Kaffee und Frühstück; Haltung liegend als Vorgabe, sitzend wählbar, nie stehend; wechselt die Haltung, beginnt eine neue Reihe. Vorgabe 2 min Ruhe, jeden Tag gleich; 60 s Messung mit spontaner Atmung, Anleitung ohne vorgegebenes Atemtempo.
@@ -197,7 +199,9 @@ Für die erweiterte Einschätzung ohne Uhr misst der Nutzer morgens 60 s mit der
 - [ ] Abweichungen nach PAR-161K und PAR-162K, Hinweis „wenige Messungen“ bei weniger als 5 gültigen Werten in 7 Tagen.
 - [ ] Schlafdauer ohne Uhr als freiwillige Selbstangabe in Stufen nach PAR-164K/165K; kein Schlafgefühl am Morgen (PAR-169 bleibt).
 - [ ] Zahl, eingeschränkte Einschätzung und „Unzureichende Daten“ nach PAR-171K; Health Connect hat Vorrang vor der Kamera (Vorrangregel K-1).
-- [ ] Validierungssperre: Vor der Validierung erscheint Kamera-RMSSD nur als markierte Tatsache „noch nicht geprüft“. Die Folgen von „bestanden“, „eingeschränkt“ und „nicht bestanden“ für RMSSD und Ruhepuls, das Opt-in „experimentell, mit einem Brustgurt verglichen (ein Handy)“ und der Zusatz „liegend verglichen“ für die sitzende Reihe folgen der Validierungssperre in K-1. Die App nennt die Messung nie „validiert“.
+- [ ] Validierungssperre (ohne Entwicklermodus): Vor der Validierung erscheint Kamera-RMSSD nur als markierte Tatsache „noch nicht geprüft“. Die Folgen von „bestanden“, „eingeschränkt“ und „nicht bestanden“ für RMSSD und Ruhepuls, das Opt-in „experimentell, mit einem Brustgurt verglichen (ein Handy)“ und der Zusatz „liegend verglichen“ für die sitzende Reihe folgen der Validierungssperre in K-1. Die App nennt die Messung nie „validiert“.
+- [ ] Vor bestandener Validierung ist die Morgenmessung nur im Entwicklermodus erreichbar; dort gelten Ruhepuls und RMSSD wie nach bestandener Validierung, ohne Opt-in und ohne Kennzeichnung, mit Qualitätsgrenze je Messung und internem Merkmal „vor der Validierung gemessen“ (FR-0217, K62 Punkt 1 und 6).
+- [ ] Morgen-Erinnerung: keine Ausnahme zu SEC-0009; die Uhrzeit liegt nur in der verschlüsselten Datenbank, nach einem Neustart des Geräts plant erst das nächste Öffnen der App die Erinnerung neu (K62 Punkt 3).
 - [ ] Kamerabilder werden weder gespeichert noch übertragen; die Auswertung läuft auf dem Gerät mit demselben Algorithmus wie FR-0214.
 
 ## Offene Fragen

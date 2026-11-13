@@ -31,7 +31,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0020 | Herkunft der Messwerte dokumentieren | functional | Approved | 1 | [sensors](specs/sensors.md#fr-0020--herkunft-der-messwerte-dokumentieren) | SEC-0005 |
 | FR-0021 | Erweiterte Sensordaten aufzeichnen | functional | Draft | 4 | [sensors](specs/sensors.md#fr-0021--erweiterte-sensordaten-aufzeichnen) | OQ-0013 |
 | FR-0022 | Import nur mit Zustimmung | functional | Approved | 3 | [health-import](specs/health-import.md#fr-0022--import-nur-mit-zustimmung) | SEC-0001, SEC-0002, OQ-0033 |
-| FR-0023 | Importierbare Datenarten | functional | Approved | 3 | [health-import](specs/health-import.md#fr-0023--importierbare-datenarten) | OQ-0033 |
+| FR-0023 | Importierbare Datenarten | functional | Approved | 3 | [health-import](specs/health-import.md#fr-0023--importierbare-datenarten) | FR-0199, OQ-0033 |
 | FR-0024 | Fremde VO2max-Werte nicht ungeprüft zusammenführen | functional | Approved | 3 | [health-import](specs/health-import.md#fr-0024--fremde-vo2max-werte-nicht-ungeprüft-zusammenführen) | FR-0081, OQ-0033 |
 | FR-0025 | Freie oder geplante Einheit starten | functional | Approved | 1 (frei), 2 (aus Plan) | [run-recording](specs/run-recording.md#fr-0025--freie-oder-geplante-einheit-starten) | FR-0210, OQ-0075 |
 | FR-0026 | Pflichtanzeigen während des Trainings | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0026--pflichtanzeigen-während-des-trainings) | FR-0051, FR-0056, OQ-0012 |
@@ -207,7 +207,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0196 | Laufbandmodus | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0196--laufbandmodus) | FR-0195, OQ-0042 |
 | FR-0197 | Belastungsprofil wählen | functional | Approved | 2 | [training-load](specs/training-load.md#fr-0197--belastungsprofil-wählen) | FR-0097, NFR-0005, OQ-0043, OQ-0045, OQ-0053 |
 | FR-0198 | Reimport des Gesamtexports | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0198--reimport-des-gesamtexports) | FR-0192, OQ-0032 |
-| FR-0199 | Training manuell nachtragen | functional | Approved | 2 | [training-load](specs/training-load.md#fr-0199--training-manuell-nachtragen) | FR-0157, FR-0095, OQ-0022, OQ-0058 |
+| FR-0199 | Training manuell nachtragen | functional | Approved | 2 | [training-load](specs/training-load.md#fr-0199--training-manuell-nachtragen) | FR-0157, FR-0095, FR-0023, OQ-0022, OQ-0058 |
 | FR-0200 | Import über Health Connect | functional | Approved | 3 | [health-import](specs/health-import.md#fr-0200--import-über-health-connect) | FR-0022, SEC-0002, CON-0003, OQ-0033, OQ-0047, OQ-0059 |
 | FR-0201 | Export teilen | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0201--export-teilen) | FR-0182, CON-0010, OQ-0049 |
 | FR-0202 | Schrittfrequenz aus dem Smartphone | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0202--schrittfrequenz-aus-dem-smartphone) | FR-0027, FR-0021, OQ-0052 |
@@ -223,7 +223,9 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0212 | Zeitraum in der Historie | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0212--zeitraum-in-der-historie) | FR-0040, FR-0044, OQ-0075 |
 | FR-0213 | RR-Intervalle als Rohdaten speichern | functional | Approved | 2 | [sensors](specs/sensors.md#fr-0213--rr-intervalle-als-rohdaten-speichern) | FR-0021, FR-0019, SEC-0001, DEC-0072 |
 | FR-0214 | Ruhepuls mit der Handykamera messen | functional | Approved | 2 | [profile](specs/profile.md#fr-0214--ruhepuls-mit-der-handykamera-messen) | FR-0002, FR-0060, SEC-0001, OQ-0078, DEC-0073, DEC-0074 |
-| FR-0215 | Morgenmessung mit der Handykamera | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0215--morgenmessung-mit-der-handykamera) | FR-0109, FR-0112, FR-0115, FR-0214, OQ-0006, OQ-0078, DEC-0073, DEC-0074 |
+| FR-0215 | Morgenmessung mit der Handykamera | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0215--morgenmessung-mit-der-handykamera) | FR-0109, FR-0112, FR-0115, FR-0214, FR-0216, FR-0217, OQ-0006, OQ-0078, DEC-0073, DEC-0074, DEC-0075, DEC-0076 |
+| FR-0216 | Plan „adaptiv“ oder „fix“ | functional | Approved | 3 | [plan-adaptation](specs/plan-adaptation.md#fr-0216--plan-adaptiv-oder-fix) | FR-0156, FR-0157, FR-0158, FR-0203, FR-0108, FR-0215 |
+| FR-0217 | Entwicklermodus | functional | Approved | 3 | [profile](specs/profile.md#fr-0217--entwicklermodus) | FR-0215, FR-0213, FR-0021, FR-0216, SEC-0009, DEC-0074 |
 | NFR-0001 | Algorithmen versionierbar und nachvollziehbar | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0001--algorithmen-versionierbar-und-nachvollziehbar) | FR-0053, FR-0058 |
 | NFR-0002 | Einordnung in drei Verfahrenskategorien | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0002--einordnung-in-drei-verfahrenskategorien) | — |
 | NFR-0003 | Heuristiken nicht als validiert darstellen | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0003--heuristiken-nicht-als-validiert-darstellen) | FR-0054 |

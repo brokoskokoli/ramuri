@@ -31,7 +31,7 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-001 | §3.2, Z. 97 | Herkunft der Messwerte dokumentieren | FR-0020 | [sensors.md](../specs/sensors.md) | 1 AK | Übernommen |
 | SRC-001 | §3.3, Z. 101–109 | Erweiterte Sensordaten aufzeichnen | FR-0021 | [sensors.md](../specs/sensors.md) | 1 AK | Übernommen |
 | SRC-001 | §3 und §3.4, Z. 113 | Import nur mit Zustimmung | FR-0022 | [health-import.md](../specs/health-import.md) | 1 AK | Übernommen |
-| SRC-001 | §3.4, Z. 115–122 | Importierbare Datenarten | FR-0023 | [health-import.md](../specs/health-import.md) | 1 AK | Übernommen |
+| SRC-001 | §3.4, Z. 115–122 | Importierbare Datenarten | FR-0023 | [health-import.md](../specs/health-import.md) | 2 AK | Übernommen |
 | SRC-001 | §3.4, Z. 124 | Fremde VO2max-Werte nicht ungeprüft zusammenführen | FR-0024 | [health-import.md](../specs/health-import.md) | 3 AK | Übernommen |
 | SRC-001 | §4.1, Z. 130 | Freie oder geplante Einheit starten | FR-0025 | [run-recording.md](../specs/run-recording.md) | 2 AK | Übernommen |
 | SRC-001 | §4.1, Z. 132–140 | Pflichtanzeigen während des Trainings | FR-0026 | [run-recording.md](../specs/run-recording.md) | 3 AK | Übernommen |
@@ -173,9 +173,9 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-001 | §1.1 Nr. 2, Z. 24 | Einfache Trainingsplanung nur mit dem Smartphone | FR-0155 | [training-plan.md](../specs/training-plan.md) | 2 AK | Übernommen |
 | SRC-001 | §22, Z. 1252 | Einfache Trainingsplanung nur mit dem Smartphone | FR-0155 | [training-plan.md](../specs/training-plan.md) | 2 AK | Übernommen |
 | SRC-001 | §17, Z. 1055 | Fortlaufende Anpassung | FR-0156 | [plan-adaptation.md](../specs/plan-adaptation.md) | 5 AK | Übernommen |
-| SRC-001 | §17.1, Z. 1059–1069 | Auslöser einer Neuberechnung | FR-0157 | [plan-adaptation.md](../specs/plan-adaptation.md) | 3 AK, ACC-09 | Übernommen |
-| SRC-001 | §25 Nr. 9, Z. 1404 | Auslöser einer Neuberechnung | FR-0157 | [plan-adaptation.md](../specs/plan-adaptation.md) | 3 AK, ACC-09 | Übernommen |
-| SRC-001 | §17.2, Z. 1073–1084 | Mindestens wöchentliche Überprüfung | FR-0158 | [plan-adaptation.md](../specs/plan-adaptation.md) | 2 AK | Übernommen |
+| SRC-001 | §17.1, Z. 1059–1069 | Auslöser einer Neuberechnung | FR-0157 | [plan-adaptation.md](../specs/plan-adaptation.md) | 4 AK, ACC-09 | Übernommen |
+| SRC-001 | §25 Nr. 9, Z. 1404 | Auslöser einer Neuberechnung | FR-0157 | [plan-adaptation.md](../specs/plan-adaptation.md) | 4 AK, ACC-09 | Übernommen |
+| SRC-001 | §17.2, Z. 1073–1084 | Mindestens wöchentliche Überprüfung | FR-0158 | [plan-adaptation.md](../specs/plan-adaptation.md) | 3 AK | Übernommen |
 | SRC-001 | §17.3, Z. 1088–1090 | Kurzfristige Empfehlung vor einer Einheit | FR-0159 | [plan-adaptation.md](../specs/plan-adaptation.md) | 1 AK | Übernommen |
 | SRC-001 | §17.3, Z. 1092–1096 | Anpassung bei hoher Belastung | FR-0160 | [plan-adaptation.md](../specs/plan-adaptation.md) | 1 AK | Übernommen |
 | SRC-001 | §17.3, Z. 1098–1102 | Anpassung bei deutlich besserer Leistungsentwicklung | FR-0161 | [plan-adaptation.md](../specs/plan-adaptation.md) | 1 AK | Übernommen |
@@ -221,8 +221,8 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-003 | (Maintainer 2026-11-03) | Laufbandmodus | FR-0196 | [run-recording.md](../specs/run-recording.md) | 7 AK | Übernommen |
 | SRC-003 | (Maintainer 2026-11-03) | Belastungsprofil wählen | FR-0197 | [training-load.md](../specs/training-load.md) | 7 AK | Übernommen |
 | SRC-003 | (OQ-0032) | Reimport des Gesamtexports | FR-0198 | [export-sync.md](../specs/export-sync.md) | 4 AK | Übernommen |
-| SRC-001 | §17.1, Z. 1063 | Training manuell nachtragen | FR-0199 | [training-load.md](../specs/training-load.md) | 3 AK | Übernommen |
-| SRC-003 | (OQ-0022) | Training manuell nachtragen | FR-0199 | [training-load.md](../specs/training-load.md) | 3 AK | Übernommen |
+| SRC-001 | §17.1, Z. 1063 | Training manuell nachtragen | FR-0199 | [training-load.md](../specs/training-load.md) | 4 AK | Übernommen |
+| SRC-003 | (OQ-0022) | Training manuell nachtragen | FR-0199 | [training-load.md](../specs/training-load.md) | 4 AK | Übernommen |
 | SRC-001 | §3.4, Z. 113 | Import über Health Connect | FR-0200 | [health-import.md](../specs/health-import.md) | 3 AK | Übernommen |
 | SRC-003 | (OQ-0033) | Import über Health Connect | FR-0200 | [health-import.md](../specs/health-import.md) | 3 AK | Übernommen |
 | SRC-001 | §20.1, Z. 1191 | Export teilen | FR-0201 | [export-sync.md](../specs/export-sync.md) | 2 AK | Übernommen |
@@ -244,7 +244,9 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Zeitraum in der Historie | FR-0212 | [history-statistics.md](../specs/history-statistics.md) | 1 AK | Übernommen |
 | SRC-003 | (Maintainer 2026-11-09) | RR-Intervalle als Rohdaten speichern | FR-0213 | [sensors.md](../specs/sensors.md) | 4 AK | Übernommen |
 | SRC-003 | (Maintainer 2026-11-09) | Ruhepuls mit der Handykamera messen | FR-0214 | [profile.md](../specs/profile.md) | 10 AK | Übernommen |
-| SRC-003 | (Maintainer 2026-11-09) | Morgenmessung mit der Handykamera | FR-0215 | [readiness.md](../specs/readiness.md) | 8 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-09) | Morgenmessung mit der Handykamera | FR-0215 | [readiness.md](../specs/readiness.md) | 10 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-13, K61/K62) | Plan „adaptiv“ oder „fix“ | FR-0216 | [plan-adaptation.md](../specs/plan-adaptation.md) | 5 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-13, K61/K62) | Entwicklermodus | FR-0217 | [profile.md](../specs/profile.md) | 7 AK | Übernommen |
 | SRC-001 | §23, Z. 1270–1272 | Algorithmen versionierbar und nachvollziehbar | NFR-0001 | [non-functional.md](../quality/non-functional.md) | 1 AK | Übernommen |
 | SRC-001 | §23.1, Z. 1276–1305 | Einordnung in drei Verfahrenskategorien | NFR-0002 | [non-functional.md](../quality/non-functional.md) | 1 AK | Übernommen |
 | SRC-001 | §23.1, Z. 1307 | Heuristiken nicht als validiert darstellen | NFR-0003 | [non-functional.md](../quality/non-functional.md) | 1 AK | Übernommen |

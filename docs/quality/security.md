@@ -99,6 +99,8 @@ Datenbank und Zugangsdaten werden auf dem Gerät verschlüsselt gespeichert. Lä
 
 **Ausnahme (Entscheidung des Maintainers 2026-11-11, K53):** Für die Erinnerungen (FR-0174) liegen außerhalb der Datenbank unverschlüsselt in den App-eigenen SharedPreferences nur: je geplanter Einheit Zeitpunkt und Art, höchstens 60 Tage voraus, und die Benachrichtigungstexte je Art. Sonst keine Plan- oder Gesundheitsdaten. Grund: Der Boot-Empfänger hat keinen Datenbankschlüssel. Einzelheiten im Nachtrag zu ADR-0005. Die Datenbank selbst bleibt ohne Ausnahme verschlüsselt.
 
+**Keine Ausnahme für die Morgen-Erinnerung (Entscheidung des Maintainers 2026-11-13, K62 Punkt 3):** Die Uhrzeit der Erinnerung zur Morgenmessung (FR-0215) liegt nur in der verschlüsselten Datenbank. Nach einem Neustart des Geräts plant erst das nächste Öffnen der App diese Erinnerung neu.
+
 **Akzeptanzkriterien:**
 - [ ] Die Datenbankdatei ist ohne Schlüssel nicht lesbar.
 - [ ] Ohne gültigen Schlüssel bleibt die alte Datei erhalten, bis der Nutzer das Löschen bestätigt.

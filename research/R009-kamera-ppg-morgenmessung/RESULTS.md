@@ -460,3 +460,7 @@ Zugriff: **V** = Volltext geprüft, **A** = nur Abstract geprüft, **D** = über
 - [C11] Flatt AA, Esco MR 2016, J Strength Cond Res 30:378 – A
 - [C12] Le Meur Y et al. 2013, Med Sci Sports Exerc 45:2061 – A
 - [C13] Nuuttila OP et al. 2024, Sports Med Open 10:120, PMC11541970 (= N23) – V
+
+## Nachtrag 2026-11-13: Referenz-RR aus der App (Entscheidung des Maintainers, K62 Punkt 5)
+
+Abweichend von Abschnitt 6 („Ablauf am Morgen“) zeichnet keine Logger-App die RR-Intervalle des H9 auf. Die Validierung nutzt die RR des Gurts, die die App selbst im Entwicklermodus parallel zur Morgenmessung speichert und als Messpaare Kamera/Gurt exportiert (FR-0217, K61 Punkt 3, K62 Punkt 4). Alles Übrige in Abschnitt 6 gilt unverändert: Referenz im selben 60-s-Fenster ohne Interpolation, vorab festgelegte Artefaktregel, keine Zwischenauswertung (die App zeigt keine Gurt-RMSSD und keine Differenzen), Akzeptanzgrenzen und Folgen. Der Uhrabgleich beider Geräte entfällt, weil beide Reihen mit derselben Uhr des Handys gespeichert werden; ob Kamera und Gurt am Gerät zeitlich sauber zusammenpassen, prüft der Maintainer bei der Validierungsmessung.

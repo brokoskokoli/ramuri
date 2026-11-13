@@ -27,14 +27,17 @@ Mit Zustimmung des Nutzers können kompatible Gesundheitsplattformen als zusätz
 ### FR-0023 — Importierbare Datenarten
 - **Status:** Approved | **Phase:** 3
 - **Quelle:** SRC-001 §3.4, Z. 115–122
-- **Verwandt:** OQ-0033
+- **Verwandt:** FR-0199, OQ-0033
 
 Mögliche Daten sind historische Trainingseinheiten, Herzfrequenzverlauf, Ruheherzfrequenz, HRV, Schlafdauer und Schlafphasen sowie vorhandene VO₂max-Schätzwerte.
 
 Phase 3 nennt nur Schlaf- und HRV-Daten (SRC-001 §24, Z. 1373–1374). Die übrigen Datenarten hat der Maintainer ebenfalls Phase 3 zugeordnet (OQ-0041).
 
+**Entschieden (Maintainer 2026-11-13, K62 Punkt 2):** Trainings und Puls anderer Apps aus Health Connect werden nur angezeigt (im Verlauf mit Quelle und Pulskurve). In Belastung und Pausenregel zählen sie erst, wenn der Nutzer sie „als Training übernehmen“ wählt; das legt einen Nachtrag nach FR-0199 an. So zählt kein Training doppelt.
+
 **Akzeptanzkriterien:**
 - [ ] Importierte Daten sind als solche und mit ihrer Quelle erkennbar (SEC-0005).
+- [ ] Importierte Trainings und Pulsdaten gehen erst nach „als Training übernehmen“ in Belastung und Pausenregel ein (FR-0199, K62 Punkt 2).
 
 ### FR-0024 — Fremde VO2max-Werte nicht ungeprüft zusammenführen
 - **Status:** Approved | **Phase:** 3

@@ -4,7 +4,7 @@ title: Adaptive Anpassung des Trainingsplans
 status: Approved
 owner: TBD
 source_refs: [SRC-001]
-related_requirements: [FR-0156, FR-0157, FR-0158, FR-0159, FR-0160, FR-0161, FR-0162, FR-0163, FR-0164, FR-0165, FR-0166, FR-0167, FR-0168, FR-0169, FR-0170, FR-0203]
+related_requirements: [FR-0156, FR-0157, FR-0158, FR-0159, FR-0160, FR-0161, FR-0162, FR-0163, FR-0164, FR-0165, FR-0166, FR-0167, FR-0168, FR-0169, FR-0170, FR-0203, FR-0216]
 ---
 
 # Adaptive Anpassung des Trainingsplans
@@ -41,6 +41,7 @@ Eine Neuberechnung kann ausgelöst werden durch: abgeschlossenen Lauf, ausgefall
 - [ ] Der Plan reagiert auf zusätzliche und auf ausgefallene Einheiten (ACC-09).
 - [ ] Jeder genannte Auslöser kann eine Neuberechnung des Plans auslösen.
 - [ ] Eine Neuberechnung wegen eines veränderten Erholungszustands ändert nur die intensive Einheit an dessen Tag (PAR-173, OQ-0058).
+- [ ] Der Auslöser „veränderter Erholungszustand“ (Teil „3 (Erholung)“) gilt nur, wenn der Plan auf „adaptiv“ steht (FR-0216, K61); die übrigen Auslöser gelten immer.
 
 ### FR-0158 — Mindestens wöchentliche Überprüfung
 - **Status:** Approved | **Phase:** 2, 3 (Erholung)
@@ -52,6 +53,7 @@ Die App überprüft den Plan mindestens wöchentlich. Ausgewertet werden geplant
 **Akzeptanzkriterien:**
 - [ ] Bei aktivem Plan findet mindestens wöchentlich eine Prüfung statt.
 - [ ] Bereits absolvierte Einheiten bleiben unverändert.
+- [ ] Verfügbare Erholungsdaten (Teil „3 (Erholung)“) verändern den Plan nur, wenn er auf „adaptiv“ steht (FR-0216, K61); die übrige Prüfung findet immer statt.
 
 ### FR-0159 — Kurzfristige Empfehlung vor einer Einheit
 - **Status:** Approved | **Phase:** 2
@@ -122,6 +124,20 @@ Fester Text, Wortlaut vorbehaltlich der rechtlichen Prüfung (OQ-0048):
 - [ ] Die Meldung ist ohne Bezug zu einem Lauf möglich.
 - [ ] Solange sie besteht, enthält der Plan nur Ruhetage, auch nach einer Neuberechnung.
 - [ ] Nach 7 Tagen erinnert die App daran; die Meldung endet nur durch den Nutzer.
+
+### FR-0216 — Plan „adaptiv“ oder „fix“
+- **Status:** Approved | **Phase:** 3
+- **Quelle:** SRC-003 (Maintainer 2026-11-13, K61/K62)
+- **Verwandt:** FR-0156, FR-0157, FR-0158, FR-0203, FR-0108, FR-0215
+
+Am Trainingsplan wählt der Nutzer, ob Gesundheitsdaten den Plan verändern: „adaptiv“ oder „fix“. Vorgabe ist „fix“. Bei „fix“ werden Gesundheitsdaten (Readiness, Schlaf, HRV, Ruhepuls) weiter erhoben und angezeigt, verändern den Plan aber nicht. Die Anpassungen aus Phase 2 (wöchentliche Prüfung, Rückmeldung „zu leicht, passt oder zu schwer?“, Pausen und Wiedereinstieg) gelten in beiden Fällen; das Warnsignal (FR-0203) wirkt immer. Bei „adaptiv“ gelten zusätzlich die erholungsbasierten Anpassungen aus FR-0157, FR-0158 und PAR-173 (Entscheidung des Maintainers, K61).
+
+**Akzeptanzkriterien:**
+- [ ] Der Schalter steht am Trainingsplan; ein neuer Nutzer startet mit „fix“.
+- [ ] Bei „fix“ erscheinen Readiness und Gesundheitsdaten wie bei „adaptiv“, aber keine Einheit wird ihretwegen geändert oder neu berechnet.
+- [ ] Wochenprüfung, Rückmeldung und Pausenregeln aus Phase 2 wirken bei „fix“ und „adaptiv“ gleich.
+- [ ] Ein gemeldetes Warnsignal führt bei „fix“ und „adaptiv“ zu FR-0203.
+- [ ] Bei „adaptiv“ wird die intensive Einheit nach PAR-173 gelockert; der Wechsel des Schalters ändert bereits absolvierte Einheiten nicht.
 
 ## Planungsregeln
 
