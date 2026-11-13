@@ -7,6 +7,7 @@
 import 'package:adapters/adapters.dart'
     hide RawAltitude, RawHeartRate, RawPosition;
 import 'package:core/core.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -221,6 +222,27 @@ Future<void> _pumpUntilGone(
   }
 }
 
+/// Rot mit Diagnose, wenn ein Tipp auf [finder] ein anderes Element traefe
+/// (verdeckt, Seite noch im Uebergang): nennt Seitenzustand, Lage und die
+/// getroffenen Render-Typen (keine Werte). tester.tap warnt dann nur.
+void _expectHittable(WidgetTester tester, Finder finder) {
+  final element = tester.element(finder);
+  final target = element.renderObject;
+  final center = tester.getCenter(finder);
+  final hit = HitTestResult();
+  tester.binding.hitTestInView(hit, center, tester.view.viewId);
+  if (hit.path.any((e) => e.target == target)) return;
+  final route = ModalRoute.of(element);
+  fail(
+    'Tipp auf $finder bei $center trifft das Element nicht: '
+    'Seite aktuell=${route?.isCurrent} aktiv=${route?.isActive} '
+    'Scaffolds=${find.byType(Scaffold).evaluate().length} '
+    'Tastaturhoehe=${tester.view.viewInsets.bottom} '
+    'Treffer=${hit.path.map((e) => e.target.runtimeType).take(8).join(",")} '
+    'Texte=${tester.widgetList<Text>(find.byType(Text)).map((t) => t.data?.length).take(12).join(",")}',
+  );
+}
+
 Future<void> _changeMax(WidgetTester tester, String v) async {
   await openOverview(tester);
   await tester.tap(find.byKey(const Key('home_profile')));
@@ -235,6 +257,7 @@ Future<void> _changeMax(WidgetTester tester, String v) async {
   await tester.pumpAndSettle();
   await tester.ensureVisible(find.byKey(const Key('profile_save')));
   await tester.pumpAndSettle();
+  _expectHittable(tester, find.byKey(const Key('profile_save')));
   await tester.tap(find.byKey(const Key('profile_save')));
   // Das Speichern laeuft ueber echte Ein-/Ausgabe (verschluesselte DB), die
   // pump/pumpAndSettle nicht abwarten: erst bis die Rueckmeldung steht.
