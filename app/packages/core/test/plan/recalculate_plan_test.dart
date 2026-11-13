@@ -1254,4 +1254,42 @@ void main() {
       );
     },
   );
+
+  test(
+    'Warnsignal: angepasste Eingaben ergeben auch bei unveränderten '
+    'Ruhetagen eine Fassung, gleiche Eingaben keine weitere (NB7 2)',
+    () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _day(0));
+      await e.run(PlanTrigger.create, 0);
+      final warning = (e.session as WarningStorage).warning;
+      await warning.set(
+        WarningSignal(reportedOn: _day(1), source: WarningSource.manual),
+      );
+      Future<PlanRecalculation> again(PlanInputs? inputs) => recalculatePlan(
+        plans: e.plans,
+        settings: e.settings,
+        trigger: PlanTrigger.weekly,
+        today: _day(1),
+        now: _now(1),
+        inputs: inputs,
+        warning: warning,
+      );
+      // Warnung legt die Ruhetage (gezeigter Plan ändert sich einmal).
+      await again(null);
+      final h0 = (await e.plans.history()).length;
+      final stored = (await e.plans.history()).last.inputs;
+      // Gleiche Eingaben, gleicher Plan: keine weitere Fassung.
+      expect((await again(null)).wasWritten, isFalse);
+      expect((await e.plans.history()).length, h0);
+      // Angepasste Eingaben (Ermüdung: keine harte Einheit), Plan zeigt weiter
+      // nur Ruhetage: trotzdem eine Fassung, ohne Karte.
+      final r = await again(stored.copyWith(noHardUntil: _day(9)));
+      expect(r.wasWritten, isTrue);
+      expect(r.summary?.isEmpty, isTrue);
+      expect((await e.plans.history()).length, h0 + 1);
+      expect((await e.plans.history()).last.inputs.noHardUntil, _day(9));
+      expect((await again(null)).wasWritten, isFalse);
+    },
+  );
 }
