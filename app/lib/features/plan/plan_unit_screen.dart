@@ -164,12 +164,14 @@ class PlanSegmentRow extends StatelessWidget {
     );
   }
 
-  /// RPE mit den Wörtern nach PAR-105 (die Skala aus der Rückmeldung).
+  /// RPE mit den Wörtern nach PAR-105 (die Skala aus der Rückmeldung). Bei
+  /// einer Spanne steht das Wort der unteren Stufe: Das Wort der oberen würde
+  /// bei Gehen und Aufwärmen (1 bis 4) „Fordert etwas“ sagen.
   static String? _rpe(AppLocalizations l, PlanTargetIntensity t) {
     final min = t.rpeMin;
     final max = t.rpeMax ?? min;
     if (min == null || max == null) return null;
-    final word = _rpeWord(l, max);
+    final word = _rpeWord(l, min);
     return min == max
         ? l.planRpeSingle(min, word)
         : l.planRpeRange(min, max, word);
