@@ -63,96 +63,100 @@ class LiveGuidedPage extends StatelessWidget {
         .where((g) => g.durationSeconds > 0)
         .length;
     final number = pos.finished ? timed.length : before + 1;
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            // Oben Platz für die Reiter, die über der Seite schweben.
-            padding: const EdgeInsets.fromLTRB(20, 72, 20, 16),
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
+    // Die Seite füllt den Grund bis an die Ränder (hinter Status- und
+    // Navigationsleiste); der Inhalt hält die Ränder ein.
+    return SafeArea(
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              // Oben Platz für die Reiter, die über der Seite schweben.
+              padding: const EdgeInsets.fromLTRB(20, 72, 20, 16),
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        (kind == null
+                                ? l10n.guidedLiveTitle
+                                : planKindName(l10n, kind))
+                            .toUpperCase(),
+                        key: const Key('guided_title'),
+                        style: text.labelLarge?.copyWith(color: c.accent),
+                      ),
+                    ),
+                    Text(
+                      formatClock(s.totalTime),
+                      key: const Key('guided_total'),
+                      style: text.titleMedium?.copyWith(color: c.textMuted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _progress(c, l10n, timed, pos, number),
+                const SizedBox(height: 28),
+                if (pos.finished)
+                  Text(
+                    l10n.guidedLiveDone,
+                    key: const Key('guided_done'),
+                    textAlign: TextAlign.center,
+                    style: text.titleLarge?.copyWith(color: c.text),
+                  )
+                else ...[
+                  Text(
+                    l10n.guidedLiveSection(
+                      number,
+                      timed.length,
+                      _kind(l10n, pos.segment!.kind),
+                    ),
+                    key: const Key('guided_section'),
+                    textAlign: TextAlign.center,
+                    style: text.titleMedium?.copyWith(color: c.accent),
+                  ),
+                  const SizedBox(height: 4),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
                     child: Text(
-                      (kind == null
-                              ? l10n.guidedLiveTitle
-                              : planKindName(l10n, kind))
-                          .toUpperCase(),
-                      key: const Key('guided_title'),
-                      style: text.labelLarge?.copyWith(color: c.accent),
+                      formatClock(pos.remaining),
+                      key: const Key('guided_remaining'),
+                      style: text.displayLarge?.copyWith(
+                        color: c.text,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                     ),
                   ),
                   Text(
-                    formatClock(s.totalTime),
-                    key: const Key('guided_total'),
+                    l10n.guidedLiveRemaining,
+                    textAlign: TextAlign.center,
                     style: text.titleMedium?.copyWith(color: c.textMuted),
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              _progress(c, l10n, timed, pos, number),
-              const SizedBox(height: 28),
-              if (pos.finished)
-                Text(
-                  l10n.guidedLiveDone,
-                  key: const Key('guided_done'),
-                  textAlign: TextAlign.center,
-                  style: text.titleLarge?.copyWith(color: c.text),
-                )
-              else ...[
-                Text(
-                  l10n.guidedLiveSection(
-                    number,
-                    timed.length,
-                    _kind(l10n, pos.segment!.kind),
-                  ),
-                  key: const Key('guided_section'),
-                  textAlign: TextAlign.center,
-                  style: text.titleMedium?.copyWith(color: c.accent),
-                ),
-                const SizedBox(height: 4),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    formatClock(pos.remaining),
-                    key: const Key('guided_remaining'),
-                    style: text.displayLarge?.copyWith(
-                      color: c.text,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+                  if (paused) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.guidedLivePaused,
+                      key: const Key('guided_paused'),
+                      textAlign: TextAlign.center,
+                      style: text.titleSmall?.copyWith(color: c.ember),
                     ),
-                  ),
-                ),
-                Text(
-                  l10n.guidedLiveRemaining,
-                  textAlign: TextAlign.center,
-                  style: text.titleMedium?.copyWith(color: c.textMuted),
-                ),
-                if (paused) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.guidedLivePaused,
-                    key: const Key('guided_paused'),
-                    textAlign: TextAlign.center,
-                    style: text.titleSmall?.copyWith(color: c.ember),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                _targetIs(context, l10n, pos),
-                _hint(context, l10n),
-                if (pos.next != null) ...[
-                  const SizedBox(height: 12),
-                  _next(c, l10n, text, pos.next!),
+                  ],
+                  const SizedBox(height: 20),
+                  _targetIs(context, l10n, pos),
+                  _hint(context, l10n),
+                  if (pos.next != null) ...[
+                    const SizedBox(height: 12),
+                    _next(c, l10n, text, pos.next!),
+                  ],
                 ],
               ],
-            ],
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: controls(context),
-        ),
-      ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: controls(context),
+          ),
+        ],
+      ),
     );
   }
 

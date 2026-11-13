@@ -108,27 +108,27 @@ class LiveRunView extends StatelessWidget {
             : paused
             ? c.segmentTrack
             : c.accentPanel,
-        body: SafeArea(
-          // Laufband: keine Kartenseite (FR-0196), nur die Werte; geführt
-          // (WP24) kommt die Einheit als erste Seite davor.
-          child: finished || (belt && guided == null)
-              ? _valuesPage(context, l10n, finished)
-              : _LiveRunPager(
-                  values: _valuesPage(context, l10n, finished),
-                  controller: controller,
-                  formatter: formatter,
-                  showMap: !belt,
-                  guided: guided == null
-                      ? null
-                      : LiveGuidedPage(
-                          controller: controller,
-                          formatter: formatter,
-                          segments: guided,
-                          controls: (ctx) =>
-                              _controls(ctx, AppLocalizations.of(ctx)),
-                        ),
-                ),
-        ),
+        // Laufband: keine Kartenseite (FR-0196), nur die Werte; geführt
+        // (WP24) kommt die Einheit als erste Seite davor. Der Pager setzt die
+        // Ränder der Systemleisten selbst, damit die dunkle Führungsseite bis
+        // an die Ränder reicht.
+        body: finished || (belt && guided == null)
+            ? SafeArea(child: _valuesPage(context, l10n, finished))
+            : _LiveRunPager(
+                values: _valuesPage(context, l10n, finished),
+                controller: controller,
+                formatter: formatter,
+                showMap: !belt,
+                guided: guided == null
+                    ? null
+                    : LiveGuidedPage(
+                        controller: controller,
+                        formatter: formatter,
+                        segments: guided,
+                        controls: (ctx) =>
+                            _controls(ctx, AppLocalizations.of(ctx)),
+                      ),
+              ),
       ),
     );
   }
@@ -651,6 +651,8 @@ class _LiveRunPagerState extends State<_LiveRunPager> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final first = widget.guided == null ? 0 : 1; // Index der Werte-Seite
+    final inset = MediaQuery.paddingOf(context);
+    final onGuided = widget.guided != null && _page == 0;
     return Stack(
       children: [
         PageView(
@@ -660,29 +662,36 @@ class _LiveRunPagerState extends State<_LiveRunPager> {
           onPageChanged: (p) => setState(() => _page = p),
           children: [
             if (widget.guided != null) widget.guided!,
-            widget.values,
+            SafeArea(child: widget.values),
             if (widget.showMap)
-              LiveMapPage(
-                key: const Key('run_page_map'),
-                controller: widget.controller,
-                formatter: widget.formatter,
-                visible: _page == first + 1,
-                onBack: () => _go(first),
+              SafeArea(
+                child: LiveMapPage(
+                  key: const Key('run_page_map'),
+                  controller: widget.controller,
+                  formatter: widget.formatter,
+                  visible: _page == first + 1,
+                  onBack: () => _go(first),
+                ),
               ),
           ],
         ),
         Positioned(
-          left: 16,
-          top: 16,
-          child: _Tabs(
-            semanticLabel: l10n.mapTabsSemantics,
-            labels: [
-              if (widget.guided != null) l10n.guidedLiveTab,
-              l10n.mapTabValues,
-              if (widget.showMap) l10n.mapViewMap,
-            ],
-            selected: _page,
-            onSelected: _go,
+          left: 16 + inset.left,
+          top: 16 + inset.top,
+          // Über der dunklen Führungsseite im dunklen Theme (die Kapsel nimmt
+          // ihre Farben aus dem Theme).
+          child: Theme(
+            data: onGuided ? RamuriTheme.dark : Theme.of(context),
+            child: _Tabs(
+              semanticLabel: l10n.mapTabsSemantics,
+              labels: [
+                if (widget.guided != null) l10n.guidedLiveTab,
+                l10n.mapTabValues,
+                if (widget.showMap) l10n.mapViewMap,
+              ],
+              selected: _page,
+              onSelected: _go,
+            ),
           ),
         ),
       ],

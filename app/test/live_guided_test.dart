@@ -233,6 +233,35 @@ void main() {
     }
   }
 
+  for (final dark in [false, true]) {
+    _test('Führungsseite randlos dunkel hinter Status- und Navigationsleiste, '
+        'Reiter-Kapsel dunkel (${dark ? 'dunkel' : 'hell'})', (tester) async {
+      tester.view.padding = const FakeViewPadding(top: 30, bottom: 40);
+      tester.view.viewPadding = const FakeViewPadding(top: 30, bottom: 40);
+      addTearDown(tester.view.resetPadding);
+      addTearDown(tester.view.resetViewPadding);
+      final w = await _show(tester, dark: dark);
+      await w.seconds(tester, 2);
+      final bg = find
+          .ancestor(of: _k('guided_remaining'), matching: find.byType(Material))
+          .first;
+      expect(tester.getRect(bg), const Offset(0, 0) & const Size(390, 844));
+      expect(tester.widget<Material>(bg).color, RamuriColors.night.background);
+      // Inhalt bleibt unter der Statusleiste.
+      expect(tester.getTopLeft(_k('guided_remaining')).dy, greaterThan(30));
+      final capsule = tester
+          .widgetList<DecoratedBox>(
+            find.ancestor(
+              of: _k('run_tab_0'),
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .map((b) => (b.decoration as BoxDecoration).color);
+      expect(capsule, contains(RamuriColors.night.surface));
+      expect(capsule, isNot(contains(RamuriColors.light.surface)));
+    });
+  }
+
   _test('Abschnittswechsel: Zähler, Soll (Pace, RPE, Puls), Danach', (
     tester,
   ) async {
