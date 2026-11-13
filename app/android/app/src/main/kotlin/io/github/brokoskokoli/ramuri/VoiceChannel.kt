@@ -76,6 +76,16 @@ interface FilePlayer {
 }
 
 /**
+ * Meldungen der Engine je Ansage ([UtteranceProgressListener]): „fertig“ ist Erfolg, „Fehler“ und „abgebrochen“
+ * (onStop, z. B. durch die Engine selbst) sind Fehler: Die Ansage fällt aus, die Warteschlange läuft weiter.
+ */
+class EngineEvents(private val playback: SynthesisPlayback) {
+    fun done(id: String) = playback.synthesized(id, true)
+    fun error(id: String) = playback.synthesized(id, false)
+    fun stopped(id: String) = playback.synthesized(id, false)
+}
+
+/**
  * Wiedergabe im App-Prozess (Android 17, Hintergrund-Audio-Hardening): die Engine schreibt jede Ansage in eine
  * Datei, die App spielt sie der Reihe nach selbst ab. Gespielt wird in der Reihenfolge von [begin], auch wenn
  * die Dateien in anderer Reihenfolge fertig werden. Jede Datei wird nach Wiedergabe, Fehler, [abort] oder
@@ -200,6 +210,7 @@ object VoiceChannel {
         private val release = Runnable { abandonFocus() }
         private val queue = VoiceQueue(::emit) { abandonFocus() }
         private val playback = SynthesisPlayback(MediaFilePlayer(attributes), { it.delete() }) { id -> queue.finished(id) }
+        private val events = EngineEvents(playback)
 
         init { deleteStaleVoiceFiles(context.cacheDir) }
 
@@ -234,9 +245,10 @@ object VoiceChannel {
                     val engine = tts ?: return@post
                     engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {}
-                        override fun onDone(utteranceId: String?) { utteranceId?.let { main.post { playback.synthesized(it, true) } } }
+                        override fun onDone(utteranceId: String?) { utteranceId?.let { main.post { events.done(it) } } }
                         @Deprecated("Deprecated in Java")
-                        override fun onError(utteranceId: String?) { utteranceId?.let { main.post { playback.synthesized(it, false) } } }
+                        override fun onError(utteranceId: String?) { utteranceId?.let { main.post { events.error(it) } } }
+                        override fun onStop(utteranceId: String?, interrupted: Boolean) { utteranceId?.let { main.post { events.stopped(it) } } }
                     })
                     queue.markReady()
                 }

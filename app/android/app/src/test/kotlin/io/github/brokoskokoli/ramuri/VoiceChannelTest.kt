@@ -152,6 +152,17 @@ class VoiceChannelTest {
         assertEquals(listOf("b.wav"), p.player.played)
     }
 
+    @Test fun engineStopIsAFailureLikeAnError() {
+        val p = Playback()
+        p.begin("a", "b")
+        val events = EngineEvents(p.pb)
+        events.done("b")
+        events.stopped("a")
+        assertEquals(listOf("a.wav"), p.deleted)
+        assertEquals(listOf("a"), p.finished)
+        assertEquals(listOf("b.wav"), p.player.played)
+    }
+
     @Test fun abortDeletesWithoutFinished() {
         val p = Playback()
         p.begin("a")
