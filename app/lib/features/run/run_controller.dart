@@ -127,6 +127,7 @@ class RunController extends ChangeNotifier {
   Duration? _cadenceAt; // Monotonzeit des Empfangs
   bool _disposed = false;
   GuidanceAnnouncer? _announcer;
+  bool _guidanceClosed = false;
   GuidedUnitSnapshot? _guided;
   DistanceUnit _distanceUnit = DistanceUnit.kilometers;
 
@@ -341,7 +342,6 @@ class RunController extends ChangeNotifier {
         if (runMode == RunMode.treadmill) _stopService();
         return;
       }
-      await _prepareGuidance(resume);
       // Das Laufband hat keine Positionen und braucht keinen Standort.
       if (runMode == RunMode.gps) {
         _locationSub = location.samples().listen(
@@ -370,6 +370,9 @@ class RunController extends ChangeNotifier {
       });
       unawaited(_startCadence());
       if (runMode == RunMode.gps) await _startService(runMode);
+      // Zuletzt und ohne Warten: Die Vorbereitung liest den Speicher und darf
+      // den Start der Aufzeichnung nie aufhalten (Review 1, M1).
+      unawaited(_prepareGuidance(resume));
     } finally {
       _starting = false;
       _update();
@@ -383,7 +386,7 @@ class RunController extends ChangeNotifier {
   /// Vorgaben weiter; nie ein Fehler für den Start.
   Future<void> _prepareGuidance(int? resume) async {
     try {
-      if (voice == null || voiceTexts == null) return;
+      if (voice == null || voiceTexts == null || _guidanceClosed) return;
       var switches = const GuidanceSwitches();
       try {
         switches = await GuidanceSettings(storage.settings).load();
@@ -434,6 +437,7 @@ class RunController extends ChangeNotifier {
           suppress = false;
         }
       }
+      if (_guidanceClosed) return; // Lauf schon beendet: nichts mehr anlegen.
       _announcer = GuidanceAnnouncer(
         segments: segments,
         switches: switches,
@@ -445,9 +449,26 @@ class RunController extends ChangeNotifier {
     }
   }
 
+  /// Laufende: Schnappschuss (hält Pulsgrenzen) leeren, wie
+  /// `PlanStartedUnitStore.forget`; danach legt nichts mehr einen an (Review 1, S5).
+  Future<void> _closeGuidance() async {
+    _guidanceClosed = true;
+    _announcer = null;
+    _guided = null;
+    try {
+      await storage.settings.set(
+        SettingKeys.guidedUnitSnapshot,
+        '',
+        at: clock.now().toUtc(),
+      );
+    } on Object {
+      // Der Lauf ist gespeichert; ein liegengebliebener Schnappschuss ist harmlos.
+    }
+  }
+
   Future<void> _saveGuided() async {
     final g = _guided;
-    if (g == null) return;
+    if (g == null || _guidanceClosed || _disposed) return;
     try {
       await storage.settings.set(
         SettingKeys.guidedUnitSnapshot,
@@ -590,6 +611,7 @@ class RunController extends ChangeNotifier {
     await _command(_recorder.finish);
     if (phase == RecordingPhase.finished) {
       _stopInputs();
+      await _closeGuidance();
       final id = _recorder.runId;
       if (id != null && _calculation == null) {
         _calculation = _calculate(id);

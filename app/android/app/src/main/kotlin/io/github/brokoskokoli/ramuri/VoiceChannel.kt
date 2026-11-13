@@ -19,6 +19,53 @@ interface VoiceOutput {
 }
 
 /**
+ * Reihenfolge der Ansagen (Review 1, M2): nichts geht verloren. Vor der Bereitschaft der Engine wartende
+ * Ansagen stehen in einer Liste; gesprochen wird der Reihe nach (QUEUE_ADD). [onIdle] kommt erst, wenn die
+ * letzte ausgegebene Ansage fertig ist (Fokus erst dann freigeben). Nur vom Hauptthread benutzen.
+ */
+class VoiceQueue(
+    /** Gibt eine Ansage an die Engine; false = die Engine hat sie abgelehnt. */
+    private val emit: (id: String, text: String, languageTag: String?) -> Boolean,
+    private val onIdle: () -> Unit,
+) {
+    private val pending = mutableListOf<Pair<String, String?>>()
+    private val outstanding = mutableSetOf<String>()
+    private var ready = false
+    private var counter = 0L
+
+    val pendingCount: Int get() = pending.size
+    val outstandingCount: Int get() = outstanding.size
+
+    fun speak(text: String, languageTag: String?) {
+        if (!ready) pending.add(text to languageTag) else out(text, languageTag)
+    }
+
+    fun markReady() {
+        ready = true
+        val waiting = pending.toList()
+        pending.clear()
+        waiting.forEach { (t, l) -> out(t, l) }
+    }
+
+    /** Engine meldet „fertig“ oder „Fehler“ für [id]. */
+    fun finished(id: String) {
+        if (outstanding.remove(id) && outstanding.isEmpty()) onIdle()
+    }
+
+    /** Alles Wartende und Laufende verwerfen (stop). */
+    fun clear() {
+        pending.clear()
+        outstanding.clear()
+    }
+
+    private fun out(text: String, languageTag: String?) {
+        val id = "ramuri-voice-${++counter}"
+        outstanding.add(id)
+        if (!emit(id, text, languageTag)) finished(id)
+    }
+}
+
+/**
  * Sprachausgabe der geführten Einheit (WP24, Festlegung 9): eigener Kanal `ramuri/voice` auf der
  * Sprachausgabe des Systems (android.speech.tts.TextToSpeech), getrennt vom RecordingService. Kein Paket,
  * kein Netzcode der App, keine Texte in Logs. Fehler werden als Kanalfehler gemeldet; Dart behandelt sie
@@ -67,30 +114,21 @@ object VoiceChannel {
             .build()
         private var focus: AudioFocusRequest? = null
         private var tts: TextToSpeech? = null
-        private var ready = false
         private var failed = false
-        private var pending: Pair<String, String?>? = null
-        private var counter = 0L
         private val release = Runnable { abandonFocus() }
+        private val queue = VoiceQueue(::emit) { abandonFocus() }
 
         override fun speak(text: String, languageTag: String?) {
             main.post {
                 if (failed) return@post
-                val engine = tts
-                if (engine == null) {
-                    pending = text to languageTag
-                    create()
-                } else if (!ready) {
-                    pending = text to languageTag
-                } else {
-                    say(engine, text, languageTag)
-                }
+                queue.speak(text, languageTag)
+                if (tts == null) create()
             }
         }
 
         override fun stop() {
             main.post {
-                pending = null
+                queue.clear()
                 tts?.stop()
                 abandonFocus()
             }
@@ -101,6 +139,7 @@ object VoiceChannel {
                 main.post {
                     if (status != TextToSpeech.SUCCESS) {
                         failed = true
+                        queue.clear()
                         tts?.shutdown()
                         tts = null
                         return@post
@@ -109,17 +148,18 @@ object VoiceChannel {
                     engine.setAudioAttributes(attributes)
                     engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {}
-                        override fun onDone(utteranceId: String?) { main.post { abandonFocus() } }
+                        override fun onDone(utteranceId: String?) { utteranceId?.let { main.post { queue.finished(it) } } }
                         @Deprecated("Deprecated in Java")
-                        override fun onError(utteranceId: String?) { main.post { abandonFocus() } }
+                        override fun onError(utteranceId: String?) { utteranceId?.let { main.post { queue.finished(it) } } }
                     })
-                    ready = true
-                    pending?.let { (t, l) -> pending = null; say(engine, t, l) }
+                    queue.markReady()
                 }
             }
         }
 
-        private fun say(engine: TextToSpeech, text: String, languageTag: String?) {
+        /** Eine Ansage an die Engine: hinten anhängen (QUEUE_ADD), nie eine laufende abschneiden. */
+        private fun emit(id: String, text: String, languageTag: String?): Boolean {
+            val engine = tts ?: return false
             val locale = localeFor(languageTag)
             if (locale != null) {
                 // Eine Stimme ohne Netzverbindung bevorzugen; sonst die Sprache setzen, wie das System sie liefert.
@@ -128,11 +168,9 @@ object VoiceChannel {
                 if (offline != null) engine.voice = offline else engine.setLanguage(locale)
             }
             requestFocus()
-            counter++
-            val code = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ramuri-voice-$counter")
-            if (code != TextToSpeech.SUCCESS) abandonFocus()
             main.removeCallbacks(release)
             main.postDelayed(release, FOCUS_TIMEOUT_MS)
+            return engine.speak(text, TextToSpeech.QUEUE_ADD, null, id) == TextToSpeech.SUCCESS
         }
 
         private fun requestFocus() {

@@ -5,7 +5,8 @@
 /// Sprachausgabe darf die Aufzeichnung nie stören.
 abstract interface class VoicePort {
   /// Spricht [text] in der Sprache [languageTag] (BCP 47, etwa `de`); `null`
-  /// lässt die Sprache des Systems. Eine laufende Ansage wird abgelöst.
+  /// lässt die Sprache des Systems. Mehrere Ansagen werden der Reihe nach
+  /// gesprochen, keine geht verloren.
   Future<void> speak(String text, {String? languageTag});
 
   /// Bricht eine laufende Ansage ab und gibt den Audio-Fokus frei.

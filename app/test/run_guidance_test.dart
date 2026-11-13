@@ -71,6 +71,11 @@ class _World {
     RunHeartRate? sensors,
     VoicePort? voicePort,
     List<EasyRunExposure> easy = const [],
+    Future<List<EasyRunExposure>> Function(
+      StorageSession, {
+      required DateTime today,
+    })?
+    easyFn,
   }) => _own(
     RunController(
       clock: clock,
@@ -81,7 +86,7 @@ class _World {
       voice: voicePort ?? voice,
       voiceTexts: VoiceTexts(lookupAppLocalizations(const Locale('de'))),
       guidedSegments: segments,
-      recentEasyRuns: (s, {required today}) async => easy,
+      recentEasyRuns: easyFn ?? (s, {required today}) async => easy,
     ),
   );
 
@@ -159,6 +164,56 @@ void main() {
     );
     expect(stored!.runId, c.runId);
     expect(stored.segments, hasLength(2));
+  });
+
+  guided('Hängende Vorbereitung blockiert den Start nie (Review 1, M1)', (
+    tester,
+  ) async {
+    final w = await _World.create();
+    final never = Completer<List<EasyRunExposure>>();
+    final c = w.controller(
+      segments: _withLimit,
+      easyFn: (s, {required today}) => never.future,
+    );
+    await c.start();
+    expect(c.runId, isNotNull);
+    expect(w.location.hasListeners, isTrue);
+    await w.seconds(tester, 5);
+    expect(c.snapshot.movingTime, isNotNull);
+    expect(c.snapshot.movingTime!.inSeconds, greaterThanOrEqualTo(4));
+    expect(c.snapshot.distanceMeters, isNotNull);
+    await c.finish();
+    expect(c.phase, RecordingPhase.finished);
+  });
+
+  group('Schnappschuss am Laufende (Review 1, S5)', () {
+    Future<String?> stored(_World w) =>
+        w.session.settings.get(SettingKeys.guidedUnitSnapshot);
+
+    guided('Ende leert den Schnappschuss', (tester) async {
+      final w = await _World.create();
+      final c = w.controller(segments: _twoParts);
+      await c.start();
+      await w.seconds(tester, 5);
+      expect(GuidedUnitSnapshot.decode(await stored(w)), isNotNull);
+      await c.finish();
+      expect(GuidedUnitSnapshot.decode(await stored(w)), isNull);
+    });
+
+    guided('Ende nach Wiederanlauf leert ihn ebenfalls', (tester) async {
+      final w = await _World.create();
+      final first = w.controller(segments: _twoParts);
+      await first.start();
+      await w.seconds(tester, 5);
+      final id = first.runId!;
+      w.drop(first);
+      final second = w.controller(resume: id);
+      await second.start();
+      await w.seconds(tester, 5);
+      expect(GuidedUnitSnapshot.decode(await stored(w)), isNotNull);
+      await second.finish();
+      expect(GuidedUnitSnapshot.decode(await stored(w)), isNull);
+    });
   });
 
   group('Schalter', () {
@@ -311,6 +366,7 @@ void main() {
       final w = await _World.create();
       final first = w.controller(segments: _twoParts);
       await first.start();
+      await w.seconds(tester, 1); // Vorbereitung läuft nach dem Start
       final id = first.runId!;
       w.drop(first);
       w.clock.advance(const Duration(seconds: 10));

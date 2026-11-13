@@ -252,6 +252,11 @@ void main() {
       },
     );
 
+    test('Abschnitt 3:59: nie (Grenze genau eine Sekunde darunter)', () {
+      final segs = [seg(PlanSegmentKind.easy, 4, sec: 239, max: 140)];
+      expect(pulse(segs, (_) => 160, to: 238), isEmpty);
+    });
+
     test('Abschnitt genau 4 min: erlaubt', () {
       final segs = [seg(PlanSegmentKind.easy, 4, max: 140)];
       expect(pulse(segs, (_) => 160, to: 239).map((e) => e.$1), [210]);
