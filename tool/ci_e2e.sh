@@ -13,7 +13,13 @@ pid=$!
 shot=0
 while kill -0 "$pid" 2>/dev/null; do
   if [ "$shot" = 0 ] && grep -q 'E2E_CI_FAIL_HOLD' "$log" 2>/dev/null; then
-    adb exec-out screencap -p >"$out/screen.png" 2>/dev/null
+    # Drei Fotos im Abstand von 4 s (die Haltezeit des Tests ist 20 s) und der
+    # Vordergrund-Fokus dazu, falls die App nicht mehr oben liegt.
+    for n in 1 2 3; do
+      adb exec-out screencap -p >"$out/screen$n.png" 2>/dev/null
+      echo "foto $n: $(adb shell dumpsys window | grep -m1 mCurrentFocus)"
+      sleep 4
+    done
     shot=1
   fi
   sleep 1
