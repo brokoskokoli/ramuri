@@ -124,4 +124,17 @@ abstract final class SettingKeys {
   /// Vorlauf der Erinnerung in Minuten: 15, 30 oder 60; fehlt der Eintrag,
   /// gilt 30 (Vorschlag WP22).
   static const String reminderLeadMinutes = 'reminder.lead_minutes';
+
+  /// Ansagen (WP24, Festlegung 10): Hauptschalter und je Art ein Schalter.
+  /// `0` = aus; fehlt der Eintrag, gilt „an“. Nutzereinstellungen, kommen ins
+  /// Archiv.
+  static const String guidanceEnabled = 'guidance.enabled';
+  static const String guidanceKilometer = 'guidance.kilometer';
+  static const String guidanceHeartRate = 'guidance.heart_rate';
+  static const String guidanceSegments = 'guidance.segments';
+
+  /// Technischer Merker (WP24): Abschnitte der geführten Einheit, beim Start
+  /// kopiert (JSON, `GuidedUnitSnapshot`), mit Lauf-Kennung. Nicht im Archiv
+  /// (Vertrag 4.3).
+  static const String guidedUnitSnapshot = 'guided.unit_snapshot';
 }

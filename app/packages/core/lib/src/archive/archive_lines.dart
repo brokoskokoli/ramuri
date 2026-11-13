@@ -20,6 +20,7 @@ const Set<String> archiveExcludedSettingKeys = {
   SettingKeys.loadFactorPending,
   SettingKeys.loadFactorDeclined,
   SettingKeys.planStartedUnit,
+  SettingKeys.guidedUnitSnapshot,
 };
 
 /// Zeilen je Seite beim Lesen.

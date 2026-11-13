@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../sensors/run_heart_rate.dart';
 import 'run_ports.dart';
+import 'voice_texts.dart';
 
 /// Einordnung der Herzfrequenzzone für die Anzeige (FR-0026, OQ-0012).
 enum LiveZoneKind { zone, belowZone1, noHeartRate, noBasis }
@@ -41,6 +42,10 @@ class RunController extends ChangeNotifier {
     this.startInclinePercent,
     this.tickEvery = const Duration(seconds: 1),
     this.serialize,
+    this.voice,
+    this.voiceTexts,
+    this.guidedSegments,
+    this.recentEasyRuns = recentEasyRunExposures,
     RunRecorder? recorder,
   }) : _recorder =
            recorder ??
@@ -60,6 +65,25 @@ class RunController extends ChangeNotifier {
   /// Pulsquelle dieses Laufs aus der Sensorverwaltung; sie wird mit dem Ende
   /// des Laufs geschlossen. Ohne Quelle `null`.
   final RunHeartRate? sensors;
+
+  /// Sprachausgabe der Ansagen (WP24) und der Wortlaut dazu; ohne eines von
+  /// beiden gibt es keine Ansagen. Fehler und Hängen der Sprachausgabe stören
+  /// den Lauf nie.
+  final VoicePort? voice;
+  final VoiceTexts? voiceTexts;
+
+  /// Abschnitte der geführten Einheit eines neuen Laufs (werden beim Start
+  /// kopiert, Festlegung 3); `null` oder leer: freier Lauf. Beim Fortsetzen
+  /// gilt der gespeicherte Schnappschuss.
+  final List<PlanSegment>? guidedSegments;
+
+  /// Die letzten lockeren Läufe für den Gehpausen-Hinweis (PAR-107); Vorgabe
+  /// liest sie aus dem Speicher, Tests setzen eine Quelle.
+  final Future<List<EasyRunExposure>> Function(
+    StorageSession session, {
+    required DateTime today,
+  })
+  recentEasyRuns;
   final Duration tickEvery;
 
   /// Dienst, der den Prozess während des Laufs hält (WP08); `null` ohne Dienst.
@@ -102,6 +126,9 @@ class RunController extends ChangeNotifier {
   double? _cadence;
   Duration? _cadenceAt; // Monotonzeit des Empfangs
   bool _disposed = false;
+  GuidanceAnnouncer? _announcer;
+  GuidedUnitSnapshot? _guided;
+  DistanceUnit _distanceUnit = DistanceUnit.kilometers;
 
   late RecordingSnapshot _snapshot;
   RunPreprocessing? _pre;
@@ -314,6 +341,7 @@ class RunController extends ChangeNotifier {
         if (runMode == RunMode.treadmill) _stopService();
         return;
       }
+      await _prepareGuidance(resume);
       // Das Laufband hat keine Positionen und braucht keinen Standort.
       if (runMode == RunMode.gps) {
         _locationSub = location.samples().listen(
@@ -338,12 +366,139 @@ class RunController extends ChangeNotifier {
       _timer = Timer.periodic(tickEvery, (_) {
         _recorder.tick();
         _update();
+        _guide();
       });
       unawaited(_startCadence());
       if (runMode == RunMode.gps) await _startService(runMode);
     } finally {
       _starting = false;
       _update();
+    }
+  }
+
+  /// Baut den Ereignisgeber der Ansagen: Schalter und Einheit aus `settings`,
+  /// Abschnitte aus [guidedSegments] (neuer Lauf, Schnappschuss wird
+  /// gespeichert) oder dem gespeicherten Schnappschuss (Wiederanlauf,
+  /// Festlegung 3). Scheitert etwas, läuft der Lauf ohne Ansagen oder mit den
+  /// Vorgaben weiter; nie ein Fehler für den Start.
+  Future<void> _prepareGuidance(int? resume) async {
+    try {
+      if (voice == null || voiceTexts == null) return;
+      var switches = const GuidanceSwitches();
+      try {
+        switches = await GuidanceSettings(storage.settings).load();
+      } on Object {
+        // Vorgabe: alles an.
+      }
+      try {
+        _distanceUnit = DistanceUnit.fromStorage(
+          await storage.settings.get(SettingKeys.distanceUnit),
+        );
+      } on Object {
+        _distanceUnit = DistanceUnit.kilometers;
+      }
+      final id = _recorder.runId;
+      var segments = const <PlanSegment>[];
+      var hintGiven = false;
+      if (resume == null) {
+        segments = guidedSegments ?? const [];
+        if (segments.isNotEmpty && id != null) {
+          _guided = GuidedUnitSnapshot(runId: id, segments: segments);
+          await _saveGuided();
+        }
+      } else {
+        try {
+          final stored = GuidedUnitSnapshot.decode(
+            await storage.settings.get(SettingKeys.guidedUnitSnapshot),
+          );
+          if (stored != null && stored.runId == resume) {
+            _guided = stored;
+            segments = stored.segments;
+            hintGiven = stored.walkBreakHintGiven;
+          }
+        } on Object {
+          // Ohne Schnappschuss: nur die Kilometer-Ansagen.
+        }
+      }
+      var suppress = false;
+      if (segments.isNotEmpty) {
+        try {
+          final now = clock.now().toUtc();
+          suppress = easyRunsMostlyAboveUpper(
+            await recentEasyRuns(
+              storage,
+              today: now.add(clock.utcOffsetAt(now)),
+            ),
+          );
+        } on Object {
+          suppress = false;
+        }
+      }
+      _announcer = GuidanceAnnouncer(
+        segments: segments,
+        switches: switches,
+        suppressHeartRateForWalkBreaks: suppress,
+        walkBreakHintGiven: hintGiven,
+      );
+    } on Object {
+      _announcer = null;
+    }
+  }
+
+  Future<void> _saveGuided() async {
+    final g = _guided;
+    if (g == null) return;
+    try {
+      await storage.settings.set(
+        SettingKeys.guidedUnitSnapshot,
+        g.encode(),
+        at: clock.now().toUtc(),
+      );
+    } on Object {
+      // Ohne Schnappschuss führt ein Wiederanlauf nicht weiter; der Lauf läuft.
+    }
+  }
+
+  /// Ansagen je Tick. Alles hier ist gekapselt: Der Takt der Aufzeichnung darf
+  /// an der Sprachausgabe nie scheitern, und es geht kein Wert in ein Log.
+  void _guide() {
+    final a = _announcer;
+    if (a == null || _disposed) return;
+    try {
+      final s = _snapshot;
+      final events = a.onTick(
+        GuidanceTick(
+          movingTime: s.movingTime ?? Duration.zero,
+          phase: s.phase,
+          distanceMeters: s.distanceMeters,
+          heartRateBpm: s.heartRateBpm,
+        ),
+      );
+      for (final e in events) {
+        _say(e);
+      }
+      final g = _guided;
+      if (g != null && a.walkBreakHintGiven && !g.walkBreakHintGiven) {
+        _guided = g.withWalkBreakHintGiven();
+        unawaited(_saveGuided());
+      }
+    } on Object {
+      // Keine Ansage, der Lauf geht weiter.
+    }
+  }
+
+  void _say(GuidanceEvent e) {
+    final v = voice;
+    final t = voiceTexts;
+    if (v == null || t == null) return;
+    try {
+      unawaited(
+        v
+            .speak(t.text(e, _distanceUnit), languageTag: t.languageTag)
+            .then((_) {}, onError: (Object _) {}),
+      );
+    } on Object {
+      // Die Sprachausgabe warf sofort: ohne Ansage weiter.
     }
   }
 
@@ -504,6 +659,14 @@ class RunController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _stopInputs();
+    final v = voice;
+    if (v != null) {
+      try {
+        unawaited(v.stop().then((_) {}, onError: (Object _) {}));
+      } on Object {
+        // Folgenlos.
+      }
+    }
     super.dispose();
   }
 }

@@ -13,6 +13,7 @@ import 'live_run_view.dart';
 import 'run_controller.dart';
 import 'run_ports.dart';
 import 'treadmill_units.dart';
+import 'voice_texts.dart';
 
 /// Ablauf „Lauf starten“: Seite „Lauf vorbereiten“ (FR-0210) mit Startprüfung
 /// (FR-0195), Live-Bildschirm
@@ -31,6 +32,7 @@ class RunFlowScreen extends StatefulWidget {
     this.sensors,
     this.recalculation,
     this.onFinished,
+    this.guidedSegments,
   });
 
   final StorageSession session;
@@ -57,6 +59,10 @@ class RunFlowScreen extends StatefulWidget {
   /// Berechnung schließt (WP22: Zuordnung zur Plan-Einheit). Ein Lauf, der
   /// nicht beendet wird, meldet nichts.
   final void Function(int runId)? onFinished;
+
+  /// Abschnitte der geführten Einheit eines neuen Laufs (WP24); `null`: freier
+  /// Lauf. Die Seite „Lauf vorbereiten“ übergibt sie (Auftrag 3).
+  final List<PlanSegment>? guidedSegments;
 
   @override
   State<RunFlowScreen> createState() => _RunFlowScreenState();
@@ -384,6 +390,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       startInclinePercent: _preparing && _treadmill ? _incline.$2 : null,
       tickEvery: widget.tickEvery,
       serialize: widget.serialize,
+      voice: widget.ports.voice,
+      voiceTexts: VoiceTexts(AppLocalizations.of(context)),
+      guidedSegments: widget.guidedSegments,
     );
     final onFinished = widget.onFinished;
     if (onFinished != null) {
