@@ -13,7 +13,7 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | M0 ADRs | Architekturentscheidungen; ADR-0002 bis ADR-0008 freigegeben | erledigt |
 | M1 Phase 1 | Laufaufzeichnung und grundlegende Fitnessanalyse | Plan: [M1-PLAN.md](M1-PLAN.md), WP01 bis WP12 gemergt, Abschlussprüfung bestanden (2026-11-08); WP13 (Karte) und WP14 bis WP17 (Screen-Design) gemergt, Abschlussprüfung für Netz und Oberfläche wiederholt (2026-11-09) |
 | M2 Phase 2 | Adaptiver Trainingscoach | Go am 2026-11-09, in Arbeit; Plan: [M2-PLAN.md](M2-PLAN.md) |
-| M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | wird nach M2 geplant; Grundlage R009/K-1 (DEC-0074, K46), Morgenmessung per Handykamera als Datenquelle (OQ-0078); RMSSD bis zur Validierung gegen H9 gesperrt (H9 gehört dem Maintainer, 28 Referenzmorgen in M3 einplanen). Health Connect und Pulsgurt bleiben Ergänzungen; DFA α1 später als eigener Research-Auftrag |
+| M3 Phase 3 | Erweiterte Gesundheits- und Erholungsanalyse | geplant; Plan: [M3-PLAN.md](M3-PLAN.md) (WP32 bis WP36), Start nach WP24, WP30, WP31 und Konzept nach K61/K62; Entscheidungen K61, K62 |
 
 ## M2 im Detail
 
@@ -32,6 +32,11 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP29 | Werkzeuge: Gate in Stufen, Locks, Testhilfen, Mutationsskript, Plan-Dateien teilen | gemergt (ac85a3a) | Volles Gate auf main 507 s (adapters test 219 s, app test 145 s); Folgepunkt: `archive_restore_test.dart` braucht ~237 s (Vermutung Argon2id-Produktionsparameter, ungemessen); Test „RR schaltbar“ in `debug_test_sensor_test.dart` einmal rot unter Last ~40; `kill -9` an `lockf` lässt das Gate ohne Lock weiterlaufen (im Kopf von `gate.sh` dokumentiert); Teil D als `part`-Dateien mit Extensions statt eigener Widgets; keine gemeinsame `pump`-Hilfe (Kopien bedeuten Verschiedenes) |
 | WP30 | Release-Pipeline: signierte APK und AAB per Tag | in Arbeit | Entwurf-Release bis OQ-0048 (Maintainer 2026-11-13); Schlüssel und GitHub-Secrets angelegt; danach Tag `v0.1.0-rc1` durch den Orchestrator |
 | WP31 | Gate und E2E-Tests auf GitHub | geplant | Start nach WP30; Voraussetzung für M3 (Maintainer 2026-11-13) |
+| WP32 | Import aus Health Connect | geplant | M3, siehe [M3-PLAN.md](M3-PLAN.md) |
+| WP33 | Morgenmessung und Entwicklermodus | geplant | M3, siehe [M3-PLAN.md](M3-PLAN.md) |
+| WP34 | Erweiterte Readiness | geplant | M3, siehe [M3-PLAN.md](M3-PLAN.md) |
+| WP35 | Erholungsbasierte Anpassung, Schalter adaptiv/fix | geplant | M3, siehe [M3-PLAN.md](M3-PLAN.md) |
+| WP36 | Validierung übernehmen | geplant | M3, siehe [M3-PLAN.md](M3-PLAN.md) |
 
 ## M1 im Detail
 
