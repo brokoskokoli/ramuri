@@ -484,6 +484,39 @@ void main() {
     );
   });
 
+  test('Regelversion mit Wochenbewertung: Satz nennt die Gründe der '
+      'Bewertung, nicht „Sonstiges“ (NB6 1)', () async {
+    final (session, clock) = await _withPlan();
+    final plans = (session as PlanStorage).plans;
+    final v = (await plans.history()).last;
+    const e = Explanation(
+      kind: ExplanationKind.planChange,
+      code: 'ruleVersion,repeatWeek',
+      evidence: [],
+    );
+    final withWeek = planChangeReasonText(AppLocalizationsDe(), e, v);
+    const plain = Explanation(
+      kind: ExplanationKind.planChange,
+      code: 'repeatWeek',
+      evidence: [],
+    );
+    expect(withWeek, planChangeReasonText(AppLocalizationsDe(), plain, v));
+    expect(
+      withWeek,
+      isNot(
+        planChangeReasonText(
+          AppLocalizationsDe(),
+          const Explanation(
+            kind: ExplanationKind.planChange,
+            code: 'ruleVersion,unbekannt',
+            evidence: [],
+          ),
+          v,
+        ),
+      ),
+    );
+  });
+
   group('Geh-Lauf: Woche wiederholen (PAR-140)', () {
     Future<(StorageSession, FakeClock)> walkRun(WidgetTester tester) async {
       final r = await tester.runAsync(
