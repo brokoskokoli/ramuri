@@ -14,6 +14,7 @@ class RunPorts {
     this.requestNotifications,
     this.cadence,
     this.requestActivityRecognition,
+    this.voice,
   });
 
   /// Standortberechtigung und GPS-Schalter (FR-0195).
@@ -49,6 +50,10 @@ class RunPorts {
   /// Schrittfrequenz nicht verfügbar, im Bandmodus (`treadmill`) startet der
   /// Lauf nicht. `null` ohne Plattform (Tests).
   final Future<void> Function(bool treadmill)? requestActivityRecognition;
+
+  /// Sprachausgabe der Ansagen (WP24). `null` ohne Plattform (Tests): keine
+  /// Ansagen.
+  final VoicePort? voice;
 }
 
 /// Laufart für den Dienst (ADR-0005 Nachtrag WP25). [gps] startet mit Diensttyp

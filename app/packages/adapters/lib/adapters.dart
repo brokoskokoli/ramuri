@@ -24,6 +24,7 @@ export 'src/map/route_thumbnail.dart';
 export 'src/location/method_channel_location.dart';
 export 'src/permissions/method_channel_permission_status.dart';
 export 'src/reminders/method_channel_reminder_scheduler.dart';
+export 'src/voice/method_channel_voice.dart';
 export 'src/sensors/ble_heart_rate_sensor.dart';
 export 'src/sensors/ble_link.dart';
 export 'src/sensors/method_channel_cadence.dart';

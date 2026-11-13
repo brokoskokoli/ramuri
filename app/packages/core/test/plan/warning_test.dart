@@ -392,6 +392,23 @@ void main() {
     });
   });
 
+  test('Melden und Aufheben setzen den Prüftag nicht: die Wochenbewertung '
+      'bleibt fällig (NB8 4)', () async {
+    final e = await _Env.open();
+    await e.goals.save(_goal(), today: _goal().createdAt);
+    await e.recalc(PlanTrigger.create, 0);
+    final checked = await e.session.settings.get(planLastCheckDayKey);
+    expect(checked, isNotNull);
+    await e.service.report(
+      source: WarningSource.manual,
+      today: _day(8),
+      now: _now(8),
+    );
+    expect(await e.session.settings.get(planLastCheckDayKey), checked);
+    await e.service.lift(today: _day(9), now: _now(9));
+    expect(await e.session.settings.get(planLastCheckDayKey), checked);
+  });
+
   group('Melden scheitert beim Schreiben des Plans (E2E 4)', () {
     Future<(_Env, WarningService)> failing() async {
       final e = await _Env.withFixed();

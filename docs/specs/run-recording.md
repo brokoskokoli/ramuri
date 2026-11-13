@@ -62,6 +62,8 @@ Optional zeigt die App Rundenzeiten, Höhenmeter, Schrittfrequenz, einen Soll-/I
 
 **Festlegung (OQ-0074):** Dazu kommt in Phase 1 eine Karte mit der bisherigen Strecke auf einer eigenen Seite des Lauf-Bildschirms (FR-0204).
 
+**Festlegung (K63):** Bei einer geführten Einheit zeigt eine eigene, in beiden Modi dunkle Seite Abschnitt, Restzeit, Soll und Ist als Text und den nächsten Abschnitt; der Pace-Balken des Designs entfällt. Hinweise zum Pulsbereich nach PAR-107.
+
 ### FR-0028 — Training starten, pausieren, fortsetzen, beenden
 - **Status:** Approved | **Phase:** 1
 - **Quelle:** SRC-001 §4.2, Z. 152–157
@@ -105,6 +107,8 @@ Der Nutzer kann Runden manuell markieren.
 
 Die App gibt akustische Trainingshinweise.
 
+**Festlegung (K63):** Die Ansagen nutzen die Sprachausgabe des Systems, ohne Netz aus der App. Sie werden als Datei erzeugt und im Prozess der App abgespielt (Entscheidung des Maintainers 2026-11-13, wegen der Härtung von Hintergrund-Audio unter Android 17); die Datei liegt im Cache und wird nach jeder Ansage gelöscht. Hauptschalter „Ansagen“ auf „Lauf vorbereiten“, die Einzelschalter in den Einstellungen; sie gelten ab dem Start des Laufs. Beenden bricht eine laufende Ansage ab, Pause nicht. Fehler der Sprachausgabe stören die Aufzeichnung nicht.
+
 **Akzeptanzkriterien:**
 - [ ] Einzeln schaltbare Sprachansagen: je Kilometer mit Zeit und Pace, Überschreitung des Pulsbereichs und Intervallwechsel (OQ-0044).
 
@@ -123,6 +127,8 @@ Die App warnt bei Überschreitung festgelegter Herzfrequenzbereiche.
 - **Quelle:** SRC-001 §4.2, Z. 162
 
 Die App gibt Hinweise zum nächsten Trainingsintervall.
+
+**Festlegung (K63):** Abschnitte laufen nur nach Zeit, gemessen in Bewegungszeit; Pause und Autopause halten den Abschnitt an. Angesagt werden jeder Wechsel und das Ende der Einheit, dazu 10 s vorher der nächste Abschnitt (nicht bei Abschnitten bis 20 s).
 
 **Akzeptanzkriterien:**
 - [ ] Bei einer strukturierten Einheit wird das nächste Intervall angekündigt.
@@ -278,6 +284,7 @@ Vor dem Start zeigt die Seite „Lauf vorbereiten“ (Design `Start`): den Zusta
 - „Koppeln“ führt zur Sensorsuche (FR-0011); nach dem Koppeln kehrt die App auf diese Seite zurück.
 - Die Autopause ist vorgewählt wie zuletzt eingestellt, beim ersten Mal aus (FR-0029).
 - Umschalter „Geplante Einheit“ und Abschnittsliste kommen mit Phase 2; Ansagen mit FR-0031.
+- Die geplante Einheit ist auch auf dem Laufband wählbar. Unter einem Warnsignal (FR-0203) ist nur „Freier Lauf“ wählbar, mit einem Satz dazu (K63).
 
 **Akzeptanzkriterien:**
 - [ ] Ohne Standortrecht zeigt die Seite den Grund und startet nicht (FR-0195).

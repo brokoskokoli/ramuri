@@ -210,6 +210,7 @@ class AppDependencies {
         requestNotifications: requestNotificationPermission,
         cadence: MethodChannelCadenceSensor(),
         requestActivityRecognition: requestActivityRecognitionPermission,
+        voice: MethodChannelVoice(),
       ),
       storageStart: StorageStartController(
         keyStore: keyStore,
@@ -347,6 +348,9 @@ class _NoRunPorts implements RunPorts {
 
   @override
   Future<void> Function(bool treadmill)? get requestActivityRecognition => null;
+
+  @override
+  VoicePort? get voice => null;
 }
 
 class _DeniedAccess implements LocationAccessPort {

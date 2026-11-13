@@ -1254,4 +1254,55 @@ void main() {
       );
     },
   );
+
+  test(
+    'Warnsignal: angepasste Eingaben ergeben auch bei unveränderten '
+    'Ruhetagen eine Fassung, gleiche Eingaben keine weitere (NB7 2)',
+    () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _day(0));
+      await e.run(PlanTrigger.create, 0);
+      final warning = (e.session as WarningStorage).warning;
+      await warning.set(
+        WarningSignal(reportedOn: _day(1), source: WarningSource.manual),
+      );
+      Future<PlanRecalculation> again(PlanInputs? inputs) => recalculatePlan(
+        plans: e.plans,
+        settings: e.settings,
+        trigger: PlanTrigger.weekly,
+        today: _day(1),
+        now: _now(1),
+        inputs: inputs,
+        warning: warning,
+      );
+      // Warnung legt die Ruhetage (gezeigter Plan ändert sich einmal).
+      await again(null);
+      final h0 = (await e.plans.history()).length;
+      final stored = (await e.plans.history()).last.inputs;
+      // Gleiche Eingaben, gleicher Plan: keine weitere Fassung.
+      expect((await again(null)).wasWritten, isFalse);
+      expect((await e.plans.history()).length, h0);
+      // Angepasste Eingaben (Ermüdung: keine harte Einheit), Plan zeigt weiter
+      // nur Ruhetage: trotzdem eine Fassung, ohne Karte.
+      final r = await again(stored.copyWith(noHardUntil: _day(9)));
+      expect(r.wasWritten, isTrue);
+      expect(r.summary?.isEmpty, isTrue);
+      expect((await e.plans.history()).length, h0 + 1);
+      expect((await e.plans.history()).last.inputs.noHardUntil, _day(9));
+      expect((await again(null)).wasWritten, isFalse);
+      // Angepasster Anker, sonst gleich und der gezeigte Plan unverändert
+      // (leere Zusammenfassung): ebenfalls eine Fassung, danach mit den
+      // gespeicherten Eingaben keine weitere. Der Anker ist hier drei Tage
+      // später (nur diese Eingabe ändert sich, der Plan bleibt Ruhe).
+      final stored2 = (await e.plans.history()).last.inputs;
+      final anchor = stored2.anchor.add(const Duration(days: 3));
+      final h1 = (await e.plans.history()).length;
+      final r2 = await again(stored2.copyWith(anchor: anchor));
+      expect(r2.summary?.isEmpty, isTrue, reason: 'sonst belegt es nichts');
+      expect(r2.wasWritten, isTrue);
+      expect((await e.plans.history()).length, h1 + 1);
+      expect((await e.plans.history()).last.inputs.anchor, anchor);
+      expect((await again(null)).wasWritten, isFalse);
+    },
+  );
 }

@@ -7,6 +7,7 @@ import '../run/live_run_values.dart' show LiveValueText, splitUnit;
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
 import '../transparency/value_explanation_screen.dart';
+import 'plan_origin_note.dart';
 import 'run_charts.dart';
 import 'run_summary_body.dart';
 import 'subjective_section.dart';
@@ -26,6 +27,7 @@ class RunSummaryPage extends StatelessWidget {
     required this.runId,
     this.subjective,
     this.onWarning,
+    this.pendingPlanUnit,
   });
 
   final RunSummary summary;
@@ -39,6 +41,9 @@ class RunSummaryPage extends StatelessWidget {
 
   /// Einstieg Warnsignal: Antwort „ja“ meldet, ihre Rücknahme hebt auf ([warningEntry]).
   final Future<void> Function(bool yes)? onWarning;
+
+  /// Gewählte Einheit, deren Zuordnung nach dem Lauf noch aussteht.
+  final PlanUnit? pendingPlanUnit;
 
   /// Abschnitt „Angaben zum Lauf“, falls ein Dienst da ist.
   Widget subjectiveSection({bool showSrpe = false}) {
@@ -64,6 +69,11 @@ class RunSummaryPage extends StatelessWidget {
       children: [
         _hero(context, l10n),
         gap,
+        PlanOriginNote(
+          session: session,
+          runId: runId,
+          pendingUnit: pendingPlanUnit,
+        ),
         RamuriTileGrid(children: tiles(l10n)),
         explain(context, 'sum_explain_trimp', trimpRunValueKey),
         gap,

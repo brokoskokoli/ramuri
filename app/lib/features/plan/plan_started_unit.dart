@@ -173,6 +173,28 @@ Future<PlanUnit?> openPlanUnitOn(StorageSession session, String day) async {
   return unit;
 }
 
+/// Die Einheit, der [assignRunToUnit] den Lauf zuordnet: zuerst die mit der
+/// gemerkten Kennung, falls sie noch offen ist (auch verschoben), sonst die
+/// offene Einheit des gemerkten Tags ([openPlanUnitOn]).
+Future<PlanUnit?> startedPlanUnit(
+  StorageSession session,
+  PlanStartedUnit started,
+) async {
+  if (session is PlanStorage) {
+    final all = await (session as PlanStorage).plans.unitsBetween(
+      DateTime.utc(2000),
+      planFarFuture,
+    );
+    for (final u in all) {
+      if (u.id == started.unitId) {
+        if (u.kind != PlanUnitKind.rest && u.runId == null) return u;
+        break;
+      }
+    }
+  }
+  return openPlanUnitOn(session, started.day);
+}
+
 /// Trägt die Einheit am Ortstag [day] schon einen Lauf ([runId], bei `null`
 /// irgendeinen)? `assignRun` schreibt die Zuordnung vor der Neuberechnung;
 /// scheitert nur die Rechnung, ist der Lauf trotz `failed` zugeordnet.
