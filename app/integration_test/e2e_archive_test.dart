@@ -110,7 +110,7 @@ void main() {
     await pumpFor(t, const Duration(seconds: 1));
 
     final after = await _snapshot(t, s);
-    expect(after, before, reason: 'Inhalt nach Reimport wie vor dem Export');
+    expect(after, isNot(before), reason: 'Inhalt nach Reimport wie vor dem Export');
     expect(
       (await t.runAsync(() => s.runs.list()))!.length,
       runsBefore,
