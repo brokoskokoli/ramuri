@@ -12,7 +12,7 @@
 # GPS: Der Emulator bekommt im Hintergrund synthetische Positionen
 # (`adb emu geo fix`, ca. 3 m/s nach Norden); Rechte werden per `pm grant` gesetzt.
 # Lokal einzelne Stufen: E2E_STUFEN="recover-a recover-b".
-# Bei Rot: Logcat (gefiltert), Bildschirmfoto je Stufe und Fehlerzeilen in <Ausgabeordner>.
+# Bei Rot: Logcat (gefiltert), Bildschirmfoto je Stufe und gefiltertes Testlog (ohne E2E_-Zeilen) in <Ausgabeordner>.
 # Der Reporter ist fest "expanded": Unter GitHub Actions waehlt flutter test sonst
 # den github-Reporter, der die Ausgabe eines Tests erst an dessen Ende ausgibt
 # (NEED_KILL kaeme zu spaet). Zusaetzlich alle 2 s ein Foto, solange die App vorn
@@ -41,14 +41,20 @@ gps_feed() {
   done
 }
 
-# Rechte setzen, sobald die App installiert ist, und alle 2 s wiederholen (ein
-# Grant vor dem Installieren oder zwischen zwei Installationen ginge verloren).
-grant_loop() {
+# Rechte setzen: Wartebedingung mit Ende. `pm grant` schlaegt fehl, solange die App
+# nicht installiert ist; sobald alle Rechte gewaehrt und per dumpsys bestaetigt
+# sind, endet die Schleife. flutter test installiert mit `adb install -r`, das
+# Laufzeitrechte behaelt; die Stufen mit --no-uninstall behalten sie samt App.
+# Die Start-Seite der App prueft nach (run_block_recheck im Lauf-Test).
+grant_until_done() {
   while :; do
     for p in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS BLUETOOTH_SCAN BLUETOOTH_CONNECT; do
       a shell pm grant "$pkg" android.permission.$p >/dev/null 2>&1
     done
-    sleep 2
+    # Ende, sobald das Standortrecht steht (es sperrt den Lauf; POST_NOTIFICATIONS
+    # gibt es erst ab API 33, dort schlaegt der Grant auf API 31 immer fehl).
+    a shell dumpsys package "$pkg" 2>/dev/null | grep -q 'android.permission.ACCESS_FINE_LOCATION: granted=true' && return 0
+    sleep 1
   done
 }
 
@@ -64,7 +70,7 @@ stufe() {
   a logcat -c
   (cd app && flutter test --reporter expanded "$@" -d "$serial") >"$log" 2>&1 &
   pid=$!
-  grant_loop &
+  grant_until_done &
   gpid=$!
   killed=1
   while kill -0 "$pid" 2>/dev/null; do
@@ -86,17 +92,22 @@ stufe() {
   fi
   echo "STUFE $name rc=$rc dauer=$(($(date +%s) - t0))s"
   # Nur Zeilen ohne "E2E_" (Wertausgaben der Tests) in das oeffentliche Log.
-  grep -v 'E2E_' "$log" | tail -n 40
+  grep -v 'E2E_' "$log" >"$log.pub"
+  tail -n 40 "$log.pub"
   if [ "$rc" -ne 0 ]; then
     rc_all=1
     # Gefilterter Logcat: nur Flutter-Ausgabe und Abstuerze, kein Systemlog (SEC-0001..0010).
     a logcat -d -s flutter:V AndroidRuntime:E | grep -v 'E2E_' >>"$out/logcat-filtered.txt"
-    # Nur Testname und Fehlermeldung.
-    grep -E 'The test description was|TestFailure|Expected:|Actual:|Which:|tests passed|Some tests failed|Exception:' "$log" | grep -v 'E2E_' >>"$out/test-failures.txt"
+    # Die Fehlermeldung liegt vor den letzten Zeilen: ab der ersten Fehlerzeile
+    # (EXCEPTION CAUGHT, Expected, Test failed) ins Log und das ganze Testlog
+    # (ohne E2E_-Zeilen) ins Artefakt.
+    echo "--- Fehlermeldung Stufe $name ---"
+    awk '/EXCEPTION CAUGHT|Test failed|Expected:|TimeoutException/ { f = 1 } f' "$log.pub" | head -n 60
+    cp "$log.pub" "$out/test-output-$name.txt"
   else
     rm -f "$out/screen-$name.png"
   fi
-  rm -f "$log"
+  rm -f "$log" "$log.pub"
 }
 
 # Sauberer Anfang: keine App und keine Daten aus frueheren Laeufen.
