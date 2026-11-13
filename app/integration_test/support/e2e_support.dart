@@ -142,7 +142,19 @@ Future<void> connect(WidgetTester t, List<String> ids, String prefer) async {
 Future<void> startRun(WidgetTester t) async {
   await tapKey(t, 'home_start_run');
   await waitFor(t, () => has('run_start_ready'), 'Start-Seite bereit');
-  await waitFor(t, () => has('start_gps_good'), 'GPS gut (Emulator-Fix)');
+  // Das Recht setzt tool/ci_e2e.sh von aussen (pm grant) kurz nach dem
+  // Installieren; die Start-Seite prueft es beim Oeffnen. Kam der Grant
+  // spaeter, laesst "Erneut pruefen" (run_block_recheck) die App ihn sehen.
+  final end = DateTime.now().add(const Duration(seconds: 60));
+  while (!has('start_gps_good')) {
+    if (DateTime.now().isAfter(end)) {
+      fail('GPS gut nicht erreicht (Emulator-Fix)');
+    }
+    if (has('run_block_recheck')) {
+      await tapKey(t, 'run_block_recheck');
+    }
+    await pumpFor(t, const Duration(seconds: 1));
+  }
   await tapKey(t, 'run_start_ready');
   await waitFor(t, () => has('run_time'), 'Laufseite');
 }

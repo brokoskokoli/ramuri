@@ -13,8 +13,10 @@
 # (`adb emu geo fix`, ca. 3 m/s nach Norden); Rechte werden per `pm grant` gesetzt.
 # Lokal einzelne Stufen: E2E_STUFEN="recover-a recover-b".
 # Bei Rot: Logcat (gefiltert), Bildschirmfoto je Stufe und Fehlerzeilen in <Ausgabeordner>.
-# Die Testausgabe erreicht den Host erst am Testende, darum alle 2 s ein Foto,
-# solange die App vorn liegt; bei Fehlern haelt der Test die App 20 s offen.
+# Der Reporter ist fest "expanded": Unter GitHub Actions waehlt flutter test sonst
+# den github-Reporter, der die Ausgabe eines Tests erst an dessen Ende ausgibt
+# (NEED_KILL kaeme zu spaet). Zusaetzlich alle 2 s ein Foto, solange die App vorn
+# liegt; bei Fehlern haelt der Test die App 20 s offen.
 set -u
 out="${1:-e2e-out}"
 mkdir -p "$out"
@@ -39,10 +41,14 @@ gps_feed() {
   done
 }
 
+# Rechte setzen, sobald die App installiert ist, und alle 2 s wiederholen (ein
+# Grant vor dem Installieren oder zwischen zwei Installationen ginge verloren).
 grant_loop() {
-  until a shell pm grant "$pkg" android.permission.ACCESS_FINE_LOCATION >/dev/null 2>&1; do sleep 1; done
-  for p in ACCESS_COARSE_LOCATION POST_NOTIFICATIONS BLUETOOTH_SCAN BLUETOOTH_CONNECT; do
-    a shell pm grant "$pkg" android.permission.$p >/dev/null 2>&1
+  while :; do
+    for p in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS BLUETOOTH_SCAN BLUETOOTH_CONNECT; do
+      a shell pm grant "$pkg" android.permission.$p >/dev/null 2>&1
+    done
+    sleep 2
   done
 }
 
@@ -56,7 +62,7 @@ stufe() {
   log="$out/flutter-test-$name.log"
   t0=$(date +%s)
   a logcat -c
-  (cd app && flutter test "$@" -d "$serial") >"$log" 2>&1 &
+  (cd app && flutter test --reporter expanded "$@" -d "$serial") >"$log" 2>&1 &
   pid=$!
   grant_loop &
   gpid=$!
