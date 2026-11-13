@@ -81,7 +81,7 @@ class PlanUnitScreen extends StatelessWidget {
                     horizontal: 14,
                     vertical: 12,
                   ),
-                  child: _Segment(
+                  child: PlanSegmentRow(
                     segment: unit.segments[i],
                     formatter: formatter,
                     colors: c,
@@ -95,8 +95,9 @@ class PlanUnitScreen extends StatelessWidget {
   }
 }
 
-class _Segment extends StatelessWidget {
-  const _Segment({
+class PlanSegmentRow extends StatelessWidget {
+  const PlanSegmentRow({
+    super.key,
     required this.segment,
     required this.formatter,
     required this.colors,
@@ -163,7 +164,8 @@ class _Segment extends StatelessWidget {
     );
   }
 
-  /// RPE mit den Wörtern nach PAR-105 (die Skala aus der Rückmeldung).
+  /// RPE mit den Wörtern nach PAR-105 (die Skala aus der Rückmeldung). Bei
+  /// einer Spanne steht das Wort der oberen Stufe („höchstens“, PAR-115).
   static String? _rpe(AppLocalizations l, PlanTargetIntensity t) {
     final min = t.rpeMin;
     final max = t.rpeMax ?? min;

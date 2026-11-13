@@ -5,14 +5,19 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../plan/plan_started_unit.dart';
+import '../plan/plan_texts.dart';
+import '../plan/plan_unit_screen.dart' show PlanSegmentRow;
 import '../recalculation/recalculation_controller.dart';
 import '../sensors/sensor_manager.dart';
 import '../sensors/sensors_screen.dart';
 import '../settings/app_settings.dart';
+import 'guided_segments.dart';
 import 'live_run_view.dart';
 import 'run_controller.dart';
 import 'run_ports.dart';
 import 'treadmill_units.dart';
+import 'voice_texts.dart';
 
 /// Ablauf „Lauf starten“: Seite „Lauf vorbereiten“ (FR-0210) mit Startprüfung
 /// (FR-0195), Live-Bildschirm
@@ -31,6 +36,10 @@ class RunFlowScreen extends StatefulWidget {
     this.sensors,
     this.recalculation,
     this.onFinished,
+    this.guidedSegments,
+    this.plannedUnit,
+    this.startPlanned = false,
+    this.onGuidanceChosen,
   });
 
   final StorageSession session;
@@ -57,6 +66,23 @@ class RunFlowScreen extends StatefulWidget {
   /// Berechnung schließt (WP22: Zuordnung zur Plan-Einheit). Ein Lauf, der
   /// nicht beendet wird, meldet nichts.
   final void Function(int runId)? onFinished;
+
+  /// Abschnitte der geführten Einheit eines neuen Laufs (WP24); `null`: freier
+  /// Lauf. Die Seite „Lauf vorbereiten“ übergibt sie (Auftrag 3).
+  final List<PlanSegment>? guidedSegments;
+
+  /// Die offene Einheit von heute (WP24 Auftrag 3); `null` (kein Plan, Ruhetag,
+  /// Warnsignal, schon gelaufen): nur „Freier Lauf“ ist wählbar. Gewählt wird
+  /// die Einheit nicht von selbst, sondern über [startPlanned].
+  final PlanUnit? plannedUnit;
+
+  /// „Geplante Einheit“ ist beim Öffnen gewählt („Einheit starten“).
+  final bool startPlanned;
+
+  /// Wird mit „Los“ gerufen, wenn die Wahl von der beim Öffnen abweicht:
+  /// die Einheit (geführt) oder `null` (frei). So merkt der Start die Einheit
+  /// für die Zuordnung nach dem Lauf.
+  final Future<void> Function(PlanUnit? unit)? onGuidanceChosen;
 
   @override
   State<RunFlowScreen> createState() => _RunFlowScreenState();
@@ -90,6 +116,16 @@ class _RunFlowScreenState extends State<RunFlowScreen>
   final _inclineField = TextEditingController();
 
   bool get _treadmill => _mode == RunMode.treadmill;
+
+  /// „Geplante Einheit“ gewählt (nur mit [RunFlowScreen.plannedUnit]).
+  bool _warningActive = false;
+  late bool _planned = widget.startPlanned && widget.plannedUnit != null;
+
+  /// Hauptschalter „Ansagen“ (gemerkt, Vorgabe an) und das Schreiben davon.
+  bool _voiceOn = true;
+  bool _voiceTouched = false;
+  late Future<void> _voiceLoaded;
+  Future<void> _voiceSaved = Future.value();
 
   /// Eingaben des Bands (PAR-209, PAR-210): Los braucht eine gültige
   /// Geschwindigkeit; die Steigung ist freiwillig, aber wenn angegeben gültig.
@@ -125,8 +161,39 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     unawaited(_connectSensors());
     _autoPauseLoaded = _loadAutoPause();
     _modeLoaded = _loadMode();
+    _voiceLoaded = _loadVoice();
+    if (_preparing && widget.plannedUnit == null) unawaited(_loadWarning());
     unawaited(_loadCadence());
+    if (!_preparing) unawaited(_loadResumedUnit());
     _check(askUser: false, autoStart: !_preparing);
+  }
+
+  /// Die Einheit, zu der der fortgesetzte Lauf gehört (Merker aus
+  /// „Einheit starten“, [PlanStartedUnitStore]); nur für „Aus dem Plan“ in der
+  /// Zusammenfassung, die Zuordnung in der Datenbank geschieht nach dem Schließen.
+  PlanUnit? _resumedUnit;
+
+  Future<void> _loadResumedUnit() async {
+    try {
+      final session = widget.session;
+      final started = await PlanStartedUnitStore(
+        session: session,
+        clock: widget.clock,
+      ).read();
+      final run = await session.runs.get(widget.resumeRunId!);
+      if (started == null ||
+          run == null ||
+          run.startedAt.isBefore(started.since)) {
+        return;
+      }
+      final unit = await startedPlanUnit(session, started);
+      // Wie die Zuordnung in der Datenbank: zuerst die gemerkte Kennung, bei
+      // einer durch Neuberechnung ersetzten Einheit die offene des Tags.
+      if (unit == null || !mounted) return;
+      setState(() => _resumedUnit = unit);
+    } on Object {
+      // Nur die Anzeige fehlt.
+    }
   }
 
   /// Fehler beim Lesen: Autopause aus (FR-0029).
@@ -139,6 +206,53 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     }
     if (!mounted || _autoPauseTouched) return;
     setState(() => _autoPause = value);
+  }
+
+  /// Ein Warnsignal ist aktiv: Dann fehlt die Einheit wegen des Ruhetags, und
+  /// der Satz sagt das statt „keine Einheit offen“. Fehler beim Lesen: wie ohne.
+  Future<void> _loadWarning() async {
+    var active = false;
+    try {
+      final s = widget.session;
+      if (s is WarningStorage) {
+        active = await (s as WarningStorage).warning.read() != null;
+      }
+    } on Object {
+      active = false;
+    }
+    if (!mounted || !active) return;
+    setState(() => _warningActive = true);
+  }
+
+  /// Fehler beim Lesen: Ansagen an (Vorgabe, FR-0031).
+  Future<void> _loadVoice() async {
+    var value = true;
+    try {
+      value = (await GuidanceSettings(widget.session.settings).load()).enabled;
+    } on Object {
+      value = true;
+    }
+    if (!mounted || _voiceTouched) return;
+    setState(() => _voiceOn = value);
+  }
+
+  /// Merkt den Hauptschalter sofort; ein Speicherfehler ändert die Wahl nicht.
+  void _setVoice(bool on) {
+    setState(() {
+      _voiceOn = on;
+      _voiceTouched = true;
+    });
+    _voiceSaved = _voiceSaved.then((_) async {
+      try {
+        await widget.session.settings.set(
+          SettingKeys.guidanceEnabled,
+          on ? '1' : '0',
+          at: widget.clock.now().toUtc(),
+        );
+      } on Object {
+        // Nur das Merken scheitert.
+      }
+    });
   }
 
   /// Fehler beim Lesen: GPS (FR-0196). Fortsetzen liest die Art aus dem Lauf.
@@ -350,6 +464,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     final RunController controller;
     try {
       await _autoPauseLoaded;
+      await _voiceLoaded;
+      await _voiceSaved;
+      await _announceChoice();
       await _askNotifications();
       await _askActivityRecognition();
       if (!mounted || gen != _generation) return;
@@ -365,6 +482,29 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       _checking = false;
     });
     await controller.start();
+  }
+
+  /// Meldet eine geänderte Wahl „Geplante Einheit“/„Freier Lauf“ dem Start
+  /// (Merker für die Zuordnung); ein Fehler dort hält den Lauf nicht auf.
+  Future<void> _announceChoice() async {
+    final unit = widget.plannedUnit;
+    final callback = widget.onGuidanceChosen;
+    if (!_preparing || callback == null) return;
+    final initial = widget.startPlanned && unit != null;
+    if (_planned == initial) return;
+    try {
+      await callback(_planned ? unit : null);
+    } on Object {
+      // Ohne Merker ordnet nur der normale Weg zu.
+    }
+  }
+
+  /// Die Führung eines neuen Laufs: nur mit gewählter Einheit.
+  List<PlanSegment>? get _segmentsForRun {
+    if (!_preparing) return widget.guidedSegments;
+    final unit = widget.plannedUnit;
+    if (_planned && unit != null) return guidedSegmentsOf(unit);
+    return widget.guidedSegments;
   }
 
   RunController _newController() {
@@ -384,6 +524,10 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       startInclinePercent: _preparing && _treadmill ? _incline.$2 : null,
       tickEvery: widget.tickEvery,
       serialize: widget.serialize,
+      voice: widget.ports.voice,
+      voiceTexts: VoiceTexts(AppLocalizations.of(context)),
+      guidedSegments: _segmentsForRun,
+      guidedKind: _planned && _preparing ? widget.plannedUnit?.kind : null,
     );
     final onFinished = widget.onFinished;
     if (onFinished != null) {
@@ -487,6 +631,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
           formatter: AppSettingsScope.formatterOf(context),
           clock: widget.clock,
           recalculation: widget.recalculation,
+          pendingPlanUnit: widget.resumeRunId == null
+              ? (_planned ? widget.plannedUnit : null)
+              : _resumedUnit,
         );
       },
     );
@@ -596,6 +743,129 @@ class _RunFlowScreenState extends State<RunFlowScreen>
       ],
     ),
   );
+
+  /// Umschalter „Geplante Einheit“ | „Freier Lauf“ (Design `Start`). Ohne
+  /// offene Einheit ist die erste Wahl aus und ein Satz sagt warum; „Freier
+  /// Lauf“ heißt keine Führung.
+  Widget _guidedToggle(AppLocalizations l10n) {
+    final hasUnit = widget.plannedUnit != null;
+    final minimum = ButtonStyle(
+      minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
+      tapTargetSize: MaterialTapTargetSize.padded,
+    );
+    return RamuriCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SegmentedButton<bool>(
+            key: const Key('guided_toggle'),
+            showSelectedIcon: false,
+            style: minimum,
+            segments: [
+              ButtonSegment(
+                value: true,
+                enabled: hasUnit,
+                label: Text(
+                  l10n.guidedPlanned,
+                  key: const Key('guided_toggle_plan'),
+                ),
+              ),
+              ButtonSegment(
+                value: false,
+                label: Text(
+                  l10n.guidedFree,
+                  key: const Key('guided_toggle_free'),
+                ),
+              ),
+            ],
+            selected: {_planned},
+            onSelectionChanged: (v) => setState(() => _planned = v.first),
+          ),
+          if (!hasUnit) ...[
+            const SizedBox(height: 10),
+            Text(
+              _warningActive ? l10n.guidedNoUnitWarning : l10n.guidedNoUnit,
+              key: const Key('guided_no_unit'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _freeCard(AppLocalizations l10n, TextTheme text) => RamuriCard(
+    padding: const EdgeInsets.all(18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.startFreeTitle, style: text.titleMedium),
+        const SizedBox(height: 6),
+        Text(
+          _treadmill ? l10n.treadmillBody : l10n.startFreeBody,
+          style: text.bodySmall!.copyWith(height: 1.45),
+        ),
+      ],
+    ),
+  );
+
+  /// Karte der Einheit: Art, Dauer, Ziel (Puls, wo bekannt) und die Abschnitte
+  /// mit ihrer Zielintensität.
+  Widget _plannedCard(AppLocalizations l10n, TextTheme text) {
+    final unit = widget.plannedUnit!;
+    final segments = guidedSegmentsOf(unit);
+    final c = RamuriColors.of(context);
+    final formatter = AppSettingsScope.formatterOf(context);
+    final hr = segments
+        .map((s) => s.intensity)
+        .firstWhere(
+          (t) => t?.hrMinBpm != null && t?.hrMaxBpm != null,
+          orElse: () => null,
+        );
+    return RamuriCard(
+      key: const Key('guided_card'),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            planKindName(l10n, unit.kind),
+            key: const Key('guided_kind'),
+            style: text.titleMedium,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            planDurationText(l10n, unit.minutes),
+            key: const Key('guided_duration'),
+            style: text.bodyMedium,
+          ),
+          if (hr != null)
+            Text(
+              l10n.guidedTarget(
+                l10n.planHeartRateRange(hr.hrMinBpm!, hr.hrMaxBpm!),
+              ),
+              key: const Key('guided_target'),
+              style: text.bodySmall,
+            ),
+          const SizedBox(height: 12),
+          for (var i = 0; i < segments.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Semantics(
+                container: true,
+                child: PlanSegmentRow(
+                  key: Key('guided_segment_$i'),
+                  segment: segments[i],
+                  formatter: formatter,
+                  colors: c,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   /// Startgeschwindigkeit (Pflicht) und Steigung (freiwillig) des Bands.
   Widget _beltCard(AppLocalizations l10n, TextTheme text) {
@@ -717,20 +987,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                 _beltCard(l10n, text),
                 const SizedBox(height: 18),
               ],
-              RamuriCard(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.startFreeTitle, style: text.titleMedium),
-                    const SizedBox(height: 6),
-                    Text(
-                      _treadmill ? l10n.treadmillBody : l10n.startFreeBody,
-                      style: text.bodySmall!.copyWith(height: 1.45),
-                    ),
-                  ],
-                ),
-              ),
+              _guidedToggle(l10n),
+              const SizedBox(height: 18),
+              _planned ? _plannedCard(l10n, text) : _freeCard(l10n, text),
               const SizedBox(height: 18),
               Semantics(
                 container: true,
@@ -812,6 +1071,18 @@ class _RunFlowScreenState extends State<RunFlowScreen>
                     onChanged: _setAutoPause,
                   ),
                 ),
+              const SizedBox(height: 12),
+              RamuriCard(
+                radius: 18,
+                padding: EdgeInsets.zero,
+                child: SwitchListTile(
+                  key: const Key('guided_voice'),
+                  title: Text(l10n.guidedVoiceTitle, style: text.labelMedium),
+                  subtitle: Text(l10n.guidedVoiceHint),
+                  value: _voiceOn,
+                  onChanged: _setVoice,
+                ),
+              ),
             ],
           ),
         ),

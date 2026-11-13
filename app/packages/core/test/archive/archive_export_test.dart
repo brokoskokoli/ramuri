@@ -220,6 +220,7 @@ void main() {
               SettingKeys.loadFactorPending,
               SettingKeys.loadFactorDeclined,
               SettingKeys.planStartedUnit,
+              SettingKeys.guidedUnitSnapshot,
               SettingKeys.loadFactor,
               'unit.pace',
               SettingKeys.loadProfile,

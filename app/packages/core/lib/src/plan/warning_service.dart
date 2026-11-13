@@ -120,6 +120,8 @@ class WarningService {
       inputs: inputs,
       parameters: parameters,
       warning: warning,
+      // Melden und Aufheben sind keine Wochenprüfung: der Prüftag bleibt.
+      markChecked: false,
     );
   }
 }

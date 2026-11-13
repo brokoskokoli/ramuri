@@ -46,6 +46,8 @@ class RunningApplication : Application() {
         PpgCamera.register(messenger, this)
         // WP27: Ton oder Vibration am Ende der Ruhephase.
         RestingSignal.register(messenger, this)
+        // WP24: Sprachausgabe der geführten Einheit, eigener Kanal neben dem Aufzeichnungsdienst.
+        VoiceChannel.register(messenger, this)
         // FR-0174: Erinnerungen vor geplanten Einheiten, ohne Activity erreichbar.
         TrainingReminders.register(messenger, this)
     }

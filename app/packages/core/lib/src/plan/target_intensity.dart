@@ -6,7 +6,7 @@ import 'plan_unit.dart';
 
 /// Kennung und Version der Zielintensität (NFR-0001, NFR-0005).
 const String targetIntensityMethod = 'target-intensity';
-const int targetIntensityMethodVersion = 1;
+const int targetIntensityMethodVersion = 2;
 
 /// Stand der Zahlen in [IntensityParameters].
 const int targetIntensityParameterVersion = 1;
@@ -73,6 +73,7 @@ class IntensityParameters {
     this.rpeTempo = const RpeRange(6, 7),
     this.rpeEndBlock = const RpeRange(5, 7),
     this.rpeWalkRun = const RpeRange(1, 4),
+    this.rpeWalk = const RpeRange(1, 2),
     this.intervalFastMeters = 3000,
     this.intervalSlowMeters = 5000,
     this.tempoSlowMeters = 21097.5,
@@ -118,10 +119,12 @@ class IntensityParameters {
   /// Endblock des progressiven Laufs (PAR-114).
   final RpeRange rpeEndBlock;
 
-  /// Geh-/Laufintervalle: Lauf höchstens 4 (PAR-115). Gehen höchstens 2; die
-  /// Abschnitte unterscheiden das nicht, daher gilt eine Spanne für die
-  /// Einheit.
+  /// Geh-/Laufintervalle, Lauf: höchstens 4 (PAR-115).
   final RpeRange rpeWalkRun;
+
+  /// Geh-/Laufintervalle, Gehen (auch Auf-/Abwärmen, PAR-119): höchstens 2
+  /// (PAR-115, eigene Wahl).
+  final RpeRange rpeWalk;
 
   /// Rang 2: Intervalle zwischen Tempo über 3 km und 5 km (PAR-102).
   final double intervalFastMeters;
@@ -452,7 +455,13 @@ SegmentTarget? segmentTarget({
     _Role.recovery => p.rpeRecovery,
     _Role.tempo =>
       segment == PlanSegmentKind.endBlock ? p.rpeEndBlock : p.rpeTempo,
-    _Role.walkRun => p.rpeWalkRun,
+    // Auf- und Abwärmen der Geh-Lauf-Einheit sind Gehen (PAR-119, PAR-065).
+    _Role.walkRun =>
+      segment == PlanSegmentKind.walk ||
+              segment == PlanSegmentKind.warmUp ||
+              segment == PlanSegmentKind.coolDown
+          ? p.rpeWalk
+          : p.rpeWalkRun,
   };
 
   SegmentTarget make(IntensityBasis basis, {_Pace? pace, _Hr? hr}) =>

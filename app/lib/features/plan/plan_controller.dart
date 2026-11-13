@@ -319,11 +319,14 @@ class PlanController extends ChangeNotifier {
         null) {
       return;
     }
-    if (!last.version.isCurrent) {
-      await _recalculate(PlanTrigger.ruleVersion, goal, last);
-      return;
-    }
-    await _recalculate(PlanTrigger.weekly, goal, last, adjust: true);
+    // Auch unter einer älteren Regelversion bewertet die Prüfung die Woche
+    // (PAR-201, NB6 1).
+    await _recalculate(
+      last.version.isCurrent ? PlanTrigger.weekly : PlanTrigger.ruleVersion,
+      goal,
+      last,
+      adjust: true,
+    );
   }
 
   /// Rechnet mit Eingaben aus dem Speicher. Anlegen: neue Eingaben aus
@@ -385,6 +388,8 @@ class PlanController extends ChangeNotifier {
           reason = codes;
         } else if (trigger == PlanTrigger.goalChange) {
           reason = 'goalChange,$codes';
+        } else if (trigger == PlanTrigger.ruleVersion) {
+          reason = 'ruleVersion,$codes';
         }
       }
     }
@@ -723,12 +728,16 @@ class PlanController extends ChangeNotifier {
     if (goal == null) return;
     final history = await _plans.history();
     final last = history.isEmpty ? null : history.last;
+    final goalChanged =
+        last != null && planGoalChangedSince(last.summary, goal);
     await _recalculate(
-      last != null && planGoalChangedSince(last.summary, goal)
-          ? PlanTrigger.goalChange
-          : PlanTrigger.run,
+      goalChanged ? PlanTrigger.goalChange : PlanTrigger.run,
       goal,
       last,
+      // `run` bewertet die Woche nicht: Der Prüftag bleibt, sonst fiele die
+      // Bewertung der Vorwoche weg (Lauf über Mitternacht in den Montag,
+      // NB7 1). `goalChange` bewertet bei Fälligkeit selbst.
+      markChecked: goalChanged,
     );
   });
 

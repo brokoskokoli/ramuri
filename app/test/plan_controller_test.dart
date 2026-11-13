@@ -118,6 +118,33 @@ Future<void> _writeVersion(
   );
 }
 
+/// Schreibt die letzte Fassung mit denselben Einheiten, Eingaben und Hinweisen
+/// als Fassung einer älteren Regelversion neu (ab heute der Uhr).
+Future<void> _downgradeLast(_Env e) async {
+  final last = (await e.plans.history()).last;
+  final day = DateTime.utc(
+    e.clock.now().year,
+    e.clock.now().month,
+    e.clock.now().day,
+  );
+  await e.plans.writeVersion(
+    PlanVersionDraft(
+      createdAt: e.clock.now(),
+      validFrom: day,
+      trigger: PlanTrigger.weekly,
+      reason: 'weekly',
+      version: const PlanVersion(method: 'alte-methode'),
+      inputs: last.inputs,
+      summary: last.summary,
+      units: await e.plans.unitsBetween(day, planFarFuture),
+      readState: planUnitsFingerprint(
+        await e.plans.unitsBetween(DateTime.utc(2000), planFarFuture),
+      ),
+    ),
+  );
+  expect((await e.plans.history()).last.version.isCurrent, isFalse);
+}
+
 void main() {
   group('today geht an die Schreiber', () {
     test('saveGoal prüft das Zieldatum gegen heute, nicht createdAt', () async {
@@ -334,6 +361,65 @@ void main() {
         await e.session.settings.get(planLastCheckDayKey),
         _dayText(_today),
       );
+    });
+
+    test('alte Regelversion, gleiche Einheiten: neue Fassung ohne Karte, '
+        'Hinweis weg, Prüftag gesetzt (NB6 1)', () async {
+      final e = await _Env.open();
+      await e.controller.saveGoal(_goal());
+      final units = await e.plans.unitsBetween(_today, planFarFuture);
+      await _downgradeLast(e);
+      await e.session.settings.set(
+        planLastCheckDayKey,
+        _dayText(_day(-7)),
+        at: _now,
+      );
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.last.trigger, PlanTrigger.ruleVersion);
+      expect(h.last.version.isCurrent, isTrue);
+      expect(e.controller.state.ruleVersionPending, isFalse);
+      expect(e.controller.state.lastChange?.isEmpty ?? true, isTrue);
+      expect(
+        (await e.plans.unitsBetween(
+          _today,
+          planFarFuture,
+        )).map((u) => '${u.day}${u.kind.name}${u.minutes}').toList(),
+        units.map((u) => '${u.day}${u.kind.name}${u.minutes}').toList(),
+      );
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        _dayText(_today),
+      );
+      final n = h.length;
+      await e.controller.open();
+      expect((await e.plans.history()).length, n);
+    });
+
+    test('alte Regelversion unter Warnsignal: neue Fassung, gehaltene '
+        'Einheiten bleiben gehalten (NB6 1)', () async {
+      final e = await _Env.open();
+      await e.controller.saveGoal(_goal());
+      await e.controller.reportWarning();
+      await _downgradeLast(e);
+      await e.session.settings.set(
+        planLastCheckDayKey,
+        _dayText(_day(-7)),
+        at: _now,
+      );
+      await e.controller.open();
+      final last = (await e.plans.history()).last;
+      expect(last.trigger, PlanTrigger.ruleVersion);
+      expect(last.version.isCurrent, isTrue);
+      expect(warningHeldFromSummary(last.summary), isNotNull);
+      expect(
+        (await e.plans.unitsBetween(
+          _today,
+          planFarFuture,
+        )).every((u) => u.kind == PlanUnitKind.rest),
+        isTrue,
+      );
+      expect(e.controller.state.ruleVersionPending, isFalse);
     });
 
     test('fällig und aktuelle Regelversion: Auslöser weekly', () async {
@@ -872,6 +958,90 @@ void main() {
       // idempotent: zweites Öffnen schreibt nichts
       await e.controller.open();
       expect(await e.plans.history(), hasLength(2));
+    });
+
+    test('alte Regelversion: die Prüfung bewertet die Woche wie weekly '
+        '(NB6 1)', () async {
+      final (e, planned) = await prepare();
+      await _downgradeLast(e);
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.last.trigger, PlanTrigger.ruleVersion);
+      expect(h.last.reason, 'ruleVersion,repeatWeek');
+      expect(h.last.version.isCurrent, isTrue);
+      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
+    });
+
+    test('Lauf zuordnen vor der Prüfung (Lauf über Mitternacht in den '
+        'Montag): der Prüftag bleibt, das Öffnen bewertet die Woche '
+        '(NB7 1)', () async {
+      // Lauf 1 des Belegs (30 % der Woche) ist auch der zugeordnete.
+      final (e, planned) = await prepare(share: 0.3);
+      // Der Lauf liegt kurz vor heute, sonst hielte die Pausenfrage die
+      // Prüfung an.
+      final runId = await _finishedRun(e.session, -12);
+      expect(runId, 1);
+      final lastCheck = await e.session.settings.get(planLastCheckDayKey);
+      final unit = (await e.plans.unitsBetween(_day(14), planFarFuture)).first;
+      expect(
+        await e.controller.assignRun(unit.id!, runId),
+        PlanActionResult.done,
+      );
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        lastCheck,
+        reason: 'ohne Bewertung kein Prüftag',
+      );
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.last.trigger, PlanTrigger.weekly);
+      expect(h.last.reason, 'repeatWeek');
+      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
+    });
+
+    test('Warnsignal und fällige Wochenbewertung: nach dem Aufheben gilt die '
+        'Anpassung (NB7 2)', () async {
+      final (e, planned) = await prepare();
+      // Gemeldet am Dienstag, geöffnet am Mittwoch derselben Woche: die
+      // Wochenprüfung ist fällig, das Melden hat den Prüftag nicht gesetzt.
+      e.clock.set(_day(13));
+      await e.controller.reportWarning();
+      e.clock.set(_day(14));
+      await e.controller.open();
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        _dayText(_day(14)),
+      );
+      expect(
+        (await e.plans.unitsBetween(
+          _day(14),
+          planFarFuture,
+        )).every((u) => u.kind == PlanUnitKind.rest),
+        isTrue,
+      );
+      await e.controller.liftWarning();
+      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
+    });
+
+    test('Warnsignal: wiederholtes Öffnen und Aufheben ohne Änderung der '
+        'Eingaben schreibt keine weitere Fassung (NB7 2)', () async {
+      final (e, _) = await prepare();
+      // Gemeldet am Dienstag, geöffnet am Mittwoch derselben Woche: die
+      // Wochenprüfung ist fällig, das Melden hat den Prüftag nicht gesetzt.
+      e.clock.set(_day(13));
+      await e.controller.reportWarning();
+      e.clock.set(_day(14));
+      await e.controller.open(); // Wochenbewertung: genau eine neue Fassung
+      final n = (await e.plans.history()).length;
+      await e.controller.open();
+      await e.controller.open();
+      await e.controller.recalculate();
+      await e.controller.recalculate();
+      expect((await e.plans.history()).length, n);
+      // Neuer Tag ohne neue Woche: gemessene Werte allein ergeben nichts.
+      e.clock.set(_day(15));
+      await e.controller.open();
+      expect((await e.plans.history()).length, n);
     });
 
     test('Hälfte bis 80 %: keine Steigerung', () async {

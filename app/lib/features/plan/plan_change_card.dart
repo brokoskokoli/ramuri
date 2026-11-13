@@ -50,6 +50,16 @@ String planChangeReasonText(
         }
         return l.planChangeReasonGoalChange;
       }
+      // Regelversion mit Wochenbewertung (NB6 1): `ruleVersion,<Gründe>`.
+      const ruleVersionPrefix = 'ruleVersion,';
+      if (e.code.startsWith(ruleVersionPrefix)) {
+        final weekly = _weeklyReasons(
+          l,
+          e.code.substring(ruleVersionPrefix.length),
+          v,
+        );
+        if (weekly != null) return weekly;
+      }
       return _weeklyReasons(l, e.code, v) ?? l.planChangeReasonOther;
   }
 }
