@@ -21,7 +21,7 @@
 # Alle Listen enthalten tool/gate.sh (die Schrittfunktionen stehen dort) und pubspec.* samt pubspec.lock.
 GATE_DRIFT_PATHS="app/packages/adapters/lib/src/storage app/packages/adapters/drift_schemas tool/gate.sh :(glob)app/**/pubspec.*"
 GATE_KOTLIN_PATHS="app/android tool/gate.sh :(glob)app/**/pubspec.*"
-GATE_RELEASE_PATHS="app/android app/lib app/packages app/assets app/l10n.yaml tool/check_release_manifest.py tool/gate.sh :(glob)app/**/pubspec.*"
+GATE_RELEASE_PATHS="app/android app/lib app/packages app/assets app/l10n.yaml tool/check_release_manifest.py tool/check_release_apk.sh tool/gate.sh :(glob)app/**/pubspec.*"
 GATE_RELEASE_NAME="release: INTERNET, CAMERA, VIBRATE, uses-feature, keine verbotenen Rechte, Boot nur Erinnerungs-Empfänger, nur HTTPS, keine Debug-Quellen"
 
 mode=full
@@ -69,7 +69,13 @@ failfast=0
 cur=
 t_start=$(date +%s)
 set -m   # jeder Schritt läuft in eigener Prozessgruppe, damit ein Signal auch Flutter, Gradle usw. beendet
-abbruch() { [ -n "$cur" ] && kill -TERM -- "-$cur" 2>/dev/null; echo "GATE ABGEBROCHEN"; exit 143; }
+# Ohne Jobsteuerung (kein tty, z. B. dash in CI) gibt es keine eigene Prozessgruppe: dann nur den Schritt selbst beenden.
+abbruch() {
+  if [ -n "$cur" ]; then
+    case $- in *m*) kill -TERM -- "-$cur" 2>/dev/null ;; *) kill -TERM "$cur" 2>/dev/null ;; esac
+  fi
+  echo "GATE ABGEBROCHEN"; exit 143
+}
 trap abbruch INT TERM
 step() {
   name=$1; shift; log=$(mktemp); t0=$(date +%s)
@@ -99,6 +105,9 @@ step "privat" sh tool/check_private.sh
 [ -f app/pubspec.yaml ] && step "Netz nur im Kartenadapter" python3 tool/check_net.py
 [ -f app/pubspec.yaml ] && step "Netz-Prüfung Selbsttest" python3 tool/check_net_test.py
 [ -f app/pubspec.yaml ] && step "Release-Manifest-Prüfung Selbsttest" python3 tool/check_release_manifest_test.py
+# WP30: Versionsrechnung des Release-Builds und Tag-Regel des Pre-Push-Hooks (bash explizit, läuft auch unter Linux/dash).
+step "Versionsrechnung Selbsttest" bash tool/build_signed_test.sh
+step "Pre-Push-Tagregel Selbsttest" bash tool/hooks/pre-push_test.sh
 
 # --- Flutter und Dart: je Paket (app und app/packages/*) ---
 is_flutter() { grep -Eq '^[[:space:]]+sdk:[[:space:]]*flutter[[:space:]]*$' "$1/pubspec.yaml"; }

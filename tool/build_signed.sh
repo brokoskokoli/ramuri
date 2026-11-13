@@ -61,9 +61,12 @@ else
   keychain keystore-base64 | base64 -d >"$keystore" || fehler "SIGNING_KEYSTORE_BASE64 fehlt (Umgebung und Schlüsselbund Konto keystore-base64)"
 fi
 [[ -s $keystore ]] || fehler "Keystore ist leer"
+unset SIGNING_KEYSTORE_BASE64
 export SIGNING_STORE_FILE=$keystore SIGNING_STORE_PASSWORD SIGNING_KEY_PASSWORD SIGNING_KEY_ALIAS
 
 # --- Build ---
+# Gradle ohne Daemon: ein Daemon bliebe stundenlang mit den Signatur-Passwörtern in seiner Umgebung am Leben.
+export GRADLE_OPTS="${GRADLE_OPTS:+$GRADLE_OPTS }-Dorg.gradle.daemon=false"
 apk=app/build/app/outputs/flutter-apk/app-release.apk
 aab=app/build/app/outputs/bundle/release/app-release.aab
 rm -f "$apk" "$aab"
