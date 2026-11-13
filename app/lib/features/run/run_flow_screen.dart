@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../plan/plan_started_unit.dart';
 import '../plan/plan_texts.dart';
 import '../plan/plan_unit_screen.dart' show PlanSegmentRow;
 import '../recalculation/recalculation_controller.dart';
@@ -163,7 +164,34 @@ class _RunFlowScreenState extends State<RunFlowScreen>
     _voiceLoaded = _loadVoice();
     if (_preparing && widget.plannedUnit == null) unawaited(_loadWarning());
     unawaited(_loadCadence());
+    if (!_preparing) unawaited(_loadResumedUnit());
     _check(askUser: false, autoStart: !_preparing);
+  }
+
+  /// Die Einheit, zu der der fortgesetzte Lauf gehört (Merker aus
+  /// „Einheit starten“, [PlanStartedUnitStore]); nur für „Aus dem Plan“ in der
+  /// Zusammenfassung, die Zuordnung in der Datenbank geschieht nach dem Schließen.
+  PlanUnit? _resumedUnit;
+
+  Future<void> _loadResumedUnit() async {
+    try {
+      final session = widget.session;
+      final started = await PlanStartedUnitStore(
+        session: session,
+        clock: widget.clock,
+      ).read();
+      final run = await session.runs.get(widget.resumeRunId!);
+      if (started == null ||
+          run == null ||
+          run.startedAt.isBefore(started.since)) {
+        return;
+      }
+      final unit = await openPlanUnitOn(session, started.day);
+      if (unit == null || unit.id != started.unitId || !mounted) return;
+      setState(() => _resumedUnit = unit);
+    } on Object {
+      // Nur die Anzeige fehlt.
+    }
   }
 
   /// Fehler beim Lesen: Autopause aus (FR-0029).
@@ -601,9 +629,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
           formatter: AppSettingsScope.formatterOf(context),
           clock: widget.clock,
           recalculation: widget.recalculation,
-          pendingPlanUnit: _planned && widget.resumeRunId == null
-              ? widget.plannedUnit
-              : null,
+          pendingPlanUnit: widget.resumeRunId == null
+              ? (_planned ? widget.plannedUnit : null)
+              : _resumedUnit,
         );
       },
     );

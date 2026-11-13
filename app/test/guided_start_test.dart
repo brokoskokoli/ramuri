@@ -12,6 +12,7 @@ import 'package:running_app/features/run/run_flow_screen.dart';
 import 'package:running_app/features/summary/plan_origin_note.dart';
 
 import 'app_harness.dart';
+import 'run_test.dart' show walk;
 
 // WP24 Auftrag 3: Umschalter „Geplante Einheit“ | „Freier Lauf“, Karte mit
 // Abschnitten, Hauptschalter „Ansagen“, Einzelschalter, „Aus dem Plan“.
@@ -177,6 +178,39 @@ void main() {
       expect(key('sum_trimp'), findsOneWidget);
       expect(key('sum_from_plan'), findsOneWidget);
       expect(_text('sum_from_plan_unit'), isNotEmpty);
+    });
+
+    testWidgets('Absturz, Fortsetzen, Beenden: Zusammenfassung zeigt „Aus dem '
+        'Plan“, der Lauf wird nach dem Schließen zugeordnet (NB4)', (
+      tester,
+    ) async {
+      final d = Device();
+      await _open(d);
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('home_start_unit'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
+      await walk(d, tester, 20);
+      await d.stop(tester);
+      await d.start(tester, const Locale('de'));
+      await tester.tap(key('recover_resume'));
+      await tester.pumpAndSettle();
+      await walk(d, tester, 10, from: 20);
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      await tester.tap(key('run_finish'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_finish_confirm'));
+      await tester.pumpAndSettle();
+      expect(key('sum_trimp'), findsOneWidget);
+      expect(key('sum_from_plan'), findsOneWidget);
+      expect(_text('sum_from_plan_unit'), isNotEmpty);
+      await tester.tap(key('run_done_close'));
+      await tester.pumpAndSettle();
+      final run = (await d.session.runs.list()).single;
+      final unit = await (d.session as PlanStorage).plans.unitOn(_today);
+      expect(unit!.runId, run.id);
     });
   });
 
