@@ -234,6 +234,9 @@ void main() {
       expect(r(PlanUnitKind.tempo, PlanSegmentKind.tempo), (6, 7));
       expect(r(PlanUnitKind.progressive, PlanSegmentKind.endBlock), (5, 7));
       expect(r(PlanUnitKind.walkRun, PlanSegmentKind.easy), (1, 4));
+      // PAR-115: Gehen höchstens 2, Lauf höchstens 4.
+      expect(r(PlanUnitKind.walkRun, PlanSegmentKind.walk), (1, 2));
+      expect(r(PlanUnitKind.walkRun, PlanSegmentKind.run), (1, 4));
     });
 
     test('Trabpause und Geh-Lauf: nur RPE, keine Pace, kein Puls', () {

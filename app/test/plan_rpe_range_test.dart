@@ -7,19 +7,26 @@ import 'package:running_app/ui/ui.dart';
 
 import 'helpers/widget_helpers.dart';
 
-// WP24 NB4: Bei einer RPE-Spanne steht das Wort der unteren Stufe.
+// WP24 NB5: Gehen 1 bis 2, Laufen 1 bis 4 (PAR-115), jeweils mit dem Wort der
+// oberen Stufe; die Zahlen kommen aus dem Kern, nicht aus dem Test.
 void main() {
-  testWidgets('Spanne 1 bis 4 (Gehen) trägt das Wort der Stufe 1, nicht 4', (
-    tester,
+  Future<void> pumpRow(
+    WidgetTester tester,
+    PlanSegmentKind kind,
   ) async {
+    final target = segmentTarget(
+      unitKind: PlanUnitKind.walkRun,
+      segment: kind,
+      inputs: IntensityInputs(),
+    )!;
     await tester.pumpWidget(
       localizedApp(
         home: Scaffold(
           body: PlanSegmentRow(
-            segment: const PlanSegment(
-              kind: PlanSegmentKind.walk,
+            segment: PlanSegment(
+              kind: kind,
               minutes: 5,
-              intensity: PlanTargetIntensity(rpeMin: 1, rpeMax: 4),
+              intensity: target.intensity,
             ),
             formatter: const UnitFormatter(
               unit: DistanceUnit.kilometers,
@@ -33,10 +40,22 @@ void main() {
         ),
       ),
     );
+  }
+
+  testWidgets('Gehabschnitt: 1–2 mit dem Wort der Stufe 2', (tester) async {
+    await pumpRow(tester, PlanSegmentKind.walk);
     expect(
-      find.text('Anstrengung 1–4 · Kaum Anstrengung, wie gemütliches Gehen'),
+      find.text('Anstrengung 1–2 · Locker, Reden ohne Mühe'),
       findsOneWidget,
     );
-    expect(find.textContaining('Fordert etwas'), findsNothing);
+    expect(find.textContaining('Kaum Anstrengung'), findsNothing);
+  });
+
+  testWidgets('Laufabschnitt: 1–4 mit dem Wort der Stufe 4', (tester) async {
+    await pumpRow(tester, PlanSegmentKind.run);
+    expect(
+      find.text('Anstrengung 1–4 · Fordert etwas, ganze Sätze gehen noch'),
+      findsOneWidget,
+    );
   });
 }
