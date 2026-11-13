@@ -9,13 +9,19 @@ concurrency:
   cancel-in-progress: true
 jobs:
   e2e:
-    name: e2e api ${{ matrix.api }}
+    name: e2e api ${{ matrix.api }} ${{ matrix.shard }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      E2E_STUFEN: ${{ matrix.shard == 'sammlung' && 'sammlung' || 'storage-a storage-b recover-a recover-b' }}
     strategy:
       fail-fast: false
       matrix:
         api: [31, 36]
+        # Zwei Shards je API, damit kein Job die 15-Minuten-Grenze reisst
+        # (Sammlung wuchs mit Archiv, Laufband, Ruhepuls auf ca. 9 min Tests):
+        # sammlung = all_test.dart, stufen = die Mehrphasen-Stufen mit Prozessende.
+        shard: [sammlung, stufen]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
@@ -79,7 +85,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-api${{ matrix.api }}-fehler
+          name: e2e-api${{ matrix.api }}-${{ matrix.shard }}-fehler
           path: e2e-out/
           retention-days: 7
           if-no-files-found: ignore

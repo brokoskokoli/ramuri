@@ -7,6 +7,7 @@
 // Profil. Szenario noFinger: kein Wert, nichts gespeichert. Synthetische Werte,
 // Ausgabe nur Zaehler. Laeuft in der Sammlung (all_test.dart).
 import 'package:core/core.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:running_app/debug/debug_test_ppg_camera.dart';
@@ -71,6 +72,13 @@ void main() {
     // Die Fake-Kamera spielt ca. 70/min ein (Schlag alle 0,85 s).
     expect(saved!, inInclusiveRange(60, 80));
     expect(cam.torchOn, isFalse, reason: 'Kamera wieder frei');
+    // Die Rueckmeldung (SnackBar) muss ablaufen, bevor der Baum abgebaut wird:
+    // sonst loest ihr Zeitgeber nach dem Test aus (Scaffold nicht mehr eingebunden).
+    await waitFor(
+      t,
+      () => find.byType(SnackBar).evaluate().isEmpty,
+      'Rueckmeldung abgelaufen',
+    );
   }, timeout: const Timeout(Duration(minutes: 3)));
 
   testWidgets('kein Finger: kein Wert, nichts gespeichert', (t) async {
