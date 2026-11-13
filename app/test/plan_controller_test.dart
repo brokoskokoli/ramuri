@@ -1002,11 +1002,11 @@ void main() {
     test('Warnsignal und fällige Wochenbewertung: nach dem Aufheben gilt die '
         'Anpassung (NB7 2)', () async {
       final (e, planned) = await prepare();
-      final lastCheck = await e.session.settings.get(planLastCheckDayKey);
+      // Gemeldet am Dienstag, geöffnet am Mittwoch derselben Woche: die
+      // Wochenprüfung ist fällig, das Melden hat den Prüftag nicht gesetzt.
+      e.clock.set(_day(13));
       await e.controller.reportWarning();
-      // Das Melden fiel in die Vorwoche: Die Wochenprüfung ist noch fällig
-      // (der WarningService setzt den Prüftag selbst, siehe Bericht NB7).
-      await e.session.settings.set(planLastCheckDayKey, lastCheck!, at: _now);
+      e.clock.set(_day(14));
       await e.controller.open();
       expect(
         await e.session.settings.get(planLastCheckDayKey),
@@ -1019,12 +1019,6 @@ void main() {
         )).every((u) => u.kind == PlanUnitKind.rest),
         isTrue,
       );
-      {
-        final h = await e.plans.history();
-        print(
-          'DBG ${[for (final x in h) '${x.trigger.name}/${x.reason}/${x.inputs.anchor}/${x.inputs.achievedShare}']}',
-        );
-      }
       await e.controller.liftWarning();
       expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
     });
@@ -1032,11 +1026,11 @@ void main() {
     test('Warnsignal: wiederholtes Öffnen und Aufheben ohne Änderung der '
         'Eingaben schreibt keine weitere Fassung (NB7 2)', () async {
       final (e, _) = await prepare();
-      final lastCheck = await e.session.settings.get(planLastCheckDayKey);
+      // Gemeldet am Dienstag, geöffnet am Mittwoch derselben Woche: die
+      // Wochenprüfung ist fällig, das Melden hat den Prüftag nicht gesetzt.
+      e.clock.set(_day(13));
       await e.controller.reportWarning();
-      // Das Melden fiel in die Vorwoche: Die Wochenprüfung ist noch fällig
-      // (der WarningService setzt den Prüftag selbst, siehe Bericht NB7).
-      await e.session.settings.set(planLastCheckDayKey, lastCheck!, at: _now);
+      e.clock.set(_day(14));
       await e.controller.open(); // Wochenbewertung: genau eine neue Fassung
       final n = (await e.plans.history()).length;
       await e.controller.open();

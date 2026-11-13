@@ -1290,6 +1290,19 @@ void main() {
       expect((await e.plans.history()).length, h0 + 1);
       expect((await e.plans.history()).last.inputs.noHardUntil, _day(9));
       expect((await again(null)).wasWritten, isFalse);
+      // Angepasster Anker, sonst gleich und der gezeigte Plan unverändert
+      // (leere Zusammenfassung): ebenfalls eine Fassung, danach mit den
+      // gespeicherten Eingaben keine weitere. Der Anker ist hier drei Tage
+      // später (nur diese Eingabe ändert sich, der Plan bleibt Ruhe).
+      final stored2 = (await e.plans.history()).last.inputs;
+      final anchor = stored2.anchor.add(const Duration(days: 3));
+      final h1 = (await e.plans.history()).length;
+      final r2 = await again(stored2.copyWith(anchor: anchor));
+      expect(r2.summary?.isEmpty, isTrue, reason: 'sonst belegt es nichts');
+      expect(r2.wasWritten, isTrue);
+      expect((await e.plans.history()).length, h1 + 1);
+      expect((await e.plans.history()).last.inputs.anchor, anchor);
+      expect((await again(null)).wasWritten, isFalse);
     },
   );
 }
