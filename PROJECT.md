@@ -5,7 +5,7 @@ Diese Datei sagt den globalen Skills und Agenten (`project-supervisor`, `wp-supe
 ## Projekt
 - **Name:** ramuri (Adaptive Running & Fitness App; Kurzname des Repositorys `running-app`, Paket-ID `io.github.brokoskokoli.ramuri`)
 - **Zweck:** Android-App für Laufaufzeichnung, Fitnessanalyse und adaptive Trainingsplanung, ohne Wearable-Zwang und nur mit lokaler Datenhaltung.
-- **Repository:** vorerst nur lokal, kein Remote. Geplant ist das öffentliche Repo `brokoskokoli/running-app`, den Push gibt der Maintainer separat frei. Inhalte werden schon jetzt so behandelt, als wären sie öffentlich. Lizenz GPL-3.0. Solange es kein Remote gibt, läuft das volle Gate lokal; der Workflow `gate` greift erst danach.
+- **Repository:** öffentlich auf GitHub (`brokoskokoli/ramuri`). Inhalte gelten als öffentlich. Lizenz GPL-3.0. Das volle Gate (Workflow `gate`) und die E2E-Sammlung (`e2e`) laufen auf GitHub; lokal nur `tool/gate.sh --fast` und gezielte Tests.
 - **Maintainer:** der Nutzer.
 - **Toolchain:** Flutter (Entscheidung des Maintainers, 2026-11-04), App in `app/`. Einzelheiten in den ADRs.
 
@@ -43,7 +43,7 @@ Diese Datei sagt den globalen Skills und Agenten (`project-supervisor`, `wp-supe
 ## Branches
 - Arbeitspaket: `wp/NN-<slug>` im Worktree `../running-app-wt/wpNN`
 - Research: `research/rNNN-<slug>` im Worktree `../running-app-wt/rNNN`
-- Gemergt wird nur durch den Project Supervisor nach `main`. Ohne Remote per `git merge --no-ff` nach vollem Gate auf dem Branch. Mit Remote über `tool/merge_wp.sh` (verlangt grünes CI), Push mit `RUNNING_APP_PUSH_MAIN=1`.
+- Gemergt wird nur durch den Project Supervisor nach `main`. Über `tool/merge_wp.sh` (verlangt grünes CI), Push mit `RUNNING_APP_PUSH_MAIN=1`.
 
 ## Rahmen vom Maintainer (2026-11-04)
 - **Testumgebung:** vorerst nur Emulator, keine Feldtests. Echte Hintergrundaufzeichnung, Akku und echter Pulsgurt (ACC-02) bleiben dadurch unbelegt; Anforderungen, die nur im Feld prüfbar sind, werden in `STATUS.md` als offen geführt und nicht als erfüllt gemeldet.

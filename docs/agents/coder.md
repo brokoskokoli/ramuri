@@ -4,3 +4,5 @@ Es gilt [common.md](common.md). Fachlogik (Modelle, Planung) bleibt ohne Flutter
 
 **Kernregel belegen (Mutation):** `sh tool/mutate.sh <datei> <zeile> '<ersetzung>' -- <testbefehl>` ersetzt eine Zeile der getrackten, sauberen Datei, startet den Test und stellt die Datei immer wieder her (auch bei Ctrl-C). „erkannt“ (Exit 0) = Test wird rot, „überlebt“ (Exit 1) = Prüfung fehlt, dann Test ergänzen.
 Mutiere die Zeile, die die Kernregel deines Teils umsetzt (Bedingung drehen, Grenze verschieben, Rückgabe ändern), und nenne Befehl und Ergebnis im Bericht. Beispiel: `sh tool/mutate.sh app/packages/core/lib/src/consent/consent_service.dart 29 '    if (!_revokedHere.contains(sourceKey)) return false;' -- sh -c 'cd app/packages/core && dart test test/consent/consent_test.dart'`.
+
+E2E-Tests, die der E2E-Agent als lohnend meldet, übernimmst du committet nach `app/integration_test/` (siehe [e2e.md](e2e.md)).
