@@ -221,6 +221,22 @@ class RunController extends ChangeNotifier {
   /// Von der Pulsquelle kam in diesem Lauf schon ein Wert.
   bool get heartRateSourceSeen => _heartRateSeen;
 
+  /// Abschnitte der geführten Einheit dieses Laufs (neuer Lauf: Übergabe,
+  /// Wiederanlauf: gespeicherter Schnappschuss); `null` im freien Lauf. Nur
+  /// zum Lesen für die Live-Seite (WP24 C).
+  List<PlanSegment>? get guidedUnitSegments {
+    final stored = _guided?.segments;
+    if (stored != null && stored.isNotEmpty) return stored;
+    final given = guidedSegments;
+    if (resumeRunId == null && given != null && given.isNotEmpty) return given;
+    return null;
+  }
+
+  /// Die Pulsansagen sind zugunsten des Gehpausen-Hinweises abgeschaltet
+  /// (PAR-107); dann zeigt auch die Live-Seite keinen Pulshinweis.
+  bool get guidedPulseHintsSuppressed =>
+      _announcer?.suppressHeartRateForWalkBreaks ?? false;
+
   /// Die Werte des beendeten Laufs konnten nicht berechnet werden. Der Lauf
   /// ist gespeichert; die Berechnung wird beim nächsten Start nachgeholt.
   /// Trägt keine Gesundheitsdaten.

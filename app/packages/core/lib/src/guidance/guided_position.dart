@@ -1,4 +1,5 @@
 import '../plan/plan_unit.dart';
+import 'guidance_parameters.dart';
 
 /// Stand in der Abschnittsfolge einer geführten Einheit (FR-0033). Reine
 /// Funktion von (Abschnitte, Bewegungszeit), ohne eigenen Zustand
@@ -74,3 +75,14 @@ GuidedPosition guidedPosition(List<PlanSegment> segments, Duration movingTime) {
     finished: true,
   );
 }
+
+/// Darf im Abschnitt [pos] bei Bewegungszeit [movingTime] ein Pulshinweis
+/// kommen (PAR-107)? Abschnitt mindestens 4 min, erst nach 3 min darin, nur bis
+/// Minute 60; ob eine obere Pulsgrenze gesetzt ist, prüft der Aufrufer. Eine
+/// Quelle für Ansage und Anzeige.
+bool pulseHintAllowed(GuidedPosition pos, Duration movingTime) =>
+    !pos.finished &&
+    Duration(seconds: pos.segment!.durationSeconds) >=
+        pulseAnnounceMinSegmentLength &&
+    pos.elapsedInSegment >= pulseAnnounceMinTimeInSegment &&
+    movingTime < pulseAnnounceMaxMovingTime;

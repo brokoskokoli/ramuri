@@ -148,13 +148,7 @@ class GuidanceAnnouncer {
   ) {
     final bpm = tick.heartRateBpm;
     final maxBpm = pos.target?.hrMaxBpm;
-    final eligible =
-        !pos.finished &&
-        maxBpm != null &&
-        Duration(seconds: pos.segment!.durationSeconds) >=
-            pulseAnnounceMinSegmentLength &&
-        pos.elapsedInSegment >= pulseAnnounceMinTimeInSegment &&
-        t < pulseAnnounceMaxMovingTime;
+    final eligible = maxBpm != null && pulseHintAllowed(pos, t);
     if (bpm == null || !eligible) {
       _aboveSince = null;
       return;
