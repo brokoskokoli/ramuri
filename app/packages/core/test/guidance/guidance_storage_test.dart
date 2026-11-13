@@ -125,6 +125,25 @@ void main() {
       expect(b.intensity!.rpeMin, 3);
     });
 
+    test('Art der Einheit: Rundlauf, v1 ohne Art, fremder Wert', () {
+      const seg = [PlanSegment(kind: PlanSegmentKind.easy, minutes: 5)];
+      final s = GuidedUnitSnapshot(runId: 1, segments: seg, kind: 'tempo');
+      expect(s.encode(), contains('"kind":"tempo"'));
+      expect(GuidedUnitSnapshot.decode(s.encode())!.kind, 'tempo');
+      expect(s.withWalkBreakHintGiven().kind, 'tempo');
+      final old = GuidedUnitSnapshot.decode(
+        '{"v":1,"run":1,"hint":false,"seg":[{"k":"easy","m":5}]}',
+      )!;
+      expect(old.kind, isNull);
+      expect(old.segments, hasLength(1));
+      expect(
+        GuidedUnitSnapshot.decode(
+          '{"v":1,"run":1,"kind":7,"seg":[{"k":"easy","m":5}]}',
+        )!.kind,
+        isNull,
+      );
+    });
+
     test('leer, kaputt, fremde Version: null', () {
       expect(GuidedUnitSnapshot.decode(null), isNull);
       expect(GuidedUnitSnapshot.decode(''), isNull);

@@ -69,6 +69,7 @@ class _World {
   RunController controller({
     List<PlanSegment>? segments,
     int? resume,
+    PlanUnitKind? kind,
     RunHeartRate? sensors,
     RecordingServicePort? service,
     VoicePort? voicePort,
@@ -89,6 +90,7 @@ class _World {
       voice: voicePort ?? voice,
       voiceTexts: VoiceTexts(lookupAppLocalizations(const Locale('de'))),
       guidedSegments: segments,
+      guidedKind: kind,
       recentEasyRuns: easyFn ?? (s, {required today}) async => easy,
     ),
   );
@@ -413,6 +415,29 @@ void main() {
         'In 10 Sekunden: Intervall.',
         'Intervall, 1 Minute 0 Sekunden.',
       ]);
+    });
+
+    guided('Art der Einheit überlebt den Wiederanlauf (Kopfzeile)', (
+      tester,
+    ) async {
+      final w = await _World.create();
+      final first = w.controller(
+        segments: _twoParts,
+        kind: PlanUnitKind.intervals,
+      );
+      await first.start();
+      await w.seconds(tester, 1);
+      expect(first.guidedUnitKind, PlanUnitKind.intervals);
+      final id = first.runId!;
+      w.drop(first);
+      w.clock.advance(const Duration(seconds: 10));
+      final second = w.controller(resume: id); // ohne Art und Abschnitte
+      await second.start();
+      await w.seconds(
+        tester,
+        1,
+      ); // der Schnappschuss wird nach dem Start gelesen
+      expect(second.guidedUnitKind, PlanUnitKind.intervals);
     });
 
     guided('Schnappschuss eines anderen Laufs wird ignoriert', (tester) async {

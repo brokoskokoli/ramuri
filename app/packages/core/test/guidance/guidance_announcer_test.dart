@@ -441,4 +441,35 @@ void main() {
       ]);
     });
   });
+
+  group('pulseOverrunSustained', () {
+    GuidanceAnnouncer a(GuidanceSwitches sw) =>
+        GuidanceAnnouncer(segments: easyOnly, switches: sw);
+
+    test('29 s nein, 30 s ja (Fenster ab 3 min im Abschnitt)', () {
+      final x = a(const GuidanceSwitches());
+      Sim(x).play(0, 209, bpm: (t) => t < 180 ? 120 : 150);
+      expect(x.pulseOverrunSustained, isFalse); // 29 s über der Grenze
+      Sim(x).play(210, 210, bpm: (_) => 150);
+      expect(x.pulseOverrunSustained, isTrue);
+    });
+
+    test('Pause: false, danach wieder true', () {
+      final x = a(const GuidanceSwitches());
+      Sim(x).play(0, 215, bpm: (t) => t < 180 ? 120 : 150);
+      expect(x.pulseOverrunSustained, isTrue);
+      Sim(x).play(216, 216, phase: RecordingPhase.paused, bpm: (_) => 150);
+      expect(x.pulseOverrunSustained, isFalse);
+      Sim(x).play(217, 217, bpm: (_) => 150);
+      expect(x.pulseOverrunSustained, isTrue);
+    });
+
+    test('Pulsschalter aus: trotzdem true; Puls unter Grenze: false', () {
+      final x = a(const GuidanceSwitches(heartRate: false));
+      Sim(x).play(0, 215, bpm: (t) => t < 180 ? 120 : 150);
+      expect(x.pulseOverrunSustained, isTrue);
+      Sim(x).play(216, 216, bpm: (_) => 130);
+      expect(x.pulseOverrunSustained, isFalse);
+    });
+  });
 }
