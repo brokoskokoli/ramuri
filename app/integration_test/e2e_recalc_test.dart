@@ -189,7 +189,9 @@ Future<void> _changeMax(WidgetTester tester, String v) async {
     'CM max_field=${(tester.widget<TextField>(find.byKey(const Key('profile_max'))).controller?.text)}',
   );
   // Nach enterText steht die Tastatur offen und verdeckt den Knopf (Foto aus
-  // dem CI-Lauf, pixel_6): erst in den sichtbaren Bereich scrollen.
+  // dem CI-Lauf, pixel_6): erst Fokus loesen (Tastatur zu), dann in den sichtbaren Bereich scrollen.
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
   await tester.ensureVisible(find.byKey(const Key('profile_save')));
   await tester.pumpAndSettle();
   await tester.tap(find.byKey(const Key('profile_save')));
