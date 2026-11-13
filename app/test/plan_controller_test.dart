@@ -999,32 +999,56 @@ void main() {
       expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
     });
 
-    test(
-      'Warnsignal und fällige Wochenbewertung: nach dem Aufheben gilt die '
-      'Anpassung (NB7 2)',
-      skip:
-          'offen: die Anpassung geht unter dem '
-          'Warnsignal verloren (Fassung ohne geänderte Einheiten, '
-          'recalculate_plan.dart: unchanged), Befund an den Supervisor',
-      () async {
-        final (e, planned) = await prepare();
-        await e.controller.reportWarning();
-        await e.controller.open();
-        expect(
-          await e.session.settings.get(planLastCheckDayKey),
-          _dayText(_day(14)),
+    test('Warnsignal und fällige Wochenbewertung: nach dem Aufheben gilt die '
+        'Anpassung (NB7 2)', () async {
+      final (e, planned) = await prepare();
+      final lastCheck = await e.session.settings.get(planLastCheckDayKey);
+      await e.controller.reportWarning();
+      // Das Melden fiel in die Vorwoche: Die Wochenprüfung ist noch fällig
+      // (der WarningService setzt den Prüftag selbst, siehe Bericht NB7).
+      await e.session.settings.set(planLastCheckDayKey, lastCheck!, at: _now);
+      await e.controller.open();
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        _dayText(_day(14)),
+      );
+      expect(
+        (await e.plans.unitsBetween(
+          _day(14),
+          planFarFuture,
+        )).every((u) => u.kind == PlanUnitKind.rest),
+        isTrue,
+      );
+      {
+        final h = await e.plans.history();
+        print(
+          'DBG ${[for (final x in h) '${x.trigger.name}/${x.reason}/${x.inputs.anchor}/${x.inputs.achievedShare}']}',
         );
-        expect(
-          (await e.plans.unitsBetween(
-            _day(14),
-            planFarFuture,
-          )).every((u) => u.kind == PlanUnitKind.rest),
-          isTrue,
-        );
-        await e.controller.liftWarning();
-        expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
-      },
-    );
+      }
+      await e.controller.liftWarning();
+      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
+    });
+
+    test('Warnsignal: wiederholtes Öffnen und Aufheben ohne Änderung der '
+        'Eingaben schreibt keine weitere Fassung (NB7 2)', () async {
+      final (e, _) = await prepare();
+      final lastCheck = await e.session.settings.get(planLastCheckDayKey);
+      await e.controller.reportWarning();
+      // Das Melden fiel in die Vorwoche: Die Wochenprüfung ist noch fällig
+      // (der WarningService setzt den Prüftag selbst, siehe Bericht NB7).
+      await e.session.settings.set(planLastCheckDayKey, lastCheck!, at: _now);
+      await e.controller.open(); // Wochenbewertung: genau eine neue Fassung
+      final n = (await e.plans.history()).length;
+      await e.controller.open();
+      await e.controller.open();
+      await e.controller.recalculate();
+      await e.controller.recalculate();
+      expect((await e.plans.history()).length, n);
+      // Neuer Tag ohne neue Woche: gemessene Werte allein ergeben nichts.
+      e.clock.set(_day(15));
+      await e.controller.open();
+      expect((await e.plans.history()).length, n);
+    });
 
     test('Hälfte bis 80 %: keine Steigerung', () async {
       final (e, planned) = await prepare(share: 0.65);

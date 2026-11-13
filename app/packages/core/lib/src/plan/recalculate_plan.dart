@@ -220,9 +220,16 @@ Future<PlanRecalculation> _recalculateOnce({
   // alten und die Wochenbewertung fiele weg (NB6 1). Ohne Änderung der
   // Einheiten ist die Zusammenfassung leer, es gibt keine Karte.
   final keepsGoalPending = _isAutomatic(trigger) && last != null;
+  //
+  // Ebenso schreibt eine Anpassung der Eingaben (Wochenbewertung: Anker,
+  // Beleg, Zählung, `noHardUntil`) eine Fassung ohne geänderte Einheiten,
+  // z. B. unter einem Warnsignal, wo der gezeigte Plan unverändert ruht; sonst
+  // ginge die Anpassung verloren. Gemessene Werte zählen nicht (keine Fassung
+  // bei jedem Öffnen). Ohne Karte: die Zusammenfassung bleibt leer.
   if (last != null &&
       last.version.isCurrent &&
       summary.isEmpty &&
+      !_planningInputsChanged(last.inputs, use) &&
       (keepsGoalPending || !planGoalChangedSince(last.summary, goal))) {
     if (markChecked) await _markChecked(settings, todayDay, now);
     return PlanRecalculation.unchanged(generated, summary);
@@ -357,3 +364,16 @@ Future<void> _markChecked(
   '${today.day.toString().padLeft(2, '0')}',
   at: now,
 );
+
+/// Eingaben, die der Plan aus Anpassungen und Festlegungen trägt (nicht die
+/// gemessenen Werte Pace, Zahl der lockeren Läufe, Intensität und „heute“).
+bool _planningInputsChanged(PlanInputs a, PlanInputs b) =>
+    a.anchor != b.anchor ||
+    a.startWeeklyMinutes != b.startWeeklyMinutes ||
+    a.walkRunWeeks != b.walkRunWeeks ||
+    a.walkRunStart != b.walkRunStart ||
+    a.walkRunFrom != b.walkRunFrom ||
+    a.lastWeekMinutes != b.lastWeekMinutes ||
+    a.achievedShare != b.achievedShare ||
+    a.weekCountOffset != b.weekCountOffset ||
+    a.noHardUntil != b.noHardUntil;
