@@ -7,6 +7,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
+import 'e2e_plan_test.dart' as plan;
 import 'e2e_recalc_test.dart' as recalc;
 import 'e2e_run_test.dart' as run;
 
@@ -16,4 +17,6 @@ void main() {
   // Lauf-Test auf dem vorhandenen Stand auf.
   group('Neuberechnung', recalc.main);
   group('Lauf', run.main);
+  // Plan und Warnsignal zuletzt: brauchen nur den Speicher, kein Lauf-Zustand.
+  group('Plan und Warnsignal', plan.main);
 }
