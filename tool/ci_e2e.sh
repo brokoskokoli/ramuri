@@ -48,7 +48,7 @@ gps_feed() {
 # Die Start-Seite der App prueft nach (run_block_recheck im Lauf-Test).
 grant_until_done() {
   while :; do
-    for p in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS BLUETOOTH_SCAN BLUETOOTH_CONNECT; do
+    for p in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS ACTIVITY_RECOGNITION BLUETOOTH_SCAN BLUETOOTH_CONNECT; do
       a shell pm grant "$pkg" android.permission.$p >/dev/null 2>&1
     done
     # Ende, sobald das Standortrecht steht (es sperrt den Lauf; POST_NOTIFICATIONS

@@ -3,6 +3,7 @@
 // und Aufzeichnung sind echt. Das GPS liefert tool/ci_e2e.sh (adb emu geo fix).
 // Ausgabe: Zeilen "E2E_<zeit> ...", nur Marken und Zaehler, keine Messwerte.
 import 'package:core/core.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app.dart';
@@ -26,9 +27,12 @@ class World {
   final DebugTestSensor sensor;
 }
 
-World buildWorld() {
+World buildWorld({PpgCamera? camera}) {
   final sensor = DebugTestSensor(const SystemClock());
-  return World(AppDependencies.create(heartRateSensor: sensor), sensor);
+  return World(
+    AppDependencies.create(heartRateSensor: sensor, ppgCamera: camera),
+    sensor,
+  );
 }
 
 /// Pumpt in echter Zeit (Sensor, GPS und Speicher laufen ausserhalb der
@@ -74,10 +78,26 @@ Future<void> tapDialog(WidgetTester t, String key) async {
   await pumpFor(t, const Duration(milliseconds: 300));
 }
 
+/// Ob ein Tipp in die Mitte von [f] dieses Element traefe (nicht verdeckt, die
+/// Seite nicht mehr im Uebergang).
+bool hittable(WidgetTester t, Finder f) {
+  final target = t.element(f.first).renderObject;
+  final hit = HitTestResult();
+  t.binding.hitTestInView(hit, t.getCenter(f.first), t.view.viewId);
+  return hit.path.any((e) => e.target == target);
+}
+
 Future<void> tapKey(WidgetTester t, String key) async {
   final f = find.byKey(Key(key));
   expect(f, findsWidgets, reason: 'Taste $key fehlt');
   await t.ensureVisible(f);
+  // Waehrend eines Seitenwechsels liegt die Taste noch verschoben; erst tippen,
+  // wenn der Tipp sie trifft (echte Bedingung, sonst Rot mit Schluessel).
+  final end = DateTime.now().add(const Duration(seconds: 5));
+  while (!hittable(t, f)) {
+    if (DateTime.now().isAfter(end)) fail('Tipp trifft $key nicht');
+    await pumpFor(t, const Duration(milliseconds: 100));
+  }
   await t.tap(f);
   await pumpFor(t, const Duration(milliseconds: 300));
 }

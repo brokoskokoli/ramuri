@@ -7,9 +7,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
+import 'e2e_archive_test.dart' as archive;
 import 'e2e_plan_test.dart' as plan;
 import 'e2e_recalc_test.dart' as recalc;
+import 'e2e_resting_test.dart' as resting;
 import 'e2e_run_test.dart' as run;
+import 'e2e_treadmill_test.dart' as treadmill;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -19,4 +22,9 @@ void main() {
   group('Lauf', run.main);
   // Plan und Warnsignal zuletzt: brauchen nur den Speicher, kein Lauf-Zustand.
   group('Plan und Warnsignal', plan.main);
+  // Archiv zuletzt vor den Profil-Tests: der Reimport ersetzt die Datenbank
+  // durch den Stand, den er vorher exportiert hat (also unveraendert).
+  group('Archiv', archive.main);
+  group('Laufband', treadmill.main);
+  group('Ruhepuls Kamera', resting.main);
 }
