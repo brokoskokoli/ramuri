@@ -1,6 +1,6 @@
-// E2E WP09: Neuberechnung mit echter verschluesselter DB im Emulator, nur von
-// Hand/E2E-Agent ausgefuehrt (flutter test integration_test/e2e_recalc_test.dart
-// -d <emulator>). Alle Daten sind synthetisch, der Schluessel wird nie
+// E2E WP09: Neuberechnung mit echter verschluesselter DB im Emulator. Laeuft in
+// der Sammlung (all_test.dart, tool/ci_e2e.sh) oder einzeln
+// (flutter test integration_test/e2e_recalc_test.dart -d <emulator>). Alle Daten sind synthetisch, der Schluessel wird nie
 // ausgegeben. Die Testhilfe oeffnet die Datenbank zusaetzlich zur App, nur zum
 // Anlegen der Laeufe und zum Lesen, und schliesst sie sofort wieder (drift
 // warnt dabei vor mehreren Verbindungen). Ausgabe: Zeilen "E2E_...".
@@ -201,6 +201,26 @@ Future<int> _pumpUntil(
   return watch.elapsedMilliseconds;
 }
 
+/// Wie [_pumpUntil], aber bis [finder] nichts mehr findet (echte Wartezeit, da
+/// Speichern und Neuberechnung echte Ein-/Ausgabe sind).
+Future<void> _pumpUntilGone(
+  WidgetTester tester,
+  Finder finder, {
+  Duration limit = const Duration(seconds: 60),
+}) async {
+  final watch = Stopwatch()..start();
+  await tester.pump();
+  while (finder.evaluate().isNotEmpty) {
+    if (watch.elapsed > limit) {
+      fail('nach ${limit.inSeconds} s noch vorhanden: $finder');
+    }
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
 Future<void> _changeMax(WidgetTester tester, String v) async {
   await openOverview(tester);
   await tester.tap(find.byKey(const Key('home_profile')));
@@ -288,6 +308,7 @@ Future<void> _scenario(WidgetTester tester) async {
 
   // Szenario 2
   await tester.tap(find.byKey(const Key('recalc_decline')));
+  await _pumpUntilGone(tester, find.byKey(const Key('recalc_dialog')));
   await tester.pumpAndSettle();
   expect(find.byKey(const Key('recalc_dialog')), findsNothing);
   final s2 = await tester.runAsync(() => _dump('S2')) as String;
@@ -312,6 +333,7 @@ Future<void> _scenario(WidgetTester tester) async {
   log(
     'S3 progress_visible=${find.byKey(const Key('recalc_progress')).evaluate().isNotEmpty}',
   );
+  await _pumpUntilGone(tester, find.byKey(const Key('recalc_confirm')));
   await tester.pumpAndSettle(const Duration(seconds: 1));
   expect(find.byKey(const Key('recalc_confirm')), findsNothing);
   log(
