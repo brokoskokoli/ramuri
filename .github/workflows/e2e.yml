@@ -1,0 +1,80 @@
+name: e2e
+on:
+  push:
+    branches: [main, 'wp/**']
+permissions:
+  contents: read
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  e2e:
+    name: e2e api ${{ matrix.api }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [31, 36]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Flutter einrichten
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version-file: app/pubspec.yaml
+          cache: true
+      - name: KVM aktivieren
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Abhängigkeiten
+        run: cd app && flutter pub get
+      - name: AVD-Cache
+        id: avd-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.api }}-x86_64-v1
+      - name: AVD und Snapshot erzeugen (nur bei Cache-Miss)
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Snapshot erzeugt"
+      # Der Test-Sensor (main_debug.dart) braucht keine Hardware; die
+      # Integrationstests starten die App selbst (kein TEST_SENSOR_RR nötig).
+      - name: E2E-Tests
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: sh tool/ci_e2e.sh e2e-out
+      # Nur bei Rot. Hochgeladen wird ausschließlich, was tool/ci_e2e.sh erzeugt:
+      # Logcat gefiltert auf Flutter-Tag und Abstürze (kein Systemlog), ein
+      # Bildschirmfoto und Fehlerzeilen. Die Tests nutzen nur synthetische Daten;
+      # der Filter verhindert zusätzlich, dass Fremd- oder Gerätedaten
+      # mitwandern (SEC-0001..0010: keine Gesundheitswerte in Artefakten/Logs).
+      - name: Artefakte bei Rot
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-api${{ matrix.api }}-fehler
+          path: e2e-out/
+          retention-days: 7
+          if-no-files-found: ignore
