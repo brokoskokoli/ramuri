@@ -6,6 +6,7 @@ import '../../ui/ui.dart';
 import '../export/run_export_action.dart';
 import '../settings/unit_format.dart';
 import '../summary/kilometer_table.dart';
+import '../summary/plan_origin_note.dart';
 import '../summary/run_charts.dart';
 import '../summary/run_summary_body.dart' show clockText;
 import '../summary/run_summary_page.dart';
@@ -89,6 +90,7 @@ class RunDetailPage extends StatelessWidget {
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 8),
+        PlanOriginNote(session: session, runId: runId),
         _route(context, l10n, base),
         gap,
         _card(

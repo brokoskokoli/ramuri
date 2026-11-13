@@ -12,6 +12,8 @@ import 'package:running_app/features/run/run_flow_screen.dart';
 import 'package:running_app/features/summary/plan_origin_note.dart';
 
 import 'app_harness.dart';
+import 'run_detail_page_test.dart' show pumpDetail;
+import 'run_detail_test.dart' show seedDetailRun;
 import 'run_test.dart' show walk;
 
 // WP24 Auftrag 3: Umschalter „Geplante Einheit“ | „Freier Lauf“, Karte mit
@@ -438,6 +440,20 @@ void main() {
   });
 
   group('„Aus dem Plan“ in der Zusammenfassung', () {
+    testWidgets('Detailseite der Historie zeigt „Aus dem Plan“ (NB4)', (
+      tester,
+    ) async {
+      final d = Device();
+      await _open(d);
+      await d.start(tester, const Locale('de'));
+      final id = await seedDetailRun(d.session, _now);
+      final unit = (await (d.session as PlanStorage).plans.unitOn(_today))!;
+      await (d.session as PlanStorage).plans.assignRun(unit.id!, id);
+      await pumpDetail(tester, d, id);
+      expect(key('sum_from_plan'), findsOneWidget);
+      expect(_text('sum_from_plan_unit'), isNotEmpty);
+    });
+
     for (final locale in [const Locale('de'), const Locale('en')]) {
       testWidgets(
         'zugeordneter Lauf zeigt die Einheit (${locale.languageCode})',
