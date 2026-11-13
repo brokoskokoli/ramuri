@@ -12,9 +12,10 @@
 # Ablauf: Stufe "schnell" (billige Prüfungen, Format und Analyse aller Pakete) zeigt alle Ergebnisse; ist dort etwas
 # rot, endet das Gate danach. Danach (Tests, drift, kotlin, release, lock) bricht es beim ersten roten Schritt ab.
 # Jede Zeile nennt die Dauer des Schritts in Sekunden.
-# Lock: über alle Worktrees höchstens ein volles/--changed-Gate gleichzeitig (/usr/bin/lockf auf $(git-common-dir)/gate.lock,
-# der Lock hängt am Prozess und wird bei Ende, Absturz oder Signal frei). Grenze: kill -9 an lockf lässt das Gate ohne
-# Lock weiterlaufen; abbrechen per TERM/Ctrl-C an die PID aus gate.lock.info.
+# Lock: über alle Worktrees höchstens ein volles/--changed-Gate gleichzeitig (/usr/bin/lockf, wo vorhanden, sonst flock, auf
+# $(git-common-dir)/gate.lock; der Lock hängt am Prozess und wird bei Ende, Absturz oder Signal frei). Ohne beides oder mit
+# CI=true gibt es keinen Lock. Grenze: kill -9 an lockf/flock lässt das Gate ohne Lock weiterlaufen; abbrechen per TERM/Ctrl-C
+# an die PID aus gate.lock.info.
 
 # Eingaben der Schritte bei --changed (Git-Pfadangaben, durch Leerzeichen getrennt, ohne Leerzeichen in Pfaden).
 # Alle Listen enthalten tool/gate.sh (die Schrittfunktionen stehen dort) und pubspec.* samt pubspec.lock.
@@ -34,17 +35,32 @@ esac
 self=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
-# Lock (nicht bei --fast): das Skript startet sich einmal unter lockf neu. Erst ein nicht blockierender Versuch
-# (Exit 75 = belegt), dann ein einmaliger Hinweis und blockierendes Warten.
+# Lock (nicht bei --fast): das Skript startet sich einmal unter dem Lock neu. Erst ein nicht blockierender Versuch
+# (lockf Exit 75 bzw. flock -E 75 = belegt), dann ein einmaliger Hinweis und blockierendes Warten.
+# macOS: /usr/bin/lockf. Sonst flock (Linux). Gibt es beides nicht oder ist CI=true, läuft das Gate ohne Lock.
 if [ "$mode" != fast ] && [ -z "${GATE_LOCK_HELD:-}" ]; then
-  gdir=$(git rev-parse --path-format=absolute --git-common-dir) || exit 1
-  lock=$gdir/gate.lock
-  /usr/bin/lockf -t 0 "$lock" env GATE_LOCK_HELD="$lock" sh "$self" "$@"; rc=$?
-  if [ $rc -eq 75 ]; then
-    echo "wartet auf Gate von $(cat "$lock.info" 2>/dev/null || echo unbekannt)"
-    exec /usr/bin/lockf "$lock" env GATE_LOCK_HELD="$lock" sh "$self" "$@"
+  if [ -x /usr/bin/lockf ]; then locker=lockf
+  elif [ "${CI:-}" != true ] && command -v flock >/dev/null 2>&1; then locker=flock
+  else locker=
   fi
-  exit $rc
+  if [ -n "$locker" ]; then
+    gdir=$(git rev-parse --path-format=absolute --git-common-dir) || exit 1
+    lock=$gdir/gate.lock
+    if [ "$locker" = lockf ]; then
+      /usr/bin/lockf -t 0 "$lock" env GATE_LOCK_HELD="$lock" sh "$self" "$@"; rc=$?
+    else
+      flock -n -E 75 "$lock" env GATE_LOCK_HELD="$lock" sh "$self" "$@"; rc=$?
+    fi
+    if [ $rc -eq 75 ]; then
+      echo "wartet auf Gate von $(cat "$lock.info" 2>/dev/null || echo unbekannt)"
+      if [ "$locker" = lockf ]; then
+        exec /usr/bin/lockf "$lock" env GATE_LOCK_HELD="$lock" sh "$self" "$@"
+      else
+        exec flock "$lock" env GATE_LOCK_HELD="$lock" sh "$self" "$@"
+      fi
+    fi
+    exit $rc
+  fi
 fi
 [ -n "${GATE_LOCK_HELD:-}" ] && echo "$(pwd) PID $$" > "$GATE_LOCK_HELD.info"
 
@@ -312,6 +328,8 @@ drift_aktuell() {
 # KOTLIN_TEST_JAVA_HOME überschreibt den Pfad. Fail-closed: fehlt das JDK, ist der Schritt rot.
 kotlin_tests() {
   jh=${KOTLIN_TEST_JAVA_HOME:-/Applications/Android Studio.app/Contents/jbr/Contents/Home}
+  # Ohne Android Studio (Linux, CI) gilt das JDK der Umgebung (JAVA_HOME).
+  if [ -z "${KOTLIN_TEST_JAVA_HOME:-}" ] && [ ! -x "$jh/bin/java" ] && [ -n "${JAVA_HOME:-}" ]; then jh=$JAVA_HOME; fi
   [ -x "$jh/bin/java" ] || { echo "JDK für die Kotlin-Tests fehlt: $jh (KOTLIN_TEST_JAVA_HOME setzen)"; return 1; }
   # gradlew ist erzeugt und nicht versioniert; in einem frischen Worktree fehlt er bis zum ersten Android-Build.
   if [ ! -x app/android/gradlew ]; then
