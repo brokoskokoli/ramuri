@@ -27,6 +27,20 @@ const _withLimit = [
   ),
 ];
 
+/// Sprachausgabe, die schon beim Aufruf wirft (nicht erst in der Future).
+class _SyncThrowingVoice implements VoicePort {
+  int calls = 0;
+
+  @override
+  Future<void> speak(String text, {String? languageTag}) {
+    calls++;
+    throw StateError('sofort');
+  }
+
+  @override
+  Future<void> stop() => throw StateError('sofort');
+}
+
 class _World {
   _World(this.clock, this.session);
   final FakeClock clock;
@@ -205,6 +219,19 @@ void main() {
         expect((await w.session.runs.get(c.runId!))!.state, RunState.finished);
       });
     }
+
+    guided('Sprachausgabe wirft synchron beim Aufruf', (tester) async {
+      final w = await _World.create();
+      final v = _SyncThrowingVoice();
+      final c = w.controller(segments: _twoParts, voicePort: v);
+      await c.start();
+      await w.seconds(tester, 70);
+      expect(v.calls, greaterThan(0));
+      expect(c.phase, RecordingPhase.running);
+      expect(c.snapshot.movingTime!.inSeconds, greaterThanOrEqualTo(69));
+      await c.finish();
+      expect(c.phase, RecordingPhase.finished);
+    });
 
     guided('Sprachausgabe hängt: Aufzeichnung und weitere Ansagen laufen', (
       tester,
