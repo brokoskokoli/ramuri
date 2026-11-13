@@ -728,12 +728,16 @@ class PlanController extends ChangeNotifier {
     if (goal == null) return;
     final history = await _plans.history();
     final last = history.isEmpty ? null : history.last;
+    final goalChanged =
+        last != null && planGoalChangedSince(last.summary, goal);
     await _recalculate(
-      last != null && planGoalChangedSince(last.summary, goal)
-          ? PlanTrigger.goalChange
-          : PlanTrigger.run,
+      goalChanged ? PlanTrigger.goalChange : PlanTrigger.run,
       goal,
       last,
+      // `run` bewertet die Woche nicht: Der Prüftag bleibt, sonst fiele die
+      // Bewertung der Vorwoche weg (Lauf über Mitternacht in den Montag,
+      // NB7 1). `goalChange` bewertet bei Fälligkeit selbst.
+      markChecked: goalChanged,
     );
   });
 

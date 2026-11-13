@@ -381,9 +381,10 @@ void main() {
       expect(e.controller.state.ruleVersionPending, isFalse);
       expect(e.controller.state.lastChange?.isEmpty ?? true, isTrue);
       expect(
-        (await e.plans.unitsBetween(_today, planFarFuture))
-            .map((u) => '${u.day}${u.kind.name}${u.minutes}')
-            .toList(),
+        (await e.plans.unitsBetween(
+          _today,
+          planFarFuture,
+        )).map((u) => '${u.day}${u.kind.name}${u.minutes}').toList(),
         units.map((u) => '${u.day}${u.kind.name}${u.minutes}').toList(),
       );
       expect(
@@ -412,9 +413,10 @@ void main() {
       expect(last.version.isCurrent, isTrue);
       expect(warningHeldFromSummary(last.summary), isNotNull);
       expect(
-        (await e.plans.unitsBetween(_today, planFarFuture)).every(
-          (u) => u.kind == PlanUnitKind.rest,
-        ),
+        (await e.plans.unitsBetween(
+          _today,
+          planFarFuture,
+        )).every((u) => u.kind == PlanUnitKind.rest),
         isTrue,
       );
       expect(e.controller.state.ruleVersionPending, isFalse);
@@ -969,6 +971,60 @@ void main() {
       expect(h.last.version.isCurrent, isTrue);
       expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
     });
+
+    test('Lauf zuordnen vor der Prüfung (Lauf über Mitternacht in den '
+        'Montag): der Prüftag bleibt, das Öffnen bewertet die Woche '
+        '(NB7 1)', () async {
+      // Lauf 1 des Belegs (30 % der Woche) ist auch der zugeordnete.
+      final (e, planned) = await prepare(share: 0.3);
+      // Der Lauf liegt kurz vor heute, sonst hielte die Pausenfrage die
+      // Prüfung an.
+      final runId = await _finishedRun(e.session, -12);
+      expect(runId, 1);
+      final lastCheck = await e.session.settings.get(planLastCheckDayKey);
+      final unit = (await e.plans.unitsBetween(_day(14), planFarFuture)).first;
+      expect(
+        await e.controller.assignRun(unit.id!, runId),
+        PlanActionResult.done,
+      );
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        lastCheck,
+        reason: 'ohne Bewertung kein Prüftag',
+      );
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.last.trigger, PlanTrigger.weekly);
+      expect(h.last.reason, 'repeatWeek');
+      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
+    });
+
+    test(
+      'Warnsignal und fällige Wochenbewertung: nach dem Aufheben gilt die '
+      'Anpassung (NB7 2)',
+      skip:
+          'offen: die Anpassung geht unter dem '
+          'Warnsignal verloren (Fassung ohne geänderte Einheiten, '
+          'recalculate_plan.dart: unchanged), Befund an den Supervisor',
+      () async {
+        final (e, planned) = await prepare();
+        await e.controller.reportWarning();
+        await e.controller.open();
+        expect(
+          await e.session.settings.get(planLastCheckDayKey),
+          _dayText(_day(14)),
+        );
+        expect(
+          (await e.plans.unitsBetween(
+            _day(14),
+            planFarFuture,
+          )).every((u) => u.kind == PlanUnitKind.rest),
+          isTrue,
+        );
+        await e.controller.liftWarning();
+        expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
+      },
+    );
 
     test('Hälfte bis 80 %: keine Steigerung', () async {
       final (e, planned) = await prepare(share: 0.65);
