@@ -22,6 +22,9 @@ while read -r lref lsha rref rsha; do
     [ "$rsha" != "$zero" ] && git cat-file -e "$rsha^{commit}" 2>/dev/null && pexcl="--remotes $rsha"
     # shellcheck disable=SC2086
     sh "$here/../check_private.sh" --push "$lsha" --not $pexcl </dev/null || { echo "pre-push: Privat-Scan abgelehnt ($rref); Treffer bereinigen (Verlauf umschreiben, nicht nur löschen)." >&2; rc=1; }
+    if [ "$(git cat-file -t "$lsha" 2>/dev/null)" = tag ]; then
+      git cat-file tag "$lsha" | sh "$here/../check_private.sh" --stdin || { echo "pre-push: Privat-Scan abgelehnt (Tag-Annotation $rref)." >&2; rc=1; }
+    fi
   fi
   case "$rref" in
     refs/tags/v*)
