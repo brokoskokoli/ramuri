@@ -180,6 +180,27 @@ Future<void> openOverview(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Wartet in echter Zeit (Schritte von 50 ms, hoechstens [limit]), bis [finder]
+/// etwas findet, und gibt die Wartezeit in ms zurueck. Rot mit Meldung bei Ablauf.
+Future<int> _pumpUntil(
+  WidgetTester tester,
+  Finder finder, {
+  Duration limit = const Duration(seconds: 30),
+}) async {
+  final watch = Stopwatch()..start();
+  await tester.pump();
+  while (finder.evaluate().isEmpty) {
+    if (watch.elapsed > limit) {
+      fail('nach ${limit.inSeconds} s nicht gefunden: $finder');
+    }
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  return watch.elapsedMilliseconds;
+}
+
 Future<void> _changeMax(WidgetTester tester, String v) async {
   await openOverview(tester);
   await tester.tap(find.byKey(const Key('home_profile')));
@@ -195,7 +216,10 @@ Future<void> _changeMax(WidgetTester tester, String v) async {
   await tester.ensureVisible(find.byKey(const Key('profile_save')));
   await tester.pumpAndSettle();
   await tester.tap(find.byKey(const Key('profile_save')));
-  await tester.pumpAndSettle();
+  // Das Speichern laeuft ueber echte Ein-/Ausgabe (verschluesselte DB), die
+  // pump/pumpAndSettle nicht abwarten: erst bis die Rueckmeldung steht.
+  final waited = await _pumpUntil(tester, find.byType(SnackBar));
+  log('CM save_wait_ms=$waited');
   log(
     'CM banner=${find.byKey(const Key('profile_banner')).evaluate().length} note=${find.byKey(const Key('profile_saved_note')).evaluate().length} snack=${find.byType(SnackBar).evaluate().length}',
   );
