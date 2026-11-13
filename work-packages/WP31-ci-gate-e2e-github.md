@@ -6,6 +6,7 @@ Bezug: `.github/workflows/gate.yml`, `tool/gate.sh`, `tool/hooks/pre-push`, `too
 
 ## Anlass
 - Das volle Gate (10–18 min) läuft heute je Paket mehrfach lokal; parallele Läufe trieben die Last auf über 200.
+- Die Archiv-Tests in `app/packages/adapters/test/archive/` laufen bei hoher Last in 30-s-Timeouts (WP30: rot bei Last ~85, grün bei ~18). Auf GitHub prüfen, ob sie stabil sind; sonst Ursache (Verschlüsselung im Worker) klären, nicht nur den Timeout erhöhen.
 - E2E-Tests entstehen je Paket als Wegwerf-Tests des E2E-Agenten und bleiben uncommittet. Committet sind nur `app/integration_test/e2e_recalc_test.dart` und `e2e_storage_test.dart`, und die laufen nirgends automatisch (das Gate prüft dort nur Format und Analyse). Eine Regression aus einem früheren Paket fällt so nicht auf.
 
 ## Inhalt
