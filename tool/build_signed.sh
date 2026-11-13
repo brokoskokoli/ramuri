@@ -65,8 +65,9 @@ unset SIGNING_KEYSTORE_BASE64
 export SIGNING_STORE_FILE=$keystore SIGNING_STORE_PASSWORD SIGNING_KEY_PASSWORD SIGNING_KEY_ALIAS
 
 # --- Build ---
-# Gradle ohne Daemon: ein Daemon bliebe stundenlang mit den Signatur-Passwörtern in seiner Umgebung am Leben.
-export GRADLE_OPTS="${GRADLE_OPTS:+$GRADLE_OPTS }-Dorg.gradle.daemon=false"
+# Gradle ohne Daemon: ein Daemon bliebe stundenlang mit den Signatur-Passwörtern in seiner Umgebung am Leben. Dasselbe gilt
+# für den Kotlin-Compile-Daemon (erbt die Umgebung des Starters), daher Kotlin im Gradle-Prozess übersetzen.
+export GRADLE_OPTS="${GRADLE_OPTS:+$GRADLE_OPTS }-Dorg.gradle.daemon=false -Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process"
 apk=app/build/app/outputs/flutter-apk/app-release.apk
 aab=app/build/app/outputs/bundle/release/app-release.aab
 rm -f "$apk" "$aab"
