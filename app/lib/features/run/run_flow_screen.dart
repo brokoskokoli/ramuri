@@ -186,9 +186,9 @@ class _RunFlowScreenState extends State<RunFlowScreen>
           run.startedAt.isBefore(started.since)) {
         return;
       }
-      final unit = await openPlanUnitOn(session, started.day);
-      // Auch eine durch Neuberechnung ersetzte Einheit (neue Kennung): Die
-      // Zuordnung in der Datenbank nimmt die offene Einheit desselben Tags.
+      final unit = await startedPlanUnit(session, started);
+      // Wie die Zuordnung in der Datenbank: zuerst die gemerkte Kennung, bei
+      // einer durch Neuberechnung ersetzten Einheit die offene des Tags.
       if (unit == null || !mounted) return;
       setState(() => _resumedUnit = unit);
     } on Object {

@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/home/home_screen.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
+import 'package:running_app/features/plan/plan_texts.dart';
+import 'package:running_app/l10n/app_localizations_de.dart';
 import 'package:running_app/features/run/guided_segments.dart';
 import 'package:running_app/features/run/live_run_view.dart';
 import 'package:running_app/features/plan/plan_started_unit.dart';
@@ -318,6 +320,51 @@ void main() {
         (await (d.session as PlanStorage).plans.unitOn(_today))!.runId,
         run.id,
       );
+    });
+
+    testWidgets('Einheit verschoben (Kennung gleich, Tag besetzt): „Aus dem '
+        'Plan“ zeigt die Einheit der Kennung wie die Zuordnung (NB6 3)', (
+      tester,
+    ) async {
+      final d = Device();
+      await _open(d);
+      await d.start(tester, const Locale('de'));
+      final plans = (d.session as PlanStorage).plans;
+      final here = (await plans.unitOn(_today))!;
+      final l10n = AppLocalizationsDe();
+      final other = [
+        for (final u in await plans.unitsBetween(
+          _today.add(const Duration(days: 1)),
+          _today.add(const Duration(days: 21)),
+        ))
+          if (u.kind != PlanUnitKind.rest &&
+              planUnitText(l10n, u) != planUnitText(l10n, here))
+            u,
+      ].first;
+      final shown = await crashResumeFinish(
+        tester,
+        d,
+        start: key('home_start_unit'),
+        beforeResume: () async {
+          // Der Merker trägt die Kennung der verschobenen Einheit, am
+          // gemerkten Tag steht eine andere offene Einheit.
+          final old = (await PlanStartedUnitStore(
+            session: d.session,
+            clock: d.clock,
+          ).read())!;
+          await d.session.settings.set(
+            SettingKeys.planStartedUnit,
+            PlanStartedUnit(
+              unitId: other.id!,
+              day: old.day,
+              since: old.since,
+            ).encode(),
+            at: d.clock.now(),
+          );
+        },
+      );
+      expect(shown, isTrue);
+      expect(_text('sum_from_plan_unit'), planUnitText(l10n, other));
     });
   });
 

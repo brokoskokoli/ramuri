@@ -213,8 +213,15 @@ Future<PlanRecalculation> _recalculateOnce({
   // ([_keepSchedule]) und rechnen eine ausstehende Zieländerung nicht: Sie
   // übernehmen den Fingerabdruck der letzten Fassung, die Änderung bleibt
   // ausstehend ([planGoalChangedSince]).
+  //
+  // Ausnahme: Stammt die letzte Fassung aus einer älteren Regelversion, gilt
+  // die neue Fassung auch bei gleichen Einheiten (Auslöser `ruleVersion`):
+  // Sie trägt die aktuelle Version, sonst bliebe der Plan dauerhaft auf der
+  // alten und die Wochenbewertung fiele weg (NB6 1). Ohne Änderung der
+  // Einheiten ist die Zusammenfassung leer, es gibt keine Karte.
   final keepsGoalPending = _isAutomatic(trigger) && last != null;
   if (last != null &&
+      last.version.isCurrent &&
       summary.isEmpty &&
       (keepsGoalPending || !planGoalChangedSince(last.summary, goal))) {
     if (markChecked) await _markChecked(settings, todayDay, now);

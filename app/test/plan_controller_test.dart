@@ -118,6 +118,33 @@ Future<void> _writeVersion(
   );
 }
 
+/// Schreibt die letzte Fassung mit denselben Einheiten, Eingaben und Hinweisen
+/// als Fassung einer älteren Regelversion neu (ab heute der Uhr).
+Future<void> _downgradeLast(_Env e) async {
+  final last = (await e.plans.history()).last;
+  final day = DateTime.utc(
+    e.clock.now().year,
+    e.clock.now().month,
+    e.clock.now().day,
+  );
+  await e.plans.writeVersion(
+    PlanVersionDraft(
+      createdAt: e.clock.now(),
+      validFrom: day,
+      trigger: PlanTrigger.weekly,
+      reason: 'weekly',
+      version: const PlanVersion(method: 'alte-methode'),
+      inputs: last.inputs,
+      summary: last.summary,
+      units: await e.plans.unitsBetween(day, planFarFuture),
+      readState: planUnitsFingerprint(
+        await e.plans.unitsBetween(DateTime.utc(2000), planFarFuture),
+      ),
+    ),
+  );
+  expect((await e.plans.history()).last.version.isCurrent, isFalse);
+}
+
 void main() {
   group('today geht an die Schreiber', () {
     test('saveGoal prüft das Zieldatum gegen heute, nicht createdAt', () async {
@@ -334,6 +361,63 @@ void main() {
         await e.session.settings.get(planLastCheckDayKey),
         _dayText(_today),
       );
+    });
+
+    test('alte Regelversion, gleiche Einheiten: neue Fassung ohne Karte, '
+        'Hinweis weg, Prüftag gesetzt (NB6 1)', () async {
+      final e = await _Env.open();
+      await e.controller.saveGoal(_goal());
+      final units = await e.plans.unitsBetween(_today, planFarFuture);
+      await _downgradeLast(e);
+      await e.session.settings.set(
+        planLastCheckDayKey,
+        _dayText(_day(-7)),
+        at: _now,
+      );
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.last.trigger, PlanTrigger.ruleVersion);
+      expect(h.last.version.isCurrent, isTrue);
+      expect(e.controller.state.ruleVersionPending, isFalse);
+      expect(e.controller.state.lastChange?.isEmpty ?? true, isTrue);
+      expect(
+        (await e.plans.unitsBetween(_today, planFarFuture))
+            .map((u) => '${u.day}${u.kind.name}${u.minutes}')
+            .toList(),
+        units.map((u) => '${u.day}${u.kind.name}${u.minutes}').toList(),
+      );
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        _dayText(_today),
+      );
+      final n = h.length;
+      await e.controller.open();
+      expect((await e.plans.history()).length, n);
+    });
+
+    test('alte Regelversion unter Warnsignal: neue Fassung, gehaltene '
+        'Einheiten bleiben gehalten (NB6 1)', () async {
+      final e = await _Env.open();
+      await e.controller.saveGoal(_goal());
+      await e.controller.reportWarning();
+      await _downgradeLast(e);
+      await e.session.settings.set(
+        planLastCheckDayKey,
+        _dayText(_day(-7)),
+        at: _now,
+      );
+      await e.controller.open();
+      final last = (await e.plans.history()).last;
+      expect(last.trigger, PlanTrigger.ruleVersion);
+      expect(last.version.isCurrent, isTrue);
+      expect(warningHeldFromSummary(last.summary), isNotNull);
+      expect(
+        (await e.plans.unitsBetween(_today, planFarFuture)).every(
+          (u) => u.kind == PlanUnitKind.rest,
+        ),
+        isTrue,
+      );
+      expect(e.controller.state.ruleVersionPending, isFalse);
     });
 
     test('fällig und aktuelle Regelversion: Auslöser weekly', () async {
@@ -872,6 +956,18 @@ void main() {
       // idempotent: zweites Öffnen schreibt nichts
       await e.controller.open();
       expect(await e.plans.history(), hasLength(2));
+    });
+
+    test('alte Regelversion: die Prüfung bewertet die Woche wie weekly '
+        '(NB6 1)', () async {
+      final (e, planned) = await prepare();
+      await _downgradeLast(e);
+      await e.controller.open();
+      final h = await e.plans.history();
+      expect(h.last.trigger, PlanTrigger.ruleVersion);
+      expect(h.last.reason, 'ruleVersion,repeatWeek');
+      expect(h.last.version.isCurrent, isTrue);
+      expect(await week(e, monday(1)), lessThanOrEqualTo(planned));
     });
 
     test('Hälfte bis 80 %: keine Steigerung', () async {
