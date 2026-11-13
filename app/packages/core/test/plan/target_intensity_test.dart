@@ -237,6 +237,9 @@ void main() {
       // PAR-115: Gehen höchstens 2, Lauf höchstens 4.
       expect(r(PlanUnitKind.walkRun, PlanSegmentKind.walk), (1, 2));
       expect(r(PlanUnitKind.walkRun, PlanSegmentKind.run), (1, 4));
+      // PAR-119: Auf- und Abwärmen der Geh-Lauf-Einheit sind Gehen (je 5 min).
+      expect(r(PlanUnitKind.walkRun, PlanSegmentKind.warmUp), (1, 2));
+      expect(r(PlanUnitKind.walkRun, PlanSegmentKind.coolDown), (1, 2));
     });
 
     test('Trabpause und Geh-Lauf: nur RPE, keine Pace, kein Puls', () {

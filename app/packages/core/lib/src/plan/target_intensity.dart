@@ -119,10 +119,11 @@ class IntensityParameters {
   /// Endblock des progressiven Laufs (PAR-114).
   final RpeRange rpeEndBlock;
 
-  /// Geh-/Laufintervalle, Lauf (und Auf-/Abwärmen): höchstens 4 (PAR-115).
+  /// Geh-/Laufintervalle, Lauf: höchstens 4 (PAR-115).
   final RpeRange rpeWalkRun;
 
-  /// Geh-/Laufintervalle, Gehabschnitt: höchstens 2 (PAR-115, eigene Wahl).
+  /// Geh-/Laufintervalle, Gehen (auch Auf-/Abwärmen, PAR-119): höchstens 2
+  /// (PAR-115, eigene Wahl).
   final RpeRange rpeWalk;
 
   /// Rang 2: Intervalle zwischen Tempo über 3 km und 5 km (PAR-102).
@@ -454,7 +455,13 @@ SegmentTarget? segmentTarget({
     _Role.recovery => p.rpeRecovery,
     _Role.tempo =>
       segment == PlanSegmentKind.endBlock ? p.rpeEndBlock : p.rpeTempo,
-    _Role.walkRun => segment == PlanSegmentKind.walk ? p.rpeWalk : p.rpeWalkRun,
+    // Auf- und Abwärmen der Geh-Lauf-Einheit sind Gehen (PAR-119, PAR-065).
+    _Role.walkRun =>
+      segment == PlanSegmentKind.walk ||
+              segment == PlanSegmentKind.warmUp ||
+              segment == PlanSegmentKind.coolDown
+          ? p.rpeWalk
+          : p.rpeWalkRun,
   };
 
   SegmentTarget make(IntensityBasis basis, {_Pace? pace, _Hr? hr}) =>
