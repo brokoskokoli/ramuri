@@ -454,8 +454,7 @@ SegmentTarget? segmentTarget({
     _Role.recovery => p.rpeRecovery,
     _Role.tempo =>
       segment == PlanSegmentKind.endBlock ? p.rpeEndBlock : p.rpeTempo,
-    _Role.walkRun =>
-      segment == PlanSegmentKind.walk ? p.rpeWalk : p.rpeWalkRun,
+    _Role.walkRun => segment == PlanSegmentKind.walk ? p.rpeWalk : p.rpeWalkRun,
   };
 
   SegmentTarget make(IntensityBasis basis, {_Pace? pace, _Hr? hr}) =>

@@ -10,10 +10,7 @@ import 'helpers/widget_helpers.dart';
 // WP24 NB5: Gehen 1 bis 2, Laufen 1 bis 4 (PAR-115), jeweils mit dem Wort der
 // oberen Stufe; die Zahlen kommen aus dem Kern, nicht aus dem Test.
 void main() {
-  Future<void> pumpRow(
-    WidgetTester tester,
-    PlanSegmentKind kind,
-  ) async {
+  Future<void> pumpRow(WidgetTester tester, PlanSegmentKind kind) async {
     final target = segmentTarget(
       unitKind: PlanUnitKind.walkRun,
       segment: kind,
