@@ -71,6 +71,7 @@ class OverviewScreen extends StatelessWidget {
                   (_) => SettingsScreen(
                     session: session,
                     recalculation: recalculation,
+                    clock: clock,
                   ),
                 ),
               ),

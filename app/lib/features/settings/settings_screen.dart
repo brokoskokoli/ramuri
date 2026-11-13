@@ -11,6 +11,7 @@ import '../recalculation/recalculation_controller.dart';
 import '../../ui/ramuri_card.dart';
 import '../../ui/section_heading.dart';
 import 'app_settings.dart';
+import 'guidance_section.dart';
 import 'load_settings_section.dart';
 
 /// Einstellungen: Einheit für Strecken (reine Anzeige) und die Neuberechnung.
@@ -20,9 +21,11 @@ class SettingsScreen extends StatefulWidget {
     super.key,
     required this.session,
     required this.recalculation,
+    required this.clock,
   });
 
   final StorageSession session;
+  final Clock clock;
   final RecalculationController recalculation;
 
   @override
@@ -110,6 +113,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 24),
+          GuidanceSection(session: session, clock: widget.clock),
           if (reminders != null) ReminderSection(controller: reminders),
           if (map != null) ...[
             SectionHeading(l10n.mapSettingsTitle),

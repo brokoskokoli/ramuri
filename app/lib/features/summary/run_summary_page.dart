@@ -7,6 +7,7 @@ import '../run/live_run_values.dart' show LiveValueText, splitUnit;
 import '../run/live_run_view.dart' show formatClock;
 import '../settings/unit_format.dart';
 import '../transparency/value_explanation_screen.dart';
+import 'plan_origin_note.dart';
 import 'run_charts.dart';
 import 'run_summary_body.dart';
 import 'subjective_section.dart';
@@ -64,6 +65,7 @@ class RunSummaryPage extends StatelessWidget {
       children: [
         _hero(context, l10n),
         gap,
+        PlanOriginNote(session: session, runId: runId),
         RamuriTileGrid(children: tiles(l10n)),
         explain(context, 'sum_explain_trimp', trimpRunValueKey),
         gap,

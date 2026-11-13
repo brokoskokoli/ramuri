@@ -38,8 +38,9 @@ class RunStarter {
     return isoDay(now.add(clock.utcOffsetAt(now)));
   }
 
-  /// Lauf starten: frei ([unit] `null`) oder für die geplante Einheit. Der
-  /// Lauf ist vorerst der normale Lauf (die Führung kommt mit WP24).
+  /// Lauf starten: frei ([unit] `null`) oder für die geplante Einheit. Die
+  /// Seite „Lauf vorbereiten“ bietet die offene Einheit von heute zur Führung
+  /// an (WP24); „Einheit starten“ wählt sie vor, „Frei laufen“ nicht.
   ///
   /// „Einheit starten“ merkt die Einheit vorher in `settings`
   /// ([PlanStartedUnitStore]); so überlebt sie Absturz und Wiederaufnahme.
@@ -50,7 +51,8 @@ class RunStarter {
   /// Termine ändern sich nie. Die Datenmeldung folgt erst nach der Zuordnung.
   Future<void> start(BuildContext context, {PlanUnit? unit}) async {
     final day = _today;
-    final unitId = unit?.id;
+    // Die Einheit kann auf „Lauf vorbereiten“ noch gewechselt werden.
+    var unitId = unit?.id;
     final started = PlanStartedUnitStore(session: session, clock: clock);
     try {
       if (unitId != null) {
@@ -60,6 +62,16 @@ class RunStarter {
       }
     } on Object {
       // Ohne Merker ordnet nur der normale Weg zu (nach dem Schließen).
+    }
+    // Die offene Einheit von heute für den Umschalter auf „Lauf vorbereiten“
+    // (bei „Frei laufen“ ist sie wählbar, aber nicht gemerkt).
+    PlanUnit? planned = unit;
+    if (planned == null) {
+      try {
+        planned = await openPlanUnitOn(session, day);
+      } on Object {
+        planned = null;
+      }
     }
     if (!context.mounted) return;
     // Die Hülle baut „Heute“ bei jeder Datenmeldung neu (neuer Zustand); die
@@ -79,6 +91,16 @@ class RunStarter {
           sensors: sensors,
           recalculation: recalculation,
           onFinished: (runId) => finishedId = runId,
+          plannedUnit: planned,
+          startPlanned: unit != null,
+          onGuidanceChosen: (chosen) async {
+            unitId = chosen?.id;
+            if (chosen?.id != null) {
+              await started.remember(chosen!.id!, day);
+            } else {
+              await started.forget();
+            }
+          },
         ),
       ),
     );
