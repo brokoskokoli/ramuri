@@ -28,11 +28,27 @@ android {
         versionName = flutter.versionName
     }
 
+    // WP30: Release-Signatur nur aus der Umgebung (tool/build_signed.sh), nie aus Dateien des Repos. Sind nicht alle
+    // vier Variablen gesetzt, bleibt es bei der Debug-Signatur (Gate und lokale Builds ohne Schlüssel).
+    val signingEnv = listOf("SIGNING_STORE_FILE", "SIGNING_STORE_PASSWORD", "SIGNING_KEY_ALIAS", "SIGNING_KEY_PASSWORD")
+        .associateWith { System.getenv(it) }
+    val hasReleaseSigning = signingEnv.values.all { !it.isNullOrEmpty() }
+    if (hasReleaseSigning) {
+        signingConfigs.create("release") {
+            storeFile = file(signingEnv.getValue("SIGNING_STORE_FILE")!!)
+            storePassword = signingEnv.getValue("SIGNING_STORE_PASSWORD")
+            keyAlias = signingEnv.getValue("SIGNING_KEY_ALIAS")
+            keyPassword = signingEnv.getValue("SIGNING_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

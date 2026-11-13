@@ -22,3 +22,6 @@ app/lib/l10n/app_localizations*.dart
 
 # Kotlin-Compiler-Sitzungen (Gradle)
 .kotlin/
+
+# Release-Pipeline (WP30): Ergebnis von tool/build_signed.sh
+dist/
