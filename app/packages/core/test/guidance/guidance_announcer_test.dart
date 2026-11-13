@@ -244,14 +244,13 @@ void main() {
       expect(pulse(easyOnly, (_) => 140, to: 600), isEmpty);
     });
 
-    test('Abschnitt unter 4 min: nie', () {
-      final segs = [
-        seg(PlanSegmentKind.easy, 3, max: 140),
-        seg(PlanSegmentKind.easy, 20, max: 140),
-      ];
-      final e = pulse(segs, (_) => 160, to: 179);
-      expect(e, isEmpty);
-    });
+    test(
+      'Abschnitt unter 4 min (3:50): nie, obwohl 3 min + 30 s hineinpassen',
+      () {
+        final segs = [seg(PlanSegmentKind.easy, 4, sec: 230, max: 140)];
+        expect(pulse(segs, (_) => 160, to: 229), isEmpty);
+      },
+    );
 
     test('Abschnitt genau 4 min: erlaubt', () {
       final segs = [seg(PlanSegmentKind.easy, 4, max: 140)];
