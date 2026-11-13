@@ -16,6 +16,8 @@ import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/system_clock.dart';
 
+import 'support/e2e_support.dart' show hittable, pumpFor;
+
 const _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
 
 void log(String s) {
@@ -251,12 +253,22 @@ Future<void> _changeMax(WidgetTester tester, String v) async {
   log(
     'CM max_field=${(tester.widget<TextField>(find.byKey(const Key('profile_max'))).controller?.text)}',
   );
-  // Nach enterText steht die Tastatur offen und verdeckt den Knopf (Foto aus
-  // dem CI-Lauf, pixel_6): erst Fokus loesen (Tastatur zu), dann in den sichtbaren Bereich scrollen.
+  // Nach enterText steht die Tastatur offen und verdeckt den Knopf. Fokus
+  // loesen; die System-Tastatur schliesst aber ausserhalb der Testuhr (CI API 31:
+  // Tastaturhoehe noch 635 beim Tipp), pumpAndSettle wartet sie nicht ab. Darum
+  // in echter Zeit warten, bis sie zu ist und der Tipp den Knopf trifft.
+  final save = find.byKey(const Key('profile_save'));
   FocusManager.instance.primaryFocus?.unfocus();
   await tester.pumpAndSettle();
-  await tester.ensureVisible(find.byKey(const Key('profile_save')));
-  await tester.pumpAndSettle();
+  final end = DateTime.now().add(const Duration(seconds: 20));
+  while (DateTime.now().isBefore(end)) {
+    if (tester.view.viewInsets.bottom == 0) {
+      await tester.ensureVisible(save);
+      await tester.pumpAndSettle();
+      if (hittable(tester, save)) break;
+    }
+    await pumpFor(tester, const Duration(milliseconds: 100));
+  }
   _expectHittable(tester, find.byKey(const Key('profile_save')));
   await tester.tap(find.byKey(const Key('profile_save')));
   // Das Speichern laeuft ueber echte Ein-/Ausgabe (verschluesselte DB), die
