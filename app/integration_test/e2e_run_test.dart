@@ -34,7 +34,7 @@ void main() {
     // Der Abschluss schreibt asynchron in die Datenbank.
     await pumpFor(t, const Duration(seconds: 2));
 
-    final after = await countRuns(t, w);
+    final after = await countRunsFinished(t, w);
     log('RUN runs_before=$before runs_after=${after.length}');
     expect(after.length, before + 1, reason: 'genau ein neuer Lauf');
     final run = after.first;

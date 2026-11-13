@@ -204,3 +204,16 @@ Future<List<RunCounts>> countRuns(WidgetTester t, World w) async {
     return out;
   }))!;
 }
+
+/// Wie [countRuns], wartet aber (echte Zeit), bis der neueste Lauf als beendet
+/// gespeichert ist: Das Laufende-Bild erscheint vor dem Schreiben in die
+/// Datenbank.
+Future<List<RunCounts>> countRunsFinished(WidgetTester t, World w) async {
+  final end = DateTime.now().add(const Duration(seconds: 60));
+  while (true) {
+    final runs = await countRuns(t, w);
+    if (runs.isNotEmpty && runs.first.state == RunState.finished) return runs;
+    if (DateTime.now().isAfter(end)) return runs;
+    await pumpFor(t, const Duration(milliseconds: 500));
+  }
+}

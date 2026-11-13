@@ -46,7 +46,7 @@ void main() {
         await pumpFor(t, const Duration(seconds: 8));
         await finishRun(t);
         await pumpFor(t, const Duration(seconds: 2));
-        final after = await countRuns(t, w);
+        final after = await countRunsFinished(t, w);
         expect(after.length, 1, reason: 'kein zweiter Lauf entstanden');
         expect(after.first.state, RunState.finished);
         expect(
