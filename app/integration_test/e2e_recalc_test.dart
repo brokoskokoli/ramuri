@@ -188,7 +188,11 @@ Future<void> _changeMax(WidgetTester tester, String v) async {
   log(
     'CM max_field=${(tester.widget<TextField>(find.byKey(const Key('profile_max'))).controller?.text)}',
   );
-  await tester.tap(find.byKey(const Key('profile_save')), warnIfMissed: false);
+  // Nach enterText steht die Tastatur offen und verdeckt den Knopf (Foto aus
+  // dem CI-Lauf, pixel_6): erst in den sichtbaren Bereich scrollen.
+  await tester.ensureVisible(find.byKey(const Key('profile_save')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('profile_save')));
   await tester.pumpAndSettle();
   log(
     'CM banner=${find.byKey(const Key('profile_banner')).evaluate().length} note=${find.byKey(const Key('profile_saved_note')).evaluate().length} snack=${find.byType(SnackBar).evaluate().length}',
