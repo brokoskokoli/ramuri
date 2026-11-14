@@ -330,7 +330,7 @@ Map<String, Morning> parsePairs(String path) {
 
 /// Ordnet die Kamera-Intervalle der Gurt-Folge zu (ohne Zeitstempel der Kamera-Schläge): Verschiebung
 /// mit dem kleinsten Median |Differenz| über gültige Intervalle.
-({int lag, List<double> err, double rCam, double rBelt, int pairs, double ambiguity}) alignPairs(List<double?> cam, List<double> belt) {
+({int lag, List<double> err, double rCam, double rBelt, int pairs, double ambiguity, double dErr, double cross, double rBeltWin}) alignPairs(List<double?> cam, List<double> belt) {
   var best = 0;
   var bestMed = double.infinity;
   var second = double.infinity;
@@ -352,7 +352,7 @@ Map<String, Morning> parsePairs(String path) {
     }
   }
   final err = <double>[];
-  var sc = 0.0, sb = 0.0;
+  var sc = 0.0, sb = 0.0, se = 0.0;
   var n = 0;
   for (var i = 0; i < cam.length; i++) {
     final j = i + best;
@@ -362,8 +362,19 @@ Map<String, Morning> parsePairs(String path) {
       final dc = cam[i]! - cam[i - 1]!, db = belt[j] - belt[j - 1];
       sc += dc * dc;
       sb += db * db;
+      se += (dc - db) * (dc - db);
       n++;
     }
+  }
+  // Gurt im ganzen Kamera-Fenster: alle Gurt-Intervalle, die den Kamera-Positionen 0..len-1 (auch ungültigen)
+  // gegenüberstehen; so vergleicht die Validierung (RMSSD App gegen Gurt im Fenster).
+  final j0 = math.max(0, best), j1 = math.min(belt.length - 1, cam.length - 1 + best);
+  var sw = 0.0;
+  var nw = 0;
+  for (var j = j0 + 1; j <= j1; j++) {
+    final db = belt[j] - belt[j - 1];
+    sw += db * db;
+    nw++;
   }
   return (
     lag: best,
@@ -372,6 +383,10 @@ Map<String, Morning> parsePairs(String path) {
     rBelt: n > 0 ? math.sqrt(sb / n) : double.nan,
     pairs: n,
     ambiguity: bestMed / second,
+    // RMSSD_K² = RMSSD_G² + mittel(Δ-Fehler²) + Kreuzterm (auf denselben Paaren)
+    dErr: n > 0 ? math.sqrt(se / n) : double.nan,
+    cross: n > 0 ? (sc - sb - se) / n : double.nan,
+    rBeltWin: nw > 0 ? math.sqrt(sw / nw) : double.nan,
   );
 }
 
@@ -399,7 +414,8 @@ void runPairs(String dir, void Function(String) say, String selftestPath) {
   final st = parsePairs(selftestPath)['1']!;
   final al = alignPairs(st.ibi, st.belt);
   say('Selbsttest (synthetische Datei): Verschiebung ${al.lag} (erwartet 12), Fehler RMS ${f1(rms(al.err))} ms (erwartet ≈ 5 plus Rundung 1/1024 s), '
-      'Kosten bester/zweitbester Versatz ${f2(al.ambiguity)}.\n');
+      'Kosten bester/zweitbester Versatz ${f2(al.ambiguity)}; Zerlegung ${f1(al.rCam * al.rCam - al.rBelt * al.rBelt)} = '
+      '${f1(al.dErr * al.dErr + al.cross)} ms² (Δ-Fehler ${f1(al.dErr)} ms, erwartet ≈ 10, da der Fehler ±5 abwechselt).\n');
   if (al.lag != 12) throw StateError('Selbsttest der Zuordnung gescheitert');
 
   final d = Directory(dir);
@@ -410,8 +426,8 @@ void runPairs(String dir, void Function(String) say, String selftestPath) {
     say('Keine Messpaar-Dateien in der Sammlung (`$dir`) – nichts ausgewertet.');
     return;
   }
-  say('| Datei | Morgen | Stufe | Zeitrauschen App | Paare | Kosten bester/zweitbester Versatz | Fehler/Intervall RMS | Median |Fehler| | RMSSD Kamera (Paare) | RMSSD Gurt (Paare) | Δ % | Δ % mit Median-3 |');
-  say('| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  say('| Datei | Morgen | Stufe | Zeitrauschen App | Paare | Kosten bester/zweitbester Versatz | Fehler/Intervall RMS | Median |Fehler| | RMSSD Kamera (Paare) | RMSSD Gurt (Paare) | Δ % | Δ-Fehler RMS | Kreuzterm (ms²) | RMSSD App | RMSSD Gurt (ganzes Fenster) | Δ % (ganzes Fenster) | Δ % mit Median-3 |');
+  say('| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
   for (final f in files) {
     final ms = parsePairs(f);
     for (final e in ms.entries) {
@@ -424,6 +440,8 @@ void runPairs(String dir, void Function(String) say, String selftestPath) {
       final a3 = alignPairs([for (var i = 0; i < med.length; i++) valid[i] ? med[i] * 1000 : null], m.belt);
       say('| ${f.split('/').last} | ${e.key} | ${m.quality} | ${m.noise == null ? "–" : f1(m.noise!)} | ${a.pairs} | ${f2(a.ambiguity)} | ${f1(rms(a.err))} | '
           '${f1(quantile(a.err.map((x) => x.abs()).toList(), 0.5))} | ${f1(a.rCam)} | ${f1(a.rBelt)} | ${f1((a.rCam / a.rBelt - 1) * 100)} | '
+          '${f1(a.dErr)} | ${f1(a.cross)} | ${m.rmssdApp == null ? "–" : f1(m.rmssdApp!)} | ${f1(a.rBeltWin)} | '
+          '${m.rmssdApp == null ? "–" : f1((m.rmssdApp! / a.rBeltWin - 1) * 100)} | '
           '${f1((a3.rCam / a3.rBelt - 1) * 100)} |');
     }
   }
