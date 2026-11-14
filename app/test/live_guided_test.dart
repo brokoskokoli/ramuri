@@ -221,6 +221,29 @@ void main() {
     });
   }
 
+  for (final lang in ['de', 'en']) {
+    _test('Sprachausgabe fehlt: Hinweis auch auf der Einheit-Seite ($lang)', (
+      tester,
+    ) async {
+      final voice = FakeVoice()..isAvailable = false;
+      final w = await _show(tester, lang: lang, voice: voice);
+      await w.seconds(tester, 3);
+      // Einheit-Seite ist beim Start offen, kein Wischen.
+      expect(
+        _t(tester, 'guided_banner_voice'),
+        lookupAppLocalizations(Locale(lang)).runVoiceUnavailable,
+      );
+    });
+  }
+
+  _test('Sprachausgabe vorhanden: kein Hinweis auf der Einheit-Seite', (
+    tester,
+  ) async {
+    final w = await _show(tester, voice: FakeVoice());
+    await w.seconds(tester, 3);
+    expect(_k('guided_banner_voice'), findsNothing);
+  });
+
   _test('Sprachausgabe vorhanden: kein Hinweis', (tester) async {
     final w = await _show(tester, voice: FakeVoice());
     await w.seconds(tester, 3);
