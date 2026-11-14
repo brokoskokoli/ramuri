@@ -381,8 +381,10 @@ double _goodStretch(PpgAnalysisSet set) {
 /// Einzelauswertung eines Fensters; Standard [evaluatePpg]. Austauschpunkt nur für Tests (kein
 /// `meta`-Paket im Kern, daher ohne `@visibleForTesting`): Die Näherung der Suche und die
 /// Einzelauswertung lassen sich so gezielt auseinanderlaufen lassen.
-typedef PpgWindowEvaluator =
-    PpgMeasurement Function(List<PpgFrame> frames, {required PpgWindow window});
+typedef PpgWindowEvaluator = PpgMeasurement Function(
+  List<PpgFrame> frames, {
+  required PpgWindow window,
+});
 
 /// Einzelauswertung der Kandidaten in Rangfolge (höchstens drei): Sie hält an, sobald die Stufe
 /// des Fensters nicht schlechter ist als die der Näherung; sonst gilt die beste Einzelauswertung.
@@ -422,7 +424,12 @@ PpgWindowedMeasurement evaluatePpgBestWindow(
   if (scan.failure != null) {
     return PpgWindowedMeasurement(measurement: _unusable(scan.failure!));
   }
-  final v = _verify(frames, scan.candidates, goodOnly: false, evaluate: evaluate)!;
+  final v = _verify(
+    frames,
+    scan.candidates,
+    goodOnly: false,
+    evaluate: evaluate,
+  )!;
   return PpgWindowedMeasurement(
     measurement: v.measurement,
     windowStartSeconds: v.candidate.start,
@@ -445,7 +452,12 @@ PpgRecordingCheck checkPpgRecording(
       goodStretchSeconds: 0.0,
     );
   }
-  final v = _verify(frames, scan.candidates, goodOnly: true, evaluate: evaluate);
+  final v = _verify(
+    frames,
+    scan.candidates,
+    goodOnly: true,
+    evaluate: evaluate,
+  );
   return PpgRecordingCheck(
     goodWindowReached: v != null && v.measurement.quality == PpgQuality.good,
     goodStretchSeconds: scan.goodStretch,
