@@ -704,6 +704,38 @@ void main() {
       );
     });
 
+    testWidgets('Warnsignal aufheben: Erholungskarte fehlt in keinem Frame', (
+      tester,
+    ) async {
+      final d = Device();
+      final s = await _preopen(d);
+      await _seedHealth(s);
+      await _grant(s, _allKinds);
+      await (s as WarningStorage).warning.set(
+        WarningSignal(
+          reportedOn: DateTime.utc(2026, 11, 4),
+          source: WarningSource.manual,
+        ),
+      );
+      await _start(tester, d);
+      expect(_key('readiness_card'), findsOneWidget);
+      final lift = _key('home_warning_lift');
+      expect(lift, findsOneWidget);
+      await tester.ensureVisible(lift);
+      await tester.tap(lift);
+      var gone = 0;
+      for (var i = 0; i < 120; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+        if (_key('readiness_card').evaluate().isEmpty) gone++;
+      }
+      expect(_key('home_warning_reminder'), findsNothing);
+      expect(_key('readiness_card'), findsOneWidget);
+      expect(gone, 0, reason: 'Karte fehlte in $gone Frames beim Neuladen');
+    });
+
     testWidgets('Entwicklermodus an: nur der Hinweis, Zahl unverändert', (
       tester,
     ) async {

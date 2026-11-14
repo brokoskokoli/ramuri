@@ -317,9 +317,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   ) => FutureBuilder<List<Object?>>(
     future: _cardsData,
     builder: (context, snap) {
-      // Erst anzeigen, wenn beides da ist: sonst springt die Karte von der
-      // Basis zur erweiterten Stufe.
-      if (snap.connectionState != ConnectionState.done) {
+      // Beim ersten Laden erst anzeigen, wenn beides da ist: sonst springt die
+      // Karte von der Basis zur erweiterten Stufe. Beim Neuladen bleiben die
+      // bisherigen Daten stehen (snap.data), sonst fehlen die Karten Frames lang.
+      if (snap.data == null && snap.connectionState != ConnectionState.done) {
         return const SizedBox.shrink();
       }
       final hints = snap.data?[0] as HomeHints?;
