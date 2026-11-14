@@ -38,9 +38,10 @@ MorningMeasurement morning({
   double? noise = 10,
   bool outside = false,
   bool before = false,
+  int hour = 7,
 }) => MorningMeasurement(
-  measuredAt: DateTime(2026, 10, 17 + dayIdx, 7).toUtc(),
-  utcOffset: DateTime(2026, 10, 17 + dayIdx, 7).timeZoneOffset,
+  measuredAt: DateTime(2026, 10, 17 + dayIdx, hour).toUtc(),
+  utcOffset: DateTime(2026, 10, 17 + dayIdx, hour).timeZoneOffset,
   posture: posture,
   deviceManufacturer: 'H',
   deviceModel: model,

@@ -70,16 +70,13 @@ void main() {
                 expect(z != null, expected);
               });
               test('Ruhepuls $name', () {
-                final expected = dev || supine != ValidationState.failed;
+                final expected = dev || supine == P;
                 final r = rel.forFactor(
                   ReadinessFactor.restingHeartRate,
                   posture,
                 );
                 expect(r.released, expected);
                 if (dev) expect(r.mark, MorningRmssdMark.none);
-                if (!dev && supine == ValidationState.failed) {
-                  expect(r.mark, MorningRmssdMark.inaccurate);
-                }
                 final z = chosen(
                   ReadinessFactor.restingHeartRate,
                   series(posture),
@@ -93,22 +90,79 @@ void main() {
       }
 
       test('Ruhepuls und RMSSD haben getrennte Stände', () {
-        // Ruhepuls bestanden, lnRMSSD nicht geprüft.
-        final rel = CameraRelease(
-          developerMode: false,
-          rmssdOptIn: true,
-          state: st(supine: ValidationState.notChecked),
+        // Nach der Freischaltung (lnRMSSD liegend bestanden): Ruhepuls nicht
+        // geprüft zählt, Ruhepuls nicht bestanden nicht.
+        for (final (hr, hrOk) in [
+          (ValidationState.notChecked, true),
+          (ValidationState.limited, true),
+          (ValidationState.failed, false),
+        ]) {
+          final rel = CameraRelease(
+            developerMode: false,
+            rmssdOptIn: true,
+            state: st(hr: hr),
+          );
+          final r = rel.forFactor(
+            ReadinessFactor.restingHeartRate,
+            RestingPosture.lying,
+          );
+          expect(r.released, hrOk);
+          if (!hrOk) expect(r.mark, MorningRmssdMark.inaccurate);
+          expect(
+            rel.forFactor(ReadinessFactor.hrv, RestingPosture.lying).released,
+            isTrue,
+          );
+        }
+      });
+
+      test(
+        'ohne Entwicklermodus vor der Freischaltung zählt keine Kamerazahl',
+        () {
+          // lnRMSSD liegend nicht bestanden: Morgenmessung nicht erreichbar
+          // (K62 Punkt 1), auch wenn Ruhepuls bestanden oder Opt-in an ist.
+          for (final s in [
+            ValidationState.notChecked,
+            ValidationState.limited,
+            ValidationState.failed,
+          ]) {
+            for (final hr in [ValidationState.notChecked, P]) {
+              final rel = CameraRelease(
+                developerMode: false,
+                rmssdOptIn: true,
+                state: st(supine: s, hr: hr),
+              );
+              final all = series(RestingPosture.lying);
+              for (final f in ReadinessFactor.values) {
+                expect(
+                  rel.forFactor(f, RestingPosture.lying).released,
+                  isFalse,
+                );
+                expect(chosen(f, all, rel), isNull);
+              }
+            }
+          }
+          // Standardstand (alles nicht geprüft) ohne Entwicklermodus.
+          const rel = CameraRelease(developerMode: false, rmssdOptIn: true);
+          expect(
+            rel
+                .forFactor(
+                  ReadinessFactor.restingHeartRate,
+                  RestingPosture.lying,
+                )
+                .released,
+            isFalse,
+          );
+        },
+      );
+
+      test('Kamerareihe ohne Schlüssel gilt nicht als freigegeben', () {
+        const rel = CameraRelease(developerMode: true, rmssdOptIn: true);
+        final r = DeviationResult(
+          factor: ReadinessFactor.hrv,
+          source: ReadinessSource.camera,
+          z: 0.1,
         );
-        expect(
-          rel
-              .forFactor(ReadinessFactor.restingHeartRate, RestingPosture.lying)
-              .released,
-          isTrue,
-        );
-        expect(
-          rel.forFactor(ReadinessFactor.hrv, RestingPosture.lying).released,
-          isFalse,
-        );
+        expect(rel.isReleased(r), isFalse);
       });
 
       test(

@@ -47,6 +47,50 @@ void main() {
       },
     );
 
+    test(
+      'Ruhepuls: Werte für Tatsachen (7-Tage-Mittel, Median, heute), ganze bpm',
+      () {
+        final r = hcRhr(rhrSamples('app.a', wave(55)));
+        final v = [for (var i = 0; i < 29; i++) 55 + (i % 5) * 2.0];
+        final win = v.sublist(22);
+        final ref = v.sublist(0, 28)..sort();
+        expect(r.todayValue, v[28]);
+        expect(r.windowMean, (win.reduce((a, b) => a + b) / 7).roundToDouble());
+        expect(r.referenceMedian, ((ref[13] + ref[14]) / 2).roundToDouble());
+        expect(r.todayIsFallback, isFalse);
+      },
+    );
+
+    test(
+      'HRV: Ersatzwert aus 60 min nach dem Schlaf markiert den Tag (PAR-160)',
+      () {
+        final samples = <HealthSample>[];
+        final sessions = <SleepSession>[];
+        for (var i = 1; i < 29; i++) {
+          sessions.add(sleep('app.a', i));
+          // heute: Wert erst nach Schlafende (Ersatzfenster), sonst im Schlaf
+          samples.add(
+            i == 28
+                ? HealthSample(
+                    time: at(i, 6).add(const Duration(minutes: 30)),
+                    value: 44,
+                    origin: 'app.a',
+                  )
+                : hrvSample('app.a', i, 40 + (i % 6) * 3),
+          );
+        }
+        final r = healthConnectHrvDeviation(
+          processing: p,
+          samples: samples,
+          sessions: sessions,
+          days: days,
+        );
+        expect(r.z, isNotNull);
+        expect(r.todayIsFallback, isTrue);
+        expect(r.todayValue, 44);
+      },
+    );
+
     test('keine Quelle: kein z', () {
       expect(hcRhr(const []).reason, NoDeviationReason.noSeries);
     });
@@ -177,6 +221,34 @@ void main() {
         isNotNull,
       );
     });
+
+    test(
+      'zwei Messungen derselben Reihe am selben Tag: nur die erste zählt (K65)',
+      () {
+        final base = lying();
+        final first = cameraDeviations(base, today: todayKey);
+        // Zweite Messung heute, andere Werte, später am Morgen.
+        final second = morning(dayIdx: 28, hr: 90, rmssd: 150, hour: 8);
+        final both = cameraDeviations([...base, second], today: todayKey);
+        for (final f in ReadinessFactor.values) {
+          expect(pick(both, f).z, pick(first, f).z);
+          expect(pick(both, f).todayValue, pick(first, f).todayValue);
+        }
+        // Erste eingeschränkt, zweite gut: RMSSD heute fehlt, Ruhepuls aus der ersten.
+        final limited = [
+          for (final m in base)
+            if (m.measuredAt != DateTime(2026, 11, 14, 7).toUtc()) m,
+          morning(dayIdx: 28, hr: 61, quality: PpgQuality.limited),
+          morning(dayIdx: 28, hr: 90, rmssd: 150, hour: 8),
+        ];
+        final r = cameraDeviations(limited, today: todayKey);
+        expect(
+          pick(r, ReadinessFactor.hrv).reason,
+          NoDeviationReason.noValueToday,
+        );
+        expect(pick(r, ReadinessFactor.restingHeartRate).todayValue, 61);
+      },
+    );
 
     test('„vor der Validierung gemessen“ ändert nichts (K62 Punkt 6)', () {
       List<MorningMeasurement> mk(bool before) => [

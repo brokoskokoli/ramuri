@@ -36,10 +36,26 @@ class CameraRelease {
   final bool rmssdOptIn;
   final Map<ValidationQuantity, ValidationState> state;
 
+  /// Gehen Kamerawerte überhaupt ein, auch als Tatsache (K62 Punkt 1)? Im
+  /// Entwicklermodus immer, sonst erst bei freigeschalteter Morgenmessung.
+  bool get cameraValuesAllowed =>
+      developerMode ||
+      morningMeasurementReachable(developerMode: false, state: state);
+
   CameraFactorRelease forFactor(
     ReadinessFactor factor,
     RestingPosture posture,
   ) {
+    // Fail-closed (K62 Punkt 1, WP34 Teil B): Ohne Entwicklermodus zählen
+    // Kamerawerte erst, wenn die Morgenmessung freigeschaltet ist; sonst
+    // blieben im Entwicklermodus gespeicherte Messungen wirksam. Weder
+    // Faktor noch Tatsache.
+    if (!cameraValuesAllowed) {
+      return const CameraFactorRelease(
+        released: false,
+        mark: MorningRmssdMark.notChecked,
+      );
+    }
     final marks = morningTrendMarks(
       developerMode: developerMode,
       posture: posture,
@@ -75,7 +91,8 @@ class CameraRelease {
   /// Herkunft sind nicht Sache der Sperre.
   bool isReleased(DeviationResult r) {
     final s = r.cameraSeries;
-    if (r.source != ReadinessSource.camera || s == null) return true;
+    if (r.source != ReadinessSource.camera) return true;
+    if (s == null) return false;
     return forFactor(r.factor, s.posture).released;
   }
 }

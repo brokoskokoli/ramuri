@@ -29,6 +29,7 @@ FactorEvaluation choose(
   healthConnect: hc,
   camera: cam,
   cameraReleased: released,
+  seriesReleased: (_) => true,
 );
 
 void main() {

@@ -38,7 +38,7 @@ FactorEvaluation chooseFactor({
   required DeviationResult? healthConnect,
   required Iterable<DeviationResult> camera,
   required bool cameraReleased,
-  bool Function(DeviationResult)? seriesReleased,
+  required bool Function(DeviationResult) seriesReleased,
 }) {
   final cams =
       [
@@ -58,7 +58,7 @@ FactorEvaluation chooseFactor({
     chosen = healthConnect;
   } else if (cameraReleased) {
     for (final c in cams) {
-      if (c.hasZ && (seriesReleased?.call(c) ?? true)) {
+      if (c.hasZ && seriesReleased(c)) {
         chosen = c;
         break;
       }

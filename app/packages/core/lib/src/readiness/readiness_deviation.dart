@@ -33,6 +33,7 @@ class DeviationRules {
     required this.logTransform,
     required this.invertSign,
     required this.madMin,
+    this.valueDecimals = 0,
   });
 
   /// PAR-161 / PAR-161K: HRV auf `ln(RMSSD)`, Gesundheitswerte (z. B. 0 ms)
@@ -45,6 +46,11 @@ class DeviationRules {
   /// MAD unter diesem Wert ergibt kein `z` (in der Einheit nach der
   /// Transformation).
   final double madMin;
+
+  /// Nachkommastellen der Werte für Tatsachentexte (FR-0114, keine
+  /// Scheinpräzision): ganze ms bzw. bpm, nur der Kamera-Ruhepuls eine Stelle
+  /// (PAR-162K).
+  final int valueDecimals;
 
   /// PAR-161: HRV aus Health Connect.
   static const DeviationRules hrv = DeviationRules(
@@ -68,6 +74,7 @@ class DeviationRules {
     logTransform: false,
     invertSign: true,
     madMin: readinessCameraRestingHrMadMinBpm,
+    valueDecimals: 1,
   );
 }
 
@@ -84,6 +91,10 @@ class DeviationResult {
     this.windowCount = 0,
     this.referenceCount = 0,
     this.fewMeasurements = false,
+    this.windowMean,
+    this.referenceMedian,
+    this.todayValue,
+    this.todayIsFallback = false,
   }) : assert((z == null) != (reason == null));
 
   final ReadinessFactor factor;
@@ -108,6 +119,23 @@ class DeviationResult {
   /// PAR-161K: Kamerareihe mit weniger als 5 gültigen Werten in 7 Tagen
   /// („wenige Messungen, weniger verlässlich“). Bei Health Connect immer false.
   final bool fewMeasurements;
+
+  /// Werte für die Tatsachentexte in der Einheit des Faktors (ms bzw. bpm),
+  /// gerundet nach [DeviationRules.valueDecimals] (FR-0114). Nur bei `z`
+  /// gesetzt. Bei der HRV zurückgerechnet aus `ln`: [windowMean] und
+  /// [referenceMedian] stehen auf derselben Skala wie `z`.
+  /// Mittel der letzten 7 Tage (`x`).
+  final double? windowMean;
+
+  /// Median der Referenz der 28 Tage vor heute.
+  final double? referenceMedian;
+
+  /// Der Wert von heute (Tageswert, nicht das Mittel).
+  final double? todayValue;
+
+  /// PAR-160: der Wert von heute ist der Ersatzwert aus den 60 min nach der
+  /// Hauptschlafphase; der Tag wird markiert.
+  final bool todayIsFallback;
 
   bool get hasZ => z != null;
 
@@ -154,6 +182,7 @@ DeviationResult deviationForSeries({
   required DeviationRules rules,
   String? origin,
   MorningSeriesKey? cameraSeries,
+  bool todayIsFallback = false,
 }) {
   DeviationResult fail(
     NoDeviationReason r, {
@@ -161,6 +190,7 @@ DeviationResult deviationForSeries({
     int refN = 0,
     bool few = false,
   }) => DeviationResult(
+    todayIsFallback: todayIsFallback,
     factor: factor,
     source: source,
     origin: origin,
@@ -222,7 +252,17 @@ DeviationResult deviationForSeries({
     );
   }
   if (rules.invertSign) z = 0 - z;
+  double shown(double v) {
+    final back = rules.logTransform ? math.exp(v) : v;
+    final f = math.pow(10, rules.valueDecimals).toDouble();
+    return (back * f).round() / f;
+  }
+
   return DeviationResult(
+    windowMean: shown(x),
+    referenceMedian: shown(_median(reference)),
+    todayValue: shown(t(byDay[today]!)),
+    todayIsFallback: todayIsFallback,
     factor: factor,
     source: source,
     origin: origin,

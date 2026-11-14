@@ -35,6 +35,8 @@ DeviationResult _healthConnect({
     source: ReadinessSource.healthConnect,
     rules: rules,
     origin: origin,
+    todayIsFallback:
+        origin != null && (perDay.last[origin]?.isFallback ?? false),
   );
 }
 
