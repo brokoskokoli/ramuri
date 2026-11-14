@@ -154,12 +154,22 @@ List<PlanUnit> _byDay(List<PlanUnit> l) {
 /// Tausch mit einer anderen erzeugten Einheit füllt den frei gewordenen Tag.
 /// Verletzt das den Abstand, bleibt der Termin und der Konflikt steht in
 /// [GeneratedPlan.pinnedConflicts].
+///
+/// [heldDays] sind die Tage der bisherigen künftigen Einheiten, die ein
+/// automatischer Auslöser hält (ADR-0010 Punkt 8), bis [heldUntil]
+/// (exklusiv): Dort entstehen nicht mehr Einheiten als gehaltene Tage. Eine
+/// erzeugte Einheit auf einem nicht gehaltenen Tag entfällt (zuerst die
+/// lockeren, dann die späteren) und ihre geplanten Minuten gelten als von
+/// einer eingefrorenen Einheit der Woche abgedeckt, etwa vom absolvierten Lauf
+/// auf einem verschobenen Tag; die Wochenzeit bleibt so erhalten.
 GeneratedPlan generatePlan(
   TrainingGoal goal,
   PlanInputs inputs,
   List<PlanUnit> frozenUnits,
   DateTime today, {
   List<PlanUnit> pinnedUnits = const [],
+  Set<DateTime>? heldDays,
+  DateTime? heldUntil,
   PlanParameters parameters = const PlanParameters(),
 }) {
   final p = parameters;
@@ -305,6 +315,36 @@ GeneratedPlan generatePlan(
     // Planung auf diesen Tagen.
     var deviation = 0;
     var frozenMinutes = 0;
+    if (heldDays != null &&
+        heldUntil != null &&
+        start.isBefore(heldUntil) &&
+        walkPlan == null) {
+      final free = heldDays
+          .where(
+            (d) =>
+                !d.isBefore(start) &&
+                d.isBefore(end) &&
+                !frozenDays.contains(d),
+          )
+          .length;
+      var surplus = future.length - free;
+      while (surplus > 0) {
+        var pick = -1;
+        for (var i = 0; i < future.length; i++) {
+          if (heldDays.contains(planDay(future[i].day))) continue;
+          if (pick < 0 ||
+              _role(future[i]) < _role(future[pick]) ||
+              (_role(future[i]) == _role(future[pick]) &&
+                  future[i].day.isAfter(future[pick].day))) {
+            pick = i;
+          }
+        }
+        if (pick < 0) break;
+        deviation -= future[pick].minutes;
+        future = [...future]..removeAt(pick);
+        surplus--;
+      }
+    }
     for (final u in frozenWeek) {
       deviation += u.minutes;
       frozenMinutes += u.minutes;
