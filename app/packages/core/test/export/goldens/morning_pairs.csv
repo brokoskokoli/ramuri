@@ -5,7 +5,7 @@ format_version,morning_id,row_type,key,seq,sub,time,value,unit
 1,7,meta,device_manufacturer,,,,Testhersteller,
 1,7,meta,device_model,,,,"Test, ""Modell""",
 1,7,meta,method,,,,camera-ppg,
-1,7,meta,method_version,,,,1,
+1,7,meta,method_version,,,,2,
 1,7,meta,quality,,,,good,
 1,7,meta,before_validation,,,,1,
 1,7,meta,outside_window,,,,0,

@@ -172,6 +172,7 @@ export 'src/ppg/morning_belt_recorder.dart';
 export 'src/ppg/ppg_analyzer.dart';
 export 'src/ppg/ppg_evaluator.dart';
 export 'src/ppg/ppg_parameters.dart';
+export 'src/ppg/ppg_window_search.dart';
 export 'src/ppg/validation_status.dart';
 export 'src/profile/heart_rate_resolution.dart';
 export 'src/profile/profile_parameters.dart';

@@ -10,9 +10,9 @@ void main() {
     q: s,
   };
 
-  test('heutiger Stand: alles nicht geprüft, Verfahren camera-ppg v1', () {
+  test('heutiger Stand: alles nicht geprüft, Verfahren camera-ppg v2', () {
     expect(ppgMethod, 'camera-ppg');
-    expect(ppgMethodVersion, 1);
+    expect(ppgMethodVersion, 2);
     expect(ppgValidationState.keys, ValidationQuantity.values);
     expect(
       ppgValidationState.values.every((s) => s == ValidationState.notChecked),

@@ -1,9 +1,11 @@
 import '../algorithm_category.dart';
 
 /// Kennung und Version des Kamera-PPG-Verfahrens (NFR-0001, NFR-0005).
-/// Version 1 = Port von `PpgAnalyzer.kt` im Stand `algo-v0.4-frozen`.
+/// Version 1 = Port von `PpgAnalyzer.kt` im Stand `algo-v0.4-frozen`, festes Fenster 5 bis 65 s.
+/// Version 2 (WP37, K66, K72) = zusätzlich wanderndes 60-s-Fenster in bis zu 120 s Aufnahme,
+/// Ende beim ersten guten Fenster (ALGORITHMUS.md Abschn. 2); Qualitätsgrenzen unverändert.
 const String ppgMethod = 'camera-ppg';
-const int ppgMethodVersion = 1;
+const int ppgMethodVersion = 2;
 
 /// Stand der Referenz, aus der das Verfahren portiert ist.
 const String ppgReference = 'algo-v0.4-frozen';
@@ -114,6 +116,21 @@ const PpgWindow ppgStandardWindow = PpgWindow(
   end: 65.0,
   dataEnd: 66.5,
 );
+
+/// Fenstersuche der Morgenmessung (WP37, PAR-160K Auslegung (K66), ALGORITHMUS.md Abschn. 2):
+/// Die Aufnahme dauert bis höchstens [ppgSearchMaxRecordSeconds] (einschließlich Filterrand);
+/// ausgewertet wird das beste zusammenhängende Fenster von [ppgSearchWindowSeconds], dessen
+/// Beginn frühestens bei `ppgStandardWindow.start` liegt und in Schritten von
+/// [ppgSearchStepSeconds] wandert. Die Qualitätsgrenzen bleiben die aus Abschn. 10.
+const double ppgSearchMaxRecordSeconds = 120.0;
+const double ppgSearchWindowSeconds = 60.0;
+const double ppgSearchStepSeconds = 1.0;
+
+/// Filterrand eines Kandidatenfensters: Bilder ab Fensterbeginn minus [ppgSearchFilterLeadSeconds]
+/// bis Fensterende plus [ppgSearchFilterTailSeconds] (wie `ppgStandardWindow`: 3 und 66,5 s bei 5 bis
+/// 65 s). Die Aufnahme endet frühestens, wenn der Filterrand des Fensters vorliegt.
+const double ppgSearchFilterLeadSeconds = 2.0;
+const double ppgSearchFilterTailSeconds = 1.5;
 
 /// Messfenster (Sekunden seit Aufnahmebeginn).
 class PpgWindow {

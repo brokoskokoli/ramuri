@@ -102,6 +102,10 @@ class PpgChannelResult {
     required this.meanFps,
     required this.frameJitterMs,
     required this.timingNoiseMs,
+    this.filtered = const [],
+    this.filteredStartSeconds = 0.0,
+    this.beatOffsetsMs = const [],
+    this.beatOk = const [],
   });
 
   final String channel;
@@ -122,6 +126,15 @@ class PpgChannelResult {
   final double timingNoiseMs;
 
   PpgMethodResult get main => methods[0];
+
+  /// Zwischenwerte für die Fenstersuche (`ppg_window_search.dart`), leer bei Ergebnissen ohne sie:
+  /// gefiltertes Signal im Messfenster (100 Hz), dessen Zeit des ersten Werts in s ab Fensterbeginn,
+  /// je Schlag des Hauptverfahrens der Abstand „Vorlagenbezug – steilster Anstieg“ (ms) und ob der
+  /// Schlag an einem gültigen Intervall hängt (Quelle des Zeitrauschens).
+  final List<double> filtered;
+  final double filteredStartSeconds;
+  final List<double> beatOffsetsMs;
+  final List<bool> beatOk;
 }
 
 /// Alle ausgewerteten Signalquellen; [best] ist die gewählte.
@@ -414,6 +427,13 @@ abstract final class PpgAnalyzer {
       meanFps: 1 / p.dtMean,
       frameJitterMs: p.dtSd * 1000,
       timingNoiseMs: noise,
+      filtered: x,
+      filteredStartSeconds: p.t.first,
+      beatOffsetsMs: [
+        for (var k = 0; k < peaks.length; k++)
+          (tmUp.times[k] - slopeT[k]) * 1000,
+      ],
+      beatOk: okBeat,
     );
   }
 

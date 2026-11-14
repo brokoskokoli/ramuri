@@ -73,7 +73,7 @@ void main() {
       expect(m.hasResult, isTrue);
       expect(m.channel, 'Rot');
       expect(m.method, 'camera-ppg');
-      expect(m.methodVersion, 1);
+      expect(m.methodVersion, 2);
       expect(m.category, AlgorithmCategory.heuristic);
     });
 
