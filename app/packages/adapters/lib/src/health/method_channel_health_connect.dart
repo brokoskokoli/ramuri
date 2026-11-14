@@ -61,9 +61,17 @@ class MethodChannelHealthConnect implements HealthConnectPort {
       throw const HealthReadException(HealthReadError.other);
     }
     final next = raw['nextToken'];
-    return HealthPage([
-      for (final r in records) _record(kind, r as Map<Object?, Object?>),
-    ], next is String && next.isNotEmpty ? next : null);
+    final List<HealthRecord> parsed;
+    try {
+      parsed = [
+        for (final r in records) _record(kind, r as Map<Object?, Object?>),
+      ];
+    } catch (_) {
+      // Fehlende ID, Quelle oder Zeit, falscher Typ: kein TypeError nach
+      // oben, und nie der Inhalt in die Meldung.
+      throw const HealthReadException(HealthReadError.other);
+    }
+    return HealthPage(parsed, next is String && next.isNotEmpty ? next : null);
   }
 
   Future<T> _call<T>(String method, [Map<String, Object?>? args]) async {

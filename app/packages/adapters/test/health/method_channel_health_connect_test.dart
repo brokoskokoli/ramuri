@@ -134,4 +134,38 @@ void main() {
     expect(await err('bad_arguments'), HealthReadError.badArguments);
     expect(await err('zzz'), HealthReadError.other);
   });
+
+  test(
+    'fehlerhafter Datensatz wird HealthReadException, kein TypeError',
+    () async {
+      final port = MethodChannelHealthConnect();
+      final bad = <Object?>[
+        {'origin': 'app.a', 'startMs': 1, 'endMs': 2}, // ohne id
+        {'id': 'x', 'startMs': 1, 'endMs': 2}, // ohne origin
+        {'id': 'x', 'origin': 'app.a', 'startMs': 'eins', 'endMs': 2},
+        {'id': 7, 'origin': 'app.a', 'startMs': 1, 'endMs': 2},
+        'kein Datensatz',
+      ];
+      for (final record in bad) {
+        answer = (_) => {
+          'records': [record],
+          'nextToken': null,
+        };
+        await expectLater(
+          port.readPage(
+            kind: HealthDataKind.sleep,
+            from: DateTime.utc(2026),
+            to: DateTime.utc(2027),
+          ),
+          throwsA(
+            isA<HealthReadException>().having(
+              (e) => e.error,
+              'error',
+              HealthReadError.other,
+            ),
+          ),
+        );
+      }
+    },
+  );
 }
