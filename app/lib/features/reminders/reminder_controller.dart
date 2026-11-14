@@ -15,7 +15,7 @@ typedef ReminderDebugAdd = Future<void> Function(
 
 /// Texte der Benachrichtigung in der App-Sprache: Titel und „Art um Uhrzeit“,
 /// keine Gesundheitswerte (SEC-0001).
-class AppReminderTexts implements ReminderTexts {
+class AppReminderTexts implements ReminderTexts, MorningReminderTexts {
   AppReminderTexts(this.l10n, this.material, {this.use24h = false});
 
   final AppLocalizations l10n;
@@ -30,6 +30,13 @@ class AppReminderTexts implements ReminderTexts {
 
   @override
   String get title => l10n.reminderTitle;
+
+  @override
+  MorningReminderLabels get morningLabels => MorningReminderLabels(
+    channelName: l10n.morningReminderChannel,
+    title: l10n.morningReminderTitle,
+    body: l10n.morningReminderBody,
+  );
 
   @override
   String body(PlanUnitKind kind, int minuteOfDay) => l10n.reminderBody(
@@ -51,7 +58,15 @@ class ReminderController extends ChangeNotifier with WidgetsBindingObserver {
     required this.scheduler,
     required this.clock,
     this.debugAdd,
+    this.validationState = ppgValidationState,
   });
+
+  /// Validierungsstand für die Erreichbarkeit der Morgenmessung (Tests).
+  final Map<ValidationQuantity, ValidationState> validationState;
+
+  /// Gesetzt von der Wurzel: öffnet die Morgenmessung, wenn das Tippen auf die
+  /// Morgen-Erinnerung die App gestartet oder geholt hat.
+  VoidCallback? onOpenMorning;
 
   final ReminderScheduler scheduler;
   final Clock clock;
@@ -60,6 +75,7 @@ class ReminderController extends ChangeNotifier with WidgetsBindingObserver {
   StorageSession? _session;
   AppReminderTexts? _texts;
   ReminderSettings _settings = const ReminderSettings();
+  MorningReminderSettings _morning = const MorningReminderSettings();
   bool _loaded = false;
   bool _denied = false;
   bool _observing = false;
@@ -77,6 +93,12 @@ class ReminderController extends ChangeNotifier with WidgetsBindingObserver {
   bool get denied => _denied;
 
   bool get loaded => _loaded;
+
+  /// Gespeicherte Einstellungen der Morgen-Erinnerung.
+  MorningReminderSettings get morning => _morning;
+
+  /// Morgen-Erinnerung eingeschaltet und erlaubt.
+  bool get morningActive => _morning.enabled && !_denied;
 
   /// Bindet die Sitzung an, liest die Einstellungen und plant neu.
   void attach(StorageSession session) {
@@ -112,7 +134,13 @@ class ReminderController extends ChangeNotifier with WidgetsBindingObserver {
     } on Object {
       // Kein Kanal: nichts geplant.
     }
+    try {
+      await scheduler.cancelMorning();
+    } on Object {
+      // Kein Kanal: nichts geplant.
+    }
     _settings = const ReminderSettings();
+    _morning = const MorningReminderSettings();
     _denied = false;
     _notify();
   });
@@ -143,6 +171,38 @@ class ReminderController extends ChangeNotifier with WidgetsBindingObserver {
     await _save(_settings.copyWith(enabled: on));
     await _sync();
     return on;
+  });
+
+  /// Plant die Morgen-Erinnerung neu oder streicht sie (nach Öffnen der App,
+  /// Änderung, Ausschalten des Entwicklermodus).
+  Future<void> syncMorning() => _serial(_syncMorning);
+
+  /// Morgen-Erinnerung ein/aus; Einschalten fragt die Berechtigung.
+  Future<bool> setMorningEnabled(bool on) => _serial(() async {
+    if (on) {
+      var granted = false;
+      try {
+        granted = await scheduler.requestPermission();
+        if (granted) granted = await scheduler.permitted();
+      } on Object {
+        granted = false;
+      }
+      if (!granted) {
+        _denied = true;
+        await _saveMorning(_morning.copyWith(enabled: false));
+        await _syncMorning();
+        return false;
+      }
+    }
+    _denied = false;
+    await _saveMorning(_morning.copyWith(enabled: on));
+    await _syncMorning();
+    return on;
+  });
+
+  Future<void> setMorningTime(int minuteOfDay) => _serial(() async {
+    await _saveMorning(_morning.copyWith(minuteOfDay: minuteOfDay));
+    await _syncMorning();
   });
 
   Future<void> setTime(int minuteOfDay) => _serial(() async {
@@ -196,11 +256,14 @@ class ReminderController extends ChangeNotifier with WidgetsBindingObserver {
     if (session == null) return;
     try {
       _settings = await ReminderSettings.load(session.settings);
+      _morning = await MorningReminderSettings.load(session.settings);
       // Eingeschaltet: entzogen heißt abgelehnt. Ausgeschaltet bleibt eine
       // Ablehnung stehen (auch über die Rückkehr aus dem Systemdialog), bis
       // die Berechtigung im System erteilt ist.
       final permitted = await scheduler.permitted();
       if (_settings.enabled) {
+        _denied = !permitted;
+      } else if (_morning.enabled) {
         _denied = !permitted;
       } else if (permitted) {
         _denied = false;
@@ -211,6 +274,39 @@ class ReminderController extends ChangeNotifier with WidgetsBindingObserver {
     _loaded = true;
     _notify();
     await _sync();
+    // Tippen auf die Morgen-Erinnerung: Morgenmessung öffnen.
+    try {
+      if (await scheduler.takeLaunchTarget() == 'morning') {
+        onOpenMorning?.call();
+      }
+    } on Object {
+      // Kein Kanal: kein Anliegen.
+    }
+  }
+
+  Future<void> _saveMorning(MorningReminderSettings next) async {
+    final session = _session;
+    if (session == null) return;
+    await next.save(session.settings, at: clock.now());
+    _morning = next;
+    _notify();
+  }
+
+  Future<void> _syncMorning() async {
+    final session = _session;
+    final texts = _texts;
+    if (session == null || texts == null) return;
+    try {
+      await syncMorningReminder(
+        settings: session.settings,
+        clock: clock,
+        scheduler: scheduler,
+        texts: texts,
+        validationState: validationState,
+      );
+    } on Object {
+      // Siehe Klassenkommentar.
+    }
   }
 
   Future<void> _save(ReminderSettings next) async {
@@ -237,6 +333,7 @@ class ReminderController extends ChangeNotifier with WidgetsBindingObserver {
     } on Object {
       // Siehe Klassenkommentar.
     }
+    await _syncMorning();
   }
 
   void _notify() {

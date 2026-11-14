@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -37,6 +38,18 @@ class MainActivity : FlutterActivity() {
     /** FR-0201: Teilen und Speichern starten Systemdialoge, daher an der Activity. */
     private var fileHandoff: FileHandoffChannel? = null
 
+    /** Tippen auf die Morgen-Erinnerung (WP33 Teil D): Dart holt das Anliegen beim Öffnen ab. */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Nach Prozessende baut Android die Activity mit dem alten Intent neu
+        // auf (savedInstanceState != null): das Ziel nicht erneut öffnen.
+        if (savedInstanceState == null) MorningReminder.onActivityIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        MorningReminder.onActivityIntent(intent)
+    }
     /** ADR-0007: Health Connect (nur Lesen); der Berechtigungsdialog kommt über diese Activity zurück. */
     private var health: HealthConnectChannel? = null
 
@@ -86,6 +99,10 @@ class MainActivity : FlutterActivity() {
                     )
                     // Nur gelesen: was das Manifest anfordert (PackageManager), nicht ob es erteilt ist.
                     "requested" -> result.success(requestedKeys())
+                    // FR-0217: Version für die Seite "Über" (versionName und versionCode aus dem Build; kein Netz, keine Kennung).
+                    "appVersion" -> result.success(runCatching { appVersion() }.getOrNull())
+                    // FR-0215: Hersteller und Modell der Morgenmessung (Build.MANUFACTURER/MODEL, keine Seriennummer).
+                    "deviceInfo" -> result.success(mapOf("manufacturer" to Build.MANUFACTURER, "model" to Build.MODEL))
                     // FR-0195: genauer Standort vor dem Lauf (OQ-0064).
                     "locationAccess" -> result.success(locationAccess())
                     "requestLocation" -> requestLocation(result)
@@ -207,6 +224,20 @@ class MainActivity : FlutterActivity() {
             pendingNotifications?.success(if (notificationsGranted()) "granted" else "denied")
             pendingNotifications = null
         }
+    }
+
+    /** `versionName (versionCode)` aus dem installierten Paket. */
+    private fun appVersion(): String? {
+        val info = if (Build.VERSION.SDK_INT >= 33) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0L))
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, 0)
+        }
+        val name = info.versionName ?: return null
+        @Suppress("DEPRECATION")
+        val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+        return "$name ($code)"
     }
 
     /** Schlüssel der Berechtigungen, die das Manifest der App anfordert (Dart: MethodChannelPermissionStatus.keys). */

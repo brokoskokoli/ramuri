@@ -369,6 +369,22 @@ void main() {
           s.profile.save(const ProfileRecord(birthYear: 1990)),
       'Einstellung': (s) =>
           s.settings.set('unit.pace', 'x', at: DateTime.utc(2026)),
+      'Morgenmessung': (s) async => (s as MorningStorage).morning.add(
+        MorningMeasurement(
+          measuredAt: DateTime.utc(2026, 11, 1, 6),
+          utcOffset: Duration.zero,
+          posture: RestingPosture.lying,
+          deviceManufacturer: 'Hersteller',
+          deviceModel: 'Modell',
+          method: ppgMethod,
+          methodVersion: ppgMethodVersion,
+          quality: PpgQuality.good,
+          restingHrBpm: 52.3,
+          cameraIntervalsMs: const [1100.5],
+          beforeValidation: false,
+          outsideWindow: false,
+        ),
+      ),
       'Gerät': (s) => s.devices.upsert(
         'AA:BB',
         displayName: 'Gurt',
@@ -562,6 +578,27 @@ void main() {
     expect(await ArchiveRestoreService.isEmpty(session), isTrue);
   });
 
+  test('Morgenmessung zählt als Daten: App ist nicht leer', () async {
+    expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+    await (session as MorningStorage).morning.add(
+      MorningMeasurement(
+        measuredAt: DateTime.utc(2026, 11, 1, 6),
+        utcOffset: Duration.zero,
+        posture: RestingPosture.lying,
+        deviceManufacturer: 'Hersteller',
+        deviceModel: 'Modell',
+        method: ppgMethod,
+        methodVersion: ppgMethodVersion,
+        quality: PpgQuality.good,
+        restingHrBpm: 52.3,
+        cameraIntervalsMs: const [1100.5],
+        beforeValidation: false,
+        outsideWindow: false,
+      ),
+    );
+    expect(await ArchiveRestoreService.isEmpty(session), isFalse);
+  });
+
   test('Ziel zählt als Daten: App ist nicht leer', () async {
     expect(await ArchiveRestoreService.isEmpty(session), isTrue);
     await (session as GoalStorage).goals.save(
@@ -647,7 +684,7 @@ void main() {
     expect(easy.pinned, isTrue);
   });
 
-  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 10; 11 ist
+  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 11; 12 ist
   // das aktuelle). Format 1
   // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
   // kennt, sind danach leer.
@@ -822,6 +859,48 @@ void main() {
       expect([
         for (final r in got['manual_trainings']!) r['hc_id'],
       ], schema >= 12 ? [null, 'hc-ex-1'] : [null, null]);
+      // Morgenmessungen (WP33): Abschnitte 32 und 33 ab Schema 13, Werte exakt,
+      // BLOB als Bytes; ältere Archive lassen die Tabellen leer.
+      final morning = await (session as MorningStorage).morning.list();
+      expect(got['morning_measurements'], hasLength(schema >= 13 ? 2 : 0));
+      expect(got['morning_rr_packets'], hasLength(schema >= 13 ? 2 : 0));
+      if (schema >= 13) {
+        final a = morning[0].value;
+        final b = morning[1].value;
+        expect(a.posture, RestingPosture.lying);
+        expect(a.quality, PpgQuality.good);
+        expect(a.restingHrBpm, 52.3);
+        expect(a.rmssdMs, 41.5);
+        expect(a.timingNoiseMs, 12.25);
+        expect(a.sleepBand, SleepBand.from6to7);
+        expect(a.beforeValidation, isTrue);
+        expect(a.outsideWindow, isFalse);
+        expect(a.utcOffset, const Duration(hours: 1));
+        expect(a.cameraIntervalsMs, [1100.5, 1180.25, 1150.0]);
+        expect(b.posture, RestingPosture.sitting);
+        expect(b.quality, PpgQuality.limited);
+        expect(b.rmssdMs, isNull);
+        expect(b.timingNoiseMs, isNull);
+        expect(b.sleepBand, isNull);
+        expect(b.beforeValidation, isFalse);
+        expect(b.outsideWindow, isTrue);
+        expect(b.utcOffset, const Duration(hours: -3, minutes: -30));
+        expect(b.cameraIntervalsMs, isEmpty);
+        final rr = await (session as MorningStorage).morning.beltPackets(
+          morning[0].id,
+        );
+        expect(rr.map((p) => p.value.intervals), [
+          [1024, 0, 65535, 512],
+          [1000],
+        ]);
+        expect(rr.map((p) => p.value.source), ['ble', 'ble2']);
+        expect(
+          await (session as MorningStorage).morning.beltPackets(morning[1].id),
+          isEmpty,
+        );
+      } else {
+        expect(morning, isEmpty);
+      }
     });
   }
 

@@ -4,6 +4,7 @@ import '../../ports/database_files.dart';
 import '../../ports/storage.dart';
 import '../../ports/health_import.dart';
 import '../../ports/storage_goals.dart';
+import '../../ports/storage_morning.dart';
 import '../../ports/storage_health.dart';
 import '../../ports/storage_prediction.dart';
 import '../../ports/storage_warning.dart';
@@ -99,6 +100,11 @@ class ArchiveRestoreService {
       for (final k in HealthDataKind.values) {
         if (await h.count(k) > 0) return false;
       }
+    }
+    // Morgenmessungen (WP33) sind eigene Daten, auch ohne Läufe.
+    if (s is MorningStorage &&
+        (await (s as MorningStorage).morning.list()).isNotEmpty) {
+      return false;
     }
     final settings = await s.settings.all();
     return settings.keys.every(archiveExcludedSettingKeys.contains);

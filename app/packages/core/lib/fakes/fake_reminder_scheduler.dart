@@ -53,4 +53,36 @@ class FakeReminderScheduler implements ReminderScheduler {
     cancelCount++;
     scheduled = const [];
   }
+
+  /// Morgen-Erinnerung: nächster Zeitpunkt, `null` = nicht geplant.
+  DateTime? morningAt;
+  MorningReminderLabels? morningLabels;
+  int morningCancelCount = 0;
+  int morningScheduleCount = 0;
+
+  /// Was das Tippen auf die Benachrichtigung verlangt hat.
+  String? launchTarget;
+
+  @override
+  Future<void> scheduleMorning(
+    DateTime at, {
+    required MorningReminderLabels labels,
+  }) async {
+    morningScheduleCount++;
+    morningAt = at;
+    morningLabels = labels;
+  }
+
+  @override
+  Future<void> cancelMorning() async {
+    morningCancelCount++;
+    morningAt = null;
+  }
+
+  @override
+  Future<String?> takeLaunchTarget() async {
+    final t = launchTarget;
+    launchTarget = null;
+    return t;
+  }
 }

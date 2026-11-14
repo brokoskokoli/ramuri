@@ -44,6 +44,24 @@ class MethodChannelReminderScheduler implements ReminderScheduler {
   @override
   Future<void> cancelAll() => _channel.invokeMethod<void>('cancelAll');
 
+  @override
+  Future<void> scheduleMorning(
+    DateTime at, {
+    required MorningReminderLabels labels,
+  }) => _channel.invokeMethod<void>('scheduleMorning', {
+    'at': at.millisecondsSinceEpoch,
+    'channelName': labels.channelName,
+    'title': labels.title,
+    'body': labels.body,
+  });
+
+  @override
+  Future<void> cancelMorning() => _channel.invokeMethod<void>('cancelMorning');
+
+  @override
+  Future<String?> takeLaunchTarget() =>
+      _channel.invokeMethod<String>('takeLaunchTarget');
+
   /// Nur für den Debug-Einstieg (`main_debug.dart`, E2E-Test): plant
   /// [reminder] zusätzlich zu den geplanten über denselben Weg (Wecker,
   /// Empfänger, Benachrichtigung). Kotlin nimmt den Aufruf nur in einer

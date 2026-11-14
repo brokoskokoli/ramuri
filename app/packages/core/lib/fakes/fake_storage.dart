@@ -13,11 +13,13 @@ import '../ports/storage_runs.dart';
 import '../ports/storage_settings.dart';
 import '../ports/storage_subjective.dart';
 import '../ports/storage_values.dart';
+import '../ports/storage_morning.dart';
 import '../ports/storage_health.dart';
 import '../ports/storage_warning.dart';
 import 'fake_storage_data.dart';
 import 'fake_storage_derived.dart';
 import 'fake_storage_goals.dart';
+import 'fake_storage_morning.dart';
 import 'fake_storage_plan.dart';
 import 'fake_storage_prediction.dart';
 import 'fake_storage_runs.dart';
@@ -81,7 +83,8 @@ class _FakeSession
         GoalStorage,
         PlanStorage,
         WarningStorage,
-        HealthStorage {
+        HealthStorage,
+        MorningStorage {
   _FakeSession(this._owner, this._data)
     : runs = FakeRunStore(_data),
       markers = FakeRunMarkerStore(_data),
@@ -99,6 +102,7 @@ class _FakeSession
       goals = FakeGoalStore(_data),
       plans = FakePlanRepository(_data),
       warning = FakeWarningStore(_data),
+      morning = FakeMorningStore(_data),
       health = _data.health;
 
   final FakeStorage _owner;
@@ -138,6 +142,8 @@ class _FakeSession
   final PlanRepository plans;
   @override
   final WarningStore warning;
+  @override
+  final MorningStore morning;
   @override
   final HealthImportStore health;
 

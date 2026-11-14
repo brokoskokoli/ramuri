@@ -1,5 +1,5 @@
 /// Abschnitte und Spalten des Archivs (`docs/contracts/archive.md` 4.3,
-/// Schema 12, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
+/// Schema 13, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
 /// Adapter-Test mit der Datenbank.
 library;
 
@@ -313,6 +313,22 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     'id I, exercise_id I, time_us I, bpm I',
     sinceSchema: 12,
   ),
+  // WP33, Nummern 32 und 33, ab Schema 13: Kamera-Morgenmessungen (`camera_ibi`
+  // ist BLOB, float32 LE in ms; `before_validation`, `outside_window` sind 0/1)
+  // und Gurt-RR je Morgenmessung (`rr` wie in `raw_rr_packets`).
+  ArchiveSectionSpec(
+    'morning_measurements',
+    'id I, measured_at_us I, utc_offset_s I, posture T, device_manufacturer T, '
+        'device_model T, method T, method_version I, quality T, '
+        'resting_hr_bpm R, rmssd_ms R?, timing_noise_ms R?, sleep_band T?, '
+        'before_validation B, outside_window B, camera_ibi X',
+    sinceSchema: 13,
+  ),
+  ArchiveSectionSpec(
+    'morning_rr_packets',
+    'id I, measurement_id I, time_us I, source T, rr X',
+    sinceSchema: 13,
+  ),
 ]);
 
 /// Formatversionen, die der Leser kennt.
@@ -322,18 +338,18 @@ const List<int> archiveFormats = [1, 2];
 const int archiveWriteFormat = 2;
 
 /// Neuestes Datenbankschema, das Leser und Schreiber kennen.
-const int archiveSchemaVersion = 12;
+const int archiveSchemaVersion = 13;
 
 /// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
 /// Fehlende Abschnitte eines älteren Schemas gelten als leer.
 const int archiveMinSchemaVersion = 4;
 
 /// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
-/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 12).
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 13).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
 /// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7 und 8:
-/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
+/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`, ab 13: 33 mit `morning_measurements` und `morning_rr_packets`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
 /// nur ab 7, seine Spalte `fixed` ab 8).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche

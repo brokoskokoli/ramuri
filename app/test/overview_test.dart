@@ -34,6 +34,7 @@ void main() {
       'overview_zones': key('zone_bound_0'),
       'overview_permissions': find.widgetWithText(AppBar, 'Berechtigungen'),
       'overview_data': find.widgetWithText(AppBar, 'Daten'),
+      'overview_about': key('about_version'),
     };
     for (final e in targets.entries) {
       await openOverview(tester);
@@ -42,7 +43,7 @@ void main() {
       expect(e.value, findsOneWidget, reason: e.key);
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
-      expect(key('overview_licenses'), findsOneWidget, reason: e.key);
+      expect(key('overview_about'), findsOneWidget, reason: e.key);
     }
     // Die Einstellungen führen nicht mehr doppelt dorthin.
     await tester.tap(key('home_settings'));
@@ -57,18 +58,21 @@ void main() {
     }
   });
 
-  testWidgets('Lizenzen: Eintrag öffnet die Seite mit Sora und Manrope', (
-    tester,
-  ) async {
-    await started(tester);
-    registerFontLicenses();
-    await openOverview(tester);
-    await tester.tap(key('overview_licenses'));
-    await tester.pumpAndSettle();
-    expect(find.byType(LicensePage), findsOneWidget);
-    expect(find.text('Sora'), findsOneWidget);
-    expect(find.text('Manrope'), findsOneWidget);
-  });
+  testWidgets(
+    'Lizenzen: Über → Lizenzen öffnet die Seite mit Sora und Manrope',
+    (tester) async {
+      await started(tester);
+      registerFontLicenses();
+      await openOverview(tester);
+      await tester.tap(key('overview_about'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('about_licenses'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LicensePage), findsOneWidget);
+      expect(find.text('Sora'), findsOneWidget);
+      expect(find.text('Manrope'), findsOneWidget);
+    },
+  );
 
   testWidgets('Sperre: Sensoren, Zonen, Berechtigungen, Daten während der '
       'Neuberechnung aus; Profil und Einstellungen offen', (tester) async {
@@ -113,7 +117,7 @@ void main() {
     }
     expect(onTap('home_profile'), isNotNull);
     expect(onTap('home_settings'), isNotNull);
-    expect(onTap('overview_licenses'), isNotNull);
+    expect(onTap('overview_about'), isNotNull);
     controller.running = false;
     controller.notifyListeners();
     await tester.pump();

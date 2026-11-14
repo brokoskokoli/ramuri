@@ -5,10 +5,13 @@ import 'ramuri_theme.dart';
 
 /// Ein Abschnitt eines [RamuriSegmentedToggle].
 class RamuriSegment<T> {
-  const RamuriSegment({required this.value, required this.label});
+  const RamuriSegment({required this.value, required this.label, this.key});
 
   final T value;
   final String label;
+
+  /// Schlüssel des Abschnitts (Tests finden ihn unabhängig von der Sprache).
+  final Key? key;
 }
 
 /// Aussehen eines [RamuriSegmentedToggle].
@@ -51,6 +54,7 @@ class RamuriSegmentedToggle<T> extends StatelessWidget {
     RamuriColors c,
     TextStyle labelStyle,
   ) => _SegmentButton(
+    key: s.key,
     expanded: expanded,
     label: s.label,
     selected: s.value == selected,
@@ -94,6 +98,7 @@ class RamuriSegmentedToggle<T> extends StatelessWidget {
 
 class _SegmentButton extends StatelessWidget {
   const _SegmentButton({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,

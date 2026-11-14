@@ -119,6 +119,7 @@ class AppDependencies {
     HeartRateSensor? heartRateSensor,
     PpgCamera? ppgCamera,
     HealthConnectPort? healthConnect,
+    Clock clock = const SystemClock(),
     bool debugReminders = false,
   }) {
     final sensor =
@@ -152,6 +153,7 @@ class AppDependencies {
           : null,
     );
     return AppDependencies(
+      clock: clock,
       heartRateSensor: sensor,
       ppgCamera: ppgCamera ?? MethodChannelPpgCamera(),
       healthConnect: healthConnect ?? MethodChannelHealthConnect(),
@@ -420,4 +422,16 @@ class _NoReminders implements ReminderScheduler {
 
   @override
   Future<void> cancelAll() async {}
+
+  @override
+  Future<void> scheduleMorning(
+    DateTime at, {
+    required MorningReminderLabels labels,
+  }) async {}
+
+  @override
+  Future<void> cancelMorning() async {}
+
+  @override
+  Future<String?> takeLaunchTarget() async => null;
 }

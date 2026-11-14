@@ -22,6 +22,7 @@ const Set<String> archiveExcludedSettingKeys = {
   SettingKeys.loadFactorDeclined,
   SettingKeys.planStartedUnit,
   SettingKeys.guidedUnitSnapshot,
+  SettingKeys.developerMode,
   HealthImportService.lastImportKey,
 };
 

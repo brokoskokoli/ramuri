@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'e2e_archive_test.dart' as archive;
+import 'e2e_morning_test.dart' as morning;
 import 'e2e_health_test.dart' as health;
 import 'e2e_plan_test.dart' as plan;
 import 'e2e_recalc_test.dart' as recalc;
@@ -28,6 +29,9 @@ void main() {
   group('Archiv', archive.main);
   group('Laufband', treadmill.main);
   group('Ruhepuls Kamera', resting.main);
+  // Morgenmessung zuletzt: sie schaltet den Entwicklermodus ein und wieder aus
+  // und setzt voraus, dass noch keine Morgenmessung gespeichert ist.
+  group('Morgenmessung', morning.main);
   // Health-Connect-Import mit der Debug-Quelle; Szenario 5 (echter Dialog) nur lokal mit --dart-define=HC_REAL=true.
   group('Health Connect', health.main);
 }

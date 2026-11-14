@@ -580,15 +580,20 @@ void main() {
       final receiver = File('$kt/TrainingReminderReceiver.kt')
           .readAsStringSync()
           .replaceAll(RegExp(r'/\*[\s\S]*?\*/|//.*'), '');
-      // Der Empfänger ruft nur TrainingReminders.fire auf.
+      // Der Empfänger ruft nur TrainingReminders.fire (Neustart, Wecker) und
+      // MorningReminder.fire (nur dessen Wecker, WP33 Teil D) auf.
       expect(
         RegExp(r'\b[A-Za-z_]+\.[a-z][A-Za-z_]*\(')
             .allMatches(receiver)
             .map((m) => m[0])
             .toSet(),
-        {'TrainingReminders.fire('},
+        {'TrainingReminders.fire(', 'MorningReminder.fire('},
       );
-      for (final f in ['TrainingReminderReceiver.kt', 'TrainingReminders.kt']) {
+      for (final f in [
+        'TrainingReminderReceiver.kt',
+        'TrainingReminders.kt',
+        'MorningReminder.kt',
+      ]) {
         final src = File('$kt/$f').readAsStringSync();
         for (final banned in [
           'RecordingService',

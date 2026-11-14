@@ -153,8 +153,8 @@ Future<PpgMeasurement> _evaluateInIsolate(
 class RestingMeasureController extends ChangeNotifier {
   RestingMeasureController({
     required this.camera,
-    required this.profile,
-    required this.settings,
+    this.profile,
+    this.settings,
     required this.clock,
     this.signal,
     PpgEvaluate? evaluate,
@@ -165,8 +165,10 @@ class RestingMeasureController extends ChangeNotifier {
 
   /// Speichert den übernommenen Ruhepuls; für die Neuberechnung der Zonen die
   /// Fassung mit Benachrichtigung der Neuberechnung übergeben (wie das Profil).
-  final ProfileService profile;
-  final SettingsStore settings;
+  /// Ohne [profile] und [settings] (Morgenmessung, FR-0215) gibt es keine
+  /// Übernahme ins Profil und keinen früheren Wert im Ergebnis.
+  final ProfileService? profile;
+  final SettingsStore? settings;
   final Clock clock;
   final RestingMeasureSignal? signal;
   final PpgEvaluate _evaluate;
@@ -286,6 +288,8 @@ class RestingMeasureController extends ChangeNotifier {
   };
 
   bool get canAdopt =>
+      profile != null &&
+      settings != null &&
       _phase == RestingMeasurePhase.result &&
       (_result?.hasValue ?? false) &&
       !_adopting;
@@ -598,8 +602,12 @@ class RestingMeasureController extends ChangeNotifier {
       restElapsed: _restElapsed,
     );
     try {
-      _previousRestingBpm = (await profile.load()).restingHeartRateBpm;
-      _previousOrigin = await RestingHrOrigin.read(settings);
+      final p = profile;
+      final st = settings;
+      _previousRestingBpm = p == null
+          ? null
+          : (await p.load()).restingHeartRateBpm;
+      _previousOrigin = st == null ? null : await RestingHrOrigin.read(st);
     } catch (_) {
       _previousRestingBpm = null;
       _previousOrigin = null;
@@ -652,8 +660,12 @@ class RestingMeasureController extends ChangeNotifier {
   }
 
   /// „Noch einmal“ (siehe [canRetry]): neue Messung, keine neue Ruhephase.
-  Future<void> retry() async {
-    if (!canRetry) return;
+  /// [force]: auch bei einem Ergebnis mit Wert, das der Aufrufer nicht
+  /// annimmt (Morgenmessung: Puls außerhalb des gültigen Bereichs).
+  Future<void> retry({bool force = false}) async {
+    if (!canRetry && !(force && _phase == RestingMeasurePhase.result)) {
+      return;
+    }
     await _begin(restElapsed: _restElapsed);
   }
 
@@ -687,6 +699,8 @@ class RestingMeasureController extends ChangeNotifier {
   Future<bool> adopt() async {
     if (!canAdopt) return false;
     final r = _result!;
+    final profile = this.profile!;
+    final settings = this.settings!;
     _adopting = true;
     _adoptRejection = null;
     _adoptFailed = false;

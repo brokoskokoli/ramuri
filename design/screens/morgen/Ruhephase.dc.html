@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Ruhephase</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; padding: 28px 20px 24px; display: flex; flex-direction: column; gap: 20px">
+  <header style="display: flex; align-items: center; gap: 8px">
+    <h1 style="margin: 0; flex: 1; font-family: Sora, sans-serif; letter-spacing: -0.03em; font-size: 22px; font-weight: 700">Ruhephase</h1>
+    <span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Schritt 1 von 2</span>
+  </header>
+
+  <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px">
+    <svg width="240" height="240" viewBox="0 0 240 240" role="img" aria-label="Noch 1 Minute 24 Sekunden Ruhe">
+      <circle cx="120" cy="120" r="104" fill="none" stroke="{{t.chip}}" stroke-width="14"></circle>
+      <circle cx="120" cy="120" r="104" fill="none" stroke="{{t.mint}}" stroke-width="14" stroke-linecap="round" stroke-dasharray="653" stroke-dashoffset="196" transform="rotate(-90 120 120)"></circle>
+      <text x="120" y="128" text-anchor="middle" font-family="Sora, sans-serif" font-size="52" font-weight="700" fill="{{t.text}}">1:24</text>
+      <text x="120" y="160" text-anchor="middle" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="{{t.muted}}">von 2:00</text>
+    </svg>
+    <div style="display: flex; flex-direction: column; gap: 8px; text-align: center; max-width: 300px">
+      <span style="font-size: 18px; font-weight: 800">{{poseText}}</span>
+      <span style="font-size: 15px; line-height: 1.5; color: {{t.muted}}">Atme ganz normal. Danach startet die Messung von selbst, ein kurzer Ton sagt Bescheid.</span>
+    </div>
+  </div>
+
+  <sc-if value="{{gurt}}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 16px; border: 1px solid {{t.border}}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.link}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M3 12h4l2-5 4 10 2-5h6"></path></svg>
+      <span style="font-size: 13px; line-height: 1.4; color: {{t.muted}}">Pulsgurt zeichnet mit.</span>
+    </div>
+  </sc-if>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <a href="{{nextHref}}" style="height: 52px; border-radius: 26px; border: 1px solid {{t.border}}; background: {{t.card}}; color: {{t.text}}; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; text-decoration: none">Weiter (Vorschau)</a>
+    <a href="{{backHref}}" style="height: 48px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; color: {{t.link}}; text-decoration: none">Abbrechen</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"gurt":{"editor":"boolean","default":true},"sitzend":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', muted: '#A3B8B4', border: '#2A4140', link: '#7FD6C6', mint: '#7FD6C6', chip: '#1F3333' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', muted: '#4F6361', border: '#DAE4E1', link: '#0F5E5A', mint: '#7FD6C6', chip: '#E2EAE8' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const sfx = dark ? '-dunkel' : '';
+    return {
+      t: this.theme(dark),
+      gurt: this.props.gurt ?? true,
+      poseText: (this.props.sitzend ?? false) ? 'Bleib ruhig sitzen' : 'Bleib ruhig liegen',
+      nextHref: 'Messung' + sfx + '.dc.html',
+      backHref: 'Main' + sfx + '.dc.html'
+    };
+  }
+}
+</script>
+</body>
+</html>

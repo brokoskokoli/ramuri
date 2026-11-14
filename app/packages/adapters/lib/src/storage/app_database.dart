@@ -26,11 +26,13 @@ class AppDatabase extends _$AppDatabase {
   /// RR-Intervalle je BLE-Paket (`raw_rr_packets`, WP26). Version 10: Laufart
   /// (`runs.mode`) und Laufbandeinstellungen (`treadmill_settings`, WP25).
   /// Version 11: aktives Warnsignal (`active_warning`, WP23). Version 12:
-  /// Health-Connect-Import (`health_*`, `manual_trainings.hc_id`, WP32). Jede spätere Änderung erhöht die
+  /// Health-Connect-Import (`health_*`, `manual_trainings.hc_id`, WP32). Version 13:
+  /// Morgenmessungen und ihre Gurt-RR (`morning_measurements`,
+  /// `morning_rr_packets`, WP33). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -166,6 +168,14 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(manualTrainings, manualTrainings.hcId);
       }
       await m.create(manualTrainingsHcId);
+    },
+    // 12 -> 13 (WP33): Morgenmessungen samt Gurt-RR, leer (nie eine Messung
+    // erfunden).
+    12: (Migrator m) async {
+      await m.create(morningMeasurements);
+      await m.create(morningMeasurementsTime);
+      await m.create(morningRrPackets);
+      await m.create(morningRrPacketsMeasurement);
     },
   };
 
