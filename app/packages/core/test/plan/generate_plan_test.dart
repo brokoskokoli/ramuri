@@ -1659,6 +1659,35 @@ void main() {
       expect(p.pinnedConflicts, isEmpty);
     });
 
+    test('N2: der Abzug lässt die einzige Einheit der Rolle eines künftigen '
+        'Pins stehen (lockerer Lauf gelaufen, Pin Do nach Fr)', () {
+      // Der gelaufene Lauf ist locker; die einzige lockere Einheit (Do) wäre
+      // die gleicher Rolle, braucht aber der Pin: Er nimmt nie die harte.
+      final frozen = [moved()];
+      final pin = PlanUnit(
+        day: nov(20),
+        kind: base[1].kind,
+        phase: base[1].phase,
+        weekIndex: base[1].weekIndex,
+        minutes: base[1].minutes,
+        segments: base[1].segments,
+        pinned: true,
+      );
+      final p = generatePlan(
+        g,
+        inputs(start: 150, today: mon),
+        frozen,
+        mon,
+        pinnedUnits: [pin],
+      );
+      final w = [...frozen, ...p.units.where(inWeek)];
+      expect(w.length, 3);
+      final fri = w.firstWhere((u) => u.day == nov(20));
+      expect(fri.isHard, isFalse);
+      expect(fri.kind, base[1].kind);
+      expect(p.pinnedConflicts, isEmpty);
+    });
+
     test('mehr erzeugte Einheiten als gehaltene Tage ohne Lauf: Summe wie '
         'ohne Verschiebung', () {
       final held = {nov(17), nov(21)};
