@@ -716,13 +716,14 @@ void main() {
     );
   }
 
-  // Befunde der Abschlussprüfung (handoff/m2-abschluss/teil-d.md): Die Tests
-  // geben das erwartete Verhalten wieder und sind bis zur Entscheidung des
-  // Maintainers übersprungen; ohne `skip` sind sie rot.
-  group('Befunde (offen)', () {
+  // Befund F1 (handoff/m2-abschluss/teil-e.md): Der Test gibt das erwartete
+  // Verhalten wieder und ist bis zur Entscheidung des Maintainers
+  // übersprungen; ohne `skip` ist er rot. F2 ist behoben (PAR-202).
+  group('Befunde', () {
     const skipF1 =
         'Befund F1: absolvierter, verschobener Lauf auf einem Nicht-Lauftag '
-        'lässt die Woche unter der Wochenzeit (teil-d.md)';
+        'lässt die Woche unter der Wochenzeit; Produktentscheidung offen '
+        '(teil-e.md)';
 
     test(
       'F1: Woche mit verschobenem, absolviertem Lauf behält die Wochenzeit',
