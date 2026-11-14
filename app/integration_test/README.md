@@ -10,6 +10,7 @@ Läuft auf GitHub im Workflow `e2e` (je API 31 und 36, zwei Shards) über `tool/
 | Archiv-Export und Reimport (ohne Dateidialog) | `e2e_archive_test.dart` | `sammlung` / sammlung |
 | Laufband | `e2e_treadmill_test.dart` | `sammlung` / sammlung |
 | Kamera-Ruhepuls (Fake-Kamera, guter Puls und kein Finger) | `e2e_resting_test.dart` | `sammlung` / sammlung |
+| Morgenmessung (Entwicklermodus, Fake-Kamera, Gurt-RR, Messpaare) | `e2e_morning_test.dart` | `sammlung` / sammlung |
 | Wiederanlauf eines laufenden Laufs nach Prozessende | `e2e_recover_test.dart` | `recover-a`, `recover-b` / stufen |
 | Speicher nach Prozessende (Schreiben, Lesen) | `e2e_storage_test.dart` | `storage-a`, `storage-b` / stufen |
 
@@ -20,6 +21,7 @@ Läuft auf GitHub im Workflow `e2e` (je API 31 und 36, zwei Shards) über `tool/
 - System-Dateidialog (SAF, Teilen): Systemoberfläche, im Emulator nicht stabil bedienbar; das Archiv wird ohne Dialog über die echte Export-/Restore-Fabrik getestet.
 - Echtes Kamera-Recht und echte Kamera, weitere PPG-Szenarien: Hardware; CI nutzt die Fake-Kamera.
 - Karte und Einwilligung: im Test nur weggeklickt.
+- Morgenerinnerung (Wecker, Benachrichtigung antippen): braucht ein Host-Skript, kein Test in der Sammlung.
 - `storage` mit `PHASE=fill` (Speicher voll): langsam und gerätenah.
 - Sichtprüfungen (Layout, Lesbarkeit): Sache des E2E-Agenten.
 - Nur im Feld: Hintergrundbetrieb, Akku, echter Brustgurt.

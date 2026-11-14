@@ -91,6 +91,7 @@ class _Rig {
     bool withBelt = false,
     bool developerMode = false,
     bool strapConnected = true,
+    bool deviceFails = false,
   }) async {
     final cam = HoldingCamera();
     final s = session ?? await FakeStorage().open(testKey);
@@ -116,7 +117,10 @@ class _Rig {
       store: store,
       windowStore: SettingsMorningWindowStore(s.settings, clock),
       clock: clock,
-      device: () async => (manufacturer: 'Testhersteller', model: 'Modell 1'),
+      device: () async {
+        if (deviceFails) throw StateError('Gerät nicht lesbar');
+        return (manufacturer: 'Testhersteller', model: 'Modell 1');
+      },
       belt: belt,
       hooks: MorningMeasureHooks(
         onRestStarted: (t) => rig.restStarts.add(t),
@@ -353,6 +357,30 @@ void main() {
       expect(r.c.belt!.packets.single.intervals.single, 900);
     });
 
+    testWidgets('Fehler vor dem Speichern (saveFailed): Recorder gestoppt', (
+      tester,
+    ) async {
+      final r = await _Rig.make(
+        withBelt: true,
+        developerMode: true,
+        deviceFails: true,
+      );
+      await r.show(tester, dark: false);
+      await _tap(tester, 'morning_start');
+      r.readings.add(_rr(r.clock.now(), 900));
+      r.clock.advance(const Duration(seconds: 121));
+      r.c.engine.tick();
+      await tester.pump();
+      await _settle(tester);
+      r._t = 0;
+      await r.feed(tester, 67);
+      expect(r.c.outcome, MorningOutcome.saveFailed);
+      expect(r.readings.hasListener, isFalse);
+      r.readings.add(_rr(r.clock.now(), 999));
+      await _settle(tester);
+      expect(r.c.belt!.packets.single.intervals.single, 900);
+    });
+
     testWidgets('verworfene Messung (unbrauchbar): nichts gespeichert', (
       tester,
     ) async {
@@ -550,6 +578,9 @@ void main() {
           findsOneWidget,
         );
         expect((await r.stored(tester)).single.outsideWindow, isTrue);
+        // Kein Widerspruch zum Hinweis oben.
+        expect(find.byKey(const Key('morning_footer')), findsNothing);
+        expect(find.textContaining('Heute zählt diese Messung'), findsNothing);
       });
 
       testWidgets('Ortszeit entscheidet über das Fenster', (tester) async {
@@ -652,6 +683,8 @@ void main() {
           findsOneWidget,
         );
         expect(await again.stored(tester), hasLength(2));
+        expect(find.byKey(const Key('morning_footer')), findsNothing);
+        expect(find.textContaining('Heute zählt diese Messung'), findsNothing);
       });
 
       testWidgets('liegend und sitzend am selben Morgen zählen beide', (

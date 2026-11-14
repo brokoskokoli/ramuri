@@ -230,7 +230,12 @@ class MorningResultView extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 10),
-          if (!pending && !failed)
+          // Außerhalb des Fensters und bei zweiter Messung sagt der Hinweis oben
+          // schon, dass die Messung nicht zählt.
+          if (!pending &&
+              !failed &&
+              o != MorningOutcome.outsideWindow &&
+              o != MorningOutcome.notCounted)
             Text(
               bad ? l10n.morningFooterBad : l10n.morningFooterCounts,
               key: const Key('morning_footer'),

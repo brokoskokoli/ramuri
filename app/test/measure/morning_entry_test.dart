@@ -238,6 +238,68 @@ void main() {
       );
     });
 
+    testWidgets('Karte ($mode): Schrift lesbar auf dem Panel-Hintergrund', (
+      tester,
+    ) async {
+      final s = await _session(dev: true);
+      final ok = _state(
+        ValidationState.passed,
+        ValidationState.passed,
+        ValidationState.passed,
+      );
+      Future<void> check(List<Finder> texts) async {
+        final panel = tester
+            .widget<Material>(
+              find
+                  .descendant(
+                    of: find.byKey(const Key('morning_card')),
+                    matching: find.byType(Material),
+                  )
+                  .first,
+            )
+            .color!;
+        for (final f in texts) {
+          expect(f, findsOneWidget);
+          final style = DefaultTextStyle.of(tester.element(f)).style
+              .merge(tester.widget<Text>(f).style);
+          final l1 = style.color!.computeLuminance();
+          final l2 = panel.computeLuminance();
+          final ratio =
+              (l1 > l2 ? l1 + 0.05 : l2 + 0.05) /
+              (l1 > l2 ? l2 + 0.05 : l1 + 0.05);
+          expect(ratio, greaterThanOrEqualTo(4.5), reason: '$f');
+        }
+      }
+
+      await _pump(
+        tester,
+        MorningCard(session: s, clock: _clock, validationState: ok),
+        dark: dark,
+      );
+      await check([
+        find.text('Morgenmessung'),
+        find.byKey(const Key('morning_card_open')),
+        find.byKey(const Key('morning_dev_hint')),
+      ]);
+
+      await (s as MorningStorage).morning.add(_today());
+      await _pump(
+        tester,
+        MorningCard(
+          key: UniqueKey(),
+          session: s,
+          clock: _clock,
+          validationState: ok,
+        ),
+        dark: dark,
+      );
+      await check([
+        find.text('Morgenmessung'),
+        find.byKey(const Key('morning_card_when')),
+        find.text('52,4'),
+      ]);
+    });
+
     testWidgets('Karte im Entwicklermodus ($mode): keine Markierung', (
       tester,
     ) async {
@@ -283,6 +345,26 @@ void main() {
     );
     await _pump(tester, MorningCard(session: s, clock: _clock), dark: false);
     expect(find.byKey(const Key('morning_card_start')), findsOneWidget);
+  });
+
+  testWidgets('Übersicht: Einschalten des Entwicklermodus (Über) zeigt den '
+      'Eintrag nach der Rückkehr ohne erneutes Öffnen', (tester) async {
+    await started(tester);
+    await tester.tap(find.byKey(const Key('home_overview')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('overview_morning')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('overview_about')));
+    await tester.pumpAndSettle();
+    for (var i = 0; i < 10; i++) {
+      await tester.tap(find.byKey(const Key('about_version')));
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('overview_morning')), findsOneWidget);
+    expect(find.byKey(const Key('overview_morning_values')), findsOneWidget);
   });
 
   testWidgets('App: ohne Entwicklermodus nirgends, mit Modus auf Heute und in '

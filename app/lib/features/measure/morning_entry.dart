@@ -181,8 +181,6 @@ class _MorningCardState extends State<MorningCard> {
 
   Widget _build(BuildContext context, MorningEntryState st) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context).textTheme;
-    final c = RamuriColors.of(context);
     final locale = Localizations.localeOf(context).toString();
     final now = widget.clock.now();
     final offset = widget.clock.utcOffsetAt(now);
@@ -204,85 +202,93 @@ class _MorningCardState extends State<MorningCard> {
     return RamuriCard(
       key: const Key('morning_card'),
       tone: RamuriCardTone.panel,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
-            header: true,
-            child: Text(l10n.morningTitle, style: theme.titleMedium),
-          ),
-          const SizedBox(height: 6),
-          if (done == null) ...[
-            Text(
-              l10n.morningCardOpen,
-              key: const Key('morning_card_open'),
-              style: theme.bodyMedium,
-            ),
-            const SizedBox(height: 12),
-            RamuriPrimaryButton(
-              key: const Key('morning_card_start'),
-              label: l10n.morningCardStart,
-              onPressed: _open,
-            ),
-          ] else ...[
-            Text(
-              morningWhenLabel(l10n, locale, done),
-              key: const Key('morning_card_when'),
-              style: theme.labelMedium!.copyWith(color: c.textMuted),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _Figure(
-                    label: l10n.morningRestingHr,
-                    value: morningHrText(locale, done.restingHrBpm),
-                    valueKey: const Key('morning_card_hr'),
-                  ),
+      // Die Panel-Karte setzt das dunkle Thema erst unterhalb von RamuriCard:
+      // Schrift und Farben müssen von dort gelesen werden.
+      child: Builder(
+        builder: (context) {
+          final theme = Theme.of(context).textTheme;
+          final c = RamuriColors.of(context);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Semantics(
+                header: true,
+                child: Text(l10n.morningTitle, style: theme.titleMedium),
+              ),
+              const SizedBox(height: 6),
+              if (done == null) ...[
+                Text(
+                  l10n.morningCardOpen,
+                  key: const Key('morning_card_open'),
+                  style: theme.bodyMedium,
                 ),
-                Expanded(
-                  child: _Figure(
-                    label: l10n.morningRmssd,
-                    value: done.rmssdMs == null
-                        ? '–'
-                        : done.rmssdMs!.round().toString(),
-                    valueKey: const Key('morning_card_rmssd'),
+                const SizedBox(height: 12),
+                RamuriPrimaryButton(
+                  key: const Key('morning_card_start'),
+                  label: l10n.morningCardStart,
+                  onPressed: _open,
+                ),
+              ] else ...[
+                Text(
+                  morningWhenLabel(l10n, locale, done),
+                  key: const Key('morning_card_when'),
+                  style: theme.labelMedium!.copyWith(color: c.textMuted),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _Figure(
+                        label: l10n.morningRestingHr,
+                        value: morningHrText(locale, done.restingHrBpm),
+                        valueKey: const Key('morning_card_hr'),
+                      ),
+                    ),
+                    Expanded(
+                      child: _Figure(
+                        label: l10n.morningRmssd,
+                        value: done.rmssdMs == null
+                            ? '–'
+                            : done.rmssdMs!.round().toString(),
+                        valueKey: const Key('morning_card_rmssd'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (rmssdMark != null && done.rmssdMs != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    rmssdMark,
+                    key: const Key('morning_card_rmssd_mark'),
+                    style: theme.labelSmall!.copyWith(color: c.textMuted),
                   ),
+                ],
+              ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  key: const Key('morning_card_history'),
+                  onPressed: () => openMorningValues(
+                    context,
+                    session: widget.session,
+                    clock: widget.clock,
+                    validationState: widget.validationState,
+                    device: widget.device,
+                  ),
+                  child: Text(l10n.morningHistory),
+                ),
+              ),
+              if (st.developerMode) ...[
+                const SizedBox(height: 10),
+                Text(
+                  l10n.morningDevActive,
+                  key: const Key('morning_dev_hint'),
+                  style: theme.labelSmall!.copyWith(color: c.textMuted),
                 ),
               ],
-            ),
-            if (rmssdMark != null && done.rmssdMs != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                rmssdMark,
-                key: const Key('morning_card_rmssd_mark'),
-                style: theme.labelSmall!.copyWith(color: c.textMuted),
-              ),
             ],
-          ],
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              key: const Key('morning_card_history'),
-              onPressed: () => openMorningValues(
-                context,
-                session: widget.session,
-                clock: widget.clock,
-                validationState: widget.validationState,
-                device: widget.device,
-              ),
-              child: Text(l10n.morningHistory),
-            ),
-          ),
-          if (st.developerMode) ...[
-            const SizedBox(height: 10),
-            Text(
-              l10n.morningDevActive,
-              key: const Key('morning_dev_hint'),
-              style: theme.labelSmall!.copyWith(color: c.textMuted),
-            ),
-          ],
-        ],
+          );
+        },
       ),
     );
   }

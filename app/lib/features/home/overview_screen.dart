@@ -22,7 +22,7 @@ import '../storage/data_screen.dart';
 /// Neuberechnung gesperrt: Sie könnten Werte ändern oder löschen (Sperre,
 /// FR-0006). Die Einstellungen, in denen die Neuberechnung läuft, lassen sich
 /// dabei nicht verlassen; die Sperre hier ist die zweite Absicherung.
-class OverviewScreen extends StatelessWidget {
+class OverviewScreen extends StatefulWidget {
   const OverviewScreen({
     super.key,
     required this.session,
@@ -42,8 +42,26 @@ class OverviewScreen extends StatelessWidget {
   /// Quelle der Versionsangabe auf „Über“ (Tests setzen eine feste).
   final Future<String?> Function() appVersion;
 
-  void _open(BuildContext context, WidgetBuilder builder) =>
-      Navigator.of(context).push<void>(MaterialPageRoute(builder: builder));
+  @override
+  State<OverviewScreen> createState() => _OverviewScreenState();
+}
+
+class _OverviewScreenState extends State<OverviewScreen> {
+  /// Zählt die Rückkehr von einer Unterseite: Der Entwicklermodus (Über)
+  /// ändert, ob der Eintrag Morgenmessung da ist, also lädt er neu.
+  int _returns = 0;
+
+  StorageSession get session => widget.session;
+  Clock get clock => widget.clock;
+  PermissionStatusPort get permissions => widget.permissions;
+  RecalculationController get recalculation => widget.recalculation;
+  SensorManager get sensors => widget.sensors;
+  Future<String?> Function() get appVersion => widget.appVersion;
+
+  Future<void> _open(BuildContext context, WidgetBuilder builder) async {
+    await Navigator.of(context).push<void>(MaterialPageRoute(builder: builder));
+    if (mounted) setState(() => _returns++);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +89,7 @@ class OverviewScreen extends StatelessWidget {
                 ),
               ),
               MorningTile(
+                key: ValueKey(_returns),
                 session: session,
                 clock: clock,
                 beltFactory: () =>

@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'e2e_archive_test.dart' as archive;
+import 'e2e_morning_test.dart' as morning;
 import 'e2e_plan_test.dart' as plan;
 import 'e2e_recalc_test.dart' as recalc;
 import 'e2e_resting_test.dart' as resting;
@@ -27,4 +28,7 @@ void main() {
   group('Archiv', archive.main);
   group('Laufband', treadmill.main);
   group('Ruhepuls Kamera', resting.main);
+  // Morgenmessung zuletzt: sie schaltet den Entwicklermodus ein und wieder aus
+  // und setzt voraus, dass noch keine Morgenmessung gespeichert ist.
+  group('Morgenmessung', morning.main);
 }

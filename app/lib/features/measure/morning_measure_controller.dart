@@ -253,6 +253,9 @@ class MorningMeasureController extends ChangeNotifier {
           : MorningOutcome.limited;
     } catch (_) {
       if (gen != _generation) return;
+      // Auch ohne gültige Messung sammelt der Recorder nicht weiter; die Pakete
+      // bleiben für „Erneut speichern“.
+      unawaited(belt?.stop());
       _outcome = MorningOutcome.saveFailed;
     }
     _notify();
