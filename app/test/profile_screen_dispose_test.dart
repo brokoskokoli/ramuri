@@ -54,9 +54,8 @@ Future<void> _open(WidgetTester tester, {required bool popFirst}) async {
   await tester.tap(find.byKey(const Key('open')));
   await tester.pumpAndSettle();
   // Rückmeldung wie nach dem Speichern, noch sichtbar beim Verlassen.
-  ScaffoldMessenger.of(
-    tester.element(find.byType(ProfileScreen)),
-  ).showSnackBar(const SnackBar(content: Text('gespeichert')));
+  ScaffoldMessenger.of(tester.element(find.byType(ProfileScreen)))
+      .showSnackBar(const SnackBar(content: Text('gespeichert')));
   await tester.pump(const Duration(milliseconds: 300));
   expect(find.text('gespeichert'), findsOneWidget);
   if (popFirst) {
