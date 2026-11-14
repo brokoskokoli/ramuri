@@ -43,7 +43,9 @@ class KilometerSplit {
   /// Bewegungszeit des Laufs.
   final Duration time;
 
-  /// Bewegungszeit des Abschnitts, die in einer Positionslücke lag.
+  /// Bewegungszeit des Abschnitts, die in einer Positionslücke (> PAR-004) lag;
+  /// die kurze Wartezeit auf den ersten Punkt ist nicht enthalten (nur die Pace
+  /// lässt sie weg).
   final Duration positionGapTime;
 
   /// Kennzeichen GPS-Lücke.
@@ -191,7 +193,12 @@ KilometerSplits computeKilometerSplits(
     return false;
   }
 
-  final gapSpans = positionLossSpans(pre);
+  // Hinweis „GPS-Lücke“ nur für echte Lücken (K38); die Pace nimmt auch die
+  // Wartezeit auf den ersten Punkt eines Abschnitts heraus (positionLossSpans).
+  final gapSpans = [
+    for (final g in pre.position.gaps) TimeSpan(start: g.start, end: g.end),
+  ];
+  final lossSpans = positionLossSpans(pre);
   final heart = pre.heartRate.acceptedValues;
 
   final splits = <KilometerSplit>[];
@@ -215,7 +222,7 @@ KilometerSplits computeKilometerSplits(
       sum += h.bpm;
       n++;
     }
-    final paceTime = time - gap;
+    final paceTime = time - overlapDuration(clipped(w), lossSpans);
     // OQ-0076: Ein Abschnitt unter der Stillstandsgrenze (PAR-014) hat keine
     // Pace, meist der kurze Rest; Länge und Zeit bleiben. Tempobasis wie die
     // Pace (ohne Lückenzeit). Genau die Grenze gilt noch als Bewegung.

@@ -102,12 +102,21 @@ void main() {
       );
       final o = RunOverview.fromStored(run, stored);
       expect(o.paceTime, p.movement.movingTime - movingTimeInPositionGaps(p));
+      // Kilometerabschnitte: keine Lückenzeit, die Wartezeit ist in der Pace.
       final splits = computeKilometerSplits(p);
-      final gap = splits.splits.fold(
-        Duration.zero,
-        (a, s) => a + s.positionGapTime,
-      );
-      expect(gap, movingTimeInPositionGaps(p));
+      expect(splits.splits.any((s) => s.hasPositionGap), isFalse);
+    });
+
+    test('Kilometer 1 mit 8 s Startwartezeit: kein Lückenhinweis, Pace ohne '
+        'die 8 s, Zeit mit', () {
+      final p = _run(total: 480, startFix: 8);
+      final first = computeKilometerSplits(p).splits.first;
+      expect(first.hasPositionGap, isFalse);
+      expect(first.positionGapTime, Duration.zero);
+      expect(first.time.inSeconds, greaterThan(330));
+      expect(first.paceSecondsPerKm, closeTo(1000 / 3, 0.5));
+      final withWait = first.time.inMicroseconds / 1e6;
+      expect(first.paceSecondsPerKm, lessThan(withWait - 5));
     });
   });
 }
