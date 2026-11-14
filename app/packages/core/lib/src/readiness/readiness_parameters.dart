@@ -36,3 +36,64 @@ const double readinessCameraRestingHrMadMinBpm = 0.5;
 /// PAR-161K: Hat die Kamerareihe in den letzten 7 Tagen weniger gültige Werte
 /// als dies, gilt der Hinweis „wenige Messungen“.
 const int readinessFewMeasurementsBelow = 5;
+
+// ---- Teil C1: Teilskalen, Gesamtwert, Bänder (Modell `readiness` v1) ----
+
+/// NFR-0001: Methode und Version des Gesamtmodells (Gewichte, Teilskalen,
+/// Kappung, Bänder, Entscheidung Zahl/Einschätzung).
+const String readinessMethod = 'readiness';
+const int readinessMethodVersion = 1;
+
+/// PAR-163: Steigung der Teilskala HRV/Ruhepuls unter `z` = 0 (Mittelpunkt 60).
+const double readinessZBase = 60;
+const double readinessZSlopeBelow = 25;
+
+/// PAR-163: Steigung ab `z` = 0, höchstens [readinessZMax].
+const double readinessZSlopeAbove = 20;
+const double readinessZMax = 90;
+
+/// PAR-165: Teilskala Schlafdauer. Unter [readinessSleepAnchorHours] fällt `S`
+/// um [readinessSleepSlopeBelow] je Stunde ab [readinessSleepAnchorScore].
+const double readinessSleepAnchorHours = 7;
+const double readinessSleepAnchorScore = 70;
+const double readinessSleepSlopeBelow = 25;
+
+/// PAR-165: zwischen 7 und 8 h steigt `S` um diesen Wert je Stunde, ab
+/// [readinessSleepCapHours] ist `S` gleich [readinessSleepCapScore].
+const double readinessSleepSlopeAbove = 10;
+const double readinessSleepCapHours = 8;
+const double readinessSleepCapScore = 80;
+
+/// PAR-167: Anteile von Dauer und Effizienz an der Teilskala Schlaf. Die
+/// Effizienz-Teilskala selbst (PAR-166) liegt in `HealthProcessing`.
+const double readinessSleepDurationShare = 0.8;
+const double readinessSleepEfficiencyShare = 0.2;
+
+/// PAR-168: Teilskala Trainingsbelastung `S = 60 + 2 · (TSB% + 10)`, höchstens
+/// 60, mindestens 0.
+const double readinessLoadMaxScore = 60;
+const double readinessLoadSlope = 2;
+const double readinessLoadNeutralTsbPercent = -10;
+
+/// PAR-169: Befinden 1 bis 5 ergibt diese Teilskala; höchstens 3 Tage alt.
+const List<double> readinessWellbeingScores = [10, 35, 60, 75, 90];
+const int readinessWellbeingMaxAgeDays = 3;
+
+/// PAR-170 (FR-0110): Gewichte der Faktoren.
+const double readinessWeightHrv = 25;
+const double readinessWeightRestingHr = 20;
+const double readinessWeightSleep = 30;
+const double readinessWeightLoad = 15;
+const double readinessWeightWellbeing = 10;
+
+/// PAR-170: Höchstwert, wenn der Belastungsfaktor fehlt (OQ-0059).
+const int readinessCapWithoutLoad = 74;
+
+/// FR-0109: Wertebereich.
+const int readinessMinValue = 0;
+const int readinessMaxValue = 100;
+
+/// FR-0116 (OQ-0029): Untergrenzen der Bänder, gerundeter Wert.
+const int readinessBandWellRecoveredFrom = 75;
+const int readinessBandNormalFrom = 50;
+const int readinessBandElevatedFrom = 25;
