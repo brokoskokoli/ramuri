@@ -149,4 +149,13 @@ abstract final class SettingKeys {
   /// Opt-in „Kamera-RMSSD einbeziehen“ (K-1, Validierungssperre): `1` = an; fehlt der Eintrag, aus.
   /// Bewusste Nutzerentscheidung, kommt mit ins Archiv.
   static const String morningCameraRmssdOptIn = 'morning.camera_rmssd_optin';
+
+  /// Erinnerung am Morgen (WP33 Teil D): `1` = an; fehlt der Eintrag, aus.
+  /// Nutzereinstellung, kommt ins Archiv.
+  static const String morningReminderEnabled = 'morning.reminder_enabled';
+
+  /// Uhrzeit der Morgen-Erinnerung `HH:MM` (Ortszeit); fehlt sie, gilt 06:30.
+  /// Liegt nur hier in der verschlüsselten Datenbank (SEC-0009), nicht im
+  /// System-Speicher des Adapters.
+  static const String morningReminderTime = 'morning.reminder_time';
 }

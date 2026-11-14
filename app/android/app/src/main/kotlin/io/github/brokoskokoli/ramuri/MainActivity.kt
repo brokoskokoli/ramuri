@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -34,6 +35,17 @@ class MainActivity : FlutterActivity() {
 
     /** FR-0201: Teilen und Speichern starten Systemdialoge, daher an der Activity. */
     private var fileHandoff: FileHandoffChannel? = null
+
+    /** Tippen auf die Morgen-Erinnerung (WP33 Teil D): Dart holt das Anliegen beim Öffnen ab. */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        MorningReminder.onActivityIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        MorningReminder.onActivityIntent(intent)
+    }
 
     override fun onResume() {
         super.onResume()

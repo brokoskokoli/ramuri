@@ -384,4 +384,16 @@ class _NoReminders implements ReminderScheduler {
 
   @override
   Future<void> cancelAll() async {}
+
+  @override
+  Future<void> scheduleMorning(
+    DateTime at, {
+    required MorningReminderLabels labels,
+  }) async {}
+
+  @override
+  Future<void> cancelMorning() async {}
+
+  @override
+  Future<String?> takeLaunchTarget() async => null;
 }

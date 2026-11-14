@@ -173,6 +173,7 @@ export 'src/recalculation/value_calculation_service.dart';
 export 'src/sensors/heart_rate_parser.dart';
 export 'src/sensors/heart_rate_source_selector.dart';
 export 'src/sensors/heart_rate_sources.dart';
+export 'src/reminders/morning_reminder.dart';
 export 'src/reminders/training_reminders.dart';
 export 'src/settings/developer_mode.dart';
 export 'src/settings/display_settings.dart';

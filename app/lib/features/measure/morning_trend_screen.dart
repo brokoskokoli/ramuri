@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../reminders/morning_reminder_tile.dart';
 import 'device_info.dart';
 import 'morning_trend_logic.dart';
 import 'resting_widgets.dart';
@@ -275,8 +276,7 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Column(
           children: [
-            // Platz für den Erinnerungsschalter (Teil D).
-            const SizedBox.shrink(key: Key('morning_reminder_slot')),
+            const MorningReminderTile(key: Key('morning_reminder_slot')),
             ListTile(
               key: const Key('morning_window'),
               contentPadding: EdgeInsets.zero,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../reminders/reminder_controller.dart';
 
 /// Tipps auf die Versionsnummer bis zum Entwicklermodus (FR-0217).
 const int developerModeTaps = 10;
@@ -67,7 +68,15 @@ class _AboutScreenState extends State<AboutScreen> {
 
   Future<void> _off(bool value) async {
     if (value) return;
+    final reminders = ReminderScope.read(context);
     await widget.developerMode.set(false);
+    // Ohne Erreichbarkeit der Morgenmessung gilt keine Morgen-Erinnerung mehr
+    // (WP33 Teil D): eine geplante wird sofort gestrichen.
+    try {
+      await reminders?.syncMorning();
+    } on Object {
+      // Die nächste Synchronisierung holt es nach.
+    }
     if (!mounted) return;
     setState(() {
       _on = false;

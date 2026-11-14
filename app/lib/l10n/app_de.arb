@@ -3175,5 +3175,21 @@
   "morningSettingFailed": "Die Einstellung konnte nicht gespeichert werden.",
   "@morningSettingFailed": {"description": "Morgenwerte (FR-0215)"},
   "morningLoadFailed": "Die Morgenwerte konnten nicht geladen werden.",
-  "@morningLoadFailed": {"description": "Morgenwerte (FR-0215)"}
+  "@morningLoadFailed": {"description": "Morgenwerte (FR-0215)"},
+  "morningReminderChannel": "Morgenmessung",
+  "@morningReminderChannel": {"description": "Morgen-Erinnerung (WP33 Teil D)"},
+  "morningReminderTitle": "Morgenmessung",
+  "@morningReminderTitle": {"description": "Morgen-Erinnerung (WP33 Teil D)"},
+  "morningReminderBody": "Zeit für die Messung am Morgen.",
+  "@morningReminderBody": {"description": "Morgen-Erinnerung (WP33 Teil D)"},
+  "morningReminderSwitch": "Erinnerung am Morgen",
+  "@morningReminderSwitch": {"description": "Morgen-Erinnerung (WP33 Teil D)"},
+  "morningReminderOn": "Täglich um {time}",
+  "@morningReminderOn": {"description": "Morgen-Erinnerung (WP33 Teil D)", "placeholders": {"time": {"type": "String"}}},
+  "morningReminderOff": "Aus",
+  "@morningReminderOff": {"description": "Morgen-Erinnerung (WP33 Teil D)"},
+  "morningReminderTimeTitle": "Uhrzeit der Erinnerung",
+  "@morningReminderTimeTitle": {"description": "Morgen-Erinnerung (WP33 Teil D)"},
+  "morningReminderNote": "Nach einem Neustart des Handys plant die App die Erinnerung beim nächsten Öffnen neu.",
+  "@morningReminderNote": {"description": "Morgen-Erinnerung (WP33 Teil D)"}
 }
