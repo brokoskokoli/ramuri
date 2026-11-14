@@ -57,8 +57,9 @@ class MethodChannelHealthConnect implements HealthConnectPort {
       'pageSize': pageSize,
     });
     final records = raw['records'];
-    if (records is! List)
+    if (records is! List) {
       throw const HealthReadException(HealthReadError.other);
+    }
     final next = raw['nextToken'];
     return HealthPage([
       for (final r in records) _record(kind, r as Map<Object?, Object?>),

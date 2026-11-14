@@ -57,3 +57,18 @@ Kein Research-Auftrag vorgeschlagen, weil der offene Punkt ein echtes Gerät mit
 [7] https://pub.dev/packages/health (`lib/src/heath_data_types.dart` und `android/build.gradle` im Archiv 13.3.2) ·
 [8] https://developer.android.com/health-and-fitness/guides/health-connect/publish/declare-access ·
 [9] https://developer.android.com/health-and-fitness/guides/health-connect/test/health-connect-toolbox
+
+## Nachtrag WP32 (2026-11-14): Version, Bedingungen, Kanal
+Neu abgerufen am 2026-11-14 [10][11][12]:
+- **Version:** `androidx.health.connect:connect-client` **1.1.0** (stabil seit 2025-10-08, unverändert zum Entscheid). Neuere Fassung nur `1.2.0-alpha06` (2026-08-26, Alpha, `minSdk` 24 ab alpha05, Fix der Signaturzertifikate von Health Connect); eine Alpha kommt nicht in die App, bis 1.2.0 stabil ist. Abhängigkeit im Projekt: `implementation("androidx.health.connect:connect-client:1.1.0")` in `app/android/app/build.gradle.kts`; sie bringt `connect-client-proto` und `connect-client-external-protobuf` 1.1.0 (kein Netzcode, kein `INTERNET`-Recht) sowie kotlinx-coroutines-android 1.7.3, core-ktx und guava mit.
+- **Lizenz:** Apache-2.0 (Pom von 1.1.0).
+- **Anforderungen:** `minCompileSdk` 36 und Android-Gradle-Plugin ab 8.9.1 (aus `aar-metadata.properties` des AAR; das Projekt baut damit), `minSdk` der Bibliothek 26 (App: 31, ADR-0002).
+- **Kanal statt `pigeon`:** Statt `pigeon` ein einfacher `MethodChannel` `ramuri/health` (wie `ramuri/ppg_camera`, `ramuri/file_handoff`): `sdkStatus`, `grantedKinds`, `requestPermissions`, `readPage`. `pigeon` entfällt damit als Abhängigkeit; die Wertebereiche trägt der Dart-Port (`HealthConnectPort` in `adapters`).
+- **Rechteprüfung vor jedem Lesen:** `HealthReader` fragt vor jedem `readPage` die erteilten Rechte frisch und liest ohne das Recht dieser Art nicht (Kotlin-Test). Pulsverlauf nur in Fenstern bis 24 h, Mindestabstand 300 ms zwischen Lesevorgängen, Seitengröße höchstens 1000.
+- **Rationale-Activity:** `HealthRationaleActivity` leitet nur in die App weiter; `activity-alias` `ViewPermissionUsageActivity` (Android 14) zeigt auf sie. Die Erklärung selbst folgt mit der Oberfläche (WP33).
+- **Gate:** `tool/check_release_manifest.py` verlangt am Release-APK genau die sechs Leserechte und ist rot bei `WRITE_*`, `READ_HEALTH_DATA_IN_BACKGROUND`, `READ_HEALTH_DATA_HISTORY`, jedem weiteren Recht unter `android.permission.health.` und bei fehlenden.
+- **Test mit `FakeHealthConnectClient`:** `connect-testing` ist nur als Alpha (1.0.0-alpha04) veröffentlicht; die Kotlin-Tests nutzen stattdessen eine eigene Attrappe der Schnittstelle `HealthSource`. Offen und im Emulator nicht belegt: die Zuordnung der Records zu den Kanal-Maps und das Verhalten der Lese-Limits am Gerät.
+
+[10] https://developer.android.com/jetpack/androidx/releases/health-connect ·
+[11] https://dl.google.com/android/maven2/androidx/health/connect/connect-client/1.1.0/connect-client-1.1.0.pom ·
+[12] https://dl.google.com/android/maven2/androidx/health/connect/connect-testing/maven-metadata.xml
