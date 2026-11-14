@@ -90,6 +90,16 @@ class _V1 extends AppDatabase {
       await customStatement('DROP TABLE raw_rr_packets');
       // Warnsignal (Schema 11, WP23).
       await customStatement('DROP TABLE active_warning');
+      // Health-Connect-Tabellen (Schema 12, WP32), Kinder zuerst.
+      for (final t in [
+        'health_exercise_heart_rates',
+        'health_exercises',
+        'health_values',
+        'health_sleep_stages',
+        'health_sleep_sessions',
+      ]) {
+        await customStatement('DROP TABLE $t');
+      }
       // Laufart und Laufbandeinstellungen (Schema 10, WP25).
       await customStatement('DROP TABLE treadmill_settings');
       await customStatement('ALTER TABLE runs DROP COLUMN mode');
@@ -604,7 +614,7 @@ void main() {
   });
 
   for (final from in [1, 2]) {
-    group('Migration $from -> 11 auf befüllter v$from-Datenbank', () {
+    group('Migration $from -> 12 auf befüllter v$from-Datenbank', () {
       test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
         final v1 = await open((e) => _V1(e, from));
         Future<List<Object?>> master(String type) async => [
@@ -667,7 +677,7 @@ void main() {
               .data
               .values
               .single,
-          11,
+          12,
         );
         await s.database.validateDatabaseSchema();
         expect(await count(s, 'computed_values'), 6);
