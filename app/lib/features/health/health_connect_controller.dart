@@ -183,6 +183,15 @@ class HealthConnectController extends ChangeNotifier {
     _notify();
   }
 
+  /// „Health Connect installieren“: öffnet den Play Store; `false`, wenn sich nichts öffnen ließ (kein Absturz).
+  Future<bool> openInstall() async {
+    try {
+      return await port.openInstall();
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Zeigt den Berechtigungsdialog von Health Connect, nur für die eingeschalteten Arten.
   Future<void> requestRights() async {
     if (enabled.isEmpty) return;

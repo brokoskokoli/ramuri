@@ -32,6 +32,8 @@ class _Port implements HealthConnectPort {
   ) async => granted;
 
   @override
+  Future<bool> openInstall() async => false;
+  @override
   Future<HealthPage> readPage({
     required HealthDataKind kind,
     required DateTime from,
@@ -522,6 +524,8 @@ class _RevokingPort implements HealthConnectPort {
   @override
   Future<Set<HealthDataKind>> requestPermissions(Set<HealthDataKind> k) =>
       _inner.requestPermissions(k);
+  @override
+  Future<bool> openInstall() async => false;
   @override
   Future<HealthPage> readPage({
     required HealthDataKind kind,

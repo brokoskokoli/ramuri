@@ -499,6 +499,19 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
           ),
         ),
         const SizedBox(height: 24),
+        if (install) ...[
+          RamuriPrimaryButton(
+            key: const Key('health_install'),
+            label: l10n.healthInstall,
+            onPressed: () async {
+              final ok = await c.openInstall();
+              if (!ok && context.mounted) {
+                _healthSnack(context, l10n.healthInstallFailed);
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
         RamuriSecondaryButton(
           key: const Key('health_without'),
           label: l10n.healthWithout,

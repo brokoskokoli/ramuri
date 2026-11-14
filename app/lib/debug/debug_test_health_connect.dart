@@ -48,6 +48,15 @@ class DebugTestHealthConnect implements HealthConnectPort {
     return {..._granted};
   }
 
+  /// Für E2E: zählt die Aufrufe; es öffnet sich nichts.
+  int installOpened = 0;
+
+  @override
+  Future<bool> openInstall() async {
+    installOpened++;
+    return true;
+  }
+
   @override
   Future<HealthPage> readPage({
     required HealthDataKind kind,

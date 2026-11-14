@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:adapters/adapters.dart';
+import 'package:core/core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -32,6 +33,7 @@ void main() {
       'grantedKinds',
       'requestPermissions',
       'readPage',
+      'openInstall',
     ]) {
       expect(kt, contains('"$m"'));
     }
@@ -107,6 +109,72 @@ void main() {
       expect(r.start, DateTime.utc(1970, 1, 1, 0, 0, 1));
       expect(r.offsetSeconds, 3600);
       expect(r.stages.map((s) => s.stage), [5, 4]);
+    },
+  );
+
+  test('Schlafphasen vom Kanal bis zur Schlafzeit: nur SLEEPING, LIGHT, DEEP, REM zählen (PAR-166)', () async {
+    final t0 = DateTime.utc(2026, 11, 13, 22).millisecondsSinceEpoch;
+    int m(int minutes) => t0 + minutes * 60000;
+    // Phasen wie Health Connect sie liefert: 5 DEEP, 4 LIGHT, 6 REM, 2 SLEEPING, 1 AWAKE, 7 AWAKE_IN_BED, 3 OUT_OF_BED, 0 UNKNOWN.
+    final stages = [
+      [m(0), m(60), 5],
+      [m(60), m(120), 4],
+      [m(120), m(150), 6],
+      [m(150), m(180), 2],
+      [m(180), m(200), 1],
+      [m(200), m(210), 7],
+      [m(210), m(220), 3],
+      [m(220), m(240), 0],
+    ];
+    answer = (_) => {
+      'records': [
+        {
+          'id': 's1',
+          'origin': 'com.example.watch',
+          'startMs': m(0),
+          'endMs': m(240),
+          'stages': stages,
+        },
+      ],
+    };
+    final page = await MethodChannelHealthConnect().readPage(
+      kind: HealthDataKind.sleep,
+      from: DateTime.utc(2026, 11, 13),
+      to: DateTime.utc(2026, 11, 14),
+    );
+    final session = sleepSessionOf(page.records.single);
+    expect(session.stages.map((s) => s.kind), [
+      SleepStageKind.deep,
+      SleepStageKind.light,
+      SleepStageKind.rem,
+      SleepStageKind.sleeping,
+      SleepStageKind.awake,
+      SleepStageKind.awake,
+      SleepStageKind.awake,
+      SleepStageKind.other,
+    ]);
+    final summary = const HealthProcessing().sleepSummary(session);
+    expect(summary.isEstimate, isFalse);
+    expect(summary.sleepDuration, const Duration(minutes: 180));
+    expect(summary.sessionDuration, const Duration(minutes: 240));
+  });
+
+  test(
+    'openInstall: Kanalantwort, Fehler und fehlender Kanal ergeben false',
+    () async {
+      answer = (_) => true;
+      final port = MethodChannelHealthConnect();
+      expect(await port.openInstall(), isTrue);
+      expect(calls.single.method, 'openInstall');
+      answer = (_) => false;
+      expect(await port.openInstall(), isFalse);
+      messenger.setMockMethodCallHandler(
+        channel,
+        (_) async => throw PlatformException(code: 'x'),
+      );
+      expect(await port.openInstall(), isFalse);
+      messenger.setMockMethodCallHandler(channel, null);
+      expect(await port.openInstall(), isFalse);
     },
   );
 

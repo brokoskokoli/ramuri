@@ -81,6 +81,7 @@ export 'src/export/xml_text.dart';
 export 'src/health/health_import.dart';
 export 'src/health/health_parameters.dart';
 export 'src/health/health_processing.dart';
+export 'src/health/health_sleep_mapping.dart';
 export 'src/health/health_types.dart';
 export 'src/health/health_day_values.dart';
 export 'src/health/health_display.dart';

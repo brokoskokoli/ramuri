@@ -100,6 +100,10 @@ abstract interface class HealthConnectPort {
   /// Zeigt den Berechtigungsdialog von Health Connect für [kinds]; liefert die danach erteilten Arten.
   Future<Set<HealthDataKind>> requestPermissions(Set<HealthDataKind> kinds);
 
+  /// Öffnet die Installationsseite von Health Connect im Play Store (ohne Netzzugriff der App). `false`, wenn sich
+  /// nichts öffnen ließ; wirft nie.
+  Future<bool> openInstall();
+
   /// Liest eine Seite einer Art im Zeitfenster [from, to]. Fehlt das Recht dieser Art, wirft der Adapter
   /// [HealthReadError.permissionMissing] und liest nichts. Pulsverlauf nur für Fenster bis 24 h.
   Future<HealthPage> readPage({

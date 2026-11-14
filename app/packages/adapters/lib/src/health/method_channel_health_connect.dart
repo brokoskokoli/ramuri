@@ -42,6 +42,17 @@ class MethodChannelHealthConnect implements HealthConnectPort {
   );
 
   @override
+  Future<bool> openInstall() async {
+    try {
+      return await _channel.invokeMethod<bool>('openInstall') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  @override
   Future<HealthPage> readPage({
     required HealthDataKind kind,
     required DateTime from,

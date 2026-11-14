@@ -57,20 +57,7 @@ void main() {
       // Aufbereitung: Hauptschlafphase der Quelle mit Phasen, Rückfall der anderen App.
       const p = HealthProcessing();
       final sessions = [
-        for (final s in store.records(HealthDataKind.sleep))
-          SleepSession(
-            origin: s.origin,
-            start: s.start,
-            end: s.end,
-            stages: [
-              for (final st in s.stages)
-                SleepStage(
-                  kind: SleepStageKind.light,
-                  start: st.start,
-                  end: st.end,
-                ),
-            ],
-          ),
+        for (final s in store.records(HealthDataKind.sleep)) sleepSessionOf(s),
       ];
       final main = p.mainSleep(sessions, now)!;
       expect(main.origin, 'debug.app.a');

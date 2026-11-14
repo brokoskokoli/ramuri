@@ -29,6 +29,15 @@ class _Port implements HealthConnectPort {
     return kinds;
   }
 
+  int installOpened = 0;
+  bool installResult = true;
+
+  @override
+  Future<bool> openInstall() async {
+    installOpened++;
+    return installResult;
+  }
+
   @override
   Future<HealthPage> readPage({
     required HealthDataKind kind,
@@ -224,6 +233,28 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('Installieren: öffnet den Play Store, nur bei fehlender App', (
+    tester,
+  ) async {
+    final (_, _, port) = await _setup(
+      tester,
+      status: HealthSdkStatus.updateRequired,
+    );
+    await tapKey(tester, 'health_install');
+    expect(port.installOpened, 1);
+    expect(find.byType(SnackBar), findsNothing);
+    port.installResult = false;
+    await tapKey(tester, 'health_install');
+    expect(port.installOpened, 2);
+    expect(find.byType(SnackBar), findsOneWidget); // Fallback ohne Absturz
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Nicht unterstützt: kein Installieren-Knopf', (tester) async {
+    await _setup(tester, status: HealthSdkStatus.unavailable);
+    expect(key('health_install'), findsNothing);
+  });
 
   testWidgets('Jetzt abrufen zeigt den Zeitpunkt', (tester) async {
     final (c, _, _) = await _setup(tester, consented: {HealthDataKind.sleep});

@@ -274,6 +274,9 @@ class _NoHealthConnect implements HealthConnectPort {
   ) async => const {};
 
   @override
+  Future<bool> openInstall() async => false;
+
+  @override
   Future<HealthPage> readPage({
     required HealthDataKind kind,
     required DateTime from,

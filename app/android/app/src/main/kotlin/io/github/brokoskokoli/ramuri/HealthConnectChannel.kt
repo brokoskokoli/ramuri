@@ -134,6 +134,7 @@ class HealthConnectChannel(
             when (call.method) {
                 "sdkStatus" -> work(result) { reader.sdkStatus() }
                 "grantedKinds" -> work(result) { reader.grantedKeys() }
+                "openInstall" -> result.success(openInstall())
                 "requestPermissions" -> request(result, call.argument<List<String>>("kinds"))
                 "readPage" -> work(result) {
                     val page = reader.read(
@@ -162,6 +163,19 @@ class HealthConnectChannel(
                 main.post { result.error("error", null, null) }
             }
         }
+    }
+
+    /** Öffnet die Installationsseite im Play Store (market://, dann https); `false`, wenn nichts antwortet. Kein Netzzugriff der App. */
+    private fun openInstall(): Boolean {
+        for (uri in listOf(INSTALL_MARKET, INSTALL_WEB)) {
+            try {
+                activity.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(uri)))
+                return true
+            } catch (e: Exception) {
+                // nächster Versuch
+            }
+        }
+        return false
     }
 
     private fun request(result: MethodChannel.Result, keys: List<String>?) {
@@ -203,6 +217,8 @@ class HealthConnectChannel(
     companion object {
         const val CHANNEL = "ramuri/health"
         const val REQUEST = 6005
+        const val INSTALL_MARKET = "market://details?id=com.google.android.apps.healthdata"
+        const val INSTALL_WEB = "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
         private val io = Executors.newSingleThreadExecutor { Thread(it, "ramuri-health").apply { isDaemon = true } }
     }
 }
