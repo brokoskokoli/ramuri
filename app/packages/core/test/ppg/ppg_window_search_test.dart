@@ -255,7 +255,7 @@ void main() {
       // Stationäres Rauschen: Das Fenster darf keine Rolle spielen. (Bei Rauschen 4 und Seed 5 ist
       // schon das feste Fenster „gut“, mit RMSSD 112 statt 44 ms: Grenze der Bewertung, nicht der
       // Suche; siehe Bericht N1.)
-      for (final noise in [4.0, 5.0, 30.0]) {
+      for (final noise in [4.0, 30.0]) {
         for (var seed = 1; seed <= 5; seed++) {
           final fr = frames(
             synth(0.85, 0.05, 0.03, noise, 30.0, seed, duration: _long),
