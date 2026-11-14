@@ -436,14 +436,33 @@ Future<_Result> _simulate(_Scenario sc) async {
     return sum;
   }
 
+  // Tage der Einheiten der Woche von [d] (ohne Ruhetage).
+  Future<List<int>> weekDays(DateTime d) async {
+    final m = _monday(d);
+    return [
+      for (final u in await plans.unitsBetween(
+        m,
+        m.add(const Duration(days: 6)),
+      ))
+        if (u.kind != PlanUnitKind.rest) u.day.difference(m).inDays,
+    ]..sort();
+  }
+
   // Tage mit manueller Neuberechnung nach einem Lauf auf verschobenem Tag
   // (am selben Tag und zwei Tage später, F1: weder doppelte Einheit noch
   // gekürzte Woche).
   final manualLater = <int>{};
   Future<void> manualCheck(int day, DateTime today) async {
     final before = await weekSum(today);
+    final daysBefore = await weekDays(today);
     await recalc(PlanTrigger.manual, day);
     final after = await weekSum(today);
+    final daysAfter = await weekDays(today);
+    // Bestätigte Termine bleiben: Eine manuelle Neuberechnung ohne neue
+    // Eingaben ändert die Tage der Woche nicht (N1, OQ-0011).
+    if ('$daysBefore' != '$daysAfter') {
+      bad(day, 'Termine', 'manuell: Tage $daysBefore auf $daysAfter');
+    }
     count('manuell_nach_verschiebung');
     if ((after - before).abs() > 2) {
       bad(day, 'Wochensumme', 'manuell: $before auf $after min');

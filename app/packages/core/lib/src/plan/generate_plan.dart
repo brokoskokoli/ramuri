@@ -162,8 +162,16 @@ List<PlanUnit> _byDay(List<PlanUnit> l) {
 /// lockeren, dann die späteren). Ihre geplanten Minuten gelten als abgedeckt
 /// vom Lauf auf einem verschobenen Tag (eingefroren, `pinned`, Tag ohne
 /// geplante Einheit; je Lauf eine Einheit, auch eine schon vergangene): Die
-/// Wochenzeit bleibt erhalten. Das gilt auch ohne [heldDays]: Dann entfällt
-/// je solchem Lauf die späteste lockere künftige Einheit.
+/// Wochenzeit bleibt erhalten. Abgedeckt wird die erste vergangene Einheit
+/// ohne Zeile, nicht der Herkunftstag des Laufs (bekannte Abweichung, die
+/// Zeit der Woche bleibt gleich). Das gilt auch ohne [heldDays]: Dann entfällt
+/// je solchem Lauf die früheste künftige Einheit ab heute mit der Rolle des
+/// Laufs (langer Lauf, harte Einheit, lockerer Lauf; eine zum lockeren Lauf
+/// umgewandelte Einheit zählt mit ihrer ursprünglichen Rolle). Gibt es keine
+/// Einheit dieser Rolle, entfällt die niedrigste Rolle, bei gleicher Rolle die
+/// späteste, also auch eine lange oder harte, wenn keine lockere übrig ist.
+/// Die letzte Einheit einer Rolle, die ein künftiger Termin der Woche
+/// ([pinnedUnits]) braucht, bleibt stehen.
 GeneratedPlan generatePlan(
   TrainingGoal goal,
   PlanInputs inputs,
@@ -322,9 +330,11 @@ GeneratedPlan generatePlan(
       // `pinned`) auf einem Tag ohne geplante Einheit ersetzt eine geplante
       // Einheit der Woche (F1): Deren Minuten gelten als abgedeckt, sie sind
       // keine Abweichung. Das gilt unabhängig vom Auslöser, höchstens je so
-      // einen Lauf, zuerst für die Einheit, die schon vor heute liegt und
-      // entfallen ist, dann für eine künftige: bei einem automatischen
-      // Auslöser auf einem nicht gehaltenen Tag, sonst die späteste lockere.
+      // einen Lauf, zuerst für die erste Einheit, die schon vor heute liegt
+      // und entfallen ist (nicht unbedingt der Herkunftstag des Laufs), dann
+      // für eine künftige: bei einem automatischen Auslöser auf einem nicht
+      // gehaltenen Tag, sonst die früheste ab heute mit der Rolle des Laufs
+      // (nur wenn es keine gibt: die niedrigste Rolle, die späteste).
       final plannedDays = {for (final u in planned.units) planDay(u.day)};
       // Rollen der Läufe auf verschobenen Tagen, nach Tag: Die Einheit
       // gleicher Rolle entfällt (auch wenn sie als lockerer Lauf umgewandelt
