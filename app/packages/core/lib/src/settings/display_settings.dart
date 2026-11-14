@@ -141,4 +141,8 @@ abstract final class SettingKeys {
   /// Entwicklermodus (FR-0217, WP33): `1` = an; fehlt der Eintrag, aus. Gerätezustand,
   /// nicht im Archiv (Vertrag 4.3); „Alles löschen“ leert die Tabelle und setzt ihn zurück.
   static const String developerMode = 'developer.mode';
+
+  /// Morgenfenster der Morgenmessung (PAR-160K) als `H-H` in ganzen Stunden Ortszeit, etwa
+  /// `4-11`; fehlt der Eintrag oder ist er ungültig, gilt 4-11. Nutzereinstellung, kommt ins Archiv.
+  static const String morningWindow = 'morning.window';
 }

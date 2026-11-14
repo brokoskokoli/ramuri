@@ -155,6 +155,8 @@ export 'src/preprocessing/run_preprocessor.dart';
 export 'src/preprocessing/section_quality.dart';
 export 'src/preprocessing/settling_processor.dart';
 export 'src/preprocessing/steps_series.dart';
+export 'src/morning/morning_logic.dart';
+export 'src/morning/morning_parameters.dart';
 export 'src/ppg/ppg_analyzer.dart';
 export 'src/ppg/ppg_evaluator.dart';
 export 'src/ppg/ppg_parameters.dart';

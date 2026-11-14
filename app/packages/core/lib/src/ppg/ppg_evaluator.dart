@@ -77,6 +77,7 @@ class PpgMeasurement {
     this.disturbances = 0,
     this.channel,
     this.meanFps,
+    this.intervalsMs = const [],
   });
 
   final PpgQuality quality;
@@ -97,6 +98,10 @@ class PpgMeasurement {
   final int disturbances;
   final String? channel;
   final double? meanFps;
+
+  /// Gültige Schlagabstände (ms) des Messfensters in zeitlicher Reihenfolge, genau die Werte, aus
+  /// denen RMSSD und Puls gerechnet sind (WP33, wird gespeichert). Leer bei „unbrauchbar“.
+  final List<double> intervalsMs;
 
   /// Methode und Version für die Ablage (NFR-0001, NFR-0005).
   String get method => ppgMethod;
@@ -215,6 +220,7 @@ PpgMeasurement ratePpg(PpgChannelResult r) {
   final quality = unusable
       ? PpgQuality.unusable
       : (limitedReasons.isNotEmpty ? PpgQuality.limited : PpgQuality.good);
+  final main = r.main;
   return PpgMeasurement(
     quality: quality,
     reasons: unusable ? unusableReasons : limitedReasons,
@@ -228,5 +234,13 @@ PpgMeasurement ratePpg(PpgChannelResult r) {
     disturbances: r.artifacts.length,
     channel: r.channel,
     meanFps: _finite(r.meanFps),
+    // Wie `PpgAnalyzer.stats` für das Gesamtfenster (Ausgabe, keine neue Rechnung); Schlagzeiten sind
+    // relativ zum Fensterbeginn, die obere Grenze `dur + 1e-9` schließt dort alle ein (Test: Länge = validIntervals).
+    intervalsMs: unusable
+        ? const []
+        : List.unmodifiable([
+            for (var i = 0; i < main.ibiEnd.length; i++)
+              if (main.ibiEnd[i] >= 0.0 && main.valid[i]) main.ibiMs[i],
+          ]),
   );
 }

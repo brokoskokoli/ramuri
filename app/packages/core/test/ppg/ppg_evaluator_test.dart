@@ -77,6 +77,28 @@ void main() {
       expect(m.category, AlgorithmCategory.heuristic);
     });
 
+    test(
+      'gibt die gültigen Schlagabstände heraus (Anzahl, Reihenfolge, Mittel)',
+      () {
+        for (final seed in [1, 2, 3]) {
+          final m = evaluatePpg(
+            frames(synth(0.85, 0.05, 0.03, 0.3, 30.0, seed)),
+          );
+          expect(m.intervalsMs, isNotEmpty);
+          expect(m.intervalsMs.length, m.validIntervals);
+          expect(m.intervalsMs.every((v) => v > 300 && v < 2000), isTrue);
+          final mean =
+              m.intervalsMs.reduce((a, b) => a + b) / m.intervalsMs.length;
+          expect(60000 / mean, closeTo(m.bpm!, 1.0));
+        }
+      },
+    );
+
+    test('unbrauchbar: keine Schlagabstände', () {
+      final m = evaluatePpg(frames(synth(0.85, 0.05, 0.03, 30.0, 30.0, 1)));
+      expect(m.intervalsMs, isEmpty);
+    });
+
     test('verrauschtes Signal ist eingeschränkt, mit Puls und Grund', () {
       final m = evaluatePpg(frames(synth(0.85, 0.05, 0.03, 4.0, 30.0, 1)));
       expect(m.quality, PpgQuality.limited);
