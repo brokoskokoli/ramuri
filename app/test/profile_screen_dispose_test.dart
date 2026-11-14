@@ -54,8 +54,11 @@ Future<void> _open(WidgetTester tester, {required bool popFirst}) async {
   await tester.tap(find.byKey(const Key('open')));
   await tester.pumpAndSettle();
   // Rückmeldung wie nach dem Speichern, noch sichtbar beim Verlassen.
-  ScaffoldMessenger.of(tester.element(find.byType(ProfileScreen)))
-      .showSnackBar(const SnackBar(content: Text('gespeichert')));
+  ScaffoldMessenger.of(tester.element(find.byType(ProfileScreen))).showSnackBar(
+    // Lange Anzeigedauer: Verschwindet die Meldung, dann durch das
+    // Verlassen der Seite, nicht durch Ablauf der Zeit.
+    const SnackBar(content: Text('gespeichert'), duration: Duration(hours: 1)),
+  );
   await tester.pump(const Duration(milliseconds: 300));
   expect(find.text('gespeichert'), findsOneWidget);
   if (popFirst) {
@@ -71,7 +74,9 @@ void main() {
     tester,
   ) async {
     await _open(tester, popFirst: true);
-    await tester.pumpAndSettle();
+    // Nur kurz pumpen (Seitenwechsel, Nachbild), nicht die Anzeigedauer abwarten.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(tester.takeException(), isNull);
     expect(find.text('gespeichert'), findsNothing);
   });
