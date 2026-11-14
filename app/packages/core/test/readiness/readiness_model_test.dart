@@ -131,6 +131,8 @@ void main() {
       expect(readinessScaleSleepDuration(5), 20);
       expect(readinessScaleSleepDuration(7.5), 75);
       expect(readinessScaleSleepDuration(8), 80);
+      expect(readinessScaleSleepDuration(8.5), 80);
+      expect(readinessScaleSleepDuration(7.99), closeTo(79.9, 1e-9));
       expect(readinessScaleSleepDuration(9), 80);
       expect(readinessScaleSleepDuration(12), 80);
       expect(readinessScaleSleepDuration(4.2), 0);
