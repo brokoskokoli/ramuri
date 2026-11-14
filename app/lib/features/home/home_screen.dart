@@ -14,6 +14,7 @@ import '../plan/plan_started_unit.dart';
 import '../plan/plan_texts.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/run_ports.dart';
+import '../measure/morning_belt.dart';
 import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
 import '../settings/unit_format.dart';
@@ -476,6 +477,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               key: ValueKey('morning_card_$_morningEpoch'),
               session: widget.session,
               clock: widget.clock,
+              beltFactory: () => MorningBelt.of(
+                widget.sensors,
+                widget.session.settings,
+                widget.clock,
+              ),
             ),
             // Der Zugang ist ohne Profil und ohne Freigaben offen (FR-0001,
             // CON-0007); nur der Standort wird geprüft (FR-0195).

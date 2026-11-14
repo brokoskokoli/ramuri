@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
 import 'device_info.dart';
+import 'morning_belt.dart';
 import 'morning_measure_controller.dart';
 import 'morning_measure_screen.dart';
 import 'morning_trend_logic.dart';
@@ -34,6 +35,7 @@ class MorningMeasureHost extends StatefulWidget {
     this.evaluate,
     this.device = readDeviceInfo,
     this.hooks = const MorningMeasureHooks(),
+    this.belt,
     this.validationState = ppgValidationState,
     this.autoTick = true,
   });
@@ -49,6 +51,9 @@ class MorningMeasureHost extends StatefulWidget {
 
   /// Stellen für Teil E (Gurt-RR): Beginn der Ruhephase, Ende der Messung.
   final MorningMeasureHooks hooks;
+
+  /// Gurt-RR im Entwicklermodus (Teil E); `null` ohne Pulsquelle der App.
+  final MorningBelt? belt;
   final Map<ValidationQuantity, ValidationState> validationState;
 
   /// Nur Tests: Sekundentakt der Ruhephase aus.
@@ -65,6 +70,9 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
   @override
   void initState() {
     super.initState();
+    widget.belt?.init().then((_) {
+      if (mounted) setState(() {});
+    });
     _controller = MorningMeasureController(
       camera: widget.camera,
       store: widget.store,
@@ -72,6 +80,7 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
       clock: widget.clock,
       device: widget.device,
       hooks: widget.hooks,
+      belt: widget.belt,
       signal: SystemRestingSignal(_soundOn),
       evaluate: widget.evaluate,
       autoTick: widget.autoTick,
@@ -87,6 +96,7 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
   @override
   void dispose() {
     _controller.dispose();
+    widget.belt?.dispose();
     _soundOn.dispose();
     super.dispose();
   }

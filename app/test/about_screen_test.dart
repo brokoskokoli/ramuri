@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/export/file_handoff_scope.dart';
 import 'package:running_app/features/settings/about_screen.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
@@ -53,6 +54,7 @@ Future<void> _tapVersion(WidgetTester tester, int n) async {
 }
 
 void main() {
+  pairsTests();
   testWidgets('Name, Version, Lizenzen; ohne Modus kein Abschnitt Entwickler', (
     tester,
   ) async {
@@ -152,5 +154,136 @@ void main() {
     await tester.tap(key('overview_about'));
     await tester.pumpAndSettle();
     expect(key('about_dev_badge'), findsOneWidget);
+  });
+}
+
+MorningMeasurement _morning(int day) => MorningMeasurement(
+  measuredAt: DateTime.utc(2030, 1, day, 6, 30),
+  utcOffset: Duration.zero,
+  posture: RestingPosture.lying,
+  deviceManufacturer: 'Testhersteller',
+  deviceModel: 'Modell',
+  method: ppgMethod,
+  methodVersion: ppgMethodVersion,
+  quality: PpgQuality.good,
+  restingHrBpm: 58,
+  rmssdMs: 40,
+  cameraIntervalsMs: const [1000, 1010],
+  beforeValidation: true,
+  outsideWindow: false,
+);
+
+/// Über mit Entwickler-Abschnitt, Morgenmessungen (eine mit Gurt-RR, eine
+/// ohne) und Übergabe-Fake.
+Future<({FakeFileHandoff handoff, DeveloperModeStore mode})> _pumpPairs(
+  WidgetTester tester, {
+  bool on = true,
+  String locale = 'de',
+}) async {
+  final session = await FakeStorage().open(Uint8List(32));
+  final mode = SettingsDeveloperModeStore(
+    session.settings,
+    FakeClock(DateTime.utc(2026, 11, 14)),
+  );
+  await mode.set(on);
+  final morning = (session as MorningStorage).morning;
+  await morning.add(
+    _morning(1),
+    beltPackets: [
+      RrPacket(
+        time: DateTime.utc(2030, 1, 1, 6, 29),
+        source: 'gurt-1',
+        intervals: const [900],
+      ),
+    ],
+  );
+  await morning.add(_morning(2));
+  final handoff = FakeFileHandoff();
+  tester.view.physicalSize = const Size(800, 1600);
+  tester.view.devicePixelRatio = 2;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: Locale(locale),
+      theme: RamuriTheme.light,
+      home: FileHandoffScope(
+        handoff: handoff,
+        child: AboutScreen(
+          developerMode: mode,
+          appVersion: () async => '0.1.0 (12)',
+          morning: morning,
+          clock: () => DateTime.utc(2031, 2, 3),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return (handoff: handoff, mode: mode);
+}
+
+void pairsTests() {
+  testWidgets('Messpaare: Zahl, Warnhinweis vor dem Teilen, dann die Datei', (
+    tester,
+  ) async {
+    final r = await _pumpPairs(tester);
+    expect(
+      find.text(
+        '1 Morgen mit Gurt-RR, 1 ohne. Gespeichert wird, wenn bei der '
+        'Morgenmessung eine Pulsquelle mit RR verbunden ist. Die App wertet '
+        'den Gurt nicht aus.',
+      ),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(key('about_pairs_share'));
+    await tester.tap(key('about_pairs_share'));
+    await tester.pumpAndSettle();
+    // Warnhinweis zuerst, noch nichts geteilt.
+    expect(key('about_pairs_dialog'), findsOneWidget);
+    expect(find.text('Unverschlüsselte Datei teilen?'), findsOneWidget);
+    expect(r.handoff.shared, isEmpty);
+    await tester.tap(key('about_pairs_cancel'));
+    await tester.pumpAndSettle();
+    expect(r.handoff.shared, isEmpty);
+    await tester.tap(key('about_pairs_share'));
+    await tester.pumpAndSettle();
+    await tester.tap(key('about_pairs_confirm'));
+    await tester.pumpAndSettle();
+    expect(r.handoff.shared, hasLength(1));
+    expect(
+      r.handoff.shared.single.fileName,
+      'running-morgenpaare-20310203.csv',
+    );
+    final text = String.fromCharCodes(r.handoff.shared.single.bytes!);
+    expect(text, contains(',belt_rr,rr,1,1,'));
+    expect(find.text('Datei an das gewählte Ziel übergeben.'), findsOneWidget);
+  });
+
+  testWidgets('Messpaare: ohne Entwicklermodus weder Zahl noch Knopf', (
+    tester,
+  ) async {
+    await _pumpPairs(tester, on: false);
+    expect(key('about_pairs'), findsNothing);
+    expect(key('about_pairs_share'), findsNothing);
+  });
+
+  testWidgets('Messpaare: Ausschalten blendet Zahl und Knopf aus', (
+    tester,
+  ) async {
+    await _pumpPairs(tester);
+    await tester.ensureVisible(key('about_dev_switch'));
+    await tester.tap(key('about_dev_switch'));
+    await tester.pumpAndSettle();
+    expect(key('about_pairs_share'), findsNothing);
+  });
+
+  testWidgets('Messpaare: Englisch', (tester) async {
+    await _pumpPairs(tester, locale: 'en');
+    expect(find.text('Share pairs as CSV'), findsOneWidget);
+    expect(
+      find.textContaining('1 morning with strap RR, 1 without'),
+      findsOneWidget,
+    );
   });
 }

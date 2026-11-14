@@ -1,3 +1,5 @@
 # Zusammenführen: generierte Spec-Abschnitte erzeugt tool/merge_wp.sh neu.
 docs/requirements.md linguist-generated=true
 docs/migration/traceability.md linguist-generated=true
+# CSV-Goldens tragen CRLF (Vertrag); keine Zeilenenden-Umwandlung.
+app/packages/core/test/export/goldens/*.csv -text

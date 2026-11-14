@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import 'device_info.dart';
+import 'morning_belt.dart';
 import 'morning_launcher.dart';
 import 'morning_measure_controller.dart';
 import 'morning_result_view.dart';
@@ -73,6 +74,7 @@ Future<void> openMorningMeasurement(
   Map<ValidationQuantity, ValidationState> validationState = ppgValidationState,
   DeviceInfoReader device = readDeviceInfo,
   MorningMeasureHooks hooks = const MorningMeasureHooks(),
+  MorningBelt? belt,
 }) async {
   final camera = PpgCameraScope.maybeOf(context);
   if (camera == null || session is! MorningStorage) return;
@@ -87,6 +89,7 @@ Future<void> openMorningMeasurement(
         evaluate: evaluate,
         device: device,
         hooks: hooks,
+        belt: belt,
         validationState: validationState,
       ),
     ),
@@ -122,12 +125,16 @@ class MorningCard extends StatefulWidget {
     required this.clock,
     this.validationState = ppgValidationState,
     this.device = readDeviceInfo,
+    this.beltFactory,
   });
 
   final StorageSession session;
   final Clock clock;
   final Map<ValidationQuantity, ValidationState> validationState;
   final DeviceInfoReader device;
+
+  /// Je Messung eine neue Gurt-RR-Quelle (Teil E); `null` ohne Pulsquelle.
+  final MorningBelt Function()? beltFactory;
 
   @override
   State<MorningCard> createState() => _MorningCardState();
@@ -149,6 +156,7 @@ class _MorningCardState extends State<MorningCard> {
       clock: widget.clock,
       validationState: widget.validationState,
       device: widget.device,
+      belt: widget.beltFactory?.call(),
     );
     if (mounted) setState(() => _future = _load());
   }
@@ -314,6 +322,7 @@ class MorningTile extends StatefulWidget {
     this.enabled = true,
     this.validationState = ppgValidationState,
     this.device = readDeviceInfo,
+    this.beltFactory,
   });
 
   final StorageSession session;
@@ -321,6 +330,9 @@ class MorningTile extends StatefulWidget {
   final bool enabled;
   final Map<ValidationQuantity, ValidationState> validationState;
   final DeviceInfoReader device;
+
+  /// Je Messung eine neue Gurt-RR-Quelle (Teil E); `null` ohne Pulsquelle.
+  final MorningBelt Function()? beltFactory;
 
   @override
   State<MorningTile> createState() => _MorningTileState();
@@ -359,6 +371,7 @@ class _MorningTileState extends State<MorningTile> {
                       clock: widget.clock,
                       validationState: widget.validationState,
                       device: widget.device,
+                      belt: widget.beltFactory?.call(),
                     )
                   : null,
             ),

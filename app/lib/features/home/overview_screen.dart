@@ -5,6 +5,7 @@ import '../measure/morning_entry.dart';
 import '../../l10n/app_localizations.dart';
 import '../profile/profile_screen.dart';
 import '../recalculation/recalculation_controller.dart';
+import '../measure/morning_belt.dart';
 import '../sensors/sensor_manager.dart';
 import '../sensors/sensors_screen.dart';
 import '../settings/about_screen.dart';
@@ -69,7 +70,12 @@ class OverviewScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              MorningTile(session: session, clock: clock),
+              MorningTile(
+                session: session,
+                clock: clock,
+                beltFactory: () =>
+                    MorningBelt.of(sensors, session.settings, clock),
+              ),
               _Entry(
                 key: const Key('home_settings'),
                 icon: Icons.settings_outlined,
@@ -140,6 +146,9 @@ class OverviewScreen extends StatelessWidget {
                       clock,
                     ),
                     appVersion: appVersion,
+                    morning: session is MorningStorage
+                        ? (session as MorningStorage).morning
+                        : null,
                   ),
                 ),
               ),

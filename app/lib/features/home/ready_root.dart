@@ -13,6 +13,7 @@ import '../measure/morning_entry.dart';
 import '../plan/plan_started_unit.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../storage/deletion.dart';
+import '../measure/morning_belt.dart';
 import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
 import '../run/run_flow_screen.dart';
@@ -272,6 +273,11 @@ class _ReadyRootState extends State<ReadyRoot> {
       context,
       session: widget.session,
       clock: widget.clock,
+      belt: MorningBelt.of(
+        widget.sensors,
+        widget.session.settings,
+        widget.clock,
+      ),
     );
   }
 

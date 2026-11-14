@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
 import 'device_info.dart';
+import 'morning_belt.dart';
 import 'morning_trend_logic.dart';
 import 'resting_measure_controller.dart';
 
@@ -12,10 +13,18 @@ import 'resting_measure_controller.dart';
 /// [onMeasurementEnded] zur Messung. Beide Rückrufe bekommen die Zeit (UTC).
 /// Teil C setzt sie nicht; ohne Rückruf passiert nichts.
 class MorningMeasureHooks {
-  const MorningMeasureHooks({this.onRestStarted, this.onMeasurementEnded});
+  const MorningMeasureHooks({
+    this.onRestStarted,
+    this.onMeasurementResumed,
+    this.onMeasurementEnded,
+  });
 
   /// Die Ruhephase beginnt (einmal je Ablauf, nicht bei „Noch einmal“).
   final void Function(DateTime at)? onRestStarted;
+
+  /// „Noch einmal messen“ nach verworfener Messung beginnt (ohne neue
+  /// Ruhephase).
+  final void Function()? onMeasurementResumed;
 
   /// Die Aufnahme der Messung ist zu Ende (auch bei „Noch einmal“ erneut).
   final void Function(DateTime at)? onMeasurementEnded;
@@ -60,6 +69,7 @@ class MorningMeasureController extends ChangeNotifier {
     required this.clock,
     required this.device,
     this.hooks = const MorningMeasureHooks(),
+    this.belt,
     RestingMeasureSignal? signal,
     PpgEvaluate? evaluate,
     bool autoTick = true,
@@ -85,6 +95,14 @@ class MorningMeasureController extends ChangeNotifier {
   final Clock clock;
   final DeviceInfoReader device;
   final MorningMeasureHooks hooks;
+
+  /// Gurt-RR (nur Entwicklermodus); `null` ohne Quelle. Die Stellen des
+  /// Ablaufs ruft der Controller selbst auf, die Pakete gehen mit der
+  /// gespeicherten Messung in den Speicher.
+  final MorningBelt? belt;
+
+  /// Hinweis „Pulsgurt verbunden“ zeigen (Einstieg, Ruhephase).
+  bool get beltHint => belt?.hintVisible ?? false;
 
   /// Markierungen (nach K-1) für RMSSD des Ergebnisses; `null` ohne Quelle.
   final Future<MorningTrendMarks> Function(RestingPosture posture)? marksFor;
@@ -146,18 +164,26 @@ class MorningMeasureController extends ChangeNotifier {
     if (phase != prev) {
       switch (phase) {
         case RestingMeasurePhase.resting:
-          hooks.onRestStarted?.call(clock.now().toUtc());
+          final at = clock.now().toUtc();
+          hooks.onRestStarted?.call(at);
+          belt?.hooks.onRestStarted?.call(at);
         case RestingMeasurePhase.measuring:
           if (prev == RestingMeasurePhase.starting) {
             _measureStartedAt = clock.now().toUtc();
           }
         case RestingMeasurePhase.result:
-          hooks.onMeasurementEnded?.call(clock.now().toUtc());
+          final at = clock.now().toUtc();
+          hooks.onMeasurementEnded?.call(at);
+          belt?.hooks.onMeasurementEnded?.call(at);
           _outcome = MorningOutcome.pending;
           _stored = null;
           _storedId = null;
           unawaited(_handleResult());
         case RestingMeasurePhase.starting:
+          if (prev == RestingMeasurePhase.result) {
+            hooks.onMeasurementResumed?.call();
+            belt?.hooks.onMeasurementResumed?.call();
+          }
           _outcome = MorningOutcome.pending;
           _stored = null;
           _storedId = null;
@@ -204,7 +230,7 @@ class MorningMeasureController extends ChangeNotifier {
               m.deviceModel,
             ),
           );
-      final id = await store.add(m);
+      final id = await store.add(m, beltPackets: belt?.packets ?? const []);
       if (gen != _generation) return;
       _marks = null;
       try {

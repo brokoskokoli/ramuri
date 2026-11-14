@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/measure/device_info.dart';
+import 'package:running_app/features/measure/morning_belt.dart';
 import 'package:running_app/features/measure/morning_launcher.dart';
 import 'package:running_app/features/measure/morning_measure_controller.dart';
 import 'package:running_app/features/measure/morning_measure_screen.dart';
@@ -65,13 +68,14 @@ class _FlakyStore implements MorningStore {
 }
 
 class _Rig {
-  _Rig._(this.cam, this.session, this.clock, this.store, this.c);
+  _Rig._(this.cam, this.session, this.clock, this.store, this.c, this.readings);
 
   final HoldingCamera cam;
   final StorageSession session;
   final FakeClock clock;
   final _FlakyStore store;
   final MorningMeasureController c;
+  final StreamController<HeartRateReading> readings;
   final ValueNotifier<bool> sound = ValueNotifier(true);
   int closed = 0;
   double _t = 0;
@@ -84,6 +88,9 @@ class _Rig {
     StorageSession? session,
     Duration offset = Duration.zero,
     Map<ValidationQuantity, ValidationState>? state,
+    bool withBelt = false,
+    bool developerMode = false,
+    bool strapConnected = true,
   }) async {
     final cam = HoldingCamera();
     final s = session ?? await FakeStorage().open(testKey);
@@ -93,12 +100,24 @@ class _Rig {
     );
     final store = _FlakyStore((s as MorningStorage).morning);
     late _Rig rig;
+    final readings = StreamController<HeartRateReading>.broadcast();
+    MorningBelt? belt;
+    if (withBelt) {
+      await SettingsDeveloperModeStore(s.settings, clock).set(developerMode);
+      belt = MorningBelt(
+        readings: readings.stream,
+        connected: () => strapConnected,
+        developerMode: SettingsDeveloperModeStore(s.settings, clock).read,
+      );
+      await belt.init();
+    }
     final c = MorningMeasureController(
       camera: cam,
       store: store,
       windowStore: SettingsMorningWindowStore(s.settings, clock),
       clock: clock,
       device: () async => (manufacturer: 'Testhersteller', model: 'Modell 1'),
+      belt: belt,
       hooks: MorningMeasureHooks(
         onRestStarted: (t) => rig.restStarts.add(t),
         onMeasurementEnded: (t) => rig.measureEnds.add(t),
@@ -111,7 +130,7 @@ class _Rig {
           ? null
           : morningMarksReader(s.settings, clock, state),
     );
-    rig = _Rig._(cam, s, clock, store, c);
+    rig = _Rig._(cam, s, clock, store, c, readings);
     return rig;
   }
 
@@ -124,6 +143,7 @@ class _Rig {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     addTearDown(c.dispose);
+    addTearDown(readings.close);
     await tester.pumpWidget(
       MaterialApp(
         theme: dark ? RamuriTheme.dark : RamuriTheme.light,
@@ -189,7 +209,115 @@ Future<void> _tap(WidgetTester tester, String key) async {
 
 Finder _text(String s) => find.text(s);
 
+HeartRateReading _rr(DateTime t, int rr) =>
+    HeartRateReading('gurt-1', t, 60, rrIntervals: [rr]);
+
 void main() {
+  group('Gurt-RR zur Morgenmessung (Teil E)', () {
+    testWidgets('Entwicklermodus: nur Pakete von Ruhephase bis Messende', (
+      tester,
+    ) async {
+      final r = await _Rig.make(withBelt: true, developerMode: true);
+      await r.show(tester, dark: false);
+      final t0 = r.clock.now();
+      r.readings.add(_rr(t0.subtract(const Duration(seconds: 1)), 700));
+      await _tap(tester, 'morning_start');
+      r.readings.add(_rr(t0.subtract(const Duration(seconds: 1)), 701));
+      r.readings.add(_rr(t0.add(const Duration(seconds: 5)), 900));
+      r.clock.advance(const Duration(seconds: 121));
+      r.readings.add(_rr(r.clock.now(), 910));
+      r.c.engine.tick();
+      await tester.pump();
+      await _settle(tester);
+      r._t = 0;
+      await r.feed(tester, 67);
+      final end = r.measureEnds.single;
+      expect(r.c.outcome, MorningOutcome.good);
+      final id = (await tester.runAsync(() => r.store.list()))!.single.id;
+      final packets = (await tester.runAsync(() => r.store.beltPackets(id)))!;
+      expect([for (final p in packets) p.value.intervals.single], [900, 910]);
+      expect(packets.first.value.time, t0.add(const Duration(seconds: 5)));
+      expect(packets.every((p) => !p.value.time.isAfter(end)), isTrue);
+    });
+
+    testWidgets('ohne Entwicklermodus wird nichts gespeichert', (tester) async {
+      final r = await _Rig.make(withBelt: true);
+      await r.show(tester, dark: false);
+      await _tap(tester, 'morning_start');
+      r.readings.add(_rr(r.clock.now(), 900));
+      expect(find.byKey(const Key('morning_belt_hint')), findsNothing);
+      r.clock.advance(const Duration(seconds: 121));
+      r.c.engine.tick();
+      await tester.pump();
+      await _settle(tester);
+      r._t = 0;
+      await r.feed(tester, 67);
+      expect(r.c.outcome, MorningOutcome.good);
+      final id = (await tester.runAsync(() => r.store.list()))!.single.id;
+      expect(await tester.runAsync(() => r.store.beltPackets(id)), isEmpty);
+    });
+
+    testWidgets('ohne Gurt läuft alles normal, kein Hinweis', (tester) async {
+      final r = await _Rig.make(
+        withBelt: true,
+        developerMode: true,
+        strapConnected: false,
+      );
+      await r.show(tester, dark: false);
+      expect(find.byKey(const Key('morning_belt_hint')), findsNothing);
+      await r.runThrough(tester);
+      expect(r.c.outcome, MorningOutcome.good);
+      final id = (await tester.runAsync(() => r.store.list()))!.single.id;
+      expect(await tester.runAsync(() => r.store.beltPackets(id)), isEmpty);
+    });
+
+    testWidgets('Hinweis Pulsgurt im Einstieg und in der Ruhephase', (
+      tester,
+    ) async {
+      final r = await _Rig.make(withBelt: true, developerMode: true);
+      await r.show(tester, dark: false);
+      expect(
+        _text(
+          'Pulsgurt verbunden. Seine RR-Werte werden zur Messung '
+          'mitgespeichert (Entwicklermodus).',
+        ),
+        findsOneWidget,
+      );
+      await _tap(tester, 'morning_start');
+      expect(_text('Pulsgurt zeichnet mit.'), findsOneWidget);
+    });
+
+    testWidgets('Abbruch: nichts gespeichert, keine verwaisten RR', (
+      tester,
+    ) async {
+      final r = await _Rig.make(withBelt: true, developerMode: true);
+      await r.show(tester, dark: false);
+      await _tap(tester, 'morning_start');
+      r.readings.add(_rr(r.clock.now(), 900));
+      await _tap(tester, 'measure_cancel');
+      expect(await tester.runAsync(() => r.store.list()), isEmpty);
+      expect(r.c.belt!.packets, hasLength(1)); // nur im Speicher, nie in der DB
+    });
+
+    testWidgets('verworfene Messung (unbrauchbar): nichts gespeichert', (
+      tester,
+    ) async {
+      final r = await _Rig.make(withBelt: true, developerMode: true);
+      r.next = _bad;
+      await r.show(tester, dark: false);
+      await _tap(tester, 'morning_start');
+      r.readings.add(_rr(r.clock.now(), 900));
+      r.clock.advance(const Duration(seconds: 121));
+      r.c.engine.tick();
+      await tester.pump();
+      await _settle(tester);
+      r._t = 0;
+      await r.feed(tester, 67);
+      expect(r.c.outcome, MorningOutcome.unusable);
+      expect(await tester.runAsync(() => r.store.list()), isEmpty);
+    });
+  });
+
   for (final dark in [false, true]) {
     final mode = dark ? 'dunkel' : 'hell';
 

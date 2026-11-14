@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../reminders/reminder_controller.dart';
+import 'morning_pairs_section.dart';
 
 /// Tipps auf die Versionsnummer bis zum Entwicklermodus (FR-0217).
 const int developerModeTaps = 10;
@@ -19,9 +20,18 @@ class AboutScreen extends StatefulWidget {
     super.key,
     required this.developerMode,
     required this.appVersion,
+    this.morning,
+    this.clock,
   });
 
   final DeveloperModeStore developerMode;
+
+  /// Morgenmessungen für „Messpaare“ im Abschnitt Entwickler (WP33 E); ohne
+  /// Speicher entfällt der Teil.
+  final MorningStore? morning;
+
+  /// Zeitquelle für den Dateinamen des Exports; ohne Angabe die Systemzeit.
+  final DateTime Function()? clock;
 
   /// Liefert die Versionsangabe; `null` = unbekannt.
   final Future<String?> Function() appVersion;
@@ -175,6 +185,16 @@ class _AboutScreenState extends State<AboutScreen> {
                 onChanged: _off,
               ),
             ),
+            if (widget.morning != null) ...[
+              const SizedBox(height: 8),
+              RamuriCard(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: MorningPairsSection(
+                  store: widget.morning!,
+                  clock: widget.clock,
+                ),
+              ),
+            ],
           ],
           if (toast != null) ...[
             const SizedBox(height: 16),
