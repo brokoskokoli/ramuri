@@ -1762,6 +1762,14 @@ void main() {
       final fri = w.firstWhere((u) => u.day == nov(20));
       expect(fri.isHard, isFalse);
       expect(fri.kind, base[1].kind);
+      // Rückfall ohne lockere Einheit: die harte entfällt, der lange Lauf
+      // (PAR-195) bleibt.
+      expect(w.any((u) => u.isHard), isFalse);
+      expect(w.map((u) => u.kind), [
+        PlanUnitKind.easy,
+        base[1].kind,
+        PlanUnitKind.long,
+      ]);
       expect(p.pinnedConflicts, isEmpty);
     });
 

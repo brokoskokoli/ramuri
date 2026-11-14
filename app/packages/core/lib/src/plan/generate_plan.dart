@@ -401,12 +401,16 @@ GeneratedPlan generatePlan(
           }
         }
         final matched = pick >= 0;
+        // Rückfall (keine Einheit der Rolle des Laufs): zuerst eine lockere,
+        // dann die harte, zuletzt der lange Lauf (PAR-195: der längste Lauf
+        // der Woche bleibt); innerhalb der Stufe die späteste. Das ist die
+        // sichere Richtung: eher weniger Intensität als kein langer Lauf.
         for (var i = 0; !matched && i < future.length; i++) {
           if (held != null && held.contains(planDay(future[i].day))) continue;
           if (reserved(i)) continue;
           if (pick < 0 ||
-              _role(future[i]) < _role(future[pick]) ||
-              (_role(future[i]) == _role(future[pick]) &&
+              _dropRank(future[i]) < _dropRank(future[pick]) ||
+              (_dropRank(future[i]) == _dropRank(future[pick]) &&
                   future[i].day.isAfter(future[pick].day))) {
             pick = i;
           }
@@ -576,6 +580,14 @@ Map<int, List<DateTime>> planDroppedWithoutRestDays(
         ],
   };
 }
+
+/// Reihenfolge, in der der Rückfall des Abzugs Einheiten streicht: locker,
+/// dann hart, zuletzt lang.
+int _dropRank(PlanUnit u) => u.isHard
+    ? 1
+    : u.kind == PlanUnitKind.long
+    ? 2
+    : 0;
 
 int _role(PlanUnit u) => u.isHard
     ? 2
