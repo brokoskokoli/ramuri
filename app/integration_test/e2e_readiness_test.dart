@@ -170,8 +170,15 @@ String _list(String prefix, [int max = 8]) {
   return out.isEmpty ? '<keine>' : out.join(' | ');
 }
 
-/// Einstellungen mit Wert protokollieren (fester Ausgangszustand).
-Future<void> _state(
+typedef _State = ({
+  bool dev,
+  Map<String, bool> consents,
+  bool warning,
+  int morning,
+});
+
+/// Einstellungen lesen und mit Wert protokollieren (fester Ausgangszustand).
+Future<_State> _state(
   WidgetTester t,
   StorageSession s,
   Clock c,
@@ -181,6 +188,7 @@ Future<void> _state(
     () => SettingsDeveloperModeStore(s.settings, c).read(),
   );
   final cons = <String>[];
+  final granted = <String, bool>{};
   for (final k in [
     HealthDataKind.hrvRmssd,
     HealthDataKind.restingHeartRate,
@@ -190,6 +198,7 @@ Future<void> _state(
       () => ConsentService(s.consents, c).isGranted(healthSourceKey(k)),
     );
     cons.add('${k.key}=$g');
+    granted[k.key] = g!;
   }
   final w = await t.runAsync((s as WarningStorage).warning.read);
   final morning = (await t.runAsync(
@@ -201,17 +210,18 @@ Future<void> _state(
     'morgenmessungen=$morning tz=${DateTime.now().timeZoneName} '
     'offset=${c.utcOffsetAt(now).inMinutes}min now_utc=${now.toIso8601String()}',
   );
+  return (dev: dev!, consents: granted, warning: w != null, morning: morning);
 }
 
 /// Heute neu aufbauen (neuer Seitenzustand, gleicher Speicher).
-Future<void> _heute(WidgetTester t, World w) async {
+Future<void> _heute(WidgetTester t, World w, {int questions = 0}) async {
   await startApp(t, w);
-  await _onHome(t);
+  await _onHome(t, questions: questions);
 }
 
 /// Heute steht, wenn die Uebersicht-Taste da ist (die Startkarte kann unter den
 /// Karten ausserhalb des gebauten Bereichs liegen).
-Future<void> _onHome(WidgetTester t) async {
+Future<void> _onHome(WidgetTester t, {int questions = 0}) async {
   await waitFor(
     t,
     () => has('home_overview') || has('welcome_start') || has('setup_skip'),
@@ -224,14 +234,20 @@ Future<void> _onHome(WidgetTester t) async {
     () => has('readiness_card') || has('home_recovery_card'),
     'Karte auf Heute',
   );
-  await pumpFor(t, const Duration(seconds: 2));
   // Ohne Systemrecht in Health Connect (AVD) fragt die App je Art nach dem
   // Loeschen (SEC-0007); der Test beantwortet mit "Abbrechen, weiter lesen".
-  for (var i = 0; i < 4 && has('health_delete_cancel'); i++) {
-    log('Loeschfrage beantwortet mit Abbrechen (Nr. ${i + 1})');
+  // Je Art mit Einwilligung und Daten fragt die App einmal; die Zahl steht
+  // fest, so wird auf jede Frage und danach auf das Ende der letzten gewartet.
+  for (var i = 1; i <= questions; i++) {
+    await waitFor(t, () => has('health_delete_cancel'), 'Loeschfrage Nr. $i');
+    log('Loeschfrage beantwortet mit Abbrechen (Nr. $i)');
     await tapDialog(t, 'health_delete_cancel');
-    await pumpFor(t, const Duration(seconds: 1));
   }
+  await waitFor(
+    t,
+    () => !has('health_delete_cancel'),
+    'keine Loeschfrage mehr',
+  );
 }
 
 String _heuteCards() =>
@@ -243,6 +259,28 @@ List<double?> _chart(String key) {
   final w = find.byKey(Key(key)).evaluate().first.widget as CustomPaint;
   return (w.painter! as ReadinessSeriesPainter).values;
 }
+
+/// Schluessel der Reihen auf dem Verlauf (ohne Teil-Schluessel wie _chart_).
+List<String> _seriesKeys() => [
+  for (final e in find.byWidgetPredicate((x) {
+    final k = x.key;
+    return k is ValueKey<String> &&
+        k.value.startsWith('readiness_series_') &&
+        !k.value.contains('_latest_') &&
+        !k.value.contains('_source_') &&
+        !k.value.contains('_chart_') &&
+        !k.value.contains('_mark_') &&
+        !k.value.contains('_few_');
+  }).evaluate())
+    (e.widget.key! as ValueKey<String>).value.substring(
+      'readiness_series_'.length,
+    ),
+];
+
+List<int> _gaps(List<double?> v) => [
+  for (var i = 0; i < v.length; i++)
+    if (v[i] == null) i,
+];
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -257,7 +295,17 @@ void main() {
     final s = await session(t, w);
     final d = _today(clock);
     log('S0 heute_ortstag=${d.toIso8601String().substring(0, 10)}');
-    await _state(t, s, clock, 'S0');
+    final s0 = await _state(t, s, clock, 'S0');
+    // Ausgangszustand der frischen Installation: sonst sagen die Stufen nichts.
+    expect(s0.dev, isFalse, reason: 'S0 Entwicklermodus aus');
+    expect(
+      s0.consents.values.every((g) => !g),
+      isTrue,
+      reason: 'S0 keine Einwilligung (${s0.consents})',
+    );
+    expect(s0.consents.length, 3, reason: 'S0 drei Arten gelesen');
+    expect(s0.warning, isFalse, reason: 'S0 kein Warnsignal');
+    expect(s0.morning, 0, reason: 'S0 keine Morgenmessung');
 
     // 1) Basisstufe: Warnsignal als Ausloeser, nichts sonst.
     await t.runAsync(() => _warning(s, d, on: true));
@@ -320,18 +368,22 @@ void main() {
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf');
     await pumpFor(t, const Duration(milliseconds: 500));
-    for (final k in [
-      'camera_hrv_0',
-      'camera_restingHeartRate_1',
-      'camera_hrv_1',
-      'camera_restingHeartRate_0',
-    ]) {
-      if (has('readiness_series_$k')) {
-        final v = _chart('readiness_series_chart_$k');
-        log(
-          'S3 verlauf $k n=${v.length} gefuellt=${v.where((e) => e != null).length} source=${txt('readiness_series_source_$k')} latest=${txt('readiness_series_latest_$k')} mark=${txt('readiness_series_mark_$k')} few=${has('readiness_series_few_$k')}',
-        );
-      }
+    final camKeys = _seriesKeys();
+    log('S3 reihen=${camKeys.join(',')}');
+    expect(camKeys.length, 2, reason: 'S3 zwei Reihen (RMSSD, Ruhepuls)');
+    for (final k in camKeys) {
+      expect(k.startsWith('camera_'), isTrue, reason: 'S3 Quelle Kamera: $k');
+      final v = _chart('readiness_series_chart_$k');
+      log(
+        'S3 verlauf $k n=${v.length} gefuellt=${v.where((e) => e != null).length} source=${txt('readiness_series_source_$k')} latest=${txt('readiness_series_latest_$k')} mark=${txt('readiness_series_mark_$k')} few=${has('readiness_series_few_$k')}',
+      );
+      expect(v.length, 28, reason: 'S3 $k 28 Tage');
+      expect(v.where((e) => e != null).length, 28, reason: 'S3 $k 28 Werte');
+      expect(
+        has('readiness_series_few_$k'),
+        isFalse,
+        reason: 'S3 $k nicht "wenig"',
+      );
     }
     expect(has('readiness_history_dev'), isTrue);
     await shot(t, 's3_verlauf');
@@ -394,20 +446,31 @@ void main() {
     log(
       'S5 gespeichert hrv=${await t.runAsync(() => hc.count(HealthDataKind.hrvRmssd))} ruhepuls=${await t.runAsync(() => hc.count(HealthDataKind.restingHeartRate))} schlaf=${await t.runAsync(() => hc.count(HealthDataKind.sleep))}',
     );
-    await _heute(t, w);
+    await _heute(t, w, questions: 3);
     log('S5 ${_heuteCards()}');
     expect(has('readiness_card'), isTrue, reason: 'S5 erweiterte Karte (HC)');
     expect(has('home_recovery_card'), isFalse, reason: 'S5 keine Warnung');
     log(
       'S5 karte stage=${txt('readiness_stage')} title=${txt('readiness_title')} text=${txt('readiness_text')}',
     );
+    expect(has('readiness_stage'), isTrue, reason: 'S5 Stufe auf der Karte');
+    expect(txt('readiness_stage'), isNotEmpty, reason: 'S5 Stufe benannt');
+    expect(txt('readiness_title'), isNotEmpty, reason: 'S5 Titel');
+    expect(
+      txt('readiness_title'),
+      isNot(contains('Unzureichende Daten')),
+      reason: 'S5 genug Daten mit HC (28 Tage)',
+    );
     await shot(t, 's5_heute');
     log(
       'S5 overlay dialogs=${find.byType(AlertDialog).evaluate().length} snack=${find.byType(SnackBar).evaluate().length} sheet=${find.byType(BottomSheet).evaluate().length} barrier=${find.byType(ModalBarrier).evaluate().length} hittable=${hittable(t, find.byKey(const Key('readiness_where_from')))}',
     );
-    await pumpFor(t, const Duration(seconds: 12));
-    log(
-      'S5 nach_pause hittable=${hittable(t, find.byKey(const Key('readiness_where_from')))} ${_heuteCards()}',
+    await waitFor(
+      t,
+      () =>
+          has('readiness_where_from') &&
+          hittable(t, find.byKey(const Key('readiness_where_from'))),
+      'Erholungskarte bedienbar',
     );
     await tapKey(t, 'readiness_where_from');
     await waitFor(t, () => has('readiness_detail'), 'Detailseite HC');
@@ -429,18 +492,30 @@ void main() {
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf HC');
     await pumpFor(t, const Duration(milliseconds: 500));
-    for (final k in [
-      'hc_hrv_0',
-      'hc_restingHeartRate_1',
-      'hc_hrv_1',
-      'hc_restingHeartRate_0',
-    ]) {
-      if (has('readiness_series_$k')) {
-        final v = _chart('readiness_series_chart_$k');
-        log(
-          'S5 verlauf $k n=${v.length} gefuellt=${v.where((e) => e != null).length} luecken=${[for (var i = 0; i < v.length; i++)
-            if (v[i] == null) i].join(',')} source=${txt('readiness_series_source_$k')} latest=${txt('readiness_series_latest_$k')}',
-        );
+    final hcKeys = _seriesKeys();
+    log('S5 reihen=${hcKeys.join(',')}');
+    expect(hcKeys.length, 2, reason: 'S5 zwei Reihen (HRV, Ruhepuls)');
+    for (final k in hcKeys) {
+      expect(
+        k.startsWith('hc_'),
+        isTrue,
+        reason: 'S5 Quelle Health Connect: $k',
+      );
+      final v = _chart('readiness_series_chart_$k');
+      final gaps = _gaps(v);
+      log(
+        'S5 verlauf $k n=${v.length} gefuellt=${v.where((e) => e != null).length} luecken=${gaps.join(',')} source=${txt('readiness_series_source_$k')} latest=${txt('readiness_series_latest_$k')}',
+      );
+      expect(v.length, 28, reason: 'S5 $k 28 Tage');
+      expect(
+        txt('readiness_series_source_$k'),
+        contains('Health Connect'),
+        reason: 'S5 $k Quelle genannt',
+      );
+      if (k.contains('restingHeartRate')) {
+        expect(gaps, [9, 10, 11], reason: 'S5 Ruhepuls: Luecken Tag 9-11');
+      } else {
+        expect(gaps, isEmpty, reason: 'S5 HRV ohne Luecke');
       }
     }
     expect(
@@ -456,7 +531,7 @@ void main() {
     // 6) beide Quellen: getrennte Reihen.
     await t.runAsync(() => _dev(s, clock, true));
     await _state(t, s, clock, 'S6');
-    await _heute(t, w);
+    await _heute(t, w, questions: 3);
     await tapKey(t, 'readiness_where_from');
     await waitFor(t, () => has('readiness_detail'), 'Detailseite beide');
     log('S6 detail text=${txt('readiness_detail_text')}');
@@ -465,21 +540,7 @@ void main() {
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf beide');
     await pumpFor(t, const Duration(milliseconds: 500));
-    final keys = [
-      for (final e in find.byWidgetPredicate((x) {
-        final k = x.key;
-        return k is ValueKey<String> &&
-            k.value.startsWith('readiness_series_') &&
-            !k.value.contains('_latest_') &&
-            !k.value.contains('_source_') &&
-            !k.value.contains('_chart_') &&
-            !k.value.contains('_mark_') &&
-            !k.value.contains('_few_');
-      }).evaluate())
-        (e.widget.key! as ValueKey<String>).value.substring(
-          'readiness_series_'.length,
-        ),
-    ];
+    final keys = _seriesKeys();
     log('S6 reihen=${keys.join(',')}');
     for (final k in keys) {
       log('S6 reihe $k source=${txt('readiness_series_source_$k')}');
@@ -507,36 +568,58 @@ void main() {
       final fake = _FixedClock(_at(d, days, h, m));
       final w2 = buildWorld(clock: fake);
       await startApp(t, w2);
-      await _onHome(t);
+      await _onHome(t, questions: 3);
       final fd = _today(fake);
       log(
         'S7 $label now_utc=${fake.now().toIso8601String()} ortstag=${fd.toIso8601String().substring(0, 10)} utc_tag=${fake.now().toIso8601String().substring(0, 10)} offset=${fake.utcOffsetAt(fake.now()).inMinutes}min',
       );
       log('S7 $label ${_heuteCards()}');
-      if (has('readiness_card')) {
+      // Ortstag: nach Mitternacht Ortszeit ist es der naechste Tag.
+      expect(
+        fd,
+        DateTime(d.year, d.month, d.day + days),
+        reason: 'S7 $label Ortstag',
+      );
+      // Die Karte steht in beiden Faellen (heute fehlen nach Mitternacht nur
+      // die Tageswerte, nicht die Einwilligung).
+      expect(has('readiness_card'), isTrue, reason: 'S7 $label Karte');
+      log(
+        'S7 $label karte title=${txt('readiness_title')} text=${txt('readiness_text')}',
+      );
+      await tapKey(t, 'readiness_where_from');
+      await waitFor(t, () => has('readiness_detail'), 'Detail $label');
+      log(
+        'S7 $label detail facts=${_list('readiness_detail_fact_')} reasons=${_list('readiness_detail_reason_')}',
+      );
+      await tapKey(t, 'readiness_detail_series_link');
+      await waitFor(t, () => has('readiness_history'), 'Verlauf $label');
+      await pumpFor(t, const Duration(milliseconds: 500));
+      final keys7 = _seriesKeys();
+      log('S7 $label reihen=${keys7.join(',')}');
+      expect(keys7.length, 4, reason: 'S7 $label vier Reihen (HC, Kamera)');
+      for (final k in keys7) {
+        final v = _chart('readiness_series_chart_$k');
         log(
-          'S7 $label karte title=${txt('readiness_title')} text=${txt('readiness_text')}',
+          'S7 $label verlauf $k letzter=${v.last == null ? 'Luecke' : 'Wert'} vorletzter=${v[v.length - 2] == null ? 'Luecke' : 'Wert'}',
         );
-        await tapKey(t, 'readiness_where_from');
-        await waitFor(t, () => has('readiness_detail'), 'Detail $label');
-        log(
-          'S7 $label detail facts=${_list('readiness_detail_fact_')} reasons=${_list('readiness_detail_reason_')}',
-        );
-        await tapKey(t, 'readiness_detail_series_link');
-        await waitFor(t, () => has('readiness_history'), 'Verlauf $label');
-        await pumpFor(t, const Duration(milliseconds: 500));
-        for (final k in ['hc_hrv_0', 'camera_hrv_0']) {
-          if (has('readiness_series_chart_$k')) {
-            final v = _chart('readiness_series_chart_$k');
-            log(
-              'S7 $label verlauf $k letzter=${v.last == null ? 'Luecke' : 'Wert'} vorletzter=${v[v.length - 2] == null ? 'Luecke' : 'Wert'}',
-            );
-          }
+        if (days == 0) {
+          // Vor Mitternacht ist heute der letzte Tag mit Wert (Ruhepuls und HRV
+          // der Kamera und von HC haben heute einen Eintrag).
+          expect(v.last, isNotNull, reason: 'S7 $label $k letzter = heute');
+        } else {
+          // Nach Mitternacht ist der neue Tag der letzte Punkt, ohne Wert; der
+          // Tag davor hat einen (Tageswechsel am Ortstag, nicht an UTC).
+          expect(v.last, isNull, reason: 'S7 $label $k neuer Tag ohne Wert');
+          expect(
+            v[v.length - 2],
+            isNotNull,
+            reason: 'S7 $label $k gestern mit Wert',
+          );
         }
-        await shot(t, 's7_${label}_verlauf');
-        await back(t);
-        await back(t);
       }
+      await shot(t, 's7_${label}_verlauf');
+      await back(t);
+      await back(t);
       await shot(t, 's7_$label');
     }
     log('S7 ok');
