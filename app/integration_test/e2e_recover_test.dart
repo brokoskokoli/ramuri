@@ -38,7 +38,7 @@ void main() {
         await waitFor(t, () => has('recover_dialog'), 'Wiederanlauf-Dialog');
         final before = await countRuns(t, w);
         log('RECOVER_B runs=${before.length} state=${before.first.state}');
-        expect(before.length, 2, reason: 'der eine Lauf aus Stufe a');
+        expect(before.length, 1, reason: 'der eine Lauf aus Stufe a');
         expect(before.first.state, isNot(RunState.finished));
         expect(before.first.positions, greaterThan(3));
         await tapKey(t, 'recover_resume');
