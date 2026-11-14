@@ -38,6 +38,11 @@ void main() {
       expect(r.level, ReadinessLevel.provisional);
       expect(codes(r), [ReadinessLevelReasonCode.restingHrMissing]);
     });
+    test('genau 18 ohne Ruhepuls: nur der Ruhepuls fehlt', () {
+      final r = computeReadiness(inputs(hrvZ: 0, hours: 7, hrvRef: 18));
+      expect(r.level, ReadinessLevel.provisional);
+      expect(codes(r), [ReadinessLevelReasonCode.restingHrMissing]);
+    });
     test('Ruhepuls ohne eigene Referenz zählt nicht als Faktor', () {
       final i = ReadinessInputs(
         today: today,
@@ -173,6 +178,32 @@ void main() {
           expect(r.levelReasons.single.required, 14);
         }
       }
+    });
+    test('mehrere Reihen ohne z: Grund der mit den meisten Referenzwerten', () {
+      final key = const MorningSeriesKey(RestingPosture.lying, 'H', 'M1');
+      final i = ReadinessInputs(
+        today: today,
+        now: now,
+        hrvHealthConnect: noZ(
+          ReadinessFactor.hrv,
+          NoDeviationReason.madTooSmall,
+          ref: 12,
+        ),
+        cameraDeviations: [
+          DeviationResult(
+            factor: ReadinessFactor.hrv,
+            source: ReadinessSource.camera,
+            cameraSeries: key,
+            reason: NoDeviationReason.noValueToday,
+            referenceCount: 5,
+          ),
+        ],
+        release: CameraRelease(developerMode: true, rmssdOptIn: false),
+        sleepSessions: [night(7)],
+      );
+      expect(codes(computeReadiness(i)), [
+        ReadinessLevelReasonCode.hrvMadTooSmall,
+      ]);
     });
     test('keine Reihe: hrvNoSeries; Schlaf fehlt: sleepMissing', () {
       final r = computeReadiness(ReadinessInputs(today: today, now: now));
