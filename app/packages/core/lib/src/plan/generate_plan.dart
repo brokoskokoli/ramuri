@@ -159,9 +159,10 @@ List<PlanUnit> _byDay(List<PlanUnit> l) {
 /// automatischer Auslöser hält (ADR-0010 Punkt 8), bis [heldUntil]
 /// (exklusiv): Dort entstehen nicht mehr Einheiten als gehaltene Tage. Eine
 /// erzeugte Einheit auf einem nicht gehaltenen Tag entfällt (zuerst die
-/// lockeren, dann die späteren) und ihre geplanten Minuten gelten als von
-/// einer eingefrorenen Einheit der Woche abgedeckt, etwa vom absolvierten Lauf
-/// auf einem verschobenen Tag; die Wochenzeit bleibt so erhalten.
+/// lockeren, dann die späteren). Ihre geplanten Minuten gelten als abgedeckt
+/// vom absolvierten Lauf auf einem verschobenen Tag (eingefroren, `pinned`,
+/// Tag ohne geplante Einheit; je Lauf eine Einheit, auch eine schon
+/// vergangene): Die Wochenzeit bleibt erhalten.
 GeneratedPlan generatePlan(
   TrainingGoal goal,
   PlanInputs inputs,
@@ -319,6 +320,25 @@ GeneratedPlan generatePlan(
         heldUntil != null &&
         start.isBefore(heldUntil) &&
         walkPlan == null) {
+      // Ein vom Nutzer verschobener und absolvierter Lauf (eingefroren,
+      // `pinned`) auf einem Tag ohne geplante Einheit ersetzt eine geplante
+      // Einheit der Woche (F1): Deren Minuten gelten als abgedeckt, sie sind
+      // keine Abweichung. Das gilt höchstens je so einen Lauf, zuerst für die
+      // Einheit, die schon vor heute liegt und entfallen ist, dann für die
+      // künftige auf einem nicht gehaltenen Tag, die nicht mehr entsteht.
+      final plannedDays = {for (final u in planned.units) planDay(u.day)};
+      var quota = frozenWeek
+          .where((u) => u.pinned && !plannedDays.contains(planDay(u.day)))
+          .length;
+      for (final u in planned.units) {
+        if (quota == 0) break;
+        if (planDay(u.day).isBefore(todayDay) &&
+            !frozenDays.contains(u.day) &&
+            !heldDays.contains(planDay(u.day))) {
+          deviation -= u.minutes;
+          quota--;
+        }
+      }
       final free = heldDays
           .where(
             (d) =>
@@ -340,7 +360,10 @@ GeneratedPlan generatePlan(
           }
         }
         if (pick < 0) break;
-        deviation -= future[pick].minutes;
+        if (quota > 0) {
+          deviation -= future[pick].minutes;
+          quota--;
+        }
         future = [...future]..removeAt(pick);
         surplus--;
       }

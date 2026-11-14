@@ -595,8 +595,34 @@ Future<_Result> _simulate(_Scenario sc) async {
           easyRpe.add(sc.tiredWeeks.contains(week) ? 8 : 4 + rnd(2));
         }
         count('lauf');
+        if (unit.pinned) count('lauf_auf_verschobenem_tag');
         final before = await futureDays(day);
+        // Ein absolvierter Lauf in geplanter Dauer ändert die Wochensumme
+        // nicht (auch nicht auf einem verschobenen Tag, F1): Wochensumme nach
+        // Verschiebung und Lauf = ohne Verschiebung, bis auf Rundung.
+        Future<int> thisWeek() async {
+          final m = _monday(today);
+          var sum = 0;
+          for (final u in await plans.unitsBetween(
+            m,
+            m.add(const Duration(days: 6)),
+          )) {
+            if (u.kind != PlanUnitKind.rest) sum += u.minutes;
+          }
+          return sum;
+        }
+
+        final weekBefore = await thisWeek();
         await recalc(PlanTrigger.run, day);
+        final weekAfter = await thisWeek();
+        if ((weekAfter - weekBefore).abs() > 2) {
+          bad(
+            day,
+            'Wochensumme',
+            'Lauf ändert die Woche von $weekBefore auf $weekAfter min'
+                '${unit.pinned ? ' (verschobener Tag)' : ''}',
+          );
+        }
         await checkInvariants(day, PlanTrigger.run);
         await autoCheckDays(day, PlanTrigger.run, before, warnedNow);
       } else {
@@ -678,7 +704,7 @@ void main() {
       outageWeeks: {9, 10, 30, 31, 32},
       tiredWeeks: {20, 21},
       fatigueReportedWeek: 41,
-      moveDays: const [],
+      moveDays: const [20, 45, 100, 130, 190, 240, 280, 330],
       ruleVersionWeek: 25,
     ),
     _Scenario(
@@ -712,6 +738,9 @@ void main() {
         expect(b.transcript, a.transcript, reason: 'zweiter Durchlauf');
         expect(elapsed, lessThan(const Duration(seconds: 30)));
         expect(a.stats['lauf'], greaterThan(10));
+        if (sc.moveDays.isNotEmpty) {
+          expect(a.stats['termin_verschoben'], greaterThan(0));
+        }
         if (sc.pause != null) {
           // F2: auch mit Anker aus Rückmeldung/Wochenbewertung kommt der
           // Neustart (PAR-202), Tag 78, 162 und 223.
