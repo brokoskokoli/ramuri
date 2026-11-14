@@ -684,5 +684,5 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Betroffene Anforderungen:** FR-0200
 - **Auswirkung:** non-blocking, bis zur Antwort gilt die Auslegung aus WP32; WP34 nutzt die Auswahl für die Readiness.
 - **Optionen:** Zahl der Tage mit gültigem Tageswert (Gleichstand: kleinerer Paketname); Zahl der Einzelwerte; die zuletzt ununterbrochene Reihe; die Quelle, die der Nutzer wählt. Empfehlung: Tage mit gültigem Tageswert, Gleichstand kleinerer Paketname (so umgesetzt); eine Wahl durch den Nutzer erst, wenn echte Geräte Mehrfachquellen zeigen.
-- **Status:** Open
-- **Entscheidung:** —
+- **Status:** Resolved
+- **Entscheidung:** Maintainer 2026-11-14: so lassen – Zahl der Tage mit gültigem Tageswert, Gleichstand kleinerer Paketname (umgesetzt in WP32, K64).
