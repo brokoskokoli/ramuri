@@ -561,6 +561,46 @@ void main() {
       );
     });
 
+    test('planInputsBeforeAdjustment: Eingaben der Fassung vor der Anpassung, '
+        'sonst null', () {
+      // Eindeutige Wochenminuten je Fassung (Id * 10) zum Wiedererkennen.
+      PlanVersionRecord rec(int id, PlanTrigger t, DateTime anchor) =>
+          PlanVersionRecord(
+            id: id,
+            goalId: 1,
+            createdAt: today,
+            validFrom: today,
+            trigger: t,
+            reason: t.name,
+            version: const PlanVersion(),
+            inputsJson: jsonEncode(
+              i.copyWith(anchor: anchor, startWeeklyMinutes: id * 10).toJson(),
+            ),
+            summaryJson: '{}',
+          );
+      int? before(List<PlanVersionRecord> h) =>
+          planInputsBeforeAdjustment(h)?.startWeeklyMinutes;
+      final create = rec(1, PlanTrigger.create, _mon(0));
+      final feedback = rec(2, PlanTrigger.feedback, _mon(1));
+      // create, dann Rückmeldung: die Eingaben von create.
+      expect(before([create, feedback]), 10);
+      // Läufe mit gleichem Anker ändern das nicht.
+      expect(before([create, feedback, rec(3, PlanTrigger.run, _mon(1))]), 10);
+      // Ein Pausenneustart trägt seinen Anker selbst: keine Anpassung.
+      final pause = rec(3, PlanTrigger.pause, _mon(2));
+      expect(before([create, feedback, pause]), isNull);
+      expect(
+        before([create, feedback, pause, rec(4, PlanTrigger.run, _mon(2))]),
+        isNull,
+      );
+      // Anpassung nach einer Pause: die Fassung davor (die Pause).
+      expect(before([create, pause, rec(4, PlanTrigger.weekly, _mon(3))]), 30);
+      // Ohne Anpassung, mit einer einzigen Fassung, leer: null.
+      expect(before([create]), isNull);
+      expect(before([create, rec(2, PlanTrigger.goalChange, _mon(1))]), isNull);
+      expect(before(const []), isNull);
+    });
+
     test('Basiswoche: letzte vollständige Kalenderwoche vor Pausenbeginn', () {
       final mon = DateTime.utc(2026, 11, 23);
       // Sonntag: seine Woche ist vollständig, sonst die Woche davor.
