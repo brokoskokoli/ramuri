@@ -8,6 +8,7 @@ import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_goal_form.dart';
 import 'package:running_app/features/plan/plan_screen.dart';
 import 'package:running_app/features/settings/app_settings.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/offload_scope.dart';
 
 import 'app_harness.dart';
@@ -451,6 +452,15 @@ void main() {
       );
       expect(key('plan_feedback_card'), findsNothing);
       expect(key('plan_feedback_done'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: key('plan_feedback_done'),
+          matching: find.text(
+            lookupAppLocalizations(const Locale('de')).planFeedbackChanged,
+          ),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('„passt“: keine neue Fassung, Antwort gemerkt', (tester) async {
@@ -468,6 +478,15 @@ void main() {
         '2026-11-25',
       );
       expect(key('plan_feedback_card'), findsNothing);
+      expect(
+        find.descendant(
+          of: key('plan_feedback_done'),
+          matching: find.text(
+            lookupAppLocalizations(const Locale('de')).planFeedbackSame,
+          ),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('jederzeit im Menü, auch ohne Fälligkeit', (tester) async {

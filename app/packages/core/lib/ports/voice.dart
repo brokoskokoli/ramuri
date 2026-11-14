@@ -9,6 +9,11 @@ abstract interface class VoicePort {
   /// gesprochen, keine geht verloren.
   Future<void> speak(String text, {String? languageTag});
 
+  /// `false`, wenn die Sprachausgabe fehlt oder nicht läuft (Engine aus, keine
+  /// Stimme oder Sprachdaten für [languageTag]); dann bleiben Ansagen still.
+  /// Ein Fehler oder Hängen heißt „unbekannt“: Aufrufer weisen dann nicht hin.
+  Future<bool> available({String? languageTag});
+
   /// Bricht eine laufende Ansage ab und gibt den Audio-Fokus frei.
   Future<void> stop();
 }

@@ -14,6 +14,20 @@ class FakeVoice implements VoicePort {
   final List<String?> languages = [];
   int stopCalls = 0;
 
+  /// Antwort von [available] (Sprache fehlt oder Engine aus: `false`).
+  bool isAvailable = true;
+  int availableCalls = 0;
+  final List<String?> availableLanguages = [];
+
+  @override
+  Future<bool> available({String? languageTag}) async {
+    availableCalls++;
+    availableLanguages.add(languageTag);
+    final e = error;
+    if (e != null) throw e;
+    return isAvailable;
+  }
+
   @override
   Future<void> speak(String text, {String? languageTag}) async {
     spoken.add(text);

@@ -29,6 +29,46 @@ const String planLastCheckDayKey = 'plan.last_check_day';
 /// Code, geht ins Archiv.
 const String planPauseRestartKey = 'plan.pause_restart';
 
+/// Stammt der Anker der letzten Fassung aus einer Anpassung des Plans
+/// (Rückmeldung, Wochenbewertung, Regelversion) und nicht aus Anlage, Ziel
+/// oder einem Pausenneustart? Die Fassung, die den Anker zuerst trug, gibt
+/// den Auslöser; spätere Fassungen mit gleichem Anker (Läufe) ändern ihn nicht.
+bool planAnchorFromAdjustment(List<PlanVersionRecord> history) {
+  final i = _anchorVersionIndex(history);
+  if (i < 0) return false;
+  return switch (history[i].trigger) {
+    PlanTrigger.feedback ||
+    PlanTrigger.weekly ||
+    PlanTrigger.ruleVersion => true,
+    _ => false,
+  };
+}
+
+/// Eingaben der Fassung vor der Anpassung, die den Anker der letzten Fassung
+/// gesetzt hat (siehe [planAnchorFromAdjustment]): der bisherige Plan, den der
+/// Nutzer gesehen hat. `null` ohne Anpassung oder ohne frühere Fassung.
+PlanInputs? planInputsBeforeAdjustment(List<PlanVersionRecord> history) {
+  final i = _anchorVersionIndex(history);
+  if (i < 1 || !planAnchorFromAdjustment(history)) return null;
+  return history[i - 1].inputs;
+}
+
+/// Index der Fassung, die den Anker der letzten Fassung zuerst trug, -1 bei
+/// leerem Verlauf.
+int _anchorVersionIndex(List<PlanVersionRecord> history) {
+  if (history.isEmpty) return -1;
+  final anchor = history.last.inputs.anchor;
+  var i = history.length - 1;
+  // Ein Pausenneustart mit gleichem Anker wie die Anpassung davor trägt den
+  // Anker selbst: nicht dahinter weitersuchen.
+  while (i > 0 &&
+      history[i].trigger != PlanTrigger.pause &&
+      history[i - 1].inputs.anchor == anchor) {
+    i--;
+  }
+  return i;
+}
+
 /// Eine gespeicherte Fassung des Plans (Zeile von `plans`).
 class PlanVersionRecord {
   PlanVersionRecord({

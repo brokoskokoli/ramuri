@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import android.speech.tts.TextToSpeech
 import java.io.File
 
 class VoiceChannelTest {
@@ -12,6 +13,15 @@ class VoiceChannelTest {
         val calls = mutableListOf<String>()
         override fun speak(text: String, languageTag: String?) { calls.add("speak:$text:$languageTag") }
         override fun stop() { calls.add("stop") }
+        override fun available(languageTag: String?, onResult: (Boolean) -> Unit) { onResult(false) }
+    }
+
+    @Test fun languageIsUsableOnlyWhenAvailable() {
+        assertTrue(VoiceChannel.languageUsable(TextToSpeech.LANG_AVAILABLE))
+        assertTrue(VoiceChannel.languageUsable(TextToSpeech.LANG_COUNTRY_AVAILABLE))
+        assertTrue(VoiceChannel.languageUsable(TextToSpeech.LANG_COUNTRY_VAR_AVAILABLE))
+        assertFalse(VoiceChannel.languageUsable(TextToSpeech.LANG_MISSING_DATA))
+        assertFalse(VoiceChannel.languageUsable(TextToSpeech.LANG_NOT_SUPPORTED))
     }
 
     @Test fun speakAndStopGoToTheirOutputOnly() {

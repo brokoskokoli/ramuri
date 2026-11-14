@@ -17,13 +17,21 @@ const String planWalkRunRepeatDeclinedKey = 'plan.walk_run_repeat_declined';
 
 /// Ergebnis von [PlanController.answerFeedback].
 class PlanFeedbackOutcome {
-  const PlanFeedbackOutcome(this.result, {this.raiseGoalSignal = false});
+  const PlanFeedbackOutcome(
+    this.result, {
+    this.raiseGoalSignal = false,
+    this.planChanged = false,
+  });
 
   final PlanActionResult result;
 
   /// „Zu leicht“ am Regler: Die App fragt, ob das Ziel steigen soll; der Plan
   /// ist unverändert.
   final bool raiseGoalSignal;
+
+  /// Eine neue Planfassung wurde geschrieben. Bei „zu schwer“ im kleinsten
+  /// Plan bleibt die Fassung gleich, die Meldung sagt dann „bleibt“.
+  final bool planChanged;
 }
 
 String _dayText(DateTime d) =>
@@ -403,7 +411,10 @@ class PlanController extends ChangeNotifier {
       inputs: inputs,
       parameters: parameters,
       warning: _warning,
-      markChecked: markChecked && !skippedForPause,
+      // `manual` bewertet die Woche nicht (ADR-0010 Nachtrag WP24, K63): Der
+      // Prüftag bleibt, sonst fiele die fällige Wochenbewertung weg.
+      markChecked:
+          markChecked && !skippedForPause && trigger != PlanTrigger.manual,
     );
     _fresh = r.generated;
     _lastChange = r.summary;
@@ -510,6 +521,9 @@ class PlanController extends ChangeNotifier {
         created: calendarDay(history.first.createdAt),
         lastAnswer: _parseDay(await session.settings.get(planFeedbackKey)),
         today: today,
+        pauseOpen:
+            await HintService(session: session, clock: clock).pauseQuestion() !=
+            null,
       );
     }
     final seen = await WarningState(session.settings).planChangeSeen();
@@ -927,7 +941,14 @@ class PlanController extends ChangeNotifier {
   /// ändert sich nichts.
   Future<PlanFeedbackOutcome> answerFeedback(PlanFeedback answer) async {
     var raise = false;
+    var written = false;
     final r = await _act(() async {
+      // Eine offene Pausenfrage hat Vorrang (PAR-202): Die Karte ist dann nicht
+      // mehr gültig (etwa nach Mitternacht bei offener Seite).
+      if (await HintService(session: session, clock: clock).pauseQuestion() !=
+          null) {
+        throw const StorageException(StorageFailure.rejected);
+      }
       final goal = await _goals.goal();
       if (goal == null) throw const StorageException(StorageFailure.notFound);
       final history = await _plans.history();
@@ -950,6 +971,7 @@ class PlanController extends ChangeNotifier {
           plans: _plans,
           settings: session.settings,
           trigger: PlanTrigger.feedback,
+          markChecked: false, // bewertet die Woche (PAR-201) nicht
           today: today,
           now: clock.now(),
           inputs: next,
@@ -958,6 +980,7 @@ class PlanController extends ChangeNotifier {
         );
         _fresh = w.generated;
         _lastChange = w.summary;
+        written = w.wasWritten;
         if (w.wasWritten) onChanged?.call();
       }
       await session.settings.set(
@@ -969,6 +992,7 @@ class PlanController extends ChangeNotifier {
     return PlanFeedbackOutcome(
       r,
       raiseGoalSignal: r == PlanActionResult.done && raise,
+      planChanged: r == PlanActionResult.done && written,
     );
   }
 
@@ -1018,6 +1042,8 @@ class PlanController extends ChangeNotifier {
       lastTrainingDay: q.lastTrainingDay,
       baseWeekMinutes: q.baseWeekMinutes,
       parameters: parameters,
+      anchorFromAdjustment: planAnchorFromAdjustment(history),
+      inputsBeforeAdjustment: planInputsBeforeAdjustment(history),
       provisional: longPause && !chosen,
       replacesProvisional: chosen && wasProvisional && mark.restarted,
     );
@@ -1077,6 +1103,8 @@ class PlanController extends ChangeNotifier {
             lastTrainingDay: q.lastTrainingDay,
             baseWeekMinutes: q.baseWeekMinutes,
             parameters: parameters,
+            anchorFromAdjustment: planAnchorFromAdjustment(history),
+            inputsBeforeAdjustment: planInputsBeforeAdjustment(history),
             replacesProvisional: await _pauseProvisional(q),
           ).inputs !=
           null;
@@ -1165,6 +1193,7 @@ class PlanController extends ChangeNotifier {
       settings: session.settings,
       trigger: PlanTrigger.manual,
       reason: walkRunRepeatReason,
+      markChecked: false, // bewertet die Woche nicht
       today: today,
       now: clock.now(),
       inputs: inputs,

@@ -34,19 +34,24 @@ DateTime planFeedbackDueOn({
         .add(Duration(days: parameters.feedbackIntervalDays));
 
 /// Ist die Nachfrage am Ortstag [today] fällig? Keine Antwort ändert nichts;
-/// die Nachfrage bleibt dann fällig.
+/// die Nachfrage bleibt dann fällig. Solange die Pausenfrage offen ist
+/// ([pauseOpen], PAR-202), wird sie nicht angeboten: Ihre Antwort setzt den
+/// Anker in die nächste Woche, und der Neustart der Pausenregel entfiele.
 bool planFeedbackDue({
   required DateTime created,
   DateTime? lastAnswer,
   required DateTime today,
+  bool pauseOpen = false,
   PlanParameters parameters = const PlanParameters(),
-}) => !planDay(today).isBefore(
-  planFeedbackDueOn(
-    created: created,
-    lastAnswer: lastAnswer,
-    parameters: parameters,
-  ),
-);
+}) =>
+    !pauseOpen &&
+    !planDay(today).isBefore(
+      planFeedbackDueOn(
+        created: created,
+        lastAnswer: lastAnswer,
+        parameters: parameters,
+      ),
+    );
 
 /// Ergebnis von [applyPlanFeedback].
 class PlanFeedbackResult {
@@ -251,8 +256,15 @@ DateTime pauseBaseWeek(DateTime lastTrainingDay) =>
 /// Kappung auf die Minuten der vorläufigen Woche. Alle Stufen: nie
 /// höher als der bisherige Plan dieser Woche und nie über dem Regler; die
 /// Zählung nach PAR-194 beginnt neu. In der Geh-Lauf-Abfolge, in der
-/// Reduktion vor dem Termin und wenn der Neustart in dieser Woche schon
-/// gilt: [PauseRestartKind.none].
+/// Reduktion vor dem Termin: [PauseRestartKind.none]. Ein Anker in dieser
+/// oder einer späteren Woche aus einer Anpassung ([anchorFromAdjustment],
+/// siehe [planAnchorFromAdjustment]: Rückmeldung, Wochenbewertung) hindert den
+/// Neustart nicht: Er ersetzt diese Anpassung (Anker dieser Montag). Gilt der
+/// Anker dieser Woche aus Anlage oder Ziel (neuer Plan), ist es
+/// [PauseRestartKind.none]. Den zweiten Neustart derselben Pause verhindert
+/// der Aufrufer mit seinem Merker. Die Obergrenze (der bisherige Plan dieser
+/// Woche) ist dann das Minimum aus den Minuten dieser Woche vor der Anpassung
+/// ([inputsBeforeAdjustment], [planInputsBeforeAdjustment]) und nach ihr.
 PauseRestart planPauseRestart({
   required TrainingGoal goal,
   required PlanInputs inputs,
@@ -262,6 +274,8 @@ PauseRestart planPauseRestart({
   PlanParameters parameters = const PlanParameters(),
   bool provisional = false,
   bool replacesProvisional = false,
+  bool anchorFromAdjustment = false,
+  PlanInputs? inputsBeforeAdjustment,
 }) {
   final p = parameters;
   final t = planDay(today);
@@ -275,18 +289,41 @@ PauseRestart planPauseRestart({
     );
   }
   final monday = _monday(t);
-  if (!inputs.anchor.isBefore(monday)) {
+  // Die Pause hat Vorrang (PAR-202): Der Neustart gilt auch, wenn eine
+  // Rückmeldung oder Wochenbewertung ([anchorFromAdjustment]) den Anker auf
+  // diese oder eine spätere Woche gelegt hat; er ersetzt deren Anpassung
+  // (Anker = dieser Montag). Gilt der Anker dieser Woche aus der Anlage oder
+  // dem Ziel (neuer Plan), gilt der Neustart schon: [PauseRestartKind.none].
+  // Vor einem zweiten Neustart derselben Pause schützt der Merker des
+  // Aufrufers ([planPauseRestartKey]). Bei einem Anker in einer späteren Woche
+  // liefert die Zählung ab diesem Montag die Minuten der Woche, die den
+  // Neustart deckeln.
+  if (!anchorFromAdjustment && !inputs.anchor.isBefore(monday)) {
     return const PauseRestart(PauseRestartKind.none);
   }
-  final setup = planCourseSetup(goal, inputs, parameters: p);
+  final from = inputs.anchor.isAfter(monday)
+      ? inputs.copyWith(anchor: monday)
+      : inputs;
+  final setup = planCourseSetup(goal, from, parameters: p);
   final week = _weekAt(setup, monday);
   if (week == null || !_adjustable(week)) {
     return const PauseRestart(PauseRestartKind.none);
   }
+  // Obergrenze: der Plan dieser Woche vor der Anpassung (PAR-202), nie über der angepassten Woche: Nach „zu
+  // schwer“ gilt die kleinere angepasste Woche, nach „zu leicht“ die kleinere Woche davor (sichere Richtung).
+  var weekCap = week.minutes!;
+  if (anchorFromAdjustment && inputsBeforeAdjustment != null) {
+    final before = _weekAt(
+      planCourseSetup(goal, inputsBeforeAdjustment, parameters: p),
+      monday,
+    );
+    final b = before?.minutes;
+    if (b != null && b < weekCap) weekCap = b;
+  }
   if (restartsFresh) {
     return PauseRestart(
       PauseRestartKind.newStart,
-      _freshStart(goal, inputs, t, p, cap: week.minutes!),
+      _freshStart(goal, inputs, t, p, cap: weekCap),
     );
   }
   final long = gap >= p.pauseLongDays;
@@ -294,9 +331,9 @@ PauseRestart planPauseRestart({
   final noHardWeeks = long ? p.pauseLongNoHardWeeks : p.pauseShortNoHardWeeks;
   // Ohne Basis (keine vollständige Woche vor der Pause erfasst, z. B. das
   // erste Training erst in der Woche davor): der bisherige Plan dieser Woche.
-  final base = baseWeekMinutes >= 1 ? baseWeekMinutes : week.minutes!;
+  final base = baseWeekMinutes >= 1 ? baseWeekMinutes : weekCap;
   var target = (base * share).round();
-  if (target > week.minutes!) target = week.minutes!;
+  if (target > weekCap) target = weekCap;
   if (target > setup.capMinutes) target = setup.capMinutes;
   if (target < 1) target = 1;
   final out = PlanInputs(

@@ -14,9 +14,13 @@ import 'map_consent_controller.dart';
 /// Widerruf keine Quelle offen bleibt und eine Quelle, die erst nach dem Widerruf fertig wird, sofort freigegeben wird.
 class MapSourceHolder extends ChangeNotifier {
   /// [askContext] liefert den Kontext für die Frage, oder `null`, wenn die Seite nicht mehr im Baum steht.
-  MapSourceHolder({required this.askContext});
+  ///
+  /// [mayAsk] (falls gegeben) sagt kurz vor der Frage, ob sie jetzt aufgehen darf; `false` (z. B. während eines
+  /// laufenden Laufs) lässt die Karte ohne Einwilligung und ohne Frage, bis die Karte wieder gebraucht wird.
+  MapSourceHolder({required this.askContext, this.mayAsk});
 
   final BuildContext? Function() askContext;
+  final bool Function()? mayAsk;
   MapConsentController? _consent;
   MapTileSource? _source;
   bool _wanted = false;
@@ -91,7 +95,7 @@ class MapSourceHolder extends ChangeNotifier {
       if (stale()) return;
       final context = askContext();
       if (context == null) return;
-      final yes = await c.ensureAsked(context);
+      final yes = await c.ensureAsked(context, mayAsk: mayAsk);
       if (!yes || stale()) return;
       MapTileSource? source;
       try {

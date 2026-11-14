@@ -7,10 +7,21 @@ import 'run_preprocessor.dart';
 /// Die eine Rechnung für Live-Stand und Historie: Die Lücken sind die der
 /// Positionsverarbeitung (Punktzeit, PAR-004, K18), dieselben, die die Strecke
 /// nicht zählen. Eine offene Lücke zählt bis zum Ende des Ergebnisses.
-Duration movingTimeInPositionGaps(RunPreprocessing r) => overlapDuration(
-  r.movement.movingIntervals,
-  [for (final g in r.position.gaps) TimeSpan(start: g.start, end: g.end)],
-);
+///
+/// Dazu zählt die kurze Wartezeit von Abschnittsbeginn (Start, Fortsetzen nach
+/// Pause oder Absturz) bis zum ersten Punkt, solange sie höchstens PAR-004
+/// dauert ([positionLossSpans]); sie hat ebenfalls keine Strecke.
+Duration movingTimeInPositionGaps(RunPreprocessing r) =>
+    overlapDuration(r.movement.movingIntervals, positionLossSpans(r));
+
+/// Spannen ohne gemessene Strecke: die Positionslücken (> PAR-004) und die
+/// Wartezeiten auf den ersten Punkt eines Abschnitts (≤ PAR-004, nie zugleich
+/// eine Lücke). Die gespeicherte Kurzfassung (Spanne `positionGap`) und die
+/// Kilometerabschnitte nutzen dieselbe Liste.
+List<TimeSpan> positionLossSpans(RunPreprocessing r) => [
+  for (final g in r.position.gaps) TimeSpan(start: g.start, end: g.end),
+  ...r.position.leadIns,
+];
 
 /// Bewegungszeit mit bekanntem Puls: die Bewegungszeit ohne die Pulslücken
 /// (`HeartRateGap`, länger als PAR-010). `null`, wenn der Lauf keinen

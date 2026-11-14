@@ -1516,6 +1516,313 @@ void main() {
       expect(j['changedUnitCount'], 7);
     });
   });
+  // F1 (Abschlussprüfung M2): Ein Lauf auf einem verschobenen Tag deckt genau
+  // eine geplante Einheit der Woche, unabhängig vom Auslöser.
+  group('F1 Abdeckung durch verschobenen Lauf', () {
+    final g = goal(days: {2, 4, 6});
+    final mon = DateTime.utc(2026, 11, 16);
+    DateTime nov(int d) => DateTime.utc(2026, 11, d);
+    bool inWeek(PlanUnit u) =>
+        !u.day.isBefore(mon) &&
+        u.day.isBefore(mon.add(const Duration(days: 7)));
+    final base = generatePlan(
+      g,
+      inputs(start: 150),
+      const [],
+      d0,
+    ).units.where(inWeek).toList();
+    int sum(Iterable<PlanUnit> l) => l.fold(0, (a, u) => a + u.minutes);
+    PlanUnit moved({bool pinned = true}) => PlanUnit(
+      day: mon,
+      kind: PlanUnitKind.easy,
+      phase: base.first.phase,
+      weekIndex: base.first.weekIndex,
+      minutes: 33,
+      segments: const [PlanSegment(kind: PlanSegmentKind.easy, minutes: 33)],
+      runId: 7,
+      pinned: pinned,
+    );
+    // Neuberechnung am Tag [day] der Woche: Wochenminuten und Zahl der Läufe.
+    (int, int) week(int day, {bool automatic = false, bool pinned = true}) {
+      final today = nov(day);
+      // Die bisherigen Tage, Dienstag auf Montag verschoben.
+      final held = {
+        for (final d in [mon, nov(19), nov(21)])
+          if (!d.isBefore(today)) d,
+      };
+      final frozen = [moved(pinned: pinned)];
+      final p = generatePlan(
+        g,
+        inputs(start: 150, today: today),
+        frozen,
+        today,
+        heldDays: automatic ? held : null,
+        heldUntil: automatic ? nov(30) : null,
+      );
+      final all = [...frozen, ...p.units.where(inWeek)];
+      return (sum(all), all.length);
+    }
+
+    test('Ausgangslage: Di, Do, Sa', () {
+      expect(base.map((u) => u.day.day), [17, 19, 21]);
+    });
+
+    for (final automatic in [true, false]) {
+      for (final day in [16, 18]) {
+        test(
+          'Woche behält Minuten und Zahl der Läufe '
+          '(${automatic ? "automatisch" : "manuell/Zieländerung"}, Tag $day)',
+          () {
+            final (minutes, runs) = week(day, automatic: automatic);
+            expect(minutes, sum(base));
+            expect(runs, 3);
+          },
+        );
+      }
+    }
+
+    test('ohne `pinned` deckt der Lauf nichts (Tag ohne geplante Einheit)', () {
+      // Mittwoch: Die Einheit vom Dienstag ist weg, der Lauf am Montag ersetzt
+      // sie nicht (nicht verschoben): Die Woche verliert deren Minuten.
+      final (minutes, _) = week(18, automatic: true, pinned: false);
+      expect(minutes, sum(base) - base.first.minutes);
+    });
+
+    test('ein Lauf deckt nur eine von zwei entfallenen Einheiten', () {
+      // Samstag: Di und Do ohne Zeile, nur ein verschobener Lauf: Nur eine
+      // Einheit gilt als abgedeckt, die andere fehlt der Woche.
+      final (minutes, runs) = week(21, automatic: true);
+      expect(runs, 2);
+      expect(minutes, sum(base) - base[1].minutes);
+    });
+
+    // N1: Der Lauf ersetzt die Einheit seiner Rolle, nicht die späteste
+    // lockere; unveränderte bestätigte Termine bleiben.
+    PlanUnit movedLike(PlanUnit o) => PlanUnit(
+      day: mon,
+      kind: o.kind,
+      phase: o.phase,
+      weekIndex: o.weekIndex,
+      minutes: o.minutes,
+      segments: o.segments,
+      runId: 7,
+      pinned: true,
+    );
+
+    // Eine vom Nutzer zum lockeren Lauf ersetzte harte Einheit (easyForHard),
+    // nach Mo verschoben und gelaufen, behält ihre Rolle "hart": Es entfällt
+    // die harte Einheit (Di), nicht der unveränderte Termin am Do.
+    PlanUnit movedEasyForHard() => PlanUnit(
+      day: mon,
+      kind: PlanUnitKind.easy,
+      phase: base.first.phase,
+      weekIndex: base.first.weekIndex,
+      minutes: base.first.minutes,
+      segments: [
+        PlanSegment(kind: PlanSegmentKind.easy, minutes: base.first.minutes),
+      ],
+      runId: 7,
+      pinned: true,
+      fixed: PlanUnitFixed.easyForHard,
+    );
+
+    for (final automatic in [true, false]) {
+      test(
+        'zum lockeren Lauf ersetzte harte Einheit nach Mo verschoben und '
+        'gelaufen: Mo, Do, Sa (${automatic ? "automatisch" : "manuell"})',
+        () {
+          final frozen = [movedEasyForHard()];
+          final p = generatePlan(
+            g,
+            inputs(start: 150, today: mon),
+            frozen,
+            mon,
+            heldDays: automatic ? {mon, nov(19), nov(21)} : null,
+            heldUntil: automatic ? nov(30) : null,
+          );
+          final w = [...frozen, ...p.units.where(inWeek)];
+          expect(w.map((u) => u.day.day), [16, 19, 21]);
+          expect(w[2].kind, PlanUnitKind.long);
+          expect(w[1].minutes, base[1].minutes);
+        },
+      );
+    }
+
+    // Zwei Läufe auf verschobenen Tagen (Di: lockere Rolle, Mi: harte Rolle).
+    // Geplant ist ab heute (Do): Mo hart (vergangen), Do, Sa locker, So lang.
+    // Die vergangene Mo-Einheit (hart) entfällt mit der Rolle des zweiten
+    // Laufs; für die künftigen bleibt die Rolle des ersten (locker): Do
+    // entfällt (früheste lockere), Sa und So bleiben.
+    test(
+      'zwei Läufe auf verschobenen Tagen: die vergangene Einheit nimmt '
+      'die Rolle des zweiten Laufs, künftig entfällt die frühere lockere',
+      () {
+        final g4 = goal(days: {1, 4, 6, 7});
+        final base4 = generatePlan(
+          g4,
+          inputs(start: 200),
+          const [],
+          d0,
+        ).units.where(inWeek).toList();
+        PlanUnit run(int day, PlanUnit like) => PlanUnit(
+          day: nov(day),
+          kind: like.kind,
+          phase: like.phase,
+          weekIndex: like.weekIndex,
+          minutes: like.minutes,
+          segments: like.segments,
+          runId: day,
+          pinned: true,
+        );
+        final today = nov(19);
+        final frozen = [run(17, base4[0]), run(18, base4[1])];
+        final p = generatePlan(
+          g4,
+          inputs(start: 200, today: today),
+          frozen,
+          today,
+        );
+        expect(p.units.where(inWeek).map((u) => u.day.day), [21, 22]);
+      },
+    );
+
+    test('Ausgangslage N1: Di hart, Do locker, Sa lang', () {
+      expect(base.map((u) => u.isHard), [true, false, false]);
+      expect(base[2].kind, PlanUnitKind.long);
+    });
+
+    for (final automatic in [true, false]) {
+      test('harte Einheit Di nach Mo verschoben und gelaufen: Mo, Do, Sa '
+          '(${automatic ? "automatisch" : "manuell"})', () {
+        final frozen = [movedLike(base.first)];
+        final p = generatePlan(
+          g,
+          inputs(start: 150, today: mon),
+          frozen,
+          mon,
+          heldDays: automatic ? {mon, nov(19), nov(21)} : null,
+          heldUntil: automatic ? nov(30) : null,
+        );
+        final w = [...frozen, ...p.units.where(inWeek)];
+        expect(w.map((u) => u.day.day), [16, 19, 21]);
+        // Do und Sa unverändert (Einheit und Minuten), nur Mo ist gelaufen.
+        expect(w[1].kind, base[1].kind);
+        expect(w[2].kind, base[2].kind);
+      });
+    }
+
+    test('N2: künftiger Pin der lockeren Einheit (Do nach Fr) bleibt ohne '
+        'Abstandskonflikt', () {
+      final frozen = [movedLike(base.first)];
+      final pin = PlanUnit(
+        day: nov(20),
+        kind: base[1].kind,
+        phase: base[1].phase,
+        weekIndex: base[1].weekIndex,
+        minutes: base[1].minutes,
+        segments: base[1].segments,
+        pinned: true,
+      );
+      final p = generatePlan(
+        g,
+        inputs(start: 150, today: mon),
+        frozen,
+        mon,
+        pinnedUnits: [pin],
+      );
+      final w = [...frozen, ...p.units.where(inWeek)];
+      expect(w.map((u) => u.day.day), [16, 20, 21]);
+      expect(w[1].kind, base[1].kind);
+      expect(p.pinnedConflicts, isEmpty);
+    });
+
+    test('N2: der Abzug lässt die einzige Einheit der Rolle eines künftigen '
+        'Pins stehen (lockerer Lauf gelaufen, Pin Do nach Fr)', () {
+      // Der gelaufene Lauf ist locker; die einzige lockere Einheit (Do) wäre
+      // die gleicher Rolle, braucht aber der Pin: Er nimmt nie die harte.
+      final frozen = [moved()];
+      final pin = PlanUnit(
+        day: nov(20),
+        kind: base[1].kind,
+        phase: base[1].phase,
+        weekIndex: base[1].weekIndex,
+        minutes: base[1].minutes,
+        segments: base[1].segments,
+        pinned: true,
+      );
+      final p = generatePlan(
+        g,
+        inputs(start: 150, today: mon),
+        frozen,
+        mon,
+        pinnedUnits: [pin],
+      );
+      final w = [...frozen, ...p.units.where(inWeek)];
+      expect(w.length, 3);
+      final fri = w.firstWhere((u) => u.day == nov(20));
+      expect(fri.isHard, isFalse);
+      expect(fri.kind, base[1].kind);
+      // Rückfall ohne lockere Einheit: die harte entfällt, der lange Lauf
+      // (PAR-195) bleibt.
+      expect(w.any((u) => u.isHard), isFalse);
+      expect(w.map((u) => u.kind), [
+        PlanUnitKind.easy,
+        base[1].kind,
+        PlanUnitKind.long,
+      ]);
+      expect(p.pinnedConflicts, isEmpty);
+    });
+
+    test(
+      'N2b: ein künftiger vom Nutzer ersetzter Termin (easyForHard) zählt im '
+      'Rückfall als harte Rolle: Do entfällt, nicht die harte Einheit',
+      () {
+        final frozen = [moved()];
+        final pin = PlanUnit(
+          day: nov(20),
+          kind: base[1].kind,
+          phase: base[1].phase,
+          weekIndex: base[1].weekIndex,
+          minutes: base[1].minutes,
+          segments: base[1].segments,
+          pinned: true,
+          fixed: PlanUnitFixed.easyForHard,
+        );
+        final p = generatePlan(
+          g,
+          inputs(start: 150, today: mon),
+          frozen,
+          mon,
+          pinnedUnits: [pin],
+        );
+        final w = [...frozen, ...p.units.where(inWeek)];
+        // Der Pin nimmt die harte Einheit auf; die lockere (Do) entfällt.
+        expect(w.map((u) => u.day.day), [16, 20, 21]);
+        expect(w[1].fixed, PlanUnitFixed.easyForHard);
+        expect(p.hardOmissions[1], HardOmission.replacedByUser);
+        expect(p.pinnedConflicts, isEmpty);
+      },
+    );
+
+    test('mehr erzeugte Einheiten als gehaltene Tage ohne Lauf: Summe wie '
+        'ohne Verschiebung', () {
+      final held = {nov(17), nov(21)};
+      final p = generatePlan(
+        g,
+        inputs(start: 150, today: mon),
+        const [],
+        mon,
+        heldDays: held,
+        heldUntil: nov(30),
+      );
+      final w = p.units.where(inWeek).toList();
+      expect(w.map((u) => u.day.day), [17, 21]);
+      // Die entfallene Einheit (Do) gibt ihre Minuten nicht weiter.
+      for (final u in w) {
+        expect(u.minutes, base.firstWhere((b) => b.day == u.day).minutes);
+      }
+    });
+  });
 }
 
 PlanUnit _withRun(PlanUnit u) => PlanUnit(

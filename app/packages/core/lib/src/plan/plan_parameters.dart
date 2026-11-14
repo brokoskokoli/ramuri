@@ -12,8 +12,11 @@ const String planMethod = 'weekly-time-course';
 /// von selbst nur nach unten und Nachfrage (PAR-200, PAR-201), Neustart nach
 /// Pause (PAR-202), „keine harte Einheit bis“ und Zählung der leichteren
 /// Wochen über einen Neustart hinweg (PAR-194; `PlanInputs.weekCountOffset`),
-/// Vorschlag „Woche wiederholen“ in der Geh-Lauf-Phase (PAR-140).
-const int planMethodVersion = 4;
+/// Vorschlag „Woche wiederholen“ in der Geh-Lauf-Phase (PAR-140). 5:
+/// Automatische Auslöser geben die gehaltenen Tage an die Rechnung
+/// (`generatePlan(heldDays:)`); die Wochenzeit bleibt nach bestätigter
+/// Verschiebung und absolviertem Lauf erhalten.
+const int planMethodVersion = 5;
 
 /// Stand der Parameter (ADR-0010 Punkt 1: `parameter_version`). Steigt, wenn
 /// sich ein Wert in [PlanParameters] ändert.

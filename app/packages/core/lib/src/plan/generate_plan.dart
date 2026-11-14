@@ -154,12 +154,32 @@ List<PlanUnit> _byDay(List<PlanUnit> l) {
 /// Tausch mit einer anderen erzeugten Einheit füllt den frei gewordenen Tag.
 /// Verletzt das den Abstand, bleibt der Termin und der Konflikt steht in
 /// [GeneratedPlan.pinnedConflicts].
+///
+/// [heldDays] sind die Tage der bisherigen künftigen Einheiten, die ein
+/// automatischer Auslöser hält (ADR-0010 Punkt 8), bis [heldUntil]
+/// (exklusiv): Dort entstehen nicht mehr Einheiten als gehaltene Tage. Eine
+/// erzeugte Einheit auf einem nicht gehaltenen Tag entfällt (zuerst die
+/// lockeren, dann die späteren). Ihre geplanten Minuten gelten als abgedeckt
+/// vom Lauf auf einem verschobenen Tag (eingefroren, `pinned`, Tag ohne
+/// geplante Einheit; je Lauf eine Einheit, auch eine schon vergangene): Die
+/// Wochenzeit bleibt erhalten. Abgedeckt wird die erste vergangene Einheit
+/// ohne Zeile, nicht der Herkunftstag des Laufs (bekannte Abweichung, die
+/// Zeit der Woche bleibt gleich). Das gilt auch ohne [heldDays]: Dann entfällt
+/// je solchem Lauf die früheste künftige Einheit ab heute mit der Rolle des
+/// Laufs (langer Lauf, harte Einheit, lockerer Lauf; eine zum lockeren Lauf
+/// umgewandelte Einheit zählt mit ihrer ursprünglichen Rolle). Gibt es keine
+/// Einheit dieser Rolle, entfällt die niedrigste Rolle, bei gleicher Rolle die
+/// späteste, also auch eine lange oder harte, wenn keine lockere übrig ist.
+/// Die letzte Einheit einer Rolle, die ein künftiger Termin der Woche
+/// ([pinnedUnits]) braucht, bleibt stehen.
 GeneratedPlan generatePlan(
   TrainingGoal goal,
   PlanInputs inputs,
   List<PlanUnit> frozenUnits,
   DateTime today, {
   List<PlanUnit> pinnedUnits = const [],
+  Set<DateTime>? heldDays,
+  DateTime? heldUntil,
   PlanParameters parameters = const PlanParameters(),
 }) {
   final p = parameters;
@@ -305,6 +325,105 @@ GeneratedPlan generatePlan(
     // Planung auf diesen Tagen.
     var deviation = 0;
     var frozenMinutes = 0;
+    if (walkPlan == null) {
+      // Ein vom Nutzer verschobener und absolvierter Lauf (eingefroren,
+      // `pinned`) auf einem Tag ohne geplante Einheit ersetzt eine geplante
+      // Einheit der Woche (F1): Deren Minuten gelten als abgedeckt, sie sind
+      // keine Abweichung. Das gilt unabhängig vom Auslöser, höchstens je so
+      // einen Lauf, zuerst für die erste Einheit, die schon vor heute liegt
+      // und entfallen ist (nicht unbedingt der Herkunftstag des Laufs), dann
+      // für eine künftige: bei einem automatischen Auslöser auf einem nicht
+      // gehaltenen Tag, sonst die früheste ab heute mit der Rolle des Laufs
+      // (nur wenn es keine gibt: die niedrigste Rolle, die späteste).
+      final plannedDays = {for (final u in planned.units) planDay(u.day)};
+      // Rollen der Läufe auf verschobenen Tagen, nach Tag: Die Einheit
+      // gleicher Rolle entfällt (auch wenn sie als lockerer Lauf umgewandelt
+      // wurde, zählt ihre ursprüngliche Rolle).
+      final runRoles = [
+        for (final u
+            in frozenWeek
+                .where((u) => u.pinned && !plannedDays.contains(planDay(u.day)))
+                .toList()
+              ..sort((a, b) => a.day.compareTo(b.day)))
+          _runRole(u),
+      ];
+      final plannedRole = {
+        for (final u in planned.units) planDay(u.day): _role(u),
+      };
+      var quota = runRoles.length;
+      for (final u in planned.units) {
+        if (quota == 0) break;
+        if (planDay(u.day).isBefore(todayDay) && !frozenDays.contains(u.day)) {
+          deviation -= u.minutes;
+          quota--;
+          final r = runRoles.indexOf(_role(u));
+          runRoles.removeAt(r < 0 ? 0 : r);
+        }
+      }
+      final held =
+          heldDays != null && heldUntil != null && start.isBefore(heldUntil)
+          ? heldDays
+          : null;
+      var surplus = quota;
+      if (held != null) {
+        final free = held
+            .where(
+              (d) =>
+                  !d.isBefore(start) &&
+                  d.isBefore(end) &&
+                  !frozenDays.contains(d),
+            )
+            .length;
+        surplus = future.length - free;
+      }
+      // Künftige Termine (Pins) der Woche brauchen eine Einheit ihrer Rolle:
+      // Der Abzug lässt die letzte Einheit einer solchen Rolle stehen.
+      final pinRoles = [
+        for (final u in pinnedLeft)
+          if (!planDay(u.day).isBefore(start) && planDay(u.day).isBefore(end))
+            _runRole(u),
+      ];
+      bool reserved(int i) =>
+          pinRoles.where((r) => r == _role(future[i])).length >=
+          future.where((f) => _role(f) == _role(future[i])).length;
+      while (surplus > 0) {
+        var pick = -1;
+        // Ohne gehaltene Tage: die früheste Einheit ab heute mit der Rolle des
+        // Laufs, den sie ersetzt.
+        if (held == null && runRoles.isNotEmpty) {
+          for (var i = 0; i < future.length; i++) {
+            if (plannedRole[planDay(future[i].day)] == runRoles.first &&
+                !reserved(i)) {
+              pick = i;
+              break;
+            }
+          }
+        }
+        final matched = pick >= 0;
+        // Rückfall (keine Einheit der Rolle des Laufs): zuerst eine lockere,
+        // dann die harte, zuletzt der lange Lauf (PAR-195: der längste Lauf
+        // der Woche bleibt); innerhalb der Stufe die späteste. Das ist die
+        // sichere Richtung: eher weniger Intensität als kein langer Lauf.
+        for (var i = 0; !matched && i < future.length; i++) {
+          if (held != null && held.contains(planDay(future[i].day))) continue;
+          if (reserved(i)) continue;
+          if (pick < 0 ||
+              _dropRank(future[i]) < _dropRank(future[pick]) ||
+              (_dropRank(future[i]) == _dropRank(future[pick]) &&
+                  future[i].day.isAfter(future[pick].day))) {
+            pick = i;
+          }
+        }
+        if (pick < 0) break;
+        if (quota > 0) {
+          deviation -= future[pick].minutes;
+          quota--;
+          if (runRoles.isNotEmpty) runRoles.removeAt(0);
+        }
+        future = [...future]..removeAt(pick);
+        surplus--;
+      }
+    }
     for (final u in frozenWeek) {
       deviation += u.minutes;
       frozenMinutes += u.minutes;
@@ -460,6 +579,19 @@ Map<int, List<DateTime>> planDroppedWithoutRestDays(
         ],
   };
 }
+
+/// Reihenfolge, in der der Rückfall des Abzugs Einheiten streicht: locker,
+/// dann hart, zuletzt lang.
+int _dropRank(PlanUnit u) => u.isHard
+    ? 1
+    : u.kind == PlanUnitKind.long
+    ? 2
+    : 0;
+
+/// Rolle für den Rückfall des Abzugs: Eine zum lockeren Lauf ersetzte harte
+/// Einheit ([PlanUnitFixed.easyForHard]) behält die harte Rolle (2), auch als
+/// künftiger Termin; sie nimmt die harte Einheit der Woche auf.
+int _runRole(PlanUnit u) => u.fixed == PlanUnitFixed.easyForHard ? 2 : _role(u);
 
 int _role(PlanUnit u) => u.isHard
     ? 2
