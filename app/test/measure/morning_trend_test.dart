@@ -1,7 +1,6 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:running_app/features/measure/morning_entry.dart';
 import 'package:running_app/features/measure/morning_trend_logic.dart';
 import 'package:running_app/features/measure/morning_trend_screen.dart';
 import 'package:running_app/l10n/app_localizations.dart';

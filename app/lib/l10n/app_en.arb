@@ -2401,7 +2401,7 @@
   "@morningRmssdChart": {"description": "Morgenwerte (FR-0215)", "placeholders": {"low": {"type": "String"}, "high": {"type": "String"}}},
   "morningMarkNotEnabled": "experimental, not switched on",
   "@morningMarkNotEnabled": {"description": "Morgenwerte (FR-0215)"},
-  "morningMarkInaccurate": "less accurate than expected",
+  "morningMarkInaccurate": "less precise than expected",
   "@morningMarkInaccurate": {"description": "Morgenwerte (FR-0215)"},
   "morningMarkNotChecked": "not checked yet",
   "@morningMarkNotChecked": {"description": "Morgenwerte (FR-0215)"},
