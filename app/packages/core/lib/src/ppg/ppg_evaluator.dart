@@ -99,8 +99,9 @@ class PpgMeasurement {
   final String? channel;
   final double? meanFps;
 
-  /// Gültige Schlagabstände (ms) des Messfensters in zeitlicher Reihenfolge, genau die Werte, aus
-  /// denen RMSSD und Puls gerechnet sind (WP33, wird gespeichert). Leer bei „unbrauchbar“.
+  /// Alle Schlagabstände (ms) des Messfensters in zeitlicher Reihenfolge, ungültige als NaN (WP33,
+  /// wird gespeichert). Puls = Mittel der gültigen, RMSSD aus Differenzen zweier gültiger Nachbarn.
+  /// Leer bei „unbrauchbar“.
   final List<double> intervalsMs;
 
   /// Methode und Version für die Ablage (NFR-0001, NFR-0005).
@@ -234,13 +235,15 @@ PpgMeasurement ratePpg(PpgChannelResult r) {
     disturbances: r.artifacts.length,
     channel: r.channel,
     meanFps: _finite(r.meanFps),
-    // Wie `PpgAnalyzer.stats` für das Gesamtfenster (Ausgabe, keine neue Rechnung); Schlagzeiten sind
-    // relativ zum Fensterbeginn, die obere Grenze `dur + 1e-9` schließt dort alle ein (Test: Länge = validIntervals).
+    // Wie `PpgAnalyzer.stats` für das Gesamtfenster (Ausgabe, keine neue Rechnung): alle Intervalle in
+    // Reihenfolge, ungültige als NaN, damit die Nachbarschaft für RMSSD erhalten bleibt. Schlagzeiten
+    // sind relativ zum Fensterbeginn, die obere Grenze `dur + 1e-9` schließt dort alle ein.
     intervalsMs: unusable
         ? const []
         : List.unmodifiable([
             for (var i = 0; i < main.ibiEnd.length; i++)
-              if (main.ibiEnd[i] >= 0.0 && main.valid[i]) main.ibiMs[i],
+              if (main.ibiEnd[i] >= 0.0)
+                main.valid[i] ? main.ibiMs[i] : double.nan,
           ]),
   );
 }

@@ -100,7 +100,7 @@ class StoredMorningMeasurement {
 double roundRestingHr(double bpm) => (bpm * 10).round() / 10;
 
 /// Packt Schlagabstände (ms) als float32 little endian, 4 Byte je Wert
-/// (Spalte `camera_ibi`).
+/// (Spalte `camera_ibi`); NaN markiert ein ungültiges Intervall.
 Uint8List encodeCameraIntervals(List<double> intervalsMs) {
   final out = Uint8List(intervalsMs.length * 4);
   final view = ByteData.sublistView(out);
@@ -165,7 +165,7 @@ void checkMorningForStorage(
       bad(m.restingHrBpm, allowZero: false) ||
       bad(m.rmssdMs) ||
       bad(m.timingNoiseMs) ||
-      m.cameraIntervalsMs.any((v) => bad(v, allowZero: false)) ||
+      m.cameraIntervalsMs.any((v) => !v.isNaN && bad(v, allowZero: false)) ||
       m.method.isEmpty ||
       m.methodVersion < 1 ||
       m.utcOffset.inSeconds.abs() > 18 * 3600 ||
