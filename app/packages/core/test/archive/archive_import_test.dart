@@ -2194,7 +2194,11 @@ void main() {
     test('Rundgang: Export schreibt Format 2 mit beiden Abschnitten', () async {
       final db = _fullDb(rowsPer: 2, schema: archiveSchemaVersion);
       db['run_feedback'] = [fb(), fb(run: 2)];
-      db['manual_trainings'] = [mt(), mt(id: 2)];
+      // Seit Schema 12 mit hc_id (leer und gesetzt).
+      db['manual_trainings'] = [
+        mt()..['hc_id'] = null,
+        mt(id: 2)..['hc_id'] = 'hc-1',
+      ];
       final handoff = FakeFileHandoff()..directory = dir.path;
       final out = await ArchiveExporter(
         source: FakeArchiveSource(db),
