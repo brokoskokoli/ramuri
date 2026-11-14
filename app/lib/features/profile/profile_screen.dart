@@ -46,7 +46,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Der ScaffoldMessenger gehört der App, nicht der Seite: Die Rückmeldung
     // bliebe sonst über die Seite hinaus stehen und verdeckte beim nächsten
     // Besuch den Speichern-Knopf.
-    _messenger?.clearSnackBars();
+    // Erst nach dem Bild: Im Abbau ist der Baum gesperrt, und ohne Animation
+    // (Bedienungshilfe) meldet der Messenger das Ausblenden sofort per setState.
+    final messenger = _messenger;
+    if (messenger != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (messenger.mounted) messenger.clearSnackBars();
+      });
+    }
     super.dispose();
   }
 
