@@ -20,7 +20,7 @@ jobs:
         api: [31, 36]
         # Zwei Shards je API, damit kein Job die 15-Minuten-Grenze reisst
         # (Sammlung wuchs mit Archiv, Laufband, Ruhepuls auf ca. 9 min Tests):
-        # sammlung = all_test.dart, stufen = die Mehrphasen-Stufen mit Prozessende.
+        # sammlung = all_test.dart, stufen = die Mehrphasen-Stufen mit Prozessende und m2-flow (Echtzeit, ~5,5 min).
         shard: [sammlung, stufen]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

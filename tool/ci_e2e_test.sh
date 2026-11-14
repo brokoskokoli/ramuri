@@ -7,7 +7,7 @@ tmp=$(mktemp -d) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin" "$tmp/w/app/integration_test"
 cd "$tmp/w" || exit 1
-for f in e2e_a_test.dart e2e_storage_test.dart e2e_recover_test.dart; do : > "app/integration_test/$f"; done
+for f in e2e_a_test.dart e2e_storage_test.dart e2e_recover_test.dart e2e_m2_flow_test.dart; do : > "app/integration_test/$f"; done
 printf "import 'e2e_a_test.dart';\n" > app/integration_test/all_test.dart
 # adb: Rechte gewaehrt, sonst leer.
 cat > "$tmp/bin/adb" <<'X'
@@ -45,14 +45,16 @@ run() {
 }
 run "Shard sammlung: nur all_test"            0 1 E2E_SHARD=sammlung
 grep -qx 'integration_test/all_test.dart' "$FAKE_LOG" || { echo "FAIL Shard sammlung: falsche Datei"; fails=$((fails + 1)); }
-run "Shard stufen: die vier Mehrphasen-Stufen" 0 4 E2E_SHARD=stufen
+run "Shard stufen: Mehrphasen-Stufen und m2-flow" 0 5 E2E_SHARD=stufen
 grep -q all_test "$FAKE_LOG" && { echo "FAIL Shard stufen fuehrt all_test aus"; fails=$((fails + 1)); }
-run "ohne Auswahl: alle fuenf Stufen"          0 5 X=1
+run "ohne Auswahl: alle sechs Stufen"          0 6 X=1
 run "Shard unbekannt (Tippfehler) -> Fehler"   1 0 E2E_SHARD=sammlungx
 run "Stufe unbekannt -> Fehler"                1 0 E2E_STUFEN=recover-x
 run "eine bekannte, eine unbekannte -> Fehler" 1 0 "E2E_STUFEN=sammlung recover-x"
 run "Shard und Stufen zusammen -> Fehler"      1 0 E2E_SHARD=stufen E2E_STUFEN=sammlung
 run "lokal einzelne Stufe"                     0 1 E2E_STUFEN=recover-a
+run "Stufe m2-flow: eigene Datei, nicht all_test" 0 1 E2E_STUFEN=m2-flow
+grep -qx 'integration_test/e2e_m2_flow_test.dart' "$FAKE_LOG" || { echo "FAIL m2-flow: falsche Datei"; fails=$((fails + 1)); }
 run "leere Auswahl: keine Stufe gelaufen"      1 0 "E2E_STUFEN= "
 run "Stufe rot -> Exit 1"                      1 1 E2E_SHARD=sammlung FAKE_FAIL=1
 grep -q 'E2E_\|geheim123' "$tmp/stdout" && { echo "FAIL E2E_-Zeile in der Ausgabe"; fails=$((fails + 1)); } || echo "OK   keine E2E_-Zeile in der Ausgabe"
@@ -71,6 +73,10 @@ printf "import 'e2e_a_test.dart';\n// import 'e2e_neu_test.dart';\n" > app/integ
 run "Waechter: nur auskommentierter Import"    1 0 E2E_SHARD=sammlung
 printf "import 'e2e_a_test.dart';\nimport 'e2e_neu_test.dart';\n" > app/integration_test/all_test.dart
 run "Waechter: eingebunden -> frei"            0 1 E2E_SHARD=sammlung
+# Eine Datei, die nur als Stufe (nicht in all_test.dart) steht, ist frei; ohne Stufenzeile rot.
+rm -f app/integration_test/e2e_neu_test.dart
+printf "import 'e2e_a_test.dart';\n" > app/integration_test/all_test.dart
+run "Waechter: m2-flow als Stufe statt Import" 0 1 E2E_SHARD=sammlung
 # Lokale Mehrphasentests (Host-Schritte) sind vom Waechter ausgenommen, auch ohne Import in all_test.dart.
 : > app/integration_test/e2e_health_real_test.dart; : > app/integration_test/e2e_health_revoke_test.dart
 run "Waechter: lokale Health-Tests ausgenommen" 0 1 E2E_SHARD=sammlung

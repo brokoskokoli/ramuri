@@ -6,6 +6,8 @@
 #   sammlung        integration_test/all_test.dart: alle Ablaeufe ohne Prozessende
 #   storage-a/-b    e2e_storage_test.dart PHASE=write, Prozessende, PHASE=read
 #   recover-a/-b    e2e_recover_test.dart PHASE=a (Lauf laeuft), Prozessende, PHASE=b
+#   m2-flow         e2e_m2_flow_test.dart: Plan, gefuehrte Einheit in Echtzeit (~5,5 min), Anpassung;
+#                   eigene Stufe wegen der Dauer, kein Prozessende
 # Prozessende: Der Test gibt "NEED_KILL" (Zeile E2E_...) aus (der Host liest es aus dem Testlog),
 # der Host fuehrt `adb shell am force-stop` aus. Die Stufen davor laufen mit
 # --no-uninstall, damit Daten und Schluessel bis zur Folgestufe bleiben.
@@ -28,20 +30,21 @@ pkg=io.github.brokoskokoli.ramuri
 # Jeder adb-Aufruf mit festem Serial (auf Entwicklerrechnern laufen mehrere Emulatoren).
 a() { adb -s "$serial" "$@"; }
 
-# Jede Testdatei muss laufen: in all_test.dart eingebunden oder als Stufe unten.
+# Jede Testdatei muss laufen: in all_test.dart eingebunden oder als Stufe unten (Zeile `stufe ... integration_test/<datei>`).
 for f in app/integration_test/e2e_*_test.dart; do
   b=$(basename "$f")
   # Mehrphasen- und Host-Tests laufen nur lokal (app/integration_test/README.md), nicht in der CI.
   case "$b" in e2e_storage_test.dart | e2e_recover_test.dart | e2e_health_real_test.dart | e2e_health_revoke_test.dart) continue ;; esac
-  grep -q "^import '$b'" app/integration_test/all_test.dart || { echo "FEHLT in all_test.dart: $b"; exit 1; }
+  grep -q "^stufe [^ ]* [01] integration_test/$b" "$0" && continue
+  grep -q "^import '$b'" app/integration_test/all_test.dart || { echo "FEHLT in all_test.dart und als Stufe: $b"; exit 1; }
 done
 
-alle_stufen="sammlung storage-a storage-b recover-a recover-b"
+alle_stufen="sammlung storage-a storage-b recover-a recover-b m2-flow"
 if [ -n "${E2E_SHARD:-}" ] && [ -n "${E2E_STUFEN:-}" ]; then echo "E2E_SHARD und E2E_STUFEN zusammen"; exit 1; fi
 case "${E2E_SHARD:-}" in
   "") auswahl="${E2E_STUFEN-$alle_stufen}" ;;
   sammlung) auswahl="sammlung" ;;
-  stufen) auswahl="storage-a storage-b recover-a recover-b" ;;
+  stufen) auswahl="storage-a storage-b recover-a recover-b m2-flow" ;;
   *) echo "unbekannter Shard: $E2E_SHARD"; exit 1 ;;
 esac
 for n in $auswahl; do
@@ -141,5 +144,6 @@ stufe storage-a 1 integration_test/e2e_storage_test.dart --no-uninstall --dart-d
 stufe storage-b 0 integration_test/e2e_storage_test.dart --dart-define=PHASE=read --dart-define=MARKER=ci-marker-7f3a
 stufe recover-a 1 integration_test/e2e_recover_test.dart --no-uninstall --dart-define=PHASE=a
 stufe recover-b 0 integration_test/e2e_recover_test.dart --dart-define=PHASE=b
+stufe m2-flow 0 integration_test/e2e_m2_flow_test.dart
 [ "$ran" -gt 0 ] || { echo "keine Stufe gelaufen (Auswahl: '$auswahl')"; exit 1; }
 exit "$rc_all"

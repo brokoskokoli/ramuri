@@ -12,9 +12,10 @@ Läuft auf GitHub im Workflow `e2e` (je API 31 und 36, zwei Shards) über `tool/
 | Kamera-Ruhepuls (Fake-Kamera, guter Puls und kein Finger) | `e2e_resting_test.dart` | `sammlung` / sammlung |
 | Health-Connect-Import (Debug-Quelle: Rechte, Abruf, Verlauf, Übernehmen, Widerruf mit Löschfrage, Installieren); echter Dialog nur lokal mit `--dart-define=HC_REAL=true` | `e2e_health_test.dart` | `sammlung` / sammlung |
 | Wiederanlauf eines laufenden Laufs nach Prozessende | `e2e_recover_test.dart` | `recover-a`, `recover-b` / stufen |
+| Plan, geführte Einheit in Echtzeit (~5,5 min), „Aus dem Plan“, Rückmeldung, Zieländerung, Planverlauf; Karten-Frage nur in der Zusammenfassung | `e2e_m2_flow_test.dart` | `m2-flow` / stufen |
 | Speicher nach Prozessende (Schreiben, Lesen) | `e2e_storage_test.dart` | `storage-a`, `storage-b` / stufen |
 
-`all_test.dart` bindet die Sammlung ein; eine neue `e2e_*_test.dart`, die weder dort noch als Stufe in `tool/ci_e2e.sh` steht, macht den Lauf rot (Wächter). Die Mehrphasen-Stufen brauchen ein Prozessende zwischen den Phasen und laufen darum einzeln.
+`all_test.dart` bindet die Sammlung ein (`e2e_m2_flow_test.dart` läuft wegen der Dauer als eigene Stufe); eine neue `e2e_*_test.dart`, die weder dort noch als Stufe in `tool/ci_e2e.sh` steht, macht den Lauf rot (Wächter). Die Mehrphasen-Stufen brauchen ein Prozessende zwischen den Phasen und laufen darum einzeln.
 
 ## Lokale Mehrphasentests (Health Connect, nicht in der CI)
 
