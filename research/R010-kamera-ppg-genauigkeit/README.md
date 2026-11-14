@@ -1,6 +1,6 @@
 # R010 – Genauigkeit der Kamera-PPG verbessern (Messtechnik und Signalverarbeitung)
 
-**Status:** läuft · **Auftraggeber:** Maintainer über den Project Supervisor · **Datum:** 2026-11-14
+**Status:** abgeschlossen (Ergebnis in [RESULTS.md](RESULTS.md), Review ausstehend) · **Auftraggeber:** Maintainer über den Project Supervisor · **Datum:** 2026-11-14
 
 ## Frage
 Wie lässt sich die Genauigkeit der Kamera-Morgenmessung (Finger auf Kamera und Licht, 60 s) für Ruhepuls und vor allem RMSSD erhöhen, durch Messtechnik (Bildrate, Belichtung, Torch, Fingerdruck, Haltung, Bildausschnitt, Farbkanal, Zeitstempel) und durch Signalverarbeitung (Interpolation, Bezugspunkt, Filter, Ausreißer, Fensterwahl, Glättung, Rauschkorrektur)? Was ist belegt, was ist im Code schon umgesetzt, was fehlt, und was bringt es messbar? Daran hängt, was WP37 (wanderndes 60-s-Fenster, Rohsignal im Entwicklermodus) und spätere Pakete umsetzen und ob eine strengere Qualitätsgrenze (Zeitrauschen) begründbar ist.
