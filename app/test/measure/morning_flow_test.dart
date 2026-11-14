@@ -441,7 +441,7 @@ void main() {
         await tester.pump();
         expect(r.c.engine.posture, RestingPosture.sitting);
         expect(find.byKey(const Key('morning_pose_note')), findsOneWidget);
-        expect(find.textContaining('eigene Reihe'), findsOneWidget);
+        expect(find.textContaining('zählen in einer Reihe'), findsOneWidget);
         expect(r.cam.permissionRequests, 0);
 
         await _tap(tester, 'morning_start');
@@ -530,7 +530,6 @@ void main() {
         final passed = {
           ValidationQuantity.restingHr: ValidationState.passed,
           ValidationQuantity.lnRmssdSupine: ValidationState.passed,
-          ValidationQuantity.lnRmssdSitting: ValidationState.passed,
         };
         final r = await _Rig.make(state: passed);
         await r.show(tester, dark: dark);
@@ -538,7 +537,7 @@ void main() {
         expect(r.c.outcome, MorningOutcome.good);
         expect(
           tester.widget<Text>(find.byKey(const Key('morning_rmssd_mark'))).data,
-          'experimentell, nicht eingeschaltet',
+          'experimentell, mit einem Brustgurt verglichen (ein Handy)',
         );
 
         final d = await _Rig.make(state: passed);
@@ -696,9 +695,8 @@ void main() {
         expect(find.textContaining('Heute zählt diese Messung'), findsNothing);
       });
 
-      testWidgets('liegend und sitzend am selben Morgen zählen beide', (
-        tester,
-      ) async {
+      testWidgets('liegend, dann sitzend am selben Morgen: eine Reihe, nur die '
+          'erste zählt (K67)', (tester) async {
         final r = await _Rig.make();
         await r.show(tester, dark: dark);
         await r.runThrough(tester);
@@ -712,7 +710,7 @@ void main() {
         await tester.tap(_text('Sitzend'));
         await tester.pump();
         await again.runThrough(tester);
-        expect(again.c.outcome, MorningOutcome.good);
+        expect(again.c.outcome, MorningOutcome.notCounted);
         expect(again.c.stored!.posture, RestingPosture.sitting);
       });
 

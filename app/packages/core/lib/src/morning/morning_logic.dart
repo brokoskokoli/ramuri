@@ -163,33 +163,40 @@ DateTime morningLocalDay(MorningMeasurement m) {
   return DateTime.utc(local.year, local.month, local.day);
 }
 
-/// Schlüssel einer Reihe: Haltung und Gerät (PAR-160K), nie gemischt, nie
-/// mit Health Connect. Stehend gibt es nicht ([RestingPosture] kennt es nicht).
+/// Schlüssel einer Reihe: das Gerät (PAR-160K, K67), nie mit Health Connect
+/// gemischt. Die Haltung gehört nicht dazu: liegend und sitzend bilden eine
+/// gemeinsame Reihe, die Haltung bleibt am Punkt gespeichert (Markierung).
+/// Stehend gibt es nicht ([RestingPosture] kennt es nicht).
 class MorningSeriesKey {
-  const MorningSeriesKey(this.posture, this.manufacturer, this.model);
+  const MorningSeriesKey(this.manufacturer, this.model);
 
-  final RestingPosture posture;
+  /// Reihe, zu der [m] gehört.
+  MorningSeriesKey.of(MorningMeasurement m)
+    : this(m.deviceManufacturer, m.deviceModel);
+
   final String manufacturer;
   final String model;
 
   @override
   bool operator ==(Object other) =>
       other is MorningSeriesKey &&
-      other.posture == posture &&
       other.manufacturer == manufacturer &&
       other.model == model;
 
   @override
-  int get hashCode => Object.hash(posture, manufacturer, model);
+  int get hashCode => Object.hash(manufacturer, model);
 
   @override
-  String toString() => 'MorningSeriesKey($posture)';
+  String toString() => 'MorningSeriesKey';
 }
 
-/// Die Messungen, die zählen: je Ortstag und Reihe (Haltung und Gerät) die
-/// erste Messung im Morgenfenster (PAR-160K); liegend und sitzend am selben
-/// Morgen zählen beide. Unbrauchbare Messungen (nur im Entwicklermodus
-/// gespeichert, K68) zählen nirgends. Nach Zeitpunkt sortiert.
+/// Die Messungen, die zählen, an genau dieser Stelle gebildet (K67, K68):
+/// je Ortstag und Reihe (Gerät, ohne Haltung) die erste gültige Messung im
+/// Morgenfenster; liegend oder sitzend ist gleich, die frühere gewinnt.
+/// Unbrauchbare Messungen (nur im Entwicklermodus gespeichert, K68) und
+/// Messungen außerhalb des Fensters zählen nirgends. Nach Zeitpunkt sortiert.
+/// Alle Leser der Reihe (Trend, Readiness, Plan) gehen durch diese Funktion
+/// oder [morningSeries].
 List<MorningMeasurement> countingMorningMeasurements(
   Iterable<MorningMeasurement> all,
 ) {
@@ -198,12 +205,9 @@ List<MorningMeasurement> countingMorningMeasurements(
   final seen = <(DateTime, MorningSeriesKey)>{};
   return [
     for (final m in sorted)
-      if (seen.add((morningLocalDay(m), _seriesKeyOf(m)))) m,
+      if (seen.add((morningLocalDay(m), MorningSeriesKey.of(m)))) m,
   ];
 }
-
-MorningSeriesKey _seriesKeyOf(MorningMeasurement m) =>
-    MorningSeriesKey(m.posture, m.deviceManufacturer, m.deviceModel);
 
 DateTime _localDayOf(DateTime nowUtc, Duration utcOffset) {
   final local = nowUtc.toUtc().add(utcOffset);
@@ -211,7 +215,7 @@ DateTime _localDayOf(DateTime nowUtc, Duration utcOffset) {
 }
 
 /// Die heute (Ortstag von [nowUtc] mit [utcOffset]) zählenden Messungen aller
-/// Reihen, nach Zeitpunkt.
+/// Geräte, nach Zeitpunkt.
 List<MorningMeasurement> morningCountingToday(
   Iterable<MorningMeasurement> all, {
   required DateTime nowUtc,
@@ -224,9 +228,9 @@ List<MorningMeasurement> morningCountingToday(
   ];
 }
 
-/// Darf heute in der Reihe [series] (Haltung und Gerät) wiederholt werden? Nur,
-/// solange heute in dieser Reihe noch keine gültige Messung vorliegt; andere
-/// Reihen zählen nicht.
+/// Darf heute in der Reihe [series] (Gerät) wiederholt werden? Nur, solange
+/// heute in dieser Reihe noch keine gültige Messung vorliegt, gleich in
+/// welcher Haltung; andere Geräte zählen nicht.
 bool morningRepeatAllowed(
   Iterable<MorningMeasurement> all, {
   required DateTime nowUtc,
@@ -236,20 +240,16 @@ bool morningRepeatAllowed(
   all,
   nowUtc: nowUtc,
   utcOffset: utcOffset,
-).any((m) => _seriesKeyOf(m) == series);
+).any((m) => MorningSeriesKey.of(m) == series);
 
-/// Zählende Messungen nach Reihe (Haltung, Gerät), je Reihe nach Zeitpunkt.
+/// Zählende Messungen nach Reihe (Gerät), je Reihe nach Zeitpunkt; die Haltung
+/// steht an jeder Messung ([MorningMeasurement.posture]).
 Map<MorningSeriesKey, List<MorningMeasurement>> morningSeries(
   Iterable<MorningMeasurement> all,
 ) {
   final out = <MorningSeriesKey, List<MorningMeasurement>>{};
   for (final m in countingMorningMeasurements(all)) {
-    out
-        .putIfAbsent(
-          MorningSeriesKey(m.posture, m.deviceManufacturer, m.deviceModel),
-          () => [],
-        )
-        .add(m);
+    out.putIfAbsent(MorningSeriesKey.of(m), () => []).add(m);
   }
   return out;
 }

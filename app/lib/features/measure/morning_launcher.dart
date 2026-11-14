@@ -11,7 +11,7 @@ import 'resting_measure_launcher.dart';
 
 /// Hält Controller und Ton-Schalter der Morgenmessung und schließt die Seite
 /// am Ende. Kamera und Speicher kommen vom Aufrufer.
-/// Markierungen für das Ergebnis aus Entwicklermodus und Opt-in der Einstellungen
+/// Markierungen für das Ergebnis aus Entwicklermodus und Validierungsstand
 /// (dieselben wie auf der Seite Morgenwerte, [morningTrendMarks]).
 Future<MorningTrendMarks> Function(RestingPosture) morningMarksReader(
   SettingsStore settings,
@@ -20,8 +20,6 @@ Future<MorningTrendMarks> Function(RestingPosture) morningMarksReader(
 ) =>
     (posture) async => morningTrendMarks(
       developerMode: await SettingsDeveloperModeStore(settings, clock).read(),
-      posture: posture,
-      optIn: await settings.get(SettingKeys.morningCameraRmssdOptIn) == '1',
       state: state,
     );
 

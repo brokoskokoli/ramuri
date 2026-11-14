@@ -16,11 +16,9 @@ import 'measure_support.dart';
 Map<ValidationQuantity, ValidationState> _state(
   ValidationState hr,
   ValidationState supine,
-  ValidationState sitting,
 ) => {
   ValidationQuantity.restingHr: hr,
   ValidationQuantity.lnRmssdSupine: supine,
-  ValidationQuantity.lnRmssdSitting: sitting,
 };
 
 final _clock = FakeClock(DateTime.utc(2026, 11, 10, 8, 0));
@@ -91,11 +89,7 @@ void main() {
           MorningCard(
             session: s,
             clock: _clock,
-            validationState: _state(
-              ValidationState.passed,
-              supine,
-              ValidationState.passed,
-            ),
+            validationState: _state(ValidationState.passed, supine),
           ),
           dark: false,
         );
@@ -114,11 +108,7 @@ void main() {
           MorningTile(
             session: s,
             clock: _clock,
-            validationState: _state(
-              ValidationState.passed,
-              supine,
-              ValidationState.passed,
-            ),
+            validationState: _state(ValidationState.passed, supine),
           ),
           dark: false,
         );
@@ -133,11 +123,7 @@ void main() {
   testWidgets('Ruhepuls und sitzend bestanden, lnRMSSD liegend nicht: '
       'ohne Modus nirgends', (tester) async {
     final s = await _session(dev: false);
-    final st = _state(
-      ValidationState.passed,
-      ValidationState.failed,
-      ValidationState.passed,
-    );
+    final st = _state(ValidationState.passed, ValidationState.failed);
     await _pump(
       tester,
       Column(
@@ -230,7 +216,6 @@ void main() {
           validationState: _state(
             ValidationState.passed,
             ValidationState.passed,
-            ValidationState.passed,
           ),
         ),
         dark: dark,
@@ -245,7 +230,7 @@ void main() {
         tester
             .widget<Text>(find.byKey(const Key('morning_card_rmssd_mark')))
             .data,
-        'experimentell, nicht eingeschaltet',
+        'experimentell, mit einem Brustgurt verglichen (ein Handy)',
       );
     });
 
@@ -253,11 +238,7 @@ void main() {
       tester,
     ) async {
       final s = await _session(dev: true);
-      final ok = _state(
-        ValidationState.passed,
-        ValidationState.passed,
-        ValidationState.passed,
-      );
+      final ok = _state(ValidationState.passed, ValidationState.passed);
       Future<void> check(List<Finder> texts) async {
         final panel = tester
             .widget<Material>(
@@ -322,7 +303,6 @@ void main() {
           session: s,
           clock: _clock,
           validationState: _state(
-            ValidationState.passed,
             ValidationState.passed,
             ValidationState.passed,
           ),

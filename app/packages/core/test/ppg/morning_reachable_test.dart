@@ -37,10 +37,7 @@ void main() {
   test(
     'andere Größen allein schalten nicht frei (auch Ruhepuls bestanden)',
     () {
-      for (final q in [
-        ValidationQuantity.restingHr,
-        ValidationQuantity.lnRmssdSitting,
-      ]) {
+      for (final q in [ValidationQuantity.restingHr]) {
         expect(
           morningMeasurementReachable(
             developerMode: false,
@@ -50,6 +47,20 @@ void main() {
           reason: '$q',
         );
       }
+    },
+  );
+
+  test(
+    'Validierungsstand: eine Größe je Verfahren, keine je Haltung (K67)',
+    () {
+      expect(ValidationQuantity.values, [
+        ValidationQuantity.restingHr,
+        ValidationQuantity.lnRmssdSupine,
+      ]);
+      expect(
+        ppgValidationState.keys.toSet(),
+        ValidationQuantity.values.toSet(),
+      );
     },
   );
 }

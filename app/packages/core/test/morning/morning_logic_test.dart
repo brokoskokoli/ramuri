@@ -18,7 +18,7 @@ PpgMeasurement meas({
   intervalsMs: ibis,
 );
 
-const lyingKey = MorningSeriesKey(RestingPosture.lying, 'H', 'M1');
+const lyingKey = MorningSeriesKey('H', 'M1');
 
 // 2026-11-14 ist ein Samstag; Ortszeit = UTC + 1 h.
 const off = Duration(hours: 1);
@@ -261,10 +261,56 @@ void main() {
       expect(countingMorningMeasurements([d1, d2, d2b]), [d1, d2b]);
     });
 
-    test('je Reihe: liegend und sitzend am selben Morgen zählen beide', () {
-      final lying = m(7), sitting = m(8, posture: RestingPosture.sitting);
-      expect(countingMorningMeasurements([sitting, lying]), [lying, sitting]);
-    });
+    test(
+      'eine Reihe: liegend und sitzend am selben Morgen, die erste zählt (K67)',
+      () {
+        final lying = m(7), sitting = m(8, posture: RestingPosture.sitting);
+        expect(countingMorningMeasurements([sitting, lying]), [lying]);
+        // sitzend zuerst: dann zählt sitzend, die spätere liegende nicht
+        final early = m(6, posture: RestingPosture.sitting);
+        expect(countingMorningMeasurements([lying, early]), [early]);
+      },
+    );
+
+    test(
+      'liegend und sitzend an verschiedenen Tagen: eine gemeinsame Reihe',
+      () {
+        final l = m(7), s = m(7, day: 15, posture: RestingPosture.sitting);
+        expect(countingMorningMeasurements([s, l]), [l, s]);
+      },
+    );
+
+    test(
+      'unbrauchbare (Entwicklermodus, K68) zählen nirgends und blocken nicht',
+      () {
+        final bad = MorningMeasurement(
+          measuredAt: local(6),
+          utcOffset: off,
+          posture: RestingPosture.lying,
+          deviceManufacturer: 'H',
+          deviceModel: 'M1',
+          method: ppgMethod,
+          methodVersion: ppgMethodVersion,
+          quality: PpgQuality.unusable,
+          cameraIntervalsMs: const [],
+          beforeValidation: true,
+          outsideWindow: false,
+        );
+        final good = m(8);
+        expect(countingMorningMeasurements([bad]), isEmpty);
+        expect(countingMorningMeasurements([bad, good]), [good]);
+        expect(morningSeries([bad]), isEmpty);
+        expect(
+          morningRepeatAllowed(
+            [bad],
+            nowUtc: local(8),
+            utcOffset: off,
+            series: lyingKey,
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test('je Reihe: anderes Gerät am selben Morgen zählt, zweite derselben Reihe nicht', () {
       final a = m(7), b = m(8, model: 'M2'), c = m(9, model: 'M2');
@@ -291,41 +337,28 @@ void main() {
           morningRepeatAllowed(l, nowUtc: local(8), utcOffset: off, series: k);
       expect(allowed(const [], lyingKey), isTrue);
       expect(allowed([m(7)], lyingKey), isFalse);
-      // andere Haltung oder anderes Gerät: eigene Reihe, noch offen
+      // die Haltung ändert nichts: eine liegende Messung sperrt auch sitzend
       expect(
-        allowed([
-          m(7),
-        ], const MorningSeriesKey(RestingPosture.sitting, 'H', 'M1')),
-        isTrue,
+        allowed([m(7, posture: RestingPosture.sitting)], lyingKey),
+        isFalse,
       );
-      expect(
-        allowed([
-          m(7),
-        ], const MorningSeriesKey(RestingPosture.lying, 'H', 'M2')),
-        isTrue,
-      );
+      // anderes Gerät: eigene Reihe, noch offen
+      expect(allowed([m(7)], const MorningSeriesKey('H', 'M2')), isTrue);
       // gestrige gültige blockiert heute nicht
       expect(allowed([m(7, day: 13)], lyingKey), isTrue);
     });
   });
 
   group('Reihen', () {
-    test('Haltung ist eine eigene Reihe, Gerät auch', () {
+    test('eine Reihe je Gerät, Haltung bleibt an der Messung', () {
       final l1 = m(7), l2 = m(7, day: 15);
       final s1 = m(7, day: 16, posture: RestingPosture.sitting);
       final other = m(7, day: 17, model: 'M2');
       final s = morningSeries([l1, l2, s1, other]);
-      expect(s.length, 3);
-      expect(s[const MorningSeriesKey(RestingPosture.lying, 'H', 'M1')], [
-        l1,
-        l2,
-      ]);
-      expect(s[const MorningSeriesKey(RestingPosture.sitting, 'H', 'M1')], [
-        s1,
-      ]);
-      expect(s[const MorningSeriesKey(RestingPosture.lying, 'H', 'M2')], [
-        other,
-      ]);
+      expect(s.length, 2);
+      expect(s[lyingKey], [l1, l2, s1]);
+      expect(s[lyingKey]!.last.posture, RestingPosture.sitting);
+      expect(s[const MorningSeriesKey('H', 'M2')], [other]);
     });
 
     test('es gibt keine Haltung stehend', () {

@@ -1,19 +1,14 @@
 import 'package:core/core.dart';
 
 /// Markierung des Kamera-RMSSD auf der Seite Morgenwerte (K-1, PAR-171K und
-/// Validierungssperre).
+/// Validierungssperre). Es gibt einen Stand für das Verfahren, keinen je
+/// Haltung und kein Opt-in (K67).
 enum MorningRmssdMark {
   /// Keine Markierung (Entwicklermodus: gilt als gültig, K62 Punkt 6).
   none,
 
-  /// lnRMSSD bestanden, Opt-in aus: „experimentell, nicht eingeschaltet“.
-  notEnabled,
-
-  /// Opt-in an, liegend: „experimentell, mit einem Brustgurt verglichen“.
-  optIn,
-
-  /// Opt-in an, sitzend: „experimentell, liegend verglichen“ (E6).
-  optInSitting,
+  /// lnRMSSD bestanden: „experimentell, mit einem Brustgurt verglichen“.
+  experimental,
 
   /// „eingeschränkt“ oder „nicht bestanden“: „ungenauer als erwartet“.
   inaccurate,
@@ -22,63 +17,36 @@ enum MorningRmssdMark {
   notChecked,
 }
 
-/// Was die Seite je Reihe zeigt.
+/// Was die Seite zeigt.
 class MorningTrendMarks {
-  const MorningTrendMarks({
-    required this.rmssd,
-    required this.hrInaccurate,
-    required this.optInVisible,
-  });
+  const MorningTrendMarks({required this.rmssd, required this.hrInaccurate});
 
   final MorningRmssdMark rmssd;
 
   /// Ruhepuls „nicht bestanden“: „ungenauer als erwartet“.
   final bool hrInaccurate;
 
-  /// Opt-in-Schalter nur bei „bestanden“, nie im Entwicklermodus.
-  final bool optInVisible;
-
-  /// RMSSD wird gezeigt, geht aber in nichts ein (gesperrt, nicht
-  /// eingeschaltet oder ungeprüft): gedämpft gezeichnet.
+  /// RMSSD wird gezeigt, geht aber in nichts ein (gesperrt oder ungeprüft):
+  /// gedämpft gezeichnet.
   bool get rmssdLocked =>
-      rmssd == MorningRmssdMark.notEnabled ||
       rmssd == MorningRmssdMark.inaccurate ||
       rmssd == MorningRmssdMark.notChecked;
 }
 
-/// Markierungen für die Haltung [posture]. Im Entwicklermodus keine Markierung
-/// und kein Opt-in. Sonst gilt für RMSSD der Stand von lnRMSSD liegend; sitzend
-/// gilt er mit, solange die Validierung im Sitzen nicht „eingeschränkt“ oder
-/// „nicht bestanden“ ergab (dann gesperrt, E6).
+/// Markierungen aus dem Stand des Verfahrens, für beide Haltungen gleich. Im
+/// Entwicklermodus keine Markierung.
 MorningTrendMarks morningTrendMarks({
   required bool developerMode,
-  required RestingPosture posture,
-  required bool optIn,
   Map<ValidationQuantity, ValidationState> state = ppgValidationState,
 }) {
   if (developerMode) {
     return const MorningTrendMarks(
       rmssd: MorningRmssdMark.none,
       hrInaccurate: false,
-      optInVisible: false,
     );
   }
-  final supine = state[ValidationQuantity.lnRmssdSupine];
-  final sitting = state[ValidationQuantity.lnRmssdSitting];
-  final eff =
-      posture == RestingPosture.sitting &&
-          (sitting == ValidationState.limited ||
-              sitting == ValidationState.failed)
-      ? sitting
-      : supine;
-  final lying = posture == RestingPosture.lying;
-  final rmssd = switch (eff) {
-    ValidationState.passed =>
-      !optIn
-          ? MorningRmssdMark.notEnabled
-          : lying
-          ? MorningRmssdMark.optIn
-          : MorningRmssdMark.optInSitting,
+  final rmssd = switch (state[ValidationQuantity.lnRmssdSupine]) {
+    ValidationState.passed => MorningRmssdMark.experimental,
     ValidationState.limited ||
     ValidationState.failed => MorningRmssdMark.inaccurate,
     _ => MorningRmssdMark.notChecked,
@@ -86,20 +54,23 @@ MorningTrendMarks morningTrendMarks({
   return MorningTrendMarks(
     rmssd: rmssd,
     hrInaccurate: state[ValidationQuantity.restingHr] == ValidationState.failed,
-    optInVisible: eff == ValidationState.passed,
   );
 }
 
-/// Ein Tag der Reihe.
-typedef MorningDayValue = ({int dayIndex, double value});
+/// Ein Tag der Reihe; [posture] ist die Haltung der zählenden Messung (K67,
+/// der Punkt wird danach markiert).
+typedef MorningDayValue = ({
+  int dayIndex,
+  double value,
+  RestingPosture posture,
+});
 
 /// Werte der letzten [days] Ortstage bis heute (Index 0 = ältester Tag,
-/// `days - 1` = heute) aus den zählenden Messungen der Reihe von [posture] und
-/// [device]; nur Tage mit Wert, nach Tag. [pick] wählt die Größe (Ruhepuls oder
+/// `days - 1` = heute) aus den zählenden Messungen der Reihe des Geräts (beide
+/// Haltungen, K67); nur Tage mit Wert, nach Tag. [pick] wählt die Größe (Ruhepuls oder
 /// RMSSD, `null` = kein Wert an dem Tag).
 List<MorningDayValue> morningTrendValues(
   Iterable<MorningMeasurement> all, {
-  required RestingPosture posture,
   required String manufacturer,
   required String model,
   required DateTime nowUtc,
@@ -110,14 +81,14 @@ List<MorningDayValue> morningTrendValues(
   final local = nowUtc.toUtc().add(utcOffset);
   final today = DateTime.utc(local.year, local.month, local.day);
   final series =
-      morningSeries(all)[MorningSeriesKey(posture, manufacturer, model)] ??
+      morningSeries(all)[MorningSeriesKey(manufacturer, model)] ??
       const <MorningMeasurement>[];
   final out = <MorningDayValue>[];
   for (final m in series) {
     final back = today.difference(morningLocalDay(m)).inDays;
     final v = pick(m);
     if (back < 0 || back >= days || v == null) continue;
-    out.add((dayIndex: days - 1 - back, value: v));
+    out.add((dayIndex: days - 1 - back, value: v, posture: m.posture));
   }
   return out;
 }
@@ -130,4 +101,52 @@ double? morningTrendMean(List<MorningDayValue> values, {required int fromDay}) {
   ];
   if (v.isEmpty) return null;
   return v.reduce((a, b) => a + b) / v.length;
+}
+
+/// Eine Zeile der Liste „Letzte Messungen“.
+enum MorningRowStatus {
+  /// Zählt (erste gültige Messung des Morgens).
+  counts,
+
+  /// Außerhalb des Morgenfensters.
+  outside,
+
+  /// Gültig, aber an diesem Morgen zählt eine frühere.
+  later,
+
+  /// Unbrauchbar (nur im Entwicklermodus gespeichert, K68).
+  unusable,
+}
+
+typedef MorningRow = ({MorningMeasurement m, MorningRowStatus status});
+
+/// Die letzten [limit] Messungen des Geräts, neueste zuerst, mit Status.
+/// Unbrauchbare nur im Entwicklermodus. Welche zählt, entscheidet allein
+/// [countingMorningMeasurements].
+List<MorningRow> morningRecentRows(
+  Iterable<MorningMeasurement> all, {
+  required String manufacturer,
+  required String model,
+  required bool developerMode,
+  int limit = 7,
+}) {
+  final counting = Set<MorningMeasurement>.identity()
+    ..addAll(countingMorningMeasurements(all));
+  final rows = [
+    for (final m in all)
+      if (m.deviceManufacturer == manufacturer &&
+          m.deviceModel == model &&
+          (developerMode || m.isUsable))
+        (
+          m: m,
+          status: !m.isUsable
+              ? MorningRowStatus.unusable
+              : counting.contains(m)
+              ? MorningRowStatus.counts
+              : m.outsideWindow
+              ? MorningRowStatus.outside
+              : MorningRowStatus.later,
+        ),
+  ]..sort((a, b) => b.m.measuredAt.compareTo(a.m.measuredAt));
+  return rows.take(limit).toList();
 }
