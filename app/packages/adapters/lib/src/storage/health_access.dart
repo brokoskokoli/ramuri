@@ -178,6 +178,7 @@ class DriftHealthStore implements HealthImportStore {
   }
 
   /// Schlafsitzungen, die das Fenster [from, to) berühren, nach Beginn, mit Phasen.
+  @override
   Future<List<HealthRecord>> sleepSessions(DateTime from, DateTime to) =>
       guarded(() async {
         final s = _db.healthSleepSessions;

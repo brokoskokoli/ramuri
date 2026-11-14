@@ -210,7 +210,11 @@ void main() {
                     'or a rest day is recommended for today.',
         );
         expect(find.text(de ? 'Erholung' : 'Recovery'), findsNothing);
-        expect(find.text(de ? 'ERHOLUNG' : 'RECOVERY'), findsOneWidget);
+        // Die Stufe steht in der Überschrift (FR-0105, WP34 D1).
+        expect(
+          find.text(de ? 'ERHOLUNG · BASIS' : 'RECOVERY · BASIC'),
+          findsOneWidget,
+        );
         // Keine Zahl auf der Karte.
         final card = find.descendant(
           of: key('home_recovery_card'),
