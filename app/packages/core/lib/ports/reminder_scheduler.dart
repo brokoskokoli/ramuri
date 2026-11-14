@@ -59,6 +59,30 @@ class ReminderLabels {
   );
 }
 
+/// Texte der Morgen-Erinnerung (WP33 Teil D): eigener Kanal, Titel und Text
+/// ohne Werte (SEC-0001).
+class MorningReminderLabels {
+  const MorningReminderLabels({
+    required this.channelName,
+    required this.title,
+    required this.body,
+  });
+
+  final String channelName;
+  final String title;
+  final String body;
+
+  @override
+  bool operator ==(Object other) =>
+      other is MorningReminderLabels &&
+      other.channelName == channelName &&
+      other.title == title &&
+      other.body == body;
+
+  @override
+  int get hashCode => Object.hash(channelName, title, body);
+}
+
 /// Lokale Erinnerungen des Systems (FR-0174, WP22 Teil F). Kein Netz; der
 /// Adapter plant über den Wecker des Systems (inexakt) und plant nach einem
 /// Neustart des Geräts selbst neu.
@@ -79,4 +103,21 @@ abstract interface class ReminderScheduler {
 
   /// Storniert alle geplanten und entfernt gezeigte Erinnerungen.
   Future<void> cancelAll();
+
+  /// Plant die tägliche Morgen-Erinnerung (WP33 Teil D) ab [at] (nächstes
+  /// Auftreten der Uhrzeit), ersetzt eine geplante. Eigener Wecker und Kanal,
+  /// unabhängig von [replaceAll]/[cancelAll]. Der Adapter legt sie nicht in
+  /// den eigenen Speicher und plant sie nach einem Neustart nicht neu (keine
+  /// SEC-0009-Ausnahme); die App plant sie beim Öffnen neu.
+  Future<void> scheduleMorning(
+    DateTime at, {
+    required MorningReminderLabels labels,
+  });
+
+  /// Streicht die Morgen-Erinnerung und entfernt eine gezeigte.
+  Future<void> cancelMorning();
+
+  /// Was das Tippen auf eine Benachrichtigung der App verlangt hat (etwa
+  /// `morning`); wird mit dem Lesen gelöscht, `null` ohne Anliegen.
+  Future<String?> takeLaunchTarget();
 }

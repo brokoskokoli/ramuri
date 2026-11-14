@@ -1,24 +1,28 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
+import '../measure/morning_entry.dart';
 import '../../l10n/app_localizations.dart';
 import '../profile/profile_screen.dart';
 import '../recalculation/recalculation_controller.dart';
+import '../measure/morning_belt.dart';
 import '../sensors/sensor_manager.dart';
 import '../sensors/sensors_screen.dart';
+import '../settings/about_screen.dart';
+import '../settings/app_version.dart';
 import '../settings/permissions_screen.dart';
 import '../settings/settings_screen.dart';
 import '../settings/zones_screen.dart';
 import '../storage/data_screen.dart';
 
 /// Übersicht hinter dem Profil-Symbol auf Heute (FR-0208): Profil,
-/// Einstellungen, Sensoren, Zonen, Berechtigungen, Daten und Lizenzen.
+/// Einstellungen, Sensoren, Zonen, Berechtigungen, Daten und Über (Name, Version, Lizenzen, Entwicklermodus).
 ///
 /// Sensoren, Zonen, Berechtigungen und Daten sind während einer
 /// Neuberechnung gesperrt: Sie könnten Werte ändern oder löschen (Sperre,
 /// FR-0006). Die Einstellungen, in denen die Neuberechnung läuft, lassen sich
 /// dabei nicht verlassen; die Sperre hier ist die zweite Absicherung.
-class OverviewScreen extends StatelessWidget {
+class OverviewScreen extends StatefulWidget {
   const OverviewScreen({
     super.key,
     required this.session,
@@ -26,6 +30,7 @@ class OverviewScreen extends StatelessWidget {
     required this.permissions,
     required this.recalculation,
     required this.sensors,
+    this.appVersion = readAppVersion,
   });
 
   final StorageSession session;
@@ -34,8 +39,29 @@ class OverviewScreen extends StatelessWidget {
   final RecalculationController recalculation;
   final SensorManager sensors;
 
-  void _open(BuildContext context, WidgetBuilder builder) =>
-      Navigator.of(context).push<void>(MaterialPageRoute(builder: builder));
+  /// Quelle der Versionsangabe auf „Über“ (Tests setzen eine feste).
+  final Future<String?> Function() appVersion;
+
+  @override
+  State<OverviewScreen> createState() => _OverviewScreenState();
+}
+
+class _OverviewScreenState extends State<OverviewScreen> {
+  /// Zählt die Rückkehr von einer Unterseite: Der Entwicklermodus (Über)
+  /// ändert, ob der Eintrag Morgenmessung da ist, also lädt er neu.
+  int _returns = 0;
+
+  StorageSession get session => widget.session;
+  Clock get clock => widget.clock;
+  PermissionStatusPort get permissions => widget.permissions;
+  RecalculationController get recalculation => widget.recalculation;
+  SensorManager get sensors => widget.sensors;
+  Future<String?> Function() get appVersion => widget.appVersion;
+
+  Future<void> _open(BuildContext context, WidgetBuilder builder) async {
+    await Navigator.of(context).push<void>(MaterialPageRoute(builder: builder));
+    if (mounted) setState(() => _returns++);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +87,13 @@ class OverviewScreen extends StatelessWidget {
                     recalculation: recalculation,
                   ),
                 ),
+              ),
+              MorningTile(
+                key: ValueKey(_returns),
+                session: session,
+                clock: clock,
+                beltFactory: () =>
+                    MorningBelt.of(sensors, session.settings, clock),
               ),
               _Entry(
                 key: const Key('home_settings'),
@@ -121,12 +154,21 @@ class OverviewScreen extends StatelessWidget {
                       ),
               ),
               _Entry(
-                key: const Key('overview_licenses'),
-                icon: Icons.description_outlined,
-                label: l10n.overviewLicenses,
-                onTap: () => showLicensePage(
-                  context: context,
-                  applicationName: l10n.appTitle,
+                key: const Key('overview_about'),
+                icon: Icons.info_outline_rounded,
+                label: l10n.overviewAbout,
+                onTap: () => _open(
+                  context,
+                  (_) => AboutScreen(
+                    developerMode: SettingsDeveloperModeStore(
+                      session.settings,
+                      clock,
+                    ),
+                    appVersion: appVersion,
+                    morning: session is MorningStorage
+                        ? (session as MorningStorage).morning
+                        : null,
+                  ),
                 ),
               ),
             ],

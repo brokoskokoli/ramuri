@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import 'morning_belt.dart';
 import 'resting_measure_controller.dart';
 import 'resting_widgets.dart';
 
@@ -15,7 +16,16 @@ class RestingRestView extends StatelessWidget {
     super.key,
     required this.controller,
     required this.soundOn,
+    this.allowSkip = true,
+    this.beltHint = false,
   });
+
+  /// Hinweis „Pulsgurt zeichnet mit“ (Morgenmessung im Entwicklermodus).
+  final bool beltHint;
+
+  /// „Ich bin schon entspannt“ anbieten; die Morgenmessung hat eine feste
+  /// Ruhephase (FR-0215) und lässt sie weg.
+  final bool allowSkip;
 
   final RestingMeasureController controller;
 
@@ -124,6 +134,10 @@ class RestingRestView extends StatelessWidget {
             ),
           ),
         ),
+        if (beltHint)
+          MorningBeltHint(
+            text: AppLocalizations.of(context).morningBeltRecording,
+          ),
       ],
       footer: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -154,11 +168,12 @@ class RestingRestView extends StatelessWidget {
               },
             ),
           ),
-          RestingTextLink(
-            key: const Key('measure_skip_rest'),
-            label: l10n.measureRestSkip,
-            onPressed: () => controller.skipRest(),
-          ),
+          if (allowSkip)
+            RestingTextLink(
+              key: const Key('measure_skip_rest'),
+              label: l10n.measureRestSkip,
+              onPressed: () => controller.skipRest(),
+            ),
         ],
       ),
     );

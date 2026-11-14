@@ -43,6 +43,22 @@ object TrainingReminders {
                         replaceAll(app, call.argument<Map<String, Any?>>("labels"), raw.map(::parse))
                         result.success(null)
                     }
+                    // Morgen-Erinnerung (WP33 Teil D): eigener Wecker und Kanal, ohne Speicher.
+                    "scheduleMorning" -> {
+                        MorningReminder.schedule(
+                            app,
+                            (call.argument<Number>("at") ?: 0).toLong(),
+                            call.argument<String>("channelName") ?: "",
+                            call.argument<String>("title") ?: "",
+                            call.argument<String>("body") ?: "",
+                        )
+                        result.success(null)
+                    }
+                    "cancelMorning" -> {
+                        MorningReminder.cancel(app)
+                        result.success(null)
+                    }
+                    "takeLaunchTarget" -> result.success(MorningReminder.takeLaunchTarget())
                     "cancelAll" -> {
                         cancelAll(app)
                         result.success(null)

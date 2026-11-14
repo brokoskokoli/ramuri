@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Morgenwerte</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 1040px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; padding: 28px 20px 24px; display: flex; flex-direction: column; gap: 16px">
+  <header style="display: flex; align-items: center; gap: 8px">
+    <a href="{{backHref}}" aria-label="Zurück" style="width: 44px; height: 44px; border-radius: 22px; background: {{t.card}}; border: 1px solid {{t.border}}; display: flex; align-items: center; justify-content: center; color: {{t.text}}; box-sizing: border-box">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+    <h1 style="margin: 0; flex: 1; font-family: Sora, sans-serif; letter-spacing: -0.03em; font-size: 22px; font-weight: 700">Morgenwerte</h1>
+    <sc-if value="{{dev}}" hint-placeholder-val="{{ true }}">
+      <span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Entwicklermodus aktiv</span>
+    </sc-if>
+  </header>
+
+  <div role="tablist" aria-label="Reihe" style="background: {{t.chip}}; border-radius: 22px; padding: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+    <button role="tab" aria-selected="{{lieSel}}" onClick="{{pickLie}}" style="height: 44px; border: 0; border-radius: 18px; font-family: Manrope, sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: {{lieBg}}; color: {{t.text}}">Liegend</button>
+    <button role="tab" aria-selected="{{sitSel}}" onClick="{{pickSit}}" style="height: 44px; border: 0; border-radius: 18px; font-family: Manrope, sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: {{sitBg}}; color: {{t.text}}">Sitzend</button>
+  </div>
+  <span style="margin-top: -8px; font-size: 13px; color: {{t.muted}}">Reihe mit diesem Handy · letzte 14 Tage · 13 gültige Morgen</span>
+
+  <section aria-label="Ruhepuls" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; align-items: baseline; gap: 8px">
+      <span style="flex: 1; font-size: 15px; font-weight: 800">Ruhepuls /min</span>
+      <span style="font-family: Sora, sans-serif; font-size: 22px; font-weight: 700">52,4</span>
+    </div>
+    <svg viewBox="0 0 318 90" width="100%" height="90" role="img" aria-label="Ruhepuls der letzten 14 Morgen, zwischen 50 und 56">
+      <line x1="0" y1="{{hrMeanY}}" x2="318" y2="{{hrMeanY}}" stroke="{{t.border}}" stroke-width="1.5" stroke-dasharray="4 4"></line>
+      <polyline points="{{hrPts}}" fill="none" stroke="{{t.link}}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>
+      <circle cx="318" cy="{{hrLastY}}" r="5" fill="{{t.glut}}"></circle>
+    </svg>
+    <span style="font-size: 13px; color: {{t.muted}}">Gestrichelt: dein Mittel der letzten 7 Morgen, 53,1</span>
+  </section>
+
+  <section aria-label="RMSSD" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; align-items: baseline; gap: 8px">
+      <span style="flex: 1; font-size: 15px; font-weight: 800">RMSSD ms</span>
+      <span style="font-family: Sora, sans-serif; font-size: 22px; font-weight: 700; color: {{rmssdValColor}}">48</span>
+    </div>
+    <sc-if value="{{mark}}" hint-placeholder-val="{{ false }}">
+      <span style="align-self: flex-start; padding: 4px 10px; border-radius: 12px; background: {{t.chip}}; font-size: 12px; font-weight: 800">{{markText}}</span>
+    </sc-if>
+    <svg viewBox="0 0 318 90" width="100%" height="90" role="img" aria-label="RMSSD der letzten 14 Morgen, zwischen 38 und 60">
+      <line x1="0" y1="{{rmMeanY}}" x2="318" y2="{{rmMeanY}}" stroke="{{t.border}}" stroke-width="1.5" stroke-dasharray="4 4"></line>
+      <polyline points="{{rmPts}}" fill="none" stroke="{{rmStroke}}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="{{rmDash}}"></polyline>
+      <circle cx="318" cy="{{rmLastY}}" r="5" fill="{{rmDot}}"></circle>
+    </svg>
+    <span style="font-size: 13px; line-height: 1.45; color: {{t.muted}}">{{rmNote}}</span>
+    <sc-if value="{{optIn}}" hint-placeholder-val="{{ false }}">
+      <label style="display: flex; align-items: center; gap: 12px; min-height: 48px; border-top: 1px solid {{t.div}}; padding-top: 8px; cursor: pointer">
+        <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; font-weight: 800">Kamera-RMSSD einbeziehen</span><span style="font-size: 12px; line-height: 1.4; color: {{t.muted}}">experimentell, mit einem Brustgurt verglichen (ein Handy)</span></span>
+        <input type="checkbox" checked="{{optOn}}" onChange="{{toggleOpt}}" style="width: 24px; height: 24px; accent-color: {{t.link}}">
+      </label>
+    </sc-if>
+  </section>
+
+  <section aria-label="Einstellungen" style="background: {{t.card}}; border-radius: 24px; padding: 6px 16px; display: flex; flex-direction: column">
+    <label style="display: flex; align-items: center; gap: 12px; min-height: 56px; border-bottom: 1px solid {{t.div}}; cursor: pointer">
+      <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 800">Erinnerung am Morgen</span><span style="font-size: 13px; color: {{t.muted}}">{{remText}}</span></span>
+      <input type="checkbox" checked="{{remOn}}" onChange="{{toggleRem}}" style="width: 24px; height: 24px; accent-color: {{t.link}}">
+    </label>
+    <div style="display: flex; align-items: center; gap: 12px; min-height: 56px">
+      <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 800">Morgenfenster</span><span style="font-size: 13px; color: {{t.muted}}">Nur Messungen in dieser Zeit zählen</span></span>
+      <button style="min-height: 44px; padding: 0 14px; border-radius: 22px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; font-size: 14px; font-weight: 800; cursor: pointer">4 bis 11 Uhr</button>
+    </div>
+  </section>
+  <span style="font-size: 12px; line-height: 1.45; color: {{t.muted}}">Nach einem Neustart des Handys plant die App die Erinnerung beim nächsten Öffnen neu.</span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"stand":{"editor":"enum","options":["entwickler","bestanden","eingeschraenkt"],"default":"entwickler"},"$preview":{"width":390,"height":1040}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { pose: 'lie', rem: true, opt: false }; }
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', muted: '#A3B8B4', border: '#2A4140', div: '#223636', link: '#7FD6C6', chip: '#1F3333', sel: '#2E4A48', glut: '#FF7A45', faint: '#5E7774' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', muted: '#4F6361', border: '#DAE4E1', div: '#EBF1EF', link: '#0F5E5A', chip: '#E2EAE8', sel: '#FFFFFF', glut: '#E0561F', faint: '#9AAEAB' };
+  }
+  pts(vals, lo, hi) {
+    const n = vals.length;
+    return vals.map((v, i) => Math.round(i * 318 / (n - 1)) + ',' + Math.round(84 - (v - lo) / (hi - lo) * 78)).join(' ');
+  }
+  y(v, lo, hi) { return Math.round(84 - (v - lo) / (hi - lo) * 78); }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const t = this.theme(dark);
+    const sfx = dark ? '-dunkel' : '';
+    const stand = this.props.stand ?? 'entwickler';
+    const lie = this.state.pose === 'lie';
+    const hr = lie ? [54, 53.5, 55, 54.2, 53, 56, 55.1, 53.4, 52.8, 54, 53.6, 52.9, 53.3, 52.4] : [58, 57.2, 58.5, 57.8, 59, 57.1, 58.2, 57.6, 56.9, 58, 57.4, 57.9, 57.2, 56.8];
+    const rm = lie ? [44, 46, 41, 45, 49, 38, 42, 47, 50, 45, 46, 52, 47, 48] : [36, 38, 35, 37, 34, 39, 36, 37, 40, 36, 38, 37, 39, 38];
+    const opted = stand === 'bestanden' && this.state.opt;
+    const locked = stand === 'eingeschraenkt' || (stand === 'bestanden' && !this.state.opt);
+    let markText = '';
+    if (stand === 'eingeschraenkt') markText = 'ungenauer als erwartet';
+    else if (stand === 'bestanden' && !this.state.opt) markText = 'experimentell, nicht eingeschaltet';
+    else if (opted) markText = lie ? 'experimentell, mit einem Brustgurt verglichen (ein Handy)' : 'experimentell, liegend verglichen';
+    let rmNote = 'Gestrichelt: dein Mittel der letzten 7 Morgen, 46.';
+    if (locked) rmNote = 'Wird gezeigt, geht aber in keine Einschätzung ein.';
+    return {
+      t,
+      dev: stand === 'entwickler',
+      backHref: 'Main' + sfx + '.dc.html',
+      lieSel: lie ? 'true' : 'false', sitSel: lie ? 'false' : 'true',
+      lieBg: lie ? t.sel : 'transparent', sitBg: lie ? 'transparent' : t.sel,
+      pickLie: () => this.setState({ pose: 'lie' }),
+      pickSit: () => this.setState({ pose: 'sit' }),
+      hrPts: this.pts(hr, 50, 60), hrLastY: this.y(hr[hr.length - 1], 50, 60), hrMeanY: this.y(lie ? 53.1 : 57.5, 50, 60),
+      rmPts: this.pts(rm, 30, 60), rmLastY: this.y(rm[rm.length - 1], 30, 60), rmMeanY: this.y(lie ? 46 : 37.5, 30, 60),
+      rmStroke: locked ? t.faint : t.link, rmDash: locked ? '5 5' : 'none', rmDot: locked ? t.faint : t.glut,
+      rmssdValColor: locked ? t.muted : t.text,
+      mark: markText !== '', markText, rmNote,
+      optIn: stand === 'bestanden', optOn: this.state.opt,
+      toggleOpt: () => this.setState({ opt: !this.state.opt }),
+      remOn: this.state.rem, remText: this.state.rem ? 'Täglich um 6:30' : 'Aus',
+      toggleRem: () => this.setState({ rem: !this.state.rem })
+    };
+  }
+}
+</script>
+</body>
+</html>

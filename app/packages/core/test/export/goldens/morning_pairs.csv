@@ -1,0 +1,25 @@
+format_version,morning_id,row_type,key,seq,sub,time,value,unit
+1,7,meta,measured_at,,,2030-01-01T06:30:00.000Z,,
+1,7,meta,utc_offset,,,,3600,s
+1,7,meta,posture,,,,lying,
+1,7,meta,device_manufacturer,,,,Testhersteller,
+1,7,meta,device_model,,,,"Test, ""Modell""",
+1,7,meta,method,,,,camera-ppg,
+1,7,meta,method_version,,,,1,
+1,7,meta,quality,,,,good,
+1,7,meta,before_validation,,,,1,
+1,7,meta,outside_window,,,,0,
+1,7,meta,sleep_band,,,,,
+1,7,meta,belt_packets,,,,3,
+1,7,camera,resting_hr,,,,58.0,bpm
+1,7,camera,rmssd,,,,41.5,ms
+1,7,camera,timing_noise,,,,,ms
+1,7,camera_ibi,ibi,1,,,810.500,ms
+1,7,camera_ibi,ibi,2,,,,ms
+1,7,camera_ibi,ibi,3,,,805.250,ms
+1,7,belt_rr,rr,1,1,2030-01-01T06:28:05.000Z,900,1/1024 s
+1,7,belt_rr,rr,1,2,2030-01-01T06:28:05.000Z,910,1/1024 s
+1,7,belt_rr,rr,2,1,2030-01-01T06:28:07.000Z,915,1/1024 s
+1,7,belt_rr,rr,3,1,2030-01-01T06:30:05.000Z,880,1/1024 s
+1,7,belt_rr,rr,3,2,2030-01-01T06:30:05.000Z,885,1/1024 s
+1,7,belt_rr,rr,3,3,2030-01-01T06:30:05.000Z,890,1/1024 s

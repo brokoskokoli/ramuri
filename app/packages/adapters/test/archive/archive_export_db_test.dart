@@ -376,6 +376,62 @@ void main() {
       [for (final r in _rows(lines, 'manual_trainings')) r['hc_id']],
       [null, 'hc-ex-1'],
     );
+    // Morgenmessungen (WP33, Abschnitte 32 und 33): Werte exakt, BLOB als
+    // Hex-Text, Unbekanntes bleibt null, Merkmale als 0/1.
+    expect(_rows(lines, 'morning_measurements'), [
+      {
+        'id': 1,
+        'measured_at_us': 5000,
+        'utc_offset_s': 3600,
+        'posture': 'lying',
+        'device_manufacturer': 'Testhersteller',
+        'device_model': 'Testmodell',
+        'method': 'camera-ppg',
+        'method_version': 1,
+        'quality': 'good',
+        'resting_hr_bpm': 52.3,
+        'rmssd_ms': 41.5,
+        'timing_noise_ms': 12.25,
+        'sleep_band': 'from6to7',
+        'before_validation': 1,
+        'outside_window': 0,
+        'camera_ibi': '00608944',
+      },
+      {
+        'id': 2,
+        'measured_at_us': 6000,
+        'utc_offset_s': -12600,
+        'posture': 'sitting',
+        'device_manufacturer': 'Testhersteller',
+        'device_model': 'Testmodell',
+        'method': 'camera-ppg',
+        'method_version': 1,
+        'quality': 'limited',
+        'resting_hr_bpm': 60.1,
+        'rmssd_ms': null,
+        'timing_noise_ms': null,
+        'sleep_band': null,
+        'before_validation': 0,
+        'outside_window': 1,
+        'camera_ibi': '',
+      },
+    ]);
+    expect(_rows(lines, 'morning_rr_packets'), [
+      {
+        'id': 1,
+        'measurement_id': 1,
+        'time_us': 5001,
+        'source': 'strap',
+        'rr': '0004ffff0000',
+      },
+      {
+        'id': 2,
+        'measurement_id': 1,
+        'time_us': 5002,
+        'source': 'strap2',
+        'rr': '0004',
+      },
+    ]);
     final cv = _rows(lines, 'computed_values');
     expect(cv.map((r) => r['role']), ['original', 'current', 'original']);
     expect(cv[0]['value_real'], isNull);

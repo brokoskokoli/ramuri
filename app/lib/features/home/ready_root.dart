@@ -11,9 +11,11 @@ import '../health/health_connect_scope.dart';
 import '../map/map_consent_controller.dart';
 import '../map/map_consent_scope.dart';
 import '../map/map_services.dart';
+import '../measure/morning_entry.dart';
 import '../plan/plan_started_unit.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../storage/deletion.dart';
+import '../measure/morning_belt.dart';
 import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
 import '../run/run_flow_screen.dart';
@@ -300,6 +302,7 @@ class _ReadyRootState extends State<ReadyRoot> {
     final reminders = ReminderScope.read(context);
     if (reminders != null && !identical(reminders, _reminders)) {
       _reminders = reminders;
+      reminders.onOpenMorning = _openMorningFromReminder;
       reminders.attach(widget.session);
       _changes.addListener(reminders.sync);
     }
@@ -310,10 +313,32 @@ class _ReadyRootState extends State<ReadyRoot> {
     );
   }
 
+  /// Tippen auf die Morgen-Erinnerung: Morgenmessung öffnen, wenn erreichbar
+  /// (sonst nichts).
+  Future<void> _openMorningFromReminder() async {
+    if (!mounted) return;
+    if (await loadMorningEntry(session: widget.session, clock: widget.clock) ==
+        null) {
+      return;
+    }
+    if (!mounted) return;
+    await openMorningMeasurement(
+      context,
+      session: widget.session,
+      clock: widget.clock,
+      belt: MorningBelt.of(
+        widget.sensors,
+        widget.session.settings,
+        widget.clock,
+      ),
+    );
+  }
+
   @override
   void dispose() {
     final reminders = _reminders;
     if (reminders != null) {
+      reminders.onOpenMorning = null;
       _changes.removeListener(reminders.sync);
       reminders.detach(widget.session);
     }

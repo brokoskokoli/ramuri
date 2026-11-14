@@ -94,6 +94,11 @@ SECTIONS_S11 = SECTIONS_S10
 SECTIONS_S12 = SECTIONS_S11 + ["health_sleep_sessions", "health_sleep_stages", "health_values",
                                "health_exercises", "health_exercise_heart_rates"]
 
+# Schema 13 (WP33, weiter Format 2): Abschnitte 32 `morning_measurements` und 33
+# `morning_rr_packets` am Ende; `camera_ibi` (float32 little-endian, ms) und `rr` (uint16
+# little-endian, 1/1024 s) sind BLOBs, in der Datei als kleingeschriebener Hex-Text.
+SECTIONS_S13 = SECTIONS_S12 + ["morning_measurements", "morning_rr_packets"]
+
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
 V2_TODAY = "2026-11-20"
@@ -337,8 +342,46 @@ def archive_rows_s12():
     return r
 
 
+def archive_rows_s13():
+    """Schema 13: die Zeilen von Schema 12 und zwei Morgenmessungen (synthetisch): eine volle
+    (liegend, Schlafstufe, vor der Validierung, mit Gurt-RR) und eine sitzend, eingeschraenkt,
+    ohne RMSSD, Zeitrauschen und Schlafstufe, ausserhalb des Morgenfensters, mit negativem
+    UTC-Versatz, ohne Abstaende (leerer BLOB) und ohne Gurt-RR. `camera_ibi` und `rr` sind Hex."""
+    import struct
+    r = archive_rows_s12()
+    t = 1792000000000000
+
+    def ibi(*values):
+        return struct.pack("<%df" % len(values), *values).hex()
+
+    def rr(*values):
+        return struct.pack("<%dH" % len(values), *values).hex()
+
+    r["morning_measurements"] = [
+        dict(id=1, measured_at_us=t + 7 * 3600 * 1_000_000, utc_offset_s=3600, posture="lying",
+             device_manufacturer="Testhersteller", device_model="Testmodell 1",
+             method="camera-ppg", method_version=1, quality="good", resting_hr_bpm=52.3,
+             rmssd_ms=41.5, timing_noise_ms=12.25, sleep_band="from6to7", before_validation=1,
+             outside_window=0, camera_ibi=ibi(1100.5, 1180.25, 1150.0)),
+        dict(id=2, measured_at_us=t + 86_400_000_000 + 13 * 3600 * 1_000_000, utc_offset_s=-12600,
+             posture="sitting", device_manufacturer="Testhersteller", device_model="Testmodell 1",
+             method="camera-ppg", method_version=1, quality="limited", resting_hr_bpm=60.1,
+             rmssd_ms=None, timing_noise_ms=None, sleep_band=None, before_validation=0,
+             outside_window=1, camera_ibi=""),
+    ]
+    r["morning_rr_packets"] = [
+        dict(id=1, measurement_id=1, time_us=t + 7 * 3600 * 1_000_000 + 1_000_000, source="ble",
+             rr=rr(1024, 0, 65535, 512)),
+        dict(id=2, measurement_id=1, time_us=t + 7 * 3600 * 1_000_000 + 2_000_000, source="ble2",
+             rr=rr(1000)),
+    ]
+    return r
+
+
 def archive_plaintext(version=1, future_training=False, schema=None, reserved_row=False):
-    if schema == 12:
+    if schema == 13:
+        r, sections = archive_rows_s13(), SECTIONS_S13
+    elif schema == 12:
         r, sections = archive_rows_s12(), SECTIONS_S12
     elif schema == 11:
         r, sections = archive_rows_s11(), SECTIONS_S11
@@ -398,6 +441,7 @@ def main():
     jl10, gz10 = archive_plaintext(2, schema=10)
     jl11, gz11 = archive_plaintext(2, schema=11)
     jl12, gz12 = archive_plaintext(2, schema=12)
+    jl13, gz13 = archive_plaintext(2, schema=13)
     _, gz2_future = archive_plaintext(2, future_training=True)
     _, gz10_warn = archive_plaintext(2, schema=10, reserved_row=True)
     # (name, passwort, salz, klartext)
@@ -419,6 +463,7 @@ def main():
         ("archive_v2_s10", "archiv-test-passwort-s10+", bytes(range(40, 56)), gz10),
         ("archive_v2_s11", "archiv-test-passwort-s11+", bytes(range(56, 72)), gz11),
         ("archive_v2_s12", "archiv-test-passwort-s12+", bytes(range(88, 104)), gz12),
+        ("archive_v2_s13", "archiv-test-passwort-s13+", bytes(range(120, 136)), gz13),
     ]
     # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
     v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
@@ -426,7 +471,7 @@ def main():
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10", "archive_v2_s11", "archive_v2_s12") else 1
+        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10", "archive_v2_s11", "archive_v2_s12", "archive_v2_s13") else 1
         h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
@@ -485,6 +530,12 @@ def main():
             manifest[-1]["jsonl_file"] = "archive_v2_s12.jsonl"
             manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl12).hexdigest()
             manifest[-1]["row_counts"] = {s: len(archive_rows_s12()[s]) for s in SECTIONS_S12}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s13":
+            open(os.path.join(out, "archive_v2_s13.jsonl"), "wb").write(jl13)
+            manifest[-1]["jsonl_file"] = "archive_v2_s13.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl13).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s13()[s]) for s in SECTIONS_S13}
             manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)

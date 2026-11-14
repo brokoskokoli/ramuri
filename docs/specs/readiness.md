@@ -192,9 +192,11 @@ Für die erweiterte Einschätzung ohne Uhr misst der Nutzer morgens 60 s mit der
 
 **Entwicklermodus (Entscheidung des Maintainers 2026-11-13, K61, K62):** Bis zur bestandenen Validierung ist die Morgenmessung nur im Entwicklermodus (FR-0217) nutzbar; dort gelten Ruhepuls und RMSSD vollständig als gültig, als wäre die Validierung bestanden, ohne Kennzeichnung. Nach dem Bestehen gilt K-1 für alle. Ob der Plan auf die Werte reagiert, regelt FR-0216.
 
+**Umsetzung (WP33, K65):** Gespeichert werden nur brauchbare Messungen, sofort nach der Messung; die Schlafstufe wird nachgetragen. Eine weitere Messung derselben Reihe am selben Tag und eine Messung außerhalb des Morgenfensters werden gespeichert, zählen aber nicht. „Noch einmal messen“ gibt es nur nach einer unbrauchbaren Messung, ohne neue Ruhephase. Gespeichert werden auch die Kamera-Schlagabstände als vollständige Folge (ungültige als NaN), damit Puls und RMSSD für die Validierung nachrechenbar sind. Die Karte auf „Heute“ zeigt nach der Messung die Werte ohne Startknopf; eine zweite Haltung startet über die Übersicht. Die Morgen-Erinnerung hat einen eigenen Wecker und Benachrichtigungskanal.
+
 **Akzeptanzkriterien:**
 - [ ] Protokoll: morgens nach dem Aufwachen, erst Toilette, dann messen, vor Kaffee und Frühstück; Haltung liegend als Vorgabe, sitzend wählbar, nie stehend; wechselt die Haltung, beginnt eine neue Reihe. Vorgabe 2 min Ruhe, jeden Tag gleich; 60 s Messung mit spontaner Atmung, Anleitung ohne vorgegebenes Atemtempo.
-- [ ] Es zählt die erste Messung des Tages mit ausreichender Qualität; wiederholt wird nur, wenn die Qualität nicht reicht.
+- [ ] Es zählt die erste Messung des Tages mit ausreichender Qualität, je Reihe (Haltung und Gerät): liegend und sitzend am selben Morgen zählen beide (K65); wiederholt wird nur, wenn die Qualität nicht reicht.
 - [ ] Gültige Werte, Reihen und Morgenfenster nach PAR-160K; Ruhepuls bei Qualität „gut“ oder „eingeschränkt“, RMSSD nur bei „gut“ und unter der RMSSD-Qualitätsgrenze aus der Validierung.
 - [ ] Abweichungen nach PAR-161K und PAR-162K, Hinweis „wenige Messungen“ bei weniger als 5 gültigen Werten in 7 Tagen.
 - [ ] Schlafdauer ohne Uhr als freiwillige Selbstangabe in Stufen nach PAR-164K/165K; kein Schlafgefühl am Morgen (PAR-169 bleibt).

@@ -59,10 +59,14 @@ class World {
   final DebugTestSensor sensor;
 }
 
-World buildWorld({PpgCamera? camera}) {
+World buildWorld({PpgCamera? camera, Clock clock = const SystemClock()}) {
   final sensor = DebugTestSensor(const SystemClock());
   return World(
-    AppDependencies.create(heartRateSensor: sensor, ppgCamera: camera),
+    AppDependencies.create(
+      heartRateSensor: sensor,
+      ppgCamera: camera,
+      clock: clock,
+    ),
     sensor,
   );
 }

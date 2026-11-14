@@ -671,3 +671,52 @@ CREATE TABLE health_exercise_heart_rates (
   bpm INTEGER NOT NULL CHECK (typeof(bpm) = 'integer' AND bpm > 0)
 ) AS HealthExerciseHeartRateRow;
 CREATE INDEX health_exercise_heart_rates_exercise ON health_exercise_heart_rates (exercise_id);
+
+-- ------------------------------------------ Morgenmessung (Version 13, WP33)
+-- Kamera-Morgenmessung (FR-0215, `camera-ppg v1`), eine Zeile je gespeicherter
+-- Messung. Abschnitt 32 des Archivs. measured_at_us = Beginn der Messung (UTC),
+-- utc_offset_s = Versatz des Ortes zu diesem Zeitpunkt (wie runs.ended_utc_offset_s),
+-- daraus der Ortstag. posture = Haltung ('lying' oder 'sitting', nie stehend).
+-- Gerät = Hersteller und Modell, keine Seriennummer. quality = 'good' oder
+-- 'limited' ('unusable' gibt keinen Puls und wird nicht gespeichert).
+-- resting_hr_bpm = Ruhepuls mit einer Nachkommastelle (der Speicher rundet);
+-- rmssd_ms und timing_noise_ms NULL = nicht verfügbar (nie 0 statt unbekannt).
+-- sleep_band = freiwillige Schlafdauer in Stufen (PAR-164K), NULL = nicht
+-- angegeben. before_validation = intern "vor der Validierung gemessen" (K62
+-- Punkt 6), outside_window = "außerhalb des Morgenfensters" (zählt nicht für die
+-- Reihe). camera_ibi = Kamera-Schlagabstände in ms als float32 little endian,
+-- 4 Byte je Wert (abgeleitete Zahlen, keine Bilder).
+CREATE TABLE morning_measurements (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  measured_at_us INTEGER NOT NULL,
+  utc_offset_s INTEGER NOT NULL CHECK (utc_offset_s BETWEEN -64800 AND 64800),
+  posture TEXT NOT NULL CHECK (posture IN ('lying', 'sitting')),
+  device_manufacturer TEXT NOT NULL,
+  device_model TEXT NOT NULL,
+  method TEXT NOT NULL CHECK (length(method) > 0),
+  method_version INTEGER NOT NULL CHECK (method_version >= 1),
+  quality TEXT NOT NULL CHECK (quality IN ('good', 'limited')),
+  resting_hr_bpm REAL NOT NULL CHECK (resting_hr_bpm > 0),
+  rmssd_ms REAL CHECK (rmssd_ms >= 0),
+  timing_noise_ms REAL CHECK (timing_noise_ms >= 0),
+  sleep_band TEXT CHECK (sleep_band IN ('under5', 'from5to6', 'from6to7', 'from7to8', 'over8')),
+  before_validation BOOLEAN NOT NULL CHECK (before_validation IN (0, 1)),
+  outside_window BOOLEAN NOT NULL CHECK (outside_window IN (0, 1)),
+  camera_ibi BLOB NOT NULL CHECK (length(camera_ibi) % 4 = 0)
+) AS MorningMeasurementRow;
+
+CREATE INDEX morning_measurements_time ON morning_measurements (measured_at_us);
+
+-- Gurt-RR zur Morgenmessung (nur im Entwicklermodus, K61): ein BLOB je
+-- BLE-Paket wie raw_rr_packets (uint16 little endian, 1/1024 s, bitgenau).
+-- time_us = Empfangszeitpunkt, source = Quellgerät. Hängt an der Messung
+-- (ON DELETE CASCADE). Abschnitt 33 des Archivs.
+CREATE TABLE morning_rr_packets (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  measurement_id INTEGER NOT NULL REFERENCES morning_measurements (id) ON DELETE CASCADE,
+  time_us INTEGER NOT NULL,
+  source TEXT NOT NULL,
+  rr BLOB NOT NULL CHECK (length(rr) > 0 AND length(rr) % 2 = 0)
+);
+
+CREATE INDEX morning_rr_packets_measurement ON morning_rr_packets (measurement_id, time_us);

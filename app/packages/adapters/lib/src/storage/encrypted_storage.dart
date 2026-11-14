@@ -18,6 +18,7 @@ import 'database_files.dart';
 import 'delete_access.dart';
 import 'derived_access.dart';
 import 'goal_access.dart';
+import 'morning_access.dart';
 import 'plan_access.dart';
 import 'prediction_access.dart';
 import 'raw_access.dart';
@@ -37,7 +38,8 @@ class EncryptedStorageSession
         GoalStorage,
         PlanStorage,
         WarningStorage,
-        HealthStorage {
+        HealthStorage,
+        MorningStorage {
   EncryptedStorageSession(this.database, {this.onDeleteAll})
     : runs = DriftRunStore(database),
       markers = DriftRunMarkerStore(database),
@@ -55,6 +57,7 @@ class EncryptedStorageSession
       goals = DriftGoalStore(database),
       plans = DriftPlanRepository(database),
       warning = DriftWarningStore(database),
+      morning = DriftMorningStore(database),
       health = DriftHealthStore(database);
 
   final AppDatabase database;
@@ -100,6 +103,8 @@ class EncryptedStorageSession
   @override
   final WarningStore warning;
 
+  @override
+  final MorningStore morning;
   @override
   final HealthImportStore health;
 

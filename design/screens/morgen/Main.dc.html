@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Morgenmessung</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 900px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; padding: 28px 20px 24px; display: flex; flex-direction: column; gap: 16px">
+  <header style="display: flex; align-items: center; gap: 8px">
+    <a href="{{backHref}}" aria-label="Zurück zu Heute" style="width: 44px; height: 44px; border-radius: 22px; background: {{t.card}}; border: 1px solid {{t.border}}; display: flex; align-items: center; justify-content: center; color: {{t.text}}; box-sizing: border-box">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+    <h1 style="margin: 0; flex: 1; font-family: Sora, sans-serif; letter-spacing: -0.03em; font-size: 22px; font-weight: 700">Morgenmessung</h1>
+    <a href="{{trendHref}}" style="min-height: 44px; display: flex; align-items: center; padding: 0 6px; font-size: 14px; font-weight: 800; color: {{t.link}}; text-decoration: none">Verlauf</a>
+  </header>
+
+  <section aria-label="Vor dem Messen" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+    <span style="font-size: 16px; font-weight: 800">Jeden Morgen gleich</span>
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; gap: 12px; align-items: flex-start">
+        <span style="flex: none; width: 26px; height: 26px; border-radius: 13px; background: {{t.soft}}; display: flex; align-items: center; justify-content: center; font-family: Sora, sans-serif; font-size: 13px; font-weight: 700">1</span>
+        <span style="font-size: 14px; line-height: 1.45">Gleich nach dem Aufwachen, erst zur Toilette.</span>
+      </div>
+      <div style="display: flex; gap: 12px; align-items: flex-start">
+        <span style="flex: none; width: 26px; height: 26px; border-radius: 13px; background: {{t.soft}}; display: flex; align-items: center; justify-content: center; font-family: Sora, sans-serif; font-size: 13px; font-weight: 700">2</span>
+        <span style="font-size: 14px; line-height: 1.45">Vor Kaffee und Frühstück messen.</span>
+      </div>
+      <div style="display: flex; gap: 12px; align-items: flex-start">
+        <span style="flex: none; width: 26px; height: 26px; border-radius: 13px; background: {{t.soft}}; display: flex; align-items: center; justify-content: center; font-family: Sora, sans-serif; font-size: 13px; font-weight: 700">3</span>
+        <span style="font-size: 14px; line-height: 1.45">2 min ruhig bleiben, dann 60 s messen. Atme ganz normal.</span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-label="Haltung" style="display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Haltung</span>
+    <div role="tablist" aria-label="Haltung" style="background: {{t.chip}}; border-radius: 22px; padding: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+      <button role="tab" aria-selected="{{lieSel}}" onClick="{{pickLie}}" style="height: 44px; border: 0; border-radius: 18px; font-family: Manrope, sans-serif; font-size: 15px; font-weight: 800; cursor: pointer; background: {{lieBg}}; color: {{t.text}}">Liegend</button>
+      <button role="tab" aria-selected="{{sitSel}}" onClick="{{pickSit}}" style="height: 44px; border: 0; border-radius: 18px; font-family: Manrope, sans-serif; font-size: 15px; font-weight: 800; cursor: pointer; background: {{sitBg}}; color: {{t.text}}">Sitzend</button>
+    </div>
+    <span style="font-size: 13px; line-height: 1.45; color: {{t.muted}}">{{poseNote}}</span>
+  </section>
+
+  <section aria-label="So liegt der Finger" style="background: {{t.card}}; border-radius: 24px; padding: 14px 16px; display: flex; gap: 14px; align-items: center">
+    <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true" style="flex: none">
+      <rect x="10" y="4" width="36" height="48" rx="9" fill="{{t.soft}}" stroke="{{t.text}}" stroke-width="1.5"></rect>
+      <circle cx="21" cy="16" r="5" fill="{{t.lens}}"></circle>
+      <circle cx="33" cy="16" r="3" fill="{{t.glut}}"></circle>
+      <ellipse cx="26" cy="15" rx="13" ry="9" fill="{{t.finger}}" stroke="{{t.text}}" stroke-width="1.5" opacity="0.92"></ellipse>
+    </svg>
+    <span style="font-size: 14px; line-height: 1.45"><b style="font-weight: 800">Fingerkuppe locker auflegen.</b> Kamera und Blitz ganz abdecken, nicht drücken.</span>
+  </section>
+
+  <sc-if value="{{gurt}}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 16px; border: 1px solid {{t.border}}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.link}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M3 12h4l2-5 4 10 2-5h6"></path></svg>
+      <span style="font-size: 13px; line-height: 1.4; color: {{t.muted}}">Pulsgurt verbunden. Seine RR-Werte werden zur Messung mitgespeichert (Entwicklermodus).</span>
+    </div>
+  </sc-if>
+
+  <div style="flex-grow: 1"></div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <a href="{{startHref}}" style="height: 56px; border-radius: 28px; background: {{t.mint}}; color: {{t.onMint}}; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800; text-decoration: none">Ruhephase starten</a>
+    <div style="display: flex; gap: 10px; align-items: flex-start">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.muted}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 1px"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>
+      <span style="font-size: 13px; line-height: 1.45; color: {{t.muted}}">Bilder werden nicht gespeichert und nicht übertragen; die Auswertung läuft auf dem Handy.</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"gurt":{"editor":"boolean","default":true},"$preview":{"width":390,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { pose: 'lie' }; }
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', muted: '#A3B8B4', border: '#2A4140', div: '#223636', link: '#7FD6C6', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#1C3836', chip: '#1F3333', sel: '#2E4A48', lens: '#3B5553', finger: '#24403D', glut: '#FF7A45' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', muted: '#4F6361', border: '#DAE4E1', div: '#EBF1EF', link: '#0F5E5A', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#DDF2EE', chip: '#E2EAE8', sel: '#FFFFFF', lens: '#4F6361', finger: '#F3F6F5', glut: '#E0561F' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const t = this.theme(dark);
+    const sfx = dark ? '-dunkel' : '';
+    const lie = this.state.pose === 'lie';
+    return {
+      t,
+      gurt: this.props.gurt ?? true,
+      backHref: 'Heute' + sfx + '.dc.html',
+      trendHref: 'Trend' + sfx + '.dc.html',
+      startHref: 'Ruhephase' + sfx + '.dc.html',
+      lieSel: lie ? 'true' : 'false', sitSel: lie ? 'false' : 'true',
+      lieBg: lie ? t.sel : 'transparent', sitBg: lie ? 'transparent' : t.sel,
+      pickLie: () => this.setState({ pose: 'lie' }),
+      pickSit: () => this.setState({ pose: 'sit' }),
+      poseNote: lie ? 'Empfohlen. Bleib jeden Morgen bei derselben Haltung.' : 'Sitzend ist eine eigene Reihe, getrennt von liegend. Bleib jeden Morgen dabei.'
+    };
+  }
+}
+</script>
+</body>
+</html>

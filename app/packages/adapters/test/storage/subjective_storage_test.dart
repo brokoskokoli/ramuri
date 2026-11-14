@@ -283,7 +283,7 @@ void main() {
       expect(await count(db, 'manual_trainings'), 1);
     });
 
-    test('Migration läuft über die App-Strategie (Version 4 -> 12) auf verschlüsselter Datei', () async {
+    test('Migration läuft über die App-Strategie (Version 4 -> 13) auf verschlüsselter Datei', () async {
       // Schema 4 aus dem Dump aufbauen: zwei Tabellen der App weglassen.
       final s0 = await EncryptedStorage(path).open(testKey());
       final db0 = (s0 as EncryptedStorageSession).database;
@@ -299,6 +299,9 @@ void main() {
       await exec(db0, 'DROP TABLE goals');
       await exec(db0, 'DROP TABLE raw_rr_packets'); // Schema 9 (WP26)
       await exec(db0, 'DROP TABLE active_warning'); // Schema 11 (WP23)
+      // Schema 13 (WP33): Morgenmessungen samt Gurt-RR.
+      await exec(db0, 'DROP TABLE morning_rr_packets');
+      await exec(db0, 'DROP TABLE morning_measurements');
       // Schema 12 (WP32): Health-Connect-Tabellen (Kinder zuerst); der Index und
       // die Spalte `hc_id` von manual_trainings gehen mit der Tabelle.
       await exec(db0, 'DROP TABLE health_exercise_heart_rates');
@@ -323,7 +326,7 @@ void main() {
             .data
             .values
             .single,
-        12,
+        13,
       );
       await db1.validateDatabaseSchema();
     });

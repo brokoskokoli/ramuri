@@ -137,4 +137,25 @@ abstract final class SettingKeys {
   /// kopiert (JSON, `GuidedUnitSnapshot`), mit Lauf-Kennung. Nicht im Archiv
   /// (Vertrag 4.3).
   static const String guidedUnitSnapshot = 'guided.unit_snapshot';
+
+  /// Entwicklermodus (FR-0217, WP33): `1` = an; fehlt der Eintrag, aus. Gerätezustand,
+  /// nicht im Archiv (Vertrag 4.3); „Alles löschen“ leert die Tabelle und setzt ihn zurück.
+  static const String developerMode = 'developer.mode';
+
+  /// Morgenfenster der Morgenmessung (PAR-160K) als `H-H` in ganzen Stunden Ortszeit, etwa
+  /// `4-11`; fehlt der Eintrag oder ist er ungültig, gilt 4-11. Nutzereinstellung, kommt ins Archiv.
+  static const String morningWindow = 'morning.window';
+
+  /// Opt-in „Kamera-RMSSD einbeziehen“ (K-1, Validierungssperre): `1` = an; fehlt der Eintrag, aus.
+  /// Bewusste Nutzerentscheidung, kommt mit ins Archiv.
+  static const String morningCameraRmssdOptIn = 'morning.camera_rmssd_optin';
+
+  /// Erinnerung am Morgen (WP33 Teil D): `1` = an; fehlt der Eintrag, aus.
+  /// Nutzereinstellung, kommt ins Archiv.
+  static const String morningReminderEnabled = 'morning.reminder_enabled';
+
+  /// Uhrzeit der Morgen-Erinnerung `HH:MM` (Ortszeit); fehlt sie, gilt 06:30.
+  /// Liegt nur hier in der verschlüsselten Datenbank (SEC-0009), nicht im
+  /// System-Speicher des Adapters.
+  static const String morningReminderTime = 'morning.reminder_time';
 }

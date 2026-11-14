@@ -81,7 +81,7 @@ Die App importiert über Android Health Connect. Die Google Health API ist zurü
 - [OQ-0033](../migration/open-questions.md#oq-0033--welche-gesundheitsplattformen-werden-unterstützt) (entschieden): Welche Gesundheitsplattformen werden unterstützt?
 - [OQ-0047](../migration/open-questions.md#oq-0047--welche-hersteller-apis-und-gehen-sie-ohne-eigenen-server) (entschieden): Welche Hersteller-APIs, und gehen sie ohne eigenen Server?
 - [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
-- [OQ-0081](../migration/open-questions.md#oq-0081--was-heißt-längste-gültige-reihe-bei-mehreren-hrv--oder-ruhepulsquellen) (non-blocking): Was heißt „längste gültige Reihe“ bei mehreren HRV- oder Ruhepulsquellen?
+- [OQ-0081](../migration/open-questions.md#oq-0081--was-heißt-längste-gültige-reihe-bei-mehreren-hrv--oder-ruhepulsquellen) (entschieden): Was heißt „längste gültige Reihe“ bei mehreren HRV- oder Ruhepulsquellen?
 <!-- END OQ -->
 
 ## Quellen

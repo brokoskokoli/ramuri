@@ -10,6 +10,7 @@ Läuft auf GitHub im Workflow `e2e` (je API 31 und 36, zwei Shards) über `tool/
 | Archiv-Export und Reimport (ohne Dateidialog) | `e2e_archive_test.dart` | `sammlung` / sammlung |
 | Laufband | `e2e_treadmill_test.dart` | `sammlung` / sammlung |
 | Kamera-Ruhepuls (Fake-Kamera, guter Puls und kein Finger) | `e2e_resting_test.dart` | `sammlung` / sammlung |
+| Morgenmessung (Entwicklermodus, Fake-Kamera, Gurt-RR, Messpaare) | `e2e_morning_test.dart` | `sammlung` / sammlung |
 | Health-Connect-Import (Debug-Quelle: Rechte, Abruf, Verlauf, Übernehmen, Widerruf mit Löschfrage, Installieren); echter Dialog nur lokal mit `--dart-define=HC_REAL=true` | `e2e_health_test.dart` | `sammlung` / sammlung |
 | Wiederanlauf eines laufenden Laufs nach Prozessende | `e2e_recover_test.dart` | `recover-a`, `recover-b` / stufen |
 | Plan, geführte Einheit in Echtzeit (~5,5 min), „Aus dem Plan“, Rückmeldung, Zieländerung, Planverlauf; Karten-Frage nur in der Zusammenfassung | `e2e_m2_flow_test.dart` | `m2-flow` / stufen |
@@ -35,6 +36,7 @@ Die Debug-Quelle liefert je Nacht einen HRV-Wert 20 min nach dem Ende der Schlaf
 - System-Dateidialog (SAF, Teilen): Systemoberfläche, im Emulator nicht stabil bedienbar; das Archiv wird ohne Dialog über die echte Export-/Restore-Fabrik getestet.
 - Echtes Kamera-Recht und echte Kamera, weitere PPG-Szenarien: Hardware; CI nutzt die Fake-Kamera.
 - Karte und Einwilligung: im Test nur weggeklickt.
+- Morgenerinnerung (Wecker, Benachrichtigung antippen): braucht ein Host-Skript, kein Test in der Sammlung.
 - `storage` mit `PHASE=fill` (Speicher voll): langsam und gerätenah.
 - Sichtprüfungen (Layout, Lesbarkeit): Sache des E2E-Agenten.
 - Nur im Feld: Hintergrundbetrieb, Akku, echter Brustgurt.

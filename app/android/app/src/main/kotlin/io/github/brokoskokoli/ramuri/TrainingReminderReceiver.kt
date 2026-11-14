@@ -15,6 +15,8 @@ class TrainingReminderReceiver : BroadcastReceiver() {
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED,
             -> TrainingReminders.fire(context)
+            // Nur der Wecker der Morgen-Erinnerung, nie der Neustart (keine SEC-0009-Ausnahme).
+            MorningReminder.ACTION_FIRE -> MorningReminder.fire(context, intent)
         }
     }
 }

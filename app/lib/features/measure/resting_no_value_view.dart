@@ -15,14 +15,14 @@ class RestingNoValueView extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onClose,
-    required this.onManual,
+    this.onManual,
   });
 
   final RestingMeasureController controller;
   final VoidCallback onClose;
 
-  /// „Selbst eintragen“.
-  final VoidCallback onManual;
+  /// „Selbst eintragen“; ohne (Morgenmessung) fehlt der Hinweis samt Knopf.
+  final VoidCallback? onManual;
 
   /// Titel, Text und ob die Tipps zum Auflegen des Fingers passen.
   static (String, String, bool) reason(
@@ -208,18 +208,20 @@ class RestingNoValueView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
           ],
-          Divider(height: 1, color: c.outline),
-          const SizedBox(height: 10),
-          Text(
-            l10n.measureManualNote,
-            style: theme.textTheme.bodyMedium!.copyWith(color: c.textMuted),
-          ),
-          RestingTextLink(
-            key: const Key('measure_manual'),
-            label: l10n.measureManualAction,
-            alignment: Alignment.centerLeft,
-            onPressed: onManual,
-          ),
+          if (onManual != null) ...[
+            Divider(height: 1, color: c.outline),
+            const SizedBox(height: 10),
+            Text(
+              l10n.measureManualNote,
+              style: theme.textTheme.bodyMedium!.copyWith(color: c.textMuted),
+            ),
+            RestingTextLink(
+              key: const Key('measure_manual'),
+              label: l10n.measureManualAction,
+              alignment: Alignment.centerLeft,
+              onPressed: onManual!,
+            ),
+          ],
         ],
       ),
     );
