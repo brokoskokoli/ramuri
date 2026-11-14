@@ -175,6 +175,11 @@ void main() {
     }
     await waitFor(t, () => has('home_plan'), 'Heute');
 
+    // Kurz vor Mitternacht erst den Tageswechsel abwarten (hoechstens 5 min): Der Lauftag wird jetzt festgelegt,
+    // die Einheit muss beim Start noch auf "heute" liegen.
+    while (DateTime.now().hour == 23 && DateTime.now().minute >= 55) {
+      await pumpFor(t, const Duration(seconds: 1));
+    }
     // Ziel anlegen: heutiger Wochentag ist Lauftag, damit heute eine Einheit liegt.
     final today = DateTime.now().weekday;
     int wd(int add) => ((today - 1 + add) % 7) + 1;
@@ -214,7 +219,15 @@ void main() {
         DateTime.utc(d0.year, d0.month, d0.day + 8),
       ),
     ))!;
+    // Dauer des ersten Abschnitts der heutigen Einheit: daraus folgt die Frist des Abschnittswechsels.
+    var firstSegmentSeconds = 300;
     for (final u in near) {
+      if (u.day.year == d0.year &&
+          u.day.month == d0.month &&
+          u.day.day == d0.day &&
+          u.segments.isNotEmpty) {
+        firstSegmentSeconds = u.segments.first.durationSeconds;
+      }
       log(
         'M2 unit day=${u.day.toIso8601String().substring(0, 10)} kind=${u.kind.name} min=${u.minutes} seg=${u.segments.length}',
       );
@@ -246,9 +259,11 @@ void main() {
 
     // Abschnittswechsel abwarten (Echtzeit, die Einheit beginnt mit Aufwaermen/Lauf-Gehen).
     final first = txt('guided_section');
-    final dl = DateTime.now().add(const Duration(minutes: 6));
+    final dl = DateTime.now().add(Duration(seconds: firstSegmentSeconds + 120));
     while (txt('guided_section') == first) {
-      if (DateTime.now().isAfter(dl)) fail('kein Abschnittswechsel in 6 min');
+      if (DateTime.now().isAfter(dl)) {
+        fail('kein Abschnittswechsel in ${firstSegmentSeconds + 120} s');
+      }
       expect(
         has('map_consent_dialog'),
         isFalse,
