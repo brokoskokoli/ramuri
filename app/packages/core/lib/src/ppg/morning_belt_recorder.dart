@@ -5,7 +5,8 @@ import '../preprocessing/measurement.dart' show RrPacket;
 
 /// Sammelt für die Morgenmessung die Gurt-RR der aktiven Pulsquelle (WP33
 /// Teil E, K61 Punkt 3): nur im Entwicklermodus, von Beginn der Ruhephase bis
-/// Ende der Messung, je BLE-Paket mit Empfangszeit roh (1/1024 s). Ohne Gurt
+/// Ende der Messung (bei „Noch einmal messen“ durchgehend bis Ende der
+/// Wiederholung, ohne Lücke), nur vom ersten Quellgerät, je BLE-Paket mit Empfangszeit roh (1/1024 s). Ohne Gurt
 /// oder ohne Modus bleibt [packets] leer. Der Aufrufer speichert die Pakete
 /// erst mit einer gespeicherten Messung; sonst gehen sie mit [dispose]
 /// verloren (keine verwaisten RR). Keine Werte in Logs.
@@ -19,6 +20,13 @@ class MorningBeltRecorder {
   final Future<bool> Function() developerMode;
 
   final _packets = <RrPacket>[];
+
+  /// Pakete nach dem Ende einer Aufnahme: kommen bei „Noch einmal“ dazu,
+  /// sonst gehen sie verloren.
+  final _tail = <RrPacket>[];
+
+  /// Kennung des ersten Quellgeräts, nur zum Filtern im Speicher.
+  String? _source;
   StreamSubscription<HeartRateReading>? _sub;
   DateTime? _from;
   DateTime? _to;
@@ -30,6 +38,8 @@ class MorningBeltRecorder {
   /// Die Ruhephase beginnt: das Fenster öffnet sich bei [at].
   Future<void> onRestStarted(DateTime at) async {
     _packets.clear();
+    _tail.clear();
+    _source = null;
     _to = null;
     _from = at;
     await _sub?.cancel();
@@ -44,9 +54,13 @@ class MorningBeltRecorder {
     _sub = readings.listen(_onReading, onError: (Object _) {});
   }
 
-  /// „Noch einmal messen“ nach verworfener Messung: das Fenster ist wieder
-  /// offen (die Zeit dazwischen ist nicht Teil davon).
-  void onMeasurementResumed() => _to = null;
+  /// „Noch einmal messen“ nach verworfener Messung: das Fenster läuft ohne
+  /// Lücke weiter, auch die Pakete seit dem Ende gehören dazu.
+  void onMeasurementResumed() {
+    _packets.addAll(_tail);
+    _tail.clear();
+    _to = null;
+  }
 
   /// Die Aufnahme ist zu Ende: das Fenster schließt sich bei [at].
   void onMeasurementEnded(DateTime at) => _to = at;
@@ -55,15 +69,17 @@ class MorningBeltRecorder {
     final from = _from;
     if (from == null || r.rrIntervals.isEmpty) return;
     if (r.time.isBefore(from)) return;
-    final to = _to;
-    if (to != null && r.time.isAfter(to)) return;
-    _packets.add(
-      RrPacket(
-        time: r.time,
-        source: r.deviceId,
-        intervals: List.unmodifiable(r.rrIntervals),
-      ),
+    // Nur ein Gerät: wechselt die aktive Quelle (Failover), fallen die
+    // Pakete des anderen weg.
+    _source ??= r.deviceId;
+    if (r.deviceId != _source) return;
+    final packet = RrPacket(
+      time: r.time,
+      source: r.deviceId,
+      intervals: List.unmodifiable(r.rrIntervals),
     );
+    final to = _to;
+    (to != null && r.time.isAfter(to) ? _tail : _packets).add(packet);
   }
 
   Future<void> dispose() async {
@@ -71,6 +87,7 @@ class MorningBeltRecorder {
     final s = _sub;
     _sub = null;
     _packets.clear();
+    _tail.clear();
     await s?.cancel();
   }
 }

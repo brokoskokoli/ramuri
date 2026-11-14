@@ -299,6 +299,40 @@ void main() {
       expect(r.c.belt!.packets, hasLength(1)); // nur im Speicher, nie in der DB
     });
 
+    testWidgets('Noch einmal: Gurt-RR durchgehend bis Ende der Wiederholung', (
+      tester,
+    ) async {
+      final r = await _Rig.make(withBelt: true, developerMode: true);
+      r.next = _bad;
+      await r.show(tester, dark: false);
+      await _tap(tester, 'morning_start');
+      r.readings.add(_rr(r.clock.now(), 900)); // Ruhephase
+      r.clock.advance(const Duration(seconds: 121));
+      r.c.engine.tick();
+      await tester.pump();
+      await _settle(tester);
+      r._t = 0;
+      await r.feed(tester, 67);
+      expect(r.c.outcome, MorningOutcome.unusable);
+      r.clock.advance(const Duration(seconds: 10));
+      r.readings.add(_rr(r.clock.now(), 910)); // Lücke nach dem Ende
+      await _settle(tester);
+      r.next = _good;
+      await _tap(tester, 'morning_again');
+      r.clock.advance(const Duration(seconds: 10));
+      r.readings.add(_rr(r.clock.now(), 920)); // Wiederholung
+      await _settle(tester);
+      r._t = 0;
+      await r.feed(tester, 67);
+      expect(r.c.outcome, MorningOutcome.good);
+      final id = (await tester.runAsync(() => r.store.list()))!.single.id;
+      final packets = (await tester.runAsync(() => r.store.beltPackets(id)))!;
+      expect(
+        [for (final p in packets) p.value.intervals.single],
+        [900, 910, 920],
+      );
+    });
+
     testWidgets('verworfene Messung (unbrauchbar): nichts gespeichert', (
       tester,
     ) async {

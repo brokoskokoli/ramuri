@@ -78,6 +78,15 @@ void main() {
     expect(csv, contains('1,1,camera,timing_noise,,,,,ms\r\n'));
   });
 
+  test('sehr kleine Werte ohne Exponentschreibweise', () {
+    final csv = encodeMorningPairsCsv([
+      MorningPair(id: 1, measurement: _m(rmssd: 1e-7, noise: 2e-8)),
+    ]);
+    expect(csv, contains('1,1,camera,rmssd,,,,0.0000001,ms\r\n'));
+    expect(csv, contains('1,1,camera,timing_noise,,,,0.00000002,ms\r\n'));
+    expect(csv.toLowerCase(), isNot(contains('e-')));
+  });
+
   test('Sortierung nach Zeitpunkt, dann Id; Feld mit Komma in Anführungen', () {
     final csv = encodeMorningPairsCsv([
       MorningPair(id: 2, measurement: _m(at: _t0.add(const Duration(days: 1)))),

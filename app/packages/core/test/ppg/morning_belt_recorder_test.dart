@@ -63,7 +63,7 @@ void main() {
     await r.dispose();
   });
 
-  test('Noch einmal öffnet das Fenster wieder, die Lücke fehlt', () async {
+  test('Noch einmal: Fenster durchgehend, auch die Lücke ist dabei', () async {
     final r = rec();
     await r.onRestStarted(_t0);
     source.add(_r(10, [900]));
@@ -74,7 +74,28 @@ void main() {
     r.onMeasurementResumed();
     source.add(_r(40, [920]));
     await _settle();
-    expect([for (final p in r.packets) p.intervals.single], [900, 920]);
+    expect([for (final p in r.packets) p.intervals.single], [900, 910, 920]);
+    await r.dispose();
+  });
+
+  test('ohne Noch einmal gehen die Pakete nach dem Ende verloren', () async {
+    final r = rec();
+    await r.onRestStarted(_t0);
+    r.onMeasurementEnded(_t0.add(const Duration(seconds: 20)));
+    source.add(_r(25, [910]));
+    await _settle();
+    expect(r.packets, isEmpty);
+    await r.dispose();
+  });
+
+  test('nur das erste Quellgerät (Failover mischt nicht)', () async {
+    final r = rec();
+    await r.onRestStarted(_t0);
+    source.add(_r(1, [900]));
+    source.add(_r(2, [800], id: 'gurt-2'));
+    source.add(_r(3, [910]));
+    await _settle();
+    expect([for (final p in r.packets) p.intervals.single], [900, 910]);
     await r.dispose();
   });
 

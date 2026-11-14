@@ -74,7 +74,18 @@ String encodeMorningPairsCsv(Iterable<MorningPair> pairs) {
         unit,
       ]),
     );
-    String num(double? v) => v == null ? '' : '$v';
+    String num(double? v) {
+      if (v == null) return '';
+      final s = '$v';
+      if (!s.contains('e')) return s;
+      // Keine Exponentschreibweise (Vertrag Abschnitt 2): feste Form mit
+      // 12 Nachkommastellen, ohne überzählige Nullen.
+      return v
+          .toStringAsFixed(12)
+          .replaceFirst(RegExp(r'0+$'), '')
+          .replaceFirst(RegExp(r'\.$'), '.0');
+    }
+
     row('meta', 'measured_at', time: _time(m.measuredAt));
     row('meta', 'utc_offset', value: '${m.utcOffset.inSeconds}', unit: 's');
     row('meta', 'posture', value: m.posture.storageValue);

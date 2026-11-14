@@ -39,7 +39,9 @@ class MainActivity : FlutterActivity() {
     /** Tippen auf die Morgen-Erinnerung (WP33 Teil D): Dart holt das Anliegen beim Öffnen ab. */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        MorningReminder.onActivityIntent(intent)
+        // Nach Prozessende baut Android die Activity mit dem alten Intent neu
+        // auf (savedInstanceState != null): das Ziel nicht erneut öffnen.
+        if (savedInstanceState == null) MorningReminder.onActivityIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {

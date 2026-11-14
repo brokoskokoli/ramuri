@@ -12,7 +12,7 @@ Eine Datei `running-morgenpaare-JJJJMMTT.csv` (MIME `text/csv`, Datum = heutiger
 
 ## 2. Kodierung und Aufbau (RFC 4180)
 
-Wie [metrics-csv.md](metrics-csv.md) Abschnitt 2: UTF-8 **ohne** Byte-Order-Mark, Zeilenende CRLF auch nach der letzten Zeile, Trennzeichen Komma, Felder mit Komma, Anführungszeichen, CR oder LF in Anführungszeichen (`"` verdoppelt), Kopfzeile immer vorhanden, **Dezimaltrenner immer der Punkt**, keine Einheit im Wertfeld. Zeitpunkte sind ISO 8601 in UTC mit `Z`. Textfelder (`device_manufacturer`, `device_model`) werden unverändert geschrieben; ein Leser in einer Tabellenkalkulation behandelt Felder, die mit `=`, `+`, `-` oder `@` beginnen, selbst als Text.
+Wie [metrics-csv.md](metrics-csv.md) Abschnitt 2: UTF-8 **ohne** Byte-Order-Mark, Zeilenende CRLF auch nach der letzten Zeile, Trennzeichen Komma, Felder mit Komma, Anführungszeichen, CR oder LF in Anführungszeichen (`"` verdoppelt), Kopfzeile immer vorhanden, **Dezimaltrenner immer der Punkt**, **nie Exponentschreibweise** (sehr kleine Werte in fester Form, etwa `0.0000001`), keine Einheit im Wertfeld. Zeitpunkte sind ISO 8601 in UTC mit `Z`. Textfelder (`device_manufacturer`, `device_model`) werden unverändert geschrieben; ein Leser in einer Tabellenkalkulation behandelt Felder, die mit `=`, `+`, `-` oder `@` beginnen, selbst als Text.
 
 ## 3. Formatversion und Spalten
 
@@ -42,7 +42,7 @@ format_version,morning_id,row_type,key,seq,sub,time,value,unit
 
 **`camera_ibi`** (`key` = `ibi`, eine Zeile je Schlagabstand in zeitlicher Reihenfolge, `seq` ab 1, `ms` mit drei Nachkommastellen): **alle** Schlagabstände des Messfensters. **Markierung ungültig:** Ein gestörtes Intervall (im Speicher NaN, siehe [archive.md](archive.md) Morgenmessung) steht als Zeile mit **leerem** `value`; seine Position bleibt erhalten. Die Kamera-RMSSD ergibt sich aus den Differenzen **benachbarter** gültiger Werte, ein leeres Feld trennt Paare.
 
-**`belt_rr`** (`key` = `rr`, eine Zeile je RR-Wert, nach Empfangszeit und Paketnummer, dann Position): die **rohen** RR-Werte der aktiven Pulsquelle von Beginn der Ruhephase bis zum Ende der Messung, nur wenn die Messung im Entwicklermodus lief und ein Gurt mit RR verbunden war. `value` ist die ganze Zahl in Einheiten von 1/1024 s (Millisekunden = Wert × 1000 / 1024), unverändert vom Gurt, ohne Artefaktfilter. Die Zeit des Werts ist die Empfangszeit seines Pakets (nicht die Schlagzeit): ein Paket enthält mehrere Schläge. Das Quellgerät steht nicht in der Datei. Nach „Noch einmal messen“ (verworfene Messung) fehlt die Zeit zwischen Ende des verworfenen und Beginn des neuen Versuchs.
+**`belt_rr`** (`key` = `rr`, eine Zeile je RR-Wert, nach Empfangszeit und Paketnummer, dann Position): die **rohen** RR-Werte der aktiven Pulsquelle von Beginn der Ruhephase bis zum Ende der Messung, nur wenn die Messung im Entwicklermodus lief und ein Gurt mit RR verbunden war. `value` ist die ganze Zahl in Einheiten von 1/1024 s (Millisekunden = Wert × 1000 / 1024), unverändert vom Gurt, ohne Artefaktfilter. Die Zeit des Werts ist die Empfangszeit seines Pakets (nicht die Schlagzeit): ein Paket enthält mehrere Schläge. Das Quellgerät steht nicht in der Datei; aufgenommen werden nur Pakete des **ersten** Quellgeräts (die Kennung des ersten Geräts dient zum Filtern und wird nicht exportiert), Pakete eines anderen Geräts nach einem Wechsel der aktiven Quelle (Failover) fehlen. Nach „Noch einmal messen“ (verworfene Messung) läuft das Fenster **ohne Lücke** weiter, von Beginn der Ruhephase bis zum Ende der Wiederholung.
 
 ## 5. Sortierung
 
