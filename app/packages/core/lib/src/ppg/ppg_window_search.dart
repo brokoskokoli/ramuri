@@ -125,21 +125,10 @@ _Scan _scan(List<PpgFrame> frames, {required bool live}) {
     return _Scan.failed(PpgQualityReason.insufficientData);
   }
 
-  final t = [for (final f in fs) f.t];
   final PpgAnalysisSet set;
   try {
-    set = PpgAnalyzer.analyze(
-      t,
-      [
-        PpgSeries('Rot', [for (final f in fs) f.r]),
-        PpgSeries('Grün', [for (final f in fs) f.g]),
-      ],
-      [
-        for (var k = 0; k < 16; k++)
-          PpgSeries('r$k', [for (final f in fs) f.r16[k]]),
-        for (var k = 0; k < 16; k++)
-          PpgSeries('g$k', [for (final f in fs) f.g16[k]]),
-      ],
+    set = _analyze(
+      fs,
       PpgWindow(
         filterStart: first,
         start: startMin,
@@ -158,7 +147,60 @@ _Scan _scan(List<PpgFrame> frames, {required bool live}) {
   final candidates = [
     for (final s in starts) _Candidate(s, _rateWindow(fs, set, startMin, s)),
   ]..sort(_compare);
-  return _Scan(candidates, _goodStretch(set));
+  return _Scan(candidates, _progress(fs, _goodStretch(set)));
+}
+
+PpgAnalysisSet _analyze(List<PpgFrame> fs, PpgWindow w) => PpgAnalyzer.analyze(
+  [for (final f in fs) f.t],
+  [
+    PpgSeries('Rot', [for (final f in fs) f.r]),
+    PpgSeries('Grün', [for (final f in fs) f.g]),
+  ],
+  [
+    for (var k = 0; k < 16; k++)
+      PpgSeries('r$k', [for (final f in fs) f.r16[k]]),
+    for (var k = 0; k < 16; k++)
+      PpgSeries('g$k', [for (final f in fs) f.g16[k]]),
+  ],
+  w,
+);
+
+/// Längen der jüngsten Abschnitte (s), die für die Anzeige zusätzlich einzeln analysiert werden.
+const List<double> _recentSeconds = [ppgSearchWindowSeconds, 30.0];
+
+/// Anzeige des guten Stücks. Die Gesamtanalyse bezieht eine starke Störung am Anfang in Vorlage
+/// und Schwellen ein und kann danach auch gute Schläge als ungültig führen (30 s Rauschen, dann
+/// 40 s gutes Signal: 4,7 statt rund 40 s). Darum zählt zusätzlich das gute Stück je einer
+/// Analyse der jüngsten 60 und 30 s (nur wenn die Aufnahme dafür deutlich länger ist und die
+/// Gesamtanalyse noch kein volles Fenster zeigt); der größte Wert gilt.
+double _progress(List<PpgFrame> fs, double overall) {
+  var best = overall;
+  final lastT = fs.last.t;
+  if (overall >= 0.9 * ppgSearchWindowSeconds) return best;
+  for (final len in _recentSeconds) {
+    final from = lastT - len;
+    if (from < ppgStandardWindow.filterStart + 5.0) continue;
+    final recent = [
+      for (final f in fs)
+        if (f.t >= from) f,
+    ];
+    if (recent.length <= ppgMinFrames) continue;
+    try {
+      final set = _analyze(
+        recent,
+        PpgWindow(
+          filterStart: recent.first.t,
+          start: recent.first.t + 2.0,
+          end: lastT,
+          dataEnd: lastT,
+        ),
+      );
+      best = math.max(best, _goodStretch(set));
+    } catch (_) {
+      // Dieser Abschnitt ist nicht auswertbar: er trägt nichts bei.
+    }
+  }
+  return best;
 }
 
 /// Bewertung eines Kandidatenfensters [s, s + 60]: Bildlücke, Finger und Bildzahl wie in

@@ -62,6 +62,22 @@ void main() {
       },
     );
 
+    test(
+      'Abnahmefall: 30 s schlecht, genau 60 s gut (91,5 s mit Filterrand)',
+      () {
+        final fr = badThenGood(30, 91.5);
+        expect(fr.last.t, closeTo(91.5, 0.1));
+        final r = evaluatePpgBestWindow(fr);
+        expect(r.measurement.quality, PpgQuality.good);
+        expect(r.measurement.rmssdMs, isNotNull);
+        // Toleranz 1 s: Beginne liegen im 1-s-Raster, und ein Fenster darf höchstens die erste
+        // Sekunde des schlechten Stücks berühren, ohne die Stufe zu verlieren.
+        expect(r.windowStartSeconds, inInclusiveRange(29.0, 31.0));
+        expect(r.windowEndSeconds, closeTo(90.0, 1.0));
+        expect(checkPpgRecording(fr).goodWindowReached, isTrue);
+      },
+    );
+
     test('das Ergebnis ist die Einzelauswertung des gewählten Fensters', () {
       final fr = badThenGood(30, 95);
       final r = evaluatePpgBestWindow(fr);
@@ -203,10 +219,26 @@ void main() {
       },
     );
 
+    test('Fortschritt nach starker Störung am Anfang: 30 s Rauschen, 40 s gut', () {
+      // Die Gesamtanalyse allein liefert hier 4,7 s, weil die Störung Vorlage und Schwellen
+      // prägt. Erwartet rund 40 s: untere Grenze knapp darunter (Filterrand, Schlagabstand), obere
+      // Grenze 40 / 0,7 = 57 s, denn ein Stück gilt ab 70 % gültiger Intervalle und darf daher
+      // einen Teil des gestörten Stücks einschließen. Nie mehr als ein Fenster.
+      final c = checkPpgRecording(badThenGood(30, 70));
+      expect(c.goodWindowReached, isFalse);
+      expect(c.goodStretchSeconds, inInclusiveRange(37.0, 58.0));
+      expect(c.goodStretchSeconds, lessThanOrEqualTo(60.0));
+      final r = evaluatePpgBestWindow(badThenGood(30, 70));
+      expect(r.goodStretchSeconds, inInclusiveRange(37.0, 58.0));
+    });
+
     test('schlechtes Signal: nicht erreicht, kein gutes Stück', () {
       final c = checkPpgRecording(frames(bad(), to: 100));
       expect(c.goodWindowReached, isFalse);
-      expect(c.goodStretchSeconds, lessThan(10));
+      // Gefiltertes Rauschen ist quasi periodisch: schon die Gesamtanalyse allein zeigt je nach
+      // Startwert 2 bis 20 s „gutes Stück“ (A2 gemessen); entscheidend ist, dass es nie das
+      // Fenster erreicht.
+      expect(c.goodStretchSeconds, lessThan(25));
     });
 
     test('zu kurz oder leer: nicht erreicht', () {
