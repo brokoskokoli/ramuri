@@ -73,6 +73,12 @@ void main() {
       // Erste Anzeige: Kurzfassung gerechnet, sRPE schreiben scheitert.
       await RunOverviewService(session: session, clock: w.clock).load();
       expect((await w.session.subjective.read(id))!.srpe, isNull);
+      // Die Kurzfassung bleibt veraltet, damit der nächste Aufruf nachzieht.
+      expect(
+        (await w.session.preprocessing.readOverviews())[id],
+        isNull,
+        reason: 'ohne sRPE keine als aktuell gespeicherte Kurzfassung',
+      );
       // Später geht der Speicher wieder; die Historie wird erneut geöffnet.
       subj.fail = false;
       await RunOverviewService(session: session, clock: w.clock).load();
@@ -81,6 +87,5 @@ void main() {
           .movingTime!;
       expect((await w.session.subjective.read(id))!.srpe?.duration, moving);
     },
-    skip: 'Befund S1: sRPE bleibt veraltet (teil-d.md); ohne skip rot',
   );
 }

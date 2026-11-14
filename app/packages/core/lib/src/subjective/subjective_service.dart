@@ -10,10 +10,16 @@ import 'subjective_limits.dart';
 /// Ohne RPE oder ohne Bewegungszeit steht kein Wert. Ohne Angaben zum Lauf
 /// passiert nichts. Aufruf, wenn sich die Bewegungszeit des Laufs geändert hat
 /// (Berechnung nach dem Lauf, Neuberechnung der Kurzfassung).
-Future<void> refreshSrpe(StorageSession session, int runId) async {
+Future<void> refreshSrpe(
+  StorageSession session,
+  int runId, {
+  Duration? movingTime,
+}) async {
   final stored = await session.subjective.read(runId);
   if (stored == null) return;
-  final srpe = await _srpeOf(session, runId, stored.subjective.rpe);
+  final srpe = movingTime != null && stored.subjective.rpe != null
+      ? SrpeLoad.compute(duration: movingTime, rpe: stored.subjective.rpe!)
+      : await _srpeOf(session, runId, stored.subjective.rpe);
   if (srpe == stored.srpe) return;
   // Nur die sRPE-Spalten, und nur wenn das RPE noch das gelesene ist: eine
   // parallele Änderung der Angabe geht nicht verloren (sie rechnet ihren

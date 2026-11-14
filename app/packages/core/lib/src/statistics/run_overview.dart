@@ -278,9 +278,12 @@ class RunOverviewService {
       belt: belt,
     );
     try {
+      // Die Bewegungszeit kann sich geändert haben: sRPE des Laufs folgt, und
+      // zwar zuerst. Die Kurzfassung gilt danach als aktuell und löst keine
+      // Neuberechnung mehr aus; scheitert das sRPE, bleibt sie veraltet und der
+      // nächste Aufruf holt beides nach.
+      await refreshSrpe(session, run.id, movingTime: stored.summary.movingTime);
       await session.preprocessing.replace(run.id, stored);
-      // Die Bewegungszeit kann sich geändert haben: sRPE des Laufs folgt.
-      await refreshSrpe(session, run.id);
     } on StorageException {
       // Nur das Merken scheitert; die Anzeige gilt.
     }
