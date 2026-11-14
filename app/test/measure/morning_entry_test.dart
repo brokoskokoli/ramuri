@@ -6,7 +6,6 @@ import 'package:running_app/features/measure/resting_measure_launcher.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
 
-import '../app_harness.dart';
 import '../history_summary_test.dart' show started;
 import 'measure_support.dart';
 

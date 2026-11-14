@@ -70,11 +70,11 @@ class DriftMorningStore implements MorningStore {
   Future<void> setSleepBand(int measurementId, SleepBand? band) =>
       guarded(() async {
         final n =
-            await (_db.update(_db.morningMeasurements)
-                  ..where((t) => t.id.equals(measurementId)))
-                .write(
-                  d.MorningMeasurementsCompanion(sleepBand: Value(band?.code)),
-                );
+            await (_db.update(
+              _db.morningMeasurements,
+            )..where((t) => t.id.equals(measurementId))).write(
+              d.MorningMeasurementsCompanion(sleepBand: Value(band?.code)),
+            );
         if (n == 0) throw const StorageException(StorageFailure.notFound);
       });
 

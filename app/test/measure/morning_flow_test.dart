@@ -250,6 +250,11 @@ void main() {
         );
         expect(r.cam.permissionRequests, 1);
         expect(r.measureEnds, hasLength(1));
+        // Wiederholung nur bei zu schlechter Qualität.
+        expect(r.c.canRepeat, isFalse);
+        expect(find.byKey(const Key('morning_again')), findsNothing);
+        await r.c.repeat();
+        expect(r.cam.permissionRequests, 1);
         var list = await r.stored(tester);
         expect(list, hasLength(1));
         final m = list.single;
