@@ -79,6 +79,8 @@ void main() {
     await _open(tester, popFirst: true);
     // Nur kurz pumpen (Seitenwechsel, Nachbild), nicht die Anzeigedauer abwarten.
     await tester.pump();
+    // Seitenwechsel, dann Ausblenden der Meldung: weit unter der Anzeigedauer.
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.pump(const Duration(milliseconds: 500));
     expect(tester.takeException(), isNull);
     expect(find.text('gespeichert'), findsNothing);
