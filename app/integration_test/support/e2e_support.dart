@@ -96,6 +96,9 @@ Future<void> tapKey(WidgetTester t, String key) async {
   final end = DateTime.now().add(const Duration(seconds: 5));
   while (!hittable(t, f)) {
     if (DateTime.now().isAfter(end)) fail('Tipp trifft $key nicht');
+    // Die Karten-Frage kommt asynchron (Seite sichtbar -> Einwilligung lesen ->
+    // Dialog) und kann sich vor die Taste legen: wegklicken statt Rot.
+    await _noConsent(t);
     await pumpFor(t, const Duration(milliseconds: 100));
   }
   await t.tap(f);
@@ -190,9 +193,23 @@ Future<void> finishRun(WidgetTester t) async {
   await tapKey(t, 'run_pause');
   await _noConsent(t);
   await tapKey(t, 'run_finish');
-  await _noConsent(t);
-  await tapDialog(t, 'run_finish_confirm');
-  await waitFor(t, () => has('run_done_status'), 'Laufende angezeigt');
+  // Die Karten-Frage kann erst nach dem Tipp aufgehen (tapKey schiebt die
+  // Seite per ensureVisible zur Karte; die Frage folgt asynchron) und den
+  // Bestaetigen-Dialog verdecken: zustandsgesteuert, bis das Ende angezeigt ist.
+  final end = DateTime.now().add(const Duration(seconds: 40));
+  while (!has('run_done_status')) {
+    if (DateTime.now().isAfter(end)) {
+      fail('nach 40 s nicht erreicht: Laufende angezeigt');
+    }
+    if (has('map_consent_dialog')) {
+      await tapDialog(t, 'map_consent_not_now');
+    } else if (has('run_finish_confirm') &&
+        hittable(t, find.byKey(const Key('run_finish_confirm')))) {
+      await tapDialog(t, 'run_finish_confirm');
+    } else {
+      await pumpFor(t, const Duration(milliseconds: 200));
+    }
+  }
 }
 
 /// Zaehler eines gespeicherten Laufs (keine Werte).
