@@ -345,8 +345,7 @@ GeneratedPlan generatePlan(
                 .where((u) => u.pinned && !plannedDays.contains(planDay(u.day)))
                 .toList()
               ..sort((a, b) => a.day.compareTo(b.day)))
-          // Eine zum lockeren Lauf ersetzte harte Einheit behält ihre Rolle.
-          u.fixed == PlanUnitFixed.easyForHard ? 2 : _role(u),
+          _runRole(u),
       ];
       final plannedRole = {
         for (final u in planned.units) planDay(u.day): _role(u),
@@ -382,7 +381,7 @@ GeneratedPlan generatePlan(
       final pinRoles = [
         for (final u in pinnedLeft)
           if (!planDay(u.day).isBefore(start) && planDay(u.day).isBefore(end))
-            _role(u),
+            _runRole(u),
       ];
       bool reserved(int i) =>
           pinRoles.where((r) => r == _role(future[i])).length >=
@@ -588,6 +587,11 @@ int _dropRank(PlanUnit u) => u.isHard
     : u.kind == PlanUnitKind.long
     ? 2
     : 0;
+
+/// Rolle für den Rückfall des Abzugs: Eine zum lockeren Lauf ersetzte harte
+/// Einheit ([PlanUnitFixed.easyForHard]) behält die harte Rolle (2), auch als
+/// künftiger Termin; sie nimmt die harte Einheit der Woche auf.
+int _runRole(PlanUnit u) => u.fixed == PlanUnitFixed.easyForHard ? 2 : _role(u);
 
 int _role(PlanUnit u) => u.isHard
     ? 2
