@@ -100,7 +100,7 @@ double? _validRestingHr(MorningMeasurement m) {
 }
 
 /// Kamera-Abweichungen (PAR-160K bis PAR-162K) für [today] (Ortstag als
-/// UTC-Datum), je Faktor und Reihe (Haltung und Gerät) ein Ergebnis; nie
+/// UTC-Datum), je Faktor und Reihe (bei der Kamera das Gerät) ein Ergebnis; nie
 /// gemischt, nie mit Health Connect. Es zählt die erste Messung des Ortstags
 /// im Morgenfenster ([countingMorningMeasurements]). Ruhepuls bei „gut“ oder
 /// „eingeschränkt“, RMSSD nur bei „gut“ und unter der Qualitätsgrenze. Das

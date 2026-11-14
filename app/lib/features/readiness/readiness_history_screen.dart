@@ -11,7 +11,7 @@ const int readinessHistoryDays = 28;
 
 /// Verlauf der Reihen (WP34 Teil D2, Design
 /// `design/screens/readiness/Verlauf.dc.html`): je Quelle eine eigene Reihe
-/// über 28 Tage (Health Connect je Quell-App, Kamera je Haltung und Gerät),
+/// über 28 Tage (Health Connect je Quell-App, Kamera je Gerät),
 /// nie gemischt, ohne Vergleichswerte anderer Menschen. Tage ohne Wert bleiben
 /// Lücken. Die Werte stammen aus den Reihen des Modells
 /// ([DeviationResult.byDay]), die Seite rechnet nichts.

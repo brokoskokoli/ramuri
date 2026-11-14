@@ -5,22 +5,25 @@
 // sitzend: beide gespeichert, aber nur die erste gueltige des Morgens zaehlt
 // (eine Reihe je Geraet, K67), 4 schlecht -> im Entwicklermodus trotzdem
 // gespeichert (K68, unbrauchbar, zaehlt nirgends) -> Noch einmal -> gueltig (zaehlt
-// nicht, die Reihe hat heute schon eine), 5 ausserhalb des
-// Fensters markiert (Fenster ueber den Einstellungsspeicher gesetzt, die Uhr der
-// App ist die Systemuhr), 6 Gurt-Paar gespeichert + Zaehler + Teilen-Warnung,
-// 5b Gurtzeile ohne bekannten Gurt (nur wenn keiner bekannt ist), Morgenwerte:
-// Haltungsmarke gefuellt/hohl und Bildschirmfotos hell/dunkel, 6 mit „verbunden“
-// nach erneutem Oeffnen, 7 Ruhephase ueberspringen (Fortschritt, vermerkt),
-// 8 Entwicklermodus aus -> Einstieg weg (mit S1 die Pruefung K62 F1). Nur Zaehler
-// und Marken in der Ausgabe.
+// nicht, die Reihe hat heute schon eine), 5 ausserhalb des Fensters markiert
+// (Fenster ueber den Einstellungsspeicher gesetzt, die Uhr der App ist die
+// Systemuhr), Morgenwerte: Haltungsmarke gefuellt/hohl und Bildschirmfotos
+// hell/dunkel, 5b Gurtzeile ohne bekannten Gurt (Test-Speicher ohne Geraete),
+// 6 Gurt bekannt, aber getrennt: Autoverbinden beim Oeffnen („verbunden“, auch
+// nach erneutem Oeffnen), Gurt-Paar gespeichert + Zaehler + Teilen-Warnung,
+// 7 Ruhephase ueberspringen (Fortschritt, vermerkt), 8 Entwicklermodus aus ->
+// Einstieg weg (mit S1 die Pruefung K62 F1). Nur Zaehler und Marken in der
+// Ausgabe.
 // Der Host (--dart-define=E2E_SHOTS=true) kann bei "E2E_.. SHOT <name>" ein Bildschirmfoto machen.
 import 'dart:io';
 
 import 'package:core/core.dart';
+import 'package:core/fakes/fake_storage_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:running_app/debug/debug_test_ppg_camera.dart';
+import 'package:running_app/debug/debug_test_sensor.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/system_clock.dart';
 import 'package:running_app/ui/ui.dart';
@@ -297,7 +300,8 @@ void main() {
     await closeResultToHome(t);
     await shot(t, 's3_heute_karte');
 
-    // 4) schlechte Qualitaet -> Noch einmal -> gueltig; die schlechte wird nicht gespeichert.
+    // 4) schlechte Qualitaet -> Noch einmal -> gueltig; die schlechte wird im
+    // Entwicklermodus gespeichert (K68), zaehlt aber nirgends.
     cam.scenario = DebugPpgScenario.weakSignal;
     await measureFromTile(t);
     log(
@@ -384,11 +388,7 @@ void main() {
     // Morgenwerte (Verlauf) hell/dunkel Sicht.
     await tapKey(t, 'home_overview');
     await tapKey(t, 'overview_morning_values');
-    await waitFor(
-      t,
-      () => has('morning_posture') || has('morning_trend_empty'),
-      'Morgenwerte',
-    );
+    await waitFor(t, () => has('morning_legend'), 'Morgenwerte');
     await shot(t, 's3_morgenwerte');
     // Haltungsmarke: liegend gefuellt, sitzend hohl; die Zeile nennt die Haltung
     // im Semantics-Label (K67). Nur Werte dieses Laufs (synthetische Kamera).
@@ -414,8 +414,9 @@ void main() {
       final filled = dot.color != c.surface;
       expect(
         filled,
-        m.posture == RestingPosture.lying,
-        reason: 'Morgenwerte: Marke gefuellt nur bei liegend',
+        m.posture == RestingPosture.lying && m.isUsable,
+        reason:
+            'Morgenwerte: Marke gefuellt nur bei liegend (unbrauchbar: hohl)',
       );
       labels[m.posture]!.add(t.getSemantics(row).label);
       if (m.posture == RestingPosture.lying) {
@@ -447,46 +448,89 @@ void main() {
     await tapKey(t, 'measure_back');
     await back(t);
 
-    // 5b) Gurtzeile ohne bekannten Gurt: nur pruefbar, solange kein Gurt bekannt
-    // ist (frueher laufende Gruppen der Sammlung koennen einen verbunden haben,
-    // der Speicher laesst sich nicht leeren). Ausgangszustand wird protokolliert.
-    final known = w.deps.sensors.knownEntries.length;
-    final connectedBefore = w.deps.sensors.connectedIds.length;
-    log('S5b bekannt=$known verbunden=$connectedBefore');
-    if (known == 0) {
-      await tapKey(t, 'home_overview');
-      await tapKey(t, 'overview_morning');
-      await waitFor(t, () => has('morning_start'), 'Einstieg ohne Gurt');
-      expect(has('morning_gurt_pick'), isTrue, reason: 'S5b Gurt verbinden');
-      expect(has('morning_gurt_note'), isTrue, reason: 'S5b Hinweis ohne Gurt');
-      final noBelt = AppLocalizations.of(
-        t.element(find.byKey(const Key('morning_gurt_text'))),
-      ).morningGurtNone;
-      expect(txt('morning_gurt_text'), noBelt, reason: 'S5b kein Gurt');
-      await shot(t, 's5b_einstieg_ohne_gurt');
-      await tapKey(t, 'morning_gurt_pick');
-      await waitFor(t, () => has('sensors_scan'), 'Geraeteauswahl');
-      await back(t);
-      await waitFor(t, () => has('morning_start'), 'zurueck im Einstieg');
-      await tapKey(t, 'measure_back');
-      await back(t);
-    } else {
-      log(
-        'S5b uebersprungen: Gurt aus frueherer Gruppe bekannt (Fall b nur mit leerem Speicher)',
-      );
-    }
+    // 5b) Gurtzeile ohne bekannten Gurt. Frueher laufende Gruppen der Sammlung
+    // (Lauf) haben einen Gurt verbunden und bekannt gemacht, und die App kann
+    // einzelne bekannte Geraete nicht entfernen. Deshalb bekommt der
+    // Sensor-Manager hier einen leeren Test-Speicher (attachStore, die
+    // oeffentliche Schnittstelle der App); er trennt dabei alle Geraete ohne
+    // Eintrag. Der echte Speicher bleibt unberuehrt und wird nach S6 wieder
+    // angebunden. Kein bedingtes Ueberspringen.
+    final sensors = w.deps.sensors;
+    final realDevices = s.devices;
+    final testDevices = FakeKnownDeviceStore(FakeStorageData());
+    log(
+      'S5b vorher bekannt=${sensors.knownEntries.length} verbunden=${sensors.connectedIds.length}',
+    );
+    await t.runAsync(() => sensors.attachStore(testDevices));
+    await pumpFor(t, const Duration(milliseconds: 300));
+    expect(sensors.knownEntries, isEmpty, reason: 'S5b kein Geraet bekannt');
+    expect(sensors.connectedIds, isEmpty, reason: 'S5b kein Geraet verbunden');
+    log(
+      'S5b ausgang bekannt=${sensors.knownEntries.length} verbunden=${sensors.connectedIds.length}',
+    );
+    await tapKey(t, 'home_overview');
+    await tapKey(t, 'overview_morning');
+    await waitFor(t, () => has('morning_start'), 'Einstieg ohne Gurt');
+    expect(has('morning_gurt_pick'), isTrue, reason: 'S5b Gurt verbinden');
+    expect(has('morning_gurt_note'), isTrue, reason: 'S5b Hinweis ohne Gurt');
+    final noBelt = AppLocalizations.of(
+      t.element(find.byKey(const Key('morning_gurt_text'))),
+    ).morningGurtNone;
+    expect(txt('morning_gurt_text'), noBelt, reason: 'S5b kein Gurt');
+    log('S5b geprueft kein_gurt=true');
+    await shot(t, 's5b_einstieg_ohne_gurt');
+    await tapKey(t, 'morning_gurt_pick');
+    await waitFor(t, () => has('sensors_scan'), 'Geraeteauswahl');
+    await back(t);
+    await waitFor(t, () => has('morning_start'), 'zurueck im Einstieg');
+    await tapKey(t, 'measure_back');
+    await back(t);
 
-    // 6) Gurt mit RR: Paar gespeichert, Zaehler, Teilen mit Warnung.
+    // 6) Gurt mit RR: Paar gespeichert, Zaehler, Teilen mit Warnung. Der Gurt
+    // ist bekannt, aber getrennt; das Oeffnen des Einstiegs verbindet ihn
+    // selbst (Autoverbinden, WP37 C2), ohne dass der Test verbindet.
     w.sensor.sendRr = true;
-    await connect(t, ['fake-gurt-1'], 'fake-gurt-1');
+    await t.runAsync(
+      () => testDevices.upsert(
+        'fake-gurt-1',
+        displayName: DebugTestSensor.devices['fake-gurt-1'],
+        at: DateTime.now().toUtc(),
+      ),
+    );
+    await t.runAsync(sensors.reloadKnown);
+    expect(sensors.knownEntries.length, 1, reason: 'S6 Gurt bekannt');
+    expect(sensors.connectedIds, isEmpty, reason: 'S6 Gurt getrennt');
+    log('S6 vorher bekannt=1 verbunden=0');
     await tapKey(t, 'home_overview');
     await tapKey(t, 'overview_morning');
     await waitFor(t, () => has('morning_start'), 'Einstieg mit Gurt');
+    final noBeltText = noBelt;
+    await waitFor(
+      t,
+      () =>
+          sensors.connectedIds.contains('fake-gurt-1') &&
+          has('morning_gurt_text') &&
+          txt('morning_gurt_text') != noBeltText,
+      'S6 Autoverbinden beim Oeffnen',
+    );
+    log('S6 autoverbunden=${sensors.connectedIds.length}');
+    // Echter Speicher wieder angebunden; der Gurt wird dort bekannt gemacht,
+    // damit er verbunden bleibt (Zustand wie nach der Gruppe Lauf).
+    await t.runAsync(
+      () => realDevices.upsert(
+        'fake-gurt-1',
+        displayName: DebugTestSensor.devices['fake-gurt-1'],
+        at: DateTime.now().toUtc(),
+      ),
+    );
+    await t.runAsync(() => sensors.attachStore(realDevices));
+    expect(
+      sensors.connectedIds,
+      contains('fake-gurt-1'),
+      reason: 'S6 nach Wiederanbinden verbunden',
+    );
     // (a) Bekannter, verbundener Gurt: ohne Rueckfrage „verbunden: ...“; nach
     // Schliessen und erneutem Oeffnen des Einstiegs unveraendert.
-    final noBeltText = AppLocalizations.of(
-      t.element(find.byKey(const Key('morning_gurt_text'))),
-    ).morningGurtNone;
     for (var i = 0; i < 2; i++) {
       await waitFor(
         t,

@@ -220,4 +220,25 @@ void main() {
     expect(r.sensor.calls, ['g2']);
     expect(r.manager.connectedIds, {'g2'});
   });
+
+  test('Speichertausch (E2E S5b/S6): leerer Speicher trennt und leert die '
+      'bekannten, danach verbindet das Öffnen den bekannten Gurt', () async {
+    final r = _Rig();
+    await r.open(known: const ['g1']);
+    await r.manager.connect('g1');
+    await pumpEventQueue();
+    expect(r.manager.connectedIds, {'g1'});
+    final empty = (await FakeStorage().open(Uint8List(32))).devices;
+    await r.manager.attachStore(empty);
+    expect(r.manager.knownEntries, isEmpty);
+    expect(r.manager.connectedIds, isEmpty);
+    await empty.upsert('g1', displayName: 'Gurt g1', at: t0);
+    await r.manager.reloadKnown();
+    expect(r.manager.knownEntries.length, 1);
+    expect(r.manager.connectedIds, isEmpty);
+    await r.manager.connectBestKnown();
+    expect(r.manager.connectedIds, {'g1'});
+    await r.manager.attachStore(r.store);
+    expect(r.manager.connectedIds, {'g1'});
+  });
 }
