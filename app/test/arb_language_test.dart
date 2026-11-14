@@ -56,6 +56,12 @@ final Map<String, RegExp> negated = {
   // Kartenüberschrift „Erholung“ (Design, FR-0209): nur dieses eine Wort, kein
   // Zustand; die Karte zeigt nur einen Texthinweis (WP23 D2).
   'recoveryTitle': RegExp(r'^(Erholung|Recovery)$'),
+  // WP37: Hinweis ohne Gurt; nennt nur, dass Referenzwerte fehlen, und
+  // behauptet nichts über Genauigkeit oder Gültigkeit.
+  'morningGurtNoteNone': RegExp(
+    r'fehlen die Gurtwerte für die Validierung|'
+    r'strap values for validation are missing',
+  ),
   // FR-0203: fester Text, Wortlaut vorbehaltlich OQ-0048.
   'planWarnBannerText': RegExp(
     r'Diese App stellt keine Diagnose|This app does not provide a diagnosis',
