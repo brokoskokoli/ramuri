@@ -70,8 +70,7 @@ void main() {
                 expect(z != null, expected);
               });
               test('Ruhepuls $name', () {
-                final expected =
-                    dev || supine == P || supine == ValidationState.limited;
+                final expected = dev || supine != ValidationState.failed;
                 final r = rel.forFactor(
                   ReadinessFactor.restingHeartRate,
                   posture,
@@ -316,7 +315,7 @@ void main() {
       ValidationState.passed: MorningRmssdMark.none,
       ValidationState.limited: MorningRmssdMark.none,
       ValidationState.failed: MorningRmssdMark.inaccurate,
-      ValidationState.notChecked: MorningRmssdMark.notChecked,
+      ValidationState.notChecked: MorningRmssdMark.none,
     };
     for (final e in expected.entries) {
       final r = CameraRelease(

@@ -23,9 +23,8 @@ class CameraFactorRelease {
 /// Opt-in; das Merkmal „vor der Validierung gemessen“ spielt keine Rolle.
 /// Sonst: RMSSD nur bei Stand „bestanden“ (liegend, sitzend gilt er mit,
 /// solange sitzend nicht eingeschränkt/nicht bestanden) und eingeschaltetem
-/// Opt-in; Ruhepuls bei „bestanden“ und „eingeschränkt“, nicht bei „nicht
-/// bestanden“ und (eigene Auslegung, einfachste Lösung) nicht bei „nicht
-/// geprüft“.
+/// Opt-in; Ruhepuls bei „nicht geprüft“, „bestanden“ und „eingeschränkt“, nur bei
+/// „nicht bestanden“ gesperrt (Markierung „ungenauer als erwartet“).
 class CameraRelease {
   const CameraRelease({
     required this.developerMode,
@@ -63,21 +62,12 @@ class CameraRelease {
             mark: MorningRmssdMark.none,
           );
         }
-        return switch (state[ValidationQuantity.restingHr]) {
-          ValidationState.passed ||
-          ValidationState.limited => const CameraFactorRelease(
-            released: true,
-            mark: MorningRmssdMark.none,
-          ),
-          ValidationState.failed => const CameraFactorRelease(
-            released: false,
-            mark: MorningRmssdMark.inaccurate,
-          ),
-          _ => const CameraFactorRelease(
-            released: false,
-            mark: MorningRmssdMark.notChecked,
-          ),
-        };
+        final failed =
+            state[ValidationQuantity.restingHr] == ValidationState.failed;
+        return CameraFactorRelease(
+          released: !failed,
+          mark: failed ? MorningRmssdMark.inaccurate : MorningRmssdMark.none,
+        );
     }
   }
 
