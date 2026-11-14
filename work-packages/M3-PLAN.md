@@ -51,6 +51,7 @@ Welle 2 hat nur ein Paket, weil WP34 beide Datenquellen braucht und WP35 den Rea
 ## Gemeinsam berührte Dateien
 
 - **WP32 und WP33:** `schema.drift`, `app_database.dart`, `delete_access.dart`, Archivabschnitte und Vektoren (Regel oben). Übersicht hinter dem Profil-Symbol (`overview_screen.dart`) nur WP33 (Eintrag „Über“); WP32 hängt sich an `permissions_screen.dart` und den Abschnitt „Daten“. Android-Manifest und `release_rechte()` in `tool/gate.sh` nur WP32. `features/measure` und `core/src/ppg` nur WP33. Texte mit Präfix `health` (WP32) bzw. `morning`/`dev` (WP33).
+- **Archiv-Wiederherstellung:** `ArchiveRestoreService.isEmpty` (core, `archive_restore.dart`) muss jede neue Tabelle zählen, sonst wird eine Datenbank mit nur neuen Daten ohne Rückfrage ersetzt. WP32 baut die Zählung über einen core-Port (Teil C1); WP33 trägt seine Tabellen dort ein, wer später mergt, ergänzt die Liste.
 - **WP33:** `home` nur für den Einstieg in die Morgenmessung (eine Karte oder ein Knopf). WP34 baut die Karte „Erholung“ danach um.
 - **WP34:** `home` (Karte „Erholung“), neues `features/readiness`, `core/src/readiness`. Liest WP32 und WP33 nur über deren Ports.
 - **WP35:** `core/src/plan`, `features/plan`. `home` nur für den Satz unter der Karte „Erholung“ (nach WP34).
