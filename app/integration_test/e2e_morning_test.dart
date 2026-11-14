@@ -9,9 +9,10 @@
 // Fensters markiert (Fenster ueber den Einstellungsspeicher gesetzt, die Uhr der
 // App ist die Systemuhr), 6 Gurt-Paar gespeichert + Zaehler + Teilen-Warnung,
 // 5b Gurtzeile ohne bekannten Gurt (nur wenn keiner bekannt ist), Morgenwerte:
-// Haltungsmarke gefuellt/hohl + Bildschirmfotos hell/dunkel, 6 ... + Gurtzeile
-// „verbunden“ nach erneutem Oeffnen, 7 Ruhephase ueberspringen, 8 Entwicklermodus
-// aus -> Einstieg weg (zusammen mit S1 die Pruefung K62 F1). Nur Zaehler und Marken in der Ausgabe.
+// Haltungsmarke gefuellt/hohl und Bildschirmfotos hell/dunkel, 6 mit „verbunden“
+// nach erneutem Oeffnen, 7 Ruhephase ueberspringen (Fortschritt, vermerkt),
+// 8 Entwicklermodus aus -> Einstieg weg (mit S1 die Pruefung K62 F1). Nur Zaehler
+// und Marken in der Ausgabe.
 // Der Host (--dart-define=E2E_SHOTS=true) kann bei "E2E_.. SHOT <name>" ein Bildschirmfoto machen.
 import 'dart:io';
 
