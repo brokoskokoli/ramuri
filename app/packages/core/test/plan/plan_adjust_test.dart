@@ -453,6 +453,32 @@ void main() {
       expect(runAdj(10, inputs: later).kind, PauseRestartKind.none);
     });
 
+    test('Anker in einer späteren Woche: Obergrenze ist der Plan dieser Woche '
+        'vor der Anpassung, nicht die angehobene Rückmeldung (PAR-202)', () {
+      final next = today.add(const Duration(days: 7));
+      final later = i.copyWith(anchor: next, startWeeklyMinutes: 300);
+      final shown = planCourseSetup(
+        g,
+        i,
+      ).course(today: today).weeks.firstWhere((w) => w.start == today).minutes!;
+      PauseRestart r(int gap, {PlanInputs? before}) => planPauseRestart(
+        goal: g,
+        inputs: later,
+        today: today,
+        lastTrainingDay: today.subtract(Duration(days: gap)),
+        baseWeekMinutes: 1000,
+        anchorFromAdjustment: true,
+        inputsBeforeAdjustment: before,
+      );
+      // Ohne den bisherigen Plan würde die angehobene Rückmeldung gelten.
+      expect(r(10).inputs!.startWeeklyMinutes, greaterThan(shown));
+      expect(r(10, before: i).inputs!.startWeeklyMinutes, shown);
+      expect(
+        r(60, before: i).inputs!.startWeeklyMinutes,
+        lessThanOrEqualTo(shown),
+      );
+    });
+
     test('planAnchorFromAdjustment: ein Pausenneustart mit dem Anker der '
         'Wochenbewertung davor trägt den Anker selbst', () {
       PlanVersionRecord rec(int id, PlanTrigger t, DateTime anchor) =>

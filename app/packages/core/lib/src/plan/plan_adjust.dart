@@ -262,7 +262,9 @@ DateTime pauseBaseWeek(DateTime lastTrainingDay) =>
 /// Neustart nicht: Er ersetzt diese Anpassung (Anker dieser Montag). Gilt der
 /// Anker dieser Woche aus Anlage oder Ziel (neuer Plan), ist es
 /// [PauseRestartKind.none]. Den zweiten Neustart derselben Pause verhindert
-/// der Aufrufer mit seinem Merker.
+/// der Aufrufer mit seinem Merker. Die Obergrenze (der bisherige Plan dieser
+/// Woche) kommt dann aus [inputsBeforeAdjustment], den Eingaben vor der
+/// Anpassung ([planInputsBeforeAdjustment]), nicht aus den angepassten.
 PauseRestart planPauseRestart({
   required TrainingGoal goal,
   required PlanInputs inputs,
@@ -273,6 +275,7 @@ PauseRestart planPauseRestart({
   bool provisional = false,
   bool replacesProvisional = false,
   bool anchorFromAdjustment = false,
+  PlanInputs? inputsBeforeAdjustment,
 }) {
   final p = parameters;
   final t = planDay(today);
@@ -306,10 +309,19 @@ PauseRestart planPauseRestart({
   if (week == null || !_adjustable(week)) {
     return const PauseRestart(PauseRestartKind.none);
   }
+  // Obergrenze: der Plan dieser Woche vor der Anpassung (PAR-202).
+  var weekCap = week.minutes!;
+  if (anchorFromAdjustment && inputsBeforeAdjustment != null) {
+    final before = _weekAt(
+      planCourseSetup(goal, inputsBeforeAdjustment, parameters: p),
+      monday,
+    );
+    if (before?.minutes != null) weekCap = before!.minutes!;
+  }
   if (restartsFresh) {
     return PauseRestart(
       PauseRestartKind.newStart,
-      _freshStart(goal, inputs, t, p, cap: week.minutes!),
+      _freshStart(goal, inputs, t, p, cap: weekCap),
     );
   }
   final long = gap >= p.pauseLongDays;
@@ -317,9 +329,9 @@ PauseRestart planPauseRestart({
   final noHardWeeks = long ? p.pauseLongNoHardWeeks : p.pauseShortNoHardWeeks;
   // Ohne Basis (keine vollständige Woche vor der Pause erfasst, z. B. das
   // erste Training erst in der Woche davor): der bisherige Plan dieser Woche.
-  final base = baseWeekMinutes >= 1 ? baseWeekMinutes : week.minutes!;
+  final base = baseWeekMinutes >= 1 ? baseWeekMinutes : weekCap;
   var target = (base * share).round();
-  if (target > week.minutes!) target = week.minutes!;
+  if (target > weekCap) target = weekCap;
   if (target > setup.capMinutes) target = setup.capMinutes;
   if (target < 1) target = 1;
   final out = PlanInputs(

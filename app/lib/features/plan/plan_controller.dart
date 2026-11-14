@@ -1043,6 +1043,7 @@ class PlanController extends ChangeNotifier {
       baseWeekMinutes: q.baseWeekMinutes,
       parameters: parameters,
       anchorFromAdjustment: planAnchorFromAdjustment(history),
+      inputsBeforeAdjustment: planInputsBeforeAdjustment(history),
       provisional: longPause && !chosen,
       replacesProvisional: chosen && wasProvisional && mark.restarted,
     );
@@ -1103,6 +1104,7 @@ class PlanController extends ChangeNotifier {
             baseWeekMinutes: q.baseWeekMinutes,
             parameters: parameters,
             anchorFromAdjustment: planAnchorFromAdjustment(history),
+            inputsBeforeAdjustment: planInputsBeforeAdjustment(history),
             replacesProvisional: await _pauseProvisional(q),
           ).inputs !=
           null;
