@@ -229,8 +229,17 @@ void main() {
 
       test('Kandidat 1 fällt ab, Kandidat 2 trägt: Abbruch und Fenster von Kandidat 2', () {
         final e = evaluator(1);
-        expect(checkPpgRecording(fr, evaluate: e.fn).goodWindowReached, isTrue);
+        final chk = checkPpgRecording(fr, evaluate: e.fn);
+        expect(chk.goodWindowReached, isTrue);
         expect(e.starts, hasLength(2));
+        // Das bestätigte Fenster ist Kandidat 2 und wird als Endergebnis mitgegeben.
+        expect(chk.confirmed!.windowStartSeconds, e.starts[1]);
+        expect(chk.confirmed!.windowEndSeconds, e.starts[1] + 60);
+        expect(chk.confirmed!.measurement.quality, PpgQuality.good);
+        expect(
+          checkPpgRecording(fr, evaluate: evaluator(99).fn).confirmed,
+          isNull,
+        );
 
         final e2 = evaluator(1);
         final r = evaluatePpgBestWindow(fr, evaluate: e2.fn);

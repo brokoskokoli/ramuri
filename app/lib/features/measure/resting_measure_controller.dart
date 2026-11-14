@@ -548,8 +548,20 @@ class RestingMeasureController extends ChangeNotifier {
       (e) => _onEvent(run, e),
       onError: (Object _) =>
           unawaited(_fail(run, RestingStopCause.cameraError)),
-      onDone: () => unawaited(_fail(run, RestingStopCause.cameraError)),
+      onDone: () => _onStreamDone(run),
     );
+  }
+
+  /// Der Kamerastrom endete von selbst. Mit Fenstersuche und Bildern bis mindestens zum frühesten
+  /// Ende ([ppgStandardWindow].dataEnd) wird einmal abschließend ausgewertet (die Prüfung kann
+  /// gerade belegt gewesen sein und die 66,5 s verpasst haben); sonst ist es ein Kamerafehler.
+  void _onStreamDone(int run) {
+    if (run != _run || _phase != RestingMeasurePhase.measuring) return;
+    if (searchWindow && _elapsed >= ppgStandardWindow.dataEnd) {
+      unawaited(_finish(run)); // doppelt geschützt durch _evaluating
+    } else {
+      unawaited(_fail(run, RestingStopCause.cameraError));
+    }
   }
 
   void _resetMeasurement() {
@@ -650,7 +662,7 @@ class RestingMeasureController extends ChangeNotifier {
       }
       _goodStretch = r.goodStretchSeconds;
       if (r.goodWindowReached) {
-        unawaited(_finish(run, frames: snapshot));
+        unawaited(_finish(run, frames: snapshot, confirmed: r.confirmed));
         return;
       }
       _notify();
@@ -720,7 +732,11 @@ class RestingMeasureController extends ChangeNotifier {
     return null; // zu wenige Daten: noch kein Hinweis
   }
 
-  Future<void> _finish(int run, {List<PpgFrame>? frames}) async {
+  Future<void> _finish(
+    int run, {
+    List<PpgFrame>? frames,
+    PpgWindowedMeasurement? confirmed,
+  }) async {
     if (_evaluating) return;
     _evaluating = true;
     _notify();
@@ -732,7 +748,8 @@ class RestingMeasureController extends ChangeNotifier {
     var stretch = _goodStretch;
     try {
       if (searchWindow) {
-        final r = await _evaluateBest(all);
+        // Endete die Aufnahme durch die Prüfung, gilt genau das bestätigte Fenster.
+        final r = confirmed ?? await _evaluateBest(all);
         m = r.measurement;
         windowStart = r.windowStartSeconds;
         windowEnd = r.windowEndSeconds;

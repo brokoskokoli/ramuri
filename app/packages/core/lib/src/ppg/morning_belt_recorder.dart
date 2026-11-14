@@ -81,9 +81,9 @@ class MorningBeltRecorder {
     _packets.add(packet);
   }
 
-  /// Die Messung ist gültig (gespeichert oder zu verwerten): das Abo endet
-  /// Die gesammelten [packets] bleiben für
-  /// „Speichern erneut versuchen“; bis [dispose] hängt nichts mehr an.
+  /// Die Messung ist beendet: das Abo endet, es kommen keine Pakete mehr dazu.
+  /// Die gesammelten [packets] bleiben für „Speichern erneut versuchen“
+  /// erhalten.
   Future<void> stop() async {
     final s = _sub;
     _sub = null;

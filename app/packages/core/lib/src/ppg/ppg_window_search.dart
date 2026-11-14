@@ -33,6 +33,7 @@ class PpgRecordingCheck {
   const PpgRecordingCheck({
     required this.goodWindowReached,
     required this.goodStretchSeconds,
+    this.confirmed,
   });
 
   /// Ein Fenster von [ppgSearchWindowSeconds] mit Filterrand erreicht die Stufe „gut“ (nach
@@ -41,6 +42,10 @@ class PpgRecordingCheck {
 
   /// Wie [PpgWindowedMeasurement.goodStretchSeconds].
   final double goodStretchSeconds;
+
+  /// Das bestätigte Fenster samt Einzelauswertung, wenn [goodWindowReached]. Endet die Aufnahme
+  /// deswegen, ist genau dies das Endergebnis (keine zweite Suche mit anderem Kandidatensatz).
+  final PpgWindowedMeasurement? confirmed;
 }
 
 class _Candidate {
@@ -458,8 +463,17 @@ PpgRecordingCheck checkPpgRecording(
     goodOnly: true,
     evaluate: evaluate,
   );
+  final reached = v != null && v.measurement.quality == PpgQuality.good;
   return PpgRecordingCheck(
-    goodWindowReached: v != null && v.measurement.quality == PpgQuality.good,
+    goodWindowReached: reached,
     goodStretchSeconds: scan.goodStretch,
+    confirmed: reached
+        ? PpgWindowedMeasurement(
+            measurement: v.measurement,
+            windowStartSeconds: v.candidate.start,
+            windowEndSeconds: v.candidate.start + ppgSearchWindowSeconds,
+            goodStretchSeconds: scan.goodStretch,
+          )
+        : null,
   );
 }

@@ -128,6 +128,9 @@ class _Rig {
   int maxChecksRunning = 0;
   Completer<void>? checkGate;
 
+  /// Gesetzt: Die Prüfung bestätigt „gut“ mit genau diesem Fensterbeginn (wie `checkPpgRecording`).
+  double? confirmStart;
+
   /// Das Tor hält nur Prüfungen, deren letztes Bild mindestens so spät liegt.
   double gateAt = 0;
   final restStarts = <DateTime>[];
@@ -193,6 +196,15 @@ class _Rig {
           return PpgRecordingCheck(
             goodWindowReached: _goodStart(frames, strict: true) != null,
             goodStretchSeconds: _goodStretch(frames),
+            confirmed:
+                rig.confirmStart == null ||
+                    _goodStart(frames, strict: true) == null
+                ? null
+                : PpgWindowedMeasurement(
+                    measurement: rig.next,
+                    windowStartSeconds: rig.confirmStart,
+                    windowEndSeconds: rig.confirmStart! + 60,
+                  ),
           );
         } finally {
           rig.checksRunning--;
@@ -391,6 +403,22 @@ void main() {
       expect(r.evaluated.single.last.t, 66.5);
       expect(r.c.engine.result!.frames.last.t, 66.5);
     });
+
+    testWidgets(
+      'Ende durch bestätigtes „gut“: Ergebnis ist genau das bestätigte '
+      'Fenster, keine zweite Suche',
+      (tester) async {
+        final r = await _Rig.make();
+        r.confirmStart = 7.0;
+        await r.show(tester, dark: false);
+        await _startMeasurement(tester, r);
+        await r.feed(tester, 70);
+        await _settle(tester);
+        expect(r.evaluated, isEmpty);
+        expect(r.c.engine.result!.windowStartSeconds, 7.0);
+        expect(r.c.engine.result!.windowEndSeconds, 67.0);
+      },
+    );
 
     testWidgets(
       'Überspringen startet die Messung sofort, Vermerk gespeichert',

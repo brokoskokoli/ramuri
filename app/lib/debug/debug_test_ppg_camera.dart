@@ -111,7 +111,7 @@ class DebugTestPpgCamera implements PpgCamera {
         final weak = scenario == DebugPpgScenario.weakSignal;
         final end = scenario == DebugPpgScenario.disconnected
             ? 3.0
-            : ppgStandardWindow.dataEnd + 0.5;
+            : ppgSearchMaxRecordSeconds + 0.5;
         final gen = _Generator(
           fps,
           weak,
