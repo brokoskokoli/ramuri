@@ -118,7 +118,7 @@ Abweichungen sind Fehler: fehlender oder doppelter Abschnitt, falsche Reihenfolg
 
 ### 4.3 Abschnitte und Spalten (Schema 13)
 
-Quelle der Spalten: `app/packages/adapters/lib/src/storage/schema.drift` (Schemaversion 13, K64). Typen: I = INTEGER, R = REAL, T = TEXT, B = BOOLEAN (0/1), X = BLOB (Hex-Text, 4.2). `?` = darf `null` sein.
+Quelle der Spalten: `app/packages/adapters/lib/src/storage/schema.drift` (Schemaversion 13, K64, K65). Typen: I = INTEGER, R = REAL, T = TEXT, B = BOOLEAN (0/1), X = BLOB (Hex-Text, 4.2). `?` = darf `null` sein.
 
 | # | Abschnitt | Spalten |
 |--:|---|---|

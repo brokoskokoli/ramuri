@@ -50,7 +50,7 @@ Die Morgen aufsteigend nach `measured_at`, dann `morning_id`; innerhalb eines Mo
 
 ## 6. Zeitfenster und Abgleich
 
-Die Gurt-Pakete eines Morgens beginnen mit der Ruhephase und enden mit der Messung; `measured_at` ist der Beginn der 60-s-Aufnahme, also etwa zwei Minuten nach dem ersten Paket. Kamera- und Gurtdaten liegen so im selben Zeitfenster; ein Abgleich der Uhren beider Quellen am Gerät ist Sache der Auswertung außerhalb der App.
+Die Gurt-Pakete eines Morgens beginnen mit der Ruhephase und enden mit der Messung (nach „Noch einmal messen“ lückenlos bis zum Ende der Wiederholung, K65); sie stammen nur vom ersten Quellgerät der Messung, dessen Kennung nicht in der Datei steht; `measured_at` ist der Beginn der 60-s-Aufnahme, also etwa zwei Minuten nach dem ersten Paket. Kamera- und Gurtdaten liegen so im selben Zeitfenster; ein Abgleich der Uhren beider Quellen am Gerät ist Sache der Auswertung außerhalb der App.
 
 ## 7. Datenschutz
 
