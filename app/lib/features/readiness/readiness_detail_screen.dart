@@ -31,10 +31,14 @@ class ReadinessDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final r = snapshot.result;
-    final facts = r.state == ReadinessState.limited
+    // Eingeschränkt: die ersten zwei Tatsachen und die markierten stehen schon
+    // im Text oben (readinessCardText), unten nur die weiteren, nichts doppelt.
+    final tatsachen = r.state == ReadinessState.limited
         ? r.facts.skip(2).toList()
-        : const <ReadinessFact>[];
-    final tatsachen = [...facts, ...r.markedFacts];
+        : r.markedFacts;
+    final hasDeviation = tatsachen.any(
+      (f) => f.kind != ReadinessFactKind.sleepDuration,
+    );
     return Scaffold(
       key: const Key('readiness_detail'),
       appBar: AppBar(title: Text(l.recoveryTitle)),
@@ -156,11 +160,12 @@ class ReadinessDetailScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      l.readinessFactsBasis,
-                      key: const Key('readiness_detail_facts_basis'),
-                      style: _muted(context),
-                    ),
+                    if (hasDeviation)
+                      Text(
+                        l.readinessFactsBasis,
+                        key: const Key('readiness_detail_facts_basis'),
+                        style: _muted(context),
+                      ),
                     for (var i = 0; i < tatsachen.length; i++)
                       Padding(
                         key: Key('readiness_detail_fact_$i'),

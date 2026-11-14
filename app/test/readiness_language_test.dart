@@ -209,26 +209,26 @@ void main() {
     final rhr = fact(ReadinessFactKind.restingHeartRateDeviation, today: 59);
     expect(
       readinessFactText(de, rhr),
-      startsWith('Ruhepuls heute 3/min über deinem Mittel'),
+      startsWith('Ruhepuls heute 3/min über deinem üblichen Wert'),
     );
     expect(
       readinessFactText(en, rhr),
-      startsWith('Resting heart rate today 3/min above your average'),
+      startsWith('Resting heart rate today 3/min above your usual value'),
     );
     expect(
       readinessFactText(
         de,
         fact(ReadinessFactKind.hrvDeviation, today: 52.4, decimals: 1),
       ),
-      startsWith('HRV heute 3,6 ms unter deinem Mittel'),
+      startsWith('HRV heute 3,6 ms unter deinem üblichen Wert'),
     );
-    // Differenz zur Referenz (56) rundet auf 0 (das 7-Tage-Mittel ist 58): „auf deinem Mittel“, keine Scheinpräzision.
+    // Differenz zur Referenz (56) rundet auf 0 (das 7-Tage-Mittel ist 58): „auf deinem üblichen Wert“, keine Scheinpräzision.
     expect(
       readinessFactText(
         de,
         fact(ReadinessFactKind.restingHeartRateDeviation, today: 56),
       ),
-      startsWith('Ruhepuls heute auf deinem Mittel'),
+      startsWith('Ruhepuls heute auf deinem üblichen Wert'),
     );
     // Ersatzwert (PAR-160) wird genannt.
     expect(

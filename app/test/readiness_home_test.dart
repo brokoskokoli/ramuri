@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/measure/morning_trend_screen.dart';
 import 'package:running_app/features/readiness/readiness_service.dart';
 import 'package:running_app/features/readiness/readiness_texts.dart';
 import 'package:running_app/l10n/app_localizations_de.dart';
@@ -550,7 +551,17 @@ void main() {
               text,
               contains(readinessFactText(l, f).replaceAll(RegExp(r'\.$'), '')),
             );
-            expect(text, contains(readinessMarkText(l, f.mark)!));
+            // Nennt der Grund die Sperre (Kamera-HRV), steht bei der HRV-Tatsache
+            // nur die Markierung, sonst mit „geht in keine Zahl ein“ (Befund 3).
+            final named = f.kind == ReadinessFactKind.hrvDeviation;
+            expect(
+              text,
+              contains(
+                named
+                    ? morningMarkText(l, f.mark)!
+                    : readinessMarkText(l, f.mark)!,
+              ),
+            );
           }
         }
       },

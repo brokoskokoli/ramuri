@@ -152,7 +152,7 @@ class _SeriesCard extends StatelessWidget {
     final count = values.where((v) => v != null).length;
     final camera = s.source == ReadinessSource.camera;
     final hrv = s.factor == ReadinessFactor.hrv;
-    final decimals = camera && !hrv ? 1 : 0;
+    final decimals = s.valueDecimals;
     final name = readinessFactorName(
       l,
       hrv ? ReadinessFactorId.hrv : ReadinessFactorId.restingHeartRate,

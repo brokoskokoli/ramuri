@@ -218,6 +218,7 @@ DeviationResult deviationForSeries({
     windowCount: k,
     referenceCount: refN,
     fewMeasurements: few,
+    valueDecimals: rules.valueDecimals,
   );
 
   double t(double v) => rules.logTransform ? math.log(v) : v;

@@ -181,12 +181,22 @@ String? readinessMarkText(AppLocalizations l, MorningRmssdMark mark) {
 
 /// Tatsache mit ihrer Markierung, falls sie eine trägt (PAR-171K: eine
 /// gesperrte Kamera-Tatsache steht nie ohne „geht in keine Zahl ein“).
-String _factWithMark(AppLocalizations l, ReadinessFact f) {
+///
+/// Die Markierung folgt nach einem Doppelpunkt. Nennt der Grund davor die Sperre schon
+/// ([lockNamed]), steht darin nur die Markierung, sonst mit „geht in keine
+/// Zahl ein“, damit der Satz es nicht zweimal sagt.
+String _factWithMark(
+  AppLocalizations l,
+  ReadinessFact f, {
+  required bool lockNamed,
+}) {
   final text = readinessFactText(l, f);
-  final mark = readinessMarkText(l, f.mark);
+  final mark = lockNamed
+      ? morningMarkText(l, f.mark)
+      : readinessMarkText(l, f.mark);
   if (mark == null) return text;
   final bare = text.endsWith('.') ? text.substring(0, text.length - 1) : text;
-  return '$bare – $mark.';
+  return '$bare: $mark.';
 }
 
 /// Der Text unter dem Zustand auf der Karte: Datenlage mit Ursachen (Zahl),
@@ -208,13 +218,20 @@ String readinessCardText(AppLocalizations l, ReadinessResult r) {
       };
       return tail.isEmpty ? level : '$level $tail';
     case ReadinessState.limited:
+      final lockNamed =
+          r.levelReasons.isNotEmpty &&
+          r.levelReasons.first.code == ReadinessLevelReasonCode.hrvCameraLocked;
       return [
         if (r.levelReasons.isNotEmpty)
           readinessReasonText(l, r.levelReasons.first)
         else
           l.readinessLimitedNeed,
         for (final f in [...r.facts.take(2), ...r.markedFacts])
-          _factWithMark(l, f),
+          _factWithMark(
+            l,
+            f,
+            lockNamed: lockNamed && f.kind == ReadinessFactKind.hrvDeviation,
+          ),
       ].join(' ');
     case ReadinessState.insufficient:
       return l.readinessInsufficientText;

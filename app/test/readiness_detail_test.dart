@@ -4,8 +4,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/readiness/readiness_detail_screen.dart';
 import 'package:running_app/features/readiness/readiness_history_screen.dart';
+import 'package:running_app/features/measure/morning_trend_screen.dart';
 import 'package:running_app/features/readiness/readiness_service.dart';
+import 'package:running_app/features/readiness/readiness_texts.dart';
 import 'package:running_app/l10n/app_localizations.dart';
+import 'package:running_app/l10n/app_localizations_de.dart';
+import 'package:running_app/l10n/app_localizations_en.dart';
 import 'package:running_app/ui/ui.dart';
 
 // WP34 Teil D2: Detailseite „Erholung“ in den drei Fällen (Zahl,
@@ -114,6 +118,46 @@ ReadinessSnapshot _limited() => _snap(
     restingHrHealthConnect: _hcRhr(_rhr('app.a', _wave(55))),
     sleepSessions: [for (var i = 0; i < 29; i++) _sleep(i)],
   ),
+);
+
+/// Eingeschränkte Einschätzung mit den Tatsachen [facts] (die ersten zwei
+/// stehen im Text oben, ab der dritten im Abschnitt Tatsachen).
+ReadinessSnapshot _withFacts(List<ReadinessFact> facts) {
+  final b = _limited();
+  final r = b.result;
+  return ReadinessSnapshot(
+    result: ReadinessResult(
+      state: r.state,
+      value: r.value,
+      band: r.band,
+      capped: r.capped,
+      factors: r.factors,
+      missing: r.missing,
+      blockers: r.blockers,
+      facts: facts,
+      markedFacts: r.markedFacts,
+      hasFreshMeasurement: r.hasFreshMeasurement,
+      level: r.level,
+      levelReasons: r.levelReasons,
+      explanation: r.explanation,
+    ),
+    developerMode: false,
+    extended: true,
+    series: const [],
+    release: b.release,
+    today: _today,
+  );
+}
+
+const _sleepFact = ReadinessFact(
+  kind: ReadinessFactKind.sleepDuration,
+  source: ReadinessFactorSource.selfReport,
+  hours: 7,
+);
+const _hrvFact = ReadinessFact(
+  kind: ReadinessFactKind.hrvDeviation,
+  source: ReadinessFactorSource.healthConnect,
+  z: 1,
 );
 
 ReadinessSnapshot _insufficient() =>
@@ -328,6 +372,34 @@ void main() {
         },
       );
 
+      testWidgets('Beschriftung der Tatsachen: nur bei Abweichungs-Tatsachen', (
+        tester,
+      ) async {
+        await open(tester, _withFacts([_sleepFact, _sleepFact, _sleepFact]));
+        expect(_key('readiness_detail_fact_0'), findsOneWidget);
+        expect(_key('readiness_detail_facts_basis'), findsNothing);
+      });
+
+      testWidgets('Beschriftung der Tatsachen: üblicher Wert, Median 28 Tage', (
+        tester,
+      ) async {
+        await open(tester, _withFacts([_sleepFact, _sleepFact, _hrvFact]));
+        final basis = _text('readiness_detail_facts_basis');
+        expect(
+          basis,
+          contains(
+            de
+                ? 'deinen üblichen Wert (Median der 28 Tage davor)'
+                : 'your usual value (median of the 28 days before)',
+          ),
+        );
+        // Die Tatsache sagt dasselbe Wort wie die Beschriftung.
+        expect(
+          find.textContaining(de ? 'über deinem üblichen' : 'above your usual'),
+          findsOneWidget,
+        );
+      });
+
       testWidgets('Unzureichend: fester Satz, alle Faktoren fehlen', (
         tester,
       ) async {
@@ -352,18 +424,22 @@ void main() {
         final s = _marked();
         expect(s.result.markedFacts, isNotEmpty);
         await open(tester, s);
-        expect(_key('readiness_detail_facts'), findsOneWidget);
+        // Die markierte Tatsache steht schon im Text oben (Befund 2): genau
+        // einmal, nicht noch einmal im Abschnitt Tatsachen.
+        final l = de ? AppLocalizationsDe() : AppLocalizationsEn();
+        final f = s.result.markedFacts.first;
+        final bare = readinessFactText(l, f).replaceAll(RegExp(r'\.$'), '');
+        expect(find.textContaining(bare), findsOneWidget);
         expect(
-          _text('readiness_detail_facts_basis'),
-          contains(de ? 'Median der Referenz' : 'median of the reference'),
+          find.textContaining(morningMarkText(l, f.mark)!),
+          findsOneWidget,
         );
+        // Befund 3: die Sperre wird einmal gesagt (der Grund nennt sie schon).
+        final lock = de
+            ? 'geht in keine Zahl ein'
+            : 'does not enter any number';
+        expect(lock.allMatches(_text('readiness_detail_text')), hasLength(1));
         expect(_key('readiness_detail_drivers_basis'), findsNothing);
-        expect(
-          find.textContaining(
-            de ? 'geht in keine Zahl ein' : 'does not enter any number',
-          ),
-          findsWidgets,
-        );
         expect(_key('readiness_detail_value'), findsNothing);
       });
 

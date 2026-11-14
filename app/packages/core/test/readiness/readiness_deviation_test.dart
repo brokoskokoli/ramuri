@@ -115,6 +115,14 @@ void main() {
       expect(hrv({}).reason, NoDeviationReason.noSeries);
     });
 
+    test('Nachkommastellen der Reihe stehen auch ohne z im Ergebnis', () {
+      // Ohne z (fail) trug das Ergebnis die Stellen nicht; der Verlauf zeigt
+      // sie aus dem Ergebnis, nicht nach eigener Regel.
+      expect(rhr({}, camera: true).valueDecimals, 1);
+      expect(rhr({}).valueDecimals, 0);
+      expect(hrv({}, camera: true).valueDecimals, 0);
+    });
+
     test('weniger als 14 Referenzwerte: kein z, 14 genügen', () {
       final r13 = hrv({
         for (var i = 1; i <= 13; i++) back(i): i.isOdd ? 50.0 : 53.0,
