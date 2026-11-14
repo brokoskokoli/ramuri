@@ -97,6 +97,16 @@ void main() {
         eff.explanation.drivers.single.sleepCause,
         ReadinessSleepCause.lowEfficiency,
       );
+      // Genau 7 h (Bezug) bei Effizienz 80 %: die Dauer-Teilskala ist 70, nur
+      // die Effizienz drückt, also nicht „kurze Schlafdauer“.
+      final seven = computeReadiness(
+        inputs(hrvZ: 0, rhrZ: 0, hours: 7, eff: 80, tsb: -5),
+      );
+      expect(seven.explanation.code, ReadinessExplanationCode.onlySleepBelow);
+      expect(
+        seven.explanation.drivers.single.sleepCause,
+        ReadinessSleepCause.lowEfficiency,
+      );
       // Selbstangabe unter 5 h: kurze Dauer.
       final band = computeReadiness(
         inputs(hrvZ: 0, rhrZ: 0, band: SleepBand.under5, tsb: -5),

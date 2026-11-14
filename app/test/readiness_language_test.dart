@@ -101,6 +101,26 @@ void main() {
                 hours: 6,
               ),
             ),
+        for (final k in [
+          ReadinessFactKind.hrvDeviation,
+          ReadinessFactKind.restingHeartRateDeviation,
+        ])
+          for (final today in [50.0, 53.0, 47.0])
+            readinessFactText(
+              l,
+              ReadinessFact(
+                kind: k,
+                source: ReadinessFactorSource.healthConnect,
+                z: 1,
+                values: ReadinessValues(
+                  windowMean: 50,
+                  referenceMedian: 50,
+                  today: today,
+                  todayIsFallback: true,
+                  decimals: 0,
+                ),
+              ),
+            ),
         for (final m in MorningRmssdMark.values) ?readinessMarkText(l, m),
       ];
       expect(texts, isNotEmpty);
@@ -110,4 +130,61 @@ void main() {
       }
     });
   }
+
+  test('Tatsache mit Zahl (PAR-171K), gerundet nach FR-0114', () {
+    ReadinessFact fact(
+      ReadinessFactKind k, {
+      required double today,
+      int decimals = 0,
+      bool fallback = false,
+    }) => ReadinessFact(
+      kind: k,
+      source: ReadinessFactorSource.healthConnect,
+      z: -1,
+      values: ReadinessValues(
+        windowMean: 58,
+        referenceMedian: 56,
+        today: today,
+        todayIsFallback: fallback,
+        decimals: decimals,
+      ),
+    );
+    final de = AppLocalizationsDe(), en = AppLocalizationsEn();
+    final rhr = fact(ReadinessFactKind.restingHeartRateDeviation, today: 61);
+    expect(
+      readinessFactText(de, rhr),
+      startsWith('Ruhepuls heute 3/min über deinem Mittel'),
+    );
+    expect(
+      readinessFactText(en, rhr),
+      startsWith('Resting heart rate today 3/min above your average'),
+    );
+    expect(
+      readinessFactText(
+        de,
+        fact(ReadinessFactKind.hrvDeviation, today: 52.4, decimals: 1),
+      ),
+      startsWith('HRV heute 5,6 ms unter deinem Mittel'),
+    );
+    // Rundet die Differenz auf 0: „auf deinem Mittel“, keine Scheinpräzision.
+    expect(
+      readinessFactText(
+        de,
+        fact(ReadinessFactKind.restingHeartRateDeviation, today: 58),
+      ),
+      startsWith('Ruhepuls heute auf deinem Mittel'),
+    );
+    // Ersatzwert (PAR-160) wird genannt.
+    expect(
+      readinessFactText(
+        de,
+        fact(
+          ReadinessFactKind.restingHeartRateDeviation,
+          today: 61,
+          fallback: true,
+        ),
+      ),
+      contains('Ersatzwert'),
+    );
+  });
 }

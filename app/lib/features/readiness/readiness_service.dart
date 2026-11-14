@@ -13,8 +13,8 @@ class ReadinessSnapshot {
   /// Entwicklermodus an: nur der unauffällige Hinweis, keine Kennzeichnung.
   final bool developerMode;
 
-  /// `true`: erweiterte Stufe (Gesundheitsdaten freigegeben oder Kamerawerte
-  /// zulässig). `false`: Basisstufe, nur der Texthinweis aus WP23 (FR-0105,
+  /// `true`: erweiterte Stufe (Gesundheitsdaten freigegeben oder zulässige
+  /// Kamera-Messungen vorhanden). `false`: Basisstufe, nur der Texthinweis aus WP23 (FR-0105,
   /// FR-0107).
   final bool extended;
 }
@@ -96,7 +96,6 @@ class ReadinessService {
         : const <SleepSession>[];
 
     DeviationResult? hrv;
-    int span = 0;
     if (hrvOn) {
       final samples = await _samples(health, HealthDataKind.hrvRmssd, from, to);
       hrv = healthConnectHrvDeviation(
@@ -105,14 +104,6 @@ class ReadinessService {
         sessions: sessions,
         days: days,
       );
-      final origin = hrv.origin;
-      if (origin != null) {
-        final perDay = hrvDayValues(processing, samples, sessions, days);
-        span = readinessSourceSpanDays([
-          for (var i = 0; i < days.length; i++)
-            if (perDay[i][origin] != null) _dayOf(days[i]),
-        ], today);
-      }
     }
     final rhr = rhrOn
         ? healthConnectRestingHrDeviation(
@@ -129,11 +120,13 @@ class ReadinessService {
 
     var camera = const <DeviationResult>[];
     SleepBand? band;
+    var hasMorning = false;
     if (session is MorningStorage) {
       final all = [
         for (final e in await (session as MorningStorage).morning.list())
           e.value,
       ];
+      hasMorning = all.isNotEmpty;
       camera = cameraDeviations(all, today: today);
       for (final m in morningCountingToday(
         all,
@@ -144,7 +137,14 @@ class ReadinessService {
       }
     }
 
-    final extended = hrvOn || rhrOn || sleepOn || release.cameraValuesAllowed;
+    // Erweiterte Stufe (FR-0105): mit Einwilligung für Health Connect oder mit
+    // vorhandenen, zulässigen Kamera-Messungen; der Entwicklermodus allein
+    // (ohne Messung) lässt es bei der Basisstufe.
+    final extended =
+        hrvOn ||
+        rhrOn ||
+        sleepOn ||
+        (release.cameraValuesAllowed && hasMorning);
     final inputs = ReadinessInputs(
       today: today,
       now: now,
@@ -158,18 +158,12 @@ class ReadinessService {
       tsbPercent: extended ? await _tsb() : null,
       wellbeing: extended ? await _wellbeing() : null,
       processing: processing,
-      hrvSourceSpanDays: span,
     );
     return ReadinessSnapshot(
       result: computeReadiness(inputs),
       developerMode: dev,
       extended: extended,
     );
-  }
-
-  static DateTime _dayOf(DayRange d) {
-    final l = d.start.toLocal();
-    return DateTime.utc(l.year, l.month, l.day);
   }
 
   Future<List<HealthSample>> _samples(

@@ -13,6 +13,12 @@ DeviationResult dev(
   double z, {
   ReadinessSource source = ReadinessSource.healthConnect,
   MorningSeriesKey? key,
+  int span = 0,
+  double? mean,
+  double? ref,
+  double? todayValue,
+  bool fallback = false,
+  int decimals = 0,
 }) => DeviationResult(
   factor: f,
   source: source,
@@ -21,6 +27,12 @@ DeviationResult dev(
   z: z,
   windowCount: 7,
   referenceCount: 28,
+  sourceSpanDays: span,
+  windowMean: mean,
+  referenceMedian: ref,
+  todayValue: todayValue,
+  todayIsFallback: fallback,
+  valueDecimals: decimals,
 );
 
 DeviationResult noZ(ReadinessFactor f, NoDeviationReason r) => DeviationResult(
@@ -78,7 +90,10 @@ ReadinessInputs inputs({
       : dev(ReadinessFactor.restingHeartRate, rhrZ),
   cameraDeviations: camera,
   release:
-      release ?? const CameraRelease(developerMode: false, rmssdOptIn: false),
+      release ??
+      // Die Selbstangabe des Schlafs stammt aus der Morgenmessung und gilt nur
+      // bei freigeschalteter Kamera (K62 Punkt 1): hier der Entwicklermodus.
+      CameraRelease(developerMode: band != null, rmssdOptIn: false),
   sleepSessions: hours == null ? const [] : [night(hours, eff: eff)],
   sleepBand: band,
   tsbPercent: tsb,
@@ -563,26 +578,49 @@ void main() {
     });
     test('E1: ohne Entwicklermodus, nicht geprüft, ohne Uhr nie eine Zahl', () {
       for (final optIn in [false, true]) {
-        final r = calc(
-          camIn(
-            CameraRelease(
-              developerMode: false,
-              rmssdOptIn: optIn,
-              state: st(ValidationState.notChecked, ValidationState.notChecked),
-            ),
+        final rel = CameraRelease(
+          developerMode: false,
+          rmssdOptIn: optIn,
+          state: st(ValidationState.notChecked, ValidationState.notChecked),
+        );
+        // Ohne Uhr und ohne Schlaf: gespeicherte Kamerawerte und die
+        // Selbstangabe wirken nicht (K62 Punkt 1) – „Unzureichende Daten“,
+        // keine frische Messung, kein Stufengrund aus der Kamerareihe.
+        final r = calc(camIn(rel));
+        expect(r.state, ReadinessState.insufficient);
+        expect(r.value, isNull);
+        expect(r.hasFreshMeasurement, isFalse);
+        expect(r.blockers, [ReadinessFactorId.hrv, ReadinessFactorId.sleep]);
+        expect(r.levelReasons.map((x) => x.code), [
+          ReadinessLevelReasonCode.hrvNoSeries,
+          ReadinessLevelReasonCode.sleepMissing,
+        ]);
+        expect(r.facts, isEmpty);
+        expect(r.markedFacts, isEmpty);
+        expect(r.factors, isEmpty);
+        // Mit Schlaf aus der Uhr: eingeschränkt, aber ohne Kamera.
+        final withSleep = calc(
+          ReadinessInputs(
+            today: h.todayKey,
+            now: now,
+            cameraDeviations: cams,
+            release: rel,
+            sleepSessions: [night(7)],
           ),
         );
-        expect(r.state, ReadinessState.limited);
-        expect(r.value, isNull);
-        expect(r.blockers, [ReadinessFactorId.hrv]);
-        // Vor der Freischaltung ohne Entwicklermodus gibt es keine
-        // Kamerawerte, auch keine markierte Tatsache (K62 Punkt 1).
-        expect(r.markedFacts, isEmpty);
-        expect(
-          r.factors.map((f) => f.id),
-          isNot(contains(ReadinessFactorId.hrv)),
-        );
+        expect(withSleep.state, ReadinessState.limited);
+        expect(withSleep.value, isNull);
+        expect(withSleep.markedFacts, isEmpty);
+        expect(withSleep.levelReasons.map((x) => x.code), [
+          ReadinessLevelReasonCode.hrvNoSeries,
+        ]);
       }
+      // Dieselben Eingaben mit Entwicklermodus: nicht „unzureichend“.
+      final dev = calc(
+        camIn(const CameraRelease(developerMode: true, rmssdOptIn: false)),
+      );
+      expect(dev.state, isNot(ReadinessState.insufficient));
+      expect(dev.hasFreshMeasurement, isTrue);
     });
     test(
       'Stand bestanden ohne Opt-in: keine Zahl, markiert nicht eingeschaltet',
@@ -830,9 +868,158 @@ void main() {
         final a = run(-8), b = run(8);
         expect(a.value, isNull);
         expect(b.value, isNull);
-        expect(a.state, ReadinessState.limited);
+        // Vor der Freischaltung ohne Entwicklermodus gibt es keine Kamerawerte,
+        // auch keine Selbstangabe (K62 Punkt 1).
+        expect(
+          a.state,
+          rel.cameraValuesAllowed
+              ? ReadinessState.limited
+              : ReadinessState.insufficient,
+        );
         expect(a.factors.length, b.factors.length);
       }
+    });
+  });
+
+  group('Werte, andere Messung, Quelldauer (Nachbesserung Runde 2)', () {
+    const devRelease = CameraRelease(developerMode: true, rmssdOptIn: false);
+    final lying = const MorningSeriesKey(RestingPosture.lying, 'H', 'M1');
+
+    test('Werte und Ersatzwert-Markierung stehen in Tatsache und Faktor', () {
+      final r = calc(
+        ReadinessInputs(
+          today: today,
+          now: now,
+          restingHrHealthConnect: dev(
+            ReadinessFactor.restingHeartRate,
+            -1,
+            mean: 58,
+            ref: 56,
+            todayValue: 61,
+            fallback: true,
+          ),
+        ),
+      );
+      expect(r.state, ReadinessState.limited);
+      final v = r.facts.single.values!;
+      expect(v.today, 61);
+      expect(v.windowMean, 58);
+      expect(v.referenceMedian, 56);
+      expect(v.todayMinusMean, 3);
+      expect(v.todayIsFallback, isTrue);
+      expect(v.decimals, 0);
+      expect(r.factors.single.values!.todayIsFallback, isTrue);
+      // Keine Werte in toString (Gesundheitsdaten nicht in Logs).
+      expect('${r.facts.single} $v ${r.factors.single}', isNot(contains('61')));
+    });
+
+    test('Kamera-Ruhepuls: eine Nachkommastelle in der Differenz', () {
+      final r = calc(
+        ReadinessInputs(
+          today: today,
+          now: now,
+          release: devRelease,
+          cameraDeviations: [
+            dev(
+              ReadinessFactor.restingHeartRate,
+              -1,
+              source: ReadinessSource.camera,
+              key: lying,
+              mean: 58.3,
+              ref: 56.0,
+              todayValue: 61.0,
+              decimals: 1,
+            ),
+          ],
+        ),
+      );
+      final v = r.facts.single.values!;
+      expect(v.decimals, 1);
+      expect(v.todayMinusMean, closeTo(2.7, 1e-9));
+    });
+
+    test('die andere Messung erscheint nur als Tatsache, nie in der Zahl', () {
+      final hc = dev(
+        ReadinessFactor.hrv,
+        0.5,
+        mean: 50,
+        ref: 50,
+        todayValue: 50,
+      );
+      final cam = dev(
+        ReadinessFactor.hrv,
+        -2,
+        source: ReadinessSource.camera,
+        key: lying,
+        mean: 40,
+        ref: 50,
+        todayValue: 40,
+      );
+      ReadinessResult run(Iterable<DeviationResult> c) => calc(
+        ReadinessInputs(
+          today: today,
+          now: now,
+          release: devRelease,
+          hrvHealthConnect: hc,
+          cameraDeviations: c,
+          sleepBand: SleepBand.from7to8,
+        ),
+      );
+      final both = run([cam]), alone = run([]);
+      expect(both.state, ReadinessState.number);
+      expect(both.value, alone.value);
+      expect(both.factors.length, alone.factors.length);
+      expect(
+        both.factors.singleWhere((f) => f.id == ReadinessFactorId.hrv).source,
+        ReadinessFactorSource.healthConnect,
+      );
+      final other = both.facts.where(
+        (f) => f.source == ReadinessFactorSource.camera,
+      );
+      expect(other, hasLength(1));
+      expect(other.single.kind, ReadinessFactKind.hrvDeviation);
+      expect(other.single.values!.today, 40);
+      expect(
+        alone.facts.where((f) => f.source == ReadinessFactorSource.camera),
+        isEmpty,
+      );
+    });
+
+    test('Quelldauer kommt aus der gewählten Reihe (Kamera statt Uhr)', () {
+      ReadinessResult run(int span) => calc(
+        ReadinessInputs(
+          today: today,
+          now: now,
+          release: devRelease,
+          // Die Uhr hat kein `z`; die Kamerareihe zählt mit ihrer Dauer.
+          hrvHealthConnect: noZ(
+            ReadinessFactor.hrv,
+            NoDeviationReason.noValueToday,
+          ),
+          restingHrHealthConnect: dev(ReadinessFactor.restingHeartRate, 0),
+          cameraDeviations: [
+            dev(
+              ReadinessFactor.hrv,
+              0,
+              source: ReadinessSource.camera,
+              key: lying,
+              span: span,
+            ),
+          ],
+          sleepSessions: [night(7, eff: 95)],
+          tsbPercent: -5,
+        ),
+      );
+      final short = run(10);
+      expect(short.level, ReadinessLevel.sufficient);
+      final reason = short.levelReasons.singleWhere(
+        (x) => x.code == ReadinessLevelReasonCode.sourceTooShort,
+      );
+      expect(reason.count, 10);
+      expect(
+        run(28).levelReasons.map((x) => x.code),
+        isNot(contains(ReadinessLevelReasonCode.sourceTooShort)),
+      );
     });
   });
 }

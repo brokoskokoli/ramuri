@@ -186,7 +186,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Letzter Tag des Belastungsverlaufs (WP19) für den Faktor Belastung.
+  /// Letzter Tag des Belastungsverlaufs (WP19) für den Faktor Belastung, rein
+  /// lesend: Heute übernimmt oder bietet keinen Faktor an.
   Future<LoadDay?> _loadToday() async {
     final report = await TrainingLoadService(
       session: widget.session,
@@ -196,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         clock: widget.clock,
       ),
       recalculation: widget.recalculation.service,
-    ).load();
+    ).loadReadOnly();
     final days = report.series.days;
     return days.isEmpty ? null : days.last;
   }

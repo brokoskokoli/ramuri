@@ -118,28 +118,52 @@ String readinessDriverText(AppLocalizations l, ReadinessDriver d) {
       : l.readinessDriverQualified(base, notes.join(', '));
 }
 
-/// Eine Tatsache als Satz (eingeschränkte Einschätzung, Detailseite).
+/// Betrag mit den Nachkommastellen der Reihe (FR-0114), Dezimalkomma in de.
+String _amount(AppLocalizations l, double v, int decimals) {
+  final t = v.abs().toStringAsFixed(decimals);
+  return l.localeName.startsWith('de') ? t.replaceAll('.', ',') : t;
+}
+
+/// Eine Tatsache als Satz (eingeschränkte Einschätzung, Detailseite). Mit Werten
+/// nennt sie die Differenz von heute zum Mittel der letzten 7 Tage („Ruhepuls
+/// heute 3/min über deinem Mittel“, PAR-171K), ohne Werte nur die Richtung aus
+/// dem Vorzeichen von `z`. Ein Ersatzwert (PAR-160) wird gesagt.
 String readinessFactText(AppLocalizations l, ReadinessFact f) {
   final source = readinessSourceName(l, f.source);
   final z = f.z ?? 0;
-  return switch (f.kind) {
+  final v = f.values;
+  final diff = v?.todayMinusMean ?? 0;
+  final amount = v == null ? '' : _amount(l, diff, v.decimals);
+  final byValue = v != null && diff != 0;
+  final text = switch (f.kind) {
     ReadinessFactKind.sleepDuration => l.readinessFactSleep(
       (f.hours ?? 0).round(),
     ),
     ReadinessFactKind.hrvDeviation =>
-      z > 0
+      byValue
+          ? (diff > 0
+                ? l.readinessFactHrvAboveBy(amount, source)
+                : l.readinessFactHrvBelowBy(amount, source))
+          : v != null || z == 0
+          ? l.readinessFactHrvLevel(source)
+          : z > 0
           ? l.readinessFactHrvAbove(source)
-          : z < 0
-          ? l.readinessFactHrvBelow(source)
-          : l.readinessFactHrvLevel(source),
+          : l.readinessFactHrvBelow(source),
     // Ruhepuls: z ist „günstig positiv“, also positiv = unter dem Mittel.
     ReadinessFactKind.restingHeartRateDeviation =>
-      z > 0
+      byValue
+          ? (diff > 0
+                ? l.readinessFactRhrAboveBy(amount, source)
+                : l.readinessFactRhrBelowBy(amount, source))
+          : v != null || z == 0
+          ? l.readinessFactRhrLevel(source)
+          : z > 0
           ? l.readinessFactRhrBelow(source)
-          : z < 0
-          ? l.readinessFactRhrAbove(source)
-          : l.readinessFactRhrLevel(source),
+          : l.readinessFactRhrAbove(source),
   };
+  return v != null && v.todayIsFallback
+      ? '$text ${l.readinessFactFallback}'
+      : text;
 }
 
 /// Markierung einer gesperrten Kamerawerts-Tatsache samt „geht in keine Zahl

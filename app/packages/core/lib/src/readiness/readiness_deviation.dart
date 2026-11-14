@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../morning/morning_logic.dart' show MorningSeriesKey;
+import 'readiness_level.dart' show readinessSourceSpanDays;
 import 'readiness_parameters.dart';
 
 /// Gesundheitsgröße eines Faktors mit Abweichung.
@@ -95,6 +96,8 @@ class DeviationResult {
     this.referenceMedian,
     this.todayValue,
     this.todayIsFallback = false,
+    this.sourceSpanDays = 0,
+    this.valueDecimals = 0,
   }) : assert((z == null) != (reason == null));
 
   final ReadinessFactor factor;
@@ -136,6 +139,14 @@ class DeviationResult {
   /// PAR-160: der Wert von heute ist der Ersatzwert aus den 60 min nach der
   /// Hauptschlafphase; der Tag wird markiert.
   final bool todayIsFallback;
+
+  /// PAR-150: Tage vom ersten gültigen Tageswert dieser Reihe bis heute
+  /// ([readinessSourceSpanDays] über alle übergebenen Tage der Reihe); nur bei
+  /// `z` gesetzt, sonst 0 (unbekannt, erfüllt „28 Tage“ nicht).
+  final int sourceSpanDays;
+
+  /// Nachkommastellen der Werte ([DeviationRules.valueDecimals]).
+  final int valueDecimals;
 
   bool get hasZ => z != null;
 
@@ -263,6 +274,8 @@ DeviationResult deviationForSeries({
     referenceMedian: shown(_median(reference)),
     todayValue: shown(t(byDay[today]!)),
     todayIsFallback: todayIsFallback,
+    sourceSpanDays: readinessSourceSpanDays(byDay.keys, today),
+    valueDecimals: rules.valueDecimals,
     factor: factor,
     source: source,
     origin: origin,

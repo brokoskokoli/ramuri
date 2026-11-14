@@ -481,6 +481,29 @@ void main() {
     });
 
     test(
+      'loadReadOnly schreibt nichts und bietet nichts an (WP34 Heute)',
+      () async {
+        await seedFactorRuns(2.0);
+        final before = await w.dump();
+        final r = await service.loadReadOnly();
+        // Der Faktor wäre berechenbar, ist aber nie übernommen worden.
+        expect(r.factor.value, isNull);
+        expect(await stored(), isNull);
+        expect(await w.dump(), before);
+
+        await service.load();
+        await seedFactorRuns(3.0, firstAgo: 30, n: 20);
+        final mid = await w.dump();
+        final ro = await service.loadReadOnly();
+        expect(ro.factor.value, closeTo(2.0, 1e-9));
+        expect(ro.factor.offered, isNull);
+        expect(await recalc.pendingOffer(), isNull);
+        expect((await stored())!.value, closeTo(2.0, 1e-9));
+        expect(await w.dump(), mid);
+      },
+    );
+
+    test(
       'Zu wenige Läufe oder Spreizung: kein Faktor, Grund genannt',
       () async {
         await seedFactorRuns(2.0, n: 9);

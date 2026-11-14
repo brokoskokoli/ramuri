@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../morning/morning_marks.dart' show MorningRmssdMark;
 import 'readiness_deviation.dart' show ReadinessSource;
 import 'readiness_explanation.dart' show ReadinessExplanation;
@@ -53,6 +55,7 @@ class ReadinessFactorValue {
     this.estimated = false,
     this.fewMeasurements = false,
     this.referenceCount = 0,
+    this.values,
   });
 
   final ReadinessFactorId id;
@@ -78,8 +81,48 @@ class ReadinessFactorValue {
   /// Reihe (Schlaf, Belastung, Befinden).
   final int referenceCount;
 
+  /// Mittel, Referenz und Wert von heute bei HRV und Ruhepuls, sonst `null`.
+  final ReadinessValues? values;
+
   @override
   String toString() => 'ReadinessFactorValue($id, $source)';
+}
+
+/// Werte einer Reihe für Tatsachentexte (FR-0114: gerundet nach [decimals],
+/// ms bzw. bpm), aus dem [DeviationResult]. [toString] nennt sie nicht.
+class ReadinessValues {
+  const ReadinessValues({
+    required this.windowMean,
+    required this.referenceMedian,
+    required this.today,
+    required this.todayIsFallback,
+    required this.decimals,
+  });
+
+  /// Mittel der letzten 7 Tage.
+  final double windowMean;
+
+  /// Median der Referenz der 28 Tage davor.
+  final double referenceMedian;
+
+  /// Wert von heute.
+  final double today;
+
+  /// PAR-160: Ersatzwert aus den 60 min nach der Hauptschlafphase; der Tag
+  /// wird markiert.
+  final bool todayIsFallback;
+
+  /// Nachkommastellen (0, beim Kamera-Ruhepuls 1).
+  final int decimals;
+
+  /// Wert von heute minus Mittel, auf [decimals] gerundet.
+  double get todayMinusMean {
+    final f = math.pow(10, decimals).toDouble();
+    return ((today - windowMean) * f).round() / f;
+  }
+
+  @override
+  String toString() => 'ReadinessValues()';
 }
 
 enum ReadinessFactKind {
@@ -98,6 +141,7 @@ class ReadinessFact {
     this.mark = MorningRmssdMark.none,
     this.estimated = false,
     this.fewMeasurements = false,
+    this.values,
   });
 
   final ReadinessFactKind kind;
@@ -113,6 +157,9 @@ class ReadinessFact {
   final MorningRmssdMark mark;
   final bool estimated;
   final bool fewMeasurements;
+
+  /// Mittel, Referenz und Wert von heute (HRV, Ruhepuls), sonst `null`.
+  final ReadinessValues? values;
 
   @override
   String toString() => 'ReadinessFact($kind, $source)';

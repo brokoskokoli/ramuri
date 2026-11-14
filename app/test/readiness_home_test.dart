@@ -130,6 +130,38 @@ LoadDay _loadDay(double tsbPercent) => LoadDay(
   unratedUnits: 0,
 );
 
+/// Zwölf geeignete Läufe (TRIMP und RPE): der Belastungsdienst würde daraus
+/// beim Rechnen einen persönlichen Faktor übernehmen (FR-0097).
+Future<void> _seedFactorRuns(StorageSession s) async {
+  for (var i = 0; i < 12; i++) {
+    final rpe = const [3, 7, 5][i % 3];
+    final end = _now.subtract(Duration(days: 60 - i, hours: -8));
+    final run = await s.runs.create(
+      startedAt: end.subtract(const Duration(minutes: 30)),
+    );
+    await s.runs.setState(run.id, RunState.finished, endedAt: end);
+    await s.values.createOriginals(ValueOwner.run(run.id), [
+      ComputedValue(
+        key: trimpRunValueKey,
+        value: 2.0 * 30 * rpe,
+        unit: pointsUnit,
+        computedAt: _now,
+        measurementCount: 1,
+        sources: const [],
+        method: 'edwards-trimp',
+        methodVersion: 1,
+        parameterVersion: 1,
+        quality: ValueQuality.good,
+      ),
+    ]);
+    await s.subjective.save(
+      run.id,
+      RunSubjective(rpe: rpe),
+      srpe: SrpeLoad.compute(duration: const Duration(minutes: 30), rpe: rpe),
+    );
+  }
+}
+
 ReadinessService _service(Device d, StorageSession s) =>
     ReadinessService(session: s, clock: d.clock);
 
@@ -365,6 +397,65 @@ void main() {
     });
   }
 
+  group('Heute schreibt nichts, Basisstufe (Nachbesserung Runde 2)', () {
+    testWidgets('Öffnen von Heute übernimmt keinen Belastungsfaktor', (
+      tester,
+    ) async {
+      final d = Device();
+      final s = await _preopen(d);
+      await _seedHealth(s);
+      await _grant(s, _allKinds);
+      await _seedFactorRuns(s);
+      await _start(tester, d);
+      expect(_key('readiness_card'), findsOneWidget);
+      // Der Belastungsdienst würde den Faktor beim Rechnen übernehmen und
+      // speichern; Heute liest nur.
+      expect(await LoadSettings.factor(s.settings), isNull);
+      expect(await LoadSettings.pendingFactor(s.settings), isNull);
+    });
+
+    testWidgets(
+      'Entwicklermodus ohne Messung und ohne Einwilligung: Basisstufe',
+      (tester) async {
+        final d = Device();
+        final s = await _preopen(d);
+        await SettingsDeveloperModeStore(s.settings, d.clock).set(true);
+        final snap = await _service(d, s).load();
+        expect(snap.developerMode, isTrue);
+        expect(snap.extended, isFalse);
+        await _start(tester, d);
+        expect(_key('readiness_card'), findsNothing);
+      },
+    );
+
+    testWidgets('Entwicklermodus mit gespeicherter Messung: erweiterte Stufe', (
+      tester,
+    ) async {
+      final d = Device();
+      final s = await _preopen(d);
+      await SettingsDeveloperModeStore(s.settings, d.clock).set(true);
+      await (s as MorningStorage).morning.add(
+        MorningMeasurement(
+          measuredAt: _now.subtract(const Duration(hours: 5)),
+          utcOffset: Duration.zero,
+          posture: RestingPosture.lying,
+          deviceManufacturer: 'H',
+          deviceModel: 'M1',
+          method: 'ppg',
+          methodVersion: 1,
+          quality: PpgQuality.good,
+          restingHrBpm: 58,
+          rmssdMs: 42,
+          timingNoiseMs: 10,
+          cameraIntervalsMs: const [],
+          beforeValidation: false,
+          outsideWindow: false,
+        ),
+      );
+      expect((await _service(d, s).load()).extended, isTrue);
+    });
+  });
+
   group('Warnsignal und Entwicklermodus', () {
     testWidgets('Warnsignal steht vor der Einschätzung', (tester) async {
       final d = Device();
@@ -416,14 +507,13 @@ void main() {
       expect(_key('readiness_value'), findsOneWidget);
     });
 
-    testWidgets('Entwicklermodus ohne Gesundheitsdaten: Karte ohne Zahl', (
+    testWidgets('Entwicklermodus ohne Gesundheitsdaten: keine Zahl', (
       tester,
     ) async {
       final d = Device();
       final s = await _preopen(d);
       await SettingsDeveloperModeStore(s.settings, d.clock).set(true);
       await _start(tester, d);
-      expect(_key('readiness_card'), findsOneWidget);
       expect(_key('readiness_value'), findsNothing);
       expect(find.text('Entwicklermodus aktiv'), findsOneWidget);
     });

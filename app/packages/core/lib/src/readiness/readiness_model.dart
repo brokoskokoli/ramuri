@@ -49,7 +49,6 @@ class ReadinessInputs {
     this.tsbPercent,
     this.wellbeing,
     this.processing = const HealthProcessing(),
-    this.hrvSourceSpanDays = 0,
   });
 
   /// Ortstag als UTC-Datum.
@@ -82,11 +81,6 @@ class ReadinessInputs {
 
   final ReadinessWellbeing? wellbeing;
   final HealthProcessing processing;
-
-  /// Tage vom ersten gültigen Wert der gewählten HRV-Reihe bis heute
-  /// (PAR-150, [readinessSourceSpanDays]); 0 heißt unbekannt und erfüllt
-  /// „gleiche Datenquelle seit 28 Tagen“ nicht.
-  final int hrvSourceSpanDays;
 }
 
 ReadinessBand readinessBandOf(int value) {
@@ -110,7 +104,12 @@ bool _fresh(DeviationResult? r) =>
 /// (FR-0109 bis FR-0111, FR-0116, PAR-163 bis PAR-171K, OQ-0006). Rein und
 /// deterministisch.
 ReadinessResult computeReadiness(ReadinessInputs input) {
-  final cams = input.cameraDeviations.toList();
+  // K62 Punkt 1: Vor der Freischaltung der Morgenmessung (ohne Entwicklermodus)
+  // gibt es keine Kamerawerte, weder Faktor noch Tatsache noch frische Messung
+  // noch Stufengrund.
+  final cams = input.release.cameraValuesAllowed
+      ? input.cameraDeviations.toList()
+      : <DeviationResult>[];
   final hrv = chooseFactor(
     factor: ReadinessFactor.hrv,
     healthConnect: input.hrvHealthConnect,
@@ -129,6 +128,8 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
   final factors = <ReadinessFactorValue>[];
   final facts = <ReadinessFact>[];
   final marked = <ReadinessFact>[];
+  // Freigegebene Messungen, die nicht zählen (Uhr hat Vorrang): nur Tatsache.
+  final otherFacts = <ReadinessFact>[];
 
   void deviationFactor(
     FactorEvaluation e,
@@ -148,6 +149,7 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
           mark: mark,
           fewMeasurements: c.fewMeasurements,
           referenceCount: c.referenceCount,
+          values: _valuesOf(c),
         ),
       );
       facts.add(
@@ -157,30 +159,27 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
           z: c.z,
           mark: mark,
           fewMeasurements: c.fewMeasurements,
+          values: _valuesOf(c),
         ),
       );
     }
     for (final o in e.others) {
-      // Nur gesperrte Kamerareihen mit `z` werden als markierte Tatsache
-      // gezeigt; sie gehen nie in Faktor oder Zahl. Vor der Freischaltung der
-      // Morgenmessung ohne Entwicklermodus gibt es gar keine Kamerawerte
-      // (K62 Punkt 1), auch keine Tatsache.
-      if (input.release.cameraValuesAllowed &&
-          o.source == ReadinessSource.camera &&
-          o.hasZ &&
-          !input.release.isReleased(o)) {
-        marked.add(
-          ReadinessFact(
-            kind: kind,
-            source: ReadinessFactorSource.camera,
-            z: o.z,
-            mark: input.release
-                .forFactor(o.factor, o.cameraSeries!.posture)
-                .mark,
-            fewMeasurements: o.fewMeasurements,
-          ),
-        );
-      }
+      // Die andere Messung (K-1): erscheint nur als Tatsache, nie in Faktor
+      // oder Zahl. Gesperrte Kamerareihen mit `z` als markierte Tatsache, eine
+      // freigegebene Kamerareihe neben der gewählten Uhr-Reihe als Tatsache
+      // mit ihrer Markierung. Reihen ohne `z` haben keinen Wert zu nennen.
+      // (Kamerareihen gibt es hier nur bei [CameraRelease.cameraValuesAllowed].)
+      if (o.source != ReadinessSource.camera || !o.hasZ) continue;
+      final released = input.release.isReleased(o);
+      final fact = ReadinessFact(
+        kind: kind,
+        source: ReadinessFactorSource.camera,
+        z: o.z,
+        mark: _markOf(input.release, o),
+        fewMeasurements: o.fewMeasurements,
+        values: _valuesOf(o),
+      );
+      (released ? otherFacts : marked).add(fact);
     }
   }
 
@@ -226,7 +225,9 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
         estimated: s.isEstimate,
       ),
     );
-  } else if (input.sleepBand != null) {
+  } else if (input.sleepBand != null && input.release.cameraValuesAllowed) {
+    // Die Selbstangabe stammt aus der Morgenmessung (PAR-164K); vor der
+    // Freischaltung ohne Entwicklermodus zählt sie nicht (K62 Punkt 1).
     final hours = sleepBandHours(input.sleepBand!);
     sleepHoursForExplanation = hours;
     factors.add(
@@ -296,7 +297,7 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
     final lv = readinessLevelOf(
       factors: factors,
       hrv: hrv,
-      hrvSourceSpanDays: input.hrvSourceSpanDays,
+      hrvSourceSpanDays: hrv.chosen?.sourceSpanDays ?? 0,
       hrvCameraLocked: marked.any(
         (m) => m.kind == ReadinessFactKind.hrvDeviation,
       ),
@@ -310,7 +311,7 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
       factors: List.unmodifiable(factors),
       missing: List.unmodifiable(missing),
       blockers: List.unmodifiable(blockers),
-      facts: List.unmodifiable(facts),
+      facts: List.unmodifiable([...facts, ...otherFacts]),
       markedFacts: List.unmodifiable(marked),
       hasFreshMeasurement: fresh,
       // Eine Zahl hat immer eine Stufe (mindestens vorläufig); ohne Zahl gilt
@@ -347,6 +348,18 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
     return build(ReadinessState.limited);
   }
   return build(ReadinessState.insufficient);
+}
+
+ReadinessValues? _valuesOf(DeviationResult r) {
+  final m = r.windowMean, c = r.referenceMedian, t = r.todayValue;
+  if (m == null || c == null || t == null) return null;
+  return ReadinessValues(
+    windowMean: m,
+    referenceMedian: c,
+    today: t,
+    todayIsFallback: r.todayIsFallback,
+    decimals: r.valueDecimals,
+  );
 }
 
 MorningRmssdMark _markOf(CameraRelease release, DeviationResult r) {

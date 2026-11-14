@@ -10,7 +10,9 @@ DeviationResult dev(
   ReadinessSource source = ReadinessSource.healthConnect,
   MorningSeriesKey? key,
   bool few = false,
+  int span = 0,
 }) => DeviationResult(
+  sourceSpanDays: span,
   factor: f,
   source: source,
   origin: source == ReadinessSource.healthConnect ? 'app.a' : null,
@@ -78,17 +80,18 @@ ReadinessInputs inputs({
   now: now,
   hrvHealthConnect: hrvZ == null
       ? null
-      : dev(ReadinessFactor.hrv, hrvZ, ref: hrvRef),
+      : dev(ReadinessFactor.hrv, hrvZ, ref: hrvRef, span: span),
   restingHrHealthConnect: rhrZ == null
       ? null
       : dev(ReadinessFactor.restingHeartRate, rhrZ),
   sleepSessions: hours == null ? const [] : [night(hours, eff: eff)],
   sleepBand: band,
+  // Selbstangabe gilt nur bei freigeschalteter Kamera (K62 Punkt 1).
+  release: CameraRelease(developerMode: band != null, rmssdOptIn: false),
   tsbPercent: tsb,
   wellbeing: wellbeing == null
       ? null
       : ReadinessWellbeing(level: wellbeing, day: today),
-  hrvSourceSpanDays: span,
 );
 
 /// Alle Bedingungen für „gut“ (PAR-150) ohne weitere Abweichungen.
