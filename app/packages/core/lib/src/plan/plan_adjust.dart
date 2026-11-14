@@ -257,9 +257,12 @@ DateTime pauseBaseWeek(DateTime lastTrainingDay) =>
 /// höher als der bisherige Plan dieser Woche und nie über dem Regler; die
 /// Zählung nach PAR-194 beginnt neu. In der Geh-Lauf-Abfolge, in der
 /// Reduktion vor dem Termin: [PauseRestartKind.none]. Ein Anker in dieser
-/// oder einer späteren Woche (aus Rückmeldung oder Wochenbewertung) hindert
-/// den Neustart nicht: Er ersetzt diese Anpassung (Anker dieser Montag). Den
-/// zweiten Neustart derselben Pause verhindert der Aufrufer mit seinem Merker.
+/// oder einer späteren Woche aus einer Anpassung ([anchorFromAdjustment],
+/// siehe [planAnchorFromAdjustment]: Rückmeldung, Wochenbewertung) hindert den
+/// Neustart nicht: Er ersetzt diese Anpassung (Anker dieser Montag). Gilt der
+/// Anker dieser Woche aus Anlage oder Ziel (neuer Plan), ist es
+/// [PauseRestartKind.none]. Den zweiten Neustart derselben Pause verhindert
+/// der Aufrufer mit seinem Merker.
 PauseRestart planPauseRestart({
   required TrainingGoal goal,
   required PlanInputs inputs,
@@ -269,6 +272,7 @@ PauseRestart planPauseRestart({
   PlanParameters parameters = const PlanParameters(),
   bool provisional = false,
   bool replacesProvisional = false,
+  bool anchorFromAdjustment = false,
 }) {
   final p = parameters;
   final t = planDay(today);
@@ -283,11 +287,17 @@ PauseRestart planPauseRestart({
   }
   final monday = _monday(t);
   // Die Pause hat Vorrang (PAR-202): Der Neustart gilt auch, wenn eine
-  // Rückmeldung oder Wochenbewertung den Anker auf diese oder eine spätere
-  // Woche gelegt hat; er ersetzt deren Anpassung (Anker = dieser Montag).
-  // Vor einem zweiten Neustart derselben Pause schützt der Merker des Aufrufers
-  // ([planPauseRestartKey]). Bei einem Anker in einer späteren Woche liefert
-  // die Zählung ab diesem Montag die Minuten der Woche, die den Neustart deckeln.
+  // Rückmeldung oder Wochenbewertung ([anchorFromAdjustment]) den Anker auf
+  // diese oder eine spätere Woche gelegt hat; er ersetzt deren Anpassung
+  // (Anker = dieser Montag). Gilt der Anker dieser Woche aus der Anlage oder
+  // dem Ziel (neuer Plan), gilt der Neustart schon: [PauseRestartKind.none].
+  // Vor einem zweiten Neustart derselben Pause schützt der Merker des
+  // Aufrufers ([planPauseRestartKey]). Bei einem Anker in einer späteren Woche
+  // liefert die Zählung ab diesem Montag die Minuten der Woche, die den
+  // Neustart deckeln.
+  if (!anchorFromAdjustment && !inputs.anchor.isBefore(monday)) {
+    return const PauseRestart(PauseRestartKind.none);
+  }
   final from = inputs.anchor.isAfter(monday)
       ? inputs.copyWith(anchor: monday)
       : inputs;

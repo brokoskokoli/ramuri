@@ -549,6 +549,7 @@ Future<_Result> _simulate(_Scenario sc) async {
           today: today,
           lastTrainingDay: lastTraining,
           baseWeekMinutes: weekMinutes(base, doneByDay).toDouble(),
+          anchorFromAdjustment: planAnchorFromAdjustment(h),
         );
         count('pause_${restart.kind.name}');
         if (Platform.environment.containsKey('SIM_DEBUG')) {
@@ -838,6 +839,7 @@ void main() {
         today: today,
         lastTrainingDay: today.subtract(const Duration(days: 14)),
         baseWeekMinutes: 100,
+        anchorFromAdjustment: true,
       );
       expect(r.kind, PauseRestartKind.long);
     });

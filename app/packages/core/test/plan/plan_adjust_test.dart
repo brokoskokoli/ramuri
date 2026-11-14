@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:core/core.dart';
@@ -413,25 +414,78 @@ void main() {
       },
     );
 
-    test('Anker dieser Woche (Rückmeldung, Wochenbewertung): Neustart', () {
+    PauseRestart runAdj(
+      int gap, {
+      required PlanInputs inputs,
+      bool adjustment = false,
+    }) => planPauseRestart(
+      goal: g,
+      inputs: inputs,
+      today: today,
+      lastTrainingDay: today.subtract(Duration(days: gap)),
+      baseWeekMinutes: 100,
+      anchorFromAdjustment: adjustment,
+    );
+
+    test('gilt der Neustart schon in dieser Woche (Anlage, Ziel, Neustart), '
+        'nichts mehr; aus einer Anpassung dagegen Neustart', () {
       final s = run(10).inputs!;
-      expect(s.anchor, today);
-      final r = run(10, inputs: s);
+      expect(runAdj(10, inputs: s).kind, PauseRestartKind.none);
+      final r = runAdj(10, inputs: s, adjustment: true);
       expect(r.kind, PauseRestartKind.short);
       expect(r.inputs!.anchor, today);
     });
 
-    test('Anker in einer späteren Woche: Neustart mit Anker dieser Montag, '
-        'die Anpassung entfällt (PAR-202)', () {
+    test('Anker in einer späteren Woche aus einer Anpassung: Neustart mit '
+        'Anker dieser Montag, die Anpassung entfällt (PAR-202)', () {
       final next = today.add(const Duration(days: 7));
       final later = i.copyWith(anchor: next, startWeeklyMinutes: 300);
-      final r = run(10, inputs: later);
+      final r = runAdj(10, inputs: later, adjustment: true);
       expect(r.kind, PauseRestartKind.short);
       expect(r.inputs!.anchor, today);
       expect(r.inputs!.weekCountOffset, 0);
       // gedeckelt vom Regler, nicht von der angehobenen Rückmeldung
       expect(r.inputs!.startWeeklyMinutes, lessThan(300));
-      expect(run(60, inputs: later).kind, PauseRestartKind.newStart);
+      expect(
+        runAdj(60, inputs: later, adjustment: true).kind,
+        PauseRestartKind.newStart,
+      );
+      expect(runAdj(10, inputs: later).kind, PauseRestartKind.none);
+    });
+
+    test('planAnchorFromAdjustment: ein Pausenneustart mit dem Anker der '
+        'Wochenbewertung davor trägt den Anker selbst', () {
+      PlanVersionRecord rec(int id, PlanTrigger t, DateTime anchor) =>
+          PlanVersionRecord(
+            id: id,
+            goalId: 1,
+            createdAt: today,
+            validFrom: today,
+            trigger: t,
+            reason: t.name,
+            version: const PlanVersion(),
+            inputsJson: jsonEncode(i.copyWith(anchor: anchor).toJson()),
+            summaryJson: '{}',
+          );
+      final create = rec(1, PlanTrigger.create, _mon(0));
+      final weekly = rec(2, PlanTrigger.weekly, _mon(1));
+      expect(planAnchorFromAdjustment([create, weekly]), isTrue);
+      expect(
+        planAnchorFromAdjustment([
+          create,
+          weekly,
+          rec(3, PlanTrigger.pause, _mon(1)),
+        ]),
+        isFalse,
+      );
+      expect(
+        planAnchorFromAdjustment([
+          create,
+          weekly,
+          rec(3, PlanTrigger.run, _mon(1)),
+        ]),
+        isTrue,
+      );
     });
 
     test('Basiswoche: letzte vollständige Kalenderwoche vor Pausenbeginn', () {

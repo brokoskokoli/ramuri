@@ -1031,6 +1031,7 @@ class PlanController extends ChangeNotifier {
       lastTrainingDay: q.lastTrainingDay,
       baseWeekMinutes: q.baseWeekMinutes,
       parameters: parameters,
+      anchorFromAdjustment: planAnchorFromAdjustment(history),
       provisional: longPause && !chosen,
       replacesProvisional: chosen && wasProvisional && mark.restarted,
     );
@@ -1090,6 +1091,7 @@ class PlanController extends ChangeNotifier {
             lastTrainingDay: q.lastTrainingDay,
             baseWeekMinutes: q.baseWeekMinutes,
             parameters: parameters,
+            anchorFromAdjustment: planAnchorFromAdjustment(history),
             replacesProvisional: await _pauseProvisional(q),
           ).inputs !=
           null;
