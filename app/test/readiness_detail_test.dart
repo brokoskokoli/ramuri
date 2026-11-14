@@ -308,6 +308,23 @@ void main() {
           );
           expect(_key('readiness_detail_reason_0'), findsOneWidget);
           expect(_key('readiness_detail_series_link'), findsOneWidget);
+          // Die ersten zwei Tatsachen stehen schon im Text oben; unten nur
+          // die weiteren, nichts doppelt.
+          expect(s.result.facts, isNotEmpty);
+          final further = s.result.facts.length > 2
+              ? s.result.facts.length - 2
+              : 0;
+          expect(
+            find.byWidgetPredicate(
+              (w) =>
+                  w.key is ValueKey<String> &&
+                  (w.key! as ValueKey<String>).value.startsWith(
+                    'readiness_detail_fact_',
+                  ) &&
+                  !(w.key! as ValueKey<String>).value.endsWith('basis'),
+            ),
+            findsNWidgets(further),
+          );
         },
       );
 
