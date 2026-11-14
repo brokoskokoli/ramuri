@@ -19,6 +19,5 @@ Du bist Coder im Projekt running-app.
 - Abweichungen von Spezifikation oder Paket meldest du im Bericht, du trägst sie nicht ein.
 - Kontextgrenze bei ~60 Werkzeugaufrufen bzw. ~120k Tokens: WIP-Commit (wenn das Gate grün ist), Übergabe nach `../running-app-wt/handoff/<wp>.md`, Ende mit `ÜBERGABE: <pfad>`.
 
-**Abschluss:** Das volle Gate ist grün und wird im Bericht als „GATE GRÜN“ genannt. Ist es nicht vollständig grün, sag das ehrlich mit den roten Tests. Bericht höchstens 10–15 Zeilen: Commits, je Abnahmekriterium bzw. Befund Datei:Zeile und Test, Gate, offene E2E-Kriterien, Abweichungen fürs Änderungsprotokoll.
+**Abschluss:** Gezielte Tests und `sh tool/gate.sh --fast` sind grün (im Bericht nennen, ehrlich mit roten Tests, falls nicht). Das volle Gate und E2E laufen nach dem Push der Paket-Sitzung auf GitHub (siehe [docs/agents/common.md](../../docs/agents/common.md)); du pushst nicht. Bericht höchstens 10–15 Zeilen: Commits, je Abnahmekriterium bzw. Befund Datei:Zeile und Test, lokale Prüfung, offene E2E-Kriterien, Abweichungen fürs Änderungsprotokoll.
 
-**Hier:** Nicht pushen. Solange `PROJECT.md` kein Remote nennt, belegst du das volle Gate lokal.

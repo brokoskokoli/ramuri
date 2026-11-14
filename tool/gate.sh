@@ -108,6 +108,7 @@ step "privat" sh tool/check_private.sh
 # WP30: Versionsrechnung des Release-Builds und Tag-Regel des Pre-Push-Hooks (bash explizit, läuft auch unter Linux/dash).
 step "Versionsrechnung Selbsttest" bash tool/build_signed_test.sh
 step "Pre-Push-Tagregel Selbsttest" bash tool/hooks/pre-push_test.sh
+step "ci_e2e Selbsttest (Attrappen)" sh tool/ci_e2e_test.sh
 
 # --- Flutter und Dart: je Paket (app und app/packages/*) ---
 is_flutter() { grep -Eq '^[[:space:]]+sdk:[[:space:]]*flutter[[:space:]]*$' "$1/pubspec.yaml"; }

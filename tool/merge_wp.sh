@@ -7,10 +7,10 @@
 # MERGE_WP_BASE (Basisbranch, Standard main), MERGE_WP_CI (Befehl für die CI-Läufe, siehe unten),
 # MERGE_WP_CLEANUP (Aufräum-Befehl, Standard tool/cleanup_wt.sh).
 #
-# CI-Beleg: Der neueste Lauf des Workflows gate mit headSha == Branch-SHA und headBranch == Branch muss
+# CI-Beleg: Der neueste Lauf der Workflows gate und e2e (je einzeln) mit headSha == Branch-SHA und headBranch == Branch muss
 # completed/success sein (cancelled, in_progress, fehlend, anderer Branch → Abbruch). MERGE_WP_CI ist ein
-# Befehl (Umgebung: BRANCH, SHA), der je Lauf eine Zeile `<createdAt>\t<headSha>\t<headBranch>\t<status>\t<conclusion>`
-# ausgibt; Standard ist `gh run list --workflow gate`.
+# Befehl (Umgebung: BRANCH, SHA, WORKFLOW), der je Lauf eine Zeile `<createdAt>\t<headSha>\t<headBranch>\t<status>\t<conclusion>`
+# ausgibt; Standard ist `gh run list --workflow "$WORKFLOW"`.
 set -u
 NAME=${MERGE_WP_NAME:-brokoskokoli}
 EMAIL=${MERGE_WP_EMAIL:-16724498+brokoskokoli@users.noreply.github.com}
@@ -18,7 +18,7 @@ BASE=${MERGE_WP_BASE:-main}
 GATE=${MERGE_WP_GATE:-sh tool/gate.sh --changed}
 CI_CMD=${MERGE_WP_CI:-}
 if [ -z "$CI_CMD" ]; then
-  CI_CMD='gh run list --workflow gate --branch "$BRANCH" --limit 50 --json createdAt,headSha,headBranch,status,conclusion --jq ".[] | [.createdAt,.headSha,.headBranch,.status,.conclusion] | @tsv"'
+  CI_CMD='gh run list --workflow "$WORKFLOW" --branch "$BRANCH" --limit 50 --json createdAt,headSha,headBranch,status,conclusion --jq ".[] | [.createdAt,.headSha,.headBranch,.status,.conclusion] | @tsv"'
 fi
 CLEANUP=${MERGE_WP_CLEANUP:-tool/cleanup_wt.sh}
 TRAILER='Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
@@ -50,11 +50,11 @@ range="$BASE..$branch"
 
 # CI-Entscheidung aus den Laufzeilen auf stdin: 0 nur, wenn der neueste Lauf auf (sha, branch) completed/success ist.
 ci_green() {
-  local want_sha=$1 want_branch=$2 line
+  local want_sha=$1 want_branch=$2 wf=$3 line
   line=$(awk -F'\t' -v s="$want_sha" -v b="$want_branch" '$2==s && $3==b' | sort -r | head -n 1)
-  [ -n "$line" ] || { echo "kein CI-Lauf (Workflow gate) für $want_branch auf $want_sha" >&2; return 1; }
+  [ -n "$line" ] || { echo "kein CI-Lauf (Workflow $wf) für $want_branch auf $want_sha" >&2; return 1; }
   [ "$(printf '%s' "$line" | cut -f4)/$(printf '%s' "$line" | cut -f5)" = completed/success ] \
-    || { echo "neuester CI-Lauf für $want_sha ist nicht grün: $(printf '%s' "$line" | cut -f4-5 | tr '\t' '/')" >&2; return 1; }
+    || { echo "neuester CI-Lauf ($wf) für $want_sha ist nicht grün: $(printf '%s' "$line" | cut -f4-5 | tr '\t' '/')" >&2; return 1; }
 }
 
 reset_back() { git merge --abort 2>/dev/null; git reset -q --hard "$orig"; }
@@ -73,12 +73,14 @@ fi
 
 # 0. CI-Beleg auf genau dem Branch-SHA.
 sha=$(git rev-parse "refs/heads/$branch")
-ci_out=$(BRANCH=$branch SHA=$sha sh -c "$CI_CMD") || die "CI-Abfrage fehlgeschlagen ($CI_CMD)"
-printf '%s\n' "$ci_out" | ci_green "$sha" "$branch" || die "Merge ohne grünen CI-Lauf abgelehnt (Branch pushen, gh run watch)"
+for wf in gate e2e; do
+  ci_out=$(WORKFLOW=$wf BRANCH=$branch SHA=$sha sh -c "$CI_CMD") || die "CI-Abfrage fehlgeschlagen ($wf: $CI_CMD)"
+  printf '%s\n' "$ci_out" | ci_green "$sha" "$branch" "$wf" || die "Merge ohne grünen CI-Lauf ($wf) abgelehnt (Branch pushen, gh run watch)"
+done
 
 wt=$(git worktree list --porcelain | awk -v b="refs/heads/$branch" '/^worktree /{p=$2} $1=="branch" && $2==b{print p}')
 if [ $dry -eq 1 ]; then
-  echo "merge_wp (dry-run): Prüfungen ok (CI grün auf ${sha:0:8}); würde $branch ($(git rev-list --count "$range") Commits) $([ $squash -eq 1 ] && echo squash-)mergen,"
+  echo "merge_wp (dry-run): Prüfungen ok (CI gate und e2e grün auf ${sha:0:8}); würde $branch ($(git rev-list --count "$range") Commits) $([ $squash -eq 1 ] && echo squash-)mergen,"
   echo "  Gate '$GATE' laufen lassen, danach ${wt:+Worktree $wt und }Branch löschen$([ $keep -eq 1 ] && echo ' (--keep: entfällt)')."
   exit 0
 fi
