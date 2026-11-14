@@ -558,46 +558,73 @@ void main() {
       expect(r.c.belt!.packets, hasLength(1)); // nur im Speicher, nie in der DB
     });
 
-    testWidgets('Noch einmal: Gurt-RR durchgehend bis Ende der Wiederholung', (
+    testWidgets(
+      'Noch einmal: jede Messung trägt nur die Gurt-RR ihrer Aufnahme',
+      (tester) async {
+        final r = await _Rig.make(withBelt: true, developerMode: true);
+        r.next = _bad;
+        await r.show(tester, dark: false);
+        await _tap(tester, 'morning_start');
+        r.readings.add(_rr(r.clock.now(), 900)); // Ruhephase
+        r.clock.advance(const Duration(seconds: 121));
+        r.c.engine.tick();
+        await tester.pump();
+        await _settle(tester);
+        r._t = 0;
+        await r.feed(tester, 67);
+        expect(r.c.outcome, MorningOutcome.unusable);
+        r.clock.advance(const Duration(seconds: 10));
+        r.readings.add(_rr(r.clock.now(), 910)); // Lücke nach dem Ende
+        await _settle(tester);
+        r.next = _good;
+        await _tap(tester, 'morning_again');
+        r.clock.advance(const Duration(seconds: 10));
+        r.readings.add(_rr(r.clock.now(), 920)); // Wiederholung
+        await _settle(tester);
+        r._t = 0;
+        await r.feed(tester, 67);
+        expect(r.c.outcome, MorningOutcome.good);
+        // Die unbrauchbare erste Messung ist im Entwicklermodus mitgespeichert
+        // (K68); jede trägt nur die RR ihrer eigenen Aufnahme (erste: Ruhephase
+        // bis Ende, zweite: ab „Noch einmal“ bis Ende, ohne Lücke davor).
+        final all = (await tester.runAsync(() => r.store.list()))!;
+        expect(all.map((e) => e.value.quality), [
+          PpgQuality.unusable,
+          PpgQuality.good,
+        ]);
+        final first = (await tester.runAsync(
+          () => r.store.beltPackets(all.first.id),
+        ))!;
+        expect([for (final p in first) p.value.intervals.single], [900]);
+        final packets = (await tester.runAsync(
+          () => r.store.beltPackets(all.last.id),
+        ))!;
+        expect([for (final p in packets) p.value.intervals.single], [920]);
+      },
+    );
+
+    testWidgets('Ruhe übersprungen: Gurt-RR erst ab Beginn der Messung', (
       tester,
     ) async {
       final r = await _Rig.make(withBelt: true, developerMode: true);
-      r.next = _bad;
       await r.show(tester, dark: false);
       await _tap(tester, 'morning_start');
-      r.readings.add(_rr(r.clock.now(), 900)); // Ruhephase
-      r.clock.advance(const Duration(seconds: 121));
+      r.readings.add(_rr(r.clock.now(), 900)); // Ruhephase, übersprungen
+      r.clock.advance(const Duration(seconds: 30));
       r.c.engine.tick();
       await tester.pump();
-      await _settle(tester);
-      r._t = 0;
-      await r.feed(tester, 67);
-      expect(r.c.outcome, MorningOutcome.unusable);
-      r.clock.advance(const Duration(seconds: 10));
-      r.readings.add(_rr(r.clock.now(), 910)); // Lücke nach dem Ende
-      await _settle(tester);
-      r.next = _good;
-      await _tap(tester, 'morning_again');
-      r.clock.advance(const Duration(seconds: 10));
-      r.readings.add(_rr(r.clock.now(), 920)); // Wiederholung
+      await _tap(tester, 'morning_skip_rest');
+      r.clock.advance(const Duration(seconds: 1));
+      r.readings.add(_rr(r.clock.now(), 950)); // Messung
       await _settle(tester);
       r._t = 0;
       await r.feed(tester, 67);
       expect(r.c.outcome, MorningOutcome.good);
-      // Die unbrauchbare erste Messung ist im Entwicklermodus mitgespeichert
-      // (K68); die gültige zweite trägt die RR der ganzen Strecke.
       final all = (await tester.runAsync(() => r.store.list()))!;
-      expect(all.map((e) => e.value.quality), [
-        PpgQuality.unusable,
-        PpgQuality.good,
-      ]);
       final packets = (await tester.runAsync(
-        () => r.store.beltPackets(all.last.id),
+        () => r.store.beltPackets(all.single.id),
       ))!;
-      expect(
-        [for (final p in packets) p.value.intervals.single],
-        [900, 910, 920],
-      );
+      expect([for (final p in packets) p.value.intervals.single], [950]);
     });
 
     testWidgets('gültige Messung: Recorder gestoppt, Pakete bleiben', (

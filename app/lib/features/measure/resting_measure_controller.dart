@@ -281,6 +281,9 @@ class RestingMeasureController extends ChangeNotifier {
   bool _restSkipped = false;
   Duration? _restSkippedAfter;
 
+  /// Die Ruhephase wurde übersprungen (gilt ab dem Start der Messung).
+  bool get restSkipped => _restSkippedAfter != null;
+
   RestingMeasureResult? _result;
   RestingStopCause? _stopCause;
   int? _previousRestingBpm;

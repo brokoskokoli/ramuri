@@ -15,16 +15,16 @@ import 'resting_measure_controller.dart';
 class MorningMeasureHooks {
   const MorningMeasureHooks({
     this.onRestStarted,
-    this.onMeasurementResumed,
+    this.onMeasurementStarted,
     this.onMeasurementEnded,
   });
 
   /// Die Ruhephase beginnt (einmal je Ablauf, nicht bei „Noch einmal“).
   final void Function(DateTime at)? onRestStarted;
 
-  /// „Noch einmal messen“ nach verworfener Messung beginnt (ohne neue
-  /// Ruhephase).
-  final void Function()? onMeasurementResumed;
+  /// Eine neue Aufnahme beginnt: „Noch einmal messen“ nach verworfener
+  /// Messung (ohne neue Ruhephase) oder die Messung nach übersprungener Ruhe.
+  final void Function(DateTime at)? onMeasurementStarted;
 
   /// Die Aufnahme der Messung ist zu Ende (auch bei „Noch einmal“ erneut).
   final void Function(DateTime at)? onMeasurementEnded;
@@ -127,6 +127,9 @@ class MorningMeasureController extends ChangeNotifier {
 
   late RestingMeasurePhase _lastPhase;
   DateTime? _measureStartedAt;
+
+  /// Die Ruhe wurde übersprungen; die Messung beginnt dann neu (Gurt-Fenster).
+  bool _restSkipping = false;
   bool _disposed = false;
   int _generation = 0;
 
@@ -189,6 +192,11 @@ class MorningMeasureController extends ChangeNotifier {
         case RestingMeasurePhase.measuring:
           if (prev == RestingMeasurePhase.starting) {
             _measureStartedAt = clock.now().toUtc();
+            if (_restSkipping) {
+              _restSkipping = false;
+              hooks.onMeasurementStarted?.call(_measureStartedAt!);
+              belt?.hooks.onMeasurementStarted?.call(_measureStartedAt!);
+            }
           }
         case RestingMeasurePhase.result:
           final at = clock.now().toUtc();
@@ -199,9 +207,12 @@ class MorningMeasureController extends ChangeNotifier {
           _storedId = null;
           unawaited(_handleResult());
         case RestingMeasurePhase.starting:
+          _restSkipping =
+              prev == RestingMeasurePhase.resting && engine.restSkipped;
           if (prev == RestingMeasurePhase.result) {
-            hooks.onMeasurementResumed?.call();
-            belt?.hooks.onMeasurementResumed?.call();
+            final at = clock.now().toUtc();
+            hooks.onMeasurementStarted?.call(at);
+            belt?.hooks.onMeasurementStarted?.call(at);
           }
           _outcome = MorningOutcome.pending;
           _stored = null;

@@ -58,7 +58,7 @@ class MorningBelt {
   /// Die Stellen im Ablauf der Messung (C2).
   MorningMeasureHooks get hooks => MorningMeasureHooks(
     onRestStarted: (at) => _recorder.onRestStarted(at),
-    onMeasurementResumed: _recorder.onMeasurementResumed,
+    onMeasurementStarted: _recorder.onMeasurementStarted,
     onMeasurementEnded: _recorder.onMeasurementEnded,
   );
 
