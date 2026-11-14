@@ -81,7 +81,8 @@ void main() {
       await device.start(tester, const Locale('de'));
       await device.skipSetup(tester);
       final afterStart = port.statusCalls;
-      expect(afterStart, greaterThan(0));
+      // Genau 2 Statusabfragen: Import beim Start und Zustand von „Heute“ (je eine).
+      expect(afterStart, 2);
       await tapKey(tester, 'home_plan');
       expect(port.statusCalls, afterStart);
       await tapKey(tester, 'home_today');
@@ -105,7 +106,8 @@ void main() {
       await device.start(tester, const Locale('de'));
       await device.skipSetup(tester);
       final afterStart = port.reads;
-      expect(afterStart, greaterThan(0));
+      // Genau ein Lesezugriff: ein Importlauf, eine erteilte Art, eine Seite.
+      expect(afterStart, 1);
 
       // Weg von „Heute“ und zurück, innerhalb der Sperre: kein Lesen.
       await tapKey(tester, 'home_plan');

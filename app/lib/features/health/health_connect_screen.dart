@@ -172,7 +172,7 @@ Future<void> askOpenHealthQuestions(
   }
 }
 
-/// Seite „Gesundheitsdaten aus Health Connect“ (WP32 Teil C2): Einwilligung je Datenart, „Weiter zu Health Connect“,
+/// Seite „Health Connect“ (WP32 Teil C2): Einwilligung je Datenart, „Weiter zu Health Connect“,
 /// letzter Abruf, Widerruf mit Löschfrage; ohne Health Connect der Zustand „nicht verfügbar“ (FR-0022, SEC-0007).
 class HealthConnectScreen extends StatefulWidget {
   const HealthConnectScreen({super.key, required this.controller});

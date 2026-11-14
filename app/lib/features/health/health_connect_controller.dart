@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
-/// Stand und Aktionen der Seite „Gesundheitsdaten aus Health Connect“ (WP32 Teil C2). Eine Instanz je Sitzung; sie
+/// Stand und Aktionen der Seite „Health Connect“ (WP32 Teil C2). Eine Instanz je Sitzung; sie
 /// besitzt den [ConsentService] und den [HealthImportService], damit Widerrufe sofort für den Import gelten (SEC-0001).
 /// Keine Werte in Fehlern oder Logs.
 class HealthConnectController extends ChangeNotifier {

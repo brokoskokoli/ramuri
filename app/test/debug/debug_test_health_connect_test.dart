@@ -106,4 +106,29 @@ void main() {
       }
     },
   );
+
+  // Der HRV-Wert 20 min nach dem Ende der Nacht (06:30 UTC) liegt vor 06:50 UTC in der Zukunft
+  // und wird nicht gelesen: kein Fehler, aber 11 statt 12 gespeicherte Werte (E2E-Befund WP32).
+  for (final (at, expected) in [
+    (DateTime.utc(2026, 11, 14, 5, 21), 11),
+    (DateTime.utc(2026, 11, 14, 9), 12),
+  ]) {
+    test('HRV-Werte der Debug-Quelle um $at: $expected', () async {
+      final hc = DebugTestHealthConnect(now: () => at);
+      await hc.requestPermissions(HealthDataKind.values.toSet());
+      final clock = FakeClock(at);
+      final consents = ConsentService(_Consents(), clock);
+      await consents.grant(healthSourceKey(HealthDataKind.hrvRmssd));
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final store = DriftHealthStore(db);
+      await HealthImportService(
+        port: hc,
+        store: store,
+        consents: consents,
+        clock: clock,
+      ).run(HealthImportTrigger.manual);
+      expect(await store.count(HealthDataKind.hrvRmssd), expected);
+    });
+  }
 }

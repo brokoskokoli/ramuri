@@ -205,6 +205,13 @@ void main() {
   testWidgets('2 Quelle sichtbar im Verlauf und auf Fortschritt', (t) async {
     await _start(t, d);
     await tapKey(t, 'home_history');
+    await pumpFor(t, const Duration(seconds: 1));
+    // Läufe früherer Gruppen der Sammlung stehen davor: erst zur Einheit scrollen (Liste baut lazy).
+    await t.scrollUntilVisible(
+      find.byKey(const Key('health_exercise_debug-exercise-0')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await waitFor(
       t,
       () => has('health_exercise_debug-exercise-0'),

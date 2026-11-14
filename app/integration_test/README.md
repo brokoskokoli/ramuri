@@ -16,6 +16,19 @@ Läuft auf GitHub im Workflow `e2e` (je API 31 und 36, zwei Shards) über `tool/
 
 `all_test.dart` bindet die Sammlung ein; eine neue `e2e_*_test.dart`, die weder dort noch als Stufe in `tool/ci_e2e.sh` steht, macht den Lauf rot (Wächter). Die Mehrphasen-Stufen brauchen ein Prozessende zwischen den Phasen und laufen darum einzeln.
 
+## Lokale Mehrphasentests (Health Connect, nicht in der CI)
+
+Nur der E2E-Agent mit Emulator, je Phase ein Lauf `flutter test integration_test/<datei> -d <serial> --dart-define=...`; die Wächter in `tool/ci_e2e.sh` nehmen beide Dateien aus. Marker im Testlog: `SHOT <name>` (Bildschirmfoto), `HOSTACT <aktion>` (Host-Schritt, der Test wartet 6 s). Außer der ersten Phase immer mit `--no-uninstall`, damit Daten und Schlüssel bleiben. Paket `io.github.brokoskokoli.ramuri`.
+
+- `e2e_health_real_test.dart`: echter Adapter, echter Berechtigungsdialog von Health Connect (API 34+). `--dart-define=HC_MODE=cancel` (Dialog abbrechen) oder `HC_MODE=grant` (Dialog bestätigen); der Host beantwortet den Systemdialog per `adb shell input` nach dem Marker `SHOT`.
+- `e2e_health_revoke_test.dart`: Löschfrage beim Öffnen von „Heute“ nach Entzug des Rechts (SEC-0007), mit `--dart-define=HC_PHASE=...`:
+  1. `HC_PHASE=1`: Debug-Quelle, Schlaf einwilligen und importieren (erste Phase, mit Neuinstallation ist ok).
+  2. Host: `adb shell pm grant io.github.brokoskokoli.ramuri android.permission.health.READ_SLEEP`, dann `HC_PHASE=2 --no-uninstall` (echter Adapter, Recht erteilt: keine Frage).
+  3. Host: `adb shell pm revoke io.github.brokoskokoli.ramuri android.permission.health.READ_SLEEP` (beendet den App-Prozess, daher eigene Phase), dann `HC_PHASE=3 --no-uninstall HC_ANSWER=delete|keep` (Frage erscheint; Abbrechen lässt sie offen; Löschen entfernt die Daten, Behalten lässt sie und beendet die Einwilligung).
+  4. `HC_PHASE=B`: Debug-Quelle, Zähler je Art im Speicher (Ruhepuls, HRV, VO2max, Schlaf; nicht eingewilligte Art 0). Die Zahl hängt von der UTC-Tageszeit ab (siehe unten).
+
+Die Debug-Quelle liefert je Nacht einen HRV-Wert 20 min nach dem Ende der Schlafphase (06:30 UTC); vor 06:50 UTC liegt der der letzten Nacht in der Zukunft und wird nicht gelesen: HRV 11 statt 12 gespeicherter Werte.
+
 ## Bleibt lokal oder offen, und warum
 
 - System-Dateidialog (SAF, Teilen): Systemoberfläche, im Emulator nicht stabil bedienbar; das Archiv wird ohne Dialog über die echte Export-/Restore-Fabrik getestet.

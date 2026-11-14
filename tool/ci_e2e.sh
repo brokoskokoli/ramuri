@@ -31,7 +31,8 @@ a() { adb -s "$serial" "$@"; }
 # Jede Testdatei muss laufen: in all_test.dart eingebunden oder als Stufe unten.
 for f in app/integration_test/e2e_*_test.dart; do
   b=$(basename "$f")
-  case "$b" in e2e_storage_test.dart | e2e_recover_test.dart) continue ;; esac
+  # Mehrphasen- und Host-Tests laufen nur lokal (app/integration_test/README.md), nicht in der CI.
+  case "$b" in e2e_storage_test.dart | e2e_recover_test.dart | e2e_health_real_test.dart | e2e_health_revoke_test.dart) continue ;; esac
   grep -q "^import '$b'" app/integration_test/all_test.dart || { echo "FEHLT in all_test.dart: $b"; exit 1; }
 done
 
