@@ -345,8 +345,8 @@ void runSynth(int seed, int reps) {
   }
 }
 
-void _noiseCorrection(Rng rng, int reps, double c) {
-  say('Faktor c = ${f2(c)} (Median wahr/geschätzt aus S5, an denselben Synthesedaten bestimmt, also optimistisch). '
+void _noiseCorrection(Rng rng, int reps, double cf) {
+  say('Faktor c = ${f2(cf)} (Median wahr/geschätzt aus S5, an denselben Synthesedaten bestimmt, also optimistisch). '
       'Werte: Mittel ± SD des ln-Fehlers (gleiche Paare), in Klammern Aufnahmen, bei denen die Korrektur ≤ 0 ergäbe.\n');
   say('| RMSSD wahr | Störung | n | ln-Fehler ohne Korrektur | k=6, σ App | k=6, σ = c × App | k=6, σ 2 Kanäle |');
   say('| ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
@@ -376,7 +376,7 @@ void _noiseCorrection(Rng rng, int reps, double c) {
 
         l0.add(c.lnRatio);
         l1.add(corr(6, b.noiseMs));
-        l2.add(corr(6, c * b.noiseMs));
+        l2.add(corr(6, cf * b.noiseMs));
         l3.add(corr(6, sIbi / math.sqrt2));
       }
       String s(List<double> l) => '${f3(mean(l))} ± ${f3(sd(l))} (${l.where((x) => !x.isFinite).length} nicht def.)';
