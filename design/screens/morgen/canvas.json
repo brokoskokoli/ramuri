@@ -1,25 +1,26 @@
 {"v":3,"createdOnFiles":{"v":1,"at":"2026-11-14T10:00:00Z"},"title":"ramuri Morgenmessung","launch":{"view":"canvas"},"pages":[],
 "boards":{
 "Heute.dc.html":{"x":0,"y":0,"w":390,"h":844,"title":"0 Heute mit Einstieg · hell","is_interactive":true},
-"Main.dc.html":{"x":470,"y":0,"w":390,"h":900,"title":"1 Morgen-Einstieg · hell","is_interactive":true},
-"Ruhephase.dc.html":{"x":940,"y":0,"w":390,"h":844,"title":"2 Ruhephase 2 min · hell","is_interactive":true},
-"Messung.dc.html":{"x":1410,"y":0,"w":390,"h":844,"title":"3 Messung 60 s · hell","is_interactive":true},
+"Main.dc.html":{"x":470,"y":0,"w":390,"h":980,"title":"1 Morgen-Einstieg · hell","is_interactive":true},
+"Ruhephase.dc.html":{"x":940,"y":0,"w":390,"h":844,"title":"2 Ruhephase 2 min, überspringbar · hell","is_interactive":true},
+"Messung.dc.html":{"x":1410,"y":0,"w":390,"h":844,"title":"3 Messung bis 2 min · hell","is_interactive":true},
 "Ergebnis.dc.html":{"x":1880,"y":0,"w":390,"h":900,"title":"4 Ergebnis und Schlaf · hell","is_interactive":true},
-"Trend.dc.html":{"x":2350,"y":0,"w":390,"h":1040,"title":"5 Morgenwerte · hell","is_interactive":true},
+"Trend.dc.html":{"x":2350,"y":0,"w":390,"h":1300,"title":"5 Morgenwerte, eine Reihe · hell","is_interactive":true},
 "Ueber.dc.html":{"x":2820,"y":0,"w":390,"h":1040,"title":"6 Über und Entwickler · hell","is_interactive":true},
 "Heute-dunkel.dc.html":{"x":0,"y":1500,"w":390,"h":844,"title":"0 Heute mit Einstieg · dunkel","is_interactive":true},
-"Main-dunkel.dc.html":{"x":470,"y":1500,"w":390,"h":900,"title":"1 Morgen-Einstieg · dunkel","is_interactive":true},
-"Ruhephase-dunkel.dc.html":{"x":940,"y":1500,"w":390,"h":844,"title":"2 Ruhephase 2 min · dunkel","is_interactive":true},
-"Messung-dunkel.dc.html":{"x":1410,"y":1500,"w":390,"h":844,"title":"3 Messung 60 s · dunkel","is_interactive":true},
+"Main-dunkel.dc.html":{"x":470,"y":1500,"w":390,"h":980,"title":"1 Morgen-Einstieg · dunkel","is_interactive":true},
+"Ruhephase-dunkel.dc.html":{"x":940,"y":1500,"w":390,"h":844,"title":"2 Ruhephase 2 min, überspringbar · dunkel","is_interactive":true},
+"Messung-dunkel.dc.html":{"x":1410,"y":1500,"w":390,"h":844,"title":"3 Messung bis 2 min · dunkel","is_interactive":true},
 "Ergebnis-dunkel.dc.html":{"x":1880,"y":1500,"w":390,"h":900,"title":"4 Ergebnis und Schlaf · dunkel","is_interactive":true},
-"Trend-dunkel.dc.html":{"x":2350,"y":1500,"w":390,"h":1040,"title":"5 Morgenwerte · dunkel","is_interactive":true},
+"Trend-dunkel.dc.html":{"x":2350,"y":1500,"w":390,"h":1300,"title":"5 Morgenwerte, eine Reihe · dunkel","is_interactive":true},
 "Ueber-dunkel.dc.html":{"x":2820,"y":1500,"w":390,"h":1040,"title":"6 Über und Entwickler · dunkel","is_interactive":true}
 },
 "order":["Heute.dc.html","Main.dc.html","Ruhephase.dc.html","Messung.dc.html","Ergebnis.dc.html","Trend.dc.html","Ueber.dc.html","Heute-dunkel.dc.html","Main-dunkel.dc.html","Ruhephase-dunkel.dc.html","Messung-dunkel.dc.html","Ergebnis-dunkel.dc.html","Trend-dunkel.dc.html","Ueber-dunkel.dc.html"],
 "notes":{
 "hell":{"x":0,"y":-280,"text":"Morgenmessung und Entwicklermodus · hell","kind":"title1","maxW":3210},
 "dunkel":{"x":0,"y":1220,"text":"Morgenmessung und Entwicklermodus · dunkel","kind":"title1","maxW":3210},
-"sichtbar":{"x":3290,"y":0,"w":360,"size":"m","fill":"teal","text":"Sichtbarkeit (K62 F1): Die Karte auf Heute, der Eintrag im Profil und die Morgenwerte erscheinen vor bestandener Validierung nur im Entwicklermodus. Ohne ihn fehlen sie ganz, auch keine Erinnerung. Nach „bestanden“ für lnRMSSD liegend sieht sie jeder; dann gelten die Markierungen in Screen 5 (Tweak „Stand“)."},
-"weg":{"x":3290,"y":520,"w":360,"size":"m","fill":"gray","text":"Wege: Profil-Symbol → Übersicht → „Über“ (neu, mit Lizenzen) und, wenn sichtbar, „Morgenmessung“ → Screen 5. Heute → Karte → Screen 1. Tweaks: Gurt verbunden, Ergebnis-Fall, Stand der Validierung, Entwicklermodus an/aus."}
+"sichtbar":{"x":3290,"y":0,"w":360,"size":"m","fill":"teal","text":"Sichtbarkeit (K62 F1): Die Karte auf Heute, der Eintrag im Profil und die Morgenwerte erscheinen vor bestandener Validierung nur im Entwicklermodus. Ohne ihn fehlen sie ganz, auch keine Erinnerung. Nach „bestanden“ für lnRMSSD sieht sie jeder; dann gelten die Markierungen in Screen 5 (Tweak „Stand“)."},
+"weg":{"x":3290,"y":520,"w":360,"size":"m","fill":"gray","text":"Wege: Profil-Symbol → Übersicht → „Über“ (neu, mit Lizenzen) und, wenn sichtbar, „Morgenmessung“ → Screen 5. Heute → Karte → Screen 1. Tweaks: Gurt (verbunden, verbinde, keiner), Signal in der Messung, Ergebnis-Fall, Stand der Validierung, Entwicklermodus an/aus. „Gurt verbinden“ führt zur Geräteauswahl wie auf Start (kein Umweg über die Einstellungen)."},
+"wp37":{"x":3290,"y":1040,"w":360,"size":"m","fill":"teal","text":"WP37 (K66, K67, K68): Gurtzeile oben im Einstieg mit drei Zuständen; Haltung liegend/sitzend (Vorgabe liegend), liegend und sitzend zählen in einer Reihe; Ruhephase überspringbar; Messung zeigt „gutes Signal“ am Stück (bis 60 s) und die Gesamtzeit bis höchstens 2 min; Punkte nach Haltung (gefüllt liegend, hohl sitzend) mit Legende; im Entwicklermodus ist eine unbrauchbare Messung in der Liste markiert und zählt nicht."}
 },
 "designSystems":[]}

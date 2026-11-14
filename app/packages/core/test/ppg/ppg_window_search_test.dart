@@ -125,6 +125,14 @@ void main() {
       },
     );
 
+    test('gleiche Stufe und gleicher Anteil: das früheste Fenster gewinnt', () {
+      final fr = frames(good(), to: 100);
+      final r = evaluatePpgBestWindow(fr);
+      expect(r.measurement.quality, PpgQuality.good);
+      expect(r.measurement.validIntervals, r.measurement.intervals);
+      expect(r.windowStartSeconds, 5.0);
+    });
+
     test('Aufnahme kürzer als 65 s: unzureichende Daten, kein Fenster', () {
       final r = evaluatePpgBestWindow(frames(good(), to: 64));
       expect(r.measurement.quality, PpgQuality.unusable);

@@ -21,10 +21,11 @@ body{margin:0}
 
   <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 24px">
     <div style="display: flex; flex-direction: column; align-items: center; gap: 4px">
-      <span style="font-family: Sora, sans-serif; font-variant-numeric: tabular-nums; font-size: 64px; font-weight: 700; letter-spacing: -0.03em">0:38</span>
-      <span style="font-size: 14px; font-weight: 700; color: {{t.muted}}">noch, von 60 s</span>
+      <span style="font-family: Sora, sans-serif; font-variant-numeric: tabular-nums; font-size: 64px; font-weight: 700; letter-spacing: -0.03em">{{goodTime}}</span>
+      <span style="font-size: 14px; font-weight: 700; color: {{t.muted}}">gutes Signal {{goodTime}} von 1:00</span>
     </div>
-    <div style="height: 8px; border-radius: 4px; background: {{t.chip}}; overflow: hidden"><div style="width: 37%; height: 100%; background: {{t.mint}}"></div></div>
+    <div role="progressbar" aria-label="Gutes Signal am Stück" aria-valuemin="0" aria-valuemax="60" aria-valuenow="{{goodSec}}" style="height: 8px; border-radius: 4px; background: {{t.chip}}; overflow: hidden"><div style="width: {{goodPct}}; height: 100%; background: {{t.mint}}"></div></div>
+    <span style="margin-top: -12px; text-align: center; font-size: 13px; font-weight: 700; color: {{t.muted}}">Gesamtzeit {{totalTime}}, höchstens 2:00</span>
 
     <section aria-label="Signal" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
       <svg viewBox="0 0 318 70" width="100%" height="70" role="img" aria-label="Pulskurve aus der Kamera">
@@ -36,7 +37,7 @@ body{margin:0}
       </div>
       <span style="font-size: 13px; line-height: 1.45; color: {{t.muted}}">{{sigHint}}</span>
     </section>
-    <span style="text-align: center; font-size: 15px; line-height: 1.5; color: {{t.muted}}">Finger ruhig lassen, ganz normal atmen.</span>
+    <span style="text-align: center; font-size: 15px; line-height: 1.5; color: {{t.muted}}">Hand ruhig als Kuppel halten, ganz normal atmen.</span>
   </div>
 
   <div style="display: flex; flex-direction: column; gap: 10px">
@@ -59,9 +60,10 @@ class Component extends DCLogic {
     const good = (this.props.signal ?? 'gut') === 'gut';
     return {
       t,
+      goodSec: good ? 42 : 18, goodPct: good ? '70%' : '30%', goodTime: good ? '0:42' : '0:18', totalTime: good ? '0:58' : '1:12',
       sigDot: good ? t.mint : t.glut,
       sigText: good ? 'Signal gut' : 'Signal schwach',
-      sigHint: good ? 'Die Messung läuft 60 s am Stück.' : 'Finger etwas lockerer auflegen. Die Messung läuft weiter; reicht die Qualität am Ende nicht, misst du noch einmal.',
+      sigHint: good ? 'Sobald 60 s gutes Signal beisammen sind, endet die Messung von selbst.' : 'Mittelfinger etwas lockerer auflegen, die übrigen Finger als Kuppel daneben, Hand abstützen. Die Messung läuft bis zu 2 min weiter; reicht die Qualität am Ende nicht, misst du noch einmal.',
       nextHref: 'Ergebnis' + sfx + '.dc.html',
       backHref: 'Main' + sfx + '.dc.html'
     };
