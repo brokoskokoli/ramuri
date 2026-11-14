@@ -217,6 +217,9 @@ class MorningMeasureController extends ChangeNotifier {
         _notify();
         return;
       }
+      // Gültige Messung: der Recorder sammelt nicht weiter (Puffer wächst
+      // sonst, solange die Ergebnisseite offen ist).
+      unawaited(belt?.stop());
       final before = [for (final e in await store.list()) e.value];
       final counts =
           !m.outsideWindow &&

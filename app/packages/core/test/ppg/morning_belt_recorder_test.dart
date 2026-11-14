@@ -78,6 +78,46 @@ void main() {
     await r.dispose();
   });
 
+  test('zweimal Noch einmal: jedes Paket genau einmal', () async {
+    final r = rec();
+    await r.onRestStarted(_t0);
+    source.add(_r(10, [900]));
+    await _settle();
+    r.onMeasurementEnded(_t0.add(const Duration(seconds: 20)));
+    source.add(_r(25, [910]));
+    await _settle();
+    r.onMeasurementResumed();
+    source.add(_r(30, [920]));
+    await _settle();
+    r.onMeasurementEnded(_t0.add(const Duration(seconds: 40)));
+    source.add(_r(45, [930]));
+    await _settle();
+    r.onMeasurementResumed();
+    source.add(_r(50, [940]));
+    await _settle();
+    expect(
+      [for (final p in r.packets) p.intervals.single],
+      [900, 910, 920, 930, 940],
+    );
+    await r.dispose();
+  });
+
+  test('stop beendet das Abo, leert den Nachlauf, behält die Pakete', () async {
+    final r = rec();
+    await r.onRestStarted(_t0);
+    source.add(_r(10, [900]));
+    await _settle();
+    r.onMeasurementEnded(_t0.add(const Duration(seconds: 20)));
+    source.add(_r(25, [910])); // Nachlauf
+    await _settle();
+    await r.stop();
+    expect(source.hasListener, isFalse);
+    expect([for (final p in r.packets) p.intervals.single], [900]);
+    r.onMeasurementResumed(); // Nachlauf wurde verworfen
+    expect([for (final p in r.packets) p.intervals.single], [900]);
+    await r.dispose();
+  });
+
   test('ohne Noch einmal gehen die Pakete nach dem Ende verloren', () async {
     final r = rec();
     await r.onRestStarted(_t0);

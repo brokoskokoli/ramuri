@@ -62,6 +62,9 @@ class MorningBelt {
     onMeasurementEnded: _recorder.onMeasurementEnded,
   );
 
+  /// Gültige Messung: nichts mehr sammeln, die Pakete bleiben (Speichern erneut).
+  Future<void> stop() => _recorder.stop();
+
   Future<void> dispose() => _recorder.dispose();
 }
 

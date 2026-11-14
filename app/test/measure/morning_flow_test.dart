@@ -333,6 +333,26 @@ void main() {
       );
     });
 
+    testWidgets('gültige Messung: Recorder gestoppt, Pakete bleiben', (
+      tester,
+    ) async {
+      final r = await _Rig.make(withBelt: true, developerMode: true);
+      await r.show(tester, dark: false);
+      await _tap(tester, 'morning_start');
+      r.readings.add(_rr(r.clock.now(), 900));
+      r.clock.advance(const Duration(seconds: 121));
+      r.c.engine.tick();
+      await tester.pump();
+      await _settle(tester);
+      r._t = 0;
+      await r.feed(tester, 67);
+      expect(r.c.outcome, MorningOutcome.good);
+      expect(r.readings.hasListener, isFalse);
+      r.readings.add(_rr(r.clock.now(), 999));
+      await _settle(tester);
+      expect(r.c.belt!.packets.single.intervals.single, 900);
+    });
+
     testWidgets('verworfene Messung (unbrauchbar): nichts gespeichert', (
       tester,
     ) async {

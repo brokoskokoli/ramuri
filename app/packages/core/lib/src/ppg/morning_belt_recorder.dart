@@ -82,6 +82,16 @@ class MorningBeltRecorder {
     (to != null && r.time.isAfter(to) ? _tail : _packets).add(packet);
   }
 
+  /// Die Messung ist gültig (gespeichert oder zu verwerten): das Abo endet
+  /// und der Nachlauf wird geleert. Die gesammelten [packets] bleiben für
+  /// „Speichern erneut versuchen“; bis [dispose] hängt nichts mehr an.
+  Future<void> stop() async {
+    final s = _sub;
+    _sub = null;
+    _tail.clear();
+    await s?.cancel();
+  }
+
   Future<void> dispose() async {
     _disposed = true;
     final s = _sub;
