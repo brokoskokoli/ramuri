@@ -109,6 +109,7 @@ step "privat" sh tool/check_private.sh
 step "Versionsrechnung Selbsttest" bash tool/build_signed_test.sh
 step "Pre-Push-Tagregel Selbsttest" bash tool/hooks/pre-push_test.sh
 step "ci_e2e Selbsttest (Attrappen)" sh tool/ci_e2e_test.sh
+step "merge_wp CI-Entscheidung Selbsttest" sh tool/merge_wp_test.sh
 
 # --- Flutter und Dart: je Paket (app und app/packages/*) ---
 is_flutter() { grep -Eq '^[[:space:]]+sdk:[[:space:]]*flutter[[:space:]]*$' "$1/pubspec.yaml"; }

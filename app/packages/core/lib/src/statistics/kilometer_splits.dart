@@ -1,4 +1,5 @@
-import '../preprocessing/gap_moving_time.dart' show overlapDuration;
+import '../preprocessing/gap_moving_time.dart'
+    show overlapDuration, positionLossSpans;
 import '../preprocessing/measurement.dart';
 import '../preprocessing/movement_time_processor.dart' show TimeSpan;
 import '../preprocessing/motion_segments.dart';
@@ -190,9 +191,7 @@ KilometerSplits computeKilometerSplits(
     return false;
   }
 
-  final gapSpans = [
-    for (final g in pre.position.gaps) TimeSpan(start: g.start, end: g.end),
-  ];
+  final gapSpans = positionLossSpans(pre);
   final heart = pre.heartRate.acceptedValues;
 
   final splits = <KilometerSplit>[];

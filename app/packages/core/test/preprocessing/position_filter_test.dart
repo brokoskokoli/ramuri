@@ -168,7 +168,7 @@ void main() {
     test('Ergebnis trägt Verfahren, Version und Parameterversion', () {
       final r = run([pos(0, 0)]);
       expect(r.method, isNotEmpty);
-      expect(r.methodVersion, 1);
+      expect(r.methodVersion, 2);
       expect(r.parameterVersion, currentParameterVersion);
     });
   });

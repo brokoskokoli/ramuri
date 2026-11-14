@@ -99,8 +99,11 @@ void main() {
       d.point(ageMs: 3000); // Fix 9 s nach dem letzten Punkt gemessen
       d.move(60);
       final live = d.s.snapshot().positionLossMovingTime;
-      final history = movingTimeInPositionGaps(d.replay(end: d.clock.now()));
-      expect(history, Duration.zero);
+      final pre = d.replay(end: d.clock.now());
+      final history = movingTimeInPositionGaps(pre);
+      expect(pre.position.gaps, isEmpty);
+      // Nur die 1 s vom Start bis zum ersten Punkt (Wartezeit, keine Lücke).
+      expect(history, const Duration(seconds: 1));
       expect(live, history);
     });
 

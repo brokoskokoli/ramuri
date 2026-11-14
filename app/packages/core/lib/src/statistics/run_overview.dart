@@ -3,7 +3,7 @@ import '../../ports/storage.dart';
 import '../../ports/storage_derived.dart';
 import '../../ports/storage_runs.dart';
 import '../preprocessing/gap_moving_time.dart'
-    show movingTimeWithHeartRate, overlapDuration;
+    show movingTimeWithHeartRate, overlapDuration, positionLossSpans;
 import '../preprocessing/movement_time_processor.dart';
 import '../preprocessing/preprocessing_parameters.dart';
 import '../preprocessing/run_preprocessor.dart';
@@ -27,7 +27,11 @@ const String runOverviewMethod = 'run-overview';
 ///
 /// Version 3 (WP25): Laufbandläufe tragen Strecke und Bewegungszeit aus den
 /// Bandeinstellungen; ältere Kurzfassungen (Strecke 0 m) werden neu gerechnet.
-const int runOverviewMethodVersion = 3;
+///
+/// Version 4 (M2-Abschluss): die Spannen `positionGap` tragen auch die Wartezeit
+/// auf den ersten Punkt eines Abschnitts (bis PAR-004); ältere Kurzfassungen
+/// rechnen die Pace-Zeit ohne sie und werden neu gerechnet.
+const int runOverviewMethodVersion = 4;
 
 /// Die Kurzfassung eines Laufs für Listen und Vergleiche, abgeleitet aus der
 /// Vorverarbeitung (ADR-0004 Punkt 1: jederzeit aus den Rohdaten neu
@@ -74,7 +78,7 @@ StoredPreprocessing overviewOf(
           start: m.start,
           end: m.end,
         ),
-      for (final g in belt == null ? pre.position.gaps : const [])
+      for (final g in belt == null ? positionLossSpans(pre) : const [])
         PreprocessedSpan(
           kind: PreprocessedSpanKind.positionGap,
           start: g.start,
