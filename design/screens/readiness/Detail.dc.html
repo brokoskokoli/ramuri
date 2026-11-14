@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Erholung im Detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 2060px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; padding: 28px 20px 24px; display: flex; flex-direction: column; gap: 16px"><header style="display: flex; align-items: center; gap: 8px">
+  <a href="{{backHref}}" aria-label="Zurück" style="width: 44px; height: 44px; border-radius: 22px; background: {{t.card}}; border: 1px solid {{t.border}}; display: flex; align-items: center; justify-content: center; color: {{t.text}}; box-sizing: border-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M15 6l-6 6 6 6"></path></svg></a>
+  <h1 style="margin: 0; flex: 1; font-family: Sora, sans-serif; letter-spacing: -0.03em; font-size: 22px; font-weight: 700">Erholung</h1>
+  <sc-if value="{{dev}}">
+<span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Entwicklermodus aktiv</span>
+</sc-if>
+</header>
+    <sc-if value="{{warn}}">
+<section role="note" aria-label="Warnsignal" style="background: {{t.card}}; border-radius: 24px; border-left: 6px solid {{t.glut}}; padding: 14px 16px 6px 16px; display: flex; flex-direction: column; gap: 2px">
+  <span style="font-size: 14px; line-height: 1.5">Du hast Beschwerden gemeldet. Wir empfehlen dir, das Training zu pausieren. Wenn die Beschwerden anhalten oder stark sind, lass sie ärztlich abklären. Diese App stellt keine Diagnose.</span>
+  <a href="#" style="min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 800; color: {{t.link}}; text-decoration: none">Meldung aufheben</a>
+</section>
+</sc-if>
+    <sc-if value="{{isZahl}}">
+<section aria-label="Einschätzung" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><div style="display: flex; gap: 16px; align-items: center"><svg width="96" height="96" viewBox="0 0 84 84" role="img" aria-label="Erholung 64 von 100">
+  <circle cx="42" cy="42" r="34" fill="none" stroke="{{t.track}}" stroke-width="10"></circle>
+  <circle cx="42" cy="42" r="34" fill="none" stroke="{{t.mint}}" stroke-width="10" stroke-linecap="round" stroke-dasharray="137 214" transform="rotate(-90 42 42)"></circle>
+  <text x="42" y="49" text-anchor="middle" font-family="Sora" font-weight="700" font-size="22" fill="{{t.text}}">64</text></svg>
+    <div style="display: flex; flex-direction: column; gap: 4px; flex: 1">
+      <span style="font-size: 12px; font-weight: 700; color: {{t.link}}; text-transform: uppercase; letter-spacing: 0.06em">Erweiterte Einschätzung</span>
+      <span style="font-size: 20px; font-weight: 700">Normal belastbar</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: {{t.muted}}"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 4px; background: {{t.glut}}; display: inline-block"></span>geschätzt</span></div></div><div style="display: flex; gap: 4px" role="img" aria-label="Zustände: 0–24 Erholung empfohlen, 25–49 Erhöhte Belastung, 50–74 Normal belastbar, 75–100 Gut erholt. Aktuell 64"><div style="flex: 25; display: flex; flex-direction: column; gap: 4px"><div style="height: 8px; border-radius: 4px; background: {{t.track}}"></div><span style="font-size: 11px; line-height: 1.25; font-weight: 600; color: {{t.muted}}">Erholung empfohlen<br>0–24</span></div><div style="flex: 25; display: flex; flex-direction: column; gap: 4px"><div style="height: 8px; border-radius: 4px; background: {{t.track}}"></div><span style="font-size: 11px; line-height: 1.25; font-weight: 600; color: {{t.muted}}">Erhöhte Belastung<br>25–49</span></div><div style="flex: 25; display: flex; flex-direction: column; gap: 4px"><div style="height: 8px; border-radius: 4px; background: {{t.mint}}"></div><span style="font-size: 11px; line-height: 1.25; font-weight: 800; color: {{t.text}}">Normal belastbar<br>50–74</span></div><div style="flex: 26; display: flex; flex-direction: column; gap: 4px"><div style="height: 8px; border-radius: 4px; background: {{t.track}}"></div><span style="font-size: 11px; line-height: 1.25; font-weight: 600; color: {{t.muted}}">Gut erholt<br>75–100</span></div></div>
+    <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Die Zahl beschreibt die Datenlage von heute im Vergleich zu deinen eigenen Werten. Sie ist keine Diagnose.</span></section>
+</sc-if><sc-if value="{{isEing}}">
+<section aria-label="Einschätzung" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><div style="display: flex; gap: 16px; align-items: center"><svg width="96" height="96" viewBox="0 0 84 84" role="img" aria-label="Keine Zahl">
+  <circle cx="42" cy="42" r="34" fill="none" stroke="{{t.faint}}" stroke-width="4" stroke-dasharray="3 7" stroke-linecap="round"></circle></svg>
+    <div style="display: flex; flex-direction: column; gap: 4px; flex: 1">
+      <span style="font-size: 12px; font-weight: 700; color: {{t.link}}; text-transform: uppercase; letter-spacing: 0.06em">Erweiterte Einschätzung</span>
+      <span style="font-size: 20px; font-weight: 700">Eingeschränkte Einschätzung</span>
+      <span style="font-size: 13px; color: {{t.muted}}">Keine Zahl, kein Zustand</span></div></div>
+    <span style="font-size: 14px; line-height: 1.45">Heute fehlen HRV-Werte. Du hast rund 6 Stunden geschlafen.</span>
+    <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Für eine Zahl braucht ramuri die HRV der letzten Nacht, Schlaf und eine Referenz aus mindestens 14 von 28 Tagen.</span></section>
+</sc-if><sc-if value="{{isUnz}}">
+<section aria-label="Einschätzung" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><div style="display: flex; gap: 16px; align-items: center"><svg width="96" height="96" viewBox="0 0 84 84" role="img" aria-label="Keine Zahl">
+  <circle cx="42" cy="42" r="34" fill="none" stroke="{{t.faint}}" stroke-width="4" stroke-dasharray="3 7" stroke-linecap="round"></circle></svg>
+    <div style="display: flex; flex-direction: column; gap: 4px; flex: 1">
+      <span style="font-size: 12px; font-weight: 700; color: {{t.link}}; text-transform: uppercase; letter-spacing: 0.06em">Erweiterte Einschätzung</span>
+      <span style="font-size: 20px; font-weight: 700">Unzureichende Daten</span>
+      <span style="font-size: 13px; color: {{t.muted}}">Keine Zahl, kein Zustand</span></div></div>
+    <span style="font-size: 14px; line-height: 1.45">Heute liegen weder Schlaf noch eine frische Messung vor. ramuri wertet das nicht als normal.</span></section>
+</sc-if>
+    <sc-if value="{{isZahl}}">
+<section aria-label="Datenlage" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Datenlage</span><div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 800">ausreichend</span><span style="font-size: 14px; line-height: 1.45">HRV-Referenz aus 19 Messungen, Ruhepuls mit eigener Referenz.</span></div></section>
+</sc-if><sc-if value="{{isEing}}">
+<section aria-label="Datenlage" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Datenlage</span><div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 800">nicht bestimmbar</span><span style="font-size: 14px; line-height: 1.45">Heute fehlen HRV-Werte.</span></div></section>
+</sc-if><sc-if value="{{isUnz}}">
+<section aria-label="Datenlage" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Datenlage</span><div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 800">nicht bestimmbar</span><span style="font-size: 14px; line-height: 1.45">Kein Schlaf der letzten Nacht und keine frische Messung.</span></div></section>
+</sc-if>
+    <sc-if value="{{isZahl}}">
+<section aria-label="Ursachen" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Was die Einschätzung heute am meisten bestimmt</span><span style="font-size: 15px; line-height: 1.5">Dein Ruhepuls liegt etwas niedriger als dein Mittel. Deine HRV liegt etwas unter deinem Mittel.</span></section>
+</sc-if>
+    <sc-if value="{{isZahl}}">
+<section aria-label="Faktoren" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Faktoren, Quelle und Gewicht</span><div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid {{t.div}}">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">HRV (RMSSD)</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 25 %</span><span style="min-width: 54px; text-align: right; font-size: 12px; font-weight: 700; color: {{t.muted}}">Teilwert <span style="font-family: Sora, sans-serif; font-size: 15px; color: {{t.text}}">40</span></span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Mittel der letzten 7 Nächte 45,6 ms, dein Mittel der 28 Tage davor 46 ms. Liegt etwas unter deinem Mittel.</span>
+  <span style="font-size: 12px; font-weight: 700; color: {{t.link}}">Health Connect · Uhr-App A</span></div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid {{t.div}}">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">Ruhepuls</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 20 %</span><span style="min-width: 54px; text-align: right; font-size: 12px; font-weight: 700; color: {{t.muted}}">Teilwert <span style="font-family: Sora, sans-serif; font-size: 15px; color: {{t.text}}">86</span></span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Mittel der letzten 7 Nächte 53,3 /min, dein Mittel 54 /min. Liegt etwas niedriger als dein Mittel.</span>
+  <span style="font-size: 12px; font-weight: 700; color: {{t.link}}">Health Connect · Uhr-App A</span></div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid {{t.div}}">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">Schlaf</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 30 %</span><span style="min-width: 54px; text-align: right; font-size: 12px; font-weight: 700; color: {{t.muted}}">Teilwert <span style="font-family: Sora, sans-serif; font-size: 15px; color: {{t.text}}">71</span></span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Letzte Nacht 7 h 00 min, Effizienz 90 %.</span>
+  <span style="font-size: 12px; font-weight: 700; color: {{t.link}}">Health Connect · Uhr-App A</span></div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid {{t.div}}">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">Trainingsbelastung</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 15 %</span><span style="min-width: 54px; text-align: right; font-size: 12px; font-weight: 700; color: {{t.muted}}">Teilwert <span style="font-family: Sora, sans-serif; font-size: 15px; color: {{t.text}}">52</span></span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">TSB −14 %. Kann den Wert nur senken.</span>
+  <span style="font-size: 12px; font-weight: 700; color: {{t.link}}">Aus deinen Läufen in ramuri</span></div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; ">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">Befinden</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 10 %</span><span style="min-width: 54px; text-align: right; font-size: 12px; font-weight: 700; color: {{t.muted}}">Teilwert <span style="font-family: Sora, sans-serif; font-size: 15px; color: {{t.text}}">75</span></span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Stufe 4 von 5.</span>
+  <span style="font-size: 12px; font-weight: 700; color: {{t.link}}">Deine Angabe beim letzten Lauf, vor 2 Tagen</span></div>
+  </div><span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Gesamtwert 64 = Summe aus Gewicht × Teilwert, geteilt durch 100. Die Gewichte sind Annahmen von ramuri, keine gesicherten Werte.</span></section>
+</sc-if><sc-if value="{{isEing}}">
+<section aria-label="Fehlende Faktoren" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Fehlende Faktoren</span><div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid {{t.div}}">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">HRV (RMSSD)</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 25 %</span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Heute kein Wert aus der letzten Nacht.</span></div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid {{t.div}}">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">Trainingsbelastung</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 15 %</span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Noch nicht verfügbar, die Belastung braucht mehr erfasste Tage.</span></div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; ">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">Befinden</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 10 %</span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Keine Angabe in den letzten 3 Tagen.</span></div>
+  </div><span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Fehlende Faktoren heben die Einschätzung nie an.</span></section>
+</sc-if><sc-if value="{{isUnz}}">
+<section aria-label="Fehlende Faktoren" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Fehlende Faktoren</span><div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid {{t.div}}">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">HRV (RMSSD)</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 25 %</span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Heute kein Wert.</span></div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid {{t.div}}">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">Ruhepuls</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 20 %</span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Heute kein Wert.</span></div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid {{t.div}}">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">Schlaf</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 30 %</span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Keine Nacht erfasst und keine Selbstangabe.</span></div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid {{t.div}}">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">Trainingsbelastung</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 15 %</span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Noch nicht verfügbar.</span></div>
+    <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; ">
+  <div style="display: flex; align-items: baseline; gap: 8px"><span style="flex: 1; font-size: 15px; font-weight: 800">Befinden</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Gewicht 10 %</span></div>
+  <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Keine Angabe in den letzten 3 Tagen.</span></div>
+  </div></section>
+</sc-if>
+    <sc-if value="{{isZahl}}">
+<section aria-label="Fehlende Faktoren" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Fehlende Faktoren</span><span style="font-size: 14px; line-height: 1.45">Keine. Alle fünf Faktoren liegen vor.</span></section>
+</sc-if>
+    <sc-if value="{{isZahl}}">
+<section aria-label="Tatsachen" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Weitere Tatsachen</span><div><div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 0"><span style="font-size: 14px; line-height: 1.45">Kamera-Morgenmessung heute, liegend: RMSSD 52 ms.</span>
+  <sc-if value="{{mNg}}">
+<span style="font-size: 12px; font-weight: 800; color: {{t.muted}}">noch nicht geprüft · geht in keine Zahl ein</span>
+</sc-if>
+  <sc-if value="{{mUn}}">
+<span style="font-size: 12px; font-weight: 800; color: {{t.muted}}">ungenauer als erwartet · geht in keine Zahl ein</span>
+</sc-if>
+  <sc-if value="{{mEx}}">
+<span style="font-size: 12px; font-weight: 800; color: {{t.muted}}">experimentell, nicht eingeschaltet · geht in keine Zahl ein</span>
+</sc-if>
+</div></div></section>
+</sc-if><sc-if value="{{isEing}}">
+<section aria-label="Tatsachen" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; "><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Weitere Tatsachen</span><div><div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 0"><span style="font-size: 14px; line-height: 1.45">Ruhepuls heute 3/min über deinem Mittel (Kamera-Morgenmessung, liegend).</span></div><div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 0"><span style="font-size: 14px; line-height: 1.45">Kamera-Morgenmessung heute, liegend: RMSSD 52 ms.</span>
+  <sc-if value="{{mNg}}">
+<span style="font-size: 12px; font-weight: 800; color: {{t.muted}}">noch nicht geprüft · geht in keine Zahl ein</span>
+</sc-if>
+  <sc-if value="{{mUn}}">
+<span style="font-size: 12px; font-weight: 800; color: {{t.muted}}">ungenauer als erwartet · geht in keine Zahl ein</span>
+</sc-if>
+  <sc-if value="{{mEx}}">
+<span style="font-size: 12px; font-weight: 800; color: {{t.muted}}">experimentell, nicht eingeschaltet · geht in keine Zahl ein</span>
+</sc-if>
+</div></div></section>
+</sc-if>
+    <a href="{{verlaufHref}}" style="min-height: 52px; background: {{t.card}}; border-radius: 24px; padding: 0 16px; display: flex; align-items: center; gap: 8px; color: {{t.link}}; text-decoration: none; font-size: 15px; font-weight: 800"><span style="flex: 1">Verlauf der Reihen, 28 Tage</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M9 6l6 6-6 6"></path></svg></a>
+    <details open style="background: {{t.card}}; border-radius: 24px; padding: 0 16px"><summary style="min-height: 52px; display: flex; align-items: center; cursor: pointer; font-size: 15px; font-weight: 800; color: {{t.link}}; list-style-position: inside">Woher kommt das?</summary>
+    <div style="padding: 0 0 16px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.5">
+      <span>ramuri rechnet die Einschätzung auf deinem Handy aus Werten, die dort gespeichert sind: Schlaf, HRV und Ruhepuls aus Health Connect oder deiner Morgenmessung, Belastung aus deinen Läufen und dein Befinden beim letzten Lauf.</span>
+      <span style="color: {{t.muted}}">Jede Quelle hat eine eigene Reihe und wird nie mit einer anderen gemischt. Modell: readiness v1, die Gewichte sind vorläufig.</span>
+    </div></details>
+    <sc-if value="{{dev}}">
+<span style="align-self: center; font-size: 12px; font-weight: 700; color: {{t.muted}}">Entwicklermodus aktiv</span>
+</sc-if></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"fall":{"editor":"enum","options":["Zahl","Eingeschränkt","Unzureichend"],"default":"Zahl"},"markierung":{"editor":"enum","options":["noch nicht geprüft","ungenauer als erwartet","experimentell, nicht eingeschaltet"],"default":"noch nicht geprüft"},"warnsignal":{"editor":"boolean","default":false},"dev":{"editor":"boolean","default":false},"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":2060}}'>
+class Component extends DCLogic {
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', muted: '#A3B8B4', border: '#2A4140', div: '#223636', link: '#7FD6C6', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#1C3836', chip: '#1F3333', glut: '#FF7A45', faint: '#5E7774', track: '#25403D' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', muted: '#4F6361', border: '#DAE4E1', div: '#EBF1EF', link: '#0F5E5A', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#DDF2EE', chip: '#E2EAE8', glut: '#E0561F', faint: '#9AAEAB', track: '#DDF2EE' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const fall = this.props.fall ?? "Zahl";
+    const markierung = this.props.markierung ?? "noch nicht geprüft";
+    const warnsignal = this.props.warnsignal ?? false;
+    const dev = this.props.dev ?? false;
+    return {
+      t: this.theme(dark),
+      backHref: 'Heute' + (dark ? '-dunkel' : '') + '.dc.html', verlaufHref: 'Verlauf' + (dark ? '-dunkel' : '') + '.dc.html',
+      mNg: (!dev && markierung === 'noch nicht geprüft'),
+      mUn: (!dev && markierung === 'ungenauer als erwartet'),
+      mEx: (!dev && markierung === 'experimentell, nicht eingeschaltet'),
+      dev: (dev),
+      warn: (warnsignal),
+      isZahl: (fall === 'Zahl'),
+      isEing: (fall === 'Eingeschränkt'),
+      isUnz: (fall === 'Unzureichend')
+    };
+  }
+}
+</script>
+</body>
+</html>

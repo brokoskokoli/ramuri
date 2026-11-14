@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Verlauf der Reihen, dunkel</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 1360px; background: #0E1A1A">
+  <dc-import name="Verlauf" dark="{{dark}}" messungen="{{messungen}}" markierung="{{markierung}}" dev="{{dev}}" hint-size="390px,1360px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"messungen":{"editor":"enum","options":["genug","wenige"],"default":"genug"},"markierung":{"editor":"enum","options":["noch nicht geprüft","ungenauer als erwartet","experimentell, nicht eingeschaltet"],"default":"noch nicht geprüft"},"dev":{"editor":"boolean","default":false},"$preview":{"width":390,"height":1360}}'>
+class Component extends DCLogic {
+  renderVals() { return { dark: true, messungen: this.props.messungen ?? "genug", markierung: this.props.markierung ?? "noch nicht geprüft", dev: this.props.dev ?? false }; }
+}
+</script>
+</body>
+</html>
