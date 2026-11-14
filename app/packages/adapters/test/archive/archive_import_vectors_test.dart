@@ -70,9 +70,14 @@ void main() {
             // Vertrag archive.md 4.3: Läufe aus Schema 9 und früher haben kein
             // `mode`, der Leser setzt 'gps' (Schema 10 bringt die Spalte mit).
             if (section == 'runs') row.putIfAbsent('mode', () => 'gps');
+            // Vertrag archive.md 4.3: Trainings aus Schema 11 und früher haben
+            // kein `hc_id`, der Leser setzt null (Schema 12 bringt die Spalte mit).
+            if (section == 'manual_trainings') {
+              row.putIfAbsent('hc_id', () => null);
+            }
             // BLOB (Schema 9): Hex-Text der Datei, im Ziel als Bytes.
             // Ebenso Gurt-RR (`rr`) und Kamera-Abstände (`camera_ibi`) der
-            // Morgenmessung (Schema 12).
+            // Morgenmessung (Schema 13).
             for (final c in const {
               'raw_rr_packets': 'rr',
               'morning_rr_packets': 'rr',

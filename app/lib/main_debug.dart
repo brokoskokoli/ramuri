@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'app.dart';
 import 'app_dependencies.dart';
 import 'debug/debug_ppg_panel.dart';
+import 'debug/debug_test_health_connect.dart';
 import 'debug/debug_test_ppg_camera.dart';
 import 'debug/debug_test_sensor.dart';
 import 'system_clock.dart';
@@ -30,6 +31,10 @@ void main() {
             sendRr: const bool.fromEnvironment('TEST_SENSOR_RR'),
           ),
           ppgCamera: camera,
+          // WP32: synthetische Health-Connect-Daten statt des Plattformkanals.
+          healthConnect: DebugTestHealthConnect(
+            now: () => const SystemClock().now(),
+          ),
           // E2E-Test der Erinnerung (FR-0174): Auslösen in 10 s aus den Einstellungen.
           debugReminders: true,
         ),

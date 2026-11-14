@@ -23,6 +23,7 @@ class AppDependencies {
     RunPorts? runPorts,
     this.heartRateSensor,
     PpgCamera? ppgCamera,
+    HealthConnectPort? healthConnect,
     SensorManager? sensors,
     this.offload = isolateOffload,
     FileHandoff? fileHandoff,
@@ -36,6 +37,7 @@ class AppDependencies {
   }) : reminders = reminders ?? const _NoReminders(),
        fileHandoff = fileHandoff ?? const _NoFileHandoff(),
        ppgCamera = ppgCamera ?? const _NoPpgCamera(),
+       healthConnect = healthConnect ?? const _NoHealthConnect(),
        permissions = permissions ?? const _NoPermissionStatus(),
        runPorts = runPorts ?? const _NoRunPorts(),
        sensors =
@@ -59,6 +61,9 @@ class AppDependencies {
 
   /// Kamera für die Ruhepulsmessung (ADR-0011). Vorgabe ohne Plattform: keine Kamera.
   final PpgCamera ppgCamera;
+
+  /// Health Connect (WP32, nur Lesen). Vorgabe ohne Plattform: nicht verfügbar.
+  final HealthConnectPort healthConnect;
 
   /// Wo die Wiedergabe der Rohdaten rechnet (Zusammenfassung, Historie,
   /// Statistik). Vorgabe: eigener Isolate; Tests setzen den Inline-Offload.
@@ -108,9 +113,12 @@ class AppDependencies {
   /// Einstiegspunkt (`main_debug.dart`) setzt hier den Test-Sensor ein.
   ///
   /// [ppgCamera]: Vorgabe ist Camera2 über den Plattformkanal; nur `main_debug.dart` setzt die Fake-Kamera ein.
+  ///
+  /// [healthConnect]: Vorgabe ist der Plattformkanal; nur `main_debug.dart` setzt die Debug-Quelle ein.
   factory AppDependencies.create({
     HeartRateSensor? heartRateSensor,
     PpgCamera? ppgCamera,
+    HealthConnectPort? healthConnect,
     bool debugReminders = false,
   }) {
     final sensor =
@@ -146,6 +154,7 @@ class AppDependencies {
     return AppDependencies(
       heartRateSensor: sensor,
       ppgCamera: ppgCamera ?? MethodChannelPpgCamera(),
+      healthConnect: healthConnect ?? MethodChannelHealthConnect(),
       mapCache: mapCache,
       map: MapServices.production(mapCache),
       sensors: sensors,
@@ -250,6 +259,33 @@ StorageWiring storageWiringFor(String path, EncryptedMapTileStore mapCache) =>
     );
 
 /// Vorgabe ohne Plattform (Tests): keine Kamera, Start endet mit Grund.
+class _NoHealthConnect implements HealthConnectPort {
+  const _NoHealthConnect();
+
+  @override
+  Future<HealthSdkStatus> sdkStatus() async => HealthSdkStatus.unavailable;
+
+  @override
+  Future<Set<HealthDataKind>> grantedKinds() async => const {};
+
+  @override
+  Future<Set<HealthDataKind>> requestPermissions(
+    Set<HealthDataKind> kinds,
+  ) async => const {};
+
+  @override
+  Future<bool> openInstall() async => false;
+
+  @override
+  Future<HealthPage> readPage({
+    required HealthDataKind kind,
+    required DateTime from,
+    required DateTime to,
+    String? pageToken,
+    int? pageSize,
+  }) async => throw const HealthReadException(HealthReadError.unavailable);
+}
+
 class _NoPpgCamera implements PpgCamera {
   const _NoPpgCamera();
 

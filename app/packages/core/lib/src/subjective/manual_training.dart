@@ -17,12 +17,14 @@ class ManualTraining {
     required this.kind,
     required this.duration,
     required int rpe,
+    this.hcId,
   }) : day = DateTime.utc(day.year, day.month, day.day),
        rpe = checkRpe(rpe)! {
     if (duration.inMicroseconds <= 0 ||
         duration.inMicroseconds % Duration.microsecondsPerSecond != 0) {
       throw SubjectiveRangeError('duration');
     }
+    if (hcId != null && hcId!.isEmpty) throw SubjectiveRangeError('hcId');
   }
 
   /// Kalendertag als UTC-Mitternacht.
@@ -30,6 +32,10 @@ class ManualTraining {
   final ManualTrainingKind kind;
   final Duration duration;
   final int rpe;
+
+  /// Health-Connect-ID der übernommenen Einheit (K62 F2); `null` bei selbst
+  /// eingetragenen Trainings. Dieselbe Einheit wird nicht zweimal übernommen.
+  final String? hcId;
 
   /// `JJJJ-MM-TT`.
   String get isoDay {
@@ -53,10 +59,11 @@ class ManualTraining {
       other.day == day &&
       other.kind == kind &&
       other.duration == duration &&
-      other.rpe == rpe;
+      other.rpe == rpe &&
+      other.hcId == hcId;
 
   @override
-  int get hashCode => Object.hash(day, kind, duration, rpe);
+  int get hashCode => Object.hash(day, kind, duration, rpe, hcId);
 
   @override
   String toString() => 'ManualTraining(…)';

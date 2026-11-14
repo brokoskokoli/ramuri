@@ -478,9 +478,15 @@ CREATE TABLE manual_trainings (
   day TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND date(day) IS day),
   kind TEXT NOT NULL CHECK (kind IN ('run', 'other')),
   duration_s INTEGER NOT NULL CHECK (typeof(duration_s) = 'integer' AND duration_s > 0),
-  rpe INTEGER NOT NULL CHECK (typeof(rpe) = 'integer' AND rpe BETWEEN 0 AND 10)
+  rpe INTEGER NOT NULL CHECK (typeof(rpe) = 'integer' AND rpe BETWEEN 0 AND 10),
+  -- Schema 12 (WP32): Health-Connect-ID der übernommenen Einheit (FR-0199,
+  -- K62 F2); NULL bei selbst eingetragenen Trainings. Eindeutig: dieselbe
+  -- Einheit wird nicht zweimal übernommen. Das Löschen der Importdaten
+  -- lässt diese Zeilen stehen.
+  hc_id TEXT CHECK (hc_id IS NULL OR length(hc_id) > 0)
 ) AS ManualTrainingRow;
 CREATE INDEX manual_trainings_day ON manual_trainings (day);
+CREATE UNIQUE INDEX manual_trainings_hc_id ON manual_trainings (hc_id);
 
 -- ------------------------------------- Leistungsprognose (Version 6, WP20)
 -- Referenzleistungen (FR-0129): Art, Distanz, Zeit, Datum. `performed_on` ist
@@ -602,9 +608,73 @@ CREATE TABLE active_warning (
   run_id INTEGER CHECK (run_id IS NULL OR typeof(run_id) = 'integer')
 ) AS ActiveWarningRow;
 
--- ------------------------------------------ Morgenmessung (Version 12, WP33)
+-- ------------------------------------ Health Connect (Version 12, WP32)
+-- Importierte Gesundheitsdaten (FR-0022 bis FR-0024, FR-0200). Jede Zeile der
+-- vier Haupttabellen trägt `origin` (Paketname der Quell-App,
+-- `metadata.dataOrigin`) und die Health-Connect-ID `hc_id`, eindeutig je
+-- Tabelle: Derselbe Datensatz wird überschrieben, nie doppelt gespeichert.
+-- Zeiten sind UTC in Mikrosekunden, `offset_s` der Zonenversatz des Datensatzes
+-- (NULL = nicht geliefert). Abschnitte 27 bis 31 des Archivs. Kinder
+-- (Schlafphasen, Pulswerte) hängen per Fremdschlüssel am Elternsatz und gehen
+-- mit ihm (ON DELETE CASCADE). Die Werte selbst prüft der Import (PAR-162).
+CREATE TABLE health_sleep_sessions (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  hc_id TEXT NOT NULL UNIQUE CHECK (length(hc_id) > 0),
+  origin TEXT NOT NULL CHECK (length(origin) > 0),
+  start_us INTEGER NOT NULL CHECK (typeof(start_us) = 'integer'),
+  end_us INTEGER NOT NULL CHECK (typeof(end_us) = 'integer' AND end_us >= start_us),
+  offset_s INTEGER CHECK (offset_s IS NULL OR typeof(offset_s) = 'integer')
+) AS HealthSleepSessionRow;
+
+-- `stage` ist der Wert `SleepSessionRecord.STAGE_TYPE_*` von Health Connect.
+CREATE TABLE health_sleep_stages (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL REFERENCES health_sleep_sessions (id) ON DELETE CASCADE,
+  start_us INTEGER NOT NULL CHECK (typeof(start_us) = 'integer'),
+  end_us INTEGER NOT NULL CHECK (typeof(end_us) = 'integer' AND end_us >= start_us),
+  stage INTEGER NOT NULL CHECK (typeof(stage) = 'integer')
+) AS HealthSleepStageRow;
+CREATE INDEX health_sleep_stages_session ON health_sleep_stages (session_id);
+
+-- Einzelwerte: HRV (RMSSD), Ruhepuls, VO2max. `unit` ist die gelieferte Einheit.
+CREATE TABLE health_values (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  hc_id TEXT NOT NULL UNIQUE CHECK (length(hc_id) > 0),
+  origin TEXT NOT NULL CHECK (length(origin) > 0),
+  kind TEXT NOT NULL CHECK (kind IN ('hrv_rmssd', 'resting_heart_rate', 'vo2_max')),
+  time_us INTEGER NOT NULL CHECK (typeof(time_us) = 'integer'),
+  offset_s INTEGER CHECK (offset_s IS NULL OR typeof(offset_s) = 'integer'),
+  value REAL NOT NULL CHECK (typeof(value) IN ('real', 'integer')),
+  unit TEXT NOT NULL
+) AS HealthValueRow;
+CREATE INDEX health_values_kind_time ON health_values (kind, time_us);
+
+-- Trainingseinheiten (nur Anzeige, bis sie als Training übernommen werden);
+-- `exercise_type` ist die Zahl von Health Connect.
+CREATE TABLE health_exercises (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  hc_id TEXT NOT NULL UNIQUE CHECK (length(hc_id) > 0),
+  origin TEXT NOT NULL CHECK (length(origin) > 0),
+  exercise_type INTEGER NOT NULL CHECK (typeof(exercise_type) = 'integer'),
+  start_us INTEGER NOT NULL CHECK (typeof(start_us) = 'integer'),
+  end_us INTEGER NOT NULL CHECK (typeof(end_us) = 'integer' AND end_us >= start_us),
+  offset_s INTEGER CHECK (offset_s IS NULL OR typeof(offset_s) = 'integer')
+) AS HealthExerciseRow;
+CREATE INDEX health_exercises_start ON health_exercises (start_us);
+
+-- Pulswerte einer importierten Einheit, nie ein Dauerpuls; sie gehen in keine
+-- Berechnung ein.
+CREATE TABLE health_exercise_heart_rates (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  exercise_id INTEGER NOT NULL REFERENCES health_exercises (id) ON DELETE CASCADE,
+  time_us INTEGER NOT NULL CHECK (typeof(time_us) = 'integer'),
+  bpm INTEGER NOT NULL CHECK (typeof(bpm) = 'integer' AND bpm > 0)
+) AS HealthExerciseHeartRateRow;
+CREATE INDEX health_exercise_heart_rates_exercise ON health_exercise_heart_rates (exercise_id);
+
+-- ------------------------------------------ Morgenmessung (Version 13, WP33)
 -- Kamera-Morgenmessung (FR-0215, `camera-ppg v1`), eine Zeile je gespeicherter
--- Messung. Abschnitt 27 des Archivs. measured_at_us = Beginn der Messung (UTC),
+-- Messung. Abschnitt 32 des Archivs. measured_at_us = Beginn der Messung (UTC),
 -- utc_offset_s = Versatz des Ortes zu diesem Zeitpunkt (wie runs.ended_utc_offset_s),
 -- daraus der Ortstag. posture = Haltung ('lying' oder 'sitting', nie stehend).
 -- Gerät = Hersteller und Modell, keine Seriennummer. quality = 'good' oder
@@ -640,7 +710,7 @@ CREATE INDEX morning_measurements_time ON morning_measurements (measured_at_us);
 -- Gurt-RR zur Morgenmessung (nur im Entwicklermodus, K61): ein BLOB je
 -- BLE-Paket wie raw_rr_packets (uint16 little endian, 1/1024 s, bitgenau).
 -- time_us = Empfangszeitpunkt, source = Quellgerät. Hängt an der Messung
--- (ON DELETE CASCADE). Abschnitt 28 des Archivs.
+-- (ON DELETE CASCADE). Abschnitt 33 des Archivs.
 CREATE TABLE morning_rr_packets (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   measurement_id INTEGER NOT NULL REFERENCES morning_measurements (id) ON DELETE CASCADE,

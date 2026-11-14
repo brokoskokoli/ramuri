@@ -1,3 +1,4 @@
+import 'fake_health_import_store.dart';
 import '../src/preprocessing/measurement.dart';
 import '../ports/storage.dart';
 import '../ports/storage_consents.dart';
@@ -19,6 +20,9 @@ import '../src/subjective/run_subjective.dart';
 
 /// Inhalt der Fake-"Datei". Liegt im [FakeStorage] und überlebt Sitzungen.
 class FakeStorageData {
+  /// Importierte Gesundheitsdaten (WP32).
+  final health = FakeHealthImportStore();
+
   int nextRunId = 1;
   int nextGapId = 1;
   int nextTrainingId = 1;

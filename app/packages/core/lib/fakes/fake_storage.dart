@@ -14,6 +14,7 @@ import '../ports/storage_settings.dart';
 import '../ports/storage_subjective.dart';
 import '../ports/storage_values.dart';
 import '../ports/storage_morning.dart';
+import '../ports/storage_health.dart';
 import '../ports/storage_warning.dart';
 import 'fake_storage_data.dart';
 import 'fake_storage_derived.dart';
@@ -82,6 +83,7 @@ class _FakeSession
         GoalStorage,
         PlanStorage,
         WarningStorage,
+        HealthStorage,
         MorningStorage {
   _FakeSession(this._owner, this._data)
     : runs = FakeRunStore(_data),
@@ -100,7 +102,8 @@ class _FakeSession
       goals = FakeGoalStore(_data),
       plans = FakePlanRepository(_data),
       warning = FakeWarningStore(_data),
-      morning = FakeMorningStore(_data);
+      morning = FakeMorningStore(_data),
+      health = _data.health;
 
   final FakeStorage _owner;
   final FakeStorageData _data;
@@ -141,6 +144,8 @@ class _FakeSession
   final WarningStore warning;
   @override
   final MorningStore morning;
+  @override
+  final HealthImportStore health;
 
   @override
   Future<void> deleteRun(int runId) async {

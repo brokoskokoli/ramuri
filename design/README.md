@@ -32,6 +32,7 @@ Die Dateien stammen aus einem Claude-Design-Canvas. Sie brauchen dessen Laufzeit
 | `Plan.dc.html` | Ziel mit Phasen, angepasste Woche | FR-0141, CON-0006 |
 | `ruhepuls/*.dc.html` | Ruhepuls mit der Handykamera: Einstieg (`Main`), Ruhephase, Messung, Ergebnis, kein Wert; je hell und `-dunkel`, eigener `canvas.json` | FR-0214 |
 | `morgen/*.dc.html` | Morgenmessung und Entwicklermodus: Heute mit Einstieg, Einstieg (`Main`), Ruhephase 2 min, Messung, Ergebnis mit Schlafdauer, Morgenwerte mit Erinnerung und Morgenfenster, Über mit Abschnitt Entwickler; je hell und `-dunkel`, eigener `canvas.json` | FR-0215, FR-0217 |
+| `health/*.dc.html` | Health Connect: Einwilligung je Datenart (`Main`), nicht verfügbar, Widerruf mit Löschfrage, importiertes Training im Verlauf und Detail (Quelle, Pulskurve, „Als Training übernehmen“), Vergleichskarte fremder VO₂max-Werte auf Fortschritt; je hell und `-dunkel`, eigener `canvas.json` | FR-0022, FR-0023, FR-0024, FR-0200, SEC-0005, SEC-0007 |
 
 ## Gestaltung
 
@@ -57,3 +58,4 @@ Entschieden in OQ-0075 (Einzelheiten in FR-0205 bis FR-0212):
 - **Dunkelmodus:** kommt dazu, abgeleitet aus den Markenfarben.
 - **Ruhepuls (WP27, Maintainer 2026-11-10):** Die 60 s laufen bei schlechtem Signal weiter (zusammenhängendes Messfenster wie die Referenz); nach einem gültigen Ergebnis „Übernehmen“ oder „Verwerfen“, kein „Noch einmal“ (FR-0214: es zählt die erste Messung mit ausreichender Qualität). Beides ist in `ruhepuls/` schon eingearbeitet.
 - **Morgenmessung (WP33, Maintainer 2026-11-14):** Ruhephase fest 2 min ohne Dauerwahl; nach unbrauchbarer Messung „Noch einmal messen“ ohne neue Ruhephase; Markierungen nach K-1 erst nach der Freischaltung, im Entwicklermodus nur „Entwicklermodus aktiv“ (K62 Punkt 6).
+- **Health Connect (WP32, Maintainer 2026-11-14):** Der Schalter je Datenart heißt „ramuri liest nicht mehr“; einzelne Rechte nimmt man in Health Connect selbst zurück (eine App kann dort nur alle auf einmal entziehen). Fehlt ein Recht, fragt die App beim nächsten Öffnen nach dem Löschen der importierten Daten dieser Art. Importierte Trainings zählen erst nach „Als Training übernehmen“.

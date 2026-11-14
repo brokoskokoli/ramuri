@@ -303,7 +303,80 @@ void main() {
         'incline_percent': 0.0,
       },
     ]);
-    // Morgenmessungen (WP33, Abschnitte 27 und 28): Werte exakt, BLOB als
+    // Health Connect (WP32, Abschnitte 27 bis 31): Werte exakt, Zonenversatz
+    // mit und ohne (null), ID und Quell-App je Zeile; hc_id des Nachtrags.
+    expect(_rows(lines, 'health_sleep_sessions'), [
+      {
+        'id': 1,
+        'hc_id': 'hc-sl-1',
+        'origin': 'com.example.sleep',
+        'start_us': 1000000,
+        'end_us': 28800000000,
+        'offset_s': 3600,
+      },
+      {
+        'id': 2,
+        'hc_id': 'hc-sl-2',
+        'origin': 'com.example.other',
+        'start_us': 30000000000,
+        'end_us': 31000000000,
+        'offset_s': null,
+      },
+    ]);
+    expect(_rows(lines, 'health_sleep_stages'), [
+      {
+        'id': 1,
+        'session_id': 1,
+        'start_us': 1000000,
+        'end_us': 5000000,
+        'stage': 4,
+      },
+      {
+        'id': 2,
+        'session_id': 1,
+        'start_us': 5000000,
+        'end_us': 9000000,
+        'stage': 5,
+      },
+    ]);
+    final hv = _rows(lines, 'health_values');
+    expect(
+      hv.map(
+        (r) => [
+          r['hc_id'],
+          r['origin'],
+          r['kind'],
+          r['value'],
+          r['unit'],
+          r['offset_s'],
+        ],
+      ),
+      [
+        ['hc-v-1', 'com.example.hrv', 'hrv_rmssd', 42.5, 'ms', 0],
+        ['hc-v-2', 'com.example.rhr', 'resting_heart_rate', 55.0, 'bpm', null],
+        ['hc-v-3', 'com.example.vo2', 'vo2_max', 48.25, 'ml/min/kg', 7200],
+      ],
+    );
+    expect(_rows(lines, 'health_exercises'), [
+      {
+        'id': 1,
+        'hc_id': 'hc-ex-1',
+        'origin': 'com.example.sport',
+        'exercise_type': 56,
+        'start_us': 1000,
+        'end_us': 2000000,
+        'offset_s': 3600,
+      },
+    ]);
+    expect(_rows(lines, 'health_exercise_heart_rates'), [
+      {'id': 1, 'exercise_id': 1, 'time_us': 1000, 'bpm': 120},
+      {'id': 2, 'exercise_id': 1, 'time_us': 61000000, 'bpm': 150},
+    ]);
+    expect(
+      [for (final r in _rows(lines, 'manual_trainings')) r['hc_id']],
+      [null, 'hc-ex-1'],
+    );
+    // Morgenmessungen (WP33, Abschnitte 32 und 33): Werte exakt, BLOB als
     // Hex-Text, Unbekanntes bleibt null, Merkmale als 0/1.
     expect(_rows(lines, 'morning_measurements'), [
       {

@@ -46,8 +46,8 @@
 {"type":"row","data":{"run_id":1,"rpe":6,"wellbeing":4,"complaints":"Wade links äö","warning_answer":"no","note":"Notiz „Umlaut“","srpe_points":59.0,"srpe_duration_s":590.0,"srpe_method":"srpe_duration_rpe","srpe_method_version":1}}
 {"type":"row","data":{"run_id":7,"rpe":null,"wellbeing":null,"complaints":"Knie","warning_answer":"yes","note":null,"srpe_points":null,"srpe_duration_s":null,"srpe_method":null,"srpe_method_version":null}}
 {"type":"section","name":"manual_trainings"}
-{"type":"row","data":{"id":1,"day":"2026-11-01","kind":"other","duration_s":3600,"rpe":4}}
-{"type":"row","data":{"id":2,"day":"2026-11-20","kind":"run","duration_s":1800,"rpe":0}}
+{"type":"row","data":{"id":1,"day":"2026-11-01","kind":"other","duration_s":3600,"rpe":4,"hc_id":null}}
+{"type":"row","data":{"id":2,"day":"2026-11-20","kind":"run","duration_s":1800,"rpe":0,"hc_id":"hc-ex-1"}}
 {"type":"section","name":"goals"}
 {"type":"row","data":{"id":1,"type":"time","distance":"tenKilometers","target_s":3000.0,"target_date":"2027-03-20","run_days":21,"max_session_s":3600.0,"weekly_cap_s":14400.0,"current_weekly_s":7200.0,"can_run_30":"yes","hard_session":1,"created_at_us":1793000000000000}}
 {"type":"section","name":"plans"}
@@ -73,10 +73,19 @@
 {"type":"row","data":{"id":1,"run_id":7,"offset_us":0,"speed_mps":2.5,"incline_percent":1.5}}
 {"type":"row","data":{"id":2,"run_id":7,"offset_us":300000000,"speed_mps":3.0,"incline_percent":null}}
 {"type":"row","data":{"id":3,"run_id":7,"offset_us":600000000,"speed_mps":0.0,"incline_percent":0.0}}
-{"type":"section","name":"morning_measurements"}
-{"type":"row","data":{"id":1,"measured_at_us":1792025200000000,"utc_offset_s":3600,"posture":"lying","device_manufacturer":"Testhersteller","device_model":"Testmodell 1","method":"camera-ppg","method_version":1,"quality":"good","resting_hr_bpm":52.3,"rmssd_ms":41.5,"timing_noise_ms":12.25,"sleep_band":"from6to7","before_validation":1,"outside_window":0,"camera_ibi":"009089440088934400c08f44"}}
-{"type":"row","data":{"id":2,"measured_at_us":1792133200000000,"utc_offset_s":-12600,"posture":"sitting","device_manufacturer":"Testhersteller","device_model":"Testmodell 1","method":"camera-ppg","method_version":1,"quality":"limited","resting_hr_bpm":60.1,"rmssd_ms":null,"timing_noise_ms":null,"sleep_band":null,"before_validation":0,"outside_window":1,"camera_ibi":""}}
-{"type":"section","name":"morning_rr_packets"}
-{"type":"row","data":{"id":1,"measurement_id":1,"time_us":1792025201000000,"source":"ble","rr":"00040000ffff0002"}}
-{"type":"row","data":{"id":2,"measurement_id":1,"time_us":1792025202000000,"source":"ble2","rr":"e803"}}
-{"type":"end","rows":{"runs":2,"laps":1,"run_gaps":1,"raw_positions":2,"raw_heart_rates":2,"raw_altitudes":1,"raw_steps":1,"preprocessing_results":1,"preprocessed_samples":2,"preprocessed_spans":1,"rated_sections":1,"computed_values":6,"value_sections":2,"profile":1,"settings":2,"known_devices":1,"run_feedback":2,"manual_trainings":2,"goals":1,"plans":1,"active_warning":1,"reference_performances":3,"rejected_suggestions":1,"plan_units":4,"raw_rr_packets":3,"treadmill_settings":3,"morning_measurements":2,"morning_rr_packets":2}}
+{"type":"section","name":"health_sleep_sessions"}
+{"type":"row","data":{"id":1,"hc_id":"hc-sl-1","origin":"com.example.sleep","start_us":1792000000000000,"end_us":1792028800000000,"offset_s":3600}}
+{"type":"row","data":{"id":2,"hc_id":"hc-sl-2","origin":"com.example.other","start_us":1792086400000000,"end_us":1792088200000000,"offset_s":null}}
+{"type":"section","name":"health_sleep_stages"}
+{"type":"row","data":{"id":1,"session_id":1,"start_us":1792000000000000,"end_us":1792005400000000,"stage":4}}
+{"type":"row","data":{"id":2,"session_id":1,"start_us":1792005400000000,"end_us":1792009000000000,"stage":5}}
+{"type":"section","name":"health_values"}
+{"type":"row","data":{"id":1,"hc_id":"hc-v-1","origin":"com.example.hrv","kind":"hrv_rmssd","time_us":1792028800000000,"offset_s":0,"value":42.5,"unit":"ms"}}
+{"type":"row","data":{"id":2,"hc_id":"hc-v-2","origin":"com.example.rhr","kind":"resting_heart_rate","time_us":1792028900000000,"offset_s":null,"value":55,"unit":"bpm"}}
+{"type":"row","data":{"id":3,"hc_id":"hc-v-3","origin":"com.example.vo2","kind":"vo2_max","time_us":1792029000000000,"offset_s":7200,"value":48.25,"unit":"ml/min/kg"}}
+{"type":"section","name":"health_exercises"}
+{"type":"row","data":{"id":1,"hc_id":"hc-ex-1","origin":"com.example.sport","exercise_type":56,"start_us":1792000001000000,"end_us":1792001801000000,"offset_s":3600}}
+{"type":"section","name":"health_exercise_heart_rates"}
+{"type":"row","data":{"id":1,"exercise_id":1,"time_us":1792000001000000,"bpm":120}}
+{"type":"row","data":{"id":2,"exercise_id":1,"time_us":1792000061000000,"bpm":150}}
+{"type":"end","rows":{"runs":2,"laps":1,"run_gaps":1,"raw_positions":2,"raw_heart_rates":2,"raw_altitudes":1,"raw_steps":1,"preprocessing_results":1,"preprocessed_samples":2,"preprocessed_spans":1,"rated_sections":1,"computed_values":6,"value_sections":2,"profile":1,"settings":2,"known_devices":1,"run_feedback":2,"manual_trainings":2,"goals":1,"plans":1,"active_warning":1,"reference_performances":3,"rejected_suggestions":1,"plan_units":4,"raw_rr_packets":3,"treadmill_settings":3,"health_sleep_sessions":2,"health_sleep_stages":2,"health_values":3,"health_exercises":1,"health_exercise_heart_rates":2}}

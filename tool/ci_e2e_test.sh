@@ -71,4 +71,7 @@ printf "import 'e2e_a_test.dart';\n// import 'e2e_neu_test.dart';\n" > app/integ
 run "Waechter: nur auskommentierter Import"    1 0 E2E_SHARD=sammlung
 printf "import 'e2e_a_test.dart';\nimport 'e2e_neu_test.dart';\n" > app/integration_test/all_test.dart
 run "Waechter: eingebunden -> frei"            0 1 E2E_SHARD=sammlung
+# Lokale Mehrphasentests (Host-Schritte) sind vom Waechter ausgenommen, auch ohne Import in all_test.dart.
+: > app/integration_test/e2e_health_real_test.dart; : > app/integration_test/e2e_health_revoke_test.dart
+run "Waechter: lokale Health-Tests ausgenommen" 0 1 E2E_SHARD=sammlung
 [ $fails -eq 0 ] && echo "ci_e2e-Test GRÜN" || { echo "ci_e2e-Test ROT"; exit 1; }

@@ -71,9 +71,9 @@ check_release_apk() {
       *) echo "Release-APK: uses-feature $feature fehlt"; return 1 ;;
     esac
   done
-  # WP07, WP27: Test-Sensor und Fake-Kamera gehören nur in den Debug-Einstieg. Ihre Marker dürfen in keiner Datei
+  # WP07, WP27, WP32: Test-Sensor, Fake-Kamera und Health-Connect-Fake gehören nur in den Debug-Einstieg. Ihre Marker dürfen in keiner Datei
   # des Release-APK stehen.
-  for quelle in "testSensorMarker app/lib/debug/debug_test_sensor.dart" "testPpgCameraMarker app/lib/debug/debug_test_ppg_camera.dart"; do
+  for quelle in "testSensorMarker app/lib/debug/debug_test_sensor.dart" "testPpgCameraMarker app/lib/debug/debug_test_ppg_camera.dart" "testHealthConnectMarker app/lib/debug/debug_test_health_connect.dart"; do
     pq_name=${quelle%% *}; pq_datei=${quelle#* }
     marker=$(sed -n "s/^const String $pq_name = '\(.*\)';$/\1/p" "$pq_datei")
     [ -n "$marker" ] || { echo "$pq_name in $pq_datei nicht gefunden"; return 1; }
@@ -81,7 +81,7 @@ check_release_apk() {
       echo "Release-APK enthält die Debug-Quelle $pq_name ($marker)"; return 1
     fi
   done
-  echo "Test-Sensor und Fake-Kamera nicht im Release-APK; CAMERA und uses-feature required=false vorhanden"
+  echo "Test-Sensor, Fake-Kamera und Health-Connect-Fake nicht im Release-APK; CAMERA und uses-feature required=false vorhanden"
 }
 
 [ $# -eq 1 ] || { echo "Aufruf: tool/check_release_apk.sh <apk>"; exit 2; }

@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart' show ScrollDirection;
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
+import '../health/vo2_comparison_card.dart';
 import '../home/data_changes.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
@@ -359,6 +360,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 session: widget.session,
                 onExplain: widget.onExplain,
               ),
+              // Fremde VO2max nur zum Vergleich, getrennt von der eigenen Reihe (FR-0024).
+              Vo2ComparisonCard(session: widget.session),
               PredictionCard(
                 session: widget.session,
                 clock: widget.clock,

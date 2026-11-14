@@ -2,8 +2,10 @@ import '../../ports/archive_sink.dart';
 import '../../ports/clock.dart';
 import '../../ports/database_files.dart';
 import '../../ports/storage.dart';
+import '../../ports/health_import.dart';
 import '../../ports/storage_goals.dart';
 import '../../ports/storage_morning.dart';
+import '../../ports/storage_health.dart';
 import '../../ports/storage_prediction.dart';
 import '../../ports/storage_warning.dart';
 import 'archive_errors.dart';
@@ -92,7 +94,14 @@ class ArchiveRestoreService {
         (await (s as WarningStorage).warning.read()) != null) {
       return false;
     }
-    // Morgenmessungen sind eigene Daten, auch ohne Läufe.
+    // Importierte Gesundheitsdaten (WP32) sind eigene Daten, auch ohne Läufe.
+    if (s is HealthStorage) {
+      final h = (s as HealthStorage).health;
+      for (final k in HealthDataKind.values) {
+        if (await h.count(k) > 0) return false;
+      }
+    }
+    // Morgenmessungen (WP33) sind eigene Daten, auch ohne Läufe.
     if (s is MorningStorage &&
         (await (s as MorningStorage).morning.list()).isNotEmpty) {
       return false;

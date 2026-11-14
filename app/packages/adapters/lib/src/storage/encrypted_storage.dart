@@ -26,6 +26,7 @@ import 'run_access.dart';
 import 'settings_access.dart';
 import 'subjective_access.dart';
 import 'value_access.dart';
+import 'health_access.dart';
 import 'warning_access.dart';
 
 /// Offene, verschlüsselte Datenbank mit den Zugriffen des Ports. Jeder
@@ -37,6 +38,7 @@ class EncryptedStorageSession
         GoalStorage,
         PlanStorage,
         WarningStorage,
+        HealthStorage,
         MorningStorage {
   EncryptedStorageSession(this.database, {this.onDeleteAll})
     : runs = DriftRunStore(database),
@@ -55,7 +57,8 @@ class EncryptedStorageSession
       goals = DriftGoalStore(database),
       plans = DriftPlanRepository(database),
       warning = DriftWarningStore(database),
-      morning = DriftMorningStore(database);
+      morning = DriftMorningStore(database),
+      health = DriftHealthStore(database);
 
   final AppDatabase database;
 
@@ -102,6 +105,8 @@ class EncryptedStorageSession
 
   @override
   final MorningStore morning;
+  @override
+  final HealthImportStore health;
 
   @override
   Future<void> deleteRun(int runId) => _deletion.deleteRun(runId);

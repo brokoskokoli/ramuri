@@ -840,12 +840,31 @@ void main() {
       } else {
         expect(warning, isNull);
       }
-      // Morgenmessungen (WP33): Abschnitte 27 und 28 ab Schema 12, Werte exakt,
+      // Health Connect (WP32): Abschnitte 27 bis 31 und manual_trainings.hc_id
+      // ab Schema 12, Zeilen wertgleich zum Vektor; davor leer, hc_id leer.
+      for (final n in [
+        'health_sleep_sessions',
+        'health_sleep_stages',
+        'health_values',
+        'health_exercises',
+        'health_exercise_heart_rates',
+      ]) {
+        if (schema >= 12) {
+          expect(got[n], isNotEmpty, reason: n);
+          expect(got[n], expected[n], reason: n);
+        } else {
+          expect(got[n], isEmpty, reason: n);
+        }
+      }
+      expect([
+        for (final r in got['manual_trainings']!) r['hc_id'],
+      ], schema >= 12 ? [null, 'hc-ex-1'] : [null, null]);
+      // Morgenmessungen (WP33): Abschnitte 32 und 33 ab Schema 13, Werte exakt,
       // BLOB als Bytes; ältere Archive lassen die Tabellen leer.
       final morning = await (session as MorningStorage).morning.list();
-      expect(got['morning_measurements'], hasLength(schema >= 12 ? 2 : 0));
-      expect(got['morning_rr_packets'], hasLength(schema >= 12 ? 2 : 0));
-      if (schema >= 12) {
+      expect(got['morning_measurements'], hasLength(schema >= 13 ? 2 : 0));
+      expect(got['morning_rr_packets'], hasLength(schema >= 13 ? 2 : 0));
+      if (schema >= 13) {
         final a = morning[0].value;
         final b = morning[1].value;
         expect(a.posture, RestingPosture.lying);

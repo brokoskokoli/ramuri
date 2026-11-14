@@ -187,6 +187,8 @@ Der Nutzer kann ein Training mit Datum, Art, Dauer und RPE nachtragen. Es geht i
 - [ ] „Sonstiges“ zählt für Belastung und Pausenende, aber nicht für Trainingsstand und längste Einheit (OQ-0058).
 - [ ] Ein aus Health Connect importiertes Training lässt sich „als Training übernehmen“: Das legt einen Nachtrag mit vorausgefüllter Dauer an, die RPE fragt die App. Erst dann zählt es in Belastung und Pausenregel; vorher wird es nur angezeigt (FR-0023, K62 Punkt 2).
 
+**Umsetzung der Übernahme (WP32, K64):** Vorbelegt sind Tag, Art und Dauer, die RPE fragt die App. Der Nachtrag merkt sich die Health-Connect-ID (`manual_trainings.hc_id`), damit dieselbe Einheit nur einmal übernommen wird; beim Ändern bleibt sie erhalten. Das Löschen der importierten Daten lässt den Nachtrag stehen.
+
 ## Später wählbares Belastungsprofil
 
 ### FR-0197 — Belastungsprofil wählen

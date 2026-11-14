@@ -474,12 +474,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 12: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 13: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 13);
+        final lines = valid()..[0] = _manifest(schema: 14);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":13,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":14,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -1346,8 +1346,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 12 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 13, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 13 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 14, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -1368,15 +1368,17 @@ void main() {
       );
       expect(archiveSectionsFor(10).first.columns.last.name, 'mode');
       expect(archiveSectionsFor(11), hasLength(26));
+      expect(archiveSectionsFor(12), hasLength(31));
+      expect(archiveSectionsFor(12).last.name, 'health_exercise_heart_rates');
       expect(archiveSectionsFor(11).last.name, 'treadmill_settings');
-      // Morgenmessung (WP33): Abschnitte 27 und 28 erst ab Schema 12.
-      expect(archiveSectionsFor(12), hasLength(28));
-      expect(archiveSectionsFor(12).map((s) => s.name).skip(26), [
+      // Morgenmessung (WP33): Abschnitte 32 und 33 erst ab Schema 13.
+      expect(archiveSectionsFor(13), hasLength(33));
+      expect(archiveSectionsFor(13).map((s) => s.name).skip(31), [
         'morning_measurements',
         'morning_rr_packets',
       ]);
       expect(
-        archiveSectionsFor(11).map((s) => s.name),
+        archiveSectionsFor(12).map((s) => s.name),
         isNot(contains('morning_measurements')),
       );
       // `active_warning` (21) ist bis Schema 10 reserviert, ab 11 mit Spalten.
@@ -1836,6 +1838,69 @@ void main() {
       },
     );
 
+    Map<String, Object?> hcRows(String section, int i) =>
+        _row(archiveSectionsFor(12).firstWhere((x) => x.name == section), i);
+
+    test(
+      'Schema 12: health_* und manual_trainings.hc_id (auch leer) kommen an; '
+      'Schema 11 liest hc_id als leer, health_* gibt es dort nicht',
+      () async {
+        final health = [
+          'health_sleep_sessions',
+          'health_sleep_stages',
+          'health_values',
+          'health_exercises',
+          'health_exercise_heart_rates',
+        ];
+        await c.run(
+          await file(
+            v2(
+              schema: 12,
+              trainings: [
+                mt()..['hc_id'] = 'hc-1',
+                mt(id: 2)..['hc_id'] = null,
+              ],
+              extra: {
+                for (final n in health) n: [hcRows(n, 1), hcRows(n, 2)],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        for (final n in health) {
+          expect(c.sink.rows[n], [hcRows(n, 1), hcRows(n, 2)], reason: n);
+        }
+        expect(
+          [for (final r in c.sink.rows['manual_trainings']!) r['hc_id']],
+          ['hc-1', null],
+        );
+        // Schema 11: keine health_*-Abschnitte, hc_id gilt als leer.
+        c = _Case(dir);
+        await c.run(await file(v2(schema: 11)));
+        expect(c.sink.rows['manual_trainings']!.single['hc_id'], isNull);
+        for (final n in health) {
+          expect(c.sink.rows[n] ?? const [], isEmpty, reason: n);
+        }
+        c = _Case(dir);
+        final l = v2(schema: 11);
+        l.insert(l.length - 1, _section('health_values'));
+        await rejectsV2(l);
+        // Schema 11 mit hc_id oder Schema 12 ohne hc_id: beschädigt.
+        await rejectsV2(v2(schema: 11, trainings: [mt()..['hc_id'] = 'x']));
+        await rejectsV2(v2(schema: 12, trainings: [mt()]));
+        // Falscher Typ in einem health-Abschnitt: beschädigt.
+        await rejectsV2(
+          v2(
+            schema: 12,
+            trainings: [mt()..['hc_id'] = null],
+            extra: {
+              'health_values': [hcRows('health_values', 1)..['value'] = 's'],
+            },
+          ),
+        );
+      },
+    );
+
     test(
       'Schema 9: runs ohne mode lesen sich mit gps, Abschnitt 26 gibt es nicht',
       () async {
@@ -1850,7 +1915,7 @@ void main() {
       },
     );
 
-    test('Schema 12: Morgenmessungen (27) und Gurt-RR (28) kommen an; BLOB nur als Hex', () async {
+    test('Schema 13: Morgenmessungen (32) und Gurt-RR (33) kommen an; BLOB nur als Hex', () async {
       Map<String, Object?> mm(int id, {Object? ibi = '00608944'}) => {
         'id': id,
         'measured_at_us': 5000 + id,
@@ -1879,7 +1944,8 @@ void main() {
       await c.run(
         await file(
           v2(
-            schema: 12,
+            schema: 13,
+            trainings: [mt()..['hc_id'] = null],
             extra: {
               'morning_measurements': [mm(1), mm(2, ibi: '')],
               'morning_rr_packets': [rr(1), rr(2)],
@@ -1893,13 +1959,15 @@ void main() {
       expect(m[0]['camera_ibi'], [0x00, 0x60, 0x89, 0x44]);
       expect(m[1]['camera_ibi'], isEmpty);
       expect(c.sink.rows['morning_rr_packets'], hasLength(2));
-      // Schema 11 hat die Abschnitte nicht (leer), ein Abschnitt darin ist beschädigt.
+      // Schema 12 hat die Abschnitte nicht (leer), ein Abschnitt darin ist beschädigt.
       c = _Case(dir);
-      await c.run(await file(v2(schema: 11)));
+      await c.run(
+        await file(v2(schema: 12, trainings: [mt()..['hc_id'] = null])),
+      );
       expect(c.sink.rows['morning_measurements'] ?? const [], isEmpty);
       expect(c.sink.rows['morning_rr_packets'] ?? const [], isEmpty);
       c = _Case(dir);
-      final l = v2(schema: 11);
+      final l = v2(schema: 12, trainings: [mt()..['hc_id'] = null]);
       l.insert(l.length - 1, _section('morning_measurements'));
       await rejectsV2(l);
       // BLOB: Großbuchstaben, ungerade Länge, Nicht-Text, null und falscher Typ der Spalten.
@@ -1916,7 +1984,8 @@ void main() {
       ]) {
         await rejectsV2(
           v2(
-            schema: 12,
+            schema: 13,
+            trainings: [mt()..['hc_id'] = null],
             extra: {
               'morning_measurements': [bad],
             },
@@ -1931,7 +2000,8 @@ void main() {
       ]) {
         await rejectsV2(
           v2(
-            schema: 12,
+            schema: 13,
+            trainings: [mt()..['hc_id'] = null],
             extra: {
               'morning_rr_packets': [bad],
             },
@@ -2150,9 +2220,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 13: neueres Archiv', () async {
+    test('Schema 14: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":13,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":14,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });
@@ -2229,7 +2299,11 @@ void main() {
     test('Rundgang: Export schreibt Format 2 mit beiden Abschnitten', () async {
       final db = _fullDb(rowsPer: 2, schema: archiveSchemaVersion);
       db['run_feedback'] = [fb(), fb(run: 2)];
-      db['manual_trainings'] = [mt(), mt(id: 2)];
+      // Seit Schema 12 mit hc_id (leer und gesetzt).
+      db['manual_trainings'] = [
+        mt()..['hc_id'] = null,
+        mt(id: 2)..['hc_id'] = 'hc-1',
+      ];
       final handoff = FakeFileHandoff()..directory = dir.path;
       final out = await ArchiveExporter(
         source: FakeArchiveSource(db),

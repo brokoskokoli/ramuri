@@ -307,7 +307,7 @@ void main() {
     );
     await s.devices.upsert('dev', displayName: 'x', at: at(0));
     await s.consents.set('c', ConsentState.granted, at: at(0));
-    // Morgenmessung mit Gurt-RR (Schema 12): keine Kaskade vom Lauf, nur die
+    // Morgenmessung mit Gurt-RR (Schema 13): keine Kaskade vom Lauf, nur die
     // Löschschleife erreicht beide Tabellen.
     await addMorning(s);
     await db.customStatement("INSERT INTO storage_meta VALUES ('k', 'v')");

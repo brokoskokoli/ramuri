@@ -54,4 +54,34 @@ class ConsentService {
     _revokedHere.remove(sourceKey);
     return RevocationOutcome(askDeleteImportedData: wasGranted);
   }
+
+  /// Zustand „Löschfrage offen“ je Quelle (SEC-0007): Die Quelle hat ihr Recht
+  /// verloren oder wurde widerrufen, die schon importierten Daten sind noch da
+  /// und die Oberfläche fragt beim nächsten Öffnen, ob sie gelöscht werden.
+  /// Eigener Eintrag neben der Einwilligung (`granted` = Frage offen). Unlesbar
+  /// gilt als nicht offen.
+  Future<bool> isDeleteQuestionOpen(String sourceKey) async {
+    try {
+      return await _store.get(deleteQuestionKey(sourceKey)) ==
+          ConsentState.granted;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> openDeleteQuestion(String sourceKey) => _store.set(
+    deleteQuestionKey(sourceKey),
+    ConsentState.granted,
+    at: _clock.now(),
+  );
+
+  /// Die Frage ist beantwortet (gelöscht oder behalten).
+  Future<void> closeDeleteQuestion(String sourceKey) => _store.set(
+    deleteQuestionKey(sourceKey),
+    ConsentState.revoked,
+    at: _clock.now(),
+  );
 }
+
+/// Schlüssel des Eintrags „Löschfrage offen“ einer Quelle.
+String deleteQuestionKey(String sourceKey) => '$sourceKey.delete_question';

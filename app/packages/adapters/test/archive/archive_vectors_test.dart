@@ -268,7 +268,7 @@ void main() {
     expect(lines.last['rows']['plan_units'], 4);
   });
 
-  test('archive_v2_s12: Format 2, Schema 12, morning_measurements und morning_rr_packets (Abschnitte 27 und 28)', () async {
+  test('archive_v2_s12: Format 2, Schema 12, health_* (Abschnitte 27 bis 31) und manual_trainings.hc_id', () async {
     final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s12');
     final plain = await _collect(
       createArchiveCipher().decrypt(
@@ -288,8 +288,51 @@ void main() {
       for (final l in lines)
         if (l['type'] == 'section') l['name'],
     ];
-    expect(sections.length, 28);
+    expect(sections.length, 31);
     expect(sections.sublist(26), [
+      'health_sleep_sessions',
+      'health_sleep_stages',
+      'health_values',
+      'health_exercises',
+      'health_exercise_heart_rates',
+    ]);
+    expect(lines.last['rows']['health_sleep_sessions'], 2);
+    expect(lines.last['rows']['health_sleep_stages'], 2);
+    expect(lines.last['rows']['health_values'], 3);
+    expect(lines.last['rows']['health_exercises'], 1);
+    expect(lines.last['rows']['health_exercise_heart_rates'], 2);
+    final trainings = [
+      for (final l in lines)
+        if (l['type'] == 'row' &&
+            (l['data'] as Map).containsKey('duration_s') &&
+            (l['data'] as Map).containsKey('hc_id'))
+          (l['data'] as Map)['hc_id'],
+    ];
+    expect(trainings, [null, 'hc-ex-1']);
+  });
+
+  test('archive_v2_s13: Format 2, Schema 13, morning_measurements und morning_rr_packets (Abschnitte 32 und 33)', () async {
+    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s13');
+    final plain = await _collect(
+      createArchiveCipher().decrypt(
+        v['password'] as String,
+        Stream.value(_read(v['file'] as String)),
+      ),
+    );
+    expect(_read(v['file'] as String)[9], 2);
+    final text = utf8.decode(gzip.decode(plain));
+    expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+    final lines = [
+      for (final l in const LineSplitter().convert(text))
+        jsonDecode(l) as Map<String, dynamic>,
+    ];
+    expect(lines.first['schema_version'], 13);
+    final sections = [
+      for (final l in lines)
+        if (l['type'] == 'section') l['name'],
+    ];
+    expect(sections.length, 33);
+    expect(sections.sublist(31), [
       'morning_measurements',
       'morning_rr_packets',
     ]);

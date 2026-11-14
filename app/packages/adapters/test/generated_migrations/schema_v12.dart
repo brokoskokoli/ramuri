@@ -2252,8 +2252,16 @@ class ManualTrainings extends Table with TableInfo {
     $customConstraints:
         'NOT NULL CHECK (typeof(rpe) = \'integer\' AND rpe BETWEEN 0 AND 10)',
   );
+  late final GeneratedColumn<String> hcId = GeneratedColumn<String>(
+    'hc_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (hc_id IS NULL OR length(hc_id) > 0)',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, day, kind, durationS, rpe];
+  List<GeneratedColumn> get $columns => [id, day, kind, durationS, rpe, hcId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2883,11 +2891,11 @@ class ActiveWarning extends Table with TableInfo {
   bool get dontWriteConstraints => true;
 }
 
-class MorningMeasurements extends Table with TableInfo {
+class HealthSleepSessions extends Table with TableInfo {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  MorningMeasurements(this.attachedDatabase, [this._alias]);
+  HealthSleepSessions(this.attachedDatabase, [this._alias]);
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
     'id',
     aliasedName,
@@ -2897,153 +2905,62 @@ class MorningMeasurements extends Table with TableInfo {
     requiredDuringInsert: false,
     $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
   );
-  late final GeneratedColumn<int> measuredAtUs = GeneratedColumn<int>(
-    'measured_at_us',
+  late final GeneratedColumn<String> hcId = GeneratedColumn<String>(
+    'hc_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL UNIQUE CHECK (length(hc_id) > 0)',
+  );
+  late final GeneratedColumn<String> origin = GeneratedColumn<String>(
+    'origin',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (length(origin) > 0)',
+  );
+  late final GeneratedColumn<int> startUs = GeneratedColumn<int>(
+    'start_us',
     aliasedName,
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    $customConstraints: 'NOT NULL CHECK (typeof(start_us) = \'integer\')',
   );
-  late final GeneratedColumn<int> utcOffsetS = GeneratedColumn<int>(
-    'utc_offset_s',
+  late final GeneratedColumn<int> endUs = GeneratedColumn<int>(
+    'end_us',
     aliasedName,
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
     $customConstraints:
-        'NOT NULL CHECK (utc_offset_s BETWEEN -64800 AND 64800)',
+        'NOT NULL CHECK (typeof(end_us) = \'integer\' AND end_us >= start_us)',
   );
-  late final GeneratedColumn<String> posture = GeneratedColumn<String>(
-    'posture',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (posture IN (\'lying\', \'sitting\'))',
-  );
-  late final GeneratedColumn<String> deviceManufacturer =
-      GeneratedColumn<String>(
-        'device_manufacturer',
-        aliasedName,
-        false,
-        type: DriftSqlType.string,
-        requiredDuringInsert: true,
-        $customConstraints: 'NOT NULL',
-      );
-  late final GeneratedColumn<String> deviceModel = GeneratedColumn<String>(
-    'device_model',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
-  );
-  late final GeneratedColumn<String> method = GeneratedColumn<String>(
-    'method',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (length(method) > 0)',
-  );
-  late final GeneratedColumn<int> methodVersion = GeneratedColumn<int>(
-    'method_version',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (method_version >= 1)',
-  );
-  late final GeneratedColumn<String> quality = GeneratedColumn<String>(
-    'quality',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (quality IN (\'good\', \'limited\'))',
-  );
-  late final GeneratedColumn<double> restingHrBpm = GeneratedColumn<double>(
-    'resting_hr_bpm',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (resting_hr_bpm > 0)',
-  );
-  late final GeneratedColumn<double> rmssdMs = GeneratedColumn<double>(
-    'rmssd_ms',
+  late final GeneratedColumn<int> offsetS = GeneratedColumn<int>(
+    'offset_s',
     aliasedName,
     true,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    $customConstraints: 'CHECK (rmssd_ms >= 0)',
-  );
-  late final GeneratedColumn<double> timingNoiseMs = GeneratedColumn<double>(
-    'timing_noise_ms',
-    aliasedName,
-    true,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    $customConstraints: 'CHECK (timing_noise_ms >= 0)',
-  );
-  late final GeneratedColumn<String> sleepBand = GeneratedColumn<String>(
-    'sleep_band',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    $customConstraints: 'CHECK (sleep_band IN (\'under5\', \'from5to6\', \'from6to7\', \'from7to8\', \'over8\'))',
-  );
-  late final GeneratedColumn<int> beforeValidation = GeneratedColumn<int>(
-    'before_validation',
-    aliasedName,
-    false,
     type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (before_validation IN (0, 1))',
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (offset_s IS NULL OR typeof(offset_s) = \'integer\')',
   );
-  late final GeneratedColumn<int> outsideWindow = GeneratedColumn<int>(
-    'outside_window',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (outside_window IN (0, 1))',
-  );
-  late final GeneratedColumn<i2.Uint8List> cameraIbi =
-      GeneratedColumn<i2.Uint8List>(
-        'camera_ibi',
-        aliasedName,
-        false,
-        type: DriftSqlType.blob,
-        requiredDuringInsert: true,
-        $customConstraints: 'NOT NULL CHECK (length(camera_ibi) % 4 = 0)',
-      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
-    measuredAtUs,
-    utcOffsetS,
-    posture,
-    deviceManufacturer,
-    deviceModel,
-    method,
-    methodVersion,
-    quality,
-    restingHrBpm,
-    rmssdMs,
-    timingNoiseMs,
-    sleepBand,
-    beforeValidation,
-    outsideWindow,
-    cameraIbi,
+    hcId,
+    origin,
+    startUs,
+    endUs,
+    offsetS,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'morning_measurements';
+  static const String $name = 'health_sleep_sessions';
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
@@ -3052,19 +2969,19 @@ class MorningMeasurements extends Table with TableInfo {
   }
 
   @override
-  MorningMeasurements createAlias(String alias) {
-    return MorningMeasurements(attachedDatabase, alias);
+  HealthSleepSessions createAlias(String alias) {
+    return HealthSleepSessions(attachedDatabase, alias);
   }
 
   @override
   bool get dontWriteConstraints => true;
 }
 
-class MorningRrPackets extends Table with TableInfo {
+class HealthSleepStages extends Table with TableInfo {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  MorningRrPackets(this.attachedDatabase, [this._alias]);
+  HealthSleepStages(this.attachedDatabase, [this._alias]);
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
     'id',
     aliasedName,
@@ -3074,14 +2991,100 @@ class MorningRrPackets extends Table with TableInfo {
     requiredDuringInsert: false,
     $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
   );
-  late final GeneratedColumn<int> measurementId = GeneratedColumn<int>(
-    'measurement_id',
+  late final GeneratedColumn<int> sessionId = GeneratedColumn<int>(
+    'session_id',
     aliasedName,
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
     $customConstraints:
-        'NOT NULL REFERENCES morning_measurements(id)ON DELETE CASCADE',
+        'NOT NULL REFERENCES health_sleep_sessions(id)ON DELETE CASCADE',
+  );
+  late final GeneratedColumn<int> startUs = GeneratedColumn<int>(
+    'start_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (typeof(start_us) = \'integer\')',
+  );
+  late final GeneratedColumn<int> endUs = GeneratedColumn<int>(
+    'end_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (typeof(end_us) = \'integer\' AND end_us >= start_us)',
+  );
+  late final GeneratedColumn<int> stage = GeneratedColumn<int>(
+    'stage',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (typeof(stage) = \'integer\')',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, sessionId, startUs, endUs, stage];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'health_sleep_stages';
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Never map(Map<String, dynamic> data, {String? tablePrefix}) {
+    throw UnsupportedError('TableInfo.map in schema verification code');
+  }
+
+  @override
+  HealthSleepStages createAlias(String alias) {
+    return HealthSleepStages(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class HealthValues extends Table with TableInfo {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  HealthValues(this.attachedDatabase, [this._alias]);
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  late final GeneratedColumn<String> hcId = GeneratedColumn<String>(
+    'hc_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL UNIQUE CHECK (length(hc_id) > 0)',
+  );
+  late final GeneratedColumn<String> origin = GeneratedColumn<String>(
+    'origin',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (length(origin) > 0)',
+  );
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (kind IN (\'hrv_rmssd\', \'resting_heart_rate\', \'vo2_max\'))',
   );
   late final GeneratedColumn<int> timeUs = GeneratedColumn<int>(
     'time_us',
@@ -3089,32 +3092,50 @@ class MorningRrPackets extends Table with TableInfo {
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL',
+    $customConstraints: 'NOT NULL CHECK (typeof(time_us) = \'integer\')',
   );
-  late final GeneratedColumn<String> source = GeneratedColumn<String>(
-    'source',
+  late final GeneratedColumn<int> offsetS = GeneratedColumn<int>(
+    'offset_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (offset_s IS NULL OR typeof(offset_s) = \'integer\')',
+  );
+  late final GeneratedColumn<double> value = GeneratedColumn<double>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (typeof(value) IN (\'real\', \'integer\'))',
+  );
+  late final GeneratedColumn<String> unit = GeneratedColumn<String>(
+    'unit',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL',
   );
-  late final GeneratedColumn<i2.Uint8List> rr = GeneratedColumn<i2.Uint8List>(
-    'rr',
-    aliasedName,
-    false,
-    type: DriftSqlType.blob,
-    requiredDuringInsert: true,
-    $customConstraints:
-        'NOT NULL CHECK (length(rr) > 0 AND length(rr) % 2 = 0)',
-  );
   @override
-  List<GeneratedColumn> get $columns => [id, measurementId, timeUs, source, rr];
+  List<GeneratedColumn> get $columns => [
+    id,
+    hcId,
+    origin,
+    kind,
+    timeUs,
+    offsetS,
+    value,
+    unit,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'morning_rr_packets';
+  static const String $name = 'health_values';
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
@@ -3123,8 +3144,166 @@ class MorningRrPackets extends Table with TableInfo {
   }
 
   @override
-  MorningRrPackets createAlias(String alias) {
-    return MorningRrPackets(attachedDatabase, alias);
+  HealthValues createAlias(String alias) {
+    return HealthValues(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class HealthExercises extends Table with TableInfo {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  HealthExercises(this.attachedDatabase, [this._alias]);
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  late final GeneratedColumn<String> hcId = GeneratedColumn<String>(
+    'hc_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL UNIQUE CHECK (length(hc_id) > 0)',
+  );
+  late final GeneratedColumn<String> origin = GeneratedColumn<String>(
+    'origin',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (length(origin) > 0)',
+  );
+  late final GeneratedColumn<int> exerciseType = GeneratedColumn<int>(
+    'exercise_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (typeof(exercise_type) = \'integer\')',
+  );
+  late final GeneratedColumn<int> startUs = GeneratedColumn<int>(
+    'start_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (typeof(start_us) = \'integer\')',
+  );
+  late final GeneratedColumn<int> endUs = GeneratedColumn<int>(
+    'end_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (typeof(end_us) = \'integer\' AND end_us >= start_us)',
+  );
+  late final GeneratedColumn<int> offsetS = GeneratedColumn<int>(
+    'offset_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (offset_s IS NULL OR typeof(offset_s) = \'integer\')',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    hcId,
+    origin,
+    exerciseType,
+    startUs,
+    endUs,
+    offsetS,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'health_exercises';
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Never map(Map<String, dynamic> data, {String? tablePrefix}) {
+    throw UnsupportedError('TableInfo.map in schema verification code');
+  }
+
+  @override
+  HealthExercises createAlias(String alias) {
+    return HealthExercises(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class HealthExerciseHeartRates extends Table with TableInfo {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  HealthExerciseHeartRates(this.attachedDatabase, [this._alias]);
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  late final GeneratedColumn<int> exerciseId = GeneratedColumn<int>(
+    'exercise_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL REFERENCES health_exercises(id)ON DELETE CASCADE',
+  );
+  late final GeneratedColumn<int> timeUs = GeneratedColumn<int>(
+    'time_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (typeof(time_us) = \'integer\')',
+  );
+  late final GeneratedColumn<int> bpm = GeneratedColumn<int>(
+    'bpm',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (typeof(bpm) = \'integer\' AND bpm > 0)',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, exerciseId, timeUs, bpm];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'health_exercise_heart_rates';
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Never map(Map<String, dynamic> data, {String? tablePrefix}) {
+    throw UnsupportedError('TableInfo.map in schema verification code');
+  }
+
+  @override
+  HealthExerciseHeartRates createAlias(String alias) {
+    return HealthExerciseHeartRates(attachedDatabase, alias);
   }
 
   @override
@@ -3303,6 +3482,10 @@ class DatabaseAtV12 extends GeneratedDatabase {
     'manual_trainings_day',
     'CREATE INDEX manual_trainings_day ON manual_trainings (day)',
   );
+  late final Index manualTrainingsHcId = Index(
+    'manual_trainings_hc_id',
+    'CREATE UNIQUE INDEX manual_trainings_hc_id ON manual_trainings (hc_id)',
+  );
   late final ReferencePerformances referencePerformances =
       ReferencePerformances(this);
   late final Index referencePerformancesRun = Index(
@@ -3332,17 +3515,29 @@ class DatabaseAtV12 extends GeneratedDatabase {
     'CREATE INDEX plan_units_run ON plan_units (run_id)',
   );
   late final ActiveWarning activeWarning = ActiveWarning(this);
-  late final MorningMeasurements morningMeasurements = MorningMeasurements(
+  late final HealthSleepSessions healthSleepSessions = HealthSleepSessions(
     this,
   );
-  late final Index morningMeasurementsTime = Index(
-    'morning_measurements_time',
-    'CREATE INDEX morning_measurements_time ON morning_measurements (measured_at_us)',
+  late final HealthSleepStages healthSleepStages = HealthSleepStages(this);
+  late final Index healthSleepStagesSession = Index(
+    'health_sleep_stages_session',
+    'CREATE INDEX health_sleep_stages_session ON health_sleep_stages (session_id)',
   );
-  late final MorningRrPackets morningRrPackets = MorningRrPackets(this);
-  late final Index morningRrPacketsMeasurement = Index(
-    'morning_rr_packets_measurement',
-    'CREATE INDEX morning_rr_packets_measurement ON morning_rr_packets (measurement_id, time_us)',
+  late final HealthValues healthValues = HealthValues(this);
+  late final Index healthValuesKindTime = Index(
+    'health_values_kind_time',
+    'CREATE INDEX health_values_kind_time ON health_values (kind, time_us)',
+  );
+  late final HealthExercises healthExercises = HealthExercises(this);
+  late final Index healthExercisesStart = Index(
+    'health_exercises_start',
+    'CREATE INDEX health_exercises_start ON health_exercises (start_us)',
+  );
+  late final HealthExerciseHeartRates healthExerciseHeartRates =
+      HealthExerciseHeartRates(this);
+  late final Index healthExerciseHeartRatesExercise = Index(
+    'health_exercise_heart_rates_exercise',
+    'CREATE INDEX health_exercise_heart_rates_exercise ON health_exercise_heart_rates (exercise_id)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -3407,6 +3602,7 @@ class DatabaseAtV12 extends GeneratedDatabase {
     runFeedback,
     manualTrainings,
     manualTrainingsDay,
+    manualTrainingsHcId,
     referencePerformances,
     referencePerformancesRun,
     rejectedSuggestions,
@@ -3418,10 +3614,15 @@ class DatabaseAtV12 extends GeneratedDatabase {
     planUnitsPlan,
     planUnitsRun,
     activeWarning,
-    morningMeasurements,
-    morningMeasurementsTime,
-    morningRrPackets,
-    morningRrPacketsMeasurement,
+    healthSleepSessions,
+    healthSleepStages,
+    healthSleepStagesSession,
+    healthValues,
+    healthValuesKindTime,
+    healthExercises,
+    healthExercisesStart,
+    healthExerciseHeartRates,
+    healthExerciseHeartRatesExercise,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -3714,10 +3915,19 @@ class DatabaseAtV12 extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'morning_measurements',
+        'health_sleep_sessions',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('morning_rr_packets', kind: UpdateKind.delete)],
+      result: [TableUpdate('health_sleep_stages', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'health_exercises',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('health_exercise_heart_rates', kind: UpdateKind.delete),
+      ],
     ),
   ]);
   @override

@@ -8,6 +8,8 @@ export 'src/archive/cryptography_archive.dart';
 export 'src/archive/drift_archive_sink.dart';
 export 'src/archive/drift_archive_source.dart';
 export 'src/export/method_channel_file_handoff.dart';
+export 'src/health/health_connect_port.dart';
+export 'src/health/method_channel_health_connect.dart';
 export 'src/map/encrypted_map_tile_store.dart';
 export 'src/map/map_cache_core.dart'
     show
@@ -34,6 +36,7 @@ export 'src/storage/app_database.dart';
 export 'src/storage/connection_setup.dart';
 export 'src/storage/database_files.dart';
 export 'src/storage/encrypted_storage.dart';
+export 'src/storage/health_access.dart';
 export 'src/storage/no_backup_dir.dart';
 export 'src/storage/random_key.dart';
 export 'src/storage/secure_key_store.dart';
