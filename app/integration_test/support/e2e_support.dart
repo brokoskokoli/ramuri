@@ -21,6 +21,38 @@ void log(String s) {
   print('E2E_${DateTime.now().toIso8601String().substring(11, 23)} $s');
 }
 
+/// Zeile fuer das oeffentliche CI-Log: Praefix "PUB_" statt "E2E_" (tool/ci_e2e.sh
+/// filtert nur E2E_). Nur Schluesselnamen und Zustandsmarken, nie Werte
+/// (SEC-0001..0010).
+void logPub(String s) {
+  // ignore: avoid_print
+  print('PUB_${DateTime.now().toIso8601String().substring(11, 23)} $s');
+}
+
+/// Meldung eines Testfehlers ohne Werte: bei `expect` nur die Zeile "Reason:"
+/// (Expected/Actual/Which koennen Werte tragen), sonst der Text von `fail(...)`
+/// (nur Schluessel und Zeiten); andere Fehler nur mit ihrem Typ.
+String publicFailure(Object e) {
+  if (e is! TestFailure) return e.runtimeType.toString();
+  final m = e.message ?? '';
+  if (!m.startsWith('Expected:')) return m.split('\n').first;
+  final r = RegExp(r'^\s*Reason: (.*)$', multiLine: true).firstMatch(m);
+  return 'expect: ${r?.group(1) ?? 'ohne Grund'}';
+}
+
+/// Fuehrt [body] aus und schreibt bei einem Fehler dessen Meldung ohne Werte
+/// ins oeffentliche Log (sonst verdeckt der Abbau-Fehler am Testende sie).
+Future<void> Function(WidgetTester) reportingFailures(
+  Future<void> Function(WidgetTester) body,
+) => (t) async {
+  try {
+    await body(t);
+  } catch (e) {
+    logPub('FEHLER ${publicFailure(e)}');
+    rethrow;
+  }
+};
+
 class World {
   World(this.deps, this.sensor);
   final AppDependencies deps;
@@ -85,6 +117,33 @@ bool hittable(WidgetTester t, Finder f) {
   final hit = HitTestResult();
   t.binding.hitTestInView(hit, t.getCenter(f.first), t.view.viewId);
   return hit.path.any((e) => e.target == target);
+}
+
+/// Tipp auf [target] (ein Element unterhalb der Taste [key]): erst auf Ruhe und
+/// Treffer warten, danach pruefen, dass [done] gilt; sonst einmal erneut tippen
+/// und mit klarer Meldung scheitern. Kein festes Zeitpolster.
+Future<void> tapUntil(
+  WidgetTester t,
+  Finder target,
+  bool Function() done,
+  String what,
+) async {
+  for (var versuch = 1; versuch <= 2; versuch++) {
+    await t.ensureVisible(target);
+    final end = DateTime.now().add(const Duration(seconds: 5));
+    while (!hittable(t, target)) {
+      if (DateTime.now().isAfter(end)) {
+        logPub('tap_miss what=$what versuch=$versuch');
+        break;
+      }
+      await pumpFor(t, const Duration(milliseconds: 100));
+    }
+    if (hittable(t, target)) await t.tap(target);
+    await pumpFor(t, const Duration(milliseconds: 300));
+    if (done()) return;
+    logPub('tap_ohne_wirkung what=$what versuch=$versuch');
+  }
+  fail('Tipp ohne Wirkung: $what');
 }
 
 Future<void> tapKey(WidgetTester t, String key) async {

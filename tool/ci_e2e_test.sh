@@ -27,7 +27,7 @@ echo "E2E_WERT=geheim123"
 [ -z "${FAKE_E:-}" ] || echo "00:01 +0 -1: Archiv [E]"
 [ -z "${FAKE_SLEEP:-}" ] || sleep 6
 case "$*" in *PHASE=write* | *PHASE=a*) [ -n "${FAKE_NOKILL:-}" ] || { echo "E2E_X NEED_KILL"; sleep 3; } ;; esac
-[ -z "${FAKE_FAIL:-}" ] || { echo "Expected: x"; exit 1; }
+[ -z "${FAKE_FAIL:-}" ] || { echo "PUB_01 M2 form_error key=planFormErrorStand"; i=0; while [ $i -lt 60 ]; do echo "zeile $i"; i=$((i + 1)); done; echo "Expected: x"; exit 1; }
 exit 0
 X
 chmod +x "$tmp/bin/adb" "$tmp/bin/flutter"
@@ -66,6 +66,7 @@ script=$script_orig
 run "Stufe rot -> Exit 1"                      1 1 E2E_SHARD=sammlung FAKE_FAIL=1
 grep -q 'E2E_\|geheim123' "$tmp/stdout" && { echo "FAIL E2E_-Zeile in der Ausgabe"; fails=$((fails + 1)); } || echo "OK   keine E2E_-Zeile in der Ausgabe"
 grep -rq 'E2E_\|geheim123' "$tmp/out" && { echo "FAIL E2E_-Zeile im Artefakt"; fails=$((fails + 1)); } || echo "OK   keine E2E_-Zeile im Artefakt"
+grep -q 'PUB_01 M2 form_error key=planFormErrorStand' "$tmp/stdout" && echo "OK   PUB_-Zeile (Marker ohne Werte) im Log trotz langer Ausgabe" || { echo "FAIL PUB_-Zeile fehlt im Log"; fails=$((fails + 1)); }
 [ -f "$tmp/out/test-output-sammlung.txt" ] || { echo "FAIL kein Testlog im Artefakt"; fails=$((fails + 1)); }
 run "Prozessende ohne NEED_KILL -> Exit 1"     1 1 E2E_STUFEN=storage-a FAKE_NOKILL=1
 # Foto: laeuft die Stufe weiter, kommen Fotos; nach dem ersten "[E]" kein neues mehr.
