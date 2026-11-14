@@ -11,13 +11,38 @@ void main() {
     );
   });
 
+  // Echte TestFailure aus expect(...), nicht ein nachgebautes Format.
+  TestFailure real(void Function() f) {
+    try {
+      f();
+    } on TestFailure catch (e) {
+      return e;
+    }
+    throw StateError('expect hat nicht gefehlt');
+  }
+
   test('expect: nur der Grund, nie Expected/Actual', () {
-    final m =
-        'Expected: <190>\n  Actual: <60>\n   Which: differs\nReason: Profil gespeichert';
-    final out = publicFailure(TestFailure(m));
+    final failure = real(() => expect(60, 190, reason: 'Profil gespeichert'));
+    expect(failure.message, contains('Expected: <190>'));
+    final out = publicFailure(failure);
     expect(out, 'expect: Profil gespeichert');
     expect(out, isNot(contains('190')));
     expect(out, isNot(contains('60')));
+  });
+
+  test('expect: mehrzeiliges Actual/Which, Grund bleibt', () {
+    final failure = real(
+      () => expect('geheim\nzwei\ndrei', 'x', reason: 'Text stimmt'),
+    );
+    expect(failure.message, contains('zwei'));
+    final out = publicFailure(failure);
+    expect(out, 'expect: Text stimmt');
+    expect(out, isNot(contains('geheim')));
+    expect(out, isNot(contains('zwei')));
+  });
+
+  test('expect ohne Grund: kein Wert', () {
+    expect(publicFailure(real(() => expect(60, 190))), 'expect: ohne Grund');
   });
 
   test('andere Fehler: nur der Typ', () {

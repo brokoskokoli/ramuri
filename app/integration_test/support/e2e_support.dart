@@ -31,13 +31,24 @@ void logPub(String s) {
 
 /// Meldung eines Testfehlers ohne Werte: bei `expect` nur die Zeile "Reason:"
 /// (Expected/Actual/Which koennen Werte tragen), sonst der Text von `fail(...)`
-/// (nur Schluessel und Zeiten); andere Fehler nur mit ihrem Typ.
+/// (nur Schluessel und Zeiten); andere Fehler nur mit ihrem Typ. Der Grund
+/// ist bei `expect` die erste nicht eingerueckte Zeile nach Expected/Actual/Which.
 String publicFailure(Object e) {
   if (e is! TestFailure) return e.runtimeType.toString();
   final m = e.message ?? '';
   if (!m.startsWith('Expected:')) return m.split('\n').first;
-  final r = RegExp(r'^\s*Reason: (.*)$', multiLine: true).firstMatch(m);
-  return 'expect: ${r?.group(1) ?? 'ohne Grund'}';
+  // Echtes Format (matcher): "Expected: ..", "  Actual: ..", "   Which: ..",
+  // Fortsetzungszeilen eingerueckt, danach der Grund ohne Praefix.
+  final grund = m
+      .split('\n')
+      .where(
+        (z) =>
+            z.trim().isNotEmpty &&
+            !z.startsWith(' ') &&
+            !z.startsWith('Expected: '),
+      )
+      .firstOrNull;
+  return 'expect: ${grund ?? 'ohne Grund'}';
 }
 
 /// Fuehrt [body] aus und schreibt bei einem Fehler dessen Meldung ohne Werte
