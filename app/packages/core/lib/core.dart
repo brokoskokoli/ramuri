@@ -188,6 +188,8 @@ export 'src/sensors/heart_rate_source_selector.dart';
 export 'src/sensors/heart_rate_sources.dart';
 export 'src/reminders/morning_reminder.dart';
 export 'src/readiness/readiness_deviation.dart';
+export 'src/readiness/readiness_explanation.dart';
+export 'src/readiness/readiness_level.dart';
 export 'src/readiness/readiness_model.dart';
 export 'src/readiness/readiness_parameters.dart';
 export 'src/readiness/readiness_precedence.dart';

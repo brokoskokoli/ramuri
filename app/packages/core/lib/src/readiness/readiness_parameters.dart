@@ -97,3 +97,25 @@ const int readinessMaxValue = 100;
 const int readinessBandWellRecoveredFrom = 75;
 const int readinessBandNormalFrom = 50;
 const int readinessBandElevatedFrom = 25;
+
+// ---- Teil C2: Stufe der Datenlage und Erklärung ----
+
+/// PAR-149: „ausreichend“ braucht eine HRV-Referenz aus mindestens so vielen
+/// gültigen Messungen (und zusätzlich Ruhepuls mit eigener Referenz).
+const int readinessSufficientHrvReference = 18;
+
+/// PAR-150: „gut“ braucht eine HRV-Referenz aus mindestens so vielen gültigen
+/// Messungen.
+const int readinessGoodHrvReference = 21;
+
+/// PAR-150: „gut“ braucht dieselbe Datenquelle seit mindestens so vielen Tagen
+/// (Tage zwischen dem ersten Wert der Reihe und heute).
+const int readinessGoodSourceDays = 28;
+
+/// PAR-172: Bezug der Abweichung `Gewicht · (S − Bezug)`; bei Schlaf
+/// [readinessExplanationSleepReference] (PAR-165).
+const double readinessExplanationReference = 60;
+const double readinessExplanationSleepReference = 70;
+
+/// PAR-172: höchstens so viele Faktoren nennt die Erklärung.
+const int readinessExplanationMaxDrivers = 2;

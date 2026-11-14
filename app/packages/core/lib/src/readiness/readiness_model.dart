@@ -6,6 +6,8 @@ import '../morning/morning_marks.dart' show MorningRmssdMark;
 import '../../ports/storage_morning.dart' show SleepBand;
 import '../subjective/subjective_limits.dart' show checkWellbeing;
 import 'readiness_deviation.dart';
+import 'readiness_explanation.dart';
+import 'readiness_level.dart';
 import 'readiness_parameters.dart';
 import 'readiness_precedence.dart';
 import 'readiness_release.dart';
@@ -47,6 +49,7 @@ class ReadinessInputs {
     this.tsbPercent,
     this.wellbeing,
     this.processing = const HealthProcessing(),
+    this.hrvSourceSpanDays = 0,
   });
 
   /// Ortstag als UTC-Datum.
@@ -79,6 +82,11 @@ class ReadinessInputs {
 
   final ReadinessWellbeing? wellbeing;
   final HealthProcessing processing;
+
+  /// Tage vom ersten gültigen Wert der gewählten HRV-Reihe bis heute
+  /// (PAR-150, [readinessSourceSpanDays]); 0 heißt unbekannt und erfüllt
+  /// „gleiche Datenquelle seit 28 Tagen“ nicht.
+  final int hrvSourceSpanDays;
 }
 
 ReadinessBand readinessBandOf(int value) {
@@ -139,6 +147,7 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
           score: readinessScaleZ(c.z!),
           mark: mark,
           fewMeasurements: c.fewMeasurements,
+          referenceCount: c.referenceCount,
         ),
       );
       facts.add(
@@ -153,8 +162,11 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
     }
     for (final o in e.others) {
       // Nur gesperrte Kamerareihen mit `z` werden als markierte Tatsache
-      // gezeigt; sie gehen nie in Faktor oder Zahl.
-      if (o.source == ReadinessSource.camera &&
+      // gezeigt; sie gehen nie in Faktor oder Zahl. Vor der Freischaltung der
+      // Morgenmessung ohne Entwicklermodus gibt es gar keine Kamerawerte
+      // (K62 Punkt 1), auch keine Tatsache.
+      if (input.release.cameraValuesAllowed &&
+          o.source == ReadinessSource.camera &&
           o.hasZ &&
           !input.release.isReleased(o)) {
         marked.add(
@@ -185,11 +197,14 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
     ReadinessFactKind.restingHeartRateDeviation,
   );
 
+  double? sleepHoursForExplanation;
+
   // Schlaf: Health Connect (PAR-164, 166, 167) vor Selbstangabe (PAR-164K).
   final main = input.processing.mainSleep(input.sleepSessions, input.now);
   if (main != null) {
     final s = input.processing.sleepSummary(main);
     final hours = s.sleepDuration.inMicroseconds / Duration.microsecondsPerHour;
+    sleepHoursForExplanation = hours;
     factors.add(
       ReadinessFactorValue(
         id: ReadinessFactorId.sleep,
@@ -213,6 +228,7 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
     );
   } else if (input.sleepBand != null) {
     final hours = sleepBandHours(input.sleepBand!);
+    sleepHoursForExplanation = hours;
     factors.add(
       ReadinessFactorValue(
         id: ReadinessFactorId.sleep,
@@ -276,18 +292,40 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
     ReadinessState state, {
     int? value,
     bool capped = false,
-  }) => ReadinessResult(
-    state: state,
-    value: value,
-    band: value == null ? null : readinessBandOf(value),
-    capped: capped,
-    factors: List.unmodifiable(factors),
-    missing: List.unmodifiable(missing),
-    blockers: List.unmodifiable(blockers),
-    facts: List.unmodifiable(facts),
-    markedFacts: List.unmodifiable(marked),
-    hasFreshMeasurement: fresh,
-  );
+  }) {
+    final lv = readinessLevelOf(
+      factors: factors,
+      hrv: hrv,
+      hrvSourceSpanDays: input.hrvSourceSpanDays,
+      hrvCameraLocked: marked.any(
+        (m) => m.kind == ReadinessFactKind.hrvDeviation,
+      ),
+    );
+    final hasNumber = state == ReadinessState.number;
+    return ReadinessResult(
+      state: state,
+      value: value,
+      band: value == null ? null : readinessBandOf(value),
+      capped: capped,
+      factors: List.unmodifiable(factors),
+      missing: List.unmodifiable(missing),
+      blockers: List.unmodifiable(blockers),
+      facts: List.unmodifiable(facts),
+      markedFacts: List.unmodifiable(marked),
+      hasFreshMeasurement: fresh,
+      // Eine Zahl hat immer eine Stufe (mindestens vorläufig); ohne Zahl gilt
+      // „nicht bestimmbar“ (PAR-147), auch bei der eingeschränkten Einschätzung.
+      level: hasNumber ? lv.level : ReadinessLevel.notDeterminable,
+      levelReasons: List.unmodifiable(lv.reasons),
+      explanation: explainReadinessFactors(
+        factors: factors,
+        missing: missing,
+        sleepHours: sleepHoursForExplanation,
+        hasNumber: hasNumber,
+        capped: capped,
+      ),
+    );
+  }
 
   if (blockers.isEmpty) {
     var sum = 0.0, wsum = 0.0;

@@ -575,11 +575,9 @@ void main() {
         expect(r.state, ReadinessState.limited);
         expect(r.value, isNull);
         expect(r.blockers, [ReadinessFactorId.hrv]);
-        // Kamera-RMSSD steht nur als markierte Tatsache da.
-        final m = r.markedFacts.singleWhere(
-          (f) => f.kind == ReadinessFactKind.hrvDeviation,
-        );
-        expect(m.mark, MorningRmssdMark.notChecked);
+        // Vor der Freischaltung ohne Entwicklermodus gibt es keine
+        // Kamerawerte, auch keine markierte Tatsache (K62 Punkt 1).
+        expect(r.markedFacts, isEmpty);
         expect(
           r.factors.map((f) => f.id),
           isNot(contains(ReadinessFactorId.hrv)),
@@ -607,15 +605,32 @@ void main() {
         );
       },
     );
-    test('eingeschränkt/nicht bestanden: „ungenauer als erwartet“', () {
+    test('sitzend eingeschränkt/nicht bestanden: „ungenauer als erwartet“', () {
+      final sitting = cameraDeviations([
+        for (var i = 0; i < 29; i++)
+          h.morning(
+            dayIdx: i,
+            hr: 55 + (i % 5) * 2,
+            rmssd: 40 + (i % 4) * 3.0,
+            posture: RestingPosture.sitting,
+          ),
+      ], today: h.todayKey);
       for (final s in [ValidationState.limited, ValidationState.failed]) {
         final r = calc(
-          camIn(
-            CameraRelease(
+          ReadinessInputs(
+            today: h.todayKey,
+            now: now,
+            cameraDeviations: sitting,
+            release: CameraRelease(
               developerMode: false,
               rmssdOptIn: true,
-              state: st(s, s),
+              state: {
+                ValidationQuantity.restingHr: ValidationState.passed,
+                ValidationQuantity.lnRmssdSupine: ValidationState.passed,
+                ValidationQuantity.lnRmssdSitting: s,
+              },
             ),
+            sleepBand: SleepBand.from7to8,
           ),
         );
         expect(r.value, isNull);
@@ -633,7 +648,7 @@ void main() {
           CameraRelease(
             developerMode: false,
             rmssdOptIn: false,
-            state: st(ValidationState.failed, ValidationState.notChecked),
+            state: st(ValidationState.failed, ValidationState.passed),
           ),
         ),
       );
@@ -780,7 +795,9 @@ void main() {
         );
         marked += r1.markedFacts.length;
       }
-      expect(marked, greaterThan(100));
+      // Nur bei freigeschalteter Morgenmessung (supine bestanden) gibt es
+      // überhaupt Tatsachen (K62 Punkt 1).
+      expect(marked, greaterThan(50));
     });
 
     test('Nur-Kamera: gesperrte Reihe ändert Zahl oder Faktoren nie', () {

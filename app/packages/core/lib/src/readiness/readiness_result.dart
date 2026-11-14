@@ -1,5 +1,7 @@
 import '../morning/morning_marks.dart' show MorningRmssdMark;
 import 'readiness_deviation.dart' show ReadinessSource;
+import 'readiness_explanation.dart' show ReadinessExplanation;
+import 'readiness_level.dart' show ReadinessLevel, ReadinessLevelReason;
 import 'readiness_parameters.dart';
 
 /// Die fünf Faktoren des Gesamtwerts (FR-0110).
@@ -50,6 +52,7 @@ class ReadinessFactorValue {
     this.mark = MorningRmssdMark.none,
     this.estimated = false,
     this.fewMeasurements = false,
+    this.referenceCount = 0,
   });
 
   final ReadinessFactorId id;
@@ -70,6 +73,10 @@ class ReadinessFactorValue {
 
   /// Kamerareihe mit wenigen Messungen (PAR-161K).
   final bool fewMeasurements;
+
+  /// Gültige Referenzwerte der Reihe (PAR-149, PAR-150); 0 bei Faktoren ohne
+  /// Reihe (Schlaf, Belastung, Befinden).
+  final int referenceCount;
 
   @override
   String toString() => 'ReadinessFactorValue($id, $source)';
@@ -125,6 +132,9 @@ class ReadinessResult {
     required this.facts,
     required this.markedFacts,
     required this.hasFreshMeasurement,
+    required this.level,
+    required this.levelReasons,
+    required this.explanation,
   });
 
   final String method = readinessMethod;
@@ -156,6 +166,20 @@ class ReadinessResult {
 
   /// Heute liegt eine frische Messung vor (Kamera oder Health Connect).
   final bool hasFreshMeasurement;
+
+  /// Stufe der Datenlage (PAR-147 bis PAR-150), immer gesetzt. Bei einer Zahl
+  /// mindestens [ReadinessLevel.provisional], sonst
+  /// [ReadinessLevel.notDeterminable].
+  final ReadinessLevel level;
+
+  /// Grund der Stufe als Wort mit Grund (PAR-159): bei „vorläufig“ und
+  /// „ausreichend“ die nicht erfüllten Bedingungen der nächsthöheren Stufe, bei
+  /// „nicht bestimmbar“ die fehlenden Bedingungen; der erste Eintrag ist der
+  /// Hauptgrund. Dazu ein Hinweis „wenige Messungen“, wo er gilt (PAR-148).
+  final List<ReadinessLevelReason> levelReasons;
+
+  /// Erklärung nach PAR-172 und PAR-170 als strukturierte Bausteine.
+  final ReadinessExplanation explanation;
 
   /// Mit Zahl, aber ohne alle Faktoren: als eingeschränkt erkennbar (FR-0111).
   bool get restricted => state == ReadinessState.number && missing.isNotEmpty;
