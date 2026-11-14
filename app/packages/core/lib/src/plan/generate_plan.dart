@@ -326,14 +326,28 @@ GeneratedPlan generatePlan(
       // entfallen ist, dann für eine künftige: bei einem automatischen
       // Auslöser auf einem nicht gehaltenen Tag, sonst die späteste lockere.
       final plannedDays = {for (final u in planned.units) planDay(u.day)};
-      var quota = frozenWeek
-          .where((u) => u.pinned && !plannedDays.contains(planDay(u.day)))
-          .length;
+      // Rollen der Läufe auf verschobenen Tagen, nach Tag: Die Einheit
+      // gleicher Rolle entfällt (auch wenn sie als lockerer Lauf umgewandelt
+      // wurde, zählt ihre ursprüngliche Rolle).
+      final runRoles = [
+        for (final u
+            in frozenWeek
+                .where((u) => u.pinned && !plannedDays.contains(planDay(u.day)))
+                .toList()
+              ..sort((a, b) => a.day.compareTo(b.day)))
+          _role(u),
+      ];
+      final plannedRole = {
+        for (final u in planned.units) planDay(u.day): _role(u),
+      };
+      var quota = runRoles.length;
       for (final u in planned.units) {
         if (quota == 0) break;
         if (planDay(u.day).isBefore(todayDay) && !frozenDays.contains(u.day)) {
           deviation -= u.minutes;
           quota--;
+          final r = runRoles.indexOf(_role(u));
+          runRoles.removeAt(r < 0 ? 0 : r);
         }
       }
       final held =
@@ -352,10 +366,33 @@ GeneratedPlan generatePlan(
             .length;
         surplus = future.length - free;
       }
+      // Künftige Termine (Pins) der Woche brauchen eine Einheit ihrer Rolle:
+      // Der Abzug lässt die letzte Einheit einer solchen Rolle stehen.
+      final pinRoles = [
+        for (final u in pinnedLeft)
+          if (!planDay(u.day).isBefore(start) && planDay(u.day).isBefore(end))
+            _role(u),
+      ];
+      bool reserved(int i) =>
+          pinRoles.where((r) => r == _role(future[i])).length >=
+          future.where((f) => _role(f) == _role(future[i])).length;
       while (surplus > 0) {
         var pick = -1;
-        for (var i = 0; i < future.length; i++) {
+        // Ohne gehaltene Tage: die früheste Einheit ab heute mit der Rolle des
+        // Laufs, den sie ersetzt.
+        if (held == null && runRoles.isNotEmpty) {
+          for (var i = 0; i < future.length; i++) {
+            if (plannedRole[planDay(future[i].day)] == runRoles.first &&
+                !reserved(i)) {
+              pick = i;
+              break;
+            }
+          }
+        }
+        final matched = pick >= 0;
+        for (var i = 0; !matched && i < future.length; i++) {
           if (held != null && held.contains(planDay(future[i].day))) continue;
+          if (reserved(i)) continue;
           if (pick < 0 ||
               _role(future[i]) < _role(future[pick]) ||
               (_role(future[i]) == _role(future[pick]) &&
@@ -367,6 +404,7 @@ GeneratedPlan generatePlan(
         if (quota > 0) {
           deviation -= future[pick].minutes;
           quota--;
+          if (runRoles.isNotEmpty) runRoles.removeAt(0);
         }
         future = [...future]..removeAt(pick);
         surplus--;

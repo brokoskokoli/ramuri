@@ -1596,6 +1596,69 @@ void main() {
       expect(minutes, sum(base) - base[1].minutes);
     });
 
+    // N1: Der Lauf ersetzt die Einheit seiner Rolle, nicht die späteste
+    // lockere; unveränderte bestätigte Termine bleiben.
+    PlanUnit movedLike(PlanUnit o) => PlanUnit(
+      day: mon,
+      kind: o.kind,
+      phase: o.phase,
+      weekIndex: o.weekIndex,
+      minutes: o.minutes,
+      segments: o.segments,
+      runId: 7,
+      pinned: true,
+    );
+
+    test('Ausgangslage N1: Di hart, Do locker, Sa lang', () {
+      expect(base.map((u) => u.isHard), [true, false, false]);
+      expect(base[2].kind, PlanUnitKind.long);
+    });
+
+    for (final automatic in [true, false]) {
+      test('harte Einheit Di nach Mo verschoben und gelaufen: Mo, Do, Sa '
+          '(${automatic ? "automatisch" : "manuell"})', () {
+        final frozen = [movedLike(base.first)];
+        final p = generatePlan(
+          g,
+          inputs(start: 150, today: mon),
+          frozen,
+          mon,
+          heldDays: automatic ? {mon, nov(19), nov(21)} : null,
+          heldUntil: automatic ? nov(30) : null,
+        );
+        final w = [...frozen, ...p.units.where(inWeek)];
+        expect(w.map((u) => u.day.day), [16, 19, 21]);
+        // Do und Sa unverändert (Einheit und Minuten), nur Mo ist gelaufen.
+        expect(w[1].kind, base[1].kind);
+        expect(w[2].kind, base[2].kind);
+      });
+    }
+
+    test('N2: künftiger Pin der lockeren Einheit (Do nach Fr) bleibt ohne '
+        'Abstandskonflikt', () {
+      final frozen = [movedLike(base.first)];
+      final pin = PlanUnit(
+        day: nov(20),
+        kind: base[1].kind,
+        phase: base[1].phase,
+        weekIndex: base[1].weekIndex,
+        minutes: base[1].minutes,
+        segments: base[1].segments,
+        pinned: true,
+      );
+      final p = generatePlan(
+        g,
+        inputs(start: 150, today: mon),
+        frozen,
+        mon,
+        pinnedUnits: [pin],
+      );
+      final w = [...frozen, ...p.units.where(inWeek)];
+      expect(w.map((u) => u.day.day), [16, 20, 21]);
+      expect(w[1].kind, base[1].kind);
+      expect(p.pinnedConflicts, isEmpty);
+    });
+
     test('mehr erzeugte Einheiten als gehaltene Tage ohne Lauf: Summe wie '
         'ohne Verschiebung', () {
       final held = {nov(17), nov(21)};
