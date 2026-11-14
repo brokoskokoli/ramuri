@@ -78,6 +78,8 @@ class MainActivity : FlutterActivity() {
                     )
                     // Nur gelesen: was das Manifest anfordert (PackageManager), nicht ob es erteilt ist.
                     "requested" -> result.success(requestedKeys())
+                    // FR-0217: Version für die Seite "Über" (versionName und versionCode aus dem Build; kein Netz, keine Kennung).
+                    "appVersion" -> result.success(appVersion())
                     // FR-0195: genauer Standort vor dem Lauf (OQ-0064).
                     "locationAccess" -> result.success(locationAccess())
                     "requestLocation" -> requestLocation(result)
@@ -198,6 +200,14 @@ class MainActivity : FlutterActivity() {
             pendingNotifications?.success(if (notificationsGranted()) "granted" else "denied")
             pendingNotifications = null
         }
+    }
+
+    /** `versionName (versionCode)` aus dem installierten Paket. */
+    private fun appVersion(): String {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        @Suppress("DEPRECATION")
+        val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+        return "${info.versionName} ($code)"
     }
 
     /** Schlüssel der Berechtigungen, die das Manifest der App anfordert (Dart: MethodChannelPermissionStatus.keys). */

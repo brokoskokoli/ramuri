@@ -3039,5 +3039,21 @@
   "guidedLivePaused": "Pause, der Abschnitt wartet",
   "@guidedLivePaused": {"description": "WP24 Live: Pause/Autopause"},
   "guidedLiveProgress": "Fortschritt: Abschnitt {n} von {m}",
-  "@guidedLiveProgress": {"description": "WP24 Live: Semantik Fortschrittsbalken", "placeholders": {"n": {"type": "int"}, "m": {"type": "int"}}}
+  "@guidedLiveProgress": {"description": "WP24 Live: Semantik Fortschrittsbalken", "placeholders": {"n": {"type": "int"}, "m": {"type": "int"}}},
+  "overviewAbout": "Über",
+  "@overviewAbout": {"description": "Eintrag der Übersicht und Titel der Seite: Name, Version, Lizenzen (FR-0217)"},
+  "devVersion": "Version {version}",
+  "@devVersion": {"description": "Versionsnummer auf der Seite Über; 10 Tipps darauf schalten den Entwicklermodus ein", "placeholders": {"version": {"type": "String"}}},
+  "devVersionUnknown": "unbekannt",
+  "@devVersionUnknown": {"description": "Version, wenn das System sie nicht nennt"},
+  "devTapsLeft": "{n, plural, =1{Noch 1 Tipp bis zum Entwicklermodus} other{Noch {n} Tipps bis zum Entwicklermodus}}",
+  "@devTapsLeft": {"description": "Rückmeldung ab dem 7. Tipp auf die Version", "placeholders": {"n": {"type": "int"}}},
+  "devModeOn": "Entwicklermodus an",
+  "@devModeOn": {"description": "Hinweis auf Über, solange der Entwicklermodus an ist, und Rückmeldung beim Einschalten"},
+  "devSection": "Entwickler",
+  "@devSection": {"description": "Abschnitt auf Über, nur bei Entwicklermodus an"},
+  "devSwitchTitle": "Entwicklermodus",
+  "@devSwitchTitle": {"description": "Schalter im Abschnitt Entwickler"},
+  "devSwitchBody": "Morgenmessung vor der Validierung, Gurt-Paare. Beim Ausschalten bleiben gespeicherte Messungen erhalten, sind aber nicht mehr sichtbar.",
+  "@devSwitchBody": {"description": "Erklärung unter dem Schalter Entwicklermodus"}
 }

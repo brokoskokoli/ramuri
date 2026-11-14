@@ -137,4 +137,8 @@ abstract final class SettingKeys {
   /// kopiert (JSON, `GuidedUnitSnapshot`), mit Lauf-Kennung. Nicht im Archiv
   /// (Vertrag 4.3).
   static const String guidedUnitSnapshot = 'guided.unit_snapshot';
+
+  /// Entwicklermodus (FR-0217, WP33): `1` = an; fehlt der Eintrag, aus. Gerätezustand,
+  /// nicht im Archiv (Vertrag 4.3); „Alles löschen“ leert die Tabelle und setzt ihn zurück.
+  static const String developerMode = 'developer.mode';
 }

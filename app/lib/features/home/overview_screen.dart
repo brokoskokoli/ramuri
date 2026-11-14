@@ -6,13 +6,15 @@ import '../profile/profile_screen.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../sensors/sensor_manager.dart';
 import '../sensors/sensors_screen.dart';
+import '../settings/about_screen.dart';
+import '../settings/app_version.dart';
 import '../settings/permissions_screen.dart';
 import '../settings/settings_screen.dart';
 import '../settings/zones_screen.dart';
 import '../storage/data_screen.dart';
 
 /// Übersicht hinter dem Profil-Symbol auf Heute (FR-0208): Profil,
-/// Einstellungen, Sensoren, Zonen, Berechtigungen, Daten und Lizenzen.
+/// Einstellungen, Sensoren, Zonen, Berechtigungen, Daten und Über (Name, Version, Lizenzen, Entwicklermodus).
 ///
 /// Sensoren, Zonen, Berechtigungen und Daten sind während einer
 /// Neuberechnung gesperrt: Sie könnten Werte ändern oder löschen (Sperre,
@@ -26,6 +28,7 @@ class OverviewScreen extends StatelessWidget {
     required this.permissions,
     required this.recalculation,
     required this.sensors,
+    this.appVersion = readAppVersion,
   });
 
   final StorageSession session;
@@ -33,6 +36,9 @@ class OverviewScreen extends StatelessWidget {
   final PermissionStatusPort permissions;
   final RecalculationController recalculation;
   final SensorManager sensors;
+
+  /// Quelle der Versionsangabe auf „Über“ (Tests setzen eine feste).
+  final Future<String?> Function() appVersion;
 
   void _open(BuildContext context, WidgetBuilder builder) =>
       Navigator.of(context).push<void>(MaterialPageRoute(builder: builder));
@@ -121,12 +127,18 @@ class OverviewScreen extends StatelessWidget {
                       ),
               ),
               _Entry(
-                key: const Key('overview_licenses'),
-                icon: Icons.description_outlined,
-                label: l10n.overviewLicenses,
-                onTap: () => showLicensePage(
-                  context: context,
-                  applicationName: l10n.appTitle,
+                key: const Key('overview_about'),
+                icon: Icons.info_outline_rounded,
+                label: l10n.overviewAbout,
+                onTap: () => _open(
+                  context,
+                  (_) => AboutScreen(
+                    developerMode: SettingsDeveloperModeStore(
+                      session.settings,
+                      clock,
+                    ),
+                    appVersion: appVersion,
+                  ),
                 ),
               ),
             ],

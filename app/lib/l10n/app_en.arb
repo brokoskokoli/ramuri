@@ -2296,5 +2296,21 @@
   "guidedLivePaused": "Paused, the section waits",
   "@guidedLivePaused": {"description": "WP24 Live: Pause/Autopause"},
   "guidedLiveProgress": "Progress: section {n} of {m}",
-  "@guidedLiveProgress": {"description": "WP24 Live: Semantik Fortschrittsbalken", "placeholders": {"n": {"type": "int"}, "m": {"type": "int"}}}
+  "@guidedLiveProgress": {"description": "WP24 Live: Semantik Fortschrittsbalken", "placeholders": {"n": {"type": "int"}, "m": {"type": "int"}}},
+  "overviewAbout": "About",
+  "@overviewAbout": {"description": "Overview entry and page title: name, version, licenses (FR-0217)"},
+  "devVersion": "Version {version}",
+  "@devVersion": {"description": "Version number on the About page; 10 taps on it turn developer mode on", "placeholders": {"version": {"type": "String"}}},
+  "devVersionUnknown": "unknown",
+  "@devVersionUnknown": {"description": "Version if the system does not report one"},
+  "devTapsLeft": "{n, plural, =1{1 tap left to developer mode} other{{n} taps left to developer mode}}",
+  "@devTapsLeft": {"description": "Feedback from the 7th tap on the version", "placeholders": {"n": {"type": "int"}}},
+  "devModeOn": "Developer mode on",
+  "@devModeOn": {"description": "Note on About while developer mode is on, and feedback when it turns on"},
+  "devSection": "Developer",
+  "@devSection": {"description": "Section on About, only with developer mode on"},
+  "devSwitchTitle": "Developer mode",
+  "@devSwitchTitle": {"description": "Switch in the Developer section"},
+  "devSwitchBody": "Morning measurement before validation, strap pairs. Turning it off keeps stored measurements, but they are no longer visible.",
+  "@devSwitchBody": {"description": "Explanation under the developer mode switch"}
 }
