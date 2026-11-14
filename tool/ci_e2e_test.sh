@@ -56,6 +56,13 @@ run "lokal einzelne Stufe"                     0 1 E2E_STUFEN=recover-a
 run "Stufe m2-flow: eigene Datei, nicht all_test" 0 1 E2E_STUFEN=m2-flow
 grep -qx 'integration_test/e2e_m2_flow_test.dart' "$FAKE_LOG" || { echo "FAIL m2-flow: falsche Datei"; fails=$((fails + 1)); }
 run "leere Auswahl: keine Stufe gelaufen"      1 0 "E2E_STUFEN= "
+# Waechter: eine Stufe in keinem Shard (Kopie des Skripts mit einer zusaetzlichen Stufe) ist ein Fehler vor dem ersten Lauf.
+sed 's|^\[ "\$ran" -gt 0 \]|stufe neu 0 integration_test/e2e_a_test.dart\n&|' "$script" > "$tmp/ci_e2e_neu.sh"
+grep -q '^stufe neu 0' "$tmp/ci_e2e_neu.sh" || { echo "FAIL Aufbau: Kopie ohne neue Stufe"; fails=$((fails + 1)); }
+script_orig=$script; script="$tmp/ci_e2e_neu.sh"
+run "Stufe ohne Shard -> Fehler vor dem Lauf" 1 0 X=1
+grep -q 'Stufe neu steht in keinem Shard' "$tmp/stdout" || { echo "FAIL Waechter: Meldung fehlt"; fails=$((fails + 1)); }
+script=$script_orig
 run "Stufe rot -> Exit 1"                      1 1 E2E_SHARD=sammlung FAKE_FAIL=1
 grep -q 'E2E_\|geheim123' "$tmp/stdout" && { echo "FAIL E2E_-Zeile in der Ausgabe"; fails=$((fails + 1)); } || echo "OK   keine E2E_-Zeile in der Ausgabe"
 grep -rq 'E2E_\|geheim123' "$tmp/out" && { echo "FAIL E2E_-Zeile im Artefakt"; fails=$((fails + 1)); } || echo "OK   keine E2E_-Zeile im Artefakt"

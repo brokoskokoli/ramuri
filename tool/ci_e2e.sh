@@ -39,12 +39,18 @@ for f in app/integration_test/e2e_*_test.dart; do
   grep -q "^import '$b'" app/integration_test/all_test.dart || { echo "FEHLT in all_test.dart und als Stufe: $b"; exit 1; }
 done
 
-alle_stufen="sammlung storage-a storage-b recover-a recover-b m2-flow"
+shard_sammlung="sammlung"
+shard_stufen="storage-a storage-b recover-a recover-b m2-flow"
+alle_stufen="$shard_sammlung $shard_stufen"
+# Waechter: Jede Zeile `stufe <name> ...` unten muss in einem Shard stehen, sonst liefe sie in der CI nie.
+for n in $(grep '^stufe [^ ]* [01] ' "$0" | cut -d' ' -f2); do
+  case " $alle_stufen " in *" $n "*) ;; *) echo "Stufe $n steht in keinem Shard"; exit 1 ;; esac
+done
 if [ -n "${E2E_SHARD:-}" ] && [ -n "${E2E_STUFEN:-}" ]; then echo "E2E_SHARD und E2E_STUFEN zusammen"; exit 1; fi
 case "${E2E_SHARD:-}" in
   "") auswahl="${E2E_STUFEN-$alle_stufen}" ;;
-  sammlung) auswahl="sammlung" ;;
-  stufen) auswahl="storage-a storage-b recover-a recover-b m2-flow" ;;
+  sammlung) auswahl="$shard_sammlung" ;;
+  stufen) auswahl="$shard_stufen" ;;
   *) echo "unbekannter Shard: $E2E_SHARD"; exit 1 ;;
 esac
 for n in $auswahl; do
