@@ -1,7 +1,9 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/measure/device_info.dart';
+import 'package:running_app/features/measure/morning_launcher.dart';
 import 'package:running_app/features/measure/morning_measure_controller.dart';
 import 'package:running_app/features/measure/morning_measure_screen.dart';
 import 'package:running_app/features/measure/resting_measure_controller.dart';
@@ -81,6 +83,7 @@ class _Rig {
     DateTime? now,
     StorageSession? session,
     Duration offset = Duration.zero,
+    Map<ValidationQuantity, ValidationState>? state,
   }) async {
     final cam = HoldingCamera();
     final s = session ?? await FakeStorage().open(testKey);
@@ -104,6 +107,9 @@ class _Rig {
           ? rig.next
           : const PpgMeasurement(quality: PpgQuality.unusable, reasons: []),
       autoTick: false,
+      marksFor: state == null
+          ? null
+          : morningMarksReader(s.settings, clock, state),
     );
     rig = _Rig._(cam, s, clock, store, c);
     return rig;
@@ -279,6 +285,49 @@ void main() {
 
         await _tap(tester, 'morning_done');
         expect(r.closed, 1);
+      });
+
+      testWidgets('Qualität gut, aber RMSSD ungültig (250): nur Ruhepuls', (
+        tester,
+      ) async {
+        final r = await _Rig.make();
+        r.next = const PpgMeasurement(
+          quality: PpgQuality.good,
+          reasons: [],
+          bpm: 52.4,
+          rmssdMs: 250,
+          timingNoiseMs: 12,
+          intervalsMs: [1140, 1150, 1135],
+        );
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        expect(r.c.outcome, MorningOutcome.limited);
+        expect(r.c.stored!.rmssdMs, isNull);
+        expect(find.byKey(const Key('morning_no_rmssd')), findsOneWidget);
+      });
+
+      testWidgets('Ergebnis nach Freischaltung: Markierung wie Morgenwerte, im '
+          'Modus ohne', (tester) async {
+        final passed = {
+          ValidationQuantity.restingHr: ValidationState.passed,
+          ValidationQuantity.lnRmssdSupine: ValidationState.passed,
+          ValidationQuantity.lnRmssdSitting: ValidationState.passed,
+        };
+        final r = await _Rig.make(state: passed);
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        expect(r.c.outcome, MorningOutcome.good);
+        expect(
+          tester.widget<Text>(find.byKey(const Key('morning_rmssd_mark'))).data,
+          'experimentell, nicht eingeschaltet',
+        );
+
+        final d = await _Rig.make(state: passed);
+        await SettingsDeveloperModeStore(d.session.settings, d.clock).set(true);
+        await d.show(tester, dark: dark);
+        await d.runThrough(tester);
+        expect(d.c.outcome, MorningOutcome.good);
+        expect(find.byKey(const Key('morning_rmssd_mark')), findsNothing);
       });
 
       testWidgets('eingeschränkt: Ruhepuls zählt, RMSSD bleibt leer', (
@@ -497,6 +546,23 @@ void main() {
       });
     });
   }
+
+  test('Gerätekanal: Wert ohne Text (TypeError) ergibt leere Angabe', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const ch = MethodChannel('test/device_info');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          ch,
+          (_) async => <String, Object?>{'manufacturer': 5, 'model': 'M'},
+        );
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(ch, null),
+    );
+    final d = await readDeviceInfo(ch);
+    expect(d.manufacturer, '');
+    expect(d.model, 'M');
+  });
 
   test('Gerätekanal: fehlende Plattform ergibt leere Angaben', () async {
     TestWidgetsFlutterBinding.ensureInitialized();

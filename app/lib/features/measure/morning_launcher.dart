@@ -4,11 +4,26 @@ import 'package:flutter/material.dart';
 import 'device_info.dart';
 import 'morning_measure_controller.dart';
 import 'morning_measure_screen.dart';
+import 'morning_trend_logic.dart';
 import 'resting_measure_controller.dart';
 import 'resting_measure_launcher.dart';
 
 /// Hält Controller und Ton-Schalter der Morgenmessung und schließt die Seite
 /// am Ende. Kamera und Speicher kommen vom Aufrufer.
+/// Markierungen für das Ergebnis aus Entwicklermodus und Opt-in der Einstellungen
+/// (dieselben wie auf der Seite Morgenwerte, [morningTrendMarks]).
+Future<MorningTrendMarks> Function(RestingPosture) morningMarksReader(
+  SettingsStore settings,
+  Clock clock,
+  Map<ValidationQuantity, ValidationState> state,
+) =>
+    (posture) async => morningTrendMarks(
+      developerMode: await SettingsDeveloperModeStore(settings, clock).read(),
+      posture: posture,
+      optIn: await settings.get(SettingKeys.morningCameraRmssdOptIn) == '1',
+      state: state,
+    );
+
 class MorningMeasureHost extends StatefulWidget {
   const MorningMeasureHost({
     super.key,
@@ -61,6 +76,11 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
       evaluate: widget.evaluate,
       autoTick: widget.autoTick,
       validationState: widget.validationState,
+      marksFor: morningMarksReader(
+        widget.settings,
+        widget.clock,
+        widget.validationState,
+      ),
     );
   }
 

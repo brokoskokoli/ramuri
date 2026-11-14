@@ -8,6 +8,7 @@ import 'morning_launcher.dart';
 import 'morning_measure_controller.dart';
 import 'morning_result_view.dart';
 import 'morning_trend_screen.dart';
+import 'morning_trend_logic.dart';
 import 'resting_measure_launcher.dart';
 
 /// Was die Einstiege (Karte auf Heute, Eintrag im Profil) wissen müssen.
@@ -15,11 +16,15 @@ class MorningEntryState {
   const MorningEntryState({
     required this.developerMode,
     required this.measurements,
+    this.optIn = false,
   });
 
   /// Entwicklermodus an (nur für den unauffälligen Hinweis).
   final bool developerMode;
   final List<MorningMeasurement> measurements;
+
+  /// Opt-in für Kamera-RMSSD (nur für die Markierung, K-1).
+  final bool optIn;
 }
 
 /// Lädt Entwicklermodus und Messungen; `null`, wenn die Morgenmessung nicht
@@ -45,6 +50,9 @@ Future<MorningEntryState?> loadMorningEntry({
     }
     return MorningEntryState(
       developerMode: dev,
+      optIn:
+          await session.settings.get(SettingKeys.morningCameraRmssdOptIn) ==
+          '1',
       measurements: [
         for (final e in await (session as MorningStorage).morning.list())
           e.value,
@@ -176,6 +184,15 @@ class _MorningCardState extends State<MorningCard> {
       utcOffset: offset,
     );
     final done = today.isEmpty ? null : today.first;
+    final marks = done == null
+        ? null
+        : morningTrendMarks(
+            developerMode: st.developerMode,
+            posture: done.posture,
+            optIn: st.optIn,
+            state: widget.validationState,
+          );
+    final rmssdMark = marks == null ? null : morningMarkText(l10n, marks.rmssd);
     return RamuriCard(
       key: const Key('morning_card'),
       tone: RamuriCardTone.panel,
@@ -226,6 +243,14 @@ class _MorningCardState extends State<MorningCard> {
                 ),
               ],
             ),
+            if (rmssdMark != null && done.rmssdMs != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                rmssdMark,
+                key: const Key('morning_card_rmssd_mark'),
+                style: theme.labelSmall!.copyWith(color: c.textMuted),
+              ),
+            ],
           ],
           Align(
             alignment: Alignment.centerLeft,

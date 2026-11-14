@@ -257,7 +257,7 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
           muted: marks.rmssdLocked,
           chartLabel: l10n.morningRmssdChart,
           meanNote: l10n.morningMeanNote,
-          mark: _markText(l10n, marks.rmssd),
+          mark: morningMarkText(l10n, marks.rmssd),
           markKey: const Key('morning_rmssd_mark'),
           note: marks.rmssdLocked ? l10n.morningLockedNote : null,
           footer: marks.optInVisible
@@ -302,14 +302,16 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
   }
 }
 
-String? _markText(AppLocalizations l10n, MorningRmssdMark m) => switch (m) {
-  MorningRmssdMark.none => null,
-  MorningRmssdMark.notEnabled => l10n.morningMarkNotEnabled,
-  MorningRmssdMark.optIn => l10n.morningMarkOptIn,
-  MorningRmssdMark.optInSitting => l10n.morningMarkOptInSitting,
-  MorningRmssdMark.inaccurate => l10n.morningMarkInaccurate,
-  MorningRmssdMark.notChecked => l10n.morningMarkNotChecked,
-};
+/// Text der Markierung des Kamera-RMSSD; `null` ohne Markierung.
+String? morningMarkText(AppLocalizations l10n, MorningRmssdMark m) =>
+    switch (m) {
+      MorningRmssdMark.none => null,
+      MorningRmssdMark.notEnabled => l10n.morningMarkNotEnabled,
+      MorningRmssdMark.optIn => l10n.morningMarkOptIn,
+      MorningRmssdMark.optInSitting => l10n.morningMarkOptInSitting,
+      MorningRmssdMark.inaccurate => l10n.morningMarkInaccurate,
+      MorningRmssdMark.notChecked => l10n.morningMarkNotChecked,
+    };
 
 class _TrendCard extends StatelessWidget {
   const _TrendCard({

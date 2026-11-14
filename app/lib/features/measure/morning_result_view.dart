@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import 'morning_measure_controller.dart';
+import 'morning_trend_screen.dart';
 import 'resting_widgets.dart';
 
 /// Beschriftung der Schlafstufen in Stunden (PAR-164K), in der Reihenfolge von
@@ -54,6 +55,8 @@ class MorningResultView extends StatelessWidget {
     final failed = o == MorningOutcome.saveFailed;
     final pending = o == MorningOutcome.pending;
     final limited = o == MorningOutcome.limited;
+    final marks = controller.marks;
+    final rmssdMark = marks == null ? null : morningMarkText(l10n, marks.rmssd);
     final title = bad
         ? l10n.morningResultTooNoisy
         : m != null
@@ -102,7 +105,8 @@ class MorningResultView extends StatelessWidget {
                         value: m.rmssdMs == null
                             ? '–'
                             : m.rmssdMs!.round().toString(),
-                        muted: m.rmssdMs == null,
+                        muted:
+                            m.rmssdMs == null || (marks?.rmssdLocked ?? false),
                         valueKey: const Key('morning_rmssd'),
                       ),
                     ),
@@ -126,6 +130,14 @@ class MorningResultView extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (rmssdMark != null && m.rmssdMs != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    rmssdMark,
+                    key: const Key('morning_rmssd_mark'),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
                 if (limited || (m.rmssdMs == null && !bad)) ...[
                   const SizedBox(height: 8),
                   Text(

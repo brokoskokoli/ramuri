@@ -229,6 +229,35 @@ void main() {
       expect(find.text('48'), findsOneWidget);
       expect(find.byKey(const Key('morning_card_start')), findsNothing);
       expect(find.byKey(const Key('morning_dev_hint')), findsNothing);
+      // Nach der Freischaltung ohne Modus dieselbe Markierung wie auf Morgenwerte.
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('morning_card_rmssd_mark')))
+            .data,
+        'experimentell, nicht eingeschaltet',
+      );
+    });
+
+    testWidgets('Karte im Entwicklermodus ($mode): keine Markierung', (
+      tester,
+    ) async {
+      final s = await _session(dev: true);
+      await (s as MorningStorage).morning.add(_today());
+      await _pump(
+        tester,
+        MorningCard(
+          session: s,
+          clock: _clock,
+          validationState: _state(
+            ValidationState.passed,
+            ValidationState.passed,
+            ValidationState.passed,
+          ),
+        ),
+        dark: dark,
+      );
+      expect(find.text('48'), findsOneWidget);
+      expect(find.byKey(const Key('morning_card_rmssd_mark')), findsNothing);
     });
   }
 

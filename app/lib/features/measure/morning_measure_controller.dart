@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
 import 'device_info.dart';
+import 'morning_trend_logic.dart';
 import 'resting_measure_controller.dart';
 
 /// Stellen im Ablauf der Morgenmessung, an denen Teil E (Gurt-RR, WP33) die
@@ -63,6 +64,7 @@ class MorningMeasureController extends ChangeNotifier {
     PpgEvaluate? evaluate,
     bool autoTick = true,
     this.validationState = ppgValidationState,
+    this.marksFor,
   }) : engine = RestingMeasureController(
          camera: camera,
          clock: clock,
@@ -84,6 +86,9 @@ class MorningMeasureController extends ChangeNotifier {
   final DeviceInfoReader device;
   final MorningMeasureHooks hooks;
 
+  /// Markierungen (nach K-1) für RMSSD des Ergebnisses; `null` ohne Quelle.
+  final Future<MorningTrendMarks> Function(RestingPosture posture)? marksFor;
+
   /// Validierungsstand für das Merkmal „vor der Validierung gemessen“.
   final Map<ValidationQuantity, ValidationState> validationState;
 
@@ -95,11 +100,15 @@ class MorningMeasureController extends ChangeNotifier {
   MorningOutcome _outcome = MorningOutcome.pending;
   MorningMeasurement? _stored;
   int? _storedId;
+  MorningTrendMarks? _marks;
   bool _sleepFailed = false;
   bool _savingSleep = false;
   MorningWindow _window = MorningWindow.standard;
 
   MorningOutcome get outcome => _outcome;
+
+  /// Markierungen für das Ergebnis (ohne Modus nach der Freischaltung); sonst `null`.
+  MorningTrendMarks? get marks => _marks;
 
   /// Die gespeicherte Messung (mit Schlafstufe, sobald gewählt); sonst `null`.
   MorningMeasurement? get stored => _stored;
@@ -196,6 +205,13 @@ class MorningMeasureController extends ChangeNotifier {
             ),
           );
       final id = await store.add(m);
+      if (gen != _generation) return;
+      _marks = null;
+      try {
+        _marks = await marksFor?.call(m.posture);
+      } catch (_) {
+        // Markierung ist Zugabe; ohne sie bleibt das Ergebnis gespeichert.
+      }
       if (gen != _generation) return;
       _stored = m;
       _storedId = id;
