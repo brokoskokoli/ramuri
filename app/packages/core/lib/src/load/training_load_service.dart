@@ -109,7 +109,8 @@ class TrainingLoadReport {
 ///
 /// [load] hat Nebenwirkungen auf Einstellungen: es übernimmt einen neuen
 /// Faktor innerhalb der Toleranz still oder bietet ihn über
-/// [RecalculationService] an (`personalFactor`).
+/// [RecalculationService] an (`personalFactor`). [loadReadOnly] rechnet
+/// dasselbe, ohne etwas zu schreiben oder anzubieten.
 class TrainingLoadService {
   TrainingLoadService({
     required this.session,
@@ -124,7 +125,14 @@ class TrainingLoadService {
   final ValueCalculationService _calc;
   final RecalculationService _recalc;
 
-  Future<TrainingLoadReport> load() async {
+  Future<TrainingLoadReport> load() => _load(sync: true);
+
+  /// Wie [load], aber rein lesend (WP34: „Heute“ darf keinen Faktor
+  /// übernehmen oder anbieten). Es gilt der gespeicherte Faktor des aktiven
+  /// Profils; ein noch nicht übernommener oder angebotener Faktor wirkt nicht.
+  Future<TrainingLoadReport> loadReadOnly() => _load(sync: false);
+
+  Future<TrainingLoadReport> _load({required bool sync}) async {
     final now = clock.now();
     final local = now.add(clock.utcOffsetAt(now));
     final today = DateTime.utc(local.year, local.month, local.day);
@@ -183,13 +191,15 @@ class TrainingLoadService {
       );
     }
 
-    final factor = await _syncFactor(
-      profile: profile,
-      applicable: model != null,
-      factorRuns: factorRuns,
-      now: now,
-      today: today,
-    );
+    final factor = sync
+        ? await _syncFactor(
+            profile: profile,
+            applicable: model != null,
+            factorRuns: factorRuns,
+            now: now,
+            today: today,
+          )
+        : await _readFactor(profile: profile, applicable: model != null);
 
     // Ein leerer heutiger Tag geht nicht als Last 0 ein: der Verlauf endet
     // gestern, außer heute gibt es Einheiten (auch unbewertete).
@@ -250,6 +260,26 @@ class TrainingLoadService {
 
   static bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// Gespeicherter Faktor des Profils, ohne Berechnung, Übernahme oder Angebot.
+  Future<LoadFactorState> _readFactor({
+    required LoadProfile profile,
+    required bool applicable,
+  }) async {
+    final stored = await LoadSettings.factor(session.settings);
+    final here = applicable && stored != null && stored.profile == profile
+        ? stored
+        : null;
+    return LoadFactorState(
+      profile: profile,
+      value: here?.value,
+      runCount: here?.runs ?? 0,
+      eligibleRuns: 0,
+      unavailable: null,
+      adoptedDay: here?.day,
+      offered: null,
+    );
+  }
 
   /// Berechnet den Faktor, übernimmt ihn still, bietet ihn an oder lässt den
   /// alten (PAR-087). Ein gespeicherter Faktor eines anderen Profils gilt

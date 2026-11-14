@@ -9,7 +9,6 @@ import 'morning_launcher.dart';
 import 'morning_measure_controller.dart';
 import 'morning_result_view.dart';
 import 'morning_trend_screen.dart';
-import 'morning_trend_logic.dart';
 import 'resting_measure_launcher.dart';
 
 /// Was die Einstiege (Karte auf Heute, Eintrag im Profil) wissen müssen.

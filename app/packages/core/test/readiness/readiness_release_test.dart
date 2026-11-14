@@ -1,0 +1,338 @@
+import 'package:core/core.dart';
+import 'package:test/test.dart';
+
+import 'readiness_helpers.dart';
+
+Map<ValidationQuantity, ValidationState> st({
+  ValidationState hr = ValidationState.passed,
+  ValidationState supine = ValidationState.passed,
+}) => {
+  ValidationQuantity.restingHr: hr,
+  ValidationQuantity.lnRmssdSupine: supine,
+};
+
+List<MorningMeasurement> series(
+  RestingPosture posture, {
+  bool before = false,
+}) => [
+  for (var i = 0; i < 29; i++)
+    morning(
+      dayIdx: i,
+      hr: 55 + (i % 5) * 2,
+      rmssd: 40 + (i % 4) * 3.0,
+      posture: posture,
+      before: before,
+    ),
+];
+
+/// Wahl je Faktor für die Kamera allein (kein Health Connect).
+DeviationResult? chosen(
+  ReadinessFactor f,
+  List<MorningMeasurement> all,
+  CameraRelease release,
+) {
+  final cam = cameraDeviations(all, today: todayKey);
+  return chooseFactor(
+    factor: f,
+    healthConnect: null,
+    camera: cam,
+    cameraReleased: true,
+    seriesReleased: release.isReleased,
+  ).chosen;
+}
+
+void main() {
+  const states = ValidationState.values;
+  const P = ValidationState.passed;
+
+  group(
+    'Sperre: Matrix Stand x Entwicklermodus x Opt-in x Faktor x Haltung',
+    () {
+      for (final supine in states) {
+        for (final posture in RestingPosture.values) {
+          for (final dev in [false, true]) {
+            for (final optIn in [false, true]) {
+              final rel = CameraRelease(
+                developerMode: dev,
+                rmssdOptIn: optIn,
+                state: st(supine: supine, hr: supine),
+              );
+              final name =
+                  '${supine.name} ${posture.name} dev=$dev optIn=$optIn';
+              test('HRV $name', () {
+                final expected = dev || (supine == P && optIn);
+                final r = rel.forFactor(ReadinessFactor.hrv);
+                expect(r.released, expected);
+                if (dev) expect(r.mark, MorningRmssdMark.none);
+                final z = chosen(ReadinessFactor.hrv, series(posture), rel);
+                expect(z != null, expected);
+              });
+              test('Ruhepuls $name', () {
+                final expected = dev || supine == P;
+                final r = rel.forFactor(ReadinessFactor.restingHeartRate);
+                expect(r.released, expected);
+                if (dev) expect(r.mark, MorningRmssdMark.none);
+                final z = chosen(
+                  ReadinessFactor.restingHeartRate,
+                  series(posture),
+                  rel,
+                );
+                expect(z != null, expected);
+              });
+            }
+          }
+        }
+      }
+
+      test('Ruhepuls und RMSSD haben getrennte Stände', () {
+        // Nach der Freischaltung (lnRMSSD liegend bestanden): Ruhepuls nicht
+        // geprüft zählt, Ruhepuls nicht bestanden nicht.
+        for (final (hr, hrOk) in [
+          (ValidationState.notChecked, true),
+          (ValidationState.limited, true),
+          (ValidationState.failed, false),
+        ]) {
+          final rel = CameraRelease(
+            developerMode: false,
+            rmssdOptIn: true,
+            state: st(hr: hr),
+          );
+          final r = rel.forFactor(ReadinessFactor.restingHeartRate);
+          expect(r.released, hrOk);
+          if (!hrOk) expect(r.mark, MorningRmssdMark.inaccurate);
+          expect(rel.forFactor(ReadinessFactor.hrv).released, isTrue);
+        }
+      });
+
+      test(
+        'ohne Entwicklermodus vor der Freischaltung zählt keine Kamerazahl',
+        () {
+          // lnRMSSD liegend nicht bestanden: Morgenmessung nicht erreichbar
+          // (K62 Punkt 1), auch wenn Ruhepuls bestanden oder Opt-in an ist.
+          for (final s in [
+            ValidationState.notChecked,
+            ValidationState.limited,
+            ValidationState.failed,
+          ]) {
+            for (final hr in [ValidationState.notChecked, P]) {
+              final rel = CameraRelease(
+                developerMode: false,
+                rmssdOptIn: true,
+                state: st(supine: s, hr: hr),
+              );
+              final all = series(RestingPosture.lying);
+              for (final f in ReadinessFactor.values) {
+                expect(rel.forFactor(f).released, isFalse);
+                expect(chosen(f, all, rel), isNull);
+              }
+            }
+          }
+          // Standardstand (alles nicht geprüft) ohne Entwicklermodus.
+          const rel = CameraRelease(developerMode: false, rmssdOptIn: true);
+          expect(
+            rel.forFactor(ReadinessFactor.restingHeartRate).released,
+            isFalse,
+          );
+        },
+      );
+
+      test('Kamerareihe ohne Schlüssel gilt nicht als freigegeben', () {
+        const rel = CameraRelease(developerMode: true, rmssdOptIn: true);
+        final r = DeviationResult(
+          factor: ReadinessFactor.hrv,
+          source: ReadinessSource.camera,
+          z: 0.1,
+        );
+        expect(rel.isReleased(r), isFalse);
+      });
+
+      test('mit Opt-in: eine Markierung, nicht je Haltung', () {
+        final rel = CameraRelease(
+          developerMode: false,
+          rmssdOptIn: true,
+          state: st(),
+        );
+        expect(
+          rel.forFactor(ReadinessFactor.hrv).mark,
+          MorningRmssdMark.experimental,
+        );
+      });
+
+      test('gesperrte Reihe bleibt als Tatsache in others', () {
+        final rel = CameraRelease(
+          developerMode: false,
+          rmssdOptIn: false,
+          state: st(),
+        );
+        final e = chooseFactor(
+          factor: ReadinessFactor.hrv,
+          healthConnect: null,
+          camera: cameraDeviations(
+            series(RestingPosture.lying),
+            today: todayKey,
+          ),
+          cameraReleased: true,
+          seriesReleased: rel.isReleased,
+        );
+        expect(e.chosen, isNull);
+        expect(e.others.length, 1);
+      });
+
+      test('Health Connect mit z bleibt vorrangig, Sperre ändert nichts', () {
+        final hc = DeviationResult(
+          factor: ReadinessFactor.hrv,
+          source: ReadinessSource.healthConnect,
+          origin: 'a',
+          z: -1,
+        );
+        for (final dev in [false, true]) {
+          final e = chooseFactor(
+            factor: ReadinessFactor.hrv,
+            healthConnect: hc,
+            camera: cameraDeviations(
+              series(RestingPosture.lying),
+              today: todayKey,
+            ),
+            cameraReleased: true,
+            seriesReleased: CameraRelease(
+              developerMode: dev,
+              rmssdOptIn: true,
+              state: st(),
+            ).isReleased,
+          );
+          expect(identical(e.chosen, hc), isTrue);
+        }
+      });
+    },
+  );
+
+  group('Entwicklermodus = bestanden mit Opt-in', () {
+    for (final supine in states) {
+      for (final posture in RestingPosture.values) {
+        test(
+          '${supine.name} ${posture.name}: gleiche Eingaben, gleiche Ausgabe',
+          () {
+            final dev = CameraRelease(
+              developerMode: true,
+              rmssdOptIn: false,
+              state: st(supine: supine, hr: supine),
+            );
+            final ref = CameraRelease(
+              developerMode: false,
+              rmssdOptIn: true,
+              state: st(),
+            );
+            for (final f in ReadinessFactor.values) {
+              final a = chosen(f, series(posture, before: true), dev);
+              final b = chosen(f, series(posture), ref);
+              expect(a, isNotNull);
+              expect(a!.z, b!.z);
+              expect(a.referenceCount, b.referenceCount);
+              expect(a.windowCount, b.windowCount);
+              expect(a.fewMeasurements, b.fewMeasurements);
+              expect(dev.forFactor(f).mark, MorningRmssdMark.none);
+            }
+          },
+        );
+      }
+    }
+
+    test('Merkmal "vor der Validierung gemessen" ändert nichts', () {
+      for (final dev in [false, true]) {
+        final rel = CameraRelease(
+          developerMode: dev,
+          rmssdOptIn: true,
+          state: st(),
+        );
+        for (final f in ReadinessFactor.values) {
+          final a = chosen(f, series(RestingPosture.lying, before: true), rel);
+          final b = chosen(f, series(RestingPosture.lying), rel);
+          expect(a!.z, b!.z);
+        }
+      }
+    });
+  });
+
+  test('Eigenschaft: eine Markierung ändert nie einen Faktor', () {
+    // Gleiche Freigabe, verschiedene Markierung (none/experimental):
+    // gleiches z. Ruhepuls: "bestanden" und "eingeschränkt" gleich.
+    final zs = <double>{};
+    for (final rel in [
+      CameraRelease(developerMode: true, rmssdOptIn: false, state: st()),
+      CameraRelease(developerMode: false, rmssdOptIn: true, state: st()),
+    ]) {
+      zs.add(
+        chosen(ReadinessFactor.hrv, series(RestingPosture.lying), rel)!.z!,
+      );
+    }
+    expect(zs.length, 1);
+    final a = chosen(
+      ReadinessFactor.restingHeartRate,
+      series(RestingPosture.lying),
+      CameraRelease(
+        developerMode: false,
+        rmssdOptIn: false,
+        state: st(hr: ValidationState.limited),
+      ),
+    )!;
+    final b = chosen(
+      ReadinessFactor.restingHeartRate,
+      series(RestingPosture.lying),
+      CameraRelease(developerMode: false, rmssdOptIn: false, state: st()),
+    )!;
+    expect(a.z, b.z);
+    // Ohne Freigabe entsteht nie ein Faktor, egal welche Markierung.
+    for (final s in [
+      ValidationState.notChecked,
+      ValidationState.limited,
+      ValidationState.failed,
+    ]) {
+      for (final optIn in [false, true]) {
+        expect(
+          chosen(
+            ReadinessFactor.hrv,
+            series(RestingPosture.lying),
+            CameraRelease(
+              developerMode: false,
+              rmssdOptIn: optIn,
+              state: st(supine: s),
+            ),
+          ),
+          isNull,
+        );
+      }
+    }
+  });
+
+  test('Ruhepuls: Markierung je Stand ohne Entwicklermodus', () {
+    final expected = {
+      ValidationState.passed: MorningRmssdMark.none,
+      ValidationState.limited: MorningRmssdMark.none,
+      ValidationState.failed: MorningRmssdMark.inaccurate,
+      ValidationState.notChecked: MorningRmssdMark.none,
+    };
+    for (final e in expected.entries) {
+      final r = CameraRelease(
+        developerMode: false,
+        rmssdOptIn: true,
+        state: st(hr: e.key),
+      ).forFactor(ReadinessFactor.restingHeartRate);
+      expect(r.mark, e.value, reason: e.key.name);
+    }
+  });
+
+  test('isReleased: Health-Connect-Reihen sind nicht Sache der Sperre', () {
+    final hc = DeviationResult(
+      factor: ReadinessFactor.hrv,
+      source: ReadinessSource.healthConnect,
+      origin: 'a',
+      z: 0.5,
+    );
+    final rel = CameraRelease(
+      developerMode: false,
+      rmssdOptIn: false,
+      state: st(supine: ValidationState.failed),
+    );
+    expect(rel.isReleased(hc), isTrue);
+  });
+}

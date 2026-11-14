@@ -21,6 +21,8 @@ import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
 import '../settings/unit_format.dart';
 import 'data_changes.dart';
+import '../readiness/readiness_card.dart';
+import '../readiness/readiness_service.dart';
 import 'home_recovery.dart';
 import 'overview_screen.dart';
 import 'run_starter.dart';
@@ -73,7 +75,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// Hinweis des Tages und Pausenfrage (WP23 D2); Fehler bleiben still, die
   /// Karten fehlen dann.
   late Future<HomeHints> _hints = _loadHints();
+
+  /// Erholung der erweiterten Stufe (WP34 D1); `null` bei Fehler, dann gilt
+  /// die Basisstufe.
+  late Future<ReadinessSnapshot?> _readiness = _loadReadiness();
+
+  /// Beides zusammen für die Karten. Als Feld gehalten und nur zusammen mit
+  /// `_hints`/`_readiness` neu gesetzt (siehe [_renewCards]); ein Future in
+  /// `build` würde bei jedem `setState` (z. B. `_busy`) auf „wartet“ zurückfallen
+  /// und die Karten samt Knöpfen für einen Frame ausblenden.
+  late Future<List<Object?>> _cardsData = Future.wait<Object?>([
+    _hints,
+    _readiness,
+  ]);
   bool _busy = false;
+
+  /// Neu laden der Hinweise und/oder der Erholung; im `setState` aufrufen.
+  void _renewCards({bool hints = false, bool readiness = false}) {
+    if (hints) _hints = _loadHints();
+    if (readiness) _readiness = _loadReadiness();
+    _cardsData = Future.wait<Object?>([_hints, _readiness]);
+  }
 
   /// Neu laden der Morgenkarte mit der Seite (Entwicklermodus, heutige Messung).
   int _morningEpoch = 0;
@@ -106,8 +128,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final health = HealthConnectScope.of(context);
     if (health == null) return;
     await health.importThenLoad(HealthImportTrigger.todayOpened);
+    // Neue Importdaten zählen sofort für die Erholung.
+    if (mounted) {
+      setState(() {
+        _renewCards(readiness: true);
+      });
+    }
     if (mounted) {
       await askOpenHealthQuestions(context, health, skipDeferred: true);
+      // Eine Antwort auf die Löschfrage widerruft die Einwilligung: die
+      // Erholung darf danach keine Werte dieser Art mehr zeigen (SEC-0007).
+      if (mounted) {
+        setState(() {
+          _renewCards(readiness: true);
+        });
+      }
     }
   }
 
@@ -144,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _morningEpoch++;
       _shownDay = _today;
       _future = _load();
-      _hints = _loadHints();
+      _renewCards(hints: true, readiness: true);
     });
     _openPlan();
   }
@@ -161,10 +196,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     widget.clock,
   ).catchError((Object _) => const HomeHints());
 
+  Future<ReadinessSnapshot?> _loadReadiness() async {
+    try {
+      return await ReadinessService(
+        session: widget.session,
+        clock: widget.clock,
+        loadToday: _loadToday,
+      ).load();
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Letzter Tag des Belastungsverlaufs (WP19) für den Faktor Belastung, rein
+  /// lesend: Heute übernimmt oder bietet keinen Faktor an.
+  Future<LoadDay?> _loadToday() async {
+    final report = await TrainingLoadService(
+      session: widget.session,
+      clock: widget.clock,
+      calculation: ValueCalculationService(
+        session: widget.session,
+        clock: widget.clock,
+      ),
+      recalculation: widget.recalculation.service,
+    ).loadReadOnly();
+    final days = report.series.days;
+    return days.isEmpty ? null : days.last;
+  }
+
   void _reloadHints() {
     if (!mounted) return;
     setState(() {
-      _hints = _loadHints();
+      _renewCards(hints: true);
     });
   }
 
@@ -258,10 +321,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _cards(
     BuildContext context,
     PlanViewState s,
-  ) => FutureBuilder<HomeHints>(
-    future: _hints,
+  ) => FutureBuilder<List<Object?>>(
+    future: _cardsData,
     builder: (context, snap) {
-      final hints = snap.data;
+      // Beim ersten Laden erst anzeigen, wenn beides da ist: sonst springt die
+      // Karte von der Basis zur erweiterten Stufe. Beim Neuladen bleiben die
+      // bisherigen Daten stehen (snap.data), sonst fehlen die Karten Frames lang.
+      if (snap.data == null && snap.connectionState != ConnectionState.done) {
+        return const SizedBox.shrink();
+      }
+      final hints = snap.data?[0] as HomeHints?;
+      final readiness = snap.data?[1] as ReadinessSnapshot?;
+      final extended = readiness != null && readiness.extended;
       final ready = s.phase == PlanLoadPhase.ready;
       final unit = ready && s.hasPlan ? _unitToday(s) : null;
       final canEasy =
@@ -278,18 +349,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 .difference(planDay(s.warning!.reportedOn))
                 .inDays
           : null;
+      // Warnsignal vor jeder Einschätzung (FR-0203, PAR-173); andere Hinweise
+      // der Basisstufe folgen der Einschätzung.
+      final warning = card != null && card.code == HintCode.warning;
+      Widget hintCard(bool basis) => RecoveryCardView(
+        card: card!,
+        basisStage: basis,
+        onEasyRun: card.action == HintAction.easyRun && canEasy && !_busy
+            ? () => _easyRun(unit)
+            : null,
+        onNewStart:
+            card.action == HintAction.newStart && s.goal != null && !_busy
+            ? () => _newStart(s.goal!)
+            : null,
+      );
       final children = <Widget>[
-        if (card != null)
-          RecoveryCardView(
-            card: card,
-            onEasyRun: card.action == HintAction.easyRun && canEasy && !_busy
-                ? () => _easyRun(unit)
-                : null,
-            onNewStart:
-                card.action == HintAction.newStart && s.goal != null && !_busy
-                ? () => _newStart(s.goal!)
-                : null,
-          ),
+        if (card != null && (warning || !extended)) hintCard(!extended),
+        if (extended) ReadinessCard(snapshot: readiness, warning: warning),
+        if (card != null && !warning && extended) hintCard(false),
         if (pause != null)
           PauseQuestionCard(
             question: pause,

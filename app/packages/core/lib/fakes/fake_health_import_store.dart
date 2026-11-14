@@ -32,6 +32,16 @@ class FakeHealthImportStore implements HealthImportStore {
   }
 
   @override
+  Future<List<HealthRecord>> sleepSessions(DateTime from, DateTime to) async {
+    final out = [
+      for (final r in records(HealthDataKind.sleep))
+        if (r.start.isBefore(to) && r.end.isAfter(from)) r,
+    ];
+    out.sort((a, b) => a.start.compareTo(b.start));
+    return out;
+  }
+
+  @override
   Future<List<HealthRecord>> exercises(DateTime from, DateTime to) async {
     final out = [
       for (final r in records(HealthDataKind.exercise))

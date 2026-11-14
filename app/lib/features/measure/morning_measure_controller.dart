@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 
 import 'device_info.dart';
 import 'morning_belt.dart';
-import 'morning_trend_logic.dart';
 import 'resting_measure_controller.dart';
 
 /// Stellen im Ablauf der Morgenmessung, an denen Teil E (Gurt-RR, WP33) die

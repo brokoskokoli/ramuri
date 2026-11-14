@@ -21,6 +21,10 @@ abstract interface class HealthImportStore {
     DateTime to,
   );
 
+  /// Schlafsitzungen, die das Fenster [from, to) berühren, nach Beginn, mit
+  /// Phasen (Readiness, WP34 Teil D1).
+  Future<List<HealthRecord>> sleepSessions(DateTime from, DateTime to);
+
   /// Trainingseinheiten, die das Fenster [from, to) berühren, nach Beginn
   /// (ohne Pulswerte, siehe [exerciseHeartRate]).
   Future<List<HealthRecord>> exercises(DateTime from, DateTime to);
