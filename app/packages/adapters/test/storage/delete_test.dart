@@ -290,6 +290,20 @@ void main() {
     await s.close();
   });
 
+  test('Alles löschen leert das Rohsignal ausdrücklich, auch ohne Fremdschlüssel-Kaskade', () async {
+    final (s, _, _) = await setup();
+    await addMorning(s);
+    await s.database.customStatement('PRAGMA foreign_keys = OFF');
+    // Ohne Kaskade bliebe die Zeile nur stehen, wenn die Löschschleife sie
+    // nicht ausdrücklich erreicht.
+    await s.deleteAll();
+    final n = await s.database
+        .customSelect('SELECT COUNT(*) AS n FROM morning_raw_signals')
+        .getSingle();
+    expect(n.data['n'], 0);
+    await s.close();
+  });
+
   test('Alles löschen entfernt die Karteneinwilligung', () async {
     final (s, _, _) = await setup();
     await s.consents.set(mapProviderSourceKey, ConsentState.granted, at: at(0));
