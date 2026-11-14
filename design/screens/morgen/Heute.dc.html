@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Heute mit Morgenmessung</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; display: flex; flex-direction: column">
+  <div style="flex: 1; padding: 28px 20px 16px; display: flex; flex-direction: column; gap: 16px">
+    <header style="display: flex; align-items: center; gap: 8px">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Samstag, 14. November</span>
+        <h1 style="margin: 0; font-family: Sora, sans-serif; letter-spacing: -0.03em; font-size: 26px; font-weight: 700">Heute</h1>
+      </div>
+      <button aria-label="Profil und Einstellungen" style="width: 44px; height: 44px; border-radius: 22px; background: {{t.card}}; border: 1px solid {{t.border}}; display: flex; align-items: center; justify-content: center; color: {{t.text}}; cursor: pointer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg>
+      </button>
+    </header>
+
+    <sc-if value="{{open}}" hint-placeholder-val="{{ true }}">
+      <section aria-label="Morgenmessung" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: center; gap: 10px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{t.link}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16a8 8 0 0 1 16 0"></path><path d="M2 20h20"></path><path d="M12 4v3M5 8l2 2M19 8l-2 2"></path></svg>
+          <span style="flex: 1; font-size: 16px; font-weight: 800">Morgenmessung</span>
+          <span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">liegend</span>
+        </div>
+        <span style="font-size: 14px; line-height: 1.45; color: {{t.muted}}">Heute noch nicht gemessen. 2 min Ruhe, dann 60 s mit der Kamera.</span>
+        <a href="{{measureHref}}" style="height: 48px; border-radius: 24px; background: {{t.mint}}; color: {{t.onMint}}; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; text-decoration: none">Jetzt messen</a>
+      </section>
+    </sc-if>
+    <sc-if value="{{done}}" hint-placeholder-val="{{ false }}">
+      <section aria-label="Morgenmessung" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; align-items: center; gap: 14px">
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 16px; font-weight: 800">Morgenmessung</span>
+          <span style="font-size: 13px; color: {{t.muted}}">Heute 6:42, liegend</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end"><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Ruhepuls /min</span><span style="font-family: Sora, sans-serif; font-size: 22px; font-weight: 700">52,4</span></div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end"><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">RMSSD ms</span><span style="font-family: Sora, sans-serif; font-size: 22px; font-weight: 700">48</span></div>
+      </section>
+    </sc-if>
+
+    <section aria-label="Erholung" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 16px; font-weight: 800">Erholung</span>
+      <span style="font-size: 14px; line-height: 1.45; color: {{t.muted}}">Die Karte bleibt wie bisher; WP34 baut sie um.</span>
+    </section>
+    <section aria-label="Geplant" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Geplant heute</span>
+      <span style="font-size: 16px; font-weight: 800">Lockerer Dauerlauf, 40 min</span>
+    </section>
+
+    <div style="flex: 1"></div>
+    <sc-if value="{{dev}}" hint-placeholder-val="{{ true }}">
+      <span style="align-self: center; font-size: 12px; font-weight: 700; color: {{t.muted}}">Entwicklermodus aktiv</span>
+    </sc-if>
+  </div>
+  <nav aria-label="Hauptnavigation" style="height: 72px; border-top: 1px solid {{t.border}}; background: {{t.card}}; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: {{t.link}}; text-decoration: none; font-size: 12px; font-weight: 800"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9H3z"></path></svg>Heute</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: {{t.muted}}; text-decoration: none; font-size: 12px; font-weight: 700"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"></path></svg>Verlauf</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: {{t.muted}}; text-decoration: none; font-size: 12px; font-weight: 700"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg>Fortschritt</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: {{t.muted}}; text-decoration: none; font-size: 12px; font-weight: 700"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Plan</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"gemessen":{"editor":"boolean","default":false},"dev":{"editor":"boolean","default":true},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', muted: '#A3B8B4', border: '#2A4140', link: '#7FD6C6', mint: '#7FD6C6', onMint: '#0E1A1A' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', muted: '#4F6361', border: '#DAE4E1', link: '#0F5E5A', mint: '#7FD6C6', onMint: '#0E1A1A' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const done = this.props.gemessen ?? false;
+    return {
+      t: this.theme(dark),
+      open: !done, done,
+      dev: this.props.dev ?? true,
+      measureHref: 'Main' + (dark ? '-dunkel' : '') + '.dc.html'
+    };
+  }
+}
+</script>
+</body>
+</html>
