@@ -712,6 +712,12 @@ void main() {
         expect(b.transcript, a.transcript, reason: 'zweiter Durchlauf');
         expect(elapsed, lessThan(const Duration(seconds: 30)));
         expect(a.stats['lauf'], greaterThan(10));
+        if (sc.pause != null) {
+          // F2: auch mit Anker aus Rückmeldung/Wochenbewertung kommt der
+          // Neustart (PAR-202), Tag 78, 162 und 223.
+          expect(a.stats['pause_long'], 3);
+          expect(a.stats['pause_none'], isNull);
+        }
       },
       timeout: const Timeout(Duration(seconds: 120)),
     );
