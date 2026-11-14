@@ -2246,6 +2246,8 @@
   "@guidedNoUnitWarning": {"description": "WP24 Lauf vorbereiten, Warnsignal aktiv"},
   "guidedTarget": "Target: {range}",
   "@guidedTarget": {"description": "WP24 Lauf vorbereiten", "placeholders": {"range": {"type": "String"}}},
+  "guidedRepeat": "{count}× {parts}",
+  "@guidedRepeat": {"description": "Teil G, Lauf vorbereiten: wiederholte Abschnittsfolge in einer Zeile", "placeholders": {"count": {"type": "int"}, "parts": {"type": "String"}}},
   "guidedVoiceTitle": "Announcements",
   "@guidedVoiceTitle": {"description": "WP24 Lauf vorbereiten"},
   "guidedVoiceHint": "Kilometers, sections and heart rate range by voice",

@@ -12,6 +12,7 @@ import '../recalculation/recalculation_controller.dart';
 import '../sensors/sensor_manager.dart';
 import '../sensors/sensors_screen.dart';
 import '../settings/app_settings.dart';
+import '../settings/unit_format.dart';
 import 'guided_segments.dart';
 import 'live_run_view.dart';
 import 'run_controller.dart';
@@ -849,21 +850,74 @@ class _RunFlowScreenState extends State<RunFlowScreen>
               style: text.bodySmall,
             ),
           const SizedBox(height: 12),
-          for (var i = 0; i < segments.length; i++)
+          for (final (i, g) in groupSegments(segments).indexed)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Semantics(
                 container: true,
-                child: PlanSegmentRow(
-                  key: Key('guided_segment_$i'),
-                  segment: segments[i],
-                  formatter: formatter,
-                  colors: c,
-                ),
+                child: _segmentGroup(l10n, text, c, formatter, g, i),
               ),
             ),
         ],
       ),
+    );
+  }
+
+  /// Ein Abschnitt als Zeile mit Zielen; eine wiederholte Folge in einer Zeile
+  /// („8× 1 min Laufen · 2 min Gehen“), mit Zielen darunter, wo es welche gibt.
+  Widget _segmentGroup(
+    AppLocalizations l10n,
+    TextTheme text,
+    RamuriColors c,
+    UnitFormatter formatter,
+    SegmentGroup g,
+    int i,
+  ) {
+    if (g.repeat == 1) {
+      return PlanSegmentRow(
+        key: Key('guided_segment_$i'),
+        segment: g.segments.first,
+        formatter: formatter,
+        colors: c,
+      );
+    }
+    final parts = g.segments
+        .map(
+          (s) =>
+              '${planSegmentDuration(l10n, s.durationSeconds)} '
+              '${planSegmentName(l10n, s.kind)}',
+        )
+        .join(' · ');
+    return Column(
+      key: Key('guided_segment_$i'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.guidedRepeat(g.repeat, parts),
+                key: Key('guided_group_$i'),
+                style: text.titleSmall,
+              ),
+            ),
+            Text(
+              planSegmentDuration(l10n, g.durationSeconds),
+              style: text.labelMedium,
+            ),
+          ],
+        ),
+        if (g.segments.any((s) => s.intensity != null))
+          for (final s in g.segments)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 12),
+              child: PlanSegmentRow(
+                segment: s,
+                formatter: formatter,
+                colors: c,
+              ),
+            ),
+      ],
     );
   }
 
