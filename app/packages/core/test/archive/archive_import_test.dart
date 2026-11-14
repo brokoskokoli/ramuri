@@ -474,12 +474,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 11: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 12: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 12);
+        final lines = valid()..[0] = _manifest(schema: 13);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":12,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":13,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -1346,8 +1346,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 11 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 12, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 12 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 13, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -1368,6 +1368,8 @@ void main() {
       );
       expect(archiveSectionsFor(10).first.columns.last.name, 'mode');
       expect(archiveSectionsFor(11), hasLength(26));
+      expect(archiveSectionsFor(12), hasLength(31));
+      expect(archiveSectionsFor(12).last.name, 'health_exercise_heart_rates');
       expect(archiveSectionsFor(11).last.name, 'treadmill_settings');
       // `active_warning` (21) ist bis Schema 10 reserviert, ab 11 mit Spalten.
       expect(
@@ -1826,6 +1828,69 @@ void main() {
       },
     );
 
+    Map<String, Object?> hcRows(String section, int i) =>
+        _row(archiveSectionsFor(12).firstWhere((x) => x.name == section), i);
+
+    test(
+      'Schema 12: health_* und manual_trainings.hc_id (auch leer) kommen an; '
+      'Schema 11 liest hc_id als leer, health_* gibt es dort nicht',
+      () async {
+        final health = [
+          'health_sleep_sessions',
+          'health_sleep_stages',
+          'health_values',
+          'health_exercises',
+          'health_exercise_heart_rates',
+        ];
+        await c.run(
+          await file(
+            v2(
+              schema: 12,
+              trainings: [
+                mt()..['hc_id'] = 'hc-1',
+                mt(id: 2)..['hc_id'] = null,
+              ],
+              extra: {
+                for (final n in health) n: [hcRows(n, 1), hcRows(n, 2)],
+              },
+            ),
+          ),
+        );
+        expect(c.sink.commits, 1);
+        for (final n in health) {
+          expect(c.sink.rows[n], [hcRows(n, 1), hcRows(n, 2)], reason: n);
+        }
+        expect(
+          [for (final r in c.sink.rows['manual_trainings']!) r['hc_id']],
+          ['hc-1', null],
+        );
+        // Schema 11: keine health_*-Abschnitte, hc_id gilt als leer.
+        c = _Case(dir);
+        await c.run(await file(v2(schema: 11)));
+        expect(c.sink.rows['manual_trainings']!.single['hc_id'], isNull);
+        for (final n in health) {
+          expect(c.sink.rows[n] ?? const [], isEmpty, reason: n);
+        }
+        c = _Case(dir);
+        final l = v2(schema: 11);
+        l.insert(l.length - 1, _section('health_values'));
+        await rejectsV2(l);
+        // Schema 11 mit hc_id oder Schema 12 ohne hc_id: beschädigt.
+        await rejectsV2(v2(schema: 11, trainings: [mt()..['hc_id'] = 'x']));
+        await rejectsV2(v2(schema: 12, trainings: [mt()]));
+        // Falscher Typ in einem health-Abschnitt: beschädigt.
+        await rejectsV2(
+          v2(
+            schema: 12,
+            trainings: [mt()..['hc_id'] = null],
+            extra: {
+              'health_values': [hcRows('health_values', 1)..['value'] = 's'],
+            },
+          ),
+        );
+      },
+    );
+
     test(
       'Schema 9: runs ohne mode lesen sich mit gps, Abschnitt 26 gibt es nicht',
       () async {
@@ -2050,9 +2115,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 12: neueres Archiv', () async {
+    test('Schema 13: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":12,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":13,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });

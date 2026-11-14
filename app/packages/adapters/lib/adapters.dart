@@ -36,6 +36,7 @@ export 'src/storage/app_database.dart';
 export 'src/storage/connection_setup.dart';
 export 'src/storage/database_files.dart';
 export 'src/storage/encrypted_storage.dart';
+export 'src/storage/health_access.dart';
 export 'src/storage/no_backup_dir.dart';
 export 'src/storage/random_key.dart';
 export 'src/storage/secure_key_store.dart';

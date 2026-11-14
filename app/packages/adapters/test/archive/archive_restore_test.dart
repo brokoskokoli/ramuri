@@ -659,6 +659,7 @@ void main() {
     ('archive_v2_s9', 9),
     ('archive_v2_s10', 10),
     ('archive_v2_s11', 11),
+    ('archive_v2_s12', 12),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -802,6 +803,25 @@ void main() {
       } else {
         expect(warning, isNull);
       }
+      // Health Connect (WP32): Abschnitte 27 bis 31 und manual_trainings.hc_id
+      // ab Schema 12, Zeilen wertgleich zum Vektor; davor leer, hc_id leer.
+      for (final n in [
+        'health_sleep_sessions',
+        'health_sleep_stages',
+        'health_values',
+        'health_exercises',
+        'health_exercise_heart_rates',
+      ]) {
+        if (schema >= 12) {
+          expect(got[n], isNotEmpty, reason: n);
+          expect(got[n], expected[n], reason: n);
+        } else {
+          expect(got[n], isEmpty, reason: n);
+        }
+      }
+      expect([
+        for (final r in got['manual_trainings']!) r['hc_id'],
+      ], schema >= 12 ? [null, 'hc-ex-1'] : [null, null]);
     });
   }
 

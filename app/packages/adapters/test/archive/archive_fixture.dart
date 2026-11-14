@@ -145,7 +145,36 @@ Future<void> fillAllTables(AppDatabase db) async {
   );
   await sql(
     db,
-    "INSERT INTO manual_trainings (day, kind, duration_s, rpe) VALUES ('2026-11-01', 'other', 3600, 4), ('2026-11-20', 'run', 1800, 0)",
+    "INSERT INTO manual_trainings (day, kind, duration_s, rpe, hc_id) VALUES ('2026-11-01', 'other', 3600, 4, NULL), ('2026-11-20', 'run', 1800, 0, 'hc-ex-1')",
+  );
+  // Health Connect (WP32): je Tabelle Zeilen (synthetisch), Zonenversatz mit und ohne.
+  await sql(
+    db,
+    'INSERT INTO health_sleep_sessions (id, hc_id, origin, start_us, end_us, offset_s) '
+    "VALUES (1, 'hc-sl-1', 'com.example.sleep', 1000000, 28800000000, 3600), "
+    "(2, 'hc-sl-2', 'com.example.other', 30000000000, 31000000000, NULL)",
+  );
+  await sql(
+    db,
+    'INSERT INTO health_sleep_stages (session_id, start_us, end_us, stage) '
+    'VALUES (1, 1000000, 5000000, 4), (1, 5000000, 9000000, 5)',
+  );
+  await sql(
+    db,
+    'INSERT INTO health_values (hc_id, origin, kind, time_us, offset_s, value, unit) VALUES '
+    "('hc-v-1', 'com.example.hrv', 'hrv_rmssd', 100, 0, 42.5, 'ms'), "
+    "('hc-v-2', 'com.example.rhr', 'resting_heart_rate', 200, NULL, 55, 'bpm'), "
+    "('hc-v-3', 'com.example.vo2', 'vo2_max', 300, 7200, 48.25, 'ml/min/kg')",
+  );
+  await sql(
+    db,
+    'INSERT INTO health_exercises (id, hc_id, origin, exercise_type, start_us, end_us, offset_s) '
+    "VALUES (1, 'hc-ex-1', 'com.example.sport', 56, 1000, 2000000, 3600)",
+  );
+  await sql(
+    db,
+    'INSERT INTO health_exercise_heart_rates (exercise_id, time_us, bpm) '
+    'VALUES (1, 1000, 120), (1, 61000000, 150)',
   );
   // Leistungsprognose (Schema 6): eine Wettkampfzeit ohne Lauf, ein
   // bestätigter Lauf mit Verweis, ein abgelehnter Vorschlag.

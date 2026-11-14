@@ -89,6 +89,11 @@ SECTIONS_S10 = SECTIONS_S9 + ["treadmill_settings"]
 # ab jetzt Zeilen (hoechstens eine, id = 1; Vertrag 4.3), davor 0.
 SECTIONS_S11 = SECTIONS_S10
 
+# Schema 12 (WP32, weiter Format 2): `manual_trainings` bekommt am Ende `hc_id`, die Abschnitte 27 bis 31
+# (`health_*`, importierte Health-Connect-Daten) kommen ans Ende. Archive bis Schema 11 lesen hc_id als null.
+SECTIONS_S12 = SECTIONS_S11 + ["health_sleep_sessions", "health_sleep_stages", "health_values",
+                               "health_exercises", "health_exercise_heart_rates"]
+
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
 V2_TODAY = "2026-11-20"
@@ -295,8 +300,47 @@ def archive_rows_s11():
     return r
 
 
+def archive_rows_s12():
+    """Schema 12: die Zeilen von Schema 11, `manual_trainings.hc_id` (Training 1 selbst eingetragen = null,
+    Training 2 uebernommen aus der Einheit hc-ex-1) und Health-Connect-Daten (nur synthetische Werte):
+    zwei Schlafsitzungen (zwei Quell-Apps, eine ohne Phasen und ohne Zonenversatz), je ein Einzelwert
+    jeder Art (Ruhepuls als Ganzzahl-Schreibweise), eine Einheit mit zwei Pulswerten."""
+    r = archive_rows_s11()
+    for row in r["manual_trainings"]:
+        row["hc_id"] = "hc-ex-1" if row["id"] == 2 else None
+    t0 = 1792000000000000
+    r["health_sleep_sessions"] = [
+        dict(id=1, hc_id="hc-sl-1", origin="com.example.sleep", start_us=t0, end_us=t0 + 28_800_000_000, offset_s=3600),
+        dict(id=2, hc_id="hc-sl-2", origin="com.example.other", start_us=t0 + 86_400_000_000,
+             end_us=t0 + 86_400_000_000 + 1_800_000_000, offset_s=None),
+    ]
+    r["health_sleep_stages"] = [
+        dict(id=1, session_id=1, start_us=t0, end_us=t0 + 5_400_000_000, stage=4),
+        dict(id=2, session_id=1, start_us=t0 + 5_400_000_000, end_us=t0 + 9_000_000_000, stage=5),
+    ]
+    r["health_values"] = [
+        dict(id=1, hc_id="hc-v-1", origin="com.example.hrv", kind="hrv_rmssd", time_us=t0 + 28_800_000_000,
+             offset_s=0, value=42.5, unit="ms"),
+        dict(id=2, hc_id="hc-v-2", origin="com.example.rhr", kind="resting_heart_rate",
+             time_us=t0 + 28_900_000_000, offset_s=None, value=55, unit="bpm"),
+        dict(id=3, hc_id="hc-v-3", origin="com.example.vo2", kind="vo2_max", time_us=t0 + 29_000_000_000,
+             offset_s=7200, value=48.25, unit="ml/min/kg"),
+    ]
+    r["health_exercises"] = [
+        dict(id=1, hc_id="hc-ex-1", origin="com.example.sport", exercise_type=56, start_us=t0 + 1_000_000,
+             end_us=t0 + 1_801_000_000, offset_s=3600),
+    ]
+    r["health_exercise_heart_rates"] = [
+        dict(id=1, exercise_id=1, time_us=t0 + 1_000_000, bpm=120),
+        dict(id=2, exercise_id=1, time_us=t0 + 61_000_000, bpm=150),
+    ]
+    return r
+
+
 def archive_plaintext(version=1, future_training=False, schema=None, reserved_row=False):
-    if schema == 11:
+    if schema == 12:
+        r, sections = archive_rows_s12(), SECTIONS_S12
+    elif schema == 11:
         r, sections = archive_rows_s11(), SECTIONS_S11
     elif schema == 10:
         r, sections = archive_rows_s10(), SECTIONS_S10
@@ -353,6 +397,7 @@ def main():
     jl9, gz9 = archive_plaintext(2, schema=9)
     jl10, gz10 = archive_plaintext(2, schema=10)
     jl11, gz11 = archive_plaintext(2, schema=11)
+    jl12, gz12 = archive_plaintext(2, schema=12)
     _, gz2_future = archive_plaintext(2, future_training=True)
     _, gz10_warn = archive_plaintext(2, schema=10, reserved_row=True)
     # (name, passwort, salz, klartext)
@@ -373,6 +418,7 @@ def main():
         ("archive_v2_s9", "archiv-test-passwort-s9+", bytes(range(24, 40)), gz9),
         ("archive_v2_s10", "archiv-test-passwort-s10+", bytes(range(40, 56)), gz10),
         ("archive_v2_s11", "archiv-test-passwort-s11+", bytes(range(56, 72)), gz11),
+        ("archive_v2_s12", "archiv-test-passwort-s12+", bytes(range(88, 104)), gz12),
     ]
     # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
     v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
@@ -380,7 +426,7 @@ def main():
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10", "archive_v2_s11") else 1
+        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10", "archive_v2_s11", "archive_v2_s12") else 1
         h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
@@ -433,6 +479,12 @@ def main():
             manifest[-1]["jsonl_file"] = "archive_v2_s11.jsonl"
             manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl11).hexdigest()
             manifest[-1]["row_counts"] = {s: len(archive_rows_s11()[s]) for s in SECTIONS_S11}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s12":
+            open(os.path.join(out, "archive_v2_s12.jsonl"), "wb").write(jl12)
+            manifest[-1]["jsonl_file"] = "archive_v2_s12.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl12).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s12()[s]) for s in SECTIONS_S12}
             manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)

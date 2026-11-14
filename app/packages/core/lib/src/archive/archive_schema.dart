@@ -1,5 +1,5 @@
 /// Abschnitte und Spalten des Archivs (`docs/contracts/archive.md` 4.3,
-/// Schema 11, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
+/// Schema 12, Formatversion 2). Ein Test gleicht sie mit der Tabelle im Vertrag ab, ein
 /// Adapter-Test mit der Datenbank.
 library;
 
@@ -88,7 +88,7 @@ class ArchiveSectionSpec {
   final List<ArchiveColumn> columns;
   final String? key;
 
-  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 11).
+  /// Erstes Datenbankschema, in dem der Abschnitt steht (4 bis 12).
   final int sinceSchema;
 
   /// Erstes Schema, in dem der Abschnitt Zeilen trägt, wenn er schon früher
@@ -126,7 +126,7 @@ class ArchiveSectionSpec {
   bool get isReserved => columns.isEmpty;
 }
 
-/// Die 26 Abschnitte des Schemas 10 und 11 in der Reihenfolge des Vertrags;
+/// Die 31 Abschnitte des Schemas 12 (26 bis Schema 11) in der Reihenfolge des Vertrags;
 /// ältere Schemas haben weniger ([archiveSectionsFor]): Schema 4 die 19 mit
 /// `sinceSchema == 4`, Schema 5 dazu die zwei von WP18.
 final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
@@ -226,8 +226,9 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
   ),
   ArchiveSectionSpec(
     'manual_trainings',
-    'id I, day T, kind T, duration_s I, rpe I',
+    'id I, day T, kind T, duration_s I, rpe I, hc_id T?',
     sinceSchema: 5,
+    addedColumns: {'hc_id': (12, null)},
   ),
   // WP21, Nummer 19: bis Schema 6 reservierter Platzhalter (0 Zeilen), ab
   // Schema 7 das Ziel.
@@ -284,6 +285,34 @@ final List<ArchiveSectionSpec> archiveSections = List.unmodifiable([
     'id I, run_id I, offset_us I, speed_mps R, incline_percent R?',
     sinceSchema: 10,
   ),
+  // WP32, Nummern 27 bis 31, ab Schema 12: importierte Daten aus Health
+  // Connect (nur anhängen). Eltern vor Kindern.
+  ArchiveSectionSpec(
+    'health_sleep_sessions',
+    'id I, hc_id T, origin T, start_us I, end_us I, offset_s I?',
+    sinceSchema: 12,
+  ),
+  ArchiveSectionSpec(
+    'health_sleep_stages',
+    'id I, session_id I, start_us I, end_us I, stage I',
+    sinceSchema: 12,
+  ),
+  ArchiveSectionSpec(
+    'health_values',
+    'id I, hc_id T, origin T, kind T, time_us I, offset_s I?, value R, unit T',
+    sinceSchema: 12,
+  ),
+  ArchiveSectionSpec(
+    'health_exercises',
+    'id I, hc_id T, origin T, exercise_type I, start_us I, end_us I, '
+        'offset_s I?',
+    sinceSchema: 12,
+  ),
+  ArchiveSectionSpec(
+    'health_exercise_heart_rates',
+    'id I, exercise_id I, time_us I, bpm I',
+    sinceSchema: 12,
+  ),
 ]);
 
 /// Formatversionen, die der Leser kennt.
@@ -293,18 +322,18 @@ const List<int> archiveFormats = [1, 2];
 const int archiveWriteFormat = 2;
 
 /// Neuestes Datenbankschema, das Leser und Schreiber kennen.
-const int archiveSchemaVersion = 11;
+const int archiveSchemaVersion = 12;
 
 /// Älteste Schemaversion, die gelesen wird (Format 1 beginnt mit Schema 4).
 /// Fehlende Abschnitte eines älteren Schemas gelten als leer.
 const int archiveMinSchemaVersion = 4;
 
 /// Formatversion eines Schemas: Schema 4 ist Format 1, ab Schema 5 Format 2
-/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 11).
+/// (Format 2 ist noch nicht ausgeliefert und trägt deshalb Schema 5 bis 12).
 int archiveFormatFor(int schema) => schema <= 4 ? 1 : 2;
 
 /// Die Abschnitte eines Schemas in Reihenfolge (4: 19, 5: 21, 6: 23, 7 und 8:
-/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
+/// 24, 9: 25 mit `raw_rr_packets`, ab 10: 26 mit `treadmill_settings`, ab 12: 31 mit `health_*`; ab 7 tragen die Abschnitte 19 und 20 Zeilen, ab 11 auch 21 `active_warning`, 24 `plan_units` gibt es
 /// nur ab 7, seine Spalte `fixed` ab 8).
 /// Ein Schema außerhalb von [archiveMinSchemaVersion] bis
 /// [archiveSchemaVersion] wirft einen [RangeError], statt still eine falsche
