@@ -342,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
       final children = <Widget>[
         if (card != null && (warning || !extended)) hintCard(!extended),
-        if (extended) ReadinessCard(snapshot: readiness),
+        if (extended) ReadinessCard(snapshot: readiness, warning: warning),
         if (card != null && !warning && extended) hintCard(false),
         if (pause != null)
           PauseQuestionCard(

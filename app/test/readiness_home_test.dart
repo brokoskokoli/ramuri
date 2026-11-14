@@ -274,6 +274,7 @@ void main() {
           scale: scale,
         );
         expect(_key('readiness_card'), findsOneWidget);
+        expect(_key('readiness_card_case_number'), findsOneWidget);
         expect(_key('readiness_value'), findsOneWidget);
         expect(
           _text('readiness_stage'),
@@ -300,6 +301,14 @@ void main() {
         await tester.tap(_key('readiness_where_from'));
         await tester.pumpAndSettle();
         expect(_key('readiness_detail'), findsOneWidget);
+        expect(_key('readiness_detail_case_number'), findsOneWidget);
+        await tester.ensureVisible(_key('readiness_detail_series_link'));
+        await tester.tap(_key('readiness_detail_series_link'));
+        await tester.pumpAndSettle();
+        expect(_key('readiness_history'), findsOneWidget);
+        // Reihen der drei Einwilligungen: HRV und Ruhepuls getrennt.
+        expect(_key('readiness_series_hc_hrv_0'), findsOneWidget);
+        expect(_key('readiness_series_hc_restingHeartRate_1'), findsOneWidget);
       });
 
       testWidgets('Eingeschränkt: keine Zahl, Grund und Tatsache', (
@@ -319,6 +328,7 @@ void main() {
           scale: scale,
         );
         expect(_key('readiness_value'), findsNothing);
+        expect(_key('readiness_card_case_limited'), findsOneWidget);
         expect(
           _text('readiness_title'),
           de ? 'Eingeschränkte Einschätzung' : 'Limited estimate',
@@ -350,6 +360,7 @@ void main() {
           scale: scale,
         );
         expect(_key('readiness_value'), findsNothing);
+        expect(_key('readiness_card_case_insufficient'), findsOneWidget);
         expect(
           _text('readiness_title'),
           de ? 'Unzureichende Daten' : 'Insufficient data',
@@ -452,8 +463,50 @@ void main() {
           outsideWindow: false,
         ),
       );
-      expect((await _service(d, s).load()).extended, isTrue);
+      final snap = await _service(d, s).load();
+      expect(snap.extended, isTrue);
+      // Die Kamerareihe steht für den Verlauf bereit (HRV und Ruhepuls).
+      expect(snap.series.map((r) => r.source).toSet(), {
+        ReadinessSource.camera,
+      });
+      expect(snap.series, hasLength(2));
+      expect(snap.series.first.byDay, isNotEmpty);
     });
+
+    testWidgets(
+      'Verlauf: Kamerareihe ohne Zulassung nicht, HC je Einwilligung',
+      (tester) async {
+        final d = Device();
+        final s = await _preopen(d);
+        await _seedHealth(s);
+        await _grant(s, [HealthDataKind.hrvRmssd]);
+        // Gespeicherte Messung, aber kein Entwicklermodus und nicht freigegeben.
+        await (s as MorningStorage).morning.add(
+          MorningMeasurement(
+            measuredAt: _now.subtract(const Duration(hours: 5)),
+            utcOffset: Duration.zero,
+            posture: RestingPosture.lying,
+            deviceManufacturer: 'H',
+            deviceModel: 'M1',
+            method: 'ppg',
+            methodVersion: 1,
+            quality: PpgQuality.good,
+            restingHrBpm: 58,
+            rmssdMs: 42,
+            timingNoiseMs: 10,
+            cameraIntervalsMs: const [],
+            beforeValidation: false,
+            outsideWindow: false,
+          ),
+        );
+        final snap = await _service(d, s).load();
+        // Nur die eingewilligte HRV aus Health Connect, kein Ruhepuls, keine
+        // Kamera (SEC-0001, K62 Punkt 1).
+        expect(snap.series.map((r) => (r.source, r.factor)), [
+          (ReadinessSource.healthConnect, ReadinessFactor.hrv),
+        ]);
+      },
+    );
   });
 
   group('Warnsignal und Entwicklermodus', () {

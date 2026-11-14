@@ -6,6 +6,9 @@ class ReadinessSnapshot {
     required this.result,
     required this.developerMode,
     required this.extended,
+    this.series = const [],
+    this.release,
+    this.today,
   });
 
   final ReadinessResult result;
@@ -17,6 +20,23 @@ class ReadinessSnapshot {
   /// Kamera-Messungen vorhanden). `false`: Basisstufe, nur der Texthinweis aus WP23 (FR-0105,
   /// FR-0107).
   final bool extended;
+
+  /// Die Reihen mit Tageswerten für den Verlauf (WP34 Teil D2): HRV und
+  /// Ruhepuls aus Health Connect (nur mit Einwilligung) und alle Kamerareihen
+  /// (nur wenn Kamerawerte zulässig sind), je Quelle getrennt, so wie das
+  /// Modell sie bekam. Keine zweite Rechnung.
+  final List<DeviationResult> series;
+
+  /// Freigabe der Kamerawerte (für die Markierung der Kamerareihen);
+  /// ohne Angabe ohne Opt-in und ohne Validierungsstand.
+  final CameraRelease? release;
+
+  /// Ortstag der Uhr als UTC-Datum (Ende der 28 Tage im Verlauf); ohne Angabe
+  /// der jüngste Tag der Reihen.
+  final DateTime? today;
+
+  CameraRelease get effectiveRelease =>
+      release ?? CameraRelease(developerMode: developerMode, rmssdOptIn: false);
 }
 
 /// Baut [ReadinessInputs] aus den Ports und rechnet [computeReadiness]
@@ -163,6 +183,9 @@ class ReadinessService {
       result: computeReadiness(inputs),
       developerMode: dev,
       extended: extended,
+      release: release,
+      today: today,
+      series: [?hrv, ?rhr, if (release.cameraValuesAllowed) ...camera],
     );
   }
 

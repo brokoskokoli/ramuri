@@ -17,7 +17,15 @@ import 'readiness_texts.dart';
 /// zeigt auf „Heute“ wie in WP33 nur die Morgenmessungs-Karte, damit er nicht
 /// doppelt steht.
 class ReadinessCard extends StatelessWidget {
-  const ReadinessCard({super.key, required this.snapshot, this.onWhereFrom});
+  const ReadinessCard({
+    super.key,
+    required this.snapshot,
+    this.onWhereFrom,
+    this.warning = false,
+  });
+
+  /// Warnsignal aktiv (FR-0203): die Detailseite nennt es vor der Einschätzung.
+  final bool warning;
 
   final ReadinessSnapshot snapshot;
 
@@ -50,7 +58,10 @@ class ReadinessCard extends StatelessWidget {
                     ? l.readinessRingValue(r.value!)
                     : l.readinessRingNone,
                 excludeSemantics: true,
-                child: _Ring(value: number ? r.value : null),
+                child: KeyedSubtree(
+                  key: Key('readiness_card_case_${r.state.name}'),
+                  child: ReadinessRing(value: number ? r.value : null),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -102,7 +113,10 @@ class ReadinessCard extends StatelessWidget {
                 onWhereFrom ??
                 () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => ReadinessDetailScreen(snapshot: snapshot),
+                    builder: (_) => ReadinessDetailScreen(
+                      snapshot: snapshot,
+                      warning: warning,
+                    ),
                   ),
                 ),
             child: Text(l.readinessWhereFrom),
@@ -114,34 +128,51 @@ class ReadinessCard extends StatelessWidget {
 }
 
 /// Ring mit Zahl; ohne Zahl ein gestrichelter Kreis (keine Zahl, kein Zustand).
-class _Ring extends StatelessWidget {
-  const _Ring({required this.value});
+class ReadinessRing extends StatelessWidget {
+  const ReadinessRing({
+    super.key,
+    required this.value,
+    this.size = 84,
+    this.valueKey = const Key('readiness_value'),
+  });
 
   final int? value;
+
+  /// Seitenlänge; die Zeichnung ist für 84 gebaut und wird skaliert.
+  final double size;
+  final Key valueKey;
 
   @override
   Widget build(BuildContext context) {
     final c = RamuriColors.of(context);
     final t = Theme.of(context).textTheme;
     return SizedBox(
-      width: 84,
-      height: 84,
-      child: CustomPaint(
-        painter: _RingPainter(
-          value: value,
-          track: c.track,
-          arc: c.accent,
-          dashes: c.textMuted,
+      width: size,
+      height: size,
+      child: FittedBox(
+        child: SizedBox(
+          width: 84,
+          height: 84,
+          child: CustomPaint(
+            painter: _RingPainter(
+              value: value,
+              track: c.track,
+              arc: c.accent,
+              dashes: c.textMuted,
+            ),
+            child: value == null
+                ? null
+                : Center(
+                    child: Text(
+                      '$value',
+                      key: valueKey,
+                      style: t.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+          ),
         ),
-        child: value == null
-            ? null
-            : Center(
-                child: Text(
-                  '$value',
-                  key: const Key('readiness_value'),
-                  style: t.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
       ),
     );
   }

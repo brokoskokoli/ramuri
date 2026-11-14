@@ -118,6 +118,12 @@ String readinessDriverText(AppLocalizations l, ReadinessDriver d) {
       : l.readinessDriverQualified(base, notes.join(', '));
 }
 
+/// Zahl mit den Nachkommastellen der Reihe (FR-0114), Dezimalkomma in de.
+String readinessNumberText(AppLocalizations l, double v, int decimals) {
+  final t = v.toStringAsFixed(decimals);
+  return l.localeName.startsWith('de') ? t.replaceAll('.', ',') : t;
+}
+
 /// Betrag mit den Nachkommastellen der Reihe (FR-0114), Dezimalkomma in de.
 String _amount(AppLocalizations l, double v, int decimals) {
   final t = v.abs().toStringAsFixed(decimals);

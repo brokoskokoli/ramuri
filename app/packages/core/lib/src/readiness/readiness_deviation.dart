@@ -98,6 +98,7 @@ class DeviationResult {
     this.todayIsFallback = false,
     this.sourceSpanDays = 0,
     this.valueDecimals = 0,
+    this.byDay = const {},
   }) : assert((z == null) != (reason == null));
 
   final ReadinessFactor factor;
@@ -147,6 +148,12 @@ class DeviationResult {
 
   /// Nachkommastellen der Werte ([DeviationRules.valueDecimals]).
   final int valueDecimals;
+
+  /// Die Tageswerte der Reihe (Ortstag als UTC-Datum, Einheit des Faktors,
+  /// ungerundet), aus denen die Abweichung entstand; für den Verlauf (WP34
+  /// Teil D2), keine zweite Rechnung. Tage ohne Wert fehlen (Lücken bleiben
+  /// Lücken). Nicht in [toString].
+  final Map<DateTime, double> byDay;
 
   bool get hasZ => z != null;
 
@@ -206,6 +213,7 @@ DeviationResult deviationForSeries({
     source: source,
     origin: origin,
     cameraSeries: cameraSeries,
+    byDay: byDay,
     reason: r,
     windowCount: k,
     referenceCount: refN,
@@ -276,6 +284,7 @@ DeviationResult deviationForSeries({
     todayIsFallback: todayIsFallback,
     sourceSpanDays: readinessSourceSpanDays(byDay.keys, today),
     valueDecimals: rules.valueDecimals,
+    byDay: byDay,
     factor: factor,
     source: source,
     origin: origin,

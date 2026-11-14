@@ -200,5 +200,18 @@ void main() {
       expect(r.toString(), isNot(contains('61')));
       expect(r.toString(), isNot(contains(r.z!.toString())));
     });
+
+    test('byDay trägt die Tageswerte der Reihe (Verlauf, Lücken bleiben)', () {
+      final s = series(alternating(50, 53), 61);
+      s.remove(back(5));
+      final ok = hrv(s);
+      expect(ok.byDay, s);
+      expect(ok.byDay.containsKey(back(5)), isFalse);
+      // Auch ohne z (heute fehlt): die Werte sind da.
+      final none = hrv(series(alternating(50, 53), null));
+      expect(none.hasZ, isFalse);
+      expect(none.byDay.length, 28);
+      expect(none.byDay.containsKey(today), isFalse);
+    });
   });
 }
