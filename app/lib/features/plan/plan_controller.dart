@@ -1090,7 +1090,7 @@ class PlanController extends ChangeNotifier {
             lastTrainingDay: q.lastTrainingDay,
             baseWeekMinutes: q.baseWeekMinutes,
             parameters: parameters,
-                  replacesProvisional: await _pauseProvisional(q),
+            replacesProvisional: await _pauseProvisional(q),
           ).inputs !=
           null;
     } on Object {
