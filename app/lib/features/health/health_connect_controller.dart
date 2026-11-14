@@ -45,6 +45,13 @@ class HealthConnectController extends ChangeNotifier {
   /// Arten mit offener Löschfrage (Recht fehlt trotz Einwilligung, oder eine Antwort steht aus).
   List<HealthDataKind> questions = [];
 
+  /// Gesetzt, solange eine Löschfrage auf dem Bildschirm steht (je Sitzung höchstens eine Abfolge zugleich).
+  bool asking = false;
+
+  /// Arten, deren Frage in dieser Sitzung beim Öffnen der App schon mit „Abbrechen“ zurückgestellt wurde (nicht erneut
+  /// beim nächsten Öffnen von „Heute“); die Seite selbst fragt immer.
+  final Set<HealthDataKind> deferred = {};
+
   bool _disposed = false;
 
   @override
@@ -62,8 +69,19 @@ class HealthConnectController extends ChangeNotifier {
     importer.run(trigger).then<void>((_) {}, onError: (Object _) {});
   }
 
-  /// Liest Zustand, Einwilligungen, Rechte und offene Löschfragen neu. Fehlt ein Recht für eine eingewilligte Art, deren
-  /// importierte Daten es gibt, wird die Löschfrage geöffnet (SEC-0007); ohne Daten wird sie still geschlossen.
+  /// Import wie [runInBackground], danach Zustand neu lesen, damit offene Löschfragen beim Öffnen der App gezeigt werden
+  /// können (SEC-0007, nicht nur auf der Health-Connect-Seite). Fehler bleiben still.
+  Future<void> importThenLoad(HealthImportTrigger trigger) async {
+    try {
+      await importer.run(trigger);
+    } catch (_) {}
+    try {
+      await load();
+    } catch (_) {}
+  }
+
+  /// Liest Zustand, Einwilligungen, Rechte und offene Löschfragen neu. Fehlt ein Recht für eine eingewilligte Art (oder ist Health Connect nicht mehr
+  /// verfügbar), deren importierte Daten es gibt, wird die Löschfrage geöffnet (SEC-0007); ohne Daten wird sie still geschlossen.
   Future<void> load() async {
     try {
       sdk = await port.sdkStatus();
@@ -90,9 +108,8 @@ class HealthConnectController extends ChangeNotifier {
       try {
         ask = await consents.isDeleteQuestionOpen(key);
         final missing =
-            sdk == HealthSdkStatus.available &&
             on.contains(k) &&
-            !permitted.contains(k);
+            (sdk != HealthSdkStatus.available || !permitted.contains(k));
         if (!ask && missing && await store.count(k) > 0) {
           await consents.openDeleteQuestion(key);
           ask = true;

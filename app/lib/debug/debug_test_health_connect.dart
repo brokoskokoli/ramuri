@@ -1,4 +1,5 @@
 import 'package:core/core.dart';
+import 'package:flutter/foundation.dart';
 
 /// Marker für den Artefaktbeleg (WP32, wie WP07/WP27): Dieser Text darf in keinem Release-APK stehen;
 /// `tool/check_release_apk.sh` sucht ihn dort.
@@ -19,7 +20,12 @@ class DebugTestHealthConnect implements HealthConnectPort {
     required this.now,
     this.status = HealthSdkStatus.available,
     Set<HealthDataKind> granted = const {},
-  }) : _granted = {...granted};
+  }) : _granted = {...granted} {
+    // Hält den Marker im Code, sobald die Debug-Quelle erzeugt wird (Positivkontrolle am Artefakt).
+    debugPrint(
+      '$testHealthConnectMarker aktiv: Health-Connect-Daten sind simuliert',
+    );
+  }
 
   final DateTime Function() now;
   HealthSdkStatus status;

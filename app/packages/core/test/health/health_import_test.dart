@@ -416,6 +416,40 @@ void main() {
     expect(await store.count(HealthDataKind.sleep), 0);
   });
 
+  test(
+    'Widerruf des Pulsverlaufs während des Lesens: nichts gespeichert',
+    () async {
+      await consents.grant(healthSourceKey(HealthDataKind.exercise));
+      await consents.grant(healthSourceKey(HealthDataKind.heartRate));
+      port.data[HealthDataKind.exercise] = [_exercise('e1')];
+      port.data[HealthDataKind.heartRate] = [
+        HealthRecord(
+          kind: HealthDataKind.heartRate,
+          id: 'p1',
+          origin: 'app.a',
+          start: _t0,
+          end: _t0,
+          samples: [HealthHeartRateSample(_t0, 140)],
+        ),
+      ];
+      final revoking = _RevokingPort(port, () async {
+        await consents.revoke(healthSourceKey(HealthDataKind.heartRate));
+      }, onlyKind: HealthDataKind.heartRate);
+      final s = HealthImportService(
+        port: revoking,
+        store: store,
+        consents: consents,
+        clock: clock,
+      );
+      final r = await s.run(HealthImportTrigger.manual);
+      expect(
+        r.kinds[HealthDataKind.heartRate]!.status,
+        HealthKindStatus.revokedWhileReading,
+      );
+      expect(await store.exerciseHeartRate('e1'), isEmpty);
+    },
+  );
+
   test('Fehler beim Lesen: Art scheitert, andere laufen weiter', () async {
     await grantAll();
     port.failWith = const HealthReadException(HealthReadError.busy);
@@ -476,8 +510,9 @@ class _Consents implements ConsentStore {
 }
 
 class _RevokingPort implements HealthConnectPort {
-  _RevokingPort(this._inner, this._onRead);
+  _RevokingPort(this._inner, this._onRead, {this.onlyKind});
   final _Port _inner;
+  final HealthDataKind? onlyKind;
   final Future<void> Function() _onRead;
 
   @override
@@ -496,7 +531,7 @@ class _RevokingPort implements HealthConnectPort {
     int? pageSize,
   }) async {
     final p = await _inner.readPage(kind: kind, from: from, to: to);
-    await _onRead();
+    if (onlyKind == null || onlyKind == kind) await _onRead();
     return p;
   }
 }

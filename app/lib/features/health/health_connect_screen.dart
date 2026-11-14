@@ -57,6 +57,121 @@ class HealthKindTexts {
       };
 }
 
+/// Löschdialog der Art (auch beim Öffnen der App, SEC-0007). [fromSwitch]: „Abbrechen“ schaltet wieder ein; sonst bleibt die Frage offen.
+Future<void> askHealthDeleteQuestion(
+  BuildContext context,
+  HealthConnectController c,
+  HealthDataKind kind, {
+  required bool fromSwitch,
+}) async {
+  final l10n = AppLocalizations.of(context);
+  final texts = HealthKindTexts.of(l10n, kind);
+  final choice = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      key: const Key('health_delete_dialog'),
+      title: Text(l10n.healthDeleteTitle(texts.label)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.healthDeleteQuestion(texts.plural),
+            style: Theme.of(context).textTheme.bodyLarge
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Text(l10n.healthDeleteBody(texts.plural, texts.extra)),
+        ],
+      ),
+      actions: [
+        TextButton(
+          key: const Key('health_delete_keep'),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l10n.healthDeleteKeep),
+        ),
+        FilledButton(
+          key: const Key('health_delete_confirm'),
+          style: ramuriDangerFilledStyle(context),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(l10n.healthDeleteConfirm),
+        ),
+        TextButton(
+          key: const Key('health_delete_cancel'),
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.healthDeleteCancel),
+        ),
+      ],
+    ),
+  );
+  if (!context.mounted) return;
+  if (choice == null) {
+    if (fromSwitch) await _guardHealth(context, () => c.cancelDisable(kind));
+    return;
+  }
+  final ok = await _guardHealth(
+    context,
+    () => c.answerDeleteQuestion(kind, delete: choice),
+    failed: choice ? l10n.healthDeleteFailed : null,
+  );
+  if (ok && context.mounted) {
+    _healthSnack(
+      context,
+      choice
+          ? l10n.healthDeletedSnack(texts.plural)
+          : l10n.healthKeptSnack(texts.plural),
+    );
+  }
+}
+
+Future<bool> _guardHealth(
+  BuildContext context,
+  Future<void> Function() action, {
+  String? failed,
+}) async {
+  try {
+    await action();
+    return true;
+  } catch (_) {
+    if (context.mounted) {
+      _healthSnack(
+        context,
+        failed ?? AppLocalizations.of(context).healthSaveFailed,
+      );
+    }
+    return false;
+  }
+}
+
+void _healthSnack(BuildContext context, String text) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(text)));
+}
+
+/// Fragt der Reihe nach alle offenen Löschfragen (Recht fehlt, Health Connect nicht mehr verfügbar oder Antwort stand
+/// aus). Läuft höchstens einmal zugleich je Sitzung ([HealthConnectController.asking]); [skipDeferred] überspringt
+/// Fragen, die beim Öffnen der App schon zurückgestellt wurden.
+Future<void> askOpenHealthQuestions(
+  BuildContext context,
+  HealthConnectController c, {
+  bool skipDeferred = false,
+}) async {
+  if (c.asking) return;
+  c.asking = true;
+  try {
+    for (final kind in List.of(c.questions)) {
+      if (!context.mounted) return;
+      if (skipDeferred && c.deferred.contains(kind)) continue;
+      await askHealthDeleteQuestion(context, c, kind, fromSwitch: false);
+      if (c.questions.contains(kind)) c.deferred.add(kind);
+    }
+  } finally {
+    c.asking = false;
+  }
+}
+
 /// Seite „Gesundheitsdaten aus Health Connect“ (WP32 Teil C2): Einwilligung je Datenart, „Weiter zu Health Connect“,
 /// letzter Abruf, Widerruf mit Löschfrage; ohne Health Connect der Zustand „nicht verfügbar“ (FR-0022, SEC-0007).
 class HealthConnectScreen extends StatefulWidget {
@@ -70,7 +185,6 @@ class HealthConnectScreen extends StatefulWidget {
 
 class _HealthConnectScreenState extends State<HealthConnectScreen> {
   HealthConnectController get c => widget.controller;
-  bool _asking = false;
 
   @override
   void initState() {
@@ -91,109 +205,16 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
 
   Future<void> _reload() async {
     await c.load();
-    if (mounted) await _askOpenQuestions();
-  }
-
-  /// Fragt der Reihe nach alle offenen Löschfragen (Recht fehlt oder Antwort stand aus).
-  Future<void> _askOpenQuestions() async {
-    if (_asking) return;
-    _asking = true;
-    try {
-      for (final kind in List.of(c.questions)) {
-        if (!mounted) return;
-        await _ask(kind, fromSwitch: false);
-      }
-    } finally {
-      _asking = false;
-    }
-  }
-
-  void _snack(String text) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(text)));
-  }
-
-  /// Löschdialog der Art. [fromSwitch]: „Abbrechen“ schaltet wieder ein; sonst bleibt die Frage offen.
-  Future<void> _ask(HealthDataKind kind, {required bool fromSwitch}) async {
-    final l10n = AppLocalizations.of(context);
-    final texts = HealthKindTexts.of(l10n, kind);
-    final choice = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        key: const Key('health_delete_dialog'),
-        title: Text(l10n.healthDeleteTitle(texts.label)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.healthDeleteQuestion(texts.plural),
-              style: Theme.of(context).textTheme.bodyLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            Text(l10n.healthDeleteBody(texts.plural, texts.extra)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            key: const Key('health_delete_keep'),
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.healthDeleteKeep),
-          ),
-          FilledButton(
-            key: const Key('health_delete_confirm'),
-            style: ramuriDangerFilledStyle(context),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.healthDeleteConfirm),
-          ),
-          TextButton(
-            key: const Key('health_delete_cancel'),
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.healthDeleteCancel),
-          ),
-        ],
-      ),
-    );
-    if (!mounted) return;
-    if (choice == null) {
-      if (fromSwitch) await _guard(() => c.cancelDisable(kind));
-      return;
-    }
-    final ok = await _guard(
-      () => c.answerDeleteQuestion(kind, delete: choice),
-      failed: choice ? l10n.healthDeleteFailed : null,
-    );
-    if (ok && mounted) {
-      _snack(
-        choice
-            ? l10n.healthDeletedSnack(texts.plural)
-            : l10n.healthKeptSnack(texts.plural),
-      );
-    }
-  }
-
-  Future<bool> _guard(Future<void> Function() action, {String? failed}) async {
-    try {
-      await action();
-      return true;
-    } catch (_) {
-      if (mounted) {
-        _snack(failed ?? AppLocalizations.of(context).healthSaveFailed);
-      }
-      return false;
-    }
+    if (mounted) await askOpenHealthQuestions(context, c);
   }
 
   Future<void> _toggle(HealthDataKind kind, bool on) async {
     if (on) {
-      await _guard(() => c.enable(kind));
+      await _guardHealth(context, () => c.enable(kind));
       return;
     }
-    if (!await _guard(() => c.disable(kind)) || !mounted) return;
-    await _ask(kind, fromSwitch: true);
+    if (!await _guardHealth(context, () => c.disable(kind)) || !mounted) return;
+    await askHealthDeleteQuestion(context, c, kind, fromSwitch: true);
   }
 
   Future<void> _fetch() async {
@@ -202,11 +223,11 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
     try {
       result = await c.fetchNow();
     } catch (_) {
-      if (mounted) _snack(l10n.healthFetchPartial);
+      if (mounted) _healthSnack(context, l10n.healthFetchPartial);
       return;
     }
     if (!mounted) return;
-    _snack(switch (result.status) {
+    _healthSnack(context, switch (result.status) {
       HealthImportStatus.unavailable => l10n.healthFetchUnavailable,
       HealthImportStatus.alreadyRunning => l10n.healthFetchBusy,
       HealthImportStatus.throttled => l10n.healthFetchDone,
@@ -221,7 +242,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
             ? l10n.healthFetchDone
             : l10n.healthFetchNothing,
     });
-    await _askOpenQuestions();
+    await askOpenHealthQuestions(context, c);
   }
 
   String _lastText(AppLocalizations l10n) {

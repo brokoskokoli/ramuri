@@ -114,6 +114,41 @@ void main() {
     },
   );
 
+  test('Jede Art allein macht die Datenbank nicht leer', () async {
+    for (final k in HealthDataKind.values) {
+      expect(
+        await ArchiveRestoreService.isEmpty(session),
+        isTrue,
+        reason: k.key,
+      );
+      switch (k) {
+        case HealthDataKind.sleep:
+          await session.health.upsertSleep([_sleep('s1')]);
+        case HealthDataKind.hrvRmssd:
+        case HealthDataKind.restingHeartRate:
+        case HealthDataKind.vo2Max:
+          await session.health.upsertValues([_value(k, 'v', 50)]);
+        case HealthDataKind.exercise:
+          await session.health.upsertExercises([_exercise('e1')]);
+        case HealthDataKind.heartRate:
+          await session.health.upsertExercises([_exercise('e1')]);
+          await session.health.replaceExerciseHeartRate('e1', [
+            HealthHeartRateSample(_at(1), 120),
+          ]);
+        // Pulsverlauf hängt an der Einheit (Fremdschlüssel); deleteKind räumt beides.
+      }
+      expect(await session.health.count(k), greaterThan(0), reason: k.key);
+      expect(
+        await ArchiveRestoreService.isEmpty(session),
+        isFalse,
+        reason: k.key,
+      );
+      await session.health.deleteKind(
+        HealthDataKind.heartRate == k ? HealthDataKind.exercise : k,
+      );
+    }
+  });
+
   group('Upsert je Health-Connect-ID', () {
     test('Schlaf: gleiche ID überschreibt Sitzung und ersetzt die Phasen, kein Duplikat', () async {
       await health.upsertSleep([_sleep('s1')]);

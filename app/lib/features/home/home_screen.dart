@@ -6,6 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
 import '../health/health_connect_scope.dart';
+import '../health/health_connect_screen.dart';
 import '../history/run_detail_screen.dart';
 import '../plan/plan_change_card.dart';
 import '../plan/plan_controller.dart';
@@ -89,11 +90,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _plan.addListener(_onPlan);
     // Health Connect (WP32): beim Öffnen von Heute importieren; die Sperre hält der Dienst.
-    HealthConnectScope.of(context)
-        ?.runInBackground(HealthImportTrigger.todayOpened);
+    _importHealth();
     // Wie die Plan-Seite: wöchentliche Prüfung beim Öffnen (FR-0158), dann
     // laden; derselbe Aufruf, keine zweite Fassung der Prüfung.
     _openPlan();
+  }
+
+  /// Import beim Öffnen von „Heute“ und danach offene Löschfragen (SEC-0007); Fehler bleiben still.
+  Future<void> _importHealth() async {
+    final health = HealthConnectScope.of(context);
+    if (health == null) return;
+    await health.importThenLoad(HealthImportTrigger.todayOpened);
+    if (mounted) {
+      await askOpenHealthQuestions(context, health, skipDeferred: true);
+    }
   }
 
   @override
