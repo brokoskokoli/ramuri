@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'pipeline.dart';
 import 'real.dart';
 import 'synth.dart';
+import 'window.dart';
 
 late IOSink out;
 void say(String s) {
@@ -37,6 +38,11 @@ void main(List<String> args) async {
   if (part == 'pairs' || part == 'all') {
     out = File('$dir/pairs.txt').openWrite();
     runPairs(pairs, say, '$dir/pairs-selftest.csv');
+    await out.close();
+  }
+  if (part == 'window' || part == 'all') {
+    out = File('$dir/window.txt').openWrite();
+    runWindow(seed, int.parse(a['wreps'] ?? '20'), say);
     await out.close();
   }
   stdout.writeln('Laufzeit ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(0)} s');

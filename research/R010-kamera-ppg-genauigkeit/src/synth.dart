@@ -25,6 +25,8 @@ class SynthParams {
     this.exposureFrac = 0.9,
     this.shapeVar = 0.03,
     this.disturb = false,
+    this.noisyUntil = 0,
+    this.noisyFactor = 1,
   });
   final double fps;
   final double rmssdMs; // Ziel-RMSSD der R-Zacken im Fenster
@@ -37,6 +39,8 @@ class SynthParams {
   final double exposureFrac; // Belichtungszeit als Anteil des Bildabstands
   final double shapeVar; // relative Schwankung der Anstiegszeit je Schlag
   final bool disturb; // eine Störung (Druckänderung) im Fenster
+  final double noisyUntil; // bis zu dieser Zeit (s) ist das Störsignal um noisyFactor stärker (unruhiger Anfang)
+  final double noisyFactor;
 }
 
 class SynthRec {
@@ -122,7 +126,8 @@ SynthRec synth(SynthParams p, Rng rng) {
     }
     // Pulsamplitude 1 = 0,8 % des Gleichanteils 180; Grundlinie atmet mit
     final base = 0.5 * math.sin(2 * math.pi * fResp * tt + bph) + 0.4 * math.sin(2 * math.pi * 0.03 * tt);
-    return 180 * (1 - 0.008 * (pulse(tt) + base + sa * c + distAt(tt)));
+    final k = tt < p.noisyUntil ? p.noisyFactor : 1.0;
+    return 180 * (1 - 0.008 * (pulse(tt) + base + k * sa * c + distAt(tt)));
   }
 
   // 4) Bilder: Belichtung als Mittel über das Belichtungsfenster, Zeitstempel = Belichtungsbeginn

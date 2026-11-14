@@ -265,6 +265,28 @@ void runReal(String dir, void Function(String) say) {
       }
     }
   }
+  // --- Diagnose zu R3: Güte jeder Hälfte bzw. jedes Kanals für sich (Review 1, Befund 4) ---
+  say('\n## R3b Güte der einzelnen Teile (App-Verfahren auf jedem Teil allein)\n');
+  say('| Datei | Teil | Q | Zeitrauschen (ms) | gültig | RMSSD (ms) |');
+  say('| --- | --- | ---: | ---: | ---: | ---: |');
+  for (final f in files) {
+    final x = loadFrames(f);
+    final parts = <(String, List<double>)>[
+      ('Rot', x.r),
+      ('Grün', x.g),
+      if (x.blocks) ('Kombi links', sourceSeries(x, 'Kombi', cols: {0, 1})),
+      if (x.blocks) ('Kombi rechts', sourceSeries(x, 'Kombi', cols: {2, 3})),
+    ];
+    for (final (label, sr) in parts) {
+      try {
+        final b = PpgAnalyzer.analyze(x.t, [PpgSeries(label, sr)], const [], _w).best;
+        final tot = b.main.total;
+        say('| ${f.split('/').last} | $label | ${f2(b.quality)} | ${f1(b.timingNoiseMs)} | ${tot.validIbis}/${tot.ibis} | ${f1(tot.rmssdMs)} |');
+      } catch (e) {
+        say('| ${f.split('/').last} | $label | Fehler: $e |');
+      }
+    }
+  }
 }
 
 void checkEq(List<double> a, List<double> b) {
