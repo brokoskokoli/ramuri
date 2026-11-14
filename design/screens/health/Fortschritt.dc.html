@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Fortschritt mit VO₂max-Vergleich</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{text-decoration:none}
+.num{font-family:Sora,sans-serif;font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; display: flex; flex-direction: column">
+  <main style="flex-grow: 1; padding: 28px 20px 14px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+    <h1 style="margin: 0; font-family: Sora, sans-serif; font-size: 34px; font-weight: 800; letter-spacing: -0.02em">Fortschritt</h1>
+
+    <section aria-label="Deine VO₂max-Schätzung" style="background: {{t.hero}}; border: 1px solid {{t.heroBorder}}; color: #FFFFFF; border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <span style="font-size: 12px; font-weight: 800; color: #7FD6C6; text-transform: uppercase; letter-spacing: 0.06em">Deine VO₂max</span>
+        <span style="font-size: 12px; font-weight: 800; color: #0E1A1A; background: #FFB896; padding: 3px 9px; border-radius: 8px">Schätzung</span>
+      </div>
+      <div style="display: flex; align-items: flex-end; justify-content: space-between">
+        <span><span class="num" style="font-size: 48px; font-weight: 700; line-height: 1">46</span> <span style="font-size: 14px; color: #CDDEDB">ml/kg/min</span></span>
+        <svg width="120" height="44" viewBox="0 0 120 44" role="img" aria-label="Eigene Reihe leicht steigend"><path d="M2 36 L 22 34 L 42 30 L 62 31 L 82 22 L 102 18 L 112 14" fill="none" stroke="#7FD6C6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="117" cy="11" r="3.5" fill="#FF7A45"></circle></svg>
+      </div>
+      <span style="font-size: 13px; color: #CDDEDB; line-height: 1.4">Aus 9 Läufen mit Puls. Datenqualität: mittel.</span>
+    </section>
+
+    <section aria-label="Zum Vergleich: VO₂max anderer Apps" style="background: {{t.card}}; border: 1.5px dashed {{t.dash}}; border-radius: 24px; padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+        <span style="font-size: 15px; font-weight: 800">Zum Vergleich: andere Apps</span>
+        <span style="flex: none; font-size: 11px; font-weight: 800; color: {{t.text}}; background: {{t.chip}}; padding: 3px 8px; border-radius: 8px">aus Health Connect</span>
+      </div>
+      <sc-for list="{{sources}}" as="s" hint-placeholder-count="2">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid {{t.div}}">
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 14px; font-weight: 800">Quelle: {{s.app}}</span>
+            <span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Schätzung der Quelle · {{s.date}}</span>
+          </div>
+          <svg width="64" height="28" viewBox="0 0 64 28" role="img" aria-label="{{s.trendLabel}}" style="flex: none"><path d="{{s.path}}" fill="none" stroke="{{t.muted}}" stroke-width="2" stroke-dasharray="4 3" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span style="min-width: 44px; text-align: right"><span class="num" style="font-size: 24px; font-weight: 700">{{s.value}}</span></span>
+        </div>
+      </sc-for>
+      <span style="font-size: 13px; line-height: 1.45; color: {{t.muted}}">Jede App schätzt mit eigenem Verfahren. Diese Werte fließen nicht in deine Reihe ein und werden nicht verrechnet.</span>
+    </section>
+
+    <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+      <div style="background: {{t.card}}; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Prognose 10 km</span>
+        <span class="num" style="font-size: 26px; font-weight: 700">54–57 min</span>
+        <span style="font-size: 12px; font-weight: 700; color: {{t.muted}}"><span aria-hidden="true" style="display: inline-block; width: 7px; height: 7px; border-radius: 4px; background: {{t.glut}}; margin-right: 4px; vertical-align: middle"></span>geschätzt</span>
+      </div>
+      <div style="background: {{t.card}}; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Lockere Pace bei Z2</span>
+        <span class="num" style="font-size: 26px; font-weight: 700">−9 s/km</span>
+        <span style="font-size: 12px; font-weight: 700; color: {{t.link}}">seit 6 Wochen</span>
+      </div>
+    </section>
+  </main>
+
+  <nav aria-label="Hauptnavigation" style="background: {{t.card}}; border-top: 1px solid {{t.border}}; padding: 8px 12px 22px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
+    <a href="{{selfHref}}" style="height: 56px; border-radius: 18px; color: {{t.muted}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 700">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"></path></svg>Heute</a>
+    <a href="{{selfHref}}" style="height: 56px; border-radius: 18px; color: {{t.muted}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 700">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"></rect><path d="M4 10h16M9 3v4M15 3v4"></path></svg>Plan</a>
+    <a href="{{verlaufHref}}" style="height: 56px; border-radius: 18px; color: {{t.muted}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 700">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path></svg>Verlauf</a>
+    <a href="{{selfHref}}" aria-current="page" style="height: 56px; border-radius: 18px; background: {{t.soft}}; color: {{t.text}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 800">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19l5-6 4 3 7-9"></path></svg>Fortschritt</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', muted: '#A3B8B4', border: '#2A4140', div: '#223636', link: '#7FD6C6', soft: '#1C3836', chip: '#24383A', dash: '#4A6462', hero: '#172828', heroBorder: '#2A4140', glut: '#FF7A45' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', muted: '#4F6361', border: '#DAE4E1', div: '#EBF1EF', link: '#0F5E5A', soft: '#DDF2EE', chip: '#E2EAE8', dash: '#8DA3A0', hero: '#0E1A1A', heroBorder: '#0E1A1A', glut: '#E0561F' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const t = this.theme(dark);
+    const sfx = dark ? '-dunkel' : '';
+    const line = (vals) => {
+      const lo = Math.min.apply(null, vals) - 1, hi = Math.max.apply(null, vals) + 1;
+      return vals.map((v, i) => (i ? 'L' : 'M') + (2 + i * 60 / (vals.length - 1)).toFixed(1) + ' ' + (26 - (v - lo) / (hi - lo) * 24).toFixed(1)).join(' ');
+    };
+    const sources = [
+      { app: 'Beispiel-Uhr', date: '12. Nov', vals: [48, 48, 49, 49, 49], trendLabel: 'Werte der Beispiel-Uhr, gleichbleibend um 49' },
+      { app: 'Beispiel-Band', date: '9. Nov', vals: [45, 44, 44, 45, 44], trendLabel: 'Werte des Beispiel-Bands, gleichbleibend um 44' }
+    ].map((s) => ({ ...s, value: s.vals[s.vals.length - 1], path: line(s.vals) }));
+    return {
+      t, sources,
+      selfHref: 'Fortschritt' + sfx + '.dc.html',
+      verlaufHref: 'Verlauf' + sfx + '.dc.html'
+    };
+  }
+}
+</script>
+</body>
+</html>

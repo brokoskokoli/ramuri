@@ -1,0 +1,21 @@
+{"v":3,"createdOnFiles":{"v":1,"at":"2026-11-14T10:00:00Z"},"title":"ramuri Health Connect","launch":{"view":"canvas"},"pages":[],
+"boards":{
+"Main.dc.html":{"x":0,"y":0,"w":390,"h":1000,"title":"1 Einwilligung · hell","is_interactive":true},
+"NichtVerfuegbar.dc.html":{"x":470,"y":0,"w":390,"h":844,"title":"2 Nicht verfügbar · hell","is_interactive":true},
+"Widerruf.dc.html":{"x":940,"y":0,"w":390,"h":1000,"title":"3 Widerruf mit Löschfrage · hell","is_interactive":true},
+"Verlauf.dc.html":{"x":1410,"y":0,"w":390,"h":844,"title":"4a Verlauf mit Import · hell","is_interactive":true},
+"Detail.dc.html":{"x":1880,"y":0,"w":390,"h":900,"title":"4b Importiertes Training · hell","is_interactive":true},
+"Fortschritt.dc.html":{"x":2350,"y":0,"w":390,"h":844,"title":"5 VO₂max-Vergleich · hell","is_interactive":true},
+"Main-dunkel.dc.html":{"x":0,"y":1400,"w":390,"h":1000,"title":"1 Einwilligung · dunkel","is_interactive":true},
+"NichtVerfuegbar-dunkel.dc.html":{"x":470,"y":1400,"w":390,"h":844,"title":"2 Nicht verfügbar · dunkel","is_interactive":true},
+"Widerruf-dunkel.dc.html":{"x":940,"y":1400,"w":390,"h":1000,"title":"3 Widerruf mit Löschfrage · dunkel","is_interactive":true},
+"Verlauf-dunkel.dc.html":{"x":1410,"y":1400,"w":390,"h":844,"title":"4a Verlauf mit Import · dunkel","is_interactive":true},
+"Detail-dunkel.dc.html":{"x":1880,"y":1400,"w":390,"h":900,"title":"4b Importiertes Training · dunkel","is_interactive":true},
+"Fortschritt-dunkel.dc.html":{"x":2350,"y":1400,"w":390,"h":844,"title":"5 VO₂max-Vergleich · dunkel","is_interactive":true}
+},
+"order":["Main.dc.html","NichtVerfuegbar.dc.html","Widerruf.dc.html","Verlauf.dc.html","Detail.dc.html","Fortschritt.dc.html","Main-dunkel.dc.html","NichtVerfuegbar-dunkel.dc.html","Widerruf-dunkel.dc.html","Verlauf-dunkel.dc.html","Detail-dunkel.dc.html","Fortschritt-dunkel.dc.html"],
+"notes":{
+"hell":{"x":0,"y":-280,"text":"Health Connect · hell","kind":"title1","maxW":2740},
+"dunkel":{"x":0,"y":1120,"text":"Health Connect · dunkel","kind":"title1","maxW":2740}
+},
+"designSystems":[]}

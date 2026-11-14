@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Importiertes Training</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+button{font-family:inherit}
+.num{font-family:Sora,sans-serif;font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<div style="width: 390px; height: 900px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; padding: 28px 20px 24px; display: flex; flex-direction: column; gap: 14px">
+  <header style="display: flex; align-items: center; gap: 10px">
+    <a href="{{backHref}}" aria-label="Zurück zum Verlauf" style="flex: none; width: 44px; height: 44px; border-radius: 22px; background: {{t.card}}; border: 1px solid {{t.border}}; display: flex; align-items: center; justify-content: center; color: {{t.text}}; box-sizing: border-box">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+    <div style="display: flex; flex-direction: column">
+      <h1 style="margin: 0; font-family: Sora, sans-serif; letter-spacing: -0.03em; font-size: 24px; line-height: 1.15; font-weight: 700">Lauf</h1>
+      <span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Mi, 11. Nov · 18:05</span>
+    </div>
+  </header>
+
+  <section aria-label="Herkunft" style="background: {{t.chip}}; border-radius: 20px; padding: 12px 14px; display: flex; gap: 12px; align-items: flex-start">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{t.text}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 1px"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path><path d="M8 11h2l1-2 2 4 1-2h2"></path></svg>
+    <span style="display: flex; flex-direction: column; gap: 2px">
+      <span style="font-size: 14px; font-weight: 800">aus Health Connect, Quelle: Beispiel-Uhr</span>
+      <span style="font-size: 13px; line-height: 1.4; color: {{t.muted}}">Werte der Quell-App, von ramuri nicht nachgerechnet.</span>
+    </span>
+  </section>
+
+  <section aria-label="Kennzahlen" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+    <div style="background: {{t.card}}; border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Strecke (km)</span><span class="num" style="font-size: 26px; font-weight: 700">7,80</span></div>
+    <div style="background: {{t.card}}; border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Dauer</span><span class="num" style="font-size: 26px; font-weight: 700">44:10</span></div>
+    <div style="background: {{t.card}}; border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Pace (min/km)</span><span class="num" style="font-size: 26px; font-weight: 700">5:40</span></div>
+    <div style="background: {{t.card}}; border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Ø Puls (Schläge/min)</span><span class="num" style="font-size: 26px; font-weight: 700">{{avg}}</span></div>
+  </section>
+
+  <section aria-label="Pulskurve" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <span style="font-size: 15px; font-weight: 800">Puls (Schläge/min)</span>
+      <span style="font-size: 12px; font-weight: 800; color: {{t.muted}}; background: {{t.chip}}; padding: 3px 8px; border-radius: 8px">nur Anzeige</span>
+    </div>
+    <svg viewBox="0 0 330 150" width="100%" height="150" role="img" aria-label="Pulskurve über 44 Minuten, von {{min}} auf etwa 150 steigend, höchster Wert {{max}}">
+      <line x1="34" y1="{{g160}}" x2="330" y2="{{g160}}" stroke="{{t.grid}}" stroke-width="1"></line>
+      <line x1="34" y1="{{g140}}" x2="330" y2="{{g140}}" stroke="{{t.grid}}" stroke-width="1"></line>
+      <line x1="34" y1="{{g120}}" x2="330" y2="{{g120}}" stroke="{{t.grid}}" stroke-width="1"></line>
+      <text x="0" y="{{l160}}" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="{{t.muted}}">160</text>
+      <text x="0" y="{{l140}}" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="{{t.muted}}">140</text>
+      <text x="0" y="{{l120}}" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="{{t.muted}}">120</text>
+      <path d="{{path}}" fill="none" stroke="{{t.glut}}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+      <text x="34" y="148" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="{{t.muted}}">0 min</text>
+      <text x="182" y="148" text-anchor="middle" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="{{t.muted}}">22</text>
+      <text x="330" y="148" text-anchor="end" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="{{t.muted}}">44</text>
+    </svg>
+    <span style="font-size: 13px; color: {{t.muted}}">Höchster Wert <b class="num" style="color: {{t.text}}">{{max}}</b> · ohne Zonen, da nicht mit ramuri gemessen</span>
+  </section>
+
+  <div style="flex-grow: 1"></div>
+
+  <sc-if value="{{notTaken}}" hint-placeholder-val="{{ true }}">
+    <section aria-label="Als Training übernehmen" style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; gap: 10px; align-items: flex-start">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.muted}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 1px"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8h.01"></path></svg>
+        <span style="font-size: 14px; line-height: 1.45; color: {{t.muted}}"><b style="color: {{t.text}}">Zählt noch nicht für Belastung und Plan.</b> Erst nach dem Übernehmen legt ramuri einen Nachtrag mit dieser Dauer an und fragt nach deiner Anstrengung.</span>
+      </div>
+      <button onClick="{{take}}" style="height: 56px; border-radius: 28px; border: 0; background: {{t.mint}}; color: {{t.onMint}}; font-size: 17px; font-weight: 800; cursor: pointer">Als Training übernehmen</button>
+      <span style="font-size: 13px; line-height: 1.45; color: {{t.muted}}; text-align: center">Schon mit ramuri aufgezeichnet? Dann nicht übernehmen, sonst zählt der Lauf doppelt.</span>
+    </section>
+  </sc-if>
+  <sc-if value="{{taken}}" hint-placeholder-val="{{ false }}">
+    <section role="status" aria-label="Übernommen" style="background: {{t.soft}}; border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 15px; font-weight: 800">Als Nachtrag übernommen</span>
+      <span style="font-size: 14px; line-height: 1.45; color: {{t.sub}}">Zählt ab jetzt für Belastung und Plan. Die Anstrengung fehlt noch.</span>
+      <button onClick="{{undo}}" style="align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: transparent; color: {{t.link}}; font-size: 15px; font-weight: 800; cursor: pointer">Anstrengung angeben</button>
+    </section>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { taken: false }; }
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', sub: '#CDDEDB', muted: '#A3B8B4', border: '#2A4140', link: '#7FD6C6', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#1C3836', chip: '#1F3333', grid: '#2A4140', glut: '#FF7A45' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', sub: '#2A3F3D', muted: '#4F6361', border: '#DAE4E1', link: '#0F5E5A', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#DDF2EE', chip: '#E2EAE8', grid: '#EBF1EF', glut: '#E0561F' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const t = this.theme(dark);
+    const sfx = dark ? '-dunkel' : '';
+    const hr = [102, 118, 131, 139, 143, 145, 147, 146, 148, 149, 150, 149, 151, 152, 151, 153, 154, 153, 155, 157, 159, 162, 151];
+    const x0 = 34, x1 = 330, top = 6, bot = 130, lo = 100, hi = 170;
+    const y = (v) => top + (hi - v) / (hi - lo) * (bot - top);
+    const path = hr.map((v, i) => (i ? 'L' : 'M') + (x0 + i * (x1 - x0) / (hr.length - 1)).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+    const avg = Math.round(hr.reduce((a, b) => a + b, 0) / hr.length);
+    return {
+      t, path, avg,
+      max: Math.max.apply(null, hr), min: hr[0],
+      g160: y(160), g140: y(140), g120: y(120),
+      l160: y(160) + 4, l140: y(140) + 4, l120: y(120) + 4,
+      notTaken: !this.state.taken, taken: this.state.taken,
+      take: () => this.setState({ taken: true }),
+      undo: () => this.setState({ taken: true }),
+      backHref: 'Verlauf' + sfx + '.dc.html'
+    };
+  }
+}
+</script>
+</body>
+</html>
