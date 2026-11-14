@@ -426,6 +426,30 @@ void main() {
       expect(dots.where((d) => d.color == c.surface).length, 1);
     });
 
+    testWidgets('Markierung: unbrauchbare liegende Zeile hohl, brauchbare '
+        'liegende gefüllt', (tester) async {
+      final s = await _session(dev: true);
+      await _pump(tester, s, state: _state());
+      BoxDecoration dotOf(DateTime at) {
+        final row = find.byKey(Key('morning_row_${at.millisecondsSinceEpoch}'));
+        expect(row, findsOneWidget);
+        return tester
+            .widgetList<Container>(
+              find.descendant(of: row, matching: find.byType(Container)),
+            )
+            .map((c) => c.decoration)
+            .whereType<BoxDecoration>()
+            .singleWhere((d) => d.shape == BoxShape.circle);
+      }
+
+      final c = RamuriColors.light;
+      final unusable = dotOf(_day(0, hour: 5)); // liegend, unbrauchbar
+      expect(unusable.color, c.surface);
+      expect((unusable.border! as Border).top.color, c.textMuted);
+      final usable = dotOf(_day(0)); // liegend, zählt
+      expect(usable.color, c.accent);
+    });
+
     testWidgets('leere Reihe: Hinweis statt Diagramm', (tester) async {
       final s = await FakeStorage().open(testKey);
       await SettingsDeveloperModeStore(s.settings, _clock).set(true);
