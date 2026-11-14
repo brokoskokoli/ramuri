@@ -1,6 +1,6 @@
 # R010 – Genauigkeit der Kamera-PPG verbessern (Messtechnik und Signalverarbeitung)
 
-**Status:** abgeschlossen (Ergebnis in [RESULTS.md](RESULTS.md), Review ausstehend) · **Auftraggeber:** Maintainer über den Project Supervisor · **Datum:** 2026-11-14
+**Status:** abgeschlossen, nachgebessert nach Review 1 (Ergebnis in [RESULTS.md](RESULTS.md)) · **Auftraggeber:** Maintainer über den Project Supervisor · **Datum:** 2026-11-14
 
 ## Frage
 Wie lässt sich die Genauigkeit der Kamera-Morgenmessung (Finger auf Kamera und Licht, 60 s) für Ruhepuls und vor allem RMSSD erhöhen, durch Messtechnik (Bildrate, Belichtung, Torch, Fingerdruck, Haltung, Bildausschnitt, Farbkanal, Zeitstempel) und durch Signalverarbeitung (Interpolation, Bezugspunkt, Filter, Ausreißer, Fensterwahl, Glättung, Rauschkorrektur)? Was ist belegt, was ist im Code schon umgesetzt, was fehlt, und was bringt es messbar? Daran hängt, was WP37 (wanderndes 60-s-Fenster, Rohsignal im Entwicklermodus) und spätere Pakete umsetzen und ob eine strengere Qualitätsgrenze (Zeitrauschen) begründbar ist.
@@ -17,7 +17,8 @@ Wie lässt sich die Genauigkeit der Kamera-Morgenmessung (Finger auf Kamera und 
 3. **Synthetische Messung** (`run.sh --part synth`): Pulskurve mit bekannter Schlagfolge (RR mit Atemmodulation, realistische RMSSD 20–70 ms), Pulslaufzeit-Schwankung, Formänderung, Grundlinienwanderung, Bildrauschen in mehreren Stufen, Belichtung als Integrationsfenster, 30 und 60 Bilder/s, Zeitstempel mit Jitter und Bildverlusten. Ausgewertet wird **mit dem Dart-Code der App selbst** (Import der Dateien aus `app/packages/core/lib/src/ppg/`, unverändert) und mit Varianten (Bezugspunkt, Tiefpass, Raster, nominale Rate statt Zeitstempel, Nachbearbeitung der RR-Folge, Rauschkorrektur). Kennzahlen: Fehler je Schlagabstand gegen die wahre Folge (RMS), RMSSD-Abweichung (ln-Verhältnis), Zusammenhang „geschätztes Zeitrauschen ↔ RMSSD-Fehler“.
 4. **Echte Messungen aus `~/ai/puls`** (`--part real`): 10 Aufnahmen vom 2026-11-09 (7 × 30 Bilder/s nur Rot/Grün, 3 × 60 Bilder/s, 2 davon mit Teilbereichen), eine davon mit gleichzeitigem Polar H9. An dieser: Abweichung Kamera gegen Gurt je Schlagabstand und RMSSD für App und Varianten, außerdem 60 → 30 Bilder/s ausgedünnt. An den übrigen ohne Referenz: Übereinstimmung zwischen unabhängigen Teilbereichsgruppen als Rauschmaß.
 5. **Messpaare** (`--part pairs`): falls Exporte in der Sammlung liegen, Abweichung Kamera gegen Gurt je Schlagabstand und RMSSD, vorher/nachher für Maßnahmen, die nur die RR-Folge betreffen (das Rohsignal kommt erst mit WP37).
-6. **Qualitätsgrenze:** aus 3–5 abgeleitet, welche Grenze für das Zeitrauschen welchen RMSSD-Fehler zulässt.
+6. **Qualitätsgrenze:** aus 3–5 abgeleitet, welche Grenze für das Zeitrauschen welchen RMSSD-Fehler zulässt; dazu die Kennzahlen der zwei Feldmessungen mit Gurt vom 2026-11-14 (vom Orchestrator aus dem Messpaar-Export gerechnet, nur Kennzahlen).
+7. **Fensterwahl** (`--part window`, nach Review 1): synthetische 120-s-Aufnahmen (ruhig in drei Störstufen bzw. mit 30 s unruhigem Anfang), je Aufnahme 54 Fenster à 60 s (Beginn 5–58 s, Schritt 1 s) mit dem App-Verfahren. Verglichen: festes Fenster, zufälliges Fenster, kleinstes Zeitrauschen, erstes „gut“ (25 ms) bzw. erstes ≤ 8 ms mit Rückfall auf das kleinste, Orakel (kleinstes wahres Zeitrauschen). Kennzahlen: RMSSD-Fehler gegen die R-Zacken im selben Fenster, Zeitrauschen App und wahr im gewählten Fenster, Anteil bestanden bei 8 ms.
 
 Warum aussagekräftig: Die Synthese kennt die Wahrheit und trennt Ursachen; die echte Gurtmessung prüft, ob das Ergebnis auch auf einem echten Signal trägt (n = 1, nur Hinweis). Eine Freigabe im Sinne der Validierung aus R009 ist das nicht.
 
@@ -44,9 +45,10 @@ Voraussetzungen: Dart SDK ≥ 3.13 (liegt mit Flutter vor), keine Pakete außer 
 | --- | --- | --- |
 | `--seed N` | `1` | Zufallsstartwert der Synthese |
 | `--reps N` | `40` | synthetische Aufnahmen je Fall |
-| `--part synth\|real\|pairs\|all` | `all` | nur einen Teil rechnen |
+| `--wreps N` | `20` | synthetische 120-s-Aufnahmen je Fall im Teil window |
+| `--part synth\|real\|pairs\|window\|all` | `all` | nur einen Teil rechnen |
 | `--puls DIR` | `~/ai/puls/messungen/files` | Ordner mit den Aufnahmen der Vorgänger-App |
 
-Beispiel: `./run.sh --seed 1 --reps 40` (vollständig), kurze Probe: `./run.sh --reps 3 --part synth`.
+Beispiel: `./run.sh --seed 1 --reps 40 --wreps 40` (vollständig, wie in RESULTS), kurze Probe: `./run.sh --reps 3 --part synth`.
 
-Ausgaben: `research/data/work/R010/<datum-zeit>/` (`run.info`, je Teil eine `.txt`), wegwerfbar. Ausgaben zu echten Messungen enthalten nur Kennzahlen, keine Zeitreihen.
+Ausgaben: `research/data/work/R010/<datum-zeit>/` (`run.info`, je Teil eine `.txt`: synth, real, pairs, window), wegwerfbar. Ausgaben zu echten Messungen enthalten nur Kennzahlen, keine Zeitreihen.
