@@ -349,11 +349,10 @@ class _PlanScreenState extends State<PlanScreen> {
       if (yes == true) await _openGoalForm(_controller.state.goal);
       return;
     }
-    final changed = answer != PlanFeedback.fits;
     _snack(
       messenger,
       'plan_feedback_done',
-      changed ? l.planFeedbackChanged : l.planFeedbackSame,
+      out.planChanged ? l.planFeedbackChanged : l.planFeedbackSame,
     );
   }
 

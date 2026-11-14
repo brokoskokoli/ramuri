@@ -632,6 +632,7 @@ void main() {
       final before = (await e.plans.history()).length;
       final r = await e.controller.answerFeedback(PlanFeedback.tooHard);
       expect(r.result, PlanActionResult.done);
+      expect(r.planChanged, isTrue);
       expect((await e.plans.history()).length, before + 1);
       expect(
         await e.session.settings.get(planLastCheckDayKey),
@@ -643,6 +644,33 @@ void main() {
         _dayText(_today),
         reason: 'Abstand der Nachfrage hängt am eigenen Merker',
       );
+    });
+
+    test('Rückmeldung „zu schwer“ ohne neue Fassung (Geh-Lauf-Abfolge): '
+        'planChanged ist falsch; „passt“ ebenso', () async {
+      final e = await _Env.open();
+      final g = _goal();
+      final walkRun = TrainingGoal(
+        type: g.type,
+        distance: g.distance,
+        targetDate: g.targetDate,
+        runDays: g.runDays,
+        maxSessionSeconds: g.maxSessionSeconds,
+        weeklyCapSeconds: g.weeklyCapSeconds,
+        createdAt: g.createdAt,
+        hardSessionEnabled: g.hardSessionEnabled,
+        canRun30: ContinuousRun30.no,
+      );
+      e.clock.set(_day(-3));
+      expect(await e.controller.saveGoal(walkRun), PlanActionResult.done);
+      e.clock.set(_now);
+      final before = (await e.plans.history()).length;
+      final hard = await e.controller.answerFeedback(PlanFeedback.tooHard);
+      expect(hard.result, PlanActionResult.done);
+      expect((await e.plans.history()).length, before);
+      expect(hard.planChanged, isFalse);
+      final fits = await e.controller.answerFeedback(PlanFeedback.fits);
+      expect(fits.planChanged, isFalse);
     });
 
     test('Lese-Adapter: Güte aus dem neuesten Laufwert (alt gut, neu '

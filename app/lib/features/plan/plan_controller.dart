@@ -17,13 +17,21 @@ const String planWalkRunRepeatDeclinedKey = 'plan.walk_run_repeat_declined';
 
 /// Ergebnis von [PlanController.answerFeedback].
 class PlanFeedbackOutcome {
-  const PlanFeedbackOutcome(this.result, {this.raiseGoalSignal = false});
+  const PlanFeedbackOutcome(
+    this.result, {
+    this.raiseGoalSignal = false,
+    this.planChanged = false,
+  });
 
   final PlanActionResult result;
 
   /// „Zu leicht“ am Regler: Die App fragt, ob das Ziel steigen soll; der Plan
   /// ist unverändert.
   final bool raiseGoalSignal;
+
+  /// Eine neue Planfassung wurde geschrieben. Bei „zu schwer“ im kleinsten
+  /// Plan bleibt die Fassung gleich, die Meldung sagt dann „bleibt“.
+  final bool planChanged;
 }
 
 String _dayText(DateTime d) =>
@@ -933,6 +941,7 @@ class PlanController extends ChangeNotifier {
   /// ändert sich nichts.
   Future<PlanFeedbackOutcome> answerFeedback(PlanFeedback answer) async {
     var raise = false;
+    var written = false;
     final r = await _act(() async {
       // Eine offene Pausenfrage hat Vorrang (PAR-202): Die Karte ist dann nicht
       // mehr gültig (etwa nach Mitternacht bei offener Seite).
@@ -971,6 +980,7 @@ class PlanController extends ChangeNotifier {
         );
         _fresh = w.generated;
         _lastChange = w.summary;
+        written = w.wasWritten;
         if (w.wasWritten) onChanged?.call();
       }
       await session.settings.set(
@@ -982,6 +992,7 @@ class PlanController extends ChangeNotifier {
     return PlanFeedbackOutcome(
       r,
       raiseGoalSignal: r == PlanActionResult.done && raise,
+      planChanged: r == PlanActionResult.done && written,
     );
   }
 
