@@ -190,6 +190,31 @@ void main() {
     });
   });
 
+  group('NaN in der Feinbestimmung (WP37 A4)', () {
+    test('50 s Rauschen, dann 61,5 s gut: das gute Fenster wird gefunden', () {
+      // Die Gesamtanalyse bestimmt f0 aus dem Rauschen (> 2,3 Hz); das Anstiegsfenster der
+      // Vorlage ist dann so kurz, dass die Feinbestimmung des Bezugspunkts NaN lieferte.
+      final fr = [
+        ...frames(bad(3), to: 50),
+        ...frames(good(3), from: 50, to: 111.5),
+      ];
+      final r = evaluatePpgBestWindow(fr);
+      expect(r.measurement.quality, PpgQuality.good);
+      expect(r.windowStartSeconds, greaterThanOrEqualTo(48.0));
+      expect(r.measurement.rmssdMs, isNotNull);
+      expect(r.measurement.rmssdMs!.isFinite, isTrue);
+    });
+
+    test('hoher Puls (170/min): gültige Intervalle, kein NaN', () {
+      final s = synth(0.35, 0.02, 0.01, 0.3, 30.0, 1, duration: 75);
+      final m = evaluatePpg(frames(s));
+      expect(m.bpm, closeTo(171, 3));
+      expect(m.validIntervals, greaterThan(40));
+      expect(m.rmssdMs, isNotNull);
+      expect(m.rmssdMs!.isFinite, isTrue);
+    });
+  });
+
   group('checkPpgRecording (Abbruch und Fortschritt)', () {
     test('gutes Signal von Anfang an: Ende bei 66,5 s, nicht früher', () {
       final g = good();
@@ -214,7 +239,7 @@ void main() {
         final at50 = checkPpgRecording(frames(g, to: 50));
         expect(at30.goodWindowReached, isFalse);
         expect(at50.goodWindowReached, isFalse);
-        expect(at30.goodStretchSeconds, inInclusiveRange(15.0, 26.0));
+        expect(at30.goodStretchSeconds, 0.0); // unter der Anzeigegrenze (30 s)
         expect(at50.goodStretchSeconds, inInclusiveRange(35.0, 46.0));
       },
     );
@@ -230,6 +255,23 @@ void main() {
       expect(c.goodStretchSeconds, lessThanOrEqualTo(60.0));
       final r = evaluatePpgBestWindow(badThenGood(30, 70));
       expect(r.goodStretchSeconds, inInclusiveRange(37.0, 58.0));
+    });
+
+    test(
+      'Anzeige: reines Rauschen zeigt kein gutes Stück (unter 30 s gilt 0)',
+      () {
+        // Auswahleffekt: aus sehr vielen Teilstücken gewinnt zufällig eines mit 70 % gültigen
+        // Intervallen (A3: bis 25,9 s bei 40 Seeds).
+        for (final seed in [1, 2, 3]) {
+          final c = checkPpgRecording(frames(bad(seed), to: 100));
+          expect(c.goodStretchSeconds, 0.0, reason: 'Seed $seed');
+        }
+      },
+    );
+
+    test('Anzeige: 30 s Rauschen, 40 s gut zeigt mindestens 30 s', () {
+      final c = checkPpgRecording(badThenGood(30, 70));
+      expect(c.goodStretchSeconds, greaterThanOrEqualTo(30.0));
     });
 
     test('schlechtes Signal: nicht erreicht, kein gutes Stück', () {

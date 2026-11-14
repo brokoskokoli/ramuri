@@ -147,7 +147,7 @@ _Scan _scan(List<PpgFrame> frames, {required bool live}) {
   final candidates = [
     for (final s in starts) _Candidate(s, _rateWindow(fs, set, startMin, s)),
   ]..sort(_compare);
-  return _Scan(candidates, _progress(fs, _goodStretch(set)));
+  return _Scan(candidates, _displayStretch(_progress(fs, _goodStretch(set))));
 }
 
 PpgAnalysisSet _analyze(List<PpgFrame> fs, PpgWindow w) => PpgAnalyzer.analyze(
@@ -167,6 +167,14 @@ PpgAnalysisSet _analyze(List<PpgFrame> fs, PpgWindow w) => PpgAnalyzer.analyze(
 
 /// Längen der jüngsten Abschnitte (s), die für die Anzeige zusätzlich einzeln analysiert werden.
 const List<double> _recentSeconds = [ppgSearchWindowSeconds, 30.0];
+
+/// Untergrenze der Anzeige des guten Stücks (s). Bei reinem Rauschen gewinnt aus sehr vielen
+/// Teilstücken zufällig eines mit 70 % gültigen Intervallen (Auswahleffekt, A3: 40 Seeds, bis
+/// 25,9 s); darunter zeigt die Anzeige 0.
+const double ppgGoodStretchDisplayMinSeconds = 30.0;
+
+double _displayStretch(double s) =>
+    s >= ppgGoodStretchDisplayMinSeconds ? s : 0.0;
 
 /// Anzeige des guten Stücks. Die Gesamtanalyse bezieht eine starke Störung am Anfang in Vorlage
 /// und Schwellen ein und kann danach auch gute Schläge als ungültig führen (30 s Rauschen, dann

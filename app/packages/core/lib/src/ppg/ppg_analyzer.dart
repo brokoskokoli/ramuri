@@ -622,12 +622,17 @@ abstract final class PpgAnalyzer {
             : 0.0;
       }
     }
-    // Bezugspunkt in der Vorlage: Gipfel oder steilster Anstieg
+    // Bezugspunkt in der Vorlage: Gipfel oder steilster Anstieg. An den Rändern gilt die einseitige
+    // Differenz: Ein unendlicher Randwert machte die Parabel in `refine` zu NaN, sobald der steilste
+    // Anstieg am vorletzten Index lag (kurzes Anstiegsfenster bei f0 ab etwa 2,3 Hz); der Rand
+    // selbst wird nie Bezugspunkt (die Suche läuft von 1 bis len - 2).
     final ref = refOnSlope
         ? List<double>.generate(
             len,
-            (j) => (j == 0 || j == len - 1)
-                ? double.negativeInfinity
+            (j) => j == 0
+                ? tpl[1] - tpl[0]
+                : j == len - 1
+                ? tpl[len - 1] - tpl[len - 2]
                 : (tpl[j + 1] - tpl[j - 1]) / 2,
           )
         : tpl;
