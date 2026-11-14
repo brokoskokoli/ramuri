@@ -51,6 +51,7 @@ class Agg {
   final errOn = <double>[]; // gegen Fußpunkte am Finger (nur Algorithmus)
   final ln = <double>[]; // ln(RMSSD Kamera / RMSSD Referenz), gleiche Intervallpaare
   final vf = <double>[]; // Anteil gültiger Intervalle
+  final dErr = <double>[];
   int fails = 0;
   void add(Compare c, Compare? on) {
     if (c.pairs < 10 || !c.lnRatio.isFinite) {
@@ -61,13 +62,14 @@ class Agg {
     if (on != null) errOn.addAll(on.errMs);
     ln.add(c.lnRatio);
     vf.add(c.validFrac);
+    dErr.addAll(c.dErrMs);
   }
 
   String row(String name) =>
       '| $name | ${ln.length} | ${f1(rms(err))} | ${f1(quantile(err.map((e) => e.abs()).toList(), 0.5))} | '
-      '${f1(rms(errOn))} | ${f3(mean(ln))} | ${f3(sd(ln))} | ${f3(quantile(ln, 0.9))} | ${f2(mean(vf))} | $fails |';
-  static const head = '| Variante | n | Fehler/Intervall RMS (ms) | Median |Fehler| (ms) | RMS gegen Fußpunkt (ms) | '
-      'ln-Verhältnis RMSSD Mittel | SD | 90 %-Quantil | gültig | verworfen |\n| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |';
+      '${f1(rms(errOn))} | ${f1(rms(dErr))} | ${f3(mean(ln))} | ${f3(sd(ln))} | ${f3(quantile(ln, 0.9))} | ${f2(mean(vf))} | $fails |';
+  static const head = '| Variante | n | Fehler/Intervall RMS (ms) | Median |Fehler| (ms) | RMS gegen Fußpunkt (ms) | RMS Δ-Fehler (ms) | '
+      'ln-Verhältnis RMSSD Mittel | SD | 90 %-Quantil | gültig | verworfen |\n| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |';
 }
 
 final w = ppgStandardWindow;
@@ -191,6 +193,7 @@ void runSynth(int seed, int reps) {
             appM.total.rmssdMs.isFinite ? math.log(appM.total.rmssdMs / ef) : double.nan,
             q, sigTrue, est2, rms(cOn.errMs), cR.pairs >= 10 ? cR.lnRatio : double.nan,
             set.best.quality, appM.total.ibis > 0 ? appM.total.validIbis / appM.total.ibis : 0.0,
+            appM.total.rmssdMs,
           ]);
         }
       }
@@ -252,6 +255,19 @@ void runSynth(int seed, int reps) {
       final s = base.where((r) => r[3] <= th).toList();
       final l = [for (final r in s) r[4]];
       say('| ${rm.toInt()} | ${th > 1e8 ? "keine" : th.toInt()} | ${s.length}/${base.length} | ${f3(mean(l))} | ${f3(sd(l))} | '
+          '${f3(quantile(l, 0.9))} | ${f2(l.isEmpty ? double.nan : l.where((x) => x > 0.2).length / l.length)} |');
+    }
+  }
+
+  say('\n## S4b Relative Grenze: geschätzter Anteil des Rauschens 6·σ²/RMSSD² (σ = Zeitrauschen der App, RMSSD = Wert der App)\n');
+  say('| RMSSD wahr (ms) | Grenze 6σ²/RMSSD² | bestanden | ln-Fehler Mittel | SD | 90 %-Quantil | Anteil ln-Fehler > 0,2 |');
+  say('| ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  for (final rm in rmL) {
+    final base = recs.where((r) => r[1] == rm && r[10] >= ppgLimitedQuality && r[11] >= ppgLimitedValidFraction && r[4].isFinite).toList();
+    for (final th in [0.05, 0.1, 0.2, 0.3, 1e9]) {
+      final s = base.where((r) => 6 * r[3] * r[3] / (r[12] * r[12]) <= th).toList();
+      final l = [for (final r in s) r[4]];
+      say('| ${rm.toInt()} | ${th > 1e8 ? "keine" : th} | ${s.length}/${base.length} | ${f3(mean(l))} | ${f3(sd(l))} | '
           '${f3(quantile(l, 0.9))} | ${f2(l.isEmpty ? double.nan : l.where((x) => x > 0.2).length / l.length)} |');
     }
   }

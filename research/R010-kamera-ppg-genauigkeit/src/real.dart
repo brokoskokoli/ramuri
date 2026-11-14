@@ -108,10 +108,10 @@ double findOffset(List<double> camAbs, List<double> ibi, List<bool> valid, List<
 
 String _rowCmp(String name, Compare c, double rmssdApp, double rmssdBelt) =>
     '| $name | ${c.pairs} | ${f1(rms(c.errMs))} | ${f1(quantile(c.errMs.map((e) => e.abs()).toList(), 0.5))} | '
-    '${f1(mean(c.errMs))} | ${f1(c.rmssdCam)} | ${f1(c.rmssdRef)} | ${f1((c.rmssdCam / c.rmssdRef - 1) * 100)} | '
+    '${f1(mean(c.errMs))} | ${f1(rms(c.dErrMs))} | ${f1(c.crossMs2)} | ${f1(c.rmssdCam)} | ${f1(c.rmssdRef)} | ${f1((c.rmssdCam / c.rmssdRef - 1) * 100)} | '
     '${f1(rmssdApp)} | ${f1((rmssdApp / rmssdBelt - 1) * 100)} | ${f2(c.validFrac)} |';
-const _headCmp = '| Variante | Paare | Fehler/Intervall RMS (ms) | Median |Fehler| | mittlerer Fehler | RMSSD Kamera (Paare) | RMSSD Gurt (Paare) | Δ % | '
-    'RMSSD Variante (alle gültigen) | Δ % zum Gurt (ganzes Fenster) | gültig |\n| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |';
+const _headCmp = '| Variante | Paare | Fehler/Intervall RMS (ms) | Median |Fehler| | mittlerer Fehler | RMS Δ-Fehler | Kreuzterm (ms²) | RMSSD Kamera (Paare) | RMSSD Gurt (Paare) | Δ % | '
+    'RMSSD Variante (alle gültigen) | Δ % zum Gurt (ganzes Fenster) | gültig |\n| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |';
 
 void runReal(String dir, void Function(String) say) {
   say('# R010 Echte Aufnahmen der Vorgänger-App (nur Kennzahlen)\n');

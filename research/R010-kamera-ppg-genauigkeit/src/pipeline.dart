@@ -286,8 +286,10 @@ List<double> median3(List<double> ibi, List<bool> valid) => List<double>.generat
 /// Vergleich einer Kamera-Folge mit Referenz-R-Zacken: Fehler je Intervall und RMSSD auf
 /// denselben Intervallpaaren.
 class Compare {
-  Compare(this.errMs, this.rmssdCam, this.rmssdRef, this.pairs, this.validFrac);
+  Compare(this.errMs, this.rmssdCam, this.rmssdRef, this.pairs, this.validFrac, this.dErrMs, this.crossMs2);
   final List<double> errMs;
+  final List<double> dErrMs; // Fehler der Differenzen aufeinanderfolgender Intervalle (geht in RMSSD ein)
+  final double crossMs2; // 2·mittel(ΔFehler·ΔReferenz): RMSSD_cam² = RMSSD_ref² + mittel(ΔFehler²) + Kreuzterm
   final double rmssdCam;
   final double rmssdRef;
   final int pairs;
@@ -311,20 +313,23 @@ Compare compareToRef(List<double> camAbs, List<double> ibi, List<bool> valid, Li
     refIbi[i] = refAbs[m.idx[i + 1]] - refAbs[m.idx[i]];
     err.add((camIbi[i] - refIbi[i]) * 1000);
   }
-  var sc = 0.0, sr = 0.0;
+  var sc = 0.0, sr = 0.0, sx = 0.0;
   var n = 0;
+  final dErr = <double>[];
   for (var i = 1; i < ibi.length; i++) {
     if (ok[i] && ok[i - 1]) {
       final dc = (camIbi[i] - camIbi[i - 1]) * 1000;
       final dr = (refIbi[i] - refIbi[i - 1]) * 1000;
       sc += dc * dc;
       sr += dr * dr;
+      sx += 2 * (dc - dr) * dr;
+      dErr.add(dc - dr);
       n++;
     }
   }
   final nv = valid.where((v) => v).length;
   return Compare(err, n > 0 ? math.sqrt(sc / n) : double.nan, n > 0 ? math.sqrt(sr / n) : double.nan, n,
-      ibi.isEmpty ? 0 : nv / ibi.length);
+      ibi.isEmpty ? 0 : nv / ibi.length, dErr, n > 0 ? sx / n : double.nan);
 }
 
 double rms(Iterable<double> v) {
