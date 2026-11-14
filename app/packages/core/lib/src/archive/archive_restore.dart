@@ -2,7 +2,9 @@ import '../../ports/archive_sink.dart';
 import '../../ports/clock.dart';
 import '../../ports/database_files.dart';
 import '../../ports/storage.dart';
+import '../../ports/health_import.dart';
 import '../../ports/storage_goals.dart';
+import '../../ports/storage_health.dart';
 import '../../ports/storage_prediction.dart';
 import '../../ports/storage_warning.dart';
 import 'archive_errors.dart';
@@ -90,6 +92,13 @@ class ArchiveRestoreService {
     if (s is WarningStorage &&
         (await (s as WarningStorage).warning.read()) != null) {
       return false;
+    }
+    // Importierte Gesundheitsdaten (WP32) sind eigene Daten, auch ohne Läufe.
+    if (s is HealthStorage) {
+      final h = (s as HealthStorage).health;
+      for (final k in HealthDataKind.values) {
+        if (await h.count(k) > 0) return false;
+      }
     }
     final settings = await s.settings.all();
     return settings.keys.every(archiveExcludedSettingKeys.contains);

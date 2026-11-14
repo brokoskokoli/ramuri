@@ -1,3 +1,4 @@
+import 'package:core/core.dart' show HealthImportStore;
 import 'package:drift/drift.dart';
 
 import '../health/health_connect_port.dart';
@@ -14,7 +15,7 @@ import 'app_database.dart' as d;
 ///
 /// Gelesene Sätze haben die Form des Ports: Einzelwerte tragen die Zeit in
 /// `start` und `end` (gleich). Keine Werte in Fehlern oder Logs.
-class DriftHealthStore {
+class DriftHealthStore implements HealthImportStore {
   DriftHealthStore(this._db);
   final d.AppDatabase _db;
 
@@ -39,6 +40,7 @@ class DriftHealthStore {
 
   /// Schlafsitzungen schreiben ([HealthDataKind.sleep]); die Phasen einer
   /// schon bekannten Sitzung werden ersetzt.
+  @override
   Future<void> upsertSleep(List<HealthRecord> records) {
     _require(records, (k) => k == HealthDataKind.sleep);
     return guarded(
@@ -82,6 +84,7 @@ class DriftHealthStore {
 
   /// Einzelwerte schreiben (HRV, Ruhepuls, VO₂max; [HealthRecord.value] und
   /// [HealthRecord.unit] sind Pflicht).
+  @override
   Future<void> upsertValues(List<HealthRecord> records) {
     _require(records, _valueKinds.contains);
     for (final r in records) {
@@ -112,6 +115,7 @@ class DriftHealthStore {
 
   /// Trainingseinheiten schreiben ([HealthRecord.exerciseType] ist Pflicht).
   /// Schon gespeicherte Pulswerte einer bekannten Einheit bleiben.
+  @override
   Future<void> upsertExercises(List<HealthRecord> records) {
     _require(records, (k) => k == HealthDataKind.exercise);
     for (final r in records) {
@@ -139,6 +143,7 @@ class DriftHealthStore {
 
   /// Ersetzt die Pulswerte der Einheit [exerciseHcId]. Liefert `false` und
   /// speichert nichts, wenn die Einheit nicht gespeichert ist.
+  @override
   Future<bool> replaceExerciseHeartRate(
     String exerciseHcId,
     List<HealthHeartRateSample> samples,
@@ -305,6 +310,7 @@ class DriftHealthStore {
 
   /// Anzahl der gespeicherten Sätze der Art (Pulsverlauf: Pulswerte,
   /// sonst Sitzungen, Einzelwerte, Einheiten).
+  @override
   Future<int> count(HealthDataKind kind) => guarded(() async {
     final table = switch (kind) {
       HealthDataKind.sleep => 'health_sleep_sessions',
@@ -325,6 +331,7 @@ class DriftHealthStore {
   /// (SEC-0007). Schlaf: Sitzungen und Phasen. Trainingseinheiten: Einheiten
   /// und deren Pulswerte. Pulsverlauf: nur die Pulswerte (die Einheiten
   /// bleiben). `manual_trainings` bleibt immer unberührt.
+  @override
   Future<void> deleteKind(HealthDataKind kind) => guarded(
     () => _db.transaction(() async {
       // Kinder ausdrücklich zuerst (ohne Verlass auf die Kaskade).

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:adapters/adapters.dart';
+import 'package:core/core.dart' show ArchiveRestoreService;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -99,6 +100,19 @@ void main() {
     await session.database.close();
     dir.deleteSync(recursive: true);
   });
+
+  test(
+    'Importdaten machen die Datenbank nicht leer (Wiederherstellen fragt)',
+    () async {
+      expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+      await session.health.upsertValues([
+        _value(HealthDataKind.vo2Max, 'v', 48),
+      ]);
+      expect(await ArchiveRestoreService.isEmpty(session), isFalse);
+      await session.health.deleteKind(HealthDataKind.vo2Max);
+      expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+    },
+  );
 
   group('Upsert je Health-Connect-ID', () {
     test('Schlaf: gleiche ID überschreibt Sitzung und ersetzt die Phasen, kein Duplikat', () async {
