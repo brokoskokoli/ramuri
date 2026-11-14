@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
@@ -73,6 +75,8 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
   @override
   void initState() {
     super.initState();
+    // Bekannten Gurt ohne Rückfrage verbinden (WP37 C2); wirft nie.
+    unawaited(widget.belt?.sensors?.connectBestKnown());
     widget.belt?.init().then((_) {
       if (mounted) setState(() {});
     });
@@ -114,6 +118,7 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
   Widget build(BuildContext context) => MorningMeasureScreen(
     controller: _controller,
     soundOn: _soundOn,
+    sensors: widget.belt?.sensors,
     onClose: () => Navigator.of(context).pop(),
   );
 }

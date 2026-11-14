@@ -14,6 +14,7 @@ class MorningBelt {
     required Stream<HeartRateReading> readings,
     required this.connected,
     required this.developerMode,
+    this.sensors,
   }) : _recorder = MorningBeltRecorder(
          readings: readings,
          developerMode: developerMode,
@@ -29,7 +30,11 @@ class MorningBelt {
     readings: sensors.activeReadings,
     connected: () => sensors.selector.activeId != null,
     developerMode: SettingsDeveloperModeStore(settings, clock).read,
+    sensors: sensors,
   );
+
+  /// Der Sensordienst für die Gurtzeile im Einstieg; `null` ohne ihn (Tests).
+  final SensorManager? sensors;
 
   final MorningBeltRecorder _recorder;
 

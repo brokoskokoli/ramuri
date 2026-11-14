@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../sensors/sensor_manager.dart';
 import 'morning_entry_view.dart';
 import 'morning_measure_controller.dart';
 import 'morning_result_view.dart';
@@ -18,8 +19,12 @@ class MorningMeasureScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.soundOn,
+    this.sensors,
     this.onClose,
   });
+
+  /// Sensordienst für die Gurtzeile im Einstieg; `null`: keine Gurtzeile.
+  final SensorManager? sensors;
 
   final MorningMeasureController controller;
 
@@ -97,6 +102,7 @@ class _MorningMeasureScreenState extends State<MorningMeasureScreen>
         final Widget view = switch (_e.phase) {
           RestingMeasurePhase.entry => MorningEntryView(
             controller: _c,
+            sensors: widget.sensors,
             onClose: _close,
           ),
           RestingMeasurePhase.resting => RestingRestView(
