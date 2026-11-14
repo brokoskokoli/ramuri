@@ -148,8 +148,17 @@ class HealthImportService {
         return const HealthImportResult(HealthImportStatus.throttled);
       }
       _lastStart = mono;
-      await _persistStart();
-      return await _import();
+      final result = await _import();
+      // Nur wenn wirklich gelesen wurde (eine Art eingewilligt und mit Recht):
+      // sonst bleibt der Speicher unberührt.
+      if (result.kinds.values.any(
+        (k) =>
+            k.status != HealthKindStatus.notConsented &&
+            k.status != HealthKindStatus.permissionMissing,
+      )) {
+        await _persistStart();
+      }
+      return result;
     } finally {
       _running = false;
     }

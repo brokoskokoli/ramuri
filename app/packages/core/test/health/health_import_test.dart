@@ -366,6 +366,29 @@ void main() {
     },
   );
 
+  test('ohne Einwilligung oder Recht bleibt der Speicher unberührt', () async {
+    final stored = await FakeStorage().open(Uint8List(32));
+    HealthImportService build() => HealthImportService(
+      port: port,
+      store: store,
+      consents: consents,
+      clock: clock,
+      settings: stored.settings,
+    );
+    await build().run(HealthImportTrigger.appStart);
+    // Eingewilligt, aber ohne Recht in Health Connect: auch nichts gelesen.
+    await grantAll();
+    port.granted = {};
+    await build().run(HealthImportTrigger.appStart);
+    expect(await stored.settings.all(), isEmpty);
+    port.granted = {HealthDataKind.sleep};
+    await build().run(HealthImportTrigger.appStart);
+    expect(
+      await stored.settings.all(),
+      contains(HealthImportService.lastImportKey),
+    );
+  });
+
   test('Merker der Sperre liegt nicht im Archiv', () {
     expect(
       archiveExcludedSettingKeys,
