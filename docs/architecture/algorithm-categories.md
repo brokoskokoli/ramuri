@@ -9,7 +9,7 @@ Jedes Berechnungsverfahren der App ist genau einer Kategorie aus NFR-0002 zugeor
 | Banister-TRIMP weiblich | `banister-trimp-female` v1 | A | wie männlich mit k 0,86 und b 1,67 (K43); FR-0197. | WP19 |
 | Herzfrequenzreserve | `heart-rate-reserve` v1 | A | In NFR-0002 ausdrücklich genannt (FR-0060). | WP04 |
 | Reservezonen | `reserve-zones` v1 | B | Die Formel der Reserve ist etabliert, die Zonengrenzen sind aber frei wählbare Startwerte (FR-0062). NFR-0002 nennt die Zonen nicht eindeutig; Kategorie B bestätigt durch den Maintainer (2026-11-05); die individuellen Trainingszonen in Kategorie C sind etwas anderes. | WP04 |
-| Positionsfilter | `position-filter` v2 | B | Eigene Schwellen für Genauigkeit und Sprünge (PAR-001 bis PAR-004), Teil der Qualitätsbewertung. | WP03 |
+| Positionsfilter | `position-filter` v2 | B | Eigene Schwellen für Genauigkeit und Sprünge (PAR-001 bis PAR-004), Teil der Qualitätsbewertung. v2: Wartezeit vom Abschnittsbeginn bis zum ersten Punkt (bis PAR-004) als Spanne ohne Strecke (K71). | WP03 |
 | Tempo | `pace` v1 | B | Eigene Glättung (PAR-005). | WP03 |
 | Bewegungszeit | `movement-time` v1 | B | Eigene Schwellen für Stillstand und Fortsetzen (PAR-014, PAR-015). | WP03 |
 | Herzfrequenzfilter | `heart-rate-filter` v1 | B | Eigene Plausibilitäts-, Ausreißer- und Lückenregeln (PAR-007 bis PAR-010). | WP03 |

@@ -107,7 +107,7 @@ Der Nutzer kann Runden manuell markieren.
 
 Die App gibt akustische Trainingshinweise.
 
-**Festlegung (K63):** Die Ansagen nutzen die Sprachausgabe des Systems, ohne Netz aus der App. Sie werden als Datei erzeugt und im Prozess der App abgespielt (Entscheidung des Maintainers 2026-11-13, wegen der Härtung von Hintergrund-Audio unter Android 17); die Datei liegt im Cache und wird nach jeder Ansage gelöscht. Hauptschalter „Ansagen“ auf „Lauf vorbereiten“, die Einzelschalter in den Einstellungen; sie gelten ab dem Start des Laufs. Beenden bricht eine laufende Ansage ab, Pause nicht. Fehler der Sprachausgabe stören die Aufzeichnung nicht.
+**Festlegung (K63):** Die Ansagen nutzen die Sprachausgabe des Systems, ohne Netz aus der App. Sie werden als Datei erzeugt und im Prozess der App abgespielt (Entscheidung des Maintainers 2026-11-13, wegen der Härtung von Hintergrund-Audio unter Android 17); die Datei liegt im Cache und wird nach jeder Ansage gelöscht. Hauptschalter „Ansagen“ auf „Lauf vorbereiten“, die Einzelschalter in den Einstellungen; sie gelten ab dem Start des Laufs. Beenden bricht eine laufende Ansage ab, Pause nicht. Fehler der Sprachausgabe stören die Aufzeichnung nicht. Fehlt die Sprachausgabe (keine Engine oder Sprache), zeigt die App bei einer geführten Einheit mit eingeschalteten Ansagen beim Start und nach Wiederaufnahme einmal „Sprachausgabe nicht verfügbar“; bei freien Läufen nicht (K71).
 
 **Akzeptanzkriterien:**
 - [ ] Einzeln schaltbare Sprachansagen: je Kilometer mit Zeit und Pace, Überschreitung des Pulsbereichs und Intervallwechsel (OQ-0044).
