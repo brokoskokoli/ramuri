@@ -219,26 +219,73 @@ void main() {
   });
 
   group('Quellenauswahl PAR-189', () {
-    test('die mit den meisten gültigen Einträgen, ungültige zählen nicht', () {
-      final s = [
-        smp('a', 1, 50),
-        smp('a', 2, 51),
-        smp('b', 1, 50),
-        smp('b', 2, 500),
-        smp('b', 3, 500),
-        smp('b', 4, 500),
+    Map<String, HealthDailyValue> day(Map<String, int> samplesByOrigin) {
+      final main = SleepSession(
+        origin: 's',
+        start: DateTime.utc(2026, 11, 14),
+        end: DateTime.utc(2026, 11, 14, 6),
+      );
+      return hp.hrvDaily([
+        for (final e in samplesByOrigin.entries)
+          for (var i = 0; i < e.value; i++) smp(e.key, 10.0 + i, 50),
+      ], main);
+    }
+
+    test(
+      'App mit vielen Messungen in einer Nacht verliert gegen mehr Nächte',
+      () {
+        final days = [
+          day({'a': 50, 'b': 1}),
+          day({'b': 1}),
+          day({'b': 1}),
+        ];
+        expect(hp.selectSource(days), 'b');
+      },
+    );
+    test('Zählung: genau die Tage, nicht mehr', () {
+      final days = [
+        day({'a': 1, 'b': 1}),
+        day({'a': 1}),
+        day({'a': 1}),
+        day({'b': 1}),
       ];
-      expect(hp.selectHrvSource(s), 'a');
+      expect(hp.selectSource(days), 'a');
+      // b hat 2, a 3; ein Tag mehr für b ergibt Gleichstand -> Name a,
+      // zwei Tage mehr -> b.
+      expect(
+        hp.selectSource([
+          ...days,
+          day({'b': 1}),
+        ]),
+        'a',
+      );
+      expect(
+        hp.selectSource([
+          ...days,
+          day({'b': 1}),
+          day({'b': 1}),
+        ]),
+        'b',
+      );
     });
     test('Gleichstand: kleinerer Name; leer: null', () {
-      expect(hp.selectHrvSource([smp('b', 1, 50), smp('a', 1, 50)]), 'a');
-      expect(hp.selectHrvSource([]), isNull);
-      expect(hp.selectRestingHeartRateSource([smp('a', 1, 10)]), isNull);
+      expect(
+        hp.selectSource([
+          day({'b': 1, 'a': 1}),
+        ]),
+        'a',
+      );
+      expect(hp.selectSource([]), isNull);
+      expect(hp.selectSource([const {}]), isNull);
     });
-    test('Ruhepuls nutzt den Bereich 30–120', () {
-      final s = [smp('a', 1, 150), smp('a', 2, 150), smp('b', 1, 60)];
-      expect(hp.selectRestingHeartRateSource(s), 'b');
-      expect(hp.selectHrvSource(s), 'a');
+    test('Ruhepuls-Tageswerte gehen genauso', () {
+      final from = DateTime.utc(2026, 11, 14);
+      final r = hp.restingHeartRateDaily(
+        [smp('a', 10, 150), smp('b', 10, 60)],
+        from,
+        from.add(const Duration(days: 1)),
+      );
+      expect(hp.selectSource([r]), 'b');
     });
   });
 }

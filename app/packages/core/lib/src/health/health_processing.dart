@@ -196,39 +196,29 @@ class HealthProcessing {
     return out;
   }
 
-  /// Quell-App nach PAR-189: die mit den meisten gültigen Einträgen (Wert
-  /// zwischen [min] und [max] einschließlich). Gleichstand: der kleinere
-  /// Name. Null, wenn keine Quelle gültige Einträge hat. Die Werte der
-  /// anderen gehen nicht ein.
-  String? selectSource(
-    Iterable<HealthSample> samples, {
-    required double min,
-    required double max,
-  }) {
+  /// Quell-App nach PAR-189: die mit der längsten gültigen Reihe, gezählt in
+  /// Tagen mit gültigem Tageswert (nicht in Einzelwerten). [days] hat je Tag
+  /// ein Ergebnis von [hrvDaily] bzw. [restingHeartRateDaily]; die Tagesgrenze
+  /// legt der Aufrufer fest. Ein Tag zählt je Quelle einmal. Gleichstand: der
+  /// kleinere Paketname (eigene Wahl, PAR-189 sagt dazu nichts). Null, wenn
+  /// keine Quelle einen Tageswert hat. Die Werte der anderen gehen nicht ein.
+  String? selectSource(Iterable<Map<String, HealthDailyValue>> days) {
+    final count = <String, int>{};
+    for (final day in days) {
+      for (final origin in day.keys) {
+        count[origin] = (count[origin] ?? 0) + 1;
+      }
+    }
     String? best;
     var bestN = 0;
-    _byOrigin(samples, min, max).forEach((origin, list) {
-      final n = list.length;
-      if (n > bestN ||
-          (n == bestN && best != null && origin.compareTo(best!) < 0)) {
+    count.forEach((origin, n) {
+      if (n > bestN || (n == bestN && origin.compareTo(best!) < 0)) {
         best = origin;
         bestN = n;
       }
     });
     return best;
   }
-
-  /// [selectSource] mit dem Bereich 1–200 ms (PAR-160).
-  String? selectHrvSource(Iterable<HealthSample> samples) =>
-      selectSource(samples, min: params.rmssdMinMs, max: params.rmssdMaxMs);
-
-  /// [selectSource] mit dem Bereich PAR-017.
-  String? selectRestingHeartRateSource(Iterable<HealthSample> samples) =>
-      selectSource(
-        samples,
-        min: params.restingHeartRateMinBpm,
-        max: params.restingHeartRateMaxBpm,
-      );
 
   Map<String, List<HealthSample>> _byOrigin(
     Iterable<HealthSample> samples,
