@@ -487,11 +487,6 @@ Future<_Result> _simulate(_Scenario sc) async {
     if (history.isNotEmpty &&
         planFeedbackDue(created: _d0, lastAnswer: lastAnswer, today: today) &&
         !pauseOpen &&
-        // Befund F2 (unten): keine Antwort kurz vor der Pause, damit der
-        // Neustart nach der Pause hier erreichbar bleibt.
-        !(sc.pause != null &&
-            day >= sc.pause!.$1 - p.pauseMinDays &&
-            day <= sc.pause!.$2) &&
         await warningStore.read() == null) {
       final answers = [
         PlanFeedback.tooEasy,
@@ -728,9 +723,6 @@ void main() {
     const skipF1 =
         'Befund F1: absolvierter, verschobener Lauf auf einem Nicht-Lauftag '
         'lässt die Woche unter der Wochenzeit (teil-d.md)';
-    const skipF2 =
-        'Befund F2: Pausenneustart (PAR-202) entfällt, wenn eine Rückmeldung '
-        'den Anker auf den kommenden Montag gesetzt hat (teil-d.md)';
 
     test(
       'F1: Woche mit verschobenem, absolviertem Lauf behält die Wochenzeit',
@@ -801,7 +793,7 @@ void main() {
         baseWeekMinutes: 100,
       );
       expect(r.kind, PauseRestartKind.long);
-    }, skip: skipF2);
+    });
   });
 }
 

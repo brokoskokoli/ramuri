@@ -341,18 +341,6 @@ void main() {
         baseWeekMinutes: 100,
         provisional: true,
       ).inputs!;
-      // Die vorläufige Fassung gilt schon in dieser Woche: ein weiterer
-      // Neustart wäre sonst `none`.
-      expect(
-        planPauseRestart(
-          goal: g,
-          inputs: p,
-          today: today,
-          lastTrainingDay: today.subtract(const Duration(days: 60)),
-          baseWeekMinutes: 100,
-        ).kind,
-        PauseRestartKind.none,
-      );
       final low = p.copyWith(startWeeklyMinutes: 5);
       final r = planPauseRestart(
         goal: g,
@@ -412,9 +400,17 @@ void main() {
       },
     );
 
-    test('gilt der Neustart schon in dieser Woche, nichts mehr', () {
+    test('zweiter Aufruf in derselben Woche: dieselben Eingaben', () {
       final s = run(10).inputs!;
-      expect(run(10, inputs: s).kind, PauseRestartKind.none);
+      final again = run(10, inputs: s);
+      expect(again.kind, PauseRestartKind.short);
+      expect(again.inputs!.startWeeklyMinutes, s.startWeeklyMinutes);
+      expect(again.inputs!.anchor, s.anchor);
+    });
+
+    test('Anker in einer späteren Woche: kein Neustart', () {
+      final later = i.copyWith(anchor: today.add(const Duration(days: 7)));
+      expect(run(10, inputs: later).kind, PauseRestartKind.none);
     });
 
     test('Basiswoche: letzte vollständige Kalenderwoche vor Pausenbeginn', () {

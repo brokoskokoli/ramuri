@@ -251,8 +251,9 @@ DateTime pauseBaseWeek(DateTime lastTrainingDay) =>
 /// Kappung auf die Minuten der vorläufigen Woche. Alle Stufen: nie
 /// höher als der bisherige Plan dieser Woche und nie über dem Regler; die
 /// Zählung nach PAR-194 beginnt neu. In der Geh-Lauf-Abfolge, in der
-/// Reduktion vor dem Termin und wenn der Neustart in dieser Woche schon
-/// gilt: [PauseRestartKind.none].
+/// Reduktion vor dem Termin und bei einem Anker in einer späteren Woche:
+/// [PauseRestartKind.none]. Ein zweiter Aufruf in derselben Woche liefert
+/// dieselben Eingaben (die Minuten sind auf den Plan dieser Woche gedeckelt).
 PauseRestart planPauseRestart({
   required TrainingGoal goal,
   required PlanInputs inputs,
@@ -275,7 +276,11 @@ PauseRestart planPauseRestart({
     );
   }
   final monday = _monday(t);
-  if (!inputs.anchor.isBefore(monday)) {
+  // Ein Anker in einer späteren Woche (Rückmeldung dieser Woche, PAR-200):
+  // die Wochen davor sind nicht mehr Teil dieser Eingaben. Ein Anker in dieser
+  // Woche (Rückmeldung oder Wochenbewertung) lässt den Neustart zu; dass er
+  // nur einmal je Pause gilt, sichert der Merker der App (`plan.pause_restart`).
+  if (inputs.anchor.isAfter(monday)) {
     return const PauseRestart(PauseRestartKind.none);
   }
   final setup = planCourseSetup(goal, inputs, parameters: p);
