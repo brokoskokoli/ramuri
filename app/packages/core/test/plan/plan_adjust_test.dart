@@ -400,12 +400,22 @@ void main() {
       },
     );
 
-    test('zweiter Aufruf in derselben Woche: dieselben Eingaben', () {
+    test('gilt der Neustart schon in dieser Woche, nichts mehr', () {
       final s = run(10).inputs!;
-      final again = run(10, inputs: s);
-      expect(again.kind, PauseRestartKind.short);
-      expect(again.inputs!.startWeeklyMinutes, s.startWeeklyMinutes);
-      expect(again.inputs!.anchor, s.anchor);
+      expect(run(10, inputs: s).kind, PauseRestartKind.none);
+    });
+
+    test('Anker dieser Woche aus einer Anpassung: Neustart möglich', () {
+      final s = run(10).inputs!;
+      final r = planPauseRestart(
+        goal: g,
+        inputs: s,
+        today: today,
+        lastTrainingDay: today.subtract(const Duration(days: 10)),
+        baseWeekMinutes: 100,
+        anchorFromAdjustment: true,
+      );
+      expect(r.kind, PauseRestartKind.short);
     });
 
     test('Anker in einer späteren Woche: kein Neustart', () {

@@ -251,9 +251,10 @@ DateTime pauseBaseWeek(DateTime lastTrainingDay) =>
 /// Kappung auf die Minuten der vorläufigen Woche. Alle Stufen: nie
 /// höher als der bisherige Plan dieser Woche und nie über dem Regler; die
 /// Zählung nach PAR-194 beginnt neu. In der Geh-Lauf-Abfolge, in der
-/// Reduktion vor dem Termin und bei einem Anker in einer späteren Woche:
-/// [PauseRestartKind.none]. Ein zweiter Aufruf in derselben Woche liefert
-/// dieselben Eingaben (die Minuten sind auf den Plan dieser Woche gedeckelt).
+/// Reduktion vor dem Termin, bei einem Anker in einer späteren Woche und wenn
+/// der Neustart in dieser Woche schon gilt (Anker in dieser Woche, außer aus
+/// einer Anpassung, [anchorFromAdjustment], siehe [planAnchorFromAdjustment]):
+/// [PauseRestartKind.none].
 PauseRestart planPauseRestart({
   required TrainingGoal goal,
   required PlanInputs inputs,
@@ -263,6 +264,7 @@ PauseRestart planPauseRestart({
   PlanParameters parameters = const PlanParameters(),
   bool provisional = false,
   bool replacesProvisional = false,
+  bool anchorFromAdjustment = false,
 }) {
   final p = parameters;
   final t = planDay(today);
@@ -278,9 +280,11 @@ PauseRestart planPauseRestart({
   final monday = _monday(t);
   // Ein Anker in einer späteren Woche (Rückmeldung dieser Woche, PAR-200):
   // die Wochen davor sind nicht mehr Teil dieser Eingaben. Ein Anker in dieser
-  // Woche (Rückmeldung oder Wochenbewertung) lässt den Neustart zu; dass er
-  // nur einmal je Pause gilt, sichert der Merker der App (`plan.pause_restart`).
-  if (inputs.anchor.isAfter(monday)) {
+  // Woche gilt als „Neustart gilt schon“ (auch der Anfang eines neuen Plans),
+  // außer er stammt aus einer Anpassung ([anchorFromAdjustment]: Rückmeldung
+  // oder Wochenbewertung): Die Pause hat dann Vorrang (PAR-202).
+  if (inputs.anchor.isAfter(monday) ||
+      (!anchorFromAdjustment && !inputs.anchor.isBefore(monday))) {
     return const PauseRestart(PauseRestartKind.none);
   }
   final setup = planCourseSetup(goal, inputs, parameters: p);
