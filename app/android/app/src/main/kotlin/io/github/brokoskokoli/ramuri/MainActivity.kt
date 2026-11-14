@@ -80,6 +80,8 @@ class MainActivity : FlutterActivity() {
                     "requested" -> result.success(requestedKeys())
                     // FR-0217: Version für die Seite "Über" (versionName und versionCode aus dem Build; kein Netz, keine Kennung).
                     "appVersion" -> result.success(runCatching { appVersion() }.getOrNull())
+                    // FR-0215: Hersteller und Modell der Morgenmessung (Build.MANUFACTURER/MODEL, keine Seriennummer).
+                    "deviceInfo" -> result.success(mapOf("manufacturer" to Build.MANUFACTURER, "model" to Build.MODEL))
                     // FR-0195: genauer Standort vor dem Lauf (OQ-0064).
                     "locationAccess" -> result.success(locationAccess())
                     "requestLocation" -> requestLocation(result)

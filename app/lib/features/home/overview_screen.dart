@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
+import '../measure/morning_entry.dart';
 import '../../l10n/app_localizations.dart';
 import '../profile/profile_screen.dart';
 import '../recalculation/recalculation_controller.dart';
@@ -68,6 +69,7 @@ class OverviewScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              MorningTile(session: session, clock: clock),
               _Entry(
                 key: const Key('home_settings'),
                 icon: Icons.settings_outlined,

@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../measure/morning_entry.dart';
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
@@ -71,6 +72,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late Future<HomeHints> _hints = _loadHints();
   bool _busy = false;
 
+  /// Neu laden der Morgenkarte mit der Seite (Entwicklermodus, heutige Messung).
+  int _morningEpoch = 0;
+
   /// Ziel und Plan (nur lesen; geschrieben wird über das Zielformular und die
   /// Zuordnung).
   late final PlanController _plan = PlanController(
@@ -122,6 +126,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _reload() {
     setState(() {
+      _morningEpoch++;
       _shownDay = _today;
       _future = _load();
       _hints = _loadHints();
@@ -465,6 +470,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 16),
             _cards(context, _plan.state),
+            // Morgenmessung (FR-0215): nur wenn erreichbar (Entwicklermodus
+            // oder bestandene Validierung); sonst baut die Karte nichts.
+            MorningCard(
+              key: ValueKey('morning_card_$_morningEpoch'),
+              session: widget.session,
+              clock: widget.clock,
+            ),
             // Der Zugang ist ohne Profil und ohne Freigaben offen (FR-0001,
             // CON-0007); nur der Standort wird geprüft (FR-0195).
             _startCard(context, l10n),

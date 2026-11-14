@@ -138,6 +138,10 @@ abstract interface class MorningStore {
   /// Alle Messungen nach Zeitpunkt, dann Id sortiert.
   Future<List<StoredMorningMeasurement>> list();
 
+  /// Trägt die freiwillige Schlafstufe nach (oder löscht sie mit `null`); alles
+  /// andere der Messung bleibt unverändert. Unbekannte Messung: `notFound`.
+  Future<void> setSleepBand(int measurementId, SleepBand? band);
+
   /// Gurt-RR-Pakete der Messung nach Empfangszeit, dann Id sortiert; ohne
   /// Pakete leer. Unbekannte Messung: `notFound`.
   Future<List<StoredRrPacket>> beltPackets(int measurementId);

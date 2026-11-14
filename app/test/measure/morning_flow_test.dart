@@ -1,0 +1,473 @@
+import 'package:core/core.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/measure/device_info.dart';
+import 'package:running_app/features/measure/morning_measure_controller.dart';
+import 'package:running_app/features/measure/morning_measure_screen.dart';
+import 'package:running_app/features/measure/resting_measure_controller.dart';
+import 'package:running_app/l10n/app_localizations.dart';
+import 'package:running_app/ui/ui.dart';
+
+import 'measure_support.dart';
+
+// Ablauf der Morgenmessung (FR-0215) mit der Fake-Kamera aus WP27. Alle Werte
+// synthetisch, die Auswertung ist gescriptet.
+
+const _good = PpgMeasurement(
+  quality: PpgQuality.good,
+  reasons: [],
+  bpm: 52.4,
+  rmssdMs: 48.2,
+  timingNoiseMs: 12,
+  intervalsMs: [1140, 1150, 1135],
+);
+const _limited = PpgMeasurement(
+  quality: PpgQuality.limited,
+  reasons: [PpgQualityReason.someDisturbances],
+  bpm: 55.0,
+  timingNoiseMs: 30,
+  intervalsMs: [1090, 1100],
+);
+const _bad = PpgMeasurement(
+  quality: PpgQuality.unusable,
+  reasons: [PpgQualityReason.weakSignal],
+);
+
+/// Speicher, dessen Schreiben scheitern kann.
+class _FlakyStore implements MorningStore {
+  _FlakyStore(this.inner);
+  final MorningStore inner;
+  bool failAdd = false;
+  bool failSleep = false;
+
+  @override
+  Future<int> add(
+    MorningMeasurement measurement, {
+    List<RrPacket> beltPackets = const [],
+  }) {
+    if (failAdd) throw const StorageException(StorageFailure.failed);
+    return inner.add(measurement, beltPackets: beltPackets);
+  }
+
+  @override
+  Future<List<StoredMorningMeasurement>> list() => inner.list();
+
+  @override
+  Future<void> setSleepBand(int id, SleepBand? band) {
+    if (failSleep) throw const StorageException(StorageFailure.failed);
+    return inner.setSleepBand(id, band);
+  }
+
+  @override
+  Future<List<StoredRrPacket>> beltPackets(int id) => inner.beltPackets(id);
+}
+
+class _Rig {
+  _Rig._(this.cam, this.session, this.clock, this.store, this.c);
+
+  final HoldingCamera cam;
+  final StorageSession session;
+  final FakeClock clock;
+  final _FlakyStore store;
+  final MorningMeasureController c;
+  final ValueNotifier<bool> sound = ValueNotifier(true);
+  int closed = 0;
+  double _t = 0;
+  PpgMeasurement next = _good;
+  final restStarts = <DateTime>[];
+  final measureEnds = <DateTime>[];
+
+  static Future<_Rig> make({
+    DateTime? now,
+    StorageSession? session,
+    Duration offset = Duration.zero,
+  }) async {
+    final cam = HoldingCamera();
+    final s = session ?? await FakeStorage().open(testKey);
+    final clock = FakeClock(
+      now ?? DateTime.utc(2026, 11, 10, 5, 30),
+      utcOffset: offset,
+    );
+    final store = _FlakyStore((s as MorningStorage).morning);
+    late _Rig rig;
+    final c = MorningMeasureController(
+      camera: cam,
+      store: store,
+      windowStore: SettingsMorningWindowStore(s.settings, clock),
+      clock: clock,
+      device: () async => (manufacturer: 'Testhersteller', model: 'Modell 1'),
+      hooks: MorningMeasureHooks(
+        onRestStarted: (t) => rig.restStarts.add(t),
+        onMeasurementEnded: (t) => rig.measureEnds.add(t),
+      ),
+      evaluate: (frames, window) async => identical(window, ppgStandardWindow)
+          ? rig.next
+          : const PpgMeasurement(quality: PpgQuality.unusable, reasons: []),
+      autoTick: false,
+    );
+    rig = _Rig._(cam, s, clock, store, c);
+    return rig;
+  }
+
+  Future<void> show(
+    WidgetTester tester, {
+    required bool dark,
+    String lang = 'de',
+  }) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    addTearDown(c.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: dark ? RamuriTheme.dark : RamuriTheme.light,
+        locale: Locale(lang),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: MorningMeasureScreen(
+          controller: c,
+          soundOn: sound,
+          onClose: () => closed++,
+        ),
+      ),
+    );
+  }
+
+  Future<void> feed(WidgetTester tester, double until) async {
+    var k = 0;
+    while (_t <= until) {
+      cam.emitFrame(
+        PpgFrame(
+          t: _t,
+          r: 200,
+          g: 40,
+          r16: List.filled(16, 200),
+          g16: List.filled(16, 40),
+        ),
+      );
+      _t += 0.5;
+      if (++k % 10 == 0) await tester.pump();
+    }
+    await _settle(tester);
+  }
+
+  /// Ruhephase starten, ablaufen lassen und die Messung bis zum Ergebnis führen.
+  Future<void> runThrough(WidgetTester tester) async {
+    await _tap(tester, 'morning_start');
+    clock.advance(const Duration(seconds: 121));
+    c.engine.tick();
+    await tester.pump();
+    await _settle(tester);
+    _t = 0;
+    await feed(tester, 67);
+  }
+
+  Future<List<MorningMeasurement>> stored(WidgetTester tester) async =>
+      (await tester.runAsync(() => store.list()))!.map((e) => e.value).toList();
+}
+
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 4; i++) {
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+  }
+}
+
+Future<void> _tap(WidgetTester tester, String key) async {
+  final f = find.byKey(Key(key));
+  await tester.ensureVisible(f);
+  await tester.pump();
+  await tester.tap(f);
+  await _settle(tester);
+}
+
+Finder _text(String s) => find.text(s);
+
+void main() {
+  for (final dark in [false, true]) {
+    final mode = dark ? 'dunkel' : 'hell';
+
+    group('Morgenmessung ($mode)', () {
+      testWidgets('Einstieg: liegend als Vorgabe, Hinweise, feste Ruhephase', (
+        tester,
+      ) async {
+        final r = await _Rig.make();
+        await r.show(tester, dark: dark);
+        expect(_text('Morgenmessung'), findsOneWidget);
+        expect(
+          _text('Gleich nach dem Aufwachen, erst zur Toilette.'),
+          findsOneWidget,
+        );
+        expect(_text('Vor Kaffee und Frühstück messen.'), findsOneWidget);
+        expect(
+          _text('2 min ruhig bleiben, dann 60 s messen. Atme ganz normal.'),
+          findsOneWidget,
+        );
+        expect(r.c.engine.posture, RestingPosture.lying);
+        expect(
+          _text('Empfohlen. Bleib jeden Morgen bei derselben Haltung.'),
+          findsOneWidget,
+        );
+        // Keine Dauerwahl, kein sofortiges Messen, kein Atemtempo.
+        expect(find.byKey(const Key('measure_minutes_plus')), findsNothing);
+        expect(find.byKey(const Key('measure_mode_now')), findsNothing);
+        expect(find.text('Stehend'), findsNothing);
+        await tester.tap(_text('Sitzend'));
+        await tester.pump();
+        expect(r.c.engine.posture, RestingPosture.sitting);
+        expect(find.byKey(const Key('morning_pose_note')), findsOneWidget);
+        expect(find.textContaining('eigene Reihe'), findsOneWidget);
+        expect(r.cam.permissionRequests, 0);
+
+        await _tap(tester, 'morning_start');
+        expect(r.c.engine.phase, RestingMeasurePhase.resting);
+        expect(r.c.engine.restMinutes, 2);
+        expect(_text('2:00'), findsOneWidget);
+        expect(find.byKey(const Key('measure_skip_rest')), findsNothing);
+        expect(r.cam.permissionRequests, 0);
+        expect(r.restStarts, hasLength(1));
+      });
+
+      testWidgets('gut: speichert mit Gerät, Schlafstufe nachtragbar', (
+        tester,
+      ) async {
+        final r = await _Rig.make();
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        expect(r.c.outcome, MorningOutcome.good);
+        expect(_text('Gespeichert'), findsOneWidget);
+        expect(_text('Heute 05:32, liegend'), findsOneWidget);
+        expect(find.byKey(const Key('morning_hr')), findsOneWidget);
+        expect(_text('52,4'), findsOneWidget);
+        expect(_text('48'), findsOneWidget);
+        expect(_text('geschätzt · Signal gut'), findsOneWidget);
+        expect(find.byKey(const Key('morning_no_rmssd')), findsNothing);
+        expect(
+          _text(
+            'Heute zählt diese Messung. Eine weitere am selben Tag ist nicht nötig.',
+          ),
+          findsOneWidget,
+        );
+        expect(r.cam.permissionRequests, 1);
+        expect(r.measureEnds, hasLength(1));
+        var list = await r.stored(tester);
+        expect(list, hasLength(1));
+        final m = list.single;
+        expect(m.restingHrBpm, 52.4);
+        expect(m.rmssdMs, 48.2);
+        expect(m.posture, RestingPosture.lying);
+        expect(m.deviceManufacturer, 'Testhersteller');
+        expect(m.deviceModel, 'Modell 1');
+        expect(m.outsideWindow, isFalse);
+        expect(m.quality, PpgQuality.good);
+        expect(m.cameraIntervalsMs, [1140, 1150, 1135]);
+        expect(m.sleepBand, isNull);
+
+        await _tap(tester, 'morning_sleep_from6to7');
+        list = await r.stored(tester);
+        expect(list.single.sleepBand, SleepBand.from6to7);
+        expect(list, hasLength(1));
+        await _tap(tester, 'morning_sleep_over8');
+        expect((await r.stored(tester)).single.sleepBand, SleepBand.over8);
+        await _tap(tester, 'morning_sleep_over8');
+        expect((await r.stored(tester)).single.sleepBand, isNull);
+
+        await _tap(tester, 'morning_done');
+        expect(r.closed, 1);
+      });
+
+      testWidgets('eingeschränkt: Ruhepuls zählt, RMSSD bleibt leer', (
+        tester,
+      ) async {
+        final r = await _Rig.make();
+        r.next = _limited;
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        expect(r.c.outcome, MorningOutcome.limited);
+        expect(_text('Gespeichert'), findsOneWidget);
+        expect(_text('55,0'), findsOneWidget);
+        expect(find.byKey(const Key('morning_rmssd')), findsOneWidget);
+        expect(
+          tester.widget<Text>(find.byKey(const Key('morning_rmssd'))).data,
+          '–',
+        );
+        expect(_text('geschätzt · Signal eingeschränkt'), findsOneWidget);
+        expect(
+          _text('RMSSD braucht ein gutes Signal. Der Ruhepuls zählt trotzdem.'),
+          findsOneWidget,
+        );
+        final m = (await r.stored(tester)).single;
+        expect(m.quality, PpgQuality.limited);
+        expect(m.rmssdMs, isNull);
+      });
+
+      testWidgets('außerhalb des Fensters: gespeichert, zählt nicht', (
+        tester,
+      ) async {
+        final r = await _Rig.make(now: DateTime.utc(2026, 11, 10, 14, 5));
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        expect(r.c.outcome, MorningOutcome.outsideWindow);
+        expect(find.byKey(const Key('morning_note_outside')), findsOneWidget);
+        expect(
+          find.textContaining('Außerhalb deines Morgenfensters (4 bis 11 Uhr)'),
+          findsOneWidget,
+        );
+        expect((await r.stored(tester)).single.outsideWindow, isTrue);
+      });
+
+      testWidgets('Ortszeit entscheidet über das Fenster', (tester) async {
+        // 5:30 UTC ist bei +7 h 12:30 Ortszeit: außerhalb.
+        final r = await _Rig.make(offset: const Duration(hours: 7));
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        expect(r.c.outcome, MorningOutcome.outsideWindow);
+      });
+
+      testWidgets(
+        'unbrauchbar: nichts gespeichert, Wiederholung ohne Ruhephase',
+        (tester) async {
+          final r = await _Rig.make();
+          r.next = _bad;
+          await r.show(tester, dark: dark);
+          await r.runThrough(tester);
+          expect(r.c.outcome, MorningOutcome.unusable);
+          expect(_text('Messung zu ungenau'), findsOneWidget);
+          expect(find.byKey(const Key('morning_no_value')), findsOneWidget);
+          expect(find.byKey(const Key('morning_hr')), findsNothing);
+          expect(find.byKey(const Key('morning_sleep_under5')), findsNothing);
+          expect(
+            _text(
+              'Es zählt die erste Messung des Tages mit ausreichender Qualität.',
+            ),
+            findsOneWidget,
+          );
+          expect(await r.stored(tester), isEmpty);
+          expect(r.restStarts, hasLength(1));
+
+          r.next = _good;
+          await _tap(tester, 'morning_again');
+          // Keine neue Ruhephase: direkt Kamera, zweite Rechteanfrage.
+          expect(r.c.engine.phase, isNot(RestingMeasurePhase.resting));
+          expect(r.cam.permissionRequests, 2);
+          r._t = 0;
+          await r.feed(tester, 67);
+          expect(r.c.outcome, MorningOutcome.good);
+          expect(r.restStarts, hasLength(1));
+          expect(r.measureEnds, hasLength(2));
+          final list = await r.stored(tester);
+          expect(list, hasLength(1));
+          expect(list.single.restingHrBpm, 52.4);
+        },
+      );
+
+      testWidgets('unbrauchbar: „Heute nicht mehr“ schließt', (tester) async {
+        final r = await _Rig.make();
+        r.next = _bad;
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        await _tap(tester, 'morning_not_again');
+        expect(r.closed, 1);
+        expect(await r.stored(tester), isEmpty);
+      });
+
+      testWidgets('Puls außerhalb 30 bis 120 wird wie unbrauchbar verworfen', (
+        tester,
+      ) async {
+        final r = await _Rig.make();
+        r.next = const PpgMeasurement(
+          quality: PpgQuality.good,
+          reasons: [],
+          bpm: 140,
+          rmssdMs: 30,
+          timingNoiseMs: 10,
+        );
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        expect(r.c.outcome, MorningOutcome.unusable);
+        expect(r.c.canRepeat, isTrue);
+        expect(await r.stored(tester), isEmpty);
+      });
+
+      testWidgets('zweite Messung am selben Tag zählt nicht', (tester) async {
+        final r = await _Rig.make();
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        expect(r.c.outcome, MorningOutcome.good);
+
+        final again = await _Rig.make(
+          session: r.session,
+          now: DateTime.utc(2026, 11, 10, 6, 10),
+        );
+        await again.show(tester, dark: dark);
+        await again.runThrough(tester);
+        expect(again.c.outcome, MorningOutcome.notCounted);
+        expect(
+          find.byKey(const Key('morning_note_not_counted')),
+          findsOneWidget,
+        );
+        expect(await again.stored(tester), hasLength(2));
+      });
+
+      testWidgets('Speichern scheitert: Hinweis, erneut speichern', (
+        tester,
+      ) async {
+        final r = await _Rig.make();
+        r.store.failAdd = true;
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        expect(r.c.outcome, MorningOutcome.saveFailed);
+        expect(find.byKey(const Key('morning_save_failed')), findsOneWidget);
+        expect(find.byKey(const Key('morning_hr')), findsNothing);
+        r.store.failAdd = false;
+        await _tap(tester, 'morning_save_retry');
+        expect(r.c.outcome, MorningOutcome.good);
+        expect(await r.stored(tester), hasLength(1));
+      });
+
+      testWidgets('Schlafstufe scheitert: Hinweis, Messung bleibt', (
+        tester,
+      ) async {
+        final r = await _Rig.make();
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        r.store.failSleep = true;
+        await _tap(tester, 'morning_sleep_under5');
+        expect(find.byKey(const Key('morning_sleep_failed')), findsOneWidget);
+        final list = await r.stored(tester);
+        expect(list, hasLength(1));
+        expect(list.single.sleepBand, isNull);
+      });
+
+      testWidgets('Abbrechen in der Ruhephase: nichts gespeichert, schließt', (
+        tester,
+      ) async {
+        final r = await _Rig.make();
+        await r.show(tester, dark: dark);
+        await _tap(tester, 'morning_start');
+        await _tap(tester, 'measure_cancel');
+        expect(r.closed, 1);
+        expect(r.cam.permissionRequests, 0);
+        expect(await r.stored(tester), isEmpty);
+      });
+
+      testWidgets('Englisch: Ergebnis und Einstieg', (tester) async {
+        final r = await _Rig.make();
+        await r.show(tester, dark: dark, lang: 'en');
+        expect(_text('Morning measurement'), findsOneWidget);
+        expect(_text('Start rest phase'), findsOneWidget);
+        await r.runThrough(tester);
+        expect(_text('Saved'), findsOneWidget);
+        expect(find.textContaining('Today 5:32'), findsOneWidget);
+        expect(_text('52.4'), findsOneWidget);
+      });
+    });
+  }
+
+  test('Gerätekanal: fehlende Plattform ergibt leere Angaben', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final d = await readDeviceInfo();
+    expect(d.manufacturer, '');
+    expect(d.model, '');
+  });
+}

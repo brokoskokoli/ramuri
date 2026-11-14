@@ -64,6 +64,29 @@ class FakeMorningStore implements MorningStore {
   }
 
   @override
+  Future<void> setSleepBand(int measurementId, SleepBand? band) async {
+    final m = _d.morning[measurementId];
+    if (m == null) throw const StorageException(StorageFailure.notFound);
+    _d.morning[measurementId] = MorningMeasurement(
+      measuredAt: m.measuredAt,
+      utcOffset: m.utcOffset,
+      posture: m.posture,
+      deviceManufacturer: m.deviceManufacturer,
+      deviceModel: m.deviceModel,
+      method: m.method,
+      methodVersion: m.methodVersion,
+      quality: m.quality,
+      restingHrBpm: m.restingHrBpm,
+      rmssdMs: m.rmssdMs,
+      timingNoiseMs: m.timingNoiseMs,
+      sleepBand: band,
+      cameraIntervalsMs: m.cameraIntervalsMs,
+      beforeValidation: m.beforeValidation,
+      outsideWindow: m.outsideWindow,
+    );
+  }
+
+  @override
   Future<List<StoredRrPacket>> beltPackets(int measurementId) async {
     final p = _d.morningPackets[measurementId];
     if (p == null) throw const StorageException(StorageFailure.notFound);

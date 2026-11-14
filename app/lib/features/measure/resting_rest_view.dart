@@ -15,7 +15,12 @@ class RestingRestView extends StatelessWidget {
     super.key,
     required this.controller,
     required this.soundOn,
+    this.allowSkip = true,
   });
+
+  /// „Ich bin schon entspannt“ anbieten; die Morgenmessung hat eine feste
+  /// Ruhephase (FR-0215) und lässt sie weg.
+  final bool allowSkip;
 
   final RestingMeasureController controller;
 
@@ -154,11 +159,12 @@ class RestingRestView extends StatelessWidget {
               },
             ),
           ),
-          RestingTextLink(
-            key: const Key('measure_skip_rest'),
-            label: l10n.measureRestSkip,
-            onPressed: () => controller.skipRest(),
-          ),
+          if (allowSkip)
+            RestingTextLink(
+              key: const Key('measure_skip_rest'),
+              label: l10n.measureRestSkip,
+              onPressed: () => controller.skipRest(),
+            ),
         ],
       ),
     );

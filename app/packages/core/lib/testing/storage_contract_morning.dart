@@ -17,6 +17,10 @@ final List<StorageContractCase> morningContractCases = [
     _order,
   ),
   const StorageContractCase(
+    'Morgenmessung: Schlafstufe nachtragen ändert nur sie, unbekannte Messung',
+    _sleepBand,
+  ),
+  const StorageContractCase(
     'Morgenmessung übersteht das Löschen eines Laufs, Alles löschen leert sie',
     _delete,
   ),
@@ -241,5 +245,34 @@ Future<void> _delete(StorageContractHarness h) async {
   expectEq((await _m(s).list()).length, 0, 'nach Neuöffnen leer');
   // Zähler zurückgesetzt: die erste Messung nach dem Löschen hat wieder Id 1.
   expectEq(await _m(s).add(_measurement(0)), 1, 'Id-Zähler zurückgesetzt');
+  await s.close();
+}
+
+Future<void> _sleepBand(StorageContractHarness h) async {
+  var s = await h.open();
+  final id = await _m(s).add(_measurement(0, band: null));
+  final other = await _m(s).add(_measurement(10, band: SleepBand.under5));
+  await _m(s).setSleepBand(id, SleepBand.over8);
+  for (var round = 0; round < 2; round++) {
+    final list = await _m(s).list();
+    expectEq(
+      _fields(list[0].value),
+      _fields(_measurement(0, bpm: 52.3, band: SleepBand.over8)),
+      'nur die Schlafstufe ändert sich (Runde $round)',
+    );
+    expectEq(list[1].value.sleepBand, SleepBand.under5, 'andere unberührt');
+    await s.close();
+    s = await h.open();
+  }
+  await _m(s).setSleepBand(id, null);
+  expectTrue(
+    (await _m(s).list()).first.value.sleepBand == null,
+    'Schlafstufe löschen',
+  );
+  await expectFails(
+    () => _m(s).setSleepBand(other + 99, SleepBand.from5to6),
+    StorageFailure.notFound,
+    'unbekannte Messung',
+  );
   await s.close();
 }
