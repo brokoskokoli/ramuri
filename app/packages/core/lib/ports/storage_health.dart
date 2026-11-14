@@ -13,6 +13,21 @@ abstract interface class HealthImportStore {
     List<HealthHeartRateSample> samples,
   );
 
+  /// Einzelwerte einer Art (HRV, Ruhepuls, VO₂max) mit Zeit im Fenster
+  /// [from, to), nach Zeit. Nur zur Anzeige und für Aufbereitungen.
+  Future<List<HealthRecord>> values(
+    HealthDataKind kind,
+    DateTime from,
+    DateTime to,
+  );
+
+  /// Trainingseinheiten, die das Fenster [from, to) berühren, nach Beginn
+  /// (ohne Pulswerte, siehe [exerciseHeartRate]).
+  Future<List<HealthRecord>> exercises(DateTime from, DateTime to);
+
+  /// Pulswerte der Einheit [exerciseHcId] nach Zeit (leer, wenn unbekannt).
+  Future<List<HealthHeartRateSample>> exerciseHeartRate(String exerciseHcId);
+
   /// Anzahl gespeicherter Sätze der Art.
   Future<int> count(HealthDataKind kind);
 

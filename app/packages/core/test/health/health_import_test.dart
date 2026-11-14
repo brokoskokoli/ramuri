@@ -291,12 +291,12 @@ void main() {
     ];
     await svc.run(HealthImportTrigger.manual);
     expect(port.reads, [HealthDataKind.exercise]);
-    expect(store.exerciseHeartRate('e1'), isEmpty);
+    expect((await store.exerciseHeartRate('e1')), isEmpty);
 
     await consents.grant(healthSourceKey(HealthDataKind.heartRate));
     final r = await svc.run(HealthImportTrigger.manual);
     expect(r.kinds[HealthDataKind.heartRate]!.stored, 1);
-    expect(store.exerciseHeartRate('e1'), hasLength(1));
+    expect((await store.exerciseHeartRate('e1')), hasLength(1));
   });
 
   test('Sperre gilt über einen Neustart; Jetzt abrufen umgeht sie', () async {

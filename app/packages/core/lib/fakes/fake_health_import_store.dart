@@ -13,8 +13,33 @@ class FakeHealthImportStore implements HealthImportStore {
   List<HealthRecord> records(HealthDataKind kind) =>
       List.unmodifiable((_byKind[kind] ?? const {}).values);
 
-  List<HealthHeartRateSample> exerciseHeartRate(String hcId) =>
+  @override
+  Future<List<HealthHeartRateSample>> exerciseHeartRate(String hcId) async =>
       List.unmodifiable(_heartRates[hcId] ?? const []);
+
+  @override
+  Future<List<HealthRecord>> values(
+    HealthDataKind kind,
+    DateTime from,
+    DateTime to,
+  ) async {
+    final out = [
+      for (final r in records(kind))
+        if (!r.start.isBefore(from) && r.start.isBefore(to)) r,
+    ];
+    out.sort((a, b) => a.start.compareTo(b.start));
+    return out;
+  }
+
+  @override
+  Future<List<HealthRecord>> exercises(DateTime from, DateTime to) async {
+    final out = [
+      for (final r in records(HealthDataKind.exercise))
+        if (r.start.isBefore(to) && r.end.isAfter(from)) r,
+    ];
+    out.sort((a, b) => a.start.compareTo(b.start));
+    return out;
+  }
 
   void _put(List<HealthRecord> records) {
     upsertCalls++;

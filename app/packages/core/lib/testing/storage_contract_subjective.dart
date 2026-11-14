@@ -151,6 +151,28 @@ Future<void> _manualTrainings(StorageContractHarness h) async {
   final got = (await s.manualTrainings.get(c.id))!.training;
   expectTrue(got == _training(5, rpe: 7), 'zurückgelesen gleich');
 
+  // Übernommene Einheit (K62 F2): Health-Connect-ID bleibt erhalten.
+  final h1 = await s.manualTrainings.add(
+    ManualTraining(
+      day: DateTime.utc(2030, 1, 2),
+      kind: ManualTrainingKind.run,
+      duration: const Duration(minutes: 44),
+      rpe: 4,
+      hcId: 'hc-1',
+    ),
+  );
+  expectEq(
+    (await s.manualTrainings.get(h1.id))!.training.hcId,
+    'hc-1',
+    'hcId zurückgelesen',
+  );
+  expectEq(
+    (await s.manualTrainings.get(c.id))!.training.hcId,
+    null,
+    'ohne hcId',
+  );
+  await s.manualTrainings.delete(h1.id);
+
   await s.manualTrainings.update(
     a.id,
     ManualTraining(

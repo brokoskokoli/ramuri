@@ -52,7 +52,7 @@ void main() {
         'debug.app.a',
         'debug.app.b',
       });
-      expect(store.exerciseHeartRate('debug-exercise-0'), isNotEmpty);
+      expect((await store.exerciseHeartRate('debug-exercise-0')), isNotEmpty);
 
       // Aufbereitung: Hauptschlafphase der Quelle mit Phasen, Rückfall der anderen App.
       const p = HealthProcessing();

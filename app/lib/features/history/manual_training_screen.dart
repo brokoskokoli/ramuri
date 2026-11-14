@@ -9,12 +9,30 @@ import '../summary/subjective_section.dart' show SubjectiveChoice, rpeWord;
 /// heute), Art (Lauf / Sonstiges), Dauer in Minuten und RPE (Pflicht). Nichts
 /// ist vorausgewählt außer Datum und Art. Gibt `true` zurück, wenn gespeichert
 /// wurde. Inhalte stehen nie in Meldungen oder Logs.
+/// Vorbelegung des Nachtrags aus einer importierten Einheit (K62 F2): Tag, Art
+/// und Dauer; die Anstrengung (RPE) fragt die App. Der Nachtrag merkt sich
+/// [hcId], damit dieselbe Einheit nicht zweimal übernommen wird.
+class ManualTrainingPrefill {
+  const ManualTrainingPrefill({
+    required this.day,
+    required this.kind,
+    required this.minutes,
+    required this.hcId,
+  });
+
+  final DateTime day;
+  final ManualTrainingKind kind;
+  final int minutes;
+  final String hcId;
+}
+
 class ManualTrainingScreen extends StatefulWidget {
   const ManualTrainingScreen({
     super.key,
     required this.service,
     required this.today,
     this.existing,
+    this.prefill,
   });
 
   final SubjectiveService service;
@@ -22,6 +40,9 @@ class ManualTrainingScreen extends StatefulWidget {
   /// Heutiger Ortstag (`JJJJ-MM-TT`); spätere Tage sind nicht wählbar.
   final String today;
   final StoredManualTraining? existing;
+
+  /// Übernahme einer importierten Einheit; ohne [existing].
+  final ManualTrainingPrefill? prefill;
 
   @override
   State<ManualTrainingScreen> createState() => _ManualTrainingScreenState();
@@ -42,10 +63,12 @@ class _ManualTrainingScreenState extends State<ManualTrainingScreen> {
   void initState() {
     super.initState();
     final t = widget.existing?.training;
-    _day = t?.day ?? _todayDate;
-    _kind = t?.kind ?? ManualTrainingKind.run;
+    final p = t == null ? widget.prefill : null;
+    _day = t?.day ?? p?.day ?? _todayDate;
+    _kind = t?.kind ?? p?.kind ?? ManualTrainingKind.run;
     _rpe = t?.rpe;
     if (t != null) _minutes.text = '${t.duration.inMinutes}';
+    if (p != null) _minutes.text = '${p.minutes}';
   }
 
   @override
@@ -86,6 +109,8 @@ class _ManualTrainingScreenState extends State<ManualTrainingScreen> {
         kind: _kind,
         duration: Duration(minutes: minutes),
         rpe: rpe,
+        // Beim Ändern bleibt die Herkunft; neu nur aus der Übernahme.
+        hcId: widget.existing?.training.hcId ?? widget.prefill?.hcId,
       );
       final existing = widget.existing;
       if (existing == null) {

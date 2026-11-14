@@ -222,6 +222,7 @@ class DriftHealthStore implements HealthImportStore {
       });
 
   /// Einzelwerte einer Art mit Zeit im Fenster [from, to), nach Zeit.
+  @override
   Future<List<HealthRecord>> values(
     HealthDataKind kind,
     DateTime from,
@@ -262,6 +263,7 @@ class DriftHealthStore implements HealthImportStore {
 
   /// Trainingseinheiten, die das Fenster [from, to) berühren, nach Beginn
   /// (ohne Pulswerte, siehe [exerciseHeartRate]).
+  @override
   Future<List<HealthRecord>> exercises(DateTime from, DateTime to) =>
       guarded(() async {
         final rows =
@@ -291,6 +293,7 @@ class DriftHealthStore implements HealthImportStore {
       });
 
   /// Pulswerte der Einheit [exerciseHcId] nach Zeit (leer, wenn unbekannt).
+  @override
   Future<List<HealthHeartRateSample>> exerciseHeartRate(String exerciseHcId) =>
       guarded(() async {
         final id = await _exerciseId(exerciseHcId);

@@ -83,6 +83,7 @@ export 'src/health/health_parameters.dart';
 export 'src/health/health_processing.dart';
 export 'src/health/health_types.dart';
 export 'src/health/health_day_values.dart';
+export 'src/health/health_display.dart';
 export 'src/fitness/algorithm_registry.dart';
 export 'src/fitness/algorithm_variant.dart';
 export 'src/fitness/banister_trimp.dart';
