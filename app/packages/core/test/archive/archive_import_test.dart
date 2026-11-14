@@ -474,12 +474,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 11: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 12: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 12);
+        final lines = valid()..[0] = _manifest(schema: 13);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":12,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":13,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -1346,8 +1346,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 11 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 12, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 12 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 13, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -1369,6 +1369,16 @@ void main() {
       expect(archiveSectionsFor(10).first.columns.last.name, 'mode');
       expect(archiveSectionsFor(11), hasLength(26));
       expect(archiveSectionsFor(11).last.name, 'treadmill_settings');
+      // Morgenmessung (WP33): Abschnitte 27 und 28 erst ab Schema 12.
+      expect(archiveSectionsFor(12), hasLength(28));
+      expect(archiveSectionsFor(12).map((s) => s.name).skip(26), [
+        'morning_measurements',
+        'morning_rr_packets',
+      ]);
+      expect(
+        archiveSectionsFor(11).map((s) => s.name),
+        isNot(contains('morning_measurements')),
+      );
       // `active_warning` (21) ist bis Schema 10 reserviert, ab 11 mit Spalten.
       expect(
         archiveSectionsFor(10)
@@ -1840,6 +1850,96 @@ void main() {
       },
     );
 
+    test('Schema 12: Morgenmessungen (27) und Gurt-RR (28) kommen an; BLOB nur als Hex', () async {
+      Map<String, Object?> mm(int id, {Object? ibi = '00608944'}) => {
+        'id': id,
+        'measured_at_us': 5000 + id,
+        'utc_offset_s': -12600,
+        'posture': 'lying',
+        'device_manufacturer': 'Testhersteller',
+        'device_model': 'Testmodell',
+        'method': 'camera-ppg',
+        'method_version': 1,
+        'quality': 'good',
+        'resting_hr_bpm': 52.3,
+        'rmssd_ms': null,
+        'timing_noise_ms': null,
+        'sleep_band': null,
+        'before_validation': 1,
+        'outside_window': 0,
+        'camera_ibi': ibi,
+      };
+      Map<String, Object?> rr(int id, {Object? hex = '0004ffff'}) => {
+        'id': id,
+        'measurement_id': 1,
+        'time_us': 5000 + id,
+        'source': 'ble',
+        'rr': hex,
+      };
+      await c.run(
+        await file(
+          v2(
+            schema: 12,
+            extra: {
+              'morning_measurements': [mm(1), mm(2, ibi: '')],
+              'morning_rr_packets': [rr(1), rr(2)],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      final m = c.sink.rows['morning_measurements']!;
+      expect(m, hasLength(2));
+      expect(m[0]['camera_ibi'], [0x00, 0x60, 0x89, 0x44]);
+      expect(m[1]['camera_ibi'], isEmpty);
+      expect(c.sink.rows['morning_rr_packets'], hasLength(2));
+      // Schema 11 hat die Abschnitte nicht (leer), ein Abschnitt darin ist beschädigt.
+      c = _Case(dir);
+      await c.run(await file(v2(schema: 11)));
+      expect(c.sink.rows['morning_measurements'] ?? const [], isEmpty);
+      expect(c.sink.rows['morning_rr_packets'] ?? const [], isEmpty);
+      c = _Case(dir);
+      final l = v2(schema: 11);
+      l.insert(l.length - 1, _section('morning_measurements'));
+      await rejectsV2(l);
+      // BLOB: Großbuchstaben, ungerade Länge, Nicht-Text, null und falscher Typ der Spalten.
+      for (final bad in <Map<String, Object?>>[
+        mm(1, ibi: '0060894G'),
+        mm(1, ibi: 'AB'),
+        mm(1, ibi: '006'),
+        mm(1, ibi: null),
+        mm(1, ibi: [0, 96]),
+        mm(1)..['resting_hr_bpm'] = 'schnell',
+        mm(1)..['before_validation'] = 'ja',
+        mm(1)..remove('device_model'),
+        mm(1)..['extra'] = 1,
+      ]) {
+        await rejectsV2(
+          v2(
+            schema: 12,
+            extra: {
+              'morning_measurements': [bad],
+            },
+          ),
+        );
+      }
+      for (final bad in <Map<String, Object?>>[
+        rr(1, hex: 'ABCD'),
+        rr(1, hex: '000'),
+        rr(1, hex: null),
+        rr(1)..['measurement_id'] = 'x',
+      ]) {
+        await rejectsV2(
+          v2(
+            schema: 12,
+            extra: {
+              'morning_rr_packets': [bad],
+            },
+          ),
+        );
+      }
+    });
+
     test('mode: Schema 9 mit mode oder Schema 10 ohne mode sowie falscher Typ in treadmill_settings: beschädigt', () async {
       await rejectsV2(
         v2(
@@ -2050,9 +2150,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 12: neueres Archiv', () async {
+    test('Schema 13: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":12,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":13,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });

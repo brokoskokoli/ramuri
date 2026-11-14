@@ -14,6 +14,28 @@ import 'support.dart';
 const String markerB = 'ANDERE-MARKE-0815';
 const String markerDay = 'TAGESWERT-MARKE-0042';
 const String markerAll = 'PROFIL-GERAET-MARKE-0007';
+const String markerMorning = 'MORGEN-GERAET-MARKE-0099';
+
+/// Synthetische Morgenmessung (WP33) mit Gurt-RR; Hersteller trägt die Marke.
+Future<int> addMorning(EncryptedStorageSession s) => s.morning.add(
+  MorningMeasurement(
+    measuredAt: at(0),
+    utcOffset: const Duration(hours: 1),
+    posture: RestingPosture.lying,
+    deviceManufacturer: markerMorning,
+    deviceModel: 'Testmodell',
+    method: ppgMethod,
+    methodVersion: ppgMethodVersion,
+    quality: PpgQuality.good,
+    restingHrBpm: 52.3,
+    cameraIntervalsMs: const [1100.5, 1180.25],
+    beforeValidation: true,
+    outsideWindow: false,
+  ),
+  beltPackets: [
+    RrPacket(time: at(1), source: 'strap', intervals: const [1000, 1010]),
+  ],
+);
 
 final t0u = DateTime.utc(2030, 1, 1, 12);
 DateTime at(int s) => t0u.add(Duration(seconds: s));
@@ -154,12 +176,14 @@ void main() {
       ).write(s.settings, at: at(0));
       await s.devices.upsert('dev', displayName: markerAll, at: at(0));
       await s.consents.set(markerAll, ConsentState.granted, at: at(0));
+      await addMorning(s);
       final f = Files(path);
       for (final m in [
         marker,
         markerB,
         markerDay,
         markerAll,
+        markerMorning,
         SettingKeys.restingHrMeasuredAt,
       ]) {
         expect(f.has(m), isTrue, reason: 'Positivkontrolle $m');
@@ -171,10 +195,12 @@ void main() {
         markerB,
         markerDay,
         markerAll,
+        markerMorning,
         SettingKeys.restingHrMeasuredAt,
       ]) {
         expect(f.has(m), isFalse, reason: m);
       }
+      expect(await s.morning.list(), isEmpty);
       expect(await RestingHrOrigin.read(s.settings), isNull);
       expect(await s.settings.all(), isEmpty);
       await s.close();
@@ -230,6 +256,24 @@ void main() {
     await s.close();
   });
 
+  test('Morgenmessung: deleteRun lässt sie samt Gurt-RR stehen, deleteAll leert beide Tabellen', () async {
+    final (s, a, _) = await setup();
+    final id = await addMorning(s);
+    Future<int> total(String t) async =>
+        (await s.database.customSelect('SELECT COUNT(*) AS n FROM $t').get())
+                .single
+                .data['n']!
+            as int;
+    await s.deleteRun(a);
+    expect(await total('morning_measurements'), 1);
+    expect(await total('morning_rr_packets'), 1);
+    expect((await s.morning.beltPackets(id)).length, 1);
+    await s.deleteAll();
+    expect(await total('morning_measurements'), 0);
+    expect(await total('morning_rr_packets'), 0);
+    await s.close();
+  });
+
   test('Alles löschen entfernt die Karteneinwilligung', () async {
     final (s, _, _) = await setup();
     await s.consents.set(mapProviderSourceKey, ConsentState.granted, at: at(0));
@@ -263,6 +307,9 @@ void main() {
     );
     await s.devices.upsert('dev', displayName: 'x', at: at(0));
     await s.consents.set('c', ConsentState.granted, at: at(0));
+    // Morgenmessung mit Gurt-RR (Schema 12): keine Kaskade vom Lauf, nur die
+    // Löschschleife erreicht beide Tabellen.
+    await addMorning(s);
     await db.customStatement("INSERT INTO storage_meta VALUES ('k', 'v')");
     // Leistungsprognose (Schema 5): eine Referenz ohne Lauf (hängt an keiner
     // Kaskade, nur die Löschschleife erreicht sie) und eine mit Lauf.
@@ -311,6 +358,15 @@ void main() {
       if (n > 0) filled++;
     }
     expect(filled, greaterThanOrEqualTo(15));
+    for (final t in ['morning_measurements', 'morning_rr_packets']) {
+      expect(tables, contains(t));
+      expect(
+        (await db.customSelect('SELECT count(*) c FROM "$t"').getSingle())
+            .read<int>('c'),
+        greaterThan(0),
+        reason: 'Positivkontrolle $t',
+      );
+    }
 
     await s.deleteAll();
 

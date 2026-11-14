@@ -268,6 +268,73 @@ void main() {
     expect(lines.last['rows']['plan_units'], 4);
   });
 
+  test('archive_v2_s12: Format 2, Schema 12, morning_measurements und morning_rr_packets (Abschnitte 27 und 28)', () async {
+    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s12');
+    final plain = await _collect(
+      createArchiveCipher().decrypt(
+        v['password'] as String,
+        Stream.value(_read(v['file'] as String)),
+      ),
+    );
+    expect(_read(v['file'] as String)[9], 2);
+    final text = utf8.decode(gzip.decode(plain));
+    expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+    final lines = [
+      for (final l in const LineSplitter().convert(text))
+        jsonDecode(l) as Map<String, dynamic>,
+    ];
+    expect(lines.first['schema_version'], 12);
+    final sections = [
+      for (final l in lines)
+        if (l['type'] == 'section') l['name'],
+    ];
+    expect(sections.length, 28);
+    expect(sections.sublist(26), [
+      'morning_measurements',
+      'morning_rr_packets',
+    ]);
+    Iterable<Map> rowsOf(String name) sync* {
+      String? cur;
+      for (final l in lines) {
+        if (l['type'] == 'section') cur = l['name'] as String;
+        if (l['type'] == 'row' && cur == name) yield l['data'] as Map;
+      }
+    }
+
+    final m = rowsOf('morning_measurements').toList();
+    expect(m.length, 2);
+    expect(m.first.keys.toList(), [
+      'id',
+      'measured_at_us',
+      'utc_offset_s',
+      'posture',
+      'device_manufacturer',
+      'device_model',
+      'method',
+      'method_version',
+      'quality',
+      'resting_hr_bpm',
+      'rmssd_ms',
+      'timing_noise_ms',
+      'sleep_band',
+      'before_validation',
+      'outside_window',
+      'camera_ibi',
+    ]);
+    expect(m.map((r) => r['posture']), ['lying', 'sitting']);
+    expect(m.map((r) => r['rmssd_ms']), [41.5, null]);
+    expect(m.map((r) => r['utc_offset_s']), [3600, -12600]);
+    expect(m.map((r) => r['before_validation']), [1, 0]);
+    // float32 LE: 1100.5, 1180.25, 1150.0 und leer.
+    expect(m.map((r) => r['camera_ibi']), ['009089440088934400c08f44', '']);
+    final rr = rowsOf('morning_rr_packets').toList();
+    expect(rr.map((r) => r['rr']), ['00040000ffff0002', 'e803']);
+    expect(rr.every((r) => r['measurement_id'] == 1), isTrue);
+    expect(lines.last['rows'], v['row_counts']);
+    expect(lines.last['rows']['morning_measurements'], 2);
+    expect(lines.last['rows']['morning_rr_packets'], 2);
+  });
+
   test('archive_v2_s11: Format 2, Schema 11, active_warning mit einer Zeile (Abschnitt 21)', () async {
     final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s11');
     final plain = await _collect(

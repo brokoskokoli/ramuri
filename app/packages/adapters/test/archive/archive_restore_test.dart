@@ -647,7 +647,7 @@ void main() {
     expect(easy.pinned, isTrue);
   });
 
-  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 10; 11 ist
+  // Ältere Archive bleiben lesbar (Format 2 mit Schema 5 bis 11; 12 ist
   // das aktuelle). Format 1
   // mit Schema 4 deckt archive_small ab. Die Abschnitte, die ein Schema nicht
   // kennt, sind danach leer.
@@ -659,6 +659,7 @@ void main() {
     ('archive_v2_s9', 9),
     ('archive_v2_s10', 10),
     ('archive_v2_s11', 11),
+    ('archive_v2_s12', 12),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -801,6 +802,48 @@ void main() {
         expect(warning.reportedOn, DateTime.utc(2026, 11, 18));
       } else {
         expect(warning, isNull);
+      }
+      // Morgenmessungen (WP33): Abschnitte 27 und 28 ab Schema 12, Werte exakt,
+      // BLOB als Bytes; ältere Archive lassen die Tabellen leer.
+      final morning = await (session as MorningStorage).morning.list();
+      expect(got['morning_measurements'], hasLength(schema >= 12 ? 2 : 0));
+      expect(got['morning_rr_packets'], hasLength(schema >= 12 ? 2 : 0));
+      if (schema >= 12) {
+        final a = morning[0].value;
+        final b = morning[1].value;
+        expect(a.posture, RestingPosture.lying);
+        expect(a.quality, PpgQuality.good);
+        expect(a.restingHrBpm, 52.3);
+        expect(a.rmssdMs, 41.5);
+        expect(a.timingNoiseMs, 12.25);
+        expect(a.sleepBand, SleepBand.from6to7);
+        expect(a.beforeValidation, isTrue);
+        expect(a.outsideWindow, isFalse);
+        expect(a.utcOffset, const Duration(hours: 1));
+        expect(a.cameraIntervalsMs, [1100.5, 1180.25, 1150.0]);
+        expect(b.posture, RestingPosture.sitting);
+        expect(b.quality, PpgQuality.limited);
+        expect(b.rmssdMs, isNull);
+        expect(b.timingNoiseMs, isNull);
+        expect(b.sleepBand, isNull);
+        expect(b.beforeValidation, isFalse);
+        expect(b.outsideWindow, isTrue);
+        expect(b.utcOffset, const Duration(hours: -3, minutes: -30));
+        expect(b.cameraIntervalsMs, isEmpty);
+        final rr = await (session as MorningStorage).morning.beltPackets(
+          morning[0].id,
+        );
+        expect(rr.map((p) => p.value.intervals), [
+          [1024, 0, 65535, 512],
+          [1000],
+        ]);
+        expect(rr.map((p) => p.value.source), ['ble', 'ble2']);
+        expect(
+          await (session as MorningStorage).morning.beltPackets(morning[1].id),
+          isEmpty,
+        );
+      } else {
+        expect(morning, isEmpty);
       }
     });
   }

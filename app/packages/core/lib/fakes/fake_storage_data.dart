@@ -5,6 +5,7 @@ import '../ports/storage_derived.dart';
 import '../ports/storage_devices.dart';
 import '../ports/storage_plan.dart';
 import '../ports/storage_prediction.dart';
+import '../ports/storage_morning.dart';
 import '../ports/storage_warning.dart';
 import '../src/goals/training_goal.dart';
 import '../src/plan/plan_unit.dart';
@@ -51,6 +52,13 @@ class FakeStorageData {
   /// Aktives Warnsignal (`active_warning`): kein Fremdschlüssel, übersteht
   /// [deleteRun]; nur [deleteAll] löscht es.
   WarningSignal? warning;
+
+  /// Morgenmessungen und ihre Gurt-RR-Pakete (`morning_measurements`,
+  /// `morning_rr_packets`): gehören keinem Lauf, nur [deleteAll] löscht sie.
+  final morning = <int, MorningMeasurement>{};
+  final morningPackets = <int, List<StoredRrPacket>>{};
+  int nextMorningId = 1;
+  int nextMorningPacketId = 1;
 
   /// Plan-Fassungen und -Einheiten nach Kennung (wie `plans`, `plan_units`).
   /// Die Einheit trägt Methode und Version ihrer Fassung erst beim Lesen.
@@ -152,5 +160,9 @@ class FakeStorageData {
     nextPlanUnitId = 1;
     deleteGoal();
     warning = null;
+    morning.clear();
+    morningPackets.clear();
+    nextMorningId = 1;
+    nextMorningPacketId = 1;
   }
 }

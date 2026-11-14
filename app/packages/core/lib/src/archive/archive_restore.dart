@@ -3,6 +3,7 @@ import '../../ports/clock.dart';
 import '../../ports/database_files.dart';
 import '../../ports/storage.dart';
 import '../../ports/storage_goals.dart';
+import '../../ports/storage_morning.dart';
 import '../../ports/storage_prediction.dart';
 import '../../ports/storage_warning.dart';
 import 'archive_errors.dart';
@@ -89,6 +90,11 @@ class ArchiveRestoreService {
     // Ein Warnsignal ist ein eigenes Datum, auch ohne Läufe.
     if (s is WarningStorage &&
         (await (s as WarningStorage).warning.read()) != null) {
+      return false;
+    }
+    // Morgenmessungen sind eigene Daten, auch ohne Läufe.
+    if (s is MorningStorage &&
+        (await (s as MorningStorage).morning.list()).isNotEmpty) {
       return false;
     }
     final settings = await s.settings.all();

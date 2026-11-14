@@ -14391,6 +14391,1295 @@ class ActiveWarningCompanion extends UpdateCompanion<ActiveWarningRow> {
   }
 }
 
+class MorningMeasurements extends Table
+    with TableInfo<MorningMeasurements, MorningMeasurementRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  MorningMeasurements(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  static const VerificationMeta _measuredAtUsMeta = const VerificationMeta(
+    'measuredAtUs',
+  );
+  late final GeneratedColumn<int> measuredAtUs = GeneratedColumn<int>(
+    'measured_at_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _utcOffsetSMeta = const VerificationMeta(
+    'utcOffsetS',
+  );
+  late final GeneratedColumn<int> utcOffsetS = GeneratedColumn<int>(
+    'utc_offset_s',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (utc_offset_s BETWEEN -64800 AND 64800)',
+  );
+  static const VerificationMeta _postureMeta = const VerificationMeta(
+    'posture',
+  );
+  late final GeneratedColumn<String> posture = GeneratedColumn<String>(
+    'posture',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (posture IN (\'lying\', \'sitting\'))',
+  );
+  static const VerificationMeta _deviceManufacturerMeta =
+      const VerificationMeta('deviceManufacturer');
+  late final GeneratedColumn<String> deviceManufacturer =
+      GeneratedColumn<String>(
+        'device_manufacturer',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+        $customConstraints: 'NOT NULL',
+      );
+  static const VerificationMeta _deviceModelMeta = const VerificationMeta(
+    'deviceModel',
+  );
+  late final GeneratedColumn<String> deviceModel = GeneratedColumn<String>(
+    'device_model',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _methodMeta = const VerificationMeta('method');
+  late final GeneratedColumn<String> method = GeneratedColumn<String>(
+    'method',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (length(method) > 0)',
+  );
+  static const VerificationMeta _methodVersionMeta = const VerificationMeta(
+    'methodVersion',
+  );
+  late final GeneratedColumn<int> methodVersion = GeneratedColumn<int>(
+    'method_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (method_version >= 1)',
+  );
+  static const VerificationMeta _qualityMeta = const VerificationMeta(
+    'quality',
+  );
+  late final GeneratedColumn<String> quality = GeneratedColumn<String>(
+    'quality',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (quality IN (\'good\', \'limited\'))',
+  );
+  static const VerificationMeta _restingHrBpmMeta = const VerificationMeta(
+    'restingHrBpm',
+  );
+  late final GeneratedColumn<double> restingHrBpm = GeneratedColumn<double>(
+    'resting_hr_bpm',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (resting_hr_bpm > 0)',
+  );
+  static const VerificationMeta _rmssdMsMeta = const VerificationMeta(
+    'rmssdMs',
+  );
+  late final GeneratedColumn<double> rmssdMs = GeneratedColumn<double>(
+    'rmssd_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (rmssd_ms >= 0)',
+  );
+  static const VerificationMeta _timingNoiseMsMeta = const VerificationMeta(
+    'timingNoiseMs',
+  );
+  late final GeneratedColumn<double> timingNoiseMs = GeneratedColumn<double>(
+    'timing_noise_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (timing_noise_ms >= 0)',
+  );
+  static const VerificationMeta _sleepBandMeta = const VerificationMeta(
+    'sleepBand',
+  );
+  late final GeneratedColumn<String> sleepBand = GeneratedColumn<String>(
+    'sleep_band',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (sleep_band IN (\'under5\', \'from5to6\', \'from6to7\', \'from7to8\', \'over8\'))',
+  );
+  static const VerificationMeta _beforeValidationMeta = const VerificationMeta(
+    'beforeValidation',
+  );
+  late final GeneratedColumn<bool> beforeValidation = GeneratedColumn<bool>(
+    'before_validation',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (before_validation IN (0, 1))',
+  );
+  static const VerificationMeta _outsideWindowMeta = const VerificationMeta(
+    'outsideWindow',
+  );
+  late final GeneratedColumn<bool> outsideWindow = GeneratedColumn<bool>(
+    'outside_window',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (outside_window IN (0, 1))',
+  );
+  static const VerificationMeta _cameraIbiMeta = const VerificationMeta(
+    'cameraIbi',
+  );
+  late final GeneratedColumn<Uint8List> cameraIbi = GeneratedColumn<Uint8List>(
+    'camera_ibi',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (length(camera_ibi) % 4 = 0)',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    measuredAtUs,
+    utcOffsetS,
+    posture,
+    deviceManufacturer,
+    deviceModel,
+    method,
+    methodVersion,
+    quality,
+    restingHrBpm,
+    rmssdMs,
+    timingNoiseMs,
+    sleepBand,
+    beforeValidation,
+    outsideWindow,
+    cameraIbi,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'morning_measurements';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MorningMeasurementRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('measured_at_us')) {
+      context.handle(
+        _measuredAtUsMeta,
+        measuredAtUs.isAcceptableOrUnknown(
+          data['measured_at_us']!,
+          _measuredAtUsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_measuredAtUsMeta);
+    }
+    if (data.containsKey('utc_offset_s')) {
+      context.handle(
+        _utcOffsetSMeta,
+        utcOffsetS.isAcceptableOrUnknown(
+          data['utc_offset_s']!,
+          _utcOffsetSMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_utcOffsetSMeta);
+    }
+    if (data.containsKey('posture')) {
+      context.handle(
+        _postureMeta,
+        posture.isAcceptableOrUnknown(data['posture']!, _postureMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_postureMeta);
+    }
+    if (data.containsKey('device_manufacturer')) {
+      context.handle(
+        _deviceManufacturerMeta,
+        deviceManufacturer.isAcceptableOrUnknown(
+          data['device_manufacturer']!,
+          _deviceManufacturerMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_deviceManufacturerMeta);
+    }
+    if (data.containsKey('device_model')) {
+      context.handle(
+        _deviceModelMeta,
+        deviceModel.isAcceptableOrUnknown(
+          data['device_model']!,
+          _deviceModelMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_deviceModelMeta);
+    }
+    if (data.containsKey('method')) {
+      context.handle(
+        _methodMeta,
+        method.isAcceptableOrUnknown(data['method']!, _methodMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_methodMeta);
+    }
+    if (data.containsKey('method_version')) {
+      context.handle(
+        _methodVersionMeta,
+        methodVersion.isAcceptableOrUnknown(
+          data['method_version']!,
+          _methodVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_methodVersionMeta);
+    }
+    if (data.containsKey('quality')) {
+      context.handle(
+        _qualityMeta,
+        quality.isAcceptableOrUnknown(data['quality']!, _qualityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_qualityMeta);
+    }
+    if (data.containsKey('resting_hr_bpm')) {
+      context.handle(
+        _restingHrBpmMeta,
+        restingHrBpm.isAcceptableOrUnknown(
+          data['resting_hr_bpm']!,
+          _restingHrBpmMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_restingHrBpmMeta);
+    }
+    if (data.containsKey('rmssd_ms')) {
+      context.handle(
+        _rmssdMsMeta,
+        rmssdMs.isAcceptableOrUnknown(data['rmssd_ms']!, _rmssdMsMeta),
+      );
+    }
+    if (data.containsKey('timing_noise_ms')) {
+      context.handle(
+        _timingNoiseMsMeta,
+        timingNoiseMs.isAcceptableOrUnknown(
+          data['timing_noise_ms']!,
+          _timingNoiseMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sleep_band')) {
+      context.handle(
+        _sleepBandMeta,
+        sleepBand.isAcceptableOrUnknown(data['sleep_band']!, _sleepBandMeta),
+      );
+    }
+    if (data.containsKey('before_validation')) {
+      context.handle(
+        _beforeValidationMeta,
+        beforeValidation.isAcceptableOrUnknown(
+          data['before_validation']!,
+          _beforeValidationMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_beforeValidationMeta);
+    }
+    if (data.containsKey('outside_window')) {
+      context.handle(
+        _outsideWindowMeta,
+        outsideWindow.isAcceptableOrUnknown(
+          data['outside_window']!,
+          _outsideWindowMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_outsideWindowMeta);
+    }
+    if (data.containsKey('camera_ibi')) {
+      context.handle(
+        _cameraIbiMeta,
+        cameraIbi.isAcceptableOrUnknown(data['camera_ibi']!, _cameraIbiMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cameraIbiMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MorningMeasurementRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MorningMeasurementRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      measuredAtUs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}measured_at_us'],
+      )!,
+      utcOffsetS: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}utc_offset_s'],
+      )!,
+      posture: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}posture'],
+      )!,
+      deviceManufacturer: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}device_manufacturer'],
+      )!,
+      deviceModel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}device_model'],
+      )!,
+      method: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}method'],
+      )!,
+      methodVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}method_version'],
+      )!,
+      quality: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}quality'],
+      )!,
+      restingHrBpm: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}resting_hr_bpm'],
+      )!,
+      rmssdMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rmssd_ms'],
+      ),
+      timingNoiseMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}timing_noise_ms'],
+      ),
+      sleepBand: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sleep_band'],
+      ),
+      beforeValidation: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}before_validation'],
+      )!,
+      outsideWindow: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}outside_window'],
+      )!,
+      cameraIbi: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}camera_ibi'],
+      )!,
+    );
+  }
+
+  @override
+  MorningMeasurements createAlias(String alias) {
+    return MorningMeasurements(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class MorningMeasurementRow extends DataClass
+    implements Insertable<MorningMeasurementRow> {
+  final int id;
+  final int measuredAtUs;
+  final int utcOffsetS;
+  final String posture;
+  final String deviceManufacturer;
+  final String deviceModel;
+  final String method;
+  final int methodVersion;
+  final String quality;
+  final double restingHrBpm;
+  final double? rmssdMs;
+  final double? timingNoiseMs;
+  final String? sleepBand;
+  final bool beforeValidation;
+  final bool outsideWindow;
+  final Uint8List cameraIbi;
+  const MorningMeasurementRow({
+    required this.id,
+    required this.measuredAtUs,
+    required this.utcOffsetS,
+    required this.posture,
+    required this.deviceManufacturer,
+    required this.deviceModel,
+    required this.method,
+    required this.methodVersion,
+    required this.quality,
+    required this.restingHrBpm,
+    this.rmssdMs,
+    this.timingNoiseMs,
+    this.sleepBand,
+    required this.beforeValidation,
+    required this.outsideWindow,
+    required this.cameraIbi,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['measured_at_us'] = Variable<int>(measuredAtUs);
+    map['utc_offset_s'] = Variable<int>(utcOffsetS);
+    map['posture'] = Variable<String>(posture);
+    map['device_manufacturer'] = Variable<String>(deviceManufacturer);
+    map['device_model'] = Variable<String>(deviceModel);
+    map['method'] = Variable<String>(method);
+    map['method_version'] = Variable<int>(methodVersion);
+    map['quality'] = Variable<String>(quality);
+    map['resting_hr_bpm'] = Variable<double>(restingHrBpm);
+    if (!nullToAbsent || rmssdMs != null) {
+      map['rmssd_ms'] = Variable<double>(rmssdMs);
+    }
+    if (!nullToAbsent || timingNoiseMs != null) {
+      map['timing_noise_ms'] = Variable<double>(timingNoiseMs);
+    }
+    if (!nullToAbsent || sleepBand != null) {
+      map['sleep_band'] = Variable<String>(sleepBand);
+    }
+    map['before_validation'] = Variable<bool>(beforeValidation);
+    map['outside_window'] = Variable<bool>(outsideWindow);
+    map['camera_ibi'] = Variable<Uint8List>(cameraIbi);
+    return map;
+  }
+
+  MorningMeasurementsCompanion toCompanion(bool nullToAbsent) {
+    return MorningMeasurementsCompanion(
+      id: Value(id),
+      measuredAtUs: Value(measuredAtUs),
+      utcOffsetS: Value(utcOffsetS),
+      posture: Value(posture),
+      deviceManufacturer: Value(deviceManufacturer),
+      deviceModel: Value(deviceModel),
+      method: Value(method),
+      methodVersion: Value(methodVersion),
+      quality: Value(quality),
+      restingHrBpm: Value(restingHrBpm),
+      rmssdMs: rmssdMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rmssdMs),
+      timingNoiseMs: timingNoiseMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timingNoiseMs),
+      sleepBand: sleepBand == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sleepBand),
+      beforeValidation: Value(beforeValidation),
+      outsideWindow: Value(outsideWindow),
+      cameraIbi: Value(cameraIbi),
+    );
+  }
+
+  factory MorningMeasurementRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MorningMeasurementRow(
+      id: serializer.fromJson<int>(json['id']),
+      measuredAtUs: serializer.fromJson<int>(json['measured_at_us']),
+      utcOffsetS: serializer.fromJson<int>(json['utc_offset_s']),
+      posture: serializer.fromJson<String>(json['posture']),
+      deviceManufacturer: serializer.fromJson<String>(
+        json['device_manufacturer'],
+      ),
+      deviceModel: serializer.fromJson<String>(json['device_model']),
+      method: serializer.fromJson<String>(json['method']),
+      methodVersion: serializer.fromJson<int>(json['method_version']),
+      quality: serializer.fromJson<String>(json['quality']),
+      restingHrBpm: serializer.fromJson<double>(json['resting_hr_bpm']),
+      rmssdMs: serializer.fromJson<double?>(json['rmssd_ms']),
+      timingNoiseMs: serializer.fromJson<double?>(json['timing_noise_ms']),
+      sleepBand: serializer.fromJson<String?>(json['sleep_band']),
+      beforeValidation: serializer.fromJson<bool>(json['before_validation']),
+      outsideWindow: serializer.fromJson<bool>(json['outside_window']),
+      cameraIbi: serializer.fromJson<Uint8List>(json['camera_ibi']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'measured_at_us': serializer.toJson<int>(measuredAtUs),
+      'utc_offset_s': serializer.toJson<int>(utcOffsetS),
+      'posture': serializer.toJson<String>(posture),
+      'device_manufacturer': serializer.toJson<String>(deviceManufacturer),
+      'device_model': serializer.toJson<String>(deviceModel),
+      'method': serializer.toJson<String>(method),
+      'method_version': serializer.toJson<int>(methodVersion),
+      'quality': serializer.toJson<String>(quality),
+      'resting_hr_bpm': serializer.toJson<double>(restingHrBpm),
+      'rmssd_ms': serializer.toJson<double?>(rmssdMs),
+      'timing_noise_ms': serializer.toJson<double?>(timingNoiseMs),
+      'sleep_band': serializer.toJson<String?>(sleepBand),
+      'before_validation': serializer.toJson<bool>(beforeValidation),
+      'outside_window': serializer.toJson<bool>(outsideWindow),
+      'camera_ibi': serializer.toJson<Uint8List>(cameraIbi),
+    };
+  }
+
+  MorningMeasurementRow copyWith({
+    int? id,
+    int? measuredAtUs,
+    int? utcOffsetS,
+    String? posture,
+    String? deviceManufacturer,
+    String? deviceModel,
+    String? method,
+    int? methodVersion,
+    String? quality,
+    double? restingHrBpm,
+    Value<double?> rmssdMs = const Value.absent(),
+    Value<double?> timingNoiseMs = const Value.absent(),
+    Value<String?> sleepBand = const Value.absent(),
+    bool? beforeValidation,
+    bool? outsideWindow,
+    Uint8List? cameraIbi,
+  }) => MorningMeasurementRow(
+    id: id ?? this.id,
+    measuredAtUs: measuredAtUs ?? this.measuredAtUs,
+    utcOffsetS: utcOffsetS ?? this.utcOffsetS,
+    posture: posture ?? this.posture,
+    deviceManufacturer: deviceManufacturer ?? this.deviceManufacturer,
+    deviceModel: deviceModel ?? this.deviceModel,
+    method: method ?? this.method,
+    methodVersion: methodVersion ?? this.methodVersion,
+    quality: quality ?? this.quality,
+    restingHrBpm: restingHrBpm ?? this.restingHrBpm,
+    rmssdMs: rmssdMs.present ? rmssdMs.value : this.rmssdMs,
+    timingNoiseMs: timingNoiseMs.present
+        ? timingNoiseMs.value
+        : this.timingNoiseMs,
+    sleepBand: sleepBand.present ? sleepBand.value : this.sleepBand,
+    beforeValidation: beforeValidation ?? this.beforeValidation,
+    outsideWindow: outsideWindow ?? this.outsideWindow,
+    cameraIbi: cameraIbi ?? this.cameraIbi,
+  );
+  MorningMeasurementRow copyWithCompanion(MorningMeasurementsCompanion data) {
+    return MorningMeasurementRow(
+      id: data.id.present ? data.id.value : this.id,
+      measuredAtUs: data.measuredAtUs.present
+          ? data.measuredAtUs.value
+          : this.measuredAtUs,
+      utcOffsetS: data.utcOffsetS.present
+          ? data.utcOffsetS.value
+          : this.utcOffsetS,
+      posture: data.posture.present ? data.posture.value : this.posture,
+      deviceManufacturer: data.deviceManufacturer.present
+          ? data.deviceManufacturer.value
+          : this.deviceManufacturer,
+      deviceModel: data.deviceModel.present
+          ? data.deviceModel.value
+          : this.deviceModel,
+      method: data.method.present ? data.method.value : this.method,
+      methodVersion: data.methodVersion.present
+          ? data.methodVersion.value
+          : this.methodVersion,
+      quality: data.quality.present ? data.quality.value : this.quality,
+      restingHrBpm: data.restingHrBpm.present
+          ? data.restingHrBpm.value
+          : this.restingHrBpm,
+      rmssdMs: data.rmssdMs.present ? data.rmssdMs.value : this.rmssdMs,
+      timingNoiseMs: data.timingNoiseMs.present
+          ? data.timingNoiseMs.value
+          : this.timingNoiseMs,
+      sleepBand: data.sleepBand.present ? data.sleepBand.value : this.sleepBand,
+      beforeValidation: data.beforeValidation.present
+          ? data.beforeValidation.value
+          : this.beforeValidation,
+      outsideWindow: data.outsideWindow.present
+          ? data.outsideWindow.value
+          : this.outsideWindow,
+      cameraIbi: data.cameraIbi.present ? data.cameraIbi.value : this.cameraIbi,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MorningMeasurementRow(')
+          ..write('id: $id, ')
+          ..write('measuredAtUs: $measuredAtUs, ')
+          ..write('utcOffsetS: $utcOffsetS, ')
+          ..write('posture: $posture, ')
+          ..write('deviceManufacturer: $deviceManufacturer, ')
+          ..write('deviceModel: $deviceModel, ')
+          ..write('method: $method, ')
+          ..write('methodVersion: $methodVersion, ')
+          ..write('quality: $quality, ')
+          ..write('restingHrBpm: $restingHrBpm, ')
+          ..write('rmssdMs: $rmssdMs, ')
+          ..write('timingNoiseMs: $timingNoiseMs, ')
+          ..write('sleepBand: $sleepBand, ')
+          ..write('beforeValidation: $beforeValidation, ')
+          ..write('outsideWindow: $outsideWindow, ')
+          ..write('cameraIbi: $cameraIbi')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    measuredAtUs,
+    utcOffsetS,
+    posture,
+    deviceManufacturer,
+    deviceModel,
+    method,
+    methodVersion,
+    quality,
+    restingHrBpm,
+    rmssdMs,
+    timingNoiseMs,
+    sleepBand,
+    beforeValidation,
+    outsideWindow,
+    $driftBlobEquality.hash(cameraIbi),
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MorningMeasurementRow &&
+          other.id == this.id &&
+          other.measuredAtUs == this.measuredAtUs &&
+          other.utcOffsetS == this.utcOffsetS &&
+          other.posture == this.posture &&
+          other.deviceManufacturer == this.deviceManufacturer &&
+          other.deviceModel == this.deviceModel &&
+          other.method == this.method &&
+          other.methodVersion == this.methodVersion &&
+          other.quality == this.quality &&
+          other.restingHrBpm == this.restingHrBpm &&
+          other.rmssdMs == this.rmssdMs &&
+          other.timingNoiseMs == this.timingNoiseMs &&
+          other.sleepBand == this.sleepBand &&
+          other.beforeValidation == this.beforeValidation &&
+          other.outsideWindow == this.outsideWindow &&
+          $driftBlobEquality.equals(other.cameraIbi, this.cameraIbi));
+}
+
+class MorningMeasurementsCompanion
+    extends UpdateCompanion<MorningMeasurementRow> {
+  final Value<int> id;
+  final Value<int> measuredAtUs;
+  final Value<int> utcOffsetS;
+  final Value<String> posture;
+  final Value<String> deviceManufacturer;
+  final Value<String> deviceModel;
+  final Value<String> method;
+  final Value<int> methodVersion;
+  final Value<String> quality;
+  final Value<double> restingHrBpm;
+  final Value<double?> rmssdMs;
+  final Value<double?> timingNoiseMs;
+  final Value<String?> sleepBand;
+  final Value<bool> beforeValidation;
+  final Value<bool> outsideWindow;
+  final Value<Uint8List> cameraIbi;
+  const MorningMeasurementsCompanion({
+    this.id = const Value.absent(),
+    this.measuredAtUs = const Value.absent(),
+    this.utcOffsetS = const Value.absent(),
+    this.posture = const Value.absent(),
+    this.deviceManufacturer = const Value.absent(),
+    this.deviceModel = const Value.absent(),
+    this.method = const Value.absent(),
+    this.methodVersion = const Value.absent(),
+    this.quality = const Value.absent(),
+    this.restingHrBpm = const Value.absent(),
+    this.rmssdMs = const Value.absent(),
+    this.timingNoiseMs = const Value.absent(),
+    this.sleepBand = const Value.absent(),
+    this.beforeValidation = const Value.absent(),
+    this.outsideWindow = const Value.absent(),
+    this.cameraIbi = const Value.absent(),
+  });
+  MorningMeasurementsCompanion.insert({
+    this.id = const Value.absent(),
+    required int measuredAtUs,
+    required int utcOffsetS,
+    required String posture,
+    required String deviceManufacturer,
+    required String deviceModel,
+    required String method,
+    required int methodVersion,
+    required String quality,
+    required double restingHrBpm,
+    this.rmssdMs = const Value.absent(),
+    this.timingNoiseMs = const Value.absent(),
+    this.sleepBand = const Value.absent(),
+    required bool beforeValidation,
+    required bool outsideWindow,
+    required Uint8List cameraIbi,
+  }) : measuredAtUs = Value(measuredAtUs),
+       utcOffsetS = Value(utcOffsetS),
+       posture = Value(posture),
+       deviceManufacturer = Value(deviceManufacturer),
+       deviceModel = Value(deviceModel),
+       method = Value(method),
+       methodVersion = Value(methodVersion),
+       quality = Value(quality),
+       restingHrBpm = Value(restingHrBpm),
+       beforeValidation = Value(beforeValidation),
+       outsideWindow = Value(outsideWindow),
+       cameraIbi = Value(cameraIbi);
+  static Insertable<MorningMeasurementRow> custom({
+    Expression<int>? id,
+    Expression<int>? measuredAtUs,
+    Expression<int>? utcOffsetS,
+    Expression<String>? posture,
+    Expression<String>? deviceManufacturer,
+    Expression<String>? deviceModel,
+    Expression<String>? method,
+    Expression<int>? methodVersion,
+    Expression<String>? quality,
+    Expression<double>? restingHrBpm,
+    Expression<double>? rmssdMs,
+    Expression<double>? timingNoiseMs,
+    Expression<String>? sleepBand,
+    Expression<bool>? beforeValidation,
+    Expression<bool>? outsideWindow,
+    Expression<Uint8List>? cameraIbi,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (measuredAtUs != null) 'measured_at_us': measuredAtUs,
+      if (utcOffsetS != null) 'utc_offset_s': utcOffsetS,
+      if (posture != null) 'posture': posture,
+      if (deviceManufacturer != null) 'device_manufacturer': deviceManufacturer,
+      if (deviceModel != null) 'device_model': deviceModel,
+      if (method != null) 'method': method,
+      if (methodVersion != null) 'method_version': methodVersion,
+      if (quality != null) 'quality': quality,
+      if (restingHrBpm != null) 'resting_hr_bpm': restingHrBpm,
+      if (rmssdMs != null) 'rmssd_ms': rmssdMs,
+      if (timingNoiseMs != null) 'timing_noise_ms': timingNoiseMs,
+      if (sleepBand != null) 'sleep_band': sleepBand,
+      if (beforeValidation != null) 'before_validation': beforeValidation,
+      if (outsideWindow != null) 'outside_window': outsideWindow,
+      if (cameraIbi != null) 'camera_ibi': cameraIbi,
+    });
+  }
+
+  MorningMeasurementsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? measuredAtUs,
+    Value<int>? utcOffsetS,
+    Value<String>? posture,
+    Value<String>? deviceManufacturer,
+    Value<String>? deviceModel,
+    Value<String>? method,
+    Value<int>? methodVersion,
+    Value<String>? quality,
+    Value<double>? restingHrBpm,
+    Value<double?>? rmssdMs,
+    Value<double?>? timingNoiseMs,
+    Value<String?>? sleepBand,
+    Value<bool>? beforeValidation,
+    Value<bool>? outsideWindow,
+    Value<Uint8List>? cameraIbi,
+  }) {
+    return MorningMeasurementsCompanion(
+      id: id ?? this.id,
+      measuredAtUs: measuredAtUs ?? this.measuredAtUs,
+      utcOffsetS: utcOffsetS ?? this.utcOffsetS,
+      posture: posture ?? this.posture,
+      deviceManufacturer: deviceManufacturer ?? this.deviceManufacturer,
+      deviceModel: deviceModel ?? this.deviceModel,
+      method: method ?? this.method,
+      methodVersion: methodVersion ?? this.methodVersion,
+      quality: quality ?? this.quality,
+      restingHrBpm: restingHrBpm ?? this.restingHrBpm,
+      rmssdMs: rmssdMs ?? this.rmssdMs,
+      timingNoiseMs: timingNoiseMs ?? this.timingNoiseMs,
+      sleepBand: sleepBand ?? this.sleepBand,
+      beforeValidation: beforeValidation ?? this.beforeValidation,
+      outsideWindow: outsideWindow ?? this.outsideWindow,
+      cameraIbi: cameraIbi ?? this.cameraIbi,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (measuredAtUs.present) {
+      map['measured_at_us'] = Variable<int>(measuredAtUs.value);
+    }
+    if (utcOffsetS.present) {
+      map['utc_offset_s'] = Variable<int>(utcOffsetS.value);
+    }
+    if (posture.present) {
+      map['posture'] = Variable<String>(posture.value);
+    }
+    if (deviceManufacturer.present) {
+      map['device_manufacturer'] = Variable<String>(deviceManufacturer.value);
+    }
+    if (deviceModel.present) {
+      map['device_model'] = Variable<String>(deviceModel.value);
+    }
+    if (method.present) {
+      map['method'] = Variable<String>(method.value);
+    }
+    if (methodVersion.present) {
+      map['method_version'] = Variable<int>(methodVersion.value);
+    }
+    if (quality.present) {
+      map['quality'] = Variable<String>(quality.value);
+    }
+    if (restingHrBpm.present) {
+      map['resting_hr_bpm'] = Variable<double>(restingHrBpm.value);
+    }
+    if (rmssdMs.present) {
+      map['rmssd_ms'] = Variable<double>(rmssdMs.value);
+    }
+    if (timingNoiseMs.present) {
+      map['timing_noise_ms'] = Variable<double>(timingNoiseMs.value);
+    }
+    if (sleepBand.present) {
+      map['sleep_band'] = Variable<String>(sleepBand.value);
+    }
+    if (beforeValidation.present) {
+      map['before_validation'] = Variable<bool>(beforeValidation.value);
+    }
+    if (outsideWindow.present) {
+      map['outside_window'] = Variable<bool>(outsideWindow.value);
+    }
+    if (cameraIbi.present) {
+      map['camera_ibi'] = Variable<Uint8List>(cameraIbi.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MorningMeasurementsCompanion(')
+          ..write('id: $id, ')
+          ..write('measuredAtUs: $measuredAtUs, ')
+          ..write('utcOffsetS: $utcOffsetS, ')
+          ..write('posture: $posture, ')
+          ..write('deviceManufacturer: $deviceManufacturer, ')
+          ..write('deviceModel: $deviceModel, ')
+          ..write('method: $method, ')
+          ..write('methodVersion: $methodVersion, ')
+          ..write('quality: $quality, ')
+          ..write('restingHrBpm: $restingHrBpm, ')
+          ..write('rmssdMs: $rmssdMs, ')
+          ..write('timingNoiseMs: $timingNoiseMs, ')
+          ..write('sleepBand: $sleepBand, ')
+          ..write('beforeValidation: $beforeValidation, ')
+          ..write('outsideWindow: $outsideWindow, ')
+          ..write('cameraIbi: $cameraIbi')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class MorningRrPackets extends Table
+    with TableInfo<MorningRrPackets, MorningRrPacket> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  MorningRrPackets(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY AUTOINCREMENT',
+  );
+  static const VerificationMeta _measurementIdMeta = const VerificationMeta(
+    'measurementId',
+  );
+  late final GeneratedColumn<int> measurementId = GeneratedColumn<int>(
+    'measurement_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL REFERENCES morning_measurements(id)ON DELETE CASCADE',
+  );
+  static const VerificationMeta _timeUsMeta = const VerificationMeta('timeUs');
+  late final GeneratedColumn<int> timeUs = GeneratedColumn<int>(
+    'time_us',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _rrMeta = const VerificationMeta('rr');
+  late final GeneratedColumn<Uint8List> rr = GeneratedColumn<Uint8List>(
+    'rr',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (length(rr) > 0 AND length(rr) % 2 = 0)',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, measurementId, timeUs, source, rr];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'morning_rr_packets';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MorningRrPacket> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('measurement_id')) {
+      context.handle(
+        _measurementIdMeta,
+        measurementId.isAcceptableOrUnknown(
+          data['measurement_id']!,
+          _measurementIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_measurementIdMeta);
+    }
+    if (data.containsKey('time_us')) {
+      context.handle(
+        _timeUsMeta,
+        timeUs.isAcceptableOrUnknown(data['time_us']!, _timeUsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_timeUsMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('rr')) {
+      context.handle(_rrMeta, rr.isAcceptableOrUnknown(data['rr']!, _rrMeta));
+    } else if (isInserting) {
+      context.missing(_rrMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MorningRrPacket map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MorningRrPacket(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      measurementId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}measurement_id'],
+      )!,
+      timeUs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}time_us'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      rr: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}rr'],
+      )!,
+    );
+  }
+
+  @override
+  MorningRrPackets createAlias(String alias) {
+    return MorningRrPackets(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class MorningRrPacket extends DataClass implements Insertable<MorningRrPacket> {
+  final int id;
+  final int measurementId;
+  final int timeUs;
+  final String source;
+  final Uint8List rr;
+  const MorningRrPacket({
+    required this.id,
+    required this.measurementId,
+    required this.timeUs,
+    required this.source,
+    required this.rr,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['measurement_id'] = Variable<int>(measurementId);
+    map['time_us'] = Variable<int>(timeUs);
+    map['source'] = Variable<String>(source);
+    map['rr'] = Variable<Uint8List>(rr);
+    return map;
+  }
+
+  MorningRrPacketsCompanion toCompanion(bool nullToAbsent) {
+    return MorningRrPacketsCompanion(
+      id: Value(id),
+      measurementId: Value(measurementId),
+      timeUs: Value(timeUs),
+      source: Value(source),
+      rr: Value(rr),
+    );
+  }
+
+  factory MorningRrPacket.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MorningRrPacket(
+      id: serializer.fromJson<int>(json['id']),
+      measurementId: serializer.fromJson<int>(json['measurement_id']),
+      timeUs: serializer.fromJson<int>(json['time_us']),
+      source: serializer.fromJson<String>(json['source']),
+      rr: serializer.fromJson<Uint8List>(json['rr']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'measurement_id': serializer.toJson<int>(measurementId),
+      'time_us': serializer.toJson<int>(timeUs),
+      'source': serializer.toJson<String>(source),
+      'rr': serializer.toJson<Uint8List>(rr),
+    };
+  }
+
+  MorningRrPacket copyWith({
+    int? id,
+    int? measurementId,
+    int? timeUs,
+    String? source,
+    Uint8List? rr,
+  }) => MorningRrPacket(
+    id: id ?? this.id,
+    measurementId: measurementId ?? this.measurementId,
+    timeUs: timeUs ?? this.timeUs,
+    source: source ?? this.source,
+    rr: rr ?? this.rr,
+  );
+  MorningRrPacket copyWithCompanion(MorningRrPacketsCompanion data) {
+    return MorningRrPacket(
+      id: data.id.present ? data.id.value : this.id,
+      measurementId: data.measurementId.present
+          ? data.measurementId.value
+          : this.measurementId,
+      timeUs: data.timeUs.present ? data.timeUs.value : this.timeUs,
+      source: data.source.present ? data.source.value : this.source,
+      rr: data.rr.present ? data.rr.value : this.rr,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MorningRrPacket(')
+          ..write('id: $id, ')
+          ..write('measurementId: $measurementId, ')
+          ..write('timeUs: $timeUs, ')
+          ..write('source: $source, ')
+          ..write('rr: $rr')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    measurementId,
+    timeUs,
+    source,
+    $driftBlobEquality.hash(rr),
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MorningRrPacket &&
+          other.id == this.id &&
+          other.measurementId == this.measurementId &&
+          other.timeUs == this.timeUs &&
+          other.source == this.source &&
+          $driftBlobEquality.equals(other.rr, this.rr));
+}
+
+class MorningRrPacketsCompanion extends UpdateCompanion<MorningRrPacket> {
+  final Value<int> id;
+  final Value<int> measurementId;
+  final Value<int> timeUs;
+  final Value<String> source;
+  final Value<Uint8List> rr;
+  const MorningRrPacketsCompanion({
+    this.id = const Value.absent(),
+    this.measurementId = const Value.absent(),
+    this.timeUs = const Value.absent(),
+    this.source = const Value.absent(),
+    this.rr = const Value.absent(),
+  });
+  MorningRrPacketsCompanion.insert({
+    this.id = const Value.absent(),
+    required int measurementId,
+    required int timeUs,
+    required String source,
+    required Uint8List rr,
+  }) : measurementId = Value(measurementId),
+       timeUs = Value(timeUs),
+       source = Value(source),
+       rr = Value(rr);
+  static Insertable<MorningRrPacket> custom({
+    Expression<int>? id,
+    Expression<int>? measurementId,
+    Expression<int>? timeUs,
+    Expression<String>? source,
+    Expression<Uint8List>? rr,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (measurementId != null) 'measurement_id': measurementId,
+      if (timeUs != null) 'time_us': timeUs,
+      if (source != null) 'source': source,
+      if (rr != null) 'rr': rr,
+    });
+  }
+
+  MorningRrPacketsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? measurementId,
+    Value<int>? timeUs,
+    Value<String>? source,
+    Value<Uint8List>? rr,
+  }) {
+    return MorningRrPacketsCompanion(
+      id: id ?? this.id,
+      measurementId: measurementId ?? this.measurementId,
+      timeUs: timeUs ?? this.timeUs,
+      source: source ?? this.source,
+      rr: rr ?? this.rr,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (measurementId.present) {
+      map['measurement_id'] = Variable<int>(measurementId.value);
+    }
+    if (timeUs.present) {
+      map['time_us'] = Variable<int>(timeUs.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (rr.present) {
+      map['rr'] = Variable<Uint8List>(rr.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MorningRrPacketsCompanion(')
+          ..write('id: $id, ')
+          ..write('measurementId: $measurementId, ')
+          ..write('timeUs: $timeUs, ')
+          ..write('source: $source, ')
+          ..write('rr: $rr')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -14593,6 +15882,18 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'CREATE INDEX plan_units_run ON plan_units (run_id)',
   );
   late final ActiveWarning activeWarning = ActiveWarning(this);
+  late final MorningMeasurements morningMeasurements = MorningMeasurements(
+    this,
+  );
+  late final Index morningMeasurementsTime = Index(
+    'morning_measurements_time',
+    'CREATE INDEX morning_measurements_time ON morning_measurements (measured_at_us)',
+  );
+  late final MorningRrPackets morningRrPackets = MorningRrPackets(this);
+  late final Index morningRrPacketsMeasurement = Index(
+    'morning_rr_packets_measurement',
+    'CREATE INDEX morning_rr_packets_measurement ON morning_rr_packets (measurement_id, time_us)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -14667,6 +15968,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     planUnitsPlan,
     planUnitsRun,
     activeWarning,
+    morningMeasurements,
+    morningMeasurementsTime,
+    morningRrPackets,
+    morningRrPacketsMeasurement,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -14956,6 +16261,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('plan_units', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'morning_measurements',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('morning_rr_packets', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -26223,6 +27535,855 @@ typedef $ActiveWarningProcessedTableManager =
       ActiveWarningRow,
       PrefetchHooks Function()
     >;
+typedef $MorningMeasurementsCreateCompanionBuilder =
+    MorningMeasurementsCompanion Function({
+      Value<int> id,
+      required int measuredAtUs,
+      required int utcOffsetS,
+      required String posture,
+      required String deviceManufacturer,
+      required String deviceModel,
+      required String method,
+      required int methodVersion,
+      required String quality,
+      required double restingHrBpm,
+      Value<double?> rmssdMs,
+      Value<double?> timingNoiseMs,
+      Value<String?> sleepBand,
+      required bool beforeValidation,
+      required bool outsideWindow,
+      required Uint8List cameraIbi,
+    });
+typedef $MorningMeasurementsUpdateCompanionBuilder =
+    MorningMeasurementsCompanion Function({
+      Value<int> id,
+      Value<int> measuredAtUs,
+      Value<int> utcOffsetS,
+      Value<String> posture,
+      Value<String> deviceManufacturer,
+      Value<String> deviceModel,
+      Value<String> method,
+      Value<int> methodVersion,
+      Value<String> quality,
+      Value<double> restingHrBpm,
+      Value<double?> rmssdMs,
+      Value<double?> timingNoiseMs,
+      Value<String?> sleepBand,
+      Value<bool> beforeValidation,
+      Value<bool> outsideWindow,
+      Value<Uint8List> cameraIbi,
+    });
+
+final class $MorningMeasurementsReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          MorningMeasurements,
+          MorningMeasurementRow
+        > {
+  $MorningMeasurementsReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<MorningRrPackets, List<MorningRrPacket>>
+  _morningRrPacketsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.morningRrPackets,
+    aliasName: 'morning_measurements__id__morning_rr_packets__measurement_id',
+  );
+
+  $MorningRrPacketsProcessedTableManager get morningRrPacketsRefs {
+    final manager = $MorningRrPacketsTableManager(
+      $_db,
+      $_db.morningRrPackets,
+    ).filter((f) => f.measurementId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _morningRrPacketsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $MorningMeasurementsFilterComposer
+    extends Composer<_$AppDatabase, MorningMeasurements> {
+  $MorningMeasurementsFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get measuredAtUs => $composableBuilder(
+    column: $table.measuredAtUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get utcOffsetS => $composableBuilder(
+    column: $table.utcOffsetS,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get posture => $composableBuilder(
+    column: $table.posture,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deviceManufacturer => $composableBuilder(
+    column: $table.deviceManufacturer,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deviceModel => $composableBuilder(
+    column: $table.deviceModel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get method => $composableBuilder(
+    column: $table.method,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get methodVersion => $composableBuilder(
+    column: $table.methodVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get quality => $composableBuilder(
+    column: $table.quality,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get restingHrBpm => $composableBuilder(
+    column: $table.restingHrBpm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rmssdMs => $composableBuilder(
+    column: $table.rmssdMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get timingNoiseMs => $composableBuilder(
+    column: $table.timingNoiseMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sleepBand => $composableBuilder(
+    column: $table.sleepBand,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get beforeValidation => $composableBuilder(
+    column: $table.beforeValidation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get outsideWindow => $composableBuilder(
+    column: $table.outsideWindow,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get cameraIbi => $composableBuilder(
+    column: $table.cameraIbi,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> morningRrPacketsRefs(
+    Expression<bool> Function($MorningRrPacketsFilterComposer f) f,
+  ) {
+    final $MorningRrPacketsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.morningRrPackets,
+      getReferencedColumn: (t) => t.measurementId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $MorningRrPacketsFilterComposer(
+            $db: $db,
+            $table: $db.morningRrPackets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $MorningMeasurementsOrderingComposer
+    extends Composer<_$AppDatabase, MorningMeasurements> {
+  $MorningMeasurementsOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get measuredAtUs => $composableBuilder(
+    column: $table.measuredAtUs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get utcOffsetS => $composableBuilder(
+    column: $table.utcOffsetS,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get posture => $composableBuilder(
+    column: $table.posture,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get deviceManufacturer => $composableBuilder(
+    column: $table.deviceManufacturer,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get deviceModel => $composableBuilder(
+    column: $table.deviceModel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get method => $composableBuilder(
+    column: $table.method,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get methodVersion => $composableBuilder(
+    column: $table.methodVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get quality => $composableBuilder(
+    column: $table.quality,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get restingHrBpm => $composableBuilder(
+    column: $table.restingHrBpm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rmssdMs => $composableBuilder(
+    column: $table.rmssdMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get timingNoiseMs => $composableBuilder(
+    column: $table.timingNoiseMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sleepBand => $composableBuilder(
+    column: $table.sleepBand,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get beforeValidation => $composableBuilder(
+    column: $table.beforeValidation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get outsideWindow => $composableBuilder(
+    column: $table.outsideWindow,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get cameraIbi => $composableBuilder(
+    column: $table.cameraIbi,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $MorningMeasurementsAnnotationComposer
+    extends Composer<_$AppDatabase, MorningMeasurements> {
+  $MorningMeasurementsAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get measuredAtUs => $composableBuilder(
+    column: $table.measuredAtUs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get utcOffsetS => $composableBuilder(
+    column: $table.utcOffsetS,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get posture =>
+      $composableBuilder(column: $table.posture, builder: (column) => column);
+
+  GeneratedColumn<String> get deviceManufacturer => $composableBuilder(
+    column: $table.deviceManufacturer,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get deviceModel => $composableBuilder(
+    column: $table.deviceModel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get method =>
+      $composableBuilder(column: $table.method, builder: (column) => column);
+
+  GeneratedColumn<int> get methodVersion => $composableBuilder(
+    column: $table.methodVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get quality =>
+      $composableBuilder(column: $table.quality, builder: (column) => column);
+
+  GeneratedColumn<double> get restingHrBpm => $composableBuilder(
+    column: $table.restingHrBpm,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get rmssdMs =>
+      $composableBuilder(column: $table.rmssdMs, builder: (column) => column);
+
+  GeneratedColumn<double> get timingNoiseMs => $composableBuilder(
+    column: $table.timingNoiseMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sleepBand =>
+      $composableBuilder(column: $table.sleepBand, builder: (column) => column);
+
+  GeneratedColumn<bool> get beforeValidation => $composableBuilder(
+    column: $table.beforeValidation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get outsideWindow => $composableBuilder(
+    column: $table.outsideWindow,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<Uint8List> get cameraIbi =>
+      $composableBuilder(column: $table.cameraIbi, builder: (column) => column);
+
+  Expression<T> morningRrPacketsRefs<T extends Object>(
+    Expression<T> Function($MorningRrPacketsAnnotationComposer a) f,
+  ) {
+    final $MorningRrPacketsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.morningRrPackets,
+      getReferencedColumn: (t) => t.measurementId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $MorningRrPacketsAnnotationComposer(
+            $db: $db,
+            $table: $db.morningRrPackets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $MorningMeasurementsTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          MorningMeasurements,
+          MorningMeasurementRow,
+          $MorningMeasurementsFilterComposer,
+          $MorningMeasurementsOrderingComposer,
+          $MorningMeasurementsAnnotationComposer,
+          $MorningMeasurementsCreateCompanionBuilder,
+          $MorningMeasurementsUpdateCompanionBuilder,
+          (MorningMeasurementRow, $MorningMeasurementsReferences),
+          MorningMeasurementRow,
+          PrefetchHooks Function({bool morningRrPacketsRefs})
+        > {
+  $MorningMeasurementsTableManager(_$AppDatabase db, MorningMeasurements table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $MorningMeasurementsFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $MorningMeasurementsOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $MorningMeasurementsAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> measuredAtUs = const Value.absent(),
+                Value<int> utcOffsetS = const Value.absent(),
+                Value<String> posture = const Value.absent(),
+                Value<String> deviceManufacturer = const Value.absent(),
+                Value<String> deviceModel = const Value.absent(),
+                Value<String> method = const Value.absent(),
+                Value<int> methodVersion = const Value.absent(),
+                Value<String> quality = const Value.absent(),
+                Value<double> restingHrBpm = const Value.absent(),
+                Value<double?> rmssdMs = const Value.absent(),
+                Value<double?> timingNoiseMs = const Value.absent(),
+                Value<String?> sleepBand = const Value.absent(),
+                Value<bool> beforeValidation = const Value.absent(),
+                Value<bool> outsideWindow = const Value.absent(),
+                Value<Uint8List> cameraIbi = const Value.absent(),
+              }) => MorningMeasurementsCompanion(
+                id: id,
+                measuredAtUs: measuredAtUs,
+                utcOffsetS: utcOffsetS,
+                posture: posture,
+                deviceManufacturer: deviceManufacturer,
+                deviceModel: deviceModel,
+                method: method,
+                methodVersion: methodVersion,
+                quality: quality,
+                restingHrBpm: restingHrBpm,
+                rmssdMs: rmssdMs,
+                timingNoiseMs: timingNoiseMs,
+                sleepBand: sleepBand,
+                beforeValidation: beforeValidation,
+                outsideWindow: outsideWindow,
+                cameraIbi: cameraIbi,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int measuredAtUs,
+                required int utcOffsetS,
+                required String posture,
+                required String deviceManufacturer,
+                required String deviceModel,
+                required String method,
+                required int methodVersion,
+                required String quality,
+                required double restingHrBpm,
+                Value<double?> rmssdMs = const Value.absent(),
+                Value<double?> timingNoiseMs = const Value.absent(),
+                Value<String?> sleepBand = const Value.absent(),
+                required bool beforeValidation,
+                required bool outsideWindow,
+                required Uint8List cameraIbi,
+              }) => MorningMeasurementsCompanion.insert(
+                id: id,
+                measuredAtUs: measuredAtUs,
+                utcOffsetS: utcOffsetS,
+                posture: posture,
+                deviceManufacturer: deviceManufacturer,
+                deviceModel: deviceModel,
+                method: method,
+                methodVersion: methodVersion,
+                quality: quality,
+                restingHrBpm: restingHrBpm,
+                rmssdMs: rmssdMs,
+                timingNoiseMs: timingNoiseMs,
+                sleepBand: sleepBand,
+                beforeValidation: beforeValidation,
+                outsideWindow: outsideWindow,
+                cameraIbi: cameraIbi,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<MorningMeasurements, MorningMeasurementRow>(
+                    table,
+                  ),
+                  $MorningMeasurementsReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({morningRrPacketsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (morningRrPacketsRefs) db.morningRrPackets,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (morningRrPacketsRefs)
+                    await $_getPrefetchedDataByColumns<
+                      MorningMeasurementRow,
+                      MorningMeasurements,
+                      MorningRrPacket,
+                      MorningRrPackets
+                    >(
+                      currentTable: table,
+                      referencedTable: $MorningMeasurementsReferences
+                          ._morningRrPacketsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $MorningMeasurementsReferences(
+                            db,
+                            table,
+                            p0,
+                          ).morningRrPacketsRefs,
+                      currentColumn: 'id',
+                      referencedColumn: 'measurement_id',
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $MorningMeasurementsProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      MorningMeasurements,
+      MorningMeasurementRow,
+      $MorningMeasurementsFilterComposer,
+      $MorningMeasurementsOrderingComposer,
+      $MorningMeasurementsAnnotationComposer,
+      $MorningMeasurementsCreateCompanionBuilder,
+      $MorningMeasurementsUpdateCompanionBuilder,
+      (MorningMeasurementRow, $MorningMeasurementsReferences),
+      MorningMeasurementRow,
+      PrefetchHooks Function({bool morningRrPacketsRefs})
+    >;
+typedef $MorningRrPacketsCreateCompanionBuilder =
+    MorningRrPacketsCompanion Function({
+      Value<int> id,
+      required int measurementId,
+      required int timeUs,
+      required String source,
+      required Uint8List rr,
+    });
+typedef $MorningRrPacketsUpdateCompanionBuilder =
+    MorningRrPacketsCompanion Function({
+      Value<int> id,
+      Value<int> measurementId,
+      Value<int> timeUs,
+      Value<String> source,
+      Value<Uint8List> rr,
+    });
+
+final class $MorningRrPacketsReferences
+    extends BaseReferences<_$AppDatabase, MorningRrPackets, MorningRrPacket> {
+  $MorningRrPacketsReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MorningMeasurements _measurementIdTable(_$AppDatabase db) =>
+      db.morningMeasurements.createAlias(
+        'morning_rr_packets__measurement_id__morning_measurements__id',
+      );
+
+  $MorningMeasurementsProcessedTableManager get measurementId {
+    final $_column = $_itemColumn<int>('measurement_id')!;
+
+    final manager = $MorningMeasurementsTableManager(
+      $_db,
+      $_db.morningMeasurements,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_measurementIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $MorningRrPacketsFilterComposer
+    extends Composer<_$AppDatabase, MorningRrPackets> {
+  $MorningRrPacketsFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get timeUs => $composableBuilder(
+    column: $table.timeUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get rr => $composableBuilder(
+    column: $table.rr,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $MorningMeasurementsFilterComposer get measurementId {
+    final $MorningMeasurementsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.measurementId,
+      referencedTable: $db.morningMeasurements,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $MorningMeasurementsFilterComposer(
+            $db: $db,
+            $table: $db.morningMeasurements,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $MorningRrPacketsOrderingComposer
+    extends Composer<_$AppDatabase, MorningRrPackets> {
+  $MorningRrPacketsOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get timeUs => $composableBuilder(
+    column: $table.timeUs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get rr => $composableBuilder(
+    column: $table.rr,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $MorningMeasurementsOrderingComposer get measurementId {
+    final $MorningMeasurementsOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.measurementId,
+      referencedTable: $db.morningMeasurements,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $MorningMeasurementsOrderingComposer(
+            $db: $db,
+            $table: $db.morningMeasurements,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $MorningRrPacketsAnnotationComposer
+    extends Composer<_$AppDatabase, MorningRrPackets> {
+  $MorningRrPacketsAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get timeUs =>
+      $composableBuilder(column: $table.timeUs, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get rr =>
+      $composableBuilder(column: $table.rr, builder: (column) => column);
+
+  $MorningMeasurementsAnnotationComposer get measurementId {
+    final $MorningMeasurementsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.measurementId,
+      referencedTable: $db.morningMeasurements,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $MorningMeasurementsAnnotationComposer(
+            $db: $db,
+            $table: $db.morningMeasurements,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $MorningRrPacketsTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          MorningRrPackets,
+          MorningRrPacket,
+          $MorningRrPacketsFilterComposer,
+          $MorningRrPacketsOrderingComposer,
+          $MorningRrPacketsAnnotationComposer,
+          $MorningRrPacketsCreateCompanionBuilder,
+          $MorningRrPacketsUpdateCompanionBuilder,
+          (MorningRrPacket, $MorningRrPacketsReferences),
+          MorningRrPacket,
+          PrefetchHooks Function({bool measurementId})
+        > {
+  $MorningRrPacketsTableManager(_$AppDatabase db, MorningRrPackets table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $MorningRrPacketsFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $MorningRrPacketsOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $MorningRrPacketsAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> measurementId = const Value.absent(),
+                Value<int> timeUs = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<Uint8List> rr = const Value.absent(),
+              }) => MorningRrPacketsCompanion(
+                id: id,
+                measurementId: measurementId,
+                timeUs: timeUs,
+                source: source,
+                rr: rr,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int measurementId,
+                required int timeUs,
+                required String source,
+                required Uint8List rr,
+              }) => MorningRrPacketsCompanion.insert(
+                id: id,
+                measurementId: measurementId,
+                timeUs: timeUs,
+                source: source,
+                rr: rr,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<MorningRrPackets, MorningRrPacket>(table),
+                  $MorningRrPacketsReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({measurementId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (measurementId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.measurementId,
+                        referencedTable: $MorningRrPacketsReferences
+                            ._measurementIdTable(db),
+                        referencedColumn: $MorningRrPacketsReferences
+                            ._measurementIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $MorningRrPacketsProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      MorningRrPackets,
+      MorningRrPacket,
+      $MorningRrPacketsFilterComposer,
+      $MorningRrPacketsOrderingComposer,
+      $MorningRrPacketsAnnotationComposer,
+      $MorningRrPacketsCreateCompanionBuilder,
+      $MorningRrPacketsUpdateCompanionBuilder,
+      (MorningRrPacket, $MorningRrPacketsReferences),
+      MorningRrPacket,
+      PrefetchHooks Function({bool measurementId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -26277,4 +28438,8 @@ class $AppDatabaseManager {
       $PlanUnitsTableManager(_db, _db.planUnits);
   $ActiveWarningTableManager get activeWarning =>
       $ActiveWarningTableManager(_db, _db.activeWarning);
+  $MorningMeasurementsTableManager get morningMeasurements =>
+      $MorningMeasurementsTableManager(_db, _db.morningMeasurements);
+  $MorningRrPacketsTableManager get morningRrPackets =>
+      $MorningRrPacketsTableManager(_db, _db.morningRrPackets);
 }

@@ -71,9 +71,16 @@ void main() {
             // `mode`, der Leser setzt 'gps' (Schema 10 bringt die Spalte mit).
             if (section == 'runs') row.putIfAbsent('mode', () => 'gps');
             // BLOB (Schema 9): Hex-Text der Datei, im Ziel als Bytes.
-            if (section == 'raw_rr_packets') {
-              final hex = row['rr']! as String;
-              row['rr'] = Uint8List.fromList([
+            // Ebenso Gurt-RR (`rr`) und Kamera-Abstände (`camera_ibi`) der
+            // Morgenmessung (Schema 12).
+            for (final c in const {
+              'raw_rr_packets': 'rr',
+              'morning_rr_packets': 'rr',
+              'morning_measurements': 'camera_ibi',
+            }.entries) {
+              if (section != c.key) continue;
+              final hex = row[c.value]! as String;
+              row[c.value] = Uint8List.fromList([
                 for (var k = 0; k < hex.length; k += 2)
                   int.parse(hex.substring(k, k + 2), radix: 16),
               ]);
