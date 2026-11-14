@@ -115,10 +115,11 @@ class ReadinessValues {
   /// Nachkommastellen (0, beim Kamera-Ruhepuls 1).
   final int decimals;
 
-  /// Wert von heute minus Mittel, auf [decimals] gerundet.
-  double get todayMinusMean {
+  /// Wert von heute minus Referenzmedian (nicht das 7-Tage-Mittel: es enthält
+  /// heute selbst), auf [decimals] gerundet.
+  double get todayMinusReference {
     final f = math.pow(10, decimals).toDouble();
-    return ((today - windowMean) * f).round() / f;
+    return ((today - referenceMedian) * f).round() / f;
   }
 
   @override

@@ -150,7 +150,7 @@ void main() {
       ),
     );
     final de = AppLocalizationsDe(), en = AppLocalizationsEn();
-    final rhr = fact(ReadinessFactKind.restingHeartRateDeviation, today: 61);
+    final rhr = fact(ReadinessFactKind.restingHeartRateDeviation, today: 59);
     expect(
       readinessFactText(de, rhr),
       startsWith('Ruhepuls heute 3/min über deinem Mittel'),
@@ -164,13 +164,13 @@ void main() {
         de,
         fact(ReadinessFactKind.hrvDeviation, today: 52.4, decimals: 1),
       ),
-      startsWith('HRV heute 5,6 ms unter deinem Mittel'),
+      startsWith('HRV heute 3,6 ms unter deinem Mittel'),
     );
-    // Rundet die Differenz auf 0: „auf deinem Mittel“, keine Scheinpräzision.
+    // Differenz zur Referenz (56) rundet auf 0 (das 7-Tage-Mittel ist 58): „auf deinem Mittel“, keine Scheinpräzision.
     expect(
       readinessFactText(
         de,
-        fact(ReadinessFactKind.restingHeartRateDeviation, today: 58),
+        fact(ReadinessFactKind.restingHeartRateDeviation, today: 56),
       ),
       startsWith('Ruhepuls heute auf deinem Mittel'),
     );

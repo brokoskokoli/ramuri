@@ -905,7 +905,8 @@ void main() {
       expect(v.today, 61);
       expect(v.windowMean, 58);
       expect(v.referenceMedian, 56);
-      expect(v.todayMinusMean, 3);
+      // Gegen die Referenz (56), nicht gegen das 7-Tage-Mittel (58).
+      expect(v.todayMinusReference, 5);
       expect(v.todayIsFallback, isTrue);
       expect(v.decimals, 0);
       expect(r.factors.single.values!.todayIsFallback, isTrue);
@@ -935,7 +936,7 @@ void main() {
       );
       final v = r.facts.single.values!;
       expect(v.decimals, 1);
-      expect(v.todayMinusMean, closeTo(2.7, 1e-9));
+      expect(v.todayMinusReference, closeTo(5.0, 1e-9));
     });
 
     test('die andere Messung erscheint nur als Tatsache, nie in der Zahl', () {
