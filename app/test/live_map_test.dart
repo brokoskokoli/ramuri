@@ -183,44 +183,24 @@ void main() {
   setUp(() => clearMapMemoryCache());
 
   group('Einwilligung', () {
-    _testRun('nicht beim Laufstart, erst beim Wechsel auf die Karte', (
-      tester,
-    ) async {
-      final w = _World();
-      await w.startRun();
-      await tester.pumpWidget(_app(w));
-      await tester.pump(const Duration(seconds: 1));
-      await w.step(tester, n: 3);
-      expect(key('map_consent_dialog'), findsNothing, reason: 'Werte-Seite');
-      expect(w.requests, 0);
-      await tester.tap(key('run_tab_1'));
-      await tester.pumpAndSettle();
-      expect(key('map_consent_dialog'), findsOneWidget);
-      expect(w.requests, 0, reason: 'vor der Antwort keine Anfrage');
-    });
-
     _testRun(
-      'der Dialog bremst den Lauf nicht und verdeckt Pause nicht dauerhaft',
+      'während des Laufs keine Frage, auch nicht beim Wechsel auf die Karte',
       (tester) async {
         final w = _World();
         await w.startRun();
         await tester.pumpWidget(_app(w));
-        await tester.tap(key('run_tab_1'));
-        await tester.pumpAndSettle();
-        expect(key('map_consent_dialog'), findsOneWidget);
-        // Der Lauf läuft hinter dem Dialog weiter: Zeit und Punkte kommen an.
-        final before = w.run.snapshot.totalTime!;
-        await w.step(tester, n: 5);
-        expect(w.run.snapshot.totalTime! - before, greaterThan(Duration.zero));
-        expect(w.run.hasFix, isTrue);
-        // Tippen neben den Dialog schließt ihn ("Nicht jetzt"); dann ist Pause erreichbar.
-        await tester.tapAt(const Offset(4, 4));
-        await tester.pumpAndSettle();
-        expect(key('map_consent_dialog'), findsNothing);
+        await tester.pump(const Duration(seconds: 1));
+        await w.step(tester, n: 3);
+        expect(key('map_consent_dialog'), findsNothing, reason: 'Werte-Seite');
+        await _toMap(tester);
+        await w.step(tester, n: 3);
+        expect(key('map_consent_dialog'), findsNothing, reason: 'Lauf läuft');
+        expect(key('live_map_line'), findsOneWidget, reason: 'Linie bleibt');
+        // Pause (Lauf nicht beendet) und der Beenden-Dialog bleiben frei von der Frage.
         await tester.tap(key('live_map_pause'));
-        await tester.pump();
+        await tester.pumpAndSettle();
         expect(w.run.phase, RecordingPhase.paused);
-        expect(key('live_map_resume'), findsOneWidget);
+        expect(key('map_consent_dialog'), findsNothing);
         expect(w.requests, 0, reason: 'ohne Einwilligung keine Anfrage');
       },
     );

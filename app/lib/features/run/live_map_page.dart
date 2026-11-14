@@ -71,6 +71,13 @@ class LiveMapPage extends StatefulWidget {
 class _LiveMapPageState extends State<LiveMapPage> with WidgetsBindingObserver {
   late final MapSourceHolder _holder = MapSourceHolder(
     askContext: () => mounted ? context : null,
+    // Während des Laufs keine Frage (sie legte sich über Dialoge der Lauf-Seite); gefragt wird außerhalb des Laufs.
+    mayAsk: () => switch (widget.controller.phase) {
+      RecordingPhase.running ||
+      RecordingPhase.autoPaused ||
+      RecordingPhase.paused => false,
+      RecordingPhase.idle || RecordingPhase.finished => true,
+    },
   )..addListener(_onHolder);
   bool _foreground = true;
   bool _following = true;
