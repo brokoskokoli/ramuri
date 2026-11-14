@@ -38,18 +38,52 @@ class _Rig {
     List<String> known = const ['g1', 'g2'],
     String? preferred,
     Map<String, DateTime> used = const {},
+    KnownDeviceStore Function(KnownDeviceStore)? wrap,
   }) async {
     final s = await FakeStorage().open(Uint8List(32));
     store = s.devices;
-    for (final id in known) {
-      await store.upsert(id, displayName: 'Gurt $id', at: clock.now());
+    for (final (i, id) in known.indexed) {
+      await store.upsert(
+        id,
+        displayName: 'Gurt $id',
+        at: clock.now().add(Duration(minutes: i)),
+      );
     }
     if (preferred != null) await store.setPreferred(preferred);
     for (final e in used.entries) {
       await store.markUsed(e.key, at: e.value);
     }
-    await manager.attachStore(store);
+    await manager.attachStore(wrap?.call(store) ?? store);
   }
+}
+
+/// Gerätespeicher, bei dem `upsert` von [gatedId] auf ein Signal wartet.
+class _Gated implements KnownDeviceStore {
+  _Gated(this.inner, this.gatedId, this.gate);
+
+  final KnownDeviceStore inner;
+  final String gatedId;
+  final Future<void> gate;
+
+  @override
+  Future<List<KnownDevice>> list() => inner.list();
+
+  @override
+  Future<void> upsert(
+    String deviceId, {
+    String? displayName,
+    required DateTime at,
+  }) async {
+    if (deviceId == gatedId) await gate;
+    return inner.upsert(deviceId, displayName: displayName, at: at);
+  }
+
+  @override
+  Future<void> setPreferred(String? deviceId) => inner.setPreferred(deviceId);
+
+  @override
+  Future<void> markUsed(String deviceId, {required DateTime at}) =>
+      inner.markUsed(deviceId, at: at);
 }
 
 void main() {
@@ -70,7 +104,8 @@ void main() {
     expect(r.sensor.calls, ['g2']);
   });
 
-  test('ohne genutztes Gerät das bevorzugte, ohne beides keins', () async {
+  test('ohne genutztes Gerät das bevorzugte, sonst das zuletzt '
+      'hinzugefügte', () async {
     final a = _Rig();
     await a.open(preferred: 'g1');
     await a.manager.connectBestKnown();
@@ -78,7 +113,7 @@ void main() {
     final b = _Rig();
     await b.open();
     await b.manager.connectBestKnown();
-    expect(b.sensor.calls, isEmpty);
+    expect(b.sensor.calls, ['g2']);
   });
 
   test('kein bekanntes Gerät, keine Rechte, Bluetooth aus: nichts', () async {
@@ -169,5 +204,20 @@ void main() {
       r.manager.connectBestKnown(),
     ]);
     expect(r.sensor.calls, ['g1']);
+  });
+
+  test('Hand verbindet B, während Auto auf A im Speichern wartet: '
+      'genau eine Verbindung', () async {
+    final gate = Completer<void>();
+    final r = _Rig();
+    await r.open(used: {'g1': t0}, wrap: (s) => _Gated(s, 'g1', gate.future));
+    final auto = r.manager.connectBestKnown();
+    await pumpEventQueue();
+    await r.manager.connect('g2');
+    gate.complete();
+    await auto;
+    await pumpEventQueue();
+    expect(r.sensor.calls, ['g2']);
+    expect(r.manager.connectedIds, {'g2'});
   });
 }

@@ -347,7 +347,12 @@ class SensorManager extends ChangeNotifier {
       final k = _bestKnown();
       if (k == null) return;
       _permitted = true;
-      await _connect(k.deviceId, name: k.displayName, silent: true);
+      await _connect(
+        k.deviceId,
+        name: k.displayName,
+        silent: true,
+        exclusive: true,
+      );
       await _awaitAttempt(k.deviceId);
     } catch (_) {
       // Stilles Verbinden: Fehler zeigt höchstens die Verwaltung.
@@ -373,7 +378,12 @@ class SensorManager extends ChangeNotifier {
     for (final k in _known) {
       if (k.isPreferred) return k;
     }
-    return null;
+    // Bestandsgeräte ohne Vermerk (vor der Migration): das zuletzt hinzugefügte.
+    KnownDevice? newest;
+    for (final k in _known) {
+      if (newest == null || k.addedAt.isAfter(newest.addedAt)) newest = k;
+    }
+    return newest;
   }
 
   /// Vermerkt die erfolgreiche Verbindung als „zuletzt genutzt“.
@@ -434,7 +444,12 @@ class SensorManager extends ChangeNotifier {
   Future<void> connect(String id, {String? name}) =>
       _connect(id, name: name, silent: false);
 
-  Future<void> _connect(String id, {String? name, required bool silent}) async {
+  Future<void> _connect(
+    String id, {
+    String? name,
+    required bool silent,
+    bool exclusive = false,
+  }) async {
     final existing = _conns[id];
     if (existing != null && existing.state != SensorLinkState.idle) return;
     if (!silent) _problem = null;
@@ -465,6 +480,15 @@ class SensorManager extends ChangeNotifier {
     }
     // Währenddessen getrennt: nicht doch noch verbinden.
     if (_disposed || c.state != SensorLinkState.connecting) return;
+    // Auto-Verbinden: Hat der Nutzer währenddessen von Hand ein anderes Gerät
+    // gestartet, entsteht keine zweite Verbindung.
+    if (exclusive &&
+        _conns.entries.any(
+          (e) => e.key != id && e.value.state != SensorLinkState.idle,
+        )) {
+      _abortPending(c);
+      return;
+    }
     _open(c, id);
   }
 
