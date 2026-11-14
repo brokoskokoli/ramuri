@@ -413,27 +413,25 @@ void main() {
       },
     );
 
-    test('gilt der Neustart schon in dieser Woche, nichts mehr', () {
+    test('Anker dieser Woche (Rückmeldung, Wochenbewertung): Neustart', () {
       final s = run(10).inputs!;
-      expect(run(10, inputs: s).kind, PauseRestartKind.none);
-    });
-
-    test('Anker dieser Woche aus einer Anpassung: Neustart möglich', () {
-      final s = run(10).inputs!;
-      final r = planPauseRestart(
-        goal: g,
-        inputs: s,
-        today: today,
-        lastTrainingDay: today.subtract(const Duration(days: 10)),
-        baseWeekMinutes: 100,
-        anchorFromAdjustment: true,
-      );
+      expect(s.anchor, today);
+      final r = run(10, inputs: s);
       expect(r.kind, PauseRestartKind.short);
+      expect(r.inputs!.anchor, today);
     });
 
-    test('Anker in einer späteren Woche: kein Neustart', () {
-      final later = i.copyWith(anchor: today.add(const Duration(days: 7)));
-      expect(run(10, inputs: later).kind, PauseRestartKind.none);
+    test('Anker in einer späteren Woche: Neustart mit Anker dieser Montag, '
+        'die Anpassung entfällt (PAR-202)', () {
+      final next = today.add(const Duration(days: 7));
+      final later = i.copyWith(anchor: next, startWeeklyMinutes: 300);
+      final r = run(10, inputs: later);
+      expect(r.kind, PauseRestartKind.short);
+      expect(r.inputs!.anchor, today);
+      expect(r.inputs!.weekCountOffset, 0);
+      // gedeckelt vom Regler, nicht von der angehobenen Rückmeldung
+      expect(r.inputs!.startWeeklyMinutes, lessThan(300));
+      expect(run(60, inputs: later).kind, PauseRestartKind.newStart);
     });
 
     test('Basiswoche: letzte vollständige Kalenderwoche vor Pausenbeginn', () {

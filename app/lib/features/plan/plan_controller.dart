@@ -934,6 +934,12 @@ class PlanController extends ChangeNotifier {
   Future<PlanFeedbackOutcome> answerFeedback(PlanFeedback answer) async {
     var raise = false;
     final r = await _act(() async {
+      // Eine offene Pausenfrage hat Vorrang (PAR-202): Die Karte ist dann nicht
+      // mehr gültig (etwa nach Mitternacht bei offener Seite).
+      if (await HintService(session: session, clock: clock).pauseQuestion() !=
+          null) {
+        throw const StorageException(StorageFailure.rejected);
+      }
       final goal = await _goals.goal();
       if (goal == null) throw const StorageException(StorageFailure.notFound);
       final history = await _plans.history();
@@ -1025,7 +1031,6 @@ class PlanController extends ChangeNotifier {
       lastTrainingDay: q.lastTrainingDay,
       baseWeekMinutes: q.baseWeekMinutes,
       parameters: parameters,
-      anchorFromAdjustment: planAnchorFromAdjustment(history),
       provisional: longPause && !chosen,
       replacesProvisional: chosen && wasProvisional && mark.restarted,
     );
@@ -1085,8 +1090,7 @@ class PlanController extends ChangeNotifier {
             lastTrainingDay: q.lastTrainingDay,
             baseWeekMinutes: q.baseWeekMinutes,
             parameters: parameters,
-            anchorFromAdjustment: planAnchorFromAdjustment(history),
-            replacesProvisional: await _pauseProvisional(q),
+                  replacesProvisional: await _pauseProvisional(q),
           ).inputs !=
           null;
     } on Object {

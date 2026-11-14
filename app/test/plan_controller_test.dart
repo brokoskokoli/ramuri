@@ -1476,6 +1476,48 @@ void main() {
       expect(e.controller.state.feedbackDue, isTrue);
     });
 
+    test('Rückmeldung am Mittwoch, Pausenfrage am Donnerstag: Neustart mit '
+        'Anker dieser Montag (F2, PAR-202)', () async {
+      final e = await prepared(6, recorded: false);
+      await e.controller.open();
+      expect(
+        await HintService(session: e.session, clock: e.clock).pauseQuestion(),
+        isNull,
+      );
+      expect(e.controller.state.feedbackDue, isTrue);
+      final out = await e.controller.answerFeedback(PlanFeedback.tooEasy);
+      expect(out.result, PlanActionResult.done);
+      final fb = (await e.plans.history()).last;
+      expect(fb.trigger, PlanTrigger.feedback);
+      expect(fb.inputs.anchor.isAfter(DateTime.utc(2026, 11, 9)), isTrue);
+      // Einen Tag später steht die Pause (7 Tage) fest und die Frage ist offen.
+      e.clock.set(_now.add(const Duration(days: 1)));
+      expect(
+        await HintService(session: e.session, clock: e.clock).pauseQuestion(),
+        isNotNull,
+      );
+      expect(await e.controller.answerPause(true), PlanActionResult.done);
+      final h = (await e.plans.history()).last;
+      expect(h.trigger, PlanTrigger.pause);
+      expect(h.inputs.anchor, DateTime.utc(2026, 11, 9));
+      expect(h.inputs.noHardUntil, isNotNull);
+    });
+
+    test('Rückmeldung wird bei offener Pausenfrage nicht angenommen (Karte '
+        'über Mitternacht offen)', () async {
+      final e = await prepared(6, recorded: false);
+      await e.controller.open();
+      final before = (await e.plans.history()).length;
+      e.clock.set(_now.add(const Duration(days: 1)));
+      expect(
+        await HintService(session: e.session, clock: e.clock).pauseQuestion(),
+        isNotNull,
+      );
+      final out = await e.controller.answerFeedback(PlanFeedback.tooEasy);
+      expect(out.result, PlanActionResult.rejected);
+      expect((await e.plans.history()).length, before);
+    });
+
     test('Ziel speichern am Prüftag bei offener Pausenfrage, dann „Ja“ -> '
         'Fassung pause, 80 % der Basiswoche, noHardUntil (NB8 1)', () async {
       final e = await prepared(10, recorded: false);

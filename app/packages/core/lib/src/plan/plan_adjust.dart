@@ -256,10 +256,10 @@ DateTime pauseBaseWeek(DateTime lastTrainingDay) =>
 /// Kappung auf die Minuten der vorläufigen Woche. Alle Stufen: nie
 /// höher als der bisherige Plan dieser Woche und nie über dem Regler; die
 /// Zählung nach PAR-194 beginnt neu. In der Geh-Lauf-Abfolge, in der
-/// Reduktion vor dem Termin, bei einem Anker in einer späteren Woche und wenn
-/// der Neustart in dieser Woche schon gilt (Anker in dieser Woche, außer aus
-/// einer Anpassung, [anchorFromAdjustment], siehe [planAnchorFromAdjustment]):
-/// [PauseRestartKind.none].
+/// Reduktion vor dem Termin: [PauseRestartKind.none]. Ein Anker in dieser
+/// oder einer späteren Woche (aus Rückmeldung oder Wochenbewertung) hindert
+/// den Neustart nicht: Er ersetzt diese Anpassung (Anker dieser Montag). Den
+/// zweiten Neustart derselben Pause verhindert der Aufrufer mit seinem Merker.
 PauseRestart planPauseRestart({
   required TrainingGoal goal,
   required PlanInputs inputs,
@@ -269,7 +269,6 @@ PauseRestart planPauseRestart({
   PlanParameters parameters = const PlanParameters(),
   bool provisional = false,
   bool replacesProvisional = false,
-  bool anchorFromAdjustment = false,
 }) {
   final p = parameters;
   final t = planDay(today);
@@ -283,16 +282,16 @@ PauseRestart planPauseRestart({
     );
   }
   final monday = _monday(t);
-  // Ein Anker in einer späteren Woche (Rückmeldung dieser Woche, PAR-200):
-  // die Wochen davor sind nicht mehr Teil dieser Eingaben. Ein Anker in dieser
-  // Woche gilt als „Neustart gilt schon“ (auch der Anfang eines neuen Plans),
-  // außer er stammt aus einer Anpassung ([anchorFromAdjustment]: Rückmeldung
-  // oder Wochenbewertung): Die Pause hat dann Vorrang (PAR-202).
-  if (inputs.anchor.isAfter(monday) ||
-      (!anchorFromAdjustment && !inputs.anchor.isBefore(monday))) {
-    return const PauseRestart(PauseRestartKind.none);
-  }
-  final setup = planCourseSetup(goal, inputs, parameters: p);
+  // Die Pause hat Vorrang (PAR-202): Der Neustart gilt auch, wenn eine
+  // Rückmeldung oder Wochenbewertung den Anker auf diese oder eine spätere
+  // Woche gelegt hat; er ersetzt deren Anpassung (Anker = dieser Montag).
+  // Vor einem zweiten Neustart derselben Pause schützt der Merker des Aufrufers
+  // ([planPauseRestartKey]). Bei einem Anker in einer späteren Woche liefert
+  // die Zählung ab diesem Montag die Minuten der Woche, die den Neustart deckeln.
+  final from = inputs.anchor.isAfter(monday)
+      ? inputs.copyWith(anchor: monday)
+      : inputs;
+  final setup = planCourseSetup(goal, from, parameters: p);
   final week = _weekAt(setup, monday);
   if (week == null || !_adjustable(week)) {
     return const PauseRestart(PauseRestartKind.none);

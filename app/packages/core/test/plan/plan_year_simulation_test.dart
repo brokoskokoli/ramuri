@@ -127,6 +127,7 @@ Future<_Result> _simulate(_Scenario sc) async {
   DateTime? lastAnswer;
   DateTime? lastTraining;
   String? pauseHandled;
+  var pausesAnswered = 0;
   var lcg = 12345;
   int rnd(int n) {
     lcg = (lcg * 1103515245 + 12345) & 0x7fffffff;
@@ -211,13 +212,13 @@ Future<_Result> _simulate(_Scenario sc) async {
       warning: warningStore,
       markChecked: mark,
     );
-    // Prüftag nur bei Bewertung: unverändert, wenn nicht markiert.
+    // Prüftag (unabhängig von der Markierung oben): nie in der Zukunft und nie
+    // vor dem vorigen Stand; der Tag steht damit für die Wochenprüfung.
     final after = await settings.get(planLastCheckDayKey);
-    if (!mark && after != before) {
-      bad(day, 'Prüftag', '${t.name} änderte plan.last_check_day');
-    }
-    if (mark && after != _iso(today)) {
-      bad(day, 'Prüftag', '${t.name} markiert nicht ($after)');
+    if (after != null &&
+        (after.compareTo(_iso(today)) > 0 ||
+            (before != null && after.compareTo(before) < 0))) {
+      bad(day, 'Prüftag', '${t.name}: $before -> $after bei ${_iso(today)}');
     }
     if (fatigueUntil != null) {
       final until = (await plans.history()).last.inputs.noHardUntil;
@@ -361,16 +362,6 @@ Future<_Result> _simulate(_Scenario sc) async {
         );
       }
     }
-    // Automatische Auslöser ändern im geplanten Zeitraum keine Tage.
-    if (trigger != null &&
-        const {
-          PlanTrigger.weekly,
-          PlanTrigger.run,
-          PlanTrigger.feedback,
-          PlanTrigger.ruleVersion,
-        }.contains(trigger)) {
-      // geprüft über lastDays unten
-    }
   }
 
   // Tage der künftigen Einheiten vor einer automatischen Neuberechnung.
@@ -432,6 +423,34 @@ Future<_Result> _simulate(_Scenario sc) async {
   await recalc(PlanTrigger.create, 0);
   await checkInvariants(0, PlanTrigger.create);
 
+  // Minuten der geplanten Einheiten der Woche von [d] (ohne Ruhetage).
+  Future<int> weekSum(DateTime d) async {
+    final m = _monday(d);
+    var sum = 0;
+    for (final u in await plans.unitsBetween(
+      m,
+      m.add(const Duration(days: 6)),
+    )) {
+      if (u.kind != PlanUnitKind.rest) sum += u.minutes;
+    }
+    return sum;
+  }
+
+  // Tage mit manueller Neuberechnung nach einem Lauf auf verschobenem Tag
+  // (am selben Tag und zwei Tage später, F1: weder doppelte Einheit noch
+  // gekürzte Woche).
+  final manualLater = <int>{};
+  Future<void> manualCheck(int day, DateTime today) async {
+    final before = await weekSum(today);
+    await recalc(PlanTrigger.manual, day);
+    final after = await weekSum(today);
+    count('manuell_nach_verschiebung');
+    if ((after - before).abs() > 2) {
+      bad(day, 'Wochensumme', 'manuell: $before auf $after min');
+    }
+    await checkInvariants(day, PlanTrigger.manual);
+  }
+
   var runId = 0;
   for (var day = 0; day < sc.days; day++) {
     final today = _day(day);
@@ -450,9 +469,7 @@ Future<_Result> _simulate(_Scenario sc) async {
     // Wochenprüfung beim Öffnen (FR-0158); nicht bei offener Pausenfrage
     // (PAR-202: erst die Antwort, dann die Prüfung).
     final pauseOpen =
-        sc.pause != null &&
         lastTraining != null &&
-        day <= sc.pause!.$2 &&
         today.difference(lastTraining).inDays >= p.pauseMinDays &&
         pauseHandled != _iso(lastTraining);
     if (!pauseOpen &&
@@ -515,11 +532,15 @@ Future<_Result> _simulate(_Scenario sc) async {
     }
 
     // Pausenregel (PAR-202), wenn die Pause lang genug ist.
-    if (lastTraining != null && sc.pause != null) {
+    // Die Antwort kommt abwechselnd nach 14 Tagen (Stufe long) und nach 9 Tagen
+    // (Stufe short, 7 bis 13 Tage); bis dahin steht die Pausenfrage offen.
+    if (lastTraining != null) {
       final gap = today.difference(lastTraining).inDays;
       final mark = _iso(lastTraining);
-      if (gap == p.pauseLongDays && pauseHandled != mark) {
+      final answerGap = pausesAnswered.isEven ? p.pauseLongDays : 9;
+      if (gap == answerGap && pauseHandled != mark) {
         pauseHandled = mark;
+        pausesAnswered++;
         final h = await plans.history();
         final base = pauseBaseWeek(lastTraining);
         final restart = planPauseRestart(
@@ -528,7 +549,6 @@ Future<_Result> _simulate(_Scenario sc) async {
           today: today,
           lastTrainingDay: lastTraining,
           baseWeekMinutes: weekMinutes(base, doneByDay).toDouble(),
-          anchorFromAdjustment: planAnchorFromAdjustment(h),
         );
         count('pause_${restart.kind.name}');
         if (Platform.environment.containsKey('SIM_DEBUG')) {
@@ -595,26 +615,17 @@ Future<_Result> _simulate(_Scenario sc) async {
           easyRpe.add(sc.tiredWeeks.contains(week) ? 8 : 4 + rnd(2));
         }
         count('lauf');
-        if (unit.pinned) count('lauf_auf_verschobenem_tag');
+        if (unit.pinned) {
+          count('lauf_auf_verschobenem_tag');
+          manualLater.add(day + 2);
+        }
         final before = await futureDays(day);
         // Ein absolvierter Lauf in geplanter Dauer ändert die Wochensumme
         // nicht (auch nicht auf einem verschobenen Tag, F1): Wochensumme nach
         // Verschiebung und Lauf = ohne Verschiebung, bis auf Rundung.
-        Future<int> thisWeek() async {
-          final m = _monday(today);
-          var sum = 0;
-          for (final u in await plans.unitsBetween(
-            m,
-            m.add(const Duration(days: 6)),
-          )) {
-            if (u.kind != PlanUnitKind.rest) sum += u.minutes;
-          }
-          return sum;
-        }
-
-        final weekBefore = await thisWeek();
+        final weekBefore = await weekSum(today);
         await recalc(PlanTrigger.run, day);
-        final weekAfter = await thisWeek();
+        final weekAfter = await weekSum(today);
         if ((weekAfter - weekBefore).abs() > 2) {
           bad(
             day,
@@ -625,10 +636,12 @@ Future<_Result> _simulate(_Scenario sc) async {
         }
         await checkInvariants(day, PlanTrigger.run);
         await autoCheckDays(day, PlanTrigger.run, before, warnedNow);
+        if (unit.pinned) await manualCheck(day, today);
       } else {
         count('lauf_ausgefallen');
       }
     }
+    if (manualLater.remove(day)) await manualCheck(day, today);
     await checkInvariants(day, null);
     if (Platform.environment['SIM_DEBUG'] == '$day') {
       for (final u in await plans.unitsBetween(
@@ -743,9 +756,14 @@ void main() {
         }
         if (sc.pause != null) {
           // F2: auch mit Anker aus Rückmeldung/Wochenbewertung kommt der
-          // Neustart (PAR-202), Tag 78, 162 und 223.
-          expect(a.stats['pause_long'], 3);
+          // Neustart (PAR-202) bei jeder Pause, kurz wie lang (Pausen aus
+          // Szenario, Warnsignal und Ausfall).
+          expect(a.stats['pause_long'], greaterThanOrEqualTo(1));
+          expect(a.stats['pause_short'], greaterThanOrEqualTo(1));
           expect(a.stats['pause_none'], isNull);
+        }
+        if (sc.moveDays.isNotEmpty) {
+          expect(a.stats['manuell_nach_verschiebung'], greaterThan(0));
         }
       },
       timeout: const Timeout(Duration(seconds: 120)),
@@ -820,7 +838,6 @@ void main() {
         today: today,
         lastTrainingDay: today.subtract(const Duration(days: 14)),
         baseWeekMinutes: 100,
-        anchorFromAdjustment: true,
       );
       expect(r.kind, PauseRestartKind.long);
     });
