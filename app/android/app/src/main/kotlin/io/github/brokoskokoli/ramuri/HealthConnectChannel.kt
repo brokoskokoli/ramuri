@@ -28,7 +28,7 @@ import kotlin.reflect.KClass
 /**
  * Echte [HealthSource] auf `androidx.health.connect:connect-client` (ADR-0007). Nur Lesen. Jeder Datensatz wird zu einer
  * Map mit der Health-Connect-ID (`id`), Zeiten in Millisekunden (UTC), Werten, Einheit (`unit`) und der Quell-App
- * (`origin` = metadata.dataOrigin.packageName). Die Zuordnung zu Records ist am Gerät noch nicht geprüft.
+ * (`origin` = metadata.dataOrigin.packageName). Die Zuordnung ([toChannelMap]) ist im JVM-Test belegt, am Gerät noch nicht.
  */
 class HealthConnectSource(private val context: Context) : HealthSource {
     private val client: HealthConnectClient by lazy { HealthConnectClient.getOrCreate(context) }
@@ -44,41 +44,16 @@ class HealthConnectSource(private val context: Context) : HealthSource {
 
     override fun readPage(kind: HealthKind, fromMs: Long, toMs: Long, pageToken: String?, pageSize: Int): HealthPage =
         when (kind) {
-            HealthKind.EXERCISE -> page(ExerciseSessionRecord::class, fromMs, toMs, pageToken, pageSize) { r ->
-                base(r, r.startTime, r.endTime, r.startZoneOffset) + mapOf(
-                    "exerciseType" to r.exerciseType.toLong(),
-                )
-            }
-            HealthKind.HEART_RATE -> page(HeartRateRecord::class, fromMs, toMs, pageToken, pageSize) { r ->
-                base(r, r.startTime, r.endTime, r.startZoneOffset) + mapOf(
-                    "unit" to "bpm",
-                    // [Zeitpunkt in ms, Schläge pro Minute]
-                    "samples" to r.samples.map { listOf(it.time.toEpochMilli(), it.beatsPerMinute) },
-                )
-            }
-            HealthKind.RESTING_HEART_RATE -> page(RestingHeartRateRecord::class, fromMs, toMs, pageToken, pageSize) { r ->
-                base(r, r.time, r.time, r.zoneOffset) + mapOf("value" to r.beatsPerMinute.toDouble(), "unit" to "bpm")
-            }
-            HealthKind.HRV_RMSSD -> page(HeartRateVariabilityRmssdRecord::class, fromMs, toMs, pageToken, pageSize) { r ->
-                base(r, r.time, r.time, r.zoneOffset) + mapOf("value" to r.heartRateVariabilityMillis, "unit" to "ms")
-            }
-            HealthKind.SLEEP -> page(SleepSessionRecord::class, fromMs, toMs, pageToken, pageSize) { r ->
-                base(r, r.startTime, r.endTime, r.startZoneOffset) + mapOf(
-                    // [Beginn in ms, Ende in ms, Phase (SleepSessionRecord.STAGE_TYPE_*)]
-                    "stages" to r.stages.map { listOf(it.startTime.toEpochMilli(), it.endTime.toEpochMilli(), it.stage.toLong()) },
-                )
-            }
-            HealthKind.VO2_MAX -> page(Vo2MaxRecord::class, fromMs, toMs, pageToken, pageSize) { r ->
-                base(r, r.time, r.time, r.zoneOffset) + mapOf(
-                    "value" to r.vo2MillilitersPerMinuteKilogram,
-                    "unit" to "ml/min/kg",
-                    "method" to r.measurementMethod.toLong(),
-                )
-            }
+            HealthKind.EXERCISE -> page(ExerciseSessionRecord::class, fromMs, toMs, pageToken, pageSize)
+            HealthKind.HEART_RATE -> page(HeartRateRecord::class, fromMs, toMs, pageToken, pageSize)
+            HealthKind.RESTING_HEART_RATE -> page(RestingHeartRateRecord::class, fromMs, toMs, pageToken, pageSize)
+            HealthKind.HRV_RMSSD -> page(HeartRateVariabilityRmssdRecord::class, fromMs, toMs, pageToken, pageSize)
+            HealthKind.SLEEP -> page(SleepSessionRecord::class, fromMs, toMs, pageToken, pageSize)
+            HealthKind.VO2_MAX -> page(Vo2MaxRecord::class, fromMs, toMs, pageToken, pageSize)
         }
 
     private fun <T : Record> page(
-        type: KClass<T>, fromMs: Long, toMs: Long, pageToken: String?, pageSize: Int, map: (T) -> Map<String, Any?>,
+        type: KClass<T>, fromMs: Long, toMs: Long, pageToken: String?, pageSize: Int,
     ): HealthPage {
         val request = ReadRecordsRequest(
             recordType = type,
@@ -98,17 +73,46 @@ class HealthConnectSource(private val context: Context) : HealthSource {
             // Vermutet: Health Connect meldet überschrittene Lese-Limits so; am Gerät noch nicht belegt.
             throw HealthReadException(if (e.message?.contains("limit", ignoreCase = true) == true) "rate_limited" else "error")
         }
-        return HealthPage(response.records.map(map), response.pageToken?.takeIf { it.isNotEmpty() })
+        return HealthPage(response.records.map(::toChannelMap), response.pageToken?.takeIf { it.isNotEmpty() })
     }
-
-    private fun base(r: Record, start: Instant, end: Instant, offset: ZoneOffset?): Map<String, Any?> = mapOf(
-        "id" to r.metadata.id,
-        "origin" to r.metadata.dataOrigin.packageName,
-        "startMs" to start.toEpochMilli(),
-        "endMs" to end.toEpochMilli(),
-        "offsetSeconds" to offset?.totalSeconds?.toLong(),
-    )
 }
+
+/**
+ * Reine Abbildung eines Health-Connect-Records auf die Map des Kanals (Vertrag mit `method_channel_health_connect.dart`).
+ * Eigene Funktion, damit sie ohne Gerät getestet werden kann. Eine nicht unterstützte Art ist ein Programmfehler.
+ */
+internal fun toChannelMap(r: Record): Map<String, Any?> = when (r) {
+    is ExerciseSessionRecord -> base(r, r.startTime, r.endTime, r.startZoneOffset) + mapOf(
+        "exerciseType" to r.exerciseType.toLong(),
+    )
+    is HeartRateRecord -> base(r, r.startTime, r.endTime, r.startZoneOffset) + mapOf(
+        "unit" to "bpm",
+        // [Zeitpunkt in ms, Schläge pro Minute]
+        "samples" to r.samples.map { listOf(it.time.toEpochMilli(), it.beatsPerMinute) },
+    )
+    is RestingHeartRateRecord ->
+        base(r, r.time, r.time, r.zoneOffset) + mapOf("value" to r.beatsPerMinute.toDouble(), "unit" to "bpm")
+    is HeartRateVariabilityRmssdRecord ->
+        base(r, r.time, r.time, r.zoneOffset) + mapOf("value" to r.heartRateVariabilityMillis, "unit" to "ms")
+    is SleepSessionRecord -> base(r, r.startTime, r.endTime, r.startZoneOffset) + mapOf(
+        // [Beginn in ms, Ende in ms, Phase (SleepSessionRecord.STAGE_TYPE_*)]
+        "stages" to r.stages.map { listOf(it.startTime.toEpochMilli(), it.endTime.toEpochMilli(), it.stage.toLong()) },
+    )
+    is Vo2MaxRecord -> base(r, r.time, r.time, r.zoneOffset) + mapOf(
+        "value" to r.vo2MillilitersPerMinuteKilogram,
+        "unit" to "ml/min/kg",
+        "method" to r.measurementMethod.toLong(),
+    )
+    else -> throw IllegalArgumentException("unsupported record")
+}
+
+private fun base(r: Record, start: Instant, end: Instant, offset: ZoneOffset?): Map<String, Any?> = mapOf(
+    "id" to r.metadata.id,
+    "origin" to r.metadata.dataOrigin.packageName,
+    "startMs" to start.toEpochMilli(),
+    "endMs" to end.toEpochMilli(),
+    "offsetSeconds" to offset?.totalSeconds?.toLong(),
+)
 
 /**
  * Kanal `ramuri/health` (ADR-0007, WP32 Teil A): `sdkStatus`, `grantedKinds`, `requestPermissions` (Dialog von Health
