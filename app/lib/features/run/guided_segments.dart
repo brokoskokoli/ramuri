@@ -86,22 +86,20 @@ List<SegmentGroup> groupSegments(List<PlanSegment> segments) {
   while (i < segments.length) {
     var bestLen = 1;
     var bestRepeat = 1;
-    if (!_edge(segments[i])) {
-      for (var len = 1; i + 2 * len <= segments.length; len++) {
-        final block = segments.sublist(i, i + len);
-        if (block.any(_edge)) break;
-        var r = 1;
-        while (i + (r + 1) * len <= segments.length &&
-            [
-              for (var k = 0; k < len; k++)
-                _sameSegment(block[k], segments[i + r * len + k]),
-            ].every((same) => same)) {
-          r++;
-        }
-        if (r >= 2 && r * len > bestRepeat * bestLen) {
-          bestLen = len;
-          bestRepeat = r;
-        }
+    for (var len = 1; i + 2 * len <= segments.length; len++) {
+      final block = segments.sublist(i, i + len);
+      if (block.any(_edge)) break;
+      var r = 1;
+      while (i + (r + 1) * len <= segments.length &&
+          [
+            for (var k = 0; k < len; k++)
+              _sameSegment(block[k], segments[i + r * len + k]),
+          ].every((same) => same)) {
+        r++;
+      }
+      if (r >= 2 && r * len > bestRepeat * bestLen) {
+        bestLen = len;
+        bestRepeat = r;
       }
     }
     out.add(SegmentGroup(segments.sublist(i, i + bestLen), bestRepeat));
