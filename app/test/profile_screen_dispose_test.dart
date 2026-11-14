@@ -34,19 +34,22 @@ Future<void> _open(WidgetTester tester, {required bool popFirst}) async {
       theme: RamuriTheme.light,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: Builder(
-        builder: (context) => TextButton(
-          key: const Key('open'),
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => ProfileScreen(
-                session: session,
-                clock: clock,
-                recalculation: recalc,
+      // Mit Scaffold: Ein stehengebliebener Eintrag würde hier angezeigt.
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            key: const Key('open'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ProfileScreen(
+                  session: session,
+                  clock: clock,
+                  recalculation: recalc,
+                ),
               ),
             ),
+            child: const Text('open'),
           ),
-          child: const Text('open'),
         ),
       ),
     ),
