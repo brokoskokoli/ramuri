@@ -90,7 +90,10 @@ stufe() {
   gpid=$!
   killed=1
   while kill -0 "$pid" 2>/dev/null; do
-    if a shell dumpsys window 2>/dev/null | grep -m1 mCurrentFocus | grep -q "$pkg"; then
+    # Ab dem ersten fehlgeschlagenen Test ("[E]" im expanded-Reporter) kein neues Foto mehr:
+    # Sonst zeigt es am Ende einen spaeteren Test der Sammlung statt der Fehlerstelle.
+    if grep -q '\[E\]' "$log" 2>/dev/null; then :
+    elif a shell dumpsys window 2>/dev/null | grep -m1 mCurrentFocus | grep -q "$pkg"; then
       a exec-out screencap -p >"$out/screen.tmp" 2>/dev/null && mv "$out/screen.tmp" "$out/screen-$name.png"
     fi
     if [ "$kill_after" = 1 ] && [ "$killed" = 1 ] && grep -q 'NEED_KILL' "$log"; then

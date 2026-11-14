@@ -12,7 +12,11 @@ printf "import 'e2e_a_test.dart';\n" > app/integration_test/all_test.dart
 # adb: Rechte gewaehrt, sonst leer.
 cat > "$tmp/bin/adb" <<'X'
 #!/bin/sh
-case "$*" in *"dumpsys package"*) echo 'android.permission.ACCESS_FINE_LOCATION: granted=true' ;; esac
+case "$*" in
+  *"dumpsys package"*) echo 'android.permission.ACCESS_FINE_LOCATION: granted=true' ;;
+  *"dumpsys window"*) echo 'mCurrentFocus=Window{x u0 io.github.brokoskokoli.ramuri/.MainActivity}' ;;
+  *screencap*) echo x >> "$FAKE_SHOTS" ;;
+esac
 exit 0
 X
 # flutter: schreibt die Testdatei in $FAKE_LOG; Stufen mit Prozessende melden NEED_KILL (E2E_-Zeile).
@@ -20,13 +24,15 @@ cat > "$tmp/bin/flutter" <<'X'
 #!/bin/sh
 for a in "$@"; do case "$a" in integration_test/*) echo "$a" >> "$FAKE_LOG" ;; esac; done
 echo "E2E_WERT=geheim123"
+[ -z "${FAKE_E:-}" ] || echo "00:01 +0 -1: Archiv [E]"
+[ -z "${FAKE_SLEEP:-}" ] || sleep 6
 case "$*" in *PHASE=write* | *PHASE=a*) [ -n "${FAKE_NOKILL:-}" ] || { echo "E2E_X NEED_KILL"; sleep 3; } ;; esac
 [ -z "${FAKE_FAIL:-}" ] || { echo "Expected: x"; exit 1; }
 exit 0
 X
 chmod +x "$tmp/bin/adb" "$tmp/bin/flutter"
-export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/calls" ANDROID_SERIAL=emulator-5554
-unset E2E_SHARD E2E_STUFEN FAKE_NOKILL FAKE_FAIL
+export PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/calls" FAKE_SHOTS="$tmp/shots" ANDROID_SERIAL=emulator-5554
+unset E2E_SHARD E2E_STUFEN FAKE_NOKILL FAKE_FAIL FAKE_E FAKE_SLEEP
 fails=0
 # run <Name> <rc> <Aufrufe-der-Testdateien (Anzahl)> [VAR=Wert ...]
 run() {
@@ -53,6 +59,11 @@ grep -q 'E2E_\|geheim123' "$tmp/stdout" && { echo "FAIL E2E_-Zeile in der Ausgab
 grep -rq 'E2E_\|geheim123' "$tmp/out" && { echo "FAIL E2E_-Zeile im Artefakt"; fails=$((fails + 1)); } || echo "OK   keine E2E_-Zeile im Artefakt"
 [ -f "$tmp/out/test-output-sammlung.txt" ] || { echo "FAIL kein Testlog im Artefakt"; fails=$((fails + 1)); }
 run "Prozessende ohne NEED_KILL -> Exit 1"     1 1 E2E_STUFEN=storage-a FAKE_NOKILL=1
+# Foto: laeuft die Stufe weiter, kommen Fotos; nach dem ersten "[E]" kein neues mehr.
+: > "$tmp/shots"; run "Foto: ohne Fehler laufend aktualisiert" 0 1 E2E_SHARD=sammlung FAKE_SLEEP=1
+[ "$(wc -l < "$tmp/shots" | tr -d ' ')" -ge 2 ] || { echo "FAIL Foto: keine laufenden Fotos"; fails=$((fails + 1)); }
+: > "$tmp/shots"; run "Foto: nach [E] eingefroren" 1 1 E2E_SHARD=sammlung FAKE_SLEEP=1 FAKE_E=1 FAKE_FAIL=1
+[ "$(wc -l < "$tmp/shots" | tr -d ' ')" -le 1 ] || { echo "FAIL Foto: nach [E] weitere Fotos"; fails=$((fails + 1)); }
 # Waechter: Testdatei, die weder eingebunden noch Stufe ist, auch als Kommentar.
 : > app/integration_test/e2e_neu_test.dart
 run "Waechter: nicht eingebundene Datei"       1 0 E2E_SHARD=sammlung
