@@ -200,9 +200,10 @@ void main() {
       }
       await waitFor(t, () => has('home_plan'), 'Heute');
 
-      // Kurz vor Mitternacht erst den Tageswechsel abwarten (hoechstens 5 min): Der Lauftag wird jetzt festgelegt,
-      // die Einheit muss beim Start noch auf "heute" liegen.
-      while (DateTime.now().hour == 23 && DateTime.now().minute >= 55) {
+      // Kurz vor Mitternacht erst den Tageswechsel abwarten (hoechstens 15 min): Der Lauftag wird jetzt festgelegt,
+      // die Einheit muss beim Start noch auf "heute" liegen. Der Lauf selbst (Abschnitt, Frist bis 7 min, Zusammenfassung)
+      // braucht ca. 6 min (Frist bis 15 min) und darf Mitternacht nicht ueberqueren: home_today_done prueft gegen "heute".
+      while (DateTime.now().hour == 23 && DateTime.now().minute >= 45) {
         await pumpFor(t, const Duration(seconds: 1));
       }
       // Ziel anlegen: heutiger Wochentag ist Lauftag, damit heute eine Einheit liegt.
