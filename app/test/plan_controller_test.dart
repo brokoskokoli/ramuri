@@ -550,10 +550,9 @@ void main() {
       // assignRun lief erst nach dem Abschluss der Neuberechnung (Prüftag
       // geschrieben) und hat dann zugeordnet.
       expect(seenBySecondRead?.runId, runId);
-      expect(
-        await e.session.settings.get(planLastCheckDayKey),
-        _dayText(_today),
-      );
+      // Manuell bewertet die Woche nicht und setzt den Prüftag nicht (ADR-0010
+      // Nachtrag WP24).
+      expect(await e.session.settings.get(planLastCheckDayKey), 'alt');
       expect((await e.plans.unitOn(unit.day))?.runId, runId);
     });
 
@@ -593,6 +592,34 @@ void main() {
       expect(h.last.inputs.anchor, before.anchor);
       expect(h.last.inputs.startWeeklyMinutes, before.startWeeklyMinutes);
       expect(h.last.inputs.today, _today);
+    });
+
+    test('manuelles Neuberechnen setzt den Prüftag nicht: die fällige '
+        'Wochenbewertung läuft danach beim Öffnen', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      await _writeVersion(e, PlanVersion.current, _day(-7));
+      final lastCheck = _dayText(_day(-7));
+      await e.session.settings.set(planLastCheckDayKey, lastCheck, at: _now);
+      expect(await e.controller.recalculate(), PlanActionResult.done);
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        lastCheck,
+        reason: 'manuell bewertet die Woche nicht',
+      );
+      expect(
+        weeklyCheckDue(
+          await e.session.settings.get(planLastCheckDayKey),
+          _today,
+        ),
+        isTrue,
+      );
+      await e.controller.open();
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        _dayText(_today),
+        reason: 'das Öffnen hat die Woche bewertet',
+      );
     });
 
     test('Lese-Adapter: Güte aus dem neuesten Laufwert (alt gut, neu '

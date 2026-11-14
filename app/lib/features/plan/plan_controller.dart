@@ -403,7 +403,10 @@ class PlanController extends ChangeNotifier {
       inputs: inputs,
       parameters: parameters,
       warning: _warning,
-      markChecked: markChecked && !skippedForPause,
+      // `manual` bewertet die Woche nicht (ADR-0010 Nachtrag WP24, K63): Der
+      // Prüftag bleibt, sonst fiele die fällige Wochenbewertung weg.
+      markChecked:
+          markChecked && !skippedForPause && trigger != PlanTrigger.manual,
     );
     _fresh = r.generated;
     _lastChange = r.summary;
