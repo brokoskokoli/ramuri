@@ -135,8 +135,9 @@ bool hittable(WidgetTester t, Finder f) {
 }
 
 /// Tipp auf [target] (ein Element unterhalb der Taste [key]): erst auf Ruhe und
-/// Treffer warten, danach pruefen, dass [done] gilt; sonst einmal erneut tippen
-/// und mit klarer Meldung scheitern. Kein festes Zeitpolster.
+/// Treffer warten, danach bis zu einer Frist auf [done] warten; gilt es nicht,
+/// einmal erneut tippen und sonst mit klarer Meldung scheitern. Kein festes
+/// Zeitpolster.
 Future<void> tapUntil(
   WidgetTester t,
   Finder target,
@@ -154,7 +155,12 @@ Future<void> tapUntil(
       await pumpFor(t, const Duration(milliseconds: 100));
     }
     if (hittable(t, target)) await t.tap(target);
-    await pumpFor(t, const Duration(milliseconds: 300));
+    // Auf die Wirkung warten (bis zur Frist), erst dann erneut tippen: Ein
+    // zweiter Tipp wuerde eine verspaetete Wirkung (Umschalter) zuruecknehmen.
+    final wirkungEnde = DateTime.now().add(const Duration(seconds: 3));
+    do {
+      await pumpFor(t, const Duration(milliseconds: 100));
+    } while (!done() && DateTime.now().isBefore(wirkungEnde));
     if (done()) return;
     logPub('tap_ohne_wirkung what=$what versuch=$versuch');
   }
