@@ -556,6 +556,44 @@ void main() {
         },
       );
 
+      testWidgets(
+        'Nachkommastellen kommen aus der Reihe: Kamera-Ruhepuls eine, HRV keine',
+        (tester) async {
+          // Mit z (29 Tage) und ohne z (nur 10 Tage, fail()) gleich.
+          for (final days in [
+            [for (var i = 0; i < 29; i++) i],
+            [for (var i = 19; i < 29; i++) i],
+          ]) {
+            final cams = cameraDeviations([
+              for (final i in days) _morning(i, hr: 58.5),
+            ], today: _today);
+            expect(cams.length, 2);
+            final s = ReadinessSnapshot(
+              result: _number().result,
+              developerMode: true,
+              extended: true,
+              series: cams,
+              today: _today,
+            );
+            await open(tester, s);
+            final rhr = cams.indexWhere(
+              (c) => c.factor == ReadinessFactor.restingHeartRate,
+            );
+            final hrv = 1 - rhr;
+            expect(
+              _text('readiness_series_latest_camera_restingHeartRate_$rhr'),
+              de ? '58,5' : '58.5',
+              reason: 'Tage ${days.length}',
+            );
+            expect(
+              _text('readiness_series_latest_camera_hrv_$hrv'),
+              isNot(contains(de ? ',' : '.')),
+              reason: 'Tage ${days.length}',
+            );
+          }
+        },
+      );
+
       testWidgets('Lücken bleiben Lücken, wenige Messungen sind genannt', (
         tester,
       ) async {
