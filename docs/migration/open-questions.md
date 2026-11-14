@@ -677,3 +677,12 @@ Die Quelle sagt: „Vor der technischen Spezifikation sollten insbesondere folge
 - **Optionen:** Zeit bis zum Ziel (Hinweis, wenn eine Einheit in die letzte Woche oder hinter das Zieldatum fällt); restliche Wochenzeit (deckt die Prüfung der Wochenbelastung schon ab); Begriff streichen. Empfehlung: Zeit bis zum Ziel, als Hinweis ohne Sperre, wenn eine Verschiebung in die Reduktion oder auf den Zieltag fällt.
 - **Status:** Open
 - **Entscheidung:** —
+
+### OQ-0081 — Was heißt „längste gültige Reihe“ bei mehreren HRV- oder Ruhepulsquellen?
+- **Frage:** PAR-189 lässt bei mehreren Quell-Apps die „mit der längsten gültigen Reihe“ zählen, sagt aber nicht, worin die Länge gemessen wird und was bei Gleichstand gilt. Soll die Auslegung aus WP32 gelten?
+- **Auslöser/Quellen:** WP32 Teil D (`HealthProcessing.selectSource`), K64 Punkt 1; PAR-189.
+- **Betroffene Anforderungen:** FR-0200
+- **Auswirkung:** non-blocking, bis zur Antwort gilt die Auslegung aus WP32; WP34 nutzt die Auswahl für die Readiness.
+- **Optionen:** Zahl der Tage mit gültigem Tageswert (Gleichstand: kleinerer Paketname); Zahl der Einzelwerte; die zuletzt ununterbrochene Reihe; die Quelle, die der Nutzer wählt. Empfehlung: Tage mit gültigem Tageswert, Gleichstand kleinerer Paketname (so umgesetzt); eine Wahl durch den Nutzer erst, wenn echte Geräte Mehrfachquellen zeigen.
+- **Status:** Open
+- **Entscheidung:** —

@@ -208,7 +208,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0197 | Belastungsprofil wählen | functional | Approved | 2 | [training-load](specs/training-load.md#fr-0197--belastungsprofil-wählen) | FR-0097, NFR-0005, OQ-0043, OQ-0045, OQ-0053 |
 | FR-0198 | Reimport des Gesamtexports | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0198--reimport-des-gesamtexports) | FR-0192, OQ-0032 |
 | FR-0199 | Training manuell nachtragen | functional | Approved | 2 | [training-load](specs/training-load.md#fr-0199--training-manuell-nachtragen) | FR-0157, FR-0095, FR-0023, OQ-0022, OQ-0058 |
-| FR-0200 | Import über Health Connect | functional | Approved | 3 | [health-import](specs/health-import.md#fr-0200--import-über-health-connect) | FR-0022, SEC-0002, CON-0003, OQ-0033, OQ-0047, OQ-0059 |
+| FR-0200 | Import über Health Connect | functional | Approved | 3 | [health-import](specs/health-import.md#fr-0200--import-über-health-connect) | FR-0022, SEC-0002, CON-0003, OQ-0033, OQ-0047, OQ-0059, OQ-0081 |
 | FR-0201 | Export teilen | functional | Approved | 1 | [export-sync](specs/export-sync.md#fr-0201--export-teilen) | FR-0182, CON-0010, OQ-0049 |
 | FR-0202 | Schrittfrequenz aus dem Smartphone | functional | Approved | 1 | [run-recording](specs/run-recording.md#fr-0202--schrittfrequenz-aus-dem-smartphone) | FR-0027, FR-0021, OQ-0052 |
 | FR-0203 | Warnsignal melden und aufheben | functional | Approved | 2 | [plan-adaptation](specs/plan-adaptation.md#fr-0203--warnsignal-melden-und-aufheben) | FR-0163, FR-0118, OQ-0026, OQ-0048, OQ-0055, OQ-0058 |
