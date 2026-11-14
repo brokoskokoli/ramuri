@@ -4,4 +4,4 @@ Hier liegen alle Dateien, die sich nicht wiederherstellen lassen (z. B. eigene A
 
 | Sammlung | Inhalt | Umfang | Datum | Privat | Genutzt von |
 | --- | --- | --- | --- | --- | --- |
-| – | – | – | – | – | – |
+| [morgenmessungen-maintainer](morgenmessungen-maintainer/README.md) | Messpaare Kamera und Brustgurt aus den Morgenmessungen des Maintainers (App-Export) | wird gefüllt | ab 2026-11-14 | ja | R010 |
