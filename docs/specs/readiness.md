@@ -71,7 +71,7 @@ Der erweiterte Zustand wird mit einem Wert zwischen 0 und 100 und einer erkläre
 
 **Akzeptanzkriterien:**
 - [ ] Ein angezeigter Wert liegt zwischen 0 und 100 und erscheint immer mit Einordnung.
-- [ ] Eine Zahl erscheint nur mit aktueller HRV (nächtlich aus Health Connect oder gültiger Kamera-Morgenwert nach bestandener Validierung und Opt-in, PAR-160K), einem rollenden Mittel nach PAR-161 bzw. PAR-161K, einer Schlafdauer der letzten Nacht (aus Health Connect oder als Selbstangabe in Stufen, PAR-164K/165K) sowie einer Referenz derselben Reihe aus mindestens 14 gültigen Werten in 28 Tagen; sonst eine eingeschränkte Einschätzung ohne Zahl (OQ-0006).
+- [ ] Eine Zahl erscheint nur mit aktueller HRV (nächtlich aus Health Connect oder gültiger Kamera-Morgenwert nach bestandener Validierung, PAR-160K), einem rollenden Mittel nach PAR-161 bzw. PAR-161K, einer Schlafdauer der letzten Nacht (aus Health Connect oder als Selbstangabe in Stufen, PAR-164K/165K) sowie einer Referenz derselben Reihe aus mindestens 14 gültigen Werten in 28 Tagen; sonst eine eingeschränkte Einschätzung ohne Zahl (OQ-0006).
 
 ### FR-0110 — Vorläufige Gewichtung
 - **Status:** Approved | **Phase:** 3
@@ -146,7 +146,7 @@ Messungen sollen nur dann direkt verglichen werden, wenn Messmethode und Messbed
 **Akzeptanzkriterien:**
 - [ ] RMSSD- und SDNN-Werte gehen nicht in dieselbe Referenzreihe ein.
 - [ ] Jede Reihe stammt aus genau einer Quell-App; mehrere Quell-Apps werden nicht gemischt (PAR-160, PAR-189).
-- [ ] Die Kamera ist eine eigene Quelle mit eigener Reihe je Haltung (liegend als Vorgabe, sitzend getrennt) und Gerät; sie wird nie mit Health Connect gemischt. Am selben Tag gilt die Vorrangregel aus K-1 (PAR-160K).
+- [ ] Die Kamera ist eine eigene Quelle mit einer gemeinsamen Reihe je Gerät (liegend als Vorgabe, sitzend wählbar, beide in einer Reihe, Haltung nur gespeichert und markiert, K67); sie wird nie mit Health Connect gemischt. Am selben Tag gilt die Vorrangregel aus K-1 (PAR-160K).
 
 ### FR-0116 — Mögliche Zustände
 - **Status:** Approved | **Phase:** 3
@@ -192,16 +192,16 @@ Für die erweiterte Einschätzung ohne Uhr misst der Nutzer morgens 60 s mit der
 
 **Entwicklermodus (Entscheidung des Maintainers 2026-11-13, K61, K62):** Bis zur bestandenen Validierung ist die Morgenmessung nur im Entwicklermodus (FR-0217) nutzbar; dort gelten Ruhepuls und RMSSD vollständig als gültig, als wäre die Validierung bestanden, ohne Kennzeichnung. Nach dem Bestehen gilt K-1 für alle. Ob der Plan auf die Werte reagiert, regelt FR-0216.
 
-**Umsetzung (WP33, K65):** Gespeichert werden nur brauchbare Messungen, sofort nach der Messung; die Schlafstufe wird nachgetragen. Eine weitere Messung derselben Reihe am selben Tag und eine Messung außerhalb des Morgenfensters werden gespeichert, zählen aber nicht. „Noch einmal messen“ gibt es nur nach einer unbrauchbaren Messung, ohne neue Ruhephase. Gespeichert werden auch die Kamera-Schlagabstände als vollständige Folge (ungültige als NaN), damit Puls und RMSSD für die Validierung nachrechenbar sind. Die Karte auf „Heute“ zeigt nach der Messung die Werte ohne Startknopf; eine zweite Haltung startet über die Übersicht. Die Morgen-Erinnerung hat einen eigenen Wecker und Benachrichtigungskanal.
+**Umsetzung (WP33, K65):** Gespeichert werden nur brauchbare Messungen, sofort nach der Messung; die Schlafstufe wird nachgetragen. Eine weitere Messung derselben Reihe am selben Tag und eine Messung außerhalb des Morgenfensters werden gespeichert, zählen aber nicht. „Noch einmal messen“ gibt es nur nach einer unbrauchbaren Messung, ohne neue Ruhephase. Gespeichert werden auch die Kamera-Schlagabstände als vollständige Folge (ungültige als NaN), damit Puls und RMSSD für die Validierung nachrechenbar sind. Die Karte auf „Heute“ zeigt nach der Messung die Werte ohne Startknopf; eine weitere Messung am selben Morgen zählt nicht, auch nicht in der anderen Haltung (K67). Die Morgen-Erinnerung hat einen eigenen Wecker und Benachrichtigungskanal.
 
 **Akzeptanzkriterien:**
-- [ ] Protokoll: morgens nach dem Aufwachen, erst Toilette, dann messen, vor Kaffee und Frühstück; Haltung liegend als Vorgabe, sitzend wählbar, nie stehend; wechselt die Haltung, beginnt eine neue Reihe. Vorgabe 2 min Ruhe, jeden Tag gleich; 60 s Messung mit spontaner Atmung, Anleitung ohne vorgegebenes Atemtempo.
-- [ ] Es zählt die erste Messung des Tages mit ausreichender Qualität, je Reihe (Haltung und Gerät): liegend und sitzend am selben Morgen zählen beide (K65); wiederholt wird nur, wenn die Qualität nicht reicht.
+- [ ] Protokoll: morgens nach dem Aufwachen, erst Toilette, dann messen, vor Kaffee und Frühstück; Haltung liegend als Vorgabe, sitzend wählbar, nie stehend; die Haltung wird gespeichert und am Punkt markiert, eine neue Reihe beginnt nicht. Vorgabe 2 min Ruhe, jeden Tag gleich; 60 s Messung mit spontaner Atmung, Anleitung ohne vorgegebenes Atemtempo.
+- [ ] Es zählt die erste Messung des Tages mit ausreichender Qualität, je Reihe (Gerät, ohne Haltung): liegend und sitzend bilden eine Reihe, am selben Morgen zählt die erste gültige Messung (K67); wiederholt wird nur, wenn die Qualität nicht reicht.
 - [ ] Gültige Werte, Reihen und Morgenfenster nach PAR-160K; Ruhepuls bei Qualität „gut“ oder „eingeschränkt“, RMSSD nur bei „gut“ und unter der RMSSD-Qualitätsgrenze aus der Validierung.
 - [ ] Abweichungen nach PAR-161K und PAR-162K, Hinweis „wenige Messungen“ bei weniger als 5 gültigen Werten in 7 Tagen.
 - [ ] Schlafdauer ohne Uhr als freiwillige Selbstangabe in Stufen nach PAR-164K/165K; kein Schlafgefühl am Morgen (PAR-169 bleibt).
 - [ ] Zahl, eingeschränkte Einschätzung und „Unzureichende Daten“ nach PAR-171K; Health Connect hat Vorrang vor der Kamera (Vorrangregel K-1).
-- [ ] Validierungssperre (ohne Entwicklermodus): Vor der Validierung erscheint Kamera-RMSSD nur als markierte Tatsache „noch nicht geprüft“. Die Folgen von „bestanden“, „eingeschränkt“ und „nicht bestanden“ für RMSSD und Ruhepuls, das Opt-in „experimentell, mit einem Brustgurt verglichen (ein Handy)“ und der Zusatz „liegend verglichen“ für die sitzende Reihe folgen der Validierungssperre in K-1. Die App nennt die Messung nie „validiert“.
+- [ ] Validierungssperre (ohne Entwicklermodus): Vor der Validierung erscheint Kamera-RMSSD nur als markierte Tatsache „noch nicht geprüft“. Die Folgen von „bestanden“, „eingeschränkt“ und „nicht bestanden“ für RMSSD und Ruhepuls, die Kennzeichnung „experimentell, mit einem Brustgurt verglichen (ein Handy)“ folgt der Validierungssperre in K-1 (ein Stand für beide Haltungen, kein Opt-in-Schalter, K67). Die App nennt die Messung nie „validiert“.
 - [ ] Vor bestandener Validierung ist die Morgenmessung nur im Entwicklermodus erreichbar; dort gelten Ruhepuls und RMSSD wie nach bestandener Validierung, ohne Opt-in und ohne Kennzeichnung, mit Qualitätsgrenze je Messung und internem Merkmal „vor der Validierung gemessen“ (FR-0217, K62 Punkt 1 und 6).
 - [ ] Morgen-Erinnerung: keine Ausnahme zu SEC-0009; die Uhrzeit liegt nur in der verschlüsselten Datenbank, nach einem Neustart des Geräts plant erst das nächste Öffnen der App die Erinnerung neu (K62 Punkt 3).
 - [ ] Kamerabilder werden weder gespeichert noch übertragen; die Auswertung läuft auf dem Gerät mit demselben Algorithmus wie FR-0214.
