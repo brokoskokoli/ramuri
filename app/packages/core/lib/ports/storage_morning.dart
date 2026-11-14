@@ -301,6 +301,14 @@ abstract interface class MorningStorage {
   MorningStore get morning;
 }
 
+/// Höchstzahl Bilder des Rohsignals einer Messung: 120 s (`ppgSearchMaxRecordSeconds`) bei bis zu
+/// 120 Bildern/s. Grund: Eine Archivzeile darf höchstens 16 MiB haben (der Leser lehnt größere als
+/// beschädigt ab), das Rohsignal braucht als Hex 560 Byte je Bild (rund 8 MiB bei 14 400 Bildern,
+/// gut das Doppelte Abstand); ab etwa 29 900 Bildern würde die App ein Archiv schreiben, das sie
+/// selbst nicht mehr liest. Darüber wird das Speichern abgelehnt (`rejected`) statt still gekürzt:
+/// Die Aufnahme endet nach 120 s, mehr Bilder sind ein Fehler des Aufrufers.
+const int morningRawMaxFrames = 120 * 120;
+
 /// Prüfung vor dem Speichern, gleich für Fake und Datenbank.
 void checkMorningForStorage(
   MorningMeasurement m, {
@@ -317,6 +325,8 @@ void checkMorningForStorage(
       // Ruhepuls genau bei brauchbaren Messungen, Grund nur bei unbrauchbaren.
       (m.restingHrBpm == null) != unusable ||
       (!unusable && m.unusableReason != null) ||
+      // Bei „unbrauchbar“ gibt es keine Kennwerte (Doku ALGORITHMUS.md Abschn. 11).
+      (unusable && (m.rmssdMs != null || m.timingNoiseMs != null)) ||
       (ws == null) != (we == null) ||
       bad(ws) ||
       bad(we) ||
@@ -335,7 +345,8 @@ void checkMorningForStorage(
             p.intervals.isEmpty || p.intervals.any((v) => v < 0 || v > 0xFFFF),
       ) ||
       (raw != null &&
-          (raw.frames.any(
+          (raw.frames.length > morningRawMaxFrames ||
+              raw.frames.any(
                 (f) =>
                     f.r16.length != 16 ||
                     f.g16.length != 16 ||

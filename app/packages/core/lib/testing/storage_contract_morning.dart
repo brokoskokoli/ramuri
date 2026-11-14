@@ -310,6 +310,18 @@ Future<void> _extendedRejected(StorageContractHarness h) async {
       beforeValidation: false,
       outsideWindow: false,
     ),
+    'unbrauchbar mit RMSSD': _measurement(
+      0,
+      quality: PpgQuality.unusable,
+      noise: null,
+      reason: PpgQualityReason.noFinger,
+    ),
+    'unbrauchbar mit Zeitrauschen': _measurement(
+      0,
+      quality: PpgQuality.unusable,
+      rmssd: null,
+      reason: PpgQualityReason.noFinger,
+    ),
     'brauchbar ohne Puls': MorningMeasurement(
       measuredAt: at(0),
       utcOffset: Duration.zero,
@@ -351,6 +363,9 @@ Future<void> _extendedRejected(StorageContractHarness h) async {
     'Lücken negativ': _raw(gaps: -1),
     'Lückendauer negativ': _raw(gapS: -0.1),
     'Sättigung über 1': _raw(saturated: 1.5),
+    'mehr Bilder als morningRawMaxFrames': _raw(
+      frames: List.filled(morningRawMaxFrames + 1, _frame(0.5)),
+    ),
   };
   for (final e in badRaw.entries) {
     await expectFails(
