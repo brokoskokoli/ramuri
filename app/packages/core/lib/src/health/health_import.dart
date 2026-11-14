@@ -1,6 +1,7 @@
 import '../../ports/clock.dart';
 import '../../ports/health_import.dart';
 import '../../ports/storage_health.dart';
+import '../../ports/storage_settings.dart';
 import '../consent/consent_service.dart';
 import '../consent/consent_sources.dart';
 import 'health_parameters.dart';
@@ -100,8 +101,10 @@ class HealthImportResult {
 /// und für diese Art „Löschfrage offen“ gemerkt (SEC-0007). Kein Abgleich von
 /// Löschungen. Keine Werte in Fehlern oder Logs.
 ///
-/// Die Sperre gilt nur im Arbeitsspeicher (je Prozess); nach einem Neustart
-/// darf der App-Start wieder importieren.
+/// Die Sperre gilt im Prozess nach der monotonen Uhr und über Neustarts nach dem
+/// Zeitpunkt des letzten Imports (Wanduhr), den [settings] hält
+/// ([lastImportKey], technischer Merker, nicht im Archiv). Ohne [settings] oder
+/// bei Lese-/Schreibfehlern gilt nur die Sperre im Prozess.
 class HealthImportService {
   HealthImportService({
     required this.port,
@@ -112,7 +115,11 @@ class HealthImportService {
     this.minInterval = healthImportMinInterval,
     this.window = healthImportWindow,
     this.overlap = healthImportOverlap,
+    this.settings,
   });
+
+  /// Einstellung: Zeitpunkt des letzten Imports (Millisekunden seit 1970, UTC).
+  static const String lastImportKey = 'health.last_import_ms';
 
   final HealthConnectPort port;
   final HealthImportStore store;
@@ -122,6 +129,7 @@ class HealthImportService {
   final Duration minInterval;
   final Duration window;
   final Duration overlap;
+  final SettingsStore? settings;
 
   Duration? _lastStart;
   bool _running = false;
@@ -131,19 +139,47 @@ class HealthImportService {
     if (_running) {
       return const HealthImportResult(HealthImportStatus.alreadyRunning);
     }
-    final mono = clock.monotonic();
-    if (trigger != HealthImportTrigger.manual &&
-        _lastStart != null &&
-        mono - _lastStart! < minInterval) {
-      return const HealthImportResult(HealthImportStatus.throttled);
-    }
     _running = true;
-    _lastStart = mono;
     try {
+      final mono = clock.monotonic();
+      if (trigger != HealthImportTrigger.manual &&
+          ((_lastStart != null && mono - _lastStart! < minInterval) ||
+              await _persistedThrottle())) {
+        return const HealthImportResult(HealthImportStatus.throttled);
+      }
+      _lastStart = mono;
+      await _persistStart();
       return await _import();
     } finally {
       _running = false;
     }
+  }
+
+  /// Letzter Import (aus einem früheren Prozess) liegt weniger als
+  /// [minInterval] zurück. Eine Zeit in der Zukunft (Uhr zurückgestellt) oder
+  /// ein Lesefehler sperren nicht.
+  Future<bool> _persistedThrottle() async {
+    final store = settings;
+    if (store == null) return false;
+    try {
+      final ms = int.tryParse(await store.get(lastImportKey) ?? '');
+      if (ms == null) return false;
+      final ago = clock.now().difference(
+        DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true),
+      );
+      return !ago.isNegative && ago < minInterval;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _persistStart() async {
+    final store = settings;
+    if (store == null) return;
+    try {
+      final now = clock.now();
+      await store.set(lastImportKey, '${now.millisecondsSinceEpoch}', at: now);
+    } catch (_) {}
   }
 
   /// Merkt „Löschfrage offen“. Scheitert das Schreiben, bleibt der Lauf heil;

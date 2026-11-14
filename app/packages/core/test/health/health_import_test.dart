@@ -299,6 +299,80 @@ void main() {
     expect(store.exerciseHeartRate('e1'), hasLength(1));
   });
 
+  test('Sperre gilt über einen Neustart; Jetzt abrufen umgeht sie', () async {
+    await grantAll();
+    final stored = await FakeStorage().open(Uint8List(32));
+    HealthImportService fresh() => HealthImportService(
+      port: port,
+      store: store,
+      consents: consents,
+      clock: clock,
+      settings: stored.settings,
+    );
+    expect(
+      (await fresh().run(HealthImportTrigger.appStart)).status,
+      HealthImportStatus.done,
+    );
+    // Neuer Dienst = neuer Prozess: kein Stand im Arbeitsspeicher, auch die
+    // monotone Uhr beginnt neu.
+    clock.advance(const Duration(minutes: 14, seconds: 59));
+    final restarted = fresh();
+    final reads = port.reads.length;
+    expect(
+      (await restarted.run(HealthImportTrigger.appStart)).status,
+      HealthImportStatus.throttled,
+    );
+    expect(port.reads.length, reads);
+    expect(
+      (await restarted.run(HealthImportTrigger.manual)).status,
+      HealthImportStatus.done,
+    );
+    // Der manuelle Lauf hat den Zeitpunkt erneuert.
+    clock.advance(const Duration(minutes: 14));
+    expect(
+      (await fresh().run(HealthImportTrigger.todayOpened)).status,
+      HealthImportStatus.throttled,
+    );
+    clock.advance(const Duration(minutes: 1));
+    expect(
+      (await fresh().run(HealthImportTrigger.todayOpened)).status,
+      HealthImportStatus.done,
+    );
+  });
+
+  test(
+    'Merker der Sperre: unlesbar oder in der Zukunft sperrt nicht',
+    () async {
+      await grantAll();
+      for (final v in ['kaputt', '${_t0.millisecondsSinceEpoch + 60000}']) {
+        final stored = await FakeStorage().open(Uint8List(32));
+        await stored.settings.set(
+          HealthImportService.lastImportKey,
+          v,
+          at: _t0,
+        );
+        final s = HealthImportService(
+          port: port,
+          store: store,
+          consents: consents,
+          clock: clock,
+          settings: stored.settings,
+        );
+        expect(
+          (await s.run(HealthImportTrigger.appStart)).status,
+          HealthImportStatus.done,
+        );
+      }
+    },
+  );
+
+  test('Merker der Sperre liegt nicht im Archiv', () {
+    expect(
+      archiveExcludedSettingKeys,
+      contains(HealthImportService.lastImportKey),
+    );
+  });
+
   test('Widerruf während des Lesens: nichts gespeichert', () async {
     await consents.grant(healthSourceKey(HealthDataKind.sleep));
     port.data[HealthDataKind.sleep] = [_sleep('s1')];
