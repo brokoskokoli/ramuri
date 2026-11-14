@@ -1,0 +1,54 @@
+# R010 – Genauigkeit der Kamera-PPG verbessern (Messtechnik und Signalverarbeitung)
+
+**Status:** abgeschlossen, nachgebessert nach Review 1 und 2 (Entscheidung K72 eingearbeitet) (Ergebnis in [RESULTS.md](RESULTS.md)) · **Auftraggeber:** Maintainer über den Project Supervisor · **Datum:** 2026-11-14
+
+## Frage
+Wie lässt sich die Genauigkeit der Kamera-Morgenmessung (Finger auf Kamera und Licht, 60 s) für Ruhepuls und vor allem RMSSD erhöhen, durch Messtechnik (Bildrate, Belichtung, Torch, Fingerdruck, Haltung, Bildausschnitt, Farbkanal, Zeitstempel) und durch Signalverarbeitung (Interpolation, Bezugspunkt, Filter, Ausreißer, Fensterwahl, Glättung, Rauschkorrektur)? Was ist belegt, was ist im Code schon umgesetzt, was fehlt, und was bringt es messbar? Daran hängt, was WP37 (wanderndes 60-s-Fenster, Rohsignal im Entwicklermodus) und spätere Pakete umsetzen und ob eine strengere Qualitätsgrenze (Zeitrauschen) begründbar ist.
+
+## Hintergrund
+- R009 (Vorarbeit, Literatur [B…]): Kamera-Ruhepuls belegt, RMSSD aus 60 s gemischt belegt; Zeitrauschen σ_t erhöht RMSSD² um etwa 6·σ_t²; die Grenze „Zeitrauschen > 25 ms → eingeschränkt“ ist für RMSSD zu lasch.
+- Erste Feldmessungen 2026-11-14 mit Polar H9 parallel (nur Kennzahlen, ausgewertet vom Orchestrator): eine Messung nach unruhigem Anfang mit Schlagabständen im Median ~8 ms vom Gurt und fast gleicher RMSSD; eine als „gut“ bewertete Messung mit Zeitrauschen ~15 ms, Median-Abweichung je Schlag ~25 ms und Kamera-RMSSD rund 35 % über dem Gurt.
+- App-Code: `app/packages/core/lib/src/ppg/` (Port von `PpgAnalyzer.kt`, Stand `algo-v0.4-frozen` des Vorgängerprojekts `puls`), Aufnahme `app/android/app/src/main/kotlin/io/github/brokoskokoli/ramuri/PpgCamera*.kt`, `PpgFrameStats.kt`.
+- Entscheidung K70 (Maintainer, 2026-11-14): `~/ai/puls` darf gelesen werden (nichts davon ins Repo); Sammlung `research/input/morgenmessungen-maintainer/` nur lokal, nur Dateinamen und Kennzahlen in Ergebnissen.
+
+## Methode
+1. **Bestand im Code** (lesen): Was davon ist schon umgesetzt (Zeitstempel, reale Bildrate, Interpolation, Bezugspunkt, Filter, Ausreißer, Qualitätsgrenzen)?
+2. **Literatur** je Maßnahme: Quelle, Aufbau, Effektgröße, Gegenbelege (Volltext oder nur Abstract vermerkt).
+3. **Synthetische Messung** (`run.sh --part synth`): Pulskurve mit bekannter Schlagfolge (RR mit Atemmodulation, realistische RMSSD 20–70 ms), Pulslaufzeit-Schwankung, Formänderung, Grundlinienwanderung, Bildrauschen in mehreren Stufen, Belichtung als Integrationsfenster, 30 und 60 Bilder/s, Zeitstempel mit Jitter und Bildverlusten. Ausgewertet wird **mit dem Dart-Code der App selbst** (Import der Dateien aus `app/packages/core/lib/src/ppg/`, unverändert) und mit Varianten (Bezugspunkt, Tiefpass, Raster, nominale Rate statt Zeitstempel, Nachbearbeitung der RR-Folge, Rauschkorrektur). Kennzahlen: Fehler je Schlagabstand gegen die wahre Folge (RMS), RMSSD-Abweichung (ln-Verhältnis), Zusammenhang „geschätztes Zeitrauschen ↔ RMSSD-Fehler“.
+4. **Echte Messungen aus `~/ai/puls`** (`--part real`): 10 Aufnahmen vom 2026-11-09 (7 × 30 Bilder/s nur Rot/Grün, 3 × 60 Bilder/s, 2 davon mit Teilbereichen), eine davon mit gleichzeitigem Polar H9. An dieser: Abweichung Kamera gegen Gurt je Schlagabstand und RMSSD für App und Varianten, außerdem 60 → 30 Bilder/s ausgedünnt. An den übrigen ohne Referenz: Übereinstimmung zwischen unabhängigen Teilbereichsgruppen als Rauschmaß.
+5. **Messpaare** (`--part pairs`): falls Exporte in der Sammlung liegen, Abweichung Kamera gegen Gurt je Schlagabstand, Δ-Fehler, Kreuzterm und RMSSD auf zwei Basen (gleiche Paare; App-RMSSD gegen den Gurt im ganzen Kamera-Fenster), vorher/nachher für Maßnahmen, die nur die RR-Folge betreffen (das Rohsignal kommt erst mit WP37). **Stand:** Die Sammlung ist leer; die Kennzahlen der Feldfälle B und C (RESULTS 3.9) hat der Orchestrator außerhalb des Repos berechnet, sie sind hier nicht wiederholbar. Nachholen, sobald ein Export in `research/input/morgenmessungen-maintainer/` liegt: `./run.sh --part pairs` (Ausgabe `pairs.txt`). Ohne Export läuft nur der Selbsttest.
+6. **Qualitätsgrenze:** aus 3–5 abgeleitet, welche Grenze für das Zeitrauschen welchen RMSSD-Fehler zulässt; dazu nachrichtlich die Kennzahlen der zwei Feldmessungen mit Gurt vom 2026-11-14 (vom Orchestrator aus dem Messpaar-Export gerechnet, im Repo nicht wiederholbar, nicht unabhängig geprüft; kein Schluss stützt sich allein darauf).
+7. **Fensterwahl** (`--part window`, nach Review 1): synthetische 120-s-Aufnahmen (ruhig in drei Störstufen bzw. mit 30 s unruhigem Anfang), je Aufnahme 54 Fenster à 60 s (Beginn 5–58 s, Schritt 1 s) mit dem App-Verfahren. Verglichen: festes Fenster, zufälliges Fenster, kleinstes Zeitrauschen, erstes „gut“ (25 ms) bzw. erstes ≤ 8 ms mit Rückfall auf das kleinste, Orakel (kleinstes wahres Zeitrauschen). Kennzahlen: RMSSD-Fehler gegen die R-Zacken im selben Fenster, Zeitrauschen App und wahr im gewählten Fenster, Anteil bestanden bei 8 ms.
+
+Warum aussagekräftig: Die Synthese kennt die Wahrheit und trennt Ursachen; die echte Gurtmessung prüft, ob das Ergebnis auch auf einem echten Signal trägt (n = 1, nur Hinweis). Eine Freigabe im Sinne der Validierung aus R009 ist das nicht.
+
+**Achtung Validierung (R009, Abschnitt 6):** Messungen, an denen hier Verfahren verglichen oder Schwellen gewählt werden, gelten als Entwicklungsdaten und zählen nicht für die Validierung einer daraus abgeleiteten Verfahrensänderung.
+
+## Daten
+| Was | Wo | Herkunft / Lizenz | Größe | Wiederherstellbar |
+| --- | --- | --- | --- | --- |
+| Synthetische Aufnahmen | erzeugt im Lauf unter `research/data/work/R010/<lauf>/` | eigener Generator (`src/`), Seed | < 1 MB | ja, `./run.sh` |
+| Kamera-Aufnahmen und Gurt-RR der Vorgänger-App | `~/ai/puls/messungen/files/` (außerhalb des Repos, nur lesen, K70) | Maintainer, privat | ~3 MB | **nein**, nur lesen |
+| Messpaare | `research/input/morgenmessungen-maintainer/` (siehe deren README) | Maintainer, privat | anfangs leer | **nein**, nur lesen |
+
+`init.sh` lädt nichts herunter; es prüft nur Dart und die Eingaben und meldet, was fehlt.
+
+## Ausführung
+Voraussetzungen: Dart SDK ≥ 3.13 (liegt mit Flutter vor), keine Pakete außer dem App-Code. Laufzeit siehe `RESULTS.md`.
+
+```bash
+./init.sh            # prüft Dart und Eingaben (idempotent, ändert nichts)
+./run.sh [Parameter] # führt die Analyse aus
+```
+
+| Parameter | Standard | Bedeutung |
+| --- | --- | --- |
+| `--seed N` | `1` | Zufallsstartwert der Synthese |
+| `--reps N` | `40` | synthetische Aufnahmen je Fall |
+| `--wreps N` | `20` | synthetische 120-s-Aufnahmen je Fall im Teil window |
+| `--part synth\|real\|pairs\|window\|all` | `all` | nur einen Teil rechnen |
+| `--puls DIR` | `~/ai/puls/messungen/files` | Ordner mit den Aufnahmen der Vorgänger-App |
+
+Beispiel: `./run.sh --seed 1 --reps 40 --wreps 40` (vollständig, wie in RESULTS), kurze Probe: `./run.sh --reps 3 --part synth`.
+
+Ausgaben: `research/data/work/R010/<datum-zeit>/` (`run.info`, je Teil eine `.txt`: synth, real, pairs, window), wegwerfbar. Ausgaben zu echten Messungen enthalten nur Kennzahlen, keine Zeitreihen.
