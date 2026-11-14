@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
+import '../health/imported_exercise_screen.dart';
 import '../map/map_consent_controller.dart';
 import '../map/map_consent_scope.dart';
 import '../map/miniature_service.dart';
@@ -47,13 +48,17 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _Data {
-  _Data(this.overviews, this.trainings)
+  _Data(this.overviews, this.trainings, this.imported)
     : figures = [for (final o in overviews) o.toFigures()];
   final List<RunOverview> overviews;
 
   /// Nachgetragene Trainings (FR-0199). Sie liegen nicht in `runs` und fließen
   /// darum in keine Summe, Statistik, Bestwerte oder VO₂max ein.
   final List<StoredManualTraining> trainings;
+
+  /// Aus Health Connect importierte Einheiten (K62 F2): nur Anzeige mit Quelle,
+  /// in keiner Summe und keiner Berechnung, bis sie als Nachtrag übernommen sind.
+  final List<HealthRecord> imported;
 
   /// Einmal gebildet, nicht je Build.
   final List<RunFigures> figures;
@@ -98,7 +103,33 @@ class _HistoryScreenState extends State<HistoryScreen> {
       clock: widget.clock,
       offload: offload,
     ).load();
-    return _Data(overviews, await _subjective.trainings());
+    final session = widget.session;
+    var imported = const <HealthRecord>[];
+    if (session is HealthStorage) {
+      try {
+        imported = await (session as HealthStorage).health.exercises(
+          DateTime.utc(2000),
+          DateTime.utc(2200),
+        );
+      } on Object {
+        // Ohne Inhalt: der Verlauf zeigt dann nur die eigenen Einträge.
+      }
+    }
+    return _Data(overviews, await _subjective.trainings(), imported);
+  }
+
+  Future<void> _openImported(HealthRecord e) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ImportedExerciseScreen(
+          exercise: e,
+          session: widget.session,
+          clock: widget.clock,
+          today: _today,
+        ),
+      ),
+    );
+    if (mounted) _reload();
   }
 
   Future<void> _editTraining([StoredManualTraining? existing]) async {
@@ -266,7 +297,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
         if (data == null) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (data.overviews.isEmpty && data.trainings.isEmpty) {
+        if (data.overviews.isEmpty &&
+            data.trainings.isEmpty &&
+            data.imported.isEmpty) {
           return Padding(
             padding: _pagePadding,
             child: Column(
@@ -299,6 +332,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       for (final o in data.overviews)
         if (period.contains(id: o.run.id, day: dayOfRun(o.run))) o,
     ];
+    final adopted = adoptedHcIds(data.trainings);
     final entries = <_Entry>[
       for (final o in inRange) _RunEntry(o),
       for (final t in data.trainings)
@@ -307,6 +341,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
         if (range == HistoryRange.all ||
             period.contains(id: -1, day: t.training.isoDay))
           _TrainingEntry(t),
+      for (final e in data.imported)
+        if (range == HistoryRange.all ||
+            period.contains(
+              id: -1,
+              day: isoDay(importedExerciseLocalStart(e, widget.clock)),
+            ))
+          _ImportedEntry(
+            e,
+            importedExerciseLocalStart(e, widget.clock),
+            adopted.contains(e.id),
+          ),
     ];
     final groups = groupByWeek<_Entry>(
       entries,
@@ -361,6 +406,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
       else ...[
         if (totals.runCount > 0)
           (_) => _TotalsPanel(totals: totals, formatter: formatter),
+        if (entries.any((e) => e is _ImportedEntry))
+          (_) => Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              l10n.healthHistTotalsNote,
+              key: const Key('health_hist_totals_note'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
         for (final g in groups) ...[
           (_) => Padding(
             padding: const EdgeInsets.only(top: 18, bottom: 8),
@@ -379,6 +433,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   onDelete: _delete,
                   onOpen: _open,
                 ),
+                _ImportedEntry(:final exercise, :final adopted) =>
+                  _ImportedTile(
+                    key: ValueKey('hc_${exercise.id}'),
+                    exercise: exercise,
+                    localStart: e.sortKey,
+                    adopted: adopted,
+                    onOpen: _openImported,
+                  ),
                 _TrainingEntry(:final training) => _TrainingTile(
                   key: ValueKey('manual_${training.id}'),
                   stored: training,
@@ -457,6 +519,22 @@ class _TrainingEntry extends _Entry {
 
   @override
   DateTime get sortKey => training.training.day;
+}
+
+/// Aus Health Connect importierte Einheit: nur Anzeige, zählt nirgends mit.
+class _ImportedEntry extends _Entry {
+  _ImportedEntry(this.exercise, this.localStart, this.adopted);
+  final HealthRecord exercise;
+  final DateTime localStart;
+
+  /// Schon als Nachtrag übernommen (dann zählt der Nachtrag, nicht diese Zeile).
+  final bool adopted;
+
+  @override
+  String get day => isoDay(localStart);
+
+  @override
+  DateTime get sortKey => localStart;
 }
 
 /// Summen über der Liste (Läufe, Strecke, Zeit) auf dem dunklen Feld; nur
@@ -811,6 +889,85 @@ class _TrainingTile extends StatelessWidget {
             onPressed: () => onDelete(stored),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Importierte Einheit im Verlauf: gekennzeichnet „aus Health Connect“ mit der
+/// Quell-App; gestrichelt wie im Design, damit sie nicht wie ein eigener Lauf
+/// wirkt. Tippen öffnet das Detail (Pulskurve, Übernehmen).
+class _ImportedTile extends StatelessWidget {
+  const _ImportedTile({
+    super.key,
+    required this.exercise,
+    required this.localStart,
+    required this.adopted,
+    required this.onOpen,
+  });
+
+  final HealthRecord exercise;
+  final DateTime localStart;
+  final bool adopted;
+  final Future<void> Function(HealthRecord) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final material = MaterialLocalizations.of(context);
+    final text = Theme.of(context).textTheme;
+    final id = exercise.id;
+    final kind = importedExerciseKindText(l10n, exercise);
+    final minutes = exerciseMinutes(exercise);
+    final when =
+        '${material.formatMediumDate(localStart)}, '
+        '${material.formatTimeOfDay(TimeOfDay.fromDateTime(localStart))}';
+    return Semantics(
+      container: true,
+      button: true,
+      excludeSemantics: true,
+      onTap: () => onOpen(exercise),
+      label:
+          '${l10n.healthHistSemantics(kind, when, exercise.origin)}'
+          '${adopted ? ', ${l10n.healthHistTaken}' : ''}',
+      child: RamuriCard(
+        key: Key('health_exercise_$id'),
+        radius: 20,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        onTap: () => onOpen(exercise),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                RamuriBadge(l10n.healthHistBadge),
+                Text(kind, style: text.titleSmall),
+                if (adopted)
+                  Text(
+                    l10n.healthHistTaken,
+                    key: Key('health_exercise_taken_$id'),
+                    style: text.labelLarge,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(when, style: text.titleSmall),
+            const SizedBox(height: 3),
+            Text(
+              l10n.manualRowDuration('$minutes'),
+              key: Key('health_exercise_duration_$id'),
+              style: text.bodyMedium,
+            ),
+            Text(
+              l10n.healthHistSource(exercise.origin),
+              key: Key('health_exercise_source_$id'),
+              style: text.bodySmall,
+            ),
+          ],
+        ),
       ),
     );
   }

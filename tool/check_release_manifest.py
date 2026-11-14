@@ -20,6 +20,10 @@ Regeln:
   ACTIVITY_RECOGNITION erlaubt und nur, wenn der Aufzeichnungsdienst (RecordingService) den Typ health trägt, und zwar
   zusammen mit location (GPS-Läufe bleiben location). Kein anderer Dienst darf health tragen. Ein unlesbarer
   Diensttyp ist rot.
+- Health Connect (ADR-0007 Punkt 2, WP32): genau die sechs Leserechte READ_EXERCISE, READ_HEART_RATE,
+  READ_RESTING_HEART_RATE, READ_HEART_RATE_VARIABILITY, READ_SLEEP und READ_VO2_MAX, nichts darüber hinaus. Rot bei
+  jedem WRITE_*-Recht, READ_HEALTH_DATA_IN_BACKGROUND, READ_HEALTH_DATA_HISTORY, jedem weiteren Recht unter
+  android.permission.health. (auch aus einem Plugin) und bei jedem fehlenden der sechs.
 Der Selbsttest tool/check_release_manifest_test.py belegt jede Regel als rot."""
 import re, sys
 
@@ -30,6 +34,10 @@ FORBIDDEN = (
     "android.permission.SCHEDULE_EXACT_ALARM",
     "android.permission.USE_EXACT_ALARM",
 )
+HEALTH_PREFIX = "android.permission.health."
+HEALTH_READ = frozenset(HEALTH_PREFIX + n for n in (
+    "READ_EXERCISE", "READ_HEART_RATE", "READ_RESTING_HEART_RATE", "READ_HEART_RATE_VARIABILITY", "READ_SLEEP",
+    "READ_VO2_MAX"))
 BOOT_PERMISSION = "android.permission.RECEIVE_BOOT_COMPLETED"
 RECORDING_SERVICE = PACKAGE + ".RecordingService"
 HEALTH_SERVICE_PERMISSION = "android.permission.FOREGROUND_SERVICE_HEALTH"
@@ -129,6 +137,23 @@ def check_health(perms, application):
     return errors
 
 
+def check_health_connect(perms):
+    """Genau die sechs Health-Connect-Leserechte; kein Schreib-, Hintergrund- oder Verlaufsrecht, kein weiteres."""
+    errors = []
+    found = {p for p in perms if p.startswith(HEALTH_PREFIX)}
+    for p in sorted(found - HEALTH_READ):
+        name = p[len(HEALTH_PREFIX):]
+        if name.startswith("WRITE_"):
+            errors.append(f"Release-APK fordert das Health-Connect-Schreibrecht {p}")
+        elif name in ("READ_HEALTH_DATA_IN_BACKGROUND", "READ_HEALTH_DATA_HISTORY"):
+            errors.append(f"Release-APK fordert {p} (kein Hintergrundlesen, keine alten Daten)")
+        else:
+            errors.append(f"Release-APK fordert das unerwartete Health-Connect-Recht {p}")
+    for p in sorted(HEALTH_READ - found):
+        errors.append(f"Release-APK fordert das Health-Connect-Leserecht {p} nicht")
+    return errors
+
+
 def check(perms_text, tree_text):
     errors = []
     if not re.search(r"^package: " + re.escape(PACKAGE) + r"$", perms_text, re.M):
@@ -137,6 +162,7 @@ def check(perms_text, tree_text):
     for p in FORBIDDEN:
         if p in perms:
             errors.append(f"Release-APK fordert {p}")
+    errors += check_health_connect(perms)
     try:
         root = parse_tree(tree_text)
     except ValueError as e:

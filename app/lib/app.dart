@@ -6,6 +6,7 @@ import 'app_dependencies.dart';
 import 'features/reminders/reminder_controller.dart';
 import 'features/archive/archive_scope.dart';
 import 'features/export/file_handoff_scope.dart';
+import 'features/health/health_connect_scope.dart';
 import 'features/home/ready_root.dart';
 import 'features/map/map_consent_scope.dart';
 import 'features/measure/resting_measure_launcher.dart';
@@ -36,6 +37,9 @@ class _RunningAppState extends State<RunningApp> {
 
   /// Kartencontroller der aktuellen Sitzung, über dem Navigator (Einstellungen, Karten).
   final MapConsentHolder _map = MapConsentHolder();
+
+  /// Health-Connect-Controller der aktuellen Sitzung (WP32), über dem Navigator.
+  final HealthConnectHolder _health = HealthConnectHolder();
 
   /// Erinnerungen (FR-0174), über den Sitzungen; ReadyRoot bindet die Sitzung an.
   late final ReminderController _reminders = ReminderController(
@@ -74,11 +78,17 @@ class _RunningAppState extends State<RunningApp> {
               value: ramuriOverlayStyle(Theme.of(context).brightness),
               child: MapConsentScope(
                 holder: _map,
-                child: PpgCameraScope(
-                  camera: dependencies.ppgCamera,
-                  child: AppSettingsScope(
-                    holder: _settings,
-                    child: ReminderScope(controller: _reminders, child: child!),
+                child: HealthConnectScope(
+                  holder: _health,
+                  child: PpgCameraScope(
+                    camera: dependencies.ppgCamera,
+                    child: AppSettingsScope(
+                      holder: _settings,
+                      child: ReminderScope(
+                        controller: _reminders,
+                        child: child!,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -112,6 +122,8 @@ class _RunningAppState extends State<RunningApp> {
           welcome: _welcome,
           map: dependencies.map,
           mapHolder: _map,
+          healthConnect: dependencies.healthConnect,
+          healthHolder: _health,
         ),
       ),
     );

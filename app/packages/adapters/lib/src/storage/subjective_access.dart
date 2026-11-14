@@ -125,6 +125,7 @@ class DriftManualTrainingStore implements ManualTrainingStore {
           kind: enumOf(ManualTrainingKind.values, r.kind, (v) => v.name),
           duration: Duration(seconds: r.durationS),
           rpe: r.rpe,
+          hcId: r.hcId,
         ),
       );
 
@@ -134,6 +135,7 @@ class DriftManualTrainingStore implements ManualTrainingStore {
         kind: Value(t.kind.name),
         durationS: Value(t.duration.inSeconds),
         rpe: Value(t.rpe),
+        hcId: Value(t.hcId),
       );
 
   @override

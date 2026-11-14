@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../../ports/archive_source.dart';
 import '../../ports/clock.dart';
+import '../health/health_import.dart';
 import '../recalculation/recalculation_service.dart';
 import '../recalculation/value_calculation_service.dart';
 import '../settings/display_settings.dart';
@@ -21,6 +22,7 @@ const Set<String> archiveExcludedSettingKeys = {
   SettingKeys.loadFactorDeclined,
   SettingKeys.planStartedUnit,
   SettingKeys.guidedUnitSnapshot,
+  HealthImportService.lastImportKey,
 };
 
 /// Zeilen je Seite beim Lesen.

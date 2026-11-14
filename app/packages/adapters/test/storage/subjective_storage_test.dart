@@ -227,7 +227,7 @@ void main() {
   });
 
   group('Migration von Schema 4 mit Bestandsdaten', () {
-    test('Daten bleiben, neue Tabellen leer und benutzbar, Schema = Dump v6', () async {
+    test('Daten bleiben, neue Tabellen leer und benutzbar, Schema = Dump v12', () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final v4 = await verifier.schemaAt(4);
       v4.rawDatabase
@@ -250,7 +250,7 @@ void main() {
         ..execute("INSERT INTO settings VALUES ('units', 'km', 1)");
       final db = AppDatabase(v4.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 6);
+      await verifier.migrateAndValidate(db, 12);
 
       expect(await count(db, 'runs'), 1);
       final pre = await db
@@ -283,7 +283,7 @@ void main() {
       expect(await count(db, 'manual_trainings'), 1);
     });
 
-    test('Migration läuft über die App-Strategie (Version 4 -> 10) auf verschlüsselter Datei', () async {
+    test('Migration läuft über die App-Strategie (Version 4 -> 12) auf verschlüsselter Datei', () async {
       // Schema 4 aus dem Dump aufbauen: zwei Tabellen der App weglassen.
       final s0 = await EncryptedStorage(path).open(testKey());
       final db0 = (s0 as EncryptedStorageSession).database;
@@ -299,6 +299,13 @@ void main() {
       await exec(db0, 'DROP TABLE goals');
       await exec(db0, 'DROP TABLE raw_rr_packets'); // Schema 9 (WP26)
       await exec(db0, 'DROP TABLE active_warning'); // Schema 11 (WP23)
+      // Schema 12 (WP32): Health-Connect-Tabellen (Kinder zuerst); der Index und
+      // die Spalte `hc_id` von manual_trainings gehen mit der Tabelle.
+      await exec(db0, 'DROP TABLE health_exercise_heart_rates');
+      await exec(db0, 'DROP TABLE health_exercises');
+      await exec(db0, 'DROP TABLE health_values');
+      await exec(db0, 'DROP TABLE health_sleep_stages');
+      await exec(db0, 'DROP TABLE health_sleep_sessions');
       // Schema 10 (WP25): Laufbandeinstellungen und Spalte runs.mode.
       await exec(db0, 'DROP TABLE treadmill_settings');
       await exec(db0, 'ALTER TABLE runs DROP COLUMN mode');
@@ -316,7 +323,7 @@ void main() {
             .data
             .values
             .single,
-        11,
+        12,
       );
       await db1.validateDatabaseSchema();
     });

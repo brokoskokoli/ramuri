@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Verlauf mit importiertem Training</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+.num{font-family:Sora,sans-serif;font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; display: flex; flex-direction: column">
+  <main style="flex-grow: 1; padding: 28px 20px 12px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+    <h1 style="margin: 0; font-family: Sora, sans-serif; font-size: 34px; font-weight: 800; letter-spacing: -0.02em">Verlauf</h1>
+
+    <div role="tablist" aria-label="Zeitraum" style="display: flex; gap: 8px">
+      <sc-for list="{{periods}}" as="p" hint-placeholder-count="4">
+        <button role="tab" aria-selected="{{p.sel}}" onClick="{{p.pick}}" style="height: 44px; padding: 0 16px; border-radius: 22px; border: 1.5px solid {{p.border}}; background: {{p.bg}}; color: {{p.fg}}; font-size: 14px; font-weight: 800">{{p.label}}</button>
+      </sc-for>
+    </div>
+
+    <section style="background: {{t.hero}}; color: #FFFFFF; border-radius: 24px; padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 8px; border: 1px solid {{t.heroBorder}}">
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+        <div style="display: flex; flex-direction: column"><span style="font-size: 12px; font-weight: 700; color: #B5C9C6">Läufe</span><span class="num" style="font-size: 28px; font-weight: 700">2</span></div>
+        <div style="display: flex; flex-direction: column"><span style="font-size: 12px; font-weight: 700; color: #B5C9C6">Strecke</span><span class="num" style="font-size: 28px; font-weight: 700">11,5<span style="font-size: 13px; font-family: Manrope"> km</span></span></div>
+        <div style="display: flex; flex-direction: column"><span style="font-size: 12px; font-weight: 700; color: #B5C9C6">Zeit</span><span class="num" style="font-size: 28px; font-weight: 700">1:07<span style="font-size: 13px; font-family: Manrope"> h</span></span></div>
+      </div>
+      <span style="font-size: 12px; font-weight: 700; color: #B5C9C6">Nur eigene Läufe. Importierte zählen erst nach dem Übernehmen.</span>
+    </section>
+
+    <span style="font-size: 13px; font-weight: 800; color: {{t.muted}}; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px">Diese Woche</span>
+
+    <a href="{{ownHref}}" style="background: {{t.card}}; border-radius: 20px; padding: 12px 14px; display: flex; gap: 14px; align-items: center; color: {{t.text}}">
+      <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="16" fill="{{t.soft}}"></rect><path d="M12 40 C 10 28, 20 16, 30 15 S 46 18, 44 30 S 30 44, 24 40 S 16 42, 12 40Z" fill="none" stroke="{{t.link}}" stroke-width="2.5" stroke-linejoin="round"></path></svg>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 3px">
+        <div style="display: flex; justify-content: space-between"><span style="font-size: 16px; font-weight: 800">Lockerer Dauerlauf</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Heute</span></div>
+        <span style="font-size: 14px; color: {{t.sub}}"><b class="num">6,42 km</b> · <span class="num">36:48</span> · <span class="num">5:44 /km</span></span>
+        <span style="align-self: flex-start; font-size: 11px; font-weight: 800; color: {{t.link}}; background: {{t.soft}}; padding: 3px 8px; border-radius: 8px">Aus dem Plan</span>
+      </div>
+    </a>
+
+    <a href="{{detailHref}}" aria-label="Lauf am Mittwoch, aus Health Connect, Quelle Beispiel-Uhr, nur Anzeige" style="background: {{t.card}}; border-radius: 20px; padding: 12px 14px; display: flex; gap: 14px; align-items: center; color: {{t.text}}; border: 1.5px dashed {{t.dash}}">
+      <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><rect x="1" y="1" width="54" height="54" rx="15" fill="{{t.chip}}"></rect><path d="M28 39s-11-6.6-11-14.2a6 6 0 0 1 11-3.4 6 6 0 0 1 11 3.4C39 32.4 28 39 28 39z" fill="none" stroke="{{t.muted}}" stroke-width="2.5" stroke-linejoin="round"></path><path d="M20 28h5l2-4 3 7 2-3h4" fill="none" stroke="{{t.text}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 3px">
+        <div style="display: flex; justify-content: space-between"><span style="font-size: 16px; font-weight: 800">Lauf</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Mi</span></div>
+        <span style="font-size: 14px; color: {{t.sub}}"><b class="num">7,80 km</b> · <span class="num">44:10</span> · <span class="num">5:40 /km</span></span>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center">
+          <span style="font-size: 11px; font-weight: 800; color: {{t.text}}; background: {{t.chip}}; padding: 3px 8px; border-radius: 8px">aus Health Connect</span>
+          <span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Quelle: Beispiel-Uhr · nur Anzeige</span>
+        </div>
+      </div>
+    </a>
+
+    <a href="{{ownHref}}" style="background: {{t.card}}; border-radius: 20px; padding: 12px 14px; display: flex; gap: 14px; align-items: center; color: {{t.text}}">
+      <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="16" fill="{{t.soft}}"></rect><path d="M14 42 L 16 24 C 18 14, 34 12, 40 20 S 38 38, 30 36" fill="none" stroke="{{t.link}}" stroke-width="2.5" stroke-linecap="round"></path></svg>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 3px">
+        <div style="display: flex; justify-content: space-between"><span style="font-size: 16px; font-weight: 800">Freier Lauf</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">Di</span></div>
+        <span style="font-size: 14px; color: {{t.sub}}"><b class="num">5,10 km</b> · <span class="num">30:12</span> · <span class="num">5:55 /km</span></span>
+      </div>
+    </a>
+
+    <span style="font-size: 13px; font-weight: 800; color: {{t.muted}}; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px">Letzte Woche</span>
+    <a href="{{ownHref}}" style="background: {{t.card}}; border-radius: 20px; padding: 12px 14px; display: flex; gap: 14px; align-items: center; color: {{t.text}}">
+      <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="16" fill="{{t.soft}}"></rect><path d="M10 28 C 14 12, 40 10, 46 24 S 30 46, 18 40" fill="none" stroke="{{t.link}}" stroke-width="2.5" stroke-linecap="round"></path></svg>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 3px">
+        <div style="display: flex; justify-content: space-between"><span style="font-size: 16px; font-weight: 800">Langer Lauf</span><span style="font-size: 12px; font-weight: 700; color: {{t.muted}}">So, 8. Nov</span></div>
+        <span style="font-size: 14px; color: {{t.sub}}"><b class="num">10,2 km</b> · <span class="num">1:02:40</span> · <span class="num">6:08 /km</span></span>
+      </div>
+    </a>
+  </main>
+
+  <nav aria-label="Hauptnavigation" style="background: {{t.card}}; border-top: 1px solid {{t.border}}; padding: 8px 12px 22px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
+    <a href="{{selfHref}}" style="height: 56px; border-radius: 18px; color: {{t.muted}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 700">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"></path></svg>Heute</a>
+    <a href="{{selfHref}}" style="height: 56px; border-radius: 18px; color: {{t.muted}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 700">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"></rect><path d="M4 10h16M9 3v4M15 3v4"></path></svg>Plan</a>
+    <a href="{{selfHref}}" aria-current="page" style="height: 56px; border-radius: 18px; background: {{t.soft}}; color: {{t.text}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 800">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path></svg>Verlauf</a>
+    <a href="{{fortHref}}" style="height: 56px; border-radius: 18px; color: {{t.muted}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 700">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19l5-6 4 3 7-9"></path></svg>Fortschritt</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { period: 'Woche' }; }
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', sub: '#CDDEDB', muted: '#A3B8B4', border: '#2A4140', link: '#7FD6C6', soft: '#1C3836', chip: '#24383A', dash: '#4A6462', hero: '#172828', heroBorder: '#2A4140', selBg: '#7FD6C6', selFg: '#0E1A1A' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', sub: '#2A3F3D', muted: '#4F6361', border: '#DAE4E1', link: '#0F5E5A', soft: '#DDF2EE', chip: '#E2EAE8', dash: '#8DA3A0', hero: '#0E1A1A', heroBorder: '#0E1A1A', selBg: '#0E1A1A', selFg: '#7FD6C6' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const t = this.theme(dark);
+    const sfx = dark ? '-dunkel' : '';
+    const periods = ['Woche', 'Monat', 'Jahr', 'Alle'].map((label) => {
+      const on = label === this.state.period;
+      return { label, sel: on ? 'true' : 'false', bg: on ? t.selBg : t.card, fg: on ? t.selFg : t.text, border: on ? t.selBg : t.border, pick: () => this.setState({ period: label }) };
+    });
+    return {
+      t, periods,
+      detailHref: 'Detail' + sfx + '.dc.html',
+      ownHref: 'Verlauf' + sfx + '.dc.html',
+      selfHref: 'Verlauf' + sfx + '.dc.html',
+      fortHref: 'Fortschritt' + sfx + '.dc.html'
+    };
+  }
+}
+</script>
+</body>
+</html>

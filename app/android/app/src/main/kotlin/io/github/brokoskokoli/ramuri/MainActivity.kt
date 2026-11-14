@@ -29,11 +29,16 @@ class MainActivity : FlutterActivity() {
         pendingCamera = null
         fileHandoff?.detach()
         fileHandoff = null
+        health?.detach()
+        health = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
     /** FR-0201: Teilen und Speichern starten Systemdialoge, daher an der Activity. */
     private var fileHandoff: FileHandoffChannel? = null
+
+    /** ADR-0007: Health Connect (nur Lesen); der Berechtigungsdialog kommt über diese Activity zurück. */
+    private var health: HealthConnectChannel? = null
 
     override fun onResume() {
         super.onResume()
@@ -54,6 +59,7 @@ class MainActivity : FlutterActivity() {
     /** Antwort des Dokumentenziels (FileHandoffChannel.save). */
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (fileHandoff?.onActivityResult(requestCode, resultCode, data) == true) return
+        if (health?.onActivityResult(requestCode, resultCode, data) == true) return
         super.onActivityResult(requestCode, resultCode, data)
     }
 
@@ -62,6 +68,8 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         fileHandoff?.detach()
         fileHandoff = FileHandoffChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+        health?.detach()
+        health = HealthConnectChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         // SEC-0007: Stand der Berechtigungen nur lesen; Widerruf im System.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "ramuri/permissions")
             .setMethodCallHandler { call, result ->
@@ -182,6 +190,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (health?.onRequestPermissionsResult(requestCode) == true) return
         if (requestCode == LOCATION_REQUEST) {
             pendingLocation?.success(locationAccess())
             pendingLocation = null

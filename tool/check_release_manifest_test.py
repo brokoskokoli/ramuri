@@ -17,7 +17,9 @@ uses-permission: name='android.permission.FOREGROUND_SERVICE_HEALTH'
 uses-permission: name='android.permission.POST_NOTIFICATIONS'
 uses-permission: name='android.permission.RECEIVE_BOOT_COMPLETED'
 uses-permission: name='android.permission.INTERNET'
-"""
+""" + "".join(f"uses-permission: name='android.permission.health.{n}'\n" for n in (
+    "READ_EXERCISE", "READ_HEART_RATE", "READ_RESTING_HEART_RATE", "READ_HEART_RATE_VARIABILITY", "READ_SLEEP",
+    "READ_VO2_MAX"))
 
 
 def a(depth, name, value):
@@ -146,6 +148,26 @@ CASES = [
     ("foregroundServiceType als Ressourcenverweis", PERMS,
      tree(component("service", PKG + ".RecordingService", FALSE, (), "@0x7f0a0001"), ACTIVITY, REMINDER, PROFILE),
      "foregroundServiceType nicht lesbar"),
+    # Health Connect (ADR-0007, WP32)
+    ("Health Connect: Schreibrecht", PERMS + "uses-permission: name='android.permission.health.WRITE_SLEEP'\n",
+     tree(*BASE), "Schreibrecht android.permission.health.WRITE_SLEEP"),
+    ("Health Connect: Schreibrecht als sdk-23",
+     PERMS + "uses-permission-sdk-23: name='android.permission.health.WRITE_EXERCISE'\n", tree(*BASE),
+     "Schreibrecht android.permission.health.WRITE_EXERCISE"),
+    ("Health Connect: Hintergrundlesen",
+     PERMS + "uses-permission: name='android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND'\n", tree(*BASE),
+     "READ_HEALTH_DATA_IN_BACKGROUND"),
+    ("Health Connect: alte Daten",
+     PERMS + "uses-permission: name='android.permission.health.READ_HEALTH_DATA_HISTORY'\n", tree(*BASE),
+     "READ_HEALTH_DATA_HISTORY"),
+    ("Health Connect: weiteres Leserecht (Plugin)",
+     PERMS + "uses-permission: name='android.permission.health.READ_STEPS'\n", tree(*BASE),
+     "unerwartete Health-Connect-Recht android.permission.health.READ_STEPS"),
+    ("Health Connect: Leserecht fehlt",
+     PERMS.replace("uses-permission: name='android.permission.health.READ_VO2_MAX'\n", ""), tree(*BASE),
+     "Leserecht android.permission.health.READ_VO2_MAX nicht"),
+    ("Health Connect: gar keine Rechte", "".join(l + "\n" for l in PERMS.splitlines() if ".health.READ_" not in l),
+     tree(*BASE), "READ_EXERCISE nicht"),
     ("leere Rechte-Ausgabe", "", tree(*BASE), "unerwartete Ausgabe"),
     ("leere xmltree-Ausgabe", PERMS, "", "kein manifest-Element"),
 ]

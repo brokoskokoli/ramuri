@@ -60,6 +60,8 @@ kotlin {
 }
 
 dependencies {
+    // WP32 / ADR-0007: Health Connect, nur Lesen. 1.1.0 ist die stabile Fassung (Apache-2.0, compileSdk 36).
+    implementation("androidx.health.connect:connect-client:1.1.0")
     testImplementation("junit:junit:4.13.2")
 }
 

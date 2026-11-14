@@ -149,6 +149,7 @@ pub xml kein-netz
 pub yaml kein-netz
 pub yaml_edit nur-entwicklung
 
+gradle androidx.health.connect:connect-client kein-netz  # ADR-0007: Binder-Anbindung an Health Connect; im AAR 1.1.0 samt connect-client-proto und -external-protobuf kein java.net, kein okhttp, keine Sockets, kein INTERNET-Recht (WP32 geprüft)
 gradle junit:junit nur-entwicklung  # Unit-Tests
 plugin dev.flutter.flutter-plugin-loader nur-entwicklung  # Build-Werkzeug, nicht im APK
 plugin dev.flutter.flutter-gradle-plugin nur-entwicklung  # Build-Werkzeug, nicht im APK

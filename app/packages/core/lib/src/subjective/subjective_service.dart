@@ -3,6 +3,7 @@ import '../../ports/storage.dart';
 import 'manual_training.dart';
 import 'run_subjective.dart';
 import 'srpe.dart';
+import 'subjective_limits.dart';
 
 /// Rechnet den sRPE-Wert eines Laufs neu aus seinem gespeicherten RPE und der
 /// gespeicherten Bewegungszeit (FR-0095, OQ-0015) und speichert ihn am Lauf.
@@ -53,10 +54,23 @@ class SubjectiveService {
 
   /// Trägt ein Training nach. Liegt der Tag nach heute (Ortstag laut Uhr des Geräts),
   /// wirft es [SubjectiveRangeError].
+  ///
+  /// Trägt [training] eine Health-Connect-ID ([ManualTraining.hcId], Übernahme
+  /// einer importierten Einheit, K62 F2), wird dieselbe Einheit nicht ein
+  /// zweites Mal übernommen: [SubjectiveRangeError] (sonst zählte sie doppelt).
   Future<StoredManualTraining> addTraining(ManualTraining training) async {
     training.requireNotAfter(_localDay());
+    final hcId = training.hcId;
+    if (hcId != null && await isAdopted(hcId)) {
+      throw SubjectiveRangeError('hcId');
+    }
     return session.manualTrainings.add(training);
   }
+
+  /// Ob die importierte Einheit [hcId] schon als Nachtrag übernommen ist.
+  Future<bool> isAdopted(String hcId) async =>
+      [for (final t in await session.manualTrainings.list()) t.training.hcId]
+          .contains(hcId);
 
   Future<void> updateTraining(int id, ManualTraining training) async {
     training.requireNotAfter(_localDay());

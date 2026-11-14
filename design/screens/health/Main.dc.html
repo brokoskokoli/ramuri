@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Gesundheitsdaten aus Health Connect</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; height: 1000px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; padding: 28px 20px 24px; display: flex; flex-direction: column; gap: 16px">
+  <header style="display: flex; align-items: center; gap: 8px">
+    <a href="{{backHref}}" aria-label="Zurück zum Profil" style="flex: none; width: 44px; height: 44px; border-radius: 22px; background: {{t.card}}; border: 1px solid {{t.border}}; display: flex; align-items: center; justify-content: center; color: {{t.text}}; box-sizing: border-box">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+    </a>
+    <h1 style="margin: 0; font-family: Sora, sans-serif; letter-spacing: -0.03em; font-size: 21px; line-height: 1.2; font-weight: 700">Gesundheitsdaten aus Health Connect</h1>
+  </header>
+
+  <section aria-label="So geht ramuri mit den Daten um" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; gap: 12px; align-items: flex-start">
+      <span style="flex: none; width: 32px; height: 32px; border-radius: 10px; background: {{t.soft}}; color: {{t.link}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
+      <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 800">Nur lesen</span><span style="font-size: 13px; line-height: 1.4; color: {{t.muted}}">ramuri schreibt nichts nach Health Connect.</span></span>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-start">
+      <span style="flex: none; width: 32px; height: 32px; border-radius: 10px; background: {{t.soft}}; color: {{t.link}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"></rect><path d="M10 18h4"></path></svg></span>
+      <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 800">Nur im Vordergrund</span><span style="font-size: 13px; line-height: 1.4; color: {{t.muted}}">Abgerufen wird nur, solange ramuri offen ist, nie im Hintergrund.</span></span>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-start">
+      <span style="flex: none; width: 32px; height: 32px; border-radius: 10px; background: {{t.soft}}; color: {{t.link}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg></span>
+      <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 800">Lokal gespeichert</span><span style="font-size: 13px; line-height: 1.4; color: {{t.muted}}">Die Werte bleiben auf diesem Handy und gehen an keinen Server.</span></span>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-start">
+      <span style="flex: none; width: 32px; height: 32px; border-radius: 10px; background: {{t.soft}}; color: {{t.link}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path></svg></span>
+      <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 800">Jederzeit widerrufbar</span><span style="font-size: 13px; line-height: 1.4; color: {{t.muted}}">Je Datenart hier ausschalten oder in Health Connect zurücknehmen.</span></span>
+    </div>
+  </section>
+
+  <section aria-label="Datenarten" style="display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 13px; font-weight: 800; color: {{t.muted}}; text-transform: uppercase; letter-spacing: 0.06em">Was ramuri lesen darf</span>
+    <div style="background: {{t.card}}; border-radius: 24px; padding: 4px 16px; display: flex; flex-direction: column">
+      <sc-for list="{{types}}" as="d" hint-placeholder-count="6">
+        <button role="switch" aria-checked="{{d.checked}}" onClick="{{d.toggle}}" style="min-height: 60px; width: 100%; border: 0; border-bottom: 1px solid {{d.line}}; background: transparent; color: {{t.text}}; padding: 8px 0; display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer">
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 800">{{d.label}}</span><span style="font-size: 13px; line-height: 1.35; color: {{t.muted}}">{{d.hint}}</span></span>
+          <span aria-hidden="true" style="flex: none; width: 52px; height: 32px; border-radius: 16px; background: {{d.track}}; box-sizing: border-box; padding: 4px; display: flex; justify-content: {{d.side}}"><span style="width: 24px; height: 24px; border-radius: 12px; background: {{d.knob}}"></span></span>
+        </button>
+      </sc-for>
+    </div>
+  </section>
+
+  <div style="flex-grow: 1"></div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <a href="{{nextHref}}" style="height: 56px; border-radius: 28px; background: {{t.mint}}; color: {{t.onMint}}; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800; text-decoration: none">Weiter zu Health Connect</a>
+    <span style="font-size: 13px; line-height: 1.45; color: {{t.muted}}; text-align: center">Dort bestätigst du die Auswahl ({{onCount}} von 6) noch einmal.</span>
+  </div>
+
+  <section aria-label="Abruf" style="background: {{t.card}}; border-radius: 20px; padding: 10px 10px 10px 16px; display: flex; align-items: center; gap: 12px">
+    <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Zuletzt abgerufen</span><span style="font-size: 15px; font-weight: 800">{{lastFetch}}</span></span>
+    <button onClick="{{fetchNow}}" style="flex: none; height: 44px; padding: 0 16px; border-radius: 22px; border: 1.5px solid {{t.border}}; background: {{t.bg}}; color: {{t.link}}; font-size: 15px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"></path><path d="M21 4v5h-5"></path></svg>Jetzt abrufen</button>
+  </section>
+
+  <sc-if value="{{hasAsk}}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; inset: 0; background: {{t.scrim}}; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box">
+      <div role="dialog" aria-modal="true" aria-labelledby="ask-title" style="width: 100%; background: {{t.dialog}}; color: {{t.text}}; border-radius: 28px; padding: 24px 22px 18px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">
+        <h2 id="ask-title" style="margin: 0; font-family: Sora, sans-serif; letter-spacing: -0.02em; font-size: 20px; line-height: 1.25; font-weight: 700">{{ask.label}} nicht mehr lesen</h2>
+        <p style="margin: 0; font-size: 16px; line-height: 1.45; font-weight: 700">Bereits importierte {{ask.plural}} löschen?</p>
+        <p style="margin: 0; font-size: 14px; line-height: 1.45; color: {{t.muted}}">ramuri liest ab jetzt keine {{ask.plural}} mehr. {{ask.extra}}Die Freigabe selbst nimmst du in Health Connect zurück.</p>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 6px">
+          <button onClick="{{keep}}" style="height: 48px; border-radius: 24px; border: 1.5px solid {{t.border}}; background: transparent; color: {{t.text}}; font-size: 16px; font-weight: 800; cursor: pointer">Behalten</button>
+          <button onClick="{{drop}}" style="height: 48px; border-radius: 24px; border: 0; background: {{t.danger}}; color: {{t.onDanger}}; font-size: 16px; font-weight: 800; cursor: pointer">Löschen</button>
+        </div>
+        <button onClick="{{cancel}}" style="align-self: center; min-height: 44px; padding: 0 14px; border: 0; background: transparent; color: {{t.link}}; font-size: 14px; font-weight: 800; cursor: pointer">Abbrechen, weiter lesen</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="position: absolute; left: 20px; right: 20px; bottom: 96px; background: {{t.toast}}; color: {{t.onToast}}; border-radius: 16px; padding: 14px 16px; font-size: 14px; font-weight: 700; line-height: 1.4">{{toast}}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"dialog":{"editor":"enum","options":["","training","hr","rest","hrv","sleep","vo2"],"default":""},"$preview":{"width":390,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const ask = props.dialog || null;
+    const on = { training: true, hr: true, rest: true, hrv: true, sleep: true, vo2: false };
+    if (ask) on[ask] = false;
+    this.state = { on, ask, toast: '', fetched: 'heute, 07:42' };
+  }
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', dialog: '#1C3030', text: '#EAF2F0', muted: '#A3B8B4', border: '#2A4140', div: '#223636', link: '#7FD6C6', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#1C3836', trackOn: '#7FD6C6', knobOn: '#0E1A1A', trackOff: '#3B5553', knobOff: '#A3B8B4', scrim: 'rgba(0,0,0,0.62)', danger: '#EAF2F0', onDanger: '#0E1A1A', toast: '#EAF2F0', onToast: '#0E1A1A' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', dialog: '#FFFFFF', text: '#0E1A1A', muted: '#4F6361', border: '#DAE4E1', div: '#EBF1EF', link: '#0F5E5A', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#DDF2EE', trackOn: '#0F5E5A', knobOn: '#FFFFFF', trackOff: '#C9D6D3', knobOff: '#FFFFFF', scrim: 'rgba(14,26,26,0.55)', danger: '#0E1A1A', onDanger: '#FFFFFF', toast: '#0E1A1A', onToast: '#FFFFFF' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const t = this.theme(dark);
+    const sfx = dark ? '-dunkel' : '';
+    const defs = [
+      { key: 'training', label: 'Trainingseinheiten', hint: 'Trainings anderer Apps, im Verlauf nur angezeigt', plural: 'Trainingseinheiten', extra: 'Schon übernommene Trainings bleiben als Nachtrag erhalten. ' },
+      { key: 'hr', label: 'Herzfrequenz zu Trainings', hint: 'Pulskurve während dieser Trainings', plural: 'Pulskurven', extra: '' },
+      { key: 'rest', label: 'Ruhepuls', hint: 'Tageswerte der Quell-App', plural: 'Ruhepulswerte', extra: 'Deine eigenen Kameramessungen bleiben erhalten. ' },
+      { key: 'hrv', label: 'HRV (RMSSD)', hint: 'Nächtliche Werte, in ms', plural: 'HRV-Werte', extra: 'Deine eigenen Kameramessungen bleiben erhalten. ' },
+      { key: 'sleep', label: 'Schlaf mit Phasen', hint: 'Dauer und Phasen der Nacht', plural: 'Schlafdaten', extra: '' },
+      { key: 'vo2', label: 'VO₂max-Schätzwerte', hint: 'Nur zum Vergleich, getrennt von deiner Schätzung', plural: 'VO₂max-Werte', extra: '' }
+    ];
+    const on = this.state.on;
+    const types = defs.map((d, i) => {
+      const c = !!on[d.key];
+      return {
+        ...d,
+        checked: c ? 'true' : 'false',
+        track: c ? t.trackOn : t.trackOff,
+        knob: c ? t.knobOn : t.knobOff,
+        side: c ? 'flex-end' : 'flex-start',
+        line: i === defs.length - 1 ? 'transparent' : t.div,
+        toggle: () => {
+          if (c) this.setState({ ask: d.key, on: { ...on, [d.key]: false }, toast: '' });
+          else this.setState({ on: { ...on, [d.key]: true }, toast: '' });
+        }
+      };
+    });
+    const ask = defs.find((d) => d.key === this.state.ask) || null;
+    const close = (msg) => this.setState({ ask: null, toast: msg });
+    return {
+      t,
+      types,
+      backHref: 'Main' + sfx + '.dc.html',
+      nextHref: 'Main' + sfx + '.dc.html',
+      onCount: defs.filter((d) => on[d.key]).length,
+      lastFetch: this.state.fetched,
+      fetchNow: () => this.setState({ fetched: 'gerade eben', toast: '' }),
+      hasAsk: !!ask,
+      ask: ask || { label: '', plural: '', extra: '' },
+      keep: () => close(ask ? 'Importierte ' + ask.plural + ' bleiben gespeichert.' : ''),
+      drop: () => close(ask ? 'Importierte ' + ask.plural + ' gelöscht.' : ''),
+      cancel: () => this.setState({ ask: null, on: { ...on, [ask ? ask.key : 'x']: true } }),
+      hasToast: !!this.state.toast,
+      toast: this.state.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

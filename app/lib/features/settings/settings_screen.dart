@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../reminders/reminder_controller.dart';
 import '../reminders/reminder_section.dart';
 import '../../l10n/app_localizations.dart';
+import '../health/health_connect_screen.dart';
+import '../health/health_connect_scope.dart';
 import '../map/map_consent_scope.dart';
 import '../map/map_settings_card.dart';
 import '../recalculation/recalculation_card.dart';
@@ -72,6 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final l10n = AppLocalizations.of(context);
     final settings = AppSettingsScope.of(context);
     final map = MapConsentScope.of(context);
+    final health = HealthConnectScope.of(context);
     final reminders = ReminderScope.maybeOf(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
@@ -120,6 +123,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SectionHeading(l10n.mapSettingsTitle),
             const SizedBox(height: 12),
             MapSettingsCard(controller: map),
+          ],
+          if (health != null) ...[
+            const SizedBox(height: 24),
+            SectionHeading(l10n.healthTitle),
+            const SizedBox(height: 12),
+            RamuriCard(
+              key: const Key('settings_health'),
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => HealthConnectScreen(controller: health),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: Text(l10n.healthSettingsSubtitle)),
+                  const Icon(Icons.chevron_right_rounded),
+                ],
+              ),
+            ),
           ],
         ],
       ),

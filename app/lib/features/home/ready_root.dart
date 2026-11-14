@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../reminders/reminder_controller.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../health/health_connect_controller.dart';
+import '../health/health_connect_scope.dart';
 import '../map/map_consent_controller.dart';
 import '../map/map_consent_scope.dart';
 import '../map/map_services.dart';
@@ -35,6 +37,8 @@ class ReadyRoot extends StatefulWidget {
     required this.welcome,
     this.map,
     this.mapHolder,
+    this.healthConnect,
+    this.healthHolder,
   });
 
   /// Kartenanbieter (WP13); `null`: nicht verdrahtet, dann gibt es keinen Kartencontroller.
@@ -42,6 +46,12 @@ class ReadyRoot extends StatefulWidget {
 
   /// Wo der Controller dieser Sitzung für Seiten über dem Navigator abgelegt wird.
   final MapConsentHolder? mapHolder;
+
+  /// Health Connect (WP32); `null`: nicht verdrahtet, dann gibt es keinen Controller und keinen Import.
+  final HealthConnectPort? healthConnect;
+
+  /// Wo der Controller dieser Sitzung für Seiten über dem Navigator abgelegt wird.
+  final HealthConnectHolder? healthHolder;
 
   /// Merker über der Sitzung: Willkommen wurde in diesem Prozess bestätigt.
   final WelcomeFlag welcome;
@@ -62,6 +72,7 @@ class _ReadyRootState extends State<ReadyRoot> {
   late final RunRecovery _recovery;
   final DataChanges _changes = DataChanges();
   MapConsentController? _mapConsent;
+  HealthConnectController? _health;
 
   /// Fertig, sobald Willkommen nicht (mehr) im Weg ist; der Dialog zum
   /// unterbrochenen Lauf wartet darauf und überdeckt Willkommen nicht.
@@ -106,9 +117,51 @@ class _ReadyRootState extends State<ReadyRoot> {
       );
       widget.mapHolder?.bind(_mapConsent!);
     }
+    // Health Connect (WP32): Controller der Sitzung; der Import beim App-Start folgt nach der Einrichtung.
+    final hc = widget.healthConnect;
+    final session = widget.session;
+    if (hc != null && session is HealthStorage) {
+      _health = HealthConnectController(
+        port: hc,
+        store: (session as HealthStorage).health,
+        settings: session.settings,
+        consentStore: session.consents,
+        clock: widget.clock,
+      );
+      widget.healthHolder?.bind(_health!);
+    }
     _loadSettings();
+    _importWhenSetupDone();
     // Einmal je Start nach der Storage-Freigabe (FR-0193).
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
+  }
+
+  AppSettings? _importSettings;
+  VoidCallback? _importListener;
+
+  /// Import beim App-Start erst nach abgeschlossener Einrichtung: nicht in der Einrichtung und nicht vor einer
+  /// Wiederherstellung (die eine neue Sitzung und damit eine neue Wurzel bringt).
+  Future<void> _importWhenSetupDone() async {
+    final health = _health;
+    if (health == null) return;
+    try {
+      final settings = await _settings;
+      if (!mounted) return;
+      if (!settings.setupDone) {
+        final done = Completer<void>();
+        void listener() {
+          if (settings.setupDone && !done.isCompleted) done.complete();
+        }
+
+        _importSettings = settings;
+        _importListener = listener;
+        settings.addListener(listener);
+        await done.future;
+      }
+    } on Object {
+      return;
+    }
+    if (mounted) health.runInBackground(HealthImportTrigger.appStart);
   }
 
   /// Bietet einen unterbrochenen Lauf an, solange es einen gibt und kein
@@ -268,6 +321,13 @@ class _ReadyRootState extends State<ReadyRoot> {
     if (mapConsent != null) {
       widget.mapHolder?.unbind(mapConsent);
       mapConsent.dispose();
+    }
+    final waiting = _importListener;
+    if (waiting != null) _importSettings?.removeListener(waiting);
+    final health = _health;
+    if (health != null) {
+      widget.healthHolder?.unbind(health);
+      health.dispose();
     }
     _recalculation.dispose();
     _recalculationService.dispose();
