@@ -1516,6 +1516,105 @@ void main() {
       expect(j['changedUnitCount'], 7);
     });
   });
+  // F1 (Abschlussprüfung M2): Ein Lauf auf einem verschobenen Tag deckt genau
+  // eine geplante Einheit der Woche, unabhängig vom Auslöser.
+  group('F1 Abdeckung durch verschobenen Lauf', () {
+    final g = goal(days: {2, 4, 6});
+    final mon = DateTime.utc(2026, 11, 16);
+    DateTime nov(int d) => DateTime.utc(2026, 11, d);
+    bool inWeek(PlanUnit u) =>
+        !u.day.isBefore(mon) &&
+        u.day.isBefore(mon.add(const Duration(days: 7)));
+    final base = generatePlan(
+      g,
+      inputs(start: 150),
+      const [],
+      d0,
+    ).units.where(inWeek).toList();
+    int sum(Iterable<PlanUnit> l) => l.fold(0, (a, u) => a + u.minutes);
+    PlanUnit moved({bool pinned = true}) => PlanUnit(
+      day: mon,
+      kind: PlanUnitKind.easy,
+      phase: base.first.phase,
+      weekIndex: base.first.weekIndex,
+      minutes: 33,
+      segments: const [PlanSegment(kind: PlanSegmentKind.easy, minutes: 33)],
+      runId: 7,
+      pinned: pinned,
+    );
+    // Neuberechnung am Tag [day] der Woche: Wochenminuten und Zahl der Läufe.
+    (int, int) week(int day, {bool automatic = false, bool pinned = true}) {
+      final today = nov(day);
+      // Die bisherigen Tage, Dienstag auf Montag verschoben.
+      final held = {
+        for (final d in [mon, nov(19), nov(21)])
+          if (!d.isBefore(today)) d,
+      };
+      final frozen = [moved(pinned: pinned)];
+      final p = generatePlan(
+        g,
+        inputs(start: 150, today: today),
+        frozen,
+        today,
+        heldDays: automatic ? held : null,
+        heldUntil: automatic ? nov(30) : null,
+      );
+      final all = [...frozen, ...p.units.where(inWeek)];
+      return (sum(all), all.length);
+    }
+
+    test('Ausgangslage: Di, Do, Sa', () {
+      expect(base.map((u) => u.day.day), [17, 19, 21]);
+    });
+
+    for (final automatic in [true, false]) {
+      for (final day in [16, 18]) {
+        test(
+          'Woche behält Minuten und Zahl der Läufe '
+          '(${automatic ? "automatisch" : "manuell/Zieländerung"}, Tag $day)',
+          () {
+            final (minutes, runs) = week(day, automatic: automatic);
+            expect(minutes, sum(base));
+            expect(runs, 3);
+          },
+        );
+      }
+    }
+
+    test('ohne `pinned` deckt der Lauf nichts (Tag ohne geplante Einheit)', () {
+      // Mittwoch: Die Einheit vom Dienstag ist weg, der Lauf am Montag ersetzt
+      // sie nicht (nicht verschoben): Die Woche verliert deren Minuten.
+      final (minutes, _) = week(18, automatic: true, pinned: false);
+      expect(minutes, sum(base) - base.first.minutes);
+    });
+
+    test('ein Lauf deckt nur eine von zwei entfallenen Einheiten', () {
+      // Samstag: Di und Do ohne Zeile, nur ein verschobener Lauf: Nur eine
+      // Einheit gilt als abgedeckt, die andere fehlt der Woche.
+      final (minutes, runs) = week(21, automatic: true);
+      expect(runs, 2);
+      expect(minutes, sum(base) - base[1].minutes);
+    });
+
+    test('mehr erzeugte Einheiten als gehaltene Tage ohne Lauf: Summe wie '
+        'ohne Verschiebung', () {
+      final held = {nov(17), nov(21)};
+      final p = generatePlan(
+        g,
+        inputs(start: 150, today: mon),
+        const [],
+        mon,
+        heldDays: held,
+        heldUntil: nov(30),
+      );
+      final w = p.units.where(inWeek).toList();
+      expect(w.map((u) => u.day.day), [17, 21]);
+      // Die entfallene Einheit (Do) gibt ihre Minuten nicht weiter.
+      for (final u in w) {
+        expect(u.minutes, base.firstWhere((b) => b.day == u.day).minutes);
+      }
+    });
+  });
 }
 
 PlanUnit _withRun(PlanUnit u) => PlanUnit(
