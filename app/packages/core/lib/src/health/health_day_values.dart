@@ -29,14 +29,19 @@ List<Map<String, HealthDailyValue>> restingHeartRateDayList(
   HealthProcessing p,
   Iterable<HealthSample> samples,
   Iterable<DayRange> days,
-) {
-  final out = <Map<String, HealthDailyValue>>[];
-  for (final d in days) {
-    final m = p.restingHeartRateDaily(samples, d.start, d.end);
-    if (m.isNotEmpty) out.add(m);
-  }
-  return out;
-}
+) => [
+  for (final m in restingHeartRateDayValues(p, samples, days))
+    if (m.isNotEmpty) m,
+];
+
+/// Wie [restingHeartRateDayList], aber je Tag aus [days] genau ein Eintrag in
+/// derselben Reihenfolge (leer, wenn der Tag keinen gültigen Wert hat), damit
+/// der Tag erhalten bleibt (Readiness, FR-0113).
+List<Map<String, HealthDailyValue>> restingHeartRateDayValues(
+  HealthProcessing p,
+  Iterable<HealthSample> samples,
+  Iterable<DayRange> days,
+) => [for (final d in days) p.restingHeartRateDaily(samples, d.start, d.end)];
 
 /// Tagesliste der HRV-Tageswerte je Quell-App. Je Tag zählt die Hauptschlafphase
 /// (PAR-164) der Sitzungen, die an diesem Tag enden und in den ersten 16 h des
@@ -44,6 +49,18 @@ List<Map<String, HealthDailyValue>> restingHeartRateDayList(
 /// werden gegen sie geprüft (PAR-160). Tage ohne Hauptschlafphase oder ohne
 /// gültigen Wert fehlen.
 List<Map<String, HealthDailyValue>> hrvDayList(
+  HealthProcessing p,
+  Iterable<HealthSample> samples,
+  Iterable<SleepSession> sessions,
+  Iterable<DayRange> days,
+) => [
+  for (final m in hrvDayValues(p, samples, sessions, days))
+    if (m.isNotEmpty) m,
+];
+
+/// Wie [hrvDayList], aber je Tag aus [days] genau ein Eintrag in derselben
+/// Reihenfolge (leer ohne Hauptschlafphase oder ohne gültigen Wert).
+List<Map<String, HealthDailyValue>> hrvDayValues(
   HealthProcessing p,
   Iterable<HealthSample> samples,
   Iterable<SleepSession> sessions,
@@ -56,8 +73,7 @@ List<Map<String, HealthDailyValue>> hrvDayList(
         .toList();
     final at = d.start.add(p.params.mainSleepMaxAge);
     final main = p.mainSleep(ending, at);
-    final m = p.hrvDaily(samples, main);
-    if (m.isNotEmpty) out.add(m);
+    out.add(p.hrvDaily(samples, main));
   }
   return out;
 }

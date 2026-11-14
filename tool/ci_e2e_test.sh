@@ -45,9 +45,9 @@ run() {
 }
 run "Shard sammlung: nur all_test"            0 1 E2E_SHARD=sammlung
 grep -qx 'integration_test/all_test.dart' "$FAKE_LOG" || { echo "FAIL Shard sammlung: falsche Datei"; fails=$((fails + 1)); }
-run "Shard stufen: Mehrphasen-Stufen und m2-flow" 0 5 E2E_SHARD=stufen
+run "Shard stufen: Mehrphasen-Stufen, m2-flow und readiness" 0 6 E2E_SHARD=stufen
 grep -q all_test "$FAKE_LOG" && { echo "FAIL Shard stufen fuehrt all_test aus"; fails=$((fails + 1)); }
-run "ohne Auswahl: alle sechs Stufen"          0 6 X=1
+run "ohne Auswahl: alle sieben Stufen"         0 7 X=1
 run "Shard unbekannt (Tippfehler) -> Fehler"   1 0 E2E_SHARD=sammlungx
 run "Stufe unbekannt -> Fehler"                1 0 E2E_STUFEN=recover-x
 run "eine bekannte, eine unbekannte -> Fehler" 1 0 "E2E_STUFEN=sammlung recover-x"
@@ -55,6 +55,8 @@ run "Shard und Stufen zusammen -> Fehler"      1 0 E2E_SHARD=stufen E2E_STUFEN=s
 run "lokal einzelne Stufe"                     0 1 E2E_STUFEN=recover-a
 run "Stufe m2-flow: eigene Datei, nicht all_test" 0 1 E2E_STUFEN=m2-flow
 grep -qx 'integration_test/e2e_m2_flow_test.dart' "$FAKE_LOG" || { echo "FAIL m2-flow: falsche Datei"; fails=$((fails + 1)); }
+run "Stufe readiness: eigene Datei, nicht all_test" 0 1 E2E_STUFEN=readiness
+grep -qx 'integration_test/e2e_readiness_test.dart' "$FAKE_LOG" || { echo "FAIL readiness: falsche Datei"; fails=$((fails + 1)); }
 run "leere Auswahl: keine Stufe gelaufen"      1 0 "E2E_STUFEN= "
 # Waechter: eine Stufe in keinem Shard (Kopie des Skripts mit einer zusaetzlichen Stufe) ist ein Fehler vor dem ersten Lauf.
 sed 's|^\[ "\$ran" -gt 0 \]|stufe neu 0 integration_test/e2e_a_test.dart\n&|' "$script" > "$tmp/ci_e2e_neu.sh"

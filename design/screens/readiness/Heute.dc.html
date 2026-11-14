@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Heute mit Erholung</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Sora:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{t.bg}}; color: {{t.text}}; font-family: Manrope, sans-serif; display: flex; flex-direction: column"><div style="flex: 1; padding: 28px 20px 16px; display: flex; flex-direction: column; gap: 16px">
+    <header style="display: flex; align-items: center; gap: 8px">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Samstag, 14. November</span>
+        <h1 style="margin: 0; font-family: Sora, sans-serif; letter-spacing: -0.03em; font-size: 26px; font-weight: 700">Heute</h1>
+      </div>
+      <a href="#" aria-label="Profil und Einstellungen" style="width: 44px; height: 44px; border-radius: 22px; background: {{t.card}}; border: 1px solid {{t.border}}; display: flex; align-items: center; justify-content: center; color: {{t.text}}; box-sizing: border-box"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg></a>
+    </header>
+    <sc-if value="{{warn}}">
+<section role="note" aria-label="Warnsignal" style="background: {{t.card}}; border-radius: 24px; border-left: 6px solid {{t.glut}}; padding: 14px 16px 6px 16px; display: flex; flex-direction: column; gap: 2px">
+  <span style="font-size: 14px; line-height: 1.5">Du hast Beschwerden gemeldet. Wir empfehlen dir, das Training zu pausieren. Wenn die Beschwerden anhalten oder stark sind, lass sie ärztlich abklären. Diese App stellt keine Diagnose.</span>
+  <a href="#" style="min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 800; color: {{t.link}}; text-decoration: none">Meldung aufheben</a>
+</section>
+</sc-if>
+    <sc-if value="{{isZahl}}">
+<section aria-label="Erholung" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; gap: 0"><div style="display: flex; gap: 16px; align-items: center"><svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label="Erholung 64 von 100">
+  <circle cx="42" cy="42" r="34" fill="none" stroke="{{t.track}}" stroke-width="10"></circle>
+  <circle cx="42" cy="42" r="34" fill="none" stroke="{{t.mint}}" stroke-width="10" stroke-linecap="round" stroke-dasharray="137 214" transform="rotate(-90 42 42)"></circle>
+  <text x="42" y="49" text-anchor="middle" font-family="Sora" font-weight="700" font-size="22" fill="{{t.text}}">64</text></svg>
+    <div style="display: flex; flex-direction: column; gap: 4px; flex: 1">
+      <span style="font-size: 12px; font-weight: 700; color: {{t.link}}; text-transform: uppercase; letter-spacing: 0.06em">Erholung · erweitert</span>
+      <span style="font-size: 18px; font-weight: 700">Normal belastbar</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: {{t.muted}}"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 4px; background: {{t.glut}}; display: inline-block"></span>geschätzt</span>
+      <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Datenlage ausreichend. Vor allem: Ruhepuls etwas niedriger, HRV etwas unter deinem Mittel.</span>
+    </div></div><a href="{{detailHref}}" style="min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 800; color: {{t.link}}; text-decoration: none">Woher kommt das?</a></section>
+</sc-if><sc-if value="{{isEing}}">
+<section aria-label="Erholung" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; gap: 0"><div style="display: flex; gap: 16px; align-items: center"><svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label="Keine Zahl">
+  <circle cx="42" cy="42" r="34" fill="none" stroke="{{t.faint}}" stroke-width="4" stroke-dasharray="3 7" stroke-linecap="round"></circle></svg>
+    <div style="display: flex; flex-direction: column; gap: 4px; flex: 1">
+      <span style="font-size: 12px; font-weight: 700; color: {{t.link}}; text-transform: uppercase; letter-spacing: 0.06em">Erholung · erweitert</span>
+      <span style="font-size: 18px; font-weight: 700">Eingeschränkte Einschätzung</span>
+      <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Heute fehlen HRV-Werte. Du hast rund 6 Stunden geschlafen. Ruhepuls heute 3/min über deinem Mittel.</span>
+    </div></div><a href="{{detailHref}}" style="min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 800; color: {{t.link}}; text-decoration: none">Woher kommt das?</a></section>
+</sc-if><sc-if value="{{isUnz}}">
+<section aria-label="Erholung" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; gap: 0"><div style="display: flex; gap: 16px; align-items: center"><svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label="Keine Zahl">
+  <circle cx="42" cy="42" r="34" fill="none" stroke="{{t.faint}}" stroke-width="4" stroke-dasharray="3 7" stroke-linecap="round"></circle></svg>
+    <div style="display: flex; flex-direction: column; gap: 4px; flex: 1">
+      <span style="font-size: 12px; font-weight: 700; color: {{t.link}}; text-transform: uppercase; letter-spacing: 0.06em">Erholung · erweitert</span>
+      <span style="font-size: 18px; font-weight: 700">Unzureichende Daten</span>
+      <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Heute liegen weder Schlaf noch eine frische Messung vor.</span>
+    </div></div><a href="{{detailHref}}" style="min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 800; color: {{t.link}}; text-decoration: none">Woher kommt das?</a></section>
+</sc-if><sc-if value="{{isBasis}}">
+<section aria-label="Erholung" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; gap: 0"><div style="display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 12px; font-weight: 700; color: {{t.link}}; text-transform: uppercase; letter-spacing: 0.06em">Erholung · Basis</span>
+      <span style="font-size: 18px; font-weight: 700">Hinweis aus deinen Läufen</span>
+      <span style="font-size: 14px; color: {{t.text}}; line-height: 1.45">Du hast dein Befinden beim letzten Lauf als niedrig angegeben. Für heute wird ein lockerer Lauf oder ein Ruhetag empfohlen.</span>
+      <span style="font-size: 13px; color: {{t.muted}}; line-height: 1.4">Ohne Gesundheitsdaten zeigt ramuri nur Hinweise, keine Zahl und keinen Zustand.</span>
+    </div><a href="{{detailHref}}" style="min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 800; color: {{t.link}}; text-decoration: none">Woher kommt das?</a></section>
+</sc-if>
+    <section aria-label="Geplant" style="background: {{t.card}}; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px; gap: 6px"><span style="font-size: 13px; font-weight: 700; color: {{t.muted}}">Geplant heute</span><span style="font-size: 16px; font-weight: 800">Lockerer Dauerlauf, 40 min</span></section>
+    <div style="flex: 1"></div>
+    <sc-if value="{{dev}}">
+<span style="align-self: center; font-size: 12px; font-weight: 700; color: {{t.muted}}">Entwicklermodus aktiv</span>
+</sc-if>
+  </div><nav aria-label="Hauptnavigation" style="height: 72px; border-top: 1px solid {{t.border}}; background: {{t.card}}; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: {{t.link}}; text-decoration: none; font-size: 12px; font-weight: 800"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M3 11l9-7 9 7v9H3z"></path></svg>Heute</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: {{t.muted}}; text-decoration: none; font-size: 12px; font-weight: 700"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"></path></svg>Verlauf</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: {{t.muted}}; text-decoration: none; font-size: 12px; font-weight: 700"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg>Fortschritt</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: {{t.muted}}; text-decoration: none; font-size: 12px; font-weight: 700"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Plan</a>
+  </nav></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"fall":{"editor":"enum","options":["Zahl","Eingeschränkt","Unzureichend","Basis"],"default":"Zahl"},"warnsignal":{"editor":"boolean","default":false},"dev":{"editor":"boolean","default":false},"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  theme(dark) {
+    return dark
+      ? { bg: '#0E1A1A', card: '#172828', text: '#EAF2F0', muted: '#A3B8B4', border: '#2A4140', div: '#223636', link: '#7FD6C6', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#1C3836', chip: '#1F3333', glut: '#FF7A45', faint: '#5E7774', track: '#25403D' }
+      : { bg: '#F3F6F5', card: '#FFFFFF', text: '#0E1A1A', muted: '#4F6361', border: '#DAE4E1', div: '#EBF1EF', link: '#0F5E5A', mint: '#7FD6C6', onMint: '#0E1A1A', soft: '#DDF2EE', chip: '#E2EAE8', glut: '#E0561F', faint: '#9AAEAB', track: '#DDF2EE' };
+  }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const fall = this.props.fall ?? "Zahl";
+    const warnsignal = this.props.warnsignal ?? false;
+    const dev = this.props.dev ?? false;
+    return {
+      t: this.theme(dark),
+      detailHref: 'Detail' + (dark ? '-dunkel' : '') + '.dc.html',
+      warn: (warnsignal),
+      isZahl: (fall === 'Zahl'),
+      isEing: (fall === 'Eingeschränkt'),
+      isUnz: (fall === 'Unzureichend'),
+      isBasis: (fall === 'Basis'),
+      dev: (dev)
+    };
+  }
+}
+</script>
+</body>
+</html>

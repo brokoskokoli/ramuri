@@ -130,9 +130,14 @@ class RecoveryCardView extends StatelessWidget {
     required this.card,
     this.onEasyRun,
     this.onNewStart,
+    this.basisStage = false,
   });
 
   final RecoveryCard card;
+
+  /// Basisstufe (keine Gesundheitsdaten freigegeben): die Überschrift nennt die
+  /// Stufe und ein Satz sagt, dass es nur Hinweise gibt (FR-0105, WP34 D1).
+  final bool basisStage;
 
   /// Knopf „Locker laufen“ (nur Hinweise mit Aktion, mit heute offener
   /// Einheit); `null` ohne Knopf.
@@ -156,7 +161,10 @@ class RecoveryCardView extends StatelessWidget {
           Semantics(
             header: true,
             child: Text(
-              l.recoveryTitle.toUpperCase(),
+              (basisStage
+                      ? '${l.recoveryTitle} · ${l.readinessStageBasis}'
+                      : l.recoveryTitle)
+                  .toUpperCase(),
               style: t.labelMedium?.copyWith(
                 color: c.textLabel,
                 fontWeight: FontWeight.w700,
@@ -170,6 +178,14 @@ class RecoveryCardView extends StatelessWidget {
             key: const Key('home_recovery_text'),
             style: t.bodyMedium,
           ),
+          if (basisStage) ...[
+            const SizedBox(height: 6),
+            Text(
+              l.readinessBasisNote,
+              key: const Key('readiness_basis_note'),
+              style: t.bodySmall?.copyWith(color: c.textMuted),
+            ),
+          ],
           const SizedBox(height: 6),
           Wrap(
             spacing: 8,

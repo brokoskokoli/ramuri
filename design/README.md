@@ -33,6 +33,7 @@ Die Dateien stammen aus einem Claude-Design-Canvas. Sie brauchen dessen Laufzeit
 | `ruhepuls/*.dc.html` | Ruhepuls mit der Handykamera: Einstieg (`Main`), Ruhephase, Messung, Ergebnis, kein Wert; je hell und `-dunkel`, eigener `canvas.json` | FR-0214 |
 | `morgen/*.dc.html` | Morgenmessung und Entwicklermodus: Heute mit Einstieg, Einstieg (`Main`), Ruhephase 2 min, Messung, Ergebnis mit Schlafdauer, Morgenwerte mit Erinnerung und Morgenfenster, Über mit Abschnitt Entwickler; je hell und `-dunkel`, eigener `canvas.json` | FR-0215, FR-0217 |
 | `health/*.dc.html` | Health Connect: Einwilligung je Datenart (`Main`), nicht verfügbar, Widerruf mit Löschfrage, importiertes Training im Verlauf und Detail (Quelle, Pulskurve, „Als Training übernehmen“), Vergleichskarte fremder VO₂max-Werte auf Fortschritt; je hell und `-dunkel`, eigener `canvas.json` | FR-0022, FR-0023, FR-0024, FR-0200, SEC-0005, SEC-0007 |
+| `readiness/*.dc.html` | Erholung (erweiterte Readiness): Karte auf Heute (Zahl, eingeschränkte Einschätzung, „Unzureichende Daten“, Basisstufe nur als Text, Warnsignal davor), Detailseite mit Stufe, Ursachen, Faktoren mit Quelle und Gewicht, fehlenden Faktoren und markierten Tatsachen, Verlauf der Reihen über 28 Tage je Quelle; je hell und `-dunkel`, eigener `canvas.json` | FR-0105, FR-0107 bis FR-0118, FR-0203 |
 
 ## Gestaltung
 

@@ -55,21 +55,32 @@ void main() {
     final ohne = ev.whereType<HeartRateReading>().toList();
     expect(ohne, isNotEmpty);
     expect(ohne.every((r) => r.rrIntervals.isEmpty), isTrue);
-    ev.clear();
     sensor.sendRr = true;
     await Future<void>.delayed(const Duration(milliseconds: 30));
-    final mit = ev.whereType<HeartRateReading>().toList();
+    // Ein Wert, den der Takt vor dem Umschalten erzeugt hat, kann erst jetzt
+    // ankommen (asynchroner Strom); er trägt dann noch keinen Schlagabstand.
+    // Gezählt werden daher die Werte mit Schlagabstand.
+    final mit = ev
+        .whereType<HeartRateReading>()
+        .where((r) => r.rrIntervals.isNotEmpty)
+        .toList();
     expect(mit, isNotEmpty);
     // Puls um 120: ca. 512 (1/1024 s).
     expect(
       mit.every((r) => r.rrIntervals.length == 1 && r.rrIntervals[0] > 400),
       isTrue,
     );
-    // Timer-Werte ausschließen: ohne sendRr kommt der Wert nur vom Rohpaket.
+    // Timer-Werte ausschließen: ohne sendRr kommt 1024 nur vom Rohpaket. Ein
+    // Takt-Wert nach dem Paket ist egal; gesucht wird nicht „der letzte“.
     sensor.sendRr = false;
     sensor.sendRaw('fake-gurt-1', [0x10, 60, 0x00, 0x04]);
-    await Future<void>.delayed(Duration.zero);
-    expect(ev.whereType<HeartRateReading>().last.rrIntervals, [1024]);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(
+      ev.whereType<HeartRateReading>().any(
+        (r) => r.rrIntervals.length == 1 && r.rrIntervals[0] == 1024,
+      ),
+      isTrue,
+    );
     await sub.cancel();
   });
 }

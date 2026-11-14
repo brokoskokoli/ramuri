@@ -56,6 +56,15 @@ final Map<String, RegExp> negated = {
   // Kartenüberschrift „Erholung“ (Design, FR-0209): nur dieses eine Wort, kein
   // Zustand; die Karte zeigt nur einen Texthinweis (WP23 D2).
   'recoveryTitle': RegExp(r'^(Erholung|Recovery)$'),
+  // Bandname aus FR-0111 (WP34 D1): ein Name, kein Satz; das Englische
+  // umgeht das Wort.
+  'readinessBandRecoveryAdvised': RegExp(
+    r'^(Erholung empfohlen|Rest advised)$',
+  ),
+  // Verneinung: die Zahl ist keine Diagnose.
+  'readinessNumberNote': RegExp(
+    r'Sie ist keine Diagnose|It is not a diagnosis',
+  ),
   // FR-0203: fester Text, Wortlaut vorbehaltlich OQ-0048.
   'planWarnBannerText': RegExp(
     r'Diese App stellt keine Diagnose|This app does not provide a diagnosis',
