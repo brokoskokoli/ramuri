@@ -1,25 +1,41 @@
 format_version,morning_id,row_type,key,seq,sub,time,value,unit
-1,7,meta,measured_at,,,2030-01-01T06:30:00.000Z,,
-1,7,meta,utc_offset,,,,3600,s
-1,7,meta,posture,,,,lying,
-1,7,meta,device_manufacturer,,,,Testhersteller,
-1,7,meta,device_model,,,,"Test, ""Modell""",
-1,7,meta,method,,,,camera-ppg,
-1,7,meta,method_version,,,,2,
-1,7,meta,quality,,,,good,
-1,7,meta,before_validation,,,,1,
-1,7,meta,outside_window,,,,0,
-1,7,meta,sleep_band,,,,,
-1,7,meta,belt_packets,,,,3,
-1,7,camera,resting_hr,,,,58.0,bpm
-1,7,camera,rmssd,,,,41.5,ms
-1,7,camera,timing_noise,,,,,ms
-1,7,camera_ibi,ibi,1,,,810.500,ms
-1,7,camera_ibi,ibi,2,,,,ms
-1,7,camera_ibi,ibi,3,,,805.250,ms
-1,7,belt_rr,rr,1,1,2030-01-01T06:28:05.000Z,900,1/1024 s
-1,7,belt_rr,rr,1,2,2030-01-01T06:28:05.000Z,910,1/1024 s
-1,7,belt_rr,rr,2,1,2030-01-01T06:28:07.000Z,915,1/1024 s
-1,7,belt_rr,rr,3,1,2030-01-01T06:30:05.000Z,880,1/1024 s
-1,7,belt_rr,rr,3,2,2030-01-01T06:30:05.000Z,885,1/1024 s
-1,7,belt_rr,rr,3,3,2030-01-01T06:30:05.000Z,890,1/1024 s
+2,7,meta,measured_at,,,2030-01-01T06:30:00.000Z,,
+2,7,meta,utc_offset,,,,3600,s
+2,7,meta,posture,,,,lying,
+2,7,meta,device_manufacturer,,,,Testhersteller,
+2,7,meta,device_model,,,,"Test, ""Modell""",
+2,7,meta,method,,,,camera-ppg,
+2,7,meta,method_version,,,,2,
+2,7,meta,quality,,,,good,
+2,7,meta,usable,,,,1,
+2,7,meta,quality_reason,,,,,
+2,7,meta,window_start,,,,31.5,s
+2,7,meta,window_end,,,,91.5,s
+2,7,meta,rest_skipped_after,,,,12.0,s
+2,7,meta,before_validation,,,,1,
+2,7,meta,outside_window,,,,0,
+2,7,meta,sleep_band,,,,,
+2,7,meta,belt_packets,,,,3,
+2,7,meta,raw_frames,,,,2,
+2,7,meta,exposure_time,,,,16666666,ns
+2,7,meta,iso,,,,100,
+2,7,meta,timestamp_source,,,,realtime,
+2,7,meta,rolling_shutter_skew,,,,,ns
+2,7,meta,torch_strength,,,,1,
+2,7,meta,frame_gap_count,,,,1,
+2,7,meta,frame_gap_total,,,,0.4,s
+2,7,meta,saturated_fraction,,,,0.01,
+2,7,camera,resting_hr,,,,58.0,bpm
+2,7,camera,rmssd,,,,41.5,ms
+2,7,camera,timing_noise,,,,,ms
+2,7,camera_ibi,ibi,1,,,810.500,ms
+2,7,camera_ibi,ibi,2,,,,ms
+2,7,camera_ibi,ibi,3,,,805.250,ms
+2,7,belt_rr,rr,1,1,2030-01-01T06:28:05.000Z,900,1/1024 s
+2,7,belt_rr,rr,1,2,2030-01-01T06:28:05.000Z,910,1/1024 s
+2,7,belt_rr,rr,2,1,2030-01-01T06:28:07.000Z,915,1/1024 s
+2,7,belt_rr,rr,3,1,2030-01-01T06:30:05.000Z,880,1/1024 s
+2,7,belt_rr,rr,3,2,2030-01-01T06:30:05.000Z,885,1/1024 s
+2,7,belt_rr,rr,3,3,2030-01-01T06:30:05.000Z,890,1/1024 s
+2,7,raw_frame,frame,1,,,0.0;200.25;100.5;200.0;200.25;200.5;200.75;201.0;201.25;201.5;201.75;202.0;202.25;202.5;202.75;203.0;203.25;203.5;203.75;100.0;100.125;100.25;100.375;100.5;100.625;100.75;100.875;101.0;101.125;101.25;101.375;101.5;101.625;101.75;101.875,
+2,7,raw_frame,frame,2,,,0.0333;201.25;100.5;200.0;200.25;200.5;200.75;201.0;201.25;201.5;201.75;202.0;202.25;202.5;202.75;203.0;203.25;203.5;203.75;100.0;100.125;100.25;100.375;100.5;100.625;100.75;100.875;101.0;101.125;101.25;101.375;101.5;101.625;101.75;101.875,
