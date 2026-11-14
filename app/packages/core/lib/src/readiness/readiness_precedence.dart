@@ -28,7 +28,8 @@ int _postureRank(DeviationResult r) =>
 /// Vorrang je Faktor (docs/phase-2-3-rules.md Abschnitt 7, „Vorrang“): Hat
 /// die Health-Connect-Reihe [healthConnect] heute ein gültiges `z`, zählt sie;
 /// sonst die erste Kamerareihe mit gültigem `z`, wenn der Faktor für die Kamera
-/// freigegeben ist ([cameraReleased], die Sperre selbst ist nicht hier). Nie
+/// freigegeben ist ([cameraReleased]; zusätzlich je Reihe [seriesReleased], etwa
+/// `CameraRelease.isReleased`, weil RMSSD je Haltung verschieden frei sein kann). Nie
 /// gemittelt. Mehrere Kamerareihen: liegend vor sitzend, dann die mit mehr
 /// Referenzwerten, dann nach Hersteller und Modell (eigene Wahl, die Regel
 /// sagt dazu nichts).
@@ -37,6 +38,7 @@ FactorEvaluation chooseFactor({
   required DeviationResult? healthConnect,
   required Iterable<DeviationResult> camera,
   required bool cameraReleased,
+  bool Function(DeviationResult)? seriesReleased,
 }) {
   final cams =
       [
@@ -56,7 +58,7 @@ FactorEvaluation chooseFactor({
     chosen = healthConnect;
   } else if (cameraReleased) {
     for (final c in cams) {
-      if (c.hasZ) {
+      if (c.hasZ && (seriesReleased?.call(c) ?? true)) {
         chosen = c;
         break;
       }
