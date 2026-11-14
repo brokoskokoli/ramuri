@@ -369,6 +369,22 @@ void main() {
           s.profile.save(const ProfileRecord(birthYear: 1990)),
       'Einstellung': (s) =>
           s.settings.set('unit.pace', 'x', at: DateTime.utc(2026)),
+      'Morgenmessung': (s) async => (s as MorningStorage).morning.add(
+        MorningMeasurement(
+          measuredAt: DateTime.utc(2026, 11, 1, 6),
+          utcOffset: Duration.zero,
+          posture: RestingPosture.lying,
+          deviceManufacturer: 'Hersteller',
+          deviceModel: 'Modell',
+          method: ppgMethod,
+          methodVersion: ppgMethodVersion,
+          quality: PpgQuality.good,
+          restingHrBpm: 52.3,
+          cameraIntervalsMs: const [1100.5],
+          beforeValidation: false,
+          outsideWindow: false,
+        ),
+      ),
       'Gerät': (s) => s.devices.upsert(
         'AA:BB',
         displayName: 'Gurt',
@@ -560,6 +576,27 @@ void main() {
     expect(await ArchiveRestoreService.isEmpty(session), isFalse);
     await (session as WarningStorage).warning.lift();
     expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+  });
+
+  test('Morgenmessung zählt als Daten: App ist nicht leer', () async {
+    expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+    await (session as MorningStorage).morning.add(
+      MorningMeasurement(
+        measuredAt: DateTime.utc(2026, 11, 1, 6),
+        utcOffset: Duration.zero,
+        posture: RestingPosture.lying,
+        deviceManufacturer: 'Hersteller',
+        deviceModel: 'Modell',
+        method: ppgMethod,
+        methodVersion: ppgMethodVersion,
+        quality: PpgQuality.good,
+        restingHrBpm: 52.3,
+        cameraIntervalsMs: const [1100.5],
+        beforeValidation: false,
+        outsideWindow: false,
+      ),
+    );
+    expect(await ArchiveRestoreService.isEmpty(session), isFalse);
   });
 
   test('Ziel zählt als Daten: App ist nicht leer', () async {

@@ -2311,6 +2311,6 @@
   "@devSection": {"description": "Section on About, only with developer mode on"},
   "devSwitchTitle": "Developer mode",
   "@devSwitchTitle": {"description": "Switch in the Developer section"},
-  "devSwitchBody": "Morning measurement before validation, strap pairs. Turning it off keeps stored measurements, but they are no longer visible.",
+  "devSwitchBody": "Morning measurement before unlock, strap pairs. Turning it off keeps stored measurements, but they are no longer visible.",
   "@devSwitchBody": {"description": "Explanation under the developer mode switch"}
 }

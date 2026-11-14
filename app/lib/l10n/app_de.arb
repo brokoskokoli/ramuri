@@ -3054,6 +3054,6 @@
   "@devSection": {"description": "Abschnitt auf Über, nur bei Entwicklermodus an"},
   "devSwitchTitle": "Entwicklermodus",
   "@devSwitchTitle": {"description": "Schalter im Abschnitt Entwickler"},
-  "devSwitchBody": "Morgenmessung vor der Validierung, Gurt-Paare. Beim Ausschalten bleiben gespeicherte Messungen erhalten, sind aber nicht mehr sichtbar.",
+  "devSwitchBody": "Morgenmessung vor der Freischaltung, Gurt-Paare. Beim Ausschalten bleiben gespeicherte Messungen erhalten, sind aber nicht mehr sichtbar.",
   "@devSwitchBody": {"description": "Erklärung unter dem Schalter Entwicklermodus"}
 }

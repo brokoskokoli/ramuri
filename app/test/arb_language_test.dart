@@ -56,13 +56,6 @@ final Map<String, RegExp> negated = {
   // Kartenüberschrift „Erholung“ (Design, FR-0209): nur dieses eine Wort, kein
   // Zustand; die Karte zeigt nur einen Texthinweis (WP23 D2).
   'recoveryTitle': RegExp(r'^(Erholung|Recovery)$'),
-  // WP33 A (FR-0217): Erklärung des Entwicklermodus nennt den Zeitraum bis zur
-  // bestandenen Validierung; sie sagt nichts über die Güte eines Werts. Nur
-  // diese Phrase ist ausgenommen (Design Ueber.dc.html, freigegeben 2026-11-14).
-  'devSwitchBody': RegExp(
-    r'Morgenmessung vor der Validierung|'
-    r'Morning measurement before validation',
-  ),
   // FR-0203: fester Text, Wortlaut vorbehaltlich OQ-0048.
   'planWarnBannerText': RegExp(
     r'Diese App stellt keine Diagnose|This app does not provide a diagnosis',

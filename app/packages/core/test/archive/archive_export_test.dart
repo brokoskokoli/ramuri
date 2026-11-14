@@ -226,6 +226,7 @@ void main() {
               SettingKeys.loadProfile,
               SettingKeys.loadCoefficients,
               SettingKeys.loadAllRecorded,
+              SettingKeys.developerMode,
               'zukunft.unbekannt',
             ])
               {'key': k, 'value': 'x', 'updated_at_us': 5},
