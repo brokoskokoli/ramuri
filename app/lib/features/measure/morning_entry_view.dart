@@ -58,6 +58,7 @@ class MorningEntryView extends StatelessWidget {
                 l10n.morningStep1,
                 l10n.morningStep2,
                 l10n.morningStep3,
+                l10n.morningStep4,
               ].indexed) ...[
                 if (i > 0) const SizedBox(height: 10),
                 Row(

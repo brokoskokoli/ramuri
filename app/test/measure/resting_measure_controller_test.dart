@@ -208,6 +208,45 @@ void main() {
       },
     );
 
+    test('WP27 bleibt auf dem festen Fenster: Ende bei 66,5 s, keine Fenstersuche (WP37)', () async {
+      final windows = <PpgWindow>[];
+      var searched = 0;
+      final r = await Rig.make(
+        evaluate: (frames, window) async {
+          windows.add(window);
+          return evalFinalOnly(frames, window);
+        },
+      );
+      final c = RestingMeasureController(
+        camera: r.cam,
+        clock: r.clock,
+        evaluate: (frames, window) async {
+          windows.add(window);
+          return evalFinalOnly(frames, window);
+        },
+        evaluateBest: (_) async {
+          searched++;
+          throw StateError('keine Fenstersuche');
+        },
+        check: (_) async {
+          searched++;
+          throw StateError('keine Prüfung');
+        },
+        autoTick: false,
+      );
+      addTearDown(c.dispose);
+      await c.startNow();
+      final src = FrameSource();
+      await src.emitUntil(r.cam, 66.6);
+      await pump();
+      expect(c.phase, RestingMeasurePhase.result);
+      expect(searched, 0);
+      expect(windows.where((w) => identical(w, ppgStandardWindow)), isNotEmpty);
+      expect(c.result!.windowStartSeconds, isNull);
+      expect(c.result!.frames, isEmpty);
+      expect(c.searchWindow, isFalse);
+    });
+
     test('Ende nach dem Messfenster: Ergebnis mit Wert, Kamera gestoppt, Zeitpunkt', () async {
       final r = await Rig.make();
       await r.measureFully();

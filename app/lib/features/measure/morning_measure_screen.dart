@@ -103,6 +103,7 @@ class _MorningMeasureScreenState extends State<MorningMeasureScreen>
             controller: _e,
             soundOn: widget.soundOn,
             allowSkip: false,
+            skipButton: true,
             beltHint: _c.beltHint,
           ),
           RestingMeasurePhase.starting ||

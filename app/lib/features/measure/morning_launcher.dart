@@ -31,6 +31,8 @@ class MorningMeasureHost extends StatefulWidget {
     required this.settings,
     required this.clock,
     this.evaluate,
+    this.evaluateBest,
+    this.check,
     this.device = readDeviceInfo,
     this.hooks = const MorningMeasureHooks(),
     this.belt,
@@ -45,6 +47,8 @@ class MorningMeasureHost extends StatefulWidget {
 
   /// Nur Tests: gescriptete Auswertung statt Isolate.
   final PpgEvaluate? evaluate;
+  final PpgBestEvaluate? evaluateBest;
+  final PpgRecordingCheckRun? check;
   final DeviceInfoReader device;
 
   /// Stellen für Teil E (Gurt-RR): Beginn der Ruhephase, Ende der Messung.
@@ -81,6 +85,12 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
       belt: widget.belt,
       signal: SystemRestingSignal(_soundOn),
       evaluate: widget.evaluate,
+      evaluateBest: widget.evaluateBest,
+      check: widget.check,
+      developerMode: SettingsDeveloperModeStore(
+        widget.settings,
+        widget.clock,
+      ).read,
       autoTick: widget.autoTick,
       validationState: widget.validationState,
       marksFor: morningMarksReader(

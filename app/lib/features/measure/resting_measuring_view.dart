@@ -75,10 +75,21 @@ class RestingMeasuringView extends StatelessWidget {
       ),
     };
 
+    final search = ctrl.searchWindow;
+    final good60 = ppgSearchWindowSeconds.round();
+    final stretch = ctrl.goodStretchSeconds.floor();
+    final searchChecking = stretch < ppgGoodStretchDisplayMinSeconds;
     final progressLabel = starting
         ? l10n.measureProgressStarting
         : ctrl.evaluating
         ? l10n.measureProgressEvaluating
+        : search
+        ? (searchChecking
+              ? l10n.morningProgressChecking
+              : l10n.morningProgressGood(
+                  restingClock(Duration(seconds: stretch)),
+                  restingClock(Duration(seconds: good60)),
+                ))
         : ctrl.settling
         ? l10n.measureProgressSettling
         : hint != null
@@ -217,7 +228,16 @@ class RestingMeasuringView extends StatelessWidget {
                 style: theme.textTheme.labelMedium,
               ),
               Text(
-                l10n.measureProgressValue(done, seconds),
+                search
+                    ? l10n.morningProgressTotal(
+                        restingClock(
+                          Duration(seconds: ctrl.elapsedSeconds.floor()),
+                        ),
+                        restingClock(
+                          Duration(seconds: ppgSearchMaxRecordSeconds.round()),
+                        ),
+                      )
+                    : l10n.measureProgressValue(done, seconds),
                 key: const Key('measure_progress_value'),
                 style: RamuriType.of(context).unitLarge.copyWith(color: c.text),
               ),
@@ -226,13 +246,20 @@ class RestingMeasuringView extends StatelessWidget {
           const SizedBox(height: 8),
           Semantics(
             label: l10n.measureProgressSemantics,
-            value: l10n.measureProgressValue(done, seconds),
+            value: search
+                ? restingClock(Duration(seconds: stretch))
+                : l10n.measureProgressValue(done, seconds),
             child: ExcludeSemantics(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(5),
                 child: LinearProgressIndicator(
                   key: const Key('measure_progress'),
-                  value: ctrl.evaluating ? null : ctrl.progress,
+                  value: ctrl.evaluating
+                      ? null
+                      : search
+                      ? (ctrl.goodStretchSeconds / ppgSearchWindowSeconds)
+                            .clamp(0.0, 1.0)
+                      : ctrl.progress,
                   minHeight: 10,
                   backgroundColor: c.track,
                   color: c.accent,
@@ -241,7 +268,10 @@ class RestingMeasuringView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(l10n.measureBreatheNote, style: theme.textTheme.bodySmall),
+          Text(
+            search ? l10n.morningHoldNote : l10n.measureBreatheNote,
+            style: theme.textTheme.bodySmall,
+          ),
         ],
       ),
     );

@@ -106,6 +106,13 @@ bool measuredBeforeValidation({
 /// ändert nur, ob die Messung erreichbar ist ([morningMeasurementReachable]).
 /// [measuredAt] ist UTC. Außerhalb des Fensters wird gespeichert, aber mit
 /// `outsideWindow` markiert (zählt nicht).
+///
+/// [keepUnusable] (nur Entwicklermodus, K68): eine unbrauchbare Messung wird
+/// nicht verworfen, sondern als Stufe `unusable` mit Grund, ohne Puls, RMSSD und
+/// Zeitrauschen und mit den Kamera-Schlagabständen zurückgegeben; sie zählt
+/// nirgends. [windowStartS], [windowEndS] (gewähltes Fenster, K66) und
+/// [restSkippedAfterS] (Ruhephase übersprungen nach s) gehen unverändert an die
+/// Messung.
 MorningMeasurement? buildMorningMeasurement({
   required PpgMeasurement result,
   required DateTime measuredAt,
@@ -116,8 +123,32 @@ MorningMeasurement? buildMorningMeasurement({
   MorningWindow window = MorningWindow.standard,
   SleepBand? sleepBand,
   Map<ValidationQuantity, ValidationState> validationState = ppgValidationState,
+  double? windowStartS,
+  double? windowEndS,
+  double? restSkippedAfterS,
+  bool keepUnusable = false,
 }) {
-  if (result.quality == PpgQuality.unusable) return null;
+  if (result.quality == PpgQuality.unusable) {
+    if (!keepUnusable) return null;
+    return MorningMeasurement(
+      measuredAt: measuredAt.toUtc(),
+      utcOffset: utcOffset,
+      posture: posture,
+      deviceManufacturer: deviceManufacturer,
+      deviceModel: deviceModel,
+      method: ppgMethod,
+      methodVersion: ppgMethodVersion,
+      quality: PpgQuality.unusable,
+      unusableReason: result.reasons.isEmpty ? null : result.reasons.first,
+      sleepBand: sleepBand,
+      cameraIntervalsMs: List.of(result.intervalsMs),
+      beforeValidation: measuredBeforeValidation(state: validationState),
+      outsideWindow: !window.contains(measuredAt, utcOffset),
+      windowStartS: windowStartS,
+      windowEndS: windowEndS,
+      restSkippedAfterS: restSkippedAfterS,
+    );
+  }
   final hr = result.bpm;
   if (hr == null ||
       !hr.isFinite ||
@@ -151,6 +182,31 @@ MorningMeasurement? buildMorningMeasurement({
     cameraIntervalsMs: List.of(result.intervalsMs),
     beforeValidation: measuredBeforeValidation(state: validationState),
     outsideWindow: !window.contains(measuredAt, utcOffset),
+    windowStartS: windowStartS,
+    windowEndS: windowEndS,
+    restSkippedAfterS: restSkippedAfterS,
+  );
+}
+
+/// Kamera-Rohsignal einer Messung aus den Bildern der Aufnahme (K70, nur
+/// Entwicklermodus): die Bilder unverändert, dazu Anzahl und Gesamtdauer der
+/// Bildlücken (Abstand über [ppgMaxFrameGapSeconds], die Grenze der
+/// Auswertung). Die übrigen Kamera-Angaben liefert erst der Android-Adapter
+/// (WP37 C1b); bis dahin `null`.
+MorningRawSignal buildMorningRawSignal(List<PpgFrame> frames) {
+  var gaps = 0;
+  var total = 0.0;
+  for (var i = 1; i < frames.length; i++) {
+    final d = frames[i].t - frames[i - 1].t;
+    if (d > ppgMaxFrameGapSeconds) {
+      gaps++;
+      total += d;
+    }
+  }
+  return MorningRawSignal(
+    frames: List.of(frames),
+    frameGapCount: gaps,
+    frameGapTotalS: total,
   );
 }
 

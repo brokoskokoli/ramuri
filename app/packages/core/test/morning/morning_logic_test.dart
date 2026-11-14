@@ -146,6 +146,78 @@ void main() {
     });
   });
 
+  group('Fenster, Vermerk, unbrauchbar, Rohsignal (WP37 C1)', () {
+    MorningMeasurement? withExtras(PpgMeasurement r, {bool keep = false}) =>
+        buildMorningMeasurement(
+          result: r,
+          measuredAt: local(6),
+          utcOffset: off,
+          posture: RestingPosture.lying,
+          deviceManufacturer: 'H',
+          deviceModel: 'M1',
+          windowStartS: 30,
+          windowEndS: 90,
+          restSkippedAfterS: 41.5,
+          keepUnusable: keep,
+        );
+
+    test('Fenster und Vermerk gehen an die Messung', () {
+      final x = withExtras(meas())!;
+      expect(
+        [x.windowStartS, x.windowEndS, x.restSkippedAfterS],
+        [30, 90, 41.5],
+      );
+    });
+
+    const bad = PpgMeasurement(
+      quality: PpgQuality.unusable,
+      reasons: [PpgQualityReason.weakSignal],
+      intervalsMs: [900, 910],
+    );
+
+    test('unbrauchbar: ohne Entwicklermodus verworfen', () {
+      expect(withExtras(bad), isNull);
+    });
+
+    test('unbrauchbar im Entwicklermodus: Stufe, Grund, Schlagabstände, '
+        'ohne Puls und RMSSD, zählt nirgends', () {
+      final x = withExtras(bad, keep: true)!;
+      expect(x.quality, PpgQuality.unusable);
+      expect(x.isUsable, isFalse);
+      expect(x.unusableReason, PpgQualityReason.weakSignal);
+      expect(x.restingHrBpm, isNull);
+      expect(x.rmssdMs, isNull);
+      expect(x.cameraIntervalsMs, [900, 910]);
+      expect([x.windowStartS, x.restSkippedAfterS], [30, 41.5]);
+      checkMorningForStorage(x);
+      expect(countingMorningMeasurements([x]), isEmpty);
+    });
+
+    test('brauchbar bleibt mit keepUnusable unverändert', () {
+      expect(withExtras(meas(), keep: true)!.quality, PpgQuality.good);
+    });
+
+    PpgFrame frame(double t) => PpgFrame(
+      t: t,
+      r: 200,
+      g: 40,
+      r16: List.filled(16, 200),
+      g16: List.filled(16, 40),
+    );
+
+    test('Rohsignal: Bilder unverändert, Lücken über der Grenze gezählt', () {
+      final frames = [
+        for (final t in [0.0, 0.5, 1.0, 3.5, 4.0, 5.5]) frame(t),
+      ];
+      final raw = buildMorningRawSignal(frames);
+      expect(raw.frames.map((f) => f.t), [0.0, 0.5, 1.0, 3.5, 4.0, 5.5]);
+      expect(raw.frameGapCount, 2);
+      expect(raw.frameGapTotalS, closeTo(4.0, 1e-9));
+      expect(raw.exposureTimeNs, isNull);
+      checkMorningForStorage(withExtras(meas())!, rawSignal: raw);
+    });
+  });
+
   group('Vor der Validierung gemessen', () {
     Map<ValidationQuantity, ValidationState> st(ValidationState s) => {
       for (final k in ValidationQuantity.values) k: ValidationState.notChecked,

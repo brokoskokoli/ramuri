@@ -199,7 +199,7 @@ void main() {
         final r = await Rig.make();
         await r.show(tester, dark: dark);
         expect(text('Ruhepuls messen'), findsOneWidget);
-        expect(text('Fingerkuppe locker auflegen'), findsOneWidget);
+        expect(text('Hand als Kuppel.'), findsOneWidget);
         expect(
           find.bySemanticsLabel(RegExp('Rückseite des Handys')),
           findsOneWidget,
