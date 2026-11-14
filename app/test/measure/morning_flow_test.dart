@@ -392,6 +392,15 @@ void main() {
         expect(r.c.outcome, MorningOutcome.unusable);
         expect(r.c.canRepeat, isTrue);
         expect(await r.stored(tester), isEmpty);
+
+        // „Noch einmal messen“ startet wirklich eine neue Messung.
+        r.next = _good;
+        await _tap(tester, 'morning_again');
+        expect(r.c.engine.phase, isNot(RestingMeasurePhase.result));
+        r._t = 0;
+        await r.feed(tester, 67);
+        expect(r.c.outcome, MorningOutcome.good);
+        expect(await r.stored(tester), hasLength(1));
       });
 
       testWidgets('zweite Messung am selben Tag zählt nicht', (tester) async {
@@ -412,6 +421,26 @@ void main() {
           findsOneWidget,
         );
         expect(await again.stored(tester), hasLength(2));
+      });
+
+      testWidgets('liegend und sitzend am selben Morgen zählen beide', (
+        tester,
+      ) async {
+        final r = await _Rig.make();
+        await r.show(tester, dark: dark);
+        await r.runThrough(tester);
+        expect(r.c.outcome, MorningOutcome.good);
+
+        final again = await _Rig.make(
+          session: r.session,
+          now: DateTime.utc(2026, 11, 10, 6, 10),
+        );
+        await again.show(tester, dark: dark);
+        await tester.tap(_text('Sitzend'));
+        await tester.pump();
+        await again.runThrough(tester);
+        expect(again.c.outcome, MorningOutcome.good);
+        expect(again.c.stored!.posture, RestingPosture.sitting);
       });
 
       testWidgets('Speichern scheitert: Hinweis, erneut speichern', (

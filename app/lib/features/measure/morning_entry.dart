@@ -170,8 +170,10 @@ class _MorningCardState extends State<MorningCard> {
     final locale = Localizations.localeOf(context).toString();
     final now = widget.clock.now();
     final offset = widget.clock.utcOffsetAt(now);
-    final today = st.measurements.where(
-      (m) => !morningRepeatAllowed([m], nowUtc: now, utcOffset: offset),
+    final today = morningCountingToday(
+      st.measurements,
+      nowUtc: now,
+      utcOffset: offset,
     );
     final done = today.isEmpty ? null : today.first;
     return RamuriCard(

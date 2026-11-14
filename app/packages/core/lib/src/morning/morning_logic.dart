@@ -163,34 +163,6 @@ DateTime morningLocalDay(MorningMeasurement m) {
   return DateTime.utc(local.year, local.month, local.day);
 }
 
-/// Die Messungen, die zählen: je Ortstag die erste Messung im Morgenfenster
-/// (PAR-160K), unabhängig von Haltung und Gerät; Qualität ist bei gespeicherten
-/// Messungen immer ausreichend. Nach Zeitpunkt sortiert.
-List<MorningMeasurement> countingMorningMeasurements(
-  Iterable<MorningMeasurement> all,
-) {
-  final sorted = all.where((m) => !m.outsideWindow).toList()
-    ..sort((a, b) => a.measuredAt.compareTo(b.measuredAt));
-  final seen = <DateTime>{};
-  return [
-    for (final m in sorted)
-      if (seen.add(morningLocalDay(m))) m,
-  ];
-}
-
-/// Darf heute (Ortstag von [nowUtc] mit [utcOffset]) wiederholt werden? Nur,
-/// solange heute noch keine gültige Messung vorliegt.
-bool morningRepeatAllowed(
-  Iterable<MorningMeasurement> all, {
-  required DateTime nowUtc,
-  required Duration utcOffset,
-}) {
-  final local = nowUtc.toUtc().add(utcOffset);
-  final today = DateTime.utc(local.year, local.month, local.day);
-  return !countingMorningMeasurements(all)
-      .any((m) => morningLocalDay(m) == today);
-}
-
 /// Schlüssel einer Reihe: Haltung und Gerät (PAR-160K), nie gemischt, nie
 /// mit Health Connect. Stehend gibt es nicht ([RestingPosture] kennt es nicht).
 class MorningSeriesKey {
@@ -213,6 +185,58 @@ class MorningSeriesKey {
   @override
   String toString() => 'MorningSeriesKey($posture)';
 }
+
+/// Die Messungen, die zählen: je Ortstag und Reihe (Haltung und Gerät) die
+/// erste Messung im Morgenfenster (PAR-160K); liegend und sitzend am selben
+/// Morgen zählen beide. Qualität ist bei gespeicherten Messungen immer
+/// ausreichend. Nach Zeitpunkt sortiert.
+List<MorningMeasurement> countingMorningMeasurements(
+  Iterable<MorningMeasurement> all,
+) {
+  final sorted = all.where((m) => !m.outsideWindow).toList()
+    ..sort((a, b) => a.measuredAt.compareTo(b.measuredAt));
+  final seen = <(DateTime, MorningSeriesKey)>{};
+  return [
+    for (final m in sorted)
+      if (seen.add((morningLocalDay(m), _seriesKeyOf(m)))) m,
+  ];
+}
+
+MorningSeriesKey _seriesKeyOf(MorningMeasurement m) =>
+    MorningSeriesKey(m.posture, m.deviceManufacturer, m.deviceModel);
+
+DateTime _localDayOf(DateTime nowUtc, Duration utcOffset) {
+  final local = nowUtc.toUtc().add(utcOffset);
+  return DateTime.utc(local.year, local.month, local.day);
+}
+
+/// Die heute (Ortstag von [nowUtc] mit [utcOffset]) zählenden Messungen aller
+/// Reihen, nach Zeitpunkt.
+List<MorningMeasurement> morningCountingToday(
+  Iterable<MorningMeasurement> all, {
+  required DateTime nowUtc,
+  required Duration utcOffset,
+}) {
+  final today = _localDayOf(nowUtc, utcOffset);
+  return [
+    for (final m in countingMorningMeasurements(all))
+      if (morningLocalDay(m) == today) m,
+  ];
+}
+
+/// Darf heute in der Reihe [series] (Haltung und Gerät) wiederholt werden? Nur,
+/// solange heute in dieser Reihe noch keine gültige Messung vorliegt; andere
+/// Reihen zählen nicht.
+bool morningRepeatAllowed(
+  Iterable<MorningMeasurement> all, {
+  required DateTime nowUtc,
+  required Duration utcOffset,
+  required MorningSeriesKey series,
+}) => !morningCountingToday(
+  all,
+  nowUtc: nowUtc,
+  utcOffset: utcOffset,
+).any((m) => _seriesKeyOf(m) == series);
 
 /// Zählende Messungen nach Reihe (Haltung, Gerät), je Reihe nach Zeitpunkt.
 Map<MorningSeriesKey, List<MorningMeasurement>> morningSeries(

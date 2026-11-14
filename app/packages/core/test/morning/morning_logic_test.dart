@@ -18,6 +18,8 @@ PpgMeasurement meas({
   intervalsMs: ibis,
 );
 
+const lyingKey = MorningSeriesKey(RestingPosture.lying, 'H', 'M1');
+
 // 2026-11-14 ist ein Samstag; Ortszeit = UTC + 1 h.
 const off = Duration(hours: 1);
 DateTime local(int h, [int min = 0, int day = 14]) =>
@@ -206,7 +208,12 @@ void main() {
         expect(early.outsideWindow, isTrue);
         expect(countingMorningMeasurements([early]), isEmpty);
         expect(
-          morningRepeatAllowed([early], nowUtc: local(8), utcOffset: off),
+          morningRepeatAllowed(
+            [early],
+            nowUtc: local(8),
+            utcOffset: off,
+            series: lyingKey,
+          ),
           isTrue,
         );
         final inWin = m(8);
@@ -254,9 +261,14 @@ void main() {
       expect(countingMorningMeasurements([d1, d2, d2b]), [d1, d2b]);
     });
 
-    test('erste unabhängig von Haltung und Gerät', () {
+    test('je Reihe: liegend und sitzend am selben Morgen zählen beide', () {
       final lying = m(7), sitting = m(8, posture: RestingPosture.sitting);
-      expect(countingMorningMeasurements([sitting, lying]), [lying]);
+      expect(countingMorningMeasurements([sitting, lying]), [lying, sitting]);
+    });
+
+    test('je Reihe: anderes Gerät am selben Morgen zählt, zweite derselben Reihe nicht', () {
+      final a = m(7), b = m(8, model: 'M2'), c = m(9, model: 'M2');
+      expect(countingMorningMeasurements([c, b, a]), [a, b]);
     });
 
     test(
@@ -275,19 +287,25 @@ void main() {
     );
 
     test('Wiederholung nur, solange heute keine gültige', () {
+      bool allowed(List<MorningMeasurement> l, MorningSeriesKey k) =>
+          morningRepeatAllowed(l, nowUtc: local(8), utcOffset: off, series: k);
+      expect(allowed(const [], lyingKey), isTrue);
+      expect(allowed([m(7)], lyingKey), isFalse);
+      // andere Haltung oder anderes Gerät: eigene Reihe, noch offen
       expect(
-        morningRepeatAllowed(const [], nowUtc: local(8), utcOffset: off),
+        allowed([
+          m(7),
+        ], const MorningSeriesKey(RestingPosture.sitting, 'H', 'M1')),
         isTrue,
       );
       expect(
-        morningRepeatAllowed([m(7)], nowUtc: local(8), utcOffset: off),
-        isFalse,
+        allowed([
+          m(7),
+        ], const MorningSeriesKey(RestingPosture.lying, 'H', 'M2')),
+        isTrue,
       );
       // gestrige gültige blockiert heute nicht
-      expect(
-        morningRepeatAllowed([m(7, day: 13)], nowUtc: local(8), utcOffset: off),
-        isTrue,
-      );
+      expect(allowed([m(7, day: 13)], lyingKey), isTrue);
     });
   });
 

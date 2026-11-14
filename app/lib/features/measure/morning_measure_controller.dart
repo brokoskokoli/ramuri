@@ -189,6 +189,11 @@ class MorningMeasureController extends ChangeNotifier {
             before,
             nowUtc: m.measuredAt,
             utcOffset: m.utcOffset,
+            series: MorningSeriesKey(
+              m.posture,
+              m.deviceManufacturer,
+              m.deviceModel,
+            ),
           );
       final id = await store.add(m);
       if (gen != _generation) return;
