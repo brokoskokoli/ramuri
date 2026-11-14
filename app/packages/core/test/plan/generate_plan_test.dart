@@ -1773,33 +1773,36 @@ void main() {
       expect(p.pinnedConflicts, isEmpty);
     });
 
-    test('N2b: ein künftiger vom Nutzer ersetzter Termin (easyForHard) zählt im '
-        'Rückfall als harte Rolle: Do entfällt, nicht die harte Einheit', () {
-      final frozen = [moved()];
-      final pin = PlanUnit(
-        day: nov(20),
-        kind: base[1].kind,
-        phase: base[1].phase,
-        weekIndex: base[1].weekIndex,
-        minutes: base[1].minutes,
-        segments: base[1].segments,
-        pinned: true,
-        fixed: PlanUnitFixed.easyForHard,
-      );
-      final p = generatePlan(
-        g,
-        inputs(start: 150, today: mon),
-        frozen,
-        mon,
-        pinnedUnits: [pin],
-      );
-      final w = [...frozen, ...p.units.where(inWeek)];
-      // Der Pin nimmt die harte Einheit auf; die lockere (Do) entfällt.
-      expect(w.map((u) => u.day.day), [16, 20, 21]);
-      expect(w[1].fixed, PlanUnitFixed.easyForHard);
-      expect(p.hardOmissions[1], HardOmission.replacedByUser);
-      expect(p.pinnedConflicts, isEmpty);
-    });
+    test(
+      'N2b: ein künftiger vom Nutzer ersetzter Termin (easyForHard) zählt im '
+      'Rückfall als harte Rolle: Do entfällt, nicht die harte Einheit',
+      () {
+        final frozen = [moved()];
+        final pin = PlanUnit(
+          day: nov(20),
+          kind: base[1].kind,
+          phase: base[1].phase,
+          weekIndex: base[1].weekIndex,
+          minutes: base[1].minutes,
+          segments: base[1].segments,
+          pinned: true,
+          fixed: PlanUnitFixed.easyForHard,
+        );
+        final p = generatePlan(
+          g,
+          inputs(start: 150, today: mon),
+          frozen,
+          mon,
+          pinnedUnits: [pin],
+        );
+        final w = [...frozen, ...p.units.where(inWeek)];
+        // Der Pin nimmt die harte Einheit auf; die lockere (Do) entfällt.
+        expect(w.map((u) => u.day.day), [16, 20, 21]);
+        expect(w[1].fixed, PlanUnitFixed.easyForHard);
+        expect(p.hardOmissions[1], HardOmission.replacedByUser);
+        expect(p.pinnedConflicts, isEmpty);
+      },
+    );
 
     test('mehr erzeugte Einheiten als gehaltene Tage ohne Lauf: Summe wie '
         'ohne Verschiebung', () {
