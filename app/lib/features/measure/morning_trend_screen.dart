@@ -195,7 +195,7 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
           pick: pick,
           days: _days,
         );
-    final hr = values((m) => roundRestingHr(m.restingHrBpm));
+    final hr = values((m) => m.roundedRestingHr);
     final rm = values((m) => m.rmssdMs);
     final valid = {for (final e in hr) e.dayIndex}.length;
     final nf1 = NumberFormat.decimalPatternDigits(

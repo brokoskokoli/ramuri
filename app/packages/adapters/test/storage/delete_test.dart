@@ -35,6 +35,20 @@ Future<int> addMorning(EncryptedStorageSession s) => s.morning.add(
   beltPackets: [
     RrPacket(time: at(1), source: 'strap', intervals: const [1000, 1010]),
   ],
+  // Rohsignal (WP37): ein Bild, nur im Entwicklermodus gespeichert.
+  rawSignal: MorningRawSignal(
+    frames: [
+      PpgFrame(
+        t: 0.033,
+        r: 200,
+        g: 40,
+        r16: List.filled(16, 190),
+        g16: List.filled(16, 38),
+      ),
+    ],
+    frameGapCount: 0,
+    frameGapTotalS: 0,
+  ),
 );
 
 final t0u = DateTime.utc(2030, 1, 1, 12);
@@ -256,7 +270,7 @@ void main() {
     await s.close();
   });
 
-  test('Morgenmessung: deleteRun lässt sie samt Gurt-RR stehen, deleteAll leert beide Tabellen', () async {
+  test('Morgenmessung: deleteRun lässt sie samt Gurt-RR und Rohsignal stehen, deleteAll leert alle drei Tabellen', () async {
     final (s, a, _) = await setup();
     final id = await addMorning(s);
     Future<int> total(String t) async =>
@@ -267,10 +281,12 @@ void main() {
     await s.deleteRun(a);
     expect(await total('morning_measurements'), 1);
     expect(await total('morning_rr_packets'), 1);
+    expect(await total('morning_raw_signals'), 1);
     expect((await s.morning.beltPackets(id)).length, 1);
     await s.deleteAll();
     expect(await total('morning_measurements'), 0);
     expect(await total('morning_rr_packets'), 0);
+    expect(await total('morning_raw_signals'), 0);
     await s.close();
   });
 
@@ -306,6 +322,7 @@ void main() {
       WarningSignal(reportedOn: at(0), source: WarningSource.manual),
     );
     await s.devices.upsert('dev', displayName: 'x', at: at(0));
+    await s.devices.markUsed('dev', at: at(5));
     await s.consents.set('c', ConsentState.granted, at: at(0));
     // Morgenmessung mit Gurt-RR (Schema 13): keine Kaskade vom Lauf, nur die
     // Löschschleife erreicht beide Tabellen.
@@ -358,7 +375,11 @@ void main() {
       if (n > 0) filled++;
     }
     expect(filled, greaterThanOrEqualTo(15));
-    for (final t in ['morning_measurements', 'morning_rr_packets']) {
+    for (final t in [
+      'morning_measurements',
+      'morning_rr_packets',
+      'morning_raw_signals',
+    ]) {
       expect(tables, contains(t));
       expect(
         (await db.customSelect('SELECT count(*) c FROM "$t"').getSingle())

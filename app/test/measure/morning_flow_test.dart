@@ -49,10 +49,19 @@ class _FlakyStore implements MorningStore {
   Future<int> add(
     MorningMeasurement measurement, {
     List<RrPacket> beltPackets = const [],
+    MorningRawSignal? rawSignal,
   }) {
     if (failAdd) throw const StorageException(StorageFailure.failed);
-    return inner.add(measurement, beltPackets: beltPackets);
+    return inner.add(
+      measurement,
+      beltPackets: beltPackets,
+      rawSignal: rawSignal,
+    );
   }
+
+  @override
+  Future<MorningRawSignal?> rawSignal(int measurementId) =>
+      inner.rawSignal(measurementId);
 
   @override
   Future<List<StoredMorningMeasurement>> list() => inner.list();

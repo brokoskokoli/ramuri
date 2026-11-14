@@ -119,6 +119,25 @@ Future<void> _devices(StorageContractHarness h) async {
     false,
     false,
   ], 'Festlegung aufgehoben');
+  // Zuletzt genutzt (WP37): anfangs leer, nur das genannte Gerät ändert sich,
+  // alles andere bleibt, auch über ein späteres upsert; unbekannt: notFound.
+  expectEq((await s.devices.list()).map((k) => k.lastUsedAt), [
+    null,
+    null,
+  ], 'nie genutzt');
+  await s.devices.markUsed('B', at: at(20, 5));
+  await s.devices.upsert('B', displayName: 'Uhr 2', at: at(30));
+  await s.devices.setPreferred('B');
+  expectEq((await s.devices.list()).map((k) => k.lastUsedAt), [
+    null,
+    at(20, 5),
+  ], 'nur B genutzt');
+  expectTrue((await s.devices.list()).last.lastUsedAt!.isUtc, 'Zeit in UTC');
+  await expectFails(
+    () => s.devices.markUsed('Z', at: at(40)),
+    StorageFailure.notFound,
+    'unbekanntes Gerät genutzt',
+  );
   await s.close();
 }
 

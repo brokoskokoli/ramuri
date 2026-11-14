@@ -188,12 +188,12 @@ class MorningSeriesKey {
 
 /// Die Messungen, die zählen: je Ortstag und Reihe (Haltung und Gerät) die
 /// erste Messung im Morgenfenster (PAR-160K); liegend und sitzend am selben
-/// Morgen zählen beide. Qualität ist bei gespeicherten Messungen immer
-/// ausreichend. Nach Zeitpunkt sortiert.
+/// Morgen zählen beide. Unbrauchbare Messungen (nur im Entwicklermodus
+/// gespeichert, K68) zählen nirgends. Nach Zeitpunkt sortiert.
 List<MorningMeasurement> countingMorningMeasurements(
   Iterable<MorningMeasurement> all,
 ) {
-  final sorted = all.where((m) => !m.outsideWindow).toList()
+  final sorted = all.where((m) => m.isUsable && !m.outsideWindow).toList()
     ..sort((a, b) => a.measuredAt.compareTo(b.measuredAt));
   final seen = <(DateTime, MorningSeriesKey)>{};
   return [

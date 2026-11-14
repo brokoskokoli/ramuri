@@ -599,6 +599,32 @@ void main() {
     expect(await ArchiveRestoreService.isEmpty(session), isFalse);
   });
 
+  test('unbrauchbare Morgenmessung mit Rohsignal zählt als Daten: App ist nicht leer', () async {
+    expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+    await (session as MorningStorage).morning.add(
+      MorningMeasurement(
+        measuredAt: DateTime.utc(2026, 11, 1, 6),
+        utcOffset: Duration.zero,
+        posture: RestingPosture.lying,
+        deviceManufacturer: 'Hersteller',
+        deviceModel: 'Modell',
+        method: ppgMethod,
+        methodVersion: ppgMethodVersion,
+        quality: PpgQuality.unusable,
+        unusableReason: PpgQualityReason.noFinger,
+        cameraIntervalsMs: const [],
+        beforeValidation: false,
+        outsideWindow: false,
+      ),
+      rawSignal: const MorningRawSignal(
+        frames: [],
+        frameGapCount: 0,
+        frameGapTotalS: 0,
+      ),
+    );
+    expect(await ArchiveRestoreService.isEmpty(session), isFalse);
+  });
+
   test('Ziel zählt als Daten: App ist nicht leer', () async {
     expect(await ArchiveRestoreService.isEmpty(session), isTrue);
     await (session as GoalStorage).goals.save(
@@ -697,6 +723,8 @@ void main() {
     ('archive_v2_s10', 10),
     ('archive_v2_s11', 11),
     ('archive_v2_s12', 12),
+    ('archive_v2_s13', 13),
+    ('archive_v2_s14', 14),
   ]) {
     test('$name (Format 2, Schema $schema, unabhängige Umsetzung) lässt sich '
         'importieren', () async {
@@ -862,7 +890,10 @@ void main() {
       // Morgenmessungen (WP33): Abschnitte 32 und 33 ab Schema 13, Werte exakt,
       // BLOB als Bytes; ältere Archive lassen die Tabellen leer.
       final morning = await (session as MorningStorage).morning.list();
-      expect(got['morning_measurements'], hasLength(schema >= 13 ? 2 : 0));
+      expect(
+        got['morning_measurements'],
+        hasLength(schema >= 14 ? 3 : (schema >= 13 ? 2 : 0)),
+      );
       expect(got['morning_rr_packets'], hasLength(schema >= 13 ? 2 : 0));
       if (schema >= 13) {
         final a = morning[0].value;
@@ -886,6 +917,48 @@ void main() {
         expect(b.outsideWindow, isTrue);
         expect(b.utcOffset, const Duration(hours: -3, minutes: -30));
         expect(b.cameraIntervalsMs, isEmpty);
+        // Schema 14 (WP37): neue Spalten; ältere Archive lesen sie als null.
+        expect(b.windowStartS, isNull);
+        expect(b.restSkippedAfterS, isNull);
+        expect(a.unusableReason, isNull);
+        final raw = await (session as MorningStorage).morning.rawSignal(
+          morning[0].id,
+        );
+        final devices = await session.devices.list();
+        if (schema >= 14) {
+          expect(a.windowStartS, 5.0);
+          expect(a.windowEndS, 65.0);
+          expect(a.restSkippedAfterS, 37.5);
+          expect(a.methodVersion, 2);
+          final c = morning[2].value;
+          expect(c.quality, PpgQuality.unusable);
+          expect(c.restingHrBpm, isNull);
+          expect(c.unusableReason, PpgQualityReason.noFinger);
+          expect(c.isUsable, isFalse);
+          expect(raw!.frames, hasLength(3));
+          expect(raw.frames[1].t, 0.033);
+          expect(raw.frames[2].r16.last, 207.0);
+          expect(raw.frames[0].g16[1], 38.5);
+          expect(raw.exposureTimeNs, 16666666);
+          expect(raw.iso, 100);
+          expect(raw.timestampSource, CameraTimestampSource.realtime);
+          expect(raw.rollingShutterSkewNs, isNull);
+          expect(raw.torchStrength, 1);
+          expect(raw.frameGapCount, 1);
+          expect(raw.frameGapTotalS, 0.125);
+          expect(raw.saturatedFraction, isNull);
+          expect(
+            await (session as MorningStorage).morning.rawSignal(morning[1].id),
+            isNull,
+          );
+          expect(devices.map((d) => d.lastUsedAt), [
+            DateTime.fromMicrosecondsSinceEpoch(1792003600000000, isUtc: true),
+            null,
+          ]);
+        } else {
+          expect(raw, isNull);
+          expect(devices.map((d) => d.lastUsedAt), everyElement(isNull));
+        }
         final rr = await (session as MorningStorage).morning.beltPackets(
           morning[0].id,
         );

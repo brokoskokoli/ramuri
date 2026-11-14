@@ -131,7 +131,7 @@ void main() {
         expect(lines.first, {
           'type': 'manifest',
           'format': 2,
-          'schema_version': 13,
+          'schema_version': 14,
           'created_at_us': DateTime.utc(2026, 11, 7, 12).microsecondsSinceEpoch,
         });
         final sections = [
@@ -139,7 +139,7 @@ void main() {
             if (l['type'] == 'section') l['name'],
         ];
         expect(sections, [for (final s in archiveSections) s.name]);
-        expect(sections, hasLength(33));
+        expect(sections, hasLength(34));
         // Jede Tabelle mit mindestens einer Zeile.
         for (final s in archiveSections.where((s) => !s.isReserved)) {
           final rows = _rowsOf(lines, s.name);
@@ -288,7 +288,7 @@ void main() {
         r'^\| (\d+) \| `(\w+)` \| (.+) \|$',
         multiLine: true,
       ).allMatches(doc).toList();
-      expect(rows, hasLength(33));
+      expect(rows, hasLength(34));
       for (final m in rows) {
         final spec = archiveSections[int.parse(m.group(1)!) - 1];
         expect(spec.name, m.group(2));

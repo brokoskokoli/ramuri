@@ -99,6 +99,12 @@ SECTIONS_S12 = SECTIONS_S11 + ["health_sleep_sessions", "health_sleep_stages", "
 # little-endian, 1/1024 s) sind BLOBs, in der Datei als kleingeschriebener Hex-Text.
 SECTIONS_S13 = SECTIONS_S12 + ["morning_measurements", "morning_rr_packets"]
 
+# Schema 14 (WP37, weiter Format 2): Abschnitt 34 `morning_raw_signals` am Ende (`frames` ist ein BLOB aus
+# float64 little-endian, 35 Werte je Bild, als Hex-Text); `known_devices.last_used_at_us` und in
+# `morning_measurements` `window_start_s`, `window_end_s`, `rest_skipped_after_s`, `unusable_reason`
+# kommen ans Zeilenende, `resting_hr_bpm` darf null sein. Archive bis Schema 13 lesen die neuen Spalten als null.
+SECTIONS_S14 = SECTIONS_S13 + ["morning_raw_signals"]
+
 # "Heute" der Leser-Tests im Adapter-Paket (Ortstag, siehe archive_import_vectors_test.dart).
 # manual_trainings darf nicht nach diesem Tag liegen (Vertrag 4.3).
 V2_TODAY = "2026-11-20"
@@ -378,8 +384,47 @@ def archive_rows_s13():
     return r
 
 
+def archive_rows_s14():
+    """Schema 14: die Zeilen von Schema 13 (nur synthetische Werte) mit den neuen Spalten. Gerät 1 mit
+    `last_used_at_us`, Gerät 2 ohne (null). Morgenmessung 1 mit Fenster 5 bis 65 s, nach 37,5 s
+    uebersprungener Ruhephase (Verfahren Version 2) und Rohsignal; Messung 2 ohne die neuen Angaben (null);
+    Messung 3 unbrauchbar (Stufe `unusable`, ohne Puls, Grund `noFinger`, ohne Abstaende), ohne Rohsignal.
+    Rohsignal: drei Bilder, je t, r, g, r16[0..15], g16[0..15] als float64 little-endian (840 Byte)."""
+    import struct
+    r = archive_rows_s13()
+    t = 1792000000000000
+    r["known_devices"][0]["last_used_at_us"] = t + 3_600_000_000
+    r["known_devices"].append(dict(id=2, device_id="11:22:33:44:55:66", display_name="Testgurt", is_preferred=0,
+                                   added_at_us=t + 1, last_used_at_us=None))
+    m1, m2 = r["morning_measurements"]
+    m1["method_version"] = 2
+    m1.update(window_start_s=5.0, window_end_s=65.0, rest_skipped_after_s=37.5, unusable_reason=None)
+    m2.update(window_start_s=None, window_end_s=None, rest_skipped_after_s=None, unusable_reason=None)
+    r["morning_measurements"].append(
+        dict(id=3, measured_at_us=t + 2 * 86_400_000_000 + 6 * 3600 * 1_000_000, utc_offset_s=3600,
+             posture="lying", device_manufacturer="Testhersteller", device_model="Testmodell 1",
+             method="camera-ppg", method_version=2, quality="unusable", resting_hr_bpm=None,
+             rmssd_ms=None, timing_noise_ms=None, sleep_band=None, before_validation=0, outside_window=0,
+             camera_ibi="", window_start_s=None, window_end_s=None, rest_skipped_after_s=None,
+             unusable_reason="noFinger"))
+    frames = []
+    for i in range(3):
+        vals = [i * 0.033, 200.0 + i, 40.5 + i * 0.25] + [190.0 + k + i for k in range(16)] + \
+               [38.0 + k * 0.5 + i for k in range(16)]
+        assert len(vals) == 35
+        frames.append(struct.pack("<35d", *vals))
+    r["morning_raw_signals"] = [
+        dict(measurement_id=1, frame_count=3, frames=b"".join(frames).hex(), exposure_time_ns=16_666_666,
+             iso=100, timestamp_source="realtime", rolling_shutter_skew_ns=None, torch_strength=1,
+             frame_gap_count=1, frame_gap_total_s=0.125, saturated_fraction=None),
+    ]
+    return r
+
+
 def archive_plaintext(version=1, future_training=False, schema=None, reserved_row=False):
-    if schema == 13:
+    if schema == 14:
+        r, sections = archive_rows_s14(), SECTIONS_S14
+    elif schema == 13:
         r, sections = archive_rows_s13(), SECTIONS_S13
     elif schema == 12:
         r, sections = archive_rows_s12(), SECTIONS_S12
@@ -442,6 +487,7 @@ def main():
     jl11, gz11 = archive_plaintext(2, schema=11)
     jl12, gz12 = archive_plaintext(2, schema=12)
     jl13, gz13 = archive_plaintext(2, schema=13)
+    jl14, gz14 = archive_plaintext(2, schema=14)
     _, gz2_future = archive_plaintext(2, future_training=True)
     _, gz10_warn = archive_plaintext(2, schema=10, reserved_row=True)
     # (name, passwort, salz, klartext)
@@ -464,6 +510,7 @@ def main():
         ("archive_v2_s11", "archiv-test-passwort-s11+", bytes(range(56, 72)), gz11),
         ("archive_v2_s12", "archiv-test-passwort-s12+", bytes(range(88, 104)), gz12),
         ("archive_v2_s13", "archiv-test-passwort-s13+", bytes(range(120, 136)), gz13),
+        ("archive_v2_s14", "archiv-test-passwort-s14+", bytes(range(136, 152)), gz14),
     ]
     # Format 2 mit einem Training nach heute (V2_TODAY): Negativvektor "corrupt", Quelle von neg_v2_*.
     v2_future = ("v2_future_training_src", "archiv-test-passwort-v2+", bytes(range(216, 232)), gz2_future)
@@ -471,7 +518,7 @@ def main():
     manifest = []
     for name, pw, salt, pt in cases:
         key = derive(pw.encode("utf-8"), salt)
-        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10", "archive_v2_s11", "archive_v2_s12", "archive_v2_s13") else 1
+        ver = 2 if name in ("archive_v2", "archive_v2_s6", "archive_v2_s7", "archive_v2_s8", "archive_v2_s9", "archive_v2_s10", "archive_v2_s11", "archive_v2_s12", "archive_v2_s13", "archive_v2_s14") else 1
         h, cts = encrypt(pt, salt, key, ver)
         fname = f"{name}.runarchv"
         open(os.path.join(out, fname), "wb").write(h + b"".join(cts))
@@ -536,6 +583,12 @@ def main():
             manifest[-1]["jsonl_file"] = "archive_v2_s13.jsonl"
             manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl13).hexdigest()
             manifest[-1]["row_counts"] = {s: len(archive_rows_s13()[s]) for s in SECTIONS_S13}
+            manifest[-1]["today"] = V2_TODAY
+        if name == "archive_v2_s14":
+            open(os.path.join(out, "archive_v2_s14.jsonl"), "wb").write(jl14)
+            manifest[-1]["jsonl_file"] = "archive_v2_s14.jsonl"
+            manifest[-1]["jsonl_sha256"] = hashlib.sha256(jl14).hexdigest()
+            manifest[-1]["row_counts"] = {s: len(archive_rows_s14()[s]) for s in SECTIONS_S14}
             manifest[-1]["today"] = V2_TODAY
         if name == "archive_small":
             open(os.path.join(out, "archive_small.jsonl"), "wb").write(jl)

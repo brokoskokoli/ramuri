@@ -28,11 +28,13 @@ class AppDatabase extends _$AppDatabase {
   /// Version 11: aktives Warnsignal (`active_warning`, WP23). Version 12:
   /// Health-Connect-Import (`health_*`, `manual_trainings.hc_id`, WP32). Version 13:
   /// Morgenmessungen und ihre Gurt-RR (`morning_measurements`,
-  /// `morning_rr_packets`, WP33). Jede spätere Änderung erhöht die
+  /// `morning_rr_packets`, WP33). Version 14: Morgenmessung mit Fenster, Stufe
+  /// unbrauchbar und übersprungener Ruhephase, Kamera-Rohsignal
+  /// (`morning_raw_signals`) und `known_devices.last_used_at_us` (WP37). Jede spätere Änderung erhöht die
   /// Zahl (Literal, damit `drift_dev schema dump` sie lesen kann), ergänzt
   /// einen Eintrag in [migrationSteps] und einen neuen Dump in `drift_schemas/`.
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   /// Schritt `n` überführt Version `n` in `n + 1`. Tests hängen für die
   /// nächste Version einen synthetischen Schritt an.
@@ -177,7 +179,78 @@ class AppDatabase extends _$AppDatabase {
       await m.create(morningRrPackets);
       await m.create(morningRrPacketsMeasurement);
     },
+    // 13 -> 14 (WP37): Morgenmessung um Fenster, Ruhe-Übersprung und Grund
+    // erweitert, Stufe 'unusable' und Ruhepuls NULL erlaubt (Tabelle wird
+    // umgebaut, SQLite kann CHECKs nicht ändern); Rohsignal neu; letzte
+    // Nutzung je bekanntem Gerät. Bestehende Messungen bleiben mit Id.
+    13: (Migrator m) async {
+      await m.addColumn(knownDevices, knownDevices.lastUsedAtUs);
+      // Die Gurt-RR hängt per ON DELETE CASCADE an der Messung: Mit
+      // foreign_keys=ON löschte das Ersetzen der Elterntabelle sie mit.
+      // Daher zuerst sichern und die Kindtabelle entfernen.
+      final rrSeq = await _sequenceOf('morning_rr_packets');
+      await customStatement(
+        'CREATE TABLE morning_rr_packets_save AS '
+        'SELECT id, measurement_id, time_us, source, rr FROM morning_rr_packets',
+      );
+      await m.drop(morningRrPacketsMeasurement);
+      await m.drop(morningRrPackets);
+      await m.drop(morningMeasurementsTime);
+      await customStatement(
+        'ALTER TABLE morning_measurements RENAME TO morning_measurements_old',
+      );
+      await m.create(morningMeasurements);
+      await m.create(morningMeasurementsTime);
+      await customStatement(
+        'INSERT INTO morning_measurements (id, measured_at_us, utc_offset_s, '
+        'posture, device_manufacturer, device_model, method, method_version, '
+        'quality, resting_hr_bpm, rmssd_ms, timing_noise_ms, sleep_band, '
+        'before_validation, outside_window, camera_ibi) '
+        'SELECT id, measured_at_us, utc_offset_s, posture, '
+        'device_manufacturer, device_model, method, method_version, quality, '
+        'resting_hr_bpm, rmssd_ms, timing_noise_ms, sleep_band, '
+        'before_validation, outside_window, camera_ibi '
+        'FROM morning_measurements_old ORDER BY id',
+      );
+      // AUTOINCREMENT-Zähler behalten (Ids einer gelöschten Messung nicht
+      // wiederverwenden): Zeile der alten Tabelle (nach dem Umbenennen unter
+      // dem alten Namen) ersetzt die neue.
+      await customStatement(
+        "DELETE FROM sqlite_sequence WHERE name = 'morning_measurements'",
+      );
+      await customStatement(
+        "UPDATE sqlite_sequence SET name = 'morning_measurements' "
+        "WHERE name = 'morning_measurements_old'",
+      );
+      await customStatement('DROP TABLE morning_measurements_old');
+      await m.create(morningRrPackets);
+      await m.create(morningRrPacketsMeasurement);
+      await customStatement(
+        'INSERT INTO morning_rr_packets (id, measurement_id, time_us, source, '
+        'rr) SELECT id, measurement_id, time_us, source, rr '
+        'FROM morning_rr_packets_save ORDER BY id',
+      );
+      await customStatement('DROP TABLE morning_rr_packets_save');
+      if (rrSeq != null) {
+        await customStatement(
+          "DELETE FROM sqlite_sequence WHERE name = 'morning_rr_packets'",
+        );
+        await customStatement(
+          "INSERT INTO sqlite_sequence (name, seq) "
+          "VALUES ('morning_rr_packets', $rrSeq)",
+        );
+      }
+      await m.create(morningRawSignals);
+    },
   };
+
+  Future<int?> _sequenceOf(String table) async {
+    final rows = await customSelect(
+      'SELECT seq FROM sqlite_sequence WHERE name = ?',
+      variables: [Variable<String>(table)],
+    ).get();
+    return rows.isEmpty ? null : rows.first.read<int>('seq');
+  }
 
   @override
   MigrationStrategy get migration => MigrationStrategy(

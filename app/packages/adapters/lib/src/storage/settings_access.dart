@@ -96,9 +96,20 @@ class DriftKnownDeviceStore implements KnownDeviceStore {
           displayName: r.displayName,
           isPreferred: r.isPreferred,
           addedAt: timeOf(r.addedAtUs),
+          lastUsedAt: r.lastUsedAtUs == null ? null : timeOf(r.lastUsedAtUs!),
         ),
     ];
   });
+
+  @override
+  Future<void> markUsed(String deviceId, {required DateTime at}) =>
+      guarded(() async {
+        final n =
+            await (_db.update(_db.knownDevices)
+                  ..where((t) => t.deviceId.equals(deviceId)))
+                .write(d.KnownDevicesCompanion(lastUsedAtUs: Value(usOf(at))));
+        if (n == 0) throw const StorageException(StorageFailure.notFound);
+      });
 
   @override
   Future<void> upsert(

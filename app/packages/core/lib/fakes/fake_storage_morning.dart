@@ -14,28 +14,36 @@ class FakeMorningStore implements MorningStore {
   Future<int> add(
     MorningMeasurement measurement, {
     List<RrPacket> beltPackets = const [],
+    MorningRawSignal? rawSignal,
   }) async {
-    checkMorningForStorage(measurement, beltPackets: beltPackets);
+    checkMorningForStorage(
+      measurement,
+      beltPackets: beltPackets,
+      rawSignal: rawSignal,
+    );
     final id = _d.nextMorningId++;
-    _d.morning[id] = MorningMeasurement(
+    _d.morning[id] = _copy(
+      measurement,
       measuredAt: measurement.measuredAt.toUtc(),
-      utcOffset: measurement.utcOffset,
-      posture: measurement.posture,
-      deviceManufacturer: measurement.deviceManufacturer,
-      deviceModel: measurement.deviceModel,
-      method: measurement.method,
-      methodVersion: measurement.methodVersion,
-      quality: measurement.quality,
       restingHrBpm: measurement.roundedRestingHr,
-      rmssdMs: measurement.rmssdMs,
-      timingNoiseMs: measurement.timingNoiseMs,
       sleepBand: measurement.sleepBand,
       cameraIntervalsMs: decodeCameraIntervals(
         encodeCameraIntervals(measurement.cameraIntervalsMs),
       ),
-      beforeValidation: measurement.beforeValidation,
-      outsideWindow: measurement.outsideWindow,
     );
+    if (rawSignal != null) {
+      _d.morningRaw[id] = MorningRawSignal(
+        frames: decodeRawFrames(encodeRawFrames(rawSignal.frames)),
+        frameGapCount: rawSignal.frameGapCount,
+        frameGapTotalS: rawSignal.frameGapTotalS,
+        exposureTimeNs: rawSignal.exposureTimeNs,
+        iso: rawSignal.iso,
+        timestampSource: rawSignal.timestampSource,
+        rollingShutterSkewNs: rawSignal.rollingShutterSkewNs,
+        torchStrength: rawSignal.torchStrength,
+        saturatedFraction: rawSignal.saturatedFraction,
+      );
+    }
     _d.morningPackets[id] = [
       for (final p in beltPackets)
         StoredRrPacket(
@@ -67,23 +75,45 @@ class FakeMorningStore implements MorningStore {
   Future<void> setSleepBand(int measurementId, SleepBand? band) async {
     final m = _d.morning[measurementId];
     if (m == null) throw const StorageException(StorageFailure.notFound);
-    _d.morning[measurementId] = MorningMeasurement(
-      measuredAt: m.measuredAt,
-      utcOffset: m.utcOffset,
-      posture: m.posture,
-      deviceManufacturer: m.deviceManufacturer,
-      deviceModel: m.deviceModel,
-      method: m.method,
-      methodVersion: m.methodVersion,
-      quality: m.quality,
-      restingHrBpm: m.restingHrBpm,
-      rmssdMs: m.rmssdMs,
-      timingNoiseMs: m.timingNoiseMs,
-      sleepBand: band,
-      cameraIntervalsMs: m.cameraIntervalsMs,
-      beforeValidation: m.beforeValidation,
-      outsideWindow: m.outsideWindow,
-    );
+    _d.morning[measurementId] = _copy(m, sleepBand: band);
+  }
+
+  /// Kopie mit den gespeicherten Abwandlungen; `sleepBand` und der Rest
+  /// kommen sonst von [m] (null bei `sleepBand` heißt: gelöscht).
+  static MorningMeasurement _copy(
+    MorningMeasurement m, {
+    DateTime? measuredAt,
+    double? restingHrBpm,
+    SleepBand? sleepBand,
+    List<double>? cameraIntervalsMs,
+  }) => MorningMeasurement(
+    measuredAt: measuredAt ?? m.measuredAt,
+    utcOffset: m.utcOffset,
+    posture: m.posture,
+    deviceManufacturer: m.deviceManufacturer,
+    deviceModel: m.deviceModel,
+    method: m.method,
+    methodVersion: m.methodVersion,
+    quality: m.quality,
+    restingHrBpm: restingHrBpm ?? m.restingHrBpm,
+    rmssdMs: m.rmssdMs,
+    timingNoiseMs: m.timingNoiseMs,
+    sleepBand: sleepBand,
+    cameraIntervalsMs: cameraIntervalsMs ?? m.cameraIntervalsMs,
+    beforeValidation: m.beforeValidation,
+    outsideWindow: m.outsideWindow,
+    windowStartS: m.windowStartS,
+    windowEndS: m.windowEndS,
+    restSkippedAfterS: m.restSkippedAfterS,
+    unusableReason: m.unusableReason,
+  );
+
+  @override
+  Future<MorningRawSignal?> rawSignal(int measurementId) async {
+    if (!_d.morning.containsKey(measurementId)) {
+      throw const StorageException(StorageFailure.notFound);
+    }
+    return _d.morningRaw[measurementId];
   }
 
   @override

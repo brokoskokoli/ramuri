@@ -61,6 +61,7 @@ class FakeStorageData {
   /// `morning_rr_packets`): gehören keinem Lauf, nur [deleteAll] löscht sie.
   final morning = <int, MorningMeasurement>{};
   final morningPackets = <int, List<StoredRrPacket>>{};
+  final morningRaw = <int, MorningRawSignal>{};
   int nextMorningId = 1;
   int nextMorningPacketId = 1;
 
@@ -166,6 +167,7 @@ class FakeStorageData {
     warning = null;
     morning.clear();
     morningPackets.clear();
+    morningRaw.clear();
     nextMorningId = 1;
     nextMorningPacketId = 1;
   }

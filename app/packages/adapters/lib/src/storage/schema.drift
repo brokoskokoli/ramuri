@@ -427,7 +427,10 @@ CREATE TABLE known_devices (
   device_id TEXT NOT NULL UNIQUE,
   display_name TEXT,
   is_preferred BOOLEAN NOT NULL DEFAULT 0 CHECK (is_preferred IN (0, 1)),
-  added_at_us INTEGER NOT NULL
+  added_at_us INTEGER NOT NULL,
+  -- Version 14 (WP37): Zeitpunkt der letzten erfolgreichen Verbindung (UTC),
+  -- NULL = nie genutzt. Grundlage der späteren Gurt-Autoverbindung.
+  last_used_at_us INTEGER
 );
 -- Höchstens ein bevorzugtes Gerät.
 CREATE UNIQUE INDEX known_devices_one_preferred
@@ -678,7 +681,14 @@ CREATE INDEX health_exercise_heart_rates_exercise ON health_exercise_heart_rates
 -- utc_offset_s = Versatz des Ortes zu diesem Zeitpunkt (wie runs.ended_utc_offset_s),
 -- daraus der Ortstag. posture = Haltung ('lying' oder 'sitting', nie stehend).
 -- Gerät = Hersteller und Modell, keine Seriennummer. quality = 'good' oder
--- 'limited' ('unusable' gibt keinen Puls und wird nicht gespeichert).
+-- 'limited' oder (ab Version 14, K68, nur im Entwicklermodus) 'unusable'.
+-- Unbrauchbare haben keinen Puls: resting_hr_bpm NULL genau dann, wenn
+-- quality = 'unusable' (sonst nie NULL), unusable_reason = Name des Grundes
+-- (PpgQualityReason), nur bei 'unusable'. window_start_s / window_end_s =
+-- Sekunden seit Aufnahmebeginn des ausgewerteten Fensters (Version 14, K66;
+-- beide oder keins, NULL = Verfahren Version 1 ohne Fenstersuche),
+-- rest_skipped_after_s = Sekunden, nach denen die Ruhephase übersprungen wurde
+-- (NULL = nicht übersprungen).
 -- resting_hr_bpm = Ruhepuls mit einer Nachkommastelle (der Speicher rundet);
 -- rmssd_ms und timing_noise_ms NULL = nicht verfügbar (nie 0 statt unbekannt).
 -- sleep_band = freiwillige Schlafdauer in Stufen (PAR-164K), NULL = nicht
@@ -695,14 +705,21 @@ CREATE TABLE morning_measurements (
   device_model TEXT NOT NULL,
   method TEXT NOT NULL CHECK (length(method) > 0),
   method_version INTEGER NOT NULL CHECK (method_version >= 1),
-  quality TEXT NOT NULL CHECK (quality IN ('good', 'limited')),
-  resting_hr_bpm REAL NOT NULL CHECK (resting_hr_bpm > 0),
+  quality TEXT NOT NULL CHECK (quality IN ('good', 'limited', 'unusable')),
+  resting_hr_bpm REAL CHECK (resting_hr_bpm > 0),
   rmssd_ms REAL CHECK (rmssd_ms >= 0),
   timing_noise_ms REAL CHECK (timing_noise_ms >= 0),
   sleep_band TEXT CHECK (sleep_band IN ('under5', 'from5to6', 'from6to7', 'from7to8', 'over8')),
   before_validation BOOLEAN NOT NULL CHECK (before_validation IN (0, 1)),
   outside_window BOOLEAN NOT NULL CHECK (outside_window IN (0, 1)),
-  camera_ibi BLOB NOT NULL CHECK (length(camera_ibi) % 4 = 0)
+  camera_ibi BLOB NOT NULL CHECK (length(camera_ibi) % 4 = 0),
+  window_start_s REAL CHECK (window_start_s >= 0),
+  window_end_s REAL CHECK (window_end_s > window_start_s),
+  rest_skipped_after_s REAL CHECK (rest_skipped_after_s >= 0),
+  unusable_reason TEXT CHECK (length(unusable_reason) > 0),
+  CHECK ((window_start_s IS NULL) = (window_end_s IS NULL)),
+  CHECK ((quality = 'unusable') = (resting_hr_bpm IS NULL)),
+  CHECK (unusable_reason IS NULL OR quality = 'unusable')
 ) AS MorningMeasurementRow;
 
 CREATE INDEX morning_measurements_time ON morning_measurements (measured_at_us);
@@ -720,3 +737,28 @@ CREATE TABLE morning_rr_packets (
 );
 
 CREATE INDEX morning_rr_packets_measurement ON morning_rr_packets (measurement_id, time_us);
+
+-- Kamera-Rohsignal je Morgenmessung (Version 14, K70, K72; nur Entwicklermodus
+-- befüllt). Höchstens eine Zeile je Messung, Löschen mit der Messung (Kaskade).
+-- frames = frame_count Bilder zu je 35 float64 little endian (280 Byte):
+-- t (s seit Aufnahmebeginn), r, g, r16[0..15], g16[0..15] (Mittelwerte der
+-- Bildmitte und der 4x4 Teilbereiche zeilenweise, bitgenau wie PpgFrame).
+-- Kamera-Angaben, NULL = von der Kamera nicht geliefert: exposure_time_ns,
+-- iso, timestamp_source ('unknown' oder 'realtime', Android
+-- SENSOR_INFO_TIMESTAMP_SOURCE), rolling_shutter_skew_ns, torch_strength
+-- (Android Torch-Stärkestufe), saturated_fraction (Anteil gesättigter Pixel,
+-- 0 bis 1). Bildlücken (Abstand über der Grenze der Auswertung): Anzahl und
+-- Gesamtdauer in Sekunden. Abschnitt 34 des Archivs.
+CREATE TABLE morning_raw_signals (
+  measurement_id INTEGER NOT NULL PRIMARY KEY REFERENCES morning_measurements (id) ON DELETE CASCADE,
+  frame_count INTEGER NOT NULL CHECK (frame_count >= 0),
+  frames BLOB NOT NULL CHECK (length(frames) = frame_count * 280),
+  exposure_time_ns INTEGER CHECK (exposure_time_ns > 0),
+  iso INTEGER CHECK (iso > 0),
+  timestamp_source TEXT CHECK (timestamp_source IN ('unknown', 'realtime')),
+  rolling_shutter_skew_ns INTEGER CHECK (rolling_shutter_skew_ns >= 0),
+  torch_strength INTEGER CHECK (torch_strength >= 0),
+  frame_gap_count INTEGER NOT NULL CHECK (frame_gap_count >= 0),
+  frame_gap_total_s REAL NOT NULL CHECK (frame_gap_total_s >= 0),
+  saturated_fraction REAL CHECK (saturated_fraction BETWEEN 0 AND 1)
+) AS MorningRawSignalRow;

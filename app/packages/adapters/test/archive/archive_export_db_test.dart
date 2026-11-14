@@ -387,7 +387,7 @@ void main() {
         'device_manufacturer': 'Testhersteller',
         'device_model': 'Testmodell',
         'method': 'camera-ppg',
-        'method_version': 1,
+        'method_version': 2,
         'quality': 'good',
         'resting_hr_bpm': 52.3,
         'rmssd_ms': 41.5,
@@ -396,6 +396,10 @@ void main() {
         'before_validation': 1,
         'outside_window': 0,
         'camera_ibi': '00608944',
+        'window_start_s': 5.0,
+        'window_end_s': 65.0,
+        'rest_skipped_after_s': 37.5,
+        'unusable_reason': null,
       },
       {
         'id': 2,
@@ -414,8 +418,55 @@ void main() {
         'before_validation': 0,
         'outside_window': 1,
         'camera_ibi': '',
+        'window_start_s': null,
+        'window_end_s': null,
+        'rest_skipped_after_s': null,
+        'unusable_reason': null,
+      },
+      {
+        'id': 3,
+        'measured_at_us': 7000,
+        'utc_offset_s': 0,
+        'posture': 'lying',
+        'device_manufacturer': 'Testhersteller',
+        'device_model': 'Testmodell',
+        'method': 'camera-ppg',
+        'method_version': 2,
+        'quality': 'unusable',
+        'resting_hr_bpm': null,
+        'rmssd_ms': null,
+        'timing_noise_ms': null,
+        'sleep_band': null,
+        'before_validation': 0,
+        'outside_window': 0,
+        'camera_ibi': '',
+        'window_start_s': null,
+        'window_end_s': null,
+        'rest_skipped_after_s': null,
+        'unusable_reason': 'noFinger',
       },
     ]);
+    // Rohsignal (WP37, Abschnitt 34): Schlüssel measurement_id, BLOB als Hex
+    // (ein Bild = 280 Byte = 560 Hex-Zeichen), Unbekanntes null.
+    expect(_rows(lines, 'morning_raw_signals'), [
+      {
+        'measurement_id': 1,
+        'frame_count': 1,
+        'frames': '00' * 280,
+        'exposure_time_ns': 16666666,
+        'iso': 100,
+        'timestamp_source': 'realtime',
+        'rolling_shutter_skew_ns': null,
+        'torch_strength': 1,
+        'frame_gap_count': 0,
+        'frame_gap_total_s': 0.0,
+        'saturated_fraction': null,
+      },
+    ]);
+    expect(
+      [for (final r in _rows(lines, 'known_devices')) r['last_used_at_us']],
+      [7],
+    );
     expect(_rows(lines, 'morning_rr_packets'), [
       {
         'id': 1,
