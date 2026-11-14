@@ -308,9 +308,10 @@ Map<String, Morning> parsePairs(String path) {
 
 /// Ordnet die Kamera-Intervalle der Gurt-Folge zu (ohne Zeitstempel der Kamera-Schläge): Verschiebung
 /// mit dem kleinsten Median |Differenz| über gültige Intervalle.
-({int lag, List<double> err, double rCam, double rBelt, int pairs}) alignPairs(List<double?> cam, List<double> belt) {
+({int lag, List<double> err, double rCam, double rBelt, int pairs, double ambiguity}) alignPairs(List<double?> cam, List<double> belt) {
   var best = 0;
   var bestMed = double.infinity;
+  var second = double.infinity;
   for (var lag = -cam.length; lag < belt.length; lag++) {
     final d = <double>[];
     for (var i = 0; i < cam.length; i++) {
@@ -318,10 +319,14 @@ Map<String, Morning> parsePairs(String path) {
       if (cam[i] != null && j >= 0 && j < belt.length) d.add((cam[i]! - belt[j]).abs());
     }
     if (d.length < math.max(10, cam.where((x) => x != null).length * 0.6)) continue;
-    final med = quantile(d, 0.5);
+    // robuste Kosten: Mittel von min(|Differenz|, 100 ms); nicht periodisch mehrdeutig wie der Median
+    final med = mean([for (final x in d) math.min(x, 100.0)]);
     if (med < bestMed) {
+      second = bestMed;
       bestMed = med;
       best = lag;
+    } else if (med < second) {
+      second = med;
     }
   }
   final err = <double>[];
@@ -338,14 +343,27 @@ Map<String, Morning> parsePairs(String path) {
       n++;
     }
   }
-  return (lag: best, err: err, rCam: n > 0 ? math.sqrt(sc / n) : double.nan, rBelt: n > 0 ? math.sqrt(sb / n) : double.nan, pairs: n);
+  return (
+    lag: best,
+    err: err,
+    rCam: n > 0 ? math.sqrt(sc / n) : double.nan,
+    rBelt: n > 0 ? math.sqrt(sb / n) : double.nan,
+    pairs: n,
+    ambiguity: bestMed / second,
+  );
 }
 
 void runPairs(String dir, void Function(String) say, String selftestPath) {
   say('# R010 Messpaare (Kamera-Schlagabstände gegen Gurt-RR, nur Kennzahlen)\n');
   // Selbsttest mit synthetischer Datei: bekannte Verschiebung, bekannter Fehler
   final rnd = math.Random(7);
-  final belt = [for (var i = 0; i < 80; i++) 1000 + 40 * math.sin(i / 2) + 10 * (rnd.nextDouble() - 0.5)];
+  // Atemmodulation plus Zufall (wie echte RR nicht streng periodisch)
+  var rw = 0.0;
+  final belt = <double>[];
+  for (var i = 0; i < 80; i++) {
+    rw = 0.7 * rw + 20 * (rnd.nextDouble() - 0.5);
+    belt.add(1000 + 30 * math.sin(i / 2) + rw);
+  }
   final sb = StringBuffer('format_version,morning_id,row_type,key,seq,sub,time,value,unit\r\n');
   sb.write('1,1,camera,rmssd,,,,50.0,ms\r\n');
   for (var i = 0; i < 55; i++) {
@@ -358,7 +376,9 @@ void runPairs(String dir, void Function(String) say, String selftestPath) {
   File(selftestPath).writeAsStringSync(sb.toString());
   final st = parsePairs(selftestPath)['1']!;
   final al = alignPairs(st.ibi, st.belt);
-  say('Selbsttest (synthetische Datei): Verschiebung ${al.lag} (erwartet 12), Fehler RMS ${f1(rms(al.err))} ms (erwartet ≈ 5 plus Rundung 1/1024 s).\n');
+  say('Selbsttest (synthetische Datei): Verschiebung ${al.lag} (erwartet 12), Fehler RMS ${f1(rms(al.err))} ms (erwartet ≈ 5 plus Rundung 1/1024 s), '
+      'Kosten bester/zweitbester Versatz ${f2(al.ambiguity)}.\n');
+  if (al.lag != 12) throw StateError('Selbsttest der Zuordnung gescheitert');
 
   final d = Directory(dir);
   final files = d.existsSync()
@@ -368,8 +388,8 @@ void runPairs(String dir, void Function(String) say, String selftestPath) {
     say('Keine Messpaar-Dateien in der Sammlung (`$dir`) – nichts ausgewertet.');
     return;
   }
-  say('| Datei | Morgen | Stufe | Zeitrauschen App | Paare | Fehler/Intervall RMS | Median |Fehler| | RMSSD Kamera (Paare) | RMSSD Gurt (Paare) | Δ % | Δ % mit Median-3 |');
-  say('| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+  say('| Datei | Morgen | Stufe | Zeitrauschen App | Paare | Kosten bester/zweitbester Versatz | Fehler/Intervall RMS | Median |Fehler| | RMSSD Kamera (Paare) | RMSSD Gurt (Paare) | Δ % | Δ % mit Median-3 |');
+  say('| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
   for (final f in files) {
     final ms = parsePairs(f);
     for (final e in ms.entries) {
@@ -380,7 +400,7 @@ void runPairs(String dir, void Function(String) say, String selftestPath) {
       final valid = [for (final v in m.ibi) v != null];
       final med = median3([for (final v in m.ibi) (v ?? 0) / 1000], valid);
       final a3 = alignPairs([for (var i = 0; i < med.length; i++) valid[i] ? med[i] * 1000 : null], m.belt);
-      say('| ${f.split('/').last} | ${e.key} | ${m.quality} | ${m.noise == null ? "–" : f1(m.noise!)} | ${a.pairs} | ${f1(rms(a.err))} | '
+      say('| ${f.split('/').last} | ${e.key} | ${m.quality} | ${m.noise == null ? "–" : f1(m.noise!)} | ${a.pairs} | ${f2(a.ambiguity)} | ${f1(rms(a.err))} | '
           '${f1(quantile(a.err.map((x) => x.abs()).toList(), 0.5))} | ${f1(a.rCam)} | ${f1(a.rBelt)} | ${f1((a.rCam / a.rBelt - 1) * 100)} | '
           '${f1((a3.rCam / a3.rBelt - 1) * 100)} |');
     }
