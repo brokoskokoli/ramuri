@@ -63,6 +63,28 @@ object PpgCameraLogic {
     }
 }
 
+/**
+ * Kamera-Angaben aus dem letzten CaptureResult (Belichtung, ISO, Rolling-Shutter-Versatz,
+ * Torch-Stärke) und der Zeitstempelquelle aus den Kameraeigenschaften ("realtime", "unknown").
+ * Was das Gerät nicht liefert, ist null.
+ */
+class PpgCaptureInfo(
+    val exposureNs: Long? = null,
+    val iso: Int? = null,
+    val timestampSource: String? = null,
+    val skewNs: Long? = null,
+    val torch: Int? = null,
+) {
+    /** Camera2 SENSOR_INFO_TIMESTAMP_SOURCE: 1 = REALTIME, 0 = UNKNOWN. */
+    companion object {
+        fun sourceName(code: Int?): String? = when (code) {
+            1 -> "realtime"
+            0 -> "unknown"
+            else -> null
+        }
+    }
+}
+
 /** Was der Controller an der Kamera tut. Jeder Schritt darf scheitern, ohne die übrigen zu verhindern. */
 interface PpgHardware {
     fun lockExposure()
@@ -151,6 +173,9 @@ class PpgController(private val hw: PpgHardware, private val sink: PpgSink) {
     private var firstNs = -1L
     private var locked = false
     private var finished = false
+    private var frames = 0L
+    private var saturatedSum = 0.0
+    private var sinceLock = 0
 
     @Synchronized
     fun started(fps: Int) {
@@ -159,7 +184,7 @@ class PpgController(private val hw: PpgHardware, private val sink: PpgSink) {
     }
 
     @Synchronized
-    fun frame(timestampNs: Long, stats: PpgStats) {
+    fun frame(timestampNs: Long, stats: PpgStats, capture: PpgCaptureInfo? = null) {
         if (finished) return
         if (firstNs < 0) firstNs = timestampNs
         val t = (timestampNs - firstNs) / 1e9
@@ -173,10 +198,35 @@ class PpgController(private val hw: PpgHardware, private val sink: PpgSink) {
                 "g16" to stats.g16.toList(),
             ),
         )
+        frames++
+        saturatedSum += stats.saturated
         if (!locked && t >= PpgCameraLogic.AE_LOCK_AT_SECONDS) {
             locked = true
             if (attempt { hw.lockExposure() }) sink.event(mapOf("type" to "locked"))
+        } else if (locked) {
+            // Kamera-Angaben erst, wenn die Sperre gegriffen hat (30 Bilder nach dem Sperren), dann
+            // gelegentlich erneuert, damit der Anteil gesättigter Pixel mitwächst; der letzte Stand gilt.
+            sinceLock++
+            if (sinceLock == DETAILS_FIRST_AFTER || sinceLock % DETAILS_EVERY == 0) {
+                sink.event(details(capture))
+            }
         }
+    }
+
+    private fun details(c: PpgCaptureInfo?): Map<String, Any> {
+        val m = mutableMapOf<String, Any>("type" to "details")
+        if (frames > 0) m["saturated"] = saturatedSum / frames
+        c?.exposureNs?.let { m["exposureNs"] = it }
+        c?.iso?.let { m["iso"] = it }
+        c?.timestampSource?.let { m["timestampSource"] = it }
+        c?.skewNs?.let { m["skewNs"] = it }
+        c?.torch?.let { m["torch"] = it }
+        return m
+    }
+
+    private companion object {
+        const val DETAILS_FIRST_AFTER = 30
+        const val DETAILS_EVERY = 120
     }
 
     /** Abbruch (Fehler, Hintergrund): Grund melden, Hardware freigeben, Strom beenden. */

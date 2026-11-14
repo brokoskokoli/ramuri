@@ -133,6 +133,7 @@ class RestingMeasureResult {
     this.windowEndSeconds,
     this.goodStretchSeconds = 0.0,
     this.frames = const [],
+    this.cameraDetails,
   });
 
   final PpgMeasurement measurement;
@@ -159,6 +160,9 @@ class RestingMeasureResult {
   /// Alle Bilder der Aufnahme bis zum Ende; nur bei der Fenstersuche (die
   /// Morgenmessung speichert sie im Entwicklermodus als Rohsignal).
   final List<PpgFrame> frames;
+
+  /// Letzte Kamera-Angaben der Aufnahme (nur Fenstersuche; `null`, wenn der Adapter keine meldete).
+  final PpgCameraDetails? cameraDetails;
 
   /// Ganzzahliger Puls; `null`: kein Wert (nur bei „unbrauchbar“).
   int? get bpm => measurement.hasResult ? measurement.bpm!.round() : null;
@@ -263,6 +267,7 @@ class RestingMeasureController extends ChangeNotifier {
   Duration? _subscribedAt;
   bool _cameraStarted = false;
   double? _lastImageT;
+  PpgCameraDetails? _details;
 
   int _run = 0;
   StreamSubscription<PpgCameraEvent>? _sub;
@@ -554,6 +559,7 @@ class RestingMeasureController extends ChangeNotifier {
     _subscribedAt = null;
     _cameraStarted = false;
     _lastImageT = null;
+    _details = null;
     _elapsed = 0;
     _evaluating = false;
     _livePulse = null;
@@ -582,6 +588,8 @@ class RestingMeasureController extends ChangeNotifier {
         _lastImageAt = clock.monotonic();
       case PpgCameraExposureLocked():
         break;
+      case PpgCameraDetails():
+        _details = e;
       case PpgCameraStopped(:final reason):
         unawaited(_fail(run, _causeOfReason(reason)));
       case PpgCameraFrame(:final frame):
@@ -749,6 +757,7 @@ class RestingMeasureController extends ChangeNotifier {
       windowEndSeconds: windowEnd,
       goodStretchSeconds: stretch,
       frames: searchWindow ? all : const [],
+      cameraDetails: searchWindow ? _details : null,
     );
     try {
       final p = profile;

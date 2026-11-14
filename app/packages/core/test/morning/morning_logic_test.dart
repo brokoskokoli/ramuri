@@ -216,6 +216,31 @@ void main() {
       expect(raw.exposureTimeNs, isNull);
       checkMorningForStorage(withExtras(meas())!, rawSignal: raw);
     });
+
+    test('Kamera-Angaben des Adapters gehen ins Rohsignal', () {
+      final raw = buildMorningRawSignal(
+        [frame(0), frame(0.5)],
+        details: const PpgCameraDetails(
+          exposureTimeNs: 1,
+          iso: 2,
+          timestampSource: CameraTimestampSource.unknown,
+          rollingShutterSkewNs: 3,
+          torchStrength: 4,
+          saturatedFraction: 0.5,
+        ),
+      );
+      expect(
+        [
+          raw.exposureTimeNs,
+          raw.iso,
+          raw.rollingShutterSkewNs,
+          raw.torchStrength,
+        ],
+        [1, 2, 3, 4],
+      );
+      expect(raw.timestampSource, CameraTimestampSource.unknown);
+      expect(raw.saturatedFraction, 0.5);
+    });
   });
 
   group('Vor der Validierung gemessen', () {

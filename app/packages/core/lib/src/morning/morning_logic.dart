@@ -1,4 +1,5 @@
 import '../../ports/clock.dart';
+import '../../ports/ppg_camera.dart' show PpgCameraDetails;
 import '../../ports/storage_morning.dart';
 import '../../ports/storage_settings.dart';
 import '../ppg/ppg_evaluator.dart';
@@ -191,9 +192,13 @@ MorningMeasurement? buildMorningMeasurement({
 /// Kamera-Rohsignal einer Messung aus den Bildern der Aufnahme (K70, nur
 /// Entwicklermodus): die Bilder unverändert, dazu Anzahl und Gesamtdauer der
 /// Bildlücken (Abstand über [ppgMaxFrameGapSeconds], die Grenze der
-/// Auswertung). Die übrigen Kamera-Angaben liefert erst der Android-Adapter
-/// (WP37 C1b); bis dahin `null`.
-MorningRawSignal buildMorningRawSignal(List<PpgFrame> frames) {
+/// Auswertung). Die übrigen Kamera-Angaben (Belichtung, ISO, Zeitstempelquelle,
+/// Rolling-Shutter-Versatz, Torch-Stärke, gesättigter Anteil) kommen vom Adapter
+/// als [details]; fehlen sie oder liefert das Gerät einzelne nicht, sind sie `null`.
+MorningRawSignal buildMorningRawSignal(
+  List<PpgFrame> frames, {
+  PpgCameraDetails? details,
+}) {
   var gaps = 0;
   var total = 0.0;
   for (var i = 1; i < frames.length; i++) {
@@ -207,6 +212,12 @@ MorningRawSignal buildMorningRawSignal(List<PpgFrame> frames) {
     frames: List.of(frames),
     frameGapCount: gaps,
     frameGapTotalS: total,
+    exposureTimeNs: details?.exposureTimeNs,
+    iso: details?.iso,
+    timestampSource: details?.timestampSource,
+    rollingShutterSkewNs: details?.rollingShutterSkewNs,
+    torchStrength: details?.torchStrength,
+    saturatedFraction: details?.saturatedFraction,
   );
 }
 

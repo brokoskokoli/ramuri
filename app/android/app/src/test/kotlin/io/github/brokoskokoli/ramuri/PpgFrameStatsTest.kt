@@ -34,6 +34,14 @@ class PpgFrameStatsTest {
         }
     }
 
+    @Test fun saturatedFractionCountsBrightPixelsOfTheSampledGrid() {
+        // linke Bildhälfte Y 255, rechte 100: die Hälfte der ausgewerteten Pixel ist gesättigt
+        val (y, u, v) = image({ x, _ -> if (x < w / 2) 255 else 100 }, 128, 128)
+        assertEquals(0.5, PpgFrameStats.compute(w, h, y, u, v).saturated, 1e-9)
+        val (y2, u2, v2) = image({ _, _ -> 249 }, 128, 128)
+        assertEquals("249 liegt unter der Grenze", 0.0, PpgFrameStats.compute(w, h, y2, u2, v2).saturated, 0.0)
+    }
+
     @Test fun colourFollowsBt601() {
         val (y, u, v) = image({ _, _ -> 120 }, 100, 200)
         val s = PpgFrameStats.compute(w, h, y, u, v)

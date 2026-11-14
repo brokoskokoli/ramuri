@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:adapters/adapters.dart' show MethodChannelPpgCamera;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -431,6 +432,48 @@ void main() {
       expect(raw.frames.last.t, 66.5);
       expect(raw.frameGapCount, 0);
     });
+
+    testWidgets(
+      'Entwicklermodus: Kamera-Angaben vom Adapter über Rohsignal bis CSV',
+      (tester) async {
+        final r = await _Rig.make(developerMode: true);
+        await r.show(tester, dark: false);
+        await _startMeasurement(tester, r);
+        // Nachrichten wie Kotlin sie sendet, durch den echten Adapter-Parser: der letzte Stand gilt.
+        PpgCameraEvent? msg(Map<String, Object> m) =>
+            MethodChannelPpgCamera.parse({'type': 'details', ...m});
+        r.cam.emitDetails(
+          msg({'iso': 50, 'saturated': 0.01}) as PpgCameraDetails,
+        );
+        r.cam.emitDetails(
+          msg({
+            'exposureNs': 8333333,
+            'iso': 100,
+            'timestampSource': 'realtime',
+            'skewNs': 20000000,
+            'saturated': 0.02,
+          }) as PpgCameraDetails,
+        );
+        await r.feed(tester, 80);
+        final id = (await tester.runAsync(() => r.store.list()))!.single;
+        final raw = (await tester.runAsync(() => r.store.rawSignal(id.id)))!;
+        expect(raw.exposureTimeNs, 8333333);
+        expect(raw.iso, 100);
+        expect(raw.timestampSource, CameraTimestampSource.realtime);
+        expect(raw.rollingShutterSkewNs, 20000000);
+        expect(raw.torchStrength, isNull, reason: 'Gerät lieferte keine');
+        expect(raw.saturatedFraction, 0.02);
+        final csv = encodeMorningPairsCsv([
+          MorningPair(id: id.id, measurement: id.value, rawSignal: raw),
+        ]);
+        expect(csv, contains(',meta,exposure_time,,,,8333333,ns\r\n'));
+        expect(csv, contains(',meta,iso,,,,100,\r\n'));
+        expect(csv, contains(',meta,timestamp_source,,,,realtime,\r\n'));
+        expect(csv, contains(',meta,rolling_shutter_skew,,,,20000000,ns\r\n'));
+        expect(csv, contains(',meta,torch_strength,,,,,\r\n'));
+        expect(csv, contains(',meta,saturated_fraction,,,,0.02,\r\n'));
+      },
+    );
 
     testWidgets('ohne Entwicklermodus: kein Rohsignal', (tester) async {
       final r = await _Rig.make();

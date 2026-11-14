@@ -259,7 +259,9 @@ class MorningMeasureController extends ChangeNotifier {
         _notify();
         return;
       }
-      final raw = dev ? buildMorningRawSignal(r.frames) : null;
+      final raw = dev
+          ? buildMorningRawSignal(r.frames, details: r.cameraDetails)
+          : null;
       if (!m.isUsable) {
         // Unbrauchbar (nur im Entwicklermodus gespeichert, K68): zählt nirgends,
         // die Messung gilt wie verworfen („Noch einmal“). Scheitert das

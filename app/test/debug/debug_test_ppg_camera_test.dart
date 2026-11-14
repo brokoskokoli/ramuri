@@ -16,6 +16,10 @@ void main() {
     final events = await _run(cam);
     expect(events.first, isA<PpgCameraStarted>());
     expect(events.whereType<PpgCameraExposureLocked>(), hasLength(1));
+    expect(
+      events.whereType<PpgCameraDetails>().first.iso,
+      debugCameraDetails.iso,
+    );
     expect(events.last, isA<PpgCameraFrame>());
     expect(cam.torchOn, isFalse);
     final m = evaluatePpg(_frames(events));
