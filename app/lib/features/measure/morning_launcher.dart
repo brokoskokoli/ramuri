@@ -5,7 +5,6 @@ import 'device_info.dart';
 import 'morning_belt.dart';
 import 'morning_measure_controller.dart';
 import 'morning_measure_screen.dart';
-import 'morning_trend_logic.dart';
 import 'resting_measure_controller.dart';
 import 'resting_measure_launcher.dart';
 
