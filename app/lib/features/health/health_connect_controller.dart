@@ -107,9 +107,8 @@ class HealthConnectController extends ChangeNotifier {
       var ask = false;
       try {
         ask = await consents.isDeleteQuestionOpen(key);
-        final missing =
-            on.contains(k) &&
-            (sdk != HealthSdkStatus.available || !permitted.contains(k));
+        // Ohne Health Connect ist [permitted] leer: „nicht verfügbar“ zählt wie ein fehlendes Recht.
+        final missing = on.contains(k) && !permitted.contains(k);
         if (!ask && missing && await store.count(k) > 0) {
           await consents.openDeleteQuestion(key);
           ask = true;

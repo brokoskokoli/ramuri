@@ -18,7 +18,6 @@ import '../sensors/sensor_manager.dart';
 import '../settings/app_settings.dart';
 import '../run/run_flow_screen.dart';
 import '../run/run_ports.dart';
-import '../health/health_connect_screen.dart';
 import '../setup/setup_screen.dart';
 import 'app_shell.dart';
 import 'data_changes.dart';
@@ -162,12 +161,7 @@ class _ReadyRootState extends State<ReadyRoot> {
     } on Object {
       return;
     }
-    if (!mounted) return;
-    await health.importThenLoad(HealthImportTrigger.appStart);
-    // SEC-0007: Offene Löschfragen (Recht fehlt, Health Connect weg) beim Öffnen der App, nicht nur auf der Seite.
-    if (mounted) {
-      await askOpenHealthQuestions(context, health, skipDeferred: true);
-    }
+    if (mounted) health.runInBackground(HealthImportTrigger.appStart);
   }
 
   /// Bietet einen unterbrochenen Lauf an, solange es einen gibt und kein
