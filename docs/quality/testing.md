@@ -49,7 +49,7 @@ Die Migration hat diese Beispiele nachgerechnet; sie stimmen mit der Quelle übe
 
 ## CI-Gates
 
-Maßgeblich ist `tool/gate.sh` (lokal und in `.github/workflows/gate.yml`; die Pipeline läuft erst mit einem Remote). Das Gate prüft:
+Maßgeblich ist `tool/gate.sh` (lokal und in `.github/workflows/gate.yml`). Seit WP31 laufen das volle Gate und die E2E-Sammlung aus `app/integration_test/` (`.github/workflows/e2e.yml`, API 31 und 36) auf GitHub für jeden Push auf `wp/**` und `main`; gemergt wird nur mit grünem `gate` und `e2e` auf dem Branch-SHA (`tool/merge_wp.sh`). Das Gate prüft:
 
 - Spezifikation (`spec_tool.py build`/`check`, generierte Abschnitte aktuell) und private Daten.
 - Netz nur im Kartenadapter (`tool/check_net.py`, fail-closed): Pakete aus `pubspec.lock` und Gradle-Abhängigkeiten nur laut Freigabeliste `tool/net_allowed_packages.txt` (neues Paket ist rot bis zur Netzprüfung und zum Eintrag), Netz-APIs und `src/map` nur im Kartenadapter; ein eigener Schritt (`tool/check_net_test.py`) belegt mit Umgehungsfällen auf einem Temp-Baum, dass die Prüfung nicht aufweicht.
