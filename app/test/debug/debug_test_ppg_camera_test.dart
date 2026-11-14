@@ -27,6 +27,12 @@ void main() {
     expect(m.bpm, closeTo(60 / 0.85, 2.0));
   });
 
+  test('guter Puls: sendet im Suchmodus bis mindestens zur Höchstdauer der Aufnahme', () async {
+    final cam = DebugTestPpgCamera(speed: 100000);
+    final frames = _frames(await _run(cam));
+    expect(frames.last.t, greaterThanOrEqualTo(ppgSearchMaxRecordSeconds));
+  });
+
   test('schlechtes Signal: Auswertung unbrauchbar, kein Wert', () async {
     final cam = DebugTestPpgCamera(
       scenario: DebugPpgScenario.weakSignal,

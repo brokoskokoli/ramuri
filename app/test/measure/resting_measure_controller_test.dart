@@ -278,6 +278,41 @@ void main() {
       expect(searched, 1);
     });
 
+    test(
+      'Suchmodus: Strom endet schon bei 30 s: cameraError, keine Auswertung',
+      () async {
+        final r = await Rig.make();
+        var searched = 0;
+        final c = RestingMeasureController(
+          camera: r.cam,
+          clock: r.clock,
+          searchWindow: true,
+          evaluate: evalFinalOnly,
+          evaluateBest: (frames) async {
+            searched++;
+            return PpgWindowedMeasurement(
+              measurement: await evalFinalOnly(frames, ppgStandardWindow),
+              windowStartSeconds: 5,
+              windowEndSeconds: 65,
+            );
+          },
+          check: (_) async => const PpgRecordingCheck(
+            goodWindowReached: false,
+            goodStretchSeconds: 0,
+          ),
+          autoTick: false,
+        );
+        addTearDown(c.dispose);
+        await c.startNow();
+        await FrameSource().emitUntil(r.cam, 30);
+        await r.cam.stop();
+        await pump();
+        await pump();
+        expect(c.stopCause, RestingStopCause.cameraError);
+        expect(searched, 0);
+      },
+    );
+
     test('Ende nach dem Messfenster: Ergebnis mit Wert, Kamera gestoppt, Zeitpunkt', () async {
       final r = await Rig.make();
       await r.measureFully();

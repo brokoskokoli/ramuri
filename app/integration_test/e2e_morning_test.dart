@@ -2,7 +2,10 @@
 // Zeitraffer 30) und Test-Sensor mit RR (DebugTestSensor sendRr). Ein Ablauf,
 // weil die Schritte aufeinander aufbauen (Entwicklermodus, Messungen des Tages):
 // 1 ohne Entwicklermodus kein Einstieg, 2 neun Tipps nein / zehn ja, 3 liegend und
-// sitzend zaehlen beide, 4 schlecht -> Noch einmal -> gueltig, 5 ausserhalb des
+// sitzend: beide gespeichert, aber nur die erste gueltige des Morgens zaehlt
+// (eine Reihe je Geraet, K67), 4 schlecht -> im Entwicklermodus trotzdem
+// gespeichert (K68, unbrauchbar, zaehlt nirgends) -> Noch einmal -> gueltig (zaehlt
+// nicht, die Reihe hat heute schon eine), 5 ausserhalb des
 // Fensters markiert (Fenster ueber den Einstellungsspeicher gesetzt, die Uhr der
 // App ist die Systemuhr), 6 Gurt-Paar gespeichert + Zaehler + Teilen-Warnung,
 // 8 Entwicklermodus aus -> Einstieg weg. Nur Zaehler und Marken in der Ausgabe.
@@ -216,7 +219,8 @@ void main() {
     );
     log('S3 fenster=${inWindow.format()}');
     // Die Morgentabelle kann schon Zeilen haben: alles relativ zur Ausgangszahl.
-    final base = (await stored(t, s)).length;
+    final baseList = await stored(t, s);
+    final base = baseList.length;
     final base0 = await t.runAsync(
       () => countMorningPairs((s as MorningStorage).morning),
     );
@@ -232,7 +236,10 @@ void main() {
     )).where((e) => e.outsideWindow).length;
     log('S3 ausgang=$base');
 
-    // 3) liegend gut, dann sitzend gut am selben Morgen.
+    // 3) liegend gut, dann sitzend gut am selben Morgen. Eine Reihe je Geraet
+    // (K67): nur die erste gueltige des Morgens zaehlt, die zweite wird
+    // gespeichert und als „zaehlt nicht“ vermerkt. Hatte das Geraet heute schon
+    // eine zaehlende Messung (Tabelle nicht leer), zaehlt auch die liegende nicht.
     await measureFromTile(t);
     expect(has('morning_again'), isFalse, reason: 'S3 liegend gut');
     log(
@@ -241,10 +248,33 @@ void main() {
     await shot(t, 's3_ergebnis_liegend');
     var l = await storedCount(t, s, base + 1);
     expect(l.length, base + 1, reason: 'S3 eine gespeichert');
+    final series = MorningSeriesKey.of(
+      (l.toList()..sort((a, b) => a.measuredAt.compareTo(b.measuredAt))).last,
+    );
+    final nowL = w.deps.clock.now();
+    final gain =
+        morningRepeatAllowed(
+          baseList,
+          nowUtc: nowL,
+          utcOffset: w.deps.clock.utcOffsetAt(nowL),
+          series: series,
+        )
+        ? 1
+        : 0;
+    expect(
+      has('morning_note_not_counted'),
+      gain == 0,
+      reason: 'S3 liegend: erste gueltige des Morgens zaehlt',
+    );
     await closeResultToHome(t);
     await measureFromTile(t, sitting: true);
     log(
       'S3 sitzend note_not_counted=${has('morning_note_not_counted')} outside=${has('morning_note_outside')}',
+    );
+    expect(
+      has('morning_note_not_counted'),
+      isTrue,
+      reason: 'S3 sitzend zaehlt nicht (K67, eine Reihe je Geraet)',
     );
     await shot(t, 's3_ergebnis_sitzend');
     l = await storedCount(t, s, base + 2);
@@ -263,7 +293,11 @@ void main() {
     log(
       'S3 zaehlt_heute=${today.length} ausserhalb=${l.where((e) => e.outsideWindow).length}',
     );
-    expect(today.length, baseToday + 2, reason: 'S3 beide zaehlen');
+    expect(
+      today.length,
+      baseToday + gain,
+      reason: 'S3 nur die erste gueltige des Morgens zaehlt (K67)',
+    );
     await closeResultToHome(t);
     await shot(t, 's3_heute_karte');
 
@@ -280,10 +314,24 @@ void main() {
     );
     expect(has('morning_done'), isFalse);
     await shot(t, 's4_ergebnis_schlecht');
+    // Entwicklermodus (S2): die unbrauchbare Messung wird gespeichert (K68),
+    // zaehlt aber nirgends.
+    final afterBad = await storedCount(t, s, base + 3);
+    expect(afterBad.length, base + 3, reason: 'S4 schlechte gespeichert (K68)');
     expect(
-      (await stored(t, s)).length,
-      base + 2,
-      reason: 'S4 schlechte nicht gespeichert',
+      afterBad.where((e) => !e.isUsable).length,
+      1,
+      reason: 'S4 genau eine unbrauchbare',
+    );
+    final nowS4 = w.deps.clock.now();
+    expect(
+      morningCountingToday(
+        afterBad,
+        nowUtc: nowS4,
+        utcOffset: w.deps.clock.utcOffsetAt(nowS4),
+      ).length,
+      baseToday + gain,
+      reason: 'S4 unbrauchbare zaehlt nicht',
     );
     cam.scenario = DebugPpgScenario.goodPulse;
     await tapKey(t, 'morning_again');
@@ -300,8 +348,13 @@ void main() {
       timeout: const Duration(seconds: 60),
     );
     expect(has('morning_done'), isTrue, reason: 'S4 gueltig');
-    l = await storedCount(t, s, base + 3);
-    expect(l.length, base + 3, reason: 'S4 gueltige gespeichert');
+    expect(
+      has('morning_note_not_counted'),
+      isTrue,
+      reason: 'S4 gueltige zaehlt nicht, die Reihe hat heute schon eine',
+    );
+    l = await storedCount(t, s, base + 4);
+    expect(l.length, base + 4, reason: 'S4 gueltige gespeichert');
     await shot(t, 's4_ergebnis_gueltig');
     await closeResultToHome(t);
     log('S4 ok');
@@ -320,7 +373,7 @@ void main() {
       reason: 'S5 Markierung ausserhalb',
     );
     await shot(t, 's5_ergebnis_ausserhalb');
-    l = await storedCount(t, s, base + 4);
+    l = await storedCount(t, s, base + 5);
     expect(
       l.where((e) => e.outsideWindow).length,
       baseOutside + 1,
@@ -354,14 +407,15 @@ void main() {
     await shot(t, 's6_einstieg_gurt');
     await toResult(t);
     await shot(t, 's6_ergebnis_gurt');
-    l = await storedCount(t, s, base + 5);
-    expect(l.length, base + 5, reason: 'S6 gespeichert');
+    l = await storedCount(t, s, base + 6);
+    expect(l.length, base + 6, reason: 'S6 gespeichert');
     final pairs = await t.runAsync(
       () => countMorningPairs((s as MorningStorage).morning),
     );
     log('S6 paare mit=${pairs!.withBelt} ohne=${pairs.without}');
     expect(pairs.withBelt, base0!.withBelt + 1, reason: 'S6 ein Gurt-Paar');
-    expect(pairs.without, base0.without + 4);
+    // Zwei in S3, unbrauchbar und gueltige in S4, eine in S5.
+    expect(pairs.without, base0.without + 5);
     await closeResultToHome(t);
     await tapKey(t, 'home_overview');
     await tapKey(t, 'overview_about');
