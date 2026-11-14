@@ -1531,6 +1531,40 @@ void main() {
       expect(h.inputs.noHardUntil, isNotNull);
     });
 
+    test('„zu leicht“, dann Pause ab pauseMinDays: die Pause startet höchstens mit der '
+        'Woche, die vor der Rückmeldung galt (N4)', () async {
+      final e = await prepared(6, recorded: false);
+      await e.controller.open();
+      expect(e.controller.state.feedbackDue, isTrue);
+      expect(
+        (await e.controller.answerFeedback(PlanFeedback.tooEasy)).result,
+        PlanActionResult.done,
+      );
+      final history = await e.plans.history();
+      final monday = DateTime.utc(2026, 11, 9);
+      int weekMinutes(PlanInputs i) {
+        // Wie die Pausenregel: ein späterer Anker gilt ab diesem Montag.
+        final from = i.anchor.isAfter(monday) ? i.copyWith(anchor: monday) : i;
+        final s = planCourseSetup(_goal(), from);
+        return s
+            .course(today: monday)
+            .weeks
+            .firstWhere((w) => w.start == monday)
+            .minutes!;
+      }
+
+      // Einen Tag später steht die Pause fest.
+      e.clock.set(_now.add(const Duration(days: 1)));
+      expect(await e.controller.answerPause(true), PlanActionResult.done);
+      final h = (await e.plans.history()).last;
+      expect(h.trigger, PlanTrigger.pause);
+      final shown = weekMinutes(history[history.length - 2].inputs);
+      final raised = weekMinutes(history.last.inputs);
+      // Die Rückmeldung hat die Woche angehoben, sonst prüft der Test nichts.
+      expect(raised, greaterThan(shown));
+      expect(h.inputs.startWeeklyMinutes, lessThanOrEqualTo(shown));
+    });
+
     test('Rückmeldung wird bei offener Pausenfrage nicht angenommen (Karte '
         'über Mitternacht offen)', () async {
       final e = await prepared(6, recorded: false);
