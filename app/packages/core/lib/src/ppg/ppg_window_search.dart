@@ -165,14 +165,6 @@ PpgAnalysisSet _analyze(List<PpgFrame> fs, PpgWindow w) => PpgAnalyzer.analyze(
   w,
 );
 
-/// Längen der jüngsten Abschnitte (s), die für die Anzeige zusätzlich einzeln analysiert werden.
-const List<double> _recentSeconds = [ppgSearchWindowSeconds, 30.0];
-
-/// Untergrenze der Anzeige des guten Stücks (s). Bei reinem Rauschen gewinnt aus sehr vielen
-/// Teilstücken zufällig eines mit 70 % gültigen Intervallen (Auswahleffekt, A3: 40 Seeds, bis
-/// 25,9 s); darunter zeigt die Anzeige 0.
-const double ppgGoodStretchDisplayMinSeconds = 30.0;
-
 double _displayStretch(double s) =>
     s >= ppgGoodStretchDisplayMinSeconds ? s : 0.0;
 
@@ -185,7 +177,7 @@ double _progress(List<PpgFrame> fs, double overall) {
   var best = overall;
   final lastT = fs.last.t;
   if (overall >= 0.9 * ppgSearchWindowSeconds) return best;
-  for (final len in _recentSeconds) {
+  for (final len in ppgGoodStretchRecentSeconds) {
     final from = lastT - len;
     if (from < ppgStandardWindow.filterStart + 5.0) continue;
     final recent = [
@@ -386,19 +378,26 @@ double _goodStretch(PpgAnalysisSet set) {
   return best;
 }
 
+/// Einzelauswertung eines Fensters; Standard [evaluatePpg]. Austauschpunkt nur für Tests (kein
+/// `meta`-Paket im Kern, daher ohne `@visibleForTesting`): Die Näherung der Suche und die
+/// Einzelauswertung lassen sich so gezielt auseinanderlaufen lassen.
+typedef PpgWindowEvaluator =
+    PpgMeasurement Function(List<PpgFrame> frames, {required PpgWindow window});
+
 /// Einzelauswertung der Kandidaten in Rangfolge (höchstens drei): Sie hält an, sobald die Stufe
 /// des Fensters nicht schlechter ist als die der Näherung; sonst gilt die beste Einzelauswertung.
 ({_Candidate candidate, PpgMeasurement measurement})? _verify(
   List<PpgFrame> frames,
   List<_Candidate> ranked, {
   required bool goodOnly,
+  PpgWindowEvaluator evaluate = evaluatePpg,
 }) {
   ({_Candidate candidate, PpgMeasurement measurement})? best;
   var tries = 0;
   for (final c in ranked) {
     if (goodOnly && c.measurement.quality != PpgQuality.good) break;
     if (tries++ == 3) break;
-    final m = evaluatePpg(frames, window: _windowAt(c.start));
+    final m = evaluate(frames, window: _windowAt(c.start));
     final cand = _Candidate(c.start, m);
     if (best == null ||
         _compare(cand, _Candidate(best.candidate.start, best.measurement)) <
@@ -415,12 +414,15 @@ double _goodStretch(PpgAnalysisSet set) {
 /// mit der höchsten Stufe, dann dem höchsten Anteil gültiger Intervalle, dann dem frühesten
 /// Beginn. Das Zeitrauschen ist kein Kriterium (R010 offen). Bewertet wird das Fenster nach
 /// `ratePpg`; die Aufnahme muss mindestens bis zum Fensterende reichen, sonst „unzureichende Daten“.
-PpgWindowedMeasurement evaluatePpgBestWindow(List<PpgFrame> frames) {
+PpgWindowedMeasurement evaluatePpgBestWindow(
+  List<PpgFrame> frames, {
+  PpgWindowEvaluator evaluate = evaluatePpg,
+}) {
   final scan = _scan(frames, live: false);
   if (scan.failure != null) {
     return PpgWindowedMeasurement(measurement: _unusable(scan.failure!));
   }
-  final v = _verify(frames, scan.candidates, goodOnly: false)!;
+  final v = _verify(frames, scan.candidates, goodOnly: false, evaluate: evaluate)!;
   return PpgWindowedMeasurement(
     measurement: v.measurement,
     windowStartSeconds: v.candidate.start,
@@ -432,7 +434,10 @@ PpgWindowedMeasurement evaluatePpgBestWindow(List<PpgFrame> frames) {
 /// Prüfung einer laufenden Aufnahme: Ist ein Fenster der Stufe „gut“ erreicht (dann darf sie
 /// enden, frühestens bei Fensterende plus Filterrand, also 66,5 s) und wie lang ist das längste
 /// gute Stück? Rechnet die ganze bisherige Aufnahme neu; nicht öfter als nötig aufrufen.
-PpgRecordingCheck checkPpgRecording(List<PpgFrame> frames) {
+PpgRecordingCheck checkPpgRecording(
+  List<PpgFrame> frames, {
+  PpgWindowEvaluator evaluate = evaluatePpg,
+}) {
   final scan = _scan(frames, live: true);
   if (scan.failure != null) {
     return const PpgRecordingCheck(
@@ -440,7 +445,7 @@ PpgRecordingCheck checkPpgRecording(List<PpgFrame> frames) {
       goodStretchSeconds: 0.0,
     );
   }
-  final v = _verify(frames, scan.candidates, goodOnly: true);
+  final v = _verify(frames, scan.candidates, goodOnly: true, evaluate: evaluate);
   return PpgRecordingCheck(
     goodWindowReached: v != null && v.measurement.quality == PpgQuality.good,
     goodStretchSeconds: scan.goodStretch,

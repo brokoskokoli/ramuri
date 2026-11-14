@@ -132,6 +132,15 @@ const double ppgSearchStepSeconds = 1.0;
 const double ppgSearchFilterLeadSeconds = 2.0;
 const double ppgSearchFilterTailSeconds = 1.5;
 
+/// Längen der jüngsten Abschnitte (s), die für die Anzeige des guten Stücks zusätzlich einzeln
+/// analysiert werden (ALGORITHMUS.md Abschn. 2).
+const List<double> ppgGoodStretchRecentSeconds = [ppgSearchWindowSeconds, 30.0];
+
+/// Untergrenze der Anzeige des guten Stücks (s). Bei reinem Rauschen gewinnt aus sehr vielen
+/// Teilstücken zufällig eines mit 70 % gültigen Intervallen (Auswahleffekt, A3: 40 Seeds, bis
+/// 25,9 s); darunter zeigt die Anzeige 0.
+const double ppgGoodStretchDisplayMinSeconds = 30.0;
+
 /// Messfenster (Sekunden seit Aufnahmebeginn).
 class PpgWindow {
   const PpgWindow({

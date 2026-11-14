@@ -190,6 +190,66 @@ void main() {
     });
   });
 
+  group('Einzelauswertung des Fensters als Austauschpunkt (Review 1, B1 und B2)', () {
+    const limitedResult = PpgMeasurement(
+      quality: PpgQuality.limited,
+      reasons: [PpgQualityReason.lowSignalQuality],
+      bpm: 60,
+      validIntervals: 50,
+      intervals: 60,
+    );
+
+    /// Auswerter, der die ersten [limitedFirst] Aufrufe auf „eingeschränkt“ setzt und danach
+    /// `evaluatePpg` nutzt; merkt sich die Fensterbeginne.
+    ({PpgWindowEvaluator fn, List<double> starts}) evaluator(int limitedFirst) {
+      final starts = <double>[];
+      PpgMeasurement fn(List<PpgFrame> f, {required PpgWindow window}) {
+        starts.add(window.start);
+        return starts.length <= limitedFirst
+            ? limitedResult
+            : evaluatePpg(f, window: window);
+      }
+
+      return (fn: fn, starts: starts);
+    }
+
+    final fr = frames(good(), to: 100);
+
+    test('Näherung gut, Einzelauswertung nicht: kein Abbruch', () {
+      expect(checkPpgRecording(fr).goodWindowReached, isTrue);
+      final e = evaluator(99);
+      final c = checkPpgRecording(fr, evaluate: e.fn);
+      expect(c.goodWindowReached, isFalse);
+      expect(e.starts, hasLength(3), reason: 'höchstens drei Versuche');
+    });
+
+    test('Kandidat 1 fällt ab, Kandidat 2 trägt: Abbruch und Fenster von Kandidat 2', () {
+      final e = evaluator(1);
+      expect(checkPpgRecording(fr, evaluate: e.fn).goodWindowReached, isTrue);
+      expect(e.starts, hasLength(2));
+
+      final e2 = evaluator(1);
+      final r = evaluatePpgBestWindow(fr, evaluate: e2.fn);
+      expect(e2.starts, hasLength(2));
+      expect(e2.starts[1], isNot(e2.starts[0]));
+      expect(r.measurement.quality, PpgQuality.good);
+      expect(r.windowStartSeconds, e2.starts[1]);
+      expect(r.windowEndSeconds, e2.starts[1] + 60);
+    });
+
+    test('Kandidat 3 trägt nach zwei Rückfällen, ein vierter wird nie versucht', () {
+      final e = evaluator(2);
+      expect(checkPpgRecording(fr, evaluate: e.fn).goodWindowReached, isTrue);
+      expect(e.starts, hasLength(3));
+      final e2 = evaluator(2);
+      final r = evaluatePpgBestWindow(fr, evaluate: e2.fn);
+      expect(r.windowStartSeconds, e2.starts[2]);
+      final e3 = evaluator(99);
+      evaluatePpgBestWindow(fr, evaluate: e3.fn);
+      expect(e3.starts, hasLength(3));
+    });
+  });
+
   group('NaN in der Feinbestimmung (WP37 A4)', () {
     test('50 s Rauschen, dann 61,5 s gut: das gute Fenster wird gefunden', () {
       // Die Gesamtanalyse bestimmt f0 aus dem Rauschen (> 2,3 Hz); das Anstiegsfenster der
