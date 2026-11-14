@@ -1,5 +1,5 @@
-/// Parameter der Kamera-Morgenmessung (FR-0215, Regelversion K-1, Phase 3).
-/// Jeder Wert nennt seine PAR-Nummer; Art "Heuristik, Evidenz niedrig", Herkunft R009, K46.
+// Parameter der Kamera-Morgenmessung (FR-0215, Regelversion K-1, Phase 3).
+// Jeder Wert nennt seine PAR-Nummer; Art "Heuristik, Evidenz niedrig", Herkunft R009, K46.
 
 /// PAR-160K: Morgenfenster, Vorgabe 4 bis 11 Uhr Ortszeit (einstellbar, siehe
 /// `MorningWindow`). Der Beginn gehört zum Fenster, das Ende nicht (4:00 bis
