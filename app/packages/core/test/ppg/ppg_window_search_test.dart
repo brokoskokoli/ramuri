@@ -250,6 +250,53 @@ void main() {
     });
   });
 
+  group('Mehrfachvergleich der Fenstersuche über mehrere Seeds (Review 1, B8)', () {
+    test('Rauschen: die Suche macht aus keinem Seed ein „gut“, das das feste Fenster nicht hat', () {
+      // Stationäres Rauschen: Das Fenster darf keine Rolle spielen. (Bei Rauschen 4 und Seed 5 ist
+      // schon das feste Fenster „gut“, mit RMSSD 112 statt 44 ms: Grenze der Bewertung, nicht der
+      // Suche; siehe Bericht N1.)
+      for (final noise in [4.0, 5.0, 30.0]) {
+        for (var seed = 1; seed <= 5; seed++) {
+          final fr = frames(
+            synth(0.85, 0.05, 0.03, noise, 30.0, seed, duration: _long),
+            to: 100,
+          );
+          final r = evaluatePpgBestWindow(fr);
+          final fixedGood = evaluatePpg(fr).quality == PpgQuality.good;
+          final why = 'Rauschen $noise, Seed $seed';
+          if (!fixedGood) {
+            expect(r.measurement.quality, isNot(PpgQuality.good), reason: why);
+            expect(checkPpgRecording(fr).goodWindowReached, isFalse, reason: why);
+          }
+          if (noise == 30.0) {
+            expect(r.measurement.quality, PpgQuality.unusable, reason: why);
+            expect(r.measurement.rmssdMs, isNull, reason: why);
+          }
+        }
+      }
+    });
+
+    test('30 s Rauschen, dann gut: das gute Fenster wird für jeden Seed gefunden, RMSSD nahe der Wahrheit', () {
+      for (var seed = 1; seed <= 5; seed++) {
+        final fr = [
+          ...frames(bad(seed), to: 30),
+          ...frames(good(seed), from: 30, to: 95),
+        ];
+        final r = evaluatePpgBestWindow(fr);
+        final why = 'Seed $seed';
+        expect(r.measurement.quality, PpgQuality.good, reason: why);
+        expect(r.windowStartSeconds, inInclusiveRange(29.0, 36.0), reason: why);
+        final t = truth(
+          [for (final b in good(seed).beats) b + 0.12],
+          r.windowStartSeconds!,
+          r.windowEndSeconds!,
+        );
+        expect(r.measurement.rmssdMs, closeTo(t.rmssd, 8.0), reason: why);
+        expect(r.measurement.bpm, closeTo(t.bpm, 0.7), reason: why);
+      }
+    });
+  });
+
   group('NaN in der Feinbestimmung (WP37 A4)', () {
     test('50 s Rauschen, dann 61,5 s gut: das gute Fenster wird gefunden', () {
       // Die Gesamtanalyse bestimmt f0 aus dem Rauschen (> 2,3 Hz); das Anstiegsfenster der
