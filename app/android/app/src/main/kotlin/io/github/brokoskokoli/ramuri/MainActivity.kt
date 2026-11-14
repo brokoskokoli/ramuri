@@ -190,6 +190,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (health?.onRequestPermissionsResult(requestCode) == true) return
         if (requestCode == LOCATION_REQUEST) {
             pendingLocation?.success(locationAccess())
             pendingLocation = null

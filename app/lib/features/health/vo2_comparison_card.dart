@@ -80,10 +80,13 @@ class Vo2ComparisonView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionHeading(
-            l10n.healthVo2CardTitle,
-            eyebrow: true,
-            trailing: RamuriBadge(l10n.healthVo2CardBadge),
+          SectionHeading(l10n.healthVo2CardTitle, eyebrow: true),
+          const SizedBox(height: 6),
+          // Eigene Zeile: neben der Überschrift ist bei schmaler Anzeige
+          // und großem Text kein Platz (Überlauf).
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: RamuriBadge(l10n.healthVo2CardBadge),
           ),
           for (final s in sources) ...[
             const SizedBox(height: 12),

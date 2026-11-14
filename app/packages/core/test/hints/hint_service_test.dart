@@ -65,6 +65,39 @@ void main() {
     fs.data.planUnitPlan[id] = 1;
   }
 
+  test('Pausenfrage: eine übernommene fremde Einheit zählt erst nach dem '
+      'Übernehmen als letztes Training', () async {
+    await addRun(30);
+    final before = (await service.pauseQuestion())!;
+    expect(before.lastTrainingDay, ago(30));
+
+    // Nachtrag aus der Übernahme (hc_id) vor 10 Tagen: neuer Stand der Pause.
+    await w.session.manualTrainings.add(
+      ManualTraining(
+        day: ago(10),
+        kind: ManualTrainingKind.run,
+        duration: const Duration(minutes: 40),
+        rpe: 4,
+        hcId: 'ex-1',
+      ),
+    );
+    final after = (await service.pauseQuestion())!;
+    expect(after.lastTrainingDay, ago(10));
+    expect(after.daysSinceTraining, 10);
+
+    // Vor 2 Tagen: keine Pause mehr, keine Frage.
+    await w.session.manualTrainings.add(
+      ManualTraining(
+        day: ago(2),
+        kind: ManualTrainingKind.run,
+        duration: const Duration(minutes: 40),
+        rpe: 4,
+        hcId: 'ex-2',
+      ),
+    );
+    expect(await service.pauseQuestion(), isNull);
+  });
+
   test('keine Daten: kein Hinweis, keine Karte, nichts gespeichert', () async {
     expect((await service.today()).hint, isNull);
     expect(await service.recoveryCard(), isNull);

@@ -179,6 +179,30 @@ void main() {
       expect(await units(), 1);
     });
 
+    test('Ändern eines übernommenen Nachtrags: hcId bleibt, kein zweites Übernehmen', () async {
+      final stored = await subjective.addTraining(adopt());
+      final t = stored.training;
+      await subjective.updateTraining(
+        stored.id,
+        ManualTraining(
+          day: t.day,
+          kind: t.kind,
+          duration: const Duration(minutes: 50),
+          rpe: 6,
+          hcId: t.hcId,
+        ),
+      );
+      final back = (await subjective.trainings()).single.training;
+      expect(back.hcId, 'ex-1');
+      expect(back.duration, const Duration(minutes: 50));
+      expect(await subjective.isAdopted('ex-1'), isTrue);
+      await expectLater(
+        subjective.addTraining(adopt()),
+        throwsA(isA<SubjectiveRangeError>()),
+      );
+      expect(await units(), 1);
+    });
+
     test('adoptedHcIds nennt nur übernommene Einheiten', () async {
       await subjective.addTraining(adopt());
       await subjective.addTraining(

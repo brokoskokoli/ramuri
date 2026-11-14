@@ -222,7 +222,12 @@ class DebugTestHealthConnect implements HealthConnectPort {
       start: t,
       end: t,
       value: v,
-      unit: kind == HealthDataKind.hrvRmssd ? 'ms' : null,
+      // Einheiten wie der echte Adapter (HealthConnectChannel.kt: toChannelMap); der Speicher verlangt sie.
+      unit: switch (kind) {
+        HealthDataKind.hrvRmssd => 'ms',
+        HealthDataKind.restingHeartRate => 'bpm',
+        _ => 'ml/min/kg',
+      },
     );
   }
 }

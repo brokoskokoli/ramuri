@@ -6,9 +6,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'app_harness.dart';
 
 class _CountingPort implements HealthConnectPort {
-  _CountingPort([this.status = HealthSdkStatus.unavailable]);
+  _CountingPort([
+    this.status = HealthSdkStatus.unavailable,
+    this.granted = const {},
+  ]);
   final HealthSdkStatus status;
+  final Set<HealthDataKind> granted;
   int statusCalls = 0;
+  int reads = 0;
 
   @override
   Future<HealthSdkStatus> sdkStatus() async {
@@ -17,7 +22,7 @@ class _CountingPort implements HealthConnectPort {
   }
 
   @override
-  Future<Set<HealthDataKind>> grantedKinds() async => const {};
+  Future<Set<HealthDataKind>> grantedKinds() async => granted;
 
   @override
   Future<Set<HealthDataKind>> requestPermissions(
@@ -34,7 +39,10 @@ class _CountingPort implements HealthConnectPort {
     required DateTime to,
     String? pageToken,
     int? pageSize,
-  }) async => throw const HealthReadException(HealthReadError.unavailable);
+  }) async {
+    reads++;
+    return const HealthPage([], null);
+  }
 }
 
 void main() {
@@ -78,6 +86,38 @@ void main() {
       expect(port.statusCalls, afterStart);
       await tapKey(tester, 'home_today');
       expect(port.statusCalls, greaterThan(afterStart));
+      await device.stop(tester);
+    },
+  );
+
+  testWidgets(
+    'Heute: Zurück innerhalb von 15 min liest nicht erneut, danach wieder',
+    (tester) async {
+      final device = Device();
+      final port = _CountingPort(HealthSdkStatus.available, {
+        HealthDataKind.vo2Max,
+      });
+      device.healthConnect = port;
+      await ConsentService(
+        FakeConsentStore(device.storage.data),
+        device.clock,
+      ).grant(healthSourceKey(HealthDataKind.vo2Max));
+      await device.start(tester, const Locale('de'));
+      await device.skipSetup(tester);
+      final afterStart = port.reads;
+      expect(afterStart, greaterThan(0));
+
+      // Weg von „Heute“ und zurück, innerhalb der Sperre: kein Lesen.
+      await tapKey(tester, 'home_plan');
+      device.clock.advance(const Duration(minutes: 14));
+      await tapKey(tester, 'home_today');
+      expect(port.reads, afterStart);
+
+      // Nach Ablauf der 15 Minuten (ab dem Lauf): wieder gelesen.
+      await tapKey(tester, 'home_plan');
+      device.clock.advance(const Duration(minutes: 2));
+      await tapKey(tester, 'home_today');
+      expect(port.reads, greaterThan(afterStart));
       await device.stop(tester);
     },
   );

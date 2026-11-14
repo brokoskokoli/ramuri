@@ -3,6 +3,7 @@ package io.github.brokoskokoli.ramuri
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.health.connect.client.HealthConnectClient
@@ -190,8 +191,15 @@ class HealthConnectChannel(
         }
         pending = result
         try {
-            @Suppress("DEPRECATION")
-            activity.startActivityForResult(contract.createIntent(activity, permissions.filterNotNull().toSet()), REQUEST)
+            val wanted = permissions.filterNotNull().toSet()
+            if (usesRuntimePermissions(Build.VERSION.SDK_INT)) {
+                // Ab Android 14 sind die Health-Berechtigungen Laufzeitrechte: Der Vertrag liefert dann den Intent
+                // von androidx RequestMultiplePermissions, den nur requestPermissions auflöst.
+                activity.requestPermissions(wanted.toTypedArray(), REQUEST)
+            } else {
+                @Suppress("DEPRECATION")
+                activity.startActivityForResult(contract.createIntent(activity, wanted), REQUEST)
+            }
         } catch (e: Exception) {
             pending = null
             result.error("unavailable", null, null)
@@ -199,7 +207,12 @@ class HealthConnectChannel(
     }
 
     /** Antwort des Berechtigungsdialogs; false, wenn der Code nicht zu diesem Kanal gehört. */
-    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean = finishRequest(requestCode)
+
+    /** Antwort des Laufzeitrechte-Dialogs (API 34 und höher); false, wenn der Code nicht zu diesem Kanal gehört. */
+    fun onRequestPermissionsResult(requestCode: Int): Boolean = finishRequest(requestCode)
+
+    private fun finishRequest(requestCode: Int): Boolean {
         if (requestCode != REQUEST) return false
         val result = pending ?: return true
         pending = null
@@ -217,6 +230,9 @@ class HealthConnectChannel(
     companion object {
         const val CHANNEL = "ramuri/health"
         const val REQUEST = 6005
+
+        /** Connect-Client 1.1.0 (HealthPermissionsRequestContract): ab SDK 34 der Laufzeitrechte-Vertrag, darunter der Intent von Health Connect. */
+        fun usesRuntimePermissions(sdkInt: Int): Boolean = sdkInt >= 34
         const val INSTALL_MARKET = "market://details?id=com.google.android.apps.healthdata"
         const val INSTALL_WEB = "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
         private val io = Executors.newSingleThreadExecutor { Thread(it, "ramuri-health").apply { isDaemon = true } }

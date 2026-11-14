@@ -1,4 +1,6 @@
+import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
+import 'package:drift/native.dart';
 import 'package:running_app/debug/debug_test_health_connect.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -68,6 +70,40 @@ void main() {
       final daily = p.hrvDaily(samples, main);
       expect(daily['debug.app.a']!.isFallback, isFalse);
       expect(daily['debug.app.b']!.isFallback, isTrue);
+    },
+  );
+
+  test(
+    'Debug-Quelle durch den Import in den echten Store: alle Arten > 0',
+    () async {
+      final hc = DebugTestHealthConnect(now: () => now);
+      await hc.requestPermissions(HealthDataKind.values.toSet());
+      final clock = FakeClock(now);
+      final consents = ConsentService(_Consents(), clock);
+      for (final k in HealthDataKind.values) {
+        await consents.grant(healthSourceKey(k));
+      }
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final store = DriftHealthStore(db);
+      final r = await HealthImportService(
+        port: hc,
+        store: store,
+        consents: consents,
+        clock: clock,
+      ).run(HealthImportTrigger.manual);
+      expect(r.status, HealthImportStatus.done);
+      for (final k in HealthDataKind.values) {
+        expect(
+          r.kinds[k]!.status,
+          isNot(HealthKindStatus.failed),
+          reason: k.key,
+        );
+        // Pulsverlauf liegt je Training, nicht je Art; alle anderen Arten haben Zeilen.
+        if (k != HealthDataKind.heartRate) {
+          expect(await store.count(k), greaterThan(0), reason: k.key);
+        }
+      }
     },
   );
 }

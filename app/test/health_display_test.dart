@@ -156,6 +156,65 @@ void main() {
         expect(key('health_take'), findsNothing);
       },
     );
+    testWidgets(
+      'übernommenen Nachtrag ändern: hcId bleibt, weiter „übernommen“',
+      (tester) async {
+        final d = await _start(tester);
+        await _health(d).upsertExercises([_exercise('ex-1')]);
+        final stored = await d.session.manualTrainings.add(
+          ManualTraining(
+            day: DateTime.utc(2026, 6, 16),
+            kind: ManualTrainingKind.run,
+            duration: const Duration(minutes: 44),
+            rpe: 4,
+            hcId: 'ex-1',
+          ),
+        );
+        await _openHistoryAll(tester);
+        await tapKey(tester, 'manual_training_${stored.id}');
+        await tester.enterText(key('manual_minutes'), '50');
+        await tapKey(tester, 'manual_save');
+
+        final list = await d.session.manualTrainings.list();
+        expect(list.single.training.duration, const Duration(minutes: 50));
+        expect(list.single.training.hcId, 'ex-1');
+        // Die Einheit lässt sich nicht erneut übernehmen.
+        expect(key('health_exercise_taken_ex-1'), findsOneWidget);
+        await tapKey(tester, 'health_exercise_ex-1');
+        expect(key('health_taken'), findsOneWidget);
+        expect(key('health_take'), findsNothing);
+      },
+    );
+
+    for (final dark in [false, true]) {
+      testWidgets('Verlauf-Kachel und Detail ohne Überlauf, schmal, großer Text'
+          '${dark ? ', dunkel' : ''}', (tester) async {
+        final d = await _start(tester);
+        final h = _health(d);
+        await h.upsertExercises([_exercise('ex-1')]);
+        await h.replaceExerciseHeartRate('ex-1', [
+          for (var i = 0; i < 20; i++)
+            HealthHeartRateSample(
+              DateTime.utc(2026, 6, 16, 17, 5 + i),
+              120 + i,
+            ),
+        ]);
+        tester.view.physicalSize = const Size(360, 640);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+        tester.platformDispatcher.platformBrightnessTestValue = dark
+            ? Brightness.dark
+            : Brightness.light;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+        await _openHistoryAll(tester);
+        expect(key('health_exercise_ex-1'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tapKey(tester, 'health_exercise_ex-1');
+        expect(key('health_detail_pulse'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 
   group('Fortschritt: Vergleich fremder VO₂max (FR-0024)', () {
@@ -186,6 +245,29 @@ void main() {
       expect(key('progress_vo2'), findsNothing);
       expect(key('progress_vo2_reason'), findsOneWidget);
     });
+
+    for (final dark in [false, true]) {
+      testWidgets('Vergleichskarte ohne Überlauf, schmal, großer Text'
+          '${dark ? ', dunkel' : ''}', (tester) async {
+        final d = await _start(tester);
+        final t = DateTime.utc(2026, 6, 15, 8);
+        await _health(d).upsertValues([
+          _vo2('a1', 'app.beispiel.uhr', t, 48),
+          _vo2('b1', 'app.beispiel.band', t, 44),
+        ]);
+        tester.view.physicalSize = const Size(360, 640);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+        tester.platformDispatcher.platformBrightnessTestValue = dark
+            ? Brightness.dark
+            : Brightness.light;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+        await openStats(d, tester);
+        expect(key('health_vo2_card'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     testWidgets('ohne Importdaten keine Vergleichskarte', (tester) async {
       final d = await _start(tester);
