@@ -204,6 +204,17 @@ void main() {
       await tester.pumpAndSettle();
       // Der Ablauf beginnt mit dem Einstieg der Morgenmessung.
       expect(find.byKey(const Key('morning_start')), findsOneWidget);
+      // Die Haltung ist ueber stabile Schluessel waehlbar (E2E, sprachfrei).
+      String note() => (tester.widget(
+        find.byKey(const Key('morning_pose_note')),
+      ) as Text).data!;
+      final lying = note();
+      await tester.tap(find.byKey(const Key('morning_posture_sitting')));
+      await tester.pump();
+      expect(note(), isNot(lying));
+      await tester.tap(find.byKey(const Key('morning_posture_lying')));
+      await tester.pump();
+      expect(note(), lying);
     });
 
     testWidgets('Karte mit heutiger Messung ($mode), ohne Modus kein Hinweis', (

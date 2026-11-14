@@ -6,14 +6,13 @@
 // Fensters markiert (Fenster ueber den Einstellungsspeicher gesetzt, die Uhr der
 // App ist die Systemuhr), 6 Gurt-Paar gespeichert + Zaehler + Teilen-Warnung,
 // 8 Entwicklermodus aus -> Einstieg weg. Nur Zaehler und Marken in der Ausgabe.
-// Der Host (E2E_SHOTS=1) kann bei "E2E_.. SHOT <name>" ein Bildschirmfoto machen.
+// Der Host (--dart-define=E2E_SHOTS=true) kann bei "E2E_.. SHOT <name>" ein Bildschirmfoto machen.
 import 'dart:io';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:running_app/app_dependencies.dart';
 import 'package:running_app/debug/debug_test_ppg_camera.dart';
 import 'package:running_app/system_clock.dart';
 import 'package:running_app/ui/ui.dart';
@@ -41,35 +40,17 @@ late _FastClock _clk;
 /// Dieselbe Verdrahtung wie [buildWorld], nur mit schneller monotoner Uhr.
 World buildFastWorld(DebugTestPpgCamera cam) {
   _clk = _FastClock();
-  final b = buildWorld(camera: cam);
-  final d = b.deps;
-  return World(
-    AppDependencies(
-      storageStart: d.storageStart,
-      clock: _clk,
-      permissions: d.permissions,
-      runPorts: d.runPorts,
-      heartRateSensor: d.heartRateSensor,
-      ppgCamera: d.ppgCamera,
-      sensors: d.sensors,
-      offload: d.offload,
-      fileHandoff: d.fileHandoff,
-      archiveExport: d.archiveExport,
-      archiveRestore: d.archiveRestore,
-      archiveVerify: d.archiveVerify,
-      mapCache: d.mapCache,
-      map: d.map,
-      reminders: d.reminders,
-      reminderDebug: d.reminderDebug,
-    ),
-    b.sensor,
-  );
+  return buildWorld(camera: cam, clock: _clk);
 }
+
+/// Bildschirmfotos nur, wenn der Host sie mit --dart-define=E2E_SHOTS=true
+/// verlangt; sonst keine Pause.
+const _shots = bool.fromEnvironment('E2E_SHOTS');
 
 /// Marke fuer das Bildschirmfoto des Hosts; die Seite bleibt kurz stehen.
 Future<void> shot(WidgetTester t, String name) async {
   log('SHOT $name');
-  await pumpFor(t, const Duration(milliseconds: 2500));
+  if (_shots) await pumpFor(t, const Duration(milliseconds: 2500));
 }
 
 Future<List<MorningMeasurement>> stored(
@@ -133,7 +114,7 @@ Future<void> measureFromTile(WidgetTester t, {bool sitting = false}) async {
   await tapKey(t, 'overview_morning');
   await waitFor(t, () => has('morning_start'), 'Einstieg Morgenmessung');
   if (sitting) {
-    await t.tap(find.text('Sitzend'));
+    await tapKey(t, 'morning_posture_sitting');
     await pumpFor(t, const Duration(milliseconds: 300));
   }
   await toResult(t);
@@ -220,25 +201,36 @@ void main() {
     await shot(t, 's2_heute_an');
     expect(has('morning_card'), isTrue, reason: 'S2 Karte erscheint');
 
-    // Liegt die Systemuhr nicht im Vorgabefenster (4 bis 11 Uhr), wird das Fenster
-    // fuer die Faelle 3 bis 6 um die Systemzeit gelegt (Uhr der App = Systemuhr).
+    // Das Fenster liegt fuer die Faelle 3 bis 6 immer um der Systemzeit (die Uhr
+    // der App ist die Systemuhr), auch wenn das Vorgabefenster passen wuerde: ein
+    // Lauf ueber eine Stundengrenze bleibt so im Fenster.
     final nowU = w.deps.clock.now();
     final off = w.deps.clock.utcOffsetAt(nowU);
     final hNow = nowU.add(off).hour;
-    var inWindow = MorningWindow.standard;
-    if (!inWindow.contains(nowU, off)) {
-      inWindow = MorningWindow(
-        hNow > 0 ? hNow - 1 : 0,
-        hNow < 22 ? hNow + 2 : 24,
-      );
-      await t.runAsync(
-        () =>
-            SettingsMorningWindowStore(s.settings, w.deps.clock).set(inWindow),
-      );
-    }
-    log(
-      'S3 fenster=${inWindow.format()} vorgabe=${inWindow == MorningWindow.standard}',
+    final inWindow = MorningWindow(
+      hNow > 0 ? hNow - 1 : 0,
+      hNow < 22 ? hNow + 2 : 24,
     );
+    await t.runAsync(
+      () => SettingsMorningWindowStore(s.settings, w.deps.clock).set(inWindow),
+    );
+    log('S3 fenster=${inWindow.format()}');
+    // Die Morgentabelle kann schon Zeilen haben: alles relativ zur Ausgangszahl.
+    final base = (await stored(t, s)).length;
+    final base0 = await t.runAsync(
+      () => countMorningPairs((s as MorningStorage).morning),
+    );
+    final nowB = w.deps.clock.now();
+    final baseToday = morningCountingToday(
+      await stored(t, s),
+      nowUtc: nowB,
+      utcOffset: w.deps.clock.utcOffsetAt(nowB),
+    ).length;
+    final baseOutside = (await stored(
+      t,
+      s,
+    )).where((e) => e.outsideWindow).length;
+    log('S3 ausgang=$base');
 
     // 3) liegend gut, dann sitzend gut am selben Morgen.
     await measureFromTile(t);
@@ -247,16 +239,16 @@ void main() {
       'S3 liegend note_not_counted=${has('morning_note_not_counted')} outside=${has('morning_note_outside')}',
     );
     await shot(t, 's3_ergebnis_liegend');
-    var l = await storedCount(t, s, 1);
-    expect(l.length, 1, reason: 'S3 eine gespeichert');
+    var l = await storedCount(t, s, base + 1);
+    expect(l.length, base + 1, reason: 'S3 eine gespeichert');
     await closeResultToHome(t);
     await measureFromTile(t, sitting: true);
     log(
       'S3 sitzend note_not_counted=${has('morning_note_not_counted')} outside=${has('morning_note_outside')}',
     );
     await shot(t, 's3_ergebnis_sitzend');
-    l = await storedCount(t, s, 2);
-    expect(l.length, 2, reason: 'S3 zwei gespeichert');
+    l = await storedCount(t, s, base + 2);
+    expect(l.length, base + 2, reason: 'S3 zwei gespeichert');
     expect(
       l.map((e) => e.posture).toSet().length,
       2,
@@ -271,7 +263,7 @@ void main() {
     log(
       'S3 zaehlt_heute=${today.length} ausserhalb=${l.where((e) => e.outsideWindow).length}',
     );
-    expect(today.length, 2, reason: 'S3 beide zaehlen');
+    expect(today.length, baseToday + 2, reason: 'S3 beide zaehlen');
     await closeResultToHome(t);
     await shot(t, 's3_heute_karte');
 
@@ -290,7 +282,7 @@ void main() {
     await shot(t, 's4_ergebnis_schlecht');
     expect(
       (await stored(t, s)).length,
-      2,
+      base + 2,
       reason: 'S4 schlechte nicht gespeichert',
     );
     cam.scenario = DebugPpgScenario.goodPulse;
@@ -308,16 +300,16 @@ void main() {
       timeout: const Duration(seconds: 60),
     );
     expect(has('morning_done'), isTrue, reason: 'S4 gueltig');
-    l = await storedCount(t, s, 3);
-    expect(l.length, 3, reason: 'S4 gueltige gespeichert');
+    l = await storedCount(t, s, base + 3);
+    expect(l.length, base + 3, reason: 'S4 gueltige gespeichert');
     await shot(t, 's4_ergebnis_gueltig');
     await closeResultToHome(t);
     log('S4 ok');
 
     // 5) ausserhalb des Fensters (Fenster ueber den Speicher verlegt, Systemuhr).
     final away = hNow < 12
-        ? MorningWindow(hNow + 1, 24)
-        : MorningWindow(0, hNow);
+        ? MorningWindow(hNow + 2, 24)
+        : MorningWindow(0, hNow - 1);
     await t.runAsync(
       () => SettingsMorningWindowStore(s.settings, w.deps.clock).set(away),
     );
@@ -328,10 +320,10 @@ void main() {
       reason: 'S5 Markierung ausserhalb',
     );
     await shot(t, 's5_ergebnis_ausserhalb');
-    l = await storedCount(t, s, 4);
+    l = await storedCount(t, s, base + 4);
     expect(
       l.where((e) => e.outsideWindow).length,
-      1,
+      baseOutside + 1,
       reason: 'S5 genau eine ausserhalb',
     );
     await closeResultToHome(t);
@@ -362,14 +354,14 @@ void main() {
     await shot(t, 's6_einstieg_gurt');
     await toResult(t);
     await shot(t, 's6_ergebnis_gurt');
-    l = await storedCount(t, s, 5);
-    expect(l.length, 5, reason: 'S6 gespeichert');
+    l = await storedCount(t, s, base + 5);
+    expect(l.length, base + 5, reason: 'S6 gespeichert');
     final pairs = await t.runAsync(
       () => countMorningPairs((s as MorningStorage).morning),
     );
     log('S6 paare mit=${pairs!.withBelt} ohne=${pairs.without}');
-    expect(pairs.withBelt, 1, reason: 'S6 ein Gurt-Paar');
-    expect(pairs.without, 4);
+    expect(pairs.withBelt, base0!.withBelt + 1, reason: 'S6 ein Gurt-Paar');
+    expect(pairs.without, base0.without + 4);
     await closeResultToHome(t);
     await tapKey(t, 'home_overview');
     await tapKey(t, 'overview_about');
@@ -414,17 +406,14 @@ void main() {
     );
     await back(t);
     await back(t);
-    await pumpFor(t, const Duration(seconds: 1));
-    await tapKey(t, 'home_overview');
-    await pumpFor(t, const Duration(seconds: 1));
-    log('S8 eintrag=${has('overview_morning')}');
-    await back(t);
-    await pumpFor(t, const Duration(seconds: 1));
-    log('S8 karte=${has('morning_card')}');
+    await waitFor(t, () => has('home_start_run'), 'Heute');
+    await waitFor(t, () => !has('morning_card'), 'Karte weg');
     await shot(t, 's8_heute_aus');
-    expect(has('morning_card'), isFalse, reason: 'S8 Karte weg');
     await tapKey(t, 'home_overview');
-    await pumpFor(t, const Duration(milliseconds: 800));
+    await waitFor(t, () => has('overview_about'), 'Uebersicht');
+    // Negativpruefung: der Entwicklermodus wird beim Laden der Uebersicht
+    // gelesen, kurz Zeit geben, bevor das Fehlen gilt.
+    await pumpFor(t, const Duration(milliseconds: 500));
     expect(has('overview_morning'), isFalse, reason: 'S8 Eintrag weg');
     log('S8 ok');
   }, timeout: const Timeout(Duration(minutes: 10)));

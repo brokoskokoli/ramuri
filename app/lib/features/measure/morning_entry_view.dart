@@ -95,10 +95,12 @@ class MorningEntryView extends StatelessWidget {
               segments: [
                 RamuriSegment(
                   value: RestingPosture.lying,
+                  key: const Key('morning_posture_lying'),
                   label: l10n.measurePostureLying,
                 ),
                 RamuriSegment(
                   value: RestingPosture.sitting,
+                  key: const Key('morning_posture_sitting'),
                   label: l10n.measurePostureSitting,
                 ),
               ],
