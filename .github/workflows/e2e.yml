@@ -6,14 +6,14 @@ permissions:
   contents: read
 concurrency:
   group: e2e-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/wp/') }}
 jobs:
   e2e:
     name: e2e api ${{ matrix.api }} ${{ matrix.shard }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      E2E_STUFEN: ${{ matrix.shard == 'sammlung' && 'sammlung' || 'storage-a storage-b recover-a recover-b' }}
+      E2E_SHARD: ${{ matrix.shard }}
     strategy:
       fail-fast: false
       matrix:

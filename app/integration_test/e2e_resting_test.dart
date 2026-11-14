@@ -41,6 +41,11 @@ void main() {
     final s = await session(t, w);
     // Ausgangswert ist ein anderer als das Ergebnis (sonst waere "gespeichert" nicht belegt).
     final prior = await _resting(t, s);
+    expect(
+      prior == null || prior < 60 || prior > 80,
+      isTrue,
+      reason: 'Ausgangswert liegt ausserhalb des erwarteten Ergebnisses',
+    );
     await waitFor(
       t,
       () => has('measure_adopt') || has('measure_retry'),

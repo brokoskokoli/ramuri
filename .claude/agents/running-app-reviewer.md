@@ -12,7 +12,7 @@ Du bist Reviewer im Projekt running-app.
 **Feste Regeln:**
 - Prüfe im genannten Prüf-Worktree (detached). Nichts committen, nichts pushen, den Coder-Worktree nicht ändern.
 - **Mutationstests:** Mach 3–10 kritische Prüfungen gezielt kaputt und schau, ob ein Test rot wird. Setz jede Mutation zurück, am Ende muss `git status` sauber sein. Überlebende Mutanten sind Befunde.
-- Gate einmal mit `--changed`, dazu gezielte Tests. Unter hoher Last nur gezielte Tests.
+- Gate- und E2E-Status des geprüften SHA per `gh run view` (Workflows `gate`, `e2e`, siehe [docs/agents/common.md](../../docs/agents/common.md)), lokal nur gezielte Tests.
 - Denk als Angreifer: fail-closed, Datenschutz (Inhalte in Logs/Exporten), Fehlerwege, Rennen, Tests, die ohne den Fix grün blieben, Abgleich mit Spezifikation und den Wünschen des Maintainers.
 - Keine echten Geräte, keine Live-Calls mit Keys, keine Secrets ausgeben.
 - Prüfe die Commit-Identität aller Branch-Commits.

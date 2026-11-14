@@ -11,7 +11,10 @@
 # --no-uninstall, damit Daten und Schluessel bis zur Folgestufe bleiben.
 # GPS: Der Emulator bekommt im Hintergrund synthetische Positionen
 # (`adb emu geo fix`, ca. 3 m/s nach Norden); Rechte werden per `pm grant` gesetzt.
-# Lokal einzelne Stufen: E2E_STUFEN="recover-a recover-b".
+# Auswahl: E2E_SHARD=sammlung|stufen (so ruft .github/workflows/e2e.yml auf; die Zuordnung
+# Shard -> Stufen steht nur hier) oder lokal E2E_STUFEN="recover-a recover-b"; beides zusammen
+# oder ein unbekannter Name ist ein Fehler (Exit 1), ebenso ein Lauf ohne eine einzige Stufe.
+# Ohne beides laufen alle Stufen. Test: tool/ci_e2e_test.sh.
 # Bei Rot: Logcat (gefiltert), Bildschirmfoto je Stufe und gefiltertes Testlog (ohne E2E_-Zeilen) in <Ausgabeordner>.
 # Der Reporter ist fest "expanded": Unter GitHub Actions waehlt flutter test sonst
 # den github-Reporter, der die Ausgabe eines Tests erst an dessen Ende ausgibt
@@ -29,7 +32,19 @@ a() { adb -s "$serial" "$@"; }
 for f in app/integration_test/e2e_*_test.dart; do
   b=$(basename "$f")
   case "$b" in e2e_storage_test.dart | e2e_recover_test.dart) continue ;; esac
-  grep -q "$b" app/integration_test/all_test.dart || { echo "FEHLT in all_test.dart: $b"; exit 1; }
+  grep -q "^import '$b'" app/integration_test/all_test.dart || { echo "FEHLT in all_test.dart: $b"; exit 1; }
+done
+
+alle_stufen="sammlung storage-a storage-b recover-a recover-b"
+if [ -n "${E2E_SHARD:-}" ] && [ -n "${E2E_STUFEN:-}" ]; then echo "E2E_SHARD und E2E_STUFEN zusammen"; exit 1; fi
+case "${E2E_SHARD:-}" in
+  "") auswahl="${E2E_STUFEN-$alle_stufen}" ;;
+  sammlung) auswahl="sammlung" ;;
+  stufen) auswahl="storage-a storage-b recover-a recover-b" ;;
+  *) echo "unbekannter Shard: $E2E_SHARD"; exit 1 ;;
+esac
+for n in $auswahl; do
+  case " $alle_stufen " in *" $n "*) ;; *) echo "unbekannte Stufe: $n"; exit 1 ;; esac
 done
 
 gps_feed() {
@@ -59,12 +74,13 @@ grant_until_done() {
 }
 
 rc_all=0
+ran=0
 
 # stufe <name> <kill:0|1> <flutter-test-Argumente...>
 stufe() {
   name="$1"; kill_after="$2"; shift 2
-  # Lokal einzelne Stufen: E2E_STUFEN="recover-a recover-b" (leer = alle).
-  case " ${E2E_STUFEN:-$name} " in *" $name "*) ;; *) return 0 ;; esac
+  case " $auswahl " in *" $name "*) ;; *) return 0 ;; esac
+  ran=$((ran + 1))
   log="$out/flutter-test-$name.log"
   t0=$(date +%s)
   a logcat -c
@@ -121,4 +137,5 @@ stufe storage-a 1 integration_test/e2e_storage_test.dart --no-uninstall --dart-d
 stufe storage-b 0 integration_test/e2e_storage_test.dart --dart-define=PHASE=read --dart-define=MARKER=ci-marker-7f3a
 stufe recover-a 1 integration_test/e2e_recover_test.dart --no-uninstall --dart-define=PHASE=a
 stufe recover-b 0 integration_test/e2e_recover_test.dart --dart-define=PHASE=b
+[ "$ran" -gt 0 ] || { echo "keine Stufe gelaufen (Auswahl: '$auswahl')"; exit 1; }
 exit "$rc_all"

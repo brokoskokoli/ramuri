@@ -110,7 +110,11 @@ void main() {
     await pumpFor(t, const Duration(seconds: 1));
 
     final after = await _snapshot(t, s);
-    expect(after, before, reason: 'Inhalt nach Reimport wie vor dem Export');
+    expect(
+      after == before,
+      isTrue,
+      reason: 'Inhalt nach Reimport wie vor dem Export (Werte nie ausgeben)',
+    );
     expect(
       (await t.runAsync(() => s.runs.list()))!.length,
       runsBefore,
@@ -135,7 +139,11 @@ void main() {
       }
     });
     expect(failure, ArchiveImportFailure.wrongPasswordOrDamaged);
-    expect(await _snapshot(t, s), before, reason: 'unveraendert nach Fehler');
+    expect(
+      await _snapshot(t, s) == before,
+      isTrue,
+      reason: 'unveraendert nach Fehler (Werte nie ausgeben)',
+    );
     await t.runAsync(() => File(path!).delete());
   }, timeout: const Timeout(Duration(minutes: 5)));
 }

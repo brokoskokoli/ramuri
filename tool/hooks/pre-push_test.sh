@@ -42,7 +42,6 @@ export RUNNING_APP_FORBIDDEN_TERMS="$tmp/terms"
 printf 'zzgeheimzz\n' > "$tmp/terms"
 git update-ref refs/remotes/origin/main "$inmain"
 git checkout -q -b feat "$inmain"
-base=$(git rev-parse HEAD)
 echo "harmlos" > clean.txt && git add clean.txt && git commit -q -m clean || exit 1
 cleanhead=$(git rev-parse HEAD)
 check ok       "Scan: sauberer Push frei" "refs/heads/feat $cleanhead refs/heads/feat $zero"
