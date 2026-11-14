@@ -81,12 +81,17 @@ const _allKinds = [
 /// Health Connect mit allen Rechten, ohne neue Daten: der Import ändert den
 /// Speicher nicht, und es steht keine Löschfrage (SEC-0007) offen.
 class _GrantedPort implements HealthConnectPort {
+  _GrantedPort({this.granted});
+
+  /// Erteilte Rechte; `null` = alle. Leer: Recht fehlt, die Löschfrage steht an.
+  final Set<HealthDataKind>? granted;
+
   @override
   Future<HealthSdkStatus> sdkStatus() async => HealthSdkStatus.available;
 
   @override
   Future<Set<HealthDataKind>> grantedKinds() async =>
-      HealthDataKind.values.toSet();
+      granted ?? HealthDataKind.values.toSet();
 
   @override
   Future<Set<HealthDataKind>> requestPermissions(
@@ -106,8 +111,11 @@ class _GrantedPort implements HealthConnectPort {
   }) async => const HealthPage([], null);
 }
 
-Future<StorageSession> _preopen(Device d) async {
-  d.healthConnect = _GrantedPort();
+Future<StorageSession> _preopen(
+  Device d, {
+  Set<HealthDataKind>? granted,
+}) async {
+  d.healthConnect = _GrantedPort(granted: granted);
   d.clock.set(_now);
   final s = await d.storage.open(_appKey);
   await s.settings.set(SettingKeys.setupDone, '1', at: DateTime.utc(2026));
@@ -734,6 +742,50 @@ void main() {
       expect(_key('home_warning_reminder'), findsNothing);
       expect(_key('readiness_card'), findsOneWidget);
       expect(gone, 0, reason: 'Karte fehlte in $gone Frames beim Neuladen');
+    });
+
+    testWidgets('Löschfrage auf Heute widerruft: keine Health-Connect-Werte '
+        'mehr auf der erweiterten Karte (fail-closed, SEC-0007)', (
+      tester,
+    ) async {
+      final d = Device();
+      // Recht in Health Connect fehlt: die Löschfragen stehen beim Öffnen an.
+      final s = await _preopen(d, granted: const {});
+      await _seedHealth(s);
+      await _grant(s, _allKinds);
+      await _start(tester, d);
+      // Solange die Frage offen ist, gilt die Einwilligung noch.
+      expect(_key('health_delete_dialog'), findsOneWidget);
+      expect(_key('readiness_card'), findsOneWidget);
+      // Je Art „Behalten“: das widerruft die Einwilligung (answerDeleteQuestion).
+      for (
+        var i = 0;
+        i < 3 && _key('health_delete_keep').evaluate().isNotEmpty;
+        i++
+      ) {
+        await tester.tap(_key('health_delete_keep'));
+        for (var j = 0; j < 20; j++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 5)),
+          );
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+      }
+      expect(_key('health_delete_dialog'), findsNothing);
+      for (final k in _allKinds) {
+        expect(
+          await tester.runAsync(
+            () => ConsentService(
+              s.consents,
+              d.clock,
+            ).isGranted(healthSourceKey(k)),
+          ),
+          isFalse,
+          reason: '${k.key} widerrufen',
+        );
+      }
+      // Ohne Einwilligung und ohne Kamera/Entwicklermodus: Basisstufe.
+      expect(_key('readiness_card'), findsNothing);
     });
 
     testWidgets('Entwicklermodus an: nur der Hinweis, Zahl unverändert', (

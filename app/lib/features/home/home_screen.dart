@@ -136,6 +136,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     if (mounted) {
       await askOpenHealthQuestions(context, health, skipDeferred: true);
+      // Eine Antwort auf die Löschfrage widerruft die Einwilligung: die
+      // Erholung darf danach keine Werte dieser Art mehr zeigen (SEC-0007).
+      if (mounted) {
+        setState(() {
+          _renewCards(readiness: true);
+        });
+      }
     }
   }
 
