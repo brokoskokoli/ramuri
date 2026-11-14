@@ -345,7 +345,8 @@ GeneratedPlan generatePlan(
                 .where((u) => u.pinned && !plannedDays.contains(planDay(u.day)))
                 .toList()
               ..sort((a, b) => a.day.compareTo(b.day)))
-          _role(u),
+          // Eine zum lockeren Lauf ersetzte harte Einheit behält ihre Rolle.
+          u.fixed == PlanUnitFixed.easyForHard ? 2 : _role(u),
       ];
       final plannedRole = {
         for (final u in planned.units) planDay(u.day): _role(u),

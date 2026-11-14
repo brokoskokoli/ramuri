@@ -1609,6 +1609,79 @@ void main() {
       pinned: true,
     );
 
+    // Eine vom Nutzer zum lockeren Lauf ersetzte harte Einheit (easyForHard),
+    // nach Mo verschoben und gelaufen, behält ihre Rolle "hart": Es entfällt
+    // die harte Einheit (Di), nicht der unveränderte Termin am Do.
+    PlanUnit movedEasyForHard() => PlanUnit(
+      day: mon,
+      kind: PlanUnitKind.easy,
+      phase: base.first.phase,
+      weekIndex: base.first.weekIndex,
+      minutes: base.first.minutes,
+      segments: [
+        PlanSegment(kind: PlanSegmentKind.easy, minutes: base.first.minutes),
+      ],
+      runId: 7,
+      pinned: true,
+      fixed: PlanUnitFixed.easyForHard,
+    );
+
+    for (final automatic in [true, false]) {
+      test('zum lockeren Lauf ersetzte harte Einheit nach Mo verschoben und '
+          'gelaufen: Mo, Do, Sa (${automatic ? "automatisch" : "manuell"})', () {
+        final frozen = [movedEasyForHard()];
+        final p = generatePlan(
+          g,
+          inputs(start: 150, today: mon),
+          frozen,
+          mon,
+          heldDays: automatic ? {mon, nov(19), nov(21)} : null,
+          heldUntil: automatic ? nov(30) : null,
+        );
+        final w = [...frozen, ...p.units.where(inWeek)];
+        expect(w.map((u) => u.day.day), [16, 19, 21]);
+        expect(w[2].kind, PlanUnitKind.long);
+      });
+    }
+
+    // Zwei Läufe auf verschobenen Tagen (Di: harte Rolle, Mi: lockere Rolle).
+    // Die vergangene Einheit (Mo, locker) entfällt mit der Rolle des zweiten
+    // Laufs; für die künftigen bleibt die Rolle des ersten (hart): Do entfällt,
+    // Sa und So bleiben.
+    test('zwei Läufe auf verschobenen Tagen: die vergangene Einheit nimmt '
+        'die Rolle des zweiten Laufs, künftig entfällt die harte', () {
+      final g4 = goal(days: {1, 4, 6, 7});
+      final base4 = generatePlan(
+        g4,
+        inputs(start: 200),
+        const [],
+        d0,
+      ).units.where(inWeek).toList();
+      expect(
+        [for (final u in base4) (u.day.day, u.isHard)],
+        [(16, false), (19, true), (21, false), (22, false)],
+      );
+      PlanUnit run(int day, PlanUnit like) => PlanUnit(
+        day: nov(day),
+        kind: like.kind,
+        phase: like.phase,
+        weekIndex: like.weekIndex,
+        minutes: like.minutes,
+        segments: like.segments,
+        runId: day,
+        pinned: true,
+      );
+      final today = nov(19);
+      final frozen = [run(17, base4[1]), run(18, base4[0])];
+      final p = generatePlan(
+        g4,
+        inputs(start: 200, today: today),
+        frozen,
+        today,
+      );
+      expect(p.units.where(inWeek).map((u) => u.day.day), [21, 22]);
+    });
+
     test('Ausgangslage N1: Di hart, Do locker, Sa lang', () {
       expect(base.map((u) => u.isHard), [true, false, false]);
       expect(base[2].kind, PlanUnitKind.long);
