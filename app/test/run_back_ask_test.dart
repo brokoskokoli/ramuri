@@ -374,16 +374,15 @@ void main() {
     await end(tester);
   });
 
-  testWidgets('Kartenseite, Einwilligungsfrage offen: Zurück schließt nur die '
-      'Frage, kein Befehl, keine Pause-Rückfrage', (tester) async {
+  testWidgets('Kartenseite ohne Einwilligung: keine Frage während des Laufs, '
+      'Zurück fragt nach der Pause', (tester) async {
     await open(tester);
     await tester.tap(key('run_tab_1'));
     await tester.pumpAndSettle();
-    expect(find.byType(Dialog).evaluate().length, 1);
-    await back(tester);
-    await tester.pumpAndSettle();
     expect(find.byType(Dialog), findsNothing);
-    expect(find.text('Lauf pausieren?'), findsNothing);
+    await back(tester);
+    expect(find.text('Lauf pausieren?'), findsOneWidget);
+    expect(find.byKey(const Key('map_consent_dialog')), findsNothing);
     expect(w.recorder.commands, isEmpty);
     expect(w.run.phase, RecordingPhase.running);
     await end(tester);
