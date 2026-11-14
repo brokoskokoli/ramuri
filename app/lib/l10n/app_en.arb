@@ -2420,7 +2420,7 @@
   "@morningGurtPick": {"description": "WP37 Gurtzeile im Morgen-Einstieg"},
   "morningGurtNoteConnecting": "The app is looking for the strap you used last. You can already start the rest phase.",
   "@morningGurtNoteConnecting": {"description": "WP37 Gurtzeile im Morgen-Einstieg"},
-  "morningGurtNoteNone": "Without a strap the strap values for validation are missing. You can still measure.",
+  "morningGurtNoteNone": "Without a chest strap the comparison values are missing. You can still measure.",
   "@morningGurtNoteNone": {"description": "WP37 Gurtzeile im Morgen-Einstieg"},
   "morningBeltRecording": "Chest strap is recording.",
   "@morningBeltRecording": {"description": "Morgenmessung, Hinweis in der Ruhephase (WP33 E)"},

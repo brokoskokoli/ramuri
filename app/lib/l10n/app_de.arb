@@ -3163,7 +3163,7 @@
   "@morningGurtPick": {"description": "WP37 Gurtzeile im Morgen-Einstieg"},
   "morningGurtNoteConnecting": "Die App sucht den zuletzt genutzten Gurt. Du kannst schon die Ruhephase starten.",
   "@morningGurtNoteConnecting": {"description": "WP37 Gurtzeile im Morgen-Einstieg"},
-  "morningGurtNoteNone": "Ohne Gurt fehlen die Gurtwerte für die Validierung. Messen geht trotzdem.",
+  "morningGurtNoteNone": "Ohne Gurt fehlen die Vergleichswerte vom Brustgurt. Messen geht trotzdem.",
   "@morningGurtNoteNone": {"description": "WP37 Gurtzeile im Morgen-Einstieg"},
   "morningBeltRecording": "Pulsgurt zeichnet mit.",
   "@morningBeltRecording": {"description": "Morgenmessung, Hinweis in der Ruhephase (WP33 E)"},

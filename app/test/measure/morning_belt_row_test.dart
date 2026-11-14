@@ -109,7 +109,7 @@ void main() {
       expect(tester(t, 'morning_gurt_text').data, 'kein Gurt');
       expect(
         tester(t, 'morning_gurt_note').data,
-        contains('fehlen die Gurtwerte für die Validierung'),
+        contains('fehlen die Vergleichswerte vom Brustgurt'),
       );
       final pick = find.byKey(const Key('morning_gurt_pick'));
       expect(t.getSize(pick).height, greaterThanOrEqualTo(48));
