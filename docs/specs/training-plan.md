@@ -244,18 +244,18 @@ Die konkreten Werte stehen in [planning-rules.md](../planning-rules.md) und [pha
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0003](../migration/open-questions.md#oq-0003--herzfrequenzzonen-allein-oder-schwellenmodell) (entschieden): Herzfrequenzzonen allein oder Schwellenmodell?
-- [OQ-0004](../migration/open-questions.md#oq-0004--welche-ziele-und-trainingsarten-zuerst) (entschieden): Welche Ziele und Trainingsarten zuerst?
-- [OQ-0010](../migration/open-questions.md#oq-0010--welche-eingaben-sind-beim-einstieg-nötig) (entschieden): Welche Eingaben sind beim Einstieg nötig?
-- [OQ-0013](../migration/open-questions.md#oq-0013--was-bedeutet-laufleistung) (entschieden): Was bedeutet „Laufleistung“?
-- [OQ-0027](../migration/open-questions.md#oq-0027--pläne-ohne-zieldatum-und-bei-offenen-zielen) (entschieden): Pläne ohne Zieldatum und bei offenen Zielen
-- [OQ-0028](../migration/open-questions.md#oq-0028--konkrete-regeln-der-trainingsplanung) (entschieden): Konkrete Regeln der Trainingsplanung
-- [OQ-0048](../migration/open-questions.md#oq-0048--rechtliche-prüfung) (non-blocking): Rechtliche Prüfung
-- [OQ-0057](../migration/open-questions.md#oq-0057--fehlende-regeln-für-phase-2-und-3) (entschieden): Fehlende Regeln für Phase 2 und 3
-- [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
-- [OQ-0060](../migration/open-questions.md#oq-0060--einfacher-trainingsplan) (entschieden): Einfacher Trainingsplan
-- [OQ-0077](../migration/open-questions.md#oq-0077--vorgaben-zum-start-von-phase-2) (entschieden): Vorgaben zum Start von Phase 2
-- [OQ-0079](../migration/open-questions.md#oq-0079--pulskriterium-für-absolvierte-intensive-einheiten) (non-blocking): Pulskriterium für absolvierte intensive Einheiten
+- OQ-0003
+- OQ-0004
+- OQ-0010
+- OQ-0013
+- OQ-0027
+- OQ-0028
+- OQ-0048
+- OQ-0057
+- OQ-0059
+- OQ-0060
+- OQ-0077
+- OQ-0079
 <!-- END OQ -->
 
 ## Quellen

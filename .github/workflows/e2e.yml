@@ -1,12 +1,12 @@
 name: e2e
 on:
   push:
-    branches: [main, 'wp/**']
+    branches: [main, 'wp/**', 'issue-**']
 permissions:
   contents: read
 concurrency:
   group: e2e-${{ github.ref }}
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/wp/') }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/wp/') || startsWith(github.ref, 'refs/heads/issue-') }}
 jobs:
   e2e:
     name: e2e api ${{ matrix.api }} ${{ matrix.shard }}

@@ -218,13 +218,13 @@ Laborwerte und indirekte Schätzwerte bleiben als unterschiedliche Messmethoden 
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0001](../migration/open-questions.md#oq-0001--welches-vo2max-modell-gilt-für-die-erste-version) (entschieden): Welches VO2max-Modell gilt für die erste Version?
-- [OQ-0012](../migration/open-questions.md#oq-0012--was-gilt-wenn-ruhepuls-oder-hfmax-fehlen) (entschieden): Was gilt, wenn Ruhepuls oder HFmax fehlen?
-- [OQ-0017](../migration/open-questions.md#oq-0017--verbindlichkeit-der-phasen-und-fehlende-zuordnungen) (entschieden): Verbindlichkeit der Phasen und fehlende Zuordnungen
-- [OQ-0019](../migration/open-questions.md#oq-0019--startwerte-der-modellparameter-und-qualitätsregeln) (entschieden): Startwerte der Modellparameter und Qualitätsregeln
-- [OQ-0020](../migration/open-questions.md#oq-0020--wie-und-wann-werden-modelle-validiert) (entschieden): Wie und wann werden Modelle validiert?
-- [OQ-0041](../migration/open-questions.md#oq-0041--phasen-der-noch-nicht-zugeordneten-anforderungen) (entschieden): Phasen der noch nicht zugeordneten Anforderungen
-- [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
+- OQ-0001
+- OQ-0012
+- OQ-0017
+- OQ-0019
+- OQ-0020
+- OQ-0041
+- OQ-0059
 <!-- END OQ -->
 
 ## Quellen

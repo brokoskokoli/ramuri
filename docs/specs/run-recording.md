@@ -308,22 +308,22 @@ In Phase 2 gibt es einen Laufbandmodus, in dem der Nutzer die aktuelle Geschwind
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0012](../migration/open-questions.md#oq-0012--was-gilt-wenn-ruhepuls-oder-hfmax-fehlen) (entschieden): Was gilt, wenn Ruhepuls oder HFmax fehlen?
-- [OQ-0021](../migration/open-questions.md#oq-0021--verhalten-bei-gps-problemen-und-abbrüchen-der-aufzeichnung) (entschieden): Verhalten bei GPS-Problemen und Abbrüchen der Aufzeichnung
-- [OQ-0037](../migration/open-questions.md#oq-0037--details-von-aufzeichnung-und-zusammenfassung) (entschieden): Details von Aufzeichnung und Zusammenfassung
-- [OQ-0041](../migration/open-questions.md#oq-0041--phasen-der-noch-nicht-zugeordneten-anforderungen) (entschieden): Phasen der noch nicht zugeordneten Anforderungen
-- [OQ-0042](../migration/open-questions.md#oq-0042--details-des-laufbandmodus) (entschieden): Details des Laufbandmodus
-- [OQ-0044](../migration/open-questions.md#oq-0044--inhalte-akustischer-hinweise) (entschieden): Inhalte akustischer Hinweise
-- [OQ-0052](../migration/open-questions.md#oq-0052--quelle-der-schrittfrequenz-in-phase-1) (entschieden): Quelle der Schrittfrequenz in Phase 1
-- [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
-- [OQ-0061](../migration/open-questions.md#oq-0061--bedeutung-der-wiederaufnahme) (entschieden): Bedeutung der Wiederaufnahme
-- [OQ-0064](../migration/open-questions.md#oq-0064--technische-vorgaben-der-aufzeichnung) (non-blocking): Technische Vorgaben der Aufzeichnung
-- [OQ-0065](../migration/open-questions.md#oq-0065--lücken-aus-dem-plan-für-phase-1) (entschieden): Lücken aus dem Plan für Phase 1
-- [OQ-0068](../migration/open-questions.md#oq-0068--gps-rauschen-im-stand) (entschieden): GPS-Rauschen im Stand
-- [OQ-0071](../migration/open-questions.md#oq-0071--strecke-während-der-erkannten-pause) (non-blocking): Strecke während der erkannten Pause
-- [OQ-0074](../migration/open-questions.md#oq-0074--karte-der-route) (entschieden): Karte der Route
-- [OQ-0075](../migration/open-questions.md#oq-0075--screen-design-und-marke) (entschieden): Screen-Design und Marke
-- [OQ-0076](../migration/open-questions.md#oq-0076--nachschliff-der-lauf-seiten) (entschieden): Nachschliff der Lauf-Seiten
+- OQ-0012
+- OQ-0021
+- OQ-0037
+- OQ-0041
+- OQ-0042
+- OQ-0044
+- OQ-0052
+- OQ-0059
+- OQ-0061
+- OQ-0064
+- OQ-0065
+- OQ-0068
+- OQ-0071
+- OQ-0074
+- OQ-0075
+- OQ-0076
 <!-- END OQ -->
 
 ## Quellen

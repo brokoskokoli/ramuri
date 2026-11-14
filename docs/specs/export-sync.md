@@ -163,13 +163,13 @@ Der Nutzer kann die Exportdatei eines Laufs über das Teilen-Menü des Systems w
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0024](../migration/open-questions.md#oq-0024--schutz-gespeicherter-daten-und-zugangsdaten) (entschieden): Schutz gespeicherter Daten und Zugangsdaten
-- [OQ-0025](../migration/open-questions.md#oq-0025--reichweite-von-einwilligung-widerruf-und-löschung) (entschieden): Reichweite von Einwilligung, Widerruf und Löschung
-- [OQ-0032](../migration/open-questions.md#oq-0032--details-von-export-und-strava-synchronisierung) (non-blocking): Details von Export und Strava-Synchronisierung
-- [OQ-0041](../migration/open-questions.md#oq-0041--phasen-der-noch-nicht-zugeordneten-anforderungen) (entschieden): Phasen der noch nicht zugeordneten Anforderungen
-- [OQ-0049](../migration/open-questions.md#oq-0049--strava-ohne-server-und-ausgeliefertes-secret) (entschieden): Strava ohne Server und ausgeliefertes Secret
-- [OQ-0050](../migration/open-questions.md#oq-0050--schutz-des-gesamtexports-und-regeln-für-den-reimport) (entschieden): Schutz des Gesamtexports und Regeln für den Reimport
-- [OQ-0066](../migration/open-questions.md#oq-0066--weg-zum-fit-export) (entschieden): Weg zum FIT-Export
+- OQ-0024
+- OQ-0025
+- OQ-0032
+- OQ-0041
+- OQ-0049
+- OQ-0050
+- OQ-0066
 <!-- END OQ -->
 
 ## Quellen

@@ -13,7 +13,8 @@ coverage/
 *.iml
 .idea/
 local.properties
-# Research: Daten und private Eingaben nur lokal
+# Research liegt nicht mehr in diesem Repo; lokale Reste (Daten, private Eingaben) bleiben ignoriert, damit sie nie
+# versehentlich committet werden
 research/data/
 research/input/*
 !research/input/README.md

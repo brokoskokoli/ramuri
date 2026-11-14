@@ -1,6 +1,6 @@
 # Anforderungsregister
 
-Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die Tabelle wird mit `python3 docs/migration/tools/spec_tool.py build` erzeugt und nicht von Hand bearbeitet.
+Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die Tabelle wird mit `python3 tool/spec_tool.py build` erzeugt und nicht von Hand bearbeitet.
 
 **Status:** `Draft` = übernommen, noch nicht freigegeben. `Blocked` = von einem Widerspruch oder einer unentschiedenen Modellfrage betroffen. `Approved` vergibt nur der Maintainer. Freigegeben sind alle Anforderungen der Phasen 1 bis 3 (2026-11-03 und 2026-11-04). Phase 4 und die zurückgestellten Strava-Punkte bleiben `Draft`.
 

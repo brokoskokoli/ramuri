@@ -186,15 +186,15 @@ Der Nutzer kann nachvollziehen, warum ein Fitnesswert berechnet oder nicht berec
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0012](../migration/open-questions.md#oq-0012--was-gilt-wenn-ruhepuls-oder-hfmax-fehlen) (entschieden): Was gilt, wenn Ruhepuls oder HFmax fehlen?
-- [OQ-0019](../migration/open-questions.md#oq-0019--startwerte-der-modellparameter-und-qualitätsregeln) (entschieden): Startwerte der Modellparameter und Qualitätsregeln
-- [OQ-0031](../migration/open-questions.md#oq-0031--ablauf-der-neuberechnung-historischer-werte) (entschieden): Ablauf der Neuberechnung historischer Werte
-- [OQ-0034](../migration/open-questions.md#oq-0034--datengrundlage-von-leistungsprognosen) (entschieden): Datengrundlage von Leistungsprognosen
-- [OQ-0037](../migration/open-questions.md#oq-0037--details-von-aufzeichnung-und-zusammenfassung) (entschieden): Details von Aufzeichnung und Zusammenfassung
-- [OQ-0040](../migration/open-questions.md#oq-0040--was-ist-ein-fortgeschrittener-fitnesswert) (entschieden): Was ist ein „fortgeschrittener Fitnesswert“?
-- [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
-- [OQ-0068](../migration/open-questions.md#oq-0068--gps-rauschen-im-stand) (entschieden): GPS-Rauschen im Stand
-- [OQ-0069](../migration/open-questions.md#oq-0069--grenzfälle-des-tempowechsels-und-der-pulslücken) (non-blocking): Grenzfälle des Tempowechsels und der Pulslücken
+- OQ-0012
+- OQ-0019
+- OQ-0031
+- OQ-0034
+- OQ-0037
+- OQ-0040
+- OQ-0059
+- OQ-0068
+- OQ-0069
 <!-- END OQ -->
 
 ## Quellen

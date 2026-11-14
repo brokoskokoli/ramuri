@@ -63,12 +63,12 @@ Die App darf keine feste Zielzeit voraussetzen. Auch offene Ziele wie „allgeme
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0004](../migration/open-questions.md#oq-0004--welche-ziele-und-trainingsarten-zuerst) (entschieden): Welche Ziele und Trainingsarten zuerst?
-- [OQ-0013](../migration/open-questions.md#oq-0013--was-bedeutet-laufleistung) (entschieden): Was bedeutet „Laufleistung“?
-- [OQ-0027](../migration/open-questions.md#oq-0027--pläne-ohne-zieldatum-und-bei-offenen-zielen) (entschieden): Pläne ohne Zieldatum und bei offenen Zielen
-- [OQ-0038](../migration/open-questions.md#oq-0038--doppelte-eingaben-in-profil-und-ziel) (entschieden): Doppelte Eingaben in Profil und Ziel
-- [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
-- [OQ-0060](../migration/open-questions.md#oq-0060--einfacher-trainingsplan) (entschieden): Einfacher Trainingsplan
+- OQ-0004
+- OQ-0013
+- OQ-0027
+- OQ-0038
+- OQ-0059
+- OQ-0060
 <!-- END OQ -->
 
 ## Quellen

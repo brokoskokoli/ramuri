@@ -2,13 +2,11 @@
 
 Android-App (später optional iOS) für Laufaufzeichnung, Fitnessanalyse, Regeneration und adaptive Trainingsplanung. Sie funktioniert ohne Wearable und ohne Bindung an einen Gerätehersteller.
 
-**Projektstatus:** Die Phasen 1 bis 3 sind spezifiziert und vom Maintainer freigegeben. Die App liegt in `app/`: Phase 1 (Laufaufzeichnung und Fitnessanalyse) ist umgesetzt, Phase 2 (adaptiver Trainingscoach) ist in Umsetzung, Phase 3 folgt danach (Stand: [Umsetzungsstand](work-packages/STATUS.md)). Ein Release setzt eine rechtliche Prüfung voraus (OQ-0048).
+**Projektstatus:** Die Phasen 1 bis 3 sind spezifiziert und vom Maintainer freigegeben. Die App liegt in `app/`: Phase 1 (Laufaufzeichnung und Fitnessanalyse) und Phase 2 (adaptiver Trainingscoach) sind umgesetzt, Phase 3 (erweiterte Gesundheits- und Erholungsanalyse) ist in Umsetzung. Ein Release setzt eine rechtliche Prüfung voraus (OQ-0048).
 
-- [Dokumentation](docs/index.md)
-- [Offene Fragen](docs/migration/open-questions.md)
-- [Migrationsbericht](docs/migration/migration-report.md)
+- [Dokumentation und Spezifikation](docs/index.md)
+- [Anforderungsregister](docs/requirements.md)
 - [Anweisungen für Agenten](AGENTS.md)
-- [Umsetzungsstand](work-packages/STATUS.md)
 
 ## Releases
 

@@ -33,7 +33,7 @@
 - `Harte Zeit`: geplante Zeit in den harten Blöcken einer Einheit. Auf- und Abwärmen sowie Trabpausen zählen als locker.
 - Quellenkürzel [N…] stehen unter `Quellen`. Die Kürzel [L…] und [Q…] behalten ihre Bedeutung aus den beiden Parameterdokumenten; die hier zitierten wurden erneut abgerufen.
 
-**Rechnungen R4 bis R8:** Eigene Rechnungen mit den genannten Formeln, keine Messergebnisse. R8 ist eine Sensitivitätsrechnung; das Skript steht in [values-applied.md](migration/research-reviews/values-applied.md).
+**Rechnungen R4 bis R8:** Eigene Rechnungen mit den genannten Formeln, keine Messergebnisse. R8 ist eine Sensitivitätsrechnung; das Skript steht in `docs/migration/research-reviews/values-applied.md` (bis Commit `5f91aa4` in diesem Repo).
 
 | Rechnung | Annahme | Ergebnis |
 |---|---|---|

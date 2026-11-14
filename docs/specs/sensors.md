@@ -191,11 +191,11 @@ Gespeichert werden nur die RR-Intervalle der aktiven Pulsquelle (wie der Puls, F
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0009](../migration/open-questions.md#oq-0009--rolle-der-smartwatch) (entschieden): Rolle der Smartwatch
-- [OQ-0013](../migration/open-questions.md#oq-0013--was-bedeutet-laufleistung) (entschieden): Was bedeutet „Laufleistung“?
-- [OQ-0017](../migration/open-questions.md#oq-0017--verbindlichkeit-der-phasen-und-fehlende-zuordnungen) (entschieden): Verbindlichkeit der Phasen und fehlende Zuordnungen
-- [OQ-0018](../migration/open-questions.md#oq-0018--regel-für-die-priorisierung-von-herzfrequenzquellen) (entschieden): Regel für die Priorisierung von Herzfrequenzquellen
-- [OQ-0064](../migration/open-questions.md#oq-0064--technische-vorgaben-der-aufzeichnung) (non-blocking): Technische Vorgaben der Aufzeichnung
+- OQ-0009
+- OQ-0013
+- OQ-0017
+- OQ-0018
+- OQ-0064
 <!-- END OQ -->
 
 ## Quellen

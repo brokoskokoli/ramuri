@@ -6,8 +6,7 @@ Einstieg in die Spezifikation von ramuri (Adaptive Running & Fitness App). Der S
 
 1. [Produktdefinition](product.md): Vision, Prinzipien, Phasen, Begriffe
 2. [Anforderungsregister](requirements.md): alle Anforderungen mit Status und Phase
-3. [Offene Fragen](migration/open-questions.md): Konflikte und Blocker
-4. Die für die Aufgabe relevante Spec, dazu Qualität und Architektur nach Bedarf
+3. Die für die Aufgabe relevante Spec, dazu Qualität und Architektur nach Bedarf
 
 ## Funktionale Spezifikationen
 
@@ -43,8 +42,10 @@ Einstieg in die Spezifikation von ramuri (Adaptive Running & Fitness App). Der S
 - [Planungsregeln und Startwerte, Version 4](planning-rules.md)
 - [Regeln für Phase 2 und 3, Version 4](phase-2-3-rules.md)
 - [Referenzen](references.md)
-- [Änderungsprotokoll der Umsetzung](changelog.md)
-- Migration: [Quelleninventar](migration/source-inventory.md), [Traceability](migration/traceability.md), [Migrationsbericht](migration/migration-report.md)
+
+## Außerhalb dieses Repos
+
+Die offenen Fragen und Entscheidungen des Maintainers (`OQ-nnnn`), das Quelleninventar (`SRC-nnn`) mit dem Ursprungskonzept, die Traceability, der Migrationsbericht und das Änderungsprotokoll der Umsetzung (K-Einträge) pflegt der Maintainer außerhalb dieses Repos; hier stehen nur ihre IDs. Bis Commit `5f91aa4` lagen sie unter `docs/migration/` und `docs/changelog.md`; Textverweise auf diese Pfade und auf `research/…` beziehen sich auf jenen Stand. Entscheidungen, die für das Verhalten gelten, stehen als DEC in [product.md](product.md) oder in der jeweiligen Spec. `tool/spec_tool.py check` prüft OQ- und SRC-IDs nur auf ihre Form.
 
 ## Vergaberegel für IDs
 
@@ -56,9 +57,9 @@ Einstieg in die Spezifikation von ramuri (Adaptive Running & Fitness App). Der S
 | `CON-0001` | Constraint | `product.md` |
 | `DEC-0001` | Fachliche Entscheidung | `product.md` |
 | `ACC-01` | Abnahmekriterium aus der Quelle | `quality/testing.md` |
-| `OQ-0001` | Offene Frage | `migration/open-questions.md` |
+| `OQ-0001` | Offene Frage oder Entscheidung des Maintainers | außerhalb dieses Repos |
 | `FEAT-001` | Feature-Spezifikation | `specs/` |
-| `SRC-001` | Quelle | `migration/source-inventory.md` |
+| `SRC-001` | Quelle | außerhalb dieses Repos (Quelleninventar) |
 | `PAR-001` | Parameter oder Regel | `model-parameters.md`, `planning-rules.md`, `phase-2-3-rules.md` |
 
 IDs sind projektweit eindeutig und werden nie umnummeriert oder wiederverwendet. Neue Anforderungen erhalten die nächste freie Nummer. Veraltete behalten ihre ID und erhalten den Status `Deprecated`. ADRs tragen `ADR-0001` und folgende.

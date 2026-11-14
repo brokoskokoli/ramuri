@@ -143,13 +143,13 @@ Unter Einstellungen → Über schaltet 10-maliges Tippen auf die Versionsnummer 
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0010](../migration/open-questions.md#oq-0010--welche-eingaben-sind-beim-einstieg-nötig) (entschieden): Welche Eingaben sind beim Einstieg nötig?
-- [OQ-0012](../migration/open-questions.md#oq-0012--was-gilt-wenn-ruhepuls-oder-hfmax-fehlen) (entschieden): Was gilt, wenn Ruhepuls oder HFmax fehlen?
-- [OQ-0013](../migration/open-questions.md#oq-0013--was-bedeutet-laufleistung) (entschieden): Was bedeutet „Laufleistung“?
-- [OQ-0031](../migration/open-questions.md#oq-0031--ablauf-der-neuberechnung-historischer-werte) (entschieden): Ablauf der Neuberechnung historischer Werte
-- [OQ-0038](../migration/open-questions.md#oq-0038--doppelte-eingaben-in-profil-und-ziel) (entschieden): Doppelte Eingaben in Profil und Ziel
-- [OQ-0065](../migration/open-questions.md#oq-0065--lücken-aus-dem-plan-für-phase-1) (entschieden): Lücken aus dem Plan für Phase 1
-- [OQ-0078](../migration/open-questions.md#oq-0078--puls-und-hrv-mit-der-handykamera) (entschieden): Puls und HRV mit der Handykamera
+- OQ-0010
+- OQ-0012
+- OQ-0013
+- OQ-0031
+- OQ-0038
+- OQ-0065
+- OQ-0078
 <!-- END OQ -->
 
 ## Quellen
