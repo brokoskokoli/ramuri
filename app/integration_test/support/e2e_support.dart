@@ -29,10 +29,11 @@ void logPub(String s) {
   print('PUB_${DateTime.now().toIso8601String().substring(11, 23)} $s');
 }
 
-/// Meldung eines Testfehlers ohne Werte: bei `expect` nur die Zeile "Reason:"
-/// (Expected/Actual/Which koennen Werte tragen), sonst der Text von `fail(...)`
-/// (nur Schluessel und Zeiten); andere Fehler nur mit ihrem Typ. Der Grund
-/// ist bei `expect` die erste nicht eingerueckte Zeile nach Expected/Actual/Which.
+/// Meldung eines Testfehlers ohne Werte: bei `expect` nur der Grund (`reason:`),
+/// den der matcher ohne Präfix als erste nicht eingerückte Zeile nach
+/// Expected/Actual/Which schreibt (diese drei können Werte tragen und fehlen),
+/// sonst der Text von `fail(...)` (nur Schlüssel und Zeiten); andere Fehler nur
+/// mit ihrem Typ.
 String publicFailure(Object e) {
   if (e is! TestFailure) return e.runtimeType.toString();
   final m = e.message ?? '';
