@@ -8,6 +8,9 @@
 #   recover-a/-b    e2e_recover_test.dart PHASE=a (Lauf laeuft), Prozessende, PHASE=b
 #   m2-flow         e2e_m2_flow_test.dart: Plan, gefuehrte Einheit in Echtzeit (~5,5 min), Anpassung;
 #                   eigene Stufe wegen der Dauer, kein Prozessende
+#   readiness       e2e_readiness_test.dart: Erholung (WP34); eigene Stufe mit frischer Installation, weil
+#                   sie Morgenmessungen (nicht loeschbar), Health-Reihen, Einwilligungen und Warnsignal
+#                   setzt und einen leeren Ausgangszustand braucht; kein Prozessende
 # Prozessende: Der Test gibt "NEED_KILL" (Zeile E2E_...) aus (der Host liest es aus dem Testlog),
 # der Host fuehrt `adb shell am force-stop` aus. Die Stufen davor laufen mit
 # --no-uninstall, damit Daten und Schluessel bis zur Folgestufe bleiben.
@@ -41,7 +44,7 @@ for f in app/integration_test/e2e_*_test.dart; do
 done
 
 shard_sammlung="sammlung"
-shard_stufen="storage-a storage-b recover-a recover-b m2-flow"
+shard_stufen="storage-a storage-b recover-a recover-b m2-flow readiness"
 alle_stufen="$shard_sammlung $shard_stufen"
 # Waechter: Jede Zeile `stufe <name> ...` unten muss in einem Shard stehen, sonst liefe sie in der CI nie.
 for n in $(grep '^stufe [^ ]* [01] ' "$0" | cut -d' ' -f2); do
@@ -154,5 +157,6 @@ stufe storage-b 0 integration_test/e2e_storage_test.dart --dart-define=PHASE=rea
 stufe recover-a 1 integration_test/e2e_recover_test.dart --no-uninstall --dart-define=PHASE=a
 stufe recover-b 0 integration_test/e2e_recover_test.dart --dart-define=PHASE=b
 stufe m2-flow 0 integration_test/e2e_m2_flow_test.dart
+stufe readiness 0 integration_test/e2e_readiness_test.dart
 [ "$ran" -gt 0 ] || { echo "keine Stufe gelaufen (Auswahl: '$auswahl')"; exit 1; }
 exit "$rc_all"
