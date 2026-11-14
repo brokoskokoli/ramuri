@@ -237,7 +237,7 @@ Bildet Aussagen aus SRC-001 auf Ergebnisse ab. Zeilenangaben beziehen sich auf d
 | SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Erscheinungsbild nach dem Screen-Design | FR-0205 | [app-design.md](../specs/app-design.md) | 3 AK | Übernommen |
 | SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Name, Icon und Systemsymbole | FR-0206 | [app-design.md](../specs/app-design.md) | 2 AK | Übernommen |
 | SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Willkommensbildschirm | FR-0207 | [app-design.md](../specs/app-design.md) | 2 AK | Übernommen |
-| SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Navigation | FR-0208 | [app-design.md](../specs/app-design.md) | 2 AK | Übernommen |
+| SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Navigation | FR-0208 | [app-design.md](../specs/app-design.md) | 3 AK | Übernommen |
 | SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Startseite „Heute“ | FR-0209 | [app-design.md](../specs/app-design.md) | 2 AK | Übernommen |
 | SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Lauf vorbereiten | FR-0210 | [run-recording.md](../specs/run-recording.md) | 2 AK | Übernommen |
 | SRC-003 | (Maintainer 2026-11-08, OQ-0075) | Kilometerwerte in der Detailansicht | FR-0211 | [history-statistics.md](../specs/history-statistics.md) | 2 AK | Übernommen |

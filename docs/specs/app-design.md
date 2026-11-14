@@ -72,13 +72,14 @@ Beim ersten Start zeigt die App einmalig einen Willkommensbildschirm mit Logo, k
 - **Quelle:** SRC-003 (Maintainer 2026-11-08, OQ-0075)
 - **Verwandt:** FR-0209, OQ-0075
 
-Die App hat unten eine Navigation mit den Bereichen Heute, Verlauf und Fortschritt. Ab Phase 2 kommt der Bereich Plan hinzu, an zweiter Stelle wie im Design. Lauf vorbereiten, Lauf, Zusammenfassung und Detailansicht sind Vollbilder ohne Navigation.
+Die App hat unten eine Navigation mit den Bereichen Heute, Verlauf und Fortschritt. Ab Phase 2 kommt der Bereich Plan hinzu, an zweiter Stelle wie im Design. Ganz rechts steht der Bereich Profil; er zeigt dieselbe Übersicht wie das Profil-Symbol oben rechts auf „Heute“, das bleibt (Maintainer 2026-11-14, K69). Lauf vorbereiten, Lauf, Zusammenfassung und Detailansicht sind Vollbilder ohne Navigation.
 
 **Festlegung (OQ-0075):** Profil, Einstellungen, Sensoren, Zonen, Berechtigungen und Daten (Export, Archiv, Löschen) erreicht man über das Profil-Symbol oben rechts auf „Heute“.
 
 **Akzeptanzkriterien:**
 - [ ] Jede bisher erreichbare Seite ist über die neue Navigation erreichbar.
 - [ ] Die Zurück-Taste führt aus einem Bereich zu „Heute“ und von dort aus der App.
+- [ ] Der Bereich Profil ganz rechts öffnet die Übersicht hinter dem Profil-Symbol; Unterseiten (z. B. Einstellungen) behalten die Leiste wie die anderen Bereiche oder liegen als Vollbild darüber, einheitlich (K69).
 
 ### FR-0209 — Startseite „Heute“
 - **Status:** Approved | **Phase:** 1 (Erholung, geplante Einheit und Wochenziel mit ihrer Phase)
