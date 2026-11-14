@@ -20,7 +20,7 @@ Erweiterte Gesundheits- und Erholungsanalyse. 5 Pakete (WP32 bis WP36), höchste
 | 0 | WP31 (CI, kein M3-Paket) | WP30 |
 | 1 | [WP32](WP32-health-connect-import.md) ‖ [WP33](WP33-morgenmessung-entwicklermodus.md) | WP31, WP24, WP30; Konzept nach K61 und K62 |
 | 2 | [WP34](WP34-readiness.md) | WP32, WP33 |
-| 2b | Validierungsmessung (Folgeanalyse zu R009, Nummer nach `research/README.md`) | WP33 gemergt, Debug- oder Release-APK beim Maintainer; 28 Referenzmorgen (4–6 Wochen), keine Agenten-Sitzung bis zur Auswertung |
+| 2b | Validierungsmessung (Folgeanalyse zu R009, Nummer nach `research/README.md`) | WP33 und [WP37](WP37-morgenmessung-feldtest.md) gemergt, Debug- oder Release-APK beim Maintainer; 28 Referenzmorgen (4–6 Wochen), keine Agenten-Sitzung bis zur Auswertung |
 | 3 | [WP35](WP35-erholungsbasierte-anpassung.md) | WP34 |
 | 4 | Abschlussprüfung M3 | WP32 bis WP35 |
 | 5 | [WP36](WP36-validierung-uebernehmen.md), danach Teilwiederholung der Abschlussprüfung | Ergebnis der Validierung |
