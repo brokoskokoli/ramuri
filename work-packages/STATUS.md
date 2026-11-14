@@ -38,6 +38,7 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP35 | Erholungsbasierte Anpassung, Schalter adaptiv/fix | geplant | M3, siehe [M3-PLAN.md](M3-PLAN.md) |
 | WP36 | Validierung übernehmen | geplant | M3, siehe [M3-PLAN.md](M3-PLAN.md) |
 | WP37 | Morgenmessung nach dem ersten Feldtest (Gurt im Ablauf, Ruhephase überspringen, bestes 60-s-Fenster) | geplant | K66; startet, sobald eine Sitzung frei ist; Voraussetzung für die Validierungsmessung |
+| WP38 | Profil in der unteren Navigation | geplant | K69; klein, startet, sobald eine Sitzung frei ist |
 
 ## M1 im Detail
 
