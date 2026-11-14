@@ -2,7 +2,7 @@
 
 **Zuordnung:** M3, nach WP33, vor dem Start der Validierungsmessung (Welle 2b). Anlass: erste echte Morgenmessung des Maintainers am 2026-11-14 (Rückmeldung, K66). Parallel zu WP34 und WP35 möglich.
 
-Bezug: K66, K67, FR-0215, FR-0115, FR-0217, PAR-160K, K62 (F1, F4, Punkt 6), K65; R009 Abschnitte 1, 2, 5, 6; `core/src/ppg/ALGORITHMUS.md` Abschnitte 2 und 10; WP07/WP26 (Pulssensoren, RR); SEC-0001 bis SEC-0010. Allgemeine Regeln: [M3-PLAN.md](M3-PLAN.md).
+Bezug: K66, K67, K68, FR-0215, FR-0115, FR-0217, PAR-160K, K62 (F1, F4, Punkt 6), K65; R009 Abschnitte 1, 2, 5, 6; `core/src/ppg/ALGORITHMUS.md` Abschnitte 2 und 10; WP07/WP26 (Pulssensoren, RR); SEC-0001 bis SEC-0010. Allgemeine Regeln: [M3-PLAN.md](M3-PLAN.md).
 
 ## Problem
 Beim ersten Feldtest zeigten sich drei Hürden, die die Validierungsmessung (28 Morgen) unnötig schwer machen:
@@ -15,6 +15,7 @@ Beim ersten Feldtest zeigten sich drei Hürden, die die Validierungsmessung (28 
 - **Ruhephase überspringbar:** Knopf „Überspringen“ in der Ruhephase. Die Vorgabe bleibt 2 min (R009). An der Messung wird intern vermerkt, ob und nach wie vielen Sekunden übersprungen wurde (Anzeige und Rechnung ändern sich nicht; für die Auswertung der Validierung).
 - **Einschwingen nicht zählen (Orchestrator, einfachste Lösung nach dem Vorschlag des Maintainers):** Die Aufnahme läuft bis zu 120 s. Ausgewertet wird das beste zusammenhängende 60-s-Fenster (nach den bestehenden Kriterien aus Abschnitt 10, Fenster frühestens ab 5 s). Die Aufnahme endet früher, sobald ein 60-s-Fenster die Stufe „gut“ erreicht. Die Grenzen selbst (Q, Anteil gültiger Intervalle, Zeitrauschen) bleiben unverändert; nur das Fenster wandert. Gespeichert werden die Schlagabstände der ganzen Aufnahme (wie K65 Punkt 15) und Anfang und Ende des gewählten Fensters, damit die Validierung genau dieses Fenster mit den Gurt-RR vergleicht.
 - **Haltung (Maintainer, K67):** Die Messung fragt liegend/sitzend (Vorgabe liegend) und speichert die Antwort, aber beide zählen in einer gemeinsamen Reihe je Gerät; es zählt die erste gültige Messung des Morgens. Punkte in Kurven und Listen sind nach Haltung markiert (z. B. gefüllt = liegend, hohl = sitzend, dazu Text für Screenreader). Die Sonderregeln für sitzend entfallen: keine eigene Reihe, kein Opt-in „liegend verglichen“, ein Freigabestand für das Verfahren. Bestehende sitzende Messungen werden in die gemeinsame Reihe übernommen (Migration).
+- **Alle Messungen speichern (Maintainer, K68):** Im Entwicklermodus wird jede Messung gespeichert, auch unbrauchbare, mit Stufe, Grund, Kamera-Schlagabständen und Gurt-RR. Unbrauchbare zählen nirgends und sind in der Liste markiert; Archiv und CSV der Messpaare enthalten sie.
 - Die Qualitätsanzeige während der Messung sagt, ob schon genug gutes Signal am Stück vorliegt (z. B. Fortschritt „gutes Signal 0:42 von 1:00“), statt nur die Gesamtzeit herunterzuzählen.
 
 ## Inhalt
@@ -33,6 +34,7 @@ Beim ersten Feldtest zeigten sich drei Hürden, die die Validierungsmessung (28 
 - [ ] Gurt-RR decken die ganze Aufnahme ab; CSV enthält das gewählte Fenster (Test, Vertrag).
 - [ ] Liegende und sitzende Messungen bilden eine Reihe; an einem Morgen zählt nur die erste gültige (Test, Mutation: Reihe je Haltung → rot); Markierung nach Haltung sichtbar in hell und dunkel (E2E-Foto).
 - [ ] Validierungsstand ohne Unterscheidung nach Haltung (Test über alle Stände).
+- [ ] Eine unbrauchbare Messung im Entwicklermodus ist gespeichert, markiert, in der CSV und im Archiv, zählt aber in keiner Reihe (Test, Mutation: unbrauchbar zählt → rot).
 - [ ] Ohne Entwicklermodus weiter nirgends erreichbar (K62 F1).
 
 ## Nicht Teil des Pakets
