@@ -41,8 +41,8 @@ void main() {
       device.healthConnect = port;
       await device.start(tester, const Locale('de'));
       // In der Einrichtung (auch vor einer Wiederherstellung) wird nichts importiert.
-    expect(port.statusCalls, 0);
-    await device.skipSetup(tester);
+      expect(port.statusCalls, 0);
+      await device.skipSetup(tester);
       // App-Start und Öffnen von Heute laufen zusammen; die Sperre lässt einen Lauf durch.
       expect(port.statusCalls, 1);
 
