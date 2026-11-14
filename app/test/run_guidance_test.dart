@@ -39,6 +39,9 @@ class _SyncThrowingVoice implements VoicePort {
   }
 
   @override
+  Future<bool> available({String? languageTag}) => throw StateError('sofort');
+
+  @override
   Future<void> stop() => throw StateError('sofort');
 }
 
@@ -302,6 +305,52 @@ void main() {
         await run(tester, {SettingKeys.guidanceKilometer: '0'}),
         isNotEmpty,
       );
+    });
+  });
+
+  group('Sprachausgabe fehlt (Hinweis beim Start)', () {
+    guided('fehlt sie: einmaliger Hinweis, Lauf und Ansagen laufen weiter', (
+      tester,
+    ) async {
+      final w = await _World.create();
+      w.voice.isAvailable = false;
+      final c = w.controller(segments: _twoParts);
+      expect(c.voiceUnavailable, isFalse);
+      await c.start();
+      await w.seconds(tester, 61);
+      expect(c.voiceUnavailable, isTrue);
+      expect(w.voice.availableCalls, 1);
+      expect(w.voice.availableLanguages, ['de']);
+      expect(c.phase, RecordingPhase.running);
+    });
+
+    guided('vorhanden: kein Hinweis', (tester) async {
+      final w = await _World.create();
+      final c = w.controller(segments: _twoParts);
+      await c.start();
+      await w.seconds(tester, 2);
+      expect(w.voice.availableCalls, 1);
+      expect(c.voiceUnavailable, isFalse);
+    });
+
+    guided('ohne geführte Einheit wird nicht gefragt', (tester) async {
+      final w = await _World.create();
+      w.voice.isAvailable = false;
+      final c = w.controller();
+      await c.start();
+      await w.seconds(tester, 2);
+      expect(w.voice.availableCalls, 0);
+      expect(c.voiceUnavailable, isFalse);
+    });
+
+    guided('Fehler der Abfrage: kein Hinweis (unbekannt)', (tester) async {
+      final w = await _World.create();
+      w.voice.error = StateError('weg');
+      final c = w.controller(segments: _twoParts);
+      await c.start();
+      await w.seconds(tester, 2);
+      expect(c.voiceUnavailable, isFalse);
+      expect(c.phase, RecordingPhase.running);
     });
   });
 

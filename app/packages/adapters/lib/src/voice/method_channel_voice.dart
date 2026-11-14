@@ -19,5 +19,12 @@ class MethodChannelVoice implements VoicePort {
       .invokeMethod<void>('speak', {'text': text, 'language': languageTag});
 
   @override
+  Future<bool> available({String? languageTag}) async =>
+      await _channel.invokeMethod<bool>('available', {
+        'language': languageTag,
+      }) ??
+      false;
+
+  @override
   Future<void> stop() => _channel.invokeMethod<void>('stop');
 }

@@ -143,6 +143,7 @@ class RunController extends ChangeNotifier {
   bool _starting = false;
   bool _locationError = false;
   bool _serviceFailed = false;
+  bool _voiceUnavailable = false;
   RecordingStartDeniedReason? _startDenied;
   bool _serviceWanted = false;
   bool _heartRateSeen = false;
@@ -206,6 +207,10 @@ class RunController extends ChangeNotifier {
   /// Der Dienst konnte nicht starten. Der Lauf zeichnet weiter auf, aber nur,
   /// solange die App sichtbar ist; die Oberfläche weist darauf hin.
   bool get serviceFailed => _serviceFailed;
+
+  /// Die Sprachausgabe fehlt (keine Engine oder Sprache): Die Ansagen der
+  /// geführten Einheit bleiben still, die Oberfläche weist einmal darauf hin.
+  bool get voiceUnavailable => _voiceUnavailable;
 
   /// Stand des Schrittsensors; `null`, solange er noch nicht geprüft ist oder
   /// es keinen Anschluss gibt. Ohne [CadenceAvailability.available] ist die
@@ -391,6 +396,7 @@ class RunController extends ChangeNotifier {
           kind: guidedKind?.name,
         );
         unawaited(_saveGuided());
+        unawaited(_checkVoice());
       }
       // Das Laufband hat keine Positionen und braucht keinen Standort.
       if (runMode == RunMode.gps) {
@@ -555,6 +561,24 @@ class RunController extends ChangeNotifier {
       }
     } on Object {
       // Keine Ansage, der Lauf geht weiter.
+    }
+  }
+
+  /// Fragt einmal beim Start der geführten Einheit, ob die Sprachausgabe
+  /// sprechen kann. Nur ein klares „nein“ setzt den Hinweis; Fehler und
+  /// Hängen sind folgenlos (die Aufzeichnung läuft weiter).
+  Future<void> _checkVoice() async {
+    final v = voice;
+    final t = voiceTexts;
+    if (v == null || t == null) return;
+    try {
+      final ok = await v.available(languageTag: t.languageTag);
+      if (!ok && !_disposed) {
+        _voiceUnavailable = true;
+        notifyListeners();
+      }
+    } on Object {
+      // Unbekannt: kein Hinweis.
     }
   }
 

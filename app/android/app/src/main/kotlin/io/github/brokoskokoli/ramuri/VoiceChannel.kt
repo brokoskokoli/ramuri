@@ -20,6 +20,9 @@ import java.util.Locale
 interface VoiceOutput {
     fun speak(text: String, languageTag: String?)
     fun stop()
+
+    /** Meldet `true`, wenn die Sprachausgabe läuft und die Sprache [languageTag] (leer = System) sprechbar ist. */
+    fun available(languageTag: String?, onResult: (Boolean) -> Unit)
 }
 
 /**
@@ -182,11 +185,16 @@ object VoiceChannel {
         else -> false
     }
 
+    /** Sprache sprechbar (Rückgabe von `isLanguageAvailable`: `LANG_AVAILABLE` und besser; Daten fehlen/nicht unterstützt: nein). */
+    fun languageUsable(code: Int): Boolean = code >= TextToSpeech.LANG_AVAILABLE
+
     fun register(messenger: BinaryMessenger, context: Context) {
         val out = AndroidVoice(context.applicationContext)
         MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
             try {
-                if (dispatch(call.method, call.argument<String>("text"), call.argument<String>("language"), out)) {
+                if (call.method == "available") {
+                    out.available(call.argument<String>("language")) { ok -> result.success(ok) }
+                } else if (dispatch(call.method, call.argument<String>("text"), call.argument<String>("language"), out)) {
                     result.success(null)
                 } else {
                     result.notImplemented()
@@ -207,6 +215,8 @@ object VoiceChannel {
         private var focus: AudioFocusRequest? = null
         private var tts: TextToSpeech? = null
         private var failed = false
+        private var ready = false
+        private val checks = mutableListOf<Pair<String?, (Boolean) -> Unit>>()
         private val release = Runnable { abandonFocus() }
         private val queue = VoiceQueue(::emit) { abandonFocus() }
         private val playback = SynthesisPlayback(MediaFilePlayer(attributes), { it.delete() }) { id -> queue.finished(id) }
@@ -219,6 +229,24 @@ object VoiceChannel {
                 if (failed) return@post
                 queue.speak(text, languageTag)
                 if (tts == null) create()
+            }
+        }
+
+        override fun available(languageTag: String?, onResult: (Boolean) -> Unit) {
+            main.post {
+                if (failed) { onResult(false); return@post }
+                if (ready) { onResult(usable(languageTag)); return@post }
+                checks.add(languageTag to onResult)
+                if (tts == null) create()
+            }
+        }
+
+        private fun usable(languageTag: String?): Boolean {
+            val engine = tts ?: return false
+            return try {
+                languageUsable(engine.isLanguageAvailable(localeFor(languageTag) ?: Locale.getDefault()))
+            } catch (e: Throwable) {
+                false
             }
         }
 
@@ -240,6 +268,8 @@ object VoiceChannel {
                         playback.clear()
                         tts?.shutdown()
                         tts = null
+                        checks.forEach { it.second(false) }
+                        checks.clear()
                         return@post
                     }
                     val engine = tts ?: return@post
@@ -250,7 +280,10 @@ object VoiceChannel {
                         override fun onError(utteranceId: String?) { utteranceId?.let { main.post { events.error(it) } } }
                         override fun onStop(utteranceId: String?, interrupted: Boolean) { utteranceId?.let { main.post { events.stopped(it) } } }
                     })
+                    ready = true
                     queue.markReady()
+                    checks.forEach { it.second(usable(it.first)) }
+                    checks.clear()
                 }
             }
         }

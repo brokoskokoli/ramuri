@@ -187,6 +187,7 @@
   "runNoLaps": "No lap marked yet",
   "runPausedBanner": "Paused",
   "runAutoPausedBanner": "Paused automatically (standstill detected)",
+  "runVoiceUnavailable": "Speech output not available. The announcements of the session stay silent.",
   "runServiceFailed": "Background operation could not start. Recording only continues while the app is visible and the screen stays on.",
   "recoverTitle": "Interrupted run",
   "recoverBody": "A run was not finished, for example because the app was closed. You can resume it or save it as recorded up to the last point. The time in between is marked as a gap and its distance is not estimated.",
