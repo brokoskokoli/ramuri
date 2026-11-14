@@ -7,6 +7,7 @@ import 'device_info.dart';
 import 'morning_launcher.dart';
 import 'morning_measure_controller.dart';
 import 'morning_result_view.dart';
+import 'morning_trend_screen.dart';
 import 'resting_measure_launcher.dart';
 
 /// Was die Einstiege (Karte auf Heute, Eintrag im Profil) wissen müssen.
@@ -83,6 +84,24 @@ Future<void> openMorningMeasurement(
     ),
   );
 }
+
+/// Öffnet die Seite Morgenwerte über der aktuellen Seite.
+Future<void> openMorningValues(
+  BuildContext context, {
+  required StorageSession session,
+  required Clock clock,
+  Map<ValidationQuantity, ValidationState> validationState = ppgValidationState,
+  DeviceInfoReader device = readDeviceInfo,
+}) => Navigator.of(context).push<void>(
+  MaterialPageRoute(
+    builder: (_) => MorningTrendScreen(
+      session: session,
+      clock: clock,
+      validationState: validationState,
+      device: device,
+    ),
+  ),
+);
 
 /// Karte „Morgenmessung“ auf Heute (Design `morgen/Heute`): offen mit „Jetzt
 /// messen“, oder die heutige Messung mit Ruhepuls und RMSSD. Erscheint nur,
@@ -206,6 +225,20 @@ class _MorningCardState extends State<MorningCard> {
               ],
             ),
           ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              key: const Key('morning_card_history'),
+              onPressed: () => openMorningValues(
+                context,
+                session: widget.session,
+                clock: widget.clock,
+                validationState: widget.validationState,
+                device: widget.device,
+              ),
+              child: Text(l10n.morningHistory),
+            ),
+          ),
           if (st.developerMode) ...[
             const SizedBox(height: 10),
             Text(
@@ -283,21 +316,42 @@ class _MorningTileState extends State<MorningTile> {
       builder: (context, snapshot) {
         if (snapshot.data == null) return const SizedBox.shrink();
         final l10n = AppLocalizations.of(context);
-        return ListTile(
-          key: const Key('overview_morning'),
-          leading: const Icon(Icons.wb_twilight_rounded),
-          title: Text(l10n.morningTitle),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          enabled: widget.enabled,
-          onTap: widget.enabled
-              ? () => openMorningMeasurement(
-                  context,
-                  session: widget.session,
-                  clock: widget.clock,
-                  validationState: widget.validationState,
-                  device: widget.device,
-                )
-              : null,
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              key: const Key('overview_morning'),
+              leading: const Icon(Icons.wb_twilight_rounded),
+              title: Text(l10n.morningTitle),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              enabled: widget.enabled,
+              onTap: widget.enabled
+                  ? () => openMorningMeasurement(
+                      context,
+                      session: widget.session,
+                      clock: widget.clock,
+                      validationState: widget.validationState,
+                      device: widget.device,
+                    )
+                  : null,
+            ),
+            ListTile(
+              key: const Key('overview_morning_values'),
+              leading: const Icon(Icons.show_chart_rounded),
+              title: Text(l10n.morningValuesTitle),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              enabled: widget.enabled,
+              onTap: widget.enabled
+                  ? () => openMorningValues(
+                      context,
+                      session: widget.session,
+                      clock: widget.clock,
+                      validationState: widget.validationState,
+                      device: widget.device,
+                    )
+                  : null,
+            ),
+          ],
         );
       },
     );

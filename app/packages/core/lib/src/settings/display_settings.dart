@@ -145,4 +145,8 @@ abstract final class SettingKeys {
   /// Morgenfenster der Morgenmessung (PAR-160K) als `H-H` in ganzen Stunden Ortszeit, etwa
   /// `4-11`; fehlt der Eintrag oder ist er ungültig, gilt 4-11. Nutzereinstellung, kommt ins Archiv.
   static const String morningWindow = 'morning.window';
+
+  /// Opt-in „Kamera-RMSSD einbeziehen“ (K-1, Validierungssperre): `1` = an; fehlt der Eintrag, aus.
+  /// Bewusste Nutzerentscheidung, kommt mit ins Archiv.
+  static const String morningCameraRmssdOptIn = 'morning.camera_rmssd_optin';
 }

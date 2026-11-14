@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/measure/morning_entry.dart';
+import 'package:running_app/features/measure/morning_trend_screen.dart';
 import 'package:running_app/features/measure/resting_measure_launcher.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/ui/ui.dart';
@@ -190,6 +191,12 @@ void main() {
       expect(find.text('Jetzt messen'), findsOneWidget);
       expect(find.byKey(const Key('morning_dev_hint')), findsOneWidget);
       expect(find.text('Entwicklermodus aktiv'), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const Key('morning_card_history')));
+      await tester.tap(find.byKey(const Key('morning_card_history')));
+      await tester.pumpAndSettle();
+      expect(find.byType(MorningTrendScreen), findsOneWidget);
+      await tester.tap(find.byKey(const Key('measure_back')));
+      await tester.pumpAndSettle();
       final size = tester.getSize(find.byKey(const Key('morning_card_start')));
       expect(size.height, greaterThanOrEqualTo(48));
 
@@ -263,6 +270,11 @@ void main() {
     await tester.tap(find.byKey(const Key('home_overview')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('overview_morning')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('overview_morning_values')));
+    await tester.pumpAndSettle();
+    expect(find.byType(MorningTrendScreen), findsOneWidget);
+    await tester.tap(find.byKey(const Key('measure_back')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('overview_morning')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('morning_start')), findsOneWidget);
