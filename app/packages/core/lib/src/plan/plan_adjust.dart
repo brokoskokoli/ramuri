@@ -263,8 +263,8 @@ DateTime pauseBaseWeek(DateTime lastTrainingDay) =>
 /// Anker dieser Woche aus Anlage oder Ziel (neuer Plan), ist es
 /// [PauseRestartKind.none]. Den zweiten Neustart derselben Pause verhindert
 /// der Aufrufer mit seinem Merker. Die Obergrenze (der bisherige Plan dieser
-/// Woche) kommt dann aus [inputsBeforeAdjustment], den Eingaben vor der
-/// Anpassung ([planInputsBeforeAdjustment]), nicht aus den angepassten.
+/// Woche) ist dann das Minimum aus den Minuten dieser Woche vor der Anpassung
+/// ([inputsBeforeAdjustment], [planInputsBeforeAdjustment]) und nach ihr.
 PauseRestart planPauseRestart({
   required TrainingGoal goal,
   required PlanInputs inputs,
@@ -309,14 +309,16 @@ PauseRestart planPauseRestart({
   if (week == null || !_adjustable(week)) {
     return const PauseRestart(PauseRestartKind.none);
   }
-  // Obergrenze: der Plan dieser Woche vor der Anpassung (PAR-202).
+  // Obergrenze: der Plan dieser Woche vor der Anpassung (PAR-202), nie über der angepassten Woche: Nach „zu
+  // schwer“ gilt die kleinere angepasste Woche, nach „zu leicht“ die kleinere Woche davor (sichere Richtung).
   var weekCap = week.minutes!;
   if (anchorFromAdjustment && inputsBeforeAdjustment != null) {
     final before = _weekAt(
       planCourseSetup(goal, inputsBeforeAdjustment, parameters: p),
       monday,
     );
-    if (before?.minutes != null) weekCap = before!.minutes!;
+    final b = before?.minutes;
+    if (b != null && b < weekCap) weekCap = b;
   }
   if (restartsFresh) {
     return PauseRestart(

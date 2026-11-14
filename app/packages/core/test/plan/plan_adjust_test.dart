@@ -479,6 +479,53 @@ void main() {
       );
     });
 
+    test(
+      'Obergrenze ist das Minimum aus Woche vor und nach der Anpassung: '
+      '„zu schwer“ deckelt die angepasste Woche, „zu leicht“ die Woche davor',
+      () {
+        final next = today.add(const Duration(days: 7));
+        int weekMinutes(PlanInputs x) => planCourseSetup(g, x)
+            .course(today: today)
+            .weeks
+            .firstWhere((w) => w.start == today)
+            .minutes!;
+        PauseRestart r(int gap, PlanInputs adjusted) => planPauseRestart(
+          goal: g,
+          inputs: adjusted,
+          today: today,
+          lastTrainingDay: today.subtract(Duration(days: gap)),
+          baseWeekMinutes: 1000,
+          anchorFromAdjustment: true,
+          inputsBeforeAdjustment: i,
+        );
+        final before = weekMinutes(i);
+        // zu schwer: die angepasste Woche ist kleiner als die davor
+        final lighter = i.copyWith(anchor: next, startWeeklyMinutes: 40);
+        final lighterWeek = weekMinutes(lighter.copyWith(anchor: today));
+        expect(lighterWeek, lessThan(before));
+        for (final gap in [10, 60]) {
+          expect(
+            r(gap, lighter).inputs!.startWeeklyMinutes,
+            lessThanOrEqualTo(lighterWeek),
+            reason: 'zu schwer, Pause $gap Tage',
+          );
+        }
+        // zu leicht: die angepasste Woche ist größer als die davor
+        final heavier = i.copyWith(anchor: next, startWeeklyMinutes: 300);
+        expect(
+          weekMinutes(heavier.copyWith(anchor: today)),
+          greaterThan(before),
+        );
+        for (final gap in [10, 60]) {
+          expect(
+            r(gap, heavier).inputs!.startWeeklyMinutes,
+            lessThanOrEqualTo(before),
+            reason: 'zu leicht, Pause $gap Tage',
+          );
+        }
+      },
+    );
+
     test('planAnchorFromAdjustment: ein Pausenneustart mit dem Anker der '
         'Wochenbewertung davor trägt den Anker selbst', () {
       PlanVersionRecord rec(int id, PlanTrigger t, DateTime anchor) =>
