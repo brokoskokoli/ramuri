@@ -68,6 +68,8 @@ Die Statistik umfasst diese Bereiche.
 
 In der Oberfläche heißt die langfristige Trainingsbelastung „langfristiges Belastungsniveau“ (OQ-0039). Kennzahlen anderer Phasen (etwa ATL/CTL, Prognosen, Readiness) erscheinen erst, wenn die liefernde Funktion verfügbar ist.
 
+**Festlegung (K20, K71):** Durchschnittspace = Strecke / (Bewegungszeit − Bewegungszeit ohne gemessene Strecke). Ohne Strecke sind die GPS-Lücken nach PAR-004 und die Wartezeit vom Abschnittsbeginn (Start, Fortsetzen) bis zum ersten akzeptierten Punkt, wenn sie höchstens PAR-004 dauert; die Wartezeit ist keine GPS-Lücke.
+
 **Festlegung (OQ-0065):** Persönliche Bestzeiten werden bis zu ihrer Definition nicht angezeigt.
 
 **Festlegung (OQ-0075):** Der Bereich „Fortschritt“ zeigt nach Design oben die Kilometer der letzten 8 Wochen als Balken, darunter VO₂max und aerobe Effizienz in der Darstellung ihrer Specs und danach die übrigen Kennzahlen mit der Zeitraumwahl (FR-0044).
@@ -95,7 +97,7 @@ Die Detailansicht zeigt eine Tabelle je vollem Kilometer mit Pace und Durchschni
 **Festlegungen (OQ-0075):**
 - Grundlage ist die Bewegungsstrecke nach der Vorverarbeitung; Pausen zählen nicht zur Pace. Ein angebrochener letzter Kilometer erscheint mit seiner Länge.
 - Liegt das Tempo eines Abschnitts unter der Stillstandsschwelle (PAR-014, 0,5 m/s), steht statt der Pace „–“ (OQ-0076).
-- Fehlt der Puls in einem Kilometer, steht dort „–“, nicht 0. Kilometer mit GPS-Lücke sind gekennzeichnet.
+- Fehlt der Puls in einem Kilometer, steht dort „–“, nicht 0. Kilometer mit GPS-Lücke sind gekennzeichnet, nur bei Lücken nach PAR-004; die Pace des Abschnitts lässt die Zeit ohne gemessene Strecke weg wie die Durchschnittspace (FR-0043, K71).
 - In Meilen gelten Meilen statt Kilometer (NFR-0006).
 
 **Akzeptanzkriterien:**

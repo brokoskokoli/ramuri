@@ -181,6 +181,8 @@ Future<PlanRecalculation> _recalculateOnce({
     frozen,
     todayDay,
     pinnedUnits: automatic ? base : pinned,
+    heldDays: automatic ? {for (final u in base) planDay(u.day)} : null,
+    heldUntil: automatic ? _heldUntil(base) : null,
     parameters: parameters,
   );
   if (automatic) {
@@ -313,6 +315,15 @@ bool _isAutomatic(PlanTrigger t) =>
 DateTime _mondayOf(DateTime d) =>
     d.subtract(Duration(days: d.weekday - DateTime.monday));
 
+/// Ende (exklusiv) des Zeitraums, dessen Tage ein automatischer Auslöser hält:
+/// Montag nach der Woche der letzten Einheit in [oldFuture].
+DateTime _heldUntil(List<PlanUnit> oldFuture) {
+  final last = oldFuture
+      .map((u) => planDay(u.day))
+      .reduce((a, b) => a.isAfter(b) ? a : b);
+  return _mondayOf(last).add(const Duration(days: 7));
+}
+
 /// Hält die Tage der bisherigen künftigen Einheiten bis zum Ende der Woche
 /// der letzten fest: `generatePlan` hat sie als Termine bekommen (Inhalt neu,
 /// Tag fest); hier bekommen die Einheiten ihr altes `pinned` und `fixed`
@@ -321,8 +332,7 @@ DateTime _mondayOf(DateTime d) =>
 /// und nur Konflikte echter Termine bleiben gemeldet.
 GeneratedPlan _keepSchedule(GeneratedPlan g, List<PlanUnit> oldFuture) {
   final oldByDay = {for (final u in oldFuture) planDay(u.day): u};
-  final last = oldByDay.keys.reduce((a, b) => a.isAfter(b) ? a : b);
-  final horizonEnd = _mondayOf(last).add(const Duration(days: 7));
+  final horizonEnd = _heldUntil(oldFuture);
   final units = <PlanUnit>[];
   for (final u in g.units) {
     final day = planDay(u.day);

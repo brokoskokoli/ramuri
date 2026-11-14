@@ -21,6 +21,50 @@ void log(String s) {
   print('E2E_${DateTime.now().toIso8601String().substring(11, 23)} $s');
 }
 
+/// Zeile fuer das oeffentliche CI-Log: Praefix "PUB_" statt "E2E_" (tool/ci_e2e.sh
+/// filtert nur E2E_). Nur Schluesselnamen und Zustandsmarken, nie Werte
+/// (SEC-0001..0010).
+void logPub(String s) {
+  // ignore: avoid_print
+  print('PUB_${DateTime.now().toIso8601String().substring(11, 23)} $s');
+}
+
+/// Meldung eines Testfehlers ohne Werte: bei `expect` nur der Grund (`reason:`),
+/// den der matcher ohne Präfix als erste nicht eingerückte Zeile nach
+/// Expected/Actual/Which schreibt (diese drei können Werte tragen und fehlen),
+/// sonst der Text von `fail(...)` (nur Schlüssel und Zeiten); andere Fehler nur
+/// mit ihrem Typ.
+String publicFailure(Object e) {
+  if (e is! TestFailure) return e.runtimeType.toString();
+  final m = e.message ?? '';
+  if (!m.startsWith('Expected:')) return m.split('\n').first;
+  // Echtes Format (matcher): "Expected: ..", "  Actual: ..", "   Which: ..",
+  // Fortsetzungszeilen eingerueckt, danach der Grund ohne Praefix.
+  final grund = m
+      .split('\n')
+      .where(
+        (z) =>
+            z.trim().isNotEmpty &&
+            !z.startsWith(' ') &&
+            !z.startsWith('Expected: '),
+      )
+      .firstOrNull;
+  return 'expect: ${grund ?? 'ohne Grund'}';
+}
+
+/// Fuehrt [body] aus und schreibt bei einem Fehler dessen Meldung ohne Werte
+/// ins oeffentliche Log (sonst verdeckt der Abbau-Fehler am Testende sie).
+Future<void> Function(WidgetTester) reportingFailures(
+  Future<void> Function(WidgetTester) body,
+) => (t) async {
+  try {
+    await body(t);
+  } catch (e) {
+    logPub('FEHLER ${publicFailure(e)}');
+    rethrow;
+  }
+};
+
 class World {
   World(this.deps, this.sensor);
   final AppDependencies deps;
@@ -91,6 +135,39 @@ bool hittable(WidgetTester t, Finder f) {
   return hit.path.any((e) => e.target == target);
 }
 
+/// Tipp auf [target] (ein Element unterhalb der Taste [key]): erst auf Ruhe und
+/// Treffer warten, danach bis zu einer Frist auf [done] warten; gilt es nicht,
+/// einmal erneut tippen und sonst mit klarer Meldung scheitern. Kein festes
+/// Zeitpolster.
+Future<void> tapUntil(
+  WidgetTester t,
+  Finder target,
+  bool Function() done,
+  String what,
+) async {
+  for (var versuch = 1; versuch <= 2; versuch++) {
+    await t.ensureVisible(target);
+    final end = DateTime.now().add(const Duration(seconds: 5));
+    while (!hittable(t, target)) {
+      if (DateTime.now().isAfter(end)) {
+        logPub('tap_miss what=$what versuch=$versuch');
+        break;
+      }
+      await pumpFor(t, const Duration(milliseconds: 100));
+    }
+    if (hittable(t, target)) await t.tap(target);
+    // Auf die Wirkung warten (bis zur Frist), erst dann erneut tippen: Ein
+    // zweiter Tipp wuerde eine verspaetete Wirkung (Umschalter) zuruecknehmen.
+    final wirkungEnde = DateTime.now().add(const Duration(seconds: 3));
+    do {
+      await pumpFor(t, const Duration(milliseconds: 100));
+    } while (!done() && DateTime.now().isBefore(wirkungEnde));
+    if (done()) return;
+    logPub('tap_ohne_wirkung what=$what versuch=$versuch');
+  }
+  fail('Tipp ohne Wirkung: $what');
+}
+
 Future<void> tapKey(WidgetTester t, String key) async {
   final f = find.byKey(Key(key));
   expect(f, findsWidgets, reason: 'Taste $key fehlt');
@@ -100,8 +177,9 @@ Future<void> tapKey(WidgetTester t, String key) async {
   final end = DateTime.now().add(const Duration(seconds: 5));
   while (!hittable(t, f)) {
     if (DateTime.now().isAfter(end)) fail('Tipp trifft $key nicht');
-    // Die Karten-Frage kommt asynchron (Seite sichtbar -> Einwilligung lesen ->
-    // Dialog) und kann sich vor die Taste legen: wegklicken statt Rot.
+    // Ausserhalb eines Laufs (Zusammenfassung, Verlauf) kommt die Karten-Frage
+    // asynchron (Seite sichtbar -> Einwilligung lesen -> Dialog) und kann sich
+    // vor die Taste legen: wegklicken statt Rot.
     await _noConsent(t);
     await pumpFor(t, const Duration(milliseconds: 100));
   }
@@ -193,27 +271,12 @@ Future<void> _noConsent(WidgetTester t) async {
 }
 
 Future<void> finishRun(WidgetTester t) async {
-  await _noConsent(t);
+  // Auf der Lauf-Seite fragt die Karte waehrend des Laufs nicht (kein Dialog vor Pause, Beenden, Bestaetigen).
   await tapKey(t, 'run_pause');
-  await _noConsent(t);
   await tapKey(t, 'run_finish');
-  // Die Karten-Frage kann erst nach dem Tipp aufgehen (tapKey schiebt die
-  // Seite per ensureVisible zur Karte; die Frage folgt asynchron) und den
-  // Bestaetigen-Dialog verdecken: zustandsgesteuert, bis das Ende angezeigt ist.
-  final end = DateTime.now().add(const Duration(seconds: 40));
-  while (!has('run_done_status')) {
-    if (DateTime.now().isAfter(end)) {
-      fail('nach 40 s nicht erreicht: Laufende angezeigt');
-    }
-    if (has('map_consent_dialog')) {
-      await tapDialog(t, 'map_consent_not_now');
-    } else if (has('run_finish_confirm') &&
-        hittable(t, find.byKey(const Key('run_finish_confirm')))) {
-      await tapDialog(t, 'run_finish_confirm');
-    } else {
-      await pumpFor(t, const Duration(milliseconds: 200));
-    }
-  }
+  await waitFor(t, () => has('run_finish_confirm'), 'Beenden-Dialog');
+  await tapDialog(t, 'run_finish_confirm');
+  await waitFor(t, () => has('run_done_status'), 'Laufende angezeigt');
 }
 
 /// Zaehler eines gespeicherten Laufs (keine Werte).

@@ -5,7 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../plan/plan_texts.dart' show planKindName;
 import '../settings/unit_format.dart';
-import 'live_run_values.dart' show splitUnit;
+import 'live_run_values.dart' show LiveBanner, splitUnit;
 import 'live_run_view.dart' show formatClock, livePaceText;
 import 'run_controller.dart';
 import 'treadmill_units.dart';
@@ -95,6 +95,17 @@ class LiveGuidedPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 _progress(c, l10n, timed, pos, number),
+                // Ohne Sprachausgabe bleiben die Ansagen still; der Hinweis
+                // gehört auf die Seite, die beim Start offen ist.
+                if (controller.voiceUnavailable) ...[
+                  const SizedBox(height: 12),
+                  LiveBanner(
+                    Text(
+                      l10n.runVoiceUnavailable,
+                      key: const Key('guided_banner_voice'),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 28),
                 if (pos.finished)
                   Text(

@@ -39,6 +39,9 @@ class _SyncThrowingVoice implements VoicePort {
   }
 
   @override
+  Future<bool> available({String? languageTag}) => throw StateError('sofort');
+
+  @override
   Future<void> stop() => throw StateError('sofort');
 }
 
@@ -302,6 +305,122 @@ void main() {
         await run(tester, {SettingKeys.guidanceKilometer: '0'}),
         isNotEmpty,
       );
+    });
+  });
+
+  group('Sprachausgabe fehlt (Hinweis beim Start)', () {
+    guided('fehlt sie: einmaliger Hinweis, Lauf und Ansagen laufen weiter', (
+      tester,
+    ) async {
+      final w = await _World.create();
+      w.voice.isAvailable = false;
+      final c = w.controller(segments: _twoParts);
+      expect(c.voiceUnavailable, isFalse);
+      await c.start();
+      await w.seconds(tester, 61);
+      expect(c.voiceUnavailable, isTrue);
+      expect(w.voice.availableCalls, 1);
+      expect(w.voice.availableLanguages, ['de']);
+      expect(c.phase, RecordingPhase.running);
+    });
+
+    guided('vorhanden: kein Hinweis', (tester) async {
+      final w = await _World.create();
+      final c = w.controller(segments: _twoParts);
+      await c.start();
+      await w.seconds(tester, 2);
+      expect(w.voice.availableCalls, 1);
+      expect(c.voiceUnavailable, isFalse);
+    });
+
+    guided('Hauptschalter aus: nicht gefragt, kein Hinweis', (tester) async {
+      final w = await _World.create();
+      await w.session.settings.set(SettingKeys.guidanceEnabled, '0', at: _t0);
+      w.voice.isAvailable = false;
+      final c = w.controller(segments: _twoParts);
+      await c.start();
+      await w.seconds(tester, 5);
+      expect(w.voice.availableCalls, 0);
+      expect(c.voiceUnavailable, isFalse);
+    });
+
+    guided('alle Einzelschalter aus: nicht gefragt', (tester) async {
+      final w = await _World.create();
+      for (final k in [
+        SettingKeys.guidanceKilometer,
+        SettingKeys.guidanceHeartRate,
+        SettingKeys.guidanceSegments,
+      ]) {
+        await w.session.settings.set(k, '0', at: _t0);
+      }
+      w.voice.isAvailable = false;
+      final c = w.controller(segments: _twoParts);
+      await c.start();
+      await w.seconds(tester, 5);
+      expect(w.voice.availableCalls, 0);
+      expect(c.voiceUnavailable, isFalse);
+    });
+
+    // Review 4, Muss 3: jeder Einzelschalter allein reicht, damit gefragt wird.
+    for (final only in [
+      SettingKeys.guidanceSegments,
+      SettingKeys.guidanceKilometer,
+      SettingKeys.guidanceHeartRate,
+    ]) {
+      guided('nur $only an: Sprachprüfung läuft', (tester) async {
+        final w = await _World.create();
+        for (final k in [
+          SettingKeys.guidanceKilometer,
+          SettingKeys.guidanceHeartRate,
+          SettingKeys.guidanceSegments,
+        ]) {
+          await w.session.settings.set(k, k == only ? '1' : '0', at: _t0);
+        }
+        w.voice.isAvailable = false;
+        final c = w.controller(segments: _twoParts);
+        await c.start();
+        await w.seconds(tester, 5);
+        expect(w.voice.availableCalls, 1);
+        expect(c.voiceUnavailable, isTrue);
+      });
+    }
+
+    guided('Fortsetzen nach Absturz: Schnappschuss, dann wird gefragt', (
+      tester,
+    ) async {
+      final w = await _World.create();
+      final first = w.controller(segments: _twoParts);
+      await first.start();
+      await w.seconds(tester, 5);
+      final id = first.runId!;
+      w.drop(first);
+      w.voice.isAvailable = false;
+      final calls = w.voice.availableCalls;
+      final second = w.controller(resume: id);
+      await second.start();
+      await w.seconds(tester, 5);
+      expect(w.voice.availableCalls, calls + 1);
+      expect(second.voiceUnavailable, isTrue);
+    });
+
+    guided('ohne geführte Einheit wird nicht gefragt', (tester) async {
+      final w = await _World.create();
+      w.voice.isAvailable = false;
+      final c = w.controller();
+      await c.start();
+      await w.seconds(tester, 2);
+      expect(w.voice.availableCalls, 0);
+      expect(c.voiceUnavailable, isFalse);
+    });
+
+    guided('Fehler der Abfrage: kein Hinweis (unbekannt)', (tester) async {
+      final w = await _World.create();
+      w.voice.error = StateError('weg');
+      final c = w.controller(segments: _twoParts);
+      await c.start();
+      await w.seconds(tester, 2);
+      expect(c.voiceUnavailable, isFalse);
+      expect(c.phase, RecordingPhase.running);
     });
   });
 

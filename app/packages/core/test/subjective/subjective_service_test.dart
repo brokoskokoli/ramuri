@@ -114,6 +114,23 @@ void main() {
     expect(await service.read(other), isNull);
   });
 
+  test(
+    'neue Kurzfassung ohne Bewegungszeit: sRPE entfällt, bleibt nicht alt',
+    () async {
+      await _setTimes(
+        w.session,
+        run,
+        total: const Duration(minutes: 30),
+        moving: const Duration(minutes: 20),
+      );
+      await service.save(run, RunSubjective(rpe: 5));
+      expect((await service.read(run))!.srpe!.points, 100);
+      // Die neue Kurzfassung hat keine Bewegungszeit; gespeichert ist noch die alte.
+      await refreshSrpe(w.session, run, movingTime: null, recomputed: true);
+      expect((await service.read(run))!.srpe, isNull);
+    },
+  );
+
   test('Berechnung nach dem Lauf zieht sRPE nach, TRIMP bleibt unberührt und getrennt (FR-0096)', () async {
     final id = await w.seedRun(DateTime.utc(2030, 2, 1, 8), minutes: 30);
     await service.save(id, RunSubjective(rpe: 5));

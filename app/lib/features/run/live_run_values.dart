@@ -281,6 +281,10 @@ class LiveValues extends StatelessWidget {
             Text(l10n.runServiceFailed, key: const Key('run_banner_service')),
             error: true,
           ),
+        if (controller.voiceUnavailable)
+          LiveBanner(
+            Text(l10n.runVoiceUnavailable, key: const Key('run_banner_voice')),
+          ),
         if (controller.writeFailure != null)
           LiveBanner(
             Text(l10n.runStorageFailed, key: const Key('run_banner_storage')),

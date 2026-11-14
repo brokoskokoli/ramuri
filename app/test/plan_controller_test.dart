@@ -550,10 +550,9 @@ void main() {
       // assignRun lief erst nach dem Abschluss der Neuberechnung (Prüftag
       // geschrieben) und hat dann zugeordnet.
       expect(seenBySecondRead?.runId, runId);
-      expect(
-        await e.session.settings.get(planLastCheckDayKey),
-        _dayText(_today),
-      );
+      // Manuell bewertet die Woche nicht und setzt den Prüftag nicht (ADR-0010
+      // Nachtrag WP24).
+      expect(await e.session.settings.get(planLastCheckDayKey), 'alt');
       expect((await e.plans.unitOn(unit.day))?.runId, runId);
     });
 
@@ -593,6 +592,85 @@ void main() {
       expect(h.last.inputs.anchor, before.anchor);
       expect(h.last.inputs.startWeeklyMinutes, before.startWeeklyMinutes);
       expect(h.last.inputs.today, _today);
+    });
+
+    test('manuelles Neuberechnen setzt den Prüftag nicht: die fällige '
+        'Wochenbewertung läuft danach beim Öffnen', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      await _writeVersion(e, PlanVersion.current, _day(-7));
+      final lastCheck = _dayText(_day(-7));
+      await e.session.settings.set(planLastCheckDayKey, lastCheck, at: _now);
+      expect(await e.controller.recalculate(), PlanActionResult.done);
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        lastCheck,
+        reason: 'manuell bewertet die Woche nicht',
+      );
+      expect(
+        weeklyCheckDue(
+          await e.session.settings.get(planLastCheckDayKey),
+          _today,
+        ),
+        isTrue,
+      );
+      await e.controller.open();
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        _dayText(_today),
+        reason: 'das Öffnen hat die Woche bewertet',
+      );
+    });
+
+    test('Rückmeldung „zu schwer“ setzt den Prüftag nicht, nur den eigenen '
+        'Merker der 2-Wochen-Frage', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      await _writeVersion(e, PlanVersion.current, _day(-7));
+      final lastCheck = _dayText(_day(-7));
+      await e.session.settings.set(planLastCheckDayKey, lastCheck, at: _now);
+      final before = (await e.plans.history()).length;
+      final r = await e.controller.answerFeedback(PlanFeedback.tooHard);
+      expect(r.result, PlanActionResult.done);
+      expect(r.planChanged, isTrue);
+      expect((await e.plans.history()).length, before + 1);
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        lastCheck,
+        reason: 'die Rückmeldung bewertet die Woche (PAR-201) nicht',
+      );
+      expect(
+        await e.session.settings.get(planFeedbackKey),
+        _dayText(_today),
+        reason: 'Abstand der Nachfrage hängt am eigenen Merker',
+      );
+    });
+
+    test('Rückmeldung „zu schwer“ ohne neue Fassung (Geh-Lauf-Abfolge): '
+        'planChanged ist falsch; „passt“ ebenso', () async {
+      final e = await _Env.open();
+      final g = _goal();
+      final walkRun = TrainingGoal(
+        type: g.type,
+        distance: g.distance,
+        targetDate: g.targetDate,
+        runDays: g.runDays,
+        maxSessionSeconds: g.maxSessionSeconds,
+        weeklyCapSeconds: g.weeklyCapSeconds,
+        createdAt: g.createdAt,
+        hardSessionEnabled: g.hardSessionEnabled,
+        canRun30: ContinuousRun30.no,
+      );
+      e.clock.set(_day(-3));
+      expect(await e.controller.saveGoal(walkRun), PlanActionResult.done);
+      e.clock.set(_now);
+      final before = (await e.plans.history()).length;
+      final hard = await e.controller.answerFeedback(PlanFeedback.tooHard);
+      expect(hard.result, PlanActionResult.done);
+      expect((await e.plans.history()).length, before);
+      expect(hard.planChanged, isFalse);
+      final fits = await e.controller.answerFeedback(PlanFeedback.fits);
+      expect(fits.planChanged, isFalse);
     });
 
     test('Lese-Adapter: Güte aus dem neuesten Laufwert (alt gut, neu '
@@ -1323,7 +1401,14 @@ void main() {
       expect(proposal?.suggestion.position, const WalkRunPosition(4, 1));
 
       final opened = (await e.plans.history()).length;
+      final oldCheck = _dayText(_day(-30));
+      await e.session.settings.set(planLastCheckDayKey, oldCheck, at: _now);
       await e.controller.acceptWalkRunRepeat();
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        oldCheck,
+        reason: 'Annehmen bewertet die Woche nicht: Prüftag bleibt',
+      );
       final h = await e.plans.history();
       expect(h, hasLength(opened + 1));
       expect(h.last.inputs.walkRunFrom, thursday);
@@ -1406,6 +1491,93 @@ void main() {
       expect(h.last.inputs.noHardUntil, isNotNull);
       await e.controller.open();
       expect((await e.plans.history()).length, before + 1);
+    });
+
+    test('offene Pausenfrage: keine Nachfrage (PAR-200), nach der Antwort '
+        'wieder fällig', () async {
+      final e = await prepared(10, recorded: false);
+      // Die Anlage liegt 80 Tage zurück: die Nachfrage wäre fällig.
+      await e.controller.open();
+      expect(e.controller.state.feedbackDue, isFalse);
+      await e.controller.answerPause(true);
+      await e.controller.open();
+      expect(e.controller.state.feedbackDue, isTrue);
+    });
+
+    test('Rückmeldung am Mittwoch, Pausenfrage am Donnerstag: Neustart mit '
+        'Anker dieser Montag (F2, PAR-202)', () async {
+      final e = await prepared(6, recorded: false);
+      await e.controller.open();
+      expect(
+        await HintService(session: e.session, clock: e.clock).pauseQuestion(),
+        isNull,
+      );
+      expect(e.controller.state.feedbackDue, isTrue);
+      final out = await e.controller.answerFeedback(PlanFeedback.tooEasy);
+      expect(out.result, PlanActionResult.done);
+      final fb = (await e.plans.history()).last;
+      expect(fb.trigger, PlanTrigger.feedback);
+      expect(fb.inputs.anchor.isAfter(DateTime.utc(2026, 11, 9)), isTrue);
+      // Einen Tag später steht die Pause (7 Tage) fest und die Frage ist offen.
+      e.clock.set(_now.add(const Duration(days: 1)));
+      expect(
+        await HintService(session: e.session, clock: e.clock).pauseQuestion(),
+        isNotNull,
+      );
+      expect(await e.controller.answerPause(true), PlanActionResult.done);
+      final h = (await e.plans.history()).last;
+      expect(h.trigger, PlanTrigger.pause);
+      expect(h.inputs.anchor, DateTime.utc(2026, 11, 9));
+      expect(h.inputs.noHardUntil, isNotNull);
+    });
+
+    test('„zu leicht“, dann Pause ab pauseMinDays: die Pause startet höchstens mit der '
+        'Woche, die vor der Rückmeldung galt (N4)', () async {
+      final e = await prepared(6, recorded: false);
+      await e.controller.open();
+      expect(e.controller.state.feedbackDue, isTrue);
+      expect(
+        (await e.controller.answerFeedback(PlanFeedback.tooEasy)).result,
+        PlanActionResult.done,
+      );
+      final history = await e.plans.history();
+      final monday = DateTime.utc(2026, 11, 9);
+      int weekMinutes(PlanInputs i) {
+        // Wie die Pausenregel: ein späterer Anker gilt ab diesem Montag.
+        final from = i.anchor.isAfter(monday) ? i.copyWith(anchor: monday) : i;
+        final s = planCourseSetup(_goal(), from);
+        return s
+            .course(today: monday)
+            .weeks
+            .firstWhere((w) => w.start == monday)
+            .minutes!;
+      }
+
+      // Einen Tag später steht die Pause fest.
+      e.clock.set(_now.add(const Duration(days: 1)));
+      expect(await e.controller.answerPause(true), PlanActionResult.done);
+      final h = (await e.plans.history()).last;
+      expect(h.trigger, PlanTrigger.pause);
+      final shown = weekMinutes(history[history.length - 2].inputs);
+      final raised = weekMinutes(history.last.inputs);
+      // Die Rückmeldung hat die Woche angehoben, sonst prüft der Test nichts.
+      expect(raised, greaterThan(shown));
+      expect(h.inputs.startWeeklyMinutes, lessThanOrEqualTo(shown));
+    });
+
+    test('Rückmeldung wird bei offener Pausenfrage nicht angenommen (Karte '
+        'über Mitternacht offen)', () async {
+      final e = await prepared(6, recorded: false);
+      await e.controller.open();
+      final before = (await e.plans.history()).length;
+      e.clock.set(_now.add(const Duration(days: 1)));
+      expect(
+        await HintService(session: e.session, clock: e.clock).pauseQuestion(),
+        isNotNull,
+      );
+      final out = await e.controller.answerFeedback(PlanFeedback.tooEasy);
+      expect(out.result, PlanActionResult.rejected);
+      expect((await e.plans.history()).length, before);
     });
 
     test('Ziel speichern am Prüftag bei offener Pausenfrage, dann „Ja“ -> '

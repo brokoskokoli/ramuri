@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:core/core.dart';
@@ -61,6 +62,19 @@ void main() {
         isTrue,
       );
     });
+
+    test(
+      'bei offener Pausenfrage (PAR-202) nicht angeboten, danach fällig',
+      () {
+        final created = DateTime.utc(2026, 11, 1);
+        final today = DateTime.utc(2026, 11, 20);
+        expect(
+          planFeedbackDue(created: created, today: today, pauseOpen: true),
+          isFalse,
+        );
+        expect(planFeedbackDue(created: created, today: today), isTrue);
+      },
+    );
 
     test('zu leicht: ab der nächsten Woche +10 %, danach wieder PAR-193', () {
       final g = _goal();
@@ -341,18 +355,6 @@ void main() {
         baseWeekMinutes: 100,
         provisional: true,
       ).inputs!;
-      // Die vorläufige Fassung gilt schon in dieser Woche: ein weiterer
-      // Neustart wäre sonst `none`.
-      expect(
-        planPauseRestart(
-          goal: g,
-          inputs: p,
-          today: today,
-          lastTrainingDay: today.subtract(const Duration(days: 60)),
-          baseWeekMinutes: 100,
-        ).kind,
-        PauseRestartKind.none,
-      );
       final low = p.copyWith(startWeeklyMinutes: 5);
       final r = planPauseRestart(
         goal: g,
@@ -412,9 +414,191 @@ void main() {
       },
     );
 
-    test('gilt der Neustart schon in dieser Woche, nichts mehr', () {
+    PauseRestart runAdj(
+      int gap, {
+      required PlanInputs inputs,
+      bool adjustment = false,
+    }) => planPauseRestart(
+      goal: g,
+      inputs: inputs,
+      today: today,
+      lastTrainingDay: today.subtract(Duration(days: gap)),
+      baseWeekMinutes: 100,
+      anchorFromAdjustment: adjustment,
+    );
+
+    test('gilt der Neustart schon in dieser Woche (Anlage, Ziel, Neustart), '
+        'nichts mehr; aus einer Anpassung dagegen Neustart', () {
       final s = run(10).inputs!;
-      expect(run(10, inputs: s).kind, PauseRestartKind.none);
+      expect(runAdj(10, inputs: s).kind, PauseRestartKind.none);
+      final r = runAdj(10, inputs: s, adjustment: true);
+      expect(r.kind, PauseRestartKind.short);
+      expect(r.inputs!.anchor, today);
+    });
+
+    test('Anker in einer späteren Woche aus einer Anpassung: Neustart mit '
+        'Anker dieser Montag, die Anpassung entfällt (PAR-202)', () {
+      final next = today.add(const Duration(days: 7));
+      final later = i.copyWith(anchor: next, startWeeklyMinutes: 300);
+      final r = runAdj(10, inputs: later, adjustment: true);
+      expect(r.kind, PauseRestartKind.short);
+      expect(r.inputs!.anchor, today);
+      expect(r.inputs!.weekCountOffset, 0);
+      // gedeckelt vom Regler, nicht von der angehobenen Rückmeldung
+      expect(r.inputs!.startWeeklyMinutes, lessThan(300));
+      expect(
+        runAdj(60, inputs: later, adjustment: true).kind,
+        PauseRestartKind.newStart,
+      );
+      expect(runAdj(10, inputs: later).kind, PauseRestartKind.none);
+    });
+
+    test('Anker in einer späteren Woche: Obergrenze ist der Plan dieser Woche '
+        'vor der Anpassung, nicht die angehobene Rückmeldung (PAR-202)', () {
+      final next = today.add(const Duration(days: 7));
+      final later = i.copyWith(anchor: next, startWeeklyMinutes: 300);
+      final shown = planCourseSetup(
+        g,
+        i,
+      ).course(today: today).weeks.firstWhere((w) => w.start == today).minutes!;
+      PauseRestart r(int gap, {PlanInputs? before}) => planPauseRestart(
+        goal: g,
+        inputs: later,
+        today: today,
+        lastTrainingDay: today.subtract(Duration(days: gap)),
+        baseWeekMinutes: 1000,
+        anchorFromAdjustment: true,
+        inputsBeforeAdjustment: before,
+      );
+      // Ohne den bisherigen Plan würde die angehobene Rückmeldung gelten.
+      expect(r(10).inputs!.startWeeklyMinutes, greaterThan(shown));
+      expect(r(10, before: i).inputs!.startWeeklyMinutes, shown);
+      expect(
+        r(60, before: i).inputs!.startWeeklyMinutes,
+        lessThanOrEqualTo(shown),
+      );
+    });
+
+    test(
+      'Obergrenze ist das Minimum aus Woche vor und nach der Anpassung: '
+      '„zu schwer“ deckelt die angepasste Woche, „zu leicht“ die Woche davor',
+      () {
+        final next = today.add(const Duration(days: 7));
+        int weekMinutes(PlanInputs x) => planCourseSetup(g, x)
+            .course(today: today)
+            .weeks
+            .firstWhere((w) => w.start == today)
+            .minutes!;
+        PauseRestart r(int gap, PlanInputs adjusted) => planPauseRestart(
+          goal: g,
+          inputs: adjusted,
+          today: today,
+          lastTrainingDay: today.subtract(Duration(days: gap)),
+          baseWeekMinutes: 1000,
+          anchorFromAdjustment: true,
+          inputsBeforeAdjustment: i,
+        );
+        final before = weekMinutes(i);
+        // zu schwer: die angepasste Woche ist kleiner als die davor
+        final lighter = i.copyWith(anchor: next, startWeeklyMinutes: 40);
+        final lighterWeek = weekMinutes(lighter.copyWith(anchor: today));
+        expect(lighterWeek, lessThan(before));
+        for (final gap in [10, 60]) {
+          expect(
+            r(gap, lighter).inputs!.startWeeklyMinutes,
+            lessThanOrEqualTo(lighterWeek),
+            reason: 'zu schwer, Pause $gap Tage',
+          );
+        }
+        // zu leicht: die angepasste Woche ist größer als die davor
+        final heavier = i.copyWith(anchor: next, startWeeklyMinutes: 300);
+        expect(
+          weekMinutes(heavier.copyWith(anchor: today)),
+          greaterThan(before),
+        );
+        for (final gap in [10, 60]) {
+          expect(
+            r(gap, heavier).inputs!.startWeeklyMinutes,
+            lessThanOrEqualTo(before),
+            reason: 'zu leicht, Pause $gap Tage',
+          );
+        }
+      },
+    );
+
+    test('planAnchorFromAdjustment: ein Pausenneustart mit dem Anker der '
+        'Wochenbewertung davor trägt den Anker selbst', () {
+      PlanVersionRecord rec(int id, PlanTrigger t, DateTime anchor) =>
+          PlanVersionRecord(
+            id: id,
+            goalId: 1,
+            createdAt: today,
+            validFrom: today,
+            trigger: t,
+            reason: t.name,
+            version: const PlanVersion(),
+            inputsJson: jsonEncode(i.copyWith(anchor: anchor).toJson()),
+            summaryJson: '{}',
+          );
+      final create = rec(1, PlanTrigger.create, _mon(0));
+      final weekly = rec(2, PlanTrigger.weekly, _mon(1));
+      expect(planAnchorFromAdjustment([create, weekly]), isTrue);
+      expect(
+        planAnchorFromAdjustment([
+          create,
+          weekly,
+          rec(3, PlanTrigger.pause, _mon(1)),
+        ]),
+        isFalse,
+      );
+      expect(
+        planAnchorFromAdjustment([
+          create,
+          weekly,
+          rec(3, PlanTrigger.run, _mon(1)),
+        ]),
+        isTrue,
+      );
+    });
+
+    test('planInputsBeforeAdjustment: Eingaben der Fassung vor der Anpassung, '
+        'sonst null', () {
+      // Eindeutige Wochenminuten je Fassung (Id * 10) zum Wiedererkennen.
+      PlanVersionRecord rec(int id, PlanTrigger t, DateTime anchor) =>
+          PlanVersionRecord(
+            id: id,
+            goalId: 1,
+            createdAt: today,
+            validFrom: today,
+            trigger: t,
+            reason: t.name,
+            version: const PlanVersion(),
+            inputsJson: jsonEncode(
+              i.copyWith(anchor: anchor, startWeeklyMinutes: id * 10).toJson(),
+            ),
+            summaryJson: '{}',
+          );
+      int? before(List<PlanVersionRecord> h) =>
+          planInputsBeforeAdjustment(h)?.startWeeklyMinutes;
+      final create = rec(1, PlanTrigger.create, _mon(0));
+      final feedback = rec(2, PlanTrigger.feedback, _mon(1));
+      // create, dann Rückmeldung: die Eingaben von create.
+      expect(before([create, feedback]), 10);
+      // Läufe mit gleichem Anker ändern das nicht.
+      expect(before([create, feedback, rec(3, PlanTrigger.run, _mon(1))]), 10);
+      // Ein Pausenneustart trägt seinen Anker selbst: keine Anpassung.
+      final pause = rec(3, PlanTrigger.pause, _mon(2));
+      expect(before([create, feedback, pause]), isNull);
+      expect(
+        before([create, feedback, pause, rec(4, PlanTrigger.run, _mon(2))]),
+        isNull,
+      );
+      // Anpassung nach einer Pause: die Fassung davor (die Pause).
+      expect(before([create, pause, rec(4, PlanTrigger.weekly, _mon(3))]), 30);
+      // Ohne Anpassung, mit einer einzigen Fassung, leer: null.
+      expect(before([create]), isNull);
+      expect(before([create, rec(2, PlanTrigger.goalChange, _mon(1))]), isNull);
+      expect(before(const []), isNull);
     });
 
     test('Basiswoche: letzte vollständige Kalenderwoche vor Pausenbeginn', () {

@@ -30,6 +30,23 @@ void main() {
     expect(calls.first.arguments, {'text': 'Hallo', 'language': 'de'});
   });
 
+  test('available fragt mit der Sprache; nur true heißt verfügbar', () async {
+    for (final (answer, expected) in [
+      (true, true),
+      (false, false),
+      (null, false),
+    ]) {
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        return answer;
+      });
+      calls.clear();
+      expect(await MethodChannelVoice().available(languageTag: 'de'), expected);
+      expect(calls.single.method, 'available');
+      expect(calls.single.arguments, {'language': 'de'});
+    }
+  });
+
   test('Kanalfehler kommt als Ausnahme ohne Text zurück', () async {
     messenger.setMockMethodCallHandler(channel, (call) async {
       throw PlatformException(code: 'voice_failed');

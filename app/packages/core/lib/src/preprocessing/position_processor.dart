@@ -2,11 +2,12 @@ import '../algorithm_category.dart';
 import 'geo.dart';
 import 'latest_value_index.dart';
 import 'measurement.dart';
+import 'movement_time_processor.dart' show TimeSpan;
 import 'preprocessing_parameters.dart';
 
 /// Kennung und Version des Positionsverfahrens (ADR-0004 P.3).
 const String positionMethod = 'position-filter';
-const int positionMethodVersion = 1;
+const int positionMethodVersion = 2;
 
 /// Kategorie des Verfahrens (NFR-0002, docs/architecture/algorithm-categories.md): B.
 const AlgorithmCategory positionCategory = AlgorithmCategory.heuristic;
@@ -69,9 +70,11 @@ class PositionResult {
     required this.distanceMeters,
     required this.bridgedDistanceMeters,
     required List<PositionGap> gaps,
+    List<TimeSpan> leadIns = const [],
   }) : positions = List.unmodifiable(positions),
        acceptedPoints = List.unmodifiable(acceptedPoints),
-       gaps = List.unmodifiable(gaps);
+       gaps = List.unmodifiable(gaps),
+       leadIns = List.unmodifiable(leadIns);
 
   String get method => positionMethod;
   int get methodVersion => positionMethodVersion;
@@ -87,6 +90,12 @@ class PositionResult {
   /// Teil von [distanceMeters], der über Aussetzer ≤ PAR-004 geschätzt ist.
   final double bridgedDistanceMeters;
   final List<PositionGap> gaps;
+
+  /// Wartezeit von Abschnittsbeginn (Start, Fortsetzen) bis zum ersten
+  /// akzeptierten Punkt, die höchstens PAR-004 dauert und deshalb keine Lücke
+  /// ist (Version 2). Sie hat keine Strecke; sie zählt in der Durchschnittspace
+  /// wie eine Lücke nicht mit (K20). Nie zugleich in [gaps].
+  final List<TimeSpan> leadIns;
 }
 
 /// Positionsfilter, Strecke und Lücken (PAR-001 bis PAR-004).
@@ -104,6 +113,7 @@ class PositionProcessor {
   final List<ProcessedPosition> _positions = [];
   final List<RawPosition> _accepted = [];
   final List<PositionGap> _gaps = [];
+  final List<TimeSpan> _leadIns = [];
   final LatestValueIndex<RawPosition> _index = LatestValueIndex();
   RawPosition? _anchor;
   DateTime? _lastTime;
@@ -120,6 +130,7 @@ class PositionProcessor {
   void pause(DateTime time) {
     if (_paused) return;
     _closeGapIfLong(time);
+    _closeLeadIn(time);
     _paused = true;
     _anchor = null;
     _sectionStart = null;
@@ -132,6 +143,16 @@ class PositionProcessor {
     if (!_paused) return;
     _paused = false;
     _sectionStart = time;
+  }
+
+  /// Kurze Wartezeit auf den ersten Punkt des Abschnitts (Version 2).
+  void _closeLeadIn(DateTime end) {
+    final from = _anchor == null ? _sectionStart : null;
+    if (from != null &&
+        end.isAfter(from) &&
+        end.difference(from) <= parameters.gapMaxDuration) {
+      _leadIns.add(TimeSpan(start: from, end: end));
+    }
   }
 
   void _closeGapIfLong(DateTime end) {
@@ -190,7 +211,9 @@ class PositionProcessor {
     final from = _gapReference;
     if (from != null && p.time.difference(from) > parameters.gapMaxDuration) {
       _gaps.add(PositionGap(start: from, end: p.time, open: false));
-    } else if (anchor != null) {
+    } else if (anchor == null) {
+      _closeLeadIn(p.time);
+    } else {
       counted = _distanceBetween(anchor, p);
       bridged = _discardedSinceAnchor > 0;
       _distance += counted;
@@ -293,6 +316,15 @@ class PositionProcessor {
         at.difference(from) > parameters.gapMaxDuration) {
       gaps.add(PositionGap(start: from, end: at, open: true));
     }
+    final leadIns = [..._leadIns];
+    final open = _sectionStart;
+    if (!_paused &&
+        _anchor == null &&
+        open != null &&
+        at.isAfter(open) &&
+        at.difference(open) <= parameters.gapMaxDuration) {
+      leadIns.add(TimeSpan(start: open, end: at));
+    }
     return PositionResult(
       parameterVersion: parameters.parameterVersion,
       positions: _positions,
@@ -300,6 +332,7 @@ class PositionProcessor {
       distanceMeters: _accepted.isEmpty ? null : _distance,
       bridgedDistanceMeters: _bridged,
       gaps: gaps,
+      leadIns: leadIns,
     );
   }
 }

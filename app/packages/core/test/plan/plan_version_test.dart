@@ -36,9 +36,9 @@ void main() {
     test('eine Logikänderung erhöht die Methodenversion, nicht nur den '
         'Parameterstand (NB4 Soll 3)', () {
       // T1 (Zeitziel steigert bis zur Passform) änderte die Logik, keinen Wert.
-      expect(planMethodVersion, 4);
+      expect(planMethodVersion, 5);
       const c = PlanVersion.current;
-      expect(c.methodVersion, 4);
+      expect(c.methodVersion, 5);
       expect(c.parameterVersion, planRuleVersion);
       // Eine Fassung der ersten Methodenversion gilt als veraltet.
       expect(

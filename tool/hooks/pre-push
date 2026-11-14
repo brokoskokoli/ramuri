@@ -8,7 +8,8 @@
 # PROJECT.md, AGENTS.md, README.md). Ein Tag refs/tags/v* (auch annotiert) nur, wenn sein Commit schon in
 # refs/remotes/origin/main liegt (Release-Pipeline, WP30); Tag-Löschungen sind frei.
 # Vor allen Regeln scannt jeder Push (jede Ref außer Löschungen) die neuen Commits mit
-# tool/check_private.sh --push (Dateinamen, Nachrichten, hinzugefügte Zeilen; Treffer lehnen ab; Umgehen nur --no-verify).
+# tool/check_private.sh --push (Autor und Committer, Nachrichten, Dateinamen, hinzugefügte Zeilen; Tag-Annotationen und der Ref-Name
+# laufen über --stdin; Treffer lehnen ab; Umgehen nur --no-verify).
 # wp/*- und alle anderen Pushes (auch Löschungen) bleiben frei.
 # Einrichtung: core.hooksPath=tool/hooks. Eingabe (stdin) wie bei Git:
 #   <lokale ref> <lokaler sha> <remote ref> <remote sha>

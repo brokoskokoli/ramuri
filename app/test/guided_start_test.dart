@@ -7,6 +7,7 @@ import 'package:running_app/features/home/home_screen.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/plan/plan_texts.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/l10n/app_localizations_de.dart';
 import 'package:running_app/features/run/guided_segments.dart';
 import 'package:running_app/features/run/live_run_view.dart';
@@ -80,6 +81,23 @@ PlanUnit _easyWithWarm() => PlanUnit(
       intensity: PlanTargetIntensity(hrMinBpm: 128, hrMaxBpm: 145),
     ),
     PlanSegment(kind: PlanSegmentKind.coolDown, minutes: 5),
+  ],
+);
+
+PlanUnit _walkRunUnit() => PlanUnit(
+  id: 2,
+  day: _today,
+  kind: PlanUnitKind.walkRun,
+  phase: PlanPhase.build,
+  weekIndex: 0,
+  minutes: 29,
+  segments: [
+    const PlanSegment(kind: PlanSegmentKind.warmUp, minutes: 5),
+    for (var i = 0; i < 8; i++) ...[
+      const PlanSegment(kind: PlanSegmentKind.run, minutes: 1),
+      const PlanSegment(kind: PlanSegmentKind.walk, minutes: 2),
+    ],
+    const PlanSegment(kind: PlanSegmentKind.coolDown, minutes: 5),
   ],
 );
 
@@ -485,6 +503,44 @@ void main() {
       expect(_planSelected(tester), isFalse);
       expect(_text('guided_no_unit'), contains('Warnsignal'));
     });
+
+    for (final (lang, hint) in [('de', 'Laufen'), ('en', 'Run')]) {
+      testWidgets('Geh-Lauf: wiederholte Folge in einer Zeile, Aufwärmen einzeln '
+          '($lang, Schrift 2,0, 360 dp)', (tester) async {
+        tester.view.physicalSize = const Size(360 * 3, 800 * 3);
+        tester.view.devicePixelRatio = 3;
+        tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+        addTearDown(() {
+          tester.view.reset();
+          tester.platformDispatcher.clearTextScaleFactorTestValue();
+        });
+        final d = Device();
+        await _open(d);
+        await _openFlow(
+          tester,
+          d,
+          unit: _walkRunUnit(),
+          startPlanned: true,
+          locale: Locale(lang),
+        );
+        final l = lookupAppLocalizations(Locale(lang));
+        // 18 Abschnitte, aber nur drei Einträge.
+        expect(key('guided_segment_2'), findsOneWidget);
+        expect(key('guided_segment_3'), findsNothing);
+        final line = _text('guided_group_1');
+        expect(
+          line,
+          l.guidedRepeat(
+            8,
+            '${planSegmentDuration(l, 60)} ${planSegmentName(l, PlanSegmentKind.run)} · '
+            '${planSegmentDuration(l, 120)} ${planSegmentName(l, PlanSegmentKind.walk)}',
+          ),
+        );
+        expect(line, startsWith('8×'));
+        expect(line, contains(hint));
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     testWidgets('lockere Einheit zeigt nur den Hauptteil, Ziel Puls', (
       tester,

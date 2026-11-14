@@ -90,11 +90,20 @@ class MapConsentController extends ChangeNotifier {
   /// Fragt beim ersten Öffnen einer Karte (nie beim App-Start). Gibt zurück, ob die Einwilligung erteilt ist. Nach
   /// "Nicht jetzt" fragt sie in dieser Sitzung nicht erneut; nach einem Widerruf fragt sie nie, dafür sind die
   /// Einstellungen da.
-  Future<bool> ensureAsked(BuildContext context) async {
+  ///
+  /// Die Frage geht nur auf, solange die Seite oben liegt (kein Dialog, keine andere Route darüber) und [mayAsk]
+  /// (falls gegeben) es erlaubt; beides wird erst nach dem Warten auf den Stand geprüft, denn bis dahin kann sich
+  /// vieles geändert haben. Sonst bleibt es bei `false`, ohne "Nicht jetzt": gefragt wird beim nächsten Bedarf.
+  Future<bool> ensureAsked(
+    BuildContext context, {
+    bool Function()? mayAsk,
+  }) async {
     await ready;
     if (_granted) return true;
     if (_status != MapConsentStatus.neverAsked || _deferred) return false;
     if (!context.mounted) return false;
+    if (ModalRoute.of(context)?.isCurrent == false) return false;
+    if (mayAsk != null && !mayAsk()) return false;
     return _asking ??= _ask(context).whenComplete(() => _asking = null);
   }
 
