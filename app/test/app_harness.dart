@@ -70,6 +70,9 @@ class Device {
   /// Erinnerungen (FR-0174); `null`: nicht verdrahtet.
   ReminderScheduler? reminders;
 
+  /// Health Connect (WP32); `null`: nicht verfügbar.
+  HealthConnectPort? healthConnect;
+
   /// Läufe beziehen den Puls aus der Sensorverwaltung ([sensors]) statt aus
   /// [heartRate] (Gerät 'hr1', ohne Verwaltung); [lastRun] ist die Pulsquelle
   /// des jüngsten Laufs.
@@ -136,6 +139,7 @@ class Device {
           archiveRestore: archiveRestore,
           map: map,
           reminders: reminders,
+          healthConnect: healthConnect,
           permissions: permissions,
           runPorts: RunPorts(
             access: locationAccessOverride ?? locationAccess,

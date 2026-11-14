@@ -3,4 +3,8 @@
     <string name="recording_channel_name">Aufzeichnung</string>
     <string name="recording_notification_title">Lauf läuft</string>
     <string name="recording_notification_text">Tippen, um zum Lauf zurückzukehren</string>
+    <string name="health_rationale_title">Gesundheitsdaten in ramuri</string>
+    <string name="health_rationale_body">ramuri liest Trainings, Herzfrequenz, Ruhepuls, HRV, Schlaf und VO2max-Schätzwerte aus Health Connect, nur die Arten, die du einschaltest, und zeigt sie neben deinen eigenen Läufen. ramuri liest nur, schreibt nie und ruft nur ab, solange die App offen ist. Die Werte bleiben auf diesem Handy und gehen an keinen Server. Du kannst jede Art in ramuri ausschalten oder jederzeit in Health Connect zurücknehmen.</string>
+    <string name="health_rationale_open">ramuri öffnen</string>
+    <string name="health_rationale_close">Schließen</string>
 </resources>

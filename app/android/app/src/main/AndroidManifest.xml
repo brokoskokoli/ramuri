@@ -80,8 +80,8 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- ADR-0007 Punkt 5: Pflicht für Health Connect. Die Rationale-Activity leitet nur in die App weiter (die
-             Erklärung steht in den Einstellungen); der Alias deckt Android 14 ab (Berechtigungsnutzung ansehen). -->
+        <!-- ADR-0007 Punkt 5: Pflicht für Health Connect. Die Rationale-Activity zeigt einen kurzen Erklärungstext und bietet an,
+             die App zu öffnen (WP32 Teil C2); der Alias deckt Android 14 ab (Berechtigungsnutzung ansehen). -->
         <activity
             android:name=".HealthRationaleActivity"
             android:exported="true"

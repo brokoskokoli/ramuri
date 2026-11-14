@@ -3,4 +3,8 @@
     <string name="recording_channel_name">Recording</string>
     <string name="recording_notification_title">Run in progress</string>
     <string name="recording_notification_text">Tap to return to the run</string>
+    <string name="health_rationale_title">Health data in ramuri</string>
+    <string name="health_rationale_body">ramuri reads workouts, heart rate, resting heart rate, HRV, sleep and VO2max estimates from Health Connect, only the types you switch on, to show them next to your own runs. It only reads, never writes, and only while the app is open. The values stay on this phone and go to no server. You can switch each type off in ramuri or withdraw it in Health Connect at any time.</string>
+    <string name="health_rationale_open">Open ramuri</string>
+    <string name="health_rationale_close">Close</string>
 </resources>
