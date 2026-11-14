@@ -54,8 +54,15 @@ DateTime _day(int back, {int hour = 6}) =>
 /// Eine Reihe: 5 liegende und 2 sitzende zählende Tage (heute 52,4); dazu
 /// Nicht-Zählendes: zweite Messung heute (70), außerhalb des Fensters gestern
 /// (99), anderes Gerät, ältere als 14 Tage; mit [dev] eine unbrauchbare.
-Future<StorageSession> _session({required bool dev}) async {
+Future<StorageSession> _session({required bool dev, bool optIn = false}) async {
   final s = await FakeStorage().open(testKey);
+  if (optIn) {
+    await s.settings.set(
+      SettingKeys.morningCameraRmssdOptIn,
+      '1',
+      at: _clock.now(),
+    );
+  }
   if (dev) await SettingsDeveloperModeStore(s.settings, _clock).set(true);
   final store = (s as MorningStorage).morning;
   for (final (back, bpm) in [(0, 52.4), (2, 54.0), (3, 53.0), (5, 55.0)]) {
@@ -132,26 +139,57 @@ void main() {
       test('Entwicklermodus: keine Markierung (${supine.name})', () {
         final m = morningTrendMarks(
           developerMode: true,
+          optIn: false,
           state: _state(supine: supine, hr: ValidationState.failed),
         );
         expect(m.rmssd, MorningRmssdMark.none);
+        expect(m.optInVisible, isFalse);
         expect(m.hrInaccurate, isFalse);
         expect(m.rmssdLocked, isFalse);
       });
     }
 
-    test('ein Stand für alle Haltungen: bestanden, eingeschränkt, nicht '
-        'bestanden, ungeprüft', () {
-      MorningTrendMarks marks(ValidationState s) =>
-          morningTrendMarks(developerMode: false, state: _state(supine: s));
-      expect(
-        marks(ValidationState.passed).rmssd,
-        MorningRmssdMark.experimental,
+    test('bestanden: ohne Opt-in zählt RMSSD nicht, mit Opt-in zählt sie '
+        '(ein Schalter, keine Haltung)', () {
+      final off = morningTrendMarks(
+        developerMode: false,
+        optIn: false,
+        state: _state(),
       );
-      expect(marks(ValidationState.passed).rmssdLocked, isFalse);
+      expect(off.rmssd, MorningRmssdMark.notEnabled);
+      expect(off.rmssdLocked, isTrue);
+      expect(off.optInVisible, isTrue);
+      final on = morningTrendMarks(
+        developerMode: false,
+        optIn: true,
+        state: _state(),
+      );
+      expect(on.rmssd, MorningRmssdMark.experimental);
+      expect(on.rmssdLocked, isFalse);
+      expect(on.optInVisible, isTrue);
+    });
+
+    test('Entwicklermodus ohne Opt-in: RMSSD zählt', () {
+      final m = morningTrendMarks(
+        developerMode: true,
+        optIn: false,
+        state: _state(),
+      );
+      expect(m.rmssdLocked, isFalse);
+      expect(m.optInVisible, isFalse);
+    });
+
+    test('ein Stand für alle Haltungen: eingeschränkt, nicht bestanden, '
+        'ungeprüft (Opt-in ändert nichts, kein Schalter)', () {
+      MorningTrendMarks marks(ValidationState s) => morningTrendMarks(
+        developerMode: false,
+        optIn: true,
+        state: _state(supine: s),
+      );
       for (final s in [ValidationState.limited, ValidationState.failed]) {
         expect(marks(s).rmssd, MorningRmssdMark.inaccurate);
         expect(marks(s).rmssdLocked, isTrue);
+        expect(marks(s).optInVisible, isFalse);
       }
       expect(
         marks(ValidationState.notChecked).rmssd,
@@ -164,6 +202,7 @@ void main() {
         expect(
           morningTrendMarks(
             developerMode: false,
+            optIn: false,
             state: _state(hr: s),
           ).hrInaccurate,
           s == ValidationState.failed,
@@ -172,7 +211,7 @@ void main() {
     });
 
     test('ungeprüft: noch nicht geprüft', () {
-      final m = morningTrendMarks(developerMode: false);
+      final m = morningTrendMarks(developerMode: false, optIn: false);
       expect(m.rmssd, MorningRmssdMark.notChecked);
     });
   });
@@ -268,19 +307,60 @@ void main() {
         );
       });
 
-      testWidgets('bestanden ($mode): eine Kennzeichnung für beide Haltungen, '
-          'kein Schalter', (tester) async {
+      testWidgets('bestanden ohne Opt-in ($mode): nicht eingeschaltet, ein '
+          'Schalter', (tester) async {
         final s = await _session(dev: false);
         await _pump(tester, s, dark: dark, state: _state());
         expect(find.byKey(const Key('morning_dev_hint')), findsNothing);
         expect(
           _text(tester, 'morning_rmssd_mark'),
+          'experimentell, nicht eingeschaltet',
+        );
+        expect(find.text('Kamera-RMSSD einbeziehen'), findsOneWidget);
+        expect(find.byType(SwitchListTile), findsOneWidget);
+      });
+
+      testWidgets('bestanden mit Opt-in ($mode): experimentell, mit einem '
+          'Brustgurt verglichen, für beide Haltungen', (tester) async {
+        final s = await _session(dev: false, optIn: true);
+        await _pump(tester, s, dark: dark, state: _state());
+        expect(
+          _text(tester, 'morning_rmssd_mark'),
           'experimentell, mit einem Brustgurt verglichen (ein Handy)',
         );
-        expect(find.byType(Switch), findsNothing);
-        expect(find.byType(SwitchListTile), findsNothing);
+        expect(find.byType(SwitchListTile), findsOneWidget);
+        expect(
+          tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+          isTrue,
+        );
+        // Die Reihe enthält sitzende Punkte; es gibt nur diesen Schalter.
+        expect(find.text('sitzend'), findsWidgets);
       });
     }
+
+    testWidgets('Schalter setzt und löscht den Opt-in', (tester) async {
+      final s = await _session(dev: false);
+      await _pump(tester, s, state: _state());
+      await tester.tap(find.byKey(const Key('morning_optin')));
+      await _settle(tester);
+      expect(await s.settings.get(SettingKeys.morningCameraRmssdOptIn), '1');
+      expect(
+        _text(tester, 'morning_rmssd_mark'),
+        'experimentell, mit einem Brustgurt verglichen (ein Handy)',
+      );
+      await tester.tap(find.byKey(const Key('morning_optin')));
+      await _settle(tester);
+      expect(await s.settings.get(SettingKeys.morningCameraRmssdOptIn), '0');
+    });
+
+    testWidgets('Entwicklermodus: kein Schalter, auch ohne Opt-in', (
+      tester,
+    ) async {
+      final s = await _session(dev: true);
+      await _pump(tester, s, state: _state());
+      expect(find.byKey(const Key('morning_optin')), findsNothing);
+      expect(find.byKey(const Key('morning_rmssd_mark')), findsNothing);
+    });
 
     testWidgets('Ruhepuls nicht bestanden: markiert', (tester) async {
       final s = await _session(dev: false);

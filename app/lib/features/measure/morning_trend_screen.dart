@@ -37,12 +37,14 @@ class _Data {
     required this.developerMode,
     required this.measurements,
     required this.window,
+    required this.optIn,
     required this.device,
   });
 
   final bool developerMode;
   final List<MorningMeasurement> measurements;
   final MorningWindow window;
+  final bool optIn;
   final DeviceInfo device;
 }
 
@@ -76,6 +78,9 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
         session.settings,
         widget.clock,
       ).read(),
+      optIn:
+          await session.settings.get(SettingKeys.morningCameraRmssdOptIn) ==
+          '1',
       device: await widget.device(),
     );
   }
@@ -84,6 +89,19 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
     _failed = false;
     _future = _load();
   });
+
+  Future<void> _setOptIn(bool on) async {
+    try {
+      await widget.session.settings.set(
+        SettingKeys.morningCameraRmssdOptIn,
+        on ? '1' : '0',
+        at: widget.clock.now(),
+      );
+      _reload();
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
+  }
 
   Future<void> _pickWindow(MorningWindow current) async {
     final chosen = await showDialog<MorningWindow>(
@@ -162,6 +180,7 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
     final offset = widget.clock.utcOffsetAt(now);
     final marks = morningTrendMarks(
       developerMode: d.developerMode,
+      optIn: d.optIn,
       state: widget.validationState,
     );
     List<MorningDayValue> values(double? Function(MorningMeasurement) pick) =>
@@ -230,6 +249,16 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
           mark: morningMarkText(l10n, marks.rmssd),
           markKey: const Key('morning_rmssd_mark'),
           note: marks.rmssdLocked ? l10n.morningLockedNote : null,
+          footer: marks.optInVisible
+              ? SwitchListTile(
+                  key: const Key('morning_optin'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.morningOptInTitle),
+                  subtitle: Text(l10n.morningMarkExperimental),
+                  value: d.optIn,
+                  onChanged: _setOptIn,
+                )
+              : null,
         ),
       ],
       if (rows.isNotEmpty) _RecentList(rows: rows, nf: nf0, nf1: nf1),
@@ -267,6 +296,7 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
 String? morningMarkText(AppLocalizations l10n, MorningRmssdMark m) =>
     switch (m) {
       MorningRmssdMark.none => null,
+      MorningRmssdMark.notEnabled => l10n.morningMarkNotEnabled,
       MorningRmssdMark.experimental => l10n.morningMarkExperimental,
       MorningRmssdMark.inaccurate => l10n.morningMarkInaccurate,
       MorningRmssdMark.notChecked => l10n.morningMarkNotChecked,
@@ -480,6 +510,7 @@ class _TrendCard extends StatelessWidget {
     required this.mark,
     required this.markKey,
     this.note,
+    this.footer,
   });
 
   final Key cardKey;
@@ -494,6 +525,7 @@ class _TrendCard extends StatelessWidget {
   final String? mark;
   final Key markKey;
   final String? note;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -579,6 +611,7 @@ class _TrendCard extends StatelessWidget {
               style: theme.bodySmall!.copyWith(color: c.textMuted),
             ),
           ],
+          ?footer,
         ],
       ),
     );

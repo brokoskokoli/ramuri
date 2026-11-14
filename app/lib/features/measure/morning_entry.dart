@@ -17,11 +17,15 @@ class MorningEntryState {
   const MorningEntryState({
     required this.developerMode,
     required this.measurements,
+    this.optIn = false,
   });
 
   /// Entwicklermodus an (nur für den unauffälligen Hinweis).
   final bool developerMode;
   final List<MorningMeasurement> measurements;
+
+  /// Opt-in für Kamera-RMSSD (nur für die Markierung, K-1).
+  final bool optIn;
 }
 
 /// Lädt Entwicklermodus und Messungen; `null`, wenn die Morgenmessung nicht
@@ -47,6 +51,9 @@ Future<MorningEntryState?> loadMorningEntry({
     }
     return MorningEntryState(
       developerMode: dev,
+      optIn:
+          await session.settings.get(SettingKeys.morningCameraRmssdOptIn) ==
+          '1',
       measurements: [
         for (final e in await (session as MorningStorage).morning.list())
           e.value,
@@ -187,6 +194,7 @@ class _MorningCardState extends State<MorningCard> {
         ? null
         : morningTrendMarks(
             developerMode: st.developerMode,
+            optIn: st.optIn,
             state: widget.validationState,
           );
     final rmssdMark = marks == null ? null : morningMarkText(l10n, marks.rmssd);

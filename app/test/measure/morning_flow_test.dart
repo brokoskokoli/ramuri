@@ -795,7 +795,21 @@ void main() {
           ValidationQuantity.restingHr: ValidationState.passed,
           ValidationQuantity.lnRmssdSupine: ValidationState.passed,
         };
+        final o = await _Rig.make(state: passed);
+        await o.show(tester, dark: dark);
+        await o.runThrough(tester);
+        expect(o.c.outcome, MorningOutcome.good);
+        expect(
+          tester.widget<Text>(find.byKey(const Key('morning_rmssd_mark'))).data,
+          'experimentell, nicht eingeschaltet',
+        );
+
         final r = await _Rig.make(state: passed);
+        await r.session.settings.set(
+          SettingKeys.morningCameraRmssdOptIn,
+          '1',
+          at: r.clock.now(),
+        );
         await r.show(tester, dark: dark);
         await r.runThrough(tester);
         expect(r.c.outcome, MorningOutcome.good);

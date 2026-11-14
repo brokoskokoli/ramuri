@@ -207,6 +207,11 @@ void main() {
       tester,
     ) async {
       final s = await _session(dev: false);
+      await s.settings.set(
+        SettingKeys.morningCameraRmssdOptIn,
+        '1',
+        at: _clock.now(),
+      );
       await (s as MorningStorage).morning.add(_today());
       await _pump(
         tester,
