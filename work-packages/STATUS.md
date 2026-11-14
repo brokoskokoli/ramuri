@@ -39,6 +39,7 @@ Stand: 2026-11-04, ADR-0002 bis ADR-0008 freigegeben, Plan für M1 liegt vor, WP
 | WP36 | Validierung übernehmen | geplant | M3, siehe [M3-PLAN.md](M3-PLAN.md) |
 | WP37 | Morgenmessung nach dem ersten Feldtest (Gurt im Ablauf, Ruhephase überspringen, bestes 60-s-Fenster) | geplant | K66; startet, sobald eine Sitzung frei ist; Voraussetzung für die Validierungsmessung |
 | WP38 | Profil in der unteren Navigation | geplant | K69; klein, startet, sobald eine Sitzung frei ist |
+| – | Folgepunkt Werkzeuge | geplant | `tool/hooks/pre-push` behandelt `research/input/**/README.md` als Code, obwohl `research/CLAUDE.md` sie auf main vorsieht; in die Doku-Ausnahme aufnehmen (nächstes Werkzeug-Paket bzw. WP38 mitnehmen) |
 
 ## M1 im Detail
 
