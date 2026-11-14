@@ -232,6 +232,9 @@ object VoiceChannel {
             }
         }
 
+        // Kommt onInit der Engine nie zurück, antwortet `available` nie und die
+        // Anfrage bleibt in `checks` offen. Folgenlos: Die Dart-Seite wartet
+        // ohne Frist und ohne Wirkung (unawaited, dann kein Hinweis).
         override fun available(languageTag: String?, onResult: (Boolean) -> Unit) {
             main.post {
                 if (failed) { onResult(false); return@post }

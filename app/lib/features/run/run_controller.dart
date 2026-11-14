@@ -396,7 +396,6 @@ class RunController extends ChangeNotifier {
           kind: guidedKind?.name,
         );
         unawaited(_saveGuided());
-        unawaited(_checkVoice());
       }
       // Das Laufband hat keine Positionen und braucht keinen Standort.
       if (runMode == RunMode.gps) {
@@ -495,6 +494,13 @@ class RunController extends ChangeNotifier {
         suppressHeartRateForWalkBreaks: suppress,
         walkBreakHintGiven: hintGiven,
       );
+      // Nur wenn eine geführte Einheit (neu oder nach Absturz fortgesetzt)
+      // wirklich Ansagen spricht, sonst wäre der Hinweis ohne Nutzen.
+      if (segments.isNotEmpty &&
+          switches.enabled &&
+          (switches.kilometer || switches.heartRate || switches.segments)) {
+        unawaited(_checkVoice());
+      }
     } on Object {
       _announcer = null;
     }
@@ -564,7 +570,7 @@ class RunController extends ChangeNotifier {
     }
   }
 
-  /// Fragt einmal beim Start der geführten Einheit, ob die Sprachausgabe
+  /// Fragt einmal beim Start (oder Fortsetzen) der geführten Einheit, ob die Sprachausgabe
   /// sprechen kann. Nur ein klares „nein“ setzt den Hinweis; Fehler und
   /// Hängen sind folgenlos (die Aufzeichnung läuft weiter).
   Future<void> _checkVoice() async {

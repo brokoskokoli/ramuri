@@ -66,6 +66,40 @@ void main() {
       expect(_avg(p), closeTo(1000 / 3, 1));
     });
 
+    test('Pause vor dem ersten Punkt: die 5 s Wartezeit bis dahin sind '
+        'Lückenzeit, Abfrage mittendrin gleich dem Ergebnis', () {
+      final pre = RunPreprocessor(
+        start: _t0,
+        parameters: const PreprocessingParameters.v4(),
+      );
+      pre.pause(_t0.add(const Duration(seconds: 5)));
+      // Stand während der Pause (kein offener Lead-in mehr).
+      expect(
+        movingTimeInPositionGaps(
+          pre.result(at: _t0.add(const Duration(seconds: 8))),
+        ),
+        const Duration(seconds: 5),
+      );
+      pre.resume(_t0.add(const Duration(seconds: 20)));
+      var m = 0.0;
+      for (var i = 20; i <= 200; i++) {
+        pre.addPosition(
+          RawPosition(
+            time: _t0.add(Duration(seconds: i)),
+            source: 'gps',
+            latitude: 10 + m / _mPerDeg,
+            longitude: 20,
+            accuracyMeters: 5,
+          ),
+        );
+        m += 3;
+      }
+      final p = pre.result(at: _t0.add(const Duration(seconds: 200)));
+      expect(p.position.gaps, isEmpty);
+      expect(p.position.leadIns.length, 1);
+      expect(movingTimeInPositionGaps(p), const Duration(seconds: 5));
+    });
+
     test('12 s Wartezeit: eine Lücke, keine Doppelzählung', () {
       final p = _run(total: 552, pauseAt: 240, resumeAt: 300, resumeFix: 12);
       expect(p.position.gaps.length, 1);

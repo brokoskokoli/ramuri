@@ -622,6 +622,29 @@ void main() {
       );
     });
 
+    test('Rückmeldung „zu schwer“ setzt den Prüftag nicht, nur den eigenen '
+        'Merker der 2-Wochen-Frage', () async {
+      final e = await _Env.open();
+      await e.goals.save(_goal(), today: _goal().createdAt);
+      await _writeVersion(e, PlanVersion.current, _day(-7));
+      final lastCheck = _dayText(_day(-7));
+      await e.session.settings.set(planLastCheckDayKey, lastCheck, at: _now);
+      final before = (await e.plans.history()).length;
+      final r = await e.controller.answerFeedback(PlanFeedback.tooHard);
+      expect(r.result, PlanActionResult.done);
+      expect((await e.plans.history()).length, before + 1);
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        lastCheck,
+        reason: 'die Rückmeldung bewertet die Woche (PAR-201) nicht',
+      );
+      expect(
+        await e.session.settings.get(planFeedbackKey),
+        _dayText(_today),
+        reason: 'Abstand der Nachfrage hängt am eigenen Merker',
+      );
+    });
+
     test('Lese-Adapter: Güte aus dem neuesten Laufwert (alt gut, neu '
         'vorläufig: keine Güte)', () async {
       for (final (newest, grade) in [
@@ -1350,7 +1373,14 @@ void main() {
       expect(proposal?.suggestion.position, const WalkRunPosition(4, 1));
 
       final opened = (await e.plans.history()).length;
+      final oldCheck = _dayText(_day(-30));
+      await e.session.settings.set(planLastCheckDayKey, oldCheck, at: _now);
       await e.controller.acceptWalkRunRepeat();
+      expect(
+        await e.session.settings.get(planLastCheckDayKey),
+        oldCheck,
+        reason: 'Annehmen bewertet die Woche nicht: Prüftag bleibt',
+      );
       final h = await e.plans.history();
       expect(h, hasLength(opened + 1));
       expect(h.last.inputs.walkRunFrom, thursday);

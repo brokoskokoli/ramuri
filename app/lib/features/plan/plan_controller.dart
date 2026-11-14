@@ -953,6 +953,7 @@ class PlanController extends ChangeNotifier {
           plans: _plans,
           settings: session.settings,
           trigger: PlanTrigger.feedback,
+          markChecked: false, // bewertet die Woche (PAR-201) nicht
           today: today,
           now: clock.now(),
           inputs: next,
@@ -1168,6 +1169,7 @@ class PlanController extends ChangeNotifier {
       settings: session.settings,
       trigger: PlanTrigger.manual,
       reason: walkRunRepeatReason,
+      markChecked: false, // bewertet die Woche nicht
       today: today,
       now: clock.now(),
       inputs: inputs,

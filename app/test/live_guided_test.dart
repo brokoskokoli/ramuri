@@ -9,6 +9,7 @@ import 'package:running_app/features/run/live_map_page.dart'
     show liveMapRouteBuilds;
 import 'package:running_app/features/run/live_run_view.dart';
 import 'package:running_app/features/run/run_controller.dart';
+import 'package:running_app/features/run/voice_texts.dart';
 import 'package:running_app/features/sensors/run_heart_rate.dart';
 import 'package:running_app/features/sensors/sensor_manager.dart';
 import 'package:running_app/features/settings/unit_format.dart';
@@ -67,6 +68,8 @@ class _World {
     this.easy = const [],
     this.autoPause,
     this.still = false,
+    this.voice,
+    this.voiceTexts,
   }) : clock = FakeClock(DateTime.utc(2031, 3, 1, 10)) {
     if (withHr) {
       hr = SensorManager(sensor: FakeHeartRateSensor(), clock: clock).beginRun()
@@ -83,6 +86,8 @@ class _World {
 
   /// Der Läufer steht: immer derselbe Punkt (löst die Autopause aus).
   final bool still;
+  final FakeVoice? voice;
+  final VoiceTexts? voiceTexts;
   final location = FakeLocationSource();
   RunHeartRate? hr;
   late final RunController run;
@@ -99,6 +104,8 @@ class _World {
       sensors: hr,
       guidedSegments: _segments,
       guidedKind: kind,
+      voice: voice,
+      voiceTexts: voiceTexts,
       initialAutoPause: autoPause,
       recentEasyRuns: (s, {required today}) async => easy,
       mode: _belt ? RunMode.treadmill : RunMode.gps,
@@ -137,6 +144,7 @@ Future<_World> _show(
   List<EasyRunExposure> easy = const [],
   bool? autoPause,
   bool still = false,
+  FakeVoice? voice,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -148,6 +156,10 @@ Future<_World> _show(
     easy: easy,
     autoPause: autoPause,
     still: still,
+    voice: voice,
+    voiceTexts: voice == null
+        ? null
+        : VoiceTexts(lookupAppLocalizations(Locale(lang))),
   );
   _worlds.add(w);
   await w.start();
@@ -193,6 +205,30 @@ void _test(String name, Future<void> Function(WidgetTester) body) {
 }
 
 void main() {
+  for (final lang in ['de', 'en']) {
+    _test('Sprachausgabe fehlt: Hinweis "run_banner_voice" mit Text ($lang)', (
+      tester,
+    ) async {
+      final voice = FakeVoice()..isAvailable = false;
+      final w = await _show(tester, lang: lang, voice: voice);
+      await w.seconds(tester, 3);
+      await tester.tap(_k('run_tab_1')); // Werte-Seite
+      await tester.pumpAndSettle();
+      expect(
+        _t(tester, 'run_banner_voice'),
+        lookupAppLocalizations(Locale(lang)).runVoiceUnavailable,
+      );
+    });
+  }
+
+  _test('Sprachausgabe vorhanden: kein Hinweis', (tester) async {
+    final w = await _show(tester, voice: FakeVoice());
+    await w.seconds(tester, 3);
+    await tester.tap(_k('run_tab_1'));
+    await tester.pumpAndSettle();
+    expect(_k('run_banner_voice'), findsNothing);
+  });
+
   for (final lang in ['de', 'en']) {
     for (final dark in [false, true]) {
       _test(

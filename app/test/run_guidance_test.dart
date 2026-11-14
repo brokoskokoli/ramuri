@@ -333,6 +333,52 @@ void main() {
       expect(c.voiceUnavailable, isFalse);
     });
 
+    guided('Hauptschalter aus: nicht gefragt, kein Hinweis', (tester) async {
+      final w = await _World.create();
+      await w.session.settings.set(SettingKeys.guidanceEnabled, '0', at: _t0);
+      w.voice.isAvailable = false;
+      final c = w.controller(segments: _twoParts);
+      await c.start();
+      await w.seconds(tester, 5);
+      expect(w.voice.availableCalls, 0);
+      expect(c.voiceUnavailable, isFalse);
+    });
+
+    guided('alle Einzelschalter aus: nicht gefragt', (tester) async {
+      final w = await _World.create();
+      for (final k in [
+        SettingKeys.guidanceKilometer,
+        SettingKeys.guidanceHeartRate,
+        SettingKeys.guidanceSegments,
+      ]) {
+        await w.session.settings.set(k, '0', at: _t0);
+      }
+      w.voice.isAvailable = false;
+      final c = w.controller(segments: _twoParts);
+      await c.start();
+      await w.seconds(tester, 5);
+      expect(w.voice.availableCalls, 0);
+      expect(c.voiceUnavailable, isFalse);
+    });
+
+    guided('Fortsetzen nach Absturz: Schnappschuss, dann wird gefragt', (
+      tester,
+    ) async {
+      final w = await _World.create();
+      final first = w.controller(segments: _twoParts);
+      await first.start();
+      await w.seconds(tester, 5);
+      final id = first.runId!;
+      w.drop(first);
+      w.voice.isAvailable = false;
+      final calls = w.voice.availableCalls;
+      final second = w.controller(resume: id);
+      await second.start();
+      await w.seconds(tester, 5);
+      expect(w.voice.availableCalls, calls + 1);
+      expect(second.voiceUnavailable, isTrue);
+    });
+
     guided('ohne geführte Einheit wird nicht gefragt', (tester) async {
       final w = await _World.create();
       w.voice.isAvailable = false;
