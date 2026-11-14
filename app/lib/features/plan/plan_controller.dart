@@ -513,6 +513,9 @@ class PlanController extends ChangeNotifier {
         created: calendarDay(history.first.createdAt),
         lastAnswer: _parseDay(await session.settings.get(planFeedbackKey)),
         today: today,
+        pauseOpen:
+            await HintService(session: session, clock: clock).pauseQuestion() !=
+            null,
       );
     }
     final seen = await WarningState(session.settings).planChangeSeen();

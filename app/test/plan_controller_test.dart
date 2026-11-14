@@ -1465,6 +1465,17 @@ void main() {
       expect((await e.plans.history()).length, before + 1);
     });
 
+    test('offene Pausenfrage: keine Nachfrage (PAR-200), nach der Antwort '
+        'wieder fällig', () async {
+      final e = await prepared(10, recorded: false);
+      // Die Anlage liegt 80 Tage zurück: die Nachfrage wäre fällig.
+      await e.controller.open();
+      expect(e.controller.state.feedbackDue, isFalse);
+      await e.controller.answerPause(true);
+      await e.controller.open();
+      expect(e.controller.state.feedbackDue, isTrue);
+    });
+
     test('Ziel speichern am Prüftag bei offener Pausenfrage, dann „Ja“ -> '
         'Fassung pause, 80 % der Basiswoche, noHardUntil (NB8 1)', () async {
       final e = await prepared(10, recorded: false);

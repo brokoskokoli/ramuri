@@ -34,19 +34,24 @@ DateTime planFeedbackDueOn({
         .add(Duration(days: parameters.feedbackIntervalDays));
 
 /// Ist die Nachfrage am Ortstag [today] fällig? Keine Antwort ändert nichts;
-/// die Nachfrage bleibt dann fällig.
+/// die Nachfrage bleibt dann fällig. Solange die Pausenfrage offen ist
+/// ([pauseOpen], PAR-202), wird sie nicht angeboten: Ihre Antwort setzt den
+/// Anker in die nächste Woche, und der Neustart der Pausenregel entfiele.
 bool planFeedbackDue({
   required DateTime created,
   DateTime? lastAnswer,
   required DateTime today,
+  bool pauseOpen = false,
   PlanParameters parameters = const PlanParameters(),
-}) => !planDay(today).isBefore(
-  planFeedbackDueOn(
-    created: created,
-    lastAnswer: lastAnswer,
-    parameters: parameters,
-  ),
-);
+}) =>
+    !pauseOpen &&
+    !planDay(today).isBefore(
+      planFeedbackDueOn(
+        created: created,
+        lastAnswer: lastAnswer,
+        parameters: parameters,
+      ),
+    );
 
 /// Ergebnis von [applyPlanFeedback].
 class PlanFeedbackResult {

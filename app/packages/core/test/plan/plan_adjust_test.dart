@@ -62,6 +62,16 @@ void main() {
       );
     });
 
+    test('bei offener Pausenfrage (PAR-202) nicht angeboten, danach fällig', () {
+      final created = DateTime.utc(2026, 11, 1);
+      final today = DateTime.utc(2026, 11, 20);
+      expect(
+        planFeedbackDue(created: created, today: today, pauseOpen: true),
+        isFalse,
+      );
+      expect(planFeedbackDue(created: created, today: today), isTrue);
+    });
+
     test('zu leicht: ab der nächsten Woche +10 %, danach wieder PAR-193', () {
       final g = _goal();
       final i = _inputs(g);
