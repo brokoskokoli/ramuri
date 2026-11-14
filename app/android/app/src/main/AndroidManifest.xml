@@ -41,6 +41,15 @@
     <!-- SEC-0002, SEC-0008, ADR-0009: Netz nur für Kartenkacheln, nur mit Einwilligung, nur über den
          Kartenadapter (Gate-Schritt "Netz nur im Kartenadapter"), nur HTTPS (network_security_config). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- WP32, ADR-0007 Punkt 2, FR-0023: Health Connect, nur Lesen und nur diese sechs Datenarten. Keine Schreibrechte,
+         kein READ_HEALTH_DATA_IN_BACKGROUND, kein READ_HEALTH_DATA_HISTORY. Angefordert wird je Datenart erst nach der
+         Einwilligung in der App; das Gate (tool/check_release_manifest.py) prüft die Liste am Release-APK. -->
+    <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
+    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE"/>
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY"/>
+    <uses-permission android:name="android.permission.health.READ_SLEEP"/>
+    <uses-permission android:name="android.permission.health.READ_VO2_MAX"/>
     <application
         android:label="@string/app_name"
         android:allowBackup="false"
@@ -71,6 +80,26 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- ADR-0007 Punkt 5: Pflicht für Health Connect. Die Rationale-Activity leitet nur in die App weiter (die
+             Erklärung steht in den Einstellungen); der Alias deckt Android 14 ab (Berechtigungsnutzung ansehen). -->
+        <activity
+            android:name=".HealthRationaleActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
+            </intent-filter>
+        </activity>
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".HealthRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>
+            </intent-filter>
+        </activity-alias>
         <!-- connectedDevice nennt startForeground nur mit BLUETOOTH_CONNECT (RecordingLifecycle.startType),
              sonst wirft Android 14 eine SecurityException. health nur im Laufbandmodus (verlangt
              ACTIVITY_RECOGNITION, RecordingLifecycle.mayStart); GPS-Läufe starten weiter mit location. -->
@@ -112,6 +141,8 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <!-- ADR-0007 Punkt 5: Health Connect als Paket sichtbar (API 31 bis 33: App aus dem Play Store). -->
+        <package android:name="com.google.android.apps.healthdata"/>
         <!-- WP24: Sprachausgabe des Systems (TextToSpeech) ab Android 11 sichtbar machen. -->
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE"/>

@@ -8,6 +8,8 @@ export 'src/archive/cryptography_archive.dart';
 export 'src/archive/drift_archive_sink.dart';
 export 'src/archive/drift_archive_source.dart';
 export 'src/export/method_channel_file_handoff.dart';
+export 'src/health/health_connect_port.dart';
+export 'src/health/method_channel_health_connect.dart';
 export 'src/map/encrypted_map_tile_store.dart';
 export 'src/map/map_cache_core.dart'
     show
