@@ -310,4 +310,36 @@ void main() {
       }
     }
   });
+
+  test('Ruhepuls: Markierung je Stand ohne Entwicklermodus', () {
+    final expected = {
+      ValidationState.passed: MorningRmssdMark.none,
+      ValidationState.limited: MorningRmssdMark.none,
+      ValidationState.failed: MorningRmssdMark.inaccurate,
+      ValidationState.notChecked: MorningRmssdMark.notChecked,
+    };
+    for (final e in expected.entries) {
+      final r = CameraRelease(
+        developerMode: false,
+        rmssdOptIn: true,
+        state: st(hr: e.key),
+      ).forFactor(ReadinessFactor.restingHeartRate, RestingPosture.lying);
+      expect(r.mark, e.value, reason: e.key.name);
+    }
+  });
+
+  test('isReleased: Health-Connect-Reihen sind nicht Sache der Sperre', () {
+    final hc = DeviationResult(
+      factor: ReadinessFactor.hrv,
+      source: ReadinessSource.healthConnect,
+      origin: 'a',
+      z: 0.5,
+    );
+    final rel = CameraRelease(
+      developerMode: false,
+      rmssdOptIn: false,
+      state: st(supine: ValidationState.failed),
+    );
+    expect(rel.isReleased(hc), isTrue);
+  });
 }
