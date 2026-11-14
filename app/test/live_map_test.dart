@@ -85,7 +85,7 @@ class _World {
       if (r.url.path.endsWith('.pbf')) r.url,
   ];
 
-  Future<void> startRun() async {
+  Future<void> startRun({bool? autoPause}) async {
     final session = await FakeStorage().open(Uint8List(32));
     _worlds.add(this);
     run = RunController(
@@ -93,6 +93,7 @@ class _World {
       storage: session,
       location: location,
       tickEvery: const Duration(seconds: 1),
+      initialAutoPause: autoPause,
     );
     await run.start();
   }
@@ -110,6 +111,22 @@ class _World {
         ),
       );
       _i++;
+      await tester.pump(const Duration(seconds: 1));
+    }
+  }
+
+  /// Steht an der letzten Stelle: ein Punkt je Sekunde ohne Bewegung (löst die Autopause aus).
+  Future<void> stand(WidgetTester tester, {int n = 1}) async {
+    for (var k = 0; k < n; k++) {
+      clock.advance(const Duration(seconds: 1));
+      location.emit(
+        LocationSample(
+          time: clock.now(),
+          latitude: lat,
+          longitude: 8,
+          accuracyMeters: 5,
+        ),
+      );
       await tester.pump(const Duration(seconds: 1));
     }
   }
@@ -204,6 +221,34 @@ void main() {
         expect(w.requests, 0, reason: 'ohne Einwilligung keine Anfrage');
       },
     );
+
+    // Der Flake-Fall: Pause auf der Werte-Seite, dann der Kartenreiter, dann Beenden (Review 4, Muss 1).
+    _testRun('pausiert: Kartenreiter öffnen, keine Frage', (tester) async {
+      final w = _World();
+      await w.startRun();
+      await tester.pumpWidget(_app(w));
+      await w.step(tester, n: 3);
+      await tester.tap(key('run_pause'));
+      await tester.pumpAndSettle();
+      expect(w.run.phase, RecordingPhase.paused);
+      await _toMap(tester);
+      await tester.pumpAndSettle();
+      expect(key('map_consent_dialog'), findsNothing);
+      expect(w.requests, 0);
+    });
+
+    _testRun('autopausiert: Kartenreiter öffnen, keine Frage', (tester) async {
+      final w = _World();
+      await w.startRun(autoPause: true);
+      await tester.pumpWidget(_app(w));
+      await w.step(tester, n: 20);
+      await w.stand(tester, n: 30);
+      expect(w.run.phase, RecordingPhase.autoPaused);
+      await _toMap(tester);
+      await tester.pumpAndSettle();
+      expect(key('map_consent_dialog'), findsNothing);
+      expect(w.requests, 0);
+    });
 
     _testRun('abgelehnt: Linie mit Position und gleichem Blatt, 0 Anfragen', (
       tester,

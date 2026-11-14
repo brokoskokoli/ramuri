@@ -118,6 +118,74 @@ void main() {
     expect(_shape(same), '2x1');
   });
 
+  // Review 4, Muss 2: jedes Zielfeld trennt, sonst zeigte die Gruppe die Ziele des ersten Abschnitts.
+  PlanTargetIntensity target({
+    int rpeMin = 6,
+    int rpeMax = 7,
+    double paceFast = 300,
+    double paceSlow = 330,
+    String basis = 'hrr',
+    int hrMin = 140,
+    int hrMax = 160,
+    bool estimated = false,
+    bool maxHrEstimated = false,
+    bool paceIsLimit = false,
+  }) => PlanTargetIntensity(
+    rpeMin: rpeMin,
+    rpeMax: rpeMax,
+    paceFastSecondsPerKm: paceFast,
+    paceSlowSecondsPerKm: paceSlow,
+    basisCode: basis,
+    hrMinBpm: hrMin,
+    hrMaxBpm: hrMax,
+    estimated: estimated,
+    maxHrEstimated: maxHrEstimated,
+    paceIsLimit: paceIsLimit,
+  );
+
+  final different = <String, PlanTargetIntensity>{
+    'rpeMin': target(rpeMin: 5),
+    'rpeMax': target(rpeMax: 8),
+    'paceFastSecondsPerKm': target(paceFast: 290),
+    'paceSlowSecondsPerKm': target(paceSlow: 340),
+    'basisCode': target(basis: 'hrmax'),
+    'hrMinBpm': target(hrMin: 130),
+    'hrMaxBpm': target(hrMax: 170),
+    'estimated': target(estimated: true),
+    'maxHrEstimated': target(maxHrEstimated: true),
+    'paceIsLimit': target(paceIsLimit: true),
+  };
+  for (final e in different.entries) {
+    test('gleiche Art und Dauer, anderes Ziel ${e.key}: nicht gruppiert', () {
+      final g = groupSegments([
+        _s(PlanSegmentKind.interval, 240, target()),
+        _s(PlanSegmentKind.interval, 240, e.value),
+      ]);
+      expect(_shape(g), '1x1,1x1');
+    });
+  }
+
+  test('Ziel gegen kein Ziel: nicht gruppiert; gleiches Ziel: gruppiert', () {
+    expect(
+      _shape(
+        groupSegments([
+          _s(PlanSegmentKind.interval, 240, target()),
+          _s(PlanSegmentKind.interval, 240),
+        ]),
+      ),
+      '1x1,1x1',
+    );
+    expect(
+      _shape(
+        groupSegments([
+          _s(PlanSegmentKind.interval, 240, target()),
+          _s(PlanSegmentKind.interval, 240, target()),
+        ]),
+      ),
+      '2x1',
+    );
+  });
+
   test('Rest nach der Folge bleibt einzeln', () {
     final s = [..._walkRun(n: 3), _s(PlanSegmentKind.run, 60)];
     expect(_shape(groupSegments(s)), '1x1,3x2,1x1,1x1');

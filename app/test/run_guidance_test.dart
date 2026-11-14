@@ -361,6 +361,30 @@ void main() {
       expect(c.voiceUnavailable, isFalse);
     });
 
+    // Review 4, Muss 3: jeder Einzelschalter allein reicht, damit gefragt wird.
+    for (final only in [
+      SettingKeys.guidanceSegments,
+      SettingKeys.guidanceKilometer,
+      SettingKeys.guidanceHeartRate,
+    ]) {
+      guided('nur $only an: Sprachprüfung läuft', (tester) async {
+        final w = await _World.create();
+        for (final k in [
+          SettingKeys.guidanceKilometer,
+          SettingKeys.guidanceHeartRate,
+          SettingKeys.guidanceSegments,
+        ]) {
+          await w.session.settings.set(k, k == only ? '1' : '0', at: _t0);
+        }
+        w.voice.isAvailable = false;
+        final c = w.controller(segments: _twoParts);
+        await c.start();
+        await w.seconds(tester, 5);
+        expect(w.voice.availableCalls, 1);
+        expect(c.voiceUnavailable, isTrue);
+      });
+    }
+
     guided('Fortsetzen nach Absturz: Schnappschuss, dann wird gefragt', (
       tester,
     ) async {

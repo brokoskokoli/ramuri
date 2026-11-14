@@ -1,5 +1,7 @@
 // Die Karten-Frage geht nur auf, wenn die Seite oben liegt und kein Lauf läuft (M2-Abschluss C, WP31-Flake: die
 // asynchron aufgehende Frage legte sich über den Beenden-Dialog der Lauf-Seite).
+import 'dart:async';
+
 import 'package:adapters/adapters.dart';
 import 'package:adapters/map_testing.dart';
 import 'package:core/core.dart';
@@ -21,6 +23,16 @@ class _Consents implements ConsentStore {
       data[k] = s;
 }
 
+/// Lesen hängt, bis [release] aufgerufen wird (der Stand ist noch nicht geladen).
+class _SlowConsents extends _Consents {
+  final Completer<void> release = Completer<void>();
+  @override
+  Future<ConsentState?> get(String k) async {
+    await release.future;
+    return super.get(k);
+  }
+}
+
 class _Cache implements MapCacheAdmin {
   @override
   Future<int> sizeBytes() async => 0;
@@ -28,10 +40,10 @@ class _Cache implements MapCacheAdmin {
   Future<void> delete() async {}
 }
 
-MapConsentController _controller() {
+MapConsentController _controller([ConsentStore? store]) {
   final inner = FakeInner();
   return MapConsentController(
-    store: _Consents(),
+    store: store ?? _Consents(),
     clock: FakeClock(DateTime.utc(2026, 6, 1)),
     services: MapServices(
       gate: (c) =>
@@ -118,5 +130,49 @@ void main() {
     h.setWanted(true);
     await _wait(tester);
     expect(_dialog, findsOneWidget);
+  });
+
+  // Rennen: Die Prüfung gehört hinter `await ready`; bis der Stand gelesen ist, kann sich Seite und Lauf geändert haben.
+  testWidgets('Dialog öffnet, während die Einwilligung noch gelesen wird', (
+    tester,
+  ) async {
+    await holder(tester);
+    final store = _SlowConsents();
+    final c = _controller(store);
+    addTearDown(c.dispose);
+    bool? answer;
+    unawaited(
+      c.ensureAsked(context, mayAsk: () => mayAsk).then((v) => answer = v),
+    );
+    showDialog<void>(
+      context: context,
+      builder: (_) => const AlertDialog(key: Key('other_dialog')),
+    );
+    await tester.pump();
+    store.release.complete();
+    await tester.runAsync(() => c.ready);
+    await _wait(tester, 2);
+    expect(answer, isFalse);
+    expect(find.byKey(const Key('other_dialog')), findsOneWidget);
+    expect(_dialog, findsNothing);
+  });
+
+  testWidgets('Lauf beginnt, während die Einwilligung noch gelesen wird', (
+    tester,
+  ) async {
+    await holder(tester);
+    final store = _SlowConsents();
+    final c = _controller(store);
+    addTearDown(c.dispose);
+    bool? answer;
+    unawaited(
+      c.ensureAsked(context, mayAsk: () => mayAsk).then((v) => answer = v),
+    );
+    mayAsk = false;
+    store.release.complete();
+    await tester.runAsync(() => c.ready);
+    await _wait(tester, 2);
+    expect(answer, isFalse);
+    expect(_dialog, findsNothing);
   });
 }
