@@ -567,6 +567,48 @@ void main() {
       },
     );
 
+    test(
+      'Grund nennt die Sperre nicht (HC-HRV ohne z): markierte Kamera-Tatsache '
+      'trägt „geht in keine Zahl ein“ (PAR-171K)',
+      () {
+        const fact = ReadinessFact(
+          kind: ReadinessFactKind.hrvDeviation,
+          source: ReadinessFactorSource.camera,
+          z: -1,
+          mark: MorningRmssdMark.notEnabled,
+        );
+        const r = ReadinessResult(
+          state: ReadinessState.limited,
+          value: null,
+          band: null,
+          capped: false,
+          factors: [],
+          missing: [],
+          blockers: [],
+          facts: [],
+          markedFacts: [fact],
+          hasFreshMeasurement: true,
+          level: ReadinessLevel.notDeterminable,
+          levelReasons: [
+            ReadinessLevelReason(ReadinessLevelReasonCode.hrvNoSeries),
+          ],
+          explanation: ReadinessExplanation(
+            code: ReadinessExplanationCode.noNumber,
+            drivers: [],
+            used: [],
+            missing: [],
+            cappedWithoutLoad: false,
+          ),
+        );
+        for (final l in [AppLocalizationsDe(), AppLocalizationsEn()]) {
+          expect(
+            readinessCardText(l, r),
+            contains(readinessMarkText(l, fact.mark)!),
+          );
+        }
+      },
+    );
+
     testWidgets('Entwicklermodus mit gespeicherter Messung: erweiterte Stufe', (
       tester,
     ) async {
