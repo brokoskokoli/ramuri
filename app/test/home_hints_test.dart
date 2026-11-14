@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/home/home_screen.dart';
 import 'package:running_app/features/home/home_recovery.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_goal_form.dart';
@@ -552,6 +553,25 @@ void main() {
       expect(a!.paused, isFalse);
       final q = await HintService(session: s, clock: d.clock).pauseQuestion();
       expect(q, isNull);
+    });
+
+    testWidgets('Neuaufbau der Seite (setState) blendet die Karte nicht aus', (
+      tester,
+    ) async {
+      final d = Device();
+      final s = await _preopen(d);
+      await _run(s, 8);
+      await d.start(tester, const Locale('de'));
+      expect(key('home_pause_card'), findsOneWidget);
+      // Jeder setState (z. B. `_busy` bei einer Aktion) baut `_cards` neu auf;
+      // ein Future in `build` fiele dabei auf „wartet“ zurück und blendete die
+      // Karte samt Knöpfen für ein Bild aus.
+      final state = tester.state(find.byType(HomeScreen));
+      // ignore: invalid_use_of_protected_member
+      state.setState(() {});
+      await tester.pump();
+      expect(key('home_pause_card'), findsOneWidget);
+      expect(key('home_pause_no'), findsOneWidget);
     });
 
     testWidgets('„Ja“ startet den Plan neu (Auslöser pause) und merkt die '

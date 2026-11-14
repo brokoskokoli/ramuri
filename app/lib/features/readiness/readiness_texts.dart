@@ -179,6 +179,16 @@ String? readinessMarkText(AppLocalizations l, MorningRmssdMark mark) {
   return text == null ? null : l.readinessFactMarked(text);
 }
 
+/// Tatsache mit ihrer Markierung, falls sie eine trägt (PAR-171K: eine
+/// gesperrte Kamera-Tatsache steht nie ohne „geht in keine Zahl ein“).
+String _factWithMark(AppLocalizations l, ReadinessFact f) {
+  final text = readinessFactText(l, f);
+  final mark = readinessMarkText(l, f.mark);
+  if (mark == null) return text;
+  final bare = text.endsWith('.') ? text.substring(0, text.length - 1) : text;
+  return '$bare – $mark.';
+}
+
 /// Der Text unter dem Zustand auf der Karte: Datenlage mit Ursachen (Zahl),
 /// Grund und Tatsachen (eingeschränkt) oder der feste Satz (unzureichend).
 String readinessCardText(AppLocalizations l, ReadinessResult r) {
@@ -203,7 +213,8 @@ String readinessCardText(AppLocalizations l, ReadinessResult r) {
           readinessReasonText(l, r.levelReasons.first)
         else
           l.readinessLimitedNeed,
-        for (final f in r.facts.take(2)) readinessFactText(l, f),
+        for (final f in [...r.facts.take(2), ...r.markedFacts])
+          _factWithMark(l, f),
       ].join(' ');
     case ReadinessState.insufficient:
       return l.readinessInsufficientText;

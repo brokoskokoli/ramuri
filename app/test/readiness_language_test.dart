@@ -12,7 +12,9 @@ import 'arb_language_test.dart' show load;
 // bleibt (OQ-0029). Werte stehen als Schätzung mit Stufe und Grund (PAR-159).
 
 final _forbidden = RegExp(
-  r'erholt|bereit|\bready\b|recovered|rested|\bfit\b|diagnos|krank|\bill\b',
+  r'erholt|bereit|\bready\b|recovered|rested|\bfit\b|diagnos|krank|\bill\b|'
+  r'ermüdet|erholungszustand|verletzungsrisiko|überlastung|sicher|gesichert|'
+  r'fatigued|injury|overload|\bsafe',
   caseSensitive: false,
 );
 
@@ -20,6 +22,8 @@ final _forbidden = RegExp(
 const _allowedKeys = {
   'readinessBandWellRecovered': 'Gut erholt|Well recovered',
   'readinessNumberNote': 'Sie ist keine Diagnose|It is not a diagnosis',
+  // Verneinung: die Gewichte sind Annahmen, keine gesicherten Werte.
+  'readinessTotalNote': 'keine gesicherten Werte',
 };
 
 List<String> violations(Map<String, String> texts) => [
@@ -55,6 +59,30 @@ void main() {
     );
     expect(violations({'readinessBandWellRecovered': 'Gut erholt'}), isEmpty);
     expect(violations({'other': 'bereit'}), isEmpty);
+    // PAR-174: Zustands-, Risiko- und Sicherheitswörter.
+    for (final w in [
+      'Du bist ermüdet.',
+      'Dein Erholungszustand ist schlecht.',
+      'Hohes Verletzungsrisiko.',
+      'Überlastung droht.',
+      'Das ist sicher.',
+      'You are fatigued.',
+      'Injury risk is high.',
+      'Overload ahead.',
+      'It is safe to run.',
+    ]) {
+      expect(violations({'readinessX': w}), isNotEmpty, reason: w);
+    }
+    // „gesichert“ nur als Verneinung im Gewichtshinweis.
+    expect(
+      violations({'readinessTotalNote': 'Annahmen, keine gesicherten Werte.'}),
+      isEmpty,
+    );
+    expect(
+      violations({'readinessTotalNote': 'Annahmen, gesicherte Werte.'}),
+      isNotEmpty,
+    );
+    expect(violations({'readinessX': 'keine gesicherten Werte'}), isNotEmpty);
   });
 
   for (final l in <AppLocalizations>[
@@ -152,7 +180,9 @@ void main() {
       expect(texts, isNotEmpty);
       for (final t in texts) {
         expect(t.trim(), isNotEmpty);
-        expect(_forbidden.hasMatch(t), isFalse, reason: t);
+        // Erlaubt ist nur die Verneinung des Gewichtshinweises.
+        final rest = t.replaceAll(_allowedKeys['readinessTotalNote']!, '');
+        expect(_forbidden.hasMatch(rest), isFalse, reason: t);
       }
     });
   }

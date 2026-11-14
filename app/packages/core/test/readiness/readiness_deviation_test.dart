@@ -213,5 +213,19 @@ void main() {
       expect(none.byDay.length, 28);
       expect(none.byDay.containsKey(today), isFalse);
     });
+
+    test(
+      'sourceSpanDays kommt aus der Reihe: erster Wert vor 20 Tagen = 20',
+      () {
+        final r = hrv(series(alternating(50, 53, 20), 61));
+        expect(r.hasZ, isTrue);
+        expect(r.sourceSpanDays, 20);
+      },
+    );
+
+    test('sourceSpanDays: erster Wert vor 28 und vor 16 Tagen (PAR-150)', () {
+      expect(hrv(series(alternating(50, 53), 61)).sourceSpanDays, 28);
+      expect(hrv(series(alternating(50, 53, 16), 61)).sourceSpanDays, 16);
+    });
   });
 }

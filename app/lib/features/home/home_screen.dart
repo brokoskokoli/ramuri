@@ -79,7 +79,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// Erholung der erweiterten Stufe (WP34 D1); `null` bei Fehler, dann gilt
   /// die Basisstufe.
   late Future<ReadinessSnapshot?> _readiness = _loadReadiness();
+
+  /// Beides zusammen für die Karten. Als Feld gehalten und nur zusammen mit
+  /// `_hints`/`_readiness` neu gesetzt (siehe [_renewCards]); ein Future in
+  /// `build` würde bei jedem `setState` (z. B. `_busy`) auf „wartet“ zurückfallen
+  /// und die Karten samt Knöpfen für einen Frame ausblenden.
+  late Future<List<Object?>> _cardsData = Future.wait<Object?>([
+    _hints,
+    _readiness,
+  ]);
   bool _busy = false;
+
+  /// Neu laden der Hinweise und/oder der Erholung; im `setState` aufrufen.
+  void _renewCards({bool hints = false, bool readiness = false}) {
+    if (hints) _hints = _loadHints();
+    if (readiness) _readiness = _loadReadiness();
+    _cardsData = Future.wait<Object?>([_hints, _readiness]);
+  }
 
   /// Neu laden der Morgenkarte mit der Seite (Entwicklermodus, heutige Messung).
   int _morningEpoch = 0;
@@ -115,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Neue Importdaten zählen sofort für die Erholung.
     if (mounted) {
       setState(() {
-        _readiness = _loadReadiness();
+        _renewCards(readiness: true);
       });
     }
     if (mounted) {
@@ -156,8 +172,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _morningEpoch++;
       _shownDay = _today;
       _future = _load();
-      _hints = _loadHints();
-      _readiness = _loadReadiness();
+      _renewCards(hints: true, readiness: true);
     });
     _openPlan();
   }
@@ -205,7 +220,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _reloadHints() {
     if (!mounted) return;
     setState(() {
-      _hints = _loadHints();
+      _renewCards(hints: true);
     });
   }
 
@@ -300,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     BuildContext context,
     PlanViewState s,
   ) => FutureBuilder<List<Object?>>(
-    future: Future.wait<Object?>([_hints, _readiness]),
+    future: _cardsData,
     builder: (context, snap) {
       // Erst anzeigen, wenn beides da ist: sonst springt die Karte von der
       // Basis zur erweiterten Stufe.

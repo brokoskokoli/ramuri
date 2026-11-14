@@ -4,6 +4,9 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/readiness/readiness_service.dart';
+import 'package:running_app/features/readiness/readiness_texts.dart';
+import 'package:running_app/l10n/app_localizations_de.dart';
+import 'package:running_app/l10n/app_localizations_en.dart';
 
 import 'app_harness.dart';
 import 'history_summary_test.dart' show seedRun;
@@ -185,6 +188,33 @@ Future<void> _start(
   await tester.pumpAndSettle();
 }
 
+/// Morgenmessungen der Kamera an [days] Tagen bis heute (Versatz 0, 07:00),
+/// Werte mit Streuung; die von heute trägt [todayBand].
+MorningMeasurement _cam(int i, {int days = 29, SleepBand? todayBand}) =>
+    MorningMeasurement(
+      measuredAt: DateTime.utc(2026, 10, 17 + i, 7),
+      utcOffset: Duration.zero,
+      posture: RestingPosture.lying,
+      deviceManufacturer: 'H',
+      deviceModel: 'M1',
+      method: 'ppg',
+      methodVersion: 1,
+      quality: PpgQuality.good,
+      restingHrBpm: 55.0 + (i % 5) * 2,
+      rmssdMs: 40.0 + (i % 6) * 3,
+      timingNoiseMs: 10,
+      cameraIntervalsMs: const [],
+      beforeValidation: false,
+      outsideWindow: false,
+      sleepBand: i == days - 1 ? todayBand : null,
+    );
+
+Future<void> _seedCamera(StorageSession s, {SleepBand? todayBand}) async {
+  for (var i = 0; i < 29; i++) {
+    await (s as MorningStorage).morning.add(_cam(i, todayBand: todayBand));
+  }
+}
+
 void main() {
   group('Dienst: Eingaben aus den Ports', () {
     testWidgets('ohne Einwilligung keine Health-Connect-Daten (SEC-0001)', (
@@ -341,6 +371,15 @@ void main() {
                 : 'Today there is no HRV value from last night.',
           ),
         );
+        // Die Tatsachen stehen auf der Karte (PAR-171K), nicht nur der Grund.
+        expect(
+          _text('readiness_text'),
+          contains(de ? 'Ruhepuls heute' : 'Resting heart rate today'),
+        );
+        expect(
+          _text('readiness_text'),
+          contains(de ? 'rund 8 Stunden geschlafen' : 'slept about 8 hours'),
+        );
         expect(
           _text('readiness_stage'),
           de ? 'ERHOLUNG · ERWEITERT' : 'RECOVERY · EXTENDED',
@@ -436,6 +475,84 @@ void main() {
         expect(snap.extended, isFalse);
         await _start(tester, d);
         expect(_key('readiness_card'), findsNothing);
+      },
+    );
+
+    testWidgets('Messung gespeichert, Entwicklermodus aus: Basisstufe (K62)', (
+      tester,
+    ) async {
+      final d = Device();
+      final s = await _preopen(d);
+      await _seedCamera(s);
+      final id = await seedRun(s, _now.subtract(const Duration(days: 1)));
+      await s.subjective.save(id, RunSubjective(wellbeing: 1));
+      final snap = await _service(d, s).load();
+      expect(snap.developerMode, isFalse);
+      expect(snap.extended, isFalse);
+      await _start(tester, d);
+      expect(_key('readiness_card'), findsNothing);
+      expect(_key('home_recovery_card'), findsOneWidget);
+      expect(find.text('ERHOLUNG · BASIS'), findsOneWidget);
+    });
+
+    testWidgets(
+      'Kamerapfad: Morgenmessungen gehen bis in den Faktor (Dienst, K62)',
+      (tester) async {
+        final d = Device();
+        final s = await _preopen(d);
+        await SettingsDeveloperModeStore(s.settings, d.clock).set(true);
+        await _seedCamera(s, todayBand: SleepBand.from7to8);
+        final snap = await _service(d, s).load();
+        expect(snap.extended, isTrue);
+        final r = snap.result;
+        // Kamerareihen sind eingegangen: HRV und Ruhepuls mit Quelle Kamera.
+        expect(r.state, isNot(ReadinessState.insufficient));
+        final cam = r.factors
+            .where((f) => f.source == ReadinessFactorSource.camera)
+            .map((f) => f.id)
+            .toSet();
+        expect(cam, contains(ReadinessFactorId.hrv));
+        expect(cam, contains(ReadinessFactorId.restingHeartRate));
+        // Die Schlafstufe der heutigen Messung geht als Selbstangabe ein.
+        expect(r.factors.map((f) => f.id), contains(ReadinessFactorId.sleep));
+        expect(
+          r.factors.firstWhere((f) => f.id == ReadinessFactorId.sleep).source,
+          ReadinessFactorSource.selfReport,
+        );
+      },
+    );
+
+    testWidgets(
+      'markierte Kamera-Tatsachen stehen auf der Karte mit Markierung (PAR-171K)',
+      (tester) async {
+        final d = Device();
+        final s = await _preopen(d);
+        await _seedCamera(s);
+        // Morgenmessung freigeschaltet (RMSSD liegend bestanden), aber ohne
+        // Opt-in und mit „nicht bestandenem“ Ruhepuls: beide Kamerareihen sind
+        // gesperrt und nur markierte Tatsachen (nie in der Zahl).
+        final service = ReadinessService(
+          session: s,
+          clock: d.clock,
+          validationState: const {
+            ValidationQuantity.restingHr: ValidationState.failed,
+            ValidationQuantity.lnRmssdSupine: ValidationState.passed,
+            ValidationQuantity.lnRmssdSitting: ValidationState.notChecked,
+          },
+        );
+        final snap = await service.load();
+        expect(snap.result.state, ReadinessState.limited);
+        expect(snap.result.markedFacts, hasLength(2));
+        for (final l in [AppLocalizationsDe(), AppLocalizationsEn()]) {
+          final text = readinessCardText(l, snap.result);
+          for (final f in snap.result.markedFacts) {
+            expect(
+              text,
+              contains(readinessFactText(l, f).replaceAll(RegExp(r'\.$'), '')),
+            );
+            expect(text, contains(readinessMarkText(l, f.mark)!));
+          }
+        }
       },
     );
 
