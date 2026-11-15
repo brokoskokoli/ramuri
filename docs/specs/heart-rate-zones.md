@@ -87,12 +87,12 @@ Später können Herzfrequenzzonen auch aus individuellen Leistungstests oder gem
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0003](../migration/open-questions.md#oq-0003--herzfrequenzzonen-allein-oder-schwellenmodell) (entschieden): Herzfrequenzzonen allein oder Schwellenmodell?
-- [OQ-0012](../migration/open-questions.md#oq-0012--was-gilt-wenn-ruhepuls-oder-hfmax-fehlen) (entschieden): Was gilt, wenn Ruhepuls oder HFmax fehlen?
-- [OQ-0014](../migration/open-questions.md#oq-0014--zuordnung-an-zonengrenzen-und-außerhalb-der-zonen) (entschieden): Zuordnung an Zonengrenzen und außerhalb der Zonen
-- [OQ-0017](../migration/open-questions.md#oq-0017--verbindlichkeit-der-phasen-und-fehlende-zuordnungen) (entschieden): Verbindlichkeit der Phasen und fehlende Zuordnungen
-- [OQ-0019](../migration/open-questions.md#oq-0019--startwerte-der-modellparameter-und-qualitätsregeln) (entschieden): Startwerte der Modellparameter und Qualitätsregeln
-- [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
+- OQ-0003
+- OQ-0012
+- OQ-0014
+- OQ-0017
+- OQ-0019
+- OQ-0059
 <!-- END OQ -->
 
 ## Quellen

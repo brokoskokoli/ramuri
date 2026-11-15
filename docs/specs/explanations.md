@@ -56,8 +56,8 @@ Erklärungen müssen auf tatsächlich vorhandenen Daten und den verwendeten Bere
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0011](../migration/open-questions.md#oq-0011--automatische-plananpassung-oder-bestätigung) (entschieden): Automatische Plananpassung oder Bestätigung?
-- [OQ-0039](../migration/open-questions.md#oq-0039--benennung-von-ctl-in-statistik-und-erklärungen) (entschieden): Benennung von CTL in Statistik und Erklärungen
+- OQ-0011
+- OQ-0039
 <!-- END OQ -->
 
 ## Quellen

@@ -209,21 +209,21 @@ Der Nutzer kann in Phase 2 sein Belastungsprofil auswählen, nach dem gerechnet 
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0002](../migration/open-questions.md#oq-0002--welches-belastungsmodell-ist-standard) (entschieden): Welches Belastungsmodell ist Standard?
-- [OQ-0014](../migration/open-questions.md#oq-0014--zuordnung-an-zonengrenzen-und-außerhalb-der-zonen) (entschieden): Zuordnung an Zonengrenzen und außerhalb der Zonen
-- [OQ-0015](../migration/open-questions.md#oq-0015--welche-einheitliche-skala-speist-atl-und-ctl) (entschieden): Welche einheitliche Skala speist ATL und CTL?
-- [OQ-0016](../migration/open-questions.md#oq-0016--startwerte-von-atlctl-und-vollständigkeit-der-historie) (entschieden): Startwerte von ATL/CTL und Vollständigkeit der Historie
-- [OQ-0022](../migration/open-questions.md#oq-0022--wie-gelangen-trainings-außerhalb-der-app-in-die-daten) (entschieden): Wie gelangen Trainings außerhalb der App in die Daten?
-- [OQ-0039](../migration/open-questions.md#oq-0039--benennung-von-ctl-in-statistik-und-erklärungen) (entschieden): Benennung von CTL in Statistik und Erklärungen
-- [OQ-0043](../migration/open-questions.md#oq-0043--was-ist-ein-belastungsprofil-und-wie-weit-reicht-die-austauschbarkeit) (entschieden): Was ist ein Belastungsprofil, und wie weit reicht die Austauschbarkeit?
-- [OQ-0045](../migration/open-questions.md#oq-0045--welche-belastungsmodelle-stehen-zur-wahl) (entschieden): Welche Belastungsmodelle stehen zur Wahl?
-- [OQ-0046](../migration/open-questions.md#oq-0046--startwerte-der-parameter-für-phase-2) (entschieden): Startwerte der Parameter für Phase 2
-- [OQ-0051](../migration/open-questions.md#oq-0051--trimp-bei-pulslücken) (entschieden): TRIMP bei Pulslücken
-- [OQ-0053](../migration/open-questions.md#oq-0053--formel-und-koeffizienten-des-banister-modells) (entschieden): Formel und Koeffizienten des Banister-Modells
-- [OQ-0054](../migration/open-questions.md#oq-0054--atl-und-ctl-an-tagen-mit-unbewerteter-einheit) (entschieden): ATL und CTL an Tagen mit unbewerteter Einheit
-- [OQ-0058](../migration/open-questions.md#oq-0058--entscheidungen-aus-der-prüfung-von-phase-2-und-3) (entschieden): Entscheidungen aus der Prüfung von Phase 2 und 3
-- [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
-- [OQ-0070](../migration/open-questions.md#oq-0070--pulsabdeckung-bei-unregelmäßigem-takt) (non-blocking): Pulsabdeckung bei unregelmäßigem Takt
+- OQ-0002
+- OQ-0014
+- OQ-0015
+- OQ-0016
+- OQ-0022
+- OQ-0039
+- OQ-0043
+- OQ-0045
+- OQ-0046
+- OQ-0051
+- OQ-0053
+- OQ-0054
+- OQ-0058
+- OQ-0059
+- OQ-0070
 <!-- END OQ -->
 
 ## Quellen

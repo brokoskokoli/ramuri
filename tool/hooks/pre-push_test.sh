@@ -1,5 +1,5 @@
 #!/bin/sh
-# Test für tool/hooks/pre-push: Tag-Regel (WP30) und Privat-Scan jedes Pushes (WP31): Aufruf: sh tool/hooks/pre-push_test.sh
+# Test für tool/hooks/pre-push: main-Regel, Tag-Regel (WP30) und Privat-Scan jedes Pushes (WP31): Aufruf: sh tool/hooks/pre-push_test.sh
 # Legt ein temporäres Repo mit refs/remotes/origin/main an und ruft den Hook mit stdin wie Git auf.
 hook=$(cd "$(dirname "$0")" && pwd)/pre-push
 tmp=$(mktemp -d) || exit 1
@@ -64,7 +64,13 @@ check rejected "Scan: Standardmuster (Nutzerpfad)" "refs/heads/feat $(git rev-pa
 git reset -q --hard "$cleanhead"
 check ok       "Scan: Löschung einer Ref frei" "(delete) $zero refs/heads/feat $leak"
 check rejected "Scan: Treffer trifft auch Tag-Push" "refs/tags/foo $leak refs/tags/foo $zero"
-check rejected "Scan: main-Regel bleibt (sauber, ohne Freigabe)" "refs/heads/feat $cleanhead refs/heads/main $inmain"
+check rejected "main ohne RUNNING_APP_PUSH_MAIN" "refs/heads/feat $cleanhead refs/heads/main $inmain"
+export RUNNING_APP_PUSH_MAIN=1
+check ok       "main mit Schalter, Fast-Forward" "refs/heads/feat $cleanhead refs/heads/main $inmain"
+check rejected "main mit Schalter, kein Fast-Forward" "refs/heads/feat $outside refs/heads/main $cleanhead"
+check rejected "main mit Schalter, Löschen" "(delete) $zero refs/heads/main $inmain"
+check rejected "main mit Schalter, Treffer im Scan" "refs/heads/feat $leak refs/heads/main $inmain"
+unset RUNNING_APP_PUSH_MAIN
 # Ausnahmen (wie im Vollmodus): tool/check_private.sh und LICENSE werden nicht gescannt.
 mkdir -p tool && echo "zzgeheimzz" > tool/check_private.sh && echo "zzgeheimzz" > LICENSE && git add tool LICENSE && git commit -q -m ausnahme || exit 1
 check ok       "Scan: Ausnahmedateien (tool/check_private.sh, LICENSE) frei" "refs/heads/feat $(git rev-parse HEAD) refs/heads/feat $zero"

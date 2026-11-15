@@ -88,10 +88,10 @@ Die VO₂max allein soll nicht zur verbindlichen Vorhersage einer Wettkampfzeit 
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0008](../migration/open-questions.md#oq-0008--reicht-die-riegel-methode) (entschieden): Reicht die Riegel-Methode?
-- [OQ-0034](../migration/open-questions.md#oq-0034--datengrundlage-von-leistungsprognosen) (entschieden): Datengrundlage von Leistungsprognosen
-- [OQ-0058](../migration/open-questions.md#oq-0058--entscheidungen-aus-der-prüfung-von-phase-2-und-3) (entschieden): Entscheidungen aus der Prüfung von Phase 2 und 3
-- [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
+- OQ-0008
+- OQ-0034
+- OQ-0058
+- OQ-0059
 <!-- END OQ -->
 
 ## Quellen

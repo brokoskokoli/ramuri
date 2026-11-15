@@ -102,10 +102,10 @@ Bei Konflikten werden Alternativen vorgeschlagen.
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0005](../migration/open-questions.md#oq-0005--welche-parameter-darf-das-modell-automatisch-ändern) (entschieden): Welche Parameter darf das Modell automatisch ändern?
-- [OQ-0011](../migration/open-questions.md#oq-0011--automatische-plananpassung-oder-bestätigung) (entschieden): Automatische Plananpassung oder Bestätigung?
-- [OQ-0079](../migration/open-questions.md#oq-0079--pulskriterium-für-absolvierte-intensive-einheiten) (non-blocking): Pulskriterium für absolvierte intensive Einheiten
-- [OQ-0080](../migration/open-questions.md#oq-0080--bedeutung-von-verbleibende-trainingszeit-beim-verschieben) (non-blocking): Bedeutung von „verbleibende Trainingszeit“ beim Verschieben
+- OQ-0005
+- OQ-0011
+- OQ-0079
+- OQ-0080
 <!-- END OQ -->
 
 ## Quellen

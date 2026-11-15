@@ -214,16 +214,16 @@ Größere Änderungen werden begründet.
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0005](../migration/open-questions.md#oq-0005--welche-parameter-darf-das-modell-automatisch-ändern) (entschieden): Welche Parameter darf das Modell automatisch ändern?
-- [OQ-0011](../migration/open-questions.md#oq-0011--automatische-plananpassung-oder-bestätigung) (entschieden): Automatische Plananpassung oder Bestätigung?
-- [OQ-0022](../migration/open-questions.md#oq-0022--wie-gelangen-trainings-außerhalb-der-app-in-die-daten) (entschieden): Wie gelangen Trainings außerhalb der App in die Daten?
-- [OQ-0026](../migration/open-questions.md#oq-0026--warnsignale-medizinische-hinweise-und-einordnung-als-medizinprodukt) (entschieden): Warnsignale, medizinische Hinweise und Einordnung als Medizinprodukt
-- [OQ-0028](../migration/open-questions.md#oq-0028--konkrete-regeln-der-trainingsplanung) (entschieden): Konkrete Regeln der Trainingsplanung
-- [OQ-0048](../migration/open-questions.md#oq-0048--rechtliche-prüfung) (non-blocking): Rechtliche Prüfung
-- [OQ-0055](../migration/open-questions.md#oq-0055--eingabeweg-und-dauer-von-warnsignalen) (entschieden): Eingabeweg und Dauer von Warnsignalen
-- [OQ-0058](../migration/open-questions.md#oq-0058--entscheidungen-aus-der-prüfung-von-phase-2-und-3) (entschieden): Entscheidungen aus der Prüfung von Phase 2 und 3
-- [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
-- [OQ-0060](../migration/open-questions.md#oq-0060--einfacher-trainingsplan) (entschieden): Einfacher Trainingsplan
+- OQ-0005
+- OQ-0011
+- OQ-0022
+- OQ-0026
+- OQ-0028
+- OQ-0048
+- OQ-0055
+- OQ-0058
+- OQ-0059
+- OQ-0060
 <!-- END OQ -->
 
 ## Quellen

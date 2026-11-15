@@ -208,15 +208,15 @@ Für die erweiterte Einschätzung ohne Uhr misst der Nutzer morgens 60 s mit der
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0006](../migration/open-questions.md#oq-0006--mindestdatenqualität-für-einen-numerischen-readiness-wert) (entschieden): Mindestdatenqualität für einen numerischen Readiness-Wert
-- [OQ-0020](../migration/open-questions.md#oq-0020--wie-und-wann-werden-modelle-validiert) (entschieden): Wie und wann werden Modelle validiert?
-- [OQ-0026](../migration/open-questions.md#oq-0026--warnsignale-medizinische-hinweise-und-einordnung-als-medizinprodukt) (entschieden): Warnsignale, medizinische Hinweise und Einordnung als Medizinprodukt
-- [OQ-0029](../migration/open-questions.md#oq-0029--berechnung-der-readiness-zustände) (entschieden): Berechnung der Readiness-Zustände
-- [OQ-0057](../migration/open-questions.md#oq-0057--fehlende-regeln-für-phase-2-und-3) (entschieden): Fehlende Regeln für Phase 2 und 3
-- [OQ-0058](../migration/open-questions.md#oq-0058--entscheidungen-aus-der-prüfung-von-phase-2-und-3) (entschieden): Entscheidungen aus der Prüfung von Phase 2 und 3
-- [OQ-0059](../migration/open-questions.md#oq-0059--wertänderungen-aus-der-research-prüfung) (entschieden): Wertänderungen aus der Research-Prüfung
-- [OQ-0077](../migration/open-questions.md#oq-0077--vorgaben-zum-start-von-phase-2) (entschieden): Vorgaben zum Start von Phase 2
-- [OQ-0078](../migration/open-questions.md#oq-0078--puls-und-hrv-mit-der-handykamera) (entschieden): Puls und HRV mit der Handykamera
+- OQ-0006
+- OQ-0020
+- OQ-0026
+- OQ-0029
+- OQ-0057
+- OQ-0058
+- OQ-0059
+- OQ-0077
+- OQ-0078
 <!-- END OQ -->
 
 ## Quellen

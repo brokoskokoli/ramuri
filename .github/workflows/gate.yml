@@ -1,11 +1,11 @@
 name: gate
 on:
   push:
-    branches: [main, 'wp/**', 'research/**']
+    branches: [main, 'wp/**', 'issue-**']
   pull_request:
 concurrency:
   group: gate-${{ github.ref }}
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/wp/') || startsWith(github.ref, 'refs/heads/research/') }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/wp/') || startsWith(github.ref, 'refs/heads/issue-') }}
 permissions:
   contents: read
 jobs:

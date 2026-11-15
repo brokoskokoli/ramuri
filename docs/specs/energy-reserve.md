@@ -111,9 +111,9 @@ Die Energiereserve und die Training Readiness werden getrennt geführt. Sie kön
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0007](../migration/open-questions.md#oq-0007--energiereserve-nur-mit-kontinuierlichen-wearable-daten) (entschieden): Energiereserve nur mit kontinuierlichen Wearable-Daten?
-- [OQ-0030](../migration/open-questions.md#oq-0030--parameter-der-energiereserve) (entschieden): Parameter der Energiereserve
-- [OQ-0048](../migration/open-questions.md#oq-0048--rechtliche-prüfung) (non-blocking): Rechtliche Prüfung
+- OQ-0007
+- OQ-0030
+- OQ-0048
 <!-- END OQ -->
 
 ## Quellen

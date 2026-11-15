@@ -94,10 +94,10 @@ ende_schnelle_stufe() {
 # Generierte Abschnitte müssen aktuell sein: build darf den Stand von docs/ nicht verändern.
 spec() {
   before=$(git ls-files -m -o --exclude-standard docs | xargs -I{} shasum {} | shasum; git ls-files docs | xargs shasum | shasum)
-  python3 docs/migration/tools/spec_tool.py build || return 1
+  python3 tool/spec_tool.py build || return 1
   after=$(git ls-files -m -o --exclude-standard docs | xargs -I{} shasum {} | shasum; git ls-files docs | xargs shasum | shasum)
   [ "$before" = "$after" ] || { echo "Generierte Abschnitte waren veraltet; spec_tool build hat sie aktualisiert, bitte committen."; return 1; }
-  python3 docs/migration/tools/spec_tool.py check
+  python3 tool/spec_tool.py check
 }
 step "spec" spec
 step "privat" sh tool/check_private.sh
@@ -107,9 +107,8 @@ step "privat" sh tool/check_private.sh
 [ -f app/pubspec.yaml ] && step "Release-Manifest-Prüfung Selbsttest" python3 tool/check_release_manifest_test.py
 # WP30: Versionsrechnung des Release-Builds und Tag-Regel des Pre-Push-Hooks (bash explizit, läuft auch unter Linux/dash).
 step "Versionsrechnung Selbsttest" bash tool/build_signed_test.sh
-step "Pre-Push-Tagregel Selbsttest" bash tool/hooks/pre-push_test.sh
+step "Pre-Push-Regeln Selbsttest" bash tool/hooks/pre-push_test.sh
 step "ci_e2e Selbsttest (Attrappen)" sh tool/ci_e2e_test.sh
-step "merge_wp CI-Entscheidung Selbsttest" sh tool/merge_wp_test.sh
 
 # --- Flutter und Dart: je Paket (app und app/packages/*) ---
 is_flutter() { grep -Eq '^[[:space:]]+sdk:[[:space:]]*flutter[[:space:]]*$' "$1/pubspec.yaml"; }

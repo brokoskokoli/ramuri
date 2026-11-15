@@ -118,11 +118,11 @@ Die Detailansicht zeigt eine Tabelle je vollem Kilometer mit Pace und Durchschni
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0039](../migration/open-questions.md#oq-0039--benennung-von-ctl-in-statistik-und-erklärungen) (entschieden): Benennung von CTL in Statistik und Erklärungen
-- [OQ-0065](../migration/open-questions.md#oq-0065--lücken-aus-dem-plan-für-phase-1) (entschieden): Lücken aus dem Plan für Phase 1
-- [OQ-0074](../migration/open-questions.md#oq-0074--karte-der-route) (entschieden): Karte der Route
-- [OQ-0075](../migration/open-questions.md#oq-0075--screen-design-und-marke) (entschieden): Screen-Design und Marke
-- [OQ-0076](../migration/open-questions.md#oq-0076--nachschliff-der-lauf-seiten) (entschieden): Nachschliff der Lauf-Seiten
+- OQ-0039
+- OQ-0065
+- OQ-0074
+- OQ-0075
+- OQ-0076
 <!-- END OQ -->
 
 ## Quellen

@@ -1,5 +1,4 @@
-# Zusammenführen: generierte Spec-Abschnitte erzeugt tool/merge_wp.sh neu.
+# Generierte Spec-Abschnitte: nach einem Merge mit python3 tool/spec_tool.py build neu erzeugen, nie von Hand auflösen.
 docs/requirements.md linguist-generated=true
-docs/migration/traceability.md linguist-generated=true
 # CSV-Goldens tragen CRLF (Vertrag); keine Zeilenenden-Umwandlung.
 app/packages/core/test/export/goldens/*.csv -text

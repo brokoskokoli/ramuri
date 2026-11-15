@@ -96,9 +96,9 @@ Die App hat unten eine Navigation mit den Bereichen Heute, Verlauf und Fortschri
 
 ## Offene Fragen
 <!-- BEGIN OQ -->
-- [OQ-0075](../migration/open-questions.md#oq-0075--screen-design-und-marke) (entschieden): Screen-Design und Marke
-- [OQ-0076](../migration/open-questions.md#oq-0076--nachschliff-der-lauf-seiten) (entschieden): Nachschliff der Lauf-Seiten
-- [OQ-0077](../migration/open-questions.md#oq-0077--vorgaben-zum-start-von-phase-2) (entschieden): Vorgaben zum Start von Phase 2
+- OQ-0075
+- OQ-0076
+- OQ-0077
 <!-- END OQ -->
 
 ## Quellen
