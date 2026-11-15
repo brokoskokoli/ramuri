@@ -159,7 +159,8 @@ class DebugTestHealthConnect implements HealthConnectPort {
           );
         case HealthDataKind.vo2Max:
           if (n == 0) {
-            out.add(_value(kind, 'full', n, 0, 'debug.app.a', day, 47.5, 120));
+            // 00:00 UTC: nie hinter "jetzt" (bei 120 min fehlte der Wert zwischen 00:00 und 02:00 UTC).
+            out.add(_value(kind, 'full', n, 0, 'debug.app.a', day, 47.5, 0));
           }
         case HealthDataKind.exercise:
           if (n == 1) {
