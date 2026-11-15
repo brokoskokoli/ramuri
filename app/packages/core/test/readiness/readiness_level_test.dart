@@ -180,7 +180,7 @@ void main() {
       }
     });
     test('mehrere Reihen ohne z: Grund der mit den meisten Referenzwerten', () {
-      final key = const MorningSeriesKey(RestingPosture.lying, 'H', 'M1');
+      final key = const MorningSeriesKey('H', 'M1');
       final i = ReadinessInputs(
         today: today,
         now: now,
@@ -217,8 +217,8 @@ void main() {
       expect(codes(s), [ReadinessLevelReasonCode.sleepMissing]);
       expect(s.level, ReadinessLevel.notDeterminable);
     });
-    test('gesperrte Kamera-HRV mit z', () {
-      final key = const MorningSeriesKey(RestingPosture.sitting, 'H', 'M1');
+    test('gesperrte Kamera-HRV mit z (Opt-in aus)', () {
+      final key = const MorningSeriesKey('H', 'M1');
       final i = ReadinessInputs(
         today: today,
         now: now,
@@ -227,11 +227,8 @@ void main() {
         ],
         release: CameraRelease(
           developerMode: false,
-          rmssdOptIn: true,
-          state: {
-            ValidationQuantity.lnRmssdSupine: ValidationState.passed,
-            ValidationQuantity.lnRmssdSitting: ValidationState.failed,
-          },
+          rmssdOptIn: false,
+          state: {ValidationQuantity.lnRmssdSupine: ValidationState.passed},
         ),
         sleepSessions: [night(7)],
       );
@@ -243,7 +240,7 @@ void main() {
   });
 
   group('Hinweis „wenige Messungen“ (PAR-148, PAR-161K)', () {
-    final key = const MorningSeriesKey(RestingPosture.lying, 'H', 'M1');
+    final key = const MorningSeriesKey('H', 'M1');
     ReadinessResult cam({required bool few, int ref = 28}) => computeReadiness(
       ReadinessInputs(
         today: today,

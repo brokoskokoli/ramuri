@@ -474,12 +474,12 @@ void main() {
 
   group('Manifest und Schema', () {
     test(
-      'Schema größer als 13: neueres Archiv, auch mit fremden Schlüsseln',
+      'Schema größer als 14: neueres Archiv, auch mit fremden Schlüsseln',
       () async {
-        final lines = valid()..[0] = _manifest(schema: 14);
+        final lines = valid()..[0] = _manifest(schema: 15);
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
         c = _Case(dir);
-        lines[0] = '{"type":"manifest","format":1,"schema_version":14,"created_at_us":1,"neu":true}';
+        lines[0] = '{"type":"manifest","format":1,"schema_version":15,"created_at_us":1,"neu":true}';
         await c.rejectsLines(lines, ArchiveImportFailure.newerSchema);
       },
     );
@@ -1346,8 +1346,8 @@ void main() {
       },
     );
 
-    test('archiveSectionsFor: Schema außerhalb von 4 bis 13 wirft', () {
-      for (final bad in [-1, 0, 1, 2, 3, 14, 100]) {
+    test('archiveSectionsFor: Schema außerhalb von 4 bis 14 wirft', () {
+      for (final bad in [-1, 0, 1, 2, 3, 15, 100]) {
         expect(() => archiveSectionsFor(bad), throwsRangeError, reason: '$bad');
       }
       expect(archiveSectionsFor(4), hasLength(19));
@@ -1381,6 +1381,30 @@ void main() {
         archiveSectionsFor(12).map((s) => s.name),
         isNot(contains('morning_measurements')),
       );
+      // Rohsignal (WP37): Abschnitt 34 erst ab Schema 14, Schlüssel measurement_id;
+      // die neuen Spalten von Abschnitt 16 und 32 fehlen in Schema 13.
+      expect(archiveSectionsFor(14), hasLength(34));
+      expect(archiveSectionsFor(14).last.name, 'morning_raw_signals');
+      expect(archiveSectionsFor(14).last.key, 'measurement_id');
+      expect(archiveSectionsFor(13), hasLength(33));
+      List<String> cols(int schema, String section) => [
+        for (final c in archiveSectionsFor(
+          schema,
+        ).firstWhere((s) => s.name == section).columns)
+          c.name,
+      ];
+      expect(cols(13, 'known_devices'), isNot(contains('last_used_at_us')));
+      expect(cols(14, 'known_devices').last, 'last_used_at_us');
+      expect(
+        cols(13, 'morning_measurements'),
+        isNot(contains('window_start_s')),
+      );
+      expect(cols(14, 'morning_measurements').skip(16), [
+        'window_start_s',
+        'window_end_s',
+        'rest_skipped_after_s',
+        'unusable_reason',
+      ]);
       // `active_warning` (21) ist bis Schema 10 reserviert, ab 11 mit Spalten.
       expect(
         archiveSectionsFor(10)
@@ -2010,6 +2034,117 @@ void main() {
       }
     });
 
+    test('Schema 14: Rohsignal (34), neue Spalten, Puls null bei unbrauchbar; BLOB nur als Hex', () async {
+      Map<String, Object?> mm(int id, {bool v14 = true, Object? hr = 52.3}) => {
+        'id': id,
+        'measured_at_us': 5000 + id,
+        'utc_offset_s': 0,
+        'posture': 'lying',
+        'device_manufacturer': 'Testhersteller',
+        'device_model': 'Testmodell',
+        'method': 'camera-ppg',
+        'method_version': 2,
+        'quality': hr == null ? 'unusable' : 'good',
+        'resting_hr_bpm': hr,
+        'rmssd_ms': null,
+        'timing_noise_ms': null,
+        'sleep_band': null,
+        'before_validation': 0,
+        'outside_window': 0,
+        'camera_ibi': '',
+        if (v14) ...{
+          'window_start_s': hr == null ? null : 5.0,
+          'window_end_s': hr == null ? null : 65.0,
+          'rest_skipped_after_s': null,
+          'unusable_reason': hr == null ? 'noFinger' : null,
+        },
+      };
+      Map<String, Object?> raw(
+        int id, {
+        Object? frames = '00',
+        Object? count = 0,
+      }) => {
+        'measurement_id': id,
+        'frame_count': count,
+        'frames': frames,
+        'exposure_time_ns': 16666666,
+        'iso': null,
+        'timestamp_source': 'realtime',
+        'rolling_shutter_skew_ns': null,
+        'torch_strength': 1,
+        'frame_gap_count': 0,
+        'frame_gap_total_s': 0.0,
+        'saturated_fraction': null,
+      };
+      await c.run(
+        await file(
+          v2(
+            schema: 14,
+            trainings: [mt()..['hc_id'] = null],
+            extra: {
+              'morning_measurements': [mm(1), mm(2, hr: null)],
+              'morning_raw_signals': [
+                raw(1, frames: 'ab12'),
+                raw(2, frames: ''),
+              ],
+            },
+          ),
+        ),
+      );
+      expect(c.sink.commits, 1);
+      final m = c.sink.rows['morning_measurements']!;
+      expect(m[1]['resting_hr_bpm'], isNull);
+      expect(m[1]['unusable_reason'], 'noFinger');
+      expect(m[0]['window_end_s'], 65.0);
+      final r = c.sink.rows['morning_raw_signals']!;
+      expect(r[0]['frames'], [0xab, 0x12]);
+      expect(r[1]['frames'], isEmpty);
+      // Schema 13: Abschnitt 34 und neue Spalten sind beschädigt, fehlende
+      // Spalten in Schema 14 ebenfalls.
+      c = _Case(dir);
+      await rejectsV2(
+        v2(
+          schema: 13,
+          trainings: [mt()..['hc_id'] = null],
+          extra: {
+            'morning_measurements': [mm(1)],
+          },
+        ),
+      );
+      await rejectsV2(
+        v2(
+          schema: 14,
+          trainings: [mt()..['hc_id'] = null],
+          extra: {
+            'morning_measurements': [mm(1, v14: false)],
+          },
+        ),
+      );
+      final l = v2(schema: 13, trainings: [mt()..['hc_id'] = null]);
+      l.insert(l.length - 1, _section('morning_raw_signals'));
+      await rejectsV2(l);
+      for (final bad in <Map<String, Object?>>[
+        raw(1, frames: 'AB'),
+        raw(1, frames: '0'),
+        raw(1, frames: null),
+        raw(1, frames: [0]),
+        raw(1, count: 'viele'),
+        raw(1)..remove('frame_gap_count'),
+        raw(1)..['extra'] = 1,
+      ]) {
+        await rejectsV2(
+          v2(
+            schema: 14,
+            trainings: [mt()..['hc_id'] = null],
+            extra: {
+              'morning_measurements': [mm(1)],
+              'morning_raw_signals': [bad],
+            },
+          ),
+        );
+      }
+    });
+
     test('mode: Schema 9 mit mode oder Schema 10 ohne mode sowie falscher Typ in treadmill_settings: beschädigt', () async {
       await rejectsV2(
         v2(
@@ -2220,9 +2355,9 @@ void main() {
       await c.rejectsLines(l, ArchiveImportFailure.damaged);
     });
 
-    test('Schema 14: neueres Archiv', () async {
+    test('Schema 15: neueres Archiv', () async {
       await rejectsV2(
-        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":14,"created_at_us":1}',
+        v2(schema: 8)..[0] = '{"type":"manifest","format":2,"schema_version":15,"created_at_us":1}',
         ArchiveImportFailure.newerSchema,
       );
     });

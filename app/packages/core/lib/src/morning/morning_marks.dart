@@ -1,8 +1,8 @@
 import '../ppg/validation_status.dart';
-import '../profile/resting_hr_origin.dart' show RestingPosture;
 
 /// Markierung des Kamera-RMSSD auf der Seite Morgenwerte (K-1, PAR-171K und
-/// Validierungssperre).
+/// Validierungssperre). Es gibt einen Stand für das Verfahren, keinen je
+/// Haltung (K67); der Opt-in ist ein Schalter für beide Haltungen (E2).
 enum MorningRmssdMark {
   /// Keine Markierung (Entwicklermodus: gilt als gültig, K62 Punkt 6).
   none,
@@ -10,11 +10,9 @@ enum MorningRmssdMark {
   /// lnRMSSD bestanden, Opt-in aus: „experimentell, nicht eingeschaltet“.
   notEnabled,
 
-  /// Opt-in an, liegend: „experimentell, mit einem Brustgurt verglichen“.
-  optIn,
-
-  /// Opt-in an, sitzend: „experimentell, liegend verglichen“ (E6).
-  optInSitting,
+  /// lnRMSSD bestanden, Opt-in an: „experimentell, mit einem Brustgurt
+  /// verglichen (ein Handy)“.
+  experimental,
 
   /// „eingeschränkt“ oder „nicht bestanden“: „ungenauer als erwartet“.
   inaccurate,
@@ -47,13 +45,11 @@ class MorningTrendMarks {
       rmssd == MorningRmssdMark.notChecked;
 }
 
-/// Markierungen für die Haltung [posture]. Im Entwicklermodus keine Markierung
-/// und kein Opt-in. Sonst gilt für RMSSD der Stand von lnRMSSD liegend; sitzend
-/// gilt er mit, solange die Validierung im Sitzen nicht „eingeschränkt“ oder
-/// „nicht bestanden“ ergab (dann gesperrt, E6).
+/// Markierungen aus dem Stand des Verfahrens, für beide Haltungen gleich (K67).
+/// Im Entwicklermodus keine Markierung und kein Opt-in nötig; sonst zählt bei
+/// „bestanden“ die Kamera-RMSSD nur mit [optIn].
 MorningTrendMarks morningTrendMarks({
   required bool developerMode,
-  required RestingPosture posture,
   required bool optIn,
   Map<ValidationQuantity, ValidationState> state = ppgValidationState,
 }) {
@@ -64,22 +60,10 @@ MorningTrendMarks morningTrendMarks({
       optInVisible: false,
     );
   }
-  final supine = state[ValidationQuantity.lnRmssdSupine];
-  final sitting = state[ValidationQuantity.lnRmssdSitting];
-  final eff =
-      posture == RestingPosture.sitting &&
-          (sitting == ValidationState.limited ||
-              sitting == ValidationState.failed)
-      ? sitting
-      : supine;
-  final lying = posture == RestingPosture.lying;
+  final eff = state[ValidationQuantity.lnRmssdSupine];
   final rmssd = switch (eff) {
     ValidationState.passed =>
-      !optIn
-          ? MorningRmssdMark.notEnabled
-          : lying
-          ? MorningRmssdMark.optIn
-          : MorningRmssdMark.optInSitting,
+      optIn ? MorningRmssdMark.experimental : MorningRmssdMark.notEnabled,
     ValidationState.limited ||
     ValidationState.failed => MorningRmssdMark.inaccurate,
     _ => MorningRmssdMark.notChecked,

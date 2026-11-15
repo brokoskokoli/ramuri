@@ -59,11 +59,12 @@ Synth synth(
   double fps,
   int seed, {
   List<double> artifacts = const [],
+  double duration = 70,
 }) {
   final rnd = KotlinRandom(seed);
   final beats = <double>[];
   var tb = 0.2;
-  while (tb < 70) {
+  while (tb < duration) {
     beats.add(tb);
     tb +=
         meanIbi +
@@ -84,7 +85,7 @@ Synth synth(
 
   final ts = <double>[];
   var t = 0.0;
-  while (t < 70) {
+  while (t < duration) {
     ts.add(t);
     t += 1 / fps + rnd.nextDouble(-0.004, 0.004);
   }

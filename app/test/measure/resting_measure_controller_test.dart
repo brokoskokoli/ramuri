@@ -208,6 +208,111 @@ void main() {
       },
     );
 
+    test('WP27 bleibt auf dem festen Fenster: Ende bei 66,5 s, keine Fenstersuche (WP37)', () async {
+      final windows = <PpgWindow>[];
+      var searched = 0;
+      final r = await Rig.make(
+        evaluate: (frames, window) async {
+          windows.add(window);
+          return evalFinalOnly(frames, window);
+        },
+      );
+      final c = RestingMeasureController(
+        camera: r.cam,
+        clock: r.clock,
+        evaluate: (frames, window) async {
+          windows.add(window);
+          return evalFinalOnly(frames, window);
+        },
+        evaluateBest: (_) async {
+          searched++;
+          throw StateError('keine Fenstersuche');
+        },
+        check: (_) async {
+          searched++;
+          throw StateError('keine Prüfung');
+        },
+        autoTick: false,
+      );
+      addTearDown(c.dispose);
+      await c.startNow();
+      final src = FrameSource();
+      await src.emitUntil(r.cam, 66.6);
+      await pump();
+      expect(c.phase, RestingMeasurePhase.result);
+      expect(searched, 0);
+      expect(windows.where((w) => identical(w, ppgStandardWindow)), isNotEmpty);
+      expect(c.result!.windowStartSeconds, isNull);
+      expect(c.result!.frames, isEmpty);
+      expect(c.searchWindow, isFalse);
+    });
+
+    test('Suchmodus: Strom endet nach 67 s bei laufender Prüfung: einmal abschließend ausgewertet, kein cameraError', () async {
+      final r = await Rig.make();
+      var searched = 0;
+      final hold = Completer<PpgRecordingCheck>();
+      final c = RestingMeasureController(
+        camera: r.cam,
+        clock: r.clock,
+        searchWindow: true,
+        evaluate: evalFinalOnly,
+        evaluateBest: (frames) async {
+          searched++;
+          return PpgWindowedMeasurement(
+            measurement: await evalFinalOnly(frames, ppgStandardWindow),
+            windowStartSeconds: 5,
+            windowEndSeconds: 65,
+          );
+        },
+        check: (_) => hold.future,
+        autoTick: false,
+      );
+      addTearDown(c.dispose);
+      await c.startNow();
+      await FrameSource().emitUntil(r.cam, 67);
+      await r.cam.stop();
+      await pump();
+      await pump();
+      expect(c.stopCause, isNull);
+      expect(c.phase, RestingMeasurePhase.result);
+      expect(searched, 1);
+    });
+
+    test(
+      'Suchmodus: Strom endet schon bei 30 s: cameraError, keine Auswertung',
+      () async {
+        final r = await Rig.make();
+        var searched = 0;
+        final c = RestingMeasureController(
+          camera: r.cam,
+          clock: r.clock,
+          searchWindow: true,
+          evaluate: evalFinalOnly,
+          evaluateBest: (frames) async {
+            searched++;
+            return PpgWindowedMeasurement(
+              measurement: await evalFinalOnly(frames, ppgStandardWindow),
+              windowStartSeconds: 5,
+              windowEndSeconds: 65,
+            );
+          },
+          check: (_) async => const PpgRecordingCheck(
+            goodWindowReached: false,
+            goodStretchSeconds: 0,
+          ),
+          autoTick: false,
+        );
+        addTearDown(c.dispose);
+        await c.startNow();
+        await FrameSource().emitUntil(r.cam, 30);
+        await r.cam.stop();
+        await pump();
+        await pump();
+        expect(c.stopCause, RestingStopCause.cameraError);
+        expect(searched, 0);
+      },
+    );
+
     test('Ende nach dem Messfenster: Ergebnis mit Wert, Kamera gestoppt, Zeitpunkt', () async {
       final r = await Rig.make();
       await r.measureFully();

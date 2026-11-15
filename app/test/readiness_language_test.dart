@@ -157,7 +157,7 @@ void main() {
         l.readinessHistoryNote,
         l.readinessSeriesTitle('HRV', 'ms'),
         l.readinessSeriesOrigin('app.a'),
-        l.readinessSeriesCamera('x', 'y'),
+        l.readinessSeriesCamera('y'),
         l.readinessSeriesSemantics('HRV', 'Kamera', 12),
         l.readinessSeriesNone,
         l.readinessSectionLevel,

@@ -11,7 +11,7 @@ const int readinessHistoryDays = 28;
 
 /// Verlauf der Reihen (WP34 Teil D2, Design
 /// `design/screens/readiness/Verlauf.dc.html`): je Quelle eine eigene Reihe
-/// über 28 Tage (Health Connect je Quell-App, Kamera je Haltung und Gerät),
+/// über 28 Tage (Health Connect je Quell-App, Kamera je Gerät),
 /// nie gemischt, ohne Vergleichswerte anderer Menschen. Tage ohne Wert bleiben
 /// Lücken. Die Werte stammen aus den Reihen des Modells
 /// ([DeviationResult.byDay]), die Seite rechnet nichts.
@@ -165,19 +165,16 @@ class _SeriesCard extends StatelessWidget {
           : ReadinessFactorSource.healthConnect,
     );
     final key = s.cameraSeries;
-    final posture = key?.posture == RestingPosture.sitting
-        ? l.measurePostureSitting
-        : l.measurePostureLying;
     final device = key == null
         ? ''
         : [key.manufacturer, key.model].where((x) => x.isNotEmpty).join(' ');
     final source = camera
-        ? l.readinessSeriesCamera(posture, device)
+        ? l.readinessSeriesCamera(device)
         : l.readinessSeriesOrigin(s.origin ?? '');
     // Markierung einer gesperrten Kamerareihe (PAR-171K): gestrichelt, ohne
     // Einfluss auf die Zahl; im Entwicklermodus keine Kennzeichnung.
     final mark = camera && key != null
-        ? snapshot.effectiveRelease.forFactor(s.factor, key.posture).mark
+        ? snapshot.effectiveRelease.forFactor(s.factor).mark
         : MorningRmssdMark.none;
     final markText = readinessMarkText(l, mark);
     final latest = values.lastWhere((v) => v != null, orElse: () => null);

@@ -8,10 +8,13 @@ import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CaptureResult
+import android.hardware.camera2.TotalCaptureResult
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
 import android.media.ImageReader
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
@@ -126,6 +129,23 @@ object PpgCamera {
         private var reader: ImageReader? = null
         private var request: CaptureRequest.Builder? = null
         private var fps = 0
+        private var timestampSource: String? = null
+
+        // Letzte Angaben der Kamera (Kamerathread schreibt, onImage liest ebenfalls dort). Nur Zahlen, nie ins Log.
+        private var capture = PpgCaptureInfo()
+
+        private val captureCallback = object : CameraCaptureSession.CaptureCallback() {
+            override fun onCaptureCompleted(s: CameraCaptureSession, r: CaptureRequest, result: TotalCaptureResult) {
+                capture = PpgCaptureInfo(
+                    exposureNs = result.get(CaptureResult.SENSOR_EXPOSURE_TIME),
+                    iso = result.get(CaptureResult.SENSOR_SENSITIVITY),
+                    timestampSource = timestampSource,
+                    skewNs = result.get(CaptureResult.SENSOR_ROLLING_SHUTTER_SKEW),
+                    // FLASH_STRENGTH_LEVEL gibt es erst ab Android 15 (API 35); minSdk ist 31.
+                    torch = if (Build.VERSION.SDK_INT >= 35) result.get(CaptureResult.FLASH_STRENGTH_LEVEL) else null,
+                )
+            }
+        }
 
         fun open() {
             val state = availability(context)
@@ -137,6 +157,7 @@ object PpgCamera {
                 val manager = context.getSystemService(CameraManager::class.java)
                 val id = backCameraId(manager, true) ?: return controller.abort("no_flash")
                 val chars = manager.getCameraCharacteristics(id)
+                timestampSource = PpgCaptureInfo.sourceName(chars.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE))
                 fps = PpgCameraLogic.chooseFps(
                     chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
                         ?.map { it.lower to it.upper }.orEmpty(),
@@ -223,7 +244,7 @@ object PpgCamera {
                     b.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(fps, fps))
                     b.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
                     request = b
-                    s.setRepeatingRequest(b.build(), null, handler)
+                    s.setRepeatingRequest(b.build(), captureCallback, handler)
                     controller.started(fps)
                 } catch (e: Throwable) {
                     controller.abort(PpgCameraLogic.fromException(e))
@@ -250,6 +271,7 @@ object PpgCamera {
                         PpgPlane(p[1].buffer, p[1].rowStride, p[1].pixelStride),
                         PpgPlane(p[2].buffer, p[2].rowStride, p[2].pixelStride),
                     ),
+                    capture,
                 )
             } catch (_: Exception) {
                 controller.abort("error")
@@ -262,13 +284,13 @@ object PpgCamera {
             val b = request ?: return@run
             b.set(CaptureRequest.CONTROL_AE_LOCK, true)
             b.set(CaptureRequest.CONTROL_AWB_LOCK, true)
-            session?.setRepeatingRequest(b.build(), null, handler)
+            session?.setRepeatingRequest(b.build(), captureCallback, handler)
         }
 
         override fun torchOff() = cameraThread.run {
             val b = request ?: return@run
             b.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF)
-            session?.setRepeatingRequest(b.build(), null, handler)
+            session?.setRepeatingRequest(b.build(), captureCallback, handler)
         }
 
         override fun closeSession() = cameraThread.run {

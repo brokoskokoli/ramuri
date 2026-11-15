@@ -134,6 +134,34 @@ void main() {
     await sub.cancel();
   });
 
+  test('Kamera-Angaben kommen an, Fehlendes und Unpassendes bleibt null', () {
+    final d = MethodChannelPpgCamera.parse({
+      'type': 'details',
+      'exposureNs': 8333333,
+      'iso': 100,
+      'timestampSource': 'realtime',
+      'skewNs': 20000000,
+      'torch': 1,
+      'saturated': 0.02,
+    }) as PpgCameraDetails;
+    expect(d.exposureTimeNs, 8333333);
+    expect(d.iso, 100);
+    expect(d.timestampSource, CameraTimestampSource.realtime);
+    expect(d.rollingShutterSkewNs, 20000000);
+    expect(d.torchStrength, 1);
+    expect(d.saturatedFraction, 0.02);
+    final e = MethodChannelPpgCamera.parse({
+      'type': 'details',
+      'iso': 'viel',
+      'timestampSource': 'x',
+      'saturated': 1.5,
+    }) as PpgCameraDetails;
+    expect(e.exposureTimeNs, isNull);
+    expect(e.iso, isNull);
+    expect(e.timestampSource, isNull);
+    expect(e.saturatedFraction, isNull);
+  });
+
   test('unpassende Nachrichten entfallen', () async {
     final out = <PpgCameraEvent>[];
     final sub = MethodChannelPpgCamera().start().listen(out.add);

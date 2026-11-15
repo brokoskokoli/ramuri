@@ -63,46 +63,36 @@ void main() {
     await r.dispose();
   });
 
-  test('Noch einmal: Fenster durchgehend, auch die Lücke ist dabei', () async {
+  test('Noch einmal: die zweite Aufnahme trägt nur eigene Pakete', () async {
     final r = rec();
     await r.onRestStarted(_t0);
     source.add(_r(10, [900]));
     await _settle();
     r.onMeasurementEnded(_t0.add(const Duration(seconds: 20)));
-    source.add(_r(25, [910]));
+    source.add(_r(25, [910])); // Lücke nach dem Ende
     await _settle();
-    r.onMeasurementResumed();
+    expect([for (final p in r.packets) p.intervals.single], [900]);
+    r.onMeasurementStarted(_t0.add(const Duration(seconds: 30)));
+    source.add(_r(28, [915])); // vor dem Beginn der Wiederholung
     source.add(_r(40, [920]));
     await _settle();
-    expect([for (final p in r.packets) p.intervals.single], [900, 910, 920]);
+    expect([for (final p in r.packets) p.intervals.single], [920]);
     await r.dispose();
   });
 
-  test('zweimal Noch einmal: jedes Paket genau einmal', () async {
+  test('übersprungene Ruhe: Fenster öffnet sich neu ab Messbeginn', () async {
     final r = rec();
     await r.onRestStarted(_t0);
     source.add(_r(10, [900]));
     await _settle();
-    r.onMeasurementEnded(_t0.add(const Duration(seconds: 20)));
-    source.add(_r(25, [910]));
+    r.onMeasurementStarted(_t0.add(const Duration(seconds: 30)));
+    source.add(_r(35, [950]));
     await _settle();
-    r.onMeasurementResumed();
-    source.add(_r(30, [920]));
-    await _settle();
-    r.onMeasurementEnded(_t0.add(const Duration(seconds: 40)));
-    source.add(_r(45, [930]));
-    await _settle();
-    r.onMeasurementResumed();
-    source.add(_r(50, [940]));
-    await _settle();
-    expect(
-      [for (final p in r.packets) p.intervals.single],
-      [900, 910, 920, 930, 940],
-    );
+    expect([for (final p in r.packets) p.intervals.single], [950]);
     await r.dispose();
   });
 
-  test('stop beendet das Abo, leert den Nachlauf, behält die Pakete', () async {
+  test('stop beendet das Abo, behält die Pakete', () async {
     final r = rec();
     await r.onRestStarted(_t0);
     source.add(_r(10, [900]));
@@ -113,12 +103,10 @@ void main() {
     await r.stop();
     expect(source.hasListener, isFalse);
     expect([for (final p in r.packets) p.intervals.single], [900]);
-    r.onMeasurementResumed(); // Nachlauf wurde verworfen
-    expect([for (final p in r.packets) p.intervals.single], [900]);
     await r.dispose();
   });
 
-  test('ohne Noch einmal gehen die Pakete nach dem Ende verloren', () async {
+  test('nach dem Ende kommen keine Pakete mehr dazu', () async {
     final r = rec();
     await r.onRestStarted(_t0);
     r.onMeasurementEnded(_t0.add(const Duration(seconds: 20)));

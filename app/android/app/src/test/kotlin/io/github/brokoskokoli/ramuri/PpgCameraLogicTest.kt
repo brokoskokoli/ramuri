@@ -103,6 +103,33 @@ class PpgCameraLogicTest {
         assertEquals(16, (sink.events[1]["r16"] as List<*>).size)
     }
 
+    @Test fun detailsComeOnlyAfterLockWithCaptureValuesAndMeanSaturation() {
+        val log = mutableListOf<String>()
+        val sink = Sink(log)
+        val c = PpgController(Hw(log), sink)
+        val info = PpgCaptureInfo(8_333_333L, 100, "realtime", 20_000_000L, null)
+        val sat = PpgStats(200.0, 40.0, DoubleArray(16) { 200.0 }, DoubleArray(16) { 40.0 }, 0.25)
+        for (i in 0 until 2) c.frame(ns(i * 0.5), sat, info)
+        assertTrue("vor der Sperre keine Angaben", sink.events.none { it["type"] == "details" })
+        c.frame(ns(2.5), sat, info)
+        for (i in 1..29) c.frame(ns(2.5 + i / 30.0), stats, info)
+        assertTrue("erst 30 Bilder nach der Sperre", sink.events.none { it["type"] == "details" })
+        c.frame(ns(3.6), stats, info)
+        val d = sink.events.single { it["type"] == "details" }
+        assertEquals(8_333_333L, d["exposureNs"])
+        assertEquals(100, d["iso"])
+        assertEquals("realtime", d["timestampSource"])
+        assertEquals(20_000_000L, d["skewNs"])
+        assertFalse("Torch-Stärke fehlt, wenn die Kamera sie nicht liefert", d.containsKey("torch"))
+        assertEquals("Mittel über alle 33 Bilder (3 mit 0,25)", 0.75 / 33, d["saturated"] as Double, 1e-9)
+    }
+
+    @Test fun sourceNameMapsTimestampSource() {
+        assertEquals("realtime", PpgCaptureInfo.sourceName(1))
+        assertEquals("unknown", PpgCaptureInfo.sourceName(0))
+        assertEquals(null, PpgCaptureInfo.sourceName(null))
+    }
+
     @Test fun exposureIsLockedOnceAtTwoAndAHalfSeconds() {
         val log = mutableListOf<String>()
         val c = PpgController(Hw(log), Sink(log))

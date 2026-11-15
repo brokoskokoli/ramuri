@@ -65,6 +65,7 @@ class FakeKnownDeviceStore implements KnownDeviceStore {
       displayName: displayName ?? d.displayName,
       isPreferred: d.isPreferred,
       addedAt: d.addedAt,
+      lastUsedAt: d.lastUsedAt,
     );
   }
 
@@ -80,8 +81,23 @@ class FakeKnownDeviceStore implements KnownDeviceStore {
         displayName: d.displayName,
         isPreferred: d.deviceId == deviceId,
         addedAt: d.addedAt,
+        lastUsedAt: d.lastUsedAt,
       );
     }
+  }
+
+  @override
+  Future<void> markUsed(String deviceId, {required DateTime at}) async {
+    final i = _d.devices.indexWhere((d) => d.deviceId == deviceId);
+    if (i < 0) throw const StorageException(StorageFailure.notFound);
+    final d = _d.devices[i];
+    _d.devices[i] = KnownDevice(
+      deviceId: d.deviceId,
+      displayName: d.displayName,
+      isPreferred: d.isPreferred,
+      addedAt: d.addedAt,
+      lastUsedAt: at.toUtc(),
+    );
   }
 }
 

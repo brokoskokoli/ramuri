@@ -14,16 +14,16 @@ import 'resting_measure_controller.dart';
 class MorningMeasureHooks {
   const MorningMeasureHooks({
     this.onRestStarted,
-    this.onMeasurementResumed,
+    this.onMeasurementStarted,
     this.onMeasurementEnded,
   });
 
   /// Die Ruhephase beginnt (einmal je Ablauf, nicht bei „Noch einmal“).
   final void Function(DateTime at)? onRestStarted;
 
-  /// „Noch einmal messen“ nach verworfener Messung beginnt (ohne neue
-  /// Ruhephase).
-  final void Function()? onMeasurementResumed;
+  /// Eine neue Aufnahme beginnt: „Noch einmal messen“ nach verworfener
+  /// Messung (ohne neue Ruhephase) oder die Messung nach übersprungener Ruhe.
+  final void Function(DateTime at)? onMeasurementStarted;
 
   /// Die Aufnahme der Messung ist zu Ende (auch bei „Noch einmal“ erneut).
   final void Function(DateTime at)? onMeasurementEnded;
@@ -54,12 +54,16 @@ enum MorningOutcome {
   saveFailed,
 }
 
-/// Ablauf der Morgenmessung (FR-0215, PAR-160K): Haltung (liegend als Vorgabe),
-/// feste Ruhephase von [morningRestSeconds], Messung mit dem unveränderten
-/// Verfahren aus WP27 ([RestingMeasureController] als [engine]), Speichern
-/// über [MorningStore], freiwillige Schlafstufe. Gespeichert wird jede
-/// Messung mit Puls (auch außerhalb des Fensters, dann ohne Wirkung auf die
-/// Reihe); verworfen wird „unbrauchbar“. Keine Werte in Logs.
+/// Ablauf der Morgenmessung (FR-0215, PAR-160K, K66): Haltung (liegend als
+/// Vorgabe), Ruhephase von [morningRestSeconds] (überspringbar, [skipRest]),
+/// Aufnahme bis 120 s mit Fenstersuche ([RestingMeasureController] als
+/// [engine] mit `searchWindow`: Ende, sobald ein 60-s-Fenster „gut“ erreicht,
+/// Ergebnis das beste Fenster), Speichern über [MorningStore], freiwillige
+/// Schlafstufe. Gespeichert wird jede Messung mit Puls (auch außerhalb des
+/// Fensters, dann ohne Wirkung auf die Reihe) mit Fenster und Vermerk
+/// „übersprungen“; „unbrauchbar“ wird verworfen, im Entwicklermodus (K68)
+/// aber gespeichert, dann auch mit dem Kamera-Rohsignal (K70). Keine Werte in
+/// Logs.
 class MorningMeasureController extends ChangeNotifier {
   MorningMeasureController({
     required PpgCamera camera,
@@ -71,6 +75,9 @@ class MorningMeasureController extends ChangeNotifier {
     this.belt,
     RestingMeasureSignal? signal,
     PpgEvaluate? evaluate,
+    PpgBestEvaluate? evaluateBest,
+    PpgRecordingCheckRun? check,
+    this.developerMode,
     bool autoTick = true,
     this.validationState = ppgValidationState,
     this.marksFor,
@@ -79,6 +86,9 @@ class MorningMeasureController extends ChangeNotifier {
          clock: clock,
          signal: signal,
          evaluate: evaluate,
+         evaluateBest: evaluateBest,
+         check: check,
+         searchWindow: true,
          autoTick: autoTick,
        ) {
     engine.setPosture(RestingPosture.lying);
@@ -100,6 +110,11 @@ class MorningMeasureController extends ChangeNotifier {
   /// gespeicherten Messung in den Speicher.
   final MorningBelt? belt;
 
+  /// Entwicklermodus der Einstellungen (wird beim Speichern gelesen); `null`
+  /// oder Fehler heißt aus. Nur im Modus werden unbrauchbare Messungen und das
+  /// Rohsignal gespeichert (K68, K70).
+  final Future<bool> Function()? developerMode;
+
   /// Hinweis „Pulsgurt verbunden“ zeigen (Einstieg, Ruhephase).
   bool get beltHint => belt?.hintVisible ?? false;
 
@@ -111,6 +126,9 @@ class MorningMeasureController extends ChangeNotifier {
 
   late RestingMeasurePhase _lastPhase;
   DateTime? _measureStartedAt;
+
+  /// Die Ruhe wurde übersprungen; die Messung beginnt dann neu (Gurt-Fenster).
+  bool _restSkipping = false;
   bool _disposed = false;
   int _generation = 0;
 
@@ -145,6 +163,10 @@ class MorningMeasureController extends ChangeNotifier {
       _outcome == MorningOutcome.unusable &&
       engine.phase == RestingMeasurePhase.result;
 
+  /// Beendet die Ruhephase sofort und startet die Messung; der Vermerk
+  /// „übersprungen nach s“ kommt an die Messung.
+  Future<void> skipRest() => engine.skipRest();
+
   Future<void> repeat() async {
     if (!canRepeat) return;
     await engine.retry(force: true);
@@ -169,6 +191,11 @@ class MorningMeasureController extends ChangeNotifier {
         case RestingMeasurePhase.measuring:
           if (prev == RestingMeasurePhase.starting) {
             _measureStartedAt = clock.now().toUtc();
+            if (_restSkipping) {
+              _restSkipping = false;
+              hooks.onMeasurementStarted?.call(_measureStartedAt!);
+              belt?.hooks.onMeasurementStarted?.call(_measureStartedAt!);
+            }
           }
         case RestingMeasurePhase.result:
           final at = clock.now().toUtc();
@@ -179,9 +206,12 @@ class MorningMeasureController extends ChangeNotifier {
           _storedId = null;
           unawaited(_handleResult());
         case RestingMeasurePhase.starting:
+          _restSkipping =
+              prev == RestingMeasurePhase.resting && engine.restSkipped;
           if (prev == RestingMeasurePhase.result) {
-            hooks.onMeasurementResumed?.call();
-            belt?.hooks.onMeasurementResumed?.call();
+            final at = clock.now().toUtc();
+            hooks.onMeasurementStarted?.call(at);
+            belt?.hooks.onMeasurementStarted?.call(at);
           }
           _outcome = MorningOutcome.pending;
           _stored = null;
@@ -200,6 +230,12 @@ class MorningMeasureController extends ChangeNotifier {
     try {
       final info = await device();
       _window = await windowStore.read();
+      var dev = false;
+      try {
+        dev = await developerMode?.call() ?? false;
+      } catch (_) {
+        dev = false;
+      }
       final m = buildMorningMeasurement(
         result: r.measurement,
         measuredAt: started,
@@ -209,8 +245,35 @@ class MorningMeasureController extends ChangeNotifier {
         deviceModel: info.model,
         window: _window,
         validationState: validationState,
+        windowStartS: r.windowStartSeconds,
+        windowEndS: r.windowEndSeconds,
+        restSkippedAfterS: r.restSkippedAfter == null
+            ? null
+            : r.restSkippedAfter!.inMilliseconds / 1000,
+        keepUnusable: dev,
       );
       if (m == null) {
+        if (gen != _generation) return;
+        _outcome = MorningOutcome.unusable;
+        _notify();
+        return;
+      }
+      final raw = dev
+          ? buildMorningRawSignal(r.frames, details: r.cameraDetails)
+          : null;
+      if (!m.isUsable) {
+        // Unbrauchbar (nur im Entwicklermodus gespeichert, K68): zählt nirgends,
+        // die Messung gilt wie verworfen („Noch einmal“). Scheitert das
+        // Speichern, ändert das am Ergebnis nichts.
+        try {
+          await store.add(
+            m,
+            beltPackets: belt?.packets ?? const [],
+            rawSignal: raw,
+          );
+        } catch (_) {
+          // Zugabe für die Auswertung; kein Fehlerzustand für die Messung.
+        }
         if (gen != _generation) return;
         _outcome = MorningOutcome.unusable;
         _notify();
@@ -226,13 +289,13 @@ class MorningMeasureController extends ChangeNotifier {
             before,
             nowUtc: m.measuredAt,
             utcOffset: m.utcOffset,
-            series: MorningSeriesKey(
-              m.posture,
-              m.deviceManufacturer,
-              m.deviceModel,
-            ),
+            series: MorningSeriesKey.of(m),
           );
-      final id = await store.add(m, beltPackets: belt?.packets ?? const []);
+      final id = await store.add(
+        m,
+        beltPackets: belt?.packets ?? const [],
+        rawSignal: raw,
+      );
       if (gen != _generation) return;
       _marks = null;
       try {
@@ -287,6 +350,10 @@ class MorningMeasureController extends ChangeNotifier {
         cameraIntervalsMs: m.cameraIntervalsMs,
         beforeValidation: m.beforeValidation,
         outsideWindow: m.outsideWindow,
+        windowStartS: m.windowStartS,
+        windowEndS: m.windowEndS,
+        restSkippedAfterS: m.restSkippedAfterS,
+        unusableReason: m.unusableReason,
       );
     } catch (_) {
       _sleepFailed = true;

@@ -104,8 +104,12 @@ class _V1 extends AppDatabase {
       await customStatement('DROP TABLE treadmill_settings');
       await customStatement('ALTER TABLE runs DROP COLUMN mode');
       // Morgenmessungen samt Gurt-RR (Schema 13, WP33).
+      await customStatement('DROP TABLE morning_raw_signals'); // Schema 14
       await customStatement('DROP TABLE morning_rr_packets');
       await customStatement('DROP TABLE morning_measurements');
+      await customStatement(
+        'ALTER TABLE known_devices DROP COLUMN last_used_at_us',
+      );
       if (version < 2) {
         for (final c in [
           'speed_mps',
@@ -617,7 +621,7 @@ void main() {
   });
 
   for (final from in [1, 2]) {
-    group('Migration $from -> 13 auf befüllter v$from-Datenbank', () {
+    group('Migration $from -> 14 auf befüllter v$from-Datenbank', () {
       test('Daten bleiben, Tabelle und Trigger kommen dazu', () async {
         final v1 = await open((e) => _V1(e, from));
         Future<List<Object?>> master(String type) async => [
@@ -680,7 +684,7 @@ void main() {
               .data
               .values
               .single,
-          13,
+          14,
         );
         await s.database.validateDatabaseSchema();
         expect(await count(s, 'computed_values'), 6);

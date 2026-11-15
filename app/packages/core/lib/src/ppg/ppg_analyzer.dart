@@ -102,6 +102,10 @@ class PpgChannelResult {
     required this.meanFps,
     required this.frameJitterMs,
     required this.timingNoiseMs,
+    this.filtered = const [],
+    this.filteredStartSeconds = 0.0,
+    this.beatOffsetsMs = const [],
+    this.beatOk = const [],
   });
 
   final String channel;
@@ -122,6 +126,15 @@ class PpgChannelResult {
   final double timingNoiseMs;
 
   PpgMethodResult get main => methods[0];
+
+  /// Zwischenwerte für die Fenstersuche (`ppg_window_search.dart`), leer bei Ergebnissen ohne sie:
+  /// gefiltertes Signal im Messfenster (100 Hz), dessen Zeit des ersten Werts in s ab Fensterbeginn,
+  /// je Schlag des Hauptverfahrens der Abstand „Vorlagenbezug – steilster Anstieg“ (ms) und ob der
+  /// Schlag an einem gültigen Intervall hängt (Quelle des Zeitrauschens).
+  final List<double> filtered;
+  final double filteredStartSeconds;
+  final List<double> beatOffsetsMs;
+  final List<bool> beatOk;
 }
 
 /// Alle ausgewerteten Signalquellen; [best] ist die gewählte.
@@ -414,6 +427,13 @@ abstract final class PpgAnalyzer {
       meanFps: 1 / p.dtMean,
       frameJitterMs: p.dtSd * 1000,
       timingNoiseMs: noise,
+      filtered: x,
+      filteredStartSeconds: p.t.first,
+      beatOffsetsMs: [
+        for (var k = 0; k < peaks.length; k++)
+          (tmUp.times[k] - slopeT[k]) * 1000,
+      ],
+      beatOk: okBeat,
     );
   }
 
@@ -602,12 +622,17 @@ abstract final class PpgAnalyzer {
             : 0.0;
       }
     }
-    // Bezugspunkt in der Vorlage: Gipfel oder steilster Anstieg
+    // Bezugspunkt in der Vorlage: Gipfel oder steilster Anstieg. An den Rändern gilt die einseitige
+    // Differenz: Ein unendlicher Randwert machte die Parabel in `refine` zu NaN, sobald der steilste
+    // Anstieg am vorletzten Index lag (kurzes Anstiegsfenster bei f0 ab etwa 2,3 Hz); der Rand
+    // selbst wird nie Bezugspunkt (die Suche läuft von 1 bis len - 2).
     final ref = refOnSlope
         ? List<double>.generate(
             len,
-            (j) => (j == 0 || j == len - 1)
-                ? double.negativeInfinity
+            (j) => j == 0
+                ? tpl[1] - tpl[0]
+                : j == len - 1
+                ? tpl[len - 1] - tpl[len - 2]
                 : (tpl[j + 1] - tpl[j - 1]) / 2,
           )
         : tpl;

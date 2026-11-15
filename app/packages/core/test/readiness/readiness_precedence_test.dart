@@ -17,8 +17,7 @@ DeviationResult res(
   referenceCount: refN,
 );
 
-const lyingKey = MorningSeriesKey(RestingPosture.lying, 'H', 'M1');
-const sittingKey = MorningSeriesKey(RestingPosture.sitting, 'H', 'M1');
+const lyingKey = MorningSeriesKey('H', 'M1');
 
 FactorEvaluation choose(
   DeviationResult? hc,
@@ -75,25 +74,24 @@ void main() {
     expect(e.chosen!.z, -1.2);
   });
 
-  test(
-    'mehrere Kamerareihen: liegend vor sitzend, auch bei kleinerer Referenz',
-    () {
-      final sit = res(ReadinessSource.camera, z: 1, key: sittingKey, refN: 28);
-      final lie = res(ReadinessSource.camera, z: 2, key: lyingKey, refN: 15);
-      expect(choose(null, [sit, lie]).chosen!.z, 2);
-      expect(choose(null, [lie, sit]).chosen!.z, 2);
-    },
-  );
-
-  test('gleiche Haltung: mehr Referenzwerte zuerst', () {
-    const k2 = MorningSeriesKey(RestingPosture.lying, 'H', 'M0');
+  test('mehrere Kamerareihen (je Gerät): mehr Referenzwerte zuerst', () {
+    const k2 = MorningSeriesKey('H', 'M0');
     final a = res(ReadinessSource.camera, z: 1, key: lyingKey, refN: 16);
     final b = res(ReadinessSource.camera, z: 2, key: k2, refN: 20);
     expect(choose(null, [a, b]).chosen!.z, 2);
+    expect(choose(null, [b, a]).chosen!.z, 2);
+  });
+
+  test('gleiche Referenzzahl: nach Hersteller und Modell', () {
+    const k2 = MorningSeriesKey('H', 'M0');
+    final a = res(ReadinessSource.camera, z: 1, key: lyingKey, refN: 20);
+    final b = res(ReadinessSource.camera, z: 2, key: k2, refN: 20);
+    expect(choose(null, [a, b]).chosen!.z, 2);
+    expect(choose(null, [b, a]).chosen!.z, 2);
   });
 
   test('Kamerareihe ohne z wird übergangen, die nächste zählt', () {
-    final sit = res(ReadinessSource.camera, z: 1, key: sittingKey);
+    final sit = res(ReadinessSource.camera, z: 1, key: lyingKey);
     expect(choose(null, [camNo, sit]).chosen!.z, 1);
   });
 

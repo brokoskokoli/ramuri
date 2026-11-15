@@ -124,7 +124,7 @@ void main() {
     });
   });
 
-  group('Kamera je Haltung und Gerät (PAR-160K bis PAR-162K)', () {
+  group('Kamera je Gerät, Haltung nur Markierung (K67, PAR-160K bis PAR-162K)', () {
     List<MorningMeasurement> lying({
       int from = 0,
       int to = 29,
@@ -142,14 +142,8 @@ void main() {
     DeviationResult pick(
       List<DeviationResult> r,
       ReadinessFactor f, {
-      RestingPosture posture = RestingPosture.lying,
       String model = 'M1',
-    }) => r.singleWhere(
-      (x) =>
-          x.factor == f &&
-          x.cameraSeries!.posture == posture &&
-          x.cameraSeries!.model == model,
-    );
+    }) => r.singleWhere((x) => x.factor == f && x.cameraSeries!.model == model);
 
     test('liegende Reihe liefert z für Ruhepuls und HRV', () {
       final r = cameraDeviations(lying(), today: todayKey);
@@ -158,16 +152,9 @@ void main() {
       expect(r.every((x) => x.source == ReadinessSource.camera), isTrue);
     });
 
-    test('Haltungen und Geräte bleiben getrennt, ohne Mischen', () {
+    test('Geräte bleiben getrennt, ohne Mischen', () {
       final base = lying();
       final noise = [
-        for (var i = 0; i < 29; i++)
-          morning(
-            dayIdx: i,
-            hr: 90 + (i % 3).toDouble(),
-            rmssd: 150 - (i % 4).toDouble(),
-            posture: RestingPosture.sitting,
-          ),
         for (var i = 0; i < 29; i++)
           morning(dayIdx: i, hr: 100 + (i % 2).toDouble(), model: 'M2'),
       ];
@@ -176,8 +163,31 @@ void main() {
       for (final f in ReadinessFactor.values) {
         expect(pick(mixed, f).z, pick(alone, f).z);
       }
-      expect(mixed.length, 6); // 3 Reihen x 2 Faktoren
+      expect(mixed.length, 4); // 2 Reihen x 2 Faktoren
     });
+
+    test(
+      'Haltung ändert die Reihe nicht: sitzend und liegend zählen zusammen',
+      () {
+        final lyingOnly = lying();
+        final withSitting = [
+          for (var i = 0; i < 29; i++)
+            morning(
+              dayIdx: i,
+              hr: 55 + (i % 5) * 2,
+              rmssd: 40 + (i % 6) * 3,
+              posture: i.isEven ? RestingPosture.sitting : RestingPosture.lying,
+            ),
+        ];
+        final a = cameraDeviations(lyingOnly, today: todayKey);
+        final b = cameraDeviations(withSitting, today: todayKey);
+        expect(b.length, 2); // eine Reihe, zwei Faktoren
+        for (final f in ReadinessFactor.values) {
+          expect(pick(b, f).z, pick(a, f).z);
+          expect(pick(b, f).referenceCount, pick(a, f).referenceCount);
+        }
+      },
+    );
 
     test('außerhalb des Morgenfensters zählt nicht', () {
       final all = [

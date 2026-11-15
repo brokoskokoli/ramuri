@@ -546,7 +546,6 @@ void main() {
           validationState: const {
             ValidationQuantity.restingHr: ValidationState.failed,
             ValidationQuantity.lnRmssdSupine: ValidationState.passed,
-            ValidationQuantity.lnRmssdSitting: ValidationState.notChecked,
           },
         );
         final snap = await service.load();

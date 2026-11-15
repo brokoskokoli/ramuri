@@ -16,11 +16,21 @@ void main() {
     final events = await _run(cam);
     expect(events.first, isA<PpgCameraStarted>());
     expect(events.whereType<PpgCameraExposureLocked>(), hasLength(1));
+    expect(
+      events.whereType<PpgCameraDetails>().first.iso,
+      debugCameraDetails.iso,
+    );
     expect(events.last, isA<PpgCameraFrame>());
     expect(cam.torchOn, isFalse);
     final m = evaluatePpg(_frames(events));
     expect(m.quality, isNot(PpgQuality.unusable));
     expect(m.bpm, closeTo(60 / 0.85, 2.0));
+  });
+
+  test('guter Puls: sendet im Suchmodus bis mindestens zur Höchstdauer der Aufnahme', () async {
+    final cam = DebugTestPpgCamera(speed: 100000);
+    final frames = _frames(await _run(cam));
+    expect(frames.last.t, greaterThanOrEqualTo(ppgSearchMaxRecordSeconds));
   });
 
   test('schlechtes Signal: Auswertung unbrauchbar, kein Wert', () async {

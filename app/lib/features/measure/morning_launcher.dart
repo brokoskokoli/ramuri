@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 
@@ -10,7 +12,7 @@ import 'resting_measure_launcher.dart';
 
 /// Hält Controller und Ton-Schalter der Morgenmessung und schließt die Seite
 /// am Ende. Kamera und Speicher kommen vom Aufrufer.
-/// Markierungen für das Ergebnis aus Entwicklermodus und Opt-in der Einstellungen
+/// Markierungen für das Ergebnis aus Entwicklermodus, Opt-in und Validierungsstand
 /// (dieselben wie auf der Seite Morgenwerte, [morningTrendMarks]).
 Future<MorningTrendMarks> Function(RestingPosture) morningMarksReader(
   SettingsStore settings,
@@ -19,7 +21,6 @@ Future<MorningTrendMarks> Function(RestingPosture) morningMarksReader(
 ) =>
     (posture) async => morningTrendMarks(
       developerMode: await SettingsDeveloperModeStore(settings, clock).read(),
-      posture: posture,
       optIn: await settings.get(SettingKeys.morningCameraRmssdOptIn) == '1',
       state: state,
     );
@@ -32,6 +33,8 @@ class MorningMeasureHost extends StatefulWidget {
     required this.settings,
     required this.clock,
     this.evaluate,
+    this.evaluateBest,
+    this.check,
     this.device = readDeviceInfo,
     this.hooks = const MorningMeasureHooks(),
     this.belt,
@@ -46,6 +49,8 @@ class MorningMeasureHost extends StatefulWidget {
 
   /// Nur Tests: gescriptete Auswertung statt Isolate.
   final PpgEvaluate? evaluate;
+  final PpgBestEvaluate? evaluateBest;
+  final PpgRecordingCheckRun? check;
   final DeviceInfoReader device;
 
   /// Stellen für Teil E (Gurt-RR): Beginn der Ruhephase, Ende der Messung.
@@ -69,6 +74,8 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
   @override
   void initState() {
     super.initState();
+    // Bekannten Gurt ohne Rückfrage verbinden (WP37 C2); wirft nie.
+    unawaited(widget.belt?.sensors?.connectBestKnown());
     widget.belt?.init().then((_) {
       if (mounted) setState(() {});
     });
@@ -82,6 +89,12 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
       belt: widget.belt,
       signal: SystemRestingSignal(_soundOn),
       evaluate: widget.evaluate,
+      evaluateBest: widget.evaluateBest,
+      check: widget.check,
+      developerMode: SettingsDeveloperModeStore(
+        widget.settings,
+        widget.clock,
+      ).read,
       autoTick: widget.autoTick,
       validationState: widget.validationState,
       marksFor: morningMarksReader(
@@ -104,6 +117,7 @@ class _MorningMeasureHostState extends State<MorningMeasureHost> {
   Widget build(BuildContext context) => MorningMeasureScreen(
     controller: _controller,
     soundOn: _soundOn,
+    sensors: widget.belt?.sensors,
     onClose: () => Navigator.of(context).pop(),
   );
 }

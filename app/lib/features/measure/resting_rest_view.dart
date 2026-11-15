@@ -17,8 +17,13 @@ class RestingRestView extends StatelessWidget {
     required this.controller,
     required this.soundOn,
     this.allowSkip = true,
+    this.skipButton = false,
     this.beltHint = false,
   });
+
+  /// Morgenmessung (K66): Nebenknopf „Überspringen“ (48 dp), der die Messung
+  /// sofort startet, und der Hinweistext dazu statt der Länge des Fensters.
+  final bool skipButton;
 
   /// Hinweis „Pulsgurt zeichnet mit“ (Morgenmessung im Entwicklermodus).
   final bool beltHint;
@@ -157,6 +162,10 @@ class RestingRestView extends StatelessWidget {
                       child: Text(
                         controller.waitingForForeground
                             ? l10n.measureRestWaitForeground
+                            : skipButton
+                            ? (on
+                                  ? l10n.morningRestNextSound
+                                  : l10n.morningRestNextVibrate)
                             : on
                             ? l10n.measureRestNextSound(seconds)
                             : l10n.measureRestNextVibrate(seconds),
@@ -168,6 +177,17 @@ class RestingRestView extends StatelessWidget {
               },
             ),
           ),
+          if (skipButton) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 48,
+              child: RamuriSecondaryButton(
+                key: const Key('morning_skip_rest'),
+                label: l10n.morningRestSkip,
+                onPressed: () => controller.skipRest(),
+              ),
+            ),
+          ],
           if (allowSkip)
             RestingTextLink(
               key: const Key('measure_skip_rest'),

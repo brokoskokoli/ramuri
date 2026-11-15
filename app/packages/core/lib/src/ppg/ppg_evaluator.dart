@@ -115,6 +115,16 @@ class PpgMeasurement {
 PpgMeasurement _unusable(PpgQualityReason reason) =>
     PpgMeasurement(quality: PpgQuality.unusable, reasons: [reason]);
 
+/// Endliche Werte und je 16 Teilbereiche (sonst „ungültige Eingabe“).
+bool ppgFrameIsValid(PpgFrame f) =>
+    f.t.isFinite &&
+    f.r.isFinite &&
+    f.g.isFinite &&
+    f.r16.length == 16 &&
+    f.g16.length == 16 &&
+    f.r16.every((v) => v.isFinite) &&
+    f.g16.every((v) => v.isFinite);
+
 double? _finite(double v) => v.isFinite ? v : null;
 
 /// Wertet Bildstatistiken aus und bewertet die Qualität (ALGORITHMUS.md Abschn. 10).
@@ -123,16 +133,8 @@ PpgMeasurement evaluatePpg(
   List<PpgFrame> frames, {
   PpgWindow window = ppgStandardWindow,
 }) {
-  for (final f in frames) {
-    if (!f.t.isFinite ||
-        !f.r.isFinite ||
-        !f.g.isFinite ||
-        f.r16.length != 16 ||
-        f.g16.length != 16 ||
-        f.r16.any((v) => !v.isFinite) ||
-        f.g16.any((v) => !v.isFinite)) {
-      return _unusable(PpgQualityReason.invalidInput);
-    }
+  if (!frames.every(ppgFrameIsValid)) {
+    return _unusable(PpgQualityReason.invalidInput);
   }
   // Referenz (MainActivity) wertet nur vollständige Aufnahmen aus; ohne Bilder am Anfang und
   // am Ende des Messfensters würde sonst eine Teilmessung als „gut“ gelten (Abschn. 2).

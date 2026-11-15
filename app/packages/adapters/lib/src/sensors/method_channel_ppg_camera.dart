@@ -68,6 +68,11 @@ class MethodChannelPpgCamera implements PpgCamera {
     return [for (final e in v) (e as num).toDouble()];
   }
 
+  static int? _int(Object? v) => v is num && v.isFinite ? v.toInt() : null;
+
+  static double? _fraction(Object? v) =>
+      v is num && v.isFinite && v >= 0 && v <= 1 ? v.toDouble() : null;
+
   /// Wandelt eine Nachricht von Kotlin in ein Ereignis; Unpassendes entfällt (nie ein Fehler).
   static PpgCameraEvent? parse(Object? event) {
     if (event is! Map) return null;
@@ -89,6 +94,19 @@ class MethodChannelPpgCamera implements PpgCamera {
             r16: r16,
             g16: g16,
           ),
+        );
+      case 'details':
+        return PpgCameraDetails(
+          exposureTimeNs: _int(event['exposureNs']),
+          iso: _int(event['iso']),
+          timestampSource: switch (event['timestampSource']) {
+            'realtime' => CameraTimestampSource.realtime,
+            'unknown' => CameraTimestampSource.unknown,
+            _ => null,
+          },
+          rollingShutterSkewNs: _int(event['skewNs']),
+          torchStrength: _int(event['torch']),
+          saturatedFraction: _fraction(event['saturated']),
         );
       case 'started':
         final fps = event['fps'];

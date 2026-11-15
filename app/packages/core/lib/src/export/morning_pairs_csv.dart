@@ -3,15 +3,16 @@ import 'dart:typed_data';
 
 import '../../ports/file_handoff.dart';
 import '../../ports/storage_morning.dart';
+import '../ppg/ppg_evaluator.dart' show PpgFrame;
 import '../preprocessing/measurement.dart' show RrPacket;
 
 /// Formatversion der Messpaare-CSV (`docs/contracts/morning-pairs-csv.md`).
-const int morningPairsCsvFormatVersion = 1;
+const int morningPairsCsvFormatVersion = 2;
 
 /// MIME-Typ der Datei.
 const String morningPairsCsvMimeType = 'text/csv';
 
-/// Kopfzeile der Formatversion 1 (Vertrag Abschnitt 3).
+/// Kopfzeile der Formatversion 2 (Vertrag Abschnitt 3).
 const List<String> morningPairsCsvColumns = [
   'format_version',
   'morning_id',
@@ -30,6 +31,7 @@ class MorningPair {
     required this.id,
     required this.measurement,
     this.beltPackets = const [],
+    this.rawSignal,
   });
 
   final int id;
@@ -37,6 +39,10 @@ class MorningPair {
 
   /// Roh gespeicherte Gurt-RR-Pakete nach Empfangszeit; leer ohne Gurt.
   final List<RrPacket> beltPackets;
+
+  /// Kamera-Rohsignal (nur Entwicklermodus); `null` = keins gespeichert, dann
+  /// gibt es keine `raw_frame`-Zeilen.
+  final MorningRawSignal? rawSignal;
 }
 
 /// Kodiert die Morgen als CSV nach `docs/contracts/morning-pairs-csv.md`:
@@ -94,10 +100,38 @@ String encodeMorningPairsCsv(Iterable<MorningPair> pairs) {
     row('meta', 'method', value: m.method);
     row('meta', 'method_version', value: '${m.methodVersion}');
     row('meta', 'quality', value: m.quality.name);
+    row('meta', 'usable', value: m.isUsable ? '1' : '0');
+    row('meta', 'quality_reason', value: m.unusableReason?.name ?? '');
+    row('meta', 'window_start', value: num(m.windowStartS), unit: 's');
+    row('meta', 'window_end', value: num(m.windowEndS), unit: 's');
+    row(
+      'meta',
+      'rest_skipped_after',
+      value: num(m.restSkippedAfterS),
+      unit: 's',
+    );
     row('meta', 'before_validation', value: m.beforeValidation ? '1' : '0');
     row('meta', 'outside_window', value: m.outsideWindow ? '1' : '0');
     row('meta', 'sleep_band', value: m.sleepBand?.code ?? '');
     row('meta', 'belt_packets', value: '${p.beltPackets.length}');
+    final raw = p.rawSignal;
+    row('meta', 'raw_frames', value: '${raw?.frames.length ?? 0}');
+    if (raw != null) {
+      String n(Object? v) => v == null ? '' : '$v';
+      row('meta', 'exposure_time', value: n(raw.exposureTimeNs), unit: 'ns');
+      row('meta', 'iso', value: n(raw.iso));
+      row('meta', 'timestamp_source', value: raw.timestampSource?.code ?? '');
+      row(
+        'meta',
+        'rolling_shutter_skew',
+        value: n(raw.rollingShutterSkewNs),
+        unit: 'ns',
+      );
+      row('meta', 'torch_strength', value: n(raw.torchStrength));
+      row('meta', 'frame_gap_count', value: '${raw.frameGapCount}');
+      row('meta', 'frame_gap_total', value: num(raw.frameGapTotalS), unit: 's');
+      row('meta', 'saturated_fraction', value: num(raw.saturatedFraction));
+    }
     row('camera', 'resting_hr', value: num(m.roundedRestingHr), unit: 'bpm');
     row('camera', 'rmssd', value: num(m.rmssdMs), unit: 'ms');
     row('camera', 'timing_noise', value: num(m.timingNoiseMs), unit: 'ms');
@@ -121,6 +155,11 @@ String encodeMorningPairsCsv(Iterable<MorningPair> pairs) {
           value: '$v',
           unit: '1/1024 s',
         );
+      }
+    }
+    if (raw != null) {
+      for (final (i, f) in raw.frames.indexed) {
+        row('raw_frame', 'frame', seq: '${i + 1}', value: _frameValue(f));
       }
     }
   }
@@ -155,6 +194,7 @@ Future<ExportFile> buildMorningPairsCsvFile(
         id: e.id,
         measurement: e.value,
         beltPackets: [for (final p in await store.beltPackets(e.id)) p.value],
+        rawSignal: await store.rawSignal(e.id),
       ),
     );
   }
@@ -166,6 +206,22 @@ Future<ExportFile> buildMorningPairsCsvFile(
     mimeType: morningPairsCsvMimeType,
     bytes: Uint8List.fromList(utf8.encode(encodeMorningPairsCsv(pairs))),
   );
+}
+
+/// Ein Bild als 35 Zahlen mit `;` getrennt: t, r, g, r16[0..15], g16[0..15]
+/// (Vertrag Abschnitt 4). Verlustfrei: kürzeste Dezimalform, die beim Lesen
+/// wieder genau dieselbe Zahl (float64) ergibt.
+String _frameValue(PpgFrame f) =>
+    [f.t, f.r, f.g, ...f.r16, ...f.g16].map(_exact).join(';');
+
+/// Kürzeste Dezimalform, die zurückgelesen genau [v] ergibt, nie mit Exponent.
+String _exact(double v) {
+  final s = '$v';
+  if (!s.contains('e')) return s;
+  if (v.abs() >= 1) return '${BigInt.from(v)}.0';
+  // Sehr kleine Beträge (unter 1e-6; für Pixelmittel ohne Bedeutung): feste
+  // Form mit 20 Nachkommastellen, Rundung höchstens 5e-21.
+  return v.toStringAsFixed(20);
 }
 
 String _time(DateTime t) => t.toUtc().toIso8601String();

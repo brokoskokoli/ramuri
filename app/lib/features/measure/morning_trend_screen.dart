@@ -9,9 +9,10 @@ import 'device_info.dart';
 import 'morning_trend_logic.dart';
 import 'resting_widgets.dart';
 
-/// Seite „Morgenwerte“ (Design `morgen/Trend`): Reihe liegend/sitzend dieses
-/// Handys, Ruhepuls und RMSSD der letzten 14 Tage aus den zählenden Messungen,
-/// 7-Tage-Mittel gestrichelt, Markierungen und Opt-in nach K-1, Morgenfenster.
+/// Seite „Morgenwerte“ (Design `morgen/Trend`, K67): eine Reihe dieses Handys
+/// (liegend und sitzend zusammen, Punkte nach Haltung markiert), Ruhepuls und
+/// RMSSD der letzten 14 Tage aus den zählenden Messungen, 7-Tage-Mittel
+/// gestrichelt, Markierungen nach K-1, Liste der letzten Messungen, Morgenfenster.
 /// Ohne Sichtbarkeit ([morningMeasurementReachable]) zeigt sie nichts.
 class MorningTrendScreen extends StatefulWidget {
   const MorningTrendScreen({
@@ -51,7 +52,6 @@ const int _days = 14;
 
 class _MorningTrendScreenState extends State<MorningTrendScreen> {
   late Future<_Data?> _future = _load();
-  RestingPosture _posture = RestingPosture.lying;
   bool _failed = false;
 
   Future<_Data?> _load() async {
@@ -180,14 +180,12 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
     final offset = widget.clock.utcOffsetAt(now);
     final marks = morningTrendMarks(
       developerMode: d.developerMode,
-      posture: _posture,
       optIn: d.optIn,
       state: widget.validationState,
     );
     List<MorningDayValue> values(double? Function(MorningMeasurement) pick) =>
         morningTrendValues(
           d.measurements,
-          posture: _posture,
           manufacturer: d.device.manufacturer,
           model: d.device.model,
           nowUtc: now,
@@ -195,9 +193,15 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
           pick: pick,
           days: _days,
         );
-    final hr = values((m) => roundRestingHr(m.restingHrBpm));
+    final hr = values((m) => m.roundedRestingHr);
     final rm = values((m) => m.rmssdMs);
     final valid = {for (final e in hr) e.dayIndex}.length;
+    final rows = morningRecentRows(
+      d.measurements,
+      manufacturer: d.device.manufacturer,
+      model: d.device.model,
+      developerMode: d.developerMode,
+    );
     final nf1 = NumberFormat.decimalPatternDigits(
       locale: locale,
       decimalDigits: 1,
@@ -207,24 +211,7 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
       decimalDigits: 0,
     );
     return [
-      RamuriSegmentedToggle<RestingPosture>(
-        key: const Key('morning_posture'),
-        expanded: true,
-        style: RamuriSegmentedStyle.soft,
-        semanticLabel: l10n.morningTitle,
-        selected: _posture,
-        onChanged: (p) => setState(() => _posture = p),
-        segments: [
-          RamuriSegment(
-            value: RestingPosture.lying,
-            label: l10n.measurePostureLying,
-          ),
-          RamuriSegment(
-            value: RestingPosture.sitting,
-            label: l10n.measurePostureSitting,
-          ),
-        ],
-      ),
+      const _PostureLegend(),
       Text(
         l10n.morningSeriesInfo(valid),
         key: const Key('morning_series_info'),
@@ -241,7 +228,8 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
           minSpan: 6,
           format: nf1,
           muted: false,
-          chartLabel: l10n.morningHrChart,
+          chartLabel: (lo, hi) =>
+              _chartLabel(l10n, l10n.morningHrChart(lo, hi), hr),
           meanNote: l10n.morningMeanNote,
           mark: marks.hrInaccurate ? l10n.morningMarkInaccurate : null,
           markKey: const Key('morning_hr_mark'),
@@ -255,7 +243,8 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
           minSpan: 20,
           format: nf0,
           muted: marks.rmssdLocked,
-          chartLabel: l10n.morningRmssdChart,
+          chartLabel: (lo, hi) =>
+              _chartLabel(l10n, l10n.morningRmssdChart(lo, hi), rm),
           meanNote: l10n.morningMeanNote,
           mark: morningMarkText(l10n, marks.rmssd),
           markKey: const Key('morning_rmssd_mark'),
@@ -265,13 +254,14 @@ class _MorningTrendScreenState extends State<MorningTrendScreen> {
                   key: const Key('morning_optin'),
                   contentPadding: EdgeInsets.zero,
                   title: Text(l10n.morningOptInTitle),
-                  subtitle: Text(l10n.morningMarkOptIn),
+                  subtitle: Text(l10n.morningMarkExperimental),
                   value: d.optIn,
                   onChanged: _setOptIn,
                 )
               : null,
         ),
       ],
+      if (rows.isNotEmpty) _RecentList(rows: rows, nf: nf0, nf1: nf1),
       RamuriCard(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Column(
@@ -307,11 +297,204 @@ String? morningMarkText(AppLocalizations l10n, MorningRmssdMark m) =>
     switch (m) {
       MorningRmssdMark.none => null,
       MorningRmssdMark.notEnabled => l10n.morningMarkNotEnabled,
-      MorningRmssdMark.optIn => l10n.morningMarkOptIn,
-      MorningRmssdMark.optInSitting => l10n.morningMarkOptInSitting,
+      MorningRmssdMark.experimental => l10n.morningMarkExperimental,
       MorningRmssdMark.inaccurate => l10n.morningMarkInaccurate,
       MorningRmssdMark.notChecked => l10n.morningMarkNotChecked,
     };
+
+/// Text für Screenreader: Spanne und Zahl der sitzenden Punkte (K67), weil die
+/// Markierung gefüllt/hohl allein nicht vorgelesen wird.
+String _chartLabel(
+  AppLocalizations l10n,
+  String base,
+  List<MorningDayValue> values,
+) {
+  final sitting = values.where((v) => v.posture == RestingPosture.sitting);
+  return sitting.isEmpty
+      ? base
+      : '$base, ${l10n.morningChartSitting(sitting.length)}';
+}
+
+/// Punkt der Haltung: gefüllt = liegend, hohl = sitzend (K67). Nur Zeichen; der
+/// Text steht daneben oder im Semantics-Label.
+class _PostureDot extends StatelessWidget {
+  const _PostureDot({required this.posture, this.dashed = false});
+
+  final RestingPosture posture;
+  final bool dashed;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = RamuriColors.of(context);
+    final color = dashed ? c.textMuted : c.accent;
+    return ExcludeSemantics(
+      child: Container(
+        width: 16,
+        height: 16,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: posture == RestingPosture.lying && !dashed ? color : c.surface,
+          border: Border.all(color: color, width: 2),
+        ),
+      ),
+    );
+  }
+}
+
+class _PostureLegend extends StatelessWidget {
+  const _PostureLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final style = Theme.of(context).textTheme.labelLarge;
+    Widget item(RestingPosture p, String label) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _PostureDot(posture: p),
+        const SizedBox(width: 6),
+        Text(label, style: style),
+      ],
+    );
+    return Semantics(
+      container: true,
+      label: l10n.morningLegendLabel,
+      child: Wrap(
+        key: const Key('morning_legend'),
+        spacing: 16,
+        runSpacing: 4,
+        children: [
+          item(RestingPosture.lying, l10n.morningLegendLying),
+          item(RestingPosture.sitting, l10n.morningLegendSitting),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentList extends StatelessWidget {
+  const _RecentList({required this.rows, required this.nf, required this.nf1});
+
+  final List<MorningRow> rows;
+  final NumberFormat nf;
+  final NumberFormat nf1;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context).textTheme;
+    final c = RamuriColors.of(context);
+    final locale = Localizations.localeOf(context).toString();
+    final dayFmt = DateFormat.MMMEd(locale).add_Hm();
+    String reason(PpgQualityReason? r) => switch (r) {
+      null => '',
+      PpgQualityReason.noFinger => l10n.morningReasonNoFinger,
+      PpgQualityReason.weakSignal ||
+      PpgQualityReason.flatSignal ||
+      PpgQualityReason.lowSignalQuality => l10n.morningReasonWeak,
+      PpgQualityReason.tooManyDisturbances ||
+      PpgQualityReason.someDisturbances ||
+      PpgQualityReason.timingNoise => l10n.morningReasonFewBeats,
+      _ => l10n.morningReasonInterrupted,
+    };
+    return Column(
+      key: const Key('morning_list'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          header: true,
+          child: Text(
+            l10n.morningListTitle,
+            style: theme.labelLarge!.copyWith(color: c.textMuted),
+          ),
+        ),
+        const SizedBox(height: 8),
+        RamuriCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Column(
+            children: [
+              for (final r in rows)
+                _row(context, l10n, theme, c, dayFmt, reason, r),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _row(
+    BuildContext context,
+    AppLocalizations l10n,
+    TextTheme theme,
+    RamuriColors c,
+    DateFormat dayFmt,
+    String Function(PpgQualityReason?) reason,
+    MorningRow r,
+  ) {
+    final m = r.m;
+    final unusable = r.status == MorningRowStatus.unusable;
+    final lying = m.posture == RestingPosture.lying;
+    final pose = lying ? l10n.morningLegendLying : l10n.morningLegendSitting;
+    final why = reason(m.unusableReason);
+    final note = switch (r.status) {
+      MorningRowStatus.counts =>
+        lying ? l10n.morningRowCounts : l10n.morningRowCountsSitting,
+      MorningRowStatus.outside => l10n.morningRowOutside,
+      MorningRowStatus.later => l10n.morningRowLater,
+      MorningRowStatus.unusable =>
+        why.isEmpty
+            ? l10n.morningRowUnusable
+            : l10n.morningRowUnusableReason(why),
+    };
+    final hr = m.roundedRestingHr;
+    final vals = unusable
+        ? '–'
+        : [
+            hr == null ? '–' : nf.format(hr),
+            m.rmssdMs == null ? '–' : nf.format(m.rmssdMs),
+          ].join(' · ');
+    final local = m.measuredAt.toUtc().add(m.utcOffset);
+    final muted = r.status != MorningRowStatus.counts;
+    return MergeSemantics(
+      child: ConstrainedBox(
+        key: Key('morning_row_${m.measuredAt.millisecondsSinceEpoch}'),
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              _PostureDot(posture: m.posture, dashed: unusable),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${dayFmt.format(local)} · $pose',
+                      style: theme.bodyMedium!.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      note,
+                      style: theme.bodySmall!.copyWith(color: c.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                vals,
+                style: theme.labelLarge!.copyWith(
+                  color: muted ? c.textMuted : null,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _TrendCard extends StatelessWidget {
   const _TrendCard({
@@ -417,6 +600,7 @@ class _TrendCard extends StatelessWidget {
                   dashedLine: muted,
                   meanColor: c.outlineStrong,
                   dot: muted ? c.textSoft : c.ember,
+                  hollow: c.surface,
                 ),
               ),
             ),
@@ -446,6 +630,7 @@ class _TrendPainter extends CustomPainter {
     required this.dashedLine,
     required this.meanColor,
     required this.dot,
+    required this.hollow,
   });
 
   final List<MorningDayValue> values;
@@ -456,6 +641,9 @@ class _TrendPainter extends CustomPainter {
   final bool dashedLine;
   final Color meanColor;
   final Color dot;
+
+  /// Füllung der hohlen Punkte (Kartenfarbe).
+  final Color hollow;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -497,12 +685,28 @@ class _TrendPainter extends CustomPainter {
         canvas.drawLine(a, b, paint);
       }
     }
-    final last = values.last;
-    canvas.drawCircle(
-      Offset(x(last.dayIndex), y(last.value)),
-      5,
-      Paint()..color = dot,
-    );
+    // Punkte nach Haltung (K67): gefüllt = liegend, hohl = sitzend; der letzte
+    // Punkt ist größer und in der Glutfarbe.
+    for (var i = 0; i < values.length; i++) {
+      final v = values[i];
+      final isLast = i == values.length - 1;
+      final color = isLast ? dot : line;
+      final at = Offset(x(v.dayIndex), y(v.value));
+      final r = isLast ? 5.0 : 4.0;
+      if (v.posture == RestingPosture.lying) {
+        canvas.drawCircle(at, r, Paint()..color = color);
+      } else {
+        canvas.drawCircle(at, r, Paint()..color = hollow);
+        canvas.drawCircle(
+          at,
+          r - 1,
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
+        );
+      }
+    }
   }
 
   void _dashed(Canvas canvas, Offset a, Offset b, Paint p, double dash) {
@@ -523,6 +727,7 @@ class _TrendPainter extends CustomPainter {
       old.values != values ||
       old.mean != mean ||
       old.line != line ||
+      old.hollow != hollow ||
       old.dashedLine != dashedLine;
 }
 

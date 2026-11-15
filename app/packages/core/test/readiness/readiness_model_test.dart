@@ -113,7 +113,6 @@ Map<ValidationQuantity, ValidationState> st(
 ) => {
   ValidationQuantity.restingHr: hr,
   ValidationQuantity.lnRmssdSupine: rmssd,
-  ValidationQuantity.lnRmssdSitting: rmssd,
 };
 
 List<MorningMeasurement> camSeries({double rmssdBase = 40}) => [
@@ -643,42 +642,37 @@ void main() {
         );
       },
     );
-    test('sitzend eingeschränkt/nicht bestanden: „ungenauer als erwartet“', () {
-      final sitting = cameraDeviations([
+    test('sitzende Messungen zählen wie liegende (K67)', () {
+      List<MorningMeasurement> mk(RestingPosture p) => [
         for (var i = 0; i < 29; i++)
           h.morning(
             dayIdx: i,
             hr: 55 + (i % 5) * 2,
             rmssd: 40 + (i % 4) * 3.0,
-            posture: RestingPosture.sitting,
+            posture: p,
           ),
-      ], today: h.todayKey);
-      for (final s in [ValidationState.limited, ValidationState.failed]) {
-        final r = calc(
-          ReadinessInputs(
-            today: h.todayKey,
-            now: now,
-            cameraDeviations: sitting,
-            release: CameraRelease(
-              developerMode: false,
-              rmssdOptIn: true,
-              state: {
-                ValidationQuantity.restingHr: ValidationState.passed,
-                ValidationQuantity.lnRmssdSupine: ValidationState.passed,
-                ValidationQuantity.lnRmssdSitting: s,
-              },
-            ),
-            sleepBand: SleepBand.from7to8,
+      ];
+      ReadinessResult run(RestingPosture p) => calc(
+        ReadinessInputs(
+          today: h.todayKey,
+          now: now,
+          cameraDeviations: cameraDeviations(mk(p), today: h.todayKey),
+          release: CameraRelease(
+            developerMode: false,
+            rmssdOptIn: true,
+            state: st(ValidationState.passed, ValidationState.passed),
           ),
-        );
-        expect(r.value, isNull);
-        expect(
-          r.markedFacts
-              .singleWhere((f) => f.kind == ReadinessFactKind.hrvDeviation)
-              .mark,
-          MorningRmssdMark.inaccurate,
-        );
-      }
+          sleepBand: SleepBand.from7to8,
+        ),
+      );
+      final lying = run(RestingPosture.lying);
+      final sitting = run(RestingPosture.sitting);
+      expect(sitting.factors.map((f) => f.id), contains(ReadinessFactorId.hrv));
+      expect(sitting.value, lying.value);
+      expect(
+        [for (final f in sitting.factors) (f.id, f.score)],
+        [for (final f in lying.factors) (f.id, f.score)],
+      );
     });
     test('Ruhepuls nicht bestanden: markierte Tatsache, nie Faktor', () {
       final r = calc(
@@ -779,7 +773,7 @@ void main() {
 
     test('Markierte Tatsache ändert die Zahl nie', () {
       var marked = 0;
-      final lying = const MorningSeriesKey(RestingPosture.lying, 'H', 'M1');
+      final lying = const MorningSeriesKey('H', 'M1');
       for (var seed = 0; seed < 300; seed++) {
         final rnd = Random(seed);
         final hours = 4 + rnd.nextDouble() * 6;
@@ -839,7 +833,7 @@ void main() {
     });
 
     test('Nur-Kamera: gesperrte Reihe ändert Zahl oder Faktoren nie', () {
-      final lying = const MorningSeriesKey(RestingPosture.lying, 'H', 'M1');
+      final lying = const MorningSeriesKey('H', 'M1');
       for (var seed = 0; seed < 200; seed++) {
         final rnd = Random(seed);
         final rel = CameraRelease(
@@ -883,7 +877,7 @@ void main() {
 
   group('Werte, andere Messung, Quelldauer (Nachbesserung Runde 2)', () {
     const devRelease = CameraRelease(developerMode: true, rmssdOptIn: false);
-    final lying = const MorningSeriesKey(RestingPosture.lying, 'H', 'M1');
+    final lying = const MorningSeriesKey('H', 'M1');
 
     test('Werte und Ersatzwert-Markierung stehen in Tatsache und Faktor', () {
       final r = calc(

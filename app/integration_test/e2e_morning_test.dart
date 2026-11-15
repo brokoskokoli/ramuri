@@ -2,18 +2,29 @@
 // Zeitraffer 30) und Test-Sensor mit RR (DebugTestSensor sendRr). Ein Ablauf,
 // weil die Schritte aufeinander aufbauen (Entwicklermodus, Messungen des Tages):
 // 1 ohne Entwicklermodus kein Einstieg, 2 neun Tipps nein / zehn ja, 3 liegend und
-// sitzend zaehlen beide, 4 schlecht -> Noch einmal -> gueltig, 5 ausserhalb des
-// Fensters markiert (Fenster ueber den Einstellungsspeicher gesetzt, die Uhr der
-// App ist die Systemuhr), 6 Gurt-Paar gespeichert + Zaehler + Teilen-Warnung,
-// 8 Entwicklermodus aus -> Einstieg weg. Nur Zaehler und Marken in der Ausgabe.
+// sitzend: beide gespeichert, aber nur die erste gueltige des Morgens zaehlt
+// (eine Reihe je Geraet, K67), 4 schlecht -> im Entwicklermodus trotzdem
+// gespeichert (K68, unbrauchbar, zaehlt nirgends) -> Noch einmal -> gueltig (zaehlt
+// nicht, die Reihe hat heute schon eine), 5 ausserhalb des Fensters markiert
+// (Fenster ueber den Einstellungsspeicher gesetzt, die Uhr der App ist die
+// Systemuhr), Morgenwerte: Haltungsmarke gefuellt/hohl und Bildschirmfotos
+// hell/dunkel, 5b Gurtzeile ohne bekannten Gurt (Test-Speicher ohne Geraete),
+// 6 Gurt bekannt, aber getrennt: Autoverbinden beim Oeffnen („verbunden“, auch
+// nach erneutem Oeffnen), Gurt-Paar gespeichert + Zaehler + Teilen-Warnung,
+// 7 Ruhephase ueberspringen (Fortschritt, vermerkt), 8 Entwicklermodus aus ->
+// Einstieg weg (mit S1 die Pruefung K62 F1). Nur Zaehler und Marken in der
+// Ausgabe.
 // Der Host (--dart-define=E2E_SHOTS=true) kann bei "E2E_.. SHOT <name>" ein Bildschirmfoto machen.
 import 'dart:io';
 
 import 'package:core/core.dart';
+import 'package:core/fakes/fake_storage_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:running_app/debug/debug_test_ppg_camera.dart';
+import 'package:running_app/debug/debug_test_sensor.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/system_clock.dart';
 import 'package:running_app/ui/ui.dart';
 
@@ -216,7 +227,8 @@ void main() {
     );
     log('S3 fenster=${inWindow.format()}');
     // Die Morgentabelle kann schon Zeilen haben: alles relativ zur Ausgangszahl.
-    final base = (await stored(t, s)).length;
+    final baseList = await stored(t, s);
+    final base = baseList.length;
     final base0 = await t.runAsync(
       () => countMorningPairs((s as MorningStorage).morning),
     );
@@ -230,9 +242,16 @@ void main() {
       t,
       s,
     )).where((e) => e.outsideWindow).length;
-    log('S3 ausgang=$base');
+    // Vorzustand VOR dem Schritt gelesen: zaehlt heute schon eine Messung (Tabelle
+    // nicht leer, mit einer Emulator-Kamera gibt es nur ein Geraet), zaehlt auch die
+    // liegende nicht; sonst genau eine.
+    final gain = baseToday == 0 ? 1 : 0;
+    log('S3 ausgang=$base zaehlt_heute_vorher=$baseToday gain=$gain');
 
-    // 3) liegend gut, dann sitzend gut am selben Morgen.
+    // 3) liegend gut, dann sitzend gut am selben Morgen. Eine Reihe je Geraet
+    // (K67): nur die erste gueltige des Morgens zaehlt, die zweite wird
+    // gespeichert und als „zaehlt nicht“ vermerkt. Hatte das Geraet heute schon
+    // eine zaehlende Messung (Tabelle nicht leer), zaehlt auch die liegende nicht.
     await measureFromTile(t);
     expect(has('morning_again'), isFalse, reason: 'S3 liegend gut');
     log(
@@ -241,10 +260,20 @@ void main() {
     await shot(t, 's3_ergebnis_liegend');
     var l = await storedCount(t, s, base + 1);
     expect(l.length, base + 1, reason: 'S3 eine gespeichert');
+    expect(
+      has('morning_note_not_counted'),
+      gain == 0,
+      reason: 'S3 liegend: erste gueltige des Morgens zaehlt',
+    );
     await closeResultToHome(t);
     await measureFromTile(t, sitting: true);
     log(
       'S3 sitzend note_not_counted=${has('morning_note_not_counted')} outside=${has('morning_note_outside')}',
+    );
+    expect(
+      has('morning_note_not_counted'),
+      isTrue,
+      reason: 'S3 sitzend zaehlt nicht (K67, eine Reihe je Geraet)',
     );
     await shot(t, 's3_ergebnis_sitzend');
     l = await storedCount(t, s, base + 2);
@@ -263,11 +292,16 @@ void main() {
     log(
       'S3 zaehlt_heute=${today.length} ausserhalb=${l.where((e) => e.outsideWindow).length}',
     );
-    expect(today.length, baseToday + 2, reason: 'S3 beide zaehlen');
+    expect(
+      today.length,
+      baseToday + gain,
+      reason: 'S3 nur die erste gueltige des Morgens zaehlt (K67)',
+    );
     await closeResultToHome(t);
     await shot(t, 's3_heute_karte');
 
-    // 4) schlechte Qualitaet -> Noch einmal -> gueltig; die schlechte wird nicht gespeichert.
+    // 4) schlechte Qualitaet -> Noch einmal -> gueltig; die schlechte wird im
+    // Entwicklermodus gespeichert (K68), zaehlt aber nirgends.
     cam.scenario = DebugPpgScenario.weakSignal;
     await measureFromTile(t);
     log(
@@ -280,10 +314,24 @@ void main() {
     );
     expect(has('morning_done'), isFalse);
     await shot(t, 's4_ergebnis_schlecht');
+    // Entwicklermodus (S2): die unbrauchbare Messung wird gespeichert (K68),
+    // zaehlt aber nirgends.
+    final afterBad = await storedCount(t, s, base + 3);
+    expect(afterBad.length, base + 3, reason: 'S4 schlechte gespeichert (K68)');
     expect(
-      (await stored(t, s)).length,
-      base + 2,
-      reason: 'S4 schlechte nicht gespeichert',
+      afterBad.where((e) => !e.isUsable).length,
+      1,
+      reason: 'S4 genau eine unbrauchbare',
+    );
+    final nowS4 = w.deps.clock.now();
+    expect(
+      morningCountingToday(
+        afterBad,
+        nowUtc: nowS4,
+        utcOffset: w.deps.clock.utcOffsetAt(nowS4),
+      ).length,
+      baseToday + gain,
+      reason: 'S4 unbrauchbare zaehlt nicht',
     );
     cam.scenario = DebugPpgScenario.goodPulse;
     await tapKey(t, 'morning_again');
@@ -300,8 +348,13 @@ void main() {
       timeout: const Duration(seconds: 60),
     );
     expect(has('morning_done'), isTrue, reason: 'S4 gueltig');
-    l = await storedCount(t, s, base + 3);
-    expect(l.length, base + 3, reason: 'S4 gueltige gespeichert');
+    expect(
+      has('morning_note_not_counted'),
+      isTrue,
+      reason: 'S4 gueltige zaehlt nicht, die Reihe hat heute schon eine',
+    );
+    l = await storedCount(t, s, base + 4);
+    expect(l.length, base + 4, reason: 'S4 gueltige gespeichert');
     await shot(t, 's4_ergebnis_gueltig');
     await closeResultToHome(t);
     log('S4 ok');
@@ -320,7 +373,7 @@ void main() {
       reason: 'S5 Markierung ausserhalb',
     );
     await shot(t, 's5_ergebnis_ausserhalb');
-    l = await storedCount(t, s, base + 4);
+    l = await storedCount(t, s, base + 5);
     expect(
       l.where((e) => e.outsideWindow).length,
       baseOutside + 1,
@@ -335,33 +388,180 @@ void main() {
     // Morgenwerte (Verlauf) hell/dunkel Sicht.
     await tapKey(t, 'home_overview');
     await tapKey(t, 'overview_morning_values');
-    await waitFor(
-      t,
-      () => has('morning_posture') || has('morning_trend_empty'),
-      'Morgenwerte',
-    );
+    await waitFor(t, () => has('morning_legend'), 'Morgenwerte');
     await shot(t, 's3_morgenwerte');
+    // Haltungsmarke: liegend gefuellt, sitzend hohl; die Zeile nennt die Haltung
+    // im Semantics-Label (K67). Nur Werte dieses Laufs (synthetische Kamera).
+    final sem = t.ensureSemantics();
+    var lyingRows = 0, sittingRows = 0;
+    final labels = <RestingPosture, Set<String>>{
+      RestingPosture.lying: {},
+      RestingPosture.sitting: {},
+    };
+    for (final m in await stored(t, s)) {
+      final row = find.byKey(
+        Key('morning_row_${m.measuredAt.millisecondsSinceEpoch}'),
+      );
+      if (row.evaluate().isEmpty) continue;
+      final c = RamuriColors.of(t.element(row));
+      final dot = t
+          .widgetList<Container>(
+            find.descendant(of: row, matching: find.byType(Container)),
+          )
+          .map((e) => e.decoration)
+          .whereType<BoxDecoration>()
+          .firstWhere((d) => d.shape == BoxShape.circle);
+      final filled = dot.color != c.surface;
+      expect(
+        filled,
+        m.posture == RestingPosture.lying && m.isUsable,
+        reason:
+            'Morgenwerte: Marke gefuellt nur bei liegend (unbrauchbar: hohl)',
+      );
+      labels[m.posture]!.add(t.getSemantics(row).label);
+      if (m.posture == RestingPosture.lying) {
+        lyingRows++;
+      } else {
+        sittingRows++;
+      }
+    }
+    log('Morgenwerte marken liegend=$lyingRows sitzend=$sittingRows');
+    expect(lyingRows, greaterThan(0), reason: 'Morgenwerte liegend sichtbar');
+    expect(sittingRows, greaterThan(0), reason: 'Morgenwerte sitzend sichtbar');
+    expect(
+      labels[RestingPosture.lying]!.intersection(
+        labels[RestingPosture.sitting]!,
+      ),
+      isEmpty,
+      reason: 'Semantics-Label nennt die Haltung',
+    );
+    sem.dispose();
+    // Bildschirmfotos dunkel und hell (Systemhelligkeit der Testumgebung).
+    t.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    await pumpFor(t, const Duration(milliseconds: 600));
+    await shot(t, 's3_morgenwerte_marken_dunkel');
+    t.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    await pumpFor(t, const Duration(milliseconds: 600));
+    await shot(t, 's3_morgenwerte_marken_hell');
+    t.platformDispatcher.clearPlatformBrightnessTestValue();
+    await pumpFor(t, const Duration(milliseconds: 300));
     await tapKey(t, 'measure_back');
     await back(t);
 
-    // 6) Gurt mit RR: Paar gespeichert, Zaehler, Teilen mit Warnung.
+    // 5b) Gurtzeile ohne bekannten Gurt. Frueher laufende Gruppen der Sammlung
+    // (Lauf) haben einen Gurt verbunden und bekannt gemacht, und die App kann
+    // einzelne bekannte Geraete nicht entfernen. Deshalb bekommt der
+    // Sensor-Manager hier einen leeren Test-Speicher (attachStore, die
+    // oeffentliche Schnittstelle der App); er trennt dabei alle Geraete ohne
+    // Eintrag. Der echte Speicher bleibt unberuehrt und wird nach S6 wieder
+    // angebunden. Kein bedingtes Ueberspringen.
+    final sensors = w.deps.sensors;
+    final realDevices = s.devices;
+    final testDevices = FakeKnownDeviceStore(FakeStorageData());
+    log(
+      'S5b vorher bekannt=${sensors.knownEntries.length} verbunden=${sensors.connectedIds.length}',
+    );
+    await t.runAsync(() => sensors.attachStore(testDevices));
+    await pumpFor(t, const Duration(milliseconds: 300));
+    expect(sensors.knownEntries, isEmpty, reason: 'S5b kein Geraet bekannt');
+    expect(sensors.connectedIds, isEmpty, reason: 'S5b kein Geraet verbunden');
+    log(
+      'S5b ausgang bekannt=${sensors.knownEntries.length} verbunden=${sensors.connectedIds.length}',
+    );
+    await tapKey(t, 'home_overview');
+    await tapKey(t, 'overview_morning');
+    await waitFor(t, () => has('morning_start'), 'Einstieg ohne Gurt');
+    expect(has('morning_gurt_pick'), isTrue, reason: 'S5b Gurt verbinden');
+    expect(has('morning_gurt_note'), isTrue, reason: 'S5b Hinweis ohne Gurt');
+    final noBelt = AppLocalizations.of(
+      t.element(find.byKey(const Key('morning_gurt_text'))),
+    ).morningGurtNone;
+    expect(txt('morning_gurt_text'), noBelt, reason: 'S5b kein Gurt');
+    log('S5b geprueft kein_gurt=true');
+    await shot(t, 's5b_einstieg_ohne_gurt');
+    await tapKey(t, 'morning_gurt_pick');
+    await waitFor(t, () => has('sensors_scan'), 'Geraeteauswahl');
+    await back(t);
+    await waitFor(t, () => has('morning_start'), 'zurueck im Einstieg');
+    await tapKey(t, 'measure_back');
+    await back(t);
+
+    // 6) Gurt mit RR: Paar gespeichert, Zaehler, Teilen mit Warnung. Der Gurt
+    // ist bekannt, aber getrennt; das Oeffnen des Einstiegs verbindet ihn
+    // selbst (Autoverbinden, WP37 C2), ohne dass der Test verbindet.
     w.sensor.sendRr = true;
-    await connect(t, ['fake-gurt-1'], 'fake-gurt-1');
+    await t.runAsync(
+      () => testDevices.upsert(
+        'fake-gurt-1',
+        displayName: DebugTestSensor.devices['fake-gurt-1'],
+        at: DateTime.now().toUtc(),
+      ),
+    );
+    await t.runAsync(sensors.reloadKnown);
+    expect(sensors.knownEntries.length, 1, reason: 'S6 Gurt bekannt');
+    expect(sensors.connectedIds, isEmpty, reason: 'S6 Gurt getrennt');
+    log('S6 vorher bekannt=1 verbunden=0');
     await tapKey(t, 'home_overview');
     await tapKey(t, 'overview_morning');
     await waitFor(t, () => has('morning_start'), 'Einstieg mit Gurt');
+    final noBeltText = noBelt;
+    await waitFor(
+      t,
+      () =>
+          sensors.connectedIds.contains('fake-gurt-1') &&
+          has('morning_gurt_text') &&
+          txt('morning_gurt_text') != noBeltText,
+      'S6 Autoverbinden beim Oeffnen',
+    );
+    log('S6 autoverbunden=${sensors.connectedIds.length}');
+    // Echter Speicher wieder angebunden; der Gurt wird dort bekannt gemacht,
+    // damit er verbunden bleibt (Zustand wie nach der Gruppe Lauf).
+    await t.runAsync(
+      () => realDevices.upsert(
+        'fake-gurt-1',
+        displayName: DebugTestSensor.devices['fake-gurt-1'],
+        at: DateTime.now().toUtc(),
+      ),
+    );
+    await t.runAsync(() => sensors.attachStore(realDevices));
+    expect(
+      sensors.connectedIds,
+      contains('fake-gurt-1'),
+      reason: 'S6 nach Wiederanbinden verbunden',
+    );
+    // (a) Bekannter, verbundener Gurt: ohne Rueckfrage „verbunden: ...“; nach
+    // Schliessen und erneutem Oeffnen des Einstiegs unveraendert.
+    for (var i = 0; i < 2; i++) {
+      await waitFor(
+        t,
+        () =>
+            has('morning_gurt_text') && txt('morning_gurt_text') != noBeltText,
+        'Gurtzeile verbunden',
+      );
+      expect(has('morning_gurt_pick'), isFalse, reason: 'S6 keine Rueckfrage');
+      expect(has('morning_gurt_note'), isFalse, reason: 'S6 kein Hinweis');
+      log(
+        'S6 gurtzeile verbunden=${w.deps.sensors.connectedIds.length} oeffnung=$i',
+      );
+      if (i == 0) {
+        await tapKey(t, 'measure_back');
+        await tapKey(t, 'overview_morning');
+        await waitFor(t, () => has('morning_start'), 'Einstieg neu geoeffnet');
+      }
+    }
     log('S6 gurt_hinweis=${has('morning_belt_hint')}');
     await shot(t, 's6_einstieg_gurt');
     await toResult(t);
     await shot(t, 's6_ergebnis_gurt');
-    l = await storedCount(t, s, base + 5);
-    expect(l.length, base + 5, reason: 'S6 gespeichert');
+    l = await storedCount(t, s, base + 6);
+    expect(l.length, base + 6, reason: 'S6 gespeichert');
     final pairs = await t.runAsync(
       () => countMorningPairs((s as MorningStorage).morning),
     );
     log('S6 paare mit=${pairs!.withBelt} ohne=${pairs.without}');
     expect(pairs.withBelt, base0!.withBelt + 1, reason: 'S6 ein Gurt-Paar');
-    expect(pairs.without, base0.without + 4);
+    // Zwei in S3, unbrauchbar und gueltige in S4, eine in S5.
+    expect(pairs.without, base0.without + 5);
     await closeResultToHome(t);
     await tapKey(t, 'home_overview');
     await tapKey(t, 'overview_about');
@@ -389,6 +589,61 @@ void main() {
       timeout: const Duration(seconds: 20),
     );
     await shot(t, 's6_nach_teilen');
+
+    // 7) Ruhephase ueberspringen: die Messung startet sofort, der Fortschritt
+    // zeigt „Gutes Signal“, das Ergebnis kommt, der Vermerk ist gespeichert.
+    // Zeitraffer langsamer, damit der Fortschritt sichtbar bleibt.
+    await back(t); // Ueber -> Uebersicht
+    final countBefore7 = (await stored(t, s)).length;
+    cam.speed = 10;
+    await tapKey(t, 'overview_morning');
+    await waitFor(t, () => has('morning_start'), 'S7 Einstieg');
+    await tapKey(t, 'morning_start');
+    await waitFor(t, () => has('measure_rest_clock'), 'S7 Ruhephase');
+    await tapKey(t, 'morning_skip_rest');
+    await waitFor(
+      t,
+      () => !has('measure_rest_clock') && has('measure_progress_label'),
+      'S7 Messung sofort',
+      timeout: const Duration(seconds: 10),
+    );
+    final l10n7 = AppLocalizations.of(
+      t.element(find.byKey(const Key('measure_progress_label'))),
+    );
+    final goodPrefix = l10n7
+        .morningProgressGood('\u0001', '\u0002')
+        .split('\u0001')
+        .first;
+    await waitFor(
+      t,
+      () =>
+          has('measure_progress_label') &&
+          txt('measure_progress_label').startsWith(goodPrefix),
+      'S7 Fortschritt gutes Signal',
+      timeout: const Duration(seconds: 60),
+    );
+    await shot(t, 's7_gutes_signal');
+    await waitFor(
+      t,
+      resultSettled,
+      'S7 Ergebnis',
+      timeout: const Duration(seconds: 60),
+    );
+    cam.speed = 30;
+    l = await storedCount(t, s, countBefore7 + 1);
+    expect(l.length, countBefore7 + 1, reason: 'S7 gespeichert');
+    final skipped =
+        (l.toList()..sort((a, b) => a.measuredAt.compareTo(b.measuredAt))).last;
+    expect(
+      skipped.restSkippedAfterS,
+      isNotNull,
+      reason: 'S7 Vermerk Ruhephase uebersprungen gespeichert',
+    );
+    log('S7 vermerk_nach_s=${skipped.restSkippedAfterS!.toStringAsFixed(1)}');
+    await closeResultToHome(t);
+    await tapKey(t, 'home_overview');
+    await tapKey(t, 'overview_about');
+    await waitFor(t, () => has('about_dev_switch'), 'S7 zurueck in Ueber');
 
     // 8) Entwicklermodus aus: Einstieg weg.
     await tapKey(t, 'about_dev_switch');

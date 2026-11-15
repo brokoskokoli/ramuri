@@ -326,6 +326,78 @@ class SensorManager extends ChangeNotifier {
     }
   }
 
+  /// Verbindet beim Öffnen der Morgenmessung genau ein bekanntes Gerät, ohne
+  /// Rückfrage: das zuletzt genutzte ([KnownDevice.lastUsedAt]), sonst das
+  /// bevorzugte. Es passiert nichts, wenn schon ein Gerät verbunden ist oder
+  /// verbindet (auch von Hand), wenn ein Lauf offen ist (dessen Pulsquelle
+  /// bleibt unberührt), wenn ein anderes Auto-Verbinden läuft oder die Rechte
+  /// fehlen oder Bluetooth aus ist. Fragt nie nach Rechten und wirft nie.
+  /// Endet, wenn der Versuch verbunden, gescheitert oder abgebrochen ist.
+  Future<void> connectBestKnown() async {
+    if (_autoConnecting || _disposed || _known.isEmpty) return;
+    if (_runs.isNotEmpty || _anyLinkActive) return;
+    _autoConnecting = true;
+    _notify();
+    try {
+      if (!await _hasPermissions()) return;
+      final available = bluetoothAvailable;
+      if (available != null && !await available()) return;
+      // Währenddessen von Hand verbunden, Lauf gestartet oder beendet.
+      if (_disposed || _runs.isNotEmpty || _anyLinkActive) return;
+      final k = _bestKnown();
+      if (k == null) return;
+      _permitted = true;
+      await _connect(
+        k.deviceId,
+        name: k.displayName,
+        silent: true,
+        exclusive: true,
+      );
+      await _awaitAttempt(k.deviceId);
+    } catch (_) {
+      // Stilles Verbinden: Fehler zeigt höchstens die Verwaltung.
+    } finally {
+      _autoConnecting = false;
+      _notify();
+    }
+  }
+
+  /// Ein Auto-Verbinden (Lauf-Bildschirm oder Morgenmessung) läuft gerade.
+  bool get autoConnecting => _autoConnecting;
+
+  bool get _anyLinkActive =>
+      _conns.values.any((c) => c.state != SensorLinkState.idle);
+
+  KnownDevice? _bestKnown() {
+    KnownDevice? last;
+    for (final k in _known) {
+      final t = k.lastUsedAt;
+      if (t != null && (last == null || t.isAfter(last.lastUsedAt!))) last = k;
+    }
+    if (last != null) return last;
+    for (final k in _known) {
+      if (k.isPreferred) return k;
+    }
+    // Bestandsgeräte ohne Vermerk (vor der Migration): das zuletzt hinzugefügte.
+    KnownDevice? newest;
+    for (final k in _known) {
+      if (newest == null || k.addedAt.isAfter(newest.addedAt)) newest = k;
+    }
+    return newest;
+  }
+
+  /// Vermerkt die erfolgreiche Verbindung als „zuletzt genutzt“.
+  Future<void> _markUsed(String id) async {
+    final store = _store;
+    if (store == null) return;
+    try {
+      await store.markUsed(id, at: clock.now());
+      await reloadKnown();
+    } catch (_) {
+      // Nur Komfort der Auto-Verbindung; Fehler bleibt still.
+    }
+  }
+
   Completer<void>? _attemptWait;
   String? _attemptWaitId;
 
@@ -372,7 +444,12 @@ class SensorManager extends ChangeNotifier {
   Future<void> connect(String id, {String? name}) =>
       _connect(id, name: name, silent: false);
 
-  Future<void> _connect(String id, {String? name, required bool silent}) async {
+  Future<void> _connect(
+    String id, {
+    String? name,
+    required bool silent,
+    bool exclusive = false,
+  }) async {
     final existing = _conns[id];
     if (existing != null && existing.state != SensorLinkState.idle) return;
     if (!silent) _problem = null;
@@ -403,6 +480,15 @@ class SensorManager extends ChangeNotifier {
     }
     // Währenddessen getrennt: nicht doch noch verbinden.
     if (_disposed || c.state != SensorLinkState.connecting) return;
+    // Auto-Verbinden: Hat der Nutzer währenddessen von Hand ein anderes Gerät
+    // gestartet, entsteht keine zweite Verbindung.
+    if (exclusive &&
+        _conns.entries.any(
+          (e) => e.key != id && e.value.state != SensorLinkState.idle,
+        )) {
+      _abortPending(c);
+      return;
+    }
     _open(c, id);
   }
 
@@ -436,6 +522,7 @@ class SensorManager extends ChangeNotifier {
 
   void _onEvent(_Conn c, String id, HeartRateEvent e) {
     if (e is HeartRateConnected) {
+      unawaited(_markUsed(id));
       c
         ..state = SensorLinkState.connected
         ..everConnected = true

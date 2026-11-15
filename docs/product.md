@@ -219,8 +219,8 @@ Die Tabelle fasst Entscheidungen aus der Quelle und vom Maintainer (SRC-003) zus
 - E2: Nach bestandener Validierung zählt Kamera-RMSSD nur per Opt-in als „experimentell, mit einem Brustgurt verglichen (ein Handy)“, nie „validiert“; eine Prüfung je Nutzer mit eigenem Gurt kann später dazukommen.
 - E3: Neue Fassung von OQ-0006: HRV aus Uhr oder Kamera, Schlafdauer aus Uhr oder freiwilliger Angabe in Stufen; keine Zahl ohne Schlafangabe.
 - E4: PAR-169 bleibt; am Morgen nur Messung und Schlafdauer in Stufen, kein Schlafgefühl.
-- E5: Haltung bei der Morgenmessung liegend als Vorgabe, sitzend wählbar als eigene Reihe; nie stehend.
-- E6 (vorerst): Das Opt-in gilt nach einer liegend bestandenen Validierung auch sitzend, dort mit „liegend verglichen“; eine Validierung im Sitzen ist empfohlen.
+- E5: Haltung bei der Morgenmessung liegend als Vorgabe, sitzend wählbar; nie stehend. Ersetzt durch K67: gemeinsame Reihe je Gerät, Haltung nur gespeichert und markiert.
+- E6 (vorerst): Das Opt-in gilt nach einer liegend bestandenen Validierung auch sitzend, dort mit „liegend verglichen“. Geändert durch K67: ein Freigabestand für das Verfahren und ein Schalter für beide Haltungen; der Zusatz „liegend verglichen“ entfällt.
 - E7a: lnRMSSD „eingeschränkt“ gilt wie „nicht bestanden“: gesperrt, nur markierte Tatsache „ungenauer als erwartet“.
 - E7b: Kamera-Ruhepuls bleibt bei „bestanden“ und „eingeschränkt“ in Gebrauch; bei „nicht bestanden“ nur für das Profil (FR-0214) und in der eingeschränkten Einschätzung als markierte Tatsache „ungenauer als erwartet“, in keiner Zahl und keinem Faktor.
 - E7c: Freigegeben oder gesperrt wird das Verfahren (Algorithmus und Protokoll), nicht ein Gerät; eine erneute Validierung nur nach dokumentierter Änderung des Verfahrens, nicht nach Gerätewechsel allein.

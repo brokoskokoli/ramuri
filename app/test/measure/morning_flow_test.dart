@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:adapters/adapters.dart' show MethodChannelPpgCamera;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -49,10 +51,19 @@ class _FlakyStore implements MorningStore {
   Future<int> add(
     MorningMeasurement measurement, {
     List<RrPacket> beltPackets = const [],
+    MorningRawSignal? rawSignal,
   }) {
     if (failAdd) throw const StorageException(StorageFailure.failed);
-    return inner.add(measurement, beltPackets: beltPackets);
+    return inner.add(
+      measurement,
+      beltPackets: beltPackets,
+      rawSignal: rawSignal,
+    );
   }
+
+  @override
+  Future<MorningRawSignal?> rawSignal(int measurementId) =>
+      inner.rawSignal(measurementId);
 
   @override
   Future<List<StoredMorningMeasurement>> list() => inner.list();
@@ -65,6 +76,34 @@ class _FlakyStore implements MorningStore {
 
   @override
   Future<List<StoredRrPacket>> beltPackets(int id) => inner.beltPackets(id);
+}
+
+/// Gescriptete Fenstersuche: Ein Bild mit `g == 41` ist schlecht, alle anderen
+/// gut. Ein gutes Fenster ist 60 s ab frühestens 5 s ohne schlechtes Bild; es
+/// gilt erreicht, wenn die Aufnahme bis Fensterende plus Filterrand (1,5 s)
+/// reicht. Die echte Rechnung prüft `core`; hier zählen Takt, Schnappschuss,
+/// Ende und Speicherung des Controllers.
+double? _goodStart(List<PpgFrame> frames, {required bool strict}) {
+  if (frames.isEmpty) return null;
+  final last = frames.last.t;
+  for (var s = 5.0; s + 60 + (strict ? 1.5 : 0) <= last + 1e-9; s += 1) {
+    if (frames.every((f) => f.t < s || f.t > s + 60 || f.g != 41)) return s;
+  }
+  return null;
+}
+
+double _goodStretch(List<PpgFrame> frames) {
+  var run = 0.0;
+  double? from;
+  for (final f in frames) {
+    if (f.g == 41) {
+      from = null;
+    } else {
+      from ??= f.t;
+      run = f.t - from;
+    }
+  }
+  return from == null ? 0 : run;
 }
 
 class _Rig {
@@ -80,6 +119,20 @@ class _Rig {
   int closed = 0;
   double _t = 0;
   PpgMeasurement next = _good;
+
+  /// Bilder mit Zeit unter dieser Grenze sind schlecht (`g == 41`).
+  double badUntil = 0;
+  final checkSizes = <int>[];
+  final evaluated = <List<PpgFrame>>[];
+  int checksRunning = 0;
+  int maxChecksRunning = 0;
+  Completer<void>? checkGate;
+
+  /// Gesetzt: Die Prüfung bestätigt „gut“ mit genau diesem Fensterbeginn (wie `checkPpgRecording`).
+  double? confirmStart;
+
+  /// Das Tor hält nur Prüfungen, deren letztes Bild mindestens so spät liegt.
+  double gateAt = 0;
   final restStarts = <DateTime>[];
   final measureEnds = <DateTime>[];
 
@@ -103,6 +156,9 @@ class _Rig {
     late _Rig rig;
     final readings = StreamController<HeartRateReading>.broadcast();
     MorningBelt? belt;
+    if (developerMode) {
+      await SettingsDeveloperModeStore(s.settings, clock).set(true);
+    }
     if (withBelt) {
       await SettingsDeveloperModeStore(s.settings, clock).set(developerMode);
       belt = MorningBelt(
@@ -129,6 +185,44 @@ class _Rig {
       evaluate: (frames, window) async => identical(window, ppgStandardWindow)
           ? rig.next
           : const PpgMeasurement(quality: PpgQuality.unusable, reasons: []),
+      check: (frames) async {
+        rig.checkSizes.add(frames.length);
+        rig.maxChecksRunning = math.max(
+          rig.maxChecksRunning,
+          ++rig.checksRunning,
+        );
+        try {
+          if (frames.last.t >= rig.gateAt) await rig.checkGate?.future;
+          return PpgRecordingCheck(
+            goodWindowReached: _goodStart(frames, strict: true) != null,
+            goodStretchSeconds: _goodStretch(frames),
+            confirmed:
+                rig.confirmStart == null ||
+                    _goodStart(frames, strict: true) == null
+                ? null
+                : PpgWindowedMeasurement(
+                    measurement: rig.next,
+                    windowStartSeconds: rig.confirmStart,
+                    windowEndSeconds: rig.confirmStart! + 60,
+                  ),
+          );
+        } finally {
+          rig.checksRunning--;
+        }
+      },
+      evaluateBest: (frames) async {
+        rig.evaluated.add(frames);
+        final s = _goodStart(frames, strict: false);
+        return PpgWindowedMeasurement(
+          measurement: rig.next,
+          windowStartSeconds: s ?? 5,
+          windowEndSeconds: (s ?? 5) + 60,
+          goodStretchSeconds: _goodStretch(frames),
+        );
+      },
+      developerMode: developerMode
+          ? SettingsDeveloperModeStore(s.settings, clock).read
+          : null,
       autoTick: false,
       marksFor: state == null
           ? null
@@ -166,13 +260,14 @@ class _Rig {
   Future<void> feed(WidgetTester tester, double until) async {
     var k = 0;
     while (_t <= until) {
+      final bad = _t < badUntil;
       cam.emitFrame(
         PpgFrame(
           t: _t,
           r: 200,
-          g: 40,
+          g: bad ? 41 : 40,
           r16: List.filled(16, 200),
-          g16: List.filled(16, 40),
+          g16: List.filled(16, bad ? 41 : 40),
         ),
       );
       _t += 0.5;
@@ -216,7 +311,238 @@ Finder _text(String s) => find.text(s);
 HeartRateReading _rr(DateTime t, int rr) =>
     HeartRateReading('gurt-1', t, 60, rrIntervals: [rr]);
 
+/// Startet die Ruhephase, lässt sie ablaufen und setzt die Bildzeit auf 0.
+Future<void> _startMeasurement(
+  WidgetTester tester,
+  _Rig r, {
+  int restSeconds = 121,
+}) async {
+  await _tap(tester, 'morning_start');
+  r.clock.advance(Duration(seconds: restSeconds));
+  r.c.engine.tick();
+  await tester.pump();
+  await _settle(tester);
+  r._t = 0;
+}
+
 void main() {
+  group('Fenstersuche der Morgenmessung (WP37 C1)', () {
+    testWidgets('30 s schlecht, dann gut: Fenster der guten Sekunden, '
+        'Endergebnis auf genau den geprüften Bildern', (tester) async {
+      final r = await _Rig.make();
+      r.badUntil = 30;
+      await r.show(tester, dark: false);
+      await _startMeasurement(tester, r);
+      await r.feed(tester, 100);
+      final m = (await r.stored(tester)).single;
+      expect(r.c.outcome, MorningOutcome.good);
+      expect(m.quality, PpgQuality.good);
+      expect(m.windowStartS, 30);
+      expect(m.windowEndS, 90);
+      expect(m.methodVersion, 2);
+      // Punkt 9 (Review 1): das Endergebnis wertet genau die Bilder aus, auf
+      // denen die letzte Prüfung „gut“ bestätigt hat.
+      expect(r.evaluated.single.length, r.checkSizes.last);
+      expect(r.evaluated.single.last.t, lessThan(95));
+    });
+
+    testWidgets('gut von Anfang an: Ende bei 66,5 s', (tester) async {
+      final r = await _Rig.make();
+      await r.show(tester, dark: false);
+      await _startMeasurement(tester, r);
+      await r.feed(tester, 80);
+      expect(r.c.outcome, MorningOutcome.good);
+      expect(r.evaluated.single.last.t, 66.5);
+      final m = (await r.stored(tester)).single;
+      expect(m.windowStartS, 5);
+      expect(m.windowEndS, 65);
+    });
+
+    testWidgets('nie gut: Aufnahme endet bei 120 s mit dem besten Fenster', (
+      tester,
+    ) async {
+      final r = await _Rig.make();
+      r.badUntil = 1000;
+      r.next = _limited;
+      await r.show(tester, dark: false);
+      await _startMeasurement(tester, r);
+      await r.feed(tester, 125);
+      expect(r.evaluated.single.last.t, 120);
+      expect((await r.stored(tester)).single.quality, PpgQuality.limited);
+      // Takt: höchstens alle 3 s eine Prüfung, nie vor 35 s.
+      expect(r.checkSizes.length, lessThanOrEqualTo(30));
+      expect(r.checkSizes.first, greaterThan(60));
+    });
+
+    testWidgets('höchstens eine Prüfung zugleich', (tester) async {
+      final r = await _Rig.make();
+      r.checkGate = Completer<void>();
+      await r.show(tester, dark: false);
+      await _startMeasurement(tester, r);
+      await r.feed(tester, 50);
+      expect(r.checkSizes, hasLength(1));
+      expect(r.maxChecksRunning, 1);
+      r.checkGate!.complete();
+      await _settle(tester);
+      await r.feed(tester, 60);
+      expect(r.maxChecksRunning, 1);
+      expect(r.checkSizes.length, greaterThan(1));
+    });
+
+    testWidgets('Bilder, die während der Prüfung eintreffen, zählen nicht zum '
+        'Endergebnis', (tester) async {
+      final r = await _Rig.make();
+      r.checkGate = Completer<void>();
+      r.gateAt = 66;
+      await r.show(tester, dark: false);
+      await _startMeasurement(tester, r);
+      await r.feed(tester, 70);
+      expect(r.evaluated, isEmpty);
+      r.checkGate!.complete();
+      await _settle(tester);
+      expect(r.evaluated.single.last.t, 66.5);
+      expect(r.c.engine.result!.frames.last.t, 66.5);
+    });
+
+    testWidgets(
+      'Ende durch bestätigtes „gut“: Ergebnis ist genau das bestätigte '
+      'Fenster, keine zweite Suche',
+      (tester) async {
+        final r = await _Rig.make();
+        r.confirmStart = 7.0;
+        await r.show(tester, dark: false);
+        await _startMeasurement(tester, r);
+        await r.feed(tester, 70);
+        await _settle(tester);
+        expect(r.evaluated, isEmpty);
+        expect(r.c.engine.result!.windowStartSeconds, 7.0);
+        expect(r.c.engine.result!.windowEndSeconds, 67.0);
+      },
+    );
+
+    testWidgets(
+      'Überspringen startet die Messung sofort, Vermerk gespeichert',
+      (tester) async {
+        final r = await _Rig.make();
+        await r.show(tester, dark: false);
+        await _tap(tester, 'morning_start');
+        r.clock.advance(const Duration(seconds: 30));
+        r.c.engine.tick();
+        await tester.pump();
+        expect(find.byKey(const Key('morning_skip_rest')), findsOneWidget);
+        await _tap(tester, 'morning_skip_rest');
+        expect(r.c.engine.phase, RestingMeasurePhase.measuring);
+        r._t = 0;
+        await r.feed(tester, 80);
+        expect((await r.stored(tester)).single.restSkippedAfterS, 30);
+      },
+    );
+
+    testWidgets('Ruhephase abgelaufen: kein Vermerk', (tester) async {
+      final r = await _Rig.make();
+      await r.show(tester, dark: false);
+      await _startMeasurement(tester, r);
+      await r.feed(tester, 80);
+      expect((await r.stored(tester)).single.restSkippedAfterS, isNull);
+    });
+
+    testWidgets('Entwicklermodus: Rohsignal der ganzen Aufnahme gespeichert', (
+      tester,
+    ) async {
+      final r = await _Rig.make(developerMode: true);
+      await r.show(tester, dark: false);
+      await _startMeasurement(tester, r);
+      await r.feed(tester, 80);
+      final id = (await tester.runAsync(() => r.store.list()))!.single.id;
+      final raw = (await tester.runAsync(() => r.store.rawSignal(id)))!;
+      expect(raw.frames.length, r.evaluated.single.length);
+      expect(raw.frames.first.t, 0);
+      expect(raw.frames.last.t, 66.5);
+      expect(raw.frameGapCount, 0);
+    });
+
+    testWidgets(
+      'Entwicklermodus: Kamera-Angaben vom Adapter über Rohsignal bis CSV',
+      (tester) async {
+        final r = await _Rig.make(developerMode: true);
+        await r.show(tester, dark: false);
+        await _startMeasurement(tester, r);
+        // Nachrichten wie Kotlin sie sendet, durch den echten Adapter-Parser: der letzte Stand gilt.
+        PpgCameraEvent? msg(Map<String, Object> m) =>
+            MethodChannelPpgCamera.parse({'type': 'details', ...m});
+        r.cam.emitDetails(
+          msg({'iso': 50, 'saturated': 0.01}) as PpgCameraDetails,
+        );
+        r.cam.emitDetails(
+          msg({
+            'exposureNs': 8333333,
+            'iso': 100,
+            'timestampSource': 'realtime',
+            'skewNs': 20000000,
+            'saturated': 0.02,
+          }) as PpgCameraDetails,
+        );
+        await r.feed(tester, 80);
+        final id = (await tester.runAsync(() => r.store.list()))!.single;
+        final raw = (await tester.runAsync(() => r.store.rawSignal(id.id)))!;
+        expect(raw.exposureTimeNs, 8333333);
+        expect(raw.iso, 100);
+        expect(raw.timestampSource, CameraTimestampSource.realtime);
+        expect(raw.rollingShutterSkewNs, 20000000);
+        expect(raw.torchStrength, isNull, reason: 'Gerät lieferte keine');
+        expect(raw.saturatedFraction, 0.02);
+        final csv = encodeMorningPairsCsv([
+          MorningPair(id: id.id, measurement: id.value, rawSignal: raw),
+        ]);
+        expect(csv, contains(',meta,exposure_time,,,,8333333,ns\r\n'));
+        expect(csv, contains(',meta,iso,,,,100,\r\n'));
+        expect(csv, contains(',meta,timestamp_source,,,,realtime,\r\n'));
+        expect(csv, contains(',meta,rolling_shutter_skew,,,,20000000,ns\r\n'));
+        expect(csv, contains(',meta,torch_strength,,,,,\r\n'));
+        expect(csv, contains(',meta,saturated_fraction,,,,0.02,\r\n'));
+      },
+    );
+
+    testWidgets('ohne Entwicklermodus: kein Rohsignal', (tester) async {
+      final r = await _Rig.make();
+      await r.show(tester, dark: false);
+      await _startMeasurement(tester, r);
+      await r.feed(tester, 80);
+      final id = (await tester.runAsync(() => r.store.list()))!.single.id;
+      expect(await tester.runAsync(() => r.store.rawSignal(id)), isNull);
+    });
+
+    testWidgets('unbrauchbar ohne Entwicklermodus: nichts gespeichert', (
+      tester,
+    ) async {
+      final r = await _Rig.make();
+      r.next = _bad;
+      await r.show(tester, dark: false);
+      await _startMeasurement(tester, r);
+      await r.feed(tester, 80);
+      expect(r.c.outcome, MorningOutcome.unusable);
+      expect(await r.stored(tester), isEmpty);
+    });
+
+    testWidgets('unbrauchbar im Entwicklermodus: gespeichert mit Stufe, Grund '
+        'und Kamera-Schlagabständen', (tester) async {
+      final r = await _Rig.make(developerMode: true);
+      r.next = const PpgMeasurement(
+        quality: PpgQuality.unusable,
+        reasons: [PpgQualityReason.weakSignal],
+        intervalsMs: [1000, 1010],
+      );
+      await r.show(tester, dark: false);
+      await _startMeasurement(tester, r);
+      await r.feed(tester, 80);
+      final m = (await r.stored(tester)).single;
+      expect(m.quality, PpgQuality.unusable);
+      expect(m.unusableReason, PpgQualityReason.weakSignal);
+      expect(m.cameraIntervalsMs, [1000, 1010]);
+      expect(m.windowStartS, 5);
+    });
+  });
+
   group('Gurt-RR zur Morgenmessung (Teil E)', () {
     testWidgets('Entwicklermodus: nur Pakete von Ruhephase bis Messende', (
       tester,
@@ -303,38 +629,73 @@ void main() {
       expect(r.c.belt!.packets, hasLength(1)); // nur im Speicher, nie in der DB
     });
 
-    testWidgets('Noch einmal: Gurt-RR durchgehend bis Ende der Wiederholung', (
+    testWidgets(
+      'Noch einmal: jede Messung trägt nur die Gurt-RR ihrer Aufnahme',
+      (tester) async {
+        final r = await _Rig.make(withBelt: true, developerMode: true);
+        r.next = _bad;
+        await r.show(tester, dark: false);
+        await _tap(tester, 'morning_start');
+        r.readings.add(_rr(r.clock.now(), 900)); // Ruhephase
+        r.clock.advance(const Duration(seconds: 121));
+        r.c.engine.tick();
+        await tester.pump();
+        await _settle(tester);
+        r._t = 0;
+        await r.feed(tester, 67);
+        expect(r.c.outcome, MorningOutcome.unusable);
+        r.clock.advance(const Duration(seconds: 10));
+        r.readings.add(_rr(r.clock.now(), 910)); // Lücke nach dem Ende
+        await _settle(tester);
+        r.next = _good;
+        await _tap(tester, 'morning_again');
+        r.clock.advance(const Duration(seconds: 10));
+        r.readings.add(_rr(r.clock.now(), 920)); // Wiederholung
+        await _settle(tester);
+        r._t = 0;
+        await r.feed(tester, 67);
+        expect(r.c.outcome, MorningOutcome.good);
+        // Die unbrauchbare erste Messung ist im Entwicklermodus mitgespeichert
+        // (K68); jede trägt nur die RR ihrer eigenen Aufnahme (erste: Ruhephase
+        // bis Ende, zweite: ab „Noch einmal“ bis Ende, ohne Lücke davor).
+        final all = (await tester.runAsync(() => r.store.list()))!;
+        expect(all.map((e) => e.value.quality), [
+          PpgQuality.unusable,
+          PpgQuality.good,
+        ]);
+        final first = (await tester.runAsync(
+          () => r.store.beltPackets(all.first.id),
+        ))!;
+        expect([for (final p in first) p.value.intervals.single], [900]);
+        final packets = (await tester.runAsync(
+          () => r.store.beltPackets(all.last.id),
+        ))!;
+        expect([for (final p in packets) p.value.intervals.single], [920]);
+      },
+    );
+
+    testWidgets('Ruhe übersprungen: Gurt-RR erst ab Beginn der Messung', (
       tester,
     ) async {
       final r = await _Rig.make(withBelt: true, developerMode: true);
-      r.next = _bad;
       await r.show(tester, dark: false);
       await _tap(tester, 'morning_start');
-      r.readings.add(_rr(r.clock.now(), 900)); // Ruhephase
-      r.clock.advance(const Duration(seconds: 121));
+      r.readings.add(_rr(r.clock.now(), 900)); // Ruhephase, übersprungen
+      r.clock.advance(const Duration(seconds: 30));
       r.c.engine.tick();
       await tester.pump();
-      await _settle(tester);
-      r._t = 0;
-      await r.feed(tester, 67);
-      expect(r.c.outcome, MorningOutcome.unusable);
-      r.clock.advance(const Duration(seconds: 10));
-      r.readings.add(_rr(r.clock.now(), 910)); // Lücke nach dem Ende
-      await _settle(tester);
-      r.next = _good;
-      await _tap(tester, 'morning_again');
-      r.clock.advance(const Duration(seconds: 10));
-      r.readings.add(_rr(r.clock.now(), 920)); // Wiederholung
+      await _tap(tester, 'morning_skip_rest');
+      r.clock.advance(const Duration(seconds: 1));
+      r.readings.add(_rr(r.clock.now(), 950)); // Messung
       await _settle(tester);
       r._t = 0;
       await r.feed(tester, 67);
       expect(r.c.outcome, MorningOutcome.good);
-      final id = (await tester.runAsync(() => r.store.list()))!.single.id;
-      final packets = (await tester.runAsync(() => r.store.beltPackets(id)))!;
-      expect(
-        [for (final p in packets) p.value.intervals.single],
-        [900, 910, 920],
-      );
+      final all = (await tester.runAsync(() => r.store.list()))!;
+      final packets = (await tester.runAsync(
+        () => r.store.beltPackets(all.single.id),
+      ))!;
+      expect([for (final p in packets) p.value.intervals.single], [950]);
     });
 
     testWidgets('gültige Messung: Recorder gestoppt, Pakete bleiben', (
@@ -381,7 +742,7 @@ void main() {
       expect(r.c.belt!.packets.single.intervals.single, 900);
     });
 
-    testWidgets('verworfene Messung (unbrauchbar): nichts gespeichert', (
+    testWidgets('unbrauchbar im Entwicklermodus: gespeichert, zählt nicht', (
       tester,
     ) async {
       final r = await _Rig.make(withBelt: true, developerMode: true);
@@ -396,7 +757,15 @@ void main() {
       r._t = 0;
       await r.feed(tester, 67);
       expect(r.c.outcome, MorningOutcome.unusable);
-      expect(await tester.runAsync(() => r.store.list()), isEmpty);
+      final all = (await tester.runAsync(() => r.store.list()))!;
+      expect(all.single.value.quality, PpgQuality.unusable);
+      expect(all.single.value.restingHrBpm, isNull);
+      expect(all.single.value.unusableReason, PpgQualityReason.weakSignal);
+      final packets = (await tester.runAsync(
+        () => r.store.beltPackets(all.single.id),
+      ))!;
+      expect([for (final p in packets) p.value.intervals.single], [900]);
+      expect(r.c.stored, isNull);
     });
   });
 
@@ -416,7 +785,9 @@ void main() {
         );
         expect(_text('Vor Kaffee und Frühstück messen.'), findsOneWidget);
         expect(
-          _text('2 min ruhig bleiben, dann 60 s messen. Atme ganz normal.'),
+          _text(
+            '2 min ruhig bleiben (überspringbar), dann messen, bis zu 2 min. Atme ganz normal.',
+          ),
           findsOneWidget,
         );
         expect(r.c.engine.posture, RestingPosture.lying);
@@ -432,7 +803,7 @@ void main() {
         await tester.pump();
         expect(r.c.engine.posture, RestingPosture.sitting);
         expect(find.byKey(const Key('morning_pose_note')), findsOneWidget);
-        expect(find.textContaining('eigene Reihe'), findsOneWidget);
+        expect(find.textContaining('zählen in einer Reihe'), findsOneWidget);
         expect(r.cam.permissionRequests, 0);
 
         await _tap(tester, 'morning_start');
@@ -521,15 +892,28 @@ void main() {
         final passed = {
           ValidationQuantity.restingHr: ValidationState.passed,
           ValidationQuantity.lnRmssdSupine: ValidationState.passed,
-          ValidationQuantity.lnRmssdSitting: ValidationState.passed,
         };
+        final o = await _Rig.make(state: passed);
+        await o.show(tester, dark: dark);
+        await o.runThrough(tester);
+        expect(o.c.outcome, MorningOutcome.good);
+        expect(
+          tester.widget<Text>(find.byKey(const Key('morning_rmssd_mark'))).data,
+          'experimentell, nicht eingeschaltet',
+        );
+
         final r = await _Rig.make(state: passed);
+        await r.session.settings.set(
+          SettingKeys.morningCameraRmssdOptIn,
+          '1',
+          at: r.clock.now(),
+        );
         await r.show(tester, dark: dark);
         await r.runThrough(tester);
         expect(r.c.outcome, MorningOutcome.good);
         expect(
           tester.widget<Text>(find.byKey(const Key('morning_rmssd_mark'))).data,
-          'experimentell, nicht eingeschaltet',
+          'experimentell, mit einem Brustgurt verglichen (ein Handy)',
         );
 
         final d = await _Rig.make(state: passed);
@@ -687,9 +1071,8 @@ void main() {
         expect(find.textContaining('Heute zählt diese Messung'), findsNothing);
       });
 
-      testWidgets('liegend und sitzend am selben Morgen zählen beide', (
-        tester,
-      ) async {
+      testWidgets('liegend, dann sitzend am selben Morgen: eine Reihe, nur die '
+          'erste zählt (K67)', (tester) async {
         final r = await _Rig.make();
         await r.show(tester, dark: dark);
         await r.runThrough(tester);
@@ -703,7 +1086,7 @@ void main() {
         await tester.tap(_text('Sitzend'));
         await tester.pump();
         await again.runThrough(tester);
-        expect(again.c.outcome, MorningOutcome.good);
+        expect(again.c.outcome, MorningOutcome.notCounted);
         expect(again.c.stored!.posture, RestingPosture.sitting);
       });
 

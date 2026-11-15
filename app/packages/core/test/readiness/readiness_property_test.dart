@@ -39,29 +39,21 @@ void main() {
     }
   });
 
-  test('Kamera: Haltung und Gerät ändern das z der anderen Reihe nie', () {
+  test('Kamera: andere Geräte ändern das z der anderen Reihe nie', () {
     for (var seed = 0; seed < 60; seed++) {
       final rnd = Random(seed);
-      List<MorningMeasurement> series(
-        RestingPosture p,
-        String model,
-        double base,
-      ) => [
+      List<MorningMeasurement> series(String model, double base) => [
         for (var i = 0; i < 29; i++)
           if (rnd.nextDouble() < 0.9)
             s.morning(
               dayIdx: i,
               hr: base + rnd.nextInt(12),
               rmssd: base - 10 + rnd.nextInt(20),
-              posture: p,
               model: model,
             ),
       ];
-      final lying = series(RestingPosture.lying, 'M1', 55);
-      final other = [
-        ...series(RestingPosture.sitting, 'M1', 80),
-        ...series(RestingPosture.lying, 'M2', 90),
-      ];
+      final lying = series('M1', 55);
+      final other = [...series('M2', 80), ...series('M3', 90)];
       final alone = cameraDeviations(lying, today: s.todayKey);
       final mixed = cameraDeviations([...lying, ...other], today: s.todayKey);
       for (final r in alone) {

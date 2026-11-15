@@ -9872,6 +9872,17 @@ class KnownDevices extends Table with TableInfo<KnownDevices, KnownDevice> {
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL',
   );
+  static const VerificationMeta _lastUsedAtUsMeta = const VerificationMeta(
+    'lastUsedAtUs',
+  );
+  late final GeneratedColumn<int> lastUsedAtUs = GeneratedColumn<int>(
+    'last_used_at_us',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -9879,6 +9890,7 @@ class KnownDevices extends Table with TableInfo<KnownDevices, KnownDevice> {
     displayName,
     isPreferred,
     addedAtUs,
+    lastUsedAtUs,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -9929,6 +9941,15 @@ class KnownDevices extends Table with TableInfo<KnownDevices, KnownDevice> {
     } else if (isInserting) {
       context.missing(_addedAtUsMeta);
     }
+    if (data.containsKey('last_used_at_us')) {
+      context.handle(
+        _lastUsedAtUsMeta,
+        lastUsedAtUs.isAcceptableOrUnknown(
+          data['last_used_at_us']!,
+          _lastUsedAtUsMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -9958,6 +9979,10 @@ class KnownDevices extends Table with TableInfo<KnownDevices, KnownDevice> {
         DriftSqlType.int,
         data['${effectivePrefix}added_at_us'],
       )!,
+      lastUsedAtUs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_used_at_us'],
+      ),
     );
   }
 
@@ -9976,12 +10001,17 @@ class KnownDevice extends DataClass implements Insertable<KnownDevice> {
   final String? displayName;
   final bool isPreferred;
   final int addedAtUs;
+
+  /// Version 14 (WP37): Zeitpunkt der letzten erfolgreichen Verbindung (UTC),
+  /// NULL = nie genutzt. Grundlage der späteren Gurt-Autoverbindung.
+  final int? lastUsedAtUs;
   const KnownDevice({
     required this.id,
     required this.deviceId,
     this.displayName,
     required this.isPreferred,
     required this.addedAtUs,
+    this.lastUsedAtUs,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -9993,6 +10023,9 @@ class KnownDevice extends DataClass implements Insertable<KnownDevice> {
     }
     map['is_preferred'] = Variable<bool>(isPreferred);
     map['added_at_us'] = Variable<int>(addedAtUs);
+    if (!nullToAbsent || lastUsedAtUs != null) {
+      map['last_used_at_us'] = Variable<int>(lastUsedAtUs);
+    }
     return map;
   }
 
@@ -10005,6 +10038,9 @@ class KnownDevice extends DataClass implements Insertable<KnownDevice> {
           : Value(displayName),
       isPreferred: Value(isPreferred),
       addedAtUs: Value(addedAtUs),
+      lastUsedAtUs: lastUsedAtUs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastUsedAtUs),
     );
   }
 
@@ -10019,6 +10055,7 @@ class KnownDevice extends DataClass implements Insertable<KnownDevice> {
       displayName: serializer.fromJson<String?>(json['display_name']),
       isPreferred: serializer.fromJson<bool>(json['is_preferred']),
       addedAtUs: serializer.fromJson<int>(json['added_at_us']),
+      lastUsedAtUs: serializer.fromJson<int?>(json['last_used_at_us']),
     );
   }
   @override
@@ -10030,6 +10067,7 @@ class KnownDevice extends DataClass implements Insertable<KnownDevice> {
       'display_name': serializer.toJson<String?>(displayName),
       'is_preferred': serializer.toJson<bool>(isPreferred),
       'added_at_us': serializer.toJson<int>(addedAtUs),
+      'last_used_at_us': serializer.toJson<int?>(lastUsedAtUs),
     };
   }
 
@@ -10039,12 +10077,14 @@ class KnownDevice extends DataClass implements Insertable<KnownDevice> {
     Value<String?> displayName = const Value.absent(),
     bool? isPreferred,
     int? addedAtUs,
+    Value<int?> lastUsedAtUs = const Value.absent(),
   }) => KnownDevice(
     id: id ?? this.id,
     deviceId: deviceId ?? this.deviceId,
     displayName: displayName.present ? displayName.value : this.displayName,
     isPreferred: isPreferred ?? this.isPreferred,
     addedAtUs: addedAtUs ?? this.addedAtUs,
+    lastUsedAtUs: lastUsedAtUs.present ? lastUsedAtUs.value : this.lastUsedAtUs,
   );
   KnownDevice copyWithCompanion(KnownDevicesCompanion data) {
     return KnownDevice(
@@ -10057,6 +10097,9 @@ class KnownDevice extends DataClass implements Insertable<KnownDevice> {
           ? data.isPreferred.value
           : this.isPreferred,
       addedAtUs: data.addedAtUs.present ? data.addedAtUs.value : this.addedAtUs,
+      lastUsedAtUs: data.lastUsedAtUs.present
+          ? data.lastUsedAtUs.value
+          : this.lastUsedAtUs,
     );
   }
 
@@ -10067,14 +10110,21 @@ class KnownDevice extends DataClass implements Insertable<KnownDevice> {
           ..write('deviceId: $deviceId, ')
           ..write('displayName: $displayName, ')
           ..write('isPreferred: $isPreferred, ')
-          ..write('addedAtUs: $addedAtUs')
+          ..write('addedAtUs: $addedAtUs, ')
+          ..write('lastUsedAtUs: $lastUsedAtUs')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, deviceId, displayName, isPreferred, addedAtUs);
+  int get hashCode => Object.hash(
+    id,
+    deviceId,
+    displayName,
+    isPreferred,
+    addedAtUs,
+    lastUsedAtUs,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -10083,7 +10133,8 @@ class KnownDevice extends DataClass implements Insertable<KnownDevice> {
           other.deviceId == this.deviceId &&
           other.displayName == this.displayName &&
           other.isPreferred == this.isPreferred &&
-          other.addedAtUs == this.addedAtUs);
+          other.addedAtUs == this.addedAtUs &&
+          other.lastUsedAtUs == this.lastUsedAtUs);
 }
 
 class KnownDevicesCompanion extends UpdateCompanion<KnownDevice> {
@@ -10092,12 +10143,14 @@ class KnownDevicesCompanion extends UpdateCompanion<KnownDevice> {
   final Value<String?> displayName;
   final Value<bool> isPreferred;
   final Value<int> addedAtUs;
+  final Value<int?> lastUsedAtUs;
   const KnownDevicesCompanion({
     this.id = const Value.absent(),
     this.deviceId = const Value.absent(),
     this.displayName = const Value.absent(),
     this.isPreferred = const Value.absent(),
     this.addedAtUs = const Value.absent(),
+    this.lastUsedAtUs = const Value.absent(),
   });
   KnownDevicesCompanion.insert({
     this.id = const Value.absent(),
@@ -10105,6 +10158,7 @@ class KnownDevicesCompanion extends UpdateCompanion<KnownDevice> {
     this.displayName = const Value.absent(),
     this.isPreferred = const Value.absent(),
     required int addedAtUs,
+    this.lastUsedAtUs = const Value.absent(),
   }) : deviceId = Value(deviceId),
        addedAtUs = Value(addedAtUs);
   static Insertable<KnownDevice> custom({
@@ -10113,6 +10167,7 @@ class KnownDevicesCompanion extends UpdateCompanion<KnownDevice> {
     Expression<String>? displayName,
     Expression<bool>? isPreferred,
     Expression<int>? addedAtUs,
+    Expression<int>? lastUsedAtUs,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -10120,6 +10175,7 @@ class KnownDevicesCompanion extends UpdateCompanion<KnownDevice> {
       if (displayName != null) 'display_name': displayName,
       if (isPreferred != null) 'is_preferred': isPreferred,
       if (addedAtUs != null) 'added_at_us': addedAtUs,
+      if (lastUsedAtUs != null) 'last_used_at_us': lastUsedAtUs,
     });
   }
 
@@ -10129,6 +10185,7 @@ class KnownDevicesCompanion extends UpdateCompanion<KnownDevice> {
     Value<String?>? displayName,
     Value<bool>? isPreferred,
     Value<int>? addedAtUs,
+    Value<int?>? lastUsedAtUs,
   }) {
     return KnownDevicesCompanion(
       id: id ?? this.id,
@@ -10136,6 +10193,7 @@ class KnownDevicesCompanion extends UpdateCompanion<KnownDevice> {
       displayName: displayName ?? this.displayName,
       isPreferred: isPreferred ?? this.isPreferred,
       addedAtUs: addedAtUs ?? this.addedAtUs,
+      lastUsedAtUs: lastUsedAtUs ?? this.lastUsedAtUs,
     );
   }
 
@@ -10157,6 +10215,9 @@ class KnownDevicesCompanion extends UpdateCompanion<KnownDevice> {
     if (addedAtUs.present) {
       map['added_at_us'] = Variable<int>(addedAtUs.value);
     }
+    if (lastUsedAtUs.present) {
+      map['last_used_at_us'] = Variable<int>(lastUsedAtUs.value);
+    }
     return map;
   }
 
@@ -10167,7 +10228,8 @@ class KnownDevicesCompanion extends UpdateCompanion<KnownDevice> {
           ..write('deviceId: $deviceId, ')
           ..write('displayName: $displayName, ')
           ..write('isPreferred: $isPreferred, ')
-          ..write('addedAtUs: $addedAtUs')
+          ..write('addedAtUs: $addedAtUs, ')
+          ..write('lastUsedAtUs: $lastUsedAtUs')
           ..write(')'))
         .toString();
   }
@@ -16524,7 +16586,8 @@ class MorningMeasurements extends Table
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (quality IN (\'good\', \'limited\'))',
+    $customConstraints:
+        'NOT NULL CHECK (quality IN (\'good\', \'limited\', \'unusable\'))',
   );
   static const VerificationMeta _restingHrBpmMeta = const VerificationMeta(
     'restingHrBpm',
@@ -16532,10 +16595,10 @@ class MorningMeasurements extends Table
   late final GeneratedColumn<double> restingHrBpm = GeneratedColumn<double>(
     'resting_hr_bpm',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
-    $customConstraints: 'NOT NULL CHECK (resting_hr_bpm > 0)',
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (resting_hr_bpm > 0)',
   );
   static const VerificationMeta _rmssdMsMeta = const VerificationMeta(
     'rmssdMs',
@@ -16603,6 +16666,51 @@ class MorningMeasurements extends Table
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL CHECK (length(camera_ibi) % 4 = 0)',
   );
+  static const VerificationMeta _windowStartSMeta = const VerificationMeta(
+    'windowStartS',
+  );
+  late final GeneratedColumn<double> windowStartS = GeneratedColumn<double>(
+    'window_start_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (window_start_s >= 0)',
+  );
+  static const VerificationMeta _windowEndSMeta = const VerificationMeta(
+    'windowEndS',
+  );
+  late final GeneratedColumn<double> windowEndS = GeneratedColumn<double>(
+    'window_end_s',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (window_end_s > window_start_s)',
+  );
+  static const VerificationMeta _restSkippedAfterSMeta = const VerificationMeta(
+    'restSkippedAfterS',
+  );
+  late final GeneratedColumn<double> restSkippedAfterS =
+      GeneratedColumn<double>(
+        'rest_skipped_after_s',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        $customConstraints: 'CHECK (rest_skipped_after_s >= 0)',
+      );
+  static const VerificationMeta _unusableReasonMeta = const VerificationMeta(
+    'unusableReason',
+  );
+  late final GeneratedColumn<String> unusableReason = GeneratedColumn<String>(
+    'unusable_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (length(unusable_reason) > 0)',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -16621,6 +16729,10 @@ class MorningMeasurements extends Table
     beforeValidation,
     outsideWindow,
     cameraIbi,
+    windowStartS,
+    windowEndS,
+    restSkippedAfterS,
+    unusableReason,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -16724,8 +16836,6 @@ class MorningMeasurements extends Table
           _restingHrBpmMeta,
         ),
       );
-    } else if (isInserting) {
-      context.missing(_restingHrBpmMeta);
     }
     if (data.containsKey('rmssd_ms')) {
       context.handle(
@@ -16778,6 +16888,42 @@ class MorningMeasurements extends Table
     } else if (isInserting) {
       context.missing(_cameraIbiMeta);
     }
+    if (data.containsKey('window_start_s')) {
+      context.handle(
+        _windowStartSMeta,
+        windowStartS.isAcceptableOrUnknown(
+          data['window_start_s']!,
+          _windowStartSMeta,
+        ),
+      );
+    }
+    if (data.containsKey('window_end_s')) {
+      context.handle(
+        _windowEndSMeta,
+        windowEndS.isAcceptableOrUnknown(
+          data['window_end_s']!,
+          _windowEndSMeta,
+        ),
+      );
+    }
+    if (data.containsKey('rest_skipped_after_s')) {
+      context.handle(
+        _restSkippedAfterSMeta,
+        restSkippedAfterS.isAcceptableOrUnknown(
+          data['rest_skipped_after_s']!,
+          _restSkippedAfterSMeta,
+        ),
+      );
+    }
+    if (data.containsKey('unusable_reason')) {
+      context.handle(
+        _unusableReasonMeta,
+        unusableReason.isAcceptableOrUnknown(
+          data['unusable_reason']!,
+          _unusableReasonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -16826,7 +16972,7 @@ class MorningMeasurements extends Table
       restingHrBpm: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}resting_hr_bpm'],
-      )!,
+      ),
       rmssdMs: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}rmssd_ms'],
@@ -16851,6 +16997,22 @@ class MorningMeasurements extends Table
         DriftSqlType.blob,
         data['${effectivePrefix}camera_ibi'],
       )!,
+      windowStartS: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}window_start_s'],
+      ),
+      windowEndS: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}window_end_s'],
+      ),
+      restSkippedAfterS: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rest_skipped_after_s'],
+      ),
+      unusableReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}unusable_reason'],
+      ),
     );
   }
 
@@ -16859,6 +17021,12 @@ class MorningMeasurements extends Table
     return MorningMeasurements(attachedDatabase, alias);
   }
 
+  @override
+  List<String> get customConstraints => const [
+    'CHECK((window_start_s IS NULL)=(window_end_s IS NULL))',
+    'CHECK((quality = \'unusable\')=(resting_hr_bpm IS NULL))',
+    'CHECK(unusable_reason IS NULL OR quality = \'unusable\')',
+  ];
   @override
   bool get dontWriteConstraints => true;
 }
@@ -16874,13 +17042,17 @@ class MorningMeasurementRow extends DataClass
   final String method;
   final int methodVersion;
   final String quality;
-  final double restingHrBpm;
+  final double? restingHrBpm;
   final double? rmssdMs;
   final double? timingNoiseMs;
   final String? sleepBand;
   final bool beforeValidation;
   final bool outsideWindow;
   final Uint8List cameraIbi;
+  final double? windowStartS;
+  final double? windowEndS;
+  final double? restSkippedAfterS;
+  final String? unusableReason;
   const MorningMeasurementRow({
     required this.id,
     required this.measuredAtUs,
@@ -16891,13 +17063,17 @@ class MorningMeasurementRow extends DataClass
     required this.method,
     required this.methodVersion,
     required this.quality,
-    required this.restingHrBpm,
+    this.restingHrBpm,
     this.rmssdMs,
     this.timingNoiseMs,
     this.sleepBand,
     required this.beforeValidation,
     required this.outsideWindow,
     required this.cameraIbi,
+    this.windowStartS,
+    this.windowEndS,
+    this.restSkippedAfterS,
+    this.unusableReason,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -16911,7 +17087,9 @@ class MorningMeasurementRow extends DataClass
     map['method'] = Variable<String>(method);
     map['method_version'] = Variable<int>(methodVersion);
     map['quality'] = Variable<String>(quality);
-    map['resting_hr_bpm'] = Variable<double>(restingHrBpm);
+    if (!nullToAbsent || restingHrBpm != null) {
+      map['resting_hr_bpm'] = Variable<double>(restingHrBpm);
+    }
     if (!nullToAbsent || rmssdMs != null) {
       map['rmssd_ms'] = Variable<double>(rmssdMs);
     }
@@ -16924,6 +17102,18 @@ class MorningMeasurementRow extends DataClass
     map['before_validation'] = Variable<bool>(beforeValidation);
     map['outside_window'] = Variable<bool>(outsideWindow);
     map['camera_ibi'] = Variable<Uint8List>(cameraIbi);
+    if (!nullToAbsent || windowStartS != null) {
+      map['window_start_s'] = Variable<double>(windowStartS);
+    }
+    if (!nullToAbsent || windowEndS != null) {
+      map['window_end_s'] = Variable<double>(windowEndS);
+    }
+    if (!nullToAbsent || restSkippedAfterS != null) {
+      map['rest_skipped_after_s'] = Variable<double>(restSkippedAfterS);
+    }
+    if (!nullToAbsent || unusableReason != null) {
+      map['unusable_reason'] = Variable<String>(unusableReason);
+    }
     return map;
   }
 
@@ -16938,7 +17128,9 @@ class MorningMeasurementRow extends DataClass
       method: Value(method),
       methodVersion: Value(methodVersion),
       quality: Value(quality),
-      restingHrBpm: Value(restingHrBpm),
+      restingHrBpm: restingHrBpm == null && nullToAbsent
+          ? const Value.absent()
+          : Value(restingHrBpm),
       rmssdMs: rmssdMs == null && nullToAbsent
           ? const Value.absent()
           : Value(rmssdMs),
@@ -16951,6 +17143,18 @@ class MorningMeasurementRow extends DataClass
       beforeValidation: Value(beforeValidation),
       outsideWindow: Value(outsideWindow),
       cameraIbi: Value(cameraIbi),
+      windowStartS: windowStartS == null && nullToAbsent
+          ? const Value.absent()
+          : Value(windowStartS),
+      windowEndS: windowEndS == null && nullToAbsent
+          ? const Value.absent()
+          : Value(windowEndS),
+      restSkippedAfterS: restSkippedAfterS == null && nullToAbsent
+          ? const Value.absent()
+          : Value(restSkippedAfterS),
+      unusableReason: unusableReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(unusableReason),
     );
   }
 
@@ -16971,13 +17175,19 @@ class MorningMeasurementRow extends DataClass
       method: serializer.fromJson<String>(json['method']),
       methodVersion: serializer.fromJson<int>(json['method_version']),
       quality: serializer.fromJson<String>(json['quality']),
-      restingHrBpm: serializer.fromJson<double>(json['resting_hr_bpm']),
+      restingHrBpm: serializer.fromJson<double?>(json['resting_hr_bpm']),
       rmssdMs: serializer.fromJson<double?>(json['rmssd_ms']),
       timingNoiseMs: serializer.fromJson<double?>(json['timing_noise_ms']),
       sleepBand: serializer.fromJson<String?>(json['sleep_band']),
       beforeValidation: serializer.fromJson<bool>(json['before_validation']),
       outsideWindow: serializer.fromJson<bool>(json['outside_window']),
       cameraIbi: serializer.fromJson<Uint8List>(json['camera_ibi']),
+      windowStartS: serializer.fromJson<double?>(json['window_start_s']),
+      windowEndS: serializer.fromJson<double?>(json['window_end_s']),
+      restSkippedAfterS: serializer.fromJson<double?>(
+        json['rest_skipped_after_s'],
+      ),
+      unusableReason: serializer.fromJson<String?>(json['unusable_reason']),
     );
   }
   @override
@@ -16993,13 +17203,17 @@ class MorningMeasurementRow extends DataClass
       'method': serializer.toJson<String>(method),
       'method_version': serializer.toJson<int>(methodVersion),
       'quality': serializer.toJson<String>(quality),
-      'resting_hr_bpm': serializer.toJson<double>(restingHrBpm),
+      'resting_hr_bpm': serializer.toJson<double?>(restingHrBpm),
       'rmssd_ms': serializer.toJson<double?>(rmssdMs),
       'timing_noise_ms': serializer.toJson<double?>(timingNoiseMs),
       'sleep_band': serializer.toJson<String?>(sleepBand),
       'before_validation': serializer.toJson<bool>(beforeValidation),
       'outside_window': serializer.toJson<bool>(outsideWindow),
       'camera_ibi': serializer.toJson<Uint8List>(cameraIbi),
+      'window_start_s': serializer.toJson<double?>(windowStartS),
+      'window_end_s': serializer.toJson<double?>(windowEndS),
+      'rest_skipped_after_s': serializer.toJson<double?>(restSkippedAfterS),
+      'unusable_reason': serializer.toJson<String?>(unusableReason),
     };
   }
 
@@ -17013,13 +17227,17 @@ class MorningMeasurementRow extends DataClass
     String? method,
     int? methodVersion,
     String? quality,
-    double? restingHrBpm,
+    Value<double?> restingHrBpm = const Value.absent(),
     Value<double?> rmssdMs = const Value.absent(),
     Value<double?> timingNoiseMs = const Value.absent(),
     Value<String?> sleepBand = const Value.absent(),
     bool? beforeValidation,
     bool? outsideWindow,
     Uint8List? cameraIbi,
+    Value<double?> windowStartS = const Value.absent(),
+    Value<double?> windowEndS = const Value.absent(),
+    Value<double?> restSkippedAfterS = const Value.absent(),
+    Value<String?> unusableReason = const Value.absent(),
   }) => MorningMeasurementRow(
     id: id ?? this.id,
     measuredAtUs: measuredAtUs ?? this.measuredAtUs,
@@ -17030,7 +17248,7 @@ class MorningMeasurementRow extends DataClass
     method: method ?? this.method,
     methodVersion: methodVersion ?? this.methodVersion,
     quality: quality ?? this.quality,
-    restingHrBpm: restingHrBpm ?? this.restingHrBpm,
+    restingHrBpm: restingHrBpm.present ? restingHrBpm.value : this.restingHrBpm,
     rmssdMs: rmssdMs.present ? rmssdMs.value : this.rmssdMs,
     timingNoiseMs: timingNoiseMs.present
         ? timingNoiseMs.value
@@ -17039,6 +17257,14 @@ class MorningMeasurementRow extends DataClass
     beforeValidation: beforeValidation ?? this.beforeValidation,
     outsideWindow: outsideWindow ?? this.outsideWindow,
     cameraIbi: cameraIbi ?? this.cameraIbi,
+    windowStartS: windowStartS.present ? windowStartS.value : this.windowStartS,
+    windowEndS: windowEndS.present ? windowEndS.value : this.windowEndS,
+    restSkippedAfterS: restSkippedAfterS.present
+        ? restSkippedAfterS.value
+        : this.restSkippedAfterS,
+    unusableReason: unusableReason.present
+        ? unusableReason.value
+        : this.unusableReason,
   );
   MorningMeasurementRow copyWithCompanion(MorningMeasurementsCompanion data) {
     return MorningMeasurementRow(
@@ -17076,6 +17302,18 @@ class MorningMeasurementRow extends DataClass
           ? data.outsideWindow.value
           : this.outsideWindow,
       cameraIbi: data.cameraIbi.present ? data.cameraIbi.value : this.cameraIbi,
+      windowStartS: data.windowStartS.present
+          ? data.windowStartS.value
+          : this.windowStartS,
+      windowEndS: data.windowEndS.present
+          ? data.windowEndS.value
+          : this.windowEndS,
+      restSkippedAfterS: data.restSkippedAfterS.present
+          ? data.restSkippedAfterS.value
+          : this.restSkippedAfterS,
+      unusableReason: data.unusableReason.present
+          ? data.unusableReason.value
+          : this.unusableReason,
     );
   }
 
@@ -17097,7 +17335,11 @@ class MorningMeasurementRow extends DataClass
           ..write('sleepBand: $sleepBand, ')
           ..write('beforeValidation: $beforeValidation, ')
           ..write('outsideWindow: $outsideWindow, ')
-          ..write('cameraIbi: $cameraIbi')
+          ..write('cameraIbi: $cameraIbi, ')
+          ..write('windowStartS: $windowStartS, ')
+          ..write('windowEndS: $windowEndS, ')
+          ..write('restSkippedAfterS: $restSkippedAfterS, ')
+          ..write('unusableReason: $unusableReason')
           ..write(')'))
         .toString();
   }
@@ -17120,6 +17362,10 @@ class MorningMeasurementRow extends DataClass
     beforeValidation,
     outsideWindow,
     $driftBlobEquality.hash(cameraIbi),
+    windowStartS,
+    windowEndS,
+    restSkippedAfterS,
+    unusableReason,
   );
   @override
   bool operator ==(Object other) =>
@@ -17140,7 +17386,11 @@ class MorningMeasurementRow extends DataClass
           other.sleepBand == this.sleepBand &&
           other.beforeValidation == this.beforeValidation &&
           other.outsideWindow == this.outsideWindow &&
-          $driftBlobEquality.equals(other.cameraIbi, this.cameraIbi));
+          $driftBlobEquality.equals(other.cameraIbi, this.cameraIbi) &&
+          other.windowStartS == this.windowStartS &&
+          other.windowEndS == this.windowEndS &&
+          other.restSkippedAfterS == this.restSkippedAfterS &&
+          other.unusableReason == this.unusableReason);
 }
 
 class MorningMeasurementsCompanion
@@ -17154,13 +17404,17 @@ class MorningMeasurementsCompanion
   final Value<String> method;
   final Value<int> methodVersion;
   final Value<String> quality;
-  final Value<double> restingHrBpm;
+  final Value<double?> restingHrBpm;
   final Value<double?> rmssdMs;
   final Value<double?> timingNoiseMs;
   final Value<String?> sleepBand;
   final Value<bool> beforeValidation;
   final Value<bool> outsideWindow;
   final Value<Uint8List> cameraIbi;
+  final Value<double?> windowStartS;
+  final Value<double?> windowEndS;
+  final Value<double?> restSkippedAfterS;
+  final Value<String?> unusableReason;
   const MorningMeasurementsCompanion({
     this.id = const Value.absent(),
     this.measuredAtUs = const Value.absent(),
@@ -17178,6 +17432,10 @@ class MorningMeasurementsCompanion
     this.beforeValidation = const Value.absent(),
     this.outsideWindow = const Value.absent(),
     this.cameraIbi = const Value.absent(),
+    this.windowStartS = const Value.absent(),
+    this.windowEndS = const Value.absent(),
+    this.restSkippedAfterS = const Value.absent(),
+    this.unusableReason = const Value.absent(),
   });
   MorningMeasurementsCompanion.insert({
     this.id = const Value.absent(),
@@ -17189,13 +17447,17 @@ class MorningMeasurementsCompanion
     required String method,
     required int methodVersion,
     required String quality,
-    required double restingHrBpm,
+    this.restingHrBpm = const Value.absent(),
     this.rmssdMs = const Value.absent(),
     this.timingNoiseMs = const Value.absent(),
     this.sleepBand = const Value.absent(),
     required bool beforeValidation,
     required bool outsideWindow,
     required Uint8List cameraIbi,
+    this.windowStartS = const Value.absent(),
+    this.windowEndS = const Value.absent(),
+    this.restSkippedAfterS = const Value.absent(),
+    this.unusableReason = const Value.absent(),
   }) : measuredAtUs = Value(measuredAtUs),
        utcOffsetS = Value(utcOffsetS),
        posture = Value(posture),
@@ -17204,7 +17466,6 @@ class MorningMeasurementsCompanion
        method = Value(method),
        methodVersion = Value(methodVersion),
        quality = Value(quality),
-       restingHrBpm = Value(restingHrBpm),
        beforeValidation = Value(beforeValidation),
        outsideWindow = Value(outsideWindow),
        cameraIbi = Value(cameraIbi);
@@ -17225,6 +17486,10 @@ class MorningMeasurementsCompanion
     Expression<bool>? beforeValidation,
     Expression<bool>? outsideWindow,
     Expression<Uint8List>? cameraIbi,
+    Expression<double>? windowStartS,
+    Expression<double>? windowEndS,
+    Expression<double>? restSkippedAfterS,
+    Expression<String>? unusableReason,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -17243,6 +17508,10 @@ class MorningMeasurementsCompanion
       if (beforeValidation != null) 'before_validation': beforeValidation,
       if (outsideWindow != null) 'outside_window': outsideWindow,
       if (cameraIbi != null) 'camera_ibi': cameraIbi,
+      if (windowStartS != null) 'window_start_s': windowStartS,
+      if (windowEndS != null) 'window_end_s': windowEndS,
+      if (restSkippedAfterS != null) 'rest_skipped_after_s': restSkippedAfterS,
+      if (unusableReason != null) 'unusable_reason': unusableReason,
     });
   }
 
@@ -17256,13 +17525,17 @@ class MorningMeasurementsCompanion
     Value<String>? method,
     Value<int>? methodVersion,
     Value<String>? quality,
-    Value<double>? restingHrBpm,
+    Value<double?>? restingHrBpm,
     Value<double?>? rmssdMs,
     Value<double?>? timingNoiseMs,
     Value<String?>? sleepBand,
     Value<bool>? beforeValidation,
     Value<bool>? outsideWindow,
     Value<Uint8List>? cameraIbi,
+    Value<double?>? windowStartS,
+    Value<double?>? windowEndS,
+    Value<double?>? restSkippedAfterS,
+    Value<String?>? unusableReason,
   }) {
     return MorningMeasurementsCompanion(
       id: id ?? this.id,
@@ -17281,6 +17554,10 @@ class MorningMeasurementsCompanion
       beforeValidation: beforeValidation ?? this.beforeValidation,
       outsideWindow: outsideWindow ?? this.outsideWindow,
       cameraIbi: cameraIbi ?? this.cameraIbi,
+      windowStartS: windowStartS ?? this.windowStartS,
+      windowEndS: windowEndS ?? this.windowEndS,
+      restSkippedAfterS: restSkippedAfterS ?? this.restSkippedAfterS,
+      unusableReason: unusableReason ?? this.unusableReason,
     );
   }
 
@@ -17335,6 +17612,18 @@ class MorningMeasurementsCompanion
     if (cameraIbi.present) {
       map['camera_ibi'] = Variable<Uint8List>(cameraIbi.value);
     }
+    if (windowStartS.present) {
+      map['window_start_s'] = Variable<double>(windowStartS.value);
+    }
+    if (windowEndS.present) {
+      map['window_end_s'] = Variable<double>(windowEndS.value);
+    }
+    if (restSkippedAfterS.present) {
+      map['rest_skipped_after_s'] = Variable<double>(restSkippedAfterS.value);
+    }
+    if (unusableReason.present) {
+      map['unusable_reason'] = Variable<String>(unusableReason.value);
+    }
     return map;
   }
 
@@ -17356,7 +17645,11 @@ class MorningMeasurementsCompanion
           ..write('sleepBand: $sleepBand, ')
           ..write('beforeValidation: $beforeValidation, ')
           ..write('outsideWindow: $outsideWindow, ')
-          ..write('cameraIbi: $cameraIbi')
+          ..write('cameraIbi: $cameraIbi, ')
+          ..write('windowStartS: $windowStartS, ')
+          ..write('windowEndS: $windowEndS, ')
+          ..write('restSkippedAfterS: $restSkippedAfterS, ')
+          ..write('unusableReason: $unusableReason')
           ..write(')'))
         .toString();
   }
@@ -17712,6 +18005,717 @@ class MorningRrPacketsCompanion extends UpdateCompanion<MorningRrPacket> {
   }
 }
 
+class MorningRawSignals extends Table
+    with TableInfo<MorningRawSignals, MorningRawSignalRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  MorningRawSignals(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _measurementIdMeta = const VerificationMeta(
+    'measurementId',
+  );
+  late final GeneratedColumn<int> measurementId = GeneratedColumn<int>(
+    'measurement_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL PRIMARY KEY REFERENCES morning_measurements(id)ON DELETE CASCADE',
+  );
+  static const VerificationMeta _frameCountMeta = const VerificationMeta(
+    'frameCount',
+  );
+  late final GeneratedColumn<int> frameCount = GeneratedColumn<int>(
+    'frame_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (frame_count >= 0)',
+  );
+  static const VerificationMeta _framesMeta = const VerificationMeta('frames');
+  late final GeneratedColumn<Uint8List> frames = GeneratedColumn<Uint8List>(
+    'frames',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (length(frames) = frame_count * 280)',
+  );
+  static const VerificationMeta _exposureTimeNsMeta = const VerificationMeta(
+    'exposureTimeNs',
+  );
+  late final GeneratedColumn<int> exposureTimeNs = GeneratedColumn<int>(
+    'exposure_time_ns',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (exposure_time_ns > 0)',
+  );
+  static const VerificationMeta _isoMeta = const VerificationMeta('iso');
+  late final GeneratedColumn<int> iso = GeneratedColumn<int>(
+    'iso',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (iso > 0)',
+  );
+  static const VerificationMeta _timestampSourceMeta = const VerificationMeta(
+    'timestampSource',
+  );
+  late final GeneratedColumn<String> timestampSource = GeneratedColumn<String>(
+    'timestamp_source',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (timestamp_source IN (\'unknown\', \'realtime\'))',
+  );
+  static const VerificationMeta _rollingShutterSkewNsMeta =
+      const VerificationMeta('rollingShutterSkewNs');
+  late final GeneratedColumn<int> rollingShutterSkewNs = GeneratedColumn<int>(
+    'rolling_shutter_skew_ns',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (rolling_shutter_skew_ns >= 0)',
+  );
+  static const VerificationMeta _torchStrengthMeta = const VerificationMeta(
+    'torchStrength',
+  );
+  late final GeneratedColumn<int> torchStrength = GeneratedColumn<int>(
+    'torch_strength',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (torch_strength >= 0)',
+  );
+  static const VerificationMeta _frameGapCountMeta = const VerificationMeta(
+    'frameGapCount',
+  );
+  late final GeneratedColumn<int> frameGapCount = GeneratedColumn<int>(
+    'frame_gap_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (frame_gap_count >= 0)',
+  );
+  static const VerificationMeta _frameGapTotalSMeta = const VerificationMeta(
+    'frameGapTotalS',
+  );
+  late final GeneratedColumn<double> frameGapTotalS = GeneratedColumn<double>(
+    'frame_gap_total_s',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (frame_gap_total_s >= 0)',
+  );
+  static const VerificationMeta _saturatedFractionMeta = const VerificationMeta(
+    'saturatedFraction',
+  );
+  late final GeneratedColumn<double> saturatedFraction =
+      GeneratedColumn<double>(
+        'saturated_fraction',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        $customConstraints: 'CHECK (saturated_fraction BETWEEN 0 AND 1)',
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    measurementId,
+    frameCount,
+    frames,
+    exposureTimeNs,
+    iso,
+    timestampSource,
+    rollingShutterSkewNs,
+    torchStrength,
+    frameGapCount,
+    frameGapTotalS,
+    saturatedFraction,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'morning_raw_signals';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MorningRawSignalRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('measurement_id')) {
+      context.handle(
+        _measurementIdMeta,
+        measurementId.isAcceptableOrUnknown(
+          data['measurement_id']!,
+          _measurementIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('frame_count')) {
+      context.handle(
+        _frameCountMeta,
+        frameCount.isAcceptableOrUnknown(data['frame_count']!, _frameCountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_frameCountMeta);
+    }
+    if (data.containsKey('frames')) {
+      context.handle(
+        _framesMeta,
+        frames.isAcceptableOrUnknown(data['frames']!, _framesMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_framesMeta);
+    }
+    if (data.containsKey('exposure_time_ns')) {
+      context.handle(
+        _exposureTimeNsMeta,
+        exposureTimeNs.isAcceptableOrUnknown(
+          data['exposure_time_ns']!,
+          _exposureTimeNsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('iso')) {
+      context.handle(
+        _isoMeta,
+        iso.isAcceptableOrUnknown(data['iso']!, _isoMeta),
+      );
+    }
+    if (data.containsKey('timestamp_source')) {
+      context.handle(
+        _timestampSourceMeta,
+        timestampSource.isAcceptableOrUnknown(
+          data['timestamp_source']!,
+          _timestampSourceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('rolling_shutter_skew_ns')) {
+      context.handle(
+        _rollingShutterSkewNsMeta,
+        rollingShutterSkewNs.isAcceptableOrUnknown(
+          data['rolling_shutter_skew_ns']!,
+          _rollingShutterSkewNsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('torch_strength')) {
+      context.handle(
+        _torchStrengthMeta,
+        torchStrength.isAcceptableOrUnknown(
+          data['torch_strength']!,
+          _torchStrengthMeta,
+        ),
+      );
+    }
+    if (data.containsKey('frame_gap_count')) {
+      context.handle(
+        _frameGapCountMeta,
+        frameGapCount.isAcceptableOrUnknown(
+          data['frame_gap_count']!,
+          _frameGapCountMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_frameGapCountMeta);
+    }
+    if (data.containsKey('frame_gap_total_s')) {
+      context.handle(
+        _frameGapTotalSMeta,
+        frameGapTotalS.isAcceptableOrUnknown(
+          data['frame_gap_total_s']!,
+          _frameGapTotalSMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_frameGapTotalSMeta);
+    }
+    if (data.containsKey('saturated_fraction')) {
+      context.handle(
+        _saturatedFractionMeta,
+        saturatedFraction.isAcceptableOrUnknown(
+          data['saturated_fraction']!,
+          _saturatedFractionMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {measurementId};
+  @override
+  MorningRawSignalRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MorningRawSignalRow(
+      measurementId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}measurement_id'],
+      )!,
+      frameCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}frame_count'],
+      )!,
+      frames: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}frames'],
+      )!,
+      exposureTimeNs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}exposure_time_ns'],
+      ),
+      iso: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}iso'],
+      ),
+      timestampSource: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}timestamp_source'],
+      ),
+      rollingShutterSkewNs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rolling_shutter_skew_ns'],
+      ),
+      torchStrength: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}torch_strength'],
+      ),
+      frameGapCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}frame_gap_count'],
+      )!,
+      frameGapTotalS: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}frame_gap_total_s'],
+      )!,
+      saturatedFraction: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}saturated_fraction'],
+      ),
+    );
+  }
+
+  @override
+  MorningRawSignals createAlias(String alias) {
+    return MorningRawSignals(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class MorningRawSignalRow extends DataClass
+    implements Insertable<MorningRawSignalRow> {
+  final int measurementId;
+  final int frameCount;
+  final Uint8List frames;
+  final int? exposureTimeNs;
+  final int? iso;
+  final String? timestampSource;
+  final int? rollingShutterSkewNs;
+  final int? torchStrength;
+  final int frameGapCount;
+  final double frameGapTotalS;
+  final double? saturatedFraction;
+  const MorningRawSignalRow({
+    required this.measurementId,
+    required this.frameCount,
+    required this.frames,
+    this.exposureTimeNs,
+    this.iso,
+    this.timestampSource,
+    this.rollingShutterSkewNs,
+    this.torchStrength,
+    required this.frameGapCount,
+    required this.frameGapTotalS,
+    this.saturatedFraction,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['measurement_id'] = Variable<int>(measurementId);
+    map['frame_count'] = Variable<int>(frameCount);
+    map['frames'] = Variable<Uint8List>(frames);
+    if (!nullToAbsent || exposureTimeNs != null) {
+      map['exposure_time_ns'] = Variable<int>(exposureTimeNs);
+    }
+    if (!nullToAbsent || iso != null) {
+      map['iso'] = Variable<int>(iso);
+    }
+    if (!nullToAbsent || timestampSource != null) {
+      map['timestamp_source'] = Variable<String>(timestampSource);
+    }
+    if (!nullToAbsent || rollingShutterSkewNs != null) {
+      map['rolling_shutter_skew_ns'] = Variable<int>(rollingShutterSkewNs);
+    }
+    if (!nullToAbsent || torchStrength != null) {
+      map['torch_strength'] = Variable<int>(torchStrength);
+    }
+    map['frame_gap_count'] = Variable<int>(frameGapCount);
+    map['frame_gap_total_s'] = Variable<double>(frameGapTotalS);
+    if (!nullToAbsent || saturatedFraction != null) {
+      map['saturated_fraction'] = Variable<double>(saturatedFraction);
+    }
+    return map;
+  }
+
+  MorningRawSignalsCompanion toCompanion(bool nullToAbsent) {
+    return MorningRawSignalsCompanion(
+      measurementId: Value(measurementId),
+      frameCount: Value(frameCount),
+      frames: Value(frames),
+      exposureTimeNs: exposureTimeNs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(exposureTimeNs),
+      iso: iso == null && nullToAbsent ? const Value.absent() : Value(iso),
+      timestampSource: timestampSource == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timestampSource),
+      rollingShutterSkewNs: rollingShutterSkewNs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rollingShutterSkewNs),
+      torchStrength: torchStrength == null && nullToAbsent
+          ? const Value.absent()
+          : Value(torchStrength),
+      frameGapCount: Value(frameGapCount),
+      frameGapTotalS: Value(frameGapTotalS),
+      saturatedFraction: saturatedFraction == null && nullToAbsent
+          ? const Value.absent()
+          : Value(saturatedFraction),
+    );
+  }
+
+  factory MorningRawSignalRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MorningRawSignalRow(
+      measurementId: serializer.fromJson<int>(json['measurement_id']),
+      frameCount: serializer.fromJson<int>(json['frame_count']),
+      frames: serializer.fromJson<Uint8List>(json['frames']),
+      exposureTimeNs: serializer.fromJson<int?>(json['exposure_time_ns']),
+      iso: serializer.fromJson<int?>(json['iso']),
+      timestampSource: serializer.fromJson<String?>(json['timestamp_source']),
+      rollingShutterSkewNs: serializer.fromJson<int?>(
+        json['rolling_shutter_skew_ns'],
+      ),
+      torchStrength: serializer.fromJson<int?>(json['torch_strength']),
+      frameGapCount: serializer.fromJson<int>(json['frame_gap_count']),
+      frameGapTotalS: serializer.fromJson<double>(json['frame_gap_total_s']),
+      saturatedFraction: serializer.fromJson<double?>(
+        json['saturated_fraction'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'measurement_id': serializer.toJson<int>(measurementId),
+      'frame_count': serializer.toJson<int>(frameCount),
+      'frames': serializer.toJson<Uint8List>(frames),
+      'exposure_time_ns': serializer.toJson<int?>(exposureTimeNs),
+      'iso': serializer.toJson<int?>(iso),
+      'timestamp_source': serializer.toJson<String?>(timestampSource),
+      'rolling_shutter_skew_ns': serializer.toJson<int?>(rollingShutterSkewNs),
+      'torch_strength': serializer.toJson<int?>(torchStrength),
+      'frame_gap_count': serializer.toJson<int>(frameGapCount),
+      'frame_gap_total_s': serializer.toJson<double>(frameGapTotalS),
+      'saturated_fraction': serializer.toJson<double?>(saturatedFraction),
+    };
+  }
+
+  MorningRawSignalRow copyWith({
+    int? measurementId,
+    int? frameCount,
+    Uint8List? frames,
+    Value<int?> exposureTimeNs = const Value.absent(),
+    Value<int?> iso = const Value.absent(),
+    Value<String?> timestampSource = const Value.absent(),
+    Value<int?> rollingShutterSkewNs = const Value.absent(),
+    Value<int?> torchStrength = const Value.absent(),
+    int? frameGapCount,
+    double? frameGapTotalS,
+    Value<double?> saturatedFraction = const Value.absent(),
+  }) => MorningRawSignalRow(
+    measurementId: measurementId ?? this.measurementId,
+    frameCount: frameCount ?? this.frameCount,
+    frames: frames ?? this.frames,
+    exposureTimeNs: exposureTimeNs.present
+        ? exposureTimeNs.value
+        : this.exposureTimeNs,
+    iso: iso.present ? iso.value : this.iso,
+    timestampSource: timestampSource.present
+        ? timestampSource.value
+        : this.timestampSource,
+    rollingShutterSkewNs: rollingShutterSkewNs.present
+        ? rollingShutterSkewNs.value
+        : this.rollingShutterSkewNs,
+    torchStrength: torchStrength.present
+        ? torchStrength.value
+        : this.torchStrength,
+    frameGapCount: frameGapCount ?? this.frameGapCount,
+    frameGapTotalS: frameGapTotalS ?? this.frameGapTotalS,
+    saturatedFraction: saturatedFraction.present
+        ? saturatedFraction.value
+        : this.saturatedFraction,
+  );
+  MorningRawSignalRow copyWithCompanion(MorningRawSignalsCompanion data) {
+    return MorningRawSignalRow(
+      measurementId: data.measurementId.present
+          ? data.measurementId.value
+          : this.measurementId,
+      frameCount: data.frameCount.present
+          ? data.frameCount.value
+          : this.frameCount,
+      frames: data.frames.present ? data.frames.value : this.frames,
+      exposureTimeNs: data.exposureTimeNs.present
+          ? data.exposureTimeNs.value
+          : this.exposureTimeNs,
+      iso: data.iso.present ? data.iso.value : this.iso,
+      timestampSource: data.timestampSource.present
+          ? data.timestampSource.value
+          : this.timestampSource,
+      rollingShutterSkewNs: data.rollingShutterSkewNs.present
+          ? data.rollingShutterSkewNs.value
+          : this.rollingShutterSkewNs,
+      torchStrength: data.torchStrength.present
+          ? data.torchStrength.value
+          : this.torchStrength,
+      frameGapCount: data.frameGapCount.present
+          ? data.frameGapCount.value
+          : this.frameGapCount,
+      frameGapTotalS: data.frameGapTotalS.present
+          ? data.frameGapTotalS.value
+          : this.frameGapTotalS,
+      saturatedFraction: data.saturatedFraction.present
+          ? data.saturatedFraction.value
+          : this.saturatedFraction,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MorningRawSignalRow(')
+          ..write('measurementId: $measurementId, ')
+          ..write('frameCount: $frameCount, ')
+          ..write('frames: $frames, ')
+          ..write('exposureTimeNs: $exposureTimeNs, ')
+          ..write('iso: $iso, ')
+          ..write('timestampSource: $timestampSource, ')
+          ..write('rollingShutterSkewNs: $rollingShutterSkewNs, ')
+          ..write('torchStrength: $torchStrength, ')
+          ..write('frameGapCount: $frameGapCount, ')
+          ..write('frameGapTotalS: $frameGapTotalS, ')
+          ..write('saturatedFraction: $saturatedFraction')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    measurementId,
+    frameCount,
+    $driftBlobEquality.hash(frames),
+    exposureTimeNs,
+    iso,
+    timestampSource,
+    rollingShutterSkewNs,
+    torchStrength,
+    frameGapCount,
+    frameGapTotalS,
+    saturatedFraction,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MorningRawSignalRow &&
+          other.measurementId == this.measurementId &&
+          other.frameCount == this.frameCount &&
+          $driftBlobEquality.equals(other.frames, this.frames) &&
+          other.exposureTimeNs == this.exposureTimeNs &&
+          other.iso == this.iso &&
+          other.timestampSource == this.timestampSource &&
+          other.rollingShutterSkewNs == this.rollingShutterSkewNs &&
+          other.torchStrength == this.torchStrength &&
+          other.frameGapCount == this.frameGapCount &&
+          other.frameGapTotalS == this.frameGapTotalS &&
+          other.saturatedFraction == this.saturatedFraction);
+}
+
+class MorningRawSignalsCompanion extends UpdateCompanion<MorningRawSignalRow> {
+  final Value<int> measurementId;
+  final Value<int> frameCount;
+  final Value<Uint8List> frames;
+  final Value<int?> exposureTimeNs;
+  final Value<int?> iso;
+  final Value<String?> timestampSource;
+  final Value<int?> rollingShutterSkewNs;
+  final Value<int?> torchStrength;
+  final Value<int> frameGapCount;
+  final Value<double> frameGapTotalS;
+  final Value<double?> saturatedFraction;
+  const MorningRawSignalsCompanion({
+    this.measurementId = const Value.absent(),
+    this.frameCount = const Value.absent(),
+    this.frames = const Value.absent(),
+    this.exposureTimeNs = const Value.absent(),
+    this.iso = const Value.absent(),
+    this.timestampSource = const Value.absent(),
+    this.rollingShutterSkewNs = const Value.absent(),
+    this.torchStrength = const Value.absent(),
+    this.frameGapCount = const Value.absent(),
+    this.frameGapTotalS = const Value.absent(),
+    this.saturatedFraction = const Value.absent(),
+  });
+  MorningRawSignalsCompanion.insert({
+    this.measurementId = const Value.absent(),
+    required int frameCount,
+    required Uint8List frames,
+    this.exposureTimeNs = const Value.absent(),
+    this.iso = const Value.absent(),
+    this.timestampSource = const Value.absent(),
+    this.rollingShutterSkewNs = const Value.absent(),
+    this.torchStrength = const Value.absent(),
+    required int frameGapCount,
+    required double frameGapTotalS,
+    this.saturatedFraction = const Value.absent(),
+  }) : frameCount = Value(frameCount),
+       frames = Value(frames),
+       frameGapCount = Value(frameGapCount),
+       frameGapTotalS = Value(frameGapTotalS);
+  static Insertable<MorningRawSignalRow> custom({
+    Expression<int>? measurementId,
+    Expression<int>? frameCount,
+    Expression<Uint8List>? frames,
+    Expression<int>? exposureTimeNs,
+    Expression<int>? iso,
+    Expression<String>? timestampSource,
+    Expression<int>? rollingShutterSkewNs,
+    Expression<int>? torchStrength,
+    Expression<int>? frameGapCount,
+    Expression<double>? frameGapTotalS,
+    Expression<double>? saturatedFraction,
+  }) {
+    return RawValuesInsertable({
+      if (measurementId != null) 'measurement_id': measurementId,
+      if (frameCount != null) 'frame_count': frameCount,
+      if (frames != null) 'frames': frames,
+      if (exposureTimeNs != null) 'exposure_time_ns': exposureTimeNs,
+      if (iso != null) 'iso': iso,
+      if (timestampSource != null) 'timestamp_source': timestampSource,
+      if (rollingShutterSkewNs != null)
+        'rolling_shutter_skew_ns': rollingShutterSkewNs,
+      if (torchStrength != null) 'torch_strength': torchStrength,
+      if (frameGapCount != null) 'frame_gap_count': frameGapCount,
+      if (frameGapTotalS != null) 'frame_gap_total_s': frameGapTotalS,
+      if (saturatedFraction != null) 'saturated_fraction': saturatedFraction,
+    });
+  }
+
+  MorningRawSignalsCompanion copyWith({
+    Value<int>? measurementId,
+    Value<int>? frameCount,
+    Value<Uint8List>? frames,
+    Value<int?>? exposureTimeNs,
+    Value<int?>? iso,
+    Value<String?>? timestampSource,
+    Value<int?>? rollingShutterSkewNs,
+    Value<int?>? torchStrength,
+    Value<int>? frameGapCount,
+    Value<double>? frameGapTotalS,
+    Value<double?>? saturatedFraction,
+  }) {
+    return MorningRawSignalsCompanion(
+      measurementId: measurementId ?? this.measurementId,
+      frameCount: frameCount ?? this.frameCount,
+      frames: frames ?? this.frames,
+      exposureTimeNs: exposureTimeNs ?? this.exposureTimeNs,
+      iso: iso ?? this.iso,
+      timestampSource: timestampSource ?? this.timestampSource,
+      rollingShutterSkewNs: rollingShutterSkewNs ?? this.rollingShutterSkewNs,
+      torchStrength: torchStrength ?? this.torchStrength,
+      frameGapCount: frameGapCount ?? this.frameGapCount,
+      frameGapTotalS: frameGapTotalS ?? this.frameGapTotalS,
+      saturatedFraction: saturatedFraction ?? this.saturatedFraction,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (measurementId.present) {
+      map['measurement_id'] = Variable<int>(measurementId.value);
+    }
+    if (frameCount.present) {
+      map['frame_count'] = Variable<int>(frameCount.value);
+    }
+    if (frames.present) {
+      map['frames'] = Variable<Uint8List>(frames.value);
+    }
+    if (exposureTimeNs.present) {
+      map['exposure_time_ns'] = Variable<int>(exposureTimeNs.value);
+    }
+    if (iso.present) {
+      map['iso'] = Variable<int>(iso.value);
+    }
+    if (timestampSource.present) {
+      map['timestamp_source'] = Variable<String>(timestampSource.value);
+    }
+    if (rollingShutterSkewNs.present) {
+      map['rolling_shutter_skew_ns'] = Variable<int>(
+        rollingShutterSkewNs.value,
+      );
+    }
+    if (torchStrength.present) {
+      map['torch_strength'] = Variable<int>(torchStrength.value);
+    }
+    if (frameGapCount.present) {
+      map['frame_gap_count'] = Variable<int>(frameGapCount.value);
+    }
+    if (frameGapTotalS.present) {
+      map['frame_gap_total_s'] = Variable<double>(frameGapTotalS.value);
+    }
+    if (saturatedFraction.present) {
+      map['saturated_fraction'] = Variable<double>(saturatedFraction.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MorningRawSignalsCompanion(')
+          ..write('measurementId: $measurementId, ')
+          ..write('frameCount: $frameCount, ')
+          ..write('frames: $frames, ')
+          ..write('exposureTimeNs: $exposureTimeNs, ')
+          ..write('iso: $iso, ')
+          ..write('timestampSource: $timestampSource, ')
+          ..write('rollingShutterSkewNs: $rollingShutterSkewNs, ')
+          ..write('torchStrength: $torchStrength, ')
+          ..write('frameGapCount: $frameGapCount, ')
+          ..write('frameGapTotalS: $frameGapTotalS, ')
+          ..write('saturatedFraction: $saturatedFraction')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -17954,6 +18958,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'morning_rr_packets_measurement',
     'CREATE INDEX morning_rr_packets_measurement ON morning_rr_packets (measurement_id, time_us)',
   );
+  late final MorningRawSignals morningRawSignals = MorningRawSignals(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -18042,6 +19047,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     morningMeasurementsTime,
     morningRrPackets,
     morningRrPacketsMeasurement,
+    morningRawSignals,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -18354,6 +19360,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('morning_rr_packets', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'morning_measurements',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('morning_raw_signals', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -26426,6 +27439,7 @@ typedef $KnownDevicesCreateCompanionBuilder = KnownDevicesCompanion Function({
   Value<String?> displayName,
   Value<bool> isPreferred,
   required int addedAtUs,
+  Value<int?> lastUsedAtUs,
 });
 typedef $KnownDevicesUpdateCompanionBuilder = KnownDevicesCompanion Function({
   Value<int> id,
@@ -26433,6 +27447,7 @@ typedef $KnownDevicesUpdateCompanionBuilder = KnownDevicesCompanion Function({
   Value<String?> displayName,
   Value<bool> isPreferred,
   Value<int> addedAtUs,
+  Value<int?> lastUsedAtUs,
 });
 
 class $KnownDevicesFilterComposer
@@ -26466,6 +27481,11 @@ class $KnownDevicesFilterComposer
 
   ColumnFilters<int> get addedAtUs => $composableBuilder(
     column: $table.addedAtUs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastUsedAtUs => $composableBuilder(
+    column: $table.lastUsedAtUs,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -26503,6 +27523,11 @@ class $KnownDevicesOrderingComposer
     column: $table.addedAtUs,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get lastUsedAtUs => $composableBuilder(
+    column: $table.lastUsedAtUs,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $KnownDevicesAnnotationComposer
@@ -26532,6 +27557,11 @@ class $KnownDevicesAnnotationComposer
 
   GeneratedColumn<int> get addedAtUs =>
       $composableBuilder(column: $table.addedAtUs, builder: (column) => column);
+
+  GeneratedColumn<int> get lastUsedAtUs => $composableBuilder(
+    column: $table.lastUsedAtUs,
+    builder: (column) => column,
+  );
 }
 
 class $KnownDevicesTableManager
@@ -26570,12 +27600,14 @@ class $KnownDevicesTableManager
                 Value<String?> displayName = const Value.absent(),
                 Value<bool> isPreferred = const Value.absent(),
                 Value<int> addedAtUs = const Value.absent(),
+                Value<int?> lastUsedAtUs = const Value.absent(),
               }) => KnownDevicesCompanion(
                 id: id,
                 deviceId: deviceId,
                 displayName: displayName,
                 isPreferred: isPreferred,
                 addedAtUs: addedAtUs,
+                lastUsedAtUs: lastUsedAtUs,
               ),
           createCompanionCallback:
               ({
@@ -26584,12 +27616,14 @@ class $KnownDevicesTableManager
                 Value<String?> displayName = const Value.absent(),
                 Value<bool> isPreferred = const Value.absent(),
                 required int addedAtUs,
+                Value<int?> lastUsedAtUs = const Value.absent(),
               }) => KnownDevicesCompanion.insert(
                 id: id,
                 deviceId: deviceId,
                 displayName: displayName,
                 isPreferred: isPreferred,
                 addedAtUs: addedAtUs,
+                lastUsedAtUs: lastUsedAtUs,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -31208,13 +32242,17 @@ typedef $MorningMeasurementsCreateCompanionBuilder =
       required String method,
       required int methodVersion,
       required String quality,
-      required double restingHrBpm,
+      Value<double?> restingHrBpm,
       Value<double?> rmssdMs,
       Value<double?> timingNoiseMs,
       Value<String?> sleepBand,
       required bool beforeValidation,
       required bool outsideWindow,
       required Uint8List cameraIbi,
+      Value<double?> windowStartS,
+      Value<double?> windowEndS,
+      Value<double?> restSkippedAfterS,
+      Value<String?> unusableReason,
     });
 typedef $MorningMeasurementsUpdateCompanionBuilder =
     MorningMeasurementsCompanion Function({
@@ -31227,13 +32265,17 @@ typedef $MorningMeasurementsUpdateCompanionBuilder =
       Value<String> method,
       Value<int> methodVersion,
       Value<String> quality,
-      Value<double> restingHrBpm,
+      Value<double?> restingHrBpm,
       Value<double?> rmssdMs,
       Value<double?> timingNoiseMs,
       Value<String?> sleepBand,
       Value<bool> beforeValidation,
       Value<bool> outsideWindow,
       Value<Uint8List> cameraIbi,
+      Value<double?> windowStartS,
+      Value<double?> windowEndS,
+      Value<double?> restSkippedAfterS,
+      Value<String?> unusableReason,
     });
 
 final class $MorningMeasurementsReferences
@@ -31263,6 +32305,28 @@ final class $MorningMeasurementsReferences
 
     final cache = $_typedResult.readTableOrNull(
       _morningRrPacketsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<MorningRawSignals, List<MorningRawSignalRow>>
+  _morningRawSignalsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.morningRawSignals,
+        aliasName:
+            'morning_measurements__id__morning_raw_signals__measurement_id',
+      );
+
+  $MorningRawSignalsProcessedTableManager get morningRawSignalsRefs {
+    final manager = $MorningRawSignalsTableManager(
+      $_db,
+      $_db.morningRawSignals,
+    ).filter((f) => f.measurementId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _morningRawSignalsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -31359,6 +32423,26 @@ class $MorningMeasurementsFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<double> get windowStartS => $composableBuilder(
+    column: $table.windowStartS,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get windowEndS => $composableBuilder(
+    column: $table.windowEndS,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get restSkippedAfterS => $composableBuilder(
+    column: $table.restSkippedAfterS,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get unusableReason => $composableBuilder(
+    column: $table.unusableReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> morningRrPacketsRefs(
     Expression<bool> Function($MorningRrPacketsFilterComposer f) f,
   ) {
@@ -31375,6 +32459,31 @@ class $MorningMeasurementsFilterComposer
           }) => $MorningRrPacketsFilterComposer(
             $db: $db,
             $table: $db.morningRrPackets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> morningRawSignalsRefs(
+    Expression<bool> Function($MorningRawSignalsFilterComposer f) f,
+  ) {
+    final $MorningRawSignalsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.morningRawSignals,
+      getReferencedColumn: (t) => t.measurementId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $MorningRawSignalsFilterComposer(
+            $db: $db,
+            $table: $db.morningRawSignals,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -31473,6 +32582,26 @@ class $MorningMeasurementsOrderingComposer
     column: $table.cameraIbi,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<double> get windowStartS => $composableBuilder(
+    column: $table.windowStartS,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get windowEndS => $composableBuilder(
+    column: $table.windowEndS,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get restSkippedAfterS => $composableBuilder(
+    column: $table.restSkippedAfterS,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get unusableReason => $composableBuilder(
+    column: $table.unusableReason,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $MorningMeasurementsAnnotationComposer
@@ -31550,6 +32679,26 @@ class $MorningMeasurementsAnnotationComposer
   GeneratedColumn<Uint8List> get cameraIbi =>
       $composableBuilder(column: $table.cameraIbi, builder: (column) => column);
 
+  GeneratedColumn<double> get windowStartS => $composableBuilder(
+    column: $table.windowStartS,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get windowEndS => $composableBuilder(
+    column: $table.windowEndS,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get restSkippedAfterS => $composableBuilder(
+    column: $table.restSkippedAfterS,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get unusableReason => $composableBuilder(
+    column: $table.unusableReason,
+    builder: (column) => column,
+  );
+
   Expression<T> morningRrPacketsRefs<T extends Object>(
     Expression<T> Function($MorningRrPacketsAnnotationComposer a) f,
   ) {
@@ -31574,6 +32723,31 @@ class $MorningMeasurementsAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> morningRawSignalsRefs<T extends Object>(
+    Expression<T> Function($MorningRawSignalsAnnotationComposer a) f,
+  ) {
+    final $MorningRawSignalsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.morningRawSignals,
+      getReferencedColumn: (t) => t.measurementId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $MorningRawSignalsAnnotationComposer(
+            $db: $db,
+            $table: $db.morningRawSignals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $MorningMeasurementsTableManager
@@ -31589,7 +32763,10 @@ class $MorningMeasurementsTableManager
           $MorningMeasurementsUpdateCompanionBuilder,
           (MorningMeasurementRow, $MorningMeasurementsReferences),
           MorningMeasurementRow,
-          PrefetchHooks Function({bool morningRrPacketsRefs})
+          PrefetchHooks Function({
+            bool morningRrPacketsRefs,
+            bool morningRawSignalsRefs,
+          })
         > {
   $MorningMeasurementsTableManager(_$AppDatabase db, MorningMeasurements table)
     : super(
@@ -31613,13 +32790,17 @@ class $MorningMeasurementsTableManager
                 Value<String> method = const Value.absent(),
                 Value<int> methodVersion = const Value.absent(),
                 Value<String> quality = const Value.absent(),
-                Value<double> restingHrBpm = const Value.absent(),
+                Value<double?> restingHrBpm = const Value.absent(),
                 Value<double?> rmssdMs = const Value.absent(),
                 Value<double?> timingNoiseMs = const Value.absent(),
                 Value<String?> sleepBand = const Value.absent(),
                 Value<bool> beforeValidation = const Value.absent(),
                 Value<bool> outsideWindow = const Value.absent(),
                 Value<Uint8List> cameraIbi = const Value.absent(),
+                Value<double?> windowStartS = const Value.absent(),
+                Value<double?> windowEndS = const Value.absent(),
+                Value<double?> restSkippedAfterS = const Value.absent(),
+                Value<String?> unusableReason = const Value.absent(),
               }) => MorningMeasurementsCompanion(
                 id: id,
                 measuredAtUs: measuredAtUs,
@@ -31637,6 +32818,10 @@ class $MorningMeasurementsTableManager
                 beforeValidation: beforeValidation,
                 outsideWindow: outsideWindow,
                 cameraIbi: cameraIbi,
+                windowStartS: windowStartS,
+                windowEndS: windowEndS,
+                restSkippedAfterS: restSkippedAfterS,
+                unusableReason: unusableReason,
               ),
           createCompanionCallback:
               ({
@@ -31649,13 +32834,17 @@ class $MorningMeasurementsTableManager
                 required String method,
                 required int methodVersion,
                 required String quality,
-                required double restingHrBpm,
+                Value<double?> restingHrBpm = const Value.absent(),
                 Value<double?> rmssdMs = const Value.absent(),
                 Value<double?> timingNoiseMs = const Value.absent(),
                 Value<String?> sleepBand = const Value.absent(),
                 required bool beforeValidation,
                 required bool outsideWindow,
                 required Uint8List cameraIbi,
+                Value<double?> windowStartS = const Value.absent(),
+                Value<double?> windowEndS = const Value.absent(),
+                Value<double?> restSkippedAfterS = const Value.absent(),
+                Value<String?> unusableReason = const Value.absent(),
               }) => MorningMeasurementsCompanion.insert(
                 id: id,
                 measuredAtUs: measuredAtUs,
@@ -31673,6 +32862,10 @@ class $MorningMeasurementsTableManager
                 beforeValidation: beforeValidation,
                 outsideWindow: outsideWindow,
                 cameraIbi: cameraIbi,
+                windowStartS: windowStartS,
+                windowEndS: windowEndS,
+                restSkippedAfterS: restSkippedAfterS,
+                unusableReason: unusableReason,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -31684,39 +32877,61 @@ class $MorningMeasurementsTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({morningRrPacketsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [
-                if (morningRrPacketsRefs) db.morningRrPackets,
-              ],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (morningRrPacketsRefs)
-                    await $_getPrefetchedDataByColumns<
-                      MorningMeasurementRow,
-                      MorningMeasurements,
-                      MorningRrPacket,
-                      MorningRrPackets
-                    >(
-                      currentTable: table,
-                      referencedTable: $MorningMeasurementsReferences
-                          ._morningRrPacketsRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $MorningMeasurementsReferences(
-                            db,
-                            table,
-                            p0,
-                          ).morningRrPacketsRefs,
-                      currentColumn: 'id',
-                      referencedColumn: 'measurement_id',
-                      typedResults: items,
-                    ),
-                ];
+          prefetchHooksCallback:
+              ({morningRrPacketsRefs = false, morningRawSignalsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (morningRrPacketsRefs) db.morningRrPackets,
+                    if (morningRawSignalsRefs) db.morningRawSignals,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (morningRrPacketsRefs)
+                        await $_getPrefetchedDataByColumns<
+                          MorningMeasurementRow,
+                          MorningMeasurements,
+                          MorningRrPacket,
+                          MorningRrPackets
+                        >(
+                          currentTable: table,
+                          referencedTable: $MorningMeasurementsReferences
+                              ._morningRrPacketsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $MorningMeasurementsReferences(
+                                db,
+                                table,
+                                p0,
+                              ).morningRrPacketsRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'measurement_id',
+                          typedResults: items,
+                        ),
+                      if (morningRawSignalsRefs)
+                        await $_getPrefetchedDataByColumns<
+                          MorningMeasurementRow,
+                          MorningMeasurements,
+                          MorningRawSignalRow,
+                          MorningRawSignals
+                        >(
+                          currentTable: table,
+                          referencedTable: $MorningMeasurementsReferences
+                              ._morningRawSignalsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $MorningMeasurementsReferences(
+                                db,
+                                table,
+                                p0,
+                              ).morningRawSignalsRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'measurement_id',
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -31733,7 +32948,10 @@ typedef $MorningMeasurementsProcessedTableManager =
       $MorningMeasurementsUpdateCompanionBuilder,
       (MorningMeasurementRow, $MorningMeasurementsReferences),
       MorningMeasurementRow,
-      PrefetchHooks Function({bool morningRrPacketsRefs})
+      PrefetchHooks Function({
+        bool morningRrPacketsRefs,
+        bool morningRawSignalsRefs,
+      })
     >;
 typedef $MorningRrPacketsCreateCompanionBuilder =
     MorningRrPacketsCompanion Function({
@@ -32046,6 +33264,448 @@ typedef $MorningRrPacketsProcessedTableManager =
       MorningRrPacket,
       PrefetchHooks Function({bool measurementId})
     >;
+typedef $MorningRawSignalsCreateCompanionBuilder =
+    MorningRawSignalsCompanion Function({
+      Value<int> measurementId,
+      required int frameCount,
+      required Uint8List frames,
+      Value<int?> exposureTimeNs,
+      Value<int?> iso,
+      Value<String?> timestampSource,
+      Value<int?> rollingShutterSkewNs,
+      Value<int?> torchStrength,
+      required int frameGapCount,
+      required double frameGapTotalS,
+      Value<double?> saturatedFraction,
+    });
+typedef $MorningRawSignalsUpdateCompanionBuilder =
+    MorningRawSignalsCompanion Function({
+      Value<int> measurementId,
+      Value<int> frameCount,
+      Value<Uint8List> frames,
+      Value<int?> exposureTimeNs,
+      Value<int?> iso,
+      Value<String?> timestampSource,
+      Value<int?> rollingShutterSkewNs,
+      Value<int?> torchStrength,
+      Value<int> frameGapCount,
+      Value<double> frameGapTotalS,
+      Value<double?> saturatedFraction,
+    });
+
+final class $MorningRawSignalsReferences
+    extends
+        BaseReferences<_$AppDatabase, MorningRawSignals, MorningRawSignalRow> {
+  $MorningRawSignalsReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MorningMeasurements _measurementIdTable(_$AppDatabase db) =>
+      db.morningMeasurements.createAlias(
+        'morning_raw_signals__measurement_id__morning_measurements__id',
+      );
+
+  $MorningMeasurementsProcessedTableManager get measurementId {
+    final $_column = $_itemColumn<int>('measurement_id')!;
+
+    final manager = $MorningMeasurementsTableManager(
+      $_db,
+      $_db.morningMeasurements,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_measurementIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $MorningRawSignalsFilterComposer
+    extends Composer<_$AppDatabase, MorningRawSignals> {
+  $MorningRawSignalsFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get frameCount => $composableBuilder(
+    column: $table.frameCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get frames => $composableBuilder(
+    column: $table.frames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get exposureTimeNs => $composableBuilder(
+    column: $table.exposureTimeNs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get iso => $composableBuilder(
+    column: $table.iso,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get timestampSource => $composableBuilder(
+    column: $table.timestampSource,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get rollingShutterSkewNs => $composableBuilder(
+    column: $table.rollingShutterSkewNs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get torchStrength => $composableBuilder(
+    column: $table.torchStrength,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get frameGapCount => $composableBuilder(
+    column: $table.frameGapCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get frameGapTotalS => $composableBuilder(
+    column: $table.frameGapTotalS,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get saturatedFraction => $composableBuilder(
+    column: $table.saturatedFraction,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $MorningMeasurementsFilterComposer get measurementId {
+    final $MorningMeasurementsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.measurementId,
+      referencedTable: $db.morningMeasurements,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $MorningMeasurementsFilterComposer(
+            $db: $db,
+            $table: $db.morningMeasurements,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $MorningRawSignalsOrderingComposer
+    extends Composer<_$AppDatabase, MorningRawSignals> {
+  $MorningRawSignalsOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get frameCount => $composableBuilder(
+    column: $table.frameCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get frames => $composableBuilder(
+    column: $table.frames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get exposureTimeNs => $composableBuilder(
+    column: $table.exposureTimeNs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get iso => $composableBuilder(
+    column: $table.iso,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get timestampSource => $composableBuilder(
+    column: $table.timestampSource,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get rollingShutterSkewNs => $composableBuilder(
+    column: $table.rollingShutterSkewNs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get torchStrength => $composableBuilder(
+    column: $table.torchStrength,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get frameGapCount => $composableBuilder(
+    column: $table.frameGapCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get frameGapTotalS => $composableBuilder(
+    column: $table.frameGapTotalS,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get saturatedFraction => $composableBuilder(
+    column: $table.saturatedFraction,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $MorningMeasurementsOrderingComposer get measurementId {
+    final $MorningMeasurementsOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.measurementId,
+      referencedTable: $db.morningMeasurements,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $MorningMeasurementsOrderingComposer(
+            $db: $db,
+            $table: $db.morningMeasurements,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $MorningRawSignalsAnnotationComposer
+    extends Composer<_$AppDatabase, MorningRawSignals> {
+  $MorningRawSignalsAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get frameCount => $composableBuilder(
+    column: $table.frameCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<Uint8List> get frames =>
+      $composableBuilder(column: $table.frames, builder: (column) => column);
+
+  GeneratedColumn<int> get exposureTimeNs => $composableBuilder(
+    column: $table.exposureTimeNs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get iso =>
+      $composableBuilder(column: $table.iso, builder: (column) => column);
+
+  GeneratedColumn<String> get timestampSource => $composableBuilder(
+    column: $table.timestampSource,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get rollingShutterSkewNs => $composableBuilder(
+    column: $table.rollingShutterSkewNs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get torchStrength => $composableBuilder(
+    column: $table.torchStrength,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get frameGapCount => $composableBuilder(
+    column: $table.frameGapCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get frameGapTotalS => $composableBuilder(
+    column: $table.frameGapTotalS,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get saturatedFraction => $composableBuilder(
+    column: $table.saturatedFraction,
+    builder: (column) => column,
+  );
+
+  $MorningMeasurementsAnnotationComposer get measurementId {
+    final $MorningMeasurementsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.measurementId,
+      referencedTable: $db.morningMeasurements,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $MorningMeasurementsAnnotationComposer(
+            $db: $db,
+            $table: $db.morningMeasurements,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $MorningRawSignalsTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          MorningRawSignals,
+          MorningRawSignalRow,
+          $MorningRawSignalsFilterComposer,
+          $MorningRawSignalsOrderingComposer,
+          $MorningRawSignalsAnnotationComposer,
+          $MorningRawSignalsCreateCompanionBuilder,
+          $MorningRawSignalsUpdateCompanionBuilder,
+          (MorningRawSignalRow, $MorningRawSignalsReferences),
+          MorningRawSignalRow,
+          PrefetchHooks Function({bool measurementId})
+        > {
+  $MorningRawSignalsTableManager(_$AppDatabase db, MorningRawSignals table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $MorningRawSignalsFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $MorningRawSignalsOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $MorningRawSignalsAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> measurementId = const Value.absent(),
+                Value<int> frameCount = const Value.absent(),
+                Value<Uint8List> frames = const Value.absent(),
+                Value<int?> exposureTimeNs = const Value.absent(),
+                Value<int?> iso = const Value.absent(),
+                Value<String?> timestampSource = const Value.absent(),
+                Value<int?> rollingShutterSkewNs = const Value.absent(),
+                Value<int?> torchStrength = const Value.absent(),
+                Value<int> frameGapCount = const Value.absent(),
+                Value<double> frameGapTotalS = const Value.absent(),
+                Value<double?> saturatedFraction = const Value.absent(),
+              }) => MorningRawSignalsCompanion(
+                measurementId: measurementId,
+                frameCount: frameCount,
+                frames: frames,
+                exposureTimeNs: exposureTimeNs,
+                iso: iso,
+                timestampSource: timestampSource,
+                rollingShutterSkewNs: rollingShutterSkewNs,
+                torchStrength: torchStrength,
+                frameGapCount: frameGapCount,
+                frameGapTotalS: frameGapTotalS,
+                saturatedFraction: saturatedFraction,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> measurementId = const Value.absent(),
+                required int frameCount,
+                required Uint8List frames,
+                Value<int?> exposureTimeNs = const Value.absent(),
+                Value<int?> iso = const Value.absent(),
+                Value<String?> timestampSource = const Value.absent(),
+                Value<int?> rollingShutterSkewNs = const Value.absent(),
+                Value<int?> torchStrength = const Value.absent(),
+                required int frameGapCount,
+                required double frameGapTotalS,
+                Value<double?> saturatedFraction = const Value.absent(),
+              }) => MorningRawSignalsCompanion.insert(
+                measurementId: measurementId,
+                frameCount: frameCount,
+                frames: frames,
+                exposureTimeNs: exposureTimeNs,
+                iso: iso,
+                timestampSource: timestampSource,
+                rollingShutterSkewNs: rollingShutterSkewNs,
+                torchStrength: torchStrength,
+                frameGapCount: frameGapCount,
+                frameGapTotalS: frameGapTotalS,
+                saturatedFraction: saturatedFraction,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<MorningRawSignals, MorningRawSignalRow>(table),
+                  $MorningRawSignalsReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({measurementId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (measurementId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.measurementId,
+                        referencedTable: $MorningRawSignalsReferences
+                            ._measurementIdTable(db),
+                        referencedColumn: $MorningRawSignalsReferences
+                            ._measurementIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $MorningRawSignalsProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      MorningRawSignals,
+      MorningRawSignalRow,
+      $MorningRawSignalsFilterComposer,
+      $MorningRawSignalsOrderingComposer,
+      $MorningRawSignalsAnnotationComposer,
+      $MorningRawSignalsCreateCompanionBuilder,
+      $MorningRawSignalsUpdateCompanionBuilder,
+      (MorningRawSignalRow, $MorningRawSignalsReferences),
+      MorningRawSignalRow,
+      PrefetchHooks Function({bool measurementId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -32114,4 +33774,6 @@ class $AppDatabaseManager {
       $MorningMeasurementsTableManager(_db, _db.morningMeasurements);
   $MorningRrPacketsTableManager get morningRrPackets =>
       $MorningRrPacketsTableManager(_db, _db.morningRrPackets);
+  $MorningRawSignalsTableManager get morningRawSignals =>
+      $MorningRawSignalsTableManager(_db, _db.morningRawSignals);
 }

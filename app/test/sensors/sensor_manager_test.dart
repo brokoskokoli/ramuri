@@ -50,6 +50,10 @@ class _GatedStore implements KnownDeviceStore {
 
   @override
   Future<void> setPreferred(String? deviceId) => inner.setPreferred(deviceId);
+
+  @override
+  Future<void> markUsed(String deviceId, {required DateTime at}) =>
+      inner.markUsed(deviceId, at: at);
 }
 
 /// Gerätespeicher, der ein Gerät nach dem Löschen nicht mehr listet und die
@@ -82,6 +86,10 @@ class _ForgetfulStore implements KnownDeviceStore {
 
   @override
   Future<void> setPreferred(String? deviceId) => inner.setPreferred(deviceId);
+
+  @override
+  Future<void> markUsed(String deviceId, {required DateTime at}) =>
+      inner.markUsed(deviceId, at: at);
 }
 
 /// Sensor, dessen Verbindungen der Test von Hand steuert (kein Zeitablauf):
@@ -120,6 +128,10 @@ class _ThrowingStore implements KnownDeviceStore {
 
   @override
   Future<void> setPreferred(String? deviceId) => inner.setPreferred(deviceId);
+
+  @override
+  Future<void> markUsed(String deviceId, {required DateTime at}) =>
+      inner.markUsed(deviceId, at: at);
 
   @override
   Future<void> upsert(

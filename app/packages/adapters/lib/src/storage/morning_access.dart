@@ -14,8 +14,13 @@ class DriftMorningStore implements MorningStore {
   Future<int> add(
     MorningMeasurement measurement, {
     List<RrPacket> beltPackets = const [],
+    MorningRawSignal? rawSignal,
   }) => guarded(() async {
-    checkMorningForStorage(measurement, beltPackets: beltPackets);
+    checkMorningForStorage(
+      measurement,
+      beltPackets: beltPackets,
+      rawSignal: rawSignal,
+    );
     return _db.transaction(() async {
       final id = await _db
           .into(_db.morningMeasurements)
@@ -29,15 +34,38 @@ class DriftMorningStore implements MorningStore {
               method: measurement.method,
               methodVersion: measurement.methodVersion,
               quality: measurement.quality.name,
-              restingHrBpm: measurement.roundedRestingHr,
+              restingHrBpm: Value(measurement.roundedRestingHr),
               rmssdMs: Value(measurement.rmssdMs),
               timingNoiseMs: Value(measurement.timingNoiseMs),
               sleepBand: Value(measurement.sleepBand?.code),
               beforeValidation: measurement.beforeValidation,
               outsideWindow: measurement.outsideWindow,
               cameraIbi: encodeCameraIntervals(measurement.cameraIntervalsMs),
+              windowStartS: Value(measurement.windowStartS),
+              windowEndS: Value(measurement.windowEndS),
+              restSkippedAfterS: Value(measurement.restSkippedAfterS),
+              unusableReason: Value(measurement.unusableReason?.name),
             ),
           );
+      if (rawSignal != null) {
+        await _db
+            .into(_db.morningRawSignals)
+            .insert(
+              d.MorningRawSignalsCompanion.insert(
+                measurementId: Value(id),
+                frameCount: rawSignal.frames.length,
+                frames: encodeRawFrames(rawSignal.frames),
+                exposureTimeNs: Value(rawSignal.exposureTimeNs),
+                iso: Value(rawSignal.iso),
+                timestampSource: Value(rawSignal.timestampSource?.code),
+                rollingShutterSkewNs: Value(rawSignal.rollingShutterSkewNs),
+                torchStrength: Value(rawSignal.torchStrength),
+                frameGapCount: rawSignal.frameGapCount,
+                frameGapTotalS: rawSignal.frameGapTotalS,
+                saturatedFraction: Value(rawSignal.saturatedFraction),
+              ),
+            );
+      }
       await _db.batch((b) {
         for (final p in beltPackets) {
           b.insert(
@@ -79,16 +107,48 @@ class DriftMorningStore implements MorningStore {
       });
 
   @override
+  Future<MorningRawSignal?> rawSignal(int measurementId) => guarded(() async {
+    await _requireMeasurement(measurementId);
+    final r = await (_db.select(
+      _db.morningRawSignals,
+    )..where((t) => t.measurementId.equals(measurementId))).getSingleOrNull();
+    if (r == null) return null;
+    final source = r.timestampSource == null
+        ? null
+        : CameraTimestampSource.fromCode(r.timestampSource);
+    if (r.timestampSource != null && source == null) {
+      throw const StorageException(StorageFailure.failed);
+    }
+    final frames = decodeRawFrames(r.frames);
+    if (frames.length != r.frameCount) {
+      throw const StorageException(StorageFailure.failed);
+    }
+    return MorningRawSignal(
+      frames: frames,
+      exposureTimeNs: r.exposureTimeNs,
+      iso: r.iso,
+      timestampSource: source,
+      rollingShutterSkewNs: r.rollingShutterSkewNs,
+      torchStrength: r.torchStrength,
+      frameGapCount: r.frameGapCount,
+      frameGapTotalS: r.frameGapTotalS,
+      saturatedFraction: r.saturatedFraction,
+    );
+  });
+
+  Future<void> _requireMeasurement(int measurementId) async {
+    final exists =
+        await (_db.selectOnly(_db.morningMeasurements)
+              ..addColumns([_db.morningMeasurements.id])
+              ..where(_db.morningMeasurements.id.equals(measurementId)))
+            .getSingleOrNull();
+    if (exists == null) throw const StorageException(StorageFailure.notFound);
+  }
+
+  @override
   Future<List<StoredRrPacket>> beltPackets(int measurementId) =>
       guarded(() async {
-        final exists =
-            await (_db.selectOnly(_db.morningMeasurements)
-                  ..addColumns([_db.morningMeasurements.id])
-                  ..where(_db.morningMeasurements.id.equals(measurementId)))
-                .getSingleOrNull();
-        if (exists == null) {
-          throw const StorageException(StorageFailure.notFound);
-        }
+        await _requireMeasurement(measurementId);
         final rows =
             await (_db.select(_db.morningRrPackets)
                   ..where((t) => t.measurementId.equals(measurementId))
@@ -114,9 +174,13 @@ class DriftMorningStore implements MorningStore {
     final posture = RestingPosture.fromStorage(r.posture);
     final quality = PpgQuality.values.where((q) => q.name == r.quality);
     final band = SleepBand.fromCode(r.sleepBand);
+    final reasons = PpgQualityReason.values.where(
+      (q) => q.name == r.unusableReason,
+    );
     if (posture == null ||
         quality.isEmpty ||
-        (r.sleepBand != null && band == null)) {
+        (r.sleepBand != null && band == null) ||
+        (r.unusableReason != null && reasons.isEmpty)) {
       throw const StorageException(StorageFailure.failed);
     }
     return MorningMeasurement(
@@ -135,6 +199,10 @@ class DriftMorningStore implements MorningStore {
       cameraIntervalsMs: decodeCameraIntervals(r.cameraIbi),
       beforeValidation: r.beforeValidation,
       outsideWindow: r.outsideWindow,
+      windowStartS: r.windowStartS,
+      windowEndS: r.windowEndS,
+      restSkippedAfterS: r.restSkippedAfterS,
+      unusableReason: reasons.isEmpty ? null : reasons.first,
     );
   }
 }

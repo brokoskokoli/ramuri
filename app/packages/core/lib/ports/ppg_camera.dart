@@ -1,4 +1,5 @@
 import '../src/ppg/ppg_evaluator.dart';
+import 'storage_morning.dart' show CameraTimestampSource;
 
 /// Verfügbarkeit der Kamera-Messung (ADR-0011 Punkt 6). Ohne Kamera, Blitz oder
 /// Recht bleibt die manuelle Eingabe (FR-0214); das ist kein Fehler.
@@ -36,6 +37,43 @@ sealed class PpgCameraEvent {
 final class PpgCameraFrame extends PpgCameraEvent {
   const PpgCameraFrame(this.frame);
   final PpgFrame frame;
+}
+
+/// Kamera-Angaben der Aufnahme (K70, R010), gemeldet nach der Sperre von Belichtung
+/// und Weißabgleich und danach gelegentlich erneuert (der Anteil gesättigter Pixel
+/// wächst mit); der letzte Stand gilt. Nur Zahlen der Kamera-API, keine Bilder. Was
+/// das Gerät nicht liefert, ist `null`.
+final class PpgCameraDetails extends PpgCameraEvent {
+  const PpgCameraDetails({
+    this.exposureTimeNs,
+    this.iso,
+    this.timestampSource,
+    this.rollingShutterSkewNs,
+    this.torchStrength,
+    this.saturatedFraction,
+  });
+
+  /// Belichtungszeit (`SENSOR_EXPOSURE_TIME`) in Nanosekunden.
+  final int? exposureTimeNs;
+
+  /// Empfindlichkeit (`SENSOR_SENSITIVITY`).
+  final int? iso;
+
+  /// `SENSOR_INFO_TIMESTAMP_SOURCE` der Kamera.
+  final CameraTimestampSource? timestampSource;
+
+  /// `SENSOR_ROLLING_SHUTTER_SKEW` in Nanosekunden.
+  final int? rollingShutterSkewNs;
+
+  /// `FLASH_STRENGTH_LEVEL` (erst ab Android 15).
+  final int? torchStrength;
+
+  /// Anteil gesättigter Pixel (Helligkeit ab 250 von 255) über alle bisherigen Bilder, 0 bis 1.
+  final double? saturatedFraction;
+
+  /// Ohne Inhalte (Gesundheitsdaten gehören nicht in Logs).
+  @override
+  String toString() => 'PpgCameraDetails';
 }
 
 /// Kamera läuft, Torch an; [fps] ist die gewählte feste Bildrate.

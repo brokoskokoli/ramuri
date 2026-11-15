@@ -111,7 +111,7 @@ class DebugTestPpgCamera implements PpgCamera {
         final weak = scenario == DebugPpgScenario.weakSignal;
         final end = scenario == DebugPpgScenario.disconnected
             ? 3.0
-            : ppgStandardWindow.dataEnd + 0.5;
+            : ppgSearchMaxRecordSeconds + 0.5;
         final gen = _Generator(
           fps,
           weak,
@@ -136,6 +136,7 @@ class DebugTestPpgCamera implements PpgCamera {
             if (!locked && t >= 2.5) {
               locked = true;
               c.add(const PpgCameraExposureLocked());
+              c.add(debugCameraDetails);
             }
             t = gen.nextTime();
           } while (t < end && t <= due && !cancelled);
@@ -166,6 +167,16 @@ class DebugTestPpgCamera implements PpgCamera {
     await c?.close();
   }
 }
+
+/// Feste, erfundene Kamera-Angaben der Test-Kamera (wie sie der Adapter nach der Sperre meldet).
+const PpgCameraDetails debugCameraDetails = PpgCameraDetails(
+  exposureTimeNs: 8333333,
+  iso: 100,
+  timestampSource: CameraTimestampSource.realtime,
+  rollingShutterSkewNs: 20000000,
+  torchStrength: 1,
+  saturatedFraction: 0.02,
+);
 
 /// Synthetische Bildstatistik: Pulsform mit dikroter Welle auf Grundlinie, deterministisches Rauschen.
 class _Generator {

@@ -6,11 +6,9 @@ import 'readiness_helpers.dart';
 Map<ValidationQuantity, ValidationState> st({
   ValidationState hr = ValidationState.passed,
   ValidationState supine = ValidationState.passed,
-  ValidationState sitting = ValidationState.passed,
 }) => {
   ValidationQuantity.restingHr: hr,
   ValidationQuantity.lnRmssdSupine: supine,
-  ValidationQuantity.lnRmssdSitting: sitting,
 };
 
 List<MorningMeasurement> series(
@@ -63,7 +61,7 @@ void main() {
                   '${supine.name} ${posture.name} dev=$dev optIn=$optIn';
               test('HRV $name', () {
                 final expected = dev || (supine == P && optIn);
-                final r = rel.forFactor(ReadinessFactor.hrv, posture);
+                final r = rel.forFactor(ReadinessFactor.hrv);
                 expect(r.released, expected);
                 if (dev) expect(r.mark, MorningRmssdMark.none);
                 final z = chosen(ReadinessFactor.hrv, series(posture), rel);
@@ -71,10 +69,7 @@ void main() {
               });
               test('Ruhepuls $name', () {
                 final expected = dev || supine == P;
-                final r = rel.forFactor(
-                  ReadinessFactor.restingHeartRate,
-                  posture,
-                );
+                final r = rel.forFactor(ReadinessFactor.restingHeartRate);
                 expect(r.released, expected);
                 if (dev) expect(r.mark, MorningRmssdMark.none);
                 final z = chosen(
@@ -102,16 +97,10 @@ void main() {
             rmssdOptIn: true,
             state: st(hr: hr),
           );
-          final r = rel.forFactor(
-            ReadinessFactor.restingHeartRate,
-            RestingPosture.lying,
-          );
+          final r = rel.forFactor(ReadinessFactor.restingHeartRate);
           expect(r.released, hrOk);
           if (!hrOk) expect(r.mark, MorningRmssdMark.inaccurate);
-          expect(
-            rel.forFactor(ReadinessFactor.hrv, RestingPosture.lying).released,
-            isTrue,
-          );
+          expect(rel.forFactor(ReadinessFactor.hrv).released, isTrue);
         }
       });
 
@@ -133,10 +122,7 @@ void main() {
               );
               final all = series(RestingPosture.lying);
               for (final f in ReadinessFactor.values) {
-                expect(
-                  rel.forFactor(f, RestingPosture.lying).released,
-                  isFalse,
-                );
+                expect(rel.forFactor(f).released, isFalse);
                 expect(chosen(f, all, rel), isNull);
               }
             }
@@ -144,12 +130,7 @@ void main() {
           // Standardstand (alles nicht geprüft) ohne Entwicklermodus.
           const rel = CameraRelease(developerMode: false, rmssdOptIn: true);
           expect(
-            rel
-                .forFactor(
-                  ReadinessFactor.restingHeartRate,
-                  RestingPosture.lying,
-                )
-                .released,
+            rel.forFactor(ReadinessFactor.restingHeartRate).released,
             isFalse,
           );
         },
@@ -165,56 +146,16 @@ void main() {
         expect(rel.isReleased(r), isFalse);
       });
 
-      test(
-        'sitzend gesperrt, wenn im Sitzen eingeschränkt oder nicht bestanden',
-        () {
-          for (final s in [ValidationState.limited, ValidationState.failed]) {
-            final rel = CameraRelease(
-              developerMode: false,
-              rmssdOptIn: true,
-              state: st(sitting: s),
-            );
-            expect(
-              rel
-                  .forFactor(ReadinessFactor.hrv, RestingPosture.sitting)
-                  .released,
-              isFalse,
-            );
-            expect(
-              rel.forFactor(ReadinessFactor.hrv, RestingPosture.lying).released,
-              isTrue,
-            );
-          }
-        },
-      );
-
-      test('sitzend mit Opt-in: "liegend verglichen", liegend: Brustgurt', () {
+      test('mit Opt-in: eine Markierung, nicht je Haltung', () {
         final rel = CameraRelease(
           developerMode: false,
           rmssdOptIn: true,
           state: st(),
         );
         expect(
-          rel.forFactor(ReadinessFactor.hrv, RestingPosture.sitting).mark,
-          MorningRmssdMark.optInSitting,
+          rel.forFactor(ReadinessFactor.hrv).mark,
+          MorningRmssdMark.experimental,
         );
-        expect(
-          rel.forFactor(ReadinessFactor.hrv, RestingPosture.lying).mark,
-          MorningRmssdMark.optIn,
-        );
-      });
-
-      test('gesperrte liegende Reihe: nur die freigegebene sitzende zählt nicht Ersatz', () {
-        // sitzend freigegeben, liegend gesperrt gibt es nicht (gleicher Stand);
-        // umgekehrt: sitzend gesperrt, liegend zählt, auch wenn sitzend zuerst käme.
-        final rel = CameraRelease(
-          developerMode: false,
-          rmssdOptIn: true,
-          state: st(sitting: ValidationState.failed),
-        );
-        final all = [...series(RestingPosture.sitting)];
-        expect(chosen(ReadinessFactor.hrv, all, rel), isNull);
-        expect(chosen(ReadinessFactor.restingHeartRate, all, rel), isNotNull);
       });
 
       test('gesperrte Reihe bleibt als Tatsache in others', () {
@@ -274,7 +215,7 @@ void main() {
             final dev = CameraRelease(
               developerMode: true,
               rmssdOptIn: false,
-              state: st(supine: supine, hr: supine, sitting: supine),
+              state: st(supine: supine, hr: supine),
             );
             final ref = CameraRelease(
               developerMode: false,
@@ -286,11 +227,10 @@ void main() {
               final b = chosen(f, series(posture), ref);
               expect(a, isNotNull);
               expect(a!.z, b!.z);
-              expect(a.cameraSeries!.posture, b.cameraSeries!.posture);
               expect(a.referenceCount, b.referenceCount);
               expect(a.windowCount, b.windowCount);
               expect(a.fewMeasurements, b.fewMeasurements);
-              expect(dev.forFactor(f, posture).mark, MorningRmssdMark.none);
+              expect(dev.forFactor(f).mark, MorningRmssdMark.none);
             }
           },
         );
@@ -314,7 +254,7 @@ void main() {
   });
 
   test('Eigenschaft: eine Markierung ändert nie einen Faktor', () {
-    // Gleiche Freigabe, verschiedene Markierung (none/optIn/optInSitting):
+    // Gleiche Freigabe, verschiedene Markierung (none/experimental):
     // gleiches z. Ruhepuls: "bestanden" und "eingeschränkt" gleich.
     final zs = <double>{};
     for (final rel in [
@@ -376,7 +316,7 @@ void main() {
         developerMode: false,
         rmssdOptIn: true,
         state: st(hr: e.key),
-      ).forFactor(ReadinessFactor.restingHeartRate, RestingPosture.lying);
+      ).forFactor(ReadinessFactor.restingHeartRate);
       expect(r.mark, e.value, reason: e.key.name);
     }
   });

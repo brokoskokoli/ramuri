@@ -4,6 +4,7 @@ class KnownDevice {
     required this.addedAt,
     this.displayName,
     this.isPreferred = false,
+    this.lastUsedAt,
   });
 
   /// Plattformkennung (Adresse, ADR-0006).
@@ -11,6 +12,10 @@ class KnownDevice {
   final String? displayName;
   final bool isPreferred;
   final DateTime addedAt;
+
+  /// Zeitpunkt der letzten erfolgreichen Verbindung (UTC); `null` = nie
+  /// genutzt. Grundlage der Gurt-Autoverbindung.
+  final DateTime? lastUsedAt;
 }
 
 /// Bekannte Pulssensoren (FR-0013, FR-0014).
@@ -29,4 +34,8 @@ abstract interface class KnownDeviceStore {
   /// Macht das Gerät zum einzigen bevorzugten, `null` hebt die Festlegung auf.
   /// Unbekanntes Gerät: `notFound`, nichts ändert sich.
   Future<void> setPreferred(String? deviceId);
+
+  /// Vermerkt, dass das Gerät zu [at] erfolgreich genutzt wurde
+  /// (`lastUsedAt`); sonst bleibt alles. Unbekanntes Gerät: `notFound`.
+  Future<void> markUsed(String deviceId, {required DateTime at});
 }

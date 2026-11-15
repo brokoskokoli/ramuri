@@ -367,5 +367,5 @@ MorningRmssdMark _markOf(CameraRelease release, DeviationResult r) {
   if (r.source != ReadinessSource.camera || s == null) {
     return MorningRmssdMark.none;
   }
-  return release.forFactor(r.factor, s.posture).mark;
+  return release.forFactor(r.factor).mark;
 }

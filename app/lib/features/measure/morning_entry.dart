@@ -193,7 +193,6 @@ class _MorningCardState extends State<MorningCard> {
         ? null
         : morningTrendMarks(
             developerMode: st.developerMode,
-            posture: done.posture,
             optIn: st.optIn,
             state: widget.validationState,
           );

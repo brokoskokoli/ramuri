@@ -131,4 +131,33 @@ void main() {
       expect(await store.count(HealthDataKind.hrvRmssd), expected);
     });
   }
+
+  // VO2max und Training der Debug-Quelle liegen nie in der Zukunft: um 00:04 UTC lag der Wert bei
+  // 02:00 UTC hinter "jetzt" und wurde nicht gelesen (E2E-Lauf 43655339912, Health Connect 1/2).
+  for (final at in [
+    DateTime.utc(2026, 11, 15, 0, 4),
+    DateTime.utc(2026, 11, 15, 1, 59),
+    DateTime.utc(2026, 11, 14, 9),
+  ]) {
+    test('VO2max und Training der Debug-Quelle um $at je 1 Wert', () async {
+      final hc = DebugTestHealthConnect(now: () => at);
+      await hc.requestPermissions(HealthDataKind.values.toSet());
+      final clock = FakeClock(at);
+      final consents = ConsentService(_Consents(), clock);
+      for (final k in [HealthDataKind.vo2Max, HealthDataKind.exercise]) {
+        await consents.grant(healthSourceKey(k));
+      }
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final store = DriftHealthStore(db);
+      await HealthImportService(
+        port: hc,
+        store: store,
+        consents: consents,
+        clock: clock,
+      ).run(HealthImportTrigger.manual);
+      expect(await store.count(HealthDataKind.vo2Max), 1);
+      expect(await store.count(HealthDataKind.exercise), 1);
+    });
+  }
 }

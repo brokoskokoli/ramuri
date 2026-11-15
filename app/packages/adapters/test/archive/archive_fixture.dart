@@ -55,13 +55,20 @@ Future<void> fillAllTables(AppDatabase db) async {
   // = float32 LE (1100.5 ms), rr wie raw_rr_packets.
   await sql(
     db,
-    'INSERT INTO morning_measurements (measured_at_us, utc_offset_s, posture, device_manufacturer, device_model, method, method_version, quality, resting_hr_bpm, rmssd_ms, timing_noise_ms, sleep_band, before_validation, outside_window, camera_ibi) '
-    "VALUES (5000, 3600, 'lying', 'Testhersteller', 'Testmodell', 'camera-ppg', 1, 'good', 52.3, 41.5, 12.25, 'from6to7', 1, 0, x'00608944'), "
-    "(6000, -12600, 'sitting', 'Testhersteller', 'Testmodell', 'camera-ppg', 1, 'limited', 60.1, NULL, NULL, NULL, 0, 1, x'')",
+    'INSERT INTO morning_measurements (measured_at_us, utc_offset_s, posture, device_manufacturer, device_model, method, method_version, quality, resting_hr_bpm, rmssd_ms, timing_noise_ms, sleep_band, before_validation, outside_window, camera_ibi, window_start_s, window_end_s, rest_skipped_after_s, unusable_reason) '
+    "VALUES (5000, 3600, 'lying', 'Testhersteller', 'Testmodell', 'camera-ppg', 2, 'good', 52.3, 41.5, 12.25, 'from6to7', 1, 0, x'00608944', 5.0, 65.0, 37.5, NULL), "
+    "(6000, -12600, 'sitting', 'Testhersteller', 'Testmodell', 'camera-ppg', 1, 'limited', 60.1, NULL, NULL, NULL, 0, 1, x'', NULL, NULL, NULL, NULL), "
+    "(7000, 0, 'lying', 'Testhersteller', 'Testmodell', 'camera-ppg', 2, 'unusable', NULL, NULL, NULL, NULL, 0, 0, x'', NULL, NULL, NULL, 'noFinger')",
   );
   await sql(
     db,
     "INSERT INTO morning_rr_packets (measurement_id, time_us, source, rr) VALUES (1, 5001, 'strap', x'0004ffff0000'), (1, 5002, 'strap2', x'0004')",
+  );
+  // Kamera-Rohsignal (WP37, Schema 14): ein Bild (280 Byte) zur ersten Messung.
+  await sql(
+    db,
+    'INSERT INTO morning_raw_signals (measurement_id, frame_count, frames, exposure_time_ns, iso, timestamp_source, rolling_shutter_skew_ns, torch_strength, frame_gap_count, frame_gap_total_s, saturated_fraction) '
+    "VALUES (1, 1, zeroblob(280), 16666666, 100, 'realtime', NULL, 1, 0, 0.0, NULL)",
   );
   // Warnsignal (WP23): eine Zeile, kein Fremdschlüssel auf den Lauf.
   await sql(
@@ -148,7 +155,7 @@ Future<void> fillAllTables(AppDatabase db) async {
   );
   await sql(
     db,
-    "INSERT INTO known_devices (device_id, display_name, is_preferred, added_at_us) VALUES ('AA:BB', 'Gurt', 1, 5)",
+    "INSERT INTO known_devices (device_id, display_name, is_preferred, added_at_us, last_used_at_us) VALUES ('AA:BB', 'Gurt', 1, 5, 7)",
   );
   // WP18 (Format 2): Angaben zum Lauf mit sRPE (45 min, RPE 5) und zwei
   // nachgetragene Trainings, eines mit Datum in der Zukunft. Synthetisch.

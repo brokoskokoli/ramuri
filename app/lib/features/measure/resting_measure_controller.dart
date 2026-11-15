@@ -53,6 +53,26 @@ final double restingTotalTimeoutSeconds =
     restingNoImageTimeoutSeconds +
     12;
 
+/// Mindestabstand der Prüfungen einer laufenden Aufnahme mit Fenstersuche
+/// (Morgenmessung, WP37) in Sekunden Sensorzeit; höchstens eine Prüfung läuft
+/// zugleich. Die Prüfung rechnet die ganze bisherige Aufnahme neu (Desktop etwa
+/// 1 s, Handy mehrere s) und läuft deshalb in einem Isolate.
+const double restingCheckIntervalSeconds = 3.0;
+
+/// Erste Prüfung der Aufnahme mit Fenstersuche: frühestens, wenn ein gutes Stück
+/// von 30 s möglich ist (Fensterbeginn plus Anzeigegrenze des guten Stücks). Die
+/// Prüfung beim frühesten möglichen Ende (66,5 s) ist unabhängig vom Takt
+/// fällig.
+const double restingCheckStartSeconds = 35.0;
+
+/// Gesamtfrist der Aufnahme mit Fenstersuche in Sekunden Wanduhr (wie
+/// [restingTotalTimeoutSeconds], mit der Höchstdauer der Aufnahme).
+final double restingSearchTotalTimeoutSeconds =
+    ppgSearchMaxRecordSeconds +
+    restingStartTimeoutSeconds +
+    restingNoImageTimeoutSeconds +
+    12;
+
 /// Ablaufphase der Ruhepuls-Messung (FR-0214).
 enum RestingMeasurePhase {
   /// Haltung und Ruhephase wählen.
@@ -108,6 +128,12 @@ class RestingMeasureResult {
     required this.measuredAt,
     required this.posture,
     required this.restElapsed,
+    this.restSkippedAfter,
+    this.windowStartSeconds,
+    this.windowEndSeconds,
+    this.goodStretchSeconds = 0.0,
+    this.frames = const [],
+    this.cameraDetails,
   });
 
   final PpgMeasurement measurement;
@@ -118,6 +144,25 @@ class RestingMeasureResult {
 
   /// Dauer der Ruhephase davor; `null` bei sofortiger Messung.
   final Duration? restElapsed;
+
+  /// Nach dieser Dauer ab Beginn der Ruhephase wurde sie übersprungen; `null`,
+  /// wenn sie ablief oder es keine gab.
+  final Duration? restSkippedAfter;
+
+  /// Gewähltes Fenster der Fenstersuche (s seit Aufnahmebeginn); `null` ohne
+  /// Fenstersuche (WP27) oder ohne auswertbares Fenster.
+  final double? windowStartSeconds;
+  final double? windowEndSeconds;
+
+  /// Längstes gutes Stück in s (nur Anzeige, Fenstersuche).
+  final double goodStretchSeconds;
+
+  /// Alle Bilder der Aufnahme bis zum Ende; nur bei der Fenstersuche (die
+  /// Morgenmessung speichert sie im Entwicklermodus als Rohsignal).
+  final List<PpgFrame> frames;
+
+  /// Letzte Kamera-Angaben der Aufnahme (nur Fenstersuche; `null`, wenn der Adapter keine meldete).
+  final PpgCameraDetails? cameraDetails;
 
   /// Ganzzahliger Puls; `null`: kein Wert (nur bei „unbrauchbar“).
   int? get bpm => measurement.hasResult ? measurement.bpm!.round() : null;
@@ -140,6 +185,23 @@ typedef PpgEvaluate = Future<PpgMeasurement> Function(
   PpgWindow window,
 );
 
+/// Endergebnis der Aufnahme mit Fenstersuche ([evaluatePpgBestWindow]) auf genau
+/// den übergebenen Bildern.
+typedef PpgBestEvaluate = Future<PpgWindowedMeasurement> Function(
+  List<PpgFrame> frames,
+);
+
+/// Prüfung der laufenden Aufnahme ([checkPpgRecording]).
+typedef PpgRecordingCheckRun = Future<PpgRecordingCheck> Function(
+  List<PpgFrame> frames,
+);
+
+Future<PpgWindowedMeasurement> _evaluateBestInIsolate(List<PpgFrame> frames) =>
+    Isolate.run(() => evaluatePpgBestWindow(frames));
+
+Future<PpgRecordingCheck> _checkInIsolate(List<PpgFrame> frames) =>
+    Isolate.run(() => checkPpgRecording(frames));
+
 Future<PpgMeasurement> _evaluateInIsolate(
   List<PpgFrame> frames,
   PpgWindow window,
@@ -159,7 +221,12 @@ class RestingMeasureController extends ChangeNotifier {
     this.signal,
     PpgEvaluate? evaluate,
     this.autoTick = true,
-  }) : _evaluate = evaluate ?? _evaluateInIsolate;
+    this.searchWindow = false,
+    PpgBestEvaluate? evaluateBest,
+    PpgRecordingCheckRun? check,
+  }) : _evaluate = evaluate ?? _evaluateInIsolate,
+       _evaluateBest = evaluateBest ?? _evaluateBestInIsolate,
+       _check = check ?? _checkInIsolate;
 
   final PpgCamera camera;
 
@@ -172,6 +239,14 @@ class RestingMeasureController extends ChangeNotifier {
   final Clock clock;
   final RestingMeasureSignal? signal;
   final PpgEvaluate _evaluate;
+  final PpgBestEvaluate _evaluateBest;
+  final PpgRecordingCheckRun _check;
+
+  /// Aufnahme mit Fenstersuche (Morgenmessung, WP37): bis zu
+  /// [ppgSearchMaxRecordSeconds], Ende, sobald die Prüfung ein Fenster der Stufe
+  /// „gut“ bestätigt, Ergebnis das beste Fenster. Ohne: festes Fenster
+  /// ([ppgStandardWindow], WP27).
+  final bool searchWindow;
 
   /// Sekundentakt der Ruhephase; Tests schalten ihn aus und rufen [tick] selbst.
   final bool autoTick;
@@ -192,6 +267,7 @@ class RestingMeasureController extends ChangeNotifier {
   Duration? _subscribedAt;
   bool _cameraStarted = false;
   double? _lastImageT;
+  PpgCameraDetails? _details;
 
   int _run = 0;
   StreamSubscription<PpgCameraEvent>? _sub;
@@ -204,6 +280,14 @@ class RestingMeasureController extends ChangeNotifier {
   List<double> _curve = const [];
   double _lastLiveT = double.negativeInfinity;
   bool _liveBusy = false;
+  bool _checkBusy = false;
+  double _lastCheckT = double.negativeInfinity;
+  double _goodStretch = 0;
+  bool _restSkipped = false;
+  Duration? _restSkippedAfter;
+
+  /// Die Ruhephase wurde übersprungen (gilt ab dem Start der Messung).
+  bool get restSkipped => _restSkippedAfter != null;
 
   RestingMeasureResult? _result;
   RestingStopCause? _stopCause;
@@ -236,6 +320,10 @@ class RestingMeasureController extends ChangeNotifier {
     final w = ppgStandardWindow;
     return ((_elapsed - w.start) / (w.end - w.start)).clamp(0.0, 1.0);
   }
+
+  /// Längstes gutes Stück der laufenden Aufnahme in s (Fenstersuche, nur
+  /// Anzeige; unter 30 s 0).
+  double get goodStretchSeconds => _goodStretch;
 
   /// Die Messzeit ist um, die Auswertung läuft.
   bool get evaluating => _evaluating;
@@ -332,6 +420,7 @@ class RestingMeasureController extends ChangeNotifier {
     final elapsed = clock.monotonic() - _restStart!;
     _stopTicker();
     _pendingStart = false;
+    _restSkipped = true;
     await _begin(restElapsed: elapsed);
   }
 
@@ -383,7 +472,11 @@ class RestingMeasureController extends ChangeNotifier {
     _lastCheckAt = now;
     final subscribed = _subscribedAt;
     if (subscribed != null &&
-        (now - subscribed).inMicroseconds > restingTotalTimeoutSeconds * 1e6) {
+        (now - subscribed).inMicroseconds >
+            (searchWindow
+                    ? restingSearchTotalTimeoutSeconds
+                    : restingTotalTimeoutSeconds) *
+                1e6) {
       unawaited(_fail(_run, RestingStopCause.interrupted));
       return;
     }
@@ -414,6 +507,7 @@ class RestingMeasureController extends ChangeNotifier {
       return;
     }
     _restElapsed = restElapsed;
+    _restSkippedAfter = _restSkipped ? restElapsed : null;
     _resetMeasurement();
     _stopCause = null;
     _result = null;
@@ -454,8 +548,20 @@ class RestingMeasureController extends ChangeNotifier {
       (e) => _onEvent(run, e),
       onError: (Object _) =>
           unawaited(_fail(run, RestingStopCause.cameraError)),
-      onDone: () => unawaited(_fail(run, RestingStopCause.cameraError)),
+      onDone: () => _onStreamDone(run),
     );
+  }
+
+  /// Der Kamerastrom endete von selbst. Mit Fenstersuche und Bildern bis mindestens zum frühesten
+  /// Ende ([ppgStandardWindow].dataEnd) wird einmal abschließend ausgewertet (die Prüfung kann
+  /// gerade belegt gewesen sein und die 66,5 s verpasst haben); sonst ist es ein Kamerafehler.
+  void _onStreamDone(int run) {
+    if (run != _run || _phase != RestingMeasurePhase.measuring) return;
+    if (searchWindow && _elapsed >= ppgStandardWindow.dataEnd) {
+      unawaited(_finish(run)); // doppelt geschützt durch _evaluating
+    } else {
+      unawaited(_fail(run, RestingStopCause.cameraError));
+    }
   }
 
   void _resetMeasurement() {
@@ -465,6 +571,7 @@ class RestingMeasureController extends ChangeNotifier {
     _subscribedAt = null;
     _cameraStarted = false;
     _lastImageT = null;
+    _details = null;
     _elapsed = 0;
     _evaluating = false;
     _livePulse = null;
@@ -473,6 +580,9 @@ class RestingMeasureController extends ChangeNotifier {
     _curve = const [];
     _lastLiveT = double.negativeInfinity;
     _liveBusy = false;
+    _checkBusy = false;
+    _lastCheckT = double.negativeInfinity;
+    _goodStretch = 0;
     _previousRestingBpm = null;
     _previousOrigin = null;
     _adoptRejection = null;
@@ -490,6 +600,8 @@ class RestingMeasureController extends ChangeNotifier {
         _lastImageAt = clock.monotonic();
       case PpgCameraExposureLocked():
         break;
+      case PpgCameraDetails():
+        _details = e;
       case PpgCameraStopped(:final reason):
         unawaited(_fail(run, _causeOfReason(reason)));
       case PpgCameraFrame(:final frame):
@@ -507,19 +619,59 @@ class RestingMeasureController extends ChangeNotifier {
       unawaited(_fail(run, RestingStopCause.interrupted));
       return;
     }
-    if (f.t <= w.dataEnd) _frames.add(f);
+    final dataEnd = searchWindow ? ppgSearchMaxRecordSeconds : w.dataEnd;
+    if (f.t <= dataEnd) _frames.add(f);
     _elapsed = f.t;
     _curve = _recentCurve();
-    if (f.t >= w.dataEnd) {
+    if (f.t >= dataEnd) {
       unawaited(_finish(run));
       return;
     }
+    if (searchWindow && _checkDue(f.t)) unawaited(_runCheck(run, f.t));
     if (f.t > w.start &&
         !_liveBusy &&
         f.t - _lastLiveT >= restingLiveIntervalSeconds) {
       unawaited(_liveUpdate(run, f.t));
     }
     _notify();
+  }
+
+  /// Prüfung fällig: nicht parallel, ab [restingCheckStartSeconds], dann im
+  /// Takt [restingCheckIntervalSeconds] und einmal sofort beim frühesten
+  /// möglichen Ende der Aufnahme (Fensterbeginn + Fenster + Filterrand).
+  bool _checkDue(double t) {
+    if (_checkBusy || _evaluating || t < restingCheckStartSeconds) return false;
+    if (t - _lastCheckT >= restingCheckIntervalSeconds) return true;
+    return _lastCheckT < ppgStandardWindow.dataEnd &&
+        t >= ppgStandardWindow.dataEnd;
+  }
+
+  /// Prüft genau die Bilder bis jetzt. Bestätigt sie „gut“, endet die Aufnahme
+  /// und das Endergebnis wertet genau diese Bilder aus (kein späteres Bild kann
+  /// die Rangfolge der Fenster ändern).
+  Future<void> _runCheck(int run, double t) async {
+    _checkBusy = true;
+    _lastCheckT = t;
+    final snapshot = List.of(_frames);
+    try {
+      final r = await _check(snapshot);
+      if (run != _run ||
+          _phase != RestingMeasurePhase.measuring ||
+          _evaluating) {
+        return;
+      }
+      _goodStretch = r.goodStretchSeconds;
+      if (r.goodWindowReached) {
+        unawaited(_finish(run, frames: snapshot, confirmed: r.confirmed));
+        return;
+      }
+      _notify();
+    } catch (_) {
+      // Die Prüfung ist nur Abbruchkriterium und Anzeige; die Aufnahme läuft
+      // bis zur Höchstdauer weiter.
+    } finally {
+      _checkBusy = false;
+    }
   }
 
   List<double> _recentCurve() {
@@ -543,8 +695,8 @@ class RestingMeasureController extends ChangeNotifier {
     final window = PpgWindow(
       filterStart: start - lead,
       start: start,
-      end: math.min(t, w.end),
-      dataEnd: math.min(t, w.dataEnd),
+      end: searchWindow ? t : math.min(t, w.end),
+      dataEnd: searchWindow ? t : math.min(t, w.dataEnd),
     );
     try {
       final m = await _evaluate([
@@ -580,14 +732,31 @@ class RestingMeasureController extends ChangeNotifier {
     return null; // zu wenige Daten: noch kein Hinweis
   }
 
-  Future<void> _finish(int run) async {
+  Future<void> _finish(
+    int run, {
+    List<PpgFrame>? frames,
+    PpgWindowedMeasurement? confirmed,
+  }) async {
+    if (_evaluating) return;
     _evaluating = true;
     _notify();
     await _releaseCamera();
-    final frames = List.of(_frames);
+    final all = frames ?? List.of(_frames);
     final PpgMeasurement m;
+    double? windowStart;
+    double? windowEnd;
+    var stretch = _goodStretch;
     try {
-      m = await _evaluate(frames, ppgStandardWindow);
+      if (searchWindow) {
+        // Endete die Aufnahme durch die Prüfung, gilt genau das bestätigte Fenster.
+        final r = confirmed ?? await _evaluateBest(all);
+        m = r.measurement;
+        windowStart = r.windowStartSeconds;
+        windowEnd = r.windowEndSeconds;
+        stretch = r.goodStretchSeconds;
+      } else {
+        m = await _evaluate(all, ppgStandardWindow);
+      }
     } catch (_) {
       if (run == _run) await _fail(run, RestingStopCause.cameraError);
       return;
@@ -600,6 +769,12 @@ class RestingMeasureController extends ChangeNotifier {
       measuredAt: clock.now().toUtc(),
       posture: _posture,
       restElapsed: _restElapsed,
+      restSkippedAfter: _restSkippedAfter,
+      windowStartSeconds: windowStart,
+      windowEndSeconds: windowEnd,
+      goodStretchSeconds: stretch,
+      frames: searchWindow ? all : const [],
+      cameraDetails: searchWindow ? _details : null,
     );
     try {
       final p = profile;

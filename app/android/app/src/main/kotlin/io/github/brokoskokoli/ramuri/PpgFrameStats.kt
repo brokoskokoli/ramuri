@@ -3,7 +3,14 @@ package io.github.brokoskokoli.ramuri
 import java.nio.ByteBuffer
 
 /** Bildstatistik eines Kamerabilds: R und G der Mitte, je 16 Teilbereiche. Keine Pixel (ADR-0011 Punkt 1). */
-class PpgStats(val r: Double, val g: Double, val r16: DoubleArray, val g16: DoubleArray)
+class PpgStats(
+    val r: Double,
+    val g: Double,
+    val r16: DoubleArray,
+    val g16: DoubleArray,
+    /** Anteil der ausgewerteten Pixel mit Helligkeit ab [PpgFrameStats.SATURATED_Y] (0 bis 1). */
+    val saturated: Double = 0.0,
+)
 
 /** Eine Ebene eines YUV-420-Bilds (Android: Image.Plane). */
 class PpgPlane(val buffer: ByteBuffer, val rowStride: Int, val pixelStride: Int)
@@ -18,6 +25,9 @@ object PpgFrameStats {
     const val GRID = 4
     const val BLOCKS = GRID * GRID
 
+    /** Helligkeit (Y, 0 bis 255) ab der ein Pixel als gesättigt zählt. */
+    const val SATURATED_Y = 250
+
     fun compute(w: Int, h: Int, yP: PpgPlane, uP: PpgPlane, vP: PpgPlane): PpgStats {
         val yb = yP.buffer
         val ub = uP.buffer
@@ -26,6 +36,8 @@ object PpgFrameStats {
         var su = 0.0
         var sv = 0.0
         var cnt = 0
+        var all = 0
+        var sat = 0
         val by = DoubleArray(BLOCKS)
         val bu = DoubleArray(BLOCKS)
         val bv = DoubleArray(BLOCKS)
@@ -48,6 +60,8 @@ object PpgFrameStats {
                 val u = (ub.get(rowU + ux * uP.pixelStride).toInt() and 0xFF).toDouble()
                 val v = (vb.get(rowV + ux * vP.pixelStride).toInt() and 0xFF).toDouble()
                 val b = bRow + xx * GRID / w
+                all++
+                if (y >= SATURATED_Y) sat++
                 by[b] += y; bu[b] += u; bv[b] += v; bc[b]++
                 if (xx in cx0 until cx1 && yy in cy0 until cy1) {
                     sy += y; su += u; sv += v; cnt++
@@ -64,7 +78,7 @@ object PpgFrameStats {
             r16[b] = rr
             g16[b] = gg
         }
-        return PpgStats(r, g, r16, g16)
+        return PpgStats(r, g, r16, g16, if (all > 0) sat.toDouble() / all else 0.0)
     }
 
     /** BT.601, Vollbereich. */

@@ -107,7 +107,7 @@ class DeviationResult {
   /// Quell-App bei Health Connect (PAR-189), sonst null.
   final String? origin;
 
-  /// Haltung und Gerät bei der Kamera, sonst null.
+  /// Gerät bei der Kamera, sonst null.
   final MorningSeriesKey? cameraSeries;
 
   /// Gültiges `z`, sonst null mit [reason].

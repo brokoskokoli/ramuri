@@ -1,6 +1,5 @@
 import '../morning/morning_marks.dart';
 import '../ppg/validation_status.dart';
-import '../profile/resting_hr_origin.dart' show RestingPosture;
 import 'readiness_deviation.dart';
 
 /// Freigabe eines Kamerafaktors für die Readiness samt Markierung.
@@ -21,9 +20,8 @@ class CameraFactorRelease {
 ///
 /// Entwicklermodus: Ruhepuls und RMSSD immer freigegeben, ohne Markierung, ohne
 /// Opt-in; das Merkmal „vor der Validierung gemessen“ spielt keine Rolle.
-/// Sonst: RMSSD nur bei Stand „bestanden“ (liegend, sitzend gilt er mit,
-/// solange sitzend nicht eingeschränkt/nicht bestanden) und eingeschaltetem
-/// Opt-in; Ruhepuls bei „nicht geprüft“, „bestanden“ und „eingeschränkt“, nur bei
+/// Sonst: RMSSD nur bei Stand „bestanden“ und eingeschaltetem Opt-in, für
+/// beide Haltungen gleich (K67); Ruhepuls bei „nicht geprüft“, „bestanden“ und „eingeschränkt“, nur bei
 /// „nicht bestanden“ gesperrt (Markierung „ungenauer als erwartet“).
 class CameraRelease {
   const CameraRelease({
@@ -42,10 +40,7 @@ class CameraRelease {
       developerMode ||
       morningMeasurementReachable(developerMode: false, state: state);
 
-  CameraFactorRelease forFactor(
-    ReadinessFactor factor,
-    RestingPosture posture,
-  ) {
+  CameraFactorRelease forFactor(ReadinessFactor factor) {
     // Fail-closed (K62 Punkt 1, WP34 Teil B): Ohne Entwicklermodus zählen
     // Kamerawerte erst, wenn die Morgenmessung freigeschaltet ist; sonst
     // blieben im Entwicklermodus gespeicherte Messungen wirksam. Weder
@@ -58,16 +53,13 @@ class CameraRelease {
     }
     final marks = morningTrendMarks(
       developerMode: developerMode,
-      posture: posture,
       optIn: rmssdOptIn,
       state: state,
     );
     switch (factor) {
       case ReadinessFactor.hrv:
         final released = switch (marks.rmssd) {
-          MorningRmssdMark.none ||
-          MorningRmssdMark.optIn ||
-          MorningRmssdMark.optInSitting => true,
+          MorningRmssdMark.none || MorningRmssdMark.experimental => true,
           _ => false,
         };
         return CameraFactorRelease(released: released, mark: marks.rmssd);
@@ -87,12 +79,11 @@ class CameraRelease {
     }
   }
 
-  /// Zählt die Kamerareihe [r] (Faktor und Haltung der Reihe)? Reihen anderer
-  /// Herkunft sind nicht Sache der Sperre.
+  /// Zählt die Kamerareihe [r] (Faktor der Reihe)? Reihen anderer Herkunft
+  /// sind nicht Sache der Sperre.
   bool isReleased(DeviationResult r) {
-    final s = r.cameraSeries;
     if (r.source != ReadinessSource.camera) return true;
-    if (s == null) return false;
-    return forFactor(r.factor, s.posture).released;
+    if (r.cameraSeries == null) return false;
+    return forFactor(r.factor).released;
   }
 }

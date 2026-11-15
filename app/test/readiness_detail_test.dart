@@ -44,7 +44,7 @@ SleepSession _sleep(int i) =>
 
 MorningMeasurement _morning(
   int i, {
-  RestingPosture posture = RestingPosture.lying,
+  String model = 'Modell',
   double hr = 58,
   double rmssd = 42,
 }) {
@@ -52,9 +52,9 @@ MorningMeasurement _morning(
   return MorningMeasurement(
     measuredAt: t.toUtc(),
     utcOffset: t.timeZoneOffset,
-    posture: posture,
+    posture: RestingPosture.lying,
     deviceManufacturer: 'Hersteller',
-    deviceModel: 'Modell',
+    deviceModel: model,
     method: 'ppg',
     methodVersion: 1,
     quality: PpgQuality.good,
@@ -166,7 +166,6 @@ ReadinessSnapshot _insufficient() =>
 const _passed = {
   ValidationQuantity.restingHr: ValidationState.passed,
   ValidationQuantity.lnRmssdSupine: ValidationState.passed,
-  ValidationQuantity.lnRmssdSitting: ValidationState.passed,
 };
 
 /// Kamera: Stand bestanden ohne Opt-in, HRV gesperrt (markiert), kein Uhr-HRV.
@@ -496,13 +495,13 @@ void main() {
       );
 
       testWidgets(
-        'Quellen getrennt: Uhr-App und zwei Kamerareihen, nie gemischt',
+        'Quellen getrennt: Uhr-App und zwei Kamerareihen (zwei Geräte), nie gemischt',
         (tester) async {
           final hrvA = _hcHrv(_hrv('app.a', _wave(40)));
           final cams = cameraDeviations([
             for (var i = 0; i < 29; i++) _morning(i),
             for (var i = 10; i < 29; i++)
-              _morning(i, posture: RestingPosture.sitting, rmssd: 30),
+              _morning(i, model: 'Modell 2', rmssd: 30),
           ], today: _today);
           final s = ReadinessSnapshot(
             result: _number().result,
@@ -511,7 +510,7 @@ void main() {
             series: [hrvA, ...cams],
             today: _today,
           );
-          // 1 Uhr-Reihe + (HRV, Ruhepuls) je zwei Haltungen.
+          // 1 Uhr-Reihe + (HRV, Ruhepuls) je zwei Geräte (K67).
           expect(cams.length, 4);
           await open(tester, s);
           final cards = find.byWidgetPredicate(
@@ -549,7 +548,8 @@ void main() {
           expect(hcP.values.whereType<double>().length, 28);
           // Die HC-Reihe hat keine Kamera-Quellzeile, Kamera keine App-Quelle.
           expect(find.textContaining('app.a'), findsOneWidget);
-          expect(find.textContaining(de ? 'Liegend' : 'Lying'), findsWidgets);
+          expect(find.textContaining('Modell 2'), findsWidgets);
+          expect(find.textContaining(de ? 'Liegend' : 'Lying'), findsNothing);
           // Keine Bevölkerungswerte, Hinweis steht da.
           expect(_key('readiness_history_note'), findsOneWidget);
           expect(_key('readiness_history_dev'), findsOneWidget);

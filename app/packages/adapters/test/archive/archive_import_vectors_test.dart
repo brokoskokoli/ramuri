@@ -75,13 +75,29 @@ void main() {
             if (section == 'manual_trainings') {
               row.putIfAbsent('hc_id', () => null);
             }
+            // Vertrag archive.md 4.3: Archive bis Schema 13 haben die neuen
+            // Spalten von Schema 14 nicht, der Leser setzt null.
+            if (section == 'known_devices') {
+              row.putIfAbsent('last_used_at_us', () => null);
+            }
+            if (section == 'morning_measurements') {
+              for (final c in const [
+                'window_start_s',
+                'window_end_s',
+                'rest_skipped_after_s',
+                'unusable_reason',
+              ]) {
+                row.putIfAbsent(c, () => null);
+              }
+            }
             // BLOB (Schema 9): Hex-Text der Datei, im Ziel als Bytes.
             // Ebenso Gurt-RR (`rr`) und Kamera-Abstände (`camera_ibi`) der
-            // Morgenmessung (Schema 13).
+            // Morgenmessung (Schema 13), Rohsignal `frames` (Schema 14).
             for (final c in const {
               'raw_rr_packets': 'rr',
               'morning_rr_packets': 'rr',
               'morning_measurements': 'camera_ibi',
+              'morning_raw_signals': 'frames',
             }.entries) {
               if (section != c.key) continue;
               final hex = row[c.value]! as String;

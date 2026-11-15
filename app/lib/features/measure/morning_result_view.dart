@@ -23,11 +23,12 @@ String morningWhenLabel(
 );
 
 /// Ruhepuls mit einer Nachkommastelle, in der Sprache der App.
-String morningHrText(String locale, double bpm) =>
-    NumberFormat.decimalPatternDigits(
-      locale: locale,
-      decimalDigits: 1,
-    ).format(roundRestingHr(bpm));
+String morningHrText(String locale, double? bpm) => bpm == null
+    ? '–'
+    : NumberFormat.decimalPatternDigits(
+        locale: locale,
+        decimalDigits: 1,
+      ).format(roundRestingHr(bpm));
 
 /// Ergebnis der Morgenmessung (Design `morgen/Ergebnis`): gespeichert (gut,
 /// eingeschränkt, außerhalb des Fensters, zählt nicht) mit freiwilliger

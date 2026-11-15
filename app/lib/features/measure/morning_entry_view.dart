@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
+import '../sensors/sensor_manager.dart';
 import 'morning_belt.dart';
+import 'morning_belt_row.dart';
 import 'morning_measure_controller.dart';
 import 'resting_widgets.dart';
 
@@ -15,8 +17,11 @@ class MorningEntryView extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onClose,
+    this.sensors,
   });
 
+  /// Sensordienst für die Gurtzeile; `null`: keine Gurtzeile.
+  final SensorManager? sensors;
   final MorningMeasureController controller;
   final VoidCallback onClose;
 
@@ -49,6 +54,7 @@ class MorningEntryView extends StatelessWidget {
         ],
       ),
       sections: [
+        if (sensors != null) MorningBeltRow(manager: sensors!),
         RestingCard(
           radius: 24,
           child: Column(
@@ -58,6 +64,7 @@ class MorningEntryView extends StatelessWidget {
                 l10n.morningStep1,
                 l10n.morningStep2,
                 l10n.morningStep3,
+                l10n.morningStep4,
               ].indexed) ...[
                 if (i > 0) const SizedBox(height: 10),
                 Row(

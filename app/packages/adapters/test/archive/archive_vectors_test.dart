@@ -378,6 +378,61 @@ void main() {
     expect(lines.last['rows']['morning_rr_packets'], 2);
   });
 
+  test('archive_v2_s14: Format 2, Schema 14, morning_raw_signals (Abschnitt 34) und die neuen Spalten', () async {
+    final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s14');
+    final plain = await _collect(
+      createArchiveCipher().decrypt(
+        v['password'] as String,
+        Stream.value(_read(v['file'] as String)),
+      ),
+    );
+    expect(_read(v['file'] as String)[9], 2);
+    final text = utf8.decode(gzip.decode(plain));
+    expect(await _sha(utf8.encode(text)), v['jsonl_sha256']);
+    final lines = [
+      for (final l in const LineSplitter().convert(text))
+        jsonDecode(l) as Map<String, dynamic>,
+    ];
+    expect(lines.first['schema_version'], 14);
+    final sections = [
+      for (final l in lines)
+        if (l['type'] == 'section') l['name'],
+    ];
+    expect(sections.length, 34);
+    expect(sections.last, 'morning_raw_signals');
+    Iterable<Map> rowsOf(String name) sync* {
+      String? cur;
+      for (final l in lines) {
+        if (l['type'] == 'section') cur = l['name'] as String;
+        if (l['type'] == 'row' && cur == name) yield l['data'] as Map;
+      }
+    }
+
+    final m = rowsOf('morning_measurements').toList();
+    expect(m.map((r) => r['quality']), ['good', 'limited', 'unusable']);
+    expect(m.map((r) => r['resting_hr_bpm']), [52.3, 60.1, null]);
+    expect(m.map((r) => r['window_start_s']), [5.0, null, null]);
+    expect(m.map((r) => r['window_end_s']), [65.0, null, null]);
+    expect(m.map((r) => r['rest_skipped_after_s']), [37.5, null, null]);
+    expect(m.map((r) => r['unusable_reason']), [null, null, 'noFinger']);
+    expect(m.first.keys.toList().sublist(16), [
+      'window_start_s',
+      'window_end_s',
+      'rest_skipped_after_s',
+      'unusable_reason',
+    ]);
+    final d = rowsOf('known_devices').toList();
+    expect(d.map((r) => r['last_used_at_us']), [1792003600000000, null]);
+    final raw = rowsOf('morning_raw_signals').toList();
+    expect(raw.length, 1);
+    expect(raw.single['measurement_id'], 1);
+    expect(raw.single['frame_count'], 3);
+    // 3 Bilder x 35 float64 = 840 Byte = 1680 Hex-Zeichen.
+    expect((raw.single['frames'] as String).length, 1680);
+    expect(raw.single['saturated_fraction'], null);
+    expect(lines.last['rows'], v['row_counts']);
+  });
+
   test('archive_v2_s11: Format 2, Schema 11, active_warning mit einer Zeile (Abschnitt 21)', () async {
     final v = positive.firstWhere((v) => v['name'] == 'archive_v2_s11');
     final plain = await _collect(

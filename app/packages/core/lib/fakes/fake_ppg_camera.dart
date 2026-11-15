@@ -78,6 +78,8 @@ class FakePpgCamera implements PpgCamera {
 
   void emitFrame(PpgFrame frame) => _controller?.add(PpgCameraFrame(frame));
 
+  void emitDetails(PpgCameraDetails details) => _controller?.add(details);
+
   void emitLocked() => _controller?.add(const PpgCameraExposureLocked());
 
   /// Abbruch mit Grund (Kamera belegt, getrennt, Hintergrund ...): Torch aus, Strom endet.
