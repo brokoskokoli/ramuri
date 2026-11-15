@@ -135,17 +135,57 @@ bool hittable(WidgetTester t, Finder f) {
   return hit.path.any((e) => e.target == target);
 }
 
+/// Erstes Widget unter [f] oder `null`, wenn es nicht im Baum steht (lazy
+/// Listen bauen Eintraege ausserhalb des Sichtbereichs nicht). Fuer
+/// Bedingungen, die nicht werfen duerfen.
+T? maybeWidget<T extends Widget>(Finder f) {
+  final e = f.evaluate();
+  return e.isEmpty ? null : e.first.widget as T;
+}
+
+String _imBaum(Finder f) => f.evaluate().isEmpty ? 'nein' : 'ja';
+
 /// Tipp auf [target] (ein Element unterhalb der Taste [key]): erst auf Ruhe und
 /// Treffer warten, danach bis zu einer Frist auf [done] warten; gilt es nicht,
 /// einmal erneut tippen und sonst mit klarer Meldung scheitern. Kein festes
 /// Zeitpolster.
+///
+/// [done] darf nicht werfen (fehlt das Widget, gilt sie als nicht erfuellt;
+/// siehe [maybeWidget]); eine werfende Bedingung zaehlt ebenfalls als nicht
+/// erfuellt. Faellt [target] aus dem Baum (lazy Liste verschoben), bringt
+/// [reveal] es vor dem erneuten Pruefen zurueck in den Sichtbereich.
 Future<void> tapUntil(
   WidgetTester t,
   Finder target,
   bool Function() done,
-  String what,
-) async {
+  String what, {
+  Future<void> Function()? reveal,
+}) async {
+  bool check() {
+    try {
+      return done();
+    } on StateError {
+      return false;
+    }
+  }
+
+  Future<void> bringBack() async {
+    if (target.evaluate().isNotEmpty) return;
+    if (reveal != null) {
+      await reveal();
+    } else {
+      await pumpFor(t, const Duration(milliseconds: 100));
+    }
+  }
+
   for (var versuch = 1; versuch <= 2; versuch++) {
+    if (target.evaluate().isEmpty) {
+      logPub('tap_ziel_fehlt what=$what versuch=$versuch');
+      await bringBack();
+      if (target.evaluate().isEmpty) fail('Taste fehlt: $what');
+      // Erst ein Tipp kann wirken; vielleicht hat schon der erste gewirkt.
+      if (check()) return;
+    }
     await t.ensureVisible(target);
     final end = DateTime.now().add(const Duration(seconds: 5));
     while (!hittable(t, target)) {
@@ -155,14 +195,26 @@ Future<void> tapUntil(
       }
       await pumpFor(t, const Duration(milliseconds: 100));
     }
+    logPub('tap_vor what=$what versuch=$versuch im_baum=${_imBaum(target)}');
     if (hittable(t, target)) await t.tap(target);
     // Auf die Wirkung warten (bis zur Frist), erst dann erneut tippen: Ein
     // zweiter Tipp wuerde eine verspaetete Wirkung (Umschalter) zuruecknehmen.
     final wirkungEnde = DateTime.now().add(const Duration(seconds: 3));
+    var gemeldet = false;
     do {
       await pumpFor(t, const Duration(milliseconds: 100));
-    } while (!done() && DateTime.now().isBefore(wirkungEnde));
-    if (done()) return;
+      if (target.evaluate().isEmpty) {
+        if (!gemeldet) {
+          logPub('tap_nach what=$what versuch=$versuch im_baum=nein');
+          gemeldet = true;
+        }
+        await bringBack();
+      }
+    } while (!check() && DateTime.now().isBefore(wirkungEnde));
+    if (!gemeldet) {
+      logPub('tap_nach what=$what versuch=$versuch im_baum=${_imBaum(target)}');
+    }
+    if (check()) return;
     logPub('tap_ohne_wirkung what=$what versuch=$versuch');
   }
   fail('Tipp ohne Wirkung: $what');
