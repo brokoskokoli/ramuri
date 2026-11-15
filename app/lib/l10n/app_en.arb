@@ -2145,6 +2145,7 @@
   "planWalkRepeatSessionDone": "Run 2 will be repeated.",
   "@planWalkRepeatSessionDone": {"description": "WP23 NB2, Plan-Seite: Rückmeldung (Lauf)"},
   "treadmillStartFailedResume": "The background service could not be started. The part recorded so far is saved. Try resuming again.",
+  "runResumeFailed": "Couldn't resume. The part recorded so far is saved. Please try again.",
   "treadmillModeTitle": "Run type",
   "treadmillModeGps": "Outdoors (GPS)",
   "treadmillModeBelt": "Treadmill",
