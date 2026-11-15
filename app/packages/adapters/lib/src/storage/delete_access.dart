@@ -25,7 +25,10 @@ class DriftDeletion {
       // Tageswerte haben keine Kaskade (Supervisor-Entscheidung): weg gehen die
       // Paare (Tag, Schlüssel), von denen eine Zeile den Lauf überlappt oder
       // keinen bekannten Datenzeitraum hat. WP09 berechnet sie neu. Vor dem
-      // Löschen des Laufs, weil sie seine Grenzen brauchen.
+      // Löschen des Laufs, weil sie seine Grenzen brauchen. Der Datenzeitraum
+      // eines Tageswerts umfasst alle eingegangenen Läufe (beim Langzeitwert
+      // auch die, die nur über die Glättung eingehen), darum genügt die
+      // Überlappung.
       // Die Werte der Tageswerte-Auswahl und des Laufs samt ihrer Abschnitte
       // (value_sections) werden ausdrücklich gelöscht, zuerst die Abschnitte;
       // die Fremdschlüssel-Kaskade ist nur der zweite Boden.

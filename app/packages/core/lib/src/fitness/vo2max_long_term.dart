@@ -6,7 +6,10 @@ import 'fitness_result.dart';
 /// (Heuristik): α, Neustart und Stufen sind eigene Wahl (PAR-034, PAR-035,
 /// PAR-041 bis PAR-043).
 const String vo2maxLongTermMethod = 'vo2max-long-term-ema';
-const int vo2maxLongTermMethodVersion = 1;
+
+/// Version 2: Datenzeitraum und Datenquellen umfassen alle Läufe, die in die
+/// Glättung eingegangen sind (Version 1: nur die Läufe im weiteren Fenster).
+const int vo2maxLongTermMethodVersion = 2;
 
 /// Familie Langzeitwert der VO₂max (FR-0078).
 abstract class Vo2maxLongTerm extends AlgorithmVariant {
@@ -23,9 +26,12 @@ abstract class Vo2maxLongTerm extends AlgorithmVariant {
   ///
   /// Metadaten: `usableMeasurements` zählt die verwertbaren Läufe im weiteren
   /// Fenster (PAR-043, 8 Wochen vor [now]); bei einem veralteten Wert ohne
-  /// Lauf im Fenster ist es 0, Zeitraum und Datenquellen stammen dann vom
-  /// letzten verwertbaren Lauf. Bei „nicht bestimmbar“ ist der Datenzeitraum
-  /// leer (`now` bis `now`).
+  /// Lauf im Fenster ist es 0. Datenzeitraum und Datenquellen umfassen alle
+  /// verwertbaren Läufe, denn jeder davon ist über die Glättung im Wert
+  /// enthalten (FR-0053: zugrunde liegender Datenzeitraum). Daran hängt auch
+  /// das Löschen eines Laufs: Ein Tageswert, dessen Zeitraum den Lauf
+  /// überlappt, wird entfernt (SEC-0004). Bei „nicht bestimmbar“ ist der
+  /// Datenzeitraum leer (`now` bis `now`).
   AdvancedFitnessValue<double> compute({
     required List<AdvancedFitnessValue<double>> runs,
     required FitnessParameters p,
@@ -148,17 +154,16 @@ class SmoothedVo2maxLongTerm extends Vo2maxLongTerm {
       now,
       v,
     );
-    // Datenzeitraum: verwertbare Läufe im weiteren Fenster; ist keiner
-    // darin (veralteter Wert), der letzte verwertbare Lauf.
+    // Datenzeitraum: alle verwertbaren Läufe (jeder steckt über die Glättung
+    // im Wert); die Anzahl zählt nur die im weiteren Fenster (PAR-043).
     final windowStart = now.subtract(v.longTermGoodWindow);
     final inWindow = usable.where((r) {
       final at = r.metadata.dataTo;
       return !at.isAfter(now) && !at.isBefore(windowStart);
-    }).toList();
-    final basis = inWindow.isEmpty ? [usable.last] : inWindow;
-    var from = basis.first.metadata.dataFrom;
-    var to = basis.first.metadata.dataTo;
-    for (final r in basis) {
+    }).length;
+    var from = usable.first.metadata.dataFrom;
+    var to = usable.first.metadata.dataTo;
+    for (final r in usable) {
       if (r.metadata.dataFrom.isBefore(from)) from = r.metadata.dataFrom;
       if (r.metadata.dataTo.isAfter(to)) to = r.metadata.dataTo;
     }
@@ -167,8 +172,8 @@ class SmoothedVo2maxLongTerm extends Vo2maxLongTerm {
         calculatedAt: now,
         dataFrom: from,
         dataTo: to,
-        usableMeasurements: inWindow.length,
-        dataSources: {for (final r in basis) ...r.metadata.dataSources},
+        usableMeasurements: inWindow,
+        dataSources: {for (final r in usable) ...r.metadata.dataSources},
         method: method,
         methodVersion: methodVersion,
         parameterVersion: p.parameterVersion,
