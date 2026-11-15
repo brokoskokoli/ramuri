@@ -185,7 +185,6 @@ Future<void> askOpenHealthQuestions(
     for (final kind in List.of(c.questions)) {
       await c.questionsSettled();
       if (!context.mounted) return;
-      if (!c.questions.contains(kind)) continue;
       if (skipDeferred && c.deferred.contains(kind)) continue;
       final asked = await askHealthDeleteQuestion(
         context,
