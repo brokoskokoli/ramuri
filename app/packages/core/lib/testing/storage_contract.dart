@@ -31,6 +31,10 @@ List<StorageContractCase> storageContractCases() => [
   ...morningContractCases,
   const StorageContractCase('Löschen eines Laufs kaskadiert', _cascade),
   const StorageContractCase('Tageswerte beim Löschen eines Laufs', _dayValues),
+  const StorageContractCase(
+    'Löschen: Langzeitwert, der den Lauf über die Glättung enthält',
+    _smoothedDayValue,
+  ),
   const StorageContractCase('Löschen: Fehlerarten', _deleteFailures),
   const StorageContractCase('Alles löschen leert den Speicher', _deleteAll),
   const StorageContractCase('Inhalt überlebt Schließen und Öffnen', _reopen),
@@ -214,6 +218,66 @@ Future<void> _dayValues(StorageContractHarness h) async {
     0,
     'Tageswert mit überlappendem current',
   );
+  await s.close();
+}
+
+/// Lauf A liegt mehr als das weitere Fenster (PAR-043) vor Lauf B. Der
+/// Langzeitwert nach B enthält A über die Glättung (FR-0079); nach dem Löschen
+/// von A darf er nicht stehen bleiben (SEC-0004, ADR-0004). Der Wert kommt aus
+/// der echten Glättung, damit Datenzeitraum und Auswahl beim Löschen
+/// zusammen geprüft werden.
+Future<void> _smoothedDayValue(StorageContractHarness h) async {
+  final s = await h.open();
+  const day = Duration(days: 1);
+  final aStart = t0;
+  final aEnd = aStart.add(const Duration(hours: 1));
+  final bStart = aStart.add(day * 80);
+  final bEnd = bStart.add(const Duration(hours: 1));
+  final a = (await s.runs.create(startedAt: aStart)).id;
+  await s.runs.setState(a, RunState.finished, endedAt: aEnd);
+  final b = (await s.runs.create(startedAt: bStart)).id;
+  await s.runs.setState(b, RunState.finished, endedAt: bEnd);
+  AdvancedFitnessValue<double> runValue(DateTime from, DateTime to, double v) =>
+      AdvancedFitnessValue(
+        metadata: FitnessValueMetadata(
+          calculatedAt: to,
+          dataFrom: from,
+          dataTo: to,
+          usableMeasurements: 3,
+          dataSources: const {'gps'},
+          method: 'm',
+          methodVersion: 1,
+          parameterVersion: currentParameterVersion,
+          tier: QualityTier.good,
+        ),
+        value: v,
+      );
+  final asOf = bEnd.add(const Duration(hours: 2));
+  final long = const SmoothedVo2maxLongTerm().compute(
+    runs: [runValue(aStart, aEnd, 40), runValue(bStart, bEnd, 50)],
+    p: const FitnessParameters.v4(),
+    now: asOf,
+  );
+  // Vorbedingung: A steckt im Wert (sonst wäre er 50), liegt aber außerhalb
+  // des Fensters.
+  expectTrue(long.value != null && long.value! < 50, 'A geht in den Wert ein');
+  expectEq(long.metadata.usableMeasurements, 1, 'nur B im Fenster');
+  final owner = ValueOwner.day(isoDay(bEnd));
+  await s.values.createOriginals(owner, [
+    toComputedValue(
+      key: vo2maxLongTermValueKey,
+      unit: vo2maxUnit,
+      value: long,
+      computedAt: asOf,
+    ),
+  ]);
+  await s.deleteRun(a);
+  expectEq(
+    (await s.values.read(owner)).length,
+    0,
+    'Langzeitwert mit A über die Glättung ist weg',
+  );
+  expectTrue(await s.runs.get(b) != null, 'B bleibt');
   await s.close();
 }
 
