@@ -112,8 +112,14 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
             ),
           ReferenceProblem.nonPositiveTime => l10n.predictionErrorTime,
           ReferenceProblem.paceOutOfRange => l10n.predictionErrorPace(
-            widget.formatter.pace(params.fastestReferencePaceSecondsPerKm),
-            widget.formatter.pace(params.slowestReferencePaceSecondsPerKm),
+            widget.formatter.paceLimit(
+              params.fastestReferencePaceSecondsPerKm,
+              fastest: true,
+            ),
+            widget.formatter.paceLimit(
+              params.slowestReferencePaceSecondsPerKm,
+              fastest: false,
+            ),
           ),
           ReferenceProblem.dateInFuture => l10n.predictionErrorDate,
         };
