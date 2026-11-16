@@ -99,12 +99,14 @@ class RecalculationCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final result = await controller.confirm();
     if (result == null) return;
-    messenger?.showSnackBar(
-      SnackBar(
-        key: const Key('recalc_done'),
-        content: Text(l10n.recalcDone(result.runCount)),
-      ),
-    );
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          key: const Key('recalc_done'),
+          content: Text(l10n.recalcDone(result.runCount)),
+        ),
+      );
   }
 
   String _causeText(AppLocalizations l10n, RecalculationCause c) => switch (c) {
