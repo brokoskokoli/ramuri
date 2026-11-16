@@ -143,6 +143,93 @@ Future<void> restart(Device d, WidgetTester tester) async {
   await d.start(tester, const Locale('de'));
 }
 
+/// Ein Punkt je Sekunde und je Gerät in [bpm] ein Pulswert der
+/// Sensorverwaltung.
+Future<void> walkWithPulse(
+  Device d,
+  WidgetTester tester,
+  int seconds,
+  Map<String, int> bpm, {
+  int from = 0,
+}) async {
+  for (var i = from; i < from + seconds; i++) {
+    d.clock.advance(const Duration(seconds: 1));
+    d.location.emit(
+      LocationSample(
+        time: d.clock.now(),
+        latitude: 50 + i * 0.000027,
+        longitude: 8,
+        accuracyMeters: 5,
+      ),
+    );
+    bpm.forEach((id, v) => d.sensorFake.emitReading(id, d.clock.now(), v));
+    await tester.pump(const Duration(seconds: 1));
+  }
+}
+
+/// Lauf mit Puls aus der Sensorverwaltung (Geräte [ids], [preferred]
+/// bevorzugt, Bluetooth-Rechte erteilt), der Prozess endet mitten im Lauf.
+Future<int> crashWithSensors(
+  Device d,
+  WidgetTester tester, {
+  required List<String> ids,
+  String? preferred,
+  required Map<String, int> bpm,
+}) async {
+  d.runViaSensors = true;
+  d.permissions.states[AppPermission.bluetooth] = PermissionState.granted;
+  await openRun(
+    d,
+    tester,
+    before: () async {
+      for (final id in ids) {
+        await d.sensors.connect(id, name: 'Gurt $id');
+        await tester.pump();
+      }
+      if (preferred != null) await d.sensors.setPreferred(preferred);
+      await tester.pump();
+    },
+  );
+  await walkWithPulse(d, tester, 10, bpm);
+  final id = (await d.session.runs.list()).single.id;
+  expect(
+    (await d.session.rawData.read(id)).heartRates,
+    isNotEmpty,
+    reason: 'vor dem Abbruch kommt Puls an',
+  );
+  await d.stop(tester);
+  expect(d.sensorFake.connectedIds, isEmpty, reason: 'Prozess beendet');
+  return id;
+}
+
+/// Setzt den unfertigen Lauf fort, läuft mit Puls [bpm] weiter, beendet ihn
+/// und liefert die Pulswerte, die nach dem Fortsetzen aufgezeichnet wurden.
+Future<List<RawHeartRate>> resumeAndRecord(
+  Device d,
+  WidgetTester tester,
+  int id,
+  Map<String, int> bpm,
+) async {
+  d.clock.advance(const Duration(minutes: 5));
+  await restart(d, tester);
+  final resumedAt = d.clock.now();
+  await tester.tap(key('recover_resume'));
+  await tester.pumpAndSettle();
+  expect(key('run_pause'), findsOneWidget);
+  await walkWithPulse(d, tester, 10, bpm, from: 10);
+  await tester.tap(key('run_pause'));
+  await tester.pump();
+  await tester.tap(key('run_finish'));
+  await tester.pumpAndSettle();
+  await tester.tap(key('run_finish_confirm'));
+  await tester.pumpAndSettle();
+  final raw = await d.session.rawData.read(id);
+  return [
+    for (final r in raw.heartRates)
+      if (r.value.time.isAfter(resumedAt)) r.value,
+  ];
+}
+
 void main() {
   group('Wiederaufnahme (FR-0193)', () {
     testWidgets('ohne unfertigen Lauf kein Angebot', (tester) async {
@@ -313,6 +400,44 @@ void main() {
       await tester.tap(key('recover_resume'));
       await tester.pumpAndSettle();
       expect(key('run_pause'), findsOneWidget);
+    });
+  });
+  group('Puls nach dem Fortsetzen (FR-0193, FR-0019)', () {
+    testWidgets('bevorzugter Sensor liefert wieder Puls in den Lauf', (
+      tester,
+    ) async {
+      final d = Device();
+      final id = await crashWithSensors(
+        d,
+        tester,
+        ids: ['h1', 'h2'],
+        preferred: 'h2',
+        bpm: {'h1': 99, 'h2': 150},
+      );
+      final after = await resumeAndRecord(d, tester, id, {'h1': 98, 'h2': 151});
+      expect(d.sensorFake.connectedIds, containsAll(['h2']));
+      expect(after, isNotEmpty);
+      expect(after.map((s) => s.source).toSet(), {'h2'});
+      expect(after.map((s) => s.bpm).toSet(), {151});
+      expect((await d.session.runs.list()).single.id, id);
+      await d.stop(tester);
+    });
+
+    testWidgets('einziger zuletzt genutzter Sensor liefert wieder Puls', (
+      tester,
+    ) async {
+      final d = Device();
+      final id = await crashWithSensors(
+        d,
+        tester,
+        ids: ['h1'],
+        bpm: {'h1': 140},
+      );
+      final after = await resumeAndRecord(d, tester, id, {'h1': 142});
+      expect(after, isNotEmpty);
+      expect(after.map((s) => s.source).toSet(), {'h1'});
+      expect(after.map((s) => s.bpm).toSet(), {142});
+      await d.stop(tester);
     });
   });
   group('Fortsetzen scheitert: Lauf bleibt gespeichert (FR-0193)', () {
