@@ -15,7 +15,13 @@ class HomeHints {
   final RecoveryCard? card;
   final PauseQuestion? pause;
 
+  /// Zähler der Ladevorgänge für Tests: „Heute“ soll die Hinweise je Öffnen
+  /// und je Neuladen genau einmal lesen.
+  @visibleForTesting
+  static int debugLoadCount = 0;
+
   static Future<HomeHints> load(StorageSession session, Clock clock) async {
+    debugLoadCount++;
     final service = HintService(session: session, clock: clock);
     final card = await service.recoveryCard();
     final pause = await service.pauseQuestion();

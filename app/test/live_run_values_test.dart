@@ -286,7 +286,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(key('run_finish_confirm'));
       await tester.pumpAndSettle();
-      expect(find.text('Lauf beendet'), findsOneWidget);
+      expect(key('run_done_status'), findsOneWidget);
     });
 
     testWidgets('Pause, Runde und Beenden haben die Tipp-Aktion', (
@@ -341,7 +341,7 @@ void main() {
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(find.text('Lauf beenden?'), findsNothing);
-      expect(find.text('Lauf beendet'), findsNothing);
+      expect(key('run_done_status'), findsNothing);
       expect(key('run_resume'), findsOneWidget);
       expect((await d.session.runs.list()).single.state, RunState.paused);
     });
@@ -364,7 +364,7 @@ void main() {
       expect(find.text('Lauf beenden?'), findsOneWidget);
       await tester.tap(key('run_finish_confirm'));
       await tester.pumpAndSettle();
-      expect(find.text('Lauf beendet'), findsOneWidget);
+      expect(key('run_done_status'), findsOneWidget);
     });
 
     testWidgets('Pausenzeit zählt zur Gesamtzeit, nicht zur Bewegungszeit '

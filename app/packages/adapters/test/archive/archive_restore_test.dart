@@ -88,22 +88,80 @@ Future<void> _extra(AppDatabase db) async {
   await sql(db, "$vs VALUES ($c, 0, 1, 2, 1.0, 1.0, 'eligible', '[]')");
 }
 
-Future<Uint8List> _encrypt(List<Map<String, Object?>> lines) async {
+/// Abgeleitete Schlüssel je Passwort, Salz und Parameter. Jeder Eintrag ist
+/// einmal echt mit Argon2id und den Parametern des Kopfes (64 MiB, 3
+/// Durchgänge) abgeleitet; gleiche Eingaben ergeben denselben Schlüssel. Die
+/// Ableitung kostet je Aufruf rund eine Sekunde und fast jeder Test liest
+/// dasselbe Archiv: ohne Zwischenspeicher bestimmt sie die Laufzeit der Datei.
+final Map<String, Uint8List> _keys = {};
+
+/// Schlüsselableitung mit Zwischenspeicher [keys]; ein Fehltreffer leitet
+/// echt ab (`CryptographyArchiveKdf`) und merkt sich das Ergebnis. Läuft auch
+/// im Arbeits-Isolate des Imports, dort mit einer Kopie von [_keys].
+class _CachedKdf implements ArchiveKdf {
+  _CachedKdf(this.keys);
+
+  final Map<String, Uint8List> keys;
+
+  static final ArchiveKdf _real = CryptographyArchiveKdf(
+    offload: inlineOffloadAsync,
+  );
+
+  static String _id(List<int> password, List<int> salt, ArchiveKdfParams p) =>
+      '${base64Encode(password)}|${base64Encode(salt)}|'
+      '${p.memoryKib},${p.iterations},${p.parallelism},${p.keyLength}';
+
+  @override
+  Future<Uint8List> deriveKey({
+    required Uint8List password,
+    required Uint8List salt,
+    required ArchiveKdfParams params,
+  }) async {
+    final id = _id(password, salt, params);
+    final known = keys[id] ??= Uint8List.fromList(
+      await _real.deriveKey(password: password, salt: salt, params: params),
+    );
+    // Kopie: Der Rahmen überschreibt den Schlüssel nach Gebrauch mit Nullen.
+    return Uint8List.fromList(known);
+  }
+}
+
+/// Cipher wie [createArchiveCipherInWorker], aber mit [_CachedKdf] über
+/// einer Kopie von [_keys] (die Fabrik läuft im Arbeits-Isolate). Mit [salt]
+/// schreibt sie dieses Salz statt eines zufälligen, damit der Schlüssel eines
+/// neu verschlüsselten Archivs schon bekannt ist.
+ArchiveCipherFactory _cachedCipher({Uint8List? salt}) {
+  final keys = Map.of(_keys);
+  return () => FramedArchiveCipher(
+    kdf: _CachedKdf(keys),
+    aead: CryptographyChunkAead(),
+    randomBytes: salt == null
+        ? secureRandomBytes
+        : (n) => Uint8List.fromList(salt),
+  );
+}
+
+/// Verschlüsselt [lines] mit [_password] und [salt] (Schlüssel aus [_keys]).
+Future<Uint8List> _encrypt(
+  List<Map<String, Object?>> lines,
+  Uint8List salt,
+) async {
   final text = '${lines.map(jsonEncode).join('\n')}\n';
   final b = BytesBuilder(copy: false);
-  await for (final c in createArchiveCipher(
-    offload: inlineOffloadAsync,
-  ).encrypt(_password, Stream.value(gzip.encode(utf8.encode(text))))) {
+  await for (final c in _cachedCipher(
+    salt: salt,
+  )().encrypt(_password, Stream.value(gzip.encode(utf8.encode(text))))) {
     b.add(c);
   }
   return b.takeBytes();
 }
 
-Future<List<Map<String, Object?>>> _decode(File f) async {
+Future<List<Map<String, Object?>>> _decode(Uint8List archive) async {
   final b = BytesBuilder(copy: false);
-  await for (final c in createArchiveCipher(
-    offload: inlineOffloadAsync,
-  ).decrypt(_password, Stream.value(f.readAsBytesSync()))) {
+  await for (final c in _cachedCipher()().decrypt(
+    _password,
+    Stream.value(archive),
+  )) {
     b.add(c);
   }
   return [
@@ -179,11 +237,14 @@ class _SpySink implements ArchiveSink {
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   late Directory work;
-  late Directory src;
   late Directory appDir;
   late String activePath;
   late String archivePath;
+  // Einmal je Datei (setUpAll): Quelle, Archiv, Salz und Zeilen des Archivs.
   late _Dump sourceDump;
+  late Uint8List archiveBytes;
+  late Uint8List archiveSalt;
+  late List<Map<String, Object?>> archiveLines;
   late Uint8List key;
   late FileDatabaseFiles files;
   late StorageSession session;
@@ -199,6 +260,7 @@ void main() {
     ArchiveSink? sink,
     FileDatabaseFiles? f,
     Future<T> Function<T>(Future<T> Function())? serialize,
+    ArchiveCipherFactory? cipherFactory,
   }) {
     final fl = f ?? files;
     return ArchiveRestoreService(
@@ -211,7 +273,7 @@ void main() {
             files: fl,
           ),
       files: fl,
-      cipherFactory: createArchiveCipherInWorker,
+      cipherFactory: cipherFactory ?? _cachedCipher(),
       clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
       reopen: () async => session = await openActive(),
       serialize:
@@ -234,6 +296,44 @@ void main() {
   List<String> appFiles() =>
       [for (final e in appDir.listSync()) e.path.split('/').last]..sort();
 
+  setUpAll(() async {
+    // Quelle: Klartext-Datenbank mit allem, einmal exportiert mit echter
+    // Kryptografie (Zufallssalz, Argon2id mit den Parametern des Kopfes). Die
+    // Tests lesen dieses Archiv nur; jeder bekommt eine eigene Kopie.
+    // Nicht unter systemTemp: Der Marken-Test des Exports durchsucht ihn, und
+    // die Testdateien laufen gleichzeitig (Review 2, Befund 2). Die Klartext-
+    // Quelle liegt im (nicht versionierten) .dart_tool des Pakets.
+    Directory('.dart_tool').createSync();
+    final src = Directory('.dart_tool').createTempSync('wp12c2src_');
+    try {
+      // Absolut: Der Exporter nimmt nur absolute Verzeichnisse an.
+      final exportDir = Directory('${src.absolute.path}/exports')..createSync();
+      final plain = openPlain('${src.path}/plain.db');
+      await fillAllTables(plain);
+      await _extra(plain);
+      sourceDump = await _dump(plain);
+      final f = await ArchiveExporter(
+        source: DriftArchiveSource(plain),
+        handoff: FakeFileHandoff()..directory = exportDir.path,
+        clock: FakeClock(DateTime.utc(2026, 11, 7, 12)),
+        cipherFactory: createArchiveCipherInWorker,
+        pageSize: 2,
+      ).export(password: _password);
+      archiveBytes = File(f.path!).readAsBytesSync();
+      await plain.close();
+    } finally {
+      src.deleteSync(recursive: true); // enthält die Marke im Klartext
+    }
+    // Schlüssel des Archivs einmal echt ableiten, danach aus [_keys].
+    archiveSalt = ArchiveHeader.parse(archiveBytes).salt;
+    await _CachedKdf(_keys).deriveKey(
+      password: Uint8List.fromList(utf8.encode(_password)),
+      salt: archiveSalt,
+      params: ArchiveHeader.params,
+    );
+    archiveLines = await _decode(archiveBytes);
+  });
+
   setUp(() async {
     serialized = 0;
     hook = null;
@@ -242,28 +342,10 @@ void main() {
     appDir = Directory('${work.path}/app')..createSync();
     activePath = '${appDir.path}/running_app.db';
     files = makeFiles();
-    // Quelle: Klartext-Datenbank mit allem, exportiert mit echter Kryptografie.
-    // Nicht unter systemTemp: Der Marken-Test des Exports durchsucht ihn, und
-    // die Testdateien laufen gleichzeitig (Review 2, Befund 2). Die Klartext-
-    // Quelle liegt im (nicht versionierten) .dart_tool des Pakets.
-    Directory('.dart_tool').createSync();
-    src = Directory('.dart_tool').createTempSync('wp12c2src_');
     final exportDir = Directory('${work.path}/exports')..createSync();
-    final plain = openPlain('${src.path}/plain.db');
-    await fillAllTables(plain);
-    await _extra(plain);
-    sourceDump = await _dump(plain);
-    final handoff = FakeFileHandoff()..directory = exportDir.path;
-    final f = await ArchiveExporter(
-      source: DriftArchiveSource(plain),
-      handoff: handoff,
-      clock: FakeClock(DateTime.utc(2026, 11, 7, 12)),
-      cipherFactory: createArchiveCipherInWorker,
-      pageSize: 2,
-    ).export(password: _password);
-    archivePath = f.path!;
-    await plain.close();
-    src.deleteSync(recursive: true); // enthält die Marke im Klartext
+    archivePath = (File(
+      '${exportDir.path}/archiv.runarchv',
+    )..writeAsBytesSync(archiveBytes, flush: true)).path;
     session = await openActive();
   });
 
@@ -272,7 +354,6 @@ void main() {
       await session.close();
     } catch (_) {}
     work.deleteSync(recursive: true);
-    if (src.existsSync()) src.deleteSync(recursive: true);
   });
 
   test(
@@ -291,7 +372,8 @@ void main() {
       );
       expect(await ArchiveRestoreService.isEmpty(session), isTrue);
 
-      session = await service().restore(path: archivePath, password: _password);
+      session = await service(cipherFactory: createArchiveCipherInWorker)
+          .restore(path: archivePath, password: _password);
 
       final got = await _dump(_dbOf(session));
       expect(got.keys, sourceDump.keys);
@@ -506,7 +588,7 @@ void main() {
       source: DriftArchiveSource(plain),
       handoff: FakeFileHandoff()..directory = dir.path,
       clock: FakeClock(DateTime.utc(2026, 11, 7, 12)),
-      cipherFactory: createArchiveCipherInWorker,
+      cipherFactory: _cachedCipher(salt: archiveSalt),
       pageSize: 2,
     ).export(password: _password);
     await plain.close();
@@ -546,7 +628,7 @@ void main() {
       source: DriftArchiveSource(plain),
       handoff: FakeFileHandoff()..directory = dir.path,
       clock: FakeClock(DateTime.utc(2026, 11, 7, 12)),
-      cipherFactory: createArchiveCipherInWorker,
+      cipherFactory: _cachedCipher(salt: archiveSalt),
       pageSize: 2,
     ).export(password: _password);
     await plain.close();
@@ -611,7 +693,7 @@ void main() {
         method: ppgMethod,
         methodVersion: ppgMethodVersion,
         quality: PpgQuality.unusable,
-        unusableReason: PpgQualityReason.noFinger,
+        unusableReason: MorningUnusableReason.noFinger,
         cameraIntervalsMs: const [],
         beforeValidation: false,
         outsideWindow: false,
@@ -734,10 +816,11 @@ void main() {
                   as List)
               .cast<Map>()
               .firstWhere((v) => v['name'] == name);
-      session = await service().restore(
-        path: '$_vectors/$name.runarchv',
-        password: v['password'] as String,
-      );
+      session = await service(cipherFactory: createArchiveCipherInWorker)
+          .restore(
+            path: '$_vectors/$name.runarchv',
+            password: v['password'] as String,
+          );
       final lines = [
         for (final l in File('$_vectors/$name.jsonl').readAsLinesSync())
           jsonDecode(l) as Map<String, dynamic>,
@@ -933,7 +1016,7 @@ void main() {
           final c = morning[2].value;
           expect(c.quality, PpgQuality.unusable);
           expect(c.restingHrBpm, isNull);
-          expect(c.unusableReason, PpgQualityReason.noFinger);
+          expect(c.unusableReason, MorningUnusableReason.noFinger);
           expect(c.isUsable, isFalse);
           expect(raw!.frames, hasLength(3));
           expect(raw.frames[1].t, 0.033);
@@ -978,7 +1061,7 @@ void main() {
   }
 
   test('archive_small (Vektor der unabhängigen Umsetzung) lässt sich importieren, Zeilen gleich', () async {
-    session = await service().restore(
+    session = await service(cipherFactory: createArchiveCipherInWorker).restore(
       path: '$_vectors/archive_small.runarchv',
       password: _smallPassword,
     );
@@ -1098,7 +1181,7 @@ void main() {
         )) {
       test('Negativvektor ${v['name']}', () async {
         await expectUntouched(
-          () => service().restore(
+          () => service(cipherFactory: createArchiveCipherInWorker).restore(
             path: '$_vectors/${v['file']}',
             password: v['password'] as String,
             resetConfirmed: true,
@@ -1295,13 +1378,13 @@ void main() {
     for (final c in cases.entries) {
       test(c.key, () async {
         final lines = _mutate(
-          await _decode(File(archivePath)),
+          archiveLines,
           c.value.$1,
           c.value.$2,
           index: c.value.$3,
         );
         final f = File('${work.path}/bad.runarchv')
-          ..writeAsBytesSync(await _encrypt(lines));
+          ..writeAsBytesSync(await _encrypt(lines, archiveSalt));
         await expectUntouched(
           () => service().restore(
             path: f.path,
@@ -1316,19 +1399,19 @@ void main() {
       // Beschränkungen der Datenbank anwenden wie der Dienst.
       test('Vorprüfung (SEC-0009) lehnt ab: ${c.key}', () async {
         final lines = _mutate(
-          await _decode(File(archivePath)),
+          archiveLines,
           c.value.$1,
           c.value.$2,
           index: c.value.$3,
         );
         final f = File('${work.path}/bad.runarchv')
-          ..writeAsBytesSync(await _encrypt(lines));
+          ..writeAsBytesSync(await _encrypt(lines, archiveSalt));
         await expectLater(
           verifyArchive(
             path: f.path,
             password: _password,
             files: files,
-            cipherFactory: createArchiveCipherInWorker,
+            cipherFactory: _cachedCipher(),
             clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
           ),
           throwsA(
@@ -1350,7 +1433,7 @@ void main() {
           path: archivePath,
           password: _password,
           files: files,
-          cipherFactory: createArchiveCipherInWorker,
+          cipherFactory: _cachedCipher(),
           clock: FakeClock(DateTime.utc(2026, 11, 20, 12)),
         );
         expect(appFiles().where((n) => n.contains('.import')), isEmpty);
