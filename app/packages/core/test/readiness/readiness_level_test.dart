@@ -46,6 +46,7 @@ void main() {
     test('Ruhepuls ohne eigene Referenz zählt nicht als Faktor', () {
       final i = ReadinessInputs(
         today: today,
+        dayStart: today,
         now: now,
         hrvHealthConnect: dev(ReadinessFactor.hrv, 0),
         restingHrHealthConnect: noZ(
@@ -152,6 +153,7 @@ void main() {
         computeReadiness(
           ReadinessInputs(
             today: today,
+            dayStart: today,
             now: now,
             hrvHealthConnect: d,
             sleepSessions: sleep ? [night(7)] : const [],
@@ -183,6 +185,7 @@ void main() {
       final key = const MorningSeriesKey('H', 'M1');
       final i = ReadinessInputs(
         today: today,
+        dayStart: today,
         now: now,
         hrvHealthConnect: noZ(
           ReadinessFactor.hrv,
@@ -206,7 +209,9 @@ void main() {
       ]);
     });
     test('keine Reihe: hrvNoSeries; Schlaf fehlt: sleepMissing', () {
-      final r = computeReadiness(ReadinessInputs(today: today, now: now));
+      final r = computeReadiness(
+        ReadinessInputs(today: today, dayStart: today, now: now),
+      );
       expect(r.state, ReadinessState.insufficient);
       expect(r.level, ReadinessLevel.notDeterminable);
       expect(codes(r), [
@@ -221,6 +226,7 @@ void main() {
       final key = const MorningSeriesKey('H', 'M1');
       final i = ReadinessInputs(
         today: today,
+        dayStart: today,
         now: now,
         cameraDeviations: [
           dev(ReadinessFactor.hrv, 0, source: ReadinessSource.camera, key: key),
@@ -244,6 +250,7 @@ void main() {
     ReadinessResult cam({required bool few, int ref = 28}) => computeReadiness(
       ReadinessInputs(
         today: today,
+        dayStart: today,
         now: now,
         cameraDeviations: [
           dev(

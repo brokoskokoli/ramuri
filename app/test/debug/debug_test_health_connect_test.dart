@@ -61,7 +61,12 @@ void main() {
       final sessions = [
         for (final s in store.records(HealthDataKind.sleep)) sleepSessionOf(s),
       ];
-      final main = p.mainSleep(sessions, now)!;
+      // Die Debug-Quelle legt das Aufwachen auf 06:30 UTC; Ortstag hier UTC.
+      final main = p.mainSleep(
+        sessions,
+        now,
+        dayStart: DateTime.utc(2026, 11, 14),
+      )!;
       expect(main.origin, 'debug.app.a');
       final samples = [
         for (final v in store.records(HealthDataKind.hrvRmssd))
