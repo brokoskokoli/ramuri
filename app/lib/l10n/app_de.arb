@@ -1175,7 +1175,7 @@
   "@setupRestoreAction": {"description": "Schaltfläche in der Ersteinrichtung: Daten aus einem Archiv holen (WP12 D3)"},
   "archiveImportTitle": "Archiv importieren",
   "@archiveImportTitle": {"description": "Titel der Dialoge (WP12)"},
-  "archiveImportNotice": "Ein älteres Archiv kann Daten zurückbringen, die du inzwischen gelöscht hast. Zugangsdaten und Einwilligungen stehen nicht im Archiv: Einwilligungen gelten danach als nicht erteilt und werden bei Bedarf neu eingeholt.",
+  "archiveImportNotice": "Ein älteres Archiv kann Daten zurückbringen, die du inzwischen gelöscht hast. Zugangsdaten und Einwilligungen stehen nicht im Archiv: Einwilligungen gelten danach als nicht erteilt und werden bei Bedarf neu eingeholt. Profil und Einstellungen aus dem Archiv ersetzen die hier eingetragenen.",
   "@archiveImportNotice": {"description": "Hinweis aus OQ-0050, immer gezeigt (WP12, FR-0198)"},
   "archiveImportReplaceWarning": "Die App enthält schon Daten. Beim Import werden alle vorhandenen Daten (Läufe, Werte, Profil, Einstellungen, Geräte) endgültig durch den Inhalt des Archivs ersetzt. Das lässt sich nicht rückgängig machen.",
   "@archiveImportReplaceWarning": {"description": "Warnung bei nicht leerer App (WP12, FR-0198)"},
