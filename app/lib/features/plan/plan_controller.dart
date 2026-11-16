@@ -303,6 +303,8 @@ class PlanController extends ChangeNotifier {
       final warned = await warning.read() != null;
       final held = warningHeldFromSummary(last.summary) != null;
       if (warned != held) {
+        // Banner bzw. Erinnerung zuerst zeigen, nicht erst nach der Rechnung.
+        await _load();
         await _recalculate(
           PlanTrigger.feedback,
           goal,
@@ -905,16 +907,42 @@ class PlanController extends ChangeNotifier {
 
   /// Meldet Beschwerden, Krankheit oder Überlastung (FR-0203, Quelle
   /// `manual`): Warnsignal setzen, Plan zeigt nur Ruhetage. Doppeltes
-  /// Melden ändert nichts.
-  Future<PlanActionResult> reportWarning() => _act(() async {
-    final w = _warning;
-    if (w == null) throw StateError('kein Warnspeicher');
-    final r = await _warningService(
-      w,
-    ).report(source: WarningSource.manual, today: _today(), now: clock.now());
-    _fresh = null;
-    if (r.wasWritten) onChanged?.call();
-  });
+  /// Melden ändert nichts. Sobald das Signal gespeichert ist, lädt die Seite
+  /// (Banner) und [onSaved] meldet es; erst danach läuft die Neuberechnung,
+  /// solange ist [warningRecalculating] gesetzt. Scheitert sie, bleibt das
+  /// Signal gespeichert und das Ergebnis nennt den Fehler; das nächste
+  /// Öffnen stellt den Plan her ([open]).
+  Future<PlanActionResult> reportWarning({void Function()? onSaved}) =>
+      _serial(() async {
+        final w = _warning;
+        final service = w == null ? null : _warningService(w);
+        final saved = await _resultOf(() async {
+          if (service == null) throw StateError('kein Warnspeicher');
+          await service.mark(source: WarningSource.manual, today: _today());
+        });
+        if (saved != PlanActionResult.done) {
+          await _load();
+          return saved;
+        }
+        _warningRecalculating = true;
+        await _load();
+        if (!_disposed) onSaved?.call();
+        final result = await _resultOf(() async {
+          final r = await service!.recalculateReported(
+            today: _today(),
+            now: clock.now(),
+          );
+          _fresh = null;
+          if (r.wasWritten) onChanged?.call();
+        });
+        _warningRecalculating = false;
+        await _load();
+        return result;
+      });
+
+  /// Läuft nach dem Melden noch die Neuberechnung ([reportWarning])?
+  bool get warningRecalculating => _warningRecalculating;
+  bool _warningRecalculating = false;
 
   /// Hebt das Warnsignal auf; die Festlegungen des Nutzers gelten wieder.
   Future<PlanActionResult> liftWarning() => _act(() async {
@@ -1218,24 +1246,28 @@ class PlanController extends ChangeNotifier {
 
   Future<PlanActionResult> _act(Future<void> Function() action) =>
       _serial(() async {
-        PlanActionResult result;
-        try {
-          await action();
-          result = PlanActionResult.done;
-        } on _SavedNotPlanned {
-          result = PlanActionResult.savedNotPlanned;
-        } on StorageException catch (e) {
-          result = switch (e.failure) {
-            StorageFailure.rejected => PlanActionResult.rejected,
-            StorageFailure.notFound => PlanActionResult.notFound,
-            _ => PlanActionResult.failed,
-          };
-        } on Object {
-          result = PlanActionResult.failed;
-        }
+        final result = await _resultOf(action);
         await _load();
         return result;
       });
+
+  /// Führt [action] aus und übersetzt Fehler in ein [PlanActionResult].
+  Future<PlanActionResult> _resultOf(Future<void> Function() action) async {
+    try {
+      await action();
+      return PlanActionResult.done;
+    } on _SavedNotPlanned {
+      return PlanActionResult.savedNotPlanned;
+    } on StorageException catch (e) {
+      return switch (e.failure) {
+        StorageFailure.rejected => PlanActionResult.rejected,
+        StorageFailure.notFound => PlanActionResult.notFound,
+        _ => PlanActionResult.failed,
+      };
+    } on Object {
+      return PlanActionResult.failed;
+    }
+  }
 
   @override
   void dispose() {

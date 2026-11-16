@@ -41,7 +41,7 @@ enum Intake {
   ignoredFinished,
 
   /// Zeitstempel liegt vor Start bzw. Fortsetzen (nachgelieferter Altwert) oder
-  /// nicht nach dem letzten angenommenen Punkt (Uhr sprang zurück).
+  /// nicht nach dem letzten angenommenen Punkt (größeres Alter als dieser).
   ignoredStale,
 }
 
@@ -179,11 +179,16 @@ class RecordingSession {
   DateTime? _endedAt;
   DateTime? _activeSince;
 
-  // Zeitbasis (Review 2, Blocker 1): Die Systemuhr führt Start, Pausen,
-  // Lücken und Anzeige. Ein Punkt wird datiert mit Uhr beim Empfang minus
-  // Alter ([LocationSample.ageMs], Monotonuhr des Geräts); fehlt das Alter,
-  // gilt die Empfangszeit. Die GPS-Uhrzeit des Punkts geht nirgends ein, ein
-  // Vergleich mit der Systemuhr entfällt also. Gespeichert wird dieselbe Zeit.
+  // Zeitbasis (ADR-0005 Punkt „Zeitbasis“): Die Sitzungszeit [_now] führt
+  // Start, Pausen, Lücken, Runden und Anzeige. Sie ist der Anker (Wanduhr
+  // beim Start bzw. Fortsetzen nach einem Wiederanlauf) plus die monotone
+  // Laufzeit seither; eine Umstellung der Wanduhr im Lauf ändert also weder
+  // Abstände noch Reihenfolge. Ein Punkt wird datiert mit Sitzungszeit beim
+  // Empfang minus Alter ([LocationSample.ageMs], Monotonuhr des Geräts); fehlt
+  // das Alter, gilt die Empfangszeit. Die GPS-Uhrzeit des Punkts geht nirgends
+  // ein. Gespeichert wird dieselbe Zeit.
+  DateTime? _anchorWall;
+  Duration _anchorMono = Duration.zero;
 
   /// Bezugspunkt der Lückenprüfung in Empfangszeit (letzter akzeptierter Punkt
   /// bzw. Beginn des Abschnitts) und offene Lücke.
@@ -227,7 +232,7 @@ class RecordingSession {
     _autoPause = enabled;
     final pre = _pre;
     if (!_active || pre == null) return;
-    final now = _clock.now();
+    final now = _now();
     if (!enabled && _phase == RecordingPhase.autoPaused) {
       _phase = RecordingPhase.running;
       _emit(RecordingEventKind.autoPauseEnded, now);
@@ -260,6 +265,7 @@ class RecordingSession {
     _mode = mode;
     if (first != null) _belts.add(first);
     final now = _clock.now();
+    _anchor(now);
     _startedAt = now;
     _activeSince = now;
     _gapRef = now;
@@ -278,6 +284,8 @@ class RecordingSession {
   /// Strecke) und ihre Zeit zählt zur Gesamtzeit, nicht zur Bewegungszeit.
   /// Alle Lücken müssen geschlossen sein. Nur im Zustand `idle`; erzeugt keine
   /// Ereignisse, denn alles Wiederhergestellte steht schon im Speicher.
+  /// [resumeAt] ist der neue Anker der Sitzungszeit: ab hier zählt die
+  /// monotone Uhr dieses Prozesses (ADR-0005 Punkt „Zeitbasis“).
   ///
   /// Im Modus `treadmill` ([mode]) kommen Geschwindigkeit und Steigung aus
   /// `raw.beltSettings`; die Strecke ergibt sich wie im Lauf (die Unterbrechung
@@ -364,6 +372,7 @@ class RecordingSession {
     }
     _pre = pre;
     _startedAt = startedAt;
+    _anchor(resumeAt);
     _activeSince = resumeAt;
     _gapRef = resumeAt;
     _lastMark = lastMark;
@@ -376,7 +385,7 @@ class RecordingSession {
   /// Manuelle Pause; auch aus der erkannten Pause (manuell gewinnt).
   CommandResult pause() {
     if (!_active) return CommandResult.rejected;
-    final now = _clock.now();
+    final now = _now();
     _checkLoss(now);
     _closeLoss(now);
     if (_phase == RecordingPhase.autoPaused) {
@@ -391,7 +400,7 @@ class RecordingSession {
 
   CommandResult resume() {
     if (_phase != RecordingPhase.paused) return CommandResult.rejected;
-    final now = _clock.now();
+    final now = _now();
     _pre!.resume(now);
     _closeManualGap(now);
     _phase = RecordingPhase.running;
@@ -406,7 +415,7 @@ class RecordingSession {
   /// In der erkannten Pause erlaubt, der Lauf ist dort noch aktiv.
   CommandResult lap() {
     if (!_active) return CommandResult.rejected;
-    final now = _clock.now();
+    final now = _now();
     final moving = _movingAt(_pre!, now);
     final lap = RecordedLap(
       index: _laps.length + 1,
@@ -427,7 +436,7 @@ class RecordingSession {
     if (_phase == RecordingPhase.idle || _phase == RecordingPhase.finished) {
       return CommandResult.rejected;
     }
-    final now = _clock.now();
+    final now = _now();
     if (_active) {
       _checkLoss(now);
       _closeLoss(now);
@@ -443,7 +452,7 @@ class RecordingSession {
     return CommandResult.ok;
   }
 
-  /// Zeit des zuletzt von [addPosition] angenommenen Punkts (Uhrbasis).
+  /// Zeit des zuletzt von [addPosition] angenommenen Punkts (Sitzungszeit).
   DateTime? get lastPointTime => _lastPointTime;
 
   Intake addPosition(LocationSample s) {
@@ -454,11 +463,11 @@ class RecordingSession {
           ? Intake.ignoredFinished
           : Intake.ignoredNotActive;
     }
-    final now = _clock.now();
+    final now = _now();
     final age = Duration(milliseconds: math.max(0, s.ageMs ?? 0));
     final time = now.subtract(age);
-    // Springt die Uhr zurück, ist ein Punkt älter als der letzte angenommene:
-    // verworfen, bis die Zeit wieder vorn liegt (Verlust ≤ Sprungdauer).
+    // Ein Punkt, der nicht nach dem letzten angenommenen liegt (größeres Alter
+    // als sein Vorgänger), wird verworfen.
     final last = _lastPointTime;
     if (_phase == RecordingPhase.paused) {
       if (time.isBefore(_gaps.last.start)) return Intake.ignoredStale;
@@ -508,12 +517,19 @@ class RecordingSession {
     return Intake.processed;
   }
 
+  /// Sitzungszeit des zuletzt von [addHeartRate] angenommenen Pulswerts: die
+  /// Empfangszeit des Werts (Wanduhr des Adapters) in Sitzungszeit.
+  DateTime? get lastHeartRateTime => _lastHeartRateTime;
+  DateTime? _lastHeartRateTime;
+
   Intake addHeartRate(HeartRateReading r) {
-    final gate = _gate(r.time);
+    final time = _toSession(r.time);
+    final gate = _gate(time);
     if (gate != null) return gate;
+    _lastHeartRateTime = time;
     _pre!.addHeartRate(
       RawHeartRate(
-        time: r.time,
+        time: time,
         source: r.deviceId,
         bpm: r.beatsPerMinute,
         contact: r.contact,
@@ -525,7 +541,7 @@ class RecordingSession {
   /// Prüft die GPS-Lücke gegen die Uhr, wenn keine Punkte kommen. Der Host ruft
   /// es regelmäßig (etwa mit dem Anzeigetakt) auf.
   void tick() {
-    if (_active) _checkLoss(_clock.now());
+    if (_active) _checkLoss(_now());
   }
 
   /// Stand jetzt (nach dem Ende: eingefroren auf das Ende).
@@ -555,7 +571,7 @@ class RecordingSession {
         ),
       );
     }
-    final now = _endedAt ?? _clock.now();
+    final now = _endedAt ?? _now();
     if (_active) _checkLoss(now);
     final r = _finalResult ?? pre.result(at: now);
     final belt = _treadmill ? _beltTotals(now) : null;
@@ -593,7 +609,7 @@ class RecordingSession {
   RunPreprocessing? preprocessing() {
     final pre = _pre;
     if (pre == null) return null;
-    return _finalResult ?? pre.result(at: _clock.now());
+    return _finalResult ?? pre.result(at: _now());
   }
 
   /// Ändert die Bandgeschwindigkeit (m/s) ab jetzt (FR-0196). Auch in der
@@ -651,10 +667,10 @@ class RecordingSession {
     return CommandResult.ok;
   }
 
-  /// Zeit ab Laufbeginn; springt die Uhr zurück, bleibt die Reihenfolge der
-  /// Einstellungen erhalten (nie vor der letzten).
+  /// Zeit ab Laufbeginn in Sitzungszeit; nie vor der letzten Einstellung
+  /// (nach einem Wiederanlauf mit zurückgestellter Uhr).
   Duration _offsetNow() {
-    final off = _clock.now().difference(_startedAt!);
+    final off = _now().difference(_startedAt!);
     final last = _belts.lastOrNull?.offset ?? Duration.zero;
     return off < last ? last : off;
   }
@@ -681,6 +697,28 @@ class RecordingSession {
       ],
     );
     return (meters: track.meters, moving: track.moving);
+  }
+
+  /// Setzt den Anker der Sitzungszeit: [wall] gilt zur monotonen Zeit jetzt.
+  void _anchor(DateTime wall) {
+    _anchorWall = wall;
+    _anchorMono = _clock.monotonic();
+  }
+
+  /// Sitzungszeit (UTC): Anker plus monotone Laufzeit. Folgt keiner
+  /// Umstellung der Wanduhr; vor dem Start die Wanduhr.
+  DateTime _now() {
+    final a = _anchorWall;
+    if (a == null) return _clock.now();
+    return a.add(_clock.monotonic() - _anchorMono);
+  }
+
+  /// Rechnet einen Zeitpunkt der Wanduhr (etwa den Empfang eines Pulswerts im
+  /// Adapter) in Sitzungszeit um: minus den Versatz, um den die Wanduhr seit
+  /// dem Anker gesprungen ist. Ohne Sprung unverändert.
+  DateTime _toSession(DateTime wall) {
+    if (_anchorWall == null) return wall;
+    return wall.subtract(_clock.now().difference(_now()));
   }
 
   Intake? _gate(DateTime t) {
