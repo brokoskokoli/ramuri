@@ -241,6 +241,15 @@ class _Day extends StatelessWidget {
             planKindName(l, u.kind),
             planDurationText(l, u.minutes),
           );
+    // Zweite Zeile: Zielsetzung der Art (FR-0142) als Kurzzeile ohne
+    // Schlusspunkt, bei heute „· heute“ angehängt; ein Ruhetag mit Lauf hat
+    // keine Zielsetzung.
+    final purpose = u.kind == PlanUnitKind.rest
+        ? null
+        : planPurposeLine(l, u.kind);
+    final subline = purpose == null
+        ? (isToday ? l.planToday : null)
+        : (isToday ? '$purpose · ${l.planToday}' : purpose);
     return RamuriCard(
       key: key,
       radius: 16,
@@ -268,7 +277,12 @@ class _Day extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(label, style: t.titleSmall),
-                    if (isToday) Text(l.planToday, style: t.labelSmall),
+                    if (subline != null)
+                      Text(
+                        subline,
+                        key: const Key('plan_day_purpose'),
+                        style: t.bodySmall?.copyWith(color: cc.textMuted),
+                      ),
                   ],
                 ),
               ),

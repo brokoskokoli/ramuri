@@ -386,15 +386,17 @@ class _RecentList extends StatelessWidget {
     final c = RamuriColors.of(context);
     final locale = Localizations.localeOf(context).toString();
     final dayFmt = DateFormat.MMMEd(locale).add_Hm();
-    String reason(PpgQualityReason? r) => switch (r) {
+    String reason(MorningUnusableReason? r) => switch (r) {
       null => '',
-      PpgQualityReason.noFinger => l10n.morningReasonNoFinger,
-      PpgQualityReason.weakSignal ||
-      PpgQualityReason.flatSignal ||
-      PpgQualityReason.lowSignalQuality => l10n.morningReasonWeak,
-      PpgQualityReason.tooManyDisturbances ||
-      PpgQualityReason.someDisturbances ||
-      PpgQualityReason.timingNoise => l10n.morningReasonFewBeats,
+      MorningUnusableReason.restingHrOutOfRange =>
+        l10n.morningReasonHrOutOfRange,
+      MorningUnusableReason.noFinger => l10n.morningReasonNoFinger,
+      MorningUnusableReason.weakSignal ||
+      MorningUnusableReason.flatSignal ||
+      MorningUnusableReason.lowSignalQuality => l10n.morningReasonWeak,
+      MorningUnusableReason.tooManyDisturbances ||
+      MorningUnusableReason.someDisturbances ||
+      MorningUnusableReason.timingNoise => l10n.morningReasonFewBeats,
       _ => l10n.morningReasonInterrupted,
     };
     return Column(
@@ -428,7 +430,7 @@ class _RecentList extends StatelessWidget {
     TextTheme theme,
     RamuriColors c,
     DateFormat dayFmt,
-    String Function(PpgQualityReason?) reason,
+    String Function(MorningUnusableReason?) reason,
     MorningRow r,
   ) {
     final m = r.m;

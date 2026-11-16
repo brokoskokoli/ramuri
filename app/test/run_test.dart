@@ -571,7 +571,7 @@ void main() {
       expect(key('run_banner_paused'), findsOneWidget);
       expect((await d.session.runs.list()).single.state, RunState.paused);
       // Ohne Bestätigung endet nichts, auch nicht nach Zurück aus der Rückfrage.
-      expect(find.text('Lauf beendet'), findsNothing);
+      expect(key('run_done_status'), findsNothing);
     });
 
     testWidgets('Beenden gibt es nur pausiert (FR-0028)', (tester) async {
@@ -611,7 +611,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(key('run_finish_confirm'));
       await tester.pumpAndSettle();
-      expect(find.text('Lauf beendet'), findsOneWidget);
+      expect(key('sum_header'), findsOneWidget);
+      expect(find.text('Lauf beendet'), findsNothing);
       expect(text('run_done_status'), 'Der Lauf ist gespeichert.');
       expect(text('run_time'), '0:30');
       expect(key('run_pause'), findsNothing);

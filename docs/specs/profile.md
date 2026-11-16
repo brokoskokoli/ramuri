@@ -134,7 +134,7 @@ Unter Einstellungen → Über schaltet 10-maliges Tippen auf die Versionsnummer 
 - [ ] Ohne Entwicklermodus ist die Morgenmessung vor bestandener Validierung nirgends erreichbar (K62 Punkt 1).
 - [ ] Im Entwicklermodus erscheinen Ruhepuls und RMSSD der Morgenmessung in Trends, Kurven, Readiness und bei „adaptiv“ (FR-0216) im Plan wie nach bestandener Validierung, ohne Opt-in und ohne Kennzeichnung „experimentell“ oder „noch nicht geprüft“; höchstens ein unauffälliger Hinweis „Entwicklermodus aktiv“ (K62 Punkt 6, ersetzt die Kennzeichnung aus K61).
 - [ ] Jede Messung trägt intern dauerhaft das Merkmal „vor der Validierung gemessen“, wenn sie vor bestandener Validierung entsteht; es ändert weder Anzeige noch Rechnung.
-- [ ] Die Qualitätsgrenze je Messung (PAR-160K) gilt auch im Entwicklermodus; unbrauchbare Messungen werden verworfen.
+- [ ] Die Qualitätsgrenze je Messung (PAR-160K) gilt auch im Entwicklermodus: unbrauchbare Messungen, auch mit einem Ruhepuls außerhalb PAR-017, zählen nirgends; ohne Entwicklermodus werden sie verworfen, im Entwicklermodus mit Stufe „unbrauchbar“ und Grund, aber ohne Puls gespeichert.
 - [ ] Ist bei der Morgenmessung ein Brustgurt mit RR-Intervallen verbunden, speichert die App im Entwicklermodus dessen RR parallel zur Messung (K61 Punkt 3); ohne Entwicklermodus nicht.
 - [ ] Die Messpaare Kamera/Gurt lassen sich nur im Entwicklermodus als unverschlüsselte CSV teilen, mit Warnhinweis vor dem Teilen wie bei der Zusatzmetriken-CSV (K62 Punkt 4, K57). Die App zeigt keine Gurt-RMSSD und keine Differenzen.
 

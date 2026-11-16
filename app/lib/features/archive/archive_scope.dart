@@ -1,3 +1,4 @@
+import 'package:core/core.dart';
 import 'package:flutter/widgets.dart';
 
 import '../storage/storage_start.dart';
@@ -11,6 +12,7 @@ class ArchiveScope extends InheritedWidget {
     this.export,
     this.restore,
     this.verify,
+    this.headerCheck = precheckArchiveFile,
     this.start,
     required super.child,
   });
@@ -18,6 +20,9 @@ class ArchiveScope extends InheritedWidget {
   final ArchiveExportFactory? export;
   final ArchiveRestoreFactory? restore;
   final ArchiveVerifier? verify;
+
+  /// Vorprüfung des Kopfes vor der Passwortabfrage (FR-0198).
+  final ArchiveHeaderCheck headerCheck;
 
   /// Start der Speicherschicht: Der Import übergibt ihm die neue Sitzung.
   final StorageStartController? start;
@@ -33,6 +38,11 @@ class ArchiveScope extends InheritedWidget {
   static ArchiveVerifier? verifyOf(BuildContext context) =>
       context.getInheritedWidgetOfExactType<ArchiveScope>()?.verify;
 
+  /// Ohne Scope die Prüfung der echten Datei.
+  static ArchiveHeaderCheck headerCheckOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<ArchiveScope>()?.headerCheck ??
+      precheckArchiveFile;
+
   static StorageStartController? startOf(BuildContext context) =>
       context.getInheritedWidgetOfExactType<ArchiveScope>()?.start;
 
@@ -41,5 +51,6 @@ class ArchiveScope extends InheritedWidget {
       export != old.export ||
       restore != old.restore ||
       verify != old.verify ||
+      headerCheck != old.headerCheck ||
       start != old.start;
 }
