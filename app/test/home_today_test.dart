@@ -10,6 +10,8 @@ import 'package:running_app/features/home/home_screen.dart';
 import 'package:running_app/features/home/home_start_row.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
+import 'package:running_app/features/plan/plan_texts.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/features/run/run_flow_screen.dart';
 
 import 'app_harness.dart';
@@ -714,6 +716,134 @@ void main() {
       );
       expect(text('home_week_goal_km'), contains('ca. '));
     });
+  });
+
+  // Kopf und Kennzahlen der Zusammenfassung nach dem Lauf (FR-0037, FR-0205):
+  // „Datum · Uhrzeit · Art“ wie im Design, die vier Kennzahlen ohne Scrollen
+  // über „Fertig“.
+  group('Zusammenfassung nach dem Lauf', () {
+    /// Startet um 07:40 Ortszeit (06:40 UTC, Versatz +1 h), läuft 30 s und
+    /// beendet; die Abschlussseite bleibt offen.
+    Future<void> finishAt0740(
+      Device d,
+      WidgetTester tester,
+      String start, {
+      void Function()? whileRunning,
+    }) async {
+      d.clock.set(DateTime.utc(2026, 11, 11, 6, 40));
+      d.clock.utcOffset = const Duration(hours: 1);
+      await tester.tap(key(start));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
+      await walk(d, tester, 30);
+      whileRunning?.call();
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      await tester.tap(key('run_finish'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_finish_confirm'));
+      await tester.pumpAndSettle();
+    }
+
+    for (final locale in ['de', 'en']) {
+      for (final fromPlan in [true, false]) {
+        testWidgets('Kopf: Datum · Uhrzeit des Starts'
+            '${fromPlan ? ' · Art der Einheit' : ', ohne Einheit keine Art'} '
+            '($locale)', (tester) async {
+          final d = Device();
+          final s = await _preopen(d, days: {1, 3, 5});
+          final unit = (await _unitToday(s))!;
+          await d.start(tester, Locale(locale));
+          await finishAt0740(
+            d,
+            tester,
+            fromPlan ? 'home_start_unit' : 'home_start_run',
+          );
+          final l10n = lookupAppLocalizations(Locale(locale));
+          final kind = planKindName(l10n, unit.kind);
+          final date = locale == 'de'
+              ? 'Mi., 11. Nov. · 07:40'
+              : 'Wed, Nov 11 · 7:40 AM';
+          expect(text('sum_header'), fromPlan ? '$date · $kind' : date);
+          expect(find.text(l10n.runDoneTitle), findsNothing);
+          // Überschrift für Bedienungshilfen.
+          expect(
+            tester.getSemantics(key('sum_header')),
+            matchesSemantics(label: text('sum_header'), isHeader: true),
+          );
+          expect(key('run_done_status'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+
+    for (final size in [const Size(390, 844), const Size(411, 914)]) {
+      testWidgets('${size.width.toInt()}x${size.height.toInt()}, '
+          'Schriftfaktor 1,0: Kennzahlen über „Fertig“ ohne Scrollen', (
+        tester,
+      ) async {
+        final d = Device();
+        await _preopen(d, days: {1, 3, 5});
+        await d.start(tester, const Locale('de'));
+        tester.view.physicalSize = size;
+        await tester.pumpAndSettle();
+        // Mit Einheit aus dem Plan: der Hinweis „Aus dem Plan“ steht zusätzlich
+        // vor den Kacheln (der engste Fall).
+        await finishAt0740(d, tester, 'home_start_unit');
+        expect(key('sum_from_plan'), findsOneWidget);
+        final close = tester.getRect(key('run_done_close'));
+        final list = tester.getRect(find.byType(Scrollable).first);
+        for (final k in [
+          'run_distance',
+          'run_moving_time',
+          'run_time',
+          'run_avg_pace',
+        ]) {
+          final r = tester.getRect(key(k));
+          expect(r.top, greaterThanOrEqualTo(list.top), reason: k);
+          expect(r.bottom, lessThanOrEqualTo(list.bottom), reason: k);
+          expect(r.bottom, lessThanOrEqualTo(close.top), reason: k);
+          expect(r.right, lessThanOrEqualTo(size.width), reason: k);
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    for (final dark in [false, true]) {
+      testWidgets('360 dp, Schriftfaktor 1,3, ${dark ? 'dunkel' : 'hell'}: '
+          'kein Überlauf', (tester) async {
+        if (dark) {
+          tester.platformDispatcher.platformBrightnessTestValue =
+              Brightness.dark;
+          addTearDown(
+            tester.platformDispatcher.clearPlatformBrightnessTestValue,
+          );
+        }
+        final d = Device();
+        await _preopen(d, days: {1, 3, 5});
+        await d.start(tester, const Locale('de'));
+        // Größe und Schrift erst im Lauf: geprüft wird die Abschlussseite.
+        await finishAt0740(
+          d,
+          tester,
+          'home_start_unit',
+          whileRunning: () {
+            tester.view.physicalSize = const Size(360, 780);
+            tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+          },
+        );
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        expect(key('sum_header'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.scrollUntilVisible(
+          key('sum_explain_sources'),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 
   // Knopfzeile wie im Design (FR-0209, FR-0205, FR-0208): „Einheit starten“
