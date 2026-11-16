@@ -446,7 +446,10 @@ class _Body extends StatelessWidget {
   }
 
   /// Grund, warum Zonen oder TRIMP fehlen: der gespeicherte Grund eines Laufs,
-  /// sonst „nicht gespeichert“ (ältere Läufe), sonst allgemein.
+  /// sonst „nicht gespeichert“ (ältere Läufe), sonst allgemein. Hatte dieser
+  /// Lauf keinen Puls, nennt auch ein Grund aus der Profilbasis den fehlenden
+  /// Puls: Die Rechnung prüft die Basis vor den Pulswerten (FR-0057, wie in der
+  /// Zusammenfassung). Mit Puls bleibt der Hinweis auf das Profil (FR-0055).
   String _loadReason(
     List<RunOverview> runs,
     UnavailableReason? Function(StoredRunLoad) reason,
@@ -455,11 +458,23 @@ class _Body extends StatelessWidget {
   ) {
     for (final r in runs) {
       final why = reason(r.load);
-      if (why != null) return reasonText(l10n, why);
+      if (why == null) continue;
+      if (r.averageHeartRateBpm == null && _isProfileBasis(why)) {
+        return l10n.sumNoHeartRate;
+      }
+      return reasonText(l10n, why);
     }
     if (runs.isNotEmpty && !runs.any((r) => stored(r.load))) {
       return l10n.sumLoadNotStored;
     }
     return l10n.statNoValue;
   }
+
+  static bool _isProfileBasis(UnavailableReason why) => switch (why) {
+    UnavailableReason.missingMaxHeartRate ||
+    UnavailableReason.missingRestingHeartRate ||
+    UnavailableReason.maxNotAboveResting ||
+    UnavailableReason.reserveTooSmall => true,
+    _ => false,
+  };
 }

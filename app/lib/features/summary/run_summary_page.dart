@@ -155,7 +155,7 @@ class RunSummaryPage extends StatelessWidget {
           if (summary.isTreadmill)
             treadmillNote(context, l10n)
           else
-            RunRouteSection(route: detail.route),
+            RunRouteSection(route: detail.route, height: routeSummaryHeight),
           const SizedBox(height: 14),
           Wrap(
             spacing: 24,

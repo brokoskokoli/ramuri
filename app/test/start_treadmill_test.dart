@@ -250,8 +250,16 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(LiveRunView), findsNothing);
         expect(
-          find.textContaining('bisher aufgezeichnete Teil'),
+          find.text(
+            'Der Hintergrunddienst konnte nicht gestartet werden. Der bisher '
+            'aufgezeichnete Teil ist gespeichert. Versuche das Fortsetzen '
+            'erneut.',
+          ),
           findsOneWidget,
+        );
+        expect(
+          find.textContaining('Fortsetzen hat nicht geklappt'),
+          findsNothing,
         );
         expect(find.textContaining('nichts aufgezeichnet'), findsNothing);
         expect(key('run_start_retry'), findsOneWidget);

@@ -64,6 +64,13 @@ class Device {
   /// Archiv-Import (WP12); `null`: nicht verdrahtet.
   ArchiveRestoreFactory? archiveRestore;
 
+  /// Vorprüfung des Archivkopfes (FR-0198). Die Pfade der Tests haben keine
+  /// Datei: Standard ist "Kopf gültig"; Tests setzen eine Fremddatei.
+  ArchiveHeaderCheck archiveHeaderCheck = (_) async {};
+
+  /// Pfade, die [archiveHeaderCheck] geprüft hat.
+  final List<String> headerChecks = [];
+
   /// Kartenanbieter (WP13); `null`: nicht verdrahtet.
   MapServices? map;
 
@@ -137,6 +144,10 @@ class Device {
           fileHandoff: fileHandoff,
           archiveExport: archiveExport,
           archiveRestore: archiveRestore,
+          archiveHeaderCheck: (path) {
+            headerChecks.add(path);
+            return archiveHeaderCheck(path);
+          },
           map: map,
           reminders: reminders,
           healthConnect: healthConnect,

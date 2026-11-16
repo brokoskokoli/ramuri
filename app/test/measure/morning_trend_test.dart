@@ -51,6 +51,25 @@ MorningMeasurement _m(
 DateTime _day(int back, {int hour = 6}) =>
     DateTime.utc(2026, 11, 10 - back, hour, 30);
 
+/// Puls außerhalb PAR-017 im Entwicklermodus gestern im Fenster: unbrauchbar
+/// gespeichert (an dem Tag zählt sonst nichts).
+MorningMeasurement _outOfRange(double bpm) => buildMorningMeasurement(
+  result: PpgMeasurement(
+    quality: PpgQuality.good,
+    reasons: const [],
+    bpm: bpm,
+    rmssdMs: 40,
+    timingNoiseMs: 10,
+    intervalsMs: const [450, 460],
+  ),
+  measuredAt: _day(1),
+  utcOffset: Duration.zero,
+  posture: RestingPosture.lying,
+  deviceManufacturer: 'T',
+  deviceModel: 'M',
+  keepUnusable: true,
+)!;
+
 /// Eine Reihe: 5 liegende und 2 sitzende zählende Tage (heute 52,4); dazu
 /// Nicht-Zählendes: zweite Messung heute (70), außerhalb des Fensters gestern
 /// (99), anderes Gerät, ältere als 14 Tage; mit [dev] eine unbrauchbare.
@@ -86,7 +105,7 @@ Future<StorageSession> _session({required bool dev, bool optIn = false}) async {
         method: ppgMethod,
         methodVersion: ppgMethodVersion,
         quality: PpgQuality.unusable,
-        unusableReason: PpgQualityReason.tooManyDisturbances,
+        unusableReason: MorningUnusableReason.tooManyDisturbances,
         cameraIntervalsMs: const [],
         beforeValidation: true,
         outsideWindow: false,
@@ -278,6 +297,60 @@ void main() {
         expect(user.first.status, MorningRowStatus.later);
       },
     );
+  });
+
+  group('Puls außerhalb PAR-017 (Entwicklermodus)', () {
+    for (final bpm in [29.0, 121.0]) {
+      test(
+        '$bpm bpm: kein Trendwert, Zeile unbrauchbar, Reihe ohne den Tag',
+        () async {
+          final s = await _session(dev: true);
+          final store = (s as MorningStorage).morning;
+          await store.add(_outOfRange(bpm));
+          final all = [for (final e in await store.list()) e.value];
+          final x = all.singleWhere(
+            (m) =>
+                m.unusableReason == MorningUnusableReason.restingHrOutOfRange,
+          );
+          expect(x.restingHrBpm, isNull);
+          for (final pick in <double? Function(MorningMeasurement)>[
+            (m) => m.roundedRestingHr,
+            (m) => m.rmssdMs,
+          ]) {
+            final v = morningTrendValues(
+              all,
+              manufacturer: 'T',
+              model: 'M',
+              nowUtc: _clock.now(),
+              utcOffset: Duration.zero,
+              pick: pick,
+            );
+            expect(v.any((e) => e.dayIndex == 12), isFalse);
+          }
+          expect(countingMorningMeasurements(all), isNot(contains(x)));
+          final row = morningRecentRows(
+            all,
+            manufacturer: 'T',
+            model: 'M',
+            developerMode: true,
+          ).singleWhere((r) => identical(r.m, x));
+          expect(row.status, MorningRowStatus.unusable);
+        },
+      );
+    }
+
+    testWidgets('Liste zeigt unbrauchbar mit Grund, ohne Wert', (tester) async {
+      final s = await _session(dev: true);
+      await (s as MorningStorage).morning.add(_outOfRange(121));
+      await _pump(tester, s, state: _state(supine: ValidationState.failed));
+      expect(
+        find.textContaining(
+          'unbrauchbar, zählt nicht · Grund: Puls außerhalb von 30 bis 120',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('121'), findsNothing);
+    });
   });
 
   group('Seite', () {

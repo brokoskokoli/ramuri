@@ -70,6 +70,7 @@ class _RunningAppState extends State<RunningApp> {
             export: dependencies.archiveExport,
             restore: dependencies.archiveRestore,
             verify: dependencies.archiveVerify,
+            headerCheck: dependencies.archiveHeaderCheck,
             start: dependencies.storageStart,
             // Ohne Region behält Flutter den letzten Stil; Heute hat keine
             // App-Leiste. Tiefere Regionen (Dunkel-Fläche, App-Leisten) gehen
