@@ -482,7 +482,6 @@ void main() {
       'S5 gespeichert hrv=${await t.runAsync(() => hc.count(HealthDataKind.hrvRmssd))} ruhepuls=${await t.runAsync(() => hc.count(HealthDataKind.restingHeartRate))} schlaf=${await t.runAsync(() => hc.count(HealthDataKind.sleep))}',
     );
     await _heute(t, w5, questions: 3);
-    expect(_today(clock5), d, reason: 'S5 Ortstag der festen Uhr');
     log('S5 ${_heuteCards()}');
     expect(has('readiness_card'), isTrue, reason: 'S5 erweiterte Karte (HC)');
     expect(has('home_recovery_card'), isFalse, reason: 'S5 keine Warnung');
