@@ -247,6 +247,72 @@ void main() {
       expect(labels, hasLength(4));
     });
 
+    testWidgets('Wochenschritt: vorige Woche und zurück; vor der ersten '
+        'Planwoche ist „vorige Woche“ gesperrt', (tester) async {
+      final d = await started(tester);
+      // Montag, 1.6.2026: Ziel mit Plan anlegen.
+      final c = PlanController(
+        session: d.session,
+        clock: d.clock,
+        reader: PlanDataReader(
+          session: d.session,
+          clock: d.clock,
+          loadRuns: () async => const [],
+        ),
+      );
+      expect(
+        await tester.runAsync(
+          () => c.saveGoal(
+            _goal(
+              target: DateTime.utc(2026, 10, 4),
+              createdAt: DateTime.utc(2026, 6, 1),
+            ),
+          ),
+        ),
+        PlanActionResult.done,
+      );
+      c.dispose();
+      await tester.tap(key('home_plan'));
+      await tester.pumpAndSettle();
+      IconButton button(String k) => tester.widget<IconButton>(key(k));
+      String summary() =>
+          tester.widget<Text>(key('plan_week_summary')).data ?? '';
+
+      expect(find.text('Woche 1'), findsOneWidget);
+      final first = summary();
+      expect(button('plan_week_previous').onPressed, isNull);
+      expect(button('plan_week_next').onPressed, isNotNull);
+
+      await tester.tap(key('plan_week_next'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('plan_week_next'));
+      await tester.pumpAndSettle();
+      expect(find.text('Woche 3'), findsOneWidget);
+      final third = summary();
+
+      await tester.tap(key('plan_week_previous'));
+      await tester.pumpAndSettle();
+      expect(find.text('Woche 2'), findsOneWidget);
+      expect(button('plan_week_previous').onPressed, isNotNull);
+
+      await tester.tap(key('plan_week_next'));
+      await tester.pumpAndSettle();
+      expect(find.text('Woche 3'), findsOneWidget);
+      expect(summary(), third);
+
+      await tester.tap(key('plan_week_previous'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('plan_week_previous'));
+      await tester.pumpAndSettle();
+      expect(find.text('Woche 1'), findsOneWidget);
+      expect(summary(), first);
+      expect(button('plan_week_previous').onPressed, isNull);
+      // Gesperrt: Tippen ändert nichts.
+      await tester.tap(key('plan_week_previous'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('Woche 1'), findsOneWidget);
+    });
+
     testWidgets('Woche und Scrollposition bleiben beim Tab-Wechsel', (
       tester,
     ) async {

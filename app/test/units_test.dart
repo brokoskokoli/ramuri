@@ -187,6 +187,22 @@ void main() {
       expect(km.pace(305), '5:05 min/km'); // führende Null
     });
 
+    test('Grenze einer Tempospanne (PAR-208): nach innen gerundet, damit die '
+        'angezeigte Grenze selbst gilt', () {
+      // 150 s/km = 241,4 s/mi: 4:01 min/mi wäre schneller als die Grenze.
+      expect(mi.paceLimit(150, fastest: true), '4:02 min/mi');
+      // 900 s/km = 1448,4 s/mi: 24:09 min/mi wäre langsamer als die Grenze.
+      expect(mi.paceLimit(900, fastest: false), '24:08 min/mi');
+      expect(mi.pace(150), '4:01 min/mi'); // gewöhnliche Rundung bleibt
+      // Ganze Sekunden in Kilometern bleiben, wie sie sind.
+      expect(km.paceLimit(150, fastest: true), '2:30 min/km');
+      expect(km.paceLimit(900, fastest: false), '15:00 min/km');
+      expect(km.paceLimit(150.4, fastest: true), '2:31 min/km');
+      expect(km.paceLimit(899.6, fastest: false), '14:59 min/km');
+      expect(km.paceLimit(0, fastest: true), '–');
+      expect(km.paceLimit(double.nan, fastest: false), '–');
+    });
+
     test('ohne Wert: Strich', () {
       for (final f in [km, mi]) {
         expect(f.distance(null), '–');
