@@ -309,8 +309,7 @@ class _PlanScreenState extends State<PlanScreen> {
     }
   }
 
-  /// „Meldung aufheben“ (FR-0203): die Meldung endet nur durch den Nutzer.
-  /// Schalter „Plananpassung an Erholung“ (FR-0216).
+  /// Schalter „Plan an Gesundheitsdaten anpassen“ (FR-0216).
   Future<void> _setAdaptation(PlanAdaptationMode mode) async {
     if (_busy) return;
     final l = AppLocalizations.of(context);
@@ -324,6 +323,7 @@ class _PlanScreenState extends State<PlanScreen> {
     }
   }
 
+  /// „Meldung aufheben“ (FR-0203): die Meldung endet nur durch den Nutzer.
   Future<void> _liftWarning() async {
     if (_busy) return;
     final l = AppLocalizations.of(context);
@@ -659,11 +659,6 @@ class _PlanScreenState extends State<PlanScreen> {
             onEdit: () => _openGoalForm(s.goal),
             onRecalculate: _recalculating ? null : _recalculate,
           ),
-          const SizedBox(height: 10),
-          PlanAdaptationCard(
-            mode: s.adaptation,
-            onChanged: _busy ? null : _setAdaptation,
-          ),
           for (final h in global) ...[const SizedBox(height: 10), h],
           if (s.feedbackDue) ...[
             const SizedBox(height: 10),
@@ -683,6 +678,12 @@ class _PlanScreenState extends State<PlanScreen> {
               onOpen: _openUnit,
               onStart: widget.onStartUnit == null ? null : _startUnit,
             ),
+          ),
+          // Schalter nach der Woche: die Woche bleibt oben (FR-0208).
+          const SizedBox(height: 16),
+          PlanAdaptationCard(
+            mode: s.adaptation,
+            onChanged: _busy ? null : _setAdaptation,
           ),
         ],
       ),

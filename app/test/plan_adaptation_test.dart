@@ -287,8 +287,16 @@ void main() {
       final c = e.controller();
       addTearDown(c.dispose);
       await pump(tester, e, c);
+      // Der Schalter steht nach der Woche.
+      await tester.scrollUntilVisible(
+        key('plan_adapt_card'),
+        200,
+        scrollable: find
+            .descendant(of: key('plan_list'), matching: find.byType(Scrollable))
+            .first,
+      );
       expect(key('plan_adapt_card'), findsOneWidget);
-      expect(find.text('Plananpassung an Erholung'), findsOneWidget);
+      expect(find.text('Plan an Gesundheitsdaten anpassen'), findsOneWidget);
       expect(find.textContaining('Bei „adaptiv“'), findsOneWidget);
       final sw = tester.widget<SegmentedButton<PlanAdaptationMode>>(
         key('plan_adapt_switch'),
