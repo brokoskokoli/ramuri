@@ -12,6 +12,7 @@ import '../settings/app_settings.dart';
 import 'fitness_explanations.dart';
 import 'fitness_section.dart';
 import 'load_card.dart';
+import 'period_date.dart';
 import 'prediction_card.dart';
 import 'progress_header.dart';
 import 'statistics_view.dart';
@@ -255,7 +256,15 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     final material = MaterialLocalizations.of(context);
     final formatter = AppSettingsScope.formatterOf(context);
     final period = _period(data.overviews);
-    String dateText(String day) => material.formatMediumDate(_date(day));
+    final year = _date(_today).year;
+    // Beide Enden eines Zeitraums mit Jahr, sobald eines nicht im laufenden
+    // Jahr liegt (FR-0044).
+    String dateText(String day, List<String> span) => periodDateText(
+      context,
+      _date(day),
+      currentYear: year,
+      span: [for (final d in span) _date(d)],
+    );
 
     Widget chip(StatisticsKind kind, String key, String label) => RamuriChip(
       key: Key(key),
@@ -279,8 +288,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               textAlign: TextAlign.center,
               _kind == StatisticsKind.week
                   ? l10n.statWeekLabel(
-                      dateText(period!.firstDay!),
-                      dateText(period.lastDay!),
+                      dateText(period!.firstDay!, [period.lastDay!]),
+                      dateText(period.lastDay!, [period.firstDay!]),
                     )
                   : material.formatMonthYear(_date(period!.firstDay!)),
             ),
@@ -300,12 +309,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           OutlinedButton(
             key: const Key('stat_from'),
             onPressed: () => _pick(from: true),
-            child: Text(l10n.statFrom(dateText(_from))),
+            child: Text(l10n.statFrom(dateText(_from, [_to]))),
           ),
           OutlinedButton(
             key: const Key('stat_to'),
             onPressed: () => _pick(from: false),
-            child: Text(l10n.statTo(dateText(_to))),
+            child: Text(l10n.statTo(dateText(_to, [_from]))),
           ),
         ],
       ),
@@ -321,7 +330,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                   for (final o in data.overviews)
                     DropdownMenuItem(
                       value: o.run.id,
-                      child: Text(runLabel(material, o.run), softWrap: true),
+                      child: Text(
+                        runLabel(context, o.run, currentYear: year),
+                        softWrap: true,
+                      ),
                     ),
                 ],
                 onChanged: (id) => setState(() => _view.runId = id),
@@ -430,6 +442,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 fitness: data.fitness,
                 session: widget.session,
                 onExplain: widget.onExplain,
+                today: _today,
               ),
             ],
           ),
@@ -440,11 +453,17 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 }
 
 /// Beginn eines Laufs in der Ortszeit zum Laufende, für die Auswahl.
-String runLabel(MaterialLocalizations material, StoredRun run) {
+/// Liegt der Lauf nicht im laufenden Jahr, steht das Jahr dabei (FR-0044).
+String runLabel(
+  BuildContext context,
+  StoredRun run, {
+  required int currentYear,
+}) {
+  final material = MaterialLocalizations.of(context);
   final offset = run.endedUtcOffset;
   final start = offset == null
       ? run.startedAt.toLocal()
       : run.startedAt.toUtc().add(offset);
-  return '${material.formatMediumDate(start)}, '
+  return '${periodDateText(context, start, currentYear: currentYear)}, '
       '${material.formatTimeOfDay(TimeOfDay.fromDateTime(start))}';
 }
