@@ -442,15 +442,44 @@ void main() {
     expect(await session.consents.all(), isEmpty);
   });
 
+  test(
+    'Alles löschen, dann Profil und Einstellungen der Ersteinrichtung: '
+    'gilt als leer, Import ohne Zurücksetzen, Profil aus dem Archiv',
+    () async {
+      await addOldData();
+      expect(await ArchiveRestoreService.isEmpty(session), isFalse);
+      await session.deleteAll();
+      // Was die Ersteinrichtung schreibt: Profil, Einstellungen, setup.done.
+      final at = DateTime.utc(2026, 11, 15);
+      await session.profile.save(
+        const ProfileRecord(birthYear: 1985, maxHeartRateBpm: 181),
+      );
+      await session.settings.set(SettingKeys.setupDone, '1', at: at);
+      await session.settings.set(
+        SettingKeys.distanceUnit,
+        DistanceUnit.miles.storageValue,
+        at: at,
+      );
+      expect(await ArchiveRestoreService.isEmpty(session), isTrue);
+
+      session = await service().restore(path: archivePath, password: _password);
+
+      expect(await _dump(_dbOf(session)), sourceDump);
+      final p = await session.profile.read();
+      expect(
+        p.birthYear,
+        1990,
+        reason: 'Profil des Archivs ersetzt das eigene',
+      );
+      expect(p.maxHeartRateBpm, 190);
+    },
+  );
+
   group('nicht leere App', () {
     final cases = <String, Future<void> Function(StorageSession)>{
       'Lauf': (s) async => _dbOf(s).customStatement(
         "INSERT INTO runs VALUES (77, 'finished', 1, 2, NULL, 'gps')",
       ),
-      'Profil': (s) async =>
-          s.profile.save(const ProfileRecord(birthYear: 1990)),
-      'Einstellung': (s) =>
-          s.settings.set('unit.pace', 'x', at: DateTime.utc(2026)),
       'Morgenmessung': (s) async => (s as MorningStorage).morning.add(
         MorningMeasurement(
           measuredAt: DateTime.utc(2026, 11, 1, 6),

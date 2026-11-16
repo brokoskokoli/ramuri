@@ -143,6 +143,8 @@ Ein Gesamtexport lässt sich wieder importieren, damit ein Gerätewechsel mögli
 
 **Festlegung (SRC-003, Maintainer 2026-11-15):** Die App prüft den unverschlüsselten Kopf der gewählten Datei, bevor sie nach dem Passwort fragt; eine fremde Datei oder eine nicht lesbare Version meldet sie ohne Passwortabfrage. Die Vorprüfung wendet die Leser-Regeln 1 bis 4 des Kopfes an ([Archivvertrag](../contracts/archive.md), Abschnitt 2); die vollständige Prüfung beim Einlesen bleibt.
 
+**Festlegung (SRC-003, Maintainer 2026-11-15):** Leer ist die App, wenn sie keine Läufe, nachgetragenen Trainings, Ziele und Pläne, Referenzleistungen, Geräte, importierten Gesundheitsdaten und Morgenmessungen enthält; ein Profil aus der Ersteinrichtung zählt nicht und wird durch das des Archivs ersetzt. Der Hinweis vor dem Import nennt das. Prüfung und Einzelheiten: [Archivvertrag](../contracts/archive.md), Abschnitt 4.6.
+
 **Akzeptanzkriterien:**
 - [ ] Nach Export und Reimport auf einem anderen Gerät sind Läufe, Einstellungen und berechnete Werte vorhanden.
 - [ ] Der Reimport prüft die Datei; eine beschädigte oder falsche Datei ändert keine Daten (OQ-0050).
