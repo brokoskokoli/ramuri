@@ -149,7 +149,7 @@ class _RunSummaryBodyState extends State<RunSummaryBody> {
         pre: summary.preprocessing,
         start: summary.run.startedAt,
         end: summary.run.endedAt!,
-        pauses: summary.manualPauses,
+        pauses: summary.chartGaps,
         belt: summary.belt,
       ));
       final unit = widget.splitUnitMeters;

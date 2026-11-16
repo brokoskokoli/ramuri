@@ -13,8 +13,8 @@ import 'history_summary_test.dart' show openHistory, started, text;
 const double _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
 
 /// Beendeter Lauf mit Höhe: [seconds] mit 3 m/s. In [noPosition] (Sekunden von,
-/// bis) gibt es keine Positionen und keine Höhe, in [pause] eine manuelle
-/// Pause ohne Messwerte.
+/// bis) gibt es keine Positionen und keine Höhe, in [pause] eine Lücke der Art
+/// [pauseKind] (Standard: manuelle Pause) ohne Messwerte.
 Future<int> seedDetailRun(
   StorageSession s,
   DateTime start, {
@@ -22,6 +22,7 @@ Future<int> seedDetailRun(
   bool heartRate = true,
   (int, int)? noPosition,
   (int, int)? pause,
+  RunGapKind pauseKind = RunGapKind.manualPause,
   (int, int)? noHeartRate,
   double Function(int second)? altitude,
 }) async {
@@ -67,7 +68,7 @@ Future<int> seedDetailRun(
   if (pause != null) {
     final id = await s.markers.openGap(
       run.id,
-      RunGapKind.manualPause,
+      pauseKind,
       start.add(Duration(seconds: pause.$1)),
     );
     await s.markers.closeGap(id, start.add(Duration(seconds: pause.$2)));
@@ -564,6 +565,47 @@ void main() {
     expect(chartPaths('detail_compare'), hasLength(4));
     expect(chart('detail_compare').pauses.single.start, 200);
     expect(chart('detail_compare').pauses.single.end, 260);
+  });
+
+  testWidgets('Ausfall nach Absturz: Lücke wie eine Pause (FR-0042)', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final d = await started(tester);
+    await openDetail(
+      tester,
+      d,
+      () => seedDetailRun(
+        d.session,
+        DateTime.utc(2030, 1, 1, 8),
+        pause: (200, 260),
+        pauseKind: RunGapKind.interruption,
+      ),
+    );
+    // Keine Linie über den Ausfall: jede Reihe zerfällt in zwei Pfade.
+    expect(drawnParts('detail_compare', 0), 2);
+    expect(drawnParts('detail_compare', 1), 2);
+    expect(chartPaths('detail_altitude'), hasLength(2));
+    expect(chartPaths('detail_compare'), hasLength(4));
+    for (final id in ['detail_compare', 'detail_altitude']) {
+      for (final layer in chart(id).layers) {
+        final parts = layer.parts.where((p) => p.isNotEmpty).toList();
+        expect(parts.first.last.seconds, lessThanOrEqualTo(200));
+        expect(parts.last.first.seconds, greaterThanOrEqualTo(260));
+      }
+    }
+    // Gleiche Darstellung wie eine Pause: als Pausenfläche hinterlegt.
+    expect(chart('detail_compare').pauses.single.start, 200);
+    expect(chart('detail_compare').pauses.single.end, 260);
+    expect(chart('detail_altitude').pauses.single.start, 200);
+    // Bedienungshilfe nennt die Lücke wie bei einer Pause.
+    expect(
+      tester.getSemantics(key('detail_altitude')).label,
+      contains(
+        '2 zusammenhängende Abschnitte; Lücken und Pausen sind nicht verbunden.',
+      ),
+    );
+    semantics.dispose();
   });
 
   testWidgets('Pulsdiagramm allein: Glättungshinweis genau einmal vorgelesen', (
