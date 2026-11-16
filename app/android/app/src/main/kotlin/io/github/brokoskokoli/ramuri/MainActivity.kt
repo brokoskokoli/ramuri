@@ -20,14 +20,7 @@ class MainActivity : FlutterActivity() {
         // Der Handler hält diese Activity; die Engine bleibt ohne sie bestehen.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "ramuri/permissions")
             .setMethodCallHandler(null)
-        pendingLocation?.error("detached", null, null)
-        pendingLocation = null
-        pendingNotifications?.error("detached", null, null)
-        pendingNotifications = null
-        pendingActivity?.error("detached", null, null)
-        pendingActivity = null
-        pendingCamera?.error("detached", null, null)
-        pendingCamera = null
+        permissionCalls.detachAll()
         fileHandoff?.detach()
         fileHandoff = null
         health?.detach()
@@ -132,10 +125,20 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    private var pendingLocation: MethodChannel.Result? = null
-    private var pendingNotifications: MethodChannel.Result? = null
-    private var pendingActivity: MethodChannel.Result? = null
-    private var pendingCamera: MethodChannel.Result? = null
+    /** Offene Anfragen je Code; Health Connect bekommt die Antwort zuerst. */
+    private val permissionCalls = PermissionCalls(
+        object : PermissionAnswers<MethodChannel.Result> {
+            override fun success(result: MethodChannel.Result, value: Any?) = result.success(value)
+            override fun error(result: MethodChannel.Result, code: String) = result.error(code, null, null)
+        },
+        health = { requestCode -> health?.onRequestPermissionsResult(requestCode) == true },
+        states = linkedMapOf(
+            LOCATION_REQUEST to { locationAccess() },
+            NOTIFICATION_REQUEST to { if (notificationsGranted()) "granted" else "denied" },
+            ACTIVITY_REQUEST to { StepSensor.availability(this) },
+            CAMERA_REQUEST to { PpgCamera.availability(this) },
+        ),
+    )
 
     private fun requestCamera(result: MethodChannel.Result) {
         val state = PpgCamera.availability(this)
@@ -143,11 +146,10 @@ class MainActivity : FlutterActivity() {
             result.success(state)
             return
         }
-        if (pendingCamera != null) {
+        if (!permissionCalls.open(CAMERA_REQUEST, result)) {
             result.error("busy", null, null)
             return
         }
-        pendingCamera = result
         requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_REQUEST)
     }
 
@@ -156,11 +158,10 @@ class MainActivity : FlutterActivity() {
             result.success(StepSensor.availability(this))
             return
         }
-        if (pendingActivity != null) {
+        if (!permissionCalls.open(ACTIVITY_REQUEST, result)) {
             result.error("busy", null, null)
             return
         }
-        pendingActivity = result
         requestPermissions(arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), ACTIVITY_REQUEST)
     }
 
@@ -173,11 +174,10 @@ class MainActivity : FlutterActivity() {
             result.success("granted")
             return
         }
-        if (pendingNotifications != null) {
+        if (!permissionCalls.open(NOTIFICATION_REQUEST, result)) {
             result.error("busy", null, null)
             return
         }
-        pendingNotifications = result
         requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_REQUEST)
     }
 
@@ -193,11 +193,10 @@ class MainActivity : FlutterActivity() {
             result.success("precise")
             return
         }
-        if (pendingLocation != null) {
+        if (!permissionCalls.open(LOCATION_REQUEST, result)) {
             result.error("busy", null, null)
             return
         }
-        pendingLocation = result
         // Ab Android 12 immer beide anfordern; der Nutzer kann "ungefähr" wählen.
         requestPermissions(
             arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
@@ -207,23 +206,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (health?.onRequestPermissionsResult(requestCode) == true) return
-        if (requestCode == LOCATION_REQUEST) {
-            pendingLocation?.success(locationAccess())
-            pendingLocation = null
-        }
-        if (requestCode == ACTIVITY_REQUEST) {
-            pendingActivity?.success(StepSensor.availability(this))
-            pendingActivity = null
-        }
-        if (requestCode == CAMERA_REQUEST) {
-            pendingCamera?.success(PpgCamera.availability(this))
-            pendingCamera = null
-        }
-        if (requestCode == NOTIFICATION_REQUEST) {
-            pendingNotifications?.success(if (notificationsGranted()) "granted" else "denied")
-            pendingNotifications = null
-        }
+        permissionCalls.onRequestPermissionsResult(requestCode)
     }
 
     /** `versionName (versionCode)` aus dem installierten Paket. */
