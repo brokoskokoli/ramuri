@@ -418,48 +418,43 @@ class _Sheet extends StatelessWidget {
     final paused = controller.phase == RecordingPhase.paused;
 
     final scaler = MediaQuery.textScalerOf(context);
-    final valueStyle = RamuriType.of(context).sheetValue;
     final tileValueStyle = text.titleLarge!.copyWith(color: colors.text);
     final placeholderStyle = text.labelMedium!.copyWith(color: colors.text);
-    // Feste Höhe je Wertzeile: Wert und Ersatztext stehen in derselben Zeile,
-    // das Blatt ändert seine Höhe nicht, wenn der erste Wert erscheint.
-    final bigLine = _lineHeightOf(valueStyle, scaler);
+    // Feste Höhe der Wertzeile einer Kachel: Wert und Ersatztext stehen in
+    // derselben Zeile, das Blatt ändert seine Höhe nicht, wenn der erste Wert
+    // erscheint. (Die große Strecke schrumpft in der Höhe der Zeit daneben.)
     final tileLine = math.max(
       _lineHeightOf(tileValueStyle, scaler),
       _lineHeightOf(placeholderStyle, scaler, lines: 2),
     );
 
-    Widget big(Key key, String title, String value, {bool end = false}) {
-      final alignment = end ? Alignment.bottomRight : Alignment.bottomLeft;
-      return Expanded(
-        child: Column(
-          crossAxisAlignment: end
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
-          children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: alignment,
-              child: Text(
-                title,
-                style: text.labelMedium?.copyWith(
-                  color: label,
-                  fontWeight: FontWeight.w700,
+    Widget big(Key key, String title, String value, {bool end = false}) =>
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: end ? Alignment.bottomRight : Alignment.bottomLeft,
+            child: Column(
+              crossAxisAlignment: end
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: text.labelMedium?.copyWith(
+                    color: label,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
+                Text(
+                  value,
+                  key: key,
+                  maxLines: 1,
+                  style: RamuriType.of(context).sheetValue,
+                ),
+              ],
             ),
-            SizedBox(
-              height: bigLine,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: alignment,
-                child: Text(value, key: key, maxLines: 1, style: valueStyle),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+          ),
+        );
 
     // Die Einheit steht in der Beschriftung (zweizeilig erlaubt), die Zahl
     // darunter ohne Einheit; sie schrumpft nur, wenn sie nicht passt, und

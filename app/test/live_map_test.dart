@@ -708,12 +708,21 @@ void main() {
       _testRun('Höhe gleich vor und nach dem ersten Wert, Schrift $scale', (
         tester,
       ) async {
+        // Schmal und hoch: Die Höchsthöhe des Blatts greift nicht, gemessen wird seine eigene Höhe.
+        tester.view.physicalSize = const Size(360, 1600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
         tester.platformDispatcher.textScaleFactorTestValue = scale;
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
         final w = _World(consent: ConsentState.revoked);
         await w.startRun();
         await tester.pumpWidget(_app(w));
         await _toMap(tester);
+        expect(
+          tester.getSize(key('live_map_sheet')).height,
+          lessThan(1600 * 2 / 3),
+          reason: 'das Blatt ist nicht begrenzt',
+        );
         expect(
           find.descendant(
             of: key('live_map_sheet'),
