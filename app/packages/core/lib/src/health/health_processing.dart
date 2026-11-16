@@ -31,7 +31,8 @@ class HealthProcessing {
     DateTime now, {
     DateTime? dayStart,
   }) {
-    final oldest = dayStart ?? localDayStart(now);
+    // GEGENPROBE alte 16-h-Regel, wird zurueckgenommen.
+    final oldest = now.subtract(const Duration(hours: 16));
     final best = <String, SleepSession>{};
     for (final s in sessions) {
       if (s.end.isAfter(now) || s.end.isBefore(oldest)) {

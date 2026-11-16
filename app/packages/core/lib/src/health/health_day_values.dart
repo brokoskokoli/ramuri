@@ -78,7 +78,8 @@ List<Map<String, HealthDailyValue>> hrvDayValues(
         .where((s) => !s.end.isBefore(d.start) && s.end.isBefore(d.end))
         .toList();
     // Bewertet zum Tagesende: jede Sitzung, die an diesem Tag endet, zählt.
-    final main = p.mainSleep(ending, d.end, dayStart: d.start);
+    // GEGENPROBE alte 16-h-Regel, wird zurueckgenommen.
+    final main = p.mainSleep(ending, d.start.add(const Duration(hours: 16)));
     out.add(p.hrvDaily(samples, main));
   }
   return out;
