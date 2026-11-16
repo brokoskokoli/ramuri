@@ -48,6 +48,42 @@ class HealthConnectController extends ChangeNotifier {
   /// Gesetzt, solange eine Löschfrage auf dem Bildschirm steht (je Sitzung höchstens eine Abfolge zugleich).
   bool asking = false;
 
+  /// Arten, deren Löschdialog gerade steht oder deren Antwort noch gespeichert wird, mit dem Ende dieser Frage.
+  final Map<HealthDataKind, Future<void>> _asked = {};
+
+  /// Belegt die Löschfrage einer Art, bevor sie gezeigt wird; `null`, wenn zu dieser Art schon eine offen ist (je Art
+  /// höchstens eine zugleich, SEC-0007). Freigabe mit [endQuestion].
+  Completer<void>? beginQuestion(HealthDataKind kind) {
+    if (_asked.containsKey(kind)) return null;
+    final done = Completer<void>();
+    _asked[kind] = done.future;
+    return done;
+  }
+
+  /// Gibt die mit [beginQuestion] belegte Löschfrage frei.
+  void endQuestion(HealthDataKind kind, Completer<void> done) {
+    if (identical(_asked[kind], done.future)) _asked.remove(kind);
+    if (!done.isCompleted) done.complete();
+  }
+
+  /// Wartet, bis keine Löschfrage mehr steht (auch die des Schalters).
+  Future<void> questionsSettled() async {
+    while (_asked.isNotEmpty) {
+      await Future.wait(List.of(_asked.values));
+    }
+  }
+
+  /// Ob die Löschfrage der Art noch offen ist: vorgemerkt und gespeichert offen. Lässt sich das Gespeicherte nicht
+  /// lesen, gilt sie als offen (lieber erneut fragen).
+  Future<bool> isQuestionOpen(HealthDataKind kind) async {
+    if (!questions.contains(kind)) return false;
+    try {
+      return await consents.isDeleteQuestionOpen(healthSourceKey(kind));
+    } catch (_) {
+      return true;
+    }
+  }
+
   /// Arten, deren Frage in dieser Sitzung beim Öffnen der App schon mit „Abbrechen“ zurückgestellt wurde (nicht erneut
   /// beim nächsten Öffnen von „Heute“); die Seite selbst fragt immer.
   final Set<HealthDataKind> deferred = {};

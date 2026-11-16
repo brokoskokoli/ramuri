@@ -34,13 +34,26 @@ class _StorageGateState extends State<StorageGate> {
     if (widget.controller.state is StorageLoading) widget.controller.start();
   }
 
+  var _logoRequested = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Das Logo von "Willkommen" (FR-0207) lädt, während der Start noch die
+    // Datenbank öffnet: so erscheint es im selben Bild wie der Text.
+    if (!_logoRequested) {
+      _logoRequested = true;
+      precacheRamuriLogo(context, style: RamuriLogoStyle.stackedOnDark);
+    }
+  }
+
   bool _canRestore(BuildContext context) =>
       ArchiveScope.verifyOf(context) != null &&
       ArchiveScope.restoreOf(context) != null &&
       FileHandoffScope.of(context) != null;
 
   /// Weg "Aus Archiv wiederherstellen" im Dialog "nicht zu öffnen" (SEC-0009):
-  /// Datei wählen, Passwort, das Archiv vollständig prüfen, ohne etwas zu
+  /// Datei wählen, Kopf vorprüfen, Passwort, das Archiv vollständig prüfen, ohne etwas zu
   /// schreiben, erst dann die Bestätigung, dass die alte Datei gelöscht wird.
   /// Bis zur Bestätigung bleibt alles unberührt; ein falsches Passwort kostet
   /// nichts. Danach Neubeginn und Einspielen in die leere Datenbank, bevor die
@@ -67,6 +80,9 @@ class _StorageGateState extends State<StorageGate> {
       }
       final path = pick.path;
       if (path == null || !mounted) return;
+      final check = ArchiveScope.headerCheckOf(context);
+      if (!await precheckPickedArchive(context, check, path)) return;
+      if (!mounted) return;
       var wrong = false;
       String password;
       while (true) {
@@ -105,6 +121,9 @@ class _StorageGateState extends State<StorageGate> {
         builder: (_) => const RestoreConfirmDialog(),
       );
       if (confirmed != true) return;
+      // Fehler des Einspielens erst zeigen, wenn der Start nicht mehr lädt:
+      // sonst stünde der Dialog über der Ladeansicht.
+      Object? failure;
       await widget.controller.resetStorage(
         restoreInto: (fresh) async {
           if (!mounted) return fresh;
@@ -124,22 +143,26 @@ class _StorageGateState extends State<StorageGate> {
           } on ArchiveImportException catch (e) {
             if (e.failure == ArchiveImportFailure.cancelled) {
               say(l10n.archiveImportCancelled);
-            } else if (mounted) {
-              await showArchiveImportError(context, e);
+            } else {
+              failure = e;
             }
             return fresh;
           } on ArchiveRestoreException catch (e) {
-            if (mounted) await showArchiveImportError(context, e);
+            failure = e;
             // Das Öffnen nach dem Tausch scheiterte: der Start meldet "nicht
             // zu öffnen", "Erneut versuchen" öffnet die Datenbank normal.
             if (e.failure == ArchiveRestoreFailure.reopenFailed) rethrow;
             return e.session ?? fresh;
           } on Object catch (e) {
-            if (mounted) await showArchiveImportError(context, e);
+            failure = e;
             return fresh;
           }
         },
       );
+      final shown = failure;
+      if (shown != null && mounted) {
+        await showArchiveImportError(context, shown);
+      }
     } finally {
       await handoff.discardPicked();
     }

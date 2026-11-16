@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/home/home_recovery.dart';
 import 'package:running_app/features/measure/morning_trend_screen.dart';
 import 'package:running_app/features/readiness/readiness_service.dart';
 import 'package:running_app/features/readiness/readiness_texts.dart';
@@ -15,11 +17,14 @@ import 'history_summary_test.dart' show seedRun;
 // WP34 Teil D1: Dienst (Eingaben aus den Ports, Einwilligung) und Karte
 // „Erholung“ auf „Heute“ in den vier Fällen, mit Warnsignal davor und mit
 // Entwicklermodus. Alle Werte sind erfunden. Heute ist Samstag, 14.11.2026,
-// mittags (Versatz 0); die Tage sind lokale Mitternächte wie in den Tests des
-// Modells.
+// mittags Ortszeit (Versatz der Zone des Prozesses); die Tage sind lokale
+// Mitternächte wie in den Tests des Modells.
 
 final Uint8List _appKey = Uint8List.fromList(List.filled(32, 7));
-final DateTime _now = DateTime.utc(2026, 11, 14, 12);
+// Mittag Ortszeit; die Uhr trägt den Versatz der Zeitzone des Prozesses, wie
+// die echte Uhr (die Tage bildet localDayRanges in derselben Zone).
+final DateTime _now = DateTime(2026, 11, 14, 12).toUtc();
+final Duration _offset = _now.toLocal().timeZoneOffset;
 
 DateTime _at(int dayIdx, int h) => DateTime(2026, 10, 17 + dayIdx, h).toUtc();
 
@@ -111,12 +116,37 @@ class _GrantedPort implements HealthConnectPort {
   }) async => const HealthPage([], null);
 }
 
+/// Wie [_GrantedPort], aber das Lesen wartet, bis der Test [release] ruft:
+/// ein verzögerter Import beim Öffnen von „Heute“.
+class _HeldPort extends _GrantedPort {
+  final Completer<void> _gate = Completer<void>();
+  int reads = 0;
+  bool get released => _gate.isCompleted;
+  void release() {
+    if (!_gate.isCompleted) _gate.complete();
+  }
+
+  @override
+  Future<HealthPage> readPage({
+    required HealthDataKind kind,
+    required DateTime from,
+    required DateTime to,
+    String? pageToken,
+    int? pageSize,
+  }) async {
+    reads++;
+    await _gate.future;
+    return const HealthPage([], null);
+  }
+}
+
 Future<StorageSession> _preopen(
   Device d, {
   Set<HealthDataKind>? granted,
 }) async {
   d.healthConnect = _GrantedPort(granted: granted);
   d.clock.set(_now);
+  d.clock.utcOffset = _offset;
   final s = await d.storage.open(_appKey);
   await s.settings.set(SettingKeys.setupDone, '1', at: DateTime.utc(2026));
   return s;
@@ -197,12 +227,12 @@ Future<void> _start(
   await tester.pumpAndSettle();
 }
 
-/// Morgenmessungen der Kamera an [days] Tagen bis heute (Versatz 0, 07:00),
+/// Morgenmessungen der Kamera an [days] Tagen bis heute (07:00 Ortszeit),
 /// Werte mit Streuung; die von heute trägt [todayBand].
 MorningMeasurement _cam(int i, {int days = 29, SleepBand? todayBand}) =>
     MorningMeasurement(
-      measuredAt: DateTime.utc(2026, 10, 17 + i, 7),
-      utcOffset: Duration.zero,
+      measuredAt: DateTime(2026, 10, 17 + i, 7).toUtc(),
+      utcOffset: DateTime(2026, 10, 17 + i, 7).timeZoneOffset,
       posture: RestingPosture.lying,
       deviceManufacturer: 'H',
       deviceModel: 'M1',
@@ -625,7 +655,7 @@ void main() {
       await (s as MorningStorage).morning.add(
         MorningMeasurement(
           measuredAt: _now.subtract(const Duration(hours: 5)),
-          utcOffset: Duration.zero,
+          utcOffset: _offset,
           posture: RestingPosture.lying,
           deviceManufacturer: 'H',
           deviceModel: 'M1',
@@ -661,7 +691,7 @@ void main() {
         await (s as MorningStorage).morning.add(
           MorningMeasurement(
             measuredAt: _now.subtract(const Duration(hours: 5)),
-            utcOffset: Duration.zero,
+            utcOffset: _offset,
             posture: RestingPosture.lying,
             deviceManufacturer: 'H',
             deviceModel: 'M1',
@@ -741,6 +771,96 @@ void main() {
       expect(_key('home_warning_reminder'), findsNothing);
       expect(_key('readiness_card'), findsOneWidget);
       expect(gone, 0, reason: 'Karte fehlte in $gone Frames beim Neuladen');
+    });
+
+    testWidgets('Warnsignal aufheben am Listenende, Import verzögert: '
+        'Erholungskarte fehlt in keinem Frame (FR-0105, FR-0203)', (
+      tester,
+    ) async {
+      final d = Device();
+      final s = await _preopen(d);
+      // Der Import beim Öffnen hängt, bis der Test ihn freigibt; danach lädt
+      // „Heute“ die Erholung neu, während das Aufheben noch nachlädt.
+      final port = _HeldPort();
+      d.healthConnect = port;
+      await _seedHealth(s);
+      await _grant(s, _allKinds);
+      await (s as WarningStorage).warning.set(
+        WarningSignal(
+          reportedOn: DateTime.utc(2026, 11, 4),
+          source: WarningSource.manual,
+        ),
+      );
+      await _start(tester, d);
+      // Kleines Fenster: Der Aufheben-Knopf liegt am Ende der Liste. Fällt die
+      // Erinnerung weg, wird die Liste kürzer, die Position springt zurück
+      // und die Liste baut die Karten neu auf.
+      tester.view.physicalSize = const Size(411, 500);
+      await tester.pumpAndSettle();
+      expect(_key('readiness_card'), findsOneWidget);
+      expect(port.reads, greaterThan(0), reason: 'Import wartet');
+      final lift = _key('home_warning_lift');
+      await tester.ensureVisible(lift);
+      await tester.pumpAndSettle();
+      await tester.tap(lift);
+      var gone = 0;
+      var split = 0;
+      for (var i = 0; i < 120; i++) {
+        if (i == 2) port.release();
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+        if (_key('readiness_card').evaluate().isEmpty) gone++;
+        // Planstand und Hinweise wechseln zusammen: keine Warnsignal-Karte
+        // mehr, sobald die Erinnerung fehlt.
+        if (_key('home_warning_reminder').evaluate().isEmpty &&
+            _key('home_recovery_card').evaluate().isNotEmpty) {
+          split++;
+        }
+      }
+      expect(port.released, isTrue);
+      expect(split, 0, reason: 'Erinnerung weg, Warnsignal-Karte noch da');
+      expect(_key('home_warning_reminder'), findsNothing);
+      expect(_key('home_recovery_card'), findsNothing);
+      expect(_key('readiness_card'), findsOneWidget);
+      expect(gone, 0, reason: 'Karte fehlte in $gone Frames beim Neuladen');
+    });
+
+    testWidgets('Hinweise: Öffnen und Neuladen lesen sie je genau einmal', (
+      tester,
+    ) async {
+      final d = Device();
+      final s = await _preopen(d);
+      await (s as WarningStorage).warning.set(
+        WarningSignal(
+          reportedOn: DateTime.utc(2026, 11, 13),
+          source: WarningSource.manual,
+        ),
+      );
+      HomeHints.debugLoadCount = 0;
+      addTearDown(() => HomeHints.debugLoadCount = 0);
+      await _start(tester, d);
+      for (var i = 0; i < 10; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(HomeHints.debugLoadCount, 1, reason: 'Öffnen');
+      expect(_key('home_recovery_card'), findsOneWidget);
+      // Neuer Tag beim Fortsetzen: „Heute“ lädt neu (_reload).
+      d.clock.set(_now.add(const Duration(days: 1)));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      for (var i = 0; i < 10; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(HomeHints.debugLoadCount, 2, reason: 'Neuladen');
+      expect(_key('home_recovery_card'), findsOneWidget);
     });
 
     testWidgets('Löschfrage auf Heute widerruft: keine Health-Connect-Werte '

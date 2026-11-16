@@ -401,9 +401,9 @@ void main() {
 
     gate.complete();
     await started;
-    await confirming;
+    expect(await confirming, isNotNull);
     expect(service.confirms, 1);
-    expect(recalc.phase, RecalculationPhase.done);
+    expect(recalc.phase, RecalculationPhase.idle);
   });
 
   test('confirm läuft nicht parallel zur Berechnung nach dem Lauf', () async {

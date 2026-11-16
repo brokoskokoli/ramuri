@@ -4,10 +4,14 @@ import 'dart:typed_data';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/app.dart';
+import 'package:running_app/app_dependencies.dart';
+import 'package:running_app/features/storage/storage_start.dart';
 import 'package:running_app/ui/ui.dart';
 
 import 'app_harness.dart';
 import 'settings_gate_storage.dart';
+import 'storage_world.dart';
 
 // Willkommen (FR-0207): vor der ersten Einrichtung, einmal.
 
@@ -60,6 +64,56 @@ void main() {
     await tester.pumpAndSettle();
     expect(key('welcome_screen'), findsNothing);
     expect(key('setup_skip'), findsOneWidget);
+  });
+
+  testWidgets('Logo im selben Bild wie der Text: im ersten Bild mit dem Satz '
+      'ist das Logo schon geladen', (tester) async {
+    tester.platformDispatcher.localesTestValue = [const Locale('de')];
+    addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+    final w = World();
+    // Der Start hält vor dem Öffnen an, wie auf dem Gerät, während Schlüssel
+    // und Datenbank laden.
+    final opening = Completer<void>();
+    final controller = StorageStartController(
+      keyStore: w.keys,
+      generateKey: () => keyOf(1),
+      wire: () async {
+        await opening.future;
+        return StorageWiring(storage: w.storage, files: w.files);
+      },
+    );
+    await tester.pumpWidget(
+      RunningApp(dependencies: AppDependencies(storageStart: controller)),
+    );
+    expect(key('welcome_tagline'), findsNothing);
+    // Das Vorladen läuft schon; Bilder dekodiert nur die echte Zeit.
+    final image = ramuriLogoImage(
+      RamuriLogoStyle.stackedOnDark,
+      Brightness.dark,
+    );
+    final cacheKey = (await tester.runAsync(
+      () => image.obtainKey(ImageConfiguration.empty),
+    ))!;
+    for (var i = 0; i < 400; i++) {
+      final status = PaintingBinding.instance.imageCache.statusForKey(cacheKey);
+      if (status.tracked && !status.pending) break;
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    }
+    final status = PaintingBinding.instance.imageCache.statusForKey(cacheKey);
+    expect(status.tracked && !status.pending, isTrue);
+    opening.complete();
+    // Bild für Bild weiter, bis der Satz zum ersten Mal steht.
+    for (var i = 0; i < 50 && key('welcome_tagline').evaluate().isEmpty; i++) {
+      await tester.pump();
+    }
+    expect(key('welcome_tagline'), findsOneWidget);
+    final raw = tester.widget<RawImage>(
+      find.descendant(
+        of: find.byType(RamuriLogo),
+        matching: find.byType(RawImage),
+      ),
+    );
+    expect(raw.image, isNotNull, reason: 'Logo fehlt im ersten Bild');
   });
 
   testWidgets('erster Start (Englisch)', (tester) async {
