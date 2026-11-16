@@ -7,15 +7,18 @@
 //  3 Entwicklermodus an: erweiterte Stufe (Kamera), Warnsignal vor der Einschaetzung,
 //    Detailseite, Verlauf (Kamerareihen), Karten flackern beim Aufheben nicht
 //  4 Entwicklermodus wieder aus: Basis
-//  5 Health-Connect-Reihen (Einwilligung HRV, Ruhepuls, Schlaf), Detailseite, Verlauf mit Luecke
+//  5 Health-Connect-Reihen (Einwilligung HRV, Ruhepuls, Schlaf), feste Uhr 09:00
+//    Ortszeit: Schlaf zaehlt (PAR-164), Detailseite, Verlauf mit Luecke
 //  6 beide Quellen: Verlauf trennt die Quellen
-//  7 Ortstag: Uhr nahe Mitternacht (Emulator-Zeitzone), Tageswechsel gegenueber UTC
+//  7 Ortstag: Uhr nahe Mitternacht (Emulator-Zeitzone), Tageswechsel gegenueber UTC;
+//    Schlaf zaehlt bis Mitternacht des Endtags, danach Grund "Schlaf fehlt" (PAR-164)
 // Ausgabe: Zeilen "E2E_<zeit> ...", synthetische Werte und Texte. Marker "SHOT <name>".
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:running_app/features/readiness/readiness_history_screen.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/system_clock.dart';
 
 import 'support/e2e_support.dart';
@@ -168,6 +171,33 @@ String _list(String prefix, [int max = 8]) {
     out.add(txt('$prefix$i'));
   }
   return out.isEmpty ? '<keine>' : out.join(' | ');
+}
+
+/// Schlaf auf der Detailseite (PAR-164, FR-0108, FR-0109). Zaehlt er
+/// ([counts]), steht er als Faktor mit seinem Teilwert, nicht unter den
+/// fehlenden Faktoren, und kein Grund nennt fehlenden Schlaf; sonst umgekehrt.
+/// Die Uhr ist fest, das Ergebnis haengt nicht an der Uhrzeit des Laufs.
+void _expectSleep(WidgetTester t, String label, {required bool counts}) {
+  final l = AppLocalizations.of(
+    t.element(find.byKey(const Key('readiness_detail'))),
+  );
+  final reasons = [
+    for (var i = 0; has('readiness_detail_reason_$i'); i++)
+      txt('readiness_detail_reason_$i'),
+  ];
+  final sleepReason = reasons.contains(l.readinessReasonSleepMissing);
+  final factor = has('readiness_detail_factor_sleep');
+  final missing = has('readiness_detail_missing_sleep');
+  log(
+    '$label schlaf faktor=$factor fehlt=$missing grund_schlaf_fehlt=$sleepReason',
+  );
+  expect(factor, counts, reason: '$label Schlaf als Faktor: $counts');
+  expect(missing, !counts, reason: '$label Schlaf fehlt: ${!counts}');
+  expect(
+    sleepReason,
+    !counts,
+    reason: '$label Grund "Schlaf fehlt": ${!counts}',
+  );
 }
 
 typedef _State = ({
@@ -441,12 +471,18 @@ void main() {
       await _seedHealth(s, d);
       await _consent(s, clock, true);
     });
-    await _state(t, s, clock, 'S5');
+    // Feste Uhr 09:00 Ortszeit am Tag d: die Sitzung der Nacht endet um 06:00
+    // desselben Ortstags und zaehlt (PAR-164), gleich zu welcher Uhrzeit der
+    // Lauf startet.
+    final clock5 = _FixedClock(_at(d, 0, 9));
+    final w5 = buildWorld(clock: clock5);
+    await _state(t, s, clock5, 'S5');
     final hc = (s as HealthStorage).health;
     log(
       'S5 gespeichert hrv=${await t.runAsync(() => hc.count(HealthDataKind.hrvRmssd))} ruhepuls=${await t.runAsync(() => hc.count(HealthDataKind.restingHeartRate))} schlaf=${await t.runAsync(() => hc.count(HealthDataKind.sleep))}',
     );
-    await _heute(t, w, questions: 3);
+    await _heute(t, w5, questions: 3);
+    expect(_today(clock5), d, reason: 'S5 Ortstag der festen Uhr');
     log('S5 ${_heuteCards()}');
     expect(has('readiness_card'), isTrue, reason: 'S5 erweiterte Karte (HC)');
     expect(has('home_recovery_card'), isFalse, reason: 'S5 keine Warnung');
@@ -488,6 +524,7 @@ void main() {
     log(
       'S5 detail drivers=${has('readiness_detail_drivers')} factors=${has('readiness_detail_factors')} missing=${has('readiness_detail_missing')}',
     );
+    _expectSleep(t, 'S5', counts: true);
     await shot(t, 's5_detail');
     await tapKey(t, 'readiness_detail_series_link');
     await waitFor(t, () => has('readiness_history'), 'Verlauf HC');
@@ -591,6 +628,9 @@ void main() {
       log(
         'S7 $label detail facts=${_list('readiness_detail_fact_')} reasons=${_list('readiness_detail_reason_')}',
       );
+      // PAR-164: die Sitzung bis 06:00 des Tages d zaehlt bis Mitternacht;
+      // nach Mitternacht ohne neue Sitzung fehlt der Schlaf der letzten Nacht.
+      _expectSleep(t, 'S7 $label', counts: days == 0);
       await tapKey(t, 'readiness_detail_series_link');
       await waitFor(t, () => has('readiness_history'), 'Verlauf $label');
       await pumpFor(t, const Duration(milliseconds: 500));
