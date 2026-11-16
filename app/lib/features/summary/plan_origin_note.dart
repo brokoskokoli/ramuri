@@ -5,9 +5,6 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../plan/plan_texts.dart';
 
-/// „Aus dem Plan“ (WP24 Teil E): zeigt in der Zusammenfassung, zu welcher
-/// Plan-Einheit der Lauf zugeordnet ist (`plan_units.run_id`). Ohne Zuordnung
-/// (und ohne ausstehende Wahl), ohne Plan oder bei einem Lesefehler bleibt die Stelle leer. Nur Anzeige.
 /// Die Plan-Einheit, der der Lauf [runId] zugeordnet ist; `null` ohne Plan,
 /// ohne Zuordnung oder bei einem Lesefehler. Die Zuordnung liegt am Starttag
 /// des Laufs; ein Fenster von ±2 Tagen deckt jede Zeitzone ab, geprüft wird
@@ -31,6 +28,9 @@ Future<PlanUnit?> planUnitOfRun(StorageSession session, int runId) async {
   return null;
 }
 
+/// „Aus dem Plan“ (WP24 Teil E): zeigt in der Zusammenfassung, zu welcher
+/// Plan-Einheit der Lauf zugeordnet ist (`plan_units.run_id`). Ohne Zuordnung
+/// (und ohne ausstehende Wahl), ohne Plan oder bei einem Lesefehler bleibt die Stelle leer. Nur Anzeige.
 class PlanOriginNote extends StatefulWidget {
   const PlanOriginNote({
     super.key,
