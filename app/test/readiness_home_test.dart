@@ -17,11 +17,14 @@ import 'history_summary_test.dart' show seedRun;
 // WP34 Teil D1: Dienst (Eingaben aus den Ports, Einwilligung) und Karte
 // „Erholung“ auf „Heute“ in den vier Fällen, mit Warnsignal davor und mit
 // Entwicklermodus. Alle Werte sind erfunden. Heute ist Samstag, 14.11.2026,
-// mittags (Versatz 0); die Tage sind lokale Mitternächte wie in den Tests des
-// Modells.
+// mittags Ortszeit (Versatz der Zone des Prozesses); die Tage sind lokale
+// Mitternächte wie in den Tests des Modells.
 
 final Uint8List _appKey = Uint8List.fromList(List.filled(32, 7));
-final DateTime _now = DateTime.utc(2026, 11, 14, 12);
+// Mittag Ortszeit; die Uhr trägt den Versatz der Zeitzone des Prozesses, wie
+// die echte Uhr (die Tage bildet localDayRanges in derselben Zone).
+final DateTime _now = DateTime(2026, 11, 14, 12).toUtc();
+final Duration _offset = _now.toLocal().timeZoneOffset;
 
 DateTime _at(int dayIdx, int h) => DateTime(2026, 10, 17 + dayIdx, h).toUtc();
 
@@ -143,6 +146,7 @@ Future<StorageSession> _preopen(
 }) async {
   d.healthConnect = _GrantedPort(granted: granted);
   d.clock.set(_now);
+  d.clock.utcOffset = _offset;
   final s = await d.storage.open(_appKey);
   await s.settings.set(SettingKeys.setupDone, '1', at: DateTime.utc(2026));
   return s;
@@ -223,12 +227,12 @@ Future<void> _start(
   await tester.pumpAndSettle();
 }
 
-/// Morgenmessungen der Kamera an [days] Tagen bis heute (Versatz 0, 07:00),
+/// Morgenmessungen der Kamera an [days] Tagen bis heute (07:00 Ortszeit),
 /// Werte mit Streuung; die von heute trägt [todayBand].
 MorningMeasurement _cam(int i, {int days = 29, SleepBand? todayBand}) =>
     MorningMeasurement(
-      measuredAt: DateTime.utc(2026, 10, 17 + i, 7),
-      utcOffset: Duration.zero,
+      measuredAt: DateTime(2026, 10, 17 + i, 7).toUtc(),
+      utcOffset: DateTime(2026, 10, 17 + i, 7).timeZoneOffset,
       posture: RestingPosture.lying,
       deviceManufacturer: 'H',
       deviceModel: 'M1',
@@ -651,7 +655,7 @@ void main() {
       await (s as MorningStorage).morning.add(
         MorningMeasurement(
           measuredAt: _now.subtract(const Duration(hours: 5)),
-          utcOffset: Duration.zero,
+          utcOffset: _offset,
           posture: RestingPosture.lying,
           deviceManufacturer: 'H',
           deviceModel: 'M1',
@@ -687,7 +691,7 @@ void main() {
         await (s as MorningStorage).morning.add(
           MorningMeasurement(
             measuredAt: _now.subtract(const Duration(hours: 5)),
-            utcOffset: Duration.zero,
+            utcOffset: _offset,
             posture: RestingPosture.lying,
             deviceManufacturer: 'H',
             deviceModel: 'M1',
