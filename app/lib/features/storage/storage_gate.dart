@@ -40,7 +40,7 @@ class _StorageGateState extends State<StorageGate> {
       FileHandoffScope.of(context) != null;
 
   /// Weg "Aus Archiv wiederherstellen" im Dialog "nicht zu öffnen" (SEC-0009):
-  /// Datei wählen, Passwort, das Archiv vollständig prüfen, ohne etwas zu
+  /// Datei wählen, Kopf vorprüfen, Passwort, das Archiv vollständig prüfen, ohne etwas zu
   /// schreiben, erst dann die Bestätigung, dass die alte Datei gelöscht wird.
   /// Bis zur Bestätigung bleibt alles unberührt; ein falsches Passwort kostet
   /// nichts. Danach Neubeginn und Einspielen in die leere Datenbank, bevor die
@@ -67,6 +67,9 @@ class _StorageGateState extends State<StorageGate> {
       }
       final path = pick.path;
       if (path == null || !mounted) return;
+      final check = ArchiveScope.headerCheckOf(context);
+      if (!await precheckPickedArchive(context, check, path)) return;
+      if (!mounted) return;
       var wrong = false;
       String password;
       while (true) {
