@@ -40,6 +40,7 @@ class ReadinessInputs {
   const ReadinessInputs({
     required this.today,
     required this.now,
+    this.dayStart,
     this.hrvHealthConnect,
     this.restingHrHealthConnect,
     this.cameraDeviations = const [],
@@ -54,8 +55,14 @@ class ReadinessInputs {
   /// Ortstag als UTC-Datum.
   final DateTime today;
 
-  /// Zeitpunkt für die Hauptschlafphase (PAR-164: Ende in den letzten 16 h).
+  /// Zeitpunkt für die Hauptschlafphase (PAR-164: Ende am Ortstag, nicht
+  /// in der Zukunft).
   final DateTime now;
+
+  /// Beginn des Ortstags (lokale Mitternacht) als UTC-Zeitpunkt; die
+  /// Hauptschlafphase gilt bis Mitternacht ihres Endtags (PAR-164). Ohne
+  /// Angabe die lokale Mitternacht von [now] ([localDayStart]).
+  final DateTime? dayStart;
 
   /// Health-Connect-Reihe je Faktor (Teil A, PAR-189).
   final DeviationResult? hrvHealthConnect;
@@ -199,7 +206,11 @@ ReadinessResult computeReadiness(ReadinessInputs input) {
   double? sleepHoursForExplanation;
 
   // Schlaf: Health Connect (PAR-164, 166, 167) vor Selbstangabe (PAR-164K).
-  final main = input.processing.mainSleep(input.sleepSessions, input.now);
+  final main = input.processing.mainSleep(
+    input.sleepSessions,
+    input.now,
+    dayStart: input.dayStart,
+  );
   if (main != null) {
     final s = input.processing.sleepSummary(main);
     final hours = s.sleepDuration.inMicroseconds / Duration.microsecondsPerHour;

@@ -29,6 +29,40 @@ enum SleepBand {
   }
 }
 
+/// Grund der Stufe „unbrauchbar“ einer gespeicherten Morgenmessung
+/// (Spalte `morning_measurements.unusable_reason`, Name des Werts). Die Gründe
+/// der Auswertung ([PpgQualityReason], gleiche Namen, [fromPpg]) und dazu
+/// [restingHrOutOfRange]: die Auswertung lieferte einen Puls, er liegt aber
+/// außerhalb PAR-017 (PAR-160K). Der Puls selbst wird dann nicht gespeichert.
+enum MorningUnusableReason {
+  insufficientData,
+  invalidInput,
+  weakSignal,
+  tooManyDisturbances,
+  frameGap,
+  noFinger,
+  flatSignal,
+  analysisFailed,
+  lowSignalQuality,
+  someDisturbances,
+  timingNoise,
+
+  /// Ruhepuls außerhalb PAR-017 (30 bis 120 bpm).
+  restingHrOutOfRange;
+
+  /// Derselbe Grund wie in der Auswertung.
+  static MorningUnusableReason fromPpg(PpgQualityReason r) =>
+      MorningUnusableReason.values.byName(r.name);
+
+  /// Wert aus Datenbank oder Archiv; unbekannt: `null`.
+  static MorningUnusableReason? fromName(String? name) {
+    for (final r in values) {
+      if (r.name == name) return r;
+    }
+    return null;
+  }
+}
+
 /// Eine Kamera-Morgenmessung (FR-0215), wie sie gespeichert wird. Gespeichert
 /// werden Messungen mit Puls ([PpgQuality.good] oder [PpgQuality.limited]) und,
 /// nur im Entwicklermodus (K68), unbrauchbare ([PpgQuality.unusable], ohne
@@ -100,7 +134,7 @@ class MorningMeasurement {
   final double? restSkippedAfterS;
 
   /// Grund der Stufe „unbrauchbar“; nur dort gesetzt (kann auch dann fehlen).
-  final PpgQualityReason? unusableReason;
+  final MorningUnusableReason? unusableReason;
 
   /// Zählt die Messung überhaupt (nicht unbrauchbar, K68).
   bool get isUsable => quality != PpgQuality.unusable;
@@ -306,7 +340,7 @@ abstract interface class MorningStorage {
 /// beschädigt ab), das Rohsignal braucht als Hex 560 Byte je Bild (rund 8 MiB bei 14 400 Bildern,
 /// gut das Doppelte Abstand); ab etwa 29 900 Bildern würde die App ein Archiv schreiben, das sie
 /// selbst nicht mehr liest. Darüber wird das Speichern abgelehnt (`rejected`) statt still gekürzt:
-/// Die Aufnahme endet nach 120 s, mehr Bilder sind ein Fehler des Aufrufers.
+/// Die Aufnahme endet nach 120 s, mehr Bilder sind ein Fehler des Aufrufers. Wert: PAR-216.
 const int morningRawMaxFrames = 120 * 120;
 
 /// Prüfung vor dem Speichern, gleich für Fake und Datenbank.

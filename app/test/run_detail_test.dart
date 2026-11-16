@@ -1,6 +1,7 @@
 import 'package:adapters/adapters.dart' show RouteMapMark;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SemanticsNode;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:running_app/features/summary/run_charts.dart';
@@ -12,8 +13,8 @@ import 'history_summary_test.dart' show openHistory, started, text;
 const double _metersPerDegree = earthRadiusMeters * 3.141592653589793 / 180;
 
 /// Beendeter Lauf mit Höhe: [seconds] mit 3 m/s. In [noPosition] (Sekunden von,
-/// bis) gibt es keine Positionen und keine Höhe, in [pause] eine manuelle
-/// Pause ohne Messwerte.
+/// bis) gibt es keine Positionen und keine Höhe, in [pause] eine Lücke der Art
+/// [pauseKind] (Standard: manuelle Pause) ohne Messwerte.
 Future<int> seedDetailRun(
   StorageSession s,
   DateTime start, {
@@ -21,6 +22,7 @@ Future<int> seedDetailRun(
   bool heartRate = true,
   (int, int)? noPosition,
   (int, int)? pause,
+  RunGapKind pauseKind = RunGapKind.manualPause,
   (int, int)? noHeartRate,
   double Function(int second)? altitude,
 }) async {
@@ -66,7 +68,7 @@ Future<int> seedDetailRun(
   if (pause != null) {
     final id = await s.markers.openGap(
       run.id,
-      RunGapKind.manualPause,
+      pauseKind,
       start.add(Duration(seconds: pause.$1)),
     );
     await s.markers.closeGap(id, start.add(Duration(seconds: pause.$2)));
@@ -132,6 +134,25 @@ Future<int> openDetail(
   return id;
 }
 
+/// Wie oft [text] im ganzen Semantikbaum (Label, Wert, Hinweis) vorkommt.
+int semanticsOccurrences(WidgetTester tester, String text) {
+  var count = 0;
+  bool visit(SemanticsNode node) {
+    final data = node.getSemanticsData();
+    for (final s in [data.label, data.value, data.hint, data.tooltip]) {
+      count += text.allMatches(s).length;
+    }
+    node.visitChildren(visit);
+    return true;
+  }
+
+  for (final view in tester.binding.renderViews) {
+    final root = view.owner?.semanticsOwner?.rootSemanticsNode;
+    if (root != null) visit(root);
+  }
+  return count;
+}
+
 void main() {
   testWidgets('Detail: Kennzahlen, Route und Diagramme sind gezeichnet', (
     tester,
@@ -153,13 +174,15 @@ void main() {
     expect(key('detail_pace'), findsNothing);
     expect(key('detail_hr'), findsNothing);
     expect(key('detail_hr_none'), findsNothing);
-    // Der Puls ist als geglättet gekennzeichnet (sichtbar und in der Semantik).
+    // Der Puls ist als geglättet gekennzeichnet: sichtbar unter dem Diagramm,
+    // vorgelesen genau einmal im Label des Diagramms.
     expect(text('detail_compare_note'), 'Puls geglättet (Median über 30 s)');
     final semantics = tester.ensureSemantics();
     expect(
       tester.getSemantics(key('detail_compare')).label,
       contains('Puls geglättet (Median über 30 s).'),
     );
+    expect(semanticsOccurrences(tester, 'Puls geglättet'), 1);
     semantics.dispose();
     // Alter Lauf ohne gespeicherte Zonen/TRIMP.
     expect(
@@ -542,6 +565,72 @@ void main() {
     expect(chartPaths('detail_compare'), hasLength(4));
     expect(chart('detail_compare').pauses.single.start, 200);
     expect(chart('detail_compare').pauses.single.end, 260);
+  });
+
+  testWidgets('Ausfall nach Absturz: Lücke wie eine Pause (FR-0042)', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final d = await started(tester);
+    await openDetail(
+      tester,
+      d,
+      () => seedDetailRun(
+        d.session,
+        DateTime.utc(2030, 1, 1, 8),
+        pause: (200, 260),
+        pauseKind: RunGapKind.interruption,
+      ),
+    );
+    // Keine Linie über den Ausfall: jede Reihe zerfällt in zwei Pfade.
+    expect(drawnParts('detail_compare', 0), 2);
+    expect(drawnParts('detail_compare', 1), 2);
+    expect(chartPaths('detail_altitude'), hasLength(2));
+    expect(chartPaths('detail_compare'), hasLength(4));
+    for (final id in ['detail_compare', 'detail_altitude']) {
+      for (final layer in chart(id).layers) {
+        final parts = layer.parts.where((p) => p.isNotEmpty).toList();
+        expect(parts.first.last.seconds, lessThanOrEqualTo(200));
+        expect(parts.last.first.seconds, greaterThanOrEqualTo(260));
+      }
+    }
+    // Gleiche Darstellung wie eine Pause: als Pausenfläche hinterlegt.
+    expect(chart('detail_compare').pauses.single.start, 200);
+    expect(chart('detail_compare').pauses.single.end, 260);
+    expect(chart('detail_altitude').pauses.single.start, 200);
+    // Bedienungshilfe nennt die Lücke wie bei einer Pause.
+    expect(
+      tester.getSemantics(key('detail_altitude')).label,
+      contains(
+        '2 zusammenhängende Abschnitte; Lücken und Pausen sind nicht verbunden.',
+      ),
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('Pulsdiagramm allein: Glättungshinweis genau einmal vorgelesen', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final d = await started(tester);
+    await openDetail(
+      tester,
+      d,
+      () => seedDetailRun(
+        d.session,
+        DateTime.utc(2030, 1, 1, 8),
+        noPosition: (0, 601),
+      ),
+    );
+    expect(key('detail_compare'), findsNothing);
+    expect(chartPaths('detail_hr'), hasLength(1));
+    expect(text('detail_hr_note'), 'Puls geglättet (Median über 30 s)');
+    expect(
+      tester.getSemantics(key('detail_hr')).label,
+      contains('Puls geglättet (Median über 30 s).'),
+    );
+    expect(semanticsOccurrences(tester, 'Puls geglättet'), 1);
+    semantics.dispose();
   });
 
   testWidgets('Lauf ohne Puls: kein Pulsdiagramm, kein Vergleich, nie 0', (

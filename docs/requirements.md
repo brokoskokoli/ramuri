@@ -50,7 +50,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0039 | Subjektive Angaben in der Planung berücksichtigen | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0039--subjektive-angaben-in-der-planung-berücksichtigen) | FR-0148, FR-0157 |
 | FR-0040 | Trainingshistorie | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0040--trainingshistorie) | ACC-04, FR-0204, FR-0212, OQ-0074, OQ-0075 |
 | FR-0041 | Detailansicht eines Laufs | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0041--detailansicht-eines-laufs) | FR-0204, FR-0211, OQ-0065, OQ-0074, OQ-0075 |
-| FR-0042 | Pace und Herzfrequenz zeitlich vergleichen | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0042--pace-und-herzfrequenz-zeitlich-vergleichen) | — |
+| FR-0042 | Pace und Herzfrequenz zeitlich vergleichen | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0042--pace-und-herzfrequenz-zeitlich-vergleichen) | FR-0193 |
 | FR-0043 | Statistische Kennzahlen | functional | Approved | 1 (je Kennzahl abhängig von der liefernden Funktion) | [history-statistics](specs/history-statistics.md#fr-0043--statistische-kennzahlen) | FR-0055, OQ-0039, OQ-0065, OQ-0075 |
 | FR-0044 | Auswertungszeiträume | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0044--auswertungszeiträume) | — |
 | FR-0045 | Keine Fitnessberechnung auf ungefilterten Daten | functional | Approved | 1* | [data-quality](specs/data-quality.md#fr-0045--keine-fitnessberechnung-auf-ungefilterten-daten) | — |

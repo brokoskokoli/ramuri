@@ -11,7 +11,7 @@ import 'archive_wiring.dart';
 
 /// Schaltfläche "Archiv importieren" im Daten-Bildschirm (FR-0198, OQ-0050,
 /// WP12). Ablauf: Hinweis (bei nicht leerer App mit Warnung und ausdrücklicher
-/// Bestätigung des Zurücksetzens), Datei wählen, Passwort einmal, Einlesen in
+/// Bestätigung des Zurücksetzens), Datei wählen, Kopf vorprüfen, Passwort, Einlesen in
 /// die Zwischendatenbank, Tausch. Danach gilt die neue Sitzung. Ein offener
 /// Lauf sperrt den Import; Aufnahme und Neuberechnung sind ausgeschlossen
 /// ([serialize]). Die gewählte Kopie wird immer entsorgt.
@@ -43,6 +43,7 @@ class ArchiveImportAction extends StatelessWidget {
     ArchiveRestoreFactory factory,
     FileHandoff handoff,
     StorageStartController start,
+    ArchiveHeaderCheck headerCheck,
   ) async {
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -79,6 +80,7 @@ class ArchiveImportAction extends StatelessWidget {
       }
       final path = pick.path;
       if (path == null || !context.mounted) return;
+      if (!await precheckPickedArchive(context, headerCheck, path)) return;
       var wrong = false;
       while (true) {
         if (!context.mounted) return;
@@ -158,7 +160,13 @@ class ArchiveImportAction extends StatelessWidget {
     }
     return RamuriSecondaryButton(
       key: buttonKey,
-      onPressed: () => _import(context, factory, handoff, start),
+      onPressed: () => _import(
+        context,
+        factory,
+        handoff,
+        start,
+        ArchiveScope.headerCheckOf(context),
+      ),
       label: label ?? AppLocalizations.of(context).archiveImportAction,
     );
   }

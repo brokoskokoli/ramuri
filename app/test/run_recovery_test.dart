@@ -9,11 +9,16 @@ import 'app_harness.dart';
 import 'run_test.dart' show openRun, walk;
 
 /// Speicher, dessen Lauf sich nicht als beendet speichern lässt, solange
-/// [failFinish] gesetzt ist.
+/// [failFinish] gesetzt ist. Zusätzlich steuerbar: Lesen eines Laufs
+/// ([failGet]), Lesen der Rohdaten ([failRead]) und
+/// Anlegen eines Laufs ([failCreate]).
 class _FinishFailStorage implements Storage {
   _FinishFailStorage(this.inner);
   final Storage inner;
   bool failFinish = false;
+  bool failGet = false;
+  bool failRead = false;
+  bool failCreate = false;
   @override
   Future<StorageSession> open(Uint8List key) async =>
       _Session(this, await inner.open(key));
@@ -26,7 +31,7 @@ class _Session implements StorageSession {
   @override
   RunStore get runs => _Runs(o, s.runs);
   @override
-  RawDataStore get rawData => s.rawData;
+  RawDataStore get rawData => _Raw(o, s.rawData);
   @override
   SettingsStore get settings => s.settings;
   @override
@@ -63,7 +68,13 @@ class _Runs implements RunStore {
   Future<StoredRun> create({
     required DateTime startedAt,
     RunMode mode = RunMode.gps,
-  }) => inner.create(startedAt: startedAt, mode: mode);
+  }) {
+    if (o.failCreate) {
+      return Future.error(const StorageException(StorageFailure.failed));
+    }
+    return inner.create(startedAt: startedAt, mode: mode);
+  }
+
   @override
   Future<void> setState(
     int runId,
@@ -83,7 +94,13 @@ class _Runs implements RunStore {
   }
 
   @override
-  Future<StoredRun?> get(int runId) => inner.get(runId);
+  Future<StoredRun?> get(int runId) {
+    if (o.failGet) {
+      return Future.error(const StorageException(StorageFailure.failed));
+    }
+    return inner.get(runId);
+  }
+
   @override
   Future<List<StoredRun>> list() => inner.list();
   @override
@@ -93,6 +110,25 @@ class _Runs implements RunStore {
   @override
   Future<List<StoredRun>> unfinished() => inner.unfinished();
 }
+
+class _Raw implements RawDataStore {
+  _Raw(this.o, this.inner);
+  final _FinishFailStorage o;
+  final RawDataStore inner;
+  @override
+  Future<void> append(int runId, RawBatch batch) => inner.append(runId, batch);
+  @override
+  Future<StoredRawData> read(int runId) {
+    if (o.failRead) {
+      return Future.error(const StorageException(StorageFailure.failed));
+    }
+    return inner.read(runId);
+  }
+}
+
+const _resumeFailedDe =
+    'Fortsetzen hat nicht geklappt. Der bisher aufgezeichnete Teil ist '
+    'gespeichert. Versuche es erneut.';
 
 /// Ein Lauf, den der Prozess nicht mehr beendet: App zu, Lauf bleibt aktiv.
 Future<int> crash(Device d, WidgetTester tester) async {
@@ -277,6 +313,87 @@ void main() {
       await tester.tap(key('recover_resume'));
       await tester.pumpAndSettle();
       expect(key('run_pause'), findsOneWidget);
+    });
+  });
+  group('Fortsetzen scheitert: Lauf bleibt gespeichert (FR-0193)', () {
+    /// Stürzt ab, startet neu mit [arm] vor dem Tippen auf „Fortsetzen“ und
+    /// prüft Meldung und unveränderten Lauf; danach geht das Fortsetzen.
+    Future<void> resumeFails(
+      WidgetTester tester,
+      void Function(_FinishFailStorage) arm,
+    ) async {
+      final d = Device();
+      final id = await crash(d, tester);
+      final before = (await d.session.runs.get(id))!;
+      final gapsBefore = await d.session.markers.gaps(id);
+      final rawBefore = await d.session.rawData.read(id);
+      final flaky = _FinishFailStorage(d.storage);
+      d.storageOverride = flaky;
+      d.clock.advance(const Duration(minutes: 5));
+      await restart(d, tester);
+      expect(key('recover_dialog'), findsOneWidget);
+      arm(flaky);
+      await tester.tap(key('recover_resume'));
+      await tester.pumpAndSettle();
+      expect(find.text(_resumeFailedDe), findsOneWidget);
+      expect(find.textContaining('nichts aufgezeichnet'), findsNothing);
+      expect(find.textContaining('Hintergrunddienst'), findsNothing);
+      expect(key('run_start_retry'), findsOneWidget);
+      expect(key('run_pause'), findsNothing);
+      // Ab hier liest auch der Test über die Sitzung: Fehler aus.
+      flaky
+        ..failGet = false
+        ..failRead = false;
+      // Der Lauf ist unverändert gespeichert: gleicher Zustand, keine neue
+      // Lücke, gleiche Rohdaten.
+      final after = (await d.session.runs.get(id))!;
+      expect(after.state, before.state);
+      expect(after.mode, before.mode);
+      expect(after.startedAt, before.startedAt);
+      expect((await d.session.markers.gaps(id)).length, gapsBefore.length);
+      expect(
+        (await d.session.rawData.read(id)).positions.length,
+        rawBefore.positions.length,
+      );
+      // Die Frage nach dem unfertigen Lauf bleibt beim nächsten Start.
+      await d.stop(tester);
+      await restart(d, tester);
+      expect(key('recover_dialog'), findsOneWidget);
+      await tester.tap(key('recover_resume'));
+      await tester.pumpAndSettle();
+      expect(key('run_pause'), findsOneWidget);
+      expect((await d.session.runs.list()).single.id, id);
+    }
+
+    testWidgets('Laufart nicht lesbar: Meldung nennt den gespeicherten Teil', (
+      tester,
+    ) async {
+      await resumeFails(tester, (f) => f.failGet = true);
+    });
+
+    testWidgets('restore wirft: Meldung nennt den gespeicherten Teil', (
+      tester,
+    ) async {
+      await resumeFails(tester, (f) => f.failRead = true);
+    });
+
+    testWidgets('neuer Lauf scheitert: weiter „nichts aufgezeichnet“', (
+      tester,
+    ) async {
+      final d = Device();
+      final flaky = _FinishFailStorage(d.storage)..failCreate = true;
+      d.storageOverride = flaky;
+      await openRun(d, tester);
+      expect(
+        find.text(
+          'Der Lauf konnte nicht angelegt werden. Es wurde nichts '
+          'aufgezeichnet.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text(_resumeFailedDe), findsNothing);
+      expect(key('run_start_retry'), findsOneWidget);
+      expect(await d.session.runs.list(), isEmpty);
     });
   });
 }

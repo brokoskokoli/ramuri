@@ -60,14 +60,7 @@ Future<void> _run(
   const step = Duration(milliseconds: 5);
   var sinceHang = 0.0;
   for (var i = 0; i < seconds * 200; i++) {
-    if (i % 200 == 0 || e.c.evaluating) {
-      // Beenden (Kamera freigeben, Auswertung, Profil laden) läuft auf echten
-      // Futures, nicht auf der Testzeit.
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 5)),
-      );
-      await tester.pump();
-    }
+    if (e.c.evaluating) await _settleEvaluation(tester, e.c);
     if (until != null && until()) break;
     if (hangEvery > 0 && sinceHang >= hangEvery) {
       sinceHang = 0;
@@ -81,11 +74,29 @@ Future<void> _run(
     }
     sinceHang += step.inMicroseconds / 1e6;
   }
-  await tester.runAsync(
-    () => Future<void>.delayed(const Duration(milliseconds: 20)),
-  );
+  if (e.c.evaluating) await _settleEvaluation(tester, e.c);
   // Die Schleife der Fake-Kamera läuft nach dem Abbestellen noch einen Takt.
   await tester.pump(const Duration(seconds: 1));
+}
+
+/// Wartet auf das Ende der Auswertung (Kamera freigeben, Auswertung, Profil
+/// laden), ohne auf der Wanduhr zu warten und ohne die Uhr vorzustellen.
+///
+/// Fast alles läuft in der künstlichen Zeit; `pump()` ohne Dauer leert deren
+/// Mikrotasks. Nur das Abmelden vom Kamerastrom liefert eine schon erfüllte
+/// Zukunft aus der Wurzel-Zone, deren Fortsetzung über die echte
+/// Mikrotask-Schlange läuft: `runAsync` mit einer leeren Aufgabe gibt ihr einen
+/// Takt, ganz ohne Wartezeit. Die Frist zählt Durchgänge: Endet die Auswertung
+/// nicht, wird der Test rot, statt zu hängen.
+Future<void> _settleEvaluation(
+  WidgetTester tester,
+  RestingMeasureController c,
+) async {
+  for (var k = 0; k < 50 && c.evaluating; k++) {
+    await tester.runAsync(() async {});
+    await tester.pump();
+  }
+  expect(c.evaluating, isFalse, reason: 'Auswertung endet nicht');
 }
 
 bool _ended(_Env e) =>
@@ -195,12 +206,7 @@ void main() {
           var emitted = 0;
           var sinceHang = 0.0;
           for (var i = 0; i < 100 * 200; i++) {
-            if (i % 200 == 0 || c.evaluating) {
-              await tester.runAsync(
-                () => Future<void>.delayed(const Duration(milliseconds: 5)),
-              );
-              await tester.pump();
-            }
+            if (c.evaluating) await _settleEvaluation(tester, c);
             if (c.phase == RestingMeasurePhase.result ||
                 c.phase == RestingMeasurePhase.stopped) {
               break;

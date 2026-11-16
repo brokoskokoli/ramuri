@@ -9,6 +9,13 @@ class DayRange {
   final DateTime end;
 }
 
+/// Beginn des Ortstags von [now] (lokale Mitternacht in der Zeitzone des
+/// Systems, wie [localDayRanges]) als UTC-Zeitpunkt.
+DateTime localDayStart(DateTime now) {
+  final l = now.toLocal();
+  return DateTime(l.year, l.month, l.day).toUtc();
+}
+
 /// [count] Ortstage ab dem Ortstag von [first]; die Grenzen sind lokale
 /// Mitternächte (Sommerzeit-fest, weil sie aus Jahr, Monat und Tag gebildet
 /// werden).
@@ -44,9 +51,8 @@ List<Map<String, HealthDailyValue>> restingHeartRateDayValues(
 ) => [for (final d in days) p.restingHeartRateDaily(samples, d.start, d.end)];
 
 /// Tagesliste der HRV-Tageswerte je Quell-App. Je Tag zählt die Hauptschlafphase
-/// (PAR-164) der Sitzungen, die an diesem Tag enden und in den ersten 16 h des
-/// Tages (Höchstalter der Hauptschlafphase) liegen; die HRV-Werte des Tages
-/// werden gegen sie geprüft (PAR-160). Tage ohne Hauptschlafphase oder ohne
+/// (PAR-164) der Sitzungen, die an diesem Tag enden (sie gilt bis Mitternacht
+/// des Endtags); die HRV-Werte des Tages werden gegen sie geprüft (PAR-160). Tage ohne Hauptschlafphase oder ohne
 /// gültigen Wert fehlen.
 List<Map<String, HealthDailyValue>> hrvDayList(
   HealthProcessing p,
@@ -71,8 +77,8 @@ List<Map<String, HealthDailyValue>> hrvDayValues(
     final ending = sessions
         .where((s) => !s.end.isBefore(d.start) && s.end.isBefore(d.end))
         .toList();
-    final at = d.start.add(p.params.mainSleepMaxAge);
-    final main = p.mainSleep(ending, at);
+    // Bewertet zum Tagesende: jede Sitzung, die an diesem Tag endet, zählt.
+    final main = p.mainSleep(ending, d.end, dayStart: d.start);
     out.add(p.hrvDaily(samples, main));
   }
   return out;
