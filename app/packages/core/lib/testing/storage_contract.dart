@@ -35,6 +35,10 @@ List<StorageContractCase> storageContractCases() => [
     'Löschen: Langzeitwert, der den Lauf über die Glättung enthält',
     _smoothedDayValue,
   ),
+  const StorageContractCase(
+    'Löschen: gespeicherter Langzeitwert alter Version mit schmalem Zeitraum',
+    _oldLongTermDayValue,
+  ),
   const StorageContractCase('Löschen: Fehlerarten', _deleteFailures),
   const StorageContractCase('Alles löschen leert den Speicher', _deleteAll),
   const StorageContractCase('Inhalt überlebt Schließen und Öffnen', _reopen),
@@ -156,21 +160,26 @@ Future<void> _reopen(StorageContractHarness h) async {
   await s.close();
 }
 
-ComputedValue _dayValue(String key, DateTime? from, DateTime? to) =>
-    ComputedValue(
-      key: key,
-      value: 1,
-      unit: 'au',
-      computedAt: at(300),
-      dataFrom: from,
-      dataTo: to,
-      measurementCount: 1,
-      sources: const ['gps'],
-      method: 'm',
-      methodVersion: 1,
-      parameterVersion: 1,
-      quality: ValueQuality.good,
-    );
+ComputedValue _dayValue(
+  String key,
+  DateTime? from,
+  DateTime? to, {
+  String method = 'm',
+  int version = 1,
+}) => ComputedValue(
+  key: key,
+  value: 1,
+  unit: 'au',
+  computedAt: at(300),
+  dataFrom: from,
+  dataTo: to,
+  measurementCount: 1,
+  sources: const ['gps'],
+  method: method,
+  methodVersion: version,
+  parameterVersion: 1,
+  quality: ValueQuality.good,
+);
 
 /// Annahme (Supervisor): Mit dem Lauf gehen Tageswerte weg, deren Datenzeitraum
 /// den Lauf überlappt (Ränder zählen mit) oder unbekannt ist; WP09 berechnet
@@ -278,6 +287,66 @@ Future<void> _smoothedDayValue(StorageContractHarness h) async {
     'Langzeitwert mit A über die Glättung ist weg',
   );
   expectTrue(await s.runs.get(b) != null, 'B bleibt');
+  await s.close();
+}
+
+/// Alte Daten, neue Version: Langzeitwerte vor
+/// [vo2maxLongTermFullRangeVersion] nennen als Zeitraum nur die Läufe im
+/// Fenster, enthalten frühere Läufe aber über die Glättung. Löschen eines
+/// Laufs vor dem Fenster entfernt sie (auch wenn nur das `original` alt ist),
+/// wenn ihr Zeitraum nach dem Beginn des Laufs endet (SEC-0004). Neue
+/// Versionen, andere Werte und frühere Zeiträume bleiben.
+Future<void> _oldLongTermDayValue(StorageContractHarness h) async {
+  final s = await h.open();
+  final r = (await s.runs.create(startedAt: at(100))).id;
+  await s.runs.setState(r, RunState.finished, endedAt: at(200));
+  const old = vo2maxLongTermFullRangeVersion - 1;
+  ComputedValue long(int from, int to, int version) => _dayValue(
+    vo2maxLongTermValueKey,
+    at(from),
+    at(to),
+    method: vo2maxLongTermMethod,
+    version: version,
+  );
+  final cases = {
+    'alt nach dem Lauf': ('2030-02-01', long(500, 600, old), false),
+    'alt endet am Laufbeginn': ('2030-02-02', long(50, 100, old), false),
+    'alt vor dem Lauf': ('2030-02-03', long(0, 99, old), true),
+    'neu nach dem Lauf': (
+      '2030-02-04',
+      long(500, 600, vo2maxLongTermFullRangeVersion),
+      true,
+    ),
+    'anderer Wert alt': (
+      '2030-02-05',
+      _dayValue('other', at(500), at(600)),
+      true,
+    ),
+    'andere Methode alt': (
+      '2030-02-06',
+      _dayValue(vo2maxLongTermValueKey, at(500), at(600)),
+      true,
+    ),
+  };
+  for (final c in cases.values) {
+    await s.values.createOriginals(ValueOwner.day(c.$1), [c.$2]);
+  }
+  // original alt, current schon neu gerechnet: Das original enthält den Lauf.
+  const swapped = ValueOwner.day('2030-02-07');
+  await s.values.createOriginals(swapped, [long(500, 600, old)]);
+  await s.values.swapCurrent(swapped, [
+    long(500, 600, vo2maxLongTermFullRangeVersion),
+  ]);
+  await s.deleteRun(r);
+  for (final e in cases.entries) {
+    final left = (await s.values.read(ValueOwner.day(e.value.$1))).length;
+    expectEq(left, e.value.$3 ? 1 : 0, 'Langzeitwert ${e.key}');
+  }
+  expectEq(
+    (await s.values.read(swapped)).length,
+    0,
+    'original alt, current neu',
+  );
   await s.close();
 }
 

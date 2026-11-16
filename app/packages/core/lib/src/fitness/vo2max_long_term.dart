@@ -11,6 +11,12 @@ const String vo2maxLongTermMethod = 'vo2max-long-term-ema';
 /// Glättung eingegangen sind (Version 1: nur die Läufe im weiteren Fenster).
 const int vo2maxLongTermMethodVersion = 2;
 
+/// Erste Version, deren gespeicherter Datenzeitraum alle geglätteten Läufe
+/// umfasst. Ältere gespeicherte Langzeitwerte nennen nur die Läufe im weiteren
+/// Fenster; das Löschen eines Laufs entfernt sie darum, sobald ihr Zeitraum
+/// nach dem Beginn des Laufs endet (SEC-0004), statt nur bei Überlappung.
+const int vo2maxLongTermFullRangeVersion = 2;
+
 /// Familie Langzeitwert der VO₂max (FR-0078).
 abstract class Vo2maxLongTerm extends AlgorithmVariant {
   const Vo2maxLongTerm();
