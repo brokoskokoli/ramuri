@@ -8,6 +8,7 @@ import '../history/run_detail_screen.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../summary/run_summary_body.dart';
 import '../summary/run_summary_page.dart';
+import '../summary/run_summary_header.dart';
 import '../summary/warning_entry.dart';
 import 'live_guided_page.dart';
 import 'live_map_page.dart';
@@ -146,11 +147,7 @@ class LiveRunView extends StatelessWidget {
             // Oben Platz für die Reiter Werte/Karte, die über der Seite schweben.
             padding: EdgeInsets.fromLTRB(16, finished ? 16 : 72, 16, 16),
             children: finished
-                ? [
-                    _title(context, l10n),
-                    ..._banners(context, l10n),
-                    ..._body(l10n),
-                  ]
+                ? _done(context, l10n)
                 : [LiveValues(controller: controller, formatter: formatter)],
           ),
         ),
@@ -164,12 +161,17 @@ class LiveRunView extends StatelessWidget {
     );
   }
 
-  /// Überschrift der Abschlussseite.
+  /// Überschrift der Abschlussseite, solange keine Zusammenfassung steht
+  /// (Laden, Rückfall); mit Zusammenfassung ersetzt sie [RunSummaryHeader].
   Widget _title(BuildContext context, AppLocalizations l10n) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: Semantics(
       header: true,
-      child: Text(l10n.runDoneTitle, style: RamuriType.of(context).pageTitle),
+      child: Text(
+        l10n.runDoneTitle,
+        key: const Key('run_done_title'),
+        style: RamuriType.of(context).pageTitle,
+      ),
     ),
   );
 
@@ -231,14 +233,18 @@ class LiveRunView extends StatelessWidget {
     );
   }
 
-  /// Nach dem Ende die Zusammenfassung (FR-0037), sobald die Berechnung durch
-  /// ist; sonst (und bei Fehlern beim Lesen) die Werte der Aufzeichnung.
-  List<Widget> _body(AppLocalizations l10n) {
+  /// Nach dem Ende die Zusammenfassung (FR-0037) mit dem Kopf
+  /// „Datum · Uhrzeit · Art“ des Designs, sobald die Berechnung durch ist;
+  /// sonst (und bei Fehlern beim Lesen) „Lauf beendet“ und die Werte der
+  /// Aufzeichnung. Der Hinweis zum Speichern steht immer unter dem Kopf.
+  List<Widget> _done(BuildContext context, AppLocalizations l10n) {
     final id = controller.runId;
     final clock = this.clock;
-    if (id == null || clock == null) return _metrics(l10n);
+    final waiting = [_title(context, l10n), ..._banners(context, l10n)];
+    if (id == null || clock == null) return [...waiting, ..._metrics(l10n)];
     if (!controller.calculationSettled) {
       return [
+        ...waiting,
         const SizedBox(height: 24),
         const Center(child: CircularProgressIndicator()),
         const SizedBox(height: 12),
@@ -252,6 +258,17 @@ class LiveRunView extends StatelessWidget {
         clock: clock,
         runId: id,
         fallback: () => _metrics(l10n),
+        leading: (context, summary) => [
+          if (summary == null)
+            _title(context, l10n)
+          else
+            RunSummaryHeader(
+              run: summary.run,
+              session: controller.storage,
+              pendingUnit: pendingPlanUnit,
+            ),
+          ..._banners(context, l10n),
+        ],
         contentBuilder: (context, summary, detail, _) => RunSummaryPage(
           summary: summary,
           detail: detail,

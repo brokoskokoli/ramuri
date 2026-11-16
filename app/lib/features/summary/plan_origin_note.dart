@@ -5,6 +5,29 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../plan/plan_texts.dart';
 
+/// Die Plan-Einheit, der der Lauf [runId] zugeordnet ist; `null` ohne Plan,
+/// ohne Zuordnung oder bei einem Lesefehler. Die Zuordnung liegt am Starttag
+/// des Laufs; ein Fenster von ±2 Tagen deckt jede Zeitzone ab, geprüft wird
+/// die Lauf-Kennung.
+Future<PlanUnit?> planUnitOfRun(StorageSession session, int runId) async {
+  if (session is! PlanStorage) return null;
+  try {
+    final run = await session.runs.get(runId);
+    if (run == null) return null;
+    final day = warningDay(run.startedAt.toUtc());
+    final units = await (session as PlanStorage).plans.unitsBetween(
+      day.subtract(const Duration(days: 2)),
+      day.add(const Duration(days: 2)),
+    );
+    for (final u in units) {
+      if (u.runId == runId) return u;
+    }
+  } on Object {
+    // Nur die Anzeige fehlt.
+  }
+  return null;
+}
+
 /// „Aus dem Plan“ (WP24 Teil E): zeigt in der Zusammenfassung, zu welcher
 /// Plan-Einheit der Lauf zugeordnet ist (`plan_units.run_id`). Ohne Zuordnung
 /// (und ohne ausstehende Wahl), ohne Plan oder bei einem Lesefehler bleibt die Stelle leer. Nur Anzeige.
@@ -31,27 +54,7 @@ class PlanOriginNote extends StatefulWidget {
 class _PlanOriginNoteState extends State<PlanOriginNote> {
   late final Future<PlanUnit?> _unit = _find();
 
-  /// Die Zuordnung liegt am Starttag des Laufs; ein Fenster von ±2 Tagen deckt
-  /// jede Zeitzone ab, geprüft wird die Lauf-Kennung.
-  Future<PlanUnit?> _find() async {
-    final session = widget.session;
-    if (session is! PlanStorage) return null;
-    try {
-      final run = await session.runs.get(widget.runId);
-      if (run == null) return null;
-      final day = warningDay(run.startedAt.toUtc());
-      final units = await (session as PlanStorage).plans.unitsBetween(
-        day.subtract(const Duration(days: 2)),
-        day.add(const Duration(days: 2)),
-      );
-      for (final u in units) {
-        if (u.runId == widget.runId) return u;
-      }
-    } on Object {
-      // Nur die Anzeige fehlt.
-    }
-    return null;
-  }
+  Future<PlanUnit?> _find() => planUnitOfRun(widget.session, widget.runId);
 
   @override
   Widget build(BuildContext context) => FutureBuilder<PlanUnit?>(

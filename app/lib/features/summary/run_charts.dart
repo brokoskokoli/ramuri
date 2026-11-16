@@ -133,6 +133,13 @@ Widget _detailChart(
   );
 }
 
+/// Höhe der Route in der Detailansicht.
+const double routeDetailHeight = 240;
+
+/// Höhe der Route in der Zusammenfassung nach dem Lauf (Design
+/// `Summary.dc.html`): knapp, damit die Kennzahlen ohne Scrollen sichtbar sind.
+const double routeSummaryHeight = 130;
+
 /// Route eines Laufs: auf der Karte (mit Einwilligung) oder gezeichnet, ohne
 /// Positionen der Hinweis (FR-0204). Für Zusammenfassung und Detailansicht.
 class RunRouteSection extends StatelessWidget {
@@ -141,9 +148,13 @@ class RunRouteSection extends StatelessWidget {
     required this.route,
     this.marks = const [],
     this.markUnitLabel,
+    this.height = routeDetailHeight,
   });
 
   final List<List<RoutePoint>> route;
+
+  /// Höhe von Karte bzw. Zeichnung ([routeDetailHeight], [routeSummaryHeight]).
+  final double height;
 
   /// Kilometermarken (Detailansicht), auf der Karte und in der Zeichnung; [markUnitLabel] ist die Einheit der Legende.
   final List<KilometerMark> marks;
@@ -170,6 +181,7 @@ class RunRouteSection extends StatelessWidget {
         endColor: style?.endColor,
         marks: mapMarks,
         markUnitLabel: markUnitLabel,
+        height: height,
       ),
     );
   }
@@ -592,9 +604,13 @@ class RunRouteView extends StatelessWidget {
     this.endColor,
     this.marks = const [],
     this.markUnitLabel,
+    this.height = routeDetailHeight,
   });
 
   final List<List<RoutePoint>> route;
+
+  /// Höhe von Karte bzw. Zeichnung.
+  final double height;
 
   /// Kilometermarken: in der Zeichnung gemalt; auf der Karte malt sie die Karte selbst ([map] ist dann gesetzt).
   final List<RouteMapMark> marks;
@@ -634,7 +650,7 @@ class RunRouteView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: 240,
+          height: height,
           width: double.infinity,
           child:
               map ??
