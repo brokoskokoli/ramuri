@@ -19,7 +19,7 @@ import 'package:running_app/ui/ui.dart';
 const _p = HealthProcessing();
 final _days = localDayRanges(DateTime(2026, 10, 17), 29);
 final _today = DateTime.utc(2026, 11, 14);
-final _now = DateTime.utc(2026, 11, 14, 12);
+final _now = DateTime(2026, 11, 14, 12).toUtc(); // Mittag Ortszeit
 
 DateTime _at(int i, int h) => DateTime(2026, 10, 17 + i, h).toUtc();
 

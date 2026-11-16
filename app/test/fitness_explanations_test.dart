@@ -42,6 +42,7 @@ Future<void> _pump(
   Brightness brightness = Brightness.light,
   double width = 411,
   double scale = 1,
+  DateTime? today,
 }) async {
   tester.view.physicalSize = Size(width, 1600);
   tester.view.devicePixelRatio = 1;
@@ -54,7 +55,7 @@ Future<void> _pump(
       brightness: brightness,
       home: Scaffold(
         body: SingleChildScrollView(
-          child: FitnessExplanationCard(fitness: f, today: _today),
+          child: FitnessExplanationCard(fitness: f, today: today ?? _today),
         ),
       ),
     ),
@@ -89,6 +90,30 @@ void main() {
         ),
       );
     });
+
+    for (final locale in ['de', 'en']) {
+      testWidgets('$locale: Zeitraum mit Jahr nur über den Jahreswechsel '
+          '(FR-0044)', (tester) async {
+        await _pump(
+          tester,
+          _overview(
+            runs: [_est(1, '2026-05-20', 46), _est(2, '2026-06-08', 44)],
+          ),
+          locale: locale,
+        );
+        expect(_line(tester, 0), isNot(contains('2026')));
+        await _pump(
+          tester,
+          _overview(
+            runs: [_est(1, '2026-12-20', 46), _est(2, '2027-01-08', 44)],
+          ),
+          locale: locale,
+          today: DateTime.utc(2027, 1, 10),
+        );
+        expect(_line(tester, 0), contains('2026'));
+        expect(_line(tester, 0), contains('2027'));
+      });
+    }
 
     testWidgets('gesunken und unverändert (en)', (tester) async {
       await _pump(

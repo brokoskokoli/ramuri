@@ -452,6 +452,80 @@ void main() {
       });
     }
 
+    // PAR-208 in Kilometern: 5 km in 12:30 bzw. 75:00 sind genau 2:30 bzw.
+    // 15:00 min/km (Grenzen eingeschlossen), eine Sekunde mehr oder weniger
+    // liegt außerhalb.
+    for (final (name, minutes, seconds, accepted) in [
+      ('schnelle Grenze 12:29', 12, 29, false),
+      ('schnelle Grenze 12:30', 12, 30, true),
+      ('langsame Grenze 75:00', 75, 0, true),
+      ('langsame Grenze 75:01', 75, 1, false),
+    ]) {
+      testWidgets(
+        'km, 5 km, $name: ${accepted ? 'angenommen' : 'abgewiesen'}',
+        (tester) async {
+          final d = await boot(tester);
+          await pumpCard(tester, d);
+          await tapKey(tester, 'prediction_add');
+          await tester.enterText(key('prediction_form_minutes'), '$minutes');
+          await tester.enterText(key('prediction_form_seconds'), '$seconds');
+          await tester.pump();
+          await tapKey(tester, 'prediction_form_save');
+          final stored = await _store(d).references();
+          if (accepted) {
+            expect(key('prediction_form'), findsNothing);
+            expect(stored.single.reference.seconds, minutes * 60 + seconds);
+          } else {
+            expect(stored, isEmpty);
+            expect(
+              txt('prediction_form_error'),
+              contains('2:30 min/km bis 15:00 min/km'),
+            );
+          }
+        },
+      );
+    }
+
+    // PAR-208 in Meilen: angezeigt werden die nach innen gerundeten Grenzen
+    // 4:02 und 24:08 min/mi (2:30 min/km = 4:01,4 min/mi, 15:00 min/km =
+    // 24:08,4 min/mi). Was als Grenze dasteht, wird angenommen; 4:01 min/mi
+    // (149,7 s/km) und 24:09 min/mi (900,4 s/km) liegen außerhalb. 2 mi, damit
+    // die Mindestdistanz von 3 km erfüllt ist.
+    for (final (name, minutes, seconds, accepted) in [
+      ('4:01 min/mi', 8, 2, false),
+      ('4:02 min/mi', 8, 4, true),
+      ('24:08 min/mi', 48, 16, true),
+      ('24:09 min/mi', 48, 18, false),
+    ]) {
+      testWidgets('Meilen, 2 mi, $name: '
+          '${accepted ? 'angenommen' : 'abgewiesen'}, Fehler nennt die '
+          'angezeigten Grenzen', (tester) async {
+        final d = await boot(tester);
+        await pumpCard(tester, d, unit: DistanceUnit.miles);
+        await tapKey(tester, 'prediction_add');
+        await tapKey(tester, 'prediction_form_distance_other');
+        await tester.enterText(key('prediction_form_distance_field'), '2');
+        await tester.enterText(key('prediction_form_minutes'), '$minutes');
+        await tester.enterText(key('prediction_form_seconds'), '$seconds');
+        await tester.pump();
+        await tapKey(tester, 'prediction_form_save');
+        final stored = await _store(d).references();
+        if (accepted) {
+          expect(key('prediction_form'), findsNothing);
+          final r = stored.single.reference;
+          expect(r.seconds, minutes * 60 + seconds);
+          expect(r.distanceMeters, closeTo(2 * 1609.344, 0.001));
+        } else {
+          expect(stored, isEmpty);
+          expect(
+            txt('prediction_form_error'),
+            'Distanz und Zeit ergeben ein Tempo außerhalb von '
+            '4:02 min/mi bis 24:08 min/mi. Prüf die Angaben.',
+          );
+        }
+      });
+    }
+
     testWidgets('Nach dem Datumsdialog bleibt die Tastatur zu', (tester) async {
       final d = await boot(tester);
       await pumpCard(tester, d);
@@ -860,6 +934,56 @@ void main() {
         contains('(Tempo außerhalb von 2:30 min/km bis 15:00 min/km)'),
       );
       expect(key('prediction_other_delete_999'), findsOneWidget);
+      expect(txt('prediction_value_1'), startsWith('≈'));
+    });
+
+    testWidgets('gemischte Referenzen: die gültige ist die Grundlage oben, '
+        'die Zeile „ungültig“ steht unter „Weitere“, jüngste zuerst', (
+      tester,
+    ) async {
+      final d = await boot(tester);
+      await regularRuns(d);
+      await addRef(d, ReferenceKind.race, 10000, 3000); // gilt, vor 20 Tagen
+      final older = await addRef(
+        d,
+        ReferenceKind.test,
+        5000,
+        1500,
+        daysAgo: 40,
+      );
+      final g = _GatedSession(d.session);
+      final n = d.clock.now().toLocal();
+      g.prediction.imported = [
+        StoredReference(
+          id: 999,
+          reference: ReferencePerformance(
+            kind: ReferenceKind.race,
+            distanceMeters: 5000,
+            seconds: 999 * 3600,
+            date: DateTime(n.year, n.month, n.day - 2),
+            createdAt: d.clock.now(),
+          ),
+        ),
+      ];
+      await pumpCard(tester, d, session: g);
+      expect(txt('prediction_reference'), contains('10,00 km in'));
+      expect(txt('prediction_reference'), isNot(contains('ungültig')));
+      expect(txt('prediction_others'), 'Weitere gespeicherte Referenzen: 2');
+      expect(txt('prediction_other_999'), contains('ungültig'));
+      expect(txt('prediction_other_$older'), isNot(contains('ungültig')));
+      expect(txt('prediction_other_$older'), contains('Testzeit, 5,00 km'));
+      double top(String k) => tester.getTopLeft(key(k)).dy;
+      // Reihenfolge von oben: Grundlage, Zeiten, Knöpfe, „Weitere“, dann die
+      // ungültige (jüngere) vor der älteren gültigen.
+      expect(top('prediction_reference'), lessThan(top('prediction_value_1')));
+      expect(top('prediction_value_1'), lessThan(top('prediction_add')));
+      expect(top('prediction_add'), lessThan(top('prediction_others')));
+      expect(top('prediction_others'), lessThan(top('prediction_other_999')));
+      expect(
+        top('prediction_other_999'),
+        lessThan(top('prediction_other_$older')),
+      );
+      // Die Zeitzeilen beruhen auf der gültigen Referenz.
       expect(txt('prediction_value_1'), startsWith('≈'));
     });
 
