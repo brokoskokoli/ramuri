@@ -19,6 +19,8 @@ Läuft auf GitHub im Workflow `e2e` (je API 31 und 36, zwei Shards) über `tool/
 
 `all_test.dart` bindet die Sammlung ein (`e2e_m2_flow_test.dart` läuft wegen der Dauer als eigene Stufe); eine neue `e2e_*_test.dart`, die weder dort noch als Stufe in `tool/ci_e2e.sh` steht, macht den Lauf rot (Wächter). Die Mehrphasen-Stufen brauchen ein Prozessende zwischen den Phasen und laufen darum einzeln.
 
+Tipps mit Wirkungsprüfung laufen über `tapUntil` (`support/e2e_support.dart`). Ihre Bedingung darf nicht werfen: Widgets in lazy Listen (Formulare als `ListView`) lesen sie über `maybeWidget` (fehlt das Widget, gilt die Bedingung als nicht erfüllt); fällt das Ziel aus dem gebauten Bereich, holt der Parameter `reveal` es vor dem erneuten Prüfen zurück. Die Zeilen `PUB_tap_vor`/`PUB_tap_nach` (`im_baum=ja|nein`) im CI-Log zeigen, ob das Ziel vor und nach dem Tipp im Baum stand; sie tragen nur Schlüsselnamen.
+
 ## Lokale Mehrphasentests (Health Connect, nicht in der CI)
 
 Nur der E2E-Agent mit Emulator, je Phase ein Lauf `flutter test integration_test/<datei> -d <serial> --dart-define=...`; die Wächter in `tool/ci_e2e.sh` nehmen beide Dateien aus. Marker im Testlog: `SHOT <name>` (Bildschirmfoto), `HOSTACT <aktion>` (Host-Schritt, der Test wartet 6 s). Außer der ersten Phase immer mit `--no-uninstall`, damit Daten und Schlüssel bleiben. Paket `io.github.brokoskokoli.ramuri`.

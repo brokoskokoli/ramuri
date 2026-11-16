@@ -140,6 +140,7 @@ class RunController extends ChangeNotifier {
   bool _autoPause = false;
   bool _startFailed = false;
   bool _startFailedResume = false;
+  bool _startFailedService = false;
   bool _starting = false;
   bool _locationError = false;
   bool _serviceFailed = false;
@@ -160,8 +161,13 @@ class RunController extends ChangeNotifier {
   /// Anlegen des Laufs scheiterte; ein erneuter [start] ist möglich.
   bool get startFailed => _startFailed;
 
-  /// Fortsetzen eines Bandlaufs scheiterte am Dienst: der bisherige Teil ist gespeichert.
+  /// Das Fortsetzen eines unterbrochenen Laufs scheiterte (gleich an welcher
+  /// Stelle): der bisher aufgezeichnete Teil bleibt gespeichert (FR-0193),
+  /// ein erneutes Fortsetzen ist möglich.
   bool get startFailedResume => _startFailedResume;
+
+  /// Der Start scheiterte am Hintergrunddienst des Laufbands.
+  bool get startFailedService => _startFailedService;
 
   /// Der Laufbandlauf startete nicht, weil dem Dienst ein Recht fehlt (FR-0196,
   /// K57: ACTIVITY_RECOGNITION). Es wurde kein Lauf angelegt; ein erneuter
@@ -312,6 +318,7 @@ class RunController extends ChangeNotifier {
     _starting = true;
     _startFailed = false;
     _startFailedResume = false;
+    _startFailedService = false;
     _startDenied = null;
     notifyListeners();
     try {
@@ -348,6 +355,7 @@ class RunController extends ChangeNotifier {
           // Art unbekannt: nicht GPS annehmen (der Dienst passte nicht zur
           // Sitzung), sondern abbrechen; ein erneutes Fortsetzen ist möglich.
           _startFailed = true;
+          _startFailedResume = true;
           return;
         }
       }
@@ -363,6 +371,7 @@ class RunController extends ChangeNotifier {
           _serviceWanted = false;
           _startFailed = true;
           _startFailedResume = resume != null;
+          _startFailedService = true;
           return;
         }
       }
@@ -376,11 +385,13 @@ class RunController extends ChangeNotifier {
             : await _recorder.restore(resume);
         if (r == CommandResult.rejected) {
           _startFailed = true;
+          _startFailedResume = resume != null;
           if (runMode == RunMode.treadmill) _stopService();
           return;
         }
       } on Object {
         _startFailed = true;
+        _startFailedResume = resume != null;
         if (runMode == RunMode.treadmill) _stopService();
         return;
       }
