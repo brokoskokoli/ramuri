@@ -51,7 +51,7 @@ MorningMeasurement _measurement(
   double? windowStart,
   double? windowEnd,
   double? skippedAfter,
-  PpgQualityReason? reason,
+  MorningUnusableReason? reason,
 }) => MorningMeasurement(
   measuredAt: at(seconds),
   utcOffset: offset,
@@ -222,7 +222,7 @@ Future<void> _extended(StorageContractHarness h) async {
     rmssd: null,
     noise: null,
     ibi: const [],
-    reason: PpgQualityReason.noFinger,
+    reason: MorningUnusableReason.restingHrOutOfRange,
   );
   final rawB = _raw(
     frames: const [],
@@ -256,7 +256,11 @@ Future<void> _extended(StorageContractHarness h) async {
     expectEq(list[1].value.quality, PpgQuality.unusable, 'Stufe unbrauchbar');
     expectTrue(list[1].value.restingHrBpm == null, 'kein Puls');
     expectTrue(list[1].value.roundedRestingHr == null, 'kein gerundeter Puls');
-    expectEq(list[1].value.unusableReason, PpgQualityReason.noFinger, 'Grund');
+    expectEq(
+      list[1].value.unusableReason,
+      MorningUnusableReason.restingHrOutOfRange,
+      'Grund',
+    );
     expectTrue(!list[1].value.isUsable, 'unbrauchbar zählt nicht');
     expectTrue(list[2].value.windowStartS == null, 'Fenster unbekannt');
     expectTrue(list[2].value.restSkippedAfterS == null, 'nicht übersprungen');
@@ -294,7 +298,7 @@ Future<void> _extendedRejected(StorageContractHarness h) async {
     'Übersprung NaN': _measurement(0, skippedAfter: double.nan),
     'Grund bei brauchbarer Messung': _measurement(
       0,
-      reason: PpgQualityReason.weakSignal,
+      reason: MorningUnusableReason.weakSignal,
     ),
     'unbrauchbar mit Puls': MorningMeasurement(
       measuredAt: at(0),
@@ -314,13 +318,13 @@ Future<void> _extendedRejected(StorageContractHarness h) async {
       0,
       quality: PpgQuality.unusable,
       noise: null,
-      reason: PpgQualityReason.noFinger,
+      reason: MorningUnusableReason.noFinger,
     ),
     'unbrauchbar mit Zeitrauschen': _measurement(
       0,
       quality: PpgQuality.unusable,
       rmssd: null,
-      reason: PpgQualityReason.noFinger,
+      reason: MorningUnusableReason.noFinger,
     ),
     'brauchbar ohne Puls': MorningMeasurement(
       measuredAt: at(0),

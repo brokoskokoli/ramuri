@@ -4,8 +4,10 @@ import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/home/home_screen.dart';
+import 'package:running_app/features/home/home_start_row.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
 import 'package:running_app/features/run/run_flow_screen.dart';
@@ -151,6 +153,29 @@ Future<void> _runToSummary(Device d, WidgetTester tester, String start) async {
   await tester.tap(key('run_finish'));
   await tester.pumpAndSettle();
   await tester.tap(key('run_finish_confirm'));
+}
+
+/// Beschriftung des Knopfs [button] als gerendeter Absatz (ohne Symbol).
+RenderParagraph _label(WidgetTester tester, String button) =>
+    tester.renderObject<RenderParagraph>(
+      find.descendant(
+        of: find.descendant(of: key(button), matching: find.byType(Text)),
+        matching: find.byType(RichText),
+      ),
+    );
+
+/// Der gerenderte Absatz ist einzeilig und zeigt den ganzen Text: Breite und
+/// Höhe entsprechen dem ungebrochenen Text, nichts ist abgeschnitten.
+void _expectOneLine(RenderParagraph p, String reason) {
+  final tp = TextPainter(
+    text: p.text,
+    textDirection: TextDirection.ltr,
+    textScaler: p.textScaler,
+  )..layout();
+  expect(p.didExceedMaxLines, isFalse, reason: reason);
+  expect(tp.width, lessThanOrEqualTo(p.size.width + 0.01), reason: reason);
+  expect(p.size.height, closeTo(tp.height, 0.01), reason: reason);
+  tp.dispose();
 }
 
 void main() {
@@ -690,4 +715,53 @@ void main() {
       expect(text('home_week_goal_km'), contains('ca. '));
     });
   });
+
+  // Knopfzeile wie im Design (FR-0209, FR-0205, FR-0208): „Einheit starten“
+  // nimmt den Rest der Zeile, „Frei laufen“ nur seine eigene Breite; passt
+  // das nicht, stehen beide untereinander.
+  for (final width in [360.0, 411.0]) {
+    for (final scale in [1.0, 1.3]) {
+      for (final locale in ['de', 'en']) {
+        testWidgets('Knopfzeile bei $width dp, Schrift $scale ($locale)', (
+          tester,
+        ) async {
+          await loadManrope(tester);
+          final d = Device();
+          final s = await _preopen(d, days: {1, 3, 5});
+          expect(await _unitToday(s), isNotNull);
+          tester.platformDispatcher.textScaleFactorTestValue = scale;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          await d.start(tester, Locale(locale));
+          tester.view.physicalSize = Size(width, 2400);
+          await tester.pumpAndSettle();
+          final tag = '$width dp, $scale, $locale';
+          final unit = tester.getRect(key('home_start_unit'));
+          final free = tester.getRect(key('home_start_run'));
+          _expectOneLine(_label(tester, 'home_start_unit'), 'unit $tag');
+          _expectOneLine(_label(tester, 'home_start_run'), 'run $tag');
+          expect(unit.height, greaterThanOrEqualTo(48), reason: tag);
+          expect(free.height, greaterThanOrEqualTo(48), reason: tag);
+          final row = tester.renderObject<RenderHomeStartRow>(
+            key('home_start_row'),
+          );
+          if (scale == 1.0) {
+            // Nebeneinander, Abstand 10, „Frei laufen“ schmaler.
+            expect(row.stacked, isFalse, reason: tag);
+            expect(free.left - unit.right, closeTo(10, 0.01), reason: tag);
+            expect(free.width, lessThan(unit.width), reason: tag);
+            expect(unit.center.dy, closeTo(free.center.dy, 0.01));
+          } else if (row.stacked) {
+            // Untereinander: „Einheit starten“ oben, ohne Überlappung.
+            expect(free.top - unit.bottom, closeTo(10, 0.01), reason: tag);
+          } else {
+            expect(free.left - unit.right, closeTo(10, 0.01), reason: tag);
+          }
+          expect(tester.takeException(), isNull, reason: tag);
+          await tester.tap(key('home_start_unit'));
+          await tester.pumpAndSettle();
+          expect(key('run_start_ready'), findsOneWidget, reason: tag);
+        });
+      }
+    }
+  }
 }
