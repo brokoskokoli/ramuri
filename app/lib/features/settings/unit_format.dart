@@ -50,7 +50,25 @@ class UnitFormatter {
     if (secondsPerKm == null || !secondsPerKm.isFinite || secondsPerKm <= 0) {
       return noValue;
     }
-    final total = unit.paceFromSecondsPerKm(secondsPerKm).round();
+    return _paceText(unit.paceFromSecondsPerKm(secondsPerKm).round());
+  }
+
+  /// Grenze einer Tempospanne mit eingeschlossenen Grenzen (PAR-208) wie
+  /// [pace], aber nach innen auf ganze Sekunden gerundet: die schnelle Grenze
+  /// ([fastest]) auf, die langsame ab. So liegt der angezeigte Wert selbst in
+  /// der Spanne und wird bei der Eingabe angenommen. Beispiel: 150 s/km sind
+  /// 241,4 s/mi; angezeigt wird 4:02 min/mi, denn 4:01 min/mi wäre schneller
+  /// als 2:30 min/km. In Kilometern ändert sich bei ganzen Sekunden nichts.
+  String paceLimit(double secondsPerKm, {required bool fastest}) {
+    if (!secondsPerKm.isFinite || secondsPerKm <= 0) return noValue;
+    final exact = unit.paceFromSecondsPerKm(secondsPerKm);
+    // Kleine Toleranz gegen Rundungsfehler der Umrechnung bei ganzen Werten.
+    const eps = 1e-6;
+    final total = fastest ? (exact - eps).ceil() : (exact + eps).floor();
+    return _paceText(total);
+  }
+
+  String _paceText(int total) {
     final seconds = (total % 60).toString().padLeft(2, '0');
     return '${total ~/ 60}:$seconds $paceLabel';
   }

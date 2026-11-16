@@ -8,13 +8,15 @@ import '../recalculation/recalculation_controller.dart';
 import '../settings/app_settings.dart';
 import '../storage/deletion.dart';
 import '../summary/run_summary_body.dart';
+import '../summary/subjective_close_scope.dart';
 import '../summary/warning_entry.dart';
 import 'run_detail_page.dart';
 
 /// Detailansicht eines Laufs (FR-0041, FR-0042, FR-0211) nach `Detail.dc.html`:
 /// Lauf laden ([RunSummaryBody]), Inhalt in [RunDetailPage]. Exportieren
 /// ([RunExportAction]) ist Symbol in der Kopfzeile und Knopf am Ende, Löschen sitzt in der Kopfzeile; nach dem Löschen
-/// schließt die Ansicht mit `true`.
+/// schließt die Ansicht mit `true`. Zurück wartet auf das Speichern geänderter
+/// Texte der Angaben zum Lauf ([SubjectiveCloseScope]).
 class RunDetailScreen extends StatefulWidget {
   const RunDetailScreen({
     super.key,
@@ -68,49 +70,52 @@ class _RunDetailScreenState extends State<RunDetailScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final formatter = AppSettingsScope.formatterOf(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.detTitle),
-        actions: [
-          RunExportAction(
-            session: session,
-            runId: runId,
-            presentation: ExportPresentation.icon,
-            busy: _exportBusy,
-          ),
-          IconButton(
-            key: const Key('detail_delete'),
-            tooltip: l10n.histDeleteRun,
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () => _delete(context),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: RunSummaryBody(
-          key: ValueKey(runId),
-          session: session,
-          clock: clock,
-          runId: runId,
-          splitUnitMeters: formatter.unit == DistanceUnit.miles
-              ? mileMeters
-              : kilometerMeters,
-          fallback: () => [Text(l10n.detLoadFailed)],
-          contentBuilder: (context, summary, detail, splits) => RunDetailPage(
-            summary: summary,
-            detail: detail,
-            splits: splits,
-            formatter: formatter,
-            session: session,
-            runId: runId,
-            subjective: SubjectiveService(session: session, clock: clock),
-            onWarning: warningEntry(
+    // Zurück wartet auf offene Angaben zum Lauf (FR-0038).
+    return SubjectiveCloseScope(
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(l10n.detTitle),
+          actions: [
+            RunExportAction(
               session: session,
-              clock: clock,
               runId: runId,
+              presentation: ExportPresentation.icon,
+              busy: _exportBusy,
             ),
-            exportBusy: _exportBusy,
+            IconButton(
+              key: const Key('detail_delete'),
+              tooltip: l10n.histDeleteRun,
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => _delete(context),
+            ),
+          ],
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: RunSummaryBody(
+            key: ValueKey(runId),
+            session: session,
+            clock: clock,
+            runId: runId,
+            splitUnitMeters: formatter.unit == DistanceUnit.miles
+                ? mileMeters
+                : kilometerMeters,
+            fallback: () => [Text(l10n.detLoadFailed)],
+            contentBuilder: (context, summary, detail, splits) => RunDetailPage(
+              summary: summary,
+              detail: detail,
+              splits: splits,
+              formatter: formatter,
+              session: session,
+              runId: runId,
+              subjective: SubjectiveService(session: session, clock: clock),
+              onWarning: warningEntry(
+                session: session,
+                clock: clock,
+                runId: runId,
+              ),
+              exportBusy: _exportBusy,
+            ),
           ),
         ),
       ),

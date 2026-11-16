@@ -168,6 +168,7 @@ class ReadinessService {
     final inputs = ReadinessInputs(
       today: today,
       now: now,
+      dayStart: days.last.start,
       hrvHealthConnect: hrv,
       restingHrHealthConnect: rhr,
       cameraDeviations: camera,

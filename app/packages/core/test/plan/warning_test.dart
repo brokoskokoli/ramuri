@@ -457,6 +457,31 @@ void main() {
       );
       expect((await e.warning.read())!.reportedOn, _day(1));
     });
+
+    test('in zwei Schritten (Plan-Seite): mark setzt die Zeile, scheitert '
+        'recalculateReported, bleibt sie gespeichert', () async {
+      final (e, service) = await failing();
+      final before = await e.sigs();
+      expect(
+        await service.mark(source: WarningSource.manual, today: _day(3)),
+        isTrue,
+      );
+      expect(await e.sigs(), before, reason: 'erst Signal, dann Fassung');
+      await expectLater(
+        service.recalculateReported(today: _day(3), now: _now(3)),
+        throwsA(isA<StorageException>()),
+      );
+      final w = (await e.warning.read())!;
+      expect(w.reportedOn, _day(3));
+      expect(w.source, WarningSource.manual);
+      expect(await e.sigs(), before);
+      // Zweites Melden ändert die bestehende Zeile nicht.
+      expect(
+        await service.mark(source: WarningSource.runFeedback, today: _day(4)),
+        isFalse,
+      );
+      expect((await e.warning.read())!.reportedOn, _day(3));
+    });
   });
 
   test('applyWarningRest: Einheit mit Lauf und vergangene bleiben', () {

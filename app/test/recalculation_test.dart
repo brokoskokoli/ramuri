@@ -231,6 +231,28 @@ Future<void> _changeMaxAndOpenSettings(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Dauer einer Snackbar ohne eigene `duration` (Standard von Flutter).
+final _snackBarDuration = const SnackBar(content: SizedBox()).duration;
+
+/// Nach erfolgreicher Neuberechnung: die Meldung steht in einer Snackbar,
+/// die Karte zeigt kein Ergebnis (ohne weiteres Angebot ist sie weg).
+void _expectDoneSnackBar(int runs) {
+  final bar = find.byKey(const Key('recalc_done'));
+  expect(bar, findsOneWidget);
+  expect(
+    find.descendant(
+      of: bar,
+      matching: find.text(
+        'Neuberechnet: $runs Läufe. Die ursprünglichen Werte bleiben erhalten.',
+      ),
+    ),
+    findsOneWidget,
+  );
+  expect(find.textContaining('Neuberechnet'), findsOneWidget);
+  expect(find.byKey(const Key('recalc_status')), findsNothing);
+  expect(find.byKey(const Key('recalc_dialog')), findsNothing);
+}
+
 Future<Device> _start(
   WidgetTester tester, {
   Locale locale = const Locale('de'),
@@ -352,7 +374,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(gate.swaps, 1);
     expect(find.byKey(const Key('recalc_confirm')), findsNothing);
-    expect(find.textContaining('Neuberechnet: 2 Läufe'), findsOneWidget);
+    _expectDoneSnackBar(2);
     final after = await _dump(d.session);
     expect(after, isNot(before));
     // original unverändert (Teil vor "||"), current mit neuer Basis 180.
@@ -364,6 +386,29 @@ void main() {
       d.session.settings.get(RecalculationService.pendingKey),
       completion(''),
     );
+  });
+
+  testWidgets('Neuberechnet als Snackbar mit Standarddauer, danach weg; '
+      'Karte ohne Ergebnis (FR-0058)', (tester) async {
+    await _start(tester);
+    await _changeMaxAndOpenSettings(tester);
+    await tester.tap(find.byKey(const Key('recalc_confirm')));
+    await tester.pumpAndSettle();
+    _expectDoneSnackBar(2);
+    // Keine eigene Dauer: wie die übrigen Bestätigungen der App.
+    expect(
+      tester.widget<SnackBar>(find.byKey(const Key('recalc_done'))).duration,
+      _snackBarDuration,
+    );
+    // Kurz vor Ablauf steht sie noch, danach ist sie weg; die Karte bleibt
+    // ohne Ergebnis.
+    await tester.pump(_snackBarDuration - const Duration(milliseconds: 100));
+    expect(find.byKey(const Key('recalc_done')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('recalc_done')), findsNothing);
+    expect(find.textContaining('Neuberechnet'), findsNothing);
+    expect(find.byKey(const Key('recalc_dialog')), findsNothing);
   });
 
   testWidgets(
@@ -378,7 +423,19 @@ void main() {
       expect(find.byKey(const Key('recalc_status')), findsOneWidget);
       expect(find.textContaining('fehlgeschlagen'), findsOneWidget);
       expect(find.textContaining('180'), findsNothing);
+      expect(find.byKey(const Key('recalc_done')), findsNothing);
       expect(await _dump(d.session), before);
+      // Der Fehler ist keine Snackbar: er bleibt über deren Dauer hinaus in
+      // der Karte stehen.
+      await tester.pump(_snackBarDuration + const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('recalc_dialog')),
+          matching: find.textContaining('fehlgeschlagen'),
+        ),
+        findsOneWidget,
+      );
       // Angebot bleibt, ein neuer Versuch gelingt.
       gate.fail = false;
       await tester.tap(find.byKey(const Key('recalc_confirm')));

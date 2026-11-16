@@ -30,6 +30,7 @@ class AppDependencies {
     this.archiveExport,
     this.archiveRestore,
     this.archiveVerify,
+    this.archiveHeaderCheck = precheckArchiveFile,
     this.mapCache,
     this.map,
     ReminderScheduler? reminders,
@@ -84,6 +85,11 @@ class AppDependencies {
   /// Prüfung eines Archivs ohne Schreiben (SEC-0009, Weg im Dialog "nicht zu
   /// öffnen"). `null`: nicht verdrahtet.
   final ArchiveVerifier? archiveVerify;
+
+  /// Vorprüfung des Kopfes der gewählten Archivdatei vor der Passwortabfrage
+  /// (FR-0198). Standard: die echte Datei; Tests mit Pfaden ohne Datei setzen
+  /// einen Fake.
+  final ArchiveHeaderCheck archiveHeaderCheck;
 
   /// Kartenspeicher (WP13). `null` in Tests. Löschen und Größe gibt Teil A3 an die Oberfläche; "Alles löschen" und
   /// der Neubeginn räumen ihn ab.

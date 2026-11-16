@@ -282,14 +282,24 @@ class _PlanScreenState extends State<PlanScreen> {
     );
     if (!mounted || ok != true) return;
     setState(() => _busy = true);
-    final result = await _controller.reportWarning();
+    // Rückmeldung, sobald das Signal gespeichert ist; die Neuberechnung
+    // läuft danach (Fortschritt im Banner).
+    var saved = false;
+    final result = await _controller.reportWarning(
+      onSaved: () {
+        saved = true;
+        if (mounted) {
+          _snack(messenger, 'plan_warning_reported', l.planWarnReported);
+        }
+      },
+    );
     if (!mounted) return;
     setState(() => _busy = false);
-    _snack(
-      messenger,
-      'plan_warning_reported',
-      result == PlanActionResult.done ? l.planWarnReported : l.planWarnFailed,
-    );
+    if (result != PlanActionResult.done) {
+      _snack(messenger, 'plan_warning_failed', l.planWarnFailed);
+    } else if (!saved) {
+      _snack(messenger, 'plan_warning_reported', l.planWarnReported);
+    }
   }
 
   /// „Meldung aufheben“ (FR-0203): die Meldung endet nur durch den Nutzer.
@@ -601,6 +611,7 @@ class _PlanScreenState extends State<PlanScreen> {
             _WarningBanner(
               state: s,
               today: _today,
+              recalculating: _controller.warningRecalculating,
               onLift: _busy ? null : _liftWarning,
             ),
             const SizedBox(height: 10),

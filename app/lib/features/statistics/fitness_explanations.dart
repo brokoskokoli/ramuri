@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_card.dart';
 import 'fitness_section.dart' show fitnessNumber, reasonText;
+import 'period_date.dart';
 import 'statistics_view.dart' show StatHeading;
 
 /// Die Sätze der Erklärungen (FR-0180, FR-0181) zur Fitness: Entwicklung der
@@ -15,7 +16,6 @@ List<String> fitnessExplanationLines(
   DateTime today,
 ) {
   final l = AppLocalizations.of(context);
-  final material = MaterialLocalizations.of(context);
   final german = Localizations.localeOf(context).languageCode == 'de';
   final lines = <String>[];
 
@@ -25,8 +25,18 @@ List<String> fitnessExplanationLines(
         FitnessPoint(DateTime.parse('${e.day}T00:00:00Z'), e.value.value!),
   ], today: today);
   if (development != null) {
-    String day(EvidenceKey k) =>
-        material.formatMediumDate(development.evidenceOf(k)! as DateTime);
+    // Anfang und Ende mit Jahr, sobald eines nicht im laufenden Jahr liegt
+    // (FR-0044).
+    final span = [
+      development.evidenceOf(EvidenceKey.fromDay)! as DateTime,
+      development.evidenceOf(EvidenceKey.toDay)! as DateTime,
+    ];
+    String day(EvidenceKey k) => periodDateText(
+      context,
+      development.evidenceOf(k)! as DateTime,
+      currentYear: today.year,
+      span: span,
+    );
     String value(EvidenceKey k) =>
         fitnessNumber(german, (development.evidenceOf(k)! as num).toDouble());
     final n = (development.evidenceOf(EvidenceKey.runCount)! as num).round();
