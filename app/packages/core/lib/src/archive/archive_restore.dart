@@ -11,7 +11,6 @@ import '../../ports/storage_warning.dart';
 import 'archive_errors.dart';
 import 'archive_export.dart';
 import 'archive_import.dart';
-import 'archive_lines.dart' show archiveExcludedSettingKeys;
 
 /// Wiederherstellung aus dem Archiv (WP12, FR-0198, `docs/contracts/archive.md`
 /// 4.6): einlesen in die Zwischendatenbank, dann tauschen.
@@ -59,25 +58,16 @@ class ArchiveRestoreService {
 
   static Future<T> _direct<T>(Future<T> Function() action) => action();
 
-  /// Keine Läufe, kein Profilwert, keine Geräte und keine Einstellung außer den
-  /// technischen Merkern ([archiveExcludedSettingKeys]). Einwilligungen zählen
-  /// nicht: Sie werden ohnehin nicht übernommen. Tageswerte zählen nicht: Sie
-  /// sind aus Läufen abgeleitet (ohne Läufe nichts Eigenes) und der Port bietet
-  /// keine Auflistung. Referenzleistungen und das Ziel zählen (sie brauchen keinen Lauf).
+  /// Leere App (FR-0198, Vertrag 4.6): keine Läufe, keine nachgetragenen
+  /// Trainings, kein Ziel und kein Plan (samt Warnsignal), keine
+  /// Referenzleistungen, keine bekannten Geräte, keine importierten
+  /// Gesundheitsdaten und keine Morgenmessungen. Profil und Einstellungen
+  /// zählen nicht: Die Ersteinrichtung schreibt sie, und der Import ersetzt sie
+  /// durch die des Archivs. Einwilligungen zählen nicht (sie werden ohnehin
+  /// nicht übernommen), Tageswerte auch nicht (aus Läufen abgeleitet).
   /// Wirft [StorageException].
   static Future<bool> isEmpty(StorageSession s) async {
     if ((await s.runs.list()).isNotEmpty) return false;
-    final p = await s.profile.read();
-    if (p.birthYear != null ||
-        p.bodyWeightKg != null ||
-        p.bodyHeightMeters != null ||
-        p.restingHeartRateBpm != null ||
-        p.maxHeartRateBpm != null ||
-        p.weeklyRunMinutes != null ||
-        p.trainingDaysMask != null ||
-        p.usualTrainingMinutes != null) {
-      return false;
-    }
     if ((await s.devices.list()).isNotEmpty) return false;
     if ((await s.manualTrainings.list()).isNotEmpty) return false;
     // Eingetragene Referenzleistungen sind eigene Daten, auch ohne Läufe.
@@ -85,29 +75,29 @@ class ArchiveRestoreService {
         (await (s as PredictionStorage).prediction.references()).isNotEmpty) {
       return false;
     }
-    // Ein Trainingsziel ist ein eigenes Datum, auch ohne Läufe.
+    // Ein Trainingsziel ist ein eigenes Datum, auch ohne Läufe. Der Plan hängt
+    // am Ziel (er wird mit ihm gelöscht) und zählt mit ihm.
     if (s is GoalStorage && (await (s as GoalStorage).goals.goal()) != null) {
       return false;
     }
-    // Ein Warnsignal ist ein eigenes Datum, auch ohne Läufe.
+    // Das Warnsignal gehört zum Plan (FR-0203) und zählt mit ihm.
     if (s is WarningStorage &&
         (await (s as WarningStorage).warning.read()) != null) {
       return false;
     }
-    // Importierte Gesundheitsdaten (WP32) sind eigene Daten, auch ohne Läufe.
+    // Importierte Gesundheitsdaten sind eigene Daten, auch ohne Läufe.
     if (s is HealthStorage) {
       final h = (s as HealthStorage).health;
       for (final k in HealthDataKind.values) {
         if (await h.count(k) > 0) return false;
       }
     }
-    // Morgenmessungen (WP33) sind eigene Daten, auch ohne Läufe.
+    // Morgenmessungen sind eigene Daten, auch ohne Läufe.
     if (s is MorningStorage &&
         (await (s as MorningStorage).morning.list()).isNotEmpty) {
       return false;
     }
-    final settings = await s.settings.all();
-    return settings.keys.every(archiveExcludedSettingKeys.contains);
+    return true;
   }
 
   /// Liest [path] mit [password] und ersetzt die Datenbank. Wirft

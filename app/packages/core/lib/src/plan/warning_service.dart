@@ -52,22 +52,17 @@ class WarningService {
   /// früher gescheiterter Schreibversuch holt sich so nach. [today] ist der
   /// Ortstag. Scheitert das Schreiben des Plans, nimmt der Dienst die eben
   /// gesetzte Zeile zurück und wirft den Fehler weiter: Warnsignal und Plan
-  /// gelten beide oder keines (die App zeigt sonst ein Banner über einem Plan
-  /// mit Läufen). Ein schon früher gesetztes Warnsignal bleibt.
+  /// gelten beide oder keines. Ein schon früher gesetztes Warnsignal bleibt.
+  /// Die Plan-Seite nutzt stattdessen [mark] und [recalculateReported].
   Future<PlanRecalculation> report({
     required WarningSource source,
     required DateTime today,
     required DateTime now,
     int? runId,
   }) async {
-    final created = await warning.read() == null;
-    if (created) {
-      await warning.set(
-        WarningSignal(reportedOn: planDay(today), source: source, runId: runId),
-      );
-    }
+    final created = await mark(source: source, today: today, runId: runId);
     try {
-      return await _recalculate(today, now, planReasonWarning);
+      return await recalculateReported(today: today, now: now);
     } catch (_) {
       if (created) {
         try {
@@ -80,6 +75,31 @@ class WarningService {
       rethrow;
     }
   }
+
+  /// Erster Schritt des Meldens: setzt das Warnsignal, falls noch keines
+  /// besteht (Tag, Quelle und Lauf eines bestehenden bleiben). `true`, wenn
+  /// es neu gesetzt wurde. Die Ruhetag-Fassung schreibt erst
+  /// [recalculateReported]; bis dahin passt der Plan nicht zum Signal, das
+  /// nächste Öffnen der Plan-Seite stellt ihn sonst her.
+  Future<bool> mark({
+    required WarningSource source,
+    required DateTime today,
+    int? runId,
+  }) async {
+    if (await warning.read() != null) return false;
+    await warning.set(
+      WarningSignal(reportedOn: planDay(today), source: source, runId: runId),
+    );
+    return true;
+  }
+
+  /// Zweiter Schritt des Meldens: schreibt die Ruhetag-Fassung zum gesetzten
+  /// Warnsignal. Scheitert das, bleibt das Signal gesetzt und der Fehler geht
+  /// an den Aufrufer.
+  Future<PlanRecalculation> recalculateReported({
+    required DateTime today,
+    required DateTime now,
+  }) => _recalculate(today, now, planReasonWarning);
 
   /// Hebt das Warnsignal auf und schreibt die Fassung mit den Festlegungen
   /// zurück. Ohne Warnsignal wird nichts gelöscht; der Plan wird geprüft

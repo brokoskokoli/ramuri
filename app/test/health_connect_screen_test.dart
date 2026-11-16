@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:core/fakes/fake_storage_settings.dart';
 import 'package:flutter/material.dart';
@@ -189,6 +191,124 @@ void main() {
       await c.consents.isGranted(healthSourceKey(HealthDataKind.sleep)),
       isTrue,
     );
+  });
+
+  // Import beim Öffnen von „Heute“, der erst nach dem Ausschalten fertig wird und dann die offenen Löschfragen stellt.
+  Future<Completer<void>> startDelayedImport(
+    WidgetTester tester,
+    HealthConnectController c,
+  ) async {
+    final gate = Completer<void>();
+    final context = tester.element(find.byType(HealthConnectScreen));
+    unawaited(() async {
+      await gate.future;
+      await c.importThenLoad(HealthImportTrigger.todayOpened);
+      if (context.mounted) {
+        await askOpenHealthQuestions(context, c, skipDeferred: true);
+      }
+    }());
+    return gate;
+  }
+
+  for (final (answer, deleted, onAgain) in [
+    ('health_delete_keep', false, false),
+    ('health_delete_confirm', true, false),
+    ('health_delete_cancel', false, true),
+  ]) {
+    testWidgets('Widerruf während verzögertem Import: genau eine Löschfrage '
+        '($answer)', (tester) async {
+      final (c, storage, _) = await _setup(
+        tester,
+        consented: {HealthDataKind.sleep, HealthDataKind.vo2Max},
+        stored: {HealthDataKind.sleep: 2, HealthDataKind.vo2Max: 1},
+      );
+      final gate = await startDelayedImport(tester, c);
+      await tapKey(tester, 'health_switch_sleep');
+      expect(key('health_delete_dialog'), findsOneWidget);
+      // Der Import endet, während die Frage des Schalters offen ist.
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(key('health_delete_dialog'), findsOneWidget);
+      await tapKey(tester, answer);
+      await tester.pumpAndSettle();
+      // Die Antwort gilt einmal: keine weitere Frage zu dieser Art.
+      expect(key('health_delete_dialog'), findsNothing);
+      expect(c.questions, isNot(contains(HealthDataKind.sleep)));
+      expect(
+        await c.consents.isDeleteQuestionOpen(
+          healthSourceKey(HealthDataKind.sleep),
+        ),
+        isFalse,
+      );
+      expect(
+        await storage.data.health.count(HealthDataKind.sleep),
+        deleted ? 0 : 2,
+      );
+      expect(await storage.data.health.count(HealthDataKind.vo2Max), 1);
+      expect(
+        await c.consents.isGranted(healthSourceKey(HealthDataKind.sleep)),
+        onAgain,
+      );
+      expect(c.enabled.contains(HealthDataKind.sleep), onAgain);
+    });
+  }
+
+  testWidgets('Widerruf während verzögertem Import: andere Art danach', (
+    tester,
+  ) async {
+    final (c, storage, port) = await _setup(
+      tester,
+      consented: {HealthDataKind.sleep, HealthDataKind.vo2Max},
+      stored: {HealthDataKind.sleep: 2, HealthDataKind.vo2Max: 1},
+    );
+    final gate = await startDelayedImport(tester, c);
+    await tapKey(tester, 'health_switch_sleep');
+    // Während die Frage offen ist, fehlt in Health Connect das Recht einer anderen Art.
+    port.granted = HealthDataKind.values.toSet()..remove(HealthDataKind.vo2Max);
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(key('health_delete_dialog'), findsOneWidget);
+    await tapKey(tester, 'health_delete_keep');
+    await tester.pumpAndSettle();
+    // Die Frage der anderen Art kommt danach, allein.
+    expect(key('health_delete_dialog'), findsOneWidget);
+    expect(c.questions, [HealthDataKind.vo2Max]);
+    await tapKey(tester, 'health_delete_confirm');
+    await tester.pumpAndSettle();
+    expect(key('health_delete_dialog'), findsNothing);
+    expect(await storage.data.health.count(HealthDataKind.sleep), 2);
+    expect(await storage.data.health.count(HealthDataKind.vo2Max), 0);
+  });
+
+  testWidgets('Zwei Aufrufe derselben Löschfrage: nur ein Dialog', (
+    tester,
+  ) async {
+    final (c, storage, _) = await _setup(
+      tester,
+      consented: {HealthDataKind.sleep},
+      stored: {HealthDataKind.sleep: 2},
+    );
+    await c.disable(HealthDataKind.sleep);
+    final context = tester.element(find.byType(HealthConnectScreen));
+    final first = askHealthDeleteQuestion(
+      context,
+      c,
+      HealthDataKind.sleep,
+      fromSwitch: false,
+    );
+    final second = askHealthDeleteQuestion(
+      context,
+      c,
+      HealthDataKind.sleep,
+      fromSwitch: false,
+    );
+    await tester.pumpAndSettle();
+    expect(key('health_delete_dialog'), findsOneWidget);
+    expect(await second, isFalse);
+    await tapKey(tester, 'health_delete_keep');
+    expect(await first, isTrue);
+    expect(key('health_delete_dialog'), findsNothing);
+    expect(await storage.data.health.count(HealthDataKind.sleep), 2);
   });
 
   testWidgets('Fehlendes Recht in Health Connect: Löschfrage beim Öffnen', (

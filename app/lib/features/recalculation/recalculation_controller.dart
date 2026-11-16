@@ -4,7 +4,11 @@ import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 
 /// Phase der Neuberechnung aus Sicht der Oberfläche.
-enum RecalculationPhase { idle, running, done, failed, declineFailed }
+///
+/// Ein Erfolg ist keine eigene Phase: [RecalculationController.confirm] gibt
+/// das Ergebnis zurück, die Seite meldet es als Snackbar, die Karte steht
+/// danach wieder in [idle].
+enum RecalculationPhase { idle, running, failed, declineFailed }
 
 /// Hält das Angebot einer Neuberechnung und den Ablauf für die Oberfläche
 /// (FR-0006, FR-0058, OQ-0031, OQ-0053). Alles Rechnen und Speichern liegt im
@@ -219,9 +223,13 @@ class RecalculationController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> confirm() async {
+  /// Bestätigt das gezeigte Angebot. Gibt das Ergebnis zurück, wenn
+  /// neu berechnet wurde, sonst `null` (kein Angebot, schon beschäftigt,
+  /// Angebot inzwischen ersetzt, Fehler). Nach dem Erfolg steht die Phase
+  /// wieder auf [RecalculationPhase.idle]; die Meldung gibt die Seite aus.
+  Future<RecalculationResult?> confirm() async {
     final offer = _offer;
-    if (offer == null || busy) return;
+    if (offer == null || busy) return null;
     _phase = RecalculationPhase.running;
     _result = null;
     notifyListeners();
@@ -233,13 +241,13 @@ class RecalculationController extends ChangeNotifier {
       // Das gezeigte Angebot gibt es so nicht mehr; nichts wurde geändert. Das
       // neue Angebot steht danach da, bestätigt wird erst auf Wunsch.
       await _showCurrentOffer();
-      return;
+      return null;
     } on Object {
       // Der alte Stand bleibt ganz (Tausch in einer Transaktion), das Angebot
       // bleibt für einen neuen Versuch.
       _phase = RecalculationPhase.failed;
       if (!_disposed) notifyListeners();
-      return;
+      return null;
     }
     // Getauscht ist getauscht: scheitert nur das Lesen eines weiteren Angebots,
     // gilt die Neuberechnung als erledigt und es wird kein Angebot gezeigt.
@@ -248,8 +256,9 @@ class RecalculationController extends ChangeNotifier {
     } on Object {
       _offer = null;
     }
-    _phase = RecalculationPhase.done;
+    _phase = RecalculationPhase.idle;
     if (!_disposed) notifyListeners();
+    return _result;
   }
 
   Future<void> decline() async {

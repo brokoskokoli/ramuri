@@ -253,6 +253,42 @@ void main() {
       expect(text('stat_vo2_run_value'), isNot(contains('ml/kg/min')));
     });
 
+    testWidgets('ohne Puls und ohne Profil: Grund ist der fehlende Puls '
+        '(FR-0057)', (tester) async {
+      final d = await started(tester);
+      d.clock.set(DateTime.utc(2026, 6, 3, 12));
+      for (final day in [1, 2]) {
+        final id = await seedRun(
+          d.session,
+          DateTime.utc(2026, 6, day, 8),
+          bpm: null,
+        );
+        await calc(d, id);
+      }
+      await openStats(d, tester);
+      for (final k in ['stat_zones_value', 'stat_trimp_value']) {
+        expect(text(k), contains('kein Puls'), reason: k);
+        expect(text(k), isNot(contains('im Profil')), reason: k);
+      }
+    });
+
+    testWidgets('mit Puls, Profil unvollständig: Profilgrund bleibt', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      // Profil ohne Ruhepuls und HFmax.
+      d.clock.set(DateTime.utc(2026, 6, 3, 12));
+      for (final day in [1, 2]) {
+        final id = await seedRun(d.session, DateTime.utc(2026, 6, day, 8));
+        await calc(d, id);
+      }
+      await openStats(d, tester);
+      for (final k in ['stat_zones_value', 'stat_trimp_value']) {
+        expect(text(k), contains('im Profil'), reason: k);
+        expect(text(k), isNot(contains('kein Puls')), reason: k);
+      }
+    });
+
     testWidgets('Lauf ohne gespeicherte Werte: Berechnung steht aus', (
       tester,
     ) async {

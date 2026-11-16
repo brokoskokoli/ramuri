@@ -15,6 +15,7 @@
 // Einstieg weg (mit S1 die Pruefung K62 F1). Nur Zaehler und Marken in der
 // Ausgabe.
 // Der Host (--dart-define=E2E_SHOTS=true) kann bei "E2E_.. SHOT <name>" ein Bildschirmfoto machen.
+import 'dart:async';
 import 'dart:io';
 
 import 'package:core/core.dart';
@@ -24,6 +25,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:running_app/debug/debug_test_ppg_camera.dart';
 import 'package:running_app/debug/debug_test_sensor.dart';
+import 'package:running_app/features/measure/morning_entry.dart';
 import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/system_clock.dart';
 import 'package:running_app/ui/ui.dart';
@@ -63,6 +65,33 @@ Future<void> shot(WidgetTester t, String name) async {
   log('SHOT $name');
   if (_shots) await pumpFor(t, const Duration(milliseconds: 2500));
 }
+
+/// Wartet, bis der Morgen-Einstieg unter [owner] ([MorningCard] auf Heute,
+/// [MorningTile] in der Uebersicht) seinen Zustand fertig geladen hat: die
+/// Zukunft seines FutureBuilder ist erfuellt und das Bild danach gebaut. Erst
+/// dann belegt das Fehlen von Karte oder Eintrag etwas (statt fester Pause).
+Future<void> entryLoaded(WidgetTester t, Type owner, String what) async {
+  final fb = find.descendant(
+    of: find.byType(owner),
+    matching: find.byWidgetPredicate(
+      (w) => w is FutureBuilder<MorningEntryState?>,
+    ),
+  );
+  await waitFor(t, () => fb.evaluate().isNotEmpty, '$what: Einstieg gebaut');
+  final future = (fb.evaluate().first.widget as FutureBuilder).future;
+  var done = future == null;
+  if (future != null) {
+    unawaited(
+      future.then<void>((_) => done = true, onError: (Object _) => done = true),
+    );
+  }
+  await waitFor(t, () => done, '$what: Einstieg geladen');
+  await t.pump();
+}
+
+/// Helligkeit des Themas, das auf der Seite mit [key] gilt.
+Brightness themeAt(WidgetTester t, String key) =>
+    Theme.of(t.element(find.byKey(Key(key)))).brightness;
 
 Future<List<MorningMeasurement>> stored(
   WidgetTester t,
@@ -126,7 +155,14 @@ Future<void> measureFromTile(WidgetTester t, {bool sitting = false}) async {
   await waitFor(t, () => has('morning_start'), 'Einstieg Morgenmessung');
   if (sitting) {
     await tapKey(t, 'morning_posture_sitting');
-    await pumpFor(t, const Duration(milliseconds: 300));
+    final sittingNote = AppLocalizations.of(
+      t.element(find.byKey(const Key('morning_pose_note'))),
+    ).morningPoseNoteSitting;
+    await waitFor(
+      t,
+      () => txt('morning_pose_note') == sittingNote,
+      'Haltung sitzend gewaehlt (morning_pose_note)',
+    );
   }
   await toResult(t);
 }
@@ -153,11 +189,15 @@ void main() {
       'S0 Fenster=${(await t.runAsync(() => SettingsMorningWindowStore(s.settings, w.deps.clock).read()))!.format()}',
     );
 
-    // 1) ohne Entwicklermodus: weder Karte noch Eintrag.
-    await pumpFor(t, const Duration(seconds: 2));
+    // 1) ohne Entwicklermodus: weder Karte noch Eintrag. Das Fehlen gilt erst,
+    // wenn Heute steht und der Einstieg seinen Zustand geladen hat.
+    await waitFor(t, () => has('home_start_run'), 'S1 Heute (home_start_run)');
+    await entryLoaded(t, MorningCard, 'S1 Heute');
     expect(has('morning_card'), isFalse, reason: 'S1 keine Karte');
     await shot(t, 's1_heute_ohne');
     await tapKey(t, 'home_overview');
+    await waitFor(t, () => has('overview_about'), 'S1 Uebersicht');
+    await entryLoaded(t, MorningTile, 'S1 Uebersicht');
     expect(has('overview_morning'), isFalse, reason: 'S1 kein Eintrag');
     expect(has('overview_morning_values'), isFalse, reason: 'S1 kein Verlauf');
     await shot(t, 's1_uebersicht_ohne');
@@ -170,6 +210,18 @@ void main() {
       await t.tap(find.byKey(const Key('about_version')));
       await pumpFor(t, const Duration(milliseconds: 120));
     }
+    // Neun Tipps sind gezaehlt, wenn der Hinweis „noch 1 Tipp“ steht.
+    final oneLeft = AppLocalizations.of(
+      t.element(find.byKey(const Key('about_version'))),
+    ).devTapsLeft(1);
+    bool toastOneLeft() => find
+        .descendant(
+          of: find.byKey(const Key('about_toast')),
+          matching: find.text(oneLeft),
+        )
+        .evaluate()
+        .isNotEmpty;
+    await waitFor(t, toastOneLeft, 'S2 neun Tipps gezaehlt (about_toast)');
     expect(has('about_dev_badge'), isFalse, reason: 'S2 nach 9 Tipps aus');
     expect(has('about_dev_section'), isFalse);
     await shot(t, 's2_ueber_9tipps');
@@ -180,6 +232,7 @@ void main() {
       await t.tap(find.byKey(const Key('about_version')));
       await pumpFor(t, const Duration(milliseconds: 120));
     }
+    await waitFor(t, toastOneLeft, 'S2 neuer Besuch neun Tipps (about_toast)');
     expect(
       has('about_dev_badge'),
       isFalse,
@@ -187,8 +240,11 @@ void main() {
     );
     await t.tap(find.byKey(const Key('about_version')));
     await waitFor(t, () => has('about_dev_badge'), 'Entwicklermodus an');
-    await pumpFor(t, const Duration(milliseconds: 500));
-    expect(has('about_dev_section'), isTrue);
+    await waitFor(
+      t,
+      () => has('about_dev_section'),
+      'S2 Entwicklerabschnitt (about_dev_section)',
+    );
     expect(
       (await t.runAsync(
         () => SettingsDeveloperModeStore(s.settings, w.deps.clock).read(),
@@ -206,11 +262,15 @@ void main() {
       timeout: const Duration(seconds: 10),
     );
     await back(t);
-    await pumpFor(t, const Duration(seconds: 1));
-    log('S2 karte_sofort=${has('morning_card')}');
     await waitFor(t, () => has('home_start_run'), 'Heute');
+    log('S2 karte_sofort=${has('morning_card')}');
+    await waitFor(
+      t,
+      () => has('morning_card'),
+      'S2 Karte erscheint (morning_card)',
+      timeout: const Duration(seconds: 10),
+    );
     await shot(t, 's2_heute_an');
-    expect(has('morning_card'), isTrue, reason: 'S2 Karte erscheint');
 
     // Das Fenster liegt fuer die Faelle 3 bis 6 immer um der Systemzeit (die Uhr
     // der App ist die Systemuhr), auch wenn das Vorgabefenster passen wuerde: ein
@@ -336,11 +396,10 @@ void main() {
     cam.scenario = DebugPpgScenario.goodPulse;
     await tapKey(t, 'morning_again');
     // Noch einmal startet gleich die Messung, ohne neue Ruhephase.
-    await pumpFor(t, const Duration(milliseconds: 500));
+    await waitFor(t, () => !has('morning_again'), 'Ergebnis 1 verlassen');
     log(
       'S4 nach_again rest=${has('measure_rest_clock')} start=${has('morning_start')}',
     );
-    await waitFor(t, () => !has('morning_again'), 'Ergebnis 1 verlassen');
     await waitFor(
       t,
       resultSettled,
@@ -438,13 +497,20 @@ void main() {
     sem.dispose();
     // Bildschirmfotos dunkel und hell (Systemhelligkeit der Testumgebung).
     t.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
-    await pumpFor(t, const Duration(milliseconds: 600));
+    await waitFor(
+      t,
+      () => themeAt(t, 'morning_legend') == Brightness.dark,
+      'Morgenwerte dunkel (morning_legend)',
+    );
     await shot(t, 's3_morgenwerte_marken_dunkel');
     t.platformDispatcher.platformBrightnessTestValue = Brightness.light;
-    await pumpFor(t, const Duration(milliseconds: 600));
+    await waitFor(
+      t,
+      () => themeAt(t, 'morning_legend') == Brightness.light,
+      'Morgenwerte hell (morning_legend)',
+    );
     await shot(t, 's3_morgenwerte_marken_hell');
     t.platformDispatcher.clearPlatformBrightnessTestValue();
-    await pumpFor(t, const Duration(milliseconds: 300));
     await tapKey(t, 'measure_back');
     await back(t);
 
@@ -462,7 +528,11 @@ void main() {
       'S5b vorher bekannt=${sensors.knownEntries.length} verbunden=${sensors.connectedIds.length}',
     );
     await t.runAsync(() => sensors.attachStore(testDevices));
-    await pumpFor(t, const Duration(milliseconds: 300));
+    await waitFor(
+      t,
+      () => sensors.knownEntries.isEmpty && sensors.connectedIds.isEmpty,
+      'S5b Test-Speicher angebunden, kein Geraet bekannt oder verbunden',
+    );
     expect(sensors.knownEntries, isEmpty, reason: 'S5b kein Geraet bekannt');
     expect(sensors.connectedIds, isEmpty, reason: 'S5b kein Geraet verbunden');
     log(
@@ -565,8 +635,11 @@ void main() {
     await closeResultToHome(t);
     await tapKey(t, 'home_overview');
     await tapKey(t, 'overview_about');
-    await waitFor(t, () => has('about_pairs_count'), 'Zaehler');
-    await pumpFor(t, const Duration(milliseconds: 600));
+    await waitFor(
+      t,
+      () => has('about_pairs_count') && txt('about_pairs_count').isNotEmpty,
+      'Zaehler geladen (about_pairs_count)',
+    );
     log('S6 zaehler_text_laenge=${txt('about_pairs_count').length}');
     await shot(t, 's6_ueber_paare');
     await tapKey(t, 'about_pairs_share');
@@ -667,8 +740,8 @@ void main() {
     await tapKey(t, 'home_overview');
     await waitFor(t, () => has('overview_about'), 'Uebersicht');
     // Negativpruefung: der Entwicklermodus wird beim Laden der Uebersicht
-    // gelesen, kurz Zeit geben, bevor das Fehlen gilt.
-    await pumpFor(t, const Duration(milliseconds: 500));
+    // gelesen; das Fehlen gilt erst, wenn der Einstieg fertig geladen hat.
+    await entryLoaded(t, MorningTile, 'S8 Uebersicht');
     expect(has('overview_morning'), isFalse, reason: 'S8 Eintrag weg');
     log('S8 ok');
   }, timeout: const Timeout(Duration(minutes: 10)));

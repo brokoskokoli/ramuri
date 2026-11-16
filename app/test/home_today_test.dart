@@ -4,10 +4,14 @@ import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/home/home_screen.dart';
+import 'package:running_app/features/home/home_start_row.dart';
 import 'package:running_app/features/plan/plan_controller.dart';
 import 'package:running_app/features/plan/plan_data_reader.dart';
+import 'package:running_app/features/plan/plan_texts.dart';
+import 'package:running_app/l10n/app_localizations.dart';
 import 'package:running_app/features/run/run_flow_screen.dart';
 
 import 'app_harness.dart';
@@ -151,6 +155,29 @@ Future<void> _runToSummary(Device d, WidgetTester tester, String start) async {
   await tester.tap(key('run_finish'));
   await tester.pumpAndSettle();
   await tester.tap(key('run_finish_confirm'));
+}
+
+/// Beschriftung des Knopfs [button] als gerendeter Absatz (ohne Symbol).
+RenderParagraph _label(WidgetTester tester, String button) =>
+    tester.renderObject<RenderParagraph>(
+      find.descendant(
+        of: find.descendant(of: key(button), matching: find.byType(Text)),
+        matching: find.byType(RichText),
+      ),
+    );
+
+/// Der gerenderte Absatz ist einzeilig und zeigt den ganzen Text: Breite und
+/// Höhe entsprechen dem ungebrochenen Text, nichts ist abgeschnitten.
+void _expectOneLine(RenderParagraph p, String reason) {
+  final tp = TextPainter(
+    text: p.text,
+    textDirection: TextDirection.ltr,
+    textScaler: p.textScaler,
+  )..layout();
+  expect(p.didExceedMaxLines, isFalse, reason: reason);
+  expect(tp.width, lessThanOrEqualTo(p.size.width + 0.01), reason: reason);
+  expect(p.size.height, closeTo(tp.height, 0.01), reason: reason);
+  tp.dispose();
 }
 
 void main() {
@@ -690,4 +717,181 @@ void main() {
       expect(text('home_week_goal_km'), contains('ca. '));
     });
   });
+
+  // Kopf und Kennzahlen der Zusammenfassung nach dem Lauf (FR-0037, FR-0205):
+  // „Datum · Uhrzeit · Art“ wie im Design, die vier Kennzahlen ohne Scrollen
+  // über „Fertig“.
+  group('Zusammenfassung nach dem Lauf', () {
+    /// Startet um 07:40 Ortszeit (06:40 UTC, Versatz +1 h), läuft 30 s und
+    /// beendet; die Abschlussseite bleibt offen.
+    Future<void> finishAt0740(
+      Device d,
+      WidgetTester tester,
+      String start, {
+      void Function()? whileRunning,
+    }) async {
+      d.clock.set(DateTime.utc(2026, 11, 11, 6, 40));
+      d.clock.utcOffset = const Duration(hours: 1);
+      await tester.tap(key(start));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_start_ready'));
+      await tester.pumpAndSettle();
+      await walk(d, tester, 30);
+      whileRunning?.call();
+      await tester.tap(key('run_pause'));
+      await tester.pump();
+      await tester.tap(key('run_finish'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('run_finish_confirm'));
+      await tester.pumpAndSettle();
+    }
+
+    for (final locale in ['de', 'en']) {
+      for (final fromPlan in [true, false]) {
+        testWidgets('Kopf: Datum · Uhrzeit des Starts'
+            '${fromPlan ? ' · Art der Einheit' : ', ohne Einheit keine Art'} '
+            '($locale)', (tester) async {
+          final d = Device();
+          final s = await _preopen(d, days: {1, 3, 5});
+          final unit = (await _unitToday(s))!;
+          await d.start(tester, Locale(locale));
+          await finishAt0740(
+            d,
+            tester,
+            fromPlan ? 'home_start_unit' : 'home_start_run',
+          );
+          final l10n = lookupAppLocalizations(Locale(locale));
+          final kind = planKindName(l10n, unit.kind);
+          final date = locale == 'de'
+              ? 'Mi., 11. Nov. · 07:40'
+              : 'Wed, Nov 11 · 7:40 AM';
+          expect(text('sum_header'), fromPlan ? '$date · $kind' : date);
+          expect(find.text(l10n.runDoneTitle), findsNothing);
+          // Überschrift für Bedienungshilfen.
+          expect(
+            tester.getSemantics(key('sum_header')),
+            matchesSemantics(label: text('sum_header'), isHeader: true),
+          );
+          expect(key('run_done_status'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+
+    for (final size in [const Size(390, 844), const Size(411, 914)]) {
+      testWidgets('${size.width.toInt()}x${size.height.toInt()}, '
+          'Schriftfaktor 1,0: Kennzahlen über „Fertig“ ohne Scrollen', (
+        tester,
+      ) async {
+        final d = Device();
+        await _preopen(d, days: {1, 3, 5});
+        await d.start(tester, const Locale('de'));
+        tester.view.physicalSize = size;
+        await tester.pumpAndSettle();
+        // Mit Einheit aus dem Plan: der Hinweis „Aus dem Plan“ steht zusätzlich
+        // vor den Kacheln (der engste Fall).
+        await finishAt0740(d, tester, 'home_start_unit');
+        expect(key('sum_from_plan'), findsOneWidget);
+        final close = tester.getRect(key('run_done_close'));
+        final list = tester.getRect(find.byType(Scrollable).first);
+        for (final k in [
+          'run_distance',
+          'run_moving_time',
+          'run_time',
+          'run_avg_pace',
+        ]) {
+          final r = tester.getRect(key(k));
+          expect(r.top, greaterThanOrEqualTo(list.top), reason: k);
+          expect(r.bottom, lessThanOrEqualTo(list.bottom), reason: k);
+          expect(r.bottom, lessThanOrEqualTo(close.top), reason: k);
+          expect(r.right, lessThanOrEqualTo(size.width), reason: k);
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    for (final dark in [false, true]) {
+      testWidgets('360 dp, Schriftfaktor 1,3, ${dark ? 'dunkel' : 'hell'}: '
+          'kein Überlauf', (tester) async {
+        if (dark) {
+          tester.platformDispatcher.platformBrightnessTestValue =
+              Brightness.dark;
+          addTearDown(
+            tester.platformDispatcher.clearPlatformBrightnessTestValue,
+          );
+        }
+        final d = Device();
+        await _preopen(d, days: {1, 3, 5});
+        await d.start(tester, const Locale('de'));
+        // Größe und Schrift erst im Lauf: geprüft wird die Abschlussseite.
+        await finishAt0740(
+          d,
+          tester,
+          'home_start_unit',
+          whileRunning: () {
+            tester.view.physicalSize = const Size(360, 780);
+            tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+          },
+        );
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        expect(key('sum_header'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.scrollUntilVisible(
+          key('sum_explain_sources'),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
+  // Knopfzeile wie im Design (FR-0209, FR-0205, FR-0208): „Einheit starten“
+  // nimmt den Rest der Zeile, „Frei laufen“ nur seine eigene Breite; passt
+  // das nicht, stehen beide untereinander.
+  for (final width in [360.0, 411.0]) {
+    for (final scale in [1.0, 1.3]) {
+      for (final locale in ['de', 'en']) {
+        testWidgets('Knopfzeile bei $width dp, Schrift $scale ($locale)', (
+          tester,
+        ) async {
+          await loadManrope(tester);
+          final d = Device();
+          final s = await _preopen(d, days: {1, 3, 5});
+          expect(await _unitToday(s), isNotNull);
+          tester.platformDispatcher.textScaleFactorTestValue = scale;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          await d.start(tester, Locale(locale));
+          tester.view.physicalSize = Size(width, 2400);
+          await tester.pumpAndSettle();
+          final tag = '$width dp, $scale, $locale';
+          final unit = tester.getRect(key('home_start_unit'));
+          final free = tester.getRect(key('home_start_run'));
+          _expectOneLine(_label(tester, 'home_start_unit'), 'unit $tag');
+          _expectOneLine(_label(tester, 'home_start_run'), 'run $tag');
+          expect(unit.height, greaterThanOrEqualTo(48), reason: tag);
+          expect(free.height, greaterThanOrEqualTo(48), reason: tag);
+          final row = tester.renderObject<RenderHomeStartRow>(
+            key('home_start_row'),
+          );
+          if (scale == 1.0) {
+            // Nebeneinander, Abstand 10, „Frei laufen“ schmaler.
+            expect(row.stacked, isFalse, reason: tag);
+            expect(free.left - unit.right, closeTo(10, 0.01), reason: tag);
+            expect(free.width, lessThan(unit.width), reason: tag);
+            expect(unit.center.dy, closeTo(free.center.dy, 0.01));
+          } else if (row.stacked) {
+            // Untereinander: „Einheit starten“ oben, ohne Überlappung.
+            expect(free.top - unit.bottom, closeTo(10, 0.01), reason: tag);
+          } else {
+            expect(free.left - unit.right, closeTo(10, 0.01), reason: tag);
+          }
+          expect(tester.takeException(), isNull, reason: tag);
+          await tester.tap(key('home_start_unit'));
+          await tester.pumpAndSettle();
+          expect(key('run_start_ready'), findsOneWidget, reason: tag);
+        });
+      }
+    }
+  }
 }

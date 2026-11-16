@@ -27,8 +27,13 @@ enum DebugPpgScenario {
   /// Kamera wird nach 3 s getrennt: Abbruch mitten in der Messung.
   disconnected,
 
-  /// Kein Kamera-Recht, bis [DebugTestPpgCamera.requestPermission] aufgerufen wird.
+  /// Kein Kamera-Recht; auch [DebugTestPpgCamera.requestPermission] liefert
+  /// `permissionDenied` (Nutzer verweigert erneut), das Szenario bleibt.
   permissionDenied,
+
+  /// Kein Kamera-Recht, bis [DebugTestPpgCamera.requestPermission] aufgerufen wird
+  /// (Nutzer erteilt es bei der Anfrage); danach wie [goodPulse].
+  permissionGrantedOnRequest,
 
   /// Keine Rückkamera.
   noCamera,
@@ -74,13 +79,15 @@ class DebugTestPpgCamera implements PpgCamera {
   @override
   Future<PpgCameraAvailability> availability() async => switch (scenario) {
     DebugPpgScenario.noCamera => PpgCameraAvailability.noCamera,
-    DebugPpgScenario.permissionDenied => PpgCameraAvailability.permissionDenied,
+    DebugPpgScenario.permissionDenied ||
+    DebugPpgScenario.permissionGrantedOnRequest =>
+      PpgCameraAvailability.permissionDenied,
     _ => PpgCameraAvailability.available,
   };
 
   @override
   Future<PpgCameraAvailability> requestPermission() async {
-    if (scenario == DebugPpgScenario.permissionDenied) {
+    if (scenario == DebugPpgScenario.permissionGrantedOnRequest) {
       scenario = DebugPpgScenario.goodPulse;
     }
     return availability();
@@ -96,7 +103,8 @@ class DebugTestPpgCamera implements PpgCamera {
       onListen: () async {
         final stop = switch (scenario) {
           DebugPpgScenario.noCamera => PpgCameraStopReason.noCamera,
-          DebugPpgScenario.permissionDenied =>
+          DebugPpgScenario.permissionDenied ||
+          DebugPpgScenario.permissionGrantedOnRequest =>
             PpgCameraStopReason.permissionDenied,
           DebugPpgScenario.busy => PpgCameraStopReason.busy,
           _ => null,

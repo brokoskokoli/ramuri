@@ -40,6 +40,13 @@ String planKindPurpose(AppLocalizations l, PlanUnitKind k) => switch (k) {
   PlanUnitKind.rest => l.planPurposeRest,
 };
 
+/// [planKindPurpose] als Zeile unter der Einheit (Tageszeile der Woche):
+/// derselbe Text ohne Schlusspunkt.
+String planPurposeLine(AppLocalizations l, PlanUnitKind k) {
+  final text = planKindPurpose(l, k);
+  return text.endsWith('.') ? text.substring(0, text.length - 1) : text;
+}
+
 String planSegmentName(AppLocalizations l, PlanSegmentKind k) => switch (k) {
   PlanSegmentKind.warmUp => l.planSegWarmUp,
   PlanSegmentKind.easy => l.planSegEasy,

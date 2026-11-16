@@ -184,7 +184,7 @@ void main() {
       final x = withExtras(bad, keep: true)!;
       expect(x.quality, PpgQuality.unusable);
       expect(x.isUsable, isFalse);
-      expect(x.unusableReason, PpgQualityReason.weakSignal);
+      expect(x.unusableReason, MorningUnusableReason.weakSignal);
       expect(x.restingHrBpm, isNull);
       expect(x.rmssdMs, isNull);
       expect(x.cameraIntervalsMs, [900, 910]);
@@ -196,6 +196,101 @@ void main() {
     test('brauchbar bleibt mit keepUnusable unverändert', () {
       expect(withExtras(meas(), keep: true)!.quality, PpgQuality.good);
     });
+
+    group('Ruhepuls außerhalb PAR-017', () {
+      for (final q in [PpgQuality.good, PpgQuality.limited]) {
+        for (final hr in [29.0, 121.0]) {
+          test('${q.name}, $hr bpm: im Entwicklermodus unbrauchbar mit Grund, '
+              'ohne Puls', () {
+            final x = withExtras(meas(quality: q, bpm: hr), keep: true)!;
+            expect(x.quality, PpgQuality.unusable);
+            expect(x.isUsable, isFalse);
+            expect(x.unusableReason, MorningUnusableReason.restingHrOutOfRange);
+            expect(x.restingHrBpm, isNull);
+            expect(x.roundedRestingHr, isNull);
+            expect(x.rmssdMs, isNull);
+            expect(x.timingNoiseMs, isNull);
+            expect(x.cameraIntervalsMs, [1000, 1040, 1020]);
+            expect([x.windowStartS, x.windowEndS], [30, 90]);
+            checkMorningForStorage(x);
+            expect(countingMorningMeasurements([x]), isEmpty);
+          });
+
+          test('${q.name}, $hr bpm: ohne Entwicklermodus verworfen', () {
+            expect(withExtras(meas(quality: q, bpm: hr)), isNull);
+          });
+        }
+      }
+
+      test('Grenzen 30 und 120 bleiben brauchbar, auch im Entwicklermodus', () {
+        for (final hr in [30.0, 120.0]) {
+          final x = withExtras(meas(bpm: hr), keep: true)!;
+          expect(x.quality, PpgQuality.good, reason: '$hr');
+          expect(x.restingHrBpm, hr);
+          expect(x.unusableReason, isNull);
+        }
+      });
+
+      test(
+        'zählt weder in der Reihe noch in der Readiness (FR-0115, FR-0215)',
+        () {
+          MorningMeasurement at(int h, double hr) => buildMorningMeasurement(
+            result: meas(bpm: hr),
+            measuredAt: local(h),
+            utcOffset: off,
+            posture: RestingPosture.lying,
+            deviceManufacturer: 'H',
+            deviceModel: 'M1',
+            keepUnusable: true,
+          )!;
+          final out = at(6, 121);
+          final ok = at(7, 58);
+          final all = [out, ok];
+          expect(countingMorningMeasurements(all), [ok]);
+          expect(morningSeries(all)[lyingKey], [ok]);
+          expect(
+            morningRepeatAllowed(
+              [out],
+              nowUtc: local(8),
+              utcOffset: off,
+              series: lyingKey,
+            ),
+            isTrue,
+          );
+          final today = DateTime.utc(2026, 11, 14);
+          for (final d in cameraDeviations(all, today: today)) {
+            expect(d.byDay.values, isNot(contains(121)), reason: d.factor.name);
+            expect(d.todayValue, isNot(121), reason: d.factor.name);
+          }
+          final hr = cameraDeviations(
+            [out],
+            today: today,
+          ).where((d) => d.factor == ReadinessFactor.restingHeartRate);
+          expect(
+            hr.every((d) => d.byDay.isEmpty && d.todayValue == null),
+            isTrue,
+          );
+        },
+      );
+
+      test('nicht endlicher Puls bleibt verworfen', () {
+        expect(withExtras(meas(bpm: double.nan), keep: true), isNull);
+      });
+    });
+
+    test(
+      'jeder Grund der Auswertung hat denselben Namen in der Speicherung',
+      () {
+        for (final r in PpgQualityReason.values) {
+          expect(MorningUnusableReason.fromPpg(r).name, r.name);
+        }
+        expect(
+          MorningUnusableReason.fromName('restingHrOutOfRange'),
+          MorningUnusableReason.restingHrOutOfRange,
+        );
+        expect(MorningUnusableReason.fromName('x'), isNull);
+      },
+    );
 
     PpgFrame frame(double t) => PpgFrame(
       t: t,
