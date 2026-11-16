@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
+import 'package:running_app/features/archive/archive_scope.dart';
 import 'package:running_app/features/archive/archive_wiring.dart';
 import 'package:running_app/features/storage/storage_start.dart';
 
@@ -332,6 +333,15 @@ void main() {
     expect(h.discardCount, 1);
     _untouched(w);
     expect(find.text('Daten lassen sich nicht öffnen'), findsOneWidget);
+  });
+
+  test('ohne Angabe prüft die App die echte Datei vor dem Passwort', () {
+    final deps = AppDependencies(storageStart: World().controller());
+    expect(deps.archiveHeaderCheck, precheckArchiveFile);
+    expect(
+      const ArchiveScope(child: SizedBox()).headerCheck,
+      precheckArchiveFile,
+    );
   });
 
   testWidgets('Abbruch während der Prüfung: nichts gelöscht', (tester) async {
