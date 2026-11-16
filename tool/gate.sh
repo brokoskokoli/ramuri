@@ -2,7 +2,7 @@
 # Gate: tool/gate.sh [--fast | --changed]. Spec-Prüfung, Datenschutz und, sobald app/ existiert, Flutter.
 #   (ohne Option)  voll: alle Schritte, Pflicht vor Review-Abgabe und Fertigmeldung. Nimmt den Gate-Lock.
 #   --fast         Zwischenstand: spec, privat, Netz, Format und Analyse aller Pakete, Tests nur der gegenüber
-#                  der Basis (merge-base main) geänderten Pakete und der von ihnen abhängigen (app ← adapters ← core); kein Release/Drift/Kotlin, kein Lock;
+#                  der Basis (merge-base main) geänderten Pakete und der von ihnen abhängigen (app ← adapters ← core); kein Release/Drift/Kotlin, keine Zeitzonen, kein Lock;
 #                  pub get nur bei geändertem pubspec.* (oder fehlender Paketauflösung). Ersetzt nie das volle Gate.
 #   --changed      wie voll, lässt aber Flutter aus, wenn app/, tool/gate.sh und die von Tests gelesenen Dokumente
 #                  (getrackt, ungetrackt, committet) gegenüber main unverändert sind (auf main gegenüber dem Stand vor
@@ -359,6 +359,23 @@ release_rechte() {
   tool/check_release_apk.sh "$apk"
 }
 
+# Tageszuordnung (Ortstag von Health-Werten, Schlaf, Readiness, Läufen und Erinnerungen) unter mehreren Zeitzonen.
+# Die Aufbereitung nutzt die Ortszeit des Prozesses; ohne TZ liefen die Tests nur in der Zone des Rechners (CI: UTC).
+# Zonen: westlich von UTC mit Sommerzeit, weit östlich auf der Südhalbkugel (Sommerzeit gegenläufig) und UTC.
+# Fehlen die Zonendaten, fiele TZ still auf UTC zurück; der Test "TZ wirkt" in core/test/health macht das rot.
+GATE_TZ_ZONES="America/Los_Angeles Pacific/Auckland UTC"
+GATE_TZ_CORE_TESTS="test/health test/readiness test/recording test/reminders"
+GATE_TZ_APP_TESTS="test/system_clock_test.dart test/readiness_home_test.dart test/readiness_detail_test.dart"
+zeitzonen_tests() {
+  for z in $GATE_TZ_ZONES; do
+    echo "== TZ=$z"
+    # shellcheck disable=SC2086
+    ( cd app/packages/core && TZ=$z dart test $GATE_TZ_CORE_TESTS ) || { echo "rot unter TZ=$z (core)"; return 1; }
+    # shellcheck disable=SC2086
+    ( cd app && TZ=$z flutter test $GATE_TZ_APP_TESTS ) || { echo "rot unter TZ=$z (app)"; return 1; }
+  done
+}
+
 if [ -f app/pubspec.yaml ]; then
   if [ "$mode" = changed ] && ! app_changed; then
     echo "SKIP  flutter (app/, tool/gate.sh und von Tests gelesene Dokumente unverändert)"
@@ -394,8 +411,9 @@ if [ -f app/pubspec.yaml ]; then
       step "$p test" pkg_test "$p"
     done
     if [ "$mode" = fast ]; then
-      echo "FAST  ohne drift schema, kotlin test, release, lock unverändert (nur das volle Gate gilt vor der Fertigmeldung)"
+      echo "FAST  ohne Zeitzonen, drift schema, kotlin test, release, lock unverändert (nur das volle Gate gilt vor der Fertigmeldung)"
     else
+      step "Tageszuordnung in Zeitzonen ($GATE_TZ_ZONES)" zeitzonen_tests
       if [ "$mode" = changed ]; then
         step_wenn_geaendert "$GATE_DRIFT_PATHS" "drift schema" drift_aktuell
         step_wenn_geaendert "$GATE_KOTLIN_PATHS" "kotlin test" kotlin_tests
