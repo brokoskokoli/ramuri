@@ -26,5 +26,16 @@ class FakeClock implements Clock {
     _mono += d;
   }
 
+  /// Lässt die Zeit bis [t] verstreichen (Wanduhr und monotone Uhr); [t] darf
+  /// nicht vor der Wanduhr liegen.
+  void advanceTo(DateTime t) {
+    final d = t.toUtc().difference(_now);
+    if (d.isNegative) {
+      throw ArgumentError.value(t, 't', 'liegt in der Vergangenheit');
+    }
+    advance(d);
+  }
+
+  /// Stellt nur die Wanduhr (Umstellung, Netzzeit); die monotone Uhr bleibt.
   void set(DateTime t) => _now = t.toUtc();
 }

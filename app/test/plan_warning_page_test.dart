@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -34,10 +35,18 @@ TrainingGoal _goal({double capMinutes = 240}) => TrainingGoal(
   canRun30: ContinuousRun30.yes,
 );
 
-PlanController _controller(StorageSession s, Clock c) => PlanController(
+PlanController _controller(
+  StorageSession s,
+  Clock c, {
+  RunFiguresLoader? loadRuns,
+}) => PlanController(
   session: s,
   clock: c,
-  reader: PlanDataReader(session: s, clock: c, loadRuns: () async => const []),
+  reader: PlanDataReader(
+    session: s,
+    clock: c,
+    loadRuns: loadRuns ?? () async => const [],
+  ),
 );
 
 Future<(StorageSession, FakeClock)> _withPlan({
@@ -63,6 +72,7 @@ Future<void> _pump(
   Brightness brightness = Brightness.light,
   String locale = 'de',
   double scale = 1,
+  PlanController? controller,
 }) async {
   tester.view.physicalSize = const Size(411, 2400);
   tester.view.devicePixelRatio = 1;
@@ -81,7 +91,11 @@ Future<void> _pump(
         child: localizedApp(
           locale: Locale(locale),
           brightness: brightness,
-          home: PlanScreen(session: session, clock: clock),
+          home: PlanScreen(
+            session: session,
+            clock: clock,
+            controller: controller,
+          ),
         ),
       ),
     ),
@@ -97,6 +111,17 @@ Future<void> _settle(WidgetTester tester) async {
     await tester.pump();
   }
   await tester.pumpAndSettle();
+}
+
+/// Wie [_settle], aber ohne `pumpAndSettle`: Die Fortschrittsanzeige
+/// läuft, solange die Neuberechnung hängt.
+Future<void> _pumpFew(WidgetTester tester) async {
+  for (var i = 0; i < 5; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+  }
 }
 
 Future<void> _openMenu(WidgetTester tester) async {
@@ -159,6 +184,90 @@ void main() {
       await _openMenu(tester);
       expect(key('plan_menu_report'), findsNothing);
       expect(key('plan_menu_feedback'), findsOneWidget);
+    });
+
+    testWidgets('Banner und Rückmeldung, bevor die verzögerte Neuberechnung '
+        'endet; danach die Ruhetag-Fassung', (tester) async {
+      final (session, clock) =
+          await tester.runAsync(_withPlan) as (StorageSession, FakeClock);
+      final plans = (session as PlanStorage).plans;
+      final store = (session as WarningStorage).warning;
+      final versions = (await tester.runAsync(plans.history))!.length;
+      // Die Neuberechnung liest die Läufe; der Fake hält sie an, bis der
+      // Test sie freigibt (steht für eine langsame Rechnung, etwa 5 s).
+      final gate = Completer<List<RunFigures>>();
+      final controller = _controller(
+        session,
+        clock,
+        loadRuns: () => gate.future,
+      );
+      await _pump(tester, session, clock, controller: controller);
+      await _openMenu(tester);
+      await tester.tap(key('plan_menu_report'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('plan_warning_confirm'));
+      await _pumpFew(tester);
+
+      expect(gate.isCompleted, isFalse);
+      expect((await tester.runAsync(store.read))!.source, WarningSource.manual);
+      expect(key('plan_warning_banner'), findsOneWidget);
+      expect(find.text(_fixedDe), findsOneWidget);
+      expect(key('plan_warning_reported'), findsOneWidget);
+      expect(key('plan_warning_progress'), findsOneWidget);
+      // Erst Signal, dann Fassung: noch keine neue Fassung geschrieben.
+      expect((await tester.runAsync(plans.history))!, hasLength(versions));
+      expect(controller.warningRecalculating, isTrue);
+
+      gate.complete(const []);
+      await _settle(tester);
+      expect(key('plan_warning_progress'), findsNothing);
+      expect(key('plan_warning_banner'), findsOneWidget);
+      expect(key('plan_warning_failed'), findsNothing);
+      final h = (await tester.runAsync(plans.history))!;
+      expect(h, hasLength(versions + 1));
+      expect(h.last.reason, 'warning');
+      final units = (await tester.runAsync(
+        () => plans.unitsBetween(_today, DateTime.utc(2027, 3, 14)),
+      ))!;
+      expect(units.every((u) => u.kind == PlanUnitKind.rest), isTrue);
+    });
+
+    testWidgets('Neuberechnung scheitert: Banner bleibt, Signal gespeichert, '
+        'Fehlertext sichtbar', (tester) async {
+      final (session, clock) =
+          await tester.runAsync(_withPlan) as (StorageSession, FakeClock);
+      final plans = (session as PlanStorage).plans;
+      final store = (session as WarningStorage).warning;
+      final versions = (await tester.runAsync(plans.history))!.length;
+      final controller = _controller(
+        session,
+        clock,
+        loadRuns: () async => throw StateError('Lesefehler'),
+      );
+      await _pump(tester, session, clock, controller: controller);
+      await _openMenu(tester);
+      await tester.tap(key('plan_menu_report'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('plan_warning_confirm'));
+      await _settle(tester);
+
+      expect(await tester.runAsync(store.read), isNotNull);
+      expect(key('plan_warning_banner'), findsOneWidget);
+      expect(key('plan_warning_progress'), findsNothing);
+      expect(key('plan_warning_failed'), findsOneWidget);
+      expect(
+        find.text('Das hat nicht geklappt. Bitte versuch es noch einmal.'),
+        findsOneWidget,
+      );
+      expect((await tester.runAsync(plans.history))!, hasLength(versions));
+      expect(find.textContaining('Lesefehler'), findsNothing);
+
+      // Das nächste Öffnen holt die Ruhetag-Fassung nach.
+      await _pump(tester, session, clock);
+      expect(key('plan_warning_banner'), findsOneWidget);
+      final h = (await tester.runAsync(plans.history))!;
+      expect(h, hasLength(versions + 1));
+      expect(h.last.reason, 'warning');
     });
 
     testWidgets('Aufheben: Banner weg, Plan mit den Festlegungen zurück', (

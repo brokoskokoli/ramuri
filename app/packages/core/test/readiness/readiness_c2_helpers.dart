@@ -77,6 +77,7 @@ ReadinessInputs inputs({
   bool few = false,
 }) => ReadinessInputs(
   today: today,
+  dayStart: today,
   now: now,
   hrvHealthConnect: hrvZ == null
       ? null

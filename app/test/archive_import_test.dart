@@ -245,6 +245,54 @@ void main() {
     await d.stop(tester);
   });
 
+  testWidgets('Alles löschen, Profil in der Ersteinrichtung: Import ohne '
+      'Ersetzen-Warnung und ohne resetConfirmed, Profil aus dem Archiv', (
+    tester,
+  ) async {
+    final restore = _FakeRestore();
+    final d = await _open(tester, restore, finishedRun: true);
+    expect(await ArchiveRestoreService.isEmpty(d.session), isFalse);
+    await (restore.result!).profile.save(
+      const ProfileRecord(birthYear: 1990, maxHeartRateBpm: 190),
+    );
+    await tester.tap(find.text('Alles löschen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Alles löschen'));
+    await tester.pumpAndSettle();
+    // Ersteinrichtung: Profil eintragen und speichern.
+    expect(find.byKey(const Key('setup_skip')), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('profile_birthYear')), '1985');
+    await tester.tap(find.byKey(const Key('profile_save')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('home_start_run')), findsOneWidget);
+    expect((await d.session.profile.read()).birthYear, 1985);
+    expect(await ArchiveRestoreService.isEmpty(d.session), isTrue);
+
+    await openOverview(tester);
+    await tester.tap(find.byKey(const Key('overview_data')));
+    await tester.pumpAndSettle();
+    d.fileHandoff.nextPick = const FilePickResult.completed(_path);
+    await _tapKey(tester, 'archive_import');
+    expect(
+      find.byKey(const Key('archive_import_replace_warning')),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('Profil und Einstellungen aus dem Archiv ersetzen'),
+      findsOneWidget,
+    );
+    await _tapKey(tester, 'archive_import_confirm');
+    await tester.enterText(
+      find.byKey(const Key('archive_import_password')),
+      _pw,
+    );
+    await _tapKey(tester, 'archive_import_password_ok');
+    expect(restore.calls.single.reset, isFalse);
+    expect(d.session, same(restore.result));
+    expect((await d.session.profile.read()).birthYear, 1990);
+    await d.stop(tester);
+  });
+
   testWidgets('Abbruch am Hinweis: nichts gewählt, nichts importiert', (
     tester,
   ) async {
