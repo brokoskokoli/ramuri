@@ -77,6 +77,10 @@ class _MoveDialogState extends State<_MoveDialog> {
                     l.calendarMoveEndsHardReplacement,
                     'calendar_move_ends_hard_replacement',
                   ),
+                if (c.allowed && c.goalHint == PlanMoveGoalHint.goalDay)
+                  _line(l.calendarMoveGoalDay, 'calendar_move_goal_day')
+                else if (c.allowed && c.goalHint == PlanMoveGoalHint.reduction)
+                  _line(l.calendarMoveReduction, 'calendar_move_reduction'),
                 if (c.overRegulator)
                   _line(
                     l.calendarMoveRegulator(

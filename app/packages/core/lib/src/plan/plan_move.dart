@@ -1,3 +1,4 @@
+import '../goals/training_goal.dart' show GoalDistance;
 import 'plan_parameters.dart';
 import 'plan_unit.dart';
 import 'weekly_time.dart' show planDay;
@@ -22,6 +23,16 @@ enum PlanMoveBlock {
   dayTaken,
 }
 
+/// Lage des neuen Tags zum Ziel mit Datum (FR-0177: verbleibende
+/// Trainingszeit = Zeit bis zum Ziel). Hinweis im Dialog, keine Sperre.
+enum PlanMoveGoalHint {
+  /// Der neue Tag liegt in einer Woche der Reduktion vor dem Ziel (PAR-199).
+  reduction,
+
+  /// Der neue Tag ist der Zieltag.
+  goalDay,
+}
+
 /// Ergebnis der Prüfung beim Verschieben (FR-0177, FR-0178, PAR-060). Die
 /// Prüfung ändert nichts; den Termin ändert nur die Bestätigung des Nutzers
 /// (FR-0176, OQ-0011).
@@ -34,6 +45,7 @@ class PlanMoveCheck {
     this.weekCapMinutes = 0,
     this.alternatives = const [],
     this.endsHardReplacement = false,
+    this.goalHint,
   });
 
   /// Der geprüfte Tag.
@@ -63,6 +75,10 @@ class PlanMoveCheck {
   /// normaler fester lockerer Lauf ([planMovedFixed]), die Zielwoche behält
   /// ihre harte Einheit (Festlegung WP22). Hinweis im Dialog, keine Sperre.
   final bool endsHardReplacement;
+
+  /// Gesetzt, wenn der neue Tag in die Reduktion fällt oder der Zieltag ist
+  /// (nur bei einem Ziel mit Datum, FR-0177). Hinweis, keine Sperre.
+  final PlanMoveGoalHint? goalHint;
 
   bool get allowed => blocked == null;
 
@@ -107,6 +123,11 @@ PlanUnitFixed planMovedFixed(PlanUnit unit, DateTime newDay) {
 ///   im Regler). Lauftage des Ziels ([runDays], `DateTime.weekday`) zuerst,
 ///   danach jeweils dem gewünschten Tag nächster zuerst.
 ///
+/// - Ziel mit Datum ([targetDate]): Ist der neue Tag der Zieltag, oder liegt
+///   er in einer der letzten `reductionWeeks(distance)` Wochen bis zur Woche
+///   des Zieltags (Reduktion, PAR-199): [PlanMoveCheck.goalHint]. Ohne
+///   Zieldatum (offenes Ziel) nie.
+///
 /// [completedIntensiveDays] sind Ortstage absolvierter Läufe, die nach
 /// PAR-058 als intensiv gelten (auch ohne Einheit); sie zählen für den
 /// Abstand wie intensive Einheiten (PAR-059).
@@ -118,6 +139,8 @@ PlanMoveCheck checkPlanMove({
   required double weeklyCapSeconds,
   Iterable<DateTime> completedIntensiveDays = const [],
   Set<int> runDays = const {},
+  DateTime? targetDate,
+  GoalDistance? distance,
   PlanParameters parameters = const PlanParameters(),
 }) {
   final t = planDay(today);
@@ -200,5 +223,32 @@ PlanMoveCheck checkPlanMove({
     weekCapMinutes: cap,
     alternatives: alternatives,
     endsHardReplacement: planMovedFixed(unit, day) != unit.fixed,
+    goalHint: _goalHint(day, targetDate, distance, parameters),
   );
+}
+
+/// Lage von [day] zum Ziel (FR-0177): Zieltag, sonst Woche der Reduktion wie
+/// im Wochenverlauf (`planWeeklyTime`, PAR-199): die letzten
+/// `reductionWeeks(distance)` Wochen bis einschließlich der Woche des
+/// Zieltags. Ohne [targetDate] `null`.
+PlanMoveGoalHint? _goalHint(
+  DateTime day,
+  DateTime? targetDate,
+  GoalDistance? distance,
+  PlanParameters p,
+) {
+  if (targetDate == null) return null;
+  final goal = planDay(targetDate);
+  if (day == goal) return PlanMoveGoalHint.goalDay;
+  if (distance == null) return null;
+  DateTime monday(DateTime d) =>
+      d.subtract(Duration(days: d.weekday - DateTime.monday));
+  final goalWeek = monday(goal);
+  final first = goalWeek.subtract(
+    Duration(days: 7 * (p.reductionWeeks(distance) - 1)),
+  );
+  final m = monday(day);
+  return !m.isBefore(first) && !m.isAfter(goalWeek)
+      ? PlanMoveGoalHint.reduction
+      : null;
 }
