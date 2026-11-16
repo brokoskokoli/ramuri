@@ -8,6 +8,8 @@ import '../history/run_detail_screen.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../summary/run_summary_body.dart';
 import '../summary/run_summary_page.dart';
+import '../summary/run_summary_header.dart';
+import '../summary/subjective_close_scope.dart';
 import '../summary/warning_entry.dart';
 import 'live_guided_page.dart';
 import 'live_map_page.dart';
@@ -112,7 +114,16 @@ class LiveRunView extends StatelessWidget {
         // (WP24) kommt die Einheit als erste Seite davor. Der Pager setzt die
         // Ränder der Systemleisten selbst, damit die dunkle Führungsseite bis
         // an die Ränder reicht.
-        body: finished || (belt && guided == null)
+        body: finished
+            // Schließen wartet auf offene Angaben zum Lauf (FR-0038).
+            ? SubjectiveCloseScope(
+                child: SafeArea(
+                  child: Builder(
+                    builder: (context) => _valuesPage(context, l10n, true),
+                  ),
+                ),
+              )
+            : belt && guided == null
             ? SafeArea(child: _valuesPage(context, l10n, finished))
             : _LiveRunPager(
                 values: _valuesPage(context, l10n, finished),
@@ -146,11 +157,7 @@ class LiveRunView extends StatelessWidget {
             // Oben Platz für die Reiter Werte/Karte, die über der Seite schweben.
             padding: EdgeInsets.fromLTRB(16, finished ? 16 : 72, 16, 16),
             children: finished
-                ? [
-                    _title(context, l10n),
-                    ..._banners(context, l10n),
-                    ..._body(l10n),
-                  ]
+                ? _done(context, l10n)
                 : [LiveValues(controller: controller, formatter: formatter)],
           ),
         ),
@@ -164,16 +171,49 @@ class LiveRunView extends StatelessWidget {
     );
   }
 
-  /// Überschrift der Abschlussseite.
+  /// Überschrift der Abschlussseite, solange keine Zusammenfassung steht
+  /// (Laden, Rückfall); mit Zusammenfassung ersetzt sie [RunSummaryHeader].
   Widget _title(BuildContext context, AppLocalizations l10n) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: Semantics(
       header: true,
-      child: Text(l10n.runDoneTitle, style: RamuriType.of(context).pageTitle),
+      child: Text(
+        l10n.runDoneTitle,
+        key: const Key('run_done_title'),
+        style: RamuriType.of(context).pageTitle,
+      ),
     ),
   );
 
-  /// „Fertig“ schließt nur die Seite und ändert keine Daten; „Details“ öffnet
+  /// „Fertig“, während vor dem Schließen gespeichert wird mit Ladeanzeige.
+  Widget _closeLabel(BuildContext context, AppLocalizations l10n) {
+    final label = Text(l10n.runDoneClose);
+    final busy = SubjectiveCloseScope.maybeOf(context)?.busy;
+    if (busy == null) return label;
+    return ValueListenableBuilder<bool>(
+      valueListenable: busy,
+      builder: (context, saving, _) => saving
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  key: const Key('run_done_saving'),
+                  dimension: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: RamuriColors.of(context).onAction,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Flexible(child: label),
+              ],
+            )
+          : label,
+    );
+  }
+
+  /// „Fertig“ schließt nur die Seite und ändert keine Daten – außer, dass es
+  /// geänderte Texte der Angaben zum Lauf vorher speichert; „Details“ öffnet
   /// die Detailansicht des Laufs. Wurde der Lauf dort gelöscht, schließt auch
   /// diese Seite.
   Widget _doneButtons(BuildContext context, AppLocalizations l10n) {
@@ -194,8 +234,10 @@ class LiveRunView extends StatelessWidget {
               shape: const StadiumBorder(),
               textStyle: Theme.of(context).textTheme.labelLarge,
             ),
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.runDoneClose),
+            // Wartet auf das Speichern geänderter Texte der Angaben zum Lauf;
+            // scheitert es, bleibt die Seite offen.
+            onPressed: () => SubjectiveCloseScope.close<void>(context),
+            child: _closeLabel(context, l10n),
           ),
         ),
         if (canOpen) ...[
@@ -231,14 +273,18 @@ class LiveRunView extends StatelessWidget {
     );
   }
 
-  /// Nach dem Ende die Zusammenfassung (FR-0037), sobald die Berechnung durch
-  /// ist; sonst (und bei Fehlern beim Lesen) die Werte der Aufzeichnung.
-  List<Widget> _body(AppLocalizations l10n) {
+  /// Nach dem Ende die Zusammenfassung (FR-0037) mit dem Kopf
+  /// „Datum · Uhrzeit · Art“ des Designs, sobald die Berechnung durch ist;
+  /// sonst (und bei Fehlern beim Lesen) „Lauf beendet“ und die Werte der
+  /// Aufzeichnung. Der Hinweis zum Speichern steht immer unter dem Kopf.
+  List<Widget> _done(BuildContext context, AppLocalizations l10n) {
     final id = controller.runId;
     final clock = this.clock;
-    if (id == null || clock == null) return _metrics(l10n);
+    final waiting = [_title(context, l10n), ..._banners(context, l10n)];
+    if (id == null || clock == null) return [...waiting, ..._metrics(l10n)];
     if (!controller.calculationSettled) {
       return [
+        ...waiting,
         const SizedBox(height: 24),
         const Center(child: CircularProgressIndicator()),
         const SizedBox(height: 12),
@@ -252,6 +298,17 @@ class LiveRunView extends StatelessWidget {
         clock: clock,
         runId: id,
         fallback: () => _metrics(l10n),
+        leading: (context, summary) => [
+          if (summary == null)
+            _title(context, l10n)
+          else
+            RunSummaryHeader(
+              run: summary.run,
+              session: controller.storage,
+              pendingUnit: pendingPlanUnit,
+            ),
+          ..._banners(context, l10n),
+        ],
         contentBuilder: (context, summary, detail, _) => RunSummaryPage(
           summary: summary,
           detail: detail,

@@ -121,16 +121,39 @@ void main() {
     },
   );
 
-  test('Recht fehlt bis zur Anfrage; ohne Kamera nie verfügbar', () async {
+  test('Recht verweigert bleibt auch nach der Anfrage verweigert', () async {
     final cam = DebugTestPpgCamera(scenario: DebugPpgScenario.permissionDenied);
     expect(await cam.availability(), PpgCameraAvailability.permissionDenied);
-    expect(await cam.requestPermission(), PpgCameraAvailability.available);
     expect(
-      await DebugTestPpgCamera(scenario: DebugPpgScenario.noCamera)
-          .requestPermission(),
-      PpgCameraAvailability.noCamera,
+      await cam.requestPermission(),
+      PpgCameraAvailability.permissionDenied,
+    );
+    expect(cam.scenario, DebugPpgScenario.permissionDenied);
+    expect(await cam.availability(), PpgCameraAvailability.permissionDenied);
+    final events = await cam.start().toList();
+    expect(events, [isA<PpgCameraStopped>()]);
+    expect(
+      (events.single as PpgCameraStopped).reason,
+      PpgCameraStopReason.permissionDenied,
     );
   });
+
+  test(
+    'Recht fehlt bis zur Anfrage, dann erteilt; ohne Kamera nie verfügbar',
+    () async {
+      final cam = DebugTestPpgCamera(
+        scenario: DebugPpgScenario.permissionGrantedOnRequest,
+      );
+      expect(await cam.availability(), PpgCameraAvailability.permissionDenied);
+      expect(await cam.requestPermission(), PpgCameraAvailability.available);
+      expect(await cam.availability(), PpgCameraAvailability.available);
+      expect(
+        await DebugTestPpgCamera(scenario: DebugPpgScenario.noCamera)
+            .requestPermission(),
+        PpgCameraAvailability.noCamera,
+      );
+    },
+  );
 
   test(
     'Abbestellen beendet die Aufnahme sofort (Torch aus, keine Bilder mehr)',

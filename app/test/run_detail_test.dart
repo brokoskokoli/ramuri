@@ -1,6 +1,7 @@
 import 'package:adapters/adapters.dart' show RouteMapMark;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SemanticsNode;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:running_app/features/summary/run_charts.dart';
@@ -132,6 +133,25 @@ Future<int> openDetail(
   return id;
 }
 
+/// Wie oft [text] im ganzen Semantikbaum (Label, Wert, Hinweis) vorkommt.
+int semanticsOccurrences(WidgetTester tester, String text) {
+  var count = 0;
+  bool visit(SemanticsNode node) {
+    final data = node.getSemanticsData();
+    for (final s in [data.label, data.value, data.hint, data.tooltip]) {
+      count += text.allMatches(s).length;
+    }
+    node.visitChildren(visit);
+    return true;
+  }
+
+  for (final view in tester.binding.renderViews) {
+    final root = view.owner?.semanticsOwner?.rootSemanticsNode;
+    if (root != null) visit(root);
+  }
+  return count;
+}
+
 void main() {
   testWidgets('Detail: Kennzahlen, Route und Diagramme sind gezeichnet', (
     tester,
@@ -153,13 +173,15 @@ void main() {
     expect(key('detail_pace'), findsNothing);
     expect(key('detail_hr'), findsNothing);
     expect(key('detail_hr_none'), findsNothing);
-    // Der Puls ist als geglättet gekennzeichnet (sichtbar und in der Semantik).
+    // Der Puls ist als geglättet gekennzeichnet: sichtbar unter dem Diagramm,
+    // vorgelesen genau einmal im Label des Diagramms.
     expect(text('detail_compare_note'), 'Puls geglättet (Median über 30 s)');
     final semantics = tester.ensureSemantics();
     expect(
       tester.getSemantics(key('detail_compare')).label,
       contains('Puls geglättet (Median über 30 s).'),
     );
+    expect(semanticsOccurrences(tester, 'Puls geglättet'), 1);
     semantics.dispose();
     // Alter Lauf ohne gespeicherte Zonen/TRIMP.
     expect(
@@ -542,6 +564,31 @@ void main() {
     expect(chartPaths('detail_compare'), hasLength(4));
     expect(chart('detail_compare').pauses.single.start, 200);
     expect(chart('detail_compare').pauses.single.end, 260);
+  });
+
+  testWidgets('Pulsdiagramm allein: Glättungshinweis genau einmal vorgelesen', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final d = await started(tester);
+    await openDetail(
+      tester,
+      d,
+      () => seedDetailRun(
+        d.session,
+        DateTime.utc(2030, 1, 1, 8),
+        noPosition: (0, 601),
+      ),
+    );
+    expect(key('detail_compare'), findsNothing);
+    expect(chartPaths('detail_hr'), hasLength(1));
+    expect(text('detail_hr_note'), 'Puls geglättet (Median über 30 s)');
+    expect(
+      tester.getSemantics(key('detail_hr')).label,
+      contains('Puls geglättet (Median über 30 s).'),
+    );
+    expect(semanticsOccurrences(tester, 'Puls geglättet'), 1);
+    semantics.dispose();
   });
 
   testWidgets('Lauf ohne Puls: kein Pulsdiagramm, kein Vergleich, nie 0', (

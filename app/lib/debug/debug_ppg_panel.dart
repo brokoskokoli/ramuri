@@ -8,11 +8,19 @@ import 'debug_test_ppg_camera.dart';
 /// `Semantics.identifier` sind `debug_ppg_toggle`, `debug_ppg_<szenario>`
 /// (z. B. `debug_ppg_goodPulse`) und `debug_ppg_speed`; die Texte beginnen mit
 /// „PPG“. Kein Code der Release-Einstiegsdatei importiert diese Datei.
+///
+/// Zugeklappt belegt das Feld einen festen Streifen von [collapsedWidth] am
+/// rechten Rand; der Inhalt wird um genau diese Breite schmaler gelegt, damit
+/// das Feld keinen Knopf der Seite verdeckt. Aufgeklappt liegt die Liste über
+/// dem Inhalt.
 class DebugPpgPanel extends StatefulWidget {
   const DebugPpgPanel({super.key, required this.camera, required this.child});
 
   final DebugTestPpgCamera camera;
   final Widget child;
+
+  /// Breite des zugeklappten Felds (dp) und zugleich rechter Rand des Inhalts.
+  static const double collapsedWidth = 56;
 
   @override
   State<DebugPpgPanel> createState() => _DebugPpgPanelState();
@@ -30,7 +38,17 @@ class _DebugPpgPanelState extends State<DebugPpgPanel> {
     return Stack(
       textDirection: TextDirection.ltr,
       children: [
-        widget.child,
+        Padding(
+          padding: const EdgeInsets.only(right: DebugPpgPanel.collapsedWidth),
+          child: widget.child,
+        ),
+        Positioned(
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: DebugPpgPanel.collapsedWidth,
+          child: ColoredBox(color: Theme.of(context).colorScheme.surface),
+        ),
         Positioned(
           right: 0,
           top: 0,
@@ -43,9 +61,11 @@ class _DebugPpgPanelState extends State<DebugPpgPanel> {
                 color: Theme.of(context).colorScheme.inverseSurface,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     _Tile(
                       id: 'debug_ppg_toggle',
+                      width: DebugPpgPanel.collapsedWidth,
                       // Zugeklappt zeigt der Knopf den Zeitraffer, damit man ihn vor einem Lauf
                       // sieht, ohne das Panel zu öffnen.
                       label: _open
@@ -91,7 +111,11 @@ class _Tile extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.selected = false,
+    this.width,
   });
+
+  /// Feste Breite (zugeklappter Knopf); der Text wird dann bei Bedarf verkleinert.
+  final double? width;
 
   final String id;
   final String label;
@@ -101,6 +125,21 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    Widget text = Text(
+      label,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        color: selected ? scheme.inversePrimary : scheme.onInverseSurface,
+        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+        decoration: TextDecoration.none,
+      ),
+    );
+    final w = width;
+    if (w != null) {
+      text = SizedBox(
+        width: w - 16,
+        child: FittedBox(fit: BoxFit.scaleDown, child: text),
+      );
+    }
     return Semantics(
       identifier: id,
       button: true,
@@ -111,14 +150,7 @@ class _Tile extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: selected ? scheme.inversePrimary : scheme.onInverseSurface,
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              decoration: TextDecoration.none,
-            ),
-          ),
+          child: text,
         ),
       ),
     );

@@ -99,6 +99,7 @@ class RunSummaryBody extends StatefulWidget {
     required this.fallback,
     required this.contentBuilder,
     this.splitUnitMeters,
+    this.leading,
   });
 
   final StorageSession session;
@@ -120,6 +121,11 @@ class RunSummaryBody extends StatefulWidget {
   /// [mileMeters]); ohne Angabe gibt es keine Kilometerwerte (die Zusammenfassung
   /// braucht sie nicht).
   final double? splitUnitMeters;
+
+  /// Steht in jedem Zustand vor dem Inhalt: mit dem geladenen Lauf, beim Laden
+  /// und im Rückfall mit `null` (dann ohne Daten der Zusammenfassung).
+  final List<Widget> Function(BuildContext context, RunSummary? summary)?
+  leading;
 
   @override
   State<RunSummaryBody> createState() => _RunSummaryBodyState();
@@ -167,34 +173,50 @@ class _RunSummaryBodyState extends State<RunSummaryBody> {
     return FutureBuilder<_Loaded?>(
       future: _future,
       builder: (context, snapshot) {
+        final leading = widget.leading;
+        Widget framed(RunSummary? summary, Widget child) => leading == null
+            ? child
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [...leading(context, summary), child],
+              );
         if (snapshot.connectionState != ConnectionState.done) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Column(
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 12),
-                Text(l10n.sumLoading, key: const Key('sum_loading')),
-              ],
+          return framed(
+            null,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 12),
+                  Text(l10n.sumLoading, key: const Key('sum_loading')),
+                ],
+              ),
             ),
           );
         }
         final loaded = snapshot.data;
         if (loaded == null) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(l10n.sumFallback, key: const Key('sum_fallback')),
-              const SizedBox(height: 8),
-              ...widget.fallback(),
-            ],
+          return framed(
+            null,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.sumFallback, key: const Key('sum_fallback')),
+                const SizedBox(height: 8),
+                ...widget.fallback(),
+              ],
+            ),
           );
         }
-        return widget.contentBuilder(
-          context,
+        return framed(
           loaded.summary,
-          loaded.detail,
-          loaded.splits,
+          widget.contentBuilder(
+            context,
+            loaded.summary,
+            loaded.detail,
+            loaded.splits,
+          ),
         );
       },
     );
