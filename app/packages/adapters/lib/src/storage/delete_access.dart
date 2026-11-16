@@ -25,7 +25,12 @@ class DriftDeletion {
       // Tageswerte haben keine Kaskade (Supervisor-Entscheidung): weg gehen die
       // Paare (Tag, Schlüssel), von denen eine Zeile den Lauf überlappt oder
       // keinen bekannten Datenzeitraum hat. WP09 berechnet sie neu. Vor dem
-      // Löschen des Laufs, weil sie seine Grenzen brauchen.
+      // Löschen des Laufs, weil sie seine Grenzen brauchen. Der Datenzeitraum
+      // eines Tageswerts umfasst alle eingegangenen Läufe (beim Langzeitwert
+      // auch die, die nur über die Glättung eingehen), darum genügt die
+      // Überlappung. Ausnahme: Langzeitwerte älterer Versionen (vor
+      // vo2maxLongTermFullRangeVersion) nennen nur die Läufe im Fenster; sie
+      // gehen weg, sobald ihr Zeitraum nach dem Beginn des Laufs endet.
       // Die Werte der Tageswerte-Auswahl und des Laufs samt ihrer Abschnitte
       // (value_sections) werden ausdrücklich gelöscht, zuerst die Abschnitte;
       // die Fremdschlüssel-Kaskade ist nur der zweite Boden.
@@ -34,8 +39,17 @@ class DriftDeletion {
           'WHERE day IS NOT NULL AND ('
           '(data_from_us IS NULL AND data_to_us IS NULL) OR '
           '(COALESCE(data_from_us, data_to_us) <= ? '
+          'AND COALESCE(data_to_us, data_from_us) >= ?) OR '
+          '(value_key = ? AND method = ? AND method_version < ? '
           'AND COALESCE(data_to_us, data_from_us) >= ?))';
-      final bounds = [run.endedAtUs ?? _unboundedEndUs, run.startedAtUs];
+      final bounds = [
+        run.endedAtUs ?? _unboundedEndUs,
+        run.startedAtUs,
+        vo2maxLongTermValueKey,
+        vo2maxLongTermMethod,
+        vo2maxLongTermFullRangeVersion,
+        run.startedAtUs,
+      ];
       await _db.customStatement(
         'DELETE FROM value_sections WHERE computed_value_id IN ('
         'SELECT id FROM computed_values WHERE run_id = ? OR '
