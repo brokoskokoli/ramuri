@@ -649,9 +649,13 @@ void main() {
   });
 
   group('Nachbesserung Teil B', () {
-    PlanUnit unit(DateTime day, {int? runId}) => PlanUnit(
+    PlanUnit unit(
+      DateTime day, {
+      int? runId,
+      PlanUnitKind kind = PlanUnitKind.easy,
+    }) => PlanUnit(
       day: day,
-      kind: PlanUnitKind.easy,
+      kind: kind,
       phase: PlanPhase.entry,
       weekIndex: 0,
       minutes: 30,
@@ -665,6 +669,8 @@ void main() {
       String locale = 'de',
       Brightness brightness = Brightness.light,
       Future<void> Function(BuildContext, PlanUnit)? onStartUnit,
+      double width = 411,
+      double scale = 1,
     }) async {
       final session = await FakeStorage().open(_key);
       final clock = FakeClock(_now);
@@ -676,7 +682,166 @@ void main() {
         brightness: brightness,
         controller: _Fixed(session, clock, state),
         onStartUnit: onStartUnit,
+        width: width,
+        scale: scale,
       );
+    }
+
+    String dayKey(DateTime d) =>
+        'plan_day_${d.year}-${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+
+    /// Eine Woche mit jeder Art: Mo locker (gelaufen), Di lang, Mi (heute)
+    /// Tempo, Do Ruhetag, Fr Intervalle, Sa Steigerung, So Geh-Lauf.
+    List<PlanUnit> mixedWeek() => [
+      unit(_monday, runId: 3),
+      unit(_monday.add(const Duration(days: 1)), kind: PlanUnitKind.long),
+      unit(_today, kind: PlanUnitKind.tempo),
+      unit(_monday.add(const Duration(days: 3)), kind: PlanUnitKind.rest),
+      unit(_monday.add(const Duration(days: 4)), kind: PlanUnitKind.intervals),
+      unit(
+        _monday.add(const Duration(days: 5)),
+        kind: PlanUnitKind.progressive,
+      ),
+      unit(_monday.add(const Duration(days: 6)), kind: PlanUnitKind.walkRun),
+    ];
+
+    for (final locale in ['de', 'en']) {
+      testWidgets('Wochenzeile: zweite Zeile mit der Zielsetzung der Art, '
+          'heute mit „heute“, Ruhetag ohne (FR-0142, $locale)', (tester) async {
+        final l = lookupAppLocalizations(Locale(locale));
+        await pumpFixed(
+          tester,
+          _state(weekUnits: mixedWeek()),
+          locale: locale,
+          onStartUnit: (_, _) async {},
+        );
+        String? subline(DateTime d) {
+          final f = find.descendant(
+            of: key(dayKey(d)),
+            matching: key('plan_day_purpose'),
+          );
+          if (f.evaluate().isEmpty) return null;
+          return tester.widget<Text>(f).data;
+        }
+
+        String stripped(PlanUnitKind k) {
+          final t = planKindPurpose(l, k);
+          return t.endsWith('.') ? t.substring(0, t.length - 1) : t;
+        }
+
+        for (final u in mixedWeek()) {
+          final s = subline(u.day);
+          if (u.kind == PlanUnitKind.rest) {
+            expect(s, isNull, reason: 'Ruhetag ohne Zielsetzung');
+            continue;
+          }
+          expect(s, isNotNull, reason: u.kind.name);
+          expect(s, startsWith(stripped(u.kind)), reason: u.kind.name);
+          if (planDay(u.day) == planDay(_today)) {
+            expect(s, '${stripped(u.kind)} · ${l.planToday}');
+          } else {
+            expect(s, stripped(u.kind), reason: u.kind.name);
+          }
+        }
+        // „heute“ nur noch in der zweiten Zeile, nicht als eigene Zeile;
+        // die Dauer steht nur einmal (in der ersten Zeile).
+        expect(find.text(l.planToday), findsNothing);
+        expect(
+          find.descendant(
+            of: key(dayKey(_today)),
+            matching: find.text(
+              l.planUnitLine(
+                planKindName(l, PlanUnitKind.tempo),
+                planDurationText(l, 30),
+              ),
+            ),
+          ),
+          findsOneWidget,
+        );
+        // Start, Erledigt-Haken und Ruhetag bleiben.
+        expect(
+          find.descendant(
+            of: key(dayKey(_today)),
+            matching: key('plan_day_start'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: key(dayKey(_monday)),
+            matching: find.byIcon(Icons.check_rounded),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: key(dayKey(_monday.add(const Duration(days: 3)))),
+            matching: find.text(l.planRestDay),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('Wochenzeile: Tippen öffnet weiter die Einheit', (
+      tester,
+    ) async {
+      await pumpFixed(tester, _state(weekUnits: mixedWeek()));
+      await tester.tap(key(dayKey(_monday.add(const Duration(days: 1)))));
+      await tester.pumpAndSettle();
+      expect(key('plan_unit_detail'), findsOneWidget);
+      expect(key('plan_unit_purpose'), findsOneWidget);
+    });
+
+    for (final locale in ['de', 'en']) {
+      for (final brightness in Brightness.values) {
+        for (final width in [360.0, 411.0]) {
+          for (final scale in [1.0, 1.3]) {
+            testWidgets('Wochenzeile mit Zielsetzung: kein Überlauf, Start '
+                '≥ 48 dp ($locale, ${brightness.name}, $width dp, '
+                'Schrift $scale)', (tester) async {
+              await pumpFixed(
+                tester,
+                _state(weekUnits: mixedWeek()),
+                locale: locale,
+                brightness: brightness,
+                width: width,
+                scale: scale,
+                onStartUnit: (_, _) async {},
+              );
+              final today = key(dayKey(_today));
+              await tester.ensureVisible(today);
+              await tester.pumpAndSettle();
+              final start = find.descendant(
+                of: today,
+                matching: key('plan_day_start'),
+              );
+              expect(start, findsOneWidget);
+              final size = tester.getSize(start);
+              expect(size.height, greaterThanOrEqualTo(48));
+              expect(size.width, greaterThanOrEqualTo(48));
+              final purposes = find.descendant(
+                of: key('plan_week'),
+                matching: key('plan_day_purpose'),
+              );
+              expect(purposes, findsNWidgets(6));
+              // Die Zeile liegt ganz in ihrer Karte, links vom Start-Knopf.
+              final line = find.descendant(
+                of: today,
+                matching: key('plan_day_purpose'),
+              );
+              final card = tester.getRect(today);
+              final rect = tester.getRect(line);
+              expect(card.contains(rect.topLeft), isTrue);
+              expect(card.contains(rect.bottomRight), isTrue);
+              expect(rect.right, lessThanOrEqualTo(tester.getRect(start).left));
+              expect(tester.takeException(), isNull);
+            });
+          }
+        }
+      }
     }
 
     testWidgets('Wochenzeile: „Start“ nur an der heutigen offenen Einheit, '
