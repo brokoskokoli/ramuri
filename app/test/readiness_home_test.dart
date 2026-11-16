@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:running_app/features/home/home_recovery.dart';
 import 'package:running_app/features/measure/morning_trend_screen.dart';
 import 'package:running_app/features/readiness/readiness_service.dart';
 import 'package:running_app/features/readiness/readiness_texts.dart';
@@ -741,6 +742,42 @@ void main() {
       expect(_key('home_warning_reminder'), findsNothing);
       expect(_key('readiness_card'), findsOneWidget);
       expect(gone, 0, reason: 'Karte fehlte in $gone Frames beim Neuladen');
+    });
+
+    testWidgets('Hinweise: Öffnen und Neuladen lesen sie je genau einmal', (
+      tester,
+    ) async {
+      final d = Device();
+      final s = await _preopen(d);
+      await (s as WarningStorage).warning.set(
+        WarningSignal(
+          reportedOn: DateTime.utc(2026, 11, 13),
+          source: WarningSource.manual,
+        ),
+      );
+      HomeHints.debugLoadCount = 0;
+      addTearDown(() => HomeHints.debugLoadCount = 0);
+      await _start(tester, d);
+      for (var i = 0; i < 10; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(HomeHints.debugLoadCount, 1, reason: 'Öffnen');
+      expect(_key('home_recovery_card'), findsOneWidget);
+      // Neuer Tag beim Fortsetzen: „Heute“ lädt neu (_reload).
+      d.clock.set(_now.add(const Duration(days: 1)));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      for (var i = 0; i < 10; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(HomeHints.debugLoadCount, 2, reason: 'Neuladen');
+      expect(_key('home_recovery_card'), findsOneWidget);
     });
 
     testWidgets('Löschfrage auf Heute widerruft: keine Health-Connect-Werte '

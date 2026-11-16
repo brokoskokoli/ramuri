@@ -74,8 +74,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late Future<_Data> _future = _load();
 
   /// Hinweis des Tages und Pausenfrage (WP23 D2); Fehler bleiben still, die
-  /// Karten fehlen dann.
-  late Future<HomeHints> _hints = _loadHints();
+  /// Karten fehlen dann. Beim Öffnen und bei [_reload] erst nach der Prüfung
+  /// beim Öffnen geladen ([_openPlan]), damit es nur einen Stand gibt.
+  late Future<HomeHints> _hints;
 
   /// Erholung der erweiterten Stufe (WP34 D1); `null` bei Fehler, dann gilt
   /// die Basisstufe.
@@ -120,8 +121,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Health Connect (WP32): beim Öffnen von Heute importieren; die Sperre hält der Dienst.
     _importHealth();
     // Wie die Plan-Seite: wöchentliche Prüfung beim Öffnen (FR-0158), dann
-    // laden; derselbe Aufruf, keine zweite Fassung der Prüfung.
-    _openPlan();
+    // laden; derselbe Aufruf, keine zweite Fassung der Prüfung. Die Hinweise
+    // lädt erst der Stand danach (PAR-202), einmal.
+    _hints = _openPlan();
   }
 
   /// Import beim Öffnen von „Heute“ und danach offene Löschfragen (SEC-0007); Fehler bleiben still.
@@ -180,16 +182,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _morningEpoch++;
       _shownDay = _today;
       _future = _load();
-      _renewCards(hints: true, readiness: true);
+      _hints = _openPlan();
+      _renewCards(readiness: true);
     });
-    _openPlan();
   }
 
-  /// Prüfung beim Öffnen; danach die Hinweise neu laden, weil sie vom Plan
-  /// abhängen (der Neustart zur Pause ändert den Text, PAR-202).
-  Future<void> _openPlan() async {
+  /// Prüfung beim Öffnen; danach die Hinweise laden, weil sie vom Plan
+  /// abhängen (der Neustart zur Pause ändert den Text, PAR-202). `open`
+  /// fängt seine Fehler selbst ab.
+  Future<HomeHints> _openPlan() async {
     await _plan.open();
-    _reloadHints();
+    return _loadHints();
   }
 
   Future<HomeHints> _loadHints() => HomeHints.load(
