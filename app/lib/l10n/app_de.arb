@@ -3691,5 +3691,19 @@
   "readinessSeriesSemantics": "{name}, {source}, 28 Tage, {count} Werte",
   "@readinessSeriesSemantics": {"description": "WP34 Teil D2, Erholung (Detailseite und Verlauf)", "placeholders": {"name": {"type": "String"}, "source": {"type": "String"}, "count": {"type": "int"}}},
   "readinessSeriesNone": "Noch keine Werte in einer Reihe.",
-  "@readinessSeriesNone": {"description": "WP34 Teil D2, Erholung (Detailseite und Verlauf)"}
+  "@readinessSeriesNone": {"description": "WP34 Teil D2, Erholung (Detailseite und Verlauf)"},
+  "planAdaptTitle": "Plananpassung an Erholung",
+  "@planAdaptTitle": {"description": "FR-0216, Plan-Seite: Überschrift des Schalters"},
+  "planAdaptAdaptive": "adaptiv",
+  "@planAdaptAdaptive": {"description": "FR-0216, Plan-Seite: Schalterstellung"},
+  "planAdaptFixed": "fix",
+  "@planAdaptFixed": {"description": "FR-0216, Plan-Seite: Schalterstellung"},
+  "planAdaptNote": "Bei „adaptiv“ wird eine harte Einheit an einem Tag mit niedrigem Erholungswert automatisch zum lockeren Lauf; bei „fix“ ändern Gesundheitsdaten deinen Plan nicht.",
+  "@planAdaptNote": {"description": "FR-0216, Plan-Seite: ein Satz Erklärung zum Schalter"},
+  "planAdaptFailed": "Das hat nicht geklappt. Bitte versuch es noch einmal.",
+  "@planAdaptFailed": {"description": "FR-0216, Plan-Seite: Wechsel gescheitert"},
+  "planAdaptReasonReadiness": "Dein Erholungswert ist heute niedrig, deshalb ist die harte Einheit heute ein lockerer Lauf.",
+  "@planAdaptReasonReadiness": {"description": "FR-0216, PAR-173, Plan-Seite: Grund"},
+  "planAdaptReasonFixed": "Du hast die Plananpassung an Erholung auf „fix“ gestellt, deshalb gilt die harte Einheit heute wieder.",
+  "@planAdaptReasonFixed": {"description": "FR-0216, Plan-Seite: Grund"}
 }

@@ -135,6 +135,19 @@ void main() {
       expect(await e.settings.get('plan.adaptation'), 'fixed');
       expect(archiveExcludedSettingKeys, isNot(contains(planAdaptationKey)));
     });
+    test(
+      '„Alles löschen“ entfernt den Schalter: danach wieder „fix“',
+      () async {
+        final e = await _Env.open(mode: PlanAdaptationMode.adaptive);
+        expect(await e.settings.get(planAdaptationKey), 'adaptive');
+        await e.session.deleteAll();
+        expect(await e.settings.get(planAdaptationKey), isNull);
+        expect(
+          await SettingsPlanAdaptationStore(e.settings).read(),
+          PlanAdaptationMode.fixed,
+        );
+      },
+    );
   });
 
   group('Lockerung nach PAR-173', () {

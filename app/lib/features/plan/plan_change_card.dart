@@ -19,6 +19,10 @@ String planChangeReasonText(
       return l.planChangeReasonWarning;
     case 'warningLifted':
       return l.planChangeReasonWarningLifted;
+    case planReasonReadiness:
+      return l.planAdaptReasonReadiness;
+    case planReasonAdaptationFixed:
+      return l.planAdaptReasonFixed;
     case 'weekly':
       final share = _ownShare(v);
       return share == null

@@ -2948,5 +2948,19 @@
   "readinessSeriesSemantics": "{name}, {source}, 28 days, {count} values",
   "@readinessSeriesSemantics": {"description": "WP34 Teil D2, Erholung (Detailseite und Verlauf)", "placeholders": {"name": {"type": "String"}, "source": {"type": "String"}, "count": {"type": "int"}}},
   "readinessSeriesNone": "No values in any series yet.",
-  "@readinessSeriesNone": {"description": "WP34 Teil D2, Erholung (Detailseite und Verlauf)"}
+  "@readinessSeriesNone": {"description": "WP34 Teil D2, Erholung (Detailseite und Verlauf)"},
+  "planAdaptTitle": "Plan adaptation to recovery",
+  "@planAdaptTitle": {"description": "FR-0216, Plan-Seite: Überschrift des Schalters"},
+  "planAdaptAdaptive": "adaptive",
+  "@planAdaptAdaptive": {"description": "FR-0216, Plan-Seite: Schalterstellung"},
+  "planAdaptFixed": "fixed",
+  "@planAdaptFixed": {"description": "FR-0216, Plan-Seite: Schalterstellung"},
+  "planAdaptNote": "With “adaptive”, a hard session on a day with a low recovery score automatically becomes an easy run; with “fixed”, health data do not change your plan.",
+  "@planAdaptNote": {"description": "FR-0216, Plan-Seite: ein Satz Erklärung zum Schalter"},
+  "planAdaptFailed": "That did not work. Please try again.",
+  "@planAdaptFailed": {"description": "FR-0216, Plan-Seite: Wechsel gescheitert"},
+  "planAdaptReasonReadiness": "Your recovery score is low today, so today’s hard session is an easy run.",
+  "@planAdaptReasonReadiness": {"description": "FR-0216, PAR-173, Plan-Seite: Grund"},
+  "planAdaptReasonFixed": "You set plan adaptation to recovery to “fixed”, so today’s hard session applies again.",
+  "@planAdaptReasonFixed": {"description": "FR-0216, Plan-Seite: Grund"}
 }

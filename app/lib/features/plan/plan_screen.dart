@@ -8,6 +8,7 @@ import '../../l10n/app_localizations.dart';
 import '../../offload_scope.dart';
 import '../../ui/ui.dart';
 import '../settings/app_settings.dart';
+import 'plan_adaptation_card.dart';
 import 'plan_calendar.dart';
 import 'plan_change_card.dart';
 import 'plan_controller.dart';
@@ -37,6 +38,7 @@ class PlanScreen extends StatefulWidget {
     this.onCreateGoal,
     this.controller,
     this.onStartUnit,
+    this.readinessToday,
   });
 
   final StorageSession session;
@@ -59,6 +61,10 @@ class PlanScreen extends StatefulWidget {
   /// Ohne Angabe kein Knopf.
   final Future<void> Function(BuildContext context, PlanUnit unit)? onStartUnit;
 
+  /// Readiness von heute für die Plananpassung an Erholung (FR-0216); ohne
+  /// Angabe keine Lockerung.
+  final Future<PlanReadinessDay?> Function(DateTime day)? readinessToday;
+
   @override
   State<PlanScreen> createState() => _PlanScreenState();
 }
@@ -71,6 +77,7 @@ class _PlanScreenState extends State<PlanScreen> {
         clock: widget.clock,
         // FR-0174: Termine, Arten und Ziel ändern die Erinnerungen.
         onChanged: () => ReminderScope.read(context)?.sync(),
+        readinessToday: widget.readinessToday,
         reader: PlanDataReader(
           session: widget.session,
           clock: widget.clock,
@@ -303,6 +310,20 @@ class _PlanScreenState extends State<PlanScreen> {
   }
 
   /// „Meldung aufheben“ (FR-0203): die Meldung endet nur durch den Nutzer.
+  /// Schalter „Plananpassung an Erholung“ (FR-0216).
+  Future<void> _setAdaptation(PlanAdaptationMode mode) async {
+    if (_busy) return;
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    final result = await _controller.setAdaptation(mode);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (result != PlanActionResult.done) {
+      _snack(messenger, 'plan_adapt_failed', l.planAdaptFailed);
+    }
+  }
+
   Future<void> _liftWarning() async {
     if (_busy) return;
     final l = AppLocalizations.of(context);
@@ -637,6 +658,11 @@ class _PlanScreenState extends State<PlanScreen> {
             today: _today,
             onEdit: () => _openGoalForm(s.goal),
             onRecalculate: _recalculating ? null : _recalculate,
+          ),
+          const SizedBox(height: 10),
+          PlanAdaptationCard(
+            mode: s.adaptation,
+            onChanged: _busy ? null : _setAdaptation,
           ),
           for (final h in global) ...[const SizedBox(height: 10), h],
           if (s.feedbackDue) ...[
