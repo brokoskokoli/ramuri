@@ -29,6 +29,40 @@ enum SleepBand {
   }
 }
 
+/// Grund der Stufe „unbrauchbar“ einer gespeicherten Morgenmessung
+/// (Spalte `morning_measurements.unusable_reason`, Name des Werts). Die Gründe
+/// der Auswertung ([PpgQualityReason], gleiche Namen, [fromPpg]) und dazu
+/// [restingHrOutOfRange]: die Auswertung lieferte einen Puls, er liegt aber
+/// außerhalb PAR-017 (PAR-160K). Der Puls selbst wird dann nicht gespeichert.
+enum MorningUnusableReason {
+  insufficientData,
+  invalidInput,
+  weakSignal,
+  tooManyDisturbances,
+  frameGap,
+  noFinger,
+  flatSignal,
+  analysisFailed,
+  lowSignalQuality,
+  someDisturbances,
+  timingNoise,
+
+  /// Ruhepuls außerhalb PAR-017 (30 bis 120 bpm).
+  restingHrOutOfRange;
+
+  /// Derselbe Grund wie in der Auswertung.
+  static MorningUnusableReason fromPpg(PpgQualityReason r) =>
+      MorningUnusableReason.values.byName(r.name);
+
+  /// Wert aus Datenbank oder Archiv; unbekannt: `null`.
+  static MorningUnusableReason? fromName(String? name) {
+    for (final r in values) {
+      if (r.name == name) return r;
+    }
+    return null;
+  }
+}
+
 /// Eine Kamera-Morgenmessung (FR-0215), wie sie gespeichert wird. Gespeichert
 /// werden Messungen mit Puls ([PpgQuality.good] oder [PpgQuality.limited]) und,
 /// nur im Entwicklermodus (K68), unbrauchbare ([PpgQuality.unusable], ohne
@@ -100,7 +134,7 @@ class MorningMeasurement {
   final double? restSkippedAfterS;
 
   /// Grund der Stufe „unbrauchbar“; nur dort gesetzt (kann auch dann fehlen).
-  final PpgQualityReason? unusableReason;
+  final MorningUnusableReason? unusableReason;
 
   /// Zählt die Messung überhaupt (nicht unbrauchbar, K68).
   bool get isUsable => quality != PpgQuality.unusable;
