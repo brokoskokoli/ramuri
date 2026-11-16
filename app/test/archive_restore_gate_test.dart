@@ -367,6 +367,45 @@ void main() {
     expect(w.violations, isEmpty);
   });
 
+  for (final (name, error, notOpenable) in <(String, Object, bool)>[
+    (
+      'Einspielen',
+      const ArchiveImportException(ArchiveImportFailure.targetFailed),
+      false,
+    ),
+    (
+      'Tausch',
+      const ArchiveRestoreException(ArchiveRestoreFailure.swapFailed),
+      false,
+    ),
+    (
+      'Öffnen nach dem Tausch',
+      const ArchiveRestoreException(ArchiveRestoreFailure.reopenFailed),
+      true,
+    ),
+  ]) {
+    testWidgets('$name scheitert: Fehlerdialog erst nach dem Laden, darunter '
+        'keine Ladeanzeige', (tester) async {
+      final (_, f, _, c) = await _pump(tester);
+      f.restoreErrors.add(error);
+      await _tap(tester, 'not_openable_restore');
+      await _password(tester);
+      await _tapBusy(tester, 'restore_confirm_action');
+      expect(
+        find.byKey(const Key('archive_import_error_dialog')),
+        findsOneWidget,
+      );
+      expect(c.state, isNot(isA<StorageLoading>()));
+      expect(
+        c.state,
+        notOpenable ? isA<StorageNotOpenableState>() : isA<StorageReady>(),
+      );
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      await _tap(tester, 'archive_import_error_close');
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+  }
+
   testWidgets('Tausch scheitert (swapFailed mit Sitzung): die App läuft mit '
       'der Sitzung der Ausnahme, nicht mit der geschlossenen', (tester) async {
     final (w, f, h, c) = await _pump(tester);

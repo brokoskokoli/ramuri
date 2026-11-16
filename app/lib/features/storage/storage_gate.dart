@@ -105,6 +105,9 @@ class _StorageGateState extends State<StorageGate> {
         builder: (_) => const RestoreConfirmDialog(),
       );
       if (confirmed != true) return;
+      // Fehler des Einspielens erst zeigen, wenn der Start nicht mehr lädt:
+      // sonst stünde der Dialog über der Ladeansicht.
+      Object? failure;
       await widget.controller.resetStorage(
         restoreInto: (fresh) async {
           if (!mounted) return fresh;
@@ -124,22 +127,26 @@ class _StorageGateState extends State<StorageGate> {
           } on ArchiveImportException catch (e) {
             if (e.failure == ArchiveImportFailure.cancelled) {
               say(l10n.archiveImportCancelled);
-            } else if (mounted) {
-              await showArchiveImportError(context, e);
+            } else {
+              failure = e;
             }
             return fresh;
           } on ArchiveRestoreException catch (e) {
-            if (mounted) await showArchiveImportError(context, e);
+            failure = e;
             // Das Öffnen nach dem Tausch scheiterte: der Start meldet "nicht
             // zu öffnen", "Erneut versuchen" öffnet die Datenbank normal.
             if (e.failure == ArchiveRestoreFailure.reopenFailed) rethrow;
             return e.session ?? fresh;
           } on Object catch (e) {
-            if (mounted) await showArchiveImportError(context, e);
+            failure = e;
             return fresh;
           }
         },
       );
+      final shown = failure;
+      if (shown != null && mounted) {
+        await showArchiveImportError(context, shown);
+      }
     } finally {
       await handoff.discardPicked();
     }
