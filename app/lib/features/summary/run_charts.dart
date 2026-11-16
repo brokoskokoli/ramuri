@@ -120,10 +120,14 @@ Widget _detailChart(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       chart,
-      Text(
-        notes.join(' '),
-        key: Key('${(key as ValueKey<String>).value}_note'),
-        style: Theme.of(context).textTheme.bodySmall,
+      // Der Hinweis steht schon im Label des Diagramms (RunSeriesChart) und
+      // wird dort zusammen mit dem Diagramm vorgelesen; hier nur sichtbar.
+      ExcludeSemantics(
+        child: Text(
+          notes.join(' '),
+          key: Key('${(key as ValueKey<String>).value}_note'),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
       ),
     ],
   );
