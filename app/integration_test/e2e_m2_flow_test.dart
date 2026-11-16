@@ -24,6 +24,19 @@ Future<void> _enter(WidgetTester t, String key, String text) async {
 bool _daySelected(WidgetTester t, int weekday) =>
     t.widget<FilterChip>(find.byKey(Key('plan_form_day_$weekday'))).selected;
 
+/// Wie [_daySelected], aber `null`, wenn der Chip nicht im Baum steht (fuer
+/// Bedingungen von [tapUntil], die nicht werfen duerfen).
+bool? _dayState(int weekday) =>
+    maybeWidget<FilterChip>(find.byKey(Key('plan_form_day_$weekday')))
+        ?.selected;
+
+/// Auswahl des Umschalters "30 min am Stueck" oder `null`, wenn er nicht im
+/// Baum steht.
+ContinuousRun30? _can30() =>
+    maybeWidget<RamuriSegmentedToggle<ContinuousRun30>>(
+      find.byKey(const Key('plan_form_can30')),
+    )?.selected;
+
 Future<void> _setDays(WidgetTester t, Set<int> days) async {
   for (var d = 1; d <= 7; d++) {
     final want = days.contains(d);
@@ -31,8 +44,9 @@ Future<void> _setDays(WidgetTester t, Set<int> days) async {
       await tapUntil(
         t,
         find.byKey(Key('plan_form_day_$d')),
-        () => _daySelected(t, d) == want,
+        () => _dayState(d) == want,
         'plan_form_day_$d',
+        reveal: () => _reveal(t, 'plan_form_day_$d'),
       );
     }
   }
@@ -227,15 +241,19 @@ void main() {
       await tapUntil(
         t,
         no,
-        () =>
-            t
-                .widget<RamuriSegmentedToggle<ContinuousRun30>>(
-                  find.byKey(const Key('plan_form_can30')),
-                )
-                .selected ==
-            ContinuousRun30.no,
+        () => _can30() == ContinuousRun30.no,
         'plan_form_can30 Nein',
+        reveal: () => _reveal(t, 'plan_form_can30'),
       );
+      // Harte Pruefung: am Ende ist "Nein" gewaehlt.
+      await _reveal(t, 'plan_form_can30');
+      final can30 = _can30();
+      if (can30 != ContinuousRun30.no) {
+        logPub(
+          'M2 plan_form_can30 nicht_nein im_baum=${can30 == null ? 'nein' : 'ja'}',
+        );
+        fail('plan_form_can30 nicht Nein');
+      }
       await _reveal(t, 'plan_form_date_pick');
       await _pickTargetDate(t);
       await _checkAndSave(t);
@@ -386,8 +404,12 @@ void main() {
       await tapUntil(
         t,
         find.byKey(Key('plan_form_day_${wd(1)}')),
-        () => _daySelected(t, wd(1)) != was,
+        () {
+          final now = _dayState(wd(1));
+          return now != null && now != was;
+        },
         'plan_form_day_${wd(1)}',
+        reveal: () => _reveal(t, 'plan_form_day_${wd(1)}'),
       );
       await _checkAndSave(t);
       history = (await t.runAsync(plans.history))!;

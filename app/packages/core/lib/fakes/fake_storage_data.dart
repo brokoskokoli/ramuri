@@ -1,4 +1,6 @@
 import 'fake_health_import_store.dart';
+import '../src/fitness/vo2max_long_term.dart';
+import '../src/recalculation/run_analysis.dart';
 import '../src/preprocessing/measurement.dart';
 import '../ports/storage.dart';
 import '../ports/storage_consents.dart';
@@ -101,7 +103,9 @@ class FakeStorageData {
       pairs.removeWhere(
         (_, p) =>
             _overlaps(p.original, start, end) ||
-            _overlaps(p.current, start, end),
+            _overlaps(p.current, start, end) ||
+            _narrowLongTerm(p.original, start) ||
+            _narrowLongTerm(p.current, start),
       );
     }
     values.removeWhere((o, pairs) => o.day != null && pairs.isEmpty);
@@ -131,6 +135,20 @@ class FakeStorageData {
     // Unbekannter Zeitraum: sicher löschen, WP09 berechnet neu.
     if (from == null || to == null) return true;
     return from <= (runEnd ?? to) && to >= runStart;
+  }
+
+  /// Langzeitwert einer Version vor [vo2maxLongTermFullRangeVersion]: Sein
+  /// Zeitraum nennt nur die Läufe im Fenster, früher Läufe stecken über die
+  /// Glättung trotzdem darin. Er geht weg, wenn sein Zeitraum nach dem Beginn
+  /// des Laufs endet.
+  static bool _narrowLongTerm(ComputedValue v, int runStart) {
+    if (v.key != vo2maxLongTermValueKey ||
+        v.method != vo2maxLongTermMethod ||
+        v.methodVersion >= vo2maxLongTermFullRangeVersion) {
+      return false;
+    }
+    final to = (v.dataTo ?? v.dataFrom)?.microsecondsSinceEpoch;
+    return to == null || to >= runStart;
   }
 
   /// Alles, auch die Zähler (wie `sqlite_sequence` in der Datenbank).

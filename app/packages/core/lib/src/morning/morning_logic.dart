@@ -98,8 +98,8 @@ bool measuredBeforeValidation({
 
 /// Macht aus einem Messergebnis den zu speichernden Datensatz oder `null`, wenn
 /// die Messung verworfen wird (PAR-160K):
-/// - "unbrauchbar" oder ohne Puls: verworfen, auch im Entwicklermodus;
-/// - Ruhepuls außerhalb PAR-017 (30 bis 120): verworfen;
+/// - "unbrauchbar" oder ohne Puls: verworfen;
+/// - Ruhepuls außerhalb PAR-017 (30 bis 120): unbrauchbar, also verworfen;
 /// - Ruhepuls gilt bei "gut" und "eingeschränkt";
 /// - RMSSD nur bei "gut", mit Zeitrauschen bekannt und höchstens
 ///   [morningRmssdTimingNoiseLimitMs] und im Bereich 1 bis 200 ms, sonst `null`.
@@ -111,7 +111,9 @@ bool measuredBeforeValidation({
 /// [keepUnusable] (nur Entwicklermodus, K68): eine unbrauchbare Messung wird
 /// nicht verworfen, sondern als Stufe `unusable` mit Grund, ohne Puls, RMSSD und
 /// Zeitrauschen und mit den Kamera-Schlagabständen zurückgegeben; sie zählt
-/// nirgends. [windowStartS], [windowEndS] (gewähltes Fenster, K66) und
+/// nirgends. Das gilt auch für einen Ruhepuls außerhalb PAR-017 (Grund
+/// [MorningUnusableReason.restingHrOutOfRange]); der Puls wird nicht
+/// übernommen. [windowStartS], [windowEndS] (gewähltes Fenster, K66) und
 /// [restSkippedAfterS] (Ruhephase übersprungen nach s) gehen unverändert an die
 /// Messung.
 MorningMeasurement? buildMorningMeasurement({
@@ -129,7 +131,7 @@ MorningMeasurement? buildMorningMeasurement({
   double? restSkippedAfterS,
   bool keepUnusable = false,
 }) {
-  if (result.quality == PpgQuality.unusable) {
+  MorningMeasurement? unusable(MorningUnusableReason? reason) {
     if (!keepUnusable) return null;
     return MorningMeasurement(
       measuredAt: measuredAt.toUtc(),
@@ -140,7 +142,7 @@ MorningMeasurement? buildMorningMeasurement({
       method: ppgMethod,
       methodVersion: ppgMethodVersion,
       quality: PpgQuality.unusable,
-      unusableReason: result.reasons.isEmpty ? null : result.reasons.first,
+      unusableReason: reason,
       sleepBand: sleepBand,
       cameraIntervalsMs: List.of(result.intervalsMs),
       beforeValidation: measuredBeforeValidation(state: validationState),
@@ -150,12 +152,18 @@ MorningMeasurement? buildMorningMeasurement({
       restSkippedAfterS: restSkippedAfterS,
     );
   }
+
+  if (result.quality == PpgQuality.unusable) {
+    return unusable(
+      result.reasons.isEmpty
+          ? null
+          : MorningUnusableReason.fromPpg(result.reasons.first),
+    );
+  }
   final hr = result.bpm;
-  if (hr == null ||
-      !hr.isFinite ||
-      hr < morningRestingHrMinBpm ||
-      hr > morningRestingHrMaxBpm) {
-    return null;
+  if (hr == null || !hr.isFinite) return null;
+  if (hr < morningRestingHrMinBpm || hr > morningRestingHrMaxBpm) {
+    return unusable(MorningUnusableReason.restingHrOutOfRange);
   }
   final noise = result.timingNoiseMs;
   final rmssd = result.rmssdMs;
