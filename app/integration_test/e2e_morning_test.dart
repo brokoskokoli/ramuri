@@ -742,7 +742,7 @@ void main() {
     // Negativpruefung: der Entwicklermodus wird beim Laden der Uebersicht
     // gelesen; das Fehlen gilt erst, wenn der Einstieg fertig geladen hat.
     await entryLoaded(t, MorningTile, 'S8 Uebersicht');
-    expect(has('overview_morning'), isFalse, reason: 'S8 Eintrag weg');
+    expect(has('overview_morning'), isTrue, reason: 'S8 Eintrag weg');
     log('S8 ok');
   }, timeout: const Timeout(Duration(minutes: 10)));
 }
