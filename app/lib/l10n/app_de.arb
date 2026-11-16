@@ -2867,6 +2867,7 @@
   "planWalkRepeatSessionDone": "Lauf 2 wird wiederholt.",
   "@planWalkRepeatSessionDone": {"description": "WP23 NB2, Plan-Seite: Rückmeldung (Lauf)"},
   "treadmillStartFailedResume": "Der Hintergrunddienst konnte nicht gestartet werden. Der bisher aufgezeichnete Teil ist gespeichert. Versuche das Fortsetzen erneut.",
+  "runResumeFailed": "Fortsetzen hat nicht geklappt. Der bisher aufgezeichnete Teil ist gespeichert. Versuche es erneut.",
   "treadmillModeTitle": "Laufart",
   "@treadmillModeTitle": {"description": "WP25 B1, Laufband (FR-0196)"},
   "treadmillModeGps": "Draußen (GPS)",
