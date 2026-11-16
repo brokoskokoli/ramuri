@@ -259,15 +259,16 @@ void main() {
       expect(tier([run(45, s, 5), run(45, s, 10), run(null, nd, 12)]), v);
     });
 
-    test(
-      'veralteter Wert bleibt, ist vorläufig, Datenzeitraum der letzte Lauf',
-      () {
-        final r = compute([run(45, g, 100), run(45, g, 90)]);
-        expect(r.value, 45);
-        expect(r.metadata.tier, v);
-        expect(r.metadata.usableMeasurements, 0);
-      },
-    );
+    test('veralteter Wert bleibt, ist vorläufig, Datenzeitraum alle Läufe', () {
+      final first = run(45, g, 100);
+      final last = run(45, g, 90);
+      final r = compute([first, last]);
+      expect(r.value, 45);
+      expect(r.metadata.tier, v);
+      expect(r.metadata.usableMeasurements, 0);
+      expect(r.metadata.dataFrom, first.metadata.dataFrom);
+      expect(r.metadata.dataTo, last.metadata.dataTo);
+    });
   });
 
   group('Läufe nach now (Review B2, Muss 1)', () {
@@ -303,7 +304,7 @@ void main() {
       final r = compute([a, b]);
       final m = r.metadata;
       expect(m.method, 'vo2max-long-term-ema');
-      expect(m.methodVersion, 1);
+      expect(m.methodVersion, 2);
       expect(m.parameterVersion, _p.parameterVersion);
       expect(m.calculatedAt, _now);
       expect(m.dataFrom, a.metadata.dataFrom);
@@ -314,6 +315,32 @@ void main() {
         AlgorithmRegistry.standard().active(vo2maxLongTermFamily).category,
         AlgorithmCategory.heuristic,
       );
+    });
+
+    test('Datenzeitraum und Quellen umfassen auch Läufe vor dem Fenster, '
+        'die über die Glättung eingehen', () {
+      final old = runAt(40, g, _now.subtract(const Duration(days: 80)));
+      final oldSourced = AdvancedFitnessValue<double>(
+        metadata: FitnessValueMetadata(
+          calculatedAt: old.metadata.calculatedAt,
+          dataFrom: old.metadata.dataFrom,
+          dataTo: old.metadata.dataTo,
+          usableMeasurements: 3,
+          dataSources: const {'strap'},
+          method: old.metadata.method,
+          methodVersion: 1,
+          parameterVersion: currentParameterVersion,
+          tier: g,
+        ),
+        value: 40,
+      );
+      final recent = run(50, g, 3);
+      final r = compute([recent, oldSourced]);
+      expect(r.value, lessThan(50), reason: 'der alte Lauf steckt im Wert');
+      expect(r.metadata.usableMeasurements, 1, reason: 'nur einer im Fenster');
+      expect(r.metadata.dataFrom, old.metadata.dataFrom);
+      expect(r.metadata.dataTo, recent.metadata.dataTo);
+      expect(r.metadata.dataSources, {'gps', 'strap'});
     });
   });
 }
