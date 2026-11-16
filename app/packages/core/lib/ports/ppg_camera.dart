@@ -68,7 +68,8 @@ final class PpgCameraDetails extends PpgCameraEvent {
   /// `FLASH_STRENGTH_LEVEL` (erst ab Android 15).
   final int? torchStrength;
 
-  /// Anteil gesättigter Pixel (Helligkeit ab 250 von 255) über alle bisherigen Bilder, 0 bis 1.
+  /// Anteil gesättigter Pixel (Helligkeit ab 250 von 255, PAR-217) über alle bisherigen
+  /// Bilder, 0 bis 1.
   final double? saturatedFraction;
 
   /// Ohne Inhalte (Gesundheitsdaten gehören nicht in Logs).

@@ -122,6 +122,7 @@ const PpgWindow ppgStandardWindow = PpgWindow(
 /// ausgewertet wird das beste zusammenhängende Fenster von [ppgSearchWindowSeconds], dessen
 /// Beginn frühestens bei `ppgStandardWindow.start` liegt und in Schritten von
 /// [ppgSearchStepSeconds] wandert. Die Qualitätsgrenzen bleiben die aus Abschn. 10.
+/// Werte: PAR-211 (120 s), PAR-212 (60 s), PAR-213 (1 s), docs/phase-2-3-rules.md Abschn. 7.1.
 const double ppgSearchMaxRecordSeconds = 120.0;
 const double ppgSearchWindowSeconds = 60.0;
 const double ppgSearchStepSeconds = 1.0;
@@ -129,6 +130,7 @@ const double ppgSearchStepSeconds = 1.0;
 /// Filterrand eines Kandidatenfensters: Bilder ab Fensterbeginn minus [ppgSearchFilterLeadSeconds]
 /// bis Fensterende plus [ppgSearchFilterTailSeconds] (wie `ppgStandardWindow`: 3 und 66,5 s bei 5 bis
 /// 65 s). Die Aufnahme endet frühestens, wenn der Filterrand des Fensters vorliegt.
+/// Werte: PAR-214 (2 s), PAR-215 (1,5 s).
 const double ppgSearchFilterLeadSeconds = 2.0;
 const double ppgSearchFilterTailSeconds = 1.5;
 
@@ -138,7 +140,7 @@ const List<double> ppgGoodStretchRecentSeconds = [ppgSearchWindowSeconds, 30.0];
 
 /// Untergrenze der Anzeige des guten Stücks (s). Bei reinem Rauschen gewinnt aus sehr vielen
 /// Teilstücken zufällig eines mit 70 % gültigen Intervallen (Auswahleffekt, A3: 40 Seeds, bis
-/// 25,9 s); darunter zeigt die Anzeige 0.
+/// 25,9 s); darunter zeigt die Anzeige 0. Wert: PAR-220.
 const double ppgGoodStretchDisplayMinSeconds = 30.0;
 
 /// Messfenster (Sekunden seit Aufnahmebeginn).
@@ -161,13 +163,13 @@ class PpgWindow {
   final double dataEnd;
 }
 
-/// Größte erlaubte Lücke zwischen zwei Bildern in Sekunden (Maintainer 2026-11-11, WP27, PAR-Nummer
-/// folgt). Wer länger kein Bild bekommt, dessen Messung ist unbrauchbar: `evaluatePpg` meldet
+/// Größte erlaubte Lücke zwischen zwei Bildern in Sekunden (Maintainer 2026-11-11, WP27,
+/// PAR-218). Wer länger kein Bild bekommt, dessen Messung ist unbrauchbar: `evaluatePpg` meldet
 /// `PpgQualityReason.frameGap` (geprüft zwischen den Bildern ab `filterStart` bis `dataEnd`).
 const double ppgMaxFrameGapSeconds = 1.0;
 
 /// Fingerprüfung (Maintainer 2026-11-11, WP27, Evidenz niedrig: 10 Messungen eines Handys einer
-/// Person und eine Emulator-Szene, PAR-Nummer folgt): Mittel von Rot geteilt durch Mittel von Grün
+/// Person und eine Emulator-Szene, PAR-219): Mittel von Rot geteilt durch Mittel von Grün
 /// über die Bilder im Messfenster (Mitte) unter diesem Wert ergibt „unbrauchbar, kein Finger“
 /// (`PpgQualityReason.noFinger`). Mit Blitz auf der Haut absorbiert das Blut Grün weit stärker
 /// als Rot; eine freie Szene hat Rot/Grün um 1 und darunter. Die Referenz prüft nur die Anzeige.
