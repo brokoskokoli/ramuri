@@ -25,7 +25,7 @@ object PpgFrameStats {
     const val GRID = 4
     const val BLOCKS = GRID * GRID
 
-    /** Helligkeit (Y, 0 bis 255) ab der ein Pixel als gesättigt zählt. */
+    /** Helligkeit (Y, 0 bis 255) ab der ein Pixel als gesättigt zählt (PAR-217). */
     const val SATURATED_Y = 250
 
     fun compute(w: Int, h: Int, yP: PpgPlane, uP: PpgPlane, vP: PpgPlane): PpgStats {

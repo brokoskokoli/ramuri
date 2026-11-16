@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ramuri_card.dart';
 import '../settings/unit_format.dart' show asOfDateText;
+import 'period_date.dart';
 import '../transparency/value_explanation_screen.dart';
 import 'statistics_screen.dart' show ExplainValue;
 import 'statistics_view.dart';
@@ -90,6 +91,7 @@ class FitnessSection extends StatelessWidget {
     required this.fitness,
     required this.session,
     required this.onExplain,
+    required this.today,
   });
 
   final StatisticsPeriod? period;
@@ -97,6 +99,9 @@ class FitnessSection extends StatelessWidget {
   final FitnessOverview fitness;
   final StorageSession session;
   final ExplainValue? onExplain;
+
+  /// Heutiger Tag (`YYYY-MM-DD`); Daten aus einem anderen Jahr tragen das Jahr.
+  final String today;
 
   /// Wochen im Verlauf (Sicht 3): rund drei Monate.
   static const int _trendWeeks = 12;
@@ -106,13 +111,14 @@ class FitnessSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final material = MaterialLocalizations.of(context);
     final german = Localizations.localeOf(context).languageCode == 'de';
     String number(double v, {bool sign = false}) =>
         fitnessNumber(german, v, sign: sign);
 
     String estimate(double v) => l10n.sumVo2maxValue(number(v));
-    String dateOf(String day) => material.formatMediumDate(_date(day));
+    // Mit Jahr, wenn der Tag nicht im laufenden Jahr liegt (FR-0044).
+    String dateOf(String day) =>
+        periodDateText(context, _date(day), currentYear: _date(today).year);
     // „Stand“ mit Jahr, wie auf Karte und Erklärung (FR-0059).
     String asOf(String day) => asOfDateText(
       Localizations.localeOf(context).languageCode,

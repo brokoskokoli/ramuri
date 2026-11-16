@@ -83,6 +83,7 @@ ReadinessInputs inputs({
   CameraRelease? release,
 }) => ReadinessInputs(
   today: today,
+  dayStart: today,
   now: now,
   hrvHealthConnect: hrvZ == null ? null : dev(ReadinessFactor.hrv, hrvZ),
   restingHrHealthConnect: rhrZ == null
@@ -379,6 +380,37 @@ void main() {
   });
 
   group('Faktoren: Schlaf, Belastung, Befinden', () {
+    test('Schlaf zählt bis Mitternacht des Endtags, nicht am Folgetag', () {
+      // Ortstag 14.11. in UTC+5: Mitternacht 13.11. 19:00 UTC; Ende 07:00
+      // Ortszeit = 02:00 UTC.
+      final dayStart = DateTime.utc(2026, 11, 13, 19);
+      final s = SleepSession(
+        origin: 'app.s',
+        start: DateTime.utc(2026, 11, 13, 19),
+        end: DateTime.utc(2026, 11, 14, 2),
+      );
+      ReadinessResult at(DateTime now, DateTime start) => computeReadiness(
+        ReadinessInputs(
+          today: today,
+          dayStart: start,
+          now: now,
+          sleepSessions: [s],
+        ),
+      );
+      // 23:59 Ortszeit = 18:59 UTC: zählt (fast 17 h nach dem Ende).
+      final late = at(DateTime.utc(2026, 11, 14, 18, 59), dayStart);
+      expect(late.factors.map((f) => f.id), contains(ReadinessFactorId.sleep));
+      // 00:00 Ortszeit am Folgetag: nicht mehr.
+      final next = at(
+        DateTime.utc(2026, 11, 14, 19),
+        dayStart.add(const Duration(days: 1)),
+      );
+      expect(
+        next.factors.map((f) => f.id),
+        isNot(contains(ReadinessFactorId.sleep)),
+      );
+      expect(next.missing, contains(ReadinessFactorId.sleep));
+    });
     test('Schlaf aus Health Connect: Hauptschlaf, Effizienz, Schätzung', () {
       final r = calc(inputs(hrvZ: 0, hours: 8, eff: 90));
       final s = r.factors.singleWhere((f) => f.id == ReadinessFactorId.sleep);
@@ -494,6 +526,7 @@ void main() {
     test('Referenz fehlt: HRV ohne z gibt keine Zahl', () {
       final i = ReadinessInputs(
         today: today,
+        dayStart: today,
         now: now,
         hrvHealthConnect: noZ(
           ReadinessFactor.hrv,
@@ -508,6 +541,7 @@ void main() {
     test('Eingeschränkt auch mit nur einer frischen Messung', () {
       final i = ReadinessInputs(
         today: today,
+        dayStart: today,
         now: now,
         restingHrHealthConnect: noZ(
           ReadinessFactor.restingHeartRate,
@@ -520,6 +554,7 @@ void main() {
       expect(calc(inputs()).state, ReadinessState.insufficient);
       final old = ReadinessInputs(
         today: today,
+        dayStart: today,
         now: now,
         hrvHealthConnect: noZ(
           ReadinessFactor.hrv,
@@ -601,6 +636,7 @@ void main() {
         final withSleep = calc(
           ReadinessInputs(
             today: h.todayKey,
+            dayStart: today,
             now: now,
             cameraDeviations: cams,
             release: rel,
@@ -809,6 +845,7 @@ void main() {
         final r1 = calc(
           ReadinessInputs(
             today: today,
+            dayStart: today,
             now: now,
             hrvHealthConnect: base.hrvHealthConnect,
             restingHrHealthConnect: base.restingHrHealthConnect,
@@ -853,6 +890,7 @@ void main() {
         ReadinessResult run(double z) => calc(
           ReadinessInputs(
             today: today,
+            dayStart: today,
             now: now,
             cameraDeviations: [camHrv(z)],
             release: rel,
@@ -883,6 +921,7 @@ void main() {
       final r = calc(
         ReadinessInputs(
           today: today,
+          dayStart: today,
           now: now,
           restingHrHealthConnect: dev(
             ReadinessFactor.restingHeartRate,
@@ -912,6 +951,7 @@ void main() {
       final r = calc(
         ReadinessInputs(
           today: today,
+          dayStart: today,
           now: now,
           release: devRelease,
           cameraDeviations: [
@@ -953,6 +993,7 @@ void main() {
       ReadinessResult run(Iterable<DeviationResult> c) => calc(
         ReadinessInputs(
           today: today,
+          dayStart: today,
           now: now,
           release: devRelease,
           hrvHealthConnect: hc,
@@ -984,6 +1025,7 @@ void main() {
       ReadinessResult run(int span) => calc(
         ReadinessInputs(
           today: today,
+          dayStart: today,
           now: now,
           release: devRelease,
           // Die Uhr hat kein `z`; die Kamerareihe zählt mit ihrer Dauer.

@@ -340,7 +340,7 @@ abstract interface class MorningStorage {
 /// beschädigt ab), das Rohsignal braucht als Hex 560 Byte je Bild (rund 8 MiB bei 14 400 Bildern,
 /// gut das Doppelte Abstand); ab etwa 29 900 Bildern würde die App ein Archiv schreiben, das sie
 /// selbst nicht mehr liest. Darüber wird das Speichern abgelehnt (`rejected`) statt still gekürzt:
-/// Die Aufnahme endet nach 120 s, mehr Bilder sind ein Fehler des Aufrufers.
+/// Die Aufnahme endet nach 120 s, mehr Bilder sind ein Fehler des Aufrufers. Wert: PAR-216.
 const int morningRawMaxFrames = 120 * 120;
 
 /// Prüfung vor dem Speichern, gleich für Fake und Datenbank.

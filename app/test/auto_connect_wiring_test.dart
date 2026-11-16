@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
@@ -112,4 +111,46 @@ void main() {
       expect(link.permissionRequests, 0);
     },
   );
+
+  group('Lauf-Ports der Produktion', () {
+    test('Schrittfrequenz kommt vom Schrittsensor des Telefons', () async {
+      final (deps, _) = await wired({'bluetooth': 'granted'});
+      final calls = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel(stepSensorChannelName),
+            (call) async {
+              calls.add(call.method);
+              return 'permission_denied';
+            },
+          );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(
+              const MethodChannel(stepSensorChannelName),
+              null,
+            ),
+      );
+      final cadence = deps.runPorts.cadence;
+      expect(cadence, isA<MethodChannelCadenceSensor>());
+      // Die Antwort des Plattformkanals kommt unverändert an.
+      expect(
+        await cadence!.availability(),
+        CadenceAvailability.permissionDenied,
+      );
+      expect(calls, ['availability']);
+    });
+
+    test('Lauf-Puls kommt aus der Sensorverwaltung der App', () async {
+      final (deps, _) = await wired({'bluetooth': 'granted'});
+      expect(deps.sensors.openRuns, 0);
+      final run = deps.runPorts.heartRateRun!();
+      // Die Pulsquelle des Laufs hängt an derselben Sensorverwaltung, die
+      // auch `connectSensors` verbindet.
+      expect(deps.sensors.openRuns, 1);
+      expect(run.activeId, isNull);
+      run.close();
+      expect(deps.sensors.openRuns, 0);
+    });
+  });
 }
