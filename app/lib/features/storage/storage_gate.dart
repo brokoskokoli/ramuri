@@ -34,6 +34,19 @@ class _StorageGateState extends State<StorageGate> {
     if (widget.controller.state is StorageLoading) widget.controller.start();
   }
 
+  var _logoRequested = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Das Logo von "Willkommen" (FR-0207) lädt, während der Start noch die
+    // Datenbank öffnet: so erscheint es im selben Bild wie der Text.
+    if (!_logoRequested) {
+      _logoRequested = true;
+      precacheRamuriLogo(context, style: RamuriLogoStyle.stackedOnDark);
+    }
+  }
+
   bool _canRestore(BuildContext context) =>
       ArchiveScope.verifyOf(context) != null &&
       ArchiveScope.restoreOf(context) != null &&
