@@ -1,6 +1,8 @@
 # Regeln für Phase 2 und 3
 
-**Status:** Vom Maintainer freigegebene Startwerte, vorläufig und nicht validiert. Version 4, Stand 2026-11-04 (OQ-0057, OQ-0058, DEC-0060, DEC-0061). Version 3 ist in `docs/migration/archive/` gesichert und nicht mehr gültig. Frühere Stände vom selben Tag sind ungültig. Künftige Änderungen brauchen eine neue Version (NFR-0001). Ergänzung: Regelversion K-1 für die Kamera-Morgenmessung (Abschnitt 7, 2026-11-09, DEC-0074, K46); sie ändert keine der übrigen Regeln. Ergänzung: PAR-208 (Referenz-Tempo, 2026-11-11, K53); sie ändert keine der übrigen Regeln. Ergänzung: PAR-209 und PAR-210 (Bereiche der Laufband-Eingaben, 2026-11-11, K57); sie ändern keine der übrigen Regeln. Ergänzung: PAR-211 bis PAR-226 (Konstanten der Kamera-Messung, Abschnitt 7.1, 2026-11-16); sie geben vorhandenen Werten eine Nummer und ändern keine Regel.
+**Status:** Vom Maintainer freigegebene Startwerte, vorläufig und nicht validiert. Version 4, Stand 2026-11-04 (OQ-0057, OQ-0058, DEC-0060, DEC-0061). Version 3 ist in `docs/migration/archive/` gesichert und nicht mehr gültig. Frühere Stände vom selben Tag sind ungültig. Künftige Änderungen brauchen eine neue Version (NFR-0001). Ergänzung: Regelversion K-1 für die Kamera-Morgenmessung (Abschnitt 7, 2026-11-09, DEC-0074, K46); sie ändert keine der übrigen Regeln. Ergänzung: PAR-208 (Referenz-Tempo, 2026-11-11, K53); sie ändert keine der übrigen Regeln. Ergänzung: PAR-209 und PAR-210 (Bereiche der Laufband-Eingaben, 2026-11-11, K57); sie ändern keine der übrigen Regeln.
+
+**Ergänzung 2026-11-16:** PAR-211 bis PAR-226 (Konstanten der Kamera-Messung, Abschnitt 7.1); sie geben vorhandenen Werten eine Nummer und ändern keine Regel.
 
 **Hinweis:** Die Werte sind nicht validiert, weder an eigenen Läufen noch an fremden Daten. Sie sind vorläufige Startwerte und keine Genauigkeitsangaben (FR-0054, NFR-0003). Keine Grenze ist eine Sicherheitsaussage (FR-0149). Die App stellt keine Diagnosen (FR-0118).
 
