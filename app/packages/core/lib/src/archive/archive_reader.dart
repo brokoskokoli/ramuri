@@ -536,7 +536,7 @@ Stream<ArchiveRowBatch> readArchive({
       ready.clear();
     }
   } on ArchiveException catch (e) {
-    throw ArchiveImportException(_map(e.failure));
+    throw ArchiveImportException(archiveImportFailureOf(e.failure));
   } on ArchiveImportException {
     rethrow;
   } on FormatException {
@@ -558,7 +558,8 @@ Stream<ArchiveRowBatch> readArchive({
   validator.finish();
 }
 
-ArchiveImportFailure _map(ArchiveFailure f) => switch (f) {
+/// Fehler des Rahmens als Fehler des Einlesens.
+ArchiveImportFailure archiveImportFailureOf(ArchiveFailure f) => switch (f) {
   ArchiveFailure.notAnArchive => ArchiveImportFailure.notAnArchive,
   ArchiveFailure.unsupportedVersion => ArchiveImportFailure.unsupportedVersion,
   ArchiveFailure.unsupportedParameters =>
