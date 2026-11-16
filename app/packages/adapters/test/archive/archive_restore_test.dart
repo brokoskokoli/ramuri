@@ -693,7 +693,7 @@ void main() {
         method: ppgMethod,
         methodVersion: ppgMethodVersion,
         quality: PpgQuality.unusable,
-        unusableReason: PpgQualityReason.noFinger,
+        unusableReason: MorningUnusableReason.noFinger,
         cameraIntervalsMs: const [],
         beforeValidation: false,
         outsideWindow: false,
@@ -1016,7 +1016,7 @@ void main() {
           final c = morning[2].value;
           expect(c.quality, PpgQuality.unusable);
           expect(c.restingHrBpm, isNull);
-          expect(c.unusableReason, PpgQualityReason.noFinger);
+          expect(c.unusableReason, MorningUnusableReason.noFinger);
           expect(c.isUsable, isFalse);
           expect(raw!.frames, hasLength(3));
           expect(raw.frames[1].t, 0.033);

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -63,10 +64,11 @@ Future<Device> _open(
   _FakeRestore restore, {
   bool wired = true,
   bool finishedRun = false,
+  Locale locale = const Locale('de'),
 }) async {
   final d = Device();
   if (wired) d.archiveRestore = restore.factory;
-  await d.start(tester, const Locale('de'));
+  await d.start(tester, locale);
   await d.skipSetup(tester);
   // Neue Sitzung, die der Fake nach dem "Tausch" liefert: eigener Speicher mit
   // einer Einstellung (Meilen), an der sich das Neuladen zeigt.
@@ -157,6 +159,8 @@ void main() {
           handoff: d.fileHandoff,
           child: ArchiveScope(
             restore: restore.factory,
+            // Der Testpfad hat keine Datei: Kopf gilt als gültig.
+            headerCheck: (_) async {},
             start: d.controller,
             child: Scaffold(
               body: ArchiveImportAction(
@@ -361,11 +365,6 @@ void main() {
       'zum Beispiel weil der Speicher voll ist',
     ),
     (
-      'nicht leer',
-      const ArchiveRestoreException(ArchiveRestoreFailure.notEmpty),
-      'Der Import ist fehlgeschlagen. Es wurde nichts geändert.',
-    ),
-    (
       'Tausch fehlgeschlagen (Prüfung)',
       const ArchiveRestoreException(ArchiveRestoreFailure.swapFailed),
       'Die bisherigen Daten sind erhalten.',
@@ -440,22 +439,134 @@ void main() {
     await d.stop(tester);
   });
 
-  testWidgets('Schlüssel nicht lesbar (Fabrik wirft): Meldung, nichts '
-      'geändert', (tester) async {
-    final restore = _FakeRestore()
-      ..factoryError = const ArchiveRestoreException(
-        ArchiveRestoreFailure.keyUnavailable,
+  // Eigene Texte statt der allgemeinen Meldung (FR-0198), de und en.
+  const general = {
+    'de': 'Der Import ist fehlgeschlagen. Es wurde nichts geändert.',
+    'en': 'The import failed. Nothing was changed.',
+  };
+  for (final (lang, notEmpty, keyUnavailable) in <(String, String, String)>[
+    (
+      'de',
+      'Die App enthält inzwischen Daten. Es wurde nichts geändert. Starte den '
+          'Import erneut.',
+      'Der Schlüsselspeicher des Geräts ist nicht erreichbar. Es wurde nichts '
+          'geändert.',
+    ),
+    (
+      'en',
+      'The app now contains data. Nothing was changed. Please start the '
+          'import again.',
+      'The device key store is not available. Nothing was changed.',
+    ),
+  ]) {
+    testWidgets('App inzwischen nicht leer ($lang): eigener Text, nichts '
+        'geändert', (tester) async {
+      final restore = _FakeRestore()
+        ..errors.add(
+          const ArchiveRestoreException(ArchiveRestoreFailure.notEmpty),
+        );
+      final d = await _open(tester, restore, locale: Locale(lang));
+      final before = d.session;
+      await _walk(tester, d);
+      expect(find.text(notEmpty), findsOneWidget);
+      expect(find.text(general[lang]!), findsNothing);
+      expect(d.session, same(before));
+      await _tapKey(tester, 'archive_import_error_close');
+      expect(d.fileHandoff.discardCount, 1);
+      await d.stop(tester);
+    });
+
+    testWidgets('Schlüssel nicht lesbar ($lang, Fabrik wirft): eigener Text, '
+        'nichts geändert', (tester) async {
+      final restore = _FakeRestore()
+        ..factoryError = const ArchiveRestoreException(
+          ArchiveRestoreFailure.keyUnavailable,
+        );
+      final d = await _open(tester, restore, locale: Locale(lang));
+      final before = d.session;
+      await _walk(tester, d);
+      expect(find.text(keyUnavailable), findsOneWidget);
+      expect(find.text(general[lang]!), findsNothing);
+      expect(d.session, same(before));
+      expect(restore.calls, isEmpty);
+      await _tapKey(tester, 'archive_import_error_close');
+      expect(d.fileHandoff.discardCount, 1);
+      await d.stop(tester);
+    });
+  }
+
+  // Vorprüfung des Kopfes vor der Passwortabfrage (FR-0198): die echten
+  // Regeln aus core auf synthetischen ersten Byte der gewählten Datei.
+  for (final (name, start, text) in <(String, List<int>, String)>[
+    (
+      'Fremddatei',
+      utf8.encode('Einkaufsliste: Brot, Milch\n'),
+      'Das ist keine Archivdatei. Es wurde nichts geändert.',
+    ),
+    (
+      'leere Datei',
+      const <int>[],
+      'Das ist keine Archivdatei. Es wurde nichts geändert.',
+    ),
+    (
+      'Formatversion 3',
+      [...ArchiveHeader.magic, 0x00, 0x03, ...List.filled(26, 0)],
+      'Dieses Archiv hat eine Version, die diese App nicht lesen kann. Stammt '
+          'es aus einer neueren Version, aktualisiere die App. Es wurde nichts '
+          'geändert.',
+    ),
+    (
+      'zu kurzer Kopf',
+      ArchiveHeader(Uint8List(16)).encode().sublist(0, 20),
+      'Das Archiv ist beschädigt. Es wurde nichts geändert.',
+    ),
+  ]) {
+    testWidgets('$name: Meldung ohne Passwortabfrage, nichts geändert', (
+      tester,
+    ) async {
+      final restore = _FakeRestore();
+      final d = await _open(tester, restore);
+      final before = d.session;
+      final unit = await before.settings.get(SettingKeys.distanceUnit);
+      d.archiveHeaderCheck = (_) async =>
+          precheckArchiveHeader(Uint8List.fromList(start));
+      await _walk(tester, d, enterPassword: false);
+      expect(d.headerChecks, [_path]);
+      expect(
+        find.byKey(const Key('archive_import_password_dialog')),
+        findsNothing,
       );
+      expect(
+        find.byKey(const Key('archive_import_error_dialog')),
+        findsOneWidget,
+      );
+      expect(find.text(text), findsOneWidget);
+      await _tapKey(tester, 'archive_import_error_close');
+      expect(restore.events, isEmpty, reason: 'kein Einlesen');
+      expect(d.session, same(before));
+      expect(await d.session.settings.get(SettingKeys.distanceUnit), unit);
+      expect(d.fileHandoff.discardCount, 1);
+      expect(
+        find.byKey(const Key('archive_import_password_dialog')),
+        findsNothing,
+      );
+      await d.stop(tester);
+    });
+  }
+
+  testWidgets('gültiger Kopf: geprüft, dann Passwortabfrage wie bisher', (
+    tester,
+  ) async {
+    final restore = _FakeRestore();
     final d = await _open(tester, restore);
-    final before = d.session;
-    await _walk(tester, d);
+    d.archiveHeaderCheck = (_) async =>
+        precheckArchiveHeader(ArchiveHeader(Uint8List(16)).encode());
+    await _walk(tester, d, enterPassword: false);
+    expect(d.headerChecks, [_path]);
     expect(
-      find.textContaining('Der Import ist fehlgeschlagen. Es wurde nichts'),
+      find.byKey(const Key('archive_import_password_dialog')),
       findsOneWidget,
     );
-    expect(d.session, same(before));
-    await _tapKey(tester, 'archive_import_error_close');
-    expect(d.fileHandoff.discardCount, 1);
     await d.stop(tester);
   });
 
@@ -557,6 +668,8 @@ void main() {
           handoff: d.fileHandoff,
           child: ArchiveScope(
             restore: restore.factory,
+            // Der Testpfad hat keine Datei: Kopf gilt als gültig.
+            headerCheck: (_) async {},
             start: d.controller,
             child: Scaffold(
               body: ArchiveImportAction(

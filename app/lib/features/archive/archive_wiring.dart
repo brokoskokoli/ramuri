@@ -33,6 +33,11 @@ typedef ArchiveRestoreFactory = Future<ArchiveRestoreRunner> Function(
   SerializeAction serialize,
 );
 
+/// Vorprüfung des unverschlüsselten Kopfes der gewählten Datei, bevor nach dem
+/// Passwort gefragt wird (FR-0198). Wirft `ArchiveImportException`. In der App
+/// `precheckArchiveFile`.
+typedef ArchiveHeaderCheck = Future<void> Function(String path);
+
 /// Prüft ein Archiv vollständig, ohne etwas zu schreiben (SEC-0009). Wirft
 /// `ArchiveImportException`.
 typedef ArchiveVerifier = Future<void> Function({
