@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:adapters/adapters.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
@@ -192,52 +194,59 @@ class _LiveMapPageState extends State<LiveMapPage> with WidgetsBindingObserver {
       body = _LineFallback(route: _route, style: style);
     }
 
-    return Column(
-      children: [
-        Expanded(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              body,
-              Positioned(
-                right: 16,
-                top: 16 + 8,
-                child: _GpsChip(controller: widget.controller),
-              ),
-              if (mapShown && !_following)
+    return LayoutBuilder(
+      builder: (context, page) => Column(
+        children: [
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                body,
                 Positioned(
                   right: 16,
-                  bottom: 40,
-                  child: _FloatingButton(
-                    key: const Key('live_map_center'),
-                    semanticLabel: l10n.mapCenter,
-                    icon: Icons.my_location_outlined,
-                    onPressed: () => setState(() => _following = true),
+                  top: 16 + 8,
+                  child: _GpsChip(controller: widget.controller),
+                ),
+                if (mapShown && !_following)
+                  Positioned(
+                    right: 16,
+                    bottom: 40,
+                    child: _FloatingButton(
+                      key: const Key('live_map_center'),
+                      semanticLabel: l10n.mapCenter,
+                      icon: Icons.my_location_outlined,
+                      onPressed: () => setState(() => _following = true),
+                    ),
+                  ),
+                // Wisch vom Rand zurück zur Werte-Seite; die Karte selbst nimmt Ein-Finger-Züge für das Verschieben.
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 24,
+                  child: GestureDetector(
+                    key: const Key('live_map_edge'),
+                    behavior: HitTestBehavior.opaque,
+                    onHorizontalDragEnd: (d) {
+                      if ((d.primaryVelocity ?? 0) > 150) widget.onBack();
+                    },
                   ),
                 ),
-              // Wisch vom Rand zurück zur Werte-Seite; die Karte selbst nimmt Ein-Finger-Züge für das Verschieben.
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 24,
-                child: GestureDetector(
-                  key: const Key('live_map_edge'),
-                  behavior: HitTestBehavior.opaque,
-                  onHorizontalDragEnd: (d) {
-                    if ((d.primaryVelocity ?? 0) > 150) widget.onBack();
-                  },
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        _Sheet(
-          controller: widget.controller,
-          formatter: widget.formatter,
-          colors: colors,
-        ),
-      ],
+          // Die Karte behält mindestens ein Drittel der Höhe; mehr braucht das
+          // Blatt nur bei großer Schrift auf kleinem Bildschirm.
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: page.maxHeight * 2 / 3),
+            child: _Sheet(
+              controller: widget.controller,
+              formatter: widget.formatter,
+              colors: colors,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -408,89 +417,135 @@ class _Sheet extends StatelessWidget {
     final zoneNo = zone.kind == LiveZoneKind.zone ? zone.zone : null;
     final paused = controller.phase == RecordingPhase.paused;
 
-    Widget big(Key key, String title, String value, {bool end = false}) =>
-        Flexible(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: end ? Alignment.bottomRight : Alignment.bottomLeft,
-            child: Column(
-              crossAxisAlignment: end
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: text.labelMedium?.copyWith(
-                    color: label,
-                    fontWeight: FontWeight.w700,
-                  ),
+    final scaler = MediaQuery.textScalerOf(context);
+    final valueStyle = RamuriType.of(context).sheetValue;
+    final tileValueStyle = text.titleLarge!.copyWith(color: colors.text);
+    final placeholderStyle = text.labelMedium!.copyWith(color: colors.text);
+    // Feste Höhe je Wertzeile: Wert und Ersatztext stehen in derselben Zeile,
+    // das Blatt ändert seine Höhe nicht, wenn der erste Wert erscheint.
+    final bigLine = _lineHeightOf(valueStyle, scaler);
+    final tileLine = math.max(
+      _lineHeightOf(tileValueStyle, scaler),
+      _lineHeightOf(placeholderStyle, scaler, lines: 2),
+    );
+
+    Widget big(Key key, String title, String value, {bool end = false}) {
+      final alignment = end ? Alignment.bottomRight : Alignment.bottomLeft;
+      return Expanded(
+        child: Column(
+          crossAxisAlignment: end
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: alignment,
+              child: Text(
+                title,
+                style: text.labelMedium?.copyWith(
+                  color: label,
+                  fontWeight: FontWeight.w700,
                 ),
-                Text(
-                  value,
-                  key: key,
-                  maxLines: 1,
-                  style: RamuriType.of(context).sheetValue,
-                ),
-              ],
+              ),
             ),
-          ),
-        );
+            SizedBox(
+              height: bigLine,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: alignment,
+                child: Text(value, key: key, maxLines: 1, style: valueStyle),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     // Die Einheit steht in der Beschriftung (zweizeilig erlaubt), die Zahl
     // darunter ohne Einheit; sie schrumpft nur, wenn sie nicht passt, und
     // steht unten, damit die Zahlen einer Reihe auf einer Höhe stehen.
-    Widget tile(Key key, String title, String value, [String? unit]) =>
-        Expanded(
-          child: Semantics(
-            container: true,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text.rich(
-                      labelWithUnit(title, unit),
-                      style: text.labelSmall?.copyWith(
-                        color: colors.textMuted,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    // Ersatztext: klein und umbrechend (de bei großer Schrift
-                    // dreizeilig, ohne Abschneiden) statt auf die Breite
-                    // geschrumpft (sonst winzig, auch bei großer Schrift).
-                    if (value == l10n.runNoDataYet)
-                      Text(
-                        value,
-                        key: key,
-                        style: text.labelMedium?.copyWith(color: colors.text),
-                      )
-                    else
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: AlignmentDirectional.centerStart,
-                        child: Text(
-                          value,
-                          key: key,
-                          maxLines: 1,
-                          softWrap: false,
-                          style: text.titleLarge?.copyWith(color: colors.text),
+    // [widest] ist die längste Form der Beschriftung (mit Einheit, mit Zone):
+    // Ihr Platz bleibt frei, auch solange die kürzere Form zu sehen ist.
+    Widget tile(
+      Key key,
+      String title,
+      String value,
+      String? unit, {
+      required InlineSpan widest,
+    }) {
+      final labelStyle = text.labelSmall?.copyWith(
+        color: colors.textMuted,
+        fontWeight: FontWeight.w700,
+      );
+      return Expanded(
+        child: Semantics(
+          container: true,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Stack(
+                    children: [
+                      ExcludeSemantics(
+                        child: Visibility(
+                          visible: false,
+                          maintainSize: true,
+                          maintainAnimation: true,
+                          maintainState: true,
+                          child: Text.rich(widest, style: labelStyle),
                         ),
                       ),
-                  ],
-                ),
+                      Text.rich(labelWithUnit(title, unit), style: labelStyle),
+                    ],
+                  ),
+                  // Ersatztext: klein und umbrechend (de bei großer Schrift
+                  // mehrzeilig, ohne Abschneiden) statt auf die Breite
+                  // geschrumpft; passt er nicht in die Zeile, wird er als
+                  // Ganzes verkleinert.
+                  SizedBox(
+                    height: tileLine,
+                    width: double.infinity,
+                    child: value == l10n.runNoDataYet
+                        ? LayoutBuilder(
+                            builder: (context, box) => FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: AlignmentDirectional.bottomStart,
+                              child: SizedBox(
+                                width: box.maxWidth,
+                                child: Text(
+                                  value,
+                                  key: key,
+                                  style: placeholderStyle,
+                                ),
+                              ),
+                            ),
+                          )
+                        : FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: AlignmentDirectional.bottomStart,
+                            child: Text(
+                              value,
+                              key: key,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: tileValueStyle,
+                            ),
+                          ),
+                  ),
+                ],
               ),
             ),
           ),
-        );
+        ),
+      );
+    }
 
     (String, String?) paceOf(String shown) =>
         splitUnit(shown, formatter.paceLabel);
@@ -522,53 +577,78 @@ class _Sheet extends StatelessWidget {
                 child: const SizedBox(width: 40, height: 5),
               ),
               const SizedBox(height: 14),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  big(
-                    const Key('live_map_time'),
-                    l10n.runTime,
-                    formatClock(s.totalTime),
+              // Werte scrollen, wenn das Blatt nicht in seine Höchsthöhe passt
+              // (kleiner Bildschirm, große Schrift); die Knöpfe bleiben stehen
+              // wie auf der Werte-Seite.
+              Flexible(
+                child: SingleChildScrollView(
+                  key: const Key('live_map_sheet_values'),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          big(
+                            const Key('live_map_time'),
+                            l10n.runTime,
+                            formatClock(s.totalTime),
+                          ),
+                          big(
+                            const Key('live_map_distance'),
+                            l10n.runDistance,
+                            s.distanceMeters == null
+                                ? l10n.runNoDataYet
+                                : formatter.distance(s.distanceMeters),
+                            end: true,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            tile(
+                              const Key('live_map_pace'),
+                              l10n.runPace,
+                              paceValue,
+                              paceUnit,
+                              widest: labelWithUnit(
+                                l10n.runPace,
+                                formatter.paceLabel,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            tile(
+                              const Key('live_map_avg_pace'),
+                              l10n.runAvgPace,
+                              avgValue,
+                              avgUnit,
+                              widest: labelWithUnit(
+                                l10n.runAvgPace,
+                                formatter.paceLabel,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            tile(
+                              const Key('live_map_hr'),
+                              zoneNo == null
+                                  ? l10n.runHeartRate
+                                  : '${l10n.runHeartRate} · Z$zoneNo',
+                              bpm == null ? UnitFormatter.noValue : '$bpm',
+                              bpm == null ? null : l10n.liveUnitBpm,
+                              widest: labelWithUnit(
+                                '${l10n.runHeartRate} · Z5',
+                                l10n.liveUnitBpm,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  big(
-                    const Key('live_map_distance'),
-                    l10n.runDistance,
-                    s.distanceMeters == null
-                        ? l10n.runNoDataYet
-                        : formatter.distance(s.distanceMeters),
-                    end: true,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    tile(
-                      const Key('live_map_pace'),
-                      l10n.runPace,
-                      paceValue,
-                      paceUnit,
-                    ),
-                    const SizedBox(width: 8),
-                    tile(
-                      const Key('live_map_avg_pace'),
-                      l10n.runAvgPace,
-                      avgValue,
-                      avgUnit,
-                    ),
-                    const SizedBox(width: 8),
-                    tile(
-                      const Key('live_map_hr'),
-                      zoneNo == null
-                          ? l10n.runHeartRate
-                          : '${l10n.runHeartRate} · Z$zoneNo',
-                      bpm == null ? UnitFormatter.noValue : '$bpm',
-                      bpm == null ? null : l10n.liveUnitBpm,
-                    ),
-                  ],
                 ),
               ),
               const SizedBox(height: 14),
@@ -655,4 +735,16 @@ class LiveRoundButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Höhe von [lines] Zeilen in [style] bei der eingestellten Schriftgröße.
+double _lineHeightOf(TextStyle style, TextScaler scaler, {int lines = 1}) {
+  final painter = TextPainter(
+    text: TextSpan(text: List.filled(lines, '0').join('\n'), style: style),
+    textDirection: TextDirection.ltr,
+    textScaler: scaler,
+  )..layout();
+  final height = painter.height;
+  painter.dispose();
+  return height;
 }

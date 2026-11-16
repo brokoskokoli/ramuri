@@ -701,6 +701,75 @@ void main() {
     });
   });
 
+  // FR-0204: Das Blatt behält seine Höhe, wenn der erste Wert den Ersatztext ablöst,
+  // und läuft auch auf kleinem Bildschirm mit doppelter Schrift nicht über.
+  group('Blatt', () {
+    for (final scale in [1.0, 2.0]) {
+      _testRun('Höhe gleich vor und nach dem ersten Wert, Schrift $scale', (
+        tester,
+      ) async {
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final w = _World(consent: ConsentState.revoked);
+        await w.startRun();
+        await tester.pumpWidget(_app(w));
+        await _toMap(tester);
+        expect(
+          find.descendant(
+            of: key('live_map_sheet'),
+            matching: find.text('noch keine Daten'),
+          ),
+          findsWidgets,
+          reason: 'vor dem ersten Punkt steht der Ersatztext',
+        );
+        final before = tester.getSize(key('live_map_sheet')).height;
+        await w.step(tester, n: 20);
+        expect(
+          find.descendant(
+            of: key('live_map_sheet'),
+            matching: find.text('noch keine Daten'),
+          ),
+          findsNothing,
+          reason: 'nach 20 Punkten stehen überall Werte',
+        );
+        expect(tester.getSize(key('live_map_sheet')).height, before);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    _testRun('360 × 480, Schrift 2,0: kein Überlauf, vor und mit Werten', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 480);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final w = _World(consent: ConsentState.revoked);
+      await w.startRun();
+      await tester.pumpWidget(_app(w));
+      await _toMap(tester);
+      expect(tester.takeException(), isNull, reason: 'mit Ersatztext');
+      await w.step(tester, n: 20);
+      expect(tester.takeException(), isNull, reason: 'mit Werten');
+      final sheet = tester.getRect(key('live_map_sheet'));
+      expect(sheet.bottom, lessThanOrEqualTo(480));
+      expect(sheet.top, greaterThan(0), reason: 'die Karte bleibt sichtbar');
+      // Pause bleibt ganz im Blatt erreichbar; die Werte scrollen darüber.
+      final pause = tester.getRect(key('live_map_pause'));
+      expect(pause.top, greaterThanOrEqualTo(sheet.top));
+      expect(pause.bottom, lessThanOrEqualTo(sheet.bottom));
+      await tester.drag(key('live_map_sheet_values'), const Offset(0, -300));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getRect(key('live_map_hr')).bottom,
+        lessThanOrEqualTo(pause.top),
+        reason: 'der letzte Wert ist erreichbar',
+      );
+    });
+  });
+
   // Bildschirmfoto hell und dunkel mit den echten Schriften. Nur mit SHOT_DIR, sonst nur die Prüfung.
   for (final dark in [false, true]) {
     _testRun('Darstellung ${dark ? 'dunkel' : 'hell'}: Karte, Blatt, Reiter', (
