@@ -21,7 +21,7 @@ MorningMeasurement _m({
   double? rmssd = 41.5,
   double? noise,
   PpgQuality quality = PpgQuality.good,
-  PpgQualityReason? reason,
+  MorningUnusableReason? reason,
   double? windowStart,
   double? windowEnd,
   double? restSkipped,
@@ -176,7 +176,7 @@ void main() {
         id: 3,
         measurement: _m(
           quality: PpgQuality.unusable,
-          reason: PpgQualityReason.weakSignal,
+          reason: MorningUnusableReason.weakSignal,
           ibi: const [],
           rmssd: null,
         ),
@@ -189,6 +189,36 @@ void main() {
     expect(csv, contains('2,3,camera,resting_hr,,,,,bpm\r\n'));
     expect(csv, contains('2,4,meta,usable,,,,1,\r\n'));
     expect(csv, contains('2,4,meta,quality_reason,,,,,\r\n'));
+  });
+
+  test('Puls außerhalb PAR-017: Zeile unbrauchbar mit Grund, ohne Puls', () {
+    final m = buildMorningMeasurement(
+      result: const PpgMeasurement(
+        quality: PpgQuality.good,
+        reasons: [],
+        bpm: 121,
+        rmssdMs: 40,
+        timingNoiseMs: 10,
+        intervalsMs: [495.5, 496],
+      ),
+      measuredAt: _t0,
+      utcOffset: const Duration(hours: 1),
+      posture: RestingPosture.lying,
+      deviceManufacturer: 'Testhersteller',
+      deviceModel: 'M',
+      keepUnusable: true,
+    )!;
+    final csv = encodeMorningPairsCsv([MorningPair(id: 5, measurement: m)]);
+    expect(csv, startsWith(_header));
+    expect(csv, contains('2,5,meta,quality,,,,unusable,\r\n'));
+    expect(csv, contains('2,5,meta,usable,,,,0,\r\n'));
+    expect(
+      csv,
+      contains('2,5,meta,quality_reason,,,,restingHrOutOfRange,\r\n'),
+    );
+    expect(csv, contains('2,5,camera,resting_hr,,,,,bpm\r\n'));
+    expect(csv, contains('2,5,camera,rmssd,,,,,ms\r\n'));
+    expect(csv, isNot(contains('121')));
   });
 
   test('ohne Rohsignal keine Rohzeilen, raw_frames ist 0', () {

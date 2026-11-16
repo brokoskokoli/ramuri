@@ -15,6 +15,9 @@ class _FaultySession implements StorageSession {
   Object? appendError; // wird beim nächsten append geworfen (solange gesetzt)
   Completer<void>? appendGate; // hält append an, bis es abgeschlossen ist
   Object? getError; // wird beim nächsten runs.get geworfen (einmalig)
+  int? nullOnGet; // dieser runs.get-Aufruf (ab 1 gezählt) liefert null
+  int gets = 0;
+  Object? readError; // wird bei rawData.read geworfen (solange gesetzt)
   @override
   RawDataStore get rawData => _Raw(this);
   @override
@@ -60,7 +63,11 @@ class _Raw implements RawDataStore {
   }
 
   @override
-  Future<StoredRawData> read(int runId) => f.s.rawData.read(runId);
+  Future<StoredRawData> read(int runId) {
+    final e = f.readError;
+    if (e != null) return Future.error(e);
+    return f.s.rawData.read(runId);
+  }
 }
 
 class _Runs implements RunStore {
@@ -68,6 +75,7 @@ class _Runs implements RunStore {
   final _FaultySession f;
   @override
   Future<StoredRun?> get(int id) {
+    if (++f.gets == f.nullOnGet) return Future.value();
     final e = f.getError;
     f.getError = null;
     if (e != null) return Future.error(e);
@@ -207,6 +215,7 @@ void main() {
         await b.start();
         expect(b.startFailed, isTrue);
         expect(b.startFailedResume, isTrue);
+        expect(b.startFailedService, isTrue);
         expect((await w.session.runs.unfinished()).single.id, id);
         // Neuer Lauf: Text bleibt der allgemeine.
         final w2 = await _world();
@@ -216,6 +225,7 @@ void main() {
         await c.start();
         expect(c.startFailed, isTrue);
         expect(c.startFailedResume, isFalse);
+        expect(c.startFailedService, isTrue);
       },
     );
 
@@ -225,6 +235,9 @@ void main() {
       addTearDown(c.dispose);
       await c.start();
       expect(c.startFailed, isTrue);
+      // Neuer Lauf: kein Fortsetzen-Text.
+      expect(c.startFailedResume, isFalse);
+      expect(c.startFailedService, isFalse);
       expect(await w.session.runs.list(), isEmpty);
       expect(w.service.running, isFalse);
     });
@@ -374,11 +387,62 @@ void main() {
         addTearDown(b.dispose);
         await b.start();
         expect(b.startFailed, isTrue);
+        expect(b.startFailedResume, isTrue);
+        expect(b.startFailedService, isFalse);
         expect(w2.startModes, isEmpty);
         expect(w.location.hasListeners, isFalse);
         expect(b.phase, RecordingPhase.idle);
       },
     );
+
+    /// Setzt den Bandlauf [id] mit [fs] fort; [arm] stellt den Fehler ein.
+    Future<void> resumeFails(void Function(_FaultySession) arm) async {
+      final w = await _world();
+      final a = _belt(w);
+      await a.start();
+      w.clock.advance(const Duration(seconds: 30));
+      await a.setBeltSpeed(3);
+      final id = (await w.session.runs.unfinished()).single.id;
+      a.dispose();
+      final before = (await w.session.runs.get(id))!;
+      final gaps = (await w.session.markers.gaps(id)).length;
+      final belt = (await w.session.rawData.read(id)).beltSettings.length;
+      final fs = _FaultySession(w.session);
+      arm(fs);
+      final b = RunController(
+        clock: w.clock,
+        storage: fs,
+        location: w.location,
+        service: w.service,
+        resumeRunId: id,
+        tickEvery: const Duration(hours: 1),
+      );
+      addTearDown(b.dispose);
+      await b.start();
+      expect(b.startFailed, isTrue);
+      expect(b.startFailedResume, isTrue);
+      expect(b.startFailedService, isFalse);
+      expect(b.phase, RecordingPhase.idle);
+      expect(w.service.running, isFalse);
+      // Unverändert gespeichert und weiter fortsetzbar (FR-0193).
+      final after = (await w.session.runs.unfinished()).single;
+      expect(after.id, id);
+      expect(after.state, before.state);
+      expect(after.mode, RunMode.treadmill);
+      expect((await w.session.markers.gaps(id)).length, gaps);
+      expect((await w.session.rawData.read(id)).beltSettings.length, belt);
+    }
+
+    test('Fortsetzen: restore abgewiesen meldet den gespeicherten Teil', () {
+      // 1. Aufruf: Laufart im Controller, 2.: restore findet den Lauf nicht.
+      return resumeFails((fs) => fs.nullOnGet = 2);
+    });
+
+    test('Fortsetzen: restore wirft meldet den gespeicherten Teil', () {
+      return resumeFails(
+        (fs) => fs.readError = const StorageException(StorageFailure.failed),
+      );
+    });
 
     test(
       'Erste Einstellung nicht speicherbar: Lauf läuft, Fehler sichtbar',

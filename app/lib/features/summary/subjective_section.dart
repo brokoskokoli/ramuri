@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../run/live_run_view.dart' show formatClock;
+import 'subjective_close_scope.dart';
 
 /// Wort zur RPE-Stufe (PAR-105).
 String rpeWord(AppLocalizations l10n, int rpe) => switch (rpe) {
@@ -37,7 +38,9 @@ String wellbeingWord(AppLocalizations l10n, int level) => switch (level) {
 /// Befinden in fünf Stufen, Beschwerden mit der Frage nach dem Warnsignal und
 /// eine Notiz. Nichts ist vorausgewählt; erneutes Tippen hebt eine Wahl auf.
 /// Jede Änderung wird sofort gespeichert, die Texte beim Verlassen des Felds
-/// und beim Schließen der Ansicht (auch vor „Fertig“). Mit [showSrpe] steht
+/// und vor dem Schließen der Seite: Liegt der Abschnitt in einem
+/// [SubjectiveCloseScope], wartet das Schließen darauf und bleibt bei einem
+/// Fehler offen. Mit [showSrpe] steht
 /// darunter der sRPE-Wert (FR-0095), getrennt von TRIMP (FR-0096). Inhalte
 /// stehen nie in Meldungen oder Logs.
 class SubjectiveSection extends StatefulWidget {
@@ -61,7 +64,8 @@ class SubjectiveSection extends StatefulWidget {
   State<SubjectiveSection> createState() => _SubjectiveSectionState();
 }
 
-class _SubjectiveSectionState extends State<SubjectiveSection> {
+class _SubjectiveSectionState extends State<SubjectiveSection>
+    implements SubjectivePendingSave {
   final _complaints = TextEditingController();
   final _note = TextEditingController();
   final _complaintsFocus = FocusNode();
@@ -92,6 +96,29 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
   /// Kette der Aufrufe von [SubjectiveSection.onWarning] (Melden/Aufheben).
   Future<void> _hookQueue = Future.value();
 
+  /// Laufende Speichervorgänge.
+  int _saving = 0;
+
+  /// Wächter der Seite gegen Schließen vor dem Speichern.
+  SubjectiveCloseGuard? _guard;
+
+  @override
+  bool get hasPendingSave =>
+      !_loadFailed && (_complaintsDirty || _noteDirty || _saving > 0);
+
+  @override
+  Future<bool> flush() async {
+    _saveDirtyTexts();
+    await _queue;
+    return mounted && !_failed;
+  }
+
+  void _setNoteDirty() {
+    if (_noteDirty) return;
+    _noteDirty = true;
+    _guard?.changed();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -103,6 +130,11 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final guard = SubjectiveCloseScope.maybeOf(context);
+    if (!identical(guard, _guard)) {
+      _guard?.detach(this);
+      _guard = guard?..attach(this);
+    }
     // Eine Detailansicht über dieser Ansicht kann dieselben Angaben ändern.
     // Beim Verdecken die offenen Texte sichern, beim Zurückkehren neu laden,
     // damit weder ein veralteter Stand angezeigt noch gespeichert wird.
@@ -165,8 +197,10 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
   void dispose() {
     _complaintsFocus.removeListener(_flushOnBlur);
     _noteFocus.removeListener(_flushOnBlur);
-    // Tippen und sofort „Fertig“: Der Text wird mit dem Schließen gespeichert.
-    // Ein Fehler dabei lässt sich nicht mehr anzeigen (bekannte Grenze).
+    _guard?.detach(this);
+    // Zweiter Boden ohne Wächter oder ohne Warten (etwa Ende des Prozesses):
+    // Offene Texte werden noch gespeichert. Ein Fehler dabei lässt sich nicht
+    // mehr anzeigen; vor „Fertig“ und Zurück wartet [SubjectiveCloseScope].
     _saveDirtyTexts();
     _complaints.dispose();
     _note.dispose();
@@ -209,6 +243,8 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
     final service = widget.service;
     final runId = widget.runId;
     final wantSrpe = widget.showSrpe;
+    final guard = _guard;
+    _saving++;
     return _queue = _queue.then((_) async {
       try {
         final base =
@@ -238,6 +274,9 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
       } on Object {
         // Weder Inhalte noch Ausnahmetext weitergeben.
         if (mounted) setState(() => _failed = true);
+      } finally {
+        _saving--;
+        if (mounted) guard?.changed();
       }
     });
   }
@@ -380,7 +419,10 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
                       labelText: l10n.subjectiveComplaintsLabel,
                       hintText: l10n.subjectiveComplaintsHint,
                     ),
-                    onChanged: (_) => setState(() => _complaintsDirty = true),
+                    onChanged: (_) {
+                      setState(() => _complaintsDirty = true);
+                      _guard?.changed();
+                    },
                     onTapOutside: (_) => _complaintsFocus.unfocus(),
                   ),
                   if (hasComplaints) ...[
@@ -428,7 +470,7 @@ class _SubjectiveSectionState extends State<SubjectiveSection> {
                     labelText: l10n.subjectiveNoteLabel,
                     hintText: l10n.subjectiveNoteHint,
                   ),
-                  onChanged: (_) => _noteDirty = true,
+                  onChanged: (_) => _setNoteDirty(),
                   onTapOutside: (_) => _noteFocus.unfocus(),
                 ),
                 if (_failed) ...[
