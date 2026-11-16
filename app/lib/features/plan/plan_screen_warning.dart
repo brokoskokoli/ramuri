@@ -6,11 +6,15 @@ class _WarningBanner extends StatelessWidget {
   const _WarningBanner({
     required this.state,
     required this.today,
+    required this.recalculating,
     required this.onLift,
   });
 
   final PlanViewState state;
   final DateTime today;
+
+  /// Läuft nach dem Melden noch die Neuberechnung?
+  final bool recalculating;
 
   /// `null`, solange eine Aktion läuft.
   final VoidCallback? onLift;
@@ -29,6 +33,10 @@ class _WarningBanner extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(l.planWarnBannerText, style: text.bodyMedium),
+          if (recalculating) ...[
+            const SizedBox(height: 10),
+            const LinearProgressIndicator(key: Key('plan_warning_progress')),
+          ],
           if (state.warningReminderDue) ...[
             const SizedBox(height: 10),
             Text(

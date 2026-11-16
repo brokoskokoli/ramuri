@@ -1814,6 +1814,28 @@ void main() {
       expect(warningHeldFromSummary(last.summary), isNotNull);
     });
 
+    test('Öffnen mit Signal ohne passende Fassung zeigt das Warnsignal vor '
+        'der Neuberechnung (Heute und Plan)', () async {
+      final e = await opened();
+      await warningOf(
+        e,
+      ).set(WarningSignal(reportedOn: _day(-7), source: WarningSource.manual));
+      final gate = Completer<List<RunFigures>>();
+      final reopened = _Env(e.session, loadRuns: () => gate.future);
+      final versions = (await e.plans.history()).length;
+      final opening = reopened.controller.open();
+      while (reopened.controller.state.warning == null) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(reopened.controller.state.warningReminderDue, isTrue);
+      expect(gate.isCompleted, isFalse);
+      expect(await e.plans.history(), hasLength(versions));
+      gate.complete(const []);
+      await opening;
+      expect((await e.plans.history()).last.reason, planReasonWarning);
+      expect(reopened.controller.state.warning, isNotNull);
+    });
+
     test('Heilung setzt den Prüftag nicht: eine fällige Wochenprüfung bleibt '
         'fällig', () async {
       final e = await opened();
