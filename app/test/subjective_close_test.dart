@@ -142,6 +142,12 @@ Future<void> _tapClose(WidgetTester tester) async {
 
 bool _onSummary() => key('run_done_close').evaluate().isNotEmpty;
 
+/// Ob die Seite mit [finder] noch die oberste Route ist. Anders als die
+/// Suche im Baum wird das schon beim Schließen falsch, nicht erst nach der
+/// Übergangsanimation.
+bool _isTop(Finder finder) =>
+    ModalRoute.of(finder.evaluate().single)?.isCurrent ?? false;
+
 void main() {
   group('Abschlussseite: Schließen wartet auf die Angaben (FR-0038)', () {
     testWidgets('Notiz tippen, sofort "Fertig": erst gespeichert, dann zu', (
@@ -153,7 +159,7 @@ void main() {
       await _tapClose(tester);
       await tester.pump(const Duration(milliseconds: 100));
       // Das Speichern hängt: Die Seite bleibt offen, der Knopf zeigt es an.
-      expect(_onSummary(), isTrue);
+      expect(_isTop(key('run_done_close')), isTrue);
       expect(key('run_done_saving'), findsOneWidget);
       expect(await _storedNote(d), isNull);
       hold.complete();
@@ -184,13 +190,61 @@ void main() {
       expect(await _storedNote(d), isNull);
     });
 
+    testWidgets('Fehler, dann gespeichert, dann neuer Text scheitert: '
+        '"Fertig" wartet wieder und bleibt offen', (tester) async {
+      final (d, storage) = await _finished(tester);
+      storage.session.failSave = true;
+      await _typeNote(tester, 'A');
+      await _tapClose(tester);
+      await tester.pumpAndSettle();
+      expect(key('subjective_save_failed'), findsOneWidget);
+      // Speichern klappt wieder: Verlassen des Felds speichert, Fehler weg.
+      storage.session.failSave = false;
+      await _typeNote(tester, 'B');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      expect(key('subjective_save_failed'), findsNothing);
+      expect(await _storedNote(d), 'B');
+      // Erneut ein Fehler mit neuem Text: Schließen wartet und bleibt offen.
+      storage.session.failSave = true;
+      await _typeNote(tester, 'C');
+      await _tapClose(tester);
+      await tester.pumpAndSettle();
+      expect(_isTop(key('run_done_close')), isTrue);
+      expect(_noteField(tester), 'C');
+      expect(key('subjective_save_failed'), findsOneWidget);
+      expect(await _storedNote(d), 'B');
+    });
+
+    testWidgets('nach einem Fehler neu getippt: "Fertig" wartet wieder', (
+      tester,
+    ) async {
+      final (d, storage) = await _finished(tester);
+      storage.session.failSave = true;
+      await _typeNote(tester, 'Zeh');
+      await _tapClose(tester);
+      await tester.pumpAndSettle();
+      expect(key('subjective_save_failed'), findsOneWidget);
+      storage.session.failSave = false;
+      final hold = storage.session.hold = Completer<void>();
+      await _typeNote(tester, 'Zeh besser');
+      await _tapClose(tester);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(_isTop(key('run_done_close')), isTrue);
+      expect(key('run_done_saving'), findsOneWidget);
+      hold.complete();
+      await tester.pumpAndSettle();
+      expect(_onSummary(), isFalse);
+      expect(await _storedNote(d), 'Zeh besser');
+    });
+
     testWidgets('Zurück-Taste: wartet auf das Speichern', (tester) async {
       final (d, storage) = await _finished(tester);
       final hold = storage.session.hold = Completer<void>();
       await _typeNote(tester, 'Wade fest');
       await _systemBack(tester);
       await tester.pump(const Duration(milliseconds: 100));
-      expect(_onSummary(), isTrue);
+      expect(_isTop(key('run_done_close')), isTrue);
       expect(key('run_done_saving'), findsOneWidget);
       hold.complete();
       await tester.pumpAndSettle();
@@ -256,7 +310,7 @@ void main() {
       await _typeNote(tester, 'gut erholt');
       await tester.tap(find.byType(BackButton));
       await tester.pump(const Duration(milliseconds: 100));
-      expect(onDetail(), isTrue);
+      expect(_isTop(key('detail_delete')), isTrue);
       hold.complete();
       await tester.pumpAndSettle();
       expect(onDetail(), isFalse);

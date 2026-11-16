@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 /// Schließen der Seite gespeichert werden müssen.
 abstract interface class SubjectivePendingSave {
   /// Geänderte Texte, die noch nicht gespeichert sind, oder ein Speichern läuft.
+  /// Ein gescheitertes Speichern zählt nicht mehr als offen (die Fehlerzeile
+  /// zeigt es); neues Tippen danach schon.
   bool get hasPendingSave;
 
   /// Speichert die geänderten Texte und wartet auf alle laufenden Speicher-
@@ -15,18 +17,19 @@ abstract interface class SubjectivePendingSave {
 
 /// Wächter vor dem Schließen einer Seite mit dem Abschnitt „Angaben zum Lauf“:
 /// Schließen (Knopf oder Zurück) wartet auf das Speichern geänderter Texte.
-/// Scheitert es, bleibt die Seite offen; das nächste Schließen geht dann
-/// ohne erneutes Warten durch (der Fehler war sichtbar).
+/// Scheitert es, bleibt die Seite offen und die Fehlerzeile sichtbar; die
+/// gescheiterten Texte gelten dann nicht mehr als offen, das nächste Schließen
+/// geht ohne erneutes Warten durch (der Fehler war sichtbar). Wird danach neu
+/// getippt, wartet das Schließen wieder.
 class SubjectiveCloseGuard extends ChangeNotifier {
   SubjectivePendingSave? _section;
-  bool _acknowledged = false;
   final ValueNotifier<bool> _busy = ValueNotifier(false);
 
   /// Läuft gerade das Speichern vor dem Schließen (Ladeanzeige am Knopf).
   ValueListenable<bool> get busy => _busy;
 
   /// Ob das Schließen erst auf das Speichern warten muss.
-  bool get blocksClose => !_acknowledged && (_section?.hasPendingSave ?? false);
+  bool get blocksClose => _section?.hasPendingSave ?? false;
 
   bool _disposed = false;
 
@@ -52,9 +55,7 @@ class SubjectiveCloseGuard extends ChangeNotifier {
     if (!blocksClose || section == null) return true;
     _busy.value = true;
     try {
-      final ok = await section.flush();
-      if (!ok) _acknowledged = true;
-      return ok;
+      return await section.flush();
     } finally {
       if (!_disposed) {
         _busy.value = false;
