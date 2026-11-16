@@ -358,6 +358,76 @@ void main() {
     });
   });
 
+  group('generatePlan(easedHardDays:)', () {
+    TrainingGoal goal(Set<int> runDays) => TrainingGoal(
+      type: GoalType.distance,
+      distance: GoalDistance.tenKilometers,
+      targetDate: DateTime(2027, 6, 1),
+      runDays: runDays,
+      maxSessionSeconds: 7200,
+      weeklyCapSeconds: 300 * 60.0,
+      createdAt: DateTime.utc(2026, 11, 1),
+      hardSessionEnabled: true,
+      canRun30: ContinuousRun30.yes,
+    );
+
+    (GeneratedPlan, DateTime) afterEase({required bool counted}) {
+      final g0 = goal(const {1, 2, 4, 6});
+      final inputs = PlanInputs.forNewGoal(
+        g0,
+        _day(0),
+      ).copyWith(startWeeklyMinutes: 240);
+      final p0 = generatePlan(g0, inputs, const [], _day(0));
+      // Erste harte Einheit am Dienstag.
+      final hard = p0.units.firstWhere((u) => u.isHard && u.day.weekday == 2);
+      final eased = PlanUnit(
+        day: hard.day,
+        kind: PlanUnitKind.easy,
+        phase: hard.phase,
+        weekIndex: hard.weekIndex,
+        minutes: hard.minutes,
+        segments: const [],
+      );
+      final frozen = [
+        for (final u in p0.units)
+          if (u.day.isBefore(hard.day)) u,
+        eased,
+      ];
+      final next = hard.day.add(const Duration(days: 1));
+      // Zieländerung am Folgetag: Lauftage Do, Sa, So, so dass die harte
+      // Einheit der Woche auf einen späteren Tag fiele.
+      final g1 = goal(const {4, 6, 7});
+      final p1 = generatePlan(
+        g1,
+        inputs.copyWith(today: next),
+        frozen,
+        next,
+        easedHardDays: counted ? {planDay(hard.day)} : const {},
+      );
+      return (p1, hard.day);
+    }
+
+    List<PlanUnit> weekOf(GeneratedPlan p, DateTime day) {
+      final monday = day.subtract(Duration(days: day.weekday - 1));
+      final end = monday.add(const Duration(days: 7));
+      return [
+        for (final u in p.allUnits)
+          if (!u.day.isBefore(monday) && u.day.isBefore(end)) u,
+      ];
+    }
+
+    test('gelockerte harte Einheit zählt eingefroren als harte Einheit der '
+        'Woche: keine neue harte Einheit später in der Woche', () {
+      final (eased, day) = afterEase(counted: true);
+      final week = weekOf(eased, day);
+      expect(week.any((u) => u.day.isAfter(day)), isTrue);
+      expect(week.where((u) => u.isHard), isEmpty);
+      // Gegenprobe: ohne die Zählung entstünde eine neue harte Einheit.
+      final (plain, _) = afterEase(counted: false);
+      expect(weekOf(plain, day).where((u) => u.isHard), isNotEmpty);
+    });
+  });
+
   group('Eigenschaften über Readiness-Reihen', () {
     // Simulation über 8 Wochen: täglich eine Neuberechnung mit dem Wert des
     // Tags (zufällig, darunter Tage ohne Zahl), dazu ein Warnsignal und eine
