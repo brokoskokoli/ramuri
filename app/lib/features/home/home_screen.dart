@@ -24,6 +24,7 @@ import 'data_changes.dart';
 import '../readiness/readiness_card.dart';
 import '../readiness/readiness_service.dart';
 import 'home_recovery.dart';
+import 'home_start_row.dart';
 import 'overview_screen.dart';
 import 'run_starter.dart';
 
@@ -766,19 +767,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ...lines,
               const SizedBox(height: 18),
               if (open)
-                Row(
-                  children: [
-                    Expanded(
-                      child: RamuriPrimaryButton(
-                        key: const Key('home_start_unit'),
-                        icon: Icons.play_arrow_rounded,
-                        label: l.planTodayStart,
-                        onPressed: () => _startRun(context, unit: unit),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(child: free),
-                  ],
+                HomeStartRow(
+                  key: const Key('home_start_row'),
+                  primary: RamuriPrimaryButton(
+                    key: const Key('home_start_unit'),
+                    icon: Icons.play_arrow_rounded,
+                    label: l.planTodayStart,
+                    onPressed: () => _startRun(context, unit: unit),
+                  ),
+                  secondary: free,
                 )
               else
                 free,
