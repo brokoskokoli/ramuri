@@ -136,10 +136,12 @@ Neben einzelnen Aktivitäten soll ein Gesamtexport der Nutzerdaten möglich sein
 
 ### FR-0198 — Reimport des Gesamtexports
 - **Status:** Approved | **Phase:** 1
-- **Quelle:** SRC-003 (OQ-0032)
+- **Quelle:** SRC-003 (OQ-0032); SRC-003 (Maintainer 2026-11-15)
 - **Verwandt:** FR-0192, OQ-0032
 
 Ein Gesamtexport lässt sich wieder importieren, damit ein Gerätewechsel möglich ist (ADR-0001).
+
+**Festlegung (SRC-003, Maintainer 2026-11-15):** Die App prüft den unverschlüsselten Kopf der gewählten Datei, bevor sie nach dem Passwort fragt; eine fremde Datei oder eine nicht lesbare Version meldet sie ohne Passwortabfrage. Die Vorprüfung wendet die Leser-Regeln 1 bis 4 des Kopfes an ([Archivvertrag](../contracts/archive.md), Abschnitt 2); die vollständige Prüfung beim Einlesen bleibt.
 
 **Akzeptanzkriterien:**
 - [ ] Nach Export und Reimport auf einem anderen Gerät sind Läufe, Einstellungen und berechnete Werte vorhanden.
