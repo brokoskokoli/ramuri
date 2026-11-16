@@ -208,7 +208,11 @@ DistancePrediction _assess(
       distance: d,
       seconds: seconds,
       level: PredictionLevel.provisional,
-      reason: sufficientLimits.first,
+      // PAR-144: Beim Marathon nennt die App nur „immer vorläufig“, auch
+      // wenn weitere Gründe zutreffen; sonst gilt die Reihenfolge der Liste.
+      reason: d == PredictionDistance.marathon
+          ? PredictionReason.marathon
+          : sufficientLimits.first,
       limits: sufficientLimits,
     );
   }

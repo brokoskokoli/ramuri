@@ -366,6 +366,22 @@ void main() {
       }
     });
 
+    test('5-km-Referenz: Marathon nennt „immer vorläufig“, '
+        'Halbmarathon das Verhältnis (PAR-144)', () {
+      final all = predictPerformance(
+        now: now,
+        references: [ref(meters: 5000, seconds: 1500, age: 0)],
+        runs: dense(10, seconds: 4000),
+      );
+      final m = all.of(PredictionDistance.marathon);
+      expect(m.level, PredictionLevel.provisional);
+      expect(m.reason, PredictionReason.marathon);
+      expect(m.limits, contains(PredictionReason.distanceRatio));
+      final h = all.of(PredictionDistance.halfMarathon);
+      expect(h.level, PredictionLevel.provisional);
+      expect(h.reason, PredictionReason.distanceRatio);
+    });
+
     test('Verhältnis 2,2 gut, darüber ausreichend', () {
       final runs = dense(10, seconds: 5000);
       final at = predict10k(ref(meters: 22000, seconds: 6600), runs);

@@ -27,7 +27,7 @@ class RunSummary {
     required this.bestPace,
     required this.classification,
     required this.vo2max,
-    this.manualPauses = const [],
+    this.chartGaps = const [],
     this.belt,
   });
 
@@ -49,8 +49,9 @@ class RunSummary {
   /// keiner vorliegt. Trägt bei „nicht bestimmbar“ den Grund.
   final ComputedValue? vo2max;
 
-  /// Manuelle Pausen des Laufs (für die Zeichnung der Lücken).
-  final List<TimeSpan> manualPauses;
+  /// Manuelle Pausen und Ausfälle nach Absturz des Laufs: die Diagramme zeichnen
+  /// beide gleich als Lücke (FR-0042, FR-0193).
+  final List<TimeSpan> chartGaps;
 
   /// Bandauswertung (FR-0196); `null` bei einem GPS-Lauf. Bei Band stammen
   /// Strecke, Pace und Bewegungszeit der [figures] daraus.
@@ -149,9 +150,10 @@ class RunSummaryService {
           : bestPace(pre.pace.segments, parameters: statistics),
       classification: classifyRun(figures, others, parameters: statistics),
       vo2max: vo2,
-      manualPauses: [
+      chartGaps: [
         for (final g in gaps)
-          if (g.kind == RunGapKind.manualPause)
+          if (g.kind == RunGapKind.manualPause ||
+              g.kind == RunGapKind.interruption)
             TimeSpan(start: g.start, end: g.end ?? end),
       ],
     );
