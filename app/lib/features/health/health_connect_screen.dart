@@ -58,7 +58,27 @@ class HealthKindTexts {
 }
 
 /// Löschdialog der Art (auch beim Öffnen der App, SEC-0007). [fromSwitch]: „Abbrechen“ schaltet wieder ein; sonst bleibt die Frage offen.
-Future<void> askHealthDeleteQuestion(
+/// Je Art steht höchstens ein Dialog zugleich; `false`, wenn nicht gefragt wurde (schon offen, inzwischen beantwortet).
+Future<bool> askHealthDeleteQuestion(
+  BuildContext context,
+  HealthConnectController c,
+  HealthDataKind kind, {
+  required bool fromSwitch,
+}) async {
+  final done = c.beginQuestion(kind);
+  if (done == null) return false;
+  try {
+    // Der Schalter fragt immer (auch wenn das Merken scheiterte); sonst nur, solange die Frage noch offen ist.
+    if (!fromSwitch && !await c.isQuestionOpen(kind)) return false;
+    if (!context.mounted) return false;
+    await _showDeleteQuestion(context, c, kind, fromSwitch: fromSwitch);
+    return true;
+  } finally {
+    c.endQuestion(kind, done);
+  }
+}
+
+Future<void> _showDeleteQuestion(
   BuildContext context,
   HealthConnectController c,
   HealthDataKind kind, {
@@ -152,7 +172,8 @@ void _healthSnack(BuildContext context, String text) {
 
 /// Fragt der Reihe nach alle offenen Löschfragen (Recht fehlt, Health Connect nicht mehr verfügbar oder Antwort stand
 /// aus). Läuft höchstens einmal zugleich je Sitzung ([HealthConnectController.asking]); [skipDeferred] überspringt
-/// Fragen, die beim Öffnen der App schon zurückgestellt wurden.
+/// Fragen, die beim Öffnen der App schon zurückgestellt wurden. Steht schon eine Löschfrage (etwa die des Schalters),
+/// kommt die nächste erst danach; eine inzwischen beantwortete Frage entfällt.
 Future<void> askOpenHealthQuestions(
   BuildContext context,
   HealthConnectController c, {
@@ -162,10 +183,16 @@ Future<void> askOpenHealthQuestions(
   c.asking = true;
   try {
     for (final kind in List.of(c.questions)) {
+      await c.questionsSettled();
       if (!context.mounted) return;
       if (skipDeferred && c.deferred.contains(kind)) continue;
-      await askHealthDeleteQuestion(context, c, kind, fromSwitch: false);
-      if (c.questions.contains(kind)) c.deferred.add(kind);
+      final asked = await askHealthDeleteQuestion(
+        context,
+        c,
+        kind,
+        fromSwitch: false,
+      );
+      if (asked && c.questions.contains(kind)) c.deferred.add(kind);
     }
   } finally {
     c.asking = false;
