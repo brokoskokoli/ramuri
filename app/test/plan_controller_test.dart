@@ -825,6 +825,66 @@ void main() {
       );
     });
 
+    test(
+      'runsBetween an der Versatzgrenze ±18 h (maxRunEndUtcOffset): '
+      'genau 18 h zählt zum Plantag der Ortszeit, mehr wird abgewiesen',
+      () async {
+        final e = await _Env.open();
+        const limit = Duration(hours: 18);
+        const second = Duration(seconds: 1);
+        Future<int> run(DateTime end, Duration offset) async {
+          final r = await e.session.runs.create(
+            startedAt: end.subtract(const Duration(hours: 1)),
+          );
+          await e.session.runs.setState(
+            r.id,
+            RunState.finished,
+            endedAt: end,
+            endedUtcOffset: offset,
+          );
+          return r.id;
+        }
+
+        // +18 h: UTC 18 h vor dem ersten Tag, Ortszeit genau Mitternacht des
+        // ersten Tags.
+        final firstMidnight = await run(_day(0).subtract(limit), limit);
+        // Eine Sekunde früher: Ortszeit am Vortag, fällt weg.
+        await run(_day(0).subtract(limit + second), limit);
+        // −18 h: UTC fast 18 h nach dem Ende des letzten Tags, Ortszeit eine
+        // Sekunde vor Mitternacht des letzten Tags.
+        final lastSecond = await run(_day(4).add(limit - second), -limit);
+        // Genau 18 h danach: Ortszeit Mitternacht des Folgetags, fällt weg.
+        await run(_day(4).add(limit), -limit);
+
+        final runs = await e.controller.runsBetween(_day(0), _day(3));
+        expect(
+          {for (final r in runs) r.id: r.day},
+          {firstMidnight: _day(0), lastSecond: _day(3)},
+        );
+
+        // Knapp über der Grenze: requireRunEnd lehnt das Speichern ab.
+        for (final offset in [limit + second, -(limit + second)]) {
+          final r = await e.session.runs.create(startedAt: _day(1));
+          await expectLater(
+            e.session.runs.setState(
+              r.id,
+              RunState.finished,
+              endedAt: _day(1).add(const Duration(hours: 1)),
+              endedUtcOffset: offset,
+            ),
+            throwsA(
+              isA<StorageException>().having(
+                (x) => x.failure,
+                'failure',
+                StorageFailure.rejected,
+              ),
+            ),
+          );
+          expect((await e.session.runs.get(r.id))!.endedAt, isNull);
+        }
+      },
+    );
+
     test('confirmMove: Abstandskonflikt der Verschiebung ist ohne '
         'Neuberechnung sichtbar, Konflikte vor heute nicht', () async {
       final e = await _Env.open();
