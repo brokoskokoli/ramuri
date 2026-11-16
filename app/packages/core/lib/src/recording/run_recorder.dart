@@ -81,7 +81,9 @@ class RunRecorder {
   final List<RrPacket> _rrPackets = [];
   int _beltCursor = 0; // Einstellungen der Sitzung, die schon im Puffer sind
   final List<BeltSetting> _belts = [];
-  DateTime? _lastBeltAt; // letztes Anhängen einer Einstellung (Lebenszeichen)
+
+  /// Monotone Zeit des letzten Anhängens einer Einstellung (Lebenszeichen).
+  Duration? _lastBeltAt;
 
   StorageFailure? _lastWriteFailure;
 
@@ -156,10 +158,12 @@ class RunRecorder {
   /// vom letzten gespeicherten Zeitpunkt bis jetzt ist die Lücke
   /// `interruption`. Offene Lücken (Pause, GPS) werden am letzten Zeitpunkt
   /// geschlossen, ein pausierter Lauf wird wieder `active`. Liegt die Uhr vor
-  /// dem letzten Zeitpunkt (Uhr zurück), ist die Lücke leer (Anfang = Ende)
-  /// und Punkte gelten erst, wenn die Uhr ihn überschreitet; die Lücke wird
-  /// nie negativ. Gespeichert wird zuerst, die Sitzung danach: scheitert das
-  /// Schreiben, bleibt der Lauf unverändert fortsetzbar.
+  /// dem letzten Zeitpunkt (Uhr zurück), ist die Lücke leer (Anfang = Ende);
+  /// die Lücke wird nie negativ. Über den Prozessneustart hinweg gilt die
+  /// Wanduhr, ab dem Fortsetzen die Sitzungszeit (Ende der Lücke plus monotone
+  /// Laufzeit, ADR-0005 Punkt „Zeitbasis“). Gespeichert wird zuerst, die
+  /// Sitzung danach: scheitert das Schreiben, bleibt der Lauf unverändert
+  /// fortsetzbar.
   Future<CommandResult> restore(int runId) async {
     if (_starting || _session.phase != RecordingPhase.idle) {
       return CommandResult.rejected;
@@ -197,7 +201,7 @@ class RunRecorder {
         _runId = runId;
         _eventCursor = _session.events.length;
         _beltCursor = _session.beltSettings.length; // schon gespeichert
-        _lastBeltAt = now;
+        _lastBeltAt = _clock.monotonic();
       }
       return r;
     } finally {
@@ -226,7 +230,7 @@ class RunRecorder {
     final all = _session.beltSettings;
     while (_beltCursor < all.length) {
       _belts.add(all[_beltCursor++]);
-      _lastBeltAt = _clock.now();
+      _lastBeltAt = _clock.monotonic();
     }
   }
 
@@ -329,9 +333,11 @@ class RunRecorder {
     final intake = _session.addHeartRate(r);
     _processEvents();
     if (intake != Intake.processed) return intake;
+    // Sitzungszeit statt Wanduhr des Adapters (ADR-0005 Punkt „Zeitbasis“).
+    final time = _session.lastHeartRateTime!;
     _heartRates.add(
       RawHeartRate(
-        time: r.time,
+        time: time,
         source: r.deviceId,
         bpm: r.beatsPerMinute,
         contact: r.contact,
@@ -342,7 +348,7 @@ class RunRecorder {
     if (r.rrIntervals.isNotEmpty) {
       _rrPackets.add(
         RrPacket(
-          time: r.time,
+          time: time,
           source: r.deviceId,
           intervals: List.unmodifiable(r.rrIntervals),
         ),
@@ -364,9 +370,10 @@ class RunRecorder {
   /// nahe am Ende liegt (die Strecke bleibt bis dahin erhalten).
   void _beltHeartbeat() {
     if (_runId == null) return;
-    final now = _clock.now();
     final since = _lastBeltAt;
-    if (since == null || now.difference(since) < beltHeartbeatInterval) return;
+    if (since == null || _clock.monotonic() - since < beltHeartbeatInterval) {
+      return;
+    }
     if (_session.beltHeartbeat() == CommandResult.rejected) return;
     _takeBelts();
     unawaited(_write(_flush).catchError((Object _) {}));
