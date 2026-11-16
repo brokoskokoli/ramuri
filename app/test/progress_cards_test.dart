@@ -590,6 +590,7 @@ void main() {
                 fitness: FitnessOverview.failed(),
                 session: _NoSession(),
                 onExplain: null,
+                today: '2026-05-01',
               ),
             ),
           ),
