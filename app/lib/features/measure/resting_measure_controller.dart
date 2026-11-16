@@ -22,19 +22,20 @@ const double restingLiveIntervalSeconds = 1.0;
 /// Länge des gleitenden Fensters der Zwischenauswertung in Sekunden Sensorzeit
 /// (nur die Anzeige des laufenden Pulses; keine Schwelle der Auswertung). Das
 /// Endergebnis wertet das volle Messfenster aus. Begrenzt die Rechenzeit je
-/// Zwischenauswertung, die sonst mit der Messdauer wächst.
+/// Zwischenauswertung, die sonst mit der Messdauer wächst. Wert: PAR-226.
 const double restingLiveWindowSeconds = 12.0;
 
 /// Wanduhr-Frist in Sekunden, nach der ein Strom ohne jedes Bild als
 /// unterbrochen gilt. Die Bildlücke selbst zählt allein in Sensorzeit
 /// ([ppgMaxFrameGapSeconds]); die Wanduhr fängt nur ab, dass gar keine Bilder
 /// mehr kommen, und ist deshalb großzügig: Sie darf nicht schon bei kurzen
-/// Verzögerungen der App (Garbage Collection, Last) anschlagen.
+/// Verzögerungen der App (Garbage Collection, Last) anschlagen. Wert: PAR-224.
 const double restingNoImageTimeoutSeconds = 3.0;
 
 /// Wanduhr-Frist in Sekunden vom Abonnieren des Kamerastroms bis zum
 /// Ereignis „gestartet“ (oder dem ersten Bild). Kamera öffnen und Blitz
 /// einschalten können auf manchen Geräten länger dauern als eine Bildlücke.
+/// Wert: PAR-223.
 const double restingStartTimeoutSeconds = 5.0;
 
 /// Ein Abstand der Wächter-Prüfungen über dieser Dauer (Wanduhr) gilt als
@@ -46,7 +47,7 @@ const double restingStallToleranceSeconds = 1.0;
 /// Startfrist plus Bildfrist plus 12 s Reserve für Verzögerungen. Wer sie überschreitet, hängt
 /// (z. B. weil Stillstände der App die Bildfrist immer wieder aufschieben) und
 /// wird als unterbrochen beendet. Eine Sicherung gegen ein Hängen, kein
-/// Messparameter.
+/// Messparameter. Wert: PAR-225 (86,5 s).
 final double restingTotalTimeoutSeconds =
     ppgStandardWindow.dataEnd +
     restingStartTimeoutSeconds +
@@ -56,17 +57,17 @@ final double restingTotalTimeoutSeconds =
 /// Mindestabstand der Prüfungen einer laufenden Aufnahme mit Fenstersuche
 /// (Morgenmessung, WP37) in Sekunden Sensorzeit; höchstens eine Prüfung läuft
 /// zugleich. Die Prüfung rechnet die ganze bisherige Aufnahme neu (Desktop etwa
-/// 1 s, Handy mehrere s) und läuft deshalb in einem Isolate.
+/// 1 s, Handy mehrere s) und läuft deshalb in einem Isolate. Wert: PAR-221.
 const double restingCheckIntervalSeconds = 3.0;
 
 /// Erste Prüfung der Aufnahme mit Fenstersuche: frühestens, wenn ein gutes Stück
 /// von 30 s möglich ist (Fensterbeginn plus Anzeigegrenze des guten Stücks). Die
 /// Prüfung beim frühesten möglichen Ende (66,5 s) ist unabhängig vom Takt
-/// fällig.
+/// fällig. Wert: PAR-222.
 const double restingCheckStartSeconds = 35.0;
 
 /// Gesamtfrist der Aufnahme mit Fenstersuche in Sekunden Wanduhr (wie
-/// [restingTotalTimeoutSeconds], mit der Höchstdauer der Aufnahme).
+/// [restingTotalTimeoutSeconds], mit der Höchstdauer der Aufnahme). Wert: PAR-225 (140 s).
 final double restingSearchTotalTimeoutSeconds =
     ppgSearchMaxRecordSeconds +
     restingStartTimeoutSeconds +
