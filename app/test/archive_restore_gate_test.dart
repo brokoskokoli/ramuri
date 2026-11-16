@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/app.dart';
 import 'package:running_app/app_dependencies.dart';
+import 'package:running_app/features/archive/archive_scope.dart';
 import 'package:running_app/features/archive/archive_wiring.dart';
 import 'package:running_app/features/storage/storage_start.dart';
 
@@ -27,6 +30,15 @@ class _Fakes {
   Completer<void>? verifyGate;
   StorageSession? freshSeen;
   late StorageSession restored;
+
+  /// Vorprüfung des Kopfes (FR-0198): geprüfte Pfade, Fehler (Fremddatei).
+  final List<String> headerChecks = [];
+  Object? headerError;
+
+  Future<void> headerCheck(String path) async {
+    headerChecks.add(path);
+    if (headerError != null) throw headerError!;
+  }
 
   Future<void> verify({
     required String path,
@@ -89,6 +101,7 @@ Future<(World, _Fakes, FakeFileHandoff, StorageStartController)> _pump(
         fileHandoff: handoff,
         archiveRestore: wired ? fakes.restore : null,
         archiveVerify: wired ? fakes.verify : null,
+        archiveHeaderCheck: fakes.headerCheck,
       ),
     ),
   );
@@ -299,6 +312,38 @@ void main() {
     });
   }
 
+  testWidgets('Fremddatei: Meldung vor der Passwortabfrage, alte Datei bleibt '
+      '(FR-0198)', (tester) async {
+    final (w, f, h, _) = await _pump(tester);
+    // Echte Regeln des Kopfes auf einer synthetischen Fremddatei.
+    f.headerError = _precheckError(utf8.encode('kein Archiv, nur Text\n'));
+    await _tap(tester, 'not_openable_restore');
+    expect(f.headerChecks, [_path]);
+    expect(
+      find.byKey(const Key('archive_import_password_dialog')),
+      findsNothing,
+    );
+    expect(
+      find.text('Das ist keine Archivdatei. Es wurde nichts geändert.'),
+      findsOneWidget,
+    );
+    await _tap(tester, 'archive_import_error_close');
+    expect(f.verifies, isEmpty);
+    expect(f.restores, isEmpty);
+    expect(h.discardCount, 1);
+    _untouched(w);
+    expect(find.text('Daten lassen sich nicht öffnen'), findsOneWidget);
+  });
+
+  test('ohne Angabe prüft die App die echte Datei vor dem Passwort', () {
+    final deps = AppDependencies(storageStart: World().controller());
+    expect(deps.archiveHeaderCheck, precheckArchiveFile);
+    expect(
+      const ArchiveScope(child: SizedBox()).headerCheck,
+      precheckArchiveFile,
+    );
+  });
+
   testWidgets('Abbruch während der Prüfung: nichts gelöscht', (tester) async {
     final (w, f, h, _) = await _pump(tester);
     f.verifyGate = Completer<void>();
@@ -366,6 +411,45 @@ void main() {
     expect(h.discardCount, 1);
     expect(w.violations, isEmpty);
   });
+
+  for (final (name, error, notOpenable) in <(String, Object, bool)>[
+    (
+      'Einspielen',
+      const ArchiveImportException(ArchiveImportFailure.targetFailed),
+      false,
+    ),
+    (
+      'Tausch',
+      const ArchiveRestoreException(ArchiveRestoreFailure.swapFailed),
+      false,
+    ),
+    (
+      'Öffnen nach dem Tausch',
+      const ArchiveRestoreException(ArchiveRestoreFailure.reopenFailed),
+      true,
+    ),
+  ]) {
+    testWidgets('$name scheitert: Fehlerdialog erst nach dem Laden, darunter '
+        'keine Ladeanzeige', (tester) async {
+      final (_, f, _, c) = await _pump(tester);
+      f.restoreErrors.add(error);
+      await _tap(tester, 'not_openable_restore');
+      await _password(tester);
+      await _tapBusy(tester, 'restore_confirm_action');
+      expect(
+        find.byKey(const Key('archive_import_error_dialog')),
+        findsOneWidget,
+      );
+      expect(c.state, isNot(isA<StorageLoading>()));
+      expect(
+        c.state,
+        notOpenable ? isA<StorageNotOpenableState>() : isA<StorageReady>(),
+      );
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      await _tap(tester, 'archive_import_error_close');
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+  }
 
   testWidgets('Tausch scheitert (swapFailed mit Sitzung): die App läuft mit '
       'der Sitzung der Ausnahme, nicht mit der geschlossenen', (tester) async {
@@ -439,6 +523,7 @@ void main() {
           fileHandoff: FakeFileHandoff(),
           archiveRestore: f.restore,
           archiveVerify: f.verify,
+          archiveHeaderCheck: f.headerCheck,
         ),
       ),
     );
@@ -447,4 +532,14 @@ void main() {
     expect(find.text('Neu beginnen'), findsNothing);
     expect(find.byKey(const Key('not_openable_restore')), findsNothing);
   });
+}
+
+/// Fehler der Vorprüfung des Kopfes für die ersten Byte [start].
+Object _precheckError(List<int> start) {
+  try {
+    precheckArchiveHeader(Uint8List.fromList(start));
+  } on ArchiveImportException catch (e) {
+    return e;
+  }
+  throw StateError('Kopf ist gültig');
 }

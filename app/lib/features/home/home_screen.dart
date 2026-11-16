@@ -24,6 +24,7 @@ import 'data_changes.dart';
 import '../readiness/readiness_card.dart';
 import '../readiness/readiness_service.dart';
 import 'home_recovery.dart';
+import 'home_start_row.dart';
 import 'overview_screen.dart';
 import 'run_starter.dart';
 
@@ -73,28 +74,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late Future<_Data> _future = _load();
 
   /// Hinweis des Tages und Pausenfrage (WP23 D2); Fehler bleiben still, die
-  /// Karten fehlen dann.
-  late Future<HomeHints> _hints = _loadHints();
+  /// Karten fehlen dann. Beim Öffnen und bei [_reload] erst nach der Prüfung
+  /// beim Öffnen geladen ([_openPlan]), damit es nur einen Stand gibt.
+  late Future<HomeHints> _hints;
 
   /// Erholung der erweiterten Stufe (WP34 D1); `null` bei Fehler, dann gilt
   /// die Basisstufe.
   late Future<ReadinessSnapshot?> _readiness = _loadReadiness();
 
-  /// Beides zusammen für die Karten. Als Feld gehalten und nur zusammen mit
-  /// `_hints`/`_readiness` neu gesetzt (siehe [_renewCards]); ein Future in
-  /// `build` würde bei jedem `setState` (z. B. `_busy`) auf „wartet“ zurückfallen
-  /// und die Karten samt Knöpfen für einen Frame ausblenden.
-  late Future<List<Object?>> _cardsData = Future.wait<Object?>([
-    _hints,
-    _readiness,
-  ]);
+  /// Angezeigter Stand der Karten über der Startkarte: Hinweise, Erholung und
+  /// der Planstand, zu dem sie gehören. Im State gehalten und erst ersetzt,
+  /// wenn ein neuer Stand vollständig geladen ist ([_renewCards]); bis dahin
+  /// bleiben die bisherigen Karten stehen. `null` nur vor dem ersten Laden.
+  ({HomeHints hints, ReadinessSnapshot? readiness, PlanViewState plan})?
+  _shownCards;
+
+  /// Lauf von [_renewCards]; nur der neueste darf [_shownCards] setzen.
+  int _cardsRun = 0;
   bool _busy = false;
 
-  /// Neu laden der Hinweise und/oder der Erholung; im `setState` aufrufen.
+  /// Neu laden der Hinweise und/oder der Erholung; ohne Angabe nur den
+  /// Planstand der Karten erneuern. Im `setState` aufrufen. Der neue Stand
+  /// ersetzt den angezeigten erst, wenn Hinweise und Erholung da sind –
+  /// Planstand und Hinweise wechseln so im selben Frame.
   void _renewCards({bool hints = false, bool readiness = false}) {
     if (hints) _hints = _loadHints();
     if (readiness) _readiness = _loadReadiness();
-    _cardsData = Future.wait<Object?>([_hints, _readiness]);
+    final run = ++_cardsRun;
+    Future.wait<Object?>([_hints, _readiness]).then((v) {
+      if (!mounted || run != _cardsRun) return;
+      setState(() {
+        _shownCards = (
+          hints: v[0]! as HomeHints,
+          readiness: v[1] as ReadinessSnapshot?,
+          plan: _plan.state,
+        );
+      });
+    });
   }
 
   /// Neu laden der Morgenkarte mit der Seite (Entwicklermodus, heutige Messung).
@@ -119,8 +135,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Health Connect (WP32): beim Öffnen von Heute importieren; die Sperre hält der Dienst.
     _importHealth();
     // Wie die Plan-Seite: wöchentliche Prüfung beim Öffnen (FR-0158), dann
-    // laden; derselbe Aufruf, keine zweite Fassung der Prüfung.
-    _openPlan();
+    // laden; derselbe Aufruf, keine zweite Fassung der Prüfung. Die Hinweise
+    // lädt erst der Stand danach (PAR-202), einmal.
+    _hints = _openPlan();
+    _renewCards();
   }
 
   /// Import beim Öffnen von „Heute“ und danach offene Löschfragen (SEC-0007); Fehler bleiben still.
@@ -154,8 +172,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// Neuer Planstand: Startkarte sofort, die Karten darüber mit den
+  /// geladenen Hinweisen. Während einer Aktion ([_busy]) erneuert die Aktion
+  /// die Karten selbst, wenn auch die Hinweise neu geladen sind; sonst fiele
+  /// z. B. die Erinnerung einen Frame vor der Warnsignal-Karte weg.
   void _onPlan() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {
+      if (!_busy) _renewCards();
+    });
   }
 
   /// Bleibt der Prozess über Mitternacht am Leben, steht beim Fortsetzen noch
@@ -179,16 +204,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _morningEpoch++;
       _shownDay = _today;
       _future = _load();
-      _renewCards(hints: true, readiness: true);
+      _hints = _openPlan();
+      _renewCards(readiness: true);
     });
-    _openPlan();
   }
 
-  /// Prüfung beim Öffnen; danach die Hinweise neu laden, weil sie vom Plan
-  /// abhängen (der Neustart zur Pause ändert den Text, PAR-202).
-  Future<void> _openPlan() async {
+  /// Prüfung beim Öffnen; danach die Hinweise laden, weil sie vom Plan
+  /// abhängen (der Neustart zur Pause ändert den Text, PAR-202). `open`
+  /// fängt seine Fehler selbst ab.
+  Future<HomeHints> _openPlan() async {
     await _plan.open();
-    _reloadHints();
+    return _loadHints();
   }
 
   Future<HomeHints> _loadHints() => HomeHints.load(
@@ -271,7 +297,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_busy) return;
     setState(() => _busy = true);
     await _plan.markChangeSeen(notice.planId);
-    if (mounted) setState(() => _busy = false);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _renewCards();
+    });
   }
 
   Future<void> _openHistory() async {
@@ -306,7 +336,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() => _busy = true);
     final r = await _plan.replaceUnit(unit.id!, PlanUnitKind.easy);
     if (!mounted) return;
-    setState(() => _busy = false);
+    setState(() {
+      _busy = false;
+      _renewCards();
+    });
     _snack(
       'home_easy_result',
       r == PlanActionResult.done
@@ -318,87 +351,80 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// Karten über der Startkarte: Hinweis „Erholung“ (nur mit Auslöser),
   /// Pausenfrage, Erinnerung unter Warnsignal und „Plan angepasst“.
-  Widget _cards(
-    BuildContext context,
-    PlanViewState s,
-  ) => FutureBuilder<List<Object?>>(
-    future: _cardsData,
-    builder: (context, snap) {
-      // Beim ersten Laden erst anzeigen, wenn beides da ist: sonst springt die
-      // Karte von der Basis zur erweiterten Stufe. Beim Neuladen bleiben die
-      // bisherigen Daten stehen (snap.data), sonst fehlen die Karten Frames lang.
-      if (snap.data == null && snap.connectionState != ConnectionState.done) {
-        return const SizedBox.shrink();
-      }
-      final hints = snap.data?[0] as HomeHints?;
-      final readiness = snap.data?[1] as ReadinessSnapshot?;
-      final extended = readiness != null && readiness.extended;
-      final ready = s.phase == PlanLoadPhase.ready;
-      final unit = ready && s.hasPlan ? _unitToday(s) : null;
-      final canEasy =
-          unit != null &&
-          unit.id != null &&
-          unit.kind != PlanUnitKind.rest &&
-          unit.kind != PlanUnitKind.easy &&
-          unit.runId == null;
-      final card = hints?.card;
-      final pause = hints?.pause;
-      final notice = ready ? s.changeNotice : null;
-      final reminder = ready && s.warning != null && s.warningReminderDue
-          ? planDay(_date(_today))
-                .difference(planDay(s.warning!.reportedOn))
-                .inDays
-          : null;
-      // Warnsignal vor jeder Einschätzung (FR-0203, PAR-173); andere Hinweise
-      // der Basisstufe folgen der Einschätzung.
-      final warning = card != null && card.code == HintCode.warning;
-      Widget hintCard(bool basis) => RecoveryCardView(
-        card: card!,
-        basisStage: basis,
-        onEasyRun: card.action == HintAction.easyRun && canEasy && !_busy
-            ? () => _easyRun(unit)
-            : null,
-        onNewStart:
-            card.action == HintAction.newStart && s.goal != null && !_busy
-            ? () => _newStart(s.goal!)
-            : null,
-      );
-      final children = <Widget>[
-        if (card != null && (warning || !extended)) hintCard(!extended),
-        if (extended) ReadinessCard(snapshot: readiness, warning: warning),
-        if (card != null && !warning && extended) hintCard(false),
-        if (pause != null)
-          PauseQuestionCard(
-            question: pause,
-            onAnswer: _busy ? null : _answerPause,
-          ),
-        if (reminder != null)
-          WarningReminderCard(
-            days: reminder,
-            onLift: _busy ? null : _liftWarning,
-          ),
-        if (notice != null)
-          PlanChangeCard(
-            notice: notice,
-            onSeen: _busy ? null : () => _seeChange(notice),
-            onHistory: _openHistory,
-          ),
-      ];
-      if (children.isEmpty) return const SizedBox.shrink();
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < children.length; i++) ...[
-              if (i > 0) const SizedBox(height: 10),
-              children[i],
-            ],
-          ],
+  Widget _cards(BuildContext context) {
+    // Erst anzeigen, wenn alles da ist: sonst springt die Karte von der Basis
+    // zur erweiterten Stufe. Danach bleibt der bisherige Stand stehen, bis der
+    // neue geladen ist (kein Frame ohne Karte).
+    final shown = _shownCards;
+    if (shown == null) return const SizedBox.shrink();
+    final hints = shown.hints;
+    final readiness = shown.readiness;
+    final s = shown.plan;
+    final extended = readiness != null && readiness.extended;
+    final ready = s.phase == PlanLoadPhase.ready;
+    final unit = ready && s.hasPlan ? _unitToday(s) : null;
+    final canEasy =
+        unit != null &&
+        unit.id != null &&
+        unit.kind != PlanUnitKind.rest &&
+        unit.kind != PlanUnitKind.easy &&
+        unit.runId == null;
+    final card = hints.card;
+    final pause = hints.pause;
+    final notice = ready ? s.changeNotice : null;
+    final reminder = ready && s.warning != null && s.warningReminderDue
+        ? planDay(_date(_today))
+              .difference(planDay(s.warning!.reportedOn))
+              .inDays
+        : null;
+    // Warnsignal vor jeder Einschätzung (FR-0203, PAR-173); andere Hinweise
+    // der Basisstufe folgen der Einschätzung.
+    final warning = card != null && card.code == HintCode.warning;
+    Widget hintCard(bool basis) => RecoveryCardView(
+      card: card!,
+      basisStage: basis,
+      onEasyRun: card.action == HintAction.easyRun && canEasy && !_busy
+          ? () => _easyRun(unit)
+          : null,
+      onNewStart: card.action == HintAction.newStart && s.goal != null && !_busy
+          ? () => _newStart(s.goal!)
+          : null,
+    );
+    final children = <Widget>[
+      if (card != null && (warning || !extended)) hintCard(!extended),
+      if (extended) ReadinessCard(snapshot: readiness, warning: warning),
+      if (card != null && !warning && extended) hintCard(false),
+      if (pause != null)
+        PauseQuestionCard(
+          question: pause,
+          onAnswer: _busy ? null : _answerPause,
         ),
-      );
-    },
-  );
+      if (reminder != null)
+        WarningReminderCard(
+          days: reminder,
+          onLift: _busy ? null : _liftWarning,
+        ),
+      if (notice != null)
+        PlanChangeCard(
+          notice: notice,
+          onSeen: _busy ? null : () => _seeChange(notice),
+          onHistory: _openHistory,
+        ),
+    ];
+    if (children.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            children[i],
+          ],
+        ],
+      ),
+    );
+  }
 
   /// Heutiger Ortstag nach dem Versatz der Uhr (wie in der Statistik).
   String get _today {
@@ -561,7 +587,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
             ),
             const SizedBox(height: 16),
-            _cards(context, _plan.state),
+            _cards(context),
             // Morgenmessung (FR-0215): nur wenn erreichbar (Entwicklermodus
             // oder bestandene Validierung); sonst baut die Karte nichts.
             MorningCard(
@@ -766,19 +792,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ...lines,
               const SizedBox(height: 18),
               if (open)
-                Row(
-                  children: [
-                    Expanded(
-                      child: RamuriPrimaryButton(
-                        key: const Key('home_start_unit'),
-                        icon: Icons.play_arrow_rounded,
-                        label: l.planTodayStart,
-                        onPressed: () => _startRun(context, unit: unit),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(child: free),
-                  ],
+                HomeStartRow(
+                  key: const Key('home_start_row'),
+                  primary: RamuriPrimaryButton(
+                    key: const Key('home_start_unit'),
+                    icon: Icons.play_arrow_rounded,
+                    label: l.planTodayStart,
+                    onPressed: () => _startRun(context, unit: unit),
+                  ),
+                  secondary: free,
                 )
               else
                 free,

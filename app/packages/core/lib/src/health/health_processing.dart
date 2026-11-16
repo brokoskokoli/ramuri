@@ -1,7 +1,12 @@
+import 'health_day_values.dart';
 import 'health_parameters.dart';
 import 'health_types.dart';
 
-const _version = 1;
+/// Methodenversionen (NFR-0001). `sleep-summary` und `hrv-rmssd-night` v2:
+/// Hauptschlafphase gilt bis Mitternacht des Endtags (PAR-164, K73).
+const _sleepVersion = 2;
+const _hrvVersion = 2;
+const _restingHrVersion = 1;
 
 /// Aufbereitung von Health-Connect-Daten, reine Funktionen (WP32 Teil D).
 class HealthProcessing {
@@ -9,16 +14,24 @@ class HealthProcessing {
 
   final HealthParameters params;
 
-  HealthMethod _m(String name) =>
-      HealthMethod(name, _version, params.parameterVersion);
+  HealthMethod _m(String name, int version) =>
+      HealthMethod(name, version, params.parameterVersion);
 
   /// Hauptschlafphase (PAR-164). Je Quelle zählt deren längste Sitzung, die
-  /// in den letzten 16 h geendet hat (nicht in der Zukunft) und mindestens
-  /// 3 h dauert (Grenzen einschließlich). Mehrere Quellen: Quellen mit
-  /// Schlafphasen vor Quellen ohne, darunter die längste. Gleich lang:
-  /// die später beendete, dann die mit dem kleineren Namen.
-  SleepSession? mainSleep(Iterable<SleepSession> sessions, DateTime now) {
-    final oldest = now.subtract(params.mainSleepMaxAge);
+  /// am Ortstag von [now] geendet hat – ab [dayStart] (lokale Mitternacht,
+  /// einschließlich) bis [now] (einschließlich, nicht in der Zukunft) – und
+  /// mindestens 3 h dauert (Grenze einschließlich). Sie gilt damit bis
+  /// Mitternacht des Endtags, am Folgetag nicht mehr. Ohne [dayStart] gilt die
+  /// lokale Mitternacht von [now] in der Zeitzone des Systems
+  /// ([localDayStart]). Mehrere Quellen: Quellen mit Schlafphasen vor Quellen
+  /// ohne, darunter die längste. Gleich lang: die später beendete, dann die
+  /// mit dem kleineren Namen.
+  SleepSession? mainSleep(
+    Iterable<SleepSession> sessions,
+    DateTime now, {
+    DateTime? dayStart,
+  }) {
+    final oldest = dayStart ?? localDayStart(now);
     final best = <String, SleepSession>{};
     for (final s in sessions) {
       if (s.end.isAfter(now) || s.end.isBefore(oldest)) {
@@ -92,7 +105,7 @@ class HealthProcessing {
         covered < params.sleepCoverageMinShare * totalMs;
     if (estimate) {
       return SleepSummary(
-        method: _m('sleep-summary'),
+        method: _m('sleep-summary', _sleepVersion),
         origin: s.origin,
         sessionDuration: total,
         sleepDuration: total,
@@ -103,7 +116,7 @@ class HealthProcessing {
     // Überlappende Schlafphasen könnten die Sitzung überschreiten.
     final clamped = sleepMs > totalMs ? totalMs : sleepMs;
     return SleepSummary(
-      method: _m('sleep-summary'),
+      method: _m('sleep-summary', _sleepVersion),
       origin: s.origin,
       sessionDuration: total,
       sleepDuration: Duration(milliseconds: clamped),
@@ -158,7 +171,7 @@ class HealthProcessing {
       }
       if (use.isEmpty) return;
       out[origin] = HealthDailyValue(
-        method: _m('hrv-rmssd-night'),
+        method: _m('hrv-rmssd-night', _hrvVersion),
         origin: origin,
         value: _median(use.map((x) => x.value).toList()),
         sampleCount: use.length,
@@ -186,7 +199,7 @@ class HealthProcessing {
       params.restingHeartRateMaxBpm,
     ).forEach((origin, list) {
       out[origin] = HealthDailyValue(
-        method: _m('resting-hr-day'),
+        method: _m('resting-hr-day', _restingHrVersion),
         origin: origin,
         value: _median(list.map((x) => x.value).toList()),
         sampleCount: list.length,

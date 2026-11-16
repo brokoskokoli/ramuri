@@ -174,13 +174,11 @@ class DriftMorningStore implements MorningStore {
     final posture = RestingPosture.fromStorage(r.posture);
     final quality = PpgQuality.values.where((q) => q.name == r.quality);
     final band = SleepBand.fromCode(r.sleepBand);
-    final reasons = PpgQualityReason.values.where(
-      (q) => q.name == r.unusableReason,
-    );
+    final reason = MorningUnusableReason.fromName(r.unusableReason);
     if (posture == null ||
         quality.isEmpty ||
         (r.sleepBand != null && band == null) ||
-        (r.unusableReason != null && reasons.isEmpty)) {
+        (r.unusableReason != null && reason == null)) {
       throw const StorageException(StorageFailure.failed);
     }
     return MorningMeasurement(
@@ -202,7 +200,7 @@ class DriftMorningStore implements MorningStore {
       windowStartS: r.windowStartS,
       windowEndS: r.windowEndS,
       restSkippedAfterS: r.restSkippedAfterS,
-      unusableReason: reasons.isEmpty ? null : reasons.first,
+      unusableReason: reason,
     );
   }
 }

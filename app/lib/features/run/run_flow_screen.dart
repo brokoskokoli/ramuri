@@ -597,9 +597,11 @@ class _RunFlowScreenState extends State<RunFlowScreen>
             appBar: AppBar(title: Text(l10n.homeStartRun)),
             body: _explanation(
               l10n,
-              controller.startFailedResume
+              !controller.startFailedResume
+                  ? l10n.runStartFailed
+                  : controller.startFailedService
                   ? l10n.treadmillStartFailedResume
-                  : l10n.runStartFailed,
+                  : l10n.runResumeFailed,
               [
                 FilledButton(
                   key: const Key('run_start_retry'),

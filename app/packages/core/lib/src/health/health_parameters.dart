@@ -8,7 +8,6 @@ import '../preprocessing/preprocessing_parameters.dart';
 class HealthParameters {
   const HealthParameters({
     required this.parameterVersion,
-    this.mainSleepMaxAge = const Duration(hours: 16),
     this.mainSleepMinDuration = const Duration(hours: 3),
     this.sleepCoverageMinShare = 0.9,
     this.rmssdMinMs = 1,
@@ -27,9 +26,6 @@ class HealthParameters {
   const HealthParameters.v4() : this(parameterVersion: currentParameterVersion);
 
   final int parameterVersion;
-
-  /// PAR-164: Die Sitzung muss in den letzten 16 h geendet haben.
-  final Duration mainSleepMaxAge;
 
   /// PAR-164: Mindestdauer der Hauptschlafphase (kürzer ist ein Nickerchen).
   final Duration mainSleepMinDuration;
