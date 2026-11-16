@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:core/core.dart';
 import 'package:test/test.dart';
 
@@ -25,7 +27,10 @@ class _CountingClock implements Clock {
   }
 
   @override
-  Duration monotonic() => inner.monotonic();
+  Duration monotonic() {
+    reads++;
+    return inner.monotonic();
+  }
 
   @override
   Duration utcOffsetAt(DateTime at) => inner.utcOffsetAt(at);
@@ -481,11 +486,11 @@ void main() {
       expect(r.s.preprocessing()!.position.positions.length, 21);
     });
 
-    test('P3: Uhr springt 10 s zurück: Verlust höchstens die Sprungdauer', () {
+    test('P3: Wanduhr springt 10 s zurück: kein Punkt geht verloren', () {
       final r = Rig()..s.start();
       r.move(20, 3);
       final before = r.s.snapshot().distanceMeters!;
-      r.clock.advance(const Duration(seconds: -10));
+      r.clock.set(r.clock.now().subtract(const Duration(seconds: 10)));
       var lost = 0;
       for (var i = 0; i < 30; i++) {
         r.clock.advance(const Duration(seconds: 1));
@@ -493,8 +498,8 @@ void main() {
         final res = r.s.addPosition(fix(0, r.north));
         if (res != Intake.processed) lost++;
       }
-      expect(lost, 10); // genau die Sprungdauer, nicht mehr
-      expect(r.s.snapshot().distanceMeters!, greaterThan(before + 30));
+      expect(lost, 0); // die Sitzungszeit folgt der monotonen Uhr
+      expect(r.s.snapshot().distanceMeters!, greaterThan(before + 80));
     });
 
     test('Zeitgleicher oder älterer Punkt als der letzte wird verworfen', () {
@@ -506,14 +511,18 @@ void main() {
       expect(r.s.preprocessing()!.position.positions.length, 3);
     });
 
-    test('Rückspringende Uhr in der Pause: Punkt wird nicht gespeichert', () {
+    test('Rückspringende Wanduhr in der Pause: Punkt wird gespeichert, '
+        'nach dem letzten', () {
       final r = Rig()..s.start();
       r.move(3, 3);
       r.s.pause();
       r.wait(5);
       expect(r.s.addPosition(fix(0, 9)), Intake.recordedWhilePaused);
-      r.clock.advance(const Duration(seconds: -3));
-      expect(r.s.addPosition(fix(0, 9)), Intake.ignoredStale);
+      final last = r.s.lastPointTime!;
+      r.clock.set(r.clock.now().subtract(const Duration(seconds: 3)));
+      r.wait(1);
+      expect(r.s.addPosition(fix(0, 9)), Intake.recordedWhilePaused);
+      expect(r.s.lastPointTime, last.add(const Duration(seconds: 1)));
     });
 
     test('Pausenpunkt vor Pausenbeginn (Alter) ist veraltet', () {
@@ -522,6 +531,43 @@ void main() {
       r.wait(2);
       r.s.pause();
       expect(r.s.addPosition(fix(0, 9, ageMs: 1500)), Intake.ignoredStale);
+    });
+
+    // Sprung der Wanduhr im Lauf (ADR-0005 Punkt „Zeitbasis“): Abstände aus
+    // der monotonen Uhr, gespeicherte Zeitpunkte Anker plus Laufzeit.
+    for (final jumps in <Map<int, Duration>>[
+      {200: const Duration(hours: 1)},
+      {600: const Duration(minutes: -10)},
+      {200: const Duration(hours: 1), 430: const Duration(minutes: -10)},
+    ]) {
+      test('Wanduhr springt ${jumps.values.join(', ')}: Zeiten, Pause und '
+          'Kilometer-Pace wie ohne Sprung, Punkte streng steigend', () async {
+        final plain = await _jumpRun(const {});
+        final jumped = await _jumpRun(jumps);
+        expect(jumped.total, plain.total);
+        expect(jumped.total, const Duration(seconds: 900));
+        expect(jumped.moving, plain.moving);
+        expect(jumped.pause, plain.pause);
+        expect(jumped.pause, const Duration(seconds: 60));
+        expect(jumped.splitTimes, plain.splitTimes);
+        expect(jumped.splitPaces, plain.splitPaces);
+        expect(jumped.splitPaces, isNotEmpty);
+        expect(jumped.storedTimes, plain.storedTimes);
+        expect(jumped.heartRateTimes, plain.heartRateTimes);
+        for (final times in [jumped.storedTimes, jumped.heartRateTimes]) {
+          for (var i = 1; i < times.length; i++) {
+            expect(times[i].isAfter(times[i - 1]), isTrue, reason: '$i');
+          }
+        }
+      });
+    }
+
+    test('Ohne Sprung bleiben die Zeitpunkte die der Wanduhr', () async {
+      final plain = await _jumpRun(const {});
+      expect(plain.startedAt, t0);
+      expect(plain.storedTimes.first, t0.add(const Duration(seconds: 1)));
+      expect(plain.storedTimes.last, t0.add(const Duration(seconds: 900)));
+      expect(plain.endedAt, t0.add(const Duration(seconds: 900)));
     });
   });
 
@@ -753,4 +799,65 @@ void main() {
       expect(r.s.preprocessing()!.altitude.acceptedValues, hasLength(1));
     });
   });
+}
+
+/// Ergebnis von [_jumpRun].
+typedef _JumpResult = ({
+  DateTime startedAt,
+  DateTime endedAt,
+  Duration total,
+  Duration moving,
+  Duration pause,
+  List<Duration> splitTimes,
+  List<double?> splitPaces,
+  List<DateTime> storedTimes,
+  List<DateTime> heartRateTimes,
+});
+
+/// Lauf über 900 s mit 3 m/s, ein Punkt und ein Pulswert je Sekunde, manuelle
+/// Pause von 400 s bis 460 s. In Sekunde k von [jumps] wird die Wanduhr um den
+/// Wert umgestellt (die monotone Uhr nicht). Der Pulswert trägt wie im Adapter
+/// die Wanduhr beim Empfang.
+Future<_JumpResult> _jumpRun(Map<int, Duration> jumps) async {
+  final clock = FakeClock(t0);
+  final store = await FakeStorage().open(Uint8List(32));
+  final r = RunRecorder(
+    clock: clock,
+    runs: store.runs,
+    rawData: store.rawData,
+    markers: store.markers,
+  );
+  await r.start();
+  var north = 0.0;
+  for (var sec = 1; sec <= 900; sec++) {
+    clock.advance(const Duration(seconds: 1));
+    final jump = jumps[sec];
+    if (jump != null) clock.set(clock.now().add(jump));
+    if (sec == 400) await r.pause();
+    if (sec == 460) await r.resume();
+    if (r.phase != RecordingPhase.paused) north += 3;
+    r.addPosition(fix(0, north));
+    r.addHeartRate(HeartRateReading('hr', clock.now(), 140));
+    r.tick();
+  }
+  await r.finish();
+  await r.flush();
+  final id = r.runId!;
+  final run = (await store.runs.get(id))!;
+  final raw = await store.rawData.read(id);
+  final gaps = await store.markers.gaps(id);
+  final pause = gaps.singleWhere((g) => g.kind == RunGapKind.manualPause);
+  final snap = r.snapshot();
+  final splits = computeKilometerSplits(r.preprocessing()!).splits;
+  return (
+    startedAt: run.startedAt,
+    endedAt: run.endedAt!,
+    total: snap.totalTime!,
+    moving: snap.movingTime!,
+    pause: pause.end!.difference(pause.start),
+    splitTimes: [for (final s in splits) s.time],
+    splitPaces: [for (final s in splits) s.paceSecondsPerKm],
+    storedTimes: [for (final p in raw.positions) p.value.time],
+    heartRateTimes: [for (final h in raw.heartRates) h.value.time],
+  );
 }

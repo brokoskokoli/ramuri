@@ -39,7 +39,7 @@ class World {
 
   /// Punkt zur Messzeit [sec] (Uhr dorthin gesetzt), Position [north] Meter.
   Intake feed(RunRecorder r, num sec, num north) {
-    clock.set(t0.add(Duration(seconds: sec.round())));
+    clock.advanceTo(t0.add(Duration(seconds: sec.round())));
     return r.addPosition(fix(sec, north));
   }
 
@@ -50,7 +50,7 @@ class World {
     for (var s = 1; s <= 30; s++) {
       feed(r, s, 3.0 * s);
     }
-    clock.set(t0.add(const Duration(seconds: 30)));
+    clock.advanceTo(t0.add(const Duration(seconds: 30)));
     if (pausedAtEnd) await r.pause();
     await r.flush();
     return (r.runId!, r.snapshot().distanceMeters!);
@@ -65,7 +65,7 @@ Future<int> crashedWithSensorsAfterGps(World w) async {
   for (var s = 1; s <= 30; s++) {
     w.feed(r, s, 3.0 * s);
   }
-  w.clock.set(t0.add(const Duration(seconds: 50)));
+  w.clock.advanceTo(t0.add(const Duration(seconds: 50)));
   r.addHeartRate(
     HeartRateReading('hr', t0.add(const Duration(seconds: 50)), 140),
   );
@@ -85,7 +85,7 @@ void main() {
     test('Fortsetzen: Lücke beginnt am letzten Pulswert', () async {
       final w = await World.open();
       final id = await crashedWithSensorsAfterGps(w);
-      w.clock.set(t0.add(const Duration(seconds: 300)));
+      w.clock.advanceTo(t0.add(const Duration(seconds: 300)));
       expect(await w.recorder().restore(id), CommandResult.ok);
       final g = (await w.session.markers.gaps(id))
           .singleWhere((g) => g.kind == RunGapKind.interruption);
@@ -106,7 +106,7 @@ void main() {
       await r1.flush();
       final id = r1.runId!;
       // 10 Minuten Ausfall.
-      w.clock.set(t0.add(const Duration(seconds: 630)));
+      w.clock.advanceTo(t0.add(const Duration(seconds: 630)));
       final r2 = w.recorder();
       await r2.restore(id);
       expect(r2.snapshot().laps.map((l) => l.index), [1]);
@@ -129,7 +129,7 @@ void main() {
     test('zwei gleichzeitige restore: einer ok, eine Lücke', () async {
       final w = await World.open();
       final (id, _) = await w.crashedRun();
-      w.clock.set(t0.add(const Duration(seconds: 630)));
+      w.clock.advanceTo(t0.add(const Duration(seconds: 630)));
       final r = w.recorder();
       final both = await Future.wait([r.restore(id), r.restore(id)]);
       expect(both, unorderedEquals([CommandResult.ok, CommandResult.rejected]));
@@ -198,7 +198,7 @@ void main() {
       final w = await World.open();
       final (id, d1) = await w.crashedRun();
       // 10 Minuten Ausfall, danach 3 km weiter weg (Ortssprung).
-      w.clock.set(t0.add(const Duration(seconds: 630)));
+      w.clock.advanceTo(t0.add(const Duration(seconds: 630)));
       final r = w.recorder();
       expect(await r.restore(id), CommandResult.ok);
       expect(r.runId, id);
@@ -222,10 +222,59 @@ void main() {
       expect(await w.recovery().pending(serviceRunning: false), isNull);
     });
 
+    test('neuer Prozess mit neuer monotoner Uhr: Ausfallzeit nach Wanduhr in '
+        'der Gesamtzeit, nicht in der Bewegungszeit; Sprung danach ohne '
+        'Wirkung (OQ-0065, ADR-0005 Zeitbasis)', () async {
+      final w = await World.open();
+      final (id, d1) = await w.crashedRun();
+      final before = (await w.session.rawData.read(id)).positions.length;
+      // Neuer Prozess: andere Uhr, monotone Zeit beginnt wieder bei 0; die
+      // Wanduhr steht 10 Minuten nach dem Abbruch.
+      final clock = FakeClock(t0.add(const Duration(seconds: 630)));
+      expect(clock.monotonic(), Duration.zero);
+      final r = RunRecorder(
+        clock: clock,
+        runs: w.session.runs,
+        rawData: w.session.rawData,
+        markers: w.session.markers,
+      );
+      expect(await r.restore(id), CommandResult.ok);
+      var north = 3000.0;
+      for (var s = 631; s <= 690; s++) {
+        clock.advance(const Duration(seconds: 1));
+        // Im neuen Prozess springt die Wanduhr 10 Minuten zurück.
+        if (s == 650) {
+          clock.set(clock.now().subtract(const Duration(minutes: 10)));
+        }
+        north += 3;
+        r.addPosition(fix(0, north));
+      }
+      await r.flush();
+      final snap = r.snapshot();
+      expect(snap.totalTime, const Duration(seconds: 690));
+      // 30 s vor dem Abbruch und 60 s danach bewegt; der Ausfall zählt nicht.
+      expect(snap.movingTime! >= const Duration(seconds: 80), isTrue);
+      expect(snap.movingTime! <= const Duration(seconds: 90), isTrue);
+      expect(snap.distanceMeters! - d1, closeTo(59 * 3, 3));
+      final g = (await w.session.markers.gaps(id))
+          .singleWhere((g) => g.kind == RunGapKind.interruption);
+      expect(g.start, t0.add(const Duration(seconds: 30)));
+      expect(g.end, t0.add(const Duration(seconds: 630)));
+      final times = [
+        for (final p in (await w.session.rawData.read(id)).positions)
+          p.value.time,
+      ];
+      expect(times.length, before + 60);
+      expect(times.last, t0.add(const Duration(seconds: 690)));
+      for (var i = 1; i < times.length; i++) {
+        expect(times[i].isAfter(times[i - 1]), isTrue, reason: '$i');
+      }
+    });
+
     test('zweiter Abbruch und erneutes Fortsetzen rechnet dasselbe', () async {
       final w = await World.open();
       final (id, d1) = await w.crashedRun();
-      w.clock.set(t0.add(const Duration(seconds: 630)));
+      w.clock.advanceTo(t0.add(const Duration(seconds: 630)));
       final r2 = w.recorder();
       await r2.restore(id);
       for (var s = 631; s <= 640; s++) {
@@ -233,7 +282,7 @@ void main() {
       }
       await r2.flush();
       final d2 = r2.snapshot().distanceMeters!;
-      w.clock.set(t0.add(const Duration(seconds: 1240)));
+      w.clock.advanceTo(t0.add(const Duration(seconds: 1240)));
       final r3 = w.recorder();
       await r3.restore(id);
       final s3 = r3.snapshot();
@@ -248,7 +297,7 @@ void main() {
     test('pausierter Lauf: Pause geschlossen, Lauf wieder aktiv', () async {
       final w = await World.open();
       final (id, _) = await w.crashedRun(pausedAtEnd: true);
-      w.clock.set(t0.add(const Duration(seconds: 100)));
+      w.clock.advanceTo(t0.add(const Duration(seconds: 100)));
       final r = w.recorder();
       expect(await r.restore(id), CommandResult.ok);
       expect((await w.session.runs.get(id))!.state, RunState.active);
@@ -269,28 +318,33 @@ void main() {
       expect(await w.recorder().restore(999), CommandResult.rejected);
     });
 
-    test(
-      'Uhr zurück: Lücke leer, nie negativ, alte Punkte verworfen',
-      () async {
-        final w = await World.open();
-        final (id, d1) = await w.crashedRun();
-        w.clock.set(t0.subtract(const Duration(days: 1)));
-        final r = w.recorder();
-        expect(await r.restore(id), CommandResult.ok);
-        final g = (await w.session.markers.gaps(id))
-            .singleWhere((g) => g.kind == RunGapKind.interruption);
-        expect(g.start, t0.add(const Duration(seconds: 30)));
-        expect(g.end, g.start);
-        // Punkt mit der zurückgesprungenen Uhr zählt nicht.
-        w.clock.set(t0.subtract(const Duration(days: 1)));
-        expect(r.addPosition(fix(0, 5000)), Intake.ignoredStale);
-        expect(r.snapshot().distanceMeters, closeTo(d1, 0.001));
-        // Sobald die Uhr den letzten Zeitpunkt überschreitet, geht es weiter.
-        expect(w.feed(r, 31, 93), Intake.processed);
-        expect(r.snapshot().distanceMeters!, greaterThanOrEqualTo(d1));
-        expect(r.snapshot().totalTime! >= Duration.zero, isTrue);
-      },
-    );
+    test('Uhr zurück: Lücke leer, nie negativ; danach zählt die monotone '
+        'Zeit ab dem letzten Zeitpunkt', () async {
+      final w = await World.open();
+      final (id, d1) = await w.crashedRun();
+      w.clock.set(t0.subtract(const Duration(days: 1)));
+      final r = w.recorder();
+      expect(await r.restore(id), CommandResult.ok);
+      final g = (await w.session.markers.gaps(id))
+          .singleWhere((g) => g.kind == RunGapKind.interruption);
+      expect(g.start, t0.add(const Duration(seconds: 30)));
+      expect(g.end, g.start);
+      // Zeitgleich mit dem letzten Punkt: verworfen.
+      expect(r.addPosition(fix(0, 5000)), Intake.ignoredStale);
+      expect(r.snapshot().distanceMeters, closeTo(d1, 0.001));
+      // Eine Sekunde später (monoton) gilt der Punkt, datiert nach dem
+      // letzten Zeitpunkt, obwohl die Wanduhr einen Tag zurück steht.
+      w.clock.advance(const Duration(seconds: 1));
+      expect(r.addPosition(fix(0, 93)), Intake.processed);
+      await r.flush();
+      final raw = await w.session.rawData.read(id);
+      expect(
+        raw.positions.last.value.time,
+        t0.add(const Duration(seconds: 31)),
+      );
+      expect(r.snapshot().distanceMeters!, greaterThanOrEqualTo(d1));
+      expect(r.snapshot().totalTime, const Duration(seconds: 31));
+    });
   });
 
   group('RR-Pakete beim Wiederanlauf (FR-0213)', () {
@@ -312,7 +366,7 @@ void main() {
         HeartRateReading('hr', w.clock.now(), 140, rrIntervals: const [800]),
       );
       await r.flush(); // geflusht
-      w.clock.set(t0.add(const Duration(seconds: 7)));
+      w.clock.advanceTo(t0.add(const Duration(seconds: 7)));
       r.addHeartRate(
         HeartRateReading('hr', w.clock.now(), 141, rrIntervals: const [790]),
       ); // nur im Puffer, Prozess stirbt
