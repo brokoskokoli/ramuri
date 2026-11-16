@@ -420,12 +420,19 @@ class _Sheet extends StatelessWidget {
     final scaler = MediaQuery.textScalerOf(context);
     final tileValueStyle = text.titleLarge!.copyWith(color: colors.text);
     final placeholderStyle = text.labelMedium!.copyWith(color: colors.text);
-    // Feste Höhe der Wertzeile einer Kachel: Wert und Ersatztext stehen in
-    // derselben Zeile, das Blatt ändert seine Höhe nicht, wenn der erste Wert
-    // erscheint. (Die große Strecke schrumpft in der Höhe der Zeit daneben.)
-    final tileLine = math.max(
-      _lineHeightOf(tileValueStyle, scaler),
-      _lineHeightOf(placeholderStyle, scaler, lines: 2),
+    // Feste Höhe der Wertzeile einer Kachel: so hoch wie eine Wertzeile oder
+    // der in der Kachelbreite umbrochene Ersatztext, je nachdem, was höher
+    // ist – unabhängig davon, was gerade dasteht. So ändert das Blatt seine
+    // Höhe nicht, wenn der erste Wert erscheint. (Die große Strecke schrumpft
+    // in der Höhe der Zeit daneben.) [rowWidth]: Breite der Kachelreihe.
+    double tileLineFor(double rowWidth) => math.max(
+      _textHeight(tileValueStyle, scaler, '0'),
+      _textHeight(
+        placeholderStyle,
+        scaler,
+        l10n.runNoDataYet,
+        maxWidth: math.max(0, (rowWidth - 2 * 8) / 3 - 2 * 12),
+      ),
     );
 
     Widget big(Key key, String title, String value, {bool end = false}) =>
@@ -467,6 +474,7 @@ class _Sheet extends StatelessWidget {
       String value,
       String? unit, {
       required InlineSpan widest,
+      required double line,
     }) {
       final labelStyle = text.labelSmall?.copyWith(
         color: colors.textMuted,
@@ -501,25 +509,18 @@ class _Sheet extends StatelessWidget {
                     ],
                   ),
                   // Ersatztext: klein und umbrechend (de bei großer Schrift
-                  // mehrzeilig, ohne Abschneiden) statt auf die Breite
-                  // geschrumpft; passt er nicht in die Zeile, wird er als
-                  // Ganzes verkleinert.
+                  // dreizeilig, ohne Abschneiden) statt auf die Breite
+                  // geschrumpft (sonst winzig, auch bei großer Schrift).
                   SizedBox(
-                    height: tileLine,
+                    height: line,
                     width: double.infinity,
                     child: value == l10n.runNoDataYet
-                        ? LayoutBuilder(
-                            builder: (context, box) => FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: AlignmentDirectional.bottomStart,
-                              child: SizedBox(
-                                width: box.maxWidth,
-                                child: Text(
-                                  value,
-                                  key: key,
-                                  style: placeholderStyle,
-                                ),
-                              ),
+                        ? Align(
+                            alignment: AlignmentDirectional.bottomStart,
+                            child: Text(
+                              value,
+                              key: key,
+                              style: placeholderStyle,
                             ),
                           )
                         : FittedBox(
@@ -601,46 +602,54 @@ class _Sheet extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 14),
-                      IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            tile(
-                              const Key('live_map_pace'),
-                              l10n.runPace,
-                              paceValue,
-                              paceUnit,
-                              widest: labelWithUnit(
-                                l10n.runPace,
-                                formatter.paceLabel,
-                              ),
+                      LayoutBuilder(
+                        builder: (context, box) {
+                          final line = tileLineFor(box.maxWidth);
+                          return IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                tile(
+                                  const Key('live_map_pace'),
+                                  l10n.runPace,
+                                  paceValue,
+                                  paceUnit,
+                                  line: line,
+                                  widest: labelWithUnit(
+                                    l10n.runPace,
+                                    formatter.paceLabel,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                tile(
+                                  const Key('live_map_avg_pace'),
+                                  l10n.runAvgPace,
+                                  avgValue,
+                                  avgUnit,
+                                  line: line,
+                                  widest: labelWithUnit(
+                                    l10n.runAvgPace,
+                                    formatter.paceLabel,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                tile(
+                                  const Key('live_map_hr'),
+                                  zoneNo == null
+                                      ? l10n.runHeartRate
+                                      : '${l10n.runHeartRate} · Z$zoneNo',
+                                  bpm == null ? UnitFormatter.noValue : '$bpm',
+                                  bpm == null ? null : l10n.liveUnitBpm,
+                                  line: line,
+                                  widest: labelWithUnit(
+                                    '${l10n.runHeartRate} · Z5',
+                                    l10n.liveUnitBpm,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            tile(
-                              const Key('live_map_avg_pace'),
-                              l10n.runAvgPace,
-                              avgValue,
-                              avgUnit,
-                              widest: labelWithUnit(
-                                l10n.runAvgPace,
-                                formatter.paceLabel,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            tile(
-                              const Key('live_map_hr'),
-                              zoneNo == null
-                                  ? l10n.runHeartRate
-                                  : '${l10n.runHeartRate} · Z$zoneNo',
-                              bpm == null ? UnitFormatter.noValue : '$bpm',
-                              bpm == null ? null : l10n.liveUnitBpm,
-                              widest: labelWithUnit(
-                                '${l10n.runHeartRate} · Z5',
-                                l10n.liveUnitBpm,
-                              ),
-                            ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -732,13 +741,18 @@ class LiveRoundButton extends StatelessWidget {
   }
 }
 
-/// Höhe von [lines] Zeilen in [style] bei der eingestellten Schriftgröße.
-double _lineHeightOf(TextStyle style, TextScaler scaler, {int lines = 1}) {
+/// Höhe von [text] in [style] bei der eingestellten Schriftgröße, umbrochen in [maxWidth].
+double _textHeight(
+  TextStyle style,
+  TextScaler scaler,
+  String text, {
+  double maxWidth = double.infinity,
+}) {
   final painter = TextPainter(
-    text: TextSpan(text: List.filled(lines, '0').join('\n'), style: style),
+    text: TextSpan(text: text, style: style),
     textDirection: TextDirection.ltr,
     textScaler: scaler,
-  )..layout();
+  )..layout(maxWidth: maxWidth);
   final height = painter.height;
   painter.dispose();
   return height;

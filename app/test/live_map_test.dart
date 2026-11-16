@@ -768,7 +768,7 @@ void main() {
       final pause = tester.getRect(key('live_map_pause'));
       expect(pause.top, greaterThanOrEqualTo(sheet.top));
       expect(pause.bottom, lessThanOrEqualTo(sheet.bottom));
-      await tester.drag(key('live_map_sheet_values'), const Offset(0, -300));
+      await tester.drag(key('live_map_sheet_values'), const Offset(0, -2000));
       await tester.pump();
       expect(tester.takeException(), isNull);
       expect(
