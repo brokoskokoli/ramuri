@@ -3234,6 +3234,8 @@
   "@morningReasonNoFinger": {"description": "Morgenwerte (K67)"},
   "morningReasonInterrupted": "Aufnahme unterbrochen oder zu kurz",
   "@morningReasonInterrupted": {"description": "Morgenwerte (K67)"},
+  "morningReasonHrOutOfRange": "Puls außerhalb von 30 bis 120",
+  "@morningReasonHrOutOfRange": {"description": "Morgenwerte: Grund unbrauchbar, Ruhepuls außerhalb PAR-017"},
   "morningLockedNote": "Wird gezeigt, geht aber in keine Einschätzung ein.",
   "@morningLockedNote": {"description": "Morgenwerte (FR-0215)"},
   "morningOptInTitle": "Kamera-RMSSD einbeziehen",

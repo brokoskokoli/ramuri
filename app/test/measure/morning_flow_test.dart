@@ -537,10 +537,63 @@ void main() {
       await r.feed(tester, 80);
       final m = (await r.stored(tester)).single;
       expect(m.quality, PpgQuality.unusable);
-      expect(m.unusableReason, PpgQualityReason.weakSignal);
+      expect(m.unusableReason, MorningUnusableReason.weakSignal);
       expect(m.cameraIntervalsMs, [1000, 1010]);
       expect(m.windowStartS, 5);
     });
+
+    for (final bpm in [29.0, 121.0]) {
+      PpgMeasurement withBpm() => PpgMeasurement(
+        quality: PpgQuality.good,
+        reasons: const [],
+        bpm: bpm,
+        rmssdMs: 40,
+        timingNoiseMs: 10,
+        intervalsMs: const [500, 505],
+      );
+
+      testWidgets('Puls $bpm im Entwicklermodus: unbrauchbar gespeichert, '
+          'ohne Puls, mit Rohsignal, Ergebnis unbrauchbar', (tester) async {
+        final r = await _Rig.make(developerMode: true);
+        r.next = withBpm();
+        await r.show(tester, dark: false);
+        await _startMeasurement(tester, r);
+        await r.feed(tester, 80);
+        expect(r.c.outcome, MorningOutcome.unusable);
+        expect(r.c.stored, isNull);
+        expect(
+          tester
+              .widget<Text>(find.byKey(const Key('morning_result_title')))
+              .data,
+          'Messung zu ungenau',
+        );
+        final all = (await tester.runAsync(() => r.store.list()))!;
+        final m = all.single.value;
+        expect(m.quality, PpgQuality.unusable);
+        expect(m.unusableReason, MorningUnusableReason.restingHrOutOfRange);
+        expect(
+          [m.restingHrBpm, m.rmssdMs, m.timingNoiseMs],
+          [null, null, null],
+        );
+        expect(m.cameraIntervalsMs, [500, 505]);
+        final raw = (await tester.runAsync(
+          () => r.store.rawSignal(all.single.id),
+        ))!;
+        expect(raw.frames, isNotEmpty);
+      });
+
+      testWidgets('Puls $bpm ohne Entwicklermodus: nichts gespeichert', (
+        tester,
+      ) async {
+        final r = await _Rig.make();
+        r.next = withBpm();
+        await r.show(tester, dark: false);
+        await _startMeasurement(tester, r);
+        await r.feed(tester, 80);
+        expect(r.c.outcome, MorningOutcome.unusable);
+        expect(await r.stored(tester), isEmpty);
+      });
+    }
   });
 
   group('Gurt-RR zur Morgenmessung (Teil E)', () {
@@ -760,7 +813,7 @@ void main() {
       final all = (await tester.runAsync(() => r.store.list()))!;
       expect(all.single.value.quality, PpgQuality.unusable);
       expect(all.single.value.restingHrBpm, isNull);
-      expect(all.single.value.unusableReason, PpgQualityReason.weakSignal);
+      expect(all.single.value.unusableReason, MorningUnusableReason.weakSignal);
       final packets = (await tester.runAsync(
         () => r.store.beltPackets(all.single.id),
       ))!;
