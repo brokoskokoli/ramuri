@@ -325,6 +325,57 @@ void main() {
       expect(v.method, isNot(EdwardsTrimp.methodId));
     });
 
+    test('Ruhepuls fällt weg, bestätigt: Rückweg auf Edwards für alle '
+        'Läufe', () async {
+      const noRest = ProfileRecord(maxHeartRateBpm: 190);
+      await w.session.profile.save(noRest);
+      final s = w.recalc();
+      final offer = await s.profileChanged(before: profile190, after: noRest);
+      expect(offer!.loadProfile, LoadProfile.edwards);
+      await s.confirm(offer);
+      expect(await active(), LoadProfile.edwards);
+      expect(await chosen(), isNull);
+      expect(await s.pendingOffer(), isNull);
+      expect(
+        (await trimps()).values.every((v) => v.method == EdwardsTrimp.methodId),
+        isTrue,
+      );
+      // Neuer Lauf rechnet mit Edwards.
+      final id = await w.seedRun(DateTime.utc(2030, 3, 3, 8));
+      await w.calc().calculateAfterRun(id);
+      final v = (await w.session.values.read(ValueOwner.run(id)))
+          .firstWhere((p) => p.original.key == trimpRunValueKey)
+          .current;
+      expect(v.method, EdwardsTrimp.methodId);
+      expect(v.value, isNotNull);
+    });
+
+    test('Ruhepuls fällt weg, abgelehnt: Banister bleibt gewählt, TRIMP '
+        'neuer Läufe nicht verfügbar, kein stiller Wechsel', () async {
+      const noRest = ProfileRecord(maxHeartRateBpm: 190);
+      await w.session.profile.save(noRest);
+      final s = w.recalc();
+      final offer = await s.profileChanged(before: profile190, after: noRest);
+      expect(offer!.loadProfile, LoadProfile.edwards);
+      final stored = await trimps();
+      await s.decline(offer);
+      expect(await active(), LoadProfile.banister);
+      expect(await chosen(), isNull);
+      expect(await s.pendingOffer(), isNull);
+      expect(
+        (await trimps()).values.map((v) => (v.method, v.value)),
+        stored.values.map((v) => (v.method, v.value)),
+      );
+      final id = await w.seedRun(DateTime.utc(2030, 3, 3, 8));
+      await w.calc().calculateAfterRun(id);
+      final v = (await w.session.values.read(ValueOwner.run(id)))
+          .firstWhere((p) => p.original.key == trimpRunValueKey)
+          .current;
+      expect(v.value, isNull);
+      expect(v.unavailableReason, UnavailableReason.missingRestingHeartRate);
+      expect(v.method, isNot(EdwardsTrimp.methodId));
+    });
+
     test('Angabe entfernen, bestätigt: Rückweg auf Edwards für alle Läufe, '
         'Angabe weg', () async {
       final s = w.recalc();

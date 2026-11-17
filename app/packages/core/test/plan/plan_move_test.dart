@@ -30,6 +30,8 @@ PlanMoveCheck _check(
   double capMinutes = 240,
   List<int> completedIntensive = const [],
   Set<int> runDays = const {},
+  int? goalDay,
+  GoalDistance? distance = GoalDistance.tenKilometers,
 }) => checkPlanMove(
   units: units,
   unit: unit,
@@ -38,6 +40,8 @@ PlanMoveCheck _check(
   weeklyCapSeconds: capMinutes * 60,
   completedIntensiveDays: [for (final d in completedIntensive) _d(d)],
   runDays: runDays,
+  targetDate: goalDay == null ? null : _d(goalDay),
+  distance: distance,
 );
 
 void main() {
@@ -194,6 +198,93 @@ void main() {
       // Wie der erste Fall: ohne Lauftage Mi (2) vor Mo (0).
       final c = _check(week, hard, 4, runDays: {DateTime.monday});
       expect(c.alternatives, [_d(0), _d(2)]);
+    });
+  });
+
+  group('FR-0177: Hinweis bei Reduktion oder Zieltag', () {
+    // 10 km (PAR-199: eine Woche Reduktion), Ziel So der Folgewoche (13).
+    test('neuer Tag in der Reduktion: Hinweis, nicht gesperrt', () {
+      final c = _check(week, easy, 8, goalDay: 13);
+      expect(c.allowed, isTrue);
+      expect(c.goalHint, PlanMoveGoalHint.reduction);
+    });
+
+    test('neuer Tag ist der Zieltag: Hinweis Zieltag', () {
+      final c = _check(week, easy, 13, goalDay: 13);
+      expect(c.allowed, isTrue);
+      expect(c.goalHint, PlanMoveGoalHint.goalDay);
+    });
+
+    test('Tag davor im Aufbau: kein Hinweis', () {
+      expect(_check(week, easy, 6, goalDay: 13).goalHint, isNull);
+      expect(_check(week, easy, 0, goalDay: 13).goalHint, isNull);
+    });
+
+    test('Halbmarathon: zwei Wochen Reduktion (PAR-199)', () {
+      expect(
+        _check(
+          week,
+          easy,
+          8,
+          goalDay: 20,
+          distance: GoalDistance.halfMarathon,
+        ).goalHint,
+        PlanMoveGoalHint.reduction,
+      );
+      expect(_check(week, easy, 8, goalDay: 20).goalHint, isNull);
+    });
+
+    test('offenes Ziel ohne Datum: nie ein Hinweis', () {
+      for (var d = 0; d < 7; d++) {
+        if (d == 1 || d == 3 || d == 5) continue;
+        expect(
+          _check(week, easy, d, distance: null).goalHint,
+          isNull,
+          reason: 'Tag $d',
+        );
+      }
+      // Auch ein Tag, der mit Datum der Zieltag wäre.
+      expect(_check(week, easy, 6, distance: null).goalHint, isNull);
+      expect(_check(week, easy, 6, goalDay: 6).goalHint, isNotNull);
+    });
+
+    test('gesperrte Verschiebung: kein Hinweis', () {
+      final c = _check(week, easy, 5, goalDay: 5);
+      expect(c.blocked, PlanMoveBlock.dayTaken);
+      expect(c.goalHint, isNull);
+    });
+
+    test('Reduktion wie im Wochenverlauf (planWeeklyTime)', () {
+      for (final dist in GoalDistance.values) {
+        final weeks = planWeeklyTime(
+          startMinutes: 60,
+          capMinutes: 240,
+          anchor: _mon,
+          today: _mon,
+          distance: dist,
+          targetDate: _d(27),
+        ).weeks;
+        final unit = _u(1, 0);
+        for (var d = 1; d <= 27; d++) {
+          final phase = weeks[d ~/ 7].phase;
+          final hint = _check(
+            [unit],
+            unit,
+            d,
+            goalDay: 27,
+            distance: dist,
+          ).goalHint;
+          expect(
+            hint,
+            d == 27
+                ? PlanMoveGoalHint.goalDay
+                : phase == PlanPhase.reduction
+                ? PlanMoveGoalHint.reduction
+                : isNull,
+            reason: '$dist Tag $d',
+          );
+        }
+      }
     });
   });
 }

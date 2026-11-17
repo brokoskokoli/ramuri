@@ -4,6 +4,11 @@ import 'package:test/test.dart';
 final now = DateTime.utc(2026, 11, 14, 8);
 const hp = HealthProcessing();
 
+/// Hauptschlafphase zu [now] mit Tagesbeginn 14.11. 00:00 UTC (unabhängig
+/// von der Zeitzone des Systems).
+SleepSession? mainAtNow(List<SleepSession> s) =>
+    hp.mainSleep(s, now, dayStart: DateTime.utc(2026, 11, 14));
+
 DateTime h(double hoursAgo) =>
     now.subtract(Duration(minutes: (hoursAgo * 60).round()));
 
@@ -30,54 +35,150 @@ HealthSample smp(String o, double minutesAfterEpoch, double v) => HealthSample(
 void main() {
   group('Hauptschlafphase PAR-164', () {
     test('längste Sitzung einer Quelle, Nickerchen zählt nicht', () {
-      final m = hp.mainSleep([
+      final m = mainAtNow([
         sess('a', 9, 2), // 7 h
         sess('a', 5, 4), // Nickerchen
         sess('a', 8, 3), // 5 h
-      ], now);
+      ]);
       expect(m!.duration, const Duration(hours: 7));
     });
     test('Grenze 3 h einschließlich, 2:59 nicht', () {
-      expect(hp.mainSleep([sess('a', 5, 2)], now), isNotNull);
+      expect(mainAtNow([sess('a', 5, 2)]), isNotNull);
       expect(
-        hp.mainSleep([
+        mainAtNow([
           SleepSession(
             origin: 'a',
             start: h(5),
             end: h(2).subtract(const Duration(minutes: 1)),
           ),
-        ], now),
+        ]),
         isNull,
       );
     });
-    test('Ende 16 h her einschließlich, 16 h 1 min nicht; Zukunft nicht', () {
-      expect(hp.mainSleep([sess('a', 24, 16)], now), isNotNull);
+    test('gilt bis Mitternacht des Endtags, nicht am Folgetag (feste Uhr)', () {
+      // Ortszeit: Ende 07:00 am 14.11., Beginn 23:00 am Vortag.
+      final night = SleepSession(
+        origin: 'a',
+        start: DateTime(2026, 11, 13, 23).toUtc(),
+        end: DateTime(2026, 11, 14, 7).toUtc(),
+      );
+      DateTime local(int d, int h, [int m = 0]) =>
+          DateTime(2026, 11, d, h, m).toUtc();
+      expect(hp.mainSleep([night], local(14, 7)), isNotNull); // Ende = jetzt
+      expect(hp.mainSleep([night], local(14, 12)), isNotNull);
+      // 23:59 liegt 16 h 59 min nach dem Ende und zählt noch.
+      expect(hp.mainSleep([night], local(14, 23, 59)), isNotNull);
+      expect(hp.mainSleep([night], local(15, 0)), isNull);
+      expect(hp.mainSleep([night], local(15, 6)), isNull);
+      // Vor dem Ende (Zukunft) zählt sie nicht.
+      expect(hp.mainSleep([night], local(14, 6, 59)), isNull);
+    });
+    test('Mitternacht einschließlich: Ende 00:00 zählt für diesen Tag', () {
+      final s = SleepSession(
+        origin: 'a',
+        start: DateTime(2026, 11, 13, 20).toUtc(),
+        end: DateTime(2026, 11, 14).toUtc(),
+      );
+      final at = DateTime(2026, 11, 14, 10).toUtc();
+      expect(hp.mainSleep([s], at), isNotNull);
+      final before = SleepSession(
+        origin: 'a',
+        start: s.start,
+        end: s.end.subtract(const Duration(minutes: 1)),
+      );
+      expect(hp.mainSleep([before], at), isNull);
+    });
+    test('Ende am Vortag zählt nicht, auch wenn weniger als 16 h her', () {
+      // Ende 23:30 am Vortag, jetzt 08:00: 8,5 h her, aber anderer Ortstag.
+      final s = SleepSession(
+        origin: 'a',
+        start: DateTime(2026, 11, 13, 19).toUtc(),
+        end: DateTime(2026, 11, 13, 23, 30).toUtc(),
+      );
+      expect(hp.mainSleep([s], DateTime(2026, 11, 14, 8).toUtc()), isNull);
+    });
+    test('Zeitzone: Mitternacht ist lokal (Versatz +14 h und −10 h)', () {
+      // Gleiche UTC-Zeitpunkte, verschiedene Ortstage.
+      final s = SleepSession(
+        origin: 'a',
+        start: DateTime.utc(2026, 11, 13, 2),
+        end: DateTime.utc(2026, 11, 13, 9, 30),
+      );
+      final now = DateTime.utc(2026, 11, 13, 20);
+      // UTC+14: Ende 23:30 am 13.11., jetzt 10:00 am 14.11. -> Vortag.
+      final plus14 = DateTime.utc(
+        2026,
+        11,
+        14,
+      ).subtract(const Duration(hours: 14));
+      expect(hp.mainSleep([s], now, dayStart: plus14), isNull);
+      // UTC−10: Ende 23:30 am 12.11., jetzt 10:00 am 13.11.; Mitternacht
+      // des 13.11. Ortszeit ist 13.11. 10:00 UTC -> Vortag.
+      final minus10 = DateTime.utc(2026, 11, 13, 10);
+      expect(hp.mainSleep([s], now, dayStart: minus10), isNull);
+      // UTC+0: gleicher Tag.
       expect(
-        hp.mainSleep([
-          SleepSession(
-            origin: 'a',
-            start: h(24),
-            end: h(16).subtract(const Duration(minutes: 1)),
-          ),
-        ], now),
-        isNull,
+        hp.mainSleep([s], now, dayStart: DateTime.utc(2026, 11, 13)),
+        isNotNull,
       );
-      expect(hp.mainSleep([sess('a', 3, -1)], now), isNull);
+      // UTC+5: Ende 14:30 am 13.11., Mitternacht = 12.11. 19:00 UTC.
+      expect(
+        hp.mainSleep([s], now, dayStart: DateTime.utc(2026, 11, 12, 19)),
+        isNotNull,
+      );
     });
+    test(
+      'Sommerzeitwechsel: Mitternacht vor der Umstellung (Versatz +1 h)',
+      () {
+        // Europa/Berlin am 29.03.2026: um 01:00 UTC von +1 h auf +2 h. Der
+        // Ortstag beginnt 28.03. 23:00 UTC (noch +1 h), nicht 22:00 UTC.
+        final dayStart = DateTime.utc(2026, 3, 28, 23);
+        final now = DateTime.utc(2026, 3, 29, 20); // 22:00 Ortszeit (+2 h)
+        SleepSession endingAt(DateTime end) => SleepSession(
+          origin: 'a',
+          start: end.subtract(const Duration(hours: 6)),
+          end: end,
+        );
+        // 22:30 UTC = 23:30 Ortszeit am 28.03. -> Vortag.
+        expect(
+          hp.mainSleep(
+            [endingAt(DateTime.utc(2026, 3, 28, 22, 30))],
+            now,
+            dayStart: dayStart,
+          ),
+          isNull,
+        );
+        // 23:30 UTC = 00:30 Ortszeit am 29.03. -> zählt bis Mitternacht.
+        expect(
+          hp.mainSleep(
+            [endingAt(DateTime.utc(2026, 3, 28, 23, 30))],
+            now,
+            dayStart: dayStart,
+          ),
+          isNotNull,
+        );
+        // Der Tag hat 23 h: 21:59 UTC = 23:59 Ortszeit zählt noch.
+        expect(
+          hp.mainSleep(
+            [endingAt(DateTime.utc(2026, 3, 29, 5))],
+            DateTime.utc(2026, 3, 29, 21, 59),
+            dayStart: dayStart,
+          ),
+          isNotNull,
+        );
+      },
+    );
     test('mehrere Quellen: mit Phasen vor längerer ohne Phasen', () {
       final withStages = sess('b', 8, 2, [
         stage(SleepStageKind.light, 8, 2),
       ]); // 6 h
       final longer = sess('a', 10, 1); // 9 h, ohne Phasen
-      expect(hp.mainSleep([longer, withStages], now)!.origin, 'b');
+      expect(mainAtNow([longer, withStages])!.origin, 'b');
     });
     test('mehrere Quellen ohne Phasen: die längste', () {
-      expect(
-        hp.mainSleep([sess('a', 8, 2), sess('b', 9, 2)], now)!.origin,
-        'b',
-      );
+      expect(mainAtNow([sess('a', 8, 2), sess('b', 9, 2)])!.origin, 'b');
     });
-    test('keine Sitzung', () => expect(hp.mainSleep([], now), isNull));
+    test('keine Sitzung', () => expect(mainAtNow([]), isNull));
   });
 
   group('Schlafzeit PAR-166', () {
@@ -94,6 +195,7 @@ void main() {
       expect(r.efficiencyPercent, closeTo(75, 1e-9));
       expect(r.isEstimate, isFalse);
       expect(r.method.method, 'sleep-summary');
+      expect(r.method.methodVersion, 2); // NFR-0001, PAR-164 bis Mitternacht
       expect(r.method.parameterVersion, 4);
     });
     test('ohne Phasen: Sitzungsdauer, Schätzung, keine Effizienz', () {
@@ -144,6 +246,7 @@ void main() {
       expect(r['b']!.value, 90);
       expect(r['a']!.isFallback, isFalse);
       expect(r['a']!.method.method, 'hrv-rmssd-night');
+      expect(r['a']!.method.methodVersion, 2);
     });
     test(
       'Eintrag außerhalb der Schlafphase zählt nicht, solange es innen gibt',
@@ -210,6 +313,7 @@ void main() {
       expect(r['a']!.sampleCount, 2);
       expect(r['b']!.value, 56);
       expect(r['b']!.method.method, 'resting-hr-day');
+      expect(r['b']!.method.methodVersion, 1);
     });
     test('nur ungültige Werte: keine Quelle; Zeitraum halboffen', () {
       expect(hp.restingHeartRateDaily([smp('a', 10, 20)], from, to), isEmpty);

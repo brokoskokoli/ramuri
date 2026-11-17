@@ -710,8 +710,8 @@ String referenceProblemText(
   ),
   ReferenceProblem.nonPositiveTime => l10n.planReferenceProblemTime,
   ReferenceProblem.paceOutOfRange => l10n.planReferenceProblemPace(
-    formatter.pace(p.fastestReferencePaceSecondsPerKm),
-    formatter.pace(p.slowestReferencePaceSecondsPerKm),
+    formatter.paceLimit(p.fastestReferencePaceSecondsPerKm, fastest: true),
+    formatter.paceLimit(p.slowestReferencePaceSecondsPerKm, fastest: false),
   ),
   ReferenceProblem.dateInFuture => l10n.planReferenceProblemDate,
 };

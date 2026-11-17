@@ -233,6 +233,13 @@ void main() {
     await waitFor(t, () => has('plan_warning_dialog'), 'Rueckfrage Melden');
     await tapDialog(t, 'plan_warning_confirm');
     await waitFor(t, () => has('plan_warning_banner'), 'Banner');
+    // Das Banner erscheint vor der Neuberechnung; die Fassung folgt, wenn
+    // die Fortschrittsanzeige verschwindet.
+    await waitFor(
+      t,
+      () => !has('plan_warning_progress'),
+      'Neuberechnung fertig',
+    );
     final reported = await t.runAsync(store.read);
     expect(reported, isNotNull, reason: 'Warnsignal gespeichert');
     expect((await t.runAsync(plans.history))!.length, greaterThan(versions));

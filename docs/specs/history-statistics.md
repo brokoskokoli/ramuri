@@ -41,12 +41,16 @@ Jeder Lauf verfügt über eine Detailansicht mit GPS-Route, Zeitverlauf und Mess
 
 ### FR-0042 — Pace und Herzfrequenz zeitlich vergleichen
 - **Status:** Approved | **Phase:** 1
-- **Quelle:** SRC-001 §5.1, Z. 199
+- **Quelle:** SRC-001 §5.1, Z. 199; SRC-003 (Maintainer 2026-11-15)
+- **Verwandt:** FR-0193
 
 Im Diagramm sollen beispielsweise Pace und Herzfrequenz zeitlich miteinander verglichen werden können.
 
+**Festlegung (SRC-003, 2026-11-15):** Pausen und Ausfälle nach Absturz erscheinen in den Diagrammen als Lücke: keine verbindende Linie, gleiche Darstellung wie eine Pause; der Text für Bedienungshilfen nennt sie wie eine Pause.
+
 **Akzeptanzkriterien:**
 - [ ] Messwerte wie Pace und Herzfrequenz lassen sich im Diagramm zeitlich vergleichen.
+- [ ] Ein Ausfall nach Absturz erscheint in den Diagrammen als Lücke wie eine Pause.
 
 ### FR-0043 — Statistische Kennzahlen
 - **Status:** Approved | **Phase:** 1 (je Kennzahl abhängig von der liefernden Funktion)

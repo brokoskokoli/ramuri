@@ -318,6 +318,8 @@ extension _PlanCalendarActions on _PlanCalendarState {
           if (r.intensive) r.day,
       ],
       runDays: goal.runDays,
+      targetDate: goal.targetDate,
+      distance: goal.distance,
       parameters: widget.controller.parameters,
     );
   }

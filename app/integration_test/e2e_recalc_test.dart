@@ -369,11 +369,13 @@ Future<void> _scenario(WidgetTester tester) async {
     'S3 progress_visible=${find.byKey(const Key('recalc_progress')).evaluate().isNotEmpty}',
   );
   await _pumpUntilGone(tester, find.byKey(const Key('recalc_confirm')));
+  // Das Ergebnis kommt als Snackbar, die Karte zeigt keins.
+  await _pumpUntil(tester, find.byKey(const Key('recalc_done')));
+  final done = tester.widget<SnackBar>(find.byKey(const Key('recalc_done')));
+  log('S3 snackbar=${(done.content as Text).data}');
+  expect(find.byKey(const Key('recalc_status')), findsNothing);
   await tester.pumpAndSettle(const Duration(seconds: 1));
   expect(find.byKey(const Key('recalc_confirm')), findsNothing);
-  log(
-    'S3 status=${tester.widget<Text>(find.byKey(const Key('recalc_status'))).data}',
-  );
   final s3 = await tester.runAsync(() => _dump('S3')) as String;
   expect(s3, isNot(s3a));
   expect(s3, contains('cur='));

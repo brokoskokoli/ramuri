@@ -33,8 +33,8 @@ String archiveImportMessage(AppLocalizations l10n, Object error) {
     return switch (error.failure) {
       ArchiveRestoreFailure.swapFailed => l10n.archiveImportSwapFailed,
       ArchiveRestoreFailure.reopenFailed => l10n.archiveImportReopenFailed,
-      ArchiveRestoreFailure.notEmpty ||
-      ArchiveRestoreFailure.keyUnavailable => l10n.archiveImportFailed,
+      ArchiveRestoreFailure.notEmpty => l10n.archiveImportNotEmpty,
+      ArchiveRestoreFailure.keyUnavailable => l10n.archiveImportKeyUnavailable,
     };
   }
   return l10n.archiveImportFailed;
@@ -99,6 +99,24 @@ Future<bool> confirmArchiveImport(
     },
   );
   return ok == true;
+}
+
+/// Vorprüfung der gewählten Datei [path] mit [check], bevor nach dem Passwort
+/// gefragt wird (FR-0198): Eine fremde Datei, eine zu kurze oder eine nicht
+/// lesbare Version meldet der Fehlerdialog; es wurde nichts geändert. `true`:
+/// weiter zur Passwortabfrage.
+Future<bool> precheckPickedArchive(
+  BuildContext context,
+  ArchiveHeaderCheck check,
+  String path,
+) async {
+  try {
+    await check(path);
+    return true;
+  } on Object catch (e) {
+    if (context.mounted) await showArchiveImportError(context, e);
+    return false;
+  }
 }
 
 /// Fragt das Passwort einmal ab (verdeckt, ohne Autofill). `null`: abgebrochen.
