@@ -38,6 +38,10 @@ jobs:
         with:
           flutter-version-file: app/pubspec.yaml
           cache: true
+      # NDK vor dem ersten Gradle-Build fest installieren (Version aus der Flutter-Version, bis zu zwei
+      # Wiederholungen); sonst lädt Gradle es im Build nach, und ein beschädigter Download bricht ab.
+      - name: Android-NDK installieren
+        run: bash tool/ci_ndk.sh
       - name: Gate
         run: sh tool/gate.sh
       - name: Signierter Build
