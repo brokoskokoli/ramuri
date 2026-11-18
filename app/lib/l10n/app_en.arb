@@ -972,6 +972,8 @@
   "loadSettingsShowOffer": "Go to confirmation",
   "loadSettingsOpenProfile": "Go to profile",
   "loadSettingsNotApplicable": "This profile is currently not applicable. Nothing was changed.",
+  "loadSwitchedToEdwardsResting": "Load profile switched to Edwards: Banister needs the resting heart rate.",
+  "loadSwitchedToEdwardsCoefficients": "Load profile switched to Edwards: Banister needs the coefficients.",
   "loadSettingsAllRecordedTitle": "All sessions are recorded",
   "loadSettingsAllRecordedExplain": "When on, days without a recorded session count as rest days (load 0). When off, empty days stay open and the course stays provisional.",
   "loadCoefficientsTitle": "Coefficients of the Banister model",
