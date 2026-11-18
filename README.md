@@ -23,6 +23,8 @@ Der Push eines Tags startet `.github/workflows/release.yml`. Die Pipeline prüft
 
 **Nightly:** `tool/build_signed.sh --nightly` baut aus dem aktuellen Commit nur die APK `dist/ramuri-nightly.apk` mit `SHA256SUMS.txt` (kein AAB); `tool/build_signed.sh --print-version --nightly` zeigt nur die Version. Basis ist der jüngste Tag `vX.Y.Z` oder `vX.Y.Z-rcN`, der Vorfahre des Commits ist (ohne solchen Tag `0.0.0` mit `versionCode` 1). `versionCode` ist der der Basis, so dass jedes spätere RC oder Release als Update angenommen wird. `versionName` ist `<Basis ohne v>-nightly.<JJJJMMTT>+<7 Zeichen Commit>`, das Datum in UTC aus der Commit-Zeit, z. B. `0.1.0-rc1-nightly.20261118+2c61ca1`. Ein Nightly ist ungeprüft. Er wird mit dem Release-Schlüssel signiert und hat dieselbe App-ID, lässt sich also über eine installierte offizielle Version installieren und umgekehrt.
 
+**Nightly auf GitHub:** `.github/workflows/nightly.yml` baut jede Nacht um 03:00 UTC (und von Hand per `workflow_dispatch`) den aktuellen `main` nach vollem Gate mit `tool/build_signed.sh --nightly` und veröffentlicht die APK als Pre-Release `nightly` (nicht „Latest“) unter <https://github.com/brokoskokoli/ramuri/releases/tag/nightly> mit den Anhängen `ramuri-nightly.apk` und `SHA256SUMS.txt`. Zeigt der Tag `nightly` schon auf den Kopf von `main`, überspringt der nächtliche Lauf den Build; ein Lauf von Hand baut immer. Es gibt nur einen Nightly: Tag und Release werden ersetzt, ein roter Lauf lässt den vorigen unverändert. Die APK prüfst du wie unten mit `apksigner verify --print-certs ramuri-nightly.apk`.
+
 **APK prüfen:** `apksigner verify --print-certs dist/ramuri-0.1.0-rc1.apk` muss diesen SHA-256 des Zertifikats zeigen:
 
 `1c7e8472f5e705814fe65808ad7f506f903e198f4ba8543a97bbb0f4d4b602c5`
