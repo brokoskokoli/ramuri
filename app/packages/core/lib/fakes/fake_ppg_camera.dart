@@ -20,6 +20,24 @@ class FakePpgCamera implements PpgCamera {
   /// `false`: der Strom sendet nie [PpgCameraStarted] (Kamera hängt beim Öffnen).
   bool sendStarted = true;
 
+  /// Liste für [cameras]; Vorgabe: eine nutzbare Standardkamera `0`. Die erste mit
+  /// `isDefault` ist die Standardkamera.
+  List<PpgCameraInfo> cameraList = const [
+    PpgCameraInfo(ref: PpgCameraRef('0'), focalLengthMm: 4.2, isDefault: true),
+  ];
+
+  /// Zahl der Aufrufe von [cameras].
+  int camerasCount = 0;
+
+  /// Argument `camera` jedes [start] in Reihenfolge (`null` = ohne Angabe).
+  final List<PpgCameraRef?> startedWith = [];
+
+  @override
+  Future<List<PpgCameraInfo>> cameras() async {
+    camerasCount++;
+    return List.unmodifiable(cameraList);
+  }
+
   set availabilityState(PpgCameraAvailability a) => _availability = a;
 
   /// Antwort auf die Rechteanfrage; vorgabe: unverändert.
@@ -36,25 +54,43 @@ class FakePpgCamera implements PpgCamera {
   }
 
   @override
-  Stream<PpgCameraEvent> start() {
+  Stream<PpgCameraEvent> start({PpgCameraRef? camera}) {
     late final StreamController<PpgCameraEvent> c;
     c = StreamController<PpgCameraEvent>(
       onListen: () {
         startCount++;
-        final reason = switch (_availability) {
+        startedWith.add(camera);
+        var reason = switch (_availability) {
           PpgCameraAvailability.available => null,
           PpgCameraAvailability.noCamera => PpgCameraStopReason.noCamera,
           PpgCameraAvailability.noFlash => PpgCameraStopReason.noFlash,
           PpgCameraAvailability.permissionDenied =>
             PpgCameraStopReason.permissionDenied,
         };
+        // Wie der Android-Teil: die angegebene Kamera oder die Standardkamera, nie eine andere.
+        PpgCameraInfo? info;
+        if (reason == null) {
+          for (final i in cameraList) {
+            if (camera == null ? i.isDefault : i.ref == camera) {
+              info = i;
+              break;
+            }
+          }
+          reason = switch (info?.unusable) {
+            _ when info == null => PpgCameraStopReason.noCamera,
+            null => null,
+            PpgCameraUnusable.noFlash => PpgCameraStopReason.noFlash,
+            PpgCameraUnusable.frameRate => PpgCameraStopReason.frameRate,
+            PpgCameraUnusable.other => PpgCameraStopReason.error,
+          };
+        }
         if (reason != null) {
           c.add(PpgCameraStopped(reason));
           c.close();
           return;
         }
         torchOn = true;
-        if (sendStarted) c.add(const PpgCameraStarted(60));
+        if (sendStarted) c.add(PpgCameraStarted(60, info!.ref));
       },
       onCancel: () => _release(c),
     );

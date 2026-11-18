@@ -204,6 +204,7 @@ export 'src/reminders/training_reminders.dart';
 export 'src/settings/developer_mode.dart';
 export 'src/settings/display_settings.dart';
 export 'src/settings/load_settings.dart';
+export 'src/settings/ppg_camera_choice.dart';
 export 'src/settings/reserve_zone_settings.dart';
 export 'src/recording/belt_track.dart';
 export 'src/recording/cadence_estimator.dart';
