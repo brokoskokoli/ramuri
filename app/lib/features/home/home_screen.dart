@@ -23,6 +23,7 @@ import '../settings/unit_format.dart';
 import 'data_changes.dart';
 import '../readiness/readiness_card.dart';
 import '../readiness/readiness_service.dart';
+import '../readiness/readiness_today.dart';
 import 'home_recovery.dart';
 import 'home_start_row.dart';
 import 'overview_screen.dart';
@@ -222,33 +223,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     widget.clock,
   ).catchError((Object _) => const HomeHints());
 
-  Future<ReadinessSnapshot?> _loadReadiness() async {
-    try {
-      return await ReadinessService(
-        session: widget.session,
-        clock: widget.clock,
-        loadToday: _loadToday,
-      ).load();
-    } on Object {
-      return null;
-    }
-  }
-
-  /// Letzter Tag des Belastungsverlaufs (WP19) für den Faktor Belastung, rein
-  /// lesend: Heute übernimmt oder bietet keinen Faktor an.
-  Future<LoadDay?> _loadToday() async {
-    final report = await TrainingLoadService(
-      session: widget.session,
-      clock: widget.clock,
-      calculation: ValueCalculationService(
-        session: widget.session,
-        clock: widget.clock,
-      ),
-      recalculation: widget.recalculation.service,
-    ).loadReadOnly();
-    final days = report.series.days;
-    return days.isEmpty ? null : days.last;
-  }
+  Future<ReadinessSnapshot?> _loadReadiness() => loadReadinessToday(
+    session: widget.session,
+    clock: widget.clock,
+    recalculation: widget.recalculation.service,
+  );
 
   void _reloadHints() {
     if (!mounted) return;

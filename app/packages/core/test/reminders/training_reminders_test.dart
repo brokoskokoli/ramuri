@@ -151,7 +151,8 @@ void main() {
         ],
         settings: _on,
         now: now,
-        planEnd: _d(11, 14),
+        // Zieldatum wie aus dem Speicher: lokale Mitternacht (DateTime.parse).
+        planEnd: DateTime(2026, 11, 14),
       );
       expect([for (final x in r) x.day], [_d(11, 10), _d(11, 14)]);
     });
@@ -261,7 +262,7 @@ void main() {
     late _Plans plans;
 
     setUp(() {
-      data = FakeStorageData()..goal = _goal(DateTime.utc(2027, 6, 1));
+      data = FakeStorageData()..goal = _goal(DateTime(2027, 6, 1));
       settings = FakeSettingsStore(data);
       scheduler = FakeReminderScheduler(granted: true);
       plans = _Plans([

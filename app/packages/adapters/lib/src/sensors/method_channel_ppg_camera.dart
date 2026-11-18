@@ -52,6 +52,52 @@ class MethodChannelPpgCamera implements PpgCamera {
     }
   }
 
+  /// Wandelt einen Eintrag der Kameraliste von Kotlin; Unpassendes entfällt.
+  static PpgCameraInfo? parseCamera(Object? m) {
+    if (m is! Map) return null;
+    final ref = _ref(m);
+    final usable = m['usable'];
+    final isDefault = m['isDefault'];
+    if (ref == null || usable is! bool || isDefault is! bool) return null;
+    final focal = m['focalLength'];
+    return PpgCameraInfo(
+      ref: ref,
+      focalLengthMm: focal is num && focal.isFinite && focal > 0
+          ? focal.toDouble()
+          : null,
+      isDefault: isDefault,
+      unusable: usable
+          ? null
+          : switch (m['reason']) {
+              'no_flash' => PpgCameraUnusable.noFlash,
+              'frame_rate' => PpgCameraUnusable.frameRate,
+              _ => PpgCameraUnusable.other,
+            },
+    );
+  }
+
+  static PpgCameraRef? _ref(Map<Object?, Object?> m) {
+    final id = m['cameraId'];
+    final physical = m['physicalCameraId'];
+    if (id is! String || id.isEmpty) return null;
+    if (physical != null && (physical is! String || physical.isEmpty)) {
+      return null;
+    }
+    return PpgCameraRef(id, physical as String?);
+  }
+
+  @override
+  Future<List<PpgCameraInfo>> cameras() async {
+    try {
+      final list = await _method.invokeMethod<List<Object?>>('cameras');
+      return [for (final m in list ?? const <Object?>[]) ?parseCamera(m)];
+    } on PlatformException {
+      return const [];
+    } on MissingPluginException {
+      return const [];
+    }
+  }
+
   static PpgCameraStopReason _reason(Object? s) => switch (s) {
     'permission_denied' => PpgCameraStopReason.permissionDenied,
     'no_camera' => PpgCameraStopReason.noCamera,
@@ -110,7 +156,10 @@ class MethodChannelPpgCamera implements PpgCamera {
         );
       case 'started':
         final fps = event['fps'];
-        return fps is int ? PpgCameraStarted(fps) : null;
+        final camera = _ref(event);
+        return fps is int && camera != null
+            ? PpgCameraStarted(fps, camera)
+            : null;
       case 'locked':
         return const PpgCameraExposureLocked();
       case 'stopped':
@@ -123,25 +172,34 @@ class MethodChannelPpgCamera implements PpgCamera {
   /// die Kamera bliebe mit Torch an. Abbestellen meldet sich in Kotlin über onCancel
   /// (Torch aus, Sitzung und Gerät zu).
   @override
-  Stream<PpgCameraEvent> start() {
+  Stream<PpgCameraEvent> start({PpgCameraRef? camera}) {
+    // Ohne Angabe kein Argument: Kotlin nimmt die Standardkamera wie vor FR-0220.
+    final args = camera == null
+        ? null
+        : <String, Object?>{
+            'cameraId': camera.cameraId,
+            'physicalCameraId': camera.physicalCameraId,
+          };
     late final StreamController<PpgCameraEvent> out;
     out = StreamController<PpgCameraEvent>(
       onListen: () {
-        _sub = _events.receiveBroadcastStream().listen(
-          (event) {
-            final e = parse(event);
-            if (e == null) return;
-            out.add(e);
-            if (e is PpgCameraStopped) out.close();
-          },
-          // Fehler des Kanals (z. B. Kamera weg): Ereignis mit Grund, dann Ende; kein Absturz.
-          onError: (Object error) {
-            final code = error is PlatformException ? error.code : null;
-            out.add(PpgCameraStopped(_reason(code)));
-            out.close();
-          },
-          onDone: out.close,
-        );
+        _sub = _events
+            .receiveBroadcastStream(args)
+            .listen(
+              (event) {
+                final e = parse(event);
+                if (e == null) return;
+                out.add(e);
+                if (e is PpgCameraStopped) out.close();
+              },
+              // Fehler des Kanals (z. B. Kamera weg): Ereignis mit Grund, dann Ende; kein Absturz.
+              onError: (Object error) {
+                final code = error is PlatformException ? error.code : null;
+                out.add(PpgCameraStopped(_reason(code)));
+                out.close();
+              },
+              onDone: out.close,
+            );
       },
       onCancel: () {
         if (!identical(_active, out)) return null;

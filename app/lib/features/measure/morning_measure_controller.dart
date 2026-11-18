@@ -78,6 +78,7 @@ class MorningMeasureController extends ChangeNotifier {
     PpgBestEvaluate? evaluateBest,
     PpgRecordingCheckRun? check,
     this.developerMode,
+    Future<PpgCameraRef?> Function()? cameraChoice,
     bool autoTick = true,
     this.validationState = ppgValidationState,
     this.marksFor,
@@ -89,6 +90,7 @@ class MorningMeasureController extends ChangeNotifier {
          evaluateBest: evaluateBest,
          check: check,
          searchWindow: true,
+         cameraChoice: cameraChoice,
          autoTick: autoTick,
        ) {
     engine.setPosture(RestingPosture.lying);

@@ -5,7 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../../ui/ui.dart';
 import '../export/file_handoff_scope.dart';
 
-/// Messpaare Kamera und Gurt im Abschnitt Entwickler auf „Über“ (WP33 Teil E,
+/// Messpaare Kamera und Gurt auf den Entwicklereinstellungen (WP33 Teil E,
 /// K62 F4, Design `morgen/Ueber`): Zahl der Morgen mit und ohne Gurt-RR und der
 /// Knopf „Messpaare als CSV teilen“. Vor dem Teilen warnt ein Dialog, dass die
 /// Datei unverschlüsselt ist (wie bei der Zusatzmetriken-CSV, K57). Erst „Teilen“

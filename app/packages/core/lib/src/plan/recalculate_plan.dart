@@ -9,6 +9,8 @@ import 'plan_goal_fingerprint.dart';
 import 'plan_hints.dart';
 import 'plan_inputs.dart';
 import 'plan_parameters.dart';
+import 'plan_recovery.dart';
+import 'plan_replace.dart' show checkPlanReplace;
 import 'plan_unit.dart';
 import 'plan_warning.dart';
 import 'weekly_time.dart' show planDay;
@@ -81,6 +83,17 @@ class PlanRecalculation {
 ///
 /// [markChecked] `false`: `plan.last_check_day` bleibt unverändert (die
 /// Wochenprüfung ist noch nicht gelaufen und bleibt fällig).
+///
+/// Erholung (PAR-173, FR-0216): Der Schalter steht in [settings]
+/// ([planAdaptationKey], Vorgabe „fix“). Bei „adaptiv“ wird eine offene harte
+/// Einheit ab heute locker, wenn [readiness] für genau ihren Tag einen Wert im
+/// Band „Erhöhte Belastung“ oder „Erholung empfohlen“ enthält
+/// ([applyRecoveryEase]); die Lockerung steht im `summary`
+/// ([planRecoveryKey]) und gilt für den Tag weiter, auch bei späteren
+/// Neuberechnungen ohne oder mit besserem Wert. Bei „fix“ ändert [readiness]
+/// nichts, und eine Lockerung ab heute entfällt. Eine gelockerte Einheit vor
+/// heute zählt weiter als harte Einheit ihrer Woche. Das Warnsignal liegt
+/// darüber (Vorrang, K58).
 Future<PlanRecalculation> recalculatePlan({
   required PlanRepository plans,
   required SettingsStore settings,
@@ -92,6 +105,7 @@ Future<PlanRecalculation> recalculatePlan({
   PlanParameters parameters = const PlanParameters(),
   WarningStore? warning,
   bool markChecked = true,
+  Iterable<PlanReadinessDay> readiness = const [],
 }) async {
   Future<PlanRecalculation> once() => _recalculateOnce(
     plans: plans,
@@ -104,6 +118,7 @@ Future<PlanRecalculation> recalculatePlan({
     parameters: parameters,
     warning: warning,
     markChecked: markChecked,
+    readiness: readiness,
   );
   try {
     return await once();
@@ -124,6 +139,7 @@ Future<PlanRecalculation> _recalculateOnce({
   PlanParameters parameters = const PlanParameters(),
   WarningStore? warning,
   bool markChecked = true,
+  Iterable<PlanReadinessDay> readiness = const [],
 }) async {
   final todayDay = planDay(today);
   final goal = await plans.currentGoal();
@@ -159,12 +175,30 @@ Future<PlanRecalculation> _recalculateOnce({
   // wieder darüber. Der Vergleich (`summary`) gilt dem gezeigten Plan.
   final warned = warning != null && await warning.read() != null;
   final lastHeld = last == null ? null : warningHeldFromSummary(last.summary);
-  final base = lastHeld == null
+  final unwarned = lastHeld == null
       ? oldFuture
       : restoreWarningHeld(oldFuture, lastHeld);
-  final bridgeKept = lastHeld == null
-      ? bridge
-      : restoreWarningHeld(bridge, lastHeld);
+  // Erholung (PAR-173): ebenso von der Fassung ohne Lockerung ausgehen; die
+  // Lockerung von heute legt [applyRecoveryEase] danach wieder darüber.
+  final mode = PlanAdaptationMode.fromStorage(
+    await settings.get(planAdaptationKey),
+  );
+  final lastEased = last == null
+      ? const <RecoveryEased>[]
+      : recoveryEasedFromSummary(last.summary);
+  final heldEased = [
+    for (final e in lastEased)
+      if (!e.day.isBefore(todayDay)) e,
+  ];
+  final pastEased = [
+    for (final e in lastEased)
+      if (e.day.isBefore(todayDay) && !e.day.isBefore(_mondayOf(todayDay))) e,
+  ];
+  final bridgeKept = restoreRecoveryEased(
+    lastHeld == null ? bridge : restoreWarningHeld(bridge, lastHeld),
+    heldEased,
+  );
+  final base = restoreRecoveryEased(unwarned, heldEased);
   final pinned = lastHeld == null
       ? shownPinned
       : [
@@ -183,6 +217,7 @@ Future<PlanRecalculation> _recalculateOnce({
     pinnedUnits: automatic ? base : pinned,
     heldDays: automatic ? {for (final u in base) planDay(u.day)} : null,
     heldUntil: automatic ? _heldUntil(base) : null,
+    easedHardDays: {for (final e in pastEased) e.day},
     parameters: parameters,
   );
   if (automatic) {
@@ -196,6 +231,17 @@ Future<PlanRecalculation> _recalculateOnce({
       ],
     );
   }
+  final recovery = applyRecoveryEase(
+    units: generated.units,
+    today: todayDay,
+    mode: mode,
+    readiness: readiness,
+    held: heldEased,
+    ease: (u) => _eased(u, goal, use, todayDay, parameters),
+  );
+  generated = generated.copyWith(units: recovery.units);
+  final eased = [...pastEased, ...recovery.eased];
+  // Warnsignal zuletzt: Es hat Vorrang vor der Lockerung (PAR-173, K58).
   final held = warned ? warningHeldOf(generated.units, todayDay) : null;
   if (warned) {
     generated = generated.copyWith(
@@ -248,6 +294,8 @@ Future<PlanRecalculation> _recalculateOnce({
       summary: {
         ...summary.toJson(),
         if (held != null) planWarningKey: [for (final h in held) h.toJson()],
+        if (eased.isNotEmpty)
+          planRecoveryKey: [for (final e in eased) e.toJson()],
         planHintsKey: planHintsToJson(generated),
         if (keepsGoalPending
                 ? last.summary[planGoalFingerprintKey]
@@ -304,6 +352,28 @@ GeneratedPlan previewPlan({
     pinnedUnits: pinned,
     parameters: parameters,
   );
+}
+
+/// [u] als lockerer Lauf gleicher Dauer (PAR-173): Abschnitte und
+/// Zielintensität wie beim Ersetzen ([checkPlanReplace]), Tag, Termin und
+/// Festlegung bleiben. Geht das nicht, bleibt [u].
+PlanUnit _eased(
+  PlanUnit u,
+  TrainingGoal goal,
+  PlanInputs inputs,
+  DateTime today,
+  PlanParameters parameters,
+) {
+  final c = checkPlanReplace(
+    units: [u],
+    unit: u,
+    kind: PlanUnitKind.easy,
+    goal: goal,
+    inputs: inputs,
+    today: today,
+    parameters: parameters,
+  );
+  return c.unit?.copyWith(pinned: u.pinned, fixed: u.fixed) ?? u;
 }
 
 /// Alles außer Anlegen, Zieländerung und ausdrücklicher Neuberechnung.

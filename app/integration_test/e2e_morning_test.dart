@@ -200,6 +200,7 @@ void main() {
     await entryLoaded(t, MorningTile, 'S1 Uebersicht');
     expect(has('overview_morning'), isFalse, reason: 'S1 kein Eintrag');
     expect(has('overview_morning_values'), isFalse, reason: 'S1 kein Verlauf');
+    expect(has('overview_developer'), isFalse, reason: 'S1 keine Entw.-Seite');
     await shot(t, 's1_uebersicht_ohne');
     log('S1 ok');
 
@@ -223,7 +224,7 @@ void main() {
         .isNotEmpty;
     await waitFor(t, toastOneLeft, 'S2 neun Tipps gezaehlt (about_toast)');
     expect(has('about_dev_badge'), isFalse, reason: 'S2 nach 9 Tipps aus');
-    expect(has('about_dev_section'), isFalse);
+    expect(has('about_dev_link'), isFalse);
     await shot(t, 's2_ueber_9tipps');
     await back(t);
     await tapKey(t, 'overview_about'); // Zaehlung gilt nur je Seitenbesuch
@@ -242,8 +243,14 @@ void main() {
     await waitFor(t, () => has('about_dev_badge'), 'Entwicklermodus an');
     await waitFor(
       t,
-      () => has('about_dev_section'),
-      'S2 Entwicklerabschnitt (about_dev_section)',
+      () => has('about_dev_link'),
+      'S2 Verweis Entwicklereinstellungen (about_dev_link)',
+    );
+    // Auf „Über“ selbst gibt es keinen Entwicklerabschnitt mehr.
+    expect(
+      has('about_dev_section'),
+      isFalse,
+      reason: 'S2 Ueber ohne Abschnitt',
     );
     expect(
       (await t.runAsync(
@@ -259,6 +266,12 @@ void main() {
       t,
       () => has('overview_morning'),
       'Eintrag in der Uebersicht nach Rueckkehr',
+      timeout: const Duration(seconds: 10),
+    );
+    await waitFor(
+      t,
+      () => has('overview_developer'),
+      'S2 Entwicklereinstellungen in der Uebersicht (overview_developer)',
       timeout: const Duration(seconds: 10),
     );
     await back(t);
@@ -634,14 +647,15 @@ void main() {
     expect(pairs.without, base0.without + 5);
     await closeResultToHome(t);
     await tapKey(t, 'home_overview');
-    await tapKey(t, 'overview_about');
+    await waitFor(t, () => has('overview_developer'), 'S6 Uebersicht');
+    await tapKey(t, 'overview_developer');
     await waitFor(
       t,
       () => has('about_pairs_count') && txt('about_pairs_count').isNotEmpty,
       'Zaehler geladen (about_pairs_count)',
     );
     log('S6 zaehler_text_laenge=${txt('about_pairs_count').length}');
-    await shot(t, 's6_ueber_paare');
+    await shot(t, 's6_entwickler_paare');
     await tapKey(t, 'about_pairs_share');
     await waitFor(t, () => has('about_pairs_dialog'), 'Warnung');
     await shot(t, 's6_warnung');
@@ -666,7 +680,7 @@ void main() {
     // 7) Ruhephase ueberspringen: die Messung startet sofort, der Fortschritt
     // zeigt „Gutes Signal“, das Ergebnis kommt, der Vermerk ist gespeichert.
     // Zeitraffer langsamer, damit der Fortschritt sichtbar bleibt.
-    await back(t); // Ueber -> Uebersicht
+    await back(t); // Entwicklereinstellungen -> Uebersicht
     final countBefore7 = (await stored(t, s)).length;
     cam.speed = 10;
     await tapKey(t, 'overview_morning');
@@ -715,24 +729,33 @@ void main() {
     log('S7 vermerk_nach_s=${skipped.restSkippedAfterS!.toStringAsFixed(1)}');
     await closeResultToHome(t);
     await tapKey(t, 'home_overview');
-    await tapKey(t, 'overview_about');
-    await waitFor(t, () => has('about_dev_switch'), 'S7 zurueck in Ueber');
+    await waitFor(t, () => has('overview_developer'), 'S7 Uebersicht');
+    await tapKey(t, 'overview_developer');
+    await waitFor(
+      t,
+      () => has('about_dev_switch'),
+      'S7 Entwicklereinstellungen',
+    );
 
-    // 8) Entwicklermodus aus: Einstieg weg.
+    // 8) Entwicklermodus aus: Seite zu, Eintraege weg.
     await tapKey(t, 'about_dev_switch');
     await waitFor(
       t,
-      () => !has('about_dev_section'),
-      'Entwicklerabschnitt weg',
+      () => !has('about_dev_switch') && has('overview_about'),
+      'S8 Entwicklereinstellungen geschlossen',
     );
-    await shot(t, 's8_ueber_aus');
+    await waitFor(
+      t,
+      () => !has('overview_developer'),
+      'S8 Eintrag Entwicklereinstellungen weg',
+    );
+    await shot(t, 's8_uebersicht_aus');
     expect(
       (await t.runAsync(
         () => SettingsDeveloperModeStore(s.settings, w.deps.clock).read(),
       )),
       isFalse,
     );
-    await back(t);
     await back(t);
     await waitFor(t, () => has('home_start_run'), 'Heute');
     await waitFor(t, () => !has('morning_card'), 'Karte weg');

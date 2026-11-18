@@ -193,10 +193,12 @@ Der Nutzer kann ein Training mit Datum, Art, Dauer und RPE nachtragen. Es geht i
 
 ### FR-0197 — Belastungsprofil wählen
 - **Status:** Approved | **Phase:** 2
-- **Quelle:** SRC-003 (Maintainer 2026-11-03)
+- **Quelle:** SRC-003 (Maintainer 2026-11-03, 2026-11-15, 2026-11-17)
 - **Verwandt:** FR-0097, NFR-0005, OQ-0043, OQ-0045, OQ-0053
 
 Der Nutzer kann in Phase 2 sein Belastungsprofil auswählen, nach dem gerechnet wird. Startvariante ist der Edwards-TRIMP (OQ-0002).
+
+**Festlegung (OQ-0053):** Fallen Ruhepuls oder Koeffizienten weg, während Banister gewählt ist, bietet die App an, zu Edwards zurückzukehren und alte Läufe neu zu rechnen. Lehnt der Nutzer ab, bleibt Banister gewählt; der TRIMP neuer Läufe ist dann nicht verfügbar, bis die Angaben wieder vorliegen oder der Nutzer wechselt. Die App wechselt das Modell nie still. Gibt es keine Läufe mit Werten, stellt die App ohne Nachfrage auf Edwards um und weist darauf hin.
 
 **Akzeptanzkriterien:**
 - [ ] Nach einer Auswahl rechnet die App mit dem gewählten Profil, und das verwendete Profil ist erkennbar.

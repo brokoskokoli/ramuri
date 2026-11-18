@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:running_app/features/home/app_shell.dart';
@@ -26,6 +27,42 @@ List<int> _exits(WidgetTester tester) {
   return exits;
 }
 
+const _tabKeys = [
+  'home_today',
+  'home_plan',
+  'home_history',
+  'home_statistics',
+  'home_profile_tab',
+];
+
+/// Prüft jede Beschriftung der Leiste: eine Zeile, nicht gekürzt, ganz in
+/// ihrem Eintrag und in der Leiste; jeder Eintrag mindestens 48 dp.
+void _expectLabelsFit(WidgetTester tester, String reason) {
+  final bar = tester.getRect(find.byType(NavigationBar));
+  for (final k in _tabKeys) {
+    final entry = find.byKey(Key(k));
+    final box = tester.getRect(entry);
+    expect(box.width, greaterThanOrEqualTo(48), reason: '$reason $k');
+    expect(box.height, greaterThanOrEqualTo(48), reason: '$reason $k');
+    final label = tester.widget<NavigationDestination>(entry).label;
+    final text = find.descendant(of: entry, matching: find.text(label));
+    expect(text, findsOneWidget, reason: '$reason $k');
+    final p = tester.renderObject<RenderParagraph>(text);
+    expect(p.didExceedMaxLines, isFalse, reason: '$reason $label');
+    // Kein Umbruch: die Zeile passt in voller Breite.
+    expect(
+      p.size.width,
+      greaterThanOrEqualTo(p.getMaxIntrinsicWidth(double.infinity) - 0.01),
+      reason: '$reason $label',
+    );
+    final r = tester.getRect(text);
+    expect(r.left, greaterThanOrEqualTo(box.left), reason: '$reason $label');
+    expect(r.right, lessThanOrEqualTo(box.right), reason: '$reason $label');
+    expect(r.top, greaterThanOrEqualTo(bar.top), reason: '$reason $label');
+    expect(r.bottom, lessThanOrEqualTo(bar.bottom), reason: '$reason $label');
+  }
+}
+
 void main() {
   testWidgets('Navigation: Heute, Verlauf, Fortschritt (FR-0208)', (
     tester,
@@ -50,6 +87,110 @@ void main() {
     await tester.tap(key('home_today'));
     await tester.pumpAndSettle();
     expect(key('home_screen'), findsOneWidget);
+  });
+
+  testWidgets('Profil ganz rechts zeigt die Übersicht; Zurück führt zu Heute', (
+    tester,
+  ) async {
+    await started(tester);
+    final exits = _exits(tester);
+    final keys = tester
+        .widgetList<NavigationDestination>(find.byType(NavigationDestination))
+        .map((d) => (d.key! as ValueKey<String>).value)
+        .toList();
+    expect(keys.last, 'home_profile_tab');
+    final profile = find.byKey(const Key('home_profile_tab'));
+    expect(
+      find.descendant(of: profile, matching: find.text('Profil')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: profile,
+        matching: find.byIcon(Icons.person_outline_rounded),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(profile);
+    await tester.pumpAndSettle();
+    // Die Übersicht mit ihren Einträgen, die Leiste bleibt.
+    expect(key('home_screen'), findsNothing);
+    expect(find.text('Übersicht'), findsOneWidget);
+    expect(key('home_profile'), findsOneWidget);
+    expect(key('home_settings'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      4,
+    );
+    // Unterseiten liegen als Vollbild darüber, wie über das Symbol auf Heute.
+    await tester.tap(key('home_settings'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsNothing);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(key('home_settings'), findsOneWidget);
+    // Zurück aus dem Bereich: Heute, nicht aus der App.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(key('home_screen'), findsOneWidget);
+    expect(key('home_settings'), findsNothing);
+    expect(exits[0], 0);
+    // Das Symbol auf Heute führt zur selben Übersicht.
+    await openOverview(tester);
+    expect(find.text('Übersicht'), findsOneWidget);
+    expect(key('home_settings'), findsOneWidget);
+  });
+
+  for (final locale in ['de', 'en']) {
+    for (final dark in [false, true]) {
+      testWidgets('360 dp, Schrift 1,3, $locale, ${dark ? 'dunkel' : 'hell'}: '
+          'fünf Beschriftungen vollständig (FR-0208)', (tester) async {
+        await loadManrope(tester);
+        tester.platformDispatcher.platformBrightnessTestValue = dark
+            ? Brightness.dark
+            : Brightness.light;
+        addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+        await started(tester, locale: locale);
+        tester.view.physicalSize = const Size(360, 780);
+        tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await tester.pumpAndSettle();
+        expect(
+          Theme.of(tester.element(find.byType(NavigationBar))).brightness,
+          dark ? Brightness.dark : Brightness.light,
+        );
+        expect(find.byType(NavigationDestination), findsNWidgets(5));
+        // Jeder Bereich einmal gewählt: die fette Beschriftung ist breiter.
+        for (final k in _tabKeys) {
+          await tester.tap(find.byKey(Key(k)));
+          await tester.pumpAndSettle();
+          _expectLabelsFit(tester, k);
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets('breite Leiste, Schrift 1,3: Beschriftung nicht verkleinert', (
+    tester,
+  ) async {
+    await loadManrope(tester);
+    await started(tester);
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpAndSettle();
+    final label = find.descendant(
+      of: find.byKey(const Key('home_statistics')),
+      matching: find.text('Fortschritt'),
+    );
+    expect(
+      MediaQuery.textScalerOf(tester.element(label)).scale(12),
+      moreOrLessEquals(12 * 1.3),
+    );
+    _expectLabelsFit(tester, 'breit');
   });
 
   testWidgets(

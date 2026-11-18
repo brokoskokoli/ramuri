@@ -172,6 +172,11 @@ List<PlanUnit> _byDay(List<PlanUnit> l) {
 /// späteste, also auch eine lange oder harte, wenn keine lockere übrig ist.
 /// Die letzte Einheit einer Rolle, die ein künftiger Termin der Woche
 /// ([pinnedUnits]) braucht, bleibt stehen.
+///
+/// [easedHardDays]: Tage, an denen eine harte Einheit nach PAR-173 locker
+/// wurde. Eine eingefrorene Einheit auf einem solchen Tag zählt als harte
+/// Einheit ihrer Woche: Die Lockerung wird nicht auf einen späteren Tag
+/// übertragen.
 GeneratedPlan generatePlan(
   TrainingGoal goal,
   PlanInputs inputs,
@@ -180,6 +185,7 @@ GeneratedPlan generatePlan(
   List<PlanUnit> pinnedUnits = const [],
   Set<DateTime>? heldDays,
   DateTime? heldUntil,
+  Set<DateTime> easedHardDays = const {},
   PlanParameters parameters = const PlanParameters(),
 }) {
   final p = parameters;
@@ -253,7 +259,12 @@ GeneratedPlan generatePlan(
     final frozenReplaced = frozenWeek.any(
       (u) => u.fixed == PlanUnitFixed.easyForHard,
     );
-    final frozenHard = frozenReplaced || frozenWeek.any((u) => u.isHard);
+    // Ebenso eine nach PAR-173 gelockerte harte Einheit (nicht übertragen).
+    final frozenEased = frozenWeek.any(
+      (u) => easedHardDays.contains(planDay(u.day)),
+    );
+    final frozenHard =
+        frozenReplaced || frozenEased || frozenWeek.any((u) => u.isHard);
 
     int? prevWeekday;
     final prevUnits = byWeek[start.subtract(const Duration(days: 7))];

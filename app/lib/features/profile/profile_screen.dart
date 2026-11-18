@@ -59,16 +59,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   /// Rückmeldung nach dem Speichern, von Hand wie nach der Übernahme eines
   /// Messwerts: das Angebot der Neuberechnung steht schon, wenn der Dienst
-  /// gespeichert hat.
+  /// gespeichert hat. Hat das Speichern ohne Läufe mit Werten von Banister
+  /// auf Edwards umgestellt (FR-0197), steht der Hinweis darin.
   void _showSaved() {
     if (!mounted) return;
     final l10n = AppLocalizations.of(context);
+    final switched = switch (widget.recalculation.takeEdwardsSwitch()) {
+      null => null,
+      EdwardsSwitchReason.restingHeartRate => l10n.loadSwitchedToEdwardsResting,
+      EdwardsSwitchReason.coefficients =>
+        l10n.loadSwitchedToEdwardsCoefficients,
+    };
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          widget.recalculation.offer == null
-              ? l10n.profileSaved
-              : '${l10n.profileSaved}\n${l10n.recalcOffered}',
+          [
+            l10n.profileSaved,
+            ?switched,
+            if (widget.recalculation.offer != null) l10n.recalcOffered,
+          ].join('\n'),
         ),
       ),
     );
@@ -133,6 +142,8 @@ class _NotifyingProfileService extends ProfileService {
   @override
   Future<ProfileSaveResult> save(ProfileRecord profile) async {
     final before = await load();
+    // Nur eine Umstellung aus diesem Speichern soll in die Rückmeldung.
+    _recalc.takeEdwardsSwitch();
     final result = await super.save(profile);
     if (result.saved) {
       await _recalc.profileChanged(before, profile);

@@ -6,17 +6,21 @@ import '../../l10n/app_localizations.dart';
 import '../profile/profile_screen.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../measure/morning_belt.dart';
+import '../measure/resting_measure_launcher.dart';
 import '../sensors/sensor_manager.dart';
 import '../sensors/sensors_screen.dart';
 import '../settings/about_screen.dart';
 import '../settings/app_version.dart';
+import '../settings/developer_settings_screen.dart';
 import '../settings/permissions_screen.dart';
 import '../settings/settings_screen.dart';
 import '../settings/zones_screen.dart';
 import '../storage/data_screen.dart';
 
 /// Übersicht hinter dem Profil-Symbol auf Heute (FR-0208): Profil,
-/// Einstellungen, Sensoren, Zonen, Berechtigungen, Daten und Über (Name, Version, Lizenzen, Entwicklermodus).
+/// Einstellungen, Sensoren, Zonen, Berechtigungen, Daten, Über (Name, Version,
+/// Lizenzen, Einschalten des Entwicklermodus) und, nur bei eingeschaltetem
+/// Entwicklermodus, die Entwicklereinstellungen (FR-0217).
 ///
 /// Sensoren, Zonen, Berechtigungen und Daten sind während einer
 /// Neuberechnung gesperrt: Sie könnten Werte ändern oder löschen (Sperre,
@@ -51,6 +55,10 @@ class _OverviewScreenState extends State<OverviewScreen> {
   /// ändert, ob der Eintrag Morgenmessung da ist, also lädt er neu.
   int _returns = 0;
 
+  /// Entwicklermodus an: Eintrag „Entwicklereinstellungen“ sichtbar. Wird beim
+  /// Öffnen und nach jeder Rückkehr von einer Unterseite neu gelesen.
+  bool _developer = false;
+
   StorageSession get session => widget.session;
   Clock get clock => widget.clock;
   PermissionStatusPort get permissions => widget.permissions;
@@ -58,10 +66,32 @@ class _OverviewScreenState extends State<OverviewScreen> {
   SensorManager get sensors => widget.sensors;
   Future<String?> Function() get appVersion => widget.appVersion;
 
+  DeveloperModeStore get _developerMode =>
+      SettingsDeveloperModeStore(session.settings, clock);
+
+  @override
+  void initState() {
+    super.initState();
+    _readDeveloper();
+  }
+
+  Future<void> _readDeveloper() async {
+    final on = await _developerMode.read();
+    if (mounted && on != _developer) setState(() => _developer = on);
+  }
+
   Future<void> _open(BuildContext context, WidgetBuilder builder) async {
     await Navigator.of(context).push<void>(MaterialPageRoute(builder: builder));
-    if (mounted) setState(() => _returns++);
+    if (!mounted) return;
+    setState(() => _returns++);
+    await _readDeveloper();
   }
+
+  PpgCameraChoiceStore get _cameraChoice =>
+      SettingsPpgCameraChoiceStore(session.settings, clock);
+
+  MorningStore? get _morning =>
+      session is MorningStorage ? (session as MorningStorage).morning : null;
 
   @override
   Widget build(BuildContext context) {
@@ -160,17 +190,29 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 onTap: () => _open(
                   context,
                   (_) => AboutScreen(
-                    developerMode: SettingsDeveloperModeStore(
-                      session.settings,
-                      clock,
-                    ),
+                    developerMode: _developerMode,
                     appVersion: appVersion,
-                    morning: session is MorningStorage
-                        ? (session as MorningStorage).morning
-                        : null,
+                    ppgCamera: PpgCameraScope.maybeOf(context),
+                    cameraChoice: _cameraChoice,
+                    morning: _morning,
                   ),
                 ),
               ),
+              if (_developer)
+                _Entry(
+                  key: const Key('overview_developer'),
+                  icon: Icons.developer_mode_outlined,
+                  label: l10n.devSettingsTitle,
+                  onTap: () => _open(
+                    context,
+                    (_) => DeveloperSettingsScreen(
+                      developerMode: _developerMode,
+                      ppgCamera: PpgCameraScope.maybeOf(context),
+                      cameraChoice: _cameraChoice,
+                      morning: _morning,
+                    ),
+                  ),
+                ),
             ],
           );
         },

@@ -325,6 +325,57 @@ void main() {
       expect(v.method, isNot(EdwardsTrimp.methodId));
     });
 
+    test('Ruhepuls fällt weg, bestätigt: Rückweg auf Edwards für alle '
+        'Läufe', () async {
+      const noRest = ProfileRecord(maxHeartRateBpm: 190);
+      await w.session.profile.save(noRest);
+      final s = w.recalc();
+      final offer = await s.profileChanged(before: profile190, after: noRest);
+      expect(offer!.loadProfile, LoadProfile.edwards);
+      await s.confirm(offer);
+      expect(await active(), LoadProfile.edwards);
+      expect(await chosen(), isNull);
+      expect(await s.pendingOffer(), isNull);
+      expect(
+        (await trimps()).values.every((v) => v.method == EdwardsTrimp.methodId),
+        isTrue,
+      );
+      // Neuer Lauf rechnet mit Edwards.
+      final id = await w.seedRun(DateTime.utc(2030, 3, 3, 8));
+      await w.calc().calculateAfterRun(id);
+      final v = (await w.session.values.read(ValueOwner.run(id)))
+          .firstWhere((p) => p.original.key == trimpRunValueKey)
+          .current;
+      expect(v.method, EdwardsTrimp.methodId);
+      expect(v.value, isNotNull);
+    });
+
+    test('Ruhepuls fällt weg, abgelehnt: Banister bleibt gewählt, TRIMP '
+        'neuer Läufe nicht verfügbar, kein stiller Wechsel', () async {
+      const noRest = ProfileRecord(maxHeartRateBpm: 190);
+      await w.session.profile.save(noRest);
+      final s = w.recalc();
+      final offer = await s.profileChanged(before: profile190, after: noRest);
+      expect(offer!.loadProfile, LoadProfile.edwards);
+      final stored = await trimps();
+      await s.decline(offer);
+      expect(await active(), LoadProfile.banister);
+      expect(await chosen(), isNull);
+      expect(await s.pendingOffer(), isNull);
+      expect(
+        (await trimps()).values.map((v) => (v.method, v.value)),
+        stored.values.map((v) => (v.method, v.value)),
+      );
+      final id = await w.seedRun(DateTime.utc(2030, 3, 3, 8));
+      await w.calc().calculateAfterRun(id);
+      final v = (await w.session.values.read(ValueOwner.run(id)))
+          .firstWhere((p) => p.original.key == trimpRunValueKey)
+          .current;
+      expect(v.value, isNull);
+      expect(v.unavailableReason, UnavailableReason.missingRestingHeartRate);
+      expect(v.method, isNot(EdwardsTrimp.methodId));
+    });
+
     test('Angabe entfernen, bestätigt: Rückweg auf Edwards für alle Läufe, '
         'Angabe weg', () async {
       final s = w.recalc();
@@ -482,6 +533,67 @@ void main() {
 
     test('unveränderte Angaben: kein Angebot', () async {
       expect(await w.recalc().loadBasisChanged(), isNull);
+    });
+  });
+
+  group('Banister aktiv ohne Läufe mit Werten, Angaben fallen weg', () {
+    late RecalcWorld fresh;
+    const noRest = ProfileRecord(maxHeartRateBpm: 190);
+
+    Future<LoadProfile> freshActive() =>
+        LoadSettings.activeProfile(fresh.session.settings);
+
+    setUp(() async {
+      fresh = await RecalcWorld.create();
+      await LoadSettings.writeCoefficients(
+        fresh.session.settings,
+        LoadCoefficients.male,
+        at: fresh.clock.now(),
+      );
+      // Ohne Läufe gilt die Wahl sofort.
+      expect(
+        await fresh.recalc().requestLoadProfile(LoadProfile.banister),
+        isNull,
+      );
+      expect(await freshActive(), LoadProfile.banister);
+    });
+
+    test('Ruhepuls fällt weg, loadBasisChanged: sofort Edwards, keine offene '
+        'Wahl, kein Angebot', () async {
+      await fresh.session.profile.save(noRest);
+      final s = fresh.recalc();
+      expect(await s.loadBasisChanged(), isNull);
+      expect(await freshActive(), LoadProfile.edwards);
+      expect(await LoadSettings.pendingProfile(fresh.session.settings), isNull);
+      expect(await s.pendingOffer(), isNull);
+      // Die Koeffizienten-Angabe bleibt, nur das Profil wechselt.
+      expect(
+        await LoadSettings.coefficients(fresh.session.settings),
+        LoadCoefficients.male,
+      );
+    });
+
+    test('Ruhepuls fällt weg, profileChanged: sofort Edwards, kein '
+        'Angebot', () async {
+      await fresh.session.profile.save(noRest);
+      final s = fresh.recalc();
+      expect(await s.profileChanged(before: profile190, after: noRest), isNull);
+      expect(await freshActive(), LoadProfile.edwards);
+      expect(await LoadSettings.pendingProfile(fresh.session.settings), isNull);
+      expect(await s.pendingOffer(), isNull);
+    });
+
+    test('Ruhepuls bleibt (andere Profiländerung): Banister bleibt', () async {
+      await fresh.session.profile.save(profile180);
+      final s = fresh.recalc();
+      expect(
+        await s.profileChanged(before: profile190, after: profile180),
+        isNull,
+      );
+      expect(await s.loadBasisChanged(), isNull);
+      expect(await freshActive(), LoadProfile.banister);
+      expect(await LoadSettings.pendingProfile(fresh.session.settings), isNull);
+      expect(await s.pendingOffer(), isNull);
     });
   });
 

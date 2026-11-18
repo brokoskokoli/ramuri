@@ -103,7 +103,8 @@ class PlanViewState {
       warningReminderDue = false,
       feedbackDue = false,
       changeNotice = null,
-      walkRunProposal = null;
+      walkRunProposal = null,
+      adaptation = PlanAdaptationMode.fixed;
 
   const PlanViewState.failed()
     : phase = PlanLoadPhase.failed,
@@ -117,7 +118,8 @@ class PlanViewState {
       warningReminderDue = false,
       feedbackDue = false,
       changeNotice = null,
-      walkRunProposal = null;
+      walkRunProposal = null,
+      adaptation = PlanAdaptationMode.fixed;
 
   const PlanViewState.ready({
     required this.goal,
@@ -131,9 +133,14 @@ class PlanViewState {
     this.feedbackDue = false,
     this.changeNotice,
     this.walkRunProposal,
+    this.adaptation = PlanAdaptationMode.fixed,
   }) : phase = PlanLoadPhase.ready;
 
   final PlanLoadPhase phase;
+
+  /// Plananpassung an Erholung (FR-0216): gespeicherter Schalter, Vorgabe
+  /// „fix“.
+  final PlanAdaptationMode adaptation;
 
   /// Das gespeicherte Ziel oder `null` (leerer Zustand).
   final TrainingGoal? goal;
@@ -209,6 +216,7 @@ class PlanController extends ChangeNotifier {
     PlanDataReader? reader,
     this.parameters = const PlanParameters(),
     this.onChanged,
+    this.readinessToday,
   }) : reader =
            reader ??
            PlanDataReader(
@@ -224,6 +232,15 @@ class PlanController extends ChangeNotifier {
 
   /// Nach jeder Änderung der gespeicherten Daten (Ziel, Plan, Zuordnung).
   final VoidCallback? onChanged;
+
+  /// Readiness des Tags (heute; Modell, FR-0116) für die Lockerung nach
+  /// PAR-173, als Band und senkende Faktoren ([PlanReadinessDay.of]); `null`
+  /// oder ein Fehler: keine Lockerung (fail-closed). Gesundheitsdatum: nie
+  /// loggen.
+  final Future<PlanReadinessDay?> Function(DateTime day)? readinessToday;
+
+  SettingsPlanAdaptationStore get _adaptation =>
+      SettingsPlanAdaptationStore(session.settings);
 
   GoalStore get _goals => (session as GoalStorage).goals;
   PlanRepository get _plans => (session as PlanStorage).plans;
@@ -355,6 +372,7 @@ class PlanController extends ChangeNotifier {
     bool? adjust,
     String? reason,
     bool markChecked = true,
+    Iterable<PlanReadinessDay> readiness = const [],
   }) async {
     final today = _today();
     final built = await reader.read(goal: goal, today: today);
@@ -413,6 +431,7 @@ class PlanController extends ChangeNotifier {
       inputs: inputs,
       parameters: parameters,
       warning: _warning,
+      readiness: readiness,
       // `manual` bewertet die Woche nicht (ADR-0010 Nachtrag WP24, K63): Der
       // Prüftag bleibt, sonst fiele die fällige Wochenbewertung weg.
       markChecked:
@@ -554,6 +573,7 @@ class PlanController extends ChangeNotifier {
       if (proposal != null && declined == proposal.lastDay) proposal = null;
     }
     return PlanViewState.ready(
+      adaptation: await _adaptation.read(),
       changeNotice: notice,
       walkRunProposal: proposal,
       warning: warning,
@@ -1243,6 +1263,62 @@ class PlanController extends ChangeNotifier {
       at: clock.now(),
     );
   });
+
+  /// Schalter „Plananpassung an Erholung“ (FR-0216). Der Wechsel wirkt ab
+  /// heute, nie rückwirkend: Vergangene Einheiten und Lockerungen bleiben.
+  /// Eine neue Fassung (`feedback`) entsteht nur, wenn heute eine harte
+  /// Einheit betroffen ist: bei „adaptiv“ eine heutige harte Einheit an einem
+  /// Tag mit niedrigem Wert (PAR-173, Grund `readiness`), bei „fix“ eine heute
+  /// gelockerte (sie kehrt zurück, Grund `adaptationFixed`).
+  Future<PlanActionResult> setAdaptation(PlanAdaptationMode mode) =>
+      _act(() async {
+        final store = _adaptation;
+        if (await store.read() == mode) return;
+        await store.set(mode, at: clock.now());
+        final goal = await _goals.goal();
+        final history = await _plans.history();
+        if (goal == null || history.isEmpty) return;
+        final last = history.last;
+        final today = _today();
+        if (mode == PlanAdaptationMode.adaptive) {
+          final unit = await _plans.unitOn(today);
+          if (unit == null || !recoveryEasable(unit)) return;
+          final day = await _readinessOn(today);
+          if (day == null || !day.eases) return;
+          await _recalculate(
+            PlanTrigger.feedback,
+            goal,
+            last,
+            reason: planReasonReadiness,
+            readiness: [day],
+            markChecked: false,
+          );
+        } else {
+          final easedToday = recoveryEasedFromSummary(last.summary)
+              .any((e) => planDay(e.day) == today);
+          if (!easedToday) return;
+          await _recalculate(
+            PlanTrigger.feedback,
+            goal,
+            last,
+            reason: planReasonAdaptationFixed,
+            markChecked: false,
+          );
+        }
+      });
+
+  /// Readiness von [day] aus [readinessToday]; ohne Quelle oder bei einem
+  /// Fehler `null` (keine Lockerung).
+  Future<PlanReadinessDay?> _readinessOn(DateTime day) async {
+    final load = readinessToday;
+    if (load == null) return null;
+    try {
+      final r = await load(day);
+      return r != null && planDay(r.day) == day ? r : null;
+    } on Object {
+      return null;
+    }
+  }
 
   Future<PlanActionResult> _act(Future<void> Function() action) =>
       _serial(() async {

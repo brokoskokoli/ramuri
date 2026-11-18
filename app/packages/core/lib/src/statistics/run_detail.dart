@@ -79,7 +79,8 @@ RunDetailData buildRunDetailJob(
   belt: a.belt,
 );
 
-/// Baut die Zeichendaten. [pauses] sind die manuellen Pausen des Laufs.
+/// Baut die Zeichendaten. [pauses] sind die manuellen Pausen und Ausfälle nach
+/// Absturz des Laufs; beide werden gleich als Lücke gezeichnet (FR-0042).
 /// Übersteigt eine Reihe [maxPoints] Punkte, wird sie je Teil ausgedünnt: erster
 /// und letzter Punkt jedes Teils bleiben, Teile werden nie verbunden, und aus
 /// jedem Abschnitt bleiben der kleinste und der größte Wert erhalten (kurze
@@ -143,7 +144,7 @@ RunDetailData buildRunDetail(
   );
 }
 
-/// Unterbrechungen der Position: manuelle Pausen, Positionslücken und Lücken der Pace.
+/// Unterbrechungen der Position: Pausen und Ausfälle, Positionslücken und Lücken der Pace.
 List<TimeSpan> _positionBreaks(RunPreprocessing pre, List<TimeSpan> pauses) =>
     _merge([
       ...pauses,

@@ -50,7 +50,7 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0039 | Subjektive Angaben in der Planung berücksichtigen | functional | Approved | 2 | [run-recording](specs/run-recording.md#fr-0039--subjektive-angaben-in-der-planung-berücksichtigen) | FR-0148, FR-0157 |
 | FR-0040 | Trainingshistorie | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0040--trainingshistorie) | ACC-04, FR-0204, FR-0212, OQ-0074, OQ-0075 |
 | FR-0041 | Detailansicht eines Laufs | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0041--detailansicht-eines-laufs) | FR-0204, FR-0211, OQ-0065, OQ-0074, OQ-0075 |
-| FR-0042 | Pace und Herzfrequenz zeitlich vergleichen | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0042--pace-und-herzfrequenz-zeitlich-vergleichen) | — |
+| FR-0042 | Pace und Herzfrequenz zeitlich vergleichen | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0042--pace-und-herzfrequenz-zeitlich-vergleichen) | FR-0193 |
 | FR-0043 | Statistische Kennzahlen | functional | Approved | 1 (je Kennzahl abhängig von der liefernden Funktion) | [history-statistics](specs/history-statistics.md#fr-0043--statistische-kennzahlen) | FR-0055, OQ-0039, OQ-0065, OQ-0075 |
 | FR-0044 | Auswertungszeiträume | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0044--auswertungszeiträume) | — |
 | FR-0045 | Keine Fitnessberechnung auf ungefilterten Daten | functional | Approved | 1* | [data-quality](specs/data-quality.md#fr-0045--keine-fitnessberechnung-auf-ungefilterten-daten) | — |
@@ -222,10 +222,11 @@ Durchsuchbare Übersicht. Maßgeblich ist immer die verlinkte Detailstelle. Die 
 | FR-0211 | Kilometerwerte in der Detailansicht | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0211--kilometerwerte-in-der-detailansicht) | FR-0041, FR-0056, FR-0204, OQ-0075, OQ-0076 |
 | FR-0212 | Zeitraum in der Historie | functional | Approved | 1 | [history-statistics](specs/history-statistics.md#fr-0212--zeitraum-in-der-historie) | FR-0040, FR-0044, OQ-0075 |
 | FR-0213 | RR-Intervalle als Rohdaten speichern | functional | Approved | 2 | [sensors](specs/sensors.md#fr-0213--rr-intervalle-als-rohdaten-speichern) | FR-0021, FR-0019, SEC-0001, DEC-0072 |
-| FR-0214 | Ruhepuls mit der Handykamera messen | functional | Approved | 2 | [profile](specs/profile.md#fr-0214--ruhepuls-mit-der-handykamera-messen) | FR-0002, FR-0060, SEC-0001, OQ-0078, DEC-0073, DEC-0074 |
+| FR-0214 | Ruhepuls mit der Handykamera messen | functional | Approved | 2 | [profile](specs/profile.md#fr-0214--ruhepuls-mit-der-handykamera-messen) | FR-0002, FR-0060, SEC-0001, OQ-0078, DEC-0073, DEC-0074, FR-0220 |
 | FR-0215 | Morgenmessung mit der Handykamera | functional | Approved | 3 | [readiness](specs/readiness.md#fr-0215--morgenmessung-mit-der-handykamera) | FR-0109, FR-0112, FR-0115, FR-0214, FR-0216, FR-0217, OQ-0006, OQ-0078, DEC-0073, DEC-0074, DEC-0075, DEC-0076 |
 | FR-0216 | Plan „adaptiv“ oder „fix“ | functional | Approved | 3 | [plan-adaptation](specs/plan-adaptation.md#fr-0216--plan-adaptiv-oder-fix) | FR-0156, FR-0157, FR-0158, FR-0203, FR-0108, FR-0215 |
-| FR-0217 | Entwicklermodus | functional | Approved | 3 | [profile](specs/profile.md#fr-0217--entwicklermodus) | FR-0215, FR-0213, FR-0021, FR-0216, SEC-0009, DEC-0074 |
+| FR-0217 | Entwicklermodus | functional | Approved | 3 | [profile](specs/profile.md#fr-0217--entwicklermodus) | FR-0215, FR-0213, FR-0021, FR-0216, SEC-0009, DEC-0074, FR-0220 |
+| FR-0220 | Kamera für die Kamera-Messung | functional | Approved | 3 | [profile](specs/profile.md#fr-0220--kamera-für-die-kamera-messung) | FR-0214, FR-0215, FR-0217, ADR-0011 |
 | NFR-0001 | Algorithmen versionierbar und nachvollziehbar | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0001--algorithmen-versionierbar-und-nachvollziehbar) | FR-0053, FR-0058 |
 | NFR-0002 | Einordnung in drei Verfahrenskategorien | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0002--einordnung-in-drei-verfahrenskategorien) | — |
 | NFR-0003 | Heuristiken nicht als validiert darstellen | non-functional | Approved | 1* | [non-functional](quality/non-functional.md#nfr-0003--heuristiken-nicht-als-validiert-darstellen) | FR-0054 |

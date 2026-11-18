@@ -1,4 +1,8 @@
 // WP13 A3: Einwilligung zum Kartenanbieter (SEC-0002, SEC-0007, SEC-0008, ADR-0009 Punkt 3).
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:adapters/adapters.dart';
 import 'package:adapters/map_testing.dart';
 import 'package:core/core.dart';
@@ -23,6 +27,24 @@ class _Cache implements MapCacheAdmin {
     deletes++;
     size = 0;
   }
+}
+
+/// Echter verschlüsselter Kartenspeicher im Test-Verzeichnis. Datei-Ein- und -Ausgabe laufen in der Wurzelzone, damit
+/// sie im Widget-Test (simulierte Zeit) fertig werden; [deleted] (ebenfalls in der Wurzelzone) meldet das Ende des
+/// Löschens.
+class _RealCache implements MapCacheAdmin {
+  _RealCache(this.store);
+  final EncryptedMapTileStore store;
+  final deleted = Zone.root.run(Completer<void>.new);
+
+  @override
+  Future<int> sizeBytes() => Zone.root.run(store.sizeBytes);
+
+  @override
+  Future<void> delete() => Zone.root.run(() async {
+    await store.delete();
+    deleted.complete();
+  });
 }
 
 class _MapWorld {
@@ -334,6 +356,66 @@ void main() {
         expect(w.inner.requests, isEmpty);
       },
     );
+
+    // ADR-0009 Punkt 4, SEC-0004: der verdrahtete Weg Widerruf → „Löschen“ entfernt die Datei des Kartenspeichers.
+    testWidgets('Widerruf und Löschen: die Datei des Kartenspeichers ist weg', (
+      tester,
+    ) async {
+      final dir = Directory.systemTemp.createTempSync('map_revoke_delete_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final store = EncryptedMapTileStore(
+        directory: () async => dir.path,
+        key: () async => Uint8List.fromList(List.filled(storageKeyLength, 7)),
+      );
+      addTearDown(() => tester.runAsync(store.close));
+      final file = File('${dir.path}/$mapCacheFileName');
+      await tester.runAsync(
+        () => store.write('map:/1/0/0.pbf', Uint8List.fromList([1, 2, 3])),
+      );
+      expect(file.existsSync(), isTrue, reason: 'Speicher angelegt');
+      final cache = _RealCache(store);
+      final w = _MapWorld();
+      final d = Device()
+        ..map = MapServices(
+          gate: w.services.gate,
+          cache: cache,
+          attribution: 'Quelle-Test',
+        );
+      await _startApp(tester, d);
+      await d.session.consents.set(
+        mapProviderSourceKey,
+        ConsentState.granted,
+        at: DateTime.utc(2026),
+      );
+      await d.stop(tester);
+      await _startApp(tester, d);
+      await _openSettings(tester);
+      await tester.tap(find.byKey(const Key('map_revoke')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('map_delete_dialog')), findsOneWidget);
+      expect(file.existsSync(), isTrue, reason: 'vor der Antwort bleibt sie');
+      await tester.tap(find.byKey(const Key('map_delete_confirm')));
+      await tester.pump();
+      // Grenze nur gegen Hängen, falls nie gelöscht wird (dann prüft der Test die Datei).
+      await tester.runAsync(
+        () => cache.deleted.future.timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {},
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(file.existsSync(), isFalse);
+      expect(
+        dir.listSync().where((e) => e.path.contains(mapCacheFileName)),
+        isEmpty,
+        reason: 'auch keine Nebendateien',
+      );
+      expect(
+        await d.session.consents.get(mapProviderSourceKey),
+        ConsentState.revoked,
+      );
+      expect(w.inner.requests, isEmpty);
+    });
 
     testWidgets('Widerruf und Behalten: Speicher bleibt', (tester) async {
       final d = Device();

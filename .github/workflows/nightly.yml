@@ -1,0 +1,128 @@
+name: nightly
+# Jede Nacht (03:00 UTC) und von Hand: APK vom aktuellen main mit dem Release-Schlüssel, als Pre-Release "nightly".
+# Es gibt nur einen Nightly: Tag und Release "nightly" werden ersetzt. Der Tag beginnt nicht mit v und startet
+# release.yml daher nicht. Ein geplanter Lauf ohne neuen Commit auf main baut nicht; ein Lauf von Hand baut immer.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+jobs:
+  pruefen:
+    if: github.repository == 'brokoskokoli/ramuri' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      bauen: ${{ steps.vergleich.outputs.bauen }}
+    steps:
+      - name: Tag nightly mit main vergleichen
+        id: vergleich
+        env:
+          EREIGNIS: ${{ github.event_name }}
+          KOPF: ${{ github.sha }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -eu
+          if [ "$EREIGNIS" != schedule ]; then
+            echo "Lauf von Hand ($EREIGNIS): baue $KOPF"
+            echo bauen=true >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          refs=$(git ls-remote "$REPO_URL" 'refs/tags/nightly' 'refs/tags/nightly^{}')
+          # Bei einem annotierten Tag zählt der Commit (^{}), sonst die Ref selbst.
+          tag=$(printf '%s\n' "$refs" | awk '$2 == "refs/tags/nightly^{}" { print $1 }')
+          [ -n "$tag" ] || tag=$(printf '%s\n' "$refs" | awk '$2 == "refs/tags/nightly" { print $1 }')
+          if [ "$tag" = "$KOPF" ]; then
+            echo "Nightly ist aktuell: Tag nightly zeigt schon auf $KOPF (main). Kein Build."
+            echo bauen=false >>"$GITHUB_OUTPUT"
+          else
+            echo "Neuer Stand auf main: $KOPF (Tag nightly: ${tag:-keiner}). Baue."
+            echo bauen=true >>"$GITHUB_OUTPUT"
+          fi
+  nightly:
+    needs: pruefen
+    if: needs.pruefen.outputs.bauen == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: write
+    env:
+      SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Flutter einrichten
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version-file: app/pubspec.yaml
+          cache: true
+      # NDK vor dem ersten Gradle-Build fest installieren (Version aus der Flutter-Version, bis zu zwei
+      # Wiederholungen); sonst lädt Gradle es im Build nach, und ein beschädigter Download bricht ab.
+      - name: Android-NDK installieren
+        run: bash tool/ci_ndk.sh
+      - name: Gate
+        run: sh tool/gate.sh
+      - name: Signierter Build
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+        run: tool/build_signed.sh --nightly
+      # Erst nach grünem Gate und Build. Bei einem vorhandenen Release werden zuerst Text und Anhänge ersetzt und
+      # erst zuletzt der Tag verschoben: scheitert ein Schritt, zeigt der Tag noch auf den alten Commit, und der
+      # nächste geplante Lauf baut erneut statt zu überspringen.
+      - name: Nightly veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          [ "$(git rev-parse HEAD)" = "$SHA" ] || { echo "FEHLER: Checkout ist nicht $SHA"; exit 1; }
+          version=$(tool/build_signed.sh --print-version --nightly | cut -d' ' -f1)
+          datum=$(date -u +%Y-%m-%d)
+          titel="ramuri nightly $datum (${SHA:0:7})"
+          printf 'versionName: `%s`\nCommit: %s\n\nAutomatischer Build von main, ungeprüft. Nicht für den Alltag gedacht.\n' \
+            "$version" "$SHA" >"$RUNNER_TEMP/nightly-notes.md"
+          if gh release view nightly -R "$REPO" >/dev/null 2>&1; then
+            gh release edit nightly -R "$REPO" --title "$titel" --notes-file "$RUNNER_TEMP/nightly-notes.md" \
+              --draft=false --prerelease --latest=false
+            gh release upload nightly -R "$REPO" dist/ramuri-nightly.apk dist/SHA256SUMS.txt --clobber
+            gh release view nightly -R "$REPO" --json assets -q '.assets[].name' | while IFS= read -r name; do
+              case $name in
+                ramuri-nightly.apk | SHA256SUMS.txt) ;;
+                *) gh release delete-asset nightly "$name" -R "$REPO" -y ;;
+              esac
+            done
+            if gh api "repos/$REPO/git/ref/tags/nightly" >/dev/null 2>&1; then
+              gh api -X PATCH "repos/$REPO/git/refs/tags/nightly" -f sha="$SHA" -F force=true >/dev/null
+            else
+              gh api -X POST "repos/$REPO/git/refs" -f ref=refs/tags/nightly -f sha="$SHA" >/dev/null
+            fi
+          else
+            # Ohne Release: ein verwaister Tag wird ersetzt. gh legt das Release mit Anhängen erst als Entwurf an und
+            # veröffentlicht es (und legt damit den Tag an) nach dem Hochladen.
+            if gh api "repos/$REPO/git/ref/tags/nightly" >/dev/null 2>&1; then
+              gh api -X DELETE "repos/$REPO/git/refs/tags/nightly"
+            fi
+            gh release create nightly -R "$REPO" --target "$SHA" --title "$titel" \
+              --notes-file "$RUNNER_TEMP/nightly-notes.md" --prerelease --latest=false \
+              dist/ramuri-nightly.apk dist/SHA256SUMS.txt
+          fi
+          tag=$(gh api "repos/$REPO/git/ref/tags/nightly" -q .object.sha)
+          [ "$tag" = "$SHA" ] || { echo "FEHLER: Tag nightly zeigt auf $tag statt $SHA"; exit 1; }
+          anhaenge=$(gh release view nightly -R "$REPO" --json assets -q '[.assets[].name] | sort | join(" ")')
+          [ "$anhaenge" = "SHA256SUMS.txt ramuri-nightly.apk" ] || { echo "FEHLER: Anhänge des Nightly: $anhaenge"; exit 1; }
+          echo "Nightly veröffentlicht: $titel, $version"

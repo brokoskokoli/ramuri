@@ -6,6 +6,7 @@ import '../history/history_screen.dart';
 import '../history/history_view_state.dart';
 import '../plan/plan_page_view_state.dart';
 import '../plan/plan_screen.dart';
+import '../readiness/readiness_today.dart';
 import '../recalculation/recalculation_controller.dart';
 import '../run/run_ports.dart';
 import '../sensors/sensor_manager.dart';
@@ -13,12 +14,16 @@ import '../statistics/statistics_screen.dart';
 import '../statistics/statistics_view_state.dart';
 import 'data_changes.dart';
 import 'home_screen.dart';
+import 'overview_screen.dart';
 import 'run_starter.dart';
 
 /// Hülle mit der unteren Navigation (FR-0208): Heute, Plan, Verlauf,
-/// Fortschritt.
+/// Fortschritt und ganz rechts Profil (die Übersicht wie hinter dem
+/// Profil-Symbol auf „Heute“).
 /// Lauf, Lauf vorbereiten, Detail und Zusammenfassung werden über den
-/// Root-Navigator gelegt und decken die Leiste damit ab (Vollbild).
+/// Root-Navigator gelegt und decken die Leiste damit ab (Vollbild). Ebenso die
+/// Unterseiten der Übersicht (Einstellungen, Sensoren, Daten, Über …), gleich
+/// ob die Übersicht als Bereich oder über das Symbol geöffnet wurde.
 ///
 /// Der gewählte Bereich wird bei jedem Wechsel und bei jeder Meldung von
 /// [changes] neu aufgebaut (kein `IndexedStack`), damit nichts Veraltetes
@@ -76,12 +81,19 @@ class _AppShellState extends State<AppShell> {
       Icons.show_chart_rounded,
       _progress,
     ),
+    _Tab(
+      'profile',
+      Key('home_profile_tab'),
+      Icons.person_outline_rounded,
+      _profile,
+    ),
   ];
 
   static String _today(AppLocalizations l) => l.homeToday;
   static String _plan(AppLocalizations l) => l.homePlan;
   static String _history(AppLocalizations l) => l.homeHistory;
   static String _progress(AppLocalizations l) => l.homeProgress;
+  static String _profile(AppLocalizations l) => l.homeProfileTab;
 
   int _index = 0;
 
@@ -101,6 +113,14 @@ class _AppShellState extends State<AppShell> {
           session: widget.session,
           clock: widget.clock,
           viewState: _planState,
+          readinessToday: (day) async {
+            final r = await loadReadinessToday(
+              session: widget.session,
+              clock: widget.clock,
+              recalculation: widget.recalculation.service,
+            );
+            return r == null ? null : PlanReadinessDay.of(day, r.result);
+          },
           onStartUnit: (context, unit) => RunStarter(
             session: widget.session,
             clock: widget.clock,
@@ -126,6 +146,14 @@ class _AppShellState extends State<AppShell> {
           viewState: _progressState,
           changes: widget.changes,
         );
+      case 'profile':
+        return OverviewScreen(
+          session: widget.session,
+          clock: widget.clock,
+          permissions: widget.permissions,
+          recalculation: widget.recalculation,
+          sensors: widget.sensors,
+        );
       default:
         return HomeScreen(
           session: widget.session,
@@ -139,13 +167,46 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  /// Größter Schriftfaktor, bei dem die längste Beschriftung der Leiste
+  /// (fett wie im gewählten Bereich) in einer Zeile in ihren Eintrag passt.
+  /// Bei fünf Einträgen und großer Schrift wäre etwa „Fortschritt“ sonst
+  /// umgebrochen und abgeschnitten (FR-0208); passt alles, bleibt der
+  /// Schriftfaktor des Systems unverändert.
+  double _labelScaleLimit(
+    BuildContext context,
+    AppLocalizations l10n,
+    double width,
+  ) {
+    final style = Theme.of(context).navigationBarTheme.labelTextStyle
+        ?.resolve({WidgetState.selected});
+    final size = style?.fontSize;
+    if (size == null || !width.isFinite) return double.infinity;
+    final scaler = MediaQuery.textScalerOf(context);
+    // Etwas Rand zum Nachbarn, damit sich die Wörter nicht berühren.
+    final slot = width / _tabs.length - 8;
+    var widest = 0.0;
+    for (final t in _tabs) {
+      final painter = TextPainter(
+        text: TextSpan(text: t.label(l10n), style: style),
+        textDirection: Directionality.of(context),
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      if (painter.width > widest) widest = painter.width;
+      painter.dispose();
+    }
+    if (widest <= slot) return double.infinity;
+    return scaler.scale(size) / size * slot / widest;
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return ListenableBuilder(
       listenable: widget.changes,
       builder: (context, _) => PopScope(
-        // Zurück: aus Plan, Verlauf und Fortschritt zu Heute, von Heute aus der App.
+        // Zurück: aus Plan, Verlauf, Fortschritt und Profil zu Heute, von
+        // Heute aus der App.
         canPop: _index == 0,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) return;
@@ -163,19 +224,29 @@ class _AppShellState extends State<AppShell> {
             key: ValueKey('${_tabs[_index].id}-${widget.changes.revision}'),
             child: _body(_tabs[_index].id),
           ),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _index,
-            onDestinationSelected: (i) {
-              if (i != _index) setState(() => _index = i);
-            },
-            destinations: [
-              for (final t in _tabs)
-                NavigationDestination(
-                  key: t.key,
-                  icon: Icon(t.icon),
-                  label: t.label(l10n),
+          bottomNavigationBar: LayoutBuilder(
+            builder: (context, constraints) =>
+                MediaQuery.withClampedTextScaling(
+                  maxScaleFactor: _labelScaleLimit(
+                    context,
+                    l10n,
+                    constraints.maxWidth,
+                  ),
+                  child: NavigationBar(
+                    selectedIndex: _index,
+                    onDestinationSelected: (i) {
+                      if (i != _index) setState(() => _index = i);
+                    },
+                    destinations: [
+                      for (final t in _tabs)
+                        NavigationDestination(
+                          key: t.key,
+                          icon: Icon(t.icon),
+                          label: t.label(l10n),
+                        ),
+                    ],
+                  ),
                 ),
-            ],
           ),
         ),
       ),

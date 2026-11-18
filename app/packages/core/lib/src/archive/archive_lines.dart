@@ -23,6 +23,8 @@ const Set<String> archiveExcludedSettingKeys = {
   SettingKeys.planStartedUnit,
   SettingKeys.guidedUnitSnapshot,
   SettingKeys.developerMode,
+  SettingKeys.ppgCameraManual,
+  SettingKeys.ppgCameraAuto,
   HealthImportService.lastImportKey,
 };
 

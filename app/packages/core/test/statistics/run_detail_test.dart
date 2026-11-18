@@ -483,6 +483,106 @@ void main() {
     },
   );
 
+  group('Ausfall nach Absturz als Lücke (FR-0042, FR-0193)', () {
+    // Lauf über 600 s; in 200–300 s ist die App ausgefallen (keine Rohdaten)
+    // bzw. pausiert. Die Zusammenfassung liefert die Lücken an die
+    // Zeichendaten.
+    Future<(RunSummary, RunDetailData)> load(RunGapKind kind) async {
+      final w = await RecalcWorld.create();
+      final run = await w.session.runs.create(startedAt: _start);
+      const n = 600;
+      bool off(int i) => i > 200 && i < 300;
+      await w.session.rawData.append(
+        run.id,
+        RawBatch(
+          positions: [
+            for (var i = 0; i <= n; i++)
+              if (!off(i))
+                RawPosition(
+                  time: _start.add(Duration(seconds: i)),
+                  source: 'gps',
+                  latitude: 10 + i * 3 / _mPerDeg,
+                  longitude: 20,
+                  accuracyMeters: 5,
+                ),
+          ],
+          heartRates: [
+            for (var i = 0; i <= n; i++)
+              if (!off(i))
+                RawHeartRate(
+                  time: _start.add(Duration(seconds: i)),
+                  source: 'strap',
+                  bpm: 150,
+                  contact: SensorContact.good,
+                ),
+          ],
+          altitudes: [
+            for (var i = 0; i <= n; i++)
+              if (!off(i))
+                RawAltitude(
+                  time: _start.add(Duration(seconds: i)),
+                  source: 'gps',
+                  meters: 100,
+                  verticalAccuracyMeters: 3,
+                ),
+          ],
+        ),
+      );
+      final gap = await w.session.markers.openGap(
+        run.id,
+        kind,
+        _start.add(const Duration(seconds: 200)),
+      );
+      await w.session.markers.closeGap(
+        gap,
+        _start.add(const Duration(seconds: 300)),
+      );
+      await w.session.runs.setState(
+        run.id,
+        RunState.finished,
+        endedAt: _start.add(const Duration(seconds: n)),
+      );
+      final summary = (await RunSummaryService(
+        session: w.session,
+        clock: w.clock,
+      ).load(run.id))!;
+      final detail = buildRunDetail(
+        summary.preprocessing,
+        start: summary.run.startedAt,
+        end: summary.run.endedAt!,
+        pauses: summary.chartGaps,
+      );
+      return (summary, detail);
+    }
+
+    void expectGap(RunDetailData d) {
+      expect(d.pauses, hasLength(1));
+      expect(d.pauses.single.start, 200);
+      expect(d.pauses.single.end, 300);
+      for (final series in [d.heartRate, d.pace, d.altitude]) {
+        expect(series, hasLength(2));
+        expect(series.first.last.seconds, lessThanOrEqualTo(200));
+        expect(series.last.first.seconds, greaterThanOrEqualTo(300));
+      }
+    }
+
+    test('Ausfall: Lücke in Puls, Pace und Höhe wie bei einer Pause', () async {
+      final (summary, d) = await load(RunGapKind.interruption);
+      expect(summary.chartGaps, hasLength(1));
+      expectGap(d);
+    });
+
+    test('Pause: dieselbe Lücke', () async {
+      final (_, d) = await load(RunGapKind.manualPause);
+      expectGap(d);
+    });
+
+    test('Signalverlust ist keine Pause-Lücke', () async {
+      final (summary, _) = await load(RunGapKind.heartRateLoss);
+      expect(summary.chartGaps, isEmpty);
+    });
+  });
+
   test('isolateOffload rechnet wirklich in einem anderen Isolate', () async {
     String? name(int _) => Isolate.current.debugName;
     expect(await inlineOffload(name, 0), Isolate.current.debugName);
@@ -535,7 +635,7 @@ void main() {
           pre: summary.preprocessing,
           start: summary.run.startedAt,
           end: summary.run.endedAt!,
-          pauses: summary.manualPauses,
+          pauses: summary.chartGaps,
           belt: summary.belt,
         ));
         return (summary, detail);

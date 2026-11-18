@@ -111,6 +111,82 @@ void main() {
       expect(find.byKey(const Key('stat_compare_only')), findsOneWidget);
     });
 
+    // Zeiträume mit Jahr, sobald Anfang oder Ende nicht im laufenden Jahr
+    // liegt (FR-0044); feste Uhr.
+    for (final (locale, may) in [('de', 'Mai'), ('en', 'May')]) {
+      String button(WidgetTester tester, String k) =>
+          ((key(k).evaluate().single.widget as OutlinedButton).child! as Text)
+              .data!;
+
+      testWidgets('$locale: Woche im laufenden Jahr ohne Jahr', (tester) async {
+        final d = await started(tester, locale: locale);
+        d.clock.set(DateTime.utc(2026, 6, 3, 12));
+        await openStats(d, tester);
+        expect(text('stat_period_label'), isNot(contains('2026')));
+        await tester.tap(key('stat_prev'));
+        await tester.pumpAndSettle();
+        expect(text('stat_period_label'), contains(may));
+        expect(text('stat_period_label'), isNot(contains('2026')));
+      });
+
+      testWidgets('$locale: Woche über den Jahreswechsel und im Vorjahr '
+          'mit Jahr', (tester) async {
+        final d = await started(tester, locale: locale);
+        // Donnerstag 8. Januar; die Vorwoche beginnt am 29. Dezember.
+        d.clock.set(DateTime.utc(2026, 1, 8, 12));
+        await openStats(d, tester);
+        expect(text('stat_period_label'), isNot(contains('202')));
+        await tester.tap(key('stat_prev'));
+        await tester.pumpAndSettle();
+        expect(text('stat_period_label'), contains('2025'));
+        expect(text('stat_period_label'), contains('2026'));
+        await tester.tap(key('stat_prev'));
+        await tester.pumpAndSettle();
+        // Ganz im Vorjahr: beide Enden mit 2025.
+        expect('2025'.allMatches(text('stat_period_label')), hasLength(2));
+      });
+
+      testWidgets('$locale: freier Zeitraum über den Jahreswechsel mit Jahr', (
+        tester,
+      ) async {
+        final d = await started(tester, locale: locale);
+        d.clock.set(DateTime.utc(2026, 1, 4, 12));
+        await openStats(d, tester);
+        await choose(tester, 'custom');
+        // Standard: 29. Dezember 2025 bis 4. Januar 2026.
+        expect(button(tester, 'stat_from'), contains('2025'));
+        expect(button(tester, 'stat_to'), contains('2026'));
+      });
+
+      testWidgets('$locale: freier Zeitraum im laufenden Jahr ohne Jahr', (
+        tester,
+      ) async {
+        final d = await started(tester, locale: locale);
+        d.clock.set(DateTime.utc(2026, 6, 10, 12));
+        await openStats(d, tester);
+        await choose(tester, 'custom');
+        expect(button(tester, 'stat_from'), isNot(contains('2026')));
+        expect(button(tester, 'stat_to'), isNot(contains('2026')));
+      });
+    }
+
+    testWidgets('einzelner Lauf: Lauf im Vorjahr mit Jahr, im laufenden '
+        'Jahr ohne (FR-0044)', (tester) async {
+      final d = await started(tester);
+      d.clock.set(DateTime.utc(2026, 1, 4, 12));
+      await seedRun(d.session, DateTime.utc(2025, 12, 31, 8));
+      await seedRun(d.session, DateTime.utc(2026, 1, 2, 8));
+      await openStats(d, tester);
+      await choose(tester, 'run');
+      // Vorgewählt: der neueste Lauf, im laufenden Jahr ohne Jahr.
+      expect(find.textContaining('2026'), findsNothing);
+      await tester.tap(key('stat_run_pick'));
+      await tester.pumpAndSettle();
+      // Im Menü: der Lauf vom 31. Dezember mit Jahr.
+      expect(find.textContaining('2025'), findsOneWidget);
+      expect(find.textContaining('2026'), findsNothing);
+    });
+
     testWidgets('freier Zeitraum: Beginn per Datumsauswahl', (tester) async {
       final d = await started(tester);
       d.clock.set(DateTime.utc(2026, 6, 10, 12));
@@ -434,6 +510,22 @@ void main() {
       expect(
         text('stat_vo2_run_value'),
         'Lauf vom Mi., 3. Juni: 47,0 ml/kg/min (Schätzung)',
+      );
+    });
+
+    testWidgets('Sicht 1: Lauf aus der Vorjahreswoche mit Jahr (FR-0044)', (
+      tester,
+    ) async {
+      final d = await started(tester);
+      d.clock.set(DateTime.utc(2026, 1, 2, 12));
+      final id = await seedRun(d.session, DateTime.utc(2025, 12, 30, 8));
+      await d.session.values.createOriginals(ValueOwner.run(id), [
+        stored(vo2maxRunValueKey, 47, vo2maxUnit, d.clock.now()),
+      ]);
+      await openStats(d, tester);
+      expect(
+        text('stat_vo2_run_value'),
+        'Lauf vom Di., 30. Dez. 2025: 47,0 ml/kg/min (Schätzung)',
       );
     });
 

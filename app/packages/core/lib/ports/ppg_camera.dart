@@ -28,6 +28,84 @@ enum PpgCameraStopReason {
   error,
 }
 
+/// Kennung einer Rückkamera (FR-0220): [cameraId] ist die Camera2-ID der geöffneten
+/// Kamera; [physicalCameraId] ist `null`, wenn diese Kamera selbst Bilder liefert, sonst
+/// die ID einer physischen Kamera (eines Objektivs) der logischen Mehrfachkamera
+/// [cameraId]. Zwei Kennungen sind gleich, wenn beide Felder gleich sind.
+///
+/// Kamera-Kennungen sind keine Gesundheitsdaten, aber gerätespezifisch: nicht in Logs
+/// außerhalb des Debug-Builds; [toString] nennt sie deshalb nicht.
+final class PpgCameraRef {
+  const PpgCameraRef(this.cameraId, [this.physicalCameraId]);
+
+  final String cameraId;
+  final String? physicalCameraId;
+
+  /// Gespeicherte Form `<cameraId>` bzw. `<cameraId>/<physicalCameraId>`
+  /// (Einstellungen `ppgCameraManual`, `ppgCameraAuto`).
+  String get key =>
+      physicalCameraId == null ? cameraId : '$cameraId/$physicalCameraId';
+
+  /// Liest die gespeicherte Form ([key]); Leeres oder Unpassendes ergibt `null`.
+  static PpgCameraRef? parse(String? key) {
+    if (key == null || key.isEmpty) return null;
+    final parts = key.split('/');
+    if (parts.length > 2 || parts.any((p) => p.isEmpty)) return null;
+    return PpgCameraRef(parts[0], parts.length == 2 ? parts[1] : null);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is PpgCameraRef &&
+      other.cameraId == cameraId &&
+      other.physicalCameraId == physicalCameraId;
+
+  @override
+  int get hashCode => Object.hash(cameraId, physicalCameraId);
+
+  @override
+  String toString() => 'PpgCameraRef';
+}
+
+/// Warum eine Kamera nicht für die Messung taugt (nur Anzeige).
+enum PpgCameraUnusable {
+  /// Die Taschenlampe lässt sich mit dieser Kamera nicht einschalten.
+  noFlash,
+
+  /// Keine feste Bildrate zwischen 30 und 60 fps.
+  frameRate,
+
+  /// Sonst nicht nutzbar (keine passende Bildgröße, Eigenschaften nicht lesbar).
+  other,
+}
+
+/// Beschreibung einer Rückkamera aus [PpgCamera.cameras] (FR-0220).
+final class PpgCameraInfo {
+  const PpgCameraInfo({
+    required this.ref,
+    this.focalLengthMm,
+    this.isDefault = false,
+    this.unusable,
+  });
+
+  final PpgCameraRef ref;
+
+  /// Kleinste Brennweite in mm (`LENS_INFO_AVAILABLE_FOCAL_LENGTHS`); `null`, wenn unbekannt.
+  final double? focalLengthMm;
+
+  /// Die Standardkamera: die erste Rückkamera mit Blitz (die Kamera ohne Angabe in [PpgCamera.start]).
+  final bool isDefault;
+
+  /// Grund, wenn die Kamera nicht nutzbar ist; `null` = nutzbar.
+  final PpgCameraUnusable? unusable;
+
+  /// Taschenlampe schaltbar, feste Bildrate 30 bis 60 fps und passende Bildgröße.
+  bool get usable => unusable == null;
+
+  @override
+  String toString() => 'PpgCameraInfo';
+}
+
 /// Ereignis des Aufnahmestroms. Nach [PpgCameraStopped] endet der Strom.
 sealed class PpgCameraEvent {
   const PpgCameraEvent();
@@ -68,7 +146,8 @@ final class PpgCameraDetails extends PpgCameraEvent {
   /// `FLASH_STRENGTH_LEVEL` (erst ab Android 15).
   final int? torchStrength;
 
-  /// Anteil gesättigter Pixel (Helligkeit ab 250 von 255) über alle bisherigen Bilder, 0 bis 1.
+  /// Anteil gesättigter Pixel (Helligkeit ab 250 von 255, PAR-217) über alle bisherigen
+  /// Bilder, 0 bis 1.
   final double? saturatedFraction;
 
   /// Ohne Inhalte (Gesundheitsdaten gehören nicht in Logs).
@@ -76,10 +155,12 @@ final class PpgCameraDetails extends PpgCameraEvent {
   String toString() => 'PpgCameraDetails';
 }
 
-/// Kamera läuft, Torch an; [fps] ist die gewählte feste Bildrate.
+/// Kamera läuft, Torch an; [fps] ist die gewählte feste Bildrate, [camera] die
+/// tatsächlich geöffnete Kamera.
 final class PpgCameraStarted extends PpgCameraEvent {
-  const PpgCameraStarted(this.fps);
+  const PpgCameraStarted(this.fps, this.camera);
   final int fps;
+  final PpgCameraRef camera;
 }
 
 /// Belichtung und Weißabgleich sind gesperrt (2,5 s nach Aufnahmebeginn).
@@ -102,10 +183,19 @@ abstract interface class PpgCamera {
   /// Ablehnung ist kein Fehler.
   Future<PpgCameraAvailability> requestPermission();
 
-  /// Startet die Aufnahme beim Abonnieren. Der Strom endet mit [PpgCameraStopped]
-  /// (Abbruch mit Grund) oder, wenn die App abbestellt oder [stop] ruft, ohne Ereignis.
-  /// Abbestellen schaltet Torch aus und schließt Sitzung und Gerät.
-  Stream<PpgCameraEvent> start();
+  /// Alle Rückkameras ohne Rechteanfrage (Eigenschaften brauchen kein Kamera-Recht),
+  /// auch die physischen Kameras einer logischen Mehrfachkamera (FR-0220). Reihenfolge:
+  /// Standardkamera zuerst, dann nach `cameraId`, dann `physicalCameraId` (die Kamera
+  /// selbst vor ihren physischen). Leer ohne Rückkamera oder bei einem Fehler.
+  Future<List<PpgCameraInfo>> cameras();
+
+  /// Startet die Aufnahme beim Abonnieren mit [camera], ohne Angabe mit der
+  /// Standardkamera. Startet die angegebene Kamera nicht (unbekannt, nicht nutzbar,
+  /// Fehler), endet der Strom mit [PpgCameraStopped] – nie mit einer anderen Kamera.
+  /// Der Strom endet mit [PpgCameraStopped] (Abbruch mit Grund) oder, wenn die App
+  /// abbestellt oder [stop] ruft, ohne Ereignis. Abbestellen schaltet Torch aus und
+  /// schließt Sitzung und Gerät.
+  Stream<PpgCameraEvent> start({PpgCameraRef? camera});
 
   /// Beendet eine laufende Aufnahme (Torch aus, Sitzung und Gerät zu); der Strom endet.
   Future<void> stop();
