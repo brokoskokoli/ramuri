@@ -39,6 +39,19 @@ enum DebugPpgScenario {
   noCamera,
 }
 
+/// Die drei erfundenen Rückkameras der Debug-Quelle (FR-0220), in der Reihenfolge von
+/// [PpgCamera.cameras]: Standardkamera, eine physische Kamera der Standardkamera (nutzbar)
+/// und eine Kamera ohne Blitz (nicht nutzbar).
+const List<PpgCameraInfo> debugPpgCameras = [
+  PpgCameraInfo(ref: PpgCameraRef('0'), focalLengthMm: 5.4, isDefault: true),
+  PpgCameraInfo(ref: PpgCameraRef('0', '2'), focalLengthMm: 2.2),
+  PpgCameraInfo(
+    ref: PpgCameraRef('1'),
+    focalLengthMm: 6.8,
+    unusable: PpgCameraUnusable.noFlash,
+  ),
+];
+
 /// Fake-Kamera ohne Hardware (WP27, nur Debug-Einstiegspunkt `main_debug.dart`): spielt
 /// synthetische Bildstatistik ein (Puls, schlechtes Signal, Fehlerfälle), wie sie der
 /// Android-Teil über denselben Port liefert. Kein Code der Release-Einstiegsdatei importiert
@@ -58,7 +71,29 @@ class DebugTestPpgCamera implements PpgCamera {
     debugPrint('$testPpgCameraMarker aktiv: Kamerabilder sind simuliert');
   }
 
+  /// Szenario der Standardkamera. Es bestimmt auch, was für das ganze Gerät gilt
+  /// (keine Kamera, kein Recht).
   DebugPpgScenario scenario;
+
+  final Map<PpgCameraRef, DebugPpgScenario> _scenarios = {};
+
+  /// Szenario je Kamera aus [debugPpgCameras] (Standardkamera: [scenario]; die übrigen
+  /// beginnen mit [DebugPpgScenario.goodPulse]).
+  DebugPpgScenario scenarioOf(PpgCameraRef camera) =>
+      camera == debugPpgCameras.first.ref
+      ? scenario
+      : _scenarios[camera] ?? DebugPpgScenario.goodPulse;
+
+  void setScenario(PpgCameraRef camera, DebugPpgScenario s) {
+    if (camera == debugPpgCameras.first.ref) {
+      scenario = s;
+    } else {
+      _scenarios[camera] = s;
+    }
+  }
+
+  /// Gestartete Kameras in Reihenfolge (die tatsächlich geöffnete, wie `PpgCameraStarted`).
+  final List<PpgCameraRef> startedCameras = [];
 
   /// Zeitraffer; über das Debug-Panel umschaltbar (gilt ab dem nächsten Start).
   double speed;
@@ -93,38 +128,57 @@ class DebugTestPpgCamera implements PpgCamera {
     return availability();
   }
 
+  @override
+  Future<List<PpgCameraInfo>> cameras() async =>
+      scenario == DebugPpgScenario.noCamera ? const [] : debugPpgCameras;
+
   StreamController<PpgCameraEvent>? _active;
 
+  static PpgCameraStopReason? _stopOf(DebugPpgScenario s) => switch (s) {
+    DebugPpgScenario.noCamera => PpgCameraStopReason.noCamera,
+    DebugPpgScenario.permissionDenied ||
+    DebugPpgScenario.permissionGrantedOnRequest =>
+      PpgCameraStopReason.permissionDenied,
+    DebugPpgScenario.busy => PpgCameraStopReason.busy,
+    _ => null,
+  };
+
   @override
-  Stream<PpgCameraEvent> start() {
+  Stream<PpgCameraEvent> start({PpgCameraRef? camera}) {
     late final StreamController<PpgCameraEvent> c;
     var cancelled = false;
     c = StreamController<PpgCameraEvent>(
       onListen: () async {
-        final stop = switch (scenario) {
-          DebugPpgScenario.noCamera => PpgCameraStopReason.noCamera,
-          DebugPpgScenario.permissionDenied ||
-          DebugPpgScenario.permissionGrantedOnRequest =>
-            PpgCameraStopReason.permissionDenied,
-          DebugPpgScenario.busy => PpgCameraStopReason.busy,
-          _ => null,
-        };
+        // Wie der Android-Teil: genau die angegebene Kamera, ohne Angabe die Standardkamera.
+        final ref = camera ?? debugPpgCameras.first.ref;
+        PpgCameraInfo? info;
+        for (final i in debugPpgCameras) {
+          if (i.ref == ref) info = i;
+        }
+        final sc = scenarioOf(ref);
+        final stop =
+            _stopOf(scenario) ??
+            switch (info?.unusable) {
+              _ when info == null => PpgCameraStopReason.noCamera,
+              PpgCameraUnusable.noFlash => PpgCameraStopReason.noFlash,
+              PpgCameraUnusable.frameRate => PpgCameraStopReason.frameRate,
+              PpgCameraUnusable.other => PpgCameraStopReason.error,
+              null => null,
+            } ??
+            _stopOf(sc);
         if (stop != null) {
           c.add(PpgCameraStopped(stop));
           await c.close();
           return;
         }
         torchOn = true;
-        c.add(PpgCameraStarted(fps));
-        final weak = scenario == DebugPpgScenario.weakSignal;
-        final end = scenario == DebugPpgScenario.disconnected
+        startedCameras.add(ref);
+        c.add(PpgCameraStarted(fps, ref));
+        final weak = sc == DebugPpgScenario.weakSignal;
+        final end = sc == DebugPpgScenario.disconnected
             ? 3.0
             : ppgSearchMaxRecordSeconds + 0.5;
-        final gen = _Generator(
-          fps,
-          weak,
-          scenario == DebugPpgScenario.noFinger,
-        );
+        final gen = _Generator(fps, weak, sc == DebugPpgScenario.noFinger);
         var locked = false;
         // Zeitraffer beim Start festhalten: eine Umschaltung im Panel gilt erst ab dem nächsten
         // Start (sonst spränge `due` und der Rest der Messung käme in einem Schwall).
@@ -152,7 +206,7 @@ class DebugTestPpgCamera implements PpgCamera {
         }
         if (cancelled) return;
         torchOn = false;
-        if (scenario == DebugPpgScenario.disconnected) {
+        if (sc == DebugPpgScenario.disconnected) {
           c.add(const PpgCameraStopped(PpgCameraStopReason.disconnected));
         }
         await c.close();
