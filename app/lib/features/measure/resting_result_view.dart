@@ -169,6 +169,15 @@ class RestingResultView extends StatelessWidget {
                   style: theme.textTheme.bodySmall,
                 ),
               ],
+              if (limited &&
+                  r.reasons.contains(PpgQualityReason.fewConsistentBeats)) ...[
+                const SizedBox(height: 8),
+                Text(
+                  l10n.measureFewConsistentBeats,
+                  key: const Key('measure_result_few_consistent'),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
             ],
           ),
         ),

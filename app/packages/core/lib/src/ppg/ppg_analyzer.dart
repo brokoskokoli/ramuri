@@ -35,6 +35,7 @@ class HrvStats {
     required this.pnn50,
     required this.minBpm,
     required this.maxBpm,
+    required this.diffs,
   });
 
   final int beats;
@@ -47,6 +48,9 @@ class HrvStats {
   final double pnn50;
   final double minBpm;
   final double maxBpm;
+
+  /// Zahl der Differenzen benachbarter Intervalle, aus denen RMSSD und pNN50 stammen.
+  final int diffs;
 }
 
 /// Ergebnis eines Verfahrens zur Bestimmung der Schlagzeitpunkte.
@@ -102,6 +106,8 @@ class PpgChannelResult {
     required this.meanFps,
     required this.frameJitterMs,
     required this.timingNoiseMs,
+    required this.hrv,
+    required this.hrvValid,
     this.filtered = const [],
     this.filteredStartSeconds = 0.0,
     this.beatOffsetsMs = const [],
@@ -126,6 +132,15 @@ class PpgChannelResult {
   final double timingNoiseMs;
 
   PpgMethodResult get main => methods[0];
+
+  /// Kennwerte des Hauptverfahrens über das ganze Fenster nach PAR-230 (Abschn. 8): Puls, Zahl
+  /// und Anteil der Intervalle wie [main], SDNN, RMSSD und pNN50 nur aus [hrvValid]; mit weniger
+  /// als [ppgMinHrvDiffs] Differenzen sind diese drei NaN.
+  final HrvStats hrv;
+
+  /// Je Intervall des Hauptverfahrens: gültig und keiner seiner beiden Schläge uneinig
+  /// (HRV-Auswahl, PAR-230).
+  final List<bool> hrvValid;
 
   /// Zwischenwerte für die Fenstersuche (`ppg_window_search.dart`), leer bei Ergebnissen ohne sie:
   /// gefiltertes Signal im Messfenster (100 Hz), dessen Zeit des ersten Werts in s ab Fensterbeginn,
@@ -370,8 +385,11 @@ abstract final class PpgAnalyzer {
     final art = detectArtifacts(x, ppgGridRate, peaks, f0);
 
     final dur = w.end - w.start;
-    PpgMethodResult method(String n, List<double> times, List<bool>? beatOk) {
-      final iv = intervals(times, beatOk, art);
+    PpgMethodResult method(
+      String n,
+      List<double> times,
+      ({List<double> end, List<double> ibi, List<bool> valid}) iv,
+    ) {
       return PpgMethodResult(
         name: n,
         times: times,
@@ -384,16 +402,25 @@ abstract final class PpgAnalyzer {
       );
     }
 
+    final ivMain = intervals(tmUp.times, [
+      for (final c in tmUp.corr) c >= ppgMinCorrelation,
+    ], art);
     final methods = [
-      method(_mTemplateRise, tmUp.times, [
-        for (final c in tmUp.corr) c >= ppgMinCorrelation,
-      ]),
-      method(_mTemplate, tm.times, [
-        for (final c in tm.corr) c >= ppgMinCorrelation,
-      ]),
-      method(_mPeak, peakT, null),
-      method(_mSlope, slopeT, null),
+      method(_mTemplateRise, tmUp.times, ivMain),
+      method(
+        _mTemplate,
+        tm.times,
+        intervals(tm.times, [
+          for (final c in tm.corr) c >= ppgMinCorrelation,
+        ], art),
+      ),
+      method(_mPeak, peakT, intervals(peakT, null, art)),
+      method(_mSlope, slopeT, intervals(slopeT, null, art)),
     ];
+    final offsets = [
+      for (var k = 0; k < peaks.length; k++) (tmUp.times[k] - slopeT[k]) * 1000,
+    ];
+    final hrvValid = hrvSelection(ivMain.valid, inconsistentBeats(offsets));
 
     // Zeitrauschen aus der Schwankung des Abstands Vorlagenbezug – steilster Anstieg
     final mv = methods[0].valid;
@@ -427,15 +454,60 @@ abstract final class PpgAnalyzer {
       meanFps: 1 / p.dtMean,
       frameJitterMs: p.dtSd * 1000,
       timingNoiseMs: noise,
+      hrv: stats(
+        tmUp.times,
+        ivMain.end,
+        ivMain.ibi,
+        ivMain.valid,
+        0.0,
+        dur + 1e-9,
+        hrvValid: hrvValid,
+      ),
+      hrvValid: hrvValid,
       filtered: x,
       filteredStartSeconds: p.t.first,
-      beatOffsetsMs: [
-        for (var k = 0; k < peaks.length; k++)
-          (tmUp.times[k] - slopeT[k]) * 1000,
-      ],
+      beatOffsetsMs: offsets,
       beatOk: okBeat,
     );
   }
+
+  /// Uneinige Schläge (PAR-230, Abschn. 8): je Schlag k der Abstand [offsetsMs] (Vorlagenbezug
+  /// Anstieg − lokaler steilster Anstieg, ms) gegen den Median der Schläge
+  /// k − [ppgInconsistentMedianRadius] bis k + [ppgInconsistentMedianRadius] (am Rand gekürzt,
+  /// alle Schläge unabhängig von ihrer Gültigkeit; bei gerader Zahl Mittel der beiden mittleren).
+  /// Uneinig ist eine Abweichung über [ppgInconsistentBeatMs]; ein nicht endlicher Abstand ist
+  /// immer uneinig und geht nicht in den Median ein (fail closed).
+  static List<bool> inconsistentBeats(List<double> offsetsMs) {
+    final n = offsetsMs.length;
+    return List<bool>.generate(n, (k) {
+      final d = offsetsMs[k];
+      if (!d.isFinite) return true;
+      final win = <double>[
+        for (
+          var j = math.max(0, k - ppgInconsistentMedianRadius);
+          j <= math.min(n - 1, k + ppgInconsistentMedianRadius);
+          j++
+        )
+          if (offsetsMs[j].isFinite) offsetsMs[j],
+      ]..sort();
+      final h = win.length ~/ 2;
+      final med = win.length.isOdd ? win[h] : (win[h - 1] + win[h]) / 2;
+      return (d - med).abs() > ppgInconsistentBeatMs;
+    });
+  }
+
+  /// HRV-Auswahl (PAR-230): Intervall i zählt, wenn es [valid] ist und weder Schlag i noch
+  /// Schlag i + 1 [inconsistent] ist. Fehlt ein Schlag in [inconsistent], zählt das Intervall
+  /// nicht (fail closed).
+  static List<bool> hrvSelection(List<bool> valid, List<bool> inconsistent) =>
+      List<bool>.generate(
+        valid.length,
+        (i) =>
+            valid[i] &&
+            i + 1 < inconsistent.length &&
+            !inconsistent[i] &&
+            !inconsistent[i + 1],
+      );
 
   /// Kombination der Teilbereiche: jeder Bereich wird gefiltert und bewertet (Q). Bereiche
   /// mit Q ≥ 0,7·Qmax gehen mit Gewicht Q²/σ ein (Abschn. 9).
@@ -706,15 +778,20 @@ abstract final class PpgAnalyzer {
     return (end: end, ibi: ibi, valid: valid);
   }
 
-  /// Kennwerte im Abschnitt [a, b) (Abschn. 8).
+  /// Kennwerte im Abschnitt [a, b) (Abschn. 8). Mit [hrvValid] (HRV-Auswahl nach PAR-230) kommen
+  /// SDNN, RMSSD und pNN50 nur aus dieser Auswahl und sind NaN, wenn weniger als
+  /// [ppgMinHrvDiffs] Differenzen bleiben; Puls, Zahlen und kleinster/größter Puls bleiben aus
+  /// [valid]. Ohne [hrvValid] wie die Referenz.
   static HrvStats stats(
     List<double> beats,
     List<double> ibiT,
     List<double> ibi,
     List<bool> valid,
     double a,
-    double b,
-  ) {
+    double b, {
+    List<bool>? hrvValid,
+  }) {
+    final sel = hrvValid ?? valid;
     final idx = [
       for (var i = 0; i < ibiT.length; i++)
         if (ibiT[i] >= a && ibiT[i] < b) i,
@@ -723,26 +800,34 @@ abstract final class PpgAnalyzer {
       for (final i in idx)
         if (valid[i]) ibi[i] * 1000,
     ];
+    final hv = hrvValid == null
+        ? v
+        : [
+            for (final i in idx)
+              if (sel[i]) ibi[i] * 1000,
+          ];
     final diffs = <double>[];
     for (var j = 0; j < idx.length - 1; j++) {
       final i = idx[j];
       final i2 = idx[j + 1];
-      if (i2 == i + 1 && valid[i] && valid[i2]) {
+      if (i2 == i + 1 && sel[i] && sel[i2]) {
         diffs.add((ibi[i2] - ibi[i]) * 1000);
       }
     }
     final mean = v.isEmpty ? double.nan : average(v);
+    final enough = hrvValid == null || diffs.length >= ppgMinHrvDiffs;
     var sdnn = double.nan;
-    if (v.length >= 2) {
+    if (enough && hv.length >= 2) {
+      final hm = identical(hv, v) ? mean : average(hv);
       var s = 0.0;
-      for (final e in v) {
-        s += (e - mean) * (e - mean);
+      for (final e in hv) {
+        s += (e - hm) * (e - hm);
       }
-      sdnn = math.sqrt(s / (v.length - 1));
+      sdnn = math.sqrt(s / (hv.length - 1));
     }
     var rmssd = double.nan;
     var pnn50 = double.nan;
-    if (diffs.isNotEmpty) {
+    if (enough && diffs.isNotEmpty) {
       var s = 0.0;
       var over = 0;
       for (final d in diffs) {
@@ -763,6 +848,7 @@ abstract final class PpgAnalyzer {
       pnn50: pnn50,
       minBpm: v.isEmpty ? double.nan : 60000 / v.reduce(math.max),
       maxBpm: v.isEmpty ? double.nan : 60000 / v.reduce(math.min),
+      diffs: diffs.length,
     );
   }
 

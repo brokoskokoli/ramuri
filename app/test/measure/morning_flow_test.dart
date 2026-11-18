@@ -940,6 +940,49 @@ void main() {
         expect(find.byKey(const Key('morning_no_rmssd')), findsOneWidget);
       });
 
+      for (final (lang, text) in [
+        ('de', 'Zu wenige eindeutige Schläge für die Variabilität.'),
+        ('en', 'Too few clear beats for variability.'),
+      ]) {
+        testWidgets('zu wenige einige Schläge (PAR-230), $lang: Puls, kein '
+            'RMSSD, Grund sichtbar', (tester) async {
+          final r = await _Rig.make();
+          r.next = const PpgMeasurement(
+            quality: PpgQuality.limited,
+            reasons: [PpgQualityReason.fewConsistentBeats],
+            bpm: 52.4,
+            timingNoiseMs: 12,
+            intervalsMs: [1140, double.nan, 1135],
+          );
+          await r.show(tester, dark: dark, lang: lang);
+          await r.runThrough(tester);
+          expect(r.c.outcome, MorningOutcome.limited);
+          expect(r.c.stored!.restingHrBpm, 52.4);
+          expect(r.c.stored!.rmssdMs, isNull);
+          expect(r.c.stored!.methodVersion, 3);
+          expect(find.byKey(const Key('morning_no_rmssd')), findsOneWidget);
+          expect(
+            tester
+                .widget<Text>(find.byKey(const Key('morning_few_consistent')))
+                .data,
+            text,
+          );
+        });
+      }
+
+      testWidgets(
+        'anderer Grund für eingeschränkt: kein Hinweis auf eindeutige '
+        'Schläge',
+        (tester) async {
+          final r = await _Rig.make();
+          r.next = _limited;
+          await r.show(tester, dark: dark);
+          await r.runThrough(tester);
+          expect(r.c.outcome, MorningOutcome.limited);
+          expect(find.byKey(const Key('morning_few_consistent')), findsNothing);
+        },
+      );
+
       testWidgets('Ergebnis nach Freischaltung: Markierung wie Morgenwerte, im '
           'Modus ohne', (tester) async {
         final passed = {

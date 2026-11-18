@@ -396,7 +396,8 @@ class _RecentList extends StatelessWidget {
       MorningUnusableReason.lowSignalQuality => l10n.morningReasonWeak,
       MorningUnusableReason.tooManyDisturbances ||
       MorningUnusableReason.someDisturbances ||
-      MorningUnusableReason.timingNoise => l10n.morningReasonFewBeats,
+      MorningUnusableReason.timingNoise ||
+      MorningUnusableReason.fewConsistentBeats => l10n.morningReasonFewBeats,
       _ => l10n.morningReasonInterrupted,
     };
     return Column(
