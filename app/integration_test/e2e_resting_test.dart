@@ -29,8 +29,9 @@ Future<void> _openMeasure(WidgetTester t, World w) async {
   await tapKey(t, 'measure_start');
 }
 
-/// Entwicklermodus ueber zehn Tipps auf die Version (falls noch aus) und auf
-/// Ueber die Kamera [camera] waehlen; danach zurueck zur Uebersicht.
+/// Entwicklermodus ueber zehn Tipps auf die Version (falls noch aus) und in
+/// den Entwicklereinstellungen die Kamera [camera] waehlen; danach zurueck zur
+/// Uebersicht.
 Future<void> _chooseCamera(WidgetTester t, String camera) async {
   await tapKey(t, 'home_overview');
   await tapKey(t, 'overview_about');
@@ -42,10 +43,13 @@ Future<void> _chooseCamera(WidgetTester t, String camera) async {
     }
   }
   await waitFor(t, () => has('about_dev_badge'), 'Entwicklermodus an');
+  await back(t); // Ueber -> Uebersicht
+  await waitFor(t, () => has('overview_developer'), 'Eintrag Entwickler');
+  await tapKey(t, 'overview_developer');
   await waitFor(
     t,
     () => has('about_ppg_camera_$camera'),
-    'Kamera $camera auf Ueber',
+    'Kamera $camera in den Entwicklereinstellungen',
   );
   await tapKey(t, 'about_ppg_camera_$camera');
   await back(t);
