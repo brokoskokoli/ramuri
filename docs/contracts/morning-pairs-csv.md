@@ -2,7 +2,7 @@
 
 **Status:** Vorschlag des Pakets (WP33 Teil E, FR-0215). Die Eckpunkte hat der Maintainer entschieden (K62 F4: unverschlüsselte CSV über Teilen, nur im Entwicklermodus, mit Warnhinweis vor dem Teilen wie bei der Zusatzmetriken-CSV, K57; Übergabe aus `cacheDir/exports` wie K29); die Spalten und Einzelregeln sind Vorschläge und umkehrbar, solange keine Datei der Formatversion 1 ausgeliefert ist.
 **Anforderungen:** FR-0215, FR-0201, SEC-0003.
-**Code:** `app/packages/core/lib/src/export/morning_pairs_csv.dart`; Einstieg `app/lib/features/settings/morning_pairs_section.dart` (Seite „Über“, Abschnitt Entwickler).
+**Code:** `app/packages/core/lib/src/export/morning_pairs_csv.dart`; Einstieg `app/lib/features/settings/morning_pairs_section.dart` (Seite „Entwicklereinstellungen“).
 
 Zweck: Der Maintainer vergleicht für die Validierung (K61) die Kamera-Werte einer Morgenmessung mit der Gurt-RR derselben Zeit. Die Datei liefert beide Seiten roh; **die App berechnet und zeigt weder eine Gurt-RMSSD noch Differenzen** (keine Zwischenauswertung). Das Dokument beschreibt das Format so, dass es ohne den Dart-Code gelesen werden kann.
 
@@ -58,4 +58,4 @@ Die Gurt-Pakete eines Morgens beginnen mit der Ruhephase und enden mit der Messu
 
 ## 7. Datenschutz
 
-Die Datei ist unverschlüsselt und enthält Gesundheitsdaten. Sie wird nur auf Aktion des Nutzers über Teilen übergeben, nach einem Warnhinweis (K62 F4, FR-0201); der Abschnitt Entwickler mit dem Knopf erscheint nur im Entwicklermodus. Meldungen und Logs der App nennen weder Inhalt noch Pfad.
+Die Datei ist unverschlüsselt und enthält Gesundheitsdaten. Sie wird nur auf Aktion des Nutzers über Teilen übergeben, nach einem Warnhinweis (K62 F4, FR-0201); die Seite „Entwicklereinstellungen“ mit dem Knopf ist nur im Entwicklermodus erreichbar. Meldungen und Logs der App nennen weder Inhalt noch Pfad.
