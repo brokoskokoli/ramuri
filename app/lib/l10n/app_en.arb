@@ -41,6 +41,7 @@
   "dataBody": "Here you manage the data stored in the app.",
   "homeToday": "Today",
   "homeProgress": "Progress",
+  "homeProfileTab": "Profile",
   "homeOverview": "Profile and settings",
   "overviewTitle": "Overview",
   "overviewLicenses": "Licenses",
